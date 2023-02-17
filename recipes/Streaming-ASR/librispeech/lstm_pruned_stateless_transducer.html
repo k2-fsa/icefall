@@ -379,10 +379,10 @@ $<span class="w"> </span>tensorboard<span class="w"> </span>dev<span class="w"> 
 <p>Note there is a URL in the above output. Click it and you will see
 the following screenshot:</p>
 <blockquote>
-<div><figure class="align-center" id="id5">
+<div><figure class="align-center" id="id4">
 <a class="reference external image-reference" href="https://tensorboard.dev/experiment/lzGnETjwRxC3yghNMd4kPw/"><img alt="TensorBoard screenshot" src="../../../_images/librispeech-lstm-transducer-tensorboard-log.png" style="width: 600px;" /></a>
 <figcaption>
-<p><span class="caption-number">Fig. 10 </span><span class="caption-text">TensorBoard screenshot.</span><a class="headerlink" href="#id5" title="Permalink to this image"></a></p>
+<p><span class="caption-number">Fig. 10 </span><span class="caption-text">TensorBoard screenshot.</span><a class="headerlink" href="#id4" title="Permalink to this image"></a></p>
 </figcaption>
 </figure>
 </div></blockquote>
@@ -585,121 +585,6 @@ can run:</p>
 <p>Please see <a class="reference external" href="https://k2-fsa.github.io/sherpa/python/streaming_asr/lstm/english/server.html">https://k2-fsa.github.io/sherpa/python/streaming_asr/lstm/english/server.html</a>
 for how to use the exported models in <code class="docutils literal notranslate"><span class="pre">sherpa</span></code>.</p>
 </div>
-</section>
-<section id="export-lstm-transducer-models-for-ncnn">
-<span id="export-lstm-transducer-model-for-ncnn"></span><h3>Export LSTM transducer models for ncnn<a class="headerlink" href="#export-lstm-transducer-models-for-ncnn" title="Permalink to this heading"></a></h3>
-<p>We support exporting pretrained LSTM transducer models to
-<a class="reference external" href="https://github.com/tencent/ncnn">ncnn</a> using
-<a class="reference external" href="https://github.com/Tencent/ncnn/tree/master/tools/pnnx">pnnx</a>.</p>
-<p>First, let us install a modified version of <code class="docutils literal notranslate"><span class="pre">ncnn</span></code>:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/csukuangfj/ncnn
-<span class="nb">cd</span><span class="w"> </span>ncnn
-git<span class="w"> </span>submodule<span class="w"> </span>update<span class="w"> </span>--recursive<span class="w"> </span>--init
-
-<span class="c1"># Note: We don&#39;t use &quot;python setup.py install&quot; or &quot;pip install .&quot; here</span>
-
-mkdir<span class="w"> </span>-p<span class="w"> </span>build-wheel
-<span class="nb">cd</span><span class="w"> </span>build-wheel
-
-cmake<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>-DCMAKE_BUILD_TYPE<span class="o">=</span>Release<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>-DNCNN_PYTHON<span class="o">=</span>ON<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>-DNCNN_BUILD_BENCHMARK<span class="o">=</span>OFF<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>-DNCNN_BUILD_EXAMPLES<span class="o">=</span>OFF<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>-DNCNN_BUILD_TOOLS<span class="o">=</span>ON<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>..
-
-make<span class="w"> </span>-j4
-
-<span class="nb">cd</span><span class="w"> </span>..
-
-<span class="c1"># Note: $PWD here is /path/to/ncnn</span>
-
-<span class="nb">export</span><span class="w"> </span><span class="nv">PYTHONPATH</span><span class="o">=</span><span class="nv">$PWD</span>/python:<span class="nv">$PYTHONPATH</span>
-<span class="nb">export</span><span class="w"> </span><span class="nv">PATH</span><span class="o">=</span><span class="nv">$PWD</span>/tools/pnnx/build/src:<span class="nv">$PATH</span>
-<span class="nb">export</span><span class="w"> </span><span class="nv">PATH</span><span class="o">=</span><span class="nv">$PWD</span>/build-wheel/tools/quantize:<span class="nv">$PATH</span>
-
-<span class="c1"># now build pnnx</span>
-<span class="nb">cd</span><span class="w"> </span>tools/pnnx
-mkdir<span class="w"> </span>build
-<span class="nb">cd</span><span class="w"> </span>build
-cmake<span class="w"> </span>..
-make<span class="w"> </span>-j4
-
-./src/pnnx
-</pre></div>
-</div>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>We assume that you have added the path to the binary <code class="docutils literal notranslate"><span class="pre">pnnx</span></code> to the
-environment variable <code class="docutils literal notranslate"><span class="pre">PATH</span></code>.</p>
-<p>We also assume that you have added <code class="docutils literal notranslate"><span class="pre">build/tools/quantize</span></code> to the environment
-variable <code class="docutils literal notranslate"><span class="pre">PATH</span></code> so that you are able to use <code class="docutils literal notranslate"><span class="pre">ncnn2int8</span></code> later.</p>
-</div>
-<p>Second, let us export the model using <code class="docutils literal notranslate"><span class="pre">torch.jit.trace()</span></code> that is suitable
-for <code class="docutils literal notranslate"><span class="pre">pnnx</span></code>:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">iter</span><span class="o">=</span><span class="m">468000</span>
-<span class="nv">avg</span><span class="o">=</span><span class="m">16</span>
-
-./lstm_transducer_stateless2/export-for-ncnn.py<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--exp-dir<span class="w"> </span>./lstm_transducer_stateless2/exp<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--bpe-model<span class="w"> </span>data/lang_bpe_500/bpe.model<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--iter<span class="w"> </span><span class="nv">$iter</span><span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--avg<span class="w">  </span><span class="nv">$avg</span>
-</pre></div>
-</div>
-<p>It will generate 3 files:</p>
-<blockquote>
-<div><ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">./lstm_transducer_stateless2/exp/encoder_jit_trace-pnnx.pt</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">./lstm_transducer_stateless2/exp/decoder_jit_trace-pnnx.pt</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">./lstm_transducer_stateless2/exp/joiner_jit_trace-pnnx.pt</span></code></p></li>
-</ul>
-</div></blockquote>
-<p>Third, convert torchscript model to <code class="docutils literal notranslate"><span class="pre">ncnn</span></code> format:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pnnx</span> <span class="o">./</span><span class="n">lstm_transducer_stateless2</span><span class="o">/</span><span class="n">exp</span><span class="o">/</span><span class="n">encoder_jit_trace</span><span class="o">-</span><span class="n">pnnx</span><span class="o">.</span><span class="n">pt</span>
-<span class="n">pnnx</span> <span class="o">./</span><span class="n">lstm_transducer_stateless2</span><span class="o">/</span><span class="n">exp</span><span class="o">/</span><span class="n">decoder_jit_trace</span><span class="o">-</span><span class="n">pnnx</span><span class="o">.</span><span class="n">pt</span>
-<span class="n">pnnx</span> <span class="o">./</span><span class="n">lstm_transducer_stateless2</span><span class="o">/</span><span class="n">exp</span><span class="o">/</span><span class="n">joiner_jit_trace</span><span class="o">-</span><span class="n">pnnx</span><span class="o">.</span><span class="n">pt</span>
-</pre></div>
-</div>
-<p>It will generate the following files:</p>
-<blockquote>
-<div><ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">./lstm_transducer_stateless2/exp/encoder_jit_trace-pnnx.ncnn.param</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">./lstm_transducer_stateless2/exp/encoder_jit_trace-pnnx.ncnn.bin</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">./lstm_transducer_stateless2/exp/decoder_jit_trace-pnnx.ncnn.param</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">./lstm_transducer_stateless2/exp/decoder_jit_trace-pnnx.ncnn.bin</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">./lstm_transducer_stateless2/exp/joiner_jit_trace-pnnx.ncnn.param</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">./lstm_transducer_stateless2/exp/joiner_jit_trace-pnnx.ncnn.bin</span></code></p></li>
-</ul>
-</div></blockquote>
-<p>To use the above generated files, run:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./lstm_transducer_stateless2/ncnn-decode.py<span class="w"> </span><span class="se">\</span>
-<span class="w"> </span>--tokens<span class="w"> </span>./data/lang_bpe_500/tokens.txt<span class="w"> </span><span class="se">\</span>
-<span class="w"> </span>--encoder-param-filename<span class="w"> </span>./lstm_transducer_stateless2/exp/encoder_jit_trace-pnnx.ncnn.param<span class="w"> </span><span class="se">\</span>
-<span class="w"> </span>--encoder-bin-filename<span class="w"> </span>./lstm_transducer_stateless2/exp/encoder_jit_trace-pnnx.ncnn.bin<span class="w"> </span><span class="se">\</span>
-<span class="w"> </span>--decoder-param-filename<span class="w"> </span>./lstm_transducer_stateless2/exp/decoder_jit_trace-pnnx.ncnn.param<span class="w"> </span><span class="se">\</span>
-<span class="w"> </span>--decoder-bin-filename<span class="w"> </span>./lstm_transducer_stateless2/exp/decoder_jit_trace-pnnx.ncnn.bin<span class="w"> </span><span class="se">\</span>
-<span class="w"> </span>--joiner-param-filename<span class="w"> </span>./lstm_transducer_stateless2/exp/joiner_jit_trace-pnnx.ncnn.param<span class="w"> </span><span class="se">\</span>
-<span class="w"> </span>--joiner-bin-filename<span class="w"> </span>./lstm_transducer_stateless2/exp/joiner_jit_trace-pnnx.ncnn.bin<span class="w"> </span><span class="se">\</span>
-<span class="w"> </span>/path/to/foo.wav
-</pre></div>
-</div>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./lstm_transducer_stateless2/streaming-ncnn-decode.py<span class="w"> </span><span class="se">\</span>
-<span class="w"> </span>--tokens<span class="w"> </span>./data/lang_bpe_500/tokens.txt<span class="w"> </span><span class="se">\</span>
-<span class="w"> </span>--encoder-param-filename<span class="w"> </span>./lstm_transducer_stateless2/exp/encoder_jit_trace-pnnx.ncnn.param<span class="w"> </span><span class="se">\</span>
-<span class="w"> </span>--encoder-bin-filename<span class="w"> </span>./lstm_transducer_stateless2/exp/encoder_jit_trace-pnnx.ncnn.bin<span class="w"> </span><span class="se">\</span>
-<span class="w"> </span>--decoder-param-filename<span class="w"> </span>./lstm_transducer_stateless2/exp/decoder_jit_trace-pnnx.ncnn.param<span class="w"> </span><span class="se">\</span>
-<span class="w"> </span>--decoder-bin-filename<span class="w"> </span>./lstm_transducer_stateless2/exp/decoder_jit_trace-pnnx.ncnn.bin<span class="w"> </span><span class="se">\</span>
-<span class="w"> </span>--joiner-param-filename<span class="w"> </span>./lstm_transducer_stateless2/exp/joiner_jit_trace-pnnx.ncnn.param<span class="w"> </span><span class="se">\</span>
-<span class="w"> </span>--joiner-bin-filename<span class="w"> </span>./lstm_transducer_stateless2/exp/joiner_jit_trace-pnnx.ncnn.bin<span class="w"> </span><span class="se">\</span>
-<span class="w"> </span>/path/to/foo.wav
-</pre></div>
-</div>
-<p>To use the above generated files in C++, please see
-<a class="reference external" href="https://github.com/k2-fsa/sherpa-ncnn">https://github.com/k2-fsa/sherpa-ncnn</a></p>
-<p>It is able to generate a static linked executable that can be run on Linux, Windows,
-macOS, Raspberry Pi, etc, without external dependencies.</p>
 </section>
 </section>
 <section id="download-pretrained-models">

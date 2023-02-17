@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Export ConvEmformer transducer models to ncnn &mdash; icefall 0.1 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/sphinx_highlight.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Export LSTM transducer models to ncnn" href="export-ncnn-lstm.html" />
+    <link rel="prev" title="Export to ncnn" href="export-ncnn.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            icefall
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../installation/index.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../faqs.html">Frequently Asked Questions (FAQs)</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Model export</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="export-model-state-dict.html">Export model.state_dict()</a></li>
+<li class="toctree-l2"><a class="reference internal" href="export-with-torch-jit-trace.html">Export model with torch.jit.trace()</a></li>
+<li class="toctree-l2"><a class="reference internal" href="export-with-torch-jit-script.html">Export model with torch.jit.script()</a></li>
+<li class="toctree-l2"><a class="reference internal" href="export-onnx.html">Export to ONNX</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="export-ncnn.html">Export to ncnn</a><ul class="current">
+<li class="toctree-l3 current"><a class="current reference internal" href="#">Export ConvEmformer transducer models to ncnn</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#download-the-pre-trained-model">1. Download the pre-trained model</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#install-ncnn-and-pnnx">2. Install ncnn and pnnx</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#export-the-model-via-torch-jit-trace">3. Export the model via torch.jit.trace()</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#export-torchscript-model-via-pnnx">4. Export torchscript model via pnnx</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#test-the-exported-models-in-icefall">5. Test the exported models in icefall</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#modify-the-exported-encoder-for-sherpa-ncnn">6. Modify the exported encoder for sherpa-ncnn</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#optional-int8-quantization-with-sherpa-ncnn">7. (Optional) int8 quantization with sherpa-ncnn</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="export-ncnn-lstm.html">Export LSTM transducer models to ncnn</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../recipes/index.html">Recipes</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../contributing/index.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../huggingface/index.html">Huggingface</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">icefall</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Model export</a></li>
+          <li class="breadcrumb-item"><a href="export-ncnn.html">Export to ncnn</a></li>
+      <li class="breadcrumb-item active">Export ConvEmformer transducer models to ncnn</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/k2-fsa/icefall/blob/master/docs/source/model-export/export-ncnn-conv-emformer.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="export-convemformer-transducer-models-to-ncnn">
+<span id="export-conv-emformer-transducer-models-to-ncnn"></span><h1>Export ConvEmformer transducer models to ncnn<a class="headerlink" href="#export-convemformer-transducer-models-to-ncnn" title="Permalink to this heading"></a></h1>
+<p>We use the pre-trained model from the following repository as an example:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><a class="reference external" href="https://huggingface.co/Zengwei/icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05">https://huggingface.co/Zengwei/icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05</a></p></li>
+</ul>
+</div></blockquote>
+<p>We will show you step by step how to export it to <a class="reference external" href="https://github.com/tencent/ncnn">ncnn</a> and run it with <a class="reference external" href="https://github.com/k2-fsa/sherpa-ncnn">sherpa-ncnn</a>.</p>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>We use <code class="docutils literal notranslate"><span class="pre">Ubuntu</span> <span class="pre">18.04</span></code>, <code class="docutils literal notranslate"><span class="pre">torch</span> <span class="pre">1.13</span></code>, and <code class="docutils literal notranslate"><span class="pre">Python</span> <span class="pre">3.8</span></code> for testing.</p>
+</div>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p>Please use a more recent version of PyTorch. For instance, <code class="docutils literal notranslate"><span class="pre">torch</span> <span class="pre">1.8</span></code>
+may <code class="docutils literal notranslate"><span class="pre">not</span></code> work.</p>
+</div>
+<section id="download-the-pre-trained-model">
+<h2>1. Download the pre-trained model<a class="headerlink" href="#download-the-pre-trained-model" title="Permalink to this heading"></a></h2>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>You can also refer to <a class="reference external" href="https://k2-fsa.github.io/sherpa/cpp/pretrained_models/online_transducer.html#icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05">https://k2-fsa.github.io/sherpa/cpp/pretrained_models/online_transducer.html#icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05</a> to download the pre-trained model.</p>
+<p>You have to install <a class="reference external" href="https://git-lfs.com/">git-lfs</a> before you continue.</p>
+</div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>egs/librispeech/ASR
+
+<span class="nv">GIT_LFS_SKIP_SMUDGE</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/Zengwei/icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05
+<span class="nb">cd</span><span class="w"> </span>icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05
+
+git<span class="w"> </span>lfs<span class="w"> </span>pull<span class="w"> </span>--include<span class="w"> </span><span class="s2">&quot;exp/pretrained-epoch-30-avg-10-averaged.pt&quot;</span>
+git<span class="w"> </span>lfs<span class="w"> </span>pull<span class="w"> </span>--include<span class="w"> </span><span class="s2">&quot;data/lang_bpe_500/bpe.model&quot;</span>
+
+<span class="nb">cd</span><span class="w"> </span>..
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>We downloaded <code class="docutils literal notranslate"><span class="pre">exp/pretrained-xxx.pt</span></code>, not <code class="docutils literal notranslate"><span class="pre">exp/cpu-jit_xxx.pt</span></code>.</p>
+</div>
+<p>In the above code, we downloaded the pre-trained model into the directory
+<code class="docutils literal notranslate"><span class="pre">egs/librispeech/ASR/icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05</span></code>.</p>
+</section>
+<section id="install-ncnn-and-pnnx">
+<span id="export-for-ncnn-install-ncnn-and-pnnx"></span><h2>2. Install ncnn and pnnx<a class="headerlink" href="#install-ncnn-and-pnnx" title="Permalink to this heading"></a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># We put ncnn into $HOME/open-source/ncnn</span>
+<span class="c1"># You can change it to anywhere you like</span>
+
+<span class="nb">cd</span><span class="w"> </span><span class="nv">$HOME</span>
+mkdir<span class="w"> </span>-p<span class="w"> </span>open-source
+<span class="nb">cd</span><span class="w"> </span>open-source
+
+git<span class="w"> </span>clone<span class="w"> </span>https://github.com/csukuangfj/ncnn
+<span class="nb">cd</span><span class="w"> </span>ncnn
+git<span class="w"> </span>submodule<span class="w"> </span>update<span class="w"> </span>--recursive<span class="w"> </span>--init
+
+<span class="c1"># Note: We don&#39;t use &quot;python setup.py install&quot; or &quot;pip install .&quot; here</span>
+
+mkdir<span class="w"> </span>-p<span class="w"> </span>build-wheel
+<span class="nb">cd</span><span class="w"> </span>build-wheel
+
+cmake<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-DCMAKE_BUILD_TYPE<span class="o">=</span>Release<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-DNCNN_PYTHON<span class="o">=</span>ON<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-DNCNN_BUILD_BENCHMARK<span class="o">=</span>OFF<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-DNCNN_BUILD_EXAMPLES<span class="o">=</span>OFF<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-DNCNN_BUILD_TOOLS<span class="o">=</span>ON<span class="w"> </span><span class="se">\</span>
+..
+
+make<span class="w"> </span>-j4
+
+<span class="nb">cd</span><span class="w"> </span>..
+
+<span class="c1"># Note: $PWD here is $HOME/open-source/ncnn</span>
+
+<span class="nb">export</span><span class="w"> </span><span class="nv">PYTHONPATH</span><span class="o">=</span><span class="nv">$PWD</span>/python:<span class="nv">$PYTHONPATH</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">PATH</span><span class="o">=</span><span class="nv">$PWD</span>/tools/pnnx/build/src:<span class="nv">$PATH</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">PATH</span><span class="o">=</span><span class="nv">$PWD</span>/build-wheel/tools/quantize:<span class="nv">$PATH</span>
+
+<span class="c1"># Now build pnnx</span>
+<span class="nb">cd</span><span class="w"> </span>tools/pnnx
+mkdir<span class="w"> </span>build
+<span class="nb">cd</span><span class="w"> </span>build
+cmake<span class="w"> </span>..
+make<span class="w"> </span>-j4
+
+./src/pnnx
+</pre></div>
+</div>
+<p>Congratulations! You have successfully installed the following components:</p>
+<blockquote>
+<div><ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">pnxx</span></code>, which is an executable located in
+<code class="docutils literal notranslate"><span class="pre">$HOME/open-source/ncnn/tools/pnnx/build/src</span></code>. We will use
+it to convert models exported by <code class="docutils literal notranslate"><span class="pre">torch.jit.trace()</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ncnn2int8</span></code>, which is an executable located in
+<code class="docutils literal notranslate"><span class="pre">$HOME/open-source/ncnn/build-wheel/tools/quantize</span></code>. We will use
+it to quantize our models to <code class="docutils literal notranslate"><span class="pre">int8</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ncnn.cpython-38-x86_64-linux-gnu.so</span></code>, which is a Python module located
+in <code class="docutils literal notranslate"><span class="pre">$HOME/open-source/ncnn/python/ncnn</span></code>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>I am using <code class="docutils literal notranslate"><span class="pre">Python</span> <span class="pre">3.8</span></code>, so it
+is <code class="docutils literal notranslate"><span class="pre">ncnn.cpython-38-x86_64-linux-gnu.so</span></code>. If you use a different
+version, say, <code class="docutils literal notranslate"><span class="pre">Python</span> <span class="pre">3.9</span></code>, the name would be
+<code class="docutils literal notranslate"><span class="pre">ncnn.cpython-39-x86_64-linux-gnu.so</span></code>.</p>
+<p>Also, if you are not using Linux, the file name would also be different.
+But that does not matter. As long as you can compile it, it should work.</p>
+</div>
+</li>
+</ul>
+</div></blockquote>
+<p>We have set up <code class="docutils literal notranslate"><span class="pre">PYTHONPATH</span></code> so that you can use <code class="docutils literal notranslate"><span class="pre">import</span> <span class="pre">ncnn</span></code> in your
+Python code. We have also set up <code class="docutils literal notranslate"><span class="pre">PATH</span></code> so that you can use
+<code class="docutils literal notranslate"><span class="pre">pnnx</span></code> and <code class="docutils literal notranslate"><span class="pre">ncnn2int8</span></code> later in your terminal.</p>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p>Please don’t use <a class="reference external" href="https://github.com/tencent/ncnn">https://github.com/tencent/ncnn</a>.
+We have made some modifications to the offical <a class="reference external" href="https://github.com/tencent/ncnn">ncnn</a>.</p>
+<p>We will synchronize <a class="reference external" href="https://github.com/csukuangfj/ncnn">https://github.com/csukuangfj/ncnn</a> periodically
+with the official one.</p>
+</div>
+</section>
+<section id="export-the-model-via-torch-jit-trace">
+<h2>3. Export the model via torch.jit.trace()<a class="headerlink" href="#export-the-model-via-torch-jit-trace" title="Permalink to this heading"></a></h2>
+<p>First, let us rename our pre-trained model:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">cd</span> <span class="n">egs</span><span class="o">/</span><span class="n">librispeech</span><span class="o">/</span><span class="n">ASR</span>
+
+<span class="n">cd</span> <span class="n">icefall</span><span class="o">-</span><span class="n">asr</span><span class="o">-</span><span class="n">librispeech</span><span class="o">-</span><span class="n">conv</span><span class="o">-</span><span class="n">emformer</span><span class="o">-</span><span class="n">transducer</span><span class="o">-</span><span class="n">stateless2</span><span class="o">-</span><span class="mi">2022</span><span class="o">-</span><span class="mi">07</span><span class="o">-</span><span class="mi">05</span><span class="o">/</span><span class="n">exp</span>
+
+<span class="n">ln</span> <span class="o">-</span><span class="n">s</span> <span class="n">pretrained</span><span class="o">-</span><span class="n">epoch</span><span class="o">-</span><span class="mi">30</span><span class="o">-</span><span class="n">avg</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="n">averaged</span><span class="o">.</span><span class="n">pt</span> <span class="n">epoch</span><span class="o">-</span><span class="mf">30.</span><span class="n">pt</span>
+
+<span class="n">cd</span> <span class="o">../..</span>
+</pre></div>
+</div>
+<p>Next, we use the following code to export our model:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">dir</span><span class="o">=</span>./icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/
+
+./conv_emformer_transducer_stateless2/export-for-ncnn.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--exp-dir<span class="w"> </span><span class="nv">$dir</span>/exp<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--bpe-model<span class="w"> </span><span class="nv">$dir</span>/data/lang_bpe_500/bpe.model<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--epoch<span class="w"> </span><span class="m">30</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--avg<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--use-averaged-model<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span><span class="se">\</span>
+<span class="w">  </span>--num-encoder-layers<span class="w"> </span><span class="m">12</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--chunk-length<span class="w"> </span><span class="m">32</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--cnn-module-kernel<span class="w"> </span><span class="m">31</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--left-context-length<span class="w"> </span><span class="m">32</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--right-context-length<span class="w"> </span><span class="m">8</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--memory-size<span class="w"> </span><span class="m">32</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--encoder-dim<span class="w"> </span><span class="m">512</span>
+</pre></div>
+</div>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>We have renamed our model to <code class="docutils literal notranslate"><span class="pre">epoch-30.pt</span></code> so that we can use <code class="docutils literal notranslate"><span class="pre">--epoch</span> <span class="pre">30</span></code>.
+There is only one pre-trained model, so we use <code class="docutils literal notranslate"><span class="pre">--avg</span> <span class="pre">1</span> <span class="pre">--use-averaged-model</span> <span class="pre">0</span></code>.</p>
+<p>If you have trained a model by yourself and if you have all checkpoints
+available, please first use <code class="docutils literal notranslate"><span class="pre">decode.py</span></code> to tune <code class="docutils literal notranslate"><span class="pre">--epoch</span> <span class="pre">--avg</span></code>
+and select the best combination with with <code class="docutils literal notranslate"><span class="pre">--use-averaged-model</span> <span class="pre">1</span></code>.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>You will see the following log output:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="mi">2023</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">11</span> <span class="mi">12</span><span class="p">:</span><span class="mi">15</span><span class="p">:</span><span class="mi">38</span><span class="p">,</span><span class="mi">677</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">export</span><span class="o">-</span><span class="k">for</span><span class="o">-</span><span class="n">ncnn</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">220</span><span class="p">]</span> <span class="n">device</span><span class="p">:</span> <span class="n">cpu</span>
+<span class="mi">2023</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">11</span> <span class="mi">12</span><span class="p">:</span><span class="mi">15</span><span class="p">:</span><span class="mi">38</span><span class="p">,</span><span class="mi">681</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">export</span><span class="o">-</span><span class="k">for</span><span class="o">-</span><span class="n">ncnn</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">229</span><span class="p">]</span> <span class="p">{</span><span class="s1">&#39;best_train_loss&#39;</span><span class="p">:</span> <span class="n">inf</span><span class="p">,</span> <span class="s1">&#39;best_valid_loss&#39;</span><span class="p">:</span> <span class="n">inf</span><span class="p">,</span> <span class="s1">&#39;best_train_epoch&#39;</span><span class="p">:</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;best_v</span>
+<span class="n">alid_epoch</span><span class="s1">&#39;: -1, &#39;</span><span class="n">batch_idx_train</span><span class="s1">&#39;: 0, &#39;</span><span class="n">log_interval</span><span class="s1">&#39;: 50, &#39;</span><span class="n">reset_interval</span><span class="s1">&#39;: 200, &#39;</span><span class="n">valid_interval</span><span class="s1">&#39;: 3000, &#39;</span><span class="n">feature_dim</span><span class="s1">&#39;: 80, &#39;</span><span class="n">subsampl</span>
+<span class="n">ing_factor</span><span class="s1">&#39;: 4, &#39;</span><span class="n">decoder_dim</span><span class="s1">&#39;: 512, &#39;</span><span class="n">joiner_dim</span><span class="s1">&#39;: 512, &#39;</span><span class="n">model_warm_step</span><span class="s1">&#39;: 3000, &#39;</span><span class="n">env_info</span><span class="s1">&#39;: {&#39;</span><span class="n">k2</span><span class="o">-</span><span class="n">version</span><span class="s1">&#39;: &#39;</span><span class="mf">1.23.2</span><span class="s1">&#39;, &#39;</span><span class="n">k2</span><span class="o">-</span><span class="n">build</span><span class="o">-</span><span class="nb">type</span><span class="s1">&#39;:</span>
+<span class="s1">&#39;Release&#39;</span><span class="p">,</span> <span class="s1">&#39;k2-with-cuda&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;k2-git-sha1&#39;</span><span class="p">:</span> <span class="s1">&#39;a34171ed85605b0926eebbd0463d059431f4f74a&#39;</span><span class="p">,</span> <span class="s1">&#39;k2-git-date&#39;</span><span class="p">:</span> <span class="s1">&#39;Wed Dec 14 00:06:38 2022&#39;</span><span class="p">,</span>
+ <span class="s1">&#39;lhotse-version&#39;</span><span class="p">:</span> <span class="s1">&#39;1.12.0.dev+missing.version.file&#39;</span><span class="p">,</span> <span class="s1">&#39;torch-version&#39;</span><span class="p">:</span> <span class="s1">&#39;1.10.0+cu102&#39;</span><span class="p">,</span> <span class="s1">&#39;torch-cuda-available&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span> <span class="s1">&#39;torch-cuda-vers</span>
+<span class="n">ion</span><span class="s1">&#39;: &#39;</span><span class="mf">10.2</span><span class="s1">&#39;, &#39;</span><span class="n">python</span><span class="o">-</span><span class="n">version</span><span class="s1">&#39;: &#39;</span><span class="mf">3.8</span><span class="s1">&#39;, &#39;</span><span class="n">icefall</span><span class="o">-</span><span class="n">git</span><span class="o">-</span><span class="n">branch</span><span class="s1">&#39;: &#39;</span><span class="n">fix</span><span class="o">-</span><span class="n">stateless3</span><span class="o">-</span><span class="n">train</span><span class="o">-</span><span class="mi">2022</span><span class="o">-</span><span class="mi">12</span><span class="o">-</span><span class="mi">27</span><span class="s1">&#39;, &#39;</span><span class="n">icefall</span><span class="o">-</span><span class="n">git</span><span class="o">-</span><span class="n">sha1</span><span class="s1">&#39;: &#39;</span><span class="mf">530e8</span><span class="n">a1</span><span class="o">-</span><span class="n">dirty</span><span class="s1">&#39;, &#39;</span>
+<span class="n">icefall</span><span class="o">-</span><span class="n">git</span><span class="o">-</span><span class="n">date</span><span class="s1">&#39;: &#39;</span><span class="n">Tue</span> <span class="n">Dec</span> <span class="mi">27</span> <span class="mi">13</span><span class="p">:</span><span class="mi">59</span><span class="p">:</span><span class="mi">18</span> <span class="mi">2022</span><span class="s1">&#39;, &#39;</span><span class="n">icefall</span><span class="o">-</span><span class="n">path</span><span class="s1">&#39;: &#39;</span><span class="o">/</span><span class="n">star</span><span class="o">-</span><span class="n">fj</span><span class="o">/</span><span class="n">fangjun</span><span class="o">/</span><span class="nb">open</span><span class="o">-</span><span class="n">source</span><span class="o">/</span><span class="n">icefall</span><span class="s1">&#39;, &#39;</span><span class="n">k2</span><span class="o">-</span><span class="n">path</span><span class="s1">&#39;: &#39;</span><span class="o">/</span><span class="n">star</span><span class="o">-</span><span class="n">fj</span><span class="o">/</span><span class="n">fangjun</span><span class="o">/</span><span class="n">op</span>
+<span class="n">en</span><span class="o">-</span><span class="n">source</span><span class="o">/</span><span class="n">k2</span><span class="o">/</span><span class="n">k2</span><span class="o">/</span><span class="n">python</span><span class="o">/</span><span class="n">k2</span><span class="o">/</span><span class="fm">__init__</span><span class="o">.</span><span class="n">py</span><span class="s1">&#39;, &#39;</span><span class="n">lhotse</span><span class="o">-</span><span class="n">path</span><span class="s1">&#39;: &#39;</span><span class="o">/</span><span class="n">star</span><span class="o">-</span><span class="n">fj</span><span class="o">/</span><span class="n">fangjun</span><span class="o">/</span><span class="nb">open</span><span class="o">-</span><span class="n">source</span><span class="o">/</span><span class="n">lhotse</span><span class="o">/</span><span class="n">lhotse</span><span class="o">/</span><span class="fm">__init__</span><span class="o">.</span><span class="n">py</span><span class="s1">&#39;, &#39;</span><span class="n">hostname</span><span class="s1">&#39;: &#39;</span><span class="n">de</span><span class="o">-</span><span class="mi">74279</span>
+<span class="o">-</span><span class="n">k2</span><span class="o">-</span><span class="n">train</span><span class="o">-</span><span class="mi">3</span><span class="o">-</span><span class="mi">1220120619</span><span class="o">-</span><span class="mi">7695</span><span class="n">ff496b</span><span class="o">-</span><span class="n">s9n4w</span><span class="s1">&#39;, &#39;</span><span class="n">IP</span> <span class="n">address</span><span class="s1">&#39;: &#39;</span><span class="mf">127.0.0.1</span><span class="s1">&#39;}, &#39;</span><span class="n">epoch</span><span class="s1">&#39;: 30, &#39;</span><span class="nb">iter</span><span class="s1">&#39;: 0, &#39;</span><span class="n">avg</span><span class="s1">&#39;: 1, &#39;</span><span class="n">exp_dir</span><span class="s1">&#39;: PosixPath(&#39;</span><span class="n">icefa</span>
+<span class="n">ll</span><span class="o">-</span><span class="n">asr</span><span class="o">-</span><span class="n">librispeech</span><span class="o">-</span><span class="n">conv</span><span class="o">-</span><span class="n">emformer</span><span class="o">-</span><span class="n">transducer</span><span class="o">-</span><span class="n">stateless2</span><span class="o">-</span><span class="mi">2022</span><span class="o">-</span><span class="mi">07</span><span class="o">-</span><span class="mi">05</span><span class="o">/</span><span class="n">exp</span><span class="s1">&#39;), &#39;</span><span class="n">bpe_model</span><span class="s1">&#39;: &#39;</span><span class="o">./</span><span class="n">icefall</span><span class="o">-</span><span class="n">asr</span><span class="o">-</span><span class="n">librispeech</span><span class="o">-</span><span class="n">conv</span><span class="o">-</span><span class="n">emformer</span><span class="o">-</span><span class="n">transdu</span>
+<span class="n">cer</span><span class="o">-</span><span class="n">stateless2</span><span class="o">-</span><span class="mi">2022</span><span class="o">-</span><span class="mi">07</span><span class="o">-</span><span class="mi">05</span><span class="o">//</span><span class="n">data</span><span class="o">/</span><span class="n">lang_bpe_500</span><span class="o">/</span><span class="n">bpe</span><span class="o">.</span><span class="n">model</span><span class="s1">&#39;, &#39;</span><span class="n">jit</span><span class="s1">&#39;: False, &#39;</span><span class="n">context_size</span><span class="s1">&#39;: 2, &#39;</span><span class="n">use_averaged_model</span><span class="s1">&#39;: False, &#39;</span><span class="n">encoder_dim</span><span class="s1">&#39;:</span>
+<span class="mi">512</span><span class="p">,</span> <span class="s1">&#39;nhead&#39;</span><span class="p">:</span> <span class="mi">8</span><span class="p">,</span> <span class="s1">&#39;dim_feedforward&#39;</span><span class="p">:</span> <span class="mi">2048</span><span class="p">,</span> <span class="s1">&#39;num_encoder_layers&#39;</span><span class="p">:</span> <span class="mi">12</span><span class="p">,</span> <span class="s1">&#39;cnn_module_kernel&#39;</span><span class="p">:</span> <span class="mi">31</span><span class="p">,</span> <span class="s1">&#39;left_context_length&#39;</span><span class="p">:</span> <span class="mi">32</span><span class="p">,</span> <span class="s1">&#39;chunk_length&#39;</span>
+<span class="p">:</span> <span class="mi">32</span><span class="p">,</span> <span class="s1">&#39;right_context_length&#39;</span><span class="p">:</span> <span class="mi">8</span><span class="p">,</span> <span class="s1">&#39;memory_size&#39;</span><span class="p">:</span> <span class="mi">32</span><span class="p">,</span> <span class="s1">&#39;blank_id&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;vocab_size&#39;</span><span class="p">:</span> <span class="mi">500</span><span class="p">}</span>
+<span class="mi">2023</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">11</span> <span class="mi">12</span><span class="p">:</span><span class="mi">15</span><span class="p">:</span><span class="mi">38</span><span class="p">,</span><span class="mi">681</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">export</span><span class="o">-</span><span class="k">for</span><span class="o">-</span><span class="n">ncnn</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">231</span><span class="p">]</span> <span class="n">About</span> <span class="n">to</span> <span class="n">create</span> <span class="n">model</span>
+<span class="mi">2023</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">11</span> <span class="mi">12</span><span class="p">:</span><span class="mi">15</span><span class="p">:</span><span class="mi">40</span><span class="p">,</span><span class="mi">053</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">checkpoint</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">112</span><span class="p">]</span> <span class="n">Loading</span> <span class="n">checkpoint</span> <span class="kn">from</span> <span class="nn">icefall</span><span class="o">-</span><span class="n">asr</span><span class="o">-</span><span class="n">librispeech</span><span class="o">-</span><span class="n">conv</span><span class="o">-</span><span class="n">emformer</span><span class="o">-</span><span class="n">transducer</span><span class="o">-</span><span class="n">stateless2</span><span class="o">-</span><span class="mi">2</span>
+<span class="mi">022</span><span class="o">-</span><span class="mi">07</span><span class="o">-</span><span class="mi">05</span><span class="o">/</span><span class="n">exp</span><span class="o">/</span><span class="n">epoch</span><span class="o">-</span><span class="mf">30.</span><span class="n">pt</span>
+<span class="mi">2023</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">11</span> <span class="mi">12</span><span class="p">:</span><span class="mi">15</span><span class="p">:</span><span class="mi">40</span><span class="p">,</span><span class="mi">708</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">export</span><span class="o">-</span><span class="k">for</span><span class="o">-</span><span class="n">ncnn</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">315</span><span class="p">]</span> <span class="n">Number</span> <span class="n">of</span> <span class="n">model</span> <span class="n">parameters</span><span class="p">:</span> <span class="mi">75490012</span>
+<span class="mi">2023</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">11</span> <span class="mi">12</span><span class="p">:</span><span class="mi">15</span><span class="p">:</span><span class="mi">41</span><span class="p">,</span><span class="mi">681</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">export</span><span class="o">-</span><span class="k">for</span><span class="o">-</span><span class="n">ncnn</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">318</span><span class="p">]</span> <span class="n">Using</span> <span class="n">torch</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">trace</span><span class="p">()</span>
+<span class="mi">2023</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">11</span> <span class="mi">12</span><span class="p">:</span><span class="mi">15</span><span class="p">:</span><span class="mi">41</span><span class="p">,</span><span class="mi">681</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">export</span><span class="o">-</span><span class="k">for</span><span class="o">-</span><span class="n">ncnn</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">320</span><span class="p">]</span> <span class="n">Exporting</span> <span class="n">encoder</span>
+<span class="mi">2023</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">11</span> <span class="mi">12</span><span class="p">:</span><span class="mi">15</span><span class="p">:</span><span class="mi">41</span><span class="p">,</span><span class="mi">682</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">export</span><span class="o">-</span><span class="k">for</span><span class="o">-</span><span class="n">ncnn</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">149</span><span class="p">]</span> <span class="n">chunk_length</span><span class="p">:</span> <span class="mi">32</span><span class="p">,</span> <span class="n">right_context_length</span><span class="p">:</span> <span class="mi">8</span>
+</pre></div>
+</div>
+<p>The log shows the model has <code class="docutils literal notranslate"><span class="pre">75490012</span></code> parameters, i.e., <code class="docutils literal notranslate"><span class="pre">~75</span> <span class="pre">M</span></code>.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ls</span> <span class="o">-</span><span class="n">lh</span> <span class="n">icefall</span><span class="o">-</span><span class="n">asr</span><span class="o">-</span><span class="n">librispeech</span><span class="o">-</span><span class="n">conv</span><span class="o">-</span><span class="n">emformer</span><span class="o">-</span><span class="n">transducer</span><span class="o">-</span><span class="n">stateless2</span><span class="o">-</span><span class="mi">2022</span><span class="o">-</span><span class="mi">07</span><span class="o">-</span><span class="mi">05</span><span class="o">/</span><span class="n">exp</span><span class="o">/</span><span class="n">pretrained</span><span class="o">-</span><span class="n">epoch</span><span class="o">-</span><span class="mi">30</span><span class="o">-</span><span class="n">avg</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="n">averaged</span><span class="o">.</span><span class="n">pt</span>
+
+<span class="o">-</span><span class="n">rw</span><span class="o">-</span><span class="n">r</span><span class="o">--</span><span class="n">r</span><span class="o">--</span> <span class="mi">1</span> <span class="n">kuangfangjun</span> <span class="n">root</span> <span class="mi">289</span><span class="n">M</span> <span class="n">Jan</span> <span class="mi">11</span> <span class="mi">12</span><span class="p">:</span><span class="mi">05</span> <span class="n">icefall</span><span class="o">-</span><span class="n">asr</span><span class="o">-</span><span class="n">librispeech</span><span class="o">-</span><span class="n">conv</span><span class="o">-</span><span class="n">emformer</span><span class="o">-</span><span class="n">transducer</span><span class="o">-</span><span class="n">stateless2</span><span class="o">-</span><span class="mi">2022</span><span class="o">-</span><span class="mi">07</span><span class="o">-</span><span class="mi">05</span><span class="o">/</span><span class="n">exp</span><span class="o">/</span><span class="n">pretrained</span><span class="o">-</span><span class="n">epoch</span><span class="o">-</span><span class="mi">30</span><span class="o">-</span><span class="n">avg</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="n">averaged</span><span class="o">.</span><span class="n">pt</span>
+</pre></div>
+</div>
+<p>You can see that the file size of the pre-trained model is <code class="docutils literal notranslate"><span class="pre">289</span> <span class="pre">MB</span></code>, which
+is roughly equal to <code class="docutils literal notranslate"><span class="pre">75490012*4/1024/1024</span> <span class="pre">=</span> <span class="pre">287.97</span> <span class="pre">MB</span></code>.</p>
+</div>
+<p>After running <code class="docutils literal notranslate"><span class="pre">conv_emformer_transducer_stateless2/export-for-ncnn.py</span></code>,
+we will get the following files:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ls<span class="w"> </span>-lh<span class="w"> </span>icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/*pnnx*
+
+-rw-r--r--<span class="w"> </span><span class="m">1</span><span class="w"> </span>kuangfangjun<span class="w"> </span>root<span class="w"> </span>1010K<span class="w"> </span>Jan<span class="w"> </span><span class="m">11</span><span class="w"> </span><span class="m">12</span>:15<span class="w"> </span>icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/decoder_jit_trace-pnnx.pt
+-rw-r--r--<span class="w"> </span><span class="m">1</span><span class="w"> </span>kuangfangjun<span class="w"> </span>root<span class="w">  </span>283M<span class="w"> </span>Jan<span class="w"> </span><span class="m">11</span><span class="w"> </span><span class="m">12</span>:15<span class="w"> </span>icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/encoder_jit_trace-pnnx.pt
+-rw-r--r--<span class="w"> </span><span class="m">1</span><span class="w"> </span>kuangfangjun<span class="w"> </span>root<span class="w">  </span><span class="m">3</span>.0M<span class="w"> </span>Jan<span class="w"> </span><span class="m">11</span><span class="w"> </span><span class="m">12</span>:15<span class="w"> </span>icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/joiner_jit_trace-pnnx.pt
+</pre></div>
+</div>
+</section>
+<section id="export-torchscript-model-via-pnnx">
+<span id="conv-emformer-step-4-export-torchscript-model-via-pnnx"></span><h2>4. Export torchscript model via pnnx<a class="headerlink" href="#export-torchscript-model-via-pnnx" title="Permalink to this heading"></a></h2>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>Make sure you have set up the <code class="docutils literal notranslate"><span class="pre">PATH</span></code> environment variable. Otherwise,
+it will throw an error saying that <code class="docutils literal notranslate"><span class="pre">pnnx</span></code> could not be found.</p>
+</div>
+<p>Now, it’s time to export our models to <a class="reference external" href="https://github.com/tencent/ncnn">ncnn</a> via <code class="docutils literal notranslate"><span class="pre">pnnx</span></code>.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">cd</span> <span class="n">icefall</span><span class="o">-</span><span class="n">asr</span><span class="o">-</span><span class="n">librispeech</span><span class="o">-</span><span class="n">conv</span><span class="o">-</span><span class="n">emformer</span><span class="o">-</span><span class="n">transducer</span><span class="o">-</span><span class="n">stateless2</span><span class="o">-</span><span class="mi">2022</span><span class="o">-</span><span class="mi">07</span><span class="o">-</span><span class="mi">05</span><span class="o">/</span><span class="n">exp</span><span class="o">/</span>
+
+<span class="n">pnnx</span> <span class="o">./</span><span class="n">encoder_jit_trace</span><span class="o">-</span><span class="n">pnnx</span><span class="o">.</span><span class="n">pt</span>
+<span class="n">pnnx</span> <span class="o">./</span><span class="n">decoder_jit_trace</span><span class="o">-</span><span class="n">pnnx</span><span class="o">.</span><span class="n">pt</span>
+<span class="n">pnnx</span> <span class="o">./</span><span class="n">joiner_jit_trace</span><span class="o">-</span><span class="n">pnnx</span><span class="o">.</span><span class="n">pt</span>
+</pre></div>
+</div>
+<p>It will generate the following files:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ls<span class="w"> </span>-lh<span class="w">  </span>icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/*ncnn*<span class="o">{</span>bin,param<span class="o">}</span>
+
+-rw-r--r--<span class="w"> </span><span class="m">1</span><span class="w"> </span>kuangfangjun<span class="w"> </span>root<span class="w"> </span>503K<span class="w"> </span>Jan<span class="w"> </span><span class="m">11</span><span class="w"> </span><span class="m">12</span>:38<span class="w"> </span>icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/decoder_jit_trace-pnnx.ncnn.bin
+-rw-r--r--<span class="w"> </span><span class="m">1</span><span class="w"> </span>kuangfangjun<span class="w"> </span>root<span class="w">  </span><span class="m">437</span><span class="w"> </span>Jan<span class="w"> </span><span class="m">11</span><span class="w"> </span><span class="m">12</span>:38<span class="w"> </span>icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/decoder_jit_trace-pnnx.ncnn.param
+-rw-r--r--<span class="w"> </span><span class="m">1</span><span class="w"> </span>kuangfangjun<span class="w"> </span>root<span class="w"> </span>142M<span class="w"> </span>Jan<span class="w"> </span><span class="m">11</span><span class="w"> </span><span class="m">12</span>:36<span class="w"> </span>icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/encoder_jit_trace-pnnx.ncnn.bin
+-rw-r--r--<span class="w"> </span><span class="m">1</span><span class="w"> </span>kuangfangjun<span class="w"> </span>root<span class="w">  </span>79K<span class="w"> </span>Jan<span class="w"> </span><span class="m">11</span><span class="w"> </span><span class="m">12</span>:36<span class="w"> </span>icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/encoder_jit_trace-pnnx.ncnn.param
+-rw-r--r--<span class="w"> </span><span class="m">1</span><span class="w"> </span>kuangfangjun<span class="w"> </span>root<span class="w"> </span><span class="m">1</span>.5M<span class="w"> </span>Jan<span class="w"> </span><span class="m">11</span><span class="w"> </span><span class="m">12</span>:38<span class="w"> </span>icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/joiner_jit_trace-pnnx.ncnn.bin
+-rw-r--r--<span class="w"> </span><span class="m">1</span><span class="w"> </span>kuangfangjun<span class="w"> </span>root<span class="w">  </span><span class="m">488</span><span class="w"> </span>Jan<span class="w"> </span><span class="m">11</span><span class="w"> </span><span class="m">12</span>:38<span class="w"> </span>icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/joiner_jit_trace-pnnx.ncnn.param
+</pre></div>
+</div>
+<p>There are two types of files:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">param</span></code>: It is a text file containing the model architectures. You can
+use a text editor to view its content.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">bin</span></code>: It is a binary file containing the model parameters.</p></li>
+</ul>
+<p>We compare the file sizes of the models below before and after converting via <code class="docutils literal notranslate"><span class="pre">pnnx</span></code>:</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>File name</p></th>
+<th class="head"><p>File size</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>encoder_jit_trace-pnnx.pt</p></td>
+<td><p>283 MB</p></td>
+</tr>
+<tr class="row-odd"><td><p>decoder_jit_trace-pnnx.pt</p></td>
+<td><p>1010 KB</p></td>
+</tr>
+<tr class="row-even"><td><p>joiner_jit_trace-pnnx.pt</p></td>
+<td><p>3.0 MB</p></td>
+</tr>
+<tr class="row-odd"><td><p>encoder_jit_trace-pnnx.ncnn.bin</p></td>
+<td><p>142 MB</p></td>
+</tr>
+<tr class="row-even"><td><p>decoder_jit_trace-pnnx.ncnn.bin</p></td>
+<td><p>503 KB</p></td>
+</tr>
+<tr class="row-odd"><td><p>joiner_jit_trace-pnnx.ncnn.bin</p></td>
+<td><p>1.5 MB</p></td>
+</tr>
+</tbody>
+</table>
+<p>You can see that the file sizes of the models after conversion are about one half
+of the models before conversion:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>encoder: 283 MB vs 142 MB</p></li>
+<li><p>decoder: 1010 KB vs 503 KB</p></li>
+<li><p>joiner: 3.0 MB vs 1.5 MB</p></li>
+</ul>
+</div></blockquote>
+<p>The reason is that by default <code class="docutils literal notranslate"><span class="pre">pnnx</span></code> converts <code class="docutils literal notranslate"><span class="pre">float32</span></code> parameters
+to <code class="docutils literal notranslate"><span class="pre">float16</span></code>. A <code class="docutils literal notranslate"><span class="pre">float32</span></code> parameter occupies 4 bytes, while it is 2 bytes
+for <code class="docutils literal notranslate"><span class="pre">float16</span></code>. Thus, it is <code class="docutils literal notranslate"><span class="pre">twice</span> <span class="pre">smaller</span></code> after conversion.</p>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>If you use <code class="docutils literal notranslate"><span class="pre">pnnx</span> <span class="pre">./encoder_jit_trace-pnnx.pt</span> <span class="pre">fp16=0</span></code>, then <code class="docutils literal notranslate"><span class="pre">pnnx</span></code>
+won’t convert <code class="docutils literal notranslate"><span class="pre">float32</span></code> to <code class="docutils literal notranslate"><span class="pre">float16</span></code>.</p>
+</div>
+</section>
+<section id="test-the-exported-models-in-icefall">
+<h2>5. Test the exported models in icefall<a class="headerlink" href="#test-the-exported-models-in-icefall" title="Permalink to this heading"></a></h2>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>We assume you have set up the environment variable <code class="docutils literal notranslate"><span class="pre">PYTHONPATH</span></code> when
+building <a class="reference external" href="https://github.com/tencent/ncnn">ncnn</a>.</p>
+</div>
+<p>Now we have successfully converted our pre-trained model to <a class="reference external" href="https://github.com/tencent/ncnn">ncnn</a> format.
+The generated 6 files are what we need. You can use the following code to
+test the converted models:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./conv_emformer_transducer_stateless2/streaming-ncnn-decode.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--tokens<span class="w"> </span>./icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/data/lang_bpe_500/tokens.txt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--encoder-param-filename<span class="w"> </span>./icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/encoder_jit_trace-pnnx.ncnn.param<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--encoder-bin-filename<span class="w"> </span>./icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/encoder_jit_trace-pnnx.ncnn.bin<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--decoder-param-filename<span class="w"> </span>./icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/decoder_jit_trace-pnnx.ncnn.param<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--decoder-bin-filename<span class="w"> </span>./icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/decoder_jit_trace-pnnx.ncnn.bin<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--joiner-param-filename<span class="w"> </span>./icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/joiner_jit_trace-pnnx.ncnn.param<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--joiner-bin-filename<span class="w"> </span>./icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/joiner_jit_trace-pnnx.ncnn.bin<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/test_wavs/1089-134686-0001.wav
+</pre></div>
+</div>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p><a class="reference external" href="https://github.com/tencent/ncnn">ncnn</a> supports only <code class="docutils literal notranslate"><span class="pre">batch</span> <span class="pre">size</span> <span class="pre">==</span> <span class="pre">1</span></code>, so <code class="docutils literal notranslate"><span class="pre">streaming-ncnn-decode.py</span></code> accepts
+only 1 wave file as input.</p>
+</div>
+<p>The output is given below:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="mi">2023</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">11</span> <span class="mi">14</span><span class="p">:</span><span class="mi">02</span><span class="p">:</span><span class="mi">12</span><span class="p">,</span><span class="mi">216</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">streaming</span><span class="o">-</span><span class="n">ncnn</span><span class="o">-</span><span class="n">decode</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">320</span><span class="p">]</span> <span class="p">{</span><span class="s1">&#39;tokens&#39;</span><span class="p">:</span> <span class="s1">&#39;./icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/data/lang_bpe_500/tokens.txt&#39;</span><span class="p">,</span> <span class="s1">&#39;encoder_param_filename&#39;</span><span class="p">:</span> <span class="s1">&#39;./icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/encoder_jit_trace-pnnx.ncnn.param&#39;</span><span class="p">,</span> <span class="s1">&#39;encoder_bin_filename&#39;</span><span class="p">:</span> <span class="s1">&#39;./icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/encoder_jit_trace-pnnx.ncnn.bin&#39;</span><span class="p">,</span> <span class="s1">&#39;decoder_param_filename&#39;</span><span class="p">:</span> <span class="s1">&#39;./icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/decoder_jit_trace-pnnx.ncnn.param&#39;</span><span class="p">,</span> <span class="s1">&#39;decoder_bin_filename&#39;</span><span class="p">:</span> <span class="s1">&#39;./icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/decoder_jit_trace-pnnx.ncnn.bin&#39;</span><span class="p">,</span> <span class="s1">&#39;joiner_param_filename&#39;</span><span class="p">:</span> <span class="s1">&#39;./icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/joiner_jit_trace-pnnx.ncnn.param&#39;</span><span class="p">,</span> <span class="s1">&#39;joiner_bin_filename&#39;</span><span class="p">:</span> <span class="s1">&#39;./icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/joiner_jit_trace-pnnx.ncnn.bin&#39;</span><span class="p">,</span> <span class="s1">&#39;sound_filename&#39;</span><span class="p">:</span> <span class="s1">&#39;./icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/test_wavs/1089-134686-0001.wav&#39;</span><span class="p">}</span>
+<span class="n">T</span> <span class="mi">51</span> <span class="mi">32</span>
+<span class="mi">2023</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">11</span> <span class="mi">14</span><span class="p">:</span><span class="mi">02</span><span class="p">:</span><span class="mi">13</span><span class="p">,</span><span class="mi">141</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">streaming</span><span class="o">-</span><span class="n">ncnn</span><span class="o">-</span><span class="n">decode</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">328</span><span class="p">]</span> <span class="n">Constructing</span> <span class="n">Fbank</span> <span class="n">computer</span>
+<span class="mi">2023</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">11</span> <span class="mi">14</span><span class="p">:</span><span class="mi">02</span><span class="p">:</span><span class="mi">13</span><span class="p">,</span><span class="mi">151</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">streaming</span><span class="o">-</span><span class="n">ncnn</span><span class="o">-</span><span class="n">decode</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">331</span><span class="p">]</span> <span class="n">Reading</span> <span class="n">sound</span> <span class="n">files</span><span class="p">:</span> <span class="o">./</span><span class="n">icefall</span><span class="o">-</span><span class="n">asr</span><span class="o">-</span><span class="n">librispeech</span><span class="o">-</span><span class="n">conv</span><span class="o">-</span><span class="n">emformer</span><span class="o">-</span><span class="n">transducer</span><span class="o">-</span><span class="n">stateless2</span><span class="o">-</span><span class="mi">2022</span><span class="o">-</span><span class="mi">07</span><span class="o">-</span><span class="mi">05</span><span class="o">/</span><span class="n">test_wavs</span><span class="o">/</span><span class="mi">1089</span><span class="o">-</span><span class="mi">134686</span><span class="o">-</span><span class="mf">0001.</span><span class="n">wav</span>
+<span class="mi">2023</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">11</span> <span class="mi">14</span><span class="p">:</span><span class="mi">02</span><span class="p">:</span><span class="mi">13</span><span class="p">,</span><span class="mi">176</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">streaming</span><span class="o">-</span><span class="n">ncnn</span><span class="o">-</span><span class="n">decode</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">336</span><span class="p">]</span> <span class="n">torch</span><span class="o">.</span><span class="n">Size</span><span class="p">([</span><span class="mi">106000</span><span class="p">])</span>
+<span class="mi">2023</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">11</span> <span class="mi">14</span><span class="p">:</span><span class="mi">02</span><span class="p">:</span><span class="mi">17</span><span class="p">,</span><span class="mi">581</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">streaming</span><span class="o">-</span><span class="n">ncnn</span><span class="o">-</span><span class="n">decode</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">380</span><span class="p">]</span> <span class="o">./</span><span class="n">icefall</span><span class="o">-</span><span class="n">asr</span><span class="o">-</span><span class="n">librispeech</span><span class="o">-</span><span class="n">conv</span><span class="o">-</span><span class="n">emformer</span><span class="o">-</span><span class="n">transducer</span><span class="o">-</span><span class="n">stateless2</span><span class="o">-</span><span class="mi">2022</span><span class="o">-</span><span class="mi">07</span><span class="o">-</span><span class="mi">05</span><span class="o">/</span><span class="n">test_wavs</span><span class="o">/</span><span class="mi">1089</span><span class="o">-</span><span class="mi">134686</span><span class="o">-</span><span class="mf">0001.</span><span class="n">wav</span>
+<span class="mi">2023</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">11</span> <span class="mi">14</span><span class="p">:</span><span class="mi">02</span><span class="p">:</span><span class="mi">17</span><span class="p">,</span><span class="mi">581</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">streaming</span><span class="o">-</span><span class="n">ncnn</span><span class="o">-</span><span class="n">decode</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">381</span><span class="p">]</span> <span class="n">AFTER</span> <span class="n">EARLY</span> <span class="n">NIGHTFALL</span> <span class="n">THE</span> <span class="n">YELLOW</span> <span class="n">LAMPS</span> <span class="n">WOULD</span> <span class="n">LIGHT</span> <span class="n">UP</span> <span class="n">HERE</span> <span class="n">AND</span> <span class="n">THERE</span> <span class="n">THE</span> <span class="n">SQUALID</span> <span class="n">QUARTER</span> <span class="n">OF</span> <span class="n">THE</span> <span class="n">BROTHELS</span>
+</pre></div>
+</div>
+<p>Congratulations! You have successfully exported a model from PyTorch to <a class="reference external" href="https://github.com/tencent/ncnn">ncnn</a>!</p>
+</section>
+<section id="modify-the-exported-encoder-for-sherpa-ncnn">
+<span id="conv-emformer-modify-the-exported-encoder-for-sherpa-ncnn"></span><h2>6. Modify the exported encoder for sherpa-ncnn<a class="headerlink" href="#modify-the-exported-encoder-for-sherpa-ncnn" title="Permalink to this heading"></a></h2>
+<p>In order to use the exported models in <a class="reference external" href="https://github.com/k2-fsa/sherpa-ncnn">sherpa-ncnn</a>, we have to modify
+<code class="docutils literal notranslate"><span class="pre">encoder_jit_trace-pnnx.ncnn.param</span></code>.</p>
+<p>Let us have a look at the first few lines of <code class="docutils literal notranslate"><span class="pre">encoder_jit_trace-pnnx.ncnn.param</span></code>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="mi">7767517</span>
+<span class="mi">1060</span> <span class="mi">1342</span>
+<span class="n">Input</span>                    <span class="n">in0</span>                      <span class="mi">0</span> <span class="mi">1</span> <span class="n">in0</span>
+</pre></div>
+</div>
+<p><strong>Explanation</strong> of the above three lines:</p>
+<blockquote>
+<div><ol class="arabic simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">7767517</span></code>, it is a magic number and should not be changed.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">1060</span> <span class="pre">1342</span></code>, the first number <code class="docutils literal notranslate"><span class="pre">1060</span></code> specifies the number of layers
+in this file, while <code class="docutils literal notranslate"><span class="pre">1342</span></code> specifies the number of intermediate outputs
+of this file</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Input</span> <span class="pre">in0</span> <span class="pre">0</span> <span class="pre">1</span> <span class="pre">in0</span></code>, <code class="docutils literal notranslate"><span class="pre">Input</span></code> is the layer type of this layer; <code class="docutils literal notranslate"><span class="pre">in0</span></code>
+is the layer name of this layer; <code class="docutils literal notranslate"><span class="pre">0</span></code> means this layer has no input;
+<code class="docutils literal notranslate"><span class="pre">1</span></code> means this layer has one output; <code class="docutils literal notranslate"><span class="pre">in0</span></code> is the output name of
+this layer.</p></li>
+</ol>
+</div></blockquote>
+<p>We need to add 1 extra line and also increment the number of layers.
+The result looks like below:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="m">7767517</span>
+<span class="m">1061</span><span class="w"> </span><span class="m">1342</span>
+SherpaMetaData<span class="w">           </span>sherpa_meta_data1<span class="w">        </span><span class="m">0</span><span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="nv">0</span><span class="o">=</span><span class="m">1</span><span class="w"> </span><span class="nv">1</span><span class="o">=</span><span class="m">12</span><span class="w"> </span><span class="nv">2</span><span class="o">=</span><span class="m">32</span><span class="w"> </span><span class="nv">3</span><span class="o">=</span><span class="m">31</span><span class="w"> </span><span class="nv">4</span><span class="o">=</span><span class="m">8</span><span class="w"> </span><span class="nv">5</span><span class="o">=</span><span class="m">32</span><span class="w"> </span><span class="nv">6</span><span class="o">=</span><span class="m">8</span><span class="w"> </span><span class="nv">7</span><span class="o">=</span><span class="m">512</span>
+Input<span class="w">                    </span>in0<span class="w">                      </span><span class="m">0</span><span class="w"> </span><span class="m">1</span><span class="w"> </span>in0
+</pre></div>
+</div>
+<p><strong>Explanation</strong></p>
+<blockquote>
+<div><ol class="arabic">
+<li><p><code class="docutils literal notranslate"><span class="pre">7767517</span></code>, it is still the same</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">1061</span> <span class="pre">1342</span></code>, we have added an extra layer, so we need to update <code class="docutils literal notranslate"><span class="pre">1060</span></code> to <code class="docutils literal notranslate"><span class="pre">1061</span></code>.
+We don’t need to change <code class="docutils literal notranslate"><span class="pre">1342</span></code> since the newly added layer has no inputs or outputs.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">SherpaMetaData</span>&#160; <span class="pre">sherpa_meta_data1</span>&#160; <span class="pre">0</span> <span class="pre">0</span> <span class="pre">0=1</span> <span class="pre">1=12</span> <span class="pre">2=32</span> <span class="pre">3=31</span> <span class="pre">4=8</span> <span class="pre">5=32</span> <span class="pre">6=8</span> <span class="pre">7=512</span></code>
+This line is newly added. Its explanation is given below:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">SherpaMetaData</span></code> is the type of this layer. Must be <code class="docutils literal notranslate"><span class="pre">SherpaMetaData</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">sherpa_meta_data1</span></code> is the name of this layer. Must be <code class="docutils literal notranslate"><span class="pre">sherpa_meta_data1</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">0</span> <span class="pre">0</span></code> means this layer has no inputs or output. Must be <code class="docutils literal notranslate"><span class="pre">0</span> <span class="pre">0</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">0=1</span></code>, 0 is the key and 1 is the value. MUST be <code class="docutils literal notranslate"><span class="pre">0=1</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">1=12</span></code>, 1 is the key and 12 is the value of the
+parameter <code class="docutils literal notranslate"><span class="pre">--num-encoder-layers</span></code> that you provided when running
+<code class="docutils literal notranslate"><span class="pre">conv_emformer_transducer_stateless2/export-for-ncnn.py</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">2=32</span></code>, 2 is the key and 32 is the value of the
+parameter <code class="docutils literal notranslate"><span class="pre">--memory-size</span></code> that you provided when running
+<code class="docutils literal notranslate"><span class="pre">conv_emformer_transducer_stateless2/export-for-ncnn.py</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">3=31</span></code>, 3 is the key and 31 is the value of the
+parameter <code class="docutils literal notranslate"><span class="pre">--cnn-module-kernel</span></code> that you provided when running
+<code class="docutils literal notranslate"><span class="pre">conv_emformer_transducer_stateless2/export-for-ncnn.py</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">4=8</span></code>, 4 is the key and 8 is the value of the
+parameter <code class="docutils literal notranslate"><span class="pre">--left-context-length</span></code> that you provided when running
+<code class="docutils literal notranslate"><span class="pre">conv_emformer_transducer_stateless2/export-for-ncnn.py</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">5=32</span></code>, 5 is the key and 32 is the value of the
+parameter <code class="docutils literal notranslate"><span class="pre">--chunk-length</span></code> that you provided when running
+<code class="docutils literal notranslate"><span class="pre">conv_emformer_transducer_stateless2/export-for-ncnn.py</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">6=8</span></code>, 6 is the key and 8 is the value of the
+parameter <code class="docutils literal notranslate"><span class="pre">--right-context-length</span></code> that you provided when running
+<code class="docutils literal notranslate"><span class="pre">conv_emformer_transducer_stateless2/export-for-ncnn.py</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">7=512</span></code>, 7 is the key and 512 is the value of the
+parameter <code class="docutils literal notranslate"><span class="pre">--encoder-dim</span></code> that you provided when running
+<code class="docutils literal notranslate"><span class="pre">conv_emformer_transducer_stateless2/export-for-ncnn.py</span></code>.</p></li>
+</ul>
+<p>For ease of reference, we list the key-value pairs that you need to add
+in the following table. If your model has a different setting, please
+change the values for <code class="docutils literal notranslate"><span class="pre">SherpaMetaData</span></code> accordingly. Otherwise, you
+will be <code class="docutils literal notranslate"><span class="pre">SAD</span></code>.</p>
+<blockquote>
+<div><table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>key</p></th>
+<th class="head"><p>value</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>0</p></td>
+<td><p>1 (fixed)</p></td>
+</tr>
+<tr class="row-odd"><td><p>1</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">--num-encoder-layers</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>2</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">--memory-size</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>3</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">--cnn-module-kernel</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>4</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">--left-context-length</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>5</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">--chunk-length</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>6</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">--right-context-length</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>7</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">--encoder-dim</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</div></blockquote>
+</div></blockquote>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Input</span> <span class="pre">in0</span> <span class="pre">0</span> <span class="pre">1</span> <span class="pre">in0</span></code>. No need to change it.</p></li>
+</ol>
+</div></blockquote>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p>When you add a new layer <code class="docutils literal notranslate"><span class="pre">SherpaMetaData</span></code>, please remember to update the
+number of layers. In our case, update  <code class="docutils literal notranslate"><span class="pre">1060</span></code> to <code class="docutils literal notranslate"><span class="pre">1061</span></code>. Otherwise,
+you will be SAD later.</p>
+</div>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>After adding the new layer <code class="docutils literal notranslate"><span class="pre">SherpaMetaData</span></code>, you cannot use this model
+with <code class="docutils literal notranslate"><span class="pre">streaming-ncnn-decode.py</span></code> anymore since <code class="docutils literal notranslate"><span class="pre">SherpaMetaData</span></code> is
+supported only in <a class="reference external" href="https://github.com/k2-fsa/sherpa-ncnn">sherpa-ncnn</a>.</p>
+</div>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p><a class="reference external" href="https://github.com/tencent/ncnn">ncnn</a> is very flexible. You can add new layers to it just by text-editing
+the <code class="docutils literal notranslate"><span class="pre">param</span></code> file! You don’t need to change the <code class="docutils literal notranslate"><span class="pre">bin</span></code> file.</p>
+</div>
+<p>Now you can use this model in <a class="reference external" href="https://github.com/k2-fsa/sherpa-ncnn">sherpa-ncnn</a>.
+Please refer to the following documentation:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Linux/macOS/Windows/arm/aarch64: <a class="reference external" href="https://k2-fsa.github.io/sherpa/ncnn/install/index.html">https://k2-fsa.github.io/sherpa/ncnn/install/index.html</a></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Android</span></code>: <a class="reference external" href="https://k2-fsa.github.io/sherpa/ncnn/android/index.html">https://k2-fsa.github.io/sherpa/ncnn/android/index.html</a></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">iOS</span></code>: <a class="reference external" href="https://k2-fsa.github.io/sherpa/ncnn/ios/index.html">https://k2-fsa.github.io/sherpa/ncnn/ios/index.html</a></p></li>
+<li><p>Python: <a class="reference external" href="https://k2-fsa.github.io/sherpa/ncnn/python/index.html">https://k2-fsa.github.io/sherpa/ncnn/python/index.html</a></p></li>
+</ul>
+</div></blockquote>
+<p>We have a list of pre-trained models that have been exported for <a class="reference external" href="https://github.com/k2-fsa/sherpa-ncnn">sherpa-ncnn</a>:</p>
+<blockquote>
+<div><ul>
+<li><p><a class="reference external" href="https://k2-fsa.github.io/sherpa/ncnn/pretrained_models/index.html">https://k2-fsa.github.io/sherpa/ncnn/pretrained_models/index.html</a></p>
+<p>You can find more usages there.</p>
+</li>
+</ul>
+</div></blockquote>
+</section>
+<section id="optional-int8-quantization-with-sherpa-ncnn">
+<h2>7. (Optional) int8 quantization with sherpa-ncnn<a class="headerlink" href="#optional-int8-quantization-with-sherpa-ncnn" title="Permalink to this heading"></a></h2>
+<p>This step is optional.</p>
+<p>In this step, we describe how to quantize our model with <code class="docutils literal notranslate"><span class="pre">int8</span></code>.</p>
+<p>Change <a class="reference internal" href="#conv-emformer-step-4-export-torchscript-model-via-pnnx"><span class="std std-ref">4. Export torchscript model via pnnx</span></a> to
+disable <code class="docutils literal notranslate"><span class="pre">fp16</span></code> when using <code class="docutils literal notranslate"><span class="pre">pnnx</span></code>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">cd</span> <span class="n">icefall</span><span class="o">-</span><span class="n">asr</span><span class="o">-</span><span class="n">librispeech</span><span class="o">-</span><span class="n">conv</span><span class="o">-</span><span class="n">emformer</span><span class="o">-</span><span class="n">transducer</span><span class="o">-</span><span class="n">stateless2</span><span class="o">-</span><span class="mi">2022</span><span class="o">-</span><span class="mi">07</span><span class="o">-</span><span class="mi">05</span><span class="o">/</span><span class="n">exp</span><span class="o">/</span>
+
+<span class="n">pnnx</span> <span class="o">./</span><span class="n">encoder_jit_trace</span><span class="o">-</span><span class="n">pnnx</span><span class="o">.</span><span class="n">pt</span> <span class="n">fp16</span><span class="o">=</span><span class="mi">0</span>
+<span class="n">pnnx</span> <span class="o">./</span><span class="n">decoder_jit_trace</span><span class="o">-</span><span class="n">pnnx</span><span class="o">.</span><span class="n">pt</span>
+<span class="n">pnnx</span> <span class="o">./</span><span class="n">joiner_jit_trace</span><span class="o">-</span><span class="n">pnnx</span><span class="o">.</span><span class="n">pt</span> <span class="n">fp16</span><span class="o">=</span><span class="mi">0</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>We add <code class="docutils literal notranslate"><span class="pre">fp16=0</span></code> when exporting the encoder and joiner. <a class="reference external" href="https://github.com/tencent/ncnn">ncnn</a> does not
+support quantizing the decoder model yet. We will update this documentation
+once <a class="reference external" href="https://github.com/tencent/ncnn">ncnn</a> supports it. (Maybe in this year, 2023).</p>
+</div>
+<p>It will generate the following files</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ls<span class="w"> </span>-lh<span class="w"> </span>icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/*_jit_trace-pnnx.ncnn.<span class="o">{</span>param,bin<span class="o">}</span>
+
+-rw-r--r--<span class="w"> </span><span class="m">1</span><span class="w"> </span>kuangfangjun<span class="w"> </span>root<span class="w"> </span>503K<span class="w"> </span>Jan<span class="w"> </span><span class="m">11</span><span class="w"> </span><span class="m">15</span>:56<span class="w"> </span>icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/decoder_jit_trace-pnnx.ncnn.bin
+-rw-r--r--<span class="w"> </span><span class="m">1</span><span class="w"> </span>kuangfangjun<span class="w"> </span>root<span class="w">  </span><span class="m">437</span><span class="w"> </span>Jan<span class="w"> </span><span class="m">11</span><span class="w"> </span><span class="m">15</span>:56<span class="w"> </span>icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/decoder_jit_trace-pnnx.ncnn.param
+-rw-r--r--<span class="w"> </span><span class="m">1</span><span class="w"> </span>kuangfangjun<span class="w"> </span>root<span class="w"> </span>283M<span class="w"> </span>Jan<span class="w"> </span><span class="m">11</span><span class="w"> </span><span class="m">15</span>:56<span class="w"> </span>icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/encoder_jit_trace-pnnx.ncnn.bin
+-rw-r--r--<span class="w"> </span><span class="m">1</span><span class="w"> </span>kuangfangjun<span class="w"> </span>root<span class="w">  </span>79K<span class="w"> </span>Jan<span class="w"> </span><span class="m">11</span><span class="w"> </span><span class="m">15</span>:56<span class="w"> </span>icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/encoder_jit_trace-pnnx.ncnn.param
+-rw-r--r--<span class="w"> </span><span class="m">1</span><span class="w"> </span>kuangfangjun<span class="w"> </span>root<span class="w"> </span><span class="m">3</span>.0M<span class="w"> </span>Jan<span class="w"> </span><span class="m">11</span><span class="w"> </span><span class="m">15</span>:56<span class="w"> </span>icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/joiner_jit_trace-pnnx.ncnn.bin
+-rw-r--r--<span class="w"> </span><span class="m">1</span><span class="w"> </span>kuangfangjun<span class="w"> </span>root<span class="w">  </span><span class="m">488</span><span class="w"> </span>Jan<span class="w"> </span><span class="m">11</span><span class="w"> </span><span class="m">15</span>:56<span class="w"> </span>icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/joiner_jit_trace-pnnx.ncnn.param
+</pre></div>
+</div>
+<p>Let us compare again the file sizes:</p>
+<table class="docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p>File name</p></td>
+<td><p>File size</p></td>
+</tr>
+<tr class="row-even"><td><p>encoder_jit_trace-pnnx.pt</p></td>
+<td><p>283 MB</p></td>
+</tr>
+<tr class="row-odd"><td><p>decoder_jit_trace-pnnx.pt</p></td>
+<td><p>1010 KB</p></td>
+</tr>
+<tr class="row-even"><td><p>joiner_jit_trace-pnnx.pt</p></td>
+<td><p>3.0 MB</p></td>
+</tr>
+<tr class="row-odd"><td><p>encoder_jit_trace-pnnx.ncnn.bin (fp16)</p></td>
+<td><p>142 MB</p></td>
+</tr>
+<tr class="row-even"><td><p>decoder_jit_trace-pnnx.ncnn.bin (fp16)</p></td>
+<td><p>503 KB</p></td>
+</tr>
+<tr class="row-odd"><td><p>joiner_jit_trace-pnnx.ncnn.bin  (fp16)</p></td>
+<td><p>1.5 MB</p></td>
+</tr>
+<tr class="row-even"><td><p>encoder_jit_trace-pnnx.ncnn.bin (fp32)</p></td>
+<td><p>283 MB</p></td>
+</tr>
+<tr class="row-odd"><td><p>joiner_jit_trace-pnnx.ncnn.bin  (fp32)</p></td>
+<td><p>3.0 MB</p></td>
+</tr>
+</tbody>
+</table>
+<p>You can see that the file sizes are doubled when we disable <code class="docutils literal notranslate"><span class="pre">fp16</span></code>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>You can again use <code class="docutils literal notranslate"><span class="pre">streaming-ncnn-decode.py</span></code> to test the exported models.</p>
+</div>
+<p>Next, follow <a class="reference internal" href="#conv-emformer-modify-the-exported-encoder-for-sherpa-ncnn"><span class="std std-ref">6. Modify the exported encoder for sherpa-ncnn</span></a>
+to modify <code class="docutils literal notranslate"><span class="pre">encoder_jit_trace-pnnx.ncnn.param</span></code>.</p>
+<p>Change</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="m">7767517</span>
+<span class="m">1060</span><span class="w"> </span><span class="m">1342</span>
+Input<span class="w">                    </span>in0<span class="w">                      </span><span class="m">0</span><span class="w"> </span><span class="m">1</span><span class="w"> </span>in0
+</pre></div>
+</div>
+<p>to</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="m">7767517</span>
+<span class="m">1061</span><span class="w"> </span><span class="m">1342</span>
+SherpaMetaData<span class="w">           </span>sherpa_meta_data1<span class="w">        </span><span class="m">0</span><span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="nv">0</span><span class="o">=</span><span class="m">1</span><span class="w"> </span><span class="nv">1</span><span class="o">=</span><span class="m">12</span><span class="w"> </span><span class="nv">2</span><span class="o">=</span><span class="m">32</span><span class="w"> </span><span class="nv">3</span><span class="o">=</span><span class="m">31</span><span class="w"> </span><span class="nv">4</span><span class="o">=</span><span class="m">8</span><span class="w"> </span><span class="nv">5</span><span class="o">=</span><span class="m">32</span><span class="w"> </span><span class="nv">6</span><span class="o">=</span><span class="m">8</span><span class="w"> </span><span class="nv">7</span><span class="o">=</span><span class="m">512</span>
+Input<span class="w">                    </span>in0<span class="w">                      </span><span class="m">0</span><span class="w"> </span><span class="m">1</span><span class="w"> </span>in0
+</pre></div>
+</div>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p>Please follow <a class="reference internal" href="#conv-emformer-modify-the-exported-encoder-for-sherpa-ncnn"><span class="std std-ref">6. Modify the exported encoder for sherpa-ncnn</span></a>
+to change the values for <code class="docutils literal notranslate"><span class="pre">SherpaMetaData</span></code> if your model uses a different setting.</p>
+</div>
+<p>Next, let us compile <a class="reference external" href="https://github.com/k2-fsa/sherpa-ncnn">sherpa-ncnn</a> since we will quantize our models within
+<a class="reference external" href="https://github.com/k2-fsa/sherpa-ncnn">sherpa-ncnn</a>.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># We will download sherpa-ncnn to $HOME/open-source/</span>
+<span class="c1"># You can change it to anywhere you like.</span>
+<span class="nb">cd</span><span class="w"> </span><span class="nv">$HOME</span>
+mkdir<span class="w"> </span>-p<span class="w"> </span>open-source
+
+<span class="nb">cd</span><span class="w"> </span>open-source
+git<span class="w"> </span>clone<span class="w"> </span>https://github.com/k2-fsa/sherpa-ncnn
+<span class="nb">cd</span><span class="w"> </span>sherpa-ncnn
+mkdir<span class="w"> </span>build
+<span class="nb">cd</span><span class="w"> </span>build
+cmake<span class="w"> </span>..
+make<span class="w"> </span>-j<span class="w"> </span><span class="m">4</span>
+
+./bin/generate-int8-scale-table
+
+<span class="nb">export</span><span class="w"> </span><span class="nv">PATH</span><span class="o">=</span><span class="nv">$HOME</span>/open-source/sherpa-ncnn/build/bin:<span class="nv">$PATH</span>
+</pre></div>
+</div>
+<p>The output of the above commands are:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span>py38<span class="o">)</span><span class="w"> </span>kuangfangjun:build$<span class="w"> </span>generate-int8-scale-table
+Please<span class="w"> </span>provide<span class="w"> </span><span class="m">10</span><span class="w"> </span>arg.<span class="w"> </span>Currently<span class="w"> </span>given:<span class="w"> </span><span class="m">1</span>
+Usage:
+generate-int8-scale-table<span class="w"> </span>encoder.param<span class="w"> </span>encoder.bin<span class="w"> </span>decoder.param<span class="w"> </span>decoder.bin<span class="w"> </span>joiner.param<span class="w"> </span>joiner.bin<span class="w"> </span>encoder-scale-table.txt<span class="w"> </span>joiner-scale-table.txt<span class="w"> </span>wave_filenames.txt
+
+Each<span class="w"> </span>line<span class="w"> </span><span class="k">in</span><span class="w"> </span>wave_filenames.txt<span class="w"> </span>is<span class="w"> </span>a<span class="w"> </span>path<span class="w"> </span>to<span class="w"> </span>some<span class="w"> </span>16k<span class="w"> </span>Hz<span class="w"> </span>mono<span class="w"> </span>wave<span class="w"> </span>file.
+</pre></div>
+</div>
+<p>We need to create a file <code class="docutils literal notranslate"><span class="pre">wave_filenames.txt</span></code>, in which we need to put
+some calibration wave files. For testing purpose, we put the <code class="docutils literal notranslate"><span class="pre">test_wavs</span></code>
+from the pre-trained model repository <a class="reference external" href="https://huggingface.co/Zengwei/icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05">https://huggingface.co/Zengwei/icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05</a></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>egs/librispeech/ASR
+<span class="nb">cd</span><span class="w"> </span>icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/
+
+cat<span class="w"> </span><span class="s">&lt;&lt;EOF &gt; wave_filenames.txt</span>
+<span class="s">../test_wavs/1089-134686-0001.wav</span>
+<span class="s">../test_wavs/1221-135766-0001.wav</span>
+<span class="s">../test_wavs/1221-135766-0002.wav</span>
+<span class="s">EOF</span>
+</pre></div>
+</div>
+<p>Now we can calculate the scales needed for quantization with the calibration data:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>egs/librispeech/ASR
+<span class="nb">cd</span><span class="w"> </span>icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/
+
+generate-int8-scale-table<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./encoder_jit_trace-pnnx.ncnn.param<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./encoder_jit_trace-pnnx.ncnn.bin<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./decoder_jit_trace-pnnx.ncnn.param<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./decoder_jit_trace-pnnx.ncnn.bin<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./joiner_jit_trace-pnnx.ncnn.param<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./joiner_jit_trace-pnnx.ncnn.bin<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./encoder-scale-table.txt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./joiner-scale-table.txt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./wave_filenames.txt
+</pre></div>
+</div>
+<p>The output logs are in the following:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">Don</span><span class="s1">&#39;t Use GPU. has_gpu: 0, config.use_vulkan_compute: 1</span>
+<span class="n">num</span> <span class="n">encoder</span> <span class="n">conv</span> <span class="n">layers</span><span class="p">:</span> <span class="mi">88</span>
+<span class="n">num</span> <span class="n">joiner</span> <span class="n">conv</span> <span class="n">layers</span><span class="p">:</span> <span class="mi">3</span>
+<span class="n">num</span> <span class="n">files</span><span class="p">:</span> <span class="mi">3</span>
+<span class="n">Processing</span> <span class="o">../</span><span class="n">test_wavs</span><span class="o">/</span><span class="mi">1089</span><span class="o">-</span><span class="mi">134686</span><span class="o">-</span><span class="mf">0001.</span><span class="n">wav</span>
+<span class="n">Processing</span> <span class="o">../</span><span class="n">test_wavs</span><span class="o">/</span><span class="mi">1221</span><span class="o">-</span><span class="mi">135766</span><span class="o">-</span><span class="mf">0001.</span><span class="n">wav</span>
+<span class="n">Processing</span> <span class="o">../</span><span class="n">test_wavs</span><span class="o">/</span><span class="mi">1221</span><span class="o">-</span><span class="mi">135766</span><span class="o">-</span><span class="mf">0002.</span><span class="n">wav</span>
+<span class="n">Processing</span> <span class="o">../</span><span class="n">test_wavs</span><span class="o">/</span><span class="mi">1089</span><span class="o">-</span><span class="mi">134686</span><span class="o">-</span><span class="mf">0001.</span><span class="n">wav</span>
+<span class="n">Processing</span> <span class="o">../</span><span class="n">test_wavs</span><span class="o">/</span><span class="mi">1221</span><span class="o">-</span><span class="mi">135766</span><span class="o">-</span><span class="mf">0001.</span><span class="n">wav</span>
+<span class="n">Processing</span> <span class="o">../</span><span class="n">test_wavs</span><span class="o">/</span><span class="mi">1221</span><span class="o">-</span><span class="mi">135766</span><span class="o">-</span><span class="mf">0002.</span><span class="n">wav</span>
+<span class="o">----------</span><span class="n">encoder</span><span class="o">----------</span>
+<span class="n">conv_87</span>                                  <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">15.942385</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">15.938493</span>        <span class="n">scale</span> <span class="o">=</span> <span class="mf">7.968131</span>
+<span class="n">conv_88</span>                                  <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">35.442448</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">15.549335</span>        <span class="n">scale</span> <span class="o">=</span> <span class="mf">8.167552</span>
+<span class="n">conv_89</span>                                  <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">23.228289</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">8.001738</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">15.871552</span>
+<span class="n">linear_90</span>                                <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">3.976146</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">1.101789</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">115.267128</span>
+<span class="n">linear_91</span>                                <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">6.962030</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.162033</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">24.602713</span>
+<span class="n">linear_92</span>                                <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">12.323041</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">3.853959</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">32.953129</span>
+<span class="n">linear_94</span>                                <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">6.905416</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">4.648006</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">27.323545</span>
+<span class="n">linear_93</span>                                <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">6.905416</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.474093</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">23.200188</span>
+<span class="n">linear_95</span>                                <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">1.888012</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">1.403563</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">90.483986</span>
+<span class="n">linear_96</span>                                <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">6.856741</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.398679</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">23.524273</span>
+<span class="n">linear_97</span>                                <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">9.635942</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">2.613655</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">48.590950</span>
+<span class="n">linear_98</span>                                <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">6.460340</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.670146</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">22.398010</span>
+<span class="n">linear_99</span>                                <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">9.532276</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">2.585537</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">49.119396</span>
+<span class="n">linear_101</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">6.585871</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.719224</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">22.205809</span>
+<span class="n">linear_100</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">6.585871</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.751382</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">22.081648</span>
+<span class="n">linear_102</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">1.593344</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">1.450581</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">87.551147</span>
+<span class="n">linear_103</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">6.592681</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.705824</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">22.257959</span>
+<span class="n">linear_104</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">8.752957</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">1.980955</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">64.110489</span>
+<span class="n">linear_105</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">6.696240</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.877193</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">21.608953</span>
+<span class="n">linear_106</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">9.059659</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">2.643138</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">48.048950</span>
+<span class="n">linear_108</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">6.975461</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">4.589567</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">27.671457</span>
+<span class="n">linear_107</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">6.975461</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">6.190381</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">20.515701</span>
+<span class="n">linear_109</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">3.710759</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">2.305635</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">55.082436</span>
+<span class="n">linear_110</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">7.531228</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.731162</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">22.159557</span>
+<span class="n">linear_111</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">10.528083</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">2.259322</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">56.211544</span>
+<span class="n">linear_112</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">8.148807</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.500842</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">23.087374</span>
+<span class="n">linear_113</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">8.592566</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">1.948851</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">65.166611</span>
+<span class="n">linear_115</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">8.437109</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.608947</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">22.642395</span>
+<span class="n">linear_114</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">8.437109</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">6.193942</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">20.503904</span>
+<span class="n">linear_116</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">3.966980</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">3.200896</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">39.676392</span>
+<span class="n">linear_117</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">9.451303</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">6.061664</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">20.951344</span>
+<span class="n">linear_118</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">12.077262</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">3.965800</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">32.023804</span>
+<span class="n">linear_119</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">9.671615</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">4.847613</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">26.198460</span>
+<span class="n">linear_120</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">8.625638</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">3.131427</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">40.556595</span>
+<span class="n">linear_122</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">10.274080</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">4.888716</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">25.978189</span>
+<span class="n">linear_121</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">10.274080</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.420480</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">23.429659</span>
+<span class="n">linear_123</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">4.826197</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">3.599617</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">35.281532</span>
+<span class="n">linear_124</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">11.396383</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">7.325849</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">17.335875</span>
+<span class="n">linear_125</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">9.337198</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">3.941410</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">32.221970</span>
+<span class="n">linear_126</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">9.699965</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">4.842878</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">26.224073</span>
+<span class="n">linear_127</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">8.775370</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">3.884215</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">32.696438</span>
+<span class="n">linear_129</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">9.872276</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">4.837319</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">26.254213</span>
+<span class="n">linear_128</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">9.872276</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">7.180057</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">17.687883</span>
+<span class="n">linear_130</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">4.150427</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">3.454298</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">36.765789</span>
+<span class="n">linear_131</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">11.112692</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">7.924847</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">16.025545</span>
+<span class="n">linear_132</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">11.852893</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">3.116593</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">40.749626</span>
+<span class="n">linear_133</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">11.517084</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.024665</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">25.275314</span>
+<span class="n">linear_134</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">10.683807</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">3.878618</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">32.743618</span>
+<span class="n">linear_136</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">12.421055</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">6.322729</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">20.086264</span>
+<span class="n">linear_135</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">12.421055</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.309880</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">23.917679</span>
+<span class="n">linear_137</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">4.827781</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">3.744595</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">33.915554</span>
+<span class="n">linear_138</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">14.422395</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">7.742882</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">16.402161</span>
+<span class="n">linear_139</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">8.527538</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">3.866123</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">32.849449</span>
+<span class="n">linear_140</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">12.128619</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">4.657793</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">27.266134</span>
+<span class="n">linear_141</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">9.839593</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">3.845993</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">33.021378</span>
+<span class="n">linear_143</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">12.442304</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">7.099039</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">17.889746</span>
+<span class="n">linear_142</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">12.442304</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.325038</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">23.849592</span>
+<span class="n">linear_144</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">5.929444</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.618206</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">22.605080</span>
+<span class="n">linear_145</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">13.382126</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">9.321095</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">13.625010</span>
+<span class="n">linear_146</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">9.894987</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">3.867645</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">32.836517</span>
+<span class="n">linear_147</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">10.915313</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">4.906028</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">25.886522</span>
+<span class="n">linear_148</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">9.614287</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">3.908151</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">32.496181</span>
+<span class="n">linear_150</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">11.724932</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">4.485588</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">28.312899</span>
+<span class="n">linear_149</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">11.724932</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.161146</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">24.606939</span>
+<span class="n">linear_151</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">7.164453</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.847355</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">21.719223</span>
+<span class="n">linear_152</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">13.086471</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.984121</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">21.222834</span>
+<span class="n">linear_153</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">11.099524</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">3.991601</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">31.816805</span>
+<span class="n">linear_154</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">10.054585</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">4.489706</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">28.286930</span>
+<span class="n">linear_155</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">12.389185</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">3.100321</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">40.963501</span>
+<span class="n">linear_157</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">9.982999</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.154796</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">24.637253</span>
+<span class="n">linear_156</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">9.982999</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">8.537706</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">14.875190</span>
+<span class="n">linear_158</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">8.420287</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">6.502287</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">19.531588</span>
+<span class="n">linear_159</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">25.014746</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">9.423280</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">13.477261</span>
+<span class="n">linear_160</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">45.633553</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.715335</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">22.220921</span>
+<span class="n">linear_161</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">20.371849</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.117830</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">24.815203</span>
+<span class="n">linear_162</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">12.492933</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">3.126283</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">40.623318</span>
+<span class="n">linear_164</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">20.697504</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">4.825712</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">26.317358</span>
+<span class="n">linear_163</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">20.697504</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.078367</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">25.008038</span>
+<span class="n">linear_165</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">9.023975</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">6.836278</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">18.577358</span>
+<span class="n">linear_166</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">34.860619</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">7.259792</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">17.493614</span>
+<span class="n">linear_167</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">30.380934</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.496160</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">23.107042</span>
+<span class="n">linear_168</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">20.691216</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">4.733317</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">26.831076</span>
+<span class="n">linear_169</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">9.723948</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">3.952728</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">32.129707</span>
+<span class="n">linear_171</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">21.034811</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.366547</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">23.665123</span>
+<span class="n">linear_170</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">21.034811</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.356277</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">23.710501</span>
+<span class="n">linear_172</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">10.556884</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">5.729481</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">22.166058</span>
+<span class="n">linear_173</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">20.033039</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">10.207264</span>        <span class="n">scale</span> <span class="o">=</span> <span class="mf">12.442120</span>
+<span class="n">linear_174</span>                               <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">11.597379</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">2.658676</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">47.768131</span>
+<span class="o">----------</span><span class="n">joiner</span><span class="o">----------</span>
+<span class="n">linear_2</span>                                 <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">19.293503</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">14.305265</span>        <span class="n">scale</span> <span class="o">=</span> <span class="mf">8.877850</span>
+<span class="n">linear_1</span>                                 <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">10.812222</span>        <span class="n">threshold</span> <span class="o">=</span> <span class="mf">8.766452</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">14.487047</span>
+<span class="n">linear_3</span>                                 <span class="p">:</span> <span class="nb">max</span> <span class="o">=</span> <span class="mf">0.999999</span>         <span class="n">threshold</span> <span class="o">=</span> <span class="mf">0.999755</span>         <span class="n">scale</span> <span class="o">=</span> <span class="mf">127.031174</span>
+<span class="n">ncnn</span> <span class="n">int8</span> <span class="n">calibration</span> <span class="n">table</span> <span class="n">create</span> <span class="n">success</span><span class="p">,</span> <span class="n">best</span> <span class="n">wish</span> <span class="k">for</span> <span class="n">your</span> <span class="n">int8</span> <span class="n">inference</span> <span class="n">has</span> <span class="n">a</span> <span class="n">low</span> <span class="n">accuracy</span> <span class="n">loss</span><span class="o">...</span>\<span class="p">(</span><span class="o">^</span><span class="mi">0</span><span class="o">^</span><span class="p">)</span><span class="o">/..</span><span class="mf">.233</span><span class="o">...</span>
+</pre></div>
+</div>
+<p>It generates the following two files:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ls<span class="w"> </span>-lh<span class="w"> </span>encoder-scale-table.txt<span class="w"> </span>joiner-scale-table.txt
+-rw-r--r--<span class="w"> </span><span class="m">1</span><span class="w"> </span>kuangfangjun<span class="w"> </span>root<span class="w"> </span>955K<span class="w"> </span>Jan<span class="w"> </span><span class="m">11</span><span class="w"> </span><span class="m">17</span>:28<span class="w"> </span>encoder-scale-table.txt
+-rw-r--r--<span class="w"> </span><span class="m">1</span><span class="w"> </span>kuangfangjun<span class="w"> </span>root<span class="w">  </span>18K<span class="w"> </span>Jan<span class="w"> </span><span class="m">11</span><span class="w"> </span><span class="m">17</span>:28<span class="w"> </span>joiner-scale-table.txt
+</pre></div>
+</div>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p>Definitely, you need more calibration data to compute the scale table.</p>
+</div>
+<p>Finally, let us use the scale table to quantize our models into <code class="docutils literal notranslate"><span class="pre">int8</span></code>.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ncnn2int8
+
+usage:<span class="w"> </span>ncnn2int8<span class="w"> </span><span class="o">[</span>inparam<span class="o">]</span><span class="w"> </span><span class="o">[</span>inbin<span class="o">]</span><span class="w"> </span><span class="o">[</span>outparam<span class="o">]</span><span class="w"> </span><span class="o">[</span>outbin<span class="o">]</span><span class="w"> </span><span class="o">[</span>calibration<span class="w"> </span>table<span class="o">]</span>
+</pre></div>
+</div>
+<p>First, we quantize the encoder model:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>egs/librispeech/ASR
+<span class="nb">cd</span><span class="w"> </span>icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/
+
+ncnn2int8<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./encoder_jit_trace-pnnx.ncnn.param<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./encoder_jit_trace-pnnx.ncnn.bin<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./encoder_jit_trace-pnnx.ncnn.int8.param<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./encoder_jit_trace-pnnx.ncnn.int8.bin<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./encoder-scale-table.txt
+</pre></div>
+</div>
+<p>Next, we quantize the joiner model:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ncnn2int8<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./joiner_jit_trace-pnnx.ncnn.param<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./joiner_jit_trace-pnnx.ncnn.bin<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./joiner_jit_trace-pnnx.ncnn.int8.param<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./joiner_jit_trace-pnnx.ncnn.int8.bin<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./joiner-scale-table.txt
+</pre></div>
+</div>
+<p>The above two commands generate the following 4 files:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>-rw-r--r--<span class="w"> </span><span class="m">1</span><span class="w"> </span>kuangfangjun<span class="w"> </span>root<span class="w">  </span>99M<span class="w"> </span>Jan<span class="w"> </span><span class="m">11</span><span class="w"> </span><span class="m">17</span>:34<span class="w"> </span>encoder_jit_trace-pnnx.ncnn.int8.bin
+-rw-r--r--<span class="w"> </span><span class="m">1</span><span class="w"> </span>kuangfangjun<span class="w"> </span>root<span class="w">  </span>78K<span class="w"> </span>Jan<span class="w"> </span><span class="m">11</span><span class="w"> </span><span class="m">17</span>:34<span class="w"> </span>encoder_jit_trace-pnnx.ncnn.int8.param
+-rw-r--r--<span class="w"> </span><span class="m">1</span><span class="w"> </span>kuangfangjun<span class="w"> </span>root<span class="w"> </span>774K<span class="w"> </span>Jan<span class="w"> </span><span class="m">11</span><span class="w"> </span><span class="m">17</span>:35<span class="w"> </span>joiner_jit_trace-pnnx.ncnn.int8.bin
+-rw-r--r--<span class="w"> </span><span class="m">1</span><span class="w"> </span>kuangfangjun<span class="w"> </span>root<span class="w">  </span><span class="m">496</span><span class="w"> </span>Jan<span class="w"> </span><span class="m">11</span><span class="w"> </span><span class="m">17</span>:35<span class="w"> </span>joiner_jit_trace-pnnx.ncnn.int8.param
+</pre></div>
+</div>
+<p>Congratulations! You have successfully quantized your model from <code class="docutils literal notranslate"><span class="pre">float32</span></code> to <code class="docutils literal notranslate"><span class="pre">int8</span></code>.</p>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p><code class="docutils literal notranslate"><span class="pre">ncnn.int8.param</span></code> and <code class="docutils literal notranslate"><span class="pre">ncnn.int8.bin</span></code> must be used in pairs.</p>
+<p>You can replace <code class="docutils literal notranslate"><span class="pre">ncnn.param</span></code> and <code class="docutils literal notranslate"><span class="pre">ncnn.bin</span></code> with <code class="docutils literal notranslate"><span class="pre">ncnn.int8.param</span></code>
+and <code class="docutils literal notranslate"><span class="pre">ncnn.int8.bin</span></code> in <a class="reference external" href="https://github.com/k2-fsa/sherpa-ncnn">sherpa-ncnn</a> if you like.</p>
+<p>For instance, to use only the <code class="docutils literal notranslate"><span class="pre">int8</span></code> encoder in <code class="docutils literal notranslate"><span class="pre">sherpa-ncnn</span></code>, you can
+replace the following invocation:</p>
+<blockquote>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>egs/librispeech/ASR
+<span class="nb">cd</span><span class="w"> </span>icefall-asr-librispeech-conv-emformer-transducer-stateless2-2022-07-05/exp/
+
+sherpa-ncnn<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>../data/lang_bpe_500/tokens.txt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./encoder_jit_trace-pnnx.ncnn.param<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./encoder_jit_trace-pnnx.ncnn.bin<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./decoder_jit_trace-pnnx.ncnn.param<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./decoder_jit_trace-pnnx.ncnn.bin<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./joiner_jit_trace-pnnx.ncnn.param<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./joiner_jit_trace-pnnx.ncnn.bin<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>../test_wavs/1089-134686-0001.wav
+</pre></div>
+</div>
+</div></blockquote>
+<p>with</p>
+<blockquote>
+<div><div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">cd</span> <span class="n">egs</span><span class="o">/</span><span class="n">librispeech</span><span class="o">/</span><span class="n">ASR</span>
+<span class="n">cd</span> <span class="n">icefall</span><span class="o">-</span><span class="n">asr</span><span class="o">-</span><span class="n">librispeech</span><span class="o">-</span><span class="n">conv</span><span class="o">-</span><span class="n">emformer</span><span class="o">-</span><span class="n">transducer</span><span class="o">-</span><span class="n">stateless2</span><span class="o">-</span><span class="mi">2022</span><span class="o">-</span><span class="mi">07</span><span class="o">-</span><span class="mi">05</span><span class="o">/</span><span class="n">exp</span><span class="o">/</span>
+
+<span class="n">sherpa</span><span class="o">-</span><span class="n">ncnn</span> \
+  <span class="o">../</span><span class="n">data</span><span class="o">/</span><span class="n">lang_bpe_500</span><span class="o">/</span><span class="n">tokens</span><span class="o">.</span><span class="n">txt</span> \
+  <span class="o">./</span><span class="n">encoder_jit_trace</span><span class="o">-</span><span class="n">pnnx</span><span class="o">.</span><span class="n">ncnn</span><span class="o">.</span><span class="n">int8</span><span class="o">.</span><span class="n">param</span> \
+  <span class="o">./</span><span class="n">encoder_jit_trace</span><span class="o">-</span><span class="n">pnnx</span><span class="o">.</span><span class="n">ncnn</span><span class="o">.</span><span class="n">int8</span><span class="o">.</span><span class="n">bin</span> \
+  <span class="o">./</span><span class="n">decoder_jit_trace</span><span class="o">-</span><span class="n">pnnx</span><span class="o">.</span><span class="n">ncnn</span><span class="o">.</span><span class="n">param</span> \
+  <span class="o">./</span><span class="n">decoder_jit_trace</span><span class="o">-</span><span class="n">pnnx</span><span class="o">.</span><span class="n">ncnn</span><span class="o">.</span><span class="n">bin</span> \
+  <span class="o">./</span><span class="n">joiner_jit_trace</span><span class="o">-</span><span class="n">pnnx</span><span class="o">.</span><span class="n">ncnn</span><span class="o">.</span><span class="n">param</span> \
+  <span class="o">./</span><span class="n">joiner_jit_trace</span><span class="o">-</span><span class="n">pnnx</span><span class="o">.</span><span class="n">ncnn</span><span class="o">.</span><span class="n">bin</span> \
+  <span class="o">../</span><span class="n">test_wavs</span><span class="o">/</span><span class="mi">1089</span><span class="o">-</span><span class="mi">134686</span><span class="o">-</span><span class="mf">0001.</span><span class="n">wav</span>
+</pre></div>
+</div>
+</div></blockquote>
+</div>
+<p>The following table compares again the file sizes:</p>
+<table class="docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p>File name</p></td>
+<td><p>File size</p></td>
+</tr>
+<tr class="row-even"><td><p>encoder_jit_trace-pnnx.pt</p></td>
+<td><p>283 MB</p></td>
+</tr>
+<tr class="row-odd"><td><p>decoder_jit_trace-pnnx.pt</p></td>
+<td><p>1010 KB</p></td>
+</tr>
+<tr class="row-even"><td><p>joiner_jit_trace-pnnx.pt</p></td>
+<td><p>3.0 MB</p></td>
+</tr>
+<tr class="row-odd"><td><p>encoder_jit_trace-pnnx.ncnn.bin (fp16)</p></td>
+<td><p>142 MB</p></td>
+</tr>
+<tr class="row-even"><td><p>decoder_jit_trace-pnnx.ncnn.bin (fp16)</p></td>
+<td><p>503 KB</p></td>
+</tr>
+<tr class="row-odd"><td><p>joiner_jit_trace-pnnx.ncnn.bin  (fp16)</p></td>
+<td><p>1.5 MB</p></td>
+</tr>
+<tr class="row-even"><td><p>encoder_jit_trace-pnnx.ncnn.bin (fp32)</p></td>
+<td><p>283 MB</p></td>
+</tr>
+<tr class="row-odd"><td><p>joiner_jit_trace-pnnx.ncnn.bin  (fp32)</p></td>
+<td><p>3.0 MB</p></td>
+</tr>
+<tr class="row-even"><td><p>encoder_jit_trace-pnnx.ncnn.int8.bin</p></td>
+<td><p>99 MB</p></td>
+</tr>
+<tr class="row-odd"><td><p>joiner_jit_trace-pnnx.ncnn.int8.bin</p></td>
+<td><p>774 KB</p></td>
+</tr>
+</tbody>
+</table>
+<p>You can see that the file sizes of the model after <code class="docutils literal notranslate"><span class="pre">int8</span></code> quantization
+are much smaller.</p>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>Currently, only linear layers and convolutional layers are quantized
+with <code class="docutils literal notranslate"><span class="pre">int8</span></code>, so you don’t see an exact <code class="docutils literal notranslate"><span class="pre">4x</span></code> reduction in file sizes.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>You need to test the recognition accuracy after <code class="docutils literal notranslate"><span class="pre">int8</span></code> quantization.</p>
+</div>
+<p>You can find the speed comparison at <a class="reference external" href="https://github.com/k2-fsa/sherpa-ncnn/issues/44">https://github.com/k2-fsa/sherpa-ncnn/issues/44</a>.</p>
+<p>That’s it! Have fun with <a class="reference external" href="https://github.com/k2-fsa/sherpa-ncnn">sherpa-ncnn</a>!</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="export-ncnn.html" class="btn btn-neutral float-left" title="Export to ncnn" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="export-ncnn-lstm.html" class="btn btn-neutral float-right" title="Export LSTM transducer models to ncnn" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2021, icefall development team.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
