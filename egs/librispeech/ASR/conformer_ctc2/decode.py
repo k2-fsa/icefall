@@ -873,7 +873,7 @@ def main() -> None:
     librispeech = LibriSpeechAsrDataModule(args)
     
     dev_clean_cuts = librispeech.dev_clean_cuts()
-    dev_ohter_cuts = librispeech.dev_other_cuts()
+    dev_other_cuts = librispeech.dev_other_cuts()
     test_clean_cuts = librispeech.test_clean_cuts()
     test_other_cuts = librispeech.test_other_cuts()
     
