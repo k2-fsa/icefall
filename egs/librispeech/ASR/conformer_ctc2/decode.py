@@ -871,7 +871,9 @@ def main() -> None:
     '''
     args.return_cuts = True
     librispeech = LibriSpeechAsrDataModule(args)
-
+    
+    dev_clean_cuts = librispeech.dev_clean_cuts()
+    dev_ohter_cuts = librispeech.dev_ohter_cuts()
     test_clean_cuts = librispeech.test_clean_cuts()
     test_other_cuts = librispeech.test_other_cuts()
 
