@@ -675,6 +675,9 @@ def compute_loss(
             ctc_loss = (1-params.interctc_weight) * ctc_loss + params.interctc_weight * inter_ctc_loss
 
         if not params.interctc and not params.condition:
+            if type(nnet_output) == tuple:
+                nnet_output = nnet_output[0]
+
             dense_fsa_vec = k2.DenseFsaVec(
                 nnet_output,
                 supervision_segments,
