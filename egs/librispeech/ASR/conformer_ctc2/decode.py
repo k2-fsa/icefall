@@ -877,8 +877,8 @@ def main() -> None:
     test_clean_cuts = librispeech.test_clean_cuts()
     test_other_cuts = librispeech.test_other_cuts()
     
-    dev_clean_dl = librispeech.dev_dataloaders(dev_clean_cuts)
-    dev_other_dl = librispeech.dev_dataloaders(dev_other_cuts)
+    dev_clean_dl = librispeech.valid_dataloaders(dev_clean_cuts)
+    dev_other_dl = librispeech.valid_dataloaders(dev_other_cuts)
     test_clean_dl = librispeech.test_dataloaders(test_clean_cuts)
     test_other_dl = librispeech.test_dataloaders(test_other_cuts)
 
