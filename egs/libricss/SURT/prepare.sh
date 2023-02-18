@@ -120,8 +120,9 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
 
   sim_cmd="queue.pl --mem 16G -l 'num_proc=4,h_rt=600:00:00'"
 
-  # gunzip -c data/manifests/libricss-sdm_supervisions_all.jsonl.gz |\
-  #   grep -v "0L" | gzip -c > data/manifests/libricss-sdm_supervisions_all_no0L.jsonl.gz
+  gunzip -c data/manifests/libricss-sdm_supervisions_all.jsonl.gz |\
+    grep -v "0L" | grep -v "OV10" | grep -v "OV20" |\
+    gzip -c > data/manifests/libricss-sdm_supervisions_all_v2.jsonl.gz
 
   # 2-speaker anechoic
   # log "Generating 2-speaker anechoic training set"
@@ -152,7 +153,7 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   #   data/manifests/librispeech_cuts_train_trimmed.jsonl.gz \
   #   data/manifests/libri-mix_cuts_train_2spk_rvb.jsonl.gz
 
-  # Full training set (2,3,4 speakers) anechoic
+  # Full training set (2,3 speakers) anechoic
   for part in train; do
     if [ $part == "dev" ]; then
       num_jobs=1
@@ -162,11 +163,14 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
     log "Generating anechoic ${part} set (full)"
     $sim_cmd exp/sim_${part}.log lhotse workflows simulate-meetings \
       --method conversational \
-      --fit-to-supervisions data/manifests/libricss-sdm_supervisions_all_no0L.jsonl.gz \
       --num-repeats 1 \
-      --num-speakers-per-meeting 2,3,4 \
-      --max-duration-per-speaker 20.0 \
-      --max-utterances-per-speaker 4 \
+      --same-spk-pause 0.5 \
+      --diff-spk-pause 0.5 \
+      --diff-spk-overlap 2 \
+      --prob-diff-spk-overlap 0.75 \
+      --num-speakers-per-meeting 2,3 \
+      --max-duration-per-speaker 15.0 \
+      --max-utterances-per-speaker 3 \
       --seed 1234 \
       --num-jobs ${num_jobs} \
       data/manifests/librispeech_cuts_${part}_trimmed.jsonl.gz \

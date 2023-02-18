@@ -236,7 +236,6 @@ class DPRNN(nn.Module):
                 min_positive=0.45,
                 max_positive=0.55,
             ),
-            nn.ReLU(inplace=True),
         )
 
     def forward(self, input):
@@ -275,6 +274,9 @@ class DPRNN(nn.Module):
         output = merge_feature(output, rest)
         output = output.transpose(1, 2)
         output = self.out_embed(output)
+
+        # Apply ReLU to the output
+        output = torch.relu(output)
 
         return output
 

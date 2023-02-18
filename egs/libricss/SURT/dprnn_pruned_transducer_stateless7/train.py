@@ -303,7 +303,7 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--base-lr", type=float, default=0.04, help="The base learning rate."
+        "--base-lr", type=float, default=0.004, help="The base learning rate."
     )
 
     parser.add_argument(
@@ -747,6 +747,7 @@ def compute_loss(
             am_scale=params.am_scale,
             lm_scale=params.lm_scale,
             reduction="none",
+            subsampling_factor=params.subsampling_factor,
         )
         simple_loss_is_finite = torch.isfinite(simple_loss)
         pruned_loss_is_finite = torch.isfinite(pruned_loss)
@@ -1136,9 +1137,8 @@ def run(rank, world_size, args):
 
     if checkpoints is None and params.encoder_init_ckpt is not None:
         logging.info("Initializing encoder with checkpoint")
-        model.encoder.load_state_dict(
-            torch.load(params.encoder_init_ckpt, map_location=device)
-        )
+        init_ckpt = torch.load(params.encoder_init_ckpt, map_location=device)
+        model.load_state_dict(init_ckpt["model"], strict=False)
 
     if world_size > 1:
         logging.info("Using DDP")
@@ -1176,8 +1176,8 @@ def run(rank, world_size, args):
 
     train_cuts = librimix.train_cuts(reverberated=False)
     train_cuts_2spk = librimix.train_cuts_2spk(reverberated=False)
-    # train_cuts_1spk = librimix.train_cuts_1spk(sp=sp)
-    dev_cuts = librimix.dev_cuts(reverberated=False)
+    # dev_cuts = librimix.dev_cuts(reverberated=False)
+    dev_cuts = librimix.libricss_cuts(split="dev", type="ihm-mix")
 
     if params.start_batch > 0 and checkpoints and "sampler" in checkpoints:
         # We only load the sampler's state dict when it loads a checkpoint
@@ -1191,7 +1191,6 @@ def run(rank, world_size, args):
         sampler_state_dict=sampler_state_dict,
     )
     train_dl_2spk = librimix.train_dataloaders(train_cuts_2spk)
-    # train_dl = librimix.train_dataloaders(train_cuts_1spk)
     valid_dl = librimix.valid_dataloaders(dev_cuts)
 
     scaler = GradScaler(enabled=params.use_fp16, init_scale=1.0)

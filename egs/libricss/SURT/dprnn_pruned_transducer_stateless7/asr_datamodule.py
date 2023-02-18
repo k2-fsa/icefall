@@ -334,69 +334,39 @@ class LibrimixAsrDataModule:
     @lru_cache()
     def train_cuts(self, reverberated: bool = False) -> CutSet:
         logging.info("About to get train cuts")
-        if reverberated:
-            cs = load_manifest_lazy(self.args.manifest_dir / "cuts_train.jsonl.gz")
-        else:
-            cs = load_manifest_lazy(
-                self.args.manifest_dir / "cuts_train_norvb.jsonl.gz"
-            )
-        cs = cs.filter(lambda c: c.duration >= 1.0 and c.duration <= 50.0)
+        rvb_affix = "_rvb" if reverberated else "_norvb"
+        cs = load_manifest_lazy(
+            self.args.manifest_dir / f"cuts_train{rvb_affix}.jsonl.gz"
+        )
+        # Trim to supervision groups
+        cs = cs.trim_to_supervision_groups(max_pause=1.0)
+        cs = cs.filter(lambda c: c.duration >= 1.0 and c.duration <= 30.0)
         return cs
 
     @lru_cache()
     def dev_cuts(self, reverberated: bool = False) -> CutSet:
         logging.info("About to get dev cuts")
-        if reverberated:
-            cs = load_manifest_lazy(self.args.manifest_dir / "cuts_dev.jsonl.gz")
-        else:
-            cs = load_manifest_lazy(self.args.manifest_dir / "cuts_dev_norvb.jsonl.gz")
+        rvb_affix = "_rvb" if reverberated else "_norvb"
+        cs = load_manifest_lazy(
+            self.args.manifest_dir / f"cuts_dev{rvb_affix}.jsonl.gz"
+        )
         cs = cs.filter(lambda c: c.duration >= 0.1)
         return cs
 
     @lru_cache()
     def train_cuts_2spk(self, reverberated: bool = False) -> CutSet:
         logging.info("About to get 2-spk train cuts")
-        if reverberated:
-            cs = load_manifest_lazy(
-                self.args.manifest_dir / "cuts_train_2spk_reverb.jsonl.gz"
-            )
-        else:
-            cs = load_manifest_lazy(self.args.manifest_dir / "cuts_train_2spk.jsonl.gz")
-        cs = cs.filter(lambda c: c.duration >= 1.0 and c.duration <= 50.0)
+        rvb_affix = "_rvb" if reverberated else "_norvb"
+        cs = load_manifest_lazy(
+            self.args.manifest_dir / f"cuts_train_2spk{rvb_affix}.jsonl.gz"
+        )
+        cs = cs.filter(lambda c: c.duration >= 1.0 and c.duration <= 30.0)
         return cs
 
     @lru_cache()
-    def dev_cuts_2spk(self, reverberated: bool = False) -> CutSet:
-        logging.info("About to get 2-spk dev cuts")
-        if reverberated:
-            cs = load_manifest_lazy(
-                self.args.manifest_dir / "cuts_dev_2spk_reverb.jsonl.gz"
-            )
-        else:
-            cs = load_manifest_lazy(self.args.manifest_dir / "cuts_dev_2spk.jsonl.gz")
-        cs = cs.filter(lambda c: c.duration >= 0.1)
-        return cs
-
-    @lru_cache()
-    def train_cuts_1spk(self, reverberated: bool = False) -> CutSet:
-        logging.info("About to get 2-spk train cuts")
-        if reverberated:
-            cs = load_manifest_lazy(
-                self.args.manifest_dir / "cuts_train_1spk_reverb.jsonl.gz"
-            )
-        else:
-            cs = load_manifest_lazy(self.args.manifest_dir / "cuts_train_1spk.jsonl.gz")
-        cs = cs.filter(lambda c: c.duration >= 1.0 and c.duration <= 50.0)
-        return cs
-
-    @lru_cache()
-    def dev_cuts_1spk(self, reverberated: bool = False) -> CutSet:
-        logging.info("About to get 1-spk dev cuts")
-        if reverberated:
-            cs = load_manifest_lazy(
-                self.args.manifest_dir / "cuts_dev_1spk_reverb.jsonl.gz"
-            )
-        else:
-            cs = load_manifest_lazy(self.args.manifest_dir / "cuts_dev_1spk.jsonl.gz")
-        cs = cs.filter(lambda c: c.duration >= 0.1)
+    def libricss_cuts(self, split="dev", type="sdm") -> CutSet:
+        logging.info(f"About to get LibriCSS {split} {type} cuts")
+        cs = load_manifest_lazy(
+            self.args.manifest_dir / f"cuts_{split}_libricss-{type}.jsonl.gz"
+        )
         return cs
