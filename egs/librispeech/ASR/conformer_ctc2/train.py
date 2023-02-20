@@ -1060,11 +1060,11 @@ def run(rank, world_size, args):
 
     if checkpoints and checkpoints.get("optimizer") is not None:
         logging.info("Loading optimizer state dict")
-        #optimizer.load_state_dict(checkpoints["optimizer"])
+        optimizer.load_state_dict(checkpoints["optimizer"])
 
     if checkpoints and checkpoints.get("scheduler") is not None:
         logging.info("Loading scheduler state dict")
-        #scheduler.load_state_dict(checkpoints["scheduler"])
+        scheduler.load_state_dict(checkpoints["scheduler"])
 
     if params.print_diagnostics:
         opts = diagnostics.TensorDiagnosticOptions(
