@@ -138,8 +138,9 @@ class Conformer(Transformer):
         if self.group_num != 0:
             self.learnable_alpha = learnable_alpha
             self.group_layer_num = int(num_encoder_layers // self.group_num)
-            self.alpha = nn.Parameter(torch.rand(self.group_num))
-            self.sigmoid = nn.Sigmoid()
+            if self.learnable_alpha:
+                self.alpha = nn.Parameter(torch.rand(self.group_num))
+                self.sigmoid = nn.Sigmoid()
             self.layer_norm = nn.LayerNorm(d_model)
 
         self.interctc = interctc
