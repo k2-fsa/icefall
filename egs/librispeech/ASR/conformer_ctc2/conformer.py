@@ -53,6 +53,7 @@ class Conformer(Transformer):
         group_num: int = 0,
         interctc: bool = False,
         interctc_condition: bool = False,
+        learnable_alpha: bool = True,
     ) -> None:
         """
         Args:
