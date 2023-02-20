@@ -195,7 +195,8 @@ class Conformer(Transformer):
         if self.group_num > 0:
             x = 0
             for enum, alpha in enumerate(self.alpha):
-                x += self.sigmoid(alpha) * layer_outputs[(enum+1)*self.group_layer_num-1]
+                if self.learnable_alpha: x += self.sigmoid(alpha) * layer_outputs[(enum+1)*self.group_layer_num-1]
+                else: x += (1/self.group_num) * layer_outputs[(enum+1)*self.group_layer_num-1]
             x = self.layer_norm(x)
 
         if self.interctc or self.interctc_condition or self.group_num > 0:
