@@ -158,6 +158,12 @@ def add_model_arguments(parser: argparse.ArgumentParser) -> None:
         type=str2bool,
         default=False,
     )
+    
+    parser.add_argument(
+        "--learnable-alpha",
+        type=str2bool,
+        default=True,
+    )
 
     parser.add_argument(
         "--interctc-weight",
