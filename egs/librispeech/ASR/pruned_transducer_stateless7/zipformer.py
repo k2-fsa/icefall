@@ -142,7 +142,8 @@ class Zipformer(EncoderInterface):
         # encoder stacks; when it's dropped out like this, it means we are forced
         # to take the "direct" (non-bypass) path.
         self.layer_skip_dropout_prob = ScheduledFloat((0.0, 0.5),
-                                                      (warmup_batches, 0.025))
+                                                      (warmup_batches, 0.025),
+                                                      (20000.0, 0.0))
 
         def _to_tuple(x):
             """ Converts a single int or a 1-tuple of an int to a tuple with the same length
