@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# Copyright    2021  Xiaomi Corp.        (authors: Mingshuang Luo)
+# Copyright    2021  Xiaomi Corp.        (author: Mingshuang Luo)
+# Copyright    2022  Behavox LLC.        (author: Daniil Kulko)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -17,68 +18,67 @@
 
 
 """
-This script takes as input supervisions json dir "data/manifests"
-consisting of supervisions_train.json and does the following:
-
-1. Generate train.text.
+This script takes input text file and removes all words
+that iclude any character out of English alphabet.
 
 """
 import argparse
 import logging
+import re
 from pathlib import Path
-
-import lhotse
 
 
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--manifests-dir",
+        "--input-text-path",
         type=str,
-        help="""Input directory.
-        """,
+        help="Input text file path.",
     )
     parser.add_argument(
-        "--lang-dir",
+        "--output-text-path",
         type=str,
-        help="""Output directory.
-        """,
+        help="Output text file path.",
     )
 
     return parser.parse_args()
 
 
-def prepare_transcripts(manifests_dir: str, lang_dir: str):
+def prepare_transcripts(input_text_path: Path, output_text_path: Path) -> None:
     """
     Args:
-      manifests_dir:
-        The manifests directory, e.g., data/manifests.
-      lang_dir:
-        The language directory, e.g., data/lang_phone.
+      input_text_path:
+        The input data text file path, e.g., data/lang/train_orig.txt.
+      output_text_path:
+        The output data text file path, e.g., data/lang/train.txt.
 
     Return:
-      The train.text in lang_dir.
+      Saved text file in output_text_path.
     """
-    texts = []
 
-    train_text = Path(lang_dir) / "train.text"
-    sups = lhotse.load_manifest(f"{manifests_dir}/tedlium_supervisions_train.jsonl.gz")
-    for s in sups:
-        texts.append(s.text)
+    foreign_chr_check = re.compile(r"[^a-z']")
 
-    with open(train_text, "w") as f:
-        for text in texts:
-            f.write(text)
-            f.write("\n")
+    logging.info(f"Loading {input_text_path.name}")
+    with open(input_text_path, "r", encoding="utf8") as f:
+        texts = {t.rstrip("\n") for t in f}
+
+    texts = {
+        " ".join([w for w in t.split() if foreign_chr_check.search(w) is None])
+        for t in texts
+    }
+
+    with open(output_text_path, "w+", encoding="utf8") as f:
+        for t in texts:
+            f.write(f"{t}\n")
 
 
-def main():
+def main() -> None:
     args = get_args()
-    manifests_dir = Path(args.manifests_dir)
-    lang_dir = Path(args.lang_dir)
+    input_text_path = Path(args.input_text_path)
+    output_text_path = Path(args.output_text_path)
 
-    logging.info("Generating train.text")
-    prepare_transcripts(manifests_dir, lang_dir)
+    logging.info(f"Generating {output_text_path.name}")
+    prepare_transcripts(input_text_path, output_text_path)
 
 
 if __name__ == "__main__":
