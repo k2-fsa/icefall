@@ -24,7 +24,7 @@ stop_stage=100
 #     - music
 #     - noise
 #     - speech
-dl_dir=/DB/LibriSpeech_tar
+dl_dir=/home/work/workspace/tedlium2
 
 . shared/parse_options.sh || exit 1
 
