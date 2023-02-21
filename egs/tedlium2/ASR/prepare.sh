@@ -180,7 +180,7 @@ if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
   if [ ! -f data/lm/G_4_gram_small.fst.txt ]; then
     # It is used in building HLG
     python3 -m kaldilm \
-      --read-symbol-table="data/lang/words.txt" \
+      --read-symbol-table="data/lang_bpe_500/words.txt" \
       --disambig-symbol='#0' \
       --max-order=4 \
       --max-arpa-warnings=-1 \
