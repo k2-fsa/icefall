@@ -5,7 +5,6 @@ export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
 
 set -eou pipefail
 
-nj=15
 stage=0
 stop_stage=100
 
@@ -13,7 +12,7 @@ stop_stage=100
 # directories and files. If not, they will be downloaded
 # by this script automatically.
 #
-#  - $dl_dir/tedlium2
+#  - $dl_dir/tedlium3
 #      You can find data, doc, legacy, LM, etc, inside it.
 #      You can download them from https://www.openslr.org/51
 #
@@ -24,7 +23,7 @@ stop_stage=100
 #     - music
 #     - noise
 #     - speech
-dl_dir=/DB/LibriSpeech_tar
+dl_dir=/home/work/workspace/tedlium3
 
 . shared/parse_options.sh || exit 1
 
@@ -58,10 +57,17 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   #
   # ln -sfv /path/to/tedlium3 $dl_dir/tedlium3
   #
-  #if [ ! -d $dl_dir/tedlium2 ]; then
-  #  lhotse download tedlium $dl_dir
-  #  mv $dl_dir/TEDLIUM_release-2 $dl_dir/tedlium2
-  #fi
+  if [ ! -d $dl_dir/tedlium3 ]; then
+    lhotse download tedlium $dl_dir
+    mv $dl_dir/TEDLIUM_release-3 $dl_dir/tedlium3
+  fi
+
+  # Download big and small 4 gram lanuage models
+  if [ ! -d $dl_dir/lm ]; then
+    wget --continue http://kaldi-asr.org/models/5/4gram_small.arpa.gz -P $dl_dir/lm
+    wget --continue http://kaldi-asr.org/models/5/4gram_big.arpa.gz -P $dl_dir/lm
+    gzip -d $dl_dir/lm/4gram_small.arpa.gz $dl_dir/lm/4gram_big.arpa.gz
+  fi
 
   # If you have pre-downloaded it to /path/to/musan,
   # you can create a symlink
@@ -74,13 +80,13 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
 fi
 
 if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
-  log "Stage 1: Prepare tedlium2 manifests"
-  if [ ! -f data/manifests/.tedlium2.done ]; then
+  log "Stage 1: Prepare tedlium3 manifests"
+  if [ ! -f data/manifests/.tedlium3.done ]; then
     # We assume that you have downloaded the tedlium3 corpus
     # to $dl_dir/tedlium3
     mkdir -p data/manifests
-    lhotse prepare tedlium $dl_dir/tedlium2 data/manifests
-    touch data/manifests/.tedlium2.done
+    lhotse prepare tedlium $dl_dir/tedlium3 data/manifests
+    touch data/manifests/.tedlium3.done
   fi
 fi
 
@@ -96,12 +102,19 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
 fi
 
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
-  log "Stage 3: Compute fbank for tedlium2"
+  log "Stage 3: Compute fbank for tedlium3"
 
-  if [ ! -e data/fbank/.tedlium2.done ]; then
+  if [ ! -e data/fbank/.tedlium3.done ]; then
     mkdir -p data/fbank
+
     python3 ./local/compute_fbank_tedlium.py
-    touch data/fbank/.tedlium2.done
+
+    gunzip -c data/fbank/tedlium_cuts_train.jsonl.gz | shuf | \
+    gzip -c > data/fbank/tedlium_cuts_train-shuf.jsonl.gz
+    mv data/fbank/tedlium_cuts_train-shuf.jsonl.gz \
+       data/fbank/tedlium_cuts_train.jsonl.gz
+
+    touch data/fbank/.tedlium3.done
   fi
 fi
 
@@ -115,28 +128,24 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
 fi
 
 if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
-  log "Stage 5: Prepare phone based lang"
-  lang_dir=data/lang_phone
+  log "Stage 5: Prepare BPE train data and set of words"
+  lang_dir=data/lang
   mkdir -p $lang_dir
 
-  if [ ! -f $lang_dir/train.text ]; then
+  if [ ! -f $lang_dir/train.txt ]; then
+    gunzip -c $dl_dir/tedlium3/LM/*.en.gz | sed 's: <\/s>::g' > $lang_dir/train_orig.txt
+
     ./local/prepare_transcripts.py \
-      --lang-dir $lang_dir \
-      --manifests-dir data/manifests
+      --input-text-path $lang_dir/train_orig.txt \
+      --output-text-path $lang_dir/train.txt
   fi
 
-  if [ ! -f $lang_dir/lexicon_words.txt ]; then
-    ./local/prepare_lexicon.py \
-      --lang-dir $lang_dir \
-      --manifests-dir data/manifests
-  fi
+  if [ ! -f $lang_dir/words.txt ]; then
 
-  (echo '!SIL SIL'; echo '<UNK> <UNK>'; ) |
-    cat - $lang_dir/lexicon_words.txt |
-    sort | uniq > $lang_dir/lexicon.txt
+    awk '{print $1}' $dl_dir/tedlium3/TEDLIUM.152k.dic |
+    sed 's:([0-9])::g' | sort | uniq > $lang_dir/words_orig.txt
 
-  if [ ! -f $lang_dir/L_disambig.pt ]; then
-    ./local/prepare_lang.py --lang-dir $lang_dir
+    ./local/prepare_words.py --lang-dir $lang_dir
   fi
 fi
 
@@ -148,92 +157,56 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
     mkdir -p $lang_dir
     # We reuse words.txt from phone based lexicon
     # so that the two can share G.pt later.
-    cp data/lang_phone/words.txt $lang_dir
-
-    if [ ! -f $lang_dir/transcript_words.txt ]; then
-      log "Generate data for BPE training"
-      cat data/lang_phone/train.text |
-      cut -d " " -f 2- > $lang_dir/transcript_words.txt
-      # remove the <unk> for transcript_words.txt
-      sed -i 's/ <unk>//g' $lang_dir/transcript_words.txt
-      sed -i 's/<unk> //g' $lang_dir/transcript_words.txt
-      sed -i 's/<unk>//g' $lang_dir/transcript_words.txt
-    fi
+    cp data/lang/words.txt $lang_dir
 
     ./local/train_bpe_model.py \
       --lang-dir $lang_dir \
       --vocab-size $vocab_size \
-      --transcript $lang_dir/transcript_words.txt
+      --transcript data/lang/train.txt
 
     if [ ! -f $lang_dir/L_disambig.pt ]; then
-      ./local/prepare_lang_bpe.py --lang-dir $lang_dir
+      ./local/prepare_lang_bpe.py --lang-dir $lang_dir --oov "<unk>"
     fi
   done
 fi
 
 if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
-  log "Stage 7: Prepare bigram P"
-
-  for vocab_size in ${vocab_sizes[@]}; do
-    lang_dir=data/lang_bpe_${vocab_size}
-
-    if [ ! -f $lang_dir/transcript_tokens.txt ]; then
-      ./local/convert_transcript_words_to_tokens.py \
-        --lexicon $lang_dir/lexicon.txt \
-        --transcript $lang_dir/transcript_words.txt \
-        --oov "<UNK>" \
-        > $lang_dir/transcript_tokens.txt
-    fi
-
-    if [ ! -f $lang_dir/P.arpa ]; then
-      ./shared/make_kn_lm.py \
-        -ngram-order 2 \
-        -text $lang_dir/transcript_tokens.txt \
-        -lm $lang_dir/P.arpa
-    fi
-
-    if [ ! -f $lang_dir/P.fst.txt ]; then
-      python3 -m kaldilm \
-        --read-symbol-table="$lang_dir/tokens.txt" \
-        --disambig-symbol='#0' \
-        --max-order=2 \
-        $lang_dir/P.arpa > $lang_dir/P.fst.txt
-    fi
-  done
-fi
-
-if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
-  log "Stage 8: Prepare G"
+  log "Stage 7: Prepare G"
   # We assume you have install kaldilm, if not, please install
   # it using: pip install kaldilm
 
   mkdir -p data/lm
-  if [ ! -f data/lm/G_3_gram.fst.txt ]; then
+  if [ ! -f data/lm/G_4_gram_small.fst.txt ]; then
     # It is used in building HLG
     python3 -m kaldilm \
-      --read-symbol-table="data/lang_phone/words.txt" \
-      --disambig-symbol='#0' \
-      --max-order=3 \
-      $dl_dir/lm/3-gram.pruned.1e-7.arpa > data/lm/G_3_gram.fst.txt
-  fi
-
-  if [ ! -f data/lm/G_4_gram.fst.txt ]; then
-    # It is used for LM rescoring
-    python3 -m kaldilm \
-      --read-symbol-table="data/lang_phone/words.txt" \
+      --read-symbol-table="data/lang/words.txt" \
       --disambig-symbol='#0' \
       --max-order=4 \
-      $dl_dir/lm/4-gram.arpa > data/lm/G_4_gram.fst.txt
+      --max-arpa-warnings=-1 \
+      $dl_dir/lm/4gram_small.arpa > data/lm/G_4_gram_small.fst.txt
+  fi
+
+  if [ ! -f data/lm/G_4_gram_big.fst.txt ]; then
+    # It is used for LM rescoring
+    python3 -m kaldilm \
+      --read-symbol-table="data/lang/words.txt" \
+      --disambig-symbol='#0' \
+      --max-order=4 \
+      --max-arpa-warnings=-1 \
+      $dl_dir/lm/4gram_big.arpa > data/lm/G_4_gram_big.fst.txt
   fi
 fi
 
-if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
-  log "Stage 9: Compile HLG"
-  ./local/compile_hlg.py --lang-dir data/lang_phone
+if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
+  log "Stage 8: Compile HLG"
 
   for vocab_size in ${vocab_sizes[@]}; do
     lang_dir=data/lang_bpe_${vocab_size}
-    ./local/compile_hlg.py --lang-dir $lang_dir
+
+    if [ ! -f $lang_dir/HLG.pt ]; then
+      ./local/compile_hlg.py \
+        --lang-dir $lang_dir \
+        --lm G_4_gram_small
+    fi
   done
 fi
-
