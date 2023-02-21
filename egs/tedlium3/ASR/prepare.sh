@@ -23,7 +23,7 @@ stop_stage=100
 #     - music
 #     - noise
 #     - speech
-dl_dir=$PWD/download
+dl_dir=/home/work/workspace/tedlium3
 
 . shared/parse_options.sh || exit 1
 
