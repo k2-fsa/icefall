@@ -769,6 +769,7 @@ def main() -> None:
         cnn_module_kernel=params.kernel_size,
         interctc=params.interctc,
         interctc_condition=params.condition,
+        learnable_alpha=params.learnable_alpha,
     )
 
     if not params.use_averaged_model:
