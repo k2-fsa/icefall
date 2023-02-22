@@ -2165,6 +2165,16 @@ class SwooshR(torch.nn.Module):
             return torch.logaddexp(zero, x - 1.)  - 0.08 * x - 0.313261687
         return SwooshRFunction.apply(x)
 
+def convert_num_channels(x: Tensor, num_channels: int) -> Tensor:
+    if num_channels <= x.shape[-1]:
+        return x[..., :num_channels]
+    else:
+        shape = list(x.shape)
+        shape[-1] = num_channels - shape[-1]
+        zeros = torch.zeros(*shape, dtype=x.dtype, device=x.device)
+        return torch.cat((x, zeros), dim=-1)
+
+
 
 
 def _test_max_eig():
