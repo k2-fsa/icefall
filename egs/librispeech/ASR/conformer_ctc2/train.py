@@ -325,6 +325,13 @@ def get_parser() -> argparse.ArgumentParser:
         help="Whether to use half precision training.",
     )
     
+    parser.add_argument(
+        "--unused-params",
+        type=str2bool,
+        default=False,
+        help="Whether to use half precision training.",
+    )
+
     add_model_arguments(parser)
 
     return parser
