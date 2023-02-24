@@ -382,7 +382,7 @@ def get_params() -> AttributeDict:
             "num_encoder_layers": 12,
             # parameters for loss
             "beam_size": 10,
-            "reduction": "sum",
+            "reduction": "none",
             "use_double_scores": True,
             # parameters for Noam
             "model_warm_step": 3000,  # arg given to model, not for lrate

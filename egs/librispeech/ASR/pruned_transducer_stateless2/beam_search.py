@@ -2377,6 +2377,6 @@ def modified_beam_search_lm_shallow_fusion(
         return ans
     else:
         return DecodingResults(
-            tokens=ans,
+            hyps=ans,
             timestamps=ans_timestamps,
         )

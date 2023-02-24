@@ -425,6 +425,7 @@ def get_params() -> AttributeDict:
             "joiner_dim": 512,
             # parameters for Noam
             "model_warm_step": 3000,  # arg given to model, not for lrate
+            "is_pnnx": True,
             "env_info": get_env_info(),
         }
     )
@@ -446,6 +447,7 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         left_context_length=params.left_context_length,
         right_context_length=params.right_context_length,
         memory_size=params.memory_size,
+        is_pnnx=params.is_pnnx,
     )
     return encoder
 

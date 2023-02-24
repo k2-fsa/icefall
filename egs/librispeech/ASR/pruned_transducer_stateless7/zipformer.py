@@ -44,7 +44,7 @@ from scaling import (
 from torch import Tensor, nn
 
 from icefall.dist import get_rank
-from icefall.utils import make_pad_mask
+from icefall.utils import is_jit_tracing, make_pad_mask
 
 
 class Zipformer(EncoderInterface):
@@ -197,13 +197,13 @@ class Zipformer(EncoderInterface):
         """
         In eval mode, returns [1.0] * num_encoders; in training mode, returns a number of
         randomized feature masks, one per encoder.
-        On e.g. 15% of frames, these masks will zero out all enocder dims larger than
+        On e.g. 15% of frames, these masks will zero out all encoder dims larger than
         some supplied number, e.g. >256, so in effect on those frames we are using
-        a smaller encoer dim.
+        a smaller encoder dim.
 
         We generate the random masks at this level because we want the 2 masks to 'agree'
         all the way up the encoder stack. This will mean that the 1st mask will have
-        mask values repeated self.zipformer_subsampling_factor times.
+        mask values repeated self.zipformer_downsampling_factors times.
 
         Args:
            x: the embeddings (needed for the shape and dtype and device), of shape
@@ -792,7 +792,8 @@ class AttentionDownsample(torch.nn.Module):
         src = src.reshape(d_seq_len, ds, batch_size, in_channels)
         scores = (src * self.query).sum(dim=-1, keepdim=True)
 
-        scores = penalize_abs_values_gt(scores, limit=10.0, penalty=1.0e-04)
+        if not torch.jit.is_scripting() and not torch.jit.is_tracing():
+            scores = penalize_abs_values_gt(scores, limit=10.0, penalty=1.0e-04)
 
         weights = scores.softmax(dim=1)
 
@@ -904,6 +905,13 @@ class RelPositionalEncoding(torch.nn.Module):
     def __init__(self, d_model: int, dropout_rate: float, max_len: int = 5000) -> None:
         """Construct a PositionalEncoding object."""
         super(RelPositionalEncoding, self).__init__()
+        if is_jit_tracing():
+            # 10k frames correspond to ~100k ms, e.g., 100 seconds, i.e.,
+            # It assumes that the maximum input won't have more than
+            # 10k frames.
+            #
+            # TODO(fangjun): Use torch.jit.script() for this module
+            max_len = 10000
         self.d_model = d_model
         self.dropout = torch.nn.Dropout(dropout_rate)
         self.pe = None
@@ -1009,10 +1017,10 @@ class RelPositionMultiheadAttention(nn.Module):
         # the initial_scale is supposed to take over the "scaling" factor of
         # head_dim ** -0.5, dividing it between the query and key.
         in_proj_dim = (
-            2 * attention_dim
-            + attention_dim // 2  # query, key
-            + pos_dim * num_heads  # value
-        )  # positional encoding query
+            2 * attention_dim  # query, key
+            + attention_dim // 2  # value
+            + pos_dim * num_heads  # positional encoding query
+        )
 
         self.in_proj = ScaledLinear(
             embed_dim, in_proj_dim, bias=True, initial_scale=self.head_dim**-0.25
@@ -1509,7 +1517,7 @@ class FeedforwardModule(nn.Module):
 
 class ConvolutionModule(nn.Module):
     """ConvolutionModule in Zipformer model.
-    Modified from https://github.com/espnet/espnet/blob/master/espnet/nets/pytorch_backend/zipformer/convolution.py
+    Modified from https://github.com/espnet/espnet/blob/master/espnet/nets/pytorch_backend/conformer/convolution.py
 
     Args:
         channels (int): The number of channels of conv layers.
