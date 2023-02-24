@@ -329,7 +329,6 @@ def get_parser() -> argparse.ArgumentParser:
         "--unused-params",
         type=str2bool,
         default=False,
-        help="Whether to use half precision training.",
     )
 
     add_model_arguments(parser)
@@ -1067,7 +1066,7 @@ def run(rank, world_size, args):
     model.to(device)
     if world_size > 1:
         logging.info("Using DDP")
-        model = DDP(model, device_ids=[rank], find_unused_parameters=False)
+        model = DDP(model, device_ids=[rank], find_unused_parameters=params.unused_params)
 
     optimizer = optim.Eve(model.parameters(), lr=params.initial_lr)
     scheduler = optim.Eden(optimizer, params.lr_batches, params.lr_epochs)
