@@ -479,7 +479,8 @@ def decode_one_batch(
         "attention-decoder",
     ]
     
-    lm_scale_list = [i/20 for i in range(20)]
+    lm_scale_list = [0]
+    #lm_scale_list = [i/20 for i in range(20)]
     #lm_scale_list = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]
     #lm_scale_list += [0.8, 0.9, 1.0, 1.1, 1.2, 1.3]
     #lm_scale_list += [1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0]
