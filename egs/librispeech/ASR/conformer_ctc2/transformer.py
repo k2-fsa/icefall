@@ -263,6 +263,7 @@ class Transformer(nn.Module):
         sos_id: int,
         eos_id: int,
         warmup: float = 1.0,
+        return_output: bool = False,
     ) -> torch.Tensor:
         """
         Args:
