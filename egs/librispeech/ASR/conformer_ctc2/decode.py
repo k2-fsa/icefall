@@ -424,6 +424,7 @@ def decode_one_batch(
             sos_id=graph_compiler.sos_id,
             eos_id=graph_compiler.eos_id,
             warmup=warmup,
+            return_output=True,
         )
         hyps = greedy_search(nnet_output, memory_key_padding_mask)
 
