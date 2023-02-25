@@ -237,9 +237,7 @@ def greedy_search(
       best path result
     """
     ctc_probs = probs
-    print(ctc_probs.size())
     _, max_index = ctc_probs.max(2)  # (B, maxlen)
-    print(max_index.size())
     max_index = max_index.masked_fill_(mask, 0)  # (B, maxlen)
 
     ret_hyps = []
@@ -247,8 +245,6 @@ def greedy_search(
         hyp = torch.unique_consecutive(hyp)
         hyp = hyp[hyp > 0].tolist()
         ret_hyps.append(hyp)
-    print(ret_hyps)
-    exit()
     return ret_hyps
 
 
