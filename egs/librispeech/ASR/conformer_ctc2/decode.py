@@ -356,8 +356,6 @@ def decode_one_batch(
         max_active_states=params.max_active_states,
         subsampling_factor=params.subsampling_factor,
     )
-    print(lattice)
-    exit()
 
     if params.method == "ctc-decoding":
         best_path = one_best_decoding(
