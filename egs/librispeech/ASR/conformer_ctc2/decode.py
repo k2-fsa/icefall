@@ -600,6 +600,7 @@ def decode_dataset(
             G=G,
             sos_id=sos_id,
             eos_id=eos_id,
+            graph_compiler=graph_compiler,
         )
 
         if hyps_dict is not None:
