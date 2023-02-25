@@ -22,6 +22,7 @@ import torch
 
 from icefall.utils import add_eos, add_sos, get_texts
 
+'''
 DEFAULT_LM_SCALE = [
     0.01,
     0.05,
@@ -48,7 +49,8 @@ DEFAULT_LM_SCALE = [
     4.0,
     5.0,
 ]
-
+'''
+DEFAULT_LM_SCALE = [0.]
 
 def _intersect_device(
     a_fsas: k2.Fsa,
