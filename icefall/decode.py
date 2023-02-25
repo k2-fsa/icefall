@@ -979,9 +979,9 @@ def rescore_with_attention_decoder(
     for n_scale in ngram_lm_scale_list:
         for a_scale in attention_scale_list:
             tot_scores = (
-                am_scores.values
-                + n_scale * ngram_lm_scores.values
-                + a_scale * attention_scores
+                #am_scores.values
+                #+ n_scale * ngram_lm_scores.values
+                a_scale * attention_scores
             )
             ragged_tot_scores = k2.RaggedTensor(nbest.shape, tot_scores)
             max_indexes = ragged_tot_scores.argmax()
