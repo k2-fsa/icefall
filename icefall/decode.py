@@ -954,7 +954,7 @@ def rescore_with_attention_decoder(
     assert nll.shape[0] == len(token_ids)
 
     attention_scores = -nll.sum(dim=1)
-
+    
     if ngram_lm_scale is None:
         ngram_lm_scale_list = [0.01, 0.05, 0.08]
         ngram_lm_scale_list += [0.1, 0.3, 0.5, 0.6, 0.7, 0.9, 1.0]
