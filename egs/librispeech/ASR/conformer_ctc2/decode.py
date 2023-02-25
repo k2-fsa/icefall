@@ -319,6 +319,8 @@ def decode_one_batch(
     supervisions = batch["supervisions"]
 
     nnet_output, memory, memory_key_padding_mask = model(feature, supervisions)
+    print(type(nnet_output))
+    exit()
     # nnet_output is (N, T, C)
 
     supervision_segments = torch.stack(
