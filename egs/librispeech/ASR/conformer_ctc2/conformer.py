@@ -192,9 +192,6 @@ class Conformer(Transformer):
             ctc_output=self.ctc_output,
         )  # (S, N, C)
         
-        if 1:
-            return x, mask
-
         if self.group_num > 0:
             x = 0
             if self.learnable_alpha:
