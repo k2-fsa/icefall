@@ -702,7 +702,7 @@ def main() -> None:
     sos_id = graph_compiler.sos_id
     eos_id = graph_compiler.eos_id
 
-    if params.method in ("ctc-decoding", "ctc-greedy-search"):
+    if params.method in ("ctc-decoding", "ctc-greedy-search", "greedy-search"):
         HLG = None
         H = k2.ctc_topo(
             max_token=max_token_id,
