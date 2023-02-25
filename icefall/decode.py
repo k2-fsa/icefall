@@ -956,7 +956,6 @@ def rescore_with_attention_decoder(
     attention_scores = -nll.sum(dim=1)
     
     if ngram_lm_scale is None:
-        #ngram_lm_scale_list = [0.]
         ngram_lm_scale_list = [0.01, 0.05, 0.08]
         ngram_lm_scale_list += [0.1, 0.3, 0.5, 0.6, 0.7, 0.9, 1.0]
         ngram_lm_scale_list += [1.1, 1.2, 1.3, 1.5, 1.7, 1.9, 2.0]
@@ -965,12 +964,11 @@ def rescore_with_attention_decoder(
         ngram_lm_scale_list = [ngram_lm_scale]
 
     if attention_scale is None:
-        attention_scale_list = [1.0]
-        #attention_scale_list = [0.01, 0.05, 0.08]
-        #attention_scale_list += [0.1, 0.3, 0.5, 0.6, 0.7, 0.9, 1.0]
-        #attention_scale_list = [1.1, 1.2, 1.3, 1.5, 1.7, 1.9, 2.0]
-        #attention_scale_list += [2.1, 2.2, 2.3, 2.5, 3.0, 4.0, 5.0]
-        #attention_scale_list += [6.0, 7.0, 8.0, 9.0, 10.0, 20.0, 30.0, 40.0]
+        attention_scale_list = [0.01, 0.05, 0.08]
+        attention_scale_list += [0.1, 0.3, 0.5, 0.6, 0.7, 0.9, 1.0]
+        attention_scale_list = [1.1, 1.2, 1.3, 1.5, 1.7, 1.9, 2.0]
+        attention_scale_list += [2.1, 2.2, 2.3, 2.5, 3.0, 4.0, 5.0]
+        attention_scale_list += [6.0, 7.0, 8.0, 9.0, 10.0, 20.0, 30.0, 40.0]
     else:
         attention_scale_list = [attention_scale]
 
