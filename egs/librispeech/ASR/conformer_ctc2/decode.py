@@ -419,7 +419,7 @@ def decode_one_batch(
         unsorted_token_ids = graph_compiler.texts_to_ids(supervisions["text"])
         att_loss = model.decoder_forward(
             memory,
-            momory_key_padding_mask,
+            memory_key_padding_mask,
             token_ids=unsorted_token_ids,
             sos_id=graph_compiler.sos_id,
             eos_id=graph_compiler.eos_id,
