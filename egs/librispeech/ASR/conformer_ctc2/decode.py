@@ -411,6 +411,19 @@ def decode_one_batch(
         key = "ctc-greedy-search"
 
         return {key: hyps}
+    
+    if params.method == "greedy-search":
+        hyps = greedy_search(nnet_output, memory_key_padding_mask)
+
+        # hyps is a list of str, e.g., ['xxx yyy zzz', ...]
+        hyps = bpe_model.decode(hyps)
+
+        # hyps is a list of list of str, e.g., [['xxx', 'yyy', 'zzz'], ... ]
+        unk = bpe_model.decode(bpe_model.unk_id()).strip()
+        hyps = [[w for w in s.split() if w != unk] for s in hyps]
+        key = "ctc-greedy-search"
+
+        return {key: hyps}
 
     if params.method == "nbest-oracle":
         # Note: You can also pass rescored lattices to it.
