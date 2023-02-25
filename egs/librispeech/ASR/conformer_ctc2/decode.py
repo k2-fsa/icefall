@@ -423,7 +423,6 @@ def decode_one_batch(
             token_ids=unsorted_token_ids,
             sos_id=graph_compiler.sos_id,
             eos_id=graph_compiler.eos_id,
-            warmup=warmup,
             return_output=True,
         )
         print(pred.size())
