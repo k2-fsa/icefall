@@ -884,7 +884,6 @@ class TransformerDecoder(nn.Module):
                 outputs.append(output)
 
         output = self.combiner(outputs)
-        print(output.size())
 
         return output
 
