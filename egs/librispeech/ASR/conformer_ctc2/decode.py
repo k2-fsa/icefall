@@ -282,6 +282,7 @@ def decode_one_batch(
     sos_id: int,
     eos_id: int,
     G: Optional[k2.Fsa] = None,
+    graph_compiler = None,
 ) -> Dict[str, List[List[str]]]:
     """Decode one batch and return the result in a dict. The dict has the
     following format:
