@@ -426,6 +426,7 @@ def decode_one_batch(
             warmup=warmup,
             return_output=True,
         )
+        print(pred.size())
         hyps = greedy_search(nnet_output, memory_key_padding_mask)
 
         # hyps is a list of str, e.g., ['xxx yyy zzz', ...]
