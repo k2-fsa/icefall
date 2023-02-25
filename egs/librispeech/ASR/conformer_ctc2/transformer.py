@@ -322,8 +322,11 @@ class Transformer(nn.Module):
         pred_pad = self.decoder_output_layer(pred_pad)  # (N, T, C)
 
         decoder_loss = self.decoder_criterion(pred_pad, ys_out_pad)
-
-        return decoder_loss
+        
+        if return_output:
+            return pred_pad, decoder_loss
+        else:
+            return decoder_loss
 
     @torch.jit.export
     def decoder_nll(
