@@ -247,6 +247,7 @@ def greedy_search(
         hyp = torch.unique_consecutive(hyp)
         hyp = hyp[hyp > 0].tolist()
         ret_hyps.append(hyp)
+    print(ret_hyps)
     return ret_hyps
 
 
