@@ -197,7 +197,6 @@ class Conformer(Transformer):
             if self.learnable_alpha:
                 for enum, alpha in enumerate(self.alpha):
                     x += self.sigmoid(alpha) * layer_outputs[(enum+1)*self.group_layer_num-1]
-                    print('here')
             else:
                 for enum in range(self.group_num):
                     x += (1/self.group_num) * layer_outputs[(enum+1)*self.group_layer_num-1]
