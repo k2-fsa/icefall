@@ -543,6 +543,7 @@ def decode_dataset(
     sos_id: int,
     eos_id: int,
     G: Optional[k2.Fsa] = None,
+    graph_compiler = None,
 ) -> Dict[str, List[Tuple[str, List[str], List[str]]]]:
     """Decode dataset.
 
