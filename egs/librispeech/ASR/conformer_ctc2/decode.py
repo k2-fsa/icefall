@@ -425,7 +425,6 @@ def decode_one_batch(
             eos_id=graph_compiler.eos_id,
             return_output=True,
         )
-        
         hyps = greedy_search(pred, memory_key_padding_mask)
 
         # hyps is a list of str, e.g., ['xxx yyy zzz', ...]
