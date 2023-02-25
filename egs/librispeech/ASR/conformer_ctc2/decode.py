@@ -415,7 +415,7 @@ def decode_one_batch(
         return {key: hyps}
     
     if params.method == "greedy-search":
-        memory, memory_key_padding_mask
+        #memory, memory_key_padding_mask
         att_loss = model.decoder_forward(
             memory,
             momory_key_padding_mask,
