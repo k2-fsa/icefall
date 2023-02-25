@@ -428,33 +428,33 @@ class LibriSpeechAsrDataModule:
             train-clean-360 and train-other-500 cuts"
         )
         return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_train-all-shuf.jsonl.gz"
+            self.args.manifest_dir / "librispeech_cuts_train-all-shuf.jsonl"
         )
 
     @lru_cache()
     def dev_clean_cuts(self) -> CutSet:
         logging.info("About to get dev-clean cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_dev-clean.jsonl.gz"
+            self.args.manifest_dir / "librispeech_cuts_dev-clean.jsonl"
         )
 
     @lru_cache()
     def dev_other_cuts(self) -> CutSet:
         logging.info("About to get dev-other cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_dev-other.jsonl.gz"
+            self.args.manifest_dir / "librispeech_cuts_dev-other.jsonl"
         )
 
     @lru_cache()
     def test_clean_cuts(self) -> CutSet:
         logging.info("About to get test-clean cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_test-clean.jsonl.gz"
+            self.args.manifest_dir / "librispeech_cuts_test-clean.jsonl"
         )
 
     @lru_cache()
     def test_other_cuts(self) -> CutSet:
         logging.info("About to get test-other cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_test-other.jsonl.gz"
+            self.args.manifest_dir / "librispeech_cuts_test-other.jsonl"
         )
