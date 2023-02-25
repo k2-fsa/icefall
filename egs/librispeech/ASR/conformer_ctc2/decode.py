@@ -403,6 +403,8 @@ def decode_one_batch(
         return {key: hyps}
 
     if params.method == "ctc-greedy-search":
+        print(nnet_output.size())
+        exit()
         hyps = ctc_greedy_search(nnet_output, memory_key_padding_mask)
 
         # hyps is a list of str, e.g., ['xxx yyy zzz', ...]
