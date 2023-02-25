@@ -865,7 +865,7 @@ class TransformerDecoder(nn.Module):
           C is the feature number.
 
         """
-        print(tgt)
+        print(tgt.size())
         output = tgt
 
         outputs = []
