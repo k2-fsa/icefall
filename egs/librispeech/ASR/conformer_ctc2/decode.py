@@ -423,7 +423,7 @@ def decode_one_batch(
         # hyps is a list of list of str, e.g., [['xxx', 'yyy', 'zzz'], ... ]
         unk = bpe_model.decode(bpe_model.unk_id()).strip()
         hyps = [[w for w in s.split() if w != unk] for s in hyps]
-        key = "ctc-greedy-search"
+        key = "greedy-search"
 
         return {key: hyps}
 
