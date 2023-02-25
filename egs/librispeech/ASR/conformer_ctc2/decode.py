@@ -226,7 +226,7 @@ def get_params() -> AttributeDict:
 
 
 def greedy_search(
-    ctc_probs: torch.Tensor,
+    probs: torch.Tensor,
     mask: torch.Tensor,
 ) -> List[List[int]]:
     """Apply CTC greedy search
