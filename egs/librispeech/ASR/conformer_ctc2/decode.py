@@ -417,7 +417,7 @@ def decode_one_batch(
     
     if params.method == "greedy-search":
         unsorted_token_ids = graph_compiler.texts_to_ids(supervisions["text"])
-        att_loss = model.decoder_forward(
+        pred, att_loss = model.decoder_forward(
             memory,
             memory_key_padding_mask,
             token_ids=unsorted_token_ids,
