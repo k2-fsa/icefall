@@ -50,7 +50,7 @@ DEFAULT_LM_SCALE = [
     5.0,
 ]
 '''
-DEFAULT_LM_SCALE = [0.]
+DEFAULT_LM_SCALE = [0.,]
 
 def _intersect_device(
     a_fsas: k2.Fsa,
