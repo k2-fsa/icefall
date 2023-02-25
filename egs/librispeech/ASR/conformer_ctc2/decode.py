@@ -248,6 +248,7 @@ def greedy_search(
         hyp = hyp[hyp > 0].tolist()
         ret_hyps.append(hyp)
     print(ret_hyps)
+    exit()
     return ret_hyps
 
 
