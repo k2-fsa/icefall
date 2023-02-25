@@ -415,9 +415,10 @@ def decode_one_batch(
         return {key: hyps}
     
     if params.method == "greedy-search":
+        memory, memory_key_padding_mask
         att_loss = model.decoder_forward(
-            encoder_memory,
-            memory_mask,
+            memory,
+            momory_key_padding_mask,
             token_ids=unsorted_token_ids,
             sos_id=graph_compiler.sos_id,
             eos_id=graph_compiler.eos_id,
