@@ -238,8 +238,7 @@ def greedy_search(
     """
     ctc_probs = probs
     _, max_index = ctc_probs.max(2)  # (B, maxlen)
-    print(mask.size())
-    max_index = max_index.masked_fill_(mask, 0)  # (B, maxlen)
+    max_index = max_index.masked_fill_(mask[:,:max_index.size(1)], 0)  # (B, maxlen)
 
     ret_hyps = []
     for hyp in max_index:
