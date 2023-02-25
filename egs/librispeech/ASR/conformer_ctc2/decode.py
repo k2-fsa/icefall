@@ -237,6 +237,7 @@ def greedy_search(
       best path result
     """
     ctc_probs = probs
+    print(ctc_probs.size())
     _, max_index = ctc_probs.max(2)  # (B, maxlen)
     max_index = max_index.masked_fill_(mask, 0)  # (B, maxlen)
 
