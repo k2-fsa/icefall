@@ -704,7 +704,7 @@ class ConformerEncoder(nn.Module):
             if i in self.aux_layers:
                 outputs.append(output)
 
-        output = self.combiner(outputs)
+        #output = self.combiner(outputs)
 
         return output
 
