@@ -9,6 +9,22 @@ to export trained models to `ONNX`_.
 There is also a file named ``onnx_pretrained.py``, which you can use
 the exported `ONNX`_ model in Python with `onnxruntime`_ to decode sound files.
 
+sherpa-onnx
+-----------
+
+We have a separate repository `sherpa-onnx`_ for deploying your exported models
+on various platforms such as:
+
+  - iOS
+  - Android
+  - Raspberry Pi
+  - Linux/macOS/Windows
+
+
+Please see the documentation of `sherpa-onnx`_ for details:
+
+  `<https://k2-fsa.github.io/sherpa/onnx/index.html>`_
+
 Example
 -------
 
