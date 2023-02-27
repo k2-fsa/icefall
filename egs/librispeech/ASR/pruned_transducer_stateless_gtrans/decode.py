@@ -949,7 +949,7 @@ def main():
     test_other_dl = librispeech.test_dataloaders(test_other_cuts)
 
     test_sets = ["dev-clean", "dev-other", "test-clean", "test-other"]
-    test_dl = [test_clean_dl, test_other_dl]
+    test_dl = [dev_clean_dl, dev_other_dl, test_clean_dl, test_other_dl]
 
     for test_set, test_dl in zip(test_sets, test_dl):
         results_dict = decode_dataset(
