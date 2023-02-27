@@ -50,6 +50,7 @@
 <li class="toctree-l2"><a class="reference internal" href="export-with-torch-jit-trace.html">Export model with torch.jit.trace()</a></li>
 <li class="toctree-l2"><a class="reference internal" href="export-with-torch-jit-script.html">Export model with torch.jit.script()</a></li>
 <li class="toctree-l2 current"><a class="current reference internal" href="#">Export to ONNX</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#sherpa-onnx">sherpa-onnx</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#example">Example</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#download-the-pre-trained-model">Download the pre-trained model</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#export-the-model-to-onnx">Export the model to ONNX</a></li>
@@ -100,6 +101,23 @@
 to export trained models to <a class="reference external" href="https://github.com/onnx/onnx">ONNX</a>.</p>
 <p>There is also a file named <code class="docutils literal notranslate"><span class="pre">onnx_pretrained.py</span></code>, which you can use
 the exported <a class="reference external" href="https://github.com/onnx/onnx">ONNX</a> model in Python with <a class="reference external" href="https://github.com/microsoft/onnxruntime">onnxruntime</a> to decode sound files.</p>
+<section id="sherpa-onnx">
+<h2>sherpa-onnx<a class="headerlink" href="#sherpa-onnx" title="Permalink to this heading"></a></h2>
+<p>We have a separate repository <a class="reference external" href="https://github.com/k2-fsa/sherpa-onnx">sherpa-onnx</a> for deploying your exported models
+on various platforms such as:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>iOS</p></li>
+<li><p>Android</p></li>
+<li><p>Raspberry Pi</p></li>
+<li><p>Linux/macOS/Windows</p></li>
+</ul>
+</div></blockquote>
+<p>Please see the documentation of <a class="reference external" href="https://github.com/k2-fsa/sherpa-onnx">sherpa-onnx</a> for details:</p>
+<blockquote>
+<div><p><a class="reference external" href="https://k2-fsa.github.io/sherpa/onnx/index.html">https://k2-fsa.github.io/sherpa/onnx/index.html</a></p>
+</div></blockquote>
+</section>
 <section id="example">
 <h2>Example<a class="headerlink" href="#example" title="Permalink to this heading"></a></h2>
 <p>In the following, we demonstrate how to export a streaming Zipformer pre-trained

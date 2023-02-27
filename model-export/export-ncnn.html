@@ -18,7 +18,7 @@
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Export ConvEmformer transducer models to ncnn" href="export-ncnn-conv-emformer.html" />
+    <link rel="next" title="Export streaming Zipformer transducer models to ncnn" href="export-ncnn-zipformer.html" />
     <link rel="prev" title="Export to ONNX" href="export-onnx.html" /> 
 </head>
 
@@ -51,6 +51,7 @@
 <li class="toctree-l2"><a class="reference internal" href="export-with-torch-jit-script.html">Export model with torch.jit.script()</a></li>
 <li class="toctree-l2"><a class="reference internal" href="export-onnx.html">Export to ONNX</a></li>
 <li class="toctree-l2 current"><a class="current reference internal" href="#">Export to ncnn</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="export-ncnn-zipformer.html">Export streaming Zipformer transducer models to ncnn</a></li>
 <li class="toctree-l3"><a class="reference internal" href="export-ncnn-conv-emformer.html">Export ConvEmformer transducer models to ncnn</a></li>
 <li class="toctree-l3"><a class="reference internal" href="export-ncnn-lstm.html">Export LSTM transducer models to ncnn</a></li>
 </ul>
@@ -114,6 +115,7 @@ It has been tested on the following platforms:</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">iOS</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">Raspberry</span> <span class="pre">Pi</span></code></p></li>
 <li><p><a class="reference external" href="https://wiki.sipeed.com/hardware/zh/">爱芯派</a> (<a class="reference external" href="https://wiki.sipeed.com/hardware/en/maixIII/ax-pi/axpi.html">MAIX-III AXera-Pi</a>).</p></li>
+<li><p><a class="reference external" href="https://www.rock-chips.com/a/en/products/RV11_Series/2020/0427/1076.html">RV1126</a></p></li>
 </ul>
 </div></blockquote>
 <p><a class="reference external" href="https://github.com/k2-fsa/sherpa-ncnn">sherpa-ncnn</a> is self-contained and can be statically linked to produce
@@ -126,6 +128,15 @@ to its documentation for details:</p>
 </div></blockquote>
 <div class="toctree-wrapper compound">
 <ul>
+<li class="toctree-l1"><a class="reference internal" href="export-ncnn-zipformer.html">Export streaming Zipformer transducer models to ncnn</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="export-ncnn-zipformer.html#download-the-pre-trained-model">1. Download the pre-trained model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="export-ncnn-zipformer.html#install-ncnn-and-pnnx">2. Install ncnn and pnnx</a></li>
+<li class="toctree-l2"><a class="reference internal" href="export-ncnn-zipformer.html#export-the-model-via-torch-jit-trace">3. Export the model via torch.jit.trace()</a></li>
+<li class="toctree-l2"><a class="reference internal" href="export-ncnn-zipformer.html#export-torchscript-model-via-pnnx">4. Export torchscript model via pnnx</a></li>
+<li class="toctree-l2"><a class="reference internal" href="export-ncnn-zipformer.html#test-the-exported-models-in-icefall">5. Test the exported models in icefall</a></li>
+<li class="toctree-l2"><a class="reference internal" href="export-ncnn-zipformer.html#modify-the-exported-encoder-for-sherpa-ncnn">6. Modify the exported encoder for sherpa-ncnn</a></li>
+</ul>
+</li>
 <li class="toctree-l1"><a class="reference internal" href="export-ncnn-conv-emformer.html">Export ConvEmformer transducer models to ncnn</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="export-ncnn-conv-emformer.html#download-the-pre-trained-model">1. Download the pre-trained model</a></li>
 <li class="toctree-l2"><a class="reference internal" href="export-ncnn-conv-emformer.html#install-ncnn-and-pnnx">2. Install ncnn and pnnx</a></li>
@@ -155,7 +166,7 @@ to its documentation for details:</p>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="export-onnx.html" class="btn btn-neutral float-left" title="Export to ONNX" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="export-ncnn-conv-emformer.html" class="btn btn-neutral float-right" title="Export ConvEmformer transducer models to ncnn" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="export-ncnn-zipformer.html" class="btn btn-neutral float-right" title="Export streaming Zipformer transducer models to ncnn" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

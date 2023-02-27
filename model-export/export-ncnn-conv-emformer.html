@@ -19,7 +19,7 @@
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="Export LSTM transducer models to ncnn" href="export-ncnn-lstm.html" />
-    <link rel="prev" title="Export to ncnn" href="export-ncnn.html" /> 
+    <link rel="prev" title="Export streaming Zipformer transducer models to ncnn" href="export-ncnn-zipformer.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -51,6 +51,7 @@
 <li class="toctree-l2"><a class="reference internal" href="export-with-torch-jit-script.html">Export model with torch.jit.script()</a></li>
 <li class="toctree-l2"><a class="reference internal" href="export-onnx.html">Export to ONNX</a></li>
 <li class="toctree-l2 current"><a class="reference internal" href="export-ncnn.html">Export to ncnn</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="export-ncnn-zipformer.html">Export streaming Zipformer transducer models to ncnn</a></li>
 <li class="toctree-l3 current"><a class="current reference internal" href="#">Export ConvEmformer transducer models to ncnn</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#download-the-pre-trained-model">1. Download the pre-trained model</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#install-ncnn-and-pnnx">2. Install ncnn and pnnx</a></li>
@@ -254,6 +255,10 @@ with the official one.</p>
 <span class="w">  </span>--memory-size<span class="w"> </span><span class="m">32</span><span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--encoder-dim<span class="w"> </span><span class="m">512</span>
 </pre></div>
+</div>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p>If your model has different configuration parameters, please change them accordingly.</p>
 </div>
 <div class="admonition hint">
 <p class="admonition-title">Hint</p>
@@ -967,7 +972,7 @@ with <code class="docutils literal notranslate"><span class="pre">int8</span></c
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="export-ncnn.html" class="btn btn-neutral float-left" title="Export to ncnn" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="export-ncnn-zipformer.html" class="btn btn-neutral float-left" title="Export streaming Zipformer transducer models to ncnn" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
         <a href="export-ncnn-lstm.html" class="btn btn-neutral float-right" title="Export LSTM transducer models to ncnn" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
