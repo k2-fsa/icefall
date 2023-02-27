@@ -311,15 +311,15 @@ The result looks like below:
         when running ``./pruned_transducer_stateless7_streaming/export-for-ncnn.py``.
       - ``-23318=5,192,192,192,192,192``, attribute 18.
         The first element of the array is the length of the array, which is 5 in our case.
-        ``192,192,192,192,192`` is the value of ``--attention-dims``that you provided
+        ``192,192,192,192,192`` is the value of ``--attention-dims`` that you provided
         when running ``./pruned_transducer_stateless7_streaming/export-for-ncnn.py``.
       - ``-23319=5,1,2,4,8,2``, attribute 19.
         The first element of the array is the length of the array, which is 5 in our case.
-        ``1,2,4,8,2`` is the value of ``--zipformer-downsampling-factors``that you provided
+        ``1,2,4,8,2`` is the value of ``--zipformer-downsampling-factors`` that you provided
         when running ``./pruned_transducer_stateless7_streaming/export-for-ncnn.py``.
       - ``-23320=5,31,31,31,31,31``, attribute 20.
         The first element of the array is the length of the array, which is 5 in our case.
-        ``31,31,31,31,31`` is the value of ``--cnn-module-kernels``that you provided
+        ``31,31,31,31,31`` is the value of ``--cnn-module-kernels`` that you provided
         when running ``./pruned_transducer_stateless7_streaming/export-for-ncnn.py``.
 
       For ease of reference, we list the key-value pairs that you need to add
