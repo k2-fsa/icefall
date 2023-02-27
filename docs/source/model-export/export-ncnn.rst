@@ -21,6 +21,7 @@ It has been tested on the following platforms:
   - ``iOS``
   - ``Raspberry Pi``
   - `爱芯派 <https://wiki.sipeed.com/hardware/zh/>`_ (`MAIX-III AXera-Pi <https://wiki.sipeed.com/hardware/en/maixIII/ax-pi/axpi.html>`_).
+  - `RV1126 <https://www.rock-chips.com/a/en/products/RV11_Series/2020/0427/1076.html>`_
 
 `sherpa-ncnn`_ is self-contained and can be statically linked to produce
 a binary containing everything needed. Please refer
@@ -31,5 +32,6 @@ to its documentation for details:
 
 .. toctree::
 
+   export-ncnn-zipformer
    export-ncnn-conv-emformer
    export-ncnn-lstm

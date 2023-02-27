@@ -166,6 +166,10 @@ Next, we use the following code to export our model:
     --memory-size 32 \
     --encoder-dim 512
 
+.. caution::
+
+   If your model has different configuration parameters, please change them accordingly.
+
 .. hint::
 
   We have renamed our model to ``epoch-30.pt`` so that we can use ``--epoch 30``.
