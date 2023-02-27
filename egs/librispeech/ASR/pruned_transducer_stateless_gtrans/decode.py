@@ -937,14 +937,18 @@ def main():
     # we need cut ids to display recognition results.
     args.return_cuts = True
     librispeech = LibriSpeechAsrDataModule(args)
-
+    
+    dev_clean_cuts = librispeech.dev_clean_cuts()
+    dev_other_cuts = librispeech.dev_other_cuts()
     test_clean_cuts = librispeech.test_clean_cuts()
     test_other_cuts = librispeech.test_other_cuts()
-
+    
+    dev_clean_dl = librispeech.valid_dataloaders(dev_clean_cuts)
+    dev_other_dl = librispeech.valid_dataloaders(dev_other_cuts)
     test_clean_dl = librispeech.test_dataloaders(test_clean_cuts)
     test_other_dl = librispeech.test_dataloaders(test_other_cuts)
 
-    test_sets = ["test-clean", "test-other"]
+    test_sets = ["dev-clean", "dev-other", "test-clean", "test-other"]
     test_dl = [test_clean_dl, test_other_dl]
 
     for test_set, test_dl in zip(test_sets, test_dl):
