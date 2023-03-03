@@ -518,7 +518,11 @@ def save_results(
         )
         with open(errs_filename, "w") as f:
             wer = write_surt_error_stats(
-                f, f"{test_set_name}-{key}", results, enable_log=True
+                f,
+                f"{test_set_name}-{key}",
+                results,
+                enable_log=True,
+                num_channels=params.num_channels,
             )
             test_set_wers[key] = wer
 
@@ -749,12 +753,12 @@ def main():
             results_dict=results_dict,
         )
 
-        # if params.save_masks:
-        #     save_masks(
-        #         params=params,
-        #         test_set_name=f"dev_{ol}",
-        #         masks=masks,
-        #     )
+    # if params.save_masks:
+    #     save_masks(
+    #         params=params,
+    #         test_set_name=f"dev_{ol}",
+    #         masks=masks,
+    #     )
 
     for test_set, ol in zip(test_cuts_grouped, OVERLAP_RATIOS):
         test_dl = librimix.test_dataloaders(test_set)
@@ -773,12 +777,12 @@ def main():
             results_dict=results_dict,
         )
 
-        # if params.save_masks:
-        #     save_masks(
-        #         params=params,
-        #         test_set_name=f"test_{ol}",
-        #         masks=masks,
-        #     )
+    # if params.save_masks:
+    #     save_masks(
+    #         params=params,
+    #         test_set_name=f"test_{ol}",
+    #         masks=masks,
+    #     )
 
     logging.info("Done!")
 

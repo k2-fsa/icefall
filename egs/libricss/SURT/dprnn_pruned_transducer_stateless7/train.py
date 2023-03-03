@@ -104,22 +104,29 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         "--num-mask-encoder-layers",
         type=int,
         default=4,
-        help="Number of layers in the SkiM based mask encoder.",
+        help="Number of layers in the DPRNN based mask encoder.",
     )
 
     parser.add_argument(
         "--mask-encoder-dim",
         type=int,
         default=256,
-        help="Hidden dimension of the LSTM blocks in SkiM.",
+        help="Hidden dimension of the LSTM blocks in DPRNN.",
     )
 
     parser.add_argument(
         "--mask-encoder-segment-size",
         type=int,
         default=32,
-        help="Segment size of the SegLSTM in SkiM. Ideally, this should be equal to the "
+        help="Segment size of the SegLSTM in DPRNN. Ideally, this should be equal to the "
         "decode-chunk-length of the zipformer encoder.",
+    )
+
+    parser.add_argument(
+        "--chunk-width-randomization",
+        type=bool,
+        default=False,
+        help="Whether to randomize the chunk width in DPRNN.",
     )
 
     # Zipformer config is based on:
@@ -508,6 +515,7 @@ def get_mask_encoder_model(params: AttributeDict) -> nn.Module:
         output_size=params.feature_dim * params.num_channels,
         segment_size=params.mask_encoder_segment_size,
         num_blocks=params.num_mask_encoder_layers,
+        chunk_width_randomization=params.chunk_width_randomization,
     )
     return mask_encoder
 

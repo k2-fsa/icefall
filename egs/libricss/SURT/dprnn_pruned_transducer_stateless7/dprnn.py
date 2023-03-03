@@ -1,3 +1,4 @@
+import random
 from typing import Optional, Tuple
 
 import torch
@@ -190,6 +191,7 @@ class DPRNN(nn.Module):
         dropout=0.1,
         num_blocks=1,
         segment_size=50,
+        chunk_width_randomization=False,
     ):
         super().__init__()
 
@@ -198,6 +200,7 @@ class DPRNN(nn.Module):
         self.hidden_size = hidden_size
 
         self.segment_size = segment_size
+        self.chunk_width_randomization = chunk_width_randomization
 
         self.input_embed = nn.Sequential(
             ScaledLinear(feature_dim, input_size),
@@ -243,7 +246,11 @@ class DPRNN(nn.Module):
         input = self.input_embed(input)
         B, T, D = input.shape
 
-        input, rest = split_feature(input.transpose(1, 2), self.segment_size)
+        if self.chunk_width_randomization and self.training:
+            segment_size = random.randint(self.segment_size // 2, self.segment_size)
+        else:
+            segment_size = self.segment_size
+        input, rest = split_feature(input.transpose(1, 2), segment_size)
         # input shape: batch, N, dim1, dim2
         # apply RNN on dim1 first and then dim2
         # output shape: B, output_size, dim1, dim2
@@ -291,6 +298,7 @@ if __name__ == "__main__":
         dropout=0.1,
         num_blocks=3,
         segment_size=20,
+        chunk_width_randomization=True,
     )
     input = torch.randn(2, 1002, 80)
     print(model(input).shape)
