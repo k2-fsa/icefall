@@ -25,18 +25,14 @@ import torch
 import random
 from encoder_interface import EncoderInterface
 from scaling import (
-    ActivationBalancer,
     Balancer,
     BasicNorm,
     ConvNorm1d,
     ConvNorm2d,
     Dropout2,
     Dropout3,
-    MaxEig,
-    DoubleSwish,
     SwooshL,
     SwooshR,
-    TanSwish,
     ChunkCausalDepthwiseConv1d,
     ScaledConv1d,
     ScaledConv2d,
@@ -45,7 +41,6 @@ from scaling import (
     Identity,  # more friendly to backward hooks than nn.Identity(), for diagnostic reasons.
     penalize_abs_values_gt,
     softmax,
-    caching_eval,
     ScheduledFloat,
     FloatLike,
     limit_param_value,
@@ -160,7 +155,6 @@ class Zipformer(EncoderInterface):
         self.num_features = num_features  # int
         self.output_downsampling_factor = output_downsampling_factor # int
         self.downsampling_factor = downsampling_factor # tuple
-        self.downsampling_factor_gcd = next(n for n in range(1, 10000) if all(n % d == 0 for d in downsampling_factor))
         self.encoder_dim = encoder_dim = _to_tuple(encoder_dim) # tuple
         self.encoder_unmasked_dim = encoder_unmasked_dim = _to_tuple(encoder_unmasked_dim) # tuple
         num_encoder_layers = _to_tuple(num_encoder_layers)
@@ -1505,105 +1499,6 @@ class SelfAttention(nn.Module):
 
         return x
 
-
-class AttentionSqueeze(nn.Module):
-    """
-    A modified version of Squeeze-and-Excite, where the nonliearity happens in the full dim and
-    we just project to a small bottleneck dimension.
-    """
-    def __init__(self,
-                 embed_dim: int,
-                 hidden_dim: int,
-                 bottleneck_dim: int = 16):
-        super().__init__()
-
-        self.lr_scale = 0.9
-
-        self.bottleneck_dim = bottleneck_dim
-
-        self.in_proj = nn.Linear(embed_dim, hidden_dim,
-                                 bias=False)
-
-        self.to_bottleneck_proj = nn.Linear(embed_dim,
-                                            bottleneck_dim)
-
-        # bottleneck_balancer is before the activation.  Mostly, for well-trained
-        # instances of this module, the mean absolute values per channel are in
-        # the range 0.1 to 0.4.  We apply the upper limit of 0.4 at the
-        # beginning, and make it looser over time.
-        self.bottleneck_balancer = Balancer(
-            bottleneck_dim, channel_dim=-1,
-            min_positive=0.2, max_positive=0.8,
-            min_abs=0.05,
-            max_abs=ScheduledFloat((0.0, 0.5), (4000.0, 1.0), default=1.0),
-        )
-        self.bottleneck_activation = TanSwish()   # in bottleneck
-        self.activation = Identity() # for diagnostics
-
-        # the reason for the min_abs and max_abs limits on the next two
-        # balancers are only to stop parameter-magnitude 'drift': we have too
-        # many degrees of freedom for the scales of the various activations.
-        # Make them run with very low probability, since only a small
-        # application of these balancers should be enough to stop such "drift".
-        self.scale_balancer = Balancer(
-            hidden_dim, channel_dim=-1,
-            min_positive=0.2, max_positive=0.8,
-            min_abs=0.2,  max_abs=1.0,
-            prob=_balancer_schedule(0.05),
-        )
-        self.activation_balancer = Balancer(
-            hidden_dim, channel_dim=-1,
-            min_positive=0.2, max_positive=0.8,
-            min_abs=0.2,  max_abs=1.0,
-            prob=_balancer_schedule(0.05),
-        )
-        self.activation_whiten = Whiten(num_groups=1,
-                                        whitening_limit=_whitening_schedule(4.0, ratio=3.0),
-                                        prob=(0.025, 0.25),
-                                        grad_scale=0.01)
-
-
-        self.from_bottleneck_proj =  nn.Linear(bottleneck_dim, hidden_dim)
-
-        self.out_proj = ScaledLinear(hidden_dim, embed_dim,
-                                     bias=False, initial_scale=0.05)
-
-    def forward(self,
-                x: Tensor,
-                attn_weights: Tensor):
-        """
-        Args:
-           x: a Tensor of shape (seq_len, batch_size, num_channels)
-attn_weights: a Tensor of shape (num_heads, batch_size, seq_len, seq_len)
-        Returns:
-           a Tensor with the same shape as x
-        """
-        num_heads = attn_weights.shape[0]
-        bottleneck = self.to_bottleneck_proj(x)  # (seq_len, batch_size, bottleneck_dim)
-        (seq_len, batch_size, bottleneck_dim) = bottleneck.shape
-        head_dim = bottleneck_dim // num_heads
-        bottleneck = bottleneck.reshape(seq_len, batch_size, num_heads, head_dim).permute(
-            2, 1, 0, 3)  # (num_heads, batch_size, seq_len, head_dim)
-
-        # (num_heads, batch_size, seq_len, seq_len) x (num_heads, batch_size, seq_len, head_dim)
-        #  -> (num_heads, batch_size, seq_len, head_dim)
-        bottleneck = torch.matmul(attn_weights, bottleneck)
-
-        bottleneck = bottleneck.permute(2, 1, 0, 3) # (seq_len, batch_size, num_heads, head_dim)
-        bottleneck = bottleneck.reshape(seq_len, batch_size, bottleneck_dim)
-
-        bottleneck = self.bottleneck_balancer(bottleneck)
-        bottleneck = self.bottleneck_activation(bottleneck)
-        scales = self.from_bottleneck_proj(bottleneck)
-
-        x = self.in_proj(x)
-        x = self.activation_balancer(x)
-        x = self.activation_whiten(x)
-        scales = self.scale_balancer(scales)
-        x = x * scales
-        x = self.activation(x)  # Identity only.  For diagnostics.
-        x = self.out_proj(x)
-        return x
 
 
 class FeedforwardModule(nn.Module):
