@@ -60,7 +60,7 @@ import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
-from zipformer import Zipformer
+from zipformer import Zipformer2
 from scaling import ScheduledFloat
 from decoder import Decoder
 from joiner import Joiner
@@ -536,7 +536,7 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
     # TODO: We can add an option to switch between Zipformer and Transformer
     def to_int_tuple(s: str):
         return tuple(map(int, s.split(',')))
-    encoder = Zipformer(
+    encoder = Zipformer2(
         num_features=params.feature_dim,
         output_downsampling_factor=2,
         downsampling_factor=to_int_tuple(params.downsampling_factor),

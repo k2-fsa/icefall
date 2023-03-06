@@ -325,7 +325,7 @@ class MaxEigLimiterFunction(torch.autograd.Function):
 
 
 
-class BasicNormFunction(torch.autograd.Function):
+class BiasNormFunction(torch.autograd.Function):
     # This computes:
     #   scales = (torch.mean((x - bias) ** 2, keepdim=True)) ** -0.5 * log_scale.exp()
     #   return (x - bias) * scales
@@ -368,7 +368,7 @@ class BasicNormFunction(torch.autograd.Function):
 
 
 
-class BasicNorm(torch.nn.Module):
+class BiasNorm(torch.nn.Module):
     """
     This is intended to be a simpler, and hopefully cheaper, replacement for
     LayerNorm.  The observation this is based on, is that Transformer-type
@@ -378,9 +378,10 @@ class BasicNorm(torch.nn.Module):
     on the other (useful) features.  Presumably the weight and bias of the
     LayerNorm are required to allow it to do this.
 
-    So the idea is to introduce this large constant value as an explicit
-    parameter, that takes the role of the "eps" in LayerNorm, so the network
-    doesn't have to do this trick.  We make the "eps" learnable.
+    Instead, we give the BiasNorm a trainable bias that it can use when
+    computing the scale for normalization.  We also give it a (scalar)
+    trainable scale on the output.
+
 
     Args:
        num_channels: the number of channels, e.g. 512.
@@ -397,7 +398,6 @@ class BasicNorm(torch.nn.Module):
          than the input of this module to be required to be stored for the
          backprop.
     """
-
     def __init__(
             self,
             num_channels: int,
@@ -407,7 +407,7 @@ class BasicNorm(torch.nn.Module):
             log_scale_max: float = 1.5,
             store_output_for_backprop: bool = False
     ) -> None:
-        super(BasicNorm, self).__init__()
+        super(BiasNorm, self).__init__()
         self.num_channels = num_channels
         self.channel_dim = channel_dim
         self.log_scale = nn.Parameter(torch.tensor(log_scale))
@@ -438,245 +438,9 @@ class BasicNorm(torch.nn.Module):
                                       max=float(self.log_scale_max),
                                       training=self.training)
 
-        return BasicNormFunction.apply(x, self.bias, log_scale,
-                                       self.channel_dim,
-                                       self.store_output_for_backprop)
-
-
-
-class PositiveConv1d(nn.Conv1d):
-    """
-    A modified form of nn.Conv1d where the weight parameters are constrained
-    to be positive and there is no bias.
-    """
-    def __init__(
-            self, *args, min: FloatLike = 0.01, max: FloatLike = 1.0,
-            **kwargs):
-        super().__init__(*args, **kwargs, bias=False)
-        self.min = min
-        self.max = max
-
-        # initialize weight to all positive values.
-        with torch.no_grad():
-            self.weight[:] = 1.0 / self.weight[0][0].numel()
-
-    def forward(self, input: Tensor) -> Tensor:
-        """
-        Forward function.  Input and returned tensor have shape:
-            (N, C, H)
-        i.e. (batch_size, num_channels, height)
-        """
-        weight = limit_param_value(self.weight, min=float(self.min), max=float(self.max),
-                                   training=self.training)
-        # make absolutely sure there are no negative values.  For parameter-averaging-related
-        # reasons, we prefer to also use limit_param_value to make sure the weights stay
-        # positive.
-        weight = weight.abs()
-
-        if self.padding_mode != 'zeros':
-            return F.conv1d(F.pad(input, self._reversed_padding_repeated_twice, mode=self.padding_mode),
-                            weight, self.bias, self.stride,
-                            _single(0), self.dilation, self.groups)
-        return F.conv1d(input, weight, self.bias, self.stride,
-                        self.padding, self.dilation, self.groups)
-
-
-
-class ConvNorm1d(torch.nn.Module):
-    """
-    This is like BasicNorm except the denominator is summed over time using
-    convolution with positive weights.
-
-
-    Args:
-       num_channels: the number of channels, e.g. 512.
-       eps: the initial "epsilon" that we add as ballast in:
-             scale = ((input_vec**2).mean() + epsilon)**-0.5
-          Note: our epsilon is actually large, but we keep the name
-          to indicate the connection with conventional LayerNorm.
-       learn_eps: if true, we learn epsilon; if false, we keep it
-         at the initial value.
-      eps_min: float
-      eps_max: float
-    """
-
-    def __init__(
-        self,
-        num_channels: int,
-        eps: float = 0.25,
-        learn_eps: bool = True,
-        eps_min: float = -3.0,
-        eps_max: float = 3.0,
-        conv_min: float = 0.001,
-        conv_max: float = 1.0,
-        kernel_size: int = 15,
-    ) -> None:
-        super().__init__()
-        self.num_channels = num_channels
-        if learn_eps:
-            self.eps = nn.Parameter(torch.tensor(eps).log().detach())
-        else:
-            self.register_buffer("eps", torch.tensor(eps).log().detach())
-        self.eps_min = eps_min
-        self.eps_max = eps_max
-        pad = kernel_size // 2
-        # it has bias=False.
-        self.conv = PositiveConv1d(1, 1, kernel_size=kernel_size, padding=pad,
-                                   min=conv_min, max=conv_max)
-
-
-    def forward(self, x: Tensor,
-                src_key_padding_mask: Optional[Tensor] = None) -> Tensor:
-        """
-        x shape: (N, C, T)
-
-           src_key_padding_mask: the mask for the src keys per batch (optional):
-               (N, T), contains True in masked positions.
-
-        """
-        assert x.ndim == 3 and x.shape[1] == self.num_channels
-        eps = self.eps
-        if self.training and random.random() < 0.25:
-            # with probability 0.25, in training mode, clamp eps between the min
-            # and max; this will encourage it to learn parameters within the
-            # allowed range by making parameters that are outside the allowed
-            # range noisy.
-
-            # gradients to allow the parameter to get back into the allowed
-            # region if it happens to exit it.
-            eps = torch.clamp(eps, min=self.eps_min, max=self.eps_max)
-
-        # sqnorms: (N, 1, T)
-        sqnorms = (
-            torch.mean(x ** 2, dim=1, keepdim=True)
-        )
-        # 'counts' is a mechanism to correct for edge effects.
-        counts = torch.ones_like(sqnorms)
-        if src_key_padding_mask is not None:
-            counts = counts.masked_fill_(src_key_padding_mask.unsqueeze(1), 0.0)
-            sqnorms = sqnorms * counts
-        sqnorms = self.conv(sqnorms)
-        # the clamping is to avoid division by zero for padding frames.
-        counts = torch.clamp(self.conv(counts), min=0.01)
-        # scales: (N, 1, T)
-        scales = (sqnorms / counts  +  eps.exp()) ** -0.5 #
-        return x * scales
-
-
-class PositiveConv2d(nn.Conv2d):
-    """
-    A modified form of nn.Conv2d where the weight parameters are constrained
-    to be positive and there is no bias.
-    """
-    def __init__(
-            self, *args, min: FloatLike = 0.01, max: FloatLike = 1.0,
-            **kwargs):
-        super().__init__(*args, **kwargs, bias=False)
-        self.min = min
-        self.max = max
-
-        # initialize weight to all positive values.
-        with torch.no_grad():
-            self.weight[:] = 1.0 / self.weight[0][0].numel()
-
-    def forward(self, input: Tensor) -> Tensor:
-        """
-        Forward function.  Input and returned tensor have shape:
-            (N, C, H, W)
-        i.e. (batch_size, num_channels, height, width)
-        """
-        weight = limit_param_value(self.weight, min=float(self.min), max=float(self.max),
-                                   training=self.training)
-        # make absolutely sure there are no negative values.  For parameter-averaging-related
-        # reasons, we prefer to also use limit_param_value to make sure the weights stay
-        # positive.
-        weight = weight.abs()
-
-        if self.padding_mode != 'zeros':
-            return F.conv2d(F.pad(input, self._reversed_padding_repeated_twice, mode=self.padding_mode),
-                            weight, self.bias, self.stride,
-                            _pair(0), self.dilation, self.groups)
-        return F.conv2d(input, weight, self.bias, self.stride,
-                        self.padding, self.dilation, self.groups)
-
-
-class ConvNorm2d(torch.nn.Module):
-    """
-    This is like BasicNorm except the denominator is summed over time using
-    convolution with positive weights.
-
-
-    Args:
-       num_channels: the number of channels, e.g. 512.
-       eps: the initial "epsilon" that we add as ballast in:
-             scale = ((input_vec**2).mean() + epsilon)**-0.5
-          Note: our epsilon is actually large, but we keep the name
-          to indicate the connection with conventional LayerNorm.
-       learn_eps: if true, we learn epsilon; if false, we keep it
-         at the initial value.
-      eps_min: float
-      eps_max: float
-    """
-
-    def __init__(
-        self,
-        num_channels: int,
-        eps: float = 0.25,
-        learn_eps: bool = True,
-        eps_min: float = -3.0,
-        eps_max: float = 3.0,
-        conv_min: float = 0.001,
-        conv_max: float = 1.0,
-        kernel_size: Tuple[int, int] = (3, 3),
-    ) -> None:
-        super().__init__()
-        self.num_channels = num_channels
-        if learn_eps:
-            self.eps = nn.Parameter(torch.tensor(eps).log().detach())
-        else:
-            self.register_buffer("eps", torch.tensor(eps).log().detach())
-        self.eps_min = eps_min
-        self.eps_max = eps_max
-        pad = (kernel_size[0] // 2, kernel_size[1] // 2)
-        # it has bias=False.
-        self.conv = PositiveConv2d(1, 1, kernel_size=kernel_size, padding=pad,
-                                   min=conv_min, max=conv_max)
-
-
-    def forward(self, x: Tensor) -> Tensor:
-        """
-        x shape: (N, C, H, W)
-        """
-        assert x.ndim == 4 and x.shape[1] == self.num_channels
-        eps = self.eps
-        if self.training and random.random() < 0.25:
-            # with probability 0.25, in training mode, clamp eps between the min
-            # and max; this will encourage it to learn parameters within the
-            # allowed range by making parameters that are outside the allowed
-            # range noisy.
-
-            # gradients to allow the parameter to get back into the allowed
-            # region if it happens to exit it.
-            eps = torch.clamp(eps, min=self.eps_min, max=self.eps_max)
-
-        # sqnorms: (N, 1, H, W)
-        sqnorms = (
-            torch.mean(x ** 2, dim=1, keepdim=True)
-        )
-        # 'counts' is a mechanism to correct for edge effects.
-        # TODO: key-padding mask
-
-        counts = torch.ones_like(sqnorms)
-        #if src_key_padding_mask is not None:
-        #    counts = counts.masked_fill_(src_key_padding_mask.unsqueeze(1), 0.0)
-        #sqnorms = sqnorms * counts
-        sqnorms = self.conv(sqnorms)
-        # the clamping is to avoid division by zero for padding frames.
-        counts = torch.clamp(self.conv(counts), min=0.01)
-        # scales: (N, 1, H, W)
-        scales = (sqnorms / counts  +  eps.exp()) ** -0.5
-        return x * scales
-
+        return BiasNormFunction.apply(x, self.bias, log_scale,
+                                      self.channel_dim,
+                                      self.store_output_for_backprop)
 
 
 
