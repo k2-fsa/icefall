@@ -1214,7 +1214,7 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         self.balance_keys = Balancer(key_head_dim * num_heads,
                                      channel_dim=-1,
                                      min_positive=0.4,
-                                     max_positive=6,
+                                     max_positive=0.6,
                                      min_abs=0.0,
                                      max_abs=100.0,
                                      prob=0.025)
