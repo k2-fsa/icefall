@@ -27,7 +27,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --world-size 4 \
   --num-epochs 40 \
   --start-epoch 21 \
-  --exp-dir pruned_transducer_stateless4_ctc_bs_withoutlconv/exp_960_soft_0.03 \
+  --exp-dir pruned_transducer_stateless4_ctc_bs_withoutlconv/exp_960_21to40_soft_0.03 \
   --full-libri 1 \
   --max-duration 300
   
@@ -38,7 +38,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --num-epochs 40 \
   --start-epoch 21 \
   --use-fp16 1 \
-  --exp-dir pruned_transducer_stateless4_ctc_bs_withoutlconv/exp_960_soft_0.03 \
+  --exp-dir pruned_transducer_stateless4_ctc_bs_withoutlconv/exp_960_21to40_soft_0.03 \
   --full-libri 1 \
   --max-duration 750
 """
@@ -705,10 +705,12 @@ def compute_loss(
     )
 
     # non-blank arcs self-loop penalty
-    all_self_blanks_idx = decoding_graph.arcs.values()[:, 0] == decoding_graph.arcs.values()[:, 1]
+    all_self_blanks_idx = (
+        decoding_graph.arcs.values()[:, 0] == decoding_graph.arcs.values()[:, 1]
+    )
     blank_self_loops_idx = decoding_graph.arcs.values()[:, 2] == 0
-    decoding_graph.scores[all_self_blanks_idx]  = -0.03
-    decoding_graph.scores[blank_self_loops_idx]  = 0.0
+    decoding_graph.scores[all_self_blanks_idx] = -0.03
+    decoding_graph.scores[blank_self_loops_idx] = 0.0
 
     ctc_loss = k2.ctc_loss(
         decoding_graph=decoding_graph,

@@ -27,7 +27,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --world-size 4 \
   --num-epochs 40 \
   --start-epoch 21 \
-  --exp-dir pruned_transducer_stateless4_ctc_bs_withoutlconv/exp_960_0.85_hard_2.py  \
+  --exp-dir pruned_transducer_stateless4_ctc_bs_withoutlconv/exp_960_21to40_hard_2.py  \
   --full-libri 1 \
   --max-duration 300
 
@@ -38,7 +38,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --num-epochs 40 \
   --start-epoch 21 \
   --use-fp16 1 \
-  --exp-dir pruned_transducer_stateless4_ctc_bs_withoutlconv/exp_960_0.85_hard_2.py \
+  --exp-dir pruned_transducer_stateless4_ctc_bs_withoutlconv/exp_960_21to40_hard_2.py \
   --full-libri 1 \
   --max-duration 750
 """
@@ -697,7 +697,9 @@ def compute_loss(
         )
 
     # Works with a BPE model
-    decoding_graph = k2.fast_ctc_graph(token_ids, modified=False, device=device, max_repeat=2)
+    decoding_graph = k2.fast_ctc_graph(
+        token_ids, modified=False, device=device, max_repeat=2
+    )
     dense_fsa_vec = k2.DenseFsaVec(
         ctc_output,
         supervision_segments,
