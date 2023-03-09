@@ -1,5 +1,41 @@
 ## Results
 
+### Zipformer CTC
+
+#### [zipformer_ctc](./zipformer_ctc)
+
+See <> for more details.
+
+You can find a pretrained model, training logs, decoding logs, and decoding
+results at:
+<>
+
+Number of model parameters: 86083707, i.e., 86.08 M
+
+| decoding method         | test-clean | test-other | comment             |
+|-------------------------|------------|------------|---------------------|
+| ctc-decoding            | 2.50       | 5.86       | --epoch 30 --avg 10 |
+| whole-lattice-rescoring |            |            | --epoch 30 --avg 10 |
+| attention-rescoring     |            |            | --epoch 30 --avg 10 |
+| rnn-lm                  |            |            | --epoch 30 --avg 10 |
+
+The training command is:
+
+```bash
+./zipformer_ctc/train.py \
+  --world-size 4 \
+  --num-epochs 30 \
+  --start-epoch 1 \
+  --use-fp16 1 \
+  --exp-dir zipformer_ctc/exp \
+  --full-libri 1 \
+  --max-duration 1000 \
+  --master-port 12345
+```
+
+The tensorboard log can be found at
+<https://tensorboard.dev/experiment/IjPSJjHOQFKPYA5Z0Vf8wg>
+
 ### Streaming Zipformer-Transducer (Pruned Stateless Transducer + Streaming Zipformer)
 
 #### [pruned_transducer_stateless7_streaming](./pruned_transducer_stateless7_streaming)
