@@ -54,10 +54,20 @@ def get_args():
         help="""Path to the bpe.model. If not None, we will remove short and
         long utterances before extracting features""",
     )
+
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        help="""Dataset parts to compute fbank. If None, we will use all""",
+    )
+
     return parser.parse_args()
 
 
-def compute_fbank_librispeech(bpe_model: Optional[str] = None):
+def compute_fbank_librispeech(
+    bpe_model: Optional[str] = None,
+    dataset: Optional[str] = None,
+):
     src_dir = Path("data/manifests")
     output_dir = Path("data/fbank")
     num_jobs = min(15, os.cpu_count())
@@ -68,15 +78,19 @@ def compute_fbank_librispeech(bpe_model: Optional[str] = None):
         sp = spm.SentencePieceProcessor()
         sp.load(bpe_model)
 
-    dataset_parts = (
-        "dev-clean",
-        "dev-other",
-        "test-clean",
-        "test-other",
-        "train-clean-100",
-        "train-clean-360",
-        "train-other-500",
-    )
+    if dataset is None:
+        dataset_parts = (
+            "dev-clean",
+            "dev-other",
+            "test-clean",
+            "test-other",
+            "train-clean-100",
+            "train-clean-360",
+            "train-other-500",
+        )
+    else:
+        dataset_parts = dataset.split(" ", -1)
+
     prefix = "librispeech"
     suffix = "jsonl.gz"
     manifests = read_manifests_if_cached(
@@ -131,4 +145,4 @@ if __name__ == "__main__":
     logging.basicConfig(format=formatter, level=logging.INFO)
     args = get_args()
     logging.info(vars(args))
-    compute_fbank_librispeech(bpe_model=args.bpe_model)
+    compute_fbank_librispeech(bpe_model=args.bpe_model, dataset=args.dataset)

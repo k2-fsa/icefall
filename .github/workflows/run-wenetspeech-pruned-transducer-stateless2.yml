@@ -54,7 +54,7 @@ jobs:
         run: |
           grep -v '^#' ./requirements-ci.txt  | xargs -n 1 -L 1 pip install
           pip uninstall -y protobuf
-          pip install --no-binary protobuf protobuf
+          pip install --no-binary protobuf protobuf==3.20.*
 
       - name: Cache kaldifeat
         id: my-cache
@@ -76,7 +76,7 @@ jobs:
           GITHUB_EVENT_NAME: ${{ github.event_name }}
           GITHUB_EVENT_LABEL_NAME: ${{ github.event.label.name }}
         run: |
-          sudo apt-get -qq install git-lfs tree sox
+          sudo apt-get -qq install git-lfs tree
           export PYTHONPATH=$PWD:$PYTHONPATH
           export PYTHONPATH=~/tmp/kaldifeat/kaldifeat/python:$PYTHONPATH
           export PYTHONPATH=~/tmp/kaldifeat/build/lib:$PYTHONPATH

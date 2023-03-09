@@ -203,11 +203,8 @@ class Model:
                 #  (1, 512, 2) -> (512, 2)
                 ex.input(name, ncnn.Mat(states[i * 4 + 3].numpy()).clone())
 
-            import pdb
-
-            #  pdb.set_trace()
             ret, ncnn_out0 = ex.extract("out0")
-            #  assert ret == 0, ret
+            assert ret == 0, ret
             encoder_out = torch.from_numpy(ncnn_out0.numpy()).clone()
 
             out_states: List[torch.Tensor] = []
