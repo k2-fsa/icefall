@@ -478,17 +478,13 @@ def save_results(
     test_set_wers = dict()
     test_set_cers = dict()
     for key, results in results_dict.items():
-        recog_path = (
-            params.res_dir / f"recogs-{test_set_name}-{key}-{params.suffix}.txt"
-        )
+        recog_path = params.res_dir / f"recogs-{test_set_name}-{params.suffix}.txt"
         store_transcripts(filename=recog_path, texts=results)
         logging.info(f"The transcripts are stored in {recog_path}")
 
         # The following prints out WERs, per-word error statistics and aligned
         # ref/hyp pairs.
-        wers_filename = (
-            params.res_dir / f"wers-{test_set_name}-{key}-{params.suffix}.txt"
-        )
+        wers_filename = params.res_dir / f"wers-{test_set_name}-{params.suffix}.txt"
         with open(wers_filename, "w") as f:
             wer = write_error_stats(
                 f, f"{test_set_name}-{key}", results, enable_log=True
@@ -499,9 +495,7 @@ def save_results(
         results_char = []
         for res in results:
             results_char.append((res[0], list("".join(res[1])), list("".join(res[2]))))
-        cers_filename = (
-            params.res_dir / f"cers-{test_set_name}-{key}-{params.suffix}.txt"
-        )
+        cers_filename = params.res_dir / f"cers-{test_set_name}-{params.suffix}.txt"
         with open(cers_filename, "w") as f:
             cer = write_error_stats(
                 f, f"{test_set_name}-{key}", results_char, enable_log=True
@@ -512,9 +506,7 @@ def save_results(
 
     test_set_wers = {k: v for k, v in sorted(test_set_wers.items(), key=lambda x: x[1])}
     test_set_cers = {k: v for k, v in sorted(test_set_cers.items(), key=lambda x: x[1])}
-    errs_info = (
-        params.res_dir / f"wer-summary-{test_set_name}-{key}-{params.suffix}.txt"
-    )
+    errs_info = params.res_dir / f"wer-summary-{test_set_name}-{params.suffix}.txt"
     with open(errs_info, "w") as f:
         print("settings\tWER\tCER", file=f)
         for key in test_set_wers:
