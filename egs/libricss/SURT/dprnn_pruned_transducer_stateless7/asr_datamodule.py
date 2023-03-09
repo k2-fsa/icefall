@@ -336,7 +336,7 @@ class LibrimixAsrDataModule:
         logging.info("About to get train cuts")
         rvb_affix = "_rvb" if reverberated else "_norvb"
         cs = load_manifest_lazy(
-            self.args.manifest_dir / f"cuts_train{rvb_affix}.jsonl.gz"
+            self.args.manifest_dir / f"cuts_train{rvb_affix}_v1.jsonl.gz"
         )
         # Trim to supervision groups
         cs = cs.trim_to_supervision_groups(max_pause=1.0)
@@ -348,7 +348,7 @@ class LibrimixAsrDataModule:
         logging.info("About to get dev cuts")
         rvb_affix = "_rvb" if reverberated else "_norvb"
         cs = load_manifest_lazy(
-            self.args.manifest_dir / f"cuts_dev{rvb_affix}.jsonl.gz"
+            self.args.manifest_dir / f"cuts_dev{rvb_affix}_v1.jsonl.gz"
         )
         cs = cs.filter(lambda c: c.duration >= 0.1)
         return cs

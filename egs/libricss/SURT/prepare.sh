@@ -121,8 +121,8 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   sim_cmd="queue.pl --mem 16G -l 'num_proc=4,h_rt=600:00:00'"
 
   gunzip -c data/manifests/libricss-sdm_supervisions_all.jsonl.gz |\
-    grep -v "0L" | grep -v "OV10" | grep -v "OV20" |\
-    gzip -c > data/manifests/libricss-sdm_supervisions_all_v2.jsonl.gz
+    grep -v "0L" | grep -v "OV10" |\
+    gzip -c > data/manifests/libricss-sdm_supervisions_all_v1.jsonl.gz
 
   # 2-speaker anechoic
   # log "Generating 2-speaker anechoic training set"
@@ -154,7 +154,7 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   #   data/manifests/libri-mix_cuts_train_2spk_rvb.jsonl.gz
 
   # Full training set (2,3 speakers) anechoic
-  for part in train; do
+  for part in dev train; do
     if [ $part == "dev" ]; then
       num_jobs=1
     else
@@ -163,18 +163,15 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
     log "Generating anechoic ${part} set (full)"
     $sim_cmd exp/sim_${part}.log lhotse workflows simulate-meetings \
       --method conversational \
+      --fit-to-supervisions data/manifests/libricss-sdm_supervisions_all_v1.jsonl.gz \
       --num-repeats 1 \
-      --same-spk-pause 0.5 \
-      --diff-spk-pause 0.5 \
-      --diff-spk-overlap 2 \
-      --prob-diff-spk-overlap 0.75 \
       --num-speakers-per-meeting 2,3 \
       --max-duration-per-speaker 15.0 \
       --max-utterances-per-speaker 3 \
       --seed 1234 \
       --num-jobs ${num_jobs} \
       data/manifests/librispeech_cuts_${part}_trimmed.jsonl.gz \
-      data/manifests/libri-mix_cuts_${part}_norvb.jsonl.gz
+      data/manifests/libri-mix_cuts_${part}_norvb_v1.jsonl.gz
   done
 
   # Full training set (2,3,4 speakers) reverberant
@@ -202,7 +199,7 @@ fi
 if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
   log "Stage 7: Compute fbank features for simulated Libri-mix"
   mkdir -p data/fbank
-  $cmd exp/feats_librimix_norvb.log python local/compute_fbank_librimix.py
+  $cmd exp/feats_librimix_norvb_v1.log python local/compute_fbank_librimix.py
 fi
 
 if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then

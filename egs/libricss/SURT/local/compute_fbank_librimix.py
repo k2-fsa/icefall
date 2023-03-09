@@ -63,7 +63,7 @@ def compute_fbank_librimix():
 
     logging.info("Reading manifests")
     manifests = read_manifests_if_cached(
-        dataset_parts=["train_norvb", "dev_norvb", "train_2spk_norvb"],
+        dataset_parts=["train_norvb_v1", "dev_norvb_v1"],
         types=["cuts"],
         output_dir=src_dir,
         prefix="libri-mix",
@@ -71,15 +71,15 @@ def compute_fbank_librimix():
         lazy=True,
     )
 
-    train_cuts = manifests["train_norvb"]["cuts"]
-    dev_cuts = manifests["dev_norvb"]["cuts"]
-    train_2spk_cuts = manifests["train_2spk_norvb"]["cuts"]
+    train_cuts = manifests["train_norvb_v1"]["cuts"]
+    dev_cuts = manifests["dev_norvb_v1"]["cuts"]
+    # train_2spk_cuts = manifests["train_2spk_norvb"]["cuts"]
 
     logging.info("Extracting fbank features for training cuts")
     _ = train_cuts.compute_and_store_features_batch(
         extractor=extractor,
-        storage_path=output_dir / "librimix_feats_train_norvb",
-        manifest_path=src_dir / "cuts_train_norvb.jsonl.gz",
+        storage_path=output_dir / "librimix_feats_train_norvb_v1",
+        manifest_path=src_dir / "cuts_train_norvb_v1.jsonl.gz",
         batch_duration=5000,
         num_workers=4,
         storage_type=LilcomChunkyWriter,
@@ -89,24 +89,24 @@ def compute_fbank_librimix():
     logging.info("Extracting fbank features for dev cuts")
     _ = dev_cuts.compute_and_store_features_batch(
         extractor=extractor,
-        storage_path=output_dir / "librimix_feats_dev_norvb",
-        manifest_path=src_dir / "cuts_dev_norvb.jsonl.gz",
+        storage_path=output_dir / "librimix_feats_dev_norvb_v1",
+        manifest_path=src_dir / "cuts_dev_norvb_v1.jsonl.gz",
         batch_duration=5000,
         num_workers=4,
         storage_type=LilcomChunkyWriter,
         overwrite=True,
     )
 
-    logging.info("Extracting fbank features for 2-spk train cuts")
-    _ = train_2spk_cuts.compute_and_store_features_batch(
-        extractor=extractor,
-        storage_path=output_dir / "librimix_feats_train_2spk_norvb",
-        manifest_path=src_dir / "cuts_train_2spk_norvb.jsonl.gz",
-        batch_duration=5000,
-        num_workers=4,
-        storage_type=LilcomChunkyWriter,
-        overwrite=True,
-    )
+    # logging.info("Extracting fbank features for 2-spk train cuts")
+    # _ = train_2spk_cuts.compute_and_store_features_batch(
+    #     extractor=extractor,
+    #     storage_path=output_dir / "librimix_feats_train_2spk_norvb",
+    #     manifest_path=src_dir / "cuts_train_2spk_norvb.jsonl.gz",
+    #     batch_duration=5000,
+    #     num_workers=4,
+    #     storage_type=LilcomChunkyWriter,
+    #     overwrite=True,
+    # )
 
 
 if __name__ == "__main__":

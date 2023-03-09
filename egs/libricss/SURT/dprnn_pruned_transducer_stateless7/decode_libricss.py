@@ -760,22 +760,22 @@ def main():
     #         masks=masks,
     #     )
 
-    for test_set, ol in zip(test_cuts_grouped, OVERLAP_RATIOS):
-        test_dl = librimix.test_dataloaders(test_set)
-        results_dict = decode_dataset(
-            dl=test_dl,
-            params=params,
-            model=model,
-            sp=sp,
-            word_table=word_table,
-            decoding_graph=decoding_graph,
-        )
+    # for test_set, ol in zip(test_cuts_grouped, OVERLAP_RATIOS):
+    #     test_dl = librimix.test_dataloaders(test_set)
+    #     results_dict = decode_dataset(
+    #         dl=test_dl,
+    #         params=params,
+    #         model=model,
+    #         sp=sp,
+    #         word_table=word_table,
+    #         decoding_graph=decoding_graph,
+    #     )
 
-        save_results(
-            params=params,
-            test_set_name=f"test_{ol}",
-            results_dict=results_dict,
-        )
+    #     save_results(
+    #         params=params,
+    #         test_set_name=f"test_{ol}",
+    #         results_dict=results_dict,
+    #     )
 
     # if params.save_masks:
     #     save_masks(
