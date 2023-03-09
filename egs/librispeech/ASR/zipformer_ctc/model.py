@@ -60,6 +60,7 @@ class CTCModel(nn.Module):
         )
         self.decoder = decoder
 
+    @torch.jit.ignore
     def forward(
         self,
         x: torch.Tensor,
