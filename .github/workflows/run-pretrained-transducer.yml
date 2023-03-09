@@ -73,7 +73,7 @@ jobs:
       - name: Inference with pre-trained model
         shell: bash
         run: |
-          sudo apt-get -qq install git-lfs tree sox
+          sudo apt-get -qq install git-lfs tree
           export PYTHONPATH=$PWD:$PYTHONPATH
           export PYTHONPATH=~/tmp/kaldifeat/kaldifeat/python:$PYTHONPATH
           export PYTHONPATH=~/tmp/kaldifeat/build/lib:$PYTHONPATH
