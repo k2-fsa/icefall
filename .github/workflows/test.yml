@@ -56,7 +56,7 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -q -y libsndfile1-dev libsndfile1 ffmpeg
-          sudo apt install -q -y --fix-missing sox libsox-dev libsox-fmt-all
+          sudo apt install -q -y --fix-missing libsox-dev libsox-fmt-all
 
       - name: Install Python dependencies
         run: |
@@ -70,7 +70,7 @@ jobs:
           pip install git+https://github.com/lhotse-speech/lhotse
           # icefall requirements
           pip uninstall -y protobuf
-          pip install --no-binary protobuf protobuf
+          pip install --no-binary protobuf protobuf==3.20.*
 
           pip install kaldifst
           pip install onnxruntime
