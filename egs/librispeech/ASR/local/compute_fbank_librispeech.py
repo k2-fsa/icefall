@@ -55,7 +55,6 @@ def get_args():
         long utterances before extracting features""",
     )
 
-    
     parser.add_argument(
         "--dataset",
         type=str,
@@ -90,7 +89,7 @@ def compute_fbank_librispeech(
             "train-other-500",
         )
     else:
-        dataset_parts = dataset.split(' ', -1)
+        dataset_parts = dataset.split(" ", -1)
 
     prefix = "librispeech"
     suffix = "jsonl.gz"
