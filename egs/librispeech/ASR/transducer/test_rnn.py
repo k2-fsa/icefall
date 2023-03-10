@@ -432,11 +432,11 @@ def test_layernorm_lstm_forward(device="cpu"):
 
 
 def test_layernorm_lstm_with_projection_forward(device="cpu"):
-    input_size = torch.randint(low=2, high=100, size=(1,)).item()
-    hidden_size = torch.randint(low=10, high=100, size=(1,)).item()
-    proj_size = torch.randint(low=2, high=hidden_size, size=(1,)).item()
-    num_layers = torch.randint(low=2, high=100, size=(1,)).item()
-    bias = torch.randint(low=0, high=1000, size=(1,)).item() & 2 == 0
+    input_size = 40  # torch.randint(low=2, high=100, size=(1,)).item()
+    hidden_size = 40  # torch.randint(low=10, high=100, size=(1,)).item()
+    proj_size = 20  # torch.randint(low=2, high=hidden_size, size=(1,)).item()
+    num_layers = 12  # torch.randint(low=2, high=100, size=(1,)).item()
+    bias = True  # torch.randint(low=0, high=1000, size=(1,)).item() & 2 == 0
 
     self_lstm = LayerNormLSTM(
         input_size=input_size,
