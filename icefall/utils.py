@@ -1095,8 +1095,12 @@ def make_pad_mask(lengths: torch.Tensor, max_len: int = 0) -> torch.Tensor:
     assert lengths.ndim == 1, lengths.ndim
     max_len = max(max_len, lengths.max())
     n = lengths.size(0)
-
-    expaned_lengths = torch.arange(max_len).expand(n, max_len).to(lengths)
+    
+    if torch.jit.is_scripting() or torch.jit.is_tracing():
+        seq_range = torch.arange(0, max_len, device=lengths.device)
+        expaned_lengths = seq_range.unsqueeze(0).expand(n, max_len)
+    else:
+        expaned_lengths = torch.arange(max_len).expand(n, max_len).to(lengths)
 
     return expaned_lengths >= lengths.unsqueeze(1)
 
