@@ -1,1 +1,1 @@
-/exp/draj/mini_scale_2022/icefall/egs/librispeech/ASR/pruned_transducer_stateless7/scaling.py
+../pruned_transducer_stateless7/scaling.py
