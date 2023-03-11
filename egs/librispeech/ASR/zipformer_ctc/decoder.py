@@ -145,6 +145,84 @@ class Decoder(nn.Module):
 
         return decoder_loss
 
+    @torch.jit.export
+    def decoder_nll(
+        self,
+        memory: torch.Tensor,
+        memory_key_padding_mask: torch.Tensor,
+        token_ids: List[torch.Tensor],
+        sos_id: int,
+        eos_id: int,
+    ) -> torch.Tensor:
+        """
+        Args:
+          memory:
+            It's the output of the encoder with shape (T, N, C)
+          memory_key_padding_mask:
+            The padding mask from the encoder.
+          token_ids:
+            A list-of-list IDs (e.g., word piece IDs).
+            Each sublist represents an utterance.
+          sos_id:
+            The token ID for SOS.
+          eos_id:
+            The token ID for EOS.
+        Returns:
+            A 2-D tensor of shape (len(token_ids), max_token_length)
+            representing the cross entropy loss (i.e., negative log-likelihood).
+        """
+        # The common part between this function and decoder_forward could be
+        # extracted as a separate function.
+        if isinstance(token_ids[0], torch.Tensor):
+            # This branch is executed by torchscript in C++.
+            # See https://github.com/k2-fsa/k2/pull/870
+            # https://github.com/k2-fsa/k2/blob/3c1c18400060415b141ccea0115fd4bf0ad6234e/k2/torch/bin/attention_rescore.cu#L286
+            token_ids = [tolist(t) for t in token_ids]
+
+        ys_in = add_sos(token_ids, sos_id=sos_id)
+        ys_in = [torch.tensor(y) for y in ys_in]
+        ys_in_pad = pad_sequence(ys_in, batch_first=True, padding_value=float(eos_id))
+
+        ys_out = add_eos(token_ids, eos_id=eos_id)
+        ys_out = [torch.tensor(y) for y in ys_out]
+        ys_out_pad = pad_sequence(ys_out, batch_first=True, padding_value=float(-1))
+
+        device = memory.device
+        ys_in_pad = ys_in_pad.to(device, dtype=torch.int64)
+        ys_out_pad = ys_out_pad.to(device, dtype=torch.int64)
+
+        tgt_mask = generate_square_subsequent_mask(ys_in_pad.shape[-1]).to(device)
+
+        tgt_key_padding_mask = decoder_padding_mask(ys_in_pad, ignore_id=eos_id)
+        # TODO: Use length information to create the decoder padding mask
+        # We set the first column to False since the first column in ys_in_pad
+        # contains sos_id, which is the same as eos_id in our current setting.
+        tgt_key_padding_mask[:, 0] = False
+
+        tgt = self.decoder_embed(ys_in_pad)  # (B, T) -> (B, T, F)
+        tgt = self.decoder_pos(tgt)
+        tgt = tgt.permute(1, 0, 2)  # (B, T, F) -> (T, B, F)
+        pred_pad = self.decoder(
+            tgt=tgt,
+            memory=memory,
+            tgt_mask=tgt_mask,
+            tgt_key_padding_mask=tgt_key_padding_mask,
+            memory_key_padding_mask=memory_key_padding_mask,
+        )  # (T, B, F)
+        pred_pad = pred_pad.permute(1, 0, 2)  # (T, B, F) -> (B, T, F)
+        pred_pad = self.decoder_output_layer(pred_pad)  # (B, T, F)
+        # nll: negative log-likelihood
+        nll = torch.nn.functional.cross_entropy(
+            pred_pad.view(-1, self.decoder_num_class),
+            ys_out_pad.view(-1),
+            ignore_index=-1,
+            reduction="none",
+        )
+
+        nll = nll.view(pred_pad.shape[0], -1)
+
+        return nll
+
 
 def add_sos(token_ids: List[List[int]], sos_id: int) -> List[List[int]]:
     """Prepend sos_id to each utterance.
@@ -213,3 +291,8 @@ def generate_square_subsequent_mask(sz: int) -> torch.Tensor:
         .masked_fill(mask == 1, float(0.0))
     )
     return mask
+
+
+def tolist(t: torch.Tensor) -> List[int]:
+    """Used by jit"""
+    return torch.jit.annotate(List[int], t.tolist())

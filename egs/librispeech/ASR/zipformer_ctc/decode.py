@@ -313,7 +313,7 @@ def decode_one_batch(
     feature_lens = supervisions["num_frames"].to(device)
 
     nnet_output, _ = model.encoder(feature, feature_lens)
-    nnet_output = model.ctc_output(nnet_output)
+    ctc_output = model.ctc_output(nnet_output)
     # nnet_output is (N, T, C)
 
     supervision_segments = torch.stack(
@@ -334,7 +334,7 @@ def decode_one_batch(
         decoding_graph = H
 
     lattice = get_lattice(
-        nnet_output=nnet_output,
+        nnet_output=ctc_output,
         decoding_graph=decoding_graph,
         supervision_segments=supervision_segments,
         search_beam=params.search_beam,
@@ -407,12 +407,11 @@ def decode_one_batch(
     ]
 
     lm_scale_list = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]
-    lm_scale_list += [0.8, 0.9, 1.0, 1.1, 1.2, 1.3]
-    lm_scale_list += [1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0]
 
     nnet_output = nnet_output.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
     mask = encoder_padding_mask(nnet_output.size(0), supervisions)
     mask = mask.to(nnet_output.device) if mask is not None else None
+    mmodel = model.decoder.module if hasattr(model.decoder, "module") else model.decoder
 
     if params.method == "nbest-rescoring":
         best_path_dict = rescore_with_n_best_list(
@@ -439,7 +438,7 @@ def decode_one_batch(
         best_path_dict = rescore_with_attention_decoder(
             lattice=rescored_lattice,
             num_paths=params.num_paths,
-            model=model,
+            model=mmodel,
             memory=nnet_output,
             memory_key_padding_mask=mask,
             sos_id=sos_id,
@@ -458,7 +457,7 @@ def decode_one_batch(
             lattice=rescored_lattice,
             num_paths=params.num_paths,
             rnn_lm_model=rnn_lm_model,
-            model=model,
+            model=mmodel,
             memory=nnet_output,
             memory_key_padding_mask=mask,
             sos_id=sos_id,
