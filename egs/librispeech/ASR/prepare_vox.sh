@@ -118,7 +118,7 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   fi
 fi
 
-if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
+if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   log "Stage 3: Compute fbank for LJSpeech"
   mkdir -p data/fbank
   if [ ! -e data/fbank/.LJSpeech.done ]; then
