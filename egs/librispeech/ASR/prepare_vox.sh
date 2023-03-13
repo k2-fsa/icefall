@@ -100,6 +100,7 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
 	for dest in "test-clean" "test-other"; do
 		for spk in $dl_dir/$dest/*; do
 			spk_id=${spk#*/}
+			echo $spk_id
     		python local/prepare_vox.py $spk $spk
 		done
 	done
