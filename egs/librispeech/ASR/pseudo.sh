@@ -17,6 +17,6 @@ for method in greedy_search; do #modified_beam_search fast_beam_search; do
 			--joiner-dim 768 \
 			--avg 1 \
 			--use-averaged-model True \
-			--spk-id $spk_id
+			--spk-id $spk_id > pseudo/$spk_id.pl
 	done
 done
