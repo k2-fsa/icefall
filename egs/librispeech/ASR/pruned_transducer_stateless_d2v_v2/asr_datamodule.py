@@ -211,7 +211,7 @@ class LibriSpeechAsrDataModule:
         group.add_argument(
             "--spk-id",
             type=int,
-            default=0
+            default=0,
         )
 
     def train_dataloaders(
