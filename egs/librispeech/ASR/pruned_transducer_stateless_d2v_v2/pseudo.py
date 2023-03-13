@@ -805,8 +805,10 @@ def main():
             res_dict[res[0]] = ' '.join(res[2])
         
         res_dict = sorted(res_dict.items(), key=lambda x:x[0])
-
+        
         for k, v in res_dict:
+            utt_id = '-'.join(k.split('-')[:-1])
+            f = open(f'/DB/LibriSpeech_tar/vox/{params.spk_id}_texts/{utt_id}.txt')
             print(k, v)
         exit()
         
