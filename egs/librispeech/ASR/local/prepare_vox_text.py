@@ -23,7 +23,6 @@ for wav in wavs:
         file.write('TBD')
 
     '''
-
     # Split the string into parts
     parts = string.split("|")
 
