@@ -271,6 +271,13 @@ def get_parser():
         default=64,
         help="left context can be seen during decoding (in frames after subsampling)",
     )
+    
+    parser.add_argument(
+        "--spk-id",
+        type=int,
+        default=64,
+        help="left context can be seen during decoding (in frames after subsampling)",
+    )
 
     add_model_arguments(parser)
     add_rep_arguments(parser)
