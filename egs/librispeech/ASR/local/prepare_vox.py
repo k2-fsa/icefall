@@ -59,9 +59,10 @@ def prepare_vox(
     # )
 
     manifests = {}
-
+    subset = spk_id.split('_')[0]
+    spk_idx = spk_id.split('_')[1]
     #dataset_parts = ["train", "dev", "test"]
-    dataset_parts = [spk_id]
+    dataset_parts = [spk_idx]
     if output_dir is not None:
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -81,7 +82,8 @@ def prepare_vox(
         #part_file_names = list(map(lambda x: x.strip('.wav'), os.listdir(part_path)))
         part_file_names = sorted(glob.glob(str(part_path)+'/*.wav'))
         part_file_names = [name.split('/')[-1].replace('.wav', '') for name in part_file_names]
-        txt_path = os.path.join(corpus_dir, f"../{spk_id}/texts")
+        txt_path = os.path.join(corpus_dir, f"../{spk_idx}_texts")
+        print(txt_path)
         futures = []
         
         for trans_path in tqdm(
