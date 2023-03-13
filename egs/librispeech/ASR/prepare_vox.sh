@@ -154,10 +154,11 @@ fi
 
 if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   log "Stage 5: Generate pseudo label"
-  mkdir -p data/manifests
-  if [ ! -e data/manifests/.musan.done ]; then
-    lhotse prepare musan $dl_dir/musan data/manifests
-    touch data/manifests/.musan.done
-  fi
+  for dest in "test-clean" "test-other"; do
+	  for spk in $dl_dir/$dest/*; do
+		  spk_id=${spk#*$dest\/}
+		  python local/prepare_vox.py $dl_dir/$dest "$spk_id"
+	  done
+  done
 fi
 
