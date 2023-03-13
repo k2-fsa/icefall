@@ -4,6 +4,7 @@ import re
 import glob
 
 metafile = sys.argv[1]
+spk_id = sys.argv[2]
 outdir = "texts"
 save_dir = "/".join(metafile.split('/')[:-1])
 save_dir = os.path.join(save_dir, outdir)
