@@ -16,5 +16,6 @@ do
     --decoder-dim 768 \
     --joiner-dim 768 \
 	--avg 1 \
-	--use-averaged-model True
+	--use-averaged-model True \
+	--spk-id $spk_id
 done
