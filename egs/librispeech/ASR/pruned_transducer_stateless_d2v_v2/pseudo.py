@@ -807,8 +807,8 @@ def main():
         
         res_dict = sorted(res_dict.items(), key=lambda x:x[0])
         
+        os.makedirs(f"/DB/LibriSpeech_tar/vox/{params.spk_id}_texts")
         for k, v in res_dict:
-            os.makedirs(f"/DB/LibriSpeech_tar/vox/{params.spk_id}_texts")
             utt_id = '-'.join(k.split('-')[:-1])
             f = open(f'/DB/LibriSpeech_tar/vox/{params.spk_id}_texts/{utt_id}.txt', 'w')
             f.write(v.strip())
