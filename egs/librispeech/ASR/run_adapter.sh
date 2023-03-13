@@ -52,7 +52,6 @@ else
 		--num-buckets 2 \
 		--add-adapter True \
 		--adapter-lr 0.02472 \
-		--gender male \
 		--wandb False \
 		--input-strategy AudioSamples \
 		--enable-spec-aug False \
