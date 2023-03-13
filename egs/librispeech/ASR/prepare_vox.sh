@@ -89,6 +89,7 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
     #done
 	for dest in "test-clean" "test-other"; do
     	python local/prepare_vox_text.py $dl_dir/$dest
+	done
     #touch $dl_dir/vox/.vox.done
   fi
 
