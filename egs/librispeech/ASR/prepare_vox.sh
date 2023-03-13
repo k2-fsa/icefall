@@ -99,7 +99,7 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   if [ ! -e data/manifests/.vox.done ]; then
 	for dest in "test-clean" "test-other"; do
 		for spk in $dl_dir/$dest/*; do
-			spk_id=${spk#*/}
+			spk_id=${spk#*$dest/}
 			echo $spk_id
     		python local/prepare_vox.py $spk $spk
 		done
