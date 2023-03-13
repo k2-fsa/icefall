@@ -37,7 +37,7 @@ stop_stage=100
 #     - music
 #     - noise
 #     - speech
-dl_dir=/DB/LibriSpeech_tar
+dl_dir=/DB/LibriSpeech_tar/vox
 
 . shared/parse_options.sh || exit 1
 
@@ -88,7 +88,8 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
     #  done
     #  log "Resampling $dset done"
     #done
-    python local/prepare_vox_text.py $dl_dir/vox/$spk_id
+	for dest in "test-clean" "test-other"; do
+    	python local/prepare_vox_text.py $dl_dir/vox/$spk_id
     #touch $dl_dir/vox/.vox.done
   fi
 
