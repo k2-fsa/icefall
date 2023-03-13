@@ -815,6 +815,7 @@ def main():
             if len(v) < 10:
                 continue
             utt_id = '-'.join(k.split('-')[:-1])
+            print(utt_id)
             f = open(f'/DB/LibriSpeech_tar/vox/{params.spk_id}_texts/{utt_id}.txt', 'w')
             f.write(v.strip())
             print(k, v)
