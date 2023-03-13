@@ -61,7 +61,7 @@ def prepare_vox(
     manifests = {}
     spk_idx = spk_id.split('_')[1]
     #dataset_parts = ["train", "dev", "test"]
-    dataset_parts = [spk_id]
+    dataset_parts = [spk_idx]
     if output_dir is not None:
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
