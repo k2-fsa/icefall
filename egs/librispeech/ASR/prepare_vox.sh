@@ -154,8 +154,6 @@ fi
 
 if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   log "Stage 5: Generate pseudo label"
-  # We assume that you have downloaded the musan corpus
-  # to data/musan
   mkdir -p data/manifests
   if [ ! -e data/manifests/.musan.done ]; then
     lhotse prepare musan $dl_dir/musan data/manifests
