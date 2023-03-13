@@ -19,3 +19,4 @@ for method in greedy_search; do #modified_beam_search fast_beam_search; do
 			--use-averaged-model True \
 			--spk-id $spk_id
 		done
+	done
