@@ -125,10 +125,9 @@ def compute_fbank_LJSpeech(bpe_model: Optional[str] = None, args: Optional = Non
             if bpe_model:
                 cut_set = filter_cuts(cut_set, sp)
 
-            if "train" in partition:
-                cut_set = (
-                    cut_set + cut_set.perturb_speed(0.9) + cut_set.perturb_speed(1.1)
-                )
+            cut_set = (
+                cut_set + cut_set.perturb_speed(0.9) + cut_set.perturb_speed(1.1)
+            )
             cut_set = cut_set.compute_and_store_features(
                 extractor=extractor,
                 storage_path=f"{output_dir}/{prefix}_feats_{partition}",
