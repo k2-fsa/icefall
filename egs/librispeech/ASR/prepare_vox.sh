@@ -101,7 +101,7 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
 		for spk in $dl_dir/$dest/*; do
 			spk_id=${spk#*$dest\/}
 			echo $spk_id
-    		python local/prepare_vox.py $spk {$dest}_{$spk_id}
+    		python local/prepare_vox.py $spk "$dest"_"$spk_id"
 		done
 	done
     #touch data/manifests/.vox.done
