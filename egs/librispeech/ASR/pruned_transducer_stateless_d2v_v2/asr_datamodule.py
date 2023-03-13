@@ -207,6 +207,13 @@ class LibriSpeechAsrDataModule:
             default="AudioSamples",
             help="AudioSamples or PrecomputedFeatures",
         )
+        
+        group.add_argument(
+            "--spk-id",
+            type=str,
+            default="AudioSamples",
+            help="AudioSamples or PrecomputedFeatures",
+        )
 
     def train_dataloaders(
         self,
