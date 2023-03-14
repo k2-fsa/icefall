@@ -106,7 +106,8 @@ import k2
 import sentencepiece as spm
 import torch
 import torch.nn as nn
-#from asr_datamodule import LibriSpeechAsrDataModule
+
+# from asr_datamodule import LibriSpeechAsrDataModule
 from gigaspeech import GigaSpeechAsrDataModule
 from beam_search import (
     beam_search,
@@ -330,6 +331,7 @@ def get_parser():
 
     return parser
 
+
 def post_processing(
     results: List[Tuple[str, List[str], List[str]]],
 ) -> List[Tuple[str, List[str], List[str]]]:
@@ -339,6 +341,7 @@ def post_processing(
         new_hyp = asr_text_post_processing(" ".join(hyp)).split()
         new_results.append((key, new_ref, new_hyp))
     return new_results
+
 
 def decode_one_batch(
     params: AttributeDict,
@@ -645,10 +648,10 @@ def save_results(
 
 @torch.no_grad()
 def main():
-    '''
+    """
     This scripts test a libri model with libri BPE
     on Gigaspeech.
-    '''
+    """
     parser = get_parser()
     GigaSpeechAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
