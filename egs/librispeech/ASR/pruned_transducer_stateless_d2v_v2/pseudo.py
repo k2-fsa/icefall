@@ -778,6 +778,10 @@ def main():
     #test_other_cuts = librispeech.test_other_cuts(option='male')
     
     test_clean_cuts = librispeech.vox_cuts(option=params.spk_id)
+    def remove_short_and_long_utt(c: Cut):
+        return 1.0 <= c.duration <= 20.0
+
+    train_cuts = train_cuts.filter(remove_short_and_long_utt)
     #test_clean_cuts = librispeech.test_clean_user(option=option)
     #test_other_cuts = librispeech.test_other_user(option=option)
     #test_clean_dl = librispeech.train_dataloaders(test_clean_cuts)
