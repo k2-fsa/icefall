@@ -71,5 +71,6 @@ else
 		--prune-range 10 \
 		--ctc-loss-scale 0.1924 \
 		--lm-scale 0.1254 \
-		--simple-loss-scale 0.2869
+		--simple-loss-scale 0.2869 \
+		--spk-id $2
 fi
