@@ -131,7 +131,7 @@ def compute_fbank_LJSpeech(bpe_model: Optional[str] = None, args: Optional = Non
             if bpe_model:
                 cut_set = filter_cuts(cut_set, sp)
             
-            if 0:
+            if args.speed:
                 cut_set = (
                     cut_set + cut_set.perturb_speed(0.9) + cut_set.perturb_speed(1.1)
                 )
