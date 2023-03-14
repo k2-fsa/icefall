@@ -806,7 +806,7 @@ def main():
         test_dl = [test_clean_dl]
     
     if 1:
-        test_clean_cuts = librispeech.vox_cuts(option=params.spk_id)
+        test_clean_cuts = librispeech.userlibri_cuts(option=params.spk_id)
         test_clean_dl = librispeech.test_dataloaders(test_clean_cuts)
         test_sets = [f"{params.spk_id}"]
         test_dl = [test_clean_dl]
