@@ -190,16 +190,16 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
 fi
 
 if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
-  log "Stage 7: Re-Compute fbank for Vox"
-  mkdir -p data/fbank
-  rm -rf data/fbank/vox*
-  if [ ! -e data/fbank/.LJSpeech.done ]; then
-	  for dest in "test-clean" "test-other"; do
-		  for spk in $dl_dir/$dest/*; do
-			  spk_id=${spk#*$dest\/}
-			  ./local/compute_fbank_vox.py --data-dir $spk --spk-id $spk_id
-		  done
-	  done
+	log "Stage 7: Re-Compute fbank for Vox"
+	mkdir -p data/fbank
+	rm -rf data/fbank/vox*
+	if [ ! -e data/fbank/.LJSpeech.done ]; then
+		for dest in "test-clean" "test-other"; do
+			for spk in $dl_dir/$dest/*; do
+				spk_id=${spk#*$dest\/}
+				./local/compute_fbank_vox.py --data-dir $spk --spk-id $spk_id
+			done
+		done
     #touch data/fbank/.vox.done
-  fi
+	fi
 
