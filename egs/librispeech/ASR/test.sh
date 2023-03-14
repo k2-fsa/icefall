@@ -1,5 +1,5 @@
 git pull
-
+spk_id=$1
 #for i in 10 20 30 40 50 60 70 80 90 100
 for i in 30
 do
@@ -10,7 +10,7 @@ do
 		--enable-spec-aug False \
 		--additional-block True \
 		--model-name epoch-$i.pt \
-		--exp-dir ./pruned_transducer_stateless_d2v_v2/4446_test \
+		--exp-dir ./pruned_transducer_stateless_d2v_v2/"$spk_id"_adapter \
 		--max-duration 600 \
 		--decoding-method $method \
 		--max-sym-per-frame 1 \
