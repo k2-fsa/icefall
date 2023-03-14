@@ -154,11 +154,11 @@ fi
 
 if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   log "Stage 5: Generate pseudo label"
-  rm -rf $dl_dir/*_texts
+  #rm -rf $dl_dir/*_texts
   for dest in "test-clean" "test-other"; do
 	  for spk in $dl_dir/$dest/*; do
 		  spk_id=${spk#*$dest\/}
-		  ./pseudo.sh $spk_id
+		  #./pseudo.sh $spk_id
 		  #python local/prepare_vox.py $dl_dir/$dest "$spk_id"
 	  done
   done
