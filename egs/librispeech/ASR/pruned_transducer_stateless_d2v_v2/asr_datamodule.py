@@ -546,7 +546,7 @@ class LibriSpeechAsrDataModule:
     
     @lru_cache()
     def userlibri_cuts(self, option=None) -> CutSet:
-        logging.info("About to get dev-clean cuts")
+        logging.info("About to get userlibri cuts")
         if option is None:
             return load_manifest_lazy(
                 self.args.manifest_dir / f"librispeech_cuts_dev-clean.jsonl"
