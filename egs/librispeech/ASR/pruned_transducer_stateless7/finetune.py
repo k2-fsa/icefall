@@ -933,7 +933,7 @@ def train_one_epoch(
 
         if batch_idx % 100 == 0 and params.use_fp16:
             # If the grad scale was less than 1, try increasing it. The _growth_interval
-            # of the grad scaler is configurable, but we can't configure it to have 
+            # of the grad scaler is configurable, but we can't configure it to have
             # different behavior depending on the current grad scale.
             cur_grad_scale = scaler._scale.item()
             if cur_grad_scale < 1.0 or (cur_grad_scale < 8.0 and batch_idx % 400 == 0):
