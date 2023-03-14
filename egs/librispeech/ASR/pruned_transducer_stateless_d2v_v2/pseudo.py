@@ -836,11 +836,12 @@ def main():
                 new_line += '\n'
 
                 new_jsons.write(new_line)
-            save_results(
-                params=params,
-                test_set_name=test_set,
-                results_dict=results_dict,
-            )
+            
+        save_results(
+            params=params,
+            test_set_name=test_set,
+            results_dict=results_dict,
+        )
 
     '''
     for test_set, test_dl in zip(test_sets, test_dl):
