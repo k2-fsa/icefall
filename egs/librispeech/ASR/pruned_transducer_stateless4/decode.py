@@ -125,6 +125,7 @@ For example:
 import argparse
 import logging
 import math
+import os
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -146,6 +147,7 @@ from beam_search import (
 )
 from train import add_model_arguments, get_params, get_transducer_model
 
+from icefall import ContextGraph
 from icefall.checkpoint import (
     average_checkpoints,
     average_checkpoints_with_averaged_model,
@@ -353,6 +355,21 @@ def get_parser():
         Used only when the decoding method is fast_beam_search_nbest,
         fast_beam_search_nbest_LG, and fast_beam_search_nbest_oracle""",
     )
+
+    parser.add_argument(
+        "--context-score",
+        type=float,
+        default=2,
+        help="",
+    )
+
+    parser.add_argument(
+        "--context-file",
+        type=str,
+        default="",
+        help="",
+    )
+
     add_model_arguments(parser)
 
     return parser
@@ -365,6 +382,7 @@ def decode_one_batch(
     batch: dict,
     word_table: Optional[k2.SymbolTable] = None,
     decoding_graph: Optional[k2.Fsa] = None,
+    context_graph: Optional[ContextGraph] = None,
 ) -> Dict[str, Tuple[List[List[str]], List[List[float]]]]:
     """Decode one batch and return the result in a dict. The dict has the
     following format:
@@ -492,6 +510,7 @@ def decode_one_batch(
             encoder_out=encoder_out,
             encoder_out_lens=encoder_out_lens,
             beam=params.beam_size,
+            context_graph=context_graph,
             return_timestamps=True,
         )
     else:
@@ -556,6 +575,7 @@ def decode_dataset(
     sp: spm.SentencePieceProcessor,
     word_table: Optional[k2.SymbolTable] = None,
     decoding_graph: Optional[k2.Fsa] = None,
+    context_graph: Optional[ContextGraph] = None,
 ) -> Dict[str, List[Tuple[str, List[str], List[str], List[float], List[float]]]]:
     """Decode dataset.
 
@@ -620,6 +640,7 @@ def decode_dataset(
             decoding_graph=decoding_graph,
             word_table=word_table,
             batch=batch,
+            context_graph=context_graph,
         )
 
         for name, (hyps, timestamps_hyp) in hyps_dict.items():
@@ -886,6 +907,18 @@ def main():
         decoding_graph = None
         word_table = None
 
+    if params.decoding_method == "modified_beam_search":
+        if os.path.exists(params.context_file):
+            contexts = []
+            for line in open(params.context_file).readlines():
+                contexts.append(line.strip())
+            context_graph = ContextGraph(params.context_score)
+            context_graph.build_context_graph(contexts, sp)
+        else:
+            context_graph = None
+    else:
+        context_graph = None
+
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
@@ -899,8 +932,11 @@ def main():
     test_clean_dl = librispeech.test_dataloaders(test_clean_cuts)
     test_other_dl = librispeech.test_dataloaders(test_other_cuts)
 
-    test_sets = ["test-clean", "test-other"]
-    test_dl = [test_clean_dl, test_other_dl]
+    test_book_cuts = librispeech.test_book_cuts()
+    test_book_dl = librispeech.test_dataloaders(test_book_cuts)
+
+    test_sets = ["test-book", "test-clean", "test-other"]
+    test_dl = [test_book_dl, test_clean_dl, test_other_dl]
 
     for test_set, test_dl in zip(test_sets, test_dl):
         results_dict = decode_dataset(
@@ -910,6 +946,7 @@ def main():
             sp=sp,
             word_table=word_table,
             decoding_graph=decoding_graph,
+            context_graph=context_graph,
         )
 
         save_results(

@@ -24,7 +24,7 @@ import sentencepiece as spm
 import torch
 from model import Transducer
 
-from icefall import NgramLm, NgramLmStateCost
+from icefall import ContextGraph, ContextState, NgramLm, NgramLmStateCost
 from icefall.decode import Nbest, one_best_decoding
 from icefall.lm_wrapper import LmScorer
 from icefall.rnn_lm.model import RnnLmModel
@@ -742,6 +742,9 @@ class Hypothesis:
     # N-gram LM state
     state_cost: Optional[NgramLmStateCost] = None
 
+    # Context graph state
+    context_state: Optional[ContextState] = None
+
     @property
     def key(self) -> str:
         """Return a string representation of self.ys"""
@@ -883,6 +886,7 @@ def modified_beam_search(
     model: Transducer,
     encoder_out: torch.Tensor,
     encoder_out_lens: torch.Tensor,
+    context_graph: Optional[ContextGraph] = None,
     beam: int = 4,
     temperature: float = 1.0,
     return_timestamps: bool = False,
@@ -934,6 +938,7 @@ def modified_beam_search(
             Hypothesis(
                 ys=[blank_id] * context_size,
                 log_prob=torch.zeros(1, dtype=torch.float32, device=device),
+                context_state=ContextState(state_id=0),
                 timestamp=[],
             )
         )
@@ -1017,17 +1022,53 @@ def modified_beam_search(
                 new_ys = hyp.ys[:]
                 new_token = topk_token_indexes[k]
                 new_timestamp = hyp.timestamp[:]
+                new_context_state = None
                 if new_token not in (blank_id, unk_id):
                     new_ys.append(new_token)
                     new_timestamp.append(t)
-
-                new_log_prob = topk_log_probs[k]
+                    if context_graph is not None:
+                        new_context_state = context_graph.get_next_state(
+                            hyp.context_state.state_id, new_token
+                        )
+                new_log_prob = topk_log_probs[k] + (
+                    0
+                    if new_context_state is None
+                    else new_context_state.score
+                )
                 new_hyp = Hypothesis(
-                    ys=new_ys, log_prob=new_log_prob, timestamp=new_timestamp
+                    ys=new_ys,
+                    log_prob=new_log_prob,
+                    timestamp=new_timestamp,
+                    context_state=hyp.context_state
+                    if new_context_state is None
+                    else new_context_state,
                 )
                 B[i].add(new_hyp)
 
     B = B + finalized_B
+
+    # finalize context_state, if the matched contexts do not reach final state
+    # we need to add the score on the corresponding backoff arc
+    if context_graph is not None:
+        finalized_B = [HypothesisList() for _ in range(len(B))]
+        for i, hyps in enumerate(B):
+            for hyp in list(hyps):
+                if hyp.context_state.state_id != 0:
+                    new_context_state = context_graph.get_next_state(
+                        hyp.context_state.state_id, 0
+                    )
+                    finalized_B[i].add(
+                        Hypothesis(
+                            ys=hyp.ys,
+                            log_prob=hyp.log_prob + new_context_state.score,
+                            timestamp=hyp.timestamp,
+                            context_state=new_context_state,
+                        )
+                    )
+                else:
+                    finalized_B[i].add(hyp)
+        B = finalized_B
+
     best_hyps = [b.get_most_probable(length_norm=True) for b in B]
 
     sorted_ans = [h.ys[context_size:] for h in best_hyps]
