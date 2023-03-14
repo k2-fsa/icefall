@@ -821,7 +821,6 @@ def main():
             f = open(f'/DB/LibriSpeech_tar/vox/{params.spk_id}_texts/{utt_id}.txt', 'w')
             f.write(v)
             print(k, v)
-        exit()
         
         if 0:
             for line in jsons:
@@ -837,7 +836,6 @@ def main():
 
                 new_jsons.write(new_line)
 
-    '''
     for test_set, test_dl in zip(test_sets, test_dl):
         results_dict = decode_dataset(
             dl=test_dl,
@@ -853,7 +851,6 @@ def main():
             test_set_name=test_set,
             results_dict=results_dict,
         )
-    '''
 
     '''
     test_clean_cuts, test_clean_sets = librispeech.test_clean_cuts(option='user')
