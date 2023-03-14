@@ -202,4 +202,4 @@ if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
 		done
     #touch data/fbank/.vox.done
 	fi
-
+fi
