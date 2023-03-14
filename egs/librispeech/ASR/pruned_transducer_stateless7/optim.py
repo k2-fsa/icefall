@@ -798,6 +798,42 @@ def _test_eden():
     logging.info(f"last lr = {scheduler.get_last_lr()}")
     logging.info(f"state dict = {scheduler.state_dict()}")
 
+def _only_eden():
+    import matplotlib.pyplot as plt
+    m = torch.nn.Linear(100, 100)
+    parameters_names = []
+    parameters_names.append(
+        [name_param_pair[0] for name_param_pair in m.named_parameters()]
+    )
+    
+    for lr_epoch in [4, 10, 100]:
+        for lr_batch in [100, 400]:
+            optim = ScaledAdam(m.parameters(), lr=0.03, parameters_names=parameters_names)
+            scheduler = Eden(optim, lr_batches=lr_batch, lr_epochs=lr_epoch, verbose=True)
+            lr = []
+
+            for epoch in range(10):
+                scheduler.step_epoch(epoch)  # sets epoch to `epoch`
+                
+                for step in range(500):
+                    lr.append(scheduler.get_lr())
+                    
+                    x = torch.randn(200, 100).detach()
+                    x.requires_grad = True
+                    y = m(x)
+                    dy = torch.randn(200, 100).detach()
+                    f = (y * dy).sum()
+                    f.backward()
+
+                    optim.step()
+                    scheduler.step_batch()
+                    optim.zero_grad()
+            plt.plot(lr, label=f"lr_epoch:{lr_epoch}, lr_batch:{lr_batch}")
+    
+    
+    plt.legend()
+    plt.savefig("lr.png")
+
 
 # This is included mostly as a baseline for ScaledAdam.
 class Eve(Optimizer):
@@ -1044,12 +1080,12 @@ if __name__ == "__main__":
     torch.set_num_threads(1)
     torch.set_num_interop_threads(1)
     logging.getLogger().setLevel(logging.INFO)
-    import subprocess
+    # import subprocess
 
-    s = subprocess.check_output(
-        "git status -uno .; git log -1; git diff HEAD .", shell=True
-    )
-    logging.info(s)
+    # s = subprocess.check_output(
+    #     "git status -uno .; git log -1; git diff HEAD .", shell=True
+    # )
+    # logging.info(s)
     import sys
 
     if len(sys.argv) > 1:
@@ -1057,5 +1093,6 @@ if __name__ == "__main__":
     else:
         hidden_dim = 200
 
-    _test_scaled_adam(hidden_dim)
-    _test_eden()
+    #_test_scaled_adam(hidden_dim)
+    #_test_eden()
+    _only_eden()

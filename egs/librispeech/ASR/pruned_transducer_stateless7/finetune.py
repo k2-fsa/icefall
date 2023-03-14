@@ -58,8 +58,8 @@ import sentencepiece as spm
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
-from gigaspeech import GigaSpeechAsrDataModule
 from decoder import Decoder
+from gigaspeech import GigaSpeechAsrDataModule
 from joiner import Joiner
 from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
@@ -101,27 +101,23 @@ def set_batch_count(model: Union[nn.Module, DDP], batch_count: float) -> None:
         if hasattr(module, "batch_count"):
             module.batch_count = batch_count
 
+
 def add_finetune_arguments(parser: argparse.ArgumentParser):
-    parser.add_argument(
-        "--do-finetune",
-        type=str2bool,
-        default=False
-    )
-    
+    parser.add_argument("--do-finetune", type=str2bool, default=False)
+
     parser.add_argument(
         "--initialize-modules",
         type=str,
         default="all",
-        help="Modules to be initialized. Comma seperated."
+        help="Modules to be initialized. Comma seperated.",
     )
-    
+
     parser.add_argument(
         "--finetune-ckpt",
         type=str,
         default=None,
-        help="Fine-tuning from which iter. If larger than 0, ignore --finetune-epoch."
+        help="Fine-tuning from which iter. If larger than 0, ignore --finetune-epoch.",
     )
-    
 
 
 def add_model_arguments(parser: argparse.ArgumentParser):
@@ -150,24 +146,28 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         "--encoder-dims",
         type=str,
         default="384,384,384,384,384",
-        help="Embedding dimension in the 2 blocks of zipformer encoder layers, comma separated",
+        help="""Embedding dimension in the 2 blocks of zipformer encoder
+        layers, comma separated
+        """,
     )
 
     parser.add_argument(
         "--attention-dims",
         type=str,
         default="192,192,192,192,192",
-        help="""Attention dimension in the 2 blocks of zipformer encoder layers, comma separated;
-        not the same as embedding dimension.""",
+        help="""Attention dimension in the 2 blocks of zipformer encoder layers,\
+        comma separated; not the same as embedding dimension.
+        """,
     )
 
     parser.add_argument(
         "--encoder-unmasked-dims",
         type=str,
         default="256,256,256,256,256",
-        help="Unmasked dimensions in the encoders, relates to augmentation during training.  "
-        "Must be <= each of encoder_dims.  Empirically, less than 256 seems to make performance "
-        " worse.",
+        help="""Unmasked dimensions in the encoders, relates to augmentation
+        during training. Must be <= each of encoder_dims. Empirically, less 
+        than 256 seems to make performance worse.
+        """,
     )
 
     parser.add_argument(
@@ -599,11 +599,8 @@ def load_checkpoint_if_available(
 
     return saved_params
 
-def load_model_params(
-    ckpt: str,
-    model: nn.Module,
-    strict: bool = True
-):
+
+def load_model_params(ckpt: str, model: nn.Module, strict: bool = True):
     """Load model params from checkpoint
 
     Args:
@@ -627,7 +624,7 @@ def load_model_params(
         model.load_state_dict(checkpoint["model"], strict=strict)
 
     return None
-    
+
 
 def save_checkpoint(
     params: AttributeDict,
@@ -929,9 +926,9 @@ def train_one_epoch(
             )
 
         if batch_idx % 100 == 0 and params.use_fp16:
-            # If the grad scale was less than 1, try increasing it.    The _growth_interval
-            # of the grad scaler is configurable, but we can't configure it to have different
-            # behavior depending on the current grad scale.
+            # If the grad scale was less than 1, try increasing it. The _growth_interval
+            # of the grad scaler is configurable, but we can't configure it to have 
+            # different behavior depending on the current grad scale.
             cur_grad_scale = scaler._scale.item()
             if cur_grad_scale < 1.0 or (cur_grad_scale < 8.0 and batch_idx % 400 == 0):
                 scaler.update(cur_grad_scale * 2.0)
@@ -1051,9 +1048,7 @@ def run(rank, world_size, args):
 
     # load model parameters for model fine-tuning
     if params.do_finetune:
-        checkpoints = load_model_params(
-            ckpt=params.finetune_ckpt, model=model
-        )
+        checkpoints = load_model_params(ckpt=params.finetune_ckpt, model=model)
     else:
         assert params.start_epoch > 0, params.start_epoch
         checkpoints = load_checkpoint_if_available(
@@ -1293,7 +1288,9 @@ def scan_pessimistic_batches_for_oom(
 
 def main():
     parser = get_parser()
-    GigaSpeechAsrDataModule.add_arguments(parser) # you may replace this with your own dataset
+    GigaSpeechAsrDataModule.add_arguments(
+        parser
+    )  # you may replace this with your own dataset
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 
