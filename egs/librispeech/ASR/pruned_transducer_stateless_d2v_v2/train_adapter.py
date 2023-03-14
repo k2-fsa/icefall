@@ -975,7 +975,6 @@ def train_one_epoch(
     world_size: int = 1,
     rank: int = 0,
     wb = None,
-    pl_texts = None,
 ) -> None:
     """Train the model for one epoch.
 
@@ -1035,7 +1034,6 @@ def train_one_epoch(
                     batch=batch,
                     is_training=True,
                     decode = True if batch_idx % params.decode_interval == 0 else False,
-                    pl_texts = pl_texts,
                 )
             loss_info.reduce(loss.device)
 
