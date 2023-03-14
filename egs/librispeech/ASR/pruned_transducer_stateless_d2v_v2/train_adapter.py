@@ -833,11 +833,11 @@ def compute_loss(
     batch_idx_train = params.batch_idx_train
     warm_step = params.warm_step
 
-    #texts = batch["supervisions"]["text"]
-    texts = []
-    for cut in supervisions['cut']:
-        utt_id = cut.id
-        texts.append(pl_texts[utt_id])
+    texts = batch["supervisions"]["text"]
+    #texts = []
+    #for cut in supervisions['cut']:
+    #    utt_id = cut.id
+    #    texts.append(pl_texts[utt_id])
     
     token_ids = sp.encode(texts, out_type=int)
     y = k2.RaggedTensor(token_ids).to(device)
