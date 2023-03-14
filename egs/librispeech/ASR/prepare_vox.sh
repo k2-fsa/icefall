@@ -156,7 +156,8 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   log "Stage 5: Generate pseudo label"
   #rm -rf $dl_dir/*_texts
   for dest in "test-clean" "test-other"; do
-	  for spk in $dl_dir/$dest/*; do
+	  #for spk in $dl_dir/$dest/*; do
+	  for spk in 5683; do
 		  spk_id=${spk#*$dest\/}
 		  echo $spk_id
 		  ./pseudo.sh $spk_id
