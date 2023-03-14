@@ -280,16 +280,22 @@ def get_parser():
     parser.add_argument(
         "--lr-batches",
         type=float,
-        default=5000,
+        default=100000,
         help="""Number of steps that affects how rapidly the learning rate
-        decreases. We suggest not to change this.""",
+        decreases. During fine-tuning, we set this very large so that the 
+        learning rate slowly decays with number of batches. You may tune 
+        its value by yourself.
+        """,
     )
 
     parser.add_argument(
         "--lr-epochs",
         type=float,
-        default=3.5,
-        help="""Number of epochs that affects how rapidly the learning rate decreases.
+        default=100,
+        help="""Number of epochs that affects how rapidly the learning rate 
+        decreases. During fine-tuning, we set this very large so that the 
+        learning rate slowly decays with number of batches. You may tune 
+        its value by yourself.
         """,
     )
 
