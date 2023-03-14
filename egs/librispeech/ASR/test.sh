@@ -9,8 +9,8 @@ do
 		--input-strategy AudioSamples \
 		--enable-spec-aug False \
 		--additional-block True \
-		--model-name epoch-$i.pt \
 		--exp-dir ./pruned_transducer_stateless_d2v_v2/"$spk_id"_adapter \
+		--model-name ../d2v-base-T.pt \
 		--max-duration 450 \
 		--decoding-method $method \
 		--max-sym-per-frame 1 \
@@ -23,3 +23,5 @@ do
 		--spk-id $spk_id
 	done
 done
+
+#--model-name epoch-$i.pt \
