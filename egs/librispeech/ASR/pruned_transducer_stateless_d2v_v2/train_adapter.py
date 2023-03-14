@@ -1591,6 +1591,7 @@ def run_adapter(rank, world_size, args, wb=None):
     #train_cuts = librispeech.test_clean_user(option='big')
     train_cuts = librispeech.vox_cuts(option=params.spk_id)
     
+    '''
     with open(f'/workspace/icefall/egs/librispeech/ASR/{params.spk_id}.pl', 'r') as pl_texts:
         pl_texts = pl_texts.readlines()
 
@@ -1600,6 +1601,7 @@ def run_adapter(rank, world_size, args, wb=None):
             pl[text[0]] = ' '.join(text[1:])
     
     pl_texts = pl
+    '''
 
     def remove_short_and_long_utt(c: Cut):
         return 1.0 <= c.duration <= 20.0
