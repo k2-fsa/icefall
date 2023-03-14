@@ -773,8 +773,9 @@ def main():
     args.return_cuts = True
     librispeech = LibriSpeechAsrDataModule(args)
     
+    test_clean_cuts = librispeech.test_clean_cuts()
     #test_clean_cuts = librispeech.test_clean_cuts(option='male')
-    test_other_cuts = librispeech.test_other_cuts()
+    #test_other_cuts = librispeech.test_other_cuts(option='male')
     
     #test_clean_cuts = librispeech.vox_cuts(option=params.spk_id)
     #test_clean_cuts = librispeech.test_clean_user(option=option)
