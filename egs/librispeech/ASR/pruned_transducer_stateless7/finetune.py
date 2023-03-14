@@ -116,26 +116,6 @@ def add_finetune_arguments(parser: argparse.ArgumentParser):
     )
     
     parser.add_argument(
-        "--finetune-exp-dir",
-        type=str,
-        help="Exp dir for the model to be fine-tuned"
-    )
-    
-    parser.add_argument(
-        "--finetune-epoch",
-        type=int,
-        default=1,
-        help="Fine-tuning from which epoch "
-    )
-    
-    parser.add_argument(
-        "--finetune-batch",
-        type=int,
-        default=0,
-        help="Fine-tuning from which iter. If larger than 0, ignore --finetune-epoch."
-    )
-    
-    parser.add_argument(
         "--finetune-ckpt",
         type=str,
         default=None,
@@ -1133,9 +1113,9 @@ def run(rank, world_size, args):
         # an utterance duration distribution for your dataset to select
         # the threshold
         if c.duration < 1.0 or c.duration > 20.0:
-            # logging.warning(
-            #     f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
-            # )
+            logging.warning(
+                f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
+            )
             return False
 
         # In pruned RNN-T, we require that T >= S
@@ -1148,14 +1128,14 @@ def run(rank, world_size, args):
         tokens = sp.encode(c.supervisions[0].text, out_type=str)
 
         if T < len(tokens):
-            # logging.warning(
-            #     f"Exclude cut with ID {c.id} from training. "
-            #     f"Number of frames (before subsampling): {c.num_frames}. "
-            #     f"Number of frames (after subsampling): {T}. "
-            #     f"Text: {c.supervisions[0].text}. "
-            #     f"Tokens: {tokens}. "
-            #     f"Number of tokens: {len(tokens)}"
-            # )
+            logging.warning(
+                f"Exclude cut with ID {c.id} from training. "
+                f"Number of frames (before subsampling): {c.num_frames}. "
+                f"Number of frames (after subsampling): {T}. "
+                f"Text: {c.supervisions[0].text}. "
+                f"Tokens: {tokens}. "
+                f"Number of tokens: {len(tokens)}"
+            )
             return False
 
         return True
@@ -1176,14 +1156,14 @@ def run(rank, world_size, args):
     valid_cuts = gigaspeech.dev_cuts()
     valid_dl = gigaspeech.valid_dataloaders(valid_cuts)
 
-    # if not params.print_diagnostics:
-    #     scan_pessimistic_batches_for_oom(
-    #         model=model,
-    #         train_dl=train_dl,
-    #         optimizer=optimizer,
-    #         sp=sp,
-    #         params=params,
-    #     )
+    if not params.print_diagnostics:
+        scan_pessimistic_batches_for_oom(
+            model=model,
+            train_dl=train_dl,
+            optimizer=optimizer,
+            sp=sp,
+            params=params,
+        )
 
     scaler = GradScaler(enabled=params.use_fp16, init_scale=1.0)
     if checkpoints and "grad_scaler" in checkpoints:
@@ -1313,7 +1293,7 @@ def scan_pessimistic_batches_for_oom(
 
 def main():
     parser = get_parser()
-    GigaSpeechAsrDataModule.add_arguments(parser)
+    GigaSpeechAsrDataModule.add_arguments(parser) # you may replace this with your own dataset
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 
