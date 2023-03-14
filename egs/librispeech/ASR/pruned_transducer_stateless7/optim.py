@@ -798,7 +798,7 @@ def _test_eden():
     logging.info(f"last lr = {scheduler.get_last_lr()}")
     logging.info(f"state dict = {scheduler.state_dict()}")
 
-def _only_eden():
+def _plot_eden_lr():
     import matplotlib.pyplot as plt
     m = torch.nn.Linear(100, 100)
     parameters_names = []
@@ -1080,12 +1080,12 @@ if __name__ == "__main__":
     torch.set_num_threads(1)
     torch.set_num_interop_threads(1)
     logging.getLogger().setLevel(logging.INFO)
-    # import subprocess
+    import subprocess
 
-    # s = subprocess.check_output(
-    #     "git status -uno .; git log -1; git diff HEAD .", shell=True
-    # )
-    # logging.info(s)
+    s = subprocess.check_output(
+        "git status -uno .; git log -1; git diff HEAD .", shell=True
+    )
+    logging.info(s)
     import sys
 
     if len(sys.argv) > 1:
@@ -1095,4 +1095,4 @@ if __name__ == "__main__":
 
     #_test_scaled_adam(hidden_dim)
     #_test_eden()
-    _only_eden()
+    _plot_eden_lr()
