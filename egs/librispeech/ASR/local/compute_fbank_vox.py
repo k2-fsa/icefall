@@ -67,6 +67,12 @@ def get_args():
         type=str,
         default=None,
     )
+    
+    parser.add_argument(
+        "--speed",
+        type=str2bool,
+        default=False,
+    )
 
     return parser.parse_args()
 
