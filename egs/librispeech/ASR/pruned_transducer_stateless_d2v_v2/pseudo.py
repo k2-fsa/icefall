@@ -773,11 +773,11 @@ def main():
     args.return_cuts = True
     librispeech = LibriSpeechAsrDataModule(args)
     
-    test_clean_cuts = librispeech.test_clean_cuts()
+    #test_clean_cuts = librispeech.test_clean_cuts()
     #test_clean_cuts = librispeech.test_clean_cuts(option='male')
     #test_other_cuts = librispeech.test_other_cuts(option='male')
     
-    #test_clean_cuts = librispeech.vox_cuts(option=params.spk_id)
+    test_clean_cuts = librispeech.vox_cuts(option=params.spk_id)
     #test_clean_cuts = librispeech.test_clean_user(option=option)
     #test_other_cuts = librispeech.test_other_user(option=option)
     #test_clean_dl = librispeech.train_dataloaders(test_clean_cuts)
@@ -799,7 +799,6 @@ def main():
             decoding_graph=decoding_graph,
         )
         results = results_dict['greedy_search']
-        print(results)
         #jsons = open(f"{params.manifest_dir}/userlibri/{test_set}/{option}.jsonl", 'r').readlines()
         #new_jsons = open(f"{params.manifest_dir}/userlibri/{test_set}/{option}_p.jsonl", 'w')
 
