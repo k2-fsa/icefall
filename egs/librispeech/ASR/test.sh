@@ -10,9 +10,9 @@ do
 		--enable-spec-aug False \
 		--additional-block True \
 		--exp-dir ./pruned_transducer_stateless_d2v_v2/"$spk_id"_adapter \
-		--model-name ../d2v-base-T.pt \
 		--max-duration 450 \
 		--decoding-method $method \
+		--model-name epoch-$i.pt \
 		--max-sym-per-frame 1 \
 		--encoder-type d2v \
 		--encoder-dim 768 \
@@ -24,4 +24,4 @@ do
 	done
 done
 
-#--model-name epoch-$i.pt \
+#--model-name ../d2v-base-T.pt \
