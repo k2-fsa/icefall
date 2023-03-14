@@ -159,7 +159,7 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
 	  for spk in $dl_dir/$dest/*; do
 		  spk_id=${spk#*$dest\/}
 		  echo $spk_id
-		  #./pseudo.sh $spk_id
+		  ./pseudo.sh $spk_id
 		  #python local/prepare_vox.py $dl_dir/$dest "$spk_id"
 	  done
   done
