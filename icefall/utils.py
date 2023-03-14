@@ -1095,10 +1095,10 @@ def make_pad_mask(lengths: torch.Tensor, max_len: int = 0) -> torch.Tensor:
     assert lengths.ndim == 1, lengths.ndim
     max_len = max(max_len, lengths.max())
     n = lengths.size(0)
+    seq_range = torch.arange(0, max_len, device=lengths.device)
+    expaned_lengths = seq_range.unsqueeze(0).expand(n, max_len)
 
-    expaned_lengths = torch.arange(max_len).expand(n, max_len).to(lengths)
-
-    return expaned_lengths >= lengths.unsqueeze(1)
+    return expaned_lengths >= lengths.unsqueeze(-1)
 
 
 # Copied and modified from https://github.com/wenet-e2e/wenet/blob/main/wenet/utils/mask.py
