@@ -653,6 +653,8 @@ def greedy_search_batch(
     # timestamp[n][i] is the frame index after subsampling
     # on which hyp[n][i] is decoded
     timestamps = [[] for _ in range(N)]
+    # scores[n][i] is the logits on which hyp[n][i] is decoded
+    scores = [[] for _ in range(N)]
 
     decoder_input = torch.tensor(
         hyps,
@@ -690,6 +692,7 @@ def greedy_search_batch(
             if v not in (blank_id, unk_id):
                 hyps[i].append(v)
                 timestamps[i].append(t)
+                scores[i].append(logits[i, v].item())
                 emitted = True
         if emitted:
             # update decoder output
@@ -705,10 +708,12 @@ def greedy_search_batch(
     sorted_ans = [h[context_size:] for h in hyps]
     ans = []
     ans_timestamps = []
+    ans_scores = []
     unsorted_indices = packed_encoder_out.unsorted_indices.tolist()
     for i in range(N):
         ans.append(sorted_ans[unsorted_indices[i]])
         ans_timestamps.append(timestamps[unsorted_indices[i]])
+        ans_scores.append(scores[unsorted_indices[i]])
 
     if not return_timestamps:
         return ans
@@ -716,6 +721,7 @@ def greedy_search_batch(
         return DecodingResults(
             hyps=ans,
             timestamps=ans_timestamps,
+            scores=ans_scores,
         )
 
 

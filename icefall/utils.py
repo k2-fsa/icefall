@@ -271,6 +271,9 @@ class DecodingResults:
     # for the i-th utterance with fast_beam_search_nbest_LG.
     hyps: Union[List[List[int]], k2.RaggedTensor]
 
+    # scores[i][k] contains the logits of tokens[i][k]
+    scores: Optional[List[List[float]]] = None
+
 
 def get_texts_with_timestamp(
     best_paths: k2.Fsa, return_ragged: bool = False
