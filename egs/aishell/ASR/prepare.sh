@@ -274,6 +274,8 @@ if [ $stage -le 10 ] && [ $stop_stage -ge 10 ]; then
 
   out_dir=data/lm_training_char
   mkdir -p $out_dir
+  ln -snf ../../../librispeech/ASR/local/sort_lm_training_data.py local/
+  
   ./local/sort_lm_training_data.py \
     --in-lm-data $out_dir/lm_data.pt \
     --out-lm-data $out_dir/sorted_lm_data.pt \
