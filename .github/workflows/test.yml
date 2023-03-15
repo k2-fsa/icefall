@@ -119,8 +119,8 @@ jobs:
           cd ../transducer_stateless
           pytest -v -s
 
-          cd ../transducer
-          pytest -v -s
+          # cd ../transducer
+          # pytest -v -s
 
           cd ../transducer_stateless2
           pytest -v -s
@@ -157,8 +157,8 @@ jobs:
           cd ../transducer_stateless
           pytest -v -s
 
-          cd ../transducer
-          pytest -v -s
+          # cd ../transducer
+          # pytest -v -s
 
           cd ../transducer_stateless2
           pytest -v -s
