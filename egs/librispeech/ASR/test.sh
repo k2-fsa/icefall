@@ -1,7 +1,7 @@
 git pull
 spk_id=$1
 #for i in 10 20 30 40 50 60 70 80 90 100
-for i in 100
+for i in 50 100 150
 do
 	for method in greedy_search #modified_beam_search fast_beam_search
 	do
