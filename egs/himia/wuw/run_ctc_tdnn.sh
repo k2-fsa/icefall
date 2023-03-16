@@ -3,7 +3,7 @@
 set -eou pipefail
 
 # You need to execute ./prepare.sh to prepare datasets.
-stage=1
+stage=0
 stop_stage=2
 
 epoch=10

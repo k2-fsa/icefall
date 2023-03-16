@@ -19,7 +19,7 @@
 Usage:
   export CUDA_VISIBLE_DEVICES="0,1,2,3"
   ./ctc_tdnn/train.py \
-     --exp-dir ./tdnn/exp \
+     --exp-dir ./ctc_tdnn/exp \
      --world-size 4 \
      --max-duration 200 \
      --num-epochs 20
@@ -551,19 +551,6 @@ def run(rank, world_size, args):
     himia = HiMiaWuwDataModule(args)
 
     train_cuts = himia.train_cuts()
-
-    def remove_short_and_long_utt(c: Cut):
-        # Keep only utterances with duration between 1 second and 20 seconds
-        #
-        # Caution: There is a reason to select 20.0 here. Please see
-        # ../local/display_manifest_statistics.py
-        #
-        # You should use ../local/display_manifest_statistics.py to get
-        # an utterance duration distribution for your dataset to select
-        # the threshold
-        return 0.5 <= c.duration <= 20.0
-
-    train_cuts = train_cuts.filter(remove_short_and_long_utt)
 
     train_dl = himia.train_dataloaders(train_cuts)
 
