@@ -83,7 +83,7 @@ class FiniteStateTransducer:
             if len(arc) == 4:  # Non-final state
                 assert max_state_id <= src_state_id, (
                     f"Fsa must be sorted by src_state, "
-                    f"while {cur_number_states} <= {src_state_id}. Check your graph."
+                    f"while {max_state_id} <= {src_state_id}. Check your graph."
                 )
                 if max_state_id < src_state_id:
                     new_state = State()
@@ -95,7 +95,7 @@ class FiniteStateTransducer:
             else:
                 assert (
                     max_state_id == src_state_id
-                ), f"Final state seems unreachable. Check your graph."
+                ), "Final state seems unreachable. Check your graph."
                 self.final_state_id = src_state_id
 
     def to_str(self) -> None:

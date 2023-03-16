@@ -529,7 +529,7 @@ def run(rank, world_size, args):
 
     logging.info("About to create model")
 
-    model = Tdnn(params.feature_dim, params.numb_class)
+    model = Tdnn(params.feature_dim, params.num_class)
 
     checkpoints = load_checkpoint_if_available(params=params, model=model)
 

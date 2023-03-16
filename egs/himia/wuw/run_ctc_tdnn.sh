@@ -26,7 +26,7 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   log "Stage 0: Model training"
   python ./ctc_tdnn/train.py \
     --num-epochs $epoch \
-    --exp_dir $exp_dir
+    --exp-dir $exp_dir
     --max-duration $max_duration
 fi
 
