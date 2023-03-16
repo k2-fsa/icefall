@@ -50,7 +50,7 @@ import logging
 import warnings
 from pathlib import Path
 from shutil import copyfile
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import k2
 import optim
@@ -106,10 +106,17 @@ def add_finetune_arguments(parser: argparse.ArgumentParser):
     parser.add_argument("--do-finetune", type=str2bool, default=False)
 
     parser.add_argument(
-        "--initialize-modules",
+        "--init-modules",
         type=str,
-        default="all",
-        help="Modules to be initialized. Comma seperated.",
+        default=None,
+        help="""
+        Modules to be initialized. It matches all parameters starting with
+        a specific key. The keys are given with Comma seperated. If None, 
+        all modules will be initialised. For example, if you only want to 
+        initialise all parameters staring with "encoder", use "encoder"; 
+        if you want to initialise parameters starting with encoder or decoder,
+        use "encoder,joiner".
+        """,
     )
 
     parser.add_argument(
@@ -606,7 +613,12 @@ def load_checkpoint_if_available(
     return saved_params
 
 
-def load_model_params(ckpt: str, model: nn.Module, strict: bool = True):
+def load_model_params(
+    ckpt: str, 
+    model: nn.Module,
+    init_modules: List[str] = None,
+    strict: bool = True
+):
     """Load model params from checkpoint
 
     Args:
@@ -616,18 +628,33 @@ def load_model_params(ckpt: str, model: nn.Module, strict: bool = True):
     """
     logging.info(f"Loading checkpoint from {ckpt}")
     checkpoint = torch.load(ckpt, map_location="cpu")
-    if next(iter(checkpoint["model"])).startswith("module."):
-        logging.info("Loading checkpoint saved by DDP")
+    
+    # if module list is empty, load the whole model from ckpt
+    if not init_modules:  
+        if next(iter(checkpoint["model"])).startswith("module."):
+            logging.info("Loading checkpoint saved by DDP")
 
-        dst_state_dict = model.state_dict()
-        src_state_dict = checkpoint["model"]
-        for key in dst_state_dict.keys():
-            src_key = "{}.{}".format("module", key)
-            dst_state_dict[key] = src_state_dict.pop(src_key)
-        assert len(src_state_dict) == 0
-        model.load_state_dict(dst_state_dict, strict=strict)
+            dst_state_dict = model.state_dict()
+            src_state_dict = checkpoint["model"]
+            for key in dst_state_dict.keys():
+                src_key = "{}.{}".format("module", key)
+                dst_state_dict[key] = src_state_dict.pop(src_key)
+            assert len(src_state_dict) == 0
+            model.load_state_dict(dst_state_dict, strict=strict)
+        else:
+            model.load_state_dict(checkpoint["model"], strict=strict)
     else:
-        model.load_state_dict(checkpoint["model"], strict=strict)
+        src_state_dict = checkpoint["model"]
+        dst_state_dict = model.state_dict()
+        for module in init_modules:
+            logging.info(f"Loading parameters starting with prefix {module}")
+            src_keys = [k for k in src_state_dict.keys() if k.startswith(module)]
+            dst_keys = [k for k in dst_state_dict.keys() if k.startswith(module)]
+            assert set(src_keys) == set(dst_keys) # two sets should match exactly
+            for key in src_keys:
+                dst_state_dict[key] = src_state_dict.pop(key)
+                
+        model.load_state_dict(dst_state_dict, strict=strict)
 
     return None
 
@@ -1054,7 +1081,10 @@ def run(rank, world_size, args):
 
     # load model parameters for model fine-tuning
     if params.do_finetune:
-        checkpoints = load_model_params(ckpt=params.finetune_ckpt, model=model)
+        modules = params.init_modules.split(',') if params.init_modules else None
+        checkpoints = load_model_params(
+            ckpt=params.finetune_ckpt, model=model, init_modules=modules
+        )
     else:
         assert params.start_epoch > 0, params.start_epoch
         checkpoints = load_checkpoint_if_available(
