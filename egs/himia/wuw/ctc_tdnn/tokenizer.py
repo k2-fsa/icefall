@@ -64,18 +64,23 @@ class WakeupWordTokenizer(object):
         self.negative_word_tokens = [1]
         self.negative_number_tokens = 1
 
-    def texts_to_token_ids(self, texts: List[str]) -> Tuple[torch.Tensor, int]:
+    def texts_to_token_ids(self, texts: List[str]) -> Tuple[torch.Tensor, torch.Tensor, int]:
         """Convert a list of texts to a list of k2.Fsa based texts.
 
         Args:
           texts:
-            It is a list of strings.
+            It is a list of strings,
+            each element is a reference text for an audio.
         Returns:
-          Return a list of k2.Fsa, one for an element in texts.
-          If the element is `wakeup_word`, a graph for positive samples is appneded
-          into resulting graph_vec, otherwise, a graph for negative samples is appended.
+          Return a tuple of 3 elements.
+          The first one is torch.Tensor(List[List[int]]),
+          each List[int] is tokens sequence for each a reference text.
 
-          Number of positive samples is also returned to track its proportion.
+          The second one is number of tokens for each sample,
+          mainly used by CTC loss.
+
+          The last one is number_positive_samples,
+          used to track proportion of positive samples in each batch.
         """
         batch_token_ids = []
         target_lengths = []

@@ -37,7 +37,6 @@ import torch.nn as nn
 from asr_datamodule import HiMiaWuwDataModule
 from tdnn import Tdnn
 
-from lhotse.cut import Cut
 from lhotse.utils import fix_random_seed
 from torch import Tensor
 from torch.nn.parallel import DistributedDataParallel as DDP
