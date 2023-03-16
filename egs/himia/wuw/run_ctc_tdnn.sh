@@ -8,7 +8,8 @@ stop_stage=2
 
 epoch=10
 avg=1
-exp_dir=./ctc_tdnn/exp/
+max_duration=150
+exp_dir=./ctc_tdnn/exp_max_duration_${max_duration}/
 epoch_avg=epoch_${epoch}-avg_${avg}
 post_dir=${exp_dir}/post/${epoch_avg}
 
@@ -24,7 +25,8 @@ log() {
 if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   log "Stage 0: Model training"
   python ./ctc_tdnn/train.py \
-    --num-epochs $epoch
+    --num-epochs $epoch \
+    --max-duration $max_duration
 fi
 
 if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then

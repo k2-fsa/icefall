@@ -17,11 +17,11 @@
 
 """
 Usage:
-  export CUDA_VISIBLE_DEVICES="0,1,2,3"
+  export CUDA_VISIBLE_DEVICES="0"
   ./ctc_tdnn/train.py \
      --exp-dir ./ctc_tdnn/exp \
-     --world-size 4 \
-     --max-duration 200 \
+     --world-size 1 \
+     --max-duration 100 \
      --num-epochs 20
 """
 
