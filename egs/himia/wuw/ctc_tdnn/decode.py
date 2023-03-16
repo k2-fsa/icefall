@@ -61,28 +61,49 @@ class FiniteStateTransducer:
     """Represents a decoding graph for wake word detection."""
 
     def __init__(self, graph: str) -> None:
+        """
+        Construct a decoding graph in FST format given string format graph.
+
+        Args:
+          graph: A string format fst. Each arc is separated by "\n".
+        """
         self.state_list = list()
         for arc_str in graph.split("\n"):
             arc = arc_str.strip().split()
             if len(arc) == 0:
                 continue
+            # An arc may contain 1, 2 or 4 elements, with format:
+            # src_state [dst_state] [ilabel] [olabel]
             # 1 and 2 for final state
             # 4 for non-final state
             assert len(arc) in [1, 2, 4], f"{len(arc)} {arc_str}"
+            arc = [int(element) for element in arc]
+            src_state_id = arc[0]
+            max_state_id = len(self.state_list) - 1
             if len(arc) == 4:  # Non-final state
-                # FST must be sorted
-                if len(self.state_list) <= int(arc[0]):
+                assert max_state_id <= src_state_id, (
+                    f"Fsa must be sorted by src_state, "
+                    f"while {cur_number_states} <= {src_state_id}. Check your graph."
+                )
+                if max_state_id < src_state_id:
                     new_state = State()
                     self.state_list.append(new_state)
-                self.state_list[int(arc[0])].add_arc(
-                    Arc(arc[0], arc[1], arc[2], arc[3])
+
+                self.state_list[src_state_id].add_arc(
+                    Arc(src_state_id, arc[1], arc[2], arc[3])
                 )
             else:
-                self.final_state_id = int(arc[0])
+                assert (
+                    max_state_id == src_state_id
+                ), f"Final state seems unreachable. Check your graph."
+                self.final_state_id = src_state_id
 
     def to_str(self) -> None:
         fst_str = ""
-        for state_idx in range(len(self.state_list)):
+        number_states = len(self.state_list)
+        if number_states == 0:
+            return fst_str
+        for state_idx in range(number_states):
             cur_state = self.state_list[state_idx]
             for arc_idx in range(len(cur_state.arc_list)):
                 cur_arc = cur_state.arc_list[arc_idx]

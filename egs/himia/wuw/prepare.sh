@@ -8,7 +8,7 @@ stop_stage=6
 # HI_MIA and aishell dataset are used in this experiment.
 # musan dataset is used for data augmentation.
 #
-# For aishell dataset downlading and preparation,
+# For aishell dataset downloading and preparation,
 # refer to icefall/egs/aishell/ASR/prepare.sh.
 #
 # For HI_MIA and HI_MIA_CW dataset,
@@ -96,7 +96,7 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
 fi
 
 if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
-  log "Stage 1: Prepare HI_MIA and HI_MIA_CWmanifest"
+  log "Stage 1: Prepare HI_MIA and HI_MIA_CW manifest"
   mkdir -p data/manifests
   if [ ! -e data/manifests/.himia.done ]; then
     lhotse prepare himia $dl_dir/HiMia data/manifests
@@ -177,8 +177,12 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
 
   train_file=data/fbank/cuts_train_himia${train_set_channel}-aishell-shuf.jsonl.gz
   if [ ! -f ${train_file} ]; then
-    # SingleCutSampler is prefered for this experiment.
-    # So `shuf` the training dataset here.
+    # SingleCutSampler is preferred for this experiment
+    # rather than DynamicBucketingSampler.
+    # Since negative audios(Aishell) tends to be longer than positive ones(HiMia).
+    # if DynamicBucketingSample is used, a batch may contain either all negative sample
+    # or positive sample.
+    # So `shuf` the training dataset here and use SingleCutSampler to load data.
     cat <(gunzip -c data/fbank/aishell_cuts_train.jsonl.gz) \
       <(gunzip -c data/fbank/cuts_train${train_set_channel}.jsonl.gz) | \
       grep -v _sp | \

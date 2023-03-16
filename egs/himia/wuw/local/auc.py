@@ -55,7 +55,7 @@ def load_score(score_file: Path) -> Dict[str, float]:
     """
     Args:
       score_file: Path to score file. Each line has two columns.
-        The first colume is utt-id, and the second one is score.
+        The first column is utt-id, and the second one is score.
         This score could be viewed as probability of being wakeup word.
 
     Returns:
@@ -81,9 +81,9 @@ def get_roc_and_auc(
       pos_dict: scores of positive samples.
       neg_dict: scores of negative samples.
     Return:
-      A tuple of three elements, which will be used to plot roc curve.
+      A tuple of three elements, which will be used to plot ROC curve.
       Refer to sklearn.metrics.roc_curve for meaning of the first and second elements.
-      The third element is area under the roc curve(AUC).
+      The third element is area under the ROC curve(AUC).
     """
     pos_scores = np.fromiter(pos_dict.values(), dtype=float)
     neg_scores = np.fromiter(neg_dict.values(), dtype=float)

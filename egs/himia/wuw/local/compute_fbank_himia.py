@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright    2023  Xiaomi Corp.        (authors: Liyong Guo)
+# Copyright    2023  Xiaomi Corp.        (Author: Liyong Guo)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -57,7 +57,7 @@ def get_args():
         "--enable-speed-perturb",
         type=str2bool,
         default=False,
-        help="""channel of trianing set.
+        help="""channel of training set.
         """,
     )
     return parser.parse_args()

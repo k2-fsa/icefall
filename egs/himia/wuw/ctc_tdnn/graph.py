@@ -21,7 +21,7 @@ from typing import List
 
 def ctc_trivial_decoding_graph(wakeup_word_tokens: List[int]):
     """
-    A graph starts with blank/unknown and follwoing by wakeup word.
+    A graph starts with blank/unknown and following by wakeup word.
 
     Args:
       wakeup_word_tokens: A sequence of token ids corresponding wakeup_word.

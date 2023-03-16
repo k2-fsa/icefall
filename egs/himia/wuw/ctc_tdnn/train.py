@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright    2023  Xiaomi Corp.        (authors: Liyong Guo)
+# Copyright    2023  Xiaomi Corp.        (Author: Liyong Guo)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -162,7 +162,7 @@ def get_params() -> AttributeDict:
         - feature_dim: The model input dim. It has to match the one used
                        in computing features.
 
-        - number_class: Numer of classes. Each token will have a token id
+        - num_class: Number of classes. Each token will have a token id
                      from [0, num_class).
                      In this recipe, 0 is usually kept for blank,
                      and 1 is usually kept for negative words.
@@ -182,7 +182,7 @@ def get_params() -> AttributeDict:
             "valid_interval": 3000,
             # parameters for model
             "feature_dim": 80,
-            "number_class": 9,
+            "num_class": 9,
             # parameters for tokenizer
             "wakeup_word": "你好米雅",
             "wakeup_word_tokens": [2, 3, 4, 5, 6, 3, 7, 8],
@@ -529,7 +529,7 @@ def run(rank, world_size, args):
 
     logging.info("About to create model")
 
-    model = Tdnn(params.feature_dim, params.number_class)
+    model = Tdnn(params.feature_dim, params.numb_class)
 
     checkpoints = load_checkpoint_if_available(params=params, model=model)
 

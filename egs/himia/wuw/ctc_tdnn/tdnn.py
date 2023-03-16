@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright    2023  Xiaomi Corp.        (authors: Liyong Guo)
+# Copyright    2023  Xiaomi Corp.        (Author: Liyong Guo)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #

@@ -26,6 +26,7 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   log "Stage 0: Model training"
   python ./ctc_tdnn/train.py \
     --num-epochs $epoch \
+    --exp_dir $exp_dir
     --max-duration $max_duration
 fi
 
@@ -34,7 +35,7 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   python ctc_tdnn/inference.py \
     --avg $avg \
     --epoch $epoch \
-    --exp-dir ${exp_dir}
+    --exp-dir $exp_dir
 fi
 
 if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
@@ -45,12 +46,12 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
       --score-file ${post_dir}/fst_${test_set}_score.txt
   done
   python ./local/auc.py   \
-      --legend himia_cw \
-      --positive-score-file ${post_dir}/fst_test_score.txt \
-      --negative-score-file ${post_dir}/fst_cw_test_score.txt
+    --legend himia_cw \
+    --positive-score-file ${post_dir}/fst_test_score.txt \
+    --negative-score-file ${post_dir}/fst_cw_test_score.txt
 
   python ./local/auc.py \
-      --legend himia_aishell \
-      --positive-score-file ${post_dir}/fst_test_score.txt \
-      --negative-score-file ${post_dir}/fst_aishell_test_score.txt
+    --legend himia_aishell \
+    --positive-score-file ${post_dir}/fst_test_score.txt \
+    --negative-score-file ${post_dir}/fst_aishell_test_score.txt
 fi

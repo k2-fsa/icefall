@@ -69,7 +69,7 @@ def get_params() -> AttributeDict:
         {
             "env_info": get_env_info(),
             "feature_dim": 80,
-            "number_class": 9,
+            "num_class": 9,
         }
     )
     return params
@@ -150,7 +150,7 @@ def main():
 
     logging.info(f"device: {device}")
 
-    model = Tdnn(params.feature_dim, params.number_class)
+    model = Tdnn(params.feature_dim, params.num_class)
 
     if params.avg == 1:
         load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model, strict=True)
