@@ -12,14 +12,16 @@ stop_stage=100
 # directories and files. If not, they will be downloaded
 # by this script automatically.
 #
-#  - $dl_dir/SpeechCommands1
-#     This directory contains the following directories downloaded from
-#      http://download.tensorflow.org/data/speech_commands_v0.01.tar.gz
-#      http://download.tensorflow.org/data/speech_commands_test_set_v0.01.tar.gz
+#  - $dl_dir/SpeechCommands1/speech_commands_v0.01
+#	Speech Commands v0.01 dataset
+#       From http://download.tensorflow.org/data/speech_commands_v0.01.tar.gz
 #
-#	 - speech_commands_v0.01
-#        - speech_commands_test_set_v0.01
+#  - $dl_dir/SpeechCommands1/speech_commands_test_set_v0.01
+#       Speech Commands test v0.01 dataset
+#	From http://download.tensorflow.org/data/speech_commands_test_set_v0.01.tar.gz
+
 dl_dir=$PWD/download
+enable_speed_perturb=False
 
 . shared/parse_options.sh || exit 1
 
@@ -67,22 +69,9 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   log "Stage 2: Compute fbank for Speech Commands v0.01"
   mkdir -p data/fbank
   if [ ! -e data/fbank/.speechcommands1.done ]; then
-    ./local/compute_fbank_SpeechCommands1.py
+    ./local/compute_fbank_speechcommands1.py \
+      --enable-speed-perturb=${enable_speed_perturb}
     touch data/fbank/.speechcommands1.done
-  fi
-
-  if [ ! -e data/fbank/.speechcommands1-validated.done ]; then
-    log "Validating data/fbank for Speech Commands v0.01"
-    parts=(
-      train
-      valid
-      test
-    )
-    for part in ${parts[@]}; do
-      python3 ./local/validate_manifest.py \
-        data/fbank/speechcommands1_cuts_${part}.jsonl.gz
-    done
-    touch data/fbank/.speechcommands1-validated.done
   fi
 fi
 
