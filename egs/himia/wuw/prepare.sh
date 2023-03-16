@@ -2,7 +2,7 @@
 
 set -eou pipefail
 
-stage=6
+stage=0
 stop_stage=6
 
 # HI_MIA and aishell dataset are used in this experiment.
