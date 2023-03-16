@@ -40,15 +40,15 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   for test_set in test aishell_test cw_test; do
     python ctc_tdnn/decode.py \
       --post-h5 ${post_dir}/${test_set}.h5 \
-      --score-file ${post_dir}/fst_${test_set}_pos_h5.txt
+      --score-file ${post_dir}/fst_${test_set}_score.txt
   done
   python ./local/auc.py   \
       --legend himia_cw \
-      --positive-score-file ${post_dir}/fst_test_pos_h5.txt \
-      --negative-score-file ${post_dir}/fst_cw_test_pos_h5.txt
+      --positive-score-file ${post_dir}/fst_test_score.txt \
+      --negative-score-file ${post_dir}/fst_cw_test_score.txt
 
   python ./local/auc.py \
       --legend himia_aishell \
-      --positive-score-file ${post_dir}/fst_test_pos_h5.txt \
-      --negative-score-file ${post_dir}/fst_aishell_test_pos_h5.txt
+      --positive-score-file ${post_dir}/fst_test_score.txt \
+      --negative-score-file ${post_dir}/fst_aishell_test_score.txt
 fi
