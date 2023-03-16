@@ -25,16 +25,29 @@ import numpy as np
 from pathlib import Path
 from sklearn.metrics import roc_curve, auc
 
+from icefall.utils import setup_logger
+
 
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--positive-score-file", required=True, help="score file of positive data"
+        "--positive-score-file",
+        type=str,
+        required=True,
+        help="score file of positive data",
     )
     parser.add_argument(
-        "--negative-score-file", required=True, help="score file of negative data"
+        "--negative-score-file",
+        type=str,
+        required=True,
+        help="score file of negative data",
     )
-    parser.add_argument("--legend", required=True, help="utt2dur file of negative data")
+    parser.add_argument(
+        "--legend",
+        type=str,
+        required=True,
+        help="legend of ROC curve picture.",
+    )
     return parser.parse_args()
 
 
@@ -88,10 +101,13 @@ def get_roc_and_auc(
 
 
 def main():
-    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
 
     args = get_args()
-    logging.basicConfig(format=formatter, level=logging.INFO)
+
+    score_dir = Path(args.positive_score_file).parent
+    setup_logger(f"{score_dir}/log/log-auc-{args.legend}")
+    logging.info(f"About to compute AUC of {args.legend}")
+
     pos_dict = load_score(args.positive_score_file)
     neg_dict = load_score(args.negative_score_file)
     fpr, tpr, roc_auc = get_roc_and_auc(pos_dict, neg_dict)

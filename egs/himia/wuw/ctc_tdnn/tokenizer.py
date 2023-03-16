@@ -64,7 +64,9 @@ class WakeupWordTokenizer(object):
         self.negative_word_tokens = [1]
         self.negative_number_tokens = 1
 
-    def texts_to_token_ids(self, texts: List[str]) -> Tuple[torch.Tensor, torch.Tensor, int]:
+    def texts_to_token_ids(
+        self, texts: List[str]
+    ) -> Tuple[torch.Tensor, torch.Tensor, int]:
         """Convert a list of texts to a list of k2.Fsa based texts.
 
         Args:

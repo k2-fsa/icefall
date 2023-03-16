@@ -39,7 +39,6 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   log "Stage 2: Decode and compute area under curve(AUC)"
   for test_set in test aishell_test cw_test; do
     python ctc_tdnn/decode.py \
-      --decoding-graph ./data/LG.int \
       --post-h5 ${post_dir}/${test_set}.h5 \
       --score-file ${post_dir}/fst_${test_set}_pos_h5.txt
   done

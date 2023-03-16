@@ -564,7 +564,7 @@ def run(rank, world_size, args):
         params=params,
     )
 
-    for epoch in range(params.start_epoch, params.num_epochs):
+    for epoch in range(params.start_epoch, params.num_epochs + 1):
         fix_random_seed(params.seed + epoch)
         train_dl.sampler.set_epoch(epoch)
 

@@ -140,7 +140,7 @@ def main():
     out_dir = f"{params.exp_dir}/post/epoch_{params.epoch}-avg_{params.avg}/"
     Path(out_dir).mkdir(parents=True, exist_ok=True)
     params.out_dir = out_dir
-    setup_logger(f"{out_dir}/log-decode")
+    setup_logger(f"{out_dir}/log/log-inference")
     logging.info("Decoding started")
     logging.info(params)
 
@@ -186,12 +186,15 @@ def main():
     test_dls = [aishell_test_dl, test_dl, cw_test_dl]
 
     for test_set, test_dl in zip(test_sets, test_dls):
+        logging.info(f"About to inference {test_set}")
         inference_dataset(
             dl=test_dl,
             params=params,
             model=model,
             test_set=test_set,
         )
+
+        logging.info(f"finish inferencing {test_set}")
 
     logging.info("Done!")
 

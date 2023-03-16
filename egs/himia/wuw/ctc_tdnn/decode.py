@@ -21,12 +21,16 @@ import copy
 import logging
 from concurrent.futures import ProcessPoolExecutor
 from typing import Tuple
+from pathlib import Path
 
 import numpy as np
 from lhotse.features.io import NumpyHdf5Reader
 from tqdm import tqdm
 
-from icefall.utils import AttributeDict
+from icefall.utils import (
+    AttributeDict,
+    setup_logger,
+)
 
 from train import get_params
 from graph import ctc_trivial_decoding_graph
@@ -242,26 +246,33 @@ def get_parser():
         description="A simple FST decoder for the wake word detection\n"
     )
     parser.add_argument(
-        "--decoding-graph", help="decoding graph", default="himia_ctc_graph.txt"
+        "--post-h5",
+        type=str,
+        help="model output in h5 format",
     )
-    parser.add_argument("--post-h5", help="model output in h5 format")
-    parser.add_argument("--score-file", help="file to save scores of each utterance")
+    parser.add_argument(
+        "--score-file",
+        type=str,
+        help="file to save scores of each utterance",
+    )
     return parser
 
 
 def main():
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s"
-    )
     parser = get_parser()
     args = parser.parse_args()
     params = get_params()
     params.update(vars(args))
+    post_dir = Path(params.post_h5).parent
+    test_set = Path(params.post_h5).stem
+    setup_logger(f"{post_dir}/log/log-decode-{test_set}")
 
-    keys = NumpyHdf5Reader(params.post_h5).hdf.keys()
     graph = FiniteStateTransducer(ctc_trivial_decoding_graph(params.wakeup_word_tokens))
+
     logging.info(f"Graph used:\n{graph.to_str()}")
-    logging.info("About to load data to decoder.")
+
+    logging.info(f"About to load {test_set}.")
+    keys = NumpyHdf5Reader(params.post_h5).hdf.keys()
     with ProcessPoolExecutor() as executor, open(
         params.score_file, "w", encoding="utf8"
     ) as fout:
@@ -269,10 +280,12 @@ def main():
             executor.submit(decode_utt, params, key, params.post_h5, graph)
             for key in tqdm(keys)
         ]
-        logging.info("Decoding.")
+        logging.info(f"Decoding {test_set}.")
         for future in tqdm(futures):
             k, v = future.result()
             fout.write(str(k) + " " + str(v) + "\n")
+
+        logging.info(f"Finish decoding {test_set}.")
 
 
 if __name__ == "__main__":
