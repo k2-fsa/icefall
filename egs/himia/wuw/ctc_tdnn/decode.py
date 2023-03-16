@@ -126,7 +126,7 @@ class Token:
 
     def set_token(
         self,
-        src_token,
+        src_token,  # Token conneted to current token.
         is_keyword_ilabel: bool,
         acoustic_score: float,
     ) -> None:
@@ -163,9 +163,9 @@ class Token:
 class SingleDecodable:
     def __init__(
         self,
-        model_output,
-        keyword_ilabel_start,
-        graph,
+        model_output: np.array,
+        keyword_ilabel_start: int,
+        graph: FiniteStateTransducer,
     ):
         """
         Args:
@@ -234,7 +234,10 @@ class SingleDecodable:
 
 
 def decode_utt(
-    params: AttributeDict, utt_id: str, post_file, graph: FiniteStateTransducer
+    params: AttributeDict,
+    utt_id: str,
+    post_file: str,
+    graph: FiniteStateTransducer,
 ) -> Tuple[str, float]:
     """
     Decode a single utterance.
@@ -244,7 +247,7 @@ def decode_utt(
         The return value of :func:`get_params`.
       utt_id: utt_id to be decoded, used to fetch posterior matrix from post_file.
       post_file: file to save posterior for all test set.
-      graph: decoding graph.
+      graph: decoding graph in FiniteStateTransducer format.
 
     Returns:
       utt_id and its corresponding probability to be a wake word.
