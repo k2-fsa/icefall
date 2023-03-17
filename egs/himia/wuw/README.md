@@ -1,6 +1,6 @@
 # Pretrained models and related logs/results.
 
-## ctc tdnn baseline
+## ctc tdnn model with Number of model parameters: 1,502,169
 
 AUC results for different epochs could be found at <https://huggingface.co/GuoLiyong/himia_ctc_tdnn_baseline/tree/main>
 
