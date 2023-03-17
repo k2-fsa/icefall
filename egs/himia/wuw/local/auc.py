@@ -124,7 +124,7 @@ def main():
 
     output_path = Path(args.positive_score_file).parent
     logging.info(f"AUC of {args.legend} {output_path}: {roc_auc}")
-    plt.savefig(f"{output_path}/{args.legend}.pdf", bbox_inches="tight")
+    plt.savefig(f"{output_path}/{args.legend}.png", bbox_inches="tight")
 
 
 if __name__ == "__main__":
