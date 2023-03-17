@@ -123,7 +123,7 @@ def add_finetune_arguments(parser: argparse.ArgumentParser):
         "--finetune-ckpt",
         type=str,
         default=None,
-        help="Fine-tuning from which iter. If larger than 0, ignore --finetune-epoch.",
+        help="Fine-tuning from which checkpoint (a path to a .pt file)",
     )
 
 
