@@ -6,9 +6,9 @@ set -eou pipefail
 stage=0
 stop_stage=2
 
-epoch=10
+epoch=20
 avg=1
-max_duration=150
+max_duration=200
 exp_dir=./ctc_tdnn/exp_max_duration_${max_duration}/
 epoch_avg=epoch_${epoch}-avg_${avg}
 post_dir=${exp_dir}/post/${epoch_avg}
@@ -26,12 +26,12 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   log "Stage 0: Model training"
   python ./ctc_tdnn/train.py \
     --num-epochs $epoch \
-    --exp-dir $exp_dir
+    --exp-dir $exp_dir \
     --max-duration $max_duration
 fi
 
 if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
-  log "Stage 1: Get posterior of test sets"
+  log "Stage 1: Get posterior(log_softmax(logit)) of test sets"
   python ctc_tdnn/inference.py \
     --avg $avg \
     --epoch $epoch \
