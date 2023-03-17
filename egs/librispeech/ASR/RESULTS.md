@@ -17,6 +17,7 @@ Number of model parameters: 86083707, i.e., 86.08 M
 | ctc-decoding            | 2.50       | 5.86       | --epoch 30 --avg 9  |
 | whole-lattice-rescoring | 2.44       | 5.38       | --epoch 30 --avg 9  |
 | attention-rescoring     | 2.35       | 5.16       | --epoch 30 --avg 9  |
+| 1best                   | 2.01       | 4.61       | --epoch 30 --avg 9  |
 
 The training command is:
 
@@ -39,7 +40,7 @@ The decoding command is:
 
 ```bash
 ./zipformer_ctc/decode.py \
-  --epoch 99 --avg 1 --use-averaged-model False \
+  --epoch 30 --avg 9 --use-averaged-model True \
   --exp-dir zipformer_ctc/exp \
   --lang-dir data/lang_bpe_500 \
   --lm-dir data/lm \
