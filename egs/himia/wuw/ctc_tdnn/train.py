@@ -531,6 +531,9 @@ def run(rank, world_size, args):
 
     model = Tdnn(params.feature_dim, params.num_class)
 
+    num_param = sum([p.numel() for p in model.parameters()])
+    logging.info(f"Number of model parameters: {num_param}")
+
     checkpoints = load_checkpoint_if_available(params=params, model=model)
 
     model.to(device)

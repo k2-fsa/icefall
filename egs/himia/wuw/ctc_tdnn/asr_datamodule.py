@@ -197,7 +197,7 @@ class HiMiaWuwDataModule:
             default="_7_01",
             help="""channel of HI_MIA train dataset.
             All channels are used if it is set "all".
-            Please refer to state 6 in prepare.sh for its meaning and other
+            Please refer to stage 6 in prepare.sh for its meaning and other
             potential values. Currently, Only "_7_01" is verified.
             """,
         )
@@ -207,7 +207,7 @@ class HiMiaWuwDataModule:
             default="_7_01",
             help="""channel of HI_MIA dev dataset.
             All channels are used if it is set "all".
-            Please refer to state 6 in prepare.sh for its meaning and other
+            Please refer to stage 6 in prepare.sh for its meaning and other
             potential values. Currently, Only "_7_01" is verified.
             """,
         )

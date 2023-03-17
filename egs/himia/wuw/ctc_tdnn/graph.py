@@ -19,7 +19,7 @@
 from typing import List
 
 
-def ctc_trivial_decoding_graph(wakeup_word_tokens: List[int]):
+def ctc_trivial_decoding_graph(wakeup_word_tokens: List[int]) -> str:
     """
     A graph starts with blank/unknown and following by wakeup word.
 
@@ -27,6 +27,10 @@ def ctc_trivial_decoding_graph(wakeup_word_tokens: List[int]):
       wakeup_word_tokens: A sequence of token ids corresponding wakeup_word.
       It should not contain 0 and 1.
       We assume 0 is for blank and 1 is for unknown.
+    Returns:
+      Returns a finite-state transducer in string format,
+      used as a decoding graph.
+      Arcs are separated with "\n".
     """
     assert 0 not in wakeup_word_tokens
     assert 1 not in wakeup_word_tokens
