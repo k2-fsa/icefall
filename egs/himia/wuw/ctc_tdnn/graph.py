@@ -40,8 +40,7 @@ def ctc_trivial_decoding_graph(wakeup_word_tokens: List[int]) -> str:
     for non_wake_word_token in range(keyword_ilabel_start):
         fst_graph += f"0 0 {non_wake_word_token} 0\n"
     cur_state = 1
-    for token_idx in range(len(wakeup_word_tokens) - 1):
-        token = wakeup_word_tokens[token_idx]
+    for token in wakeup_word_tokens[:-1]:
         fst_graph += f"{cur_state - 1} {cur_state} {token} 0\n"
         fst_graph += f"{cur_state} {cur_state} {token} 0\n"
         cur_state += 1
