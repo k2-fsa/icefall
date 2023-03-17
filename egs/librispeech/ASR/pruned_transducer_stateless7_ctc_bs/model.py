@@ -131,6 +131,10 @@ class Transducer(nn.Module):
         # compute ctc log-probs
         ctc_output = self.ctc_output(encoder_out)
 
+        # y_lens
+        row_splits = y.shape.row_splits(1)
+        y_lens = row_splits[1:] - row_splits[:-1]
+
         # blank skip
         blank_id = self.decoder.blank_id
 
@@ -146,16 +150,14 @@ class Transducer(nn.Module):
                 encoder_out,
                 x_lens,
                 ctc_output,
+                y_lens,
                 blank_id,
             )
         else:
             encoder_out_fr = encoder_out
             x_lens_fr = x_lens
 
-        # Now for the decoder, i.e., the prediction network
-        row_splits = y.shape.row_splits(1)
-        y_lens = row_splits[1:] - row_splits[:-1]
-
+        # sos_y
         sos_y = add_sos(y, sos_id=blank_id)
 
         # sos_y_padded: [B, S + 1], start with SOS.

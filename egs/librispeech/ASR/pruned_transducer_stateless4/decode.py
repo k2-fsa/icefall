@@ -109,10 +109,7 @@ Usage:
 
 To evaluate symbol delay, you should:
 (1) Generate cuts with word-time alignments:
-./local/add_alignment_librispeech.py \
-    --alignments-dir data/alignment \
-    --cuts-in-dir data/fbank \
-    --cuts-out-dir data/fbank_ali
+./add_alignments.sh
 (2) Set the argument "--manifest-dir data/fbank_ali" while decoding.
 For example:
 ./pruned_transducer_stateless4/decode.py \
@@ -528,7 +525,6 @@ def decode_one_batch(
         res = DecodingResults(hyps=tokens, timestamps=timestamps)
 
     hyps, timestamps = parse_hyp_and_timestamp(
-        decoding_method=params.decoding_method,
         res=res,
         sp=sp,
         subsampling_factor=params.subsampling_factor,
@@ -659,18 +655,14 @@ def save_results(
     test_set_wers = dict()
     test_set_delays = dict()
     for key, results in results_dict.items():
-        recog_path = (
-            params.res_dir / f"recogs-{test_set_name}-{key}-{params.suffix}.txt"
-        )
+        recog_path = params.res_dir / f"recogs-{test_set_name}-{params.suffix}.txt"
         results = sorted(results)
         store_transcripts_and_timestamps(filename=recog_path, texts=results)
         logging.info(f"The transcripts are stored in {recog_path}")
 
         # The following prints out WERs, per-word error statistics and aligned
         # ref/hyp pairs.
-        errs_filename = (
-            params.res_dir / f"errs-{test_set_name}-{key}-{params.suffix}.txt"
-        )
+        errs_filename = params.res_dir / f"errs-{test_set_name}-{params.suffix}.txt"
         with open(errs_filename, "w") as f:
             wer, mean_delay, var_delay = write_error_stats_with_timestamps(
                 f, f"{test_set_name}-{key}", results, enable_log=True
@@ -681,9 +673,7 @@ def save_results(
         logging.info("Wrote detailed error stats to {}".format(errs_filename))
 
     test_set_wers = sorted(test_set_wers.items(), key=lambda x: x[1])
-    errs_info = (
-        params.res_dir / f"wer-summary-{test_set_name}-{key}-{params.suffix}.txt"
-    )
+    errs_info = params.res_dir / f"wer-summary-{test_set_name}-{params.suffix}.txt"
     with open(errs_info, "w") as f:
         print("settings\tWER", file=f)
         for key, val in test_set_wers:
@@ -691,8 +681,7 @@ def save_results(
 
     test_set_delays = sorted(test_set_delays.items(), key=lambda x: x[1][0])
     delays_info = (
-        params.res_dir
-        / f"symbol-delay-summary-{test_set_name}-{key}-{params.suffix}.txt"
+        params.res_dir / f"symbol-delay-summary-{test_set_name}-{params.suffix}.txt"
     )
     with open(delays_info, "w") as f:
         print("settings\tsymbol-delay", file=f)

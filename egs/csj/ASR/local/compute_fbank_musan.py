@@ -28,9 +28,7 @@ from icefall.utils import get_executor
 
 ARGPARSE_DESCRIPTION = """
 This file computes fbank features of the musan dataset.
-It looks for manifests in the directory data/manifests.
 
-The generated fbank features are saved in data/fbank.
 """
 
 # Torch's multithreaded behavior needs to be disabled or
@@ -42,8 +40,6 @@ torch.set_num_interop_threads(1)
 
 
 def compute_fbank_musan(manifest_dir: Path, fbank_dir: Path):
-    # src_dir = Path("data/manifests")
-    # output_dir = Path("data/fbank")
     num_jobs = min(15, os.cpu_count())
     num_mel_bins = 80
 
@@ -104,8 +100,12 @@ def get_args():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
-    parser.add_argument("--manifest-dir", type=Path, help="Path to save manifests")
-    parser.add_argument("--fbank-dir", type=Path, help="Path to save fbank features")
+    parser.add_argument(
+        "-m", "--manifest-dir", type=Path, help="Path to save manifests"
+    )
+    parser.add_argument(
+        "-f", "--fbank-dir", type=Path, help="Path to save fbank features"
+    )
 
     return parser.parse_args()
 
