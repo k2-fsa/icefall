@@ -19,7 +19,6 @@ repo=$(basename $repo_url)
 
 log "Display test files"
 tree $repo/
-soxi $repo/test_wavs/*.wav
 ls -lh $repo/test_wavs/*.wav
 
 pushd $repo
