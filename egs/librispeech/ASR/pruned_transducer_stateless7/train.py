@@ -374,6 +374,15 @@ def get_parser():
         help="Whether to use half precision training.",
     )
 
+    parser.add_argument(
+        "--p-limit-values",
+        type=float,
+        default=0.0,
+        help="""The probability (e.g., 0.1) to modify the update sign so as to prevent
+        absolute-values of any weight tensor from being over a certain percentile of
+        the distribution of that parameter tensor's absolute values""",
+    )
+
     add_model_arguments(parser)
 
     return parser
@@ -1016,6 +1025,7 @@ def run(rank, world_size, args):
         lr=params.base_lr,
         clipping_scale=2.0,
         parameters_names=parameters_names,
+        p_limit_values=params.p_limit_values,
     )
 
     scheduler = Eden(optimizer, params.lr_batches, params.lr_epochs)
