@@ -803,7 +803,9 @@ def main():
             decoding_graph=decoding_graph,
         )
         #results = results_dict['greedy_search']
+        print('--------------')
         print(results_dict.keys())
+        print('--------------')
         results = results_dict['modified_beam_search']
         #jsons = open(f"{params.manifest_dir}/userlibri/{test_set}/{option}.jsonl", 'r').readlines()
         #new_jsons = open(f"{params.manifest_dir}/userlibri/{test_set}/{option}_p.jsonl", 'w')
