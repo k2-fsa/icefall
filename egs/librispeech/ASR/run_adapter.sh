@@ -73,5 +73,4 @@ else
 		--lm-scale 0.1254 \
 		--simple-loss-scale 0.2869 \
 		--spk-id $2 \
-		--start-epoch 31
 fi
