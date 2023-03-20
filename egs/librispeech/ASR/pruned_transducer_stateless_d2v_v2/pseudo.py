@@ -802,7 +802,8 @@ def main():
             word_table=word_table,
             decoding_graph=decoding_graph,
         )
-        results = results_dict['greedy_search']
+        #results = results_dict['greedy_search']
+        results = results_dict['modified_beam_search']
         #jsons = open(f"{params.manifest_dir}/userlibri/{test_set}/{option}.jsonl", 'r').readlines()
         #new_jsons = open(f"{params.manifest_dir}/userlibri/{test_set}/{option}_p.jsonl", 'w')
 
