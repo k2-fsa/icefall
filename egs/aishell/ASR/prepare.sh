@@ -224,42 +224,42 @@ if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
   log "Stage 9: Generate LM training data"
 
   log "Processing char based data"
-  out_dir=data/lm_char
-  mkdir -p $out_dir
+  out_dir=data/lm_training_char
+  mkdir -p $out_dir $dl_dir/lm
 
-  if [ ! -f $out_dir/aishell-train-word.txt ]; then
-    cp $lang_phone_dir/transcript_words.txt $out_dir/aishell-train-word.txt
+  if [ ! -f $dl_dir/lm/aishell-train-word.txt ]; then
+    cp $lang_phone_dir/transcript_words.txt $dl_dir/lm/aishell-train-word.txt
   fi
 
   ./local/prepare_char_lm_training_data.py \
     --lang-char data/lang_char \
-    --lm-data $out_dir/aishell-train-word.txt \
+    --lm-data $dl_dir/lm/aishell-train-word.txt \
     --lm-archive $out_dir/lm_data.pt
 
-  if [ ! -f $out_dir/aishell-valid-word.txt ]; then
+  if [ ! -f $dl_dir/lm/aishell-valid-word.txt ]; then
     aishell_text=$dl_dir/aishell/data_aishell/transcript/aishell_transcript_v0.8.txt
-    aishell_valid_uid=$out_dir/aishell_valid_uid
+    aishell_valid_uid=$dl_dir/aishell/data_aishell/transcript/aishell_valid_uid
     find $dl_dir/aishell/data_aishell/wav/dev -name "*.wav" | sed 's/\.wav//g' | awk -F '/' '{print $NF}' > $aishell_valid_uid
     awk 'NR==FNR{uid[$1]=$1} NR!=FNR{if($1 in uid) print $0}' $aishell_valid_uid $aishell_text |
-	    cut -d " " -f 2- > $out_dir/aishell-valid-word.txt
+	    cut -d " " -f 2- > $dl_dir/lm/aishell-valid-word.txt
   fi
 
   ./local/prepare_char_lm_training_data.py \
     --lang-char data/lang_char \
-    --lm-data $out_dir/aishell-valid-word.txt \
+    --lm-data $dl_dir/lm/aishell-valid-word.txt \
     --lm-archive $out_dir/lm_data_valid.pt
 
-  if [ ! -f $out_dir/aishell-test-word.txt ]; then
+  if [ ! -f $dl_dir/lm/aishell-test-word.txt ]; then
     aishell_text=$dl_dir/aishell/data_aishell/transcript/aishell_transcript_v0.8.txt
-    aishell_test_uid=$out_dir/aishell_test_uid
+    aishell_test_uid=$dl_dir/aishell/data_aishell/transcript/aishell_test_uid
     find $dl_dir/aishell/data_aishell/wav/test -name "*.wav" | sed 's/\.wav//g' | awk -F '/' '{print $NF}' > $aishell_test_uid
     awk 'NR==FNR{uid[$1]=$1} NR!=FNR{if($1 in uid) print $0}' $aishell_test_uid $aishell_text |
-	    cut -d " " -f 2- > $out_dir/aishell-test-word.txt
+	    cut -d " " -f 2- > $dl_dir/lm/aishell-test-word.txt
   fi
 
   ./local/prepare_char_lm_training_data.py \
     --lang-char data/lang_char \
-    --lm-data $out_dir/aishell-test-word.txt \
+    --lm-data $dl_dir/lm/aishell-test-word.txt \
     --lm-archive $out_dir/lm_data_test.pt
 fi
 
@@ -272,7 +272,7 @@ if [ $stage -le 10 ] && [ $stop_stage -ge 10 ]; then
   # Sentence length equals to the number of tokens
   # in a sentence.
 
-  out_dir=data/lm_char
+  out_dir=data/lm_training_char
   mkdir -p $out_dir
   ln -snf ../../../librispeech/ASR/local/sort_lm_training_data.py local/
   
@@ -296,16 +296,16 @@ if [ $stage -le 11 ] && [ $stop_stage -ge 11 ]; then
   log "Stage 11: Train RNN LM model"
   python ../../../icefall/rnn_lm/train.py \
     --start-epoch 0 \
-    --world-size 2 \
-    --num-epochs 30 \
+    --world-size 1 \
+    --num-epochs 20 \
     --use-fp16 0 \
-    --embedding-dim 2048 \
-    --hidden-dim 2048 \
+    --embedding-dim 512 \
+    --hidden-dim 512 \
     --num-layers 2 \
-    --batch-size 200 \
-    --exp-dir rnnlm_char/exp_aishell12_medium \
-    --lm-data data/lm_char/sorted-lm_data_1and2.pt \
-    --lm-data-valid data/lm_char/sorted_lm_data-valid.pt \
+    --batch-size 400 \
+    --exp-dir rnnlm_char/exp \
+    --lm-data data/lm_training_char/sorted_lm_data.pt \
+    --lm-data-valid data/lm_training_char/sorted_lm_data-valid.pt \
     --vocab-size 4336 \
     --master-port 12345
 fi
