@@ -596,7 +596,7 @@ def save_results(
         wer += val
     logging.info(s)
     with open(f'./{params.res_name}.txt', 'a') as f:
-        f.write(s)
+        f.write(wer)
 
 
 @torch.no_grad()
