@@ -20,7 +20,7 @@ import argparse
 import inspect
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from lhotse import CutSet, Fbank, FbankConfig
 from lhotse.dataset import (

@@ -23,9 +23,6 @@ Usage:
 
 ./prepare.sh
 
-# If you use a non-zero value for --datatang-prob, you also need to run
-./prepare_aidatatang_200zh.sh
-
 If you use --datatang-prob=0, then you don't need to run the above script.
 
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
@@ -41,7 +38,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
 # For mix precision training:
 
-./pruned_transducer_stateless3/train.py \
+./pruned_transducer_stateless7/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 1 \
@@ -66,7 +63,6 @@ import optim
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
-from aidatatang_200zh import AIDatatang200zh
 from aishell import AIShell
 from asr_datamodule import AsrDataModule
 from decoder import Decoder
@@ -388,17 +384,6 @@ def get_parser():
         help="Whether to use half precision training.",
     )
 
-    parser.add_argument(
-        "--datatang-prob",
-        type=float,
-        default=0.0,
-        help="""The probability to select a batch from the
-        aidatatang_200zh dataset.
-        If it is set to 0, you don't need to download the data
-        for aidatatang_200zh.
-        """,
-    )
-
     add_model_arguments(parser)
 
     return parser
@@ -518,13 +503,6 @@ def get_transducer_model(params: AttributeDict) -> nn.Module:
     encoder = get_encoder_model(params)
     decoder = get_decoder_model(params)
     joiner = get_joiner_model(params)
-
-    if params.datatang_prob > 0:
-        decoder_datatang = get_decoder_model(params)
-        joiner_datatang = get_joiner_model(params)
-    else:
-        decoder_datatang = None
-        joiner_datatang = None
 
     model = Transducer(
         encoder=encoder,
@@ -718,12 +696,17 @@ def compute_loss(
             am_scale=params.am_scale,
             lm_scale=params.lm_scale,
         )
-        # after the main warmup step, we keep pruned_loss_scale small
-        # for the same amount of time (model_warm_step), to avoid
-        # overwhelming the simple_loss and causing it to diverge,
-        # in case it had not fully learned the alignment yet.
+        
+        s = params.simple_loss_scale
+        simple_loss_scale = (
+            s
+            if batch_idx_train >= warm_step
+            else 1.0 - (batch_idx_train / warm_step) * (1.0 - s)
+        )
         pruned_loss_scale = (
-            0.0 if warmup < 1.0 else (0.1 if warmup > 1.0 and warmup < 2.0 else 1.0)
+            1.0
+            if batch_idx_train >= warm_step
+            else 0.1 + 0.9 * (batch_idx_train / warm_step)
         )
         loss = params.simple_loss_scale * simple_loss + pruned_loss_scale * pruned_loss
 
@@ -1086,25 +1069,25 @@ def run(rank, world_size, args):
 
         # In ./zipformer.py, the conv module uses the following expression
         # for subsampling
-        T = ((c.num_frames - 7) // 2 + 1) // 2
-        tokens = sp.encode(c.supervisions[0].text, out_type=str)
+        # T = ((c.num_frames - 7) // 2 + 1) // 2
+        # tokens = sp.encode(c.supervisions[0].text, out_type=str)
 
-        if T < len(tokens):
-            logging.warning(
-                f"Exclude cut with ID {c.id} from training. "
-                f"Number of frames (before subsampling): {c.num_frames}. "
-                f"Number of frames (after subsampling): {T}. "
-                f"Text: {c.supervisions[0].text}. "
-                f"Tokens: {tokens}. "
-                f"Number of tokens: {len(tokens)}"
-            )
-            return False
+        # if T < len(tokens):
+        #     logging.warning(
+        #         f"Exclude cut with ID {c.id} from training. "
+        #         f"Number of frames (before subsampling): {c.num_frames}. "
+        #         f"Number of frames (after subsampling): {T}. "
+        #         f"Text: {c.supervisions[0].text}. "
+        #         f"Tokens: {tokens}. "
+        #         f"Number of tokens: {len(tokens)}"
+        #     )
+        #     return False
 
         return True
         
     aishell = AIShell(manifest_dir=args.manifest_dir)
     train_cuts = aishell.train_cuts()
-    train_cuts = remove_short_and_long_utt(train_cuts)
+    train_cuts = train_cuts.filter(remove_short_and_long_utt)
 
     if args.enable_musan:
         cuts_musan = load_manifest(Path(args.manifest_dir) / "musan_cuts.jsonl.gz")
@@ -1129,14 +1112,14 @@ def run(rank, world_size, args):
 
     valid_cuts = aishell.valid_cuts()
     valid_dl = asr_datamodule.valid_dataloaders(valid_cuts)
-    if not params.print_diagnostics:
-        scan_pessimistic_batches_for_oom(
-            model=model,
-            train_dl=train_dl,
-            optimizer=optimizer,
-            sp=sp,
-            params=params,
-        )
+    # if not params.print_diagnostics:
+    #     scan_pessimistic_batches_for_oom(
+    #         model=model,
+    #         train_dl=train_dl,
+    #         optimizer=optimizer,
+    #         graph_compiler=graph_compiler,
+    #         params=params,
+    #     )
 
     scaler = GradScaler(enabled=params.use_fp16, init_scale=1.0)
     if checkpoints and "grad_scaler" in checkpoints:
