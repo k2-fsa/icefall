@@ -593,6 +593,8 @@ def save_results(
         s += "{}\t{}{}\n".format(key, val, note)
         note = ""
     logging.info(s)
+    with open(f'./{params.res_name}.txt', 'a') as f:
+        f.write(s)
 
 
 @torch.no_grad()
