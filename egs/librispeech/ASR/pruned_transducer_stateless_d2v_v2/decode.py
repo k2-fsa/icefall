@@ -594,7 +594,7 @@ def save_results(
     for key, val in test_set_wers:
         s += "{}\t{}{}\n".format(key, val, note)
         note = ""
-        spk = test_set_name
+        spk = str(test_set_name)
         wer = str(val)
     logging.info(s)
     with open(f'./{params.res_name}.txt', 'a') as f:
