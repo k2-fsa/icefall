@@ -20,7 +20,8 @@ do
 		--joiner-dim 768 \
 		--avg 1 \
 		--use-averaged-model True \
-		--spk-id $spk_id
+		--spk-id $spk_id \
+		--res-name beam_adapter
 	done
 done
 
