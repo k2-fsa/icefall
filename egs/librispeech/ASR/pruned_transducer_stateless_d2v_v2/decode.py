@@ -271,6 +271,11 @@ def get_parser():
         default=64,
         help="left context can be seen during decoding (in frames after subsampling)",
     )
+    
+    parser.add_argument(
+        "--res-name",
+        type=str,
+    )
 
     add_model_arguments(parser)
     add_rep_arguments(parser)
