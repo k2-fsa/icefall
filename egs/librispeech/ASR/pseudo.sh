@@ -7,6 +7,7 @@ for method in modified_beam_search; do #modified_beam_search fast_beam_search; d
 		--input-strategy AudioSamples \
 		--enable-spec-aug False \
 		--additional-block True \
+		--model-name epoch-$i.pt \
 		--exp-dir ./pruned_transducer_stateless_d2v_v2/"$spk_id"_adapter \
 		--max-duration 450 \
 		--decoding-method $method \
