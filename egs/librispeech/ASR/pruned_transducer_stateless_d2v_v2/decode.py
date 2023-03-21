@@ -587,7 +587,7 @@ def save_results(
         for key, val in test_set_wers:
             print("{}\t{}".format(key, val), file=f)
     
-    wer = ''
+    wer = None
     s = "\nFor {}, WER of different settings are:\n".format(test_set_name)
     note = "\tbest for {}".format(test_set_name)
     for key, val in test_set_wers:
