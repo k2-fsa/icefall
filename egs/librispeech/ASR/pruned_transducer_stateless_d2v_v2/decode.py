@@ -598,7 +598,7 @@ def save_results(
         wer = str(val)
     logging.info(s)
     with open(f'./{params.res_name}.txt', 'a') as f:
-        f.write(f"{spk} {wer}")
+        f.write(f"{spk} {wer}\n")
 
 
 @torch.no_grad()
