@@ -587,12 +587,14 @@ def save_results(
         for key, val in test_set_wers:
             print("{}\t{}".format(key, val), file=f)
     
+    spk = None
     wer = None
     s = "\nFor {}, WER of different settings are:\n".format(test_set_name)
     note = "\tbest for {}".format(test_set_name)
     for key, val in test_set_wers:
         s += "{}\t{}{}\n".format(key, val, note)
         note = ""
+        spk = note.split(' ')[-1]
         wer = str(val)
     logging.info(s)
     with open(f'./{params.res_name}.txt', 'a') as f:
