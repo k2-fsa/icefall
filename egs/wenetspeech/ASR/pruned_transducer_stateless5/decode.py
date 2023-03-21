@@ -661,83 +661,18 @@ def main():
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
-    # Note: Please use "pip install webdataset==0.1.103"
-    # for installing the webdataset.
-    import glob
-    import os
-
-    from lhotse import CutSet
-    from lhotse.dataset.webdataset import export_to_webdataset
-
     # we need cut ids to display recognition results.
     args.return_cuts = True
     wenetspeech = WenetSpeechAsrDataModule(args)
 
-    dev = "dev"
-    test_net = "test_net"
-    test_meeting = "test_meeting"
+    dev_cuts = wenetspeech.valid_cuts()
+    dev_dl = wenetspeech.valid_dataloaders(dev_cuts)
 
-    if not os.path.exists(f"{dev}/shared-0.tar"):
-        os.makedirs(dev)
-        dev_cuts = wenetspeech.valid_cuts()
-        export_to_webdataset(
-            dev_cuts,
-            output_path=f"{dev}/shared-%d.tar",
-            shard_size=300,
-        )
+    test_net_cuts = wenetspeech.test_net_cuts()
+    test_net_dl = wenetspeech.test_dataloaders(test_net_cuts)
 
-    if not os.path.exists(f"{test_net}/shared-0.tar"):
-        os.makedirs(test_net)
-        test_net_cuts = wenetspeech.test_net_cuts()
-        export_to_webdataset(
-            test_net_cuts,
-            output_path=f"{test_net}/shared-%d.tar",
-            shard_size=300,
-        )
-
-    if not os.path.exists(f"{test_meeting}/shared-0.tar"):
-        os.makedirs(test_meeting)
-        test_meeting_cuts = wenetspeech.test_meeting_cuts()
-        export_to_webdataset(
-            test_meeting_cuts,
-            output_path=f"{test_meeting}/shared-%d.tar",
-            shard_size=300,
-        )
-
-    dev_shards = [
-        str(path) for path in sorted(glob.glob(os.path.join(dev, "shared-*.tar")))
-    ]
-    cuts_dev_webdataset = CutSet.from_webdataset(
-        dev_shards,
-        split_by_worker=True,
-        split_by_node=True,
-        shuffle_shards=True,
-    )
-
-    test_net_shards = [
-        str(path) for path in sorted(glob.glob(os.path.join(test_net, "shared-*.tar")))
-    ]
-    cuts_test_net_webdataset = CutSet.from_webdataset(
-        test_net_shards,
-        split_by_worker=True,
-        split_by_node=True,
-        shuffle_shards=True,
-    )
-
-    test_meeting_shards = [
-        str(path)
-        for path in sorted(glob.glob(os.path.join(test_meeting, "shared-*.tar")))
-    ]
-    cuts_test_meeting_webdataset = CutSet.from_webdataset(
-        test_meeting_shards,
-        split_by_worker=True,
-        split_by_node=True,
-        shuffle_shards=True,
-    )
-
-    dev_dl = wenetspeech.valid_dataloaders(cuts_dev_webdataset)
-    test_net_dl = wenetspeech.test_dataloaders(cuts_test_net_webdataset)
-    test_meeting_dl = wenetspeech.test_dataloaders(cuts_test_meeting_webdataset)
+    test_meeting_cuts = wenetspeech.test_meeting_cuts()
+    test_meeting_dl = wenetspeech.test_dataloaders(test_meeting_cuts)
 
     test_sets = ["DEV", "TEST_NET", "TEST_MEETING"]
     test_dl = [dev_dl, test_net_dl, test_meeting_dl]
