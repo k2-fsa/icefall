@@ -154,7 +154,7 @@ def main():
 
     params = AttributeDict(vars(args))
 
-    setup_logger(f"{params.exp_dir}/log-ppl/")
+    setup_logger(f"{params.exp_dir}/log-ppl/log-ppl-epoch-{params.epoch}-avg-{params.avg}")
     logging.info("Computing perplexity started")
     logging.info(params)
 
