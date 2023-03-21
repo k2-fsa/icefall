@@ -248,7 +248,7 @@ def get_parser():
         help="""Maximum number of symbols per frame.
         Used only when --decoding_method is greedy_search""",
     )
-    
+
     parser.add_argument(
         "--use-shallow-fusion",
         type=str2bool,
@@ -283,7 +283,7 @@ def get_parser():
             Used only when the decoding method is
             modified_beam_search_ngram_rescoring""",
     )
-    
+
     parser.add_argument(
         "--ngram-lm-scale",
         type=float,
@@ -599,7 +599,7 @@ def main():
 
     if params.use_averaged_model:
         params.suffix += "-use-averaged-model"
-    
+
     if "ngram" in params.decoding_method:
         params.suffix += f"-ngram-lm-scale-{params.ngram_lm_scale}"
     if params.use_shallow_fusion:
@@ -721,7 +721,7 @@ def main():
         decoding_graph = k2.trivial_graph(params.vocab_size - 1, device=device)
     else:
         decoding_graph = None
-    
+
     # only load N-gram LM when needed
     if "ngram" in params.decoding_method or "LODR" in params.decoding_method:
         lm_filename = params.lang_dir / f"{params.tokens_ngram}gram.fst.txt"
