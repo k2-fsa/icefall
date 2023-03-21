@@ -1871,8 +1871,6 @@ def modified_beam_search_LODR(
         encoder_out_lens (torch.Tensor):
             A 1-D tensor of shape (N,), containing the number of
             valid frames in encoder_out before padding.
-        sp:
-            Sentence piece generator.
         LODR_lm:
             A low order n-gram LM, whose score will be subtracted during shallow fusion
         LODR_lm_scale:
@@ -2126,7 +2124,6 @@ def modified_beam_search_lm_shallow_fusion(
     encoder_out: torch.Tensor,
     encoder_out_lens: torch.Tensor,
     LM: LmScorer,
-    sos_id: int = 1,
     beam: int = 4,
     return_timestamps: bool = False,
 ) -> List[List[int]]:
