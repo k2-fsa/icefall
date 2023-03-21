@@ -37,7 +37,9 @@ import torch
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--lang-char", type=str, help="""Lang dir of asr model, e.g. data/lang_char""",
+        "--lang-char",
+        type=str,
+        help="""Lang dir of asr model, e.g. data/lang_char""",
     )
     parser.add_argument(
         "--lm-data",
