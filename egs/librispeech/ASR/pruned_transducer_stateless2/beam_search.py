@@ -1852,7 +1852,6 @@ def modified_beam_search_LODR(
     model: Transducer,
     encoder_out: torch.Tensor,
     encoder_out_lens: torch.Tensor,
-    sp: spm.SentencePieceProcessor,
     LODR_lm: NgramLm,
     LODR_lm_scale: float,
     LM: LmScorer,
@@ -1901,7 +1900,7 @@ def modified_beam_search_LODR(
     )
 
     blank_id = model.decoder.blank_id
-    sos_id = sp.piece_to_id("<sos/eos>")
+    sos_id = getattr(LM, "sos_id", 1)
     unk_id = getattr(model, "unk_id", blank_id)
     context_size = model.decoder.context_size
     device = next(model.parameters()).device
@@ -2126,8 +2125,8 @@ def modified_beam_search_lm_shallow_fusion(
     model: Transducer,
     encoder_out: torch.Tensor,
     encoder_out_lens: torch.Tensor,
-    sp: spm.SentencePieceProcessor,
     LM: LmScorer,
+    sos_id: int = 1,
     beam: int = 4,
     return_timestamps: bool = False,
 ) -> List[List[int]]:
@@ -2165,7 +2164,7 @@ def modified_beam_search_lm_shallow_fusion(
     )
 
     blank_id = model.decoder.blank_id
-    sos_id = sp.piece_to_id("<sos/eos>")
+    sos_id = getattr(LM, "sos_id", 1)
     unk_id = getattr(model, "unk_id", blank_id)
     context_size = model.decoder.context_size
     device = next(model.parameters()).device

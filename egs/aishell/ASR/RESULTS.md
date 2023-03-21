@@ -116,9 +116,9 @@ for lm_scale in $(seq 0.26 0.02 0.34); do
       --lm-vocab-size 4336
 done
 
-# RNNLM Low order density ratio with a 2-gram
+# RNNLM Low-order density ratio (LODR) with a 2-gram
 
-ln -s ${rnnlm_dir}/2gram.fst.txt ${aishell_exp}/data/lang_char
+cp ${rnnlm_dir}/2gram.fst.txt ${aishell_exp}/data/lang_char/2gram.fst.txt
 
 for lm_scale in 0.48; do
   for LODR_scale in -0.28; do
@@ -142,6 +142,7 @@ for lm_scale in 0.48; do
         --tokens-ngram 2 \
         --backoff-id 4336 \
         --ngram-lm-scale $LODR_scale
+  done
 done
 
 ```

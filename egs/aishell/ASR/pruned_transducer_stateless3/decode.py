@@ -724,7 +724,7 @@ def main():
     
     # only load N-gram LM when needed
     if "ngram" in params.decoding_method or "LODR" in params.decoding_method:
-        lm_filename = f"data/lm_char/{params.tokens_ngram}gram.fst.txt"
+        lm_filename = params.lang_dir / f"{params.tokens_ngram}gram.fst.txt"
         logging.info(f"lm filename: {lm_filename}")
         ngram_lm = NgramLm(
             lm_filename,
