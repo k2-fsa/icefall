@@ -388,7 +388,7 @@ def decode_one_batch(
             encoder_out=encoder_out,
             beam=params.beam_size,
             encoder_out_lens=encoder_out_lens,
-            context_graph=context_graph
+            context_graph=context_graph,
         )
         for i in range(encoder_out.size(0)):
             hyps.append([lexicon.token_table[idx] for idx in hyp_tokens[i]])
@@ -428,7 +428,9 @@ def decode_one_batch(
             ): hyps
         }
     else:
-        return {f"beam_size_{params.beam_size}_context_score_{params.context_score}": hyps}
+        return {
+            f"beam_size_{params.beam_size}_context_score_{params.context_score}": hyps
+        }
 
 
 def decode_dataset(
@@ -509,18 +511,14 @@ def save_results(
 ):
     test_set_wers = dict()
     for key, results in results_dict.items():
-        recog_path = (
-            params.res_dir / f"recogs-{test_set_name}-{key}-{params.suffix}.txt"
-        )
+        recog_path = params.res_dir / f"recogs-{test_set_name}-{params.suffix}.txt"
         results = sorted(results)
         store_transcripts(filename=recog_path, texts=results)
         logging.info(f"The transcripts are stored in {recog_path}")
 
         # The following prints out WERs, per-word error statistics and aligned
         # ref/hyp pairs.
-        errs_filename = (
-            params.res_dir / f"errs-{test_set_name}-{key}-{params.suffix}.txt"
-        )
+        errs_filename = params.res_dir / f"errs-{test_set_name}-{params.suffix}.txt"
         with open(errs_filename, "w") as f:
             wer = write_error_stats(
                 f, f"{test_set_name}-{key}", results, enable_log=True
@@ -530,9 +528,7 @@ def save_results(
         logging.info("Wrote detailed error stats to {}".format(errs_filename))
 
     test_set_wers = sorted(test_set_wers.items(), key=lambda x: x[1])
-    errs_info = (
-        params.res_dir / f"wer-summary-{test_set_name}-{key}-{params.suffix}.txt"
-    )
+    errs_info = params.res_dir / f"wer-summary-{test_set_name}-{params.suffix}.txt"
     with open(errs_info, "w") as f:
         print("settings\tWER", file=f)
         for key, val in test_set_wers:
@@ -700,81 +696,9 @@ def main():
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
-    # Note: Please use "pip install webdataset==0.1.103"
-    # for installing the webdataset.
-
-    from lhotse import CutSet
-    from lhotse.dataset.webdataset import export_to_webdataset
-
     # we need cut ids to display recognition results.
     args.return_cuts = True
     wenetspeech = WenetSpeechAsrDataModule(args)
-
-    #dev = "dev"
-    #test_net = "test_net"
-    #test_meeting = "test_meeting"
-
-    #if not os.path.exists(f"{dev}/shared-0.tar"):
-    #    os.makedirs(dev)
-    #    dev_cuts = wenetspeech.valid_cuts()
-    #    export_to_webdataset(
-    #        dev_cuts,
-    #        output_path=f"{dev}/shared-%d.tar",
-    #        shard_size=300,
-    #    )
-
-    #if not os.path.exists(f"{test_net}/shared-0.tar"):
-    #    os.makedirs(test_net)
-    #    test_net_cuts = wenetspeech.test_net_cuts()
-    #    export_to_webdataset(
-    #        test_net_cuts,
-    #        output_path=f"{test_net}/shared-%d.tar",
-    #        shard_size=300,
-    #    )
-
-    #if not os.path.exists(f"{test_meeting}/shared-0.tar"):
-    #    os.makedirs(test_meeting)
-    #    test_meeting_cuts = wenetspeech.test_meeting_cuts()
-    #    export_to_webdataset(
-    #        test_meeting_cuts,
-    #        output_path=f"{test_meeting}/shared-%d.tar",
-    #        shard_size=300,
-    #    )
-
-    #dev_shards = [
-    #    str(path) for path in sorted(glob.glob(os.path.join(dev, "shared-*.tar")))
-    #]
-    #cuts_dev_webdataset = CutSet.from_webdataset(
-    #    dev_shards,
-    #    split_by_worker=True,
-    #    split_by_node=True,
-    #    shuffle_shards=True,
-    #)
-
-    #test_net_shards = [
-    #    str(path) for path in sorted(glob.glob(os.path.join(test_net, "shared-*.tar")))
-    #]
-    #cuts_test_net_webdataset = CutSet.from_webdataset(
-    #    test_net_shards,
-    #    split_by_worker=True,
-    #    split_by_node=True,
-    #    shuffle_shards=True,
-    #)
-
-    #test_meeting_shards = [
-    #    str(path)
-    #    for path in sorted(glob.glob(os.path.join(test_meeting, "shared-*.tar")))
-    #]
-    #cuts_test_meeting_webdataset = CutSet.from_webdataset(
-    #    test_meeting_shards,
-    #    split_by_worker=True,
-    #    split_by_node=True,
-    #    shuffle_shards=True,
-    #)
-
-    #dev_dl = wenetspeech.valid_dataloaders(cuts_dev_webdataset)
-    #test_net_dl = wenetspeech.test_dataloaders(cuts_test_net_webdataset)
-    #test_meeting_dl = wenetspeech.test_dataloaders(cuts_test_meeting_webdataset)
 
     dev_cuts = wenetspeech.valid_cuts()
     dev_dl = wenetspeech.valid_dataloaders(dev_cuts)
@@ -788,11 +712,8 @@ def main():
     test_car_cuts = wenetspeech.test_car_cuts()
     test_car_dl = wenetspeech.test_dataloaders(test_car_cuts)
 
-    # test_sets = ["CAR", "TEST_NET", "DEV", "TEST_MEETING"]
-    # test_dls = [test_car_dl, test_net_dl, dev_dl, test_meeting_dl]
-
-    test_sets = ["CAR", "TEST_NET", "TEST_MEETING"]
-    test_dls = [test_car_dl, test_net_dl, test_meeting_dl]
+    test_sets = ["CAR", "TEST_NET", "DEV", "TEST_MEETING"]
+    test_dls = [test_car_dl, test_net_dl, dev_dl, test_meeting_dl]
 
     for test_set, test_dl in zip(test_sets, test_dls):
         results_dict = decode_dataset(
