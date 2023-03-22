@@ -46,8 +46,8 @@ from torch.utils.data import DataLoader
 
 from icefall.utils import str2bool
 
-set_caching_enabled(False)
-torch.set_num_threads(1)
+# set_caching_enabled(False)
+# torch.set_num_threads(1)
 
 
 class _SeedWorkers:
@@ -109,7 +109,7 @@ class WenetSpeechAsrDataModule:
         group.add_argument(
             "--num-buckets",
             type=int,
-            default=300,
+            default=30,
             help="The number of buckets for the DynamicBucketingSampler"
             "(you might want to increase it for larger datasets).",
         )
@@ -373,7 +373,7 @@ class WenetSpeechAsrDataModule:
         return valid_dl
 
     def test_dataloaders(self, cuts: CutSet) -> DataLoader:
-        logging.debug("About to create test dataset")
+        logging.info("About to create test dataset")
         test = K2SpeechRecognitionDataset(
             input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80)))
             if self.args.on_the_fly_feats
@@ -383,19 +383,22 @@ class WenetSpeechAsrDataModule:
         sampler = DynamicBucketingSampler(
             cuts,
             max_duration=self.args.max_duration,
-            rank=0,
-            world_size=1,
+            buffer_size=10000,
+            # rank=0,
+            # world_size=1,
             shuffle=False,
         )
-        from lhotse.dataset.iterable_dataset import IterableDatasetWrapper
+        # from lhotse.dataset.iterable_dataset import IterableDatasetWrapper
 
-        test_iter_dataset = IterableDatasetWrapper(
-            dataset=test,
-            sampler=sampler,
-        )
+        # test_iter_dataset = IterableDatasetWrapper(
+            # dataset=test,
+            # sampler=sampler,
+        # )
         test_dl = DataLoader(
-            test_iter_dataset,
+            # test_iter_dataset,
+            test,
             batch_size=None,
+            sampler=sampler,
             num_workers=self.args.num_workers,
         )
         return test_dl
@@ -411,14 +414,19 @@ class WenetSpeechAsrDataModule:
     @lru_cache()
     def valid_cuts(self) -> CutSet:
         logging.info("About to get dev cuts")
-        return load_manifest_lazy(self.args.manifest_dir / "cuts_DEV.jsonl.gz")
+        return load_manifest_lazy(self.args.manifest_dir / "cuts_DEV2.jsonl.gz")
 
     @lru_cache()
     def test_net_cuts(self) -> List[CutSet]:
         logging.info("About to get TEST_NET cuts")
-        return load_manifest_lazy(self.args.manifest_dir / "cuts_TEST_NET.jsonl.gz")
+        return load_manifest_lazy(self.args.manifest_dir / "cuts_TEST_NET2.jsonl.gz")
 
     @lru_cache()
     def test_meeting_cuts(self) -> List[CutSet]:
         logging.info("About to get TEST_MEETING cuts")
-        return load_manifest_lazy(self.args.manifest_dir / "cuts_TEST_MEETING.jsonl.gz")
+        return load_manifest_lazy(self.args.manifest_dir / "cuts_TEST_MEETING2.jsonl.gz")
+
+    @lru_cache()
+    def test_car_cuts(self) -> List[CutSet]:
+        logging.info("About to get TEST_CAR cuts")
+        return load_manifest_lazy(self.args.manifest_dir / "car_test_feats.jsonl.gz")

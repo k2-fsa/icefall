@@ -95,8 +95,10 @@ When training with the L subset, the streaming usage:
 
 
 import argparse
+import glob
 import logging
 import math
+import os
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -114,6 +116,7 @@ from beam_search import (
 )
 from train import add_model_arguments, get_params, get_transducer_model
 
+from icefall import ContextGraph
 from icefall.checkpoint import (
     average_checkpoints,
     average_checkpoints_with_averaged_model,
@@ -277,6 +280,20 @@ def get_parser():
         help="left context can be seen during decoding (in frames after subsampling)",
     )
 
+    parser.add_argument(
+        "--context-score",
+        type=float,
+        default=2,
+        help="",
+    )
+
+    parser.add_argument(
+        "--context-file",
+        type=str,
+        default="",
+        help="",
+    )
+
     add_model_arguments(parser)
 
     return parser
@@ -288,6 +305,7 @@ def decode_one_batch(
     lexicon: Lexicon,
     batch: dict,
     decoding_graph: Optional[k2.Fsa] = None,
+    context_graph: Optional[ContextGraph] = None,
 ) -> Dict[str, List[List[str]]]:
     """Decode one batch and return the result in a dict. The dict has the
     following format:
@@ -325,14 +343,13 @@ def decode_one_batch(
     supervisions = batch["supervisions"]
     feature_lens = supervisions["num_frames"].to(device)
 
-    feature_lens += params.left_context
-    feature = torch.nn.functional.pad(
-        feature,
-        pad=(0, 0, 0, params.left_context),
-        value=LOG_EPS,
-    )
-
     if params.simulate_streaming:
+        feature_lens += params.left_context
+        feature = torch.nn.functional.pad(
+            feature,
+            pad=(0, 0, 0, params.left_context),
+            value=LOG_EPS,
+        )
         encoder_out, encoder_out_lens, _ = model.encoder.streaming_forward(
             x=feature,
             x_lens=feature_lens,
@@ -371,6 +388,7 @@ def decode_one_batch(
             encoder_out=encoder_out,
             beam=params.beam_size,
             encoder_out_lens=encoder_out_lens,
+            context_graph=context_graph
         )
         for i in range(encoder_out.size(0)):
             hyps.append([lexicon.token_table[idx] for idx in hyp_tokens[i]])
@@ -410,7 +428,7 @@ def decode_one_batch(
             ): hyps
         }
     else:
-        return {f"beam_size_{params.beam_size}": hyps}
+        return {f"beam_size_{params.beam_size}_context_score_{params.context_score}": hyps}
 
 
 def decode_dataset(
@@ -419,6 +437,7 @@ def decode_dataset(
     model: nn.Module,
     lexicon: Lexicon,
     decoding_graph: Optional[k2.Fsa] = None,
+    context_graph: Optional[ContextGraph] = None,
 ) -> Dict[str, List[Tuple[str, List[str], List[str]]]]:
     """Decode dataset.
 
@@ -463,6 +482,7 @@ def decode_dataset(
             lexicon=lexicon,
             decoding_graph=decoding_graph,
             batch=batch,
+            context_graph=context_graph,
         )
 
         for name, hyps in hyps_dict.items():
@@ -551,6 +571,7 @@ def main():
         params.suffix += f"-max-states-{params.max_states}"
     elif "beam_search" in params.decoding_method:
         params.suffix += f"-beam-{params.beam_size}"
+        params.suffix += f"-context-score-{params.context_score}"
     else:
         params.suffix += f"-context-{params.context_size}"
         params.suffix += f"-max-sym-per-frame-{params.max_sym_per_frame}"
@@ -664,13 +685,23 @@ def main():
     else:
         decoding_graph = None
 
+    if params.decoding_method == "modified_beam_search":
+        if os.path.exists(params.context_file):
+            contexts = []
+            for line in open(params.context_file).readlines():
+                contexts.append(line.strip())
+            context_graph = ContextGraph(params.context_score)
+            context_graph.build_context_graph_char(contexts, lexicon.token_table)
+        else:
+            context_graph = None
+    else:
+        context_graph = None
+
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
     # Note: Please use "pip install webdataset==0.1.103"
     # for installing the webdataset.
-    import glob
-    import os
 
     from lhotse import CutSet
     from lhotse.dataset.webdataset import export_to_webdataset
@@ -679,82 +710,98 @@ def main():
     args.return_cuts = True
     wenetspeech = WenetSpeechAsrDataModule(args)
 
-    dev = "dev"
-    test_net = "test_net"
-    test_meeting = "test_meeting"
+    #dev = "dev"
+    #test_net = "test_net"
+    #test_meeting = "test_meeting"
 
-    if not os.path.exists(f"{dev}/shared-0.tar"):
-        os.makedirs(dev)
-        dev_cuts = wenetspeech.valid_cuts()
-        export_to_webdataset(
-            dev_cuts,
-            output_path=f"{dev}/shared-%d.tar",
-            shard_size=300,
-        )
+    #if not os.path.exists(f"{dev}/shared-0.tar"):
+    #    os.makedirs(dev)
+    #    dev_cuts = wenetspeech.valid_cuts()
+    #    export_to_webdataset(
+    #        dev_cuts,
+    #        output_path=f"{dev}/shared-%d.tar",
+    #        shard_size=300,
+    #    )
 
-    if not os.path.exists(f"{test_net}/shared-0.tar"):
-        os.makedirs(test_net)
-        test_net_cuts = wenetspeech.test_net_cuts()
-        export_to_webdataset(
-            test_net_cuts,
-            output_path=f"{test_net}/shared-%d.tar",
-            shard_size=300,
-        )
+    #if not os.path.exists(f"{test_net}/shared-0.tar"):
+    #    os.makedirs(test_net)
+    #    test_net_cuts = wenetspeech.test_net_cuts()
+    #    export_to_webdataset(
+    #        test_net_cuts,
+    #        output_path=f"{test_net}/shared-%d.tar",
+    #        shard_size=300,
+    #    )
 
-    if not os.path.exists(f"{test_meeting}/shared-0.tar"):
-        os.makedirs(test_meeting)
-        test_meeting_cuts = wenetspeech.test_meeting_cuts()
-        export_to_webdataset(
-            test_meeting_cuts,
-            output_path=f"{test_meeting}/shared-%d.tar",
-            shard_size=300,
-        )
+    #if not os.path.exists(f"{test_meeting}/shared-0.tar"):
+    #    os.makedirs(test_meeting)
+    #    test_meeting_cuts = wenetspeech.test_meeting_cuts()
+    #    export_to_webdataset(
+    #        test_meeting_cuts,
+    #        output_path=f"{test_meeting}/shared-%d.tar",
+    #        shard_size=300,
+    #    )
 
-    dev_shards = [
-        str(path) for path in sorted(glob.glob(os.path.join(dev, "shared-*.tar")))
-    ]
-    cuts_dev_webdataset = CutSet.from_webdataset(
-        dev_shards,
-        split_by_worker=True,
-        split_by_node=True,
-        shuffle_shards=True,
-    )
+    #dev_shards = [
+    #    str(path) for path in sorted(glob.glob(os.path.join(dev, "shared-*.tar")))
+    #]
+    #cuts_dev_webdataset = CutSet.from_webdataset(
+    #    dev_shards,
+    #    split_by_worker=True,
+    #    split_by_node=True,
+    #    shuffle_shards=True,
+    #)
 
-    test_net_shards = [
-        str(path) for path in sorted(glob.glob(os.path.join(test_net, "shared-*.tar")))
-    ]
-    cuts_test_net_webdataset = CutSet.from_webdataset(
-        test_net_shards,
-        split_by_worker=True,
-        split_by_node=True,
-        shuffle_shards=True,
-    )
+    #test_net_shards = [
+    #    str(path) for path in sorted(glob.glob(os.path.join(test_net, "shared-*.tar")))
+    #]
+    #cuts_test_net_webdataset = CutSet.from_webdataset(
+    #    test_net_shards,
+    #    split_by_worker=True,
+    #    split_by_node=True,
+    #    shuffle_shards=True,
+    #)
 
-    test_meeting_shards = [
-        str(path)
-        for path in sorted(glob.glob(os.path.join(test_meeting, "shared-*.tar")))
-    ]
-    cuts_test_meeting_webdataset = CutSet.from_webdataset(
-        test_meeting_shards,
-        split_by_worker=True,
-        split_by_node=True,
-        shuffle_shards=True,
-    )
+    #test_meeting_shards = [
+    #    str(path)
+    #    for path in sorted(glob.glob(os.path.join(test_meeting, "shared-*.tar")))
+    #]
+    #cuts_test_meeting_webdataset = CutSet.from_webdataset(
+    #    test_meeting_shards,
+    #    split_by_worker=True,
+    #    split_by_node=True,
+    #    shuffle_shards=True,
+    #)
 
-    dev_dl = wenetspeech.valid_dataloaders(cuts_dev_webdataset)
-    test_net_dl = wenetspeech.test_dataloaders(cuts_test_net_webdataset)
-    test_meeting_dl = wenetspeech.test_dataloaders(cuts_test_meeting_webdataset)
+    #dev_dl = wenetspeech.valid_dataloaders(cuts_dev_webdataset)
+    #test_net_dl = wenetspeech.test_dataloaders(cuts_test_net_webdataset)
+    #test_meeting_dl = wenetspeech.test_dataloaders(cuts_test_meeting_webdataset)
 
-    test_sets = ["DEV", "TEST_NET", "TEST_MEETING"]
-    test_dl = [dev_dl, test_net_dl, test_meeting_dl]
+    dev_cuts = wenetspeech.valid_cuts()
+    dev_dl = wenetspeech.valid_dataloaders(dev_cuts)
 
-    for test_set, test_dl in zip(test_sets, test_dl):
+    test_net_cuts = wenetspeech.test_net_cuts()
+    test_net_dl = wenetspeech.test_dataloaders(test_net_cuts)
+
+    test_meeting_cuts = wenetspeech.test_meeting_cuts()
+    test_meeting_dl = wenetspeech.test_dataloaders(test_meeting_cuts)
+
+    test_car_cuts = wenetspeech.test_car_cuts()
+    test_car_dl = wenetspeech.test_dataloaders(test_car_cuts)
+
+    # test_sets = ["CAR", "TEST_NET", "DEV", "TEST_MEETING"]
+    # test_dls = [test_car_dl, test_net_dl, dev_dl, test_meeting_dl]
+
+    test_sets = ["CAR", "TEST_NET", "TEST_MEETING"]
+    test_dls = [test_car_dl, test_net_dl, test_meeting_dl]
+
+    for test_set, test_dl in zip(test_sets, test_dls):
         results_dict = decode_dataset(
             dl=test_dl,
             params=params,
             model=model,
             lexicon=lexicon,
             decoding_graph=decoding_graph,
+            context_graph=context_graph,
         )
         save_results(
             params=params,

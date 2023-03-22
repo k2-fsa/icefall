@@ -913,7 +913,7 @@ def main():
             for line in open(params.context_file).readlines():
                 contexts.append(line.strip())
             context_graph = ContextGraph(params.context_score)
-            context_graph.build_context_graph(contexts, sp)
+            context_graph.build_context_graph_bpe(contexts, sp)
         else:
             context_graph = None
     else:
@@ -935,8 +935,11 @@ def main():
     test_book_cuts = librispeech.test_book_cuts()
     test_book_dl = librispeech.test_dataloaders(test_book_cuts)
 
-    test_sets = ["test-book", "test-clean", "test-other"]
-    test_dl = [test_book_dl, test_clean_dl, test_other_dl]
+    test_book2_cuts = librispeech.test_book2_cuts()
+    test_book2_dl = librispeech.test_dataloaders(test_book2_cuts)
+
+    test_sets = ["test-book", "test-book2", "test-clean", "test-other"]
+    test_dl = [test_book_dl, test_book2_dl, test_clean_dl, test_other_dl]
 
     for test_set, test_dl in zip(test_sets, test_dl):
         results_dict = decode_dataset(

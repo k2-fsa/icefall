@@ -453,6 +453,13 @@ class LibriSpeechAsrDataModule:
         )
 
     @lru_cache()
+    def test_book2_cuts(self) -> CutSet:
+        logging.info("About to get test-books2 cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "libri_books2_feats.jsonl.gz"
+        )
+
+    @lru_cache()
     def test_other_cuts(self) -> CutSet:
         logging.info("About to get test-other cuts")
         return load_manifest_lazy(
