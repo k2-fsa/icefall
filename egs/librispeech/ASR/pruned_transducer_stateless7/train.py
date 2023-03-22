@@ -378,9 +378,16 @@ def get_parser():
         "--p-limit-values",
         type=float,
         default=0.0,
-        help="""The probability (e.g., 0.1) to modify the update sign so as to prevent
-        absolute-values of any weight tensor from being over a certain percentile of
-        the distribution of that parameter tensor's absolute values""",
+        help="""The probability (e.g., 0.1) to modify the update sign, so as to limit the
+        parameter absolute values that are larger than 1-percentile_limit (e.g., 95%) percentile.""",
+    )
+
+    parser.add_argument(
+        "--percentile-limit",
+        type=float,
+        default=0.05,
+        help="""The parameter absolute values over 1-percentile_limit (e.g., 95%) percentile
+        will be limited.""",
     )
 
     add_model_arguments(parser)
@@ -1026,6 +1033,7 @@ def run(rank, world_size, args):
         clipping_scale=2.0,
         parameters_names=parameters_names,
         p_limit_values=params.p_limit_values,
+        percentile_limit=params.percentile_limit,
     )
 
     scheduler = Eden(optimizer, params.lr_batches, params.lr_epochs)
