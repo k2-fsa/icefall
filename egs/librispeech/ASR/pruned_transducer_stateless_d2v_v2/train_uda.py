@@ -1017,7 +1017,8 @@ def train_one_epoch(
         optimizer_enc, optimizer_dec = optimizer[0], optimizer[1]
         scheduler_enc, scheduler_dec = scheduler[0], scheduler[1]
 
-    for batch_idx, batch in enumerate(train_dl):
+    #for batch_idx, batch in enumerate(train_dl):
+    for batch_idx, batch in enumerate(zip(train_dl, train_dl_uda))
         if batch_idx < cur_batch_idx:
             continue
         cur_batch_idx = batch_idx
