@@ -967,7 +967,7 @@ def train_one_epoch(
     optimizer: torch.optim.Optimizer or [torch.optim.Optimizer, torch.optim.Optimizer],
     scheduler: LRSchedulerType or [LRSchedulerType, LRSchedulerType],
     sp: spm.SentencePieceProcessor,
-    train_dl: torch.utils.data.DataLoader,
+    train_dl: torch.utils.data.DataLoader or [torch.utils.data.DataLoader, torch.utils.data.DataLoader],
     valid_dl: torch.utils.data.DataLoader,
     scaler: GradScaler,
     model_avg: Optional[nn.Module] = None,
