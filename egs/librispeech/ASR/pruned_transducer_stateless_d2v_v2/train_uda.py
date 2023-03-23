@@ -1748,6 +1748,7 @@ def run_adapter_uda(rank, world_size, args, wb=None):
     optimizer, scheduler = optimizer_adapter, scheduler_adapter
     
     librispeech = LibriSpeechAsrDataModule(args)
+    librispeech_uda = LibriSpeechAsrDataModule(args)
     
     '''
     if params.hpo:
