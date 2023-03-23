@@ -1769,6 +1769,7 @@ def run_adapter_uda(rank, world_size, args, wb=None):
         return 1.0 <= c.duration <= 20.0
 
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
+    train_cuts_uda = train_cuts_uda.filter(remove_short_and_long_utt)
     
     sampler_state_dict = None
 
