@@ -21,7 +21,7 @@ import inspect
 import logging
 from functools import lru_cache
 from pathlib import Path
-from typing import List
+from typing import Any, Dict, List, Optional
 
 from lhotse import CutSet, Fbank, FbankConfig, load_manifest, load_manifest_lazy
 from lhotse.dataset import (
@@ -181,7 +181,18 @@ class AishellAsrDataModule:
             "with training dataset. ",
         )
 
-    def train_dataloaders(self, cuts_train: CutSet) -> DataLoader:
+    def train_dataloaders(
+        self,
+        cuts_train: CutSet,
+        sampler_state_dict: Optional[Dict[str, Any]] = None
+    ) -> DataLoader:
+        """
+        Args:
+          cuts_train:
+            CutSet for training.
+          sampler_state_dict:
+            The state dict for the training sampler.
+        """
         logging.info("About to get Musan cuts")
         cuts_musan = load_manifest(self.args.manifest_dir / "musan_cuts.jsonl.gz")
 
@@ -277,6 +288,10 @@ class AishellAsrDataModule:
             )
         logging.info("About to create train dataloader")
 
+        if sampler_state_dict is not None:
+            logging.info("Loading sampler state dict")
+            train_sampler.load_state_dict(sampler_state_dict)
+
         train_dl = DataLoader(
             train,
             sampler=train_sampler,
@@ -325,7 +340,7 @@ class AishellAsrDataModule:
         return valid_dl
 
     def test_dataloaders(self, cuts: CutSet) -> DataLoader:
-        logging.debug("About to create test dataset")
+        logging.info("About to create test dataset")
         test = K2SpeechRecognitionDataset(
             input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80)))
             if self.args.on_the_fly_feats

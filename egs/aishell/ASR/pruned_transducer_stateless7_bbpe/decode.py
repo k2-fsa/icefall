@@ -129,7 +129,7 @@ Usage:
 
 """
 
-
+import logging
 import argparse
 import logging
 import math
@@ -141,7 +141,7 @@ import k2
 import sentencepiece as spm
 import torch
 import torch.nn as nn
-from asr_datamodule import LibriSpeechAsrDataModule
+from asr_datamodule import AishellAsrDataModule
 from beam_search import (
     beam_search,
     fast_beam_search_nbest,
@@ -157,7 +157,7 @@ from beam_search import (
 )
 from train import add_model_arguments, get_params, get_transducer_model
 
-from icefall import LmScorer, NgramLm
+from icefall import LmScorer, NgramLm, smart_byte_decode
 from icefall.checkpoint import (
     average_checkpoints,
     average_checkpoints_with_averaged_model,
@@ -228,16 +228,16 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--bpe-model",
+        "--bbpe-model",
         type=str,
-        default="data/lang_bpe_500/bpe.model",
-        help="Path to the BPE model",
+        default="data/lang_bbpe_500/bbpe.model",
+        help="Path to the byte BPE model",
     )
 
     parser.add_argument(
         "--lang-dir",
         type=Path,
-        default="data/lang_bpe_500",
+        default="data/lang_bbpe_500",
         help="The lang dir containing word table and LG graph",
     )
 
@@ -504,7 +504,7 @@ def decode_one_batch(
             max_states=params.max_states,
         )
         for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
+            hyps.append(smart_byte_decode(hyp).split())
     elif params.decoding_method == "fast_beam_search_nbest_LG":
         hyp_tokens = fast_beam_search_nbest_LG(
             model=model,
@@ -554,8 +554,13 @@ def decode_one_batch(
             encoder_out=encoder_out,
             encoder_out_lens=encoder_out_lens,
         )
-        for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
+        i = 0
+        for hyp_token in hyp_tokens:
+            hyp = sp.decode(hyp_token)
+            hyp_p = sp.id_to_piece(hyp_token)
+            # logging.info(f"hyp : {hyp}, tokens : {hyp_tokens[i]}, hyp_p : {hyp_p}")
+            i += 1
+            hyps.append(smart_byte_decode(hyp).split())
     elif params.decoding_method == "modified_beam_search":
         hyp_tokens = modified_beam_search(
             model=model,
@@ -564,7 +569,7 @@ def decode_one_batch(
             beam=params.beam_size,
         )
         for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
+            hyps.append(smart_byte_decode(hyp).split())
     elif params.decoding_method == "modified_beam_search_lm_shallow_fusion":
         hyp_tokens = modified_beam_search_lm_shallow_fusion(
             model=model,
@@ -702,6 +707,7 @@ def decode_dataset(
             assert len(hyps) == len(texts)
             for cut_id, hyp_words, ref_text in zip(cut_ids, hyps, texts):
                 ref_words = ref_text.split()
+                # logging.info(f"ref : {ref_words}, hyp : {hyp_words}")
                 this_batch.append((cut_id, ref_words, hyp_words))
 
             results[name].extend(this_batch)
@@ -730,9 +736,14 @@ def save_results(
         # The following prints out WERs, per-word error statistics and aligned
         # ref/hyp pairs.
         errs_filename = params.res_dir / f"errs-{test_set_name}-{params.suffix}.txt"
+
+        results_char = []
+        for res in results:
+            results_char.append((res[0], list("".join(res[1])), list("".join(res[2]))))
+
         with open(errs_filename, "w") as f:
             wer = write_error_stats(
-                f, f"{test_set_name}-{key}", results, enable_log=True
+                f, f"{test_set_name}-{key}", results_char, enable_log=True
             )
             test_set_wers[key] = wer
 
@@ -756,7 +767,7 @@ def save_results(
 @torch.no_grad()
 def main():
     parser = get_parser()
-    LibriSpeechAsrDataModule.add_arguments(parser)
+    AishellAsrDataModule.add_arguments(parser)
     LmScorer.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
@@ -827,9 +838,9 @@ def main():
     logging.info(f"Device: {device}")
 
     sp = spm.SentencePieceProcessor()
-    sp.load(params.bpe_model)
+    sp.load(params.bbpe_model)
 
-    # <blk> and <unk> are defined in local/train_bpe_model.py
+    # <blk> and <unk> are defined in local/train_bbpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
     params.unk_id = sp.piece_to_id("<unk>")
     params.vocab_size = sp.get_piece_size()
@@ -974,18 +985,18 @@ def main():
 
     # we need cut ids to display recognition results.
     args.return_cuts = True
-    librispeech = LibriSpeechAsrDataModule(args)
+    aishell = AishellAsrDataModule(args)
 
-    test_clean_cuts = librispeech.test_clean_cuts()
-    test_other_cuts = librispeech.test_other_cuts()
+    test_cuts = aishell.test_cuts()
+    dev_cuts = aishell.valid_cuts()
 
-    test_clean_dl = librispeech.test_dataloaders(test_clean_cuts)
-    test_other_dl = librispeech.test_dataloaders(test_other_cuts)
+    test_dl = aishell.test_dataloaders(test_cuts)
+    dev_dl = aishell.test_dataloaders(dev_cuts)
 
-    test_sets = ["test-clean", "test-other"]
-    test_dl = [test_clean_dl, test_other_dl]
+    test_sets = ["test", "dev"]
+    test_dls = [test_dl, dev_dl]
 
-    for test_set, test_dl in zip(test_sets, test_dl):
+    for test_set, test_dl in zip(test_sets, test_dls):
         results_dict = decode_dataset(
             dl=test_dl,
             params=params,

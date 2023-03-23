@@ -8,6 +8,12 @@ from . import (
     utils
 )
 
+from .byte_utils import (
+    byte_decode,
+    byte_encode,
+    smart_byte_decode,
+)
+
 from .checkpoint import (
     average_checkpoints,
     find_checkpoints,
