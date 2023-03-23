@@ -56,7 +56,7 @@ import torch
 import torch.nn as nn
 from decoder import Decoder
 from scaling_converter import convert_scaled_to_non_scaled
-from train import add_model_arguments, get_params, get_transducer_model
+from train2 import add_model_arguments, get_params, get_transducer_model
 from zipformer import Zipformer
 
 from icefall.checkpoint import (
@@ -65,6 +65,7 @@ from icefall.checkpoint import (
     find_checkpoints,
     load_checkpoint,
 )
+from icefall.lexicon import Lexicon
 from icefall.utils import setup_logger, str2bool
 
 
@@ -122,10 +123,12 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--bpe-model",
+        "--lang-dir",
         type=str,
-        default="data/lang_bpe_500/bpe.model",
-        help="Path to the BPE model",
+        help="""The lang dir
+        It contains language related input files such as
+        "lexicon.txt"
+        """,
     )
 
     parser.add_argument(
@@ -400,12 +403,9 @@ def main():
 
     logging.info(f"device: {device}")
 
-    sp = spm.SentencePieceProcessor()
-    sp.load(params.bpe_model)
-
-    # <blk> is defined in local/train_bpe_model.py
-    params.blank_id = sp.piece_to_id("<blk>")
-    params.vocab_size = sp.get_piece_size()
+    lexicon = Lexicon(params.lang_dir)
+    params.blank_id = 0
+    params.vocab_size = max(lexicon.tokens) + 1
 
     logging.info(params)
 

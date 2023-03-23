@@ -26,7 +26,7 @@ Usage:
 
 ./pruned_transducer_stateless7/export.py \
   --exp-dir ./pruned_transducer_stateless7/exp \
-  --bpe-model data/lang_bpe_500/bpe.model \
+  --lang-dir data/lang_char \
   --epoch 30 \
   --avg 9 \
   --jit 1
@@ -45,7 +45,7 @@ for how to use the exported models outside of icefall.
 
 ./pruned_transducer_stateless7/export.py \
   --exp-dir ./pruned_transducer_stateless7/exp \
-  --bpe-model data/lang_bpe_500/bpe.model \
+  --lang-dir data/lang_char \
   --epoch 20 \
   --avg 10
 
@@ -65,21 +65,21 @@ you can do:
         --avg 1 \
         --max-duration 600 \
         --decoding-method greedy_search \
-        --bpe-model data/lang_bpe_500/bpe.model
+        --lang-dir data/lang_char
 
 Check ./pretrained.py for its usage.
 
 Note: If you don't want to train a model from scratch, we have
 provided one for you. You can get it at
 
-https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11
+https://huggingface.co/marcoyang/icefall-asr-aishell-zipformer-pruned-transducer-stateless7-2023-03-21
 
 with the following commands:
 
     sudo apt-get install git-lfs
     git lfs install
-    git clone https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11
-    # You will find the pre-trained model in icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11/exp
+    git clone https://huggingface.co/marcoyang/icefall-asr-aishell-zipformer-pruned-transducer-stateless7-2023-03-21
+    # You will find the pre-trained model in icefall-asr-aishell-zipformer-pruned-transducer-stateless7-2023-03-21exp
 """
 
 import argparse
@@ -90,7 +90,7 @@ import sentencepiece as spm
 import torch
 import torch.nn as nn
 from scaling_converter import convert_scaled_to_non_scaled
-from train import add_model_arguments, get_params, get_transducer_model
+from train2 import add_model_arguments, get_params, get_transducer_model
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -98,6 +98,7 @@ from icefall.checkpoint import (
     find_checkpoints,
     load_checkpoint,
 )
+from icefall.lexicon import Lexicon
 from icefall.utils import str2bool
 
 
@@ -155,10 +156,13 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--bpe-model",
+        "--lang-dir",
         type=str,
-        default="data/lang_bpe_500/bpe.model",
-        help="Path to the BPE model",
+        default="data/lang_char",
+        help="""The lang dir
+        It contains language related input files such as
+        "lexicon.txt"
+        """,
     )
 
     parser.add_argument(
@@ -175,7 +179,7 @@ def get_parser():
     parser.add_argument(
         "--context-size",
         type=int,
-        default=2,
+        default=1,
         help="The context size in the decoder. 1 means bigram; 2 means tri-gram",
     )
 
@@ -198,12 +202,9 @@ def main():
 
     logging.info(f"device: {device}")
 
-    sp = spm.SentencePieceProcessor()
-    sp.load(params.bpe_model)
-
-    # <blk> is defined in local/train_bpe_model.py
-    params.blank_id = sp.piece_to_id("<blk>")
-    params.vocab_size = sp.get_piece_size()
+    lexicon = Lexicon(params.lang_dir)
+    params.blank_id = 0
+    params.vocab_size = max(lexicon.tokens) + 1
 
     logging.info(params)
 

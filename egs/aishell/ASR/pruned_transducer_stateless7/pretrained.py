@@ -20,7 +20,7 @@ You can generate the checkpoint with the following command:
 
 ./pruned_transducer_stateless7/export.py \
   --exp-dir ./pruned_transducer_stateless7/exp \
-  --bpe-model data/lang_bpe_500/bpe.model \
+  --lang-dir data/lang_char \
   --epoch 20 \
   --avg 10
 
@@ -29,7 +29,7 @@ Usage of this script:
 (1) greedy search
 ./pruned_transducer_stateless7/pretrained.py \
     --checkpoint ./pruned_transducer_stateless7/exp/pretrained.pt \
-    --bpe-model ./data/lang_bpe_500/bpe.model \
+    --lang-dir ./data/lang_char \
     --method greedy_search \
     /path/to/foo.wav \
     /path/to/bar.wav
@@ -37,7 +37,7 @@ Usage of this script:
 (2) beam search
 ./pruned_transducer_stateless7/pretrained.py \
     --checkpoint ./pruned_transducer_stateless7/exp/pretrained.pt \
-    --bpe-model ./data/lang_bpe_500/bpe.model \
+    --lang-dir ./data/lang_char \
     --method beam_search \
     --beam-size 4 \
     /path/to/foo.wav \
@@ -46,7 +46,7 @@ Usage of this script:
 (3) modified beam search
 ./pruned_transducer_stateless7/pretrained.py \
     --checkpoint ./pruned_transducer_stateless7/exp/pretrained.pt \
-    --bpe-model ./data/lang_bpe_500/bpe.model \
+    --lang-dir ./data/lang_char \
     --method modified_beam_search \
     --beam-size 4 \
     /path/to/foo.wav \
@@ -55,7 +55,7 @@ Usage of this script:
 (4) fast beam search
 ./pruned_transducer_stateless7/pretrained.py \
     --checkpoint ./pruned_transducer_stateless7/exp/pretrained.pt \
-    --bpe-model ./data/lang_bpe_500/bpe.model \
+    --lang-dir ./data/lang_char \
     --method fast_beam_search \
     --beam-size 4 \
     /path/to/foo.wav \
@@ -88,6 +88,7 @@ from beam_search import (
 from torch.nn.utils.rnn import pad_sequence
 from train import add_model_arguments, get_params, get_transducer_model
 
+from icefall.lexicon import Lexicon
 from icefall.utils import str2bool
 
 
@@ -106,9 +107,12 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--bpe-model",
+        "--lang-dir",
         type=str,
-        help="""Path to bpe.model.""",
+        help="""The lang dir
+        It contains language related input files such as
+        "lexicon.txt"
+        """,
     )
 
     parser.add_argument(
@@ -225,13 +229,10 @@ def main():
 
     params.update(vars(args))
 
-    sp = spm.SentencePieceProcessor()
-    sp.load(params.bpe_model)
-
-    # <blk> is defined in local/train_bpe_model.py
-    params.blank_id = sp.piece_to_id("<blk>")
-    params.unk_id = sp.piece_to_id("<unk>")
-    params.vocab_size = sp.get_piece_size()
+    lexicon = Lexicon(params.lang_dir)
+    params.blank_id = 0
+    params.vocab_size = max(lexicon.tokens) + 1
+    token_table = lexicon.token_table
 
     logging.info(f"{params}")
 
@@ -297,8 +298,6 @@ def main():
             max_contexts=params.max_contexts,
             max_states=params.max_states,
         )
-        for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
     elif params.method == "modified_beam_search":
         hyp_tokens = modified_beam_search(
             model=model,
@@ -306,30 +305,25 @@ def main():
             encoder_out_lens=encoder_out_lens,
             beam=params.beam_size,
         )
-
-        for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
     elif params.method == "greedy_search" and params.max_sym_per_frame == 1:
         hyp_tokens = greedy_search_batch(
             model=model,
             encoder_out=encoder_out,
             encoder_out_lens=encoder_out_lens,
         )
-        for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
     else:
         for i in range(num_waves):
             # fmt: off
             encoder_out_i = encoder_out[i:i+1, :encoder_out_lens[i]]
             # fmt: on
             if params.method == "greedy_search":
-                hyp = greedy_search(
+                hyp_tokens = greedy_search(
                     model=model,
                     encoder_out=encoder_out_i,
                     max_sym_per_frame=params.max_sym_per_frame,
                 )
             elif params.method == "beam_search":
-                hyp = beam_search(
+                hyp_tokens = beam_search(
                     model=model,
                     encoder_out=encoder_out_i,
                     beam=params.beam_size,
@@ -337,8 +331,7 @@ def main():
             else:
                 raise ValueError(f"Unsupported method: {params.method}")
 
-            hyps.append(sp.decode(hyp).split())
-
+    hyps = [[token_table[t] for t in tokens] for tokens in hyp_tokens]
     s = "\n"
     for filename, hyp in zip(params.sound_files, hyps):
         words = " ".join(hyp)

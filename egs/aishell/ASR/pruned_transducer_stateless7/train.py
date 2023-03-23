@@ -89,6 +89,7 @@ from icefall.checkpoint import (
 )
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
+from icefall.hooks import register_inf_check_hooks
 from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
@@ -108,6 +109,7 @@ def set_batch_count(model: Union[nn.Module, DDP], batch_count: float) -> None:
     for module in model.modules():
         if hasattr(module, "batch_count"):
             module.batch_count = batch_count
+
 
 def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
@@ -332,7 +334,7 @@ def get_parser():
         default=False,
         help="Accumulate stats on activations, print them and exit.",
     )
-    
+
     parser.add_argument(
         "--inf-check",
         type=str2bool,
@@ -670,7 +672,7 @@ def compute_loss(
     max_frames = params.max_duration * 1000 // params.frame_shift_ms
     allowed_max_frames = int(max_frames * (1.0 + params.allowed_excess_duration_ratio))
     batch = filter_uneven_sized_batch(batch, allowed_max_frames)
-    
+
     device = model.device if isinstance(model, DDP) else next(model.parameters()).device
     feature = batch["inputs"]
     # at entry, feature is (N, T, C)
@@ -682,7 +684,7 @@ def compute_loss(
 
     batch_idx_train = params.batch_idx_train
     warm_step = params.warm_step
-    
+
     texts = batch["supervisions"]["text"]
     y = graph_compiler.texts_to_ids(texts)
     y = k2.RaggedTensor(y).to(device)
@@ -696,7 +698,7 @@ def compute_loss(
             am_scale=params.am_scale,
             lm_scale=params.lm_scale,
         )
-        
+
         s = params.simple_loss_scale
         simple_loss_scale = (
             s
@@ -807,7 +809,7 @@ def train_one_epoch(
     model.train()
 
     tot_loss = MetricsTracker()
-    
+
     cur_batch_idx = params.get("cur_batch_idx", 0)
 
     for batch_idx, batch in enumerate(train_dl):
@@ -835,7 +837,7 @@ def train_one_epoch(
             scaler.scale(loss).backward()
             set_batch_count(model, params.batch_idx_train)
             scheduler.step_batch(params.batch_idx_train)
-            
+
             scaler.step(optimizer)
             scaler.update()
             optimizer.zero_grad()
@@ -1047,7 +1049,7 @@ def run(rank, world_size, args):
 
     if params.inf_check:
         register_inf_check_hooks(model)
-        
+
     def remove_short_and_long_utt(c: Cut):
         # Keep only utterances with duration between 1 second and 20 seconds
         #
@@ -1084,7 +1086,7 @@ def run(rank, world_size, args):
         #     return False
 
         return True
-        
+
     aishell = AIShell(manifest_dir=args.manifest_dir)
     train_cuts = aishell.train_cuts()
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
@@ -1102,12 +1104,12 @@ def run(rank, world_size, args):
         sampler_state_dict = checkpoints["sampler"]
     else:
         sampler_state_dict = None
-    
+
     train_dl = asr_datamodule.train_dataloaders(
         train_cuts,
         on_the_fly_feats=False,
         cuts_musan=cuts_musan,
-        sampler_state_dict=sampler_state_dict
+        sampler_state_dict=sampler_state_dict,
     )
 
     valid_cuts = aishell.valid_cuts()
