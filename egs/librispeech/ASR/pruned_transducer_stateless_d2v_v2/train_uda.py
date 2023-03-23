@@ -1016,9 +1016,12 @@ def train_one_epoch(
     if params.multi_optim:
         optimizer_enc, optimizer_dec = optimizer[0], optimizer[1]
         scheduler_enc, scheduler_dec = scheduler[0], scheduler[1]
-
+    
+    if type(train_dl) == list:
+        train_dl_uda = train_dl[1]
+        train_dl = train_dl[0]
     #for batch_idx, batch in enumerate(train_dl):
-    for batch_idx, batch in enumerate(zip(train_dl, train_dl_uda))
+    for batch_idx, batch in enumerate(zip(train_dl, train_dl_uda)):
         if batch_idx < cur_batch_idx:
             continue
         cur_batch_idx = batch_idx
