@@ -1777,7 +1777,7 @@ def run_adapter_uda(rank, world_size, args, wb=None):
         train_cuts, sampler_state_dict=sampler_state_dict
     )
     train_dl_uda = librispeech.train_dataloaders(
-        train_cuts, sampler_state_dict=sampler_state_dict
+        train_cuts_uda, sampler_state_dict=sampler_state_dict
     )
 
     #train_dl = librispeech.test_dataloaders(
