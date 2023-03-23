@@ -25,6 +25,7 @@ done
 #done
 #--model-name d2v-base-T.pt \
 #--exp-dir ./pruned_transducer_stateless_d2v_v2 \
+
 #--model-name epoch-30.pt \
 #--exp-dir ./pruned_transducer_stateless_d2v_v2/"$spk_id"_adapter \
 
