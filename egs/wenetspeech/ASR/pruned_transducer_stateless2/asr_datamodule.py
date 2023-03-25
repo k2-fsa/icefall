@@ -46,9 +46,6 @@ from torch.utils.data import DataLoader
 
 from icefall.utils import str2bool
 
-set_caching_enabled(False)
-torch.set_num_threads(1)
-
 
 class _SeedWorkers:
     def __init__(self, seed: int):
@@ -348,24 +345,18 @@ class WenetSpeechAsrDataModule:
                 cut_transforms=transforms,
                 return_cuts=self.args.return_cuts,
             )
+
         valid_sampler = DynamicBucketingSampler(
             cuts_valid,
             max_duration=self.args.max_duration,
-            rank=0,
-            world_size=1,
             shuffle=False,
         )
         logging.info("About to create dev dataloader")
 
-        from lhotse.dataset.iterable_dataset import IterableDatasetWrapper
-
-        dev_iter_dataset = IterableDatasetWrapper(
-            dataset=validate,
-            sampler=valid_sampler,
-        )
         valid_dl = DataLoader(
-            dev_iter_dataset,
+            validate,
             batch_size=None,
+            sampler=valid_sampler,
             num_workers=self.args.num_workers,
             persistent_workers=False,
         )
@@ -383,19 +374,13 @@ class WenetSpeechAsrDataModule:
         sampler = DynamicBucketingSampler(
             cuts,
             max_duration=self.args.max_duration,
-            rank=0,
-            world_size=1,
             shuffle=False,
         )
-        from lhotse.dataset.iterable_dataset import IterableDatasetWrapper
 
-        test_iter_dataset = IterableDatasetWrapper(
-            dataset=test,
-            sampler=sampler,
-        )
         test_dl = DataLoader(
-            test_iter_dataset,
+            test,
             batch_size=None,
+            sampler=sampler,
             num_workers=self.args.num_workers,
         )
         return test_dl
