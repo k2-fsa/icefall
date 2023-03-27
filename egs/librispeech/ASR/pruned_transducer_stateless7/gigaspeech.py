@@ -20,17 +20,10 @@ import inspect
 import logging
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 import torch
-from lhotse import (
-    CutSet,
-    Fbank,
-    FbankConfig,
-    load_manifest,
-    load_manifest_lazy,
-    set_caching_enabled,
-)
+from lhotse import CutSet, Fbank, FbankConfig, load_manifest, load_manifest_lazy
 from lhotse.dataset import (
     CutConcatenate,
     CutMix,
@@ -55,12 +48,13 @@ class _SeedWorkers:
         fix_random_seed(self.seed + worker_id)
 
 
-class WenetSpeechAsrDataModule:
+class GigaSpeechAsrDataModule:
     """
     DataModule for k2 ASR experiments.
     It assumes there is always one train and valid dataloader,
     but there can be multiple test dataloaders (e.g. LibriSpeech test-clean
     and test-other).
+
     It contains all the common data pipeline modules used in ASR
     experiments, e.g.:
     - dynamic batch size,
@@ -68,6 +62,7 @@ class WenetSpeechAsrDataModule:
     - cut concatenation,
     - augmentation,
     - on-the-fly feature extraction
+
     This class should be derived for specific corpora used in ASR tasks.
     """
 
@@ -106,7 +101,7 @@ class WenetSpeechAsrDataModule:
         group.add_argument(
             "--num-buckets",
             type=int,
-            default=300,
+            default=30,
             help="The number of buckets for the DynamicBucketingSampler"
             "(you might want to increase it for larger datasets).",
         )
@@ -185,15 +180,22 @@ class WenetSpeechAsrDataModule:
             "--enable-musan",
             type=str2bool,
             default=True,
-            help="When enabled, select noise from MUSAN and mix it"
+            help="When enabled, select noise from MUSAN and mix it "
             "with training dataset. ",
         )
 
+        # GigaSpeech specific arguments
         group.add_argument(
-            "--training-subset",
+            "--subset",
             type=str,
-            default="L",
-            help="The training subset for using",
+            default="XL",
+            help="Select the GigaSpeech subset (XS|S|M|L|XL)",
+        )
+        group.add_argument(
+            "--small-dev",
+            type=str2bool,
+            default=False,
+            help="Should we use only 1000 utterances for dev (speeds up training)",
         )
 
     def train_dataloaders(
@@ -208,12 +210,12 @@ class WenetSpeechAsrDataModule:
           sampler_state_dict:
             The state dict for the training sampler.
         """
-        logging.info("About to get Musan cuts")
-        cuts_musan = load_manifest(self.args.manifest_dir / "musan_cuts.jsonl.gz")
 
         transforms = []
         if self.args.enable_musan:
             logging.info("Enable MUSAN")
+            logging.info("About to get Musan cuts")
+            cuts_musan = load_manifest(self.args.manifest_dir / "musan_cuts.jsonl.gz")
             transforms.append(
                 CutMix(cuts=cuts_musan, prob=0.5, snr=(10, 20), preserve_id=True)
             )
@@ -292,7 +294,6 @@ class WenetSpeechAsrDataModule:
                 max_duration=self.args.max_duration,
                 shuffle=self.args.shuffle,
                 num_buckets=self.args.num_buckets,
-                buffer_size=30000,
                 drop_last=True,
             )
         else:
@@ -303,6 +304,10 @@ class WenetSpeechAsrDataModule:
                 shuffle=self.args.shuffle,
             )
         logging.info("About to create train dataloader")
+
+        if sampler_state_dict is not None:
+            logging.info("Loading sampler state dict")
+            train_sampler.load_state_dict(sampler_state_dict)
 
         # 'seed' is derived from the current random state, which will have
         # previously been set in the main process.
@@ -317,10 +322,6 @@ class WenetSpeechAsrDataModule:
             persistent_workers=False,
             worker_init_fn=worker_init_fn,
         )
-
-        if sampler_state_dict is not None:
-            logging.info("Loading sampler state dict")
-            train_dl.sampler.load_state_dict(sampler_state_dict)
 
         return train_dl
 
@@ -345,19 +346,17 @@ class WenetSpeechAsrDataModule:
                 cut_transforms=transforms,
                 return_cuts=self.args.return_cuts,
             )
-
         valid_sampler = DynamicBucketingSampler(
             cuts_valid,
             max_duration=self.args.max_duration,
             shuffle=False,
         )
         logging.info("About to create dev dataloader")
-
         valid_dl = DataLoader(
             validate,
-            batch_size=None,
             sampler=valid_sampler,
-            num_workers=self.args.num_workers,
+            batch_size=None,
+            num_workers=2,
             persistent_workers=False,
         )
 
@@ -376,7 +375,7 @@ class WenetSpeechAsrDataModule:
             max_duration=self.args.max_duration,
             shuffle=False,
         )
-
+        logging.debug("About to create test dataloader")
         test_dl = DataLoader(
             test,
             batch_size=None,
@@ -387,23 +386,21 @@ class WenetSpeechAsrDataModule:
 
     @lru_cache()
     def train_cuts(self) -> CutSet:
-        logging.info("About to get train cuts")
-        cuts_train = load_manifest_lazy(
-            self.args.manifest_dir / f"cuts_{self.args.training_subset}.jsonl.gz"
-        )
+        logging.info(f"About to get train_{self.args.subset} cuts")
+        path = self.args.manifest_dir / f"cuts_{self.args.subset}.jsonl.gz"
+        cuts_train = CutSet.from_jsonl_lazy(path)
         return cuts_train
 
     @lru_cache()
-    def valid_cuts(self) -> CutSet:
+    def dev_cuts(self) -> CutSet:
         logging.info("About to get dev cuts")
-        return load_manifest_lazy(self.args.manifest_dir / "cuts_DEV.jsonl.gz")
+        cuts_valid = load_manifest_lazy(self.args.manifest_dir / "cuts_DEV.jsonl.gz")
+        if self.args.small_dev:
+            return cuts_valid.subset(first=1000)
+        else:
+            return cuts_valid
 
     @lru_cache()
-    def test_net_cuts(self) -> List[CutSet]:
-        logging.info("About to get TEST_NET cuts")
-        return load_manifest_lazy(self.args.manifest_dir / "cuts_TEST_NET.jsonl.gz")
-
-    @lru_cache()
-    def test_meeting_cuts(self) -> List[CutSet]:
-        logging.info("About to get TEST_MEETING cuts")
-        return load_manifest_lazy(self.args.manifest_dir / "cuts_TEST_MEETING.jsonl.gz")
+    def test_cuts(self) -> CutSet:
+        logging.info("About to get test cuts")
+        return load_manifest_lazy(self.args.manifest_dir / "cuts_TEST.jsonl.gz")

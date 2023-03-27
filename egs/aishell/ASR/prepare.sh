@@ -7,7 +7,7 @@ set -eou pipefail
 
 nj=15
 stage=-1
-stop_stage=10
+stop_stage=11
 
 # We assume dl_dir (download dir) contains the following
 # directories and files. If not, they will be downloaded
@@ -218,4 +218,94 @@ if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
   log "Stage 8: Compile HLG"
   ./local/compile_hlg.py --lang-dir $lang_phone_dir
   ./local/compile_hlg.py --lang-dir $lang_char_dir
+fi
+
+if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
+  log "Stage 9: Generate LM training data"
+
+  log "Processing char based data"
+  out_dir=data/lm_training_char
+  mkdir -p $out_dir $dl_dir/lm
+
+  if [ ! -f $dl_dir/lm/aishell-train-word.txt ]; then
+    cp $lang_phone_dir/transcript_words.txt $dl_dir/lm/aishell-train-word.txt
+  fi
+
+  ./local/prepare_char_lm_training_data.py \
+    --lang-char data/lang_char \
+    --lm-data $dl_dir/lm/aishell-train-word.txt \
+    --lm-archive $out_dir/lm_data.pt
+
+  if [ ! -f $dl_dir/lm/aishell-valid-word.txt ]; then
+    aishell_text=$dl_dir/aishell/data_aishell/transcript/aishell_transcript_v0.8.txt
+    aishell_valid_uid=$dl_dir/aishell/data_aishell/transcript/aishell_valid_uid
+    find $dl_dir/aishell/data_aishell/wav/dev -name "*.wav" | sed 's/\.wav//g' | awk -F '/' '{print $NF}' > $aishell_valid_uid
+    awk 'NR==FNR{uid[$1]=$1} NR!=FNR{if($1 in uid) print $0}' $aishell_valid_uid $aishell_text |
+	    cut -d " " -f 2- > $dl_dir/lm/aishell-valid-word.txt
+  fi
+
+  ./local/prepare_char_lm_training_data.py \
+    --lang-char data/lang_char \
+    --lm-data $dl_dir/lm/aishell-valid-word.txt \
+    --lm-archive $out_dir/lm_data_valid.pt
+
+  if [ ! -f $dl_dir/lm/aishell-test-word.txt ]; then
+    aishell_text=$dl_dir/aishell/data_aishell/transcript/aishell_transcript_v0.8.txt
+    aishell_test_uid=$dl_dir/aishell/data_aishell/transcript/aishell_test_uid
+    find $dl_dir/aishell/data_aishell/wav/test -name "*.wav" | sed 's/\.wav//g' | awk -F '/' '{print $NF}' > $aishell_test_uid
+    awk 'NR==FNR{uid[$1]=$1} NR!=FNR{if($1 in uid) print $0}' $aishell_test_uid $aishell_text |
+	    cut -d " " -f 2- > $dl_dir/lm/aishell-test-word.txt
+  fi
+
+  ./local/prepare_char_lm_training_data.py \
+    --lang-char data/lang_char \
+    --lm-data $dl_dir/lm/aishell-test-word.txt \
+    --lm-archive $out_dir/lm_data_test.pt
+fi
+
+
+if [ $stage -le 10 ] && [ $stop_stage -ge 10 ]; then
+  log "Stage 10: Sort LM training data"
+  # Sort LM training data by sentence length in descending order
+  # for ease of training.
+  #
+  # Sentence length equals to the number of tokens
+  # in a sentence.
+
+  out_dir=data/lm_training_char
+  mkdir -p $out_dir
+  ln -snf ../../../librispeech/ASR/local/sort_lm_training_data.py local/
+  
+  ./local/sort_lm_training_data.py \
+    --in-lm-data $out_dir/lm_data.pt \
+    --out-lm-data $out_dir/sorted_lm_data.pt \
+    --out-statistics $out_dir/statistics.txt
+
+  ./local/sort_lm_training_data.py \
+    --in-lm-data $out_dir/lm_data_valid.pt \
+    --out-lm-data $out_dir/sorted_lm_data-valid.pt \
+    --out-statistics $out_dir/statistics-valid.txt
+
+  ./local/sort_lm_training_data.py \
+    --in-lm-data $out_dir/lm_data_test.pt \
+    --out-lm-data $out_dir/sorted_lm_data-test.pt \
+    --out-statistics $out_dir/statistics-test.txt
+fi
+
+if [ $stage -le 11 ] && [ $stop_stage -ge 11 ]; then
+  log "Stage 11: Train RNN LM model"
+  python ../../../icefall/rnn_lm/train.py \
+    --start-epoch 0 \
+    --world-size 1 \
+    --num-epochs 20 \
+    --use-fp16 0 \
+    --embedding-dim 512 \
+    --hidden-dim 512 \
+    --num-layers 2 \
+    --batch-size 400 \
+    --exp-dir rnnlm_char/exp \
+    --lm-data data/lm_training_char/sorted_lm_data.pt \
+    --lm-data-valid data/lm_training_char/sorted_lm_data-valid.pt \
+    --vocab-size 4336 \
+    --master-port 12345
 fi
