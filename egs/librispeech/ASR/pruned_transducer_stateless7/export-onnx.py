@@ -291,6 +291,16 @@ def export_encoder_model_onnx(
         },
     )
 
+    meta_data = {
+        "model_type": "zipformer",
+        "version": "1",
+        "model_author": "k2-fsa",
+        "comment": "stateless7",
+    }
+    logging.info(f"meta_data: {meta_data}")
+
+    add_meta_data(filename=encoder_filename, meta_data=meta_data)
+
 
 def export_decoder_model_onnx(
     decoder_model: OnnxDecoder,
