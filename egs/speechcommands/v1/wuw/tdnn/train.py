@@ -194,7 +194,7 @@ def get_params() -> AttributeDict:
                 "right",
                 "stop",
                 "up",
-                "yes"
+                "yes",
             ],
             "wakeup_word_tokens": [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
             # parameters for Optimizer
