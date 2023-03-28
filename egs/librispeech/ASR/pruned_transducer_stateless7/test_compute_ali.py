@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright 2021-2022 Xiaomi Corporation (Author: Fangjun Kuang,
+# Copyright 2021-2023 Xiaomi Corporation (Author: Fangjun Kuang,
 #                                                 Zengwei Yao)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
@@ -99,13 +99,11 @@ def main():
 
     all_time_diffs = []
     for cut_out, cut_ref in zip(cuts_out, cuts_ref):
-        time_out = [ali.start for ali in cut_out.supervisions[0].alignment["word"]]
-        time_ref = [ali.start for ali in cut_ref.supervisions[0].alignment["word"]]
-        # print(
-        #     [round(abs(out - ref), ndigits=3) for out, ref in zip(time_out, time_ref)]
-        # )
+        time_out = [ali.start for ali in cut_out.supervisions[0].alignment["word"] if ali.symbol != ""]
+        time_ref = [ali.start for ali in cut_ref.supervisions[0].alignment["word"] if ali.symbol != ""]
         assert len(time_out) == len(time_ref), (len(time_out), len(time_ref))
-        all_time_diffs += [abs(out - ref) for out, ref in zip(time_out, time_ref)][4:]
+        diff = [round(abs(out - ref), ndigits=3) for out, ref in zip(time_out, time_ref)]
+        all_time_diffs += diff
 
     all_time_diffs = torch.tensor(all_time_diffs)
     logging.info(

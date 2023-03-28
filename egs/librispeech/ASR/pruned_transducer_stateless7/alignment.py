@@ -16,13 +16,12 @@
 # limitations under the License.
 
 
-from dataclasses import dataclass
-from typing import Iterator, List, Optional
+from typing import List
 
 import k2
 import torch
 
-from beam_search import get_hyps_shape
+from beam_search import Hypothesis, HypothesisList, get_hyps_shape
 
 # The force alignment problem can be formulated as finding
 # a path in a rectangular lattice, where the path starts
@@ -38,67 +37,6 @@ from beam_search import get_hyps_shape
 #
 # It assumes the maximum number of symbols that can be
 # emitted per frame is 1.
-
-
-# AlignItem is the ending node of a path originated from the starting node.
-# len(ys) equals to `t` and pos_u is the u coordinate
-# in the lattice.
-@dataclass
-class AlignItem:
-    # total log prob of the path that ends at this item.
-    # The path is originated from the starting node.
-    log_prob: torch.Tensor
-
-    # It contains framewise token alignment
-    ys: List[int]
-
-    # frame_ids[i] is the frame index after subsampling
-    # on which ys[i] is decoded
-    frame_ids: List[int]
-
-
-class AlignItemList:
-    def __init__(self, items: Optional[List[AlignItem]] = None):
-        """
-        Args:
-          items:
-            A list of AlignItem
-        """
-        if items is None:
-            items = []
-        self.data = items
-
-    def __iter__(self) -> Iterator:
-        return iter(self.data)
-
-    def __len__(self) -> int:
-        """Return the number of AlignItem in this object."""
-        return len(self.data)
-
-    def __getitem__(self, i: int) -> AlignItem:
-        """Return the i-th item in this object."""
-        return self.data[i]
-
-    def append(self, item: AlignItem) -> None:
-        """Append an item to the end of this object."""
-        self.data.append(item)
-
-    def topk(self, k: int) -> "AlignItemList":
-        """Return the top-k items.
-
-        Items are ordered by their log probs in descending order
-        and the top-k items are returned.
-
-        Args:
-          k:
-            Size of top-k.
-        Returns:
-          Return a new AlignItemList that contains the top-k items
-          in this object. Caution: It uses shallow copy.
-        """
-        items = list(self)
-        items = sorted(items, key=lambda i: i.log_prob, reverse=True)
-        return AlignItemList(items[:k])
 
 
 def batch_force_alignment(
@@ -159,13 +97,13 @@ def batch_force_alignment(
     sorted_ys_lens = [ys_lens[i] for i in sorted_indices]
     sorted_ys_list = [ys_list[i] for i in sorted_indices]
 
-    B = [AlignItemList() for _ in range(N)]
+    B = [HypothesisList() for _ in range(N)]
     for i in range(N):
-        B[i].append(
-            AlignItem(
+        B[i].add(
+            Hypothesis(
                 ys=[blank_id] * context_size,
                 log_prob=torch.zeros(1, dtype=torch.float32, device=device),
-                frame_ids=[],
+                timestamp=[],
             )
         )
 
@@ -189,7 +127,7 @@ def batch_force_alignment(
         hyps_shape = get_hyps_shape(B).to(device)
 
         A = [list(b) for b in B]
-        B = [AlignItemList() for _ in range(batch_size)]
+        B = [HypothesisList() for _ in range(batch_size)]
 
         ys_log_probs = torch.cat(
             [hyp.log_prob.reshape(1, 1) for hyps in A for hyp in hyps]
@@ -233,36 +171,36 @@ def batch_force_alignment(
 
         for i in range(batch_size):
             for h, hyp in enumerate(A[i]):
-                pos_u = len(hyp.frame_ids)
+                pos_u = len(hyp.timestamp)
                 idx_offset = h * vocab_size
                 if (sorted_encoder_out_lens[i] - 1 - t) >= (sorted_ys_lens[i] - pos_u):
                     # emit blank token
-                    new_hyp = AlignItem(
+                    new_hyp = Hypothesis(
                         log_prob=ragged_log_probs[i][idx_offset + blank_id],
                         ys=hyp.ys[:],
-                        frame_ids=hyp.frame_ids[:],
+                        timestamp=hyp.timestamp[:],
                     )
-                    B[i].append(new_hyp)
+                    B[i].add(new_hyp)
                 if pos_u < sorted_ys_lens[i]:
                     # emit non-blank token
                     new_token = sorted_ys_list[i][pos_u]
-                    new_hyp = AlignItem(
+                    new_hyp = Hypothesis(
                         log_prob=ragged_log_probs[i][idx_offset + new_token],
                         ys=hyp.ys + [new_token],
-                        frame_ids=hyp.frame_ids + [t],
+                        timestamp=hyp.timestamp + [t],
                     )
-                    B[i].append(new_hyp)
+                    B[i].add(new_hyp)
 
             if len(B[i]) > beam_size:
-                B[i] = B[i].topk(beam_size)
+                B[i] = B[i].topk(beam_size, length_norm=True)
 
     B = B + finalized_B
-    sorted_hyps = [b.topk(1)[0] for b in B]
+    sorted_hyps = [b.get_most_probable() for b in B]
     unsorted_indices = packed_encoder_out.unsorted_indices.tolist()
     hyps = [sorted_hyps[i] for i in unsorted_indices]
     ans = []
     for i, hyp in enumerate(hyps):
         assert hyp.ys[context_size:] == ys_list[i], (hyp.ys[context_size:], ys_list[i])
-        ans.append(hyp.frame_ids)
+        ans.append(hyp.timestamp)
 
     return ans
