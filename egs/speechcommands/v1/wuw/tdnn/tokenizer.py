@@ -39,7 +39,7 @@ class WakeupWordTokenizer(object):
         ), f"0 is kept for blank. Please Remove 0 from {wakeup_word_tokens}"
         assert 1 not in wakeup_word_tokens, (
             f"1 is kept for unknown and negative samples. "
-            f" Please Remove 1 from {wakeup_word_token}"
+            f" Please Remove 1 from {wakeup_word_tokens}"
         )
         self.wakeup_words = wakeup_words
         self.wakeup_word_tokens = dict(zip(wakeup_words, wakeup_word_tokens))
