@@ -1306,6 +1306,31 @@ def tokenize_by_bpe_model(
     return txt_with_bpe
 
 
+def tokenize_by_CJK_char(line: str) -> str:
+    """
+    Tokenize a line of text with CJK char.
+
+    Note: All return charaters will be upper case.
+
+    Example:
+      input = "你好世界是 hello world 的中文"
+      output = "你 好 世 界 是 HELLO WORLD 的 中 文"
+
+    Args:
+      line:
+        The input text.
+
+    Return:
+      A new string tokenize by CJK char.
+    """
+    # The CJK ranges is from https://github.com/alvations/nltk/blob/79eed6ddea0d0a2c212c1060b477fc268fec4d4b/nltk/tokenize/util.py
+    pattern = re.compile(
+        r"([\u1100-\u11ff\u2e80-\ua4cf\ua840-\uD7AF\uF900-\uFAFF\uFE30-\uFE4F\uFF65-\uFFDC\U00020000-\U0002FFFF])"
+    )
+    chars = pattern.split(line.strip().upper())
+    return " ".join([w.strip() for w in chars if w.strip()])
+
+
 def display_and_save_batch(
     batch: dict,
     params: AttributeDict,
@@ -1764,3 +1789,34 @@ def parse_fsa_timestamps_and_texts(
         utt_time_pairs.append(list(zip(start, end)))
 
     return utt_time_pairs, utt_words
+
+
+# Copied from https://github.com/alvations/nltk/blob/79eed6ddea0d0a2c212c1060b477fc268fec4d4b/nltk/tokenize/util.py
+def is_cjk(character):
+    """
+    Python port of Moses' code to check for CJK character.
+
+    >>> is_cjk(u'\u33fe')
+    True
+    >>> is_cjk(u'\uFE5F')
+    False
+
+    :param character: The character that needs to be checked.
+    :type character: char
+    :return: bool
+    """
+    return any(
+        [
+            start <= ord(character) <= end
+            for start, end in [
+                (4352, 4607),
+                (11904, 42191),
+                (43072, 43135),
+                (44032, 55215),
+                (63744, 64255),
+                (65072, 65103),
+                (65381, 65500),
+                (131072, 196607),
+            ]
+        ]
+    )

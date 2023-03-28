@@ -39,8 +39,8 @@ dl_dir=$PWD/download
 # It will generate data/lang_bbpe_xxx,
 # data/lang_bbpe_yyy if the array contains xxx, yyy
 vocab_sizes=(
-  2000
-  1000
+  # 2000
+  # 1000
   500
 )
 
@@ -58,15 +58,8 @@ log "dl_dir: $dl_dir"
 
 if [ $stage -le -1 ] && [ $stop_stage -ge -1 ]; then
   log "stage -1: Download LM"
-  # We assume that you have installed the git-lfs, if not, you could install it
-  # using: `sudo apt-get install git-lfs && git-lfs install`
-  git lfs 1>/dev/null 2>&1 || (echo "please install git-lfs, consider using: sudo apt-get install git-lfs && git-lfs install" && exit 1)
-
   if [ ! -f $dl_dir/lm/3-gram.unpruned.arpa ]; then
-    git clone https://huggingface.co/pkufool/aishell_lm $dl_dir/lm
-    pushd $dl_dir/lm
-    git lfs pull --include "3-gram.unpruned.arpa"
-    popd
+    wget https://huggingface.co/pkufool/aishell_lm/resolve/main/3-gram.unpruned.arpa -P $dl_dir/lm
   fi
 fi
 
@@ -197,13 +190,18 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
   mkdir -p $lang_char_dir
   # We reuse words.txt from phone based lexicon
   # so that the two can share G.pt later.
-  cp $lang_phone_dir/words.txt $lang_char_dir
 
   cat $dl_dir/aishell/data_aishell/transcript/aishell_transcript_v0.8.txt |
-  cut -d " " -f 2- | sed -e 's/[ \t\r\n]*//g' > $lang_char_dir/text
+  cut -d " " -f 2- > $lang_char_dir/text
+
+  (echo '<eps> 0'; echo '!SIL 1'; echo '<SPOKEN_NOISE> 2'; echo '<UNK> 3';) \
+    > $lang_char_dir/words.txt
+
+  cat $lang_char_dir/text | sed 's/ /\n/g' | sort -u | sed '/^$/d' \
+     | awk '{print $1" "NR+3}' >> $lang_char_dir/words.txt
 
   if [ ! -f $lang_char_dir/L_disambig.pt ]; then
-    ./local/prepare_char.py
+    ./local/prepare_char.py --lang-dir $lang_char_dir
   fi
 fi
 
@@ -215,10 +213,8 @@ if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
     mkdir -p $lang_dir
     # We reuse words.txt from phone based lexicon
     # so that the two can share G.pt later.
-    cp $lang_phone_dir/words.txt $lang_dir
-
-    cat $dl_dir/aishell/data_aishell/transcript/aishell_transcript_v0.8.txt |
-    cut -d " " -f 2- | sed -e 's/^[ \t]*//;s/[ \t]*$//' > $lang_dir/text
+    cp $lang_char_dir/words.txt $lang_dir
+    cp $lang_char_dir/text $lang_dir
 
     if [ ! -f $lang_dir/bbpe.model ]; then
       ./local/train_bbpe_model.py \
@@ -226,32 +222,46 @@ if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
         --vocab-size $vocab_size \
         --transcript $lang_dir/text
     fi
+
+    if [ ! -f $lang_dir/L_disambig.pt ]; then
+      ./local/prepare_lang_bbpe.py --lang-dir $lang_dir
+    fi
   done
 fi
 
-if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
+if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
   log "Stage 7: Prepare G"
   # We assume you have install kaldilm, if not, please install
   # it using: pip install kaldilm
 
   mkdir -p data/lm
-  if [ ! -f data/lm/G_3_gram.fst.txt ]; then
+  if [ ! -f data/lm/G_3_gram_char.fst.txt ]; then
     # It is used in building HLG
     python3 -m kaldilm \
       --read-symbol-table="$lang_phone_dir/words.txt" \
       --disambig-symbol='#0' \
       --max-order=3 \
-      $dl_dir/lm/3-gram.unpruned.arpa > data/lm/G_3_gram.fst.txt
+      $dl_dir/lm/3-gram.unpruned.arpa > data/lm/G_3_gram_phone.fst.txt
+
+    python3 -m kaldilm \
+      --read-symbol-table="$lang_char_dir/words.txt" \
+      --disambig-symbol='#0' \
+      --max-order=3 \
+      $dl_dir/lm/3-gram.unpruned.arpa > data/lm/G_3_gram_char.fst.txt
   fi
 fi
 
-if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
+if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
   log "Stage 8: Compile HLG"
-  ./local/compile_hlg.py --lang-dir $lang_phone_dir
-  ./local/compile_hlg.py --lang-dir $lang_char_dir
+  ./local/compile_hlg.py --lang-dir $lang_phone_dir --lm G_3_gram_phone
+  ./local/compile_hlg.py --lang-dir $lang_char_dir --lm G_3_gram_char
+  for vocab_size in ${vocab_sizes[@]}; do
+    lang_dir=data/lang_bbpe_${vocab_size}
+    ./local/compile_hlg.py --lang-dir $lang_dir --lm G_3_gram_char
+  done
 fi
 
-if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
+if [ $stage -le 10 ] && [ $stop_stage -ge 10 ]; then
   log "Stage 9: Generate LM training data"
 
   log "Processing char based data"
@@ -295,7 +305,7 @@ if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
 fi
 
 
-if [ $stage -le 10 ] && [ $stop_stage -ge 10 ]; then
+if [ $stage -le 11 ] && [ $stop_stage -ge 11 ]; then
   log "Stage 10: Sort LM training data"
   # Sort LM training data by sentence length in descending order
   # for ease of training.
@@ -323,7 +333,7 @@ if [ $stage -le 10 ] && [ $stop_stage -ge 10 ]; then
     --out-statistics $out_dir/statistics-test.txt
 fi
 
-if [ $stage -le 11 ] && [ $stop_stage -ge 11 ]; then
+if [ $stage -le 12 ] && [ $stop_stage -ge 12 ]; then
   log "Stage 11: Train RNN LM model"
   python ../../../icefall/rnn_lm/train.py \
     --start-epoch 0 \

@@ -26,12 +26,13 @@
 # Please install a version >=0.1.96
 
 import argparse
+import re
 import shutil
 import tempfile
 from pathlib import Path
 
 import sentencepiece as spm
-from icefall import byte_encode
+from icefall import byte_encode, tokenize_by_CJK_char
 
 
 def get_args():
@@ -62,7 +63,7 @@ def get_args():
 def _convert_to_bchar(in_path: str, out_path: str):
     with open(out_path, "w") as f:
         for line in open(in_path, "r").readlines():
-            f.write(byte_encode(line.strip()) + "\n")
+            f.write(byte_encode(tokenize_by_CJK_char(line)) + "\n")
 
 
 def main():

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang,
+# Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang
 #                                                  Wei Kang)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
@@ -21,7 +21,7 @@
 
 This script takes as input `lang_dir`, which should contain::
 
-    - lang_dir/text,
+    - lang_dir/bbpe.model,
     - lang_dir/words.txt
 
 and generates the following files in the directory `lang_dir`:
@@ -34,11 +34,11 @@ and generates the following files in the directory `lang_dir`:
 """
 
 import argparse
-import re
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import k2
+import sentencepiece as spm
 import torch
 from prepare_lang import (
     Lexicon,
@@ -47,6 +47,9 @@ from prepare_lang import (
     write_lexicon,
     write_mapping,
 )
+
+from icefall.byte_utils import byte_encode
+from icefall.utils import str2bool
 
 
 def lexicon_to_fst_no_sil(
@@ -87,7 +90,7 @@ def lexicon_to_fst_no_sil(
         cur_state = loop_state
 
         word = word2id[word]
-        pieces = [token2id[i] if i in token2id else token2id["<unk>"] for i in pieces]
+        pieces = [token2id[i] for i in pieces]
 
         for i in range(len(pieces) - 1):
             w = word if i == 0 else eps
@@ -123,71 +126,45 @@ def lexicon_to_fst_no_sil(
     return fsa
 
 
-def contain_oov(token_sym_table: Dict[str, int], tokens: List[str]) -> bool:
-    """Check if all the given tokens are in token symbol table.
+def generate_lexicon(
+    model_file: str, words: List[str], oov: str
+) -> Tuple[Lexicon, Dict[str, int]]:
+    """Generate a lexicon from a BPE model.
 
     Args:
-      token_sym_table:
-        Token symbol table that contains all the valid tokens.
-      tokens:
-        A list of tokens.
-    Returns:
-      Return True if there is any token not in the token_sym_table,
-      otherwise False.
-    """
-    for tok in tokens:
-        if tok not in token_sym_table:
-            return True
-    return False
-
-
-def generate_lexicon(token_sym_table: Dict[str, int], words: List[str]) -> Lexicon:
-    """Generate a lexicon from a word list and token_sym_table.
-
-    Args:
-      token_sym_table:
-        Token symbol table that mapping token to token ids.
+      model_file:
+        Path to a sentencepiece model.
       words:
         A list of strings representing words.
+      oov:
+        The out of vocabulary word in lexicon.
     Returns:
-      Return a dict whose keys are words and values are the corresponding
-          tokens.
+      Return a tuple with two elements:
+        - A dict whose keys are words and values are the corresponding
+          word pieces.
+        - A dict representing the token symbol, mapping from tokens to IDs.
     """
+    sp = spm.SentencePieceProcessor()
+    sp.load(str(model_file))
+
+    # Convert word to word piece IDs instead of word piece strings
+    # to avoid OOV tokens.
+    encode_words = [byte_encode(w) for w in words]
+    words_pieces_ids: List[List[int]] = sp.encode(encode_words, out_type=int)
+
+    # Now convert word piece IDs back to word piece strings.
+    words_pieces: List[List[str]] = [sp.id_to_piece(ids) for ids in words_pieces_ids]
+
     lexicon = []
-    for word in words:
-        chars = list(word.strip(" \t"))
-        if contain_oov(token_sym_table, chars):
-            continue
-        lexicon.append((word, chars))
+    for word, pieces in zip(words, words_pieces):
+        lexicon.append((word, pieces))
 
-    # The OOV word is <UNK>
-    lexicon.append(("<UNK>", ["<unk>"]))
-    return lexicon
+    lexicon.append((oov, ["▁", sp.id_to_piece(sp.unk_id())]))
 
+    token2id: Dict[str, int] = {sp.id_to_piece(i): i for i in range(sp.vocab_size())}
 
-def generate_tokens(text_file: str) -> Dict[str, int]:
-    """Generate tokens from the given text file.
+    return lexicon, token2id
 
-    Args:
-      text_file:
-        A file that contains text lines to generate tokens.
-    Returns:
-      Return a dict whose keys are tokens and values are token ids ranged
-      from 0 to len(keys) - 1.
-    """
-    tokens: Dict[str, int] = dict()
-    tokens["<blk>"] = 0
-    tokens["<sos/eos>"] = 1
-    tokens["<unk>"] = 2
-    whitespace = re.compile(r"([ \t\r\n]+)")
-    with open(text_file, "r", encoding="utf-8") as f:
-        for line in f:
-            line = re.sub(whitespace, "", line)
-            chars = list(line)
-            for char in chars:
-                if char not in tokens:
-                    tokens[char] = len(tokens)
-    return tokens
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -199,25 +176,46 @@ def get_args():
         """,
     )
 
+    parser.add_argument(
+        "--oov",
+        type=str,
+        default="<UNK>",
+        help="The out of vocabulary word in lexicon.",
+    )
+
+    parser.add_argument(
+        "--debug",
+        type=str2bool,
+        default=False,
+        help="""True for debugging, which will generate
+        a visualization of the lexicon FST.
+
+        Caution: If your lexicon contains hundreds of thousands
+        of lines, please set it to False!
+
+        See "test/test_bpe_lexicon.py" for usage.
+        """,
+    )
+
     return parser.parse_args()
+
 
 def main():
     args = get_args()
     lang_dir = Path(args.lang_dir)
-    text_file = lang_dir / "text"
+    model_file = lang_dir / "bbpe.model"
 
     word_sym_table = k2.SymbolTable.from_file(lang_dir / "words.txt")
 
     words = word_sym_table.symbols
 
-    excluded = ["<eps>", "!SIL", "<SPOKEN_NOISE>", "<UNK>", "#0", "<s>", "</s>"]
+    excluded = ["<eps>", "!SIL", "<SPOKEN_NOISE>", args.oov, "#0", "<s>", "</s>"]
+
     for w in excluded:
         if w in words:
             words.remove(w)
 
-    token_sym_table = generate_tokens(text_file)
-
-    lexicon = generate_lexicon(token_sym_table, words)
+    lexicon, token_sym_table = generate_lexicon(model_file, words, args.oov)
 
     lexicon_disambig, max_disambig = add_disambig_symbols(lexicon)
 
@@ -251,6 +249,18 @@ def main():
     )
     torch.save(L.as_dict(), lang_dir / "L.pt")
     torch.save(L_disambig.as_dict(), lang_dir / "L_disambig.pt")
+
+    if args.debug:
+        labels_sym = k2.SymbolTable.from_file(lang_dir / "tokens.txt")
+        aux_labels_sym = k2.SymbolTable.from_file(lang_dir / "words.txt")
+
+        L.labels_sym = labels_sym
+        L.aux_labels_sym = aux_labels_sym
+        L.draw(f"{lang_dir / 'L.svg'}", title="L.pt")
+
+        L_disambig.labels_sym = labels_sym
+        L_disambig.aux_labels_sym = aux_labels_sym
+        L_disambig.draw(f"{lang_dir / 'L_disambig.svg'}", title="L_disambig.pt")
 
 
 if __name__ == "__main__":

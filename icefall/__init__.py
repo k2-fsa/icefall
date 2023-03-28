@@ -55,6 +55,7 @@ from .utils import (
     get_alignments,
     get_executor,
     get_texts,
+    is_cjk,
     is_jit_tracing,
     is_module_available,
     l1_norm,
@@ -70,6 +71,7 @@ from .utils import (
     store_transcripts,
     str2bool,
     subsequent_chunk_mask,
+    tokenize_by_CJK_char,
     write_error_stats,
 )
 
