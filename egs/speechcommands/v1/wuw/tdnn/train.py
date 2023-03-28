@@ -184,7 +184,18 @@ def get_params() -> AttributeDict:
             "feature_dim": 80,
             "num_class": 12,
             # parameters for tokenizer
-            "wakeup_words": ["down", "go", "left", "no", "off", "on", "right", "stop", "up", "yes"],
+            "wakeup_words": [
+                "down",
+                "go",
+                "left",
+                "no",
+                "off",
+                "on",
+                "right",
+                "stop",
+                "up",
+                "yes"
+            ],
             "wakeup_word_tokens": [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
             # parameters for Optimizer
             "weight_decay": 1e-6,
@@ -324,9 +335,7 @@ def compute_loss(
     assert torch.all(supervisions["start_frame"] == 0)
     num_frames = supervisions["num_frames"].to(device)
 
-    target, number_positive_samples = tokenizer.texts_to_token_ids(
-        texts
-    )
+    target, number_positive_samples = tokenizer.texts_to_token_ids(texts)
     target = target.to(device)
     criterion = nn.CrossEntropyLoss()
     loss = criterion(model_output, target)
@@ -347,7 +356,7 @@ def compute_loss(
         ((feature.size(1) - supervisions["num_frames"]) / feature.size(1)).sum().item()
     )
 
-    info["number_positive_cuts_ratio"] = (number_positive_samples / N)
+    info["number_positive_cuts_ratio"] = number_positive_samples / N
 
     return loss, info
 

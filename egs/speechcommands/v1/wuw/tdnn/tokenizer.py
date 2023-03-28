@@ -46,9 +46,7 @@ class WakeupWordTokenizer(object):
         self.blank = 0
         self.negative_word_token = 1
 
-    def texts_to_token_ids(
-        self, texts: List[str]
-    ) -> torch.Tensor:
+    def texts_to_token_ids(self, texts: List[str]) -> torch.Tensor:
         """
         Args:
           texts:
@@ -56,7 +54,7 @@ class WakeupWordTokenizer(object):
             each element is a reference text for an audio.
         Returns:
           Return a element of torch.Tensor(List[int]),
-          each int is a token id for each sample. 
+          each int is a token id for each sample.
         """
         batch_token_ids = []
         number_positive_samples = 0
