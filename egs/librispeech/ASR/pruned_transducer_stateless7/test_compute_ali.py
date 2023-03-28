@@ -42,9 +42,9 @@ And the you can run:
 """
 import argparse
 import logging
-import torch
 from pathlib import Path
 
+import torch
 from lhotse import load_manifest
 
 
@@ -99,10 +99,20 @@ def main():
 
     all_time_diffs = []
     for cut_out, cut_ref in zip(cuts_out, cuts_ref):
-        time_out = [ali.start for ali in cut_out.supervisions[0].alignment["word"] if ali.symbol != ""]
-        time_ref = [ali.start for ali in cut_ref.supervisions[0].alignment["word"] if ali.symbol != ""]
+        time_out = [
+            ali.start
+            for ali in cut_out.supervisions[0].alignment["word"]
+            if ali.symbol != ""
+        ]
+        time_ref = [
+            ali.start
+            for ali in cut_ref.supervisions[0].alignment["word"]
+            if ali.symbol != ""
+        ]
         assert len(time_out) == len(time_ref), (len(time_out), len(time_ref))
-        diff = [round(abs(out - ref), ndigits=3) for out, ref in zip(time_out, time_ref)]
+        diff = [
+            round(abs(out - ref), ndigits=3) for out, ref in zip(time_out, time_ref)
+        ]
         all_time_diffs += diff
 
     all_time_diffs = torch.tensor(all_time_diffs)
