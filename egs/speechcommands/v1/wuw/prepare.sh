@@ -50,7 +50,7 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   #   ln -sfv /path/to/speech_commands_test_set_v0.01 .
 
   if [ ! -d $dl_dir/SpeechCommands1/speech_commands_v0.01 ] || [ ! -d $dl_dir/SpeechCommands1/speech_commands_test_set_v0.01 ]; then
-    lhotse download speechcommands1 $dl_dir
+    lhotse download speechcommands "1" $dl_dir
   fi
 fi
 
@@ -60,7 +60,7 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   # to $dl_dir/SpeechCommands1
   mkdir -p data/manifests
   if [ ! -e data/manifests/.speechcommands1.done ]; then
-    lhotse prepare speechcommands -v1 $dl_dir/SpeechCommands1 data/manifests
+    lhotse prepare speechcommands "1" $dl_dir/SpeechCommands1 data/manifests
     touch data/manifests/.speechcommands1.done
   fi
 fi
