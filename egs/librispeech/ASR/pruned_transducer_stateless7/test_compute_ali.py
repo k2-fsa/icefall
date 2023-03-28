@@ -108,7 +108,7 @@ def main():
     all_time_diffs = torch.tensor(all_time_diffs)
     logging.info(
         f"For the word-level alignments abs difference on dataset {args.dataset}, "
-        f"mean: {all_time_diffs.mean()}, std: {all_time_diffs.std()}"
+        f"mean: {'%.2f' % all_time_diffs.mean()}s, std: {'%.2f' % all_time_diffs.std()}s"
     )
     logging.info("Done!")
 
