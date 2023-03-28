@@ -840,7 +840,9 @@ class HypothesisList(object):
         hyps = list(self._data.items())
 
         if length_norm:
-            hyps = sorted(hyps, key=lambda h: h[1].log_prob / len(h[1].ys), reverse=True)[:k]
+            hyps = sorted(
+                hyps, key=lambda h: h[1].log_prob / len(h[1].ys), reverse=True
+            )[:k]
         else:
             hyps = sorted(hyps, key=lambda h: h[1].log_prob, reverse=True)[:k]
 
