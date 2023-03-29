@@ -482,7 +482,7 @@ def get_parser():
     parser.add_argument(
         "--save-every-n",
         type=int,
-        default=2000,
+        default=200,
         help="""Save checkpoint after processing this number of batches"
         periodically. We save checkpoint to exp-dir/ whenever
         params.batch_idx_train % save_every_n == 0. The checkpoint filename
