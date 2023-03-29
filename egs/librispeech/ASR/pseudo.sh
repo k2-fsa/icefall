@@ -1,5 +1,3 @@
-git pull
-
 spk_id=$1
 
 for method in modified_beam_search; do #modified_beam_search fast_beam_search; do
