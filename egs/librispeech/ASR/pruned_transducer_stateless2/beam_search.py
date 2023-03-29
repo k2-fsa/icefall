@@ -829,11 +829,22 @@ class HypothesisList(object):
                 ans.add(hyp)  # shallow copy
         return ans
 
-    def topk(self, k: int) -> "HypothesisList":
-        """Return the top-k hypothesis."""
+    def topk(self, k: int, length_norm: bool = False) -> "HypothesisList":
+        """Return the top-k hypothesis.
+
+        Args:
+          length_norm:
+            If True, the `log_prob` of a hypothesis is normalized by the
+            number of tokens in it.
+        """
         hyps = list(self._data.items())
 
-        hyps = sorted(hyps, key=lambda h: h[1].log_prob, reverse=True)[:k]
+        if length_norm:
+            hyps = sorted(
+                hyps, key=lambda h: h[1].log_prob / len(h[1].ys), reverse=True
+            )[:k]
+        else:
+            hyps = sorted(hyps, key=lambda h: h[1].log_prob, reverse=True)[:k]
 
         ans = HypothesisList(dict(hyps))
         return ans
