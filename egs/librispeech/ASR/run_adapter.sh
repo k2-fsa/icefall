@@ -13,8 +13,8 @@ if [ $workstation = "whale" ]; then
 			--multi-optim False \
 			--world-size 8 \
 			--num-epochs 10000 \
-			--num-updates 2001 \
-			--save-every-n 500 \
+			--num-updates 501 \
+			--save-every-n 100 \
 			--full-libri 1 \
 			--exp-dir ./pruned_transducer_stateless_d2v_v2/$1 \
 			--max-duration 200 \
