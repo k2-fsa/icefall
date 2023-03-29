@@ -332,7 +332,7 @@ class Zipformer2(EncoderInterface):
                           .reshape(num_frames_max * upsample_factor, batch_size, 3))
             num_frames = (num_frames0 + ds - 1) // ds
             frame_mask = frame_mask[:num_frames]
-            channels = self.encoder_unmasked_dim[i]
+            channels = self.encoder_dim[i]
             feature_mask = torch.ones(num_frames, batch_size, channels,
                                       dtype=x.dtype, device=x.device)
             u1 = self.encoder_unmasked_dim[i]
