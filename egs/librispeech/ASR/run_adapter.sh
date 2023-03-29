@@ -12,7 +12,7 @@ if [ $workstation = "whale" ]; then
 			--enable-spec-aug False \
 			--multi-optim False \
 			--world-size 8 \
-			--num-epochs 51 \
+			--num-epochs 10000 \
 			--full-libri 1 \
 			--exp-dir ./pruned_transducer_stateless_d2v_v2/$1 \
 			--max-duration 200 \
@@ -24,7 +24,8 @@ if [ $workstation = "whale" ]; then
 			--encoder-type d2v \
 			--additional-block True \
 			--prune-range 10 \
-			--spk-id $2
+			--spk-id $2 \
+			--
 	fi
 
 #	./pruned_transducer_stateless_d2v_v2/train_adapter.py \
