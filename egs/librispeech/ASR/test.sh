@@ -11,7 +11,7 @@ do
 		--additional-block True \
 		--exp-dir ./pruned_transducer_stateless_d2v_v2/"$spk_id"_adapter \
 		--model-name epoch-$i.pt \
-		--max-duration 150 \
+		--max-duration 50 \
 		--decoding-method $method \
 		--max-sym-per-frame 1 \
 		--encoder-type d2v \
