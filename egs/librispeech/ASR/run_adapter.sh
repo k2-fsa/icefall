@@ -10,7 +10,7 @@ if [ $workstation = "whale" ]; then
 		--gender male \
 		--wandb False \
 		--input-strategy AudioSamples \
-		--enable-spec-aug False \
+		--enable-spec-aug True \
 		--multi-optim False \
 		--world-size 8 \
 		--num-epochs 10 \
