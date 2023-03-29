@@ -24,7 +24,8 @@ if [ $workstation = "whale" ]; then
 		--accum-grads 1 \
 		--encoder-type d2v \
 		--additional-block True \
-		--prune-range 10 
+		--prune-range 10 \
+		--spk-id $2
 
 #	./pruned_transducer_stateless_d2v_v2/train_adapter.py \
 #		--add-adapter True \
