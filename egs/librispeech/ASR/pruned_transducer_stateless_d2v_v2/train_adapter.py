@@ -1027,7 +1027,6 @@ def train_one_epoch(
         scheduler_enc, scheduler_dec = scheduler[0], scheduler[1]
 
     for batch_idx, batch in enumerate(train_dl):
-        logging.info(f"update num : {params.batch_idx_train}")
         if params.batch_idx_train > params.num_updates:
             break
         if batch_idx < cur_batch_idx:
@@ -1631,6 +1630,7 @@ def run_adapter(rank, world_size, args, wb=None):
     scaler = GradScaler(enabled=params.use_fp16, init_scale=1.0)
 
     for epoch in range(params.start_epoch, params.num_epochs + 1):
+        logging.info(f"update num : {params.batch_idx_train}")
         scheduler.step_epoch(epoch - 1)
         fix_random_seed(params.seed + epoch - 1)
         train_dl.sampler.set_epoch(epoch - 1)
