@@ -506,7 +506,7 @@ def get_parser():
     parser.add_argument(
         "--average-period",
         type=int,
-        default=200,
+        default=10,
         help="""Update the averaged model, namely `model_avg`, after processing
         this number of batches. `model_avg` is a separate version of model,
         in which each floating-point parameter is the average of all the
