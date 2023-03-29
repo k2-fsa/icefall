@@ -1648,6 +1648,7 @@ def run_adapter(rank, world_size, args, wb=None):
             diagnostic.print_diagnostics()
             break
         
+        '''
         if epoch % 10 == 0:
             save_checkpoint(
                 params=params,
@@ -1659,6 +1660,7 @@ def run_adapter(rank, world_size, args, wb=None):
                 scaler=scaler,
                 rank=rank,
             )
+        '''
 
     logging.info("Done!")
 
