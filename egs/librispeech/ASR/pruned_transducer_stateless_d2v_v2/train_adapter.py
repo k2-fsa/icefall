@@ -1099,11 +1099,13 @@ def train_one_epoch(
                 rank=rank,
             )
             del params.cur_batch_idx
+            '''
             remove_checkpoints(
                 out_dir=params.exp_dir,
                 topk=params.keep_last_k,
                 rank=rank,
             )
+            '''
 
         if batch_idx % 100 == 0 and params.use_fp16:
             # If the grad scale was less than 1, try increasing it.    The _growth_interval
