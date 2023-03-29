@@ -349,7 +349,7 @@ def get_parser():
     )
     
     parser.add_argument(
-        "--num-epochs",
+        "--num-updates",
         type=int,
         default=30,
         help="Number of epochs to train.",
