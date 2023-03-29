@@ -36,7 +36,7 @@ import torch
 from torch import nn
 from tdnn import Tdnn
 from asr_datamodule import SpeechCommands1DataModule
-from train import get_params 
+from train import get_params
 
 from tokenizer import WakeupWordTokenizer
 from icefall.checkpoint import average_checkpoints, load_checkpoint
