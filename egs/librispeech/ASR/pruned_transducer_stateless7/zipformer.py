@@ -296,6 +296,9 @@ class Zipformer2(EncoderInterface):
 
         num_frames_max = (num_frames0 + max_downsampling_factor - 1)
 
+        # we divide the dropped-out feature dimensions into two equal groups;
+        # the first group is dropped out with this probability, the second
+        # group is dropped out with about twice this probability.
         feature_mask_dropout_prob = 0.125
 
         # frame_mask_max1 shape: (num_frames_max, batch_size, 1)
