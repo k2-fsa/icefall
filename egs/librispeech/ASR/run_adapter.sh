@@ -1,4 +1,4 @@
-workstation="whale"
+workstation=$3
 
 if [ $workstation = "whale" ]; then
 	export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
