@@ -1467,6 +1467,7 @@ def run(rank, world_size, args, wb=None):
             diagnostic.print_diagnostics()
             break
         
+        '''
         if epoch % 50 == 0:
             save_checkpoint(
                 params=params,
@@ -1478,6 +1479,7 @@ def run(rank, world_size, args, wb=None):
                 scaler=scaler,
                 rank=rank,
             )
+        '''
 
     logging.info("Done!")
 
