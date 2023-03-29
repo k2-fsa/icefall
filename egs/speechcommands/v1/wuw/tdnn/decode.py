@@ -168,7 +168,7 @@ def decode_dataset(
             batch=batch,
         )
 
-        predict = results_dict['predict'].to("cpu")
+        predict = results_dict["predict"].to("cpu")
         ref, ref_num_positive = tokenizer.texts_to_token_ids(texts)
 
         is_match = predict == ref
@@ -262,7 +262,14 @@ def main():
     TN = results_dict["TN"]
     P = TP / (TP + FP)
     R = TP / (TP + FN)
-    s = f"Decoding result:\n" + f"True Positive:  {TP}\n" + f"False Negative: {FN}\n" + f"False Positive: {FP}\n" + f"True Negative:  {TN}\n" + f"Precision: {P}\n" + f"Recall:    {R}"
+    s = (
+        f"Decoding result:\n"
+        + f"True Positive:  {TP}\n"
+        + f"False Negative: {FN}\n"
+        + f"False Positive: {FP}\n"
+        + f"True Negative:  {TN}\n"
+        + f"Precision: {P}\n"
+        + f"Recall:    {R}"
     logging.info(s)
 
     logging.info("Done!")
