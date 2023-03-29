@@ -351,7 +351,7 @@ def get_parser():
     parser.add_argument(
         "--num-updates",
         type=int,
-        default=30,
+        default=5000,
         help="Number of epochs to train.",
     )
 
