@@ -10,7 +10,7 @@ do
 		--enable-spec-aug False \
 		--additional-block True \
 		--exp-dir ./pruned_transducer_stateless_d2v_v2/"$spk_id"_adapter \
-		--model-name checkpoint-$i.pt
+		--model-name checkpoint-$i.pt \
 		--max-duration 50 \
 		--decoding-method $method \
 		--max-sym-per-frame 1 \
