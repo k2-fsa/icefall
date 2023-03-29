@@ -270,6 +270,7 @@ def main():
         + f"True Negative:  {TN}\n"
         + f"Precision: {P}\n"
         + f"Recall:    {R}"
+    )
     logging.info(s)
 
     logging.info("Done!")
