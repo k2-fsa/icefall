@@ -1027,6 +1027,7 @@ def train_one_epoch(
         scheduler_enc, scheduler_dec = scheduler[0], scheduler[1]
 
     for batch_idx, batch in enumerate(train_dl):
+        logging.info(f"update num : {params.batch_idx_train}")
         if params.batch_idx_train > params.num_updates:
             break
         if batch_idx < cur_batch_idx:
