@@ -890,19 +890,18 @@ def run(rank, world_size, args):
         )  # allow 4 megabytes per sub-module
         diagnostic = diagnostics.attach_diagnostics(model, opts)
 
-    # import pdb; pdb.set_trace()
     aishell = AishellAsrDataModule(args)
     train_dl = aishell.train_dataloaders(aishell.train_cuts())
     valid_dl = aishell.valid_dataloaders(aishell.valid_cuts())
 
-    # if not params.print_diagnostics:
-    #     scan_pessimistic_batches_for_oom(
-    #         model=model,
-    #         train_dl=train_dl,
-    #         optimizer=optimizer,
-    #         graph_compiler=graph_compiler,
-    #         params=params,
-    #     )
+    if not params.print_diagnostics:
+        scan_pessimistic_batches_for_oom(
+            model=model,
+            train_dl=train_dl,
+            optimizer=optimizer,
+            graph_compiler=graph_compiler,
+            params=params,
+        )
 
     scaler = GradScaler(enabled=params.use_fp16)
     if checkpoints and "grad_scaler" in checkpoints:
