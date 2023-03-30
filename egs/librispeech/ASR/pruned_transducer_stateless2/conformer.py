@@ -110,7 +110,7 @@ class Conformer(EncoderInterface):
         self.short_chunk_size = short_chunk_size
         self.num_left_chunks = num_left_chunks
 
-        self.encoder_pos = RelPositionalEncoding(d_model, dropout)
+        self.encoder_pos = PositionalEncoding(d_model, dropout)
 
         encoder_layer = ConformerEncoderLayer(
             d_model,
@@ -374,6 +374,11 @@ class Conformer(EncoderInterface):
             x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
 
             assert x.size(0) == lengths.max().item()
+
+            if chunk_size < 0:
+                # use full attention
+                chunk_size = x.size(0)
+                left_context = -1
 
             num_left_chunks = -1
             if left_context >= 0:
@@ -856,6 +861,80 @@ class RelPositionalEncoding(torch.nn.Module):
         return self.dropout(x), self.dropout(pos_emb)
 
 
+class PositionalEncoding(torch.nn.Module):
+    """Relative positional encoding module.
+
+    See : Appendix B in "Transformer-XL: Attentive Language Models Beyond a Fixed-Length Context"
+    Modified from https://github.com/espnet/espnet/blob/master/espnet/nets/pytorch_backend/transformer/embedding.py
+
+    Args:
+        d_model: Embedding dimension.
+        dropout_rate: Dropout rate.
+        max_len: Maximum input length.
+
+    """
+
+    def __init__(self, d_model: int, dropout_rate: float, max_len: int = 5000) -> None:
+        """Construct an PositionalEncoding object."""
+        super(PositionalEncoding, self).__init__()
+        if is_jit_tracing():
+            # 10k frames correspond to ~100k ms, e.g., 100 seconds, i.e.,
+            # It assumes that the maximum input won't have more than
+            # 10k frames.
+            #
+            # TODO(fangjun): Use torch.jit.script() for this module
+            max_len = 10000
+
+        self.d_model = d_model
+        self.dropout = torch.nn.Dropout(p=dropout_rate)
+        self.pe = None
+        self.extend_pe(torch.tensor(0.0).expand(1, max_len))
+
+    def extend_pe(self, x: Tensor, left_context: int = 0) -> None:
+        """Reset the positional encodings."""
+        x_size = x.size(1)
+        if self.pe is not None:
+            # self.pe contains both positive and negative parts
+            # the length of self.pe is 2 * input_len - 1
+            if self.pe.size(1) >= x_size:
+                # Note: TorchScript doesn't implement operator== for torch.Device
+                if self.pe.dtype != x.dtype or str(self.pe.device) != str(x.device):
+                    self.pe = self.pe.to(dtype=x.dtype, device=x.device)
+                return
+
+        pe = torch.zeros(x_size, self.d_model)
+        position = torch.arange(0, x_size, dtype=torch.float32).unsqueeze(1)
+        div_term = torch.exp(
+            torch.arange(0, self.d_model, 2, dtype=torch.float32)
+            * -(math.log(10000.0) / self.d_model)
+        )
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        self.pe = pe.unsqueeze(0).to(device=x.device, dtype=x.dtype)
+
+    def forward(
+        self,
+        x: torch.Tensor,
+    ) -> Tuple[Tensor, Tensor]:
+        """Add positional encoding.
+
+        Args:
+            x (torch.Tensor): Input tensor (batch, time, `*`).
+            left_context (int): left context (in frames) used during streaming decoding.
+                this is used only in real streaming decoding, in other circumstances,
+                it MUST be 0.
+
+        Returns:
+            torch.Tensor: Encoded tensor (batch, time, `*`).
+            torch.Tensor: Encoded tensor (batch, 2*time-1, `*`).
+
+        """
+        # TODO: support with offset.
+        self.extend_pe(x)
+        pos_emb = self.pe[:, : x.size(1)]
+        return self.dropout(x), self.dropout(pos_emb)
+
+
 class RelPositionMultiheadAttention(nn.Module):
     r"""Multi-Head Attention layer with relative position encoding
 
@@ -1227,7 +1306,7 @@ class RelPositionMultiheadAttention(nn.Module):
             assert pos_emb_bsz in (1, bsz)  # actually it is 1
 
         p = self.linear_pos(pos_emb).view(pos_emb_bsz, -1, num_heads, head_dim)
-        # (batch, 2*time1, head, d_k) --> (batch, head, d_k, 2*time -1)
+        # (batch, time2, head, d_k) --> (batch, head, d_k, time2)
         p = p.permute(0, 2, 3, 1)
 
         q_with_bias_u = (q + self._pos_bias_u()).transpose(
@@ -1245,8 +1324,8 @@ class RelPositionMultiheadAttention(nn.Module):
         matrix_ac = torch.matmul(q_with_bias_u, k)  # (batch, head, time1, time2)
 
         # compute matrix b and matrix d
-        matrix_bd = torch.matmul(q_with_bias_v, p)  # (batch, head, time1, 2*time1-1)
-        matrix_bd = self.rel_shift(matrix_bd, left_context)
+        matrix_bd = torch.matmul(q_with_bias_v, p)  # (batch, head, time1, time2)
+        # matrix_bd = self.rel_shift(matrix_bd, left_context)
 
         attn_output_weights = matrix_ac + matrix_bd  # (batch, head, time1, time2)
 
