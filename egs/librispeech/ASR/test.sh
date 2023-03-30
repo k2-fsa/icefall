@@ -1,7 +1,7 @@
 git pull
 spk_id=$1
 #for i in 10 20 30 40 50 60 70 80 90 100
-for i in 100 200 300 400 500
+for i in 500
 do
 	for method in modified_beam_search
 	do
@@ -11,7 +11,7 @@ do
 		--additional-block True \
 		--exp-dir ./pruned_transducer_stateless_d2v_v2/"$spk_id"_adapter \
 		--model-name checkpoint-$i.pt \
-		--max-duration 50 \
+		--max-duration 250 \
 		--decoding-method $method \
 		--max-sym-per-frame 1 \
 		--encoder-type d2v \
