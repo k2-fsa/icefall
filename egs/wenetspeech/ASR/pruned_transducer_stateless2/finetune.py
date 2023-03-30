@@ -47,7 +47,6 @@ from aishell import AishellAsrDataModule
 from conformer import Conformer
 from decoder import Decoder
 from joiner import Joiner
-from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import Transducer
@@ -68,6 +67,7 @@ from icefall.lexicon import Lexicon
 from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool
 
 LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
+
 
 def add_finetune_arguments(parser: argparse.ArgumentParser):
     parser.add_argument("--do-finetune", type=str2bool, default=False)
@@ -92,6 +92,7 @@ def add_finetune_arguments(parser: argparse.ArgumentParser):
         default=None,
         help="Fine-tuning from which checkpoint (a path to a .pt file)",
     )
+
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -278,7 +279,7 @@ def get_parser():
         default=False,
         help="Whether to use half precision training.",
     )
-    
+
     parser.add_argument(
         "--valid-interval",
         type=int,
@@ -298,7 +299,7 @@ def get_parser():
         When training_subset is S, set the model_warm_step to 100.
         """,
     )
-    
+
     return parser
 
 
@@ -850,8 +851,6 @@ def run(rank, world_size, args):
 
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
-    
-    #import pdb; pdb.set_trace()
 
     # load model parameters for model fine-tuning
     if params.do_finetune:
@@ -861,9 +860,7 @@ def run(rank, world_size, args):
         )
     else:
         assert params.start_epoch > 0, params.start_epoch
-        checkpoints = load_checkpoint_if_available(
-            params=params, model=model, model_avg=model_avg
-        )
+        checkpoints = load_checkpoint_if_available(params=params, model=model)
 
     model.to(device)
     if world_size > 1:
@@ -893,7 +890,7 @@ def run(rank, world_size, args):
         )  # allow 4 megabytes per sub-module
         diagnostic = diagnostics.attach_diagnostics(model, opts)
 
-    #import pdb; pdb.set_trace()
+    # import pdb; pdb.set_trace()
     aishell = AishellAsrDataModule(args)
     train_dl = aishell.train_dataloaders(aishell.train_cuts())
     valid_dl = aishell.valid_dataloaders(aishell.valid_cuts())
@@ -911,7 +908,7 @@ def run(rank, world_size, args):
     if checkpoints and "grad_scaler" in checkpoints:
         logging.info("Loading grad scaler state dict")
         scaler.load_state_dict(checkpoints["grad_scaler"])
-    
+
     for epoch in range(params.start_epoch, params.num_epochs + 1):
         scheduler.step_epoch(epoch - 1)
         fix_random_seed(params.seed + epoch - 1)
