@@ -74,7 +74,7 @@ from beam_search import (
     greedy_search_batch,
     modified_beam_search,
 )
-from train import add_model_arguments, get_params, get_transducer_model
+from finetune import get_params, get_transducer_model
 
 from icefall.checkpoint import average_checkpoints, find_checkpoints, load_checkpoint
 from icefall.lexicon import Lexicon
@@ -193,8 +193,6 @@ def get_parser():
         help="""Maximum number of symbols per frame.
         Used only when --decoding_method is greedy_search""",
     )
-
-    add_model_arguments(parser)
 
     return parser
 
