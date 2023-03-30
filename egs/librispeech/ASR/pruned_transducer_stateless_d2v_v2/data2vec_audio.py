@@ -42,7 +42,7 @@ class TransformerEncoderAdapter(TransformerEncoder):
         self.adapters = ResidualAdapterModule(proj_dim=512)
 
         for p in self.adapters.parameters():
-            p.data /= 5.
+            p.data /= 10.
         #p.data = nn.Parameter(torch.zeros(p.size()).to('cuda'))
         #p.data = nn.Parameter(torch.randn(p.size()).to('cuda')/20.)
 
