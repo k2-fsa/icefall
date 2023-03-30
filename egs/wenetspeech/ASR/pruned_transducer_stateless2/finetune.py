@@ -78,9 +78,9 @@ def add_finetune_arguments(parser: argparse.ArgumentParser):
         default=None,
         help="""
         Modules to be initialized. It matches all parameters starting with
-        a specific key. The keys are given with Comma seperated. If None, 
-        all modules will be initialised. For example, if you only want to 
-        initialise all parameters staring with "encoder", use "encoder"; 
+        a specific key. The keys are given with Comma seperated. If None,
+        all modules will be initialised. For example, if you only want to
+        initialise all parameters staring with "encoder", use "encoder";
         if you want to initialise parameters starting with encoder or decoder,
         use "encoder,joiner".
         """,
@@ -169,7 +169,7 @@ def get_parser():
     parser.add_argument(
         "--initial-lr",
         type=float,
-        default=0.0003,
+        default=0.0001,
         help="The initial learning rate.  This value should not need to be changed.",
     )
 
@@ -178,8 +178,8 @@ def get_parser():
         type=float,
         default=100000,
         help="""Number of steps that affects how rapidly the learning rate
-        decreases. During fine-tuning, we set this very large so that the 
-        learning rate slowly decays with number of batches. You may tune 
+        decreases. During fine-tuning, we set this very large so that the
+        learning rate slowly decays with number of batches. You may tune
         its value by yourself.
         """,
     )
@@ -188,9 +188,9 @@ def get_parser():
         "--lr-epochs",
         type=float,
         default=100,
-        help="""Number of epochs that affects how rapidly the learning rate 
-        decreases. During fine-tuning, we set this very large so that the 
-        learning rate slowly decays with number of batches. You may tune 
+        help="""Number of epochs that affects how rapidly the learning rate
+        decreases. During fine-tuning, we set this very large so that the
+        learning rate slowly decays with number of batches. You may tune
         its value by yourself.
         """,
     )
