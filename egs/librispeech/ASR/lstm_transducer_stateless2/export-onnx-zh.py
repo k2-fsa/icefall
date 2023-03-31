@@ -6,40 +6,45 @@
 This script exports a transducer model from PyTorch to ONNX.
 
 We use the pre-trained model from
-https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11
+https://huggingface.co/csukuangfj/icefall-asr-wenetspeech-lstm-transducer-stateless-2022-10-14
 as an example to show how to use this file.
 
 1. Download the pre-trained model
 
 cd egs/librispeech/ASR
 
-repo_url=https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11
+repo_url=https://huggingface.co/csukuangfj/icefall-asr-wenetspeech-lstm-transducer-stateless-2022-10-14
 GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
 repo=$(basename $repo_url)
 
 pushd $repo
-git lfs pull --include "data/lang_bpe_500/bpe.model"
-git lfs pull --include "exp/pretrained-epoch-30-avg-9.pt"
+git lfs pull --include "data/lexicon.txt"
+git lfs pull --include "data/L.pt"
+git lfs pull --include "exp/epoch-11.pt"
+git lfs pull --include "exp/epoch-10.pt"
 
-cd exp
-ln -s pretrained-epoch-30-avg-9.pt epoch-99.pt
 popd
 
 2. Export the model to ONNX
 
-./pruned_transducer_stateless7/export-onnx.py \
-  --bpe-model $repo/data/lang_bpe_500/bpe.model \
-  --use-averaged-model 0 \
-  --epoch 99 \
+./lstm_transducer_stateless2/export-onnx-zh.py \
+  --lang-dir ./icefall-asr-wenetspeech-lstm-transducer-stateless-2022-10-14/data/lang_char \
+  --use-averaged-model 1 \
+  --epoch 11 \
   --avg 1 \
-  --exp-dir $repo/exp \
-  --feedforward-dims "1024,1024,2048,2048,1024"
+  --exp-dir ./icefall-asr-wenetspeech-lstm-transducer-stateless-2022-10-14/exp \
+  --num-encoder-layers 12 \
+  --encoder-dim 512 \
+  --rnn-hidden-size 1024
 
-It will generate the following 3 files inside $repo/exp:
+It will generate the following files inside $repo/exp:
 
-  - encoder-epoch-99-avg-1.onnx
-  - decoder-epoch-99-avg-1.onnx
-  - joiner-epoch-99-avg-1.onnx
+  - encoder-epoch-11-avg-1.onnx
+  - decoder-epoch-11-avg-1.onnx
+  - joiner-epoch-11-avg-1.onnx
+  - encoder-epoch-11-avg-1.int8.onnx
+  - decoder-epoch-11-avg-1.int8.onnx
+  - joiner-epoch-11-avg-1.int8.onnx
 
 See ./onnx_pretrained.py and ./onnx_check.py for how to
 use the exported ONNX models.
@@ -48,17 +53,16 @@ use the exported ONNX models.
 import argparse
 import logging
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict, Optional, Tuple
 
 import onnx
-import sentencepiece as spm
 import torch
 import torch.nn as nn
 from decoder import Decoder
+from lstm import RNN
 from onnxruntime.quantization import QuantType, quantize_dynamic
 from scaling_converter import convert_scaled_to_non_scaled
 from train import add_model_arguments, get_params, get_transducer_model
-from zipformer import Zipformer
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -66,6 +70,7 @@ from icefall.checkpoint import (
     find_checkpoints,
     load_checkpoint,
 )
+from icefall.lexicon import Lexicon
 from icefall.utils import setup_logger, str2bool
 
 
@@ -123,10 +128,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--bpe-model",
+        "--lang-dir",
         type=str,
-        default="data/lang_bpe_500/bpe.model",
-        help="Path to the BPE model",
+        default="data/lang_char",
+        help="The lang dir",
     )
 
     parser.add_argument(
@@ -160,13 +165,13 @@ def add_meta_data(filename: str, meta_data: Dict[str, str]):
 
 
 class OnnxEncoder(nn.Module):
-    """A wrapper for Zipformer and the encoder_proj from the joiner"""
+    """A wrapper for RNN and the encoder_proj from the joiner"""
 
-    def __init__(self, encoder: Zipformer, encoder_proj: nn.Linear):
+    def __init__(self, encoder: RNN, encoder_proj: nn.Linear):
         """
         Args:
           encoder:
-            A Zipformer encoder.
+            An RNN encoder.
           encoder_proj:
             The projection layer for encoder from the joiner.
         """
@@ -177,26 +182,33 @@ class OnnxEncoder(nn.Module):
     def forward(
         self,
         x: torch.Tensor,
-        x_lens: torch.Tensor,
+        states: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Please see the help information of Zipformer.forward
+        """Please see the help information of RNN.forward
 
         Args:
           x:
             A 3-D tensor of shape (N, T, C)
-          x_lens:
-            A 1-D tensor of shape (N,). Its dtype is torch.int64
+          states:
+            A tuple of 2 tensors (optional). It is for streaming inference.
+            states[0] is the hidden states of all layers,
+              with shape of (num_layers, N, d_model);
+            states[1] is the cell states of all layers,
+              with shape of (num_layers, N, rnn_hidden_size).
         Returns:
           Return a tuple containing:
             - encoder_out, A 3-D tensor of shape (N, T', joiner_dim)
-            - encoder_out_lens, A 1-D tensor of shape (N,)
+            - updated states, whose shape is the same as the input states.
         """
-        encoder_out, encoder_out_lens = self.encoder(x, x_lens)
+        N = x.size(0)
+        T = x.size(1)
+        x_lens = torch.tensor([T] * N, dtype=torch.int64, device=x.device)
+        encoder_out, _, next_states = self.encoder(x, x_lens, states)
 
         encoder_out = self.encoder_proj(encoder_out)
         # Now encoder_out is of shape (N, T, joiner_dim)
 
-        return encoder_out, encoder_out_lens
+        return encoder_out, next_states
 
 
 class OnnxDecoder(nn.Module):
@@ -255,15 +267,17 @@ def export_encoder_model_onnx(
     opset_version: int = 11,
 ) -> None:
     """Export the given encoder model to ONNX format.
-    The exported model has two inputs:
+    The exported model has the following inputs:
 
         - x, a tensor of shape (N, T, C); dtype is torch.float32
-        - x_lens, a tensor of shape (N,); dtype is torch.int64
+        - state0, a tensor of shape (num_encoder_layers, batch_size, d_model)
+        - state1, a tensor of shape (num_encoder_layers, batch_size, rnn_hidden_size)
 
-    and it has two outputs:
+    and it has 3 outputs:
 
         - encoder_out, a tensor of shape (N, T', joiner_dim)
-        - encoder_out_lens, a tensor of shape (N,)
+        - new_state0, a tensor of shape (num_encoder_layers, batch_size, d_model)
+        - new_state1, a tensor of shape (num_encoder_layers, batch_size, rnn_hidden_size)
 
     Args:
       encoder_model:
@@ -273,30 +287,45 @@ def export_encoder_model_onnx(
       opset_version:
         The opset version to use.
     """
-    x = torch.zeros(1, 100, 80, dtype=torch.float32)
-    x_lens = torch.tensor([100], dtype=torch.int64)
+    num_encoder_layers = encoder_model.encoder.num_encoder_layers
+    d_model = encoder_model.encoder.d_model
+    rnn_hidden_size = encoder_model.encoder.rnn_hidden_size
+
+    decode_chunk_len = 4
+    T = 9
+
+    x = torch.zeros(1, T, 80, dtype=torch.float32)
+    states = encoder_model.encoder.get_init_states()
+    # state0: (num_encoder_layers, batch_size, d_model)
+    # state1: (num_encoder_layers, batch_size, rnn_hidden_size)
 
     torch.onnx.export(
         encoder_model,
-        (x, x_lens),
+        (x, states),
         encoder_filename,
         verbose=False,
         opset_version=opset_version,
-        input_names=["x", "x_lens"],
-        output_names=["encoder_out", "encoder_out_lens"],
+        input_names=["x", "state0", "state1"],
+        output_names=["encoder_out", "new_state0", "new_state1"],
         dynamic_axes={
             "x": {0: "N", 1: "T"},
-            "x_lens": {0: "N"},
-            "encoder_out": {0: "N", 1: "T"},
-            "encoder_out_lens": {0: "N"},
+            "state0": {1: "N"},
+            "state1": {1: "N"},
+            "encoder_out": {0: "N"},
+            "new_state0": {1: "N"},
+            "new_state1": {1: "N"},
         },
     )
 
     meta_data = {
-        "model_type": "zipformer",
+        "model_type": "lstm",
         "version": "1",
         "model_author": "k2-fsa",
-        "comment": "stateless7",
+        "decode_chunk_len": str(decode_chunk_len),  # 32
+        "T": str(T),  # 39
+        "num_encoder_layers": str(num_encoder_layers),
+        "d_model": str(d_model),
+        "rnn_hidden_size": str(rnn_hidden_size),
     }
     logging.info(f"meta_data: {meta_data}")
 
@@ -411,17 +440,14 @@ def main():
 
     logging.info(f"device: {device}")
 
-    sp = spm.SentencePieceProcessor()
-    sp.load(params.bpe_model)
-
-    # <blk> is defined in local/train_bpe_model.py
-    params.blank_id = sp.piece_to_id("<blk>")
-    params.vocab_size = sp.get_piece_size()
+    lexicon = Lexicon(params.lang_dir)
+    params.blank_id = 0
+    params.vocab_size = max(lexicon.tokens) + 1
 
     logging.info(params)
 
     logging.info("About to create model")
-    model = get_transducer_model(params)
+    model = get_transducer_model(params, enable_giga=False)
 
     model.to(device)
 
@@ -442,7 +468,9 @@ def main():
                 )
             logging.info(f"averaging {filenames}")
             model.to(device)
-            model.load_state_dict(average_checkpoints(filenames, device=device))
+            model.load_state_dict(
+                average_checkpoints(filenames, device=device), strict=False
+            )
         elif params.avg == 1:
             load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
         else:
@@ -453,7 +481,9 @@ def main():
                     filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
             logging.info(f"averaging {filenames}")
             model.to(device)
-            model.load_state_dict(average_checkpoints(filenames, device=device))
+            model.load_state_dict(
+                average_checkpoints(filenames, device=device), strict=False
+            )
     else:
         if params.iter > 0:
             filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
@@ -481,7 +511,8 @@ def main():
                     filename_start=filename_start,
                     filename_end=filename_end,
                     device=device,
-                )
+                ),
+                strict=False,
             )
         else:
             assert params.avg > 0, params.avg
@@ -499,13 +530,14 @@ def main():
                     filename_start=filename_start,
                     filename_end=filename_end,
                     device=device,
-                )
+                ),
+                strict=False,
             )
 
     model.to("cpu")
     model.eval()
 
-    convert_scaled_to_non_scaled(model, inplace=True)
+    convert_scaled_to_non_scaled(model, inplace=True, is_onnx=True)
 
     encoder = OnnxEncoder(
         encoder=model.encoder,
