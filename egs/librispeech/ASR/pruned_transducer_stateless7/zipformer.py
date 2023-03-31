@@ -297,21 +297,20 @@ class Zipformer2(EncoderInterface):
         num_frames_max = (num_frames0 + max_downsampling_factor - 1)
 
         # we divide the dropped-out feature dimensions into two equal groups;
-        # the first group is dropped out with probability 0.05, the second
-        # with probability approximately (0.2 + 0.05).
-        feature_mask_dropout_prob1 = 0.05
-        feature_mask_dropout_prob2 = 0.2
+        # the first group is dropped out with probability 0.1, the second
+        # with probability approximately twice that.
+        feature_mask_dropout_prob = 0.1
 
         # frame_mask_max1 shape: (num_frames_max, batch_size, 1)
         frame_mask_max1 = (torch.rand(num_frames_max, batch_size, 1,
                                     device=x.device) >
-                           feature_mask_dropout_prob1).to(x.dtype)
+                           feature_mask_dropout_prob).to(x.dtype)
 
         # frame_mask_max2 has additional frames masked, about twice the number.
         frame_mask_max2 = torch.logical_and(frame_mask_max1,
                                             (torch.rand(num_frames_max, batch_size, 1,
                                                         device=x.device) >
-                                             feature_mask_dropout_prob2).to(x.dtype))
+                                             feature_mask_dropout_prob).to(x.dtype))
 
 
         # dim: (num_frames_max, batch_size, 3)
