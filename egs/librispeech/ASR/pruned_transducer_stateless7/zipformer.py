@@ -301,7 +301,7 @@ class Zipformer2(EncoderInterface):
 
         max_downsampling_factor = max(downsampling_factor)
 
-        num_frames_max = (num_frames0 + max_downsampling_factor - 1)
+        num_frames_max = (num_frames0 + max_downsampling_factor - 1) // max_downsampling_factor
 
         # we divide the dropped-out feature dimensions into two equal groups;
         # the first group is dropped out with probability 0.1, the second
@@ -325,7 +325,7 @@ class Zipformer2(EncoderInterface):
 
         feature_masks = []
         for i in range(num_encoders):
-            ds = downsampling_factor[i]
+            ds = self.downsampling_factor[i]
             upsample_factor = (max_downsampling_factor // ds)
 
             frame_mask = (frame_mask_max.unsqueeze(1).expand(num_frames_max, upsample_factor,
