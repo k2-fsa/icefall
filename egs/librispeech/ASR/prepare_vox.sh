@@ -38,7 +38,7 @@ stop_stage=100
 #     - noise
 #     - speech
 #dl_dir=/DB/LibriSpeech_tar/vox
-dl_dir=/home/work/workspace/LibriSpeech/vox
+dl_dir=/home/work/workspace/LibriSpeech/vox_v3
 
 . shared/parse_options.sh || exit 1
 
