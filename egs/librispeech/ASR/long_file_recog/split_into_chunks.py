@@ -18,7 +18,7 @@
 
 """
 This script splits long utterances into chunks with overlaps.
-Each chunk (except the first and the last) is attached with extra left side and right side.
+Each chunk (except the first and the last) is padded with extra left side and right side.
 The chunk length is: left_side + chunk_size + right_side.
 """
 
@@ -35,28 +35,28 @@ def get_args():
     parser.add_argument(
         "--manifest-in-dir",
         type=Path,
-        default=Path("data/manifests"),
+        default=Path("data/librilight/manifests"),
         help="Path to directory of full utterances.",
     )
 
     parser.add_argument(
         "--manifest-out-dir",
         type=Path,
-        default=Path("data/manifests_chunk"),
+        default=Path("data/librilight/manifests_chunk"),
         help="Path to directory to save splitted chunks.",
     )
 
     parser.add_argument(
         "--chunk",
         type=float,
-        default=6.0,
+        default=30.0,
         help="""Duration (in seconds) of each chunk.""",
     )
 
     parser.add_argument(
-        "--side",
+        "--extra",
         type=float,
-        default=1.0,
+        default=2.0,
         help="""Extra duration (in seconds) at both sides.""",
     )
 
@@ -70,22 +70,23 @@ def main():
     manifest_out_dir = args.manifest_out_dir
     manifest_out_dir.mkdir(parents=True, exist_ok=True)
 
-    suffix = ".jsonl.gz"
-    subsets = ["librispeech_cuts_test-clean"]
+    subsets = ["small"]
 
     for subset in subsets:
-        logging.info(f"Processing {subset}")
+        logging.info(f"Processing {subset} subset")
 
-        manifest_out = manifest_out_dir / (subset + suffix)
+        manifest_out = manifest_out_dir / f"librilight_cuts_{subset}.jsonl.gz"
         if manifest_out.is_file():
             logging.info(f"{manifest_out} already exists - skipping.")
             continue
 
-        manifest_in = args.manifest_in_dir / (subset + suffix)
+        manifest_in = args.manifest_in_dir / f"librilight_recordings_{subset}.jsonl.gz"
         recordings = load_manifest(manifest_in)
 
         cuts = CutSet.from_manifests(recordings=recordings)
-        cuts = cuts.cut_into_windows(duration=args.chunk, hop=args.side * 2)
+        cuts = cuts.cut_into_windows(
+            duration=args.chunk, hop=args.chunk - args.extra * 2
+        )
         cuts = cuts.fill_supervisions()
 
         cuts.to_file(manifest_out)

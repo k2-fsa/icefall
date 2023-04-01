@@ -17,7 +17,7 @@
 
 
 """
-This file merge overlapped chunks into utterances.
+This file merge overlapped chunks into utterances accroding to recording ids.
 """
 
 import argparse
@@ -26,7 +26,7 @@ from pathlib import Path
 from cytoolz.itertoolz import groupby
 
 import sentencepiece as spm
-from lhotse import CutSet, load_manifest
+from lhotse import CutSet, SupervisionSet, load_manifest
 from lhotse import SupervisionSegment, MonoCut
 
 
@@ -43,34 +43,47 @@ def get_parser():
     parser.add_argument(
         "--manifest-in-dir",
         type=Path,
-        default=Path("data/manifests_chunk_recog"),
+        default=Path("data/librilight/manifests_chunk_recog"),
         help="Path to directory of chunk cuts with recognition results.",
     )
 
     parser.add_argument(
         "--manifest-out-dir",
         type=Path,
-        default=Path("data/manifests_recog"),
+        default=Path("data/manifests"),
         help="Path to directory to save full utterance by merging overlapped chunks.",
+    )
+
+    parser.add_argument(
+        "--extra",
+        type=float,
+        default=2.0,
+        help="""Extra duration (in seconds) at both sides.""",
     )
 
     return parser.parse_args()
 
 
 def merge_chunks(
-    cut_set: CutSet, sp: spm.SentencePieceProcessor, drop: float
+    cuts_chunk: CutSet,
+    supervisions: SupervisionSet,
+    sp: spm.SentencePieceProcessor,
+    extra: float,
 ) -> CutSet:
     """Merge chunk-wise cuts accroding to recording ids.
+
     Args:
-      cut_set:
+      cuts_chunk:
         The chunk-wise cuts.
+      supervisions:
+        The supervision manifest containing text file path.
       sp:
         The BPE model.
-      drop:
-        Duration (in seconds) to drop at both sides of each chunk.
+      extra:
+        Extra duration (in seconds) to drop at both sides of each chunk.
     """
     # Divide into groups accroding to their recording ids
-    cut_groups = groupby(lambda cut: cut.recording.id, cut_set)
+    cut_groups = groupby(lambda cut: cut.recording.id, cuts_chunk)
 
     utt_cut_list = []
     for recording_id, cuts in cut_groups.items():
@@ -82,9 +95,9 @@ def merge_chunks(
         cur_end = 0
         for cut in chunk_cuts:
             # Get left and right borders
-            left = cut.start + drop if cut.start > 0 else 0
+            left = cut.start + extra if cut.start > 0 else 0
             chunk_end = cut.start + cut.duration
-            right = chunk_end - drop if chunk_end < rec.duration else rec.duration
+            right = chunk_end - extra if chunk_end < rec.duration else rec.duration
 
             # Assert the chunks are continuous
             assert left == cur_end, (left, cur_end)
@@ -96,22 +109,30 @@ def merge_chunks(
                 if left <= t < right:
                     alignments.append(ali.with_offset(cut.start))
 
-        words = sp.decode([ali.symbol for ali in alignments])
-        sup = SupervisionSegment(
+        words = sp.decode_pieces([ali.symbol for ali in alignments])
+        old_sup = supervisions[rec.id]
+        assert old_sup.recording_id == rec.id, (old_sup.recording_id, rec.id)
+
+        new_sup = SupervisionSegment(
             id=rec.id,
             recording_id=rec.id,
             start=0,
             duration=rec.duration,
             text=words,
-            alignment=alignments,
+            alignment={"symbol": alignments},
+            language=old_sup.language,
+            speaker=old_sup.speaker,
         )
+        # Set a custom attribute
+        new_sup.text_path = old_sup.text_path
+
         utt_cut = MonoCut(
             id=rec.id,
             start=0,
             duration=rec.duration,
             channel=0,
             recording=rec,
-            supervisions=[sup],
+            supervisions=[new_sup],
         )
         utt_cut_list.append(utt_cut)
 
@@ -124,26 +145,30 @@ def main():
     sp = spm.SentencePieceProcessor()
     sp.load(args.bpe_model)
 
+    # It contains "librilight_recordings_*.jsonl.gz" and "librilight_supervisions_small.jsonl.gz"
     manifest_out_dir = args.manifest_out_dir
-    manifest_out_dir.mkdir(parents=True, exist_ok=True)
 
-    suffix = ".jsonl.gz"
-    subsets = ["librispeech_cuts_test-clean"]
+    subsets = ["small"]
 
     for subset in subsets:
-        logging.info(f"Processing {subset}")
+        logging.info(f"Processing {subset} subset")
 
-        out_cuts_filename = manifest_out_dir / (subset + suffix)
-        if out_cuts_filename.is_file():
-            logging.info(f"{out_cuts_filename} already exists - skipping.")
-            exit(0)
+        manifest_out = manifest_out_dir / f"librilight_cuts_{subset}.jsonl.gz"
+        if manifest_out.is_file():
+            logging.info(f"{manifest_out} already exists - skipping.")
+            continue
 
-        in_cuts_filename = args.manifest_in_dir / (subset + suffix)
-        test_cuts = load_manifest(in_cuts_filename)
+        supervisions = load_manifest(
+            manifest_out_dir / f"librilight_supervisions_{subset}.jsonl.gz"
+        )  # We will use the text path from supervisions
 
-        process_cuts = merge_chunks(test_cuts, sp, drop=1)
-        process_cuts.to_file(out_cuts_filename)
-        logging.info(f"Cuts saved to {out_cuts_filename}")
+        cuts_chunk = load_manifest(
+            args.manifest_in_dir / f"librilight_cuts_{subset}.jsonl.gz"
+        )
+
+        cuts_utt = merge_chunks(cuts_chunk, supervisions, sp, extra=args.extra)
+        cuts_utt.to_file(manifest_out)
+        logging.info(f"Cuts saved to {manifest_out}")
 
 
 if __name__ == "__main__":
