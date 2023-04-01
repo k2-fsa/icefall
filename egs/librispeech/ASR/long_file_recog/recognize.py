@@ -15,7 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
-This script loads torchscript models, exported by `torch.jit.script()`
+This script loads torchscript models, exported by `torch.jit.script()`,
 and uses them to decode waves.
 You can use the following command to get the exported models:
 
@@ -25,6 +25,9 @@ You can use the following command to get the exported models:
   --epoch 20 \
   --avg 10 \
   --jit 1
+
+You can also download the jit model from
+https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11
 """
 
 import argparse

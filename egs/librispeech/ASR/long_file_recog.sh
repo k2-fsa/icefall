@@ -34,11 +34,14 @@ log() {
 }
 
 if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
+  # We will get librilight_recodings_{subset}.jsonl.gz and librilight_supervisions_{subset}.jsonl.gz
+  # saved in $output_dir/manifests
   log "Stage 1: Prepare LibriLight manifest"
   lhotse prepare librilight $corpus_dir $text_dir $output_dir/manifests -j 10
 fi
 
 if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
+  # Chunk manifests are saved to $output_dir/manifests_chunk/librilight_cuts_{subset}.jsonl.gz
   log "Stage 2: Split long audio into chunks"
   ./long_file_recog/split_into_chunks.py \
     --manifest-in-dir $output_dir/manifests \
@@ -48,6 +51,12 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
 fi
 
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
+  # Recognized tokens and timestamps are saved to $output_dir/manifests_chunk_recog/librilight_cuts_{subset}.jsonl.gz
+
+  # This script loads torchscript models, exported by `torch.jit.script()`,
+  # and uses it to decode waves.
+  # You can download the jit model from https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11
+
   log "Stage 3: Perform speech recognition on splitted chunks"
   ./long_file_recog/recognize.py \
     --manifest-in-dir $output_dir/manifests_chunk \
@@ -59,6 +68,7 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
 fi
 
 if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
+  # Final results are saved in $output_dir/manifests/librilight_cuts_{subset}.jsonl.gz
   log "Stage 4: Merge splitted chunks into utterances."
   ./long_file_recog/merge_chunks.py \
     --manifest-in-dir $output_dir/manifests_chunk_recog \
