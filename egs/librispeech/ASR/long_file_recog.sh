@@ -7,7 +7,7 @@ export CUDA_VISIBLE_DEVICES="4"
 
 set -eou pipefail
 
-# This script is used to recogize long audios.
+# This script is used to recogize long audios. The process is as follows:
 # 1) Split long audios into chunks with overlaps.
 # 2) Perform speech recognition on chunks, getting tokens and timestamps.
 # 3) Merge the overlapped chunks into utterances acording to the timestamps.
