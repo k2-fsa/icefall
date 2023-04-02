@@ -19,26 +19,24 @@
 """
 Usage:
 
-export CUDA_VISIBLE_DEVICES="0,1,2,3"
+export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
 
 ./pruned_transducer_stateless2/train.py \
-  --world-size 4 \
+  --world-size 8 \
   --num-epochs 30 \
   --start-epoch 0 \
   --exp-dir pruned_transducer_stateless2/exp \
-  --full-libri 1 \
-  --max-duration 300
+  --max-duration 120
 
 # For mix precision training:
 
 ./pruned_transducer_stateless2/train.py \
-  --world-size 4 \
+  --world-size 8 \
   --num-epochs 30 \
   --start-epoch 0 \
   --use_fp16 1 \
   --exp-dir pruned_transducer_stateless2/exp \
-  --full-libri 1 \
-  --max-duration 550
+  --max-duration 200
 
 """
 
