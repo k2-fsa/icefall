@@ -82,6 +82,7 @@ else
 			--spk-id $2 
 		touch ./pruned_transducer_stateless_d2v_v2/$1/.train.done
 	fi
+fi
 
 #else
 #	export CUDA_VISIBLE_DEVICES="0,1,2,3"
