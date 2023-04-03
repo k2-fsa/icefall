@@ -25,7 +25,7 @@ from pathlib import Path
 import torch
 from model import RnnLmModel
 
-from icefall.checkpoint import load_checkpoint, average_checkpoints, find_checkpoints
+from icefall.checkpoint import average_checkpoints, find_checkpoints, load_checkpoint
 from icefall.utils import AttributeDict, load_averaged_model, str2bool
 
 
@@ -50,7 +50,7 @@ def get_parser():
         "consecutive checkpoints before the checkpoint specified by "
         "'--epoch'. ",
     )
-    
+
     parser.add_argument(
         "--iter",
         type=int,
@@ -62,31 +62,19 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--vocab-size",
-        type=int,
-        default=500,
-        help="Vocabulary size of the model",
+        "--vocab-size", type=int, default=500, help="Vocabulary size of the model",
     )
 
     parser.add_argument(
-        "--embedding-dim",
-        type=int,
-        default=2048,
-        help="Embedding dim of the model",
+        "--embedding-dim", type=int, default=2048, help="Embedding dim of the model",
     )
 
     parser.add_argument(
-        "--hidden-dim",
-        type=int,
-        default=2048,
-        help="Hidden dim of the model",
+        "--hidden-dim", type=int, default=2048, help="Hidden dim of the model",
     )
 
     parser.add_argument(
-        "--num-layers",
-        type=int,
-        default=3,
-        help="Number of RNN layers the model",
+        "--num-layers", type=int, default=3, help="Number of RNN layers the model",
     )
 
     parser.add_argument(
