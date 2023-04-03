@@ -22,6 +22,7 @@ This file merge overlapped chunks into utterances accroding to recording ids.
 
 import argparse
 import logging
+import math
 from pathlib import Path
 from cytoolz.itertoolz import groupby
 
@@ -61,6 +62,14 @@ def get_parser():
         help="""Extra duration (in seconds) at both sides.""",
     )
 
+    parser.add_argument(
+        "--supervision-chunk",
+        type=float,
+        default=5.0,
+        help="""Chunk duration (in seconds) used to split the supervision.
+        If <=0, the supervision will span the entire cut.""",
+    )
+
     return parser.parse_args()
 
 
@@ -69,6 +78,7 @@ def merge_chunks(
     supervisions: SupervisionSet,
     sp: spm.SentencePieceProcessor,
     extra: float,
+    supervision_chunk: float = 5.0,
 ) -> CutSet:
     """Merge chunk-wise cuts accroding to recording ids.
 
@@ -109,22 +119,33 @@ def merge_chunks(
                 if left <= t < right:
                     alignments.append(ali.with_offset(cut.start))
 
-        words = sp.decode_pieces([ali.symbol for ali in alignments])
         old_sup = supervisions[rec.id]
         assert old_sup.recording_id == rec.id, (old_sup.recording_id, rec.id)
 
-        new_sup = SupervisionSegment(
-            id=rec.id,
-            recording_id=rec.id,
-            start=0,
-            duration=rec.duration,
-            text=words,
-            alignment={"symbol": alignments},
-            language=old_sup.language,
-            speaker=old_sup.speaker,
-        )
-        # Set a custom attribute
-        new_sup.text_path = old_sup.text_path
+        if supervision_chunk < 0 or supervision_chunk > rec.duration:
+            # Only one supervision
+            supervision_chunk = rec.duration
+
+        num_sups = math.ceil(rec.duration / supervision_chunk)
+        alignment_groups = [[] for _ in range(num_sups)]
+
+        # Devide alignments into groups, while some groups could be empty
+        for ali in alignments:
+            alignment_groups[int(ali.start / supervision_chunk)].append(ali)
+
+        new_sups = []
+        for i in range(num_sups):
+            sup_offset = i * supervision_chunk
+            sup = SupervisionSegment(
+                id=rec.id + "_" + str(i),
+                recording_id=rec.id,
+                start=sup_offset,
+                duration=min(rec.duration - sup_offset, supervision_chunk),
+                alignment={"symbol": alignment_groups[i]},
+                language=old_sup.language,
+                speaker=old_sup.speaker,
+            )
+            new_sups.append(sup)
 
         utt_cut = MonoCut(
             id=rec.id,
@@ -132,8 +153,10 @@ def merge_chunks(
             duration=rec.duration,
             channel=0,
             recording=rec,
-            supervisions=[new_sup],
+            supervisions=new_sups,
         )
+        # Set a custom attribute to the cut
+        utt_cut.text_path = old_sup.text_path
         utt_cut_list.append(utt_cut)
 
     return CutSet.from_cuts(utt_cut_list)
@@ -166,7 +189,13 @@ def main():
             args.manifest_in_dir / f"librilight_cuts_{subset}.jsonl.gz"
         )
 
-        cuts_utt = merge_chunks(cuts_chunk, supervisions, sp, extra=args.extra)
+        cuts_utt = merge_chunks(
+            cuts_chunk,
+            supervisions,
+            sp=sp,
+            extra=args.extra,
+            supervision_chunk=args.supervision_chunk,
+        )
         cuts_utt.to_file(manifest_out)
         logging.info(f"Cuts saved to {manifest_out}")
 

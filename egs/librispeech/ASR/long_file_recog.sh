@@ -17,6 +17,10 @@ set -eou pipefail
 chunk=30.0
 extra=2.0
 
+# Chunk duration (in seconds) used to split the supervision.
+# If <=0, the supervision will span the entire cut.
+supervision_chunk=5.0
+
 stage=1
 stop_stage=4
 
@@ -74,7 +78,8 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
     --manifest-in-dir $output_dir/manifests_chunk_recog \
     --manifest-out-dir $output_dir/manifests \
     --bpe-model data/lang_bpe_500/bpe.model \
-    --extra $extra
+    --extra $extra \
+    --supervision-chunk $supervision_chunk
 fi
 
 
