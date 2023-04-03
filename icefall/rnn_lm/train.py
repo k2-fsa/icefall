@@ -61,7 +61,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--world-size", type=int, default=1, help="Number of GPUs for DDP training.",
+        "--world-size",
+        type=int,
+        default=1,
+        help="Number of GPUs for DDP training.",
     )
 
     parser.add_argument(
@@ -79,7 +82,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--num-epochs", type=int, default=30, help="Number of epochs to train.",
+        "--num-epochs",
+        type=int,
+        default=30,
+        help="Number of epochs to train.",
     )
 
     parser.add_argument(
@@ -110,7 +116,9 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--batch-size", type=int, default=400,
+        "--batch-size",
+        type=int,
+        default=400,
     )
 
     parser.add_argument(
@@ -128,19 +136,31 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--vocab-size", type=int, default=500, help="Vocabulary size of the model",
+        "--vocab-size",
+        type=int,
+        default=500,
+        help="Vocabulary size of the model",
     )
 
     parser.add_argument(
-        "--embedding-dim", type=int, default=2048, help="Embedding dim of the model",
+        "--embedding-dim",
+        type=int,
+        default=2048,
+        help="Embedding dim of the model",
     )
 
     parser.add_argument(
-        "--hidden-dim", type=int, default=2048, help="Hidden dim of the model",
+        "--hidden-dim",
+        type=int,
+        default=2048,
+        help="Hidden dim of the model",
     )
 
     parser.add_argument(
-        "--num-layers", type=int, default=3, help="Number of RNN layers the model",
+        "--num-layers",
+        type=int,
+        default=3,
+        help="Number of RNN layers the model",
     )
 
     parser.add_argument(
@@ -160,7 +180,9 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--lr", type=float, default=1e-3,
+        "--lr",
+        type=float,
+        default=1e-3,
     )
 
     parser.add_argument(
@@ -244,7 +266,10 @@ def load_checkpoint_if_available(
     filename = params.exp_dir / f"epoch-{params.start_epoch-1}.pt"
     logging.info(f"Loading checkpoint: {filename}")
     saved_params = load_checkpoint(
-        filename, model=model, optimizer=optimizer, scheduler=scheduler,
+        filename,
+        model=model,
+        optimizer=optimizer,
+        scheduler=scheduler,
     )
 
     keys = [
@@ -474,7 +499,10 @@ def train_one_epoch(
             logging.info("Computing validation loss")
 
             valid_info = compute_validation_loss(
-                params=params, model=model, valid_dl=valid_dl, world_size=world_size,
+                params=params,
+                model=model,
+                valid_dl=valid_dl,
+                world_size=world_size,
             )
             model.train()
 
@@ -556,7 +584,9 @@ def run(rank, world_size, args):
     model.device = device
 
     optimizer = optim.Adam(
-        model.parameters(), lr=params.lr, weight_decay=params.weight_decay,
+        model.parameters(),
+        lr=params.lr,
+        weight_decay=params.weight_decay,
     )
     if checkpoints:
         logging.info("Load optimizer state_dict from checkpoint")
@@ -564,12 +594,16 @@ def run(rank, world_size, args):
 
     logging.info(f"Loading LM training data from {params.lm_data}")
     train_dl = get_dataloader(
-        filename=params.lm_data, is_distributed=is_distributed, params=params,
+        filename=params.lm_data,
+        is_distributed=is_distributed,
+        params=params,
     )
 
     logging.info(f"Loading LM validation data from {params.lm_data_valid}")
     valid_dl = get_dataloader(
-        filename=params.lm_data_valid, is_distributed=is_distributed, params=params,
+        filename=params.lm_data_valid,
+        is_distributed=is_distributed,
+        params=params,
     )
 
     # Note: No learning rate scheduler is used here
@@ -591,7 +625,10 @@ def run(rank, world_size, args):
         )
 
         save_checkpoint(
-            params=params, model=model, optimizer=optimizer, rank=rank,
+            params=params,
+            model=model,
+            optimizer=optimizer,
+            rank=rank,
         )
 
     logging.info("Done!")

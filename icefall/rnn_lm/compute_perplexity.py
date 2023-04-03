@@ -70,27 +70,44 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--exp-dir", type=str, default="rnn_lm/exp", help="The experiment dir",
+        "--exp-dir",
+        type=str,
+        default="rnn_lm/exp",
+        help="The experiment dir",
     )
 
     parser.add_argument(
-        "--lm-data", type=str, help="Path to the LM test data for computing perplexity",
+        "--lm-data",
+        type=str,
+        help="Path to the LM test data for computing perplexity",
     )
 
     parser.add_argument(
-        "--vocab-size", type=int, default=500, help="Vocabulary size of the model",
+        "--vocab-size",
+        type=int,
+        default=500,
+        help="Vocabulary size of the model",
     )
 
     parser.add_argument(
-        "--embedding-dim", type=int, default=2048, help="Embedding dim of the model",
+        "--embedding-dim",
+        type=int,
+        default=2048,
+        help="Embedding dim of the model",
     )
 
     parser.add_argument(
-        "--hidden-dim", type=int, default=2048, help="Hidden dim of the model",
+        "--hidden-dim",
+        type=int,
+        default=2048,
+        help="Hidden dim of the model",
     )
 
     parser.add_argument(
-        "--num-layers", type=int, default=3, help="Number of RNN layers the model",
+        "--num-layers",
+        type=int,
+        default=3,
+        help="Number of RNN layers the model",
     )
 
     parser.add_argument(
@@ -103,23 +120,38 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--batch-size", type=int, default=50, help="Number of RNN layers the model",
+        "--batch-size",
+        type=int,
+        default=50,
+        help="Number of RNN layers the model",
     )
 
     parser.add_argument(
-        "--max-sent-len", type=int, default=100, help="Number of RNN layers the model",
+        "--max-sent-len",
+        type=int,
+        default=100,
+        help="Number of RNN layers the model",
     )
 
     parser.add_argument(
-        "--sos-id", type=int, default=1, help="SOS ID",
+        "--sos-id",
+        type=int,
+        default=1,
+        help="SOS ID",
     )
 
     parser.add_argument(
-        "--eos-id", type=int, default=1, help="EOS ID",
+        "--eos-id",
+        type=int,
+        default=1,
+        help="EOS ID",
     )
 
     parser.add_argument(
-        "--blank-id", type=int, default=0, help="Blank ID",
+        "--blank-id",
+        type=int,
+        default=0,
+        help="Blank ID",
     )
     return parser
 
@@ -207,7 +239,9 @@ def main():
 
     logging.info(f"Loading LM test data from {params.lm_data}")
     test_dl = get_dataloader(
-        filename=params.lm_data, is_distributed=False, params=params,
+        filename=params.lm_data,
+        is_distributed=False,
+        params=params,
     )
 
     tot_loss = 0.0

@@ -62,19 +62,31 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--vocab-size", type=int, default=500, help="Vocabulary size of the model",
+        "--vocab-size",
+        type=int,
+        default=500,
+        help="Vocabulary size of the model",
     )
 
     parser.add_argument(
-        "--embedding-dim", type=int, default=2048, help="Embedding dim of the model",
+        "--embedding-dim",
+        type=int,
+        default=2048,
+        help="Embedding dim of the model",
     )
 
     parser.add_argument(
-        "--hidden-dim", type=int, default=2048, help="Hidden dim of the model",
+        "--hidden-dim",
+        type=int,
+        default=2048,
+        help="Hidden dim of the model",
     )
 
     parser.add_argument(
-        "--num-layers", type=int, default=3, help="Number of RNN layers the model",
+        "--num-layers",
+        type=int,
+        default=3,
+        help="Number of RNN layers the model",
     )
 
     parser.add_argument(
