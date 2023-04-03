@@ -40,8 +40,8 @@ from tqdm import tqdm
 # and 'data()' is only supported in static graph mode. So if you
 # want to use this api, should call 'paddle.enable_static()' before
 # this api to enter static graph mode.
-paddle.enable_static()
-paddle.disable_signal_handler()
+# paddle.enable_static()
+# paddle.disable_signal_handler()
 jieba.enable_paddle()
 
 

@@ -675,7 +675,6 @@ def decode_one_batch(
             encoder_out=encoder_out,
             encoder_out_lens=encoder_out_lens,
             beam=params.beam_size,
-            sp=sp,
             LM=LM,
         )
         for hyp in sp.decode(hyp_tokens):
@@ -686,7 +685,6 @@ def decode_one_batch(
             encoder_out=encoder_out,
             encoder_out_lens=encoder_out_lens,
             beam=params.beam_size,
-            sp=sp,
             LODR_lm=ngram_lm,
             LODR_lm_scale=ngram_lm_scale,
             LM=LM,

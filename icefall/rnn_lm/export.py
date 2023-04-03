@@ -25,7 +25,7 @@ from pathlib import Path
 import torch
 from model import RnnLmModel
 
-from icefall.checkpoint import load_checkpoint
+from icefall.checkpoint import average_checkpoints, find_checkpoints, load_checkpoint
 from icefall.utils import AttributeDict, load_averaged_model, str2bool
 
 
@@ -49,6 +49,16 @@ def get_parser():
         help="Number of checkpoints to average. Automatically select "
         "consecutive checkpoints before the checkpoint specified by "
         "'--epoch'. ",
+    )
+
+    parser.add_argument(
+        "--iter",
+        type=int,
+        default=0,
+        help="""If positive, --epoch is ignored and it
+        will use the checkpoint exp_dir/checkpoint-iter.pt.
+        You can specify --avg to use more checkpoints for model averaging.
+        """,
     )
 
     parser.add_argument(
@@ -133,11 +143,36 @@ def main():
 
     model.to(device)
 
-    if params.avg == 1:
+    if params.iter > 0:
+        filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
+            : params.avg
+        ]
+        if len(filenames) == 0:
+            raise ValueError(
+                f"No checkpoints found for --iter {params.iter}, --avg {params.avg}"
+            )
+        elif len(filenames) < params.avg:
+            raise ValueError(
+                f"Not enough checkpoints ({len(filenames)}) found for"
+                f" --iter {params.iter}, --avg {params.avg}"
+            )
+        logging.info(f"averaging {filenames}")
+        model.to(device)
+        model.load_state_dict(
+            average_checkpoints(filenames, device=device), strict=False
+        )
+    elif params.avg == 1:
         load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
     else:
-        model = load_averaged_model(
-            params.exp_dir, model, params.epoch, params.avg, device
+        start = params.epoch - params.avg + 1
+        filenames = []
+        for i in range(start, params.epoch + 1):
+            if i >= 0:
+                filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
+        logging.info(f"averaging {filenames}")
+        model.to(device)
+        model.load_state_dict(
+            average_checkpoints(filenames, device=device), strict=False
         )
 
     model.to("cpu")
