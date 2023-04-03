@@ -75,7 +75,7 @@ else
 			--decoder-dim 768 \
 			--joiner-dim 768 \
 			--use-fp16 0 \
-			--accum-grads 1 \
+			--accum-grads 2 \
 			--encoder-type d2v \
 			--additional-block True \
 			--prune-range 10 \
