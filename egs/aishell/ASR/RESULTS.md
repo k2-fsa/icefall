@@ -15,8 +15,8 @@ It uses pruned RNN-T.
 |------------------------|------|------|---------------------------------------|
 | greedy search          | 5.39 | 5.09 | --epoch 29 --avg 5 --max-duration 600 |
 | modified beam search   | 5.05 | 4.79 | --epoch 29 --avg 5 --max-duration 600 |
-| modified beam search + RNNLM shallow fusion   | 3.08 | 2.81 | --epoch 29 --avg 5 --max-duration 600 |
-| modified beam search + LODR   | 2.72 | 2.51 | --epoch 29 --avg 5 --max-duration 600 |
+| modified beam search + RNNLM shallow fusion   | 4.73 | 4.53 | --epoch 29 --avg 5 --max-duration 600 |
+| modified beam search + LODR   | 4.57 | 4.37 | --epoch 29 --avg 5 --max-duration 600 |
 | fast beam search       | 5.13 | 4.91 | --epoch 29 --avg 5 --max-duration 600 |
 
 Training command is:
