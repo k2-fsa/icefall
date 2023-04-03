@@ -69,7 +69,8 @@ else
 			--save-every-n 100 \
 			--full-libri 1 \
 			--exp-dir ./pruned_transducer_stateless_d2v_v2/$1 \
-			--max-duration 200 \
+			--max-duration 150 \
+			--accum-grads 2 \
 			--encoder-dim 768 \
 			--decoder-dim 768 \
 			--joiner-dim 768 \
