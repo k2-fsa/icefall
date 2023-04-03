@@ -66,12 +66,12 @@ def test_model_small():
     params.vocab_size = 500
     params.blank_id = 0
     params.context_size = 2
-    params.num_encoder_layers = "2,3,2,2,3"
-    params.feedforward_dims = "320,320,640,640,320"
+    params.num_encoder_layers = "2,2,2,2,2"
+    params.feedforward_dims = "256,256,512,512,256"
     params.nhead = "4,4,4,4,4"
-    params.encoder_dims = "160,160,160,160,160"
+    params.encoder_dims = "128,128,128,128,128"
     params.attention_dims = "96,96,96,96,96"
-    params.encoder_unmasked_dims = "128,128,128,128,128"
+    params.encoder_unmasked_dims = "96,96,96,96,96"
     params.zipformer_downsampling_factors = "1,2,4,8,2"
     params.cnn_module_kernels = "31,31,31,31,31"
     params.decoder_dim = 320
@@ -79,7 +79,6 @@ def test_model_small():
     params.num_left_chunks = 4
     params.short_chunk_size = 50
     params.decode_chunk_len = 32
-    import pdb; pdb.set_trace()
     model = get_transducer_model(params)
 
     num_param = sum([p.numel() for p in model.parameters()])
