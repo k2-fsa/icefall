@@ -202,10 +202,7 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--world-size",
-        type=int,
-        default=1,
-        help="Number of GPUs for DDP training.",
+        "--world-size", type=int, default=1, help="Number of GPUs for DDP training.",
     )
 
     parser.add_argument(
@@ -223,10 +220,7 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--num-epochs",
-        type=int,
-        default=30,
-        help="Number of epochs to train.",
+        "--num-epochs", type=int, default=30, help="Number of epochs to train.",
     )
 
     parser.add_argument(
@@ -739,11 +733,7 @@ def compute_validation_loss(
 
     for batch_idx, batch in enumerate(valid_dl):
         loss, loss_info = compute_loss(
-            params=params,
-            model=model,
-            sp=sp,
-            batch=batch,
-            is_training=False,
+            params=params, model=model, sp=sp, batch=batch, is_training=False,
         )
         assert loss.requires_grad is False
         tot_loss = tot_loss + loss_info
@@ -821,11 +811,7 @@ def train_one_epoch(
         try:
             with torch.cuda.amp.autocast(enabled=params.use_fp16):
                 loss, loss_info = compute_loss(
-                    params=params,
-                    model=model,
-                    sp=sp,
-                    batch=batch,
-                    is_training=True,
+                    params=params, model=model, sp=sp, batch=batch, is_training=True,
                 )
             # summary stats
             tot_loss = (tot_loss * (1 - 1 / params.reset_interval)) + loss_info
@@ -852,9 +838,7 @@ def train_one_epoch(
             and params.batch_idx_train % params.average_period == 0
         ):
             update_averaged_model(
-                params=params,
-                model_cur=model,
-                model_avg=model_avg,
+                params=params, model_cur=model, model_avg=model_avg,
             )
 
         if (
@@ -876,9 +860,7 @@ def train_one_epoch(
             )
             del params.cur_batch_idx
             remove_checkpoints(
-                out_dir=params.exp_dir,
-                topk=params.keep_last_k,
-                rank=rank,
+                out_dir=params.exp_dir, topk=params.keep_last_k, rank=rank,
             )
 
         if batch_idx % 100 == 0 and params.use_fp16:
@@ -918,9 +900,7 @@ def train_one_epoch(
                 tot_loss.write_summary(tb_writer, "train/tot_", params.batch_idx_train)
                 if params.use_fp16:
                     tb_writer.add_scalar(
-                        "train/grad_scale",
-                        cur_grad_scale,
-                        params.batch_idx_train,
+                        "train/grad_scale", cur_grad_scale, params.batch_idx_train,
                     )
 
         if batch_idx % params.valid_interval == 0 and not params.print_diagnostics:
@@ -1041,7 +1021,7 @@ def run(rank, world_size, args):
 
     if params.print_diagnostics:
         opts = diagnostics.TensorDiagnosticOptions(
-            2**22
+            2 ** 22
         )  # allow 4 megabytes per sub-module
         diagnostic = diagnostics.attach_diagnostics(model, opts)
 
@@ -1111,11 +1091,7 @@ def run(rank, world_size, args):
 
     if not params.print_diagnostics:
         scan_pessimistic_batches_for_oom(
-            model=model,
-            train_dl=train_dl,
-            optimizer=optimizer,
-            sp=sp,
-            params=params,
+            model=model, train_dl=train_dl, optimizer=optimizer, sp=sp, params=params,
         )
 
     scaler = GradScaler(enabled=params.use_fp16, init_scale=1.0)
@@ -1171,9 +1147,7 @@ def run(rank, world_size, args):
 
 
 def display_and_save_batch(
-    batch: dict,
-    params: AttributeDict,
-    sp: spm.SentencePieceProcessor,
+    batch: dict, params: AttributeDict, sp: spm.SentencePieceProcessor,
 ) -> None:
     """Display the batch statistics and save the batch into disk.
 
@@ -1220,11 +1194,7 @@ def scan_pessimistic_batches_for_oom(
         try:
             with torch.cuda.amp.autocast(enabled=params.use_fp16):
                 loss, _ = compute_loss(
-                    params=params,
-                    model=model,
-                    sp=sp,
-                    batch=batch,
-                    is_training=True,
+                    params=params, model=model, sp=sp, batch=batch, is_training=True,
                 )
             loss.backward()
             optimizer.zero_grad()

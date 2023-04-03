@@ -190,9 +190,7 @@ def get_parser():
 
 
 def decode_one_chunk(
-    params: AttributeDict,
-    model: nn.Module,
-    decode_streams: List[DecodeStream],
+    params: AttributeDict, model: nn.Module, decode_streams: List[DecodeStream],
 ) -> List[int]:
     """Decode one chunk frames of features for each decode_streams and
     return the indexes of finished streams in a List.
@@ -232,19 +230,14 @@ def decode_one_chunk(
         pad_length = tail_length - features.size(1)
         feature_lens += pad_length
         features = torch.nn.functional.pad(
-            features,
-            (0, 0, 0, pad_length),
-            mode="constant",
-            value=LOG_EPS,
+            features, (0, 0, 0, pad_length), mode="constant", value=LOG_EPS,
         )
 
     states = stack_states(states)
     processed_lens = torch.tensor(processed_lens, device=device)
 
     encoder_out, encoder_out_lens, new_states = model.encoder.streaming_forward(
-        x=features,
-        x_lens=feature_lens,
-        states=states,
+        x=features, x_lens=feature_lens, states=states,
     )
 
     encoder_out = model.joiner.encoder_proj(encoder_out)
@@ -597,9 +590,7 @@ def main():
         )
 
         save_results(
-            params=params,
-            test_set_name=test_set,
-            results_dict=results_dict,
+            params=params, test_set_name=test_set, results_dict=results_dict,
         )
 
     logging.info("Done!")

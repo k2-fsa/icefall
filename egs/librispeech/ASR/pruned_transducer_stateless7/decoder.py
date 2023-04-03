@@ -33,11 +33,7 @@ class Decoder(nn.Module):
     """
 
     def __init__(
-        self,
-        vocab_size: int,
-        decoder_dim: int,
-        blank_id: int,
-        context_size: int,
+        self, vocab_size: int, decoder_dim: int, blank_id: int, context_size: int,
     ):
         """
         Args:
@@ -54,8 +50,7 @@ class Decoder(nn.Module):
         super().__init__()
 
         self.embedding = nn.Embedding(
-            num_embeddings=vocab_size,
-            embedding_dim=decoder_dim,
+            num_embeddings=vocab_size, embedding_dim=decoder_dim,
         )
         self.blank_id = blank_id
 

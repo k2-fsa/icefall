@@ -60,9 +60,7 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--bpe-model",
-        type=str,
-        help="""Path to bpe.model.""",
+        "--bpe-model", type=str, help="""Path to bpe.model.""",
     )
 
     parser.add_argument(
@@ -147,15 +145,12 @@ def greedy_search(
     hyps = [[blank_id] * context_size for _ in range(N)]
 
     decoder_input = torch.tensor(
-        hyps,
-        device=device,
-        dtype=torch.int64,
+        hyps, device=device, dtype=torch.int64,
     )  # (N, context_size)
 
-    decoder_out = model.decoder(
-        decoder_input,
-        need_pad=torch.tensor([False]),
-    ).squeeze(1)
+    decoder_out = model.decoder(decoder_input, need_pad=torch.tensor([False]),).squeeze(
+        1
+    )
 
     offset = 0
     for batch_size in batch_size_list:
@@ -168,10 +163,7 @@ def greedy_search(
 
         decoder_out = decoder_out[:batch_size]
 
-        logits = model.joiner(
-            current_encoder_out,
-            decoder_out,
-        )
+        logits = model.joiner(current_encoder_out, decoder_out,)
         # logits'shape (batch_size, vocab_size)
 
         assert logits.ndim == 2, logits.shape
@@ -185,14 +177,9 @@ def greedy_search(
             # update decoder output
             decoder_input = [h[-context_size:] for h in hyps[:batch_size]]
             decoder_input = torch.tensor(
-                decoder_input,
-                device=device,
-                dtype=torch.int64,
+                decoder_input, device=device, dtype=torch.int64,
             )
-            decoder_out = model.decoder(
-                decoder_input,
-                need_pad=torch.tensor([False]),
-            )
+            decoder_out = model.decoder(decoder_input, need_pad=torch.tensor([False]),)
             decoder_out = decoder_out.squeeze(1)
 
     sorted_ans = [h[context_size:] for h in hyps]
@@ -235,32 +222,21 @@ def main():
     fbank = kaldifeat.Fbank(opts)
 
     logging.info(f"Reading sound files: {args.sound_files}")
-    waves = read_sound_files(
-        filenames=args.sound_files,
-    )
+    waves = read_sound_files(filenames=args.sound_files,)
     waves = [w.to(device) for w in waves]
 
     logging.info("Decoding started")
     features = fbank(waves)
     feature_lengths = [f.size(0) for f in features]
 
-    features = pad_sequence(
-        features,
-        batch_first=True,
-        padding_value=math.log(1e-10),
-    )
+    features = pad_sequence(features, batch_first=True, padding_value=math.log(1e-10),)
 
     feature_lengths = torch.tensor(feature_lengths, device=device)
 
-    encoder_out, encoder_out_lens = model.encoder(
-        x=features,
-        x_lens=feature_lengths,
-    )
+    encoder_out, encoder_out_lens = model.encoder(x=features, x_lens=feature_lengths,)
 
     hyps = greedy_search(
-        model=model,
-        encoder_out=encoder_out,
-        encoder_out_lens=encoder_out_lens,
+        model=model, encoder_out=encoder_out, encoder_out_lens=encoder_out_lens,
     )
     s = "\n"
     for filename, hyp in zip(args.sound_files, hyps):

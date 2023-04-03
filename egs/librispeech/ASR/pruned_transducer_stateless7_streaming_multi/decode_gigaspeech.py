@@ -106,7 +106,8 @@ import k2
 import sentencepiece as spm
 import torch
 import torch.nn as nn
-#from asr_datamodule import LibriSpeechAsrDataModule
+
+# from asr_datamodule import LibriSpeechAsrDataModule
 from gigaspeech_asrmodule import GigaSpeechAsrDataModule
 from beam_search import (
     beam_search,
@@ -330,6 +331,7 @@ def get_parser():
 
     return parser
 
+
 def post_processing(
     results: List[Tuple[str, List[str], List[str]]],
 ) -> List[Tuple[str, List[str], List[str]]]:
@@ -339,6 +341,7 @@ def post_processing(
         new_hyp = asr_text_post_processing(" ".join(hyp)).split()
         new_results.append((key, new_ref, new_hyp))
     return new_results
+
 
 def decode_one_batch(
     params: AttributeDict,
@@ -392,9 +395,7 @@ def decode_one_batch(
     if params.simulate_streaming:
         feature_lens += params.left_context
         feature = torch.nn.functional.pad(
-            feature,
-            pad=(0, 0, 0, params.left_context),
-            value=LOG_EPS,
+            feature, pad=(0, 0, 0, params.left_context), value=LOG_EPS,
         )
         encoder_out, encoder_out_lens, _ = model.encoder.streaming_forward(
             x=feature,
@@ -465,9 +466,7 @@ def decode_one_batch(
             hyps.append(hyp.split())
     elif params.decoding_method == "greedy_search" and params.max_sym_per_frame == 1:
         hyp_tokens = greedy_search_batch(
-            model=model,
-            encoder_out=encoder_out,
-            encoder_out_lens=encoder_out_lens,
+            model=model, encoder_out=encoder_out, encoder_out_lens=encoder_out_lens,
         )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
@@ -495,9 +494,7 @@ def decode_one_batch(
                 )
             elif params.decoding_method == "beam_search":
                 hyp = beam_search(
-                    model=model,
-                    encoder_out=encoder_out_i,
-                    beam=params.beam_size,
+                    model=model, encoder_out=encoder_out_i, beam=params.beam_size,
                 )
             else:
                 raise ValueError(
@@ -645,10 +642,10 @@ def save_results(
 
 @torch.no_grad()
 def main():
-    '''
+    """
     This scripts test a libri model with libri BPE
     on Gigaspeech.
-    '''
+    """
     parser = get_parser()
     GigaSpeechAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
@@ -846,9 +843,7 @@ def main():
         )
 
         save_results(
-            params=params,
-            test_set_name=test_set,
-            results_dict=results_dict,
+            params=params, test_set_name=test_set, results_dict=results_dict,
         )
 
     logging.info("Done!")

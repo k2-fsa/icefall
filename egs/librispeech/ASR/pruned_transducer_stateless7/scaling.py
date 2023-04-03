@@ -143,11 +143,7 @@ class ActivationScaleBalancerFunction(torch.autograd.Function):
 
     @staticmethod
     def forward(
-        ctx,
-        x: Tensor,
-        sign_factor: Tensor,
-        scale_factor: Tensor,
-        channel_dim: int,
+        ctx, x: Tensor, sign_factor: Tensor, scale_factor: Tensor, channel_dim: int,
     ) -> Tensor:
         if channel_dim < 0:
             channel_dim += x.ndim
@@ -328,9 +324,9 @@ class MaxEigLimiterFunction(torch.autograd.Function):
             x = x_orig.transpose(ctx.channel_dim, -1).reshape(-1, num_channels)
             new_direction.requires_grad = False
             x = x - x.mean(dim=0)
-            x_var = (x**2).mean()
+            x_var = (x ** 2).mean()
             x_residual = x - coeffs * new_direction
-            x_residual_var = (x_residual**2).mean()
+            x_residual_var = (x_residual ** 2).mean()
             # `variance_proportion` is the proportion of the variance accounted for
             # by the top eigen-direction.  This is to be minimized.
             variance_proportion = (x_var - x_residual_var) / (x_var + 1.0e-20)
@@ -407,7 +403,7 @@ class BasicNorm(torch.nn.Module):
             # region if it happens to exit it.
             eps = eps.clamp(min=self.eps_min, max=self.eps_max)
         scales = (
-            torch.mean(x**2, dim=self.channel_dim, keepdim=True) + eps.exp()
+            torch.mean(x ** 2, dim=self.channel_dim, keepdim=True) + eps.exp()
         ) ** -0.5
         return x * scales
 
@@ -570,10 +566,7 @@ class ActivationBalancer(torch.nn.Module):
                 max_factor=self.max_factor,
             )
             return ActivationBalancerFunction.apply(
-                x,
-                scale_factor,
-                sign_factor,
-                self.channel_dim,
+                x, scale_factor, sign_factor, self.channel_dim,
             )
         else:
             return _no_op(x)
@@ -648,9 +641,9 @@ def _whitening_metric(x: Tensor, num_groups: int):
     # the following expression is what we'd get if we took the matrix product
     # of each covariance and measured the mean of its trace, i.e.
     # the same as _diag(torch.matmul(x_covar, x_covar)).mean().
-    x_covarsq_mean_diag = (x_covar**2).sum() / (num_groups * channels_per_group)
+    x_covarsq_mean_diag = (x_covar ** 2).sum() / (num_groups * channels_per_group)
     # this metric will be >= 1.0; the larger it is, the less 'white' the data was.
-    metric = x_covarsq_mean_diag / (x_covar_mean_diag**2 + 1.0e-20)
+    metric = x_covarsq_mean_diag / (x_covar_mean_diag ** 2 + 1.0e-20)
     return metric
 
 
@@ -777,8 +770,9 @@ class WithLoss(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, ans_grad: Tensor):
-        return ans_grad, torch.ones(
-            ctx.y_shape, dtype=ans_grad.dtype, device=ans_grad.device
+        return (
+            ans_grad,
+            torch.ones(ctx.y_shape, dtype=ans_grad.dtype, device=ans_grad.device),
         )
 
 
@@ -876,9 +870,9 @@ class MaxEig(torch.nn.Module):
                 new_direction, coeffs = self._find_direction_coeffs(
                     x, self.max_eig_direction
                 )
-                x_var = (x**2).mean()
+                x_var = (x ** 2).mean()
                 x_residual = x - coeffs * new_direction
-                x_residual_var = (x_residual**2).mean()
+                x_residual_var = (x_residual ** 2).mean()
 
                 # `variance_proportion` is the proportion of the variance accounted for
                 # by the top eigen-direction.
@@ -946,7 +940,7 @@ class MaxEig(torch.nn.Module):
         # `coeffs` are the coefficients of `prev_direction` in x.
         # actually represent the coeffs up to a constant positive factor.
         coeffs = (x * prev_direction).sum(dim=1, keepdim=True) + 1.0e-10
-        cur_direction = (x * coeffs).sum(dim=0) / ((coeffs**2).sum() + 1.0e-20)
+        cur_direction = (x * coeffs).sum(dim=0) / ((coeffs ** 2).sum() + 1.0e-20)
         return cur_direction, coeffs
 
 
@@ -1132,8 +1126,8 @@ def _test_basic_norm():
     y = m(x)
 
     assert y.shape == x.shape
-    x_rms = (x**2).mean().sqrt()
-    y_rms = (y**2).mean().sqrt()
+    x_rms = (x ** 2).mean().sqrt()
+    y_rms = (y ** 2).mean().sqrt()
     print("x rms = ", x_rms)
     print("y rms = ", y_rms)
     assert y_rms < x_rms

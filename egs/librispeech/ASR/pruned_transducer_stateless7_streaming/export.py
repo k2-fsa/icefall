@@ -289,9 +289,7 @@ def test_acc(xlist, blist, rtol=1e-3, atol=1e-5, tolerate_small_mismatch=True):
 
 
 def export_encoder_model_onnx(
-    encoder_model: nn.Module,
-    encoder_filename: str,
-    opset_version: int = 11,
+    encoder_model: nn.Module, encoder_filename: str, opset_version: int = 11,
 ) -> None:
     """Export the given encoder model to ONNX format.
     The exported model has two inputs:
@@ -412,11 +410,7 @@ def export_encoder_model_onnx(
         encoder_out_torch,
         encoder_out_lens_torch,
         new_states_torch,
-    ) = encoder_model.streaming_forward(
-        x=x,
-        x_lens=x_lens,
-        states=states,
-    )
+    ) = encoder_model.streaming_forward(x=x, x_lens=x_lens, states=states,)
     ort_session = onnxruntime.InferenceSession(
         str(encoder_filename), providers=["CPUExecutionProvider"]
     )
@@ -437,9 +431,7 @@ def export_encoder_model_onnx(
 
 
 def export_decoder_model_onnx(
-    decoder_model: nn.Module,
-    decoder_filename: str,
-    opset_version: int = 11,
+    decoder_model: nn.Module, decoder_filename: str, opset_version: int = 11,
 ) -> None:
     """Export the decoder model to ONNX format.
 
@@ -473,18 +465,13 @@ def export_decoder_model_onnx(
         opset_version=opset_version,
         input_names=["y", "need_pad"],
         output_names=["decoder_out"],
-        dynamic_axes={
-            "y": {0: "N"},
-            "decoder_out": {0: "N"},
-        },
+        dynamic_axes={"y": {0: "N"}, "decoder_out": {0: "N"},},
     )
     logging.info(f"Saved to {decoder_filename}")
 
 
 def export_decoder_model_onnx_triton(
-    decoder_model: nn.Module,
-    decoder_filename: str,
-    opset_version: int = 11,
+    decoder_model: nn.Module, decoder_filename: str, opset_version: int = 11,
 ) -> None:
     """Export the decoder model to ONNX format.
 
@@ -518,18 +505,13 @@ def export_decoder_model_onnx_triton(
         opset_version=opset_version,
         input_names=["y"],
         output_names=["decoder_out"],
-        dynamic_axes={
-            "y": {0: "N"},
-            "decoder_out": {0: "N"},
-        },
+        dynamic_axes={"y": {0: "N"}, "decoder_out": {0: "N"},},
     )
     logging.info(f"Saved to {decoder_filename}")
 
 
 def export_joiner_model_onnx(
-    joiner_model: nn.Module,
-    joiner_filename: str,
-    opset_version: int = 11,
+    joiner_model: nn.Module, joiner_filename: str, opset_version: int = 11,
 ) -> None:
     """Export the joiner model to ONNX format.
     The exported joiner model has two inputs:
@@ -575,11 +557,7 @@ def export_joiner_model_onnx(
         joiner_filename,
         verbose=False,
         opset_version=opset_version,
-        input_names=[
-            "encoder_out",
-            "decoder_out",
-            "project_input",
-        ],
+        input_names=["encoder_out", "decoder_out", "project_input",],
         output_names=["logit"],
         dynamic_axes={
             "encoder_out": {0: "N"},
@@ -598,10 +576,7 @@ def export_joiner_model_onnx(
         opset_version=opset_version,
         input_names=["encoder_out"],
         output_names=["projected_encoder_out"],
-        dynamic_axes={
-            "encoder_out": {0: "N"},
-            "projected_encoder_out": {0: "N"},
-        },
+        dynamic_axes={"encoder_out": {0: "N"}, "projected_encoder_out": {0: "N"},},
     )
     logging.info(f"Saved to {encoder_proj_filename}")
 
@@ -614,18 +589,13 @@ def export_joiner_model_onnx(
         opset_version=opset_version,
         input_names=["decoder_out"],
         output_names=["projected_decoder_out"],
-        dynamic_axes={
-            "decoder_out": {0: "N"},
-            "projected_decoder_out": {0: "N"},
-        },
+        dynamic_axes={"decoder_out": {0: "N"}, "projected_decoder_out": {0: "N"},},
     )
     logging.info(f"Saved to {decoder_proj_filename}")
 
 
 def export_joiner_model_onnx_triton(
-    joiner_model: nn.Module,
-    joiner_filename: str,
-    opset_version: int = 11,
+    joiner_model: nn.Module, joiner_filename: str, opset_version: int = 11,
 ) -> None:
     """Export the joiner model to ONNX format.
     The exported model has two inputs:
@@ -775,37 +745,27 @@ def main():
         logging.info("Exporting to onnx format")
         encoder_filename = params.exp_dir / "encoder.onnx"
         export_encoder_model_onnx(
-            model.encoder,
-            encoder_filename,
-            opset_version=opset_version,
+            model.encoder, encoder_filename, opset_version=opset_version,
         )
         if not params.onnx_triton:
             decoder_filename = params.exp_dir / "decoder.onnx"
             export_decoder_model_onnx(
-                model.decoder,
-                decoder_filename,
-                opset_version=opset_version,
+                model.decoder, decoder_filename, opset_version=opset_version,
             )
 
             joiner_filename = params.exp_dir / "joiner.onnx"
             export_joiner_model_onnx(
-                model.joiner,
-                joiner_filename,
-                opset_version=opset_version,
+                model.joiner, joiner_filename, opset_version=opset_version,
             )
         else:
             decoder_filename = params.exp_dir / "decoder.onnx"
             export_decoder_model_onnx_triton(
-                model.decoder,
-                decoder_filename,
-                opset_version=opset_version,
+                model.decoder, decoder_filename, opset_version=opset_version,
             )
 
             joiner_filename = params.exp_dir / "joiner.onnx"
             export_joiner_model_onnx_triton(
-                model.joiner,
-                joiner_filename,
-                opset_version=opset_version,
+                model.joiner, joiner_filename, opset_version=opset_version,
             )
 
         if params.fp16:

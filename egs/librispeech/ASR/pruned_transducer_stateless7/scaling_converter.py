@@ -32,10 +32,7 @@ from zipformer import PoolingModule
 
 class PoolingModuleNoProj(nn.Module):
     def forward(
-        self,
-        x: torch.Tensor,
-        cached_len: torch.Tensor,
-        cached_avg: torch.Tensor,
+        self, x: torch.Tensor, cached_len: torch.Tensor, cached_avg: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Args:
@@ -73,10 +70,7 @@ class PoolingModuleWithProj(nn.Module):
         self.pooling = PoolingModuleNoProj()
 
     def forward(
-        self,
-        x: torch.Tensor,
-        cached_len: torch.Tensor,
-        cached_avg: torch.Tensor,
+        self, x: torch.Tensor, cached_len: torch.Tensor, cached_avg: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Args:
@@ -96,10 +90,7 @@ class PoolingModuleWithProj(nn.Module):
         return self.proj(x), cached_len, cached_avg
 
     def streaming_forward(
-        self,
-        x: torch.Tensor,
-        cached_len: torch.Tensor,
-        cached_avg: torch.Tensor,
+        self, x: torch.Tensor, cached_len: torch.Tensor, cached_avg: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Args:
@@ -176,9 +167,7 @@ def get_submodule(model, target):
 
 
 def convert_scaled_to_non_scaled(
-    model: nn.Module,
-    inplace: bool = False,
-    is_pnnx: bool = False,
+    model: nn.Module, inplace: bool = False, is_pnnx: bool = False,
 ):
     """
     Args:

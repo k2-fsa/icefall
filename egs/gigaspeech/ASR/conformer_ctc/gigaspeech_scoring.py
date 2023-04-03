@@ -77,19 +77,13 @@ if __name__ == "__main__":
         "SCTK's tool sclite"
     )
     parser.add_argument(
-        "ref",
-        type=str,
-        help="sclite's standard transcription(trn) reference file",
+        "ref", type=str, help="sclite's standard transcription(trn) reference file",
     )
     parser.add_argument(
-        "hyp",
-        type=str,
-        help="sclite's standard transcription(trn) hypothesis file",
+        "hyp", type=str, help="sclite's standard transcription(trn) hypothesis file",
     )
     parser.add_argument(
-        "work_dir",
-        type=str,
-        help="working dir",
+        "work_dir", type=str, help="working dir",
     )
     args = parser.parse_args()
 

@@ -20,11 +20,7 @@ import torch.nn as nn
 
 class Joiner(nn.Module):
     def __init__(
-        self,
-        encoder_dim: int,
-        decoder_dim: int,
-        joiner_dim: int,
-        vocab_size: int,
+        self, encoder_dim: int, decoder_dim: int, joiner_dim: int, vocab_size: int,
     ):
         super().__init__()
 

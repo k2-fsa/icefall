@@ -79,9 +79,7 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--bpe-model",
-        type=str,
-        help="""Path to bpe.model.""",
+        "--bpe-model", type=str, help="""Path to bpe.model.""",
     )
 
     parser.add_argument(
@@ -219,8 +217,7 @@ def main():
 
     logging.info(f"Reading sound files: {args.sound_file}")
     wave_samples = read_sound_files(
-        filenames=[args.sound_file],
-        expected_sample_rate=args.sample_rate,
+        filenames=[args.sound_file], expected_sample_rate=args.sample_rate,
     )[0]
     logging.info(wave_samples.shape)
 
@@ -256,8 +253,7 @@ def main():
         samples = wave_samples[start:end]
         start += chunk
         online_fbank.accept_waveform(
-            sampling_rate=args.sample_rate,
-            waveform=samples,
+            sampling_rate=args.sample_rate, waveform=samples,
         )
         while online_fbank.num_frames_ready - num_processed_frames >= T:
             frames = []
@@ -266,9 +262,7 @@ def main():
             frames = torch.cat(frames, dim=0).unsqueeze(0)
             x_lens = torch.tensor([T], dtype=torch.int32)
             encoder_out, out_lens, states = encoder(
-                x=frames,
-                x_lens=x_lens,
-                states=states,
+                x=frames, x_lens=x_lens, states=states,
             )
             num_processed_frames += chunk_length
 

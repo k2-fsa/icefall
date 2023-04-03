@@ -61,6 +61,7 @@ def test_model():
     print("Using torch.jit.script")
     model = torch.jit.script(model)
 
+
 def test_model_small():
     params = get_params()
     params.vocab_size = 500
@@ -83,7 +84,9 @@ def test_model_small():
 
     num_param = sum([p.numel() for p in model.parameters()])
     print(f"Number of model parameters: {num_param}")
-    import pdb; pdb.set_trace()
+    import pdb
+
+    pdb.set_trace()
 
     # Test jit script
     convert_scaled_to_non_scaled(model, inplace=True)
@@ -94,6 +97,7 @@ def test_model_small():
     model.__class__.forward = torch.jit.ignore(model.__class__.forward)
     print("Using torch.jit.script")
     model = torch.jit.script(model)
+
 
 def test_model_jit_trace():
     params = get_params()

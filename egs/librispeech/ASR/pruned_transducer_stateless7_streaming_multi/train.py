@@ -206,10 +206,7 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--world-size",
-        type=int,
-        default=1,
-        help="Number of GPUs for DDP training.",
+        "--world-size", type=int, default=1, help="Number of GPUs for DDP training.",
     )
 
     parser.add_argument(
@@ -225,7 +222,7 @@ def get_parser():
         default=True,
         help="Should various information be logged in tensorboard.",
     )
-    
+
     parser.add_argument(
         "--full-libri",
         type=str2bool,
@@ -234,10 +231,7 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--num-epochs",
-        type=int,
-        default=30,
-        help="Number of epochs to train.",
+        "--num-epochs", type=int, default=30, help="Number of epochs to train.",
     )
 
     parser.add_argument(
@@ -400,7 +394,7 @@ def get_parser():
         default=False,
         help="Whether to use half precision training.",
     )
-    
+
     parser.add_argument(
         "--giga-prob",
         type=float,
@@ -528,7 +522,7 @@ def get_transducer_model(params: AttributeDict) -> nn.Module:
     encoder = get_encoder_model(params)
     decoder = get_decoder_model(params)
     joiner = get_joiner_model(params)
-        
+
     model = Transducer(
         encoder=encoder,
         decoder=decoder,
@@ -659,6 +653,7 @@ def save_checkpoint(
         best_valid_filename = params.exp_dir / "best-valid-loss.pt"
         copyfile(src=filename, dst=best_valid_filename)
 
+
 def is_libri(c: Cut) -> bool:
     """Return True if this cut is from the LibriSpeech dataset.
 
@@ -668,6 +663,7 @@ def is_libri(c: Cut) -> bool:
       See ../local/preprocess_gigaspeech.py.
     """
     return c.supervisions[0].custom is None
+
 
 def compute_loss(
     params: AttributeDict,
@@ -765,11 +761,7 @@ def compute_validation_loss(
 
     for batch_idx, batch in enumerate(valid_dl):
         loss, loss_info = compute_loss(
-            params=params,
-            model=model,
-            sp=sp,
-            batch=batch,
-            is_training=False,
+            params=params, model=model, sp=sp, batch=batch, is_training=False,
         )
         assert loss.requires_grad is False
         tot_loss = tot_loss + loss_info
@@ -862,17 +854,13 @@ def train_one_epoch(
 
         params.batch_idx_train += 1
         batch_size = len(batch["supervisions"]["text"])
-        
+
         libri = is_libri(batch["supervisions"]["cut"][0])
 
         try:
             with torch.cuda.amp.autocast(enabled=params.use_fp16):
                 loss, loss_info = compute_loss(
-                    params=params,
-                    model=model,
-                    sp=sp,
-                    batch=batch,
-                    is_training=True,
+                    params=params, model=model, sp=sp, batch=batch, is_training=True,
                 )
             # summary stats
             tot_loss = (tot_loss * (1 - 1 / params.reset_interval)) + loss_info
@@ -887,7 +875,7 @@ def train_one_epoch(
                     giga_tot_loss * (1 - 1 / params.reset_interval)
                 ) + loss_info
                 prefix = "giga"
-                
+
             # NOTE: We use reduction==sum and loss is computed over utterances
             # in the batch and there is no normalization to it so far.
             scaler.scale(loss).backward()
@@ -910,9 +898,7 @@ def train_one_epoch(
             and params.batch_idx_train % params.average_period == 0
         ):
             update_averaged_model(
-                params=params,
-                model_cur=model,
-                model_avg=model_avg,
+                params=params, model_cur=model, model_avg=model_avg,
             )
 
         if (
@@ -934,9 +920,7 @@ def train_one_epoch(
             )
             del params.cur_batch_idx
             remove_checkpoints(
-                out_dir=params.exp_dir,
-                topk=params.keep_last_k,
-                rank=rank,
+                out_dir=params.exp_dir, topk=params.keep_last_k, rank=rank,
             )
 
         if batch_idx % 100 == 0 and params.use_fp16:
@@ -986,9 +970,7 @@ def train_one_epoch(
                 )
                 if params.use_fp16:
                     tb_writer.add_scalar(
-                        "train/grad_scale",
-                        cur_grad_scale,
-                        params.batch_idx_train,
+                        "train/grad_scale", cur_grad_scale, params.batch_idx_train,
                     )
 
         if batch_idx % params.valid_interval == 0 and not params.print_diagnostics:
@@ -1015,6 +997,7 @@ def train_one_epoch(
     if params.train_loss < params.best_train_loss:
         params.best_train_epoch = params.cur_epoch
         params.best_train_loss = params.train_loss
+
 
 def filter_short_and_long_utterances(
     cuts: CutSet, sp: spm.SentencePieceProcessor
@@ -1048,6 +1031,7 @@ def filter_short_and_long_utterances(
     cuts = cuts.filter(remove_short_and_long_utt)
 
     return cuts
+
 
 def run(rank, world_size, args):
     """
@@ -1142,7 +1126,7 @@ def run(rank, world_size, args):
 
     if params.print_diagnostics:
         opts = diagnostics.TensorDiagnosticOptions(
-            2**22
+            2 ** 22
         )  # allow 4 megabytes per sub-module
         diagnostic = diagnostics.attach_diagnostics(model, opts)
 
@@ -1155,7 +1139,7 @@ def run(rank, world_size, args):
     if params.full_libri:
         train_cuts += librispeech.train_clean_360_cuts()
         train_cuts += librispeech.train_other_500_cuts()
-        
+
     train_cuts = filter_short_and_long_utterances(train_cuts, sp)
 
     gigaspeech = GigaSpeech(manifest_dir=args.manifest_dir)
@@ -1182,17 +1166,13 @@ def run(rank, world_size, args):
         cuts_musan = None
 
     asr_datamodule = AsrDataModule(args)
-    
+
     train_dl = asr_datamodule.train_dataloaders(
-        train_cuts,
-        on_the_fly_feats=False,
-        cuts_musan=cuts_musan,
+        train_cuts, on_the_fly_feats=False, cuts_musan=cuts_musan,
     )
-    
+
     giga_train_dl = asr_datamodule.train_dataloaders(
-        train_giga_cuts,
-        on_the_fly_feats=False,
-        cuts_musan=cuts_musan,
+        train_giga_cuts, on_the_fly_feats=False, cuts_musan=cuts_musan,
     )
 
     if params.start_batch > 0 and checkpoints and "sampler" in checkpoints:
@@ -1270,9 +1250,7 @@ def run(rank, world_size, args):
 
 
 def display_and_save_batch(
-    batch: dict,
-    params: AttributeDict,
-    sp: spm.SentencePieceProcessor,
+    batch: dict, params: AttributeDict, sp: spm.SentencePieceProcessor,
 ) -> None:
     """Display the batch statistics and save the batch into disk.
 
@@ -1319,11 +1297,7 @@ def scan_pessimistic_batches_for_oom(
         try:
             with torch.cuda.amp.autocast(enabled=params.use_fp16):
                 loss, _ = compute_loss(
-                    params=params,
-                    model=model,
-                    sp=sp,
-                    batch=batch,
-                    is_training=True,
+                    params=params, model=model, sp=sp, batch=batch, is_training=True,
                 )
             loss.backward()
             optimizer.zero_grad()
@@ -1348,7 +1322,7 @@ def main():
     AsrDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
-    
+
     assert 0 <= args.giga_prob < 1, args.giga_prob
 
     world_size = args.world_size

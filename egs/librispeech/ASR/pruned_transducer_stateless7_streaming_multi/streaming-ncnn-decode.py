@@ -48,51 +48,35 @@ def get_args():
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
-        "--tokens",
-        type=str,
-        help="Path to tokens.txt",
+        "--tokens", type=str, help="Path to tokens.txt",
     )
 
     parser.add_argument(
-        "--encoder-param-filename",
-        type=str,
-        help="Path to encoder.ncnn.param",
+        "--encoder-param-filename", type=str, help="Path to encoder.ncnn.param",
     )
 
     parser.add_argument(
-        "--encoder-bin-filename",
-        type=str,
-        help="Path to encoder.ncnn.bin",
+        "--encoder-bin-filename", type=str, help="Path to encoder.ncnn.bin",
     )
 
     parser.add_argument(
-        "--decoder-param-filename",
-        type=str,
-        help="Path to decoder.ncnn.param",
+        "--decoder-param-filename", type=str, help="Path to decoder.ncnn.param",
     )
 
     parser.add_argument(
-        "--decoder-bin-filename",
-        type=str,
-        help="Path to decoder.ncnn.bin",
+        "--decoder-bin-filename", type=str, help="Path to decoder.ncnn.bin",
     )
 
     parser.add_argument(
-        "--joiner-param-filename",
-        type=str,
-        help="Path to joiner.ncnn.param",
+        "--joiner-param-filename", type=str, help="Path to joiner.ncnn.param",
     )
 
     parser.add_argument(
-        "--joiner-bin-filename",
-        type=str,
-        help="Path to joiner.ncnn.bin",
+        "--joiner-bin-filename", type=str, help="Path to joiner.ncnn.bin",
     )
 
     parser.add_argument(
-        "sound_filename",
-        type=str,
-        help="Path to foo.wav",
+        "sound_filename", type=str, help="Path to foo.wav",
     )
 
     return parser.parse_args()
@@ -211,9 +195,7 @@ class Model:
         self.joiner_net = joiner_net
 
     def run_encoder(
-        self,
-        x: torch.Tensor,
-        states: List[torch.Tensor],
+        self, x: torch.Tensor, states: List[torch.Tensor],
     ) -> Tuple[torch.Tensor, List[torch.Tensor]]:
         """
         Args:
@@ -362,8 +344,7 @@ def main():
 
     logging.info(f"Reading sound files: {sound_file}")
     wave_samples = read_sound_files(
-        filenames=[sound_file],
-        expected_sample_rate=sample_rate,
+        filenames=[sound_file], expected_sample_rate=sample_rate,
     )[0]
     logging.info(wave_samples.shape)
 
@@ -390,8 +371,7 @@ def main():
         start += chunk
 
         online_fbank.accept_waveform(
-            sampling_rate=sample_rate,
-            waveform=samples,
+            sampling_rate=sample_rate, waveform=samples,
         )
         while online_fbank.num_frames_ready - num_processed_frames >= segment:
             frames = []
