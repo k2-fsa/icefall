@@ -243,7 +243,7 @@ def get_parser():
         `beam` in Kaldi.
         Used only when --decoding-method is fast_beam_search""",
     )
-    
+
     parser.add_argument(
         "--ngram-lm-scale",
         type=float,
@@ -306,7 +306,7 @@ def get_parser():
         default=64,
         help="left context can be seen during decoding (in frames after subsampling)",
     )
-    
+
     parser.add_argument(
         "--use-shallow-fusion",
         type=str2bool,
@@ -674,7 +674,7 @@ def main():
 
     if params.use_averaged_model:
         params.suffix += "-use-averaged-model"
-        
+
     setup_logger(f"{params.res_dir}/log-decode-{params.suffix}")
     logging.info("Decoding started")
 
@@ -684,7 +684,7 @@ def main():
 
     logging.info(f"Device: {device}")
 
-    #import pdb; pdb.set_trace()
+    # import pdb; pdb.set_trace()
     lexicon = Lexicon(params.lang_dir)
     params.blank_id = lexicon.token_table["<blk>"]
     params.vocab_size = max(lexicon.tokens) + 1
@@ -794,7 +794,7 @@ def main():
         ngram_lm = None
         ngram_lm_scale = None
 
-    #import pdb; pdb.set_trace()
+    # import pdb; pdb.set_trace()
     # only load the neural network LM if doing shallow fusion
     if params.use_shallow_fusion:
         LM = LmScorer(
@@ -805,7 +805,7 @@ def main():
         )
         LM.to(device)
         LM.eval()
-        
+
         num_param = sum([p.numel() for p in LM.parameters()])
         logging.info(f"Number of model parameters: {num_param}")
     else:
