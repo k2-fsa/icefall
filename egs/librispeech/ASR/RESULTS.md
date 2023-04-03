@@ -540,6 +540,10 @@ for m in greedy_search fast_beam_search modified_beam_search ; do
 done
 ```
 
+Note that a small change is made to the `pruned_transducer_stateless7/decoder.py` in 
+this [PR](/ceph-data4/yangxiaoyu/softwares/icefall_development/icefall_random_padding/egs/librispeech/ASR/pruned_transducer_stateless7/exp_960h_no_paddingidx_ngpu4/tensorboard) to address the 
+problem of emitting the first symbol at the very beginning. If you need a 
+model without this issue, please download the model from here: <https://huggingface.co/marcoyang/icefall-asr-librispeech-pruned-transducer-stateless7-2023-03-10>
 
 ### LibriSpeech BPE training results (Pruned Stateless LSTM RNN-T + gradient filter)
 
