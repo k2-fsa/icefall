@@ -344,20 +344,6 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--decode-chunk-size",
-        type=int,
-        default=16,
-        help="The chunk size for decoding (in frames after subsampling)",
-    )
-
-    parser.add_argument(
-        "--left-context",
-        type=int,
-        default=64,
-        help="left context can be seen during decoding (in frames after subsampling)",
-    )
-
-    parser.add_argument(
         "--use-shallow-fusion",
         type=str2bool,
         default=False,
