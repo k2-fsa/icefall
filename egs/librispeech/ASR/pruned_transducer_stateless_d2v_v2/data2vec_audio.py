@@ -280,8 +280,8 @@ class Data2VecAudioModel(BaseFairseqModel):
             torch.FloatTensor(cfg.encoder_embed_dim).uniform_()
         )
 
-        self.encoder = TransformerEncoder(cfg)
-        #self.encoder = TransformerEncoderAdapter(cfg)
+        #self.encoder = TransformerEncoder(cfg)
+        self.encoder = TransformerEncoderAdapter(cfg)
         self.layer_norm = LayerNorm(self.extractor_embed)
 
         self.final_proj = nn.Linear(self.embed, self.embed)
