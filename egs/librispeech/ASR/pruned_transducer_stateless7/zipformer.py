@@ -306,7 +306,7 @@ class Zipformer2(EncoderInterface):
         # we divide the dropped-out feature dimensions into two equal groups;
         # the first group is dropped out with probability 0.1, the second
         # with probability approximately twice that.
-        feature_mask_dropout_prob = 0.1
+        feature_mask_dropout_prob = 0.125
 
         # frame_mask_max1 shape: (num_frames_max, batch_size, 1)
         frame_mask_max1 = (torch.rand(num_frames_max, batch_size, 1,
