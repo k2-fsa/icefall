@@ -63,7 +63,7 @@ else
 			--input-strategy AudioSamples \
 			--enable-spec-aug False \
 			--multi-optim False \
-			--world-size 8 \
+			--world-size 4 \
 			--num-epochs 10000 \
 			--num-updates 501 \
 			--save-every-n 100 \
