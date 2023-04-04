@@ -1,5 +1,139 @@
 ## Results
 
+### Streaming Zipformer-Transducer (Pruned Stateless Transducer + Streaming Zipformer + Multi-Dataset)
+
+#### [pruned_transducer_stateless7_streaming_multi](./pruned_transducer_stateless7_streaming_multi)
+
+See <https://github.com/k2-fsa/icefall/pull/984> for more details.
+
+You can find a pretrained model, training logs, decoding logs, and decoding
+results at: <https://huggingface.co/marcoyang/icefall-libri-giga-pruned-transducer-stateless7-streaming-2023-04-04>
+
+Number of model parameters: 70369391, i.e., 70.37 M
+
+##### training on full librispeech + full gigaspeech (with giga_prob=0.9)
+
+The WERs are:
+
+
+| decoding method      | chunk size | test-clean | test-other | comment             | decoding mode        |
+|----------------------|------------|------------|------------|---------------------|----------------------|
+| greedy search        | 320ms      | 2.46       | 6.18       | --iter 608000 --avg 25  | simulated streaming  |
+| greedy search        | 320ms      | 2.51       | 6.27       | --iter 608000 --avg 25  | chunk-wise           |
+| fast beam search     | 320ms      | 2.47        | 6.11       | --iter 608000 --avg 25  | simulated streaming  |
+| fast beam search     | 320ms      | 2.73       | 6.44       | --iter 608000 --avg 25  | chunk-wise           |
+| modified beam search | 320ms      | 2.4       | 6.0       | --iter 608000 --avg 25  | simulated streaming  |
+| modified beam search | 320ms      | 2.44       | 6.15       | --iter 608000 --avg 25  | chunk-size           |
+| greedy search        | 640ms      | 2.31       | 5.71        | --iter 608000 --avg 25  | simulated streaming  |
+| greedy search        | 640ms      | 2.4       | 5.88       | --iter 608000 --avg 25  | chunk-wise           |
+| fast beam search     | 640ms      | 2.34       | 5.64       | --iter 608000 --avg 25  | simulated streaming  |
+| fast beam search     | 640ms      | 2.39       | 5.88       | --iter 608000 --avg 25  | chunk-wise           |
+| modified beam search | 640ms      | 2.34       | 5.6       | --iter 608000 --avg 25  | simulated streaming  |
+| modified beam search | 640ms      | 2.35       | 5.77       | --iter 608000 --avg 25  | chunk-size           |
+
+The model also has good WERs on GigaSpeech. The following WERs are achieved on GigaSpeech test and dev sets:
+
+| decoding method      | chunk size | dev | test | comment    | decoding mode       |
+|----------------------|------------|------------|------------|---------------------|----------------------|
+| greedy search        | 320ms      | 12.27       | 12.13       | --iter 608000 --avg 25  | simulated streaming  |
+| modified beam search | 320ms      | 12.17       | 11.98       | --iter 608000 --avg 25  | simulated streaming  |
+
+
+Note: `simulated streaming` indicates feeding full utterance during decoding using `decode.py`,
+while `chunk-size` indicates feeding certain number of frames at each time using `streaming_decode.py`.
+
+The training command is:
+
+```bash
+./pruned_transducer_stateless7_streaming_multi/train.py \
+  --world-size 4 \
+  --num-epochs 20 \
+  --start-epoch 1 \
+  --use-fp16 1 \
+  --exp-dir pruned_transducer_stateless7_streaming_multi/exp \
+  --full-libri 1 \
+  --giga-prob 0.9 \
+  --max-duration 750 \
+  --master-port 12345
+```
+
+The tensorboard log can be found at
+<https://tensorboard.dev/experiment/G4yDMLXGQXexf41i4MA2Tg/#scalars>
+
+The simulated streaming decoding command (e.g., chunk-size=320ms) is:
+```bash
+for m in greedy_search fast_beam_search modified_beam_search; do
+  ./pruned_transducer_stateless7_streaming_multi/decode.py \
+    --iter 608000 \
+    --avg 9 \
+    --exp-dir ./pruned_transducer_stateless7_streaming_multi/exp \
+    --max-duration 600 \
+    --decode-chunk-len 32 \
+    --right-padding 64 \
+    --decoding-method $m
+done
+```
+
+The streaming chunk-size decoding command (e.g., chunk-size=320ms) is:
+```bash
+for m in greedy_search modified_beam_search fast_beam_search; do
+  ./pruned_transducer_stateless7_streaming_multi/streaming_decode.py \
+    --iter 608000 \
+    --avg 9 \
+    --exp-dir ./pruned_transducer_stateless7_streaming_multi/exp \
+    --decoding-method $m \
+    --decode-chunk-len 32 \
+    --num-decode-streams 2000
+done
+```
+
+
+#### Smaller model
+
+We also provide a very small version (only 6.1M parameters) of this setup. The training command for the small model is:
+
+```bash
+./pruned_transducer_stateless7_streaming_multi/train.py \
+  --world-size 4 \
+  --num-epochs 30 \
+  --start-epoch 1 \
+  --use-fp16 1 \
+  --exp-dir pruned_transducer_stateless7_streaming_multi/exp \
+  --full-libri 1 \
+  --giga-prob 0.9 \
+  --num-encoder-layers "2,2,2,2,2" \
+  --feedforward-dims "256,256,512,512,256" \
+  --nhead "4,4,4,4,4" \
+  --encoder-dims "128,128,128,128,128" \
+  --attention-dims "96,96,96,96,96" \
+  --encoder-unmasked-dims "96,96,96,96,96" \
+  --max-duration 1200 \
+  --master-port 12345
+```
+
+You can find this pretrained small model and its training logs, decoding logs, and decoding
+results at:
+<https://huggingface.co/marcoyang/icefall-libri-giga-pruned-transducer-stateless7-streaming-2023-04-03>
+
+
+| decoding method      | chunk size | test-clean | test-other | comment             | decoding mode        |
+|----------------------|------------|------------|------------|---------------------|----------------------|
+| greedy search        | 320ms      | 5.95       | 15.03       | --epoch 30 --avg 1  | simulated streaming  |
+| greedy search        | 640ms      | 5.61       | 13.86       | --epoch 30 --avg 1  | simulated streaming  |
+| modified beam search | 320ms      | 5.72       | 14.34      | --epoch 30 --avg 1  | simulated streaming  |
+| modified beam search | 640ms      | 5.43       | 13.16      | --epoch 30 --avg 1  | simulated streaming  |
+| fast beam search | 320ms      | 5.88       | 14.45      | --epoch 30 --avg 1  | simulated streaming  |
+| fast beam search | 640ms      | 5.48       | 13.31      | --epoch 30 --avg 1  | simulated streaming  |
+
+This small model achieves the following WERs on GigaSpeech test and dev sets:
+
+| decoding method      | chunk size | dev | test | comment    | decoding mode       |
+|----------------------|------------|------------|------------|---------------------|----------------------|
+| greedy search        | 320ms      | 17.57       | 17.2     | --iter 608000 --avg 25  | simulated streaming  |
+| modified beam search | 320ms      | 16.98       | 11.98       | --iter 608000 --avg 25  | simulated streaming  |
+
+You can find the tensorboard logs at <https://tensorboard.dev/experiment/tAc5iXxTQrCQxky5O5OLyw/#scalars>.
+
 ### Streaming Zipformer-Transducer (Pruned Stateless Transducer + Streaming Zipformer)
 
 #### [pruned_transducer_stateless7_streaming](./pruned_transducer_stateless7_streaming)
@@ -53,7 +187,7 @@ The tensorboard log can be found at
 
 The simulated streaming decoding command (e.g., chunk-size=320ms) is:
 ```bash
-for $m in greedy_search fast_beam_search modified_beam_search; do
+for m in greedy_search fast_beam_search modified_beam_search; do
   ./pruned_transducer_stateless7_streaming/decode.py \
     --epoch 30 \
     --avg 9 \
@@ -540,9 +674,9 @@ for m in greedy_search fast_beam_search modified_beam_search ; do
 done
 ```
 
-Note that a small change is made to the `pruned_transducer_stateless7/decoder.py` in 
-this [PR](/ceph-data4/yangxiaoyu/softwares/icefall_development/icefall_random_padding/egs/librispeech/ASR/pruned_transducer_stateless7/exp_960h_no_paddingidx_ngpu4/tensorboard) to address the 
-problem of emitting the first symbol at the very beginning. If you need a 
+Note that a small change is made to the `pruned_transducer_stateless7/decoder.py` in
+this [PR](https://github.com/k2-fsa/icefall/pull/942) to address the
+problem of emitting the first symbol at the very beginning. If you need a
 model without this issue, please download the model from here: <https://huggingface.co/marcoyang/icefall-asr-librispeech-pruned-transducer-stateless7-2023-03-10>
 
 ### LibriSpeech BPE training results (Pruned Stateless LSTM RNN-T + gradient filter)

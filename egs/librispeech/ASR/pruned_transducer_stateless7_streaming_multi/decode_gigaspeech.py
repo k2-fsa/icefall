@@ -106,9 +106,6 @@ import k2
 import sentencepiece as spm
 import torch
 import torch.nn as nn
-
-# from asr_datamodule import LibriSpeechAsrDataModule
-from gigaspeech_asrmodule import GigaSpeechAsrDataModule
 from beam_search import (
     beam_search,
     fast_beam_search_nbest,
@@ -119,6 +116,9 @@ from beam_search import (
     greedy_search_batch,
     modified_beam_search,
 )
+
+# from asr_datamodule import LibriSpeechAsrDataModule
+from gigaspeech_asrmodule import GigaSpeechAsrDataModule
 from gigaspeech_scoring import asr_text_post_processing
 from train import add_model_arguments, get_params, get_transducer_model
 
@@ -305,15 +305,6 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--simulate-streaming",
-        type=str2bool,
-        default=False,
-        help="""Whether to simulate streaming in decoding, this is a good way to
-        test a streaming model.
-        """,
-    )
-
-    parser.add_argument(
         "--decode-chunk-size",
         type=int,
         default=16,
@@ -321,10 +312,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--left-context",
+        "--right-padding",
         type=int,
         default=64,
-        help="left context can be seen during decoding (in frames after subsampling)",
+        help="Padding frames at the end of features",
     )
 
     add_model_arguments(parser)
@@ -392,20 +383,13 @@ def decode_one_batch(
     supervisions = batch["supervisions"]
     feature_lens = supervisions["num_frames"].to(device)
 
-    if params.simulate_streaming:
-        feature_lens += params.left_context
-        feature = torch.nn.functional.pad(
-            feature, pad=(0, 0, 0, params.left_context), value=LOG_EPS,
-        )
-        encoder_out, encoder_out_lens, _ = model.encoder.streaming_forward(
-            x=feature,
-            x_lens=feature_lens,
-            chunk_size=params.decode_chunk_size,
-            left_context=params.left_context,
-            simulate_streaming=True,
-        )
-    else:
-        encoder_out, encoder_out_lens = model.encoder(x=feature, x_lens=feature_lens)
+    feature_lens += params.right_padding
+    feature = torch.nn.functional.pad(
+        feature,
+        pad=(0, 0, 0, params.right_padding),
+        value=LOG_EPS,
+    )
+    encoder_out, encoder_out_lens = model.encoder(x=feature, x_lens=feature_lens)
 
     hyps = []
 
@@ -466,7 +450,9 @@ def decode_one_batch(
             hyps.append(hyp.split())
     elif params.decoding_method == "greedy_search" and params.max_sym_per_frame == 1:
         hyp_tokens = greedy_search_batch(
-            model=model, encoder_out=encoder_out, encoder_out_lens=encoder_out_lens,
+            model=model,
+            encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
         )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
@@ -494,7 +480,9 @@ def decode_one_batch(
                 )
             elif params.decoding_method == "beam_search":
                 hyp = beam_search(
-                    model=model, encoder_out=encoder_out_i, beam=params.beam_size,
+                    model=model,
+                    encoder_out=encoder_out_i,
+                    beam=params.beam_size,
                 )
             else:
                 raise ValueError(
@@ -670,14 +658,11 @@ def main():
     else:
         params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
 
-    if params.simulate_streaming:
-        params.suffix += f"-streaming-chunk-size-{params.decode_chunk_size}"
-        params.suffix += f"-left-context-{params.left_context}"
-
     if "fast_beam_search" in params.decoding_method:
         params.suffix += f"-beam-{params.beam}"
         params.suffix += f"-max-contexts-{params.max_contexts}"
         params.suffix += f"-max-states-{params.max_states}"
+        params.suffix += f"-right-padding-{params.right_padding}"
         if "nbest" in params.decoding_method:
             params.suffix += f"-nbest-scale-{params.nbest_scale}"
             params.suffix += f"-num-paths-{params.num_paths}"
@@ -708,11 +693,6 @@ def main():
     params.blank_id = sp.piece_to_id("<blk>")
     params.unk_id = sp.piece_to_id("<unk>")
     params.vocab_size = sp.get_piece_size()
-
-    if params.simulate_streaming:
-        assert (
-            params.causal_convolution
-        ), "Decoding in streaming requires causal convolution"
 
     logging.info(params)
 
@@ -843,7 +823,9 @@ def main():
         )
 
         save_results(
-            params=params, test_set_name=test_set, results_dict=results_dict,
+            params=params,
+            test_set_name=test_set,
+            results_dict=results_dict,
         )
 
     logging.info("Done!")
