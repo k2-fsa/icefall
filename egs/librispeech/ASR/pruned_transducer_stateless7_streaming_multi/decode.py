@@ -282,6 +282,14 @@ def get_parser():
         default=2,
         help="The context size in the decoder. 1 means bigram; 2 means tri-gram",
     )
+
+    parser.add_argument(
+        "--right-padding",
+        type=int,
+        default=64,
+        help="Padding frames at the end of features",
+    )
+
     parser.add_argument(
         "--max-sym-per-frame",
         type=int,
@@ -362,10 +370,10 @@ def decode_one_batch(
     supervisions = batch["supervisions"]
     feature_lens = supervisions["num_frames"].to(device)
 
-    feature_lens += 30
+    feature_lens += params.right_padding
     feature = torch.nn.functional.pad(
         feature,
-        pad=(0, 0, 0, 30),
+        pad=(0, 0, 0, params.right_padding),
         value=LOG_EPS,
     )
     encoder_out, encoder_out_lens = model.encoder(x=feature, x_lens=feature_lens)
@@ -632,6 +640,7 @@ def main():
         params.suffix += f"-beam-{params.beam}"
         params.suffix += f"-max-contexts-{params.max_contexts}"
         params.suffix += f"-max-states-{params.max_states}"
+        params.suffix += f"-right-padding-{params.right_padding}"
         if "nbest" in params.decoding_method:
             params.suffix += f"-nbest-scale-{params.nbest_scale}"
             params.suffix += f"-num-paths-{params.num_paths}"
