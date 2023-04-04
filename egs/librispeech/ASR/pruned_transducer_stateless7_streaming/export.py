@@ -139,7 +139,6 @@ import argparse
 import logging
 from pathlib import Path
 
-import onnxruntime
 import sentencepiece as spm
 import torch
 import torch.nn as nn
@@ -740,6 +739,7 @@ def main():
     model.eval()
 
     if params.onnx:
+        import onnxruntime
         convert_scaled_to_non_scaled(model, inplace=True)
         opset_version = 13
         logging.info("Exporting to onnx format")
