@@ -122,9 +122,9 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--bpe-model",
+        "--bbpe-model",
         type=str,
-        default="data/lang_bpe_500/bpe.model",
+        default="data/lang_bbpe_500/bbpe.model",
         help="Path to the BPE model",
     )
 
@@ -401,9 +401,9 @@ def main():
     logging.info(f"device: {device}")
 
     sp = spm.SentencePieceProcessor()
-    sp.load(params.bpe_model)
+    sp.load(params.bbpe_model)
 
-    # <blk> is defined in local/train_bpe_model.py
+    # <blk> is defined in local/train_bbpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
     params.vocab_size = sp.get_piece_size()
 

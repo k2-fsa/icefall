@@ -46,6 +46,8 @@ import torch
 import torchaudio
 from torch.nn.utils.rnn import pad_sequence
 
+from icefall import smart_byte_decode
+
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -60,7 +62,7 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--bpe-model",
+        "--bbpe-model",
         type=str,
         help="""Path to bpe.model.""",
     )
@@ -216,7 +218,7 @@ def main():
     model.to(device)
 
     sp = spm.SentencePieceProcessor()
-    sp.load(args.bpe_model)
+    sp.load(args.bbpe_model)
 
     logging.info("Constructing Fbank computer")
     opts = kaldifeat.FbankOptions()
@@ -258,7 +260,7 @@ def main():
     )
     s = "\n"
     for filename, hyp in zip(args.sound_files, hyps):
-        words = sp.decode(hyp)
+        words = smart_byte_decode(sp.decode(hyp))
         s += f"{filename}:\n{words}\n\n"
     logging.info(s)
 

@@ -243,7 +243,7 @@ def get_parser():
     parser.add_argument(
         "--ngram-lm-scale",
         type=float,
-        default=0.01,
+        default=0.25,
         help="""
         Used only when --decoding_method is fast_beam_search_LG.
         It specifies the scale for n-gram LM scores.
@@ -253,7 +253,7 @@ def get_parser():
     parser.add_argument(
         "--ilme-scale",
         type=float,
-        default=0.1,
+        default=0.2,
         help="""
         Used only when --decoding_method is fast_beam_search_LG.
         It specifies the scale for the internal language model estimation.

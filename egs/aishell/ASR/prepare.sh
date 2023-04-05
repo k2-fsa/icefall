@@ -39,8 +39,8 @@ dl_dir=$PWD/download
 # It will generate data/lang_bbpe_xxx,
 # data/lang_bbpe_yyy if the array contains xxx, yyy
 vocab_sizes=(
-  2000
-  1000
+  # 2000
+  # 1000
   500
 )
 
@@ -55,13 +55,6 @@ log() {
 }
 
 log "dl_dir: $dl_dir"
-
-if [ $stage -le -1 ] && [ $stop_stage -ge -1 ]; then
-  log "stage -1: Download LM"
-  if [ ! -f $dl_dir/lm/3-gram.unpruned.arpa ]; then
-    wget https://huggingface.co/pkufool/aishell_lm/resolve/main/3-gram.unpruned.arpa -P $dl_dir/lm
-  fi
-fi
 
 if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   log "stage 0: Download data"
@@ -218,8 +211,7 @@ if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
   for vocab_size in ${vocab_sizes[@]}; do
     lang_dir=data/lang_bbpe_${vocab_size}
     mkdir -p $lang_dir
-    # We reuse words.txt from phone based lexicon
-    # so that the two can share G.pt later.
+
     cp $lang_char_dir/words.txt $lang_dir
     cp $lang_char_dir/text $lang_dir
 
@@ -240,6 +232,7 @@ if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
   log "Stage 8: Prepare G"
 
   mkdir -p data/lm
+
   # Train LM on transcripts
   if [ ! -f data/lm/3-gram.unpruned.arpa ]; then
     python3 ./shared/make_kn_lm.py \

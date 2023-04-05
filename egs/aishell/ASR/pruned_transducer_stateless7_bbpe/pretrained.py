@@ -88,6 +88,7 @@ from beam_search import (
 from torch.nn.utils.rnn import pad_sequence
 from train import add_model_arguments, get_params, get_transducer_model
 
+from icefall import smart_byte_decode
 from icefall.utils import str2bool
 
 
@@ -106,9 +107,9 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--bpe-model",
+        "--bbpe-model",
         type=str,
-        help="""Path to bpe.model.""",
+        help="""Path to bbpe.model.""",
     )
 
     parser.add_argument(
@@ -298,7 +299,7 @@ def main():
             max_states=params.max_states,
         )
         for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
+            hyps.append(smart_byte_decode(hyp).split())
     elif params.method == "modified_beam_search":
         hyp_tokens = modified_beam_search(
             model=model,
@@ -308,7 +309,7 @@ def main():
         )
 
         for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
+            hyps.append(smart_byte_decode(hyp).split())
     elif params.method == "greedy_search" and params.max_sym_per_frame == 1:
         hyp_tokens = greedy_search_batch(
             model=model,
@@ -316,7 +317,7 @@ def main():
             encoder_out_lens=encoder_out_lens,
         )
         for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
+            hyps.append(smart_byte_decode(hyp).split())
     else:
         for i in range(num_waves):
             # fmt: off
@@ -337,7 +338,7 @@ def main():
             else:
                 raise ValueError(f"Unsupported method: {params.method}")
 
-            hyps.append(sp.decode(hyp).split())
+            hyps.append(smart_byte_decode(sp.decode(hyp)).split())
 
     s = "\n"
     for filename, hyp in zip(params.sound_files, hyps):
