@@ -39,8 +39,8 @@ dl_dir=$PWD/download
 # It will generate data/lang_bbpe_xxx,
 # data/lang_bbpe_yyy if the array contains xxx, yyy
 vocab_sizes=(
-  # 2000
-  # 1000
+  2000
+  1000
   500
 )
 
@@ -191,6 +191,9 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
   # We reuse words.txt from phone based lexicon
   # so that the two can share G.pt later.
 
+  # The transcripts in training set, generated in stage 5
+  cp $lang_phone_dir/transcript_words.txt $lang_char_dir/transcript_words.txt
+
   cat $dl_dir/aishell/data_aishell/transcript/aishell_transcript_v0.8.txt |
   cut -d " " -f 2- > $lang_char_dir/text
 
@@ -199,6 +202,10 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
 
   cat $lang_char_dir/text | sed 's/ /\n/g' | sort -u | sed '/^$/d' \
      | awk '{print $1" "NR+3}' >> $lang_char_dir/words.txt
+
+  num_lines=$(< $lang_char_dir/words.txt wc -l)
+  (echo "#0 $num_lines"; echo "<s> $(($num_lines + 1))"; echo "</s> $(($num_lines + 2))";) \
+    >> $lang_char_dir/words.txt
 
   if [ ! -f $lang_char_dir/L_disambig.pt ]; then
     ./local/prepare_char.py --lang-dir $lang_char_dir
@@ -230,39 +237,54 @@ if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
 fi
 
 if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
-  log "Stage 7: Prepare G"
-  # We assume you have install kaldilm, if not, please install
-  # it using: pip install kaldilm
+  log "Stage 8: Prepare G"
 
   mkdir -p data/lm
+  # Train LM on transcripts
+  if [ ! -f data/lm/3-gram.unpruned.arpa ]; then
+    python3 ./shared/make_kn_lm.py \
+      -ngram-order 3 \
+      -text $lang_char_dir/transcript_words.txt \
+      -lm data/lm/3-gram.unpruned.arpa
+  fi
+
+  # We assume you have install kaldilm, if not, please install
+  # it using: pip install kaldilm
   if [ ! -f data/lm/G_3_gram_char.fst.txt ]; then
     # It is used in building HLG
     python3 -m kaldilm \
       --read-symbol-table="$lang_phone_dir/words.txt" \
       --disambig-symbol='#0' \
       --max-order=3 \
-      $dl_dir/lm/3-gram.unpruned.arpa > data/lm/G_3_gram_phone.fst.txt
+      data/lm/3-gram.unpruned.arpa > data/lm/G_3_gram_phone.fst.txt
 
     python3 -m kaldilm \
       --read-symbol-table="$lang_char_dir/words.txt" \
       --disambig-symbol='#0' \
       --max-order=3 \
-      $dl_dir/lm/3-gram.unpruned.arpa > data/lm/G_3_gram_char.fst.txt
+      data/lm/3-gram.unpruned.arpa > data/lm/G_3_gram_char.fst.txt
   fi
 fi
 
 if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
-  log "Stage 8: Compile HLG"
+  log "Stage 9: Compile LG & HLG"
   ./local/compile_hlg.py --lang-dir $lang_phone_dir --lm G_3_gram_phone
   ./local/compile_hlg.py --lang-dir $lang_char_dir --lm G_3_gram_char
   for vocab_size in ${vocab_sizes[@]}; do
     lang_dir=data/lang_bbpe_${vocab_size}
     ./local/compile_hlg.py --lang-dir $lang_dir --lm G_3_gram_char
   done
+
+  ./local/compile_lg.py --lang-dir $lang_phone_dir --lm G_3_gram_phone
+  ./local/compile_lg.py --lang-dir $lang_char_dir --lm G_3_gram_char
+  for vocab_size in ${vocab_sizes[@]}; do
+    lang_dir=data/lang_bbpe_${vocab_size}
+    ./local/compile_lg.py --lang-dir $lang_dir --lm G_3_gram_char
+  done
 fi
 
 if [ $stage -le 10 ] && [ $stop_stage -ge 10 ]; then
-  log "Stage 9: Generate LM training data"
+  log "Stage 10: Generate LM training data"
 
   log "Processing char based data"
   out_dir=data/lm_training_char
@@ -306,7 +328,7 @@ fi
 
 
 if [ $stage -le 11 ] && [ $stop_stage -ge 11 ]; then
-  log "Stage 10: Sort LM training data"
+  log "Stage 11: Sort LM training data"
   # Sort LM training data by sentence length in descending order
   # for ease of training.
   #
@@ -316,7 +338,7 @@ if [ $stage -le 11 ] && [ $stop_stage -ge 11 ]; then
   out_dir=data/lm_training_char
   mkdir -p $out_dir
   ln -snf ../../../librispeech/ASR/local/sort_lm_training_data.py local/
-  
+
   ./local/sort_lm_training_data.py \
     --in-lm-data $out_dir/lm_data.pt \
     --out-lm-data $out_dir/sorted_lm_data.pt \

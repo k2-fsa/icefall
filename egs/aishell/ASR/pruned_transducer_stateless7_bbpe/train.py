@@ -69,7 +69,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
 from zipformer import Zipformer
 
-from icefall import diagnostics, byte_encode
+from icefall import byte_encode, diagnostics
 from icefall.checkpoint import load_checkpoint, remove_checkpoints
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 from icefall.checkpoint import (
@@ -85,6 +85,7 @@ from icefall.utils import (
     filter_uneven_sized_batch,
     setup_logger,
     str2bool,
+    tokenize_by_CJK_char,
 )
 
 LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
@@ -1077,18 +1078,16 @@ def run(rank, world_size, args):
 
         return True
 
-
-    def modified_text(cuts: CutSet):
-        logging.info("Modifying cuts ...")
-        cut_list = []
-        for c in cuts:
-            c.supervisions[0].text= byte_encode(c.supervisions[0].text)
-            cut_list.append(c)
-        return CutSet.from_cuts(cut_list)
+    def tokenize_and_encode_text(c: Cut):
+        # Text normalize for each sample
+        text = c.supervisions[0].text
+        text = byte_encode(tokenize_by_CJK_char(text))
+        c.supervisions[0].text = text
+        return c
 
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
-    train_cuts = modified_text(train_cuts)
-    logging.info("Modifying train_cuts done.")
+
+    train_cuts = train_cuts.map(tokenize_and_encode_text)
 
     if params.start_batch > 0 and checkpoints and "sampler" in checkpoints:
         # We only load the sampler's state dict when it loads a checkpoint
@@ -1102,8 +1101,7 @@ def run(rank, world_size, args):
     )
 
     valid_cuts = aishell.valid_cuts()
-    valid_cuts = modified_text(valid_cuts)
-    logging.info("Modifying train_cuts done.")
+    valid_cuts = valid_cuts.map(tokenize_and_encode_text)
 
     valid_dl = aishell.valid_dataloaders(valid_cuts)
 

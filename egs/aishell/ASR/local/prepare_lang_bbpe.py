@@ -49,7 +49,7 @@ from prepare_lang import (
 )
 
 from icefall.byte_utils import byte_encode
-from icefall.utils import str2bool
+from icefall.utils import str2bool, tokenize_by_CJK_char
 
 
 def lexicon_to_fst_no_sil(
@@ -149,7 +149,7 @@ def generate_lexicon(
 
     # Convert word to word piece IDs instead of word piece strings
     # to avoid OOV tokens.
-    encode_words = [byte_encode(w) for w in words]
+    encode_words = [byte_encode(tokenize_by_CJK_char(w)) for w in words]
     words_pieces_ids: List[List[int]] = sp.encode(encode_words, out_type=int)
 
     # Now convert word piece IDs back to word piece strings.
