@@ -182,9 +182,7 @@ class AishellAsrDataModule:
         )
 
     def train_dataloaders(
-        self,
-        cuts_train: CutSet,
-        sampler_state_dict: Optional[Dict[str, Any]] = None
+        self, cuts_train: CutSet, sampler_state_dict: Optional[Dict[str, Any]] = None
     ) -> DataLoader:
         """
         Args:

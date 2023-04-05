@@ -189,6 +189,7 @@ def generate_tokens(text_file: str) -> Dict[str, int]:
                     tokens[char] = len(tokens)
     return tokens
 
+
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -200,6 +201,7 @@ def get_args():
     )
 
     return parser.parse_args()
+
 
 def main():
     args = get_args()
