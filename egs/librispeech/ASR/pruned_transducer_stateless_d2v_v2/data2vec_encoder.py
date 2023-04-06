@@ -69,7 +69,7 @@ class FairSeqData2VecEncoder(EncoderInterface):
         model.mask_prob = 0.65
         model.mask_channel_prob = 0.5
         model.mask_channel_length = 64
-        model.activation_dropout = 0.1 
+        #model.activation_dropout = 0.1 
         
         self.encoders = model
         self.pretrained_params = copy.deepcopy(model.state_dict())
