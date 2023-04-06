@@ -7,7 +7,7 @@ for method in modified_beam_search; do #modified_beam_search fast_beam_search; d
 		--additional-block True \
 		--model-name d2v-base-T.pt \
 		--exp-dir ./pruned_transducer_stateless_d2v_v2 \
-		--max-duration 30 \
+		--max-duration 50 \
 		--decoding-method $method \
 		--max-sym-per-frame 1 \
 		--encoder-type d2v \
