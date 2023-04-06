@@ -207,7 +207,7 @@ class Zipformer2(EncoderInterface):
                 dropout=dropout,
                 warmup_begin=warmup_batches * (i + 1) / (num_encoders + 1),
                 warmup_end=warmup_batches * (i + 2) / (num_encoders + 1),
-                final_layerdrop_rate=0.02 * (downsampling_factor[i] ** 0.5),
+                final_layerdrop_rate=0.035 * (downsampling_factor[i] ** 0.5),
             )
 
             if downsampling_factor[i] != 1:
@@ -531,7 +531,7 @@ class Zipformer2EncoderLayer(nn.Module):
         # self.bypass implements layer skipping as well as bypass; see its default values.
         self.bypass = BypassModule(embed_dim)
         # bypass_mid is bypass used in the middle of the layer.
-        self.bypass_mid = BypassModule(embed_dim)
+        self.bypass_mid = BypassModule(embed_dim, skip_rate=0.0)
 
 
         # skip probability for dynamic modules (meaning: anything but feedforward).
@@ -816,9 +816,6 @@ class Zipformer2Encoder(nn.Module):
             self.layers[i].bypass.skip_rate = ScheduledFloat((cur_begin, initial_layerdrop_rate),
                                                              (cur_end, final_layerdrop_rate),
                                                              default=0.0)
-            self.layers[i].bypass_mid.skip_rate = ScheduledFloat((cur_begin, initial_layerdrop_rate),
-                                                                 (cur_end, final_layerdrop_rate),
-                                                                 default=0.0)
             cur_begin = cur_end
 
     def forward(
