@@ -18,25 +18,25 @@ The WERs are:
 
 | decoding method      | chunk size | test-clean | test-other | comment             | decoding mode        |
 |----------------------|------------|------------|------------|---------------------|----------------------|
-| greedy search        | 320ms      | 2.46       | 6.18       | --iter 608000 --avg 25  | simulated streaming  |
-| greedy search        | 320ms      | 2.51       | 6.27       | --iter 608000 --avg 25  | chunk-wise           |
-| fast beam search     | 320ms      | 2.47        | 6.11       | --iter 608000 --avg 25  | simulated streaming  |
-| fast beam search     | 320ms      | 2.73       | 6.44       | --iter 608000 --avg 25  | chunk-wise           |
-| modified beam search | 320ms      | 2.4       | 6.0       | --iter 608000 --avg 25  | simulated streaming  |
-| modified beam search | 320ms      | 2.44       | 6.15       | --iter 608000 --avg 25  | chunk-size           |
-| greedy search        | 640ms      | 2.31       | 5.71        | --iter 608000 --avg 25  | simulated streaming  |
-| greedy search        | 640ms      | 2.4       | 5.88       | --iter 608000 --avg 25  | chunk-wise           |
-| fast beam search     | 640ms      | 2.34       | 5.64       | --iter 608000 --avg 25  | simulated streaming  |
-| fast beam search     | 640ms      | 2.39       | 5.88       | --iter 608000 --avg 25  | chunk-wise           |
-| modified beam search | 640ms      | 2.34       | 5.6       | --iter 608000 --avg 25  | simulated streaming  |
-| modified beam search | 640ms      | 2.35       | 5.77       | --iter 608000 --avg 25  | chunk-size           |
+| greedy search        | 320ms      | 2.43       | 6.0       | --epoch 20 --avg 4  | simulated streaming  |
+| greedy search        | 320ms      | 2.51       | 6.27       | --epoch 20 --avg 4  | chunk-wise           |
+| fast beam search     | 320ms      | 2.43        | 5.99       | --epoch 20 --avg 4  | simulated streaming  |
+| fast beam search     | 320ms      | 2.73       | 6.44       | --epoch 20 --avg 4  | chunk-wise           |
+| modified beam search | 320ms      | 2.4       | 5.96       | --epoch 20 --avg 4  | simulated streaming  |
+| modified beam search | 320ms      | 2.44       | 6.15       | --epoch 20 --avg 4  | chunk-size           |
+| greedy search        | 640ms      | 2.26       | 5.58        | --epoch 20 --avg 4  | simulated streaming  |
+| greedy search        | 640ms      | 2.4       | 5.88       | --epoch 20 --avg 4  | chunk-wise           |
+| fast beam search     | 640ms      | 2.27       | 5.54       | --epoch 20 --avg 4  | simulated streaming  |
+| fast beam search     | 640ms      | 2.39       | 5.88       | --epoch 20 --avg 4  | chunk-wise           |
+| modified beam search | 640ms      | 2.22       | 5.5       | --epoch 20 --avg 4  | simulated streaming  |
+| modified beam search | 640ms      | 2.35       | 5.77       | --epoch 20 --avg 4  | chunk-size           |
 
 The model also has good WERs on GigaSpeech. The following WERs are achieved on GigaSpeech test and dev sets:
 
 | decoding method      | chunk size | dev | test | comment    | decoding mode       |
-|----------------------|------------|------------|------------|---------------------|----------------------|
-| greedy search        | 320ms      | 12.27       | 12.13       | --iter 608000 --avg 25  | simulated streaming  |
-| modified beam search | 320ms      | 12.17       | 11.98       | --iter 608000 --avg 25  | simulated streaming  |
+|----------------------|------------|-----|------|------------|---------------------|
+| greedy search        | 320ms      | 12.27       | 12.13       | --epoch 20 --avg 4  | simulated streaming  |
+| modified beam search | 320ms      | 12.17       | 11.98       | --epoch 20 --avg 4  | simulated streaming  |
 
 
 Note: `simulated streaming` indicates feeding full utterance during decoding using `decode.py`,
@@ -129,8 +129,8 @@ This small model achieves the following WERs on GigaSpeech test and dev sets:
 
 | decoding method      | chunk size | dev | test | comment    | decoding mode       |
 |----------------------|------------|------------|------------|---------------------|----------------------|
-| greedy search        | 320ms      | 17.57       | 17.2     | --iter 608000 --avg 25  | simulated streaming  |
-| modified beam search | 320ms      | 16.98       | 11.98       | --iter 608000 --avg 25  | simulated streaming  |
+| greedy search        | 320ms      | 17.57       | 17.2     | --epoch 30 --avg 1  | simulated streaming  |
+| modified beam search | 320ms      | 16.98       | 11.98       | --epoch 30 --avg 1  | simulated streaming  |
 
 You can find the tensorboard logs at <https://tensorboard.dev/experiment/tAc5iXxTQrCQxky5O5OLyw/#scalars>.
 

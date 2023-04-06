@@ -599,7 +599,10 @@ def greedy_search(
     if not return_timestamps:
         return hyp
     else:
-        return DecodingResults(hyps=[hyp], timestamps=[timestamp],)
+        return DecodingResults(
+            hyps=[hyp],
+            timestamps=[timestamp],
+        )
 
 
 def greedy_search_batch(
@@ -652,7 +655,9 @@ def greedy_search_batch(
     timestamps = [[] for _ in range(N)]
 
     decoder_input = torch.tensor(
-        hyps, device=device, dtype=torch.int64,
+        hyps,
+        device=device,
+        dtype=torch.int64,
     )  # (N, context_size)
 
     decoder_out = model.decoder(decoder_input, need_pad=False)
@@ -690,7 +695,9 @@ def greedy_search_batch(
             # update decoder output
             decoder_input = [h[-context_size:] for h in hyps[:batch_size]]
             decoder_input = torch.tensor(
-                decoder_input, device=device, dtype=torch.int64,
+                decoder_input,
+                device=device,
+                dtype=torch.int64,
             )
             decoder_out = model.decoder(decoder_input, need_pad=False)
             decoder_out = model.joiner.decoder_proj(decoder_out)
@@ -706,7 +713,10 @@ def greedy_search_batch(
     if not return_timestamps:
         return ans
     else:
-        return DecodingResults(hyps=ans, timestamps=ans_timestamps,)
+        return DecodingResults(
+            hyps=ans,
+            timestamps=ans_timestamps,
+        )
 
 
 @dataclass
@@ -976,11 +986,15 @@ def modified_beam_search(
         # Note: For torch 1.7.1 and below, it requires a torch.int64 tensor
         # as index, so we use `to(torch.int64)` below.
         current_encoder_out = torch.index_select(
-            current_encoder_out, dim=0, index=hyps_shape.row_ids(1).to(torch.int64),
+            current_encoder_out,
+            dim=0,
+            index=hyps_shape.row_ids(1).to(torch.int64),
         )  # (num_hyps, 1, 1, encoder_out_dim)
 
         logits = model.joiner(
-            current_encoder_out, decoder_out, project_input=False,
+            current_encoder_out,
+            decoder_out,
+            project_input=False,
         )  # (num_hyps, 1, 1, vocab_size)
 
         logits = logits.squeeze(1).squeeze(1)  # (num_hyps, vocab_size)
@@ -1039,7 +1053,10 @@ def modified_beam_search(
     if not return_timestamps:
         return ans
     else:
-        return DecodingResults(hyps=ans, timestamps=ans_timestamps,)
+        return DecodingResults(
+            hyps=ans,
+            timestamps=ans_timestamps,
+        )
 
 
 def _deprecated_modified_beam_search(
@@ -1105,7 +1122,9 @@ def _deprecated_modified_beam_search(
         # ys_log_probs is of shape (num_hyps, 1)
 
         decoder_input = torch.tensor(
-            [hyp.ys[-context_size:] for hyp in A], device=device, dtype=torch.int64,
+            [hyp.ys[-context_size:] for hyp in A],
+            device=device,
+            dtype=torch.int64,
         )
         # decoder_input is of shape (num_hyps, context_size)
 
@@ -1117,7 +1136,11 @@ def _deprecated_modified_beam_search(
             decoder_out.size(0), 1, 1, -1
         )  # (num_hyps, 1, 1, encoder_out_dim)
 
-        logits = model.joiner(current_encoder_out, decoder_out, project_input=False,)
+        logits = model.joiner(
+            current_encoder_out,
+            decoder_out,
+            project_input=False,
+        )
         # logits is of shape (num_hyps, 1, 1, vocab_size)
         logits = logits.squeeze(1).squeeze(1)
 
@@ -1201,7 +1224,9 @@ def beam_search(
     device = next(model.parameters()).device
 
     decoder_input = torch.tensor(
-        [blank_id] * context_size, device=device, dtype=torch.int64,
+        [blank_id] * context_size,
+        device=device,
+        dtype=torch.int64,
     ).reshape(1, context_size)
 
     decoder_out = model.decoder(decoder_input, need_pad=False)
@@ -1241,7 +1266,9 @@ def beam_search(
 
             if cached_key not in decoder_cache:
                 decoder_input = torch.tensor(
-                    [y_star.ys[-context_size:]], device=device, dtype=torch.int64,
+                    [y_star.ys[-context_size:]],
+                    device=device,
+                    dtype=torch.int64,
                 ).reshape(1, context_size)
 
                 decoder_out = model.decoder(decoder_input, need_pad=False)
@@ -1253,7 +1280,9 @@ def beam_search(
             cached_key += f"-t-{t}"
             if cached_key not in joint_cache:
                 logits = model.joiner(
-                    current_encoder_out, decoder_out.unsqueeze(1), project_input=False,
+                    current_encoder_out,
+                    decoder_out.unsqueeze(1),
+                    project_input=False,
                 )
 
                 # TODO(fangjun): Scale the blank posterior
@@ -1288,7 +1317,9 @@ def beam_search(
                 new_timestamp = y_star.timestamp + [t]
                 A.add(
                     Hypothesis(
-                        ys=new_ys, log_prob=new_log_prob, timestamp=new_timestamp,
+                        ys=new_ys,
+                        log_prob=new_log_prob,
+                        timestamp=new_timestamp,
                     )
                 )
 
@@ -1437,7 +1468,9 @@ def fast_beam_search_with_nbest_rescoring(
     num_unique_paths = len(word_ids_list)
 
     b_to_a_map = torch.zeros(
-        num_unique_paths, dtype=torch.int32, device=lattice.device,
+        num_unique_paths,
+        dtype=torch.int32,
+        device=lattice.device,
     )
 
     rescored_word_fsas = k2.intersect_device(
@@ -1451,7 +1484,8 @@ def fast_beam_search_with_nbest_rescoring(
     rescored_word_fsas = k2.remove_epsilon_self_loops(rescored_word_fsas)
     rescored_word_fsas = k2.top_sort(k2.connect(rescored_word_fsas))
     ngram_lm_scores = rescored_word_fsas.get_tot_scores(
-        use_double_scores=True, log_semiring=False,
+        use_double_scores=True,
+        log_semiring=False,
     )
 
     ans: Dict[str, Union[List[List[int]], DecodingResults]] = {}
@@ -1600,7 +1634,9 @@ def fast_beam_search_with_nbest_rnn_rescoring(
     num_unique_paths = len(word_ids_list)
 
     b_to_a_map = torch.zeros(
-        num_unique_paths, dtype=torch.int32, device=lattice.device,
+        num_unique_paths,
+        dtype=torch.int32,
+        device=lattice.device,
     )
 
     rescored_word_fsas = k2.intersect_device(
@@ -1614,7 +1650,8 @@ def fast_beam_search_with_nbest_rnn_rescoring(
     rescored_word_fsas = k2.remove_epsilon_self_loops(rescored_word_fsas)
     rescored_word_fsas = k2.top_sort(k2.connect(rescored_word_fsas))
     ngram_lm_scores = rescored_word_fsas.get_tot_scores(
-        use_double_scores=True, log_semiring=False,
+        use_double_scores=True,
+        log_semiring=False,
     )
 
     # Now RNN-LM
@@ -1757,11 +1794,15 @@ def modified_beam_search_ngram_rescoring(
         # Note: For torch 1.7.1 and below, it requires a torch.int64 tensor
         # as index, so we use `to(torch.int64)` below.
         current_encoder_out = torch.index_select(
-            current_encoder_out, dim=0, index=hyps_shape.row_ids(1).to(torch.int64),
+            current_encoder_out,
+            dim=0,
+            index=hyps_shape.row_ids(1).to(torch.int64),
         )  # (num_hyps, 1, 1, encoder_out_dim)
 
         logits = model.joiner(
-            current_encoder_out, decoder_out, project_input=False,
+            current_encoder_out,
+            decoder_out,
+            project_input=False,
         )  # (num_hyps, 1, 1, vocab_size)
 
         logits = logits.squeeze(1).squeeze(1)  # (num_hyps, vocab_size)
@@ -1934,11 +1975,15 @@ def modified_beam_search_LODR(
         decoder_out = model.joiner.decoder_proj(decoder_out)
 
         current_encoder_out = torch.index_select(
-            current_encoder_out, dim=0, index=hyps_shape.row_ids(1).to(torch.int64),
+            current_encoder_out,
+            dim=0,
+            index=hyps_shape.row_ids(1).to(torch.int64),
         )  # (num_hyps, 1, 1, encoder_out_dim)
 
         logits = model.joiner(
-            current_encoder_out, decoder_out, project_input=False,
+            current_encoder_out,
+            decoder_out,
+            project_input=False,
         )  # (num_hyps, 1, 1, vocab_size)
 
         logits = logits.squeeze(1).squeeze(1)  # (num_hyps, vocab_size)
@@ -2196,11 +2241,15 @@ def modified_beam_search_lm_shallow_fusion(
         decoder_out = model.joiner.decoder_proj(decoder_out)
 
         current_encoder_out = torch.index_select(
-            current_encoder_out, dim=0, index=hyps_shape.row_ids(1).to(torch.int64),
+            current_encoder_out,
+            dim=0,
+            index=hyps_shape.row_ids(1).to(torch.int64),
         )  # (num_hyps, 1, 1, encoder_out_dim)
 
         logits = model.joiner(
-            current_encoder_out, decoder_out, project_input=False,
+            current_encoder_out,
+            decoder_out,
+            project_input=False,
         )  # (num_hyps, 1, 1, vocab_size)
 
         logits = logits.squeeze(1).squeeze(1)  # (num_hyps, vocab_size)
@@ -2338,4 +2387,7 @@ def modified_beam_search_lm_shallow_fusion(
     if not return_timestamps:
         return ans
     else:
-        return DecodingResults(hyps=ans, timestamps=ans_timestamps,)
+        return DecodingResults(
+            hyps=ans,
+            timestamps=ans_timestamps,
+        )

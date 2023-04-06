@@ -106,7 +106,9 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--bpe-model", type=str, help="""Path to bpe.model.""",
+        "--bpe-model",
+        type=str,
+        help="""Path to bpe.model.""",
     )
 
     parser.add_argument(
@@ -309,7 +311,9 @@ def main():
             hyps.append(hyp.split())
     elif params.method == "greedy_search" and params.max_sym_per_frame == 1:
         hyp_tokens = greedy_search_batch(
-            model=model, encoder_out=encoder_out, encoder_out_lens=encoder_out_lens,
+            model=model,
+            encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
         )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
@@ -326,7 +330,9 @@ def main():
                 )
             elif params.method == "beam_search":
                 hyp = beam_search(
-                    model=model, encoder_out=encoder_out_i, beam=params.beam_size,
+                    model=model,
+                    encoder_out=encoder_out_i,
+                    beam=params.beam_size,
                 )
             else:
                 raise ValueError(f"Unsupported method: {params.method}")

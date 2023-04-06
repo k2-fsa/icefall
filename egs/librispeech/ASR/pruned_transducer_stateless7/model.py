@@ -65,7 +65,10 @@ class Transducer(nn.Module):
         self.decoder = decoder
         self.joiner = joiner
 
-        self.simple_am_proj = nn.Linear(encoder_dim, vocab_size,)
+        self.simple_am_proj = nn.Linear(
+            encoder_dim,
+            vocab_size,
+        )
         self.simple_lm_proj = nn.Linear(decoder_dim, vocab_size)
 
     def forward(
@@ -159,7 +162,10 @@ class Transducer(nn.Module):
 
         # ranges : [B, T, prune_range]
         ranges = k2.get_rnnt_prune_ranges(
-            px_grad=px_grad, py_grad=py_grad, boundary=boundary, s_range=prune_range,
+            px_grad=px_grad,
+            py_grad=py_grad,
+            boundary=boundary,
+            s_range=prune_range,
         )
 
         # am_pruned : [B, T, prune_range, encoder_dim]

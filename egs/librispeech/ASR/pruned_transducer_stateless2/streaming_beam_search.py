@@ -28,7 +28,9 @@ from icefall.utils import get_texts
 
 
 def greedy_search(
-    model: nn.Module, encoder_out: torch.Tensor, streams: List[DecodeStream],
+    model: nn.Module,
+    encoder_out: torch.Tensor,
+    streams: List[DecodeStream],
 ) -> None:
     """Greedy search in batch mode. It hardcodes --max-sym-per-frame=1.
 
@@ -83,7 +85,10 @@ def greedy_search(
                 device=device,
                 dtype=torch.int64,
             )
-            decoder_out = model.decoder(decoder_input, need_pad=False,)
+            decoder_out = model.decoder(
+                decoder_input,
+                need_pad=False,
+            )
             decoder_out = model.joiner.decoder_proj(decoder_out)
 
 
@@ -143,7 +148,9 @@ def modified_beam_search(
         # Note: For torch 1.7.1 and below, it requires a torch.int64 tensor
         # as index, so we use `to(torch.int64)` below.
         current_encoder_out = torch.index_select(
-            current_encoder_out, dim=0, index=hyps_shape.row_ids(1).to(torch.int64),
+            current_encoder_out,
+            dim=0,
+            index=hyps_shape.row_ids(1).to(torch.int64),
         )  # (num_hyps, encoder_out_dim)
 
         logits = model.joiner(current_encoder_out, decoder_out, project_input=False)

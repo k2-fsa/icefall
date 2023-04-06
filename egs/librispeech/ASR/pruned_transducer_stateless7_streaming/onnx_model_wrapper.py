@@ -118,7 +118,9 @@ class OnnxStreamingEncoder(torch.nn.Module):
             offset += num_layer
 
         encoder_out, encoder_out_lens, new_states = self.model.streaming_forward(
-            x=x, x_lens=x_lens, states=states,
+            x=x,
+            x_lens=x_lens,
+            states=states,
         )
 
         new_len_cache = torch.cat(states[: self.model.num_encoders]).transpose(
@@ -171,7 +173,8 @@ class TritonOnnxDecoder(torch.nn.Module):
     """
 
     def __init__(
-        self, decoder: torch.nn.Module,
+        self,
+        decoder: torch.nn.Module,
     ):
         """
         Args:
@@ -203,13 +206,16 @@ class TritonOnnxJoiner(torch.nn.Module):
     """
 
     def __init__(
-        self, joiner: torch.nn.Module,
+        self,
+        joiner: torch.nn.Module,
     ):
         super().__init__()
         self.model = joiner
 
     def forward(
-        self, encoder_out: torch.Tensor, decoder_out: torch.Tensor,
+        self,
+        encoder_out: torch.Tensor,
+        decoder_out: torch.Tensor,
     ) -> torch.Tensor:
         """
         Args:

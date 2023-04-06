@@ -287,7 +287,7 @@ class ScaledAdam(BatchedOptimizer):
             # "param_rms" just periodically records the scalar root-mean-square value of
             # the parameter tensor.
             # it has a shape like (batch_size, 1, 1, 1, 1)
-            param_rms = (p ** 2).mean(dim=list(range(1, p.ndim)), keepdim=True).sqrt()
+            param_rms = (p**2).mean(dim=list(range(1, p.ndim)), keepdim=True).sqrt()
             state["param_rms"] = param_rms
 
             state["scale_exp_avg_sq"] = torch.zeros_like(param_rms)
@@ -332,7 +332,7 @@ class ScaledAdam(BatchedOptimizer):
                     "ScaledAdam optimizer does not support sparse gradients"
                 )
             if p.numel() == p.shape[0]:  # a batch of scalars
-                tot_sumsq += (grad ** 2).sum()  # sum() to change shape [1] to []
+                tot_sumsq += (grad**2).sum()  # sum() to change shape [1] to []
             else:
                 tot_sumsq += ((grad * state["param_rms"]) ** 2).sum()
 
@@ -414,7 +414,7 @@ class ScaledAdam(BatchedOptimizer):
             # p is a stacked batch parameters.
             batch_grad = p.grad
             if p.numel() == p.shape[0]:  # a batch of scalars
-                batch_sumsq_orig = batch_grad ** 2
+                batch_sumsq_orig = batch_grad**2
                 # Dummpy values used by following `zip` statement.
                 batch_rms_orig = torch.ones(p.shape[0])
             else:
@@ -490,7 +490,7 @@ class ScaledAdam(BatchedOptimizer):
             if step % size_update_period == size_update_period - 1:
                 param_rms = state["param_rms"]  # shape: (batch_size, 1, 1, ..)
                 param_rms.copy_(
-                    (p ** 2).mean(dim=list(range(1, p.ndim)), keepdim=True).sqrt()
+                    (p**2).mean(dim=list(range(1, p.ndim)), keepdim=True).sqrt()
                 )
                 if step > 0:
                     # self._size_update() learns the overall scale on the
@@ -535,24 +535,24 @@ class ScaledAdam(BatchedOptimizer):
         size_update_period = scale_grads.shape[0]
         # correct beta2 for the size update period: we will have
         # faster decay at this level.
-        beta2_corr = beta2 ** size_update_period
+        beta2_corr = beta2**size_update_period
 
         scale_exp_avg_sq = state["scale_exp_avg_sq"]  # shape: (batch_size, 1, 1, ..)
         scale_exp_avg_sq.mul_(beta2_corr).add_(
-            (scale_grads ** 2).mean(dim=0),  # mean over dim `size_update_period`
+            (scale_grads**2).mean(dim=0),  # mean over dim `size_update_period`
             alpha=1 - beta2_corr,
         )  # shape is (batch_size, 1, 1, ...)
 
         # The 1st time we reach here is when size_step == 1.
         size_step = (step + 1) // size_update_period
-        bias_correction2 = 1 - beta2_corr ** size_step
+        bias_correction2 = 1 - beta2_corr**size_step
         # we don't bother with bias_correction1; this will help prevent divergence
         # at the start of training.
 
         denom = scale_exp_avg_sq.sqrt() + eps
 
         scale_step = (
-            -size_lr * (bias_correction2 ** 0.5) * scale_grads.sum(dim=0) / denom
+            -size_lr * (bias_correction2**0.5) * scale_grads.sum(dim=0) / denom
         )
 
         is_too_small = param_rms < param_min_rms
@@ -760,9 +760,9 @@ class Eden(LRScheduler):
 
     def get_lr(self):
         factor = (
-            (self.batch ** 2 + self.lr_batches ** 2) / self.lr_batches ** 2
+            (self.batch**2 + self.lr_batches**2) / self.lr_batches**2
         ) ** -0.25 * (
-            ((self.epoch ** 2 + self.lr_epochs ** 2) / self.lr_epochs ** 2) ** -0.25
+            ((self.epoch**2 + self.lr_epochs**2) / self.lr_epochs**2) ** -0.25
         )
         warmup_factor = (
             1.0
@@ -957,7 +957,7 @@ class Eve(Optimizer):
                 # Decay the first and second moment running average coefficient
                 exp_avg.mul_(beta1).add_(grad, alpha=1 - beta1)
                 exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
-                denom = (exp_avg_sq.sqrt() * (bias_correction2 ** -0.5)).add_(
+                denom = (exp_avg_sq.sqrt() * (bias_correction2**-0.5)).add_(
                     group["eps"]
                 )
 

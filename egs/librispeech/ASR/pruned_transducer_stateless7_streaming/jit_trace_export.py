@@ -102,7 +102,9 @@ def get_parser():
 
 
 def export_encoder_model_jit_trace(
-    encoder_model: torch.nn.Module, encoder_filename: str, params: AttributeDict,
+    encoder_model: torch.nn.Module,
+    encoder_filename: str,
+    params: AttributeDict,
 ) -> None:
     """Export the given encoder model with torch.jit.trace()
 
@@ -136,7 +138,8 @@ def export_encoder_model_jit_trace(
 
 
 def export_decoder_model_jit_trace(
-    decoder_model: torch.nn.Module, decoder_filename: str,
+    decoder_model: torch.nn.Module,
+    decoder_filename: str,
 ) -> None:
     """Export the given decoder model with torch.jit.trace()
 
@@ -157,7 +160,8 @@ def export_decoder_model_jit_trace(
 
 
 def export_joiner_model_jit_trace(
-    joiner_model: torch.nn.Module, joiner_filename: str,
+    joiner_model: torch.nn.Module,
+    joiner_filename: str,
 ) -> None:
     """Export the given joiner model with torch.jit.trace()
 

@@ -499,7 +499,9 @@ class Zipformer(EncoderInterface):
         return feature_masks
 
     def forward(
-        self, x: torch.Tensor, x_lens: torch.Tensor,
+        self,
+        x: torch.Tensor,
+        x_lens: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Args:
@@ -583,7 +585,9 @@ class Zipformer(EncoderInterface):
         return x, lengths
 
     def streaming_forward(
-        self, x: torch.Tensor, states: List[Tensor],
+        self,
+        x: torch.Tensor,
+        states: List[Tensor],
     ) -> Tuple[Tensor, List[Tensor]]:
         """
         Args:
@@ -675,7 +679,8 @@ class Zipformer(EncoderInterface):
 
     @torch.jit.export
     def get_init_state(
-        self, device: torch.device = torch.device("cpu"),
+        self,
+        device: torch.device = torch.device("cpu"),
     ) -> List[Tensor]:
         """Get initial states.
         A list of 7 * num_encoders elements:
@@ -835,7 +840,11 @@ class ZipformerEncoderLayer(nn.Module):
 
         # try to ensure the output is close to zero-mean (or at least, zero-median).
         self.balancer = ActivationBalancer(
-            d_model, channel_dim=-1, min_positive=0.45, max_positive=0.55, max_abs=6.0,
+            d_model,
+            channel_dim=-1,
+            min_positive=0.45,
+            max_positive=0.55,
+            max_abs=6.0,
         )
         self.whiten = Whiten(
             num_groups=1, whitening_limit=5.0, prob=(0.025, 0.25), grad_scale=0.01
@@ -1019,7 +1028,9 @@ class ZipformerEncoderLayer(nn.Module):
         src = src + self.feed_forward1(src)
 
         src_pool, cached_len, cached_avg = self.pooling.streaming_forward(
-            src, cached_len=cached_len, cached_avg=cached_avg,
+            src,
+            cached_len=cached_len,
+            cached_avg=cached_avg,
         )
         src = src + src_pool
 
@@ -1029,13 +1040,17 @@ class ZipformerEncoderLayer(nn.Module):
             cached_key,
             cached_val,
         ) = self.self_attn.streaming_forward(
-            src, pos_emb=pos_emb, cached_key=cached_key, cached_val=cached_val,
+            src,
+            pos_emb=pos_emb,
+            cached_key=cached_key,
+            cached_val=cached_val,
         )
 
         src = src + src_attn
 
         src_conv, cached_conv1 = self.conv_module1.streaming_forward(
-            src, cache=cached_conv1,
+            src,
+            cache=cached_conv1,
         )
 
         src = src + src_conv
@@ -1043,12 +1058,15 @@ class ZipformerEncoderLayer(nn.Module):
         src = src + self.feed_forward2(src)
 
         src_attn, cached_val2 = self.self_attn.streaming_forward2(
-            src, attn_weights, cached_val=cached_val2,
+            src,
+            attn_weights,
+            cached_val=cached_val2,
         )
         src = src + src_attn
 
         src_conv, cached_conv2 = self.conv_module2.streaming_forward(
-            src, cache=cached_conv2,
+            src,
+            cache=cached_conv2,
         )
         src = src + src_conv
 
@@ -1590,7 +1608,7 @@ class AttentionDownsample(torch.nn.Module):
     ):
         super(AttentionDownsample, self).__init__()
 
-        self.query = nn.Parameter(torch.randn(in_channels) * (in_channels ** -0.5))
+        self.query = nn.Parameter(torch.randn(in_channels) * (in_channels**-0.5))
 
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -1962,7 +1980,7 @@ class RelPositionMultiheadAttention(nn.Module):
         )  # positional encoding query (pos_dim * num_heads, )
 
         self.in_proj = ScaledLinear(
-            embed_dim, in_proj_dim, bias=True, initial_scale=self.head_dim ** -0.25
+            embed_dim, in_proj_dim, bias=True, initial_scale=self.head_dim**-0.25
         )
 
         # self.whiten_values is applied on the values in forward();
@@ -2065,7 +2083,11 @@ class RelPositionMultiheadAttention(nn.Module):
         return x, weights
 
     def streaming_forward(
-        self, x: Tensor, pos_emb: Tensor, cached_key: Tensor, cached_val: Tensor,
+        self,
+        x: Tensor,
+        pos_emb: Tensor,
+        cached_key: Tensor,
+        cached_val: Tensor,
     ) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
         r"""
         Args:
@@ -2293,7 +2315,8 @@ class RelPositionMultiheadAttention(nn.Module):
                 bsz, num_heads, seq_len, seq_len
             )
             attn_output_weights = attn_output_weights.masked_fill(
-                key_padding_mask.unsqueeze(1).unsqueeze(2), float("-inf"),
+                key_padding_mask.unsqueeze(1).unsqueeze(2),
+                float("-inf"),
             )
             attn_output_weights = attn_output_weights.view(
                 bsz * num_heads, seq_len, seq_len
@@ -2569,7 +2592,11 @@ class RelPositionMultiheadAttention(nn.Module):
 
         return attn_output, attn_output_weights, cached_key, cached_val
 
-    def forward2(self, x: Tensor, attn_weights: Tensor,) -> Tensor:
+    def forward2(
+        self,
+        x: Tensor,
+        attn_weights: Tensor,
+    ) -> Tensor:
         """
         Second forward function, where we re-use the attn_weights returned by the first forward function
         but with different input.
@@ -2604,7 +2631,10 @@ class RelPositionMultiheadAttention(nn.Module):
         return self.out_proj2(attn_output)
 
     def streaming_forward2(
-        self, x: Tensor, attn_weights: Tensor, cached_val: Tensor,
+        self,
+        x: Tensor,
+        attn_weights: Tensor,
+        cached_val: Tensor,
     ) -> Tuple[Tensor, Tensor]:
         """
         Second forward function, where we re-use the attn_weights returned by the first forward function
@@ -2760,7 +2790,12 @@ class ConvolutionModule(nn.Module):
         assert (kernel_size - 1) % 2 == 0, kernel_size
 
         self.pointwise_conv1 = nn.Conv1d(
-            channels, 2 * channels, kernel_size=1, stride=1, padding=0, bias=bias,
+            channels,
+            2 * channels,
+            kernel_size=1,
+            stride=1,
+            padding=0,
+            bias=bias,
         )
 
         # after pointwise_conv1 we put x through a gated linear unit (nn.functional.glu).
@@ -2797,7 +2832,11 @@ class ConvolutionModule(nn.Module):
         )
 
         self.deriv_balancer2 = ActivationBalancer(
-            channels, channel_dim=1, min_positive=0.05, max_positive=1.0, max_abs=20.0,
+            channels,
+            channel_dim=1,
+            min_positive=0.05,
+            max_positive=1.0,
+            max_abs=20.0,
         )
 
         self.activation = DoubleSwish()
@@ -2816,7 +2855,9 @@ class ConvolutionModule(nn.Module):
         self.x_size = x_size
 
     def forward(
-        self, x: Tensor, src_key_padding_mask: Optional[Tensor] = None,
+        self,
+        x: Tensor,
+        src_key_padding_mask: Optional[Tensor] = None,
     ) -> Tensor:
         """Compute convolution module.
 
@@ -2853,7 +2894,11 @@ class ConvolutionModule(nn.Module):
 
         return x.permute(2, 0, 1)
 
-    def streaming_forward(self, x: Tensor, cache: Tensor,) -> Tuple[Tensor, Tensor]:
+    def streaming_forward(
+        self,
+        x: Tensor,
+        cache: Tensor,
+    ) -> Tuple[Tensor, Tensor]:
         """Compute convolution module.
 
         Args:
@@ -3061,7 +3106,9 @@ def _test_pooling_module():
         end = start + chunk_len
         x_chunk = x[start:end]
         y_chunk, cached_len, cached_avg = m.streaming_forward(
-            x_chunk, cached_len=cached_len, cached_avg=cached_avg,
+            x_chunk,
+            cached_len=cached_len,
+            cached_avg=cached_avg,
         )
         assert torch.allclose(y_chunk, y[start:end]), (y_chunk, y[start:end])
 

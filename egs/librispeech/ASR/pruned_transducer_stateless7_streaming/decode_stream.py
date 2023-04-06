@@ -108,7 +108,11 @@ class DecodeStream(object):
     def id(self) -> str:
         return self.cut_id
 
-    def set_features(self, features: torch.Tensor, tail_pad_len: int = 0,) -> None:
+    def set_features(
+        self,
+        features: torch.Tensor,
+        tail_pad_len: int = 0,
+    ) -> None:
         """Set features tensor of current utterance."""
         assert features.dim() == 2, features.dim()
         self.features = torch.nn.functional.pad(

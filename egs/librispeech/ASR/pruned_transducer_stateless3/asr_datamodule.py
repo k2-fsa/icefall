@@ -248,7 +248,8 @@ class AsrDataModule:
             )
         else:
             validate = K2SpeechRecognitionDataset(
-                cut_transforms=transforms, return_cuts=self.args.return_cuts,
+                cut_transforms=transforms,
+                return_cuts=self.args.return_cuts,
             )
         valid_sampler = DynamicBucketingSampler(
             cuts_valid,
@@ -284,6 +285,9 @@ class AsrDataModule:
         )
         logging.debug("About to create test dataloader")
         test_dl = DataLoader(
-            test, batch_size=None, sampler=sampler, num_workers=self.args.num_workers,
+            test,
+            batch_size=None,
+            sampler=sampler,
+            num_workers=self.args.num_workers,
         )
         return test_dl

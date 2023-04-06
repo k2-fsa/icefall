@@ -92,7 +92,9 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--tokens", type=str, help="""Path to tokens.txt.""",
+        "--tokens",
+        type=str,
+        help="""Path to tokens.txt.""",
     )
 
     parser.add_argument(
@@ -126,7 +128,8 @@ class OnnxModel:
 
     def init_encoder(self, encoder_model_filename: str):
         self.encoder = ort.InferenceSession(
-            encoder_model_filename, sess_options=self.session_opts,
+            encoder_model_filename,
+            sess_options=self.session_opts,
         )
         self.init_encoder_states()
 
@@ -224,7 +227,8 @@ class OnnxModel:
 
     def init_decoder(self, decoder_model_filename: str):
         self.decoder = ort.InferenceSession(
-            decoder_model_filename, sess_options=self.session_opts,
+            decoder_model_filename,
+            sess_options=self.session_opts,
         )
 
         decoder_meta = self.decoder.get_modelmeta().custom_metadata_map
@@ -236,7 +240,8 @@ class OnnxModel:
 
     def init_joiner(self, joiner_model_filename: str):
         self.joiner = ort.InferenceSession(
-            joiner_model_filename, sess_options=self.session_opts,
+            joiner_model_filename,
+            sess_options=self.session_opts,
         )
 
         joiner_meta = self.joiner.get_modelmeta().custom_metadata_map
@@ -245,7 +250,8 @@ class OnnxModel:
         logging.info(f"joiner_dim: {self.joiner_dim}")
 
     def _build_encoder_input_output(
-        self, x: torch.Tensor,
+        self,
+        x: torch.Tensor,
     ) -> Tuple[Dict[str, np.ndarray], List[str]]:
         encoder_input = {"x": x.numpy()}
         encoder_output = ["encoder_out"]
@@ -443,7 +449,8 @@ def main():
 
     logging.info(f"Reading sound files: {args.sound_file}")
     waves = read_sound_files(
-        filenames=[args.sound_file], expected_sample_rate=sample_rate,
+        filenames=[args.sound_file],
+        expected_sample_rate=sample_rate,
     )[0]
 
     tail_padding = torch.zeros(int(0.3 * sample_rate), dtype=torch.float32)
@@ -465,7 +472,8 @@ def main():
         start += chunk
 
         online_fbank.accept_waveform(
-            sampling_rate=sample_rate, waveform=samples,
+            sampling_rate=sample_rate,
+            waveform=samples,
         )
 
         while online_fbank.num_frames_ready - num_processed_frames >= segment:
@@ -477,7 +485,11 @@ def main():
             frames = frames.unsqueeze(0)
             encoder_out = model.run_encoder(frames)
             hyp, decoder_out = greedy_search(
-                model, encoder_out, context_size, decoder_out, hyp,
+                model,
+                encoder_out,
+                context_size,
+                decoder_out,
+                hyp,
             )
 
     symbol_table = k2.SymbolTable.from_file(args.tokens)

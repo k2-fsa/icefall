@@ -71,12 +71,11 @@ It will generate the following 3 files inside $repo/exp:
 import argparse
 import logging
 
+import torch
 from onnx_pretrained import OnnxModel
 from zipformer import stack_states
 
 from icefall import is_module_available
-
-import torch
 
 
 def get_parser():
@@ -169,7 +168,10 @@ def test_decoder(
         N = torch.randint(1, 100, size=(1,)).item()
         logging.info(f"test_decoder: iter {i}, N={N}")
         x = torch.randint(
-            low=1, high=vocab_size, size=(N, context_size), dtype=torch.int64,
+            low=1,
+            high=vocab_size,
+            size=(N, context_size),
+            dtype=torch.int64,
         )
         torch_decoder_out = torch_decoder_model(x, need_pad=torch.tensor([False]))
         torch_decoder_out = torch_decoder_proj_model(torch_decoder_out)
@@ -182,7 +184,8 @@ def test_decoder(
 
 
 def test_joiner(
-    torch_joiner_model: torch.jit.ScriptModule, onnx_model: OnnxModel,
+    torch_joiner_model: torch.jit.ScriptModule,
+    onnx_model: OnnxModel,
 ):
     encoder_dim = torch_joiner_model.encoder_proj.weight.shape[1]
     decoder_dim = torch_joiner_model.decoder_proj.weight.shape[1]
