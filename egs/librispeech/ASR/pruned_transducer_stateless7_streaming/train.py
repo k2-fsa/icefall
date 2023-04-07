@@ -809,13 +809,10 @@ def train_one_epoch(
 
     cur_batch_idx = params.get("cur_batch_idx", 0)
 
-    #import pdb; pdb.set_trace()
     for batch_idx, batch in enumerate(train_dl):
         if batch_idx < cur_batch_idx:
             continue
         cur_batch_idx = batch_idx
-        
-        #import pdb; pdb.set_trace()
 
         params.batch_idx_train += 1
         batch_size = len(batch["supervisions"]["text"])
@@ -1094,7 +1091,7 @@ def run(rank, world_size, args):
 
         return True
 
-    #train_cuts = train_cuts.filter(remove_short_and_long_utt)
+    # train_cuts = train_cuts.filter(remove_short_and_long_utt)
 
     if params.start_batch > 0 and checkpoints and "sampler" in checkpoints:
         # We only load the sampler's state dict when it loads a checkpoint
