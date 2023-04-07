@@ -49,7 +49,7 @@ def get_args():
     parser.add_argument(
         "--chunk",
         type=float,
-        default=30.0,
+        default=300.0,
         help="""Duration (in seconds) of each chunk.""",
     )
 

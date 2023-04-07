@@ -65,7 +65,7 @@ def get_parser():
     parser.add_argument(
         "--supervision-chunk",
         type=float,
-        default=5.0,
+        default=300.0,
         help="""Chunk duration (in seconds) used to split the supervision.
         If <=0, the supervision will span the entire cut.""",
     )
@@ -78,7 +78,7 @@ def merge_chunks(
     supervisions: SupervisionSet,
     sp: spm.SentencePieceProcessor,
     extra: float,
-    supervision_chunk: float = 5.0,
+    supervision_chunk: float = 300.0,
 ) -> CutSet:
     """Merge chunk-wise cuts accroding to recording ids.
 
@@ -122,25 +122,27 @@ def merge_chunks(
         old_sup = supervisions[rec.id]
         assert old_sup.recording_id == rec.id, (old_sup.recording_id, rec.id)
 
-        if supervision_chunk < 0 or supervision_chunk > rec.duration:
+        cur_sup_chunk = supervision_chunk
+        if cur_sup_chunk < 0 or cur_sup_chunk > rec.duration:
             # Only one supervision
-            supervision_chunk = rec.duration
+            cur_sup_chunk = rec.duration
+            assert cur_sup_chunk > 0, cur_sup_chunk
 
-        num_sups = math.ceil(rec.duration / supervision_chunk)
+        num_sups = math.ceil(rec.duration / cur_sup_chunk)
         alignment_groups = [[] for _ in range(num_sups)]
 
         # Devide alignments into groups, while some groups could be empty
         for ali in alignments:
-            alignment_groups[int(ali.start / supervision_chunk)].append(ali)
+            alignment_groups[int(ali.start / cur_sup_chunk)].append(ali)
 
         new_sups = []
         for i in range(num_sups):
-            sup_offset = i * supervision_chunk
+            sup_offset = i * cur_sup_chunk
             sup = SupervisionSegment(
                 id=rec.id + "_" + str(i),
                 recording_id=rec.id,
                 start=sup_offset,
-                duration=min(rec.duration - sup_offset, supervision_chunk),
+                duration=min(rec.duration - sup_offset, cur_sup_chunk),
                 alignment={"symbol": alignment_groups[i]},
                 language=old_sup.language,
                 speaker=old_sup.speaker,
