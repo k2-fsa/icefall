@@ -56,7 +56,7 @@ else
 	rm ./pruned_transducer_stateless_d2v_v2/$1/.train.done
 	if [ ! -e ./pruned_transducer_stateless_d2v_v2/$1/.train.done ]; then
 		./pruned_transducer_stateless_d2v_v2/train_adapter.py \
-			--start-batch 201 \
+			--start-batch 200 \
 			--num-buckets 2 \
 			--add-adapter True \
 			--adapter-lr 0.02 \
