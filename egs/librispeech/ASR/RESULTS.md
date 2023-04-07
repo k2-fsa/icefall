@@ -18,25 +18,27 @@ The WERs are:
 
 | decoding method      | chunk size | test-clean | test-other | comment             | decoding mode        |
 |----------------------|------------|------------|------------|---------------------|----------------------|
-| greedy search        | 320ms      | 2.43       | 6.0       | --epoch 20 --avg 4  | simulated streaming  |
-| greedy search        | 320ms      | 2.51       | 6.27       | --epoch 20 --avg 4  | chunk-wise           |
-| fast beam search     | 320ms      | 2.43        | 5.99       | --epoch 20 --avg 4  | simulated streaming  |
-| fast beam search     | 320ms      | 2.73       | 6.44       | --epoch 20 --avg 4  | chunk-wise           |
-| modified beam search | 320ms      | 2.4       | 5.96       | --epoch 20 --avg 4  | simulated streaming  |
-| modified beam search | 320ms      | 2.44       | 6.15       | --epoch 20 --avg 4  | chunk-size           |
-| greedy search        | 640ms      | 2.26       | 5.58        | --epoch 20 --avg 4  | simulated streaming  |
-| greedy search        | 640ms      | 2.4       | 5.88       | --epoch 20 --avg 4  | chunk-wise           |
+| greedy search        | 320ms      | 2.43       | 6.0        | --epoch 20 --avg 4  | simulated streaming  |
+| greedy search        | 320ms      | 2.47       | 6.13       | --epoch 20 --avg 4  | chunk-wise           |
+| fast beam search     | 320ms      | 2.43       | 5.99       | --epoch 20 --avg 4  | simulated streaming  |
+| fast beam search     | 320ms      | 2.8        | 6.46       | --epoch 20 --avg 4  | chunk-wise           |
+| modified beam search | 320ms      | 2.4        | 5.96       | --epoch 20 --avg 4  | simulated streaming  |
+| modified beam search | 320ms      | 2.42       | 6.03       | --epoch 20 --avg 4  | chunk-size           |
+| greedy search        | 640ms      | 2.26       | 5.58       | --epoch 20 --avg 4  | simulated streaming  |
+| greedy search        | 640ms      | 2.33       | 5.76       | --epoch 20 --avg 4  | chunk-wise           |
 | fast beam search     | 640ms      | 2.27       | 5.54       | --epoch 20 --avg 4  | simulated streaming  |
-| fast beam search     | 640ms      | 2.39       | 5.88       | --epoch 20 --avg 4  | chunk-wise           |
-| modified beam search | 640ms      | 2.22       | 5.5       | --epoch 20 --avg 4  | simulated streaming  |
-| modified beam search | 640ms      | 2.35       | 5.77       | --epoch 20 --avg 4  | chunk-size           |
+| fast beam search     | 640ms      | 2.37       | 5.75       | --epoch 20 --avg 4  | chunk-wise           |
+| modified beam search | 640ms      | 2.22       | 5.5        | --epoch 20 --avg 4  | simulated streaming  |
+| modified beam search | 640ms      | 2.25       | 5.69       | --epoch 20 --avg 4  | chunk-size           |
 
 The model also has good WERs on GigaSpeech. The following WERs are achieved on GigaSpeech test and dev sets:
 
-| decoding method      | chunk size | dev | test | comment    | decoding mode       |
+| decoding method      | chunk size | dev        | test | comment    | decoding mode       |
 |----------------------|------------|-----|------|------------|---------------------|
-| greedy search        | 320ms      | 12.27       | 12.13       | --epoch 20 --avg 4  | simulated streaming  |
-| modified beam search | 320ms      | 12.17       | 11.98       | --epoch 20 --avg 4  | simulated streaming  |
+| greedy search        | 320ms      | 12.08       | 11.98       | --epoch 20 --avg 4  | simulated streaming  |
+| greedy search        | 640ms      | 11.66       | 11.71       | --epoch 20 --avg 4  | simulated streaming  |
+| modified beam search | 320ms      | 11.95       | 11.83       | --epoch 20 --avg 4  | simulated streaming  |
+| modified beam search | 320ms      | 11.65       | 11.56       | --epoch 20 --avg 4  | simulated streaming  |
 
 
 Note: `simulated streaming` indicates feeding full utterance during decoding using `decode.py`,
@@ -64,8 +66,8 @@ The simulated streaming decoding command (e.g., chunk-size=320ms) is:
 ```bash
 for m in greedy_search fast_beam_search modified_beam_search; do
   ./pruned_transducer_stateless7_streaming_multi/decode.py \
-    --iter 608000 \
-    --avg 9 \
+    --epoch 20 \
+    --avg 4 \
     --exp-dir ./pruned_transducer_stateless7_streaming_multi/exp \
     --max-duration 600 \
     --decode-chunk-len 32 \
@@ -78,8 +80,8 @@ The streaming chunk-size decoding command (e.g., chunk-size=320ms) is:
 ```bash
 for m in greedy_search modified_beam_search fast_beam_search; do
   ./pruned_transducer_stateless7_streaming_multi/streaming_decode.py \
-    --iter 608000 \
-    --avg 9 \
+    --epoch 20 \
+    --avg 4 \
     --exp-dir ./pruned_transducer_stateless7_streaming_multi/exp \
     --decoding-method $m \
     --decode-chunk-len 32 \
