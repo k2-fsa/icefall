@@ -54,6 +54,7 @@ import torch
 import torch.nn as nn
 from conformer import Conformer
 from decoder import Decoder
+from onnxruntime.quantization import QuantType, quantize_dynamic
 from scaling_converter import convert_scaled_to_non_scaled
 from train import add_model_arguments, get_params, get_transducer_model
 
@@ -273,6 +274,16 @@ def export_encoder_model_onnx(
         },
     )
 
+    meta_data = {
+        "model_type": "conformer",
+        "version": "1",
+        "model_author": "k2-fsa",
+        "comment": "stateless3",
+    }
+    logging.info(f"meta_data: {meta_data}")
+
+    add_meta_data(filename=encoder_filename, meta_data=meta_data)
+
 
 def export_decoder_model_onnx(
     decoder_model: OnnxDecoder,
@@ -489,6 +500,35 @@ def main():
         opset_version=opset_version,
     )
     logging.info(f"Exported joiner to {joiner_filename}")
+
+    # Generate int8 quantization models
+    # See https://onnxruntime.ai/docs/performance/model-optimizations/quantization.html#data-type-selection
+
+    logging.info("Generate int8 quantization models")
+
+    encoder_filename_int8 = params.exp_dir / f"encoder-{suffix}.int8.onnx"
+    quantize_dynamic(
+        model_input=encoder_filename,
+        model_output=encoder_filename_int8,
+        op_types_to_quantize=["MatMul"],
+        weight_type=QuantType.QInt8,
+    )
+
+    decoder_filename_int8 = params.exp_dir / f"decoder-{suffix}.int8.onnx"
+    quantize_dynamic(
+        model_input=decoder_filename,
+        model_output=decoder_filename_int8,
+        op_types_to_quantize=["MatMul"],
+        weight_type=QuantType.QInt8,
+    )
+
+    joiner_filename_int8 = params.exp_dir / f"joiner-{suffix}.int8.onnx"
+    quantize_dynamic(
+        model_input=joiner_filename,
+        model_output=joiner_filename_int8,
+        op_types_to_quantize=["MatMul"],
+        weight_type=QuantType.QInt8,
+    )
 
 
 if __name__ == "__main__":

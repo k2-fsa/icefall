@@ -829,11 +829,22 @@ class HypothesisList(object):
                 ans.add(hyp)  # shallow copy
         return ans
 
-    def topk(self, k: int) -> "HypothesisList":
-        """Return the top-k hypothesis."""
+    def topk(self, k: int, length_norm: bool = False) -> "HypothesisList":
+        """Return the top-k hypothesis.
+
+        Args:
+          length_norm:
+            If True, the `log_prob` of a hypothesis is normalized by the
+            number of tokens in it.
+        """
         hyps = list(self._data.items())
 
-        hyps = sorted(hyps, key=lambda h: h[1].log_prob, reverse=True)[:k]
+        if length_norm:
+            hyps = sorted(
+                hyps, key=lambda h: h[1].log_prob / len(h[1].ys), reverse=True
+            )[:k]
+        else:
+            hyps = sorted(hyps, key=lambda h: h[1].log_prob, reverse=True)[:k]
 
         ans = HypothesisList(dict(hyps))
         return ans
@@ -1852,7 +1863,6 @@ def modified_beam_search_LODR(
     model: Transducer,
     encoder_out: torch.Tensor,
     encoder_out_lens: torch.Tensor,
-    sp: spm.SentencePieceProcessor,
     LODR_lm: NgramLm,
     LODR_lm_scale: float,
     LM: LmScorer,
@@ -1872,8 +1882,6 @@ def modified_beam_search_LODR(
         encoder_out_lens (torch.Tensor):
             A 1-D tensor of shape (N,), containing the number of
             valid frames in encoder_out before padding.
-        sp:
-            Sentence piece generator.
         LODR_lm:
             A low order n-gram LM, whose score will be subtracted during shallow fusion
         LODR_lm_scale:
@@ -1901,7 +1909,7 @@ def modified_beam_search_LODR(
     )
 
     blank_id = model.decoder.blank_id
-    sos_id = sp.piece_to_id("<sos/eos>")
+    sos_id = getattr(LM, "sos_id", 1)
     unk_id = getattr(model, "unk_id", blank_id)
     context_size = model.decoder.context_size
     device = next(model.parameters()).device
@@ -2126,7 +2134,6 @@ def modified_beam_search_lm_shallow_fusion(
     model: Transducer,
     encoder_out: torch.Tensor,
     encoder_out_lens: torch.Tensor,
-    sp: spm.SentencePieceProcessor,
     LM: LmScorer,
     beam: int = 4,
     return_timestamps: bool = False,
@@ -2165,7 +2172,7 @@ def modified_beam_search_lm_shallow_fusion(
     )
 
     blank_id = model.decoder.blank_id
-    sos_id = sp.piece_to_id("<sos/eos>")
+    sos_id = getattr(LM, "sos_id", 1)
     unk_id = getattr(model, "unk_id", blank_id)
     context_size = model.decoder.context_size
     device = next(model.parameters()).device

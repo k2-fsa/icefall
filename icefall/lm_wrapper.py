@@ -50,7 +50,7 @@ class LmScorer(torch.nn.Module):
     def add_arguments(cls, parser):
         # LM general arguments
         parser.add_argument(
-            "--vocab-size",
+            "--lm-vocab-size",
             type=int,
             default=500,
         )

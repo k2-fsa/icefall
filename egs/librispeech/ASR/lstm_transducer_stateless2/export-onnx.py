@@ -34,11 +34,14 @@ popd
   --avg 1 \
   --exp-dir $repo/exp
 
-It will generate the following 3 files inside $repo/exp:
+It will generate the following files inside $repo/exp:
 
   - encoder-epoch-99-avg-1.onnx
   - decoder-epoch-99-avg-1.onnx
   - joiner-epoch-99-avg-1.onnx
+  - encoder-epoch-99-avg-1.int8.onnx
+  - decoder-epoch-99-avg-1.int8.onnx
+  - joiner-epoch-99-avg-1.int8.onnx
 
 See ./onnx_pretrained.py and ./onnx_check.py for how to
 use the exported ONNX models.
@@ -55,6 +58,7 @@ import torch
 import torch.nn as nn
 from decoder import Decoder
 from lstm import RNN
+from onnxruntime.quantization import QuantType, quantize_dynamic
 from scaling_converter import convert_scaled_to_non_scaled
 from train import add_model_arguments, get_params, get_transducer_model
 
@@ -585,6 +589,35 @@ def main():
         opset_version=opset_version,
     )
     logging.info(f"Exported joiner to {joiner_filename}")
+
+    # Generate int8 quantization models
+    # See https://onnxruntime.ai/docs/performance/model-optimizations/quantization.html#data-type-selection
+
+    logging.info("Generate int8 quantization models")
+
+    encoder_filename_int8 = params.exp_dir / f"encoder-{suffix}.int8.onnx"
+    quantize_dynamic(
+        model_input=encoder_filename,
+        model_output=encoder_filename_int8,
+        op_types_to_quantize=["MatMul"],
+        weight_type=QuantType.QInt8,
+    )
+
+    decoder_filename_int8 = params.exp_dir / f"decoder-{suffix}.int8.onnx"
+    quantize_dynamic(
+        model_input=decoder_filename,
+        model_output=decoder_filename_int8,
+        op_types_to_quantize=["MatMul"],
+        weight_type=QuantType.QInt8,
+    )
+
+    joiner_filename_int8 = params.exp_dir / f"joiner-{suffix}.int8.onnx"
+    quantize_dynamic(
+        model_input=joiner_filename,
+        model_output=joiner_filename_int8,
+        op_types_to_quantize=["MatMul"],
+        weight_type=QuantType.QInt8,
+    )
 
 
 if __name__ == "__main__":

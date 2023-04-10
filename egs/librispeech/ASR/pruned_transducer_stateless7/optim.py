@@ -282,7 +282,6 @@ class ScaledAdam(BatchedOptimizer):
 
         batch_size = p.shape[0]
         numel = p.numel() // batch_size
-        numel = p.numel()
 
         if numel > 1:
             # "param_rms" just periodically records the scalar root-mean-square value of
