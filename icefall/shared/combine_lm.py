@@ -107,7 +107,7 @@ def get_score(model: kenlm.Model, history: List[str], word: str):
       Return \log_{10} p(word|history).
     """
     order = model.order
-    history = history[-(order - 1) :] if order > 1 else history
+    history = history[-(order - 1) :]
 
     in_state = kenlm.State()
     out_state = kenlm.State()
