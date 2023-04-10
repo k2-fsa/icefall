@@ -9,7 +9,7 @@ set -eou pipefail
 nj=15
 stage=-1
 stop_stage=100
-
+subset=$1
 # We assume dl_dir (download dir) contains the following
 # directories and files. If not, they will be downloaded
 # by this script automatically.
@@ -38,7 +38,6 @@ stop_stage=100
 #     - noise
 #     - speech
 #dl_dir=/DB/LibriSpeech_tar/vox
-subset=vox
 dl_dir=/DB/LibriSpeech_tar/$subset
 #dl_dir=/home/work/workspace/LibriSpeech/vox_v3
 
