@@ -7,11 +7,11 @@
 Given two LMs "A" and "B", this script modifies
 probabilities in A such that
 
-P_{A_{new}}(w_n|w0,w1,...,w_{n-1}) =  P_{A_{original}}(w_n|w0,w1,...,w_{n-1}) / P_{B}(w_n|w0,w1,...,w_{n-1})
+P_{A_{new}}(w_n|w_0,w_1,...,w_{n-1}) =  P_{A_{original}}(w_n|w_0,w_1,...,w_{n-1}) / P_{B}(w_n|w_0,w_1,...,w_{n-1})
 
 When it is formulated in log-space, it becomes
 
-\log P_{A_{new}}(w_n|w0,w1,...,w_{n-1}) =  \log P_{A_{original}}(w_n|w0,w1,...,w_{n-1}) - \log P_{B}(w_n|w0,w1,...,w_{n-1})
+\log P_{A_{new}}(w_n|w_0,w_1,...,w_{n-1}) =  \log P_{A_{original}}(w_n|w_0,w_1,...,w_{n-1}) - \log P_{B}(w_n|w_0,w_1,...,w_{n-1})
 
 Optionally, you can pass a scale for the LM "B", such that
 
