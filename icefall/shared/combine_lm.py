@@ -167,13 +167,23 @@ def _process_grams(
         history = s[1:order]
         word = s[order]
 
+        log10_p_a_backoff = 0 if len(s) < order + 2 else float(s[-1])
+
         log10_p_b = get_score(b, history, word)
         if a_scale * log10_p_a < b_scale * log10_p_b:
             # ensure that the resulting log10_p_a is negative
             log10_p_a = a_scale * log10_p_a - b_scale * log10_p_b
+        else:
+            log10_p_a *= a_scale
+
+        log10_p_a_backoff *= a_scale
 
         print(f"{log10_p_a:.7f}", end="\t", file=out)
-        print("\t".join(s[1:]), file=out)
+        if len(s) < order + 2:
+            print("\t".join(s[1:]), file=out)
+        else:
+            print("\t".join(s[1:-1]), end="\t", file=out)
+            print(f"{log10_p_a_backoff:.7f}", file=out)
 
 
 def process(args):
