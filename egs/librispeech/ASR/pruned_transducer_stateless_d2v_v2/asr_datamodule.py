@@ -213,6 +213,12 @@ class LibriSpeechAsrDataModule:
             type=int,
             default=0,
         )
+        
+        group.add_argument(
+            "--prefix",
+            type=str,
+            default='vox',
+        )
 
     def train_dataloaders(
         self,
