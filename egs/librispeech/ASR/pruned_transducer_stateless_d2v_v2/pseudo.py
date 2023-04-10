@@ -826,8 +826,8 @@ def main():
             #    continue
             utt_id = '-'.join(k.split('-')[:-1])
             #print(utt_id)
-            try: f = open(f'/DB/LibriSpeech_tar/vox/{params.spk_id}_texts/{utt_id}.txt', 'w')
-            except: f = open(f'/home/work/workspace/LibriSpeech/vox_v3/{params.spk_id}_texts/{utt_id}.txt', 'w')
+            try: f = open(f'/DB/LibriSpeech_tar/{params.prefix}/{params.spk_id}_texts/{utt_id}.txt', 'w')
+            except: f = open(f'/home/work/workspace/LibriSpeech/{params.prefix}/{params.spk_id}_texts/{utt_id}.txt', 'w')
             f.write(v)
             print(k, v)
         
