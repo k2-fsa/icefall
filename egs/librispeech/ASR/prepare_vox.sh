@@ -105,7 +105,7 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
 	for dest in "test-clean" "test-other"; do
 		for spk in $dl_dir/$dest/*; do
 			spk_id=${spk#*$dest\/}
-			python local/prepare_vox.py $dl_dir/$dest "$spk_id" 
+			python local/prepare_vox.py $dl_dir/$dest "$spk_id" $subset
 		done
 	done
     #touch data/manifests/.vox.done
