@@ -817,8 +817,8 @@ def main():
         
         res_dict = sorted(res_dict.items(), key=lambda x:x[0])
         
-        try: os.makedirs(f"/DB/LibriSpeech_tar/vox/{params.spk_id}_texts")
-        except: os.makedirs(f"/home/work/workspace/LibriSpeech/vox_v3/{params.spk_id}_texts")
+        try: os.makedirs(f"/DB/LibriSpeech_tar/{params.prefix}/{params.spk_id}_texts")
+        except: os.makedirs(f"/home/work/workspace/LibriSpeech/{params.prefix}/{params.spk_id}_texts")
 
         for k, v in res_dict:
             #v = v.strip()
