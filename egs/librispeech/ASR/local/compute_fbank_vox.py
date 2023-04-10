@@ -73,6 +73,11 @@ def get_args():
         type=str2bool,
         default=False,
     )
+    
+    parser.add_argument(
+        "--prefix",
+        type=str,
+    )
 
     return parser.parse_args()
 
@@ -96,7 +101,7 @@ def compute_fbank_LJSpeech(bpe_model: Optional[str] = None, args: Optional = Non
 
     #parts = ['train', 'dev', 'test']
     parts = [args.spk_id]
-    prefix = "vox"
+    prefix = args.prefix
     suffix = "jsonl.gz"
     manifests = read_manifests_if_cached(
         dataset_parts=parts,
