@@ -21,7 +21,7 @@ do
 		--avg 1 \
 		--use-averaged-model True \
 		--spk-id $spk_id \
-		--res-name beam_adapter_RA_spec_$i
+		--res-name beam_adapter_RA_spec_10m_$i
 	done
 done
 
