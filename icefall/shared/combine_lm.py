@@ -170,11 +170,9 @@ def _process_grams(
         log10_p_a_backoff = 0 if len(s) < order + 2 else float(s[-1])
 
         log10_p_b = get_score(b, history, word)
-        if a_scale * log10_p_a < b_scale * log10_p_b:
-            # ensure that the resulting log10_p_a is negative
-            log10_p_a = a_scale * log10_p_a - b_scale * log10_p_b
-        else:
-            log10_p_a *= a_scale
+
+        # ensure that the resulting log10_p_a is not positive
+        log10_p_a = min(0, a_scale * log10_p_a - b_scale * log10_p_b)
 
         log10_p_a_backoff *= a_scale
 
