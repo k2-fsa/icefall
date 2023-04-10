@@ -195,7 +195,7 @@ fi
 if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
 	log "Stage 7: Re-Compute fbank for Vox"
 	mkdir -p data/fbank
-	rm -rf data/fbank/vox*
+	rm -rf data/fbank/"$subset"*
 	if [ ! -e data/fbank/.LJSpeech.done ]; then
 		for dest in "test-clean" "test-other"; do
 			for spk in $dl_dir/$dest/*; do
