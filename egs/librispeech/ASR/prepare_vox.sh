@@ -131,7 +131,7 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
 	  for dest in "test-clean" "test-other"; do
 		  for spk in $dl_dir/$dest/*; do
 			  spk_id=${spk#*$dest\/}
-			  ./local/compute_fbank_vox.py --data-dir $spk --spk-id $spk_id
+			  ./local/compute_fbank_vox.py --data-dir $spk --spk-id $spk_id --prefix $subset
 		  done
 	  done
     #touch data/fbank/.vox.done
