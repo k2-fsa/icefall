@@ -38,6 +38,7 @@ except ImportError:
     print("Please install kenlm first. You can use")
     print()
     print(" pip install https://github.com/kpu/kenlm/archive/master.zip")
+    print()
     print("to install it")
     import sys
 
@@ -63,7 +64,7 @@ def get_args():
         "--b",
         type=str,
         required=True,
-        help="Path to the second LM. Its order is usually lower than that of LM b",
+        help="Path to the second LM. Its order is usually lower than that of LM a",
     )
 
     parser.add_argument(
@@ -84,7 +85,7 @@ def get_args():
         "--out",
         type=str,
         required=True,
-        help="Path to save the generate LM.",
+        help="Path to save the generated LM.",
     ),
 
     return parser.parse_args()
