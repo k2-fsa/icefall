@@ -739,7 +739,7 @@ def load_checkpoint_if_available(
         if "cur_batch_idx" in saved_params:
             params["cur_batch_idx"] = saved_params["cur_batch_idx"]
 
-    #params.batch_idx_train = 0
+    params.batch_idx_train = 0
 
     return saved_params
 

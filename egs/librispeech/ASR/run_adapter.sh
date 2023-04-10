@@ -53,10 +53,9 @@ if [ $workstation = "whale" ]; then
 #		--prune-range 10 
 else
 	export CUDA_VISIBLE_DEVICES="0,1,2,3"
-	rm ./pruned_transducer_stateless_d2v_v2/$1/.train.done
+	#rm ./pruned_transducer_stateless_d2v_v2/$1/.train.done
 	if [ ! -e ./pruned_transducer_stateless_d2v_v2/$1/.train.done ]; then
 		./pruned_transducer_stateless_d2v_v2/train_adapter.py \
-			--start-batch 200 \
 			--num-buckets 2 \
 			--add-adapter True \
 			--adapter-lr 0.02 \
@@ -67,7 +66,7 @@ else
 			--multi-optim False \
 			--world-size 4 \
 			--num-epochs 10000 \
-			--num-updates 301 \
+			--num-updates 201 \
 			--save-every-n 100 \
 			--full-libri 1 \
 			--exp-dir ./pruned_transducer_stateless_d2v_v2/$1 \
