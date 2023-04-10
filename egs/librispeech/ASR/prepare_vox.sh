@@ -38,7 +38,8 @@ stop_stage=100
 #     - noise
 #     - speech
 #dl_dir=/DB/LibriSpeech_tar/vox
-dl_dir=/DB/LibriSpeech_tar/vox_10m
+subset=$1
+dl_dir=/DB/LibriSpeech_tar/$subset
 #dl_dir=/home/work/workspace/LibriSpeech/vox_v3
 
 . shared/parse_options.sh || exit 1
@@ -104,7 +105,7 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
 	for dest in "test-clean" "test-other"; do
 		for spk in $dl_dir/$dest/*; do
 			spk_id=${spk#*$dest\/}
-			python local/prepare_vox.py $dl_dir/$dest "$spk_id"
+			python local/prepare_vox.py $dl_dir/$dest "$spk_id" 
 		done
 	done
     #touch data/manifests/.vox.done
