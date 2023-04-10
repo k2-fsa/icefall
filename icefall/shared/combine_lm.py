@@ -179,7 +179,7 @@ def _process_grams(
 def process(args):
     b = kenlm.LanguageModel(args.b)
     logging.info(f"Order of {args.b}: {b.order}")
-    pattern = re.compile(r"\\(\d+)-grams:")
+    pattern = re.compile(r"\\(\d+)-grams:\n")
     out = open(args.out, "w", encoding="utf-8")
 
     a_scale = args.a_scale
@@ -188,7 +188,7 @@ def process(args):
     with open(args.a, encoding="utf-8") as a:
         for line in a:
             print(line, end="", file=out)
-            m = pattern.search(line)
+            m = pattern.match(line)
             if m:
                 order = int(m.group(1))
                 _process_grams(
