@@ -182,4 +182,5 @@ def main(corpus_dir, spk_id):
 
 corpus_dir = sys.argv[1]
 spk_id = sys.argv[2]
+subset_name = sys.argv[3]
 main(corpus_dir, spk_id)
