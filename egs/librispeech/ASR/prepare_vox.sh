@@ -38,7 +38,7 @@ stop_stage=100
 #     - noise
 #     - speech
 #dl_dir=/DB/LibriSpeech_tar/vox
-subset=$1
+subset=vox
 dl_dir=/DB/LibriSpeech_tar/$subset
 #dl_dir=/home/work/workspace/LibriSpeech/vox_v3
 
