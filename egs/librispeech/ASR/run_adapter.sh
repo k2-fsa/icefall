@@ -80,7 +80,8 @@ else
 			--encoder-type d2v \
 			--additional-block True \
 			--prune-range 10 \
-			--spk-id $2 
+			--spk-id $2 \
+			--prefix vox_10m
 		touch ./pruned_transducer_stateless_d2v_v2/$1/.train.done
 	fi
 fi
