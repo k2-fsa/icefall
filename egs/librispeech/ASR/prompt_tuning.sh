@@ -7,7 +7,7 @@ if [ $workstation = "whale" ]; then
 		./pruned_transducer_stateless_d2v_v2/prompt_tuning.py \
 			--num-buckets 2 \
 			--add-adapter True \
-			--adapter-lr 2.0 \
+			--adapter-lr 0.5 \
 			--gender male \
 			--wandb False \
 			--input-strategy AudioSamples \
