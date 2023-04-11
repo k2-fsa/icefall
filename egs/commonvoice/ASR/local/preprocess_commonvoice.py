@@ -46,8 +46,8 @@ def preprocess_commonvoice(
     language: str,
     dataset: Optional[str] = None,
 ):
-    src_dir = Path("data/manifests")
-    output_dir = Path("data/fbank")
+    src_dir = Path(f"data/{language}/manifests")
+    output_dir = Path(f"data/{language}/fbank")
     output_dir.mkdir(exist_ok=True)
 
     if dataset is None:
