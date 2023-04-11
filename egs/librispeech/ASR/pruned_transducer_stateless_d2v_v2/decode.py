@@ -357,7 +357,7 @@ def decode_one_batch(
             simulate_streaming=True,
         )
     else:
-        encoder_out, encoder_out_lens = model.encoder(x=feature, x_lens=feature_lens)
+        encoder_out, encoder_out_lens = model.encoder(x=feature, x_lens=feature_lens, prompt=model.prompt)
 
     hyps = []
 
