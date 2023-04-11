@@ -1,5 +1,6 @@
 git pull
 spk_id=$1
+dir=$2
 #for i in 10 20 30 40 50 60 70 80 90 100
 for i in 100
 do
@@ -9,7 +10,7 @@ do
 		--input-strategy AudioSamples \
 		--enable-spec-aug False \
 		--additional-block True \
-		--exp-dir ./pruned_transducer_stateless_d2v_v2/"$spk_id"_adapter_10m \
+		--exp-dir ./pruned_transducer_stateless_d2v_v2/$2 \
 		--model-name checkpoint-$i.pt \
 		--max-duration 400 \
 		--decoding-method $method \
@@ -25,5 +26,6 @@ do
 	done
 done
 
+#--exp-dir ./pruned_transducer_stateless_d2v_v2/"$spk_id"_adapter_10m \
 #--model-name epoch-$i.pt \
 #--model-name ../d2v-base-T.pt \
