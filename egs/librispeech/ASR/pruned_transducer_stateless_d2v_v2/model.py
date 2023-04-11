@@ -79,7 +79,7 @@ class Transducer(nn.Module):
         
         self.prompt = None
         if prompt:
-            self.prompt = torch.randn((50, 512), requires_grad=True)
+            self.prompt = torch.randn((50, 512), requires_grad=True).to('cuda')
 
     def forward(
         self,
