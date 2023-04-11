@@ -16,7 +16,7 @@ num_splits=1000
 #
 #  - $dl_dir/$release/$lang
 #      This directory contains the following files downloaded from
-#       https://mozilla-common-voice-data/${lang}sets.s3.dualstack.us-west-2.amazonaws.com/${release}/${release}-${lang}.tar.gz
+#       https://mozilla-common-voice-datasets.s3.dualstack.us-west-2.amazonaws.com/${release}/${release}-${lang}.tar.gz
 #
 #     - clips
 #     - dev.tsv
@@ -64,7 +64,7 @@ log() {
 log "dl_dir: $dl_dir"
 
 if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
-  log "Stage 0: Download data/${lang}"
+  log "Stage 0: Download data"
 
   # If you have pre-downloaded it to /path/to/$release,
   # you can create a symlink
@@ -99,11 +99,11 @@ fi
 if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   log "Stage 2: Prepare musan manifest"
   # We assume that you have downloaded the musan corpus
-  # to data/${lang}/musan
-  mkdir -p data/${lang}/manifests
-  if [ ! -e data/${lang}/manifests/.musan.done ]; then
-    lhotse prepare musan $dl_dir/musan data/${lang}/manifests
-    touch data/${lang}/manifests/.musan.done
+  # to data/musan
+  mkdir -p data/manifests
+  if [ ! -e data/manifests/.musan.done ]; then
+    lhotse prepare musan $dl_dir/musan data/manifests
+    touch data/manifests/.musan.done
   fi
 fi
 
@@ -148,9 +148,9 @@ fi
 
 if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
   log "Stage 7: Compute fbank for musan"
-  mkdir -p data/${lang}/fbank
-  if [ ! -e data/${lang}/fbank/.musan.done ]; then
+  mkdir -p data/fbank
+  if [ ! -e data/fbank/.musan.done ]; then
     ./local/compute_fbank_musan.py
-    touch data/${lang}/fbank/.musan.done
+    touch data/fbank/.musan.done
   fi
 fi
