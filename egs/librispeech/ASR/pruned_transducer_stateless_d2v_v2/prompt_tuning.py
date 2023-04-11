@@ -1683,6 +1683,7 @@ def run_adapter(rank, world_size, args, wb=None):
             world_size=world_size,
             rank=rank,
             wb=wb,
+            prompt=prompt,
         )
 
         if params.print_diagnostics:
