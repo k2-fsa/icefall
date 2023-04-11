@@ -666,6 +666,7 @@ def get_transducer_model(params: AttributeDict) -> nn.Module:
         decoder_dim=params.decoder_dim,
         joiner_dim=params.joiner_dim,
         vocab_size=params.vocab_size,
+        prompt=params.prompt,
     )
     return model
 
@@ -1558,7 +1559,7 @@ def run_adapter(rank, world_size, args, wb=None):
     logging.info(params)
 
     logging.info("About to create model")
-    model = get_transducer_model(params, prompt=True)
+    model = get_transducer_model(params)
 
     num_param = sum([p.numel() if p.requires_grad else 0 for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
