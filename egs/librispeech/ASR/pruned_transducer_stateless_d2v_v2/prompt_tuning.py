@@ -314,6 +314,12 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         """,
     )
 
+    parser.add_argument(
+        "--prompt",
+        type=str2bool,
+        default=False,
+    )
+
 
 def get_parser():
     parser = argparse.ArgumentParser(
