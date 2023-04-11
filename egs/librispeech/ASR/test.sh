@@ -21,11 +21,11 @@ do
 		--avg 1 \
 		--use-averaged-model True \
 		--spk-id $spk_id \
+		--prompt True \
 		--res-name beam_adapter_RA_spec_10m_$i
 	done
 done
 
-#--prompt True \
 #--exp-dir ./pruned_transducer_stateless_d2v_v2/"$spk_id"_adapter_10m \
 #--model-name epoch-$i.pt \
 #--model-name ../d2v-base-T.pt \
