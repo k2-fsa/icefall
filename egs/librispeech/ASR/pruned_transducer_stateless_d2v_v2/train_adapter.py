@@ -1057,6 +1057,7 @@ def train_one_epoch(
                 )
 
             print(loss_info)
+            exit()
             try: loss_info.reduce(loss.device)
             except: pass
 
