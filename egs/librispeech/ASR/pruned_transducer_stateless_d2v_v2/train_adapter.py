@@ -1779,7 +1779,7 @@ def main():
                  join=True
             )
     else:
-        if not args.add_adapter: run_adapter(rank=0, world_size=1, args=args, wb=wb)
+        if args.add_adapter: run_adapter(rank=0, world_size=1, args=args, wb=wb)
         else: run(rank=0, world_size=1, args=args, wb=wb)
 
 torch.set_num_threads(1)
