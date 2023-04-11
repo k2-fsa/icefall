@@ -120,7 +120,7 @@ class Transducer(nn.Module):
 
         assert x.size(0) == x_lens.size(0) == y.dim0
 
-        encoder_out, x_lens = self.encoder(x, x_lens)
+        encoder_out, x_lens = self.encoder(x, x_lens, prompt=prompt)
         assert torch.all(x_lens > 0)
 
         # compute ctc log-probs
