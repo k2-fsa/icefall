@@ -81,11 +81,6 @@ class BatchedOptimizer(Optimizer):
             list
         )  # `batches` maps from tuple (dtype_as_str,*shape) to list of str
         
-        print(len(param_group))
-        print(len(group_params_names))
-        print(group_params_names)
-        exit()
-
         assert len(param_group) == len(group_params_names)
         for p, named_p in zip(param_group, group_params_names):
             key = (str(p.dtype), *p.shape)
