@@ -464,6 +464,8 @@ class Data2VecAudioModel(BaseFairseqModel):
                 features = self.feature_extractor(features)
 
         features = features.transpose(1, 2)
+
+        ## for prompt tuning
         if prompt is not None:
             features = torch.cat([features, prompt])
 
