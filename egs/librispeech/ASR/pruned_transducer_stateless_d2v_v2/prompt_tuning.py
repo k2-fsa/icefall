@@ -801,6 +801,7 @@ def compute_loss(
     batch: dict,
     is_training: bool,
     decode: bool = False,
+    prompt=None,
 ) -> Tuple[Tensor, MetricsTracker]:
     """
     Compute transducer loss given the model and its inputs.
