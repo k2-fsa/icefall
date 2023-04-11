@@ -1056,8 +1056,6 @@ def train_one_epoch(
                     decode = True if batch_idx % params.decode_interval == 0 else False,
                 )
 
-            print(loss_info)
-            exit()
             try: loss_info.reduce(loss.device)
             except: pass
 
