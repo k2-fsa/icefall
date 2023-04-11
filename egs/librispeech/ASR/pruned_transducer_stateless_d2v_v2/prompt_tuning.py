@@ -1622,7 +1622,7 @@ def run_adapter(rank, world_size, args, wb=None):
     
     librispeech = LibriSpeechAsrDataModule(args)
 
-    model.prompt = model.prompt.to('cuda')
+    model.prompt = model.prompt.to(device)
 
     '''
     if params.hpo:
