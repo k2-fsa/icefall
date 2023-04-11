@@ -1063,6 +1063,8 @@ def train_one_epoch(
             try: loss_info.reduce(loss.device)
             except: pass
 
+            logging.info(loss_info) 
+
             numel = params.world_size / (params.accum_grads * loss_info["utterances"])
             loss *= numel ## normalize loss over utts(batch size)
 
@@ -1607,7 +1609,7 @@ def run_adapter(rank, world_size, args, wb=None):
             [prompt],
             lr=params.adapter_lr,
             clipping_scale=5.0,
-            parameters_names=['p'],
+            parameters_names=['P'],
     )
     
     scheduler_adapter = Eden(optimizer_adapter, 10000, 7) #params.lr_batche, params.lr_epochs)
