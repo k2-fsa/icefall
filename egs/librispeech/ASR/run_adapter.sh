@@ -13,10 +13,10 @@ if [ $workstation = "whale" ]; then
 			--input-strategy AudioSamples \
 			--enable-spec-aug False \
 			--multi-optim False \
-			--world-size 8 \
+			--world-size 1 \
 			--num-epochs 10000 \
-			--num-updates 501 \
-			--save-every-n 100 \
+			--num-updates 101 \
+			--save-every-n 50 \
 			--full-libri 1 \
 			--exp-dir ./pruned_transducer_stateless_d2v_v2/$1 \
 			--max-duration 200 \
@@ -24,7 +24,7 @@ if [ $workstation = "whale" ]; then
 			--decoder-dim 768 \
 			--joiner-dim 768 \
 			--use-fp16 0 \
-			--accum-grads 1 \
+			--accum-grads 8 \
 			--encoder-type d2v \
 			--additional-block True \
 			--prune-range 10 \
