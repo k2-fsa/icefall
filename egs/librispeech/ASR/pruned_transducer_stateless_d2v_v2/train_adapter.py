@@ -1363,8 +1363,6 @@ def run(rank, world_size, args, wb=None):
 
         scheduler = Eden(optimizer, params.lr_batches, params.lr_epochs)
 
-    '''
-
     if checkpoints and ("optimizer" in checkpoints or "optimizer_enc" in checkpoints):
         if params.multi_optim:
             logging.info("Loading optimizer state dict")
@@ -1387,7 +1385,7 @@ def run(rank, world_size, args, wb=None):
         else:
             logging.info("Loading scheduler state dict")
             scheduler.load_state_dict(checkpoints["scheduler"])
-    '''
+
     if params.print_diagnostics:
         opts = diagnostics.TensorDiagnosticOptions(
             2**22
