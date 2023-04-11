@@ -137,7 +137,7 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
   log "Stage 6: Compute features for train subset of CommonVoice"
   if [ ! -e data/${lang}/fbank/.cv-${lang}_train.done ]; then
     ./local/compute_fbank_commonvoice_splits.py \
-      --num-workers 20 \
+      --num-workers $nj \
       --batch-duration 600 \
       --start 0 \
       --num-splits $num_splits \
