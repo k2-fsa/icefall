@@ -11,7 +11,6 @@ do
 		--enable-spec-aug False \
 		--additional-block True \
 		--exp-dir ./pruned_transducer_stateless_d2v_v2/$2 \
-		--prompt True \
 		--model-name checkpoint-$i.pt \
 		--max-duration 400 \
 		--decoding-method $method \
@@ -27,6 +26,7 @@ do
 	done
 done
 
+#--prompt True \
 #--exp-dir ./pruned_transducer_stateless_d2v_v2/"$spk_id"_adapter_10m \
 #--model-name epoch-$i.pt \
 #--model-name ../d2v-base-T.pt \
