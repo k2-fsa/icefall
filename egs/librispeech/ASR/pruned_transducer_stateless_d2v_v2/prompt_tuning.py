@@ -1066,8 +1066,6 @@ def train_one_epoch(
             try: loss_info.reduce(loss.device)
             except: pass
 
-            print(loss_info)
-
             numel = params.world_size / (params.accum_grads * loss_info["utterances"])
             loss *= numel ## normalize loss over utts(batch size)
 
