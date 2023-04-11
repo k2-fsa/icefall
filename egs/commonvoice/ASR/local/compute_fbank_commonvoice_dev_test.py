@@ -94,7 +94,7 @@ def compute_fbank_commonvoice_dev_test(language: str):
             overwrite=True,
         )
 
-        logging.info(f"Saving to {cuts_path}") 
+        logging.info(f"Saving to {cuts_path}")
         cut_set.to_file(cuts_path)
 
 
