@@ -1602,7 +1602,7 @@ def run_adapter(rank, world_size, args, wb=None):
         )
     '''
 
-    prompt = torch.nn.Parameter(torch.randn(50, 512)).to(device)
+    prompt = torch.randn((50, 512), requires_grad=True).to(device)
     print(prompt)
     exit()
     optimizer_adapter = ScaledAdam(
