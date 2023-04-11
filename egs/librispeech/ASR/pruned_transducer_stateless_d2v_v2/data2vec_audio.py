@@ -451,6 +451,7 @@ class Data2VecAudioModel(BaseFairseqModel):
         mask_indices=None,
         mask_channel_indices=None,
         padding_count=None,
+        prompt=None,
     ):
         features = source
 
