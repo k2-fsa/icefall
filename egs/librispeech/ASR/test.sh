@@ -11,6 +11,7 @@ do
 		--enable-spec-aug False \
 		--additional-block True \
 		--exp-dir ./pruned_transducer_stateless_d2v_v2/$2 \
+		--prompt True \
 		--model-name checkpoint-$i.pt \
 		--max-duration 400 \
 		--decoding-method $method \
