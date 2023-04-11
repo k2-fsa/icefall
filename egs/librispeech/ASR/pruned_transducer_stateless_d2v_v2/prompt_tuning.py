@@ -1607,7 +1607,7 @@ def run_adapter(rank, world_size, args, wb=None):
             [prompt],
             lr=params.adapter_lr,
             clipping_scale=5.0,
-            parameters_names=['prompt'],
+            parameters_names=['p'],
     )
     
     scheduler_adapter = Eden(optimizer_adapter, 10000, 7) #params.lr_batche, params.lr_epochs)
