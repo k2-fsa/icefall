@@ -1579,7 +1579,6 @@ def run_adapter(rank, world_size, args, wb=None):
         logging.info("Using DDP")
         model = DDP(model, device_ids=[rank], find_unused_parameters=True)
     
-    '''
     adapter_names = []
     adapter_param = []
     for n, p  in model.named_parameters():
@@ -1590,14 +1589,12 @@ def run_adapter(rank, world_size, args, wb=None):
             p.requires_grad = True
         else:
             p.requires_grad = False
-    '''
     
     for n, p in model.named_parameters():
         p.requires_grad = False
     
     prompt = torch.nn.Parameter(torch.randn(50, 512)).to(device)
     
-    '''
     optimizer_adapter = ScaledAdam(
             adapter_param,
             lr=params.adapter_lr,
@@ -1611,7 +1608,7 @@ def run_adapter(rank, world_size, args, wb=None):
             clipping_scale=5.0,
             parameters_names=['prompt'],
     )
-
+    '''
     scheduler_adapter = Eden(optimizer_adapter, 10000, 7) #params.lr_batche, params.lr_epochs)
 
     optimizer, scheduler = optimizer_adapter, scheduler_adapter
