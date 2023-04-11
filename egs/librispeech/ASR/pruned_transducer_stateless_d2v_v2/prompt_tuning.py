@@ -1607,7 +1607,7 @@ def run_adapter(rank, world_size, args, wb=None):
     '''
     optimizer_adapter = ScaledAdam(
             [prompt],
-            lr=parmas.adapter_lr,
+            lr=params.adapter_lr,
             clipping_scale=5.0,
             parameres_names=['prompt'],
     )
