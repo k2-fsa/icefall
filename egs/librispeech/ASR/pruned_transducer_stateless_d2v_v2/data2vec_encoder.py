@@ -52,7 +52,6 @@ class FairSeqData2VecEncoder(EncoderInterface):
         output_size: int = 256,
         freeze_finetune_updates: int = 0,
         additional_block: bool = False,
-        prompt = None,
     ):
         assert check_argument_types()
         super().__init__()
@@ -97,6 +96,7 @@ class FairSeqData2VecEncoder(EncoderInterface):
         x_lens: torch.Tensor,
         warmup = None,
         prev_states: torch.Tensor = None,
+        prompt: torch.Tensor = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         xs_pad = x
         ilens = x_lens
