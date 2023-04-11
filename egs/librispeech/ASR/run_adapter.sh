@@ -29,7 +29,7 @@ if [ $workstation = "whale" ]; then
 			--additional-block True \
 			--prune-range 10 \
 			--spk-id $2 
-		touch ./pruned_transducer_stateless_d2v_v2/$1/.train.done
+		#touch ./pruned_transducer_stateless_d2v_v2/$1/.train.done
 	fi
 
 #	./pruned_transducer_stateless_d2v_v2/train_adapter.py \
