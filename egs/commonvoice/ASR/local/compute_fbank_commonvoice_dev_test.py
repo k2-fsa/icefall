@@ -54,8 +54,8 @@ def get_args():
 
 
 def compute_fbank_commonvoice_dev_test(language: str):
-    src_dir = Path("data/manifests")
-    output_dir = Path("data/fbank")
+    src_dir = Path(f"data/{language}/manifests")
+    output_dir = Path(f"data/{language}/fbank")
     num_workers = 42
     batch_duration = 600
 
