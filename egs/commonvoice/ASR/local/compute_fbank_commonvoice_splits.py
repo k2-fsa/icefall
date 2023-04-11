@@ -86,11 +86,11 @@ def get_args():
     return parser.parse_args()
 
 
-def compute_fbank_wenetspeech_splits(args):
+def compute_fbank_commonvoice_splits(args):
     subset = "train"
     num_splits = args.num_splits
     language = args.language
-    output_dir = f"data/fbank/{subset}_split_{num_splits}"
+    output_dir = f"data/{language}/fbank/{subset}_split_{num_splits}"
     output_dir = Path(output_dir)
     assert output_dir.exists(), f"{output_dir} does not exist!"
 
@@ -150,7 +150,7 @@ def main():
     logging.basicConfig(format=formatter, level=logging.INFO)
     args = get_args()
     logging.info(vars(args))
-    compute_fbank_wenetspeech_splits(args)
+    compute_fbank_commonvoice_splits(args)
 
 
 if __name__ == "__main__":
