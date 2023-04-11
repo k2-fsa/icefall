@@ -1,7 +1,8 @@
 workstation=$3
 
 if [ $workstation = "whale" ]; then
-	export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
+	#export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
+	export CUDA_VISIBLE_DEVICES=0
 	if [ ! -e ./pruned_transducer_stateless_d2v_v2/$1/.train.done ]; then
 		./pruned_transducer_stateless_d2v_v2/train_adapter.py \
 			--num-buckets 2 \
