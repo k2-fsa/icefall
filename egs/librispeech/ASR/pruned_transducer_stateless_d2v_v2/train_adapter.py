@@ -1055,7 +1055,8 @@ def train_one_epoch(
                     is_training=True,
                     decode = True if batch_idx % params.decode_interval == 0 else False,
                 )
-            loss_info.reduce(loss.device)
+            try: loss_info.reduce(loss.device)
+            except: pass
 
             numel = params.world_size / (params.accum_grads * loss_info["utterances"])
             loss *= numel ## normalize loss over utts(batch size)
