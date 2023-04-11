@@ -495,10 +495,10 @@ class Data2VecAudioModel(BaseFairseqModel):
             padding_mask = None
         
         print(padding_mask.size())
-        print((padding_mask[0] == True).nonzero(as_tuple=True)[0][0])
-        print((padding_mask[1] == True).nonzero(as_tuple=True)[0][0])
-        print((padding_mask[2] == True).nonzero(as_tuple=True)[0][0])
-        print((padding_mask[3] == True).nonzero(as_tuple=True)[0][0])
+        print((padding_mask[0] == True).nonzero(as_tuple=True)[0])
+        print((padding_mask[1] == True).nonzero(as_tuple=True)[0])
+        print((padding_mask[2] == True).nonzero(as_tuple=True)[0])
+        print((padding_mask[3] == True).nonzero(as_tuple=True)[0])
         exit()
 
         if self.post_extract_proj is not None:
