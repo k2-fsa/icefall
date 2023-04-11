@@ -83,6 +83,7 @@ class BatchedOptimizer(Optimizer):
         
         print(len(param_group))
         print(len(group_params_names))
+        print(group_params_names)
         exit()
 
         assert len(param_group) == len(group_params_names)
