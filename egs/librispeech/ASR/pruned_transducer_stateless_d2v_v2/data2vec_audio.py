@@ -493,7 +493,8 @@ class Data2VecAudioModel(BaseFairseqModel):
             padding_mask = (1 - padding_mask.flip([-1]).cumsum(-1).flip([-1])).bool()
         else:
             padding_mask = None
-
+        
+        print(padding_mask.size())
         print((padding_mask == True).nonzero(as_tuple=True).size())
         exit()
 
