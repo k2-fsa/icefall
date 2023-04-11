@@ -89,7 +89,6 @@ class Transducer(nn.Module):
         prune_range: int = 5,
         am_scale: float = 0.0,
         lm_scale: float = 0.0,
-        prompt=None,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Args:
@@ -125,7 +124,7 @@ class Transducer(nn.Module):
 
         assert x.size(0) == x_lens.size(0) == y.dim0
 
-        encoder_out, x_lens = self.encoder(x, x_lens, prompt=prompt)
+        encoder_out, x_lens = self.encoder(x, x_lens, prompt=self.prompt)
         assert torch.all(x_lens > 0)
 
         # compute ctc log-probs
