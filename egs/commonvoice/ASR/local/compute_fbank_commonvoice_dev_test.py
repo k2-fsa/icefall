@@ -18,9 +18,9 @@
 
 """
 This file computes fbank features of the CommonVoice dataset.
-It looks for manifests in the directory data/manifests.
+It looks for manifests in the directory data/${lang}/manifests.
 
-The generated fbank features are saved in data/fbank.
+The generated fbank features are saved in data/${lang}/fbank.
 """
 
 import argparse
