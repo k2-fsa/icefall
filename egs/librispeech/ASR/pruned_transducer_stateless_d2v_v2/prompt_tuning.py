@@ -1604,7 +1604,7 @@ def run_adapter(rank, world_size, args, wb=None):
         )
     '''
 
-    prompt = torch.randn((50, 512), requires_grad=True) / 100
+    prompt = torch.randn((50, 512), requires_grad=True)
     optimizer_adapter = ScaledAdam(
             [prompt],
             lr=params.adapter_lr,
