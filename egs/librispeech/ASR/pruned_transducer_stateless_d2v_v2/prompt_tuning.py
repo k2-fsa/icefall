@@ -1591,7 +1591,7 @@ def run_adapter(rank, world_size, args, wb=None):
     for n, p in model.named_parameters():
         p.requires_grad = False
     
-    prompt = torch.nn.Parameter(torch.randn(50, 512))
+    prompt = torch.nn.Parameter(torch.randn(50, 512)).to(device)
     
     '''
     optimizer_adapter = ScaledAdam(
