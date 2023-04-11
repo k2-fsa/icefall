@@ -1572,7 +1572,8 @@ def run_adapter(rank, world_size, args, wb=None):
     model_avg: Optional[nn.Module] = None
     if rank == 0:
         # model_avg is only used with rank 0
-        model_avg = copy.deepcopy(model).to(torch.float64)
+        #model_avg = copy.deepcopy(model).to(torch.float64)
+        model_avg = None
 
     assert params.start_epoch > 0, params.start_epoch
     checkpoints = load_checkpoint_if_available(
