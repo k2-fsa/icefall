@@ -77,6 +77,7 @@ class Transducer(nn.Module):
             nn.LogSoftmax(dim=-1),
         )
         
+        self.prompt = None
         if prompt:
             self.prompt = torch.randn((50, 512), requires_grad=True)
 
