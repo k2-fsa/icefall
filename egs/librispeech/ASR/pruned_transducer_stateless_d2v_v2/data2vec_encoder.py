@@ -52,6 +52,7 @@ class FairSeqData2VecEncoder(EncoderInterface):
         output_size: int = 256,
         freeze_finetune_updates: int = 0,
         additional_block: bool = False,
+        prompt = None,
     ):
         assert check_argument_types()
         super().__init__()
