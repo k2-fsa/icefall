@@ -1603,12 +1603,14 @@ def run_adapter(rank, world_size, args, wb=None):
     '''
 
     prompt = torch.nn.Parameter(torch.randn(50, 512)).to(device)
+    print(prompt)
     optimizer_adapter = ScaledAdam(
             [prompt],
             lr=params.adapter_lr,
             clipping_scale=5.0,
             parameters_names=['prompt'],
     )
+    
     scheduler_adapter = Eden(optimizer_adapter, 10000, 7) #params.lr_batche, params.lr_epochs)
 
     optimizer, scheduler = optimizer_adapter, scheduler_adapter
