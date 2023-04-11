@@ -494,7 +494,7 @@ class Data2VecAudioModel(BaseFairseqModel):
             prompt = prompt.expand((features.size()[0], prompt.size()[0], prompt.size()[1]))
             print(prompt.size())
             print(features.size())
-            features = torch.stack([prompt, features], dim=1)
+            features = torch.cat([prompt, features], dim=1)
             print(features.size())
             prompt_padding_mask = torch.zeros(promt.size()).type(torch.BoolTensor).to(features.device)
             padding_mask = torch.cat([prompt_padding_mask, padding_mask])
