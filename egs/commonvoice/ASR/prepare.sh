@@ -140,14 +140,11 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
       --num-workers 20 \
       --batch-duration 600 \
       --start 0 \
-      --stop 500 \
       --num-splits $num_splits \
       --language $lang
     touch data/fbank/.commonvoice_train.done
   fi
 fi
-
-exit
 
 if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
   log "Stage 7: Compute fbank for musan"
