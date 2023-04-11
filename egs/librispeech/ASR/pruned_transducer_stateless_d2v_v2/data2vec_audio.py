@@ -494,7 +494,7 @@ class Data2VecAudioModel(BaseFairseqModel):
         else:
             padding_mask = None
 
-        print(padding_mask[0])
+        print(padding_mask[1])
 
         if self.post_extract_proj is not None:
             features = self.post_extract_proj(features)
