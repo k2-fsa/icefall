@@ -22,7 +22,7 @@ do
 		--use-averaged-model True \
 		--spk-id $spk_id \
 		--prompt True \
-		--res-name beam_adapter_RA_spec_10m_$i
+		--res-name beam_prompt_spec_10m_$i
 	done
 done
 
