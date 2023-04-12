@@ -1,5 +1,4 @@
-# Copyright      2021  Piotr Żelasko
-# Copyright      2022  Xiaomi Corporation     (Author: Mingshuang Luo)
+# Copyright    2023  Xiaomi Corp.        (authors: Yifan Yang)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -52,11 +51,11 @@ class _SeedWorkers:
         fix_random_seed(self.seed + worker_id)
 
 
-class LibriSpeechAsrDataModule:
+class CommonVoiceAsrDataModule:
     """
     DataModule for k2 ASR experiments.
     It assumes there is always one train and valid dataloader,
-    but there can be multiple test dataloaders (e.g. LibriSpeech test-clean
+    but there can be multiple test dataloaders (e.g. CommonVoice test-clean
     and test-other).
 
     It contains all the common data pipeline modules used in ASR
@@ -83,15 +82,15 @@ class LibriSpeechAsrDataModule:
             "augmentations, etc.",
         )
         group.add_argument(
-            "--full-libri",
-            type=str2bool,
-            default=True,
-            help="When enabled, use 960h LibriSpeech. Otherwise, use 100h subset.",
+            "--language",
+            type=str,
+            default="en"
+            help="""Language of Common Voice""",
         )
         group.add_argument(
             "--manifest-dir",
             type=Path,
-            default=Path("data/fbank"),
+            default=Path("data/en/fbank"),
             help="Path to directory with train/valid/test cuts.",
         )
         group.add_argument(
@@ -394,60 +393,22 @@ class LibriSpeechAsrDataModule:
         return test_dl
 
     @lru_cache()
-    def train_clean_100_cuts(self) -> CutSet:
-        logging.info("About to get train-clean-100 cuts")
+    def train_cuts(self) -> CutSet:
+        logging.info("About to get train cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_train-clean-100.jsonl.gz"
+            self.args.manifest_dir / f"cv-{self.args.language}_cuts_train.jsonl.gz"
         )
 
     @lru_cache()
-    def train_clean_360_cuts(self) -> CutSet:
-        logging.info("About to get train-clean-360 cuts")
+    def dev_cuts(self) -> CutSet:
+        logging.info("About to get dev cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_train-clean-360.jsonl.gz"
+            self.args.manifest_dir / f"cv-{self.args.language}_cuts_dev.jsonl.gz"
         )
 
     @lru_cache()
-    def train_other_500_cuts(self) -> CutSet:
-        logging.info("About to get train-other-500 cuts")
+    def test_cuts(self) -> CutSet:
+        logging.info("About to get test cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_train-other-500.jsonl.gz"
-        )
-
-    @lru_cache()
-    def train_all_shuf_cuts(self) -> CutSet:
-        logging.info(
-            "About to get the shuffled train-clean-100, \
-            train-clean-360 and train-other-500 cuts"
-        )
-        return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_train-all-shuf.jsonl.gz"
-        )
-
-    @lru_cache()
-    def dev_clean_cuts(self) -> CutSet:
-        logging.info("About to get dev-clean cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_dev-clean.jsonl.gz"
-        )
-
-    @lru_cache()
-    def dev_other_cuts(self) -> CutSet:
-        logging.info("About to get dev-other cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_dev-other.jsonl.gz"
-        )
-
-    @lru_cache()
-    def test_clean_cuts(self) -> CutSet:
-        logging.info("About to get test-clean cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_test-clean.jsonl.gz"
-        )
-
-    @lru_cache()
-    def test_other_cuts(self) -> CutSet:
-        logging.info("About to get test-other cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_test-other.jsonl.gz"
+            self.args.manifest_dir / f"cv-{self.args.language}_cuts_test.jsonl.gz"
         )

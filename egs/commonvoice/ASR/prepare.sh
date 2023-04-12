@@ -126,7 +126,7 @@ fi
 
 if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   log "Stage 5: Split train subset into ${num_splits} pieces"
-  split_dir=data/${lang}/fbank/train_split_${num_splits}
+  split_dir=data/${lang}/fbank/cv-${lang}_train_split_${num_splits}
   if [ ! -e $split_dir/.cv-${lang}_train_split.done ]; then
     lhotse split $num_splits ./data/${lang}/fbank/cv-${lang}_cuts_train_raw.jsonl.gz $split_dir
     touch $split_dir/.cv-${lang}_train_split.done
@@ -147,7 +147,15 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
 fi
 
 if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
-  log "Stage 7: Compute fbank for musan"
+  log "Stage 7: Combine features for train"
+  if [ ! -f data/${lang}/fbank/cv-${lang}_cuts_train.jsonl.gz ]; then
+    pieces=$(find data/${lang}/fbank/cv-${lang}_train_split_${num_splits} -name "cv-${lang}_cuts_train.*.jsonl.gz")
+    lhotse combine $pieces data/${lang}/fbank/cv-${lang}_cuts_train.jsonl.gz
+  fi
+fi
+
+if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
+  log "Stage 8: Compute fbank for musan"
   mkdir -p data/fbank
   if [ ! -e data/fbank/.musan.done ]; then
     ./local/compute_fbank_musan.py
