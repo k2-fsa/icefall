@@ -358,6 +358,11 @@ class Conformer(Transformer):
 
             assert x.size(0) == lengths.max().item()
 
+            if chunk_size < 0:
+                # use full attention
+                chunk_size = x.size(0)
+                left_context = -1
+
             num_left_chunks = -1
             if left_context >= 0:
                 assert left_context % chunk_size == 0

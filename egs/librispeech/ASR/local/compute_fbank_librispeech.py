@@ -121,10 +121,10 @@ def compute_fbank_librispeech(
                 recordings=m["recordings"],
                 supervisions=m["supervisions"],
             )
-            if bpe_model:
-                cut_set = filter_cuts(cut_set, sp)
 
             if "train" in partition:
+                if bpe_model:
+                    cut_set = filter_cuts(cut_set, sp)
                 cut_set = (
                     cut_set + cut_set.perturb_speed(0.9) + cut_set.perturb_speed(1.1)
                 )

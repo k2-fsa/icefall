@@ -230,12 +230,14 @@ if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
   if [ ! -f $dl_dir/lm/aishell-train-word.txt ]; then
     cp $lang_phone_dir/transcript_words.txt $dl_dir/lm/aishell-train-word.txt
   fi
-
+  
+  # training words
   ./local/prepare_char_lm_training_data.py \
     --lang-char data/lang_char \
     --lm-data $dl_dir/lm/aishell-train-word.txt \
     --lm-archive $out_dir/lm_data.pt
 
+  # valid words
   if [ ! -f $dl_dir/lm/aishell-valid-word.txt ]; then
     aishell_text=$dl_dir/aishell/data_aishell/transcript/aishell_transcript_v0.8.txt
     aishell_valid_uid=$dl_dir/aishell/data_aishell/transcript/aishell_valid_uid
@@ -249,6 +251,7 @@ if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
     --lm-data $dl_dir/lm/aishell-valid-word.txt \
     --lm-archive $out_dir/lm_data_valid.pt
 
+  # test words
   if [ ! -f $dl_dir/lm/aishell-test-word.txt ]; then
     aishell_text=$dl_dir/aishell/data_aishell/transcript/aishell_transcript_v0.8.txt
     aishell_test_uid=$dl_dir/aishell/data_aishell/transcript/aishell_test_uid
@@ -303,9 +306,9 @@ if [ $stage -le 11 ] && [ $stop_stage -ge 11 ]; then
     --hidden-dim 512 \
     --num-layers 2 \
     --batch-size 400 \
-    --exp-dir rnnlm_char/exp \
-    --lm-data data/lm_training_char/sorted_lm_data.pt \
-    --lm-data-valid data/lm_training_char/sorted_lm_data-valid.pt \
+    --exp-dir rnnlm_char/exp_aishell1_small \
+    --lm-data data/lm_char/sorted_lm_data_aishell1.pt \
+    --lm-data-valid data/lm_char/sorted_lm_data_valid.pt \
     --vocab-size 4336 \
     --master-port 12345
 fi

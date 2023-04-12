@@ -403,9 +403,8 @@ def main():
             text += symbol_table[i]
         return text.replace("▁", " ").strip()
 
-    context_size = model.context_size
     for filename, hyp in zip(args.sound_files, hyps):
-        words = token_ids_to_words(hyp[context_size:])
+        words = token_ids_to_words(hyp)
         s += f"{filename}:\n{words}\n"
     logging.info(s)
 
