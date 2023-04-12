@@ -32,6 +32,7 @@ from scaling import (
     SwooshL,
     SwooshR,
     ChunkCausalDepthwiseConv1d,
+    ActivationDropoutAndLinear,
     ScaledConv1d,
     ScaledConv2d,
     ScaledLinear,  # not as in other dirs.. just scales down initial parameter values.
@@ -435,7 +436,9 @@ class Zipformer2(EncoderInterface):
         x = self.downsample_output(x)
         # class Downsample has this rounding behavior..
         assert self.output_downsampling_factor == 2
-        lengths = (lengths + 1) // 2
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            lengths = (lengths + 1) // 2
 
         x = x.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
 
@@ -1460,7 +1463,6 @@ class SelfAttention(nn.Module):
         return x
 
 
-
 class FeedforwardModule(nn.Module):
     """Feedforward module in Zipformer2 model.
     """
@@ -1477,11 +1479,13 @@ class FeedforwardModule(nn.Module):
                                         max_positive=1.0,
                                         min_abs=0.75,
                                         max_abs=5.0)
-        self.activation = SwooshL()
+
         # shared_dim=0 means we share the dropout mask along the time axis
-        self.dropout = Dropout3(dropout, shared_dim=0)
-        self.out_proj = ScaledLinear(feedforward_dim, embed_dim,
-                                     initial_scale=0.1)
+        self.out_proj = ActivationDropoutAndLinear(feedforward_dim, embed_dim,
+                                                   activation='SwooshL',
+                                                   dropout_p=dropout,
+                                                   dropout_shared_dim=0, bias=True,
+                                                   initial_scale=0.1)
 
         self.out_whiten =  Whiten(num_groups=1,
                                   whitening_limit=_whitening_schedule(7.5),
@@ -1492,8 +1496,7 @@ class FeedforwardModule(nn.Module):
                 x: Tensor):
         x = self.in_proj(x)
         x = self.hidden_balancer(x)
-        x = self.activation(x)
-        x = self.dropout(x)
+        # out_proj contains SwooshL activation, then dropout, then linear.
         x = self.out_proj(x)
         x = self.out_whiten(x)
         return x
@@ -1670,7 +1673,6 @@ class ConvolutionModule(nn.Module):
             kernel_size=kernel_size,
             padding=kernel_size // 2)
 
-
         self.balancer2 = Balancer(
             bottleneck_dim, channel_dim=1,
             min_positive=ScheduledFloat((0.0, 0.1), (8000.0, 0.05)),
@@ -1679,18 +1681,15 @@ class ConvolutionModule(nn.Module):
             max_abs=10.0,
         )
 
-        self.activation3 = SwooshR()
-
         self.whiten = Whiten(num_groups=1,
                              whitening_limit=_whitening_schedule(7.5),
                              prob=(0.025, 0.25),
                              grad_scale=0.01)
 
-        self.out_proj = ScaledLinear(
-            bottleneck_dim, channels,
-            initial_scale=0.05,
+        self.out_proj = ActivationDropoutAndLinear(
+            bottleneck_dim, channels, activation='SwooshR',
+            dropout_p=0.0, initial_scale=0.05,
         )
-
 
     def forward(self,
                 x: Tensor,
@@ -1724,7 +1723,7 @@ class ConvolutionModule(nn.Module):
         x = x.permute(1, 2, 0)  # (#batch, channels, time).
 
         if src_key_padding_mask is not None:
-            x.masked_fill_(src_key_padding_mask.unsqueeze(1).expand_as(x), 0.0)
+            x = x.masked_fill(src_key_padding_mask.unsqueeze(1).expand_as(x), 0.0)
 
         if chunk_size >= 0:
             assert self.causal, "Must initialize model with causal=True if you use chunk_size"
@@ -1735,7 +1734,6 @@ class ConvolutionModule(nn.Module):
         x = self.balancer2(x)
         x = x.permute(2, 0, 1) # (time, batch, channels)
 
-        x = self.activation3(x)
         x = self.whiten(x)  # (time, batch, channels)
         x = self.out_proj(x)  # (time, batch, channels)
 
