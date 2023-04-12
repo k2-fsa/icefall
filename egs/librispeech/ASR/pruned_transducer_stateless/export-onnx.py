@@ -6,45 +6,38 @@
 This script exports a transducer model from PyTorch to ONNX.
 
 We use the pre-trained model from
-https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless5-2022-05-13
+https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless-2022-03-12
 as an example to show how to use this file.
 
 1. Download the pre-trained model
 
 cd egs/librispeech/ASR
 
-repo_url=https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless5-2022-05-13
+repo_url=https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless-2022-03-12
 GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
 repo=$(basename $repo_url)
 
 pushd $repo
 git lfs pull --include "data/lang_bpe_500/bpe.model"
-git lfs pull --include "exp/pretrained-epoch-39-avg-7.pt"
+git lfs pull --include "exp/pretrained.pt"
 
 cd exp
-ln -s pretrained-epoch-39-avg-7.pt epoch-99.pt
+ln -s pretrained.pt epoch-9999.pt
 popd
 
 2. Export the model to ONNX
 
-./pruned_transducer_stateless5/export-onnx.py \
+./pruned_transducer_stateless/export-onnx.py \
   --bpe-model $repo/data/lang_bpe_500/bpe.model \
-  --epoch 99 \
+  --epoch 9999 \
   --avg 1 \
-  --use-averaged-model 0 \
-  --exp-dir $repo/exp \
-  --num-encoder-layers 18 \
-  --dim-feedforward 2048 \
-  --nhead 8 \
-  --encoder-dim 512 \
-  --decoder-dim 512 \
-  --joiner-dim 512
+  --exp-dir $repo/exp/
 
 It will generate the following 3 files inside $repo/exp:
 
-  - encoder-epoch-99-avg-1.onnx
-  - decoder-epoch-99-avg-1.onnx
-  - joiner-epoch-99-avg-1.onnx
+  - encoder-epoch-9999-avg-1.onnx
+  - decoder-epoch-9999-avg-1.onnx
+  - joiner-epoch-9999-avg-1.onnx
 
 See ./onnx_pretrained.py and ./onnx_check.py for how to
 use the exported ONNX models.
@@ -60,18 +53,12 @@ import sentencepiece as spm
 import torch
 import torch.nn as nn
 from conformer import Conformer
-from onnxruntime.quantization import QuantType, quantize_dynamic
 from decoder import Decoder
-from scaling_converter import convert_scaled_to_non_scaled
+from onnxruntime.quantization import QuantType, quantize_dynamic
 from train import add_model_arguments, get_params, get_transducer_model
 
-from icefall.checkpoint import (
-    average_checkpoints,
-    average_checkpoints_with_averaged_model,
-    find_checkpoints,
-    load_checkpoint,
-)
-from icefall.utils import setup_logger, str2bool
+from icefall.checkpoint import average_checkpoints, find_checkpoints, load_checkpoint
+from icefall.utils import setup_logger
 
 
 def get_parser():
@@ -108,20 +95,9 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--use-averaged-model",
-        type=str2bool,
-        default=True,
-        help="Whether to load averaged model. Currently it only supports "
-        "using --epoch. If True, it would decode with the averaged model "
-        "over the epoch range from `epoch-avg` (excluded) to `epoch`."
-        "Actually only the models with epoch number of `epoch-avg` and "
-        "`epoch` are loaded for averaging. ",
-    )
-
-    parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless5/exp",
+        default="pruned_transducer_stateless/exp",
         help="""It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
         """,
@@ -165,19 +141,16 @@ def add_meta_data(filename: str, meta_data: Dict[str, str]):
 
 
 class OnnxEncoder(nn.Module):
-    """A wrapper for Conformer and the encoder_proj from the joiner"""
+    """A wrapper for Conformer"""
 
-    def __init__(self, encoder: Conformer, encoder_proj: nn.Linear):
+    def __init__(self, encoder: Conformer):
         """
         Args:
           encoder:
             A Conformer encoder.
-          encoder_proj:
-            The projection layer for encoder from the joiner.
         """
         super().__init__()
         self.encoder = encoder
-        self.encoder_proj = encoder_proj
 
     def forward(
         self,
@@ -197,20 +170,17 @@ class OnnxEncoder(nn.Module):
             - encoder_out_lens, A 1-D tensor of shape (N,)
         """
         encoder_out, encoder_out_lens = self.encoder(x, x_lens)
-
-        encoder_out = self.encoder_proj(encoder_out)
         # Now encoder_out is of shape (N, T, joiner_dim)
 
         return encoder_out, encoder_out_lens
 
 
 class OnnxDecoder(nn.Module):
-    """A wrapper for Decoder and the decoder_proj from the joiner"""
+    """A wrapper for Decoder"""
 
-    def __init__(self, decoder: Decoder, decoder_proj: nn.Linear):
+    def __init__(self, decoder: Decoder):
         super().__init__()
         self.decoder = decoder
-        self.decoder_proj = decoder_proj
 
     def forward(self, y: torch.Tensor) -> torch.Tensor:
         """
@@ -222,8 +192,7 @@ class OnnxDecoder(nn.Module):
         """
         need_pad = False
         decoder_output = self.decoder(y, need_pad=need_pad)
-        decoder_output = decoder_output.squeeze(1)
-        output = self.decoder_proj(decoder_output)
+        output = decoder_output.squeeze(1)
 
         return output
 
@@ -231,8 +200,9 @@ class OnnxDecoder(nn.Module):
 class OnnxJoiner(nn.Module):
     """A wrapper for the joiner"""
 
-    def __init__(self, output_linear: nn.Linear):
+    def __init__(self, inner_linear: nn.Linear, output_linear: nn.Linear):
         super().__init__()
+        self.inner_linear = inner_linear
         self.output_linear = output_linear
 
     def forward(
@@ -250,8 +220,10 @@ class OnnxJoiner(nn.Module):
           Return a 2-D tensor of shape (N, vocab_size)
         """
         logit = encoder_out + decoder_out
-        logit = self.output_linear(torch.tanh(logit))
-        return logit
+        logit = self.inner_linear(torch.tanh(logit))
+        output = self.output_linear(nn.functional.relu(logit))
+
+        return output
 
 
 def export_encoder_model_onnx(
@@ -301,7 +273,7 @@ def export_encoder_model_onnx(
         "model_type": "conformer",
         "version": "1",
         "model_author": "k2-fsa",
-        "comment": "stateless5",
+        "comment": "stateless3",
     }
     logging.info(f"meta_data: {meta_data}")
 
@@ -371,7 +343,7 @@ def export_joiner_model_onnx(
 
         - logit: a tensor of shape (N, vocab_size)
     """
-    joiner_dim = joiner_model.output_linear.weight.shape[1]
+    joiner_dim = joiner_model.inner_linear.weight.shape[1]
     logging.info(f"joiner dim: {joiner_dim}")
 
     projected_encoder_out = torch.rand(11, joiner_dim, dtype=torch.float32)
@@ -421,6 +393,7 @@ def main():
 
     # <blk> is defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
+    params.unk_id = sp.piece_to_id("<unk>")
     params.vocab_size = sp.get_piece_size()
 
     logging.info(params)
@@ -430,99 +403,48 @@ def main():
 
     model.to(device)
 
-    if not params.use_averaged_model:
-        if params.iter > 0:
-            filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
-                : params.avg
-            ]
-            if len(filenames) == 0:
-                raise ValueError(
-                    f"No checkpoints found for"
-                    f" --iter {params.iter}, --avg {params.avg}"
-                )
-            elif len(filenames) < params.avg:
-                raise ValueError(
-                    f"Not enough checkpoints ({len(filenames)}) found for"
-                    f" --iter {params.iter}, --avg {params.avg}"
-                )
-            logging.info(f"averaging {filenames}")
-            model.to(device)
-            model.load_state_dict(average_checkpoints(filenames, device=device))
-        elif params.avg == 1:
-            load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
-        else:
-            start = params.epoch - params.avg + 1
-            filenames = []
-            for i in range(start, params.epoch + 1):
-                if i >= 1:
-                    filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
-            logging.info(f"averaging {filenames}")
-            model.to(device)
-            model.load_state_dict(average_checkpoints(filenames, device=device))
+    if params.iter > 0:
+        filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
+            : params.avg
+        ]
+        if len(filenames) == 0:
+            raise ValueError(
+                f"No checkpoints found for --iter {params.iter}, --avg {params.avg}"
+            )
+        elif len(filenames) < params.avg:
+            raise ValueError(
+                f"Not enough checkpoints ({len(filenames)}) found for"
+                f" --iter {params.iter}, --avg {params.avg}"
+            )
+        logging.info(f"averaging {filenames}")
+        model.to(device)
+        model.load_state_dict(
+            average_checkpoints(filenames, device=device), strict=False
+        )
+    elif params.avg == 1:
+        load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
     else:
-        if params.iter > 0:
-            filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
-                : params.avg + 1
-            ]
-            if len(filenames) == 0:
-                raise ValueError(
-                    f"No checkpoints found for"
-                    f" --iter {params.iter}, --avg {params.avg}"
-                )
-            elif len(filenames) < params.avg + 1:
-                raise ValueError(
-                    f"Not enough checkpoints ({len(filenames)}) found for"
-                    f" --iter {params.iter}, --avg {params.avg}"
-                )
-            filename_start = filenames[-1]
-            filename_end = filenames[0]
-            logging.info(
-                "Calculating the averaged model over iteration checkpoints"
-                f" from {filename_start} (excluded) to {filename_end}"
-            )
-            model.to(device)
-            model.load_state_dict(
-                average_checkpoints_with_averaged_model(
-                    filename_start=filename_start,
-                    filename_end=filename_end,
-                    device=device,
-                )
-            )
-        else:
-            assert params.avg > 0, params.avg
-            start = params.epoch - params.avg
-            assert start >= 1, start
-            filename_start = f"{params.exp_dir}/epoch-{start}.pt"
-            filename_end = f"{params.exp_dir}/epoch-{params.epoch}.pt"
-            logging.info(
-                f"Calculating the averaged model over epoch range from "
-                f"{start} (excluded) to {params.epoch}"
-            )
-            model.to(device)
-            model.load_state_dict(
-                average_checkpoints_with_averaged_model(
-                    filename_start=filename_start,
-                    filename_end=filename_end,
-                    device=device,
-                )
-            )
+        start = params.epoch - params.avg + 1
+        filenames = []
+        for i in range(start, params.epoch + 1):
+            if start >= 0:
+                filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
+        logging.info(f"averaging {filenames}")
+        model.to(device)
+        model.load_state_dict(
+            average_checkpoints(filenames, device=device), strict=False
+        )
 
     model.to("cpu")
     model.eval()
 
-    convert_scaled_to_non_scaled(model, inplace=True)
+    encoder = OnnxEncoder(encoder=model.encoder)
 
-    encoder = OnnxEncoder(
-        encoder=model.encoder,
-        encoder_proj=model.joiner.encoder_proj,
+    decoder = OnnxDecoder(decoder=model.decoder)
+
+    joiner = OnnxJoiner(
+        inner_linear=model.joiner.inner_linear, output_linear=model.joiner.output_linear
     )
-
-    decoder = OnnxDecoder(
-        decoder=model.decoder,
-        decoder_proj=model.joiner.decoder_proj,
-    )
-
-    joiner = OnnxJoiner(output_linear=model.joiner.output_linear)
 
     encoder_num_param = sum([p.numel() for p in encoder.parameters()])
     decoder_num_param = sum([p.numel() for p in decoder.parameters()])
