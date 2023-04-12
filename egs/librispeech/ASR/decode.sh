@@ -4,6 +4,6 @@ for dest in "test-clean" "test-other"; do
 	for spk in $dl_dir/$dest/*; do
 		spk_id=${spk#*$dest\/}
 		echo $spk_id
-		./test.sh $spk_id "$spk_id"_adapter_10m
+		./test.sh $spk_id prompt_tuning_"$spk_id"
 	done
 done
