@@ -117,7 +117,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless7/exp",
+        default="pruned_transducer_stateless5/exp",
         help="The experiment dir",
     )
 

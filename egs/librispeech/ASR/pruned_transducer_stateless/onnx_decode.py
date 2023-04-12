@@ -21,28 +21,28 @@
 This script loads ONNX exported models and uses them to decode the test sets.
 
 We use the pre-trained model from
-https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13
+https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless-2022-03-12
 as an example to show how to use this file.
 
 1. Download the pre-trained model
 
 cd egs/librispeech/ASR
 
-repo_url=https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13
+repo_url=https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless-2022-03-12
 GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
 repo=$(basename $repo_url)
 
 pushd $repo
 git lfs pull --include "data/lang_bpe_500/bpe.model"
-git lfs pull --include "exp/pretrained-iter-1224000-avg-14.pt"
+git lfs pull --include "exp/pretrained.pt"
 
 cd exp
-ln -s pretrained-iter-1224000-avg-14.pt epoch-9999.pt
+ln -s pretrained.pt epoch-9999.pt
 popd
 
 2. Export the model to ONNX
 
-./pruned_transducer_stateless3/export-onnx.py \
+./pruned_transducer_stateless/export-onnx.py \
   --bpe-model $repo/data/lang_bpe_500/bpe.model \
   --epoch 9999 \
   --avg 1 \
@@ -54,10 +54,10 @@ It will generate the following 3 files inside $repo/exp:
   - decoder-epoch-9999-avg-1.onnx
   - joiner-epoch-9999-avg-1.onnx
 
-2. Run this file
+3. Run this file
 
-./pruned_transducer_stateless3/onnx_decode.py \
-  --exp-dir ./pruned_transducer_stateless3/exp \
+./pruned_transducer_stateless/onnx_decode.py \
+  --exp-dir ./pruned_transducer_stateless/exp \
   --max-duration 600 \
   --encoder-model-filename $repo/exp/encoder-epoch-9999-avg-1.onnx \
   --decoder-model-filename $repo/exp/decoder-epoch-9999-avg-1.onnx \
@@ -74,8 +74,7 @@ from typing import List, Tuple
 import sentencepiece as spm
 import torch
 import torch.nn as nn
-from asr_datamodule import AsrDataModule
-from librispeech import LibriSpeech
+from asr_datamodule import LibriSpeechAsrDataModule
 
 from onnx_pretrained import greedy_search, OnnxModel
 
@@ -111,7 +110,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless3/exp",
+        default="pruned_transducer_stateless7/exp",
         help="The experiment dir",
     )
 
@@ -256,7 +255,7 @@ def save_results(
 @torch.no_grad()
 def main():
     parser = get_parser()
-    AsrDataModule.add_arguments(parser)
+    LibriSpeechAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
 
     assert (
@@ -287,14 +286,13 @@ def main():
 
     # we need cut ids to display recognition results.
     args.return_cuts = True
-    asr_datamodule = AsrDataModule(args)
-    librispeech = LibriSpeech(manifest_dir=args.manifest_dir)
+    librispeech = LibriSpeechAsrDataModule(args)
 
     test_clean_cuts = librispeech.test_clean_cuts()
     test_other_cuts = librispeech.test_other_cuts()
 
-    test_clean_dl = asr_datamodule.test_dataloaders(test_clean_cuts)
-    test_other_dl = asr_datamodule.test_dataloaders(test_other_cuts)
+    test_clean_dl = librispeech.test_dataloaders(test_clean_cuts)
+    test_other_dl = librispeech.test_dataloaders(test_other_cuts)
 
     test_sets = ["test-clean", "test-other"]
     test_dl = [test_clean_dl, test_other_dl]
