@@ -8,6 +8,6 @@ for dest in "test-clean" "test-other"; do
 	for spk in $dl_dir/$dest/*; do
 		spk_id=${spk#*$dest\/}
 		echo $spk_id
-		./run_adapter.sh "$spk_id"_adapter_10m $spk_id $1
+		./run_adapter.sh "$spk_id"_adapter_30m $spk_id $1
 	done
 done
