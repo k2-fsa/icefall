@@ -21,7 +21,7 @@ do
 		--avg 1 \
 		--use-averaged-model True \
 		--spk-id $spk_id \
-		--res-name beam_prompt_spec_10m_$i
+		--res-name 30m_$i
 	done
 done
 
