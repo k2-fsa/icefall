@@ -162,3 +162,59 @@ if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
     touch data/fbank/.musan.done
   fi
 fi
+
+if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
+  log "Stage 9: Prepare BPE based lang"
+
+  for vocab_size in ${vocab_sizes[@]}; do
+    lang_dir=data/${lang}/lang_bpe_${vocab_size}
+    mkdir -p $lang_dir
+    # We reuse words.txt from phone based lexicon
+    # so that the two can share G.pt later.
+    cp data/lang_phone/words.txt $lang_dir
+
+    if [ ! -f $lang_dir/transcript_words.txt ]; then
+      log "Generate data for BPE training"
+      files=$(
+        find "$dl_dir/LibriSpeech/train-clean-100" -name "*.trans.txt"
+        find "$dl_dir/LibriSpeech/train-clean-360" -name "*.trans.txt"
+        find "$dl_dir/LibriSpeech/train-other-500" -name "*.trans.txt"
+      )
+      for f in ${files[@]}; do
+        cat $f | cut -d " " -f 2-
+      done > $lang_dir/transcript_words.txt
+    fi
+
+    if [ ! -f $lang_dir/bpe.model ]; then
+      ./local/train_bpe_model.py \
+        --lang-dir $lang_dir \
+        --vocab-size $vocab_size \
+        --transcript $lang_dir/transcript_words.txt
+    fi
+
+    if [ ! -f $lang_dir/L_disambig.pt ]; then
+      ./local/prepare_lang_bpe.py --lang-dir $lang_dir
+
+      log "Validating $lang_dir/lexicon.txt"
+      ./local/validate_bpe_lexicon.py \
+        --lexicon $lang_dir/lexicon.txt \
+        --bpe-model $lang_dir/bpe.model
+    fi
+
+    if [ ! -f $lang_dir/L.fst ]; then
+      log "Converting L.pt to L.fst"
+      ./shared/convert-k2-to-openfst.py \
+        --olabels aux_labels \
+        $lang_dir/L.pt \
+        $lang_dir/L.fst
+    fi
+
+    if [ ! -f $lang_dir/L_disambig.fst ]; then
+      log "Converting L_disambig.pt to L_disambig.fst"
+      ./shared/convert-k2-to-openfst.py \
+        --olabels aux_labels \
+        $lang_dir/L_disambig.pt \
+        $lang_dir/L_disambig.fst
+    fi
+  done
+fi

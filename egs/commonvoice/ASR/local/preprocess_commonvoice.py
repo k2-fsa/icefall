@@ -17,6 +17,7 @@
 
 import argparse
 import logging
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -40,6 +41,11 @@ def get_args():
     )
 
     return parser.parse_args()
+
+
+def normalize_text(utt: str) -> str:
+    punc = '~`!#$%^&*()_+-=|\';":/.,?><~'
+    return re.sub(r"[{0}]+".format(punc), "", utt).upper()
 
 
 def preprocess_commonvoice(
@@ -83,6 +89,17 @@ def preprocess_commonvoice(
         if raw_cuts_path.is_file():
             logging.info(f"{partition} already exists - skipping")
             continue
+
+        logging.info(f"Normalizing text in {partition}")
+        for sup in m["supervisions"]:
+            text = str(sup.text)
+            orig_text = text
+            sup.text = normalize_text(sup.text)
+            text = str(sup.text)
+            if len(orig_text) != len(text):
+                logging.info(
+                    f"\nOriginal text vs normalized text:\n{orig_text}\n{text}"
+                )
 
         # Create long-recording cut manifests.
         cut_set = CutSet.from_manifests(
