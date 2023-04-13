@@ -44,9 +44,8 @@ def get_args():
 
 
 def normalize_text(utt: str) -> str:
-    punc = '~`!#$%^&*()_+-=|\';":/.,?><~'
-    return re.sub(r"[{0}]+".format(punc), "", utt).upper()
-
+    utt = re.sub(r"[{0}]+".format('-'), " ", utt)
+    return re.sub(r"[^a-zA-Z\s]", "", utt).upper()
 
 def preprocess_commonvoice(
     language: str,

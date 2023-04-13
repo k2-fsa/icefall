@@ -169,21 +169,37 @@ if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
   for vocab_size in ${vocab_sizes[@]}; do
     lang_dir=data/${lang}/lang_bpe_${vocab_size}
     mkdir -p $lang_dir
-    # We reuse words.txt from phone based lexicon
-    # so that the two can share G.pt later.
-    cp data/lang_phone/words.txt $lang_dir
 
     if [ ! -f $lang_dir/transcript_words.txt ]; then
       log "Generate data for BPE training"
-      files=$(
-        find "$dl_dir/LibriSpeech/train-clean-100" -name "*.trans.txt"
-        find "$dl_dir/LibriSpeech/train-clean-360" -name "*.trans.txt"
-        find "$dl_dir/LibriSpeech/train-other-500" -name "*.trans.txt"
+      file=$(
+        find "data/${lang}/fbank/cv-${lang}_cuts_train.jsonl.gz"
       )
-      for f in ${files[@]}; do
-        cat $f | cut -d " " -f 2-
-      done > $lang_dir/transcript_words.txt
+      gunzip -c ${file} | awk -F '"' '{print $30}' > $lang_dir/transcript_words.txt
     fi
+
+    cat $lang_dir/transcript_words.txt | sed 's/ /\n/g' | sort -u | sed '/^$/d' > $lang_dir/words.txt
+    (echo '<UNK>'; ) | cat - $lang_dir/words.txt | sort | uniq | awk '
+      BEGIN {
+        print "<eps> 0";
+      }
+      {
+        if ($1 == "<s>") {
+          print "<s> is in the vocabulary!" | "cat 1>&2"
+          exit 1;
+        }
+        if ($1 == "</s>") {
+          print "</s> is in the vocabulary!" | "cat 1>&2"
+          exit 1;
+        }
+        printf("%s %d\n", $1, NR);
+      }
+      END {
+        printf("#0 %d\n", NR+1);
+        printf("<s> %d\n", NR+2);
+        printf("</s> %d\n", NR+3);
+      }' > $lang_dir/words || exit 1;
+    mv $lang_dir/words $lang_dir/words.txt
 
     if [ ! -f $lang_dir/bpe.model ]; then
       ./local/train_bpe_model.py \
@@ -191,7 +207,7 @@ if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
         --vocab-size $vocab_size \
         --transcript $lang_dir/transcript_words.txt
     fi
-
+  
     if [ ! -f $lang_dir/L_disambig.pt ]; then
       ./local/prepare_lang_bpe.py --lang-dir $lang_dir
 
