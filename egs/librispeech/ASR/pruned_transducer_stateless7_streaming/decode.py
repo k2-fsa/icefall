@@ -122,6 +122,8 @@ from beam_search import (
     greedy_search,
     greedy_search_batch,
     modified_beam_search,
+    modified_beam_search_lm_rescore,
+    modified_beam_search_lm_shallow_fusion,
 )
 from train import add_model_arguments, get_params, get_transducer_model
 
@@ -132,6 +134,7 @@ from icefall.checkpoint import (
     load_checkpoint,
 )
 from icefall.lexicon import Lexicon
+from icefall.lm_wrapper import LmScorer
 from icefall.utils import (
     AttributeDict,
     setup_logger,
@@ -307,6 +310,32 @@ def get_parser():
         fast_beam_search_nbest_LG, and fast_beam_search_nbest_oracle""",
     )
 
+    parser.add_argument(
+        "--use-shallow-fusion",
+        type=str2bool,
+        default=False,
+        help="""Use neural network LM for shallow fusion.
+        If you want to use LODR, you will also need to set this to true
+        """,
+    )
+
+    parser.add_argument(
+        "--lm-type",
+        type=str,
+        default="rnn",
+        help="Type of NN lm",
+        choices=["rnn", "transformer"],
+    )
+
+    parser.add_argument(
+        "--lm-scale",
+        type=float,
+        default=0.3,
+        help="""The scale of the neural network LM
+        Used only when `--use-shallow-fusion` is set to True.
+        """,
+    )
+
     add_model_arguments(parser)
 
     return parser
@@ -319,6 +348,7 @@ def decode_one_batch(
     batch: dict,
     word_table: Optional[k2.SymbolTable] = None,
     decoding_graph: Optional[k2.Fsa] = None,
+    LM: Optional[LmScorer] = None,
 ) -> Dict[str, List[List[str]]]:
     """Decode one batch and return the result in a dict. The dict has the
     following format:
@@ -443,6 +473,26 @@ def decode_one_batch(
         )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
+    elif params.decoding_method == "modified_beam_search_lm_shallow_fusion":
+        hyp_tokens = modified_beam_search_lm_shallow_fusion(
+            model=model,
+            encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
+            beam=params.beam_size,
+            LM=LM,
+        )
+        for hyp in sp.decode(hyp_tokens):
+            hyps.append(hyp.split())
+    elif params.decoding_method == "modified_beam_search_lm_rescore":
+        lm_scale_list = [0.01 * i for i in range(10, 50)]
+        ans_dict = modified_beam_search_lm_rescore(
+            model=model,
+            encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
+            beam=params.beam_size,
+            LM=LM,
+            lm_scale_list=lm_scale_list,
+        )
     else:
         batch_size = encoder_out.size(0)
 
@@ -481,6 +531,13 @@ def decode_one_batch(
                 key += f"_ngram_lm_scale_{params.ngram_lm_scale}"
 
         return {key: hyps}
+    elif params.decoding_method == "modified_beam_search_lm_rescore":
+        ans = dict()
+        assert ans_dict is not None
+        for key, hyps in ans_dict.items():
+            hyps = [sp.decode(hyp).split() for hyp in hyps]
+            ans[f"beam_size_{params.beam_size}_{key}"] = hyps
+        return ans
     else:
         return {f"beam_size_{params.beam_size}": hyps}
 
@@ -492,6 +549,7 @@ def decode_dataset(
     sp: spm.SentencePieceProcessor,
     word_table: Optional[k2.SymbolTable] = None,
     decoding_graph: Optional[k2.Fsa] = None,
+    LM: Optional[LmScorer] = None,
 ) -> Dict[str, List[Tuple[str, List[str], List[str]]]]:
     """Decode dataset.
 
@@ -541,6 +599,7 @@ def decode_dataset(
             decoding_graph=decoding_graph,
             word_table=word_table,
             batch=batch,
+            LM=LM,
         )
 
         for name, hyps in hyps_dict.items():
@@ -603,6 +662,7 @@ def save_results(
 def main():
     parser = get_parser()
     LibriSpeechAsrDataModule.add_arguments(parser)
+    LmScorer.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 
@@ -617,6 +677,8 @@ def main():
         "fast_beam_search_nbest_LG",
         "fast_beam_search_nbest_oracle",
         "modified_beam_search",
+        "modified_beam_search_lm_shallow_fusion",
+        "modified_beam_search_lm_rescore",
     )
     params.res_dir = params.exp_dir / params.decoding_method
 
@@ -641,6 +703,14 @@ def main():
     else:
         params.suffix += f"-context-{params.context_size}"
         params.suffix += f"-max-sym-per-frame-{params.max_sym_per_frame}"
+
+    if params.use_shallow_fusion:
+        params.suffix += f"-{params.lm_type}-lm-scale-{params.lm_scale}"
+
+        if "LODR" in params.decoding_method:
+            params.suffix += (
+                f"-LODR-{params.tokens_ngram}gram-scale-{params.ngram_lm_scale}"
+            )
 
     if params.use_averaged_model:
         params.suffix += "-use-averaged-model"
@@ -751,6 +821,19 @@ def main():
     model.to(device)
     model.eval()
 
+    # only load the neural network LM if required
+    if params.use_shallow_fusion or "lm" in params.decoding_method:
+        LM = LmScorer(
+            lm_type=params.lm_type,
+            params=params,
+            device=device,
+            lm_scale=params.lm_scale,
+        )
+        LM.to(device)
+        LM.eval()
+    else:
+        LM = None
+
     if "fast_beam_search" in params.decoding_method:
         if params.decoding_method == "fast_beam_search_nbest_LG":
             lexicon = Lexicon(params.lang_dir)
@@ -792,6 +875,7 @@ def main():
             sp=sp,
             word_table=word_table,
             decoding_graph=decoding_graph,
+            LM=LM,
         )
 
         save_results(
