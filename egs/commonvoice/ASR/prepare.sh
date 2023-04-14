@@ -176,31 +176,39 @@ if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
         find "data/${lang}/fbank/cv-${lang}_cuts_train.jsonl.gz"
       )
       gunzip -c ${file} | awk -F '"' '{print $30}' > $lang_dir/transcript_words.txt
+
+      # Ensure space only appears once
+      sed -i 's/\t/ /g' $lang_dir/transcript_words.txt
+      sed -i 's/[ ][ ]*/ /g' $lang_dir/transcript_words.txt
     fi
-
-    cat $lang_dir/transcript_words.txt | sed 's/ /\n/g' | sort -u | sed '/^$/d' > $lang_dir/words.txt
-    (echo '<UNK>'; ) | cat - $lang_dir/words.txt | sort | uniq | awk '
-      BEGIN {
-        print "<eps> 0";
-      }
-      {
-        if ($1 == "<s>") {
-          print "<s> is in the vocabulary!" | "cat 1>&2"
-          exit 1;
+ 
+    if [ ! -f $lang_dir/words.txt ]; then
+      cat $lang_dir/transcript_words.txt | sed 's/ /\n/g' \
+        | sort -u | sed '/^$/d' > $lang_dir/words.txt
+      (echo '!SIL'; echo '<SPOKEN_NOISE>'; echo '<UNK>'; ) |
+        cat - $lang_dir/words.txt | sort | uniq | awk '
+        BEGIN {
+          print "<eps> 0";
         }
-        if ($1 == "</s>") {
-          print "</s> is in the vocabulary!" | "cat 1>&2"
-          exit 1;
+        {
+          if ($1 == "<s>") {
+            print "<s> is in the vocabulary!" | "cat 1>&2"
+            exit 1;
+          }
+          if ($1 == "</s>") {
+            print "</s> is in the vocabulary!" | "cat 1>&2"
+            exit 1;
+          }
+          printf("%s %d\n", $1, NR);
         }
-        printf("%s %d\n", $1, NR);
-      }
-      END {
-        printf("#0 %d\n", NR+1);
-        printf("<s> %d\n", NR+2);
-        printf("</s> %d\n", NR+3);
-      }' > $lang_dir/words || exit 1;
-    mv $lang_dir/words $lang_dir/words.txt
-
+        END {
+          printf("#0 %d\n", NR+1);
+          printf("<s> %d\n", NR+2);
+          printf("</s> %d\n", NR+3);
+        }' > $lang_dir/words || exit 1;
+      mv $lang_dir/words $lang_dir/words.txt
+    fi
+ 
     if [ ! -f $lang_dir/bpe.model ]; then
       ./local/train_bpe_model.py \
         --lang-dir $lang_dir \
