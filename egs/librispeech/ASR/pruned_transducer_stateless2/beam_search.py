@@ -968,7 +968,7 @@ def modified_beam_search(
 
         A = [list(b) for b in B]
         B = [HypothesisList() for _ in range(batch_size)]
-        
+
         ys_log_probs = torch.cat(
             [hyp.log_prob.reshape(1, 1) for hyps in A for hyp in hyps]
         )  # (num_hyps, 1)
@@ -1057,6 +1057,7 @@ def modified_beam_search(
             hyps=ans,
             timestamps=ans_timestamps,
         )
+
 
 def modified_beam_search_lm_rescore(
     model: Transducer,
@@ -1212,12 +1213,12 @@ def modified_beam_search_lm_rescore(
                 B[i].add(new_hyp)
 
     B = B + finalized_B
-    
+
     # get the am_scores for n-best list
     hyps_shape = get_hyps_shape(B)
     am_scores = torch.tensor([hyp.log_prob.item() for b in B for hyp in b])
     am_scores = k2.RaggedTensor(value=am_scores, shape=hyps_shape).to(device)
-    
+
     # now LM rescore
     # prepare input data to LM
     candidate_seqs = [hyp.ys[context_size:] for b in B for hyp in b]
@@ -1227,36 +1228,34 @@ def modified_beam_search_lm_rescore(
     possible_seqs_with_sos = add_sos(possible_seqs, sos_id=1)
     possible_seqs_with_eos = add_eos(possible_seqs, eos_id=1)
     sentence_token_lengths += 1
-    
+
     x = possible_seqs_with_sos.pad(mode="constant", padding_value=blank_id)
     y = possible_seqs_with_eos.pad(mode="constant", padding_value=blank_id)
     x = x.to(device).to(torch.int64)
     y = y.to(device).to(torch.int64)
     sentence_token_lengths = sentence_token_lengths.to(device).to(torch.int64)
-    
+
     lm_scores = LM.lm(x=x, y=y, lengths=sentence_token_lengths)
     assert lm_scores.ndim == 2
     lm_scores = -1 * lm_scores.sum(dim=1)
 
     ans = {}
     unsorted_indices = packed_encoder_out.unsorted_indices.tolist()
-    
+
     # get the best hyp with different lm_scale
     for lm_scale in lm_scale_list:
         key = f"nnlm_scale_{lm_scale}"
         tot_scores = am_scores.values + lm_scores * lm_scale
-        ragged_tot_scores = k2.RaggedTensor(
-			      shape=am_scores.shape,
-			      value=tot_scores
-		    )
+        ragged_tot_scores = k2.RaggedTensor(shape=am_scores.shape, value=tot_scores)
         max_indexes = ragged_tot_scores.argmax().tolist()
         unsorted_hyps = [candidate_seqs[idx] for idx in max_indexes]
         hyps = []
         for idx in unsorted_indices:
-          	hyps.append(unsorted_hyps[idx])
-           
+            hyps.append(unsorted_hyps[idx])
+
         ans[key] = hyps
     return ans
+
 
 def _deprecated_modified_beam_search(
     model: Transducer,
