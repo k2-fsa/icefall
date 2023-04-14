@@ -301,20 +301,6 @@ def get_parser():
         fast_beam_search_nbest_LG, and fast_beam_search_nbest_oracle""",
     )
 
-    parser.add_argument(
-        "--decode-chunk-size",
-        type=int,
-        default=16,
-        help="The chunk size for decoding (in frames after subsampling), at 50Hz frame rate",
-    )
-
-    parser.add_argument(
-        "--decode-left-context",
-        type=int,
-        default=64,
-        help="left context can be seen during decoding (in frames after subsampling), at 50Hz frame rate",
-    )
-
     add_model_arguments(parser)
 
     return parser
@@ -371,7 +357,7 @@ def decode_one_batch(
 
     if params.causal:
         # this seems to cause insertions at the end of the utterance if used with zipformer.
-        pad_len = params.decode_chunk_size
+        pad_len = int(params.chunk_size)
         feature_lens += pad_len
         feature = torch.nn.functional.pad(
             feature,
@@ -652,11 +638,14 @@ def main():
         params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
 
     if params.causal:
-        # 'chunk_size' and 'left_context_frames' are used in function 'get_encoder_model' in train.py
-        params.chunk_size = str(params.decode_chunk_size)
-        params.left_context_frames = str(params.decode_left_context)
-        params.suffix += f"-decode-chunk-size-{params.decode_chunk_size}"
-        params.suffix += f"-decode-left-context-{params.decode_left_context}"
+        assert (
+            "," not in params.chunk_size
+        ), "chunk_size should be one value in decoding."
+        assert (
+            "," not in params.left_context_frames
+        ), "left_context_frames should be one value in decoding."
+        params.suffix += f"-chunk-{params.chunk_size}"
+        params.suffix += f"-left-context-{params.left_context_frames}"
 
     if "fast_beam_search" in params.decoding_method:
         params.suffix += f"-beam-{params.beam}"
