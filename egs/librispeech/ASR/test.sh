@@ -1,7 +1,7 @@
 spk_id=$1
 dir=$2
 #for i in 10 20 30 40 50 60 70 80 90 100
-for i in 50 100
+for i in 50
 do
 	for method in modified_beam_search
 	do
@@ -21,7 +21,7 @@ do
 		--avg 1 \
 		--use-averaged-model True \
 		--spk-id $spk_id \
-		--res-name 30m_$i
+		--res-name baseline
 	done
 done
 
