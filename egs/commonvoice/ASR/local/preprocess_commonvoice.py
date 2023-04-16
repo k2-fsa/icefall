@@ -108,12 +108,6 @@ def preprocess_commonvoice(
 
         # Run data augmentation that needs to be done in the
         # time domain.
-        if "train" in partition:
-            logging.info(
-                f"Speed perturb for {partition} with factors 0.9 and 1.1 "
-                "(Perturbing may take 2 minutes and saving may take 7 minutes)"
-            )
-            cut_set = cut_set + cut_set.perturb_speed(0.9) + cut_set.perturb_speed(1.1)
         logging.info(f"Saving to {raw_cuts_path}")
         cut_set.to_file(raw_cuts_path)
 
