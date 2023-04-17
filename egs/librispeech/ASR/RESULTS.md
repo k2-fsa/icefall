@@ -76,6 +76,64 @@ for m in greedy_search modified_beam_search fast_beam_search; do
     --num-decode-streams 2000
 done
 ```
+We also support decoding with neural network LMs. After combining with language models, the WERs are
+| decoding method      | chunk size | test-clean | test-other | comment             | decoding mode        |
+|----------------------|------------|------------|------------|---------------------|----------------------|
+| modified beam search | 320ms      | 3.11       | 7.93       | --epoch 30 --avg 9  | simulated streaming  |
+| modified beam search + RNNLM shallow fusion | 320ms      | 2.58       | 6.65       | --epoch 30 --avg 9  | simulated streaming  |
+| modified beam search + RNNLM nbest rescore | 320ms      | 2.59       | 6.86       | --epoch 30 --avg 9  | simulated streaming  |
+
+Please use the following command for RNNLM shallow fusion:
+```bash
+for lm_scale in $(seq 0.15 0.01 0.38); do
+    for beam_size in 4 8 12; do
+        ./pruned_transducer_stateless7_streaming/decode.py \
+            --epoch 99 \
+            --avg 1 \
+            --use-averaged-model False \
+            --beam-size $beam_size \
+            --exp-dir ./pruned_transducer_stateless7_streaming/exp-large-LM \
+            --max-duration 600 \
+            --decode-chunk-len 32 \
+            --decoding-method modified_beam_search_lm_shallow_fusion \
+            --use-shallow-fusion 1 \
+            --lm-type rnn \
+            --lm-exp-dir rnn_lm/exp \
+            --lm-epoch 99 \
+            --lm-scale $lm_scale \
+            --lm-avg 1 \
+            --rnn-lm-embedding-dim 2048 \
+            --rnn-lm-hidden-dim 2048 \
+            --rnn-lm-num-layers 3 \
+            --lm-vocab-size 500
+    done
+done
+```
+
+Please use the following command for RNNLM rescore:
+```bash
+./pruned_transducer_stateless7_streaming/decode.py \
+    --epoch 30 \
+    --avg 9 \
+    --use-averaged-model True \
+    --beam-size 8 \
+    --exp-dir ./pruned_transducer_stateless7_streaming/exp \
+    --max-duration 600 \
+    --decode-chunk-len 32 \
+    --decoding-method modified_beam_search_lm_rescore \
+    --use-shallow-fusion 0 \
+    --lm-type rnn \
+    --lm-exp-dir rnn_lm/exp \
+    --lm-epoch 99 \
+    --lm-avg 1 \
+    --rnn-lm-embedding-dim 2048 \
+    --rnn-lm-hidden-dim 2048 \
+    --rnn-lm-num-layers 3 \
+    --lm-vocab-size 500
+```
+
+A well-trained RNNLM can be found here: <https://huggingface.co/ezerhouni/icefall-librispeech-rnn-lm/tree/main>.
+
 
 #### Smaller model
 
@@ -540,9 +598,9 @@ for m in greedy_search fast_beam_search modified_beam_search ; do
 done
 ```
 
-Note that a small change is made to the `pruned_transducer_stateless7/decoder.py` in 
-this [PR](/ceph-data4/yangxiaoyu/softwares/icefall_development/icefall_random_padding/egs/librispeech/ASR/pruned_transducer_stateless7/exp_960h_no_paddingidx_ngpu4/tensorboard) to address the 
-problem of emitting the first symbol at the very beginning. If you need a 
+Note that a small change is made to the `pruned_transducer_stateless7/decoder.py` in
+this [PR](/ceph-data4/yangxiaoyu/softwares/icefall_development/icefall_random_padding/egs/librispeech/ASR/pruned_transducer_stateless7/exp_960h_no_paddingidx_ngpu4/tensorboard) to address the
+problem of emitting the first symbol at the very beginning. If you need a
 model without this issue, please download the model from here: <https://huggingface.co/marcoyang/icefall-asr-librispeech-pruned-transducer-stateless7-2023-03-10>
 
 ### LibriSpeech BPE training results (Pruned Stateless LSTM RNN-T + gradient filter)
