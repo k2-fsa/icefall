@@ -20,70 +20,12 @@ abs_repo=$(realpath $repo)
 
 log "Display test files"
 tree $repo/
-soxi $repo/test_wavs/*.wav
 ls -lh $repo/test_wavs/*.wav
 
 pushd $repo/exp
 ln -s pretrained-iter-468000-avg-16.pt pretrained.pt
 ln -s pretrained-iter-468000-avg-16.pt epoch-99.pt
 popd
-
-log  "Install ncnn and pnnx"
-
-# We are using a modified ncnn here. Will try to merge it to the official repo
-# of ncnn
-git clone https://github.com/csukuangfj/ncnn
-pushd ncnn
-git submodule init
-git submodule update python/pybind11
-python3 setup.py bdist_wheel
-ls -lh dist/
-pip install dist/*.whl
-cd tools/pnnx
-mkdir build
-cd build
-cmake ..
-make -j4 pnnx
-
-./src/pnnx || echo "pass"
-
-popd
-
-log "Test exporting to pnnx format"
-
-./lstm_transducer_stateless2/export.py \
-  --exp-dir $repo/exp \
-  --bpe-model $repo/data/lang_bpe_500/bpe.model \
-  --epoch 99 \
-  --avg 1 \
-  --use-averaged-model 0 \
-  --pnnx 1
-
-./ncnn/tools/pnnx/build/src/pnnx $repo/exp/encoder_jit_trace-pnnx.pt
-./ncnn/tools/pnnx/build/src/pnnx $repo/exp/decoder_jit_trace-pnnx.pt
-./ncnn/tools/pnnx/build/src/pnnx $repo/exp/joiner_jit_trace-pnnx.pt
-
-./lstm_transducer_stateless2/ncnn-decode.py \
- --bpe-model-filename $repo/data/lang_bpe_500/bpe.model \
- --encoder-param-filename $repo/exp/encoder_jit_trace-pnnx.ncnn.param \
- --encoder-bin-filename $repo/exp/encoder_jit_trace-pnnx.ncnn.bin \
- --decoder-param-filename $repo/exp/decoder_jit_trace-pnnx.ncnn.param \
- --decoder-bin-filename $repo/exp/decoder_jit_trace-pnnx.ncnn.bin \
- --joiner-param-filename $repo/exp/joiner_jit_trace-pnnx.ncnn.param \
- --joiner-bin-filename $repo/exp/joiner_jit_trace-pnnx.ncnn.bin \
- $repo/test_wavs/1089-134686-0001.wav
-
-./lstm_transducer_stateless2/streaming-ncnn-decode.py \
- --bpe-model-filename $repo/data/lang_bpe_500/bpe.model \
- --encoder-param-filename $repo/exp/encoder_jit_trace-pnnx.ncnn.param \
- --encoder-bin-filename $repo/exp/encoder_jit_trace-pnnx.ncnn.bin \
- --decoder-param-filename $repo/exp/decoder_jit_trace-pnnx.ncnn.param \
- --decoder-bin-filename $repo/exp/decoder_jit_trace-pnnx.ncnn.bin \
- --joiner-param-filename $repo/exp/joiner_jit_trace-pnnx.ncnn.param \
- --joiner-bin-filename $repo/exp/joiner_jit_trace-pnnx.ncnn.bin \
- $repo/test_wavs/1089-134686-0001.wav
-
-
 
 log "Test exporting with torch.jit.trace()"
 
@@ -105,47 +47,6 @@ log "Decode with models exported by torch.jit.trace()"
   $repo/test_wavs/1089-134686-0001.wav \
   $repo/test_wavs/1221-135766-0001.wav \
   $repo/test_wavs/1221-135766-0002.wav
-
-log "Test exporting to ONNX"
-
-./lstm_transducer_stateless2/export.py \
-  --exp-dir $repo/exp \
-  --bpe-model $repo/data/lang_bpe_500/bpe.model \
-  --epoch 99 \
-  --avg 1 \
-  --use-averaged-model 0 \
-  --onnx 1
-
-log "Decode with ONNX models "
-
-./lstm_transducer_stateless2/streaming-onnx-decode.py \
-  --bpe-model-filename $repo/data/lang_bpe_500/bpe.model \
-  --encoder-model-filename $repo//exp/encoder.onnx \
-  --decoder-model-filename $repo/exp/decoder.onnx \
-  --joiner-model-filename $repo/exp/joiner.onnx \
-  --joiner-encoder-proj-model-filename $repo/exp/joiner_encoder_proj.onnx \
-  --joiner-decoder-proj-model-filename $repo/exp/joiner_decoder_proj.onnx \
- $repo/test_wavs/1089-134686-0001.wav
-
-./lstm_transducer_stateless2/streaming-onnx-decode.py \
-  --bpe-model-filename $repo/data/lang_bpe_500/bpe.model \
-  --encoder-model-filename $repo//exp/encoder.onnx \
-  --decoder-model-filename $repo/exp/decoder.onnx \
-  --joiner-model-filename $repo/exp/joiner.onnx \
-  --joiner-encoder-proj-model-filename $repo/exp/joiner_encoder_proj.onnx \
-  --joiner-decoder-proj-model-filename $repo/exp/joiner_decoder_proj.onnx \
- $repo/test_wavs/1221-135766-0001.wav
-
-./lstm_transducer_stateless2/streaming-onnx-decode.py \
-  --bpe-model-filename $repo/data/lang_bpe_500/bpe.model \
-  --encoder-model-filename $repo//exp/encoder.onnx \
-  --decoder-model-filename $repo/exp/decoder.onnx \
-  --joiner-model-filename $repo/exp/joiner.onnx \
-  --joiner-encoder-proj-model-filename $repo/exp/joiner_encoder_proj.onnx \
-  --joiner-decoder-proj-model-filename $repo/exp/joiner_decoder_proj.onnx \
- $repo/test_wavs/1221-135766-0002.wav
-
-
 
 for sym in 1 2 3; do
   log "Greedy search with --max-sym-per-frame $sym"
@@ -193,7 +94,7 @@ if [[ x"${GITHUB_EVENT_LABEL_NAME}" == x"shallow-fusion" ]]; then
   ls -lh data
   ls -lh lstm_transducer_stateless2/exp
 
-  log "Decoding test-clean and test-other"
+  log "Decoding test-clean and test-other with RNN LM"
 
   ./lstm_transducer_stateless2/decode.py \
     --use-averaged-model 0 \
@@ -201,12 +102,14 @@ if [[ x"${GITHUB_EVENT_LABEL_NAME}" == x"shallow-fusion" ]]; then
     --avg 1 \
     --exp-dir lstm_transducer_stateless2/exp \
     --max-duration 600 \
-    --decoding-method modified_beam_search_rnnlm_shallow_fusion \
+    --decoding-method modified_beam_search_lm_shallow_fusion \
     --beam 4 \
-    --rnn-lm-scale 0.3 \
-    --rnn-lm-exp-dir $lm_repo/exp \
-    --rnn-lm-epoch 88 \
-    --rnn-lm-avg 1 \
+    --use-shallow-fusion 1 \
+    --lm-type rnn \
+    --lm-exp-dir $lm_repo/exp \
+    --lm-epoch 88 \
+    --lm-avg 1 \
+    --lm-scale 0.3 \
     --rnn-lm-num-layers 3 \
     --rnn-lm-tie-weights 1
 fi
@@ -245,11 +148,13 @@ if [[ x"${GITHUB_EVENT_LABEL_NAME}" == x"LODR" ]]; then
     --avg 1 \
     --exp-dir lstm_transducer_stateless2/exp \
     --max-duration 600 \
-    --decoding-method modified_beam_search_rnnlm_LODR \
+    --decoding-method modified_beam_search_LODR \
     --beam 4 \
-    --rnn-lm-scale 0.3 \
-    --rnn-lm-exp-dir $lm_repo/exp \
-    --rnn-lm-epoch 88 \
+    --use-shallow-fusion 1 \
+    --lm-type rnn \
+    --lm-exp-dir $lm_repo/exp \
+    --lm-scale 0.4 \
+    --lm-epoch 88 \
     --rnn-lm-avg 1 \
     --rnn-lm-num-layers 3 \
     --rnn-lm-tie-weights 1 \

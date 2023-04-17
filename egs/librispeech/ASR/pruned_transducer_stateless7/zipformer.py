@@ -44,7 +44,7 @@ from scaling import (
 from torch import Tensor, nn
 
 from icefall.dist import get_rank
-from icefall.utils import make_pad_mask
+from icefall.utils import is_jit_tracing, make_pad_mask
 
 
 class Zipformer(EncoderInterface):
@@ -197,20 +197,20 @@ class Zipformer(EncoderInterface):
         """
         In eval mode, returns [1.0] * num_encoders; in training mode, returns a number of
         randomized feature masks, one per encoder.
-        On e.g. 15% of frames, these masks will zero out all enocder dims larger than
+        On e.g. 15% of frames, these masks will zero out all encoder dims larger than
         some supplied number, e.g. >256, so in effect on those frames we are using
-        a smaller encoer dim.
+        a smaller encoder dim.
 
         We generate the random masks at this level because we want the 2 masks to 'agree'
         all the way up the encoder stack. This will mean that the 1st mask will have
-        mask values repeated self.zipformer_subsampling_factor times.
+        mask values repeated self.zipformer_downsampling_factors times.
 
         Args:
            x: the embeddings (needed for the shape and dtype and device), of shape
              (num_frames, batch_size, encoder_dims0)
         """
         num_encoders = len(self.encoder_dims)
-        if torch.jit.is_scripting() or not self.training:
+        if torch.jit.is_scripting() or not self.training or torch.jit.is_tracing():
             return [1.0] * num_encoders
 
         (num_frames0, batch_size, _encoder_dims0) = x.shape
@@ -293,7 +293,7 @@ class Zipformer(EncoderInterface):
             k = self.skip_layers[i]
             if isinstance(k, int):
                 layer_skip_dropout_prob = self._get_layer_skip_dropout_prob()
-                if torch.jit.is_scripting():
+                if torch.jit.is_scripting() or torch.jit.is_tracing():
                     x = skip_module(outputs[k], x)
                 elif (not self.training) or random.random() > layer_skip_dropout_prob:
                     x = skip_module(outputs[k], x)
@@ -386,7 +386,7 @@ class ZipformerEncoderLayer(nn.Module):
         )
 
     def get_bypass_scale(self):
-        if torch.jit.is_scripting() or not self.training:
+        if torch.jit.is_scripting() or not self.training or torch.jit.is_tracing():
             return self.bypass_scale
         if random.random() < 0.1:
             # ensure we get grads if self.bypass_scale becomes out of range
@@ -407,7 +407,7 @@ class ZipformerEncoderLayer(nn.Module):
         # return dropout rate for the dynamic modules (self_attn, pooling, convolution); this
         # starts at 0.2 and rapidly decreases to 0.  Its purpose is to keep the training stable
         # at the beginning, by making the network focus on the feedforward modules.
-        if torch.jit.is_scripting() or not self.training:
+        if torch.jit.is_scripting() or not self.training or torch.jit.is_tracing():
             return 0.0
         warmup_period = 2000.0
         initial_dropout_rate = 0.2
@@ -452,12 +452,12 @@ class ZipformerEncoderLayer(nn.Module):
         dynamic_dropout = self.get_dynamic_dropout_rate()
 
         # pooling module
-        if torch.jit.is_scripting():
+        if torch.jit.is_scripting() or torch.jit.is_tracing():
             src = src + self.pooling(src, key_padding_mask=src_key_padding_mask)
         elif random.random() >= dynamic_dropout:
             src = src + self.pooling(src, key_padding_mask=src_key_padding_mask)
 
-        if torch.jit.is_scripting():
+        if torch.jit.is_scripting() or torch.jit.is_tracing():
             src_att, attn_weights = self.self_attn(
                 src,
                 pos_emb=pos_emb,
@@ -658,7 +658,7 @@ class ZipformerEncoder(nn.Module):
         pos_emb = self.encoder_pos(src)
         output = src
 
-        if torch.jit.is_scripting():
+        if torch.jit.is_scripting() or torch.jit.is_tracing():
             layers_to_drop = []
         else:
             rnd_seed = src.numel() + random.randint(0, 1000)
@@ -667,7 +667,7 @@ class ZipformerEncoder(nn.Module):
         output = output * feature_mask
 
         for i, mod in enumerate(self.layers):
-            if not torch.jit.is_scripting():
+            if not torch.jit.is_scripting() and not torch.jit.is_tracing():
                 if i in layers_to_drop:
                     continue
             output = mod(
@@ -781,18 +781,18 @@ class AttentionDownsample(torch.nn.Module):
         ds = self.downsample
         d_seq_len = (seq_len + ds - 1) // ds
 
-        # Pad to an exact multiple of self.downsample
-        if seq_len != d_seq_len * ds:
-            # right-pad src, repeating the last element.
-            pad = d_seq_len * ds - seq_len
-            src_extra = src[src.shape[0] - 1 :].expand(pad, src.shape[1], src.shape[2])
-            src = torch.cat((src, src_extra), dim=0)
-            assert src.shape[0] == d_seq_len * ds, (src.shape[0], d_seq_len, ds)
+        # Pad to an exact multiple of self.downsample, could be 0 for onnx-export-compatibility
+        # right-pad src, repeating the last element.
+        pad = d_seq_len * ds - seq_len
+        src_extra = src[src.shape[0] - 1 :].expand(pad, src.shape[1], src.shape[2])
+        src = torch.cat((src, src_extra), dim=0)
+        assert src.shape[0] == d_seq_len * ds, (src.shape[0], d_seq_len, ds)
 
         src = src.reshape(d_seq_len, ds, batch_size, in_channels)
         scores = (src * self.query).sum(dim=-1, keepdim=True)
 
-        scores = penalize_abs_values_gt(scores, limit=10.0, penalty=1.0e-04)
+        if not torch.jit.is_scripting() and not torch.jit.is_tracing():
+            scores = penalize_abs_values_gt(scores, limit=10.0, penalty=1.0e-04)
 
         weights = scores.softmax(dim=1)
 
@@ -864,7 +864,7 @@ class SimpleCombiner(torch.nn.Module):
         assert src1.shape[:-1] == src2.shape[:-1], (src1.shape, src2.shape)
 
         weight1 = self.weight1
-        if not torch.jit.is_scripting():
+        if not torch.jit.is_scripting() and not torch.jit.is_tracing():
             if (
                 self.training
                 and random.random() < 0.25
@@ -904,10 +904,17 @@ class RelPositionalEncoding(torch.nn.Module):
     def __init__(self, d_model: int, dropout_rate: float, max_len: int = 5000) -> None:
         """Construct a PositionalEncoding object."""
         super(RelPositionalEncoding, self).__init__()
+        if is_jit_tracing():
+            # 10k frames correspond to ~100k ms, e.g., 100 seconds, i.e.,
+            # It assumes that the maximum input won't have more than
+            # 10k frames.
+            #
+            # TODO(fangjun): Use torch.jit.script() for this module
+            max_len = 10000
         self.d_model = d_model
         self.dropout = torch.nn.Dropout(dropout_rate)
         self.pe = None
-        self.extend_pe(torch.tensor(0.0).expand(1, max_len))
+        self.extend_pe(torch.tensor(0.0).expand(max_len))
 
     def extend_pe(self, x: Tensor) -> None:
         """Reset the positional encodings."""
@@ -1009,10 +1016,10 @@ class RelPositionMultiheadAttention(nn.Module):
         # the initial_scale is supposed to take over the "scaling" factor of
         # head_dim ** -0.5, dividing it between the query and key.
         in_proj_dim = (
-            2 * attention_dim
-            + attention_dim // 2  # query, key
-            + pos_dim * num_heads  # value
-        )  # positional encoding query
+            2 * attention_dim  # query, key
+            + attention_dim // 2  # value
+            + pos_dim * num_heads  # positional encoding query
+        )
 
         self.in_proj = ScaledLinear(
             embed_dim, in_proj_dim, bias=True, initial_scale=self.head_dim**-0.25
@@ -1258,21 +1265,31 @@ class RelPositionMultiheadAttention(nn.Module):
         # the following .as_strided() expression converts the last axis of pos_weights from relative
         # to absolute position.  I don't know whether I might have got the time-offsets backwards or
         # not, but let this code define which way round it is supposed to be.
-        pos_weights = pos_weights.as_strided(
-            (bsz, num_heads, seq_len, seq_len),
-            (
-                pos_weights.stride(0),
-                pos_weights.stride(1),
-                pos_weights.stride(2) - pos_weights.stride(3),
-                pos_weights.stride(3),
-            ),
-            storage_offset=pos_weights.stride(3) * (seq_len - 1),
-        )
+        if torch.jit.is_tracing():
+            (batch_size, num_heads, time1, n) = pos_weights.shape
+            rows = torch.arange(start=time1 - 1, end=-1, step=-1)
+            cols = torch.arange(seq_len)
+            rows = rows.repeat(batch_size * num_heads).unsqueeze(-1)
+            indexes = rows + cols
+            pos_weights = pos_weights.reshape(-1, n)
+            pos_weights = torch.gather(pos_weights, dim=1, index=indexes)
+            pos_weights = pos_weights.reshape(batch_size, num_heads, time1, seq_len)
+        else:
+            pos_weights = pos_weights.as_strided(
+                (bsz, num_heads, seq_len, seq_len),
+                (
+                    pos_weights.stride(0),
+                    pos_weights.stride(1),
+                    pos_weights.stride(2) - pos_weights.stride(3),
+                    pos_weights.stride(3),
+                ),
+                storage_offset=pos_weights.stride(3) * (seq_len - 1),
+            )
 
         # caution: they are really scores at this point.
         attn_output_weights = torch.matmul(q, k) + pos_weights
 
-        if not torch.jit.is_scripting():
+        if not torch.jit.is_scripting() and not torch.jit.is_tracing():
             if training and random.random() < 0.1:
                 # This is a harder way of limiting the attention scores to not be too large.
                 # It incurs a penalty if any of them has an absolute value greater than 50.0.
@@ -1383,7 +1400,7 @@ class RelPositionMultiheadAttention(nn.Module):
         # now v: (bsz * num_heads, seq_len, head_dim // 2)
         attn_output = torch.bmm(attn_weights, v)
 
-        if not torch.jit.is_scripting():
+        if not torch.jit.is_scripting() and not torch.jit.is_tracing():
             if random.random() < 0.001 or __name__ == "__main__":
                 self._print_attn_stats(attn_weights, attn_output)
 
@@ -1458,7 +1475,10 @@ class PoolingModule(nn.Module):
            a Tensor of shape (1, N, C)
         """
         if key_padding_mask is not None:
-            pooling_mask = key_padding_mask.logical_not().to(x.dtype)  # (N, T)
+            if torch.jit.is_tracing():
+                pooling_mask = (~key_padding_mask).to(x.dtype)
+            else:
+                pooling_mask = key_padding_mask.logical_not().to(x.dtype)  # (N, T)
             pooling_mask = pooling_mask / pooling_mask.sum(dim=1, keepdim=True)
             pooling_mask = pooling_mask.transpose(0, 1).contiguous().unsqueeze(-1)
             # now pooling_mask: (T, N, 1)
@@ -1496,7 +1516,7 @@ class FeedforwardModule(nn.Module):
 
 class ConvolutionModule(nn.Module):
     """ConvolutionModule in Zipformer model.
-    Modified from https://github.com/espnet/espnet/blob/master/espnet/nets/pytorch_backend/zipformer/convolution.py
+    Modified from https://github.com/espnet/espnet/blob/master/espnet/nets/pytorch_backend/conformer/convolution.py
 
     Args:
         channels (int): The number of channels of conv layers.

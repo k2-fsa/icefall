@@ -1,3 +1,5 @@
+.. _non_streaming_librispeech_pruned_transducer_stateless:
+
 Pruned transducer statelessX
 ============================
 
@@ -499,9 +501,10 @@ can run:
 
 
 Export model using ``torch.jit.script()``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: bash
+
   ./pruned_transducer_stateless4/export.py \
     --exp-dir ./pruned_transducer_stateless4/exp \
     --bpe-model data/lang_bpe_500/bpe.model \

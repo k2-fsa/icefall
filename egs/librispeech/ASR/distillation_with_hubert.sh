@@ -35,7 +35,7 @@ stop_stage=4
 # export CUDA_VISIBLE_DEVICES="0"
 #
 # Suppose GPU 2,3,4,5 are available.
-export CUDA_VISIBLE_DEVICES="0,1,2,3"
+# export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
 exp_dir=./pruned_transducer_stateless6/exp
 mkdir -p $exp_dir
@@ -43,13 +43,13 @@ mkdir -p $exp_dir
 # full_libri can be "True" or "False"
 #   "True" -> use full librispeech dataset for distillation
 #   "False" -> use train-clean-100 subset for distillation
-full_libri=False
+full_libri=True
 
 # use_extracted_codebook can be "True" or "False"
 #   "True" -> stage 0 and stage 1 would be skipped,
 #     and directly download the extracted codebook indexes for distillation
 #   "False" -> start from scratch
-use_extracted_codebook=False
+use_extracted_codebook=True
 
 # teacher_model_id can be one of
 #   "hubert_xtralarge_ll60k_finetune_ls960" -> fine-tuned model, it is the one we currently use.
@@ -145,8 +145,12 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
       log "Currently we only uploaded codebook indexes from teacher model hubert_xtralarge_ll60k_finetune_ls960"
       exit 1
     fi
+    # The codebook indexes to be downloaded are generated using the following setup:
+    embedding_layer=36
+    num_codebooks=8
+
     mkdir -p $exp_dir/vq
-    codebook_dir=$exp_dir/vq/$teacher_model_id
+    codebook_dir=$exp_dir/vq/${teacher_model_id}
     mkdir -p codebook_dir
     codebook_download_dir=$exp_dir/download_codebook
     if [ -d $codebook_download_dir ]; then
@@ -155,11 +159,18 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
     fi
     log "Downloading extracted codebook indexes to $codebook_download_dir"
     # Make sure you have git-lfs installed (https://git-lfs.github.com)
+    # The codebook indexes are generated using lhotse 1.11.0, to avoid
+    # potential issues, we recommend you to use lhotse version >= 1.11.0
+    lhotse_version=$(python3 -c "import lhotse; from packaging import version; print(version.parse(lhotse.version.__version__)>=version.parse('1.11.0'))")
+    if [ "$lhotse_version" == "False" ]; then
+      log "Expecting lhotse >= 1.11.0. This may lead to potential ID mismatch."
+    fi
     git lfs install
-    git clone https://huggingface.co/Zengwei/pruned_transducer_stateless6_hubert_xtralarge_ll60k_finetune_ls960 $codebook_download_dir
+    git clone https://huggingface.co/marcoyang/pruned_transducer_stateless6_hubert_xtralarge_ll60k_finetune_ls960 $codebook_download_dir
 
-    mkdir -p data/vq_fbank
-    mv $codebook_download_dir/*.jsonl.gz data/vq_fbank/
+    vq_fbank=data/vq_fbank_layer${embedding_layer}_cb${num_codebooks}/
+    mkdir -p $vq_fbank
+    mv $codebook_download_dir/*.jsonl.gz $vq_fbank
     mkdir -p $codebook_dir/splits4
     mv $codebook_download_dir/*.h5 $codebook_dir/splits4/
     log "Remove $codebook_download_dir"
@@ -169,12 +180,21 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   ./pruned_transducer_stateless6/extract_codebook_index.py \
     --full-libri $full_libri \
     --exp-dir $exp_dir \
-    --embedding-layer 36 \
+    --embedding-layer $embedding_layer \
     --num-utts 1000 \
-    --num-codebooks 8 \
+    --num-codebooks $num_codebooks \
     --max-duration 100 \
     --teacher-model-id $teacher_model_id \
     --use-extracted-codebook $use_extracted_codebook
+
+  if [ "$full_libri" == "True" ]; then
+    # Merge the 3 subsets and create a full one
+    rm ${vq_fbank}/librispeech_cuts_train-all-shuf.jsonl.gz
+    cat <(gunzip -c ${vq_fbank}/librispeech_cuts_train-clean-100.jsonl.gz) \
+      <(gunzip -c ${vq_fbank}/librispeech_cuts_train-clean-360.jsonl.gz) \
+      <(gunzip -c ${vq_fbank}/librispeech_cuts_train-other-500.jsonl.gz) | \
+      shuf | gzip -c > ${vq_fbank}/librispeech_cuts_train-all-shuf.jsonl.gz
+  fi
 fi
 
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
