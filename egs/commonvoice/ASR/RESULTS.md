@@ -3,7 +3,7 @@
 
 #### [pruned_transducer_stateless7](./pruned_transducer_stateless7)
 
-See k2-fsa#672 for more details.
+See #997  for more details.
 
 Number of model parameters: 70369391, i.e., 70.37 M
 
