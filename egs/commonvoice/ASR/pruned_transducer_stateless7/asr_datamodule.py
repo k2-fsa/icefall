@@ -91,8 +91,7 @@ class CommonVoiceAsrDataModule:
             "--cv-manifest-dir",
             type=Path,
             default=Path("data/en/fbank"),
-            help="Path to directory with CommonVoice train/dev/test "
-            "cuts.",
+            help="Path to directory with CommonVoice train/dev/test cuts.",
         )
         group.add_argument(
             "--manifest-dir",
