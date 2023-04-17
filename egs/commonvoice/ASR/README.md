@@ -14,5 +14,5 @@ The following table lists the differences among them.
 | `pruned_transducer_stateless7`        | Zipformer           | Embedding + Conv1d | First experiment with Zipformer from Dan          |
 
 The decoder in `transducer_stateless` is modified from the paper
-[Rnn-Transducer with Stateless Prediction Network](https://ieeexplore.ieee.org/document/9054419/).
+[RNN-Transducer with Stateless Prediction Network](https://ieeexplore.ieee.org/document/9054419/).
 We place an additional Conv1d layer right after the input embedding layer.
