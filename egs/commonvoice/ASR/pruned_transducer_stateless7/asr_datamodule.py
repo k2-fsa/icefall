@@ -84,14 +84,21 @@ class CommonVoiceAsrDataModule:
         group.add_argument(
             "--language",
             type=str,
-            default="en"
+            default="en",
             help="""Language of Common Voice""",
+        )
+        group.add_argument(
+            "--cv-manifest-dir",
+            type=Path,
+            default=Path("data/en/fbank"),
+            help="Path to directory with CommonVoice train/dev/test "
+            "cuts.",
         )
         group.add_argument(
             "--manifest-dir",
             type=Path,
-            default=Path("data/en/fbank"),
-            help="Path to directory with train/valid/test cuts.",
+            default=Path("data/fbank"),
+            help="Path to directory with the other cuts.",
         )
         group.add_argument(
             "--max-duration",
@@ -396,19 +403,19 @@ class CommonVoiceAsrDataModule:
     def train_cuts(self) -> CutSet:
         logging.info("About to get train cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / f"cv-{self.args.language}_cuts_train.jsonl.gz"
+            self.args.cv_manifest_dir / f"cv-{self.args.language}_cuts_train.jsonl.gz"
         )
 
     @lru_cache()
     def dev_cuts(self) -> CutSet:
         logging.info("About to get dev cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / f"cv-{self.args.language}_cuts_dev.jsonl.gz"
+            self.args.cv_manifest_dir / f"cv-{self.args.language}_cuts_dev.jsonl.gz"
         )
 
     @lru_cache()
     def test_cuts(self) -> CutSet:
         logging.info("About to get test cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / f"cv-{self.args.language}_cuts_test.jsonl.gz"
+            self.args.cv_manifest_dir / f"cv-{self.args.language}_cuts_test.jsonl.gz"
         )

@@ -1,1 +1,1 @@
-/k2-dev/yangyifan/icefall/egs/librispeech/ASR/pruned_transducer_stateless7/scaling.py
+../../../librispeech/ASR/pruned_transducer_stateless7/scaling.py

@@ -1,1 +1,1 @@
-/k2-dev/yangyifan/icefall/egs/librispeech/ASR/transducer_stateless/encoder_interface.py
+../../../librispeech/ASR/transducer_stateless/encoder_interface.py
