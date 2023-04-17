@@ -570,6 +570,7 @@ class Zipformer(EncoderInterface):
 
         return x, lengths
 
+    @torch.jit.export
     def streaming_forward(
         self,
         x: torch.Tensor,
