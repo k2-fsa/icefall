@@ -17,6 +17,7 @@
 
 import argparse
 import logging
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -40,6 +41,11 @@ def get_args():
     )
 
     return parser.parse_args()
+
+
+def normalize_text(utt: str) -> str:
+    utt = re.sub(r"[{0}]+".format("-"), " ", utt)
+    return re.sub(r"[^a-zA-Z\s]", "", utt).upper()
 
 
 def preprocess_commonvoice(
@@ -84,6 +90,17 @@ def preprocess_commonvoice(
             logging.info(f"{partition} already exists - skipping")
             continue
 
+        logging.info(f"Normalizing text in {partition}")
+        for sup in m["supervisions"]:
+            text = str(sup.text)
+            orig_text = text
+            sup.text = normalize_text(sup.text)
+            text = str(sup.text)
+            if len(orig_text) != len(text):
+                logging.info(
+                    f"\nOriginal text vs normalized text:\n{orig_text}\n{text}"
+                )
+
         # Create long-recording cut manifests.
         cut_set = CutSet.from_manifests(
             recordings=m["recordings"],
@@ -92,12 +109,6 @@ def preprocess_commonvoice(
 
         # Run data augmentation that needs to be done in the
         # time domain.
-        if "train" in partition:
-            logging.info(
-                f"Speed perturb for {partition} with factors 0.9 and 1.1 "
-                "(Perturbing may take 2 minutes and saving may take 7 minutes)"
-            )
-            cut_set = cut_set + cut_set.perturb_speed(0.9) + cut_set.perturb_speed(1.1)
         logging.info(f"Saving to {raw_cuts_path}")
         cut_set.to_file(raw_cuts_path)
 

@@ -126,7 +126,7 @@ fi
 
 if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   log "Stage 5: Split train subset into ${num_splits} pieces"
-  split_dir=data/${lang}/fbank/train_split_${num_splits}
+  split_dir=data/${lang}/fbank/cv-${lang}_train_split_${num_splits}
   if [ ! -e $split_dir/.cv-${lang}_train_split.done ]; then
     lhotse split $num_splits ./data/${lang}/fbank/cv-${lang}_cuts_train_raw.jsonl.gz $split_dir
     touch $split_dir/.cv-${lang}_train_split.done
@@ -147,10 +147,98 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
 fi
 
 if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
-  log "Stage 7: Compute fbank for musan"
+  log "Stage 7: Combine features for train"
+  if [ ! -f data/${lang}/fbank/cv-${lang}_cuts_train.jsonl.gz ]; then
+    pieces=$(find data/${lang}/fbank/cv-${lang}_train_split_${num_splits} -name "cv-${lang}_cuts_train.*.jsonl.gz")
+    lhotse combine $pieces data/${lang}/fbank/cv-${lang}_cuts_train.jsonl.gz
+  fi
+fi
+
+if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
+  log "Stage 8: Compute fbank for musan"
   mkdir -p data/fbank
   if [ ! -e data/fbank/.musan.done ]; then
     ./local/compute_fbank_musan.py
     touch data/fbank/.musan.done
   fi
+fi
+
+if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
+  log "Stage 9: Prepare BPE based lang"
+
+  for vocab_size in ${vocab_sizes[@]}; do
+    lang_dir=data/${lang}/lang_bpe_${vocab_size}
+    mkdir -p $lang_dir
+
+    if [ ! -f $lang_dir/transcript_words.txt ]; then
+      log "Generate data for BPE training"
+      file=$(
+        find "data/${lang}/fbank/cv-${lang}_cuts_train.jsonl.gz"
+      )
+      gunzip -c ${file} | awk -F '"' '{print $30}' > $lang_dir/transcript_words.txt
+
+      # Ensure space only appears once
+      sed -i 's/\t/ /g' $lang_dir/transcript_words.txt
+      sed -i 's/[ ][ ]*/ /g' $lang_dir/transcript_words.txt
+    fi
+ 
+    if [ ! -f $lang_dir/words.txt ]; then
+      cat $lang_dir/transcript_words.txt | sed 's/ /\n/g' \
+        | sort -u | sed '/^$/d' > $lang_dir/words.txt
+      (echo '!SIL'; echo '<SPOKEN_NOISE>'; echo '<UNK>'; ) |
+        cat - $lang_dir/words.txt | sort | uniq | awk '
+        BEGIN {
+          print "<eps> 0";
+        }
+        {
+          if ($1 == "<s>") {
+            print "<s> is in the vocabulary!" | "cat 1>&2"
+            exit 1;
+          }
+          if ($1 == "</s>") {
+            print "</s> is in the vocabulary!" | "cat 1>&2"
+            exit 1;
+          }
+          printf("%s %d\n", $1, NR);
+        }
+        END {
+          printf("#0 %d\n", NR+1);
+          printf("<s> %d\n", NR+2);
+          printf("</s> %d\n", NR+3);
+        }' > $lang_dir/words || exit 1;
+      mv $lang_dir/words $lang_dir/words.txt
+    fi
+ 
+    if [ ! -f $lang_dir/bpe.model ]; then
+      ./local/train_bpe_model.py \
+        --lang-dir $lang_dir \
+        --vocab-size $vocab_size \
+        --transcript $lang_dir/transcript_words.txt
+    fi
+  
+    if [ ! -f $lang_dir/L_disambig.pt ]; then
+      ./local/prepare_lang_bpe.py --lang-dir $lang_dir
+
+      log "Validating $lang_dir/lexicon.txt"
+      ./local/validate_bpe_lexicon.py \
+        --lexicon $lang_dir/lexicon.txt \
+        --bpe-model $lang_dir/bpe.model
+    fi
+
+    if [ ! -f $lang_dir/L.fst ]; then
+      log "Converting L.pt to L.fst"
+      ./shared/convert-k2-to-openfst.py \
+        --olabels aux_labels \
+        $lang_dir/L.pt \
+        $lang_dir/L.fst
+    fi
+
+    if [ ! -f $lang_dir/L_disambig.fst ]; then
+      log "Converting L_disambig.pt to L_disambig.fst"
+      ./shared/convert-k2-to-openfst.py \
+        --olabels aux_labels \
+        $lang_dir/L_disambig.pt \
+        $lang_dir/L_disambig.fst
+    fi
+  done
 fi
