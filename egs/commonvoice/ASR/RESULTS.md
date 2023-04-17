@@ -38,7 +38,7 @@ and the following commands for decoding:
   --avg 5 \
   --decoding-method greedy_search \
   --exp-dir pruned_transducer_stateless7/exp \
-  --bpe-model data/lang_bpe_500/bpe.model \
+  --bpe-model data/en/lang_bpe_500/bpe.model \
   --max-duration 600
 
 # modified beam search
@@ -48,7 +48,7 @@ and the following commands for decoding:
   --decoding-method modified_beam_search \
   --beam-size 4 \
   --exp-dir pruned_transducer_stateless7/exp \
-  --bpe-model data/lang_bpe_500/bpe.model \
+  --bpe-model data/en/lang_bpe_500/bpe.model \
   --max-duration 600
 ```
 
