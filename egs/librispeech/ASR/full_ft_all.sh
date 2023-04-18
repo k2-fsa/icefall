@@ -1,4 +1,5 @@
 #dl_dir=/DB/LibriSpeech_tar/vox
+subset=$1
 dl_dir=/DB/LibriSpeech_tar/$subset
 #dl_dir=/home/work/workspace/LibriSpeech/vox_v3
 
