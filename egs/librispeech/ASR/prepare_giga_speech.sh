@@ -95,39 +95,45 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   log "Stage 1: Prepare GigaSpeech manifest (may take 30 minutes)"
   # We assume that you have downloaded the GigaSpeech corpus
   # to $dl_dir/GigaSpeech
-  mkdir -p data/manifests
-  lhotse prepare gigaspeech \
-    --subset XL \
-    --subset L \
-    --subset M \
-    --subset S \
-    --subset XS \
-    --subset DEV \
-    --subset TEST \
-    -j $nj \
-    $dl_dir/GigaSpeech data/manifests
+  if [ ! -f data/manifests/.gigaspeech.done ]; then
+    mkdir -p data/manifests
+    lhotse prepare gigaspeech \
+      --subset XL \
+      --subset L \
+      --subset M \
+      --subset S \
+      --subset XS \
+      --subset DEV \
+      --subset TEST \
+      -j $nj \
+      $dl_dir/GigaSpeech data/manifests
+    touch data/manifests/.gigaspeech.done
+  fi
 fi
 
 if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   log "Stage 2: Preprocess GigaSpeech manifest"
-  if [ ! -f data/fbank/.preprocess_complete ]; then
-   log "It may take 2 hours for this stage"
-   python3 ./local/preprocess_gigaspeech.py
-   touch data/fbank/.preprocess_complete
+  if [ ! -f data/fbank/.gigaspeech_preprocess.done ]; then
+    log "It may take 2 hours for this stage"
+    ./local/preprocess_gigaspeech.py
+    touch data/fbank/.gigaspeech_preprocess.done
   fi
 fi
 
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
-  log "Stage 3: Compute features for DEV and TEST subsets of GigaSpeech (may take 2 minutes)"
-  python3 ./local/compute_fbank_gigaspeech_dev_test.py
+  if [ ! -f data/fbank/.gigaspeech_dev_test.done ]; then 
+    log "Stage 3: Compute features for DEV and TEST subsets of GigaSpeech (may take 2 minutes)"
+    ./local/compute_fbank_gigaspeech_dev_test.py
+    touch data/fbank/.gigaspeech_dev_test.done
+  fi
 fi
 
 if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
   log "Stage 4: Split XL subset into ${num_splits} pieces"
   split_dir=data/fbank/gigaspeech_XL_split_${num_splits}
-  if [ ! -f $split_dir/.split_completed ]; then
+  if [ ! -f $split_dir/.gigaspeech_XL_split.done ]; then
     lhotse split-lazy ./data/fbank/gigaspeech_cuts_XL_raw.jsonl.gz $split_dir $chunk_size
-    touch $split_dir/.split_completed
+    touch $split_dir/.gigaspeech_XL_split.done
   fi
 fi
 
@@ -135,8 +141,19 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   log "Stage 5: Compute features for XL"
   # Note: The script supports --start and --stop options.
   # You can use several machines to compute the features in parallel.
-  python3 ./local/compute_fbank_gigaspeech_splits.py \
-    --num-workers $nj \
-    --batch-duration 600 \
-    --num-splits $num_splits
+  if [ ! -f data/fbank/.gigaspeech_XL.done ]; then
+    ./local/compute_fbank_gigaspeech_splits.py \
+      --num-workers $nj \
+      --batch-duration 600 \
+      --num-splits $num_splits
+    touch data/fbank/.gigaspeech_XL.done
+  fi
+fi
+
+if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
+  log "Stage 6: Combine features for XL (may take 3 hours)"
+  if [ ! -f data/fbank/cuts_XL.jsonl.gz ]; then
+    pieces=$(find data/fbank/XL_split -name "cuts_XL.*.jsonl.gz")
+    lhotse combine $pieces data/fbank/cuts_XL.jsonl.gz
+  fi
 fi
