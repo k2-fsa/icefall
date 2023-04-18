@@ -1064,7 +1064,8 @@ def train_one_epoch(
 
         if params.print_diagnostics and batch_idx == 5:
             return
-
+        
+        '''
         if (
             rank == 0
             and params.batch_idx_train > 0
@@ -1075,6 +1076,7 @@ def train_one_epoch(
                 model_cur=model,
                 model_avg=model_avg,
             )
+        '''
 
         if (
             params.batch_idx_train > 0
