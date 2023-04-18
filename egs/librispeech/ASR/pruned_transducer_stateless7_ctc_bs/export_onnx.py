@@ -2,7 +2,7 @@
 #
 # Copyright 2021 Xiaomi Corporation (Author: Fangjun Kuang,
 #                                            Yifan   Yang)
-#           2023 NVIDIA Corporation (Author: Wen Ding)
+#           2023 NVIDIA Corporation (Author: Wen     Ding)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -43,6 +43,7 @@ Check `onnx_check.py` for how to use them.
     - joiner_decoder_proj.onnx
     - lconv.onnx
     - frame_reducer.onnx
+    - ctc_output.onnx
 
 (2) Export to ONNX format which can be used in Triton Server
 ./pruned_transducer_stateless7_ctc_bs/export_onnx.py \
@@ -52,6 +53,15 @@ Check `onnx_check.py` for how to use them.
   --avg 13 \
   --onnx-triton 1
 
+It will generate the following files in the given `exp_dir`.
+
+    - encoder.onnx
+    - decoder.onnx
+    - joiner.onnx
+    - joiner_encoder_proj.onnx
+    - joiner_decoder_proj.onnx
+    - lconv.onnx
+    - ctc_output.onnx
 
 Please see ./onnx_pretrained.py for usage of the generated files
 
@@ -157,7 +167,8 @@ def get_parser():
         type=str2bool,
         default=False,
         help="""If True, --jit is ignored and it exports the model
-        to onnx format. It will generate the following files:
+        to onnx format.
+        It will generate the following files:
 
             - encoder.onnx
             - decoder.onnx
@@ -166,6 +177,7 @@ def get_parser():
             - joiner_decoder_proj.onnx
             - lconv.onnx
             - frame_reducer.onnx
+            - ctc_output.onnx
 
         Refer to ./onnx_check.py and ./onnx_pretrained.py for how to use them.
         """,
@@ -177,13 +189,15 @@ def get_parser():
         help="""If True, and it exports the model
         to onnx format which can be used in NVIDIA triton server. 
         It will generate the following files:
+
             - encoder.onnx
             - decoder.onnx
             - joiner.onnx
             - joiner_encoder_proj.onnx
             - joiner_decoder_proj.onnx
             - lconv.onnx
-            - ctc_model.onnx
+            - frame_reducer.onnx
+            - ctc_output.onnx
         """,
     )
 
