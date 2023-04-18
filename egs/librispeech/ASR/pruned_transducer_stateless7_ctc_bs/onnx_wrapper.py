@@ -88,10 +88,8 @@ class TritonOnnxLconv(nn.Module):
     ) -> torch.Tensor:
         """
         Args:
-          encoder_out:
-            Output from the encoder. Its shape is (N, T, C).
-          decoder_out:
-            Output from the decoder. Its shape is (N, T, C).
+          lconv_input: Its shape is (N, T, C).
+          lconv_input_lens: Its shape is (N, ).
         Returns:
           Return a tensor of shape (N, T, C).
         """

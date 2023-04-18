@@ -183,7 +183,7 @@ def get_parser():
             - joiner_encoder_proj.onnx
             - joiner_decoder_proj.onnx
             - lconv.onnx
-            - frame_reducer.onnx
+            - ctc_model.onnx
         """,
     )
 
@@ -569,7 +569,7 @@ def export_lconv_onnx_triton(
     The exported lconv has two inputs:
 
         - lconv_input: a tensor of shape (N, T, C)
-        - src_key_padding_mask: a tensor of shape (N, T)
+        - lconv_input_lens: a tensor of shape (N, )
 
     and has one output:
 
