@@ -53,5 +53,6 @@ else
 		--additional-block True \
 		--prune-range 10 \
 		--context-size 2 \
-		--ctc-loss-scale 0.2 
+		--ctc-loss-scale 0.2 \
+		--spk-id $2	
 fi
