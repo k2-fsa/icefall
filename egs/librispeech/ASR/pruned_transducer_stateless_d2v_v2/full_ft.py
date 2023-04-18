@@ -1180,7 +1180,8 @@ def train_one_epoch(
                 wb.log({"train/simple_loss": loss_info["simple_loss"]*numel})
                 wb.log({"train/pruned_loss": loss_info["pruned_loss"]*numel})
                 wb.log({"train/ctc_loss": loss_info["ctc_loss"]*numel})
-
+    
+    '''
     logging.info("Computing validation loss")
     valid_info = compute_validation_loss(
         params=params,
@@ -1211,7 +1212,7 @@ def train_one_epoch(
     if params.train_loss < params.best_train_loss:
         params.best_train_epoch = params.cur_epoch
         params.best_train_loss = params.train_loss
-
+    '''
 
 def run(rank, world_size, args, wb=None):
     """
@@ -1562,6 +1563,7 @@ def run_adapter(rank, world_size, args, wb=None):
         train_cuts += librispeech.train_other_500_cuts()
     '''
     train_cuts = librispeech.vox_cuts(option=params.spk_id)
+
     def remove_short_and_long_utt(c: Cut):
         return 1.0 <= c.duration <= 20.0
 
