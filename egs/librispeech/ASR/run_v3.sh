@@ -39,7 +39,7 @@ else
 		--full-libri 1 \
 		--exp-dir ./pruned_transducer_stateless_d2v_v2/$1 \
 		--max-duration 150 \
-		--freeze-finetune-updates 3000 \
+		--freeze-finetune-updates 0 \
 		--encoder-dim 768 \
 		--decoder-dim 768 \
 		--joiner-dim 768 \
