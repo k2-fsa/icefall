@@ -321,3 +321,21 @@ if [ "${multidataset[@]}" =~ "commonvoice"]; then
   log "Dataset: CommonVoice"
   ./prepare_common_voice
 fi
+
+# Shuffle multidataset
+if [ ! -f data/fbank/multidataset-train.jsonl.gz ]; then
+  cp data/fbank/librispeech_cuts_train-all-shuf.jsonl.gz data/fbank/multidataset-train.jsonl.gz
+  if [ "${multidataset[@]}" =~ "gigaspeech"]; then
+    log "Mix GigaSpeech XL into multidataset"
+    cat <(gunzip data/fbank/multidataset-train.jsonl.gz) \
+      <(gunzip -c data/fbank/cuts_XL.jsonl.gz) | \
+      shuf | gzip > data/fbank/multidataset-train.jsonl.gz
+  fi
+
+  if [ "${multidataset[@]}" =~ "commonvoice"]; then
+    log "Mix CommonVoice into multidataset"
+    cat <(gunzip data/fbank/multidataset-train.jsonl.gz) \
+      <(gunzip -c data/en/fbank/cv-en_cuts_train.jsonl.gz) | \
+      shuf | gzip > data/fbank/multidataset-train.jsonl.gz
+  fi
+fi
