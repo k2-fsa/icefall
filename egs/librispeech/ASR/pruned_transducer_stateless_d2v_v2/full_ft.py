@@ -1262,13 +1262,8 @@ def run(rank, world_size, args, wb=None):
 
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
-
-    assert params.save_every_n >= params.average_period
-    model_avg: Optional[nn.Module] = None
-    if rank == 0:
-        # model_avg is only used with rank 0
-        model_avg = copy.deepcopy(model).to(torch.float64)
-
+    
+    model_avg = None
     assert params.start_epoch > 0, params.start_epoch
     checkpoints = load_checkpoint_if_available(
         params=params, model=model, model_avg=model_avg
