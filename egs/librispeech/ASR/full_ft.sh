@@ -30,7 +30,7 @@ if [ $workstation = "whale" ]; then
 		--ctc-loss-scale 0.2 
 else
 	export CUDA_VISIBLE_DEVICES="0,1,2,3"
-	./pruned_transducer_stateless_d2v_v2/train.py \
+	./pruned_transducer_stateless_d2v_v2/full_ft.py \
 		--wandb False \
 		--input-strategy AudioSamples \
 		--enable-spec-aug False \
