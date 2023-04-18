@@ -8,6 +8,6 @@ for dest in "test-clean" "test-other"; do
 	for spk in $dl_dir/$dest/*; do
 		spk_id=${spk#*$dest\/}
 		echo $spk_id
-		./full_ft.sh "$spk_id"_adapter_30m $spk_id bear $subset
+		./full_ft.sh "$spk_id"_fullft $spk_id bear $subset
 	done
 done
