@@ -196,7 +196,6 @@ def get_parser():
             - joiner_encoder_proj.onnx
             - joiner_decoder_proj.onnx
             - lconv.onnx
-            - frame_reducer.onnx
             - ctc_output.onnx
         """,
     )
@@ -875,12 +874,13 @@ def main():
             opset_version=opset_version,
         )
 
-    frame_reducer_filename = params.exp_dir / "frame_reducer.onnx"
-    export_frame_reducer_onnx(
-        model.frame_reducer,
-        frame_reducer_filename,
-        opset_version=opset_version,
-    )
+    if params.onnx is True:
+        frame_reducer_filename = params.exp_dir / "frame_reducer.onnx"
+        export_frame_reducer_onnx(
+            model.frame_reducer,
+            frame_reducer_filename,
+            opset_version=opset_version,
+        )
 
     ctc_output_filename = params.exp_dir / "ctc_output.onnx"
     export_ctc_output_onnx(
