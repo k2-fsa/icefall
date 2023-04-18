@@ -16,15 +16,13 @@ import torch
 from torch import nn
 from icefall.utils import make_pad_mask
 
+
 class TritonOnnxDecoder(nn.Module):
     """
     Triton wrapper for decoder model
     """
 
-    def __init__(
-        self,
-        model
-    ):
+    def __init__(self, model):
         """
         Args:
             model: decoder model
@@ -43,6 +41,7 @@ class TritonOnnxDecoder(nn.Module):
         """
         need_pad = False
         return self.model(y, need_pad)
+
 
 class TritonOnnxJoiner(nn.Module):
     def __init__(
@@ -72,6 +71,7 @@ class TritonOnnxJoiner(nn.Module):
         project_input = False
         return self.model(encoder_out, decoder_out, project_input)
 
+
 class TritonOnnxLconv(nn.Module):
     def __init__(
         self,
@@ -96,4 +96,3 @@ class TritonOnnxLconv(nn.Module):
         mask = make_pad_mask(lconv_input_lens)
 
         return self.model(x=lconv_input, src_key_padding_mask=mask)
-

@@ -300,6 +300,7 @@ def export_decoder_model_onnx(
     )
     logging.info(f"Saved to {decoder_filename}")
 
+
 def export_decoder_model_onnx_triton(
     decoder_model: nn.Module,
     decoder_filename: str,
@@ -336,6 +337,7 @@ def export_decoder_model_onnx_triton(
         },
     )
     logging.info(f"Saved to {decoder_filename}")
+
 
 def export_joiner_model_onnx(
     joiner_model: nn.Module,
@@ -432,6 +434,7 @@ def export_joiner_model_onnx(
     )
     logging.info(f"Saved to {decoder_proj_filename}")
 
+
 def export_joiner_model_onnx_triton(
     joiner_model: nn.Module,
     joiner_filename: str,
@@ -516,6 +519,7 @@ def export_joiner_model_onnx_triton(
     )
     logging.info(f"Saved to {decoder_proj_filename}")
 
+
 def export_lconv_onnx(
     lconv: nn.Module,
     lconv_filename: str,
@@ -559,6 +563,7 @@ def export_lconv_onnx(
     )
     logging.info(f"Saved to {lconv_filename}")
 
+
 def export_lconv_onnx_triton(
     lconv: nn.Module,
     lconv_filename: str,
@@ -584,7 +589,7 @@ def export_lconv_onnx_triton(
         The opset version to use.
     """
     lconv_input = torch.zeros(15, 498, 384, dtype=torch.float32)
-    lconv_input_lens = torch.tensor([498]*15, dtype=torch.int64)
+    lconv_input_lens = torch.tensor([498] * 15, dtype=torch.int64)
 
     lconv = TritonOnnxLconv(lconv)
 
@@ -827,7 +832,6 @@ def main():
             decoder_filename,
             opset_version=opset_version,
         )
-
 
     joiner_filename = params.exp_dir / "joiner.onnx"
     if params.onnx is True:
