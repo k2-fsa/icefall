@@ -687,7 +687,7 @@ def load_checkpoint_if_available(
     elif params.add_adapter:
         filename = params.exp_dir / f"d2v-base-T.pt"
     else:
-        return None
+        filename = params.exp_dir / f"d2v-base-T.pt"
 
     assert filename.is_file(), f"{filename} does not exist!"
 
