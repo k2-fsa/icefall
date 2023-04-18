@@ -34,10 +34,8 @@ else
 		--wandb False \
 		--input-strategy AudioSamples \
 		--enable-spec-aug False \
-		--multi-optim False \
-		--start-epoch 28 \
+		--multi-optim True \
 		--world-size 4 \
-		--num-epochs 30 \
 		--full-libri 1 \
 		--exp-dir ./pruned_transducer_stateless_d2v_v2/$1 \
 		--max-duration 150 \
@@ -45,7 +43,7 @@ else
 		--encoder-dim 768 \
 		--decoder-dim 768 \
 		--joiner-dim 768 \
-		--use-fp16 0 \
+		--use-fp16 1 \
 		--peak-dec-lr 0.04175 \
 		--peak-enc-lr 0.0003859 \
 		--accum-grads 4 \
