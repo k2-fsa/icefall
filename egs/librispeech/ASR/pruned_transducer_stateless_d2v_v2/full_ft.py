@@ -1554,12 +1554,14 @@ def run_adapter(rank, world_size, args, wb=None):
     optimizer, scheduler = optimizer_adapter, scheduler_adapter
     
     librispeech = LibriSpeechAsrDataModule(args)
-
+    
+    '''
     train_cuts = librispeech.train_clean_100_cuts()
     if params.full_libri:
         train_cuts += librispeech.train_clean_360_cuts()
         train_cuts += librispeech.train_other_500_cuts()
-
+    '''
+    train_cuts = librispeech.vox_cuts(option=params.spk_id)
     def remove_short_and_long_utt(c: Cut):
         return 1.0 <= c.duration <= 20.0
 
