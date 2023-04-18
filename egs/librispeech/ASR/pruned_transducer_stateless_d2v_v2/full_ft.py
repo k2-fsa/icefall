@@ -333,6 +333,13 @@ def get_parser():
         default=30,
         help="Number of epochs to train.",
     )
+    
+    parser.add_argument(
+        "--num-updates",
+        type=int,
+        default=5000,
+        help="Number of epochs to train.",
+    )
 
     parser.add_argument(
         "--start-epoch",
