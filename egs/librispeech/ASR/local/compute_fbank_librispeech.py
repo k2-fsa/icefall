@@ -65,7 +65,7 @@ def get_args():
         "--perturb-speed",
         type=str,
         default=True,
-        help="""Perturb speed with factor 0.9 and 1.1 on train subset."""
+        help="""Perturb speed with factor 0.9 and 1.1 on train subset.""",
     )
 
     return parser.parse_args()
@@ -135,7 +135,9 @@ def compute_fbank_librispeech(
                     cut_set = filter_cuts(cut_set, sp)
                 if perturb_speed:
                     cut_set = (
-                        cut_set + cut_set.perturb_speed(0.9) + cut_set.perturb_speed(1.1)
+                        cut_set
+                        + cut_set.perturb_speed(0.9)
+                        + cut_set.perturb_speed(1.1)
                     )
             cut_set = cut_set.compute_and_store_features(
                 extractor=extractor,
