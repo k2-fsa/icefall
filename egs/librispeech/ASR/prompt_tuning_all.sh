@@ -8,6 +8,6 @@ for dest in "test-clean" "test-other"; do
 	for spk in $dl_dir/$dest/*; do
 		spk_id=${spk#*$dest\/}
 		echo $spk_id
-		./prompt_tuning.sh prompt_tuning_30_"$spk_id" $spk_id $subset
+		./prompt_tuning.sh prompt_tuning_40_"$spk_id" $spk_id $subset
 	done
 done
