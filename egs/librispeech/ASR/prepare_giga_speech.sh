@@ -121,8 +121,8 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
 fi
 
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
+  log "Stage 3: Compute features for DEV and TEST subsets of GigaSpeech (may take 2 minutes)"
   if [ ! -f data/fbank/.gigaspeech_dev_test.done ]; then 
-    log "Stage 3: Compute features for DEV and TEST subsets of GigaSpeech (may take 2 minutes)"
     ./local/compute_fbank_gigaspeech_dev_test.py
     touch data/fbank/.gigaspeech_dev_test.done
   fi
@@ -151,7 +151,7 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
 fi
 
 if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
-  log "Stage 6: Combine features for XL (may take 3 hours)"
+  log "Stage 6: Combine features for XL (may take 13 hours)"
   if [ ! -f data/fbank/cuts_XL.jsonl.gz ]; then
     pieces=$(find data/fbank/gigaspeech_XL_split_${num_splits} -name "cuts_XL.*.jsonl.gz")
     lhotse combine $pieces data/fbank/cuts_XL.jsonl.gz
