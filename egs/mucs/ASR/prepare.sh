@@ -6,8 +6,8 @@ export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
 set -eou pipefail
 
 nj=60
-stage=8
-stop_stage=8
+stage=3
+stop_stage=3
 
 # We assume dl_dir (download dir) contains the following
 # directories and files. If not, they will be downloaded
@@ -97,12 +97,12 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
     touch data/fbank/.mucs.done
   fi
 
-  
+  # exit
 
   if [ ! -e data/fbank/.mucs-validated.done ]; then
     log "Validating data/fbank for mucs"
     parts=(
-      train
+      train,
       test
     )
     for part in ${parts[@]}; do

@@ -104,6 +104,8 @@ def compute_fbank_mucs(
 
     with get_executor() as ex:  # Initialize the executor only once.
         for partition, m in manifests.items():
+            # print(m["recordings"])
+            # exit()
             cuts_filename = f"{prefix}_cuts_{partition}.{suffix}"
             if (output_dir / cuts_filename).is_file():
                 logging.info(f"{partition} already exists - skipping.")
@@ -128,6 +130,9 @@ def compute_fbank_mucs(
                 executor=ex,
                 storage_type=LilcomChunkyWriter,
             )
+            cut_set = cut_set.trim_to_supervisions(
+            keep_overlapping=False, min_duration=None
+        )
             cut_set.to_file(output_dir / cuts_filename)
 
 
