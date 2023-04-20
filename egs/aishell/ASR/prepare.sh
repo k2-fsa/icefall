@@ -308,7 +308,7 @@ if [ $stage -le 11 ] && [ $stop_stage -ge 11 ]; then
     --batch-size 400 \
     --exp-dir rnnlm_char/exp \
     --lm-data $out_dir/sorted_lm_data.pt \
-    --lm-data-valid $out_dir/sorted_lm_data_valid.pt \
+    --lm-data-valid $out_dir/sorted_lm_data-valid.pt \
     --vocab-size 4336 \
     --master-port 12345
 fi
