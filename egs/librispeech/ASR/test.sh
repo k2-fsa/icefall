@@ -21,7 +21,7 @@ do
 		--avg 1 \
 		--use-averaged-model True \
 		--spk-id $spk_id \
-		--res-name fullft
+		--res-name fullft_check$i
 		#--res-name promptlen20_check$i
 	done
 done
