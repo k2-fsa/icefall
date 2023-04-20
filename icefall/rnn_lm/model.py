@@ -47,6 +47,11 @@ class RnnLmModel(torch.nn.Module):
             and https://arxiv.org/abs/1611.01462
         """
         super().__init__()
+        self.vocab_size = vocab_size
+        self.embedding_dim = embedding_dim
+        self.hidden_dim = hidden_dim
+        self.num_layers = num_layers
+        self.tie_weights = tie_weights
 
         self.input_embedding = torch.nn.Embedding(
             num_embeddings=vocab_size,

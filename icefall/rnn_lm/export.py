@@ -118,6 +118,7 @@ def get_parser():
     return parser
 
 
+@torch.no_grad()
 def main():
     args = get_parser().parse_args()
     args.exp_dir = Path(args.exp_dir)
