@@ -66,8 +66,8 @@ def decode_dataset(
     for batch_idx, batch in enumerate(dl):
         texts = batch["supervisions"]["text"]
         for text in texts:
-            sum_n += len(list(model.full_scores(text)))
-            sum_score_log += -1 * sum(score for score, _, _ in model.full_scores(text))
+            sum_n += len(text.split()) + 1
+            sum_score_log += -1 * model.score(text) 
 
     ppl = math.pow(10.0, sum_score_log / sum_n)
 
