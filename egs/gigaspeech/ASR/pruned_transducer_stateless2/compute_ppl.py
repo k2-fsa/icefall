@@ -55,7 +55,7 @@ def decode_dataset(
     """
     Args:
       dl:
-        PyTorch's dataloader containing the dataset to decode. 
+        PyTorch's dataloader containing the dataset to decode.
       model:
         A ngram lm of kenlm.Model object.
     Returns:
@@ -69,7 +69,7 @@ def decode_dataset(
             sum_n += len(list(model.full_scores(text)))
             sum_score_log += -1 * sum(score for score, _, _ in model.full_scores(text))
 
-    ppl = math.pow(10.0, sum_score_log / sum_n )
+    ppl = math.pow(10.0, sum_score_log / sum_n)
 
     return ppl
 
