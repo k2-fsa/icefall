@@ -291,6 +291,13 @@ def main():
         opset_version=opset_version,
     )
 
+    filename_int8 = params.exp_dir / f"no-state-{suffix}.int8.onnx"
+    quantize_dynamic(
+        model_input=filename,
+        model_output=filename_int8,
+        weight_type=QuantType.QInt8,
+    )
+
 
 if __name__ == "__main__":
     formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"

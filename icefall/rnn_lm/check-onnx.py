@@ -48,11 +48,10 @@ class OnnxModel:
         session_opts = ort.SessionOptions()
         session_opts.inter_op_num_threads = 1
         session_opts.intra_op_num_threads = 1
-        self.session_opts = session_opts
 
         self.model = ort.InferenceSession(
             filename,
-            sess_options=self.session_opts,
+            sess_options=session_opts,
         )
 
         meta_data = self.model.get_modelmeta().custom_metadata_map
@@ -79,7 +78,7 @@ def main():
     args = get_parser().parse_args()
     logging.info(vars(args))
 
-    torch_model = torch.jit.load(args.jit)
+    torch_model = torch.jit.load(args.jit).cpu()
     onnx_model = OnnxModel(args.onnx)
     N = torch.arange(1, 5).tolist()
 
@@ -98,7 +97,13 @@ def main():
 
         torch_nll = torch_model(sos_x, x_eos, x_lens + 1)
         onnx_nll = onnx_model(x, x_lens)
-        assert torch.allclose(torch_nll, onnx_nll), (torch_nll - onnx_nll).abs().max()
+        # Note: For int8 models, the differences may be quite large,
+        # e.g., within 0.9
+        assert torch.allclose(torch_nll, onnx_nll), (
+            torch_nll,
+            onnx_nll,
+            (torch_nll - onnx_nll).abs().max(),
+        )
         print(n, L, torch_nll.sum(), onnx_nll.sum())
 
 
