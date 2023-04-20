@@ -230,7 +230,7 @@ if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
   if [ ! -f $dl_dir/lm/aishell-train-word.txt ]; then
     cp $lang_phone_dir/transcript_words.txt $dl_dir/lm/aishell-train-word.txt
   fi
-  
+
   # training words
   ./local/prepare_char_lm_training_data.py \
     --lang-char data/lang_char \
@@ -278,7 +278,7 @@ if [ $stage -le 10 ] && [ $stop_stage -ge 10 ]; then
   out_dir=data/lm_training_char
   mkdir -p $out_dir
   ln -snf ../../../librispeech/ASR/local/sort_lm_training_data.py local/
-  
+
   ./local/sort_lm_training_data.py \
     --in-lm-data $out_dir/lm_data.pt \
     --out-lm-data $out_dir/sorted_lm_data.pt \
@@ -306,9 +306,9 @@ if [ $stage -le 11 ] && [ $stop_stage -ge 11 ]; then
     --hidden-dim 512 \
     --num-layers 2 \
     --batch-size 400 \
-    --exp-dir rnnlm_char/exp_aishell1_small \
-    --lm-data data/lm_char/sorted_lm_data_aishell1.pt \
-    --lm-data-valid data/lm_char/sorted_lm_data_valid.pt \
+    --exp-dir rnnlm_char/exp \
+    --lm-data $out_dir/sorted_lm_data.pt \
+    --lm-data-valid $out_dir/sorted_lm_data_valid.pt \
     --vocab-size 4336 \
     --master-port 12345
 fi
