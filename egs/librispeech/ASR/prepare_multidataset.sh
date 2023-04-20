@@ -367,5 +367,7 @@ if [ $stage -le 11 ] && [ $stop_stage -ge 11 ]; then
       done
       touch $split_dir/.multidataset_mix.done
     fi
+
+    touch data/fbank/multidataset_split/.multidataset.done
   fi
 fi
