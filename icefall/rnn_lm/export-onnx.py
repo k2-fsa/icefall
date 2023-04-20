@@ -64,16 +64,19 @@ class RnnLmModelWrapper(torch.nn.Module):
         """
         N = x.size(0)
 
-        sos_tensor = torch.full((1,), fill_value=self.sos_id).expand(N, 1)
-        eos_tensor = torch.full((1,), fill_value=self.eos_id).expand(N, 1)
-
+        sos_tensor = torch.full((1,), fill_value=self.sos_id, dtype=x.dtype).expand(
+            N, 1
+        )
         sos_x = torch.cat([sos_tensor, x], dim=1)
-        x_eos = torch.cat([x, eos_tensor], dim=1)
 
-        sos_x_length = x_lens + 1
-        print(sos_x.shape, x_eos.shape)
+        pad_col = torch.zeros((1,), dtype=x.dtype).expand(N, 1)
+        x_eos = torch.cat([x, pad_col], dim=1)
 
-        return self.model(x=sos_x, y=x_eos, lengths=sos_x_length).to(torch.float32)
+        row_index = torch.arange(0, N, dtype=x.dtype)
+        x_eos[row_index, x_lens] = self.eos_id
+
+        # use x_lens + 1 here since we prepended x with sos
+        return self.model(x=sos_x, y=x_eos, lengths=x_lens + 1).to(torch.float32)
 
 
 def get_parser():

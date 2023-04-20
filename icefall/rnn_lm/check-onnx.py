@@ -90,10 +90,15 @@ def main():
         x_lens = torch.full((n,), fill_value=L, dtype=torch.int64)
         if n > 1:
             x_lens[0] = L // 2 + 1
+
         sos = torch.full((1,), fill_value=onnx_model.sos_id).expand(n, 1)
-        eos = torch.full((1,), fill_value=onnx_model.eos_id).expand(n, 1)
         sos_x = torch.cat([sos, x], dim=1)
-        x_eos = torch.cat([x, eos], dim=1)
+
+        pad_col = torch.zeros((1,), dtype=x.dtype).expand(n, 1)
+        x_eos = torch.cat([x, pad_col], dim=1)
+
+        row_index = torch.arange(0, n, dtype=x.dtype)
+        x_eos[row_index, x_lens] = onnx_model.eos_id
 
         torch_nll = torch_model(sos_x, x_eos, x_lens + 1)
         onnx_nll = onnx_model(x, x_lens)
