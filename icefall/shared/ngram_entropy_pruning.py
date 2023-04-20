@@ -18,10 +18,11 @@
 """
 Usage:
 ./ngram_entropy_pruning.py \
-    -threshold 1e8 \
+    -threshold 1e-8 \
     -lm download/lm/4gram.arpa \
     -write-lm download/lm/4gram_pruned_1e8.arpa
 
+This file is from Kaldi `egs/wsj/s5/utils/lang/ngram_entropy_pruning.py`.
 This is an implementation of ``Entropy-based Pruning of Backoff Language Models''
 in the same way as SRILM.
 """
