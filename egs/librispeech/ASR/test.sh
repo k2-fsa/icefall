@@ -22,7 +22,7 @@ do
 		--use-averaged-model True \
 		--spk-id $spk_id \
 		--prompt True \
-		--res-name promptlen40_check$i
+		--res-name promptlen30_check$i
 		#--res-name fullft_check$i
 	done
 done
