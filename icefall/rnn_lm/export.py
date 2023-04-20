@@ -26,7 +26,7 @@ import torch
 from model import RnnLmModel
 
 from icefall.checkpoint import average_checkpoints, find_checkpoints, load_checkpoint
-from icefall.utils import AttributeDict, load_averaged_model, str2bool
+from icefall.utils import AttributeDict, str2bool
 
 
 def get_parser():
