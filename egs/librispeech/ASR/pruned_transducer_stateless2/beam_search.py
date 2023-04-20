@@ -1257,6 +1257,223 @@ def modified_beam_search_lm_rescore(
     return ans
 
 
+def modified_beam_search_lm_rescore_LODR(
+    model: Transducer,
+    encoder_out: torch.Tensor,
+    encoder_out_lens: torch.Tensor,
+    LM: LmScorer,
+    LODR_lm: NgramLm,
+    sp: spm.SentencePieceProcessor,
+    lm_scale_list: List[int],
+    beam: int = 4,
+    temperature: float = 1.0,
+    return_timestamps: bool = False,
+) -> Union[List[List[int]], DecodingResults]:
+    """Beam search in batch mode with --max-sym-per-frame=1 being hardcoded.
+    Rescore the final results with RNNLM and return the one with the highest score
+
+    Args:
+      model:
+        The transducer model.
+      encoder_out:
+        Output from the encoder. Its shape is (N, T, C).
+      encoder_out_lens:
+        A 1-D tensor of shape (N,), containing number of valid frames in
+        encoder_out before padding.
+      beam:
+        Number of active paths during the beam search.
+      temperature:
+        Softmax temperature.
+      LM:
+        A neural network language model
+      return_timestamps:
+        Whether to return timestamps.
+    Returns:
+      If return_timestamps is False, return the decoded result.
+      Else, return a DecodingResults object containing
+      decoded result and corresponding timestamps.
+    """
+    assert encoder_out.ndim == 3, encoder_out.shape
+    assert encoder_out.size(0) >= 1, encoder_out.size(0)
+
+    packed_encoder_out = torch.nn.utils.rnn.pack_padded_sequence(
+        input=encoder_out,
+        lengths=encoder_out_lens.cpu(),
+        batch_first=True,
+        enforce_sorted=False,
+    )
+
+    blank_id = model.decoder.blank_id
+    unk_id = getattr(model, "unk_id", blank_id)
+    context_size = model.decoder.context_size
+    device = next(model.parameters()).device
+
+    batch_size_list = packed_encoder_out.batch_sizes.tolist()
+    N = encoder_out.size(0)
+    assert torch.all(encoder_out_lens > 0), encoder_out_lens
+    assert N == batch_size_list[0], (N, batch_size_list)
+
+    B = [HypothesisList() for _ in range(N)]
+    for i in range(N):
+        B[i].add(
+            Hypothesis(
+                ys=[blank_id] * context_size,
+                log_prob=torch.zeros(1, dtype=torch.float32, device=device),
+                timestamp=[],
+            )
+        )
+
+    encoder_out = model.joiner.encoder_proj(packed_encoder_out.data)
+
+    offset = 0
+    finalized_B = []
+    for (t, batch_size) in enumerate(batch_size_list):
+        start = offset
+        end = offset + batch_size
+        current_encoder_out = encoder_out.data[start:end]
+        current_encoder_out = current_encoder_out.unsqueeze(1).unsqueeze(1)
+        # current_encoder_out's shape is (batch_size, 1, 1, encoder_out_dim)
+        offset = end
+
+        finalized_B = B[batch_size:] + finalized_B
+        B = B[:batch_size]
+
+        hyps_shape = get_hyps_shape(B).to(device)
+
+        A = [list(b) for b in B]
+        B = [HypothesisList() for _ in range(batch_size)]
+
+        ys_log_probs = torch.cat(
+            [hyp.log_prob.reshape(1, 1) for hyps in A for hyp in hyps]
+        )  # (num_hyps, 1)
+
+        decoder_input = torch.tensor(
+            [hyp.ys[-context_size:] for hyps in A for hyp in hyps],
+            device=device,
+            dtype=torch.int64,
+        )  # (num_hyps, context_size)
+
+        decoder_out = model.decoder(decoder_input, need_pad=False).unsqueeze(1)
+        decoder_out = model.joiner.decoder_proj(decoder_out)
+        # decoder_out is of shape (num_hyps, 1, 1, joiner_dim)
+
+        # Note: For torch 1.7.1 and below, it requires a torch.int64 tensor
+        # as index, so we use `to(torch.int64)` below.
+        current_encoder_out = torch.index_select(
+            current_encoder_out,
+            dim=0,
+            index=hyps_shape.row_ids(1).to(torch.int64),
+        )  # (num_hyps, 1, 1, encoder_out_dim)
+
+        logits = model.joiner(
+            current_encoder_out,
+            decoder_out,
+            project_input=False,
+        )  # (num_hyps, 1, 1, vocab_size)
+
+        logits = logits.squeeze(1).squeeze(1)  # (num_hyps, vocab_size)
+
+        log_probs = (logits / temperature).log_softmax(dim=-1)  # (num_hyps, vocab_size)
+
+        log_probs.add_(ys_log_probs)
+
+        vocab_size = log_probs.size(-1)
+
+        log_probs = log_probs.reshape(-1)
+
+        row_splits = hyps_shape.row_splits(1) * vocab_size
+        log_probs_shape = k2.ragged.create_ragged_shape2(
+            row_splits=row_splits, cached_tot_size=log_probs.numel()
+        )
+        ragged_log_probs = k2.RaggedTensor(shape=log_probs_shape, value=log_probs)
+
+        for i in range(batch_size):
+            topk_log_probs, topk_indexes = ragged_log_probs[i].topk(beam)
+
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                topk_hyp_indexes = (topk_indexes // vocab_size).tolist()
+                topk_token_indexes = (topk_indexes % vocab_size).tolist()
+
+            for k in range(len(topk_hyp_indexes)):
+                hyp_idx = topk_hyp_indexes[k]
+                hyp = A[i][hyp_idx]
+
+                new_ys = hyp.ys[:]
+                new_token = topk_token_indexes[k]
+                new_timestamp = hyp.timestamp[:]
+                if new_token not in (blank_id, unk_id):
+                    new_ys.append(new_token)
+                    new_timestamp.append(t)
+
+                new_log_prob = topk_log_probs[k]
+                new_hyp = Hypothesis(
+                    ys=new_ys, log_prob=new_log_prob, timestamp=new_timestamp
+                )
+                B[i].add(new_hyp)
+
+    B = B + finalized_B
+
+    # get the am_scores for n-best list
+    hyps_shape = get_hyps_shape(B)
+    am_scores = torch.tensor([hyp.log_prob.item() for b in B for hyp in b])
+    am_scores = k2.RaggedTensor(value=am_scores, shape=hyps_shape).to(device)
+
+    # now LM rescore
+    # prepare input data to LM
+    candidate_seqs = [hyp.ys[context_size:] for b in B for hyp in b]
+    possible_seqs = k2.RaggedTensor(candidate_seqs)
+    row_splits = possible_seqs.shape.row_splits(1)
+    sentence_token_lengths = row_splits[1:] - row_splits[:-1]
+    possible_seqs_with_sos = add_sos(possible_seqs, sos_id=1)
+    possible_seqs_with_eos = add_eos(possible_seqs, eos_id=1)
+    sentence_token_lengths += 1
+
+    x = possible_seqs_with_sos.pad(mode="constant", padding_value=blank_id)
+    y = possible_seqs_with_eos.pad(mode="constant", padding_value=blank_id)
+    x = x.to(device).to(torch.int64)
+    y = y.to(device).to(torch.int64)
+    sentence_token_lengths = sentence_token_lengths.to(device).to(torch.int64)
+
+    lm_scores = LM.lm(x=x, y=y, lengths=sentence_token_lengths)
+    assert lm_scores.ndim == 2
+    lm_scores = -1 * lm_scores.sum(dim=1)
+
+    # now LODR scores
+    import math
+
+    LODR_scores = []
+    for seq in candidate_seqs:
+        tokens = " ".join(sp.id_to_piece(seq))
+        score = sum([entry[0] for entry in LODR_lm.full_scores(tokens)])
+        LODR_scores.append(score)
+    LODR_scores = torch.tensor(LODR_scores).to(device) * math.log(
+        10
+    )  # arpa scores are 10-based
+    assert lm_scores.shape == LODR_scores.shape
+
+    ans = {}
+    unsorted_indices = packed_encoder_out.unsorted_indices.tolist()
+
+    LODR_scale_list = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
+    # get the best hyp with different lm_scale
+    for lm_scale in lm_scale_list:
+        for lodr_scale in LODR_scale_list:
+            key = f"nnlm_scale_{lm_scale:.2f}_lodr_scale_{lodr_scale:.2f}"
+            tot_scores = (
+                am_scores.values / lm_scale + lm_scores - LODR_scores * lodr_scale
+            )
+            ragged_tot_scores = k2.RaggedTensor(shape=am_scores.shape, value=tot_scores)
+            max_indexes = ragged_tot_scores.argmax().tolist()
+            unsorted_hyps = [candidate_seqs[idx] for idx in max_indexes]
+            hyps = []
+            for idx in unsorted_indices:
+                hyps.append(unsorted_hyps[idx])
+
+            ans[key] = hyps
+    return ans
+
+
 def _deprecated_modified_beam_search(
     model: Transducer,
     encoder_out: torch.Tensor,

@@ -123,6 +123,7 @@ from beam_search import (
     greedy_search_batch,
     modified_beam_search,
     modified_beam_search_lm_rescore,
+    modified_beam_search_lm_rescore_LODR,
     modified_beam_search_lm_shallow_fusion,
 )
 from train import add_model_arguments, get_params, get_transducer_model
@@ -336,6 +337,14 @@ def get_parser():
         """,
     )
 
+    parser.add_argument(
+        "--tokens-ngram",
+        type=int,
+        default=2,
+        help="""The order of the ngram lm.
+        """,
+    )
+
     add_model_arguments(parser)
 
     return parser
@@ -349,6 +358,7 @@ def decode_one_batch(
     word_table: Optional[k2.SymbolTable] = None,
     decoding_graph: Optional[k2.Fsa] = None,
     LM: Optional[LmScorer] = None,
+    ngram_lm=None,
 ) -> Dict[str, List[List[str]]]:
     """Decode one batch and return the result in a dict. The dict has the
     following format:
@@ -493,6 +503,18 @@ def decode_one_batch(
             LM=LM,
             lm_scale_list=lm_scale_list,
         )
+    elif params.decoding_method == "modified_beam_search_lm_rescore_LODR":
+        lm_scale_list = [0.05 * i for i in range(1, 10)]
+        ans_dict = modified_beam_search_lm_rescore_LODR(
+            model=model,
+            encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
+            beam=params.beam_size,
+            LM=LM,
+            LODR_lm=ngram_lm,
+            sp=sp,
+            lm_scale_list=lm_scale_list,
+        )
     else:
         batch_size = encoder_out.size(0)
 
@@ -531,7 +553,10 @@ def decode_one_batch(
                 key += f"_ngram_lm_scale_{params.ngram_lm_scale}"
 
         return {key: hyps}
-    elif params.decoding_method == "modified_beam_search_lm_rescore":
+    elif params.decoding_method in (
+        "modified_beam_search_lm_rescore",
+        "modified_beam_search_lm_rescore_LODR",
+    ):
         ans = dict()
         assert ans_dict is not None
         for key, hyps in ans_dict.items():
@@ -550,6 +575,7 @@ def decode_dataset(
     word_table: Optional[k2.SymbolTable] = None,
     decoding_graph: Optional[k2.Fsa] = None,
     LM: Optional[LmScorer] = None,
+    ngram_lm=None,
 ) -> Dict[str, List[Tuple[str, List[str], List[str]]]]:
     """Decode dataset.
 
@@ -568,6 +594,8 @@ def decode_dataset(
         The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
         only when --decoding_method is fast_beam_search, fast_beam_search_nbest,
         fast_beam_search_nbest_oracle, and fast_beam_search_nbest_LG.
+      ngram_lm:
+        A n-gram LM to be used for LODR.
     Returns:
       Return a dict, whose key may be "greedy_search" if greedy search
       is used, or it may be "beam_7" if beam size of 7 is used.
@@ -600,6 +628,7 @@ def decode_dataset(
             word_table=word_table,
             batch=batch,
             LM=LM,
+            ngram_lm=ngram_lm,
         )
 
         for name, hyps in hyps_dict.items():
@@ -679,6 +708,7 @@ def main():
         "modified_beam_search",
         "modified_beam_search_lm_shallow_fusion",
         "modified_beam_search_lm_rescore",
+        "modified_beam_search_lm_rescore_LODR",
     )
     params.res_dir = params.exp_dir / params.decoding_method
 
@@ -834,6 +864,24 @@ def main():
     else:
         LM = None
 
+    if params.decoding_method == "modified_beam_search_lm_rescore_LODR":
+        try:
+            import kenlm
+        except ImportError:
+            print("Please install kenlm first. You can use")
+            print()
+            print(" pip install https://github.com/kpu/kenlm/archive/master.zip")
+            print()
+            print("to install it")
+            import sys
+
+            sys.exit(-1)
+        ngram_file_name = str(params.lang_dir / f"{params.tokens_ngram}gram.arpa")
+        logging.info(f"lm filename: {ngram_file_name}")
+        ngram_lm = kenlm.Model(ngram_file_name)
+    else:
+        ngram_lm = None
+
     if "fast_beam_search" in params.decoding_method:
         if params.decoding_method == "fast_beam_search_nbest_LG":
             lexicon = Lexicon(params.lang_dir)
@@ -876,6 +924,7 @@ def main():
             word_table=word_table,
             decoding_graph=decoding_graph,
             LM=LM,
+            ngram_lm=ngram_lm,
         )
 
         save_results(
