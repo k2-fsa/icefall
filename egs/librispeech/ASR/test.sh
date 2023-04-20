@@ -11,7 +11,7 @@ do
 		--additional-block True \
 		--exp-dir ./pruned_transducer_stateless_d2v_v2/$2 \
 		--model-name checkpoint-$i.pt \
-		--max-duration 60 \
+		--max-duration 1200 \
 		--decoding-method $method \
 		--max-sym-per-frame 1 \
 		--encoder-type d2v \
