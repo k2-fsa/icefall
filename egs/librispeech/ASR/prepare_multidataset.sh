@@ -36,6 +36,11 @@ stop_stage=100
 #     - music
 #     - noise
 #     - speech
+
+# Split all dataset to this number of pieces and mix each dataset pieces
+# into multidataset pieces with shuffling.
+num_splits=1998
+
 dl_dir=$PWD/download
 
 . shared/parse_options.sh || exit 1
@@ -197,7 +202,6 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   fi
 fi
 
-
 if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
   log "Stage 6: Prepare BPE based lang"
 
@@ -315,7 +319,7 @@ if [ $stage -le 10 ] && [ $stop_stage -ge 10 ]; then
   # GigaSpeech
   if [[ "${multidataset[@]}" =~ "gigaspeech" ]]; then
     log "Dataset: GigaSpeech"
-    ./prepare_giga_speech.sh
+    ./prepare_giga_speech.sh --stop_stage 5
   fi
 
   # CommonVoice
@@ -326,21 +330,42 @@ if [ $stage -le 10 ] && [ $stop_stage -ge 10 ]; then
 fi
 
 if [ $stage -le 11 ] && [ $stop_stage -ge 11 ]; then
-  log "Stage 11: Mix and shuffle into multidataset"
-  if [ ! -f data/fbank/multidataset-train.jsonl.gz ]; then
-    cp data/fbank/librispeech_cuts_train-all-shuf.jsonl.gz data/fbank/multidataset-train.jsonl.gz
+  log "Stage 11: Create multidataset"
+  split_dir=data/fbank/multidataset_split_${num_splits}
+  if [ ! -f data/fbank/multidataset_split/.multidataset.done ]; then
+    mkdir -p $split_dir/multidataset
+    log "Split LibriSpeech"
+    if [ ! -f $split_dir/.librispeech_split.done ]; then
+      lhotse split $num_splits ./data/fbank/librispeech_cuts_train-all-shuf.jsonl.gz $split_dir
+      touch $split_dir/.librispeech_split.done
+    fi
+
     if [[ "${multidataset[@]}" =~ "gigaspeech" ]]; then
-      log "Mix GigaSpeech XL into multidataset"
-      cat <(gunzip data/fbank/multidataset-train.jsonl.gz) \
-        <(gunzip -c data/fbank/cuts_XL.jsonl.gz) | \
-        shuf | gzip > data/fbank/multidataset-train.jsonl.gz
+      log "Split GigaSpeech XL"
+      if [ ! -f $split_dir/.gigaspeech_XL_split.done ]; then
+	cd $split_dir
+        ln -sv ../gigaspeech_XL_split_2000/gigaspeech_cuts_XL.*.jsonl.gz .
+        cd ../../..	
+	touch $split_dir/.gigaspeech_XL_split.done
+      fi
     fi
 
     if [[ "${multidataset[@]}" =~ "commonvoice" ]]; then
-      log "Mix CommonVoice into multidataset"
-      cat <(gunzip data/fbank/multidataset-train.jsonl.gz) \
-        <(gunzip -c data/en/fbank/cv-en_cuts_train.jsonl.gz) | \
-        shuf | gzip > data/fbank/multidataset-train.jsonl.gz
+      log "Split CommonVoice"
+      if [ ! -f $split_dir/.cv-en_train_split.done ]; then
+        lhotse split $num_splits ./data/en/fbank/cv-en_cuts_train.jsonl.gz $split_dir
+        touch $split_dir/.cv-en_train_split.done
+      fi
+    fi
+
+    if [ ! -f $split_dir/.multidataset_mix.done ]; then
+      log "Mix multidataset"
+      for ((seq=1; seq<=$num_splits; seq++)); do
+	fseq=$(printf "%04d" $seq)
+	gunzip -c $split_dir/*.*${fseq}.jsonl.gz | \
+	  shuf | gzip -c > $split_dir/multidataset/multidataset_cuts_train.${fseq}.jsonl.gz
+      done
+      touch $split_dir/.multidataset_mix.done
     fi
   fi
 fi

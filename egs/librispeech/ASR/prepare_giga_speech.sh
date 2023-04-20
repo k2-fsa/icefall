@@ -152,8 +152,8 @@ fi
 
 if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
   log "Stage 6: Combine features for XL (may take 15 hours)"
-  if [ ! -f data/fbank/cuts_XL.jsonl.gz ]; then
-    pieces=$(find data/fbank/gigaspeech_XL_split_${num_splits} -name "cuts_XL.*.jsonl.gz")
-    lhotse combine $pieces data/fbank/cuts_XL.jsonl.gz
+  if [ ! -f data/fbank/gigaspeech_cuts_XL.jsonl.gz ]; then
+    pieces=$(find data/fbank/gigaspeech_XL_split_${num_splits} -name "gigaspeech_cuts_XL.*.jsonl.gz")
+    lhotse combine $pieces data/fbank/gigaspeech_cuts_XL.jsonl.gz
   fi
 fi
