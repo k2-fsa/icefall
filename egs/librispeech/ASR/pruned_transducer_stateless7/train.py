@@ -1115,7 +1115,7 @@ def run(rank, world_size, args):
     valid_cuts += librispeech.dev_other_cuts()
     valid_dl = librispeech.valid_dataloaders(valid_cuts)
 
-    if not params.print_diagnostics:
+    if not params.use_multidataset and not params.print_diagnostics:
         scan_pessimistic_batches_for_oom(
             model=model,
             train_dl=train_dl,

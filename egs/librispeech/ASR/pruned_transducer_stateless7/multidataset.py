@@ -1,4 +1,4 @@
-# Copyright      2022  Xiaomi Corp.        (authors: Yifan Yang)
+# Copyright      2023  Xiaomi Corp.        (authors: Yifan Yang)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -26,22 +26,27 @@ from lhotse import CutSet, load_manifest_lazy
 
 class MultiDataset:
     def __init__(self, manifest_dir: str):
+        """
+        Args:
+          manifest_dir:
+            It is expected to contain the following files:
+
+            - multidataset_split_1998/multidataset/multidataset_cuts_train.*.jsonl.gz 
+        """
         self.manifest_dir = Path(manifest_dir)
 
     def train_cuts(self) -> CutSet:
         logging.info("About to get multidataset train cuts")
 
-        filenames = list(
-            glob.glob(
-                f"{self.manifest_dir}/multidataset_split_1998/multidataset/multidataset_cuts_train.*.jsonl.gz"
-            )
+        filenames = glob.glob(
+            f"{self.manifest_dir}/multidataset_split_1998/multidataset/multidataset_cuts_train.*.jsonl.gz"
         )
 
         pattern = re.compile(r"multidataset_cuts_train.([0-9]+).jsonl.gz")
-        idx_filenames = [(int(pattern.search(f).group(1)), f) for f in filenames]
+        idx_filenames = ((int(pattern.search(f).group(1)), f) for f in filenames)
         idx_filenames = sorted(idx_filenames, key=lambda x: x[0])
 
-        sorted_filenames = [f[1] for f in idx_filenames]
+        sorted_filenames = (f[1] for f in idx_filenames)
 
         logging.info(f"Loading {len(sorted_filenames)} splits")
 

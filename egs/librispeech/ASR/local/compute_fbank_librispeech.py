@@ -134,6 +134,7 @@ def compute_fbank_librispeech(
                 if bpe_model:
                     cut_set = filter_cuts(cut_set, sp)
                 if perturb_speed:
+                    logging.info(f"Doing speed perturb")
                     cut_set = (
                         cut_set
                         + cut_set.perturb_speed(0.9)
