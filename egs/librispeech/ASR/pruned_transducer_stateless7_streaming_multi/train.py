@@ -46,6 +46,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
 import argparse
 import copy
 import logging
+import random
 import warnings
 from pathlib import Path
 from shutil import copyfile
@@ -57,12 +58,15 @@ import sentencepiece as spm
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
-from asr_datamodule import LibriSpeechAsrDataModule
+from asr_datamodule import AsrDataModule
 from decoder import Decoder
+from gigaspeech import GigaSpeech
 from joiner import Joiner
+from lhotse import CutSet, load_manifest
 from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
+from librispeech import LibriSpeech
 from model import Transducer
 from optim import Eden, ScaledAdam
 from torch import Tensor
@@ -220,6 +224,13 @@ def get_parser():
         type=str2bool,
         default=True,
         help="Should various information be logged in tensorboard.",
+    )
+
+    parser.add_argument(
+        "--full-libri",
+        type=str2bool,
+        default=True,
+        help="When enabled, use 960h LibriSpeech. Otherwise, use 100h subset.",
     )
 
     parser.add_argument(
@@ -388,6 +399,13 @@ def get_parser():
         type=str2bool,
         default=False,
         help="Whether to use half precision training.",
+    )
+
+    parser.add_argument(
+        "--giga-prob",
+        type=float,
+        default=0.5,
+        help="The probability to select a batch from the GigaSpeech dataset",
     )
 
     add_model_arguments(parser)
@@ -642,6 +660,17 @@ def save_checkpoint(
         copyfile(src=filename, dst=best_valid_filename)
 
 
+def is_libri(c: Cut) -> bool:
+    """Return True if this cut is from the LibriSpeech dataset.
+
+    Note:
+      During data preparation, we set the custom field in
+      the supervision segment of GigaSpeech to dict(origin='giga')
+      See ../local/preprocess_gigaspeech.py.
+    """
+    return c.supervisions[0].custom is None
+
+
 def compute_loss(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
@@ -765,7 +794,9 @@ def train_one_epoch(
     scheduler: LRSchedulerType,
     sp: spm.SentencePieceProcessor,
     train_dl: torch.utils.data.DataLoader,
+    giga_train_dl: torch.utils.data.DataLoader,
     valid_dl: torch.utils.data.DataLoader,
+    rng: random.Random,
     scaler: GradScaler,
     model_avg: Optional[nn.Module] = None,
     tb_writer: Optional[SummaryWriter] = None,
@@ -805,17 +836,36 @@ def train_one_epoch(
     """
     model.train()
 
+    libri_tot_loss = MetricsTracker()
+    giga_tot_loss = MetricsTracker()
     tot_loss = MetricsTracker()
 
-    cur_batch_idx = params.get("cur_batch_idx", 0)
+    # index 0: for LibriSpeech
+    # index 1: for GigaSpeech
+    # This sets the probabilities for choosing which datasets
+    dl_weights = [1 - params.giga_prob, params.giga_prob]
+    iter_libri = iter(train_dl)
+    iter_giga = iter(giga_train_dl)
 
-    for batch_idx, batch in enumerate(train_dl):
-        if batch_idx < cur_batch_idx:
-            continue
-        cur_batch_idx = batch_idx
+    batch_idx = 0
+
+    while True:
+        idx = rng.choices((0, 1), weights=dl_weights, k=1)[0]
+        dl = iter_libri if idx == 0 else iter_giga
+
+        try:
+            batch = next(dl)
+        except StopIteration:
+            name = "libri" if idx == 0 else "giga"
+            logging.info(f"{name} reaches end of dataloader")
+            break
+
+        batch_idx += 1
 
         params.batch_idx_train += 1
         batch_size = len(batch["supervisions"]["text"])
+
+        libri = is_libri(batch["supervisions"]["cut"][0])
 
         try:
             with torch.cuda.amp.autocast(enabled=params.use_fp16):
@@ -828,6 +878,17 @@ def train_one_epoch(
                 )
             # summary stats
             tot_loss = (tot_loss * (1 - 1 / params.reset_interval)) + loss_info
+
+            if libri:
+                libri_tot_loss = (
+                    libri_tot_loss * (1 - 1 / params.reset_interval)
+                ) + loss_info
+                prefix = "libri"  # for logging only
+            else:
+                giga_tot_loss = (
+                    giga_tot_loss * (1 - 1 / params.reset_interval)
+                ) + loss_info
+                prefix = "giga"
 
             # NOTE: We use reduction==sum and loss is computed over utterances
             # in the batch and there is no normalization to it so far.
@@ -900,8 +961,11 @@ def train_one_epoch(
 
             logging.info(
                 f"Epoch {params.cur_epoch}, "
-                f"batch {batch_idx}, loss[{loss_info}], "
-                f"tot_loss[{tot_loss}], batch size: {batch_size}, "
+                f"batch {batch_idx}, {prefix}_loss[{loss_info}], "
+                f"tot_loss[{tot_loss}], "
+                f"libri_tot_loss[{libri_tot_loss}], "
+                f"giga_tot_loss[{giga_tot_loss}], "
+                f"batch size: {batch_size}, "
                 f"lr: {cur_lr:.2e}, "
                 + (f"grad_scale: {scaler._scale.item()}" if params.use_fp16 else "")
             )
@@ -915,6 +979,13 @@ def train_one_epoch(
                     tb_writer, "train/current_", params.batch_idx_train
                 )
                 tot_loss.write_summary(tb_writer, "train/tot_", params.batch_idx_train)
+                tot_loss.write_summary(tb_writer, "train/tot_", params.batch_idx_train)
+                libri_tot_loss.write_summary(
+                    tb_writer, "train/libri_tot_", params.batch_idx_train
+                )
+                giga_tot_loss.write_summary(
+                    tb_writer, "train/giga_tot_", params.batch_idx_train
+                )
                 if params.use_fp16:
                     tb_writer.add_scalar(
                         "train/grad_scale",
@@ -948,6 +1019,40 @@ def train_one_epoch(
         params.best_train_loss = params.train_loss
 
 
+def filter_short_and_long_utterances(
+    cuts: CutSet, sp: spm.SentencePieceProcessor
+) -> CutSet:
+    def remove_short_and_long_utt(c: Cut):
+        # Keep only utterances with duration between 1 second and 20 seconds
+        #
+        # Caution: There is a reason to select 20.0 here. Please see
+        # ../local/display_manifest_statistics.py
+        #
+        # You should use ../local/display_manifest_statistics.py to get
+        # an utterance duration distribution for your dataset to select
+        # the threshold
+        if c.duration < 1.0 or c.duration > 20.0:
+            return False
+
+        # In pruned RNN-T, we require that T >= S
+        # where T is the number of feature frames after subsampling
+        # and S is the number of tokens in the utterance
+
+        # In ./zipformer.py, the conv module uses the following expression
+        # for subsampling
+        T = ((c.num_frames - 7) // 2 + 1) // 2
+        tokens = sp.encode(c.supervisions[0].text, out_type=str)
+
+        if T < len(tokens):
+            return False
+
+        return True
+
+    cuts = cuts.filter(remove_short_and_long_utt)
+
+    return cuts
+
+
 def run(rank, world_size, args):
     """
     Args:
@@ -966,6 +1071,7 @@ def run(rank, world_size, args):
         params.valid_interval = 1600
 
     fix_random_seed(params.seed)
+    rng = random.Random(params.seed)
     if world_size > 1:
         setup_dist(rank, world_size, params.master_port)
 
@@ -1047,51 +1153,51 @@ def run(rank, world_size, args):
     if params.inf_check:
         register_inf_check_hooks(model)
 
-    librispeech = LibriSpeechAsrDataModule(args)
+    librispeech = LibriSpeech(manifest_dir=args.manifest_dir)
 
     train_cuts = librispeech.train_clean_100_cuts()
     if params.full_libri:
         train_cuts += librispeech.train_clean_360_cuts()
         train_cuts += librispeech.train_other_500_cuts()
 
-    def remove_short_and_long_utt(c: Cut):
-        # Keep only utterances with duration between 1 second and 20 seconds
-        #
-        # Caution: There is a reason to select 20.0 here. Please see
-        # ../local/display_manifest_statistics.py
-        #
-        # You should use ../local/display_manifest_statistics.py to get
-        # an utterance duration distribution for your dataset to select
-        # the threshold
-        if c.duration < 1.0 or c.duration > 20.0:
-            logging.warning(
-                f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
-            )
-            return False
+    train_cuts = filter_short_and_long_utterances(train_cuts, sp)
 
-        # In pruned RNN-T, we require that T >= S
-        # where T is the number of feature frames after subsampling
-        # and S is the number of tokens in the utterance
+    gigaspeech = GigaSpeech(manifest_dir=args.manifest_dir)
+    # XL 10k hours
+    # L  2.5k hours
+    # M  1k hours
+    # S  250 hours
+    # XS 10 hours
+    # DEV 12 hours
+    # Test 40 hours
+    if params.full_libri:
+        logging.info("Using the XL subset of GigaSpeech (10k hours)")
+        train_giga_cuts = gigaspeech.train_XL_cuts()
+    else:
+        logging.info("Using the S subset of GigaSpeech (250 hours)")
+        train_giga_cuts = gigaspeech.train_S_cuts()
 
-        # In ./zipformer.py, the conv module uses the following expression
-        # for subsampling
-        T = ((c.num_frames - 7) // 2 + 1) // 2
-        tokens = sp.encode(c.supervisions[0].text, out_type=str)
+    train_giga_cuts = filter_short_and_long_utterances(train_giga_cuts, sp)
+    train_giga_cuts = train_giga_cuts.repeat(times=None)
 
-        if T < len(tokens):
-            logging.warning(
-                f"Exclude cut with ID {c.id} from training. "
-                f"Number of frames (before subsampling): {c.num_frames}. "
-                f"Number of frames (after subsampling): {T}. "
-                f"Text: {c.supervisions[0].text}. "
-                f"Tokens: {tokens}. "
-                f"Number of tokens: {len(tokens)}"
-            )
-            return False
+    if args.enable_musan:
+        cuts_musan = load_manifest(Path(args.manifest_dir) / "musan_cuts.jsonl.gz")
+    else:
+        cuts_musan = None
 
-        return True
+    asr_datamodule = AsrDataModule(args)
 
-    # train_cuts = train_cuts.filter(remove_short_and_long_utt)
+    train_dl = asr_datamodule.train_dataloaders(
+        train_cuts,
+        on_the_fly_feats=False,
+        cuts_musan=cuts_musan,
+    )
+
+    giga_train_dl = asr_datamodule.train_dataloaders(
+        train_giga_cuts,
+        on_the_fly_feats=False,
+        cuts_musan=cuts_musan,
+    )
 
     if params.start_batch > 0 and checkpoints and "sampler" in checkpoints:
         # We only load the sampler's state dict when it loads a checkpoint
@@ -1100,13 +1206,9 @@ def run(rank, world_size, args):
     else:
         sampler_state_dict = None
 
-    train_dl = librispeech.train_dataloaders(
-        train_cuts, sampler_state_dict=sampler_state_dict
-    )
-
     valid_cuts = librispeech.dev_clean_cuts()
     valid_cuts += librispeech.dev_other_cuts()
-    valid_dl = librispeech.valid_dataloaders(valid_cuts)
+    valid_dl = asr_datamodule.valid_dataloaders(valid_cuts)
 
     # if not params.print_diagnostics:
     #     scan_pessimistic_batches_for_oom(
@@ -1140,7 +1242,9 @@ def run(rank, world_size, args):
             scheduler=scheduler,
             sp=sp,
             train_dl=train_dl,
+            giga_train_dl=giga_train_dl,
             valid_dl=valid_dl,
+            rng=rng,
             scaler=scaler,
             tb_writer=tb_writer,
             world_size=world_size,
@@ -1245,9 +1349,11 @@ def scan_pessimistic_batches_for_oom(
 
 def main():
     parser = get_parser()
-    LibriSpeechAsrDataModule.add_arguments(parser)
+    AsrDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
+
+    assert 0 <= args.giga_prob < 1, args.giga_prob
 
     world_size = args.world_size
     assert world_size >= 1

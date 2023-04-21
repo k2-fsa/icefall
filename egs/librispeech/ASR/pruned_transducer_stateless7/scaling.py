@@ -777,8 +777,9 @@ class WithLoss(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, ans_grad: Tensor):
-        return ans_grad, torch.ones(
-            ctx.y_shape, dtype=ans_grad.dtype, device=ans_grad.device
+        return (
+            ans_grad,
+            torch.ones(ctx.y_shape, dtype=ans_grad.dtype, device=ans_grad.device),
         )
 
 

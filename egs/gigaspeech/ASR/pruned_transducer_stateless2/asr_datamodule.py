@@ -387,14 +387,16 @@ class GigaSpeechAsrDataModule:
     @lru_cache()
     def train_cuts(self) -> CutSet:
         logging.info(f"About to get train_{self.args.subset} cuts")
-        path = self.args.manifest_dir / f"cuts_{self.args.subset}.jsonl.gz"
+        path = self.args.manifest_dir / f"gigaspeech_cuts_{self.args.subset}.jsonl.gz"
         cuts_train = CutSet.from_jsonl_lazy(path)
         return cuts_train
 
     @lru_cache()
     def dev_cuts(self) -> CutSet:
         logging.info("About to get dev cuts")
-        cuts_valid = load_manifest_lazy(self.args.manifest_dir / "cuts_DEV.jsonl.gz")
+        cuts_valid = load_manifest_lazy(
+            self.args.manifest_dir / "gigaspeech_cuts_DEV.jsonl.gz"
+        )
         if self.args.small_dev:
             return cuts_valid.subset(first=1000)
         else:
@@ -403,4 +405,6 @@ class GigaSpeechAsrDataModule:
     @lru_cache()
     def test_cuts(self) -> CutSet:
         logging.info("About to get test cuts")
-        return load_manifest_lazy(self.args.manifest_dir / "cuts_TEST.jsonl.gz")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "gigaspeech_cuts_TEST.jsonl.gz"
+        )
