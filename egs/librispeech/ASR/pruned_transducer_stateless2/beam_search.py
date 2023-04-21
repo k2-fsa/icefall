@@ -1445,8 +1445,7 @@ def modified_beam_search_lm_rescore_LODR(
     LODR_scores = []
     for seq in candidate_seqs:
         tokens = " ".join(sp.id_to_piece(seq))
-        score = sum([entry[0] for entry in LODR_lm.full_scores(tokens)])
-        LODR_scores.append(score)
+        LODR_scores.append(LODR_lm.score(tokens))
     LODR_scores = torch.tensor(LODR_scores).to(device) * math.log(
         10
     )  # arpa scores are 10-based
@@ -1455,7 +1454,28 @@ def modified_beam_search_lm_rescore_LODR(
     ans = {}
     unsorted_indices = packed_encoder_out.unsorted_indices.tolist()
 
-    LODR_scale_list = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
+    LODR_scale_list = [
+        0.05,
+        0.1,
+        0.15,
+        0.2,
+        0.25,
+        0.3,
+        0.35,
+        0.4,
+        0.45,
+        0.5,
+        0.55,
+        0.6,
+        0.65,
+        0.7,
+        0.75,
+        0.8,
+        0.85,
+        0.9,
+        0.95,
+        1.0,
+    ]
     # get the best hyp with different lm_scale
     for lm_scale in lm_scale_list:
         for lodr_scale in LODR_scale_list:
