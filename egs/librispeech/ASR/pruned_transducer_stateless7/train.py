@@ -1061,44 +1061,44 @@ def run(rank, world_size, args):
         else:
             train_cuts = librispeech.train_clean_100_cuts()
 
-        def remove_short_and_long_utt(c: Cut):
-            # Keep only utterances with duration between 1 second and 20 seconds
-            #
-            # Caution: There is a reason to select 20.0 here. Please see
-            # ../local/display_manifest_statistics.py
-            #
-            # You should use ../local/display_manifest_statistics.py to get
-            # an utterance duration distribution for your dataset to select
-            # the threshold
-            if c.duration < 1.0 or c.duration > 20.0:
-                logging.warning(
-                    f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
-                )
-                return False
+    def remove_short_and_long_utt(c: Cut):
+        # Keep only utterances with duration between 1 second and 20 seconds
+        #
+        # Caution: There is a reason to select 20.0 here. Please see
+        # ../local/display_manifest_statistics.py
+        #
+        # You should use ../local/display_manifest_statistics.py to get
+        # an utterance duration distribution for your dataset to select
+        # the threshold
+        if c.duration < 1.0 or c.duration > 20.0:
+            logging.warning(
+                f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
+            )
+            return False
 
-            # In pruned RNN-T, we require that T >= S
-            # where T is the number of feature frames after subsampling
-            # and S is the number of tokens in the utterance
+        # In pruned RNN-T, we require that T >= S
+        # where T is the number of feature frames after subsampling
+        # and S is the number of tokens in the utterance
 
-            # In ./zipformer.py, the conv module uses the following expression
-            # for subsampling
-            T = ((c.num_frames - 7) // 2 + 1) // 2
-            tokens = sp.encode(c.supervisions[0].text, out_type=str)
+        # In ./zipformer.py, the conv module uses the following expression
+        # for subsampling
+        T = ((c.num_frames - 7) // 2 + 1) // 2
+        tokens = sp.encode(c.supervisions[0].text, out_type=str)
 
-            if T < len(tokens):
-                logging.warning(
-                    f"Exclude cut with ID {c.id} from training. "
-                    f"Number of frames (before subsampling): {c.num_frames}. "
-                    f"Number of frames (after subsampling): {T}. "
-                    f"Text: {c.supervisions[0].text}. "
-                    f"Tokens: {tokens}. "
-                    f"Number of tokens: {len(tokens)}"
-                )
-                return False
+        if T < len(tokens):
+            logging.warning(
+                f"Exclude cut with ID {c.id} from training. "
+                f"Number of frames (before subsampling): {c.num_frames}. "
+                f"Number of frames (after subsampling): {T}. "
+                f"Text: {c.supervisions[0].text}. "
+                f"Tokens: {tokens}. "
+                f"Number of tokens: {len(tokens)}"
+            )
+            return False
 
-            return True
+        return True
 
-        train_cuts = train_cuts.filter(remove_short_and_long_utt)
+    train_cuts = train_cuts.filter(remove_short_and_long_utt)
 
     if params.start_batch > 0 and checkpoints and "sampler" in checkpoints:
         # We only load the sampler's state dict when it loads a checkpoint
