@@ -154,17 +154,18 @@ class RnnLmModel(torch.nn.Module):
         self.cache = {}
 
     def score_token(self, x: torch.Tensor, x_lens: torch.Tensor, state=None):
-        """Score a batch of tokens
+        """Score a batch of tokens, i.e each sample in the batch should be a
+        single token. For example, x = torch.tensor([[5],[10],[20]])
+
 
         Args:
             x (torch.Tensor):
                 A batch of tokens
             x_lens (torch.Tensor):
                 The length of tokens in the batch before padding
-            state (_type_, optional):
+            state (optional):
                 Either None or a tuple of two torch.Tensor. Each tensor has
-                the shape of (hidden_dim)
-
+                the shape of (num_layers, bs, hidden_dim)
 
         Returns:
             _type_: _description_

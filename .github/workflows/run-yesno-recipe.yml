@@ -35,7 +35,7 @@ jobs:
       matrix:
         # os: [ubuntu-18.04, macos-10.15]
         # TODO: enable macOS for CPU testing
-        os: [ubuntu-18.04]
+        os: [ubuntu-latest]
         python-version: [3.8]
       fail-fast: false
 

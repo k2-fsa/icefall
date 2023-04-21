@@ -49,6 +49,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from icefall.checkpoint import load_checkpoint
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
+from icefall.checkpoint import save_checkpoint_with_global_batch_idx
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
 from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool
@@ -178,6 +179,33 @@ def get_parser():
         help="The seed for random generators intended for reproducibility",
     )
 
+    parser.add_argument(
+        "--lr",
+        type=float,
+        default=1e-3,
+    )
+
+    parser.add_argument(
+        "--max-sent-len",
+        type=int,
+        default=200,
+        help="""Maximum number of tokens in a sentence. This is used
+        to adjust batch-size dynamically""",
+    )
+
+    parser.add_argument(
+        "--save-every-n",
+        type=int,
+        default=2000,
+        help="""Save checkpoint after processing this number of batches"
+        periodically. We save checkpoint to exp-dir/ whenever
+        params.batch_idx_train % save_every_n == 0. The checkpoint filename
+        has the form: f'exp-dir/checkpoint-{params.batch_idx_train}.pt'
+        Note: It also saves checkpoint to `exp-dir/epoch-xxx.pt` at the
+        end of each epoch where `xxx` is the epoch number counting from 0.
+        """,
+    )
+
     return parser
 
 
@@ -190,16 +218,15 @@ def get_params() -> AttributeDict:
             "sos_id": 1,
             "eos_id": 1,
             "blank_id": 0,
-            "lr": 1e-3,
             "weight_decay": 1e-6,
             "best_train_loss": float("inf"),
             "best_valid_loss": float("inf"),
             "best_train_epoch": -1,
             "best_valid_epoch": -1,
             "batch_idx_train": 0,
-            "log_interval": 200,
+            "log_interval": 100,
             "reset_interval": 2000,
-            "valid_interval": 5000,
+            "valid_interval": 200,
             "env_info": get_env_info(),
         }
     )
@@ -382,6 +409,7 @@ def train_one_epoch(
     valid_dl: torch.utils.data.DataLoader,
     tb_writer: Optional[SummaryWriter] = None,
     world_size: int = 1,
+    rank: int = 0,
 ) -> None:
     """Train the model for one epoch.
 
@@ -429,6 +457,19 @@ def train_one_epoch(
         loss.backward()
         clip_grad_norm_(model.parameters(), 5.0, 2.0)
         optimizer.step()
+
+        if (
+            params.batch_idx_train > 0
+            and params.batch_idx_train % params.save_every_n == 0
+        ):
+            save_checkpoint_with_global_batch_idx(
+                out_dir=params.exp_dir,
+                global_batch_idx=params.batch_idx_train,
+                model=model,
+                params=params,
+                optimizer=optimizer,
+                rank=rank,
+            )
 
         if batch_idx % params.log_interval == 0:
             # Note: "frames" here means "num_tokens"
@@ -580,6 +621,7 @@ def run(rank, world_size, args):
             valid_dl=valid_dl,
             tb_writer=tb_writer,
             world_size=world_size,
+            rank=rank,
         )
 
         save_checkpoint(
