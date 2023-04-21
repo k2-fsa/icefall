@@ -363,8 +363,6 @@ def decode_one_batch(
         encoder_out = encoder_out[:,50:,:]
         encoder_out_lens -= 50
 
-        print(encoder_out.size())
-    
     hyps = []
 
     if params.decoding_method == "fast_beam_search":
