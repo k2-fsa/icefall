@@ -31,7 +31,7 @@ class MultiDataset:
           manifest_dir:
             It is expected to contain the following files:
 
-            - multidataset_split_1998/multidataset/multidataset_cuts_train.*.jsonl.gz 
+            - multidataset_split_1998/multidataset/multidataset_cuts_train.*.jsonl.gz
         """
         self.manifest_dir = Path(manifest_dir)
 
