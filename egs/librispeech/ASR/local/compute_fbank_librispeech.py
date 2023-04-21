@@ -35,7 +35,7 @@ from filter_cuts import filter_cuts
 from lhotse import CutSet, Fbank, FbankConfig, LilcomChunkyWriter
 from lhotse.recipes.utils import read_manifests_if_cached
 
-from icefall.utils import get_executor
+from icefall.utils import get_executor, str2bool
 
 # Torch's multithreaded behavior needs to be disabled or
 # it wastes a lot of CPU and slow things down.
@@ -64,7 +64,7 @@ def get_args():
     parser.add_argument(
         "--perturb-speed",
         type=str,
-        default=True,
+        default=str2bool,
         help="""Perturb speed with factor 0.9 and 1.1 on train subset.""",
     )
 
