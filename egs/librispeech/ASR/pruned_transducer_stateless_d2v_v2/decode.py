@@ -361,8 +361,7 @@ def decode_one_batch(
     
     if 1:
         encoder_out = encoder_out[:,50:,:]
-        print(encoder_out_lens)
-        exit()
+        encoder_out -= 50
     
     hyps = []
 
