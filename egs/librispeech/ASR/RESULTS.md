@@ -115,7 +115,7 @@ We also provide a very small version (only 6.1M parameters) of this setup. The t
 
 You can find this pretrained small model and its training logs, decoding logs, and decoding
 results at:
-<https://huggingface.co/marcoyang/icefall-libri-giga-pruned-transducer-stateless7-streaming-2023-04-03>
+<https://huggingface.co/marcoyang/icefall-libri-giga-pruned-transducer-stateless7-streaming-6M-2023-04-03>
 
 
 | decoding method      | chunk size | test-clean | test-other | comment             | decoding mode        |
