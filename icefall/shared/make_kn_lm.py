@@ -426,7 +426,6 @@ class NgramCounts:
 if __name__ == "__main__":
 
     ngram_counts = NgramCounts(args.ngram_order)
-
     if args.text is None:
         ngram_counts.add_raw_counts_from_standard_input()
     else:
