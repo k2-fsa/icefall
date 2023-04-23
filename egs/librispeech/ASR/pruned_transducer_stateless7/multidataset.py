@@ -33,10 +33,11 @@ class MultiDataset:
 
             - librispeech_cuts_train-all-shuf.jsonl.gz
             - gigaspeech_XL_split_2000/gigaspeech_cuts_XL.*.jsonl.gz
+
           cv_manifest_dir:
             It is expected to contain the following files:
 
-            - cv-en_cuts_train.jsonl.gz 
+            - cv-en_cuts_train.jsonl.gz
         """
         self.manifest_dir = Path(manifest_dir)
         self.cv_manifest_dir = Path(cv_manifest_dir)
@@ -46,7 +47,7 @@ class MultiDataset:
 
         # LibriSpeech
         logging.info(f"Loading LibriSpeech in lazy mode")
-        librispeech_cuts = load_manifest_lazy( 
+        librispeech_cuts = load_manifest_lazy(
             self.manifest_dir / "librispeech_cuts_train-all-shuf.jsonl.gz"
         )
 
