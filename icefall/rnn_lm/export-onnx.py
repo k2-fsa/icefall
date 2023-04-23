@@ -76,7 +76,11 @@ class RnnLmModelWrapper(torch.nn.Module):
         x_eos[row_index, x_lens] = self.eos_id
 
         # use x_lens + 1 here since we prepended x with sos
-        return self.model(x=sos_x, y=x_eos, lengths=x_lens + 1).to(torch.float32)
+        return (
+            self.model(x=sos_x, y=x_eos, lengths=x_lens + 1)
+            .to(torch.float32)
+            .sum(dim=1)
+        )
 
 
 def get_parser():
@@ -218,6 +222,69 @@ def export_without_state(
     add_meta_data(filename=filename, meta_data=meta_data)
 
 
+def export_with_state(
+    model: RnnLmModel,
+    filename: str,
+    params: AttributeDict,
+    opset_version: int,
+):
+    N = 1
+    L = 20
+    num_layers = model.rnn.num_layers
+    hidden_size = model.rnn.hidden_size
+
+    x = torch.randint(low=1, high=params.vocab_size, size=(N, L), dtype=torch.int64)
+    y = torch.randint(low=1, high=params.vocab_size, size=(N, L), dtype=torch.int64)
+    h0 = torch.zeros(num_layers, N, hidden_size)
+    c0 = torch.zeros(num_layers, N, hidden_size)
+
+    # Note(fangjun): The following warnings can be ignored.
+    # We can use ./check-onnx.py to validate the exported model with batch_size > 1
+    """
+    torch/onnx/symbolic_opset9.py:2119: UserWarning: Exporting a model to ONNX
+    with a batch_size other than 1, with a variable length with LSTM can cause
+    an error when running the ONNX model with a different batch size. Make sure
+    to save the model with a batch size of 1, or define the initial states
+    (h0/c0) as inputs of the model. warnings.warn("Exporting a model to ONNX
+    with a batch_size other than 1, " +
+    """
+
+    torch.onnx.export(
+        model,
+        (x, y, h0, c0),
+        filename,
+        verbose=False,
+        opset_version=opset_version,
+        input_names=["x", "y", "h0", "c0"],
+        output_names=["nll", "next_h0", "next_c0"],
+        dynamic_axes={
+            "x": {0: "N", 1: "L"},
+            "y": {0: "N", 1: "L"},
+            "h0": {1: "N"},
+            "c0": {1: "N"},
+            "nll": {0: "N"},
+            "next_h0": {1: "N"},
+            "next_c0": {1: "N"},
+        },
+    )
+
+    meta_data = {
+        "model_type": "rnnlm",
+        "version": "1",
+        "model_author": "k2-fsa",
+        "comment": "rnnlm state",
+        "sos_id": str(params.sos_id),
+        "eos_id": str(params.eos_id),
+        "vocab_size": str(params.vocab_size),
+        "num_layers": str(num_layers),
+        "hidden_size": str(hidden_size),
+        "url": "https://huggingface.co/ezerhouni/icefall-librispeech-rnn-lm",
+    }
+    logging.info(f"meta_data: {meta_data}")
+
+    add_meta_data(filename=filename, meta_data=meta_data)
+
+
 @torch.no_grad()
 def main():
     args = get_parser().parse_args()
@@ -298,6 +365,25 @@ def main():
     quantize_dynamic(
         model_input=filename,
         model_output=filename_int8,
+        weight_type=QuantType.QInt8,
+    )
+
+    # now for streaming export
+    saved_forward = model.__class__.forward
+    model.__class__.forward = model.__class__.streaming_forward
+    streaming_filename = params.exp_dir / f"with-state-{suffix}.onnx"
+    export_with_state(
+        model=model,
+        filename=streaming_filename,
+        params=params,
+        opset_version=opset_version,
+    )
+    model.__class__.forward = saved_forward
+
+    streaming_filename_int8 = params.exp_dir / f"with-state-{suffix}.int8.onnx"
+    quantize_dynamic(
+        model_input=streaming_filename,
+        model_output=streaming_filename_int8,
         weight_type=QuantType.QInt8,
     )
 

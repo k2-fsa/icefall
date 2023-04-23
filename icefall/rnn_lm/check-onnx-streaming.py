@@ -5,9 +5,9 @@
 """
 Usage:
 
-./check-onnx.py \
+./check-onnx-streaming.py \
   --jit ./icefall-librispeech-rnn-lm/exp/cpu_jit.pt \
-  --onnx ./icefall-librispeech-rnn-lm/exp/no-state-epoch-99-avg-1.onnx
+  --onnx ./icefall-librispeech-rnn-lm/exp/with-state-epoch-99-avg-1.onnx
 
 Note: You can download pre-trained models from
 https://huggingface.co/ezerhouni/icefall-librispeech-rnn-lm
@@ -16,6 +16,7 @@ https://huggingface.co/ezerhouni/icefall-librispeech-rnn-lm
 
 import argparse
 import logging
+from typing import Tuple
 
 import onnxruntime as ort
 import torch
@@ -58,19 +59,31 @@ class OnnxModel:
         self.sos_id = int(meta_data["sos_id"])
         self.eos_id = int(meta_data["eos_id"])
         self.vocab_size = int(meta_data["vocab_size"])
+        self.num_layers = int(meta_data["num_layers"])
+        self.hidden_size = int(meta_data["hidden_size"])
         print(meta_data)
 
-    def __call__(self, x: torch.Tensor, x_lens: torch.Tensor) -> torch.Tensor:
+    def __call__(
+        self, x: torch.Tensor, y: torch.Tensor, h0: torch.Tensor, c0: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         out = self.model.run(
             [
                 self.model.get_outputs()[0].name,
+                self.model.get_outputs()[1].name,
+                self.model.get_outputs()[2].name,
             ],
             {
                 self.model.get_inputs()[0].name: x.numpy(),
-                self.model.get_inputs()[1].name: x_lens.numpy(),
+                self.model.get_inputs()[1].name: y.numpy(),
+                self.model.get_inputs()[2].name: h0.numpy(),
+                self.model.get_inputs()[3].name: c0.numpy(),
             },
         )
-        return torch.from_numpy(out[0])
+        return (
+            torch.from_numpy(out[0]),
+            torch.from_numpy(out[1]),
+            torch.from_numpy(out[2]),
+        )
 
 
 @torch.no_grad()
@@ -82,37 +95,37 @@ def main():
     onnx_model = OnnxModel(args.onnx)
     N = torch.arange(1, 5).tolist()
 
+    num_layers = onnx_model.num_layers
+    hidden_size = onnx_model.hidden_size
+
     for n in N:
         L = torch.randint(low=1, high=100, size=(1,)).item()
         x = torch.randint(
             low=1, high=onnx_model.vocab_size, size=(n, L), dtype=torch.int64
         )
-        x_lens = torch.full((n,), fill_value=L, dtype=torch.int64)
-        if n > 1:
-            x_lens[0] = L // 2 + 1
-
-        sos = torch.full((1,), fill_value=onnx_model.sos_id).expand(n, 1)
-        sos_x = torch.cat([sos, x], dim=1)
-
-        pad_col = torch.zeros((1,), dtype=x.dtype).expand(n, 1)
-        x_eos = torch.cat([x, pad_col], dim=1)
-
-        row_index = torch.arange(0, n, dtype=x.dtype)
-        x_eos[row_index, x_lens] = onnx_model.eos_id
-
-        torch_nll = torch_model(sos_x, x_eos, x_lens + 1).sum(dim=-1)
-        onnx_nll = onnx_model(x, x_lens)
-        # Note: For int8 models, the differences may be quite large,
-        # e.g., within 0.9
-        assert torch.allclose(torch_nll, onnx_nll), (
-            torch_nll,
-            onnx_nll,
+        y = torch.randint(
+            low=1, high=onnx_model.vocab_size, size=(n, L), dtype=torch.int64
         )
-        print(n, L, torch_nll, onnx_nll)
+        h0 = torch.rand(num_layers, n, hidden_size)
+        c0 = torch.rand(num_layers, n, hidden_size)
+
+        torch_nll, torch_h0, torch_c0 = torch_model.streaming_forward(x, y, h0, c0)
+        onnx_nll, onnx_h0, onnx_c0 = onnx_model(x, y, h0, c0)
+
+        for torch_v, onnx_v in zip(
+            (torch_nll, torch_h0, torch_c0), (onnx_nll, onnx_h0, onnx_c0)
+        ):
+
+            assert torch.allclose(torch_v, onnx_v, atol=1e-5), (
+                torch_v.shape,
+                onnx_v.shape,
+                (torch_v - onnx_v).abs().max(),
+            )
+            print(n, L, torch_v.sum(), onnx_v.sum())
 
 
 if __name__ == "__main__":
-    torch.manual_seed(20230420)
+    torch.manual_seed(20230423)
     formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
 
     logging.basicConfig(format=formatter, level=logging.INFO)
