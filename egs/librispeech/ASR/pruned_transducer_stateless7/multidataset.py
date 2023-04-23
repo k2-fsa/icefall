@@ -63,7 +63,9 @@ class MultiDataset:
 
         logging.info(f"Loading GigaSpeech {len(sorted_filenames)} splits in lazy mode")
 
-        gigaspeech_cuts = lhotse.combine(lhotse.load_manifest_lazy(p) for p in sorted_filenames)
+        gigaspeech_cuts = lhotse.combine(
+            lhotse.load_manifest_lazy(p) for p in sorted_filenames
+        )
 
         # CommonVoice
         logging.info(f"Loading CommonVoice in lazy mode")
