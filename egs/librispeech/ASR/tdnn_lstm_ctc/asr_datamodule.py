@@ -95,6 +95,12 @@ class LibriSpeechAsrDataModule:
             help="Path to directory with train/valid/test cuts.",
         )
         group.add_argument(
+            "--cv-manifest-dir",
+            type=Path,
+            default=Path("data/en/fbank"),
+            help="Path to directory with train/valid/test cuts.",
+        )
+        group.add_argument(
             "--max-duration",
             type=int,
             default=200.0,

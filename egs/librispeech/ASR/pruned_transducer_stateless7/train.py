@@ -1053,7 +1053,9 @@ def run(rank, world_size, args):
     librispeech = LibriSpeechAsrDataModule(args)
 
     if params.use_multidataset:
-        multidataset = MultiDataset(params.manifest_dir)
+        multidataset = MultiDataset(
+            params.manifest_dir, params.cv_manifest_dir
+        )
         train_cuts = multidataset.train_cuts()
     else:
         if params.full_libri:
