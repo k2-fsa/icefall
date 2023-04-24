@@ -1,4 +1,4 @@
-from typing import Callable, Dict, List, Union
+from typing import Callable, Dict, List, Optional, Union
 
 import torch
 from lhotse import validate
@@ -24,7 +24,7 @@ class PromptASRDataset(torch.utils.data.Dataset):
         cut_transforms: List[Callable[[CutSet], CutSet]] = None,
         input_transforms: List[Callable[[torch.Tensor], torch.Tensor]] = None,
         input_strategy: BatchIO = PrecomputedFeatures(),
-        text_sampling_func: Callable[[List[str]], str] = None,
+        text_sampling_func: Optional[Callable[[List[str]], str]] = None,
     ):
         """
         Icefall ASR IterableDataset constructor. See https://github.com/lhotse-speech/lhotse/blob/master/lhotse/dataset/speech_recognition.py
@@ -104,7 +104,7 @@ class PromptASRDataset(torch.utils.data.Dataset):
             "supervisions": default_collate(
                 [
                     {
-                        "text": supervision.texts
+                        "text": supervision.texts[0]
                         if self.text_sampling_func is None
                         else self.text_sampling_func(supervision.texts),
                     }
