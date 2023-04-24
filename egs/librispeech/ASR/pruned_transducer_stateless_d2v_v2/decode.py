@@ -359,7 +359,7 @@ def decode_one_batch(
     else:
         encoder_out, encoder_out_lens = model.encoder(x=feature, x_lens=feature_lens, prompt=model.prompt)
     
-    if 0:
+    if 1:
         encoder_out = encoder_out[:,50:,:]
         encoder_out_lens -= 50
 
