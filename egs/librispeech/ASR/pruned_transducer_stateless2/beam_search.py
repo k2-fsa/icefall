@@ -1244,7 +1244,7 @@ def modified_beam_search_lm_rescore(
 
     # get the best hyp with different lm_scale
     for lm_scale in lm_scale_list:
-        key = f"nnlm_scale_{lm_scale}"
+        key = f"nnlm_scale_{lm_scale:.2f}"
         tot_scores = am_scores.values + lm_scores * lm_scale
         ragged_tot_scores = k2.RaggedTensor(shape=am_scores.shape, value=tot_scores)
         max_indexes = ragged_tot_scores.argmax().tolist()
@@ -1454,29 +1454,8 @@ def modified_beam_search_lm_rescore_LODR(
     ans = {}
     unsorted_indices = packed_encoder_out.unsorted_indices.tolist()
 
-    LODR_scale_list = [
-        0.05,
-        0.1,
-        0.15,
-        0.2,
-        0.25,
-        0.3,
-        0.35,
-        0.4,
-        0.45,
-        0.5,
-        0.55,
-        0.6,
-        0.65,
-        0.7,
-        0.75,
-        0.8,
-        0.85,
-        0.9,
-        0.95,
-        1.0,
-    ]
-    # get the best hyp with different lm_scale
+    LODR_scale_list = [0.05 * i for i in range(1, 20)]
+    # get the best hyp with different lm_scale and lodr_scale
     for lm_scale in lm_scale_list:
         for lodr_scale in LODR_scale_list:
             key = f"nnlm_scale_{lm_scale:.2f}_lodr_scale_{lodr_scale:.2f}"
