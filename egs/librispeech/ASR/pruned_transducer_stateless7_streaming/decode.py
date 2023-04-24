@@ -123,10 +123,13 @@ from beam_search import (
     greedy_search_batch,
     modified_beam_search,
     modified_beam_search_lm_rescore,
+    modified_beam_search_lm_rescore_LODR,
     modified_beam_search_lm_shallow_fusion,
+    modified_beam_search_LODR,
 )
 from train import add_model_arguments, get_params, get_transducer_model
 
+from icefall import LmScorer, NgramLm
 from icefall.checkpoint import (
     average_checkpoints,
     average_checkpoints_with_averaged_model,
@@ -134,7 +137,6 @@ from icefall.checkpoint import (
     load_checkpoint,
 )
 from icefall.lexicon import Lexicon
-from icefall.lm_wrapper import LmScorer
 from icefall.utils import (
     AttributeDict,
     setup_logger,
@@ -336,6 +338,21 @@ def get_parser():
         """,
     )
 
+    parser.add_argument(
+        "--tokens-ngram",
+        type=int,
+        default=2,
+        help="""The order of the ngram lm.
+        """,
+    )
+
+    parser.add_argument(
+        "--backoff-id",
+        type=int,
+        default=500,
+        help="ID of the backoff symbol in the ngram LM",
+    )
+
     add_model_arguments(parser)
 
     return parser
@@ -349,6 +366,8 @@ def decode_one_batch(
     word_table: Optional[k2.SymbolTable] = None,
     decoding_graph: Optional[k2.Fsa] = None,
     LM: Optional[LmScorer] = None,
+    ngram_lm=None,
+    ngram_lm_scale: float = 0.0,
 ) -> Dict[str, List[List[str]]]:
     """Decode one batch and return the result in a dict. The dict has the
     following format:
@@ -483,6 +502,18 @@ def decode_one_batch(
         )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
+    elif params.decoding_method == "modified_beam_search_LODR":
+        hyp_tokens = modified_beam_search_LODR(
+            model=model,
+            encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
+            beam=params.beam_size,
+            LODR_lm=ngram_lm,
+            LODR_lm_scale=ngram_lm_scale,
+            LM=LM,
+        )
+        for hyp in sp.decode(hyp_tokens):
+            hyps.append(hyp.split())
     elif params.decoding_method == "modified_beam_search_lm_rescore":
         lm_scale_list = [0.01 * i for i in range(10, 50)]
         ans_dict = modified_beam_search_lm_rescore(
@@ -491,6 +522,18 @@ def decode_one_batch(
             encoder_out_lens=encoder_out_lens,
             beam=params.beam_size,
             LM=LM,
+            lm_scale_list=lm_scale_list,
+        )
+    elif params.decoding_method == "modified_beam_search_lm_rescore_LODR":
+        lm_scale_list = [0.02 * i for i in range(2, 30)]
+        ans_dict = modified_beam_search_lm_rescore_LODR(
+            model=model,
+            encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
+            beam=params.beam_size,
+            LM=LM,
+            LODR_lm=ngram_lm,
+            sp=sp,
             lm_scale_list=lm_scale_list,
         )
     else:
@@ -531,7 +574,10 @@ def decode_one_batch(
                 key += f"_ngram_lm_scale_{params.ngram_lm_scale}"
 
         return {key: hyps}
-    elif params.decoding_method == "modified_beam_search_lm_rescore":
+    elif params.decoding_method in (
+        "modified_beam_search_lm_rescore",
+        "modified_beam_search_lm_rescore_LODR",
+    ):
         ans = dict()
         assert ans_dict is not None
         for key, hyps in ans_dict.items():
@@ -550,6 +596,8 @@ def decode_dataset(
     word_table: Optional[k2.SymbolTable] = None,
     decoding_graph: Optional[k2.Fsa] = None,
     LM: Optional[LmScorer] = None,
+    ngram_lm=None,
+    ngram_lm_scale: float = 0.0,
 ) -> Dict[str, List[Tuple[str, List[str], List[str]]]]:
     """Decode dataset.
 
@@ -568,6 +616,8 @@ def decode_dataset(
         The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
         only when --decoding_method is fast_beam_search, fast_beam_search_nbest,
         fast_beam_search_nbest_oracle, and fast_beam_search_nbest_LG.
+      ngram_lm:
+        A n-gram LM to be used for LODR.
     Returns:
       Return a dict, whose key may be "greedy_search" if greedy search
       is used, or it may be "beam_7" if beam size of 7 is used.
@@ -600,6 +650,8 @@ def decode_dataset(
             word_table=word_table,
             batch=batch,
             LM=LM,
+            ngram_lm=ngram_lm,
+            ngram_lm_scale=ngram_lm_scale,
         )
 
         for name, hyps in hyps_dict.items():
@@ -677,8 +729,10 @@ def main():
         "fast_beam_search_nbest_LG",
         "fast_beam_search_nbest_oracle",
         "modified_beam_search",
+        "modified_beam_search_LODR",
         "modified_beam_search_lm_shallow_fusion",
         "modified_beam_search_lm_rescore",
+        "modified_beam_search_lm_rescore_LODR",
     )
     params.res_dir = params.exp_dir / params.decoding_method
 
@@ -822,7 +876,12 @@ def main():
     model.eval()
 
     # only load the neural network LM if required
-    if params.use_shallow_fusion or "lm" in params.decoding_method:
+    if params.use_shallow_fusion or params.decoding_method in (
+        "modified_beam_search_lm_rescore",
+        "modified_beam_search_lm_rescore_LODR",
+        "modified_beam_search_lm_shallow_fusion",
+        "modified_beam_search_LODR",
+    ):
         LM = LmScorer(
             lm_type=params.lm_type,
             params=params,
@@ -833,6 +892,35 @@ def main():
         LM.eval()
     else:
         LM = None
+
+    # only load N-gram LM when needed
+    if params.decoding_method == "modified_beam_search_lm_rescore_LODR":
+        try:
+            import kenlm
+        except ImportError:
+            print("Please install kenlm first. You can use")
+            print(" pip install https://github.com/kpu/kenlm/archive/master.zip")
+            print("to install it")
+            import sys
+
+            sys.exit(-1)
+        ngram_file_name = str(params.lang_dir / f"{params.tokens_ngram}gram.arpa")
+        logging.info(f"lm filename: {ngram_file_name}")
+        ngram_lm = kenlm.Model(ngram_file_name)
+
+    elif params.decoding_method == "modified_beam_search_LODR":
+        lm_filename = f"{params.tokens_ngram}gram.fst.txt"
+        logging.info(f"Loading token level lm: {lm_filename}")
+        ngram_lm = NgramLm(
+            str(params.lang_dir / lm_filename),
+            backoff_id=params.backoff_id,
+            is_binary=False,
+        )
+        logging.info(f"num states: {ngram_lm.lm.num_states}")
+        ngram_lm_scale = params.ngram_lm_scale
+    else:
+        ngram_lm = None
+        ngram_lm_scale = None
 
     if "fast_beam_search" in params.decoding_method:
         if params.decoding_method == "fast_beam_search_nbest_LG":
@@ -866,8 +954,10 @@ def main():
 
     test_sets = ["test-clean", "test-other"]
     test_dl = [test_clean_dl, test_other_dl]
+    import time
 
     for test_set, test_dl in zip(test_sets, test_dl):
+        start = time.time()
         results_dict = decode_dataset(
             dl=test_dl,
             params=params,
@@ -876,7 +966,10 @@ def main():
             word_table=word_table,
             decoding_graph=decoding_graph,
             LM=LM,
+            ngram_lm=ngram_lm,
+            ngram_lm_scale=ngram_lm_scale,
         )
+        logging.info(f"Elasped time for {test_set}: {time.time() - start}")
 
         save_results(
             params=params,
