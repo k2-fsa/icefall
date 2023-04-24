@@ -1,0 +1,1 @@
+../pruned_transducer_stateless7_streaming/train2.py

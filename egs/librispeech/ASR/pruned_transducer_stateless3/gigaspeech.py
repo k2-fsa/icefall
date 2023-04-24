@@ -30,7 +30,7 @@ class GigaSpeech:
         """
         Args:
           manifest_dir:
-            It is expected to contain the following files::
+            It is expected to contain the following files:
 
                 - gigaspeech_XL_split_2000/gigaspeech_cuts_XL.*.jsonl.gz
                 - gigaspeech_cuts_L_raw.jsonl.gz
