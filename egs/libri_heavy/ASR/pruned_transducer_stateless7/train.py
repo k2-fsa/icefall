@@ -48,10 +48,11 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
 import argparse
 import copy
 import logging
+import random
 import warnings
 from pathlib import Path
 from shutil import copyfile
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import k2
 import optim
@@ -92,6 +93,10 @@ from icefall.utils import (
 )
 
 LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
+
+
+def random_sampling(texts: List[str]) -> str:
+    return random.choice(texts)
 
 
 def set_batch_count(model: Union[nn.Module, DDP], batch_count: float) -> None:
@@ -1047,9 +1052,6 @@ def run(rank, world_size, args):
     if params.inf_check:
         register_inf_check_hooks(model)
 
-    import pdb
-
-    pdb.set_trace()
     libriheavy = LibriHeavyAsrDataModule(args)
 
     train_cuts = libriheavy.train_cuts()
@@ -1073,14 +1075,14 @@ def run(rank, world_size, args):
         # In ./zipformer.py, the conv module uses the following expression
         # for subsampling
         T = ((c.num_frames - 7) // 2 + 1) // 2
-        tokens = sp.encode(c.supervisions[0].text, out_type=str)
+        tokens = sp.encode(c.supervisions[0].texts[0], out_type=str)
 
         if T < len(tokens):
             logging.warning(
                 f"Exclude cut with ID {c.id} from training. "
                 f"Number of frames (before subsampling): {c.num_frames}. "
                 f"Number of frames (after subsampling): {T}. "
-                f"Text: {c.supervisions[0].text}. "
+                f"Text: {c.supervisions[0].texts[0]}. "
                 f"Tokens: {tokens}. "
                 f"Number of tokens: {len(tokens)}"
             )
@@ -1098,7 +1100,9 @@ def run(rank, world_size, args):
         sampler_state_dict = None
 
     train_dl = libriheavy.train_dataloaders(
-        train_cuts, sampler_state_dict=sampler_state_dict
+        train_cuts,
+        sampler_state_dict=sampler_state_dict,
+        text_sampling_func=random_sampling,
     )
 
     valid_cuts = libriheavy.dev_cuts()

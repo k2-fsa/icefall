@@ -20,9 +20,10 @@ import inspect
 import logging
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import torch
+from dataset import PromptASRDataset
 from lhotse import CutSet, Fbank, FbankConfig, load_manifest, load_manifest_lazy
 from lhotse.dataset import (
     CutConcatenate,
@@ -34,7 +35,6 @@ from lhotse.dataset import (
 )
 from lhotse.dataset.input_strategies import OnTheFlyFeatures
 from lhotse.utils import fix_random_seed
-from local.dataset import PromptASRDataset
 from torch.utils.data import DataLoader
 
 from icefall.utils import str2bool
@@ -196,6 +196,7 @@ class LibriHeavyAsrDataModule:
         self,
         cuts_train: CutSet,
         sampler_state_dict: Optional[Dict[str, Any]] = None,
+        text_sampling_func: Callable[[List[str]], str] = None,
     ) -> DataLoader:
         """
         Args:
@@ -261,6 +262,7 @@ class LibriHeavyAsrDataModule:
             cut_transforms=transforms,
             input_transforms=input_transforms,
             return_cuts=self.args.return_cuts,
+            text_sampling_func=text_sampling_func,
         )
 
         if self.args.on_the_fly_feats:
@@ -279,6 +281,7 @@ class LibriHeavyAsrDataModule:
                 input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80))),
                 input_transforms=input_transforms,
                 return_cuts=self.args.return_cuts,
+                text_sampling_func=text_sampling_func,
             )
 
         if self.args.bucketing_sampler:
