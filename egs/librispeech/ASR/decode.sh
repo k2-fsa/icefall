@@ -5,8 +5,8 @@ for dest in "test-clean" "test-other"; do
 		spk_id=${spk#*$dest\/}
 		echo $spk_id
 		#./test.sh $spk_id prompt_tuning_10_$spk_id
-		./test.sh $spk_id prompt_tuning_100_$spk_id
-		#./test.sh $spk_id "$spk_id"_fullft
+		#./test.sh $spk_id prompt_tuning_100_$spk_id
+		./test.sh $spk_id "$spk_id"_fullft_v2
 		#./test.sh $spk_id prompt_tuning_"$spk_id"
 		#./test.sh $spk_id "$spk_id"_adapter_30m
 	done
