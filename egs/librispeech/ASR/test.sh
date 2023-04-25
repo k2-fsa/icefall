@@ -21,8 +21,8 @@ do
 		--avg 1 \
 		--use-averaged-model True \
 		--spk-id $spk_id \
-		--prompt True \
-		--res-name tttt
+		--prompt False \
+		--res-name fullft_v2_check$i
 		#--res-name fullft_check$i
 	done
 done
