@@ -9,7 +9,7 @@ set -eou pipefail
 nj=15
 stage=-1
 stop_stage=100
-subset=$1
+subset=vox_v3
 # We assume dl_dir (download dir) contains the following
 # directories and files. If not, they will be downloaded
 # by this script automatically.
