@@ -60,7 +60,7 @@ else
 		./pruned_transducer_stateless_d2v_v2/train_adapter.py \
 			--num-buckets 2 \
 			--add-adapter True \
-			--adapter-lr 0.02 \
+			--adapter-lr 0.1 \
 			--gender male \
 			--wandb False \
 			--input-strategy AudioSamples \
