@@ -9,7 +9,7 @@ set -eou pipefail
 nj=15
 stage=-1
 stop_stage=100
-subset=vox_v3
+subset=vox
 # We assume dl_dir (download dir) contains the following
 # directories and files. If not, they will be downloaded
 # by this script automatically.
@@ -38,8 +38,8 @@ subset=vox_v3
 #     - noise
 #     - speech
 #dl_dir=/DB/LibriSpeech_tar/vox
-dl_dir=/DB/LibriSpeech_tar/$subset
-#dl_dir=/home/work/workspace/LibriSpeech/vox_v3
+#dl_dir=/DB/LibriSpeech_tar/$subset
+dl_dir=/home/work/workspace/LibriSpeech/vox_v3
 
 . shared/parse_options.sh || exit 1
 
