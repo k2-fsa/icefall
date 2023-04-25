@@ -6,7 +6,6 @@ from lhotse.cut import CutSet
 from lhotse.dataset import K2SpeechRecognitionDataset
 from lhotse.dataset.input_strategies import BatchIO, PrecomputedFeatures
 from lhotse.utils import compute_num_frames, ifnone
-from lhotse.workarounds import Hdf5MemoryIssueFix
 from torch.utils.data.dataloader import DataLoader, default_collate
 
 
@@ -49,11 +48,6 @@ class PromptASRDataset(torch.utils.data.Dataset):
         self.input_transforms = ifnone(input_transforms, [])
         self.input_strategy = input_strategy
 
-        # This attribute is a workaround to constantly growing HDF5 memory
-        # throughout the epoch. It regularly closes open file handles to
-        # reset the internal HDF5 caches.
-        self.hdf5_fix = Hdf5MemoryIssueFix(reset_interval=100)
-
         # a text sampling function
         self.text_sampling_func = text_sampling_func
 
@@ -63,8 +57,6 @@ class PromptASRDataset(torch.utils.data.Dataset):
         of max_frames and max_cuts.
         """
         validate_for_asr(cuts)
-
-        self.hdf5_fix.update()
 
         # Sort the cuts by duration so that the first one determines the batch time dimensions.
         cuts = cuts.sort_by_duration(ascending=False)
