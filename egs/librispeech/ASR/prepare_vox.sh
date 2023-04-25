@@ -37,9 +37,9 @@ subset=vox
 #     - music
 #     - noise
 #     - speech
-#dl_dir=/DB/LibriSpeech_tar/vox
+dl_dir=/DB/LibriSpeech_tar/vox_v3
 #dl_dir=/DB/LibriSpeech_tar/$subset
-dl_dir=/home/work/workspace/LibriSpeech/vox_v3
+#dl_dir=/home/work/workspace/LibriSpeech/vox_v3
 
 . shared/parse_options.sh || exit 1
 
