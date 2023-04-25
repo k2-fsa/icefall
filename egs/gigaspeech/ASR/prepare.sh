@@ -37,7 +37,7 @@ num_per_split=50
 #     - music
 #     - noise
 #     - speech
-dl_dir=$PWD/download
+dl_dir=/DB/gigaspeech
 
 . shared/parse_options.sh || exit 1
 
