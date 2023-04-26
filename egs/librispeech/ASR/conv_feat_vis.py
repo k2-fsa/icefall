@@ -13,6 +13,7 @@ for feat in feats:
     feats_all = np.concatenate([feats_all, feat])
 
 feats_all = feats_all.transpose(0,1)
+print(feats_all.shape)
 
 for i in range(512):
     plt.hist(feats_all[i])
