@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 feats = []
-feat_list = glob('./conv_feat/*')
+feat_list = glob('./conv_feat/*.npy')
 for feat in feat_list:
     feat = np.load(feat)
     feats.append(feat)
