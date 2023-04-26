@@ -496,7 +496,11 @@ class Data2VecAudioModel(BaseFairseqModel):
             conv_feat_all = torch.tensor([])
             for i in range(padding_mask.size()[0]):
                 nonzero = padding_mask[i].nonzero()
-                conv_feat_all = 
+                try:
+                    conv_feat_all = torch.cat([conv_feat_all, features[i][nonzero[0]]])
+                except:
+                    conv_feat_all = torch.cat([conv_feat_all, features])
+            print(conv_feat_all.size())
                 #print(padding_mask[i].nonzero())
             print(padding_mask.nonzero())
             print(padding_mask.nonzero().size())
