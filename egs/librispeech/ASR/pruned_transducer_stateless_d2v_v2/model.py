@@ -80,7 +80,15 @@ class Transducer(nn.Module):
         self.prompt = None
         if prompt:
             #self.prompt = torch.randn((200, 512), requires_grad=True)
+            statistic = open('/home/work/workspace/icefall/egs/librispeech/ASR/conv_feat/2094_statistic.txt', 'r').readlines()
             self.prompt = torch.nn.Parameter(torch.rand((50, 512)))
+            print(self.prompt)
+            
+            new_emb = torch.empty(512, 50)
+            for i in range(512):
+                mean, std = statistic[i].strip().split(' ')
+                new_emb[i] = torch.normal(float(mean), float(std), size=50).squeeze()
+            
 
     def forward(
         self,
