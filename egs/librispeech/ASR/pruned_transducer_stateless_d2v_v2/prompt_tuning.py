@@ -1534,7 +1534,7 @@ def run_adapter(rank, world_size, args, wb=None):
     params = get_params()
     params.update(vars(args))
 
-    fix_random_seed(params.seed)
+    #fix_random_seed(params.seed)
     if world_size > 1:
         setup_dist(rank, world_size, params.master_port)
 
@@ -1669,7 +1669,7 @@ def run_adapter(rank, world_size, args, wb=None):
     for epoch in range(params.start_epoch, params.num_epochs + 1):
         logging.info(f"update num : {params.batch_idx_train}")
         scheduler.step_epoch(epoch - 1)
-        fix_random_seed(params.seed + epoch - 1)
+        #fix_random_seed(params.seed + epoch - 1)
         train_dl.sampler.set_epoch(epoch - 1)
 
         if tb_writer is not None:
