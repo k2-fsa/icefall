@@ -502,7 +502,7 @@ class Data2VecAudioModel(BaseFairseqModel):
                     conv_feat_all = torch.cat([conv_feat_all, features[i]])
             
             randint = np.random.randint(10000)
-            np.save(conv_feat_all.cpu().numpy(), '/home/work/workspace/icefall/egs/librispeech/ASR/conv_feat/
+            np.save(conv_feat_all.cpu().numpy(), f'/home/work/workspace/icefall/egs/librispeech/ASR/conv_feat/{randint}.npy')
             
             prompt = prompt.expand((features.size()[0], prompt.size()[0], prompt.size()[1]))
             features = torch.cat([prompt, features], dim=1)
