@@ -497,7 +497,7 @@ class Data2VecAudioModel(BaseFairseqModel):
                     print(nonzero[0])
                     conv_feat_all = torch.cat([conv_feat_all, features[i, :nonzero[0], :]])
                 except:
-                    conv_feat_all = torch.cat([conv_feat_all, features])
+                    conv_feat_all = torch.cat([conv_feat_all, features[i]])
             print(conv_feat_all.size()) 
             exit()
             prompt = prompt.expand((features.size()[0], prompt.size()[0], prompt.size()[1]))
