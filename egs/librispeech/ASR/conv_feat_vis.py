@@ -12,4 +12,9 @@ feats_all = feats[0]
 for feat in feats:
     feats_all = np.concatenate([feats_all, feat])
 
-print(feats_all.shape)
+feats_all = feats_all.transpose(0,1)
+
+for i in range(512):
+    plt.hist(feats_all[i])
+    plt.savefig(f'dim_{i}')
+    plt.close()
