@@ -22,7 +22,7 @@ do
 		--use-averaged-model True \
 		--spk-id $spk_id \
 		--prompt False \
-		--res-name fullft_v2_check$i
+		--res-name tttttt
 		#--res-name fullft_check$i
 	done
 done
