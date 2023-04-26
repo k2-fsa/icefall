@@ -572,7 +572,7 @@ def compute_loss(
     warmup: float = 1.0,
 ) -> Tuple[Tensor, MetricsTracker]:
     """
-    Compute CTC loss given the model and its inputs.
+    Compute transducer loss given the model and its inputs.
 
     Args:
       params:
