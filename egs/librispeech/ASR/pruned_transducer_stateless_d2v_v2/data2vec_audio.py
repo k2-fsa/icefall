@@ -490,20 +490,20 @@ class Data2VecAudioModel(BaseFairseqModel):
         
         ## for prompt tuning
         if prompt is not None:
-            conv_feat_all = torch.tensor([]).to(features.device)
-            length = 0
-            for i in range(padding_mask.size()[0]):
-                nonzero = padding_mask[i].nonzero()
-                try:
-                    length += nonzero[0]
-                    conv_feat_all = torch.cat([conv_feat_all, features[i, :nonzero[0], :]])
-                except:
-                    length += features.size()[1]
-                    conv_feat_all = torch.cat([conv_feat_all, features[i]])
-            
-            randint = np.random.randint(10000)
-            np.save(f'/home/work/workspace/icefall/egs/librispeech/ASR/conv_feat/{randint}.npy', conv_feat_all.cpu().numpy())
-            exit()
+            if 1:
+                conv_feat_all = torch.tensor([]).to(features.device)
+                length = 0
+                for i in range(padding_mask.size()[0]):
+                    nonzero = padding_mask[i].nonzero()
+                    try:
+                        length += nonzero[0]
+                        conv_feat_all = torch.cat([conv_feat_all, features[i, :nonzero[0], :]])
+                    except:
+                        length += features.size()[1]
+                        conv_feat_all = torch.cat([conv_feat_all, features[i]])
+                
+                randint = np.random.randint(10000)
+                np.save(f'/home/work/workspace/icefall/egs/librispeech/ASR/conv_feat/{randint}.npy', conv_feat_all.cpu().numpy())
             
             prompt = prompt.expand((features.size()[0], prompt.size()[0], prompt.size()[1]))
             features = torch.cat([prompt, features], dim=1)
