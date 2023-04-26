@@ -493,6 +493,8 @@ class Data2VecAudioModel(BaseFairseqModel):
             print(features.size())
             print(padding_mask.size())
             print(padding_mask[0])
+            for i in range(padding_mask.size()[0]):
+                print(padding_mask[i].nonzero())
             print(padding_mask.nonzero())
             print(padding_mask.nonzero().size())
             
