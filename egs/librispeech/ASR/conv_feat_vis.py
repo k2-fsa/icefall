@@ -16,5 +16,5 @@ feats_all = feats_all.transpose(0,1)
 
 for i in range(512):
     plt.hist(feats_all[i])
-    plt.savefig(f'dim_{i}.pdf')
+    plt.savefig(f'conv_feat/dim_{i}.pdf')
     plt.close()
