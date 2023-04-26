@@ -87,6 +87,8 @@ class Transducer(nn.Module):
             new_emb = torch.empty(512, 50)
             for i in range(512):
                 mean, std = statistic[i].strip().split(' ')
+                print(new_emb[i].size())
+                print(float(mean), float(std))
                 new_emb[i] = torch.normal(float(mean), float(std), size=(50)).squeeze()
             new_emb = new_emb.transpose(1,0)
             self.prompt = torch.nn.Parameter(new_emb) 
