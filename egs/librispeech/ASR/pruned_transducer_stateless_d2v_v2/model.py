@@ -89,7 +89,7 @@ class Transducer(nn.Module):
                 mean, std = statistic[i].strip().split(' ')
                 print(new_emb[i].size())
                 print(float(mean), float(std))
-                new_emb[i] = torch.normal(float(mean), float(std), size=(50)).squeeze()
+                new_emb[i] = torch.normal(float(mean), float(std), size=(1,50)).squeeze()
             new_emb = new_emb.transpose(1,0)
             self.prompt = torch.nn.Parameter(new_emb) 
             print(self.prompt)
