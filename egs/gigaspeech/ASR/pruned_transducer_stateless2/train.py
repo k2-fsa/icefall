@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-# Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang,
-#                                                  Wei Kang
-#                                                  Mingshuang Luo)
+# Copyright    2021-2023  Xiaomi Corp.   (authors: Fangjun Kuang,
+#                                                  Wei Kang,
+#                                                  Mingshuang Luo,
+#                                                  Yifan      Yang)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -19,13 +20,15 @@
 """
 Usage:
 
+(1) bpe
 export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
 
 ./pruned_transducer_stateless2/train.py \
   --world-size 8 \
   --num-epochs 30 \
-  --start-epoch 0 \
+  --start-epoch 1 \
   --exp-dir pruned_transducer_stateless2/exp \
+  --subset XL \
   --max-duration 120
 
 # For mix precision training:
@@ -33,11 +36,37 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
 ./pruned_transducer_stateless2/train.py \
   --world-size 8 \
   --num-epochs 30 \
-  --start-epoch 0 \
-  --use_fp16 1 \
+  --start-epoch 1 \
+  --use-fp16 1 \
   --exp-dir pruned_transducer_stateless2/exp \
+  --subset XL \
   --max-duration 200
 
+(2) phone
+export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
+
+./pruned_transducer_stateless2/train.py \
+  --world-size 8 \
+  --num-epochs 30 \
+  --start-epoch 1 \
+  --exp-dir pruned_transducer_stateless2/exp \
+  --subset XL \
+  --lang-type phone \
+  --context-size 4 \
+  --max-duration 300
+
+# For mix precision training:
+
+./pruned_transducer_stateless2/train.py \
+  --world-size 8 \
+  --num-epochs 30 \
+  --start-epoch 1 \
+  --use-fp16 1 \
+  --exp-dir pruned_transducer_stateless2/exp \
+  --subset XL \
+  --lang-type phone \
+  --context-size 4 \
+  --max-duration 750
 """
 
 
@@ -77,6 +106,7 @@ from icefall.checkpoint import (
 )
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
+from icefall.lexicon import UniqLexicon
 from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool
 
 LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
@@ -119,8 +149,8 @@ def get_parser():
         "--start-epoch",
         type=int,
         default=1,
-        help="""Resume training from this epoch.
-        If larger than 1, it will load checkpoint from
+        help="""Resume training from from this epoch.
+        If it is large than 1, it will load checkpoint from
         exp-dir/epoch-{start_epoch-1}.pt
         """,
     )
@@ -145,10 +175,24 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--lang-type",
+        type=str,
+        default="bpe",
+        help="Either bpe or phone",
+    )
+
+    parser.add_argument(
         "--bpe-model",
         type=str,
         default="data/lang_bpe_500/bpe.model",
         help="Path to the BPE model",
+    )
+
+    parser.add_argument(
+        "--lang-dir",
+        type=str,
+        default="data/lang_phone",
+        help="the lang dir contains lexicon",
     )
 
     parser.add_argument(
@@ -231,7 +275,7 @@ def get_parser():
     parser.add_argument(
         "--save-every-n",
         type=int,
-        default=8000,
+        default=20000,
         help="""Save checkpoint after processing this number of batches"
         periodically. We save checkpoint to exp-dir/ whenever
         params.batch_idx_train % save_every_n == 0. The checkpoint filename
@@ -244,7 +288,7 @@ def get_parser():
     parser.add_argument(
         "--keep-last-k",
         type=int,
-        default=30,
+        default=20,
         help="""Only keep this number of checkpoints on disk.
         For instance, if it is 3, there are only 3 checkpoints
         in the exp-dir with filenames `checkpoint-xxx.pt`.
@@ -261,7 +305,7 @@ def get_parser():
         in which each floating-point parameter is the average of all the
         parameters from the start of training. Each time we take the average,
         we do: `model_avg = model * (average_period / batch_idx_train) +
-            model_avg * ((batch_idx_train - average_period) / batch_idx_train)`.
+        model_avg * ((batch_idx_train - average_period) / batch_idx_train)`.
         """,
     )
 
@@ -470,7 +514,7 @@ def load_checkpoint_if_available(
 
 def save_checkpoint(
     params: AttributeDict,
-    model: Union[nn.Module, DDP],
+    model: nn.Module,
     model_avg: Optional[nn.Module] = None,
     optimizer: Optional[torch.optim.Optimizer] = None,
     scheduler: Optional[LRSchedulerType] = None,
@@ -520,14 +564,15 @@ def save_checkpoint(
 
 def compute_loss(
     params: AttributeDict,
-    model: Union[nn.Module, DDP],
+    model: nn.Module,
     sp: spm.SentencePieceProcessor,
+    pl: UniqLexicon,
     batch: dict,
     is_training: bool,
     warmup: float = 1.0,
 ) -> Tuple[Tensor, MetricsTracker]:
     """
-    Compute transducer loss given the model and its inputs.
+    Compute CTC loss given the model and its inputs.
 
     Args:
       params:
@@ -554,8 +599,12 @@ def compute_loss(
     feature_lens = supervisions["num_frames"].to(device)
 
     texts = batch["supervisions"]["text"]
-    y = sp.encode(texts, out_type=int)
-    y = k2.RaggedTensor(y).to(device)
+
+    if sp is not None:
+        y = sp.encode(texts, out_type=int)
+        y = k2.RaggedTensor(y).to(device)
+    else:
+        y = pl.texts_to_token_ids(texts).to(device)
 
     with torch.set_grad_enabled(is_training):
         simple_loss, pruned_loss = model(
@@ -593,8 +642,9 @@ def compute_loss(
 
 def compute_validation_loss(
     params: AttributeDict,
-    model: Union[nn.Module, DDP],
+    model: nn.Module,
     sp: spm.SentencePieceProcessor,
+    pl: UniqLexicon,
     valid_dl: torch.utils.data.DataLoader,
     world_size: int = 1,
 ) -> MetricsTracker:
@@ -608,6 +658,7 @@ def compute_validation_loss(
             params=params,
             model=model,
             sp=sp,
+            pl=pl,
             batch=batch,
             is_training=False,
         )
@@ -627,10 +678,11 @@ def compute_validation_loss(
 
 def train_one_epoch(
     params: AttributeDict,
-    model: Union[nn.Module, DDP],
+    model: nn.Module,
     optimizer: torch.optim.Optimizer,
     scheduler: LRSchedulerType,
     sp: spm.SentencePieceProcessor,
+    pl: UniqLexicon,
     train_dl: torch.utils.data.DataLoader,
     valid_dl: torch.utils.data.DataLoader,
     scaler: GradScaler,
@@ -688,8 +740,8 @@ def train_one_epoch(
             loss, loss_info = compute_loss(
                 params=params,
                 model=model,
-                model_avg=model_avg,
                 sp=sp,
+                pl=pl,
                 batch=batch,
                 is_training=True,
                 warmup=(params.batch_idx_train / params.model_warm_step),
@@ -707,6 +759,17 @@ def train_one_epoch(
 
         if params.print_diagnostics and batch_idx == 30:
             return
+
+        if (
+            rank == 0
+            and params.batch_idx_train > 0
+            and params.batch_idx_train % params.average_period == 0
+        ):
+            update_averaged_model(
+                params=params,
+                model_cur=model,
+                model_avg=model_avg,
+            )
 
         if (
             params.batch_idx_train > 0
@@ -757,6 +820,7 @@ def train_one_epoch(
                 params=params,
                 model=model,
                 sp=sp,
+                pl=pl,
                 valid_dl=valid_dl,
                 world_size=world_size,
             )
@@ -806,12 +870,21 @@ def run(rank, world_size, args):
         device = torch.device("cuda", rank)
     logging.info(f"Device: {device}")
 
-    sp = spm.SentencePieceProcessor()
-    sp.load(params.bpe_model)
+    if params.lang_type == "bpe":
+        logging.info(f"Using bpe model")
+        sp = spm.SentencePieceProcessor()
+        sp.load(params.bpe_model)
 
-    # <blk> is defined in local/train_bpe_model.py
-    params.blank_id = sp.piece_to_id("<blk>")
-    params.vocab_size = sp.get_piece_size()
+        # <blk> is defined in local/train_bpe_model.py
+        params.blank_id = sp.piece_to_id("<blk>")
+        params.vocab_size = sp.get_piece_size()
+        pl = None
+    elif params.lang_type == "phone":
+        logging.info(f"Using phone lexion")
+        pl = UniqLexicon(params.lang_dir)
+        params.blank_id = 0
+        params.vocab_size = max(pl.tokens) + 1
+        sp = None
 
     logging.info(params)
 
@@ -875,12 +948,13 @@ def run(rank, world_size, args):
     valid_cuts = gigaspeech.dev_cuts()
     valid_dl = gigaspeech.valid_dataloaders(valid_cuts)
 
-    if not params.print_diagnostics:
+    if 0 and not params.print_diagnostics:
         scan_pessimistic_batches_for_oom(
             model=model,
             train_dl=train_dl,
             optimizer=optimizer,
             sp=sp,
+            pl=pl,
             params=params,
         )
 
@@ -906,6 +980,7 @@ def run(rank, world_size, args):
             optimizer=optimizer,
             scheduler=scheduler,
             sp=sp,
+            pl=pl,
             train_dl=train_dl,
             valid_dl=valid_dl,
             scaler=scaler,
@@ -937,10 +1012,11 @@ def run(rank, world_size, args):
 
 
 def scan_pessimistic_batches_for_oom(
-    model: Union[nn.Module, DDP],
+    model: nn.Module,
     train_dl: torch.utils.data.DataLoader,
     optimizer: torch.optim.Optimizer,
     sp: spm.SentencePieceProcessor,
+    pl: UniqLexicon,
     params: AttributeDict,
 ):
     from lhotse.dataset import find_pessimistic_batches
@@ -960,6 +1036,7 @@ def scan_pessimistic_batches_for_oom(
                     params=params,
                     model=model,
                     sp=sp,
+                    pl=pl,
                     batch=batch,
                     is_training=True,
                     warmup=0.0,
