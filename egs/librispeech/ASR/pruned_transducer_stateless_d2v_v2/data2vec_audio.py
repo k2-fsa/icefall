@@ -490,9 +490,6 @@ class Data2VecAudioModel(BaseFairseqModel):
         
         ## for prompt tuning
         if prompt is not None:
-            print(features.size())
-            print(padding_mask.size())
-            print(padding_mask[0])
             conv_feat_all = torch.tensor([]).to(features.device)
             for i in range(padding_mask.size()[0]):
                 nonzero = padding_mask[i].nonzero()
@@ -500,11 +497,7 @@ class Data2VecAudioModel(BaseFairseqModel):
                     conv_feat_all = torch.cat([conv_feat_all, features[i][nonzero[0]]])
                 except:
                     conv_feat_all = torch.cat([conv_feat_all, features])
-            print(conv_feat_all.size())
-                #print(padding_mask[i].nonzero())
-            print(padding_mask.nonzero())
-            print(padding_mask.nonzero().size())
-            
+            print(conv_feat_all.size()) 
             exit()
             prompt = prompt.expand((features.size()[0], prompt.size()[0], prompt.size()[1]))
             features = torch.cat([prompt, features], dim=1)
