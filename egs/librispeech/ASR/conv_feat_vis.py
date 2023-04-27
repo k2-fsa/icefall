@@ -28,7 +28,7 @@ for spk in tqdm(spk_list):
         std = feats_all[i].std()
         static_file.write(f'{mean} {std}\n')
     '''
-    for i in range(512):
+    for i in tqdm(range(512), leave=False):
         plt.hist(feats_all[i], bins=500)
         plt.savefig(f'./{spk}/dim_{i}.pdf')
         plt.close()
