@@ -508,7 +508,7 @@ class Data2VecAudioModel(BaseFairseqModel):
                         length += features.size()[1]
                         conv_feat_all = torch.cat([conv_feat_all, features[i]])
                 
-                randint = np.random.randint(10000)
+                randint = np.random.randint(10000000)
                 np.save(f'{spk_dir}/{randint}.npy', conv_feat_all.cpu().numpy())
             
             prompt = prompt.expand((features.size()[0], prompt.size()[0], prompt.size()[1]))
