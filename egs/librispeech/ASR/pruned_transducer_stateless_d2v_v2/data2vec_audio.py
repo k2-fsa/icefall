@@ -496,6 +496,7 @@ class Data2VecAudioModel(BaseFairseqModel):
                 spk_dir = f'/home/work/workspace/icefall/egs/librispeech/ASR/conv_feat/{sid}'
                 if not os.path.isdir(spk_dir):
                     os.mkdir(spk_dir)
+                
                 conv_feat_all = torch.tensor([]).to(features.device)
                 length = 0
                 for i in range(padding_mask.size()[0]):
