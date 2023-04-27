@@ -6,6 +6,7 @@
 import argparse
 import logging
 import math
+import os
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -492,6 +493,9 @@ class Data2VecAudioModel(BaseFairseqModel):
         ## for prompt tuning
         if prompt is not None:
             if 1:
+                spk_dir = f'/home/work/workspace/icefall/egs/librispeech/ASR/conv_feat/{sid}'
+                if not os.path.isdir(spk_dir):
+                    os.mkdir(spk_dir)
                 conv_feat_all = torch.tensor([]).to(features.device)
                 length = 0
                 for i in range(padding_mask.size()[0]):
