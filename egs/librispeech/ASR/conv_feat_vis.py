@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
-spk_list = glob('./conv_feat/*')
+spk_list = sorted(glob('./conv_feat/*'))
 for spk in tqdm(spk_list):
     spk_id = spk.split('/')[-1]
     feats = []
