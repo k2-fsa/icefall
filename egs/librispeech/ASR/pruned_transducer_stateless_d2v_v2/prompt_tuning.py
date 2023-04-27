@@ -664,9 +664,6 @@ def get_transducer_model(params: AttributeDict) -> nn.Module:
     decoder = get_decoder_model(params)
     joiner = get_joiner_model(params)
     
-    print('0'*20)
-    print(params.spk_id)
-    print('0'*20)
     model = Transducer(
         encoder=encoder,
         decoder=decoder,
