@@ -84,10 +84,9 @@ class Transducer(nn.Module):
         print(self.sid)
         print('-'*20)
         if prompt:
-            #self.prompt = torch.randn((200, 512), requires_grad=True)
-            #statistic = open(f'/home/work/workspace/icefall/egs/librispeech/ASR/conv_feat/{self.sid}/{sid}_statistic.txt', 'r').readlines()
+            self.prompt = torch.randn((200, 512), requires_grad=True)
+            statistic = open(f'/home/work/workspace/icefall/egs/librispeech/ASR/conv_feat/{self.sid}/{sid}_statistic.txt', 'r').readlines()
             self.prompt = torch.nn.Parameter(torch.rand((50, 512)))
-            '''
             print(self.prompt)
             
             new_emb = torch.empty(512, 50)
@@ -99,7 +98,6 @@ class Transducer(nn.Module):
             new_emb = new_emb.transpose(1,0)
             self.prompt = torch.nn.Parameter(new_emb) 
             print(self.prompt)
-            '''
 
     def forward(
         self,
