@@ -663,7 +663,10 @@ def get_transducer_model(params: AttributeDict) -> nn.Module:
     encoder = get_encoder_model(params)
     decoder = get_decoder_model(params)
     joiner = get_joiner_model(params)
-
+    
+    print('0'*20)
+    print(params.spk_id)
+    print('0'*20)
     model = Transducer(
         encoder=encoder,
         decoder=decoder,
@@ -673,6 +676,7 @@ def get_transducer_model(params: AttributeDict) -> nn.Module:
         joiner_dim=params.joiner_dim,
         vocab_size=params.vocab_size,
         prompt=params.prompt,
+        sid=params.spk_id,
     )
     return model
 
