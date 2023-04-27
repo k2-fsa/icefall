@@ -10,6 +10,9 @@ for spk in tqdm(spk_list):
     feat_list = glob(f'{spk}/*.npy')
     static_file = open(f'{spk}/{spk_id}_statistic.txt', 'w')
 
+    if len(feat_list) > 100:
+        feat_list = feat_list[:100]
+
     for feat in tqdm(feat_list, leave=False):
         feat = np.load(feat)
         feats.append(feat)
