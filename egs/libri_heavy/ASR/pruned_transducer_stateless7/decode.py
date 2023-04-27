@@ -27,16 +27,7 @@ Usage:
     --max-duration 600 \
     --decoding-method greedy_search
 
-(2) beam search (not recommended)
-./pruned_transducer_stateless7/decode.py \
-    --epoch 28 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7/exp \
-    --max-duration 600 \
-    --decoding-method beam_search \
-    --beam-size 4
-
-(3) modified beam search
+(2) modified beam search
 ./pruned_transducer_stateless7/decode.py \
     --epoch 28 \
     --avg 15 \
@@ -44,88 +35,6 @@ Usage:
     --max-duration 600 \
     --decoding-method modified_beam_search \
     --beam-size 4
-
-(4) fast beam search (one best)
-./pruned_transducer_stateless7/decode.py \
-    --epoch 28 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7/exp \
-    --max-duration 600 \
-    --decoding-method fast_beam_search \
-    --beam 20.0 \
-    --max-contexts 8 \
-    --max-states 64
-
-(5) fast beam search (nbest)
-./pruned_transducer_stateless7/decode.py \
-    --epoch 28 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7/exp \
-    --max-duration 600 \
-    --decoding-method fast_beam_search_nbest \
-    --beam 20.0 \
-    --max-contexts 8 \
-    --max-states 64 \
-    --num-paths 200 \
-    --nbest-scale 0.5
-
-(6) fast beam search (nbest oracle WER)
-./pruned_transducer_stateless7/decode.py \
-    --epoch 28 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7/exp \
-    --max-duration 600 \
-    --decoding-method fast_beam_search_nbest_oracle \
-    --beam 20.0 \
-    --max-contexts 8 \
-    --max-states 64 \
-    --num-paths 200 \
-    --nbest-scale 0.5
-
-(7) fast beam search (with LG)
-./pruned_transducer_stateless7/decode.py \
-    --epoch 28 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7/exp \
-    --max-duration 600 \
-    --decoding-method fast_beam_search_nbest_LG \
-    --beam 20.0 \
-    --max-contexts 8 \
-    --max-states 64
-
-(8) modified beam search with RNNLM shallow fusion
-./pruned_transducer_stateless5/decode.py \
-    --epoch 35 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless5/exp \
-    --max-duration 600 \
-    --decoding-method modified_beam_search_lm_shallow_fusion \
-    --beam-size 4 \
-    --lm-type rnn \
-    --lm-scale 0.3 \
-    --lm-exp-dir /path/to/LM \
-    --rnn-lm-epoch 99 \
-    --rnn-lm-avg 1 \
-    --rnn-lm-num-layers 3 \
-    --rnn-lm-tie-weights 1
-
-(9) modified beam search with LM shallow fusion + LODR
-./pruned_transducer_stateless5/decode.py \
-    --epoch 28 \
-    --avg 15 \
-    --max-duration 600 \
-    --exp-dir ./pruned_transducer_stateless5/exp \
-    --decoding-method modified_beam_search_LODR \
-    --beam-size 4 \
-    --lm-type rnn \
-    --lm-scale 0.4 \
-    --lm-exp-dir /path/to/LM \
-    --rnn-lm-epoch 99 \
-    --rnn-lm-avg 1 \
-    --rnn-lm-num-layers 3 \
-    --rnn-lm-tie-weights 1
-    --tokens-ngram 2 \
-    --ngram-lm-scale -0.16 \
 
 """
 
@@ -155,6 +64,7 @@ from beam_search import (
     modified_beam_search_LODR,
     modified_beam_search_ngram_rescoring,
 )
+from text_normalization import ref_text_normalization, remove_non_alphabetic
 from train import add_model_arguments, get_params, get_transducer_model
 
 from icefall import LmScorer, NgramLm
@@ -169,6 +79,7 @@ from icefall.utils import (
     AttributeDict,
     setup_logger,
     store_transcripts,
+    store_transcripts_with_normalizations,
     str2bool,
     write_error_stats,
 )
@@ -662,7 +573,13 @@ def decode_dataset(
             this_batch = []
             assert len(hyps) == len(texts)
             for cut_id, hyp_words, ref_text in zip(cut_ids, hyps, texts):
+                # import pdb; pdb.set_trace()
+                # ref_text = ref_text_normalization(ref_text)
                 ref_words = ref_text.split()
+                ref_words = [remove_non_alphabetic(w.upper()) for w in ref_words]
+                ref_words = [w for w in ref_words if w != ""]
+                hyp_words = [remove_non_alphabetic(w.upper()) for w in hyp_words]
+                hyp_words = [w for w in hyp_words if w != ""]
                 this_batch.append((cut_id, ref_words, hyp_words))
 
             results[name].extend(this_batch)
