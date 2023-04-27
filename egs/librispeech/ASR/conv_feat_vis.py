@@ -30,5 +30,5 @@ for spk in tqdm(spk_list):
     '''
     for i in range(512):
         plt.hist(feats_all[i], bins=500)
-        plt.savefig(f'./conv_feat/{spk}/dim_{i}.pdf')
+        plt.savefig(f'./{spk}/dim_{i}.pdf')
         plt.close()
