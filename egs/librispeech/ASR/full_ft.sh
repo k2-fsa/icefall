@@ -41,7 +41,7 @@ else
 		--max-duration 150 \
 		--freeze-finetune-updates 0 \
 		--num-epochs 10000 \
-		--num-updates 101 \
+		--num-updates 127873 \
 		--save-every-n 50 \
 		--encoder-dim 768 \
 		--decoder-dim 768 \
