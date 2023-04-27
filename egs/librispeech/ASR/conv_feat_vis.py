@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 
 spk_list = glob('./conv_feat/*')
-for spk in spk_list:
+for spk in tqdm(spk_list):
     spk_id = spk.split('/')[-1]
     feats = []
     feat_list = glob(f'{spk}/*.npy')
