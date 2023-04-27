@@ -2,7 +2,8 @@ spk_id=$1
 dir=$2
 #for i in 10 20 30 40 50 60 70 80 90 100
 #for i in 50 100 150 200 250 300 350 400 450 500
-for i in 50 100 #150 200 250 300 350 400 450 500
+#for i in 50 100 #150 200 250 300 350 400 450 500
+for i in 127800 127850
 do
 	for method in modified_beam_search
 	do
