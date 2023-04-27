@@ -128,6 +128,7 @@ class FairSeqData2VecEncoder(EncoderInterface):
                 mask = ft,
                 features_only=True,
                 prompt=prompt,
+                sid=sid,
             )
 
         xs_pad = enc_outputs["x"]  # (B,T,C),
