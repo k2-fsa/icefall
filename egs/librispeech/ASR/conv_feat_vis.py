@@ -26,7 +26,7 @@ for spk in tqdm(spk_list):
     for i in tqdm(range(512), leave=False):
         mean = feats_all[i].mean()
         std = feats_all[i].std()
-        static_file.write(f'{mean} {std}')
+        static_file.write(f'{mean} {std}\n')
     '''
     for i in range(512):
         plt.hist(feats_all[i], bins=500)
