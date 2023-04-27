@@ -82,7 +82,7 @@ class Transducer(nn.Module):
         self.sid = sid
         if prompt:
             #self.prompt = torch.randn((200, 512), requires_grad=True)
-            statistic = open(f'/home/work/workspace/icefall/egs/librispeech/ASR/conv_feat/{self.sid}/2094_statistic.txt', 'r').readlines()
+            statistic = open(f'/home/work/workspace/icefall/egs/librispeech/ASR/conv_feat/{self.sid}/{sid}_statistic.txt', 'r').readlines()
             self.prompt = torch.nn.Parameter(torch.rand((50, 512)))
             print(self.prompt)
             
