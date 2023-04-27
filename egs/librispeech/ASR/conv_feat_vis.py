@@ -1,6 +1,7 @@
 from glob import glob
 import numpy as np
 import matplotlib.pyplot as plt
+from tqdm import tqdm
 
 spk_list = glob('./conv_feat/*')
 for spk in spk_list:
