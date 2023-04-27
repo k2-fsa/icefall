@@ -1693,6 +1693,7 @@ def run_adapter(rank, world_size, args, wb=None):
             rank=rank,
             wb=wb,
         )
+        exit()
 
         if params.print_diagnostics:
             diagnostic.print_diagnostics()
