@@ -97,6 +97,7 @@ class FairSeqData2VecEncoder(EncoderInterface):
         warmup = None,
         prev_states: torch.Tensor = None,
         prompt = None,
+        sid = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         xs_pad = x
         ilens = x_lens
