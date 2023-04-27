@@ -20,7 +20,7 @@ for spk in tqdm(spk_list):
 
     feats_all = feats_all.transpose(1,0)
 
-    for i in range(512):
+    for i in tqdm(range(512), leave=False):
         mean = feats_all[i].mean()
         std = feats_all[i].std()
         statistic_file.write(f'{mean} {std}')
