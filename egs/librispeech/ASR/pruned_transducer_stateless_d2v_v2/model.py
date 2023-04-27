@@ -40,6 +40,7 @@ class Transducer(nn.Module):
         joiner_dim: int,
         vocab_size: int,
         prompt=False,
+        sid=None,
     ):
         """
         Args:
