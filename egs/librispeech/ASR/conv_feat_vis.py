@@ -22,7 +22,7 @@ for spk in spk_list:
     for i in range(512):
         mean = feats_all[i].mean()
         std = feats_all[i].std()
-        print(mean, std)
+        statistic_file.write(f'{mean} {std}')
     '''
     for i in range(512):
         plt.hist(feats_all[i], bins=500)
