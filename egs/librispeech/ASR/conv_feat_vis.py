@@ -18,7 +18,7 @@ for spk in tqdm(spk_list):
         feats.append(feat)
 
     feats_all = feats[0]
-    for feat in feats:
+    for feat in tqdm(feats, leave=False):
         feats_all = np.concatenate([feats_all, feat])
 
     feats_all = feats_all.transpose(1,0)
