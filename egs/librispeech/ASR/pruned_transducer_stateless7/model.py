@@ -19,14 +19,11 @@ import k2
 import torch
 import torch.nn as nn
 import random
+import warnings
 from encoder_interface import EncoderInterface
 
-from icefall.utils import add_sos
-from scaling import (
-    penalize_abs_values_gt,
-    ScaledLinear
-)
-
+from icefall.utils import add_sos, make_pad_mask
+from scaling import penalize_abs_values_gt, ScaledLinear
 
 
 class Transducer(nn.Module):
@@ -36,6 +33,7 @@ class Transducer(nn.Module):
 
     def __init__(
         self,
+        encoder_embed: nn.Module,
         encoder: EncoderInterface,
         decoder: nn.Module,
         joiner: nn.Module,
@@ -46,6 +44,10 @@ class Transducer(nn.Module):
     ):
         """
         Args:
+          encoder_embed:
+            It is a Convolutional 2D subsampling module. It converts
+            an input of shape (N, T, idim) to an output of of shape
+            (N, T', odim), where T' = (T-3)//2-2 = (T-7)//2.
           encoder:
             It is the transcription network in the paper. Its accepts
             two inputs: `x` of (N, T, encoder_dim) and `x_lens` of shape (N,).
@@ -64,17 +66,21 @@ class Transducer(nn.Module):
         assert isinstance(encoder, EncoderInterface), type(encoder)
         assert hasattr(decoder, "blank_id")
 
+        self.encoder_embed = encoder_embed
         self.encoder = encoder
         self.decoder = decoder
         self.joiner = joiner
 
         self.simple_am_proj = ScaledLinear(
-            encoder_dim, vocab_size, initial_scale=0.25,
+            encoder_dim,
+            vocab_size,
+            initial_scale=0.25,
         )
         self.simple_lm_proj = ScaledLinear(
-            decoder_dim, vocab_size, initial_scale=0.25,
+            decoder_dim,
+            vocab_size,
+            initial_scale=0.25,
         )
-
 
     def forward(
         self,
@@ -119,7 +125,15 @@ class Transducer(nn.Module):
 
         assert x.size(0) == x_lens.size(0) == y.dim0
 
-        encoder_out, x_lens = self.encoder(x, x_lens)
+        # logging.info(f"Memory allocated at entry: {torch.cuda.memory_allocated() // 1000000}M")
+        x, x_lens = self.encoder_embed(x, x_lens)
+        # logging.info(f"Memory allocated after encoder_embed: {torch.cuda.memory_allocated() // 1000000}M")
+
+        src_key_padding_mask = make_pad_mask(x_lens)
+        x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
+
+        encoder_out, x_lens = self.encoder(x, x_lens, src_key_padding_mask)
+        encoder_out = encoder_out.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
 
         assert torch.all(x_lens > 0)
 
@@ -142,7 +156,9 @@ class Transducer(nn.Module):
 
         y_padded = y_padded.to(torch.int64)
         boundary = torch.zeros(
-            (x.size(0), 4), dtype=torch.int64, device=x.device
+            (encoder_out.size(0), 4),
+            dtype=torch.int64,
+            device=encoder_out.device,
         )
         boundary[:, 2] = y_lens
         boundary[:, 3] = x_lens
@@ -150,9 +166,9 @@ class Transducer(nn.Module):
         lm = self.simple_lm_proj(decoder_out)
         am = self.simple_am_proj(encoder_out)
 
-        #if self.training and random.random() < 0.25:
+        # if self.training and random.random() < 0.25:
         #    lm = penalize_abs_values_gt(lm, 100.0, 1.0e-04)
-        #if self.training and random.random() < 0.25:
+        # if self.training and random.random() < 0.25:
         #    am = penalize_abs_values_gt(am, 30.0, 1.0e-04)
 
         with torch.cuda.amp.autocast(enabled=False):

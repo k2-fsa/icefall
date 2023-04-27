@@ -64,6 +64,7 @@ from zipformer import Zipformer2
 from scaling import ScheduledFloat
 from decoder import Decoder
 from joiner import Joiner
+from subsampling import Conv2dSubsampling
 from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
@@ -525,29 +526,46 @@ def get_params() -> AttributeDict:
     return params
 
 
+def _to_int_tuple(s: str):
+    return tuple(map(int, s.split(',')))
+
+
+def get_encoder_embed(params: AttributeDict) -> nn.Module:
+    # encoder_embed converts the input of shape (N, T, num_features)
+    # to the shape (N, (T - 7) // 2, encoder_dims).
+    # That is, it does two things simultaneously:
+    #   (1) subsampling: T -> (T - 7) // 2
+    #   (2) embedding: num_features -> encoder_dims
+    # In the normal configuration, we will downsample once more at the end
+    # by a factor of 2, and most of the encoder stacks will run at a lower
+    # sampling rate.
+    encoder_embed = Conv2dSubsampling(
+        in_channels=params.feature_dim,
+        out_channels=_to_int_tuple(params.encoder_dim)[0],
+        dropout=ScheduledFloat((0.0, 0.3), (20000.0, 0.1))
+    )
+    return encoder_embed
+
+
 def get_encoder_model(params: AttributeDict) -> nn.Module:
-    # TODO: We can add an option to switch between Zipformer and Transformer
-    def to_int_tuple(s: str):
-        return tuple(map(int, s.split(',')))
     encoder = Zipformer2(
-        num_features=params.feature_dim,
         output_downsampling_factor=2,
-        downsampling_factor=to_int_tuple(params.downsampling_factor),
-        num_encoder_layers=to_int_tuple(params.num_encoder_layers),
-        encoder_dim=to_int_tuple(params.encoder_dim),
-        encoder_unmasked_dim=to_int_tuple(params.encoder_unmasked_dim),
-        query_head_dim=to_int_tuple(params.query_head_dim),
-        pos_head_dim=to_int_tuple(params.pos_head_dim),
-        value_head_dim=to_int_tuple(params.value_head_dim),
+        downsampling_factor=_to_int_tuple(params.downsampling_factor),
+        num_encoder_layers=_to_int_tuple(params.num_encoder_layers),
+        encoder_dim=_to_int_tuple(params.encoder_dim),
+        encoder_unmasked_dim=_to_int_tuple(params.encoder_unmasked_dim),
+        query_head_dim=_to_int_tuple(params.query_head_dim),
+        pos_head_dim=_to_int_tuple(params.pos_head_dim),
+        value_head_dim=_to_int_tuple(params.value_head_dim),
         pos_dim=params.pos_dim,
-        num_heads=to_int_tuple(params.num_heads),
-        feedforward_dim=to_int_tuple(params.feedforward_dim),
-        cnn_module_kernel=to_int_tuple(params.cnn_module_kernel),
+        num_heads=_to_int_tuple(params.num_heads),
+        feedforward_dim=_to_int_tuple(params.feedforward_dim),
+        cnn_module_kernel=_to_int_tuple(params.cnn_module_kernel),
         dropout=ScheduledFloat((0.0, 0.3), (20000.0, 0.1)),
         warmup_batches=4000.0,
         causal=params.causal,
-        chunk_size=to_int_tuple(params.chunk_size),
-        left_context_frames=to_int_tuple(params.left_context_frames),
+        chunk_size=_to_int_tuple(params.chunk_size),
+        left_context_frames=_to_int_tuple(params.left_context_frames),
     )
     return encoder
 
@@ -564,7 +582,7 @@ def get_decoder_model(params: AttributeDict) -> nn.Module:
 
 def get_joiner_model(params: AttributeDict) -> nn.Module:
     joiner = Joiner(
-        encoder_dim=int(max(params.encoder_dim.split(','))),
+        encoder_dim=max(_to_int_tuple(params.encoder_dim)),
         decoder_dim=params.decoder_dim,
         joiner_dim=params.joiner_dim,
         vocab_size=params.vocab_size,
@@ -573,11 +591,13 @@ def get_joiner_model(params: AttributeDict) -> nn.Module:
 
 
 def get_transducer_model(params: AttributeDict) -> nn.Module:
+    encoder_embed = get_encoder_embed(params)
     encoder = get_encoder_model(params)
     decoder = get_decoder_model(params)
     joiner = get_joiner_model(params)
 
     model = Transducer(
+        encoder_embed=encoder_embed,
         encoder=encoder,
         decoder=decoder,
         joiner=joiner,
