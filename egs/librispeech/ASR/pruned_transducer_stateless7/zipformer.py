@@ -695,7 +695,7 @@ class Zipformer2Encoder(nn.Module):
     ) -> None:
         super().__init__()
         self.encoder_pos = CompactRelPositionalEncoding(pos_dim, dropout_rate=0.15,
-                                                        length_factor=3.0)
+                                                        length_factor=1.0)
 
         self.layers = nn.ModuleList(
             [copy.deepcopy(encoder_layer) for i in range(num_layers)]
