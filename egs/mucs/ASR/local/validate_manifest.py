@@ -84,15 +84,16 @@ def main():
     logging.info(f"Validating {manifest}")
 
     assert manifest.is_file(), f"{manifest} does not exist"
-    print(manifest)
+    # print(manifest)
     cut_set = load_manifest_lazy(manifest)
-    print(cut_set)
+    # print(cut_set)
     assert isinstance(cut_set, CutSet)
 
     for c in cut_set:
         # print(len(c.supervisions))
-        # validate_one_supervision_per_cut(c)
-        # validate_supervision_and_cut_time_bounds(c)
+        # print(c.supervisions)
+        validate_one_supervision_per_cut(c)
+        validate_supervision_and_cut_time_bounds(c)
 
     # Validation from K2 training
     # - checks supervision start is 0

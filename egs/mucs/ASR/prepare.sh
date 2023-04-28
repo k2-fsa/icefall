@@ -6,8 +6,8 @@ export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
 set -eou pipefail
 
 nj=60
-stage=3
-stop_stage=3
+stage=-1
+stop_stage=9
 
 # We assume dl_dir (download dir) contains the following
 # directories and files. If not, they will be downloaded
@@ -94,7 +94,7 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   mkdir -p data/fbank
   if [ ! -e data/fbank/.mucs.done ]; then
     ./local/compute_fbank_mucs.py
-    touch data/fbank/.mucs.done
+    # touch data/fbank/.mucs.done
   fi
 
   # exit
@@ -102,14 +102,15 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   if [ ! -e data/fbank/.mucs-validated.done ]; then
     log "Validating data/fbank for mucs"
     parts=(
-      train,
+      train
       test
+      dev
     )
     for part in ${parts[@]}; do
       python3 ./local/validate_manifest.py \
         data/fbank/mucs_cuts_${part}.jsonl.gz
     done
-    touch data/fbank/.mucs-validated.done
+    # touch data/fbank/.mucs-validated.done
   fi
 fi
 
@@ -201,28 +202,35 @@ if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
   for vocab_size in ${vocab_sizes[@]}; do
     lang_dir=data/lang_bpe_${vocab_size}
 
-    if [ ! -f $lang_dir/transcript_tokens.txt ]; then
-      ./local/convert_transcript_words_to_tokens.py \
-        --lexicon $lang_dir/lexicon.txt \
-        --transcript $lang_dir/transcript_words.txt \
-        --oov "<UNK>" \
-        > $lang_dir/transcript_tokens.txt
-    fi
+    # if [ ! -f $lang_dir/transcript_tokens.txt ]; then
+    #   ./local/convert_transcript_words_to_tokens.py \
+    #     --lexicon $lang_dir/lexicon.txt \
+    #     --transcript $lang_dir/transcript_words.txt \
+    #     --oov "<UNK>" \
+    #     > $lang_dir/transcript_tokens.txt
+    # fi
 
-    if [ ! -f $lang_dir/P.arpa ]; then
+    if [ ! -f $lang_dir/lm_3.arpa ]; then
       ./shared/make_kn_lm.py \
-        -ngram-order 2 \
-        -text $lang_dir/transcript_tokens.txt \
-        -lm $lang_dir/P.arpa
+        -ngram-order 3 \
+        -text $lang_dir/transcript_words.txt \
+        -lm $lang_dir/lm_3.arpa
     fi
 
-    if [ ! -f $lang_dir/P.fst.txt ]; then
-      python3 -m kaldilm \
-        --read-symbol-table="$lang_dir/tokens.txt" \
-        --disambig-symbol='#0' \
-        --max-order=2 \
-        $lang_dir/P.arpa > $lang_dir/P.fst.txt
+    if [ ! -f $lang_dir/lm_4.arpa ]; then
+      ./shared/make_kn_lm.py \
+        -ngram-order 4 \
+        -text $lang_dir/transcript_words.txt \
+        -lm $lang_dir/lm_4.arpa
     fi
+
+    # if [ ! -f $lang_dir/P.fst.txt ]; then
+    #   python3 -m kaldilm \
+    #     --read-symbol-table="$lang_dir/tokens.txt" \
+    #     --disambig-symbol='#0' \
+    #     --max-order=2 \
+    #     $lang_dir/P.arpa > $lang_dir/P.fst.txt
+    # fi
   done
 fi
 
@@ -238,22 +246,31 @@ if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
       --read-symbol-table="data/lang_phone/words.txt" \
       --disambig-symbol='#0' \
       --max-order=3 \
-      $dl_dir/lm/3-gram.pruned.1e-7.arpa > data/lm/G_3_gram.fst.txt
+      data/lang_bpe_200/lm_3.arpa > data/lm/G_3_gram.fst.txt
   fi
 
   if [ ! -f data/lm/G_4_gram.fst.txt ]; then
-    # It is used for LM rescoring
+    # It is used in building HLG
     python3 -m kaldilm \
       --read-symbol-table="data/lang_phone/words.txt" \
       --disambig-symbol='#0' \
-      --max-order=4 \
-      $dl_dir/lm/4-gram.arpa > data/lm/G_4_gram.fst.txt
+      --max-order=3 \
+      data/lang_bpe_200/lm_4.arpa > data/lm/G_4_gram.fst.txt
   fi
+
+  # if [ ! -f data/lm/G_4_gram.fst.txt ]; then
+  #   # It is used for LM rescoring
+  #   python3 -m kaldilm \
+  #     --read-symbol-table="data/lang_phone/words.txt" \
+  #     --disambig-symbol='#0' \
+  #     --max-order=4 \
+  #     $dl_dir/lm/4-gram.arpa > data/lm/G_4_gram.fst.txt
+  # fi
 fi
 
 if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
   log "Stage 9: Compile HLG"
-  ./local/compile_hlg.py --lang-dir data/lang_phone
+  # ./local/compile_hlg.py --lang-dir data/lang_phone
 
   # Note If ./local/compile_hlg.py throws OOM,
   # please switch to the following command

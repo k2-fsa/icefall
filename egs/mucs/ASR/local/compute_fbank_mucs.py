@@ -81,8 +81,11 @@ def compute_fbank_mucs(
     dataset_parts = (
             "train",
             "test",
+            "dev",
     )
-    
+    # dataset_parts = (
+    #         "test",
+    # )
     prefix = "mucs"
     suffix = "jsonl.gz"
     manifests = read_manifests_if_cached(
@@ -115,13 +118,18 @@ def compute_fbank_mucs(
                 recordings=m["recordings"],
                 supervisions=m["supervisions"],
             )
-
-            if "train" in partition:
-                if bpe_model:
-                    cut_set = filter_cuts(cut_set, sp)
-                cut_set = (
-                    cut_set + cut_set.perturb_speed(0.9) + cut_set.perturb_speed(1.1)
-                )
+            # print(len(m["supervisions"]))
+            # for s in m["supervisions"]:
+            #     # print(s)
+            #     if s.channel != 0:
+            #         print(s)
+            # exit()
+            # if "train" in partition:
+            #     if bpe_model:
+            #         cut_set = filter_cuts(cut_set, sp)
+            #     cut_set = (
+            #         cut_set + cut_set.perturb_speed(0.9) + cut_set.perturb_speed(1.1)
+            #     )
             cut_set = cut_set.compute_and_store_features(
                 extractor=extractor,
                 storage_path=f"{output_dir}/{prefix}_feats_{partition}",
@@ -131,7 +139,8 @@ def compute_fbank_mucs(
                 storage_type=LilcomChunkyWriter,
             )
             cut_set = cut_set.trim_to_supervisions(
-            keep_overlapping=False, min_duration=None
+            keep_overlapping=False, min_duration=None, keep_all_channels=False,
+            
         )
             cut_set.to_file(output_dir / cuts_filename)
 

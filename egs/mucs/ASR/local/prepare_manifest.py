@@ -20,15 +20,6 @@ from lhotse import (
 from lhotse.recipes.utils import manifests_exist, read_manifests_if_cached
 from lhotse.utils import Pathlike, safe_extract, urlretrieve_progress
 
-LIBRITTS = (
-    "dev-clean",
-    "dev-other",
-    "test-clean",
-    "test-other",
-    "train-clean-100",
-    "train-clean-360",
-    "train-other-500",
-)
 
 def prepare_mucs(
     corpus_dir: Pathlike,
@@ -51,7 +42,7 @@ def prepare_mucs(
     corpus_dir = Path(corpus_dir)
     assert corpus_dir.is_dir(), f"No such directory: {corpus_dir}"
 
-    dataset_parts = ["train", "test"]
+    dataset_parts = ["train", "test", "dev"]
 
     manifests = {}
 
