@@ -232,6 +232,7 @@ def export_with_state(
     L = 20
     num_layers = model.rnn.num_layers
     hidden_size = model.rnn.hidden_size
+    embedding_dim = model.rnn.embedding_dim
 
     x = torch.randint(low=1, high=params.vocab_size, size=(N, L), dtype=torch.int64)
     y = torch.randint(low=1, high=params.vocab_size, size=(N, L), dtype=torch.int64)
@@ -278,6 +279,7 @@ def export_with_state(
         "vocab_size": str(params.vocab_size),
         "num_layers": str(num_layers),
         "hidden_size": str(hidden_size),
+        "embedding_dim": str(embedding_dim),
         "url": "https://huggingface.co/ezerhouni/icefall-librispeech-rnn-lm",
     }
     logging.info(f"meta_data: {meta_data}")
