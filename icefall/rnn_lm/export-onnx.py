@@ -232,7 +232,7 @@ def export_with_state(
     L = 20
     num_layers = model.rnn.num_layers
     hidden_size = model.rnn.hidden_size
-    embedding_dim = model.rnn.embedding_dim
+    embedding_dim = model.embedding_dim
 
     x = torch.randint(low=1, high=params.vocab_size, size=(N, L), dtype=torch.int64)
     y = torch.randint(low=1, high=params.vocab_size, size=(N, L), dtype=torch.int64)
