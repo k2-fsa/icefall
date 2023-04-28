@@ -198,7 +198,7 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
     ./shared/convert-k2-to-openfst.py \
       --olabels aux_labels \
       $lang_dir/L_disambig.pt \
-      $lang_dir/disambig_L.fst
+      $lang_dir/L_disambig.fst
   fi
 fi
 
