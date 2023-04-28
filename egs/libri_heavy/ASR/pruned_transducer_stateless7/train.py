@@ -68,6 +68,7 @@ from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import Transducer
 from optim import Eden, ScaledAdam
+from text_normalization import train_text_normalization
 from torch import Tensor
 from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -687,6 +688,7 @@ def compute_loss(
     warm_step = params.warm_step
 
     texts = batch["supervisions"]["text"]
+    texts = [train_text_normalization(t) for t in texts]
     y = sp.encode(texts, out_type=int)
     y = k2.RaggedTensor(y).to(device)
 

@@ -1,6 +1,15 @@
 import re
 
 
+def train_text_normalization(s: str) -> str:
+    s = s.replace("“", '"')
+    s = s.replace("”", '"')
+    s = s.replace("‘", "'")
+    s = s.replace("’", "'")
+
+    return s
+
+
 def ref_text_normalization(ref_text: str) -> str:
     # Rule 1: Remove the [FN#[]]
     p = r"[FN#[0-9]*]"
@@ -23,6 +32,7 @@ def recog_text_normalization(recog_text: str) -> str:
 
 
 if __name__ == "__main__":
-    ref_text = " Quoth Shahrazad [FN#1]:—It hath reached me, O [FN#987]auspicious King of intelligence "
-    res = ref_text_normalization(ref_text)
+    ref_text = " Hello “! My name is ‘ haha"
+    print(ref_text)
+    res = train_text_normalization(ref_text)
     print(res)

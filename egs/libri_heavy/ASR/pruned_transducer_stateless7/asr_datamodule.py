@@ -383,11 +383,8 @@ class LibriHeavyAsrDataModule:
 
     @lru_cache()
     def train_cuts(self) -> CutSet:
-        logging.info(f"About to get train_{self.args.subset} cuts")
-        path = (
-            self.args.manifest_dir
-            / f"librilight_cuts_train_{self.args.subset}.jsonl.gz"
-        )
+        logging.info(f"About to get {self.args.subset} cuts")
+        path = self.args.manifest_dir / f"librilight_cuts_{self.args.subset}.jsonl.gz"
         cuts_train = CutSet.from_jsonl_lazy(path)
         return cuts_train
 
