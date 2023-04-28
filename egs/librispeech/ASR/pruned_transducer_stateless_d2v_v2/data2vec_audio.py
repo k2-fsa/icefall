@@ -492,7 +492,7 @@ class Data2VecAudioModel(BaseFairseqModel):
         
         ## for prompt tuning
         if prompt is not None:
-            if 1:
+            if 0:
                 spk_dir = f'/home/work/workspace/icefall/egs/librispeech/ASR/conv_feat/{sid}'
                 if not os.path.isdir(spk_dir):
                     os.mkdir(spk_dir)
