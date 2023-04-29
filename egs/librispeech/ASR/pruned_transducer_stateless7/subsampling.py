@@ -48,7 +48,7 @@ class ConvNeXt(nn.Module):
         layerdrop_rate: FloatLike = None,
     ):
         super().__init__()
-        padding = ((kernel_size[0] - 1) // 2, (kernel_size[1] - 1) // 2)
+        self.padding = ((kernel_size[0] - 1) // 2, (kernel_size[1] - 1) // 2)
         hidden_channels = channels * hidden_ratio
         if layerdrop_rate is None:
             layerdrop_rate = ScheduledFloat((0.0, 0.2), (20000.0, 0.015))
@@ -59,7 +59,7 @@ class ConvNeXt(nn.Module):
             out_channels=channels,
             groups=channels,
             kernel_size=kernel_size,
-            padding=padding,
+            padding=self.padding,
         )
 
         self.pointwise_conv1 = nn.Conv2d(
@@ -143,6 +143,52 @@ class ConvNeXt(nn.Module):
 
         return x
 
+    def streaming_forward(
+        self,
+        x: Tensor,
+        cached_left_pad: Tensor,
+    ) -> Tuple[Tensor, Tensor]:
+        """
+        Args:
+            x layout: (N, C, H, W), i.e. (batch_size, num_channels, num_frames, num_freqs)
+            cached_left_pad: (batch_size, num_channels, left_pad, num_freqs)
+
+        Returns:
+            - The returned value has the same shape as x.
+            - Updated cached_left_pad.
+        """
+        padding = self.padding
+
+        # The length without right padding for depth-wise conv
+        T = x.size(2) - padding[0]
+
+        bypass = x[:, :, :T, :]
+
+        # Pad left side
+        assert cached_left_pad.size(2) == padding[0], (
+            cached_left_pad.size(2),
+            padding[0],
+        )
+        x = torch.cat([cached_left_pad, x], dim=2)
+        # Update cached left padding
+        cached_left_pad = x[:, :, T : padding[0] + T, :]
+
+        # depthwise_conv
+        x = torch.nn.functional.conv2d(
+            x,
+            weight=self.depthwise_conv.weight,
+            bias=self.depthwise_conv.bias,
+            padding=(0, padding[1]),
+            groups=self.depthwise_conv.groups,
+        )
+        x = self.pointwise_conv1(x)
+        x = self.hidden_balancer(x)
+        x = self.activation(x)
+        x = self.pointwise_conv2(x)
+
+        x = bypass + x
+        return x, cached_left_pad
+
 
 class Conv2dSubsampling(nn.Module):
     """Convolutional 2D subsampling (to 1/2 length).
@@ -219,9 +265,10 @@ class Conv2dSubsampling(nn.Module):
         # just one convnext layer
         self.convnext = ConvNeXt(layer3_channels, kernel_size=(7, 7))
 
-        out_width = (((in_channels - 1) // 2) - 1) // 2
+        self.out_width = (((in_channels - 1) // 2) - 1) // 2
+        self.layer3_channels = layer3_channels
 
-        self.out = nn.Linear(out_width * layer3_channels, out_channels)
+        self.out = nn.Linear(self.out_width * layer3_channels, out_channels)
         # use a larger than normal grad_scale on this whitening module; there is
         # only one such module, so there is not a concern about adding together
         # many copies of this extra gradient term.
@@ -239,7 +286,9 @@ class Conv2dSubsampling(nn.Module):
         self.out_norm = BiasNorm(out_channels)
         self.dropout = Dropout3(dropout, shared_dim=1)
 
-    def forward(self, x: torch.Tensor, x_lens: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, x: torch.Tensor, x_lens: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Subsample x.
 
         Args:
@@ -278,3 +327,71 @@ class Conv2dSubsampling(nn.Module):
         assert x.size(1) == x_lens.max().item()
 
         return x, x_lens
+
+    def streaming_forward(
+        self,
+        x: torch.Tensor,
+        x_lens: torch.Tensor,
+        cached_left_pad: Tensor,
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Subsample x.
+
+        Args:
+          x:
+            Its shape is (N, T, idim).
+          x_lens:
+            A tensor of shape (batch_size,) containing the number of frames in
+
+        Returns:
+          - a tensor of shape (N, ((T-1)//2 - 1)//2, odim)
+          - output lengths, of shape (batch_size,)
+          - updated cache
+        """
+        # On entry, x is (N, T, idim)
+        x = x.unsqueeze(1)  # (N, T, idim) -> (N, 1, T, idim) i.e., (N, C, H, W)
+
+        # T' = (T-7)//2
+        x = self.conv(x)
+
+        # T' = (T-7)//2-3
+        x, cached_left_pad = self.convnext.streaming_forward(
+            x, cached_left_pad=cached_left_pad
+        )
+
+        # Now x is of shape (N, odim, T', ((idim-1)//2 - 1)//2)
+        b, c, t, f = x.size()
+
+        x = x.transpose(1, 2).reshape(b, t, c * f)
+        # now x: (N, T', out_width * layer3_channels))
+
+        x = self.out(x)
+        # Now x is of shape (N, T', odim)
+        x = self.out_norm(x)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            # The ConvNeXt module needs 3 frames of right padding after subsampling
+            assert self.convnext.padding[0] == 3
+            x_lens = (x_lens - 7) // 2 - 3
+        assert x.size(1) == x_lens.max().item()
+
+        return x, x_lens, cached_left_pad
+
+    @torch.jit.export
+    def get_init_states(
+        self,
+        batch_size: int = 1,
+        device: torch.device = torch.device("cpu"),
+    ) -> Tensor:
+        """Get initial states for Conv2dSubsampling module.
+        It is the cached left padding for ConvNeXt module,
+        of shape (batch_size, num_channels, left_pad, num_freqs)
+        """
+        left_pad = self.convnext.padding[0]
+        freq = self.out_width
+        channels = self.layer3_channels
+        cached_embed_left_pad = torch.zeros(
+            batch_size, channels, left_pad, freq
+        ).to(device)
+
+        return cached_embed_left_pad

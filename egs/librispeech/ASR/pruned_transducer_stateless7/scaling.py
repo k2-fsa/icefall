@@ -650,10 +650,40 @@ class ChunkCausalDepthwiseConv1d(torch.nn.Module):
             right_edge = torch.cat((pad, right_edge), dim=-1)
         return 1.0 + (left_edge + right_edge)
 
+    def streaming_forward(
+        self,
+        x: Tensor,
+        cache: Tensor,
+    ) -> Tensor:
+        """Streaming Forward function.
 
+        Args:
+            x: a Tensor of shape (batch_size, channels, seq_len)
+            cache: cached left context of shape (batch_size, channels, left_pad)
+        """
+        (batch_size, num_channels, seq_len) = x.shape
 
+        # left_pad is half_kernel_size - 1 where half_kernel_size is the size used
+        # in the causal conv.  It's the amount by which we must pad on the left,
+        # to make the convolution causal.
+        left_pad = self.kernel_size // 2
 
+        # Pad cache
+        assert cache.shape[-1] == left_pad, (cache.shape[-1], left_pad)
+        x = torch.cat([cache, x], dim=2)
+        # Update cache
+        cache = x[..., -left_pad:]
 
+        x_causal = self.causal_conv(x)
+        assert x_causal.shape == (batch_size, num_channels, seq_len)
+
+        x_chunk = x[..., left_pad:]
+        x_chunk = self.chunkwise_conv(x_chunk)  # does not change shape
+
+        chunk_scale = self._get_chunk_scale(chunk_size=seq_len)
+        x_chunk = x_chunk * chunk_scale
+
+        return x_chunk + x_causal, cache
 
 
 class BalancerFunction(torch.autograd.Function):
