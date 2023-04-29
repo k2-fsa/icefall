@@ -29,6 +29,7 @@ from lhotse.dataset import (
     CutConcatenate,
     CutMix,
     DynamicBucketingSampler,
+    K2SpeechRecognitionDataset,
     PrecomputedFeatures,
     SingleCutSampler,
     SpecAugment,
@@ -361,7 +362,7 @@ class LibriHeavyAsrDataModule:
 
     def test_dataloaders(self, cuts: CutSet) -> DataLoader:
         logging.debug("About to create test dataset")
-        test = PromptASRDataset(
+        test = K2SpeechRecognitionDataset(
             input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80)))
             if self.args.on_the_fly_feats
             else PrecomputedFeatures(),
@@ -395,3 +396,19 @@ class LibriHeavyAsrDataModule:
             self.args.manifest_dir / "librilight_cuts_dev.jsonl.gz"
         )
         return cuts_valid
+
+    @lru_cache()
+    def test_clean_cuts(self) -> CutSet:
+        logging.info("About to get test-clean cuts")
+        cuts = load_manifest_lazy(
+            self.args.manifest_dir / "librilight_finetuning_clean.jsonl.gz"
+        )
+        return cuts
+
+    @lru_cache()
+    def test_other_cuts(self) -> CutSet:
+        logging.info("About to get test-other cuts")
+        cuts = load_manifest_lazy(
+            self.args.manifest_dir / "librilight_finetuning_other.jsonl.gz"
+        )
+        return cuts
