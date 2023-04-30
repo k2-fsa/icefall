@@ -427,9 +427,10 @@ class Zipformer2EncoderLayer(nn.Module):
         self.embed_dim = embed_dim
 
         # self.bypass implements layer skipping as well as bypass; see its default values.
-        self.bypass = BypassModule(embed_dim, skip_rate=bypass_skip_rate)
+        self.bypass = BypassModule(embed_dim, skip_rate=bypass_skip_rate,
+                                   straight_through_rate=0.025)
         # bypass_mid is bypass used in the middle of the layer.
-        self.bypass_mid = BypassModule(embed_dim)
+        self.bypass_mid = BypassModule(embed_dim, straight_through_rate=0.025)
 
 
         # skip probability for dynamic modules (meaning: anything but feedforward).
@@ -768,11 +769,13 @@ class BypassModule(nn.Module):
             self,
             embed_dim: int,
             skip_rate: FloatLike = 0.0,
+            straight_through_rate: FloatLike = 0.0,
             scale_min: FloatLike = ScheduledFloat((0.0, 0.9), (20000.0, 0.2), default=0),
             scale_max: FloatLike = 1.0):
         super().__init__()
         self.bypass_scale = nn.Parameter(torch.full((embed_dim,), 0.5))
         self.skip_rate = copy.deepcopy(skip_rate)
+        self.straight_through_rate = copy.deepcopy(straight_through_rate)
         self.scale_min = copy.deepcopy(scale_min)
         self.scale_max = copy.deepcopy(scale_max)
 
@@ -794,6 +797,11 @@ class BypassModule(nn.Module):
                 ans = ans * mask
                 # now ans is of shape (batch_size, num_channels), and is zero for sequences
                 # on which we have randomly chosen to do layer-skipping.
+            straight_through_rate = float(self.straight_through_rate)
+            if straight_through_rate != 0.0:
+                mask = torch.rand((batch_size, 1), device=ans.device) < straight_through_rate
+                ans = torch.maximum(ans, mask.to(ans.dtype))
+
             return ans
 
     def forward(self,
@@ -826,7 +834,7 @@ class DownsampledZipformer2Encoder(nn.Module):
                                            downsample, dropout)
         self.encoder = encoder
         self.upsample = SimpleUpsample(dim, downsample)
-        self.out_combiner = BypassModule(dim)
+        self.out_combiner = BypassModule(dim, straight_through_rate=0.025)
 
 
     def forward(self,
