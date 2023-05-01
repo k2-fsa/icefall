@@ -71,7 +71,9 @@ from lhotse.utils import fix_random_seed
 from model import Transducer
 from optim import Eden, ScaledAdam
 from torch import Tensor
+from torch import nn
 from torch.cuda.amp import GradScaler
+
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
 
@@ -157,6 +159,14 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         type=str,
         default="192,256,384,512,384,256",
         help="Embedding dimension in encoder stacks: a single int or comma-separated list."
+    )
+
+    parser.add_argument(
+        "--text-encoder-dim",
+        type=str,
+        default="256,256,384,512",
+        help="Embedding dimension in text encoder stacks: a comma-separated list of 4 elements, "
+        "or you should change other configs in the code."
     )
 
     parser.add_argument(
@@ -547,6 +557,32 @@ def get_encoder_embed(params: AttributeDict) -> nn.Module:
     return encoder_embed
 
 
+def get_text_embed(params: AttributeDict) -> nn.Module:
+    return nn.Embedding(
+        num_embeddings=256,   # we encode the text as UTF-8 bytes
+        embedding_dim=_to_int_tuple(params.text_encoder_dim)[0],
+    )
+
+def get_text_encoder(params: AttributeDict) -> nn.Module:
+    return Zipformer2(
+        output_downsampling_factor=8,
+        downsampling_factor=(1,2,4,8),
+        num_encoder_layers=(2,4,6,6),
+        encoder_dim=_to_int_tuple(params.text_encoder_dim),
+        encoder_unmasked_dim=(196,196,256,256),
+        query_head_dim=(32,32,32,32),
+        pos_head_dim=(4,4,4,4),
+        value_head_dim=(12,12,12,12),
+        pos_dim=48,
+        num_heads=(4,4,4,8),
+        feedforward_dim=(384,512,768,1024), # could increase this if there is nough data
+        cnn_module_kernel=(31,31,15,15),
+        dropout=ScheduledFloat((0.0, 0.3), (20000.0, 0.1)),
+        warmup_batches=4000.0,
+        causal=False,
+    )
+
+
 def get_encoder_model(params: AttributeDict) -> nn.Module:
     encoder = Zipformer2(
         output_downsampling_factor=2,
@@ -566,6 +602,7 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         causal=params.causal,
         chunk_size=_to_int_tuple(params.chunk_size),
         left_context_frames=_to_int_tuple(params.left_context_frames),
+        memory_dim=_to_int_tuple(params.text_encoder_dim)[-1],
     )
     return encoder
 
@@ -593,12 +630,16 @@ def get_joiner_model(params: AttributeDict) -> nn.Module:
 def get_transducer_model(params: AttributeDict) -> nn.Module:
     encoder_embed = get_encoder_embed(params)
     encoder = get_encoder_model(params)
+    text_embed = get_text_embed(params)
+    text_encoder = get_text_encoder(params)
     decoder = get_decoder_model(params)
     joiner = get_joiner_model(params)
 
     model = Transducer(
         encoder_embed=encoder_embed,
         encoder=encoder,
+        text_embed=text_embed,
+        text_encoder=text_encoder,
         decoder=decoder,
         joiner=joiner,
         encoder_dim=int(max(params.encoder_dim.split(','))),

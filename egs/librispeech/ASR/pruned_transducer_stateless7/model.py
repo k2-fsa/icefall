@@ -26,15 +26,16 @@ from icefall.utils import add_sos, make_pad_mask
 from scaling import penalize_abs_values_gt, ScaledLinear
 
 
-class Transducer(nn.Module):
+class PromptedTransducer(nn.Module):
     """It implements https://arxiv.org/pdf/1211.3711.pdf
     "Sequence Transduction with Recurrent Neural Networks"
     """
-
     def __init__(
         self,
         encoder_embed: nn.Module,
         encoder: EncoderInterface,
+        text_embed: nn.Module,
+        text_encoder: EncoderInterface,
         decoder: nn.Module,
         joiner: nn.Module,
         encoder_dim: int,
@@ -68,6 +69,8 @@ class Transducer(nn.Module):
 
         self.encoder_embed = encoder_embed
         self.encoder = encoder
+        self.text_embed = text_embed
+        self.text_encoder = text_encoder
         self.decoder = decoder
         self.joiner = joiner
 
@@ -86,6 +89,9 @@ class Transducer(nn.Module):
         self,
         x: torch.Tensor,
         x_lens: torch.Tensor,
+        text: torch.Tensor,
+        style_lens: torch.Tensor,
+        text_lens: torch.Tensor,
         y: k2.RaggedTensor,
         prune_range: int = 5,
         am_scale: float = 0.0,
@@ -98,6 +104,21 @@ class Transducer(nn.Module):
           x_lens:
             A 1-D tensor of shape (N,). It contains the number of frames in `x`
             before padding.
+          x_lens:
+            A 1-D tensor of shape (N,). It contains the number of frames in `x`
+            before padding.
+          text:
+            A 2-D tensor of integer dtype containing prompt text, of shape (N, T).
+            It is exptected to contain the style prompt (first) and then the content
+            prompt.
+          style_lens:
+            A 1-D tensor of shape (N,), containing the number of elements (bytes)
+            within each row of `text` that correspond to the style prompt (these
+            are expected to come first).
+          text_lens:
+            A 1-D tensor of shape (N,). It contains the number of elements (bytes)
+            in `text` before padding, which will include the lengths of the
+            style plus the content prompt.
           y:
             A ragged tensor with 2 axes [utt][label]. It contains labels of each
             utterance.
@@ -125,14 +146,25 @@ class Transducer(nn.Module):
 
         assert x.size(0) == x_lens.size(0) == y.dim0
 
-        # logging.info(f"Memory allocated at entry: {torch.cuda.memory_allocated() // 1000000}M")
         x, x_lens = self.encoder_embed(x, x_lens)
-        # logging.info(f"Memory allocated after encoder_embed: {torch.cuda.memory_allocated() // 1000000}M")
 
         src_key_padding_mask = make_pad_mask(x_lens)
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
 
-        encoder_out, x_lens = self.encoder(x, x_lens, src_key_padding_mask)
+        text = text.t()  # now (T, N)
+        text = self.text_embed(text) # now (T, N, C)
+        text_key_padding_mask = make_pad_mask(text_lens)
+
+        memory, text_lens = self.text_encoder(text, text_lens,
+                                              text_key_padding_mask)
+
+        memory = self._add_style_indicator(memory, style_lens)
+
+        memory_key_padding_mask = make_pad_mask(text_lens)
+
+        encoder_out, x_lens = self.encoder(x, x_lens, src_key_padding_mask,
+                                           memory=memory,
+                                           memory_key_padding_mask=memory_key_padding_mask)
         encoder_out = encoder_out.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
 
         assert torch.all(x_lens > 0)
@@ -217,3 +249,24 @@ class Transducer(nn.Module):
             )
 
         return (simple_loss, pruned_loss)
+
+
+    def _add_style_indicator(self, memory: Tensor, style_lens: Tensor):
+        """
+        Adds to `memory` an indicator that is 0.1 for positions that correspond to
+        the `style prompt` and 0 elsewhere.  The scale can be fixed because the
+        scale of the memory vector can adjust to compensate (within limits set
+        by the balancers)..
+
+        Args:
+             memory: (memory_len, batch_size, embed_dim)
+         style_lens: (batch_size,),  a vector of lengths of the style prompt.
+        """
+
+        (memory_len, batch_size, embed_dim) = memory.shape
+
+
+        indicator = torch.arange(memory_len, device=memory.device).unsqueeze(-1) < style_lens
+        indicator = indicator.to(memory.dtype).unsqueeze(-1)
+
+        return memory + indicator
