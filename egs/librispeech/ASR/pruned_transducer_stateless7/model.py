@@ -24,7 +24,7 @@ from encoder_interface import EncoderInterface
 
 from icefall.utils import add_sos, make_pad_mask
 from scaling import penalize_abs_values_gt, ScaledLinear
-
+from torch import Tensor
 
 class PromptedTransducer(nn.Module):
     """It implements https://arxiv.org/pdf/1211.3711.pdf
@@ -90,8 +90,8 @@ class PromptedTransducer(nn.Module):
         x: torch.Tensor,
         x_lens: torch.Tensor,
         text: torch.Tensor,
-        style_lens: torch.Tensor,
         text_lens: torch.Tensor,
+        style_lens: torch.Tensor,
         y: k2.RaggedTensor,
         prune_range: int = 5,
         am_scale: float = 0.0,
@@ -111,14 +111,14 @@ class PromptedTransducer(nn.Module):
             A 2-D tensor of integer dtype containing prompt text, of shape (N, T).
             It is exptected to contain the style prompt (first) and then the content
             prompt.
-          style_lens:
-            A 1-D tensor of shape (N,), containing the number of elements (bytes)
-            within each row of `text` that correspond to the style prompt (these
-            are expected to come first).
           text_lens:
             A 1-D tensor of shape (N,). It contains the number of elements (bytes)
             in `text` before padding, which will include the lengths of the
             style plus the content prompt.
+          style_lens:
+            A 1-D tensor of shape (N,), containing the number of elements (bytes)
+            within each row of `text` that correspond to the style prompt (these
+            are expected to come first).
           y:
             A ragged tensor with 2 axes [utt][label]. It contains labels of each
             utterance.

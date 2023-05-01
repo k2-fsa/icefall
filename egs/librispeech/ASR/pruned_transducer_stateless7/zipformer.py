@@ -316,7 +316,8 @@ class Zipformer2(EncoderInterface):
             # setting memory to zero should be equivalent to not using the
             # memory input at all, since the Attention module has no biases.
             memory_dropout_rate = 0.05
-            memory = memory * (torch.rand(batch_size, 1) > memory_dropout_rate)
+            memory = memory * (torch.rand(batch_size, 1, device=memory.device) >
+                               memory_dropout_rate)
 
         for i, module in enumerate(self.encoders):
             ds = self.downsampling_factor[i]
@@ -354,11 +355,9 @@ class Zipformer2(EncoderInterface):
         # most recent output that has it present.
         x = get_full_dim_output()
         x = self.downsample_output(x)
-        # class Downsample has this rounding behavior..
-        assert self.output_downsampling_factor == 2
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            lengths = (x_lens + 1) // 2
+
+        d = self.output_downsampling_factor
+        lengths = (x_lens + d - 1) // d
 
         return x, lengths
 
