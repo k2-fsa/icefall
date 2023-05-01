@@ -19,7 +19,6 @@
 """
 This file computes fbank features of the LibriSpeech dataset.
 It looks for manifests in the directory data/manifests.
-
 The generated fbank features are saved in data/fbank.
 """
 
@@ -83,9 +82,7 @@ def compute_fbank_mucs(
             "test",
             "dev",
     )
-    # dataset_parts = (
-    #         "test",
-    # )
+
     prefix = "mucs"
     suffix = "jsonl.gz"
     manifests = read_manifests_if_cached(
@@ -107,8 +104,7 @@ def compute_fbank_mucs(
 
     with get_executor() as ex:  # Initialize the executor only once.
         for partition, m in manifests.items():
-            # print(m["recordings"])
-            # exit()
+       
             cuts_filename = f"{prefix}_cuts_{partition}.{suffix}"
             if (output_dir / cuts_filename).is_file():
                 logging.info(f"{partition} already exists - skipping.")
@@ -118,18 +114,7 @@ def compute_fbank_mucs(
                 recordings=m["recordings"],
                 supervisions=m["supervisions"],
             )
-            # print(len(m["supervisions"]))
-            # for s in m["supervisions"]:
-            #     # print(s)
-            #     if s.channel != 0:
-            #         print(s)
-            # exit()
-            # if "train" in partition:
-            #     if bpe_model:
-            #         cut_set = filter_cuts(cut_set, sp)
-            #     cut_set = (
-            #         cut_set + cut_set.perturb_speed(0.9) + cut_set.perturb_speed(1.1)
-            #     )
+ 
             cut_set = cut_set.compute_and_store_features(
                 extractor=extractor,
                 storage_path=f"{output_dir}/{prefix}_feats_{partition}",
