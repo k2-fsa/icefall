@@ -1621,7 +1621,6 @@ def run_adapter(rank, world_size, args, wb=None):
     #)
     
     scheduler_adapter = Eden(optimizer_adapter, 10000, 7) #params.lr_batche, params.lr_epochs)
-
     optimizer, scheduler = optimizer_adapter, scheduler_adapter
     
     librispeech = LibriSpeechAsrDataModule(args)
