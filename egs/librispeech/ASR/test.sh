@@ -25,7 +25,7 @@ do
 		--use-averaged-model True \
 		--spk-id $spk_id \
 		--prompt True \
-		--res-name prompt_newinit_check$i
+		--res-name ttt
 		#--res-name fullft_check$i
 	done
 done
