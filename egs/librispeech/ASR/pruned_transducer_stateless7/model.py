@@ -270,3 +270,5 @@ class PromptedTransducer(nn.Module):
         indicator = indicator.to(memory.dtype).unsqueeze(-1)
 
         return memory + indicator
+
+Transducer = PromptedTransducer  # for decoding
