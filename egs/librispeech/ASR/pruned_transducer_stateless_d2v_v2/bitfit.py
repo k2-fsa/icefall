@@ -1592,6 +1592,7 @@ def run_adapter(rank, world_size, args, wb=None):
             adapter_param.append(p)
         else:
             p.requires_grad = False
+
         '''
         if 'adapters' in n:# or 'joiner' in n or 'simple' in n or 'ctc' in n:
             adapter_names.append(n)
