@@ -1602,16 +1602,15 @@ def run_adapter(rank, world_size, args, wb=None):
         else:
             p.requires_grad = False
         '''
-    
-    for n, p in model.named_parameters():
-        p.requires_grad = False
-    
     optimizer_adapter = ScaledAdam(
             adapter_param,
             lr=params.adapter_lr,
             clipping_scale=5.0,
             parameters_names=[adapter_names],
         )
+    
+    #for n, p in model.named_parameters():
+    #    p.requires_grad = False
 
     #prompt = torch.randn((100, 512), requires_grad=True)
     #optimizer_adapter = ScaledAdam(
