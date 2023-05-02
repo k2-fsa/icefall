@@ -52,12 +52,11 @@ class _SeedWorkers:
         fix_random_seed(self.seed + worker_id)
 
 
-class LibriSpeechAsrDataModule:
+class MUCSAsrDataModule:
     """
-    DataModule for k2 ASR experiments.
-    It assumes there is always one train and valid dataloader,
-    but there can be multiple test dataloaders (e.g. LibriSpeech test-clean
-    and test-other).
+    DataModule for k2 ASR experiments.  
+    It assumes there is always one train, valid dataloader, and one test loader
+    This modified from librispeech asrmodule
 
     It contains all the common data pipeline modules used in ASR
     experiments, e.g.:

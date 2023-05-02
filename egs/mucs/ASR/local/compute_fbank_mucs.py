@@ -59,6 +59,16 @@ def get_args():
         type=str,
         help="""Dataset parts to compute fbank. If None, we will use all""",
     )
+    parser.add_argument(
+        "--manifestpath",
+        type=str,
+        help="""Dataset parts to compute fbank. If None, we will use all""",
+    )
+    parser.add_argument(
+        "--fbankpath",
+        type=str,
+        help="""Dataset parts to compute fbank. If None, we will use all""",
+    )
 
     return parser.parse_args()
 
@@ -67,8 +77,8 @@ def compute_fbank_mucs(
     bpe_model: Optional[str] = None,
     dataset: Optional[str] = None,
 ):
-    src_dir = Path("data/manifests")
-    output_dir = Path("data/fbank")
+    src_dir = Path(args.manifestpath)
+    output_dir = Path(args.fbankpath)
     num_jobs = min(48, os.cpu_count())
     num_mel_bins = 80
 

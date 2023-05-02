@@ -1,17 +1,24 @@
 #!/bin/bash
 export CUDA_VISIBLE_DEVICES="0"
 
+set -e 
+dataset='bn-en'
+datadir=data_"$dataset"
+bpe=400
+
 ./conformer_ctc/train.py \
     --num-epochs 60 \
     --max-duration 300 \
-    --exp-dir ./conformer_ctc/exp_with_devset_split_bpe400 \
-    --lang-dir data/lang_bpe_400 \
+    --exp-dir ./conformer_ctc/exp_"$dataset"_bpe"$bpe" \
+    --manifest-dir $datadir/fbank \
+    --lang-dir $datadir/lang_bpe_"$bpe" \
     --enable-musan False \
 
 
 ./conformer_ctc/decode.py \
-    --epoch 59 \
+    --epoch 60 \
     --avg 10 \
-    --exp-dir ./conformer_ctc/exp_with_devset_split_bpe400 \
+    --manifest-dir $datadir/fbank \
+    --exp-dir ./conformer_ctc/exp_"$dataset"_bpe"$bpe" \
     --max-duration 100 \
-    --lang-dir ./data/lang_bpe_400
+    --lang-dir $datadir/lang_bpe_"$bpe" 

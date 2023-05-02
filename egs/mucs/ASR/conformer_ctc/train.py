@@ -38,7 +38,7 @@ import k2
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
-from asr_datamodule import LibriSpeechAsrDataModule
+from asr_datamodule import MUCSAsrDataModule
 from conformer import Conformer
 from lhotse.cut import Cut
 from lhotse.utils import fix_random_seed
@@ -687,7 +687,7 @@ def run(rank, world_size, args):
     if checkpoints:
         optimizer.load_state_dict(checkpoints["optimizer"])
 
-    librispeech = LibriSpeechAsrDataModule(args)
+    librispeech = MUCSAsrDataModule(args)
     # params.full_libri = False
     # if params.full_libri:
     #     train_cuts = librispeech.train_all_shuf_cuts()
@@ -800,7 +800,7 @@ def scan_pessimistic_batches_for_oom(
 
 def main():
     parser = get_parser()
-    LibriSpeechAsrDataModule.add_arguments(parser)
+    MUCSAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
     args.lang_dir = Path(args.lang_dir)
