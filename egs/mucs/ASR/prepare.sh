@@ -6,7 +6,7 @@ export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
 set -eou pipefail
 
 nj=60
-stage=9
+stage=-1
 stop_stage=9
 
 # We assume dl_dir (download dir) contains the following
@@ -18,7 +18,8 @@ dl_dir=$PWD/download
 mkdir -p $dl_dir
 
 raw_data_path="/data/Database/MUCS/"
-dataset="bn-en" #hin-en or bn-en
+dataset="hi-en" #hin-en or bn-en
+
 datadir="data_"$dataset
 raw_kaldi_files_path=$dl_dir/$dataset/
 
