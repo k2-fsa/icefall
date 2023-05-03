@@ -60,7 +60,7 @@ else
 		./pruned_transducer_stateless_d2v_v2/bitfit.py \
 			--num-buckets 2 \
 			--add-adapter True \
-			--adapter-lr 0.1 \
+			--adapter-lr 0.01 \
 			--gender male \
 			--wandb False \
 			--input-strategy AudioSamples \
