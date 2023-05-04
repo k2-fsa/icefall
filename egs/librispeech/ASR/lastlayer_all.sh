@@ -8,7 +8,7 @@ for dest in "test-clean" "test-other"; do
 	for spk in $dl_dir/$dest/*; do
 		spk_id=${spk#*$dest\/}
 		echo $spk_id
-		./lastlayer.sh bitfit_"$spk_id"_v2 $spk_id bear
+		./lastlayer.sh lastlayer $spk_id bear
 	done
 done
 
