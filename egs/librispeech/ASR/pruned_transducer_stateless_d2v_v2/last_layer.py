@@ -1587,7 +1587,12 @@ def run_adapter(rank, world_size, args, wb=None):
     adapter_names = []
     adapter_param = []
     for enum, (n, p) in enumerate(model.named_parameters()):
-        print(enum, n, p) 
+        #print(enum, n, p) 
+        if 'encoder.encoders.layer_norm' in n or 'encoder.encoders.final_proj' in n or 'encoder.output_layer' in n or 'joiner' in n or 'simple' in n or 'ctc' in n:
+            adapter_names.append(n)
+            adapter_param.append(p)
+        else:
+            p.requires_grad = False
         '''
         if 'bias' in n:
             adapter_names.append(n)
