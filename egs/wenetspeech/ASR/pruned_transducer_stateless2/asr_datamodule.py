@@ -106,7 +106,7 @@ class WenetSpeechAsrDataModule:
         group.add_argument(
             "--num-buckets",
             type=int,
-            default=300,
+            default=100,
             help="The number of buckets for the DynamicBucketingSampler"
             "(you might want to increase it for larger datasets).",
         )
@@ -292,7 +292,7 @@ class WenetSpeechAsrDataModule:
                 max_duration=self.args.max_duration,
                 shuffle=self.args.shuffle,
                 num_buckets=self.args.num_buckets,
-                buffer_size=30000,
+                buffer_size=100000,
                 drop_last=True,
             )
         else:
