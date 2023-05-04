@@ -88,6 +88,7 @@ from beam_search import (
 from torch.nn.utils.rnn import pad_sequence
 from train import add_model_arguments, get_params, get_transducer_model
 
+from icefall import smart_byte_decode
 from icefall.utils import str2bool
 
 

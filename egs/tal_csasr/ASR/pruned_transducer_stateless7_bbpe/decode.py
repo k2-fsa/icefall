@@ -118,7 +118,13 @@ from beam_search import (
 )
 from train import add_model_arguments, get_params, get_transducer_model
 
-from icefall import LmScorer, NgramLm, smart_byte_decode
+from icefall import (
+    LmScorer,
+    NgramLm,
+    byte_encode,
+    smart_byte_decode,
+    tokenize_by_CJK_char,
+)
 from icefall.checkpoint import (
     average_checkpoints,
     average_checkpoints_with_averaged_model,
@@ -411,6 +417,10 @@ def decode_one_batch(
         for hyp in sp.decode(hyp_tokens):
             hyps.append(smart_byte_decode(hyp).split())
     elif params.decoding_method == "fast_beam_search_nbest_oracle":
+        ref_texts = []
+        for tx in supervisions["text"]:
+            ref_texts.append(byte_encode(tokenize_by_CJK_char(tx)))
+
         hyp_tokens = fast_beam_search_nbest_oracle(
             model=model,
             decoding_graph=decoding_graph,
@@ -420,7 +430,7 @@ def decode_one_batch(
             max_contexts=params.max_contexts,
             max_states=params.max_states,
             num_paths=params.num_paths,
-            ref_texts=sp.encode(supervisions["text"]),
+            ref_texts=sp.encode(ref_texts),
             nbest_scale=params.nbest_scale,
         )
         for hyp in sp.decode(hyp_tokens):
@@ -549,7 +559,7 @@ def decode_dataset(
             this_batch = []
             assert len(hyps) == len(texts)
             for cut_id, hyp_words, ref_text in zip(cut_ids, hyps, texts):
-                ref_words = ref_text.split()
+                ref_words = tokenize_by_CJK_char(ref_text).split()
                 this_batch.append((cut_id, ref_words, hyp_words))
 
             results[name].extend(this_batch)
