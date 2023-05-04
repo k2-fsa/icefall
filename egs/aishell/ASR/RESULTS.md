@@ -2,6 +2,57 @@
 
 ### Aishell training result(Stateless Transducer)
 
+#### Pruned transducer stateless 7 (zipformer)
+
+See <https://github.com/k2-fsa/icefall/pull/986>
+
+[./pruned_transducer_stateless7_bbpe](./pruned_transducer_stateless7_bbpe)
+
+**Note**: The modeling units are byte level BPEs
+
+The best results I have gotten are:
+
+Vocab size | Greedy search(dev & test) | Modified beam search(dev & test) | Fast beam search (dev & test)  | Fast beam search LG (dev & test) | comments
+-- | -- | -- | -- | -- | --
+500 | 4.31 & 4.59 | 4.25 & 4.54 | 4.27 & 4.55 |  4.07 & 4.38 | --epoch 48 --avg 29
+
+The training command:
+
+```
+export CUDA_VISIBLE_DEVICES="4,5,6,7"
+
+./pruned_transducer_stateless7_bbpe/train.py \
+  --world-size 4 \
+  --num-epochs 50 \
+  --start-epoch 1 \
+  --use-fp16 1 \
+  --max-duration 800 \
+  --bpe-model data/lang_bbpe_500/bbpe.model \
+  --exp-dir pruned_transducer_stateless7_bbpe/exp \
+  --lr-epochs 6 \
+  --master-port 12535
+```
+
+The decoding command:
+
+```
+for m in greedy_search modified_beam_search fast_beam_search fast_beam_search_LG; do
+    ./pruned_transducer_stateless7_bbpe/decode.py \
+      --epoch 48 \
+      --avg 29 \
+      --exp-dir ./pruned_transducer_stateless7_bbpe/exp \
+      --max-sym-per-frame 1 \
+      --ngram-lm-scale 0.25 \
+      --ilme-scale 0.2 \
+      --bpe-model data/lang_bbpe_500/bbpe.model \
+      --max-duration 2000 \
+      --decoding-method $m
+done
+```
+
+The pretrained model is available at: https://huggingface.co/pkufool/icefall_asr_aishell_pruned_transducer_stateless7_bbpe
+
+
 #### Pruned transducer stateless 3
 
 See <https://github.com/k2-fsa/icefall/pull/436>
@@ -75,7 +126,7 @@ for epoch in 29; do
 done
 ```
 
-We provide the option of shallow fusion with a RNN language model. The pre-trained language model is 
+We provide the option of shallow fusion with a RNN language model. The pre-trained language model is
 available at <https://huggingface.co/marcoyang/icefall-aishell-rnn-lm>. To decode with the language model,
 please use the following command:
 
