@@ -16,7 +16,8 @@
 # limitations under the License.
 
 
-
+import logging
+import random
 import torch
 from torch import nn, Tensor
 
@@ -113,5 +114,11 @@ class ChunkDecoder(nn.Module):
         x = x.log_softmax(dim=-1)
 
         logprobs = torch.gather(x, dim=-1, index=labels.unsqueeze(-1)).squeeze(-1)  # (batch_size, seq_len)
+
+        if random.random() < 0.01:
+            # occasionally print out average logprob per position in the chunk.
+            l = logprobs.reshape(batch_size, num_chunks, chunk_size).mean(dim=(0, 1))
+            l = l.to('cpu').tolist()
+            logging.info("Logprobs per position in chunk: {l}")
 
         return logprobs

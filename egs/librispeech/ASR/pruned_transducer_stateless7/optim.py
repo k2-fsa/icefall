@@ -809,7 +809,7 @@ class LRScheduler(object):
             self.batch = self.batch + 1
         self._set_lrs()
 
-    def step_epoch(self, epoch: Optional[int] = None):
+    def step_epoch(self, epoch: Optional[Union[int, float]] = None):
         # Step the epoch index, or just set it.  If you provide the 'epoch' arg,
         # you should call this at the start of the epoch; if you don't provide the 'epoch'
         # arg, you should call it at the end of the epoch.
