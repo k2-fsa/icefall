@@ -111,8 +111,8 @@ class Zipformer2(EncoderInterface):
             dropout: FloatLike = None,  # see code below for default
             warmup_batches: float = 4000.0,
             causal: bool = False,
-            chunk_size: Tuple[int] = [-1],
-            left_context_frames: Tuple[int] = [-1],
+            chunk_size: Tuple[int] = (-1,),
+            left_context_frames: Tuple[int] = (-1,),
     ) -> None:
         super(Zipformer2, self).__init__()
 
