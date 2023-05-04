@@ -47,6 +47,8 @@ def fast_beam_search_one_best(
     max_states: int,
     max_contexts: int,
     temperature: float = 1.0,
+    subtract_ilme: bool = False,
+    ilme_scale: float = 0.1,
     return_timestamps: bool = False,
 ) -> Union[List[List[int]], DecodingResults]:
     """It limits the maximum number of symbols per frame to 1.
@@ -88,6 +90,8 @@ def fast_beam_search_one_best(
         max_states=max_states,
         max_contexts=max_contexts,
         temperature=temperature,
+        subtract_ilme=subtract_ilme,
+        ilme_scale=ilme_scale,
     )
 
     best_path = one_best_decoding(lattice)
@@ -428,6 +432,8 @@ def fast_beam_search(
     max_states: int,
     max_contexts: int,
     temperature: float = 1.0,
+    subtract_ilme: bool = False,
+    ilme_scale: float = 0.1,
 ) -> k2.Fsa:
     """It limits the maximum number of symbols per frame to 1.
 
@@ -498,6 +504,17 @@ def fast_beam_search(
         )
         logits = logits.squeeze(1).squeeze(1)
         log_probs = (logits / temperature).log_softmax(dim=-1)
+        if subtract_ilme:
+            ilme_logits = model.joiner(
+                torch.zeros_like(
+                    current_encoder_out, device=current_encoder_out.device
+                ).unsqueeze(2),
+                decoder_out.unsqueeze(1),
+                project_input=False,
+            )
+            ilme_logits = ilme_logits.squeeze(1).squeeze(1)
+            ilme_log_probs = (ilme_logits / temperature).log_softmax(dim=-1)
+            log_probs -= ilme_scale * ilme_log_probs
         decoding_streams.advance(log_probs)
     decoding_streams.terminate_and_flush_to_streams()
     lattice = decoding_streams.format_output(encoder_out_lens.tolist())

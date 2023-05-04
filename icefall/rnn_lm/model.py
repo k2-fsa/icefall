@@ -87,7 +87,7 @@ class RnnLmModel(torch.nn.Module):
         h0: torch.Tensor,
         c0: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        '''
+        """
         Args:
           x:
             A 2-D tensor of shape (N, L). We won't prepend it with SOS.
@@ -103,7 +103,7 @@ class RnnLmModel(torch.nn.Module):
             - negative loglike (nll), a 1-D tensor of shape (N,)
             - next_h0, a 3-D tensor with the same shape as h0
             - next_c0, a 3-D tensor with the same shape as c0
-        '''
+        """
         assert x.ndim == y.ndim == 2, (x.ndim, y.ndim)
         assert x.shape == y.shape, (x.shape, y.shape)
 
