@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import logging
+from typing import Tuple
 
 import torch
 import torch.nn.functional as F
@@ -47,6 +48,11 @@ class RnnLmModel(torch.nn.Module):
             and https://arxiv.org/abs/1611.01462
         """
         super().__init__()
+        self.vocab_size = vocab_size
+        self.embedding_dim = embedding_dim
+        self.hidden_dim = hidden_dim
+        self.num_layers = num_layers
+        self.tie_weights = tie_weights
 
         self.input_embedding = torch.nn.Embedding(
             num_embeddings=vocab_size,
@@ -73,6 +79,46 @@ class RnnLmModel(torch.nn.Module):
             logging.info("Not tying weights")
 
         self.cache = {}
+
+    def streaming_forward(
+        self,
+        x: torch.Tensor,
+        y: torch.Tensor,
+        h0: torch.Tensor,
+        c0: torch.Tensor,
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        '''
+        Args:
+          x:
+            A 2-D tensor of shape (N, L). We won't prepend it with SOS.
+          y:
+            A 2-D tensor of shape (N, L). We won't append it with EOS.
+          h0:
+            A 3-D tensor of shape (num_layers, N, hidden_size).
+            (If proj_size > 0, then it is (num_layers, N, proj_size))
+          c0:
+            A 3-D tensor of shape (num_layers, N, hidden_size).
+        Returns:
+          Return a tuple containing 3 tensors:
+            - negative loglike (nll), a 1-D tensor of shape (N,)
+            - next_h0, a 3-D tensor with the same shape as h0
+            - next_c0, a 3-D tensor with the same shape as c0
+        '''
+        assert x.ndim == y.ndim == 2, (x.ndim, y.ndim)
+        assert x.shape == y.shape, (x.shape, y.shape)
+
+        # embedding is of shape (N, L, embedding_dim)
+        embedding = self.input_embedding(x)
+        # Note: We use batch_first==True
+        rnn_out, (next_h0, next_c0) = self.rnn(embedding, (h0, c0))
+        logits = self.output_linear(rnn_out)
+        nll_loss = F.cross_entropy(
+            logits.reshape(-1, self.vocab_size), y.reshape(-1), reduction="none"
+        )
+
+        batch_size = x.size(0)
+        nll_loss = nll_loss.reshape(batch_size, -1).sum(dim=1)
+        return nll_loss, next_h0, next_c0
 
     def forward(
         self, x: torch.Tensor, y: torch.Tensor, lengths: torch.Tensor
