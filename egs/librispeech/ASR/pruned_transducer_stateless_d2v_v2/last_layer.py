@@ -1587,7 +1587,7 @@ def run_adapter(rank, world_size, args, wb=None):
     adapter_names = []
     adapter_param = []
     for enum, (n, p) in enumerate(model.named_parameters()):
-        
+        print(enum, n, p) 
         '''
         if 'bias' in n:
             adapter_names.append(n)
