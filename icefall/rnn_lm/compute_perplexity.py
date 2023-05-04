@@ -33,7 +33,7 @@ import torch
 from dataset import get_dataloader
 from model import RnnLmModel
 
-from icefall.checkpoint import average_checkpoints, load_checkpoint
+from icefall.checkpoint import average_checkpoints, find_checkpoints, load_checkpoint
 from icefall.utils import AttributeDict, setup_logger, str2bool
 
 
@@ -49,6 +49,7 @@ def get_parser():
         help="It specifies the checkpoint to use for decoding."
         "Note: Epoch counts from 0.",
     )
+
     parser.add_argument(
         "--avg",
         type=int,
@@ -56,6 +57,16 @@ def get_parser():
         help="Number of checkpoints to average. Automatically select "
         "consecutive checkpoints before the checkpoint specified by "
         "'--epoch'. ",
+    )
+
+    parser.add_argument(
+        "--iter",
+        type=int,
+        default=0,
+        help="""If positive, --epoch is ignored and it
+        will use the checkpoint exp_dir/checkpoint-iter.pt.
+        You can specify --avg to use more checkpoints for model averaging.
+        """,
     )
 
     parser.add_argument(
@@ -154,7 +165,14 @@ def main():
 
     params = AttributeDict(vars(args))
 
-    setup_logger(f"{params.exp_dir}/log-ppl/")
+    if params.iter > 0:
+        setup_logger(
+            f"{params.exp_dir}/log-ppl/log-ppl-iter-{params.iter}-avg-{params.avg}"
+        )
+    else:
+        setup_logger(
+            f"{params.exp_dir}/log-ppl/log-ppl-epoch-{params.epoch}-avg-{params.avg}"
+        )
     logging.info("Computing perplexity started")
     logging.info(params)
 
@@ -173,19 +191,39 @@ def main():
         tie_weights=params.tie_weights,
     )
 
-    if params.avg == 1:
-        load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
+    if params.iter > 0:
+        filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
+            : params.avg
+        ]
+        if len(filenames) == 0:
+            raise ValueError(
+                f"No checkpoints found for --iter {params.iter}, --avg {params.avg}"
+            )
+        elif len(filenames) < params.avg:
+            raise ValueError(
+                f"Not enough checkpoints ({len(filenames)}) found for"
+                f" --iter {params.iter}, --avg {params.avg}"
+            )
+        logging.info(f"averaging {filenames}")
         model.to(device)
+        model.load_state_dict(
+            average_checkpoints(filenames, device=device), strict=False
+        )
+    elif params.avg == 1:
+        load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
     else:
         start = params.epoch - params.avg + 1
         filenames = []
         for i in range(start, params.epoch + 1):
-            if start >= 0:
+            if i >= 0:
                 filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
         logging.info(f"averaging {filenames}")
         model.to(device)
-        model.load_state_dict(average_checkpoints(filenames, device=device))
+        model.load_state_dict(
+            average_checkpoints(filenames, device=device), strict=False
+        )
 
+    model.to(device)
     model.eval()
     num_param = sum([p.numel() for p in model.parameters()])
     num_param_requires_grad = sum(

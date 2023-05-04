@@ -1403,7 +1403,7 @@ def parse_timestamp(tokens: List[str], timestamp: List[float]) -> List[float]:
       List of timestamp of each word.
     """
     start_token = b"\xe2\x96\x81".decode()  # '_'
-    assert len(tokens) == len(timestamp)
+    assert len(tokens) == len(timestamp), (len(tokens), len(timestamp))
     ans = []
     for i in range(len(tokens)):
         flag = False
