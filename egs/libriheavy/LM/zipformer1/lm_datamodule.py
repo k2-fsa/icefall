@@ -37,7 +37,10 @@ from icefall.utils import str2bool
 class LmDataset(torch.utils.data.IterableDataset):
     def __init__(self,
                  file_list_fn: Path,
-                 bytes_per_segment: int = 200):
+                 bytes_per_segment: int = 200,
+                 world_size: int = 1,
+                 rank: int = 0,
+    ):
         """
         Initialize LmDataset object.  Args:
           file_list_fn: a file in which each line contains: a number of bytes, then a space, then a filename.
@@ -48,6 +51,7 @@ class LmDataset(torch.utils.data.IterableDataset):
         self.files = []
         self.num_bytes = []
         self.bytes_per_segment = bytes_per_segment
+        self.ddp_rank = get_rank()
 
         num_bytes = []
         with open(file_list_fn) as f:
@@ -64,7 +68,9 @@ class LmDataset(torch.utils.data.IterableDataset):
         worker_info = torch.utils.data.get_worker_info()
         num_workers = (1 if worker_info is None else worker_info.num_workers)
 
+        # world_size is for ddp training, num_workers for data-loader worker threads.
         tot_workers = num_workers * get_world_size()
+
 
         self.num_segments = tot_bytes // (bytes_per_segment * tot_workers)
 
@@ -72,10 +78,13 @@ class LmDataset(torch.utils.data.IterableDataset):
     def __iter__(self):
         worker_info = torch.utils.data.get_worker_info()
         # id includes both worker (within training job) and rank of training job
-        my_id = (0 if worker_info is None else worker_info.id) + 1000 * get_rank()
+        my_id = (0 if worker_info is None else worker_info.id) + 1000 * self.ddp_rank
 
         seed = random.randint(0, 10000) + my_id
-        logging.info(f"seed={seed}, num_segments={self.num_segments}")
+        # the next line is because, for some reason, when we ran with --worle-size more than 1,
+        # this info message was not printed out.
+        logging.getLogger().setLevel(logging.INFO)
+        logging.info(f"my_id={my_id}, seed={seed}, num_segments={self.num_segments}")
         rng = np.random.default_rng(seed=seed)
         for n in range(self.num_segments):
             # np.random.multinomial / np.random.Generator.multinomial has an interface

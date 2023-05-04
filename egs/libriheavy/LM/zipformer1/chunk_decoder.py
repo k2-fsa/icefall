@@ -119,6 +119,6 @@ class ChunkDecoder(nn.Module):
             # occasionally print out average logprob per position in the chunk.
             l = logprobs.reshape(batch_size, num_chunks, chunk_size).mean(dim=(0, 1))
             l = l.to('cpu').tolist()
-            logging.info(l"Logprobs per position in chunk: {l}")
+            logging.info(f"Logprobs per position in chunk: {l}")
 
         return logprobs

@@ -121,7 +121,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--num-encoder-layers",
         type=str,
-        default="2,4,5,6",
+        default="2,4,8",
         help="Number of zipformer encoder layers per stack, comma separated.",
     )
 
@@ -129,7 +129,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--downsampling-factor",
         type=str,
-        default="1,2,4,8",
+        default="1,2,4",
         help="Downsampling factor for each stack of encoder layers.",
     )
 
@@ -137,21 +137,21 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--feedforward-dim",
         type=str,
-        default="512,768,1024,1536",
+        default="768,1024,1536",
         help="Feedforward dimension of the zipformer encoder layers, per stack, comma separated.",
     )
 
     parser.add_argument(
         "--num-heads",
         type=str,
-        default="4,4,6,8",
+        default="4,4,8",
         help="Number of attention heads in the zipformer encoder layers: a single int or comma-separated list.",
     )
 
     parser.add_argument(
         "--encoder-dim",
         type=str,
-        default="192,256,384,512",
+        default="256,384,512",
         help="Embedding dimension in encoder stacks: a single int or comma-separated list."
     )
 
@@ -186,7 +186,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--encoder-unmasked-dim",
         type=str,
-        default="192,192,256,256",
+        default="192,192,256",
         help="Unmasked dimensions in the encoders, relates to augmentation during training.  "
         "A single int or comma-separated list.  Must be <= each corresponding encoder_dim."
     )
@@ -194,7 +194,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--cnn-module-kernel",
         type=str,
-        default="31,31,15,15",
+        default="31,31,15",
         help="Sizes of convolutional kernels in convolution modules in each encoder stack: "
         "a single int or comma-separated list.",
     )
@@ -212,7 +212,6 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         default=2,
         help="Number of LSTM layers in decoder",
     )
-
 
 
 def get_parser():
@@ -481,8 +480,8 @@ def get_params() -> AttributeDict:
             "valid_interval": 3000,
             "warm_step": 2000,
             "env_info": get_env_info(),
-            "bytes_per_segment": 1024,
-            "batch_size": 64,
+            "bytes_per_segment": 2048,
+            "batch_size": 40,
             "train_file_list": "train.txt",
             "valid_file_list": "valid.txt",
             "num_workers": 4,
