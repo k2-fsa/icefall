@@ -870,7 +870,7 @@ def train_one_epoch(
             # in the batch and there is no normalization to it so far.
             scaler.scale(loss).backward()
             scheduler.step_batch(params.batch_idx_train)
-            tokens_seen = params.batch_idx_train * params.bytes_per_segment * params_batch_size * get_world_size()
+            tokens_seen = params.batch_idx_train * params.bytes_per_segment * params.batch_size * get_world_size()
             # we make the formula depend on tokens not epochs, replacing lr_epochs with lr_tokens.
             scheduler.step_epoch(tokens_seen)
 
