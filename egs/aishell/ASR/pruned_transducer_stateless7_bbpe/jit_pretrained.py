@@ -19,18 +19,18 @@ This script loads torchscript models, exported by `torch.jit.script()`
 and uses them to decode waves.
 You can use the following command to get the exported models:
 
-./pruned_transducer_stateless7/export.py \
-  --exp-dir ./pruned_transducer_stateless7/exp \
-  --bpe-model data/lang_bpe_500/bpe.model \
-  --epoch 20 \
-  --avg 10 \
+./pruned_transducer_stateless7_bbpe/export.py \
+  --exp-dir ./pruned_transducer_stateless7_bbpe/exp \
+  --bpe-model data/lang_bbpe_500/bbpe.model \
+  --epoch 49 \
+  --avg 28 \
   --jit 1
 
 Usage of this script:
 
-./pruned_transducer_stateless7/jit_pretrained.py \
-  --nn-model-filename ./pruned_transducer_stateless7/exp/cpu_jit.pt \
-  --bpe-model ./data/lang_bpe_500/bpe.model \
+./pruned_transducer_stateless7_bbpe/jit_pretrained.py \
+  --nn-model-filename ./pruned_transducer_stateless7_bbpe/exp/cpu_jit.pt \
+  --bpe-model ./data/lang_bbpe_500/bbpe.model \
   /path/to/foo.wav \
   /path/to/bar.wav
 """
@@ -62,7 +62,7 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--bbpe-model",
+        "--bpe-model",
         type=str,
         help="""Path to bpe.model.""",
     )
@@ -218,7 +218,7 @@ def main():
     model.to(device)
 
     sp = spm.SentencePieceProcessor()
-    sp.load(args.bbpe_model)
+    sp.load(args.bpe_model)
 
     logging.info("Constructing Fbank computer")
     opts = kaldifeat.FbankOptions()

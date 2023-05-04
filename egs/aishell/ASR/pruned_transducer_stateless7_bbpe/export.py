@@ -24,9 +24,9 @@ Usage:
 
 (1) Export to torchscript model using torch.jit.script()
 
-./pruned_transducer_stateless7/export.py \
-  --exp-dir ./pruned_transducer_stateless7/exp \
-  --bpe-model data/lang_bpe_500/bpe.model \
+./pruned_transducer_stateless7_bbpe/export.py \
+  --exp-dir ./pruned_transducer_stateless7_bbpe/exp \
+  --bpe-model data/lang_bbpe_500/bbpe.model \
   --epoch 30 \
   --avg 9 \
   --jit 1
@@ -43,29 +43,29 @@ for how to use the exported models outside of icefall.
 
 (2) Export `model.state_dict()`
 
-./pruned_transducer_stateless7/export.py \
-  --exp-dir ./pruned_transducer_stateless7/exp \
-  --bpe-model data/lang_bpe_500/bpe.model \
+./pruned_transducer_stateless7_bbpe/export.py \
+  --exp-dir ./pruned_transducer_stateless7_bbpe/exp \
+  --bpe-model data/lang_bbpe_500/bbpe.model \
   --epoch 20 \
   --avg 10
 
 It will generate a file `pretrained.pt` in the given `exp_dir`. You can later
 load it by `icefall.checkpoint.load_checkpoint()`.
 
-To use the generated file with `pruned_transducer_stateless7/decode.py`,
+To use the generated file with `pruned_transducer_stateless7_bbpe/decode.py`,
 you can do:
 
     cd /path/to/exp_dir
     ln -s pretrained.pt epoch-9999.pt
 
-    cd /path/to/egs/librispeech/ASR
-    ./pruned_transducer_stateless7/decode.py \
-        --exp-dir ./pruned_transducer_stateless7/exp \
+    cd /path/to/egs/aishell/ASR
+    ./pruned_transducer_stateless7_bbpe/decode.py \
+        --exp-dir ./pruned_transducer_stateless7_bbpe/exp \
         --epoch 9999 \
         --avg 1 \
         --max-duration 600 \
         --decoding-method greedy_search \
-        --bpe-model data/lang_bpe_500/bpe.model
+        --bpe-model data/lang_bbpe_500/bbpe.model
 
 Check ./pretrained.py for its usage.
 
@@ -148,14 +148,14 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless7/exp",
+        default="pruned_transducer_stateless7_bbpe/exp",
         help="""It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
         """,
     )
 
     parser.add_argument(
-        "--bbpe-model",
+        "--bpe-model",
         type=str,
         default="data/lang_bbpe_500/bbpe.model",
         help="Path to the BPE model",
@@ -199,7 +199,7 @@ def main():
     logging.info(f"device: {device}")
 
     sp = spm.SentencePieceProcessor()
-    sp.load(params.bbpe_model)
+    sp.load(params.bpe_model)
 
     # <blk> is defined in local/train_bbpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
