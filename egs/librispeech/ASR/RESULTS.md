@@ -20,6 +20,8 @@ Number of model parameters: 70369391, i.e., 70.37 M
 | decoding method      | test-clean | test-other | comment            |
 |----------------------|------------|------------|--------------------|
 | greedy_search        | 1.90       | 4.06       | --epoch 30 --avg 4 |
+| modified_beam_search | 0.00       | 0.00       | --epoch 30 --avg 0 |
+| fast_beam_search     | 0.00       | 0.00       | --epoch 30 --avg 0 |
 
 
 The training commands are:
@@ -37,15 +39,17 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
 
 The decoding commands are:
 ```bash
-for epoch in $(seq 30 -1 20); do
-  for avg in $(seq 10 -1 1); do
-    ./pruned_transducer_stateless7/decode.py \
-        --epoch $epoch \
-        --avg $avg \
-        --use-averaged-model 1 \
-        --exp-dir ./pruned_transducer_stateless7/exp \
-        --max-duration 600 \
-        --decoding-method greedy_search
+for m in greedy_search fast_beam_search modified_beam_search; do
+  for epoch in $(seq 30 -1 20); do
+    for avg in $(seq 10 -1 1); do
+      ./pruned_transducer_stateless7/decode.py \
+          --epoch $epoch \
+          --avg $avg \
+          --use-averaged-model 1 \
+          --exp-dir ./pruned_transducer_stateless7/exp \
+          --max-duration 600 \
+          --decoding-method $m
+    done
   done
 done
 ```
