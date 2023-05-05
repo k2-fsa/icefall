@@ -427,7 +427,9 @@ def decode_one_batch(
             hyps.append(smart_byte_decode(hyp).split())
     elif params.decoding_method == "greedy_search" and params.max_sym_per_frame == 1:
         hyp_tokens = greedy_search_batch(
-            model=model, encoder_out=encoder_out, encoder_out_lens=encoder_out_lens,
+            model=model,
+            encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
         )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(smart_byte_decode(hyp).split())
@@ -455,7 +457,9 @@ def decode_one_batch(
                 )
             elif params.decoding_method == "beam_search":
                 hyp = beam_search(
-                    model=model, encoder_out=encoder_out_i, beam=params.beam_size,
+                    model=model,
+                    encoder_out=encoder_out_i,
+                    beam=params.beam_size,
                 )
             else:
                 raise ValueError(
@@ -799,7 +803,9 @@ def main():
         )
 
         save_results(
-            params=params, test_set_name=test_set, results_dict=results_dict,
+            params=params,
+            test_set_name=test_set,
+            results_dict=results_dict,
         )
 
     logging.info("Done!")
