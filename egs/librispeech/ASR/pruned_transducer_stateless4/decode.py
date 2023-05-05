@@ -131,6 +131,8 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import k2
+import kaldifst
+import graphviz
 import sentencepiece as spm
 import torch
 import torch.nn as nn
@@ -364,6 +366,13 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--num-context-history",
+        type=int,
+        default=1,
+        help="",
+    )
+
+    parser.add_argument(
         "--context-file",
         type=str,
         default="",
@@ -511,6 +520,7 @@ def decode_one_batch(
             encoder_out_lens=encoder_out_lens,
             beam=params.beam_size,
             context_graph=context_graph,
+            num_context_history=params.num_context_history,
             return_timestamps=True,
         )
     else:
@@ -565,7 +575,10 @@ def decode_one_batch(
 
         return {key: (hyps, timestamps)}
     else:
-        return {f"beam_size_{params.beam_size}": (hyps, timestamps)}
+        key = f"beam_size_{params.beam_size}"
+        key += f"-context-score-{params.context_score}"
+        key += f"-num-context-history-{params.num_context_history}"
+        return {key: (hyps, timestamps)}
 
 
 def decode_dataset(
@@ -614,7 +627,7 @@ def decode_dataset(
     if params.decoding_method == "greedy_search":
         log_interval = 50
     else:
-        log_interval = 20
+        log_interval = 1 
 
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
@@ -769,6 +782,8 @@ def main():
             params.suffix += f"-ngram-lm-scale-{params.ngram_lm_scale}"
     elif "beam_search" in params.decoding_method:
         params.suffix += f"-{params.decoding_method}-beam-size-{params.beam_size}"
+        params.suffix += f"-context-score-{params.context_score}"
+        params.suffix += f"-num-context-history-{params.num_context_history}"
     else:
         params.suffix += f"-context-{params.context_size}"
         params.suffix += f"-max-sym-per-frame-{params.max_sym_per_frame}"

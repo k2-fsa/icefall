@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import warnings
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple, Union
@@ -750,6 +751,9 @@ class Hypothesis:
         """Return a string representation of self.ys"""
         return "_".join(map(str, self.ys))
 
+    def __str__(self) -> str:
+        return f"ys: {'_'.join([str(i) for i in self.ys])}, log_prob: {float(self.log_prob):.2f}, state: {self.context_state}"
+
 
 class HypothesisList(object):
     def __init__(self, data: Optional[Dict[str, Hypothesis]] = None) -> None:
@@ -887,6 +891,7 @@ def modified_beam_search(
     encoder_out: torch.Tensor,
     encoder_out_lens: torch.Tensor,
     context_graph: Optional[ContextGraph] = None,
+    num_context_history: int = 1,
     beam: int = 4,
     temperature: float = 1.0,
     return_timestamps: bool = False,
@@ -938,7 +943,7 @@ def modified_beam_search(
             Hypothesis(
                 ys=[blank_id] * context_size,
                 log_prob=torch.zeros(1, dtype=torch.float32, device=device),
-                context_state=ContextState(state_id=0),
+                context_state=None if context_graph is None else ContextState(graph=context_graph, max_states=num_context_history),
                 timestamp=[],
             )
         )
@@ -961,6 +966,7 @@ def modified_beam_search(
         hyps_shape = get_hyps_shape(B).to(device)
 
         A = [list(b) for b in B]
+
         B = [HypothesisList() for _ in range(batch_size)]
 
         ys_log_probs = torch.cat(
@@ -1018,30 +1024,24 @@ def modified_beam_search(
             for k in range(len(topk_hyp_indexes)):
                 hyp_idx = topk_hyp_indexes[k]
                 hyp = A[i][hyp_idx]
-
                 new_ys = hyp.ys[:]
                 new_token = topk_token_indexes[k]
                 new_timestamp = hyp.timestamp[:]
-                new_context_state = None
+                context_score = 0
+                new_context_state = None if context_graph is None else hyp.context_state.clone()
                 if new_token not in (blank_id, unk_id):
                     new_ys.append(new_token)
                     new_timestamp.append(t)
                     if context_graph is not None:
-                        new_context_state = context_graph.get_next_state(
-                            hyp.context_state.state_id, new_token
-                        )
-                new_log_prob = topk_log_probs[k] + (
-                    0
-                    if new_context_state is None
-                    else new_context_state.score
-                )
+                        context_score, new_context_state = hyp.context_state.forward_one_step(new_token)
+
+                new_log_prob = topk_log_probs[k] + context_score
+
                 new_hyp = Hypothesis(
                     ys=new_ys,
                     log_prob=new_log_prob,
                     timestamp=new_timestamp,
-                    context_state=hyp.context_state
-                    if new_context_state is None
-                    else new_context_state,
+                    context_state=new_context_state,
                 )
                 B[i].add(new_hyp)
 
@@ -1053,20 +1053,15 @@ def modified_beam_search(
         finalized_B = [HypothesisList() for _ in range(len(B))]
         for i, hyps in enumerate(B):
             for hyp in list(hyps):
-                if hyp.context_state.state_id != 0:
-                    new_context_state = context_graph.get_next_state(
-                        hyp.context_state.state_id, 0
+                context_score, new_context_state = hyp.context_state.finalize()
+                finalized_B[i].add(
+                    Hypothesis(
+                        ys=hyp.ys,
+                        log_prob=hyp.log_prob + context_score,
+                        timestamp=hyp.timestamp,
+                        context_state=new_context_state,
                     )
-                    finalized_B[i].add(
-                        Hypothesis(
-                            ys=hyp.ys,
-                            log_prob=hyp.log_prob + new_context_state.score,
-                            timestamp=hyp.timestamp,
-                            context_state=new_context_state,
-                        )
-                    )
-                else:
-                    finalized_B[i].add(hyp)
+                )
         B = finalized_B
 
     best_hyps = [b.get_most_probable(length_norm=True) for b in B]

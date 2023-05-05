@@ -288,6 +288,13 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--num-context-history",
+        type=int,
+        default=1,
+        help="",
+    )
+
+    parser.add_argument(
         "--context-file",
         type=str,
         default="",
@@ -389,6 +396,7 @@ def decode_one_batch(
             beam=params.beam_size,
             encoder_out_lens=encoder_out_lens,
             context_graph=context_graph,
+            num_context_history=params.num_context_history,
         )
         for i in range(encoder_out.size(0)):
             hyps.append([lexicon.token_table[idx] for idx in hyp_tokens[i]])
@@ -429,7 +437,7 @@ def decode_one_batch(
         }
     else:
         return {
-            f"beam_size_{params.beam_size}_context_score_{params.context_score}": hyps
+            f"beam_size_{params.beam_size}_context_score_{params.context_score}_num_context_history_{params.num_context_history}": hyps
         }
 
 
@@ -568,6 +576,7 @@ def main():
     elif "beam_search" in params.decoding_method:
         params.suffix += f"-beam-{params.beam_size}"
         params.suffix += f"-context-score-{params.context_score}"
+        params.suffix += f"-num-context-history-{params.num_context_history}"
     else:
         params.suffix += f"-context-{params.context_size}"
         params.suffix += f"-max-sym-per-frame-{params.max_sym_per_frame}"
