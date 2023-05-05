@@ -33,6 +33,7 @@ and generates the following files in the directory `lang_dir`:
     - tokens.txt
 """
 
+import argparse
 import re
 from pathlib import Path
 from typing import Dict, List
@@ -189,8 +190,22 @@ def generate_tokens(text_file: str) -> Dict[str, int]:
     return tokens
 
 
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--lang-dir",
+        type=str,
+        help="""Input and output directory.
+        It should contain the bpe.model and words.txt
+        """,
+    )
+
+    return parser.parse_args()
+
+
 def main():
-    lang_dir = Path("data/lang_char")
+    args = get_args()
+    lang_dir = Path(args.lang_dir)
     text_file = lang_dir / "text"
 
     word_sym_table = k2.SymbolTable.from_file(lang_dir / "words.txt")
