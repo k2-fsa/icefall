@@ -201,49 +201,41 @@ if [ $stage -le 15 ] && [ $stop_stage -ge 15 ]; then
   log "Stage 15: Prepare char based lang"
   mkdir -p $lang_char_dir
 
-  if ! which jq; then
-      echo "This script is intended to be used with jq but you have not installed jq
-      Note: in Linux, you can install jq with the following command:
-      1. wget -O jq https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64
-      2. chmod +x ./jq
-      3. cp jq /usr/bin" && exit 1
-  fi
   if [ ! -f $lang_char_dir/text ] || [ ! -s $lang_char_dir/text ]; then
     log "Prepare text."
     gunzip -c data/manifests/wenetspeech_supervisions_L.jsonl.gz \
-      | jq '.text' | sed 's/"//g' \
+      | grep -o 'text":\s[^,]*' | sed 's/text": "//g;s/"//g' \
       | ./local/text2token.py -t "char" > $lang_char_dir/text
   fi
 
   # The implementation of chinese word segmentation for text,
   # and it will take about 15 minutes.
-  if [ ! -f $lang_char_dir/text_words_segmentation ]; then
-    python3 ./local/text2segments.py \
-      --num-process $nj \
-      --input-file $lang_char_dir/text \
-      --output-file $lang_char_dir/text_words_segmentation
-  fi
-
-  cat $lang_char_dir/text_words_segmentation | sed 's/ /\n/g' \
-    | sort -u | sed '/^$/d' | uniq > $lang_char_dir/words_no_ids.txt
-
+  # We assume you have install jieba, if not, please install
+  # it using: pip install jieba
   if [ ! -f $lang_char_dir/words.txt ]; then
-    python3 ./local/prepare_words.py \
-      --input-file $lang_char_dir/words_no_ids.txt \
-      --output-file $lang_char_dir/words.txt
-  fi
-fi
+    log "Prepare words.txt."
+    python -m jieba $lang_char_dir/text | sed 's/\///g;s/\s\+/ /g' > $lang_char_dir/text.seg
 
-if [ $stage -le 16 ] && [ $stop_stage -ge 16 ]; then
-  log "Stage 16: Prepare char based L_disambig.pt"
+    (echo '<eps> 0'; echo '!SIL 1'; echo '<SPOKEN_NOISE> 2'; echo '<UNK> 3';) \
+      > $lang_char_dir/words.txt
+
+    cat $lang_char_dir/text.seg | sed 's/ /\n/g' | sort -u | sed '/^$/d' \
+      | awk '{print $1" "NR+3}' >> $lang_char_dir/words.txt
+
+    num_lines=$(< $lang_char_dir/words.txt wc -l)
+    (echo "#0 $num_lines"; echo "<s> $(($num_lines + 1))"; echo "</s> $(($num_lines + 2))";) \
+      >> $lang_char_dir/words.txt
+  fi
+
   if [ ! -f data/lang_char/L_disambig.pt ]; then
+    log "Prepare char based L_disambig.pt"
     python3 ./local/prepare_char.py \
       --lang-dir data/lang_char
   fi
 fi
 
-if [ $stage -le 17 ] && [ $stop_stage -ge 17 ]; then
-  log "Stage 17: Prepare Byte BPE based lang"
+if [ $stage -le 16 ] && [ $stop_stage -ge 16 ]; then
+  log "Stage 16: Prepare Byte BPE based lang"
 
   for vocab_size in ${vocab_sizes[@]}; do
     lang_dir=data/lang_bbpe_${vocab_size}
@@ -260,13 +252,14 @@ if [ $stage -le 17 ] && [ $stop_stage -ge 17 ]; then
     fi
 
     if [ ! -f $lang_dir/L_disambig.pt ]; then
+      log "Prepare byte BPE based L_disambig.pt"
       ./local/prepare_lang_bbpe.py --lang-dir $lang_dir
     fi
   done
 fi
 
 # If you don't want to use LG for decoding, the following steps are not necessary.
-if [ $stage -le 18 ] && [ $stop_stage -ge 18 ]; then
+if [ $stage -le 17 ] && [ $stop_stage -ge 17 ]; then
   log "Stage 17: Prepare G"
   # It will take about 20 minutes.
   # We assume you have install kaldilm, if not, please install
@@ -274,7 +267,7 @@ if [ $stage -le 18 ] && [ $stop_stage -ge 18 ]; then
   if [ ! -f $lang_char_dir/3-gram.unpruned.arpa ]; then
     python3 ./shared/make_kn_lm.py \
       -ngram-order 3 \
-      -text $lang_char_dir/text_words_segmentation \
+      -text $lang_char_dir/text.seg \
       -lm $lang_char_dir/3-gram.unpruned.arpa
   fi
 
@@ -289,9 +282,14 @@ if [ $stage -le 18 ] && [ $stop_stage -ge 18 ]; then
   fi
 fi
 
-if [ $stage -le 19 ] && [ $stop_stage -ge 19 ]; then
+if [ $stage -le 18 ] && [ $stop_stage -ge 18 ]; then
   log "Stage 18: Compile LG"
   python ./local/compile_lg.py --lang-dir $lang_char_dir
+
+  for vocab_size in ${vocab_sizes[@]}; do
+    lang_dir=data/lang_bbpe_${vocab_size}
+    ./local/compile_lg.py --lang-dir $lang_dir
+  done
 fi
 
 # prepare RNNLM data
@@ -318,7 +316,7 @@ if [ $stage -le 19 ] && [ $stop_stage -ge 19 ]; then
     valid_text=${text_out_dir}/
 
     gunzip -c data/manifests/wenetspeech_supervisions_DEV.jsonl.gz \
-      | jq '.text' | sed 's/"//g' \
+      | grep -o 'text":\s[^,]*' | sed 's/text": "//g;s/"//g' \
       | ./local/text2token.py -t "char" > $text_out_dir/valid_text
     
     python3 ./local/text2segments.py \
@@ -337,7 +335,7 @@ if [ $stage -le 19 ] && [ $stop_stage -ge 19 ]; then
     log "Prepare text for test set."
     for test_set in TEST_MEETING TEST_NET; do
         gunzip -c data/manifests/wenetspeech_supervisions_${test_set}.jsonl.gz \
-          | jq '.text' | sed 's/"//g' \
+          | grep -o 'text":\s[^,]*' | sed 's/text": "//g;s/"//g' \
           | ./local/text2token.py -t "char" > $text_out_dir/${test_set}_text
 
         python3 ./local/text2segments.py \
