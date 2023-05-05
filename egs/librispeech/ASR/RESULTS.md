@@ -61,7 +61,7 @@ The decoding commands are:
 # fast_beam_search
 ./pruned_transducer_stateless7/decode.py \
     --epoch 30 \
-    --avg 8 \
+    --avg 7 \
     --use-averaged-model 1 \
     --exp-dir ./pruned_transducer_stateless7/exp \
     --max-duration 600 \
