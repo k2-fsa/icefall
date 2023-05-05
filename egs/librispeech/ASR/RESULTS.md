@@ -20,8 +20,8 @@ Number of model parameters: 70369391, i.e., 70.37 M
 | decoding method      | test-clean | test-other | comment            |
 |----------------------|------------|------------|--------------------|
 | greedy_search        | 1.90       | 4.06       | --epoch 30 --avg 4 |
-| modified_beam_search | 0.00       | 0.00       | --epoch 30 --avg 0 |
-| fast_beam_search     | 0.00       | 0.00       | --epoch 30 --avg 0 |
+| modified_beam_search | 1.89       | 3.99       | --epoch 30 --avg 8 |
+| fast_beam_search     | 1.90       | 3.98       | --epoch 30 --avg 7 |
 
 
 The training commands are:
