@@ -4,14 +4,17 @@
 
 export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
 export PYTHONPATH=~/softwares/icefall_development/icefall_libri_light:$PYTHONPATH
-export CUDA_VISIBLE_DEVICES="2"
+export CUDA_VISIBLE_DEVICES="0"
 
 echo "Using device: ${CUDA_VISIBLE_DEVICES}"
 
-./pruned_transducer_stateless7/decode.py \
-    --epoch 60 \
-    --avg 10 \
-    --use-averaged-model True \
-    --exp-dir ./pruned_transducer_stateless7/exp \
-    --max-duration 600 \
-    --decoding-method greedy_search
+for avg in 10; do
+    ./pruned_transducer_stateless7/decode.py \
+        --epoch 40 \
+        --avg $avg \
+        --use-averaged-model True \
+        --exp-dir ./pruned_transducer_stateless7/exp-medium-replace-full-width-4gpus \
+        --max-duration 1200 \
+        --random-left-padding False \
+        --decoding-method greedy_search
+done

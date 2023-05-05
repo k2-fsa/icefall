@@ -79,7 +79,6 @@ from icefall.utils import (
     AttributeDict,
     setup_logger,
     store_transcripts,
-    store_transcripts_with_normalizations,
     str2bool,
     write_error_stats,
 )
@@ -422,7 +421,6 @@ def decode_one_batch(
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
     elif params.decoding_method == "greedy_search" and params.max_sym_per_frame == 1:
-
         hyp_tokens = greedy_search_batch(
             model=model,
             encoder_out=encoder_out,
@@ -556,6 +554,9 @@ def decode_dataset(
     for batch_idx, batch in enumerate(dl):
         texts = batch["supervisions"]["text"]
         cut_ids = [cut.id for cut in batch["supervisions"]["cut"]]
+        
+        if params.random_left_padding:
+            batch["supervisions"]["num_frames"] += batch["supervisions"]["start_frame"]
 
         hyps_dict = decode_one_batch(
             params=params,
@@ -573,13 +574,12 @@ def decode_dataset(
             this_batch = []
             assert len(hyps) == len(texts)
             for cut_id, hyp_words, ref_text in zip(cut_ids, hyps, texts):
-                # import pdb; pdb.set_trace()
                 # ref_text = ref_text_normalization(ref_text)
                 ref_words = ref_text.split()
-                ref_words = [remove_non_alphabetic(w.upper()) for w in ref_words]
-                ref_words = [w for w in ref_words if w != ""]
-                hyp_words = [remove_non_alphabetic(w.upper()) for w in hyp_words]
-                hyp_words = [w for w in hyp_words if w != ""]
+                #ref_words = [remove_non_alphabetic(w.upper()) for w in ref_words]
+                #ref_words = [w for w in ref_words if w != ""]
+                #hyp_words = [remove_non_alphabetic(w.upper()) for w in hyp_words]
+                #hyp_words = [w for w in hyp_words if w != ""]
                 this_batch.append((cut_id, ref_words, hyp_words))
 
             results[name].extend(this_batch)
@@ -659,6 +659,9 @@ def main():
         params.suffix = f"iter-{params.iter}-avg-{params.avg}"
     else:
         params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
+        
+    if params.random_left_padding:
+        params.suffix += f"random-left-padding"
 
     if "fast_beam_search" in params.decoding_method:
         params.suffix += f"-beam-{params.beam}"
@@ -846,9 +849,20 @@ def main():
     libriheavy = LibriHeavyAsrDataModule(args)
 
     dev_cuts = libriheavy.dev_cuts()
+    test_clean_cuts = libriheavy.test_clean_cuts()
+    test_other_cuts = libriheavy.test_other_cuts()
+    ls_test_clean_cuts = libriheavy.librispeech_test_clean_cuts()
+    ls_test_other_cuts = libriheavy.librispeech_test_other_cuts()
 
-    dev_dl = libriheavy.test_dataloaders(dev_cuts)
+    dev_dl = libriheavy.valid_dataloaders(dev_cuts)
+    test_clean_dl = libriheavy.test_dataloaders(test_clean_cuts)
+    test_other_dl = libriheavy.test_dataloaders(test_other_cuts)
+    ls_test_clean_dl = libriheavy.test_dataloaders(ls_test_clean_cuts)
+    ls_test_other_dl = libriheavy.test_dataloaders(ls_test_other_cuts)
 
+    test_sets = [ "test-clean", "test-other", "ls-test-clean", "ls-test-other"]
+    test_dl = [ test_clean_dl, test_other_dl, ls_test_clean_dl,  ls_test_other_dl]
+    
     test_sets = ["dev"]
     test_dl = [dev_dl]
 

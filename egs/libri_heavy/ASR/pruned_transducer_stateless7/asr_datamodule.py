@@ -185,12 +185,17 @@ class LibriHeavyAsrDataModule:
             "with training dataset. ",
         )
 
-        # GigaSpeech specific arguments
+        # Libriheavy specific arguments
         group.add_argument(
             "--subset",
             type=str,
             default="small",
-            help="Select the GigaSpeech subset (small|medium|large)",
+            help="Select the Libriheavy subset (small|medium|large)",
+        )
+        
+        group.add_argument(
+            '--random-left-padding',
+            type=str2bool,
         )
 
     def train_dataloaders(
@@ -412,3 +417,17 @@ class LibriHeavyAsrDataModule:
             self.args.manifest_dir / "librilight_finetuning_other.jsonl.gz"
         )
         return cuts
+
+    @lru_cache()
+    def librispeech_test_clean_cuts(self) -> CutSet:
+        logging.info("About to get test-clean cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "librispeech_cuts_test-clean.jsonl.gz"
+        )
+
+    @lru_cache()
+    def librispeech_test_other_cuts(self) -> CutSet:
+        logging.info("About to get test-other cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "librispeech_cuts_test-other.jsonl.gz"
+        )
