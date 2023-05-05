@@ -160,6 +160,10 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
 
    cat $lang_char_dir/text.seg | sed 's/ /\n/g' | sort -u | sed '/^$/d' \
       | awk '{print $1" "NR+3}' >> $lang_char_dir/words.txt
+
+   num_lines=$(< $lang_char_dir/words.txt wc -l)
+    (echo "#0 $num_lines"; echo "<s> $(($num_lines + 1))"; echo "</s> $(($num_lines + 2))";) \
+      >> $lang_char_dir/words.txt
   fi
 
   # Tokenize text with BPE model
