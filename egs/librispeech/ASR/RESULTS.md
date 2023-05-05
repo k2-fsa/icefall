@@ -39,19 +39,36 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
 
 The decoding commands are:
 ```bash
-for m in greedy_search fast_beam_search modified_beam_search; do
-  for epoch in $(seq 30 -1 20); do
-    for avg in $(seq 10 -1 1); do
-      ./pruned_transducer_stateless7/decode.py \
-          --epoch $epoch \
-          --avg $avg \
-          --use-averaged-model 1 \
-          --exp-dir ./pruned_transducer_stateless7/exp \
-          --max-duration 600 \
-          --decoding-method $m
-    done
-  done
-done
+# greedy_search
+./pruned_transducer_stateless7/decode.py \
+    --epoch 30 \
+    --avg 4 \
+    --use-averaged-model 1 \
+    --exp-dir ./pruned_transducer_stateless7/exp \
+    --max-duration 600 \
+    --decoding-method greedy_search
+
+# modified_beam_search
+./pruned_transducer_stateless7/decode.py \
+    --epoch 30 \
+    --avg 8 \
+    --use-averaged-model 1 \
+    --exp-dir ./pruned_transducer_stateless7/exp \
+    --max-duration 600 \
+    --decoding-method modified_beam_search \
+    --beam-size 4
+
+# fast_beam_search
+./pruned_transducer_stateless7/decode.py \
+    --epoch 30 \
+    --avg 8 \
+    --use-averaged-model 1 \
+    --exp-dir ./pruned_transducer_stateless7/exp \
+    --max-duration 600 \
+    --decoding-method fast_beam_search \
+    --beam 20.0 \
+    --max-contexts 8 \
+    --max-states 64
 ```
 
 ### Streaming Zipformer-Transducer (Pruned Stateless Transducer + Streaming Zipformer + Multi-Dataset)
