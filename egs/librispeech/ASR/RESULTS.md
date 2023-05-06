@@ -1,5 +1,76 @@
 ## Results
 
+### pruned_transducer_stateless7 (zipformer + multidataset(LibriSpeech + GigaSpeech + CommonVoice 13.0))
+
+See <https://github.com/k2-fsa/icefall/pull/1010> for more details.
+
+[pruned_transducer_stateless7](./pruned_transducer_stateless7)
+
+The tensorboard log can be found at
+<https://tensorboard.dev/experiment/SwdJoHgZSZWn8ph9aJLb8g/>
+
+You can find a pretrained model, training logs, decoding logs, and decoding
+results at:
+<https://huggingface.co/yfyeung/icefall-asr-multidataset-pruned_transducer_stateless7-2023-05-04>
+
+You can use <https://github.com/k2-fsa/sherpa> to deploy it.
+
+Number of model parameters: 70369391, i.e., 70.37 M
+
+| decoding method      | test-clean | test-other | comment            |
+|----------------------|------------|------------|--------------------|
+| greedy_search        | 1.91       | 4.06       | --epoch 30 --avg 7 |
+| modified_beam_search | 1.90       | 3.99       | --epoch 30 --avg 7 |
+| fast_beam_search     | 1.90       | 3.98       | --epoch 30 --avg 7 |
+
+
+The training commands are:
+```bash
+export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
+
+./pruned_transducer_stateless7/train.py \
+  --world-size 8 \
+  --num-epochs 30 \
+  --use-multidataset 1 \
+  --use-fp16 1 \
+  --max-duration 750 \
+  --exp-dir pruned_transducer_stateless7/exp
+```
+
+The decoding commands are:
+```bash
+# greedy_search
+./pruned_transducer_stateless7/decode.py \
+    --epoch 30 \
+    --avg 7 \
+    --use-averaged-model 1 \
+    --exp-dir ./pruned_transducer_stateless7/exp \
+    --max-duration 600 \
+    --decoding-method greedy_search
+
+# modified_beam_search
+./pruned_transducer_stateless7/decode.py \
+    --epoch 30 \
+    --avg 7 \
+    --use-averaged-model 1 \
+    --exp-dir ./pruned_transducer_stateless7/exp \
+    --max-duration 600 \
+    --decoding-method modified_beam_search \
+    --beam-size 4
+
+# fast_beam_search
+./pruned_transducer_stateless7/decode.py \
+    --epoch 30 \
+    --avg 7 \
+    --use-averaged-model 1 \
+    --exp-dir ./pruned_transducer_stateless7/exp \
+    --max-duration 600 \
+    --decoding-method fast_beam_search \
+    --beam 20.0 \
+    --max-contexts 8 \
+    --max-states 64
+```
+
 ### Streaming Zipformer-Transducer (Pruned Stateless Transducer + Streaming Zipformer + Multi-Dataset)
 
 #### [pruned_transducer_stateless7_streaming_multi](./pruned_transducer_stateless7_streaming_multi)
