@@ -19,8 +19,8 @@ Number of model parameters: 70369391, i.e., 70.37 M
 
 | decoding method      | test-clean | test-other | comment            |
 |----------------------|------------|------------|--------------------|
-| greedy_search        | 1.90       | 4.06       | --epoch 30 --avg 4 |
-| modified_beam_search | 1.89       | 3.99       | --epoch 30 --avg 8 |
+| greedy_search        | 1.91       | 4.06       | --epoch 30 --avg 7 |
+| modified_beam_search | 1.90       | 3.99       | --epoch 30 --avg 7 |
 | fast_beam_search     | 1.90       | 3.98       | --epoch 30 --avg 7 |
 
 
@@ -42,7 +42,7 @@ The decoding commands are:
 # greedy_search
 ./pruned_transducer_stateless7/decode.py \
     --epoch 30 \
-    --avg 4 \
+    --avg 7 \
     --use-averaged-model 1 \
     --exp-dir ./pruned_transducer_stateless7/exp \
     --max-duration 600 \
@@ -51,7 +51,7 @@ The decoding commands are:
 # modified_beam_search
 ./pruned_transducer_stateless7/decode.py \
     --epoch 30 \
-    --avg 8 \
+    --avg 7 \
     --use-averaged-model 1 \
     --exp-dir ./pruned_transducer_stateless7/exp \
     --max-duration 600 \
