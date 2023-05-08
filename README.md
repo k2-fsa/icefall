@@ -146,7 +146,7 @@ in the decoding.
 ### Aishell
 
 We provide three models for this recipe: [conformer CTC model][Aishell_conformer_ctc],
-[TDNN LSTM CTC model][Aishell_tdnn_lstm_ctc], and [Transducer Stateless Model][Aishell_transducer_stateless],
+[TDNN LSTM CTC model][Aishell_tdnn_lstm_ctc], and [Transducer Stateless Model][Aishell_transducer_stateless7],
 
 #### Conformer CTC Model
 
@@ -365,6 +365,7 @@ Please see: [![Open In Colab](https://colab.research.google.com/assets/colab-bad
 [LibriSpeech_transducer_stateless]: egs/librispeech/ASR/transducer_stateless
 [Aishell_tdnn_lstm_ctc]: egs/aishell/ASR/tdnn_lstm_ctc
 [Aishell_conformer_ctc]: egs/aishell/ASR/conformer_ctc
+[Aishell_pruned_transducer_stateless7]: egs/aishell/ASR/pruned_transducer_stateless7
 [Aishell2_pruned_transducer_stateless5]: egs/aishell2/ASR/pruned_transducer_stateless5
 [Aishell4_pruned_transducer_stateless5]: egs/aishell4/ASR/pruned_transducer_stateless5
 [TIMIT_tdnn_lstm_ctc]: egs/timit/ASR/tdnn_lstm_ctc
