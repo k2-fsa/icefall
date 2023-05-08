@@ -377,6 +377,8 @@ Please see: [![Open In Colab](https://colab.research.google.com/assets/colab-bad
 [LibriSpeech_transducer_stateless]: egs/librispeech/ASR/transducer_stateless
 [Aishell_tdnn_lstm_ctc]: egs/aishell/ASR/tdnn_lstm_ctc
 [Aishell_conformer_ctc]: egs/aishell/ASR/conformer_ctc
+[Aishell2_pruned_transducer_stateless5]: egs/aishell2/ASR/pruned_transducer_stateless5
+[Aishell4_pruned_transducer_stateless5]: egs/aishell4/ASR/pruned_transducer_stateless5
 [TIMIT_tdnn_lstm_ctc]: egs/timit/ASR/tdnn_lstm_ctc
 [TIMIT_tdnn_ligru_ctc]: egs/timit/ASR/tdnn_ligru_ctc
 [TED-LIUM3_transducer_stateless]: egs/tedlium3/ASR/transducer_stateless
@@ -387,7 +389,6 @@ Please see: [![Open In Colab](https://colab.research.google.com/assets/colab-bad
 [WenetSpeech_pruned_transducer_stateless2]: egs/wenetspeech/ASR/pruned_transducer_stateless2
 [WenetSpeech_pruned_transducer_stateless5]: egs/wenetspeech/ASR/pruned_transducer_stateless5
 [Alimeeting_pruned_transducer_stateless2]: egs/alimeeting/ASR/pruned_transducer_stateless2
-[Aishell4_pruned_transducer_stateless5]: egs/aishell4/ASR/pruned_transducer_stateless5
 [TAL_CSASR_pruned_transducer_stateless5]: egs/tal_csasr/ASR/pruned_transducer_stateless5
 [yesno]: egs/yesno/ASR
 [librispeech]: egs/librispeech/ASR
