@@ -160,20 +160,6 @@ and [Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned R
 |   fast beam search   | 10.50 | 10.69 |
 | modified beam search | 10.40 | 10.51 |
 
-### Aidatatang_200zh
-
-We provide one model for this recipe: [Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss][Aidatatang_200zh_pruned_transducer_stateless2].
-
-#### Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss
-
-|                      |  Dev  | Test  |
-|----------------------|-------|-------|
-|    greedy search     | 5.53  | 6.59  |
-|   fast beam search   | 5.30  | 6.34  |
-| modified beam search | 5.27  | 6.33  |
-
-We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1wNSnSj3T5oOctbh5IGCa393gKOoQw2GH?usp=sharing)
-
 
 ### Aishell
 
@@ -222,6 +208,22 @@ The best WER we currently have is:
 | WER |    5.32    |    5.56    |
 
 
+### Aishell4
+
+We provide one model for this recipe: [Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss][Aishell4_pruned_transducer_stateless5].
+
+#### Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss (trained with all subsets)
+
+The best CER we currently have is:
+
+|     |   test     |
+|-----|------------|
+| CER |   29.08    |
+
+
+We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1z3lkURVv9M7uTiIgf3Np9IntMHEknaks?usp=sharing)
+
+
 ### TIMIT
 
 We provide two models for this recipe: [TDNN LSTM CTC model][TIMIT_tdnn_lstm_ctc]
@@ -246,22 +248,6 @@ The PER for this model is:
 |PER| 17.66% |
 
 We provide a Colab notebook to run a pre-trained TDNN LiGRU CTC model:  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1z3lkURVv9M7uTiIgf3Np9IntMHEknaks?usp=sharing)
-
-
-### Aishell4
-
-We provide one model for this recipe: [Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss][Aishell4_pruned_transducer_stateless5].
-
-#### Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss (trained with all subsets)
-
-The best CER we currently have is:
-
-|     |   test     |
-|-----|------------|
-| CER |   29.08    |
-
-
-We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1z3lkURVv9M7uTiIgf3Np9IntMHEknaks?usp=sharing)
 
 
 ### TED-LIUM3
@@ -289,6 +275,22 @@ The best WER using modified beam search with beam size 4 is:
 | WER |  6.77 |  6.14  |
 
 We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1je_1zGrOkGVVd4WLzgkXRHxl-I27yWtz?usp=sharing)
+
+
+### Aidatatang_200zh
+
+We provide one model for this recipe: [Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss][Aidatatang_200zh_pruned_transducer_stateless2].
+
+#### Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss
+
+|                      |  Dev  | Test  |
+|----------------------|-------|-------|
+|    greedy search     | 5.53  | 6.59  |
+|   fast beam search   | 5.30  | 6.34  |
+| modified beam search | 5.27  | 6.33  |
+
+We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1wNSnSj3T5oOctbh5IGCa393gKOoQw2GH?usp=sharing)
+
 
 ### WenetSpeech
 
