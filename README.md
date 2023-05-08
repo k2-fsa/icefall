@@ -141,6 +141,40 @@ Note: No auxiliary losses are used in the training and no LMs are used
 in the decoding.
 
 
+### GigaSpeech
+
+We provide two models for this recipe: [Conformer CTC model][GigaSpeech_conformer_ctc]
+and [Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss][GigaSpeech_pruned_transducer_stateless2].
+
+#### Conformer CTC
+
+|     |  Dev  | Test  |
+|-----|-------|-------|
+| WER | 10.47 | 10.58 |
+
+#### Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss
+
+|                      |  Dev  | Test  |
+|----------------------|-------|-------|
+|    greedy search     | 10.51 | 10.73 |
+|   fast beam search   | 10.50 | 10.69 |
+| modified beam search | 10.40 | 10.51 |
+
+### Aidatatang_200zh
+
+We provide one model for this recipe: [Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss][Aidatatang_200zh_pruned_transducer_stateless2].
+
+#### Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss
+
+|                      |  Dev  | Test  |
+|----------------------|-------|-------|
+|    greedy search     | 5.53  | 6.59  |
+|   fast beam search   | 5.30  | 6.34  |
+| modified beam search | 5.27  | 6.33  |
+
+We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1wNSnSj3T5oOctbh5IGCa393gKOoQw2GH?usp=sharing)
+
+
 ### Aishell
 
 We provide three models for this recipe: [conformer CTC model][Aishell_conformer_ctc],
@@ -257,39 +291,6 @@ The best WER using modified beam search with beam size 4 is:
 | WER |  6.77 |  6.14  |
 
 We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1je_1zGrOkGVVd4WLzgkXRHxl-I27yWtz?usp=sharing)
-
-### GigaSpeech
-
-We provide two models for this recipe: [Conformer CTC model][GigaSpeech_conformer_ctc]
-and [Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss][GigaSpeech_pruned_transducer_stateless2].
-
-#### Conformer CTC
-
-|     |  Dev  | Test  |
-|-----|-------|-------|
-| WER | 10.47 | 10.58 |
-
-#### Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss
-
-|                      |  Dev  | Test  |
-|----------------------|-------|-------|
-|    greedy search     | 10.51 | 10.73 |
-|   fast beam search   | 10.50 | 10.69 |
-| modified beam search | 10.40 | 10.51 |
-
-### Aidatatang_200zh
-
-We provide one model for this recipe: [Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss][Aidatatang_200zh_pruned_transducer_stateless2].
-
-#### Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss
-
-|                      |  Dev  | Test  |
-|----------------------|-------|-------|
-|    greedy search     | 5.53  | 6.59  |
-|   fast beam search   | 5.30  | 6.34  |
-| modified beam search | 5.27  | 6.33  |
-
-We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1wNSnSj3T5oOctbh5IGCa393gKOoQw2GH?usp=sharing)
 
 ### WenetSpeech
 
