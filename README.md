@@ -118,13 +118,19 @@ We provide a Colab notebook to run a pre-trained transducer conformer + stateles
 
 |     | test-clean | test-other |
 |-----|------------|------------|
-| WER | 2.57       | 5.95       |
+| WER | 2.15       | 5.20       |
 
 #### k2 pruned RNN-T + GigaSpeech
 
 |     | test-clean | test-other |
 |-----|------------|------------|
-| WER | 2.00       | 4.63       |
+| WER | 1.78       | 4.08       |
+
+#### k2 pruned RNN-T + GigaSpeech + CommonVoice
+
+|     | test-clean | test-other |
+|-----|------------|------------|
+| WER | 1.90       | 3.98       |
 
 
 ### Aishell
