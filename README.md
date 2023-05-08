@@ -230,6 +230,7 @@ The best CER we currently have is:
 |-----|------------|
 | CER |   29.08    |
 
+
 We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1z3lkURVv9M7uTiIgf3Np9IntMHEknaks?usp=sharing)
 
 
