@@ -146,7 +146,7 @@ in the decoding.
 ### Aishell
 
 We provide three models for this recipe: [conformer CTC model][Aishell_conformer_ctc],
-[TDNN LSTM CTC model][Aishell_tdnn_lstm_ctc], and [Transducer Stateless Model][Aishell_transducer_stateless7],
+[TDNN LSTM CTC model][Aishell_tdnn_lstm_ctc], and [Transducer Stateless Model][Aishell_pruned_transducer_stateless7],
 
 #### Conformer CTC Model
 
