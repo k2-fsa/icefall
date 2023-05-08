@@ -47,7 +47,7 @@ Training takes less than 30 seconds and gives you the following WER:
 ```
 [test_set] %WER 0.42% [1 / 240, 0 ins, 1 del, 0 sub ]
 ```
-We do provide a Colab notebook for this recipe: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1tIjjzaJc3IvGyKiMCDWO-TSnBgkcuN3B?usp=sharing)
+We provide a Colab notebook for this recipe: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1tIjjzaJc3IvGyKiMCDWO-TSnBgkcuN3B?usp=sharing)
 
 
 ### LibriSpeech
@@ -81,7 +81,7 @@ The WER for this model is:
 |-----|------------|------------|
 | WER | 6.59       | 17.69      |
 
-We provide a Colab notebook to run a pre-trained TDNN LSTM CTC model:  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1-iSfQMp2So-We_Uu49N4AAcMInB72u9z?usp=sharing)
+We provide a Colab notebook to run a pre-trained TDNN LSTM CTC model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1-iSfQMp2So-We_Uu49N4AAcMInB72u9z?usp=sharing)
 
 
 #### Transducer: Conformer encoder + LSTM decoder
@@ -154,7 +154,6 @@ The best CER we currently have is:
 |-----|------|
 | CER | 4.26 |
 
-
 We provide a Colab notebook to run a pre-trained conformer CTC model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg](https://colab.research.google.com/drive/1WnG17io5HEZ0Gn_cnh_VzK5QYOoiiklC?usp=sharing)
 
 #### Transducer Stateless Model
@@ -164,7 +163,6 @@ The best CER we currently have is:
 |     | test |
 |-----|------|
 | CER | 4.38 |
-
 
 We provide a Colab notebook to run a pre-trained TransducerStateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/14XaT2MhnBkK-3_RqqWq3K90Xlbin-GZC?usp=sharing)
 
