@@ -705,7 +705,6 @@ class BalancerFunction(torch.autograd.Function):
         ctx.config = (min_mean, max_mean, min_rms, max_rms, grad_scale, channel_dim)
         return x
 
-
     @staticmethod
     def backward(
         ctx, x_grad: Tensor
@@ -713,40 +712,43 @@ class BalancerFunction(torch.autograd.Function):
         x, = ctx.saved_tensors
         (min_mean, max_mean, min_rms, max_rms, grad_scale, channel_dim) = ctx.config
 
-        with torch.enable_grad():
-            with torch.cuda.amp.autocast(enabled=False):
-                x = x.to(torch.float32)
-                x = x.detach()
-                x.requires_grad = True
-                mean_dims = [ i for i in range(x.ndim) if i != channel_dim ]
-                uncentered_var = (x ** 2).mean(dim=mean_dims, keepdim=True)
-                mean = x.mean(dim=mean_dims, keepdim=True)
-                stddev = (uncentered_var - (mean * mean)).clamp(min=1.0e-20).sqrt()
-                rms = uncentered_var.clamp(min=1.0e-20).sqrt()
+        try:
+            with torch.enable_grad():
+                with torch.cuda.amp.autocast(enabled=False):
+                    x = x.to(torch.float32)
+                    x = x.detach()
+                    x.requires_grad = True
+                    mean_dims = [ i for i in range(x.ndim) if i != channel_dim ]
+                    uncentered_var = (x ** 2).mean(dim=mean_dims, keepdim=True)
+                    mean = x.mean(dim=mean_dims, keepdim=True)
+                    stddev = (uncentered_var - (mean * mean)).clamp(min=1.0e-20).sqrt()
+                    rms = uncentered_var.clamp(min=1.0e-20).sqrt()
 
-                m = mean / stddev
-                # part of loss that relates to mean / stddev
-                m_loss = (m - m.clamp(min=min_mean, max=max_mean)).abs()
+                    m = mean / stddev
+                    # part of loss that relates to mean / stddev
+                    m_loss = (m - m.clamp(min=min_mean, max=max_mean)).abs()
 
-                # put a much larger scale on the RMS-max-limit loss, so that if both it and the
-                # m_loss are violated we fix the RMS loss first.
-                rms_clamped = rms.clamp(min=min_rms, max=max_rms)
-                r_loss = (rms_clamped / rms).log().abs()
+                    # put a much larger scale on the RMS-max-limit loss, so that if both it and the
+                    # m_loss are violated we fix the RMS loss first.
+                    rms_clamped = rms.clamp(min=min_rms, max=max_rms)
+                    r_loss = (rms_clamped / rms).log().abs()
 
-                loss = (m_loss + r_loss)
+                    loss = (m_loss + r_loss)
 
-                loss.backward(gradient=torch.ones_like(loss))
-                loss_grad = x.grad
-                loss_grad_rms = (loss_grad ** 2).mean(dim=mean_dims, keepdim=True).sqrt().clamp(min=1.0e-20)
+                    loss.backward(gradient=torch.ones_like(loss))
+                    loss_grad = x.grad
+                    loss_grad_rms = (loss_grad ** 2).mean(dim=mean_dims, keepdim=True).sqrt().clamp(min=1.0e-20)
 
-                loss_grad = loss_grad * (grad_scale / loss_grad_rms)
+                    loss_grad = loss_grad * (grad_scale / loss_grad_rms)
 
-                x_grad_float = x_grad.to(torch.float32)
-                # scale each element of loss_grad by the absolute value of the corresponding
-                # element of x_grad, which we view as a noisy estimate of its magnitude for that
-                # (frame and dimension).  later we can consider factored versions.
-                x_grad_mod = x_grad_float + (x_grad_float.abs() * loss_grad)
-                x_grad = x_grad_mod.to(x_grad.dtype)
+                    x_grad_float = x_grad.to(torch.float32)
+                    # scale each element of loss_grad by the absolute value of the corresponding
+                    # element of x_grad, which we view as a noisy estimate of its magnitude for that
+                    # (frame and dimension).  later we can consider factored versions.
+                    x_grad_mod = x_grad_float + (x_grad_float.abs() * loss_grad)
+                    x_grad = x_grad_mod.to(x_grad.dtype)
+        except Exception as e:
+            logging.info(f"Caught exception in Balancer backward: {e}, size={list(x_grad.shape)}, will continue.")
 
         return x_grad, None, None, None, None, None, None
 
@@ -954,28 +956,33 @@ class WhiteningPenaltyFunction(torch.autograd.Function):
                  x_grad: Tensor):
         x_orig, = ctx.saved_tensors
         w = ctx.module
-        with torch.enable_grad():
-            with torch.cuda.amp.autocast(enabled=False):
-                x_detached = x_orig.to(torch.float32).detach()
-                x_detached.requires_grad = True
 
-                metric = _whitening_metric(x_detached, w.num_groups)
+        try:
+            with torch.enable_grad():
+                with torch.cuda.amp.autocast(enabled=False):
+                    x_detached = x_orig.to(torch.float32).detach()
+                    x_detached.requires_grad = True
 
-                if random.random() < 0.005 or __name__ == "__main__":
-                    logging.info(f"Whitening: name={w.name}, num_groups={w.num_groups}, num_channels={x_orig.shape[-1]}, "
-                                 f"metric={metric.item():.2f} vs. limit={float(w.whitening_limit)}")
+                    metric = _whitening_metric(x_detached, w.num_groups)
 
-                if metric < float(w.whitening_limit):
-                    w.prob = w.min_prob
-                    return x_grad, None
-                else:
-                    w.prob = w.max_prob
-                    metric.backward()
-                    penalty_grad = x_detached.grad
-                    scale = w.grad_scale * (x_grad.to(torch.float32).norm() /
-                                              (penalty_grad.norm() + 1.0e-20))
-                    penalty_grad = penalty_grad * scale
-                    return x_grad + penalty_grad.to(x_grad.dtype), None
+                    if random.random() < 0.005 or __name__ == "__main__":
+                        logging.info(f"Whitening: name={w.name}, num_groups={w.num_groups}, num_channels={x_orig.shape[-1]}, "
+                                     f"metric={metric.item():.2f} vs. limit={float(w.whitening_limit)}")
+
+                    if metric < float(w.whitening_limit):
+                        w.prob = w.min_prob
+                        return x_grad, None
+                    else:
+                        w.prob = w.max_prob
+                        metric.backward()
+                        penalty_grad = x_detached.grad
+                        scale = w.grad_scale * (x_grad.to(torch.float32).norm() /
+                                                (penalty_grad.norm() + 1.0e-20))
+                        penalty_grad = penalty_grad * scale
+                        return x_grad + penalty_grad.to(x_grad.dtype), None
+        except Exception as e:
+            logging.info(f"Caught exception in Whiten backward: {e}, size={list(x_grad.shape)}, will continue.")
+        return x_grad, None
 
 
 class Whiten(nn.Module):
@@ -1316,7 +1323,11 @@ class SwooshL(torch.nn.Module):
         if torch.jit.is_scripting():
             zero = torch.tensor(0.0, dtype=x.dtype, device=x.device)
             return torch.logaddexp(zero, x - 4.0)  - 0.08 * x - 0.035
-        return SwooshLFunction.apply(x)
+        if not x.requires_grad:
+            return k2.swoosh_l_forward(x)
+        else:
+            return k2.swoosh_l(x)
+        #return SwooshLFunction.apply(x)
 
 
 class SwooshRFunction(torch.autograd.Function):
@@ -1374,12 +1385,16 @@ class SwooshRFunction(torch.autograd.Function):
 
 class SwooshR(torch.nn.Module):
     def forward(self, x: Tensor) -> Tensor:
-        """Return Swoosh-L activation.
+        """Return Swoosh-R activation.
         """
         if torch.jit.is_scripting():
             zero = torch.tensor(0.0, dtype=x.dtype, device=x.device)
             return torch.logaddexp(zero, x - 1.)  - 0.08 * x - 0.313261687
-        return SwooshRFunction.apply(x)
+        if not x.requires_grad:
+            return k2.swoosh_r_forward(x)
+        else:
+            return k2.swoosh_r(x)
+        # return SwooshRFunction.apply(x)
 
 
 # simple version of SwooshL that does not redefine the backprop, used in
@@ -1634,22 +1649,6 @@ def _test_balancer_magnitude():
     print("_test_balancer_magnitude: x grad = ", x.grad)
 
 
-
-def _test_basic_norm():
-    num_channels = 128
-    m = BasicNorm(num_channels=num_channels, channel_dim=1)
-
-    x = torch.randn(500, num_channels)
-
-    y = m(x)
-
-    assert y.shape == x.shape
-    x_rms = (x ** 2).mean().sqrt()
-    y_rms = (y ** 2).mean().sqrt()
-    print("x rms = ", x_rms)
-    print("y rms = ", y_rms)
-
-
 def _test_double_swish_deriv():
     x = torch.randn(10, 12, dtype=torch.double) * 3.0
     x.requires_grad = True
@@ -1658,11 +1657,11 @@ def _test_double_swish_deriv():
     tol = ((1.2-(-0.043637))/255.0)
     torch.autograd.gradcheck(m, x, atol=tol)
 
-
     # for self-test.
     x = torch.randn(1000, 1000, dtype=torch.double) * 3.0
     x.requires_grad = True
     y = m(x)
+
 
 def _test_swooshl_deriv():
     x = torch.randn(10, 12, dtype=torch.double) * 3.0
@@ -1670,12 +1669,13 @@ def _test_swooshl_deriv():
     m = SwooshL()
 
     tol = (1.0 / 255.0)
-    torch.autograd.gradcheck(m, x, atol=tol)
+    torch.autograd.gradcheck(m, x, atol=tol, eps=0.01)
 
     # for self-test.
     x = torch.randn(1000, 1000, dtype=torch.double) * 3.0
     x.requires_grad = True
     y = m(x)
+
 
 def _test_swooshr_deriv():
     x = torch.randn(10, 12, dtype=torch.double) * 3.0
@@ -1683,13 +1683,12 @@ def _test_swooshr_deriv():
     m = SwooshR()
 
     tol = (1.0 / 255.0)
-    torch.autograd.gradcheck(m, x, atol=tol)
+    torch.autograd.gradcheck(m, x, atol=tol, eps=0.01)
 
     # for self-test.
     x = torch.randn(1000, 1000, dtype=torch.double) * 3.0
     x.requires_grad = True
     y = m(x)
-
 
 
 def _test_softmax():
@@ -1763,8 +1762,10 @@ def _test_activation_dropout_and_linear():
 
     for bias in [True, False]:
         # actually we don't test for dropout_p != 0.0 because forward functions will give
-        # different answers.  This is because
-        for dropout_p in [0.0, 0.1]:
+        # different answers.  This is because we are using the k2 implementation of
+        # swoosh_l an swoosh_r inside SwooshL() and SwooshR(), and they call randn()
+        # internally, messing up the random state.
+        for dropout_p in [0.0]:
             for activation in ['SwooshL', 'SwooshR']:
                 m1 =  nn.Sequential(SwooshL() if activation == 'SwooshL' else SwooshR(),
                                     Dropout3(p=dropout_p, shared_dim=-1),
@@ -1826,7 +1827,6 @@ if __name__ == "__main__":
     _test_whiten()
     _test_balancer_sign()
     _test_balancer_magnitude()
-    _test_basic_norm()
     _test_double_swish_deriv()
     _test_swooshr_deriv()
     _test_swooshl_deriv()

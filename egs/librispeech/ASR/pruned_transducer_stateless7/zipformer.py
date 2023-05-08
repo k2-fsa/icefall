@@ -522,10 +522,10 @@ class Zipformer2EncoderLayer(nn.Module):
         self.embed_dim = embed_dim
 
         # self.bypass implements layer skipping as well as bypass; see its default values.
-        self.bypass = BypassModule(embed_dim, skip_rate=bypass_skip_rate)
+        self.bypass = BypassModule(embed_dim, skip_rate=bypass_skip_rate,
+                                   straight_through_rate=0)
         # bypass_mid is bypass used in the middle of the layer.
-        self.bypass_mid = BypassModule(embed_dim)
-
+        self.bypass_mid = BypassModule(embed_dim, straight_through_rate=0)
 
         # skip probability for dynamic modules (meaning: anything but feedforward).
         self.attention_skip_rate = copy.deepcopy(attention_skip_rate)
@@ -575,12 +575,7 @@ class Zipformer2EncoderLayer(nn.Module):
                                               cnn_module_kernel,
                                               causal=causal)
 
-
-        #self.attention_squeeze = AttentionSqueeze(embed_dim, embed_dim // 2)
-
         self.norm = BiasNorm(embed_dim)
-
-        self.bypass_scale = nn.Parameter(torch.full((embed_dim,), 0.5))
 
         self.balancer1 = Balancer(
             embed_dim, channel_dim=-1,
@@ -625,26 +620,6 @@ class Zipformer2EncoderLayer(nn.Module):
             min_positive=0.45, max_positive=0.55,
             min_abs=0.1, max_abs=4.0,
         )
-
-
-    def get_bypass_scale(self, batch_size: int):
-        # returns bypass-scale of shape (num_channels,),
-        # or (batch_size, num_channels,).  This is actually the
-        # scale on the non-residual term, so 0 correponds to bypassing
-        # this module.
-        if torch.jit.is_scripting() or not self.training:
-            return self.bypass_scale
-        else:
-            ans = limit_param_value(self.bypass_scale,
-                                    min=float(self.bypass_min),
-                                    max=float(self.bypass_max))
-            layer_skip_rate = float(self.layer_skip_rate)
-            if layer_skip_rate != 0.0:
-                mask = torch.rand((batch_size, 1), device=ans.device) > layer_skip_rate
-                ans = ans * mask
-                # now ans is of shape (batch_size, num_channels), and is zero for sequences
-                # on which we have randomly chosen to do layer-skipping.
-            return ans
 
     def get_sequence_dropout_mask(self, x: Tensor, dropout_rate: float) -> Optional[Tensor]:
         if dropout_rate == 0.0 or not self.training or torch.jit.is_scripting():
@@ -908,7 +883,7 @@ class Zipformer2Encoder(nn.Module):
     ) -> None:
         super().__init__()
         self.encoder_pos = CompactRelPositionalEncoding(pos_dim, dropout_rate=0.15,
-                                                        length_factor=3.0)
+                                                        length_factor=1.0)
 
         self.layers = nn.ModuleList(
             [copy.deepcopy(encoder_layer) for i in range(num_layers)]
@@ -1042,14 +1017,15 @@ class BypassModule(nn.Module):
             self,
             embed_dim: int,
             skip_rate: FloatLike = 0.0,
+            straight_through_rate: FloatLike = 0.0,
             scale_min: FloatLike = ScheduledFloat((0.0, 0.9), (20000.0, 0.2), default=0),
             scale_max: FloatLike = 1.0):
         super().__init__()
         self.bypass_scale = nn.Parameter(torch.full((embed_dim,), 0.5))
         self.skip_rate = copy.deepcopy(skip_rate)
+        self.straight_through_rate = copy.deepcopy(straight_through_rate)
         self.scale_min = copy.deepcopy(scale_min)
         self.scale_max = copy.deepcopy(scale_max)
-
 
     def _get_bypass_scale(self, batch_size: int):
         # returns bypass-scale of shape (num_channels,),
@@ -1068,6 +1044,10 @@ class BypassModule(nn.Module):
                 ans = ans * mask
                 # now ans is of shape (batch_size, num_channels), and is zero for sequences
                 # on which we have randomly chosen to do layer-skipping.
+            straight_through_rate = float(self.straight_through_rate)
+            if straight_through_rate != 0.0:
+                mask = torch.rand((batch_size, 1), device=ans.device) < straight_through_rate
+                ans = torch.maximum(ans, mask.to(ans.dtype))
             return ans
 
     def forward(self,
@@ -1078,9 +1058,7 @@ class BypassModule(nn.Module):
         Returns: something with the same shape as src and src_orig
         """
         bypass_scale = self._get_bypass_scale(src.shape[1])
-        return src_orig + (src - src_orig)  * bypass_scale
-
-
+        return src_orig + (src - src_orig) * bypass_scale
 
 
 class DownsampledZipformer2Encoder(nn.Module):
@@ -1101,8 +1079,7 @@ class DownsampledZipformer2Encoder(nn.Module):
         self.num_layers = encoder.num_layers
         self.encoder = encoder
         self.upsample = SimpleUpsample(dim, downsample)
-        self.out_combiner = BypassModule(dim)
-
+        self.out_combiner = BypassModule(dim, straight_through_rate=0)
 
     def forward(self,
                 src: Tensor,
