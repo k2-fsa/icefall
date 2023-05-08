@@ -28,14 +28,15 @@ We provide the following recipes:
 
   - [yesno][yesno]
   - [LibriSpeech][librispeech]
+  - [GigaSpeech][gigaspeech]
   - [Aishell][aishell]
+  - [Aishell2][aishell2]
+  - [Aishell4][aishell4]
   - [TIMIT][timit]
   - [TED-LIUM3][tedlium3]
-  - [GigaSpeech][gigaspeech]
   - [Aidatatang_200zh][aidatatang_200zh]
   - [WenetSpeech][wenetspeech]
   - [Alimeeting][alimeeting]
-  - [Aishell4][aishell4]
   - [TAL_CSASR][tal_csasr]
 
 ### yesno
@@ -120,17 +121,26 @@ We provide a Colab notebook to run a pre-trained transducer conformer + stateles
 |-----|------------|------------|
 | WER | 2.15       | 5.20       |
 
+Note: No auxiliary losses are used in the training and no LMs are used
+in the decoding.
+
 #### k2 pruned RNN-T + GigaSpeech
 
 |     | test-clean | test-other |
 |-----|------------|------------|
 | WER | 1.78       | 4.08       |
 
+Note: No auxiliary losses are used in the training and no LMs are used
+in the decoding.
+
 #### k2 pruned RNN-T + GigaSpeech + CommonVoice
 
 |     | test-clean | test-other |
 |-----|------------|------------|
 | WER | 1.90       | 3.98       |
+
+Note: No auxiliary losses are used in the training and no LMs are used
+in the decoding.
 
 
 ### Aishell
@@ -155,7 +165,7 @@ The best CER we currently have is:
 
 |     | test |
 |-----|------|
-| CER | 4.68 |
+| CER | 4.38 |
 
 
 We provide a Colab notebook to run a pre-trained TransducerStateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/14XaT2MhnBkK-3_RqqWq3K90Xlbin-GZC?usp=sharing)
@@ -194,6 +204,32 @@ The PER for this model is:
 |PER| 17.66% |
 
 We provide a Colab notebook to run a pre-trained TDNN LiGRU CTC model:  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/11IT-k4HQIgQngXz1uvWsEYktjqQt7Tmb?usp=sharing)
+
+### Aishell2
+
+We provide one model for this recipe: [Transducer Stateless Model][Transducer Stateless Model].
+
+#### Transducer Stateless Model
+
+The best WER we currently have is:
+
+|     |   dev-ios  |  test-ios  |
+|-----|------------|------------|
+| WER |    5.32    |    5.56    |
+
+
+### Aishell4
+
+We provide one model for this recipe: [Transducer Stateless Model][Transducer Stateless Model].
+
+#### Transducer Stateless Model
+
+The best CER we currently have is:
+
+|     |   test     |
+|-----|------------|
+| CER |   29.08    |
+
 
 ### TED-LIUM3
 
