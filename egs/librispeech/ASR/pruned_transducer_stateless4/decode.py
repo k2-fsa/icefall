@@ -362,21 +362,20 @@ def get_parser():
         "--context-score",
         type=float,
         default=2,
-        help="",
-    )
-
-    parser.add_argument(
-        "--num-context-history",
-        type=int,
-        default=1,
-        help="",
+        help="""
+        The bonus score of each token for the context biasing words/phrases.
+        Used only when --decoding_method is modified_beam_search.
+        """,
     )
 
     parser.add_argument(
         "--context-file",
         type=str,
         default="",
-        help="",
+        help="""
+        The path of the context biasing lists, one word/phrase each line
+        Used only when --decoding_method is modified_beam_search.
+        """,
     )
 
     add_model_arguments(parser)
@@ -522,7 +521,6 @@ def decode_one_batch(
             encoder_out_lens=encoder_out_lens,
             beam=params.beam_size,
             context_graph=context_graph,
-            num_context_history=params.num_context_history,
             return_timestamps=True,
         )
     else:
@@ -579,7 +577,6 @@ def decode_one_batch(
     else:
         key = f"beam_size_{params.beam_size}"
         key += f"-context-score-{params.context_score}"
-        key += f"-num-context-history-{params.num_context_history}"
         return {key: (hyps, timestamps)}
 
 
@@ -629,7 +626,7 @@ def decode_dataset(
     if params.decoding_method == "greedy_search":
         log_interval = 50
     else:
-        log_interval = 1 
+        log_interval = 1
 
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
@@ -785,7 +782,6 @@ def main():
     elif "beam_search" in params.decoding_method:
         params.suffix += f"-{params.decoding_method}-beam-size-{params.beam_size}"
         params.suffix += f"-context-score-{params.context_score}"
-        params.suffix += f"-num-context-history-{params.num_context_history}"
     else:
         params.suffix += f"-context-{params.context_size}"
         params.suffix += f"-max-sym-per-frame-{params.max_sym_per_frame}"
@@ -923,7 +919,7 @@ def main():
             for line in open(params.context_file).readlines():
                 contexts.append(line.strip())
             context_graph = ContextGraph(params.context_score)
-            context_graph.build_context_graph_bpe(contexts, sp)
+            context_graph.build_context_graph(sp.encode(contexts))
         else:
             context_graph = None
     else:

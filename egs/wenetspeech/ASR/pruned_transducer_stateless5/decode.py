@@ -136,6 +136,7 @@ from beam_search import (
 from train import add_model_arguments, get_params, get_transducer_model
 
 from icefall import ContextGraph, LmScorer, NgramLm
+from icefall.char_graph_compiler import CharCtcTrainingGraphCompiler
 from icefall.checkpoint import (
     average_checkpoints,
     average_checkpoints_with_averaged_model,
@@ -313,21 +314,20 @@ def get_parser():
         "--context-score",
         type=float,
         default=2,
-        help="",
-    )
-
-    parser.add_argument(
-        "--num-context-history",
-        type=int,
-        default=1,
-        help="",
+        help="""
+        The bonus score of each token for the context biasing words/phrases.
+        Used only when --decoding_method is modified_beam_search.
+        """,
     )
 
     parser.add_argument(
         "--context-file",
         type=str,
         default="",
-        help="",
+        help="""
+        The path of the context biasing lists, one word/phrase each line
+        Used only when --decoding_method is modified_beam_search.
+        """,
     )
 
     parser.add_argument(
@@ -472,7 +472,6 @@ def decode_one_batch(
             beam=params.beam_size,
             encoder_out_lens=encoder_out_lens,
             context_graph=context_graph,
-            num_context_history=params.num_context_history,
         )
         for i in range(encoder_out.size(0)):
             hyps.append([lexicon.token_table[idx] for idx in hyp_tokens[i]])
@@ -535,7 +534,7 @@ def decode_one_batch(
         }
     else:
         return {
-            f"beam_size_{params.beam_size}_context_score_{params.context_score}_num_context_history_{params.num_context_history}": hyps
+            f"beam_size_{params.beam_size}_context_score_{params.context_score}": hyps
         }
 
 
@@ -685,7 +684,6 @@ def main():
     elif "beam_search" in params.decoding_method:
         params.suffix += f"-beam-{params.beam_size}"
         params.suffix += f"-context-score-{params.context_score}"
-        params.suffix += f"-num-context-history-{params.num_context_history}"
     else:
         params.suffix += f"-context-{params.context_size}"
         params.suffix += f"-max-sym-per-frame-{params.max_sym_per_frame}"
@@ -715,10 +713,14 @@ def main():
 
     logging.info(f"Device: {device}")
 
-    # import pdb; pdb.set_trace()
     lexicon = Lexicon(params.lang_dir)
     params.blank_id = lexicon.token_table["<blk>"]
     params.vocab_size = max(lexicon.tokens) + 1
+
+    graph_compiler = CharCtcTrainingGraphCompiler(
+        lexicon=lexicon,
+        device=device,
+    )
 
     if params.simulate_streaming:
         assert (
@@ -851,9 +853,9 @@ def main():
         if os.path.exists(params.context_file):
             contexts = []
             for line in open(params.context_file).readlines():
-                contexts.append(line.strip())
+                contexts.append(graph_compiler.texts_to_ids(line.strip()))
             context_graph = ContextGraph(params.context_score)
-            context_graph.build_context_graph_char(contexts, lexicon.token_table)
+            context_graph.build_context_graph(contexts)
         else:
             context_graph = None
     else:
