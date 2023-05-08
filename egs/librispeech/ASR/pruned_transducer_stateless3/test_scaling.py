@@ -52,17 +52,9 @@ def test_scaled_conv2d():
         torch.jit.script(conv2d)
 
 
-def test_activation_balancer():
-    act = ActivationBalancer(
-        channel_dim=1, max_abs=10.0, min_positive=0.05, max_positive=1.0
-    )
-    torch.jit.script(act)
-
-
 def main():
     test_scaled_conv1d()
     test_scaled_conv2d()
-    test_activation_balancer()
 
 
 if __name__ == "__main__":

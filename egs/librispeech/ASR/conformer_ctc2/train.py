@@ -69,8 +69,8 @@ from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
 
-from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
 from icefall import diagnostics
+from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
 from icefall.checkpoint import load_checkpoint, remove_checkpoints
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 from icefall.checkpoint import (
@@ -89,9 +89,7 @@ from icefall.utils import (
     str2bool,
 )
 
-LRSchedulerType = Union[
-    torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler
-]
+LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
 
 
 def get_parser():
@@ -164,13 +162,6 @@ def get_parser():
         It contains language related input files such as
         "lexicon.txt"
         """,
-    )
-
-    parser.add_argument(
-        "--bpe-model",
-        type=str,
-        default="data/lang_bpe_500/bpe.model",
-        help="Path to the BPE model",
     )
 
     parser.add_argument(
@@ -505,11 +496,7 @@ def compute_loss(
      warmup: a floating point value which increases throughout training;
         values >= 1.0 are fully warmed up and have all modules present.
     """
-    device = (
-        model.device
-        if isinstance(model, DDP)
-        else next(model.parameters()).device
-    )
+    device = model.device if isinstance(model, DDP) else next(model.parameters()).device
     feature = batch["inputs"]
     # at entry, feature is (N, T, C)
     assert feature.ndim == 3
@@ -522,14 +509,6 @@ def compute_loss(
         nnet_output, encoder_memory, memory_mask = model(
             feature, supervisions, warmup=warmup
         )
-        # logging.info('feature shape: {}'.format(feature.shape))
-        # logging.info('nnet_output shape: {}'.format(nnet_output.shape))
-        # logging.info('encoder_memory shape: {}'.format(encoder_memory.shape))
-        # logging.info('memory_mask shape: {}'.format(memory_mask.shape))
-        # after the main warmup step, we keep pruned_loss_scale small
-        # for the same amount of time (model_warm_step), to avoid
-        # overwhelming the simple_loss and causing it to diverge,
-        # in case it had not fully learned the alignment yet.
 
     # NOTE: We need `encode_supervisions` to sort sequences with
     # different duration in decreasing order, required by
@@ -546,9 +525,7 @@ def compute_loss(
         # Works with a phone lexicon
         decoding_graph = graph_compiler.compile(texts)
     else:
-        raise ValueError(
-            f"Unsupported type of graph compiler: {type(graph_compiler)}"
-        )
+        raise ValueError(f"Unsupported type of graph compiler: {type(graph_compiler)}")
 
     dense_fsa_vec = k2.DenseFsaVec(
         nnet_output,
@@ -575,9 +552,7 @@ def compute_loss(
             #
             # See https://github.com/k2-fsa/icefall/issues/97
             # for more details
-            unsorted_token_ids = graph_compiler.texts_to_ids(
-                supervisions["text"]
-            )
+            unsorted_token_ids = graph_compiler.texts_to_ids(supervisions["text"])
             att_loss = mmodel.decoder_forward(
                 encoder_memory,
                 memory_mask,
@@ -595,9 +570,7 @@ def compute_loss(
     info = MetricsTracker()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        info["frames"] = (
-            (feature_lens // params.subsampling_factor).sum().item()
-        )
+        info["frames"] = (feature_lens // params.subsampling_factor).sum().item()
     info["ctc_loss"] = ctc_loss.detach().cpu().item()
     if params.att_rate != 0.0:
         info["att_loss"] = att_loss.detach().cpu().item()
@@ -791,9 +764,9 @@ def train_one_epoch(
                 f"tot_loss[{tot_loss}], batch size: {batch_size}, "
                 f"lr: {cur_lr:.2e}"
             )
-            if loss_info["ctc_loss"] == float("inf") or loss_info[
-                "att_loss"
-            ] == float("inf"):
+            if loss_info["ctc_loss"] == float("inf") or loss_info["att_loss"] == float(
+                "inf"
+            ):
                 logging.error(
                     "Your loss contains inf, something goes wrong"
                     f"failing batch names {batch_name}"
@@ -806,9 +779,7 @@ def train_one_epoch(
                 loss_info.write_summary(
                     tb_writer, "train/current_", params.batch_idx_train
                 )
-                tot_loss.write_summary(
-                    tb_writer, "train/tot_", params.batch_idx_train
-                )
+                tot_loss.write_summary(tb_writer, "train/tot_", params.batch_idx_train)
 
         if batch_idx > 0 and batch_idx % params.valid_interval == 0:
             logging.info("Computing validation loss")
@@ -957,10 +928,10 @@ def run(rank, world_size, args):
 
     librispeech = LibriSpeechAsrDataModule(args)
 
-    train_cuts = librispeech.train_clean_100_cuts()
     if params.full_libri:
-        train_cuts += librispeech.train_clean_360_cuts()
-        train_cuts += librispeech.train_other_500_cuts()
+        train_cuts = librispeech.train_all_shuf_cuts()
+    else:
+        train_cuts = librispeech.train_clean_100_cuts()
 
     def remove_short_and_long_utt(c: Cut):
         # Keep only utterances with duration between 1 second and 20 seconds

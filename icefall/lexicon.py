@@ -49,18 +49,12 @@ def read_lexicon(filename: str) -> List[Tuple[str, List[str]]]:
                 continue
 
             if len(a) < 2:
-                logging.info(
-                    f"Found bad line {line} in lexicon file {filename}"
-                )
-                logging.info(
-                    "Every line is expected to contain at least 2 fields"
-                )
+                logging.info(f"Found bad line {line} in lexicon file {filename}")
+                logging.info("Every line is expected to contain at least 2 fields")
                 sys.exit(1)
             word = a[0]
             if word == "<eps>":
-                logging.info(
-                    f"Found bad line {line} in lexicon file {filename}"
-                )
+                logging.info(f"Found bad line {line} in lexicon file {filename}")
                 logging.info("<eps> should not be a valid word")
                 sys.exit(1)
 
@@ -119,9 +113,7 @@ def convert_lexicon_to_ragged(
     lexicon_tmp = read_lexicon(filename)
     lexicon = dict(lexicon_tmp)
     if len(lexicon_tmp) != len(lexicon):
-        raise RuntimeError(
-            "It's assumed that each word has a unique pronunciation"
-        )
+        raise RuntimeError("It's assumed that each word has a unique pronunciation")
 
     for i in range(disambig_id):
         w = word_table[i]

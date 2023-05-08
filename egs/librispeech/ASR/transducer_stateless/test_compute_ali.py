@@ -140,16 +140,13 @@ def main():
                 token_alignment[i, : token_alignment_length[i]].tolist(), sp=sp
             )
             word_starting_time = [
-                "{:.2f}".format(i * frame_shift_in_second)
-                for i in word_starting_frames
+                "{:.2f}".format(i * frame_shift_in_second) for i in word_starting_frames
             ]
 
             words = supervisions["text"][i].split()
 
             assert len(word_starting_frames) == len(words)
-            word_starting_time_dict[cuts[i].id] = list(
-                zip(words, word_starting_time)
-            )
+            word_starting_time_dict[cuts[i].id] = list(zip(words, word_starting_time))
 
         # This is a demo script and we exit here after processing
         # one batch.
@@ -160,9 +157,7 @@ def main():
 
 
 if __name__ == "__main__":
-    formatter = (
-        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-    )
+    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
 
     logging.basicConfig(format=formatter, level=logging.INFO)
     main()

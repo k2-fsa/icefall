@@ -29,9 +29,7 @@ from conformer import Conformer
 
 def test_conformer():
     feature_dim = 50
-    c = Conformer(
-        num_features=feature_dim, output_dim=256, d_model=128, nhead=4
-    )
+    c = Conformer(num_features=feature_dim, output_dim=256, d_model=128, nhead=4)
     batch_size = 5
     seq_len = 20
     # Just make sure the forward pass runs.

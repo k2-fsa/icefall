@@ -59,7 +59,6 @@ class Decoder(nn.Module):
         self.embedding = ScaledEmbedding(
             num_embeddings=vocab_size,
             embedding_dim=decoder_dim,
-            padding_idx=blank_id,
         )
         self.blank_id = blank_id
 
@@ -107,15 +106,11 @@ class Decoder(nn.Module):
             # This is for exporting to PNNX via ONNX
             embedding_out = self.embedding(y)
         else:
-            embedding_out = self.embedding(y.clamp(min=0)) * (y >= 0).unsqueeze(
-                -1
-            )
+            embedding_out = self.embedding(y.clamp(min=0)) * (y >= 0).unsqueeze(-1)
         if self.context_size > 1:
             embedding_out = embedding_out.permute(0, 2, 1)
             if need_pad:
-                embedding_out = F.pad(
-                    embedding_out, pad=(self.context_size - 1, 0)
-                )
+                embedding_out = F.pad(embedding_out, pad=(self.context_size - 1, 0))
             else:
                 # During inference time, there is no need to do extra padding
                 # as we only need one output

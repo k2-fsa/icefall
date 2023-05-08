@@ -87,9 +87,7 @@ from icefall.utils import (
     str2bool,
 )
 
-LRSchedulerType = Union[
-    torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler
-]
+LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
 
 
 def add_model_arguments(parser: argparse.ArgumentParser):
@@ -104,7 +102,28 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         "--encoder-dim",
         type=int,
         default=512,
-        help="Encoder output dimesion.",
+        help="Encoder output dimension.",
+    )
+
+    parser.add_argument(
+        "--decoder-dim",
+        type=int,
+        default=512,
+        help="Decoder output dimension.",
+    )
+
+    parser.add_argument(
+        "--joiner-dim",
+        type=int,
+        default=512,
+        help="Joiner output dimension.",
+    )
+
+    parser.add_argument(
+        "--dim-feedforward",
+        type=int,
+        default=2048,
+        help="Dimension of feed forward.",
     )
 
     parser.add_argument(
@@ -232,8 +251,7 @@ def get_parser():
         "--context-size",
         type=int,
         default=2,
-        help="The context size in the decoder. 1 means bigram; "
-        "2 means tri-gram",
+        help="The context size in the decoder. 1 means bigram; 2 means tri-gram",
     )
 
     parser.add_argument(
@@ -256,8 +274,7 @@ def get_parser():
         "--am-scale",
         type=float,
         default=0.0,
-        help="The scale to smooth the loss with am (output of encoder network)"
-        "part.",
+        help="The scale to smooth the loss with am (output of encoder network) part.",
     )
 
     parser.add_argument(
@@ -399,14 +416,10 @@ def get_params() -> AttributeDict:
             # parameters for conformer
             "feature_dim": 80,
             "subsampling_factor": 4,
-            "dim_feedforward": 2048,
-            # parameters for decoder
-            "decoder_dim": 512,
-            # parameters for joiner
-            "joiner_dim": 512,
             # parameters for Noam
             "model_warm_step": 3000,  # arg given to model, not for lrate
             "env_info": get_env_info(),
+            "is_pnnx": False,
         }
     )
 
@@ -423,6 +436,7 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         dim_feedforward=params.dim_feedforward,
         num_encoder_layers=params.num_encoder_layers,
         aux_layer_period=params.aux_layer_period,
+        is_pnnx=params.is_pnnx,
     )
     return encoder
 
@@ -606,11 +620,7 @@ def compute_loss(
      warmup: a floating point value which increases throughout training;
         values >= 1.0 are fully warmed up and have all modules present.
     """
-    device = (
-        model.device
-        if isinstance(model, DDP)
-        else next(model.parameters()).device
-    )
+    device = model.device if isinstance(model, DDP) else next(model.parameters()).device
     feature = batch["inputs"]
     # at entry, feature is (N, T, C)
     assert feature.ndim == 3
@@ -650,9 +660,7 @@ def compute_loss(
 
             # If either all simple_loss or pruned_loss is inf or nan,
             # we stop the training process by raising an exception
-            if torch.all(~simple_loss_is_finite) or torch.all(
-                ~pruned_loss_is_finite
-            ):
+            if torch.all(~simple_loss_is_finite) or torch.all(~pruned_loss_is_finite):
                 raise ValueError(
                     "There are too many utterances in this batch "
                     "leading to inf or nan losses."
@@ -665,14 +673,9 @@ def compute_loss(
         # overwhelming the simple_loss and causing it to diverge,
         # in case it had not fully learned the alignment yet.
         pruned_loss_scale = (
-            0.0
-            if warmup < 1.0
-            else (0.1 if warmup > 1.0 and warmup < 2.0 else 1.0)
+            0.0 if warmup < 1.0 else (0.1 if warmup > 1.0 and warmup < 2.0 else 1.0)
         )
-        loss = (
-            params.simple_loss_scale * simple_loss
-            + pruned_loss_scale * pruned_loss
-        )
+        loss = params.simple_loss_scale * simple_loss + pruned_loss_scale * pruned_loss
 
     assert loss.requires_grad == is_training
 
@@ -683,9 +686,7 @@ def compute_loss(
         # (1) The acutal subsampling factor is ((lens - 1) // 2 - 1) // 2
         # (2) If some utterances in the batch lead to inf/nan loss, they
         #     are filtered out.
-        info["frames"] = (
-            (feature_lens // params.subsampling_factor).sum().item()
-        )
+        info["frames"] = (feature_lens // params.subsampling_factor).sum().item()
 
     # `utt_duration` and `utt_pad_proportion` would be normalized by `utterances`  # noqa
     info["utterances"] = feature.size(0)
@@ -852,10 +853,7 @@ def train_one_epoch(
                 rank=rank,
             )
 
-        if (
-            batch_idx % params.log_interval == 0
-            and not params.print_diagnostics
-        ):
+        if batch_idx % params.log_interval == 0 and not params.print_diagnostics:
             cur_lr = scheduler.get_last_lr()[0]
             logging.info(
                 f"Epoch {params.cur_epoch}, "
@@ -872,9 +870,7 @@ def train_one_epoch(
                 loss_info.write_summary(
                     tb_writer, "train/current_", params.batch_idx_train
                 )
-                tot_loss.write_summary(
-                    tb_writer, "train/tot_", params.batch_idx_train
-                )
+                tot_loss.write_summary(tb_writer, "train/tot_", params.batch_idx_train)
 
         if (
             batch_idx > 0
@@ -1009,8 +1005,7 @@ def run(rank, world_size, args):
         # the threshold
         if c.duration < 1.0 or c.duration > 20.0:
             logging.warning(
-                f"Exclude cut with ID {c.id} from training. "
-                f"Duration: {c.duration}"
+                f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
             )
             return False
 

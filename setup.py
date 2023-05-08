@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 
-from setuptools import find_packages, setup
 from pathlib import Path
+
+from setuptools import find_packages, setup
 
 icefall_dir = Path(__file__).parent
 install_requires = (icefall_dir / "requirements.txt").read_text().splitlines()

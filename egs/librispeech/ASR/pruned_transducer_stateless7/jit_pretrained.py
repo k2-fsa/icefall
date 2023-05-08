@@ -30,6 +30,7 @@ Usage of this script:
 
 ./pruned_transducer_stateless7/jit_pretrained.py \
   --nn-model-filename ./pruned_transducer_stateless7/exp/cpu_jit.pt \
+  --bpe-model ./data/lang_bpe_500/bpe.model \
   /path/to/foo.wav \
   /path/to/bar.wav
 """
@@ -92,10 +93,9 @@ def read_sound_files(
     ans = []
     for f in filenames:
         wave, sample_rate = torchaudio.load(f)
-        assert sample_rate == expected_sample_rate, (
-            f"expected sample rate: {expected_sample_rate}. "
-            f"Given: {sample_rate}"
-        )
+        assert (
+            sample_rate == expected_sample_rate
+        ), f"expected sample rate: {expected_sample_rate}. Given: {sample_rate}"
         # We use only the first channel
         ans.append(wave[0])
     return ans
@@ -266,9 +266,7 @@ def main():
 
 
 if __name__ == "__main__":
-    formatter = (
-        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-    )
+    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
 
     logging.basicConfig(format=formatter, level=logging.INFO)
     main()

@@ -78,10 +78,11 @@ def compile_HLG(lang_dir: str) -> k2.Fsa:
 
     logging.info("Removing disambiguation symbols on LG")
 
-    LG.labels[LG.labels >= first_token_disambig_id] = 0
-    # See https://github.com/k2-fsa/k2/issues/874
-    # for why we need to set LG.properties to None
-    LG.__dict__["_properties"] = None
+    # LG.labels[LG.labels >= first_token_disambig_id] = 0
+    # see https://github.com/k2-fsa/k2/pull/1140
+    labels = LG.labels
+    labels[labels >= first_token_disambig_id] = 0
+    LG.labels = labels
 
     assert isinstance(LG.aux_labels, k2.RaggedTensor)
     LG.aux_labels.values[LG.aux_labels.values >= first_word_disambig_id] = 0
@@ -128,9 +129,7 @@ def main():
 
 
 if __name__ == "__main__":
-    formatter = (
-        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-    )
+    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
 
     logging.basicConfig(format=formatter, level=logging.INFO)
 

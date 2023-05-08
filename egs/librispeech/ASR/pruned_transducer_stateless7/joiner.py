@@ -53,12 +53,9 @@ class Joiner(nn.Module):
         """
         assert encoder_out.ndim == decoder_out.ndim
         assert encoder_out.ndim in (2, 4)
-        assert encoder_out.shape[:-1] == decoder_out.shape[:-1]
 
         if project_input:
-            logit = self.encoder_proj(encoder_out) + self.decoder_proj(
-                decoder_out
-            )
+            logit = self.encoder_proj(encoder_out) + self.decoder_proj(decoder_out)
         else:
             logit = encoder_out + decoder_out
 

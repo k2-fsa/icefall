@@ -45,11 +45,18 @@ def get_args():
         help="""Input and output directory.
         """,
     )
+    parser.add_argument(
+        "--lm",
+        type=str,
+        default="G_3_gram",
+        help="""Stem name for LM used in HLG compiling.
+        """,
+    )
 
     return parser.parse_args()
 
 
-def compile_LG(lang_dir: str) -> k2.Fsa:
+def compile_LG(lang_dir: str, lm: str = "G_3_gram") -> k2.Fsa:
     """
     Args:
       lang_dir:
@@ -61,15 +68,15 @@ def compile_LG(lang_dir: str) -> k2.Fsa:
     lexicon = Lexicon(lang_dir)
     L = k2.Fsa.from_dict(torch.load(f"{lang_dir}/L_disambig.pt"))
 
-    if Path("data/lm/G_3_gram.pt").is_file():
-        logging.info("Loading pre-compiled G_3_gram")
-        d = torch.load("data/lm/G_3_gram.pt")
+    if Path(f"data/lm/{lm}.pt").is_file():
+        logging.info(f"Loading pre-compiled {lm}")
+        d = torch.load(f"data/lm/{lm}.pt")
         G = k2.Fsa.from_dict(d)
     else:
-        logging.info("Loading G_3_gram.fst.txt")
-        with open("data/lm/G_3_gram.fst.txt") as f:
+        logging.info(f"Loading {lm}.fst.txt")
+        with open(f"data/lm/{lm}.fst.txt") as f:
             G = k2.Fsa.from_openfst(f.read(), acceptor=False)
-            torch.save(G.as_dict(), "data/lm/G_3_gram.pt")
+            torch.save(G.as_dict(), f"data/lm/{lm}.pt")
 
     first_token_disambig_id = lexicon.token_table["#0"]
     first_word_disambig_id = lexicon.word_table["#0"]
@@ -96,10 +103,11 @@ def compile_LG(lang_dir: str) -> k2.Fsa:
 
     logging.info("Removing disambiguation symbols on LG")
 
-    LG.labels[LG.labels >= first_token_disambig_id] = 0
-    # See https://github.com/k2-fsa/k2/issues/874
-    # for why we need to set LG.properties to None
-    LG.__dict__["_properties"] = None
+    # LG.labels[LG.labels >= first_token_disambig_id] = 0
+    # see https://github.com/k2-fsa/k2/pull/1140
+    labels = LG.labels
+    labels[labels >= first_token_disambig_id] = 0
+    LG.labels = labels
 
     assert isinstance(LG.aux_labels, k2.RaggedTensor)
     LG.aux_labels.values[LG.aux_labels.values >= first_word_disambig_id] = 0
@@ -126,15 +134,13 @@ def main():
 
     logging.info(f"Processing {lang_dir}")
 
-    LG = compile_LG(lang_dir)
+    LG = compile_LG(lang_dir, args.lm)
     logging.info(f"Saving LG.pt to {lang_dir}")
     torch.save(LG.as_dict(), f"{lang_dir}/LG.pt")
 
 
 if __name__ == "__main__":
-    formatter = (
-        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-    )
+    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
 
     logging.basicConfig(format=formatter, level=logging.INFO)
 

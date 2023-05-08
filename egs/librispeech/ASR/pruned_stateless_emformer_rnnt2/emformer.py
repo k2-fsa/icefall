@@ -272,13 +272,9 @@ class Emformer(EncoderInterface):
         # Caution: We assume the subsampling factor is 4!
         x_lens = (((x_lens - 1) >> 1) - 1) >> 1
 
-        emformer_out, emformer_out_lens, states = self.model.infer(
-            x, x_lens, states
-        )
+        emformer_out, emformer_out_lens, states = self.model.infer(x, x_lens, states)
 
-        if x.size(1) != (
-            self.model.segment_length + self.model.right_context_length
-        ):
+        if x.size(1) != (self.model.segment_length + self.model.right_context_length):
             raise ValueError(
                 "Incorrect input shape."
                 f"{x.size(1)} vs {self.model.segment_length} + "

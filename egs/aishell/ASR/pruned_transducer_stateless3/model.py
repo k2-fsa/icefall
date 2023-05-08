@@ -84,9 +84,7 @@ class Transducer(nn.Module):
         self.decoder_datatang = decoder_datatang
         self.joiner_datatang = joiner_datatang
 
-        self.simple_am_proj = ScaledLinear(
-            encoder_dim, vocab_size, initial_speed=0.5
-        )
+        self.simple_am_proj = ScaledLinear(encoder_dim, vocab_size, initial_speed=0.5)
         self.simple_lm_proj = ScaledLinear(decoder_dim, vocab_size)
 
         if decoder_datatang is not None:
@@ -179,9 +177,7 @@ class Transducer(nn.Module):
         y_padded = y.pad(mode="constant", padding_value=0)
 
         y_padded = y_padded.to(torch.int64)
-        boundary = torch.zeros(
-            (x.size(0), 4), dtype=torch.int64, device=x.device
-        )
+        boundary = torch.zeros((x.size(0), 4), dtype=torch.int64, device=x.device)
         boundary[:, 2] = y_lens
         boundary[:, 3] = encoder_out_lens
 

@@ -22,11 +22,7 @@ from pathlib import Path
 from typing import Dict, List, Tuple
 
 import torch
-from fairseq import (
-    checkpoint_utils,
-    tasks,
-    utils,
-)
+from fairseq import checkpoint_utils, tasks, utils
 from fairseq.data.data_utils import post_process
 from omegaconf import OmegaConf
 
@@ -51,9 +47,7 @@ def _load_hubert_model(params: AttributeDict):
             "data": str(params.hubert_model_dir),
         }
     )
-    model_path = Path(params.hubert_model_dir) / (
-        params.teacher_model_id + ".pt"
-    )
+    model_path = Path(params.hubert_model_dir) / (params.teacher_model_id + ".pt")
     task = tasks.setup_task(cfg_task)
     processor = task.target_dictionary
     models, saved_cfg = checkpoint_utils.load_model_ensemble(
@@ -151,9 +145,7 @@ class HubertXlargeFineTuned:
         supervisions = batch["supervisions"]
         num_samples = supervisions["num_samples"]
         B, T = features.shape
-        padding_mask = torch.arange(0, T).expand(B, T) > num_samples.reshape(
-            [-1, 1]
-        )
+        padding_mask = torch.arange(0, T).expand(B, T) > num_samples.reshape([-1, 1])
 
         padding_mask = padding_mask.to(self.params.device)
         features = features.to(self.params.device)
@@ -163,9 +155,7 @@ class HubertXlargeFineTuned:
         features = features.transpose(1, 2)
         features = self.w2v_model.layer_norm(features)
 
-        padding_mask = self.w2v_model.forward_padding_mask(
-            features, padding_mask
-        )
+        padding_mask = self.w2v_model.forward_padding_mask(features, padding_mask)
 
         if self.w2v_model.post_extract_proj is not None:
             features = self.w2v_model.post_extract_proj(features)
@@ -212,9 +202,7 @@ class HubertXlargeFineTuned:
         toks = encoder_out.argmax(dim=-1)
         blank = 0
         toks = [tok.unique_consecutive() for tok in toks]
-        hyps = [
-            self.processor.string(tok[tok != blank].int().cpu()) for tok in toks
-        ]
+        hyps = [self.processor.string(tok[tok != blank].int().cpu()) for tok in toks]
         hyps = [post_process(hyp, "letter") for hyp in hyps]
 
         return hyps

@@ -75,9 +75,7 @@ class DecodeStream(object):
         # encoder.streaming_forward
         self.done_frames: int = 0
 
-        self.pad_length = (
-            params.right_context + 2
-        ) * params.subsampling_factor + 3
+        self.pad_length = (params.right_context + 2) * params.subsampling_factor + 3
 
         if params.decoding_method == "greedy_search":
             self.hyp = [params.blank_id] * params.context_size
@@ -91,13 +89,11 @@ class DecodeStream(object):
             )
         elif params.decoding_method == "fast_beam_search":
             # The rnnt_decoding_stream for fast_beam_search.
-            self.rnnt_decoding_stream: k2.RnntDecodingStream = (
-                k2.RnntDecodingStream(decoding_graph)
+            self.rnnt_decoding_stream: k2.RnntDecodingStream = k2.RnntDecodingStream(
+                decoding_graph
             )
         else:
-            raise ValueError(
-                f"Unsupported decoding method: {params.decoding_method}"
-            )
+            raise ValueError(f"Unsupported decoding method: {params.decoding_method}")
 
     @property
     def done(self) -> bool:
@@ -126,13 +122,10 @@ class DecodeStream(object):
         """Consume chunk_size frames of features"""
         chunk_length = chunk_size + self.pad_length
 
-        ret_length = min(
-            self.num_frames - self.num_processed_frames, chunk_length
-        )
+        ret_length = min(self.num_frames - self.num_processed_frames, chunk_length)
 
         ret_features = self.features[
-            self.num_processed_frames : self.num_processed_frames  # noqa
-            + ret_length
+            self.num_processed_frames : self.num_processed_frames + ret_length  # noqa
         ]
 
         self.num_processed_frames += chunk_size

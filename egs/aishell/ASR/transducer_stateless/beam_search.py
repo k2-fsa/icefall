@@ -47,9 +47,9 @@ def greedy_search(
 
     device = model.device
 
-    decoder_input = torch.tensor(
-        [blank_id] * context_size, device=device
-    ).reshape(1, context_size)
+    decoder_input = torch.tensor([blank_id] * context_size, device=device).reshape(
+        1, context_size
+    )
 
     decoder_out = model.decoder(decoder_input, need_pad=False)
 
@@ -81,9 +81,9 @@ def greedy_search(
         y = logits.argmax().item()
         if y != blank_id:
             hyp.append(y)
-            decoder_input = torch.tensor(
-                [hyp[-context_size:]], device=device
-            ).reshape(1, context_size)
+            decoder_input = torch.tensor([hyp[-context_size:]], device=device).reshape(
+                1, context_size
+            )
 
             decoder_out = model.decoder(decoder_input, need_pad=False)
 
@@ -157,9 +157,7 @@ class HypothesisList(object):
 
         """
         if length_norm:
-            return max(
-                self._data.values(), key=lambda hyp: hyp.log_prob / len(hyp.ys)
-            )
+            return max(self._data.values(), key=lambda hyp: hyp.log_prob / len(hyp.ys))
         else:
             return max(self._data.values(), key=lambda hyp: hyp.log_prob)
 
@@ -246,9 +244,9 @@ def beam_search(
 
     device = model.device
 
-    decoder_input = torch.tensor(
-        [blank_id] * context_size, device=device
-    ).reshape(1, context_size)
+    decoder_input = torch.tensor([blank_id] * context_size, device=device).reshape(
+        1, context_size
+    )
 
     decoder_out = model.decoder(decoder_input, need_pad=False)
 

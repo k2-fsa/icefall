@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# fix segmentation fault reported in https://github.com/k2-fsa/icefall/issues/674
+export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
+
 set -eou pipefail
 
 stage=-1
@@ -9,9 +12,12 @@ stop_stage=100
 # directories and files. If not, they will be downloaded
 # by this script automatically.
 #
-#  - $dl_dir/tal_csasr
+#  - $dl_dir/TALCS_corpus
 #      You can find three directories:train_set, dev_set, and test_set.
 #      You can get it from https://ai.100tal.com/dataset
+#     - dev_set
+#     - test_set
+#     - train_set
 #
 #  - $dl_dir/musan
 #      This directory contains the following directories downloaded from
@@ -41,7 +47,9 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   log "Stage 0: Download data"
   # Before you run this script, you must get the TAL_CSASR dataset
   # from https://ai.100tal.com/dataset
-  mv $dl_dir/TALCS_corpus $dl_dir/tal_csasr
+  if [ ! -d $dl_dir/tal_csasr/TALCS_corpus ]; then
+    mv $dl_dir/TALCS_corpus $dl_dir/tal_csasr
+  fi
 
   # If you have pre-downloaded it to /path/to/TALCS_corpus,
   # you can create a symlink
@@ -113,7 +121,7 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   fi
 
   # Prepare text.
-  # Note: in Linux, you can install jq with the  following command:
+  # Note: in Linux, you can install jq with the following command:
   # 1. wget -O jq https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64
   # 2. chmod +x ./jq
   # 3. cp jq /usr/bin

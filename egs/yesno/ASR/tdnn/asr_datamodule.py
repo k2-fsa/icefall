@@ -121,7 +121,7 @@ class YesNoAsrDataModule(DataModule):
         group.add_argument(
             "--shuffle",
             type=str2bool,
-            default=True,
+            default=False,
             help="When enabled (=default), the examples will be "
             "shuffled for each epoch.",
         )

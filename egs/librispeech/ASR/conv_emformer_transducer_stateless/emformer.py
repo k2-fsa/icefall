@@ -35,7 +35,6 @@ from scaling import (
 
 from icefall.utils import make_pad_mask
 
-
 LOG_EPSILON = math.log(1e-10)
 
 
@@ -127,9 +126,7 @@ def stack_states(
             for si, s in enumerate(layer):
                 attn_caches[li][si].append(s)
                 if b == batch_size - 1:
-                    attn_caches[li][si] = torch.stack(
-                        attn_caches[li][si], dim=1
-                    )
+                    attn_caches[li][si] = torch.stack(attn_caches[li][si], dim=1)
 
     conv_caches = []
     for layer in state_list[0][1]:
@@ -268,9 +265,7 @@ class ConvolutionModule(nn.Module):
         intervals = torch.arange(
             0, self.chunk_length * (num_chunks - 1), self.chunk_length
         )
-        first = torch.arange(
-            self.chunk_length, self.chunk_length + self.cache_size
-        )
+        first = torch.arange(self.chunk_length, self.chunk_length + self.cache_size)
         indexes = intervals.unsqueeze(1) + first.unsqueeze(0)
         indexes = torch.cat(
             [indexes, torch.arange(U_ - self.cache_size, U_).unsqueeze(0)]
@@ -284,9 +279,7 @@ class ConvolutionModule(nn.Module):
         # (num_chunks * B, cache_size + right_context_length, D)
         return pad_right_context.permute(0, 2, 1)
 
-    def _merge_right_context(
-        self, right_context: torch.Tensor, B: int
-    ) -> torch.Tensor:
+    def _merge_right_context(self, right_context: torch.Tensor, B: int) -> torch.Tensor:
         """
         Args:
           right_context:
@@ -337,12 +330,8 @@ class ConvolutionModule(nn.Module):
         right_context = x[:, :, :R]  # (B, D, R)
 
         # make causal convolution
-        cache = torch.zeros(
-            B, D, self.cache_size, device=x.device, dtype=x.dtype
-        )
-        pad_utterance = torch.cat(
-            [cache, utterance], dim=2
-        )  # (B, D, cache + U)
+        cache = torch.zeros(B, D, self.cache_size, device=x.device, dtype=x.dtype)
+        pad_utterance = torch.cat([cache, utterance], dim=2)  # (B, D, cache + U)
 
         # depth-wise conv on utterance
         utterance = self.depthwise_conv(pad_utterance)  # (B, D, U)
@@ -355,9 +344,7 @@ class ConvolutionModule(nn.Module):
             right_context = self.depthwise_conv(
                 pad_right_context
             )  # (num_segs * B, D, right_context_length)
-            right_context = self._merge_right_context(
-                right_context, B
-            )  # (B, D, R)
+            right_context = self._merge_right_context(right_context, B)  # (B, D, R)
 
         x = torch.cat([right_context, utterance], dim=2)  # (B, D, R + U)
         x = self.deriv_balancer2(x)
@@ -458,8 +445,7 @@ class EmformerAttention(nn.Module):
 
         if embed_dim % nhead != 0:
             raise ValueError(
-                f"embed_dim ({embed_dim}) is not a multiple of"
-                f"nhead ({nhead})."
+                f"embed_dim ({embed_dim}) is not a multiple of nhead ({nhead})."
             )
 
         self.embed_dim = embed_dim
@@ -469,9 +455,7 @@ class EmformerAttention(nn.Module):
         self.head_dim = embed_dim // nhead
         self.dropout = dropout
 
-        self.emb_to_key_value = ScaledLinear(
-            embed_dim, 2 * embed_dim, bias=True
-        )
+        self.emb_to_key_value = ScaledLinear(embed_dim, 2 * embed_dim, bias=True)
         self.emb_to_query = ScaledLinear(embed_dim, embed_dim, bias=True)
         self.out_proj = ScaledLinear(
             embed_dim, embed_dim, bias=True, initial_scale=0.25
@@ -513,9 +497,7 @@ class EmformerAttention(nn.Module):
         if padding_mask is not None:
             Q = attention_weights.size(1)
             B = attention_weights.size(0) // self.nhead
-            attention_weights_float = attention_weights_float.view(
-                B, self.nhead, Q, -1
-            )
+            attention_weights_float = attention_weights_float.view(B, self.nhead, Q, -1)
             attention_weights_float = attention_weights_float.masked_fill(
                 padding_mask.unsqueeze(1).unsqueeze(2).to(torch.bool),
                 self.negative_inf,
@@ -551,9 +533,7 @@ class EmformerAttention(nn.Module):
         scaling = float(self.head_dim) ** -0.5
 
         # compute query with [right_context, utterance, summary].
-        query = self.emb_to_query(
-            torch.cat([right_context, utterance, summary])
-        )
+        query = self.emb_to_query(torch.cat([right_context, utterance, summary]))
         # compute key and value with [memory, right_context, utterance].
         key, value = self.emb_to_key_value(
             torch.cat([memory, right_context, utterance])
@@ -564,16 +544,12 @@ class EmformerAttention(nn.Module):
             #   [memory, right context, left context, uttrance]
             # this is used in inference mode
             key = torch.cat([key[: M + R], left_context_key, key[M + R :]])
-            value = torch.cat(
-                [value[: M + R], left_context_val, value[M + R :]]
-            )
+            value = torch.cat([value[: M + R], left_context_val, value[M + R :]])
         Q = query.size(0)
         # KV = key.size(0)
 
         reshaped_query, reshaped_key, reshaped_value = [
-            tensor.contiguous()
-            .view(-1, B * self.nhead, self.head_dim)
-            .transpose(0, 1)
+            tensor.contiguous().view(-1, B * self.nhead, self.head_dim).transpose(0, 1)
             for tensor in [query, key, value]
         ]  # (B * nhead, Q or KV, head_dim)
         attention_weights = torch.bmm(
@@ -588,9 +564,7 @@ class EmformerAttention(nn.Module):
         # compute attention outputs
         attention = torch.bmm(attention_probs, reshaped_value)
         assert attention.shape == (B * self.nhead, Q, self.head_dim)
-        attention = (
-            attention.transpose(0, 1).contiguous().view(Q, B, self.embed_dim)
-        )
+        attention = attention.transpose(0, 1).contiguous().view(Q, B, self.embed_dim)
 
         # apply output projection
         outputs = self.out_proj(attention)
@@ -672,12 +646,7 @@ class EmformerAttention(nn.Module):
             - output of right context and utterance, with shape (R + U, B, D).
             - memory output, with shape (M, B, D), where M = S - 1 or M = 0.
         """
-        (
-            output_right_context_utterance,
-            output_memory,
-            _,
-            _,
-        ) = self._forward_impl(
+        (output_right_context_utterance, output_memory, _, _,) = self._forward_impl(
             utterance,
             right_context,
             summary,
@@ -947,13 +916,9 @@ class EmformerEncoderLayer(nn.Module):
         right_context = right_context_utterance[:R]
 
         if self.use_memory:
-            summary = self.summary_op(utterance.permute(1, 2, 0)).permute(
-                2, 0, 1
-            )
+            summary = self.summary_op(utterance.permute(1, 2, 0)).permute(2, 0, 1)
         else:
-            summary = torch.empty(0).to(
-                dtype=utterance.dtype, device=utterance.device
-            )
+            summary = torch.empty(0).to(dtype=utterance.dtype, device=utterance.device)
         output_right_context_utterance, output_memory = self.attention(
             utterance=utterance,
             right_context=right_context,
@@ -992,14 +957,10 @@ class EmformerEncoderLayer(nn.Module):
         left_context_val = attn_cache[2]
 
         if self.use_memory:
-            summary = self.summary_op(utterance.permute(1, 2, 0)).permute(
-                2, 0, 1
-            )
+            summary = self.summary_op(utterance.permute(1, 2, 0)).permute(2, 0, 1)
             summary = summary[:1]
         else:
-            summary = torch.empty(0).to(
-                dtype=utterance.dtype, device=utterance.device
-            )
+            summary = torch.empty(0).to(dtype=utterance.dtype, device=utterance.device)
         (
             output_right_context_utterance,
             output_memory,
@@ -1014,9 +975,7 @@ class EmformerEncoderLayer(nn.Module):
             left_context_val=left_context_val,
             padding_mask=padding_mask,
         )
-        attn_cache = self._update_attn_cache(
-            next_key, next_val, memory, attn_cache
-        )
+        attn_cache = self._update_attn_cache(next_key, next_val, memory, attn_cache)
         return output_right_context_utterance, output_memory, attn_cache
 
     def forward(
@@ -1151,11 +1110,7 @@ class EmformerEncoderLayer(nn.Module):
         src = src + self.dropout(self.feed_forward_macaron(src))
 
         # emformer attention module
-        (
-            src_att,
-            output_memory,
-            attn_cache,
-        ) = self._apply_attention_module_infer(
+        (src_att, output_memory, attn_cache,) = self._apply_attention_module_infer(
             src, R, memory, attn_cache, padding_mask=padding_mask
         )
         src = src + self.dropout(src_att)
@@ -1295,9 +1250,7 @@ class EmformerEncoder(nn.Module):
     def _gen_right_context(self, x: torch.Tensor) -> torch.Tensor:
         """Hard copy each chunk's right context and concat them."""
         T = x.shape[0]
-        num_chunks = math.ceil(
-            (T - self.right_context_length) / self.chunk_length
-        )
+        num_chunks = math.ceil((T - self.right_context_length) / self.chunk_length)
         # first (num_chunks - 1) right context block
         intervals = torch.arange(
             0, self.chunk_length * (num_chunks - 1), self.chunk_length
@@ -1316,9 +1269,7 @@ class EmformerEncoder(nn.Module):
         right_context_blocks = x[indexes.reshape(-1)]
         return right_context_blocks
 
-    def _gen_attention_mask_col_widths(
-        self, chunk_idx: int, U: int
-    ) -> List[int]:
+    def _gen_attention_mask_col_widths(self, chunk_idx: int, U: int) -> List[int]:
         """Calculate column widths (key, value) in attention mask for the
         chunk_idx chunk."""
         num_chunks = math.ceil(U / self.chunk_length)
@@ -1479,9 +1430,7 @@ class EmformerEncoder(nn.Module):
         output_lengths = torch.clamp(lengths - self.right_context_length, min=0)
         attention_mask = self._gen_attention_mask(utterance)
         memory = (
-            self.init_memory_op(utterance.permute(1, 2, 0)).permute(2, 0, 1)[
-                :-1
-            ]
+            self.init_memory_op(utterance.permute(1, 2, 0)).permute(2, 0, 1)[:-1]
             if self.use_memory
             else torch.empty(0).to(dtype=x.dtype, device=x.device)
         )
@@ -1643,12 +1592,8 @@ class EmformerEncoder(nn.Module):
         attn_caches = [
             [
                 torch.zeros(self.memory_size, self.d_model, device=device),
-                torch.zeros(
-                    self.left_context_length, self.d_model, device=device
-                ),
-                torch.zeros(
-                    self.left_context_length, self.d_model, device=device
-                ),
+                torch.zeros(self.left_context_length, self.d_model, device=device),
+                torch.zeros(self.left_context_length, self.d_model, device=device),
             ]
             for _ in range(self.num_encoder_layers)
         ]
@@ -1693,17 +1638,11 @@ class Emformer(EncoderInterface):
             raise NotImplementedError(
                 "chunk_length must be a mutiple of subsampling_factor."
             )
-        if (
-            left_context_length != 0
-            and left_context_length % subsampling_factor != 0
-        ):
+        if left_context_length != 0 and left_context_length % subsampling_factor != 0:
             raise NotImplementedError(
                 "left_context_length must be 0 or a mutiple of subsampling_factor."  # noqa
             )
-        if (
-            right_context_length != 0
-            and right_context_length % subsampling_factor != 0
-        ):
+        if right_context_length != 0 and right_context_length % subsampling_factor != 0:
             raise NotImplementedError(
                 "right_context_length must be 0 or a mutiple of subsampling_factor."  # noqa
             )
@@ -1766,9 +1705,7 @@ class Emformer(EncoderInterface):
         x_lens = (((x_lens - 1) >> 1) - 1) >> 1
         assert x.size(0) == x_lens.max().item()
 
-        output, output_lengths = self.encoder(
-            x, x_lens, warmup=warmup
-        )  # (T, N, C)
+        output, output_lengths = self.encoder(x, x_lens, warmup=warmup)  # (T, N, C)
 
         output = output.permute(1, 0, 2)  # (T, N, C) -> (N, T, C)
 

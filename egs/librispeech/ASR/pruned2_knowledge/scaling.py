@@ -18,11 +18,11 @@
 import collections
 from itertools import repeat
 from typing import Optional, Tuple
-from torch.cuda.amp import custom_fwd, custom_bwd
 
 import torch
 import torch.nn as nn
 from torch import Tensor
+from torch.cuda.amp import custom_bwd, custom_fwd
 
 
 def _ntuple(n):
@@ -79,9 +79,7 @@ class ActivationBalancerFunction(torch.autograd.Function):
             below_threshold = mean_abs < min_abs
             above_threshold = mean_abs > max_abs
 
-            ctx.save_for_backward(
-                factor, xgt0, below_threshold, above_threshold
-            )
+            ctx.save_for_backward(factor, xgt0, below_threshold, above_threshold)
             ctx.max_factor = max_factor
             ctx.sum_dims = sum_dims
         return x
@@ -149,8 +147,7 @@ class BasicNorm(torch.nn.Module):
     def forward(self, x: Tensor) -> Tensor:
         assert x.shape[self.channel_dim] == self.num_channels
         scales = (
-            torch.mean(x ** 2, dim=self.channel_dim, keepdim=True)
-            + self.eps.exp()
+            torch.mean(x**2, dim=self.channel_dim, keepdim=True) + self.eps.exp()
         ) ** -0.5
         return x * scales
 
@@ -182,11 +179,7 @@ class ScaledLinear(nn.Linear):
     """
 
     def __init__(
-        self,
-        *args,
-        initial_scale: float = 1.0,
-        initial_speed: float = 1.0,
-        **kwargs
+        self, *args, initial_scale: float = 1.0, initial_speed: float = 1.0, **kwargs
     ):
         super(ScaledLinear, self).__init__(*args, **kwargs)
         initial_scale = torch.tensor(initial_scale).log()
@@ -202,12 +195,12 @@ class ScaledLinear(nn.Linear):
 
     def _reset_parameters(self, initial_speed: float):
         std = 0.1 / initial_speed
-        a = (3 ** 0.5) * std
+        a = (3**0.5) * std
         nn.init.uniform_(self.weight, -a, a)
         if self.bias is not None:
             nn.init.constant_(self.bias, 0.0)
         fan_in = self.weight.shape[1] * self.weight[0][0].numel()
-        scale = fan_in ** -0.5  # 1/sqrt(fan_in)
+        scale = fan_in**-0.5  # 1/sqrt(fan_in)
         with torch.no_grad():
             self.weight_scale += torch.tensor(scale / std).log()
 
@@ -218,19 +211,13 @@ class ScaledLinear(nn.Linear):
         return None if self.bias is None else self.bias * self.bias_scale.exp()
 
     def forward(self, input: Tensor) -> Tensor:
-        return torch.nn.functional.linear(
-            input, self.get_weight(), self.get_bias()
-        )
+        return torch.nn.functional.linear(input, self.get_weight(), self.get_bias())
 
 
 class ScaledConv1d(nn.Conv1d):
     # See docs for ScaledLinear
     def __init__(
-        self,
-        *args,
-        initial_scale: float = 1.0,
-        initial_speed: float = 1.0,
-        **kwargs
+        self, *args, initial_scale: float = 1.0, initial_speed: float = 1.0, **kwargs
     ):
         super(ScaledConv1d, self).__init__(*args, **kwargs)
         initial_scale = torch.tensor(initial_scale).log()
@@ -245,12 +232,12 @@ class ScaledConv1d(nn.Conv1d):
 
     def _reset_parameters(self, initial_speed: float):
         std = 0.1 / initial_speed
-        a = (3 ** 0.5) * std
+        a = (3**0.5) * std
         nn.init.uniform_(self.weight, -a, a)
         if self.bias is not None:
             nn.init.constant_(self.bias, 0.0)
         fan_in = self.weight.shape[1] * self.weight[0][0].numel()
-        scale = fan_in ** -0.5  # 1/sqrt(fan_in)
+        scale = fan_in**-0.5  # 1/sqrt(fan_in)
         with torch.no_grad():
             self.weight_scale += torch.tensor(scale / std).log()
 
@@ -290,11 +277,7 @@ class ScaledConv1d(nn.Conv1d):
 class ScaledConv2d(nn.Conv2d):
     # See docs for ScaledLinear
     def __init__(
-        self,
-        *args,
-        initial_scale: float = 1.0,
-        initial_speed: float = 1.0,
-        **kwargs
+        self, *args, initial_scale: float = 1.0, initial_speed: float = 1.0, **kwargs
     ):
         super(ScaledConv2d, self).__init__(*args, **kwargs)
         initial_scale = torch.tensor(initial_scale).log()
@@ -309,12 +292,12 @@ class ScaledConv2d(nn.Conv2d):
 
     def _reset_parameters(self, initial_speed: float):
         std = 0.1 / initial_speed
-        a = (3 ** 0.5) * std
+        a = (3**0.5) * std
         nn.init.uniform_(self.weight, -a, a)
         if self.bias is not None:
             nn.init.constant_(self.bias, 0.0)
         fan_in = self.weight.shape[1] * self.weight[0][0].numel()
-        scale = fan_in ** -0.5  # 1/sqrt(fan_in)
+        scale = fan_in**-0.5  # 1/sqrt(fan_in)
         with torch.no_grad():
             self.weight_scale += torch.tensor(scale / std).log()
 
@@ -653,9 +636,7 @@ def _test_activation_balancer_sign():
 def _test_activation_balancer_magnitude():
     magnitudes = torch.arange(0, 1, 0.01)
     N = 1000
-    x = torch.sign(torch.randn(magnitudes.numel(), N)) * magnitudes.unsqueeze(
-        -1
-    )
+    x = torch.sign(torch.randn(magnitudes.numel(), N)) * magnitudes.unsqueeze(-1)
     x = x.detach()
     x.requires_grad = True
     m = ActivationBalancer(
@@ -685,8 +666,8 @@ def _test_basic_norm():
     y = m(x)
 
     assert y.shape == x.shape
-    x_rms = (x ** 2).mean().sqrt()
-    y_rms = (y ** 2).mean().sqrt()
+    x_rms = (x**2).mean().sqrt()
+    y_rms = (y**2).mean().sqrt()
     print("x rms = ", x_rms)
     print("y rms = ", y_rms)
     assert y_rms < x_rms

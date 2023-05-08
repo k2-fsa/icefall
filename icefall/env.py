@@ -53,9 +53,7 @@ def get_git_sha1():
             )
             > 0
         )
-        git_commit = (
-            git_commit + "-dirty" if dirty_commit else git_commit + "-clean"
-        )
+        git_commit = git_commit + "-dirty" if dirty_commit else git_commit + "-clean"
     except:  # noqa
         return None
 

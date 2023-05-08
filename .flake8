@@ -1,7 +1,7 @@
 [flake8]
 show-source=true
 statistics=true
-max-line-length = 80
+max-line-length = 88
 per-file-ignores =
     # line too long
     icefall/diagnostics.py: E501,
@@ -11,7 +11,8 @@ per-file-ignores =
     egs/*/ASR/*/scaling.py: E501,
     egs/librispeech/ASR/lstm_transducer_stateless*/*.py: E501, E203
     egs/librispeech/ASR/conv_emformer_transducer_stateless*/*.py: E501, E203
-    egs/librispeech/ASR/conformer_ctc2/*py: E501,
+    egs/librispeech/ASR/conformer_ctc*/*py: E501,
+    egs/librispeech/ASR/zipformer_mmi/*.py: E501, E203
     egs/librispeech/ASR/RESULTS.md: E999,
 
     # invalid escape sequence (cause by tex formular), W605

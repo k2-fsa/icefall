@@ -70,14 +70,12 @@ class Stream(object):
         elif params.decoding_method == "fast_beam_search":
             # feature_len is needed to get partial results.
             # The rnnt_decoding_stream for fast_beam_search.
-            self.rnnt_decoding_stream: k2.RnntDecodingStream = (
-                k2.RnntDecodingStream(decoding_graph)
+            self.rnnt_decoding_stream: k2.RnntDecodingStream = k2.RnntDecodingStream(
+                decoding_graph
             )
             self.hyp: Optional[List[int]] = None
         else:
-            raise ValueError(
-                f"Unsupported decoding method: {params.decoding_method}"
-            )
+            raise ValueError(f"Unsupported decoding method: {params.decoding_method}")
 
         self.ground_truth: str = ""
 

@@ -26,12 +26,9 @@ from lhotse.recipes.utils import read_manifests_if_cached
 
 from icefall.utils import get_executor
 
-
 ARGPARSE_DESCRIPTION = """
 This file computes fbank features of the musan dataset.
-It looks for manifests in the directory data/manifests.
 
-The generated fbank features are saved in data/fbank.
 """
 
 # Torch's multithreaded behavior needs to be disabled or
@@ -43,8 +40,6 @@ torch.set_num_interop_threads(1)
 
 
 def compute_fbank_musan(manifest_dir: Path, fbank_dir: Path):
-    # src_dir = Path("data/manifests")
-    # output_dir = Path("data/fbank")
     num_jobs = min(15, os.cpu_count())
     num_mel_bins = 80
 
@@ -84,9 +79,7 @@ def compute_fbank_musan(manifest_dir: Path, fbank_dir: Path):
         # create chunks of Musan with duration 5 - 10 seconds
         musan_cuts = (
             CutSet.from_manifests(
-                recordings=combine(
-                    part["recordings"] for part in manifests.values()
-                )
+                recordings=combine(part["recordings"] for part in manifests.values())
             )
             .cut_into_windows(10.0)
             .filter(lambda c: c.duration > 5)
@@ -108,10 +101,10 @@ def get_args():
     )
 
     parser.add_argument(
-        "--manifest-dir", type=Path, help="Path to save manifests"
+        "-m", "--manifest-dir", type=Path, help="Path to save manifests"
     )
     parser.add_argument(
-        "--fbank-dir", type=Path, help="Path to save fbank features"
+        "-f", "--fbank-dir", type=Path, help="Path to save fbank features"
     )
 
     return parser.parse_args()
@@ -119,9 +112,7 @@ def get_args():
 
 if __name__ == "__main__":
     args = get_args()
-    formatter = (
-        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-    )
+    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
 
     logging.basicConfig(format=formatter, level=logging.INFO)
     compute_fbank_musan(args.manifest_dir, args.fbank_dir)

@@ -33,6 +33,7 @@ and generates the following files in the directory `lang_dir`:
     - tokens.txt
 """
 
+import argparse
 import re
 from pathlib import Path
 from typing import Dict, List
@@ -86,9 +87,7 @@ def lexicon_to_fst_no_sil(
         cur_state = loop_state
 
         word = word2id[word]
-        pieces = [
-            token2id[i] if i in token2id else token2id["<unk>"] for i in pieces
-        ]
+        pieces = [token2id[i] if i in token2id else token2id["<unk>"] for i in pieces]
 
         for i in range(len(pieces) - 1):
             w = word if i == 0 else eps
@@ -142,9 +141,7 @@ def contain_oov(token_sym_table: Dict[str, int], tokens: List[str]) -> bool:
     return False
 
 
-def generate_lexicon(
-    token_sym_table: Dict[str, int], words: List[str]
-) -> Lexicon:
+def generate_lexicon(token_sym_table: Dict[str, int], words: List[str]) -> Lexicon:
     """Generate a lexicon from a word list and token_sym_table.
 
     Args:
@@ -193,8 +190,22 @@ def generate_tokens(text_file: str) -> Dict[str, int]:
     return tokens
 
 
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--lang-dir",
+        type=str,
+        help="""Input and output directory.
+        It should contain the bpe.model and words.txt
+        """,
+    )
+
+    return parser.parse_args()
+
+
 def main():
-    lang_dir = Path("data/lang_char")
+    args = get_args()
+    lang_dir = Path(args.lang_dir)
     text_file = lang_dir / "text"
 
     word_sym_table = k2.SymbolTable.from_file(lang_dir / "words.txt")

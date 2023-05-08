@@ -117,12 +117,8 @@ class LayerNormLSTMCell(nn.Module):
         )
 
         if bias:
-            self.bias_ih = nn.Parameter(
-                torch.empty(4 * hidden_size, **factory_kwargs)
-            )
-            self.bias_hh = nn.Parameter(
-                torch.empty(4 * hidden_size, **factory_kwargs)
-            )
+            self.bias_ih = nn.Parameter(torch.empty(4 * hidden_size, **factory_kwargs))
+            self.bias_hh = nn.Parameter(torch.empty(4 * hidden_size, **factory_kwargs))
         else:
             self.register_parameter("bias_ih", None)
             self.register_parameter("bias_hh", None)
@@ -348,9 +344,7 @@ class LayerNormLSTM(nn.Module):
             device=device,
             dtype=dtype,
         )
-        first_layer = LayerNormLSTMLayer(
-            input_size=input_size, **factory_kwargs
-        )
+        first_layer = LayerNormLSTMLayer(input_size=input_size, **factory_kwargs)
         layers = [first_layer]
         for i in range(1, num_layers):
             layers.append(
@@ -385,9 +379,7 @@ class LayerNormLSTM(nn.Module):
             - List[(next_h, next_c)] containing the hidden states for all layers
 
         """
-        output_states = torch.jit.annotate(
-            List[Tuple[torch.Tensor, torch.Tensor]], []
-        )
+        output_states = torch.jit.annotate(List[Tuple[torch.Tensor, torch.Tensor]], [])
         output = input
         for i, rnn_layer in enumerate(self.layers):
             state = states[i]
@@ -456,12 +448,8 @@ class LayerNormGRUCell(nn.Module):
         )
 
         if bias:
-            self.bias_ih = nn.Parameter(
-                torch.empty(3 * hidden_size, **factory_kwargs)
-            )
-            self.bias_hh = nn.Parameter(
-                torch.empty(3 * hidden_size, **factory_kwargs)
-            )
+            self.bias_ih = nn.Parameter(torch.empty(3 * hidden_size, **factory_kwargs))
+            self.bias_hh = nn.Parameter(torch.empty(3 * hidden_size, **factory_kwargs))
         else:
             self.register_parameter("bias_ih", None)
             self.register_parameter("bias_hh", None)

@@ -96,9 +96,7 @@ from icefall.env import get_env_info
 from icefall.lexicon import Lexicon
 from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool
 
-LRSchedulerType = Union[
-    torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler
-]
+LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
 
 
 def add_model_arguments(parser: argparse.ArgumentParser):
@@ -224,8 +222,7 @@ def get_parser():
         "--initial-lr",
         type=float,
         default=0.003,
-        help="The initial learning rate.  This value should not need "
-        "to be changed.",
+        help="The initial learning rate.  This value should not need to be changed.",
     )
 
     parser.add_argument(
@@ -248,8 +245,7 @@ def get_parser():
         "--context-size",
         type=int,
         default=1,
-        help="The context size in the decoder. 1 means bigram; "
-        "2 means tri-gram",
+        help="The context size in the decoder. 1 means bigram; 2 means tri-gram",
     )
 
     parser.add_argument(
@@ -272,8 +268,7 @@ def get_parser():
         "--am-scale",
         type=float,
         default=0.0,
-        help="The scale to smooth the loss with am (output of encoder network)"
-        "part.",
+        help="The scale to smooth the loss with am (output of encoder network) part.",
     )
 
     parser.add_argument(
@@ -635,11 +630,7 @@ def compute_loss(
      warmup: a floating point value which increases throughout training;
         values >= 1.0 are fully warmed up and have all modules present.
     """
-    device = (
-        model.device
-        if isinstance(model, DDP)
-        else next(model.parameters()).device
-    )
+    device = model.device if isinstance(model, DDP) else next(model.parameters()).device
     feature = batch["inputs"]
     # at entry, feature is (N, T, C)
     assert feature.ndim == 3
@@ -670,23 +661,16 @@ def compute_loss(
         # overwhelming the simple_loss and causing it to diverge,
         # in case it had not fully learned the alignment yet.
         pruned_loss_scale = (
-            0.0
-            if warmup < 1.0
-            else (0.1 if warmup > 1.0 and warmup < 2.0 else 1.0)
+            0.0 if warmup < 1.0 else (0.1 if warmup > 1.0 and warmup < 2.0 else 1.0)
         )
-        loss = (
-            params.simple_loss_scale * simple_loss
-            + pruned_loss_scale * pruned_loss
-        )
+        loss = params.simple_loss_scale * simple_loss + pruned_loss_scale * pruned_loss
 
     assert loss.requires_grad == is_training
 
     info = MetricsTracker()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        info["frames"] = (
-            (feature_lens // params.subsampling_factor).sum().item()
-        )
+        info["frames"] = (feature_lens // params.subsampling_factor).sum().item()
 
     # Note: We use reduction=sum while computing the loss.
     info["loss"] = loss.detach().cpu().item()
@@ -824,9 +808,7 @@ def train_one_epoch(
                 )
             # summary stats
             if datatang_train_dl is not None:
-                tot_loss = (
-                    tot_loss * (1 - 1 / params.reset_interval)
-                ) + loss_info
+                tot_loss = (tot_loss * (1 - 1 / params.reset_interval)) + loss_info
 
             if aishell:
                 aishell_tot_loss = (
@@ -847,9 +829,7 @@ def train_one_epoch(
             scaler.update()
             optimizer.zero_grad()
         except:  # noqa
-            display_and_save_batch(
-                batch, params=params, graph_compiler=graph_compiler
-            )
+            display_and_save_batch(batch, params=params, graph_compiler=graph_compiler)
             raise
 
         if params.print_diagnostics and batch_idx == 5:
@@ -892,9 +872,7 @@ def train_one_epoch(
             cur_lr = scheduler.get_last_lr()[0]
             if datatang_train_dl is not None:
                 datatang_str = f"datatang_tot_loss[{datatang_tot_loss}], "
-                tot_loss_str = (
-                    f"tot_loss[{tot_loss}], batch size: {batch_size}, "
-                )
+                tot_loss_str = f"tot_loss[{tot_loss}], batch size: {batch_size}, "
             else:
                 tot_loss_str = ""
                 datatang_str = ""
@@ -1067,7 +1045,7 @@ def run(rank, world_size, args):
 
     if params.print_diagnostics:
         opts = diagnostics.TensorDiagnosticOptions(
-            2 ** 22
+            2**22
         )  # allow 4 megabytes per sub-module
         diagnostic = diagnostics.attach_diagnostics(model, opts)
 
@@ -1076,9 +1054,7 @@ def run(rank, world_size, args):
     train_cuts = filter_short_and_long_utterances(train_cuts)
 
     if args.enable_musan:
-        cuts_musan = load_manifest(
-            Path(args.manifest_dir) / "musan_cuts.jsonl.gz"
-        )
+        cuts_musan = load_manifest(Path(args.manifest_dir) / "musan_cuts.jsonl.gz")
     else:
         cuts_musan = None
 
@@ -1093,9 +1069,7 @@ def run(rank, world_size, args):
     if params.datatang_prob > 0:
         datatang = AIDatatang200zh(manifest_dir=args.manifest_dir)
         train_datatang_cuts = datatang.train_cuts()
-        train_datatang_cuts = filter_short_and_long_utterances(
-            train_datatang_cuts
-        )
+        train_datatang_cuts = filter_short_and_long_utterances(train_datatang_cuts)
         train_datatang_cuts = train_datatang_cuts.repeat(times=None)
         datatang_train_dl = asr_datamodule.train_dataloaders(
             train_datatang_cuts,
@@ -1249,9 +1223,7 @@ def scan_pessimistic_batches_for_oom(
                     f"Failing criterion: {criterion} "
                     f"(={crit_values[criterion]}) ..."
                 )
-            display_and_save_batch(
-                batch, params=params, graph_compiler=graph_compiler
-            )
+            display_and_save_batch(batch, params=params, graph_compiler=graph_compiler)
             raise
 
 

@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# fix segmentation fault reported in https://github.com/k2-fsa/icefall/issues/674
+export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
+
 set -eou pipefail
 
 stage=-1
@@ -106,11 +109,10 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   if [ ! -f $lang_char_dir/words.txt ]; then
     ./local/prepare_words.py \
       --input-file $lang_char_dir/words_no_ids.txt \
-      --output-file $lang_char_dir/words.txt 
+      --output-file $lang_char_dir/words.txt
   fi
 
   if [ ! -f $lang_char_dir/L_disambig.pt ]; then
     ./local/prepare_char.py
   fi
 fi
-

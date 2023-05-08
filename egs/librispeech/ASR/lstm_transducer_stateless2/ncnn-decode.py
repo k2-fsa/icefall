@@ -19,7 +19,7 @@
 """
 Usage:
   ./lstm_transducer_stateless2/ncnn-decode.py \
-   --bpe-model-filename ./data/lang_bpe_500/bpe.model \
+   --tokens ./data/lang_bpe_500/tokens.txt \
    --encoder-param-filename ./lstm_transducer_stateless2/exp/encoder_jit_trace-iter-468000-avg-16-pnnx.ncnn.param \
    --encoder-bin-filename ./lstm_transducer_stateless2/exp/encoder_jit_trace-iter-468000-avg-16-pnnx.ncnn.bin \
    --decoder-param-filename ./lstm_transducer_stateless2/exp/decoder_jit_trace-iter-468000-avg-16-pnnx.ncnn.param \
@@ -27,15 +27,19 @@ Usage:
    --joiner-param-filename ./lstm_transducer_stateless2/exp/joiner_jit_trace-iter-468000-avg-16-pnnx.ncnn.param \
    --joiner-bin-filename ./lstm_transducer_stateless2/exp/joiner_jit_trace-iter-468000-avg-16-pnnx.ncnn.bin \
    ./test_wavs/1089-134686-0001.wav
+
+Please see
+https://k2-fsa.github.io/icefall/model-export/export-ncnn.html
+for details.
 """
 
 import argparse
 import logging
 from typing import List
 
+import k2
 import kaldifeat
 import ncnn
-import sentencepiece as spm
 import torch
 import torchaudio
 
@@ -44,9 +48,9 @@ def get_args():
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
-        "--bpe-model-filename",
+        "--tokens",
         type=str,
-        help="Path to bpe.model",
+        help="Path to tokens.txt",
     )
 
     parser.add_argument(
@@ -104,6 +108,8 @@ class Model:
         encoder_net = ncnn.Net()
         encoder_net.opt.use_packing_layout = False
         encoder_net.opt.use_fp16_storage = False
+        encoder_net.opt.num_threads = 4
+
         encoder_param = args.encoder_param_filename
         encoder_model = args.encoder_bin_filename
 
@@ -118,6 +124,7 @@ class Model:
 
         decoder_net = ncnn.Net()
         decoder_net.opt.use_packing_layout = False
+        decoder_net.opt.num_threads = 4
 
         decoder_net.load_param(decoder_param)
         decoder_net.load_model(decoder_model)
@@ -129,6 +136,8 @@ class Model:
         joiner_model = args.joiner_bin_filename
         joiner_net = ncnn.Net()
         joiner_net.opt.use_packing_layout = False
+        joiner_net.opt.num_threads = 4
+
         joiner_net.load_param(joiner_param)
         joiner_net.load_model(joiner_model)
 
@@ -136,7 +145,6 @@ class Model:
 
     def run_encoder(self, x, states):
         with self.encoder_net.create_extractor() as ex:
-            ex.set_num_threads(10)
             ex.input("in0", ncnn.Mat(x.numpy()).clone())
             x_lens = torch.tensor([x.size(0)], dtype=torch.float32)
             ex.input("in1", ncnn.Mat(x_lens.numpy()).clone())
@@ -156,9 +164,7 @@ class Model:
             assert ret == 0, ret
 
             encoder_out = torch.from_numpy(ncnn_out0.numpy()).clone()
-            encoder_out_lens = torch.from_numpy(ncnn_out1.numpy()).to(
-                torch.int32
-            )
+            encoder_out_lens = torch.from_numpy(ncnn_out1.numpy()).to(torch.int32)
             hx = torch.from_numpy(ncnn_out2.numpy()).clone()
             cx = torch.from_numpy(ncnn_out3.numpy()).clone()
             return encoder_out, encoder_out_lens, hx, cx
@@ -167,7 +173,6 @@ class Model:
         assert decoder_input.dtype == torch.int32
 
         with self.decoder_net.create_extractor() as ex:
-            ex.set_num_threads(10)
             ex.input("in0", ncnn.Mat(decoder_input.numpy()).clone())
             ret, ncnn_out0 = ex.extract("out0")
             assert ret == 0, ret
@@ -176,7 +181,6 @@ class Model:
 
     def run_joiner(self, encoder_out, decoder_out):
         with self.joiner_net.create_extractor() as ex:
-            ex.set_num_threads(10)
             ex.input("in0", ncnn.Mat(encoder_out.numpy()).clone())
             ex.input("in1", ncnn.Mat(decoder_out.numpy()).clone())
             ret, ncnn_out0 = ex.extract("out0")
@@ -200,10 +204,9 @@ def read_sound_files(
     ans = []
     for f in filenames:
         wave, sample_rate = torchaudio.load(f)
-        assert sample_rate == expected_sample_rate, (
-            f"expected sample rate: {expected_sample_rate}. "
-            f"Given: {sample_rate}"
-        )
+        assert (
+            sample_rate == expected_sample_rate
+        ), f"expected sample rate: {expected_sample_rate}. Given: {sample_rate}"
         # We use only the first channel
         ans.append(wave[0])
     return ans
@@ -240,9 +243,6 @@ def main():
     logging.info(vars(args))
 
     model = Model(args)
-
-    sp = spm.SentencePieceProcessor()
-    sp.load(args.bpe_model_filename)
 
     sound_file = args.sound_filename
 
@@ -281,14 +281,20 @@ def main():
 
     encoder_out, encoder_out_lens, hx, cx = model.run_encoder(features, states)
     hyp = greedy_search(model, encoder_out)
+
+    symbol_table = k2.SymbolTable.from_file(args.tokens)
+
+    text = ""
+    for i in hyp:
+        text += symbol_table[i]
+    text = text.replace("▁", " ").strip()
+
     logging.info(sound_file)
-    logging.info(sp.decode(hyp))
+    logging.info(text)
 
 
 if __name__ == "__main__":
-    formatter = (
-        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-    )
+    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
 
     logging.basicConfig(format=formatter, level=logging.INFO)
 

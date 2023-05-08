@@ -21,17 +21,21 @@ on:
     branches:
       - master
   pull_request:
-    types: [labeled]
+    branches:
+      - master
+
+concurrency:
+  group: run-yesno-recipe-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   run-yesno-recipe:
-    if: github.event.label.name == 'ready' || github.event_name == 'push'
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         # os: [ubuntu-18.04, macos-10.15]
         # TODO: enable macOS for CPU testing
-        os: [ubuntu-18.04]
+        os: [ubuntu-latest]
         python-version: [3.8]
       fail-fast: false
 
@@ -61,9 +65,9 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          grep -v '^#' ./requirements-ci.txt  | xargs -n 1 -L 1 pip install
+          grep -v '^#' ./requirements-ci.txt  | grep -v kaldifst | xargs -n 1 -L 1 pip install
           pip uninstall -y protobuf
-          pip install --no-binary protobuf protobuf
+          pip install --no-binary protobuf protobuf==3.20.*
 
       - name: Run yesno recipe
         shell: bash

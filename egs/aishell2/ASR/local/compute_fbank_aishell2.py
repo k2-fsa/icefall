@@ -83,9 +83,7 @@ def compute_fbank_aishell2(num_mel_bins: int = 80):
             )
             if "train" in partition:
                 cut_set = (
-                    cut_set
-                    + cut_set.perturb_speed(0.9)
-                    + cut_set.perturb_speed(1.1)
+                    cut_set + cut_set.perturb_speed(0.9) + cut_set.perturb_speed(1.1)
                 )
             cut_set = cut_set.compute_and_store_features(
                 extractor=extractor,
@@ -111,9 +109,7 @@ def get_args():
 
 
 if __name__ == "__main__":
-    formatter = (
-        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-    )
+    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
 
     logging.basicConfig(format=formatter, level=logging.INFO)
 

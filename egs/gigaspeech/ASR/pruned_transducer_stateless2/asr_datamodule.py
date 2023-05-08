@@ -195,8 +195,7 @@ class GigaSpeechAsrDataModule:
             "--small-dev",
             type=str2bool,
             default=False,
-            help="Should we use only 1000 utterances for dev "
-            "(speeds up training)",
+            help="Should we use only 1000 utterances for dev (speeds up training)",
         )
 
     def train_dataloaders(
@@ -216,13 +215,9 @@ class GigaSpeechAsrDataModule:
         if self.args.enable_musan:
             logging.info("Enable MUSAN")
             logging.info("About to get Musan cuts")
-            cuts_musan = load_manifest(
-                self.args.manifest_dir / "musan_cuts.jsonl.gz"
-            )
+            cuts_musan = load_manifest(self.args.manifest_dir / "musan_cuts.jsonl.gz")
             transforms.append(
-                CutMix(
-                    cuts=cuts_musan, prob=0.5, snr=(10, 20), preserve_id=True
-                )
+                CutMix(cuts=cuts_musan, prob=0.5, snr=(10, 20), preserve_id=True)
             )
         else:
             logging.info("Disable MUSAN")
@@ -244,9 +239,7 @@ class GigaSpeechAsrDataModule:
         input_transforms = []
         if self.args.enable_spec_aug:
             logging.info("Enable SpecAugment")
-            logging.info(
-                f"Time warp factor: {self.args.spec_aug_time_warp_factor}"
-            )
+            logging.info(f"Time warp factor: {self.args.spec_aug_time_warp_factor}")
             # Set the value of num_frame_masks according to Lhotse's version.
             # In different Lhotse's versions, the default of num_frame_masks is
             # different.
@@ -289,9 +282,7 @@ class GigaSpeechAsrDataModule:
             # Drop feats to be on the safe side.
             train = K2SpeechRecognitionDataset(
                 cut_transforms=transforms,
-                input_strategy=OnTheFlyFeatures(
-                    Fbank(FbankConfig(num_mel_bins=80))
-                ),
+                input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80))),
                 input_transforms=input_transforms,
                 return_cuts=self.args.return_cuts,
             )
@@ -347,9 +338,7 @@ class GigaSpeechAsrDataModule:
         if self.args.on_the_fly_feats:
             validate = K2SpeechRecognitionDataset(
                 cut_transforms=transforms,
-                input_strategy=OnTheFlyFeatures(
-                    Fbank(FbankConfig(num_mel_bins=80))
-                ),
+                input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80))),
                 return_cuts=self.args.return_cuts,
             )
         else:
@@ -398,7 +387,7 @@ class GigaSpeechAsrDataModule:
     @lru_cache()
     def train_cuts(self) -> CutSet:
         logging.info(f"About to get train_{self.args.subset} cuts")
-        path = self.args.manifest_dir / f"cuts_{self.args.subset}.jsonl.gz"
+        path = self.args.manifest_dir / f"gigaspeech_cuts_{self.args.subset}.jsonl.gz"
         cuts_train = CutSet.from_jsonl_lazy(path)
         return cuts_train
 
@@ -406,7 +395,7 @@ class GigaSpeechAsrDataModule:
     def dev_cuts(self) -> CutSet:
         logging.info("About to get dev cuts")
         cuts_valid = load_manifest_lazy(
-            self.args.manifest_dir / "cuts_DEV.jsonl.gz"
+            self.args.manifest_dir / "gigaspeech_cuts_DEV.jsonl.gz"
         )
         if self.args.small_dev:
             return cuts_valid.subset(first=1000)
@@ -416,4 +405,6 @@ class GigaSpeechAsrDataModule:
     @lru_cache()
     def test_cuts(self) -> CutSet:
         logging.info("About to get test cuts")
-        return load_manifest_lazy(self.args.manifest_dir / "cuts_TEST.jsonl.gz")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "gigaspeech_cuts_TEST.jsonl.gz"
+        )

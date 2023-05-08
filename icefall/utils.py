@@ -1,5 +1,6 @@
-# Copyright      2021  Xiaomi Corp.        (authors: Fangjun Kuang
-#                                                    Mingshuang Luo)
+# Copyright      2021  Xiaomi Corp.        (authors: Fangjun Kuang,
+#                                                    Mingshuang Luo,
+#                                                    Zengwei Yao)
 #
 # See ../../LICENSE for clarification regarding multiple authors
 #
@@ -130,9 +131,7 @@ def setup_logger(
         formatter = f"%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] ({rank}/{world_size}) %(message)s"  # noqa
         log_filename = f"{log_filename}-{date_time}-{rank}"
     else:
-        formatter = (
-            "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-        )
+        formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
         log_filename = f"{log_filename}-{date_time}"
 
     os.makedirs(os.path.dirname(log_filename), exist_ok=True)
@@ -177,11 +176,13 @@ class AttributeDict(dict):
 
 
 def encode_supervisions(
-    supervisions: dict, subsampling_factor: int
-) -> Tuple[torch.Tensor, List[str]]:
+    supervisions: dict,
+    subsampling_factor: int,
+    token_ids: Optional[List[List[int]]] = None,
+) -> Tuple[torch.Tensor, Union[List[str], List[List[int]]]]:
     """
     Encodes Lhotse's ``batch["supervisions"]`` dict into
-    a pair of torch Tensor, and a list of transcription strings.
+    a pair of torch Tensor, and a list of transcription strings or token indexes
 
     The supervision tensor has shape ``(batch_size, 3)``.
     Its second dimension contains information about sequence index [0],
@@ -194,18 +195,30 @@ def encode_supervisions(
     supervision_segments = torch.stack(
         (
             supervisions["sequence_idx"],
-            supervisions["start_frame"] // subsampling_factor,
-            supervisions["num_frames"] // subsampling_factor,
+            torch.div(
+                supervisions["start_frame"],
+                subsampling_factor,
+                rounding_mode="floor",
+            ),
+            torch.div(
+                supervisions["num_frames"],
+                subsampling_factor,
+                rounding_mode="floor",
+            ),
         ),
         1,
     ).to(torch.int32)
 
     indices = torch.argsort(supervision_segments[:, 2], descending=True)
     supervision_segments = supervision_segments[indices]
-    texts = supervisions["text"]
-    texts = [texts[idx] for idx in indices]
 
-    return supervision_segments, texts
+    if token_ids is None:
+        texts = supervisions["text"]
+        res = [texts[idx] for idx in indices]
+    else:
+        res = [token_ids[idx] for idx in indices]
+
+    return supervision_segments, res
 
 
 def get_texts(
@@ -280,13 +293,9 @@ def get_texts_with_timestamp(
     """
     if isinstance(best_paths.aux_labels, k2.RaggedTensor):
         all_aux_shape = (
-            best_paths.arcs.shape()
-            .remove_axis(1)
-            .compose(best_paths.aux_labels.shape)
+            best_paths.arcs.shape().remove_axis(1).compose(best_paths.aux_labels.shape)
         )
-        all_aux_labels = k2.RaggedTensor(
-            all_aux_shape, best_paths.aux_labels.values
-        )
+        all_aux_labels = k2.RaggedTensor(all_aux_shape, best_paths.aux_labels.values)
         # remove 0's and -1's.
         aux_labels = best_paths.aux_labels.remove_values_leq(0)
         # TODO: change arcs.shape() to arcs.shape
@@ -355,9 +364,7 @@ def get_alignments(best_paths: k2.Fsa, kind: str) -> List[List[int]]:
     # arc.shape() has axes [fsa][state][arc], we remove "state"-axis here
     token_shape = best_paths.arcs.shape().remove_axis(1)
     # token_shape has axes [fsa][arc]
-    tokens = k2.RaggedTensor(
-        token_shape, getattr(best_paths, kind).contiguous()
-    )
+    tokens = k2.RaggedTensor(token_shape, getattr(best_paths, kind).contiguous())
     tokens = tokens.remove_values_eq(-1)
     return tokens.tolist()
 
@@ -447,11 +454,32 @@ def store_transcripts_and_timestamps(
         for cut_id, ref, hyp, time_ref, time_hyp in texts:
             print(f"{cut_id}:\tref={ref}", file=f)
             print(f"{cut_id}:\thyp={hyp}", file=f)
+
             if len(time_ref) > 0:
-                s = "[" + ", ".join(["%0.3f" % i for i in time_ref]) + "]"
+                if isinstance(time_ref[0], tuple):
+                    # each element is <start, end> pair
+                    s = (
+                        "["
+                        + ", ".join(["(%0.3f, %.03f)" % (i, j) for (i, j) in time_ref])
+                        + "]"
+                    )
+                else:
+                    # each element is a float number
+                    s = "[" + ", ".join(["%0.3f" % i for i in time_ref]) + "]"
                 print(f"{cut_id}:\ttimestamp_ref={s}", file=f)
-            s = "[" + ", ".join(["%0.3f" % i for i in time_hyp]) + "]"
-            print(f"{cut_id}:\ttimestamp_hyp={s}", file=f)
+
+            if len(time_hyp) > 0:
+                if isinstance(time_hyp[0], tuple):
+                    # each element is <start, end> pair
+                    s = (
+                        "["
+                        + ", ".join(["(%0.3f, %.03f)" % (i, j) for (i, j) in time_hyp])
+                        + "]"
+                    )
+                else:
+                    # each element is a float number
+                    s = "[" + ", ".join(["%0.3f" % i for i in time_hyp]) + "]"
+                print(f"{cut_id}:\ttimestamp_hyp={s}", file=f)
 
 
 def write_error_stats(
@@ -578,9 +606,7 @@ def write_error_stats(
             f"{cut_id}:\t"
             + " ".join(
                 (
-                    ref_word
-                    if ref_word == hyp_word
-                    else f"({ref_word}->{hyp_word})"
+                    ref_word if ref_word == hyp_word else f"({ref_word}->{hyp_word})"
                     for ref_word, hyp_word in ali
                 )
             ),
@@ -590,9 +616,7 @@ def write_error_stats(
     print("", file=f)
     print("SUBSTITUTIONS: count ref -> hyp", file=f)
 
-    for count, (ref, hyp) in sorted(
-        [(v, k) for k, v in subs.items()], reverse=True
-    ):
+    for count, (ref, hyp) in sorted([(v, k) for k, v in subs.items()], reverse=True):
         print(f"{count}   {ref} -> {hyp}", file=f)
 
     print("", file=f)
@@ -606,9 +630,7 @@ def write_error_stats(
         print(f"{count}   {hyp}", file=f)
 
     print("", file=f)
-    print(
-        "PER-WORD STATS: word  corr tot_errs count_in_ref count_in_hyp", file=f
-    )
+    print("PER-WORD STATS: word  corr tot_errs count_in_ref count_in_hyp", file=f)
     for _, word, counts in sorted(
         [(sum(v[1:]), k, v) for k, v in words.items()], reverse=True
     ):
@@ -624,9 +646,18 @@ def write_error_stats(
 def write_error_stats_with_timestamps(
     f: TextIO,
     test_set_name: str,
-    results: List[Tuple[str, List[str], List[str], List[float], List[float]]],
+    results: List[
+        Tuple[
+            str,
+            List[str],
+            List[str],
+            List[Union[float, Tuple[float, float]]],
+            List[Union[float, Tuple[float, float]]],
+        ]
+    ],
     enable_log: bool = True,
-) -> Tuple[float, float, float]:
+    with_end_time: bool = False,
+) -> Tuple[float, Union[float, Tuple[float, float]], Union[float, Tuple[float, float]]]:
     """Write statistics based on predicted results and reference transcripts
     as well as their timestamps.
 
@@ -659,6 +690,8 @@ def write_error_stats_with_timestamps(
       enable_log:
         If True, also print detailed WER to the console.
         Otherwise, it is written only to the given file.
+      with_end_time:
+        Whether use end timestamps.
 
     Returns:
       Return total word error rate and mean delay.
@@ -676,8 +709,8 @@ def write_error_stats_with_timestamps(
     all_delay = []
     for cut_id, ref, hyp, time_ref, time_hyp in results:
         ali = kaldialign.align(ref, hyp, ERR)
-        has_time_ref = len(time_ref) > 0
-        if has_time_ref:
+        has_time = len(time_ref) > 0 and len(time_hyp) > 0
+        if has_time:
             # pointer to timestamp_hyp
             p_hyp = 0
             # pointer to timestamp_ref
@@ -686,28 +719,36 @@ def write_error_stats_with_timestamps(
             if ref_word == ERR:
                 ins[hyp_word] += 1
                 words[hyp_word][3] += 1
-                if has_time_ref:
+                if has_time:
                     p_hyp += 1
             elif hyp_word == ERR:
                 dels[ref_word] += 1
                 words[ref_word][4] += 1
-                if has_time_ref:
+                if has_time:
                     p_ref += 1
             elif hyp_word != ref_word:
                 subs[(ref_word, hyp_word)] += 1
                 words[ref_word][1] += 1
                 words[hyp_word][2] += 1
-                if has_time_ref:
+                if has_time:
                     p_hyp += 1
                     p_ref += 1
             else:
                 words[ref_word][0] += 1
                 num_corr += 1
-                if has_time_ref:
-                    all_delay.append(time_hyp[p_hyp] - time_ref[p_ref])
+                if has_time:
+                    if with_end_time:
+                        all_delay.append(
+                            (
+                                time_hyp[p_hyp][0] - time_ref[p_ref][0],
+                                time_hyp[p_hyp][1] - time_ref[p_ref][1],
+                            )
+                        )
+                    else:
+                        all_delay.append(time_hyp[p_hyp] - time_ref[p_ref])
                     p_hyp += 1
                     p_ref += 1
-        if has_time_ref:
+        if has_time:
             assert p_hyp == len(hyp), (p_hyp, len(hyp))
             assert p_ref == len(ref), (p_ref, len(ref))
 
@@ -716,16 +757,39 @@ def write_error_stats_with_timestamps(
     ins_errs = sum(ins.values())
     del_errs = sum(dels.values())
     tot_errs = sub_errs + ins_errs + del_errs
-    tot_err_rate = "%.2f" % (100.0 * tot_errs / ref_len)
+    tot_err_rate = float("%.2f" % (100.0 * tot_errs / ref_len))
 
-    mean_delay = "inf"
-    var_delay = "inf"
+    if with_end_time:
+        mean_delay = (float("inf"), float("inf"))
+        var_delay = (float("inf"), float("inf"))
+    else:
+        mean_delay = float("inf")
+        var_delay = float("inf")
     num_delay = len(all_delay)
     if num_delay > 0:
-        mean_delay = sum(all_delay) / num_delay
-        var_delay = sum([(i - mean_delay) ** 2 for i in all_delay]) / num_delay
-        mean_delay = "%.3f" % mean_delay
-        var_delay = "%.3f" % var_delay
+        if with_end_time:
+            all_delay_start = [i[0] for i in all_delay]
+            mean_delay_start = sum(all_delay_start) / num_delay
+            var_delay_start = (
+                sum([(i - mean_delay_start) ** 2 for i in all_delay_start]) / num_delay
+            )
+
+            all_delay_end = [i[1] for i in all_delay]
+            mean_delay_end = sum(all_delay_end) / num_delay
+            var_delay_end = (
+                sum([(i - mean_delay_end) ** 2 for i in all_delay_end]) / num_delay
+            )
+
+            mean_delay = (
+                float("%.3f" % mean_delay_start),
+                float("%.3f" % mean_delay_end),
+            )
+            var_delay = (float("%.3f" % var_delay_start), float("%.3f" % var_delay_end))
+        else:
+            mean_delay = sum(all_delay) / num_delay
+            var_delay = sum([(i - mean_delay) ** 2 for i in all_delay]) / num_delay
+            mean_delay = float("%.3f" % mean_delay)
+            var_delay = float("%.3f" % var_delay)
 
     if enable_log:
         logging.info(
@@ -734,7 +798,8 @@ def write_error_stats_with_timestamps(
             f"{del_errs} del, {sub_errs} sub ]"
         )
         logging.info(
-            f"[{test_set_name}] %symbol-delay mean: {mean_delay}s, variance: {var_delay} "  # noqa
+            f"[{test_set_name}] %symbol-delay mean (s): "
+            f"{mean_delay}, variance: {var_delay} "  # noqa
             f"computed on {num_delay} correct words"
         )
 
@@ -783,9 +848,7 @@ def write_error_stats_with_timestamps(
             f"{cut_id}:\t"
             + " ".join(
                 (
-                    ref_word
-                    if ref_word == hyp_word
-                    else f"({ref_word}->{hyp_word})"
+                    ref_word if ref_word == hyp_word else f"({ref_word}->{hyp_word})"
                     for ref_word, hyp_word in ali
                 )
             ),
@@ -795,9 +858,7 @@ def write_error_stats_with_timestamps(
     print("", file=f)
     print("SUBSTITUTIONS: count ref -> hyp", file=f)
 
-    for count, (ref, hyp) in sorted(
-        [(v, k) for k, v in subs.items()], reverse=True
-    ):
+    for count, (ref, hyp) in sorted([(v, k) for k, v in subs.items()], reverse=True):
         print(f"{count}   {ref} -> {hyp}", file=f)
 
     print("", file=f)
@@ -811,9 +872,7 @@ def write_error_stats_with_timestamps(
         print(f"{count}   {hyp}", file=f)
 
     print("", file=f)
-    print(
-        "PER-WORD STATS: word  corr tot_errs count_in_ref count_in_hyp", file=f
-    )
+    print("PER-WORD STATS: word  corr tot_errs count_in_ref count_in_hyp", file=f)
     for _, word, counts in sorted(
         [(sum(v[1:]), k, v) for k, v in words.items()], reverse=True
     ):
@@ -823,7 +882,8 @@ def write_error_stats_with_timestamps(
         hyp_count = corr + hyp_sub + ins
 
         print(f"{word}   {corr} {tot_errs} {ref_count} {hyp_count}", file=f)
-    return float(tot_err_rate), float(mean_delay), float(var_delay)
+
+    return tot_err_rate, mean_delay, var_delay
 
 
 class MetricsTracker(collections.defaultdict):
@@ -883,9 +943,7 @@ class MetricsTracker(collections.defaultdict):
             if k == "frames" or k == "utterances":
                 continue
             norm_value = (
-                float(v) / num_frames
-                if "utt_" not in k
-                else float(v) / num_utterances
+                float(v) / num_frames if "utt_" not in k else float(v) / num_utterances
             )
             ans.append((k, norm_value))
         return ans
@@ -919,9 +977,7 @@ class MetricsTracker(collections.defaultdict):
             tb_writer.add_scalar(prefix + k, v, batch_idx)
 
 
-def concat(
-    ragged: k2.RaggedTensor, value: int, direction: str
-) -> k2.RaggedTensor:
+def concat(ragged: k2.RaggedTensor, value: int, direction: str) -> k2.RaggedTensor:
     """Prepend a value to the beginning of each sublist or append a value.
     to the end of each sublist.
 
@@ -1039,10 +1095,10 @@ def make_pad_mask(lengths: torch.Tensor, max_len: int = 0) -> torch.Tensor:
     assert lengths.ndim == 1, lengths.ndim
     max_len = max(max_len, lengths.max())
     n = lengths.size(0)
+    seq_range = torch.arange(0, max_len, device=lengths.device)
+    expaned_lengths = seq_range.unsqueeze(0).expand(n, max_len)
 
-    expaned_lengths = torch.arange(max_len).expand(n, max_len).to(lengths)
-
-    return expaned_lengths >= lengths.unsqueeze(1)
+    return expaned_lengths >= lengths.unsqueeze(-1)
 
 
 # Copied and modified from https://github.com/wenet-e2e/wenet/blob/main/wenet/utils/mask.py
@@ -1093,9 +1149,7 @@ def linf_norm(x):
     return torch.max(torch.abs(x))
 
 
-def measure_weight_norms(
-    model: nn.Module, norm: str = "l2"
-) -> Dict[str, float]:
+def measure_weight_norms(model: nn.Module, norm: str = "l2") -> Dict[str, float]:
     """
     Compute the norms of the model's parameters.
 
@@ -1118,9 +1172,7 @@ def measure_weight_norms(
         return norms
 
 
-def measure_gradient_norms(
-    model: nn.Module, norm: str = "l1"
-) -> Dict[str, float]:
+def measure_gradient_norms(model: nn.Module, norm: str = "l1") -> Dict[str, float]:
     """
     Compute the norms of the gradients for each of model's parameters.
 
@@ -1254,6 +1306,31 @@ def tokenize_by_bpe_model(
     return txt_with_bpe
 
 
+def tokenize_by_CJK_char(line: str) -> str:
+    """
+    Tokenize a line of text with CJK char.
+
+    Note: All return charaters will be upper case.
+
+    Example:
+      input = "你好世界是 hello world 的中文"
+      output = "你 好 世 界 是 HELLO WORLD 的 中 文"
+
+    Args:
+      line:
+        The input text.
+
+    Return:
+      A new string tokenize by CJK char.
+    """
+    # The CJK ranges is from https://github.com/alvations/nltk/blob/79eed6ddea0d0a2c212c1060b477fc268fec4d4b/nltk/tokenize/util.py
+    pattern = re.compile(
+        r"([\u1100-\u11ff\u2e80-\ua4cf\ua840-\uD7AF\uF900-\uFAFF\uFE30-\uFE4F\uFF65-\uFFDC\U00020000-\U0002FFFF])"
+    )
+    chars = pattern.split(line.strip().upper())
+    return " ".join([w.strip() for w in chars if w.strip()])
+
+
 def display_and_save_batch(
     batch: dict,
     params: AttributeDict,
@@ -1326,7 +1403,7 @@ def parse_timestamp(tokens: List[str], timestamp: List[float]) -> List[float]:
       List of timestamp of each word.
     """
     start_token = b"\xe2\x96\x81".decode()  # '_'
-    assert len(tokens) == len(timestamp)
+    assert len(tokens) == len(timestamp), (len(tokens), len(timestamp))
     ans = []
     for i in range(len(tokens)):
         flag = False
@@ -1347,10 +1424,9 @@ def parse_timestamp(tokens: List[str], timestamp: List[float]) -> List[float]:
 
 def parse_hyp_and_timestamp(
     res: DecodingResults,
-    decoding_method: str,
-    sp: spm.SentencePieceProcessor,
     subsampling_factor: int,
     frame_shift_ms: float = 10,
+    sp: Optional[spm.SentencePieceProcessor] = None,
     word_table: Optional[k2.SymbolTable] = None,
 ) -> Tuple[List[List[str]], List[List[float]]]:
     """Parse hypothesis and timestamp.
@@ -1358,56 +1434,32 @@ def parse_hyp_and_timestamp(
     Args:
       res:
         A DecodingResults object.
-      decoding_method:
-        Possible values are:
-          - greedy_search
-          - beam_search
-          - modified_beam_search
-          - fast_beam_search
-          - fast_beam_search_LG
-          - fast_beam_search_nbest
-          - fast_beam_search_nbest_oracle
-          - fast_beam_search_nbest_LG
-      sp:
-        The BPE model.
       subsampling_factor:
         The integer subsampling factor.
       frame_shift_ms:
         The float frame shift used for feature extraction.
+      sp:
+        The BPE model.
       word_table:
         The word symbol table.
 
     Returns:
        Return a list of hypothesis and timestamp.
     """
-    assert decoding_method in (
-        "greedy_search",
-        "beam_search",
-        "fast_beam_search",
-        "fast_beam_search_LG",
-        "fast_beam_search_nbest",
-        "fast_beam_search_nbest_LG",
-        "fast_beam_search_nbest_oracle",
-        "modified_beam_search",
-    )
-
     hyps = []
     timestamps = []
 
     N = len(res.hyps)
     assert len(res.timestamps) == N, (len(res.timestamps), N)
     use_word_table = False
-    if (
-        decoding_method == "fast_beam_search_nbest_LG"
-        and decoding_method == "fast_beam_search_LG"
-    ):
-        assert word_table is not None
+    if word_table is not None:
+        assert sp is None
         use_word_table = True
+    else:
+        assert sp is not None and word_table is None
 
     for i in range(N):
-        time = convert_timestamp(
-            res.timestamps[i], subsampling_factor, frame_shift_ms
-        )
+        time = convert_timestamp(res.timestamps[i], subsampling_factor, frame_shift_ms)
         if use_word_table:
             words = [word_table[i] for i in res.hyps[i]]
         else:
@@ -1434,3 +1486,337 @@ def is_module_available(*modules: str) -> bool:
     import importlib
 
     return all(importlib.util.find_spec(m) is not None for m in modules)
+
+
+def filter_uneven_sized_batch(batch: dict, allowed_max_frames: int):
+    """For the uneven-sized batch, the total duration after padding would possibly
+    cause OOM. Hence, for each batch, which is sorted descendingly by length,
+    we simply drop the last few shortest samples, so that the retained total frames
+    (after padding) would not exceed the given allow_max_frames.
+
+    Args:
+      batch:
+        A batch of data. See `lhotse.dataset.K2SpeechRecognitionDataset()`
+        for the content in it.
+      allowed_max_frames:
+        The allowed max number of frames in batch.
+    """
+    features = batch["inputs"]
+    supervisions = batch["supervisions"]
+
+    N, T, _ = features.size()
+    assert T == supervisions["num_frames"].max(), (T, supervisions["num_frames"].max())
+    keep_num_utt = allowed_max_frames // T
+
+    if keep_num_utt >= N:
+        return batch
+
+    # Note: we assume the samples in batch is sorted descendingly by length
+    logging.info(
+        f"Filtering uneven-sized batch, original batch size is {N}, "
+        f"retained batch size is {keep_num_utt}."
+    )
+    batch["inputs"] = features[:keep_num_utt]
+    for k, v in supervisions.items():
+        assert len(v) == N, (len(v), N)
+        batch["supervisions"][k] = v[:keep_num_utt]
+
+    return batch
+
+
+def parse_bpe_start_end_pairs(
+    tokens: List[str], is_first_token: List[bool]
+) -> List[Tuple[int, int]]:
+    """Parse pairs of start and end frame indexes for each word.
+
+    Args:
+      tokens:
+        List of BPE tokens.
+      is_first_token:
+        List of bool values, which indicates whether it is the first token,
+        i.e., not repeat or blank.
+
+    Returns:
+      List of (start-frame-index, end-frame-index) pairs for each word.
+    """
+    assert len(tokens) == len(is_first_token), (len(tokens), len(is_first_token))
+
+    start_token = b"\xe2\x96\x81".decode()  # '_'
+    blank_token = "<blk>"
+
+    non_blank_idx = [i for i in range(len(tokens)) if tokens[i] != blank_token]
+    num_non_blank = len(non_blank_idx)
+
+    pairs = []
+    start = -1
+    end = -1
+    for j in range(num_non_blank):
+        # The index in all frames
+        i = non_blank_idx[j]
+
+        found_start = False
+        if is_first_token[i] and (j == 0 or tokens[i].startswith(start_token)):
+            found_start = True
+            if tokens[i] == start_token:
+                if j == num_non_blank - 1:
+                    # It is the last non-blank token
+                    found_start = False
+                elif is_first_token[non_blank_idx[j + 1]] and tokens[
+                    non_blank_idx[j + 1]
+                ].startswith(start_token):
+                    # The next not-blank token is a first-token and also starts with start_token
+                    found_start = False
+        if found_start:
+            start = i
+
+        if start != -1:
+            found_end = False
+            if j == num_non_blank - 1:
+                # It is the last non-blank token
+                found_end = True
+            elif is_first_token[non_blank_idx[j + 1]] and tokens[
+                non_blank_idx[j + 1]
+            ].startswith(start_token):
+                # The next not-blank token is a first-token and also starts with start_token
+                found_end = True
+            if found_end:
+                end = i
+
+        if start != -1 and end != -1:
+            if not all([tokens[t] == start_token for t in range(start, end + 1)]):
+                # except the case of all start_token
+                pairs.append((start, end))
+            # Reset start and end
+            start = -1
+            end = -1
+
+    return pairs
+
+
+def parse_bpe_timestamps_and_texts(
+    best_paths: k2.Fsa, sp: spm.SentencePieceProcessor
+) -> Tuple[List[Tuple[int, int]], List[List[str]]]:
+    """Parse timestamps (frame indexes) and texts.
+
+    Args:
+      best_paths:
+        A k2.Fsa with best_paths.arcs.num_axes() == 3, i.e.
+        containing multiple FSAs, which is expected to be the result
+        of k2.shortest_path (otherwise the returned values won't
+        be meaningful). Its attribtutes `labels` and `aux_labels`
+        are both BPE tokens.
+      sp:
+        The BPE model.
+
+    Returns:
+      utt_index_pairs:
+        A list of pair list. utt_index_pairs[i] is a list of
+        (start-frame-index, end-frame-index) pairs for each word in
+        utterance-i.
+      utt_words:
+        A list of str list. utt_words[i] is a word list of utterence-i.
+    """
+    shape = best_paths.arcs.shape().remove_axis(1)
+
+    # labels: [utt][arcs]
+    labels = k2.RaggedTensor(shape, best_paths.labels.contiguous())
+    # remove -1's.
+    labels = labels.remove_values_eq(-1)
+    labels = labels.tolist()
+
+    # aux_labels: [utt][arcs]
+    aux_labels = k2.RaggedTensor(shape, best_paths.aux_labels.contiguous())
+
+    # remove -1's.
+    all_aux_labels = aux_labels.remove_values_eq(-1)
+    # len(all_aux_labels[i]) is equal to the number of frames
+    all_aux_labels = all_aux_labels.tolist()
+
+    # remove 0's and -1's.
+    out_aux_labels = aux_labels.remove_values_leq(0)
+    # len(out_aux_labels[i]) is equal to the number of output BPE tokens
+    out_aux_labels = out_aux_labels.tolist()
+
+    utt_index_pairs = []
+    utt_words = []
+    for i in range(len(labels)):
+        tokens = sp.id_to_piece(labels[i])
+        words = sp.decode(out_aux_labels[i]).split()
+
+        # Indicates whether it is the first token, i.e., not-repeat and not-blank.
+        is_first_token = [a != 0 for a in all_aux_labels[i]]
+        index_pairs = parse_bpe_start_end_pairs(tokens, is_first_token)
+        assert len(index_pairs) == len(words), (len(index_pairs), len(words), tokens)
+        utt_index_pairs.append(index_pairs)
+        utt_words.append(words)
+
+    return utt_index_pairs, utt_words
+
+
+def parse_timestamps_and_texts(
+    best_paths: k2.Fsa, word_table: k2.SymbolTable
+) -> Tuple[List[Tuple[int, int]], List[List[str]]]:
+    """Parse timestamps (frame indexes) and texts.
+
+    Args:
+      best_paths:
+        A k2.Fsa with best_paths.arcs.num_axes() == 3, i.e.
+        containing multiple FSAs, which is expected to be the result
+        of k2.shortest_path (otherwise the returned values won't
+        be meaningful). Attribtute `labels` is the prediction unit,
+        e.g., phone or BPE tokens. Attribute `aux_labels` is the word index.
+      word_table:
+        The word symbol table.
+
+    Returns:
+      utt_index_pairs:
+        A list of pair list. utt_index_pairs[i] is a list of
+        (start-frame-index, end-frame-index) pairs for each word in
+        utterance-i.
+      utt_words:
+        A list of str list. utt_words[i] is a word list of utterence-i.
+    """
+    # [utt][words]
+    word_ids = get_texts(best_paths)
+
+    shape = best_paths.arcs.shape().remove_axis(1)
+
+    # labels: [utt][arcs]
+    labels = k2.RaggedTensor(shape, best_paths.labels.contiguous())
+    # remove -1's.
+    labels = labels.remove_values_eq(-1)
+    labels = labels.tolist()
+
+    # aux_labels: [utt][arcs]
+    aux_shape = shape.compose(best_paths.aux_labels.shape)
+    aux_labels = k2.RaggedTensor(aux_shape, best_paths.aux_labels.values.contiguous())
+    aux_labels = aux_labels.tolist()
+
+    utt_index_pairs = []
+    utt_words = []
+    for i, (label, aux_label) in enumerate(zip(labels, aux_labels)):
+        num_arcs = len(label)
+        # The last arc of aux_label is the arc entering the final state
+        assert num_arcs == len(aux_label) - 1, (num_arcs, len(aux_label))
+
+        index_pairs = []
+        start = -1
+        end = -1
+        for arc in range(num_arcs):
+            # len(aux_label[arc]) is 0 or 1
+            if label[arc] != 0 and len(aux_label[arc]) != 0:
+                if start != -1 and end != -1:
+                    index_pairs.append((start, end))
+                start = arc
+            if label[arc] != 0:
+                end = arc
+        if start != -1 and end != -1:
+            index_pairs.append((start, end))
+
+        words = [word_table[w] for w in word_ids[i]]
+        assert len(index_pairs) == len(words), (len(index_pairs), len(words))
+
+        utt_index_pairs.append(index_pairs)
+        utt_words.append(words)
+
+    return utt_index_pairs, utt_words
+
+
+def parse_fsa_timestamps_and_texts(
+    best_paths: k2.Fsa,
+    sp: Optional[spm.SentencePieceProcessor] = None,
+    word_table: Optional[k2.SymbolTable] = None,
+    subsampling_factor: int = 4,
+    frame_shift_ms: float = 10,
+) -> Tuple[List[Tuple[float, float]], List[List[str]]]:
+    """Parse timestamps (in seconds) and texts for given decoded fsa paths.
+    Currently it supports two cases:
+    (1) ctc-decoding, the attribtutes `labels` and `aux_labels`
+        are both BPE tokens. In this case, sp should be provided.
+    (2) HLG-based 1best, the attribtute `labels` is the prediction unit,
+        e.g., phone or BPE tokens; attribute `aux_labels` is the word index.
+        In this case, word_table should be provided.
+
+    Args:
+      best_paths:
+        A k2.Fsa with best_paths.arcs.num_axes() == 3, i.e.
+        containing multiple FSAs, which is expected to be the result
+        of k2.shortest_path (otherwise the returned values won't
+        be meaningful).
+      sp:
+        The BPE model.
+      word_table:
+        The word symbol table.
+      subsampling_factor:
+        The subsampling factor of the model.
+      frame_shift_ms:
+        Frame shift in milliseconds between two contiguous frames.
+
+    Returns:
+      utt_time_pairs:
+        A list of pair list. utt_time_pairs[i] is a list of
+        (start-time, end-time) pairs for each word in
+        utterance-i.
+      utt_words:
+        A list of str list. utt_words[i] is a word list of utterence-i.
+    """
+    if sp is not None:
+        assert word_table is None, "word_table is not needed if sp is provided."
+        utt_index_pairs, utt_words = parse_bpe_timestamps_and_texts(
+            best_paths=best_paths, sp=sp
+        )
+    elif word_table is not None:
+        assert sp is None, "sp is not needed if word_table is provided."
+        utt_index_pairs, utt_words = parse_timestamps_and_texts(
+            best_paths=best_paths, word_table=word_table
+        )
+    else:
+        raise ValueError("Either sp or word_table should be provided.")
+
+    utt_time_pairs = []
+    for utt in utt_index_pairs:
+        start = convert_timestamp(
+            frames=[i[0] for i in utt],
+            subsampling_factor=subsampling_factor,
+            frame_shift_ms=frame_shift_ms,
+        )
+        end = convert_timestamp(
+            # The duration in frames is (end_frame_index - start_frame_index + 1)
+            frames=[i[1] + 1 for i in utt],
+            subsampling_factor=subsampling_factor,
+            frame_shift_ms=frame_shift_ms,
+        )
+        utt_time_pairs.append(list(zip(start, end)))
+
+    return utt_time_pairs, utt_words
+
+
+# Copied from https://github.com/alvations/nltk/blob/79eed6ddea0d0a2c212c1060b477fc268fec4d4b/nltk/tokenize/util.py
+def is_cjk(character):
+    """
+    Python port of Moses' code to check for CJK character.
+
+    >>> is_cjk(u'\u33fe')
+    True
+    >>> is_cjk(u'\uFE5F')
+    False
+
+    :param character: The character that needs to be checked.
+    :type character: char
+    :return: bool
+    """
+    return any(
+        [
+            start <= ord(character) <= end
+            for start, end in [
+                (4352, 4607),
+                (11904, 42191),
+                (43072, 43135),
+                (44032, 55215),
+                (63744, 64255),
+                (65072, 65103),
+                (65381, 65500),
+                (131072, 196607),
+            ]
+        ]
+    )
