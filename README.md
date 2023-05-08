@@ -47,9 +47,7 @@ Training takes less than 30 seconds and gives you the following WER:
 ```
 [test_set] %WER 0.42% [1 / 240, 0 ins, 1 del, 0 sub ]
 ```
-We do provide a Colab notebook for this recipe.
-
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1tIjjzaJc3IvGyKiMCDWO-TSnBgkcuN3B?usp=sharing)
+We do provide a Colab notebook for this recipe: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1tIjjzaJc3IvGyKiMCDWO-TSnBgkcuN3B?usp=sharing)
 
 
 ### LibriSpeech
