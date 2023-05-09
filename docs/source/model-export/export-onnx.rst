@@ -3,6 +3,15 @@ Export to ONNX
 
 In this section, we describe how to export models to `ONNX`_.
 
+.. hint::
+
+   Before you continue, please run:
+
+    .. code-block:: bash
+
+        pip install onnx
+
+
 In each recipe, there is a file called ``export-onnx.py``, which is used
 to export trained models to `ONNX`_.
 
