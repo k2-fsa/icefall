@@ -238,8 +238,8 @@ class RnnLmModel(torch.nn.Module):
         self,
         x: torch.Tensor,
         x_lens: torch.Tensor,
-        state_h : torch.Tensor,
-        state_c : torch.Tensor,
+        state_h: torch.Tensor,
+        state_c: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Score a batch of tokens, i.e each sample in the batch should be a
         single token. For example, x = torch.tensor([[5],[10],[20]])
@@ -260,7 +260,6 @@ class RnnLmModel(torch.nn.Module):
         Returns:
             _type_: _description_
         """
-        device = next(self.parameters()).device
         embedding = self.input_embedding(x)
         rnn_out, (next_h0, next_c0) = self.rnn(embedding, (state_h, state_c))
         logits = self.output_linear(rnn_out)
