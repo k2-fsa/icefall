@@ -235,7 +235,7 @@ def export_with_state(
     embedding_dim = model.embedding_dim
 
     x = torch.randint(low=1, high=params.vocab_size, size=(N, L), dtype=torch.int64)
-    y = torch.randint(low=1, high=params.vocab_size, size=(N, L), dtype=torch.int64)
+    x_lens = torch.full((N,), fill_value=L, dtype=torch.int64)
     h0 = torch.zeros(num_layers, N, hidden_size)
     c0 = torch.zeros(num_layers, N, hidden_size)
 
@@ -252,18 +252,18 @@ def export_with_state(
 
     torch.onnx.export(
         model,
-        (x, y, h0, c0),
+        (x, x_lens, h0, c0),
         filename,
         verbose=False,
         opset_version=opset_version,
-        input_names=["x", "y", "h0", "c0"],
-        output_names=["nll", "next_h0", "next_c0"],
+        input_names=["x", "x_lens", "h0", "c0"],
+        output_names=["log_softmax", "next_h0", "next_c0"],
         dynamic_axes={
             "x": {0: "N", 1: "L"},
-            "y": {0: "N", 1: "L"},
+            "x_lens": {0: "N"},
             "h0": {1: "N"},
             "c0": {1: "N"},
-            "nll": {0: "N"},
+            "log_softmax": {0: "N"},
             "next_h0": {1: "N"},
             "next_c0": {1: "N"},
         },
@@ -372,7 +372,7 @@ def main():
 
     # now for streaming export
     saved_forward = model.__class__.forward
-    model.__class__.forward = model.__class__.streaming_forward
+    model.__class__.forward = model.__class__.score_token_onnx
     streaming_filename = params.exp_dir / f"with-state-{suffix}.onnx"
     export_with_state(
         model=model,
