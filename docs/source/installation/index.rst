@@ -3,64 +3,91 @@
 Installation
 ============
 
-- |os|
-- |device|
-- |python_versions|
-- |torch_versions|
-- |k2_versions|
 
-.. |os| image:: ./images/os-Linux_macOS-ff69b4.svg
-  :alt: Supported operating systems
-
-.. |device| image:: ./images/device-CPU_CUDA-orange.svg
-  :alt: Supported devices
-
-.. |python_versions| image:: ./images/python-gt-v3.6-blue.svg
-  :alt: Supported python versions
-
-.. |torch_versions| image:: ./images/torch-gt-v1.6.0-green.svg
-  :alt: Supported PyTorch versions
-
-.. |k2_versions| image:: ./images/k2-gt-v1.9-blueviolet.svg
-  :alt: Supported k2 versions
 
 ``icefall`` depends on `k2 <https://github.com/k2-fsa/k2>`_ and
 `lhotse <https://github.com/lhotse-speech/lhotse>`_.
 
-We recommend you to use the following steps to install the dependencies.
+We recommend that you use the following steps to install the dependencies.
 
-- (0) Install PyTorch and torchaudio
-- (1) Install k2
-- (2) Install lhotse
+- (0) Install CUDA toolkit and cuDNN
+- (1) Install PyTorch and torchaudio
+- (2) Install k2
+- (3) Install lhotse
+
+.. caution::
+
+   99% users who have issues about the installation are using conda.
+
+.. caution::
+
+   99% users who have issues about the installation are using conda.
+
+.. caution::
+
+   99% users who have issues about the installation are using conda.
+
+.. hint::
+
+   We suggest that you use ``pip install`` to install PyTorch.
+
+   You can use the following command to create a virutal environment in Python:
+
+    .. code-block:: bash
+
+        python3 -m venv ./my_env
+        source ./my_env/bin/activate
 
 .. caution::
 
   Installation order matters.
 
-(0) Install PyTorch and torchaudio
+(0) Install CUDA toolkit and cuDNN
+----------------------------------
+
+Please refer to
+`<https://k2-fsa.github.io/k2/installation/cuda-cudnn.html>`_
+to install CUDA and cuDNN.
+
+
+(1) Install PyTorch and torchaudio
 ----------------------------------
 
 Please refer `<https://pytorch.org/>`_ to install PyTorch
 and torchaudio.
 
+.. hint::
 
-(1) Install k2
+   You can also go to  `<https://download.pytorch.org/whl/torch_stable.html>`_
+   to download pre-compiled wheels and install them.
+
+.. caution::
+
+   Please install torch and torchaudio at the same time.
+
+
+(2) Install k2
 --------------
 
 Please refer to `<https://k2-fsa.github.io/k2/installation/index.html>`_
 to install ``k2``.
 
-.. CAUTION::
+.. caution::
 
-  You need to install ``k2`` with a version at least **v1.9**.
+  Please don't change your installed PyTorch after you have installed k2.
 
-.. HINT::
+.. note::
 
-  If you have already installed PyTorch and don't want to replace it,
-  please install a version of ``k2`` that is compiled against the version
-  of PyTorch you are using.
+   We suggest that you install k2 from source by following
+   `<https://k2-fsa.github.io/k2/installation/from_source.html>`_
+   or
+   `<https://k2-fsa.github.io/k2/installation/for_developers.html>`_.
 
-(2) Install lhotse
+.. hint::
+
+   Please always install the latest version of k2.
+
+(3) Install lhotse
 ------------------
 
 Please refer to `<https://lhotse.readthedocs.io/en/latest/getting-started.html#installation>`_
@@ -75,8 +102,7 @@ to install ``lhotse``.
 
     to install the latest version of lhotse.
 
-
-(3) Download icefall
+(4) Download icefall
 --------------------
 
 ``icefall`` is a collection of Python scripts; what you need is to download it
