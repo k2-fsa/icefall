@@ -45,10 +45,11 @@
               <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul class="current">
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Installation</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#install-pytorch-and-torchaudio">(0) Install PyTorch and torchaudio</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#install-k2">(1) Install k2</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#install-lhotse">(2) Install lhotse</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#download-icefall">(3) Download icefall</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#install-cuda-toolkit-and-cudnn">(0) Install CUDA toolkit and cuDNN</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#install-pytorch-and-torchaudio">(1) Install PyTorch and torchaudio</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#install-k2">(2) Install k2</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#install-lhotse">(3) Install lhotse</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#download-icefall">(4) Download icefall</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#installation-example">Installation example</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#create-a-virtual-environment">(1) Create a virtual environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#activate-your-virtual-environment">(2) Activate your virtual environment</a></li>
@@ -103,56 +104,96 @@
              
   <section id="installation">
 <span id="install-icefall"></span><h1>Installation<a class="headerlink" href="#installation" title="Permalink to this heading"></a></h1>
-<ul class="simple">
-<li><p><img alt="Supported operating systems" src="../_images/os-Linux_macOS-ff69b4.svg" /></p></li>
-<li><p><img alt="Supported devices" src="../_images/device-CPU_CUDA-orange.svg" /></p></li>
-<li><p><img alt="Supported python versions" src="../_images/python-gt-v3.6-blue.svg" /></p></li>
-<li><p><img alt="Supported PyTorch versions" src="../_images/torch-gt-v1.6.0-green.svg" /></p></li>
-<li><p><img alt="Supported k2 versions" src="../_images/k2-gt-v1.9-blueviolet.svg" /></p></li>
-</ul>
 <p><code class="docutils literal notranslate"><span class="pre">icefall</span></code> depends on <a class="reference external" href="https://github.com/k2-fsa/k2">k2</a> and
 <a class="reference external" href="https://github.com/lhotse-speech/lhotse">lhotse</a>.</p>
-<p>We recommend you to use the following steps to install the dependencies.</p>
+<p>We recommend that you use the following steps to install the dependencies.</p>
 <ul class="simple">
 <li><ol class="arabic simple" start="0">
-<li><p>Install PyTorch and torchaudio</p></li>
+<li><p>Install CUDA toolkit and cuDNN</p></li>
 </ol>
 </li>
 <li><ol class="arabic simple">
-<li><p>Install k2</p></li>
+<li><p>Install PyTorch and torchaudio</p></li>
 </ol>
 </li>
 <li><ol class="arabic simple" start="2">
+<li><p>Install k2</p></li>
+</ol>
+</li>
+<li><ol class="arabic simple" start="3">
 <li><p>Install lhotse</p></li>
 </ol>
 </li>
 </ul>
 <div class="admonition caution">
 <p class="admonition-title">Caution</p>
+<p>99% users who have issues about the installation are using conda.</p>
+</div>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p>99% users who have issues about the installation are using conda.</p>
+</div>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p>99% users who have issues about the installation are using conda.</p>
+</div>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>We suggest that you use <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span></code> to install PyTorch.</p>
+<p>You can use the following command to create a virutal environment in Python:</p>
+<blockquote>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>venv<span class="w"> </span>./my_env
+<span class="nb">source</span><span class="w"> </span>./my_env/bin/activate
+</pre></div>
+</div>
+</div></blockquote>
+</div>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
 <p>Installation order matters.</p>
 </div>
+<section id="install-cuda-toolkit-and-cudnn">
+<h2>(0) Install CUDA toolkit and cuDNN<a class="headerlink" href="#install-cuda-toolkit-and-cudnn" title="Permalink to this heading"></a></h2>
+<p>Please refer to
+<a class="reference external" href="https://k2-fsa.github.io/k2/installation/cuda-cudnn.html">https://k2-fsa.github.io/k2/installation/cuda-cudnn.html</a>
+to install CUDA and cuDNN.</p>
+</section>
 <section id="install-pytorch-and-torchaudio">
-<h2>(0) Install PyTorch and torchaudio<a class="headerlink" href="#install-pytorch-and-torchaudio" title="Permalink to this heading"></a></h2>
+<h2>(1) Install PyTorch and torchaudio<a class="headerlink" href="#install-pytorch-and-torchaudio" title="Permalink to this heading"></a></h2>
 <p>Please refer <a class="reference external" href="https://pytorch.org/">https://pytorch.org/</a> to install PyTorch
 and torchaudio.</p>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>You can also go to  <a class="reference external" href="https://download.pytorch.org/whl/torch_stable.html">https://download.pytorch.org/whl/torch_stable.html</a>
+to download pre-compiled wheels and install them.</p>
+</div>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p>Please install torch and torchaudio at the same time.</p>
+</div>
 </section>
 <section id="install-k2">
-<h2>(1) Install k2<a class="headerlink" href="#install-k2" title="Permalink to this heading"></a></h2>
+<h2>(2) Install k2<a class="headerlink" href="#install-k2" title="Permalink to this heading"></a></h2>
 <p>Please refer to <a class="reference external" href="https://k2-fsa.github.io/k2/installation/index.html">https://k2-fsa.github.io/k2/installation/index.html</a>
 to install <code class="docutils literal notranslate"><span class="pre">k2</span></code>.</p>
 <div class="admonition caution">
 <p class="admonition-title">Caution</p>
-<p>You need to install <code class="docutils literal notranslate"><span class="pre">k2</span></code> with a version at least <strong>v1.9</strong>.</p>
+<p>Please don’t change your installed PyTorch after you have installed k2.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>We suggest that you install k2 from source by following
+<a class="reference external" href="https://k2-fsa.github.io/k2/installation/from_source.html">https://k2-fsa.github.io/k2/installation/from_source.html</a>
+or
+<a class="reference external" href="https://k2-fsa.github.io/k2/installation/for_developers.html">https://k2-fsa.github.io/k2/installation/for_developers.html</a>.</p>
 </div>
 <div class="admonition hint">
 <p class="admonition-title">Hint</p>
-<p>If you have already installed PyTorch and don’t want to replace it,
-please install a version of <code class="docutils literal notranslate"><span class="pre">k2</span></code> that is compiled against the version
-of PyTorch you are using.</p>
+<p>Please always install the latest version of k2.</p>
 </div>
 </section>
 <section id="install-lhotse">
-<h2>(2) Install lhotse<a class="headerlink" href="#install-lhotse" title="Permalink to this heading"></a></h2>
+<h2>(3) Install lhotse<a class="headerlink" href="#install-lhotse" title="Permalink to this heading"></a></h2>
 <p>Please refer to <a class="reference external" href="https://lhotse.readthedocs.io/en/latest/getting-started.html#installation">https://lhotse.readthedocs.io/en/latest/getting-started.html#installation</a>
 to install <code class="docutils literal notranslate"><span class="pre">lhotse</span></code>.</p>
 <div class="admonition hint">
@@ -165,7 +206,7 @@ to install <code class="docutils literal notranslate"><span class="pre">lhotse</
 </div>
 </section>
 <section id="download-icefall">
-<h2>(3) Download icefall<a class="headerlink" href="#download-icefall" title="Permalink to this heading"></a></h2>
+<h2>(4) Download icefall<a class="headerlink" href="#download-icefall" title="Permalink to this heading"></a></h2>
 <p><code class="docutils literal notranslate"><span class="pre">icefall</span></code> is a collection of Python scripts; what you need is to download it
 and set the environment variable <code class="docutils literal notranslate"><span class="pre">PYTHONPATH</span></code> to point to it.</p>
 <p>Assume you want to place <code class="docutils literal notranslate"><span class="pre">icefall</span></code> in the folder <code class="docutils literal notranslate"><span class="pre">/tmp</span></code>. The
