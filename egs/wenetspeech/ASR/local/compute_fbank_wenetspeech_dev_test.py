@@ -20,7 +20,7 @@ import logging
 from pathlib import Path
 
 import torch
-from lhotse import CutSet, KaldifeatFbank, KaldifeatFbankConfig, LilcomHdf5Writer
+from lhotse import CutSet, KaldifeatFbank, KaldifeatFbankConfig, LilcomChunkyWriter
 
 # Torch's multithreaded behavior needs to be disabled or
 # it wastes a lot of CPU and slow things down.
@@ -69,7 +69,7 @@ def compute_fbank_wenetspeech_dev_test():
             storage_path=f"{in_out_dir}/feats_{partition}",
             num_workers=num_workers,
             batch_duration=batch_duration,
-            storage_type=LilcomHdf5Writer,
+            storage_type=LilcomChunkyWriter,
             overwrite=True,
         )
 

@@ -261,3 +261,107 @@ if [ $stage -le 18 ] && [ $stop_stage -ge 18 ]; then
   log "Stage 18: Compile LG"
   python ./local/compile_lg.py --lang-dir $lang_char_dir
 fi
+
+# prepare RNNLM data
+if [ $stage -le 19 ] && [ $stop_stage -ge 19 ]; then
+  log "Stage 19: Prepare LM training data"
+
+  log "Processing char based data"
+  text_out_dir=data/lm_char
+
+  mkdir -p $text_out_dir
+
+  log "Genearating training text data"
+  
+  if [ ! -f $text_out_dir/lm_data.pt ]; then
+    ./local/prepare_char_lm_training_data.py \
+      --lang-char data/lang_char \
+      --lm-data $lang_char_dir/text_words_segmentation \
+      --lm-archive $text_out_dir/lm_data.pt
+  fi
+
+  log "Generating DEV text data"
+  # prepare validation text data 
+  if [ ! -f $text_out_dir/valid_text_words_segmentation ]; then
+    valid_text=${text_out_dir}/
+
+    gunzip -c data/manifests/wenetspeech_supervisions_DEV.jsonl.gz \
+      | jq '.text' | sed 's/"//g' \
+      | ./local/text2token.py -t "char" > $text_out_dir/valid_text
+    
+    python3 ./local/text2segments.py \
+      --num-process $nj \
+      --input-file $text_out_dir/valid_text \
+      --output-file $text_out_dir/valid_text_words_segmentation
+  fi
+
+  ./local/prepare_char_lm_training_data.py \
+    --lang-char data/lang_char \
+    --lm-data $text_out_dir/valid_text_words_segmentation \
+    --lm-archive $text_out_dir/lm_data_valid.pt
+
+  # prepare TEST text data 
+  if [ ! -f $text_out_dir/TEST_text_words_segmentation ]; then
+    log "Prepare text for test set."
+    for test_set in TEST_MEETING TEST_NET; do
+        gunzip -c data/manifests/wenetspeech_supervisions_${test_set}.jsonl.gz \
+          | jq '.text' | sed 's/"//g' \
+          | ./local/text2token.py -t "char" > $text_out_dir/${test_set}_text
+
+        python3 ./local/text2segments.py \
+          --num-process $nj \
+          --input-file $text_out_dir/${test_set}_text \
+          --output-file $text_out_dir/${test_set}_text_words_segmentation
+    done
+    
+    cat $text_out_dir/TEST_*_text_words_segmentation > $text_out_dir/test_text_words_segmentation
+  fi
+
+  ./local/prepare_char_lm_training_data.py \
+    --lang-char data/lang_char \
+    --lm-data $text_out_dir/test_text_words_segmentation \
+    --lm-archive $text_out_dir/lm_data_test.pt
+
+fi
+
+# sort RNNLM data
+if [ $stage -le 20 ] && [ $stop_stage -ge 20 ]; then
+  text_out_dir=data/lm_char
+
+  log "Sort lm data"
+
+  ./local/sort_lm_training_data.py \
+    --in-lm-data $text_out_dir/lm_data.pt \
+    --out-lm-data $text_out_dir/sorted_lm_data.pt \
+    --out-statistics $text_out_dir/statistics.txt
+
+  ./local/sort_lm_training_data.py \
+    --in-lm-data $text_out_dir/lm_data_valid.pt \
+    --out-lm-data $text_out_dir/sorted_lm_data-valid.pt \
+    --out-statistics $text_out_dir/statistics-valid.txt
+
+  ./local/sort_lm_training_data.py \
+    --in-lm-data $text_out_dir/lm_data_test.pt \
+    --out-lm-data $text_out_dir/sorted_lm_data-test.pt \
+    --out-statistics $text_out_dir/statistics-test.txt
+fi
+
+export CUDA_VISIBLE_DEVICES="0,1"
+
+if [ $stage -le 21 ] && [ $stop_stage -ge 21 ]; then
+  log "Stage 21: Train RNN LM model"
+  python ../../../icefall/rnn_lm/train.py \
+    --start-epoch 0 \
+    --world-size 2 \
+    --num-epochs 20 \
+    --use-fp16 0 \
+    --embedding-dim 2048 \
+    --hidden-dim 2048 \
+    --num-layers 2 \
+    --batch-size 400 \
+    --exp-dir rnnlm_char/exp \
+    --lm-data data/lm_char/sorted_lm_data.pt \
+    --lm-data-valid data/lm_char/sorted_lm_data-valid.pt \
+    --vocab-size 4336 \
+    --master-port 12340
+fi
