@@ -61,6 +61,14 @@ def get_args():
         help="""Path to the bpe.model. If not None, we will remove short and
         long utterances before extracting features""",
     )
+    
+    parser.add_argument(
+        "--fbank-dir",
+        type=str,
+        help="""Fbank output dir
+        """,
+        default="data/fbank",
+    )
 
     parser.add_argument(
         "--dataset",
@@ -162,7 +170,7 @@ def compute_fbank_libriheavy(
 def compute_fbank_libriheavy_splits(args):
     num_splits = args.num_splits
     dataset = args.dataset
-    output_dir = f"data/fbank/libriheavy_{dataset}_split"
+    output_dir = f"{args.fbank_dir}/libriheavy_{dataset}_split"
     output_dir = Path(output_dir)
     assert output_dir.exists(), f"{output_dir} does not exist!"
 

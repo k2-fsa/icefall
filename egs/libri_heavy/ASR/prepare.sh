@@ -30,15 +30,28 @@ log() {
 }
 
 manifest_dir=data/manifests
+fbank_dir=data/fbank_new
 
 mkdir -p $manifest_dir
 
 subset="medium"
 
 if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
-  log "Stage 0: Split libri-heavy medium"
+  log "Stage 0: Compute fbank for Libri-heavy small"
+  mkdir -p $fbank_dir
+  for part in $subset; do
+    log "Processing subset: small"
+    if [ ! -e $fbank_dir/.libriheavy.small.done ]; then
+      ./local/compute_fbank_libriheavy.py --dataset $part
+      touch $fbank_dir/.libriheavy.small.done
+    fi
+  done
+fi
 
-  split_dir=data/fbank/libriheavy_medium_split
+if [ $stage -le 1 ] && [ $stop_stage -ge 2 ]; then
+  log "Stage 1: Split libri-heavy medium"
+
+  split_dir=$fbank_dir/libriheavy_medium_split
   mkdir -p $split_dir
   if [ ! -e $split_dir/.split_completed ]; then
     lhotse split-lazy $manifest_dir/librilight_cuts_medium_raw.jsonl.gz $split_dir $num_per_split
@@ -46,38 +59,32 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   fi
 fi
 
-if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
-  log "Stage 1: Compute fbank for Libri-heavy small"
-  mkdir -p data/fbank
-  for part in $subset; do
-    log "Processing subset: small"
-    if [ ! -e data/fbank/.libriheavy.small.done ]; then
-      ./local/compute_fbank_libriheavy.py --dataset $part
-      touch data/fbank/.libriheavy.small.done
-    fi
-  done
-fi
-
 if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   log "Stage 2: Compute fbank for Libri-heavy medium"
-  mkdir -p data/fbank
-  num_splits=$(find data/fbank/libriheavy_medium_split -name "librilight_cuts_medium_raw.*.jsonl.gz" | wc -l)
-  if [ ! -e data/fbank/.libriheavy.medium.done ]; then
-    ./local/compute_fbank_libriheavy.py \
-      --dataset medium \
-      --num-splits $num_splits \
-      --num-workers $nj \
-      --start $start \
-      --stop $stop
-    #touch data/fbank/.libriheavy.medium.done
+  mkdir -p $fbank_dir
+  num_splits=$(find $fbank_dir/libriheavy_medium_split -name "librilight_cuts_medium_raw.*.jsonl.gz" | wc -l)
+  if [ ! -e $fbank_dir/.libriheavy.medium.done ]; then
+    for i in $(seq 0 1 7); do
+      start=${i}00
+      end=$(( i+1 ))00
+      ./local/compute_fbank_libriheavy.py \
+        --dataset medium \
+        --fbank-dir $fbank_dir \
+        --num-splits $num_splits \
+        --num-workers $nj \
+        --start $start \
+        --stop $end &
+    done
+    wait
+    touch $fbank_dir/.libriheavy.medium.done
   fi
 fi
 
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   log "Stage 3: Combine features for medium"
-  if [ ! -f data/fbank/librilight_cuts_medium.jsonl.gz ]; then
-    pieces=$(find data/fbank/libriheavy_medium_split -name "librilight_cuts_medium.*.jsonl.gz")
-    lhotse combine $pieces data/fbank/librilight_cuts_medium.jsonl.gz
+  if [ ! -f $fbank_dir/librilight_cuts_medium.jsonl.gz ]; then
+    pieces=$(find $fbank_dir/libriheavy_medium_split -name "librilight_cuts_medium.*.jsonl.gz")
+    lhotse combine $pieces $fbank_dir/librilight_cuts_medium.jsonl.gz
   fi
 fi
 
