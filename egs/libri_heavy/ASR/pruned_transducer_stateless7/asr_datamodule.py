@@ -192,9 +192,9 @@ class LibriHeavyAsrDataModule:
             default="small",
             help="Select the Libriheavy subset (small|medium|large)",
         )
-        
+
         group.add_argument(
-            '--random-left-padding',
+            "--random-left-padding",
             type=str2bool,
         )
 
@@ -328,7 +328,11 @@ class LibriHeavyAsrDataModule:
 
         return train_dl
 
-    def valid_dataloaders(self, cuts_valid: CutSet) -> DataLoader:
+    def valid_dataloaders(
+        self,
+        cuts_valid: CutSet,
+        text_sampling_func: Callable[[List[str]], str] = None,
+    ) -> DataLoader:
         transforms = []
         if self.args.concatenate_cuts:
             transforms = [
@@ -343,11 +347,13 @@ class LibriHeavyAsrDataModule:
                 cut_transforms=transforms,
                 input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80))),
                 return_cuts=self.args.return_cuts,
+                text_sampling_func=text_sampling_func,
             )
         else:
             validate = PromptASRDataset(
                 cut_transforms=transforms,
                 return_cuts=self.args.return_cuts,
+                text_sampling_func=text_sampling_func,
             )
         valid_sampler = DynamicBucketingSampler(
             cuts_valid,
@@ -401,6 +407,14 @@ class LibriHeavyAsrDataModule:
             self.args.manifest_dir / "librilight_cuts_dev.jsonl.gz"
         )
         return cuts_valid
+
+    @lru_cache()
+    def test_medium_cuts(self) -> CutSet:
+        logging.info("About to get 2000 cuts from the medium set")
+        cuts_medium_2k = load_manifest_lazy(
+            self.args.manifest_dir / "librilight_cuts_medium_2000.jsonl.gz"
+        )
+        return cuts_medium_2k
 
     @lru_cache()
     def test_clean_cuts(self) -> CutSet:
