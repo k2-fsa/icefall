@@ -235,7 +235,6 @@ def export_with_state(
     embedding_dim = model.embedding_dim
 
     x = torch.randint(low=1, high=params.vocab_size, size=(N, L), dtype=torch.int64)
-    x_lens = torch.full((N,), fill_value=L, dtype=torch.int64)
     h0 = torch.zeros(num_layers, N, hidden_size)
     c0 = torch.zeros(num_layers, N, hidden_size)
 
@@ -252,15 +251,14 @@ def export_with_state(
 
     torch.onnx.export(
         model,
-        (x, x_lens, h0, c0),
+        (x, h0, c0),
         filename,
         verbose=False,
         opset_version=opset_version,
-        input_names=["x", "x_lens", "h0", "c0"],
+        input_names=["x", "h0", "c0"],
         output_names=["log_softmax", "next_h0", "next_c0"],
         dynamic_axes={
             "x": {0: "N", 1: "L"},
-            "x_lens": {0: "N"},
             "h0": {1: "N"},
             "c0": {1: "N"},
             "log_softmax": {0: "N"},

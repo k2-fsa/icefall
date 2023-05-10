@@ -237,7 +237,6 @@ class RnnLmModel(torch.nn.Module):
     def score_token_onnx(
         self,
         x: torch.Tensor,
-        x_lens: torch.Tensor,
         state_h: torch.Tensor,
         state_c: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
