@@ -247,14 +247,10 @@ class RnnLmModel(torch.nn.Module):
         Args:
             x (torch.Tensor):
                 A batch of tokens
-            x_lens (torch.Tensor):
-                The length of tokens in the batch before padding
             state_h:
-                Either None or a tuple of two torch.Tensor. Each tensor has
-                the shape of (num_layers, bs, hidden_dim)
+                state h of RNN has the shape of (num_layers, bs, hidden_dim)
             state_c:
-                Either None or a tuple of two torch.Tensor. Each tensor has
-                the shape of (num_layers, bs, hidden_dim)
+                state c of RNN has the shape of (num_layers, bs, hidden_dim)
 
         Returns:
             _type_: _description_
