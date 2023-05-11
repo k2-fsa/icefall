@@ -105,7 +105,12 @@ def get_parser():
         "--context-size",
         type=int,
         default=2,
+<<<<<<< HEAD
         help="The context size in the decoder. 1 means bigram; 2 means tri-gram",
+=======
+        help="The context size in the decoder. 1 means bigram; "
+        "2 means tri-gram",
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
     )
 
     return parser
@@ -173,7 +178,13 @@ def main():
 
 
 if __name__ == "__main__":
+<<<<<<< HEAD
     formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
+=======
+    formatter = (
+        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
+    )
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
 
     logging.basicConfig(format=formatter, level=logging.INFO)
     main()

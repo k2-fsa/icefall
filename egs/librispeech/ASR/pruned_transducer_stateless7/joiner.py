@@ -16,6 +16,12 @@
 
 import torch
 import torch.nn as nn
+<<<<<<< HEAD
+=======
+from scaling import (
+    ScaledLinear
+)
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
 
 
 class Joiner(nn.Module):
@@ -28,8 +34,13 @@ class Joiner(nn.Module):
     ):
         super().__init__()
 
+<<<<<<< HEAD
         self.encoder_proj = nn.Linear(encoder_dim, joiner_dim)
         self.decoder_proj = nn.Linear(decoder_dim, joiner_dim)
+=======
+        self.encoder_proj = ScaledLinear(encoder_dim, joiner_dim, initial_scale=0.25)
+        self.decoder_proj = ScaledLinear(decoder_dim, joiner_dim, initial_scale=0.25)
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
         self.output_linear = nn.Linear(joiner_dim, vocab_size)
 
     def forward(
@@ -51,11 +62,21 @@ class Joiner(nn.Module):
         Returns:
           Return a tensor of shape (N, T, s_range, C).
         """
+<<<<<<< HEAD
         assert encoder_out.ndim == decoder_out.ndim
         assert encoder_out.ndim in (2, 4)
 
         if project_input:
             logit = self.encoder_proj(encoder_out) + self.decoder_proj(decoder_out)
+=======
+        assert encoder_out.ndim == decoder_out.ndim == 4
+        assert encoder_out.shape[:-1] == decoder_out.shape[:-1]
+
+        if project_input:
+            logit = self.encoder_proj(encoder_out) + self.decoder_proj(
+                decoder_out
+            )
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
         else:
             logit = encoder_out + decoder_out
 

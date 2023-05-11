@@ -56,7 +56,13 @@ class Joiner(nn.Module):
         assert encoder_out.shape[:-1] == decoder_out.shape[:-1]
 
         if project_input:
+<<<<<<< HEAD
             logit = self.encoder_proj(encoder_out) + self.decoder_proj(decoder_out)
+=======
+            logit = self.encoder_proj(encoder_out) + self.decoder_proj(
+                decoder_out
+            )
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
         else:
             logit = encoder_out + decoder_out
 

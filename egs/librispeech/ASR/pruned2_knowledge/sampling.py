@@ -3,6 +3,7 @@
 # This was copied from /ceph-dan/torch-sampling/torch_sampling/sampling_ref.py,
 # its git history is there.
 
+<<<<<<< HEAD
 import random
 import timeit
 from typing import Optional, Tuple
@@ -11,12 +12,23 @@ import torch
 from scaling import ScaledLinear
 from torch import Tensor, nn
 from torch.cuda.amp import GradScaler, custom_bwd, custom_fwd
+=======
+import timeit
+import torch
+from torch import Tensor
+from torch import nn
+from torch.cuda.amp import GradScaler, custom_fwd, custom_bwd
+from typing import Tuple, Optional
+from scaling import ScaledLinear
+import random
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
 from torch_scheduled_sampling import sample_combined
 
 # The main exports of this file are the module KnowledgeBaseLookup and the
 # function create_knowledge_base.
 
 
+<<<<<<< HEAD
 def create_knowledge_base(M: int, N: int, D: int) -> nn.Parameter:
     std = 0.1
     a = (3**0.5) * std  # this sqrt(3) thing is intended to get variance of
@@ -26,6 +38,20 @@ def create_knowledge_base(M: int, N: int, D: int) -> nn.Parameter:
     return ans
 
 
+=======
+
+
+
+
+def create_knowledge_base(M: int, N: int, D: int) -> nn.Parameter:
+    std = 0.1
+    a = (3 ** 0.5) * std  # this sqrt(3) thing is intended to get variance of
+                          # 0.1 from uniform distribution
+    ans = nn.Parameter(torch.ones(M ** N, D))
+    nn.init.uniform_(ans, -a, a)
+    return ans
+
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
 def join_indexes(indexes: Tensor, M: int) -> Tensor:
     """
     Combines N-tuples of indexes into single indexes that can be used for
@@ -44,9 +70,15 @@ def join_indexes(indexes: Tensor, M: int) -> Tensor:
 
 
 # Note, we don't use this, we
+<<<<<<< HEAD
 def weighted_matrix_lookup(
     weights: Tensor, indexes: Tensor, knowledge_base: Tensor
 ) -> Tensor:
+=======
+def weighted_matrix_lookup(weights: Tensor,
+                           indexes: Tensor,
+                           knowledge_base: Tensor) -> Tensor:
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
     """
     Weighted combination of specified rows of a matrix.
          weights: Tensor of shape (*, K), can contain any value but probably in [0..1].
@@ -62,9 +94,15 @@ def weighted_matrix_lookup(
         # simpler but less memory-efficient implementation
         lookup = torch.index_select(knowledge_base, dim=0, index=indexes.flatten())
         D = knowledge_base.shape[-1]
+<<<<<<< HEAD
         weights = weights.unsqueeze(-2)  # (*, 1, K)
         lookup = lookup.reshape(*indexes.shape, D)  # (*, K, D)
         ans = torch.matmul(weights, lookup)  # ans: (*, 1, D)
+=======
+        weights = weights.unsqueeze(-2)   # (*, 1, K)
+        lookup = lookup.reshape(*indexes.shape, D) # (*, K, D)
+        ans = torch.matmul(weights, lookup) # ans: (*, 1, D)
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
         ans = ans.squeeze(-2)
         assert list(ans.shape) == list(weights.shape[:-2]) + [D]
         return ans
@@ -73,9 +111,13 @@ def weighted_matrix_lookup(
 class WeightedMatrixLookupFunction(torch.autograd.Function):
     @staticmethod
     @custom_fwd
+<<<<<<< HEAD
     def forward(
         ctx, weights: Tensor, indexes: Tensor, knowledge_base: Tensor
     ) -> Tensor:
+=======
+    def forward(ctx, weights: Tensor, indexes: Tensor, knowledge_base: Tensor) -> Tensor:
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
         """
         Weighted combination of specified rows of a matrix.
          weights: Tensor of shape (*, K), can contain any value but probably in [0..1].
@@ -87,6 +129,7 @@ class WeightedMatrixLookupFunction(torch.autograd.Function):
         """
         if random.random() < 0.001:
             print("dtype[1] = ", weights.dtype)
+<<<<<<< HEAD
         ctx.save_for_backward(
             weights.detach(), indexes.detach(), knowledge_base.detach()
         )
@@ -97,6 +140,17 @@ class WeightedMatrixLookupFunction(torch.autograd.Function):
             lookup = lookup.reshape(*indexes.shape, D)  # (*, K, D)
             ans = torch.matmul(weights, lookup)  # ans: (*, 1, D)
             ans = ans.squeeze(-2)  # (*, D)
+=======
+        ctx.save_for_backward(weights.detach(), indexes.detach(),
+                              knowledge_base.detach())
+        with torch.no_grad():
+            lookup = torch.index_select(knowledge_base, dim=0, index=indexes.flatten())
+            D = knowledge_base.shape[-1]
+            weights = weights.unsqueeze(-2)   # (*, 1, K)
+            lookup = lookup.reshape(*indexes.shape, D) # (*, K, D)
+            ans = torch.matmul(weights, lookup) # ans: (*, 1, D)
+            ans = ans.squeeze(-2) #(*, D)
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
         return ans
 
     @staticmethod
@@ -107,7 +161,11 @@ class WeightedMatrixLookupFunction(torch.autograd.Function):
         knowledge_base.requires_grad = True
         dtype = ans_grad.dtype
         ans_grad = ans_grad.to(weights.dtype)
+<<<<<<< HEAD
         assert weights.requires_grad is False
+=======
+        assert weights.requires_grad == False
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
         D = knowledge_base.shape[-1]
         with torch.enable_grad():
             # we'll use torch's autograd to differentiate this operation, which
@@ -115,12 +173,18 @@ class WeightedMatrixLookupFunction(torch.autograd.Function):
             # We don't save `lookup` because it's large, that is the reason
             # we override Torch autograd.
             lookup = torch.index_select(knowledge_base, dim=0, index=indexes.flatten())
+<<<<<<< HEAD
             lookup = lookup.reshape(*indexes.shape, D)  # (*, K, D)
         weights = weights.unsqueeze(-1)  # (*, K, 1)
+=======
+            lookup = lookup.reshape(*indexes.shape, D) # (*, K, D)
+        weights = weights.unsqueeze(-1)   # (*, K, 1)
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
         # forward pass: was:
         ## ans = torch.matmul(weights, lookup)
         ## ans: (*, 1, D)
         ## ans = ans.squeeze(-2) # ans, ans_grad: (*, D)
+<<<<<<< HEAD
         weights_grad = torch.matmul(
             lookup, ans_grad.unsqueeze(-1)  # (*, K, D)
         )  # (*, D, 1)
@@ -128,6 +192,12 @@ class WeightedMatrixLookupFunction(torch.autograd.Function):
         lookup_grad = weights * ans_grad.unsqueeze(
             -2
         )  # (*, K, 1) * (*, 1, D) = (*, K, D)
+=======
+        weights_grad = torch.matmul(lookup,  # (*, K, D)
+                                    ans_grad.unsqueeze(-1))  # (*, D, 1)
+        weights_grad = weights_grad.squeeze(-1) # (*, K, 1) -> (*, K)
+        lookup_grad = weights * ans_grad.unsqueeze(-2) # (*, K, 1) * (*, 1, D) = (*, K, D)
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
         lookup.backward(gradient=lookup_grad)
         return weights_grad.to(dtype), None, knowledge_base.grad.to(dtype)
 
@@ -149,7 +219,10 @@ class PenalizeNegentropyFunction(torch.autograd.Function):
      Returns:
        logprobs
     """
+<<<<<<< HEAD
 
+=======
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
     @staticmethod
     def forward(ctx, logprobs: Tensor, alpha: float):
         ctx.save_for_backward(logprobs.detach())
@@ -158,23 +231,35 @@ class PenalizeNegentropyFunction(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, logprobs_grad: Tensor) -> Tuple[Tensor, None]:
+<<<<<<< HEAD
         (logprobs,) = ctx.saved_tensors
+=======
+        logprobs, = ctx.saved_tensors
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
         with torch.enable_grad():
             logprobs.requires_grad = True
             # `negentropy` is the negative entropy of the average distribution.
             # distributions.  It will be <= 0.
+<<<<<<< HEAD
             l = logprobs.reshape(-1, logprobs.shape[-1])  # noqa: E741
+=======
+            l = logprobs.reshape(-1, logprobs.shape[-1])
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
             scale = ctx.alpha * l.shape[0]
             avg_dist = l.exp().mean(dim=0)
             negentropy = (avg_dist * (avg_dist + 1.0e-20).log()).sum()
             if random.random() < 0.0005:
                 negentropy_individual = (l * l.exp()).sum(dim=-1).mean()
+<<<<<<< HEAD
                 print(
                     "Negentropy[individual,combined] = ",
                     negentropy_individual.item(),
                     ", ",
                     negentropy.item(),
                 )
+=======
+                print("Negentropy[individual,combined] = ", negentropy_individual.item(), ", ", negentropy.item())
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
             loss = negentropy * scale
             loss.backward()
         return logprobs_grad + logprobs.grad, None
@@ -192,6 +277,7 @@ class KnowledgeBaseLookup(nn.Module):
       embedding_dim:  the dimension to project from and to, e.g. the
         d_model of the conformer.
     """
+<<<<<<< HEAD
 
     def __init__(
         self,
@@ -209,6 +295,20 @@ class KnowledgeBaseLookup(nn.Module):
         # initial_scale = 4.0 because the knowlege_base activations are
         # quite small -- if we use our optimizer they'll have stddev <= 0.1.
         self.out_proj = ScaledLinear(D, embedding_dim, initial_scale=4.0)
+=======
+    def __init__(self, M: int, N: int, D: int,
+                 K: int, embedding_dim: int,
+                 knowledge_base: nn.Parameter,
+                 negentropy_penalty: float = 0.001):
+        super(KnowledgeBaseLookup, self).__init__()
+        self.knowledge_base = knowledge_base  # shared!
+        self.in_proj = ScaledLinear(embedding_dim, M * N,
+                                    initial_scale=1.0)
+        # initial_scale = 4.0 because the knowlege_base activations are
+        # quite small -- if we use our optimizer they'll have stddev <= 0.1.
+        self.out_proj = ScaledLinear(D, embedding_dim,
+                                     initial_scale = 4.0)
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
         self.M = M
         self.N = N
         self.K = K
@@ -224,6 +324,7 @@ class KnowledgeBaseLookup(nn.Module):
 
         # TODO: later we can try multiplying by a projection of x or something like that.
         """
+<<<<<<< HEAD
         x = self.in_proj(x)  # now (*, M*N)
         x = x.reshape(*x.shape[:-1], self.N, self.M)  # now (*, N, M)
         x = x.log_softmax(dim=-1)  # now normalized logprobs, dim= (*, N, M)
@@ -232,6 +333,16 @@ class KnowledgeBaseLookup(nn.Module):
         _, indexes, weights = sample_combined(x, self.K, input_is_log=True)
         x = weighted_matrix_lookup(weights, indexes, self.knowledge_base)  # now (*, D)
         x = self.out_proj(x)  # now (*, self.embedding_dim)
+=======
+        x = self.in_proj(x) # now (*, M*N)
+        x = x.reshape(*x.shape[:-1], self.N, self.M) # now (*, N, M)
+        x = x.log_softmax(dim=-1) # now normalized logprobs, dim= (*, N, M)
+        x = PenalizeNegentropyFunction.apply(x, self.negentropy_penalty)
+
+        _, indexes, weights = sample_combined(x, self.K, input_is_log=True)
+        x = weighted_matrix_lookup(weights, indexes, self.knowledge_base) # now (*, D)
+        x = self.out_proj(x) # now (*, self.embedding_dim)
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
         return x
 
 
@@ -251,12 +362,17 @@ def _test_knowledge_base_lookup():
     x.requires_grad = True
     y = m(x)
     assert y.shape == x.shape
+<<<<<<< HEAD
     y.sum().backward()  # make sure backward doesn't crash..
+=======
+    y.sum().backward() # make sure backward doesn't crash..
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
     print("y = ", y)
     print("x.grad = ", x.grad)
     print("knowlege_base.grad norm = ", knowledge_base.grad.norm())
 
     dtype = torch.float32
+<<<<<<< HEAD
     device = torch.device("cuda")
     train_pairs = [
         (
@@ -289,6 +405,34 @@ def _test_knowledge_base_lookup():
         for n, (x, y) in enumerate(train_pairs):
             y_out = m(x)
             loss = ((y_out - y) ** 2).mean() * 100.0
+=======
+    device = torch.device('cuda')
+    train_pairs = [ (torch.randn(B, T, E, device=device, dtype=dtype),  torch.randn(B, T, E, device=device, dtype=dtype)) for _ in range(10) ]
+    from optim import Eve
+    optimizer = Eve(m.parameters(), lr=0.005, eps=1.0e-04)
+    m = m.to(device).to(dtype)
+
+
+    start = timeit.default_timer()
+
+# Epoch 0, batch 0, loss 1.0109944343566895
+# Epoch 10, batch 0, loss 1.0146660804748535
+# Epoch 20, batch 0, loss 1.0119813680648804
+# Epoch 30, batch 0, loss 1.0105408430099487
+# Epoch 40, batch 0, loss 1.0077732801437378
+# Epoch 50, batch 0, loss 1.0050103664398193
+# Epoch 60, batch 0, loss 1.0033129453659058
+# Epoch 70, batch 0, loss 1.0014232397079468
+# Epoch 80, batch 0, loss 0.9977912306785583
+# Epoch 90, batch 0, loss 0.8274348974227905
+# Epoch 100, batch 0, loss 0.3368612825870514
+# Epoch 110, batch 0, loss 0.11323091387748718
+# Time taken:  17.591704960912466
+    for epoch in range(150):
+        for n, (x,y) in enumerate(train_pairs):
+            y_out = m(x)
+            loss = ((y_out - y)**2).mean() * 100.0
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
             if n % 10 == 0 and epoch % 10 == 0:
                 print(f"Epoch {epoch}, batch {n}, loss {loss.item()}")
             loss.backward()
@@ -296,8 +440,12 @@ def _test_knowledge_base_lookup():
             optimizer.zero_grad()
 
     stop = timeit.default_timer()
+<<<<<<< HEAD
     print("Time taken: ", stop - start)
 
+=======
+    print('Time taken: ', stop - start)
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
 
 def _test_knowledge_base_lookup_autocast():
     K = 16
@@ -315,11 +463,16 @@ def _test_knowledge_base_lookup_autocast():
     x.requires_grad = True
     y = m(x)
     assert y.shape == x.shape
+<<<<<<< HEAD
     y.sum().backward()  # make sure backward doesn't crash..
+=======
+    y.sum().backward() # make sure backward doesn't crash..
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
     print("y = ", y)
     print("x.grad = ", x.grad)
     print("knowlege_base.grad norm = ", knowledge_base.grad.norm())
 
+<<<<<<< HEAD
     device = torch.device("cuda")
     train_pairs = [
         (torch.randn(B, T, E, device=device), torch.randn(B, T, E, device=device))
@@ -327,6 +480,11 @@ def _test_knowledge_base_lookup_autocast():
     ]
     from optim import Eve
 
+=======
+    device = torch.device('cuda')
+    train_pairs = [ (torch.randn(B, T, E, device=device),  torch.randn(B, T, E, device=device)) for _ in range(10) ]
+    from optim import Eve
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
     optimizer = Eve(m.parameters(), lr=0.005, eps=1.0e-04)
     m = m.to(device)
 
@@ -334,11 +492,20 @@ def _test_knowledge_base_lookup_autocast():
 
     start = timeit.default_timer()
 
+<<<<<<< HEAD
     for epoch in range(150):
         for n, (x, y) in enumerate(train_pairs):
             y_out = m(x)
             with torch.cuda.amp.autocast(enabled=True):
                 loss = ((y_out - y) ** 2).mean() * 100.0
+=======
+
+    for epoch in range(150):
+        for n, (x,y) in enumerate(train_pairs):
+            y_out = m(x)
+            with torch.cuda.amp.autocast(enabled=True):
+                loss = ((y_out - y)**2).mean() * 100.0
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
             if n % 10 == 0 and epoch % 10 == 0:
                 print(f"Epoch {epoch}, batch {n}, loss {loss.item()}")
             scaler.scale(loss).backward()
@@ -347,9 +514,17 @@ def _test_knowledge_base_lookup_autocast():
             optimizer.zero_grad()
 
     stop = timeit.default_timer()
+<<<<<<< HEAD
     print("Time taken: ", stop - start)
 
 
 if __name__ == "__main__":
+=======
+    print('Time taken: ', stop - start)
+
+
+
+if __name__ == '__main__':
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
     _test_knowledge_base_lookup()
     _test_knowledge_base_lookup_autocast()

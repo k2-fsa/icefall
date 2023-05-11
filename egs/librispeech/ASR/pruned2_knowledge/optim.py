@@ -72,11 +72,25 @@ class Eve(Optimizer):
         if not 0.0 <= eps:
             raise ValueError("Invalid epsilon value: {}".format(eps))
         if not 0.0 <= betas[0] < 1.0:
+<<<<<<< HEAD
             raise ValueError("Invalid beta parameter at index 0: {}".format(betas[0]))
         if not 0.0 <= betas[1] < 1.0:
             raise ValueError("Invalid beta parameter at index 1: {}".format(betas[1]))
         if not 0 <= weight_decay <= 0.1:
             raise ValueError("Invalid weight_decay value: {}".format(weight_decay))
+=======
+            raise ValueError(
+                "Invalid beta parameter at index 0: {}".format(betas[0])
+            )
+        if not 0.0 <= betas[1] < 1.0:
+            raise ValueError(
+                "Invalid beta parameter at index 1: {}".format(betas[1])
+            )
+        if not 0 <= weight_decay <= 0.1:
+            raise ValueError(
+                "Invalid weight_decay value: {}".format(weight_decay)
+            )
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
         if not 0 < target_rms <= 10.0:
             raise ValueError("Invalid target_rms value: {}".format(target_rms))
         defaults = dict(
@@ -112,7 +126,13 @@ class Eve(Optimizer):
                 # Perform optimization step
                 grad = p.grad
                 if grad.is_sparse:
+<<<<<<< HEAD
                     raise RuntimeError("AdamW does not support sparse gradients")
+=======
+                    raise RuntimeError(
+                        "AdamW does not support sparse gradients"
+                    )
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
 
                 state = self.state[p]
 
@@ -139,7 +159,11 @@ class Eve(Optimizer):
                 # Decay the first and second moment running average coefficient
                 exp_avg.mul_(beta1).add_(grad, alpha=1 - beta1)
                 exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
+<<<<<<< HEAD
                 denom = (exp_avg_sq.sqrt() * (bias_correction2**-0.5)).add_(
+=======
+                denom = (exp_avg_sq.sqrt() * (bias_correction2 ** -0.5)).add_(
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
                     group["eps"]
                 )
 
@@ -150,7 +174,13 @@ class Eve(Optimizer):
                 if p.numel() > 1:
                     # avoid applying this weight-decay on "scaling factors"
                     # (which are scalar).
+<<<<<<< HEAD
                     is_above_target_rms = p.norm() > (target_rms * (p.numel() ** 0.5))
+=======
+                    is_above_target_rms = p.norm() > (
+                        target_rms * (p.numel() ** 0.5)
+                    )
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
                     p.mul_(1 - (weight_decay * is_above_target_rms))
                 p.addcdiv_(exp_avg, denom, value=-step_size)
 
@@ -166,14 +196,26 @@ class LRScheduler(object):
     def __init__(self, optimizer: Optimizer, verbose: bool = False):
         # Attach optimizer
         if not isinstance(optimizer, Optimizer):
+<<<<<<< HEAD
             raise TypeError("{} is not an Optimizer".format(type(optimizer).__name__))
+=======
+            raise TypeError(
+                "{} is not an Optimizer".format(type(optimizer).__name__)
+            )
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
         self.optimizer = optimizer
         self.verbose = verbose
 
         for group in optimizer.param_groups:
             group.setdefault("initial_lr", group["lr"])
 
+<<<<<<< HEAD
         self.base_lrs = [group["initial_lr"] for group in optimizer.param_groups]
+=======
+        self.base_lrs = [
+            group["initial_lr"] for group in optimizer.param_groups
+        ]
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
 
         self.epoch = 0
         self.batch = 0
@@ -281,9 +323,16 @@ class Eden(LRScheduler):
 
     def get_lr(self):
         factor = (
+<<<<<<< HEAD
             (self.batch**2 + self.lr_batches**2) / self.lr_batches**2
         ) ** -0.25 * (
             ((self.epoch**2 + self.lr_epochs**2) / self.lr_epochs**2) ** -0.25
+=======
+            (self.batch ** 2 + self.lr_batches ** 2) / self.lr_batches ** 2
+        ) ** -0.25 * (
+            ((self.epoch ** 2 + self.lr_epochs ** 2) / self.lr_epochs ** 2)
+            ** -0.25
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
         )
         return [x * factor for x in self.base_lrs]
 

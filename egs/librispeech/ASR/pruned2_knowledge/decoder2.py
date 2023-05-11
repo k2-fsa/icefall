@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+<<<<<<< HEAD
 from typing import Optional
 
 import torch
@@ -21,6 +22,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 from subsampling import ScaledConv1d
 from torch import Tensor
+=======
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch import Tensor
+from typing import Optional
+from subsampling import ScaledConv1d
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
 
 
 class Decoder(nn.Module):
@@ -91,7 +100,13 @@ class Decoder(nn.Module):
         if self.context_size > 1:
             embedding_out = embedding_out.permute(0, 2, 1)
             if need_pad is True:
+<<<<<<< HEAD
                 embedding_out = F.pad(embedding_out, pad=(self.context_size - 1, 0))
+=======
+                embedding_out = F.pad(
+                    embedding_out, pad=(self.context_size - 1, 0)
+                )
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
             else:
                 # During inference time, there is no need to do extra padding
                 # as we only need one output
@@ -101,6 +116,10 @@ class Decoder(nn.Module):
         return embedding_out
 
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
 class ScaledEmbedding(nn.Module):
     r"""A simple lookup table that stores embeddings of a fixed dictionary and size.
 
@@ -169,6 +188,7 @@ class ScaledEmbedding(nn.Module):
                  [ 0.0000,  0.0000,  0.0000],
                  [-0.1655,  0.9897,  0.0635]]])
     """
+<<<<<<< HEAD
     __constants__ = [
         "num_embeddings",
         "embedding_dim",
@@ -176,6 +196,10 @@ class ScaledEmbedding(nn.Module):
         "scale_grad_by_freq",
         "sparse",
     ]
+=======
+    __constants__ = ['num_embeddings', 'embedding_dim', 'padding_idx',
+                     'scale_grad_by_freq', 'sparse']
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
 
     num_embeddings: int
     embedding_dim: int
@@ -184,6 +208,7 @@ class ScaledEmbedding(nn.Module):
     weight: Tensor
     sparse: bool
 
+<<<<<<< HEAD
     def __init__(
         self,
         num_embeddings: int,
@@ -193,11 +218,18 @@ class ScaledEmbedding(nn.Module):
         sparse: bool = False,
         scale_speed: float = 5.0,
     ) -> None:
+=======
+    def __init__(self, num_embeddings: int, embedding_dim: int, padding_idx: Optional[int] = None,
+                 scale_grad_by_freq: bool = False,
+                 sparse: bool = False,
+                 scale_speed: float = 5.0) -> None:
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
         super(ScaledEmbedding, self).__init__()
         self.num_embeddings = num_embeddings
         self.embedding_dim = embedding_dim
         if padding_idx is not None:
             if padding_idx > 0:
+<<<<<<< HEAD
                 assert (
                     padding_idx < self.num_embeddings
                 ), "Padding_idx must be within num_embeddings"
@@ -205,20 +237,37 @@ class ScaledEmbedding(nn.Module):
                 assert (
                     padding_idx >= -self.num_embeddings
                 ), "Padding_idx must be within num_embeddings"
+=======
+                assert padding_idx < self.num_embeddings, 'Padding_idx must be within num_embeddings'
+            elif padding_idx < 0:
+                assert padding_idx >= -self.num_embeddings, 'Padding_idx must be within num_embeddings'
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
                 padding_idx = self.num_embeddings + padding_idx
         self.padding_idx = padding_idx
         self.scale_grad_by_freq = scale_grad_by_freq
 
         self.scale_speed = scale_speed
+<<<<<<< HEAD
         self.scale = nn.Parameter(torch.zeros(()))  # see reset_parameters()
+=======
+        self.scale = nn.Parameter(torch.zeros(())) # see reset_parameters()
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
         self.sparse = sparse
 
         self.weight = nn.Parameter(torch.Tensor(num_embeddings, embedding_dim))
         self.reset_parameters()
 
+<<<<<<< HEAD
     def reset_parameters(self) -> None:
         nn.init.normal_(self.weight, std=0.05)
         nn.init.constant_(self.scale, torch.tensor(1.0 / 0.05).log() / self.scale_speed)
+=======
+
+
+    def reset_parameters(self) -> None:
+        nn.init.normal_(self.weight, std=0.05)
+        nn.init.constant_(self.scale, torch.tensor(1.0/0.05).log() / self.scale_speed)
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
 
         if self.padding_idx is not None:
             with torch.no_grad():
@@ -227,6 +276,7 @@ class ScaledEmbedding(nn.Module):
     def forward(self, input: Tensor) -> Tensor:
         scale = (self.scale * self.scale_speed).exp()
         if input.numel() < self.num_embeddings:
+<<<<<<< HEAD
             return (
                 F.embedding(
                     input,
@@ -258,4 +308,24 @@ class ScaledEmbedding(nn.Module):
             s += ", scale_grad_by_freq={scale_grad_by_freq}"
         if self.sparse is not False:
             s += ", sparse=True"
+=======
+            return F.embedding(
+                input, self.weight, self.padding_idx,
+                None, 2.0, # None, 2.0 relate to normalization
+                 self.scale_grad_by_freq, self.sparse) * scale
+        else:
+            return F.embedding(
+                input, self.weight * scale, self.padding_idx,
+                None, 2.0, # None, 2.0 relates to normalization
+                self.scale_grad_by_freq, self.sparse)
+
+    def extra_repr(self) -> str:
+        s = '{num_embeddings}, {embedding_dim}, scale_speed={scale_speed}, scale={scale}'
+        if self.padding_idx is not None:
+            s += ', padding_idx={padding_idx}'
+        if self.scale_grad_by_freq is not False:
+            s += ', scale_grad_by_freq={scale_grad_by_freq}'
+        if self.sparse is not False:
+            s += ', sparse=True'
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
         return s.format(**self.__dict__)

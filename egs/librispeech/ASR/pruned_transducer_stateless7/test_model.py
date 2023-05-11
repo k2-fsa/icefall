@@ -20,6 +20,7 @@
 To run this file, do:
 
     cd icefall/egs/librispeech/ASR
+<<<<<<< HEAD
     python ./pruned_transducer_stateless7/test_model.py
 """
 
@@ -30,10 +31,34 @@ from train import get_params, get_transducer_model
 
 
 def test_model():
+=======
+    python ./pruned_transducer_stateless4/test_model.py
+"""
+
+from train import get_params, get_transducer_model
+
+
+def test_model_1():
     params = get_params()
     params.vocab_size = 500
     params.blank_id = 0
     params.context_size = 2
+    params.num_encoder_layers = 24
+    params.dim_feedforward = 1536  # 384 * 4
+    params.encoder_dim = 384
+    model = get_transducer_model(params)
+    num_param = sum([p.numel() for p in model.parameters()])
+    print(f"Number of model parameters: {num_param}")
+
+
+# See Table 1 from https://arxiv.org/pdf/2005.08100.pdf
+def test_model_M():
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
+    params = get_params()
+    params.vocab_size = 500
+    params.blank_id = 0
+    params.context_size = 2
+<<<<<<< HEAD
     params.num_encoder_layers = "2,4,3,2,4"
     params.feedforward_dims = "1024,1024,2048,2048,1024"
     params.nhead = "8,8,8,8,8"
@@ -62,6 +87,22 @@ def test_model():
 
 def main():
     test_model()
+=======
+    params.num_encoder_layers = 18
+    params.dim_feedforward = 1024
+    params.encoder_dim = 256
+    params.nhead = 4
+    params.decoder_dim = 512
+    params.joiner_dim = 512
+    model = get_transducer_model(params)
+    num_param = sum([p.numel() for p in model.parameters()])
+    print(f"Number of model parameters: {num_param}")
+
+
+def main():
+    #  test_model_1()
+    test_model_M()
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
 
 
 if __name__ == "__main__":

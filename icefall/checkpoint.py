@@ -473,5 +473,11 @@ def average_state_dict(
         v = state_dict_1[k]
         if torch.is_floating_point(v):
             v *= weight_1
+<<<<<<< HEAD
             v += state_dict_2[k].to(device=state_dict_1[k].device) * weight_2
+=======
+            v += (
+                state_dict_2[k].to(device=state_dict_1[k].device) * weight_2
+            )
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
             v *= scaling_factor

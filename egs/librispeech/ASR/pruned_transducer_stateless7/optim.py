@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 # Copyright      2022  Xiaomi Corp.        (authors: Daniel Povey)
+=======
+#      Copyright      2022  Xiaomi Corp.        (authors: Daniel Povey)
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
 #
 # See ../LICENSE for clarification regarding multiple authors
 #
@@ -18,11 +22,18 @@ import contextlib
 import logging
 import random
 from collections import defaultdict
+<<<<<<< HEAD
 from typing import List, Optional, Tuple, Union
 
 import torch
 from lhotse.utils import fix_random_seed
 from scaling import ActivationBalancer
+=======
+from typing import Dict, List, Optional, Tuple, Union
+
+import torch
+from lhotse.utils import fix_random_seed
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
 from torch import Tensor
 from torch.optim import Optimizer
 
@@ -132,6 +143,12 @@ class ScaledAdam(BatchedOptimizer):
 
      Args:
           params:  The parameters or param_groups to optimize (like other Optimizer subclasses)
+<<<<<<< HEAD
+=======
+                   Unlike common optimizers, which accept model.parameters() or groups of parameters(),
+                   this optimizer could accept model.named_parameters() or groups of named_parameters().
+                   See comments of function _get_names_of_parameters for its 4 possible cases.
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
               lr:  The learning rate.  We will typically use a learning rate schedule that starts
                    at 0.03 and decreases over time, i.e. much higher than other common
                    optimizers.
@@ -178,6 +195,7 @@ class ScaledAdam(BatchedOptimizer):
         scalar_max=10.0,
         size_update_period=4,
         clipping_update_period=100,
+<<<<<<< HEAD
         parameters_names=None,
         show_dominant_parameters=True,
     ):
@@ -187,6 +205,10 @@ class ScaledAdam(BatchedOptimizer):
             "which is a List[List[str]]. Each List[str] is for a group"
             "and each str is for a parameter"
         )
+=======
+    ):
+
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
         defaults = dict(
             lr=lr,
             clipping_scale=clipping_scale,
@@ -200,10 +222,131 @@ class ScaledAdam(BatchedOptimizer):
             clipping_update_period=clipping_update_period,
         )
 
+<<<<<<< HEAD
         super(ScaledAdam, self).__init__(params, defaults)
         assert len(self.param_groups) == len(parameters_names)
         self.parameters_names = parameters_names
         self.show_dominant_parameters = show_dominant_parameters
+=======
+        # If params only contains parameters or group of parameters,
+        # i.e when parameter names are not given,
+        # this flag will be set to False in funciton _get_names_of_parameters.
+        self.show_dominant_parameters = True
+        param_groups, parameters_names = self._get_names_of_parameters(params)
+        super(ScaledAdam, self).__init__(param_groups, defaults)
+        assert len(self.param_groups) == len(parameters_names)
+        self.parameters_names = parameters_names
+
+    def _get_names_of_parameters(
+        self, params_or_named_params
+    ) -> Tuple[List[Dict], List[List[str]]]:
+        """
+        Args:
+          params_or_named_params: according to the way ScaledAdam is initialized in train.py,
+            this argument could be one of following 4 cases,
+            case 1, a generator of parameter, e.g.:
+              optimizer = ScaledAdam(model.parameters(), lr=params.base_lr, clipping_scale=3.0)
+
+            case 2, a list of parameter groups with different config, e.g.:
+              model_param_groups = [
+                      {'params': model.encoder.parameters(), 'lr': 0.05},
+                      {'params': model.decoder.parameters(), 'lr': 0.01},
+                      {'params': model.joiner.parameters(), 'lr': 0.03},
+                      ]
+              optimizer = ScaledAdam(model_param_groups, lr=params.base_lr, clipping_scale=3.0)
+
+            case 3, a generator of named_parameter, e.g.:
+              optimizer = ScaledAdam(model.named_parameters(), lr=params.base_lr, clipping_scale=3.0)
+
+            case 4, a list of named_parameter groups with different config, e.g.:
+              model_named_param_groups = [
+                      {'named_params': model.encoder.named_parameters(), 'lr': 0.05},
+                      {'named_params': model.decoder.named_parameters(), 'lr': 0.01},
+                      {'named_params': model.joiner.named_parameters(), 'lr': 0.03},
+                      ]
+              optimizer = ScaledAdam(model_named_param_groups, lr=params.base_lr, clipping_scale=3.0)
+
+          For case 1 and case 2, input params is used to initialize the underlying torch.optimizer.
+          For case 3 and case 4, firstly, names and params are extracted from input named_params,
+            then, these extracted params are used to initialize the underlying torch.optimizer,
+            and these extracted names are mainly used by function
+            `_show_gradient_dominating_parameter`
+
+        Returns:
+          Returns a tuple containing 2 elements:
+            - `param_groups` with type List[Dict], each Dict element is a parameter group.
+              An example of `param_groups` could be:
+              [
+                  {'params': `one iterable of Parameter`, 'lr': 0.05},
+                  {'params': `another iterable of Parameter`, 'lr': 0.08},
+                  {'params': `a third iterable of Parameter`, 'lr': 0.1},
+              ]
+            - `param_gruops_names` with type List[List[str]],
+               each `List[str]` is for a group['params'] in param_groups,
+               and each `str` is the name of a parameter.
+               A dummy name "foo" is related to each parameter,
+               if input are params without names, i.e. case 1 or case 2.
+        """
+        # variable naming convention in this function:
+        #   p is short for param.
+        #   np is short for named_param.
+        #   p_or_np is short for param_or_named_param.
+        #   cur is short for current.
+        #   group is a dict, e.g. {'params': iterable of parameter, 'lr': 0.05, other fields}.
+        #   groups is a List[group]
+
+        iterable_or_groups = list(params_or_named_params)
+        if len(iterable_or_groups) == 0:
+            raise ValueError("optimizer got an empty parameter list")
+
+        # The first value of returned tuple.  A list of dicts containing at
+        # least 'params' as a key.
+        param_groups = []
+
+        # The second value of returned tuple,
+        # a List[List[str]], each sub-List is for a group.
+        param_groups_names = []
+
+        if not isinstance(iterable_or_groups[0], dict):
+            # case 1 or case 3,
+            # the input is an iterable of parameter or named parameter.
+            param_iterable_cur_group = []
+            param_names_cur_group = []
+            for p_or_np in iterable_or_groups:
+                if isinstance(p_or_np, tuple):
+                    # case 3
+                    name, param = p_or_np
+                else:
+                    # case 1
+                    assert isinstance(p_or_np, torch.Tensor)
+                    param = p_or_np
+                    # Assign a dummy name as a placeholder
+                    name = "foo"
+                    self.show_dominant_parameters = False
+                param_iterable_cur_group.append(param)
+                param_names_cur_group.append(name)
+            param_groups.append({"params": param_iterable_cur_group})
+            param_groups_names.append(param_names_cur_group)
+        else:
+            # case 2 or case 4
+            # the input is groups of parameter or named parameter.
+            for cur_group in iterable_or_groups:
+                if "params" in cur_group:
+                    for p in cur_group["params"]:
+                        assert isinstance(p, torch.Tensor)
+                    param_groups.append(cur_group)
+                    param_groups_names.append(["foo"] * len(p_list))
+                else:
+                    assert "named_params" in cur_group
+                    name_list = [ x[0] for x in cur_group["named_params"] ]
+                    p_list = [ x[1] for x in cur_group["named_params"] ]
+                    del cur_group["named_params"]
+                    cur_group["params"] = p_list
+                    param_groups.append(cur_group)
+                    param_groups_names.append(name_list)
+
+        return param_groups, param_groups_names
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
 
     def __setstate__(self, state):
         super(ScaledAdam, self).__setstate__(state)
@@ -282,6 +425,10 @@ class ScaledAdam(BatchedOptimizer):
 
         batch_size = p.shape[0]
         numel = p.numel() // batch_size
+<<<<<<< HEAD
+=======
+        numel = p.numel()
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
 
         if numel > 1:
             # "param_rms" just periodically records the scalar root-mean-square value of
@@ -397,7 +544,11 @@ class ScaledAdam(BatchedOptimizer):
         self, tuples: List[Tuple[Tensor, dict, List[str]]], tot_sumsq: Tensor
     ):
         """
+<<<<<<< HEAD
         Show information of parameter wihch dominanting tot_sumsq.
+=======
+        Show information of parameter which dominates tot_sumsq.
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
 
         Args:
            tuples: a list of tuples of (param, state, param_names)
@@ -415,7 +566,11 @@ class ScaledAdam(BatchedOptimizer):
             batch_grad = p.grad
             if p.numel() == p.shape[0]:  # a batch of scalars
                 batch_sumsq_orig = batch_grad**2
+<<<<<<< HEAD
                 # Dummpy values used by following `zip` statement.
+=======
+                # Dummy values used by following `zip` statement.
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
                 batch_rms_orig = torch.ones(p.shape[0])
             else:
                 batch_rms_orig = state["param_rms"]
@@ -448,11 +603,19 @@ class ScaledAdam(BatchedOptimizer):
             dominant_grad,
         ) = sorted_by_proportion[dominant_param_name]
         logging.info(
+<<<<<<< HEAD
             f"Parameter Dominanting tot_sumsq {dominant_param_name}"
             f" with proportion {dominant_proportion:.2f},"
             f" where dominant_sumsq=(grad_sumsq*orig_rms_sq)"
             f"={dominant_sumsq:.3e},"
             f" grad_sumsq = {(dominant_grad**2).sum():.3e},"
+=======
+            f"Parameter dominating tot_sumsq {dominant_param_name}"
+            f" with proportion {dominant_proportion:.2f},"
+            f" where dominant_sumsq=(grad_sumsq*orig_rms_sq)"
+            f"={dominant_sumsq:.3e},"
+            f" grad_sumsq={(dominant_grad**2).sum():.3e},"
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
             f" orig_rms_sq={(dominant_rms**2).item():.3e}"
         )
 
@@ -556,12 +719,26 @@ class ScaledAdam(BatchedOptimizer):
         )
 
         is_too_small = param_rms < param_min_rms
+<<<<<<< HEAD
         is_too_large = param_rms > param_max_rms
 
         # when the param gets too small, just don't shrink it any further.
         scale_step.masked_fill_(is_too_small, 0.0)
         # when it gets too large, stop it from getting any larger.
         scale_step.masked_fill_(is_too_large, -size_lr * size_update_period)
+=======
+
+        # when the param gets too small, just don't shrink it any further.
+        scale_step.masked_fill_(is_too_small, 0.0)
+
+        # and ensure the parameter rms after update never exceeds param_max_rms.
+        # We have to look at the trained model for parameters at or around the
+        # param_max_rms, because sometimes they can indicate a problem with the
+        # topology or settings.
+        scale_step = torch.minimum(scale_step,
+                                   (param_max_rms - param_rms) / param_rms)
+
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
         delta = state["delta"]
         # the factor of (1-beta1) relates to momentum.
         delta.add_(p * scale_step, alpha=(1 - beta1))
@@ -798,6 +975,7 @@ def _test_eden():
     logging.info(f"state dict = {scheduler.state_dict()}")
 
 
+<<<<<<< HEAD
 def _plot_eden_lr():
     import matplotlib.pyplot as plt
 
@@ -839,6 +1017,8 @@ def _plot_eden_lr():
     plt.savefig("lr.png")
 
 
+=======
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
 # This is included mostly as a baseline for ScaledAdam.
 class Eve(Optimizer):
     """
@@ -1097,6 +1277,11 @@ if __name__ == "__main__":
     else:
         hidden_dim = 200
 
+<<<<<<< HEAD
     # _test_scaled_adam(hidden_dim)
     # _test_eden()
     _plot_eden_lr()
+=======
+    _test_scaled_adam(hidden_dim)
+    _test_eden()
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0

@@ -83,7 +83,12 @@ class LibriSpeechAsrDataModule:
             "--full-libri",
             type=str2bool,
             default=True,
+<<<<<<< HEAD
             help="When enabled, use 960h LibriSpeech. Otherwise, use 100h subset.",
+=======
+            help="When enabled, use 960h LibriSpeech. "
+            "Otherwise, use 100h subset.",
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
         )
         group.add_argument(
             "--manifest-dir",
@@ -207,9 +212,19 @@ class LibriSpeechAsrDataModule:
         if self.args.enable_musan:
             logging.info("Enable MUSAN")
             logging.info("About to get Musan cuts")
+<<<<<<< HEAD
             cuts_musan = load_manifest(self.args.manifest_dir / "cuts_musan.json.gz")
             transforms.append(
                 CutMix(cuts=cuts_musan, prob=0.5, snr=(10, 20), preserve_id=True)
+=======
+            cuts_musan = load_manifest(
+                self.args.manifest_dir / "cuts_musan.json.gz"
+            )
+            transforms.append(
+                CutMix(
+                    cuts=cuts_musan, prob=0.5, snr=(10, 20), preserve_id=True
+                )
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
             )
         else:
             logging.info("Disable MUSAN")
@@ -231,7 +246,13 @@ class LibriSpeechAsrDataModule:
         input_transforms = []
         if self.args.enable_spec_aug:
             logging.info("Enable SpecAugment")
+<<<<<<< HEAD
             logging.info(f"Time warp factor: {self.args.spec_aug_time_warp_factor}")
+=======
+            logging.info(
+                f"Time warp factor: {self.args.spec_aug_time_warp_factor}"
+            )
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
             # Set the value of num_frame_masks according to Lhotse's version.
             # In different Lhotse's versions, the default of num_frame_masks is
             # different.
@@ -274,7 +295,13 @@ class LibriSpeechAsrDataModule:
             # Drop feats to be on the safe side.
             train = K2SpeechRecognitionDataset(
                 cut_transforms=transforms,
+<<<<<<< HEAD
                 input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80))),
+=======
+                input_strategy=OnTheFlyFeatures(
+                    Fbank(FbankConfig(num_mel_bins=80))
+                ),
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
                 input_transforms=input_transforms,
                 return_cuts=self.args.return_cuts,
             )
@@ -331,7 +358,13 @@ class LibriSpeechAsrDataModule:
         if self.args.on_the_fly_feats:
             validate = K2SpeechRecognitionDataset(
                 cut_transforms=transforms,
+<<<<<<< HEAD
                 input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80))),
+=======
+                input_strategy=OnTheFlyFeatures(
+                    Fbank(FbankConfig(num_mel_bins=80))
+                ),
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
                 return_cuts=self.args.return_cuts,
             )
         else:
@@ -378,17 +411,35 @@ class LibriSpeechAsrDataModule:
     @lru_cache()
     def train_clean_100_cuts(self) -> CutSet:
         logging.info("About to get train-clean-100 cuts")
+<<<<<<< HEAD
         return load_manifest(self.args.manifest_dir / "cuts_train-clean-100.json.gz")
+=======
+        return load_manifest(
+            self.args.manifest_dir / "cuts_train-clean-100.json.gz"
+        )
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
 
     @lru_cache()
     def train_clean_360_cuts(self) -> CutSet:
         logging.info("About to get train-clean-360 cuts")
+<<<<<<< HEAD
         return load_manifest(self.args.manifest_dir / "cuts_train-clean-360.json.gz")
+=======
+        return load_manifest(
+            self.args.manifest_dir / "cuts_train-clean-360.json.gz"
+        )
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
 
     @lru_cache()
     def train_other_500_cuts(self) -> CutSet:
         logging.info("About to get train-other-500 cuts")
+<<<<<<< HEAD
         return load_manifest(self.args.manifest_dir / "cuts_train-other-500.json.gz")
+=======
+        return load_manifest(
+            self.args.manifest_dir / "cuts_train-other-500.json.gz"
+        )
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
 
     @lru_cache()
     def dev_clean_cuts(self) -> CutSet:

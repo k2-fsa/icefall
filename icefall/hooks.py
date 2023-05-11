@@ -14,11 +14,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+<<<<<<< HEAD
 import logging
 import random
 
 import torch
 from torch import Tensor, nn
+=======
+import random
+import torch
+from torch import Tensor, nn
+import logging
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
 
 
 def register_inf_check_hooks(model: nn.Module) -> None:
@@ -57,7 +64,11 @@ def register_inf_check_hooks(model: nn.Module) -> None:
             if isinstance(_output, Tensor):
                 if not torch.isfinite(_output.to(torch.float32).sum()):
                     logging.warning(
+<<<<<<< HEAD
                         f"The sum of {_name}.grad is not finite"  # ": {_output}"
+=======
+                        f"The sum of {_name}.grad is not finite" # ": {_output}"
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
                     )
             elif isinstance(_output, tuple):
                 for i, o in enumerate(_output):
@@ -66,20 +77,43 @@ def register_inf_check_hooks(model: nn.Module) -> None:
                     if not isinstance(o, Tensor):
                         continue
                     if not torch.isfinite(o.to(torch.float32).sum()):
+<<<<<<< HEAD
                         logging.warning(f"The sum of {_name}.grad[{i}] is not finite")
+=======
+                        logging.warning(
+                            f"The sum of {_name}.grad[{i}] is not finite"
+                        )
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
 
         module.register_forward_hook(forward_hook)
         module.register_backward_hook(backward_hook)
 
+<<<<<<< HEAD
     for name, parameter in model.named_parameters():
 
         def param_backward_hook(grad, _name=name):
             if not torch.isfinite(grad.to(torch.float32).sum()):
                 logging.warning(f"The sum of {_name}.param_grad is not finite")
+=======
+
+    for name, parameter in model.named_parameters():
+
+        def param_backward_hook(
+                grad, _name=name
+        ):
+            if not torch.isfinite(grad.to(torch.float32).sum()):
+                logging.warning(
+                    f"The sum of {_name}.param_grad is not finite"
+                )
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
 
         parameter.register_hook(param_backward_hook)
 
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
 def _test_inf_check_hooks():
     model = nn.Sequential(nn.Linear(100, 50), nn.Linear(50, 80))
 

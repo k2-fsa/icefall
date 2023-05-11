@@ -63,7 +63,13 @@ class Transducer(nn.Module):
         self.decoder = decoder
         self.joiner = joiner
 
+<<<<<<< HEAD
         self.simple_am_proj = ScaledLinear(encoder_dim, vocab_size, initial_speed=0.5)
+=======
+        self.simple_am_proj = ScaledLinear(
+            encoder_dim, vocab_size, initial_speed=0.5
+        )
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
         self.simple_lm_proj = ScaledLinear(decoder_dim, vocab_size)
 
     def forward(
@@ -134,7 +140,13 @@ class Transducer(nn.Module):
         y_padded = y.pad(mode="constant", padding_value=0)
 
         y_padded = y_padded.to(torch.int64)
+<<<<<<< HEAD
         boundary = torch.zeros((x.size(0), 4), dtype=torch.int64, device=x.device)
+=======
+        boundary = torch.zeros(
+            (x.size(0), 4), dtype=torch.int64, device=x.device
+        )
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
         boundary[:, 2] = y_lens
         boundary[:, 3] = x_lens
 

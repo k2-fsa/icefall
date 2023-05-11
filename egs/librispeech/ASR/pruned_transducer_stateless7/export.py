@@ -19,6 +19,7 @@
 # This script converts several saved checkpoints
 # to a single one using model averaging.
 """
+<<<<<<< HEAD
 
 Usage:
 
@@ -45,27 +46,44 @@ for how to use the exported models outside of icefall.
 
 ./pruned_transducer_stateless7/export.py \
   --exp-dir ./pruned_transducer_stateless7/exp \
+=======
+Usage:
+./pruned_transducer_stateless5/export.py \
+  --exp-dir ./pruned_transducer_stateless5/exp \
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
   --bpe-model data/lang_bpe_500/bpe.model \
   --epoch 20 \
   --avg 10
 
+<<<<<<< HEAD
 It will generate a file `pretrained.pt` in the given `exp_dir`. You can later
 load it by `icefall.checkpoint.load_checkpoint()`.
 
 To use the generated file with `pruned_transducer_stateless7/decode.py`,
+=======
+It will generate a file exp_dir/pretrained.pt
+
+To use the generated file with `pruned_transducer_stateless5/decode.py`,
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
 you can do:
 
     cd /path/to/exp_dir
     ln -s pretrained.pt epoch-9999.pt
 
     cd /path/to/egs/librispeech/ASR
+<<<<<<< HEAD
     ./pruned_transducer_stateless7/decode.py \
         --exp-dir ./pruned_transducer_stateless7/exp \
+=======
+    ./pruned_transducer_stateless5/decode.py \
+        --exp-dir ./pruned_transducer_stateless5/exp \
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
         --epoch 9999 \
         --avg 1 \
         --max-duration 600 \
         --decoding-method greedy_search \
         --bpe-model data/lang_bpe_500/bpe.model
+<<<<<<< HEAD
 
 Check ./pretrained.py for its usage.
 
@@ -80,6 +98,8 @@ with the following commands:
     git lfs install
     git clone https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11
     # You will find the pre-trained model in icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11/exp
+=======
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
 """
 
 import argparse
@@ -88,8 +108,11 @@ from pathlib import Path
 
 import sentencepiece as spm
 import torch
+<<<<<<< HEAD
 import torch.nn as nn
 from scaling_converter import convert_scaled_to_non_scaled
+=======
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
 from train import add_model_arguments, get_params, get_transducer_model
 
 from icefall.checkpoint import (
@@ -109,8 +132,13 @@ def get_parser():
     parser.add_argument(
         "--epoch",
         type=int,
+<<<<<<< HEAD
         default=30,
         help="""It specifies the checkpoint to use for decoding.
+=======
+        default=28,
+        help="""It specifies the checkpoint to use for averaging.
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
         Note: Epoch counts from 1.
         You can specify --avg to use more checkpoints for model averaging.""",
     )
@@ -128,7 +156,11 @@ def get_parser():
     parser.add_argument(
         "--avg",
         type=int,
+<<<<<<< HEAD
         default=9,
+=======
+        default=15,
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
         help="Number of checkpoints to average. Automatically select "
         "consecutive checkpoints before the checkpoint specified by "
         "'--epoch' and '--iter'",
@@ -137,7 +169,11 @@ def get_parser():
     parser.add_argument(
         "--use-averaged-model",
         type=str2bool,
+<<<<<<< HEAD
         default=True,
+=======
+        default=False,
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
         help="Whether to load averaged model. Currently it only supports "
         "using --epoch. If True, it would decode with the averaged model "
         "over the epoch range from `epoch-avg` (excluded) to `epoch`."
@@ -148,7 +184,11 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
+<<<<<<< HEAD
         default="pruned_transducer_stateless7/exp",
+=======
+        default="pruned_transducer_stateless5/exp",
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
         help="""It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
         """,
@@ -166,9 +206,12 @@ def get_parser():
         type=str2bool,
         default=False,
         help="""True to save a model after applying torch.jit.script.
+<<<<<<< HEAD
         It will generate a file named cpu_jit.pt
 
         Check ./jit_pretrained.py for how to use it.
+=======
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
         """,
     )
 
@@ -176,7 +219,12 @@ def get_parser():
         "--context-size",
         type=int,
         default=2,
+<<<<<<< HEAD
         help="The context size in the decoder. 1 means bigram; 2 means tri-gram",
+=======
+        help="The context size in the decoder. 1 means bigram; "
+        "2 means tri-gram",
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
     )
 
     add_model_arguments(parser)
@@ -184,11 +232,19 @@ def get_parser():
     return parser
 
 
+<<<<<<< HEAD
 @torch.no_grad()
+=======
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
 def main():
     args = get_parser().parse_args()
     args.exp_dir = Path(args.exp_dir)
 
+<<<<<<< HEAD
+=======
+    assert args.jit is False, "Support torchscript will be added later"
+
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
     params = get_params()
     params.update(vars(args))
 
@@ -210,6 +266,7 @@ def main():
     logging.info("About to create model")
     model = get_transducer_model(params)
 
+<<<<<<< HEAD
     model.to(device)
 
     if not params.use_averaged_model:
@@ -217,6 +274,13 @@ def main():
             filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
                 : params.avg
             ]
+=======
+    if not params.use_averaged_model:
+        if params.iter > 0:
+            filenames = find_checkpoints(
+                params.exp_dir, iteration=-params.iter
+            )[: params.avg]
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
             if len(filenames) == 0:
                 raise ValueError(
                     f"No checkpoints found for"
@@ -243,9 +307,15 @@ def main():
             model.load_state_dict(average_checkpoints(filenames, device=device))
     else:
         if params.iter > 0:
+<<<<<<< HEAD
             filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
                 : params.avg + 1
             ]
+=======
+            filenames = find_checkpoints(
+                params.exp_dir, iteration=-params.iter
+            )[: params.avg + 1]
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
             if len(filenames) == 0:
                 raise ValueError(
                     f"No checkpoints found for"
@@ -268,6 +338,10 @@ def main():
                     filename_start=filename_start,
                     filename_end=filename_end,
                     device=device,
+<<<<<<< HEAD
+=======
+                    decompose=True
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
                 )
             )
         else:
@@ -286,6 +360,7 @@ def main():
                     filename_start=filename_start,
                     filename_end=filename_end,
                     device=device,
+<<<<<<< HEAD
                 )
             )
 
@@ -299,13 +374,29 @@ def main():
         # Otherwise, one of its arguments is a ragged tensor and is not
         # torch scriptabe.
         model.__class__.forward = torch.jit.ignore(model.__class__.forward)
+=======
+                    decompose=True
+                )
+            )
+
+    model.eval()
+
+    model.to("cpu")
+    model.eval()
+
+    if params.jit:
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
         logging.info("Using torch.jit.script")
         model = torch.jit.script(model)
         filename = params.exp_dir / "cpu_jit.pt"
         model.save(str(filename))
         logging.info(f"Saved to {filename}")
     else:
+<<<<<<< HEAD
         logging.info("Not using torchscript. Export model.state_dict()")
+=======
+        logging.info("Not using torch.jit.script")
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
         # Save it using a format so that it can be loaded
         # by :func:`load_checkpoint`
         filename = params.exp_dir / "pretrained.pt"
@@ -314,7 +405,13 @@ def main():
 
 
 if __name__ == "__main__":
+<<<<<<< HEAD
     formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
+=======
+    formatter = (
+        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
+    )
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
 
     logging.basicConfig(format=formatter, level=logging.INFO)
     main()

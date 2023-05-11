@@ -76,7 +76,15 @@ from beam_search import (
 )
 from train import get_params, get_transducer_model
 
+<<<<<<< HEAD
 from icefall.checkpoint import average_checkpoints, find_checkpoints, load_checkpoint
+=======
+from icefall.checkpoint import (
+    average_checkpoints,
+    find_checkpoints,
+    load_checkpoint,
+)
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
 from icefall.utils import (
     AttributeDict,
     setup_logger,
@@ -182,7 +190,12 @@ def get_parser():
         "--context-size",
         type=int,
         default=2,
+<<<<<<< HEAD
         help="The context size in the decoder. 1 means bigram; 2 means tri-gram",
+=======
+        help="The context size in the decoder. 1 means bigram; "
+        "2 means tri-gram",
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
     )
     parser.add_argument(
         "--max-sym-per-frame",
@@ -240,7 +253,13 @@ def decode_one_batch(
     supervisions = batch["supervisions"]
     feature_lens = supervisions["num_frames"].to(device)
 
+<<<<<<< HEAD
     encoder_out, encoder_out_lens = model.encoder(x=feature, x_lens=feature_lens)
+=======
+    encoder_out, encoder_out_lens = model.encoder(
+        x=feature, x_lens=feature_lens
+    )
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
     hyps = []
 
     if params.decoding_method == "fast_beam_search":
@@ -255,7 +274,14 @@ def decode_one_batch(
         )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
+<<<<<<< HEAD
     elif params.decoding_method == "greedy_search" and params.max_sym_per_frame == 1:
+=======
+    elif (
+        params.decoding_method == "greedy_search"
+        and params.max_sym_per_frame == 1
+    ):
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
         hyp_tokens = greedy_search_batch(
             model=model,
             encoder_out=encoder_out,
@@ -375,7 +401,13 @@ def decode_dataset(
         if batch_idx % log_interval == 0:
             batch_str = f"{batch_idx}/{num_batches}"
 
+<<<<<<< HEAD
             logging.info(f"batch {batch_str}, cuts processed until now is {num_cuts}")
+=======
+            logging.info(
+                f"batch {batch_str}, cuts processed until now is {num_cuts}"
+            )
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
     return results
 
 
@@ -386,13 +418,25 @@ def save_results(
 ):
     test_set_wers = dict()
     for key, results in results_dict.items():
+<<<<<<< HEAD
         recog_path = params.res_dir / f"recogs-{test_set_name}-{params.suffix}.txt"
+=======
+        recog_path = (
+            params.res_dir / f"recogs-{test_set_name}-{key}-{params.suffix}.txt"
+        )
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
         store_transcripts(filename=recog_path, texts=results)
         logging.info(f"The transcripts are stored in {recog_path}")
 
         # The following prints out WERs, per-word error statistics and aligned
         # ref/hyp pairs.
+<<<<<<< HEAD
         errs_filename = params.res_dir / f"errs-{test_set_name}-{params.suffix}.txt"
+=======
+        errs_filename = (
+            params.res_dir / f"errs-{test_set_name}-{key}-{params.suffix}.txt"
+        )
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
         with open(errs_filename, "w") as f:
             wer = write_error_stats(
                 f, f"{test_set_name}-{key}", results, enable_log=True
@@ -402,7 +446,14 @@ def save_results(
         logging.info("Wrote detailed error stats to {}".format(errs_filename))
 
     test_set_wers = sorted(test_set_wers.items(), key=lambda x: x[1])
+<<<<<<< HEAD
     errs_info = params.res_dir / f"wer-summary-{test_set_name}-{params.suffix}.txt"
+=======
+    errs_info = (
+        params.res_dir
+        / f"wer-summary-{test_set_name}-{key}-{params.suffix}.txt"
+    )
+>>>>>>> 1ab2a4c66231beb0ab0cc608bc27dba23fbd88a0
     with open(errs_info, "w") as f:
         print("settings\tWER", file=f)
         for key, val in test_set_wers:
