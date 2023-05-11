@@ -919,7 +919,7 @@ def main():
             for line in open(params.context_file).readlines():
                 contexts.append(line.strip())
             context_graph = ContextGraph(params.context_score)
-            context_graph.build_context_graph(sp.encode(contexts))
+            context_graph.build(sp.encode(contexts))
         else:
             context_graph = None
     else:

@@ -855,7 +855,7 @@ def main():
             for line in open(params.context_file).readlines():
                 contexts.append(graph_compiler.texts_to_ids(line.strip()))
             context_graph = ContextGraph(params.context_score)
-            context_graph.build_context_graph(contexts)
+            context_graph.build(contexts)
         else:
             context_graph = None
     else:
