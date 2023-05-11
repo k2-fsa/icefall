@@ -172,9 +172,9 @@ def greedy_search(
         y = logits.argmax().item()
         if y != blank_id:
             hyp.append(y)
-            decoder_input = torch.tensor([hyp[-context_size:]], device=device).reshape(
-                1, context_size
-            )
+            decoder_input = torch.tensor(
+                [hyp[-context_size:]], device=device
+            ).reshape(1, context_size)
 
             decoder_out = model.decoder(decoder_input, need_pad=False)
             decoder_out = model.joiner.decoder_proj(decoder_out)
@@ -302,7 +302,9 @@ class HypothesisList(object):
         key = hyp.key
         if key in self:
             old_hyp = self._data[key]  # shallow copy
-            torch.logaddexp(old_hyp.log_prob, hyp.log_prob, out=old_hyp.log_prob)
+            torch.logaddexp(
+                old_hyp.log_prob, hyp.log_prob, out=old_hyp.log_prob
+            )
         else:
             self._data[key] = hyp
 
@@ -318,7 +320,9 @@ class HypothesisList(object):
           Return the hypothesis that has the largest `log_prob`.
         """
         if length_norm:
-            return max(self._data.values(), key=lambda hyp: hyp.log_prob / len(hyp.ys))
+            return max(
+                self._data.values(), key=lambda hyp: hyp.log_prob / len(hyp.ys)
+            )
         else:
             return max(self._data.values(), key=lambda hyp: hyp.log_prob)
 
@@ -492,7 +496,9 @@ def modified_beam_search(
         log_probs_shape = k2.ragged.create_ragged_shape2(
             row_splits=row_splits, cached_tot_size=log_probs.numel()
         )
-        ragged_log_probs = k2.RaggedTensor(shape=log_probs_shape, value=log_probs)
+        ragged_log_probs = k2.RaggedTensor(
+            shape=log_probs_shape, value=log_probs
+        )
 
         for i in range(batch_size):
             topk_log_probs, topk_indexes = ragged_log_probs[i].topk(beam)

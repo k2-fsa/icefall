@@ -20,48 +20,45 @@
 To run this file, do:
 
     cd icefall/egs/librispeech/ASR
-    python ./pruned_transducer_stateless7/test_model.py
+    python ./pruned_transducer_stateless4/test_model.py
 """
 
-import torch
-
-from scaling_converter import convert_scaled_to_non_scaled
 from train import get_params, get_transducer_model
 
 
-def test_model():
+def test_model_1():
     params = get_params()
     params.vocab_size = 500
     params.blank_id = 0
     params.context_size = 2
-    params.num_encoder_layers = "2,4,3,2,4"
-    params.feedforward_dims = "1024,1024,2048,2048,1024"
-    params.nhead = "8,8,8,8,8"
-    params.encoder_dims = "384,384,384,384,384"
-    params.attention_dims = "192,192,192,192,192"
-    params.encoder_unmasked_dims = "256,256,256,256,256"
-    params.zipformer_downsampling_factors = "1,2,4,8,2"
-    params.cnn_module_kernels = "31,31,31,31,31"
-    params.decoder_dim = 512
-    params.joiner_dim = 512
+    params.num_encoder_layers = 24
+    params.dim_feedforward = 1536  # 384 * 4
+    params.encoder_dim = 384
     model = get_transducer_model(params)
-
     num_param = sum([p.numel() for p in model.parameters()])
     print(f"Number of model parameters: {num_param}")
 
-    # Test jit script
-    convert_scaled_to_non_scaled(model, inplace=True)
-    # We won't use the forward() method of the model in C++, so just ignore
-    # it here.
-    # Otherwise, one of its arguments is a ragged tensor and is not
-    # torch scriptabe.
-    model.__class__.forward = torch.jit.ignore(model.__class__.forward)
-    print("Using torch.jit.script")
-    model = torch.jit.script(model)
+
+# See Table 1 from https://arxiv.org/pdf/2005.08100.pdf
+def test_model_M():
+    params = get_params()
+    params.vocab_size = 500
+    params.blank_id = 0
+    params.context_size = 2
+    params.num_encoder_layers = 18
+    params.dim_feedforward = 1024
+    params.encoder_dim = 256
+    params.nhead = 4
+    params.decoder_dim = 512
+    params.joiner_dim = 512
+    model = get_transducer_model(params)
+    num_param = sum([p.numel() for p in model.parameters()])
+    print(f"Number of model parameters: {num_param}")
 
 
 def main():
-    test_model()
+    #  test_model_1()
+    test_model_M()
 
 
 if __name__ == "__main__":
