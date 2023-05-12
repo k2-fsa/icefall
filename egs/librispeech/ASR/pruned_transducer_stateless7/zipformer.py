@@ -575,6 +575,9 @@ class Zipformer2EncoderLayer(nn.Module):
                                               cnn_module_kernel,
                                               causal=causal)
 
+        # TODO: remove it
+        self.bypass_scale = nn.Parameter(torch.full((embed_dim,), 0.5))
+
         self.norm = BiasNorm(embed_dim)
 
         self.balancer1 = Balancer(
@@ -1548,7 +1551,7 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         # half-precision output for backprop purposes.
         attn_weights = softmax(attn_scores, dim=-1)
 
-        if random.random() < 0.001:
+        if random.random() < 0.001 and not self.training:
             self._print_attn_entropy(attn_weights)
 
         attn_weights = nn.functional.dropout(

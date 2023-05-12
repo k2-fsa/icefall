@@ -280,9 +280,10 @@ class SoftmaxFunction(torch.autograd.Function):
             return x_grad, None
 
 
+def softmax(x: Tensor, dim: int):
+    if not x.requires_grad:
+        return x.softmax(dim=dim)
 
-def softmax(x: Tensor,
-            dim: int):
     return SoftmaxFunction.apply(x, dim)
 
 
