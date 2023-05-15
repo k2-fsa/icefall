@@ -6,7 +6,8 @@ for dest in "test-clean" "test-other"; do
 		echo $spk_id
 		#./test.sh $spk_id prompt_tuning_10_$spk_id
 		#./test.sh $spk_id prompt_tuning_100_$spk_id
-		./test.sh $spk_id encoderfreeze_$spk_id
+		#./test.sh $spk_id encoderfreeze_$spk_id
+		./test.sh $spk_id encoderlast_$spk_id
 		#./test.sh $spk_id self_init_"$spk_id"
 		#./test.sh $spk_id prompt_tuning_"$spk_id"
 		#./test.sh $spk_id "$spk_id"_adapter_30m
