@@ -22,24 +22,22 @@ Usage:
 
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
-./pruned_transducer_stateless7_streaming/train.py \
+./pruned_transducer_stateless7_bbpe/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 1 \
-  --exp-dir pruned_transducer_stateless7_streaming/exp \
-  --full-libri 1 \
-  --max-duration 300
+  --exp-dir pruned_transducer_stateless7_bbpe/exp \
+  --max-duration 400
 
 # For mix precision training:
 
-./pruned_transducer_stateless7_streaming/train.py \
+./pruned_transducer_stateless7_bbpe/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 1 \
   --use-fp16 1 \
-  --exp-dir pruned_transducer_stateless7_streaming/exp \
-  --full-libri 1 \
-  --max-duration 550
+  --exp-dir pruned_transducer_stateless7_bbpe/exp \
+  --max-duration 800
 """
 
 
@@ -57,10 +55,10 @@ import sentencepiece as spm
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
-from asr_datamodule import LibriSpeechAsrDataModule
+from asr_datamodule import AishellAsrDataModule
 from decoder import Decoder
 from joiner import Joiner
-from lhotse.cut import Cut
+from lhotse.cut import Cut, CutSet
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import Transducer
@@ -71,7 +69,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
 from zipformer import Zipformer
 
-from icefall import diagnostics
+from icefall import byte_encode, diagnostics
 from icefall.checkpoint import load_checkpoint, remove_checkpoints
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 from icefall.checkpoint import (
@@ -81,7 +79,14 @@ from icefall.checkpoint import (
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
 from icefall.hooks import register_inf_check_hooks
-from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool
+from icefall.utils import (
+    AttributeDict,
+    MetricsTracker,
+    filter_uneven_sized_batch,
+    setup_logger,
+    str2bool,
+    tokenize_by_CJK_char,
+)
 
 LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
 
@@ -172,29 +177,6 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         """,
     )
 
-    parser.add_argument(
-        "--short-chunk-size",
-        type=int,
-        default=50,
-        help="""Chunk length of dynamic training, the chunk size would be either
-        max sequence length of current batch or uniformly sampled from (1, short_chunk_size).
-        """,
-    )
-
-    parser.add_argument(
-        "--num-left-chunks",
-        type=int,
-        default=4,
-        help="How many left context can be seen in chunks when calculating attention.",
-    )
-
-    parser.add_argument(
-        "--decode-chunk-len",
-        type=int,
-        default=32,
-        help="The chunk size for decoding (in frames before subsampling)",
-    )
-
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -251,7 +233,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless7_streaming/exp",
+        default="pruned_transducer_stateless7_bbpe/exp",
         help="""The experiment dir.
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
@@ -261,8 +243,8 @@ def get_parser():
     parser.add_argument(
         "--bpe-model",
         type=str,
-        default="data/lang_bpe_500/bpe.model",
-        help="Path to the BPE model",
+        default="data/lang_bbpe_500/bbpe.model",
+        help="Path to the Byte BPE model",
     )
 
     parser.add_argument(
@@ -280,7 +262,7 @@ def get_parser():
     parser.add_argument(
         "--lr-epochs",
         type=float,
-        default=3.5,
+        default=6,
         help="""Number of epochs that affects how rapidly the learning rate decreases.
         """,
     )
@@ -442,6 +424,8 @@ def get_params() -> AttributeDict:
     """
     params = AttributeDict(
         {
+            "frame_shift_ms": 10.0,
+            "allowed_excess_duration_ratio": 0.1,
             "best_train_loss": float("inf"),
             "best_valid_loss": float("inf"),
             "best_train_epoch": -1,
@@ -449,7 +433,7 @@ def get_params() -> AttributeDict:
             "batch_idx_train": 0,
             "log_interval": 50,
             "reset_interval": 200,
-            "valid_interval": 3000,  # For the 100h subset, use 800
+            "valid_interval": 2000,
             # parameters for zipformer
             "feature_dim": 80,
             "subsampling_factor": 4,  # not passed in, this is fixed.
@@ -479,9 +463,6 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         feedforward_dim=to_int_tuple(params.feedforward_dims),
         cnn_module_kernels=to_int_tuple(params.cnn_module_kernels),
         num_encoder_layers=to_int_tuple(params.num_encoder_layers),
-        num_left_chunks=params.num_left_chunks,
-        short_chunk_size=params.short_chunk_size,
-        decode_chunk_size=params.decode_chunk_len // 2,
     )
     return encoder
 
@@ -667,6 +648,17 @@ def compute_loss(
      warmup: a floating point value which increases throughout training;
         values >= 1.0 are fully warmed up and have all modules present.
     """
+    # For the uneven-sized batch, the total duration after padding would possibly
+    # cause OOM. Hence, for each batch, which is sorted descendingly by length,
+    # we simply drop the last few shortest samples, so that the retained total frames
+    # (after padding) would not exceed `allowed_max_frames`:
+    # `allowed_max_frames = int(max_frames * (1.0 + allowed_excess_duration_ratio))`,
+    # where `max_frames = max_duration * 1000 // frame_shift_ms`.
+    # We set allowed_excess_duration_ratio=0.1.
+    max_frames = params.max_duration * 1000 // params.frame_shift_ms
+    allowed_max_frames = int(max_frames * (1.0 + params.allowed_excess_duration_ratio))
+    batch = filter_uneven_sized_batch(batch, allowed_max_frames)
+
     device = model.device if isinstance(model, DDP) else next(model.parameters()).device
     feature = batch["inputs"]
     # at entry, feature is (N, T, C)
@@ -962,8 +954,6 @@ def run(rank, world_size, args):
     """
     params = get_params()
     params.update(vars(args))
-    if params.full_libri is False:
-        params.valid_interval = 1600
 
     fix_random_seed(params.seed)
     if world_size > 1:
@@ -985,7 +975,7 @@ def run(rank, world_size, args):
     sp = spm.SentencePieceProcessor()
     sp.load(params.bpe_model)
 
-    # <blk> is defined in local/train_bpe_model.py
+    # <blk> is defined in local/train_bbpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
     params.vocab_size = sp.get_piece_size()
 
@@ -1047,26 +1037,20 @@ def run(rank, world_size, args):
     if params.inf_check:
         register_inf_check_hooks(model)
 
-    librispeech = LibriSpeechAsrDataModule(args)
+    aishell = AishellAsrDataModule(args)
 
-    if params.mini_libri:
-        train_cuts = librispeech.train_clean_5_cuts()
-    else:
-        train_cuts = librispeech.train_clean_100_cuts()
-        if params.full_libri:
-            train_cuts += librispeech.train_clean_360_cuts()
-            train_cuts += librispeech.train_other_500_cuts()
+    train_cuts = aishell.train_cuts()
 
     def remove_short_and_long_utt(c: Cut):
-        # Keep only utterances with duration between 1 second and 20 seconds
+        # Keep only utterances with duration between 1 second and 12 seconds
         #
-        # Caution: There is a reason to select 20.0 here. Please see
+        # Caution: There is a reason to select 12.0 here. Please see
         # ../local/display_manifest_statistics.py
         #
         # You should use ../local/display_manifest_statistics.py to get
         # an utterance duration distribution for your dataset to select
         # the threshold
-        if c.duration < 1.0 or c.duration > 20.0:
+        if c.duration < 1.0 or c.duration > 12.0:
             logging.warning(
                 f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
             )
@@ -1094,7 +1078,16 @@ def run(rank, world_size, args):
 
         return True
 
-    # train_cuts = train_cuts.filter(remove_short_and_long_utt)
+    def tokenize_and_encode_text(c: Cut):
+        # Text normalize for each sample
+        text = c.supervisions[0].text
+        text = byte_encode(tokenize_by_CJK_char(text))
+        c.supervisions[0].text = text
+        return c
+
+    train_cuts = train_cuts.filter(remove_short_and_long_utt)
+
+    train_cuts = train_cuts.map(tokenize_and_encode_text)
 
     if params.start_batch > 0 and checkpoints and "sampler" in checkpoints:
         # We only load the sampler's state dict when it loads a checkpoint
@@ -1103,25 +1096,23 @@ def run(rank, world_size, args):
     else:
         sampler_state_dict = None
 
-    train_dl = librispeech.train_dataloaders(
+    train_dl = aishell.train_dataloaders(
         train_cuts, sampler_state_dict=sampler_state_dict
     )
 
-    if params.mini_libri:
-        valid_cuts = librispeech.dev_clean_2_cuts()
-    else:
-        valid_cuts = librispeech.dev_clean_cuts()
-        valid_cuts += librispeech.dev_other_cuts()
-    valid_dl = librispeech.valid_dataloaders(valid_cuts)
+    valid_cuts = aishell.valid_cuts()
+    valid_cuts = valid_cuts.map(tokenize_and_encode_text)
 
-    # if not params.print_diagnostics:
-    #     scan_pessimistic_batches_for_oom(
-    #         model=model,
-    #         train_dl=train_dl,
-    #         optimizer=optimizer,
-    #         sp=sp,
-    #         params=params,
-    #     )
+    valid_dl = aishell.valid_dataloaders(valid_cuts)
+
+    if not params.print_diagnostics:
+        scan_pessimistic_batches_for_oom(
+            model=model,
+            train_dl=train_dl,
+            optimizer=optimizer,
+            sp=sp,
+            params=params,
+        )
 
     scaler = GradScaler(enabled=params.use_fp16, init_scale=1.0)
     if checkpoints and "grad_scaler" in checkpoints:
@@ -1251,7 +1242,7 @@ def scan_pessimistic_batches_for_oom(
 
 def main():
     parser = get_parser()
-    LibriSpeechAsrDataModule.add_arguments(parser)
+    AishellAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 

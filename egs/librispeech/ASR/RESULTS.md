@@ -1,5 +1,76 @@
 ## Results
 
+### pruned_transducer_stateless7 (zipformer + multidataset(LibriSpeech + GigaSpeech + CommonVoice 13.0))
+
+See <https://github.com/k2-fsa/icefall/pull/1010> for more details.
+
+[pruned_transducer_stateless7](./pruned_transducer_stateless7)
+
+The tensorboard log can be found at
+<https://tensorboard.dev/experiment/SwdJoHgZSZWn8ph9aJLb8g/>
+
+You can find a pretrained model, training logs, decoding logs, and decoding
+results at:
+<https://huggingface.co/yfyeung/icefall-asr-multidataset-pruned_transducer_stateless7-2023-05-04>
+
+You can use <https://github.com/k2-fsa/sherpa> to deploy it.
+
+Number of model parameters: 70369391, i.e., 70.37 M
+
+| decoding method      | test-clean | test-other | comment            |
+|----------------------|------------|------------|--------------------|
+| greedy_search        | 1.91       | 4.06       | --epoch 30 --avg 7 |
+| modified_beam_search | 1.90       | 3.99       | --epoch 30 --avg 7 |
+| fast_beam_search     | 1.90       | 3.98       | --epoch 30 --avg 7 |
+
+
+The training commands are:
+```bash
+export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
+
+./pruned_transducer_stateless7/train.py \
+  --world-size 8 \
+  --num-epochs 30 \
+  --use-multidataset 1 \
+  --use-fp16 1 \
+  --max-duration 750 \
+  --exp-dir pruned_transducer_stateless7/exp
+```
+
+The decoding commands are:
+```bash
+# greedy_search
+./pruned_transducer_stateless7/decode.py \
+    --epoch 30 \
+    --avg 7 \
+    --use-averaged-model 1 \
+    --exp-dir ./pruned_transducer_stateless7/exp \
+    --max-duration 600 \
+    --decoding-method greedy_search
+
+# modified_beam_search
+./pruned_transducer_stateless7/decode.py \
+    --epoch 30 \
+    --avg 7 \
+    --use-averaged-model 1 \
+    --exp-dir ./pruned_transducer_stateless7/exp \
+    --max-duration 600 \
+    --decoding-method modified_beam_search \
+    --beam-size 4
+
+# fast_beam_search
+./pruned_transducer_stateless7/decode.py \
+    --epoch 30 \
+    --avg 7 \
+    --use-averaged-model 1 \
+    --exp-dir ./pruned_transducer_stateless7/exp \
+    --max-duration 600 \
+    --decoding-method fast_beam_search \
+    --beam 20.0 \
+    --max-contexts 8 \
+    --max-states 64
+```
+
 ### Streaming Zipformer-Transducer (Pruned Stateless Transducer + Streaming Zipformer + Multi-Dataset)
 
 #### [pruned_transducer_stateless7_streaming_multi](./pruned_transducer_stateless7_streaming_multi)
@@ -215,11 +286,12 @@ done
 We also support decoding with neural network LMs. After combining with language models, the WERs are
 | decoding method      | chunk size | test-clean | test-other | comment             | decoding mode        |
 |----------------------|------------|------------|------------|---------------------|----------------------|
-| modified beam search | 320ms      | 3.11       | 7.93       | --epoch 30 --avg 9  | simulated streaming  |
-| modified beam search + RNNLM shallow fusion | 320ms      | 2.58       | 6.65       | --epoch 30 --avg 9  | simulated streaming  |
-| modified beam search + RNNLM nbest rescore | 320ms      | 2.59       | 6.86       | --epoch 30 --avg 9  | simulated streaming  |
+| `modified_beam_search` | 320ms      | 3.11       | 7.93       | --epoch 30 --avg 9  | simulated streaming  |
+| `modified_beam_search_lm_shallow_fusion` | 320ms      | 2.58       | 6.65       | --epoch 30 --avg 9  | simulated streaming  |
+| `modified_beam_search_lm_rescore` | 320ms      | 2.59       | 6.86       | --epoch 30 --avg 9  | simulated streaming  |
+| `modified_beam_search_lm_rescore_LODR` | 320ms      | 2.52       | 6.73       | --epoch 30 --avg 9  | simulated streaming  |
 
-Please use the following command for RNNLM shallow fusion:
+Please use the following command for `modified_beam_search_lm_shallow_fusion`:
 ```bash
 for lm_scale in $(seq 0.15 0.01 0.38); do
     for beam_size in 4 8 12; do
@@ -246,7 +318,7 @@ for lm_scale in $(seq 0.15 0.01 0.38); do
 done
 ```
 
-Please use the following command for RNNLM rescore:
+Please use the following command for `modified_beam_search_lm_rescore`:
 ```bash
 ./pruned_transducer_stateless7_streaming/decode.py \
     --epoch 30 \
@@ -268,7 +340,32 @@ Please use the following command for RNNLM rescore:
     --lm-vocab-size 500
 ```
 
-A well-trained RNNLM can be found here: <https://huggingface.co/ezerhouni/icefall-librispeech-rnn-lm/tree/main>.
+Please use the following command for `modified_beam_search_lm_rescore_LODR`:
+```bash
+./pruned_transducer_stateless7_streaming/decode.py \
+    --epoch 30 \
+    --avg 9 \
+    --use-averaged-model True \
+    --beam-size 8 \
+    --exp-dir ./pruned_transducer_stateless7_streaming/exp \
+    --max-duration 600 \
+    --decode-chunk-len 32 \
+    --decoding-method modified_beam_search_lm_rescore_LODR \
+    --use-shallow-fusion 0 \
+    --lm-type rnn \
+    --lm-exp-dir rnn_lm/exp \
+    --lm-epoch 99 \
+    --lm-avg 1 \
+    --rnn-lm-embedding-dim 2048 \
+    --rnn-lm-hidden-dim 2048 \
+    --rnn-lm-num-layers 3 \
+    --lm-vocab-size 500 \
+    --tokens-ngram 2 \
+    --backoff-id 500
+```
+
+A well-trained RNNLM can be found here: <https://huggingface.co/ezerhouni/icefall-librispeech-rnn-lm/tree/main>. The bi-gram used in LODR decoding
+can be found here: <https://huggingface.co/marcoyang/librispeech_bigram>.
 
 
 #### Smaller model

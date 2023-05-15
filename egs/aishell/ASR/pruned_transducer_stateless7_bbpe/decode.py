@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 #
-# Copyright 2021-2022 Xiaomi Corporation (Author: Fangjun Kuang,
-#                                                 Zengwei Yao)
+# Copyright 2021-2023 Xiaomi Corporation (Author: Fangjun Kuang,
+#                                                 Zengwei Yao,
+#                                                 Xiaoyu Yang,
+#                                                 Wei Kang)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -19,53 +21,48 @@
 """
 Usage:
 (1) greedy search
-./pruned_transducer_stateless7_streaming/decode.py \
+./pruned_transducer_stateless7_bbpe/decode.py \
     --epoch 28 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7_streaming/exp \
+    --exp-dir ./pruned_transducer_stateless7_bbpe/exp \
     --max-duration 600 \
-    --decode-chunk-len 32 \
     --decoding-method greedy_search
 
 (2) beam search (not recommended)
-./pruned_transducer_stateless7_streaming/decode.py \
+./pruned_transducer_stateless7_bbpe/decode.py \
     --epoch 28 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7_streaming/exp \
+    --exp-dir ./pruned_transducer_stateless7_bbpe/exp \
     --max-duration 600 \
-    --decode-chunk-len 32 \
     --decoding-method beam_search \
     --beam-size 4
 
 (3) modified beam search
-./pruned_transducer_stateless7_streaming/decode.py \
+./pruned_transducer_stateless7_bbpe/decode.py \
     --epoch 28 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7_streaming/exp \
+    --exp-dir ./pruned_transducer_stateless7_bbpe/exp \
     --max-duration 600 \
-    --decode-chunk-len 32 \
     --decoding-method modified_beam_search \
     --beam-size 4
 
 (4) fast beam search (one best)
-./pruned_transducer_stateless7_streaming/decode.py \
+./pruned_transducer_stateless7_bbpe/decode.py \
     --epoch 28 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7_streaming/exp \
+    --exp-dir ./pruned_transducer_stateless7_bbpe/exp \
     --max-duration 600 \
-    --decode-chunk-len 32 \
     --decoding-method fast_beam_search \
     --beam 20.0 \
     --max-contexts 8 \
     --max-states 64
 
 (5) fast beam search (nbest)
-./pruned_transducer_stateless7_streaming/decode.py \
+./pruned_transducer_stateless7_bbpe/decode.py \
     --epoch 28 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7_streaming/exp \
+    --exp-dir ./pruned_transducer_stateless7_bbpe/exp \
     --max-duration 600 \
-    --decode-chunk-len 32 \
     --decoding-method fast_beam_search_nbest \
     --beam 20.0 \
     --max-contexts 8 \
@@ -74,12 +71,11 @@ Usage:
     --nbest-scale 0.5
 
 (6) fast beam search (nbest oracle WER)
-./pruned_transducer_stateless7_streaming/decode.py \
+./pruned_transducer_stateless7_bbpe/decode.py \
     --epoch 28 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7_streaming/exp \
+    --exp-dir ./pruned_transducer_stateless7_bbpe/exp \
     --max-duration 600 \
-    --decode-chunk-len 32 \
     --decoding-method fast_beam_search_nbest_oracle \
     --beam 20.0 \
     --max-contexts 8 \
@@ -88,18 +84,16 @@ Usage:
     --nbest-scale 0.5
 
 (7) fast beam search (with LG)
-./pruned_transducer_stateless7_streaming/decode.py \
+./pruned_transducer_stateless7_bbpe/decode.py \
     --epoch 28 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7_streaming/exp \
+    --exp-dir ./pruned_transducer_stateless7_bbpe/exp \
     --max-duration 600 \
-    --decode-chunk-len 32 \
-    --decoding-method fast_beam_search_nbest_LG \
+    --decoding-method fast_beam_search_LG \
     --beam 20.0 \
     --max-contexts 8 \
     --max-states 64
 """
-
 
 import argparse
 import logging
@@ -112,24 +106,25 @@ import k2
 import sentencepiece as spm
 import torch
 import torch.nn as nn
-from asr_datamodule import LibriSpeechAsrDataModule
+from asr_datamodule import AishellAsrDataModule
 from beam_search import (
     beam_search,
     fast_beam_search_nbest,
-    fast_beam_search_nbest_LG,
     fast_beam_search_nbest_oracle,
     fast_beam_search_one_best,
     greedy_search,
     greedy_search_batch,
     modified_beam_search,
-    modified_beam_search_lm_rescore,
-    modified_beam_search_lm_rescore_LODR,
-    modified_beam_search_lm_shallow_fusion,
-    modified_beam_search_LODR,
 )
 from train import add_model_arguments, get_params, get_transducer_model
 
-from icefall import LmScorer, NgramLm
+from icefall import (
+    LmScorer,
+    NgramLm,
+    byte_encode,
+    smart_byte_decode,
+    tokenize_by_CJK_char,
+)
 from icefall.checkpoint import (
     average_checkpoints,
     average_checkpoints_with_averaged_model,
@@ -195,21 +190,21 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless7_streaming/exp",
+        default="pruned_transducer_stateless7/exp",
         help="The experiment dir",
     )
 
     parser.add_argument(
         "--bpe-model",
         type=str,
-        default="data/lang_bpe_500/bpe.model",
-        help="Path to the BPE model",
+        default="data/lang_bbpe_500/bbpe.model",
+        help="Path to the byte BPE model",
     )
 
     parser.add_argument(
         "--lang-dir",
         type=Path,
-        default="data/lang_bpe_500",
+        default="data/lang_bbpe_500",
         help="The lang dir containing word table and LG graph",
     )
 
@@ -222,10 +217,10 @@ def get_parser():
           - beam_search
           - modified_beam_search
           - fast_beam_search
+          - fast_beam_search_LG
           - fast_beam_search_nbest
           - fast_beam_search_nbest_oracle
-          - fast_beam_search_nbest_LG
-        If you use fast_beam_search_nbest_LG, you have to specify
+        If you use fast_beam_search_LG, you have to specify
         `--lang-dir`, which should contain `LG.pt`.
         """,
     )
@@ -247,7 +242,7 @@ def get_parser():
         search (i.e., `cutoff = max-score - beam`), which is the same as the
         `beam` in Kaldi.
         Used only when --decoding-method is fast_beam_search,
-        fast_beam_search_nbest, fast_beam_search_nbest_LG,
+        fast_beam_search_nbest, fast_beam_search_LG,
         and fast_beam_search_nbest_oracle
         """,
     )
@@ -255,10 +250,20 @@ def get_parser():
     parser.add_argument(
         "--ngram-lm-scale",
         type=float,
-        default=0.01,
+        default=0.25,
         help="""
-        Used only when --decoding_method is fast_beam_search_nbest_LG.
+        Used only when --decoding_method is fast_beam_search_LG.
         It specifies the scale for n-gram LM scores.
+        """,
+    )
+
+    parser.add_argument(
+        "--ilme-scale",
+        type=float,
+        default=0.2,
+        help="""
+        Used only when --decoding_method is fast_beam_search_LG.
+        It specifies the scale for the internal language model estimation.
         """,
     )
 
@@ -267,7 +272,7 @@ def get_parser():
         type=int,
         default=8,
         help="""Used only when --decoding-method is
-        fast_beam_search, fast_beam_search_nbest, fast_beam_search_nbest_LG,
+        fast_beam_search, fast_beam_search_nbest, fast_beam_search_LG,
         and fast_beam_search_nbest_oracle""",
     )
 
@@ -276,7 +281,7 @@ def get_parser():
         type=int,
         default=64,
         help="""Used only when --decoding-method is
-        fast_beam_search, fast_beam_search_nbest, fast_beam_search_nbest_LG,
+        fast_beam_search, fast_beam_search_nbest, fast_beam_search_LG,
         and fast_beam_search_nbest_oracle""",
     )
 
@@ -286,6 +291,7 @@ def get_parser():
         default=2,
         help="The context size in the decoder. 1 means bigram; 2 means tri-gram",
     )
+
     parser.add_argument(
         "--max-sym-per-frame",
         type=int,
@@ -312,47 +318,6 @@ def get_parser():
         fast_beam_search_nbest_LG, and fast_beam_search_nbest_oracle""",
     )
 
-    parser.add_argument(
-        "--use-shallow-fusion",
-        type=str2bool,
-        default=False,
-        help="""Use neural network LM for shallow fusion.
-        If you want to use LODR, you will also need to set this to true
-        """,
-    )
-
-    parser.add_argument(
-        "--lm-type",
-        type=str,
-        default="rnn",
-        help="Type of NN lm",
-        choices=["rnn", "transformer"],
-    )
-
-    parser.add_argument(
-        "--lm-scale",
-        type=float,
-        default=0.3,
-        help="""The scale of the neural network LM
-        Used only when `--use-shallow-fusion` is set to True.
-        """,
-    )
-
-    parser.add_argument(
-        "--tokens-ngram",
-        type=int,
-        default=2,
-        help="""The order of the ngram lm.
-        """,
-    )
-
-    parser.add_argument(
-        "--backoff-id",
-        type=int,
-        default=500,
-        help="ID of the backoff symbol in the ngram LM",
-    )
-
     add_model_arguments(parser)
 
     return parser
@@ -365,9 +330,6 @@ def decode_one_batch(
     batch: dict,
     word_table: Optional[k2.SymbolTable] = None,
     decoding_graph: Optional[k2.Fsa] = None,
-    LM: Optional[LmScorer] = None,
-    ngram_lm=None,
-    ngram_lm_scale: float = 0.0,
 ) -> Dict[str, List[List[str]]]:
     """Decode one batch and return the result in a dict. The dict has the
     following format:
@@ -410,12 +372,6 @@ def decode_one_batch(
     supervisions = batch["supervisions"]
     feature_lens = supervisions["num_frames"].to(device)
 
-    feature_lens += 30
-    feature = torch.nn.functional.pad(
-        feature,
-        pad=(0, 0, 0, 30),
-        value=LOG_EPS,
-    )
     encoder_out, encoder_out_lens = model.encoder(x=feature, x_lens=feature_lens)
 
     hyps = []
@@ -431,9 +387,9 @@ def decode_one_batch(
             max_states=params.max_states,
         )
         for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
-    elif params.decoding_method == "fast_beam_search_nbest_LG":
-        hyp_tokens = fast_beam_search_nbest_LG(
+            hyps.append(smart_byte_decode(hyp).split())
+    elif params.decoding_method == "fast_beam_search_LG":
+        hyp_tokens = fast_beam_search_one_best(
             model=model,
             decoding_graph=decoding_graph,
             encoder_out=encoder_out,
@@ -441,8 +397,8 @@ def decode_one_batch(
             beam=params.beam,
             max_contexts=params.max_contexts,
             max_states=params.max_states,
-            num_paths=params.num_paths,
-            nbest_scale=params.nbest_scale,
+            subtract_ilme=True,
+            ilme_scale=params.ilme_scale,
         )
         for hyp in hyp_tokens:
             hyps.append([word_table[i] for i in hyp])
@@ -459,8 +415,12 @@ def decode_one_batch(
             nbest_scale=params.nbest_scale,
         )
         for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
+            hyps.append(smart_byte_decode(hyp).split())
     elif params.decoding_method == "fast_beam_search_nbest_oracle":
+        ref_texts = []
+        for tx in supervisions["text"]:
+            ref_texts.append(byte_encode(tokenize_by_CJK_char(tx)))
+
         hyp_tokens = fast_beam_search_nbest_oracle(
             model=model,
             decoding_graph=decoding_graph,
@@ -470,11 +430,11 @@ def decode_one_batch(
             max_contexts=params.max_contexts,
             max_states=params.max_states,
             num_paths=params.num_paths,
-            ref_texts=sp.encode(supervisions["text"]),
+            ref_texts=sp.encode(ref_texts),
             nbest_scale=params.nbest_scale,
         )
         for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
+            hyps.append(smart_byte_decode(hyp).split())
     elif params.decoding_method == "greedy_search" and params.max_sym_per_frame == 1:
         hyp_tokens = greedy_search_batch(
             model=model,
@@ -482,7 +442,7 @@ def decode_one_batch(
             encoder_out_lens=encoder_out_lens,
         )
         for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
+            hyps.append(smart_byte_decode(hyp).split())
     elif params.decoding_method == "modified_beam_search":
         hyp_tokens = modified_beam_search(
             model=model,
@@ -491,51 +451,7 @@ def decode_one_batch(
             beam=params.beam_size,
         )
         for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
-    elif params.decoding_method == "modified_beam_search_lm_shallow_fusion":
-        hyp_tokens = modified_beam_search_lm_shallow_fusion(
-            model=model,
-            encoder_out=encoder_out,
-            encoder_out_lens=encoder_out_lens,
-            beam=params.beam_size,
-            LM=LM,
-        )
-        for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
-    elif params.decoding_method == "modified_beam_search_LODR":
-        hyp_tokens = modified_beam_search_LODR(
-            model=model,
-            encoder_out=encoder_out,
-            encoder_out_lens=encoder_out_lens,
-            beam=params.beam_size,
-            LODR_lm=ngram_lm,
-            LODR_lm_scale=ngram_lm_scale,
-            LM=LM,
-        )
-        for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
-    elif params.decoding_method == "modified_beam_search_lm_rescore":
-        lm_scale_list = [0.01 * i for i in range(10, 50)]
-        ans_dict = modified_beam_search_lm_rescore(
-            model=model,
-            encoder_out=encoder_out,
-            encoder_out_lens=encoder_out_lens,
-            beam=params.beam_size,
-            LM=LM,
-            lm_scale_list=lm_scale_list,
-        )
-    elif params.decoding_method == "modified_beam_search_lm_rescore_LODR":
-        lm_scale_list = [0.02 * i for i in range(2, 30)]
-        ans_dict = modified_beam_search_lm_rescore_LODR(
-            model=model,
-            encoder_out=encoder_out,
-            encoder_out_lens=encoder_out_lens,
-            beam=params.beam_size,
-            LM=LM,
-            LODR_lm=ngram_lm,
-            sp=sp,
-            lm_scale_list=lm_scale_list,
-        )
+            hyps.append(smart_byte_decode(hyp).split())
     else:
         batch_size = encoder_out.size(0)
 
@@ -559,7 +475,7 @@ def decode_one_batch(
                 raise ValueError(
                     f"Unsupported decoding method: {params.decoding_method}"
                 )
-            hyps.append(sp.decode(hyp).split())
+            hyps.append(smart_byte_decode(sp.decode(hyp)).split())
 
     if params.decoding_method == "greedy_search":
         return {"greedy_search": hyps}
@@ -570,20 +486,11 @@ def decode_one_batch(
         if "nbest" in params.decoding_method:
             key += f"_num_paths_{params.num_paths}_"
             key += f"nbest_scale_{params.nbest_scale}"
-            if "LG" in params.decoding_method:
-                key += f"_ngram_lm_scale_{params.ngram_lm_scale}"
+        if "LG" in params.decoding_method:
+            key += f"_ngram_lm_scale_{params.ngram_lm_scale}"
+            key += f"_ilme_scale_{params.ilme_scale}"
 
         return {key: hyps}
-    elif params.decoding_method in (
-        "modified_beam_search_lm_rescore",
-        "modified_beam_search_lm_rescore_LODR",
-    ):
-        ans = dict()
-        assert ans_dict is not None
-        for key, hyps in ans_dict.items():
-            hyps = [sp.decode(hyp).split() for hyp in hyps]
-            ans[f"beam_size_{params.beam_size}_{key}"] = hyps
-        return ans
     else:
         return {f"beam_size_{params.beam_size}": hyps}
 
@@ -595,9 +502,6 @@ def decode_dataset(
     sp: spm.SentencePieceProcessor,
     word_table: Optional[k2.SymbolTable] = None,
     decoding_graph: Optional[k2.Fsa] = None,
-    LM: Optional[LmScorer] = None,
-    ngram_lm=None,
-    ngram_lm_scale: float = 0.0,
 ) -> Dict[str, List[Tuple[str, List[str], List[str]]]]:
     """Decode dataset.
 
@@ -616,8 +520,8 @@ def decode_dataset(
         The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
         only when --decoding_method is fast_beam_search, fast_beam_search_nbest,
         fast_beam_search_nbest_oracle, and fast_beam_search_nbest_LG.
-      ngram_lm:
-        A n-gram LM to be used for LODR.
+      LM:
+        A neural network LM, used during shallow fusion
     Returns:
       Return a dict, whose key may be "greedy_search" if greedy search
       is used, or it may be "beam_7" if beam size of 7 is used.
@@ -649,9 +553,6 @@ def decode_dataset(
             decoding_graph=decoding_graph,
             word_table=word_table,
             batch=batch,
-            LM=LM,
-            ngram_lm=ngram_lm,
-            ngram_lm_scale=ngram_lm_scale,
         )
 
         for name, hyps in hyps_dict.items():
@@ -687,9 +588,14 @@ def save_results(
         # The following prints out WERs, per-word error statistics and aligned
         # ref/hyp pairs.
         errs_filename = params.res_dir / f"errs-{test_set_name}-{params.suffix}.txt"
+
+        results_char = []
+        for res in results:
+            results_char.append((res[0], list("".join(res[1])), list("".join(res[2]))))
+
         with open(errs_filename, "w") as f:
             wer = write_error_stats(
-                f, f"{test_set_name}-{key}", results, enable_log=True
+                f, f"{test_set_name}-{key}", results_char, enable_log=True
             )
             test_set_wers[key] = wer
 
@@ -713,8 +619,7 @@ def save_results(
 @torch.no_grad()
 def main():
     parser = get_parser()
-    LibriSpeechAsrDataModule.add_arguments(parser)
-    LmScorer.add_arguments(parser)
+    AishellAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 
@@ -725,14 +630,10 @@ def main():
         "greedy_search",
         "beam_search",
         "fast_beam_search",
+        "fast_beam_search_LG",
         "fast_beam_search_nbest",
-        "fast_beam_search_nbest_LG",
         "fast_beam_search_nbest_oracle",
         "modified_beam_search",
-        "modified_beam_search_LODR",
-        "modified_beam_search_lm_shallow_fusion",
-        "modified_beam_search_lm_rescore",
-        "modified_beam_search_lm_rescore_LODR",
     )
     params.res_dir = params.exp_dir / params.decoding_method
 
@@ -741,8 +642,6 @@ def main():
     else:
         params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
 
-    params.suffix += f"-streaming-chunk-size-{params.decode_chunk_len}"
-
     if "fast_beam_search" in params.decoding_method:
         params.suffix += f"-beam-{params.beam}"
         params.suffix += f"-max-contexts-{params.max_contexts}"
@@ -750,21 +649,14 @@ def main():
         if "nbest" in params.decoding_method:
             params.suffix += f"-nbest-scale-{params.nbest_scale}"
             params.suffix += f"-num-paths-{params.num_paths}"
-            if "LG" in params.decoding_method:
-                params.suffix += f"-ngram-lm-scale-{params.ngram_lm_scale}"
+        if "LG" in params.decoding_method:
+            params.suffix += f"-ngram-lm-scale-{params.ngram_lm_scale}"
+            params.suffix += f"-ilme-scale-{params.ilme_scale}"
     elif "beam_search" in params.decoding_method:
         params.suffix += f"-{params.decoding_method}-beam-size-{params.beam_size}"
     else:
         params.suffix += f"-context-{params.context_size}"
         params.suffix += f"-max-sym-per-frame-{params.max_sym_per_frame}"
-
-    if params.use_shallow_fusion:
-        params.suffix += f"-{params.lm_type}-lm-scale-{params.lm_scale}"
-
-        if "LODR" in params.decoding_method:
-            params.suffix += (
-                f"-LODR-{params.tokens_ngram}gram-scale-{params.ngram_lm_scale}"
-            )
 
     if params.use_averaged_model:
         params.suffix += "-use-averaged-model"
@@ -781,7 +673,7 @@ def main():
     sp = spm.SentencePieceProcessor()
     sp.load(params.bpe_model)
 
-    # <blk> and <unk> are defined in local/train_bpe_model.py
+    # <blk> and <unk> are defined in local/train_bbpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
     params.unk_id = sp.piece_to_id("<unk>")
     params.vocab_size = sp.get_piece_size()
@@ -790,10 +682,6 @@ def main():
 
     logging.info("About to create model")
     model = get_transducer_model(params)
-    assert model.encoder.decode_chunk_size == params.decode_chunk_len // 2, (
-        model.encoder.decode_chunk_size,
-        params.decode_chunk_len,
-    )
 
     if not params.use_averaged_model:
         if params.iter > 0:
@@ -875,55 +763,8 @@ def main():
     model.to(device)
     model.eval()
 
-    # only load the neural network LM if required
-    if params.use_shallow_fusion or params.decoding_method in (
-        "modified_beam_search_lm_rescore",
-        "modified_beam_search_lm_rescore_LODR",
-        "modified_beam_search_lm_shallow_fusion",
-        "modified_beam_search_LODR",
-    ):
-        LM = LmScorer(
-            lm_type=params.lm_type,
-            params=params,
-            device=device,
-            lm_scale=params.lm_scale,
-        )
-        LM.to(device)
-        LM.eval()
-    else:
-        LM = None
-
-    # only load N-gram LM when needed
-    if params.decoding_method == "modified_beam_search_lm_rescore_LODR":
-        try:
-            import kenlm
-        except ImportError:
-            print("Please install kenlm first. You can use")
-            print(" pip install https://github.com/kpu/kenlm/archive/master.zip")
-            print("to install it")
-            import sys
-
-            sys.exit(-1)
-        ngram_file_name = str(params.lang_dir / f"{params.tokens_ngram}gram.arpa")
-        logging.info(f"lm filename: {ngram_file_name}")
-        ngram_lm = kenlm.Model(ngram_file_name)
-
-    elif params.decoding_method == "modified_beam_search_LODR":
-        lm_filename = f"{params.tokens_ngram}gram.fst.txt"
-        logging.info(f"Loading token level lm: {lm_filename}")
-        ngram_lm = NgramLm(
-            str(params.lang_dir / lm_filename),
-            backoff_id=params.backoff_id,
-            is_binary=False,
-        )
-        logging.info(f"num states: {ngram_lm.lm.num_states}")
-        ngram_lm_scale = params.ngram_lm_scale
-    else:
-        ngram_lm = None
-        ngram_lm_scale = None
-
     if "fast_beam_search" in params.decoding_method:
-        if params.decoding_method == "fast_beam_search_nbest_LG":
+        if params.decoding_method == "fast_beam_search_LG":
             lexicon = Lexicon(params.lang_dir)
             word_table = lexicon.word_table
             lg_filename = params.lang_dir / "LG.pt"
@@ -944,20 +785,18 @@ def main():
 
     # we need cut ids to display recognition results.
     args.return_cuts = True
-    librispeech = LibriSpeechAsrDataModule(args)
+    aishell = AishellAsrDataModule(args)
 
-    test_clean_cuts = librispeech.test_clean_cuts()
-    test_other_cuts = librispeech.test_other_cuts()
+    test_cuts = aishell.test_cuts()
+    dev_cuts = aishell.valid_cuts()
 
-    test_clean_dl = librispeech.test_dataloaders(test_clean_cuts)
-    test_other_dl = librispeech.test_dataloaders(test_other_cuts)
+    test_dl = aishell.test_dataloaders(test_cuts)
+    dev_dl = aishell.test_dataloaders(dev_cuts)
 
-    test_sets = ["test-clean", "test-other"]
-    test_dl = [test_clean_dl, test_other_dl]
-    import time
+    test_sets = ["test", "dev"]
+    test_dls = [test_dl, dev_dl]
 
-    for test_set, test_dl in zip(test_sets, test_dl):
-        start = time.time()
+    for test_set, test_dl in zip(test_sets, test_dls):
         results_dict = decode_dataset(
             dl=test_dl,
             params=params,
@@ -965,11 +804,7 @@ def main():
             sp=sp,
             word_table=word_table,
             decoding_graph=decoding_graph,
-            LM=LM,
-            ngram_lm=ngram_lm,
-            ngram_lm_scale=ngram_lm_scale,
         )
-        logging.info(f"Elasped time for {test_set}: {time.time() - start}")
 
         save_results(
             params=params,
