@@ -102,7 +102,8 @@ def set_batch_count(model: Union[nn.Module, DDP], batch_count: float) -> None:
 
 
 def add_finetune_arguments(parser: argparse.ArgumentParser):
-    parser.add_argument("--do-finetune",
+    parser.add_argument(
+        "--do-finetune",
         type=str2bool,
         default=True,
         help="Whether to fine-tune.",
@@ -114,7 +115,7 @@ def add_finetune_arguments(parser: argparse.ArgumentParser):
         help="""
         Whether to adapt. If true, we will mix 5% of the new data
         with 95% of the original data to fine-tune.
-        """
+        """,
     )
 
     parser.add_argument(
