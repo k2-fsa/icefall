@@ -100,6 +100,25 @@ class CharCtcTrainingGraphCompiler(object):
             ids.append(sub_ids)
         return ids
 
+    def token_to_int(self, texts: List[str]) -> List[List[int]]:
+        """Convert a list of texts (which include chars and bpes)
+           to a list-of-list of token IDs.
+
+        Args:
+          texts:
+            It is a list of strings.
+            An example containing two strings is given below:
+
+                [['你', '好', '▁C', 'hina'], ['北','京', '▁', 'welcome', '您']
+        Returns:
+          Return a list-of-list of token IDs.
+        """
+        ids: List[List[int]] = []
+        for text in texts:
+            sub_ids = [int(token) for token in text.split()]
+            ids.append(sub_ids)
+        return ids
+
     def compile(
         self,
         token_ids: List[List[int]],
