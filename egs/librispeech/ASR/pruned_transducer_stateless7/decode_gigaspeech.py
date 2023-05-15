@@ -21,7 +21,7 @@
 """
 Usage:
 (1) greedy search
-./pruned_transducer_stateless7/decode.py \
+./pruned_transducer_stateless7/decode_gigaspeech.py \
     --epoch 28 \
     --avg 15 \
     --exp-dir ./pruned_transducer_stateless7/exp_giga_finetune \
@@ -29,7 +29,7 @@ Usage:
     --decoding-method greedy_search
 
 (2) beam search (not recommended)
-./pruned_transducer_stateless7/decode.py \
+./pruned_transducer_stateless7/decode_gigaspeech.py \
     --epoch 28 \
     --avg 15 \
     --exp-dir ./pruned_transducer_stateless7/exp_giga_finetune \
@@ -38,7 +38,7 @@ Usage:
     --beam-size 4
 
 (3) modified beam search
-./pruned_transducer_stateless7/decode.py \
+./pruned_transducer_stateless7/decode_gigaspeech.py \
     --epoch 28 \
     --avg 15 \
     --exp-dir ./pruned_transducer_stateless7/exp_giga_finetune \
@@ -47,7 +47,7 @@ Usage:
     --beam-size 4
 
 (4) fast beam search (one best)
-./pruned_transducer_stateless7/decode.py \
+./pruned_transducer_stateless7/decode_gigaspeech.py \
     --epoch 28 \
     --avg 15 \
     --exp-dir ./pruned_transducer_stateless7/exp_giga_finetune \
@@ -58,7 +58,7 @@ Usage:
     --max-states 64
 
 (5) fast beam search (nbest)
-./pruned_transducer_stateless7/decode.py \
+./pruned_transducer_stateless7/decode_gigaspeech.py \
     --epoch 28 \
     --avg 15 \
     --exp-dir ./pruned_transducer_stateless7/exp_giga_finetune \
@@ -71,7 +71,7 @@ Usage:
     --nbest-scale 0.5
 
 (6) fast beam search (nbest oracle WER)
-./pruned_transducer_stateless7/decode.py \
+./pruned_transducer_stateless7/decode_gigaspeech.py \
     --epoch 28 \
     --avg 15 \
     --exp-dir ./pruned_transducer_stateless7/exp_giga_finetune \
@@ -84,7 +84,7 @@ Usage:
     --nbest-scale 0.5
 
 (7) fast beam search (with LG)
-./pruned_transducer_stateless7/decode.py \
+./pruned_transducer_stateless7/decode_gigaspeech.py \
     --epoch 28 \
     --avg 15 \
     --exp-dir ./pruned_transducer_stateless7/exp_giga_finetune \
