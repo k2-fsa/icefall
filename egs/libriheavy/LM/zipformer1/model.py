@@ -19,14 +19,14 @@
 
 import torch
 from torch import nn, Tensor
-from zipformer import Zipformer2
+from subformer import Subformer
 
 
-class Zipformer2LM(nn.Module):
+class SubformerLM(nn.Module):
 
     def __init__(self,
                  encoder_embed: nn.Module,
-                 encoder: Zipformer2,
+                 encoder: Subformer,
                  decoder: nn.Module):
         super().__init__()
         self.encoder_embed = encoder_embed

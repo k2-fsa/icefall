@@ -60,11 +60,11 @@ import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 from lm_datamodule import LmDataset, LmDataloader
-from zipformer import Zipformer2
+from subformer import Subformer
 from scaling import ScheduledFloat
 from lhotse.utils import fix_random_seed
 from decoder import Decoder
-from model import Zipformer2LM
+from model import SubformerLM
 from optim import Eden, ScaledAdam
 from torch import Tensor
 from torch import nn
@@ -121,15 +121,15 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--num-encoder-layers",
         type=str,
-        default="2,4,8",
-        help="Number of zipformer encoder layers per stack, comma separated.",
+        default="2,4,8,4,2",
+        help="Number of subformer encoder layers per stack, comma separated.",
     )
 
 
     parser.add_argument(
         "--downsampling-factor",
         type=str,
-        default="1,2,4",
+        default="1,2,4,2,1",
         help="Downsampling factor for each stack of encoder layers.",
     )
 
@@ -137,21 +137,21 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--feedforward-dim",
         type=str,
-        default="768,1024,1536",
-        help="Feedforward dimension of the zipformer encoder layers, per stack, comma separated.",
+        default="512,768,1024,768,512",
+        help="Feedforward dimension of the subformer encoder layers, per stack, comma separated.",
     )
 
     parser.add_argument(
         "--num-heads",
         type=str,
-        default="4,4,8",
-        help="Number of attention heads in the zipformer encoder layers: a single int or comma-separated list.",
+        default="4,4,8,4,4",
+        help="Number of attention heads in the subformer encoder layers: a single int or comma-separated list.",
     )
 
     parser.add_argument(
         "--encoder-dim",
         type=str,
-        default="256,384,512",
+        default="256,256,384,256,256",
         help="Embedding dimension in encoder stacks: a single int or comma-separated list."
     )
 
@@ -170,40 +170,18 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     )
 
     parser.add_argument(
-        "--pos-head-dim",
+        "--pos-dim",
         type=str,
         default="4",
-        help="Positional-encoding dimension per head in encoder stacks: a single int or comma-separated list."
+        help="Positional-encoding dimension in encoder stacks: a single int or comma-separated list."
     )
 
     parser.add_argument(
         "--encoder-unmasked-dim",
         type=str,
-        default="192,192,256",
+        default="192,192,256,192,192",
         help="Unmasked dimensions in the encoders, relates to augmentation during training.  "
         "A single int or comma-separated list.  Must be <= each corresponding encoder_dim."
-    )
-
-    parser.add_argument(
-        "--cnn-module-kernel",
-        type=str,
-        default="31,31,15",
-        help="Sizes of convolutional kernels in convolution modules in each encoder stack: "
-        "a single int or comma-separated list.",
-    )
-
-    parser.add_argument(
-        "--decoder-hidden-size",
-        type=int,
-        default=768,
-        help="LSTM dimension  in decoder",
-    )
-
-    parser.add_argument(
-        "--decoder-num-layers",
-        type=int,
-        default=2,
-        help="Number of LSTM layers in decoder",
     )
 
 
@@ -474,7 +452,7 @@ def get_params() -> AttributeDict:
             "warm_step": 2000,
             "env_info": get_env_info(),
             "bytes_per_segment": 2048,
-            "batch_size": 32,
+            "batch_size": 16,
             "train_file_list": "train.txt",
             "valid_file_list": "valid.txt",
             "num_workers": 4,
@@ -499,28 +477,26 @@ def get_encoder_embed(params: AttributeDict) -> nn.Module:
 
 def get_encoder_model(params: AttributeDict) -> nn.Module:
     #chunk_size = _to_int_tuple(params.downsampling_factor)[-1]
-    encoder = Zipformer2(
+    encoder = Subformer(
         #output_downsampling_factor=chunk_size,
         downsampling_factor=_to_int_tuple(params.downsampling_factor),
         num_encoder_layers=_to_int_tuple(params.num_encoder_layers),
         encoder_dim=_to_int_tuple(params.encoder_dim),
         encoder_unmasked_dim=_to_int_tuple(params.encoder_unmasked_dim),
         query_head_dim=_to_int_tuple(params.query_head_dim),
-        pos_head_dim=_to_int_tuple(params.pos_head_dim),
+        pos_dim=int(params.pos_dim),
         value_head_dim=_to_int_tuple(params.value_head_dim),
         num_heads=_to_int_tuple(params.num_heads),
         feedforward_dim=_to_int_tuple(params.feedforward_dim),
         dropout=ScheduledFloat((0.0, 0.3), (20000.0, 0.1)),
         warmup_batches=4000.0,
         causal=True,
-        chunk_size=(chunk_size,),
-        left_context_frames=(-1,),
     )
     return encoder
 
 
 def get_decoder_model(params: AttributeDict) -> nn.Module:
-    decoder = DecoderDecoder(
+    decoder = Decoder(
         embed_dim=max(_to_int_tuple(params.encoder_dim)),
         vocab_size=256, # bytes
     )
@@ -532,7 +508,7 @@ def get_model(params: AttributeDict) -> nn.Module:
     encoder = get_encoder_model(params)
     decoder = get_decoder_model(params)
 
-    model = Zipformer2LM(
+    model = SubformerLM(
         encoder_embed=encoder_embed,
         encoder=encoder,
         decoder=decoder,
@@ -698,7 +674,7 @@ def compute_loss(
       params:
         Parameters for training. See :func:`get_params`.
       model:
-        The model for training. It is an instance of Zipformer in our case.
+        The model for training. It is an instance of Subformer in our case.
       batch:
         A batch of data. See `lhotse.dataset.K2SpeechRecognitionDataset()`
         for the content in it.
