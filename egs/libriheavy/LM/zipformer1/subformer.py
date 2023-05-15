@@ -339,7 +339,7 @@ class Subformer(EncoderInterface):
             src_t = t
             tgt_t = t.unsqueeze(-1)
             attn_mask = (src_t > tgt_t)
-            ans.masked_fill(attn_mask, float('-inf'))
+            ans.masked_fill_(attn_mask, float('-inf'))
 
         if src_key_padding_mask is not None:
             ans = ans * src_key_padding_mask.unsqueeze(1).logical_not()
@@ -795,10 +795,13 @@ class LearnedDownsamplingModule(nn.Module):
         # score_balancer is just to keep the magnitudes of the scores in
         # a fixed range and keep them balanced around zero, to stop
         # these drifting around.
+        # largish range used to keep grads relatively small and avoid overflow in grads.
         self.score_balancer = Balancer(1, channel_dim=-1,
                                        min_positive=0.4, max_positive=0.6,
-                                       min_abs=1.0, max_abs=1.2,
-                                       prob=0.025)
+                                       min_abs=10.0, max_abs=12.0)
+
+        self.copy_weights1 = nn.Identity()
+        self.copy_weights2 = nn.Identity()
 
         self.downsampling_factor = downsampling_factor
         self.intermediate_rate = copy.deepcopy(intermediate_rate)
@@ -855,11 +858,21 @@ class LearnedDownsamplingModule(nn.Module):
         left_avg = sscores[:, left-collar:left+collar+1].mean(dim=-1, keepdim=True)
 
         # the + 0.001 is to avoid possible division by zero in case of ties.
-        weights = (sscores - right_avg) / (left_avg - right_avg + 0.001)
+        sscores = self.copy_weights1(sscores)
+
+        den = (left_avg - right_avg)
+        # the following is to avoid division by near-zero.
+        den = 0.8 * den + 0.2 * den.mean()
+
+
+        #logging.info(f"den = {den}")
+        weights = (sscores - right_avg) / den
         weights = weights.clamp(min=0.0, max=1.0)
 
         indexes = indexes[:, :seq_len_reduced]
         weights = weights[:, :seq_len_reduced]
+
+        weights = self.copy_weights2(weights)
 
         # re-sort the indexes we kept, on index value, so that
         # masking for causal models will be in the correct order.
