@@ -169,7 +169,7 @@ class Subformer(EncoderInterface):
                           encoders[mid+i] ]
             encoder = DownsampledSubformerEncoder(
                 this_list,
-                input_num_channels=encoder_dim[max(0, mid-2)],
+                input_num_channels=encoder_dim[max(0, mid-i-1)],
                 downsample=2,
             )
 
@@ -953,6 +953,9 @@ class DownsampledSubformerEncoder(nn.Module):
 
         self.out_combiner = BypassModule(max(e.embed_dim() for e in encoders),
                                          straight_through_rate=0.0)
+
+    def embed_dim(self):  # return output embed_dim.
+        return self.encoders[-1].embed_dim()
 
     def forward(self,
                 src: Tensor,
