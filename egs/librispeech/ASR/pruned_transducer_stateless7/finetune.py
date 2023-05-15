@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-# Copyright    2021-2022  Xiaomi Corp.        (authors: Fangjun Kuang,
+# Copyright    2021-2023  Xiaomi Corp.        (authors: Fangjun Kuang,
 #                                                       Wei Kang,
-#                                                       Mingshuang Luo,)
-#                                                       Zengwei Yao)
+#                                                       Mingshuang Luo,
+#                                                       Zengwei Yao,
+#                                                       Xiaoyu Yang,
+#                                                       Yifan Yang)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -20,27 +22,23 @@
 """
 Usage:
 
-export CUDA_VISIBLE_DEVICES="0,1,2,3"
+export CUDA_VISIBLE_DEVICES="0,1"
 
-./pruned_transducer_stateless7/train.py \
-  --world-size 4 \
-  --num-epochs 30 \
+./pruned_transducer_stateless7/finetune.py \
+  --world-size 2 \
+  --num-epochs 20 \
   --start-epoch 1 \
-  --exp-dir pruned_transducer_stateless7/exp \
-  --full-libri 1 \
-  --max-duration 300
-
-# For mix precision training:
-
-./pruned_transducer_stateless7/train.py \
-  --world-size 4 \
-  --num-epochs 30 \
-  --start-epoch 1 \
+  --exp-dir pruned_transducer_stateless7/exp_giga_finetune \
+  --subset S \
   --use-fp16 1 \
-  --exp-dir pruned_transducer_stateless7/exp \
-  --full-libri 1 \
-  --max-duration 550
-
+  --base-lr 0.005 \
+  --lr-epochs 100 \
+  --lr-batches 100000 \
+  --bpe-model icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11/data/lang_bpe_500/bpe.model \
+  --do-finetune True \
+  --use-mux True \
+  --finetune-ckpt icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11/exp/pretrained.pt \
+  --max-duration 500
 """
 
 
@@ -59,9 +57,10 @@ import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 from decoder import Decoder
+from asr_datamodule import LibriSpeechAsrDataModule
 from gigaspeech import GigaSpeechAsrDataModule
 from joiner import Joiner
-from lhotse.cut import Cut
+from lhotse.cut import Cut, CutSet
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import Transducer
@@ -104,6 +103,7 @@ def set_batch_count(model: Union[nn.Module, DDP], batch_count: float) -> None:
 
 def add_finetune_arguments(parser: argparse.ArgumentParser):
     parser.add_argument("--do-finetune", type=str2bool, default=False)
+    parser.add_argument("--use-mux", type=str2bool, default=False)
 
     parser.add_argument(
         "--init-modules",
@@ -1129,7 +1129,11 @@ def run(rank, world_size, args):
 
     gigaspeech = GigaSpeechAsrDataModule(args)
 
-    train_cuts = gigaspeech.train_cuts()
+    if params.use_mux:
+        librispeech = LibriSpeechAsrDataModule(args)
+        train_cuts = CutSet.mux(librispeech.train_all_shuf_cuts(), gigaspeech.train_cuts(), weights=[0.95, 0.05])
+    else:
+        train_cuts = gigaspeech.train_cuts()
 
     def remove_short_and_long_utt(c: Cut):
         # Keep only utterances with duration between 1 second and 20 seconds
@@ -1141,9 +1145,9 @@ def run(rank, world_size, args):
         # an utterance duration distribution for your dataset to select
         # the threshold
         if c.duration < 1.0 or c.duration > 20.0:
-            logging.warning(
-                f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
-            )
+            # logging.warning(
+            #    f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
+            # )
             return False
 
         # In pruned RNN-T, we require that T >= S
@@ -1184,7 +1188,7 @@ def run(rank, world_size, args):
     valid_cuts = gigaspeech.dev_cuts()
     valid_dl = gigaspeech.valid_dataloaders(valid_cuts)
 
-    if not params.print_diagnostics:
+    if 0 and not params.print_diagnostics:
         scan_pessimistic_batches_for_oom(
             model=model,
             train_dl=train_dl,
