@@ -882,7 +882,7 @@ class Eden(LRScheduler):
         warmup_factor = (
             1.0
             if self.batch >= self.warmup_batches
-            else 0.5 + 0.5 * (self.batch / self.warmup_batches)
+            else (self.batch / self.warmup_batches)
         )
 
         return [x * factor * warmup_factor for x in self.base_lrs]
