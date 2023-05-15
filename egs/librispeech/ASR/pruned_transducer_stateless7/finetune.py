@@ -1131,7 +1131,11 @@ def run(rank, world_size, args):
 
     if params.use_mux:
         librispeech = LibriSpeechAsrDataModule(args)
-        train_cuts = CutSet.mux(librispeech.train_all_shuf_cuts(), gigaspeech.train_cuts(), weights=[0.95, 0.05])
+        train_cuts = CutSet.mux(
+            librispeech.train_all_shuf_cuts(),
+            gigaspeech.train_cuts(),
+            weights=[0.95, 0.05],
+        )
     else:
         train_cuts = gigaspeech.train_cuts()
 
