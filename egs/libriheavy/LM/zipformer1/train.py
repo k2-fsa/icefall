@@ -125,15 +125,6 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         help="Number of subformer encoder layers per stack, comma separated.",
     )
 
-
-    parser.add_argument(
-        "--downsampling-factor",
-        type=str,
-        default="1,2,4,8,4,2,1",
-        help="Downsampling factor for each stack of encoder layers.",
-    )
-
-
     parser.add_argument(
         "--feedforward-dim",
         type=str,
@@ -176,13 +167,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         help="Positional-encoding dimension in encoder stacks: a single int or comma-separated list."
     )
 
-    parser.add_argument(
-        "--encoder-unmasked-dim",
-        type=str,
-        default="192,192,256,256,256,192,192",
-        help="Unmasked dimensions in the encoders, relates to augmentation during training.  "
-        "A single int or comma-separated list.  Must be <= each corresponding encoder_dim."
-    )
+
 
 
 def get_parser():
@@ -478,11 +463,8 @@ def get_encoder_embed(params: AttributeDict) -> nn.Module:
 def get_encoder_model(params: AttributeDict) -> nn.Module:
     #chunk_size = _to_int_tuple(params.downsampling_factor)[-1]
     encoder = Subformer(
-        #output_downsampling_factor=chunk_size,
-        downsampling_factor=_to_int_tuple(params.downsampling_factor),
         num_encoder_layers=_to_int_tuple(params.num_encoder_layers),
         encoder_dim=_to_int_tuple(params.encoder_dim),
-        encoder_unmasked_dim=_to_int_tuple(params.encoder_unmasked_dim),
         query_head_dim=_to_int_tuple(params.query_head_dim),
         pos_dim=int(params.pos_dim),
         value_head_dim=_to_int_tuple(params.value_head_dim),
