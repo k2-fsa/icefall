@@ -5,9 +5,9 @@
 This script takes the following two files as inputs:
 
 - text
-- recordings.jsonl.gz
+- A manifest dir, which must contain a file with name recordings.jsonl.gz
 
-and generates a file supervisions.jsonl.gz
+and generates a file supervisions.jsonl.gz in the given manifest dir.
 
 ## Motivation to have this file:
 
@@ -40,7 +40,7 @@ def get_args():
         required=True,
         help="""We assume there is a file named recordings.jsonl.gz
         in this directory. We will save supervisions.jsonl.gz
-        to this file
+        to this directory.
         """,
     )
 
