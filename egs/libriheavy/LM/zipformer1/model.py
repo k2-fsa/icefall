@@ -19,7 +19,6 @@
 
 import torch
 from torch import nn, Tensor
-from chunk_decoder import ChunkDecoder
 from zipformer import Zipformer2
 
 
@@ -28,7 +27,7 @@ class Zipformer2LM(nn.Module):
     def __init__(self,
                  encoder_embed: nn.Module,
                  encoder: Zipformer2,
-                 decoder: ChunkDecoder):
+                 decoder: nn.Module):
         super().__init__()
         self.encoder_embed = encoder_embed
         self.encoder = encoder # does subsampling
@@ -47,18 +46,17 @@ class Zipformer2LM(nn.Module):
         """
         (batch_size, seq_len) = labels.shape
 
-        chunk_size = self.decoder.chunk_size
+        chunk_size = 1
         labels_shifted = labels.t()  # (time, batch)
-        labels_shifted = torch.cat((torch.zeros_like(labels_shifted[:chunk_size]),
-                                    labels_shifted[:-chunk_size]),
+        labels_shifted = torch.cat((torch.zeros_like(labels_shifted[:1]),
+                                    labels_shifted[:-1]),
                                    dim=0)
 
         x = self.encoder_embed(labels_shifted)
         x_lens = torch.full((batch_size,), seq_len,
                             dtype=torch.long, device=labels.device)
+
         # x_lens is after subsampling.  Actually we don't need it.
-
-
         (x, x_lens) = self.encoder(x, x_lens)
 
         logprobs = self.decoder(labels, x)

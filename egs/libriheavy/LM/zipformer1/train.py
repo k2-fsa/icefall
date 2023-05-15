@@ -63,7 +63,7 @@ from lm_datamodule import LmDataset, LmDataloader
 from zipformer import Zipformer2
 from scaling import ScheduledFloat
 from lhotse.utils import fix_random_seed
-from chunk_decoder import ChunkDecoder
+from decoder import Decoder
 from model import Zipformer2LM
 from optim import Eden, ScaledAdam
 from torch import Tensor
@@ -174,13 +174,6 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         type=str,
         default="4",
         help="Positional-encoding dimension per head in encoder stacks: a single int or comma-separated list."
-    )
-
-    parser.add_argument(
-        "--pos-dim",
-        type=int,
-        default="48",
-        help="Positional-encoding embedding dimension"
     )
 
     parser.add_argument(
@@ -505,9 +498,9 @@ def get_encoder_embed(params: AttributeDict) -> nn.Module:
 
 
 def get_encoder_model(params: AttributeDict) -> nn.Module:
-    chunk_size = _to_int_tuple(params.downsampling_factor)[-1]
+    #chunk_size = _to_int_tuple(params.downsampling_factor)[-1]
     encoder = Zipformer2(
-        output_downsampling_factor=chunk_size,
+        #output_downsampling_factor=chunk_size,
         downsampling_factor=_to_int_tuple(params.downsampling_factor),
         num_encoder_layers=_to_int_tuple(params.num_encoder_layers),
         encoder_dim=_to_int_tuple(params.encoder_dim),
@@ -515,10 +508,8 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         query_head_dim=_to_int_tuple(params.query_head_dim),
         pos_head_dim=_to_int_tuple(params.pos_head_dim),
         value_head_dim=_to_int_tuple(params.value_head_dim),
-        pos_dim=params.pos_dim,
         num_heads=_to_int_tuple(params.num_heads),
         feedforward_dim=_to_int_tuple(params.feedforward_dim),
-        cnn_module_kernel=_to_int_tuple(params.cnn_module_kernel),
         dropout=ScheduledFloat((0.0, 0.3), (20000.0, 0.1)),
         warmup_batches=4000.0,
         causal=True,
@@ -529,13 +520,9 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
 
 
 def get_decoder_model(params: AttributeDict) -> nn.Module:
-    chunk_size = _to_int_tuple(params.downsampling_factor)[-1]
-    decoder = ChunkDecoder(
+    decoder = DecoderDecoder(
         embed_dim=max(_to_int_tuple(params.encoder_dim)),
-        chunk_size=chunk_size,
         vocab_size=256, # bytes
-        hidden_size=params.decoder_hidden_size,
-        num_layers=params.decoder_num_layers,
     )
     return decoder
 
