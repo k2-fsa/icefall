@@ -211,8 +211,9 @@ def main():
     lang_dir = Path("data/lang_char")
     text_file = lang_dir / "text_with_bpe"
     bpe_model = lang_dir / "bpe.model"
+    words_file = lang_dir / "words.txt"
 
-    word_sym_table = k2.SymbolTable.from_file(lang_dir / "words.txt")
+    word_sym_table = k2.SymbolTable.from_file(words_file)
 
     words = word_sym_table.symbols
 
