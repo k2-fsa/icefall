@@ -92,7 +92,7 @@ When training with the L subset, the streaming usage:
         --causal-convolution 1 \
         --decode-chunk-size 16 \
         --left-context 64
-        
+
 (4) modified beam search with RNNLM shallow fusion
 ./pruned_transducer_stateless5/decode.py \
     --epoch 35 \
@@ -853,7 +853,12 @@ def main():
         if os.path.exists(params.context_file):
             contexts = []
             for line in open(params.context_file).readlines():
-                contexts.append(graph_compiler.texts_to_ids(line.strip()))
+                context_list = graph_compiler.texts_to_ids(line.strip())
+                tmp = []
+                for context in context_list:
+                    for x in context:
+                        tmp.append(x)
+                contexts.append(tmp)
             context_graph = ContextGraph(params.context_score)
             context_graph.build(contexts)
         else:
