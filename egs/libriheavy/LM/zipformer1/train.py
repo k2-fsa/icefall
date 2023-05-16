@@ -149,7 +149,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--encoder-chunk-size",
         type=str,
-        default="128"
+        default="128",
         help="Base chunk size for attention in encoder stacks; alternate layers will use this value or "
         "double this value."
     )
