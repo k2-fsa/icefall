@@ -686,6 +686,8 @@ class SubformerEncoder(nn.Module):
         changing the batch size.
         """
         (seq_len, batch_size, num_channels) = src.shape
+        if chunk_size == seq_len:
+            return src
         src = src.transpose(0, 1).contiguous().reshape(-1, chunk_size, num_channels)
         return src.transpose(0, 1).contiguous()
 
