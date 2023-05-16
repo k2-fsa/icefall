@@ -147,6 +147,14 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     )
 
     parser.add_argument(
+        "--encoder-chunk-size",
+        type=str,
+        default="128"
+        help="Base chunk size for attention in encoder stacks; alternate layers will use this value or "
+        "double this value."
+    )
+
+    parser.add_argument(
         "--query-head-dim",
         type=str,
         default="32",
@@ -415,6 +423,7 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
     encoder = Subformer(
         num_encoder_layers=_to_int_tuple(params.num_encoder_layers),
         encoder_dim=_to_int_tuple(params.encoder_dim),
+        encoder_chunk_size=_to_int_tuple(params.encoder_chunk_size),
         query_head_dim=_to_int_tuple(params.query_head_dim),
         pos_dim=int(params.pos_dim),
         value_head_dim=_to_int_tuple(params.value_head_dim),
