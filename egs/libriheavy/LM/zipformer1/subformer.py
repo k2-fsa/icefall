@@ -677,7 +677,7 @@ class SubformerEncoder(nn.Module):
             assert seq_len % self.chunk_size == 0, (seq_len, self.chunk_size)
             num_layers = len(self.layers)
             chunk_indexes = [0, 1] * (num_layers + 1 // 2)
-            return [ self.chunk_size, self.chunk_size * 2 ], chunk_indexes[:num_layers]
+            return [ self.chunk_size, seq_len ], chunk_indexes[:num_layers]
 
 
     def _to_chunk_size(self, src: Tensor, chunk_size: int) -> Tensor:
