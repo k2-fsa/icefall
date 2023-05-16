@@ -276,7 +276,8 @@ class SoftmaxFunction(torch.autograd.Function):
             ans_grad = ans_grad.to(torch.float32)
             ans = ans.to(torch.float32)
             x_grad = ans_grad * ans
-            x_grad = x_grad - ans * x_grad.sum(dim=ctx.dim, keepdim=True)
+            ans *= x_grad.sum(dim=ctx.dim, keepdim=True)
+            x_grad -= ans
             return x_grad, None
 
 
