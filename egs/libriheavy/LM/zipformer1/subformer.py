@@ -684,8 +684,12 @@ class SubformerEncoder(nn.Module):
         """
         Reshape embeddings 'src' to have a different chunk size (in frames)
         """
-        num_channels = src.shape[-1]
-        return src.reshape(chunk_size, -1, num_channels)
+        (seq_len, batch_size, num_channels) = src.shape
+        num_chunks = src.shape[0] // chunk_size
+        src = src.reshape(num_chunks, chunk_size, batch_size, num_channels)
+        return src.contiguous().reshape(chunk_size, num_chunks * batch_size,
+                                        num_channels)
+
 
     def _attn_offset_to_chunk_size(self, attn_offset: Tensor, batch_size: int, chunk_size: int) -> Tensor:
         """
