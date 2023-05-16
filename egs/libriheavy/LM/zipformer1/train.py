@@ -64,7 +64,7 @@ from subformer import Subformer
 from scaling import ScheduledFloat
 from lhotse.utils import fix_random_seed
 from decoder import Decoder
-from model import SubformerLM
+from model import SubformerLM, TextEmbedder
 from optim import Eden, ScaledAdam
 from torch import Tensor
 from torch import nn
@@ -395,7 +395,7 @@ def get_params() -> AttributeDict:
             "warm_step": 2000,
             "env_info": get_env_info(),
             "bytes_per_segment": 2048,
-            "batch_size": 20,
+            "batch_size": 18,
             "train_file_list": "train.txt",
             "valid_file_list": "valid.txt",
             "num_workers": 4,
@@ -411,8 +411,8 @@ def _to_int_tuple(s: str):
 
 
 def get_encoder_embed(params: AttributeDict) -> nn.Module:
-    return nn.Embedding(
-        num_embeddings=256,   # we encode the text as UTF-8 bytes
+    return TextEmbedder(
+        vocab_size=256,  # we encode the text as UTF-8 bytes
         embedding_dim=_to_int_tuple(params.encoder_dim)[0],
     )
 

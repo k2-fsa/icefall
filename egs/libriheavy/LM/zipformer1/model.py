@@ -20,7 +20,49 @@
 import torch
 from torch import nn, Tensor
 from subformer import Subformer
+from scaling import Balancer
 
+
+class TextEmbedder(nn.Module):
+    def __init__(self,
+                 vocab_size: int,
+                 embedding_dim: int):
+        self.embed = nn.Embedding(
+            num_embeddings=vocab_size,
+            embedding_dim=embedding_dim)
+        self.conv1 = nn.Conv1d(embedding_dim,
+                               embedding_dim,
+                               groups=embedding_dim,
+                               kernel_size=2)
+        self.balancer = Balancer(embedding_dim,
+                                 channel_dim=-1,
+                                 min_positive=0.1,
+                                 min_abs=1.0,
+                                 max_abs=2.0)
+        self.activation1 = nn.ReLU()
+        self.out_proj = nn.Linear(embedding_dim,
+                                  embedding_dim,
+                                  bias=False)
+
+    def forward(self,
+                text: Tensor) -> Tensor:
+        """
+        Args:
+            text: Tensor of shape (seq_len, batch_size), containing integer indexes
+                 0 <= text < vocab_size.
+        Returns:
+            Tensor of shape (seq_len, batch_size, embedding_dim)
+        """
+        x = self.embed(text)  # (seq_len, batch_size, embedding_dim)
+
+        x = torch.cat((torch.zeros_like(x[0:1], x)), dim=0)  # pad
+        x = x.permute(1, 2, 0)  # N,C,H, i.e. (batch_size, embedding_dim, seq_len)
+        x = self.conv1(x)
+        x = x.permute(2, 0, 1)  # (seq_len, batch_size, embedding_dim)
+        x = self.balancer(x)  # make sure no channel has all zeros.
+        x = self.activation1(x)
+        x = self.out_proj(x)
+        return x
 
 class SubformerLM(nn.Module):
 
