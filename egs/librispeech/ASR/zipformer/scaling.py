@@ -268,7 +268,7 @@ class SoftmaxFunction(torch.autograd.Function):
 
 
 def softmax(x: Tensor, dim: int):
-    if not x.requires_grad:
+    if not x.requires_grad or torch.jit.is_scripting():
         return x.softmax(dim=dim)
 
     return SoftmaxFunction.apply(x, dim)
@@ -1073,6 +1073,8 @@ class ScaleGrad(nn.Module):
         self.alpha = alpha
 
     def forward(self, x: Tensor) -> Tensor:
+        if torch.jit.is_scripting() or not self.training:
+            return x
         return scale_grad(x, self.alpha)
 
 
@@ -1553,7 +1555,7 @@ def convert_num_channels(x: Tensor, num_channels: int) -> Tensor:
     else:
         shape = list(x.shape)
         shape[-1] = num_channels - shape[-1]
-        zeros = torch.zeros(*shape, dtype=x.dtype, device=x.device)
+        zeros = torch.zeros(shape, dtype=x.dtype, device=x.device)
         return torch.cat((x, zeros), dim=-1)
 
 

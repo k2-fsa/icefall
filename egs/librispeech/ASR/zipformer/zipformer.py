@@ -196,7 +196,7 @@ class Zipformer2(EncoderInterface):
 
     def get_feature_masks(
             self,
-            x: torch.Tensor) -> List[Union[float, Tensor]]:
+            x: torch.Tensor) -> Union[List[float], List[Tensor]]:
         """
         In eval mode, returns [1.0] * num_encoders; in training mode, returns a number of
         randomized feature masks, one per encoder.
@@ -257,15 +257,26 @@ class Zipformer2(EncoderInterface):
         """
         if not self.causal:
             return -1, -1
-        chunk_size = random.choice(self.chunk_size)
+
+        if torch.jit.is_scripting() or not self.training:
+            assert len(self.chunk_size) == 1, self.chunk_size
+            chunk_size = self.chunk_size[0]
+        else:
+            chunk_size = random.choice(self.chunk_size)
+
         if chunk_size == -1:
             left_context_chunks = -1
         else:
-            left_context_frames = random.choice(self.left_context_frames)
+            if torch.jit.is_scripting() or not self.training:
+                assert len(self.left_context_frames) == 1, self.left_context_frames
+                left_context_frames = self.left_context_frames[0]
+            else:
+                left_context_frames = random.choice(self.left_context_frames)
             # Note: in Python, -1 // n == -1 for n > 0
             left_context_chunks = left_context_frames // chunk_size
             if left_context_chunks == 0:
                 left_context_chunks = 1
+
         return chunk_size, left_context_chunks
 
     def forward(
@@ -290,11 +301,18 @@ class Zipformer2(EncoderInterface):
               of frames in `embeddings` before padding.
         """
         outputs = []
-        feature_masks = self.get_feature_masks(x)
+        if torch.jit.is_scripting():
+            feature_masks = [1.0] * len(self.encoder_dim)
+        else:
+            feature_masks = self.get_feature_masks(x)
 
         chunk_size, left_context_chunks = self.get_chunk_info()
 
-        attn_mask = self._get_attn_mask(x, chunk_size, left_context_chunks)
+        if torch.jit.is_scripting():
+            # Not support exporting a model for simulating streaming decoding
+            attn_mask = None
+        else:
+            attn_mask = self._get_attn_mask(x, chunk_size, left_context_chunks)
 
         for i, module in enumerate(self.encoders):
             ds = self.downsampling_factor[i]
@@ -316,9 +334,12 @@ class Zipformer2(EncoderInterface):
         x = self.downsample_output(x)
         # class Downsample has this rounding behavior..
         assert self.output_downsampling_factor == 2
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
+        if torch.jit.is_scripting():
             lengths = (x_lens + 1) // 2
+        else:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                lengths = (x_lens + 1) // 2
 
         return x, lengths
 
@@ -351,9 +372,12 @@ class Zipformer2(EncoderInterface):
         # t is frame index, shape (seq_len,)
         t = torch.arange(seq_len, dtype=torch.int32, device=x.device)
         # c is chunk index for each frame, shape (seq_len,)
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
+        if torch.jit.is_scripting():
             c = t // chunk_size
+        else:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                c = t // chunk_size
         src_c = c
         tgt_c = c.unsqueeze(-1)
 
@@ -432,9 +456,12 @@ class Zipformer2(EncoderInterface):
         x = self.downsample_output(x)
         # class Downsample has this rounding behavior..
         assert self.output_downsampling_factor == 2
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
+        if torch.jit.is_scripting():
             lengths = (x_lens + 1) // 2
+        else:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                lengths = (x_lens + 1) // 2
 
         return x, lengths, new_states
 
@@ -668,7 +695,10 @@ class Zipformer2EncoderLayer(nn.Module):
         src_orig = src
 
         # dropout rate for non-feedforward submodules
-        attention_skip_rate = float(self.attention_skip_rate) if self.training else 0.0
+        if torch.jit.is_scripting():
+            attention_skip_rate = 0.0
+        else:
+            attention_skip_rate = float(self.attention_skip_rate) if self.training else 0.0
 
         # attn_weights: (num_heads, batch_size, seq_len, seq_len)
         attn_weights = self.self_attn_weights(
@@ -682,49 +712,62 @@ class Zipformer2EncoderLayer(nn.Module):
 
         self_attn_dropout_mask = self.get_sequence_dropout_mask(src, attention_skip_rate)
 
-        if True:
-            selected_attn_weights = attn_weights[0:2]
-            if random.random() < float(self.const_attention_rate):
-                # Make attention weights constant.  The intention is to
-                # encourage these modules to do something similar to an
-                # averaging-over-time operation.
-                # only need the mask, can just use the 1st one and expand later
-                selected_attn_weights = selected_attn_weights[0:1]
-                selected_attn_weights = (selected_attn_weights > 0.0).to(selected_attn_weights.dtype)
-                selected_attn_weights = selected_attn_weights * (1.0 / selected_attn_weights.sum(dim=-1, keepdim=True))
-                selected_attn_weights = selected_attn_weights.expand(2, -1, -1, -1)
+        selected_attn_weights = attn_weights[0:1]
+        if torch.jit.is_scripting():
+            pass
+        elif not self.training and random.random() < float(self.const_attention_rate):
+            # Make attention weights constant.  The intention is to
+            # encourage these modules to do something similar to an
+            # averaging-over-time operation.
+            # only need the mask, can just use the 1st one and expand later
+            selected_attn_weights = selected_attn_weights[0:1]
+            selected_attn_weights = (selected_attn_weights > 0.0).to(selected_attn_weights.dtype)
+            selected_attn_weights = selected_attn_weights * (1.0 / selected_attn_weights.sum(dim=-1, keepdim=True))
 
-        na = self.balancer_na(self.nonlin_attention(src,
-                                                    selected_attn_weights[0:1]))
+        na = self.balancer_na(self.nonlin_attention(src, selected_attn_weights))
 
         src = src + (na if self_attn_dropout_mask is None else na * self_attn_dropout_mask)
 
-        self_attn = self.self_attn1(
-            src, attn_weights)
+        self_attn = self.self_attn1(src, attn_weights)
 
         src = src + (self_attn if self_attn_dropout_mask is None else self_attn * self_attn_dropout_mask)
 
+        if torch.jit.is_scripting():
+            conv_skip_rate = 0.0
+        else:
+            conv_skip_rate = float(self.conv_skip_rate) if self.training else 0.0
         src = src + self.sequence_dropout(self.conv_module1(src, chunk_size=chunk_size,
                                                             src_key_padding_mask=src_key_padding_mask),
-                                          float(self.conv_skip_rate))
+                                          conv_skip_rate)
 
+        if torch.jit.is_scripting():
+            ff2_skip_rate = 0.0
+        else:
+            ff2_skip_rate = float(self.ff2_skip_rate) if self.training else 0.0
         src = src + self.sequence_dropout(self.balancer_ff2(self.feed_forward2(src)),
-                                          float(self.ff2_skip_rate))
+                                          ff2_skip_rate)
 
         # bypass in the middle of the layer.
         src = self.bypass_mid(src_orig, src)
 
-        self_attn = self.self_attn2(
-            src, attn_weights)
+        self_attn = self.self_attn2(src, attn_weights)
 
         src = src + (self_attn if self_attn_dropout_mask is None else self_attn * self_attn_dropout_mask)
 
+        if torch.jit.is_scripting():
+            conv_skip_rate = 0.0
+        else:
+            conv_skip_rate = float(self.conv_skip_rate) if self.training else 0.0
         src = src + self.sequence_dropout(self.conv_module2(src, chunk_size=chunk_size,
                                                             src_key_padding_mask=src_key_padding_mask),
-                                          float(self.conv_skip_rate))
+                                          conv_skip_rate)
 
+        if torch.jit.is_scripting():
+            ff3_skip_rate = 0.0
+        else:
+            ff3_skip_rate = float(self.ff3_skip_rate) if self.training else 0.0
         src = src + self.sequence_dropout(self.balancer_ff3(self.feed_forward3(src)),
-                                          float(self.ff3_skip_rate))
+                                          ff3_skip_rate)
 
         src = self.balancer1(src)
         src = self.norm(src)
@@ -925,7 +968,8 @@ class Zipformer2Encoder(nn.Module):
         pos_emb = self.encoder_pos(src)
         output = src
 
-        output = output * feature_mask
+        if not torch.jit.is_scripting():
+            output = output * feature_mask
 
         for i, mod in enumerate(self.layers):
             output = mod(
@@ -936,7 +980,8 @@ class Zipformer2Encoder(nn.Module):
                 src_key_padding_mask=src_key_padding_mask,
             )
 
-            output = output * feature_mask
+            if not torch.jit.is_scripting():
+                output = output * feature_mask
 
         return output
 
@@ -1084,7 +1129,7 @@ class DownsampledZipformer2Encoder(nn.Module):
         feature_mask: Union[Tensor, float] = 1.0,
         attn_mask: Optional[Tensor] = None,
         src_key_padding_mask: Optional[Tensor] = None,
-    ) -> Tuple[Tensor, Tensor]:
+    ) -> Tensor:
         r"""Downsample, go through encoder, upsample.
 
         Args:
@@ -1478,7 +1523,14 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
 
         attn_scores = torch.matmul(q, k)
 
-        if not self.training or random.random() >= float(self.pos_emb_skip_rate):
+        use_pos_scores = False
+        if torch.jit.is_scripting():
+            # We can't put random.random() in the same line
+            use_pos_scores = True
+        elif not self.training or random.random() >= float(self.pos_emb_skip_rate):
+            use_pos_scores = True
+
+        if use_pos_scores:
             pos_emb = self.linear_pos(pos_emb)
             seq_len2 = 2 * seq_len - 1
             pos_emb = pos_emb.reshape(-1, seq_len2, num_heads, pos_head_dim).permute(2, 0, 3, 1)
@@ -1499,7 +1551,9 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
 
             attn_scores = attn_scores + pos_scores
 
-        if self.training and random.random() < 0.1:
+        if torch.jit.is_scripting():
+            pass
+        elif self.training and random.random() < 0.1:
             # This is a harder way of limiting the attention scores to not be
             # too large.  It incurs a penalty if any of them has an absolute
             # value greater than 50.0.  this should be outside the normal range
@@ -1540,7 +1594,9 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         # half-precision output for backprop purposes.
         attn_weights = softmax(attn_scores, dim=-1)
 
-        if random.random() < 0.001 and not self.training:
+        if torch.jit.is_scripting():
+            pass
+        elif random.random() < 0.001 and not self.training:
             self._print_attn_entropy(attn_weights)
 
         attn_weights = nn.functional.dropout(
@@ -2080,7 +2136,8 @@ class ConvolutionModule(nn.Module):
         if src_key_padding_mask is not None:
             x = x.masked_fill(src_key_padding_mask.unsqueeze(1).expand_as(x), 0.0)
 
-        if chunk_size >= 0:
+        if not torch.jit.is_scripting() and chunk_size >= 0:
+            # Not support exporting a model for simulated streaming decoding
             assert self.causal, "Must initialize model with causal=True if you use chunk_size"
             x = self.depthwise_conv(x, chunk_size=chunk_size)
         else:

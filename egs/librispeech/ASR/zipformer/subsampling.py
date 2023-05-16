@@ -322,9 +322,12 @@ class Conv2dSubsampling(nn.Module):
         x = self.out_norm(x)
         x = self.dropout(x)
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
+        if torch.jit.is_scripting():
             x_lens = (x_lens - 7) // 2
+        else:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                x_lens = (x_lens - 7) // 2
         assert x.size(1) == x_lens.max().item()
 
         return x, x_lens
@@ -369,11 +372,17 @@ class Conv2dSubsampling(nn.Module):
         # Now x is of shape (N, T', odim)
         x = self.out_norm(x)
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            # The ConvNeXt module needs 3 frames of right padding after subsampling
+        if torch.jit.is_scripting():
             assert self.convnext.padding[0] == 3
+            # The ConvNeXt module needs 3 frames of right padding after subsampling
             x_lens = (x_lens - 7) // 2 - 3
+        else:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                # The ConvNeXt module needs 3 frames of right padding after subsampling
+                assert self.convnext.padding[0] == 3
+                x_lens = (x_lens - 7) // 2 - 3
+
         assert x.size(1) == x_lens.max().item()
 
         return x, x_lens, cached_left_pad
