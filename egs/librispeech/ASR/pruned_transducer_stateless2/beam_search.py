@@ -1,5 +1,6 @@
-# Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang
-#                                                  Xiaoyu Yang)
+# Copyright    2021-2023  Xiaomi Corp.        (authors: Fangjun Kuang,
+#                                                  Xiaoyu  Yang,
+#                                                  Yifan   Yang)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -1923,6 +1924,159 @@ def fast_beam_search_with_nbest_rescoring(
     for s in ngram_lm_scale_list:
         key = f"ngram_lm_scale_{s}"
         tot_scores = am_scores.values + s * ngram_lm_scores
+        ragged_tot_scores = k2.RaggedTensor(nbest.shape, tot_scores)
+        max_indexes = ragged_tot_scores.argmax()
+        best_path = k2.index_fsa(nbest.fsa, max_indexes)
+
+        if not return_timestamps:
+            ans[key] = get_texts(best_path)
+        else:
+            ans[key] = get_texts_with_timestamp(best_path)
+
+    return ans
+
+
+def fast_beam_search_with_nbest_rescoring_LG(
+    model: Transducer,
+    decoding_graph: k2.Fsa,
+    encoder_out: torch.Tensor,
+    encoder_out_lens: torch.Tensor,
+    beam: float,
+    max_states: int,
+    max_contexts: int,
+    ngram_lm_scale_list: List[float],
+    num_paths: int,
+    G: k2.Fsa,
+    word_table: k2.SymbolTable,
+    use_double_scores: bool = True,
+    nbest_scale: float = 0.5,
+    temperature: float = 1.0,
+    return_timestamps: bool = False,
+) -> Dict[str, Union[List[List[int]], DecodingResults]]:
+    """It limits the maximum number of symbols per frame to 1.
+    A lattice is first obtained using fast beam search, num_path are selected
+    and rescored using a given language model. The shortest path within the
+    lattice is used as the final output.
+
+    Args:
+      model:
+        An instance of `Transducer`.
+      decoding_graph:
+        Decoding graph used for decoding, may be a TrivialGraph or a LG.
+      encoder_out:
+        A tensor of shape (N, T, C) from the encoder.
+      encoder_out_lens:
+        A tensor of shape (N,) containing the number of frames in `encoder_out`
+        before padding.
+      beam:
+        Beam value, similar to the beam used in Kaldi.
+      max_states:
+        Max states per stream per frame.
+      max_contexts:
+        Max contexts pre stream per frame.
+      ngram_lm_scale_list:
+        A list of floats representing LM score scales.
+      num_paths:
+        Number of paths to extract from the decoded lattice.
+      G:
+        An FsaVec containing only a single FSA. It is an n-gram LM.
+      use_double_scores:
+        True to use double precision for computation. False to use
+        single precision.
+      nbest_scale:
+        It's the scale applied to the lattice.scores. A smaller value
+        yields more unique paths.
+      temperature:
+        Softmax temperature.
+      return_timestamps:
+        Whether to return timestamps.
+    Returns:
+      Return the decoded result in a dict, where the key has the form
+      'ngram_lm_scale_xx' and the value is the decoded results
+      optionally with timestamps. `xx` is the ngram LM scale value
+      used during decoding, i.e., 0.1.
+    """
+    lattice = fast_beam_search(
+        model=model,
+        decoding_graph=decoding_graph,
+        encoder_out=encoder_out,
+        encoder_out_lens=encoder_out_lens,
+        beam=beam,
+        max_states=max_states,
+        max_contexts=max_contexts,
+        temperature=temperature,
+    )
+
+    nbest = Nbest.from_lattice(
+        lattice=lattice,
+        num_paths=num_paths,
+        use_double_scores=use_double_scores,
+        nbest_scale=nbest_scale,
+    )
+    # at this point, nbest.fsa.scores are all zeros.
+
+    # The following code is modified from nbest.intersect()
+    word_fsa = k2.invert(nbest.fsa)
+    if hasattr(lattice, "aux_labels"):
+        # delete token IDs as it is not needed
+        del word_fsa.aux_labels
+    word_fsa.scores.zero_()
+    word_fsa_with_epsilon_loops = k2.linear_fsa_with_self_loops(word_fsa)
+    path_to_utt_map = nbest.shape.row_ids(1)
+
+    if hasattr(lattice, "aux_labels"):
+        # lattice has token IDs as labels and word IDs as aux_labels.
+        # inv_lattice has word IDs as labels and token IDs as aux_labels
+        inv_lattice = k2.invert(lattice)
+        inv_lattice = k2.arc_sort(inv_lattice)
+    else:
+        inv_lattice = k2.arc_sort(lattice)
+
+    if inv_lattice.shape[0] == 1:
+        path_lattice = k2.intersect_device(
+            inv_lattice,
+            word_fsa_with_epsilon_loops,
+            b_to_a_map=torch.zeros_like(path_to_utt_map),
+            sorted_match_a=True,
+        )
+    else:
+        path_lattice = k2.intersect_device(
+            inv_lattice,
+            word_fsa_with_epsilon_loops,
+            b_to_a_map=path_to_utt_map,
+            sorted_match_a=True,
+        )
+
+    # path_lattice has word IDs as labels and token IDs as aux_labels
+    path_lattice = k2.top_sort(k2.connect(path_lattice))
+    am_scores = path_lattice.get_tot_scores(
+        use_double_scores=use_double_scores,
+        log_semiring=True,  # Note: we always use True
+    )
+
+    # Now we need to compute the LM scores of each path.
+    # (1) Get the token IDs of each Path. We assume the decoding_graph
+    # is an acceptor, i.e., lattice is also an acceptor
+
+    rescored_word_fsas = k2.intersect_device(
+        a_fsas=G,
+        b_fsas=word_fsa_with_epsilon_loops,
+        b_to_a_map=torch.zeros_like(path_to_utt_map),
+        sorted_match_a=True,
+        ret_arc_maps=False,
+    )
+
+    rescored_word_fsas = k2.remove_epsilon_self_loops(rescored_word_fsas)
+    rescored_word_fsas = k2.top_sort(k2.connect(rescored_word_fsas))
+    ngram_lm_scores = rescored_word_fsas.get_tot_scores(
+        use_double_scores=True,
+        log_semiring=False,
+    )
+
+    ans: Dict[str, Union[List[List[int]], DecodingResults]] = {}
+    for s in ngram_lm_scale_list:
+        key = f"ngram_lm_scale_{s}"
+        tot_scores = am_scores + s * ngram_lm_scores
         ragged_tot_scores = k2.RaggedTensor(nbest.shape, tot_scores)
         max_indexes = ragged_tot_scores.argmax()
         best_path = k2.index_fsa(nbest.fsa, max_indexes)
