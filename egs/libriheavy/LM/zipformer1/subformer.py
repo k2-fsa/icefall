@@ -1105,7 +1105,6 @@ class DownsampledSubformerEncoder(nn.Module):
         """
         src_orig = src
         if hasattr(self, 'downsampler'):
-            print("b")
             indexes, weights, src = self.downsampler(src)
 
             pos_emb = self.downsampler.downsample_pos_emb(pos_emb, indexes)
