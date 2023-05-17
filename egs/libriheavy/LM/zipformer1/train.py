@@ -402,7 +402,7 @@ def get_params() -> AttributeDict:
             "warm_step": 2000,
             "env_info": get_env_info(),
             "bytes_per_segment": 2048,
-            "batch_size": 18,
+            "batch_size": 20,
             "train_file_list": "train.txt",
             "valid_file_list": "valid.txt",
             "num_workers": 4,
