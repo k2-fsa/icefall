@@ -175,6 +175,13 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         help="Positional-encoding dimension in encoder stacks: a single int or comma-separated list."
     )
 
+    parser.add_argument(
+        "--decoder-hidden-dim",
+        type=int,
+        default=1536,
+        help="Hidden dimension in decoder",
+    )
+
 
 
 
@@ -439,6 +446,7 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
 def get_decoder_model(params: AttributeDict) -> nn.Module:
     decoder = Decoder(
         embed_dim=max(_to_int_tuple(params.encoder_dim)),
+        hidden_dim=params.decoder_hidden_dim,
         vocab_size=256, # bytes
     )
     return decoder
