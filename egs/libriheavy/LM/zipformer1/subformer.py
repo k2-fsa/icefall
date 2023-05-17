@@ -671,7 +671,6 @@ class SubformerEncoder(nn.Module):
         if seq_len <= self.chunk_size or seq_len % self.chunk_size != 0:
             return [ seq_len ], [ 0 ] * len(self.layers)
         else:
-            assert seq_len % self.chunk_size == 0, (seq_len, self.chunk_size)
             num_layers = len(self.layers)
             chunk_indexes = [0, 1] * (num_layers + 1 // 2)
             return [ self.chunk_size, seq_len ], chunk_indexes[:num_layers]
