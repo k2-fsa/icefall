@@ -920,7 +920,11 @@ def train_one_epoch(
             # NOTE: We use reduction==sum and loss is computed over utterances
             # in the batch and there is no normalization to it so far.
             scaler.scale(loss).backward()
-            set_batch_count(model, params.batch_idx_train)
+            # Skip the warmup by adding a huge number to batch_count
+            if params.do_finetune = False:
+                set_batch_count(model, params.batch_idx_train + 100000)
+            else:
+                set_batch_count(model, params.batch_idx_train)
             scheduler.step_batch(params.batch_idx_train)
 
             scaler.step(optimizer)
@@ -1117,7 +1121,12 @@ def run(rank, world_size, args):
         parameters_names=parameters_names,
     )
 
-    scheduler = Eden(optimizer, params.lr_batches, params.lr_epochs)
+    scheduler = Eden(
+        optimizer=optimizer,
+        lr_batches=params.lr_batches,
+        lr_epochs=params.lr_epochs,
+        warmup_batches=0,
+    )
 
     if checkpoints and "optimizer" in checkpoints:
         logging.info("Loading optimizer state dict")
