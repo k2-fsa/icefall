@@ -921,7 +921,7 @@ def train_one_epoch(
             # in the batch and there is no normalization to it so far.
             scaler.scale(loss).backward()
             # Skip the warmup by adding a huge number to batch_count
-            if params.do_finetune = False:
+            if params.do_finetune:
                 set_batch_count(model, params.batch_idx_train + 100000)
             else:
                 set_batch_count(model, params.batch_idx_train)
