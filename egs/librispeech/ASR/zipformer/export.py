@@ -24,6 +24,8 @@ Usage:
 
 (1) Export to torchscript model using torch.jit.script()
 
+- For non-streaming model:
+
 ./zipformer/export.py \
   --exp-dir ./zipformer/exp \
   --bpe-model data/lang_bpe_500/bpe.model \
@@ -35,6 +37,26 @@ It will generate a file `jit_script.pt` in the given `exp_dir`. You can later
 load it by `torch.jit.load("jit_script.pt")`.
 
 Check ./jit_pretrained.py for its usage.
+
+Check https://github.com/k2-fsa/sherpa
+for how to use the exported models outside of icefall.
+
+- For streaming model:
+
+./zipformer/export.py \
+  --exp-dir ./zipformer/exp \
+  --causal 1 \
+  --chunk-size 16 \
+  --left-context-frames 128 \
+  --bpe-model data/lang_bpe_500/bpe.model \
+  --epoch 30 \
+  --avg 9 \
+  --jit 1
+
+It will generate a file `jit_script_chunk_16_left_128.pt` in the given `exp_dir`.
+You can later load it by `torch.jit.load("jit_script_chunk_16_left_128.pt")`.
+
+Check ./jit_pretrained_streaming.py for its usage.
 
 Check https://github.com/k2-fsa/sherpa
 for how to use the exported models outside of icefall.
@@ -83,7 +105,7 @@ with the following commands:
 import argparse
 import logging
 from pathlib import Path
-from typing import Tuple
+from typing import List, Tuple
 
 import sentencepiece as spm
 import torch
@@ -210,6 +232,107 @@ class EncoderModel(nn.Module):
         return encoder_out, encoder_out_lens
 
 
+class StreamingEncoderModel(nn.Module):
+    """A wrapper for encoder and encoder_embed"""
+
+    def __init__(self, encoder: nn.Module, encoder_embed: nn.Module) -> None:
+        super().__init__()
+        assert len(encoder.chunk_size) == 1, encoder.chunk_size
+        assert len(encoder.left_context_frames) == 1, encoder.left_context_frames
+        self.chunk_size = encoder.chunk_size[0]
+        self.left_context_len = encoder.left_context_frames[0]
+
+        # The encoder_embed subsample features (T - 7) // 2
+        # The ConvNeXt module needs (7 - 1) // 2 = 3 frames of right padding after subsampling
+        self.pad_length = 7 + 2 * 3
+
+        self.encoder = encoder
+        self.encoder_embed = encoder_embed
+
+    def forward(
+        self, features: Tensor, feature_lengths: Tensor, states: List[Tensor]
+    ) -> Tuple[Tensor, Tensor, List[Tensor]]:
+        """Streaming forward for encoder_embed and encoder.
+
+        Args:
+            features: (N, T, C)
+            feature_lengths: (N,)
+            states: a list of Tensors
+
+        Returns encoder outputs, output lengths, and updated states.
+        """
+        chunk_size = self.chunk_size
+        left_context_len = self.left_context_len
+
+        cached_embed_left_pad = states[-2]
+        x, x_lens, new_cached_embed_left_pad = self.encoder_embed.streaming_forward(
+            x=features,
+            x_lens=feature_lengths,
+            cached_left_pad=cached_embed_left_pad,
+        )
+        assert x.size(1) == chunk_size, (x.size(1), chunk_size)
+
+        src_key_padding_mask = make_pad_mask(x_lens)
+
+        # processed_mask is used to mask out initial states
+        processed_mask = torch.arange(left_context_len, device=x.device).expand(
+            x.size(0), left_context_len
+        )
+        processed_lens = states[-1]  # (batch,)
+        # (batch, left_context_size)
+        processed_mask = (processed_lens.unsqueeze(1) <= processed_mask).flip(1)
+        # Update processed lengths
+        new_processed_lens = processed_lens + x_lens
+
+        # (batch, left_context_size + chunk_size)
+        src_key_padding_mask = torch.cat([processed_mask, src_key_padding_mask], dim=1)
+
+        x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
+        encoder_states = states[:-2]
+
+        (
+            encoder_out,
+            encoder_out_lens,
+            new_encoder_states,
+        ) = self.encoder.streaming_forward(
+            x=x,
+            x_lens=x_lens,
+            states=encoder_states,
+            src_key_padding_mask=src_key_padding_mask,
+        )
+        encoder_out = encoder_out.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
+
+        new_states = new_encoder_states + [
+            new_cached_embed_left_pad,
+            new_processed_lens,
+        ]
+        return encoder_out, encoder_out_lens, new_states
+
+    @torch.jit.export
+    def get_init_states(
+        self,
+        batch_size: int = 1,
+        device: torch.device = torch.device("cpu"),
+    ) -> List[torch.Tensor]:
+        """
+        Returns a list of cached tensors of all encoder layers. For layer-i, states[i*6:(i+1)*6]
+        is (cached_key, cached_nonlin_attn, cached_val1, cached_val2, cached_conv1, cached_conv2).
+        states[-2] is the cached left padding for ConvNeXt module,
+        of shape (batch_size, num_channels, left_pad, num_freqs)
+        states[-1] is processed_lens of shape (batch,), which records the number
+        of processed frames (at 50hz frame rate, after encoder_embed) for each sample in batch.
+        """
+        states = self.encoder.get_init_states(batch_size, device)
+
+        embed_states = self.encoder_embed.get_init_states(batch_size, device)
+        states.append(embed_states)
+
+        processed_lens = torch.zeros(batch_size, dtype=torch.int32, device=device)
+        states.append(processed_lens)
+
+        return states
+
+
 @torch.no_grad()
 def main():
     args = get_parser().parse_args()
@@ -320,12 +443,18 @@ def main():
         model.__class__.forward = torch.jit.ignore(model.__class__.forward)
 
         # Wrap encoder and encoder_embed as a module
-        model.encoder = EncoderModel(model.encoder, model.encoder_embed)
+        if params.causal:
+            model.encoder = StreamingEncoderModel(model.encoder, model.encoder_embed)
+            chunk_size = model.encoder.chunk_size
+            left_context_len = model.encoder.left_context_len
+            filename = f"jit_script_chunk_{chunk_size}_left_{left_context_len}.pt"
+        else:
+            model.encoder = EncoderModel(model.encoder, model.encoder_embed)
+            filename = "jit_script.pt"
 
         logging.info("Using torch.jit.script")
         model = torch.jit.script(model)
-        filename = params.exp_dir / "jit_script.pt"
-        model.save(str(filename))
+        model.save(str(params.exp_dir / filename))
         logging.info(f"Saved to {filename}")
     else:
         logging.info("Not using torchscript. Export model.state_dict()")

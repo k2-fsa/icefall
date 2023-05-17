@@ -372,7 +372,7 @@ class Conv2dSubsampling(nn.Module):
         # Now x is of shape (N, T', odim)
         x = self.out_norm(x)
 
-        if torch.jit.is_scripting():
+        if torch.jit.is_scripting() or torch.jit.is_tracing():
             assert self.convnext.padding[0] == 3
             # The ConvNeXt module needs 3 frames of right padding after subsampling
             x_lens = (x_lens - 7) // 2 - 3

@@ -406,7 +406,7 @@ class BiasNorm(torch.nn.Module):
     def forward(self, x: Tensor) -> Tensor:
         assert x.shape[self.channel_dim] == self.num_channels
 
-        if torch.jit.is_scripting():
+        if torch.jit.is_scripting() or torch.jit.is_tracing():
             channel_dim = self.channel_dim
             if channel_dim < 0:
                 channel_dim += x.ndim
@@ -634,7 +634,7 @@ class ChunkCausalDepthwiseConv1d(torch.nn.Module):
         self,
         x: Tensor,
         cache: Tensor,
-    ) -> Tensor:
+    ) -> Tuple[Tensor, Tensor]:
         """Streaming Forward function.
 
         Args:
@@ -1533,7 +1533,7 @@ class ActivationDropoutAndLinear(torch.nn.Module):
 
     def forward(self,
                 x: Tensor):
-        if torch.jit.is_scripting():
+        if torch.jit.is_scripting() or torch.jit.is_tracing():
             if self.activation == 'SwooshL':
                 x = SwooshLForward(x)
             elif self.activation == "SwooshR":

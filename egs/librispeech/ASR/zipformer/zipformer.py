@@ -196,7 +196,7 @@ class Zipformer2(EncoderInterface):
 
     def get_feature_masks(
             self,
-            x: torch.Tensor) -> Union[List[float], List[Tensor]]:
+            x: Tensor) -> Union[List[float], List[Tensor]]:
         """
         In eval mode, returns [1.0] * num_encoders; in training mode, returns a number of
         randomized feature masks, one per encoder.
@@ -280,10 +280,10 @@ class Zipformer2(EncoderInterface):
         return chunk_size, left_context_chunks
 
     def forward(
-        self, x: torch.Tensor,
-        x_lens: torch.Tensor,
-        src_key_padding_mask: Optional[torch.Tensor] = None,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        self, x: Tensor,
+        x_lens: Tensor,
+        src_key_padding_mask: Optional[Tensor] = None,
+    ) -> Tuple[Tensor, Tensor]:
         """
         Args:
           x:
@@ -404,10 +404,10 @@ class Zipformer2(EncoderInterface):
 
     def streaming_forward(
         self,
-        x: torch.Tensor,
-        x_lens: torch.Tensor,
+        x: Tensor,
+        x_lens: Tensor,
         states: List[Tensor],
-        src_key_padding_mask: Optional[torch.Tensor] = None,
+        src_key_padding_mask: Tensor,
     ) -> Tuple[Tensor, Tensor, List[Tensor]]:
         """
         Args:
@@ -456,7 +456,7 @@ class Zipformer2(EncoderInterface):
         x = self.downsample_output(x)
         # class Downsample has this rounding behavior..
         assert self.output_downsampling_factor == 2
-        if torch.jit.is_scripting():
+        if torch.jit.is_scripting() or torch.jit.is_tracing():
             lengths = (x_lens + 1) // 2
         else:
             with warnings.catch_warnings():
@@ -790,7 +790,7 @@ class Zipformer2EncoderLayer(nn.Module):
         cached_conv1: Tensor,
         cached_conv2: Tensor,
         left_context_len: int,
-        src_key_padding_mask: Optional[Tensor] = None,
+        src_key_padding_mask: Tensor,
     ) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]:
         """Pass the input through the encoder layer in streaming forward mode.
 
@@ -988,9 +988,9 @@ class Zipformer2Encoder(nn.Module):
     def streaming_forward(
         self,
         src: Tensor,
-        states: Tensor,
+        states: List[Tensor],
         left_context_len: int,
-        src_key_padding_mask: Optional[Tensor] = None,
+        src_key_padding_mask: Tensor,
     ) -> Tuple[Tensor, List[Tensor]]:
         r"""Pass the input through the encoder layers in turn.
 
@@ -1166,9 +1166,9 @@ class DownsampledZipformer2Encoder(nn.Module):
     def streaming_forward(
         self,
         src: Tensor,
-        states: Tensor,
+        states: List[Tensor],
         left_context_len: int,
-        src_key_padding_mask: Optional[Tensor] = None,
+        src_key_padding_mask: Tensor,
     ) -> Tuple[Tensor, List[Tensor]]:
         r"""Downsample, go through encoder, upsample, in streaming forward mode.
 
@@ -1365,11 +1365,11 @@ class CompactRelPositionalEncoding(torch.nn.Module):
 
         self.pe = pe.to(dtype=x.dtype)
 
-    def forward(self, x: torch.Tensor, left_context_len: int = 0) -> Tensor:
+    def forward(self, x: Tensor, left_context_len: int = 0) -> Tensor:
         """Create positional encoding.
 
         Args:
-            x (torch.Tensor): Input tensor (time, batch, `*`).
+            x (Tensor): Input tensor (time, batch, `*`).
             left_context_len: (int): Length of cached left context.
 
         Returns:
@@ -1611,7 +1611,7 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         pos_emb: Tensor,
         cached_key: Tensor,
         left_context_len: int,
-        key_padding_mask: Optional[Tensor] = None,
+        key_padding_mask: Tensor,
     ) -> Tuple[Tensor, Tensor]:
         r"""
         Args:
@@ -2155,7 +2155,7 @@ class ConvolutionModule(nn.Module):
         self,
         x: Tensor,
         cache: Tensor,
-        src_key_padding_mask: Optional[Tensor] = None,
+        src_key_padding_mask: Tensor,
     ) -> Tuple[Tensor, Tensor]:
         """Compute convolution module in streaming forward mode.
 

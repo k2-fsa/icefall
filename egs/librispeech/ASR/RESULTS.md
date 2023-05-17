@@ -12,6 +12,7 @@ See <https://github.com/k2-fsa/icefall/pull/1058> for more details.
 
 You can find a pretrained model, training logs, decoding logs, and decoding results at:
 <https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-2023-05-15>
+
 You can use <https://github.com/k2-fsa/sherpa> to deploy it.
 
 | decoding method      | test-clean | test-other | comment            |
@@ -55,6 +56,7 @@ done
 
 You can find a pretrained model, training logs, decoding logs, and decoding results at:
 <https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-small-2023-05-16>
+
 You can use <https://github.com/k2-fsa/sherpa> to deploy it.
 
 | decoding method      | test-clean | test-other | comment            |
@@ -107,6 +109,7 @@ done
 
 You can find a pretrained model, training logs, decoding logs, and decoding results at:
 <https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-large-2023-05-16>
+
 You can use <https://github.com/k2-fsa/sherpa> to deploy it.
 
 | decoding method      | test-clean | test-other | comment            |
