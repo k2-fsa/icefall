@@ -123,7 +123,7 @@ def LmDataloader(dataset: LmDataset,
         dataset=dataset,
         batch_size=batch_size,
         num_workers=num_workers,
-        drop_last=True)
+        drop_last=False)
 
 
 
