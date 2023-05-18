@@ -268,6 +268,7 @@ class LoRAModule(nn.Module):
         x = self.lora_A[layer_idx](x)
         x = self.lora_B[layer_idx](x)
         x = x.transpose(0, 1)
+        return x
 
     
     '''
