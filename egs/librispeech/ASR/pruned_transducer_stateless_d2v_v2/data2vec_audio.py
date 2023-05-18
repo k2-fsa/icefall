@@ -99,6 +99,8 @@ class TransformerEncoderAdapter(TransformerEncoder):
                 )
                 x_diff = self.lora(x, layer_idx=i)
 
+                x += x_diff
+
                 if i >= min_layer:
                     layer_results.append((x, z, lr))
 
