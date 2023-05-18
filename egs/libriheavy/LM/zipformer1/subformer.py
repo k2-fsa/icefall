@@ -875,7 +875,7 @@ class LearnedDownsamplingModule(nn.Module):
             if random.random() < 0.01 or __name__ == '__main__':
                 logging.info(f"mean weight={weights.mean()}, mean-abs-scores={scores.abs().mean()} positive-scores={(scores>0).to(torch.float32).mean()}, discarded-weights={weights_discarded.mean()}, seq_len={seq_len}, seq_len_reduced={seq_len_reduced}")
 
-            weights_discarded = weights_discarded.flip(dims=1)
+            weights_discarded = weights_discarded.flip(dims=(1,))
 
             weights = (weights[:, :seq_len_reduced] - weights_discarded)
         else:
