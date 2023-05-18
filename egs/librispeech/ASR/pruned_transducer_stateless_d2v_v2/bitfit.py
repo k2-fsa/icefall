@@ -1587,7 +1587,7 @@ def run_adapter(rank, world_size, args, wb=None):
     adapter_names = []
     adapter_param = []
     for n, p  in model.named_parameters():
-        if 'k_proj.bias' in n:
+        if 'q_proj.bias' in n or 'fc1.bias' in n:
             adapter_names.append(n)
             adapter_param.append(p)
         else:
