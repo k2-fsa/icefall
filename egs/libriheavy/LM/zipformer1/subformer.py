@@ -966,7 +966,7 @@ class LearnedDownsamplingModule(nn.Module):
                                attn_offset: Tensor,
                                indexes: Tensor,
                                weights: Tensor,
-                               eps: float = 2.0e-04) -> Tensor:
+                               eps: float = 1.0e-03) -> Tensor:
         """
         Downsamples attn_offset and also modifies it to account for the weights in `weights`.
         Args:
@@ -989,7 +989,7 @@ class LearnedDownsamplingModule(nn.Module):
         attn_offset = attn_offset.gather(dim=2, index=indexes.unsqueeze(1).expand(
             batch_size, seq_len_reduced, seq_len_reduced))
         # unsqueeze at position 1 so the extra cost relates to the source position.
-        attn_offset = attn_offset + weights.clamp(min=eps).log().unsqueeze(1)
+        attn_offset = attn_offset + (weights + eps).log().unsqueeze(1)
 
         if self.weight_scale != 1.0:
             attn_offset = attn_offset - math.log(self.weight_scale)
