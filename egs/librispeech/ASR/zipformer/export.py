@@ -63,14 +63,27 @@ for how to use the exported models outside of icefall.
 
 (2) Export `model.state_dict()`
 
+- For non-streaming model:
+
 ./zipformer/export.py \
   --exp-dir ./zipformer/exp \
   --bpe-model data/lang_bpe_500/bpe.model \
   --epoch 30 \
   --avg 9
 
+- For streaming model:
+
+./zipformer/export.py \
+  --exp-dir ./zipformer/exp \
+  --causal 1 \
+  --bpe-model data/lang_bpe_500/bpe.model \
+  --epoch 30 \
+  --avg 9
+
 It will generate a file `pretrained.pt` in the given `exp_dir`. You can later
 load it by `icefall.checkpoint.load_checkpoint()`.
+
+- For non-streaming model:
 
 To use the generated file with `zipformer/decode.py`,
 you can do:
@@ -87,19 +100,57 @@ you can do:
         --decoding-method greedy_search \
         --bpe-model data/lang_bpe_500/bpe.model
 
+- For streaming model:
+
+To use the generated file with `zipformer/decode.py` and `zipformer/streaming_decode.py`, you can do:
+
+    cd /path/to/exp_dir
+    ln -s pretrained.pt epoch-9999.pt
+
+    cd /path/to/egs/librispeech/ASR
+
+    # simulated streaming decoding
+    ./zipformer/decode.py \
+        --exp-dir ./zipformer/exp \
+        --epoch 9999 \
+        --avg 1 \
+        --max-duration 600 \
+        --causal 1 \
+        --chunk-size 16 \
+        --left-context-frames 128 \
+        --decoding-method greedy_search \
+        --bpe-model data/lang_bpe_500/bpe.model
+
+    # chunk-wise streaming decoding
+    ./zipformer/streaming_decode.py \
+        --exp-dir ./zipformer/exp \
+        --epoch 9999 \
+        --avg 1 \
+        --max-duration 600 \
+        --causal 1 \
+        --chunk-size 16 \
+        --left-context-frames 128 \
+        --decoding-method greedy_search \
+        --bpe-model data/lang_bpe_500/bpe.model
+
 Check ./pretrained.py for its usage.
 
 Note: If you don't want to train a model from scratch, we have
 provided one for you. You can get it at
 
+- non-streaming model:
 https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-2023-05-15
+
+- streaming model:
+https://huggingface.co/Zengwei/icefall-asr-librispeech-streaming-zipformer-2023-05-17
 
 with the following commands:
 
     sudo apt-get install git-lfs
     git lfs install
     git clone https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-2023-05-15
-    # You will find the pre-trained model in icefall-asr-librispeech-zipformer-2023-05-15/exp
+    git clone https://huggingface.co/Zengwei/icefall-asr-librispeech-streaming-zipformer-2023-05-17
+    # You will find the pre-trained models in exp dir
 """
 
 import argparse

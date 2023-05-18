@@ -18,13 +18,26 @@
 This script loads a checkpoint and uses it to decode waves.
 You can generate the checkpoint with the following command:
 
+- For non-streaming model:
+
 ./zipformer/export.py \
   --exp-dir ./zipformer/exp \
   --bpe-model data/lang_bpe_500/bpe.model \
   --epoch 30 \
   --avg 9
 
+- For streaming model:
+
+./zipformer/export.py \
+  --exp-dir ./zipformer/exp \
+  --causal 1 \
+  --bpe-model data/lang_bpe_500/bpe.model \
+  --epoch 30 \
+  --avg 9
+
 Usage of this script:
+
+- For non-streaming model:
 
 (1) greedy search
 ./zipformer/pretrained.py \
@@ -49,6 +62,42 @@ Usage of this script:
   --method fast_beam_search \
   /path/to/foo.wav \
   /path/to/bar.wav
+
+- For streaming model:
+
+(1) greedy search
+./zipformer/pretrained.py \
+  --checkpoint ./zipformer/exp/pretrained.pt \
+  --causal 1 \
+  --chunk-size 16 \
+  --left-context-frames 128 \
+  --bpe-model ./data/lang_bpe_500/bpe.model \
+  --method greedy_search \
+  /path/to/foo.wav \
+  /path/to/bar.wav
+
+(2) modified beam search
+./zipformer/pretrained.py \
+  --checkpoint ./zipformer/exp/pretrained.pt \
+  --causal 1 \
+  --chunk-size 16 \
+  --left-context-frames 128 \
+  --bpe-model ./data/lang_bpe_500/bpe.model \
+  --method modified_beam_search \
+  /path/to/foo.wav \
+  /path/to/bar.wav
+
+(3) fast beam search
+./zipformer/pretrained.py \
+  --checkpoint ./zipformer/exp/pretrained.pt \
+  --causal 1 \
+  --chunk-size 16 \
+  --left-context-frames 128 \
+  --bpe-model ./data/lang_bpe_500/bpe.model \
+  --method fast_beam_search \
+  /path/to/foo.wav \
+  /path/to/bar.wav
+
 
 You can also use `./zipformer/exp/epoch-xx.pt`.
 
@@ -163,6 +212,7 @@ def get_parser():
         default=2,
         help="The context size in the decoder. 1 means bigram; 2 means tri-gram",
     )
+
     parser.add_argument(
         "--max-sym-per-frame",
         type=int,
@@ -225,6 +275,14 @@ def main():
 
     logging.info(f"device: {device}")
 
+    if params.causal:
+        assert (
+            "," not in params.chunk_size
+        ), "chunk_size should be one value in decoding."
+        assert (
+            "," not in params.left_context_frames
+        ), "left_context_frames should be one value in decoding."
+
     logging.info("Creating model")
     model = get_transducer_model(params)
 
@@ -235,7 +293,6 @@ def main():
     model.load_state_dict(checkpoint["model"], strict=False)
     model.to(device)
     model.eval()
-    # model.device = device
 
     logging.info("Constructing Fbank computer")
     opts = kaldifeat.FbankOptions()

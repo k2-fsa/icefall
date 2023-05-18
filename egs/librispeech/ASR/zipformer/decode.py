@@ -358,7 +358,7 @@ def decode_one_batch(
 
     if params.causal:
         # this seems to cause insertions at the end of the utterance if used with zipformer.
-        pad_len = int(params.chunk_size)
+        pad_len = 30
         feature_lens += pad_len
         feature = torch.nn.functional.pad(
             feature,

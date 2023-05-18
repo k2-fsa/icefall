@@ -601,7 +601,7 @@ def decode_dataset(
 
         fbank = Fbank(opts)
         feature = fbank(samples.to(device))
-        decode_stream.set_features(feature, tail_pad_len=int(params.chunk_size))
+        decode_stream.set_features(feature, tail_pad_len=30)
         decode_stream.ground_truth = cut.supervisions[0].text
 
         decode_streams.append(decode_stream)

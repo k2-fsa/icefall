@@ -157,6 +157,80 @@ for m in greedy_search modified_beam_search fast_beam_search; do
 done
 ```
 
+#### streaming
+
+##### normal-scaled model, number of model parameters: 66110931, i.e., 66.11 M
+
+You can find a pretrained model, training logs, decoding logs, and decoding results at:
+<https://huggingface.co/Zengwei/icefall-asr-librispeech-streaming-zipformer-2023-05-17>
+
+You can use <https://github.com/k2-fsa/sherpa> to deploy it.
+
+| decoding method      | chunk size | test-clean | test-other | decoding mode       | comment            |
+|----------------------|------------|------------|------------|---------------------|--------------------|
+| greedy_search        | 320ms      | 3.06       | 7.81       | simulated streaming | --epoch 30 --avg 8 --chunk-size 16 --left-context-frames 128 |
+| greedy_search        | 320ms      | 3.06       | 7.79       | chunk-wise          | --epoch 30 --avg 8 --chunk-size 16 --left-context-frames 128 |
+| modified_beam_search | 320ms      | 3.01       | 7.69       | simulated streaming | --epoch 30 --avg 8 --chunk-size 16 --left-context-frames 128 |
+| modified_beam_search | 320ms      | 3.05       | 7.69       | chunk-wise          | --epoch 30 --avg 8 --chunk-size 16 --left-context-frames 128 |
+| fast_beam_search     | 320ms      | 3.04       | 7.68       | simulated streaming | --epoch 30 --avg 8 --chunk-size 16 --left-context-frames 128 |
+| fast_beam_search     | 320ms      | 3.07       | 7.69       | chunk-wise          | --epoch 30 --avg 8 --chunk-size 16 --left-context-frames 128 |
+| greedy_search        | 640ms      | 2.81       | 7.15       | simulated streaming | --epoch 30 --avg 8 --chunk-size 32 --left-context-frames 256 |
+| greedy_search        | 640ms      | 2.84       | 7.16       | chunk-wise          | --epoch 30 --avg 8 --chunk-size 32 --left-context-frames 256 |
+| modified_beam_search | 640ms      | 2.79       | 7.05       | simulated streaming | --epoch 30 --avg 8 --chunk-size 32 --left-context-frames 256 |
+| modified_beam_search | 640ms      | 2.81       | 7.11       | chunk-wise          | --epoch 30 --avg 8 --chunk-size 32 --left-context-frames 256 |
+| fast_beam_search     | 640ms      | 2.84       | 7.04       | simulated streaming | --epoch 30 --avg 8 --chunk-size 32 --left-context-frames 256 |
+| fast_beam_search     | 640ms      | 2.83       | 7.1        | chunk-wise          | --epoch 30 --avg 8 --chunk-size 32 --left-context-frames 256 |
+
+Note: For decoding mode, `simulated streaming` indicates feeding full utterance during decoding using `decode.py`,
+  while `chunk-size` indicates feeding certain number of frames at each time using `streaming_decode.py`.
+
+The training command is:
+```bash
+export CUDA_VISIBLE_DEVICES="0,1,2,3"
+./zipformer/train.py \
+  --world-size 4 \
+  --num-epochs 40 \
+  --start-epoch 1 \
+  --use-fp16 1 \
+  --exp-dir zipformer/exp-causal \
+  --causal 1 \
+  --full-libri 1 \
+  --max-duration 1000
+```
+
+The simulated streaming decoding command is:
+```bash
+export CUDA_VISIBLE_DEVICES="0"
+for m in greedy_search modified_beam_search fast_beam_search; do
+  ./zipformer/decode.py \
+    --epoch 30 \
+    --avg 8 \
+    --use-averaged-model 1 \
+    --exp-dir ./zipformer/exp-causal \
+    --causal 1 \
+    --chunk-size 16 \
+    --left-context-frames 128 \
+    --max-duration 600 \
+    --decoding-method $m
+done
+```
+
+The chunk-wise streaming decoding command is:
+```bash
+export CUDA_VISIBLE_DEVICES="0"
+for m in greedy_search modified_beam_search fast_beam_search; do
+  ./zipformer/streaming_decode.py \
+    --epoch 30 \
+    --avg 8 \
+    --use-averaged-model 1 \
+    --exp-dir ./zipformer/exp-causal \
+    --causal 1 \
+    --chunk-size 16 \
+    --left-context-frames 128 \
+    --num-decode-streams 2000 \
+    --decoding-method $m
+done
+```
 
 ### pruned_transducer_stateless7 (zipformer + multidataset(LibriSpeech + GigaSpeech + CommonVoice 13.0))
 
