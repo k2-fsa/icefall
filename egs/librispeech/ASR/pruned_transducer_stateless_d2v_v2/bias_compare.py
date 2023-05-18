@@ -8,3 +8,4 @@ base_model, bias_model = base_model['model'], bias_model['model']
 for key in base_model.keys():
     if 'bias' in key:
         print(key, base_model[key], bias_model[key])
+
