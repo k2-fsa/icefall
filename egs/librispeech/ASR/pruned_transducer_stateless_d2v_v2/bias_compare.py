@@ -7,5 +7,5 @@ base_model, bias_model = base_model['model'], bias_model['model']
 
 for key in base_model.keys():
     if 'bias' in key:
-        print(key, base_model[key], bias_model[key])
-
+        l1_diff = torch.abs(base_model[key]-bias_model[key]).sum()
+        print(key, l1_diff)
