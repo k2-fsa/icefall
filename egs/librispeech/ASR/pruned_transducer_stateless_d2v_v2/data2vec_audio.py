@@ -238,7 +238,7 @@ class LoRAModule(nn.Module):
         self,
         embedding_dim: float = 768,
         layer_num: int = 12,
-        rank: int = 10,
+        rank: int = 16,
     ) -> None:
         
         super().__init__()
