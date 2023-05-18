@@ -890,7 +890,7 @@ class LearnedDownsamplingModule(nn.Module):
             seq_len_reduced = max(1,
                                   (weights > 0.0).to(torch.int32).sum(dim=-1).max().item())
             if random.random() < 0.02:
-                logging.info("seq_len={seq_len}, seq_len_reduced={seq_len_reduced}")
+                logging.info(f"seq_len={seq_len}, seq_len_reduced={seq_len_reduced}")
             weights = weights[:, :seq_len_reduced]
 
         indexes = indexes[:, :seq_len_reduced]
