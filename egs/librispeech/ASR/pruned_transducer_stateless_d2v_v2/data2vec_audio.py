@@ -252,8 +252,8 @@ class LoRAModule(nn.Module):
         else:
             self.lora_dropout = lambda x: x
 
-        self.lora_A = nn.Linear(embedding_dim, r)
-        self.lora_B = nn.Linear(r, embedding_dim)
+        self.lora_A = nn.Linear(embedding_dim, self.r)
+        self.lora_B = nn.Linear(self.r, embedding_dim)
         self.scaling = self.lora_alpha / self.r
 
     
