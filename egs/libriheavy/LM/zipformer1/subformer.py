@@ -875,16 +875,7 @@ class LearnedDownsamplingModule(nn.Module):
             if random.random() < 0.01 or __name__ == '__main__':
                 logging.info(f"mean weight={weights.mean()}, mean-abs-scores={scores.abs().mean()} positive-scores={(scores>0).to(torch.float32).mean()}, discarded-weights={weights_discarded.mean()}, seq_len={seq_len}, seq_len_reduced={seq_len_reduced}")
 
-
-
-            # randomly rotate `weights_discarded` on the sequence axis; this is
-            # intended to ensure that it doesn't assign the highest scores to
-            # not-so-important elements to avoid the randomness of these
-            # discarded weights.
-            r = random.randint(0, seq_len_reduced - 1)
-            weights_discarded = torch.cat((weights_discarded[:, r:],
-                                           weights_discarded[:, :r]),
-                                          dim=1)
+            weights_discarded = weights_discarded.flip(dims=1)
 
             weights = (weights[:, :seq_len_reduced] - weights_discarded)
         else:
