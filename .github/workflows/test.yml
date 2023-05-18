@@ -94,7 +94,6 @@ jobs:
         if: startsWith(matrix.os, 'ubuntu')
         run: |
           ls -lh
-          export PYTHONPATH=$PWD:$PWD/lhotse:$PYTHONPATH
           echo $PYTHONPATH
           pytest -v -s ./test
           # runt tests for conformer ctc
@@ -132,7 +131,6 @@ jobs:
         if: startsWith(matrix.os, 'macos')
         run: |
           ls -lh
-          export PYTHONPATH=$PWD:$PWD/lhotse:$PYTHONPATH
           lib_path=$(python -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")
           echo "lib_path: $lib_path"
           export DYLD_LIBRARY_PATH=$lib_path:$DYLD_LIBRARY_PATH
