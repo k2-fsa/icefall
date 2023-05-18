@@ -805,17 +805,11 @@ class LearnedDownsamplingModule(nn.Module):
       downsampling_factor:  factor to downsample by, e.g. 2 or 4.  There is no
          fundamental reason why this has to be an integer, but we make it so
          anyway.
-      intermediate_rate: the proportion of the downsampled values that have
-         "intermediate weights"-  between kept and downsampled.  The user is
-         supposed to use these in such a way that if the weight we return is
-         0.0, it's equivalent to not using this frame at all.
     """
     def __init__(self,
                  embed_dim: int,
-                 downsampling_factor: int,
-                 intermediate_rate: Optional[FloatLike] = ScheduledFloat((0.0, 0.5),
-                                                                         (4000.0, 0.2),
-                                                                         default=0.5)):
+                 downsampling_factor: int):
+
         super().__init__()
 
         self.to_scores = nn.Linear(embed_dim, 1, bias=False)
@@ -833,7 +827,6 @@ class LearnedDownsamplingModule(nn.Module):
         self.copy_weights2 = nn.Identity()
 
         self.downsampling_factor = downsampling_factor
-        self.intermediate_rate = copy.deepcopy(intermediate_rate)
 
 
     def forward(self,
