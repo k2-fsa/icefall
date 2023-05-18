@@ -49,20 +49,7 @@ log "Decode with models exported by torch.jit.script()"
   $repo/test_wavs/1221-135766-0001.wav \
   $repo/test_wavs/1221-135766-0002.wav
 
-for sym in 1 2 3; do
-  log "Greedy search with --max-sym-per-frame $sym"
-
-  ./zipformer/pretrained.py \
-    --method greedy_search \
-    --max-sym-per-frame $sym \
-    --checkpoint $repo/exp/pretrained.pt \
-    --bpe-model $repo/data/lang_bpe_500/bpe.model \
-    $repo/test_wavs/1089-134686-0001.wav \
-    $repo/test_wavs/1221-135766-0001.wav \
-    $repo/test_wavs/1221-135766-0002.wav
-done
-
-for method in modified_beam_search fast_beam_search; do
+for method in greedy_search modified_beam_search fast_beam_search; do
   log "$method"
 
   ./zipformer/pretrained.py \
