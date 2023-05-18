@@ -115,23 +115,14 @@ class LmDataset(torch.utils.data.IterableDataset):
 
 
 
-def LmDataloader(dataset: LmDataset,
-                 batch_size: int,
-                 num_workers: int):
-
-    return torch.utils.data.DataLoader(
-        dataset=dataset,
-        batch_size=batch_size,
-        num_workers=num_workers,
-        drop_last=False)
-
 
 
 
 def _test():
     l = LmDataset('files.txt')
 
-    d = LmDataloader(l, batch_size=5, num_workers=4)
+    d = torch.utils.data.DataLoader(
+        dataset=l, batch_size=5, num_workers=4, drop_last=True)
 
     for batch in d:
         logging.info("batch shape: ", batch.shape)
