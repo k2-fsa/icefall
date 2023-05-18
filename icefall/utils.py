@@ -1196,9 +1196,8 @@ def measure_gradient_norms(model: nn.Module, norm: str = "l1") -> Dict[str, floa
 
 
 def get_parameter_groups_with_lrs(
-        model: nn.Module,
-        lr: float,
-        include_names: bool = False) -> List[dict]:
+    model: nn.Module, lr: float, include_names: bool = False
+) -> List[dict]:
     """
     This is for use with the ScaledAdam optimizers (more recent versions that accept lists of
     named-parameters; we can, if needed, create a version without the names).
@@ -1228,7 +1227,7 @@ def get_parameter_groups_with_lrs(
     names = []
     for name, m in model.named_modules():
         names.append(name)
-        if hasattr(m, 'lr_scale'):
+        if hasattr(m, "lr_scale"):
             flat_lr_scale[name] = m.lr_scale
 
     # lr_to_parames is a dict from learning rate (floating point) to: if
@@ -1237,23 +1236,21 @@ def get_parameter_groups_with_lrs(
     lr_to_params = defaultdict(list)
 
     for name, parameter in model.named_parameters():
-        split_name = name.split('.')
+        split_name = name.split(".")
         # caution: as a special case, if the name is '', split_name will be [ '' ].
         prefix = split_name[0]
         cur_lr = lr * flat_lr_scale[prefix]
-        if prefix != '':
-            cur_lr *= flat_lr_scale['']
+        if prefix != "":
+            cur_lr *= flat_lr_scale[""]
         for part in split_name[1:]:
-            prefix = '.'.join([ prefix, part ])
+            prefix = ".".join([prefix, part])
             cur_lr *= flat_lr_scale[prefix]
-        lr_to_params[cur_lr].append(
-            (name, parameter) if include_names else parameter
-        )
+        lr_to_params[cur_lr].append((name, parameter) if include_names else parameter)
 
     if include_names:
-        return [ { 'named_params': pairs, 'lr': lr } for lr, pairs in lr_to_params.items() ]
+        return [{"named_params": pairs, "lr": lr} for lr, pairs in lr_to_params.items()]
     else:
-        return [ { 'params' : params, 'lr': lr } for lr, params in lr_to_params.items() ]
+        return [{"params": params, "lr": lr} for lr, params in lr_to_params.items()]
 
 
 def optim_step_and_measure_param_change(
