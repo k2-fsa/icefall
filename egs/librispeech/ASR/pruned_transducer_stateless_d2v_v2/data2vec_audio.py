@@ -43,7 +43,7 @@ class TransformerEncoderAdapter(TransformerEncoder):
         self.lora = LoRAModule()
 
     def forward(self, x, padding_mask=None, layer=None, tgt_layer=None):
-        x, layer_results = self.extract_features_with_adapter(
+        x, layer_results = self.extract_features_with_lora(
                                 x, 
                                 padding_mask=padding_mask, 
                                 tgt_layer=tgt_layer
