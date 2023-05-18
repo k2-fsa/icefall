@@ -43,6 +43,8 @@ import torch
 import torchaudio
 from kaldifeat import FbankOptions, OnlineFbank, OnlineFeature
 
+from ncnn_custom_layer import RegisterCustomLayers
+
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -201,6 +203,8 @@ class Model:
 
         encoder_param = args.encoder_param_filename
         encoder_model = args.encoder_bin_filename
+
+        RegisterCustomLayers(encoder_net)
 
         encoder_net.load_param(encoder_param)
         encoder_net.load_model(encoder_model)
