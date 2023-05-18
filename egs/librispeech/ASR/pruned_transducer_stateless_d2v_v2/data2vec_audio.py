@@ -229,6 +229,48 @@ class TransformerEncoderAdapter(TransformerEncoder):
         return x, layer_results
 
 
+class LoRAModule(nn.Module):
+    """
+    Implements a residual adapter based on https://arxiv.org/pdf/1909.08478.pdf
+    modules similar to the original residual adapter except layernorm location (first -> last)
+    """
+    def __init__(
+        self,
+        embedding_dim: float = 768,
+        layer_num: int = 12,
+        proj_dim: float = 512,
+    ) -> None:
+        
+        super().__init__()
+
+        self.type = 'linear'
+        
+        def build_adapter(embedding_dim, proj_dim, type_=self.type):
+            if type_ == 'conv':
+                return ConvolutionModule(768, 31)
+            else:
+                return nn.Sequential(
+                    #nn.LayerNorm(embedding_dim),
+                    nn.Linear(embedding_dim, proj_dim),
+                    nn.ReLU(),
+                    nn.Linear(proj_dim, embedding_dim),
+                    nn.LayerNorm(embedding_dim),
+                )
+
+        self.adapter_layers = nn.ModuleList(
+            [build_adapter(embedding_dim, proj_dim, type_=self.type) for _ in range(layer_num)]
+        )
+    
+    def forward(self, x, layer_id=-1):
+        x = x.transpose(0, 1)
+        residual = x
+        x = self.adapter_layers[layer_id](x)
+        x = residual + x
+        x = x.transpose(0, 1)
+
+        return x
+
+
 class ResidualAdapterModule(nn.Module):
     """
     Implements a residual adapter based on https://arxiv.org/pdf/1909.08478.pdf
