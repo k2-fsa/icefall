@@ -258,7 +258,7 @@ class Zipformer2(EncoderInterface):
         if not self.causal:
             return -1, -1
 
-        if torch.jit.is_scripting() or not self.training:
+        if torch.jit.is_scripting():
             assert len(self.chunk_size) == 1, self.chunk_size
             chunk_size = self.chunk_size[0]
         else:
@@ -267,7 +267,7 @@ class Zipformer2(EncoderInterface):
         if chunk_size == -1:
             left_context_chunks = -1
         else:
-            if torch.jit.is_scripting() or not self.training:
+            if torch.jit.is_scripting():
                 assert len(self.left_context_frames) == 1, self.left_context_frames
                 left_context_frames = self.left_context_frames[0]
             else:
