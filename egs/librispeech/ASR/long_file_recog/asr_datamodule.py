@@ -1,5 +1,6 @@
 # Copyright      2021  Piotr Żelasko
 # Copyright      2022  Xiaomi Corporation     (Author: Mingshuang Luo)
+# Copyright      2023  Xiaomi Corporation     (Author: Zengwei Yao)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -31,7 +32,7 @@ from lhotse.dataset import (  # noqa F401 for PrecomputedFeatures
     DynamicBucketingSampler,
     K2SpeechRecognitionDataset,
     PrecomputedFeatures,
-    SingleCutSampler,
+    SimpleCutSampler,
     SpecAugment,
 )
 from lhotse.dataset.input_strategies import (  # noqa F401 For AudioSamples
@@ -59,8 +60,9 @@ class SpeechRecognitionDataset(K2SpeechRecognitionDataset):
         """
         self.hdf5_fix.update()
 
+        # Note: don't sort cuts here
         # Sort the cuts by duration so that the first one determines the batch time dimensions.
-        cuts = cuts.sort_by_duration(ascending=False)
+        # cuts = cuts.sort_by_duration(ascending=False)
 
         # Get a tensor with batched feature matrices, shape (B, T, F)
         # Collation performs auto-padding, if necessary.
@@ -146,7 +148,7 @@ class AsrDataModule:
         group.add_argument(
             "--num-workers",
             type=int,
-            default=2,
+            default=8,
             help="The number of training dataloader workers that "
             "collect the batches.",
         )
@@ -164,17 +166,21 @@ class AsrDataModule:
             input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80))),
             return_cuts=self.args.return_cuts,
         )
-        sampler = DynamicBucketingSampler(
+
+        sampler = SimpleCutSampler(
             cuts,
             max_duration=self.args.max_duration,
             shuffle=False,
+            drop_last=False,
         )
+
         logging.debug("About to create test dataloader")
         test_dl = DataLoader(
             test,
             batch_size=None,
             sampler=sampler,
             num_workers=self.args.num_workers,
+            persistent_workers=False,
         )
         return test_dl
 

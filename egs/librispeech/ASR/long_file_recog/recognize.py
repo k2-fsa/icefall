@@ -31,6 +31,7 @@ https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stat
 """
 
 import argparse
+import torch.multiprocessing as mp
 import torch
 import torch.nn as nn
 import logging
@@ -47,8 +48,8 @@ from beam_search import (
     greedy_search_batch,
     modified_beam_search,
 )
-from icefall.utils import AttributeDict, convert_timestamp
-from lhotse import CutSet
+from icefall.utils import AttributeDict, convert_timestamp, setup_logger
+from lhotse import CutSet, load_manifest_lazy
 from lhotse.cut import Cut
 from lhotse.supervision import AlignmentItem
 from lhotse.serialization import SequentialJsonlWriter
@@ -57,6 +58,26 @@ from lhotse.serialization import SequentialJsonlWriter
 def get_parser():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+
+    parser.add_argument(
+        "--world-size",
+        type=int,
+        default=1,
+        help="Number of GPUs for DDP training.",
+    )
+
+    parser.add_argument(
+        "--master-port",
+        type=int,
+        default=12354,
+        help="Master port to use for DDP training.",
+    )
+    parser.add_argument(
+        "--subset",
+        type=str,
+        default="small",
+        help="Subset to process. Possible values are 'small', 'medium', 'large'",
     )
 
     parser.add_argument(
@@ -71,6 +92,13 @@ def get_parser():
         type=Path,
         default=Path("data/librilight/manifests_chunk_recog"),
         help="Path to directory to save the chunk cuts with recognition results.",
+    )
+
+    parser.add_argument(
+        "--log-dir",
+        type=Path,
+        default=Path("long_file_recog/log"),
+        help="Path to directory to save logs.",
     )
 
     parser.add_argument(
@@ -279,15 +307,26 @@ def decode_dataset(
             if batch_idx % log_interval == 0:
                 logging.info(f"cuts processed until now is {num_cuts}")
 
+        for f in futures:
+            f.result()
+
 
 @torch.no_grad()
-def main():
-    parser = get_parser()
-    AsrDataModule.add_arguments(parser)
-    args = parser.parse_args()
-
+def run(rank, world_size, args, in_cuts):
+    """
+    Args:
+      rank:
+        It is a value between 0 and `world_size-1`.
+      world_size:
+        Number of GPUs for DDP training.
+      args:
+        The return value of get_parser().parse_args()
+    """
     params = get_params()
     params.update(vars(args))
+
+    setup_logger(f"{params.log_dir}/log-decode")
+    logging.info("Decoding started")
 
     assert params.decoding_method in (
         "greedy_search",
@@ -307,7 +346,7 @@ def main():
 
     device = torch.device("cpu")
     if torch.cuda.is_available():
-        device = torch.device("cuda", 0)
+        device = torch.device("cuda", rank)
     logging.info(f"device: {device}")
 
     logging.info("Loading jit model")
@@ -324,40 +363,73 @@ def main():
     args.return_cuts = True
     asr_data_module = AsrDataModule(args)
 
-    manifest_out_dir = params.manifest_out_dir
+    if world_size > 1:
+        in_cuts = in_cuts[rank]
+        out_cuts_filename = params.manifest_out_dir / (
+            f"{params.cuts_filename}_job_{rank}" + params.suffix
+        )
+    else:
+        out_cuts_filename = params.manifest_out_dir / (
+            f"{params.cuts_filename}" + params.suffix
+        )
+
+    dl = asr_data_module.dataloaders(in_cuts)
+
+    cuts_writer = CutSet.open_writer(out_cuts_filename, overwrite=True)
+    decode_dataset(
+        dl=dl,
+        params=params,
+        model=model,
+        sp=sp,
+        decoding_graph=decoding_graph,
+        cuts_writer=cuts_writer,
+    )
+    cuts_writer.close()
+    logging.info(f"Cuts saved to {out_cuts_filename}")
+
+    logging.info("Done!")
+
+
+def main():
+    parser = get_parser()
+    AsrDataModule.add_arguments(parser)
+    args = parser.parse_args()
+
+    subset = args.subset
+    assert subset in ["small", "medium", "large"], subset
+
+    manifest_out_dir = args.manifest_out_dir
     manifest_out_dir.mkdir(parents=True, exist_ok=True)
 
-    subsets = ["small"]
+    args.suffix = ".jsonl.gz"
+    args.cuts_filename = f"librilight_cuts_{args.subset}"
 
-    for subset in subsets:
-        logging.info(f"Processing {subset} subset")
+    out_cuts_filename = manifest_out_dir / (args.cuts_filename + args.suffix)
+    if out_cuts_filename.is_file():
+        logging.info(f"{out_cuts_filename} already exists - skipping.")
+        return
 
-        filename = f"librilight_cuts_{subset}.jsonl.gz"
+    in_cuts_filename = args.manifest_in_dir / (args.cuts_filename + args.suffix)
+    in_cuts = load_manifest_lazy(in_cuts_filename)
 
-        out_cuts_filename = manifest_out_dir / filename
-        if out_cuts_filename.is_file():
-            logging.info(f"{out_cuts_filename} already exists - skipping.")
-            continue
-
-        in_cuts_filename = params.manifest_in_dir / filename
-        cuts = asr_data_module.load_subset(in_cuts_filename)
-        dl = asr_data_module.dataloaders(cuts)
-
-        cuts_writer = CutSet.open_writer(out_cuts_filename, overwrite=False)
-        decode_dataset(
-            dl=dl,
-            params=params,
-            model=model,
-            sp=sp,
-            decoding_graph=decoding_graph,
-            cuts_writer=cuts_writer,
+    world_size = args.world_size
+    assert world_size >= 1
+    if world_size > 1:
+        chunk_size = (len(in_cuts) + (world_size - 1)) // world_size
+        # Each manifest is saved at: ``{output_dir}/{prefix}.{split_idx}.jsonl.gz``
+        splits = in_cuts.split_lazy(
+            output_dir=args.manifest_in_dir / "split",
+            chunk_size=chunk_size,
+            prefix=args.cuts_filename,
         )
-        cuts_writer.close()
-        logging.info(f"Cuts saved to {out_cuts_filename}")
+        assert len(splits) == world_size, (len(splits), world_size)
+        mp.spawn(run, args=(world_size, args, splits), nprocs=world_size, join=True)
+    else:
+        run(rank=0, world_size=world_size, args=args, in_cuts=in_cuts)
 
+
+torch.set_num_threads(1)
+torch.set_num_interop_threads(1)
 
 if __name__ == "__main__":
-    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-    logging.basicConfig(format=formatter, level=logging.INFO)
-
     main()

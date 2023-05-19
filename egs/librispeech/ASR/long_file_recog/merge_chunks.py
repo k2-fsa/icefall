@@ -22,12 +22,21 @@ This file merge overlapped chunks into utterances accroding to recording ids.
 
 import argparse
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from cytoolz.itertoolz import groupby
+from typing import List
 
 import sentencepiece as spm
-from lhotse import CutSet, SupervisionSet, load_manifest
-from lhotse import SupervisionSegment, MonoCut
+from lhotse import (
+    CutSet,
+    MonoCut,
+    SupervisionSegment,
+    SupervisionSet,
+    load_manifest,
+    load_manifest_lazy,
+)
+from lhotse.cut import Cut
+from lhotse.serialization import SequentialJsonlWriter
 
 
 def get_parser():
@@ -67,33 +76,43 @@ def get_parser():
 def merge_chunks(
     cuts_chunk: CutSet,
     supervisions: SupervisionSet,
+    cuts_writer: SequentialJsonlWriter,
     sp: spm.SentencePieceProcessor,
     extra: float,
-) -> CutSet:
+) -> int:
     """Merge chunk-wise cuts accroding to recording ids.
 
     Args:
       cuts_chunk:
-        The chunk-wise cuts.
+        The chunk-wise cuts opened in a lazy mode.
       supervisions:
-        The supervision manifest containing text file path.
+        The supervision manifest containing text file path, opened in a lazy mode.
+      cuts_writer:
+        Writer to save the cuts with recognition results.
       sp:
         The BPE model.
       extra:
         Extra duration (in seconds) to drop at both sides of each chunk.
     """
-    # Divide into groups accroding to their recording ids
-    cut_groups = groupby(lambda cut: cut.recording.id, cuts_chunk)
 
-    utt_cut_list = []
-    for recording_id, cuts in cut_groups.items():
+    #  Background worker to add alignemnt and save cuts to disk.
+    def _save_worker(utt_cut: Cut, flush=False):
+        cuts_writer.write(utt_cut, flush=flush)
+
+    def _merge(cut_list: List[Cut], rec_id: str, utt_idx: int):
+        """Merge chunks with same recording_id."""
+        for cut in cut_list:
+            assert cut.recording.id == rec_id, (cut.recording.id, rec_id)
+
         # For each group with a same recording, sort it accroding to the start time
-        chunk_cuts = sorted(cuts, key=(lambda cut: cut.start))
+        # In fact, we don't need to do this since the cuts have been sorted
+        # according to the start time
+        cut_list = sorted(cut_list, key=(lambda cut: cut.start))
 
-        rec = chunk_cuts[0].recording
+        rec = cut_list[0].recording
         alignments = []
         cur_end = 0
-        for cut in chunk_cuts:
+        for cut in cut_list:
             # Get left and right borders
             left = cut.start + extra if cut.start > 0 else 0
             chunk_end = cut.start + cut.duration
@@ -109,12 +128,14 @@ def merge_chunks(
                 if left <= t < right:
                     alignments.append(ali.with_offset(cut.start))
 
-        old_sup = supervisions[rec.id]
-        assert old_sup.recording_id == rec.id, (old_sup.recording_id, rec.id)
+        old_sup = supervisions[rec_id]
+        # Assuming the supervisions are sorted with the same recoding order as in cuts_chunk
+        # old_sup = supervisions[utt_idx]
+        assert old_sup.recording_id == rec_id, (old_sup.recording_id, rec_id)
 
         new_sup = SupervisionSegment(
-            id=rec.id,
-            recording_id=rec.id,
+            id=rec_id,
+            recording_id=rec_id,
             start=0,
             duration=rec.duration,
             alignment={"symbol": alignments},
@@ -123,7 +144,7 @@ def merge_chunks(
         )
 
         utt_cut = MonoCut(
-            id=rec.id,
+            id=rec_id,
             start=0,
             duration=rec.duration,
             channel=0,
@@ -131,10 +152,54 @@ def merge_chunks(
             supervisions=[new_sup],
         )
         # Set a custom attribute to the cut
-        utt_cut.text_path = old_sup.text_path
-        utt_cut_list.append(utt_cut)
+        utt_cut.text_path = old_sup.book
 
-    return CutSet.from_cuts(utt_cut_list)
+        return utt_cut
+
+    last_rec_id = None
+    cut_list = []
+    utt_idx = 0
+
+    futures = []
+    with ThreadPoolExecutor(max_workers=1) as executor:
+
+        for cut in cuts_chunk:
+            cur_rec_id = cut.recording.id
+            if len(cut_list) == 0:
+                # Case of the first cut
+                last_rec_id = cur_rec_id
+                cut_list.append(cut)
+            elif cur_rec_id == last_rec_id:
+                cut_list.append(cut)
+            else:
+                # Case of a cut belonging to a new recording
+                utt_cut = _merge(cut_list, last_rec_id, utt_idx)
+                utt_idx += 1
+
+                futures.append(
+                    executor.submit(_save_worker, utt_cut)
+                )
+
+                last_rec_id = cur_rec_id
+                cut_list = [cut]
+
+                if utt_idx % 5000 == 0:
+                    logging.info(f"Procesed {utt_idx} utterances.")
+
+        # For the cuts belonging to the last recording
+        if len(cut_list) != 0:
+            utt_cut = _merge(cut_list, last_rec_id, utt_idx)
+            utt_idx += 1
+
+            futures.append(
+                executor.submit(_save_worker, utt_cut)
+            )
+            logging.info("Finished")
+
+        for f in futures:
+            f.result()
+
+    return utt_idx
 
 
 def main():
@@ -146,7 +211,7 @@ def main():
     # It contains "librilight_recordings_*.jsonl.gz" and "librilight_supervisions_small.jsonl.gz"
     manifest_out_dir = args.manifest_out_dir
 
-    subsets = ["small"]
+    subsets = ["small", "median", "large"]
 
     for subset in subsets:
         logging.info(f"Processing {subset} subset")
@@ -160,18 +225,16 @@ def main():
             manifest_out_dir / f"librilight_supervisions_{subset}.jsonl.gz"
         )  # We will use the text path from supervisions
 
-        cuts_chunk = load_manifest(
+        cuts_chunk = load_manifest_lazy(
             args.manifest_in_dir / f"librilight_cuts_{subset}.jsonl.gz"
         )
 
-        cuts_utt = merge_chunks(
-            cuts_chunk,
-            supervisions,
-            sp=sp,
-            extra=args.extra,
+        cuts_writer = CutSet.open_writer(manifest_out, overwrite=True)
+        num_utt = merge_chunks(
+            cuts_chunk, supervisions, cuts_writer=cuts_writer, sp=sp, extra=args.extra
         )
-        cuts_utt.to_file(manifest_out)
-        logging.info(f"Cuts saved to {manifest_out}")
+        cuts_writer.close()
+        logging.info(f"{num_utt} cuts saved to {manifest_out}")
 
 
 if __name__ == "__main__":

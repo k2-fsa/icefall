@@ -70,7 +70,7 @@ def main():
     manifest_out_dir = args.manifest_out_dir
     manifest_out_dir.mkdir(parents=True, exist_ok=True)
 
-    subsets = ["small"]
+    subsets = ["small", "medium", "large"]
 
     for subset in subsets:
         logging.info(f"Processing {subset} subset")
