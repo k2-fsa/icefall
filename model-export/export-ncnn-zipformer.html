@@ -432,7 +432,7 @@ this layer.</p></li>
 The result looks like below:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="m">7767517</span>
 <span class="m">2029</span><span class="w"> </span><span class="m">2547</span>
-SherpaMetaData<span class="w">           </span>sherpa_meta_data1<span class="w">        </span><span class="m">0</span><span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="nv">0</span><span class="o">=</span><span class="m">2</span><span class="w"> </span><span class="nv">1</span><span class="o">=</span><span class="m">32</span><span class="w"> </span><span class="nv">2</span><span class="o">=</span><span class="m">4</span><span class="w"> </span><span class="nv">3</span><span class="o">=</span><span class="m">7</span><span class="w"> </span>-23316<span class="o">=</span><span class="m">5</span>,2,4,3,2,4<span class="w"> </span>-23317<span class="o">=</span><span class="m">5</span>,384,384,384,384,384<span class="w"> </span>-23318<span class="o">=</span><span class="m">5</span>,192,192,192,192,192<span class="w"> </span>-23319<span class="o">=</span><span class="m">5</span>,1,2,4,8,2<span class="w"> </span>-23320<span class="o">=</span><span class="m">5</span>,31,31,31,31,31
+SherpaMetaData<span class="w">           </span>sherpa_meta_data1<span class="w">        </span><span class="m">0</span><span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="nv">0</span><span class="o">=</span><span class="m">2</span><span class="w"> </span><span class="nv">1</span><span class="o">=</span><span class="m">32</span><span class="w"> </span><span class="nv">2</span><span class="o">=</span><span class="m">4</span><span class="w"> </span><span class="nv">3</span><span class="o">=</span><span class="m">7</span><span class="w"> </span><span class="nv">15</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>-23316<span class="o">=</span><span class="m">5</span>,2,4,3,2,4<span class="w"> </span>-23317<span class="o">=</span><span class="m">5</span>,384,384,384,384,384<span class="w"> </span>-23318<span class="o">=</span><span class="m">5</span>,192,192,192,192,192<span class="w"> </span>-23319<span class="o">=</span><span class="m">5</span>,1,2,4,8,2<span class="w"> </span>-23320<span class="o">=</span><span class="m">5</span>,31,31,31,31,31
 Input<span class="w">                    </span>in0<span class="w">                      </span><span class="m">0</span><span class="w"> </span><span class="m">1</span><span class="w"> </span>in0
 </pre></div>
 </div>
@@ -459,6 +459,9 @@ parameter <code class="docutils literal notranslate"><span class="pre">--num-lef
 <li><p><code class="docutils literal notranslate"><span class="pre">3=7</span></code>, 3 is the key and 7 is the value of for the amount of padding
 used in the Conv2DSubsampling layer. It should be 7 for zipformer
 if you don’t change zipformer.py.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">15=1</span></code>, attribute 15, this is the model version. Starting from
+<a class="reference external" href="https://github.com/k2-fsa/sherpa-ncnn">sherpa-ncnn</a> v2.0, we require that the model version has to
+be &gt;= 1.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">-23316=5,2,4,3,2,4</span></code>, attribute 16, this is an array attribute.
 It is attribute 16 since -23300 - (-23316) = 16.
 The first element of the array is the length of the array, which is 5 in our case.
@@ -505,19 +508,22 @@ will be <code class="docutils literal notranslate"><span class="pre">SAD</span><
 <tr class="row-odd"><td><p>3</p></td>
 <td><p>7 (if you don’t change code)</p></td>
 </tr>
-<tr class="row-even"><td><p>-23316</p></td>
+<tr class="row-even"><td><p>15</p></td>
+<td><p>1 (The model version)</p></td>
+</tr>
+<tr class="row-odd"><td><p>-23316</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">--num-encoder-layer</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p>-23317</p></td>
+<tr class="row-even"><td><p>-23317</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">--encoder-dims</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p>-23318</p></td>
+<tr class="row-odd"><td><p>-23318</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">--attention-dims</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p>-23319</p></td>
+<tr class="row-even"><td><p>-23319</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">--zipformer-downsampling-factors</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p>-23320</p></td>
+<tr class="row-odd"><td><p>-23320</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">--cnn-module-kernels</span></code></p></td>
 </tr>
 </tbody>
