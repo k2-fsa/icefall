@@ -176,9 +176,7 @@ def merge_chunks(
                 utt_cut = _merge(cut_list, last_rec_id, utt_idx)
                 utt_idx += 1
 
-                futures.append(
-                    executor.submit(_save_worker, utt_cut)
-                )
+                futures.append(executor.submit(_save_worker, utt_cut))
 
                 last_rec_id = cur_rec_id
                 cut_list = [cut]
@@ -191,9 +189,7 @@ def merge_chunks(
             utt_cut = _merge(cut_list, last_rec_id, utt_idx)
             utt_idx += 1
 
-            futures.append(
-                executor.submit(_save_worker, utt_cut)
-            )
+            futures.append(executor.submit(_save_worker, utt_cut))
             logging.info("Finished")
 
         for f in futures:
