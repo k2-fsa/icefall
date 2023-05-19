@@ -272,6 +272,9 @@ class DecodingResults:
     # for the i-th utterance with fast_beam_search_nbest_LG.
     hyps: Union[List[List[int]], k2.RaggedTensor]
 
+    # scores[i][k] contains the log-prob of tokens[i][k]
+    scores: Optional[List[List[float]]] = None
+
 
 def get_texts_with_timestamp(
     best_paths: k2.Fsa, return_ragged: bool = False
@@ -1442,7 +1445,7 @@ def convert_timestamp(
     frame_shift = frame_shift_ms / 1000.0
     time = []
     for f in frames:
-        time.append(f * subsampling_factor * frame_shift)
+        time.append(round(f * subsampling_factor * frame_shift, ndigits=3))
 
     return time
 
