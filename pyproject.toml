@@ -11,4 +11,6 @@ exclude = '''
 )/
   | make_kn_lm.py
   | icefall\/__init__\.py
+  | icefall\/diagnostics\.py
+  | egs\/librispeech\/ASR\/zipformer
 '''
