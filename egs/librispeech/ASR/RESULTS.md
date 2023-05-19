@@ -10,6 +10,9 @@ See <https://github.com/k2-fsa/icefall/pull/1058> for more details.
 
 ##### normal-scaled model, number of model parameters: 65549011, i.e., 65.55 M
 
+The tensorboard log can be found at
+<https://tensorboard.dev/experiment/cBaoIabCQxSDsyZM7FzqZA/>
+
 You can find a pretrained model, training logs, decoding logs, and decoding results at:
 <https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-2023-05-15>
 
@@ -53,6 +56,9 @@ done
 ```
 
 ##### small-scaled model, number of model parameters: 23285615, i.e., 23.3 M
+
+The tensorboard log can be found at
+<https://tensorboard.dev/experiment/53P4tL22TpO0UdiL0kPaLg/>
 
 You can find a pretrained model, training logs, decoding logs, and decoding results at:
 <https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-small-2023-05-16>
@@ -107,6 +113,9 @@ done
 
 ##### large-scaled model, number of model parameters: 148439574, i.e., 148.4 M
 
+The tensorboard log can be found at
+<https://tensorboard.dev/experiment/HJ74wWYpQAGSzETkmQnrmQ/>
+
 You can find a pretrained model, training logs, decoding logs, and decoding results at:
 <https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-large-2023-05-16>
 
@@ -160,6 +169,9 @@ done
 #### streaming
 
 ##### normal-scaled model, number of model parameters: 66110931, i.e., 66.11 M
+
+The tensorboard log can be found at
+<https://tensorboard.dev/experiment/9rD0i6rMSWq1O61poWi71A>
 
 You can find a pretrained model, training logs, decoding logs, and decoding results at:
 <https://huggingface.co/Zengwei/icefall-asr-librispeech-streaming-zipformer-2023-05-17>
