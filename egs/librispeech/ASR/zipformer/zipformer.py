@@ -65,9 +65,9 @@ class Zipformer2(EncoderInterface):
             now).
         query_head_dim (int or Tuple[int]): dimension of query and key per attention
            head: per stack, if a tuple..
-        value_head_dim (int or Tuple[int]): dimension of value in each attention head
         pos_head_dim (int or Tuple[int]): dimension of positional-encoding projection per
            attention head
+        value_head_dim (int or Tuple[int]): dimension of value in each attention head
         num_heads: (int or Tuple[int]): number of heads in the self-attention mechanism.
               Must be at least 4.
         feedforward_dim (int or Tuple[int]): hidden dimension in feedforward modules
