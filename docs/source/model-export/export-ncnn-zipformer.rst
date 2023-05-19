@@ -276,7 +276,7 @@ The result looks like below:
 
   7767517
   2029 2547
-  SherpaMetaData           sherpa_meta_data1        0 0 0=2 1=32 2=4 3=7 -23316=5,2,4,3,2,4 -23317=5,384,384,384,384,384 -23318=5,192,192,192,192,192 -23319=5,1,2,4,8,2 -23320=5,31,31,31,31,31
+  SherpaMetaData           sherpa_meta_data1        0 0 0=2 1=32 2=4 3=7 15=1 -23316=5,2,4,3,2,4 -23317=5,384,384,384,384,384 -23318=5,192,192,192,192,192 -23319=5,1,2,4,8,2 -23320=5,31,31,31,31,31
   Input                    in0                      0 1 in0
 
 **Explanation**
@@ -300,6 +300,9 @@ The result looks like below:
       - ``3=7``, 3 is the key and 7 is the value of for the amount of padding
         used in the Conv2DSubsampling layer. It should be 7 for zipformer
         if you don't change zipformer.py.
+      - ``15=1``, attribute 15, this is the model version. Starting from
+        `sherpa-ncnn`_ v2.0, we require that the model version has to
+        be >= 1.
       - ``-23316=5,2,4,3,2,4``, attribute 16, this is an array attribute.
         It is attribute 16 since -23300 - (-23316) = 16.
         The first element of the array is the length of the array, which is 5 in our case.
@@ -337,6 +340,8 @@ The result looks like below:
           | 2        | ``--num-left-chunks``                      |
           +----------+--------------------------------------------+
           | 3        | 7 (if you don't change code)               |
+          +----------+--------------------------------------------+
+          | 15       | 1 (The model version)                      |
           +----------+--------------------------------------------+
           |-23316    | ``--num-encoder-layer``                    |
           +----------+--------------------------------------------+
