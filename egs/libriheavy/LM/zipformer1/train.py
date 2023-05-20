@@ -128,7 +128,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--feedforward-dim",
         type=str,
-        default="768,1024,1536,2048,1536,1024,768",
+        default="1024,1536,2048,3072,2048,1536,1024",
         help="Feedforward dimension of the subformer encoder layers, per stack, comma separated.",
     )
 
@@ -395,7 +395,7 @@ def get_params() -> AttributeDict:
             "warm_step": 2000,
             "env_info": get_env_info(),
             "bytes_per_segment": 2048,
-            "batch_size": 20,
+            "batch_size": 18,
             "train_file_list": "train.txt",
             "valid_file_list": "valid.txt",
             "num_workers": 4,
