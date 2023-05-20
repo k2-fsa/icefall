@@ -876,15 +876,12 @@ class LearnedDownsamplingModule(nn.Module):
                 logging.info(f"mean weight={weights.mean()}, mean-abs-scores={scores.abs().mean()} positive-scores={(scores>0).to(torch.float32).mean()}, discarded-weights={weights_discarded.mean()}, seq_len={seq_len}, seq_len_reduced={seq_len_reduced}")
 
 
-            # we were getting too many discarded weights before introducing this factor, which was
-            # hurting test-mode performance by creating a mismatch.
-            discarded_weights_factor = 2.0
             if random.random() < 0.5:
                 # flipping it half the time increases the randomness, so gives an extra incentive
                 # to avoid nonzero weights in the discarded half
                 weights_discarded = weights_discarded.flip(dims=(1,))
 
-            weights = (weights[:, :seq_len_reduced] - (weights_discarded * discarded_weights_factor)).clamp(min=0.0, max=1.0)
+            weights = weights[:, :seq_len_reduced] - weights_discarded
         else:
             # test mode.  because the sequence might be short, we keep all nonzero scores;
             # and there is no need for any penalty.
