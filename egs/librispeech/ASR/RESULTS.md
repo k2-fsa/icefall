@@ -244,7 +244,7 @@ for m in greedy_search modified_beam_search fast_beam_search; do
 done
 ```
 
-### pruned_transducer_stateless7 (Zipformer Adaption)
+### pruned_transducer_stateless7 (Fine-tune with mux)
 
 See <https://github.com/k2-fsa/icefall/pull/1059> for more details.
 
@@ -255,7 +255,7 @@ The tensorboard log can be found at
 
 You can find a pretrained model, training logs, decoding logs, and decoding
 results at:
-<https://huggingface.co/yfyeung/icefall-asr-adaption-pruned_transducer_stateless7-2023-05-19>
+<https://huggingface.co/yfyeung/icefall-asr-finetune-mux-pruned_transducer_stateless7-2023-05-19>
 
 You can use <https://github.com/k2-fsa/sherpa> to deploy it.
 
