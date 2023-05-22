@@ -253,7 +253,10 @@ See <https://github.com/k2-fsa/icefall/pull/1059> for more details.
 The tensorboard log can be found at
 <https://tensorboard.dev/experiment/MaNDZfO7RzW2Czzf3R2ZRA/>
 
-You can find a pretrained model, training logs, decoding logs, and decoding
+You can find the pretrained model and bpe model needed for fine-tuning at:
+<https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11>
+
+You can find a fine-tuned model, fine-tuning logs, decoding logs, and decoding
 results at:
 <https://huggingface.co/yfyeung/icefall-asr-finetune-mux-pruned_transducer_stateless7-2023-05-19>
 
@@ -284,7 +287,7 @@ export CUDA_VISIBLE_DEVICES="0,1"
   --bpe-model icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11/data/lang_bpe_500/bpe.model \
   --do-finetune True \ 
   --use-mux True \
-  --finetune-ckpt icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11//exp/pretrain.pt \
+  --finetune-ckpt icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11/exp/pretrain.pt \
   --max-duration 500
 ```
 
