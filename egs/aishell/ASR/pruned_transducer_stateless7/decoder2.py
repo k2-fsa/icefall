@@ -59,18 +59,9 @@ class Decoder(nn.Module):
         )
         self.blank_id = blank_id
 
-        assert context_size >= 1, context_size
+        assert context_size == 1, context_size
         self.context_size = context_size
         self.vocab_size = vocab_size
-        if context_size > 1:
-            self.conv = nn.Conv1d(
-                in_channels=decoder_dim,
-                out_channels=decoder_dim,
-                kernel_size=context_size,
-                padding=0,
-                groups=decoder_dim // 4,  # group size == 4
-                bias=False,
-            )
 
     def forward(self, y: torch.Tensor, need_pad: bool = True) -> torch.Tensor:
         """

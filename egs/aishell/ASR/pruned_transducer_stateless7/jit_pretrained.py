@@ -21,7 +21,7 @@ You can use the following command to get the exported models:
 
 ./pruned_transducer_stateless7/export.py \
   --exp-dir ./pruned_transducer_stateless7/exp \
-  --bpe-model data/lang_bpe_500/bpe.model \
+  --lang-dir ./data/lang_char \
   --epoch 20 \
   --avg 10 \
   --jit 1
@@ -30,7 +30,7 @@ Usage of this script:
 
 ./pruned_transducer_stateless7/jit_pretrained.py \
   --nn-model-filename ./pruned_transducer_stateless7/exp/cpu_jit.pt \
-  --bpe-model ./data/lang_bpe_500/bpe.model \
+  --lang-dir ./data/lang_char \
   /path/to/foo.wav \
   /path/to/bar.wav
 """
@@ -46,6 +46,8 @@ import torch
 import torchaudio
 from torch.nn.utils.rnn import pad_sequence
 
+from icefall.lexicon import Lexicon
+
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -60,9 +62,12 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--bpe-model",
+        "--lang-dir",
         type=str,
-        help="""Path to bpe.model.""",
+        help="""The lang dir
+        It contains language related input files such as
+        "lexicon.txt"
+        """,
     )
 
     parser.add_argument(
@@ -215,8 +220,8 @@ def main():
 
     model.to(device)
 
-    sp = spm.SentencePieceProcessor()
-    sp.load(args.bpe_model)
+    lexicon = Lexicon(args.lang_dir)
+    token_table = lexicon.token_table
 
     logging.info("Constructing Fbank computer")
     opts = kaldifeat.FbankOptions()
@@ -256,9 +261,10 @@ def main():
         encoder_out=encoder_out,
         encoder_out_lens=encoder_out_lens,
     )
+    hyps = [[token_table[t] for t in tokens] for tokens in hyps]
     s = "\n"
     for filename, hyp in zip(args.sound_files, hyps):
-        words = sp.decode(hyp)
+        words = " ".join(hyp)
         s += f"{filename}:\n{words}\n\n"
     logging.info(s)
 
