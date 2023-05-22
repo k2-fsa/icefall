@@ -660,7 +660,7 @@ def compute_loss(
         values >= 1.0 are fully warmed up and have all modules present.
     """
     # For the uneven-sized batch, the total duration after padding would possibly
-    # cause OOM. Hence, for each batch, which is sorted descendingly by length,
+    # cause OOM. Hence, for each batch, which is sorted in descending order by length,
     # we simply drop the last few shortest samples, so that the retained total frames
     # (after padding) would not exceed `allowed_max_frames`:
     # `allowed_max_frames = int(max_frames * (1.0 + allowed_excess_duration_ratio))`,
@@ -668,7 +668,8 @@ def compute_loss(
     # We set allowed_excess_duration_ratio=0.1.
     max_frames = params.max_duration * 1000 // params.frame_shift_ms
     allowed_max_frames = int(max_frames * (1.0 + params.allowed_excess_duration_ratio))
-    batch = filter_uneven_sized_batch(batch, allowed_max_frames)
+    if is_training:
+        batch = filter_uneven_sized_batch(batch, allowed_max_frames)
 
     device = model.device if isinstance(model, DDP) else next(model.parameters()).device
     feature = batch["inputs"]

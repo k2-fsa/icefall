@@ -56,8 +56,8 @@ import sentencepiece as spm
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
-from decoder import Decoder
 from asr_datamodule import LibriSpeechAsrDataModule
+from decoder import Decoder
 from gigaspeech import GigaSpeechAsrDataModule
 from joiner import Joiner
 from lhotse.cut import Cut, CutSet
@@ -124,9 +124,9 @@ def add_finetune_arguments(parser: argparse.ArgumentParser):
         default=None,
         help="""
         Modules to be initialized. It matches all parameters starting with
-        a specific key. The keys are given with Comma seperated. If None, 
-        all modules will be initialised. For example, if you only want to 
-        initialise all parameters staring with "encoder", use "encoder"; 
+        a specific key. The keys are given with Comma seperated. If None,
+        all modules will be initialised. For example, if you only want to
+        initialise all parameters staring with "encoder", use "encoder";
         if you want to initialise parameters starting with encoder or decoder,
         use "encoder,joiner".
         """,
@@ -185,7 +185,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         type=str,
         default="256,256,256,256,256",
         help="""Unmasked dimensions in the encoders, relates to augmentation
-        during training. Must be <= each of encoder_dims. Empirically, less 
+        during training. Must be <= each of encoder_dims. Empirically, less
         than 256 seems to make performance worse.
         """,
     )
@@ -288,7 +288,7 @@ def get_parser():
         "--bpe-model",
         type=str,
         default="data/lang_bpe_500/bpe.model",
-        help="""Path to the BPE model. 
+        help="""Path to the BPE model.
         This should be the bpe model of the original model
         """,
     )
@@ -302,8 +302,8 @@ def get_parser():
         type=float,
         default=100000,
         help="""Number of steps that affects how rapidly the learning rate
-        decreases. During fine-tuning, we set this very large so that the 
-        learning rate slowly decays with number of batches. You may tune 
+        decreases. During fine-tuning, we set this very large so that the
+        learning rate slowly decays with number of batches. You may tune
         its value by yourself.
         """,
     )
@@ -312,9 +312,9 @@ def get_parser():
         "--lr-epochs",
         type=float,
         default=100,
-        help="""Number of epochs that affects how rapidly the learning rate 
-        decreases. During fine-tuning, we set this very large so that the 
-        learning rate slowly decays with number of batches. You may tune 
+        help="""Number of epochs that affects how rapidly the learning rate
+        decreases. During fine-tuning, we set this very large so that the
+        learning rate slowly decays with number of batches. You may tune
         its value by yourself.
         """,
     )
@@ -753,7 +753,8 @@ def compute_loss(
     # We set allowed_excess_duration_ratio=0.1.
     max_frames = params.max_duration * 1000 // params.frame_shift_ms
     allowed_max_frames = int(max_frames * (1.0 + params.allowed_excess_duration_ratio))
-    batch = filter_uneven_sized_batch(batch, allowed_max_frames)
+    if is_training:
+        batch = filter_uneven_sized_batch(batch, allowed_max_frames)
 
     device = model.device if isinstance(model, DDP) else next(model.parameters()).device
     feature = batch["inputs"]
