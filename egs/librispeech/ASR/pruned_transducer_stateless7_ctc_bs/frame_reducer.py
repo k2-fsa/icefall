@@ -74,7 +74,7 @@ class FrameReducer(nn.Module):
         padding_mask = make_pad_mask(x_lens)
         non_blank_mask = (ctc_output[:, :, blank_id] < math.log(0.9)) * (~padding_mask)
 
-        if y_lens is not None or self.training == False:
+        if y_lens is not None or self.training is False:
             # Limit the maximum number of reduced frames
             if y_lens is not None:
                 limit_lens = T - y_lens
