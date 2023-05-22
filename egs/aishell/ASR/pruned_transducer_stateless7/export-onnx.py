@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 #
-# Copyright 2023 Xiaomi Corporation (Author: Fangjun Kuang)
+# Copyright 2023 Xiaomi Corporation (Author: Fangjun Kuang
+#                                            Xiaoyu Yang)
 
 """
 This script exports a transducer model from PyTorch to ONNX.
@@ -13,22 +14,20 @@ as an example to show how to use this file.
 
 cd egs/librispeech/ASR
 
-repo_url=https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11
+repo_url=https://huggingface.co/marcoyang/icefall-asr-aishell-zipformer-pruned-transducer-stateless7-2023-03-21/
 GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
 repo=$(basename $repo_url)
 
 pushd $repo
-git lfs pull --include "data/lang_bpe_500/bpe.model"
-git lfs pull --include "exp/pretrained-epoch-30-avg-9.pt"
+git lfs pull --include "exp/pretrained.pt"
 
 cd exp
-ln -s pretrained-epoch-30-avg-9.pt epoch-99.pt
+ln -s pretrained.pt epoch-99.pt
 popd
 
 2. Export the model to ONNX
 
 ./pruned_transducer_stateless7/export-onnx.py \
-  --bpe-model $repo/data/lang_bpe_500/bpe.model \
   --use-averaged-model 0 \
   --epoch 99 \
   --avg 1 \
