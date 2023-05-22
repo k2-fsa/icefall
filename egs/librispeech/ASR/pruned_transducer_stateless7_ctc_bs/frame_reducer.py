@@ -74,9 +74,13 @@ class FrameReducer(nn.Module):
         padding_mask = make_pad_mask(x_lens)
         non_blank_mask = (ctc_output[:, :, blank_id] < math.log(0.9)) * (~padding_mask)
 
-        if y_lens is not None:
+        if y_lens is not None or self.training == False:
             # Limit the maximum number of reduced frames
-            limit_lens = T - y_lens
+            if y_lens is not None:
+                limit_lens = T - y_lens
+            else:
+                # In eval mode, ensure audio that is completely silent does not make any errors
+                limit_lens = torch.ones_like(x_lens)
             max_limit_len = limit_lens.max().int()
             fake_limit_indexes = torch.topk(
                 ctc_output[:, :, blank_id], max_limit_len
