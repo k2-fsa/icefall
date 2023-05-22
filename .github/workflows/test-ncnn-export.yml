@@ -54,7 +54,7 @@ jobs:
         with:
           path: |
             ~/tmp/kaldifeat
-          key: cache-tmp-${{ matrix.python-version }}-2022-09-25
+          key: cache-tmp-${{ matrix.python-version }}-2023-05-22
 
       - name: Install kaldifeat
         if: steps.my-cache.outputs.cache-hit != 'true'
