@@ -856,6 +856,7 @@ def main():
         # Otherwise, one of its arguments is a ragged tensor and is not
         # torch scriptabe.
         model.__class__.forward = torch.jit.ignore(model.__class__.forward)
+        model.encoder.__class__.forward = model.encoder.__class__.streaming_forward
         logging.info("Using torch.jit.script")
         model = torch.jit.script(model)
         filename = params.exp_dir / "cpu_jit.pt"

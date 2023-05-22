@@ -272,6 +272,9 @@ class DecodingResults:
     # for the i-th utterance with fast_beam_search_nbest_LG.
     hyps: Union[List[List[int]], k2.RaggedTensor]
 
+    # scores[i][k] contains the log-prob of tokens[i][k]
+    scores: Optional[List[List[float]]] = None
+
 
 def get_texts_with_timestamp(
     best_paths: k2.Fsa, return_ragged: bool = False
@@ -1195,6 +1198,64 @@ def measure_gradient_norms(model: nn.Module, norm: str = "l1") -> Dict[str, floa
         return norms
 
 
+def get_parameter_groups_with_lrs(
+    model: nn.Module, lr: float, include_names: bool = False
+) -> List[dict]:
+    """
+    This is for use with the ScaledAdam optimizers (more recent versions that accept lists of
+    named-parameters; we can, if needed, create a version without the names).
+
+    It provides a way to specifiy learning-rate scales inside the module, so that if
+    any nn.Module in the hierarchy has a floating-point parameter 'lr_scale', it will
+    scale the LR of any parameters inside that module or its submodules.  Note: you
+    can set module parameters outside the __init__ function, e.g.:
+      >>> a = nn.Linear(10, 10)
+      >>> a.lr_scale = 0.5
+
+    Returns: a list of dicts, of the following form:
+      if include_names == False:
+        [  { 'params': [ tensor1, tensor2, ... ], 'lr': 0.01 },
+           { 'params': [ tensor3, tensor4, ... ], 'lr': 0.005 },
+         ...   ]
+      if include_names == true:
+        [  { 'named_params': [ (name1, tensor1, (name2, tensor2), ... ], 'lr': 0.01 },
+           { 'named_params': [ (name3, tensor3), (name4, tensor4), ... ], 'lr': 0.005 },
+         ...   ]
+
+    """
+    # flat_lr_scale just contains the lr_scale explicitly specified
+    # for each prefix of the name, e.g. 'encoder.layers.3', these need
+    # to be multiplied for all prefix of the name of any given parameter.
+    flat_lr_scale = defaultdict(lambda: 1.0)
+    names = []
+    for name, m in model.named_modules():
+        names.append(name)
+        if hasattr(m, "lr_scale"):
+            flat_lr_scale[name] = m.lr_scale
+
+    # lr_to_parames is a dict from learning rate (floating point) to: if
+    # include_names == true, a list of (name, parameter) for that learning rate;
+    # otherwise a list of parameters for that learning rate.
+    lr_to_params = defaultdict(list)
+
+    for name, parameter in model.named_parameters():
+        split_name = name.split(".")
+        # caution: as a special case, if the name is '', split_name will be [ '' ].
+        prefix = split_name[0]
+        cur_lr = lr * flat_lr_scale[prefix]
+        if prefix != "":
+            cur_lr *= flat_lr_scale[""]
+        for part in split_name[1:]:
+            prefix = ".".join([prefix, part])
+            cur_lr *= flat_lr_scale[prefix]
+        lr_to_params[cur_lr].append((name, parameter) if include_names else parameter)
+
+    if include_names:
+        return [{"named_params": pairs, "lr": lr} for lr, pairs in lr_to_params.items()]
+    else:
+        return [{"params": params, "lr": lr} for lr, params in lr_to_params.items()]
+
+
 def optim_step_and_measure_param_change(
     model: nn.Module,
     old_parameters: Dict[str, nn.parameter.Parameter],
@@ -1306,6 +1367,31 @@ def tokenize_by_bpe_model(
     return txt_with_bpe
 
 
+def tokenize_by_CJK_char(line: str) -> str:
+    """
+    Tokenize a line of text with CJK char.
+
+    Note: All return charaters will be upper case.
+
+    Example:
+      input = "你好世界是 hello world 的中文"
+      output = "你 好 世 界 是 HELLO WORLD 的 中 文"
+
+    Args:
+      line:
+        The input text.
+
+    Return:
+      A new string tokenize by CJK char.
+    """
+    # The CJK ranges is from https://github.com/alvations/nltk/blob/79eed6ddea0d0a2c212c1060b477fc268fec4d4b/nltk/tokenize/util.py
+    pattern = re.compile(
+        r"([\u1100-\u11ff\u2e80-\ua4cf\ua840-\uD7AF\uF900-\uFAFF\uFE30-\uFE4F\uFF65-\uFFDC\U00020000-\U0002FFFF])"
+    )
+    chars = pattern.split(line.strip().upper())
+    return " ".join([w.strip() for w in chars if w.strip()])
+
+
 def display_and_save_batch(
     batch: dict,
     params: AttributeDict,
@@ -1359,7 +1445,7 @@ def convert_timestamp(
     frame_shift = frame_shift_ms / 1000.0
     time = []
     for f in frames:
-        time.append(f * subsampling_factor * frame_shift)
+        time.append(round(f * subsampling_factor * frame_shift, ndigits=3))
 
     return time
 
@@ -1764,3 +1850,34 @@ def parse_fsa_timestamps_and_texts(
         utt_time_pairs.append(list(zip(start, end)))
 
     return utt_time_pairs, utt_words
+
+
+# Copied from https://github.com/alvations/nltk/blob/79eed6ddea0d0a2c212c1060b477fc268fec4d4b/nltk/tokenize/util.py
+def is_cjk(character):
+    """
+    Python port of Moses' code to check for CJK character.
+
+    >>> is_cjk(u'\u33fe')
+    True
+    >>> is_cjk(u'\uFE5F')
+    False
+
+    :param character: The character that needs to be checked.
+    :type character: char
+    :return: bool
+    """
+    return any(
+        [
+            start <= ord(character) <= end
+            for start, end in [
+                (4352, 4607),
+                (11904, 42191),
+                (43072, 43135),
+                (44032, 55215),
+                (63744, 64255),
+                (65072, 65103),
+                (65381, 65500),
+                (131072, 196607),
+            ]
+        ]
+    )
