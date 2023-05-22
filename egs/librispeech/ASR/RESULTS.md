@@ -295,7 +295,7 @@ The decoding commands are:
     --epoch 20 \
     --avg 5 \
     --use-averaged-model 1 \
-    --exp-dir ./pruned_transducer_stateless7/exp \
+    --exp-dir ./pruned_transducer_stateless7/exp_giga_finetune \
     --max-duration 600 \
     --decoding-method greedy_search
 
@@ -304,7 +304,7 @@ The decoding commands are:
     --epoch 20 \
     --avg 5 \
     --use-averaged-model 1 \
-    --exp-dir ./pruned_transducer_stateless7/exp \
+    --exp-dir ./pruned_transducer_stateless7/exp_giga_finetune \
     --max-duration 600 \
     --decoding-method modified_beam_search \
     --beam-size 4
@@ -314,7 +314,7 @@ The decoding commands are:
     --epoch 20 \
     --avg 5 \
     --use-averaged-model 1 \
-    --exp-dir ./pruned_transducer_stateless7/exp \
+    --exp-dir ./pruned_transducer_stateless7/exp_giga_finetune \
     --max-duration 600 \
     --decoding-method fast_beam_search \
     --beam 20.0 \
