@@ -244,6 +244,87 @@ for m in greedy_search modified_beam_search fast_beam_search; do
 done
 ```
 
+### pruned_transducer_stateless7 (Fine-tune with mux)
+
+See <https://github.com/k2-fsa/icefall/pull/1059> for more details.
+
+[pruned_transducer_stateless7](./pruned_transducer_stateless7)
+
+The tensorboard log can be found at
+<https://tensorboard.dev/experiment/MaNDZfO7RzW2Czzf3R2ZRA/>
+
+You can find the pretrained model and bpe model needed for fine-tuning at:
+<https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11>
+
+You can find a fine-tuned model, fine-tuning logs, decoding logs, and decoding
+results at:
+<https://huggingface.co/yfyeung/icefall-asr-finetune-mux-pruned_transducer_stateless7-2023-05-19>
+
+You can use <https://github.com/k2-fsa/sherpa> to deploy it.
+
+Number of model parameters: 70369391, i.e., 70.37 M
+
+| decoding method      |    dev     |    test    | test-clean | test-other |      comment       |
+|----------------------|------------|------------|------------|------------|--------------------|
+| greedy_search        |   14.27    |   14.22    |    2.08    |    4.79    | --epoch 20 --avg 5 |
+| modified_beam_search |   14.22    |   14.08    |    2.06    |    4.72    | --epoch 20 --avg 5 |
+| fast_beam_search     |   14.23    |   14.17    |    2.08    |    4.09    | --epoch 20 --avg 5 |
+
+The training commands are:
+```bash
+export CUDA_VISIBLE_DEVICES="0,1"
+
+./pruned_transducer_stateless7/finetune.py \
+  --world-size 2 \
+  --num-epochs 20 \
+  --start-epoch 1 \
+  --exp-dir pruned_transducer_stateless7/exp_giga_finetune \
+  --subset S \
+  --use-fp16 1 \
+  --base-lr 0.005 \
+  --lr-epochs 100 \
+  --lr-batches 100000 \
+  --bpe-model icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11/data/lang_bpe_500/bpe.model \
+  --do-finetune True \ 
+  --use-mux True \
+  --finetune-ckpt icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11/exp/pretrain.pt \
+  --max-duration 500
+```
+
+The decoding commands are:
+```bash
+# greedy_search
+./pruned_transducer_stateless7/decode.py \
+    --epoch 20 \
+    --avg 5 \
+    --use-averaged-model 1 \
+    --exp-dir ./pruned_transducer_stateless7/exp_giga_finetune \
+    --max-duration 600 \
+    --decoding-method greedy_search
+
+# modified_beam_search
+./pruned_transducer_stateless7/decode.py \
+    --epoch 20 \
+    --avg 5 \
+    --use-averaged-model 1 \
+    --exp-dir ./pruned_transducer_stateless7/exp_giga_finetune \
+    --max-duration 600 \
+    --decoding-method modified_beam_search \
+    --beam-size 4
+
+# fast_beam_search
+./pruned_transducer_stateless7/decode.py \
+    --epoch 20 \
+    --avg 5 \
+    --use-averaged-model 1 \
+    --exp-dir ./pruned_transducer_stateless7/exp_giga_finetune \
+    --max-duration 600 \
+    --decoding-method fast_beam_search \
+    --beam 20.0 \
+    --max-contexts 8 \
+    --max-states 64
+```
+
 ### pruned_transducer_stateless7 (zipformer + multidataset(LibriSpeech + GigaSpeech + CommonVoice 13.0))
 
 See <https://github.com/k2-fsa/icefall/pull/1010> for more details.
