@@ -80,7 +80,7 @@ class FrameReducer(nn.Module):
                 limit_lens = T - y_lens
             else:
                 # In eval mode, ensure audio that is completely silent does not make any errors
-                limit_lens = torch.ones_like(x_lens)
+                limit_lens = T - torch.ones_like(x_lens)
             max_limit_len = limit_lens.max().int()
             fake_limit_indexes = torch.topk(
                 ctc_output[:, :, blank_id], max_limit_len
