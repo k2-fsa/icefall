@@ -37,6 +37,7 @@ from convolution import ConvolutionModule
 
 logger = logging.getLogger().setLevel(logging.INFO)
 
+
 class TransformerEncoderAdapter(TransformerEncoder):
     def __init__(self, args: Wav2Vec2Config):
         super().__init__(args)
