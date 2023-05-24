@@ -1596,7 +1596,7 @@ def run_adapter(rank, world_size, args, wb=None):
     for i, module in enumerate(model.modules()):
         if isinstance(module, fairseq.modules.multihead_attention.MultiheadAttention):
             for m in module.modules():
-                lora_module.append(LoRAHook())
+                lora_module.append(LoRAHook(m))
         
     print('-'*30)
     
