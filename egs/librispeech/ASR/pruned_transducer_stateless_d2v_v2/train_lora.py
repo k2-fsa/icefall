@@ -1596,8 +1596,6 @@ def run_adapter(rank, world_size, args, wb=None):
         if isinstance(module, fairseq.modules.multihead_attention.MultiheadAttention):
             for m in module.modules():
                 lora_module.append(LoRAHook(m))
-    exit()
-
     adapter_names = []
     adapter_param = []
     for n, p  in model.named_parameters():
