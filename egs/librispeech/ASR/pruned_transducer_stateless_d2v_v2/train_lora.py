@@ -101,6 +101,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
 from zipformer import Zipformer
 from data2vec_encoder import FairSeqData2VecEncoder
+from data2vec_audio import LoRAModule
 
 from icefall import diagnostics
 from icefall.checkpoint import remove_checkpoints
@@ -126,6 +127,12 @@ import wandb
 
 #from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
+
+class LoRAHook():
+    def __init__(self, module):
+        self.hook = module.register_forward_hook(self.hook_fn)
+
+    def hook_fn(self, module, input, output):
 
 
 def set_batch_count(model: Union[nn.Module, DDP], batch_count: float) -> None:
