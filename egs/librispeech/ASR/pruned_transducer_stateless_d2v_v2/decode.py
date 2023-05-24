@@ -699,6 +699,7 @@ def main():
         for i, lora in enumerate(lora_modules):
             lora_param = torch.load(f"{params.exp_dir}/lora_{i}.pt")
             lora.lora.load_state_dict(lora_param)
+        logging.info("lora params load done")
     else:
         if not params.use_averaged_model:
             if params.iter > 0:
