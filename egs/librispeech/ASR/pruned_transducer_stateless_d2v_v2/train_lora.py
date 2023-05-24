@@ -1613,8 +1613,8 @@ def run_adapter(rank, world_size, args, wb=None):
     adapter_param = []
     for i, lora in enumerate(lora_modules):
         for n, p in lora.lora.named_parameters():
-            new_name = str(i) + n
-            adapter_names.append(n)
+            new_n = str(i) + n
+            adapter_names.append(new_n)
             adapter_param.append(p)
 
     for n, p in model.named_parameters():
