@@ -1609,7 +1609,9 @@ def run_adapter(rank, world_size, args, wb=None):
             p.requires_grad = True
         else:
             p.requires_grad = False
-
+    
+    for lora in lora_modules:
+        print(lora.lora.state_dict())
     #print(adapter_names)
     #exit()
     '''
