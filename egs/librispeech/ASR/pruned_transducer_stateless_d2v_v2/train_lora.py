@@ -142,7 +142,6 @@ class LoRAHook():
         print(input)
         lora_out = self.lora(input)
         output = input + lora_out
-        exit()
 
 
 def set_batch_count(model: Union[nn.Module, DDP], batch_count: float) -> None:
