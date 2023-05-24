@@ -1605,7 +1605,10 @@ def run_adapter(rank, world_size, args, wb=None):
             adapter_param.append(p)
 
     for n, p in model.named_parameters():
-        p.requires_grad = False
+        if 'joiner' in n or 'simple' in n or 'ctc' in n:
+            p.requires_grad = True
+        else:
+            p.requires_grad = False
 
     #print(adapter_names)
     #exit()
