@@ -1592,7 +1592,8 @@ def run_adapter(rank, world_size, args, wb=None):
     
     print('-'*30)
     for i, module in enumerate(model.modules()):
-        print(i, type(module))
+        if isinstance(module, fairseq.modules.multihead_attention.MultiheadAttention):
+            print(module)
 
     exit()
 
