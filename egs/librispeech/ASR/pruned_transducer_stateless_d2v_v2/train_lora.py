@@ -1593,7 +1593,7 @@ def run_adapter(rank, world_size, args, wb=None):
     
     lora_modules = []
     for modules in model.modules():
-        if isinstance(module, fairseq.modules.multihead_attention.MultiheadAttention):
+        if isinstance(modules, fairseq.modules.multihead_attention.MultiheadAttention):
             for module in modules.modules():
                 lora_modules.append(LoRAHook(module))
     
