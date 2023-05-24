@@ -165,10 +165,10 @@ class LoRAModule(nn.Module):
         nn.init.zeros_(self.lora_B)
         nn.init_normal_(self.lora_A)
 
-    def forward(self, x, layer_idx=-1):
+    def forward(self, x):
         x = x.transpose(0, 1)
-        x = self.lora_A[layer_idx](x)
-        x = self.lora_B[layer_idx](x)
+        x = self.lora_A(x)
+        x = self.lora_B(x)
         x = x.transpose(0, 1)
         x *= self.scaling
         return x
