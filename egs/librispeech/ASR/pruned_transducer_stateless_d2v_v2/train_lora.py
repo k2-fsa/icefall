@@ -139,7 +139,6 @@ class LoRAHook():
                            lora_alpha=1.0,
                     )
     def hook_fn(self, module, input, output):
-        print(module, input, output)
         lora_out = self.lora(input)
         output = input + lora_out
 
@@ -1596,7 +1595,6 @@ def run_adapter(rank, world_size, args, wb=None):
         if isinstance(modules, fairseq.modules.multihead_attention.MultiheadAttention):
             for module in modules.modules():
                 if isinstance(module, torch.nn.Linear):
-                    print(module)
                     lora_modules.append(LoRAHook(module))
     
     adapter_names = []
