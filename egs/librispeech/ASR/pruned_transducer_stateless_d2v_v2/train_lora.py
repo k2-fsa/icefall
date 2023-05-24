@@ -142,6 +142,9 @@ class LoRAHook():
         lora_out = self.lora(input)
         output = input + lora_out
 
+    def save_checkpoint(self, i, save_dir):
+        torch.save(self.lora.state_dict(), f"{save_dir}/lora_{i}.pt")
+
 
 def set_batch_count(model: Union[nn.Module, DDP], batch_count: float) -> None:
     if isinstance(model, DDP):
