@@ -697,7 +697,7 @@ def main():
                         lora_modules.append(LoRAHook(module))
 
         for i, lora in enumerate(lora_modules):
-            lora_param = torch.load(f"{params.exp_dir}/lora_{i}.pt")
+            lora_param = torch.load(f"{params.exp_dir}/lora_{params.iter}_{i}.pt")
             lora.lora.load_state_dict(lora_param)
         logging.info("lora params load done")
 
