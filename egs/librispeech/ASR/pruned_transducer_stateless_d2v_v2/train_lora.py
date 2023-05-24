@@ -1594,6 +1594,7 @@ def run_adapter(rank, world_size, args, wb=None):
         print(module)
 
     exit()
+
     adapter_names = []
     adapter_param = []
     for n, p  in model.named_parameters():
