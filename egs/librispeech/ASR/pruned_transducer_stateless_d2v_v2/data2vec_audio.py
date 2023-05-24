@@ -227,10 +227,6 @@ class TransformerEncoderAdapter(TransformerEncoder):
 
 
 class LoRAModule(nn.Module):
-    """
-    Implements a residual adapter based on https://arxiv.org/pdf/1909.08478.pdf
-    modules similar to the original residual adapter except layernorm location (first -> last)
-    """
     def __init__(
         self,
         embedding_dim: float = 768,
