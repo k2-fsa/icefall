@@ -1600,6 +1600,8 @@ def run_adapter(rank, world_size, args, wb=None):
     adapter_names = []
     adapter_param = []
     for n, p  in model.named_parameters():
+        print(n)
+        '''
         if 'adapters' in n:# or 'joiner' in n or 'simple' in n or 'ctc' in n:
             adapter_names.append(n)
             adapter_param.append(p)
@@ -1607,7 +1609,7 @@ def run_adapter(rank, world_size, args, wb=None):
             p.requires_grad = True
         else:
             p.requires_grad = False
-    
+        '''
     optimizer_adapter = ScaledAdam(
             adapter_param,
             lr=params.adapter_lr,
