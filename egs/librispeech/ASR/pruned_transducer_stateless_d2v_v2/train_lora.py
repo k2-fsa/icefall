@@ -1592,6 +1592,7 @@ def run_adapter(rank, world_size, args, wb=None):
         model = DDP(model, device_ids=[rank], find_unused_parameters=True)
     
     print('-'*30)
+    lora_module = []
     for i, module in enumerate(model.modules()):
         if isinstance(module, fairseq.modules.multihead_attention.MultiheadAttention):
             for m in module.modules():
