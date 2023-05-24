@@ -25,7 +25,8 @@ do
 		--use-averaged-model True \
 		--spk-id $spk_id \
 		--prompt False \
-		--res-name bitfit_q_fc1_check$i
+		--res-name tttt
+		#--res-name bitfit_q_fc1_check$i
 		#--res-name fullft_check$i
 	done
 done
