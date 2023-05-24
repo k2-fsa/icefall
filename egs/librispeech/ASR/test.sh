@@ -13,8 +13,9 @@ do
 		--enable-spec-aug False \
 		--additional-block True \
 		--exp-dir ./pruned_transducer_stateless_d2v_v2/$2 \
-		--model-name checkpoint-$i.pt \
 		--max-duration 600 \
+		--iter $i \
+		--model-name lora
 		--decoding-method $method \
 		--max-sym-per-frame 1 \
 		--encoder-type d2v \
@@ -35,3 +36,4 @@ done
 #--exp-dir ./pruned_transducer_stateless_d2v_v2/"$spk_id"_adapter_10m \
 #--model-name epoch-$i.pt \
 #--model-name ../d2v-base-T.pt \
+#--model-name checkpoint-$i.pt \
