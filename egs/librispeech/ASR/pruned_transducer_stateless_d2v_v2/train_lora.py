@@ -1600,7 +1600,7 @@ def run_adapter(rank, world_size, args, wb=None):
     adapter_names = []
     adapter_param = []
     for lora in lora_modules:
-        for n, p in lora.named_parameters():
+        for n, p in lora.lora.named_parameters():
             adapter_names.append(n)
             adapter_param.append(p)
 
