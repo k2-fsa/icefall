@@ -1607,8 +1607,8 @@ def run_adapter(rank, world_size, args, wb=None):
     for n, p in model.named_parameters():
         p.requires_grad = False
 
-    print(adapter_names)
-    exit()
+    #print(adapter_names)
+    #exit()
     '''
     for n, p  in model.named_parameters():
         print(n)
