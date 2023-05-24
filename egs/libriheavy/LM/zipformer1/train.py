@@ -118,6 +118,7 @@ def set_batch_count(
 
 
 def add_model_arguments(parser: argparse.ArgumentParser):
+
     parser.add_argument(
         "--num-encoder-layers",
         type=str,
@@ -147,11 +148,19 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     )
 
     parser.add_argument(
-        "--encoder-chunk-size",
+        "--encoder-chunk-sizes",
         type=str,
-        default="128",
+        default="128,1024",
         help="Base chunk size for attention in encoder stacks; alternate layers will use this value or "
         "double this value."
+    )
+
+    parser.add_argument(
+        "--encoder-structure",
+        type=str,
+        default="S(S(S(S)S)S)S",
+        help="Structure of encoder, determines order of encoder stacks and (downsampling/upsampling) "
+        "operations."
     )
 
     parser.add_argument(
@@ -421,9 +430,10 @@ def get_encoder_embed(params: AttributeDict) -> nn.Module:
 def get_encoder_model(params: AttributeDict) -> nn.Module:
     #chunk_size = _to_int_tuple(params.downsampling_factor)[-1]
     encoder = Subformer(
+        structure=params.encoder_structure,
         num_encoder_layers=_to_int_tuple(params.num_encoder_layers),
         encoder_dim=_to_int_tuple(params.encoder_dim),
-        encoder_chunk_size=_to_int_tuple(params.encoder_chunk_size),
+        encoder_chunk_sizes=(_to_int_tuple(params.encoder_chunk_sizes),),
         query_head_dim=_to_int_tuple(params.query_head_dim),
         pos_dim=int(params.pos_dim),
         value_head_dim=_to_int_tuple(params.value_head_dim),
