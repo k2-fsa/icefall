@@ -1147,7 +1147,7 @@ def train_one_epoch(
 
             if rank == 0: 
                 for i, lora in enumerate(lora_modules):
-                    lora.save_checkpoint(i, params.exp_dir)
+                    lora.save_checkpoint(i, params.batch_idx_train, params.exp_dir)
 
             '''
             remove_checkpoints(
