@@ -626,6 +626,7 @@ def greedy_search_batch(
     model: Transducer,
     encoder_out: torch.Tensor,
     encoder_out_lens: torch.Tensor,
+    blank_penalty: float = 0,
     return_timestamps: bool = False,
 ) -> Union[List[List[int]], DecodingResults]:
     """Greedy search in batch mode. It hardcodes --max-sym-per-frame=1.
@@ -701,6 +702,7 @@ def greedy_search_batch(
 
         logits = logits.squeeze(1).squeeze(1)  # (batch_size, vocab_size)
         assert logits.ndim == 2, logits.shape
+        logits[:, 0] -= blank_penalty
         y = logits.argmax(dim=1).tolist()
         emitted = False
         for i, v in enumerate(y):
