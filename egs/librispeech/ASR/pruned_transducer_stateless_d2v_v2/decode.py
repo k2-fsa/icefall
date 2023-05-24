@@ -77,6 +77,8 @@ from icefall.utils import (
     write_error_stats,
 )
 
+from train_lora import LoRAHook
+
 LOG_EPS = math.log(1e-10)
 
 
@@ -681,8 +683,10 @@ def main():
     logging.info("About to create model")
     model = get_transducer_model(params)
 
-    if params.model_name:
+    if '.pt' in params.model_name:
         load_checkpoint(f"{params.exp_dir}/{params.model_name}", model)
+    elif 'lora' in params.model_name:
+        
     else:
         if not params.use_averaged_model:
             if params.iter > 0:
