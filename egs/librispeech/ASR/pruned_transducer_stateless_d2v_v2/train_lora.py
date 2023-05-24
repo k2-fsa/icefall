@@ -1111,6 +1111,7 @@ def train_one_epoch(
         if params.print_diagnostics and batch_idx == 5:
             return
         
+        print(lora_modules[20].lora)
         '''
         if (
             rank == 0
