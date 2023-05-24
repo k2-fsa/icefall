@@ -1129,6 +1129,7 @@ def train_one_epoch(
             and params.batch_idx_train % params.save_every_n == 0
         ):
             params.cur_batch_idx = batch_idx
+            '''
             save_checkpoint_with_global_batch_idx(
                 out_dir=params.exp_dir,
                 global_batch_idx=params.batch_idx_train,
@@ -1141,6 +1142,7 @@ def train_one_epoch(
                 scaler=scaler,
                 rank=rank,
             )
+            '''
             del params.cur_batch_idx
 
             if rank == 0: 
