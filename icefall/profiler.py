@@ -480,7 +480,7 @@ def _add_flops_compute(input, other, *, alpha=1, out=None):
     return _elementwise_flops_compute(input, other)
 
 
-def _sum_flops_compute(input, dim):
+def _sum_flops_compute(input, dim, keepdim=False):
     return input.numel()
 
 
