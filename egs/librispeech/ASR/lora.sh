@@ -57,7 +57,7 @@ else
 	export CUDA_VISIBLE_DEVICES="0,1,2,3"
 	#rm ./pruned_transducer_stateless_d2v_v2/$1/.train.done
 	if [ ! -e ./pruned_transducer_stateless_d2v_v2/$1/.train.done ]; then
-		./pruned_transducer_stateless_d2v_v2/lora.py \
+		./pruned_transducer_stateless_d2v_v2/train_lora.py \
 			--num-buckets 2 \
 			--add-adapter True \
 			--adapter-lr 0.01 \
