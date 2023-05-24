@@ -687,6 +687,17 @@ def main():
         load_checkpoint(f"{params.exp_dir}/{params.model_name}", model)
     elif 'lora' in params.model_name: 
         load_checkpoint(f"{params.exp_dir}/../d2v-base-T.pt", model)
+        
+        ## for lora hooking
+        lora_modules = []
+        for modules in model.modules():
+            if isinstance(modules, fairseq.modules.multihead_attention.MultiheadAttention):
+                for module in modules.modules():
+                    if isinstance(module, torch.nn.Linear):
+                        lora_modules.append(LoRAHook(module))
+
+        for i, lora in enuemrate(lora_modules):
+            
     else:
         if not params.use_averaged_model:
             if params.iter > 0:
