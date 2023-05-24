@@ -696,7 +696,7 @@ def main():
                     if isinstance(module, torch.nn.Linear):
                         lora_modules.append(LoRAHook(module))
 
-        for i, lora in enuemrate(lora_modules):
+        for i, lora in enumerate(lora_modules):
             
     else:
         if not params.use_averaged_model:
