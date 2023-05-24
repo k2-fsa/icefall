@@ -1617,11 +1617,11 @@ def run_adapter(rank, world_size, args, wb=None):
             adapter_names.append(new_n)
             adapter_param.append(p)
 
-    for n, p in model.named_parameters():
-        if 'joiner' in n or 'simple' in n or 'ctc' in n:
-            p.requires_grad = True
-        else:
-            p.requires_grad = False
+    #for n, p in model.named_parameters():
+        #if 'joiner' in n or 'simple' in n or 'ctc' in n:
+        #    p.requires_grad = True
+        #else:
+        #    p.requires_grad = False
     
     for lora in lora_modules:
         print(lora.lora.state_dict())
