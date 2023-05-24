@@ -1,5 +1,330 @@
 ## Results
 
+### zipformer (zipformer + pruned stateless transducer)
+
+See <https://github.com/k2-fsa/icefall/pull/1058> for more details.
+
+[zipformer](./zipformer)
+
+#### Non-streaming
+
+##### normal-scaled model, number of model parameters: 65549011, i.e., 65.55 M
+
+The tensorboard log can be found at
+<https://tensorboard.dev/experiment/cBaoIabCQxSDsyZM7FzqZA/>
+
+You can find a pretrained model, training logs, decoding logs, and decoding results at:
+<https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-2023-05-15>
+
+You can use <https://github.com/k2-fsa/sherpa> to deploy it.
+
+| decoding method      | test-clean | test-other | comment            |
+|----------------------|------------|------------|--------------------|
+| greedy_search        | 2.27       | 5.1        | --epoch 30 --avg 9 |
+| modified_beam_search | 2.25       | 5.06       | --epoch 30 --avg 9 |
+| fast_beam_search     | 2.25       | 5.04       | --epoch 30 --avg 9 |
+| greedy_search        | 2.23       | 4.96       | --epoch 40 --avg 16 |
+| modified_beam_search | 2.21       | 4.91       | --epoch 40 --avg 16 |
+| fast_beam_search     | 2.24       | 4.93       | --epoch 40 --avg 16 |
+
+The training command is:
+```bash
+export CUDA_VISIBLE_DEVICES="0,1,2,3"
+./zipformer/train.py \
+  --world-size 4 \
+  --num-epochs 40 \
+  --start-epoch 1 \
+  --use-fp16 1 \
+  --exp-dir zipformer/exp \
+  --causal 0 \
+  --full-libri 1 \
+  --max-duration 1000
+```
+
+The decoding command is:
+```bash
+export CUDA_VISIBLE_DEVICES="0"
+for m in greedy_search modified_beam_search fast_beam_search; do
+  ./zipformer/decode.py \
+    --epoch 30 \
+    --avg 9 \
+    --use-averaged-model 1 \
+    --exp-dir ./zipformer/exp \
+    --max-duration 600 \
+    --decoding-method $m
+done
+```
+
+##### small-scaled model, number of model parameters: 23285615, i.e., 23.3 M
+
+The tensorboard log can be found at
+<https://tensorboard.dev/experiment/53P4tL22TpO0UdiL0kPaLg/>
+
+You can find a pretrained model, training logs, decoding logs, and decoding results at:
+<https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-small-2023-05-16>
+
+You can use <https://github.com/k2-fsa/sherpa> to deploy it.
+
+| decoding method      | test-clean | test-other | comment            |
+|----------------------|------------|------------|--------------------|
+| greedy_search        | 2.64       | 6.14       | --epoch 30 --avg 8 |
+| modified_beam_search | 2.6        | 6.01       | --epoch 30 --avg 8 |
+| fast_beam_search     | 2.62       | 6.06       | --epoch 30 --avg 8 |
+| greedy_search        | 2.49       | 5.91       | --epoch 40 --avg 13 |
+| modified_beam_search | 2.46       | 5.83       | --epoch 40 --avg 13 |
+| fast_beam_search     | 2.46       | 5.87       | --epoch 40 --avg 13 |
+
+The training command is:
+```bash
+export CUDA_VISIBLE_DEVICES="0,1"
+./zipformer/train.py \
+  --world-size 2 \
+  --num-epochs 40 \
+  --start-epoch 1 \
+  --use-fp16 1 \
+  --exp-dir zipformer/exp-small \
+  --causal 0 \
+  --num-encoder-layers 2,2,2,2,2,2 \
+  --feedforward-dim 512,768,768,768,768,768 \
+  --encoder-dim 192,256,256,256,256,256 \
+  --encoder-unmasked-dim 192,192,192,192,192,192 \
+  --base-lr 0.04 \
+  --full-libri 1 \
+  --max-duration 1500
+```
+
+The decoding command is:
+```bash
+export CUDA_VISIBLE_DEVICES="0"
+for m in greedy_search modified_beam_search fast_beam_search; do
+  ./zipformer/decode.py \
+    --epoch 40 \
+    --avg 13 \
+    --exp-dir zipformer/exp-small \
+    --max-duration 600 \
+    --causal 0 \
+    --decoding-method $m \
+    --num-encoder-layers 2,2,2,2,2,2 \
+    --feedforward-dim 512,768,768,768,768,768 \
+    --encoder-dim 192,256,256,256,256,256 \
+    --encoder-unmasked-dim 192,192,192,192,192,192
+done
+```
+
+##### large-scaled model, number of model parameters: 148439574, i.e., 148.4 M
+
+The tensorboard log can be found at
+<https://tensorboard.dev/experiment/HJ74wWYpQAGSzETkmQnrmQ/>
+
+You can find a pretrained model, training logs, decoding logs, and decoding results at:
+<https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-large-2023-05-16>
+
+You can use <https://github.com/k2-fsa/sherpa> to deploy it.
+
+| decoding method      | test-clean | test-other | comment            |
+|----------------------|------------|------------|--------------------|
+| greedy_search        | 2.12       | 4.91       | --epoch 30 --avg 9 |
+| modified_beam_search | 2.11       | 4.9        | --epoch 30 --avg 9 |
+| fast_beam_search     | 2.13       | 4.93       | --epoch 30 --avg 9 |
+| greedy_search        | 2.12       | 4.8        | --epoch 40 --avg 13 |
+| modified_beam_search | 2.11       | 4.7        | --epoch 40 --avg 13 |
+| fast_beam_search     | 2.13       | 4.78       | --epoch 40 --avg 13 |
+
+The training command is:
+```bash
+export CUDA_VISIBLE_DEVICES="0,1,2,3"
+./zipformer/train.py \
+  --world-size 4 \
+  --num-epochs 40 \
+  --start-epoch 1 \
+  --use-fp16 1 \
+  --exp-dir zipformer/exp-large \
+  --causal 0 \
+  --num-encoder-layers 2,2,4,5,4,2 \
+  --feedforward-dim 512,768,1536,2048,1536,768 \
+  --encoder-dim 192,256,512,768,512,256 \
+  --encoder-unmasked-dim 192,192,256,320,256,192 \
+  --full-libri 1 \
+  --max-duration 1000
+```
+
+The decoding command is:
+```bash
+export CUDA_VISIBLE_DEVICES="0"
+for m in greedy_search modified_beam_search fast_beam_search; do
+  ./zipformer/decode.py \
+    --epoch 40 \
+    --avg 16 \
+    --exp-dir zipformer/exp-large \
+    --max-duration 600 \
+    --causal 0 \
+    --decoding-method $m \
+    --num-encoder-layers 2,2,4,5,4,2 \
+    --feedforward-dim 512,768,1536,2048,1536,768 \
+    --encoder-dim 192,256,512,768,512,256 \
+    --encoder-unmasked-dim 192,192,256,320,256,192
+done
+```
+
+#### streaming
+
+##### normal-scaled model, number of model parameters: 66110931, i.e., 66.11 M
+
+The tensorboard log can be found at
+<https://tensorboard.dev/experiment/9rD0i6rMSWq1O61poWi71A>
+
+You can find a pretrained model, training logs, decoding logs, and decoding results at:
+<https://huggingface.co/Zengwei/icefall-asr-librispeech-streaming-zipformer-2023-05-17>
+
+You can use <https://github.com/k2-fsa/sherpa> to deploy it.
+
+| decoding method      | chunk size | test-clean | test-other | decoding mode       | comment            |
+|----------------------|------------|------------|------------|---------------------|--------------------|
+| greedy_search        | 320ms      | 3.06       | 7.81       | simulated streaming | --epoch 30 --avg 8 --chunk-size 16 --left-context-frames 128 |
+| greedy_search        | 320ms      | 3.06       | 7.79       | chunk-wise          | --epoch 30 --avg 8 --chunk-size 16 --left-context-frames 128 |
+| modified_beam_search | 320ms      | 3.01       | 7.69       | simulated streaming | --epoch 30 --avg 8 --chunk-size 16 --left-context-frames 128 |
+| modified_beam_search | 320ms      | 3.05       | 7.69       | chunk-wise          | --epoch 30 --avg 8 --chunk-size 16 --left-context-frames 128 |
+| fast_beam_search     | 320ms      | 3.04       | 7.68       | simulated streaming | --epoch 30 --avg 8 --chunk-size 16 --left-context-frames 128 |
+| fast_beam_search     | 320ms      | 3.07       | 7.69       | chunk-wise          | --epoch 30 --avg 8 --chunk-size 16 --left-context-frames 128 |
+| greedy_search        | 640ms      | 2.81       | 7.15       | simulated streaming | --epoch 30 --avg 8 --chunk-size 32 --left-context-frames 256 |
+| greedy_search        | 640ms      | 2.84       | 7.16       | chunk-wise          | --epoch 30 --avg 8 --chunk-size 32 --left-context-frames 256 |
+| modified_beam_search | 640ms      | 2.79       | 7.05       | simulated streaming | --epoch 30 --avg 8 --chunk-size 32 --left-context-frames 256 |
+| modified_beam_search | 640ms      | 2.81       | 7.11       | chunk-wise          | --epoch 30 --avg 8 --chunk-size 32 --left-context-frames 256 |
+| fast_beam_search     | 640ms      | 2.84       | 7.04       | simulated streaming | --epoch 30 --avg 8 --chunk-size 32 --left-context-frames 256 |
+| fast_beam_search     | 640ms      | 2.83       | 7.1        | chunk-wise          | --epoch 30 --avg 8 --chunk-size 32 --left-context-frames 256 |
+
+Note: For decoding mode, `simulated streaming` indicates feeding full utterance during decoding using `decode.py`,
+  while `chunk-size` indicates feeding certain number of frames at each time using `streaming_decode.py`.
+
+The training command is:
+```bash
+export CUDA_VISIBLE_DEVICES="0,1,2,3"
+./zipformer/train.py \
+  --world-size 4 \
+  --num-epochs 40 \
+  --start-epoch 1 \
+  --use-fp16 1 \
+  --exp-dir zipformer/exp-causal \
+  --causal 1 \
+  --full-libri 1 \
+  --max-duration 1000
+```
+
+The simulated streaming decoding command is:
+```bash
+export CUDA_VISIBLE_DEVICES="0"
+for m in greedy_search modified_beam_search fast_beam_search; do
+  ./zipformer/decode.py \
+    --epoch 30 \
+    --avg 8 \
+    --use-averaged-model 1 \
+    --exp-dir ./zipformer/exp-causal \
+    --causal 1 \
+    --chunk-size 16 \
+    --left-context-frames 128 \
+    --max-duration 600 \
+    --decoding-method $m
+done
+```
+
+The chunk-wise streaming decoding command is:
+```bash
+export CUDA_VISIBLE_DEVICES="0"
+for m in greedy_search modified_beam_search fast_beam_search; do
+  ./zipformer/streaming_decode.py \
+    --epoch 30 \
+    --avg 8 \
+    --use-averaged-model 1 \
+    --exp-dir ./zipformer/exp-causal \
+    --causal 1 \
+    --chunk-size 16 \
+    --left-context-frames 128 \
+    --num-decode-streams 2000 \
+    --decoding-method $m
+done
+```
+
+### pruned_transducer_stateless7 (Fine-tune with mux)
+
+See <https://github.com/k2-fsa/icefall/pull/1059> for more details.
+
+[pruned_transducer_stateless7](./pruned_transducer_stateless7)
+
+The tensorboard log can be found at
+<https://tensorboard.dev/experiment/MaNDZfO7RzW2Czzf3R2ZRA/>
+
+You can find the pretrained model and bpe model needed for fine-tuning at:
+<https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11>
+
+You can find a fine-tuned model, fine-tuning logs, decoding logs, and decoding
+results at:
+<https://huggingface.co/yfyeung/icefall-asr-finetune-mux-pruned_transducer_stateless7-2023-05-19>
+
+You can use <https://github.com/k2-fsa/sherpa> to deploy it.
+
+Number of model parameters: 70369391, i.e., 70.37 M
+
+| decoding method      |    dev     |    test    | test-clean | test-other |      comment       |
+|----------------------|------------|------------|------------|------------|--------------------|
+| greedy_search        |   14.27    |   14.22    |    2.08    |    4.79    | --epoch 20 --avg 5 |
+| modified_beam_search |   14.22    |   14.08    |    2.06    |    4.72    | --epoch 20 --avg 5 |
+| fast_beam_search     |   14.23    |   14.17    |    2.08    |    4.09    | --epoch 20 --avg 5 |
+
+The training commands are:
+```bash
+export CUDA_VISIBLE_DEVICES="0,1"
+
+./pruned_transducer_stateless7/finetune.py \
+  --world-size 2 \
+  --num-epochs 20 \
+  --start-epoch 1 \
+  --exp-dir pruned_transducer_stateless7/exp_giga_finetune \
+  --subset S \
+  --use-fp16 1 \
+  --base-lr 0.005 \
+  --lr-epochs 100 \
+  --lr-batches 100000 \
+  --bpe-model icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11/data/lang_bpe_500/bpe.model \
+  --do-finetune True \ 
+  --use-mux True \
+  --finetune-ckpt icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11/exp/pretrain.pt \
+  --max-duration 500
+```
+
+The decoding commands are:
+```bash
+# greedy_search
+./pruned_transducer_stateless7/decode.py \
+    --epoch 20 \
+    --avg 5 \
+    --use-averaged-model 1 \
+    --exp-dir ./pruned_transducer_stateless7/exp_giga_finetune \
+    --max-duration 600 \
+    --decoding-method greedy_search
+
+# modified_beam_search
+./pruned_transducer_stateless7/decode.py \
+    --epoch 20 \
+    --avg 5 \
+    --use-averaged-model 1 \
+    --exp-dir ./pruned_transducer_stateless7/exp_giga_finetune \
+    --max-duration 600 \
+    --decoding-method modified_beam_search \
+    --beam-size 4
+
+# fast_beam_search
+./pruned_transducer_stateless7/decode.py \
+    --epoch 20 \
+    --avg 5 \
+    --use-averaged-model 1 \
+    --exp-dir ./pruned_transducer_stateless7/exp_giga_finetune \
+    --max-duration 600 \
+    --decoding-method fast_beam_search \
+    --beam 20.0 \
+    --max-contexts 8 \
+    --max-states 64
+```
+
 ### pruned_transducer_stateless7 (zipformer + multidataset(LibriSpeech + GigaSpeech + CommonVoice 13.0))
 
 See <https://github.com/k2-fsa/icefall/pull/1010> for more details.

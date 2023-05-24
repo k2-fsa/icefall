@@ -86,8 +86,16 @@ class LibriSpeechAsrDataModule:
             "--full-libri",
             type=str2bool,
             default=True,
-            help="When enabled, use 960h LibriSpeech. Otherwise, use 100h subset.",
+            help="""Used only when --mini-libri is False.When enabled,
+            use 960h LibriSpeech. Otherwise, use 100h subset.""",
         )
+        group.add_argument(
+            "--mini-libri",
+            type=str2bool,
+            default=False,
+            help="True for mini librispeech",
+        )
+
         group.add_argument(
             "--manifest-dir",
             type=Path,
@@ -394,6 +402,13 @@ class LibriSpeechAsrDataModule:
         return test_dl
 
     @lru_cache()
+    def train_clean_5_cuts(self) -> CutSet:
+        logging.info("mini_librispeech: About to get train-clean-5 cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "librispeech_cuts_train-clean-5.jsonl.gz"
+        )
+
+    @lru_cache()
     def train_clean_100_cuts(self) -> CutSet:
         logging.info("About to get train-clean-100 cuts")
         return load_manifest_lazy(
@@ -422,6 +437,13 @@ class LibriSpeechAsrDataModule:
         )
         return load_manifest_lazy(
             self.args.manifest_dir / "librispeech_cuts_train-all-shuf.jsonl.gz"
+        )
+
+    @lru_cache()
+    def dev_clean_2_cuts(self) -> CutSet:
+        logging.info("mini_librispeech: About to get dev-clean-2 cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "librispeech_cuts_dev-clean-2.jsonl.gz"
         )
 
     @lru_cache()

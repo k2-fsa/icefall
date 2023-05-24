@@ -1358,12 +1358,7 @@ class EmformerEncoder(nn.Module):
         output_lengths = torch.clamp(lengths - self.right_context_length, min=0)
         attention_mask = self._gen_attention_mask(utterance)
 
-        M = (
-            right_context.size(0) // self.right_context_length - 1
-            if self.use_memory
-            else 0
-        )
-        padding_mask = make_pad_mask(M + right_context.size(0) + output_lengths)
+        padding_mask = make_pad_mask(attention_mask.shape[1] - U + output_lengths)
 
         output = utterance
         for layer in self.emformer_layers:
