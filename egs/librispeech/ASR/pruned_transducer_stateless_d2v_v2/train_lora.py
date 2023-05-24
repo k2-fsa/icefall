@@ -1599,7 +1599,8 @@ def run_adapter(rank, world_size, args, wb=None):
     
     adapter_names = []
     adapter_param = []
-    for lora in lora_module
+    for lora in lora_modules:
+        
     '''
     for n, p  in model.named_parameters():
         print(n)
