@@ -72,6 +72,7 @@ def main():
 
     # We only profile the encoder part
     model = get_encoder_model(params)
+    model.eval()
     model.to(device)
 
     num_param = sum([p.numel() for p in model.parameters()])
