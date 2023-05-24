@@ -163,7 +163,7 @@ class LoRAModule(nn.Module):
 
     def reset_parameters(self):
         nn.init.zeros_(self.lora_B.weight.data)
-        nn.init_normal_(self.lora_A.weight.dat)
+        nn.init.normal_(self.lora_A.weight.data)
 
     def forward(self, x):
         x = x.transpose(0, 1)
