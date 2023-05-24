@@ -1124,7 +1124,6 @@ def train_one_epoch(
             )
         '''
 
-
         if (
             params.batch_idx_train > 0
             and params.batch_idx_train % params.save_every_n == 0
