@@ -139,7 +139,7 @@ class LoRAHook():
                            lora_alpha=1.0,
                     )
     def hook_fn(self, module, input, output):
-        print(input.size())
+        print(input)
         lora_out = self.lora(input)
         output = input + lora_out
 
