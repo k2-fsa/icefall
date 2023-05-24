@@ -162,15 +162,15 @@ class LoRAModule(nn.Module):
         self.reset_parameters()
 
     def reset_parameters(self):
-        nn.init.zeros_(self.lora_B.weight.data)
-        nn.init.zeros_(self.lora_B.bias.data)
+        #nn.init.zeros_(self.lora_B.weight.data)
+        #nn.init.zeros_(self.lora_B.bias.data)
+        nn.init.normal_(self.lora_B.weight.data)
+        nn.init.normal_(self.lora_B.bias.data)
+
         nn.init.normal_(self.lora_A.weight.data)
         nn.init.normal_(self.lora_A.bias.data)
 
     def forward(self, x):
-        print('-'*30)
-        print(x)
-        print('-'*30)
         x = x.transpose(0, 1)
         x = self.lora_A(x)
         x = self.lora_B(x)
