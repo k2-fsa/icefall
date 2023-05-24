@@ -1011,6 +1011,7 @@ def train_one_epoch(
     world_size: int = 1,
     rank: int = 0,
     wb = None,
+    lora_modules = None,
 ) -> None:
     """Train the model for one epoch.
 
