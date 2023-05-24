@@ -1709,6 +1709,7 @@ def run_adapter(rank, world_size, args, wb=None):
             world_size=world_size,
             rank=rank,
             wb=wb,
+            lora_modules=lora_modules,
         )
 
         if params.print_diagnostics:
