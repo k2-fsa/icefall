@@ -1589,7 +1589,8 @@ def run_adapter(rank, world_size, args, wb=None):
     if world_size > 1:
         logging.info("Using DDP")
         model = DDP(model, device_ids=[rank], find_unused_parameters=True)
-
+    
+    print('-'*30)
     for module in model.modules():
         print(module)
 
