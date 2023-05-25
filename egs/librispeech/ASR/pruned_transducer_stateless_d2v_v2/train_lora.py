@@ -1609,7 +1609,6 @@ def run_adapter(rank, world_size, args, wb=None):
             for module in modules.modules():
                 #print(module)
                 if isinstance(module, torch.nn.Linear):
-                    print(module)
                     lora_modules.append(LoRAHook(module))
     
     adapter_names = []
