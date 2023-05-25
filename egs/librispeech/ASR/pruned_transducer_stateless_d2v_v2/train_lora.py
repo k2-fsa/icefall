@@ -1615,6 +1615,7 @@ def run_adapter(rank, world_size, args, wb=None):
     if world_size > 1:
         logging.info("Using DDP for LoRA")
         for lora in lora_modules:
+            lora.lora = lora.lora.to(device)
             lora.lora = DDP(lora.lora, device_ids=[rank], find_unused_parameters=False)
     
     adapter_names = []
