@@ -138,10 +138,9 @@ class LoRAHook():
                            lora_alpha=1.0,
                     )
     def hook_fn(self, module, input, output):
+        print(input)
         lora_out = self.lora(input)
         output += lora_out
-
-        print(lora_out, output)
 
     def save_checkpoint(self, i, iter_, save_dir):
         torch.save(self.lora.state_dict(), f"{save_dir}/lora_{iter_}_{i}.pt")
