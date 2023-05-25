@@ -1612,6 +1612,11 @@ def run_adapter(rank, world_size, args, wb=None):
                 if isinstance(module, torch.nn.Linear):
                     lora_modules.append(LoRAHook(module))
     
+    if world_size > 1:
+        logging.info("Using DDP for LoRA")
+        for lora in lora_modules:
+            lora.lora = DDP(lora.lora, device_ids=[rank], find_unused_parameters=False)
+    
     adapter_names = []
     adapter_param = []
     for i, lora in enumerate(lora_modules):
