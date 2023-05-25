@@ -147,7 +147,7 @@ class LoRAHook():
 
     def save_checkpoint(self, i, iter_, save_dir):
         if isinstance(self.lora, DDP):
-            self.lora = self.lora.module
+            lora = self.lora.module
         torch.save(self.lora.state_dict(), f"{save_dir}/lora_{iter_}_{i}.pt")
 
 
