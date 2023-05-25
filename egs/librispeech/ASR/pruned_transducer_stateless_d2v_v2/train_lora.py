@@ -1605,6 +1605,7 @@ def run_adapter(rank, world_size, args, wb=None):
     lora_modules = []
     for modules in model.modules():
         if isinstance(modules, fairseq.modules.multihead_attention.MultiheadAttention):
+            print(modules)
             '''
             for module in modules.modules():
                 #print(module)
