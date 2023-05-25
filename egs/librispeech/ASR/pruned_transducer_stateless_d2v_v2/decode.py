@@ -862,37 +862,8 @@ def main():
             results_dict=results_dict,
         )
 
-    '''
-    test_clean_cuts, test_clean_sets = librispeech.test_clean_cuts(option='user')
-    test_other_cuts, test_other_sets = librispeech.test_other_cuts(option='user')
-
-    test_clean_dl = [librispeech.test_dataloaders(user) for user in test_clean_cuts]
-    test_other_dl = [librispeech.test_dataloaders(user) for user in test_other_cuts]
-
-    test_sets = [test_clean_sets, test_other_sets]
-    test_dl = [test_clean_dl, test_other_dl]
-    
-    for sets, dls in zip(test_sets, test_dl):
-        print(len(sets), len(dls))
-        for test_set, test_dl in zip(sets, dls):
-            results_dict = decode_dataset(
-                dl=test_dl,
-                params=params,
-                model=model,
-                sp=sp,
-                word_table=word_table,
-                decoding_graph=decoding_graph,
-            )
-
-            save_results(
-                params=params,
-                test_set_name=test_set,
-                results_dict=results_dict,
-            )
-    '''
     logging.info("Done!")
 
 
 if __name__ == "__main__":
-    print('fuck')
     main()
