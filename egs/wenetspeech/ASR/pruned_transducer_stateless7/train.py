@@ -260,7 +260,7 @@ def get_parser():
     parser.add_argument(
         "--lr-epochs",
         type=float,
-        default=3.5,
+        default=1.5,
         help="""Number of epochs that affects how rapidly the learning rate decreases.
         """,
     )

@@ -307,7 +307,12 @@ def get_parser():
         "--blank-penalty",
         type=float,
         default=0.0,
-        help="",
+        help="""
+        The penalty applied on blank symbol during decoding.
+        Note: It is a positive value that would be applied to logits like
+        this `logits[:, 0] -= blank_penalty` (suppose logits.shape is
+        [batch_size, vocab] and blank id is 0).
+        """,
     )
 
     add_model_arguments(parser)
@@ -373,6 +378,7 @@ def decode_one_batch(
             beam=params.beam,
             max_contexts=params.max_contexts,
             max_states=params.max_states,
+            blank_penalty=params.blank_penalty,
         )
         for i in range(encoder_out.size(0)):
             hyps.append([lexicon.token_table[idx] for idx in hyp_tokens[i]])
@@ -387,6 +393,7 @@ def decode_one_batch(
             max_states=params.max_states,
             num_paths=params.num_paths,
             nbest_scale=params.nbest_scale,
+            blank_penalty=params.blank_penalty,
         )
         for hyp in hyp_tokens:
             sentence = "".join([lexicon.word_table[i] for i in hyp])
@@ -402,6 +409,7 @@ def decode_one_batch(
             max_states=params.max_states,
             num_paths=params.num_paths,
             nbest_scale=params.nbest_scale,
+            blank_penalty=params.blank_penalty,
         )
         for i in range(encoder_out.size(0)):
             hyps.append([lexicon.token_table[idx] for idx in hyp_tokens[i]])
@@ -417,6 +425,7 @@ def decode_one_batch(
             num_paths=params.num_paths,
             ref_texts=graph_compiler.texts_to_ids(supervisions["text"]),
             nbest_scale=params.nbest_scale,
+            blank_penalty=params.blank_penalty,
         )
         for i in range(encoder_out.size(0)):
             hyps.append([lexicon.token_table[idx] for idx in hyp_tokens[i]])
@@ -431,6 +440,7 @@ def decode_one_batch(
             model=model,
             encoder_out=encoder_out,
             encoder_out_lens=encoder_out_lens,
+            blank_penalty=params.blank_penalty,
             beam=params.beam_size,
         )
         for i in range(encoder_out.size(0)):
@@ -447,10 +457,12 @@ def decode_one_batch(
                     model=model,
                     encoder_out=encoder_out_i,
                     max_sym_per_frame=params.max_sym_per_frame,
+                    blank_penalty=params.blank_penalty,
                 )
             elif params.decoding_method == "beam_search":
                 hyp = beam_search(
                     model=model, encoder_out=encoder_out_i, beam=params.beam_size,
+                    blank_penalty=params.blank_penalty,
                 )
             else:
                 raise ValueError(
@@ -458,10 +470,11 @@ def decode_one_batch(
                 )
             hyps.append([lexicon.token_table[idx] for idx in hyp])
 
+    key = f"blank_penalty_{params.blank_penalty}"
     if params.decoding_method == "greedy_search":
-        return {"greedy_search": hyps}
+        return {"greedy_search_" + key: hyps}
     elif "fast_beam_search" in params.decoding_method:
-        key = f"beam_{params.beam}_"
+        key += f"_beam_{params.beam}_"
         key += f"max_contexts_{params.max_contexts}_"
         key += f"max_states_{params.max_states}"
         if "nbest" in params.decoding_method:
@@ -472,7 +485,7 @@ def decode_one_batch(
 
         return {key: hyps}
     else:
-        return {f"beam_size_{params.beam_size}": hyps}
+        return {f"beam_size_{params.beam_size}_" + key: hyps}
 
 
 def decode_dataset(
