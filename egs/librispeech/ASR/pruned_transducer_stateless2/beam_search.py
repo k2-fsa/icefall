@@ -608,7 +608,7 @@ def greedy_search(
         # logits is (1, 1, 1, vocab_size)
 
         if blank_penalty != 0:
-            logits[:,:,:,0] -= blank_penalty
+            logits[:, :, :, 0] -= blank_penalty
 
         y = logits.argmax().item()
         if y not in (blank_id, unk_id):
@@ -1748,7 +1748,7 @@ def beam_search(
                 )
 
                 if blank_penalty != 0:
-                    logits[:,:,:,0] -= blank_penalty
+                    logits[:, :, :, 0] -= blank_penalty
 
                 # TODO(fangjun): Scale the blank posterior
                 log_prob = (logits / temperature).log_softmax(dim=-1)
