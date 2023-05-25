@@ -1606,7 +1606,7 @@ def run_adapter(rank, world_size, args, wb=None):
     for modules in model.modules():
         if isinstance(modules, fairseq.modules.multihead_attention.MultiheadAttention):
             for module in modules.modules():
-                if rank == 0: logging.info(modules)
+                if rank == 0: logging.info(module)
                 #print(module)
                 #if isinstance(module, torch.nn.Linear):
                 #    lora_modules.append(LoRAHook(module))
