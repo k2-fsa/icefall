@@ -139,8 +139,8 @@ class LoRAHook():
                     )
     def hook_fn(self, module, input, output):
         #print(input)
-        print(module, input, output[0].size())
-        #lora_out = self.lora(input)
+        #print(module, input, output[0].size())
+        lora_out = self.lora(input)
         #output += lora_out
 
     def save_checkpoint(self, i, iter_, save_dir):
