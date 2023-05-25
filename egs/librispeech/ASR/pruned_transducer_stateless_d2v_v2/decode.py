@@ -686,7 +686,6 @@ def main():
     if '.pt' in params.model_name:
         load_checkpoint(f"{params.exp_dir}/{params.model_name}", model)
 
-    '''
     elif 'lora' in params.model_name: 
         load_checkpoint(f"{params.exp_dir}/../d2v-base-T.pt", model)
         
@@ -703,7 +702,6 @@ def main():
             lora.lora.load_state_dict(lora_param)
             lora.lora.to(device)
         logging.info("lora params load done")
-    '''
     else:
         if not params.use_averaged_model:
             if params.iter > 0:
