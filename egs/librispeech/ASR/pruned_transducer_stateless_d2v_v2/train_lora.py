@@ -1610,8 +1610,8 @@ def run_adapter(rank, world_size, args, wb=None):
             #    if rank == 0: logging.info(module)
                 #print(module)
                 if isinstance(module, torch.nn.Linear):
-                    if rank == 0: print(module)
-                #    lora_modules.append(LoRAHook(module))
+                    #if rank == 0: print(module)
+                    lora_modules.append(LoRAHook(module))
     
     adapter_names = []
     adapter_param = []
