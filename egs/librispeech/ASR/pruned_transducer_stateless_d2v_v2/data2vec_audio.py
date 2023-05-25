@@ -171,10 +171,10 @@ class LoRAModule(nn.Module):
         nn.init.normal_(self.lora_A.bias.data)
 
     def forward(self, x):
-        x = x.transpose(0, 1)
+        #x = x.transpose(0, 1)
         x = self.lora_A(x)
         x = self.lora_B(x)
-        x = x.transpose(0, 1)
+        #x = x.transpose(0, 1)
         x *= self.scaling
         return x
 
