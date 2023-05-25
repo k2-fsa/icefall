@@ -141,8 +141,8 @@ class LoRAHook():
         #print(input)
         print('fuck!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
         print(module, input, output)
-        lora_out = self.lora(input)
-        output += lora_out
+        #lora_out = self.lora(input)
+        #output += lora_out
 
     def save_checkpoint(self, i, iter_, save_dir):
         torch.save(self.lora.state_dict(), f"{save_dir}/lora_{iter_}_{i}.pt")
