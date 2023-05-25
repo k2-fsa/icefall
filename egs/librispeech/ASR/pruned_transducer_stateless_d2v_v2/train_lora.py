@@ -1112,7 +1112,7 @@ def train_one_epoch(
         if params.print_diagnostics and batch_idx == 5:
             return
         
-        print(lora_modules[20].lora.lora_A.weight)
+        #print(lora_modules[20].lora.lora_A.weight)
         '''
         if (
             rank == 0
