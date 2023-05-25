@@ -126,7 +126,6 @@ from icefall.utils import (
 import wandb
 import fairseq
 
-#from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
 
 
