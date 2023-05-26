@@ -141,7 +141,8 @@ class LoRAHook():
         #print('-'*20)
         #print(input[0].size(), output.size())
         #print('-'*20)
-
+        
+        print(output)
         lora_out = self.lora(input[0])
         output += lora_out
 
