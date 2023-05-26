@@ -78,6 +78,7 @@ from icefall.utils import (
 )
 
 import fairseq
+from data2vec_audio import LoRAModule
 
 LOG_EPS = math.log(1e-10)
 
