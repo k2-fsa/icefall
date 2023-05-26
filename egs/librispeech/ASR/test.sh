@@ -14,7 +14,7 @@ do
 		--enable-spec-aug False \
 		--additional-block True \
 		--exp-dir ./pruned_transducer_stateless_d2v_v2/$2 \
-		--max-duration 30 \
+		--max-duration 600 \
 		--iter $i \
 		--model-name lora \
 		--decoding-method $method \
