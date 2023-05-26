@@ -143,6 +143,7 @@ class LoRAHook():
         #print('-'*20)
         
         print(output)
+        print('-'*20)
         lora_out = self.lora(input[0])
         output += lora_out
         print(output)
