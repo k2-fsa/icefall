@@ -68,8 +68,8 @@ else
 			--multi-optim False \
 			--world-size 4 \
 			--num-epochs 10000 \
-			--num-updates 501 \
-			--save-every-n 100 \
+			--num-updates 101 \
+			--save-every-n 50 \
 			--full-libri 1 \
 			--exp-dir ./pruned_transducer_stateless_d2v_v2/$1 \
 			--max-duration 150 \
