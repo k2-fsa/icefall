@@ -77,6 +77,8 @@ from icefall.utils import (
     write_error_stats,
 )
 
+import fairseq
+
 LOG_EPS = math.log(1e-10)
 
 class LoRAHook():
