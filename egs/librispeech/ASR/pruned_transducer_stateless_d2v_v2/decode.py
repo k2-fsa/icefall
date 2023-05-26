@@ -77,9 +77,28 @@ from icefall.utils import (
     write_error_stats,
 )
 
-#from train_lora import LoRAHook
-
 LOG_EPS = math.log(1e-10)
+
+class LoRAHook():
+    def __init__(self, module):
+        self.hook = module.register_forward_hook(self.hook_fn)
+        self.lora = LoRAModule(
+                           embedding_dim=768,
+                           rank=4,
+                           lora_alpha=1.0,
+                    )
+    def hook_fn(self, module, input, output):
+        #print('-'*20)
+        #print(input[0].size(), output.size())
+        #print('-'*20)
+
+        lora_out = self.lora(input[0])
+        output += lora_out
+
+    def save_checkpoint(self, i, iter_, save_dir):
+        if isinstance(self.lora, DDP):
+            lora = self.lora.module
+        torch.save(lora.state_dict(), f"{save_dir}/lora_{iter_}_{i}.pt")
 
 
 def get_parser():
