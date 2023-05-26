@@ -95,8 +95,13 @@ class LoRAHook():
         #print(input[0].size(), output.size())
         #print('-'*20)
 
+        print(output)
+
         lora_out = self.lora(input[0])
         output += lora_out
+
+        print(output)
+        print('*'*20)
 
     def save_checkpoint(self, i, iter_, save_dir):
         if isinstance(self.lora, DDP):
