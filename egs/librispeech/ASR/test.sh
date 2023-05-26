@@ -14,7 +14,7 @@ do
 		--enable-spec-aug False \
 		--additional-block True \
 		--exp-dir ./pruned_transducer_stateless_d2v_v2/$2 \
-		--max-duration 600 \
+		--max-duration 30 \
 		--iter $i \
 		--model-name lora \
 		--decoding-method $method \
@@ -27,7 +27,7 @@ do
 		--use-averaged-model True \
 		--spk-id $spk_id \
 		--prompt False \
-		--res-name tttt
+		--res-name lora_check$i
 		#--res-name bitfit_q_fc1_check$i
 		#--res-name fullft_check$i
 	done
