@@ -77,6 +77,8 @@ from icefall.utils import (
     write_error_stats,
 )
 
+from train_lora import LoRAHook
+
 LOG_EPS = math.log(1e-10)
 
 
