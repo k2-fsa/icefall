@@ -541,16 +541,14 @@ class SubformerEncoderLayer(nn.Module):
         attn_dropout_mask = self.get_sequence_dropout_mask(src, attention_skip_rate)
 
         if True:
-            selected_attn_weights = attn_weights[0:2]
+            selected_attn_weights = attn_weights[0:1]
             if random.random() < float(self.const_attention_rate):
                 # Make attention weights constant.  The intention is to
                 # encourage these modules to do something similar to an
                 # averaging-over-time operation.
                 # only need the mask, can just use the 1st one and expand later
-                selected_attn_weights = selected_attn_weights[0:1]
                 selected_attn_weights = (selected_attn_weights > 0.0).to(selected_attn_weights.dtype)
                 selected_attn_weights = selected_attn_weights * (1.0 / selected_attn_weights.sum(dim=-1, keepdim=True))
-                selected_attn_weights = selected_attn_weights.expand(2, -1, -1, -1)
 
 
         na = self.balancer_na(self.nonlin_attention(src,
@@ -1383,6 +1381,7 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         self.pos_emb_skip_rate = copy.deepcopy(pos_emb_skip_rate)
         self.score_penalty = AbsValuePenalizer(
             limit=25.0, penalty=1.0e-04, prob=0.1)
+        self.name = None  # for diagnostics, will be set in train.py
 
         key_head_dim = query_head_dim
         in_proj_dim = (query_head_dim + key_head_dim + pos_dim) * num_heads
@@ -1622,7 +1621,7 @@ class MultiheadAttentionWeights(nn.Module):
         self.dropout = dropout
         self.score_penalty = AbsValuePenalizer(
             limit=25.0, penalty=1.0e-04, prob=0.1)
-
+        self.name = None  # for diagnostics, will be set in train.py
 
         # the initial_scale is supposed to take over the "scaling" factor of
         # head_dim ** -0.5 that has been used in previous forms of attention,

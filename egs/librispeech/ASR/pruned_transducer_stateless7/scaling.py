@@ -253,8 +253,10 @@ class CutoffEstimator:
 
 class SoftmaxFunction(torch.autograd.Function):
     """
-    Tries to handle half-precision derivatives in a randomized way that should
-    be more accurate for training than the default behavior.
+    An overloaded version of backprop for softmax that tries to save memory by
+    creating fp16 output (the default version of softmax creates fp32 output).
+    We convert back to fp32 internally during the backward pass, to minimize
+    roundoff error.
     """
     @staticmethod
     def forward(ctx, x: Tensor, dim: int):
@@ -272,13 +274,30 @@ class SoftmaxFunction(torch.autograd.Function):
     @staticmethod
     def backward(ctx, ans_grad: Tensor):
         ans, = ctx.saved_tensors
-        with torch.cuda.amp.autocast(enabled=False):
-            ans_grad = ans_grad.to(torch.float32)
-            ans = ans.to(torch.float32)
-            x_grad = ans_grad * ans
-            ans *= x_grad.sum(dim=ctx.dim, keepdim=True)
-            x_grad -= ans
-            return x_grad, None
+        try:
+            with torch.cuda.amp.autocast(enabled=False):
+                if ans.dtype != torch.float32:
+                    ans = ans.to(torch.float32)
+                    x_grad = ans.mul_(ans_grad.to(torch.float32))
+                else:
+                    # out-of-place since it's not a copy
+                    x_grad = ans_grad.to(torch.float32) * ans
+                ans *= x_grad.sum(dim=ctx.dim, keepdim=True)
+                x_grad -= ans
+                return x_grad, None
+        except Exception as e:
+            logging.info(f"Caught exception in SoftmaxFunction backward: {e}, size={list(ans.shape)}, dim={ctx.dim}, will try in half precision.")
+            x_grad = None
+
+
+        ans, = ctx.saved_tensors
+        ans_grad.mul_(ans)
+        x_grad = ans_grad
+        ans *= x_grad.sum(dim=ctx.dim, keepdim=True)
+        x_grad -= ans
+        return x_grad, None
+
+
 
 
 
