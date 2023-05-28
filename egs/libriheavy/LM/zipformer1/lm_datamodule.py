@@ -40,7 +40,8 @@ class LmDataset(torch.utils.data.IterableDataset):
                  bytes_per_segment: int = 200,
                  world_size: int = 1,
                  rank: int = 0,
-                 training: bool = True
+                 training: bool = True,
+                 skip_to_batch_idx: int = 0,
     ):
         """
         Initialize LmDataset object.  Args:
@@ -48,8 +49,10 @@ class LmDataset(torch.utils.data.IterableDataset):
               e.g. a line might contain the text "64324 foo/abc.txt".
               (filenames can not contain spaces).
           bytes_per_segment: the number of bytes in each segment of data.
+          skip_to_batch_idx: if provided, the first time we iterate we will skip this many batches.
         """
         self.training = training
+        self.skip_to_batch_idx = skip_to_batch_idx
         self.files = []
         self.num_bytes = []
         self.bytes_per_segment = bytes_per_segment
@@ -88,6 +91,12 @@ class LmDataset(torch.utils.data.IterableDataset):
         logging.getLogger().setLevel(logging.INFO)
         logging.info(f"my_id={my_id}, seed={seed}, num_segments={self.num_segments}")
         rng = np.random.default_rng(seed=seed)
+
+        skip_to_batch_idx = self.skip_to_batch_idx
+        if skip_to_batch_idx != 0:
+            logging.info(f"skip-to-batch-idx={skip_to_batch_idx}")
+        self.skip_to_batch_idx = 0  # so only the 1st time we iterate, we respect this.
+
         for n in range(self.num_segments):
             # np.random.multinomial / np.random.Generator.multinomial has an interface
             # where it gives counts of different categories, instead of the chosen category,
@@ -96,6 +105,9 @@ class LmDataset(torch.utils.data.IterableDataset):
             # gives the array of nonzero index
             file_idx, = np.nonzero(rng.multinomial(1, self.probs))
             file_idx, = file_idx
+
+            if n < skip_to_batch_idx:
+                continue
 
             fn = self.files[file_idx]
             num_bytes = self.num_bytes[file_idx]
@@ -139,5 +151,5 @@ if __name__ == '__main__':
 
 # cd libriheavy/LM
 # find /ceph-data3/xiaoyu/librilight_text/output_text_large_cleaned -name text.txt -exec stat --printf='%s ' {} \; -print > files.txt
-# head -n 2 files.txt > valid.txt
-# tail -n +3 files.txt > train.txt
+# head -n 4 files.txt > valid.txt
+# tail -n +5 files.txt > train.txt

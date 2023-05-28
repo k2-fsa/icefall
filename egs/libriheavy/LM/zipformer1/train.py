@@ -762,9 +762,6 @@ def train_one_epoch(
     for batch_idx, batch in enumerate(train_dl):
         if batch_idx % 10 == 0:
             set_batch_count(model, get_adjusted_batch_count(params))
-        if batch_idx < cur_batch_idx:
-            continue
-        cur_batch_idx = batch_idx
 
         params.batch_idx_train += 1
 
@@ -991,18 +988,23 @@ def run(rank, world_size, args):
 
 
     train = LmDataset(params.train_file_list,
-                      bytes_per_segment=params.bytes_per_segment,)
+                      bytes_per_segment=params.bytes_per_segment,
+                      skip_to_batch_idx=getattr(params, 'cur_batch_idx', 0))
+
+    batch_size = params.batch_size // (6 if params.print_diagnostics else 1)
+
     train_dl = torch.utils.data.DataLoader(
         dataset=train,
-        batch_size=params.batch_size,
+        batch_size=batch_size,
         num_workers=params.num_workers,
         drop_last=True)
+
 
     valid = LmDataset(params.valid_file_list,
                       bytes_per_segment=params.bytes_per_segment)
     valid_dl = torch.utils.data.DataLoader(
         dataset=valid,
-        batch_size=params.batch_size,
+        batch_size=batch_size,
         num_workers=params.num_workers,
         drop_last=False)
 
@@ -1017,7 +1019,7 @@ def run(rank, world_size, args):
         # to let it know how many tokens we have processed so far, and have a
         # soft-cutoff lr_tokens measured in tokens.
         # scheduler.step_epoch(epoch - 1)
-        fix_random_seed(params.seed + epoch - 1 + params.start_batch)
+        fix_random_seed(params.seed + epoch)
         # the above will affect random seeds in the dataloaders.
 
         if tb_writer is not None:
