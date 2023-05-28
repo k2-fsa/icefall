@@ -254,7 +254,7 @@ def get_parser():
     parser.add_argument(
         "--base-lr",
         type=float,
-        default=0.025,
+        default=0.035,
         help="The base learning rate."
     )
 
