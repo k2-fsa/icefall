@@ -1758,7 +1758,7 @@ class NonlinAttention(nn.Module):
 
         # ensure the activations after multiplication don't get too large.
         self.hidden_penalty = AbsValuePenalizer(
-            limit=10.0, penalty=1.0e-04, prob=0.1)
+            limit=40.0, penalty=1.0e-04, prob=0.1)
 
         self.out_proj = ScaledLinear(hidden_channels, channels,
                                      bias=True,
