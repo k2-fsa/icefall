@@ -896,7 +896,7 @@ class AbsValuePenalizer(nn.Module):
         self.mem_cutoff = CutoffEstimator(0.2)
 
     def forward(self, x: Tensor) -> Tensor:
-        if (torch.jit.is_scripting() or not x.requires_grad or
+        if (torch.jit.is_scripting() or not x.requires_grad
             or not self.training
             or random.random() > self.prob):
             # or (x.is_cuda and self.mem_cutoff(torch.cuda.memory_allocated()))
