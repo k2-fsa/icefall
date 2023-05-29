@@ -275,7 +275,7 @@ class Subformer(EncoderInterface):
                                                                        weights))
 
             else:
-                assert s == ')'  # upsample
+                assert s == ')'  # upsample and bypass
                 indexes, weights, x_orig = downsample_info.pop()
                 _attn_offset = attn_offsets.pop()
                 _pos_emb = pos_embs.pop()
@@ -283,6 +283,8 @@ class Subformer(EncoderInterface):
 
                 x = LearnedDownsamplingModule.upsample(x_orig, x, indexes, weights)
 
+                bypass = self.bypasses[i]
+                x = bypass(x_orig, x)
 
         # d = self.output_downsampling_factor
         # lengths = (x_lens + d - 1) // d
