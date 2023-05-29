@@ -134,7 +134,7 @@ class LoRAHook():
         self.hook = module.register_forward_hook(self.hook_fn)
         self.lora = LoRAModule(
                            embedding_dim=768,
-                           rank=4,
+                           rank=2,
                            lora_alpha=10000.,
                     )
     def hook_fn(self, module, input, output):
