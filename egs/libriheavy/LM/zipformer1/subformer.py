@@ -875,7 +875,8 @@ class LearnedDownsamplingModule(nn.Module):
                                        min_positive=1/(2*downsampling_factor),
                                        max_positive=0.6,
                                        min_abs=1.0,
-                                       max_abs=4.0)
+                                       max_abs=4.0,
+                                       grad_scale=0.1)
 
         # below are for diagnostics.
         self.copy_weights1 = nn.Identity()
