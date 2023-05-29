@@ -430,8 +430,6 @@ class SubformerEncoderLayer(nn.Module):
 
         self.norm = BiasNorm(embed_dim)
 
-        self.bypass_scale = nn.Parameter(torch.full((embed_dim,), 0.5))
-
         self.balancer1 = Balancer(
             embed_dim, channel_dim=-1,
             min_positive=0.45, max_positive=0.55,
