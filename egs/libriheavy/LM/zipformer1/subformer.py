@@ -892,7 +892,6 @@ class LearnedDownsamplingModule(nn.Module):
                                        max_positive=0.6,
                                        min_abs=1.0,
                                        max_abs=4.0,
-                                       grad_scale=0.1,
                                        prob=ScheduledFloat((0.0, 1.0), (8000.0, 0.25), default=0.0))
 
 

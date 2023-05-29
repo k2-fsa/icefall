@@ -897,8 +897,9 @@ class AbsValuePenalizer(nn.Module):
 
     def forward(self, x: Tensor) -> Tensor:
         if (torch.jit.is_scripting() or not x.requires_grad or
-            (x.is_cuda and self.mem_cutoff(torch.cuda.memory_allocated()))
+            or not self.training
             or random.random() > self.prob):
+            # or (x.is_cuda and self.mem_cutoff(torch.cuda.memory_allocated()))
             return _no_op(x)  # the _no_op op is to make our diagnostics code work.
 
         x = penalize_abs_values_gt(x,
