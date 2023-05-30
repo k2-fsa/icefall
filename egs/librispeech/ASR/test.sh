@@ -27,7 +27,7 @@ do
 		--use-averaged-model True \
 		--spk-id $spk_id \
 		--prompt False \
-		--res-name lora_long_check$i
+		--res-name lora_rank2_check$i
 		#--res-name bitfit_q_fc1_check$i
 		#--res-name fullft_check$i
 	done
