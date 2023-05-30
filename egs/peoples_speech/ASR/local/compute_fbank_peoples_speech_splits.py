@@ -115,7 +115,9 @@ def compute_fbank_commonvoice_splits(args):
                 logging.info(f"{cuts_path} exists - skipping")
                 continue
 
-            raw_cuts_path = output_dir / f"peoples_speech_cuts_{partition}_raw.{idx}.jsonl.gz"
+            raw_cuts_path = (
+                output_dir / f"peoples_speech_cuts_{partition}_raw.{idx}.jsonl.gz"
+            )
 
             logging.info(f"Loading {raw_cuts_path}")
             cut_set = CutSet.from_file(raw_cuts_path)
