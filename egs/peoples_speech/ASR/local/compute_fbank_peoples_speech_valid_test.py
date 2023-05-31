@@ -41,7 +41,7 @@ torch.set_num_threads(1)
 torch.set_num_interop_threads(1)
 
 
-def compute_fbank_commonvoice_dev_test():
+def compute_fbank_peoples_speech_valid_test():
     src_dir = Path(f"data/manifests")
     output_dir = Path(f"data/fbank")
     num_workers = 42
@@ -90,4 +90,4 @@ if __name__ == "__main__":
     formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
 
     logging.basicConfig(format=formatter, level=logging.INFO)
-    compute_fbank_commonvoice_dev_test()
+    compute_fbank_peoples_speech_valid_test()
