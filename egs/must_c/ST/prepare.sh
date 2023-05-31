@@ -6,7 +6,7 @@ export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
 set -eou pipefail
 
 nj=10
-stage=-1
+stage=0
 stop_stage=100
 
 version=v1.0
@@ -101,8 +101,73 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
 fi
 
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
-  log "Stage 3: Text normalization"
-  ./local/preprocess_must_c.py \
-    --manifest-dir ./data/manifests/$version/ \
-    --tgt-lang $tgt_lang
+  log "Stage 3: Text normalization for $version with target language $tgt_lang"
+  if [ ! -f ./data/manifests/$version/.$tgt_lang.norm.done ]; then
+    ./local/preprocess_must_c.py \
+      --manifest-dir ./data/manifests/$version/ \
+      --tgt-lang $tgt_lang
+    touch ./data/manifests/$version/.$tgt_lang.norm.done
+  fi
+fi
+
+if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
+  log "Stage 4: Compute fbank for musan"
+  mkdir -p data/fbank
+  if [ ! -e data/fbank/.musan.done ]; then
+    ./local/compute_fbank_musan.py
+    touch data/fbank/.musan.done
+  fi
+fi
+
+if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
+  log "Stage 5: Compute fbank for $version with target language $tgt_lang"
+  mkdir -p data/fbank/$version/
+  if [ ! -e data/fbank/$version/.$tgt_lang.done ]; then
+    ./local/compute_fbank_must_c.py \
+      --in-dir ./data/manifests/$version/ \
+      --out-dir ./data/fbank/$version/ \
+      --tgt-lang $tgt_lang \
+      --num-jobs $nj
+
+    ./local/compute_fbank_must_c.py \
+      --in-dir ./data/manifests/$version/ \
+      --out-dir ./data/fbank/$version/ \
+      --tgt-lang $tgt_lang \
+      --num-jobs $nj \
+      --perturb-speed 1
+
+    touch data/fbank/$version/.$tgt_lang.done
+  fi
+fi
+
+if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
+  log "Stage 6: Prepare BPE based lang for $version with target language $tgt_lang"
+
+  for vocab_size in ${vocab_sizes[@]}; do
+    lang_dir=data/lang_bpe_${vocab_size}/$version/$tgt_lang/
+    mkdir -p $lang_dir
+    if [ ! -f $lang_dir/transcript_words.txt ]; then
+      ./local/get_text.py ./data/fbank/$version/must_c_feats_en-${tgt_lang}_train.jsonl.gz > $lang_dir/transcript_words.txt
+    fi
+
+    if [ ! -f $lang_dir/words.txt ]; then
+      ./local/get_words.py $lang_dir/transcript_words.txt > $lang_dir/words.txt
+    fi
+
+    if [ ! -f $lang_dir/bpe.model ]; then
+      ./local/train_bpe_model.py \
+        --lang-dir $lang_dir \
+        --vocab-size $vocab_size \
+        --transcript $lang_dir/transcript_words.txt
+    fi
+
+    if [ ! -f $lang_dir/L_disambig.pt ]; then
+      ./local/prepare_lang_bpe.py --lang-dir $lang_dir
+
+      log "Validating $lang_dir/lexicon.txt"
+      ./local/validate_bpe_lexicon.py \
+        --lexicon $lang_dir/lexicon.txt \
+        --bpe-model $lang_dir/bpe.model
+    fi
+  done
 fi

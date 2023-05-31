@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Copyright    2023  Xiaomi Corp.        (authors: Fangjun Kuang)
 """
 This script normalizes transcripts from supervisions.
 
@@ -11,11 +12,13 @@ Usage:
 import argparse
 import logging
 import re
-from pathlib import Path
 from functools import partial
+from pathlib import Path
 
-from normalize_punctuation import normalize_punctuation
 from lhotse.recipes.utils import read_manifests_if_cached
+from normalize_punctuation import normalize_punctuation
+from remove_non_native_characters import remove_non_native_characters
+from remove_punctuation import remove_punctuation
 
 
 def get_args():
@@ -39,6 +42,9 @@ def preprocess_must_c(manifest_dir: Path, tgt_lang: str):
     print(manifest_dir)
 
     normalize_punctuation_lang = partial(normalize_punctuation, lang=tgt_lang)
+    remove_non_native_characters_lang = partial(
+        remove_non_native_characters, lang=tgt_lang
+    )
 
     prefix = "must_c"
     suffix = "jsonl.gz"
@@ -66,7 +72,10 @@ def preprocess_must_c(manifest_dir: Path, tgt_lang: str):
 
         supervisions = manifests[name]["supervisions"]
         supervisions = supervisions.transform_text(normalize_punctuation_lang)
+        supervisions = supervisions.transform_text(remove_punctuation)
         supervisions = supervisions.transform_text(lambda x: x.lower())
+        supervisions = supervisions.transform_text(remove_non_native_characters_lang)
+        supervisions = supervisions.transform_text(lambda x: re.sub(" +", " ", x))
 
         supervisions.to_file(dst_name)
 

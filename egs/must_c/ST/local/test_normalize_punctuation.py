@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Copyright    2023  Xiaomi Corp.        (authors: Fangjun Kuang)
 
 from normalize_punctuation import normalize_punctuation
 
