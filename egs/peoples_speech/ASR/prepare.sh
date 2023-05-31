@@ -182,7 +182,7 @@ if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
 
       # Ensure space only appears once
       sed -i 's/\t/ /g' $lang_dir/transcript_words.txt
-      sed -i 's/[ ][ ]*/ /g' $lang_dir/transcript_words.txt
+      sed -i 's/ +/ /g' $lang_dir/transcript_words.txt
     fi
  
     if [ ! -f $lang_dir/words.txt ]; then
