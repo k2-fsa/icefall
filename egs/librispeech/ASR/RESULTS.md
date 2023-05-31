@@ -244,7 +244,7 @@ for m in greedy_search modified_beam_search fast_beam_search; do
 done
 ```
 
-##### zipformer ctc streaming
+### zipformer ctc streaming
 
 | decoding method      | test-clean | test-other | comment            |
 |----------------------|------------|------------|--------------------|
@@ -275,7 +275,6 @@ export CUDA_VISIBLE_DEVICES="0"
 --lm-dir data/lm \
 --lang-dir  data/lang_bpe_500
 ```
-
 
 ### pruned_transducer_stateless7 (Fine-tune with mux)
 
