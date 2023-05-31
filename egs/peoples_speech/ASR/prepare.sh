@@ -103,6 +103,7 @@ fi
 
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   log "Stage 3: Preprocess People's Speech manifest"
+  mkdir -p data/fbank
   if [ ! -e data/fbank/.preprocess_complete ]; then
     ./local/preprocess_peoples_speech.py
     touch data/fbank/.preprocess_complete
@@ -111,7 +112,6 @@ fi
 
 if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
   log "Stage 4: Compute fbank for valid and test subsets of People's Speech"
-  mkdir -p data/fbank
   if [ ! -e data/fbank/.peoples_speech_valid_test.done ]; then
     ./local/compute_fbank_peoples_speech_valid_test.py
     touch data/fbank/.peoples_speech_valid_test.done
