@@ -330,7 +330,7 @@ def main():
     ppl = math.exp(tot_loss / num_tokens)
     logging.info(
         f"total nll: {tot_loss}, num tokens: {num_tokens}, "
-        f"num sentences: {num_sentences}, ppl: {ppl:.3f}, "
+        f"num sentences: {num_sentences}, ppl: {ppl:.3f}"
     )
 
 
