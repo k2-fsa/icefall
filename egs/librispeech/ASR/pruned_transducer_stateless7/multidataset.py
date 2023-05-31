@@ -25,26 +25,21 @@ from lhotse import CutSet, load_manifest_lazy
 
 
 class MultiDataset:
-    def __init__(self, manifest_dir: str, cv_manifest_dir: str):
+    def __init__(self, manifest_dir: str):
         """
         Args:
           manifest_dir:
             It is expected to contain the following files:
 
             - librispeech_cuts_train-all-shuf.jsonl.gz
-            - gigaspeech_XL_split_2000/gigaspeech_cuts_XL.*.jsonl.gz
+            - XL_split_2000/cuts_XL.*.jsonl.gz
             - peoples_speech_train_split/peoples_speech_cuts_dirty.*.jsonl.gz
             - peoples_speech_train_split/peoples_speech_cuts_dirty_sa.*.jsonl.gz
             - peoples_speech_train_split/peoples_speech_cuts_clean.*.jsonl.gz
             - peoples_speech_train_split/peoples_speech_cuts_clean_sa.*.jsonl.gz
-
-          cv_manifest_dir:
-            It is expected to contain the following files:
-
             - cv-en_cuts_train.jsonl.gz
         """
         self.manifest_dir = Path(manifest_dir)
-        self.cv_manifest_dir = Path(cv_manifest_dir)
 
     def train_cuts(self) -> CutSet:
         logging.info("About to get multidataset train cuts")
@@ -57,10 +52,10 @@ class MultiDataset:
 
         # GigaSpeech
         filenames = glob.glob(
-            f"{self.manifest_dir}/gigaspeech_XL_split_2000/gigaspeech_cuts_XL.*.jsonl.gz"
+            f"{self.manifest_dir}/XL_split_2000/cuts_XL.*.jsonl.gz"
         )
 
-        pattern = re.compile(r"gigaspeech_cuts_XL.([0-9]+).jsonl.gz")
+        pattern = re.compile(r"cuts_XL.([0-9]+).jsonl.gz")
         idx_filenames = ((int(pattern.search(f).group(1)), f) for f in filenames)
         idx_filenames = sorted(idx_filenames, key=lambda x: x[0])
 
@@ -75,7 +70,7 @@ class MultiDataset:
         # CommonVoice
         logging.info(f"Loading CommonVoice in lazy mode")
         commonvoice_cuts = load_manifest_lazy(
-            self.cv_manifest_dir / f"cv-en_cuts_train.jsonl.gz"
+            self.manifest_dir / f"cv-en_cuts_train.jsonl.gz"
         )
 
         # People's Speech

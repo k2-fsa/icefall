@@ -281,28 +281,7 @@ if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
 fi
 
 if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
-  log "Stage 8: Compile HLG"
-  ./local/compile_hlg.py --lang-dir data/lang_phone
-
-  # Note If ./local/compile_hlg.py throws OOM,
-  # please switch to the following command
-  #
-  # ./local/compile_hlg_using_openfst.py --lang-dir data/lang_phone
-
-  for vocab_size in ${vocab_sizes[@]}; do
-    lang_dir=data/lang_bpe_${vocab_size}
-    ./local/compile_hlg.py --lang-dir $lang_dir
-
-    # Note If ./local/compile_hlg.py throws OOM,
-    # please switch to the following command
-    #
-    # ./local/compile_hlg_using_openfst.py --lang-dir $lang_dir
-  done
-fi
-
-# Compile LG for RNN-T fast_beam_search decoding
-if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
-  log "Stage 9: Compile LG"
+  log "Stage 8: Compile LG"
   ./local/compile_lg.py --lang-dir data/lang_phone
 
   for vocab_size in ${vocab_sizes[@]}; do
@@ -311,23 +290,51 @@ if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
   done
 fi
 
-if [ $stage -le 10 ] && [ $stop_stage -ge 10 ]; then
-  log "Stage 10: Prepare the other datasets"
+if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
+  log "Stage 9: Prepare the other datasets"
   # GigaSpeech
-  if [[ "${multidataset[@]}" =~ "gigaspeech" ]]; then
+  if [[ "${multidataset[@]}" =~ "gigaspeech" ]] && [ ! -f data/fbank/.gigaspeech.done ]; then
     log "Dataset: GigaSpeech"
-    ./prepare_giga_speech.sh
+    cd data/fbank
+    if [ -f ../../../../gigaspeech/ASR/data/fbank/XL_split/.split_completed ]; then
+      ln -svf $(realpath ../../../../gigaspeech/ASR/data/fbank/XL_split) .
+    else
+      log "Abort! Please run gigaspeech prepare.sh --stage 5 --stop-stage 6"
+      exit 1
+    fi
+
+    touch .gigaspeech.done
+    cd ../..
   fi
 
   # CommonVoice
-  if [[ "${multidataset[@]}" =~ "commonvoice" ]]; then
+  if [[ "${multidataset[@]}" =~ "commonvoice" ]] && [ ! -f data/fbank/.commonvoice.done ]; then
     log "Dataset: CommonVoice"
-    ./prepare_common_voice.sh
+    cd data/fbank
+    if [ -f ../../../../commonvoice/ASR/data/en/fbank/.cv-en_train.done ]; then
+      ln -svf $(realpath ../../../../commonvoice/ASR/data/en/fbank/cv-en_train_split_1000) .
+      ln -svf $(realpath ../../../../commonvoice/ASR/data/en/fbank/cv-en_cuts_train.jsonl.gz) .
+    else
+      log "Abort! Please run commonvoice prepare.sh --stage 5 --stop-stage 6"
+      exit 1
+    fi
+
+    touch .commonvoice.done
+    cd ../..
   fi
 
   # People's Speech
-  if [[ "${multidataset[@]}" =~ "peoples_speech" ]]; then
+  if [[ "${multidataset[@]}" =~ "peoples_speech" ]] && [ ! -f data/fbank/.peoples_speech.done ]; then
     log "Dataset: People's Speech"
-    ./prepare_peoples_speech.sh
+    cd data/fbank
+    if [ -f ../../../../peoples_speech/ASR/data/fbank/.peoples_speech_train.done ]; then
+      ln -svf $(realpath ../../../../peoples_speech/ASR/data/fbank/peoples_speech_train_split) .
+    else
+      log "Abort! Please run commonvoice prepare.sh --stage 5 --stop-stage 6"
+      exit 1
+    fi
+
+    touch .peoples_speech.done
+    cd ../..
   fi
 fi
