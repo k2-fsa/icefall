@@ -85,15 +85,17 @@ def preprocess_peoples_speech(dataset: Optional[str] = None):
             continue
 
         logging.info(f"Normalizing text in {partition}")
+        i = 0
         for sup in m["supervisions"]:
             text = str(sup.text)
             orig_text = text
             sup.text = normalize_text(sup.text)
             text = str(sup.text)
-            if len(orig_text) != len(text):
+            if i < 10 and len(orig_text) != len(text):
                 logging.info(
                     f"\nOriginal text vs normalized text:\n{orig_text}\n{text}"
                 )
+                i += 1
 
         # Create long-recording cut manifests.
         cut_set = CutSet.from_manifests(
