@@ -87,7 +87,7 @@ def compute_fbank_commonvoice_splits(args):
     output_dir = Path(output_dir)
     assert output_dir.exists(), f"{output_dir} does not exist!"
 
-    num_digits = len(str(num_splits))
+    num_digits = 8
 
     start = args.start
     stop = args.stop

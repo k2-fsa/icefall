@@ -173,7 +173,10 @@ if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
     if [ ! -f $lang_dir/transcript_words.txt ]; then
       log "Generate data for BPE training"
       file=$(
-        find "data/fbank/peoples_speech_cuts_train.jsonl.gz"
+        find "data/fbank/peoples_speech_cuts_dirty_raw.jsonl.gz"
+	find "data/fbank/peoples_speech_cuts_dirty_sa_raw.jsonl.gz"
+	find "data/fbank/peoples_speech_cuts_clean_raw.jsonl.gz"
+	find "data/fbank/peoples_speech_cuts_clean_sa_raw.jsonl.gz"
       )
       gunzip -c ${file} | awk -F '"' '{print $30}' > $lang_dir/transcript_words.txt
 
