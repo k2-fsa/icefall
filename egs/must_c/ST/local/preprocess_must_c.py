@@ -39,8 +39,6 @@ def get_args():
 
 
 def preprocess_must_c(manifest_dir: Path, tgt_lang: str):
-    print(manifest_dir)
-
     normalize_punctuation_lang = partial(normalize_punctuation, lang=tgt_lang)
     remove_non_native_characters_lang = partial(
         remove_non_native_characters, lang=tgt_lang

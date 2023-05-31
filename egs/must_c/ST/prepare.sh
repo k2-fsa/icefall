@@ -78,7 +78,7 @@ fi
 if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   log "Stage 1: Prepare musan manifest"
   # We assume that you have downloaded the musan corpus
-  # to data/musan
+  # to $dl_dir/musan
   mkdir -p data/manifests
   if [ ! -e data/manifests/.musan.done ]; then
     lhotse prepare musan $dl_dir/musan data/manifests
