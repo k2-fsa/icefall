@@ -358,7 +358,7 @@ The decoding commands are:
     --max-states 64
 ```
 
-##### zipformer ctc streaming
+### zipformer ctc streaming
 
 | decoding method      | test-clean | test-other | comment            |
 |----------------------|------------|------------|--------------------|
