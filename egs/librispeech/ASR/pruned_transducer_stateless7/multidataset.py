@@ -33,6 +33,10 @@ class MultiDataset:
 
             - librispeech_cuts_train-all-shuf.jsonl.gz
             - gigaspeech_XL_split_2000/gigaspeech_cuts_XL.*.jsonl.gz
+            - peoples_speech_train_split/peoples_speech_cuts_dirty.*.jsonl.gz
+            - peoples_speech_train_split/peoples_speech_cuts_dirty_sa.*.jsonl.gz
+            - peoples_speech_train_split/peoples_speech_cuts_clean.*.jsonl.gz
+            - peoples_speech_train_split/peoples_speech_cuts_clean_sa.*.jsonl.gz
 
           cv_manifest_dir:
             It is expected to contain the following files:
@@ -74,4 +78,34 @@ class MultiDataset:
             self.cv_manifest_dir / f"cv-en_cuts_train.jsonl.gz"
         )
 
-        return CutSet.mux(librispeech_cuts, gigaspeech_cuts, commonvoice_cuts)
+        # People's Speech
+        filenames = glob.glob(
+            f"{self.manifest_dir}/peoples_speech_train_split/peoples_speech_cuts_*.*.jsonl.gz"
+        )
+
+        pattern = re.compile(r"peoples_speech_cuts.([0-9]+).jsonl.gz")
+        idx_filenames = ((int(pattern.search(f).group(1)), f) for f in filenames)
+        idx_filenames = sorted(idx_filenames, key=lambda x: x[0])
+
+        sorted_filenames = [f[1] for f in idx_filenames]
+
+        logging.info(
+            f"Loading People's Speech {len(sorted_filenames)} splits in lazy mode"
+        )
+
+        peoples_speech_cuts = lhotse.combine(
+            lhotse.load_manifest_lazy(p) for p in sorted_filenames
+        )
+
+        return CutSet.mux(
+            librispeech_cuts,
+            gigaspeech_cuts,
+            commonvoice_cuts,
+            peoples_speech_cuts,
+            weights=[
+                len(librispeech_cuts),
+                len(gigaspeech_cuts),
+                len(commonvoice_cuts),
+                len(peoples_speech_cuts),
+            ],
+        )
