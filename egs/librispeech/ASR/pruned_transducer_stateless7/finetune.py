@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-# Copyright    2021-2022  Xiaomi Corp.        (authors: Fangjun Kuang,
+# Copyright    2021-2023  Xiaomi Corp.        (authors: Fangjun Kuang,
 #                                                       Wei Kang,
-#                                                       Mingshuang Luo,)
-#                                                       Zengwei Yao)
+#                                                       Mingshuang Luo,
+#                                                       Zengwei Yao,
+#                                                       Xiaoyu Yang,
+#                                                       Yifan Yang)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -20,27 +22,23 @@
 """
 Usage:
 
-export CUDA_VISIBLE_DEVICES="0,1,2,3"
+export CUDA_VISIBLE_DEVICES="0,1"
 
-./pruned_transducer_stateless7/train.py \
-  --world-size 4 \
-  --num-epochs 30 \
+./pruned_transducer_stateless7/finetune.py \
+  --world-size 2 \
+  --num-epochs 20 \
   --start-epoch 1 \
-  --exp-dir pruned_transducer_stateless7/exp \
-  --full-libri 1 \
-  --max-duration 300
-
-# For mix precision training:
-
-./pruned_transducer_stateless7/train.py \
-  --world-size 4 \
-  --num-epochs 30 \
-  --start-epoch 1 \
+  --exp-dir pruned_transducer_stateless7/exp_giga_finetune \
+  --subset S \
   --use-fp16 1 \
-  --exp-dir pruned_transducer_stateless7/exp \
-  --full-libri 1 \
-  --max-duration 550
-
+  --base-lr 0.005 \
+  --lr-epochs 100 \
+  --lr-batches 100000 \
+  --bpe-model icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11/data/lang_bpe_500/bpe.model \
+  --do-finetune True \
+  --use-mux True \
+  --finetune-ckpt icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11/exp/pretrained.pt \
+  --max-duration 500
 """
 
 
@@ -58,10 +56,11 @@ import sentencepiece as spm
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
+from asr_datamodule import LibriSpeechAsrDataModule
 from decoder import Decoder
 from gigaspeech import GigaSpeechAsrDataModule
 from joiner import Joiner
-from lhotse.cut import Cut
+from lhotse.cut import Cut, CutSet
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import Transducer
@@ -103,7 +102,21 @@ def set_batch_count(model: Union[nn.Module, DDP], batch_count: float) -> None:
 
 
 def add_finetune_arguments(parser: argparse.ArgumentParser):
-    parser.add_argument("--do-finetune", type=str2bool, default=False)
+    parser.add_argument(
+        "--do-finetune",
+        type=str2bool,
+        default=True,
+        help="Whether to fine-tune.",
+    )
+    parser.add_argument(
+        "--use-mux",
+        type=str2bool,
+        default=False,
+        help="""
+        Whether to adapt. If true, we will mix 5% of the new data
+        with 95% of the original data to fine-tune.
+        """,
+    )
 
     parser.add_argument(
         "--init-modules",
@@ -111,9 +124,9 @@ def add_finetune_arguments(parser: argparse.ArgumentParser):
         default=None,
         help="""
         Modules to be initialized. It matches all parameters starting with
-        a specific key. The keys are given with Comma seperated. If None, 
-        all modules will be initialised. For example, if you only want to 
-        initialise all parameters staring with "encoder", use "encoder"; 
+        a specific key. The keys are given with Comma seperated. If None,
+        all modules will be initialised. For example, if you only want to
+        initialise all parameters staring with "encoder", use "encoder";
         if you want to initialise parameters starting with encoder or decoder,
         use "encoder,joiner".
         """,
@@ -172,7 +185,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         type=str,
         default="256,256,256,256,256",
         help="""Unmasked dimensions in the encoders, relates to augmentation
-        during training. Must be <= each of encoder_dims. Empirically, less 
+        during training. Must be <= each of encoder_dims. Empirically, less
         than 256 seems to make performance worse.
         """,
     )
@@ -275,7 +288,7 @@ def get_parser():
         "--bpe-model",
         type=str,
         default="data/lang_bpe_500/bpe.model",
-        help="""Path to the BPE model. 
+        help="""Path to the BPE model.
         This should be the bpe model of the original model
         """,
     )
@@ -289,8 +302,8 @@ def get_parser():
         type=float,
         default=100000,
         help="""Number of steps that affects how rapidly the learning rate
-        decreases. During fine-tuning, we set this very large so that the 
-        learning rate slowly decays with number of batches. You may tune 
+        decreases. During fine-tuning, we set this very large so that the
+        learning rate slowly decays with number of batches. You may tune
         its value by yourself.
         """,
     )
@@ -299,9 +312,9 @@ def get_parser():
         "--lr-epochs",
         type=float,
         default=100,
-        help="""Number of epochs that affects how rapidly the learning rate 
-        decreases. During fine-tuning, we set this very large so that the 
-        learning rate slowly decays with number of batches. You may tune 
+        help="""Number of epochs that affects how rapidly the learning rate
+        decreases. During fine-tuning, we set this very large so that the
+        learning rate slowly decays with number of batches. You may tune
         its value by yourself.
         """,
     )
@@ -607,9 +620,6 @@ def load_checkpoint_if_available(
         if "cur_epoch" in saved_params:
             params["start_epoch"] = saved_params["cur_epoch"]
 
-        if "cur_batch_idx" in saved_params:
-            params["cur_batch_idx"] = saved_params["cur_batch_idx"]
-
     return saved_params
 
 
@@ -740,7 +750,8 @@ def compute_loss(
     # We set allowed_excess_duration_ratio=0.1.
     max_frames = params.max_duration * 1000 // params.frame_shift_ms
     allowed_max_frames = int(max_frames * (1.0 + params.allowed_excess_duration_ratio))
-    batch = filter_uneven_sized_batch(batch, allowed_max_frames)
+    if is_training:
+        batch = filter_uneven_sized_batch(batch, allowed_max_frames)
 
     device = model.device if isinstance(model, DDP) else next(model.parameters()).device
     feature = batch["inputs"]
@@ -882,13 +893,7 @@ def train_one_epoch(
 
     tot_loss = MetricsTracker()
 
-    cur_batch_idx = params.get("cur_batch_idx", 0)
-
     for batch_idx, batch in enumerate(train_dl):
-        if batch_idx < cur_batch_idx:
-            continue
-        cur_batch_idx = batch_idx
-
         params.batch_idx_train += 1
         batch_size = len(batch["supervisions"]["text"])
 
@@ -907,7 +912,11 @@ def train_one_epoch(
             # NOTE: We use reduction==sum and loss is computed over utterances
             # in the batch and there is no normalization to it so far.
             scaler.scale(loss).backward()
-            set_batch_count(model, params.batch_idx_train)
+            # Skip the warmup by adding a huge number to batch_count
+            if params.do_finetune:
+                set_batch_count(model, params.batch_idx_train + 100000)
+            else:
+                set_batch_count(model, params.batch_idx_train)
             scheduler.step_batch(params.batch_idx_train)
 
             scaler.step(optimizer)
@@ -935,7 +944,6 @@ def train_one_epoch(
             params.batch_idx_train > 0
             and params.batch_idx_train % params.save_every_n == 0
         ):
-            params.cur_batch_idx = batch_idx
             save_checkpoint_with_global_batch_idx(
                 out_dir=params.exp_dir,
                 global_batch_idx=params.batch_idx_train,
@@ -948,7 +956,6 @@ def train_one_epoch(
                 scaler=scaler,
                 rank=rank,
             )
-            del params.cur_batch_idx
             remove_checkpoints(
                 out_dir=params.exp_dir,
                 topk=params.keep_last_k,
@@ -1104,7 +1111,12 @@ def run(rank, world_size, args):
         parameters_names=parameters_names,
     )
 
-    scheduler = Eden(optimizer, params.lr_batches, params.lr_epochs)
+    scheduler = Eden(
+        optimizer=optimizer,
+        lr_batches=params.lr_batches,
+        lr_epochs=params.lr_epochs,
+        warmup_batches=0,
+    )
 
     if checkpoints and "optimizer" in checkpoints:
         logging.info("Loading optimizer state dict")
@@ -1129,7 +1141,15 @@ def run(rank, world_size, args):
 
     gigaspeech = GigaSpeechAsrDataModule(args)
 
-    train_cuts = gigaspeech.train_cuts()
+    if params.use_mux:
+        librispeech = LibriSpeechAsrDataModule(args)
+        train_cuts = CutSet.mux(
+            librispeech.train_all_shuf_cuts(),
+            gigaspeech.train_cuts(),
+            weights=[0.95, 0.05],
+        )
+    else:
+        train_cuts = gigaspeech.train_cuts()
 
     def remove_short_and_long_utt(c: Cut):
         # Keep only utterances with duration between 1 second and 20 seconds
@@ -1141,9 +1161,9 @@ def run(rank, world_size, args):
         # an utterance duration distribution for your dataset to select
         # the threshold
         if c.duration < 1.0 or c.duration > 20.0:
-            logging.warning(
-                f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
-            )
+            # logging.warning(
+            #    f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
+            # )
             return False
 
         # In pruned RNN-T, we require that T >= S

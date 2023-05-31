@@ -12,6 +12,7 @@ import unicodedata
 WHITESPACE_NORMALIZER = re.compile(r"\s+")
 SPACE = chr(32)
 SPACE_ESCAPE = chr(9601)
+BPE_UNK = chr(8263)
 
 PRINTABLE_BASE_CHARS = [
     256,
@@ -277,6 +278,7 @@ for c in PRINTABLE_BASE_CHARS:
 
 BYTE_TO_BCHAR = {b: chr(PRINTABLE_BASE_CHARS[b]) for b in range(256)}
 BCHAR_TO_BYTE = {bc: b for b, bc in BYTE_TO_BCHAR.items()}
+BCHAR_TO_BYTE[BPE_UNK] = 32  # map unk to space
 
 
 def byte_encode(x: str) -> str:

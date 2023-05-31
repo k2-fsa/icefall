@@ -60,13 +60,13 @@ import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
-from multidataset import MultiDataset
 from decoder import Decoder
 from joiner import Joiner
 from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import Transducer
+from multidataset import MultiDataset
 from optim import Eden, ScaledAdam
 from torch import Tensor
 from torch.cuda.amp import GradScaler
@@ -578,9 +578,6 @@ def load_checkpoint_if_available(
         if "cur_epoch" in saved_params:
             params["start_epoch"] = saved_params["cur_epoch"]
 
-        if "cur_batch_idx" in saved_params:
-            params["cur_batch_idx"] = saved_params["cur_batch_idx"]
-
     return saved_params
 
 
@@ -660,7 +657,7 @@ def compute_loss(
         values >= 1.0 are fully warmed up and have all modules present.
     """
     # For the uneven-sized batch, the total duration after padding would possibly
-    # cause OOM. Hence, for each batch, which is sorted descendingly by length,
+    # cause OOM. Hence, for each batch, which is sorted in descending order by length,
     # we simply drop the last few shortest samples, so that the retained total frames
     # (after padding) would not exceed `allowed_max_frames`:
     # `allowed_max_frames = int(max_frames * (1.0 + allowed_excess_duration_ratio))`,
@@ -668,7 +665,8 @@ def compute_loss(
     # We set allowed_excess_duration_ratio=0.1.
     max_frames = params.max_duration * 1000 // params.frame_shift_ms
     allowed_max_frames = int(max_frames * (1.0 + params.allowed_excess_duration_ratio))
-    batch = filter_uneven_sized_batch(batch, allowed_max_frames)
+    if is_training:
+        batch = filter_uneven_sized_batch(batch, allowed_max_frames)
 
     device = model.device if isinstance(model, DDP) else next(model.parameters()).device
     feature = batch["inputs"]
@@ -810,13 +808,7 @@ def train_one_epoch(
 
     tot_loss = MetricsTracker()
 
-    cur_batch_idx = params.get("cur_batch_idx", 0)
-
     for batch_idx, batch in enumerate(train_dl):
-        if batch_idx < cur_batch_idx:
-            continue
-        cur_batch_idx = batch_idx
-
         params.batch_idx_train += 1
         batch_size = len(batch["supervisions"]["text"])
 
@@ -863,7 +855,6 @@ def train_one_epoch(
             params.batch_idx_train > 0
             and params.batch_idx_train % params.save_every_n == 0
         ):
-            params.cur_batch_idx = batch_idx
             save_checkpoint_with_global_batch_idx(
                 out_dir=params.exp_dir,
                 global_batch_idx=params.batch_idx_train,
@@ -876,7 +867,6 @@ def train_one_epoch(
                 scaler=scaler,
                 rank=rank,
             )
-            del params.cur_batch_idx
             remove_checkpoints(
                 out_dir=params.exp_dir,
                 topk=params.keep_last_k,
@@ -1056,7 +1046,9 @@ def run(rank, world_size, args):
         multidataset = MultiDataset(params.manifest_dir, params.cv_manifest_dir)
         train_cuts = multidataset.train_cuts()
     else:
-        if params.full_libri:
+        if params.mini_libri:
+            train_cuts = librispeech.train_clean_5_cuts()
+        elif params.full_libri:
             train_cuts = librispeech.train_all_shuf_cuts()
         else:
             train_cuts = librispeech.train_clean_100_cuts()
@@ -1108,8 +1100,11 @@ def run(rank, world_size, args):
         train_cuts, sampler_state_dict=sampler_state_dict
     )
 
-    valid_cuts = librispeech.dev_clean_cuts()
-    valid_cuts += librispeech.dev_other_cuts()
+    if params.mini_libri:
+        valid_cuts = librispeech.dev_clean_2_cuts()
+    else:
+        valid_cuts = librispeech.dev_clean_cuts()
+        valid_cuts += librispeech.dev_other_cuts()
     valid_dl = librispeech.valid_dataloaders(valid_cuts)
 
     if not params.use_multidataset and not params.print_diagnostics:

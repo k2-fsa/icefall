@@ -103,17 +103,14 @@ def main():
         x = torch.randint(
             low=1, high=onnx_model.vocab_size, size=(n, L), dtype=torch.int64
         )
-        y = torch.randint(
-            low=1, high=onnx_model.vocab_size, size=(n, L), dtype=torch.int64
-        )
         h0 = torch.rand(num_layers, n, hidden_size)
         c0 = torch.rand(num_layers, n, hidden_size)
 
-        torch_nll, torch_h0, torch_c0 = torch_model.streaming_forward(x, y, h0, c0)
-        onnx_nll, onnx_h0, onnx_c0 = onnx_model(x, y, h0, c0)
+        torch_log_prob, torch_h0, torch_c0 = torch_model.score_token_onnx(x, h0, c0)
+        onnx_log_prob, onnx_h0, onnx_c0 = onnx_model(x, h0, c0)
 
         for torch_v, onnx_v in zip(
-            (torch_nll, torch_h0, torch_c0), (onnx_nll, onnx_h0, onnx_c0)
+            (torch_log_prob, torch_h0, torch_c0), (onnx_log_prob, onnx_h0, onnx_c0)
         ):
 
             assert torch.allclose(torch_v, onnx_v, atol=1e-5), (

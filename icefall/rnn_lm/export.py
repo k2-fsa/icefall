@@ -182,8 +182,8 @@ def main():
     if params.jit:
         logging.info("Using torch.jit.script")
 
-        model.__class__.streaming_forward = torch.jit.export(
-            model.__class__.streaming_forward
+        model.__class__.score_token_onnx = torch.jit.export(
+            model.__class__.score_token_onnx
         )
         model = torch.jit.script(model)
         filename = params.exp_dir / "cpu_jit.pt"
