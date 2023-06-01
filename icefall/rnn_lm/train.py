@@ -40,6 +40,7 @@ import torch.optim as optim
 from dataset import get_dataloader
 from lhotse.utils import fix_random_seed
 from model import RnnLmModel
+from optim import NewBobScheduler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.nn.utils import clip_grad_norm_
 from torch.utils.tensorboard import SummaryWriter
@@ -449,6 +450,7 @@ def train_one_epoch(
     params: AttributeDict,
     model: nn.Module,
     optimizer: torch.optim.Optimizer,
+    scheduler: Optional[torch.optim.lr_scheduler._LRScheduler],
     train_dl: torch.utils.data.DataLoader,
     valid_dl: torch.utils.data.DataLoader,
     model_avg: nn.Module = None,
@@ -471,6 +473,8 @@ def train_one_epoch(
         The stored model averaged from the start of training.
       optimizer:
         The optimizer we are using.
+      scheduler:
+        The learning rate scheduler, we call step() every step.
       train_dl:
         Dataloader for the training dataset.
       valid_dl:
@@ -500,6 +504,7 @@ def train_one_epoch(
         # summary stats
         tot_loss = (tot_loss * (1 - 1 / params.reset_interval)) + loss_info
 
+        scheduler.step_batch(loss)
         optimizer.zero_grad()
         loss.backward()
         clip_grad_norm_(model.parameters(), 5.0, 2.0)
@@ -527,6 +532,7 @@ def train_one_epoch(
                 model_avg=model_avg,
                 params=params,
                 optimizer=optimizer,
+                scheduler=scheduler,
                 rank=rank,
             )
 
@@ -534,11 +540,12 @@ def train_one_epoch(
             # Note: "frames" here means "num_tokens"
             this_batch_ppl = math.exp(loss_info["loss"] / loss_info["frames"])
             tot_ppl = math.exp(tot_loss["loss"] / tot_loss["frames"])
-
+            cur_lr = scheduler.get_last_lr()[0]
             logging.info(
                 f"Epoch {params.cur_epoch}, "
                 f"batch {batch_idx}, loss[{loss_info}, ppl: {this_batch_ppl}] "
                 f"tot_loss[{tot_loss}, ppl: {tot_ppl}], "
+                f"lr: {cur_lr:.2e}, "
                 f"batch size: {batch_size}"
             )
 
@@ -656,9 +663,19 @@ def run(rank, world_size, args):
         lr=params.lr,
         weight_decay=params.weight_decay,
     )
+    scheduler = NewBobScheduler(optimizer)
+
     if checkpoints:
         logging.info("Load optimizer state_dict from checkpoint")
         optimizer.load_state_dict(checkpoints["optimizer"])
+
+    if (
+        checkpoints
+        and "scheduler" in checkpoints
+        and checkpoints["scheduler"] is not None
+    ):
+        logging.info("Loading scheduler state dict")
+        scheduler.load_state_dict(checkpoints["scheduler"])
 
     logging.info(f"Loading LM training data from {params.lm_data}")
     train_dl = get_dataloader(
@@ -674,7 +691,6 @@ def run(rank, world_size, args):
         params=params,
     )
 
-    # Note: No learning rate scheduler is used here
     for epoch in range(params.start_epoch, params.num_epochs + 1):
         if is_distributed:
             train_dl.sampler.set_epoch(epoch - 1)
@@ -686,6 +702,7 @@ def run(rank, world_size, args):
             model=model,
             model_avg=model_avg,
             optimizer=optimizer,
+            scheduler=scheduler,
             train_dl=train_dl,
             valid_dl=valid_dl,
             tb_writer=tb_writer,
@@ -698,6 +715,7 @@ def run(rank, world_size, args):
             model=model,
             model_avg=model_avg,
             optimizer=optimizer,
+            scheduler=scheduler,
             rank=rank,
         )
 
