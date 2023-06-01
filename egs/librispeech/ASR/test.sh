@@ -1,7 +1,7 @@
 spk_id=$1
 dir=$2
 #for i in 100 200 300
-for i in 50 100 150 200 250 300
+for i in 50 100
 #for i in 10 20 30 40 50 60 70 80 90 100
 #for i in 50 100 150 200 250 300 350 400 450 500
 #for i in 50 100 #150 200 250 300 350 400 450 500
@@ -27,7 +27,7 @@ do
 		--use-averaged-model True \
 		--spk-id $spk_id \
 		--prompt False \
-		--res-name lora_rank2_check$i
+		--res-name lora_rank6_check$i
 		#--res-name bitfit_q_fc1_check$i
 		#--res-name fullft_check$i
 	done
