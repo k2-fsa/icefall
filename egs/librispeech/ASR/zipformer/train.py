@@ -68,7 +68,6 @@ from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import Transducer
-from multidataset import MultiDataset
 from optim import Eden, ScaledAdam
 from scaling import ScheduledFloat
 from subsampling import Conv2dSubsampling
@@ -442,13 +441,6 @@ def get_parser():
         type=str2bool,
         default=False,
         help="Whether to use half precision training.",
-    )
-
-    parser.add_argument(
-        "--use-multidataset",
-        type=str2bool,
-        default=False,
-        help="Whether to use multidataset to train.",
     )
 
     add_model_arguments(parser)
@@ -1134,14 +1126,10 @@ def run(rank, world_size, args):
 
     librispeech = LibriSpeechAsrDataModule(args)
 
-    if params.use_multidataset:
-        multidataset = MultiDataset(params.manifest_dir)
-        train_cuts = multidataset.train_cuts()
-    else:
-        train_cuts = librispeech.train_clean_100_cuts()
-        if params.full_libri:
-            train_cuts += librispeech.train_clean_360_cuts()
-            train_cuts += librispeech.train_other_500_cuts()
+    train_cuts = librispeech.train_clean_100_cuts()
+    if params.full_libri:
+        train_cuts += librispeech.train_clean_360_cuts()
+        train_cuts += librispeech.train_other_500_cuts()
 
     def remove_short_and_long_utt(c: Cut):
         # Keep only utterances with duration between 1 second and 20 seconds
@@ -1197,7 +1185,7 @@ def run(rank, world_size, args):
     valid_cuts += librispeech.dev_other_cuts()
     valid_dl = librispeech.valid_dataloaders(valid_cuts)
 
-    if not params.use_multidataset and not params.print_diagnostics:
+    if not params.print_diagnostics:
         scan_pessimistic_batches_for_oom(
             model=model,
             train_dl=train_dl,
