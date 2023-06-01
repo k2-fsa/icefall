@@ -8,7 +8,7 @@ for dest in "test-clean" "test-other"; do
 	for spk in $dl_dir/$dest/*; do
 		spk_id=${spk#*$dest\/}
 		echo $spk_id
-		./lora.sh lora_rank2_"$spk_id" $spk_id bear
+		./lora.sh lora_rank6_"$spk_id" $spk_id bear
 	done
 done
 
