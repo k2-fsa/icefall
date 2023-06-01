@@ -299,7 +299,7 @@ if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
     if [ -f ../../../../gigaspeech/ASR/data/fbank/XL_split/.split_completed ]; then
       ln -svf $(realpath ../../../../gigaspeech/ASR/data/fbank/XL_split) .
     else
-      log "Abort! Please run gigaspeech prepare.sh --stage 5 --stop-stage 6"
+      log "Abort! Please run ../../gigaspeech/ASR/prepare.sh --stage 5 --stop-stage 6"
       exit 1
     fi
 
@@ -315,7 +315,7 @@ if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
       ln -svf $(realpath ../../../../commonvoice/ASR/data/en/fbank/cv-en_train_split_1000) .
       ln -svf $(realpath ../../../../commonvoice/ASR/data/en/fbank/cv-en_cuts_train.jsonl.gz) .
     else
-      log "Abort! Please run commonvoice prepare.sh --stage 5 --stop-stage 6"
+      log "Abort! Please run ../../commonvoice/ASR/prepare.sh --stage 5 --stop-stage 6"
       exit 1
     fi
 
@@ -330,7 +330,7 @@ if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
     if [ -f ../../../../peoples_speech/ASR/data/fbank/.peoples_speech_train.done ]; then
       ln -svf $(realpath ../../../../peoples_speech/ASR/data/fbank/peoples_speech_train_split) .
     else
-      log "Abort! Please run commonvoice prepare.sh --stage 5 --stop-stage 6"
+      log "Abort! Please run ../../peoples_speech/prepare.sh --stage 5 --stop-stage 6"
       exit 1
     fi
 

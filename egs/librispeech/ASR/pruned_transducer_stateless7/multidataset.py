@@ -33,11 +33,11 @@ class MultiDataset:
 
             - librispeech_cuts_train-all-shuf.jsonl.gz
             - XL_split_2000/cuts_XL.*.jsonl.gz
+            - cv-en_cuts_train.jsonl.gz
             - peoples_speech_train_split/peoples_speech_cuts_dirty.*.jsonl.gz
             - peoples_speech_train_split/peoples_speech_cuts_dirty_sa.*.jsonl.gz
             - peoples_speech_train_split/peoples_speech_cuts_clean.*.jsonl.gz
             - peoples_speech_train_split/peoples_speech_cuts_clean_sa.*.jsonl.gz
-            - cv-en_cuts_train.jsonl.gz
         """
         self.manifest_dir = Path(manifest_dir)
 
@@ -45,15 +45,13 @@ class MultiDataset:
         logging.info("About to get multidataset train cuts")
 
         # LibriSpeech
-        logging.info(f"Loading LibriSpeech in lazy mode")
+        logging.info("Loading LibriSpeech in lazy mode")
         librispeech_cuts = load_manifest_lazy(
             self.manifest_dir / "librispeech_cuts_train-all-shuf.jsonl.gz"
         )
 
         # GigaSpeech
-        filenames = glob.glob(
-            f"{self.manifest_dir}/XL_split_2000/cuts_XL.*.jsonl.gz"
-        )
+        filenames = glob.glob(f"{self.manifest_dir}/XL_split/cuts_XL.*.jsonl.gz")
 
         pattern = re.compile(r"cuts_XL.([0-9]+).jsonl.gz")
         idx_filenames = ((int(pattern.search(f).group(1)), f) for f in filenames)
@@ -68,21 +66,17 @@ class MultiDataset:
         )
 
         # CommonVoice
-        logging.info(f"Loading CommonVoice in lazy mode")
+        logging.info("Loading CommonVoice in lazy mode")
         commonvoice_cuts = load_manifest_lazy(
             self.manifest_dir / f"cv-en_cuts_train.jsonl.gz"
         )
 
         # People's Speech
-        filenames = glob.glob(
-            f"{self.manifest_dir}/peoples_speech_train_split/peoples_speech_cuts_*.*.jsonl.gz"
+        sorted_filenames = sorted(
+            glob.glob(
+                f"{self.manifest_dir}/peoples_speech_train_split/peoples_speech_cuts_*[yna].*.jsonl.gz"
+            )
         )
-
-        pattern = re.compile(r"peoples_speech_cuts.([0-9]+).jsonl.gz")
-        idx_filenames = ((int(pattern.search(f).group(1)), f) for f in filenames)
-        idx_filenames = sorted(idx_filenames, key=lambda x: x[0])
-
-        sorted_filenames = [f[1] for f in idx_filenames]
 
         logging.info(
             f"Loading People's Speech {len(sorted_filenames)} splits in lazy mode"
