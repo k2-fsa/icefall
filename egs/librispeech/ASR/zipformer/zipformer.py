@@ -1542,12 +1542,22 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
             # the following .as_strided() expression converts the last axis of pos_scores from relative
             # to absolute position.  I don't know whether I might have got the time-offsets backwards or
             # not, but let this code define which way round it is supposed to be.
-            pos_scores = pos_scores.as_strided((num_heads, batch_size, seq_len, seq_len),
-                                               (pos_scores.stride(0),
-                                                pos_scores.stride(1),
-                                                pos_scores.stride(2)-pos_scores.stride(3),
-                                                pos_scores.stride(3)),
-                                               storage_offset=pos_scores.stride(3) * (seq_len - 1))
+            if torch.jit.is_tracing():
+                (num_heads, batch_size, time1, n) = pos_scores.shape
+                rows = torch.arange(start=time1 - 1, end=-1, step=-1)
+                cols = torch.arange(seq_len)
+                rows = rows.repeat(batch_size * num_heads).unsqueeze(-1)
+                indexes = rows + cols
+                pos_scores = pos_scores.reshape(-1, n)
+                pos_scores = torch.gather(pos_scores, dim=1, index=indexes)
+                pos_scores = pos_scores.reshape(num_heads, batch_size, time1, seq_len)
+            else:
+                pos_scores = pos_scores.as_strided((num_heads, batch_size, seq_len, seq_len),
+                                                   (pos_scores.stride(0),
+                                                    pos_scores.stride(1),
+                                                    pos_scores.stride(2)-pos_scores.stride(3),
+                                                    pos_scores.stride(3)),
+                                                   storage_offset=pos_scores.stride(3) * (seq_len - 1))
 
             attn_scores = attn_scores + pos_scores
 
