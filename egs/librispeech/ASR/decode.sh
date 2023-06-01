@@ -9,7 +9,7 @@ for dest in "test-clean" "test-other"; do
 		#./test.sh $spk_id encoderfreeze_$spk_id
 		#./test.sh $spk_id encoderlast2_$spk_id
 		#./test.sh $spk_id bitfit_"$spk_id"_q_fc1
-		./test.sh $spk_id lora_rank2_$spk_id
+		./test.sh $spk_id lora_rank6_$spk_id
 		#./test.sh $spk_id self_init_"$spk_id"
 		#./test.sh $spk_id prompt_tuning_"$spk_id"
 		#./test.sh $spk_id "$spk_id"_adapter_30m
