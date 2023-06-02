@@ -165,7 +165,8 @@ class NewBobScheduler(LRScheduler):
                 ) / self.prev_metric
             if improvement < self.threshold:
                 if self.current_patient == 0:
-                    self.base_lrs *= self.annealing_factor
+                    self.base_lrs = [x * self.annealing_factor for x in self.base_lrs]
+                    self.patient *= 2
                     self.current_patient = self.patient
                 else:
                     self.current_patient -= 1
@@ -180,4 +181,5 @@ class NewBobScheduler(LRScheduler):
             "prev_metric": self.prev_metric,
             "current_metric": self.current_metric,
             "current_patient": self.current_patient,
+            "patient": self.patient,
         }
