@@ -52,12 +52,12 @@ import torch
 import torch.nn as nn
 from alignment import batch_force_alignment
 from asr_datamodule import LibriSpeechAsrDataModule
-from train import add_model_arguments, get_params, get_transducer_model
-
-from icefall.utils import AttributeDict, convert_timestamp, parse_timestamp
 from lhotse import CutSet
 from lhotse.serialization import SequentialJsonlWriter
 from lhotse.supervision import AlignmentItem
+from train import add_model_arguments, get_params, get_transducer_model
+
+from icefall.utils import AttributeDict, convert_timestamp, parse_timestamp
 
 
 def get_parser():

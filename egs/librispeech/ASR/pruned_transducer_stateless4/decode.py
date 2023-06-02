@@ -59,7 +59,7 @@ Usage:
 ./pruned_transducer_stateless4/decode.py \
     --epoch 30 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless3/exp \
+    --exp-dir ./pruned_transducer_stateless4/exp \
     --max-duration 600 \
     --decoding-method fast_beam_search_nbest \
     --beam 20.0 \

@@ -20,7 +20,6 @@ from typing import List
 
 import k2
 import torch
-
 from beam_search import Hypothesis, HypothesisList, get_hyps_shape
 
 # The force alignment problem can be formulated as finding
@@ -111,7 +110,7 @@ def batch_force_alignment(
 
     offset = 0
     finalized_B = []
-    for (t, batch_size) in enumerate(batch_size_list):
+    for t, batch_size in enumerate(batch_size_list):
         start = offset
         end = offset + batch_size
         current_encoder_out = encoder_out.data[start:end]

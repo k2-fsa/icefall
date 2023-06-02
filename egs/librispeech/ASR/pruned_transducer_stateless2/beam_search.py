@@ -686,7 +686,7 @@ def greedy_search_batch(
     encoder_out = model.joiner.encoder_proj(packed_encoder_out.data)
 
     offset = 0
-    for (t, batch_size) in enumerate(batch_size_list):
+    for t, batch_size in enumerate(batch_size_list):
         start = offset
         end = offset + batch_size
         current_encoder_out = encoder_out.data[start:end]
@@ -976,7 +976,7 @@ def modified_beam_search(
 
     offset = 0
     finalized_B = []
-    for (t, batch_size) in enumerate(batch_size_list):
+    for t, batch_size in enumerate(batch_size_list):
         start = offset
         end = offset + batch_size
         current_encoder_out = encoder_out.data[start:end]
@@ -1150,7 +1150,7 @@ def modified_beam_search_lm_rescore(
 
     offset = 0
     finalized_B = []
-    for (t, batch_size) in enumerate(batch_size_list):
+    for t, batch_size in enumerate(batch_size_list):
         start = offset
         end = offset + batch_size
         current_encoder_out = encoder_out.data[start:end]
@@ -1350,7 +1350,7 @@ def modified_beam_search_lm_rescore_LODR(
 
     offset = 0
     finalized_B = []
-    for (t, batch_size) in enumerate(batch_size_list):
+    for t, batch_size in enumerate(batch_size_list):
         start = offset
         end = offset + batch_size
         current_encoder_out = encoder_out.data[start:end]
@@ -2518,7 +2518,6 @@ def modified_beam_search_LODR(
                 hyp_log_prob = topk_log_probs[k]  # get score of current hyp
                 new_token = topk_token_indexes[k]
                 if new_token not in (blank_id, unk_id):
-
                     ys.append(new_token)
                     state_cost = hyp.state_cost.forward_one_step(new_token)
 
@@ -2640,7 +2639,7 @@ def modified_beam_search_lm_shallow_fusion(
 
     offset = 0
     finalized_B = []
-    for (t, batch_size) in enumerate(batch_size_list):
+    for t, batch_size in enumerate(batch_size_list):
         start = offset
         end = offset + batch_size
         current_encoder_out = encoder_out.data[start:end]  # get batch
@@ -2782,7 +2781,6 @@ def modified_beam_search_lm_shallow_fusion(
                 new_token = topk_token_indexes[k]
                 new_timestamp = hyp.timestamp[:]
                 if new_token not in (blank_id, unk_id):
-
                     ys.append(new_token)
                     new_timestamp.append(t)
 
