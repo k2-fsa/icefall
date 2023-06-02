@@ -18,6 +18,7 @@ python3 ./export.py \
   --exp-dir ./icefall-librispeech-rnn-lm/exp \
   --epoch 99 \
   --avg 1 \
+  --use-averaged-model 0 \
   --vocab-size 500 \
   --embedding-dim 2048 \
   --hidden-dim 2048 \
