@@ -120,9 +120,10 @@ from beam_search import (
     greedy_search_batch,
     modified_beam_search,
 )
-from icefall.utils import make_pad_mask
 from torch.nn.utils.rnn import pad_sequence
 from train import add_model_arguments, get_params, get_transducer_model
+
+from icefall.utils import make_pad_mask
 
 
 def get_parser():

@@ -160,6 +160,7 @@ from typing import List, Tuple
 
 import sentencepiece as spm
 import torch
+from scaling_converter import convert_scaled_to_non_scaled
 from torch import Tensor, nn
 from train import add_model_arguments, get_params, get_transducer_model
 
@@ -170,7 +171,6 @@ from icefall.checkpoint import (
     load_checkpoint,
 )
 from icefall.utils import make_pad_mask, str2bool
-from scaling_converter import convert_scaled_to_non_scaled
 
 
 def get_parser():
