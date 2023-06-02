@@ -67,7 +67,6 @@ from joiner import Joiner
 from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
-from model import Transducer
 from model import AsrModel
 from optim import Eden, ScaledAdam
 from scaling import ScheduledFloat

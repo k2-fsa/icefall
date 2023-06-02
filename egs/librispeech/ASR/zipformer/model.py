@@ -1,4 +1,6 @@
-# Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang, Wei Kang)
+# Copyright    2021-2023  Xiaomi Corp.        (authors: Fangjun Kuang,
+#                                                       Wei Kang,
+#                                                       Zengwei Yao)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -223,7 +225,11 @@ class AsrModel(nn.Module):
         use_transducer: bool = True,
         use_ctc: bool = False,
     ):
-        """A joint CTC & Transducer model.
+        """A joint CTC & Transducer ASR model.
+
+        - Connectionist temporal classification: labelling unsegmented sequence data with recurrent neural networks (http://imagine.enpc.fr/~obozinsg/teaching/mva_gm/papers/ctc.pdf)
+        - Sequence Transduction with Recurrent Neural Networks (https://arxiv.org/pdf/1211.3711.pdf)
+        - Pruned RNN-T for fast, memory-efficient ASR training (https://arxiv.org/pdf/2206.13236.pdf)
 
         Args:
           encoder_embed:
@@ -286,6 +292,37 @@ class AsrModel(nn.Module):
                 nn.Linear(encoder_dim, vocab_size),
                 nn.LogSoftmax(dim=-1),
             )
+
+    def forward_encoder(
+        self, x: torch.Tensor, x_lens: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Compute encoder outputs.
+        Args:
+          x:
+            A 3-D tensor of shape (N, T, C).
+          x_lens:
+            A 1-D tensor of shape (N,). It contains the number of frames in `x`
+            before padding.
+
+        Returns:
+          encoder_out:
+            Encoder output, of shape (N, T, C).
+          encoder_out_lens:
+            Encoder output lengths, of shape (N,).
+        """
+        # logging.info(f"Memory allocated at entry: {torch.cuda.memory_allocated() // 1000000}M")
+        x, x_lens = self.encoder_embed(x, x_lens)
+        # logging.info(f"Memory allocated after encoder_embed: {torch.cuda.memory_allocated() // 1000000}M")
+
+        src_key_padding_mask = make_pad_mask(x_lens)
+        x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
+
+        encoder_out, encoder_out_lens = self.encoder(x, x_lens, src_key_padding_mask)
+
+        encoder_out = encoder_out.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
+        assert torch.all(encoder_out_lens > 0)
+
+        return encoder_out, encoder_out_lens
 
     def forward_ctc(
         self,
@@ -468,18 +505,7 @@ class AsrModel(nn.Module):
         assert x.size(0) == x_lens.size(0) == y.dim0
 
         # Compute encoder outputs
-
-        # logging.info(f"Memory allocated at entry: {torch.cuda.memory_allocated() // 1000000}M")
-        x, x_lens = self.encoder_embed(x, x_lens)
-        # logging.info(f"Memory allocated after encoder_embed: {torch.cuda.memory_allocated() // 1000000}M")
-
-        src_key_padding_mask = make_pad_mask(x_lens)
-        x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
-
-        encoder_out, x_lens = self.encoder(x, x_lens, src_key_padding_mask)
-        encoder_out = encoder_out.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
-
-        assert torch.all(x_lens > 0)
+        encoder_out, encoder_out_lens = self.forward_encoder(x, x_lens)
 
         row_splits = y.shape.row_splits(1)
         y_lens = row_splits[1:] - row_splits[:-1]
@@ -488,7 +514,7 @@ class AsrModel(nn.Module):
             # Compute transducer loss
             simple_loss, pruned_loss = self.forward_transducer(
                 encoder_out=encoder_out,
-                encoder_out_lens=x_lens,
+                encoder_out_lens=encoder_out_lens,
                 y=y,
                 y_lens=y_lens,
                 prune_range=prune_range,
@@ -507,7 +533,7 @@ class AsrModel(nn.Module):
 
             ctc_loss = self.forward_ctc(
                 encoder_out=encoder_out,
-                encoder_out_lens=x_lens,
+                encoder_out_lens=encoder_out_lens,
                 targets=targets,
                 target_lengths=y_lens,
             )

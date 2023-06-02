@@ -366,15 +366,7 @@ def decode_one_batch(
             value=LOG_EPS,
         )
 
-    x, x_lens = model.encoder_embed(feature, feature_lens)
-
-    src_key_padding_mask = make_pad_mask(x_lens)
-    x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
-
-    encoder_out, encoder_out_lens = model.encoder(
-        x, x_lens, src_key_padding_mask
-    )
-    encoder_out = encoder_out.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
+    encoder_out, encoder_out_lens = model.forward_encoder(feature, feature_lens)
 
     hyps = []
 
