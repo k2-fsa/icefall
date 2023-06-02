@@ -19,6 +19,39 @@
 
 # This script converts several saved checkpoints
 # to a single one using model averaging.
+"""
+
+Usage:
+
+(1) Export to torchscript model using torch.jit.script()
+
+./rnn_lm/export.py \
+  --exp-dir ./rnn_lm/exp \
+  --epoch 20 \
+  --avg 10 \
+  --jit 1
+
+It will generate a file `cpu_jit.pt` in the given `exp_dir`. You can later
+load it by `torch.jit.load("cpu_jit.pt")`.
+
+Note `cpu` in the name `cpu_jit.pt` means the parameters when loaded into Python
+are on CPU. You can use `to("cuda")` to move them to a CUDA device.
+
+Check
+https://github.com/k2-fsa/sherpa
+for how to use the exported models outside of icefall.
+
+(2) Export `model.state_dict()`
+
+./rnn_lm/export.py \
+  --exp-dir ./rnn_lm/exp \
+  --bpe-model data/lang_bpe_500/bpe.model \
+  --epoch 20 \
+  --avg 10
+
+It will generate a file `pretrained.pt` in the given `exp_dir`. You can later
+load it by `icefall.checkpoint.load_checkpoint()`.
+"""
 
 import argparse
 import logging
@@ -83,7 +116,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="rnnlm/exp",
+        default="rnn_lm/exp",
         help="""It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
         """,
