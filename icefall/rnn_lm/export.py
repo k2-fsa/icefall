@@ -44,7 +44,6 @@ for how to use the exported models outside of icefall.
 
 ./rnn_lm/export.py \
   --exp-dir ./rnn_lm/exp \
-  --bpe-model data/lang_bpe_500/bpe.model \
   --epoch 20 \
   --avg 10
 
