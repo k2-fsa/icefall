@@ -314,7 +314,9 @@ def main():
     features = fbank(waves)
     feature_lengths = [f.size(0) for f in features]
 
-    features = pad_sequence(features, batch_first=True, padding_value=math.log(1e-10))
+    features = pad_sequence(
+        features, batch_first=True, padding_value=math.log(1e-10)
+    )
     feature_lengths = torch.tensor(feature_lengths, device=device)
 
     # model forward
@@ -323,7 +325,9 @@ def main():
     src_key_padding_mask = make_pad_mask(x_lens)
     x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
 
-    encoder_out, encoder_out_lens = model.encoder(x, x_lens, src_key_padding_mask)
+    encoder_out, encoder_out_lens = model.encoder(
+        x, x_lens, src_key_padding_mask
+    )
     encoder_out = encoder_out.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
 
     hyps = []
@@ -374,7 +378,9 @@ def main():
 
 
 if __name__ == "__main__":
-    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
+    formatter = (
+        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
+    )
 
     logging.basicConfig(format=formatter, level=logging.INFO)
     main()

@@ -126,7 +126,9 @@ def greedy_search(
     if decoder_out is None:
         assert hyp is None, hyp
         hyp = [blank_id] * context_size
-        decoder_input = torch.tensor(hyp, dtype=torch.int32, device=device).unsqueeze(0)
+        decoder_input = torch.tensor(
+            hyp, dtype=torch.int32, device=device
+        ).unsqueeze(0)
         # decoder_input.shape (1,, 1 context_size)
         decoder_out = decoder(decoder_input, torch.tensor([False])).squeeze(1)
     else:
@@ -146,7 +148,9 @@ def greedy_search(
             decoder_input = torch.tensor(
                 decoder_input, dtype=torch.int32, device=device
             ).unsqueeze(0)
-            decoder_out = decoder(decoder_input, torch.tensor([False])).squeeze(1)
+            decoder_out = decoder(decoder_input, torch.tensor([False])).squeeze(
+                1
+            )
 
     return hyp, decoder_out
 
@@ -247,7 +251,12 @@ def main():
             num_processed_frames += chunk_length
 
             hyp, decoder_out = greedy_search(
-                decoder, joiner, encoder_out.squeeze(0), decoder_out, hyp, device=device
+                decoder,
+                joiner,
+                encoder_out.squeeze(0),
+                decoder_out,
+                hyp,
+                device=device,
             )
 
     context_size = 2
@@ -263,7 +272,9 @@ torch._C._jit_set_profiling_executor(False)
 torch._C._jit_set_profiling_mode(False)
 torch._C._set_graph_executor_optimize(False)
 if __name__ == "__main__":
-    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
+    formatter = (
+        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
+    )
 
     logging.basicConfig(format=formatter, level=logging.INFO)
     main()

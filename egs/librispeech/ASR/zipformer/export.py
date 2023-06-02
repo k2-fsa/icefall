@@ -276,7 +276,9 @@ class EncoderModel(nn.Module):
         src_key_padding_mask = make_pad_mask(x_lens)
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
 
-        encoder_out, encoder_out_lens = self.encoder(x, x_lens, src_key_padding_mask)
+        encoder_out, encoder_out_lens = self.encoder(
+            x, x_lens, src_key_padding_mask
+        )
         encoder_out = encoder_out.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
 
         return encoder_out, encoder_out_lens
@@ -288,7 +290,9 @@ class StreamingEncoderModel(nn.Module):
     def __init__(self, encoder: nn.Module, encoder_embed: nn.Module) -> None:
         super().__init__()
         assert len(encoder.chunk_size) == 1, encoder.chunk_size
-        assert len(encoder.left_context_frames) == 1, encoder.left_context_frames
+        assert (
+            len(encoder.left_context_frames) == 1
+        ), encoder.left_context_frames
         self.chunk_size = encoder.chunk_size[0]
         self.left_context_len = encoder.left_context_frames[0]
 
@@ -315,7 +319,11 @@ class StreamingEncoderModel(nn.Module):
         left_context_len = self.left_context_len
 
         cached_embed_left_pad = states[-2]
-        x, x_lens, new_cached_embed_left_pad = self.encoder_embed.streaming_forward(
+        (
+            x,
+            x_lens,
+            new_cached_embed_left_pad,
+        ) = self.encoder_embed.streaming_forward(
             x=features,
             x_lens=feature_lengths,
             cached_left_pad=cached_embed_left_pad,
@@ -335,7 +343,9 @@ class StreamingEncoderModel(nn.Module):
         new_processed_lens = processed_lens + x_lens
 
         # (batch, left_context_size + chunk_size)
-        src_key_padding_mask = torch.cat([processed_mask, src_key_padding_mask], dim=1)
+        src_key_padding_mask = torch.cat(
+            [processed_mask, src_key_padding_mask], dim=1
+        )
 
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
         encoder_states = states[:-2]
@@ -377,7 +387,9 @@ class StreamingEncoderModel(nn.Module):
         embed_states = self.encoder_embed.get_init_states(batch_size, device)
         states.append(embed_states)
 
-        processed_lens = torch.zeros(batch_size, dtype=torch.int32, device=device)
+        processed_lens = torch.zeros(
+            batch_size, dtype=torch.int32, device=device
+        )
         states.append(processed_lens)
 
         return states
@@ -411,9 +423,9 @@ def main():
 
     if not params.use_averaged_model:
         if params.iter > 0:
-            filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
-                : params.avg
-            ]
+            filenames = find_checkpoints(
+                params.exp_dir, iteration=-params.iter
+            )[: params.avg]
             if len(filenames) == 0:
                 raise ValueError(
                     f"No checkpoints found for"
@@ -438,9 +450,9 @@ def main():
             model.load_state_dict(average_checkpoints(filenames, device=device))
     else:
         if params.iter > 0:
-            filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
-                : params.avg + 1
-            ]
+            filenames = find_checkpoints(
+                params.exp_dir, iteration=-params.iter
+            )[: params.avg + 1]
             if len(filenames) == 0:
                 raise ValueError(
                     f"No checkpoints found for"
@@ -494,10 +506,14 @@ def main():
 
         # Wrap encoder and encoder_embed as a module
         if params.causal:
-            model.encoder = StreamingEncoderModel(model.encoder, model.encoder_embed)
+            model.encoder = StreamingEncoderModel(
+                model.encoder, model.encoder_embed
+            )
             chunk_size = model.encoder.chunk_size
             left_context_len = model.encoder.left_context_len
-            filename = f"jit_script_chunk_{chunk_size}_left_{left_context_len}.pt"
+            filename = (
+                f"jit_script_chunk_{chunk_size}_left_{left_context_len}.pt"
+            )
         else:
             model.encoder = EncoderModel(model.encoder, model.encoder_embed)
             filename = "jit_script.pt"
@@ -516,7 +532,9 @@ def main():
 
 
 if __name__ == "__main__":
-    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
+    formatter = (
+        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
+    )
 
     logging.basicConfig(format=formatter, level=logging.INFO)
     main()

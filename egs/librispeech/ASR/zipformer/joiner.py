@@ -29,8 +29,12 @@ class Joiner(nn.Module):
     ):
         super().__init__()
 
-        self.encoder_proj = ScaledLinear(encoder_dim, joiner_dim, initial_scale=0.25)
-        self.decoder_proj = ScaledLinear(decoder_dim, joiner_dim, initial_scale=0.25)
+        self.encoder_proj = ScaledLinear(
+            encoder_dim, joiner_dim, initial_scale=0.25
+        )
+        self.decoder_proj = ScaledLinear(
+            decoder_dim, joiner_dim, initial_scale=0.25
+        )
         self.output_linear = nn.Linear(joiner_dim, vocab_size)
 
     def forward(
@@ -58,7 +62,9 @@ class Joiner(nn.Module):
         )
 
         if project_input:
-            logit = self.encoder_proj(encoder_out) + self.decoder_proj(decoder_out)
+            logit = self.encoder_proj(encoder_out) + self.decoder_proj(
+                decoder_out
+            )
         else:
             logit = encoder_out + decoder_out
 

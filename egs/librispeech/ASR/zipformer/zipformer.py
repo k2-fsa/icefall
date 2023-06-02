@@ -125,7 +125,9 @@ class Zipformer2(EncoderInterface):
             if len(x) == 1:
                 x = x * len(downsampling_factor)
             else:
-                assert len(x) == len(downsampling_factor) and isinstance(x[0], int)
+                assert len(x) == len(downsampling_factor) and isinstance(
+                    x[0], int
+                )
             return x
 
         self.output_downsampling_factor = output_downsampling_factor  # int
@@ -140,7 +142,9 @@ class Zipformer2(EncoderInterface):
         pos_head_dim = _to_tuple(pos_head_dim)
         self.num_heads = num_heads = _to_tuple(num_heads)
         feedforward_dim = _to_tuple(feedforward_dim)
-        self.cnn_module_kernel = cnn_module_kernel = _to_tuple(cnn_module_kernel)
+        self.cnn_module_kernel = cnn_module_kernel = _to_tuple(
+            cnn_module_kernel
+        )
 
         self.causal = causal
         self.chunk_size = chunk_size
@@ -192,7 +196,9 @@ class Zipformer2(EncoderInterface):
         self.encoders = nn.ModuleList(encoders)
 
         self.downsample_output = SimpleDownsample(
-            max(encoder_dim), downsample=output_downsampling_factor, dropout=dropout
+            max(encoder_dim),
+            downsample=output_downsampling_factor,
+            dropout=dropout,
         )
 
     def get_feature_masks(self, x: Tensor) -> Union[List[float], List[Tensor]]:
@@ -223,7 +229,8 @@ class Zipformer2(EncoderInterface):
 
         # mask1 shape: (1, batch_size, 1)
         mask1 = (
-            torch.rand(1, batch_size, 1, device=x.device) > feature_mask_dropout_prob
+            torch.rand(1, batch_size, 1, device=x.device)
+            > feature_mask_dropout_prob
         ).to(x.dtype)
 
         # mask2 has additional sequences masked, about twice the number.
@@ -271,7 +278,9 @@ class Zipformer2(EncoderInterface):
             left_context_chunks = -1
         else:
             if torch.jit.is_scripting():
-                assert len(self.left_context_frames) == 1, self.left_context_frames
+                assert (
+                    len(self.left_context_frames) == 1
+                ), self.left_context_frames
                 left_context_frames = self.left_context_frames[0]
             else:
                 left_context_frames = random.choice(self.left_context_frames)
@@ -370,7 +379,8 @@ class Zipformer2(EncoderInterface):
             num_encoders = len(self.encoder_dim)
             assert all(
                 chunk_size * left_context_chunks
-                >= (self.cnn_module_kernel[i] // 2) * self.downsampling_factor[i]
+                >= (self.cnn_module_kernel[i] // 2)
+                * self.downsampling_factor[i]
                 for i in range(num_encoders)
             )
         else:
@@ -390,7 +400,9 @@ class Zipformer2(EncoderInterface):
         src_c = c
         tgt_c = c.unsqueeze(-1)
 
-        attn_mask = torch.logical_or(src_c > tgt_c, src_c < tgt_c - left_context_chunks)
+        attn_mask = torch.logical_or(
+            src_c > tgt_c, src_c < tgt_c - left_context_chunks
+        )
         if __name__ == "__main__":
             logging.info(f"attn_mask = {attn_mask}")
         return attn_mask
@@ -448,7 +460,9 @@ class Zipformer2(EncoderInterface):
 
             x, new_layer_states = module.streaming_forward(
                 x,
-                states=states[layer_offset * 6 : (layer_offset + num_layers) * 6],
+                states=states[
+                    layer_offset * 6 : (layer_offset + num_layers) * 6
+                ],
                 left_context_len=self.left_context_frames[0] // ds,
                 src_key_padding_mask=src_key_padding_mask[..., ::ds],
             )
@@ -496,24 +510,24 @@ class Zipformer2(EncoderInterface):
             nonlin_attn_head_dim = 3 * embed_dim // 4
             conv_left_pad = self.cnn_module_kernel[i] // 2
             for layer in range(num_layers):
-                cached_key = torch.zeros(downsample_left, batch_size, key_dim).to(
-                    device
-                )
+                cached_key = torch.zeros(
+                    downsample_left, batch_size, key_dim
+                ).to(device)
                 cached_nonlin_attn = torch.zeros(
                     1, batch_size, downsample_left, nonlin_attn_head_dim
                 ).to(device)
-                cached_val1 = torch.zeros(downsample_left, batch_size, value_dim).to(
-                    device
-                )
-                cached_val2 = torch.zeros(downsample_left, batch_size, value_dim).to(
-                    device
-                )
-                cached_conv1 = torch.zeros(batch_size, embed_dim, conv_left_pad).to(
-                    device
-                )
-                cached_conv2 = torch.zeros(batch_size, embed_dim, conv_left_pad).to(
-                    device
-                )
+                cached_val1 = torch.zeros(
+                    downsample_left, batch_size, value_dim
+                ).to(device)
+                cached_val2 = torch.zeros(
+                    downsample_left, batch_size, value_dim
+                ).to(device)
+                cached_conv1 = torch.zeros(
+                    batch_size, embed_dim, conv_left_pad
+                ).to(device)
+                cached_conv2 = torch.zeros(
+                    batch_size, embed_dim, conv_left_pad
+                ).to(device)
                 states += [
                     cached_key,
                     cached_nonlin_attn,
@@ -621,7 +635,9 @@ class Zipformer2EncoderLayer(nn.Module):
             embed_dim, (feedforward_dim * 3) // 4, dropout
         )
 
-        self.feed_forward2 = FeedforwardModule(embed_dim, feedforward_dim, dropout)
+        self.feed_forward2 = FeedforwardModule(
+            embed_dim, feedforward_dim, dropout
+        )
 
         self.feed_forward3 = FeedforwardModule(
             embed_dim, (feedforward_dim * 5) // 4, dropout
@@ -708,7 +724,9 @@ class Zipformer2EncoderLayer(nn.Module):
         if dropout_rate == 0.0 or not self.training or torch.jit.is_scripting():
             return None
         batch_size = x.shape[1]
-        mask = (torch.rand(batch_size, 1, device=x.device) > dropout_rate).to(x.dtype)
+        mask = (torch.rand(batch_size, 1, device=x.device) > dropout_rate).to(
+            x.dtype
+        )
         return mask
 
     def sequence_dropout(self, x: Tensor, dropout_rate: float) -> Tensor:
@@ -774,7 +792,9 @@ class Zipformer2EncoderLayer(nn.Module):
         selected_attn_weights = attn_weights[0:1]
         if torch.jit.is_scripting():
             pass
-        elif not self.training and random.random() < float(self.const_attention_rate):
+        elif not self.training and random.random() < float(
+            self.const_attention_rate
+        ):
             # Make attention weights constant.  The intention is to
             # encourage these modules to do something similar to an
             # averaging-over-time operation.
@@ -790,7 +810,9 @@ class Zipformer2EncoderLayer(nn.Module):
         na = self.balancer_na(self.nonlin_attention(src, selected_attn_weights))
 
         src = src + (
-            na if self_attn_dropout_mask is None else na * self_attn_dropout_mask
+            na
+            if self_attn_dropout_mask is None
+            else na * self_attn_dropout_mask
         )
 
         self_attn = self.self_attn1(src, attn_weights)
@@ -804,10 +826,14 @@ class Zipformer2EncoderLayer(nn.Module):
         if torch.jit.is_scripting():
             conv_skip_rate = 0.0
         else:
-            conv_skip_rate = float(self.conv_skip_rate) if self.training else 0.0
+            conv_skip_rate = (
+                float(self.conv_skip_rate) if self.training else 0.0
+            )
         src = src + self.sequence_dropout(
             self.conv_module1(
-                src, chunk_size=chunk_size, src_key_padding_mask=src_key_padding_mask
+                src,
+                chunk_size=chunk_size,
+                src_key_padding_mask=src_key_padding_mask,
             ),
             conv_skip_rate,
         )
@@ -834,10 +860,14 @@ class Zipformer2EncoderLayer(nn.Module):
         if torch.jit.is_scripting():
             conv_skip_rate = 0.0
         else:
-            conv_skip_rate = float(self.conv_skip_rate) if self.training else 0.0
+            conv_skip_rate = (
+                float(self.conv_skip_rate) if self.training else 0.0
+            )
         src = src + self.sequence_dropout(
             self.conv_module2(
-                src, chunk_size=chunk_size, src_key_padding_mask=src_key_padding_mask
+                src,
+                chunk_size=chunk_size,
+                src_key_padding_mask=src_key_padding_mask,
             ),
             conv_skip_rate,
         )
@@ -1150,7 +1180,9 @@ class BypassModule(nn.Module):
         embed_dim: int,
         skip_rate: FloatLike = 0.0,
         straight_through_rate: FloatLike = 0.0,
-        scale_min: FloatLike = ScheduledFloat((0.0, 0.9), (20000.0, 0.2), default=0),
+        scale_min: FloatLike = ScheduledFloat(
+            (0.0, 0.9), (20000.0, 0.2), default=0
+        ),
         scale_max: FloatLike = 1.0,
     ):
         super().__init__()
@@ -1169,11 +1201,15 @@ class BypassModule(nn.Module):
             return self.bypass_scale
         else:
             ans = limit_param_value(
-                self.bypass_scale, min=float(self.scale_min), max=float(self.scale_max)
+                self.bypass_scale,
+                min=float(self.scale_min),
+                max=float(self.scale_max),
             )
             skip_rate = float(self.skip_rate)
             if skip_rate != 0.0:
-                mask = torch.rand((batch_size, 1), device=ans.device) > skip_rate
+                mask = (
+                    torch.rand((batch_size, 1), device=ans.device) > skip_rate
+                )
                 ans = ans * mask
                 # now ans is of shape (batch_size, num_channels), and is zero for sequences
                 # on which we have randomly chosen to do layer-skipping.
@@ -1320,7 +1356,9 @@ class SimpleDownsample(torch.nn.Module):
         if seq_len != d_seq_len * ds:
             # right-pad src, repeating the last element.
             pad = d_seq_len * ds - seq_len
-            src_extra = src[src.shape[0] - 1 :].expand(pad, src.shape[1], src.shape[2])
+            src_extra = src[src.shape[0] - 1 :].expand(
+                pad, src.shape[1], src.shape[2]
+            )
             src = torch.cat((src, src_extra), dim=0)
             assert src.shape[0] == d_seq_len * ds
 
@@ -1354,7 +1392,9 @@ class SimpleUpsample(torch.nn.Module):
         """
         upsample = self.upsample
         (seq_len, batch_size, num_channels) = src.shape
-        src = src.unsqueeze(1).expand(seq_len, upsample, batch_size, num_channels)
+        src = src.unsqueeze(1).expand(
+            seq_len, upsample, batch_size, num_channels
+        )
         src = src.reshape(seq_len * upsample, batch_size, num_channels)
         return src
 
@@ -1411,12 +1451,18 @@ class CompactRelPositionalEncoding(torch.nn.Module):
             # the length of self.pe is 2 * input_len - 1
             if self.pe.size(0) >= T * 2 - 1:
                 # Note: TorchScript doesn't implement operator== for torch.Device
-                if self.pe.dtype != x.dtype or str(self.pe.device) != str(x.device):
+                if self.pe.dtype != x.dtype or str(self.pe.device) != str(
+                    x.device
+                ):
                     self.pe = self.pe.to(dtype=x.dtype, device=x.device)
                 return
 
         # if T == 4, x would contain [ -3, -2, 1, 0, 1, 2, 3 ]
-        x = torch.arange(-(T - 1), T, device=x.device).to(torch.float32).unsqueeze(1)
+        x = (
+            torch.arange(-(T - 1), T, device=x.device)
+            .to(torch.float32)
+            .unsqueeze(1)
+        )
 
         freqs = 1 + torch.arange(self.embed_dim // 2, device=x.device)
 
@@ -1430,7 +1476,10 @@ class CompactRelPositionalEncoding(torch.nn.Module):
         x_compressed = (
             compression_length
             * x.sign()
-            * ((x.abs() + compression_length).log() - math.log(compression_length))
+            * (
+                (x.abs() + compression_length).log()
+                - math.log(compression_length)
+            )
         )
 
         # if self.length_factor == 1.0, then length_scale is chosen so that the
@@ -1442,7 +1491,9 @@ class CompactRelPositionalEncoding(torch.nn.Module):
         # note for machine implementations: if atan is not available, we can use:
         #   x.sign() * ((1 / (x.abs() + 1)) - 1)  * (-math.pi/2)
         #  check on wolframalpha.com: plot(sign(x) *  (1 / ( abs(x) + 1) - 1 ) * -pi/2 , atan(x))
-        x_atan = (x_compressed / length_scale).atan()  # results between -pi and pi
+        x_atan = (
+            x_compressed / length_scale
+        ).atan()  # results between -pi and pi
 
         cosines = (x_atan * freqs).cos()
         sines = (x_atan * freqs).sin()
@@ -1507,7 +1558,9 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         query_head_dim: int,
         pos_head_dim: int,
         dropout: float = 0.0,
-        pos_emb_skip_rate: FloatLike = ScheduledFloat((0.0, 0.5), (4000.0, 0.0)),
+        pos_emb_skip_rate: FloatLike = ScheduledFloat(
+            (0.0, 0.5), (4000.0, 0.0)
+        ),
     ) -> None:
         super().__init__()
         self.embed_dim = embed_dim
@@ -1516,7 +1569,9 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         self.pos_head_dim = pos_head_dim
         self.dropout = dropout
         self.pos_emb_skip_rate = copy.deepcopy(pos_emb_skip_rate)
-        self.name = None  # will be overwritten in training code; for diagnostics.
+        self.name = (
+            None  # will be overwritten in training code; for diagnostics.
+        )
 
         key_head_dim = query_head_dim
         in_proj_dim = (query_head_dim + key_head_dim + pos_head_dim) * num_heads
@@ -1527,7 +1582,10 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         # to be used with the ScaledAdam optimizer; with most other optimizers,
         # it would be necessary to apply the scaling factor in the forward function.
         self.in_proj = ScaledLinear(
-            embed_dim, in_proj_dim, bias=True, initial_scale=query_head_dim**-0.25
+            embed_dim,
+            in_proj_dim,
+            bias=True,
+            initial_scale=query_head_dim**-0.25,
         )
 
         self.whiten_keys = Whiten(
@@ -1601,7 +1659,9 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         assert p.shape[-1] == num_heads * pos_head_dim
 
         q = self.copy_query(q)  # for diagnostics only, does nothing.
-        k = self.whiten_keys(self.balance_keys(k))  # does nothing in the forward pass.
+        k = self.whiten_keys(
+            self.balance_keys(k)
+        )  # does nothing in the forward pass.
         p = self.copy_pos_query(p)  # for diagnostics only, does nothing.
 
         q = q.reshape(seq_len, batch_size, num_heads, query_head_dim)
@@ -1619,15 +1679,17 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         if torch.jit.is_scripting():
             # We can't put random.random() in the same line
             use_pos_scores = True
-        elif not self.training or random.random() >= float(self.pos_emb_skip_rate):
+        elif not self.training or random.random() >= float(
+            self.pos_emb_skip_rate
+        ):
             use_pos_scores = True
 
         if use_pos_scores:
             pos_emb = self.linear_pos(pos_emb)
             seq_len2 = 2 * seq_len - 1
-            pos_emb = pos_emb.reshape(-1, seq_len2, num_heads, pos_head_dim).permute(
-                2, 0, 3, 1
-            )
+            pos_emb = pos_emb.reshape(
+                -1, seq_len2, num_heads, pos_head_dim
+            ).permute(2, 0, 3, 1)
             # pos shape now: (head, {1 or batch_size}, pos_dim, seq_len2)
 
             # (head, batch, time1, pos_dim) x (head, 1, pos_dim, seq_len2) -> (head, batch, time1, seq_len2)
@@ -1769,9 +1831,9 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
 
         pos_emb = self.linear_pos(pos_emb)
         seq_len2 = 2 * seq_len - 1 + left_context_len
-        pos_emb = pos_emb.reshape(-1, seq_len2, num_heads, pos_head_dim).permute(
-            2, 0, 3, 1
-        )
+        pos_emb = pos_emb.reshape(
+            -1, seq_len2, num_heads, pos_head_dim
+        ).permute(2, 0, 3, 1)
         # pos shape now: (head, {1 or batch_size}, pos_dim, seq_len2)
 
         # (head, batch, time1, pos_dim) x (head, 1, pos_dim, seq_len2) -> (head, batch, time1, seq_len2)
@@ -1801,7 +1863,10 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         ), attn_scores.shape
 
         if key_padding_mask is not None:
-            assert key_padding_mask.shape == (batch_size, k_len), key_padding_mask.shape
+            assert key_padding_mask.shape == (
+                batch_size,
+                k_len,
+            ), key_padding_mask.shape
             attn_scores = attn_scores.masked_fill(
                 key_padding_mask.unsqueeze(1),
                 -1000,
@@ -1846,7 +1911,9 @@ class SelfAttention(nn.Module):
         value_head_dim: int,
     ) -> None:
         super().__init__()
-        self.in_proj = nn.Linear(embed_dim, num_heads * value_head_dim, bias=True)
+        self.in_proj = nn.Linear(
+            embed_dim, num_heads * value_head_dim, bias=True
+        )
 
         self.out_proj = ScaledLinear(
             num_heads * value_head_dim, embed_dim, bias=True, initial_scale=0.05
@@ -1958,7 +2025,9 @@ class SelfAttention(nn.Module):
 class FeedforwardModule(nn.Module):
     """Feedforward module in Zipformer2 model."""
 
-    def __init__(self, embed_dim: int, feedforward_dim: int, dropout: FloatLike):
+    def __init__(
+        self, embed_dim: int, feedforward_dim: int, dropout: FloatLike
+    ):
         super(FeedforwardModule, self).__init__()
         self.in_proj = nn.Linear(embed_dim, feedforward_dim)
 
@@ -2226,7 +2295,9 @@ class ConvolutionModule(nn.Module):
         assert kernel_size % 2 == 1
 
         self.depthwise_conv = (
-            ChunkCausalDepthwiseConv1d(channels=bottleneck_dim, kernel_size=kernel_size)
+            ChunkCausalDepthwiseConv1d(
+                channels=bottleneck_dim, kernel_size=kernel_size
+            )
             if causal
             else nn.Conv1d(
                 in_channels=bottleneck_dim,
@@ -2294,7 +2365,9 @@ class ConvolutionModule(nn.Module):
         x = x.permute(1, 2, 0)  # (#batch, channels, time).
 
         if src_key_padding_mask is not None:
-            x = x.masked_fill(src_key_padding_mask.unsqueeze(1).expand_as(x), 0.0)
+            x = x.masked_fill(
+                src_key_padding_mask.unsqueeze(1).expand_as(x), 0.0
+            )
 
         if not torch.jit.is_scripting() and chunk_size >= 0:
             # Not support exporting a model for simulated streaming decoding
@@ -2344,7 +2417,9 @@ class ConvolutionModule(nn.Module):
         x = x.permute(1, 2, 0)  # (#batch, channels, time).
 
         if src_key_padding_mask is not None:
-            x = x.masked_fill(src_key_padding_mask.unsqueeze(1).expand_as(x), 0.0)
+            x = x.masked_fill(
+                src_key_padding_mask.unsqueeze(1).expand_as(x), 0.0
+            )
 
         x, cache = self.depthwise_conv.streaming_forward(x, cache=cache)
 
