@@ -179,6 +179,6 @@ class NewBobScheduler(LRScheduler):
         return {
             "base_lrs": self.base_lrs,
             "prev_metric": self.prev_metric,
-            "current_metric": current_metric,
+            "current_metric": self.current_metric,
             "current_patient": self.current_patient,
         }
