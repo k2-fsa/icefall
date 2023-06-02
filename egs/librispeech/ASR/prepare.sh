@@ -37,7 +37,7 @@ stop_stage=100
 #     - noise
 #     - speech
 #dl_dir=$PWD/download
-dl_dir=/DB
+dl_dir=/DB/LibriSpeech
 
 . shared/parse_options.sh || exit 1
 
