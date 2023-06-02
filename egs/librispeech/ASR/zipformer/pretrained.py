@@ -323,9 +323,7 @@ def main():
     src_key_padding_mask = make_pad_mask(x_lens)
     x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
 
-    encoder_out, encoder_out_lens = model.encoder(
-        x, x_lens, src_key_padding_mask
-    )
+    encoder_out, encoder_out_lens = model.encoder(x, x_lens, src_key_padding_mask)
     encoder_out = encoder_out.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
 
     hyps = []
