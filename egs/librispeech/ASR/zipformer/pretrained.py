@@ -122,7 +122,7 @@ from beam_search import (
 )
 from icefall.utils import make_pad_mask
 from torch.nn.utils.rnn import pad_sequence
-from train import add_model_arguments, get_params, get_transducer_model
+from train import add_model_arguments, get_params, get_model
 
 
 def get_parser():
@@ -284,7 +284,7 @@ def main():
         ), "left_context_frames should be one value in decoding."
 
     logging.info("Creating model")
-    model = get_transducer_model(params)
+    model = get_model(params)
 
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
