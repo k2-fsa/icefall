@@ -9,17 +9,17 @@ def test_remove_non_native_characters():
     n = remove_non_native_characters(s, lang="de")
     assert n == "ich heisse xxx fangjun", n
 
-    s = 'äÄ'.lower()
+    s = "äÄ".lower()
     n = remove_non_native_characters(s, lang="de")
-    assert n == 'aeae', n
+    assert n == "aeae", n
 
-    s = 'öÖ'.lower()
+    s = "öÖ".lower()
     n = remove_non_native_characters(s, lang="de")
-    assert n == 'oeoe', n
+    assert n == "oeoe", n
 
-    s = 'üÜ'.lower()
+    s = "üÜ".lower()
     n = remove_non_native_characters(s, lang="de")
-    assert n == 'ueue', n
+    assert n == "ueue", n
 
 
 if __name__ == "__main__":
