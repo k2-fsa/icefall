@@ -533,9 +533,12 @@ def decode_one_batch(
             ): hyps
         }
     else:
-        return {
-            f"beam_size_{params.beam_size}_context_score_{params.context_score}": hyps
-        }
+        key = f"beam_size_{params.beam_size}"
+        if params.has_contexts:
+            key += f"-context-score-{params.context_score}"
+        else:
+            key += "-no-context-words"
+        return {key: hyps}
 
 
 def decode_dataset(
@@ -674,6 +677,12 @@ def main():
         "modified_beam_search_lm_shallow_fusion",
         "modified_beam_search_LODR",
     )
+
+    if os.path.exists(params.context_file):
+        params.has_contexts = True
+    else:
+        params.has_contexts = False
+
     params.res_dir = params.exp_dir / params.decoding_method
 
     params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
@@ -683,7 +692,10 @@ def main():
         params.suffix += f"-max-states-{params.max_states}"
     elif "beam_search" in params.decoding_method:
         params.suffix += f"-beam-{params.beam_size}"
-        params.suffix += f"-context-score-{params.context_score}"
+        if params.has_contexts:
+            params.suffix += f"-context-score-{params.context_score}"
+        else:
+            params.suffix += "-no-contexts-words"
     else:
         params.suffix += f"-context-{params.context_size}"
         params.suffix += f"-max-sym-per-frame-{params.max_sym_per_frame}"
@@ -851,14 +863,10 @@ def main():
 
     if params.decoding_method == "modified_beam_search":
         if os.path.exists(params.context_file):
-            contexts = []
+            contexts_text = []
             for line in open(params.context_file).readlines():
-                context_list = graph_compiler.texts_to_ids(line.strip())
-                tmp = []
-                for context in context_list:
-                    for x in context:
-                        tmp.append(x)
-                contexts.append(tmp)
+                contexts_text.append(line.strip())
+            contexts = graph_compiler.texts_to_ids(contexts_text)
             context_graph = ContextGraph(params.context_score)
             context_graph.build(contexts)
         else:
@@ -882,11 +890,8 @@ def main():
     test_meeting_cuts = wenetspeech.test_meeting_cuts()
     test_meeting_dl = wenetspeech.test_dataloaders(test_meeting_cuts)
 
-    test_car_cuts = wenetspeech.test_car_cuts()
-    test_car_dl = wenetspeech.test_dataloaders(test_car_cuts)
-
-    test_sets = ["CAR", "TEST_NET", "DEV", "TEST_MEETING"]
-    test_dls = [test_car_dl, test_net_dl, dev_dl, test_meeting_dl]
+    test_sets = ["DEV", "TEST_NET", "TEST_MEETING"]
+    test_dls = [dev_dl, test_net_dl, test_meeting_dl]
 
     for test_set, test_dl in zip(test_sets, test_dls):
         results_dict = decode_dataset(

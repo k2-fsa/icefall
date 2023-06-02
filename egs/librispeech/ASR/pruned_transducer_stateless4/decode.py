@@ -131,8 +131,6 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import k2
-import kaldifst
-import graphviz
 import sentencepiece as spm
 import torch
 import torch.nn as nn
@@ -576,7 +574,10 @@ def decode_one_batch(
         return {key: (hyps, timestamps)}
     else:
         key = f"beam_size_{params.beam_size}"
-        key += f"-context-score-{params.context_score}"
+        if params.has_contexts:
+            key += f"-context-score-{params.context_score}"
+        else:
+            key += "-no-context-words"
         return {key: (hyps, timestamps)}
 
 
@@ -626,7 +627,7 @@ def decode_dataset(
     if params.decoding_method == "greedy_search":
         log_interval = 50
     else:
-        log_interval = 1
+        log_interval = 20
 
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
@@ -759,6 +760,12 @@ def main():
         "fast_beam_search_nbest_oracle",
         "modified_beam_search",
     )
+
+    if os.path.exists(params.context_file):
+        params.has_contexts = True
+    else:
+        params.has_contexts = False
+
     params.res_dir = params.exp_dir / params.decoding_method
 
     if params.iter > 0:
@@ -781,7 +788,10 @@ def main():
             params.suffix += f"-ngram-lm-scale-{params.ngram_lm_scale}"
     elif "beam_search" in params.decoding_method:
         params.suffix += f"-{params.decoding_method}-beam-size-{params.beam_size}"
-        params.suffix += f"-context-score-{params.context_score}"
+        if params.has_contexts:
+            params.suffix += f"-context-score-{params.context_score}"
+        else:
+            params.suffix += "-no-context-words"
     else:
         params.suffix += f"-context-{params.context_size}"
         params.suffix += f"-max-sym-per-frame-{params.max_sym_per_frame}"
@@ -938,14 +948,8 @@ def main():
     test_clean_dl = librispeech.test_dataloaders(test_clean_cuts)
     test_other_dl = librispeech.test_dataloaders(test_other_cuts)
 
-    test_book_cuts = librispeech.test_book_cuts()
-    test_book_dl = librispeech.test_dataloaders(test_book_cuts)
-
-    test_book2_cuts = librispeech.test_book2_cuts()
-    test_book2_dl = librispeech.test_dataloaders(test_book2_cuts)
-
-    test_sets = ["test-book", "test-book2", "test-clean", "test-other"]
-    test_dl = [test_book_dl, test_book2_dl, test_clean_dl, test_other_dl]
+    test_sets = ["test-clean", "test-other"]
+    test_dl = [test_clean_dl, test_other_dl]
 
     for test_set, test_dl in zip(test_sets, test_dl):
         results_dict = decode_dataset(
