@@ -37,7 +37,7 @@ stop_stage=100
 #     - noise
 #     - speech
 #dl_dir=$PWD/download
-dl_dir=/workspace
+dl_dir=/DB
 
 . shared/parse_options.sh || exit 1
 
