@@ -667,7 +667,7 @@ def run(rank, world_size, args):
         model.parameters(),
         lr=params.lr,
         weight_decay=params.weight_decay,
-    ) 
+    )
 
     scheduler = NewBobScheduler(
         optimizer,
