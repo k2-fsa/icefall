@@ -13,7 +13,7 @@ as an example to show how to use this file.
 
 cd egs/librispeech/ASR
 
-repo_url=https://huggingface.co/Zengwei/icefall-asr-librispeech-streaming-zipformer-2023-05-17
+repo_url=https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-2023-05-15
 GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
 repo=$(basename $repo_url)
 
@@ -27,12 +27,29 @@ popd
 
 2. Export the model to ONNX
 
-./zipformer/export-onnx.py \                                                                                                                                148 ↵
+./zipformer/export-onnx.py \
   --bpe-model $repo/data/lang_bpe_500/bpe.model \
   --use-averaged-model 0 \
   --epoch 99 \
   --avg 1 \
-  --exp-dir $repo/exp/
+  --exp-dir $repo/exp \
+  \
+  --num-encoder-layers "2,2,3,4,3,2" \
+  --downsampling-factor "1,2,4,8,4,2" \
+  --feedforward-dim "512,768,1024,1536,1024,768" \
+  --num-heads "4,4,4,8,4,4" \
+  --encoder-dim "192,256,384,512,384,256" \
+  --query-head-dim 32 \
+  --value-head-dim 12 \
+  --pos-head-dim 4 \
+  --pos-dim 48 \
+  --encoder-unmasked-dim "192,192,256,256,256,192" \
+  --cnn-module-kernel "31,31,15,15,15,31" \
+  --decoder-dim 512 \
+  --joiner-dim 512 \
+  --causal False \
+  --chunk-size "16,32,64,-1" \
+  --left-context-frames "64,128,256,-1"
 
 It will generate the following 3 files inside $repo/exp:
 
@@ -115,7 +132,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless5/exp",
+        default="zipformer/exp",
         help="""It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
         """,
@@ -299,7 +316,7 @@ def export_encoder_model_onnx(
         "model_type": "zipformer",
         "version": "1",
         "model_author": "k2-fsa",
-        "comment": "stateless7",
+        "comment": "zipformer",
     }
     logging.info(f"meta_data: {meta_data}")
 
