@@ -106,7 +106,7 @@ class WenetSpeechAsrDataModule:
         group.add_argument(
             "--num-buckets",
             type=int,
-            default=300,
+            default=30,
             help="The number of buckets for the DynamicBucketingSampler"
             "(you might want to increase it for larger datasets).",
         )
@@ -364,7 +364,7 @@ class WenetSpeechAsrDataModule:
         return valid_dl
 
     def test_dataloaders(self, cuts: CutSet) -> DataLoader:
-        logging.debug("About to create test dataset")
+        logging.info("About to create test dataset")
         test = K2SpeechRecognitionDataset(
             input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80)))
             if self.args.on_the_fly_feats
