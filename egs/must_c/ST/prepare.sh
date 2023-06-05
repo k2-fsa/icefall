@@ -89,14 +89,14 @@ fi
 if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   log "Stage 2: Prepare must-c $version manifest for target language $tgt_lang"
   mkdir -p data/manifests/$version
-  if [ ! -e data/manifests/$version/.done ]; then
+  if [ ! -e data/manifests/$version/.${tgt_lang}.manifests.done ]; then
     lhotse prepare must-c \
       -j $nj \
       --tgt-lang $tgt_lang \
       $dl_dir/must-c/$version/ \
       data/manifests/$version/
 
-    touch data/manifests/$version/.done
+    touch data/manifests/$version/.${tgt_lang}.manifests.done
   fi
 fi
 

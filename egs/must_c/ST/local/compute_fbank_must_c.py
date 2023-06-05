@@ -64,7 +64,9 @@ def get_args():
         "--perturb-speed",
         type=str2bool,
         default=False,
-        help="""Perturb speed with factor 0.9 and 1.1 on train subset.""",
+        help="""True to enable speed perturb with factors 0.9 and 1.1 on
+        the train subset. False (by default) to disable speed perturb.
+        """,
     )
 
     return parser.parse_args()

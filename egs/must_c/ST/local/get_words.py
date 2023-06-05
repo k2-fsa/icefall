@@ -30,7 +30,7 @@ def main():
             for w in words:
                 word_set.add(w)
 
-    # Note: reserved* should be keep in sync with ./local/prepare_lang_bpe.py
+    # Note: reserved* should be kept in sync with ./local/prepare_lang_bpe.py
     reserved1 = ["<eps>", "!SIL", "<SPOKEN_NOISE>", "<UNK>"]
     reserved2 = ["#0", "<s>", "</s>"]
 
