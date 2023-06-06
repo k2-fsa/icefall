@@ -1322,10 +1322,8 @@ class CompactRelPositionalEncoding(torch.nn.Module):
             # the length of self.pe is 2 * input_len - 1
             if self.pe.size(0) >= T * 2 - 1:
                 # Note: TorchScript doesn't implement operator== for torch.Device
-                if self.pe.dtype != x.dtype or str(self.pe.device) != str(
-                    x.device
-                ):
-                    self.pe = self.pe.to(dtype=x.dtype, device=x.device)
+                #  if self.pe.dtype != x.dtype or self.pe.device != x.device:
+                self.pe = self.pe.to(dtype=x.dtype, device=x.device)
                 return
 
         # if T == 4, x would contain [ -3, -2, 1, 0, 1, 2, 3 ]

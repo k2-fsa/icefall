@@ -296,18 +296,7 @@ def export_encoder_model_onnx(
     x = torch.zeros(1, 100, 80, dtype=torch.float32)
     x_lens = torch.tensor([100], dtype=torch.int64)
 
-    # It assumes that the maximum input, after downsampling, won't have more
-    # than  10k frames.
-    # The first downsampling factor is 2, so the maximum input
-    # should contain less than 20k frames, e.g., less than 400 seconds,
-    # i.e., 3.3 minutes
-    #
-    # Note: If you want to handle a longer input audio, please increase this
-    # value. The downside is that it will increase the size of the model.
-    max_len = 10000
-    for name, m in encoder_model.named_modules():
-        if isinstance(m, CompactRelPositionalEncoding):
-            m.extend_pe(torch.tensor(0.0).expand(max_len))
+    encoder_model = torch.jit.trace(encoder_model, (x, x_lens))
 
     torch.onnx.export(
         encoder_model,
@@ -536,7 +525,7 @@ def main():
     model.to("cpu")
     model.eval()
 
-    convert_scaled_to_non_scaled(model, inplace=True)
+    convert_scaled_to_non_scaled(model, inplace=True, is_onnx=True)
 
     encoder = OnnxEncoder(
         encoder=model.encoder,
