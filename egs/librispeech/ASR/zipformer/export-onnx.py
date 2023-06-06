@@ -82,7 +82,7 @@ from icefall.checkpoint import (
     find_checkpoints,
     load_checkpoint,
 )
-from icefall.utils import setup_logger, str2bool, make_pad_mask
+from icefall.utils import str2bool, make_pad_mask
 
 
 def get_parser():
@@ -426,8 +426,6 @@ def main():
     device = torch.device("cpu")
     if torch.cuda.is_available():
         device = torch.device("cuda", 0)
-
-    setup_logger(f"{params.exp_dir}/log-export/log-export-onnx")
 
     logging.info(f"device: {device}")
 
