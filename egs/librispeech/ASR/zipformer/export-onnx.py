@@ -296,6 +296,8 @@ def export_encoder_model_onnx(
     x = torch.zeros(1, 100, 80, dtype=torch.float32)
     x_lens = torch.tensor([100], dtype=torch.int64)
 
+    encoder_model = torch.jit.trace(encoder_model, (x, x_lens))
+
     torch.onnx.export(
         encoder_model,
         (x, x_lens),
@@ -523,7 +525,7 @@ def main():
     model.to("cpu")
     model.eval()
 
-    convert_scaled_to_non_scaled(model, inplace=True)
+    convert_scaled_to_non_scaled(model, inplace=True, is_onnx=True)
 
     encoder = OnnxEncoder(
         encoder=model.encoder,

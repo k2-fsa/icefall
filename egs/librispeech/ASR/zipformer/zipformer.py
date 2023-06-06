@@ -1305,12 +1305,6 @@ class CompactRelPositionalEncoding(torch.nn.Module):
     ) -> None:
         """Construct a CompactRelPositionalEncoding object."""
         super(CompactRelPositionalEncoding, self).__init__()
-        if torch.jit.is_tracing():
-            # It assumes that the maximum input, after downsampling, won't have more than 
-            # 10k frames.
-            # The first downsampling factor is 2, so the maximum input 
-            # should contain less than 20k frames, e.g., less than 200 seconds, i.e., 3.33 minutes
-            max_len = 10000
         self.embed_dim = embed_dim
         assert embed_dim % 2 == 0
         self.dropout = Dropout2(dropout_rate)
@@ -1327,11 +1321,7 @@ class CompactRelPositionalEncoding(torch.nn.Module):
             # self.pe contains both positive and negative parts
             # the length of self.pe is 2 * input_len - 1
             if self.pe.size(0) >= T * 2 - 1:
-                # Note: TorchScript doesn't implement operator== for torch.Device
-                if self.pe.dtype != x.dtype or str(self.pe.device) != str(
-                    x.device
-                ):
-                    self.pe = self.pe.to(dtype=x.dtype, device=x.device)
+                self.pe = self.pe.to(dtype=x.dtype, device=x.device)
                 return
 
         # if T == 4, x would contain [ -3, -2, 1, 0, 1, 2, 3 ]
