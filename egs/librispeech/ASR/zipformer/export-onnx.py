@@ -74,7 +74,7 @@ from decoder import Decoder
 from onnxruntime.quantization import QuantType, quantize_dynamic
 from scaling_converter import convert_scaled_to_non_scaled
 from train import add_model_arguments, get_params, get_transducer_model
-from zipformer import Zipformer2, CompactRelPositionalEncoding
+from zipformer import Zipformer2
 
 from icefall.checkpoint import (
     average_checkpoints,
