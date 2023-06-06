@@ -74,7 +74,7 @@ from decoder import Decoder
 from onnxruntime.quantization import QuantType, quantize_dynamic
 from scaling_converter import convert_scaled_to_non_scaled
 from train import add_model_arguments, get_params, get_transducer_model
-from zipformer import Zipformer2
+from zipformer import Zipformer2, CompactRelPositionalEncoding
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -295,6 +295,19 @@ def export_encoder_model_onnx(
     """
     x = torch.zeros(1, 100, 80, dtype=torch.float32)
     x_lens = torch.tensor([100], dtype=torch.int64)
+
+    # It assumes that the maximum input, after downsampling, won't have more
+    # than  10k frames.
+    # The first downsampling factor is 2, so the maximum input
+    # should contain less than 20k frames, e.g., less than 400 seconds,
+    # i.e., 3.3 minutes
+    #
+    # Note: If you want to handle a longer input audio, please increase this
+    # value. The downside is that it will increase the size of the model.
+    max_len = 10000
+    for name, m in encoder_model.named_modules():
+        if isinstance(m, CompactRelPositionalEncoding):
+            m.extend_pe(torch.tensor(0.0).expand(max_len))
 
     torch.onnx.export(
         encoder_model,

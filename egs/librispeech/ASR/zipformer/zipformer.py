@@ -1305,12 +1305,6 @@ class CompactRelPositionalEncoding(torch.nn.Module):
     ) -> None:
         """Construct a CompactRelPositionalEncoding object."""
         super(CompactRelPositionalEncoding, self).__init__()
-        if torch.jit.is_tracing:
-            # 10k frames correspond to ~100k ms, e.g., 100 seconds, i.e., 
-            # It assumes that the maximum input won't have more than 
-            # 10k frames. 
-            #
-            max_len = 10000
         self.embed_dim = embed_dim
         assert embed_dim % 2 == 0
         self.dropout = Dropout2(dropout_rate)
