@@ -6,7 +6,7 @@
 This script exports a transducer model from PyTorch to ONNX.
 
 We use the pre-trained model from
-https://huggingface.co/Zengwei/icefall-asr-librispeech-streaming-zipformer-2023-05-17
+https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-2023-05-15
 as an example to show how to use this file.
 
 1. Download the pre-trained model
