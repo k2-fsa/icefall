@@ -23,7 +23,7 @@ stop_stage=100
 #     - music
 #     - noise
 #     - speech
-dl_dir=/DB/TEDLIUM_release-3/new_db
+dl_dir=/DB/TEDLIUM_release-3
 
 . shared/parse_options.sh || exit 1
 
