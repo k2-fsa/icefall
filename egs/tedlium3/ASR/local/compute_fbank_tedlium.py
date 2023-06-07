@@ -81,6 +81,9 @@ def compute_fbank_tedlium():
                 recordings=m["recordings"],
                 supervisions=m["supervisions"],
             )
+            print('-'*20)
+            print(cut_set)
+            print('-'*20)
             if "train" in partition:
                 cut_set = (
                     cut_set + cut_set.perturb_speed(0.9) + cut_set.perturb_speed(1.1)
