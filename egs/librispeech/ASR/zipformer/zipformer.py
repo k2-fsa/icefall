@@ -133,6 +133,7 @@ class Zipformer2(EncoderInterface):
         self.encoder_dim = encoder_dim = _to_tuple(encoder_dim) # tuple
         self.encoder_unmasked_dim = encoder_unmasked_dim = _to_tuple(encoder_unmasked_dim) # tuple
         num_encoder_layers = _to_tuple(num_encoder_layers)
+        self.num_encoder_layers = num_encoder_layers
         self.query_head_dim = query_head_dim = _to_tuple(query_head_dim)
         self.value_head_dim = value_head_dim = _to_tuple(value_head_dim)
         pos_head_dim = _to_tuple(pos_head_dim)
