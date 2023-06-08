@@ -430,7 +430,7 @@ def export_encoder_model_onnx(
         encoder_model,
         (x, init_state),
         encoder_filename,
-        verbose=False,
+        verbose=True,
         opset_version=opset_version,
         input_names=input_names,
         output_names=output_names,
