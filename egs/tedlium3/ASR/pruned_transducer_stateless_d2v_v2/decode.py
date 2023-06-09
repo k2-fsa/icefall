@@ -444,7 +444,6 @@ def decode_one_batch(
             encoder_out_lens=encoder_out_lens,
         )
         for hyp in sp.decode(hyp_tokens):
-            print(hyp)
             hyps.append(hyp.split())
     elif params.decoding_method == "modified_beam_search":
         hyp_tokens = modified_beam_search(
@@ -555,7 +554,9 @@ def decode_dataset(
             word_table=word_table,
             batch=batch,
         )
-
+        
+        print(hyps_dict)
+        exit()
         for name, hyps in hyps_dict.items():
             this_batch = []
             assert len(hyps) == len(texts)
