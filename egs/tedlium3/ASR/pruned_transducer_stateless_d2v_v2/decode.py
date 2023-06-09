@@ -829,7 +829,7 @@ def main():
     valid_dl = tedlium.test_dataloaders(valid_cuts)
     test_dl = tedlium.test_dataloaders(test_cuts)
 
-    test_sets = ['test set']
+    test_sets = ['dev', 'test']
     test_dl = [test_dl]
     
     for test_set, test_dl in zip(test_sets, test_dl):
