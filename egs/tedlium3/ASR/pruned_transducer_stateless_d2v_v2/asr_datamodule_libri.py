@@ -1,5 +1,5 @@
 # Copyright      2021  Piotr Żelasko
-# Copyright      2021  Xiaomi Corporation (Author: Mingshuang Luo)
+# Copyright      2022  Xiaomi Corporation     (Author: Mingshuang Luo)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -17,32 +17,48 @@
 
 
 import argparse
+import inspect
 import logging
+from glob import glob
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+import torch
 from lhotse import CutSet, Fbank, FbankConfig, load_manifest, load_manifest_lazy
-from lhotse.dataset import (
+from lhotse.dataset import (  # noqa F401 for PrecomputedFeatures
     CutConcatenate,
     CutMix,
     DynamicBucketingSampler,
     K2SpeechRecognitionDataset,
+    PrecomputedFeatures,
     SingleCutSampler,
     SpecAugment,
 )
-from lhotse.dataset.input_strategies import OnTheFlyFeatures
+from lhotse.dataset.input_strategies import (  # noqa F401 For AudioSamples
+    AudioSamples,
+    OnTheFlyFeatures,
+)
+from lhotse.utils import fix_random_seed
 from torch.utils.data import DataLoader
 
 from icefall.utils import str2bool
 
 
-class TedLiumAsrDataModule:
+class _SeedWorkers:
+    def __init__(self, seed: int):
+        self.seed = seed
+
+    def __call__(self, worker_id: int):
+        fix_random_seed(self.seed + worker_id)
+
+
+class LibriSpeechAsrDataModule:
     """
     DataModule for k2 ASR experiments.
     It assumes there is always one train and valid dataloader,
-    but there can be multiple test dataloaders (e.g. TEDLium3 dev
-    and test).
+    but there can be multiple test dataloaders (e.g. LibriSpeech test-clean
+    and test-other).
 
     It contains all the common data pipeline modules used in ASR
     experiments, e.g.:
@@ -68,6 +84,12 @@ class TedLiumAsrDataModule:
             "augmentations, etc.",
         )
         group.add_argument(
+            "--full-libri",
+            type=str2bool,
+            default=False,
+            help="When enabled, use 960h LibriSpeech. Otherwise, use 100h subset.",
+        )
+        group.add_argument(
             "--manifest-dir",
             type=Path,
             default=Path("data/fbank"),
@@ -76,7 +98,7 @@ class TedLiumAsrDataModule:
         group.add_argument(
             "--max-duration",
             type=int,
-            default=200.0,
+            default=250.0,
             help="Maximum pooled recordings duration (seconds) in a "
             "single batch. You can reduce it if it causes CUDA OOM.",
         )
@@ -132,6 +154,12 @@ class TedLiumAsrDataModule:
             "shuffled for each epoch.",
         )
         group.add_argument(
+            "--drop-last",
+            type=str2bool,
+            default=True,
+            help="Whether to drop last batch. Used by sampler.",
+        )
+        group.add_argument(
             "--return-cuts",
             type=str2bool,
             default=True,
@@ -139,6 +167,7 @@ class TedLiumAsrDataModule:
             "field: batch['supervisions']['cut'] with the cuts that "
             "were used to construct it.",
         )
+
         group.add_argument(
             "--num-workers",
             type=int,
@@ -146,12 +175,14 @@ class TedLiumAsrDataModule:
             help="The number of training dataloader workers that "
             "collect the batches.",
         )
+
         group.add_argument(
             "--enable-spec-aug",
             type=str2bool,
-            default=True,
+            default=False,
             help="When enabled, use SpecAugment for training dataset.",
         )
+
         group.add_argument(
             "--spec-aug-time-warp-factor",
             type=int,
@@ -161,16 +192,38 @@ class TedLiumAsrDataModule:
             "Larger values mean more warping. "
             "A value less than 1 means to disable time warp.",
         )
+
         group.add_argument(
             "--enable-musan",
             type=str2bool,
             default=True,
             help="When enabled, select noise from MUSAN and mix it"
-            "with training dataset.",
+            "with training dataset. ",
+        )
+
+        group.add_argument(
+            "--input-strategy",
+            type=str,
+            default="AudioSamples",
+            help="AudioSamples or PrecomputedFeatures",
+        )
+        
+        group.add_argument(
+            "--spk-id",
+            type=int,
+            default=0,
+        )
+        
+        group.add_argument(
+            "--prefix",
+            type=str,
+            default='vox',
         )
 
     def train_dataloaders(
-        self, cuts_train: CutSet, sampler_state_dict: Optional[Dict[str, Any]] = None
+        self,
+        cuts_train: CutSet,
+        sampler_state_dict: Optional[Dict[str, Any]] = None,
     ) -> DataLoader:
         """
         Args:
@@ -179,30 +232,10 @@ class TedLiumAsrDataModule:
           sampler_state_dict:
             The state dict for the training sampler.
         """
-
-        input_transforms = []
-        if self.args.enable_spec_aug:
-            logging.info("Enable SpecAugment")
-            logging.info(f"Time warp factor: {self.args.spec_aug_time_warp_factor}")
-
-            input_transforms.append(
-                SpecAugment(
-                    time_warp_factor=self.args.spec_aug_time_warp_factor,
-                    num_frame_masks=10,
-                    features_mask_size=27,
-                    num_feature_masks=2,
-                    frames_mask_size=100,
-                    max_frames_mask_fraction=0.15,
-                    p=0.9,
-                )
-            )
-        else:
-            logging.info("Disable SpecAugment")
-
-        logging.info("About to get Musan cuts")
         transforms = []
         if self.args.enable_musan:
             logging.info("Enable MUSAN")
+            logging.info("About to get Musan cuts")
             cuts_musan = load_manifest(self.args.manifest_dir / "musan_cuts.jsonl.gz")
             transforms.append(
                 CutMix(cuts=cuts_musan, prob=0.5, snr=(10, 20), preserve_id=True)
@@ -224,7 +257,40 @@ class TedLiumAsrDataModule:
                 )
             ] + transforms
 
+        input_transforms = []
+        if self.args.enable_spec_aug:
+            logging.info("Enable SpecAugment")
+            logging.info(f"Time warp factor: {self.args.spec_aug_time_warp_factor}")
+            # Set the value of num_frame_masks according to Lhotse's version.
+            # In different Lhotse's versions, the default of num_frame_masks is
+            # different.
+            num_frame_masks = 10
+            num_frame_masks_parameter = inspect.signature(
+                SpecAugment.__init__
+            ).parameters["num_frame_masks"]
+            if num_frame_masks_parameter.default == 1:
+                num_frame_masks = 2
+            logging.info(f"Num frame mask: {num_frame_masks}")
+            input_transforms.append(
+                SpecAugment(
+                    time_warp_factor=self.args.spec_aug_time_warp_factor,
+                    num_frame_masks=num_frame_masks,
+                    features_mask_size=27,
+                    num_feature_masks=2,
+                    frames_mask_size=100,
+                )
+            )
+        else:
+            logging.info("Disable SpecAugment")
+
         logging.info("About to create train dataset")
+        train = K2SpeechRecognitionDataset(
+            input_strategy=eval(self.args.input_strategy)(),
+            cut_transforms=transforms,
+            input_transforms=input_transforms,
+            return_cuts=self.args.return_cuts,
+        )
+
         if self.args.on_the_fly_feats:
             # NOTE: the PerturbSpeed transform should be added only if we
             # remove it from data prep stage.
@@ -242,12 +308,6 @@ class TedLiumAsrDataModule:
                 input_transforms=input_transforms,
                 return_cuts=self.args.return_cuts,
             )
-        else:
-            train = K2SpeechRecognitionDataset(
-                cut_transforms=transforms,
-                input_transforms=input_transforms,
-                return_cuts=self.args.return_cuts,
-            )
 
         if self.args.bucketing_sampler:
             logging.info("Using DynamicBucketingSampler.")
@@ -256,7 +316,7 @@ class TedLiumAsrDataModule:
                 max_duration=self.args.max_duration,
                 shuffle=self.args.shuffle,
                 num_buckets=self.args.num_buckets,
-                drop_last=True,
+                drop_last=self.args.drop_last,
             )
         else:
             logging.info("Using SingleCutSampler.")
@@ -265,24 +325,29 @@ class TedLiumAsrDataModule:
                 max_duration=self.args.max_duration,
                 shuffle=self.args.shuffle,
             )
+        logging.info("About to create train dataloader")
 
         if sampler_state_dict is not None:
             logging.info("Loading sampler state dict")
             train_sampler.load_state_dict(sampler_state_dict)
 
-        logging.info("About to create train dataloader")
+        # 'seed' is derived from the current random state, which will have
+        # previously been set in the main process.
+        seed = torch.randint(0, 100000, ()).item()
+        worker_init_fn = _SeedWorkers(seed)
+
         train_dl = DataLoader(
             train,
             sampler=train_sampler,
             batch_size=None,
             num_workers=self.args.num_workers,
             persistent_workers=False,
+            worker_init_fn=worker_init_fn,
         )
 
         return train_dl
 
     def valid_dataloaders(self, cuts_valid: CutSet) -> DataLoader:
-
         transforms = []
         if self.args.concatenate_cuts:
             transforms = [
@@ -295,21 +360,21 @@ class TedLiumAsrDataModule:
         if self.args.on_the_fly_feats:
             validate = K2SpeechRecognitionDataset(
                 cut_transforms=transforms,
-                input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80))),
+                input_strategy=eval(self.args.input_strategy)(),
+                #input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80))),
                 return_cuts=self.args.return_cuts,
             )
         else:
             validate = K2SpeechRecognitionDataset(
                 cut_transforms=transforms,
+                input_strategy=eval(self.args.input_strategy)(),
                 return_cuts=self.args.return_cuts,
             )
-
         valid_sampler = DynamicBucketingSampler(
             cuts_valid,
             max_duration=self.args.max_duration,
             shuffle=False,
         )
-
         logging.info("About to create dev dataloader")
         valid_dl = DataLoader(
             validate,
@@ -321,48 +386,174 @@ class TedLiumAsrDataModule:
 
         return valid_dl
 
-    def test_dataloaders(self, cuts_test: CutSet) -> DataLoader:
-
+    def test_dataloaders(self, cuts: CutSet) -> DataLoader:
         logging.debug("About to create test dataset")
-        if self.args.on_the_fly_feats:
-            test = K2SpeechRecognitionDataset(
-                input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80))),
-                return_cuts=self.args.return_cuts,
-            )
-        else:
-            test = K2SpeechRecognitionDataset(
-                return_cuts=self.args.return_cuts,
-            )
-
-        test_sampler = DynamicBucketingSampler(
-            cuts_test,
+        test = K2SpeechRecognitionDataset(
+            input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80)))
+            if self.args.on_the_fly_feats
+            else eval(self.args.input_strategy)(),
+            return_cuts=self.args.return_cuts,
+        )
+        sampler = DynamicBucketingSampler(
+            cuts,
             max_duration=self.args.max_duration,
             shuffle=False,
         )
-
         logging.debug("About to create test dataloader")
         test_dl = DataLoader(
             test,
             batch_size=None,
-            sampler=test_sampler,
+            sampler=sampler,
             num_workers=self.args.num_workers,
-            persistent_workers=False,
         )
         return test_dl
+    
+    @lru_cache()
+    def train_clean_10_cuts(self, option=None) -> CutSet:
+        logging.info("About to get train-clean-10 cuts")
+        if option is None:
+            return load_manifest_lazy(
+                self.args.manifest_dir / f"librispeech_cuts_train-clean-100.jsonl"
+            )
+        else:
+            return load_manifest_lazy(
+                self.args.manifest_dir / f"librispeech_cuts_train-clean-10_{option}.jsonl"
+            )
 
     @lru_cache()
-    def train_cuts(self) -> CutSet:
-        logging.info("About to get train cuts")
+    def train_clean_100_cuts(self, option=None) -> CutSet:
+        logging.info("About to get train-clean-100 cuts")
+        if option is None:
+            return load_manifest_lazy(
+                self.args.manifest_dir / f"librispeech_cuts_train-clean-100.jsonl"
+            )
+        else:
+            return load_manifest_lazy(
+                self.args.manifest_dir / f"librispeech_cuts_train-clean-100_{option}.jsonl"
+            )
+
+    @lru_cache()
+    def train_clean_360_cuts(self, option=None) -> CutSet:
+        logging.info("About to get train-clean-360 cuts")
+        if option is None:
+            return load_manifest_lazy(
+                self.args.manifest_dir / f"librispeech_cuts_train-clean-360.jsonl"
+            )
+        else:
+            return load_manifest_lazy(
+                self.args.manifest_dir / f"librispeech_cuts_train-clean-360_{option}.jsonl"
+            )
+
+    @lru_cache()
+    def train_other_500_cuts(self, option=None) -> CutSet:
+        logging.info("About to get train-other-500 cuts")
+        if option is None:
+            return load_manifest_lazy(
+                self.args.manifest_dir / f"librispeech_cuts_train-other-500.jsonl"
+            )
+        else:
+            return load_manifest_lazy(
+                self.args.manifest_dir / f"librispeech_cuts_train-other-500_{option}.jsonl"
+            )
+
+    @lru_cache()
+    def train_all_shuf_cuts(self, option=None) -> CutSet:
+        logging.info(
+            "About to get the shuffled train-clean-100, \
+            train-clean-360 and train-other-500 cuts"
+        )
+        if option is None:
+            return load_manifest_lazy(
+                self.args.manifest_dir / f"librispeech_cuts_train-all-shuf.jsonl"
+            )
+        else:
+            return load_manifest_lazy(
+                self.args.manifest_dir / f"librispeech_cuts_train-all-shuf_{option}.jsonl"
+            )
+
+    @lru_cache()
+    def dev_clean_cuts(self, option=None) -> CutSet:
+        logging.info("About to get dev-clean cuts")
+        if option is None:
+            return load_manifest_lazy(
+                self.args.manifest_dir / f"librispeech_cuts_dev-clean.jsonl"
+            )
+        else:
+            return load_manifest_lazy(
+                self.args.manifest_dir / f"librispeech_cuts_dev-clean_{option}.jsonl"
+            )
+
+    @lru_cache()
+    def dev_other_cuts(self, option=None) -> CutSet:
+        logging.info("About to get dev-other cuts")
+        if option is None:
+            return load_manifest_lazy(
+                self.args.manifest_dir / f"librispeech_cuts_dev-other.jsonl"
+            )
+        else:
+            return load_manifest_lazy(
+                self.args.manifest_dir / f"librispeech_cuts_dev-other_{option}.jsonl"
+            )
+
+    @lru_cache()
+    def test_clean_cuts(self, option=None) -> CutSet:
+        logging.info("About to get test-clean cuts")
+        if option is None:
+            return load_manifest_lazy(
+                self.args.manifest_dir / f"librispeech_cuts_test-clean.jsonl"
+            )
+        elif option == 'user':
+            json_list = sorted(glob(str(self.args.manifest_dir) + "/userlibri/test-clean/*"))
+            spk_list = [json.split('/')[-1][:-6] for json in json_list]
+
+            return [load_manifest_lazy(json) for json in json_list], spk_list 
+        else:
+            return load_manifest_lazy(
+                self.args.manifest_dir / f"librispeech_cuts_test-clean_{option}.jsonl"
+            )
+
+    @lru_cache()
+    def test_other_cuts(self, option=None) -> CutSet:
+        logging.info("About to get test-other cuts")
+        if option is None:
+            return load_manifest_lazy(
+                self.args.manifest_dir / f"librispeech_cuts_test-other_{option}.jsonl"
+            )
+        elif option == 'user':
+            json_list = sorted(glob(str(self.args.manifest_dir) + "/userlibri/test-other/*"))
+            spk_list = [json.split('/')[-1][:-6] for json in json_list]
+
+            return [load_manifest_lazy(json) for json in json_list], spk_list 
+        else:
+            return load_manifest_lazy(
+                self.args.manifest_dir / f"librispeech_cuts_test-other_{option}.jsonl"
+            )
+    
+    @lru_cache()
+    def test_clean_user(self, option=None) -> CutSet:
+        logging.info("About to get test-clean user cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "tedlium_cuts_train.jsonl.gz"
+                self.args.manifest_dir / f"userlibri/test-clean_sampling/{option}.jsonl"
+        )
+    
+    @lru_cache()
+    def test_other_user(self, option=None) -> CutSet:
+        logging.info("About to get test-other user cuts")
+        return load_manifest_lazy(
+                self.args.manifest_dir / f"userlibri/test-other_sampling/{option}.jsonl"
+        )
+    
+    @lru_cache()
+    def vox_cuts(self, option=None) -> CutSet:
+        logging.info("About to get test-other user cuts")
+        return load_manifest_lazy(
+                self.args.manifest_dir / f"{self.args.prefix}_cuts_{option}.jsonl.gz"
+        )
+    
+    @lru_cache()
+    def userlibri_cuts(self, option=None) -> CutSet:
+        logging.info("About to get userlibri cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / f"{option}.jsonl"
         )
 
-    @lru_cache()
-    def dev_cuts(self) -> CutSet:
-        logging.info("About to get dev cuts")
-        return load_manifest_lazy(self.args.manifest_dir / "tedlium_cuts_dev.jsonl.gz")
-
-    @lru_cache()
-    def test_cuts(self) -> CutSet:
-        logging.info("About to get test cuts")
-        return load_manifest_lazy(self.args.manifest_dir / "tedlium_cuts_test.jsonl.gz")
