@@ -542,6 +542,8 @@ def decode_dataset(
 
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
+        print(batch)
+
         texts = batch["supervisions"]["text"]
 
         cut_ids = [cut.id for cut in batch["supervisions"]["cut"]]
