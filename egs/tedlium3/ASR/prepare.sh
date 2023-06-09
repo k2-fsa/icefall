@@ -224,6 +224,8 @@ if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
 	  gzip data/fbank/tedlium_cuts_test_$i.jsonl
 	  i=`expr $i + 1` 
   done
+
+  gzip data/fbank/tedlium_cuts/test.jsonl
   #cat data/fbank/tedlium_cuts_test.jsonl.gz | grep 
 
 fi
