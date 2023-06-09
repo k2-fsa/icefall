@@ -852,6 +852,7 @@ def compute_loss(
     
     token_ids = sp.encode(texts, out_type=int)
     y = k2.RaggedTensor(token_ids).to(device)
+    print(y)
 
     with torch.set_grad_enabled(is_training):
         simple_loss, pruned_loss, ctc_output = model(
