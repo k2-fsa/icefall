@@ -63,7 +63,6 @@ else
 			--additional-block True \
 			--prune-range 10 \
 			--spk-id $2 \
-			--prefix vox
 		touch ./pruned_transducer_stateless_d2v_v2/$1/.train.done
 	fi
 fi
