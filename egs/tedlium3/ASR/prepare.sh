@@ -220,8 +220,8 @@ if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
 	  spk_id=${spk#*sph\/}
 	  spk_id=${spk_id%.sph}
 	  echo $spk_id
-	  cat data/fbank/tedlium_cuts_test.jsonl | grep speaker\":\ \"$spk_id\" > tedlium_cuts_test_$i.jsonl
-	  gzip tedlium_cuts_test_$i.jsonl
+	  cat data/fbank/tedlium_cuts_test.jsonl | grep speaker\":\ \"$spk_id\" > data/fbank/tedlium_cuts_test_$i.jsonl
+	  gzip data/fbank/tedlium_cuts_test_$i.jsonl
 	  i=`expr $i+1` 
   done
   #cat data/fbank/tedlium_cuts_test.jsonl.gz | grep 
