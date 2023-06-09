@@ -825,7 +825,7 @@ def main():
     # we need cut ids to display recognition results.
     args.return_cuts = True
     tedlium = TedLiumAsrDataModule(args)
-    valid_cuts = tedlium.valid_cuts()
+    valid_cuts = tedlium.dev_cuts()
     test_cuts = tedlium.test_cuts()
     valid_dl = tedlium.test_dataloaders(valid_cuts)
     test_dl = tedlium.test_dataloaders(test_cuts)
