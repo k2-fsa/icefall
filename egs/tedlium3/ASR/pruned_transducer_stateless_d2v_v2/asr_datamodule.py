@@ -31,7 +31,10 @@ from lhotse.dataset import (
     SingleCutSampler,
     SpecAugment,
 )
-from lhotse.dataset.input_strategies import OnTheFlyFeatures
+from lhotse.dataset.input_strategies import (
+        OnTheFlyFeatures,
+        AudioSamples,
+)
 from torch.utils.data import DataLoader
 
 from icefall.utils import str2bool
@@ -168,6 +171,18 @@ class TedLiumAsrDataModule:
             help="When enabled, select noise from MUSAN and mix it"
             "with training dataset.",
         )
+        group.add_argument(
+            "--input-strategy",
+            type=str,
+            default="AudioSamples",
+            help="AudioSamples or PrecomputedFeatures",
+        )   
+    
+        group.add_argument(
+            "--spk-id",
+            type=int,
+            default=0,
+        )
 
     def train_dataloaders(
         self, cuts_train: CutSet, sampler_state_dict: Optional[Dict[str, Any]] = None
@@ -238,13 +253,15 @@ class TedLiumAsrDataModule:
             # Drop feats to be on the safe side.
             train = K2SpeechRecognitionDataset(
                 cut_transforms=transforms,
-                input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80))),
+                #input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80))),
+                input_strategy=eval(self.args.input_strategy)(),
                 input_transforms=input_transforms,
                 return_cuts=self.args.return_cuts,
             )
         else:
             train = K2SpeechRecognitionDataset(
                 cut_transforms=transforms,
+                input_strategy=eval(self.args.input_strategy)(),
                 input_transforms=input_transforms,
                 return_cuts=self.args.return_cuts,
             )
@@ -295,12 +312,14 @@ class TedLiumAsrDataModule:
         if self.args.on_the_fly_feats:
             validate = K2SpeechRecognitionDataset(
                 cut_transforms=transforms,
-                input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80))),
+                input_strategy=eval(self.args.input_strategy)(),
+                #input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80))),
                 return_cuts=self.args.return_cuts,
             )
         else:
             validate = K2SpeechRecognitionDataset(
                 cut_transforms=transforms,
+                input_strategy=eval(self.args.input_strategy)(),
                 return_cuts=self.args.return_cuts,
             )
 
@@ -326,11 +345,13 @@ class TedLiumAsrDataModule:
         logging.debug("About to create test dataset")
         if self.args.on_the_fly_feats:
             test = K2SpeechRecognitionDataset(
-                input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80))),
+                #input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80))),
+                input_strategy=eval(self.args.input_strategy)(),
                 return_cuts=self.args.return_cuts,
             )
         else:
             test = K2SpeechRecognitionDataset(
+                input_strategy=eval(self.args.input_strategy)(),
                 return_cuts=self.args.return_cuts,
             )
 
@@ -368,6 +389,6 @@ class TedLiumAsrDataModule:
         return load_manifest_lazy(self.args.manifest_dir / "tedlium_cuts_test.jsonl.gz")
     
     @lru_cache()
-    def user_test_cuts(self, user) -> CutSet:
+    def user_test_cuts(self, spk_id) -> CutSet:
         logging.info("About to get test cuts")
-        return load_manifest_lazy(self.args.manifest_dir / f"tedlium_cuts_test_{user}.jsonl.gz")
+        return load_manifest_lazy(self.args.manifest_dir / f"tedlium_cuts_test_{spk_id}.jsonl.gz")

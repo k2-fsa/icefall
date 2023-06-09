@@ -20,27 +20,6 @@
 """
 Usage:
 
-export CUDA_VISIBLE_DEVICES="0,1,2,3"
-
-./pruned_transducer_stateless7_ctc/train.py \
-  --world-size 4 \
-  --num-epochs 30 \
-  --start-epoch 1 \
-  --exp-dir pruned_transducer_stateless7_ctc/exp \
-  --full-libri 1 \
-  --max-duration 300
-
-# For mix precision training:
-
-./pruned_transducer_stateless7_ctc/train.py \
-  --world-size 4 \
-  --num-epochs 30 \
-  --start-epoch 1 \
-  --use-fp16 1 \
-  --exp-dir pruned_transducer_stateless7_ctc/exp \
-  --full-libri 1 \
-  --max-duration 550
-
 # For d2v-T training:
 export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
 
@@ -87,7 +66,7 @@ import sentencepiece as spm
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
-from asr_datamodule import LibriSpeechAsrDataModule
+from asr_datamodule import TedLiumAsrDataModule
 from decoder import Decoder
 from joiner import Joiner
 from lhotse.cut import Cut
@@ -1365,7 +1344,8 @@ def run(rank, world_size, args, wb=None):
     if params.inf_check:
         register_inf_check_hooks(model)
 
-    librispeech = LibriSpeechAsrDataModule(args)
+    #librispeech = LibriSpeechAsrDataModule(args)
+    ted = TedLiumAsrDataModule(args)
 
     train_cuts = librispeech.train_clean_100_cuts()
     if params.full_libri:
