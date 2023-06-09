@@ -14,7 +14,7 @@ do
 		--enable-spec-aug False \
 		--additional-block True \
 		--exp-dir ./pruned_transducer_stateless_d2v_v2/$2 \
-		--max-duration 600 \
+		--max-duration 300 \
 		--iter $i \
 		--model-name ../d2v-base-T.pt \
 		--decoding-method $method \
