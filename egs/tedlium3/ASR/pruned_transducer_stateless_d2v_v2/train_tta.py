@@ -1515,11 +1515,11 @@ def run_pea(rank, world_size, args, wb=None):
                 module.lora = module.lora.to(device)
                 module.lora = DDP(module.lora, device_ids=[rank], find_unused_parameters=False)
     
-    for i, module in enumerate(lora_modules):
-        for n, p in module.lora.named_parameters():
-            new_n = str(i) + n
-            pea_names.append(new_n)
-            pea_param.append(p)
+        for i, module in enumerate(lora_modules):
+            for n, p in module.lora.named_parameters():
+                new_n = str(i) + n
+                pea_names.append(new_n)
+                pea_param.append(p)
 
     optimizer_pea = ScaledAdam(
             pea_param,
