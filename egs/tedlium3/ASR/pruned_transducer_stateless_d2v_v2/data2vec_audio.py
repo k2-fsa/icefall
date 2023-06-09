@@ -38,6 +38,24 @@ from convolution import ConvolutionModule
 logger = logging.getLogger().setLevel(logging.INFO)
 
 
+class LoRAHook():
+    def __init__(self, module, embedding_dim, rank, lora_alpha):
+        self.hook = module.register_forward_hook(self.hook_fn)
+        self.lora = LoRAModule(
+                           embedding_dim=embedding_dim,
+                           rank=rank,
+                           lora_alpha=lora_alpha,
+                    )    
+    def hook_fn(self, module, input, output):
+        lora_out = self.lora(input[0])
+        output += lora_out
+
+    def save_checkpoint(self, i, iter_, save_dir):
+        if isinstance(self.lora, DDP):
+            lora = self.lora.module
+        torch.save(lora.state_dict(), f"{save_dir}/lora_{iter_}_{i}.pt")
+
+
 class TransformerEncoderAdapter(TransformerEncoder):
     def __init__(self, args: Wav2Vec2Config):
         super().__init__(args)
