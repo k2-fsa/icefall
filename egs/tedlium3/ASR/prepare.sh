@@ -214,7 +214,6 @@ fi
 if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
   log "Stage 9: Split cuts by speaker id"
   gzip -d data/fbank/tedlium_cuts_test.jsonl.gz
-
   i=0
   for spk in $dl_dir/tedlium3/legacy/test/sph/*; do
 	  spk_id=${spk#*sph\/}
@@ -224,8 +223,6 @@ if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
 	  gzip data/fbank/tedlium_cuts_test_$i.jsonl
 	  i=`expr $i + 1` 
   done
-
-  gzip data/fbank/tedlium_cuts/test.jsonl
-  #cat data/fbank/tedlium_cuts_test.jsonl.gz | grep 
+  gzip data/fbank/tedlium_cuts_test.jsonl
 
 fi
