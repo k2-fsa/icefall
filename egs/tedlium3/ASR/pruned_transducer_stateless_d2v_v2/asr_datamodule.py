@@ -366,3 +366,8 @@ class TedLiumAsrDataModule:
     def test_cuts(self) -> CutSet:
         logging.info("About to get test cuts")
         return load_manifest_lazy(self.args.manifest_dir / "tedlium_cuts_test.jsonl.gz")
+    
+    @lru_cache()
+    def user_test_cuts(self, user) -> CutSet:
+        logging.info("About to get test cuts")
+        return load_manifest_lazy(self.args.manifest_dir / f"tedlium_cuts_test_{user}.jsonl.gz")
