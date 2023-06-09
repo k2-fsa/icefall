@@ -222,7 +222,7 @@ if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
 	  echo $spk_id
 	  cat data/fbank/tedlium_cuts_test.jsonl | grep speaker\":\ \"$spk_id\" > data/fbank/tedlium_cuts_test_$i.jsonl
 	  gzip data/fbank/tedlium_cuts_test_$i.jsonl
-	  i=`expr $i+1` 
+	  i=`expr $i + 1` 
   done
   #cat data/fbank/tedlium_cuts_test.jsonl.gz | grep 
 
