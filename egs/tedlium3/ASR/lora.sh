@@ -39,7 +39,7 @@ else
 	if [ ! -e ./pruned_transducer_stateless_d2v_v2/$1/.train.done ]; then
 		./pruned_transducer_stateless_d2v_v2/train_tta.py \
 			--num-buckets 2 \
-			--add-adapter True \
+			--bitfit True \
 			--adapter-lr 0.01 \
 			--wandb False \
 			--input-strategy AudioSamples \
