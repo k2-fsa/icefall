@@ -545,6 +545,7 @@ def decode_dataset(
         print(batch)
 
         texts = batch["supervisions"]["text"]
+        texts = [text.upper() for text in texts]
 
         cut_ids = [cut.id for cut in batch["supervisions"]["cut"]]
 
