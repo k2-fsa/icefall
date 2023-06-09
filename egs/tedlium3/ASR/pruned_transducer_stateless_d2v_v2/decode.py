@@ -380,10 +380,6 @@ def decode_one_batch(
     else:
         encoder_out, encoder_out_lens = model.encoder(x=feature, x_lens=feature_lens, prompt=model.prompt)
     
-    if 0:
-        encoder_out = encoder_out[:,50:,:]
-        encoder_out_lens -= 50
-
     hyps = []
 
     if params.decoding_method == "fast_beam_search":
