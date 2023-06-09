@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 #
-# Copyright 2021 Xiaomi Corporation (Author: Fangjun Kuang)
-# Copyright 2022 Xiaomi Corporation (Author: Mingshuang Luo)
+# Copyright 2021-2022 Xiaomi Corporation (Author: Fangjun Kuang,
+#                                                 Zengwei Yao
+#                                                 Mingshuang Luo)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -17,43 +18,53 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
-When training with the L subset, usage:
+Usage:
 (1) greedy search
-./pruned_transducer_stateless2/decode.py \
-        --epoch 10 \
-        --avg 2 \
-        --exp-dir ./pruned_transducer_stateless2/exp \
-        --lang-dir data/lang_char \
-        --max-duration 100 \
-        --decoding-method greedy_search
+./lstm_transducer_stateless/decode.py \
+    --epoch 35 \
+    --avg 15 \
+    --exp-dir ./lstm_transducer_stateless/exp \
+    --lang-dir data/lang_char \
+    --max-duration 600 \
+    --decoding-method greedy_search
 
-(2) modified beam search
-./pruned_transducer_stateless2/decode.py \
-        --epoch 10 \
-        --avg 2 \
-        --exp-dir ./pruned_transducer_stateless2/exp \
-        --lang-dir data/lang_char \
-        --max-duration 100 \
-        --decoding-method modified_beam_search \
-        --beam-size 4
+(2) beam search (not recommended)
+./lstm_transducer_stateless/decode.py \
+    --epoch 35 \
+    --avg 15 \
+    --exp-dir ./lstm_transducer_stateless/exp \
+    --lang-dir data/lang_char \
+    --max-duration 600 \
+    --decoding-method beam_search \
+    --beam-size 4
 
-(3) fast beam search (1best)
-./pruned_transducer_stateless2/decode.py \
-        --epoch 10 \
-        --avg 2 \
-        --exp-dir ./pruned_transducer_stateless2/exp \
-        --lang-dir data/lang_char \
-        --max-duration 1500 \
-        --decoding-method fast_beam_search \
-        --beam 4 \
-        --max-contexts 4 \
-        --max-states 8
+(3) modified beam search
+./lstm_transducer_stateless/decode.py \
+    --epoch 35 \
+    --avg 15 \
+    --exp-dir ./lstm_transducer_stateless/exp \
+    --lang-dir data/lang_char \
+    --max-duration 600 \
+    --decoding-method modified_beam_search \
+    --beam-size 4
 
-(4) fast beam search (nbest)
-./pruned_transducer_stateless2/decode.py \
-    --epoch 10 \
-    --avg 2 \
-    --exp-dir ./pruned_transducer_stateless2/exp \
+(4) fast beam search (one best)
+./lstm_transducer_stateless/decode.py \
+    --epoch 35 \
+    --avg 15 \
+    --exp-dir ./lstm_transducer_stateless/exp \
+    --lang-dir data/lang_char \
+    --max-duration 600 \
+    --decoding-method fast_beam_search \
+    --beam 20.0 \
+    --max-contexts 8 \
+    --max-states 64
+
+(5) fast beam search (nbest)
+./lstm_transducer_stateless/decode.py \
+    --epoch 30 \
+    --avg 15 \
+    --exp-dir ./pruned_transducer_stateless3/exp \
     --lang-dir data/lang_char \
     --max-duration 600 \
     --decoding-method fast_beam_search_nbest \
@@ -63,11 +74,11 @@ When training with the L subset, usage:
     --num-paths 200 \
     --nbest-scale 0.5
 
-(5) fast beam search (nbest oracle WER)
-./pruned_transducer_stateless2/decode.py \
-    --epoch 10 \
-    --avg 2 \
-    --exp-dir ./pruned_transducer_stateless2/exp \
+(6) fast beam search (nbest oracle WER)
+./lstm_transducer_stateless/decode.py \
+    --epoch 35 \
+    --avg 15 \
+    --exp-dir ./lstm_transducer_stateless/exp \
     --lang-dir data/lang_char \
     --max-duration 600 \
     --decoding-method fast_beam_search_nbest_oracle \
@@ -77,11 +88,11 @@ When training with the L subset, usage:
     --num-paths 200 \
     --nbest-scale 0.5
 
-(6) fast beam search (with LG)
-./pruned_transducer_stateless2/decode.py \
-    --epoch 10 \
-    --avg 2 \
-    --exp-dir ./pruned_transducer_stateless2/exp \
+(7) fast beam search (with LG)
+./lstm_transducer_stateless/decode.py \
+    --epoch 35 \
+    --avg 15 \
+    --exp-dir ./lstm_transducer_stateless/exp \
     --lang-dir data/lang_char \
     --max-duration 600 \
     --decoding-method fast_beam_search_nbest_LG \
@@ -93,6 +104,7 @@ When training with the L subset, usage:
 
 import argparse
 import logging
+import math
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -111,17 +123,25 @@ from beam_search import (
     greedy_search_batch,
     modified_beam_search,
 )
-from train import get_params, get_transducer_model
+from train import add_model_arguments, get_params, get_transducer_model
 
 from icefall.char_graph_compiler import CharCtcTrainingGraphCompiler
-from icefall.checkpoint import average_checkpoints, find_checkpoints, load_checkpoint
+from icefall.checkpoint import (
+    average_checkpoints,
+    average_checkpoints_with_averaged_model,
+    find_checkpoints,
+    load_checkpoint,
+)
 from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
     setup_logger,
     store_transcripts,
+    str2bool,
     write_error_stats,
 )
+
+LOG_EPS = math.log(1e-10)
 
 
 def get_parser():
@@ -132,17 +152,20 @@ def get_parser():
     parser.add_argument(
         "--epoch",
         type=int,
-        default=28,
-        help="It specifies the checkpoint to use for decoding."
-        "Note: Epoch counts from 0.",
+        default=30,
+        help="""It specifies the checkpoint to use for decoding.
+        Note: Epoch counts from 1.
+        You can specify --avg to use more checkpoints for model averaging.""",
     )
 
     parser.add_argument(
-        "--batch",
+        "--iter",
         type=int,
-        default=None,
-        help="It specifies the batch checkpoint to use for decoding."
-        "Note: Epoch counts from 0.",
+        default=0,
+        help="""If positive, --epoch is ignored and it
+        will use the checkpoint exp_dir/checkpoint-iter.pt.
+        You can specify --avg to use more checkpoints for model averaging.
+        """,
     )
 
     parser.add_argument(
@@ -151,35 +174,32 @@ def get_parser():
         default=15,
         help="Number of checkpoints to average. Automatically select "
         "consecutive checkpoints before the checkpoint specified by "
-        "'--epoch'. ",
+        "'--epoch' and '--iter'",
     )
 
     parser.add_argument(
-        "--avg-last-n",
-        type=int,
-        default=0,
-        help="""If positive, --epoch and --avg are ignored and it
-        will use the last n checkpoints exp_dir/checkpoint-xxx.pt
-        where xxx is the number of processed batches while
-        saving that checkpoint.
-        """,
+        "--use-averaged-model",
+        type=str2bool,
+        default=True,
+        help="Whether to load averaged model. Currently it only supports "
+        "using --epoch. If True, it would decode with the averaged model "
+        "over the epoch range from `epoch-avg` (excluded) to `epoch`."
+        "Actually only the models with epoch number of `epoch-avg` and "
+        "`epoch` are loaded for averaging. ",
     )
 
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless2/exp",
+        default="lstm_transducer_stateless/exp",
         help="The experiment dir",
     )
 
     parser.add_argument(
         "--lang-dir",
-        type=str,
+        type=Path,
         default="data/lang_char",
-        help="""The lang dir
-        It contains language related input files such as
-        "lexicon.txt"
-        """,
+        help="The lang dir containing word table and LG graph",
     )
 
     parser.add_argument(
@@ -194,8 +214,8 @@ def get_parser():
           - fast_beam_search_nbest
           - fast_beam_search_nbest_oracle
           - fast_beam_search_nbest_LG
-        If you use fast_beam_search_nbest_LG, you have to
-        specify `--lang-dir`, which should contain `LG.pt`.
+        If you use fast_beam_search_nbest_LG, you have to specify
+        `--lang-dir`, which should contain `LG.pt`.
         """,
     )
 
@@ -211,17 +231,20 @@ def get_parser():
     parser.add_argument(
         "--beam",
         type=float,
-        default=4,
+        default=20.0,
         help="""A floating point value to calculate the cutoff score during beam
         search (i.e., `cutoff = max-score - beam`), which is the same as the
         `beam` in Kaldi.
-        Used only when --decoding-method is fast_beam_search""",
+        Used only when --decoding-method is fast_beam_search,
+        fast_beam_search_nbest, fast_beam_search_nbest_LG,
+        and fast_beam_search_nbest_oracle
+        """,
     )
 
     parser.add_argument(
         "--ngram-lm-scale",
         type=float,
-        default=0.35,
+        default=0.01,
         help="""
         Used only when --decoding_method is fast_beam_search_nbest_LG.
         It specifies the scale for n-gram LM scores.
@@ -231,25 +254,29 @@ def get_parser():
     parser.add_argument(
         "--max-contexts",
         type=int,
-        default=4,
+        default=8,
         help="""Used only when --decoding-method is
-        fast_beam_search""",
+        fast_beam_search, fast_beam_search_nbest, fast_beam_search_nbest_LG,
+        and fast_beam_search_nbest_oracle""",
     )
 
     parser.add_argument(
         "--max-states",
         type=int,
-        default=8,
+        default=64,
         help="""Used only when --decoding-method is
-        fast_beam_search""",
+        fast_beam_search, fast_beam_search_nbest, fast_beam_search_nbest_LG,
+        and fast_beam_search_nbest_oracle""",
     )
 
     parser.add_argument(
         "--context-size",
         type=int,
         default=2,
-        help="The context size in the decoder. 1 means bigram; 2 means tri-gram",
+        help="The context size in the decoder. 1 means bigram; "
+        "2 means tri-gram",
     )
+
     parser.add_argument(
         "--max-sym-per-frame",
         type=int,
@@ -276,6 +303,8 @@ def get_parser():
         fast_beam_search_nbest_LG, and fast_beam_search_nbest_oracle""",
     )
 
+    add_model_arguments(parser)
+
     return parser
 
 
@@ -283,7 +312,7 @@ def decode_one_batch(
     params: AttributeDict,
     model: nn.Module,
     lexicon: Lexicon,
-    graph_compiler: CharCtcTrainingGraphCompiler,
+    #  graph_compiler: CharCtcTrainingGraphCompiler,
     batch: dict,
     decoding_graph: Optional[k2.Fsa] = None,
 ) -> Dict[str, List[List[str]]]:
@@ -307,13 +336,14 @@ def decode_one_batch(
         `lhotse.dataset.K2SpeechRecognitionDataset`. See its documentation
         for the format of the `batch`.
       decoding_graph:
-        The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
-        only when --decoding_method is fast_beam_search.
+        The decoding graph. Can be either a `k2.trivial_graph` or LG, Used
+        only when --decoding_method is fast_beam_search, fast_beam_search_nbest,
+        fast_beam_search_nbest_oracle, and fast_beam_search_nbest_LG.
     Returns:
       Return the decoding result. See above description for the format of
       the returned dict.
     """
-    device = model.device
+    device = next(model.parameters()).device
     feature = batch["inputs"]
     assert feature.ndim == 3
 
@@ -323,7 +353,20 @@ def decode_one_batch(
     supervisions = batch["supervisions"]
     feature_lens = supervisions["num_frames"].to(device)
 
-    encoder_out, encoder_out_lens = model.encoder(x=feature, x_lens=feature_lens)
+    # tail padding here to alleviate the tail deletion problem
+    num_tail_padded_frames = 35
+    feature = torch.nn.functional.pad(
+        feature,
+        (0, 0, 0, num_tail_padded_frames),
+        mode="constant",
+        value=LOG_EPS,
+    )
+    feature_lens += num_tail_padded_frames
+
+    encoder_out, encoder_out_lens, _ = model.encoder(
+        x=feature, x_lens=feature_lens
+    )
+
     hyps = []
 
     if params.decoding_method == "fast_beam_search":
@@ -382,7 +425,10 @@ def decode_one_batch(
         )
         for i in range(encoder_out.size(0)):
             hyps.append([lexicon.token_table[idx] for idx in hyp_tokens[i]])
-    elif params.decoding_method == "greedy_search" and params.max_sym_per_frame == 1:
+    elif (
+        params.decoding_method == "greedy_search"
+        and params.max_sym_per_frame == 1
+    ):
         hyp_tokens = greedy_search_batch(
             model=model,
             encoder_out=encoder_out,
@@ -394,8 +440,8 @@ def decode_one_batch(
         hyp_tokens = modified_beam_search(
             model=model,
             encoder_out=encoder_out,
-            beam=params.beam_size,
             encoder_out_lens=encoder_out_lens,
+            beam=params.beam_size,
         )
         for i in range(encoder_out.size(0)):
             hyps.append([lexicon.token_table[idx] for idx in hyp_tokens[i]])
@@ -404,7 +450,7 @@ def decode_one_batch(
 
         for i in range(batch_size):
             # fmt: off
-            encoder_out_i = encoder_out[i:i+1, :encoder_out_lens[i]]
+            encoder_out_i = encoder_out[i:i + 1, :encoder_out_lens[i]]
             # fmt: on
             if params.decoding_method == "greedy_search":
                 hyp = greedy_search(
@@ -426,14 +472,17 @@ def decode_one_batch(
 
     if params.decoding_method == "greedy_search":
         return {"greedy_search": hyps}
-    elif params.decoding_method == "fast_beam_search":
-        return {
-            (
-                f"beam_{params.beam}_"
-                f"max_contexts_{params.max_contexts}_"
-                f"max_states_{params.max_states}"
-            ): hyps
-        }
+    elif "fast_beam_search" in params.decoding_method:
+        key = f"beam_{params.beam}_"
+        key += f"max_contexts_{params.max_contexts}_"
+        key += f"max_states_{params.max_states}"
+        if "nbest" in params.decoding_method:
+            key += f"_num_paths_{params.num_paths}_"
+            key += f"nbest_scale_{params.nbest_scale}"
+            if "LG" in params.decoding_method:
+                key += f"_ngram_lm_scale_{params.ngram_lm_scale}"
+
+        return {key: hyps}
     else:
         return {f"beam_size_{params.beam_size}": hyps}
 
@@ -443,9 +492,8 @@ def decode_dataset(
     params: AttributeDict,
     model: nn.Module,
     lexicon: Lexicon,
-    graph_compiler: CharCtcTrainingGraphCompiler,
     decoding_graph: Optional[k2.Fsa] = None,
-) -> Dict[str, List[Tuple[str, List[str], List[str]]]]:
+) -> Dict[str, List[Tuple[List[str], List[str]]]]:
     """Decode dataset.
 
     Args:
@@ -456,8 +504,9 @@ def decode_dataset(
       model:
         The neural model.
       decoding_graph:
-        The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
-        only when --decoding_method is fast_beam_search.
+        The decoding graph. Can be either a `k2.trivial_graph` or LG, Used
+        only when --decoding_method is fast_beam_search, fast_beam_search_nbest,
+        fast_beam_search_nbest_oracle, and fast_beam_search_nbest_LG.
     Returns:
       Return a dict, whose key may be "greedy_search" if greedy search
       is used, or it may be "beam_7" if beam size of 7 is used.
@@ -473,9 +522,9 @@ def decode_dataset(
         num_batches = "?"
 
     if params.decoding_method == "greedy_search":
-        log_interval = 100
+        log_interval = 50
     else:
-        log_interval = 2
+        log_interval = 20
 
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
@@ -487,7 +536,6 @@ def decode_dataset(
             params=params,
             model=model,
             lexicon=lexicon,
-            graph_compiler=graph_compiler,
             decoding_graph=decoding_graph,
             batch=batch,
         )
@@ -505,25 +553,31 @@ def decode_dataset(
         if batch_idx % log_interval == 0:
             batch_str = f"{batch_idx}/{num_batches}"
 
-            logging.info(f"batch {batch_str}, cuts processed until now is {num_cuts}")
+            logging.info(
+                f"batch {batch_str}, cuts processed until now is {num_cuts}"
+            )
     return results
 
 
 def save_results(
     params: AttributeDict,
     test_set_name: str,
-    results_dict: Dict[str, List[Tuple[str, List[str], List[str]]]],
+    results_dict: Dict[str, List[Tuple[List[int], List[int]]]],
 ):
     test_set_wers = dict()
     for key, results in results_dict.items():
-        recog_path = params.res_dir / f"recogs-{test_set_name}-{params.suffix}.txt"
+        recog_path = (
+            params.res_dir / f"recogs-{test_set_name}-{key}-{params.suffix}.txt"
+        )
         results = sorted(results)
         store_transcripts(filename=recog_path, texts=results)
         logging.info(f"The transcripts are stored in {recog_path}")
 
         # The following prints out WERs, per-word error statistics and aligned
         # ref/hyp pairs.
-        errs_filename = params.res_dir / f"errs-{test_set_name}-{params.suffix}.txt"
+        errs_filename = (
+            params.res_dir / f"errs-{test_set_name}-{key}-{params.suffix}.txt"
+        )
         with open(errs_filename, "w") as f:
             wer = write_error_stats(
                 f, f"{test_set_name}-{key}", results, enable_log=True
@@ -533,7 +587,10 @@ def save_results(
         logging.info("Wrote detailed error stats to {}".format(errs_filename))
 
     test_set_wers = sorted(test_set_wers.items(), key=lambda x: x[1])
-    errs_info = params.res_dir / f"wer-summary-{test_set_name}-{params.suffix}.txt"
+    errs_info = (
+        params.res_dir
+        / f"wer-summary-{test_set_name}-{key}-{params.suffix}.txt"
+    )
     with open(errs_info, "w") as f:
         print("settings\tWER", file=f)
         for key, val in test_set_wers:
@@ -568,23 +625,30 @@ def main():
     )
     params.res_dir = params.exp_dir / params.decoding_method
 
-    params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
+    if params.iter > 0:
+        params.suffix = f"iter-{params.iter}-avg-{params.avg}"
+    else:
+        params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
+
     if "fast_beam_search" in params.decoding_method:
         params.suffix += f"-beam-{params.beam}"
         params.suffix += f"-max-contexts-{params.max_contexts}"
         params.suffix += f"-max-states-{params.max_states}"
-        if params.decoding_method == "fast_beam_search_nbest_LG":
-            params.suffix += f"-ngram-lm-scale-{params.ngram_lm_scale}"
-        if (
-            params.decoding_method == "fast_beam_search_nbest"
-            or params.decoding_method == "fast_beam_search_nbest_oracle"
-        ):
+        if "nbest" in params.decoding_method:
             params.suffix += f"-nbest-scale-{params.nbest_scale}"
+            params.suffix += f"-num-paths-{params.num_paths}"
+            if "LG" in params.decoding_method:
+                params.suffix += f"-ngram-lm-scale-{params.ngram_lm_scale}"
     elif "beam_search" in params.decoding_method:
-        params.suffix += f"-beam-{params.beam_size}"
+        params.suffix += (
+            f"-{params.decoding_method}-beam-size-{params.beam_size}"
+        )
     else:
         params.suffix += f"-context-{params.context_size}"
         params.suffix += f"-max-sym-per-frame-{params.max_sym_per_frame}"
+
+    if params.use_averaged_model:
+        params.suffix += "-use-averaged-model"
 
     setup_logger(f"{params.res_dir}/log-decode-{params.suffix}")
     logging.info("Decoding started")
@@ -599,70 +663,196 @@ def main():
     params.blank_id = lexicon.token_table["<blk>"]
     params.vocab_size = max(lexicon.tokens) + 1
 
-    graph_compiler = CharCtcTrainingGraphCompiler(
-        lexicon=lexicon,
-        device=device,
-    )
-
     logging.info(params)
 
     logging.info("About to create model")
     model = get_transducer_model(params)
 
-    if params.avg_last_n > 0:
-        filenames = find_checkpoints(params.exp_dir)[: params.avg_last_n]
-        logging.info(f"averaging {filenames}")
-        model.to(device)
-        model.load_state_dict(average_checkpoints(filenames, device=device))
-    elif params.avg == 1:
-        load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
-    elif params.batch is not None:
-        filenames = f"{params.exp_dir}/checkpoint-{params.batch}.pt"
-        logging.info(f"averaging {filenames}")
-        model.to(device)
-        model.load_state_dict(average_checkpoints([filenames], device=device))
+    if not params.use_averaged_model:
+        if params.iter > 0:
+            filenames = find_checkpoints(
+                params.exp_dir, iteration=-params.iter
+            )[: params.avg]
+            if len(filenames) == 0:
+                raise ValueError(
+                    f"No checkpoints found for"
+                    f" --iter {params.iter}, --avg {params.avg}"
+                )
+            elif len(filenames) < params.avg:
+                raise ValueError(
+                    f"Not enough checkpoints ({len(filenames)}) found for"
+                    f" --iter {params.iter}, --avg {params.avg}"
+                )
+            logging.info(f"averaging {filenames}")
+            model.to(device)
+            model.load_state_dict(average_checkpoints(filenames, device=device))
+        elif params.avg == 1:
+            load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
+        else:
+            start = params.epoch - params.avg + 1
+            filenames = []
+            for i in range(start, params.epoch + 1):
+                if i >= 1:
+                    filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
+            logging.info(f"averaging {filenames}")
+            model.to(device)
+            model.load_state_dict(average_checkpoints(filenames, device=device))
     else:
-        start = params.epoch - params.avg + 1
-        filenames = []
-        for i in range(start, params.epoch + 1):
-            if start >= 0:
-                filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
-        logging.info(f"averaging {filenames}")
-        model.to(device)
-        model.load_state_dict(average_checkpoints(filenames, device=device))
+        if params.iter > 0:
+            filenames = find_checkpoints(
+                params.exp_dir, iteration=-params.iter
+            )[: params.avg + 1]
+            if len(filenames) == 0:
+                raise ValueError(
+                    f"No checkpoints found for"
+                    f" --iter {params.iter}, --avg {params.avg}"
+                )
+            elif len(filenames) < params.avg + 1:
+                raise ValueError(
+                    f"Not enough checkpoints ({len(filenames)}) found for"
+                    f" --iter {params.iter}, --avg {params.avg}"
+                )
+            filename_start = filenames[-1]
+            filename_end = filenames[0]
+            logging.info(
+                "Calculating the averaged model over iteration checkpoints"
+                f" from {filename_start} (excluded) to {filename_end}"
+            )
+            model.to(device)
+            model.load_state_dict(
+                average_checkpoints_with_averaged_model(
+                    filename_start=filename_start,
+                    filename_end=filename_end,
+                    device=device,
+                )
+            )
+        else:
+            assert params.avg > 0, params.avg
+            start = params.epoch - params.avg
+            assert start >= 1, start
+            filename_start = f"{params.exp_dir}/epoch-{start}.pt"
+            filename_end = f"{params.exp_dir}/epoch-{params.epoch}.pt"
+            logging.info(
+                f"Calculating the averaged model over epoch range from "
+                f"{start} (excluded) to {params.epoch}"
+            )
+            model.to(device)
+            model.load_state_dict(
+                average_checkpoints_with_averaged_model(
+                    filename_start=filename_start,
+                    filename_end=filename_end,
+                    device=device,
+                )
+            )
 
     model.to(device)
     model.eval()
-    model.device = device
 
     if "fast_beam_search" in params.decoding_method:
         if params.decoding_method == "fast_beam_search_nbest_LG":
-            lg_filename = params.lang_dir + "/LG.pt"
+            lexicon = Lexicon(params.lang_dir)
+            #  word_table = lexicon.word_table
+            lg_filename = params.lang_dir / "LG.pt"
             logging.info(f"Loading {lg_filename}")
             decoding_graph = k2.Fsa.from_dict(
                 torch.load(lg_filename, map_location=device)
             )
             decoding_graph.scores *= params.ngram_lm_scale
         else:
-            decoding_graph = k2.trivial_graph(params.vocab_size - 1, device=device)
+            #  word_table = None
+            decoding_graph = k2.trivial_graph(
+                params.vocab_size - 1, device=device
+            )
     else:
         decoding_graph = None
+        #  word_table = None
 
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
+
+    # Note: Please use "pip install webdataset==0.1.103"
+    # for installing the webdataset.
+    import glob
+    import os
+
+    from lhotse import CutSet
+    from lhotse.dataset.webdataset import export_to_webdataset
 
     # we need cut ids to display recognition results.
     args.return_cuts = True
     wenetspeech = WenetSpeechAsrDataModule(args)
 
-    dev_cuts = wenetspeech.valid_cuts()
-    dev_dl = wenetspeech.valid_dataloaders(dev_cuts)
+    dev = "dev"
+    test_net = "test_net"
+    test_meeting = "test_meeting"
 
-    test_net_cuts = wenetspeech.test_net_cuts()
-    test_net_dl = wenetspeech.test_dataloaders(test_net_cuts)
+    if not os.path.exists(f"{dev}/shared-0.tar"):
+        os.makedirs(dev, exist_ok=True)
+        dev_cuts = wenetspeech.valid_cuts()
+        export_to_webdataset(
+            dev_cuts,
+            output_path=f"{dev}/shared-%d.tar",
+            shard_size=300,
+        )
 
-    test_meeting_cuts = wenetspeech.test_meeting_cuts()
-    test_meeting_dl = wenetspeech.test_dataloaders(test_meeting_cuts)
+    if not os.path.exists(f"{test_net}/shared-0.tar"):
+        os.makedirs(test_net, exist_ok=True)
+        test_net_cuts = wenetspeech.test_net_cuts()
+        export_to_webdataset(
+            test_net_cuts,
+            output_path=f"{test_net}/shared-%d.tar",
+            shard_size=300,
+        )
+
+    if not os.path.exists(f"{test_meeting}/shared-0.tar"):
+        os.makedirs(test_meeting, exist_ok=True)
+        test_meeting_cuts = wenetspeech.test_meeting_cuts()
+        export_to_webdataset(
+            test_meeting_cuts,
+            output_path=f"{test_meeting}/shared-%d.tar",
+            shard_size=300,
+        )
+
+    print("done")
+
+    dev_shards = [
+        str(path)
+        for path in sorted(glob.glob(os.path.join(dev, "shared-*.tar")))
+    ]
+    cuts_dev_webdataset = CutSet.from_webdataset(
+        dev_shards,
+        split_by_worker=True,
+        split_by_node=True,
+        shuffle_shards=True,
+    )
+
+    test_net_shards = [
+        str(path)
+        for path in sorted(glob.glob(os.path.join(test_net, "shared-*.tar")))
+    ]
+    cuts_test_net_webdataset = CutSet.from_webdataset(
+        test_net_shards,
+        split_by_worker=True,
+        split_by_node=True,
+        shuffle_shards=True,
+    )
+
+    test_meeting_shards = [
+        str(path)
+        for path in sorted(
+            glob.glob(os.path.join(test_meeting, "shared-*.tar"))
+        )
+    ]
+    cuts_test_meeting_webdataset = CutSet.from_webdataset(
+        test_meeting_shards,
+        split_by_worker=True,
+        split_by_node=True,
+        shuffle_shards=True,
+    )
+
+    dev_dl = wenetspeech.valid_dataloaders(cuts_dev_webdataset)
+    test_net_dl = wenetspeech.test_dataloaders(cuts_test_net_webdataset)
+    test_meeting_dl = wenetspeech.test_dataloaders(cuts_test_meeting_webdataset)
 
     test_sets = ["DEV", "TEST_NET", "TEST_MEETING"]
     test_dl = [dev_dl, test_net_dl, test_meeting_dl]
@@ -673,9 +863,10 @@ def main():
             params=params,
             model=model,
             lexicon=lexicon,
-            graph_compiler=graph_compiler,
+            #  word_table=word_table,
             decoding_graph=decoding_graph,
         )
+
         save_results(
             params=params,
             test_set_name=test_set,

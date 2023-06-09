@@ -1395,7 +1395,7 @@ def tokenize_by_CJK_char(line: str) -> str:
 def display_and_save_batch(
     batch: dict,
     params: AttributeDict,
-    sp: spm.SentencePieceProcessor,
+    sp: Optional[spm.SentencePieceProcessor] = None,
 ) -> None:
     """Display the batch statistics and save the batch into disk.
 
@@ -1406,7 +1406,7 @@ def display_and_save_batch(
       params:
         Parameters for training. See :func:`get_params`.
       sp:
-        The BPE model.
+        Optional. The BPE model.
     """
     from lhotse.utils import uuid4
 
@@ -1418,9 +1418,14 @@ def display_and_save_batch(
     features = batch["inputs"]
 
     logging.info(f"features shape: {features.shape}")
+    text = supervisions["text"]
 
-    y = sp.encode(supervisions["text"], out_type=int)
-    num_tokens = sum(len(i) for i in y)
+    if sp is not None:
+        y = sp.encode(text, out_type=int)
+        num_tokens = sum(len(i) for i in y)
+    else:
+        num_tokens = sum(len(i) for i in text)
+
     logging.info(f"num tokens: {num_tokens}")
 
 
