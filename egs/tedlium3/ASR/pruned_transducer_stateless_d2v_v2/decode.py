@@ -823,7 +823,7 @@ def main():
     args.return_cuts = True
     tedlium = TedLiumAsrDataModule(args)
     #valid_cuts = tedlium.dev_cuts()
-    test_cuts = tedlium.user_test_cuts(spk_id='0')
+    test_cuts = tedlium.user_test_cuts(spk_id=params.spk_id)
     #valid_dl = tedlium.test_dataloaders(valid_cuts)
     test_dl = tedlium.test_dataloaders(test_cuts)
 
