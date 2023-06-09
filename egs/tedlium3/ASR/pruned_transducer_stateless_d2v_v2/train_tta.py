@@ -832,9 +832,8 @@ def compute_loss(
     # at entry, feature is (N, T, C)
     assert feature.ndim == 2 or feature.ndim == 3
     feature = feature.to(device)
-
+    
     supervisions = batch["supervisions"]
-
     if feature.ndim == 2:
         feature_lens = []
         for supervision in supervisions['cut']:
