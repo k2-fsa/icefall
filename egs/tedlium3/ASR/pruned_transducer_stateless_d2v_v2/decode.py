@@ -542,8 +542,6 @@ def decode_dataset(
 
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
-        print(batch)
-
         texts = batch["supervisions"]["text"]
         texts = [text.upper() for text in texts]
 
@@ -558,10 +556,6 @@ def decode_dataset(
             batch=batch,
         )
         
-        print('-'*20)
-        print(hyps_dict)
-        print('-'*20)
-
         for name, hyps in hyps_dict.items():
             this_batch = []
             assert len(hyps) == len(texts)
