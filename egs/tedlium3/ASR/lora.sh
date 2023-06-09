@@ -50,7 +50,6 @@ else
 			--num-epochs 10000 \
 			--num-updates 101 \
 			--save-every-n 50 \
-			--full-libri 1 \
 			--exp-dir ./pruned_transducer_stateless_d2v_v2/$1 \
 			--max-duration 150 \
 			--accum-grads 2 \
@@ -63,6 +62,6 @@ else
 			--additional-block True \
 			--prune-range 10 \
 			--spk-id $2 \
-		touch ./pruned_transducer_stateless_d2v_v2/$1/.train.done
+		#touch ./pruned_transducer_stateless_d2v_v2/$1/.train.done
 	fi
 fi
