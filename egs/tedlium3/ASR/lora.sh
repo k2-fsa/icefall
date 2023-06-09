@@ -40,7 +40,7 @@ else
 		./pruned_transducer_stateless_d2v_v2/train_tta.py \
 			--num-buckets 2 \
 			--pea True \
-			--bitfit True \
+			--lora True \
 			--pea-lr 0.01 \
 			--wandb False \
 			--input-strategy AudioSamples \
