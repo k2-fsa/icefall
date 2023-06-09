@@ -826,6 +826,7 @@ def main():
     tedlium = TedLiumAsrDataModule(args)
     valid_cuts = tedlium.valid_cuts()
     test_cuts = tedlium.test_cuts()
+    valid_dl = tedlium.test_dataloaders(valid_cuts)
     test_dl = tedlium.test_dataloaders(test_cuts)
 
     test_sets = ['test set']
