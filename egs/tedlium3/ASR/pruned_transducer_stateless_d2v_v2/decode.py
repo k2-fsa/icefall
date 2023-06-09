@@ -555,8 +555,6 @@ def decode_dataset(
             batch=batch,
         )
         
-        print(hyps_dict)
-        exit()
         for name, hyps in hyps_dict.items():
             this_batch = []
             assert len(hyps) == len(texts)
