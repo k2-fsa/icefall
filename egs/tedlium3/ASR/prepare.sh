@@ -216,6 +216,7 @@ if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
   for spk in $dl_dir/tedlium3/legacy/test/sph/*; do
 	  spk_id=${spk#*sph\/}
 	  echo $spk_id
+  done
   #cat data/fbank/tedlium_cuts_test.jsonl.gz | grep 
 
 fi
