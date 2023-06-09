@@ -821,14 +821,16 @@ def main():
     # we need cut ids to display recognition results.
     args.return_cuts = True
     tedlium = TedLiumAsrDataModule(args)
-    valid_cuts = tedlium.dev_cuts()
+    #valid_cuts = tedlium.dev_cuts()
     test_cuts = tedlium.test_cuts()
-    valid_dl = tedlium.test_dataloaders(valid_cuts)
+    #valid_dl = tedlium.test_dataloaders(valid_cuts)
     test_dl = tedlium.test_dataloaders(test_cuts)
 
-    test_sets = ['dev', 'test']
-    test_dl = [valid_dl, test_dl]
-    
+    #test_sets = ['dev', 'test']
+    #test_dl = [valid_dl, test_dl]
+    test_sets = ['test']
+    test_dl = [test_dl]
+ 
     for test_set, test_dl in zip(test_sets, test_dl):
         results_dict = decode_dataset(
             dl=test_dl,
