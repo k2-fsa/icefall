@@ -850,6 +850,7 @@ def compute_loss(
 
     texts = batch["supervisions"]["text"]
     texts = [text.upper() for text in texts]
+    print(texts)
     
     token_ids = sp.encode(texts, out_type=int)
     y = k2.RaggedTensor(token_ids).to(device)
