@@ -234,6 +234,33 @@ class RnnLmModel(torch.nn.Module):
 
         return logits[:, 0].log_softmax(-1), states
 
+    def score_token_onnx(
+        self,
+        x: torch.Tensor,
+        state_h: torch.Tensor,
+        state_c: torch.Tensor,
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Score a batch of tokens, i.e each sample in the batch should be a
+        single token. For example, x = torch.tensor([[5],[10],[20]])
+
+
+        Args:
+            x (torch.Tensor):
+                A batch of tokens
+            state_h:
+                state h of RNN has the shape of (num_layers, bs, hidden_dim)
+            state_c:
+                state c of RNN has the shape of (num_layers, bs, hidden_dim)
+
+        Returns:
+            _type_: _description_
+        """
+        embedding = self.input_embedding(x)
+        rnn_out, (next_h0, next_c0) = self.rnn(embedding, (state_h, state_c))
+        logits = self.output_linear(rnn_out)
+
+        return logits[:, 0].log_softmax(-1), next_h0, next_c0
+
     def forward_with_state(
         self, tokens, token_lens, sos_id, eos_id, blank_id, state=None
     ):

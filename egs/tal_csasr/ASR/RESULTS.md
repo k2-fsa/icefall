@@ -1,5 +1,51 @@
 ## Results
 
+#### Pruned transducer stateless 7 (zipformer)
+
+See <https://github.com/k2-fsa/icefall/pull/1033>
+
+[./pruned_transducer_stateless7_bbpe](./pruned_transducer_stateless7_bbpe)
+
+**Note**: The modeling units are byte level BPEs
+
+The best results I have gotten are:
+
+Vocab size | greedy (dev & test) | modified beam search (dev & test) |  |
+-- | -- | -- | --
+500  | 6.88 & 6.98 | 6.87 & 6.94 | --epoch 35 --avg 26
+
+The training command:
+
+```
+export CUDA_VISIBLE_DEVICES="0,1,2,3"
+
+./pruned_transducer_stateless7_bbpe/train.py \
+  --world-size 4 \
+  --start-epoch 1 \
+  --num-epochs 35 \
+  --use-fp16 1 \
+  --max-duration 800 \
+  --bbpe-model data/lang_bbpe_500/bbpe.model \
+  --exp-dir pruned_transducer_stateless7_bbpe/exp \
+  --master-port 12535
+```
+
+The decoding command:
+
+```
+ ./pruned_transducer_stateless7_bbpe/decode.py \
+   --epoch 35 \
+   --avg 26 \
+   --exp-dir ./pruned_transducer_stateless7_bbpe/exp \
+   --max-sym-per-frame 1 \
+   --bpe-model data/lang_bbpe_500/bbpe.model \
+   --max-duration 2000 \
+   --decoding-method greedy_search  # modified_beam_search
+```
+
+The pretrained model is available at:  https://huggingface.co/pkufool/icefall_asr_tal_csasr_pruned_transducer_stateless7_bbpe
+
+
 ### TAL_CSASR Mix Chars and BPEs training results (Pruned Transducer Stateless5)
 
 #### 2022-06-22

@@ -94,10 +94,10 @@ Usage:
     --max-states 64
 
 (8) modified beam search with RNNLM shallow fusion
-./pruned_transducer_stateless5/decode.py \
+./pruned_transducer_stateless7/decode.py \
     --epoch 35 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless5/exp \
+    --exp-dir ./pruned_transducer_stateless7/exp \
     --max-duration 600 \
     --decoding-method modified_beam_search_lm_shallow_fusion \
     --beam-size 4 \
@@ -110,11 +110,11 @@ Usage:
     --rnn-lm-tie-weights 1
 
 (9) modified beam search with LM shallow fusion + LODR
-./pruned_transducer_stateless5/decode.py \
+./pruned_transducer_stateless7/decode.py \
     --epoch 28 \
     --avg 15 \
     --max-duration 600 \
-    --exp-dir ./pruned_transducer_stateless5/exp \
+    --exp-dir ./pruned_transducer_stateless7/exp \
     --decoding-method modified_beam_search_LODR \
     --beam-size 4 \
     --lm-type rnn \

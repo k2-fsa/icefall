@@ -24,7 +24,7 @@ import sentencepiece as spm
 import torch
 from model import Transducer
 
-from icefall import NgramLm, NgramLmStateCost
+from icefall import ContextGraph, ContextState, NgramLm, NgramLmStateCost
 from icefall.decode import Nbest, one_best_decoding
 from icefall.lm_wrapper import LmScorer
 from icefall.rnn_lm.model import RnnLmModel
@@ -670,6 +670,8 @@ def greedy_search_batch(
     # timestamp[n][i] is the frame index after subsampling
     # on which hyp[n][i] is decoded
     timestamps = [[] for _ in range(N)]
+    # scores[n][i] is the logits on which hyp[n][i] is decoded
+    scores = [[] for _ in range(N)]
 
     decoder_input = torch.tensor(
         hyps,
@@ -707,6 +709,7 @@ def greedy_search_batch(
             if v not in (blank_id, unk_id):
                 hyps[i].append(v)
                 timestamps[i].append(t)
+                scores[i].append(logits[i, v].item())
                 emitted = True
         if emitted:
             # update decoder output
@@ -722,10 +725,12 @@ def greedy_search_batch(
     sorted_ans = [h[context_size:] for h in hyps]
     ans = []
     ans_timestamps = []
+    ans_scores = []
     unsorted_indices = packed_encoder_out.unsorted_indices.tolist()
     for i in range(N):
         ans.append(sorted_ans[unsorted_indices[i]])
         ans_timestamps.append(timestamps[unsorted_indices[i]])
+        ans_scores.append(scores[unsorted_indices[i]])
 
     if not return_timestamps:
         return ans
@@ -733,6 +738,7 @@ def greedy_search_batch(
         return DecodingResults(
             hyps=ans,
             timestamps=ans_timestamps,
+            scores=ans_scores,
         )
 
 
@@ -758,6 +764,9 @@ class Hypothesis:
 
     # N-gram LM state
     state_cost: Optional[NgramLmStateCost] = None
+
+    # Context graph state
+    context_state: Optional[ContextState] = None
 
     @property
     def key(self) -> str:
@@ -911,6 +920,7 @@ def modified_beam_search(
     model: Transducer,
     encoder_out: torch.Tensor,
     encoder_out_lens: torch.Tensor,
+    context_graph: Optional[ContextGraph] = None,
     beam: int = 4,
     temperature: float = 1.0,
     return_timestamps: bool = False,
@@ -962,6 +972,7 @@ def modified_beam_search(
             Hypothesis(
                 ys=[blank_id] * context_size,
                 log_prob=torch.zeros(1, dtype=torch.float32, device=device),
+                context_state=None if context_graph is None else context_graph.root,
                 timestamp=[],
             )
         )
@@ -984,6 +995,7 @@ def modified_beam_search(
         hyps_shape = get_hyps_shape(B).to(device)
 
         A = [list(b) for b in B]
+
         B = [HypothesisList() for _ in range(batch_size)]
 
         ys_log_probs = torch.cat(
@@ -1041,21 +1053,51 @@ def modified_beam_search(
             for k in range(len(topk_hyp_indexes)):
                 hyp_idx = topk_hyp_indexes[k]
                 hyp = A[i][hyp_idx]
-
                 new_ys = hyp.ys[:]
                 new_token = topk_token_indexes[k]
                 new_timestamp = hyp.timestamp[:]
+                context_score = 0
+                new_context_state = None if context_graph is None else hyp.context_state
                 if new_token not in (blank_id, unk_id):
                     new_ys.append(new_token)
                     new_timestamp.append(t)
+                    if context_graph is not None:
+                        (
+                            context_score,
+                            new_context_state,
+                        ) = context_graph.forward_one_step(hyp.context_state, new_token)
 
-                new_log_prob = topk_log_probs[k]
+                new_log_prob = topk_log_probs[k] + context_score
+
                 new_hyp = Hypothesis(
-                    ys=new_ys, log_prob=new_log_prob, timestamp=new_timestamp
+                    ys=new_ys,
+                    log_prob=new_log_prob,
+                    timestamp=new_timestamp,
+                    context_state=new_context_state,
                 )
                 B[i].add(new_hyp)
 
     B = B + finalized_B
+
+    # finalize context_state, if the matched contexts do not reach final state
+    # we need to add the score on the corresponding backoff arc
+    if context_graph is not None:
+        finalized_B = [HypothesisList() for _ in range(len(B))]
+        for i, hyps in enumerate(B):
+            for hyp in list(hyps):
+                context_score, new_context_state = context_graph.finalize(
+                    hyp.context_state
+                )
+                finalized_B[i].add(
+                    Hypothesis(
+                        ys=hyp.ys,
+                        log_prob=hyp.log_prob + context_score,
+                        timestamp=hyp.timestamp,
+                        context_state=new_context_state,
+                    )
+                )
+        B = finalized_B
+
     best_hyps = [b.get_most_probable(length_norm=True) for b in B]
 
     sorted_ans = [h.ys[context_size:] for h in best_hyps]

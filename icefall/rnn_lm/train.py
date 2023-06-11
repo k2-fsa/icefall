@@ -22,6 +22,7 @@ Usage:
         --world-size 2 \
         --num-epochs 1 \
         --use-fp16 0 \
+        --tie-weights 0 \
         --embedding-dim 800 \
         --hidden-dim 200 \
         --num-layers 2 \
