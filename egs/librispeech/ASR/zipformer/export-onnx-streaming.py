@@ -246,7 +246,7 @@ class OnnxEncoder(nn.Module):
             new_processed_lens,
         ]
 
-        return encoder_out, encoder_out_lens, new_states
+        return encoder_out, new_states
 
     def get_init_states(
         self,
@@ -266,7 +266,7 @@ class OnnxEncoder(nn.Module):
         embed_states = self.encoder_embed.get_init_states(batch_size, device)
         states.append(embed_states)
 
-        processed_lens = torch.zeros(batch_size, dtype=torch.int32, device=device)
+        processed_lens = torch.zeros(batch_size, dtype=torch.int64, device=device)
         states.append(processed_lens)
 
         return states
