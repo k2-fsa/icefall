@@ -226,3 +226,5 @@ if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
   gzip data/fbank/tedlium_cuts_test.jsonl
 
 fi
+
+
