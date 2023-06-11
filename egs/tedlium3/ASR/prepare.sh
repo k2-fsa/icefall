@@ -229,18 +229,16 @@ fi
 
 if [ $stage -le 10 ] && [ $stop_stage -ge 10 ]; then
   log "Stage 10: Generate pseudo label"
-  rm -rf $dl_dir/*_texts
   for dest in "test-clean" "test-other"; do
       for spk in $dl_dir/$dest/*; do
           spk_id=${spk#*$dest\/}
           echo $spk_id
           ./pseudo.sh $spk_id $subset
-          #python local/prepare_vox.py $dl_dir/$dest "$spk_id"
       done
   done
 fi
 
-if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
+if [ $stage -le 11 ] && [ $stop_stage -ge 11 ]; then
   log "Stage 6: Prepare LJSpeech manifest"
   # We assume that you have downloaded the LJSpeech corpus (ver 1.1)
   # You need to prepare LJSpeech according to data_settings/*_list.txt like below
