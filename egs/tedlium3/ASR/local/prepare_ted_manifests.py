@@ -74,4 +74,4 @@ def prepare_tedlium(
 
 dl_dir = sys.argv[1]
 output_dir = sys.argv[2]
-prepare_tedlium($dl_dir/tedlium3 data/manifests
+prepare_tedlium(dl_dir, output_dir)
