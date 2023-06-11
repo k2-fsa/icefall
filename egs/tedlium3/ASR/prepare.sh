@@ -236,6 +236,8 @@ if [ $stage -le 10 ] && [ $stop_stage -ge 10 ]; then
   done
 fi
 
+
+: <<'END'
 if [ $stage -le 11 ] && [ $stop_stage -ge 11 ]; then
   log "Stage 6: Prepare LJSpeech manifest"
   # We assume that you have downloaded the LJSpeech corpus (ver 1.1)
@@ -274,4 +276,4 @@ if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
     #touch data/fbank/.vox.done
     fi  
 fi
-
+END
