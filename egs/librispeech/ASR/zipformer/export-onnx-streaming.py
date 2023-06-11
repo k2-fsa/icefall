@@ -414,7 +414,8 @@ def export_encoder_model_onnx(
         "model_type": "zipformer",
         "version": "1",
         "model_author": "k2-fsa",
-        "f": str(decode_chunk_len),  # 32
+        "comment": "zipformer",
+        "decode_chunk_len": str(decode_chunk_len),  # 32
         "T": str(T),  # 32+7+2*3=45
         "num_encoder_layers": num_encoder_layers,
         "encoder_dims": encoder_dims,
@@ -468,14 +469,6 @@ def export_encoder_model_onnx(
             **outputs,
         },
     )
-
-    meta_data = {
-        "model_type": "zipformer",
-        "version": "1",
-        "model_author": "k2-fsa",
-        "comment": "zipformer",
-    }
-    logging.info(f"meta_data: {meta_data}")
 
     add_meta_data(filename=encoder_filename, meta_data=meta_data)
 
