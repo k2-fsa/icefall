@@ -406,17 +406,23 @@ def export_encoder_model_onnx(
     left_context_len = encoder_model.left_context_len
     left_context_len = [left_context_len // k for k in ds]
     left_context_len = ",".join(map(str, left_context_len))
+    query_head_dims = ",".join(map(str, encoder_model.encoder.query_head_dim))
+    value_head_dims = ",".join(map(str, encoder_model.encoder.value_head_dim))
+    num_heads = ",".join(map(str, encoder_model.encoder.num_heads))
 
     meta_data = {
         "model_type": "zipformer",
         "version": "1",
         "model_author": "k2-fsa",
-        "decode_chunk_len": str(decode_chunk_len),  # 32
+        "f": str(decode_chunk_len),  # 32
         "T": str(T),  # 32+7+2*3=45
         "num_encoder_layers": num_encoder_layers,
         "encoder_dims": encoder_dims,
         "cnn_module_kernels": cnn_module_kernels,
         "left_context_len": left_context_len,
+        "query_head_dims": query_head_dims,
+        "value_head_dims": value_head_dims,
+        "num_heads": num_heads,
     }
     logging.info(f"meta_data: {meta_data}")
 
