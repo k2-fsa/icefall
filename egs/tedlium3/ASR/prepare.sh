@@ -86,7 +86,7 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
     # to $dl_dir/tedlium3
     mkdir -p data/manifests
     #lhotse prepare tedlium $dl_dir/tedlium3 data/manifests
-	python local/prepare_ted.py $dl_dir/tedlium3 data/manifests
+	python local/prepare_ted_manifest.py $dl_dir/tedlium3 data/manifests
     touch data/manifests/.tedlium3.done
   fi
 fi
