@@ -75,5 +75,4 @@ def prepare_tedlium(
 
 dl_dir = sys.argv[1]
 output_dir = sys.argv[2]
-subset = sys.argv[3]
 prepare_tedlium(dl_dir, output_dir)
