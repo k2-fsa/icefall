@@ -25,7 +25,6 @@ The generated fbank features are saved in data/fbank.
 
 import logging
 from pathlib import Path
-from typing import Optional
 
 import torch
 from lhotse import CutSet, LilcomChunkyWriter
@@ -43,17 +42,17 @@ from lhotse.recipes.utils import read_manifests_if_cached
 # even when we are not invoking the main (e.g. when spawning subprocesses).
 torch.set_num_threads(1)
 torch.set_num_interop_threads(1)
+torch.multiprocessing.set_sharing_strategy("file_system")
 
 
-def compute_fbank_librispeech(bpe_model: Optional[str] = None):
+def compute_fbank_librispeech():
     src_dir = Path("data/manifests")
     output_dir = Path("data/fbank")
     num_mel_bins = 80
 
     dataset_parts = (
-        # "dev-clean",
-        # "train-clean-100",
-        # "train-clean-360",
+        "train-clean-100",
+        "train-clean-360",
         "train-other-500",
     )
     prefix = "librispeech"
@@ -92,8 +91,7 @@ def compute_fbank_librispeech(bpe_model: Optional[str] = None):
             supervisions=m["supervisions"],
         )
 
-        if "train" in partition:
-            cut_set = cut_set + cut_set.perturb_speed(0.9) + cut_set.perturb_speed(1.1)
+        cut_set = cut_set + cut_set.perturb_speed(0.9) + cut_set.perturb_speed(1.1)
 
         cut_set = cut_set.compute_and_store_features_batch(
             extractor=extractor,

@@ -25,6 +25,7 @@ The generated fbank features are saved in data/fbank.
 import logging
 from pathlib import Path
 
+import pyloudnorm as pyln
 import torch
 import torch.multiprocessing
 from lhotse import LilcomChunkyWriter, load_manifest_lazy
@@ -68,6 +69,11 @@ def compute_fbank_libricss():
     for name, cuts in [("ihm-mix", cuts_ihm_mix), ("sdm", cuts_sdm)]:
         dev_cuts = cuts.filter(lambda c: "session0" in c.id)
         test_cuts = cuts.filter(lambda c: "session0" not in c.id)
+
+        # If SDM cuts, apply loudness normalization
+        if name == "sdm":
+            dev_cuts = dev_cuts.normalize_loudness(target=-23.0)
+            test_cuts = test_cuts.normalize_loudness(target=-23.0)
 
         logging.info(f"Extracting fbank features for {name} dev cuts")
         _ = dev_cuts.compute_and_store_features_batch(

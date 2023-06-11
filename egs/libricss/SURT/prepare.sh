@@ -4,7 +4,6 @@ set -eou pipefail
 
 stage=-1
 stop_stage=100
-use_gss=true  # Use GSS-based enhancement with MDM setting
 
 # We assume dl_dir (download dir) contains the following
 # directories and files. If not, they will be downloaded
@@ -24,8 +23,10 @@ use_gss=true  # Use GSS-based enhancement with MDM setting
 #     - noise
 #     - speech
 #
+#  - $dl_dir/rirs_noises
+#      This directory contains the RIRS_NOISES corpus downloaded from https://openslr.org/28/.
+#
 dl_dir=$PWD/download
-cmd="queue-freegpu.pl --config conf/gpu.conf --gpu 1 --mem 4G"
 
 . shared/parse_options.sh || exit 1
 
@@ -71,6 +72,15 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   if [ ! -d $dl_dir/musan ]; then
     lhotse download musan $dl_dir
   fi
+
+  # If you have pre-downloaded it to /path/to/rirs_noises,
+  # you can create a symlink
+  #
+  #   ln -sfv /path/to/rirs_noises $dl_dir/
+  #
+  if [ ! -d $dl_dir/rirs_noises ]; then
+    lhotse download rirs_noises $dl_dir
+  fi
 fi
 
 if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
@@ -94,123 +104,101 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
 fi
 
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
-  log "Stage 3: Prepare musan manifest"
+  log "Stage 3: Prepare musan manifest and RIRs"
   # We assume that you have downloaded the musan corpus
   # to $dl_dir/musan
   mkdir -p data/manifests
   lhotse prepare musan $dl_dir/musan data/manifests
+
+  # We assume that you have downloaded the RIRS_NOISES corpus
+  # to $dl_dir/rirs_noises
+  lhotse prepare rir-noise -p real_rir -p iso_noise $dl_dir/rirs_noises data/manifests
 fi
 
 if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
   log "Stage 4: Extract features for LibriSpeech, trim to alignments, and shuffle the cuts"
-  $cmd exp/extract_libri_fbank.log python local/compute_fbank_librispeech.py
+  python local/compute_fbank_librispeech.py
   lhotse combine data/manifests/librispeech_cuts_train* - |\
     lhotse cut trim-to-alignments --type word --max-pause 0.2 - - |\
     shuf | gzip -c > data/manifests/librispeech_cuts_train_trimmed.jsonl.gz
-  lhotse cut trim-to-alignments --type word --max-pause 0.2 data/manifests/librispeech_cuts_dev-clean.jsonl.gz - |\
-    shuf | gzip -c > data/manifests/librispeech_cuts_dev_trimmed.jsonl.gz
 fi
 
 if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   log "Stage 5: Create simulated mixtures from LibriSpeech (train and dev). This may take a while."
-  # We create a 2-speaker set which will be used during the model warmup phase, and a
-  # full training set (2,3,4 speakers) that will be used for the subsequent training.
-  # We create anechoic and reverberant versions of both sets. For the full set, we compute
-  # silence and overlap distributions based on LibriCSS sessions (no 0L).
-
-  sim_cmd="queue.pl --mem 16G -l 'num_proc=4,h_rt=600:00:00'"
+  # We create a high overlap set which will be used during the model warmup phase, and a
+  # full training set that will be used for the subsequent training.
 
   gunzip -c data/manifests/libricss-sdm_supervisions_all.jsonl.gz |\
     grep -v "0L" | grep -v "OV10" |\
     gzip -c > data/manifests/libricss-sdm_supervisions_all_v1.jsonl.gz
 
-  # 2-speaker anechoic
-  # log "Generating 2-speaker anechoic training set"
-  # $sim_cmd exp/sim_train_2spk.log lhotse workflows simulate-meetings \
-  #   --method conversational \
-  #   --prob-diff-spk-overlap 1.0 \
-  #   --num-meetings 50000 \
-  #   --num-speakers-per-meeting 2 \
-  #   --max-duration-per-speaker 20.0 \
-  #   --max-utterances-per-speaker 1 \
-  #   --seed 1234 \
-  #   --num-jobs 4 \
-  #   data/manifests/librispeech_cuts_train_trimmed.jsonl.gz \
-  #   data/manifests/libri-mix_cuts_train_2spk_norvb.jsonl.gz
+  gunzip -c data/manifests/libricss-sdm_supervisions_all.jsonl.gz |\
+    grep "OV40" |\
+    gzip -c > data/manifests/libricss-sdm_supervisions_ov40.jsonl.gz
 
-  # 2-speaker reverberant
-  # log "Generating 2-speaker reverberant training set"
-  # lhotse workflows simulate-meetings \
-  #   --method conversational \
-  #   --prob-diff-spk-overlap 1.0 \
-  #   --num-meetings 50000 \
-  #   --num-speakers-per-meeting 2 \
-  #   --max-duration-per-speaker 20.0 \
-  #   --max-utterances-per-speaker 1 \
-  #   --seed 1234 \
-  #   --reverberate \
-  #   --num-jobs 4 \
-  #   data/manifests/librispeech_cuts_train_trimmed.jsonl.gz \
-  #   data/manifests/libri-mix_cuts_train_2spk_rvb.jsonl.gz
+  # Warmup mixtures (100k) based on high overlap (OV40)
+  log "Generating 100k anechoic train mixtures for warmup"
+  lhotse workflows simulate-meetings \
+    --method conversational \
+    --fit-to-supervisions data/manifests/libricss-sdm_supervisions_ov40.jsonl.gz \
+    --num-meetings 100000 \
+    --num-speakers-per-meeting 2,3 \
+    --max-duration-per-speaker 15.0 \
+    --max-utterances-per-speaker 3 \
+    --seed 1234 \
+    --num-jobs 4 \
+    data/manifests/librispeech_cuts_train_trimmed.jsonl.gz \
+    data/manifests/lsmix_cuts_train_clean_ov40.jsonl.gz
 
   # Full training set (2,3 speakers) anechoic
-  for part in dev train; do
-    if [ $part == "dev" ]; then
-      num_jobs=1
-    else
-      num_jobs=4
-    fi
-    log "Generating anechoic ${part} set (full)"
-    $sim_cmd exp/sim_${part}.log lhotse workflows simulate-meetings \
-      --method conversational \
-      --fit-to-supervisions data/manifests/libricss-sdm_supervisions_all_v1.jsonl.gz \
-      --num-repeats 1 \
-      --num-speakers-per-meeting 2,3 \
-      --max-duration-per-speaker 15.0 \
-      --max-utterances-per-speaker 3 \
-      --seed 1234 \
-      --num-jobs ${num_jobs} \
-      data/manifests/librispeech_cuts_${part}_trimmed.jsonl.gz \
-      data/manifests/libri-mix_cuts_${part}_norvb_v1.jsonl.gz
-  done
-
-  # Full training set (2,3,4 speakers) reverberant
-  # for part in dev train; do
-  #   log "Generating reverberant ${part} set (full)" ``
-  #   lhotse workflows simulate-meetings \
-  #     --method conversational \
-  #     --num-repeats 1 \
-  #     --num-speakers-per-meeting 2,3,4 \
-  #     --max-duration-per-speaker 20.0 \
-  #     --max-utterances-per-speaker 5 \
-  #     --seed 1234 \
-  #     --reverberate \
-  #     data/manifests/librispeech_cuts_${part}_trimmed.jsonl.gz \
-  #     data/manifests/libri-mix_cuts_${part}_rvb.jsonl.gz
-  # done
+  log "Generating anechoic ${part} set (full)"
+  lhotse workflows simulate-meetings \
+    --method conversational \
+    --fit-to-supervisions data/manifests/libricss-sdm_supervisions_all_v1.jsonl.gz \
+    --num-repeats 1 \
+    --num-speakers-per-meeting 2,3 \
+    --max-duration-per-speaker 15.0 \
+    --max-utterances-per-speaker 3 \
+    --seed 1234 \
+    --num-jobs 4 \
+    data/manifests/librispeech_cuts_train_trimmed.jsonl.gz \
+    data/manifests/lsmix_cuts_train_clean_full.jsonl.gz
 fi
 
 if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
   log "Stage 6: Compute fbank features for musan"
   mkdir -p data/fbank
-  $cmd exp/feats_musan.log python local/compute_fbank_musan.py
+  python local/compute_fbank_musan.py
 fi
 
 if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
   log "Stage 7: Compute fbank features for simulated Libri-mix"
   mkdir -p data/fbank
-  $cmd exp/feats_librimix_norvb_v1.log python local/compute_fbank_librimix.py
+  python local/compute_fbank_lsmix.py
 fi
 
 if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
-  log "Stage 8: Compute fbank features for LibriCSS"
-  mkdir -p data/fbank
-  $cmd exp/feats_libricss.log python local/compute_fbank_libricss.py
+  log "Stage 8: Add source feats to mixtures (useful for auxiliary tasks)"
+  python local/add_source_feats.py
+
+  log "Combining lsmix-clean and lsmix-rvb"
+  for type in full ov40; do
+    cat <(gunzip -c data/manifests/cuts_train_clean_${type}_sources.jsonl.gz) \
+      <(gunzip -c data/manifests/cuts_train_rvb_${type}_sources.jsonl.gz) |\
+      shuf | gzip -c > data/manifests/cuts_train_${type}_sources.jsonl.gz
+  done
 fi
 
 if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
-  log "Stage 9: Download LibriSpeech BPE model from HuggingFace."
-  mkdir -p data/lang_bpe_500 && pushd data/lang_bpe_500
+  log "Stage 9: Compute fbank features for LibriCSS"
+  mkdir -p data/fbank
+  python local/compute_fbank_libricss.py
+fi
+
+if [ $stage -le 10 ] && [ $stop_stage -ge 10 ]; then
+  log "Stage 10: Download LibriSpeech BPE model from HuggingFace."
+  mkdir -p data/lang_bpe_500
+  pushd data/lang_bpe_500
   wget https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/resolve/main/data/lang_bpe_500/bpe.model
   popd
 fi
