@@ -1,3 +1,4 @@
+import sys
 import logging
 import shutil
 import tarfile
@@ -71,3 +72,6 @@ def prepare_tedlium(
 
     return corpus
 
+dl_dir = sys.argv[1]
+output_dir = sys.argv[2]
+prepare_tedlium($dl_dir/tedlium3 data/manifests
