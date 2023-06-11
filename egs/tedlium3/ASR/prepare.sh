@@ -229,12 +229,10 @@ fi
 
 if [ $stage -le 10 ] && [ $stop_stage -ge 10 ]; then
   log "Stage 10: Generate pseudo label"
-  for dest in "test-clean" "test-other"; do
-      for spk in $dl_dir/$dest/*; do
-          spk_id=${spk#*$dest\/}
-          echo $spk_id
-          ./pseudo.sh $spk_id $subset
-      done
+  for spk in {0..10}; do
+	  spk_id=${spk#*$dest\/}
+	  echo $spk_id
+	  ./pseudo.sh $spk_id $subset
   done
 fi
 
