@@ -227,4 +227,55 @@ if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
 
 fi
 
+if [ $stage -le 10 ] && [ $stop_stage -ge 10 ]; then
+  log "Stage 10: Generate pseudo label"
+  rm -rf $dl_dir/*_texts
+  for dest in "test-clean" "test-other"; do
+      for spk in $dl_dir/$dest/*; do
+          spk_id=${spk#*$dest\/}
+          echo $spk_id
+          ./pseudo.sh $spk_id $subset
+          #python local/prepare_vox.py $dl_dir/$dest "$spk_id"
+      done
+  done
+fi
+
+if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
+  log "Stage 6: Prepare LJSpeech manifest"
+  # We assume that you have downloaded the LJSpeech corpus (ver 1.1)
+  # You need to prepare LJSpeech according to data_settings/*_list.txt like below
+  # $dl_dir/LJSpeech
+  # |-- wavs
+  # |   |-- train
+  # |   |-- dev
+  # |   |-- test
+  # |-- texts
+  # |-- metadata.csv
+
+  mkdir -p data/manifests
+  if [ ! -e data/manifests/.vox.done ]; then
+    for dest in "test-clean" "test-other"; do
+        for spk in $dl_dir/$dest/*; do
+            spk_id=${spk#*$dest\/}
+            python local/prepare_vox.py $dl_dir/$dest "$spk_id" $subset
+        done
+    done
+    #touch data/manifests/.vox.done
+  fi  
+fi
+
+if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
+    log "Stage 7: Re-Compute fbank for Vox"
+    mkdir -p data/fbank
+    rm -rf data/fbank/"$subset"*
+    if [ ! -e data/fbank/.LJSpeech.done ]; then
+        for dest in "test-clean" "test-other"; do
+            for spk in $dl_dir/$dest/*; do
+                spk_id=${spk#*$dest\/}
+                ./local/compute_fbank_vox.py --data-dir $spk --spk-id $spk_id --speed true --prefix $subset
+            done
+        done
+    #touch data/fbank/.vox.done
+    fi  
+fi
 
