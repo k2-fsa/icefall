@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 #
 # Copyright 2023 Xiaomi Corporation (Author: Fangjun Kuang)
+# Copyright 2023 Danqing Fu (danqing.fu@gmail.com)
 
 """
 This script exports a transducer model from PyTorch to ONNX.
@@ -178,7 +179,9 @@ def add_meta_data(filename: str, meta_data: Dict[str, str]):
 class OnnxEncoder(nn.Module):
     """A wrapper for Zipformer and the encoder_proj from the joiner"""
 
-    def __init__(self, encoder: Zipformer2, encoder_embed: nn.Module, encoder_proj: nn.Linear):
+    def __init__(
+        self, encoder: Zipformer2, encoder_embed: nn.Module, encoder_proj: nn.Linear
+    ):
         """
         Args:
           encoder:
@@ -315,10 +318,10 @@ def export_encoder_model_onnx(
     )
 
     meta_data = {
-        "model_type": "zipformer",
+        "model_type": "zipformer2",
         "version": "1",
         "model_author": "k2-fsa",
-        "comment": "zipformer",
+        "comment": "non-streaming zipformer2",
     }
     logging.info(f"meta_data: {meta_data}")
 

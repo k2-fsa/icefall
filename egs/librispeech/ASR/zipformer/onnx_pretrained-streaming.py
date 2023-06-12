@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # Copyright      2023  Xiaomi Corp.        (authors: Fangjun Kuang)
+# Copyright      2023  Danqing Fu (danqing.fu@gmail.com)
 
 """
 This script loads ONNX models exported by ./export-onnx-streaming.py
@@ -47,8 +48,8 @@ popd
   --decoder-dim 512 \
   --joiner-dim 512 \
   --causal True \
-  --chunk-size "16,32,64,-1" \
-  --left-context-frames "64,128,256,-1"
+  --chunk-size 16 \
+  --left-context-frames 64
 
 It will generate the following 3 files inside $repo/exp:
 
@@ -154,7 +155,7 @@ class OnnxModel:
         logging.info(f"encoder_meta={encoder_meta}")
 
         model_type = encoder_meta["model_type"]
-        assert model_type == "zipformer", model_type
+        assert model_type == "zipformer2", model_type
 
         decode_chunk_len = int(encoder_meta["decode_chunk_len"])
         T = int(encoder_meta["T"])
@@ -200,16 +201,31 @@ class OnnxModel:
             conv_left_pad = cnn_module_kernels[i] // 2
 
             for layer in range(num_layers):
-                cached_key = torch.zeros(left_context_len[i], batch_size, key_dim)
-                cached_nonlin_attn = torch.zeros(1, batch_size, left_context_len[i], nonlin_attn_head_dim)
-                cached_val1 = torch.zeros(left_context_len[i], batch_size, value_dim)
-                cached_val2 = torch.zeros(left_context_len[i], batch_size, value_dim)
-                cached_conv1 = torch.zeros(batch_size, embed_dim, conv_left_pad)
-                cached_conv2 = torch.zeros(batch_size, embed_dim, conv_left_pad)
-                self.states += [cached_key, cached_nonlin_attn, cached_val1, cached_val2, cached_conv1, cached_conv2]
-        embed_states = torch.zeros(batch_size, 128, 3, 19)
+                cached_key = torch.zeros(
+                    left_context_len[i], batch_size, key_dim
+                ).numpy()
+                cached_nonlin_attn = torch.zeros(
+                    1, batch_size, left_context_len[i], nonlin_attn_head_dim
+                ).numpy()
+                cached_val1 = torch.zeros(
+                    left_context_len[i], batch_size, value_dim
+                ).numpy()
+                cached_val2 = torch.zeros(
+                    left_context_len[i], batch_size, value_dim
+                ).numpy()
+                cached_conv1 = torch.zeros(batch_size, embed_dim, conv_left_pad).numpy()
+                cached_conv2 = torch.zeros(batch_size, embed_dim, conv_left_pad).numpy()
+                self.states += [
+                    cached_key,
+                    cached_nonlin_attn,
+                    cached_val1,
+                    cached_val2,
+                    cached_conv1,
+                    cached_conv2,
+                ]
+        embed_states = torch.zeros(batch_size, 128, 3, 19).numpy()
         self.states.append(embed_states)
-        processed_lens = torch.zeros(batch_size, dtype=torch.int64)
+        processed_lens = torch.zeros(batch_size, dtype=torch.int64).numpy()
         self.states.append(processed_lens)
 
         self.num_encoders = num_encoders
@@ -252,48 +268,48 @@ class OnnxModel:
             assert len(tensors) == 6, len(tensors)
 
             # (downsample_left, batch_size, key_dim)
-            name = f'cached_key_{i}'
-            encoder_input[f"{name}"] = tensors[0].numpy() if isinstance(tensors[0], torch.Tensor) else tensors[0]
+            name = f"cached_key_{i}"
+            encoder_input[name] = tensors[0]
             encoder_output.append(f"new_{name}")
 
             # (1, batch_size, downsample_left, nonlin_attn_head_dim)
-            name = f'cached_nonlin_attn_{i}'
-            encoder_input[f"{name}"] = tensors[1].numpy() if isinstance(tensors[1], torch.Tensor) else tensors[1]
+            name = f"cached_nonlin_attn_{i}"
+            encoder_input[name] = tensors[1]
             encoder_output.append(f"new_{name}")
 
             # (downsample_left, batch_size, value_dim)
-            name = f'cached_val1_{i}'
-            encoder_input[f"{name}"] = tensors[2].numpy() if isinstance(tensors[2], torch.Tensor) else tensors[2]
+            name = f"cached_val1_{i}"
+            encoder_input[name] = tensors[2]
             encoder_output.append(f"new_{name}")
 
             # (downsample_left, batch_size, value_dim)
-            name = f'cached_val2_{i}'
-            encoder_input[f"{name}"] = tensors[3].numpy() if isinstance(tensors[3], torch.Tensor) else tensors[3]
+            name = f"cached_val2_{i}"
+            encoder_input[name] = tensors[3]
             encoder_output.append(f"new_{name}")
 
             # (batch_size, embed_dim, conv_left_pad)
-            name = f'cached_conv1_{i}'
-            encoder_input[f"{name}"] = tensors[4].numpy() if isinstance(tensors[4], torch.Tensor) else tensors[4]
+            name = f"cached_conv1_{i}"
+            encoder_input[name] = tensors[4]
             encoder_output.append(f"new_{name}")
 
             # (batch_size, embed_dim, conv_left_pad)
-            name = f'cached_conv2_{i}'
-            encoder_input[f"{name}"] = tensors[5].numpy() if isinstance(tensors[5], torch.Tensor) else tensors[5]
+            name = f"cached_conv2_{i}"
+            encoder_input[name] = tensors[5]
             encoder_output.append(f"new_{name}")
 
         for i in range(len(self.states[:-2]) // 6):
-            build_inputs_outputs(self.states[i*6:(i+1)*6], i)
+            build_inputs_outputs(self.states[i * 6 : (i + 1) * 6], i)
 
         # (batch_size, channels, left_pad, freq)
-        name = f'embed_states'
+        name = "embed_states"
         embed_states = self.states[-2]
-        encoder_input[f"{name}"] = embed_states.numpy() if isinstance(embed_states, torch.Tensor) else embed_states
+        encoder_input[name] = embed_states
         encoder_output.append(f"new_{name}")
 
         # (batch_size,)
-        name = f'processed_lens'
+        name = "processed_lens"
         processed_lens = self.states[-1]
-        encoder_input[f"{name}"] = processed_lens.numpy() if isinstance(processed_lens, torch.Tensor) else processed_lens 
+        encoder_input[name] = processed_lens
         encoder_output.append(f"new_{name}")
 
         return encoder_input, encoder_output
