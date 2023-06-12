@@ -88,7 +88,7 @@ from icefall.utils import (
     filter_uneven_sized_batch,
     setup_logger,
     str2bool,
-    symlink_or_copyfile,
+    symlink_or_copy,
 )
 
 LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
@@ -616,12 +616,12 @@ def save_checkpoint(
     )
 
     if params.best_train_epoch == params.cur_epoch:
-        symlink_or_copyfile(
+        symlink_or_copy(
             exp_dir=params.exp_dir, src=epoch_basename, dst="best-train-loss.pt"
         )
 
     if params.best_valid_epoch == params.cur_epoch:
-        symlink_or_copyfile(
+        symlink_or_copy(
             exp_dir=params.exp_dir, src=epoch_basename, dst="best-valid-loss.pt"
         )
 
