@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 #
 # Copyright 2023 Xiaomi Corporation (Author: Fangjun Kuang)
+# Copyright 2023 Danqing Fu (danqing.fu@gmail.com)
 
 """
 This script exports a transducer model from PyTorch to ONNX.
@@ -47,8 +48,12 @@ popd
   --decoder-dim 512 \
   --joiner-dim 512 \
   --causal True \
-  --chunk-size "16,32,64,-1" \
-  --left-context-frames "64,128,256,-1"
+  --chunk-size 16 \
+  --left-context-frames 64
+
+The --chunk-size in training is "16,32,64,-1", so we select one of them
+(excluding -1) during streaming export. The same applies to `--left-context`,
+whose value is "64,128,256,-1".
 
 It will generate the following 3 files inside $repo/exp:
 
@@ -176,7 +181,9 @@ def add_meta_data(filename: str, meta_data: Dict[str, str]):
 class OnnxEncoder(nn.Module):
     """A wrapper for Zipformer and the encoder_proj from the joiner"""
 
-    def __init__(self, encoder: Zipformer2, encoder_embed: nn.Module, encoder_proj: nn.Linear):
+    def __init__(
+        self, encoder: Zipformer2, encoder_embed: nn.Module, encoder_proj: nn.Linear
+    ):
         """
         Args:
           encoder:
@@ -335,7 +342,7 @@ def export_encoder_model_onnx(
     # The encoder_embed subsample features (T - 7) // 2
     # The ConvNeXt module needs (7 - 1) // 2 = 3 frames of right padding after subsampling
     T = decode_chunk_len + encoder_model.pad_length
-    
+
     x = torch.rand(1, T, 80, dtype=torch.float32)
     init_state = encoder_model.get_init_states()
     num_encoders = len(encoder_model.encoder.encoder_dim)
@@ -347,57 +354,57 @@ def export_encoder_model_onnx(
 
     outputs = {}
     output_names = ["encoder_out"]
+
     def build_inputs_outputs(tensors, i):
         assert len(tensors) == 6, len(tensors)
 
         # (downsample_left, batch_size, key_dim)
-        name = f'cached_key_{i}'
+        name = f"cached_key_{i}"
         logging.info(f"{name}.shape: {tensors[0].shape}")
-        inputs[f"{name}"] = {1: "N"}
+        inputs[name] = {1: "N"}
         outputs[f"new_{name}"] = {1: "N"}
-        input_names.append(f"{name}")
+        input_names.append(name)
         output_names.append(f"new_{name}")
 
         # (1, batch_size, downsample_left, nonlin_attn_head_dim)
-        name = f'cached_nonlin_attn_{i}'
+        name = f"cached_nonlin_attn_{i}"
         logging.info(f"{name}.shape: {tensors[1].shape}")
-        inputs[f"{name}"] = {1: "N"}
+        inputs[name] = {1: "N"}
         outputs[f"new_{name}"] = {1: "N"}
-        input_names.append(f"{name}")
+        input_names.append(name)
         output_names.append(f"new_{name}")
 
         # (downsample_left, batch_size, value_dim)
-        name = f'cached_val1_{i}'
+        name = f"cached_val1_{i}"
         logging.info(f"{name}.shape: {tensors[2].shape}")
-        inputs[f"{name}"] = {1: "N"}
+        inputs[name] = {1: "N"}
         outputs[f"new_{name}"] = {1: "N"}
-        input_names.append(f"{name}")
+        input_names.append(name)
         output_names.append(f"new_{name}")
 
         # (downsample_left, batch_size, value_dim)
-        name = f'cached_val2_{i}'
+        name = f"cached_val2_{i}"
         logging.info(f"{name}.shape: {tensors[3].shape}")
-        inputs[f"{name}"] = {1: "N"}
+        inputs[name] = {1: "N"}
         outputs[f"new_{name}"] = {1: "N"}
-        input_names.append(f"{name}")
+        input_names.append(name)
         output_names.append(f"new_{name}")
 
         # (batch_size, embed_dim, conv_left_pad)
-        name = f'cached_conv1_{i}'
+        name = f"cached_conv1_{i}"
         logging.info(f"{name}.shape: {tensors[4].shape}")
-        inputs[f"{name}"] = {0: "N"}
+        inputs[name] = {0: "N"}
         outputs[f"new_{name}"] = {0: "N"}
-        input_names.append(f"{name}")
+        input_names.append(name)
         output_names.append(f"new_{name}")
 
         # (batch_size, embed_dim, conv_left_pad)
-        name = f'cached_conv2_{i}'
+        name = f"cached_conv2_{i}"
         logging.info(f"{name}.shape: {tensors[5].shape}")
-        inputs[f"{name}"] = {0: "N"}
+        inputs[name] = {0: "N"}
         outputs[f"new_{name}"] = {0: "N"}
-        input_names.append(f"{name}")
+        input_names.append(name)
         output_names.append(f"new_{name}")
-
 
     num_encoder_layers = ",".join(map(str, encoder_model.encoder.num_encoder_layers))
     encoder_dims = ",".join(map(str, encoder_model.encoder.encoder_dim))
@@ -411,10 +418,10 @@ def export_encoder_model_onnx(
     num_heads = ",".join(map(str, encoder_model.encoder.num_heads))
 
     meta_data = {
-        "model_type": "zipformer",
+        "model_type": "zipformer2",
         "version": "1",
         "model_author": "k2-fsa",
-        "comment": "zipformer",
+        "comment": "streaming zipformer2",
         "decode_chunk_len": str(decode_chunk_len),  # 32
         "T": str(T),  # 32+7+2*3=45
         "num_encoder_layers": num_encoder_layers,
@@ -428,25 +435,24 @@ def export_encoder_model_onnx(
     logging.info(f"meta_data: {meta_data}")
 
     for i in range(len(init_state[:-2]) // 6):
-        build_inputs_outputs(init_state[i*6:(i+1)*6], i)
-
+        build_inputs_outputs(init_state[i * 6 : (i + 1) * 6], i)
 
     # (batch_size, channels, left_pad, freq)
     embed_states = init_state[-2]
-    name = f'embed_states'
+    name = "embed_states"
     logging.info(f"{name}.shape: {embed_states.shape}")
-    inputs[f"{name}"] = {0: "N"}
+    inputs[name] = {0: "N"}
     outputs[f"new_{name}"] = {0: "N"}
-    input_names.append(f"{name}")
+    input_names.append(name)
     output_names.append(f"new_{name}")
 
     # (batch_size,)
     processed_lens = init_state[-1]
-    name = f'processed_lens'
+    name = "processed_lens"
     logging.info(f"{name}.shape: {processed_lens.shape}")
-    inputs[f"{name}"] = {0: "N"}
+    inputs[name] = {0: "N"}
     outputs[f"new_{name}"] = {0: "N"}
-    input_names.append(f"{name}")
+    input_names.append(name)
     output_names.append(f"new_{name}")
 
     logging.info(inputs)
