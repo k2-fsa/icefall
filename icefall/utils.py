@@ -28,6 +28,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from shutil import copyfile
 from typing import Dict, Iterable, List, Optional, TextIO, Tuple, Union
 
 import k2
@@ -1881,3 +1882,20 @@ def is_cjk(character):
             ]
         ]
     )
+
+
+def symlink_or_copy(exp_dir: Path, src: str, dst: str):
+    """
+    In the experiment directory, create a symlink pointing to src named dst.
+    If symlink creation fails (Windows?), fall back to copyfile."""
+
+    dir_fd = os.open(exp_dir, os.O_RDONLY)
+    try:
+        os.remove(dst, dir_fd=dir_fd)
+    except FileNotFoundError:
+        pass
+    try:
+        os.symlink(src=src, dst=dst, dir_fd=dir_fd)
+    except OSError:
+        copyfile(src=exp_dir / src, dst=exp_dir / dst)
+    os.close(dir_fd)
