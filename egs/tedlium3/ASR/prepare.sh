@@ -55,7 +55,7 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   # If you have pre-downloaded it to /path/to/tedlium3,
   # you can create a symlink
   #
-  # ln -sfv /path/to/tedlium3 $dl_dir/tedlium3
+  # ln -sfv $dl_dir/TEDLIUM_release-3 $dl_dir/tedlium3
   #
   if [ ! -d $dl_dir/tedlium3 ]; then
     lhotse download tedlium $dl_dir

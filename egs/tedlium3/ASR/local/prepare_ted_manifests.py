@@ -12,7 +12,20 @@ from lhotse import (
     SupervisionSet,
     validate_recordings_and_supervisions,
 )
-from lhotse.utils import Pathlike, safe_extract, urlretrieve_progress
+from lhotse.utils import Pathlike, safe_extract
+
+def urlretrieve_progress(url, filename=None, data=None, desc=None):
+    """
+    Works exactly like urllib.request.urlretrieve, but attaches a tqdm hook to
+    display a progress bar of the download.
+    Use "desc" argument to display a user-readable string that informs what is
+    being downloaded.
+    """
+    from urllib.request import urlretrieve
+
+    with tqdm(unit="B", unit_scale=True, unit_divisor=1024, miniters=1, desc=desc) as t:
+        reporthook = tqdm_urlretrieve_hook(t)
+        return urlretrieve(url=url, filename=filename, reporthook=reporthook, data=data)
 
 def prepare_tedlium(
     tedlium_root: Pathlike, output_dir: Optional[Pathlike] = None
