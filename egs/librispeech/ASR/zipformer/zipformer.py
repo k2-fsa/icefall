@@ -133,6 +133,7 @@ class Zipformer2(EncoderInterface):
         self.encoder_dim = encoder_dim = _to_tuple(encoder_dim) # tuple
         self.encoder_unmasked_dim = encoder_unmasked_dim = _to_tuple(encoder_unmasked_dim) # tuple
         num_encoder_layers = _to_tuple(num_encoder_layers)
+        self.num_encoder_layers = num_encoder_layers
         self.query_head_dim = query_head_dim = _to_tuple(query_head_dim)
         self.value_head_dim = value_head_dim = _to_tuple(value_head_dim)
         pos_head_dim = _to_tuple(pos_head_dim)
@@ -258,7 +259,7 @@ class Zipformer2(EncoderInterface):
         if not self.causal:
             return -1, -1
 
-        if torch.jit.is_scripting():
+        if torch.jit.is_scripting() or torch.jit.is_tracing():
             assert len(self.chunk_size) == 1, self.chunk_size
             chunk_size = self.chunk_size[0]
         else:
@@ -267,7 +268,7 @@ class Zipformer2(EncoderInterface):
         if chunk_size == -1:
             left_context_chunks = -1
         else:
-            if torch.jit.is_scripting():
+            if torch.jit.is_scripting() or torch.jit.is_tracing():
                 assert len(self.left_context_frames) == 1, self.left_context_frames
                 left_context_frames = self.left_context_frames[0]
             else:
@@ -301,14 +302,14 @@ class Zipformer2(EncoderInterface):
               of frames in `embeddings` before padding.
         """
         outputs = []
-        if torch.jit.is_scripting():
+        if torch.jit.is_scripting() or torch.jit.is_tracing():
             feature_masks = [1.0] * len(self.encoder_dim)
         else:
             feature_masks = self.get_feature_masks(x)
 
         chunk_size, left_context_chunks = self.get_chunk_info()
 
-        if torch.jit.is_scripting():
+        if torch.jit.is_scripting() or torch.jit.is_tracing():
             # Not support exporting a model for simulating streaming decoding
             attn_mask = None
         else:
@@ -334,7 +335,7 @@ class Zipformer2(EncoderInterface):
         x = self.downsample_output(x)
         # class Downsample has this rounding behavior..
         assert self.output_downsampling_factor == 2
-        if torch.jit.is_scripting():
+        if torch.jit.is_scripting() or torch.jit.is_tracing():
             lengths = (x_lens + 1) // 2
         else:
             with warnings.catch_warnings():
@@ -372,7 +373,7 @@ class Zipformer2(EncoderInterface):
         # t is frame index, shape (seq_len,)
         t = torch.arange(seq_len, dtype=torch.int32, device=x.device)
         # c is chunk index for each frame, shape (seq_len,)
-        if torch.jit.is_scripting():
+        if torch.jit.is_scripting() or torch.jit.is_tracing():
             c = t // chunk_size
         else:
             with warnings.catch_warnings():
@@ -650,7 +651,7 @@ class Zipformer2EncoderLayer(nn.Module):
         )
 
     def get_sequence_dropout_mask(self, x: Tensor, dropout_rate: float) -> Optional[Tensor]:
-        if dropout_rate == 0.0 or not self.training or torch.jit.is_scripting():
+        if dropout_rate == 0.0 or not self.training or torch.jit.is_scripting() or torch.jit.is_tracing():
             return None
         batch_size = x.shape[1]
         mask = (torch.rand(batch_size, 1, device=x.device) > dropout_rate).to(x.dtype)
@@ -695,7 +696,7 @@ class Zipformer2EncoderLayer(nn.Module):
         src_orig = src
 
         # dropout rate for non-feedforward submodules
-        if torch.jit.is_scripting():
+        if torch.jit.is_scripting() or torch.jit.is_tracing():
             attention_skip_rate = 0.0
         else:
             attention_skip_rate = float(self.attention_skip_rate) if self.training else 0.0
@@ -713,7 +714,7 @@ class Zipformer2EncoderLayer(nn.Module):
         self_attn_dropout_mask = self.get_sequence_dropout_mask(src, attention_skip_rate)
 
         selected_attn_weights = attn_weights[0:1]
-        if torch.jit.is_scripting():
+        if torch.jit.is_scripting() or torch.jit.is_tracing():
             pass
         elif not self.training and random.random() < float(self.const_attention_rate):
             # Make attention weights constant.  The intention is to
@@ -732,7 +733,7 @@ class Zipformer2EncoderLayer(nn.Module):
 
         src = src + (self_attn if self_attn_dropout_mask is None else self_attn * self_attn_dropout_mask)
 
-        if torch.jit.is_scripting():
+        if torch.jit.is_scripting() or torch.jit.is_tracing():
             conv_skip_rate = 0.0
         else:
             conv_skip_rate = float(self.conv_skip_rate) if self.training else 0.0
@@ -740,7 +741,7 @@ class Zipformer2EncoderLayer(nn.Module):
                                                             src_key_padding_mask=src_key_padding_mask),
                                           conv_skip_rate)
 
-        if torch.jit.is_scripting():
+        if torch.jit.is_scripting() or torch.jit.is_tracing():
             ff2_skip_rate = 0.0
         else:
             ff2_skip_rate = float(self.ff2_skip_rate) if self.training else 0.0
@@ -754,7 +755,7 @@ class Zipformer2EncoderLayer(nn.Module):
 
         src = src + (self_attn if self_attn_dropout_mask is None else self_attn * self_attn_dropout_mask)
 
-        if torch.jit.is_scripting():
+        if torch.jit.is_scripting() or torch.jit.is_tracing():
             conv_skip_rate = 0.0
         else:
             conv_skip_rate = float(self.conv_skip_rate) if self.training else 0.0
@@ -762,7 +763,7 @@ class Zipformer2EncoderLayer(nn.Module):
                                                             src_key_padding_mask=src_key_padding_mask),
                                           conv_skip_rate)
 
-        if torch.jit.is_scripting():
+        if torch.jit.is_scripting() or torch.jit.is_tracing():
             ff3_skip_rate = 0.0
         else:
             ff3_skip_rate = float(self.ff3_skip_rate) if self.training else 0.0
@@ -968,7 +969,7 @@ class Zipformer2Encoder(nn.Module):
         pos_emb = self.encoder_pos(src)
         output = src
 
-        if not torch.jit.is_scripting():
+        if not torch.jit.is_scripting() and not torch.jit.is_tracing():
             output = output * feature_mask
 
         for i, mod in enumerate(self.layers):
@@ -980,7 +981,7 @@ class Zipformer2Encoder(nn.Module):
                 src_key_padding_mask=src_key_padding_mask,
             )
 
-            if not torch.jit.is_scripting():
+            if not torch.jit.is_scripting() and not torch.jit.is_tracing():
                 output = output * feature_mask
 
         return output
@@ -1073,7 +1074,7 @@ class BypassModule(nn.Module):
         # or (batch_size, num_channels,).  This is actually the
         # scale on the non-residual term, so 0 correponds to bypassing
         # this module.
-        if torch.jit.is_scripting() or not self.training:
+        if torch.jit.is_scripting() or torch.jit.is_tracing() or not self.training:
             return self.bypass_scale
         else:
             ans = limit_param_value(self.bypass_scale,
@@ -1229,12 +1230,11 @@ class SimpleDownsample(torch.nn.Module):
         d_seq_len = (seq_len + ds - 1) // ds
 
         # Pad to an exact multiple of self.downsample
-        if seq_len != d_seq_len * ds:
-            # right-pad src, repeating the last element.
-            pad = d_seq_len * ds - seq_len
-            src_extra = src[src.shape[0]-1:].expand(pad, src.shape[1], src.shape[2])
-            src = torch.cat((src, src_extra), dim=0)
-            assert src.shape[0] == d_seq_len * ds
+        # right-pad src, repeating the last element.
+        pad = d_seq_len * ds - seq_len
+        src_extra = src[src.shape[0]-1:].expand(pad, src.shape[1], src.shape[2])
+        src = torch.cat((src, src_extra), dim=0)
+        assert src.shape[0] == d_seq_len * ds
 
         src = src.reshape(d_seq_len, ds, batch_size, in_channels)
 
@@ -1322,11 +1322,7 @@ class CompactRelPositionalEncoding(torch.nn.Module):
             # self.pe contains both positive and negative parts
             # the length of self.pe is 2 * input_len - 1
             if self.pe.size(0) >= T * 2 - 1:
-                # Note: TorchScript doesn't implement operator== for torch.Device
-                if self.pe.dtype != x.dtype or str(self.pe.device) != str(
-                    x.device
-                ):
-                    self.pe = self.pe.to(dtype=x.dtype, device=x.device)
+                self.pe = self.pe.to(dtype=x.dtype, device=x.device)
                 return
 
         # if T == 4, x would contain [ -3, -2, 1, 0, 1, 2, 3 ]
@@ -1524,7 +1520,7 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         attn_scores = torch.matmul(q, k)
 
         use_pos_scores = False
-        if torch.jit.is_scripting():
+        if torch.jit.is_scripting() or torch.jit.is_tracing():
             # We can't put random.random() in the same line
             use_pos_scores = True
         elif not self.training or random.random() >= float(self.pos_emb_skip_rate):
@@ -1542,16 +1538,26 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
             # the following .as_strided() expression converts the last axis of pos_scores from relative
             # to absolute position.  I don't know whether I might have got the time-offsets backwards or
             # not, but let this code define which way round it is supposed to be.
-            pos_scores = pos_scores.as_strided((num_heads, batch_size, seq_len, seq_len),
-                                               (pos_scores.stride(0),
-                                                pos_scores.stride(1),
-                                                pos_scores.stride(2)-pos_scores.stride(3),
-                                                pos_scores.stride(3)),
-                                               storage_offset=pos_scores.stride(3) * (seq_len - 1))
+            if torch.jit.is_tracing():
+                (num_heads, batch_size, time1, n) = pos_scores.shape
+                rows = torch.arange(start=time1 - 1, end=-1, step=-1)
+                cols = torch.arange(seq_len)
+                rows = rows.repeat(batch_size * num_heads).unsqueeze(-1)
+                indexes = rows + cols
+                pos_scores = pos_scores.reshape(-1, n)
+                pos_scores = torch.gather(pos_scores, dim=1, index=indexes)
+                pos_scores = pos_scores.reshape(num_heads, batch_size, time1, seq_len)
+            else:
+                pos_scores = pos_scores.as_strided((num_heads, batch_size, seq_len, seq_len),
+                                                   (pos_scores.stride(0),
+                                                    pos_scores.stride(1),
+                                                    pos_scores.stride(2)-pos_scores.stride(3),
+                                                    pos_scores.stride(3)),
+                                                   storage_offset=pos_scores.stride(3) * (seq_len - 1))
 
             attn_scores = attn_scores + pos_scores
 
-        if torch.jit.is_scripting():
+        if torch.jit.is_scripting() or torch.jit.is_tracing():
             pass
         elif self.training and random.random() < 0.1:
             # This is a harder way of limiting the attention scores to not be
@@ -1594,7 +1600,7 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         # half-precision output for backprop purposes.
         attn_weights = softmax(attn_scores, dim=-1)
 
-        if torch.jit.is_scripting():
+        if torch.jit.is_scripting() or torch.jit.is_tracing():
             pass
         elif random.random() < 0.001 and not self.training:
             self._print_attn_entropy(attn_weights)
@@ -1672,15 +1678,26 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         # (head, batch, time1, pos_dim) x (head, 1, pos_dim, seq_len2) -> (head, batch, time1, seq_len2)
         #  [where seq_len2 represents relative position.]
         pos_scores = torch.matmul(p, pos_emb)
+        
+        if torch.jit.is_tracing():
+            (num_heads, batch_size, time1, n) = pos_scores.shape
+            rows = torch.arange(start=time1 - 1, end=-1, step=-1)
+            cols = torch.arange(k_len)
+            rows = rows.repeat(batch_size * num_heads).unsqueeze(-1)
+            indexes = rows + cols
+            pos_scores = pos_scores.reshape(-1, n)
+            pos_scores = torch.gather(pos_scores, dim=1, index=indexes)
+            pos_scores = pos_scores.reshape(num_heads, batch_size, time1, k_len)
         # the following .as_strided() expression converts the last axis of pos_scores from relative
         # to absolute position.  I don't know whether I might have got the time-offsets backwards or
         # not, but let this code define which way round it is supposed to be.
-        pos_scores = pos_scores.as_strided((num_heads, batch_size, seq_len, k_len),
-                                           (pos_scores.stride(0),
-                                            pos_scores.stride(1),
-                                            pos_scores.stride(2)-pos_scores.stride(3),
-                                            pos_scores.stride(3)),
-                                           storage_offset=pos_scores.stride(3) * (seq_len - 1))
+        else:
+            pos_scores = pos_scores.as_strided((num_heads, batch_size, seq_len, k_len),
+                                            (pos_scores.stride(0),
+                                                pos_scores.stride(1),
+                                                pos_scores.stride(2)-pos_scores.stride(3),
+                                                pos_scores.stride(3)),
+                                            storage_offset=pos_scores.stride(3) * (seq_len - 1))
 
         attn_scores = attn_scores + pos_scores
 
@@ -2136,7 +2153,7 @@ class ConvolutionModule(nn.Module):
         if src_key_padding_mask is not None:
             x = x.masked_fill(src_key_padding_mask.unsqueeze(1).expand_as(x), 0.0)
 
-        if not torch.jit.is_scripting() and chunk_size >= 0:
+        if not torch.jit.is_scripting() and not torch.jit.is_tracing() and chunk_size >= 0:
             # Not support exporting a model for simulated streaming decoding
             assert self.causal, "Must initialize model with causal=True if you use chunk_size"
             x = self.depthwise_conv(x, chunk_size=chunk_size)
