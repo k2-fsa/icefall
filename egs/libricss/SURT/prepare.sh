@@ -185,7 +185,7 @@ if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
   for type in full ov40; do
     cat <(gunzip -c data/manifests/cuts_train_clean_${type}_sources.jsonl.gz) \
       <(gunzip -c data/manifests/cuts_train_rvb_${type}_sources.jsonl.gz) |\
-      shuf | gzip -c > data/manifests/cuts_train_${type}_sources.jsonl.gz
+      shuf | gzip -c > data/manifests/cuts_train_comb_${type}_sources.jsonl.gz
   done
 fi
 

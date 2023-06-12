@@ -887,8 +887,7 @@ def write_error_stats_with_timestamps(
         hyp_count = corr + hyp_sub + ins
 
         print(f"{word}   {corr} {tot_errs} {ref_count} {hyp_count}", file=f)
-
-    return tot_err_rate, mean_delay, var_delay
+    return float(tot_err_rate), float(mean_delay), float(var_delay)
 
 
 def write_surt_error_stats(
@@ -1282,10 +1281,10 @@ def make_pad_mask(lengths: torch.Tensor, max_len: int = 0) -> torch.Tensor:
     assert lengths.ndim == 1, lengths.ndim
     max_len = max(max_len, lengths.max())
     n = lengths.size(0)
-    seq_range = torch.arange(0, max_len, device=lengths.device)
-    expaned_lengths = seq_range.unsqueeze(0).expand(n, max_len)
 
-    return expaned_lengths >= lengths.unsqueeze(-1)
+    expaned_lengths = torch.arange(max_len).expand(n, max_len).to(lengths)
+
+    return expaned_lengths >= lengths.unsqueeze(1)
 
 
 # Copied and modified from https://github.com/wenet-e2e/wenet/blob/main/wenet/utils/mask.py
@@ -1648,7 +1647,7 @@ def parse_timestamp(tokens: List[str], timestamp: List[float]) -> List[float]:
       List of timestamp of each word.
     """
     start_token = b"\xe2\x96\x81".decode()  # '_'
-    assert len(tokens) == len(timestamp), (len(tokens), len(timestamp))
+    assert len(tokens) == len(timestamp)
     ans = []
     for i in range(len(tokens)):
         flag = False
