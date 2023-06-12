@@ -1884,7 +1884,7 @@ def is_cjk(character):
     )
 
 
-def symlink_or_copyfile(exp_dir: Path, src: str, dst: str):
+def symlink_or_copy(exp_dir: Path, src: str, dst: str):
     """
     In the experiment directory, create a symlink pointing to src named dst.
     If symlink creation fails (Windows?), fall back to copyfile."""
