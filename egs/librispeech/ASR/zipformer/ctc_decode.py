@@ -20,49 +20,57 @@
 # limitations under the License.
 """
 Usage:
+
 (1) ctc-decoding
-./pruned_transducer_stateless7_ctc/ctc_decode.py \
+./zipformer/ctc_decode.py \
     --epoch 30 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7_ctc/exp \
+    --exp-dir ./zipformer/exp \
+    --use-ctc 1 \
     --max-duration 600 \
     --decoding-method ctc-decoding
 
 (2) 1best
-./pruned_transducer_stateless7_ctc/ctc_decode.py \
+./zipformer/ctc_decode.py \
     --epoch 30 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7_ctc/exp \
+    --exp-dir ./zipformer/exp \
+    --use-ctc 1 \
     --max-duration 600 \
-    --hlg-scale 0.8 \
+    --hlg-scale 0.6 \
     --decoding-method 1best
 
 (3) nbest
-./pruned_transducer_stateless7_ctc/ctc_decode.py \
+./zipformer/ctc_decode.py \
     --epoch 30 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7_ctc/exp \
+    --exp-dir ./zipformer/exp \
+    --use-ctc 1 \
     --max-duration 600 \
-    --hlg-scale 0.8 \
+    --hlg-scale 0.6 \
     --decoding-method nbest
 
 (4) nbest-rescoring
-./pruned_transducer_stateless7_ctc/ctc_decode.py \
+./zipformer/ctc_decode.py \
     --epoch 30 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7_ctc/exp \
+    --exp-dir ./zipformer/exp \
+    --use-ctc 1 \
     --max-duration 600 \
-    --hlg-scale 0.8 \
+    --hlg-scale 0.6 \
+    --nbest-scale 1.0 \
     --lm-dir data/lm \
     --decoding-method nbest-rescoring
 
 (5) whole-lattice-rescoring
-./pruned_transducer_stateless7_ctc/ctc_decode.py \
+./zipformer/ctc_decode.py \
     --epoch 30 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7_ctc/exp \
+    --exp-dir ./zipformer/exp \
+    --use-ctc 1 \
     --max-duration 600 \
-    --hlg-scale 0.8 \
+    --hlg-scale 0.6 \
+    --nbest-scale 1.0 \
     --lm-dir data/lm \
     --decoding-method whole-lattice-rescoring
 """
@@ -156,7 +164,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless7_ctc/exp",
+        default="zipformer/exp",
         help="The experiment dir",
     )
 
@@ -220,7 +228,7 @@ def get_parser():
     parser.add_argument(
         "--nbest-scale",
         type=float,
-        default=0.5,
+        default=1.0,
         help="""The scale to be applied to `lattice.scores`.
         It's needed if you use any kinds of n-best based rescoring.
         Used only when "method" is one of the following values:
@@ -232,7 +240,7 @@ def get_parser():
     parser.add_argument(
         "--hlg-scale",
         type=float,
-        default=0.8,
+        default=0.6,
         help="""The scale to be applied to `hlg.scores`.
         """,
     )

@@ -120,7 +120,6 @@ from beam_search import (
     greedy_search_batch,
     modified_beam_search,
 )
-from icefall.utils import make_pad_mask
 from torch.nn.utils.rnn import pad_sequence
 from train import add_model_arguments, get_params, get_model
 
@@ -318,15 +317,7 @@ def main():
     feature_lengths = torch.tensor(feature_lengths, device=device)
 
     # model forward
-    x, x_lens = model.encoder_embed(features, feature_lengths)
-
-    src_key_padding_mask = make_pad_mask(x_lens)
-    x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
-
-    encoder_out, encoder_out_lens = model.encoder(
-        x, x_lens, src_key_padding_mask
-    )
-    encoder_out = encoder_out.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
+    encoder_out, encoder_out_lens = model.forward_encoder(features, feature_lengths)
 
     hyps = []
     msg = f"Using {params.method}"

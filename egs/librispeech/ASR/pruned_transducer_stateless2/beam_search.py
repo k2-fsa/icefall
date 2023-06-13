@@ -22,7 +22,6 @@ from typing import Dict, List, Optional, Tuple, Union
 import k2
 import sentencepiece as spm
 import torch
-from model import Transducer
 
 from icefall import NgramLm, NgramLmStateCost
 from icefall.decode import Nbest, one_best_decoding
@@ -36,10 +35,11 @@ from icefall.utils import (
     get_texts,
     get_texts_with_timestamp,
 )
+from torch import nn
 
 
 def fast_beam_search_one_best(
-    model: Transducer,
+    model: nn.Module,
     decoding_graph: k2.Fsa,
     encoder_out: torch.Tensor,
     encoder_out_lens: torch.Tensor,
@@ -103,7 +103,7 @@ def fast_beam_search_one_best(
 
 
 def fast_beam_search_nbest_LG(
-    model: Transducer,
+    model: nn.Module,
     decoding_graph: k2.Fsa,
     encoder_out: torch.Tensor,
     encoder_out_lens: torch.Tensor,
@@ -229,7 +229,7 @@ def fast_beam_search_nbest_LG(
 
 
 def fast_beam_search_nbest(
-    model: Transducer,
+    model: nn.Module,
     decoding_graph: k2.Fsa,
     encoder_out: torch.Tensor,
     encoder_out_lens: torch.Tensor,
@@ -319,7 +319,7 @@ def fast_beam_search_nbest(
 
 
 def fast_beam_search_nbest_oracle(
-    model: Transducer,
+    model: nn.Module,
     decoding_graph: k2.Fsa,
     encoder_out: torch.Tensor,
     encoder_out_lens: torch.Tensor,
@@ -424,7 +424,7 @@ def fast_beam_search_nbest_oracle(
 
 
 def fast_beam_search(
-    model: Transducer,
+    model: nn.Module,
     decoding_graph: k2.Fsa,
     encoder_out: torch.Tensor,
     encoder_out_lens: torch.Tensor,
@@ -523,7 +523,7 @@ def fast_beam_search(
 
 
 def greedy_search(
-    model: Transducer,
+    model: nn.Module,
     encoder_out: torch.Tensor,
     max_sym_per_frame: int,
     return_timestamps: bool = False,
@@ -623,7 +623,7 @@ def greedy_search(
 
 
 def greedy_search_batch(
-    model: Transducer,
+    model: nn.Module,
     encoder_out: torch.Tensor,
     encoder_out_lens: torch.Tensor,
     return_timestamps: bool = False,
@@ -914,7 +914,7 @@ def get_hyps_shape(hyps: List[HypothesisList]) -> k2.RaggedShape:
 
 
 def modified_beam_search(
-    model: Transducer,
+    model: nn.Module,
     encoder_out: torch.Tensor,
     encoder_out_lens: torch.Tensor,
     beam: int = 4,
@@ -1083,7 +1083,7 @@ def modified_beam_search(
 
 
 def modified_beam_search_lm_rescore(
-    model: Transducer,
+    model: nn.Module,
     encoder_out: torch.Tensor,
     encoder_out_lens: torch.Tensor,
     LM: LmScorer,
@@ -1281,7 +1281,7 @@ def modified_beam_search_lm_rescore(
 
 
 def modified_beam_search_lm_rescore_LODR(
-    model: Transducer,
+    model: nn.Module,
     encoder_out: torch.Tensor,
     encoder_out_lens: torch.Tensor,
     LM: LmScorer,
@@ -1497,7 +1497,7 @@ def modified_beam_search_lm_rescore_LODR(
 
 
 def _deprecated_modified_beam_search(
-    model: Transducer,
+    model: nn.Module,
     encoder_out: torch.Tensor,
     beam: int = 4,
     return_timestamps: bool = False,
@@ -1622,7 +1622,7 @@ def _deprecated_modified_beam_search(
 
 
 def beam_search(
-    model: Transducer,
+    model: nn.Module,
     encoder_out: torch.Tensor,
     beam: int = 4,
     temperature: float = 1.0,
@@ -1782,7 +1782,7 @@ def beam_search(
 
 
 def fast_beam_search_with_nbest_rescoring(
-    model: Transducer,
+    model: nn.Module,
     decoding_graph: k2.Fsa,
     encoder_out: torch.Tensor,
     encoder_out_lens: torch.Tensor,
@@ -1942,7 +1942,7 @@ def fast_beam_search_with_nbest_rescoring(
 
 
 def fast_beam_search_with_nbest_rnn_rescoring(
-    model: Transducer,
+    model: nn.Module,
     decoding_graph: k2.Fsa,
     encoder_out: torch.Tensor,
     encoder_out_lens: torch.Tensor,
@@ -2133,7 +2133,7 @@ def fast_beam_search_with_nbest_rnn_rescoring(
 
 
 def modified_beam_search_ngram_rescoring(
-    model: Transducer,
+    model: nn.Module,
     encoder_out: torch.Tensor,
     encoder_out_lens: torch.Tensor,
     ngram_lm: NgramLm,
@@ -2297,7 +2297,7 @@ def modified_beam_search_ngram_rescoring(
 
 
 def modified_beam_search_LODR(
-    model: Transducer,
+    model: nn.Module,
     encoder_out: torch.Tensor,
     encoder_out_lens: torch.Tensor,
     LODR_lm: NgramLm,
@@ -2568,7 +2568,7 @@ def modified_beam_search_LODR(
 
 
 def modified_beam_search_lm_shallow_fusion(
-    model: Transducer,
+    model: nn.Module,
     encoder_out: torch.Tensor,
     encoder_out_lens: torch.Tensor,
     LM: LmScorer,
