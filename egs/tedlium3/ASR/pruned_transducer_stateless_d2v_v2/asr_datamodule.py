@@ -39,6 +39,8 @@ from torch.utils.data import DataLoader
 
 from icefall.utils import str2bool
 
+from sampling import SingleUttSampler
+
 
 class TedLiumAsrDataModule:
     """
@@ -355,11 +357,20 @@ class TedLiumAsrDataModule:
                 return_cuts=self.args.return_cuts,
             )
 
-        test_sampler = DynamicBucketingSampler(
-            cuts_test,
-            max_duration=self.args.max_duration,
-            shuffle=False,
-        )
+        if self.args.bucketing_sampler:
+            logging.info("Using DynamicBucketingSampler.")
+            test_sampler = DynamicBucketingSampler(
+                cuts_test,
+                max_duration=self.args.max_duration,
+                shuffle=False,
+            )
+        else:
+            logging.info("Using SingleUttSampler.")
+            test_sampler = SingleUttSampler(
+                cuts_test,
+                max_duration=self.args.max_duration,
+                shuffle=False,
+            )
 
         logging.debug("About to create test dataloader")
         test_dl = DataLoader(
@@ -390,5 +401,5 @@ class TedLiumAsrDataModule:
     
     @lru_cache()
     def user_test_cuts(self, spk_id) -> CutSet:
-        logging.info("About to get test cuts")
+        logging.info(f"About to get test cuts : {spk_id}")
         return load_manifest_lazy(self.args.manifest_dir / f"tedlium_cuts_test_{spk_id}.jsonl.gz")

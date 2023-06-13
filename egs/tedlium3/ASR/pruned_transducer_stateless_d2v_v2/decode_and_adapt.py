@@ -16,25 +16,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""
-Usage:
-(0) for d2v-T decoding
-for method in greedy_search modified_beam_search fast_beam_search; do
-  ./pruned_transducer_stateless_d2v_v2/decode.py \
-    --input-strategy AudioSamples \
-    --enable-spec-aug False \
-    --additional-block True \
-    --model-name epoc.pt \
-    --exp-dir ./pruned_transducer_stateless_d2v_v2/960h_sweep_v3_388 \
-    --max-duration 400 \
-    --decoding-method $method \
-    --max-sym-per-frame 1 \ 
-    --encoder-type d2v \
-    --encoder-dim 768 \
-    --decoder-dim 768 \
-    --joiner-dim 768 
-done
-"""
 
 
 import argparse
@@ -79,27 +60,8 @@ from icefall.utils import (
 )
 
 import fairseq
-# from data2vec_audio import LoRAModule
 
 LOG_EPS = math.log(1e-10)
-
-# class LoRAHook():
-#     def __init__(self, module):
-#         self.hook = module.register_forward_hook(self.hook_fn)
-#         self.lora = LoRAModule(
-#                            embedding_dim=768,
-#                            rank=6,
-#                            lora_alpha=10000,
-#                     )
-#     def hook_fn(self, module, input, output):
-#         lora_out = self.lora(input[0])
-#         output += lora_out
-
-#     def save_checkpoint(self, i, iter_, save_dir):
-#         if isinstance(self.lora, DDP):
-#             lora = self.lora.module
-#         torch.save(lora.state_dict(), f"{save_dir}/lora_{iter_}_{i}.pt")
-
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -494,8 +456,6 @@ def decode_one_batch(
                 )
             hyps.append(sp.decode(hyp).split())
 
-    print(hyps)
-    exit()
     if params.decoding_method == "greedy_search":
         return {"greedy_search": hyps}
     elif "fast_beam_search" in params.decoding_method:
@@ -511,6 +471,131 @@ def decode_one_batch(
         return {key: hyps}
     else:
         return {f"beam_size_{params.beam_size}": hyps}
+    
+def decode_and_adapt(
+    params: AttributeDict,
+    model: Union[nn.Module, DDP],
+    sp: spm.SentencePieceProcessor,
+    batch: dict,
+    is_training: bool,
+    num_iter: int
+) -> Tuple[Tensor, MetricsTracker]:
+    device = model.device if isinstance(model, DDP) else next(model.parameters()).device
+    feature = batch["inputs"]
+    # at entry, feature is (N, T, C)
+    assert feature.ndim == 2 or feature.ndim == 3
+    feature = feature.to(device)
+    
+    supervisions = batch["supervisions"]
+    if feature.ndim == 2:
+        feature_lens = []
+        for supervision in supervisions['cut']:
+            try: feature_lens.append(supervision.tracks[0].cut.recording.num_samples)
+            except: feature_lens.append(supervision.recording.num_samples)
+        feature_lens = torch.tensor(feature_lens)
+
+    elif feature.ndim == 3:
+        feature_lens = supervisions["num_frames"].to(device)
+
+    batch_idx_train = params.batch_idx_train
+    warm_step = params.warm_step
+
+    texts = batch["supervisions"]["text"]
+    texts = [text.upper() for text in texts]
+    
+    token_ids = sp.encode(texts, out_type=int)
+    y = k2.RaggedTensor(token_ids).to(device)
+
+    model.train()
+    for i in range(num_iter):
+        with torch.set_grad_enabled(is_training):
+            simple_loss, pruned_loss, ctc_output = model(
+                x=feature,
+                x_lens=feature_lens,
+                y=y,
+                prune_range=params.prune_range,
+                am_scale=params.am_scale,
+                lm_scale=params.lm_scale,
+            )
+
+            s = params.simple_loss_scale
+            # take down the scale on the simple loss from 1.0 at the start
+            # to params.simple_loss scale by warm_step.
+            simple_loss_scale = (
+                s
+                if batch_idx_train >= warm_step
+                else 1.0 - (batch_idx_train / warm_step) * (1.0 - s)
+            )
+            pruned_loss_scale = (
+                1.0
+                if batch_idx_train >= warm_step
+                else 0.1 + 0.9 * (batch_idx_train / warm_step)
+            )
+
+            loss = simple_loss_scale * simple_loss + pruned_loss_scale * pruned_loss
+        
+        if params.ctc_loss_scale > 0:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                supervision_segments, token_ids = encode_supervisions(
+                    supervisions,
+                    subsampling_factor=params.subsampling_factor,
+                    token_ids=token_ids,
+                )
+            
+            # Works with a BPE model
+            decoding_graph = k2.ctc_graph(token_ids, modified=False, device=device)
+            dense_fsa_vec = k2.DenseFsaVec(
+                ctc_output,
+                supervision_segments,
+                allow_truncate=params.subsampling_factor - 1,
+            )
+
+            ctc_loss = k2.ctc_loss(
+                decoding_graph=decoding_graph,
+                dense_fsa_vec=dense_fsa_vec,
+                output_beam=params.beam_size,
+                reduction="sum",
+                use_double_scores=params.use_double_scores,
+            )
+            assert ctc_loss.requires_grad == is_training
+            loss += params.ctc_loss_scale * ctc_loss
+
+        # self.adapted_model_losses.append(loss.item())
+        # self.adapted_models.append(self.copy_model_and_optimizer(self.models[0]))
+        
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+
+
+    with torch.set_grad_enabled(is_training):
+        simple_loss, pruned_loss, ctc_output = model(
+            x=feature,
+            x_lens=feature_lens,
+            y=y,
+            prune_range=params.prune_range,
+            am_scale=params.am_scale,
+            lm_scale=params.lm_scale,
+        )
+
+        s = params.simple_loss_scale
+        # take down the scale on the simple loss from 1.0 at the start
+        # to params.simple_loss scale by warm_step.
+        simple_loss_scale = (
+            s
+            if batch_idx_train >= warm_step
+            else 1.0 - (batch_idx_train / warm_step) * (1.0 - s)
+        )
+        pruned_loss_scale = (
+            1.0
+            if batch_idx_train >= warm_step
+            else 0.1 + 0.9 * (batch_idx_train / warm_step)
+        )
+
+    
+
+        loss = simple_loss_scale * simple_loss + pruned_loss_scale * pruned_loss
 
 
 def decode_dataset(
@@ -559,10 +644,28 @@ def decode_dataset(
 
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
+        model.eval()
         texts = batch["supervisions"]["text"]
         texts = [text.upper() for text in texts]
 
         cut_ids = [cut.id for cut in batch["supervisions"]["cut"]]
+
+        hyps_dict = decode_one_batch(
+            params=params,
+            model=model,
+            sp=sp,
+            decoding_graph=decoding_graph,
+            word_table=word_table,
+            batch=batch,
+        )
+        
+        # replace the supervision to pseudo labels
+        batch["supervision"]["text"] = "".join(hyps_dict[params.decoding_method] )
+
+        # augment the single utterance (augmentation automatically excued in d2v model)
+        batch["intputs"] = batch["intputs"].reapeat(4, 1)
+
+        decode_and_adapt(params, model, sp, batch, is_training=True, num_iter=10)
 
         hyps_dict = decode_one_batch(
             params=params,
@@ -716,102 +819,7 @@ def main():
     logging.info("About to create model")
     model = get_transducer_model(params)
 
-    if '.pt' in params.model_name:
-        load_checkpoint(f"{params.exp_dir}/{params.model_name}", model)
-
-    elif 'lora' in params.model_name: 
-        load_checkpoint(f"{params.exp_dir}/../d2v-base-T.pt", model)
-        
-        ## for lora hooking
-        lora_modules = []
-        for modules in model.modules():
-            if isinstance(modules, fairseq.modules.multihead_attention.MultiheadAttention):
-                for module in modules.modules():
-                    if isinstance(module, torch.nn.Linear):
-                        lora_modules.append(LoRAHook(module))
-
-        for i, lora in enumerate(lora_modules):
-            lora_param = torch.load(f"{params.exp_dir}/lora_{params.iter}_{i}.pt")
-            lora.lora.load_state_dict(lora_param)
-            lora.lora.to(device)
-        logging.info("lora params load done")
-    else:
-        if not params.use_averaged_model:
-            if params.iter > 0:
-                filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
-                    : params.avg
-                ]
-                if len(filenames) == 0:
-                    raise ValueError(
-                        f"No checkpoints found for"
-                        f" --iter {params.iter}, --avg {params.avg}"
-                    )
-                elif len(filenames) < params.avg:
-                    raise ValueError(
-                        f"Not enough checkpoints ({len(filenames)}) found for"
-                        f" --iter {params.iter}, --avg {params.avg}"
-                    )
-                logging.info(f"averaging {filenames}")
-                model.to(device)
-                model.load_state_dict(average_checkpoints(filenames, device=device))
-            elif params.avg == 1:
-                load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
-            else:
-                start = params.epoch - params.avg + 1
-                filenames = []
-                for i in range(start, params.epoch + 1):
-                    if i >= 1:
-                        filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
-                logging.info(f"averaging {filenames}")
-                model.to(device)
-                model.load_state_dict(average_checkpoints(filenames, device=device))
-        else:
-            if params.iter > 0:
-                filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
-                    : params.avg + 1
-                ]
-                if len(filenames) == 0:
-                    raise ValueError(
-                        f"No checkpoints found for"
-                        f" --iter {params.iter}, --avg {params.avg}"
-                    )
-                elif len(filenames) < params.avg + 1:
-                    raise ValueError(
-                        f"Not enough checkpoints ({len(filenames)}) found for"
-                        f" --iter {params.iter}, --avg {params.avg}"
-                    )
-                filename_start = filenames[-1]
-                filename_end = filenames[0]
-                logging.info(
-                    "Calculating the averaged model over iteration checkpoints"
-                    f" from {filename_start} (excluded) to {filename_end}"
-                )
-                model.to(device)
-                model.load_state_dict(
-                    average_checkpoints_with_averaged_model(
-                        filename_start=filename_start,
-                        filename_end=filename_end,
-                        device=device,
-                    )
-                )
-            else:
-                assert params.avg > 0, params.avg
-                start = params.epoch - params.avg
-                assert start >= 1, start
-                filename_start = f"{params.exp_dir}/epoch-{start}.pt"
-                filename_end = f"{params.exp_dir}/epoch-{params.epoch}.pt"
-                logging.info(
-                    f"Calculating the averaged model over epoch range from "
-                    f"{start} (excluded) to {params.epoch}"
-                )
-                model.to(device)
-                model.load_state_dict(
-                    average_checkpoints_with_averaged_model(
-                        filename_start=filename_start,
-                        filename_end=filename_end,
-                        device=device,
-                    )
-                )
+    load_checkpoint(f"{params.exp_dir}/{params.model_name}", model)
 
     model.to(device)
     model.eval()
