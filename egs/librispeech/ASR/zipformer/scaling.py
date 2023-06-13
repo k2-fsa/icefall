@@ -26,6 +26,18 @@ import torch.nn as nn
 from torch import Tensor
 
 
+# RuntimeError: Exporting the operator logaddexp to ONNX opset version
+# 14 is not supported. Please feel free to request support or submit
+# a pull request on PyTorch GitHub.
+#
+# The following function is to solve the above error when exporting
+# models to ONNX via torch.jit.trace()
+def logaddexp(x: Tensor, y: Tensor) -> Tensor:
+    if not torch.jit.is_tracing():
+        return torch.logaddexp(x, y)
+    else:
+        return (x.exp() + y.exp()).log()
+
 class PiecewiseLinear(object):
     """
     Piecewise linear function, from float to float, specified as nonempty list of (x,y) pairs with
@@ -162,7 +174,7 @@ class ScheduledFloat(torch.nn.Module):
 
     def __float__(self):
         batch_count = self.batch_count
-        if batch_count is None or not self.training or torch.jit.is_scripting():
+        if batch_count is None or not self.training or torch.jit.is_scripting() or torch.jit.is_tracing():
             return float(self.default)
         else:
             ans = self.schedule(self.batch_count)
@@ -268,7 +280,7 @@ class SoftmaxFunction(torch.autograd.Function):
 
 
 def softmax(x: Tensor, dim: int):
-    if not x.requires_grad or torch.jit.is_scripting():
+    if not x.requires_grad or torch.jit.is_scripting() or torch.jit.is_tracing():
         return x.softmax(dim=dim)
 
     return SoftmaxFunction.apply(x, dim)
@@ -1073,7 +1085,7 @@ class ScaleGrad(nn.Module):
         self.alpha = alpha
 
     def forward(self, x: Tensor) -> Tensor:
-        if torch.jit.is_scripting() or not self.training:
+        if torch.jit.is_scripting() or torch.jit.is_tracing() or not self.training:
             return x
         return scale_grad(x, self.alpha)
 
@@ -1115,7 +1127,7 @@ def limit_param_value(x: Tensor,
 
 
 def _no_op(x: Tensor) -> Tensor:
-    if (torch.jit.is_scripting()):
+    if torch.jit.is_scripting() or torch.jit.is_tracing():
         return x
     else:
         # a no-op function that will have a node in the autograd graph,
@@ -1198,7 +1210,7 @@ class DoubleSwish(torch.nn.Module):
         """Return double-swish activation function which is an approximation to Swish(Swish(x)),
         that we approximate closely with x * sigmoid(x-1).
         """
-        if torch.jit.is_scripting():
+        if torch.jit.is_scripting() or torch.jit.is_tracing():
             return x * torch.sigmoid(x - 1.0)
         return DoubleSwishFunction.apply(x)
 
@@ -1313,9 +1325,9 @@ class SwooshL(torch.nn.Module):
     def forward(self, x: Tensor) -> Tensor:
         """Return Swoosh-L activation.
         """
-        if torch.jit.is_scripting():
+        if torch.jit.is_scripting() or torch.jit.is_tracing():
             zero = torch.tensor(0.0, dtype=x.dtype, device=x.device)
-            return torch.logaddexp(zero, x - 4.0) - 0.08 * x - 0.035
+            return logaddexp(zero, x - 4.0) - 0.08 * x - 0.035
         if not x.requires_grad:
             return k2.swoosh_l_forward(x)
         else:
@@ -1379,9 +1391,9 @@ class SwooshR(torch.nn.Module):
     def forward(self, x: Tensor) -> Tensor:
         """Return Swoosh-R activation.
         """
-        if torch.jit.is_scripting():
+        if torch.jit.is_scripting() or torch.jit.is_tracing():
             zero = torch.tensor(0.0, dtype=x.dtype, device=x.device)
-            return torch.logaddexp(zero, x - 1.) - 0.08 * x - 0.313261687
+            return logaddexp(zero, x - 1.) - 0.08 * x - 0.313261687
         if not x.requires_grad:
             return k2.swoosh_r_forward(x)
         else:
