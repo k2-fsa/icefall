@@ -27,6 +27,7 @@ from typing import List, Tuple
 import torch
 import torch.nn as nn
 from scaling import Balancer, Dropout3, ScaleGrad, Whiten
+from zipformer import CompactRelPositionalEncoding
 
 
 # Copied from https://pytorch.org/docs/1.9.0/_modules/torch/nn/modules/module.html#Module.get_submodule  # noqa
@@ -51,6 +52,7 @@ def convert_scaled_to_non_scaled(
     model: nn.Module,
     inplace: bool = False,
     is_pnnx: bool = False,
+    is_onnx: bool = False,
 ):
     """
     Args:
@@ -61,6 +63,8 @@ def convert_scaled_to_non_scaled(
         If False, the input model is copied and we modify the copied version.
       is_pnnx:
         True if we are going to export the model for PNNX.
+      is_onnx:
+        True if we are going to export the model for ONNX.
     Return:
       Return a model without scaled layers.
     """
@@ -71,6 +75,11 @@ def convert_scaled_to_non_scaled(
     for name, m in model.named_modules():
         if isinstance(m, (Balancer, Dropout3, ScaleGrad, Whiten)):
             d[name] = nn.Identity()
+        elif is_onnx and isinstance(m, CompactRelPositionalEncoding):
+            # We want to recreate the positional encoding vector when
+            # the input changes, so we have to use torch.jit.script()
+            # to replace torch.jit.trace()
+            d[name] = torch.jit.script(m)
 
     for k, v in d.items():
         if "." in k:

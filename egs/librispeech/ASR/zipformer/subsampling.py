@@ -100,7 +100,7 @@ class ConvNeXt(nn.Module):
         )
 
     def forward(self, x: Tensor) -> Tensor:
-        if torch.jit.is_scripting() or not self.training:
+        if torch.jit.is_scripting() or torch.jit.is_tracing() or not self.training:
             return self.forward_internal(x)
         layerdrop_rate = float(self.layerdrop_rate)
 
@@ -322,7 +322,7 @@ class Conv2dSubsampling(nn.Module):
         x = self.out_norm(x)
         x = self.dropout(x)
 
-        if torch.jit.is_scripting():
+        if torch.jit.is_scripting() or torch.jit.is_tracing():
             x_lens = (x_lens - 7) // 2
         else:
             with warnings.catch_warnings():

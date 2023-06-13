@@ -87,7 +87,7 @@ def get_parser():
         type=int,
         default=28,
         help="""It specifies the checkpoint to use for averaging.
-        Note: Epoch counts from 0.
+        Note: Epoch counts from 1.
         You can specify --avg to use more checkpoints for model averaging.""",
     )
 

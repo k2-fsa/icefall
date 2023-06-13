@@ -77,7 +77,7 @@ def get_parser():
         type=int,
         default=28,
         help="""It specifies the checkpoint to use for decoding.
-        Note: Epoch counts from 0.
+        Note: Epoch counts from 1.
         You can specify --avg to use more checkpoints for model averaging.""",
     )
 
@@ -114,7 +114,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless2/exp",
+        default="pruned_transducer_stateless7_streaming/exp",
         help="The experiment dir",
     )
 
