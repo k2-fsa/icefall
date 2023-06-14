@@ -31,7 +31,6 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --start-epoch 1 \
   --use-fp16 1 \
   --exp-dir zipformer/exp \
-  --full-libri 1 \
   --max-duration 1000
 
 # For streaming model training:
@@ -42,7 +41,6 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --use-fp16 1 \
   --exp-dir zipformer/exp \
   --causal 1 \
-  --full-libri 1 \
   --max-duration 1000
 
 It supports training with:
@@ -1178,7 +1176,7 @@ def run(rank, world_size, args):
         register_inf_check_hooks(model)
 
     librispeech = LibriSpeechAsrDataModule(args)
-    multidataset = MultiDataset(args)
+    multidataset = MultiDataset(args.manifest_dir)
 
     train_cuts = multidataset.train_cuts()
 
@@ -1236,7 +1234,7 @@ def run(rank, world_size, args):
     valid_cuts += librispeech.dev_other_cuts()
     valid_dl = librispeech.valid_dataloaders(valid_cuts)
 
-    if not params.print_diagnostics:
+    if 0 and not params.print_diagnostics:
         scan_pessimistic_batches_for_oom(
             model=model,
             train_dl=train_dl,
