@@ -120,7 +120,7 @@ def fast_beam_search_nbest_LG(
      - (5) The path with the largest score is used as the decoding output.
     Args:
       model:
-        An instance of `Transducer`.
+        An instance of `SURT`.
       decoding_graph:
         Decoding graph used for decoding, may be a TrivialGraph or a LG.
       encoder_out:
@@ -705,8 +705,8 @@ def modified_beam_search_LODR(
     external language model.
 
     Args:
-        model (Transducer):
-            The transducer model
+        model (SURT):
+            The SURT model
         encoder_out (torch.Tensor):
             Encoder output in (N,T,C)
         encoder_out_lens (torch.Tensor):
