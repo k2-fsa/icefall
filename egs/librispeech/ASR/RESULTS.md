@@ -1,5 +1,69 @@
 ## Results
 
+### zipformer (zipformer + pruned stateless transducer + CTC)
+
+See <https://github.com/k2-fsa/icefall/pull/1111> for more details.
+
+[zipformer](./zipformer)
+
+#### Non-streaming
+
+##### normal-scaled model, number of model parameters: 65805511, i.e., 65.81 M
+
+The tensorboard log can be found at
+<https://tensorboard.dev/experiment/Lo3Qlad7TP68ulM2K0ixgQ/>
+
+You can find a pretrained model, training logs, decoding logs, and decoding results at:
+<https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-transducer-ctc-2023-06-13>
+
+You can use <https://github.com/k2-fsa/sherpa> to deploy it.
+
+Results of the CTC head:
+
+| decoding method         | test-clean | test-other | comment            |
+|-------------------------|------------|------------|--------------------|
+| ctc-decoding            | 2.40       | 5.66       | --epoch 40 --avg 16 |
+| 1best                   | 2.46       | 5.11       | --epoch 40 --avg 16 |
+| nbest                   | 2.46       | 5.11       | --epoch 40 --avg 16 |
+| nbest-rescoring         | 2.37       | 4.93       | --epoch 40 --avg 16 |
+| whole-lattice-rescoring | 2.37       | 4.88       | --epoch 40 --avg 16 |
+
+The training command is:
+```bash
+export CUDA_VISIBLE_DEVICES="0,1,2,3"
+./zipformer/train.py \
+  --world-size 4 \
+  --num-epochs 40 \
+  --start-epoch 1 \
+  --use-fp16 1 \
+  --exp-dir zipformer/exp-ctc-rnnt \
+  --causal 0 \
+  --use-transducer 1 \
+  --use-ctc 1 \
+  --ctc-loss-scale 0.2 \
+  --full-libri 1 \
+  --max-duration 1000
+```
+
+The decoding command is:
+```bash
+export CUDA_VISIBLE_DEVICES="0"
+for m in ctc-decoding 1best nbest nbest-rescoring whole-lattice-rescoring; do
+  ./zipformer/ctc_decode.py \
+      --epoch 40 \
+      --avg 16 \
+      --exp-dir zipformer/exp-ctc-rnnt \
+      --use-transducer 1 \
+      --use-ctc 1 \
+      --max-duration 300 \
+      --causal 0 \
+      --num-paths 100 \
+      --nbest-scale 1.0 \
+      --hlg-scale 0.6 \
+      --decoding-method $m
+done
+```
+
 ### zipformer (zipformer + pruned stateless transducer)
 
 See <https://github.com/k2-fsa/icefall/pull/1058> for more details.
@@ -285,7 +349,7 @@ export CUDA_VISIBLE_DEVICES="0,1"
   --lr-epochs 100 \
   --lr-batches 100000 \
   --bpe-model icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11/data/lang_bpe_500/bpe.model \
-  --do-finetune True \ 
+  --do-finetune True \
   --use-mux True \
   --finetune-ckpt icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11/exp/pretrain.pt \
   --max-duration 500
