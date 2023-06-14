@@ -58,6 +58,7 @@ Usage:
 
 import argparse
 import logging
+import os
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -76,6 +77,8 @@ from beam_search import (
 )
 from train import add_model_arguments, get_params, get_transducer_model
 
+from icefall import ContextGraph, LmScorer, NgramLm
+from icefall.char_graph_compiler import CharCtcTrainingGraphCompiler
 from icefall.checkpoint import (
     average_checkpoints,
     average_checkpoints_with_averaged_model,
@@ -211,6 +214,26 @@ def get_parser():
         Used only when --decoding_method is greedy_search""",
     )
 
+    parser.add_argument(
+        "--context-score",
+        type=float,
+        default=2,
+        help="""
+        The bonus score of each token for the context biasing words/phrases.
+        Used only when --decoding_method is modified_beam_search.
+        """,
+    )
+
+    parser.add_argument(
+        "--context-file",
+        type=str,
+        default="",
+        help="""
+        The path of the context biasing lists, one word/phrase each line
+        Used only when --decoding_method is modified_beam_search.
+        """,
+    )
+
     add_model_arguments(parser)
 
     return parser
@@ -222,6 +245,7 @@ def decode_one_batch(
     token_table: k2.SymbolTable,
     batch: dict,
     decoding_graph: Optional[k2.Fsa] = None,
+    context_graph: Optional[ContextGraph] = None,
 ) -> Dict[str, List[List[str]]]:
     """Decode one batch and return the result in a dict. The dict has the
     following format:
@@ -285,6 +309,7 @@ def decode_one_batch(
             encoder_out=encoder_out,
             encoder_out_lens=encoder_out_lens,
             beam=params.beam_size,
+            context_graph=context_graph,
         )
     else:
         hyp_tokens = []
@@ -324,7 +349,12 @@ def decode_one_batch(
             ): hyps
         }
     else:
-        return {f"beam_size_{params.beam_size}": hyps}
+        key = f"beam_size_{params.beam_size}"
+        if params.has_contexts:
+            key += f"-context-score-{params.context_score}"
+        else:
+            key += "-no-context-words"
+        return {key: hyps}
 
 
 def decode_dataset(
@@ -333,6 +363,7 @@ def decode_dataset(
     model: nn.Module,
     token_table: k2.SymbolTable,
     decoding_graph: Optional[k2.Fsa] = None,
+    context_graph: Optional[ContextGraph] = None,
 ) -> Dict[str, List[Tuple[str, List[str], List[str]]]]:
     """Decode dataset.
 
@@ -377,6 +408,7 @@ def decode_dataset(
             model=model,
             token_table=token_table,
             decoding_graph=decoding_graph,
+            context_graph=context_graph,
             batch=batch,
         )
 
@@ -407,16 +439,17 @@ def save_results(
     for key, results in results_dict.items():
         recog_path = params.res_dir / f"recogs-{test_set_name}-{params.suffix}.txt"
         results = sorted(results)
-        store_transcripts(filename=recog_path, texts=results)
+        # we compute CER for aishell dataset.
+        results_char = []
+        for res in results:
+            results_char.append((res[0], list("".join(res[1])), list("".join(res[2]))))
+
+        store_transcripts(filename=recog_path, texts=results_char)
         logging.info(f"The transcripts are stored in {recog_path}")
 
         # The following prints out WERs, per-word error statistics and aligned
         # ref/hyp pairs.
         errs_filename = params.res_dir / f"errs-{test_set_name}-{params.suffix}.txt"
-        # we compute CER for aishell dataset.
-        results_char = []
-        for res in results:
-            results_char.append((res[0], list("".join(res[1])), list("".join(res[2]))))
         with open(errs_filename, "w") as f:
             wer = write_error_stats(
                 f, f"{test_set_name}-{key}", results_char, enable_log=True
@@ -457,6 +490,12 @@ def main():
         "fast_beam_search",
         "modified_beam_search",
     )
+
+    if os.path.exists(params.context_file):
+        params.has_contexts = True
+    else:
+        params.has_contexts = False
+
     params.res_dir = params.exp_dir / params.decoding_method
 
     if params.iter > 0:
@@ -470,6 +509,10 @@ def main():
         params.suffix += f"-max-states-{params.max_states}"
     elif "beam_search" in params.decoding_method:
         params.suffix += f"-{params.decoding_method}-beam-size-{params.beam_size}"
+        if params.has_contexts:
+            params.suffix += f"-context-score-{params.context_score}"
+        else:
+            params.suffix += "-no-contexts-words"
     else:
         params.suffix += f"-context-{params.context_size}"
         params.suffix += f"-max-sym-per-frame-{params.max_sym_per_frame}"
@@ -489,6 +532,11 @@ def main():
     lexicon = Lexicon(params.lang_dir)
     params.blank_id = 0
     params.vocab_size = max(lexicon.tokens) + 1
+
+    graph_compiler = CharCtcTrainingGraphCompiler(
+        lexicon=lexicon,
+        device=device,
+    )
 
     logging.info(params)
 
@@ -586,6 +634,19 @@ def main():
     else:
         decoding_graph = None
 
+    if params.decoding_method == "modified_beam_search":
+        if os.path.exists(params.context_file):
+            contexts_text = []
+            for line in open(params.context_file).readlines():
+                contexts_text.append(line.strip())
+            contexts = graph_compiler.texts_to_ids(contexts_text)
+            context_graph = ContextGraph(params.context_score)
+            context_graph.build(contexts)
+        else:
+            context_graph = None
+    else:
+        context_graph = None
+
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
@@ -608,6 +669,7 @@ def main():
             model=model,
             token_table=lexicon.token_table,
             decoding_graph=decoding_graph,
+            context_graph=context_graph,
         )
 
         save_results(

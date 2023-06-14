@@ -54,7 +54,7 @@ class AsrModel(nn.Module):
           encoder:
             It is the transcription network in the paper. Its accepts
             two inputs: `x` of (N, T, encoder_dim) and `x_lens` of shape (N,).
-            It returns two tensors: `logits` of shape (N, T, encoder_dm) and
+            It returns two tensors: `logits` of shape (N, T, encoder_dim) and
             `logit_lens` of shape (N,).
           decoder:
             It is the prediction network in the paper. Its input shape

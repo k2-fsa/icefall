@@ -63,6 +63,14 @@ log() {
 
 log "dl_dir: $dl_dir"
 
+if ! command -v ffmpeg &> /dev/null; then
+  echo "This dataset requires ffmpeg"
+  echo "Please install ffmpeg first"
+  echo ""
+  echo "  sudo apt-get install ffmpeg"
+  exit 1
+fi
+
 if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   log "Stage 0: Download data"
 

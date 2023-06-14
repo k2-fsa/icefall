@@ -26,7 +26,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 1 \
-  --exp-dir pruned_transducer_stateless2/exp \
+  --exp-dir pruned_transducer_stateless4/exp \
   --full-libri 1 \
   --max-duration 300
 
@@ -37,7 +37,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --num-epochs 30 \
   --start-epoch 1 \
   --use-fp16 1 \
-  --exp-dir pruned_transducer_stateless2/exp \
+  --exp-dir pruned_transducer_stateless4/exp \
   --full-libri 1 \
   --max-duration 550
 
@@ -195,7 +195,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless2/exp",
+        default="pruned_transducer_stateless4/exp",
         help="""The experiment dir.
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
@@ -296,7 +296,7 @@ def get_parser():
         params.batch_idx_train % save_every_n == 0. The checkpoint filename
         has the form: f'exp-dir/checkpoint-{params.batch_idx_train}.pt'
         Note: It also saves checkpoint to `exp-dir/epoch-xxx.pt` at the
-        end of each epoch where `xxx` is the epoch number counting from 0.
+        end of each epoch where `xxx` is the epoch number counting from 1.
         """,
     )
 
