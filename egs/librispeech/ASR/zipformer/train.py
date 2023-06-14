@@ -607,7 +607,7 @@ def get_model(params: AttributeDict) -> nn.Module:
     assert (
         params.use_transducer or params.use_ctc
     ), (f"At least one of them should be True, "
-        f"but gotten params.use_transducer={params.use_transducer}, "
+        f"but got params.use_transducer={params.use_transducer}, "
         f"params.use_ctc={params.use_ctc}")
 
     encoder_embed = get_encoder_embed(params)

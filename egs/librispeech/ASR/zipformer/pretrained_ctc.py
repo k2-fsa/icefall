@@ -167,11 +167,11 @@ def get_parser():
         (2) nbest-rescoring. Extract n paths from the decoding lattice,
             rescore them with an LM, the path with
             the highest score is the decoding result.
-            We call it HLG decoding + n-gram LM rescoring.
+            We call it HLG decoding + nbest n-gram LM rescoring.
         (3) whole-lattice-rescoring - Use an LM to rescore the
             decoding lattice and then use 1best to decode the
             rescored lattice.
-            We call it HLG decoding + n-gram LM rescoring.
+            We call it HLG decoding + whole-lattice n-gram LM rescoring.
         """,
     )
 
@@ -219,15 +219,6 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--num-classes",
-        type=int,
-        default=500,
-        help="""
-        Vocab size in the BPE model.
-        """,
-    )
-
-    parser.add_argument(
         "--sample-rate",
         type=int,
         default=16000,
@@ -268,7 +259,7 @@ def read_sound_files(
             f"expected sample rate: {expected_sample_rate}. " f"Given: {sample_rate}"
         )
         # We use only the first channel
-        ans.append(wave[0])
+        ans.append(wave[0].contiguous())
     return ans
 
 
@@ -281,7 +272,11 @@ def main():
     # add decoding params
     params.update(get_decoding_params())
     params.update(vars(args))
-    params.vocab_size = params.num_classes
+
+    sp = spm.SentencePieceProcessor()
+    sp.load(params.bpe_model)
+
+    params.vocab_size = sp.get_piece_size()
     params.blank_id = 0
 
     logging.info(f"{params}")
@@ -340,9 +335,7 @@ def main():
 
     if params.method == "ctc-decoding":
         logging.info("Use CTC decoding")
-        bpe_model = spm.SentencePieceProcessor()
-        bpe_model.load(params.bpe_model)
-        max_token_id = params.num_classes - 1
+        max_token_id = params.vocab_size - 1
 
         H = k2.ctc_topo(
             max_token=max_token_id,
@@ -365,7 +358,7 @@ def main():
             lattice=lattice, use_double_scores=params.use_double_scores
         )
         token_ids = get_texts(best_path)
-        hyps = bpe_model.decode(token_ids)
+        hyps = sp.decode(token_ids)
         hyps = [s.split() for s in hyps]
     elif params.method in [
         "1best",

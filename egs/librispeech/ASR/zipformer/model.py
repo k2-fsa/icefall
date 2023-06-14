@@ -75,7 +75,7 @@ class AsrModel(nn.Module):
 
         assert (
             use_transducer or use_ctc
-        ), f"At least one of them should be True, but gotten use_transducer={use_transducer}, use_ctc={use_ctc}"
+        ), f"At least one of them should be True, but got use_transducer={use_transducer}, use_ctc={use_ctc}"
 
         assert isinstance(encoder, EncoderInterface), type(encoder)
 
@@ -98,6 +98,9 @@ class AsrModel(nn.Module):
             self.simple_lm_proj = ScaledLinear(
                 decoder_dim, vocab_size, initial_scale=0.25
             )
+        else:
+            assert decoder is None
+            assert joiner is None
 
         self.use_ctc = use_ctc
         if use_ctc:
@@ -135,7 +138,7 @@ class AsrModel(nn.Module):
         encoder_out, encoder_out_lens = self.encoder(x, x_lens, src_key_padding_mask)
 
         encoder_out = encoder_out.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
-        assert torch.all(encoder_out_lens > 0)
+        assert torch.all(encoder_out_lens > 0), (x_lens, encoder_out_lens)
 
         return encoder_out, encoder_out_lens
 
@@ -342,10 +345,7 @@ class AsrModel(nn.Module):
 
         if self.use_ctc:
             # Compute CTC loss
-            targets = [t for tokens in y.tolist() for t in tokens]
-            # of shape (sum(y_lens),)
-            targets = torch.tensor(targets, device=x.device, dtype=torch.int64)
-
+            targets = y.values
             ctc_loss = self.forward_ctc(
                 encoder_out=encoder_out,
                 encoder_out_lens=encoder_out_lens,
