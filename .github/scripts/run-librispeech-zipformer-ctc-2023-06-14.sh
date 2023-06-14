@@ -67,6 +67,8 @@ for method in ctc-decoding 1best; do
   log "$method"
 
   ./zipformer/pretrained_ctc.py \
+    --use-transducer 1 \
+    --use-ctc 1 \
     --method $method \
     --checkpoint $repo/exp/pretrained.pt \
     --bpe-model $repo/data/lang_bpe_500/bpe.model \
