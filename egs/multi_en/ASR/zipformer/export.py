@@ -257,6 +257,7 @@ def get_parser():
 
 class EncoderModel(nn.Module):
     """A wrapper for encoder and encoder_embed"""
+
     def __init__(self, encoder: nn.Module, encoder_embed: nn.Module) -> None:
         super().__init__()
         self.encoder = encoder
@@ -275,9 +276,7 @@ class EncoderModel(nn.Module):
         src_key_padding_mask = make_pad_mask(x_lens)
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
 
-        encoder_out, encoder_out_lens = self.encoder(
-            x, x_lens, src_key_padding_mask
-        )
+        encoder_out, encoder_out_lens = self.encoder(x, x_lens, src_key_padding_mask)
         encoder_out = encoder_out.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
 
         return encoder_out, encoder_out_lens
