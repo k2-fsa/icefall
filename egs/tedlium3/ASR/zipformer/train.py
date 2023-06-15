@@ -67,6 +67,7 @@ from joiner import Joiner
 from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
+from local.convert_transcript_words_to_bpe_ids import convert_texts_into_ids
 from model import Transducer
 from optim import Eden, ScaledAdam
 from scaling import ScheduledFloat
@@ -415,7 +416,7 @@ def get_parser():
     parser.add_argument(
         "--keep-last-k",
         type=int,
-        default=5,
+        default=1,
         help="""Only keep this number of checkpoints on disk.
         For instance, if it is 3, there are only 3 checkpoints
         in the exp-dir with filenames `checkpoint-xxx.pt`.
@@ -751,7 +752,7 @@ def compute_loss(
     warm_step = params.warm_step
 
     texts = batch["supervisions"]["text"]
-    y = sp.encode(texts, out_type=int)
+    y = convert_texts_into_ids(texts, sp)
     y = k2.RaggedTensor(y).to(device)
 
     with torch.set_grad_enabled(is_training):

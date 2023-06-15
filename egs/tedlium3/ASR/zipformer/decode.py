@@ -374,6 +374,7 @@ def decode_one_batch(
     encoder_out = encoder_out.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
 
     hyps = []
+    unk = sp.decode(sp.unk_id()).strip()
 
     if params.decoding_method == "fast_beam_search":
         hyp_tokens = fast_beam_search_one_best(
@@ -386,7 +387,8 @@ def decode_one_batch(
             max_states=params.max_states,
         )
         for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
+            hyp = [w for w in hyp.split() if w != unk]
+            hyps.append(hyp)
     elif params.decoding_method == "fast_beam_search_nbest_LG":
         hyp_tokens = fast_beam_search_nbest_LG(
             model=model,
@@ -400,7 +402,8 @@ def decode_one_batch(
             nbest_scale=params.nbest_scale,
         )
         for hyp in hyp_tokens:
-            hyps.append([word_table[i] for i in hyp])
+            hyp = [word_table[i] for i in hyp if word_table[i] != unk]
+            hyps.append(hyp)
     elif params.decoding_method == "fast_beam_search_nbest":
         hyp_tokens = fast_beam_search_nbest(
             model=model,
@@ -414,7 +417,8 @@ def decode_one_batch(
             nbest_scale=params.nbest_scale,
         )
         for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
+            hyp = [w for w in hyp.split() if w != unk]
+            hyps.append(hyp)
     elif params.decoding_method == "fast_beam_search_nbest_oracle":
         hyp_tokens = fast_beam_search_nbest_oracle(
             model=model,
@@ -429,7 +433,8 @@ def decode_one_batch(
             nbest_scale=params.nbest_scale,
         )
         for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
+            hyp = [w for w in hyp.split() if w != unk]
+            hyps.append(hyp)
     elif params.decoding_method == "greedy_search" and params.max_sym_per_frame == 1:
         hyp_tokens = greedy_search_batch(
             model=model,
@@ -437,7 +442,8 @@ def decode_one_batch(
             encoder_out_lens=encoder_out_lens,
         )
         for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
+            hyp = [w for w in hyp.split() if w != unk]
+            hyps.append(hyp)
     elif params.decoding_method == "modified_beam_search":
         hyp_tokens = modified_beam_search(
             model=model,
@@ -446,7 +452,8 @@ def decode_one_batch(
             beam=params.beam_size,
         )
         for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
+            hyp = [w for w in hyp.split() if w != unk]
+            hyps.append(hyp)
     else:
         batch_size = encoder_out.size(0)
 
@@ -470,7 +477,8 @@ def decode_one_batch(
                 raise ValueError(
                     f"Unsupported decoding method: {params.decoding_method}"
                 )
-            hyps.append(sp.decode(hyp).split())
+            hyp = [w for w in sp.decode(hyp).split() if w != unk]
+            hyps.append(hyp)
 
     if params.decoding_method == "greedy_search":
         return {"greedy_search": hyps}
