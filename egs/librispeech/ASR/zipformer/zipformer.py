@@ -2190,7 +2190,7 @@ class ConvolutionModule(nn.Module):
 
         x = self.in_proj(x)  # (time, batch, 2*channels)
 
-        x, s = x.chunk(2, dim=-1)
+        x, s = x.chunk(2, dim=2)
         s = self.sigmoid(s)
         x = x * s
         # (time, batch, channels)
