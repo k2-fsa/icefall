@@ -333,7 +333,7 @@ class AsrModel(nn.Module):
             simple_loss, pruned_loss = self.forward_transducer(
                 encoder_out=encoder_out,
                 encoder_out_lens=encoder_out_lens,
-                y=y,
+                y=y.to(x.device),
                 y_lens=y_lens,
                 prune_range=prune_range,
                 am_scale=am_scale,
