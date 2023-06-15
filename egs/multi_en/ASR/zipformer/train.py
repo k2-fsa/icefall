@@ -790,7 +790,7 @@ def compute_loss(
 
     texts = batch["supervisions"]["text"]
     y = sp.encode(texts, out_type=int)
-    y = k2.RaggedTensor(y).to(device)
+    y = k2.RaggedTensor(y)
 
     with torch.set_grad_enabled(is_training):
         simple_loss, pruned_loss, ctc_loss = model(

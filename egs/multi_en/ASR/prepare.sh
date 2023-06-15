@@ -66,6 +66,17 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   if [ -e ../../librispeech/ASR/data/fbank/.librispeech.done ]; then
     cd data/fbank
     ln -svf $(realpath ../../../../librispeech/ASR/data/fbank/librispeech_cuts_train-all-shuf.jsonl.gz) .
+    ln -svf $(realpath ../../../../librispeech/ASR/data/fbank/librispeech_cuts_dev-clean.jsonl.gz) .
+    ln -svf $(realpath ../../../../librispeech/ASR/data/fbank/librispeech_cuts_dev-other.jsonl.gz) .
+    ln -svf $(realpath ../../../../librispeech/ASR/data/fbank/librispeech_cuts_test-clean.jsonl.gz) .
+    ln -svf $(realpath ../../../../librispeech/ASR/data/fbank/librispeech_cuts_test-other.jsonl.gz) .
+    ln -svf $(realpath ../../../../librispeech/ASR/data/fbank/librispeech_feats_train-clean-100) .
+    ln -svf $(realpath ../../../../librispeech/ASR/data/fbank/librispeech_feats_train-clean-360) .
+    ln -svf $(realpath ../../../../librispeech/ASR/data/fbank/librispeech_feats_train-other-500) .
+    ln -svf $(realpath ../../../../librispeech/ASR/data/fbank/librispeech_feats_dev-clean) .
+    ln -svf $(realpath ../../../../librispeech/ASR/data/fbank/librispeech_feats_dev-other) .
+    ln -svf $(realpath ../../../../librispeech/ASR/data/fbank/librispeech_feats_test-clean) .
+    ln -svf $(realpath ../../../../librispeech/ASR/data/fbank/librispeech_feats_test-other) .
     cd ../..
   else
     log "Abort! Please run ../../librispeech/ASR/prepare.sh --stage 3 --stop-stage 3"
