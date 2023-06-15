@@ -22,6 +22,7 @@
 """
 Usage:
 
+ulimit -Sn 4096
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
 # For non-streaming model training:
