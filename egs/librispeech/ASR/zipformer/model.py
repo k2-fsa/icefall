@@ -353,6 +353,6 @@ class AsrModel(nn.Module):
                 target_lengths=y_lens,
             )
         else:
-            ctc_loss = 0
+            ctc_loss = torch.zeros(0)
 
         return simple_loss, pruned_loss, ctc_loss
