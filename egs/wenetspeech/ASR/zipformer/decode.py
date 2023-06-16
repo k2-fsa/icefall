@@ -28,17 +28,7 @@ Usage:
     --max-duration 600 \
     --decoding-method greedy_search
 
-(2) beam search (not recommended)
-./zipformer/decode.py \
-    --epoch 35 \
-    --avg 15 \
-    --exp-dir ./zipformer/exp \
-    --lang-dir data/lang_char \
-    --max-duration 600 \
-    --decoding-method beam_search \
-    --beam-size 4
-
-(3) modified beam search
+(2) modified beam search
 ./zipformer/decode.py \
     --epoch 35 \
     --avg 15 \
@@ -48,7 +38,7 @@ Usage:
     --decoding-method modified_beam_search \
     --beam-size 4
 
-(4) fast beam search (one best)
+(3) fast beam search (trivial_graph)
 ./zipformer/decode.py \
     --epoch 35 \
     --avg 15 \
@@ -60,21 +50,19 @@ Usage:
     --max-contexts 8 \
     --max-states 64
 
-(5) fast beam search (nbest)
+(4) fast beam search (LG)
 ./zipformer/decode.py \
     --epoch 30 \
     --avg 15 \
     --exp-dir ./zipformer/exp \
     --lang-dir data/lang_char \
     --max-duration 600 \
-    --decoding-method fast_beam_search_nbest \
+    --decoding-method fast_beam_search_LG \
     --beam 20.0 \
     --max-contexts 8 \
-    --max-states 64 \
-    --num-paths 200 \
-    --nbest-scale 0.5
+    --max-states 64
 
-(6) fast beam search (nbest oracle WER)
+(5) fast beam search (nbest oracle WER)
 ./zipformer/decode.py \
     --epoch 35 \
     --avg 15 \
@@ -87,18 +75,6 @@ Usage:
     --max-states 64 \
     --num-paths 200 \
     --nbest-scale 0.5
-
-(7) fast beam search (with LG)
-./zipformer/decode.py \
-    --epoch 35 \
-    --avg 15 \
-    --exp-dir ./zipformer/exp \
-    --lang-dir data/lang_char \
-    --max-duration 600 \
-    --decoding-method fast_beam_search_nbest_LG \
-    --beam 20.0 \
-    --max-contexts 8 \
-    --max-states 64
 """
 
 
@@ -210,13 +186,11 @@ def get_parser():
         default="greedy_search",
         help="""Possible values are:
           - greedy_search
-          - beam_search
           - modified_beam_search
           - fast_beam_search
-          - fast_beam_search_nbest
+          - fast_beam_search_LG
           - fast_beam_search_nbest_oracle
-          - fast_beam_search_nbest_LG
-        If you use fast_beam_search_nbest_LG, you have to specify
+        If you use fast_beam_search_LG, you have to specify
         `--lang-dir`, which should contain `LG.pt`.
         """,
     )
@@ -238,7 +212,7 @@ def get_parser():
         search (i.e., `cutoff = max-score - beam`), which is the same as the
         `beam` in Kaldi.
         Used only when --decoding-method is fast_beam_search,
-        fast_beam_search_nbest, fast_beam_search_nbest_LG,
+        fast_beam_search, fast_beam_search_LG,
         and fast_beam_search_nbest_oracle
         """,
     )
@@ -248,7 +222,7 @@ def get_parser():
         type=float,
         default=0.01,
         help="""
-        Used only when --decoding_method is fast_beam_search_nbest_LG.
+        Used only when --decoding_method is fast_beam_search_LG.
         It specifies the scale for n-gram LM scores.
         """,
     )
@@ -258,7 +232,7 @@ def get_parser():
         type=int,
         default=8,
         help="""Used only when --decoding-method is
-        fast_beam_search, fast_beam_search_nbest, fast_beam_search_nbest_LG,
+        fast_beam_search, fast_beam_search, fast_beam_search_LG,
         and fast_beam_search_nbest_oracle""",
     )
 
@@ -267,15 +241,15 @@ def get_parser():
         type=int,
         default=64,
         help="""Used only when --decoding-method is
-        fast_beam_search, fast_beam_search_nbest, fast_beam_search_nbest_LG,
+        fast_beam_search, fast_beam_search, fast_beam_search_LG,
         and fast_beam_search_nbest_oracle""",
     )
 
     parser.add_argument(
         "--context-size",
         type=int,
-        default=1,
-        help="The context size in the decoder. 1 means bigram; " "2 means tri-gram",
+        default=2,
+        help="The context size in the decoder. 1 means bigram; 2 means tri-gram",
     )
 
     parser.add_argument(
@@ -291,8 +265,7 @@ def get_parser():
         type=int,
         default=200,
         help="""Number of paths for nbest decoding.
-        Used only when the decoding method is fast_beam_search_nbest,
-        fast_beam_search_nbest_LG, and fast_beam_search_nbest_oracle""",
+        Used only when the decoding method is fast_beam_search_nbest_oracle""",
     )
 
     parser.add_argument(
@@ -300,8 +273,7 @@ def get_parser():
         type=float,
         default=0.5,
         help="""Scale applied to lattice scores when computing nbest paths.
-        Used only when the decoding method is fast_beam_search_nbest,
-        fast_beam_search_nbest_LG, and fast_beam_search_nbest_oracle""",
+        Used only when the decoding method is and fast_beam_search_nbest_oracle""",
     )
 
     parser.add_argument(
@@ -399,8 +371,8 @@ def decode_one_batch(
         )
         for i in range(encoder_out.size(0)):
             hyps.append([lexicon.token_table[idx] for idx in hyp_tokens[i]])
-    elif params.decoding_method == "fast_beam_search_nbest_LG":
-        hyp_tokens = fast_beam_search_nbest_LG(
+    elif params.decoding_method == "fast_beam_search_LG":
+        hyp_tokens = fast_beam_search_one_best(
             model=model,
             decoding_graph=decoding_graph,
             encoder_out=encoder_out,
@@ -408,28 +380,11 @@ def decode_one_batch(
             beam=params.beam,
             max_contexts=params.max_contexts,
             max_states=params.max_states,
-            num_paths=params.num_paths,
-            nbest_scale=params.nbest_scale,
             blank_penalty=params.blank_penalty,
         )
         for hyp in hyp_tokens:
             sentence = "".join([lexicon.word_table[i] for i in hyp])
             hyps.append(list(sentence))
-    elif params.decoding_method == "fast_beam_search_nbest":
-        hyp_tokens = fast_beam_search_nbest(
-            model=model,
-            decoding_graph=decoding_graph,
-            encoder_out=encoder_out,
-            encoder_out_lens=encoder_out_lens,
-            beam=params.beam,
-            max_contexts=params.max_contexts,
-            max_states=params.max_states,
-            num_paths=params.num_paths,
-            nbest_scale=params.nbest_scale,
-            blank_penalty=params.blank_penalty,
-        )
-        for i in range(encoder_out.size(0)):
-            hyps.append([lexicon.token_table[idx] for idx in hyp_tokens[i]])
     elif params.decoding_method == "fast_beam_search_nbest_oracle":
         hyp_tokens = fast_beam_search_nbest_oracle(
             model=model,
@@ -502,8 +457,8 @@ def decode_one_batch(
         if "nbest" in params.decoding_method:
             key += f"_num_paths_{params.num_paths}_"
             key += f"nbest_scale_{params.nbest_scale}"
-            if "LG" in params.decoding_method:
-                key += f"_ngram_lm_scale_{params.ngram_lm_scale}"
+        if "LG" in params.decoding_method:
+            key += f"_ngram_lm_scale_{params.ngram_lm_scale}"
 
         return {key: hyps}
     else:
@@ -639,11 +594,10 @@ def main():
     assert params.decoding_method in (
         "greedy_search",
         "beam_search",
-        "fast_beam_search",
-        "fast_beam_search_nbest",
-        "fast_beam_search_nbest_LG",
-        "fast_beam_search_nbest_oracle",
         "modified_beam_search",
+        "fast_beam_search",
+        "fast_beam_search_LG",
+        "fast_beam_search_nbest_oracle",
     )
     params.res_dir = params.exp_dir / params.decoding_method
 
@@ -669,8 +623,8 @@ def main():
         if "nbest" in params.decoding_method:
             params.suffix += f"-nbest-scale-{params.nbest_scale}"
             params.suffix += f"-num-paths-{params.num_paths}"
-            if "LG" in params.decoding_method:
-                params.suffix += f"-ngram-lm-scale-{params.ngram_lm_scale}"
+        if "LG" in params.decoding_method:
+            params.suffix += f"-ngram-lm-scale-{params.ngram_lm_scale}"
     elif "beam_search" in params.decoding_method:
         params.suffix += f"-{params.decoding_method}-beam-size-{params.beam_size}"
     else:
@@ -827,8 +781,6 @@ def main():
 
     test_sets = ["DEV", "TEST_NET", "TEST_MEETING"]
     test_dl = [dev_dl, test_net_dl, test_meeting_dl]
-    # test_sets = ["TEST_MEETING"]
-    # test_dl = [test_meeting_dl]
 
     for test_set, test_dl in zip(test_sets, test_dl):
         results_dict = decode_dataset(

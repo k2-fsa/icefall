@@ -139,42 +139,42 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         "--feedforward-dim",
         type=str,
         default="512,768,1024,1536,1024,768",
-        help="Feedforward dimension of the zipformer encoder layers, per stack, comma separated.",
+        help="""Feedforward dimension of the zipformer encoder layers, per stack, comma separated.""",
     )
 
     parser.add_argument(
         "--num-heads",
         type=str,
         default="4,4,4,8,4,4",
-        help="Number of attention heads in the zipformer encoder layers: a single int or comma-separated list.",
+        help="""Number of attention heads in the zipformer encoder layers: a single int or comma-separated list.""",
     )
 
     parser.add_argument(
         "--encoder-dim",
         type=str,
         default="192,256,384,512,384,256",
-        help="Embedding dimension in encoder stacks: a single int or comma-separated list.",
+        help="""Embedding dimension in encoder stacks: a single int or comma-separated list.""",
     )
 
     parser.add_argument(
         "--query-head-dim",
         type=str,
         default="32",
-        help="Query/key dimension per head in encoder stacks: a single int or comma-separated list.",
+        help="""Query/key dimension per head in encoder stacks: a single int or comma-separated list.""",
     )
 
     parser.add_argument(
         "--value-head-dim",
         type=str,
         default="12",
-        help="Value dimension per head in encoder stacks: a single int or comma-separated list.",
+        help="""Value dimension per head in encoder stacks: a single int or comma-separated list.""",
     )
 
     parser.add_argument(
         "--pos-head-dim",
         type=str,
         default="4",
-        help="Positional-encoding dimension per head in encoder stacks: a single int or comma-separated list.",
+        help="""Positional-encoding dimension per head in encoder stacks: a single int or comma-separated list.""",
     )
 
     parser.add_argument(
@@ -188,16 +188,14 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         "--encoder-unmasked-dim",
         type=str,
         default="192,192,256,256,256,192",
-        help="Unmasked dimensions in the encoders, relates to augmentation during training.  "
-        "A single int or comma-separated list.  Must be <= each corresponding encoder_dim.",
+        help="""Unmasked dimensions in the encoders, relates to augmentation during training. A single int or comma-separated list.  Must be <= each corresponding encoder_dim.""",
     )
 
     parser.add_argument(
         "--cnn-module-kernel",
         type=str,
         default="31,31,15,15,15,31",
-        help="Sizes of convolutional kernels in convolution modules in each encoder stack: "
-        "a single int or comma-separated list.",
+        help="""Sizes of convolutional kernels in convolution modules in each encoder stack: a single int or comma-separated list.""",
     )
 
     parser.add_argument(
@@ -228,17 +226,16 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         "--chunk-size",
         type=str,
         default="16,32,64,-1",
-        help="Chunk sizes (at 50Hz frame rate) will be chosen randomly from this list during training. "
-        " Must be just -1 if --causal=False",
+        help="""Chunk sizes (at 50Hz frame rate) will be chosen randomly from this list during training. Must be just -1 if --causal=False""",
     )
 
     parser.add_argument(
         "--left-context-frames",
         type=str,
         default="64,128,256,-1",
-        help="Maximum left-contexts for causal training, measured in frames which will "
-        "be converted to a number of chunks.  If splitting into chunks, "
-        "chunk left-context frames will be chosen randomly from this list; else not relevant.",
+        help="""Maximum left-contexts for causal training, measured in frames which will
+        be converted to a number of chunks.  If splitting into chunks,
+        chunk left-context frames will be chosen randomly from this list; else not relevant.""",
     )
 
 
@@ -338,48 +335,47 @@ def get_parser():
         "--ref-duration",
         type=float,
         default=600,
-        help="Reference batch duration for purposes of adjusting batch counts for setting various "
-        "schedules inside the model",
+        help="""Reference batch duration for purposes of adjusting batch counts for setting various schedules inside the model""",
     )
 
     parser.add_argument(
         "--context-size",
         type=int,
-        default=1,
-        help="The context size in the decoder. 1 means bigram; " "2 means tri-gram",
+        default=2,
+        help="""The context size in the decoder. 1 means bigram; 2 means tri-gram""",
     )
 
     parser.add_argument(
         "--prune-range",
         type=int,
         default=5,
-        help="The prune range for rnnt loss, it means how many symbols(context)"
-        "we are using to compute the loss",
+        help="""The prune range for rnnt loss, it means how many symbols(context)
+        we are using to compute the loss""",
     )
 
     parser.add_argument(
         "--lm-scale",
         type=float,
         default=0.25,
-        help="The scale to smooth the loss with lm "
-        "(output of prediction network) part.",
+        help="""The scale to smooth the loss with lm
+        (output of prediction network) part.""",
     )
 
     parser.add_argument(
         "--am-scale",
         type=float,
         default=0.0,
-        help="The scale to smooth the loss with am (output of encoder network)" "part.",
+        help="""The scale to smooth the loss with am (output of encoder network) part.""",
     )
 
     parser.add_argument(
         "--simple-loss-scale",
         type=float,
         default=0.5,
-        help="To get pruning ranges, we will calculate a simple version"
-        "loss(joiner is just addition), this simple loss also uses for"
-        "training (as a regularization item). We will scale the simple loss"
-        "with this parameter before adding to the final loss.",
+        help="""To get pruning ranges, we will calculate a simple version
+        loss(joiner is just addition), this simple loss also uses for
+        training (as a regularization item). We will scale the simple loss
+        with this parameter before adding to the final loss.""",
     )
 
     parser.add_argument(

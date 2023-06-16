@@ -28,7 +28,7 @@ Usage:
 
 ./zipformer/export.py \
   --exp-dir ./zipformer/exp \
-  --bpe-model data/lang_bpe_500/bpe.model \
+  --lang-dir data/lang_char \
   --epoch 30 \
   --avg 9 \
   --jit 1
@@ -48,7 +48,7 @@ for how to use the exported models outside of icefall.
   --causal 1 \
   --chunk-size 16 \
   --left-context-frames 128 \
-  --bpe-model data/lang_bpe_500/bpe.model \
+  --lang-dir data/lang_char \
   --epoch 30 \
   --avg 9 \
   --jit 1
@@ -67,7 +67,7 @@ for how to use the exported models outside of icefall.
 
 ./zipformer/export.py \
   --exp-dir ./zipformer/exp \
-  --bpe-model data/lang_bpe_500/bpe.model \
+  --lang-dir data/lang_char \
   --epoch 30 \
   --avg 9
 
@@ -76,7 +76,7 @@ for how to use the exported models outside of icefall.
 ./zipformer/export.py \
   --exp-dir ./zipformer/exp \
   --causal 1 \
-  --bpe-model data/lang_bpe_500/bpe.model \
+  --lang-dir data/lang_char \
   --epoch 30 \
   --avg 9
 
@@ -91,14 +91,13 @@ you can do:
     cd /path/to/exp_dir
     ln -s pretrained.pt epoch-9999.pt
 
-    cd /path/to/egs/librispeech/ASR
+    cd /path/to/egs/wenetspeech/ASR
     ./zipformer/decode.py \
         --exp-dir ./zipformer/exp \
         --epoch 9999 \
         --avg 1 \
         --max-duration 600 \
-        --decoding-method greedy_search \
-        --bpe-model data/lang_bpe_500/bpe.model
+        --decoding-method greedy_search
 
 - For streaming model:
 
@@ -107,7 +106,7 @@ To use the generated file with `zipformer/decode.py` and `zipformer/streaming_de
     cd /path/to/exp_dir
     ln -s pretrained.pt epoch-9999.pt
 
-    cd /path/to/egs/librispeech/ASR
+    cd /path/to/egs/wenetspeech/ASR
 
     # simulated streaming decoding
     ./zipformer/decode.py \
@@ -118,8 +117,7 @@ To use the generated file with `zipformer/decode.py` and `zipformer/streaming_de
         --causal 1 \
         --chunk-size 16 \
         --left-context-frames 128 \
-        --decoding-method greedy_search \
-        --bpe-model data/lang_bpe_500/bpe.model
+        --decoding-method greedy_search
 
     # chunk-wise streaming decoding
     ./zipformer/streaming_decode.py \
@@ -130,8 +128,7 @@ To use the generated file with `zipformer/decode.py` and `zipformer/streaming_de
         --causal 1 \
         --chunk-size 16 \
         --left-context-frames 128 \
-        --decoding-method greedy_search \
-        --bpe-model data/lang_bpe_500/bpe.model
+        --decoding-method greedy_search
 
 Check ./pretrained.py for its usage.
 
@@ -139,17 +136,17 @@ Note: If you don't want to train a model from scratch, we have
 provided one for you. You can get it at
 
 - non-streaming model:
-https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-2023-05-15
+https://huggingface.co/pkufool/icefall-asr-zipformer-wenetspeech-20230615
 
 - streaming model:
-https://huggingface.co/Zengwei/icefall-asr-librispeech-streaming-zipformer-2023-05-17
+https://huggingface.co/pkufool/icefall-asr-zipformer-streaming-wenetspeech-20230615
 
 with the following commands:
 
     sudo apt-get install git-lfs
     git lfs install
-    git clone https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-2023-05-15
-    git clone https://huggingface.co/Zengwei/icefall-asr-librispeech-streaming-zipformer-2023-05-17
+    git clone https://huggingface.co/pkufool/icefall-asr-zipformer-wenetspeech-20230615
+    git clone https://huggingface.co/pkufool/icefall-asr-zipformer-streaming-wenetspeech-20230615
     # You will find the pre-trained models in exp dir
 """
 
@@ -158,7 +155,6 @@ import logging
 from pathlib import Path
 from typing import List, Tuple
 
-import sentencepiece as spm
 import torch
 from scaling_converter import convert_scaled_to_non_scaled
 from torch import Tensor, nn
@@ -170,6 +166,7 @@ from icefall.checkpoint import (
     find_checkpoints,
     load_checkpoint,
 )
+from icefall.lexicon import Lexicon
 from icefall.utils import make_pad_mask, str2bool
 
 
@@ -227,10 +224,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--bpe-model",
+        "--lang-dir",
         type=str,
-        default="data/lang_bpe_500/bpe.model",
-        help="Path to the BPE model",
+        default="data/lang_char",
+        help="The lang dir",
     )
 
     parser.add_argument(
@@ -397,12 +394,10 @@ def main():
 
     logging.info(f"device: {device}")
 
-    sp = spm.SentencePieceProcessor()
-    sp.load(params.bpe_model)
+    lexicon = Lexicon(params.lang_dir)
 
-    # <blk> is defined in local/train_bpe_model.py
-    params.blank_id = sp.piece_to_id("<blk>")
-    params.vocab_size = sp.get_piece_size()
+    params.blank_id = lexicon.token_table["<blk>"]
+    params.vocab_size = max(lexicon.tokens) + 1
 
     logging.info(params)
 
