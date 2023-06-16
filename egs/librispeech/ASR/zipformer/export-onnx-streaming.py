@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright 2023 Xiaomi Corporation (Author: Fangjun Kuang)
+# Copyright 2023 Xiaomi Corporation (Author: Fangjun Kuang, Wei Kang)
 # Copyright 2023 Danqing Fu (danqing.fu@gmail.com)
 
 """
@@ -19,7 +19,7 @@ GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
 repo=$(basename $repo_url)
 
 pushd $repo
-git lfs pull --include "data/lang_bpe_500/bpe.model"
+git lfs pull --include "data/lang_bpe_500/tokens.txt"
 git lfs pull --include "exp/pretrained.pt"
 
 cd exp
@@ -29,7 +29,7 @@ popd
 2. Export the model to ONNX
 
 ./zipformer/export-onnx-streaming.py \
-  --bpe-model $repo/data/lang_bpe_500/bpe.model \
+  --tokens $repo/data/lang_bpe_500/tokens.txt \
   --use-averaged-model 0 \
   --epoch 99 \
   --avg 1 \
@@ -69,8 +69,8 @@ import logging
 from pathlib import Path
 from typing import Dict, List, Tuple
 
+import k2
 import onnx
-import sentencepiece as spm
 import torch
 import torch.nn as nn
 from decoder import Decoder
@@ -85,7 +85,7 @@ from icefall.checkpoint import (
     find_checkpoints,
     load_checkpoint,
 )
-from icefall.utils import str2bool, make_pad_mask
+from icefall.utils import make_pad_mask, str2bool
 
 
 def get_parser():
@@ -142,9 +142,9 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--bpe-model",
+        "--tokens",
         type=str,
-        default="data/lang_bpe_500/bpe.model",
+        default="data/lang_bpe_500/tokens.txt",
         help="Path to the BPE model",
     )
 
@@ -585,12 +585,9 @@ def main():
 
     logging.info(f"device: {device}")
 
-    sp = spm.SentencePieceProcessor()
-    sp.load(params.bpe_model)
-
-    # <blk> is defined in local/train_bpe_model.py
-    params.blank_id = sp.piece_to_id("<blk>")
-    params.vocab_size = sp.get_piece_size()
+    symbol_table = k2.SymbolTable.from_file(params.tokens)
+    params.blank_id = symbol_table["<blk>"]
+    params.vocab_size = len(symbol_table)
 
     logging.info(params)
 

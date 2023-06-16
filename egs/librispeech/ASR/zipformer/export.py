@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 #
-# Copyright 2021-2023 Xiaomi Corporation (Author: Fangjun Kuang, Zengwei Yao)
+# Copyright 2021-2023 Xiaomi Corporation (Author: Fangjun Kuang,
+#                                                 Zengwei Yao,
+#                                                 Wei Kang)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -22,13 +24,16 @@
 
 Usage:
 
+Note: This is a example for librispeech dataset, if you are using different
+dataset, you should change the argument values according to your dataset.
+
 (1) Export to torchscript model using torch.jit.script()
 
 - For non-streaming model:
 
 ./zipformer/export.py \
   --exp-dir ./zipformer/exp \
-  --bpe-model data/lang_bpe_500/bpe.model \
+  --tokens data/lang_bpe_500/tokens.txt \
   --epoch 30 \
   --avg 9 \
   --jit 1
@@ -48,7 +53,7 @@ for how to use the exported models outside of icefall.
   --causal 1 \
   --chunk-size 16 \
   --left-context-frames 128 \
-  --bpe-model data/lang_bpe_500/bpe.model \
+  --tokens data/lang_bpe_500/tokens.txt \
   --epoch 30 \
   --avg 9 \
   --jit 1
@@ -67,7 +72,7 @@ for how to use the exported models outside of icefall.
 
 ./zipformer/export.py \
   --exp-dir ./zipformer/exp \
-  --bpe-model data/lang_bpe_500/bpe.model \
+  --tokens data/lang_bpe_500/tokens.txt \
   --epoch 30 \
   --avg 9
 
@@ -76,7 +81,7 @@ for how to use the exported models outside of icefall.
 ./zipformer/export.py \
   --exp-dir ./zipformer/exp \
   --causal 1 \
-  --bpe-model data/lang_bpe_500/bpe.model \
+  --tokens data/lang_bpe_500/tokens.txt \
   --epoch 30 \
   --avg 9
 
@@ -158,7 +163,7 @@ import logging
 from pathlib import Path
 from typing import List, Tuple
 
-import sentencepiece as spm
+import k2
 import torch
 from scaling_converter import convert_scaled_to_non_scaled
 from torch import Tensor, nn
@@ -227,10 +232,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--bpe-model",
+        "--tokens",
         type=str,
-        default="data/lang_bpe_500/bpe.model",
-        help="Path to the BPE model",
+        default="data/lang_bpe_500/tokens.txt",
+        help="Path to the tokens.txt",
     )
 
     parser.add_argument(
@@ -397,12 +402,9 @@ def main():
 
     logging.info(f"device: {device}")
 
-    sp = spm.SentencePieceProcessor()
-    sp.load(params.bpe_model)
-
-    # <blk> is defined in local/train_bpe_model.py
-    params.blank_id = sp.piece_to_id("<blk>")
-    params.vocab_size = sp.get_piece_size()
+    symbol_table = k2.SymbolTable.from_file(params.tokens)
+    params.blank_id = symbol_table["<blk>"]
+    params.vocab_size = len(symbol_table)
 
     logging.info(params)
 
