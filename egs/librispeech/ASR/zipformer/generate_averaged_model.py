@@ -42,7 +42,7 @@ from pathlib import Path
 
 import k2
 import torch
-from train import add_model_arguments, get_params, get_transducer_model
+from train import add_model_arguments, get_model, get_params
 
 from icefall.checkpoint import average_checkpoints_with_averaged_model, find_checkpoints
 
@@ -131,7 +131,7 @@ def main():
     params.vocab_size = len(symbol_table)
 
     print("About to create model")
-    model = get_transducer_model(params)
+    model = get_model(params)
 
     if params.iter > 0:
         filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
