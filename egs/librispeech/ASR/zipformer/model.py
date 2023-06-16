@@ -340,8 +340,8 @@ class AsrModel(nn.Module):
                 lm_scale=lm_scale,
             )
         else:
-            simple_loss = 0
-            pruned_loss = 0
+            simple_loss = torch.empty(0)
+            pruned_loss = torch.empty(0)
 
         if self.use_ctc:
             # Compute CTC loss
@@ -353,6 +353,6 @@ class AsrModel(nn.Module):
                 target_lengths=y_lens,
             )
         else:
-            ctc_loss = 0
+            ctc_loss = torch.empty(0)
 
         return simple_loss, pruned_loss, ctc_loss
