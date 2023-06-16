@@ -22,29 +22,29 @@
 This script loads ONNX exported models and uses them to decode the test sets.
 
 We use the pre-trained model from
-https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11
+https://huggingface.co/pkufool/icefall-asr-zipformer-wenetspeech-20230615
 as an example to show how to use this file.
 
 1. Download the pre-trained model
 
-cd egs/librispeech/ASR
+cd egs/wenetspeech/ASR
 
-repo_url=https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11
+repo_url=https://huggingface.co/pkufool/icefall-asr-zipformer-wenetspeech-20230615
 GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
 repo=$(basename $repo_url)
 
 pushd $repo
-git lfs pull --include "data/lang_bpe_500/bpe.model"
-git lfs pull --include "exp/pretrained-epoch-30-avg-9.pt"
+git lfs pull --include "data/lang_char/tokens.txt"
+git lfs pull --include "exp/pretrained.pt"
 
 cd exp
-ln -s pretrained-epoch-30-avg-9.pt epoch-9999.pt
+ln -s pretrained.pt epoch-9999.pt
 popd
 
 2. Export the model to ONNX
 
-./pruned_transducer_stateless7/export-onnx.py \
-  --bpe-model $repo/data/lang_bpe_500/bpe.model \
+./zipformer/export-onnx.py \
+  --tokens $repo/data/lang_char/tokens.txt \
   --epoch 9999 \
   --avg 1 \
   --exp-dir $repo/exp/
@@ -57,8 +57,8 @@ It will generate the following 3 files inside $repo/exp:
 
 2. Run this file
 
-./pruned_transducer_stateless7/onnx_decode.py \
-  --exp-dir ./pruned_transducer_stateless7/exp \
+./zipformer/onnx_decode.py \
+  --exp-dir ./zipformer/exp \
   --max-duration 600 \
   --encoder-model-filename $repo/exp/encoder-epoch-9999-avg-1.onnx \
   --decoder-model-filename $repo/exp/decoder-epoch-9999-avg-1.onnx \

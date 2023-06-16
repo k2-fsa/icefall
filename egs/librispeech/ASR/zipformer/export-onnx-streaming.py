@@ -145,7 +145,7 @@ def get_parser():
         "--tokens",
         type=str,
         default="data/lang_bpe_500/tokens.txt",
-        help="Path to the BPE model",
+        help="Path to the tokens.txt",
     )
 
     parser.add_argument(
