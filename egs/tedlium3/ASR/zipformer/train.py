@@ -722,7 +722,7 @@ def compute_loss(
     is_training: bool,
 ) -> Tuple[Tensor, MetricsTracker]:
     """
-    Compute CTC loss given the model and its inputs.
+    Compute RNNT loss given the model and its inputs.
 
     Args:
       params:

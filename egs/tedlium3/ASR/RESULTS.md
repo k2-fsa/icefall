@@ -1,5 +1,87 @@
 ## Results
 
+### TedLium3 BPE training results (Zipformer)
+
+#### 2023-06-15
+
+Using the codes from this PR https://github.com/k2-fsa/icefall/pull/1125.
+
+Number of model parameters: 65549011, i.e., 65.5 M
+
+The WERs are
+
+|                                    |     dev    |    test    | comment                                  |
+|------------------------------------|------------|------------|------------------------------------------|
+|          greedy search             | 6.74       | 6.16       | --epoch 50, --avg 22, --max-duration 500 |
+|      beam search (beam size 4)     | 6.56       | 5.95       | --epoch 50, --avg 22, --max-duration 500 |
+| modified beam search (beam size 4) | 6.54       | 6.00       | --epoch 50, --avg 22, --max-duration 500 |
+| fast beam search (set as default)  | 6.91       | 6.28       | --epoch 50, --avg 22, --max-duration 500 |
+
+The training command for reproducing is given below:
+
+```
+export CUDA_VISIBLE_DEVICES="0,1,2,3"
+
+./zipformer/train.py \
+  --use-fp16 true \
+  --world-size 4 \
+  --num-epochs 50 \
+  --start-epoch 0 \
+  --exp-dir zipformer/exp \
+  --max-duration 1000
+```
+
+The tensorboard training log can be found at
+https://tensorboard.dev/experiment/AKXbJha0S9aXyfmuvG4h5A/#scalars
+
+The decoding command is:
+```
+epoch=50
+avg=22
+
+## greedy search
+./zipformer/decode.py \
+  --epoch $epoch \
+  --avg $avg \
+  --exp-dir zipformer/exp \
+  --bpe-model ./data/lang_bpe_500/bpe.model \
+  --max-duration 500
+
+## beam search
+./zipformer/decode.py \
+  --epoch $epoch \
+  --avg $avg \
+  --exp-dir zipformer/exp \
+  --bpe-model ./data/lang_bpe_500/bpe.model \
+  --max-duration 500 \
+  --decoding-method beam_search \
+  --beam-size 4
+
+## modified beam search
+./zipformer/decode.py \
+  --epoch $epoch \
+  --avg $avg \
+  --exp-dir zipformer/exp \
+  --bpe-model ./data/lang_bpe_500/bpe.model \
+  --max-duration 500 \
+  --decoding-method modified_beam_search \
+  --beam-size 4
+
+## fast beam search
+./zipformer/decode.py \
+  --epoch $epoch \
+  --avg $avg \
+  --exp-dir ./zipformer/exp \
+  --bpe-model ./data/lang_bpe_500/bpe.model \
+  --max-duration 1500 \
+  --decoding-method fast_beam_search \
+  --beam 4 \
+  --max-contexts 4 \
+  --max-states 8
+```
+
+A pre-trained model and decoding logs can be found at <https://huggingface.co/desh2608/icefall-asr-tedlium3-zipformer>
+
 ### TedLium3 BPE training results (Conformer-CTC 2)
 
 #### [conformer_ctc2](./conformer_ctc2)
