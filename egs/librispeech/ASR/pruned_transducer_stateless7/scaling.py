@@ -296,7 +296,7 @@ class SoftmaxFunction(torch.autograd.Function):
 
         dim = ctx.dim
         if dim < 0:
-            dim = dim + ans.dim
+            dim = dim + ans.ndim
         split_dim = 0 if dim != 0 else 1
         # split_dim is the dimension we split up ans on.
         num_split = min(8, ans.shape[split_dim])
