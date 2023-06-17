@@ -794,7 +794,7 @@ def train_one_epoch(
             display_and_save_batch(batch, params=params)
             raise
 
-        if params.print_diagnostics and _batch_idx == 5:
+        if params.print_diagnostics and batch_idx_ == 5:
             return
 
         if (
