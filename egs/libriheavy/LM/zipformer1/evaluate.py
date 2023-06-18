@@ -209,7 +209,8 @@ def main():
     model.eval()
 
     valid = LmDataset(params.valid_file_list,
-                      bytes_per_segment=params.bytes_per_segment)
+                      bytes_per_segment=params.bytes_per_segment,
+                      training=False)
     valid_dl = torch.utils.data.DataLoader(
         dataset=valid,
         batch_size=params.batch_size,

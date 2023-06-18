@@ -459,8 +459,6 @@ def load_checkpoint_if_available(
     """
     if params.start_batch > 0:
         filename = params.exp_dir / f"checkpoint-{params.start_batch}.pt"
-    elif params.start_epoch > 1:
-        filename = params.exp_dir / f"epoch-{params.start_epoch-1}.pt"
     else:
         return None
 
@@ -475,21 +473,10 @@ def load_checkpoint_if_available(
     )
 
     keys = [
-        "best_train_epoch",
-        "best_valid_epoch",
         "batch_idx_train",
-        "best_train_loss",
-        "best_valid_loss",
     ]
     for k in keys:
         params[k] = saved_params[k]
-
-    if params.start_batch > 0:
-        if "cur_epoch" in saved_params:
-            params["start_epoch"] = saved_params["cur_epoch"]
-
-        if "cur_batch_idx" in saved_params:
-            params["cur_batch_idx"] = saved_params["cur_batch_idx"]
 
     return saved_params
 
@@ -903,7 +890,6 @@ def run(rank, world_size, args):
         # model_avg is only used with rank 0
         model_avg = copy.deepcopy(model).to(torch.float64)
 
-    assert params.start_epoch > 0, params.start_epoch
     checkpoints = load_checkpoint_if_available(
         params=params, model=model, model_avg=model_avg
     )
@@ -945,8 +931,8 @@ def run(rank, world_size, args):
 
 
     train = LmDataset(params.train_file_list,
-                      bytes_per_segment=params.bytes_per_segment,
-                      skip_to_batch_idx=getattr(params, 'cur_batch_idx', 0))
+                      bytes_per_segment=params.bytes_per_segment)
+
     params.tokens_per_epoch = train.num_tokens()  # helps us figure out epoch progress.
 
     batch_size = params.batch_size // (6 if params.print_diagnostics else 1)
@@ -959,7 +945,9 @@ def run(rank, world_size, args):
 
 
     valid = LmDataset(params.valid_file_list,
-                      bytes_per_segment=params.bytes_per_segment)
+                      bytes_per_segment=params.bytes_per_segment,
+                      training=False)
+
     valid_dl = torch.utils.data.DataLoader(
         dataset=valid,
         batch_size=batch_size,
@@ -997,7 +985,6 @@ def run(rank, world_size, args):
 
     if params.print_diagnostics:
         diagnostic.print_diagnostics()
-        break
 
     logging.info("Done!")
 

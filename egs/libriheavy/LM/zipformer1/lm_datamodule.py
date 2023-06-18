@@ -38,8 +38,6 @@ class LmDataset(torch.utils.data.IterableDataset):
     def __init__(self,
                  file_list_fn: Path,
                  bytes_per_segment: int = 200,
-                 world_size: int = 1,
-                 rank: int = 0,
                  training: bool = True,
     ):
         """
@@ -53,11 +51,9 @@ class LmDataset(torch.utils.data.IterableDataset):
           file_list_fn: a file in which each line contains: a number of bytes, then a space, then a filename.
               e.g. a line might contain the text "64324 foo/abc.txt".
               (filenames can not contain spaces).
-          world_size, rank: from DDP.  We get the data-loader id and world-size separately.
           bytes_per_segment: the number of bytes in each segment of data.
         """
         self.training = training
-        self.skip_to_batch_idx = skip_to_batch_idx
         self.files = []
         self.num_bytes = []
         self.bytes_per_segment = bytes_per_segment
@@ -144,11 +140,11 @@ class LmDataset(torch.utils.data.IterableDataset):
                 b = b + b'\0' * (self.bytes_per_segment - len(b))
             yield torch.Tensor(np.frombuffer(b, dtype=np.uint8).copy()).to(torch.long)
 
-        def tot_tokens(self):
-            # Returns the total number of tokens, including padding tokens, in
-            # the dataset; this is for purposes of figuring out how many we
-            # epochs we have trained for.
-            return self.tot_positions
+    def num_tokens(self):
+        # Returns the total number of tokens, including padding tokens, in
+        # the dataset; this is for purposes of figuring out how many we
+        # epochs we have trained for.
+        return self.tot_positions
 
 
 def _test():
