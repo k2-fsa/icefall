@@ -1,1 +1,1 @@
-../../../librispeech/ASR/pruned_transducer_stateless7/zipformer.py
+../../../librispeech/ASR/pruned_transducer_stateless7_streaming/zipformer.py
