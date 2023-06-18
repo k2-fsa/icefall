@@ -41,15 +41,20 @@ class LmDataset(torch.utils.data.IterableDataset):
                  world_size: int = 1,
                  rank: int = 0,
                  training: bool = True,
-                 skip_to_batch_idx: int = 0,
     ):
         """
-        Initialize LmDataset object.  Args:
+        Initialize LmDataset object.   This keeps no state, it just gives you a totally random
+        segment each time.  The training files are just viewed as sequences of bytes, from which
+        we select chunks of a fixed size.  In training mode we just loop infinitely, and let
+        the training code decide when to stop based on the count of tokens.  In test mode
+        we loop so that we see each byte about once.
+
+        Args:
           file_list_fn: a file in which each line contains: a number of bytes, then a space, then a filename.
               e.g. a line might contain the text "64324 foo/abc.txt".
               (filenames can not contain spaces).
+          world_size, rank: from DDP.  We get the data-loader id and world-size separately.
           bytes_per_segment: the number of bytes in each segment of data.
-          skip_to_batch_idx: if provided, the first time we iterate we will skip this many batches.
         """
         self.training = training
         self.skip_to_batch_idx = skip_to_batch_idx
@@ -66,18 +71,25 @@ class LmDataset(torch.utils.data.IterableDataset):
                 fn = line[len(num_bytes) + 1:]  # this works even if fn has spaces in
                 self.files.append(fn)
                 self.num_bytes.append(int(num_bytes))
-        tot_bytes = sum(self.num_bytes)
-        N = len(self.num_bytes)
-        self.probs = np.array([ x / tot_bytes for x in self.num_bytes ])
+
+        # For purposes of choosing the possible start-positions of a segment: we
+        # need to pad on the left by bytes_per_segment - 1.  This is part of a
+        # scheme to ensure that each byte in each training file is chosen with
+        # equal probability, while also choosing different shifts of the data
+        # with equal probability.  We end up padding with zeroes if we
+        # are outside the file either on the left or the right.
+        pad = self.bytes_per_segment - 1
+        tot_positions = sum([ x + pad for x in self.num_bytes])
+        self.probs = np.array([ (x + pad) / tot_positions for x in self.num_bytes ])
+        self.tot_positions = tot_positions
 
         worker_info = torch.utils.data.get_worker_info()
         num_workers = (1 if worker_info is None else worker_info.num_workers)
 
-        # world_size is for ddp training, num_workers for data-loader worker threads.
+        # num_workers for data-loader worker threads; world_size is for ddp training.
         tot_workers = num_workers * get_world_size()
 
-
-        self.num_segments = tot_bytes // (bytes_per_segment * tot_workers)
+        self.num_segments = float('inf') if training else 1 + tot_positions // (bytes_per_segment * tot_workers)
 
 
     def __iter__(self):
@@ -85,19 +97,22 @@ class LmDataset(torch.utils.data.IterableDataset):
         # id includes both worker (within training job) and rank of training job
         my_id = (0 if worker_info is None else worker_info.id) + 1000 * self.ddp_rank
 
+        # note: the seed depends on the current random state, which will be different
+        # depending on the DDP worker id and also depending which batch we restarted
+        # training on.  This does not guarantee that you get repeatability if you
+        # restart training, but it does ensure you don't see exactly repeated data.
         seed = (random.randint(0, 10000) if self.training else 0) + my_id
         # the next line is because, for some reason, when we ran with --worle-size more than 1,
         # this info message was not printed out.
         logging.getLogger().setLevel(logging.INFO)
         logging.info(f"my_id={my_id}, seed={seed}, num_segments={self.num_segments}")
+        # use numpy's generator, not random's, because we need np.random.multinomial.
         rng = np.random.default_rng(seed=seed)
 
-        skip_to_batch_idx = self.skip_to_batch_idx
-        if skip_to_batch_idx != 0:
-            logging.info(f"skip-to-batch-idx={skip_to_batch_idx}")
-        self.skip_to_batch_idx = 0  # so only the 1st time we iterate, we respect this.
+        n = 0
+        while n < self.num_segments:  # if self.num_segments is infinity, just keep going.
+            n += 1
 
-        for n in range(self.num_segments):
             # np.random.multinomial / np.random.Generator.multinomial has an interface
             # where it gives counts of different categories, instead of the chosen category,
             # so we need to use np.nonzero to get the chosen category (i.e. the file index)
@@ -106,30 +121,34 @@ class LmDataset(torch.utils.data.IterableDataset):
             file_idx, = np.nonzero(rng.multinomial(1, self.probs))
             file_idx, = file_idx
 
-            if n < skip_to_batch_idx:
-                continue
-
             fn = self.files[file_idx]
             num_bytes = self.num_bytes[file_idx]
 
             # begin_pos, end_pos are the begin,end of a range from which we'll pick
-            # randomly, for where the start of the segment might be.
-            begin_pos = 0
-            end_pos = max(1, num_bytes - self.bytes_per_segment)
+            # randomly, for where the start of the segment might be.  We only
+            # guarantee that a segment should contain at most one byte of data;
+            # this helps ensure that each byte is chosen with the exact same probability,
+            # which is easier for analysis.
+            begin_pos = - (self.bytes_per_segment - 1)
+            end_pos = max(1, num_bytes - 1)
 
             begin, = rng.integers(low=begin_pos, high=end_pos, size=1)
 
             with open(fn, "rb") as f:
-                f.seek(begin)
-                b = f.read(self.bytes_per_segment) # b is bytes object
-            read_size = len(b)
-            if read_size < self.bytes_per_segment:
-                b = b + b'\0' * (self.bytes_per_segment - read_size)
+                if begin >= 0:
+                    f.seek(begin)
+                    b = f.read(self.bytes_per_segment) # b is bytes object
+                else:
+                    b = b'\0' * -begin + f.read(self.bytes_per_segment + begin)
+            if len(b) < self.bytes_per_segment:
+                b = b + b'\0' * (self.bytes_per_segment - len(b))
             yield torch.Tensor(np.frombuffer(b, dtype=np.uint8).copy()).to(torch.long)
 
-
-
-
+        def tot_tokens(self):
+            # Returns the total number of tokens, including padding tokens, in
+            # the dataset; this is for purposes of figuring out how many we
+            # epochs we have trained for.
+            return self.tot_positions
 
 
 def _test():

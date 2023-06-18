@@ -22,24 +22,11 @@ Usage:
 
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
-./pruned_transducer_stateless7/train.py \
+./zipformer1/train.py \
   --world-size 4 \
-  --num-epochs 30 \
-  --start-epoch 1 \
-  --exp-dir pruned_transducer_stateless7/exp \
-  --full-libri 1 \
-  --max-duration 300
+  --exp-dir zipformer1/exp \
+  --use-fp16 True
 
-# For mix precision training:
-
-./pruned_transducer_stateless7/train.py \
-  --world-size 4 \
-  --num-epochs 30 \
-  --start-epoch 1 \
-  --use-fp16 1 \
-  --exp-dir pruned_transducer_stateless7/exp \
-  --full-libri 1 \
-  --max-duration 550
 
 """
 
@@ -143,7 +130,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--encoder-dim",
         type=str,
-        default="384,512,512,768,512,512,384",
+        default="256,384,512,768,512,384,256",
         help="Embedding dimension in encoder stacks: a single int or comma-separated list."
     )
 
@@ -214,27 +201,18 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--num-epochs",
+        "--num-tokens",
         type=int,
-        default=30,
-        help="Number of epochs to train.",
+        default=10000000000,
+        help="Number of tokens to train.",
     )
 
-    parser.add_argument(
-        "--start-epoch",
-        type=int,
-        default=1,
-        help="""Resume training from this epoch. It should be positive.
-        If larger than 1, it will load checkpoint from
-        exp-dir/epoch-{start_epoch-1}.pt
-        """,
-    )
 
     parser.add_argument(
         "--start-batch",
         type=int,
         default=0,
-        help="""If positive, --start-epoch is ignored and
+        help="""If positive, we start training from this batch and "
         it loads the checkpoint from exp-dir/checkpoint-{start_batch}.pt
         """,
     )
@@ -270,11 +248,10 @@ def get_parser():
         "--lr-tokens",
         type=float,
         default=1000000000,
-        help="""Number of tokens beyond which the LR will start to decrease per token, defines
-        LR schedule, replacing lr-epochs
+        help="""Number of tokens beyond which the LR will start to significantly
+        decrease per token, defines LR schedules
         """,
     )
-
 
     parser.add_argument(
         "--seed",
@@ -305,8 +282,6 @@ def get_parser():
         periodically. We save checkpoint to exp-dir/ whenever
         params.batch_idx_train % save_every_n == 0. The checkpoint filename
         has the form: f'exp-dir/checkpoint-{params.batch_idx_train}.pt'
-        Note: It also saves checkpoint to `exp-dir/epoch-xxx.pt` at the
-        end of each epoch where `xxx` is the epoch number counting from 0.
         """,
     )
 
@@ -357,21 +332,9 @@ def get_params() -> AttributeDict:
 
     Explanation of options saved in `params`:
 
-        - best_train_loss: Best training loss so far. It is used to select
-                           the model that has the lowest training loss. It is
-                           updated during the training.
+        - batch_idx_train:  It contains number of batches trained so far.
 
-        - best_valid_loss: Best validation loss so far. It is used to select
-                           the model that has the lowest validation loss. It is
-                           updated during the training.
-
-        - best_train_epoch: It is the epoch that has the best training loss.
-
-        - best_valid_epoch: It is the epoch that has the best validation loss.
-
-        - batch_idx_train: Used to writing statistics to tensorboard. It
-                           contains number of batches trained so far across
-                           epochs.
+        - num_tokens_seen:  Total number of tokens that have been seen so far.
 
         - log_interval:  Print training loss if batch_idx % log_interval` is 0
 
@@ -393,11 +356,8 @@ def get_params() -> AttributeDict:
     """
     params = AttributeDict(
         {
-            "best_train_loss": float("inf"),
-            "best_valid_loss": float("inf"),
-            "best_train_epoch": -1,
-            "best_valid_epoch": -1,
             "batch_idx_train": 0,
+            "num_tokens_seen": 0,
             "log_interval": 50,
             "reset_interval": 200,
             "valid_interval": 3000,
@@ -477,9 +437,7 @@ def load_checkpoint_if_available(
     """Load checkpoint from file.
 
     If params.start_batch is positive, it will load the checkpoint from
-    `params.exp_dir/checkpoint-{params.start_batch}.pt`. Otherwise, if
-    params.start_epoch is larger than 1, it will load the checkpoint from
-    `params.start_epoch - 1`.
+    `params.exp_dir/checkpoint-{params.start_batch}.pt`.
 
     Apart from loading state dict for `model` and `optimizer` it also updates
     `best_train_epoch`, `best_train_loss`, `best_valid_epoch`,
@@ -573,14 +531,6 @@ def save_checkpoint(
         rank=rank,
     )
 
-    if params.best_train_epoch == params.cur_epoch:
-        best_train_filename = params.exp_dir / "best-train-loss.pt"
-        copyfile(src=filename, dst=best_train_filename)
-
-    if params.best_valid_epoch == params.cur_epoch:
-        best_valid_filename = params.exp_dir / "best-valid-loss.pt"
-        copyfile(src=filename, dst=best_valid_filename)
-
 def _encode_texts_as_bytes(texts: List[str], device: torch.device) -> Tuple[Tensor, Tensor, Tensor]:
     """
     Encode texts as bytes and then integer tensors.
@@ -627,8 +577,8 @@ def compute_loss(
       model:
         The model for training. It is an instance of Subformer in our case.
       batch:
-        A batch of data. See `lhotse.dataset.K2SpeechRecognitionDataset()`
-        for the content in it.
+        A batch of data: a tensor of integers from 0 to 255, of shape
+        (num_sequences, sequence_length).
       is_training:
         True for training. False for validation. When it is True, this
         function enables autograd during computation; when it is False, it
@@ -655,8 +605,14 @@ def compute_loss(
     info = MetricsTracker()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
+        # this logprob can be treated as somewhat like the log of the 'ppl1' printed in SRILM:
+        # that is, the total log-probability of the sequence, divided by the
+        # probability of just the non-terminating elements.  (treating \0 as
+        # a terminator, like EOF).  In fact this is not 100% correct, since
+        # we may also pad with leading zeros in case the 'window' starts before
+        # the start of the file.  But this is a small effect if the files are long.
         info["frames"] = (
-            labels.numel()
+            (labels != 0).sum()
         )
 
     # Note: We use reduction=sum while computing the loss.
@@ -697,7 +653,7 @@ def compute_validation_loss(
     return tot_loss
 
 
-def train_one_epoch(
+def train(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
     optimizer: torch.optim.Optimizer,
@@ -746,8 +702,6 @@ def train_one_epoch(
 
     tot_loss = MetricsTracker()
 
-    cur_batch_idx = params.get("cur_batch_idx", 0)
-
     saved_bad_model = False
     def save_bad_model(suffix: str = ""):
         save_checkpoint_impl(filename=params.exp_dir / f"bad-model{suffix}-{rank}.pt",
@@ -761,11 +715,11 @@ def train_one_epoch(
 
 
     for batch_idx_, batch in enumerate(train_dl):
-        batch_idx = batch_idx_ + batch_idx_offset
-        if batch_idx % 10 == 0:
+        params.batch_idx_train += 1
+
+        if params.batch_idx_train % 10 == 0:
             set_batch_count(model, get_adjusted_batch_count(params))
 
-        params.batch_idx_train += 1
 
         try:
             with torch.cuda.amp.autocast(enabled=params.use_fp16):
@@ -782,9 +736,12 @@ def train_one_epoch(
             # in the batch and there is no normalization to it so far.
             scaler.scale(loss).backward()
             scheduler.step_batch(params.batch_idx_train)
-            tokens_seen = params.batch_idx_train * params.bytes_per_segment * params.batch_size * get_world_size()
             # we make the formula depend on tokens not epochs, replacing lr_epochs with lr_tokens.
-            scheduler.step_epoch(tokens_seen)
+            scheduler.step_epoch(params.num_tokens_seen)
+
+            # this doesn't take into account padding, but it doesn't matter
+            # much, it is just to determine when we terminate.
+            params.num_tokens_seen += params.bytes_per_segment * params.batch_size * get_world_size()
 
             scaler.step(optimizer)
             scaler.update()
@@ -812,7 +769,6 @@ def train_one_epoch(
             params.batch_idx_train > 0
             and params.batch_idx_train % params.save_every_n == 0
         ):
-            params.cur_batch_idx = batch_idx
             save_checkpoint_with_global_batch_idx(
                 out_dir=params.exp_dir,
                 global_batch_idx=params.batch_idx_train,
@@ -824,12 +780,16 @@ def train_one_epoch(
                 scaler=scaler,
                 rank=rank,
             )
-            del params.cur_batch_idx
+
             remove_checkpoints(
                 out_dir=params.exp_dir,
                 topk=params.keep_last_k,
                 rank=rank,
             )
+            # wait till just after writing a checkpoint to finish training,
+            # to avoid wasted training iterations.
+            if params.num_tokens_seen > params.num_tokens:
+                break
 
         if batch_idx % 100 == 0 and params.use_fp16:
             # If the grad scale was less than 1, try increasing it.    The _growth_interval
@@ -853,7 +813,7 @@ def train_one_epoch(
             cur_grad_scale = scaler._scale.item() if params.use_fp16 else 1.0
 
             logging.info(
-                f"Epoch {params.cur_epoch}, "
+                f"Epoch {params.num_tokens_seen / params.tokens_per_epoch:.3f}, "
                 f"batch {batch_idx}, loss[{loss_info}], "
                 f"tot_loss[{tot_loss}], tokens: {tokens_seen} "
                 f"lr: {cur_lr:.2e}, " +
@@ -871,12 +831,11 @@ def train_one_epoch(
                 tot_loss.write_summary(
                     tb_writer, "train/tot_", params.batch_idx_train
                 )
+                tb_writer.add_scalar("train/epoch", params.num_tokens_seen / params.tokens_per_epoch)
                 if params.use_fp16:
                     tb_writer.add_scalar(
                         "train/grad_scale", cur_grad_scale, params.batch_idx_train
                     )
-
-
 
         if batch_idx % params.valid_interval == 0 and not params.print_diagnostics:
             logging.info("Computing validation loss")
@@ -887,7 +846,7 @@ def train_one_epoch(
                 world_size=world_size,
             )
             model.train()
-            logging.info(f"Epoch {params.cur_epoch}, validation: {valid_info}")
+            logging.info(f"Epoch {params.num_tokens_seen/params.tokens_per_epoch:.3f}, batch {params.batch_idx_train}, validation: {valid_info}")
             logging.info(f"Maximum memory allocated so far is {torch.cuda.max_memory_allocated()//1000000}MB")
             if tb_writer is not None:
                 valid_info.write_summary(
@@ -896,9 +855,6 @@ def train_one_epoch(
 
     loss_value = tot_loss["loss"] / tot_loss["frames"]
     params.train_loss = loss_value
-    if params.train_loss < params.best_train_loss:
-        params.best_train_epoch = params.cur_epoch
-        params.best_train_loss = params.train_loss
 
 
 def run(rank, world_size, args):
@@ -991,6 +947,7 @@ def run(rank, world_size, args):
     train = LmDataset(params.train_file_list,
                       bytes_per_segment=params.bytes_per_segment,
                       skip_to_batch_idx=getattr(params, 'cur_batch_idx', 0))
+    params.tokens_per_epoch = train.num_tokens()  # helps us figure out epoch progress.
 
     batch_size = params.batch_size // (6 if params.print_diagnostics else 1)
 
@@ -1015,47 +972,32 @@ def run(rank, world_size, args):
         logging.info("Loading grad scaler state dict")
         scaler.load_state_dict(checkpoints["grad_scaler"])
 
-    for epoch in range(params.start_epoch, params.num_epochs + 1):
-        # we don't do step_epoch per epoch as the dataset might be large, we do this
-        # to let it know how many tokens we have processed so far, and have a
-        # soft-cutoff lr_tokens measured in tokens.
-        # scheduler.step_epoch(epoch - 1)
-        fix_random_seed(params.seed + epoch)
-        # the above will affect random seeds in the dataloaders.
 
-        if tb_writer is not None:
-            tb_writer.add_scalar("train/epoch", epoch, params.batch_idx_train)
+    # the "+ params.start_batch" is to ensure that we use a different random
+    # seed generator in the data loaders if we resume training using --start-batch;
+    # this will prevent us from using the exact same data as we used before, although
+    # at the expense of exact repeatability.
+    fix_random_seed(params.seed * 123456 + params.start_batch)
+    # the above will affect random seeds in the dataloaders.
 
-        params.cur_epoch = epoch
 
-        train_one_epoch(
-            params=params,
-            model=model,
-            model_avg=model_avg,
-            optimizer=optimizer,
-            scheduler=scheduler,
-            train_dl=train_dl,
-            valid_dl=valid_dl,
-            scaler=scaler,
-            tb_writer=tb_writer,
-            world_size=world_size,
-            rank=rank,
-            batch_idx_offset=(getattr(params, 'cur_batch_idx', 0) if epoch == params.start_epoch else 0),
-        )
+    train(
+        params=params,
+        model=model,
+        model_avg=model_avg,
+        optimizer=optimizer,
+        scheduler=scheduler,
+        train_dl=train_dl,
+        valid_dl=valid_dl,
+        scaler=scaler,
+        tb_writer=tb_writer,
+        world_size=world_size,
+        rank=rank,
+    )
 
-        if params.print_diagnostics:
-            diagnostic.print_diagnostics()
-            break
-
-        save_checkpoint(
-            params=params,
-            model=model,
-            model_avg=model_avg,
-            optimizer=optimizer,
-            scheduler=scheduler,
-            scaler=scaler,
-            rank=rank,
-        )
+    if params.print_diagnostics:
+        diagnostic.print_diagnostics()
+        break
 
     logging.info("Done!")
 

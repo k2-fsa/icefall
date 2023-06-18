@@ -44,19 +44,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--epoch",
-        type=int,
-        default=30,
-        help="""It specifies the checkpoint to use for decoding.
-        Note: Epoch counts from 1.
-        You can specify --avg to use more checkpoints for model averaging.""",
-    )
-
-    parser.add_argument(
         "--iter",
         type=int,
         default=0,
-        help="""If positive, --epoch is ignored and it
+        help="""If positive, it
         will use the checkpoint exp_dir/checkpoint-iter.pt.
         You can specify --avg to use more checkpoints for model averaging.
         """,
@@ -68,18 +59,15 @@ def get_parser():
         default=9,
         help="Number of checkpoints to average. Automatically select "
         "consecutive checkpoints before the checkpoint specified by "
-        "'--epoch' and '--iter'",
+        "'--iter'",
     )
 
     parser.add_argument(
         "--use-averaged-model",
         type=str2bool,
         default=True,
-        help="Whether to load averaged model. Currently it only supports "
-        "using --epoch. If True, it would decode with the averaged model "
-        "over the epoch range from `epoch-avg` (excluded) to `epoch`."
-        "Actually only the models with epoch number of `epoch-avg` and "
-        "`epoch` are loaded for averaging. ",
+        help="Whether to load averaged model.  If True, it would decode "
+        "with the averaged model over this many checkpoints."
     )
 
     parser.add_argument(
@@ -150,10 +138,8 @@ def main():
 
     params.res_dir = params.exp_dir / "log-evaluation"
 
-    if params.iter > 0:
-        params.suffix = f"iter-{params.iter}-avg-{params.avg}"
-    else:
-        params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
+    assert params.iter > 0
+    params.suffix = f"iter-{params.iter}-avg-{params.avg}"
 
     if params.use_averaged_model:
         params.suffix += "-use-averaged-model"
@@ -173,81 +159,51 @@ def main():
     logging.info(f"Number of model parameters: {num_param}")
 
     if not params.use_averaged_model:
-        if params.iter > 0:
-            filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
-                : params.avg
-            ]
-            if len(filenames) == 0:
-                raise ValueError(
-                    f"No checkpoints found for"
-                    f" --iter {params.iter}, --avg {params.avg}"
-                )
-            elif len(filenames) < params.avg:
-                raise ValueError(
-                    f"Not enough checkpoints ({len(filenames)}) found for"
-                    f" --iter {params.iter}, --avg {params.avg}"
-                )
-            logging.info(f"averaging {filenames}")
-            model.to(device)
-            model.load_state_dict(average_checkpoints(filenames, device=device))
-        elif params.avg == 1:
-            load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
-        else:
-            start = params.epoch - params.avg + 1
-            filenames = []
-            for i in range(start, params.epoch + 1):
-                if i >= 1:
-                    filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
-            logging.info(f"averaging {filenames}")
-            model.to(device)
-            model.load_state_dict(average_checkpoints(filenames, device=device))
+        filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
+            : params.avg
+        ]
+        if len(filenames) == 0:
+            raise ValueError(
+                f"No checkpoints found for"
+                f" --iter {params.iter}, --avg {params.avg}"
+            )
+        elif len(filenames) < params.avg:
+            raise ValueError(
+                f"Not enough checkpoints ({len(filenames)}) found for"
+                f" --iter {params.iter}, --avg {params.avg}"
+            )
+        logging.info(f"averaging {filenames}")
+        model.to(device)
+        model.load_state_dict(average_checkpoints(filenames, device=device))
+
     else:
-        if params.iter > 0:
-            filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
-                : params.avg + 1
-            ]
-            if len(filenames) == 0:
-                raise ValueError(
-                    f"No checkpoints found for"
-                    f" --iter {params.iter}, --avg {params.avg}"
-                )
-            elif len(filenames) < params.avg + 1:
-                raise ValueError(
-                    f"Not enough checkpoints ({len(filenames)}) found for"
-                    f" --iter {params.iter}, --avg {params.avg}"
-                )
-            filename_start = filenames[-1]
-            filename_end = filenames[0]
-            logging.info(
-                "Calculating the averaged model over iteration checkpoints"
-                f" from {filename_start} (excluded) to {filename_end}"
+        filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
+        : params.avg + 1
+        ]
+        if len(filenames) == 0:
+            raise ValueError(
+                f"No checkpoints found for"
+                f" --iter {params.iter}, --avg {params.avg}"
             )
-            model.to(device)
-            model.load_state_dict(
-                average_checkpoints_with_averaged_model(
-                    filename_start=filename_start,
-                    filename_end=filename_end,
-                    device=device,
-                )
+        elif len(filenames) < params.avg + 1:
+            raise ValueError(
+                f"Not enough checkpoints ({len(filenames)}) found for"
+                f" --iter {params.iter}, --avg {params.avg}"
             )
-        else:
-            assert params.avg > 0, params.avg
-            start = params.epoch - params.avg
-            assert start >= 1, start
-            filename_start = f"{params.exp_dir}/epoch-{start}.pt"
-            filename_end = f"{params.exp_dir}/epoch-{params.epoch}.pt"
-            logging.info(
-                f"Calculating the averaged model over epoch range from "
-                f"{start} (excluded) to {params.epoch}"
+        filename_start = filenames[-1]
+        filename_end = filenames[0]
+        logging.info(
+            "Calculating the averaged model over iteration checkpoints"
+            f" from {filename_start} (excluded) to {filename_end}"
+        )
+        model.to(device)
+        model.load_state_dict(
+            average_checkpoints_with_averaged_model(
+                filename_start=filename_start,
+                filename_end=filename_end,
+                device=device,
             )
-            model.to(device)
-            model.load_state_dict(
-                average_checkpoints_with_averaged_model(
-                    filename_start=filename_start,
-                    filename_end=filename_end,
-                    device=device,
-                )
-            )
+        )
 
     model.to(device)
     model.eval()
