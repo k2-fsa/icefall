@@ -102,7 +102,28 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         "--encoder-dim",
         type=int,
         default=512,
-        help="Encoder output dimesion.",
+        help="Encoder output dimension.",
+    )
+
+    parser.add_argument(
+        "--decoder-dim",
+        type=int,
+        default=512,
+        help="Decoder output dimension.",
+    )
+
+    parser.add_argument(
+        "--joiner-dim",
+        type=int,
+        default=512,
+        help="Joiner output dimension.",
+    )
+
+    parser.add_argument(
+        "--dim-feedforward",
+        type=int,
+        default=2048,
+        help="Dimension of feed forward.",
     )
 
     parser.add_argument(
@@ -395,14 +416,10 @@ def get_params() -> AttributeDict:
             # parameters for conformer
             "feature_dim": 80,
             "subsampling_factor": 4,
-            "dim_feedforward": 2048,
-            # parameters for decoder
-            "decoder_dim": 512,
-            # parameters for joiner
-            "joiner_dim": 512,
             # parameters for Noam
             "model_warm_step": 3000,  # arg given to model, not for lrate
             "env_info": get_env_info(),
+            "is_pnnx": False,
         }
     )
 
@@ -419,6 +436,7 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         dim_feedforward=params.dim_feedforward,
         num_encoder_layers=params.num_encoder_layers,
         aux_layer_period=params.aux_layer_period,
+        is_pnnx=params.is_pnnx,
     )
     return encoder
 

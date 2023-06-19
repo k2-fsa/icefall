@@ -32,7 +32,7 @@
 #     - speech
 #
 # By default, this script produces the original transcript like kaldi and espnet. Optionally, you
-# can generate other transcript formats by supplying your own config files. A few examples of these
+# can add other transcript formats by supplying your own config files. A few examples of these
 # config files can be found in local/conf.
 
 # fix segmentation fault reported in https://github.com/k2-fsa/icefall/issues/674
@@ -44,10 +44,10 @@ nj=8
 stage=-1
 stop_stage=100
 
-csj_dir=/mnt/minami_data_server/t2131178/corpus/CSJ
-musan_dir=/mnt/minami_data_server/t2131178/corpus/musan/musan
-trans_dir=$csj_dir/retranscript
-csj_fbank_dir=/mnt/host/csj_data/fbank
+csj_dir=/mnt/host/corpus/csj
+musan_dir=/mnt/host/corpus/musan/musan
+trans_dir=$csj_dir/transcript
+csj_fbank_dir=/mnt/host/corpus/csj/fbank
 musan_fbank_dir=$musan_dir/fbank
 csj_manifest_dir=data/manifests
 musan_manifest_dir=$musan_dir/manifests
@@ -63,12 +63,8 @@ log() {
 
 if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
     log "Stage 1: Prepare CSJ manifest"
-    # If you want to generate more transcript modes, append the path to those config files at c.
-    # Example: lhotse prepare csj $csj_dir $trans_dir $csj_manifest_dir -c local/conf/disfluent.ini
-    # NOTE: In case multiple config files are supplied, the second config file and onwards will inherit
-    #       the segment boundaries of the first config file.
     if [ ! -e $csj_manifest_dir/.csj.done ]; then
-        lhotse prepare csj $csj_dir $trans_dir $csj_manifest_dir -j 4
+        lhotse prepare csj $csj_dir $csj_manifest_dir -t $trans_dir -j 16
         touch $csj_manifest_dir/.csj.done
     fi
 fi
@@ -88,32 +84,24 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
         python local/compute_fbank_csj.py --manifest-dir $csj_manifest_dir \
             --fbank-dir $csj_fbank_dir
         parts=(
-            train
-            valid
             eval1
             eval2
             eval3
+            valid
+            excluded
+            train
         )
         for part in ${parts[@]}; do
-            python local/validate_manifest.py --manifest $csj_manifest_dir/csj_cuts_$part.jsonl.gz
+            python local/validate_manifest.py --manifest $csj_fbank_dir/csj_cuts_$part.jsonl.gz
         done
         touch $csj_fbank_dir/.csj-validated.done
     fi
 fi
 
 if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
-    log "Stage 4: Prepare CSJ lang"
-    modes=disfluent
-
-    # If you want prepare the lang directory for other transcript modes, just append
-    # the names of those modes behind. An example is shown as below:-
-    # modes="$modes fluent symbol number"
-
-    for mode in ${modes[@]}; do
-        python local/prepare_lang_char.py --trans-mode $mode \
-            --train-cut $csj_manifest_dir/csj_cuts_train.jsonl.gz \
-            --lang-dir lang_char_$mode
-    done
+    log "Stage 4: Prepare CSJ lang_char"
+    python local/prepare_lang_char.py $csj_fbank_dir/csj_cuts_train.jsonl.gz
+    python local/add_transcript_mode.py -f $csj_fbank_dir -c local/conf/fluent.ini local/conf/number.ini
 fi
 
 if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
@@ -128,6 +116,6 @@ fi
 
 if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
     log "Stage 6: Show manifest statistics"
-    python local/display_manifest_statistics.py --manifest-dir $csj_manifest_dir > $csj_manifest_dir/manifest_statistics.txt
-    cat $csj_manifest_dir/manifest_statistics.txt
+    python local/display_manifest_statistics.py --manifest-dir $csj_fbank_dir > $csj_fbank_dir/manifest_statistics.txt
+    cat $csj_fbank_dir/manifest_statistics.txt
 fi

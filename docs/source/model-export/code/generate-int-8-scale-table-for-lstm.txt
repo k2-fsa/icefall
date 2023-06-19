@@ -1,0 +1,44 @@
+Don't Use GPU. has_gpu: 0, config.use_vulkan_compute: 1
+num encoder conv layers: 28
+num joiner conv layers: 3
+num files: 3
+Processing ../test_wavs/1089-134686-0001.wav
+Processing ../test_wavs/1221-135766-0001.wav
+Processing ../test_wavs/1221-135766-0002.wav
+Processing ../test_wavs/1089-134686-0001.wav
+Processing ../test_wavs/1221-135766-0001.wav
+Processing ../test_wavs/1221-135766-0002.wav
+----------encoder----------
+conv_15                                  : max = 15.942385        threshold = 15.930708        scale = 7.972025
+conv_16                                  : max = 44.978855        threshold = 17.031788        scale = 7.456645
+conv_17                                  : max = 17.868437        threshold = 7.830528         scale = 16.218575
+linear_18                                : max = 3.107259         threshold = 1.194808         scale = 106.293236
+linear_19                                : max = 6.193777         threshold = 4.634748         scale = 27.401705
+linear_20                                : max = 9.259933         threshold = 2.606617         scale = 48.722160
+linear_21                                : max = 5.186600         threshold = 4.790260         scale = 26.512129
+linear_22                                : max = 9.759041         threshold = 2.265832         scale = 56.050053
+linear_23                                : max = 3.931209         threshold = 3.099090         scale = 40.979767
+linear_24                                : max = 10.324160        threshold = 2.215561         scale = 57.321835
+linear_25                                : max = 3.800708         threshold = 3.599352         scale = 35.284134
+linear_26                                : max = 10.492444        threshold = 3.153369         scale = 40.274391
+linear_27                                : max = 3.660161         threshold = 2.720994         scale = 46.674126
+linear_28                                : max = 9.415265         threshold = 3.174434         scale = 40.007133
+linear_29                                : max = 4.038418         threshold = 3.118534         scale = 40.724262
+linear_30                                : max = 10.072084        threshold = 3.936867         scale = 32.259155
+linear_31                                : max = 4.342712         threshold = 3.599489         scale = 35.282787
+linear_32                                : max = 11.340535        threshold = 3.120308         scale = 40.701103
+linear_33                                : max = 3.846987         threshold = 3.630030         scale = 34.985939
+linear_34                                : max = 10.686298        threshold = 2.204571         scale = 57.607586
+linear_35                                : max = 4.904821         threshold = 4.575518         scale = 27.756420
+linear_36                                : max = 11.806659        threshold = 2.585589         scale = 49.118401
+linear_37                                : max = 6.402340         threshold = 5.047157         scale = 25.162680
+linear_38                                : max = 11.174589        threshold = 1.923361         scale = 66.030258
+linear_39                                : max = 16.178576        threshold = 7.556058         scale = 16.807705
+linear_40                                : max = 12.901954        threshold = 5.301267         scale = 23.956539
+linear_41                                : max = 14.839805        threshold = 7.597429         scale = 16.716181
+linear_42                                : max = 10.178945        threshold = 2.651595         scale = 47.895699
+----------joiner----------
+linear_2                                 : max = 24.829245        threshold = 16.627592        scale = 7.637907
+linear_1                                 : max = 10.746186        threshold = 5.255032         scale = 24.167313
+linear_3                                 : max = 1.000000         threshold = 0.999756         scale = 127.031013
+ncnn int8 calibration table create success, best wish for your int8 inference has a low accuracy loss...\(^0^)/...233...

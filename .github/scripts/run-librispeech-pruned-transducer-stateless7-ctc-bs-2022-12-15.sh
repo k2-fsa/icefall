@@ -10,7 +10,7 @@ log() {
 
 cd egs/librispeech/ASR
 
-repo_url=https://huggingface.co/yfyeung/icefall-asr-librispeech-pruned_transducer_stateless7_ctc_bs-2022-12-14
+repo_url=https://huggingface.co/yfyeung/icefall-asr-librispeech-pruned_transducer_stateless7_ctc_bs-2023-01-29
 
 log "Downloading pre-trained model from $repo_url"
 GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
@@ -18,7 +18,6 @@ repo=$(basename $repo_url)
 
 log "Display test files"
 tree $repo/
-soxi $repo/test_wavs/*.wav
 ls -lh $repo/test_wavs/*.wav
 
 pushd $repo/exp

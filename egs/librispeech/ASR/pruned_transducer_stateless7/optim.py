@@ -282,7 +282,6 @@ class ScaledAdam(BatchedOptimizer):
 
         batch_size = p.shape[0]
         numel = p.numel() // batch_size
-        numel = p.numel()
 
         if numel > 1:
             # "param_rms" just periodically records the scalar root-mean-square value of
@@ -799,6 +798,47 @@ def _test_eden():
     logging.info(f"state dict = {scheduler.state_dict()}")
 
 
+def _plot_eden_lr():
+    import matplotlib.pyplot as plt
+
+    m = torch.nn.Linear(100, 100)
+    parameters_names = []
+    parameters_names.append(
+        [name_param_pair[0] for name_param_pair in m.named_parameters()]
+    )
+
+    for lr_epoch in [4, 10, 100]:
+        for lr_batch in [100, 400]:
+            optim = ScaledAdam(
+                m.parameters(), lr=0.03, parameters_names=parameters_names
+            )
+            scheduler = Eden(
+                optim, lr_batches=lr_batch, lr_epochs=lr_epoch, verbose=True
+            )
+            lr = []
+
+            for epoch in range(10):
+                scheduler.step_epoch(epoch)  # sets epoch to `epoch`
+
+                for step in range(500):
+                    lr.append(scheduler.get_lr())
+
+                    x = torch.randn(200, 100).detach()
+                    x.requires_grad = True
+                    y = m(x)
+                    dy = torch.randn(200, 100).detach()
+                    f = (y * dy).sum()
+                    f.backward()
+
+                    optim.step()
+                    scheduler.step_batch()
+                    optim.zero_grad()
+            plt.plot(lr, label=f"lr_epoch:{lr_epoch}, lr_batch:{lr_batch}")
+
+    plt.legend()
+    plt.savefig("lr.png")
+
+
 # This is included mostly as a baseline for ScaledAdam.
 class Eve(Optimizer):
     """
@@ -1057,5 +1097,6 @@ if __name__ == "__main__":
     else:
         hidden_dim = 200
 
-    _test_scaled_adam(hidden_dim)
-    _test_eden()
+    # _test_scaled_adam(hidden_dim)
+    # _test_eden()
+    _plot_eden_lr()

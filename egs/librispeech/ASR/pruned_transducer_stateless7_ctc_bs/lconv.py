@@ -62,7 +62,7 @@ class LConv(nn.Module):
             kernel_size=kernel_size,
             stride=1,
             padding=(kernel_size - 1) // 2,
-            groups=channels,
+            groups=2 * channels,
             bias=bias,
         )
 

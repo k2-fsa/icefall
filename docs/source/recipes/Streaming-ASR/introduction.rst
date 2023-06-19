@@ -30,8 +30,9 @@ In icefall, we implement the streaming conformer the way just like what `WeNet <
    See :doc:`Pruned transducer statelessX <librispeech/pruned_transducer_stateless>` for more details.
 
 .. HINT::
-   If you want to adapt a non-streaming conformer model to be streaming, please refer
-   to `this pull request <https://github.com/k2-fsa/icefall/pull/454>`_.
+   If you want to modify a non-streaming conformer recipe to support both streaming and non-streaming, please refer
+   to `this pull request <https://github.com/k2-fsa/icefall/pull/454>`_.  After adding the code needed by streaming training,
+   you have to re-train it with the extra arguments metioned in the docs above to get a streaming model.
 
 
 Streaming Emformer

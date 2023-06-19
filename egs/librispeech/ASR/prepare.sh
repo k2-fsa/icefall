@@ -107,7 +107,7 @@ fi
 if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   log "Stage 2: Prepare musan manifest"
   # We assume that you have downloaded the musan corpus
-  # to data/musan
+  # to $dl_dir/musan
   mkdir -p data/manifests
   if [ ! -e data/manifests/.musan.done ]; then
     lhotse prepare musan $dl_dir/musan data/manifests
@@ -184,7 +184,7 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
     ./shared/convert-k2-to-openfst.py \
       --olabels aux_labels \
       $lang_dir/L_disambig.pt \
-      $lang_dir/disambig_L.fst
+      $lang_dir/L_disambig.fst
   fi
 fi
 

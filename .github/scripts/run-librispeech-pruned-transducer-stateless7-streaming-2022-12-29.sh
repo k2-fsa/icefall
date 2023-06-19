@@ -19,16 +19,16 @@ repo=$(basename $repo_url)
 
 log "Display test files"
 tree $repo/
-soxi $repo/test_wavs/*.wav
 ls -lh $repo/test_wavs/*.wav
 
-pushd $repo/exp
+pushd $repo
 git lfs pull --include "data/lang_bpe_500/bpe.model"
 git lfs pull --include "exp/cpu_jit.pt"
 git lfs pull --include "exp/pretrained.pt"
 git lfs pull --include "exp/encoder_jit_trace.pt"
 git lfs pull --include "exp/decoder_jit_trace.pt"
 git lfs pull --include "exp/joiner_jit_trace.pt"
+cd exp
 ln -s pretrained.pt epoch-99.pt
 ls -lh *.pt
 popd

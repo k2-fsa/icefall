@@ -64,7 +64,7 @@ jobs:
         run: |
           grep -v '^#' ./requirements-ci.txt  | xargs -n 1 -L 1 pip install
           pip uninstall -y protobuf
-          pip install --no-binary protobuf protobuf
+          pip install --no-binary protobuf protobuf==3.20.*
 
       - name: Cache kaldifeat
         id: my-cache
@@ -72,7 +72,7 @@ jobs:
         with:
           path: |
             ~/tmp/kaldifeat
-          key: cache-tmp-${{ matrix.python-version }}-2022-09-25
+          key: cache-tmp-${{ matrix.python-version }}-2023-05-22
 
       - name: Install kaldifeat
         if: steps.my-cache.outputs.cache-hit != 'true'

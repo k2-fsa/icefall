@@ -2,6 +2,109 @@
 
 ### Aishell training result(Stateless Transducer)
 
+#### Pruned transducer stateless 7
+
+[./pruned_transducer_stateless7](./pruned_transducer_stateless7)
+
+It's Zipformer with Pruned RNNT loss.
+
+|                        | test | dev  | comment                               |
+|------------------------|------|------|---------------------------------------|
+| greedy search          | 5.02 | 4.61 | --epoch 42 --avg 6 --max-duration 600 |
+| modified beam search   | 4.81 | 4.4 | --epoch 42 --avg 6 --max-duration 600 |
+| fast beam search       | 4.91 | 4.52 | --epoch 42 --avg 6 --max-duration 600 |
+
+Training command is:
+
+```bash
+./prepare.sh
+
+export CUDA_VISIBLE_DEVICES="0,1"
+
+./pruned_transducer_stateless7/train.py \
+  --world-size 2 \
+  --num-epochs 50 \
+  --start-epoch 1 \
+  --use-fp16 1 \
+  --exp-dir pruned_transducer_stateless7/exp \
+  --context-size 1 \
+  --max-duration 300
+```
+
+**Caution**: It uses `--context-size=1`.
+
+The tensorboard log is available at
+<https://tensorboard.dev/experiment/MHYo3ApfQxaCdYLr38cQOQ>
+
+The decoding command is:
+```bash
+for m in greedy_search modified_beam_search fast_beam_search ; do
+  ./pruned_transducer_stateless7/decode.py \
+    --epoch 42 \
+    --avg 6 \
+    --exp-dir ./pruned_transducer_stateless7/exp \
+    --lang-dir data/lang_char \
+    --max-duration 300 \
+    --context-size 1 \
+    --decoding-method $m
+
+done
+```
+
+Pretrained models, training logs, decoding logs, and decoding results
+are available at
+<https://huggingface.co/marcoyang/icefall-asr-aishell-zipformer-pruned-transducer-stateless7-2023-03-21>
+#### Pruned transducer stateless 7 (zipformer)
+
+See <https://github.com/k2-fsa/icefall/pull/986>
+
+[./pruned_transducer_stateless7_bbpe](./pruned_transducer_stateless7_bbpe)
+
+**Note**: The modeling units are byte level BPEs
+
+The best results I have gotten are:
+
+Vocab size | Greedy search(dev & test) | Modified beam search(dev & test) | Fast beam search (dev & test)  | Fast beam search LG (dev & test) | comments
+-- | -- | -- | -- | -- | --
+500 | 4.31 & 4.59 | 4.25 & 4.54 | 4.27 & 4.55 |  4.07 & 4.38 | --epoch 48 --avg 29
+
+The training command:
+
+```
+export CUDA_VISIBLE_DEVICES="4,5,6,7"
+
+./pruned_transducer_stateless7_bbpe/train.py \
+  --world-size 4 \
+  --num-epochs 50 \
+  --start-epoch 1 \
+  --use-fp16 1 \
+  --max-duration 800 \
+  --bpe-model data/lang_bbpe_500/bbpe.model \
+  --exp-dir pruned_transducer_stateless7_bbpe/exp \
+  --lr-epochs 6 \
+  --master-port 12535
+```
+
+The decoding command:
+
+```
+for m in greedy_search modified_beam_search fast_beam_search fast_beam_search_LG; do
+    ./pruned_transducer_stateless7_bbpe/decode.py \
+      --epoch 48 \
+      --avg 29 \
+      --exp-dir ./pruned_transducer_stateless7_bbpe/exp \
+      --max-sym-per-frame 1 \
+      --ngram-lm-scale 0.25 \
+      --ilme-scale 0.2 \
+      --bpe-model data/lang_bbpe_500/bbpe.model \
+      --max-duration 2000 \
+      --decoding-method $m
+done
+```
+
+The pretrained model is available at: https://huggingface.co/pkufool/icefall_asr_aishell_pruned_transducer_stateless7_bbpe
+
+
 #### Pruned transducer stateless 3
 
 See <https://github.com/k2-fsa/icefall/pull/436>
@@ -15,6 +118,8 @@ It uses pruned RNN-T.
 |------------------------|------|------|---------------------------------------|
 | greedy search          | 5.39 | 5.09 | --epoch 29 --avg 5 --max-duration 600 |
 | modified beam search   | 5.05 | 4.79 | --epoch 29 --avg 5 --max-duration 600 |
+| modified beam search + RNNLM shallow fusion   | 4.73 | 4.53 | --epoch 29 --avg 5 --max-duration 600 |
+| modified beam search + LODR   | 4.57 | 4.37 | --epoch 29 --avg 5 --max-duration 600 |
 | fast beam search       | 5.13 | 4.91 | --epoch 29 --avg 5 --max-duration 600 |
 
 Training command is:
@@ -71,6 +176,78 @@ for epoch in 29; do
     done
   done
 done
+```
+
+We provide the option of shallow fusion with a RNN language model. The pre-trained language model is
+available at <https://huggingface.co/marcoyang/icefall-aishell-rnn-lm>. To decode with the language model,
+please use the following command:
+
+```bash
+# download pre-trained model
+git lfs install
+git clone https://huggingface.co/csukuangfj/icefall-aishell-pruned-transducer-stateless3-2022-06-20
+
+aishell_exp=icefall-aishell-pruned-transducer-stateless3-2022-06-20/
+
+pushd ${aishell_exp}/exp
+ln -s pretrained-epoch-29-avg-5-torch-1.10.0.pt epoch-99.pt
+popd
+
+# download RNN LM
+git lfs install
+git clone https://huggingface.co/marcoyang/icefall-aishell-rnn-lm
+rnnlm_dir=icefall-aishell-rnn-lm
+
+# RNNLM shallow fusion
+for lm_scale in $(seq 0.26 0.02 0.34); do
+  python ./pruned_transducer_stateless3/decode.py \
+      --epoch 99 \
+      --avg 1 \
+      --lang-dir ${aishell_exp}/data/lang_char \
+      --exp-dir ${aishell_exp}/exp \
+      --use-averaged-model False \
+      --decoding-method modified_beam_search_lm_shallow_fusion \
+      --use-shallow-fusion 1 \
+      --lm-type rnn \
+      --lm-exp-dir ${rnnlm_dir}/exp \
+      --lm-epoch 99 \
+      --lm-scale $lm_scale \
+      --lm-avg 1 \
+      --rnn-lm-embedding-dim 2048 \
+      --rnn-lm-hidden-dim 2048 \
+      --rnn-lm-num-layers 2 \
+      --lm-vocab-size 4336
+done
+
+# RNNLM Low-order density ratio (LODR) with a 2-gram
+
+cp ${rnnlm_dir}/2gram.fst.txt ${aishell_exp}/data/lang_char/2gram.fst.txt
+
+for lm_scale in 0.48; do
+  for LODR_scale in -0.28; do
+    python ./pruned_transducer_stateless3/decode.py \
+        --epoch 99 \
+        --avg 1 \
+        --lang-dir ${aishell_exp}/data/lang_char \
+        --exp-dir ${aishell_exp}/exp \
+        --use-averaged-model False \
+        --decoding-method modified_beam_search_LODR \
+        --use-shallow-fusion 1 \
+        --lm-type rnn \
+        --lm-exp-dir ${rnnlm_dir}/exp \
+        --lm-epoch 99 \
+        --lm-scale $lm_scale \
+        --lm-avg 1 \
+        --rnn-lm-embedding-dim 2048 \
+        --rnn-lm-hidden-dim 2048 \
+        --rnn-lm-num-layers 2 \
+        --lm-vocab-size 4336 \
+        --tokens-ngram 2 \
+        --backoff-id 4336 \
+        --ngram-lm-scale $LODR_scale
+  done
+done
+
 ```
 
 Pretrained models, training logs, decoding logs, and decoding results

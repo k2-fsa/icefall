@@ -109,10 +109,7 @@ Usage:
 
 To evaluate symbol delay, you should:
 (1) Generate cuts with word-time alignments:
-./local/add_alignment_librispeech.py \
-    --alignments-dir data/alignment \
-    --cuts-in-dir data/fbank \
-    --cuts-out-dir data/fbank_ali
+./add_alignments.sh
 (2) Set the argument "--manifest-dir data/fbank_ali" while decoding.
 For example:
 ./pruned_transducer_stateless4/decode.py \
@@ -128,6 +125,7 @@ For example:
 import argparse
 import logging
 import math
+import os
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -149,6 +147,7 @@ from beam_search import (
 )
 from train import add_model_arguments, get_params, get_transducer_model
 
+from icefall import ContextGraph
 from icefall.checkpoint import (
     average_checkpoints,
     average_checkpoints_with_averaged_model,
@@ -329,14 +328,14 @@ def get_parser():
         "--decode-chunk-size",
         type=int,
         default=16,
-        help="The chunk size for decoding (in frames after subsampling)",
+        help="The chunk size for decoding (in frames after subsampling). Set -1 to use full attention.",
     )
 
     parser.add_argument(
         "--left-context",
         type=int,
         default=64,
-        help="left context can be seen during decoding (in frames after subsampling)",  # noqa
+        help="""Left context can be seen during decoding (in frames after subsampling). """,  # noqa
     )
 
     parser.add_argument(
@@ -356,6 +355,27 @@ def get_parser():
         Used only when the decoding method is fast_beam_search_nbest,
         fast_beam_search_nbest_LG, and fast_beam_search_nbest_oracle""",
     )
+
+    parser.add_argument(
+        "--context-score",
+        type=float,
+        default=2,
+        help="""
+        The bonus score of each token for the context biasing words/phrases.
+        Used only when --decoding_method is modified_beam_search.
+        """,
+    )
+
+    parser.add_argument(
+        "--context-file",
+        type=str,
+        default="",
+        help="""
+        The path of the context biasing lists, one word/phrase each line
+        Used only when --decoding_method is modified_beam_search.
+        """,
+    )
+
     add_model_arguments(parser)
 
     return parser
@@ -368,6 +388,7 @@ def decode_one_batch(
     batch: dict,
     word_table: Optional[k2.SymbolTable] = None,
     decoding_graph: Optional[k2.Fsa] = None,
+    context_graph: Optional[ContextGraph] = None,
 ) -> Dict[str, Tuple[List[List[str]], List[List[float]]]]:
     """Decode one batch and return the result in a dict. The dict has the
     following format:
@@ -412,12 +433,14 @@ def decode_one_batch(
     feature_lens = supervisions["num_frames"].to(device)
 
     if params.simulate_streaming:
-        feature_lens += params.left_context
-        feature = torch.nn.functional.pad(
-            feature,
-            pad=(0, 0, 0, params.left_context),
-            value=LOG_EPS,
-        )
+        if params.decode_chunk_size > 0:
+            # except the case of using full attention
+            feature_lens += params.left_context
+            feature = torch.nn.functional.pad(
+                feature,
+                pad=(0, 0, 0, params.left_context),
+                value=LOG_EPS,
+            )
         encoder_out, encoder_out_lens, _ = model.encoder.streaming_forward(
             x=feature,
             x_lens=feature_lens,
@@ -495,6 +518,7 @@ def decode_one_batch(
             encoder_out=encoder_out,
             encoder_out_lens=encoder_out_lens,
             beam=params.beam_size,
+            context_graph=context_graph,
             return_timestamps=True,
         )
     else:
@@ -528,7 +552,6 @@ def decode_one_batch(
         res = DecodingResults(hyps=tokens, timestamps=timestamps)
 
     hyps, timestamps = parse_hyp_and_timestamp(
-        decoding_method=params.decoding_method,
         res=res,
         sp=sp,
         subsampling_factor=params.subsampling_factor,
@@ -550,7 +573,12 @@ def decode_one_batch(
 
         return {key: (hyps, timestamps)}
     else:
-        return {f"beam_size_{params.beam_size}": (hyps, timestamps)}
+        key = f"beam_size_{params.beam_size}"
+        if params.has_contexts:
+            key += f"-context-score-{params.context_score}"
+        else:
+            key += "-no-context-words"
+        return {key: (hyps, timestamps)}
 
 
 def decode_dataset(
@@ -560,6 +588,7 @@ def decode_dataset(
     sp: spm.SentencePieceProcessor,
     word_table: Optional[k2.SymbolTable] = None,
     decoding_graph: Optional[k2.Fsa] = None,
+    context_graph: Optional[ContextGraph] = None,
 ) -> Dict[str, List[Tuple[str, List[str], List[str], List[float], List[float]]]]:
     """Decode dataset.
 
@@ -624,6 +653,7 @@ def decode_dataset(
             decoding_graph=decoding_graph,
             word_table=word_table,
             batch=batch,
+            context_graph=context_graph,
         )
 
         for name, (hyps, timestamps_hyp) in hyps_dict.items():
@@ -659,18 +689,14 @@ def save_results(
     test_set_wers = dict()
     test_set_delays = dict()
     for key, results in results_dict.items():
-        recog_path = (
-            params.res_dir / f"recogs-{test_set_name}-{key}-{params.suffix}.txt"
-        )
+        recog_path = params.res_dir / f"recogs-{test_set_name}-{params.suffix}.txt"
         results = sorted(results)
         store_transcripts_and_timestamps(filename=recog_path, texts=results)
         logging.info(f"The transcripts are stored in {recog_path}")
 
         # The following prints out WERs, per-word error statistics and aligned
         # ref/hyp pairs.
-        errs_filename = (
-            params.res_dir / f"errs-{test_set_name}-{key}-{params.suffix}.txt"
-        )
+        errs_filename = params.res_dir / f"errs-{test_set_name}-{params.suffix}.txt"
         with open(errs_filename, "w") as f:
             wer, mean_delay, var_delay = write_error_stats_with_timestamps(
                 f, f"{test_set_name}-{key}", results, enable_log=True
@@ -681,9 +707,7 @@ def save_results(
         logging.info("Wrote detailed error stats to {}".format(errs_filename))
 
     test_set_wers = sorted(test_set_wers.items(), key=lambda x: x[1])
-    errs_info = (
-        params.res_dir / f"wer-summary-{test_set_name}-{key}-{params.suffix}.txt"
-    )
+    errs_info = params.res_dir / f"wer-summary-{test_set_name}-{params.suffix}.txt"
     with open(errs_info, "w") as f:
         print("settings\tWER", file=f)
         for key, val in test_set_wers:
@@ -691,8 +715,7 @@ def save_results(
 
     test_set_delays = sorted(test_set_delays.items(), key=lambda x: x[1][0])
     delays_info = (
-        params.res_dir
-        / f"symbol-delay-summary-{test_set_name}-{key}-{params.suffix}.txt"
+        params.res_dir / f"symbol-delay-summary-{test_set_name}-{params.suffix}.txt"
     )
     with open(delays_info, "w") as f:
         print("settings\tsymbol-delay", file=f)
@@ -737,6 +760,12 @@ def main():
         "fast_beam_search_nbest_oracle",
         "modified_beam_search",
     )
+
+    if os.path.exists(params.context_file):
+        params.has_contexts = True
+    else:
+        params.has_contexts = False
+
     params.res_dir = params.exp_dir / params.decoding_method
 
     if params.iter > 0:
@@ -759,6 +788,10 @@ def main():
             params.suffix += f"-ngram-lm-scale-{params.ngram_lm_scale}"
     elif "beam_search" in params.decoding_method:
         params.suffix += f"-{params.decoding_method}-beam-size-{params.beam_size}"
+        if params.has_contexts:
+            params.suffix += f"-context-score-{params.context_score}"
+        else:
+            params.suffix += "-no-context-words"
     else:
         params.suffix += f"-context-{params.context_size}"
         params.suffix += f"-max-sym-per-frame-{params.max_sym_per_frame}"
@@ -890,6 +923,18 @@ def main():
         decoding_graph = None
         word_table = None
 
+    if params.decoding_method == "modified_beam_search":
+        if os.path.exists(params.context_file):
+            contexts = []
+            for line in open(params.context_file).readlines():
+                contexts.append(line.strip())
+            context_graph = ContextGraph(params.context_score)
+            context_graph.build(sp.encode(contexts))
+        else:
+            context_graph = None
+    else:
+        context_graph = None
+
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
@@ -914,6 +959,7 @@ def main():
             sp=sp,
             word_table=word_table,
             decoding_graph=decoding_graph,
+            context_graph=context_graph,
         )
 
         save_results(

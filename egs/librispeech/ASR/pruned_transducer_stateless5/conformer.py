@@ -32,7 +32,7 @@ from scaling import (
 )
 from torch import Tensor, nn
 
-from icefall.utils import make_pad_mask, subsequent_chunk_mask
+from icefall.utils import is_jit_tracing, make_pad_mask, subsequent_chunk_mask
 
 
 class Conformer(EncoderInterface):
@@ -1012,15 +1012,28 @@ class RelPositionMultiheadAttention(nn.Module):
             n == left_context + 2 * time1 - 1
         ), f"{n} == {left_context} + 2 * {time1} - 1"
         # Note: TorchScript requires explicit arg for stride()
-        batch_stride = x.stride(0)
-        head_stride = x.stride(1)
-        time1_stride = x.stride(2)
-        n_stride = x.stride(3)
-        return x.as_strided(
-            (batch_size, num_heads, time1, time2),
-            (batch_stride, head_stride, time1_stride - n_stride, n_stride),
-            storage_offset=n_stride * (time1 - 1),
-        )
+
+        if is_jit_tracing():
+            rows = torch.arange(start=time1 - 1, end=-1, step=-1)
+            cols = torch.arange(time2)
+            rows = rows.repeat(batch_size * num_heads).unsqueeze(-1)
+            indexes = rows + cols
+
+            x = x.reshape(-1, n)
+            x = torch.gather(x, dim=1, index=indexes)
+            x = x.reshape(batch_size, num_heads, time1, time2)
+            return x
+        else:
+            # Note: TorchScript requires explicit arg for stride()
+            batch_stride = x.stride(0)
+            head_stride = x.stride(1)
+            time1_stride = x.stride(2)
+            n_stride = x.stride(3)
+            return x.as_strided(
+                (batch_size, num_heads, time1, time2),
+                (batch_stride, head_stride, time1_stride - n_stride, n_stride),
+                storage_offset=n_stride * (time1 - 1),
+            )
 
     def multi_head_attention_forward(
         self,

@@ -16,13 +16,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""
+Please see
+https://k2-fsa.github.io/icefall/model-export/export-ncnn.html
+for usage
+"""
 
 import argparse
 import logging
 from typing import List, Optional
 
+import k2
 import ncnn
-import sentencepiece as spm
 import torch
 import torchaudio
 from kaldifeat import FbankOptions, OnlineFbank, OnlineFeature
@@ -32,9 +37,9 @@ def get_args():
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
-        "--bpe-model-filename",
+        "--tokens",
         type=str,
-        help="Path to bpe.model",
+        help="Path to tokens.txt",
     )
 
     parser.add_argument(
@@ -92,6 +97,8 @@ class Model:
         encoder_net = ncnn.Net()
         encoder_net.opt.use_packing_layout = False
         encoder_net.opt.use_fp16_storage = False
+        encoder_net.opt.num_threads = 4
+
         encoder_param = args.encoder_param_filename
         encoder_model = args.encoder_bin_filename
 
@@ -106,6 +113,7 @@ class Model:
 
         decoder_net = ncnn.Net()
         decoder_net.opt.use_packing_layout = False
+        decoder_net.opt.num_threads = 4
 
         decoder_net.load_param(decoder_param)
         decoder_net.load_model(decoder_model)
@@ -117,6 +125,8 @@ class Model:
         joiner_model = args.joiner_bin_filename
         joiner_net = ncnn.Net()
         joiner_net.opt.use_packing_layout = False
+        joiner_net.opt.num_threads = 4
+
         joiner_net.load_param(joiner_param)
         joiner_net.load_model(joiner_model)
 
@@ -124,7 +134,6 @@ class Model:
 
     def run_encoder(self, x, states):
         with self.encoder_net.create_extractor() as ex:
-            #  ex.set_num_threads(10)
             ex.input("in0", ncnn.Mat(x.numpy()).clone())
             x_lens = torch.tensor([x.size(0)], dtype=torch.float32)
             ex.input("in1", ncnn.Mat(x_lens.numpy()).clone())
@@ -153,7 +162,6 @@ class Model:
         assert decoder_input.dtype == torch.int32
 
         with self.decoder_net.create_extractor() as ex:
-            #  ex.set_num_threads(10)
             ex.input("in0", ncnn.Mat(decoder_input.numpy()).clone())
             ret, ncnn_out0 = ex.extract("out0")
             assert ret == 0, ret
@@ -162,7 +170,6 @@ class Model:
 
     def run_joiner(self, encoder_out, decoder_out):
         with self.joiner_net.create_extractor() as ex:
-            #  ex.set_num_threads(10)
             ex.input("in0", ncnn.Mat(encoder_out.numpy()).clone())
             ex.input("in1", ncnn.Mat(decoder_out.numpy()).clone())
             ret, ncnn_out0 = ex.extract("out0")
@@ -249,9 +256,6 @@ def main():
 
     model = Model(args)
 
-    sp = spm.SentencePieceProcessor()
-    sp.load(args.bpe_model_filename)
-
     sound_file = args.sound_filename
 
     sample_rate = 16000
@@ -327,10 +331,16 @@ def main():
             model, encoder_out.squeeze(0), decoder_out, hyp
         )
 
+    symbol_table = k2.SymbolTable.from_file(args.tokens)
+
     context_size = 2
+    text = ""
+    for i in hyp[context_size:]:
+        text += symbol_table[i]
+    text = text.replace("▁", " ").strip()
 
     logging.info(sound_file)
-    logging.info(sp.decode(hyp[context_size:]))
+    logging.info(text)
 
 
 if __name__ == "__main__":
