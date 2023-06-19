@@ -135,7 +135,8 @@ class LmDataset(torch.utils.data.IterableDataset):
                     f.seek(begin)
                     b = f.read(self.bytes_per_segment) # b is bytes object
                 else:
-                    b = b'\0' * -begin + f.read(self.bytes_per_segment + begin)
+                    b = f.read(self.bytes_per_segment + begin)
+                    #b = b'\0' * -begin + f.read(self.bytes_per_segment + begin)
             if len(b) < self.bytes_per_segment:
                 b = b + b'\0' * (self.bytes_per_segment - len(b))
             yield torch.Tensor(np.frombuffer(b, dtype=np.uint8).copy()).to(torch.long)
