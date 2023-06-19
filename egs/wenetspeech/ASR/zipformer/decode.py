@@ -100,7 +100,7 @@ from beam_search import (
     modified_beam_search,
 )
 from lhotse.cut import Cut
-from train import add_model_arguments, get_params, get_transducer_model
+from train import add_model_arguments, get_model, get_params
 
 from icefall.char_graph_compiler import CharCtcTrainingGraphCompiler
 from icefall.checkpoint import (
@@ -224,6 +224,16 @@ def get_parser():
         help="""
         Used only when --decoding_method is fast_beam_search_LG.
         It specifies the scale for n-gram LM scores.
+        """,
+    )
+
+    parser.add_argument(
+        "--ilme-scale",
+        type=float,
+        default=0.2,
+        help="""
+        Used only when --decoding_method is fast_beam_search_LG.
+        It specifies the scale for the internal language model estimation.
         """,
     )
 
@@ -381,6 +391,7 @@ def decode_one_batch(
             max_contexts=params.max_contexts,
             max_states=params.max_states,
             blank_penalty=params.blank_penalty,
+            ilme_scale=params.ilme_scale,
         )
         for hyp in hyp_tokens:
             sentence = "".join([lexicon.word_table[i] for i in hyp])
@@ -458,6 +469,7 @@ def decode_one_batch(
             key += f"_num_paths_{params.num_paths}_"
             key += f"nbest_scale_{params.nbest_scale}"
         if "LG" in params.decoding_method:
+            key += f"_ilme_scale_{params.ilme_scale}"
             key += f"_ngram_lm_scale_{params.ngram_lm_scale}"
 
         return {key: hyps}
@@ -624,6 +636,7 @@ def main():
             params.suffix += f"-nbest-scale-{params.nbest_scale}"
             params.suffix += f"-num-paths-{params.num_paths}"
         if "LG" in params.decoding_method:
+            params.suffix += f"_ilme_scale_{params.ilme_scale}"
             params.suffix += f"-ngram-lm-scale-{params.ngram_lm_scale}"
     elif "beam_search" in params.decoding_method:
         params.suffix += f"-{params.decoding_method}-beam-size-{params.beam_size}"
@@ -656,7 +669,7 @@ def main():
     logging.info(params)
 
     logging.info("About to create model")
-    model = get_transducer_model(params)
+    model = get_model(params)
 
     if not params.use_averaged_model:
         if params.iter > 0:
@@ -739,7 +752,7 @@ def main():
     model.eval()
 
     if "fast_beam_search" in params.decoding_method:
-        if params.decoding_method == "fast_beam_search_nbest_LG":
+        if "LG" in params.decoding_method:
             lexicon = Lexicon(params.lang_dir)
             lg_filename = params.lang_dir / "LG.pt"
             logging.info(f"Loading {lg_filename}")
@@ -781,6 +794,9 @@ def main():
 
     test_sets = ["DEV", "TEST_NET", "TEST_MEETING"]
     test_dl = [dev_dl, test_net_dl, test_meeting_dl]
+
+    test_sets = ["TEST_NET"]
+    test_dl = [test_net_dl]
 
     for test_set, test_dl in zip(test_sets, test_dl):
         results_dict = decode_dataset(

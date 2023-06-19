@@ -66,7 +66,7 @@ from joiner import Joiner
 from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
-from model import Transducer
+from model import AsrModel
 from optim import Eden, ScaledAdam
 from scaling import ScheduledFloat
 from subsampling import Conv2dSubsampling
@@ -578,20 +578,19 @@ def get_joiner_model(params: AttributeDict) -> nn.Module:
     return joiner
 
 
-def get_transducer_model(params: AttributeDict) -> nn.Module:
+def get_model(params: AttributeDict) -> nn.Module:
     encoder_embed = get_encoder_embed(params)
     encoder = get_encoder_model(params)
     decoder = get_decoder_model(params)
     joiner = get_joiner_model(params)
 
-    model = Transducer(
+    model = AsrModel(
         encoder_embed=encoder_embed,
         encoder=encoder,
         decoder=decoder,
         joiner=joiner,
         encoder_dim=int(max(params.encoder_dim.split(","))),
         decoder_dim=params.decoder_dim,
-        joiner_dim=params.joiner_dim,
         vocab_size=params.vocab_size,
     )
     return model
@@ -758,7 +757,7 @@ def compute_loss(
     y = k2.RaggedTensor(y).to(device)
 
     with torch.set_grad_enabled(is_training):
-        simple_loss, pruned_loss = model(
+        simple_loss, pruned_loss, _ = model(
             x=feature,
             x_lens=feature_lens,
             y=y,
@@ -1086,7 +1085,7 @@ def run(rank, world_size, args):
     logging.info(params)
 
     logging.info("About to create model")
-    model = get_transducer_model(params)
+    model = get_model(params)
 
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")

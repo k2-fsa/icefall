@@ -526,6 +526,8 @@ def fast_beam_search(
                 project_input=False,
             )
             ilme_logits = ilme_logits.squeeze(1).squeeze(1)
+            if blank_penalty != 0:
+                ilme_logits[:, 0] -= blank_penalty
             ilme_log_probs = (ilme_logits / temperature).log_softmax(dim=-1)
             log_probs -= ilme_scale * ilme_log_probs
 
