@@ -58,7 +58,6 @@ class Decoder(nn.Module):
         self.embedding = nn.Embedding(
             num_embeddings=vocab_size,
             embedding_dim=decoder_dim,
-            padding_idx=blank_id,
         )
         # the balancers are to avoid any drift in the magnitude of the
         # embeddings, which would interact badly with parameter averaging.

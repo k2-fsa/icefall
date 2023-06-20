@@ -97,7 +97,7 @@ def read_sound_files(
             sample_rate == expected_sample_rate
         ), f"expected sample rate: {expected_sample_rate}. Given: {sample_rate}"
         # We use only the first channel
-        ans.append(wave[0])
+        ans.append(wave[0].contiguous())
     return ans
 
 

@@ -44,7 +44,7 @@ import sentencepiece as spm
 import torch
 from asr_datamodule import LibriSpeechAsrDataModule
 
-from train import add_model_arguments, get_params, get_transducer_model
+from train import add_model_arguments, get_params, get_model
 
 from icefall.checkpoint import (
     average_checkpoints_with_averaged_model,
@@ -140,7 +140,7 @@ def main():
     params.vocab_size = sp.get_piece_size()
 
     print("About to create model")
-    model = get_transducer_model(params)
+    model = get_model(params)
 
     if params.iter > 0:
         filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
