@@ -116,7 +116,7 @@ from beam_search import (
     greedy_search_batch,
     modified_beam_search,
 )
-from train import add_model_arguments, get_params, get_transducer_model
+from train import add_model_arguments, get_params, get_model
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -366,15 +366,7 @@ def decode_one_batch(
             value=LOG_EPS,
         )
 
-    x, x_lens = model.encoder_embed(feature, feature_lens)
-
-    src_key_padding_mask = make_pad_mask(x_lens)
-    x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
-
-    encoder_out, encoder_out_lens = model.encoder(
-        x, x_lens, src_key_padding_mask
-    )
-    encoder_out = encoder_out.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
+    encoder_out, encoder_out_lens = model.forward_encoder(feature, feature_lens)
 
     hyps = []
 
@@ -694,7 +686,7 @@ def main():
     logging.info(params)
 
     logging.info("About to create model")
-    model = get_transducer_model(params)
+    model = get_model(params)
 
     if not params.use_averaged_model:
         if params.iter > 0:
