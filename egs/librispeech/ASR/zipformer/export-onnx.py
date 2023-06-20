@@ -74,7 +74,7 @@ import torch.nn as nn
 from decoder import Decoder
 from onnxruntime.quantization import QuantType, quantize_dynamic
 from scaling_converter import convert_scaled_to_non_scaled
-from train import add_model_arguments, get_params, get_transducer_model
+from train import add_model_arguments, get_params, get_model
 from zipformer import Zipformer2
 
 from icefall.checkpoint import (
@@ -444,7 +444,7 @@ def main():
     logging.info(params)
 
     logging.info("About to create model")
-    model = get_transducer_model(params)
+    model = get_model(params)
 
     model.to(device)
 
