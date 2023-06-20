@@ -1,7 +1,7 @@
 Distillation with HuBERT
 ========================
 
-This tutorial shows you how to perform knowledge distillation in `icefall`_
+This tutorial shows you how to perform knowledge distillation in `icefall <https://github.com/k2-fsa/icefall>`_
 with the `LibriSpeech`_ dataset. The distillation method
 used here is called "Multi Vector Quantization Knowledge Distillation" (MVQ-KD).
 Please have a look at our paper `Predicting Multi-Codebook Vector Quantization Indexes for Knowledge Distillation <https://arxiv.org/abs/2211.00508>`_
