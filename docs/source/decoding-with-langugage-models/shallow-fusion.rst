@@ -3,10 +3,7 @@
 Shallow fusion for RNN Transducer
 =================================
 
-In real-life scenario, there is often a mismatch between the training corpus and the target corpus space. 
-Therefore, we often use an external language model (LM) to improve the accuracy of the ASR model
-on the target space. Even if the training and testing domain are similar, using external langugage model
-can still help the ASR model if the training corpus is not that large. 
+External language models (LM) are commonly used to improve WERs for E2E ASR models.
 This tutorial shows you how to perform ``shallow fusion`` with an external LM
 to improve the word-error-rate of a RNN Transducer model.
 
