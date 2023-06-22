@@ -385,6 +385,7 @@ def decode_one_batch(
             beam=params.beam,
             max_contexts=params.max_contexts,
             max_states=params.max_states,
+            allow_partial=True,
         )
         for hyp in sp.decode(hyp_tokens):
             hyp = [w for w in hyp.split() if w != unk]
@@ -400,6 +401,7 @@ def decode_one_batch(
             max_states=params.max_states,
             num_paths=params.num_paths,
             nbest_scale=params.nbest_scale,
+            allow_partial=True,
         )
         for hyp in hyp_tokens:
             hyp = [word_table[i] for i in hyp if word_table[i] != unk]
@@ -415,6 +417,7 @@ def decode_one_batch(
             max_states=params.max_states,
             num_paths=params.num_paths,
             nbest_scale=params.nbest_scale,
+            allow_partial=True,
         )
         for hyp in sp.decode(hyp_tokens):
             hyp = [w for w in hyp.split() if w != unk]
@@ -431,6 +434,7 @@ def decode_one_batch(
             num_paths=params.num_paths,
             ref_texts=sp.encode(supervisions["text"]),
             nbest_scale=params.nbest_scale,
+            allow_partial=True,
         )
         for hyp in sp.decode(hyp_tokens):
             hyp = [w for w in hyp.split() if w != unk]
