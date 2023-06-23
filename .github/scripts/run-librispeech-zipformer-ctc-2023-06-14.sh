@@ -23,6 +23,7 @@ ls -lh $repo/test_wavs/*.wav
 
 pushd $repo/exp
 git lfs pull --include "data/lang_bpe_500/bpe.model"
+git lfs pull --include "data/lang_bpe_500/tokens.txt"
 git lfs pull --include "data/lang_bpe_500/HLG.pt"
 git lfs pull --include "data/lang_bpe_500/L.pt"
 git lfs pull --include "data/lang_bpe_500/LG.pt"
@@ -40,7 +41,7 @@ log "Export to torchscript model"
   --use-transducer 1 \
   --use-ctc 1 \
   --use-averaged-model false \
-  --bpe-model $repo/data/lang_bpe_500/bpe.model \
+  --tokens $repo/data/lang_bpe_500/tokens.txt \
   --epoch 99 \
   --avg 1 \
   --jit 1
