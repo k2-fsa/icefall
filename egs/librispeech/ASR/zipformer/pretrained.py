@@ -122,6 +122,7 @@ from beam_search import (
     greedy_search_batch,
     modified_beam_search,
 )
+from export import num_tokens
 from torch.nn.utils.rnn import pad_sequence
 from train import add_model_arguments, get_model, get_params
 
@@ -262,11 +263,11 @@ def main():
 
     params.update(vars(args))
 
-    symbol_table = k2.SymbolTable.from_file(params.tokens)
+    token_table = k2.SymbolTable.from_file(params.tokens)
 
-    params.blank_id = symbol_table["<blk>"]
-    params.unk_id = symbol_table["<unk>"]
-    params.vocab_size = len(symbol_table)
+    params.blank_id = token_table["<blk>"]
+    params.unk_id = token_table["<unk>"]
+    params.vocab_size = num_tokens(token_table) + 1
 
     logging.info(f"{params}")
 
@@ -328,7 +329,7 @@ def main():
     def token_ids_to_words(token_ids: List[int]) -> str:
         text = ""
         for i in token_ids:
-            text += symbol_table[i]
+            text += token_table[i]
         return text.replace("▁", " ").strip()
 
     if params.method == "fast_beam_search":

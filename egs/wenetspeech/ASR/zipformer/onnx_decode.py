@@ -133,7 +133,7 @@ def get_parser():
 
 
 def decode_one_batch(
-    model: OnnxModel, symbol_table: k2.SymbolTable, batch: dict
+    model: OnnxModel, token_table: k2.SymbolTable, batch: dict
 ) -> List[List[str]]:
     """Decode one batch and return the result.
     Currently it only greedy_search is supported.
@@ -141,7 +141,7 @@ def decode_one_batch(
     Args:
       model:
         The neural model.
-      symbol_table:
+      token_table:
         Mapping ids to tokens.
       batch:
         It is the return value from iterating
@@ -164,14 +164,14 @@ def decode_one_batch(
         model=model, encoder_out=encoder_out, encoder_out_lens=encoder_out_lens
     )
 
-    hyps = [[symbol_table[h] for h in hyp] for hyp in hyps]
+    hyps = [[token_table[h] for h in hyp] for hyp in hyps]
     return hyps
 
 
 def decode_dataset(
     dl: torch.utils.data.DataLoader,
     model: nn.Module,
-    symbol_table: k2.SymbolTable,
+    token_table: k2.SymbolTable,
 ) -> Tuple[List[Tuple[str, List[str], List[str]]], float]:
     """Decode dataset.
 
@@ -180,7 +180,7 @@ def decode_dataset(
         PyTorch's dataloader containing the dataset to decode.
       model:
         The neural model.
-      symbol_table:
+      token_table:
         Mapping ids to tokens.
 
     Returns:
@@ -206,7 +206,7 @@ def decode_dataset(
         cut_ids = [cut.id for cut in batch["supervisions"]["cut"]]
         total_duration += sum([cut.duration for cut in batch["supervisions"]["cut"]])
 
-        hyps = decode_one_batch(model=model, symbol_table=symbol_table, batch=batch)
+        hyps = decode_one_batch(model=model, token_table=token_table, batch=batch)
 
         this_batch = []
         assert len(hyps) == len(texts)
@@ -270,8 +270,8 @@ def main():
     device = torch.device("cpu")
     logging.info(f"Device: {device}")
 
-    symbol_table = k2.SymbolTable.from_file(args.tokens)
-    assert symbol_table[0] == "<blk>"
+    token_table = k2.SymbolTable.from_file(args.tokens)
+    assert token_table[0] == "<blk>"
 
     logging.info(vars(args))
 
@@ -313,7 +313,7 @@ def main():
     for test_set, test_dl in zip(test_sets, test_dl):
         start_time = time.time()
         results, total_duration = decode_dataset(
-            dl=test_dl, model=model, symbol_table=symbol_table
+            dl=test_dl, model=model, token_table=token_table
         )
         end_time = time.time()
         elapsed_seconds = end_time - start_time

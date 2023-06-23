@@ -396,12 +396,12 @@ def main():
     )
     s = "\n"
 
-    symbol_table = k2.SymbolTable.from_file(args.tokens)
+    token_table = k2.SymbolTable.from_file(args.tokens)
 
     def token_ids_to_words(token_ids: List[int]) -> str:
         text = ""
         for i in token_ids:
-            text += symbol_table[i]
+            text += token_table[i]
         return text.replace("▁", " ").strip()
 
     for filename, hyp in zip(args.sound_files, hyps):

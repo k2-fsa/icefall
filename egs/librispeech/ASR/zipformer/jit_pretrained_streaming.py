@@ -190,7 +190,7 @@ def main():
     decoder = model.decoder
     joiner = model.joiner
 
-    symbol_table = k2.SymbolTable.from_file(args.tokens)
+    token_table = k2.SymbolTable.from_file(args.tokens)
     context_size = decoder.context_size
 
     logging.info("Constructing Fbank computer")
@@ -252,7 +252,7 @@ def main():
 
     text = ""
     for i in hyp[context_size:]:
-        text += symbol_table[i]
+        text += token_table[i]
     text = text.replace("▁", " ").strip()
 
     logging.info(args.sound_file)

@@ -71,6 +71,7 @@ import onnx
 import torch
 import torch.nn as nn
 from decoder import Decoder
+from export import num_tokens
 from onnxruntime.quantization import QuantType, quantize_dynamic
 from scaling_converter import convert_scaled_to_non_scaled
 from train import add_model_arguments, get_model, get_params
@@ -433,9 +434,9 @@ def main():
 
     logging.info(f"device: {device}")
 
-    symbol_table = k2.SymbolTable.from_file(params.tokens)
-    params.blank_id = symbol_table["<blk>"]
-    params.vocab_size = len(symbol_table)
+    token_table = k2.SymbolTable.from_file(params.tokens)
+    params.blank_id = token_table["<blk>"]
+    params.vocab_size = num_tokens(token_table) + 1
 
     logging.info(params)
 

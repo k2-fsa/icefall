@@ -57,9 +57,9 @@ whose value is "64,128,256,-1".
 
 It will generate the following 3 files inside $repo/exp:
 
-  - encoder-epoch-99-avg-1.onnx
-  - decoder-epoch-99-avg-1.onnx
-  - joiner-epoch-99-avg-1.onnx
+  - encoder-epoch-99-avg-1-chunk-16-left-64.onnx
+  - decoder-epoch-99-avg-1-chunk-16-left-64.onnx
+  - joiner-epoch-99-avg-1-chunk-16-left-64.onnx
 
 See ./onnx_pretrained-streaming.py for how to use the exported ONNX models.
 """
@@ -74,6 +74,7 @@ import onnx
 import torch
 import torch.nn as nn
 from decoder import Decoder
+from export import num_tokens
 from onnxruntime.quantization import QuantType, quantize_dynamic
 from scaling_converter import convert_scaled_to_non_scaled
 from train import add_model_arguments, get_model, get_params
@@ -585,9 +586,9 @@ def main():
 
     logging.info(f"device: {device}")
 
-    symbol_table = k2.SymbolTable.from_file(params.tokens)
-    params.blank_id = symbol_table["<blk>"]
-    params.vocab_size = len(symbol_table)
+    token_table = k2.SymbolTable.from_file(params.tokens)
+    params.blank_id = token_table["<blk>"]
+    params.vocab_size = num_tokens(token_table) + 1
 
     logging.info(params)
 
@@ -706,6 +707,8 @@ def main():
         suffix = f"epoch-{params.epoch}"
 
     suffix += f"-avg-{params.avg}"
+    suffix += f"-chunk-{params.chunk_size}"
+    suffix += f"-left-{params.left_context_frames}"
 
     opset_version = 13
 

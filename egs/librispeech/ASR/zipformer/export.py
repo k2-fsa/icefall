@@ -160,6 +160,7 @@ with the following commands:
 
 import argparse
 import logging
+import re
 from pathlib import Path
 from typing import List, Tuple
 
@@ -176,6 +177,26 @@ from icefall.checkpoint import (
     load_checkpoint,
 )
 from icefall.utils import make_pad_mask, str2bool
+
+
+def num_tokens(
+    token_table: k2.SymbolTable, disambig_pattern: str = re.compile(r"^#\d+$")
+) -> int:
+    """Return the number of tokens excluding those from
+    disambiguation symbols.
+
+    Caution:
+      0 is not a token ID so it is excluded from the return value.
+    """
+    symbols = token_table.symbols
+    ans = []
+    for s in symbols:
+        if not disambig_pattern.match(s):
+            ans.append(token_table[s])
+    num_tokens = len(ans)
+    if 0 in ans:
+        num_tokens -= 1
+    return num_tokens
 
 
 def get_parser():
@@ -402,9 +423,9 @@ def main():
 
     logging.info(f"device: {device}")
 
-    symbol_table = k2.SymbolTable.from_file(params.tokens)
-    params.blank_id = symbol_table["<blk>"]
-    params.vocab_size = len(symbol_table)
+    token_table = k2.SymbolTable.from_file(params.tokens)
+    params.blank_id = token_table["<blk>"]
+    params.vocab_size = num_tokens(token_table) + 1
 
     logging.info(params)
 
