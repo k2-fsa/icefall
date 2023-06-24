@@ -72,7 +72,7 @@ for method in ctc-decoding 1best; do
     --use-ctc 1 \
     --method $method \
     --checkpoint $repo/exp/pretrained.pt \
-    --bpe-model $repo/data/lang_bpe_500/bpe.model \
+    --tokens $repo/exp/lang_bpe_500/tokens.txt \
     --words-file $repo/data/lang_bpe_500/words.txt  \
     --HLG $repo/data/lang_bpe_500/HLG.pt \
     --G $repo/data/lm/G_4_gram.pt \
