@@ -52,7 +52,7 @@ log "Decode with models exported by torch.jit.script()"
 
 for method in ctc-decoding 1best; do
   ./zipformer/jit_pretrained_ctc.py \
-    --bpe-model $repo/data/lang_bpe_500/bpe.model \
+    --tokens $repo/data/lang_bpe_500/tokens.txt \
     --model-filename $repo/exp/jit_script.pt \
     --HLG $repo/data/lang_bpe_500/HLG.pt \
     --words-file $repo/data/lang_bpe_500/words.txt  \
