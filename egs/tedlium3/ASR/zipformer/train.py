@@ -68,7 +68,7 @@ from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from local.convert_transcript_words_to_bpe_ids import convert_texts_into_ids
-from model import AsrModel
+from model import Transducer
 from optim import Eden, ScaledAdam
 from scaling import ScheduledFloat
 from subsampling import Conv2dSubsampling
@@ -355,6 +355,13 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--rnnt-type",
+        type=str,
+        default="regular",
+        choices=["regular", "modified", "constrained"],
+    )
+
+    parser.add_argument(
         "--lm-scale",
         type=float,
         default=0.25,
@@ -585,13 +592,14 @@ def get_transducer_model(params: AttributeDict) -> nn.Module:
     decoder = get_decoder_model(params)
     joiner = get_joiner_model(params)
 
-    model = AsrModel(
+    model = Transducer(
         encoder_embed=encoder_embed,
         encoder=encoder,
         decoder=decoder,
         joiner=joiner,
         encoder_dim=int(max(params.encoder_dim.split(","))),
         decoder_dim=params.decoder_dim,
+        joiner_dim=params.joiner_dim,
         vocab_size=params.vocab_size,
     )
     return model
@@ -762,6 +770,7 @@ def compute_loss(
             prune_range=params.prune_range,
             am_scale=params.am_scale,
             lm_scale=params.lm_scale,
+            rnnt_type=params.rnnt_type,
         )
 
         s = params.simple_loss_scale

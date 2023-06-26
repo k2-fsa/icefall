@@ -82,6 +82,52 @@ avg=22
 
 A pre-trained model and decoding logs can be found at <https://huggingface.co/desh2608/icefall-asr-tedlium3-zipformer>
 
+#### 2023-06-26 (transducer topology)
+
+**Modified transducer**
+
+```
+./zipformer/train.py \
+  --use-fp16 true \
+  --world-size 4 \
+  --num-epochs 50 \
+  --start-epoch 0 \
+  --exp-dir zipformer/exp \
+  --max-duration 1000 \
+  --rnnt-type modified
+```
+
+|                                    |     dev    |    test    | comment                                  |
+|------------------------------------|------------|------------|------------------------------------------|
+|          greedy search             | 6.32       | 5.83       | --epoch 50, --avg 22, --max-duration 500 |
+|      beam search (beam size 4)     | 6.56       | 5.95       | --epoch 50, --avg 22, --max-duration 500 |
+| modified beam search (beam size 4) | 6.16       | 5.79       | --epoch 50, --avg 22, --max-duration 500 |
+| fast beam search (set as default)  | 6.30       | 5.89       | --epoch 50, --avg 22, --max-duration 500 |
+
+A pre-trained model and decoding logs can be found at .
+
+**Constrained transducer**
+
+```
+./zipformer/train.py \
+  --use-fp16 true \
+  --world-size 4 \
+  --num-epochs 50 \
+  --start-epoch 0 \
+  --exp-dir zipformer/exp \
+  --max-duration 1000 \
+  --rnnt-type constrained
+```
+
+|                                    |     dev    |    test    | comment                                  |
+|------------------------------------|------------|------------|------------------------------------------|
+|          greedy search             | 6.58       | 6.20       | --epoch 50, --avg 22, --max-duration 500 |
+|      beam search (beam size 4)     | 6.34       | 5.92       | --epoch 50, --avg 22, --max-duration 500 |
+| modified beam search (beam size 4) | 6.38       | 5.84       | --epoch 50, --avg 22, --max-duration 500 |
+| fast beam search (set as default)  | 6.68       | 6.29       | --epoch 50, --avg 22, --max-duration 500 |
+
+A pre-trained model and decoding logs can be found at .
+
 ### TedLium3 BPE training results (Conformer-CTC 2)
 
 #### [conformer_ctc2](./conformer_ctc2)
