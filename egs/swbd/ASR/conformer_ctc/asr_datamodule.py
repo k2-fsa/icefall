@@ -1,5 +1,6 @@
 # Copyright      2021  Piotr Żelasko
 # Copyright      2022  Xiaomi Corporation     (Author: Mingshuang Luo)
+# Modified by Zengrui Jin for the SwitchBoard corpus
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -390,12 +391,20 @@ class SwitchBoardAsrDataModule:
     @lru_cache()
     def train_all_cuts(self) -> CutSet:
         logging.info("switchboard: About to get train cuts")
-        return load_manifest_lazy(self.args.manifest_dir / "swbd_cuts_all.jsonl.gz").subset(last=2388).trim_to_supervisions(keep_all_channels=True)
+        return (
+            load_manifest_lazy(self.args.manifest_dir / "swbd_cuts_all.jsonl.gz")
+            .subset(last=2388)
+            .trim_to_supervisions(keep_all_channels=True)
+        )
 
     @lru_cache()
     def dev_cuts(self) -> CutSet:
         logging.info("switchboard: About to get dev cuts")
-        return load_manifest_lazy(self.args.manifest_dir / "swbd_cuts_all.jsonl.gz").subset(first=50).trim_to_supervisions(keep_all_channels=True)
+        return (
+            load_manifest_lazy(self.args.manifest_dir / "swbd_cuts_all.jsonl.gz")
+            .subset(first=50)
+            .trim_to_supervisions(keep_all_channels=True)
+        )
 
     @lru_cache()
     def test_eval2000_cuts(self) -> CutSet:

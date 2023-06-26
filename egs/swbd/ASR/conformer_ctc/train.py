@@ -2,6 +2,7 @@
 # Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang,
 #                                                  Wei Kang
 #                                                  Mingshuang Luo)
+# Modified by Zengrui Jin for the SwitchBoard corpus
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #

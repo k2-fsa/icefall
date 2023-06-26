@@ -20,6 +20,7 @@ from pathlib import Path
 import logging
 from typing import List
 
+
 def get_args():
     parser = argparse.ArgumentParser()
 

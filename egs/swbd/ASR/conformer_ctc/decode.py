@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # Copyright 2021 Xiaomi Corporation (Author: Liyong Guo, Fangjun Kuang)
+# Modified by Zengrui Jin for the SwitchBoard corpus
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -779,8 +780,12 @@ def main():
     args.return_cuts = True
     switchboard = SwitchBoardAsrDataModule(args)
 
-    test_eval2000_cuts = switchboard.test_eval2000_cuts().trim_to_supervisions(keep_all_channels=True)
-    test_rt03_cuts = switchboard.test_rt03_cuts().trim_to_supervisions(keep_all_channels=True)
+    test_eval2000_cuts = switchboard.test_eval2000_cuts().trim_to_supervisions(
+        keep_all_channels=True
+    )
+    test_rt03_cuts = switchboard.test_rt03_cuts().trim_to_supervisions(
+        keep_all_channels=True
+    )
 
     test_eval2000_dl = switchboard.test_dataloaders(test_eval2000_cuts)
     test_rt03_dl = switchboard.test_dataloaders(test_rt03_cuts)
