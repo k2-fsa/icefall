@@ -9,7 +9,7 @@ Switchboard is a collection of about 2,400 two-sided telephone conversations amo
 **Caution**: The `conformer_ctc` recipe for Switchboard is currently very rough and has a high Word Error Rate, requiring more improvement and refinement. The TODO list for this recipe is as follows.
 
 ## TODO List
-- [ ] Incorporate Lhotse for dataprocessing
+- [ ] Incorporate Lhotse for data processing
 - [ ] Refer to Global Mapping Rules when computing Word Error Rate
 - [ ] Detailed Word Error Rate summary for eval2000 (callhome, swbd) and rt03 (fsh, swbd) testset
 - [ ] Switchboard transcript train/dev split for LM training
