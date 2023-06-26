@@ -78,28 +78,28 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
             cp data/local/${x}/text data/local/${x}/text.org
             paste -d "" \
                 <(cut -f 1 -d" " data/local/${x}/text.org) \
-                <(awk '{$1=""; print tolower($0)}' data/local/${x}/text.org | perl -pe 's| \(\%.*\)||g' | perl -pe 's| \<.*\>||g' | sed -e "s/(//g" -e "s/)//g") \
-                | sed -e 's/\s\+/ /g' > data/local/${x}/text
-                            rm data/local/${x}/text.org
-                        done
+                <(awk '{$1=""; print tolower($0)}' data/local/${x}/text.org | perl -pe 's| \(\%.*\)||g' | perl -pe 's| \<.*\>||g' | sed -e "s/(//g" -e "s/)//g") |
+                sed -e 's/\s\+/ /g' >data/local/${x}/text
+            rm data/local/${x}/text.org
+        done
 
-                        python ./local/filter_empty_text.py --kaldi-data-dir data/local/eval2000
-                        ./utils/fix_data_dir.sh data/local/eval2000
-                        lhotse kaldi import data/local/eval2000 8000 data/manifests_eval2000
-                        mv data/manifests_eval2000/recordings.jsonl.gz data/manifests_eval2000/swbd_recordings_eval2000.jsonl.gz
-                        mv data/manifests_eval2000/supervisions.jsonl.gz data/manifests_eval2000/swbd_supervisions_eval2000.jsonl.gz
+        python ./local/filter_empty_text.py --kaldi-data-dir data/local/eval2000
+        ./utils/fix_data_dir.sh data/local/eval2000
+        lhotse kaldi import data/local/eval2000 8000 data/manifests_eval2000
+        mv data/manifests_eval2000/recordings.jsonl.gz data/manifests_eval2000/swbd_recordings_eval2000.jsonl.gz
+        mv data/manifests_eval2000/supervisions.jsonl.gz data/manifests_eval2000/swbd_supervisions_eval2000.jsonl.gz
 
-                        python ./local/filter_empty_text.py --kaldi-data-dir data/local/rt03
-                        ./utils/fix_data_dir.sh data/local/rt03
-                        lhotse kaldi import data/local/rt03 8000 data/manifests_rt03
-                        mv data/manifests_rt03/recordings.jsonl.gz data/manifests_rt03/swbd_recordings_rt03.jsonl.gz
-                        mv data/manifests_rt03/supervisions.jsonl.gz data/manifests_rt03/swbd_supervisions_rt03.jsonl.gz
+        python ./local/filter_empty_text.py --kaldi-data-dir data/local/rt03
+        ./utils/fix_data_dir.sh data/local/rt03
+        lhotse kaldi import data/local/rt03 8000 data/manifests_rt03
+        mv data/manifests_rt03/recordings.jsonl.gz data/manifests_rt03/swbd_recordings_rt03.jsonl.gz
+        mv data/manifests_rt03/supervisions.jsonl.gz data/manifests_rt03/swbd_supervisions_rt03.jsonl.gz
 
-                        lhotse fix data/manifests_train/swbd_recordings_all.jsonl.gz data/manifests_train/swbd_supervisions_all.jsonl.gz data/manifests
-                        lhotse fix data/manifests_eval2000/swbd_recordings_eval2000.jsonl.gz data/manifests_eval2000/swbd_supervisions_eval2000.jsonl.gz data/manifests
-                        lhotse fix data/manifests_rt03/swbd_recordings_rt03.jsonl.gz data/manifests_rt03/swbd_supervisions_rt03.jsonl.gz data/manifests
+        lhotse fix data/manifests_train/swbd_recordings_all.jsonl.gz data/manifests_train/swbd_supervisions_all.jsonl.gz data/manifests
+        lhotse fix data/manifests_eval2000/swbd_recordings_eval2000.jsonl.gz data/manifests_eval2000/swbd_supervisions_eval2000.jsonl.gz data/manifests
+        lhotse fix data/manifests_rt03/swbd_recordings_rt03.jsonl.gz data/manifests_rt03/swbd_supervisions_rt03.jsonl.gz data/manifests
 
-                        touch data/manifests/.swbd.done
+        touch data/manifests/.swbd.done
     fi
 fi
 
@@ -260,11 +260,11 @@ if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
             -ngram-order 3 \
             -text ${lang_dir}/input.txt \
             -lm data/lm/3-gram.arpa
-                    python3 -m kaldilm \
-                        --read-symbol-table="data/lang_phone/words.txt" \
-                        --disambig-symbol='#0' \
-                        --max-order=3 \
-                        data/lm/3-gram.arpa >data/lm/G_3_gram.fst.txt
+        python3 -m kaldilm \
+            --read-symbol-table="data/lang_phone/words.txt" \
+            --disambig-symbol='#0' \
+            --max-order=3 \
+            data/lm/3-gram.arpa >data/lm/G_3_gram.fst.txt
     fi
 
     if [ ! -f data/lm/G_4_gram.fst.txt ]; then
@@ -273,11 +273,11 @@ if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
             -ngram-order 4 \
             -text ${lang_dir}/input.txt \
             -lm data/lm/4-gram.arpa
-                    python3 -m kaldilm \
-                        --read-symbol-table="data/lang_phone/words.txt" \
-                        --disambig-symbol='#0' \
-                        --max-order=4 \
-                        data/lm/4-gram.arpa >data/lm/G_4_gram.fst.txt
+        python3 -m kaldilm \
+            --read-symbol-table="data/lang_phone/words.txt" \
+            --disambig-symbol='#0' \
+            --max-order=4 \
+            data/lm/4-gram.arpa >data/lm/G_4_gram.fst.txt
     fi
 fi
 
@@ -325,7 +325,7 @@ if [ $stage -le 11 ] && [ $stop_stage -ge 11 ]; then
             --bpe-model $lang_dir/bpe.model \
             --lm-data data/lang_phone/input.txt \
             --lm-archive $out_dir/lm_data.pt
-        done
+    done
 fi
 
 # if [ $stage -le 12 ] && [ $stop_stage -ge 12 ]; then
@@ -373,8 +373,8 @@ if [ $stage -le 13 ] && [ $stop_stage -ge 13 ]; then
                 --bpe-model $lang_dir/bpe.model \
                 --lm-data $out_dir/${testset}.txt \
                 --lm-archive $out_dir/lm_data-${testset}.pt
-            done
         done
+    done
 fi
 
 if [ $stage -le 14 ] && [ $stop_stage -ge 14 ]; then
@@ -393,11 +393,11 @@ if [ $stage -le 14 ] && [ $stop_stage -ge 14 ]; then
             --in-lm-data $out_dir/lm_data.pt \
             --out-lm-data $out_dir/sorted_lm_data.pt \
             --out-statistics $out_dir/statistics.txt
-                    for testset in ${testsets[@]}; do
-                        ./local/sort_lm_training_data.py \
-                            --in-lm-data $out_dir/lm_data-${testset}.pt \
-                            --out-lm-data $out_dir/sorted_lm_data-${testset}.pt \
-                            --out-statistics $out_dir/statistics-test-${testset}.txt
-                        done
-                    done
+        for testset in ${testsets[@]}; do
+            ./local/sort_lm_training_data.py \
+                --in-lm-data $out_dir/lm_data-${testset}.pt \
+                --out-lm-data $out_dir/sorted_lm_data-${testset}.pt \
+                --out-statistics $out_dir/statistics-test-${testset}.txt
+        done
+    done
 fi
