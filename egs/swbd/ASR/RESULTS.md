@@ -47,4 +47,8 @@ and the following command for decoding:
   --max-duration 50
 ```
 
+For your reference, the nbest oracle WERs are:
 
+|                                |  eval2000  |  rt03  |
+|--------------------------------|------------|--------|
+|         `conformer_ctc`        |    25.64   |  26.84 |
