@@ -1,0 +1,50 @@
+## Results
+### Switchboard BPE training results (Conformer-CTC)
+
+#### 2023-06-26
+
+The best WER, as of 2023-06-26, for the Switchboard is below
+
+Results using HLG decoding + n-gram LM rescoring + attention decoder rescoring:
+
+|                                |  eval2000  |  rt03  |
+|--------------------------------|------------|--------|
+|         `conformer_ctc`        |    33.37   |  35.06 |
+
+Scale values used in n-gram LM rescoring and attention rescoring for the best WERs are:
+
+##### eval2000
+
+| ngram_lm_scale | attention_scale |
+|----------------|-----------------|
+|      0.3       |       2.5       |
+
+##### rt03
+
+| ngram_lm_scale | attention_scale |
+|----------------|-----------------|
+|      0.7       |       1.3       |
+
+To reproduce the above result, use the following commands for training:
+
+```bash
+cd egs/swbd/ASR
+./prepare.sh
+export CUDA_VISIBLE_DEVICES="0,1"
+./conformer_ctc/train.py \
+  --max-duration 120 \
+  --num-workers 8 \
+  --enable-musan False \
+  --world-size 2 \
+```
+
+and the following command for decoding:
+
+```bash
+./conformer_ctc/decode.py \
+  --epoch 55 \
+  --avg 1 \
+  --max-duration 50
+```
+
+
