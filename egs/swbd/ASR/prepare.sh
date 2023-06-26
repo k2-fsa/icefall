@@ -337,13 +337,7 @@ fi
 #         mkdir -p $out_dir
 
 #         if [ ! -f $out_dir/valid.txt ]; then
-#             files=$(
-#                 find "$dl_dir/LibriSpeech/dev-clean" -name "*.trans.txt"
-#                 find "$dl_dir/LibriSpeech/dev-other" -name "*.trans.txt"
-#             )
-#             for f in ${files[@]}; do
-#                 cat $f | cut -d " " -f 2-
-#             done >$out_dir/valid.txt
+#               TODO: generate valid.txt
 #         fi
 
 #         lang_dir=data/lang_bpe_${vocab_size}
