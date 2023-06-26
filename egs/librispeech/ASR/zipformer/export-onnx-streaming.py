@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright 2023 Xiaomi Corporation (Author: Fangjun Kuang)
+# Copyright 2023 Xiaomi Corporation (Author: Fangjun Kuang, Wei Kang)
 # Copyright 2023 Danqing Fu (danqing.fu@gmail.com)
 
 """
@@ -19,7 +19,7 @@ GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
 repo=$(basename $repo_url)
 
 pushd $repo
-git lfs pull --include "data/lang_bpe_500/bpe.model"
+git lfs pull --include "data/lang_bpe_500/tokens.txt"
 git lfs pull --include "exp/pretrained.pt"
 
 cd exp
@@ -29,7 +29,7 @@ popd
 2. Export the model to ONNX
 
 ./zipformer/export-onnx-streaming.py \
-  --bpe-model $repo/data/lang_bpe_500/bpe.model \
+  --tokens $repo/data/lang_bpe_500/tokens.txt \
   --use-averaged-model 0 \
   --epoch 99 \
   --avg 1 \
@@ -57,9 +57,9 @@ whose value is "64,128,256,-1".
 
 It will generate the following 3 files inside $repo/exp:
 
-  - encoder-epoch-99-avg-1.onnx
-  - decoder-epoch-99-avg-1.onnx
-  - joiner-epoch-99-avg-1.onnx
+  - encoder-epoch-99-avg-1-chunk-16-left-64.onnx
+  - decoder-epoch-99-avg-1-chunk-16-left-64.onnx
+  - joiner-epoch-99-avg-1-chunk-16-left-64.onnx
 
 See ./onnx_pretrained-streaming.py for how to use the exported ONNX models.
 """
@@ -69,14 +69,15 @@ import logging
 from pathlib import Path
 from typing import Dict, List, Tuple
 
+import k2
 import onnx
-import sentencepiece as spm
 import torch
 import torch.nn as nn
 from decoder import Decoder
+from export import num_tokens
 from onnxruntime.quantization import QuantType, quantize_dynamic
 from scaling_converter import convert_scaled_to_non_scaled
-from train import add_model_arguments, get_params, get_model
+from train import add_model_arguments, get_model, get_params
 from zipformer import Zipformer2
 
 from icefall.checkpoint import (
@@ -85,7 +86,7 @@ from icefall.checkpoint import (
     find_checkpoints,
     load_checkpoint,
 )
-from icefall.utils import str2bool, make_pad_mask
+from icefall.utils import make_pad_mask, str2bool
 
 
 def get_parser():
@@ -142,10 +143,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--bpe-model",
+        "--tokens",
         type=str,
-        default="data/lang_bpe_500/bpe.model",
-        help="Path to the BPE model",
+        default="data/lang_bpe_500/tokens.txt",
+        help="Path to the tokens.txt",
     )
 
     parser.add_argument(
@@ -585,12 +586,9 @@ def main():
 
     logging.info(f"device: {device}")
 
-    sp = spm.SentencePieceProcessor()
-    sp.load(params.bpe_model)
-
-    # <blk> is defined in local/train_bpe_model.py
-    params.blank_id = sp.piece_to_id("<blk>")
-    params.vocab_size = sp.get_piece_size()
+    token_table = k2.SymbolTable.from_file(params.tokens)
+    params.blank_id = token_table["<blk>"]
+    params.vocab_size = num_tokens(token_table) + 1
 
     logging.info(params)
 
@@ -709,6 +707,8 @@ def main():
         suffix = f"epoch-{params.epoch}"
 
     suffix += f"-avg-{params.avg}"
+    suffix += f"-chunk-{params.chunk_size}"
+    suffix += f"-left-{params.left_context_frames}"
 
     opset_version = 13
 

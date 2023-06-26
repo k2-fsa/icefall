@@ -397,7 +397,6 @@ def decode_one_batch(
             beam=params.beam,
             max_contexts=params.max_contexts,
             max_states=params.max_states,
-            subtract_ilme=True,
             ilme_scale=params.ilme_scale,
         )
         for hyp in hyp_tokens:

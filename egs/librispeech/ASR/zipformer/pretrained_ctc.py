@@ -24,7 +24,7 @@ You can generate the checkpoint with the following command:
 ./zipformer/export.py \
   --exp-dir ./zipformer/exp \
   --use-ctc 1 \
-  --bpe-model data/lang_bpe_500/bpe.model \
+  --tokens data/lang_bpe_500/tokens.txt \
   --epoch 30 \
   --avg 9
 
@@ -34,7 +34,7 @@ You can generate the checkpoint with the following command:
   --exp-dir ./zipformer/exp \
   --use-ctc 1 \
   --causal 1 \
-  --bpe-model data/lang_bpe_500/bpe.model \
+  --tokens data/lang_bpe_500/tokens.txt \
   --epoch 30 \
   --avg 9
 
@@ -43,7 +43,7 @@ Usage of this script:
 (1) ctc-decoding
 ./zipformer/pretrained_ctc.py \
   --checkpoint ./zipformer/exp/pretrained.pt \
-  --bpe-model data/lang_bpe_500/bpe.model \
+  --tokens data/lang_bpe_500/tokens.txt \
   --method ctc-decoding \
   --sample-rate 16000 \
   /path/to/foo.wav \
@@ -90,12 +90,12 @@ from typing import List
 
 import k2
 import kaldifeat
-import sentencepiece as spm
 import torch
 import torchaudio
 from ctc_decode import get_decoding_params
+from export import num_tokens
 from torch.nn.utils.rnn import pad_sequence
-from train import add_model_arguments, get_params, get_model
+from train import add_model_arguments, get_model, get_params
 
 from icefall.decode import (
     get_lattice,
@@ -144,9 +144,9 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--bpe-model",
+        "--tokens",
         type=str,
-        help="""Path to bpe.model.
+        help="""Path to tokens.txt.
         Used only when method is ctc-decoding.
         """,
     )
@@ -157,8 +157,8 @@ def get_parser():
         default="1best",
         help="""Decoding method.
         Possible values are:
-        (0) ctc-decoding - Use CTC decoding. It uses a sentence
-            piece model, i.e., lang_dir/bpe.model, to convert
+        (0) ctc-decoding - Use CTC decoding. It uses a token table,
+            i.e., lang_dir/tokens.txt, to convert
             word pieces to words. It needs neither a lexicon
             nor an n-gram LM.
         (1) 1best - Use the best path as decoding output. Only
@@ -273,11 +273,10 @@ def main():
     params.update(get_decoding_params())
     params.update(vars(args))
 
-    sp = spm.SentencePieceProcessor()
-    sp.load(params.bpe_model)
-
-    params.vocab_size = sp.get_piece_size()
-    params.blank_id = 0
+    token_table = k2.SymbolTable.from_file(params.tokens)
+    params.vocab_size = num_tokens(token_table)
+    params.blank_id = token_table["<blk>"]
+    assert params.blank_id == 0
 
     logging.info(f"{params}")
 
@@ -358,8 +357,7 @@ def main():
             lattice=lattice, use_double_scores=params.use_double_scores
         )
         token_ids = get_texts(best_path)
-        hyps = sp.decode(token_ids)
-        hyps = [s.split() for s in hyps]
+        hyps = [[token_table[i] for i in ids] for ids in token_ids]
     elif params.method in [
         "1best",
         "nbest-rescoring",
@@ -433,6 +431,7 @@ def main():
     s = "\n"
     for filename, hyp in zip(params.sound_files, hyps):
         words = " ".join(hyp)
+        words = words.replace("▁", " ").strip()
         s += f"{filename}:\n{words}\n\n"
     logging.info(s)
 
