@@ -5,17 +5,19 @@ set -e
 dataset='hi-en'
 datadir=data_"$dataset"
 bpe=400
-decode_methods="attention-decoder 1best nbest ctc-decoding whole-lattice-rescoring"
-num_paths=20
+# decode_methods="attention-decoder 1best nbest nbest-rescoring ctc-decoding whole-lattice-rescoring"
+decode_methods="nbest nbest-rescoring whole-lattice-rescoring"
+
+num_paths=10
 max_duration=5
 
-./conformer_ctc/train.py \
-    --num-epochs 60 \
-    --max-duration 300 \
-    --exp-dir ./conformer_ctc/exp_"$dataset"_bpe"$bpe" \
-    --manifest-dir $datadir/fbank \
-    --lang-dir $datadir/lang_bpe_"$bpe" \
-    --enable-musan False \
+# ./conformer_ctc/train.py \
+#     --num-epochs 60 \
+#     --max-duration 300 \
+#     --exp-dir ./conformer_ctc/exp_"$dataset"_bpe"$bpe" \
+#     --manifest-dir $datadir/fbank \
+#     --lang-dir $datadir/lang_bpe_"$bpe" \
+#     --enable-musan False \
 
 for decode_method in $decode_methods; 
 do
