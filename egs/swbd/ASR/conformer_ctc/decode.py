@@ -366,7 +366,7 @@ def decode_one_batch(
             ref_texts=supervisions["text"],
             word_table=word_table,
             nbest_scale=params.nbest_scale,
-            oov="<UNK>",
+            oov="<unk>",
         )
         hyps = get_texts(best_path)
         hyps = [[word_table[i] for i in ids] for ids in hyps]
