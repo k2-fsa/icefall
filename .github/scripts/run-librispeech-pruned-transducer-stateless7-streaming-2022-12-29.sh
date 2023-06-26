@@ -33,15 +33,15 @@ ln -s pretrained.pt epoch-99.pt
 ls -lh *.pt
 popd
 
-# log "Export to torchscript model"
-# ./pruned_transducer_stateless7_streaming/export.py \
-#   --exp-dir $repo/exp \
-#   --use-averaged-model false \
-#   --bpe-model $repo/data/lang_bpe_500/bpe.model \
-#   --decode-chunk-len 32 \
-#   --epoch 99 \
-#   --avg 1 \
-#   --jit 1
+log "Export to torchscript model"
+./pruned_transducer_stateless7_streaming/export.py \
+  --exp-dir $repo/exp \
+  --use-averaged-model false \
+  --bpe-model $repo/data/lang_bpe_500/bpe.model \
+  --decode-chunk-len 32 \
+  --epoch 99 \
+  --avg 1 \
+  --jit 1
 
 ls -lh $repo/exp/*.pt
 

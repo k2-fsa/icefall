@@ -275,7 +275,7 @@ def main():
 
     token_table = k2.SymbolTable.from_file(params.tokens)
     params.vocab_size = num_tokens(token_table)
-    params.blank_id = token_table["blk"]
+    params.blank_id = token_table["<blk>"]
     assert params.blank_id == 0
 
     logging.info(f"{params}")
