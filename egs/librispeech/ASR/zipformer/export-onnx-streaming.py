@@ -86,7 +86,7 @@ from icefall.checkpoint import (
     find_checkpoints,
     load_checkpoint,
 )
-from icefall.utils import make_pad_mask, str2bool
+from icefall.utils import str2bool
 
 
 def get_parser():
