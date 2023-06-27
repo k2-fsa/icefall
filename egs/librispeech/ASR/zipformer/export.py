@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 #
-# Copyright 2021-2023 Xiaomi Corporation (Author: Fangjun Kuang, Zengwei Yao)
+# Copyright 2021-2023 Xiaomi Corporation (Author: Fangjun Kuang,
+#                                                 Zengwei Yao,
+#                                                 Wei Kang)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -22,13 +24,16 @@
 
 Usage:
 
+Note: This is a example for librispeech dataset, if you are using different
+dataset, you should change the argument values according to your dataset.
+
 (1) Export to torchscript model using torch.jit.script()
 
 - For non-streaming model:
 
 ./zipformer/export.py \
   --exp-dir ./zipformer/exp \
-  --bpe-model data/lang_bpe_500/bpe.model \
+  --tokens data/lang_bpe_500/tokens.txt \
   --epoch 30 \
   --avg 9 \
   --jit 1
@@ -48,7 +53,7 @@ for how to use the exported models outside of icefall.
   --causal 1 \
   --chunk-size 16 \
   --left-context-frames 128 \
-  --bpe-model data/lang_bpe_500/bpe.model \
+  --tokens data/lang_bpe_500/tokens.txt \
   --epoch 30 \
   --avg 9 \
   --jit 1
@@ -67,7 +72,7 @@ for how to use the exported models outside of icefall.
 
 ./zipformer/export.py \
   --exp-dir ./zipformer/exp \
-  --bpe-model data/lang_bpe_500/bpe.model \
+  --tokens data/lang_bpe_500/tokens.txt \
   --epoch 30 \
   --avg 9
 
@@ -76,7 +81,7 @@ for how to use the exported models outside of icefall.
 ./zipformer/export.py \
   --exp-dir ./zipformer/exp \
   --causal 1 \
-  --bpe-model data/lang_bpe_500/bpe.model \
+  --tokens data/lang_bpe_500/tokens.txt \
   --epoch 30 \
   --avg 9
 
@@ -155,13 +160,15 @@ with the following commands:
 
 import argparse
 import logging
+import re
 from pathlib import Path
 from typing import List, Tuple
 
-import sentencepiece as spm
+import k2
 import torch
+from scaling_converter import convert_scaled_to_non_scaled
 from torch import Tensor, nn
-from train import add_model_arguments, get_params, get_model
+from train import add_model_arguments, get_model, get_params
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -170,7 +177,26 @@ from icefall.checkpoint import (
     load_checkpoint,
 )
 from icefall.utils import make_pad_mask, str2bool
-from scaling_converter import convert_scaled_to_non_scaled
+
+
+def num_tokens(
+    token_table: k2.SymbolTable, disambig_pattern: str = re.compile(r"^#\d+$")
+) -> int:
+    """Return the number of tokens excluding those from
+    disambiguation symbols.
+
+    Caution:
+      0 is not a token ID so it is excluded from the return value.
+    """
+    symbols = token_table.symbols
+    ans = []
+    for s in symbols:
+        if not disambig_pattern.match(s):
+            ans.append(token_table[s])
+    num_tokens = len(ans)
+    if 0 in ans:
+        num_tokens -= 1
+    return num_tokens
 
 
 def get_parser():
@@ -227,10 +253,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--bpe-model",
+        "--tokens",
         type=str,
-        default="data/lang_bpe_500/bpe.model",
-        help="Path to the BPE model",
+        default="data/lang_bpe_500/tokens.txt",
+        help="Path to the tokens.txt",
     )
 
     parser.add_argument(
@@ -238,7 +264,7 @@ def get_parser():
         type=str2bool,
         default=False,
         help="""True to save a model after applying torch.jit.script.
-        It will generate a file named cpu_jit.pt.
+        It will generate a file named jit_script.pt.
         Check ./jit_pretrained.py for how to use it.
         """,
     )
@@ -257,6 +283,7 @@ def get_parser():
 
 class EncoderModel(nn.Module):
     """A wrapper for encoder and encoder_embed"""
+
     def __init__(self, encoder: nn.Module, encoder_embed: nn.Module) -> None:
         super().__init__()
         self.encoder = encoder
@@ -275,9 +302,7 @@ class EncoderModel(nn.Module):
         src_key_padding_mask = make_pad_mask(x_lens)
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
 
-        encoder_out, encoder_out_lens = self.encoder(
-            x, x_lens, src_key_padding_mask
-        )
+        encoder_out, encoder_out_lens = self.encoder(x, x_lens, src_key_padding_mask)
         encoder_out = encoder_out.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
 
         return encoder_out, encoder_out_lens
@@ -398,12 +423,9 @@ def main():
 
     logging.info(f"device: {device}")
 
-    sp = spm.SentencePieceProcessor()
-    sp.load(params.bpe_model)
-
-    # <blk> is defined in local/train_bpe_model.py
-    params.blank_id = sp.piece_to_id("<blk>")
-    params.vocab_size = sp.get_piece_size()
+    token_table = k2.SymbolTable.from_file(params.tokens)
+    params.blank_id = token_table["<blk>"]
+    params.vocab_size = num_tokens(token_table) + 1
 
     logging.info(params)
 

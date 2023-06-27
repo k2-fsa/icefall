@@ -25,7 +25,7 @@ You can use the following command to get the exported models:
   --causal 1 \
   --chunk-size 16 \
   --left-context-frames 128 \
-  --bpe-model data/lang_bpe_500/bpe.model \
+  --tokens data/lang_bpe_500/tokens.txt \
   --epoch 30 \
   --avg 9 \
   --jit 1
@@ -34,7 +34,7 @@ Usage of this script:
 
 ./zipformer/jit_pretrained_streaming.py \
   --nn-model-filename ./zipformer/exp-causal/jit_script_chunk_16_left_128.pt \
-  --bpe-model ./data/lang_bpe_500/bpe.model \
+  --tokens ./data/lang_bpe_500/tokens.txt \
   /path/to/foo.wav \
 """
 
@@ -43,8 +43,8 @@ import logging
 import math
 from typing import List, Optional
 
+import k2
 import kaldifeat
-import sentencepiece as spm
 import torch
 import torchaudio
 from kaldifeat import FbankOptions, OnlineFbank, OnlineFeature
@@ -60,13 +60,13 @@ def get_parser():
         "--nn-model-filename",
         type=str,
         required=True,
-        help="Path to the torchscript model cpu_jit.pt",
+        help="Path to the torchscript model jit_script.pt",
     )
 
     parser.add_argument(
-        "--bpe-model",
+        "--tokens",
         type=str,
-        help="""Path to bpe.model.""",
+        help="""Path to tokens.txt.""",
     )
 
     parser.add_argument(
@@ -120,8 +120,8 @@ def greedy_search(
     device: torch.device = torch.device("cpu"),
 ):
     assert encoder_out.ndim == 2
-    context_size = 2
-    blank_id = 0
+    context_size = decoder.context_size
+    blank_id = decoder.blank_id
 
     if decoder_out is None:
         assert hyp is None, hyp
@@ -190,8 +190,8 @@ def main():
     decoder = model.decoder
     joiner = model.joiner
 
-    sp = spm.SentencePieceProcessor()
-    sp.load(args.bpe_model)
+    token_table = k2.SymbolTable.from_file(args.tokens)
+    context_size = decoder.context_size
 
     logging.info("Constructing Fbank computer")
     online_fbank = create_streaming_feature_extractor(args.sample_rate)
@@ -250,9 +250,13 @@ def main():
                 decoder, joiner, encoder_out.squeeze(0), decoder_out, hyp, device=device
             )
 
-    context_size = 2
+    text = ""
+    for i in hyp[context_size:]:
+        text += token_table[i]
+    text = text.replace("▁", " ").strip()
+
     logging.info(args.sound_file)
-    logging.info(sp.decode(hyp[context_size:]))
+    logging.info(text)
 
     logging.info("Decoding Done")
 
