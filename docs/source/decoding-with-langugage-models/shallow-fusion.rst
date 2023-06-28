@@ -51,7 +51,7 @@ To test the model, let's have a look at the decoding results without using LM. T
 
 The following WERs are achieved on test-clean and test-other:
 
-.. code-block:: bash
+.. code-block:: text
 
     $ For test-clean, WER of different settings are:
     $ beam_size_4	3.11	best for test-clean
@@ -81,6 +81,7 @@ To use shallow fusion for decoding, we can execute the following command:
     
     $ exp_dir=./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/exp
     $ lm_dir=./icefall-librispeech-rnn-lm/exp
+    $ lm_scale=0.29
     $ ./pruned_transducer_stateless7_streaming/decode.py \
         --epoch 99 \
         --avg 1 \
@@ -95,7 +96,7 @@ To use shallow fusion for decoding, we can execute the following command:
         --lm-type rnn \
         --lm-exp-dir $lm_dir \
         --lm-epoch 99 \
-        --lm-scale 0.29 \
+        --lm-scale $lm_scale \
         --lm-avg 1 \
         --rnn-lm-embedding-dim 2048 \
         --rnn-lm-hidden-dim 2048 \
@@ -118,7 +119,7 @@ between ``rnn`` or ``transformer``. The following three arguments are associated
 
 The decoding result obtained with the above command are shown below.
 
-.. code-block:: bash
+.. code-block:: text
 
     $ For test-clean, WER of different settings are:
     $ beam_size_4	2.77	best for test-clean
@@ -137,8 +138,30 @@ A few parameters can be tuned to further boost the performance of shallow fusion
     
     The number of active paths in the search beam. It controls the trade-off between decoding efficiency and accuracy.
 
+Here, we also show how `--beam-size` effect the WER and decoding time:
 
+.. list-table:: WERs and decoding time (on test-clean) of shallow fusion with different beam sizes
+   :widths: 25 25 50
+   :header-rows: 1
 
+   * - Beam size
+     - test-clean
+     - test-other
+     - Decoding time on test-clean (s)
+   * - 4
+     - 2.77
+     - 7.08
+     - 262
+   * - 8
+     - 2.62
+     - 6.65
+     - 352
+   * - 12
+     - 2.58
+     - 6.65
+     - 488
+
+As we see, a larger beam size during shallow fusion improves the WER, but is also slower.
 
 
 
