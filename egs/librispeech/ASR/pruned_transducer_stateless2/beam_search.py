@@ -50,6 +50,7 @@ def fast_beam_search_one_best(
     ilme_scale: float = 0.0,
     blank_penalty: float = 0.0,
     return_timestamps: bool = False,
+    allow_partial: bool = False,
 ) -> Union[List[List[int]], DecodingResults]:
     """It limits the maximum number of symbols per frame to 1.
 
@@ -91,6 +92,7 @@ def fast_beam_search_one_best(
         max_contexts=max_contexts,
         temperature=temperature,
         ilme_scale=ilme_scale,
+        allow_partial=allow_partial,
         blank_penalty=blank_penalty,
     )
 
@@ -117,6 +119,7 @@ def fast_beam_search_nbest_LG(
     blank_penalty: float = 0.0,
     ilme_scale: float = 0.0,
     return_timestamps: bool = False,
+    allow_partial: bool = False,
 ) -> Union[List[List[int]], DecodingResults]:
     """It limits the maximum number of symbols per frame to 1.
 
@@ -170,6 +173,7 @@ def fast_beam_search_nbest_LG(
         max_states=max_states,
         max_contexts=max_contexts,
         temperature=temperature,
+        allow_partial=allow_partial,
         blank_penalty=blank_penalty,
         ilme_scale=ilme_scale,
     )
@@ -246,6 +250,7 @@ def fast_beam_search_nbest(
     temperature: float = 1.0,
     blank_penalty: float = 0.0,
     return_timestamps: bool = False,
+    allow_partial: bool = False,
 ) -> Union[List[List[int]], DecodingResults]:
     """It limits the maximum number of symbols per frame to 1.
 
@@ -300,6 +305,7 @@ def fast_beam_search_nbest(
         max_contexts=max_contexts,
         blank_penalty=blank_penalty,
         temperature=temperature,
+        allow_partial=allow_partial,
     )
 
     nbest = Nbest.from_lattice(
@@ -339,6 +345,7 @@ def fast_beam_search_nbest_oracle(
     temperature: float = 1.0,
     blank_penalty: float = 0.0,
     return_timestamps: bool = False,
+    allow_partial: bool = False,
 ) -> Union[List[List[int]], DecodingResults]:
     """It limits the maximum number of symbols per frame to 1.
 
@@ -396,6 +403,7 @@ def fast_beam_search_nbest_oracle(
         max_states=max_states,
         max_contexts=max_contexts,
         temperature=temperature,
+        allow_partial=allow_partial,
         blank_penalty=blank_penalty,
     )
 
@@ -440,7 +448,9 @@ def fast_beam_search(
     max_states: int,
     max_contexts: int,
     temperature: float = 1.0,
-    ilme_scale: float = 0.0,
+    subtract_ilme: bool = False,
+    ilme_scale: float = 0.1,
+    allow_partial: bool = False,
     blank_penalty: float = 0.0,
 ) -> k2.Fsa:
     """It limits the maximum number of symbols per frame to 1.
@@ -533,7 +543,9 @@ def fast_beam_search(
 
         decoding_streams.advance(log_probs)
     decoding_streams.terminate_and_flush_to_streams()
-    lattice = decoding_streams.format_output(encoder_out_lens.tolist())
+    lattice = decoding_streams.format_output(
+        encoder_out_lens.tolist(), allow_partial=allow_partial
+    )
 
     return lattice
 
