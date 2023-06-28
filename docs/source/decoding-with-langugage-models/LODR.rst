@@ -9,7 +9,7 @@ language model, which learns the language level information on the training corp
 In real-life scenario, there is often a mismatch between the training corpus and the target corpus space. 
 This mismatch can be a problem when decoding for neural transducer models with language models as its internal
 language can act "against" the external LM. In this tutorial, we show how to use
-`Low-order Density Ratio <>`_ to alleviate this effect to further improve the performance
+`Low-order Density Ratio <https://arxiv.org/abs/2203.16776>`_ to alleviate this effect to further improve the performance
 of langugae model integration. 
 
 .. note::
@@ -36,16 +36,16 @@ are acoustically similar, DR derives the following formular for decoding with Ba
 
     \text{score}\left(y_u|\mathit{x},y\right) = 
     \log p\left(y_u|\mathit{x},y_{1:u-1}\right) + 
-    \lambda_1 \log p_{\text{source LM}}\left(y_u|\mathit{x},y_{1:u-1}\right) - 
-    \lambda_2 \log p_{\text{target LM}}\left(y_u|\mathit{x},y_{1:u-1}\right)
+    \lambda_1 \log p_{\text{Target LM}}\left(y_u|\mathit{x},y_{1:u-1}\right) - 
+    \lambda_2 \log p_{\text{Source LM}}\left(y_u|\mathit{x},y_{1:u-1}\right)
 
 
-where :math:`\lambda_1` and :math:`\lambda_2` are the LM score for source domain and target domain respectively. 
+where :math:`\lambda_1` and :math:`\lambda_2` are the LM score for target domain and source domain respectively. 
 Here, the source domain LM is trained on the training corpus. The only difference in the above formular compared to 
 shallow fusion is the subtraction of the source domain LM.
 
 Some works treat the predictor and the joiner of the neural transducer as its internal LM. However, the LM is 
-considered to be weak and can only capture low-level language information. Therefore, `LODR <https://arxiv.org/abs/2203.16776>`_ propose to use
+considered to be weak and can only capture low-level language information. Therefore, `LODR <https://arxiv.org/abs/2203.16776>`_ proposed to use
 a low-order n-gram LM as an approximation of the ILM of the neural transducer. This leads to the following formula
 during decoding for RNNT model:
 
@@ -53,13 +53,13 @@ during decoding for RNNT model:
 
     \text{score}\left(y_u|\mathit{x},y\right) = 
     \log p_{rnnt}\left(y_u|\mathit{x},y_{1:u-1}\right) + 
-    \lambda_1 \log p_{\text{LM}}\left(y_u|\mathit{x},y_{1:u-1}\right) - 
+    \lambda_1 \log p_{\text{Target LM}}\left(y_u|\mathit{x},y_{1:u-1}\right) - 
     \lambda_2 \log p_{\text{bi-gram}}\left(y_u|\mathit{x},y_{1:u-1}\right)
 
 In LODR, an additional bi-gram LM estimated on the training corpus is required apart from the neural LM. Comared to DR, 
 the only difference lies in the choice of source domain LM. According to the original `paper <https://arxiv.org/abs/2203.16776>`_,
 LODR achieves similar performance compared DR. As a bi-gram is much faster to evaluate, LODR
-is a suitable decoding method for faster inference.
+is usually much faster.
 
 
 Now, we will show you how to use LODR in ``icefall``.
@@ -75,7 +75,7 @@ As the initial step, let's download the pre-trained model.
     $ pushd icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/exp
     $ ln -s pretrained.pt epoch-99.pt # create a symbolic link so that the checkpoint can be loaded
 
-To test the model, let's have a look at the decoding results without using LM. This can be done via the following command:
+To test the model, let's have a look at the decoding results **without** using LM. This can be done via the following command:
 
 .. code-block:: bash
 
@@ -90,11 +90,93 @@ To test the model, let's have a look at the decoding results without using LM. T
 
 The following WERs are achieved on test-clean and test-other:
 
-.. code-block:: bash
+.. code-block:: text
 
     $ For test-clean, WER of different settings are:
     $ beam_size_4	3.11	best for test-clean
     $ For test-other, WER of different settings are:
     $ beam_size_4	7.93	best for test-other
 
+Then, we download the external language model and bi-gram LM that are necessary for LODR. 
+Note that the bi-gram is estimated on the LibriSpeech 960 hours' text.
 
+.. code-block:: bash
+
+    $ git lfs install
+    $ # download the external LM
+    $ git clone https://huggingface.co/ezerhouni/icefall-librispeech-rnn-lm 
+    $ # create a symbolic link so that the checkpoint can be loaded
+    $ pushd icefall-librispeech-rnn-lm/exp
+    $ ln -s pretrained.pt epoch-99.pt 
+    $ popd
+    $
+    $ # download the bi-gram
+    $ git lfs install
+    $ git clone https://huggingface.co/marcoyang/librispeech_bigram
+    $ pushd data/lang_bpe_500
+    $ ln -s ../../librispeech_bigram/2gram.fst.txt .
+    $ popd
+
+Then, we perform LODR decoding by setting ``--decoding-method`` to ``modified_beam_search_lm_LODR``:
+
+.. code-block:: bash
+    
+    $ exp_dir=./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/exp
+    $ lm_dir=./icefall-librispeech-rnn-lm/exp
+    $ lm_scale=0.42
+    $ LODR_scale=-0.24
+    $ ./pruned_transducer_stateless7_streaming/decode.py \
+        --epoch 99 \
+        --avg 1 \
+        --use-averaged-model False \
+        --beam-size 4 \
+        --exp-dir $exp_dir \
+        --max-duration 600 \
+        --decode-chunk-len 32 \
+        --decoding-method modified_beam_search_lm_LODR \
+        --bpe-model ./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/data/lang_bpe_500/bpe.model
+        --use-shallow-fusion 1 \
+        --lm-type rnn \
+        --lm-exp-dir $lm_dir \
+        --lm-epoch 99 \
+        --lm-scale $lm_scale \
+        --lm-avg 1 \
+        --rnn-lm-embedding-dim 2048 \
+        --rnn-lm-hidden-dim 2048 \
+        --rnn-lm-num-layers 3 \
+        --lm-vocab-size 500 \
+        --tokens-ngram 2 \
+        --ngram-lm-scale $LODR_scale
+
+There are two extra arguments need to be given when doing LODR. ``--tokens-ngram`` specifies the order of n-gram. As we
+are using a bi-gram, we set it to 2. ``--ngram-lm-scale`` is the scale of the bi-gram, it should be a negative number
+as we are subtracting the bi-gram's score during decoding.
+
+The decoding results obtained with the above command are shown below:
+
+.. code-block:: text
+
+    $ For test-clean, WER of different settings are:
+    $ beam_size_4	2.61	best for test-clean
+    $ For test-other, WER of different settings are:
+    $ beam_size_4	6.74	best for test-other
+
+Recall that the lowest WER we obtained in :ref:`shallow_fusion` with beam size of 4 is 2.77/7.08, LODR
+indeed **further improves** the WER. We can do even better if we increase ``--beam-size``:
+
+.. list-table:: WER of LODR with different beam sizes
+   :widths: 25 25 50
+   :header-rows: 1
+
+   * - Beam size
+     - test-clean
+     - test-other
+   * - 4
+     - 2.77
+     - 7.08
+   * - 8
+     - 2.45
+     - 6.38
+   * - 12
+     - 2.4
+     - 6.23
