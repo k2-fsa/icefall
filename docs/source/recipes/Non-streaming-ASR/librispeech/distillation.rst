@@ -13,7 +13,7 @@ for more details about MVQ-KD.
     `pruned_transducer_stateless4 <https://github.com/k2-fsa/icefall/tree/master/egs/librispeech/ASR/pruned_transducer_stateless4>`_.
     Currently, we only implement MVQ-KD in this recipe. However, MVQ-KD is theoretically applicable to all recipes
     with only minor changes needed. Feel free to try out MVQ-KD in different recipes. If you
-    encounter any problems, please open an issue here `icefall <https://github.com/k2-fsa/icefall/issues>`_.
+    encounter any problems, please open an issue here `icefall <https://github.com/k2-fsa/icefall/issues>`__.
 
 .. note::
 
@@ -217,7 +217,7 @@ the following command.
     --exp-dir $exp_dir \
     --enable-distillation True
 
-You should get similar results as `here <https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/RESULTS-100hours.md#distillation-with-hubert>`_.
+You should get similar results as `here <https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/RESULTS-100hours.md#distillation-with-hubert>`__.
 
 That's all! Feel free to experiment with your own setups and report your results.
-If you encounter any problems during training, please open up an issue `here <https://github.com/k2-fsa/icefall/issues>`_.
+If you encounter any problems during training, please open up an issue `here <https://github.com/k2-fsa/icefall/issues>`__.

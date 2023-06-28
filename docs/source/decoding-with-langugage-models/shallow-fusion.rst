@@ -24,7 +24,7 @@ to improve the word-error-rate of a RNN Transducer model.
 
   We recommend you to use a GPU for decoding.
 
-For illustration purpose, we will use a pre-trained ASR model from this `link <https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29>`_.
+For illustration purpose, we will use a pre-trained ASR model from this `link <https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29>`__.
 If you want to train your model from scratch, please have a look at :ref:`non_streaming_librispeech_pruned_transducer_stateless`.
 
 As the initial step, let's download the pre-trained model.
@@ -59,7 +59,7 @@ The following WERs are achieved on test-clean and test-other:
     $ beam_size_4	7.93	best for test-other
 
 These are already good numbers! But we can further improve it by using shallow fusion with external LM.
-Training a language model usually takes a long time, we can download a pre-trained LM from this `link <https://huggingface.co/ezerhouni/icefall-librispeech-rnn-lm>`_.
+Training a language model usually takes a long time, we can download a pre-trained LM from this `link <https://huggingface.co/ezerhouni/icefall-librispeech-rnn-lm>`__.
 
 .. code-block:: bash
 
@@ -72,8 +72,8 @@ Training a language model usually takes a long time, we can download a pre-train
 .. note::
 
     This is an RNN LM trained on the LibriSpeech text corpus. So it might not be ideal for other corpus.
-    You may also train a RNN LM from scratch. Please refer to this `script <https://github.com/k2-fsa/icefall/blob/master/icefall/rnn_lm/train.py>`_
-    for training a RNN LM and this `script <https://github.com/k2-fsa/icefall/blob/master/icefall/transformer_lm/train.py>`_ to train a transformer LM.
+    You may also train a RNN LM from scratch. Please refer to this `script <https://github.com/k2-fsa/icefall/blob/master/icefall/rnn_lm/train.py>`__
+    for training a RNN LM and this `script <https://github.com/k2-fsa/icefall/blob/master/icefall/transformer_lm/train.py>`__ to train a transformer LM.
 
 To use shallow fusion for decoding, we can execute the following command:
 
@@ -141,7 +141,7 @@ A few parameters can be tuned to further boost the performance of shallow fusion
 Here, we also show how `--beam-size` effect the WER and decoding time:
 
 .. list-table:: WERs and decoding time (on test-clean) of shallow fusion with different beam sizes
-   :widths: 25 25 50
+   :widths: 25 25 25 25
    :header-rows: 1
 
    * - Beam size
