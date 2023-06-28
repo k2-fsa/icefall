@@ -59,12 +59,14 @@ during decoding for RNNT model:
 In LODR, an additional bi-gram LM estimated on the training corpus is required apart from the neural LM. Comared to DR, 
 the only difference lies in the choice of source domain LM. According to the original `paper <https://arxiv.org/abs/2203.16776>`_,
 LODR achieves similar performance compared DR. As a bi-gram is much faster to evaluate, LODR
-is usually much faster.
+is usually much faster. Note that although DR/LODR is originally proposed to address the domain
+mismatch between training and testing, it still achieves very good results on intra-domain evaluation.
 
 
 Now, we will show you how to use LODR in ``icefall``.
 For illustration purpose, we will use a pre-trained ASR model from this `link <https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29>`_.
 If you want to train your model from scratch, please have a look at :ref:`non_streaming_librispeech_pruned_transducer_stateless`.
+The testing scenario here is intra-domain.
 
 As the initial step, let's download the pre-trained model.
 
