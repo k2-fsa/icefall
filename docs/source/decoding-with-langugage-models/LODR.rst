@@ -148,7 +148,7 @@ Then, we perform LODR decoding by setting ``--decoding-method`` to ``modified_be
         --tokens-ngram 2 \
         --ngram-lm-scale $LODR_scale
 
-There are two extra arguments need to be given when doing LODR. ``--tokens-ngram`` specifies the order of n-gram. As we
+There are two extra arguments that need to be given when doing LODR. ``--tokens-ngram`` specifies the order of n-gram. As we
 are using a bi-gram, we set it to 2. ``--ngram-lm-scale`` is the scale of the bi-gram, it should be a negative number
 as we are subtracting the bi-gram's score during decoding.
 
