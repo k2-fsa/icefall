@@ -161,7 +161,7 @@ The decoding results obtained with the above command are shown below:
     $ For test-other, WER of different settings are:
     $ beam_size_4	6.74	best for test-other
 
-Recall that the lowest WER we obtained in :ref:`shallow_fusion` with beam size of 4 is 2.77/7.08, LODR
+Recall that the lowest WER we obtained in :ref:`shallow_fusion` with beam size of 4 is ``2.77/7.08``, LODR
 indeed **further improves** the WER. We can do even better if we increase ``--beam-size``:
 
 .. list-table:: WER of LODR with different beam sizes
