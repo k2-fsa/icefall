@@ -23,7 +23,7 @@ of langugae model integration.
 
 .. note::
 
-    For simplicity, the training and testing corpus in this tutorial is the same (`LibriSpeech`_). However, 
+    For simplicity, the training and testing corpus in this tutorial are the same (`LibriSpeech`_). However, 
     you can change the testing set to any other domains (e.g GigaSpeech) and prepare the language models 
     using that corpus.
 
