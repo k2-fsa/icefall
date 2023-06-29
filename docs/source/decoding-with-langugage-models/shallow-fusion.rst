@@ -18,7 +18,7 @@ to improve the word-error-rate of a RNN Transducer model.
 .. note::
 
     For simplicity, the training and testing corpus in this tutorial is the same (`LibriSpeech`_). However, you can change the testing set
-    to any other domains (e.g GigaSpeech) and use an external LM trained on that domain.
+    to any other domains (e.g `GigaSpeech`_) and use an external LM trained on that domain.
 
 .. HINT::
 
