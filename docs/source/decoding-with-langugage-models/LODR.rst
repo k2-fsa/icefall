@@ -17,7 +17,7 @@ of langugae model integration.
     This tutorial is based on the recipe 
     `pruned_transducer_stateless7_streaming <https://github.com/k2-fsa/icefall/tree/master/egs/librispeech/ASR/pruned_transducer_stateless7_streaming>`_,
     which is a streaming transducer model trained on `LibriSpeech`_. 
-    However, you can easily apply shallow fusion to other recipes.
+    However, you can easily apply LODR to other recipes.
     If you encounter any problems, please open an issue here `icefall <https://github.com/k2-fsa/icefall/issues>`_.
 
 
