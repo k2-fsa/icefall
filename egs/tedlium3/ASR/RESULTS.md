@@ -2,7 +2,7 @@
 
 ### TedLium3 BPE training results (Zipformer)
 
-#### 2023-06-15
+#### 2023-06-15 (Regular transducer)
 
 Using the codes from this PR https://github.com/k2-fsa/icefall/pull/1125.
 
@@ -82,9 +82,7 @@ avg=22
 
 A pre-trained model and decoding logs can be found at <https://huggingface.co/desh2608/icefall-asr-tedlium3-zipformer>
 
-#### 2023-06-26 (transducer topology)
-
-**Modified transducer**
+#### 2023-06-26 (Modified transducer)
 
 ```
 ./zipformer/train.py \
@@ -97,36 +95,16 @@ A pre-trained model and decoding logs can be found at <https://huggingface.co/de
   --rnnt-type modified
 ```
 
+The tensorboard training log can be found at
+https://tensorboard.dev/experiment/3d4bYmbJTGiWQQaW88CVEQ/#scalars
+
 |                                    |     dev    |    test    | comment                                  |
 |------------------------------------|------------|------------|------------------------------------------|
 |          greedy search             | 6.32       | 5.83       | --epoch 50, --avg 22, --max-duration 500 |
-|      beam search (beam size 4)     |        |        | --epoch 50, --avg 22, --max-duration 500 |
 | modified beam search (beam size 4) | 6.16       | 5.79       | --epoch 50, --avg 22, --max-duration 500 |
-| fast beam search (set as default)  | 6.30    ß   | 5.89       | --epoch 50, --avg 22, --max-duration 500 |
+| fast beam search (set as default)  | 6.30       | 5.89       | --epoch 50, --avg 22, --max-duration 500 |
 
-A pre-trained model and decoding logs can be found at .
-
-**Constrained transducer**
-
-```
-./zipformer/train.py \
-  --use-fp16 true \
-  --world-size 4 \
-  --num-epochs 50 \
-  --start-epoch 0 \
-  --exp-dir zipformer/exp \
-  --max-duration 1000 \
-  --rnnt-type constrained
-```
-
-|                                    |     dev    |    test    | comment                                  |
-|------------------------------------|------------|------------|------------------------------------------|
-|          greedy search             | 6.58       | 6.20       | --epoch 50, --avg 22, --max-duration 500 |
-|      beam search (beam size 4)     | 6.34       | 5.92       | --epoch 50, --avg 22, --max-duration 500 |
-| modified beam search (beam size 4) | 6.38       | 5.84       | --epoch 50, --avg 22, --max-duration 500 |
-| fast beam search (set as default)  | 6.68       | 6.29       | --epoch 50, --avg 22, --max-duration 500 |
-
-A pre-trained model and decoding logs can be found at .
+A pre-trained model and decoding logs can be found at <https://huggingface.co/desh2608/icefall-asr-tedlium3-zipformer>.
 
 ### TedLium3 BPE training results (Conformer-CTC 2)
 
