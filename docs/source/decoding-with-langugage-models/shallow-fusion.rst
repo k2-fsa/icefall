@@ -31,9 +31,9 @@ As the initial step, let's download the pre-trained model.
 
 .. code-block:: bash
 
-    $ git lfs install
-    $ git clone https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29
+    $ GIT_LFS_SKIP_SMUDGE=1 git clone https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29
     $ pushd icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/exp
+    $ git lfs pull --include "pretrained.pt"
     $ ln -s pretrained.pt epoch-99.pt # create a symbolic link so that the checkpoint can be loaded
 
 To test the model, let's have a look at the decoding results without using LM. This can be done via the following command:
@@ -42,8 +42,9 @@ To test the model, let's have a look at the decoding results without using LM. T
 
     $ exp_dir=./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/exp/
     $ ./pruned_transducer_stateless7_streaming/decode.py \
-        --epoch 30 \
-        --avg 9 \
+        --epoch 99 \
+        --avg 1 \
+        --use-averaged-model False \
         --exp-dir $exp_dir \
         --max-duration 600 \
         --decode-chunk-len 32 \
@@ -63,10 +64,12 @@ Training a language model usually takes a long time, we can download a pre-train
 
 .. code-block:: bash
 
-    $ git lfs install
-    $ git clone https://huggingface.co/ezerhouni/icefall-librispeech-rnn-lm
+    $ # download the external LM
+    $ GIT_LFS_SKIP_SMUDGE=1 git clone https://huggingface.co/ezerhouni/icefall-librispeech-rnn-lm 
+    $ # create a symbolic link so that the checkpoint can be loaded
     $ pushd icefall-librispeech-rnn-lm/exp
-    $ ln -s pretrained.pt epoch-99.pt # create a symbolic link so that the checkpoint can be loaded
+    $ git lfs pull --include "pretrained.pt"
+    $ ln -s pretrained.pt epoch-99.pt 
     $ popd
 
 .. note::
