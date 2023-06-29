@@ -5,7 +5,7 @@ Shallow fusion for RNN Transducer
 
 External language models (LM) are commonly used to improve WERs for E2E ASR models.
 This tutorial shows you how to perform ``shallow fusion`` with an external LM
-to improve the word-error-rate of a RNN Transducer model.
+to improve the word-error-rate of a transducer model.
 
 .. note::
 
