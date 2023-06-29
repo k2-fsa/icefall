@@ -47,7 +47,7 @@ shallow fusion is the subtraction of the source domain LM.
 Some works treat the predictor and the joiner of the neural transducer as its internal LM. However, the LM is 
 considered to be weak and can only capture low-level language information. Therefore, `LODR <https://arxiv.org/abs/2203.16776>`__ proposed to use
 a low-order n-gram LM as an approximation of the ILM of the neural transducer. This leads to the following formula
-during decoding for RNNT model:
+during decoding for transducer model:
 
 .. math::
 
