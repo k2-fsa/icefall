@@ -40,7 +40,7 @@ are acoustically similar, DR derives the following formular for decoding with Ba
     \lambda_2 \log p_{\text{Source LM}}\left(y_u|\mathit{x},y_{1:u-1}\right)
 
 
-where :math:`\lambda_1` and :math:`\lambda_2` are the LM score for target domain and source domain respectively. 
+where :math:`\lambda_1` and :math:`\lambda_2` are the weights of LM scores for target domain and source domain respectively. 
 Here, the source domain LM is trained on the training corpus. The only difference in the above formular compared to 
 shallow fusion is the subtraction of the source domain LM.
 
@@ -56,17 +56,15 @@ during decoding for RNNT model:
     \lambda_1 \log p_{\text{Target LM}}\left(y_u|\mathit{x},y_{1:u-1}\right) - 
     \lambda_2 \log p_{\text{bi-gram}}\left(y_u|\mathit{x},y_{1:u-1}\right)
 
-In LODR, an additional bi-gram LM estimated on the training corpus is required apart from the neural LM. Comared to DR, 
+In LODR, an additional bi-gram LM estimated on the source domain (e.g training corpus) is required. Comared to DR, 
 the only difference lies in the choice of source domain LM. According to the original `paper <https://arxiv.org/abs/2203.16776>`_,
-LODR achieves similar performance compared DR. As a bi-gram is much faster to evaluate, LODR
-is usually much faster. Note that although DR/LODR is originally proposed to address the domain
-mismatch between training and testing, it still achieves very good results on intra-domain evaluation.
-
+LODR achieves similar performance compared DR in both intra-domain and cross-domain settings.
+As a bi-gram is much faster to evaluate, LODR is usually much faster.
 
 Now, we will show you how to use LODR in ``icefall``.
 For illustration purpose, we will use a pre-trained ASR model from this `link <https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29>`_.
 If you want to train your model from scratch, please have a look at :ref:`non_streaming_librispeech_pruned_transducer_stateless`.
-The testing scenario here is intra-domain.
+The testing scenario here is intra-domain (we decode the model trained on `LibriSpeech`_ on `LibriSpeech`_ testing sets).
 
 As the initial step, let's download the pre-trained model.
 
