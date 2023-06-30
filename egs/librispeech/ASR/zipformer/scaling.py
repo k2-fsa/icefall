@@ -36,7 +36,9 @@ def logaddexp(x: Tensor, y: Tensor) -> Tensor:
     if not torch.jit.is_tracing():
         return torch.logaddexp(x, y)
     else:
-        return (x.exp() + y.exp()).log()
+        max_value = torch.max(x, y)
+        diff = torch.abs(x - y)
+        return max_value + torch.log1p(torch.exp(-diff))
 
 class PiecewiseLinear(object):
     """
