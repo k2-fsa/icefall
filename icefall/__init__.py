@@ -23,6 +23,8 @@ from .checkpoint import (
     save_checkpoint_with_global_batch_idx,
 )
 
+from .context_graph import ContextGraph, ContextState
+
 from .decode import (
     get_lattice,
     nbest_decoding,

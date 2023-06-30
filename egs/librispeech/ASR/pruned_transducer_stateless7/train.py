@@ -50,7 +50,6 @@ import copy
 import logging
 import warnings
 from pathlib import Path
-from shutil import copyfile
 from typing import Any, Dict, Optional, Tuple, Union
 
 import k2
@@ -60,7 +59,6 @@ import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
-from multidataset import MultiDataset
 from decoder import Decoder
 from joiner import Joiner
 from lhotse.cut import Cut
@@ -90,6 +88,7 @@ from icefall.utils import (
     filter_uneven_sized_batch,
     setup_logger,
     str2bool,
+    symlink_or_copy,
 )
 
 LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
@@ -341,7 +340,7 @@ def get_parser():
         params.batch_idx_train % save_every_n == 0. The checkpoint filename
         has the form: f'exp-dir/checkpoint-{params.batch_idx_train}.pt'
         Note: It also saves checkpoint to `exp-dir/epoch-xxx.pt` at the
-        end of each epoch where `xxx` is the epoch number counting from 0.
+        end of each epoch where `xxx` is the epoch number counting from 1.
         """,
     )
 
@@ -374,13 +373,6 @@ def get_parser():
         type=str2bool,
         default=False,
         help="Whether to use half precision training.",
-    )
-
-    parser.add_argument(
-        "--use-multidataset",
-        type=str2bool,
-        default=False,
-        help="Whether to use multidataset to train.",
     )
 
     add_model_arguments(parser)
@@ -578,9 +570,6 @@ def load_checkpoint_if_available(
         if "cur_epoch" in saved_params:
             params["start_epoch"] = saved_params["cur_epoch"]
 
-        if "cur_batch_idx" in saved_params:
-            params["cur_batch_idx"] = saved_params["cur_batch_idx"]
-
     return saved_params
 
 
@@ -612,7 +601,8 @@ def save_checkpoint(
     """
     if rank != 0:
         return
-    filename = params.exp_dir / f"epoch-{params.cur_epoch}.pt"
+    epoch_basename = f"epoch-{params.cur_epoch}.pt"
+    filename = params.exp_dir / epoch_basename
     save_checkpoint_impl(
         filename=filename,
         model=model,
@@ -626,12 +616,14 @@ def save_checkpoint(
     )
 
     if params.best_train_epoch == params.cur_epoch:
-        best_train_filename = params.exp_dir / "best-train-loss.pt"
-        copyfile(src=filename, dst=best_train_filename)
+        symlink_or_copy(
+            exp_dir=params.exp_dir, src=epoch_basename, dst="best-train-loss.pt"
+        )
 
     if params.best_valid_epoch == params.cur_epoch:
-        best_valid_filename = params.exp_dir / "best-valid-loss.pt"
-        copyfile(src=filename, dst=best_valid_filename)
+        symlink_or_copy(
+            exp_dir=params.exp_dir, src=epoch_basename, dst="best-valid-loss.pt"
+        )
 
 
 def compute_loss(
@@ -660,7 +652,7 @@ def compute_loss(
         values >= 1.0 are fully warmed up and have all modules present.
     """
     # For the uneven-sized batch, the total duration after padding would possibly
-    # cause OOM. Hence, for each batch, which is sorted descendingly by length,
+    # cause OOM. Hence, for each batch, which is sorted in descending order by length,
     # we simply drop the last few shortest samples, so that the retained total frames
     # (after padding) would not exceed `allowed_max_frames`:
     # `allowed_max_frames = int(max_frames * (1.0 + allowed_excess_duration_ratio))`,
@@ -668,7 +660,8 @@ def compute_loss(
     # We set allowed_excess_duration_ratio=0.1.
     max_frames = params.max_duration * 1000 // params.frame_shift_ms
     allowed_max_frames = int(max_frames * (1.0 + params.allowed_excess_duration_ratio))
-    batch = filter_uneven_sized_batch(batch, allowed_max_frames)
+    if is_training:
+        batch = filter_uneven_sized_batch(batch, allowed_max_frames)
 
     device = model.device if isinstance(model, DDP) else next(model.parameters()).device
     feature = batch["inputs"]
@@ -810,13 +803,7 @@ def train_one_epoch(
 
     tot_loss = MetricsTracker()
 
-    cur_batch_idx = params.get("cur_batch_idx", 0)
-
     for batch_idx, batch in enumerate(train_dl):
-        if batch_idx < cur_batch_idx:
-            continue
-        cur_batch_idx = batch_idx
-
         params.batch_idx_train += 1
         batch_size = len(batch["supervisions"]["text"])
 
@@ -863,7 +850,6 @@ def train_one_epoch(
             params.batch_idx_train > 0
             and params.batch_idx_train % params.save_every_n == 0
         ):
-            params.cur_batch_idx = batch_idx
             save_checkpoint_with_global_batch_idx(
                 out_dir=params.exp_dir,
                 global_batch_idx=params.batch_idx_train,
@@ -876,7 +862,6 @@ def train_one_epoch(
                 scaler=scaler,
                 rank=rank,
             )
-            del params.cur_batch_idx
             remove_checkpoints(
                 out_dir=params.exp_dir,
                 topk=params.keep_last_k,
@@ -1052,14 +1037,12 @@ def run(rank, world_size, args):
 
     librispeech = LibriSpeechAsrDataModule(args)
 
-    if params.use_multidataset:
-        multidataset = MultiDataset(params.manifest_dir, params.cv_manifest_dir)
-        train_cuts = multidataset.train_cuts()
+    if params.mini_libri:
+        train_cuts = librispeech.train_clean_5_cuts()
+    elif params.full_libri:
+        train_cuts = librispeech.train_all_shuf_cuts()
     else:
-        if params.full_libri:
-            train_cuts = librispeech.train_all_shuf_cuts()
-        else:
-            train_cuts = librispeech.train_clean_100_cuts()
+        train_cuts = librispeech.train_clean_100_cuts()
 
     def remove_short_and_long_utt(c: Cut):
         # Keep only utterances with duration between 1 second and 20 seconds
@@ -1108,11 +1091,14 @@ def run(rank, world_size, args):
         train_cuts, sampler_state_dict=sampler_state_dict
     )
 
-    valid_cuts = librispeech.dev_clean_cuts()
-    valid_cuts += librispeech.dev_other_cuts()
+    if params.mini_libri:
+        valid_cuts = librispeech.dev_clean_2_cuts()
+    else:
+        valid_cuts = librispeech.dev_clean_cuts()
+        valid_cuts += librispeech.dev_other_cuts()
     valid_dl = librispeech.valid_dataloaders(valid_cuts)
 
-    if not params.use_multidataset and not params.print_diagnostics:
+    if not params.print_diagnostics:
         scan_pessimistic_batches_for_oom(
             model=model,
             train_dl=train_dl,
