@@ -25,6 +25,11 @@ import math
 import torch.nn as nn
 from torch import Tensor
 
+def logaddexp_onnx(x: Tensor, y: Tensor) -> Tensor:
+    max_value = torch.max(x, y)
+    diff = torch.abs(x - y)
+    return max_value + torch.log1p(torch.exp(-diff))
+
 
 # RuntimeError: Exporting the operator logaddexp to ONNX opset version
 # 14 is not supported. Please feel free to request support or submit
@@ -33,10 +38,22 @@ from torch import Tensor
 # The following function is to solve the above error when exporting
 # models to ONNX via torch.jit.trace()
 def logaddexp(x: Tensor, y: Tensor) -> Tensor:
-    if not torch.jit.is_tracing():
+    # Caution(fangjun): Put torch.jit.is_scripting() before
+    # torch.onnx.is_in_onnx_export();
+    # otherwise, it will cause errors for torch.jit.script().
+    #
+    # torch.logaddexp() works for both torch.jit.script() and
+    # torch.jit.trace() but it causes errors for ONNX export.
+    #
+    if torch.jit.is_scripting():
+        # Note: We cannot use torch.jit.is_tracing() here as it also
+        # matches torch.onnx.export().
         return torch.logaddexp(x, y)
+    elif torch.onnx.is_in_onnx_export():
+        return logaddexp_onnx(x, y)
     else:
-        return (x.exp() + y.exp()).log()
+        # for torch.jit.trace()
+        return torch.logaddexp(x, y)
 
 class PiecewiseLinear(object):
     """
@@ -1334,6 +1351,13 @@ class SwooshL(torch.nn.Module):
             return k2.swoosh_l(x)
         # return SwooshLFunction.apply(x)
 
+class SwooshLOnnx(torch.nn.Module):
+    def forward(self, x: Tensor) -> Tensor:
+        """Return Swoosh-L activation.
+        """
+        zero = torch.tensor(0.0, dtype=x.dtype, device=x.device)
+        return logaddexp_onnx(zero, x - 4.0) - 0.08 * x - 0.035
+
 
 class SwooshRFunction(torch.autograd.Function):
     """
@@ -1399,6 +1423,13 @@ class SwooshR(torch.nn.Module):
         else:
             return k2.swoosh_r(x)
         # return SwooshRFunction.apply(x)
+
+class SwooshROnnx(torch.nn.Module):
+    def forward(self, x: Tensor) -> Tensor:
+        """Return Swoosh-R activation.
+        """
+        zero = torch.tensor(0.0, dtype=x.dtype, device=x.device)
+        return logaddexp_onnx(zero, x - 1.) - 0.08 * x - 0.313261687
 
 
 # simple version of SwooshL that does not redefine the backprop, used in

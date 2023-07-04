@@ -31,6 +31,7 @@ def greedy_search(
     model: nn.Module,
     encoder_out: torch.Tensor,
     streams: List[DecodeStream],
+    blank_penalty: float = 0.0,
 ) -> None:
     """Greedy search in batch mode. It hardcodes --max-sym-per-frame=1.
 
@@ -71,6 +72,9 @@ def greedy_search(
         # logits'shape (batch_size,  vocab_size)
         logits = logits.squeeze(1).squeeze(1)
 
+        if blank_penalty != 0.0:
+            logits[:, 0] -= blank_penalty
+
         assert logits.ndim == 2, logits.shape
         y = logits.argmax(dim=1).tolist()
         emitted = False
@@ -97,6 +101,7 @@ def modified_beam_search(
     encoder_out: torch.Tensor,
     streams: List[DecodeStream],
     num_active_paths: int = 4,
+    blank_penalty: float = 0.0,
 ) -> None:
     """Beam search in batch mode with --max-sym-per-frame=1 being hardcoded.
 
@@ -158,6 +163,9 @@ def modified_beam_search(
 
         logits = logits.squeeze(1).squeeze(1)
 
+        if blank_penalty != 0.0:
+            logits[:, 0] -= blank_penalty
+
         log_probs = logits.log_softmax(dim=-1)  # (num_hyps, vocab_size)
 
         log_probs.add_(ys_log_probs)
@@ -205,6 +213,7 @@ def fast_beam_search_one_best(
     beam: float,
     max_states: int,
     max_contexts: int,
+    blank_penalty: float = 0.0,
 ) -> None:
     """It limits the maximum number of symbols per frame to 1.
 
@@ -269,6 +278,10 @@ def fast_beam_search_one_best(
             project_input=False,
         )
         logits = logits.squeeze(1).squeeze(1)
+
+        if blank_penalty != 0.0:
+            logits[:, 0] -= blank_penalty
+
         log_probs = logits.log_softmax(dim=-1)
         decoding_streams.advance(log_probs)
 

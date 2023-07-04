@@ -21,7 +21,7 @@ You can use the following command to get the exported models:
 
 ./zipformer/export.py \
   --exp-dir ./zipformer/exp \
-  --bpe-model data/lang_bpe_500/bpe.model \
+  --tokens data/lang_bpe_500/tokens.txt \
   --epoch 30 \
   --avg 9 \
   --jit 1
@@ -30,7 +30,7 @@ Usage of this script:
 
 ./zipformer/jit_pretrained.py \
   --nn-model-filename ./zipformer/exp/cpu_jit.pt \
-  --bpe-model ./data/lang_bpe_500/bpe.model \
+  --tokens ./data/lang_bpe_500/tokens.txt \
   /path/to/foo.wav \
   /path/to/bar.wav
 """
@@ -40,8 +40,8 @@ import logging
 import math
 from typing import List
 
+import k2
 import kaldifeat
-import sentencepiece as spm
 import torch
 import torchaudio
 from torch.nn.utils.rnn import pad_sequence
@@ -60,9 +60,9 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--bpe-model",
+        "--tokens",
         type=str,
-        help="""Path to bpe.model.""",
+        help="""Path to tokens.txt.""",
     )
 
     parser.add_argument(
@@ -128,7 +128,7 @@ def greedy_search(
     )
 
     device = encoder_out.device
-    blank_id = 0  # hard-code to 0
+    blank_id = model.decoder.blank_id
 
     batch_size_list = packed_encoder_out.batch_sizes.tolist()
     N = encoder_out.size(0)
@@ -215,9 +215,6 @@ def main():
 
     model.to(device)
 
-    sp = spm.SentencePieceProcessor()
-    sp.load(args.bpe_model)
-
     logging.info("Constructing Fbank computer")
     opts = kaldifeat.FbankOptions()
     opts.device = device
@@ -256,10 +253,21 @@ def main():
         encoder_out=encoder_out,
         encoder_out_lens=encoder_out_lens,
     )
+
     s = "\n"
+
+    token_table = k2.SymbolTable.from_file(args.tokens)
+
+    def token_ids_to_words(token_ids: List[int]) -> str:
+        text = ""
+        for i in token_ids:
+            text += token_table[i]
+        return text.replace("▁", " ").strip()
+
     for filename, hyp in zip(args.sound_files, hyps):
-        words = sp.decode(hyp)
-        s += f"{filename}:\n{words}\n\n"
+        words = token_ids_to_words(hyp)
+        s += f"{filename}:\n{words}\n"
+
     logging.info(s)
 
     logging.info("Decoding Done")

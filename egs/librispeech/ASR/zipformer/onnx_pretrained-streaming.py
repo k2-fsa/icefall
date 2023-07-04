@@ -524,11 +524,11 @@ def main():
                 hyp,
             )
 
-    symbol_table = k2.SymbolTable.from_file(args.tokens)
+    token_table = k2.SymbolTable.from_file(args.tokens)
 
     text = ""
     for i in hyp[context_size:]:
-        text += symbol_table[i]
+        text += token_table[i]
     text = text.replace("▁", " ").strip()
 
     logging.info(args.sound_file)
