@@ -46,7 +46,7 @@ for how to use the exported models outside of icefall.
 
 ./pruned_transducer_stateless7/export.py \
   --exp-dir ./pruned_transducer_stateless7/exp \
-  --tokens data/lang_bpe_500/tokens.txt \
+  --tokens data/lang_char/tokens.txt \
   --epoch 20 \
   --avg 10
 
@@ -66,7 +66,7 @@ you can do:
         --avg 1 \
         --max-duration 600 \
         --decoding-method greedy_search \
-        --tokens data/lang_bpe_500/tokens.txt \
+        --tokens data/lang_char/tokens.txt
 
 Check ./pretrained.py for its usage.
 
@@ -89,11 +89,10 @@ from pathlib import Path
 import re
 
 import k2
-import sentencepiece as spm
 import torch
 import torch.nn as nn
 from scaling_converter import convert_scaled_to_non_scaled
-from train import add_model_arguments, get_params, get_transducer_model
+from train2 import add_model_arguments, get_params, get_transducer_model
 
 from icefall.checkpoint import (
     average_checkpoints,
