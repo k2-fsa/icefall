@@ -233,22 +233,23 @@ def decode_one_batch(
     masks = processed.view(B, T, F, params.num_channels).unbind(dim=-1)
     x_masked = [feature * m for m in masks]
 
-    # To save the masks, we split them by batch and trim each mask to the length of
-    # the corresponding feature. We save them in a dict, where the key is the
-    # cut ID and the value is the mask.
     masks_dict = {}
-    for i in range(B):
-        mask = torch.cat(
-            [x_masked[j][i, : feature_lens[i]] for j in range(params.num_channels)],
-            dim=-1,
-        )
-        mask = mask.cpu().numpy()
-        masks_dict[batch["cuts"][i].id] = mask
+    if params.save_masks:
+        # To save the masks, we split them by batch and trim each mask to the length of
+        # the corresponding feature. We save them in a dict, where the key is the
+        # cut ID and the value is the mask.
+        for i in range(B):
+            mask = torch.cat(
+                [x_masked[j][i, : feature_lens[i]] for j in range(params.num_channels)],
+                dim=-1,
+            )
+            mask = mask.cpu().numpy()
+            masks_dict[batch["cuts"][i].id] = mask
 
     # Recognition
-    # Stack the inputs along the batch axis
+    # Concatenate the inputs along the batch axis
     h = torch.cat(x_masked, dim=0)
-    h_lens = torch.cat([feature_lens for _ in range(params.num_channels)], dim=0)
+    h_lens = feature_lens.repeat(params.num_channels)
     encoder_out, encoder_out_lens = model.encoder(x=h, x_lens=h_lens)
 
     if model.joint_encoder_layer is not None:

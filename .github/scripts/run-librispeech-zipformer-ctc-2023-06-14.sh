@@ -23,6 +23,7 @@ ls -lh $repo/test_wavs/*.wav
 
 pushd $repo/exp
 git lfs pull --include "data/lang_bpe_500/bpe.model"
+git lfs pull --include "data/lang_bpe_500/tokens.txt"
 git lfs pull --include "data/lang_bpe_500/HLG.pt"
 git lfs pull --include "data/lang_bpe_500/L.pt"
 git lfs pull --include "data/lang_bpe_500/LG.pt"
@@ -40,7 +41,7 @@ log "Export to torchscript model"
   --use-transducer 1 \
   --use-ctc 1 \
   --use-averaged-model false \
-  --bpe-model $repo/data/lang_bpe_500/bpe.model \
+  --tokens $repo/data/lang_bpe_500/tokens.txt \
   --epoch 99 \
   --avg 1 \
   --jit 1
@@ -51,7 +52,7 @@ log "Decode with models exported by torch.jit.script()"
 
 for method in ctc-decoding 1best; do
   ./zipformer/jit_pretrained_ctc.py \
-    --bpe-model $repo/data/lang_bpe_500/bpe.model \
+    --tokens $repo/data/lang_bpe_500/tokens.txt \
     --model-filename $repo/exp/jit_script.pt \
     --HLG $repo/data/lang_bpe_500/HLG.pt \
     --words-file $repo/data/lang_bpe_500/words.txt  \
@@ -71,8 +72,7 @@ for method in ctc-decoding 1best; do
     --use-ctc 1 \
     --method $method \
     --checkpoint $repo/exp/pretrained.pt \
-    --bpe-model $repo/data/lang_bpe_500/bpe.model \
-    --words-file $repo/data/lang_bpe_500/words.txt  \
+    --tokens $repo/data/lang_bpe_500/tokens.txt \
     --HLG $repo/data/lang_bpe_500/HLG.pt \
     --G $repo/data/lm/G_4_gram.pt \
     --words-file $repo/data/lang_bpe_500/words.txt  \

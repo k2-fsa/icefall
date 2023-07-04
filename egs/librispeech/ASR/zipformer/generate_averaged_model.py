@@ -40,16 +40,11 @@ You can later load it by `torch.load("iter-22000-avg-5.pt")`.
 import argparse
 from pathlib import Path
 
-import sentencepiece as spm
+import k2
 import torch
-from asr_datamodule import LibriSpeechAsrDataModule
+from train import add_model_arguments, get_model, get_params
 
-from train import add_model_arguments, get_params, get_model
-
-from icefall.checkpoint import (
-    average_checkpoints_with_averaged_model,
-    find_checkpoints,
-)
+from icefall.checkpoint import average_checkpoints_with_averaged_model, find_checkpoints
 
 
 def get_parser():
@@ -93,10 +88,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--bpe-model",
+        "--tokens",
         type=str,
-        default="data/lang_bpe_500/bpe.model",
-        help="Path to the BPE model",
+        default="data/lang_bpe_500/tokens.txt",
+        help="Path to the tokens.txt",
     )
 
     parser.add_argument(
@@ -114,7 +109,6 @@ def get_parser():
 @torch.no_grad()
 def main():
     parser = get_parser()
-    LibriSpeechAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 
@@ -131,13 +125,10 @@ def main():
     device = torch.device("cpu")
     print(f"Device: {device}")
 
-    sp = spm.SentencePieceProcessor()
-    sp.load(params.bpe_model)
-
-    # <blk> is defined in local/train_bpe_model.py
-    params.blank_id = sp.piece_to_id("<blk>")
-    params.unk_id = sp.piece_to_id("<unk>")
-    params.vocab_size = sp.get_piece_size()
+    symbol_table = k2.SymbolTable.from_file(params.tokens)
+    params.blank_id = symbol_table["<blk>"]
+    params.unk_id = symbol_table["<unk>"]
+    params.vocab_size = len(symbol_table)
 
     print("About to create model")
     model = get_model(params)

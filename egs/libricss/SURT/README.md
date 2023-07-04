@@ -41,7 +41,7 @@ The model is a combination of a speech separation model and a speech recognition
 but trained end-to-end with a single loss function. The overall architecture is shown
 in the figure below. Note that this architecture is slightly different from the one
 in the above papers. A detailed description of the model can be found in the following
-paper: [SURT 2.0: Advanced in transducer-based multi-talker ASR]().
+paper: [SURT 2.0: Advanced in transducer-based multi-talker ASR](https://arxiv.org/abs/2306.10559).
 
 <p align="center">
 
@@ -50,7 +50,7 @@ paper: [SURT 2.0: Advanced in transducer-based multi-talker ASR]().
 
 </p>
 
-In the `dprnn_zipformer` recipe, for example, we use a DPRNN-based masking network
+In the [dprnn_zipformer](./dprnn_zipformer) recipe, for example, we use a DPRNN-based masking network
 and a Zipfomer-based recognition network. But other combinations are possible as well.
 
 ## Training objective
