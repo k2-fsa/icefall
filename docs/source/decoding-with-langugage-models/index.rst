@@ -9,3 +9,4 @@ during decoding to improve the WER of transducer models.
 
    shallow-fusion
    LODR
+   rescoring

@@ -18,13 +18,13 @@ of langugae model integration.
     `pruned_transducer_stateless7_streaming <https://github.com/k2-fsa/icefall/tree/master/egs/librispeech/ASR/pruned_transducer_stateless7_streaming>`_,
     which is a streaming transducer model trained on `LibriSpeech`_. 
     However, you can easily apply LODR to other recipes.
-    If you encounter any problems, please open an issue here `icefall <https://github.com/k2-fsa/icefall/issues>`_.
+    If you encounter any problems, please open an issue here `icefall <https://github.com/k2-fsa/icefall/issues>`__.
 
 
 .. note::
 
     For simplicity, the training and testing corpus in this tutorial are the same (`LibriSpeech`_). However, 
-    you can change the testing set to any other domains (e.g GigaSpeech) and prepare the language models 
+    you can change the testing set to any other domains (e.g `GigaSpeech`_) and prepare the language models 
     using that corpus.
 
 First, let's have a look at some background information. As the predecessor of LODR, Density Ratio (DR) is first proposed `here <https://arxiv.org/abs/2002.11268>`_ 
@@ -174,8 +174,8 @@ indeed **further improves** the WER. We can do even better if we increase ``--be
      - test-clean
      - test-other
    * - 4
-     - 2.77
-     - 7.08
+     - 2.61
+     - 6.74
    * - 8
      - 2.45
      - 6.38
