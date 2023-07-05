@@ -43,7 +43,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-18.04]
+        os: [ubuntu-latest]
         python-version: [3.7, 3.8, 3.9]
 
       fail-fast: false
@@ -122,5 +122,5 @@ jobs:
         uses: actions/upload-artifact@v2
         if: github.event_name == 'schedule' || github.event.label.name == 'run-decode'
         with:
-          name: torch-${{ matrix.torch }}-python-${{ matrix.python-version }}-ubuntu-18.04-cpu-gigaspeech-pruned_transducer_stateless2-2022-05-12
+          name: torch-${{ matrix.torch }}-python-${{ matrix.python-version }}-ubuntu-latest-cpu-gigaspeech-pruned_transducer_stateless2-2022-05-12
           path: egs/gigaspeech/ASR/pruned_transducer_stateless2/exp/
