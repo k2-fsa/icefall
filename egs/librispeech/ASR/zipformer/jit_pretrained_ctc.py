@@ -264,7 +264,7 @@ def main():
     params.update(vars(args))
 
     token_table = k2.SymbolTable.from_file(params.tokens)
-    params.vocab_size = num_tokens(token_table)
+    params.vocab_size = num_tokens(token_table) + 1
 
     logging.info(f"{params}")
 
