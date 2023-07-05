@@ -86,6 +86,7 @@ rst_epilog = """
 .. _git-lfs: https://git-lfs.com/
 .. _ncnn: https://github.com/tencent/ncnn
 .. _LibriSpeech: https://www.openslr.org/12
+.. _Gigaspeech: https://github.com/SpeechColab/GigaSpeech
 .. _musan: http://www.openslr.org/17/
 .. _ONNX: https://github.com/onnx/onnx
 .. _onnxruntime: https://github.com/microsoft/onnxruntime
