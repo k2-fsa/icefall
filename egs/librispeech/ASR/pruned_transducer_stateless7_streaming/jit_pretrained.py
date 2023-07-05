@@ -252,7 +252,7 @@ def main():
 
     feature_lengths = torch.tensor(feature_lengths, device=device)
 
-    encoder_out, encoder_out_lens = model.encoder(
+    encoder_out, encoder_out_lens = model.encoder.non_streaming_forward(
         x=features,
         x_lens=feature_lengths,
     )
