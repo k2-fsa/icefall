@@ -19,7 +19,7 @@ GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
 repo=$(basename $repo_url)
 
 pushd $repo
-git lfs pull --include "data/lang_bpe_500/bpe.model"
+git lfs pull --include "data/lang_bpe_500/tokens.txt"
 git lfs pull --include "exp/pretrained-epoch-30-avg-9.pt"
 
 cd exp
