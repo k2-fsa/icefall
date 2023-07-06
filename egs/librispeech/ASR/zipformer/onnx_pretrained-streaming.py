@@ -29,7 +29,7 @@ popd
 2. Export the model to ONNX
 
 ./zipformer/export-onnx-streaming.py \
-  --bpe-model $repo/data/lang_bpe_500/tokens.txt \
+  --tokens $repo/data/lang_bpe_500/tokens.txt \
   --use-averaged-model 0 \
   --epoch 99 \
   --avg 1 \
