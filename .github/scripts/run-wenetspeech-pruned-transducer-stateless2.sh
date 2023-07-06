@@ -17,7 +17,6 @@ git lfs install
 git clone $repo_url
 repo=$(basename $repo_url)
 
-
 log "Display test files"
 tree $repo/
 ls -lh $repo/test_wavs/*.wav
@@ -33,8 +32,7 @@ log "Test exporting to ONNX format"
   --exp-dir $repo/exp \
   --lang-dir $repo/data/lang_char \
   --epoch 99 \
-  --avg 1 \
-  --onnx 1
+  --avg 1
 
 log "Export to torchscript model"
 
@@ -104,9 +102,9 @@ for sym in 1 2 3; do
     --lang-dir $repo/data/lang_char \
     --decoding-method greedy_search \
     --max-sym-per-frame $sym \
-  $repo/test_wavs/DEV_T0000000000.wav \
-  $repo/test_wavs/DEV_T0000000001.wav \
-  $repo/test_wavs/DEV_T0000000002.wav
+    $repo/test_wavs/DEV_T0000000000.wav \
+    $repo/test_wavs/DEV_T0000000001.wav \
+    $repo/test_wavs/DEV_T0000000002.wav
 done
 
 for method in modified_beam_search beam_search fast_beam_search; do
@@ -117,7 +115,7 @@ for method in modified_beam_search beam_search fast_beam_search; do
     --beam-size 4 \
     --checkpoint $repo/exp/epoch-99.pt \
     --lang-dir $repo/data/lang_char \
-  $repo/test_wavs/DEV_T0000000000.wav \
-  $repo/test_wavs/DEV_T0000000001.wav \
-  $repo/test_wavs/DEV_T0000000002.wav
+    $repo/test_wavs/DEV_T0000000000.wav \
+    $repo/test_wavs/DEV_T0000000001.wav \
+    $repo/test_wavs/DEV_T0000000002.wav
 done
