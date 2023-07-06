@@ -71,7 +71,6 @@ import onnx
 import torch
 import torch.nn as nn
 from decoder import Decoder
-from export import num_tokens
 from onnxruntime.quantization import QuantType, quantize_dynamic
 from scaling_converter import convert_scaled_to_non_scaled
 from train import add_model_arguments, get_model, get_params
@@ -83,7 +82,7 @@ from icefall.checkpoint import (
     find_checkpoints,
     load_checkpoint,
 )
-from icefall.utils import make_pad_mask, str2bool
+from icefall.utils import make_pad_mask, num_tokens, str2bool
 
 
 def get_parser():

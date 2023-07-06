@@ -50,7 +50,6 @@ import argparse
 import logging
 from pathlib import Path
 from typing import Dict, Tuple
-import re
 
 import k2
 import onnx
@@ -68,7 +67,7 @@ from icefall.checkpoint import (
     find_checkpoints,
     load_checkpoint,
 )
-from icefall.utils import setup_logger, str2bool, num_tokens
+from icefall.utils import num_tokens, setup_logger, str2bool
 
 
 def get_parser():

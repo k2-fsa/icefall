@@ -86,7 +86,6 @@ with the following commands:
 import argparse
 import logging
 from pathlib import Path
-import re
 
 import k2
 import torch
@@ -100,7 +99,7 @@ from icefall.checkpoint import (
     find_checkpoints,
     load_checkpoint,
 )
-from icefall.utils import str2bool, num_tokens
+from icefall.utils import num_tokens, str2bool
 
 
 def get_parser():
