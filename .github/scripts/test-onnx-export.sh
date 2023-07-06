@@ -10,8 +10,6 @@ log() {
 
 cd egs/librispeech/ASR
 
-
-
 log "=========================================================================="
 repo_url=https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29
 log "Downloading pre-trained model from $repo_url"
@@ -126,7 +124,6 @@ log "Run onnx_pretrained.py"
 rm -rf $repo
 log "--------------------------------------------------------------------------"
 
-
 log "=========================================================================="
 repo_url=https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless5-2022-05-13
 GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
@@ -205,7 +202,7 @@ GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
 repo=$(basename $repo_url)
 
 pushd $repo
-git lfs pull --include "data/lang_bpe_500/bpe.model"
+git lfs pull --include "data/lang_bpe_500/tokens.txt"
 git lfs pull --include "exp/pretrained.pt"
 
 cd exp
@@ -215,7 +212,7 @@ popd
 log "Export via torch.jit.script()"
 
 ./pruned_transducer_stateless7/export.py \
-  --bpe-model $repo/data/lang_bpe_500/bpe.model \
+  --tokens $repo/data/lang_bpe_500/tokens.txt \
   --use-averaged-model 0 \
   --epoch 99 \
   --avg 1 \
@@ -226,7 +223,7 @@ log "Export via torch.jit.script()"
 log "Test exporting to ONNX format"
 
 ./pruned_transducer_stateless7/export-onnx.py \
-  --bpe-model $repo/data/lang_bpe_500/bpe.model \
+  --tokens $repo/data/lang_bpe_500/tokens.txt \
   --use-averaged-model 0 \
   --epoch 99 \
   --avg 1 \
