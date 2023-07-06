@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Pre-trained models &mdash; icefall 0.1 documentation</title>
+  <title>Decoding with language models &mdash; icefall 0.1 documentation</title>
       <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
   <!--[if lt IE 9]>
@@ -19,8 +19,8 @@
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Huggingface spaces" href="spaces.html" />
-    <link rel="prev" title="Huggingface" href="index.html" /> 
+    <link rel="next" title="Shallow fusion for Transducer" href="shallow-fusion.html" />
+    <link rel="prev" title="Huggingface spaces" href="../huggingface/spaces.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -51,16 +51,17 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../recipes/index.html">Recipes</a></li>
 </ul>
-<ul class="current">
+<ul>
 <li class="toctree-l1"><a class="reference internal" href="../contributing/index.html">Contributing</a></li>
-<li class="toctree-l1 current"><a class="reference internal" href="index.html">Huggingface</a><ul class="current">
-<li class="toctree-l2 current"><a class="current reference internal" href="#">Pre-trained models</a></li>
-<li class="toctree-l2"><a class="reference internal" href="spaces.html">Huggingface spaces</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../huggingface/index.html">Huggingface</a></li>
+</ul>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Decoding with language models</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="shallow-fusion.html">Shallow fusion for Transducer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="LODR.html">LODR for RNN Transducer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="rescoring.html">LM rescoring for Transducer</a></li>
 </ul>
 </li>
-</ul>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="../decoding-with-langugage-models/index.html">Decoding with language models</a></li>
 </ul>
 
         </div>
@@ -77,10 +78,9 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
-          <li class="breadcrumb-item"><a href="index.html">Huggingface</a></li>
-      <li class="breadcrumb-item active">Pre-trained models</li>
+      <li class="breadcrumb-item active">Decoding with language models</li>
       <li class="wy-breadcrumbs-aside">
-              <a href="https://github.com/k2-fsa/icefall/blob/master/docs/source/huggingface/pretrained-models.rst" class="fa fa-github"> Edit on GitHub</a>
+              <a href="https://github.com/k2-fsa/icefall/blob/master/docs/source/decoding-with-langugage-models/index.rst" class="fa fa-github"> Edit on GitHub</a>
       </li>
   </ul>
   <hr/>
@@ -88,30 +88,25 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="pre-trained-models">
-<h1>Pre-trained models<a class="headerlink" href="#pre-trained-models" title="Permalink to this heading"></a></h1>
-<p>We have uploaded pre-trained models for all recipes in <code class="docutils literal notranslate"><span class="pre">icefall</span></code>
-to <a class="reference external" href="https://huggingface.co/">https://huggingface.co/</a>.</p>
-<p>You can find them by visiting the following link:</p>
-<p><a class="reference external" href="https://huggingface.co/models?search=icefall">https://huggingface.co/models?search=icefall</a>.</p>
-<p>You can also find links of pre-trained models for a specific recipe
-by looking at the corresponding <code class="docutils literal notranslate"><span class="pre">RESULTS.md</span></code>. For instance:</p>
-<blockquote>
-<div><ul class="simple">
-<li><p><a class="reference external" href="https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/RESULTS.md">https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/RESULTS.md</a></p></li>
-<li><p><a class="reference external" href="https://github.com/k2-fsa/icefall/blob/master/egs/aishell/ASR/RESULTS.md">https://github.com/k2-fsa/icefall/blob/master/egs/aishell/ASR/RESULTS.md</a></p></li>
-<li><p><a class="reference external" href="https://github.com/k2-fsa/icefall/blob/master/egs/gigaspeech/ASR/RESULTS.md">https://github.com/k2-fsa/icefall/blob/master/egs/gigaspeech/ASR/RESULTS.md</a></p></li>
-<li><p><a class="reference external" href="https://github.com/k2-fsa/icefall/blob/master/egs/wenetspeech/ASR/RESULTS.md">https://github.com/k2-fsa/icefall/blob/master/egs/wenetspeech/ASR/RESULTS.md</a></p></li>
+  <section id="decoding-with-language-models">
+<h1>Decoding with language models<a class="headerlink" href="#decoding-with-language-models" title="Permalink to this heading"></a></h1>
+<p>This section describes how to use external langugage models
+during decoding to improve the WER of transducer models.</p>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="shallow-fusion.html">Shallow fusion for Transducer</a></li>
+<li class="toctree-l1"><a class="reference internal" href="LODR.html">LODR for RNN Transducer</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rescoring.html">LM rescoring for Transducer</a></li>
 </ul>
-</div></blockquote>
+</div>
 </section>
 
 
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="index.html" class="btn btn-neutral float-left" title="Huggingface" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="spaces.html" class="btn btn-neutral float-right" title="Huggingface spaces" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="../huggingface/spaces.html" class="btn btn-neutral float-left" title="Huggingface spaces" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="shallow-fusion.html" class="btn btn-neutral float-right" title="Shallow fusion for Transducer" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

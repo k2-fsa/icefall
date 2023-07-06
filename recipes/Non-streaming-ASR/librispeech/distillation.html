@@ -73,6 +73,9 @@
 <li class="toctree-l1"><a class="reference internal" href="../../../contributing/index.html">Contributing</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../huggingface/index.html">Huggingface</a></li>
 </ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../decoding-with-langugage-models/index.html">Decoding with language models</a></li>
+</ul>
 
         </div>
       </div>
@@ -103,7 +106,7 @@
              
   <section id="distillation-with-hubert">
 <h1>Distillation with HuBERT<a class="headerlink" href="#distillation-with-hubert" title="Permalink to this heading"></a></h1>
-<p>This tutorial shows you how to perform knowledge distillation in <a href="#id7"><span class="problematic" id="id8">`icefall`_</span></a>
+<p>This tutorial shows you how to perform knowledge distillation in <a class="reference external" href="https://github.com/k2-fsa/icefall">icefall</a>
 with the <a class="reference external" href="https://www.openslr.org/12">LibriSpeech</a> dataset. The distillation method
 used here is called “Multi Vector Quantization Knowledge Distillation” (MVQ-KD).
 Please have a look at our paper <a class="reference external" href="https://arxiv.org/abs/2211.00508">Predicting Multi-Codebook Vector Quantization Indexes for Knowledge Distillation</a>
@@ -119,7 +122,7 @@ encounter any problems, please open an issue here <a class="reference external" 
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>We assume you have read the page <a class="reference internal" href="../../../installation/index.html#install-icefall"><span class="std std-ref">Installation</span></a> and have setup
-the environment for <a href="#id9"><span class="problematic" id="id10">`icefall`_</span></a>.</p>
+the environment for <a class="reference external" href="https://github.com/k2-fsa/icefall">icefall</a>.</p>
 </div>
 <div class="admonition hint">
 <p class="admonition-title">Hint</p>
@@ -190,7 +193,7 @@ run <a class="reference external" href="https://github.com/k2-fsa/icefall/blob/m
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>There are 5 stages in total, the first and second stage will be automatically skipped
-when choosing to downloaded codebook indexes prepared by <a href="#id11"><span class="problematic" id="id12">`icefall`_</span></a>.
+when choosing to downloaded codebook indexes prepared by <a class="reference external" href="https://github.com/k2-fsa/icefall">icefall</a>.
 Of course, you can extract and compute the codebook indexes by yourself. This
 will require you downloading a HuBERT-XL model and it can take a while for
 the extraction of codebook indexes.</p>
@@ -226,10 +229,10 @@ and prepares MVQ-augmented training manifests.</p>
 </div>
 <p>Please see the
 following screenshot for the output of an example execution.</p>
-<figure class="align-center" id="id5">
+<figure class="align-center" id="id4">
 <a class="reference internal image-reference" href="../../../_images/distillation_codebook.png"><img alt="Downloading codebook indexes and preparing training manifest." src="../../../_images/distillation_codebook.png" style="width: 800px;" /></a>
 <figcaption>
-<p><span class="caption-number">Fig. 6 </span><span class="caption-text">Downloading codebook indexes and preparing training manifest.</span><a class="headerlink" href="#id5" title="Permalink to this image"></a></p>
+<p><span class="caption-number">Fig. 6 </span><span class="caption-text">Downloading codebook indexes and preparing training manifest.</span><a class="headerlink" href="#id4" title="Permalink to this image"></a></p>
 </figcaption>
 </figure>
 <div class="admonition hint">
@@ -241,10 +244,10 @@ set <code class="docutils literal notranslate"><span class="pre">use_extracted_c
 <code class="docutils literal notranslate"><span class="pre">num_codebooks</span></code> by yourself.</p>
 </div>
 <p>Now, you should see the following files under the directory <code class="docutils literal notranslate"><span class="pre">./data/vq_fbank_layer36_cb8</span></code>.</p>
-<figure class="align-center" id="id6">
+<figure class="align-center" id="id5">
 <a class="reference internal image-reference" href="../../../_images/distillation_directory.png"><img alt="MVQ-augmented training manifests" src="../../../_images/distillation_directory.png" style="width: 800px;" /></a>
 <figcaption>
-<p><span class="caption-number">Fig. 7 </span><span class="caption-text">MVQ-augmented training manifests.</span><a class="headerlink" href="#id6" title="Permalink to this image"></a></p>
+<p><span class="caption-number">Fig. 7 </span><span class="caption-text">MVQ-augmented training manifests.</span><a class="headerlink" href="#id5" title="Permalink to this image"></a></p>
 </figcaption>
 </figure>
 <p>Whola! You are ready to perform knowledge distillation training now!</p>

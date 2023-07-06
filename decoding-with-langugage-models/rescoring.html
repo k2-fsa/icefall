@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LM rescoring for Transducer &mdash; icefall 0.1 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/sphinx_highlight.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="prev" title="LODR for RNN Transducer" href="LODR.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            icefall
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../installation/index.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../faqs.html">Frequently Asked Questions (FAQs)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../model-export/index.html">Model export</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../recipes/index.html">Recipes</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../contributing/index.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../huggingface/index.html">Huggingface</a></li>
+</ul>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Decoding with language models</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="shallow-fusion.html">Shallow fusion for Transducer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="LODR.html">LODR for RNN Transducer</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">LM rescoring for Transducer</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">icefall</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Decoding with language models</a></li>
+      <li class="breadcrumb-item active">LM rescoring for Transducer</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/k2-fsa/icefall/blob/master/docs/source/decoding-with-langugage-models/rescoring.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="lm-rescoring-for-transducer">
+<span id="rescoring"></span><h1>LM rescoring for Transducer<a class="headerlink" href="#lm-rescoring-for-transducer" title="Permalink to this heading"></a></h1>
+<p>LM rescoring is a commonly used approach to incorporate external LM information. Unlike shallow-fusion-based
+methods (see <span class="xref std std-ref">shallow-fusion</span>, <a class="reference internal" href="LODR.html#lodr"><span class="std std-ref">LODR for RNN Transducer</span></a>), rescoring is usually performed to re-rank the n-best hypotheses after beam search.
+Rescoring is usually more efficient than shallow fusion since less computation is performed on the external LM.
+In this tutorial, we will show you how to use external LM to rescore the n-best hypotheses decoded from neural transducer models in
+<a class="reference external" href="https://github.com/k2-fsa/icefall">icefall</a>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This tutorial is based on the recipe
+<a class="reference external" href="https://github.com/k2-fsa/icefall/tree/master/egs/librispeech/ASR/pruned_transducer_stateless7_streaming">pruned_transducer_stateless7_streaming</a>,
+which is a streaming transducer model trained on <a class="reference external" href="https://www.openslr.org/12">LibriSpeech</a>.
+However, you can easily apply shallow fusion to other recipes.
+If you encounter any problems, please open an issue <a class="reference external" href="https://github.com/k2-fsa/icefall/issues">here</a>.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>For simplicity, the training and testing corpus in this tutorial is the same (<a class="reference external" href="https://www.openslr.org/12">LibriSpeech</a>). However, you can change the testing set
+to any other domains (e.g <a class="reference external" href="https://github.com/SpeechColab/GigaSpeech">GigaSpeech</a>) and use an external LM trained on that domain.</p>
+</div>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>We recommend you to use a GPU for decoding.</p>
+</div>
+<p>For illustration purpose, we will use a pre-trained ASR model from this <a class="reference external" href="https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29">link</a>.
+If you want to train your model from scratch, please have a look at <a class="reference internal" href="../recipes/Non-streaming-ASR/librispeech/pruned_transducer_stateless.html#non-streaming-librispeech-pruned-transducer-stateless"><span class="std std-ref">Pruned transducer statelessX</span></a>.</p>
+<p>As the initial step, let’s download the pre-trained model.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nv">GIT_LFS_SKIP_SMUDGE</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29
+$<span class="w"> </span><span class="nb">pushd</span><span class="w"> </span>icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/exp
+$<span class="w"> </span>git<span class="w"> </span>lfs<span class="w"> </span>pull<span class="w"> </span>--include<span class="w"> </span><span class="s2">&quot;pretrained.pt&quot;</span>
+$<span class="w"> </span>ln<span class="w"> </span>-s<span class="w"> </span>pretrained.pt<span class="w"> </span>epoch-99.pt<span class="w"> </span><span class="c1"># create a symbolic link so that the checkpoint can be loaded</span>
+</pre></div>
+</div>
+<p>As usual, we first test the model’s performance without external LM. This can be done via the following command:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nv">exp_dir</span><span class="o">=</span>./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/exp/
+$<span class="w"> </span>./pruned_transducer_stateless7_streaming/decode.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--epoch<span class="w"> </span><span class="m">99</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--avg<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--use-averaged-model<span class="w"> </span>False<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--exp-dir<span class="w"> </span><span class="nv">$exp_dir</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--bpe-model<span class="w"> </span>./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/data/lang_bpe_500/bpe.model
+<span class="w">    </span>--max-duration<span class="w"> </span><span class="m">600</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--decode-chunk-len<span class="w"> </span><span class="m">32</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--decoding-method<span class="w"> </span>modified_beam_search
+</pre></div>
+</div>
+<p>The following WERs are achieved on test-clean and test-other:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>$ For test-clean, WER of different settings are:
+$ beam_size_4       3.11    best for test-clean
+$ For test-other, WER of different settings are:
+$ beam_size_4       7.93    best for test-other
+</pre></div>
+</div>
+<p>Now, we will try to improve the above WER numbers via external LM rescoring. We will download
+a pre-trained LM from this <a class="reference external" href="https://huggingface.co/ezerhouni/icefall-librispeech-rnn-lm">link</a>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This is an RNN LM trained on the LibriSpeech text corpus. So it might not be ideal for other corpus.
+You may also train a RNN LM from scratch. Please refer to this <a class="reference external" href="https://github.com/k2-fsa/icefall/blob/master/icefall/rnn_lm/train.py">script</a>
+for training a RNN LM and this <a class="reference external" href="https://github.com/k2-fsa/icefall/blob/master/icefall/transformer_lm/train.py">script</a> to train a transformer LM.</p>
+</div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="c1"># download the external LM</span>
+$<span class="w"> </span><span class="nv">GIT_LFS_SKIP_SMUDGE</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/ezerhouni/icefall-librispeech-rnn-lm
+$<span class="w"> </span><span class="c1"># create a symbolic link so that the checkpoint can be loaded</span>
+$<span class="w"> </span><span class="nb">pushd</span><span class="w"> </span>icefall-librispeech-rnn-lm/exp
+$<span class="w"> </span>git<span class="w"> </span>lfs<span class="w"> </span>pull<span class="w"> </span>--include<span class="w"> </span><span class="s2">&quot;pretrained.pt&quot;</span>
+$<span class="w"> </span>ln<span class="w"> </span>-s<span class="w"> </span>pretrained.pt<span class="w"> </span>epoch-99.pt
+$<span class="w"> </span><span class="nb">popd</span>
+</pre></div>
+</div>
+<p>With the RNNLM available, we can rescore the n-best hypotheses generated from <cite>modified_beam_search</cite>. Here,
+<cite>n</cite> should be the number of beams, i.e <code class="docutils literal notranslate"><span class="pre">--beam-size</span></code>. The command for LM rescoring is
+as follows. Note that the <code class="docutils literal notranslate"><span class="pre">--decoding-method</span></code> is set to <cite>modified_beam_search_lm_rescore</cite> and <code class="docutils literal notranslate"><span class="pre">--use-shallow-fusion</span></code>
+is set to <cite>False</cite>.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nv">exp_dir</span><span class="o">=</span>./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/exp
+$<span class="w"> </span><span class="nv">lm_dir</span><span class="o">=</span>./icefall-librispeech-rnn-lm/exp
+$<span class="w"> </span><span class="nv">lm_scale</span><span class="o">=</span><span class="m">0</span>.43
+$<span class="w"> </span>./pruned_transducer_stateless7_streaming/decode.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--epoch<span class="w"> </span><span class="m">99</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--avg<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--use-averaged-model<span class="w"> </span>False<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--beam-size<span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--exp-dir<span class="w"> </span><span class="nv">$exp_dir</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--max-duration<span class="w"> </span><span class="m">600</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--decode-chunk-len<span class="w"> </span><span class="m">32</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--decoding-method<span class="w"> </span>modified_beam_search_lm_rescore<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--bpe-model<span class="w"> </span>./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/data/lang_bpe_500/bpe.model
+<span class="w">    </span>--use-shallow-fusion<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--lm-type<span class="w"> </span>rnn<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--lm-exp-dir<span class="w"> </span><span class="nv">$lm_dir</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--lm-epoch<span class="w"> </span><span class="m">99</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--lm-scale<span class="w"> </span><span class="nv">$lm_scale</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--lm-avg<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--rnn-lm-embedding-dim<span class="w"> </span><span class="m">2048</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--rnn-lm-hidden-dim<span class="w"> </span><span class="m">2048</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--rnn-lm-num-layers<span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--lm-vocab-size<span class="w"> </span><span class="m">500</span>
+</pre></div>
+</div>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>$ For test-clean, WER of different settings are:
+$ beam_size_4       2.93    best for test-clean
+$ For test-other, WER of different settings are:
+$ beam_size_4       7.6     best for test-other
+</pre></div>
+</div>
+<p>Great! We made some improvements! Increasing the size of the n-best hypotheses will further boost the performance,
+see the following table:</p>
+<table class="docutils align-default" id="id1">
+<caption><span class="caption-number">Table 3 </span><span class="caption-text">WERs of LM rescoring with different beam sizes</span><a class="headerlink" href="#id1" title="Permalink to this table"></a></caption>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Beam size</p></th>
+<th class="head"><p>test-clean</p></th>
+<th class="head"><p>test-other</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>4</p></td>
+<td><p>2.93</p></td>
+<td><p>7.6</p></td>
+</tr>
+<tr class="row-odd"><td><p>8</p></td>
+<td><p>2.67</p></td>
+<td><p>7.11</p></td>
+</tr>
+<tr class="row-even"><td><p>12</p></td>
+<td><p>2.59</p></td>
+<td><p>6.86</p></td>
+</tr>
+</tbody>
+</table>
+<p>In fact, we can also apply LODR (see <a class="reference internal" href="LODR.html#lodr"><span class="std std-ref">LODR for RNN Transducer</span></a>) when doing LM rescoring. To do so, we need to
+download the bi-gram required by LODR:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="c1"># download the bi-gram</span>
+$<span class="w"> </span>git<span class="w"> </span>lfs<span class="w"> </span>install
+$<span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/marcoyang/librispeech_bigram
+$<span class="w"> </span><span class="nb">pushd</span><span class="w"> </span>data/lang_bpe_500
+$<span class="w"> </span>ln<span class="w"> </span>-s<span class="w"> </span>../../librispeech_bigram/2gram.arpa<span class="w"> </span>.
+$<span class="w"> </span><span class="nb">popd</span>
+</pre></div>
+</div>
+<p>Then we can performn LM rescoring + LODR by changing the decoding method to <cite>modified_beam_search_lm_rescore_LODR</cite>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This decoding method requires the dependency of <a class="reference external" href="https://github.com/kpu/kenlm">kenlm</a>. You can install it
+via this command: <cite>pip install https://github.com/kpu/kenlm/archive/master.zip</cite>.</p>
+</div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nv">exp_dir</span><span class="o">=</span>./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/exp
+$<span class="w"> </span><span class="nv">lm_dir</span><span class="o">=</span>./icefall-librispeech-rnn-lm/exp
+$<span class="w"> </span><span class="nv">lm_scale</span><span class="o">=</span><span class="m">0</span>.43
+$<span class="w"> </span>./pruned_transducer_stateless7_streaming/decode.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--epoch<span class="w"> </span><span class="m">99</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--avg<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--use-averaged-model<span class="w"> </span>False<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--beam-size<span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--exp-dir<span class="w"> </span><span class="nv">$exp_dir</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--max-duration<span class="w"> </span><span class="m">600</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--decode-chunk-len<span class="w"> </span><span class="m">32</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--decoding-method<span class="w"> </span>modified_beam_search_lm_rescore_LODR<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--bpe-model<span class="w"> </span>./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/data/lang_bpe_500/bpe.model
+<span class="w">    </span>--use-shallow-fusion<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--lm-type<span class="w"> </span>rnn<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--lm-exp-dir<span class="w"> </span><span class="nv">$lm_dir</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--lm-epoch<span class="w"> </span><span class="m">99</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--lm-scale<span class="w"> </span><span class="nv">$lm_scale</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--lm-avg<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--rnn-lm-embedding-dim<span class="w"> </span><span class="m">2048</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--rnn-lm-hidden-dim<span class="w"> </span><span class="m">2048</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--rnn-lm-num-layers<span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--lm-vocab-size<span class="w"> </span><span class="m">500</span>
+</pre></div>
+</div>
+<p>You should see the following WERs after executing the commands above:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>$ For test-clean, WER of different settings are:
+$ beam_size_4       2.9     best for test-clean
+$ For test-other, WER of different settings are:
+$ beam_size_4       7.57    best for test-other
+</pre></div>
+</div>
+<p>It’s slightly better than LM rescoring. If we further increase the beam size, we will see
+further improvements from LM rescoring + LODR:</p>
+<table class="docutils align-default" id="id2">
+<caption><span class="caption-number">Table 4 </span><span class="caption-text">WERs of LM rescoring + LODR with different beam sizes</span><a class="headerlink" href="#id2" title="Permalink to this table"></a></caption>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Beam size</p></th>
+<th class="head"><p>test-clean</p></th>
+<th class="head"><p>test-other</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>4</p></td>
+<td><p>2.9</p></td>
+<td><p>7.57</p></td>
+</tr>
+<tr class="row-odd"><td><p>8</p></td>
+<td><p>2.63</p></td>
+<td><p>7.04</p></td>
+</tr>
+<tr class="row-even"><td><p>12</p></td>
+<td><p>2.52</p></td>
+<td><p>6.73</p></td>
+</tr>
+</tbody>
+</table>
+<p>As mentioned earlier, LM rescoring is usually faster than shallow-fusion based methods.
+Here, we benchmark the WERs and decoding speed of them:</p>
+<table class="docutils align-default" id="id3">
+<caption><span class="caption-number">Table 5 </span><span class="caption-text">LM-rescoring-based methods vs shallow-fusion-based methods (The numbers in each field is WER on test-clean, WER on test-other and decoding time on test-clean)</span><a class="headerlink" href="#id3" title="Permalink to this table"></a></caption>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Decoding method</p></th>
+<th class="head"><p>beam=4</p></th>
+<th class="head"><p>beam=8</p></th>
+<th class="head"><p>beam=12</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><cite>modified_beam_search</cite></p></td>
+<td><p>3.11/7.93; 132s</p></td>
+<td><p>3.1/7.95; 177s</p></td>
+<td><p>3.1/7.96; 210s</p></td>
+</tr>
+<tr class="row-odd"><td><p><cite>modified_beam_search_lm_shallow_fusion</cite></p></td>
+<td><p>2.77/7.08; 262s</p></td>
+<td><p>2.62/6.65; 352s</p></td>
+<td><p>2.58/6.65; 488s</p></td>
+</tr>
+<tr class="row-even"><td><p>LODR</p></td>
+<td><p>2.61/6.74; 400s</p></td>
+<td><p>2.45/6.38; 610s</p></td>
+<td><p>2.4/6.23; 870s</p></td>
+</tr>
+<tr class="row-odd"><td><p><cite>modified_beam_search_lm_rescore</cite></p></td>
+<td><p>2.93/7.6; 156s</p></td>
+<td><p>2.67/7.11; 203s</p></td>
+<td><p>2.59/6.86; 255s</p></td>
+</tr>
+<tr class="row-even"><td><p><cite>modified_beam_search_lm_rescore_LODR</cite></p></td>
+<td><p>2.9/7.57; 160s</p></td>
+<td><p>2.63/7.04; 203s</p></td>
+<td><p>2.52/6.73; 263s</p></td>
+</tr>
+</tbody>
+</table>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Decoding is performed with a single 32G V100, we set <code class="docutils literal notranslate"><span class="pre">--max-duration</span></code> to 600.
+Decoding time here is only for reference and it may vary.</p>
+</div>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="LODR.html" class="btn btn-neutral float-left" title="LODR for RNN Transducer" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2021, icefall development team.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

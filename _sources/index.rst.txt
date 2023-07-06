@@ -34,3 +34,8 @@ speech recognition recipes using `k2 <https://github.com/k2-fsa/k2>`_.
 
    contributing/index
    huggingface/index
+
+.. toctree::
+   :maxdepth: 2
+   
+   decoding-with-langugage-models/index

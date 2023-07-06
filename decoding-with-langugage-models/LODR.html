@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LODR for RNN Transducer &mdash; icefall 0.1 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/sphinx_highlight.js"></script>
+        <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="LM rescoring for Transducer" href="rescoring.html" />
+    <link rel="prev" title="Shallow fusion for Transducer" href="shallow-fusion.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            icefall
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../installation/index.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../faqs.html">Frequently Asked Questions (FAQs)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../model-export/index.html">Model export</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../recipes/index.html">Recipes</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../contributing/index.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../huggingface/index.html">Huggingface</a></li>
+</ul>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Decoding with language models</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="shallow-fusion.html">Shallow fusion for Transducer</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">LODR for RNN Transducer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="rescoring.html">LM rescoring for Transducer</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">icefall</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Decoding with language models</a></li>
+      <li class="breadcrumb-item active">LODR for RNN Transducer</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/k2-fsa/icefall/blob/master/docs/source/decoding-with-langugage-models/LODR.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="lodr-for-rnn-transducer">
+<span id="lodr"></span><h1>LODR for RNN Transducer<a class="headerlink" href="#lodr-for-rnn-transducer" title="Permalink to this heading"></a></h1>
+<p>As a type of E2E model, neural transducers are usually considered as having an internal
+language model, which learns the language level information on the training corpus.
+In real-life scenario, there is often a mismatch between the training corpus and the target corpus space.
+This mismatch can be a problem when decoding for neural transducer models with language models as its internal
+language can act “against” the external LM. In this tutorial, we show how to use
+<a class="reference external" href="https://arxiv.org/abs/2203.16776">Low-order Density Ratio</a> to alleviate this effect to further improve the performance
+of langugae model integration.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This tutorial is based on the recipe
+<a class="reference external" href="https://github.com/k2-fsa/icefall/tree/master/egs/librispeech/ASR/pruned_transducer_stateless7_streaming">pruned_transducer_stateless7_streaming</a>,
+which is a streaming transducer model trained on <a class="reference external" href="https://www.openslr.org/12">LibriSpeech</a>.
+However, you can easily apply LODR to other recipes.
+If you encounter any problems, please open an issue here <a class="reference external" href="https://github.com/k2-fsa/icefall/issues">icefall</a>.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>For simplicity, the training and testing corpus in this tutorial are the same (<a class="reference external" href="https://www.openslr.org/12">LibriSpeech</a>). However,
+you can change the testing set to any other domains (e.g <a class="reference external" href="https://github.com/SpeechColab/GigaSpeech">GigaSpeech</a>) and prepare the language models
+using that corpus.</p>
+</div>
+<p>First, let’s have a look at some background information. As the predecessor of LODR, Density Ratio (DR) is first proposed <a class="reference external" href="https://arxiv.org/abs/2002.11268">here</a>
+to address the language information mismatch between the training
+corpus (source domain) and the testing corpus (target domain). Assuming that the source domain and the test domain
+are acoustically similar, DR derives the following formular for decoding with Bayes’ theorem:</p>
+<div class="math notranslate nohighlight">
+\[\text{score}\left(y_u|\mathit{x},y\right) =
+\log p\left(y_u|\mathit{x},y_{1:u-1}\right) +
+\lambda_1 \log p_{\text{Target LM}}\left(y_u|\mathit{x},y_{1:u-1}\right) -
+\lambda_2 \log p_{\text{Source LM}}\left(y_u|\mathit{x},y_{1:u-1}\right)\]</div>
+<p>where <span class="math notranslate nohighlight">\(\lambda_1\)</span> and <span class="math notranslate nohighlight">\(\lambda_2\)</span> are the weights of LM scores for target domain and source domain respectively.
+Here, the source domain LM is trained on the training corpus. The only difference in the above formular compared to
+shallow fusion is the subtraction of the source domain LM.</p>
+<p>Some works treat the predictor and the joiner of the neural transducer as its internal LM. However, the LM is
+considered to be weak and can only capture low-level language information. Therefore, <a class="reference external" href="https://arxiv.org/abs/2203.16776">LODR</a> proposed to use
+a low-order n-gram LM as an approximation of the ILM of the neural transducer. This leads to the following formula
+during decoding for transducer model:</p>
+<div class="math notranslate nohighlight">
+\[\text{score}\left(y_u|\mathit{x},y\right) =
+\log p_{rnnt}\left(y_u|\mathit{x},y_{1:u-1}\right) +
+\lambda_1 \log p_{\text{Target LM}}\left(y_u|\mathit{x},y_{1:u-1}\right) -
+\lambda_2 \log p_{\text{bi-gram}}\left(y_u|\mathit{x},y_{1:u-1}\right)\]</div>
+<p>In LODR, an additional bi-gram LM estimated on the source domain (e.g training corpus) is required. Comared to DR,
+the only difference lies in the choice of source domain LM. According to the original <a class="reference external" href="https://arxiv.org/abs/2203.16776">paper</a>,
+LODR achieves similar performance compared DR in both intra-domain and cross-domain settings.
+As a bi-gram is much faster to evaluate, LODR is usually much faster.</p>
+<p>Now, we will show you how to use LODR in <code class="docutils literal notranslate"><span class="pre">icefall</span></code>.
+For illustration purpose, we will use a pre-trained ASR model from this <a class="reference external" href="https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29">link</a>.
+If you want to train your model from scratch, please have a look at <a class="reference internal" href="../recipes/Non-streaming-ASR/librispeech/pruned_transducer_stateless.html#non-streaming-librispeech-pruned-transducer-stateless"><span class="std std-ref">Pruned transducer statelessX</span></a>.
+The testing scenario here is intra-domain (we decode the model trained on <a class="reference external" href="https://www.openslr.org/12">LibriSpeech</a> on <a class="reference external" href="https://www.openslr.org/12">LibriSpeech</a> testing sets).</p>
+<p>As the initial step, let’s download the pre-trained model.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nv">GIT_LFS_SKIP_SMUDGE</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29
+$<span class="w"> </span><span class="nb">pushd</span><span class="w"> </span>icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/exp
+$<span class="w"> </span>git<span class="w"> </span>lfs<span class="w"> </span>pull<span class="w"> </span>--include<span class="w"> </span><span class="s2">&quot;pretrained.pt&quot;</span>
+$<span class="w"> </span>ln<span class="w"> </span>-s<span class="w"> </span>pretrained.pt<span class="w"> </span>epoch-99.pt<span class="w"> </span><span class="c1"># create a symbolic link so that the checkpoint can be loaded</span>
+</pre></div>
+</div>
+<p>To test the model, let’s have a look at the decoding results <strong>without</strong> using LM. This can be done via the following command:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nv">exp_dir</span><span class="o">=</span>./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/exp/
+$<span class="w"> </span>./pruned_transducer_stateless7_streaming/decode.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--epoch<span class="w"> </span><span class="m">99</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--avg<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--use-averaged-model<span class="w"> </span>False<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--exp-dir<span class="w"> </span><span class="nv">$exp_dir</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--bpe-model<span class="w"> </span>./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/data/lang_bpe_500/bpe.model
+<span class="w">    </span>--max-duration<span class="w"> </span><span class="m">600</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--decode-chunk-len<span class="w"> </span><span class="m">32</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--decoding-method<span class="w"> </span>modified_beam_search
+</pre></div>
+</div>
+<p>The following WERs are achieved on test-clean and test-other:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>$ For test-clean, WER of different settings are:
+$ beam_size_4       3.11    best for test-clean
+$ For test-other, WER of different settings are:
+$ beam_size_4       7.93    best for test-other
+</pre></div>
+</div>
+<p>Then, we download the external language model and bi-gram LM that are necessary for LODR.
+Note that the bi-gram is estimated on the LibriSpeech 960 hours’ text.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="c1"># download the external LM</span>
+$<span class="w"> </span><span class="nv">GIT_LFS_SKIP_SMUDGE</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/ezerhouni/icefall-librispeech-rnn-lm
+$<span class="w"> </span><span class="c1"># create a symbolic link so that the checkpoint can be loaded</span>
+$<span class="w"> </span><span class="nb">pushd</span><span class="w"> </span>icefall-librispeech-rnn-lm/exp
+$<span class="w"> </span>git<span class="w"> </span>lfs<span class="w"> </span>pull<span class="w"> </span>--include<span class="w"> </span><span class="s2">&quot;pretrained.pt&quot;</span>
+$<span class="w"> </span>ln<span class="w"> </span>-s<span class="w"> </span>pretrained.pt<span class="w"> </span>epoch-99.pt
+$<span class="w"> </span><span class="nb">popd</span>
+$
+$<span class="w"> </span><span class="c1"># download the bi-gram</span>
+$<span class="w"> </span>git<span class="w"> </span>lfs<span class="w"> </span>install
+$<span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/marcoyang/librispeech_bigram
+$<span class="w"> </span><span class="nb">pushd</span><span class="w"> </span>data/lang_bpe_500
+$<span class="w"> </span>ln<span class="w"> </span>-s<span class="w"> </span>../../librispeech_bigram/2gram.fst.txt<span class="w"> </span>.
+$<span class="w"> </span><span class="nb">popd</span>
+</pre></div>
+</div>
+<p>Then, we perform LODR decoding by setting <code class="docutils literal notranslate"><span class="pre">--decoding-method</span></code> to <code class="docutils literal notranslate"><span class="pre">modified_beam_search_lm_LODR</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nv">exp_dir</span><span class="o">=</span>./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/exp
+$<span class="w"> </span><span class="nv">lm_dir</span><span class="o">=</span>./icefall-librispeech-rnn-lm/exp
+$<span class="w"> </span><span class="nv">lm_scale</span><span class="o">=</span><span class="m">0</span>.42
+$<span class="w"> </span><span class="nv">LODR_scale</span><span class="o">=</span>-0.24
+$<span class="w"> </span>./pruned_transducer_stateless7_streaming/decode.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--epoch<span class="w"> </span><span class="m">99</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--avg<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--use-averaged-model<span class="w"> </span>False<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--beam-size<span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--exp-dir<span class="w"> </span><span class="nv">$exp_dir</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--max-duration<span class="w"> </span><span class="m">600</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--decode-chunk-len<span class="w"> </span><span class="m">32</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--decoding-method<span class="w"> </span>modified_beam_search_lm_LODR<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--bpe-model<span class="w"> </span>./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/data/lang_bpe_500/bpe.model
+<span class="w">    </span>--use-shallow-fusion<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--lm-type<span class="w"> </span>rnn<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--lm-exp-dir<span class="w"> </span><span class="nv">$lm_dir</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--lm-epoch<span class="w"> </span><span class="m">99</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--lm-scale<span class="w"> </span><span class="nv">$lm_scale</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--lm-avg<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--rnn-lm-embedding-dim<span class="w"> </span><span class="m">2048</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--rnn-lm-hidden-dim<span class="w"> </span><span class="m">2048</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--rnn-lm-num-layers<span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--lm-vocab-size<span class="w"> </span><span class="m">500</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--tokens-ngram<span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--ngram-lm-scale<span class="w"> </span><span class="nv">$LODR_scale</span>
+</pre></div>
+</div>
+<p>There are two extra arguments that need to be given when doing LODR. <code class="docutils literal notranslate"><span class="pre">--tokens-ngram</span></code> specifies the order of n-gram. As we
+are using a bi-gram, we set it to 2. <code class="docutils literal notranslate"><span class="pre">--ngram-lm-scale</span></code> is the scale of the bi-gram, it should be a negative number
+as we are subtracting the bi-gram’s score during decoding.</p>
+<p>The decoding results obtained with the above command are shown below:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>$ For test-clean, WER of different settings are:
+$ beam_size_4       2.61    best for test-clean
+$ For test-other, WER of different settings are:
+$ beam_size_4       6.74    best for test-other
+</pre></div>
+</div>
+<p>Recall that the lowest WER we obtained in <a class="reference internal" href="shallow-fusion.html#shallow-fusion"><span class="std std-ref">Shallow fusion for Transducer</span></a> with beam size of 4 is <code class="docutils literal notranslate"><span class="pre">2.77/7.08</span></code>, LODR
+indeed <strong>further improves</strong> the WER. We can do even better if we increase <code class="docutils literal notranslate"><span class="pre">--beam-size</span></code>:</p>
+<table class="docutils align-default" id="id1">
+<caption><span class="caption-number">Table 2 </span><span class="caption-text">WER of LODR with different beam sizes</span><a class="headerlink" href="#id1" title="Permalink to this table"></a></caption>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Beam size</p></th>
+<th class="head"><p>test-clean</p></th>
+<th class="head"><p>test-other</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>4</p></td>
+<td><p>2.61</p></td>
+<td><p>6.74</p></td>
+</tr>
+<tr class="row-odd"><td><p>8</p></td>
+<td><p>2.45</p></td>
+<td><p>6.38</p></td>
+</tr>
+<tr class="row-even"><td><p>12</p></td>
+<td><p>2.4</p></td>
+<td><p>6.23</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="shallow-fusion.html" class="btn btn-neutral float-left" title="Shallow fusion for Transducer" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="rescoring.html" class="btn btn-neutral float-right" title="LM rescoring for Transducer" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2021, icefall development team.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
