@@ -2061,6 +2061,7 @@ def symlink_or_copy(exp_dir: Path, src: str, dst: str):
         copyfile(src=exp_dir / src, dst=exp_dir / dst)
     os.close(dir_fd)
 
+
 def num_tokens(
     token_table: k2.SymbolTable, disambig_pattern: str = re.compile(r"^#\d+$")
 ) -> int:
