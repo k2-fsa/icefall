@@ -160,7 +160,6 @@ with the following commands:
 
 import argparse
 import logging
-import re
 from pathlib import Path
 from typing import List, Tuple
 
@@ -176,7 +175,7 @@ from icefall.checkpoint import (
     find_checkpoints,
     load_checkpoint,
 )
-from icefall.utils import make_pad_mask, str2bool, num_tokens
+from icefall.utils import make_pad_mask, num_tokens, str2bool
 
 
 def get_parser():
