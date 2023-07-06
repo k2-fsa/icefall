@@ -68,7 +68,7 @@ from icefall.checkpoint import (
     find_checkpoints,
     load_checkpoint,
 )
-from icefall.utils import setup_logger, str2bool
+from icefall.utils import setup_logger, str2bool, num_tokens
 
 
 def get_parser():
@@ -158,26 +158,6 @@ def add_meta_data(filename: str, meta_data: Dict[str, str]):
         meta.value = value
 
     onnx.save(model, filename)
-
-
-def num_tokens(
-    token_table: k2.SymbolTable, disambig_pattern: str = re.compile(r"^#\d+$")
-) -> int:
-    """Return the number of tokens excluding those from
-    disambiguation symbols.
-
-    Caution:
-      0 is not a token ID so it is excluded from the return value.
-    """
-    symbols = token_table.symbols
-    ans = []
-    for s in symbols:
-        if not disambig_pattern.match(s):
-            ans.append(token_table[s])
-    num_tokens = len(ans)
-    if 0 in ans:
-        num_tokens -= 1
-    return num_tokens
 
 
 class OnnxEncoder(nn.Module):
