@@ -11,7 +11,7 @@ Switchboard is a collection of about 2,400 two-sided telephone conversations amo
 ## TODO List
 - [ ] Incorporate Lhotse for data processing
 - [ ] Refer to Global Mapping Rules when computing Word Error Rate
-- [ ] Detailed Word Error Rate summary for eval2000 (callhome, swbd) and rt03 (fsh, swbd) testset
+- [x] Detailed Word Error Rate summary for eval2000 (callhome, swbd) and rt03 (fsh, swbd) testset
 - [ ] Switchboard transcript train/dev split for LM training
 - [ ] Fisher corpus LDC2004T19 LDC2005T19 LDC2004S13 LDC2005S13 for LM training
 
