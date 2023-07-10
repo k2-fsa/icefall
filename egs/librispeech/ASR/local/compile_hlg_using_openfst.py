@@ -164,7 +164,7 @@ def compile_HLG(lang_dir: str, lm: str = "G_3_gram") -> kaldifst.StdVectorFst:
         f"HLG after k2.connect: #states: {HLG.shape[0]}, #arcs: {HLG.num_arcs}"
     )
 
-    logging.info("Arc sorting LG")
+    logging.info("Arc sorting HLG")
     HLG = k2.arc_sort(HLG)
 
     return HLG
