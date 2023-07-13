@@ -80,10 +80,9 @@ def get_parser():
         default="1best",
         help="""Decoding method.
         Possible values are:
-        (0) ctc-decoding - Use CTC decoding. It uses a sentence
-            piece model, i.e., lang_dir/bpe.model, to convert
-            word pieces to words. It needs neither a lexicon
-            nor an n-gram LM.
+        (0) ctc-decoding - Use CTC decoding. It uses a tokens.txt file 
+            to convert tokens to actual words or characters. It needs 
+            neither a lexicon nor an n-gram LM.
         (1) 1best - Use the best path as decoding output. Only
             the transformer encoder output is used for decoding.
             We call it HLG decoding.
@@ -254,9 +253,6 @@ def main():
     params.update(vars(args))
     logging.info(f"{params}")
 
-    # Load tokens.txt here
-    token_table = k2.SymbolTable.from_file(params.tokens)
-
     device = torch.device("cpu")
     if torch.cuda.is_available():
         device = torch.device("cuda", 0)
@@ -312,15 +308,18 @@ def main():
         dtype=torch.int32,
     )
 
-    def token_ids_to_words(token_ids: List[int]) -> str:
-        text = ""
-        for i in token_ids:
-            text += token_table[i]
-        return text.replace("▁", " ").strip()
-
     if params.method == "ctc-decoding":
         logging.info("Use CTC decoding")
         max_token_id = params.num_classes - 1
+
+        # Load tokens.txt here
+        token_table = k2.SymbolTable.from_file(params.tokens)
+
+        def token_ids_to_words(token_ids: List[int]) -> str:
+            text = ""
+            for i in token_ids:
+                text += token_table[i]
+            return text.replace("▁", " ").strip()
 
         H = k2.ctc_topo(
             max_token=max_token_id,

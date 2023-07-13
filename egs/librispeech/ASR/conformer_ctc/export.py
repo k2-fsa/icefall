@@ -66,6 +66,7 @@ def get_parser():
     parser.add_argument(
         "--tokens",
         type=str,
+        required=True,
         help="Path to the tokens.txt.",
     )
 
