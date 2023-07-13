@@ -66,13 +66,13 @@ import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
-from multidataset import MultiDataset
 from decoder import Decoder
 from joiner import Joiner
 from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import AsrModel
+from multidataset import MultiDataset
 from optim import Eden, ScaledAdam
 from scaling import ScheduledFloat
 from subsampling import Conv2dSubsampling
@@ -344,7 +344,7 @@ def get_parser():
     parser.add_argument(
         "--lr-hours",
         type=float,
-        default=5000,
+        default=70000,
         help="""Number of hours that affects how rapidly the learning rate decreases.
         """,
     )
@@ -1052,7 +1052,9 @@ def train_one_epoch(
                 tot_loss.write_summary(tb_writer, "train/tot_", params.batch_idx_train)
                 if params.use_fp16:
                     tb_writer.add_scalar(
-                        "train/grad_scale", cur_grad_scale, params.batch_idx_train
+                        "train/grad_scale",
+                        cur_grad_scale,
+                        params.batch_idx_train,
                     )
 
         if batch_idx % params.valid_interval == 0 and not params.print_diagnostics:
@@ -1386,6 +1388,7 @@ def main():
 
 torch.set_num_threads(1)
 torch.set_num_interop_threads(1)
+
 
 if __name__ == "__main__":
     main()

@@ -71,30 +71,57 @@ class MultiDataset:
             self.manifest_dir / f"cv-en_cuts_train.jsonl.gz"
         )
 
-        # People's Speech
-        sorted_filenames = sorted(
-            glob.glob(
-                f"{self.manifest_dir}/peoples_speech_train_split/peoples_speech_cuts_*[yna].*.jsonl.gz"
-            )
+        # LibriHeavy
+        logging.info("Loading LibriHeavy in lazy mode")
+        libriheavy_small_cuts = load_manifest_lazy(
+            self.manifest_dir / "libriheavy_cuts_train_small.jsonl.gz"
         )
-
-        logging.info(
-            f"Loading People's Speech {len(sorted_filenames)} splits in lazy mode"
+        libriheavy_medium_cuts = load_manifest_lazy(
+            self.manifest_dir / "libriheavy_cuts_train_medium.jsonl.gz"
         )
-
-        peoples_speech_cuts = lhotse.combine(
-            lhotse.load_manifest_lazy(p) for p in sorted_filenames
-        )
+        libriheavy_cuts = lhotse.combine(libriheavy_small_cuts, libriheavy_medium_cuts)
 
         return CutSet.mux(
             librispeech_cuts,
             gigaspeech_cuts,
             commonvoice_cuts,
-            peoples_speech_cuts,
+            libriheavy_cuts,
             weights=[
                 len(librispeech_cuts),
                 len(gigaspeech_cuts),
                 len(commonvoice_cuts),
-                len(peoples_speech_cuts),
+                len(libriheavy_cuts),
             ],
         )
+
+    def test_cuts(self) -> CutSet:
+        logging.info("About to get multidataset test cuts")
+
+        # GigaSpeech
+        logging.info("Loading GigaSpeech DEV in lazy mode")
+        gigaspeech_dev_cuts = load_manifest_lazy(
+            self.manifest_dir / "cuts_DEV.jsonl.gz"
+        )
+
+        logging.info("Loading GigaSpeech TEST in lazy mode")
+        gigaspeech_test_cuts = load_manifest_lazy(
+            self.manifest_dir / "cuts_TEST.jsonl.gz"
+        )
+
+        # CommonVoice
+        logging.info("Loading CommonVoice DEV in lazy mode")
+        commonvoice_dev_cuts = load_manifest_lazy(
+            self.manifest_dir / "cv-en_cuts_dev.jsonl.gz"
+        )
+
+        logging.info("Loading CommonVoice TEST in lazy mode")
+        commonvoice_test_cuts = load_manifest_lazy(
+            self.manifest_dir / "cv-en_cuts_test.jsonl.gz"
+        )
+
+        return [
+            gigaspeech_dev_cuts,
+            gigaspeech_test_cuts,
+            commonvoice_dev_cuts,
+            commonvoice_test_cuts,
+        ]

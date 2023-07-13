@@ -116,7 +116,8 @@ from beam_search import (
     greedy_search_batch,
     modified_beam_search,
 )
-from train import add_model_arguments, get_params, get_model
+from multidataset import MultiDataset
+from train import add_model_arguments, get_model, get_params
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -782,6 +783,7 @@ def main():
     # we need cut ids to display recognition results.
     args.return_cuts = True
     librispeech = LibriSpeechAsrDataModule(args)
+    multidataset = MultiDataset(args.manifest_dir)
 
     test_clean_cuts = librispeech.test_clean_cuts()
     test_other_cuts = librispeech.test_other_cuts()
@@ -789,8 +791,30 @@ def main():
     test_clean_dl = librispeech.test_dataloaders(test_clean_cuts)
     test_other_dl = librispeech.test_dataloaders(test_other_cuts)
 
-    test_sets = ["test-clean", "test-other"]
-    test_dl = [test_clean_dl, test_other_dl]
+    test_cuts = multidataset.test_cuts()
+
+    gigaspeech_dev_dl = librispeech.test_dataloaders(test_cuts[0])
+    gigaspeech_test_dl = librispeech.test_dataloaders(test_cuts[1])
+    commonvoice_dev_dl = librispeech.test_dataloaders(test_cuts[2])
+    commonvoice_test_dl = librispeech.test_dataloaders(test_cuts[3])
+
+    test_sets = [
+        "librispeech-test-clean",
+        "librispeech-test-other",
+        "gigaspeech-dev",
+        "gigaspeech-test",
+        "commonvoice-dev",
+        "commonvoice-test",
+    ]
+
+    test_dl = [
+        test_clean_dl,
+        test_other_dl,
+        gigaspeech_dev_dl,
+        gigaspeech_test_dl,
+        commonvoice_dev_dl,
+        commonvoice_test_dl,
+    ]
 
     for test_set, test_dl in zip(test_sets, test_dl):
         results_dict = decode_dataset(

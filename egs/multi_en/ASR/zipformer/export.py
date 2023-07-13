@@ -160,8 +160,9 @@ from typing import List, Tuple
 
 import sentencepiece as spm
 import torch
+from scaling_converter import convert_scaled_to_non_scaled
 from torch import Tensor, nn
-from train import add_model_arguments, get_params, get_model
+from train import add_model_arguments, get_model, get_params
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -170,7 +171,6 @@ from icefall.checkpoint import (
     load_checkpoint,
 )
 from icefall.utils import make_pad_mask, str2bool
-from scaling_converter import convert_scaled_to_non_scaled
 
 
 def get_parser():
@@ -315,7 +315,11 @@ class StreamingEncoderModel(nn.Module):
         left_context_len = self.left_context_len
 
         cached_embed_left_pad = states[-2]
-        x, x_lens, new_cached_embed_left_pad = self.encoder_embed.streaming_forward(
+        (
+            x,
+            x_lens,
+            new_cached_embed_left_pad,
+        ) = self.encoder_embed.streaming_forward(
             x=features,
             x_lens=feature_lengths,
             cached_left_pad=cached_embed_left_pad,

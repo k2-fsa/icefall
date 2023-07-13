@@ -76,7 +76,7 @@ import torch.nn as nn
 from decoder import Decoder
 from onnxruntime.quantization import QuantType, quantize_dynamic
 from scaling_converter import convert_scaled_to_non_scaled
-from train import add_model_arguments, get_params, get_model
+from train import add_model_arguments, get_model, get_params
 from zipformer import Zipformer2
 
 from icefall.checkpoint import (
@@ -85,7 +85,7 @@ from icefall.checkpoint import (
     find_checkpoints,
     load_checkpoint,
 )
-from icefall.utils import str2bool, make_pad_mask
+from icefall.utils import make_pad_mask, str2bool
 
 
 def get_parser():
@@ -182,7 +182,10 @@ class OnnxEncoder(nn.Module):
     """A wrapper for Zipformer and the encoder_proj from the joiner"""
 
     def __init__(
-        self, encoder: Zipformer2, encoder_embed: nn.Module, encoder_proj: nn.Linear
+        self,
+        encoder: Zipformer2,
+        encoder_embed: nn.Module,
+        encoder_proj: nn.Linear,
     ):
         """
         Args:
@@ -210,7 +213,11 @@ class OnnxEncoder(nn.Module):
         left_context_len = self.left_context_len
 
         cached_embed_left_pad = states[-2]
-        x, x_lens, new_cached_embed_left_pad = self.encoder_embed.streaming_forward(
+        (
+            x,
+            x_lens,
+            new_cached_embed_left_pad,
+        ) = self.encoder_embed.streaming_forward(
             x=x,
             x_lens=x_lens,
             cached_left_pad=cached_embed_left_pad,
