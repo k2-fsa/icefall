@@ -21,7 +21,7 @@ You can generate the checkpoint with the following command:
 
 ./pruned_transducer_stateless7/export.py \
   --exp-dir ./pruned_transducer_stateless7/exp \
-  --bpe-model data/lang_bpe_500/bpe.model \
+  --tokens ./data/lang_bpe_500/tokens.txt \
   --epoch 20 \
   --avg 10
 
@@ -87,9 +87,8 @@ from beam_search import (
 )
 from torch.nn.utils.rnn import pad_sequence
 from train import add_model_arguments, get_params, get_transducer_model
-from export import num_tokens
 
-from icefall.utils import str2bool
+from icefall.utils import num_tokens
 
 
 def get_parser():
