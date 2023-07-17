@@ -43,7 +43,7 @@ log "dl_dir: $dl_dir"
 
 log "Dataset: musan"
 if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
-  log "Stage 0: Soft link fbank of musan"
+  log "Stage 1: Soft link fbank of musan"
   mkdir -p data/fbank
   if [ -e ../../librispeech/ASR/data/fbank/.musan.done ]; then
     cd data/fbank
@@ -58,7 +58,7 @@ fi
 
 log "Dataset: THCHS-30"
 if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
-  log "Stage 1: Prepare THCHS-30"
+  log "Stage 2: Prepare THCHS-30"
   if [ ! -d $dl_dir/thchs30 ]; then
     log "Downloading THCHS-30"
     lhotse download thchs30 $dl_dir/thchs30
@@ -74,5 +74,19 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
     mkdir -p data/fbank
     ./local/compute_fbank_thchs30.py
     touch data/fbank/.thchs30.done
+  fi
+fi
+
+log "Dataset: AISHELL-1"
+if [$stage -le 3] && [ $stop_stage -ge 3 ]; then
+  log "Stage 3: Prepare AISHELL-1"
+  if [ -e ../../aishell/ASR/data/fbank/.aishell1.done ]; then
+    cd data/fbank
+    ln -svf $(realpath ../../../../aishell/ASR/data/fbank/aishell1_feats) .
+    ln -svf $(realpath ../../../../aishell/ASR/data/fbank/aishell1_cuts.jsonl.gz) .
+    cd ../..
+  else
+    log "Abort! Please run ../../aishell/ASR/prepare.sh --stage 3 --stop-stage 3"
+    exit 1
   fi
 fi
