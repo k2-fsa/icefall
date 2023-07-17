@@ -155,7 +155,7 @@ fi
 
 log "Dataset: Primewords"
 if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
-  log "Stage 6: Prepare Primewords"
+  log "Stage 7: Prepare Primewords"
   if [ ! -f $dl_dir/primewords/primewords_md_2018_set1.tar.gz ]; then
     log "Downloading Primewords"
     lhotse download primewords $dl_dir/primewords
@@ -172,5 +172,25 @@ if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
     ./local/compute_fbank_primewords.py
     touch data/fbank/.primewords.done
   fi
+fi
 
+log "Dataset: MagicData"
+if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
+  log "Stage 8: Prepare MagicData"
+  if [ ! -f $dl_dir/magicdata/train_set.tar.gz ]; then
+    log "Downloading MagicData"
+    lhotse download magicdata $dl_dir/magicdata
+  fi
+
+  if [ ! -f data/manifests/.magicdata.done ]; then
+    mkdir -p data/manifests
+    lhotse prepare magicdata -j $nj $dl_dir/magicdata data/manifests/magicdata
+    touch data/manifests/.magicdata.done
+  fi
+
+    if [ ! -f data/fbank/.magicdata.done ]; then
+    mkdir -p data/fbank
+    ./local/compute_fbank_magicdata.py
+    touch data/fbank/.magicdata.done
+  fi
 fi
