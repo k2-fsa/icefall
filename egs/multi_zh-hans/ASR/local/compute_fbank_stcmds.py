@@ -48,11 +48,7 @@ def compute_fbank_thchs30(num_mel_bins: int = 80):
     output_dir = Path("data/fbank")
     num_jobs = min(15, os.cpu_count())
 
-    dataset_parts = (
-        "train",
-        "dev",
-        "test",
-    )
+    dataset_parts = ("train",)
     prefix = "stcmds"
     suffix = "jsonl.gz"
     manifests = read_manifests_if_cached(
