@@ -44,7 +44,7 @@ torch.set_num_interop_threads(1)
 
 
 def compute_fbank_thchs30(num_mel_bins: int = 80):
-    src_dir = Path("data/manifests")
+    src_dir = Path("data/manifests/thchs30")
     output_dir = Path("data/fbank")
     num_jobs = min(15, os.cpu_count())
 
@@ -53,7 +53,7 @@ def compute_fbank_thchs30(num_mel_bins: int = 80):
         "dev",
         "test",
     )
-    prefix = "thchs30"
+    prefix = "thchs_30"
     suffix = "jsonl.gz"
     manifests = read_manifests_if_cached(
         dataset_parts=dataset_parts,
