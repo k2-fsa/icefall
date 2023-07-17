@@ -78,15 +78,37 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
 fi
 
 log "Dataset: AISHELL-1"
-if [$stage -le 3] && [ $stop_stage -ge 3 ]; then
+if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   log "Stage 3: Prepare AISHELL-1"
-  if [ -e ../../aishell/ASR/data/fbank/.aishell1.done ]; then
+  if [ -e ../../aishell/ASR/data/fbank/.aishell.done ]; then
     cd data/fbank
-    ln -svf $(realpath ../../../../aishell/ASR/data/fbank/aishell1_feats) .
-    ln -svf $(realpath ../../../../aishell/ASR/data/fbank/aishell1_cuts.jsonl.gz) .
+    ln -svf $(realpath ../../../../aishell/ASR/data/fbank/aishell_feats_train) .
+    ln -svf $(realpath ../../../../aishell/ASR/data/fbank/aishell_feats_dev) .
+    ln -svf $(realpath ../../../../aishell/ASR/data/fbank/aishell_feats_test) .
+    ln -svf $(realpath ../../../../aishell/ASR/data/fbank/aishell_cuts_train.jsonl.gz) .
+    ln -svf $(realpath ../../../../aishell/ASR/data/fbank/aishell_cuts_dev.jsonl.gz) .
+    ln -svf $(realpath ../../../../aishell/ASR/data/fbank/aishell_cuts_test.jsonl.gz) .
     cd ../..
   else
     log "Abort! Please run ../../aishell/ASR/prepare.sh --stage 3 --stop-stage 3"
     exit 1
   fi
+fi
+
+log "Dataset: AISHELL-2"
+if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
+  log "Stage 4: Prepare AISHELL-2"
+  if [ -e ../../aishell/ASR/data/fbank/.aishell2.done ]; then
+    cd data/fbank
+    ln -svf $(realpath ../../../../aishell2/ASR/data/fbank/aishell2_feats_train) .
+    ln -svf $(realpath ../../../../aishell2/ASR/data/fbank/aishell_feats_dev) .
+    ln -svf $(realpath ../../../../aishell2/ASR/data/fbank/aishell_feats_test) .
+    ln -svf $(realpath ../../../../aishell2/ASR/data/fbank/aishell_cuts_train.jsonl.gz) .
+    ln -svf $(realpath ../../../../aishell2/ASR/data/fbank/aishell_cuts_dev.jsonl.gz) .
+    ln -svf $(realpath ../../../../aishell2/ASR/data/fbank/aishell_cuts_test.jsonl.gz) .
+    cd ../..
+  else 
+    log "Abort! Please run ../../aishell2/ASR/prepare.sh --stage 3 --stop-stage 3"
+    exit 1
+  fi 
 fi
