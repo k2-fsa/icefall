@@ -101,14 +101,76 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
   if [ -e ../../aishell/ASR/data/fbank/.aishell2.done ]; then
     cd data/fbank
     ln -svf $(realpath ../../../../aishell2/ASR/data/fbank/aishell2_feats_train) .
-    ln -svf $(realpath ../../../../aishell2/ASR/data/fbank/aishell_feats_dev) .
-    ln -svf $(realpath ../../../../aishell2/ASR/data/fbank/aishell_feats_test) .
-    ln -svf $(realpath ../../../../aishell2/ASR/data/fbank/aishell_cuts_train.jsonl.gz) .
-    ln -svf $(realpath ../../../../aishell2/ASR/data/fbank/aishell_cuts_dev.jsonl.gz) .
-    ln -svf $(realpath ../../../../aishell2/ASR/data/fbank/aishell_cuts_test.jsonl.gz) .
+    ln -svf $(realpath ../../../../aishell2/ASR/data/fbank/aishell2_feats_dev) .
+    ln -svf $(realpath ../../../../aishell2/ASR/data/fbank/aishell2_feats_test) .
+    ln -svf $(realpath ../../../../aishell2/ASR/data/fbank/aishell2_cuts_train.jsonl.gz) .
+    ln -svf $(realpath ../../../../aishell2/ASR/data/fbank/aishell2_cuts_dev.jsonl.gz) .
+    ln -svf $(realpath ../../../../aishell2/ASR/data/fbank/aishell2_cuts_test.jsonl.gz) .
     cd ../..
   else 
     log "Abort! Please run ../../aishell2/ASR/prepare.sh --stage 3 --stop-stage 3"
     exit 1
   fi 
+fi
+
+log "Dataset: AISHELL-4"
+if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
+  log "Stage 5: Prepare AISHELL-4"
+  if [ -e ../../aishell/ASR/data/fbank/.aishell4.done ]; then
+    cd data/fbank
+    ln -svf $(realpath ../../../../aishell4/ASR/data/fbank/aishell4_feats_train) .
+    ln -svf $(realpath ../../../../aishell4/ASR/data/fbank/aishell4_feats_dev) .
+    ln -svf $(realpath ../../../../aishell4/ASR/data/fbank/aishell4_feats_test) .
+    ln -svf $(realpath ../../../../aishell4/ASR/data/fbank/aishell4_cuts_train.jsonl.gz) .
+    ln -svf $(realpath ../../../../aishell4/ASR/data/fbank/aishell4_cuts_dev.jsonl.gz) .
+    ln -svf $(realpath ../../../../aishell4/ASR/data/fbank/aishell4_cuts_test.jsonl.gz) .
+    cd ../..
+  else 
+    log "Abort! Please run ../../aishell4/ASR/prepare.sh --stage 3 --stop-stage 3"
+    exit 1
+  fi 
+fi
+
+log "Dataset: ST-CMDS"
+if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
+  log "Stage 6: Prepare ST-CMDS"
+  if [ ! -f $dl_dir/stcmds/ST-CMDS-20170001_1-OS.tar.gz ]; then
+    log "Downloading ST-CMDS"
+    lhotse download stcmds $dl_dir/stcmds
+  fi
+
+  if [ ! -f data/manifests/.stcmds.done ]; then
+    mkdir -p data/manifests
+    lhotse prepare stcmds $dl_dir/stcmds data/manifests/stcmds
+    touch data/manifests/.stcmds.done
+  fi
+
+  if [ ! -f data/fbank/.stcmds.done ]; then
+    mkdir -p data/fbank
+    ./local/compute_fbank_stcmds.py
+    touch data/fbank/.stcmds.done
+  fi
+fi
+
+
+log "Dataset: Primewords"
+if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
+  log "Stage 6: Prepare Primewords"
+  if [ ! -f $dl_dir/primewords/primewords_md_2018_set1.tar.gz ]; then
+    log "Downloading Primewords"
+    lhotse download primewords $dl_dir/primewords
+  fi
+
+  if [ ! -f data/manifests/.stcmds.done ]; then
+    mkdir -p data/manifests
+    lhotse prepare stcmds $dl_dir/primewords data/manifests/primewords
+    touch data/manifests/.primewords.done
+  fi
+
+  if [ ! -f data/fbank/.primewords.done ]; then
+    mkdir -p data/fbank
+    ./local/compute_fbank_primewords.py
+    touch data/fbank/.primewords.done
+  fi
+
 fi
