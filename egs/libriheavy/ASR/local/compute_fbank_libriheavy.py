@@ -40,9 +40,8 @@ from lhotse import (
     KaldifeatFbankConfig,
     LilcomChunkyWriter,
 )
-from lhotse.recipes.utils import read_manifests_if_cached
 
-from icefall.utils import get_executor, str2bool
+from icefall.utils import get_executor
 
 # Torch's multithreaded behavior needs to be disabled or
 # it wastes a lot of CPU and slow things down.
@@ -61,7 +60,7 @@ def get_args():
         help="""Path to the bpe.model. If not None, we will remove short and
         long utterances before extracting features""",
     )
-    
+
     parser.add_argument(
         "--fbank-dir",
         type=str,
@@ -102,14 +101,14 @@ def get_args():
         "--start",
         type=int,
         default=0,
-        help="Process pieces starting from this number (inclusive). Only used in medium and large subset",
+        help="Process pieces starting from this number (inclusive).",
     )
 
     parser.add_argument(
         "--stop",
         type=int,
         default=-1,
-        help="Stop processing pieces until this number (exclusive). Only used in medium and large subset",
+        help="Stop processing pieces until this number (exclusive).",
     )
 
     return parser.parse_args()
