@@ -194,3 +194,58 @@ if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
     touch data/fbank/.magicdata.done
   fi
 fi
+
+log "Dataset: aidatatang_200zh"
+if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
+  log "Stage 9: Prepare aidatatang_200zh"
+  if [ -e ../../aidatatang_200zh/ASR/data/fbank/.aidatatang_200zh.done ]; then
+    cd data/fbank
+    ln -svf $(realpath ../../../../aidatatang_200zh/ASR/data/fbank/aidatatang_feats_train) .
+    ln -svf $(realpath ../../../../aidatatang_200zh/ASR/data/fbank/aidatatang_feats_dev) .
+    ln -svf $(realpath ../../../../aidatatang_200zh/ASR/data/fbank/aidatatang_feats_test) .
+    ln -svf $(realpath ../../../../aidatatang_200zh/ASR/data/fbank/aidatatang_cuts_train.jsonl.gz) .
+    ln -svf $(realpath ../../../../aidatatang_200zh/ASR/data/fbank/aidatatang_cuts_dev.jsonl.gz) .
+    ln -svf $(realpath ../../../../aidatatang_200zh/ASR/data/fbank/aidatatang_cuts_test.jsonl.gz) .
+    cd ../..
+  else
+    log "Abort! Please run ../../aidatatang_200zh/ASR/prepare.sh --stage 4 --stop-stage 4"
+    exit 1
+  fi
+fi
+
+log "Dataset: Ali-Meeting"
+if [ $stage -le 10 ] && [ $stop_stage -ge 10 ]; then
+  log "Stage 10: Prepare Ali-Meeting"
+  if [ -e ../../alimeeting/ASR/data/fbank/.fbank.done ]; then
+    cd data/fbank
+    ln -svf $(realpath ../../../../alimeeting/ASR/data/fbank/alimeeting-far_feats_train) .
+    ln -svf $(realpath ../../../../alimeeting/ASR/data/fbank/alimeeting-far_feats_eval) .
+    ln -svf $(realpath ../../../../alimeeting/ASR/data/fbank/alimeeting-far_feats_test) .
+    ln -svf $(realpath ../../../../alimeeting/ASR/data/fbank/alimeeting-far_cuts_train.jsonl.gz) .
+    ln -svf $(realpath ../../../../alimeeting/ASR/data/fbank/alimeeting-far_cuts_eval.jsonl.gz) .
+    ln -svf $(realpath ../../../../alimeeting/ASR/data/fbank/alimeeting-far_cuts_test.jsonl.gz) .
+    cd ../..
+  else
+    log "Abort! Please run ../../alimeeting/ASR/prepare.sh --stage 5 --stop-stage 5"
+    exit 1
+  fi
+fi
+
+log "Dataset: WenetSpeech"
+if [ $stage -le 11 ] && [ $stop_stage -ge 11 ]; then
+  log "Stage 11: Prepare WenetSpeech"
+  if [ -e ../../wenetspeech/ASR/data/fbank/.preprocess_complete ]; then
+    cd data/fbank
+    ln -svf $(realpath ../../../../wenetspeech/ASR/data/fbank/cuts_DEV.jsonl.gz) .
+    ln -svf $(realpath ../../../../wenetspeech/ASR/data/fbank/cuts_DEV_raw.jsonl.gz) .
+    ln -svf $(realpath ../../../../wenetspeech/ASR/data/fbank/cuts_L_raw.jsonl.gz) .
+    ln -svf $(realpath ../../../../wenetspeech/ASR/data/fbank/cuts_M_raw.jsonl.gz) .
+    ln -svf $(realpath ../../../../wenetspeech/ASR/data/fbank/cuts_S_raw.jsonl.gz) .
+    ln -svf $(realpath ../../../../wenetspeech/ASR/data/fbank/cuts_TEST_MEETING_raw.jsonl.gz) .
+    ln -svf $(realpath ../../../../wenetspeech/ASR/data/fbank/cuts_TEST_NET_raw.jsonl.gz) .
+    cd ../..
+  else
+    log "Abort! Please run ../../wenetspeech/ASR/prepare.sh --stage 5 --stop-stage 5"
+    exit 1
+  fi
+fi
