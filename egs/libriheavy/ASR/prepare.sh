@@ -2,6 +2,7 @@
 
 # fix segmentation fault reported in https://github.com/k2-fsa/icefall/issues/674
 export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
+export PYTHONPATH=/star-data/xiaoyu/icefall_libriheavy:$PYTHONPATH
 
 set -eou pipefail
 
@@ -18,7 +19,7 @@ num_per_split=2000
 # It will generate data/lang_bpe_xxx,
 # data/lang_bpe_yyy if the array contains xxx, yyy
 vocab_sizes=(
-  500
+  1000
 )
 
 mkdir -p data
@@ -30,14 +31,19 @@ log() {
 }
 
 manifest_dir=data/manifests
-fbank_dir=data/fbank_new
+fbank_dir=data/fbank
 
 mkdir -p $manifest_dir
 
-subset="medium"
+subset="large"
 
-if [ $stage -le 1 ] && [ $stop_stage -ge 2 ]; then
-  log "Stage 1: Split libri-heavy medium"
+if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
+  log "Stage 1: Split libri-heavy ${subset}"
+
+  if [ $subset == "large" ]; then
+    num_per_split=8000
+    log "Change num_per_split to ${num_per_split} 8000 for large"
+  fi
 
   split_dir=$fbank_dir/libriheavy_${subset}_split
   mkdir -p $split_dir
@@ -53,8 +59,8 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   num_splits=$(find $fbank_dir/libriheavy_${subset}_split -name "librilight_cuts_${subset}_raw.*.jsonl.gz" | wc -l)
   if [ ! -e $fbank_dir/.libriheavy.${subset}.done ]; then
     for i in $(seq 0 1 7); do
-      start=${i}00
-      end=$(( i+1 ))00
+      start=$(( i * 200 ))
+      end=$(( (i+1) * 200 ))
       ./local/compute_fbank_libriheavy.py \
         --dataset ${subset} \
         --fbank-dir $fbank_dir \
@@ -76,14 +82,18 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   fi
 fi
 
+
 if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
   log "Stage 4: Prepare BPE model"
 
   tmp_dir=data/tmp
   mkdir -p $tmp_dir
   if [ ! -f $tmp_dir/transcript_words.txt ]; then
-    gunzip -c $manifest_dir/librilight_cuts_${subset}_raw.jsonl.gz |
-      jq '.supervisions[].custom.texts[]' | sed 's/" //' | sed 's/\(.*\)"/\1/' > $tmp_dir/transcript_words.txt
+    for part in "small" "medium" "large"; do
+      gunzip -c $manifest_dir/librilight_cuts_${part}_raw.jsonl.gz |
+        jq '.supervisions[].custom.texts[]' | sed 's/" //' | sed 's/\(.*\)"/\1/' > $tmp_dir/transcript_words_${part}.txt
+    done
+    cat $tmp_dir/transcript_words_small.txt $tmp_dir/transcript_words_medium.txt $tmp_dir/transcript_words_large.txt > $tmp_dir/transcript_words.txt
   fi
 
   if [ ! -f $tmp_dir/words.txt ]; then
@@ -115,15 +125,22 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
   fi
 
   for vocab_size in ${vocab_sizes[@]}; do
-    lang_dir=data/lang_bpe_${vocab_size}_${subset}
+    lang_dir=data/lang_bpe_${vocab_size}
     mkdir -p $lang_dir
     cp $tmp_dir/words.txt $lang_dir/words.txt
-
+    pushd $lang_dir
+    ln -s ../$tmp_dir/transcript_words.txt transcript_words.txt
+    popd
+    
     if [ ! -f $lang_dir/bpe.model ]; then
       ./local/train_bpe_model.py \
         --lang-dir $lang_dir \
         --vocab-size $vocab_size \
-        --transcript $tmp_dir/transcript_words.txt
+        --transcript $tmp_dir/transcript_words_medium.txt
+    fi
+
+    if [ ! -f $lang_dir/tokens.txt ]; then
+      ./local/bpe2tokens.py ${lang_dir}/bpe.model > ${lang_dir}/tokens.txt
     fi
 
     done
