@@ -93,7 +93,7 @@ def compute_fbank_kespeech_splits(args):
     subset = args.training_subset
     subset = str(subset)
     num_splits = args.num_splits
-    output_dir = f"data/fbank/KeSpeech/{subset}_split_{num_splits}"
+    output_dir = f"data/fbank/KeSpeech/{subset}_split/{subset}_split_{num_splits}"
     output_dir = Path(output_dir)
     assert output_dir.exists(), f"{output_dir} does not exist!"
 
@@ -118,12 +118,12 @@ def compute_fbank_kespeech_splits(args):
         idx = f"{i + 1}".zfill(num_digits)
         logging.info(f"Processing {idx}/{num_splits}")
 
-        cuts_path = output_dir / f"cuts_{subset}.{idx}.jsonl.gz"
+        cuts_path = output_dir / f"kespeech-asr_cuts_{subset}.{idx}.jsonl.gz"
         if cuts_path.is_file():
             logging.info(f"{cuts_path} exists - skipping")
             continue
 
-        raw_cuts_path = output_dir / f"cuts_{subset}_raw.{idx}.jsonl.gz"
+        raw_cuts_path = output_dir / f"kespeech-asr_cuts_{subset}_raw.{idx}.jsonl.gz"
 
         logging.info(f"Loading {raw_cuts_path}")
         cut_set = CutSet.from_file(raw_cuts_path)
