@@ -40,7 +40,7 @@ def normalize_text(
 
 def has_no_oov(
     sup: SupervisionSegment,
-    oov_pattern=re.compile(r"<(SIL|MUSIC|NOISE|OTHER)>"),
+    oov_pattern=re.compile(r"<(SIL|MUSIC|NOISE|OTHER|SPOKEN_NOISE)>"),
 ) -> bool:
     return oov_pattern.search(sup.text) is None
 
