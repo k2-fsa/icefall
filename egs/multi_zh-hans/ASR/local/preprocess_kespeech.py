@@ -47,13 +47,13 @@ def has_no_oov(
 
 def preprocess_kespeech():
     src_dir = Path("data/manifests/KeSpeech")
-    output_dir = Path("data/fbank")
+    output_dir = Path("data/fbank/KeSpeech")
     output_dir.mkdir(exist_ok=True)
 
     # Note: By default, we preprocess all sub-parts.
     # You can delete those that you don't need.
-    # For instance, if you don't want to use the L subpart, just remove
-    # the line below containing "L"
+    # For instance, if you don't want to use the test subpart, just remove
+    # the line below containing "test"
     dataset_parts = (
         "dev_phase1",
         "dev_phase2",
