@@ -31,6 +31,8 @@ from pathlib import Path
 
 import sentencepiece as spm
 
+from icefall.utils import str2bool
+
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -54,11 +56,25 @@ def get_args():
         help="Vocabulary size for BPE training",
     )
 
+    parser.add_argument(
+        "--byte-fallback",
+        type=str2bool,
+        default=False,
+    )
+
+    parser.add_argument(
+        "--character-coverage",
+        type=float,
+        default=0.99,
+        help="Character coverage when training BPE",
+    )
+
     return parser.parse_args()
 
 
 def main():
     args = get_args()
+    print(args)
     vocab_size = args.vocab_size
     lang_dir = Path(args.lang_dir)
 
@@ -83,12 +99,13 @@ def main():
             model_type=model_type,
             model_prefix=model_prefix,
             input_sentence_size=input_sentence_size,
-            character_coverage=character_coverage,
+            character_coverage=args.character_coverage,
             user_defined_symbols=user_defined_symbols,
             unk_id=unk_id,
             bos_id=-1,
             eos_id=-1,
             train_extremely_large_corpus=False,
+            byte_fallback=args.byte_fallback,
         )
     else:
         print(f"{model_file} exists - skipping")
