@@ -52,8 +52,8 @@ def preprocess_kespeech():
 
     # Note: By default, we preprocess all sub-parts.
     # You can delete those that you don't need.
-    # For instance, if you don't want to use the L subpart, just remove
-    # the line below containing "L"
+    # For instance, if you don't want to use the test subpart, just remove
+    # the line below containing "test"
     dataset_parts = (
         "dev_phase1",
         "dev_phase2",
