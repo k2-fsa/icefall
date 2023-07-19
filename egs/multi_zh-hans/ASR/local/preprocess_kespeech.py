@@ -80,7 +80,7 @@ def preprocess_kespeech():
 
     for partition, m in manifests.items():
         logging.info(f"Processing {partition}")
-        raw_cuts_path = output_dir / f"cuts_{partition}_raw.jsonl.gz"
+        raw_cuts_path = output_dir / f"kespeech-asr_cuts_{partition}_raw.jsonl.gz"
         if raw_cuts_path.is_file():
             logging.info(f"{partition} already exists - skipping")
             continue
