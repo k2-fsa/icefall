@@ -93,7 +93,7 @@ def compute_fbank_kespeech_splits(args):
     subset = args.training_subset
     subset = str(subset)
     num_splits = args.num_splits
-    output_dir = f"data/fbank/KeSpeech/{subset}_split/{subset}_split_{num_splits}"
+    output_dir = f"data/fbank/KeSpeech/{subset}_split_{num_splits}"
     output_dir = Path(output_dir)
     assert output_dir.exists(), f"{output_dir} does not exist!"
 
