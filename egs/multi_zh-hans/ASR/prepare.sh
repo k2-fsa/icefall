@@ -8,6 +8,7 @@ set -eou pipefail
 nj=16
 stage=-1
 stop_stage=100
+num_splits=100
 
 dl_dir=$PWD/download
 
@@ -247,5 +248,56 @@ if [ $stage -le 11 ] && [ $stop_stage -ge 11 ]; then
   else
     log "Abort! Please run ../../wenetspeech/ASR/prepare.sh --stage 5 --stop-stage 5"
     exit 1
+  fi
+fi
+
+log "Dataset: KeSpeech"
+if [ $stage -le 12 ] && [ $stop_stage -ge 12 ]; then
+  log "Stage 12: Prepare KeSpeech"
+  if [ ! -d $dl_dir/KeSpeech ]; then
+    log "Abort! Please download KeSpeech first."
+  fi
+
+  if [ ! -f data/manifests/.kespeech.done ]; then
+    mkdir -p data/manifests
+    lhotse prepare kespeech -j $nj $dl_dir/KeSpeech data/manifests/kespeech 
+    touch data/manifests/.kespeech.done
+  fi
+
+  if [ ! -f data/fbank/.kespeech.done ]; then
+    mkdir -p data/fbank
+
+    log "Preprocess KeSpeech manifest"
+    if [ ! -f data/fbank/.kespeech_preprocess_complete ]; then
+      python3 ./local/preprocess_kespeech.py
+      touch data/fbank/.kespeech_preprocess_complete
+    fi  
+    
+    if [ -f data/fbank/.kespeech.train_phase1.split.${num_splits}.done ]; then
+      log "Spliting KeSpeech train_phase1"
+      lhotse split ${num_splits} \
+        data/fbank/kespeech/kespeech-asr_cuts_train_phase1_raw.jsonl.gz \
+        data/fbank/kespeech/train_phase1_split_${num_splits}
+      touch data/fbank/.kespeech.train_phase1.split.${num_splits}.done
+    fi
+    
+    if [ -f data/fbank/.kespeech.train_phase2.split.${num_splits}.done ]; then
+      log "Spliting KeSpeech train_phase2"
+      lhotse split ${num_splits} \
+        data/fbank/kespeech/kespeech-asr_cuts_train_phase2_raw.jsonl.gz \
+        data/fbank/kespeech/train_phase2_split_${num_splits}
+      touch data/fbank/.kespeech.train_phase2.split.${num_splits}.done
+    fi
+    
+    log "Compute KeSpeech fbank for train_phase1"
+    ./local/compute_fbank_kespeech_splits.py --num-splits ${num_splits} --training-subset train_phase1
+
+    log "Compute KeSpeech fbank for train_phase2"
+    ./local/compute_fbank_kespeech_splits.py --num-splits ${num_splits} --training-subset train_phase2
+
+    log "Compute KeSpeech fbank for test/dev"
+    ./local/compute_fbank_kespeech_dev_test.py
+
+    touch data/fbank/.kespeech.done
   fi
 fi

@@ -46,8 +46,8 @@ def has_no_oov(
 
 
 def preprocess_kespeech():
-    src_dir = Path("data/manifests/KeSpeech")
-    output_dir = Path("data/fbank/KeSpeech")
+    src_dir = Path("data/manifests/kespeech")
+    output_dir = Path("data/fbank/kespeech")
     output_dir.mkdir(exist_ok=True)
 
     # Note: By default, we preprocess all sub-parts.
