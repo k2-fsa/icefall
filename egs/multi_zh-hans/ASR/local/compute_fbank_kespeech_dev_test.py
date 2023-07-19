@@ -31,7 +31,7 @@ torch.set_num_interop_threads(1)
 
 
 def compute_fbank_kespeech_dev_test():
-    in_out_dir = Path("data/fbank/KeSpeech")
+    in_out_dir = Path("data/fbank/kespeech")
     # number of workers in dataloader
     num_workers = 42
 
