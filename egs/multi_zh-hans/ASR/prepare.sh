@@ -15,9 +15,7 @@ dl_dir=$PWD/download
 . shared/parse_options.sh || exit 1
 
 vocab_sizes=(
-  # 2000
-  # 1000
-  500
+  2000
 )
 
 
@@ -185,7 +183,7 @@ if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
 
   if [ ! -f data/manifests/.magicdata.done ]; then
     mkdir -p data/manifests
-    lhotse prepare magicdata -j $nj $dl_dir/magicdata data/manifests/magicdata
+    lhotse prepare magicdata $dl_dir/magicdata data/manifests/magicdata
     touch data/manifests/.magicdata.done
   fi
 
@@ -246,9 +244,20 @@ if [ $stage -le 11 ] && [ $stop_stage -ge 11 ]; then
     ln -svf $(realpath ../../../../wenetspeech/ASR/data/fbank/cuts_TEST_NET_raw.jsonl.gz) .
     cd ../..
   else
-    log "Abort! Please run ../../wenetspeech/ASR/prepare.sh --stage 5 --stop-stage 5"
+    log "Abort! Please run ../../wenetspeech/ASR/prepare.sh"
     exit 1
   fi
+
+  if [ -d ../../wenetspeech/ASR/data/lang_char/ ]; then
+    cd data
+    cp -r ../../../../wenetspeech/ASR/data/lang_char .
+    cd ..
+  else
+    log "Abort! Please run ../../wenetspeech/ASR/prepare.sh"
+    exit 1
+  fi
+  
+
 fi
 
 log "Dataset: KeSpeech"
