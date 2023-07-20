@@ -16,6 +16,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import argparse
 import logging
 import re
 from pathlib import Path
@@ -45,7 +46,7 @@ def has_no_oov(
     return oov_pattern.search(sup.text) is None
 
 
-def preprocess_wenet_speech():
+def preprocess_wenet_speech(speed_perturb: bool = False):
     src_dir = Path("data/manifests")
     output_dir = Path("data/fbank")
     output_dir.mkdir(exist_ok=True)
@@ -115,15 +116,30 @@ def preprocess_wenet_speech():
                 f"Speed perturb for {partition} with factors 0.9 and 1.1 "
                 "(Perturbing may take 8 minutes and saving may take 20 minutes)"
             )
-            cut_set = cut_set + cut_set.perturb_speed(0.9) + cut_set.perturb_speed(1.1)
+            if speed_perturb:
+                cut_set = (
+                    cut_set + cut_set.perturb_speed(0.9) + cut_set.perturb_speed(1.1)
+                )
         logging.info(f"Saving to {raw_cuts_path}")
         cut_set.to_file(raw_cuts_path)
+
+
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--speed-perturb",
+        type=bool,
+        default=False,
+        help="Enable 0.9 and 1.1 speed perturbation for data augmentation. Default: False.",
+    )
+    return parser.parse_args()
 
 
 def main():
     setup_logger(log_filename="./log-preprocess-wenetspeech")
 
-    preprocess_wenet_speech()
+    args = get_args()
+    preprocess_wenet_speech(speed_perturb=args.speed_perturb)
     logging.info("Done")
 
 
