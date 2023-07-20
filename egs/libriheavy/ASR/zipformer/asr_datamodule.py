@@ -45,11 +45,7 @@ from lhotse.dataset.input_strategies import (
     PrecomputedFeatures,
 )
 from lhotse.utils import fix_random_seed, ifnone
-from text_normalization import (
-    ref_text_normalization,
-    replace_full_width_symbol,
-    simple_normalization,
-)
+from text_normalization import replace_full_width_symbol, simple_normalization
 from torch.utils.data.dataloader import DataLoader, default_collate
 
 from icefall.utils import str2bool
