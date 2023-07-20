@@ -23,7 +23,7 @@ Usage:
   --epoch 28 \
   --avg 15 \
   --causal 1 \
-  --chunk-size 16 \
+  --chunk-size 32 \
   --left-context-frames 256 \
   --exp-dir ./zipformer/exp \
   --decoding-method greedy_search \
@@ -38,8 +38,9 @@ from typing import Dict, List, Optional, Tuple
 
 import k2
 import numpy as np
+import sentencepiece as spm
 import torch
-from asr_datamodule import WenetSpeechAsrDataModule
+from asr_datamodule import LibriSpeechAsrDataModule
 from decode_stream import DecodeStream
 from kaldifeat import Fbank, FbankOptions
 from lhotse import CutSet
@@ -50,7 +51,7 @@ from streaming_beam_search import (
 )
 from torch import Tensor, nn
 from torch.nn.utils.rnn import pad_sequence
-from train import add_model_arguments, get_model, get_params
+from train import add_model_arguments, get_params, get_model
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -58,7 +59,6 @@ from icefall.checkpoint import (
     find_checkpoints,
     load_checkpoint,
 )
-from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
     make_pad_mask,
@@ -123,10 +123,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--lang-dir",
+        "--bpe-model",
         type=str,
-        default="data/lang_char",
-        help="Path to the lang dir(containing lexicon, tokens, etc.)",
+        default="data/lang_bpe_500/bpe.model",
+        help="Path to the BPE model",
     )
 
     parser.add_argument(
@@ -179,18 +179,6 @@ def get_parser():
         type=int,
         default=2,
         help="The context size in the decoder. 1 means bigram; 2 means tri-gram",
-    )
-
-    parser.add_argument(
-        "--blank-penalty",
-        type=float,
-        default=0.0,
-        help="""
-        The penalty applied on blank symbol during decoding.
-        Note: It is a positive value that would be applied to logits like
-        this `logits[:, 0] -= blank_penalty` (suppose logits.shape is
-        [batch_size, vocab] and blank id is 0).
-        """,
     )
 
     parser.add_argument(
@@ -294,7 +282,9 @@ def stack_states(state_list: List[List[torch.Tensor]]) -> List[torch.Tensor]:
     )
     batch_states.append(cached_embed_left_pad)
 
-    processed_lens = torch.cat([state_list[i][-1] for i in range(batch_size)], dim=0)
+    processed_lens = torch.cat(
+        [state_list[i][-1] for i in range(batch_size)], dim=0
+    )
     batch_states.append(processed_lens)
 
     return batch_states
@@ -332,7 +322,9 @@ def unstack_states(batch_states: List[Tensor]) -> List[List[Tensor]]:
     for layer in range(tot_num_layers):
         layer_offset = layer * 6
         # cached_key: (left_context_len, batch_size, key_dim)
-        cached_key_list = batch_states[layer_offset].chunk(chunks=batch_size, dim=1)
+        cached_key_list = batch_states[layer_offset].chunk(
+            chunks=batch_size, dim=1
+        )
         # cached_nonlin_attn: (num_heads, batch_size, left_context_len, head_dim)
         cached_nonlin_attn_list = batch_states[layer_offset + 1].chunk(
             chunks=batch_size, dim=1
@@ -363,7 +355,9 @@ def unstack_states(batch_states: List[Tensor]) -> List[List[Tensor]]:
                 cached_conv2_list[i],
             ]
 
-    cached_embed_left_pad_list = batch_states[-2].chunk(chunks=batch_size, dim=0)
+    cached_embed_left_pad_list = batch_states[-2].chunk(
+        chunks=batch_size, dim=0
+    )
     for i in range(batch_size):
         state_list[i].append(cached_embed_left_pad_list[i])
 
@@ -386,7 +380,11 @@ def streaming_forward(
     Returns encoder outputs, output lengths, and updated states.
     """
     cached_embed_left_pad = states[-2]
-    (x, x_lens, new_cached_embed_left_pad,) = model.encoder_embed.streaming_forward(
+    (
+        x,
+        x_lens,
+        new_cached_embed_left_pad,
+    ) = model.encoder_embed.streaming_forward(
         x=features,
         x_lens=feature_lens,
         cached_left_pad=cached_embed_left_pad,
@@ -406,7 +404,9 @@ def streaming_forward(
     new_processed_lens = processed_lens + x_lens
 
     # (batch, left_context_size + chunk_size)
-    src_key_padding_mask = torch.cat([processed_mask, src_key_padding_mask], dim=1)
+    src_key_padding_mask = torch.cat(
+        [processed_mask, src_key_padding_mask], dim=1
+    )
 
     x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
     encoder_states = states[:-2]
@@ -495,10 +495,7 @@ def decode_one_chunk(
 
     if params.decoding_method == "greedy_search":
         greedy_search(
-            model=model,
-            encoder_out=encoder_out,
-            streams=decode_streams,
-            blank_penalty=params.blank_penalty,
+            model=model, encoder_out=encoder_out, streams=decode_streams
         )
     elif params.decoding_method == "fast_beam_search":
         processed_lens = torch.tensor(processed_lens, device=device)
@@ -511,7 +508,6 @@ def decode_one_chunk(
             beam=params.beam,
             max_states=params.max_states,
             max_contexts=params.max_contexts,
-            blank_penalty=params.blank_penalty,
         )
     elif params.decoding_method == "modified_beam_search":
         modified_beam_search(
@@ -519,10 +515,11 @@ def decode_one_chunk(
             streams=decode_streams,
             encoder_out=encoder_out,
             num_active_paths=params.num_active_paths,
-            blank_penalty=params.blank_penalty,
         )
     else:
-        raise ValueError(f"Unsupported decoding method: {params.decoding_method}")
+        raise ValueError(
+            f"Unsupported decoding method: {params.decoding_method}"
+        )
 
     states = unstack_states(new_states)
 
@@ -540,7 +537,7 @@ def decode_dataset(
     cuts: CutSet,
     params: AttributeDict,
     model: nn.Module,
-    lexicon: Lexicon,
+    sp: spm.SentencePieceProcessor,
     decoding_graph: Optional[k2.Fsa] = None,
 ) -> Dict[str, List[Tuple[List[str], List[str]]]]:
     """Decode dataset.
@@ -552,8 +549,8 @@ def decode_dataset(
         It is returned by :func:`get_params`.
       model:
         The neural model.
-      lexicon:
-        The Lexicon.
+      sp:
+        The BPE model.
       decoding_graph:
         The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
         only when --decoding_method is fast_beam_search.
@@ -580,7 +577,9 @@ def decode_dataset(
     decode_streams = []
     for num, cut in enumerate(cuts):
         # each utterance has a DecodeStream.
-        initial_states = get_init_states(model=model, batch_size=1, device=device)
+        initial_states = get_init_states(
+            model=model, batch_size=1, device=device
+        )
         decode_stream = DecodeStream(
             params=params,
             cut_id=cut.id,
@@ -596,12 +595,7 @@ def decode_dataset(
         assert audio.dtype == np.float32, audio.dtype
 
         # The trained model is using normalized samples
-        if audio.max() > 1:
-            logging.warning(
-                f"The audio should be normalized to [-1, 1], audio.max : {audio.max()}."
-                f"Clipping to [-1, 1]."
-            )
-            audio = np.clip(audio, -1, 1)
+        assert audio.max() <= 1, "Should be normalized to [-1, 1])"
 
         samples = torch.from_numpy(audio).squeeze(0)
 
@@ -620,11 +614,8 @@ def decode_dataset(
                 decode_results.append(
                     (
                         decode_streams[i].id,
-                        list(decode_streams[i].ground_truth.strip()),
-                        [
-                            lexicon.token_table[idx]
-                            for idx in decode_streams[i].decoding_result()
-                        ],
+                        decode_streams[i].ground_truth.split(),
+                        sp.decode(decode_streams[i].decoding_result()).split(),
                     )
                 )
                 del decode_streams[i]
@@ -642,27 +633,25 @@ def decode_dataset(
                 (
                     decode_streams[i].id,
                     decode_streams[i].ground_truth.split(),
-                    [
-                        lexicon.token_table[idx]
-                        for idx in decode_streams[i].decoding_result()
-                    ],
+                    sp.decode(decode_streams[i].decoding_result()).split(),
                 )
             )
             del decode_streams[i]
 
-    key = f"blank_penalty_{params.blank_penalty}"
     if params.decoding_method == "greedy_search":
-        key = f"greedy_search_{key}"
+        key = "greedy_search"
     elif params.decoding_method == "fast_beam_search":
         key = (
             f"beam_{params.beam}_"
             f"max_contexts_{params.max_contexts}_"
-            f"max_states_{params.max_states}_{key}"
+            f"max_states_{params.max_states}"
         )
     elif params.decoding_method == "modified_beam_search":
-        key = f"num_active_paths_{params.num_active_paths}_{key}"
+        key = f"num_active_paths_{params.num_active_paths}"
     else:
-        raise ValueError(f"Unsupported decoding method: {params.decoding_method}")
+        raise ValueError(
+            f"Unsupported decoding method: {params.decoding_method}"
+        )
     return {key: decode_results}
 
 
@@ -695,7 +684,8 @@ def save_results(
 
     test_set_wers = sorted(test_set_wers.items(), key=lambda x: x[1])
     errs_info = (
-        params.res_dir / f"wer-summary-{test_set_name}-{key}-{params.suffix}.txt"
+        params.res_dir
+        / f"wer-summary-{test_set_name}-{key}-{params.suffix}.txt"
     )
     with open(errs_info, "w") as f:
         print("settings\tWER", file=f)
@@ -713,7 +703,7 @@ def save_results(
 @torch.no_grad()
 def main():
     parser = get_parser()
-    WenetSpeechAsrDataModule.add_arguments(parser)
+    LibriSpeechAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 
@@ -728,13 +718,14 @@ def main():
         params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
 
     assert params.causal, params.causal
-    assert "," not in params.chunk_size, "chunk_size should be one value in decoding."
+    assert (
+        "," not in params.chunk_size
+    ), "chunk_size should be one value in decoding."
     assert (
         "," not in params.left_context_frames
     ), "left_context_frames should be one value in decoding."
     params.suffix += f"-chunk-{params.chunk_size}"
     params.suffix += f"-left-context-{params.left_context_frames}"
-    params.suffix += f"-blank-penalty-{params.blank_penalty}"
 
     # for fast_beam_search
     if params.decoding_method == "fast_beam_search":
@@ -754,9 +745,13 @@ def main():
 
     logging.info(f"Device: {device}")
 
-    lexicon = Lexicon(params.lang_dir)
-    params.blank_id = lexicon.token_table["<blk>"]
-    params.vocab_size = max(lexicon.tokens) + 1
+    sp = spm.SentencePieceProcessor()
+    sp.load(params.bpe_model)
+
+    # <blk> and <unk> is defined in local/train_bpe_model.py
+    params.blank_id = sp.piece_to_id("<blk>")
+    params.unk_id = sp.piece_to_id("<unk>")
+    params.vocab_size = sp.get_piece_size()
 
     logging.info(params)
 
@@ -765,9 +760,9 @@ def main():
 
     if not params.use_averaged_model:
         if params.iter > 0:
-            filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
-                : params.avg
-            ]
+            filenames = find_checkpoints(
+                params.exp_dir, iteration=-params.iter
+            )[: params.avg]
             if len(filenames) == 0:
                 raise ValueError(
                     f"No checkpoints found for"
@@ -794,9 +789,9 @@ def main():
             model.load_state_dict(average_checkpoints(filenames, device=device))
     else:
         if params.iter > 0:
-            filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
-                : params.avg + 1
-            ]
+            filenames = find_checkpoints(
+                params.exp_dir, iteration=-params.iter
+            )[: params.avg + 1]
             if len(filenames) == 0:
                 raise ValueError(
                     f"No checkpoints found for"
@@ -851,23 +846,23 @@ def main():
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
-    wenetspeech = WenetSpeechAsrDataModule(args)
+    librispeech = LibriSpeechAsrDataModule(args)
 
-    dev_cuts = wenetspeech.valid_cuts()
-    test_net_cuts = wenetspeech.test_net_cuts()
-    test_meeting_cuts = wenetspeech.test_meeting_cuts()
+    test_clean_cuts = librispeech.test_clean_cuts()
+    test_other_cuts = librispeech.test_other_cuts()
 
-    test_sets = ["DEV", "TEST_NET", "TEST_MEETING"]
-    test_cuts = [dev_cuts, test_net_cuts, test_meeting_cuts]
+    test_sets = ["test-clean", "test-other"]
+    test_cuts = [test_clean_cuts, test_other_cuts]
 
     for test_set, test_cut in zip(test_sets, test_cuts):
         results_dict = decode_dataset(
             cuts=test_cut,
             params=params,
             model=model,
-            lexicon=lexicon,
+            sp=sp,
             decoding_graph=decoding_graph,
         )
+
         save_results(
             params=params,
             test_set_name=test_set,

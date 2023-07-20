@@ -120,7 +120,9 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
     ln -svf $(realpath ../../../../aishell4/ASR/data/fbank/aishell4_feats_train) .
     ln -svf $(realpath ../../../../aishell4/ASR/data/fbank/aishell4_feats_dev) .
     ln -svf $(realpath ../../../../aishell4/ASR/data/fbank/aishell4_feats_test) .
-    ln -svf $(realpath ../../../../aishell4/ASR/data/fbank/aishell4_cuts_train.jsonl.gz) .
+    ln -svf $(realpath ../../../../aishell4/ASR/data/fbank/aishell4_cuts_train_L.jsonl.gz) .
+    ln -svf $(realpath ../../../../aishell4/ASR/data/fbank/aishell4_cuts_train_M.jsonl.gz) .
+    ln -svf $(realpath ../../../../aishell4/ASR/data/fbank/aishell4_cuts_train_S.jsonl.gz) .
     ln -svf $(realpath ../../../../aishell4/ASR/data/fbank/aishell4_cuts_dev.jsonl.gz) .
     ln -svf $(realpath ../../../../aishell4/ASR/data/fbank/aishell4_cuts_test.jsonl.gz) .
     cd ../..
@@ -236,12 +238,11 @@ if [ $stage -le 11 ] && [ $stop_stage -ge 11 ]; then
   if [ -e ../../wenetspeech/ASR/data/fbank/.preprocess_complete ]; then
     cd data/fbank
     ln -svf $(realpath ../../../../wenetspeech/ASR/data/fbank/cuts_DEV.jsonl.gz) .
-    ln -svf $(realpath ../../../../wenetspeech/ASR/data/fbank/cuts_DEV_raw.jsonl.gz) .
-    ln -svf $(realpath ../../../../wenetspeech/ASR/data/fbank/cuts_L_raw.jsonl.gz) .
-    ln -svf $(realpath ../../../../wenetspeech/ASR/data/fbank/cuts_M_raw.jsonl.gz) .
-    ln -svf $(realpath ../../../../wenetspeech/ASR/data/fbank/cuts_S_raw.jsonl.gz) .
-    ln -svf $(realpath ../../../../wenetspeech/ASR/data/fbank/cuts_TEST_MEETING_raw.jsonl.gz) .
-    ln -svf $(realpath ../../../../wenetspeech/ASR/data/fbank/cuts_TEST_NET_raw.jsonl.gz) .
+    ln -svf $(realpath ../../../../wenetspeech/ASR/data/fbank/cuts_L.jsonl.gz) .
+    ln -svf $(realpath ../../../../wenetspeech/ASR/data/fbank/cuts_M.jsonl.gz) .
+    ln -svf $(realpath ../../../../wenetspeech/ASR/data/fbank/cuts_S.jsonl.gz) .
+    ln -svf $(realpath ../../../../wenetspeech/ASR/data/fbank/cuts_TEST_MEETING.jsonl.gz) .
+    ln -svf $(realpath ../../../../wenetspeech/ASR/data/fbank/cuts_TEST_NET.jsonl.gz) .
     cd ../..
   else
     log "Abort! Please run ../../wenetspeech/ASR/prepare.sh"

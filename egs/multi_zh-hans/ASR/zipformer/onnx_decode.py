@@ -2,8 +2,7 @@
 #
 # Copyright 2021-2023 Xiaomi Corporation (Author: Fangjun Kuang,
 #                                                 Zengwei Yao,
-#                                                 Xiaoyu Yang,
-#                                                 Wei Kang)
+#                                                 Xiaoyu Yang)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -22,47 +21,50 @@
 This script loads ONNX exported models and uses them to decode the test sets.
 
 We use the pre-trained model from
-https://huggingface.co/pkufool/icefall-asr-zipformer-wenetspeech-20230615
+https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-2023-05-15
 as an example to show how to use this file.
 
 1. Download the pre-trained model
 
-cd egs/wenetspeech/ASR
+cd egs/librispeech/ASR
 
-repo_url=https://huggingface.co/pkufool/icefall-asr-zipformer-wenetspeech-20230615
+repo_url=https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-2023-05-15
 GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
 repo=$(basename $repo_url)
 
 pushd $repo
-git lfs pull --include "data/lang_char/tokens.txt"
+git lfs pull --include "data/lang_bpe_500/bpe.model"
 git lfs pull --include "exp/pretrained.pt"
 
 cd exp
-ln -s pretrained.pt epoch-9999.pt
+ln -s pretrained.pt epoch-99.pt
 popd
 
 2. Export the model to ONNX
 
 ./zipformer/export-onnx.py \
-  --tokens $repo/data/lang_char/tokens.txt \
-  --epoch 9999 \
+  --tokens $repo/data/lang_bpe_500/tokens.txt \
+  --use-averaged-model 0 \
+  --epoch 99 \
   --avg 1 \
-  --exp-dir $repo/exp/
+  --exp-dir $repo/exp \
+  --causal False
 
 It will generate the following 3 files inside $repo/exp:
 
-  - encoder-epoch-9999-avg-1.onnx
-  - decoder-epoch-9999-avg-1.onnx
-  - joiner-epoch-9999-avg-1.onnx
+  - encoder-epoch-99-avg-1.onnx
+  - decoder-epoch-99-avg-1.onnx
+  - joiner-epoch-99-avg-1.onnx
 
 2. Run this file
 
 ./zipformer/onnx_decode.py \
-  --exp-dir ./zipformer/exp \
+  --exp-dir $repo/exp \
   --max-duration 600 \
-  --encoder-model-filename $repo/exp/encoder-epoch-9999-avg-1.onnx \
-  --decoder-model-filename $repo/exp/decoder-epoch-9999-avg-1.onnx \
-  --joiner-model-filename $repo/exp/joiner-epoch-9999-avg-1.onnx \
+  --encoder-model-filename $repo/exp/encoder-epoch-99-avg-1.onnx \
+  --decoder-model-filename $repo/exp/decoder-epoch-99-avg-1.onnx \
+  --joiner-model-filename $repo/exp/joiner-epoch-99-avg-1.onnx \
+  --tokens $repo/data/lang_bpe_500/tokens.txt \
 """
 
 
@@ -72,14 +74,14 @@ import time
 from pathlib import Path
 from typing import List, Tuple
 
-import k2
 import torch
 import torch.nn as nn
-from asr_datamodule import WenetSpeechAsrDataModule
-from lhotse.cut import Cut
-from onnx_pretrained import OnnxModel, greedy_search
+from asr_datamodule import LibriSpeechAsrDataModule
+
+from onnx_pretrained import greedy_search, OnnxModel
 
 from icefall.utils import setup_logger, store_transcripts, write_error_stats
+from k2 import SymbolTable
 
 
 def get_parser():
@@ -111,15 +113,14 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless7/exp",
+        default="zipformer/exp",
         help="The experiment dir",
     )
 
     parser.add_argument(
         "--tokens",
         type=str,
-        default="data/lang_char/tokens.txt",
-        help="Path to the tokens.txt",
+        help="""Path to tokens.txt.""",
     )
 
     parser.add_argument(
@@ -133,7 +134,7 @@ def get_parser():
 
 
 def decode_one_batch(
-    model: OnnxModel, token_table: k2.SymbolTable, batch: dict
+    model: OnnxModel, token_table: SymbolTable, batch: dict
 ) -> List[List[str]]:
     """Decode one batch and return the result.
     Currently it only greedy_search is supported.
@@ -142,7 +143,7 @@ def decode_one_batch(
       model:
         The neural model.
       token_table:
-        Mapping ids to tokens.
+        The token table.
       batch:
         It is the return value from iterating
         `lhotse.dataset.K2SpeechRecognitionDataset`. See its documentation
@@ -164,14 +165,20 @@ def decode_one_batch(
         model=model, encoder_out=encoder_out, encoder_out_lens=encoder_out_lens
     )
 
-    hyps = [[token_table[h] for h in hyp] for hyp in hyps]
+    def token_ids_to_words(token_ids: List[int]) -> str:
+        text = ""
+        for i in token_ids:
+            text += token_table[i]
+        return text.replace("▁", " ").strip()
+
+    hyps = [token_ids_to_words(h).split() for h in hyps]
     return hyps
 
 
 def decode_dataset(
     dl: torch.utils.data.DataLoader,
     model: nn.Module,
-    token_table: k2.SymbolTable,
+    token_table: SymbolTable,
 ) -> Tuple[List[Tuple[str, List[str], List[str]]], float]:
     """Decode dataset.
 
@@ -181,7 +188,7 @@ def decode_dataset(
       model:
         The neural model.
       token_table:
-        Mapping ids to tokens.
+        The token table.
 
     Returns:
       - A list of tuples. Each tuple contains three elements:
@@ -211,7 +218,7 @@ def decode_dataset(
         this_batch = []
         assert len(hyps) == len(texts)
         for cut_id, hyp_words, ref_text in zip(cut_ids, hyps, texts):
-            ref_words = list(ref_text)
+            ref_words = ref_text.split()
             this_batch.append((cut_id, ref_words, hyp_words))
 
         results.extend(this_batch)
@@ -256,7 +263,7 @@ def save_results(
 @torch.no_grad()
 def main():
     parser = get_parser()
-    WenetSpeechAsrDataModule.add_arguments(parser)
+    LibriSpeechAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
 
     assert (
@@ -270,8 +277,7 @@ def main():
     device = torch.device("cpu")
     logging.info(f"Device: {device}")
 
-    token_table = k2.SymbolTable.from_file(args.tokens)
-    assert token_table[0] == "<blk>"
+    token_table = SymbolTable.from_file(args.tokens)
 
     logging.info(vars(args))
 
@@ -284,37 +290,20 @@ def main():
 
     # we need cut ids to display recognition results.
     args.return_cuts = True
+    librispeech = LibriSpeechAsrDataModule(args)
 
-    wenetspeech = WenetSpeechAsrDataModule(args)
+    test_clean_cuts = librispeech.test_clean_cuts()
+    test_other_cuts = librispeech.test_other_cuts()
 
-    def remove_short_utt(c: Cut):
-        T = ((c.num_frames - 7) // 2 + 1) // 2
-        if T <= 0:
-            logging.warning(
-                f"Exclude cut with ID {c.id} from decoding, num_frames : {c.num_frames}."
-            )
-        return T > 0
+    test_clean_dl = librispeech.test_dataloaders(test_clean_cuts)
+    test_other_dl = librispeech.test_dataloaders(test_other_cuts)
 
-    dev_cuts = wenetspeech.valid_cuts()
-    dev_cuts = dev_cuts.filter(remove_short_utt)
-    dev_dl = wenetspeech.valid_dataloaders(dev_cuts)
-
-    test_net_cuts = wenetspeech.test_net_cuts()
-    test_net_cuts = test_net_cuts.filter(remove_short_utt)
-    test_net_dl = wenetspeech.test_dataloaders(test_net_cuts)
-
-    test_meeting_cuts = wenetspeech.test_meeting_cuts()
-    test_meeting_cuts = test_meeting_cuts.filter(remove_short_utt)
-    test_meeting_dl = wenetspeech.test_dataloaders(test_meeting_cuts)
-
-    test_sets = ["DEV", "TEST_NET", "TEST_MEETING"]
-    test_dl = [dev_dl, test_net_dl, test_meeting_dl]
+    test_sets = ["test-clean", "test-other"]
+    test_dl = [test_clean_dl, test_other_dl]
 
     for test_set, test_dl in zip(test_sets, test_dl):
         start_time = time.time()
-        results, total_duration = decode_dataset(
-            dl=test_dl, model=model, token_table=token_table
-        )
+        results, total_duration = decode_dataset(dl=test_dl, model=model, token_table=token_table)
         end_time = time.time()
         elapsed_seconds = end_time - start_time
         rtf = elapsed_seconds / total_duration
