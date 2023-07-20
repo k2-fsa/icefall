@@ -216,14 +216,14 @@ class MultiDataset:
                 self.fbank_dir / "wenetspeech" / "cuts_DEV.jsonl.gz"
                 )
 
-
-        return [
-                aidatatang_dev_cuts,
-                aishell_dev_cuts,
-                aishell2_dev_cuts,
-                alimeeting_dev_cuts,
-                magicdata_dev_cuts,
-                kespeech_dev_phase1_cuts,
-                kespeech_dev_phase2_cuts,
-                wenetspeech_dev_cuts,
-            ]
+        return wenetspeech_dev_cuts
+        # return [
+        #         aidatatang_dev_cuts,
+        #         aishell_dev_cuts,
+        #         aishell2_dev_cuts,
+        #         alimeeting_dev_cuts,
+        #         magicdata_dev_cuts,
+        #         kespeech_dev_phase1_cuts,
+        #         kespeech_dev_phase2_cuts,
+        #         wenetspeech_dev_cuts,
+        #     ]
