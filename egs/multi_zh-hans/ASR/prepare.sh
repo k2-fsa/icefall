@@ -256,8 +256,6 @@ if [ $stage -le 11 ] && [ $stop_stage -ge 11 ]; then
     log "Abort! Please run ../../wenetspeech/ASR/prepare.sh"
     exit 1
   fi
-  
-
 fi
 
 log "Dataset: KeSpeech"
@@ -309,4 +307,21 @@ if [ $stage -le 12 ] && [ $stop_stage -ge 12 ]; then
 
     touch data/fbank/.kespeech.done
   fi
+fi
+
+if [ $stage -le 13 ] && [ $stop_stage -ge 13 ]; then
+  log "Stage 13: BPE model training"
+  ./local/prepare_for_bpe_model.py --lang-dir ./data/lang_char --text ./data/lang_char/text
+
+  for vocab_size in ${vocab_sizes[@]}; do
+    lang_dir=data/lang_bpe_${vocab_size}
+    
+    mkdir -p $lang_dir
+    ./local/train_bpe_model.py \
+      --lang-dir $lang_dir \
+      --transcript ./data/lang_char/transcript_chars.txt \
+      --vocab-size $vocab_size
+  done
+  
+  ./local/train_bpe_model.py --lang-dir ./data/lang_bpe_${vocab_size}
 fi
