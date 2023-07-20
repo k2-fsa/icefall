@@ -43,6 +43,8 @@ import torch
 import torchaudio
 from kaldifeat import FbankOptions, OnlineFbank, OnlineFeature
 
+from ncnn_custom_layer import RegisterCustomLayers
+
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -109,6 +111,29 @@ class Model:
         self.init_joiner(args)
 
         # Please change the parameters according to your model
+
+        # 20M
+        # self.num_encoder_layers = to_int_tuple("2,2,2,2,2")
+        # self.encoder_dims = to_int_tuple("256,256,256,256,256")  # also known as d_model
+        # self.attention_dims = to_int_tuple("192,192,192,192,192")
+        # self.zipformer_downsampling_factors = to_int_tuple("1,2,4,8,2")
+        # self.cnn_module_kernels = to_int_tuple("31,31,31,31,31")
+
+        # 9.6M
+        # self.num_encoder_layers = to_int_tuple("2,3,2,2,3")
+        # self.encoder_dims = to_int_tuple("160,160,160,160,160")  # also known as d_model
+        # self.attention_dims = to_int_tuple("96,96,96,96,96")
+        # self.zipformer_downsampling_factors = to_int_tuple("1,2,4,8,2")
+        # self.cnn_module_kernels = to_int_tuple("31,31,31,31,31")
+
+        # 5.5M or 6M
+
+        # self.num_encoder_layers = to_int_tuple("2,2,2,2,2")
+        # self.encoder_dims = to_int_tuple("128,128,128,128,128")  # also known as d_model
+        # self.attention_dims = to_int_tuple("96,96,96,96,96")
+        # self.zipformer_downsampling_factors = to_int_tuple("1,2,4,8,2")
+        # self.cnn_module_kernels = to_int_tuple("31,31,31,31,31")
+
         self.num_encoder_layers = to_int_tuple("2,4,3,2,4")
         self.encoder_dims = to_int_tuple("384,384,384,384,384")  # also known as d_model
         self.attention_dims = to_int_tuple("192,192,192,192,192")
@@ -178,6 +203,8 @@ class Model:
 
         encoder_param = args.encoder_param_filename
         encoder_model = args.encoder_bin_filename
+
+        RegisterCustomLayers(encoder_net)
 
         encoder_net.load_param(encoder_param)
         encoder_net.load_model(encoder_model)

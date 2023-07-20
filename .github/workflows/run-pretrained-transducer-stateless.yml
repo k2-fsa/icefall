@@ -42,7 +42,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-18.04]
+        os: [ubuntu-latest]
         python-version: [3.7, 3.8, 3.9]
 
       fail-fast: false
@@ -71,7 +71,7 @@ jobs:
         with:
           path: |
             ~/tmp/kaldifeat
-          key: cache-tmp-${{ matrix.python-version }}-2022-09-25
+          key: cache-tmp-${{ matrix.python-version }}-2023-05-22
 
       - name: Install kaldifeat
         if: steps.my-cache.outputs.cache-hit != 'true'
@@ -154,5 +154,5 @@ jobs:
         uses: actions/upload-artifact@v2
         if: github.event_name == 'schedule' || github.event.label.name == 'run-decode'
         with:
-          name: torch-${{ matrix.torch }}-python-${{ matrix.python-version }}-ubuntu-18.04-cpu-transducer_stateless-2022-02-07
+          name: torch-${{ matrix.torch }}-python-${{ matrix.python-version }}-ubuntu-latest-cpu-transducer_stateless-2022-02-07
           path: egs/librispeech/ASR/transducer_stateless/exp/

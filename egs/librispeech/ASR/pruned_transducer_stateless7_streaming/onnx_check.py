@@ -71,12 +71,11 @@ It will generate the following 3 files inside $repo/exp:
 import argparse
 import logging
 
+import torch
 from onnx_pretrained import OnnxModel
 from zipformer import stack_states
 
 from icefall import is_module_available
-
-import torch
 
 
 def get_parser():

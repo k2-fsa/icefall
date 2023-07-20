@@ -79,6 +79,7 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
     --use-averaged-model True \
     --beam-size 4 \
     --exp-dir pruned_transducer_stateless7/exp_giga_finetune \
+    --bpe-model icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11/data/lang_bpe_500/bpe.model \
     --max-duration 400 \
     --decoding-method $m
   done

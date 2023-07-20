@@ -33,9 +33,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        # os: [ubuntu-18.04, macos-10.15]
+        # os: [ubuntu-latest, macos-10.15]
         # TODO: enable macOS for CPU testing
-        os: [ubuntu-18.04]
+        os: [ubuntu-latest]
         python-version: [3.8]
       fail-fast: false
 
@@ -68,6 +68,8 @@ jobs:
           grep -v '^#' ./requirements-ci.txt  | grep -v kaldifst | xargs -n 1 -L 1 pip install
           pip uninstall -y protobuf
           pip install --no-binary protobuf protobuf==3.20.*
+
+          pip install --no-deps --force-reinstall https://huggingface.co/csukuangfj/k2/resolve/main/cpu/k2-1.24.3.dev20230508+cpu.torch1.13.1-cp38-cp38-linux_x86_64.whl
 
       - name: Run yesno recipe
         shell: bash

@@ -1,0 +1,1 @@
+../../../aishell/ASR/local/prepare_char_lm_training_data.py

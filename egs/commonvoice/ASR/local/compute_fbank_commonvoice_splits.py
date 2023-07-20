@@ -90,7 +90,7 @@ def compute_fbank_commonvoice_splits(args):
     subset = "train"
     num_splits = args.num_splits
     language = args.language
-    output_dir = f"data/{language}/fbank/{subset}_split_{num_splits}"
+    output_dir = f"data/{language}/fbank/cv-{language}_{subset}_split_{num_splits}"
     output_dir = Path(output_dir)
     assert output_dir.exists(), f"{output_dir} does not exist!"
 

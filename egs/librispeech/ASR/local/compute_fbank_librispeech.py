@@ -35,7 +35,7 @@ from filter_cuts import filter_cuts
 from lhotse import CutSet, Fbank, FbankConfig, LilcomChunkyWriter
 from lhotse.recipes.utils import read_manifests_if_cached
 
-from icefall.utils import get_executor
+from icefall.utils import get_executor, str2bool
 
 # Torch's multithreaded behavior needs to be disabled or
 # it wastes a lot of CPU and slow things down.
@@ -61,12 +61,20 @@ def get_args():
         help="""Dataset parts to compute fbank. If None, we will use all""",
     )
 
+    parser.add_argument(
+        "--perturb-speed",
+        type=str2bool,
+        default=True,
+        help="""Perturb speed with factor 0.9 and 1.1 on train subset.""",
+    )
+
     return parser.parse_args()
 
 
 def compute_fbank_librispeech(
     bpe_model: Optional[str] = None,
     dataset: Optional[str] = None,
+    perturb_speed: Optional[bool] = True,
 ):
     src_dir = Path("data/manifests")
     output_dir = Path("data/fbank")
@@ -125,9 +133,13 @@ def compute_fbank_librispeech(
             if "train" in partition:
                 if bpe_model:
                     cut_set = filter_cuts(cut_set, sp)
-                cut_set = (
-                    cut_set + cut_set.perturb_speed(0.9) + cut_set.perturb_speed(1.1)
-                )
+                if perturb_speed:
+                    logging.info(f"Doing speed perturb")
+                    cut_set = (
+                        cut_set
+                        + cut_set.perturb_speed(0.9)
+                        + cut_set.perturb_speed(1.1)
+                    )
             cut_set = cut_set.compute_and_store_features(
                 extractor=extractor,
                 storage_path=f"{output_dir}/{prefix}_feats_{partition}",
@@ -145,4 +157,8 @@ if __name__ == "__main__":
     logging.basicConfig(format=formatter, level=logging.INFO)
     args = get_args()
     logging.info(vars(args))
-    compute_fbank_librispeech(bpe_model=args.bpe_model, dataset=args.dataset)
+    compute_fbank_librispeech(
+        bpe_model=args.bpe_model,
+        dataset=args.dataset,
+        perturb_speed=args.perturb_speed,
+    )

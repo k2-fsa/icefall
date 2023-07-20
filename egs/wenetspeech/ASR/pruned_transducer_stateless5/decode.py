@@ -92,7 +92,7 @@ When training with the L subset, the streaming usage:
         --causal-convolution 1 \
         --decode-chunk-size 16 \
         --left-context 64
-        
+
 (4) modified beam search with RNNLM shallow fusion
 ./pruned_transducer_stateless5/decode.py \
     --epoch 35 \
@@ -112,8 +112,10 @@ When training with the L subset, the streaming usage:
 
 
 import argparse
+import glob
 import logging
 import math
+import os
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -133,7 +135,8 @@ from beam_search import (
 )
 from train import add_model_arguments, get_params, get_transducer_model
 
-from icefall import LmScorer, NgramLm
+from icefall import ContextGraph, LmScorer, NgramLm
+from icefall.char_graph_compiler import CharCtcTrainingGraphCompiler
 from icefall.checkpoint import (
     average_checkpoints,
     average_checkpoints_with_averaged_model,
@@ -308,6 +311,26 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--context-score",
+        type=float,
+        default=2,
+        help="""
+        The bonus score of each token for the context biasing words/phrases.
+        Used only when --decoding_method is modified_beam_search.
+        """,
+    )
+
+    parser.add_argument(
+        "--context-file",
+        type=str,
+        default="",
+        help="""
+        The path of the context biasing lists, one word/phrase each line
+        Used only when --decoding_method is modified_beam_search.
+        """,
+    )
+
+    parser.add_argument(
         "--use-shallow-fusion",
         type=str2bool,
         default=False,
@@ -362,6 +385,7 @@ def decode_one_batch(
     lexicon: Lexicon,
     batch: dict,
     decoding_graph: Optional[k2.Fsa] = None,
+    context_graph: Optional[ContextGraph] = None,
     ngram_lm: Optional[NgramLm] = None,
     ngram_lm_scale: float = 1.0,
     LM: Optional[LmScorer] = None,
@@ -402,14 +426,13 @@ def decode_one_batch(
     supervisions = batch["supervisions"]
     feature_lens = supervisions["num_frames"].to(device)
 
-    feature_lens += params.left_context
-    feature = torch.nn.functional.pad(
-        feature,
-        pad=(0, 0, 0, params.left_context),
-        value=LOG_EPS,
-    )
-
     if params.simulate_streaming:
+        feature_lens += params.left_context
+        feature = torch.nn.functional.pad(
+            feature,
+            pad=(0, 0, 0, params.left_context),
+            value=LOG_EPS,
+        )
         encoder_out, encoder_out_lens, _ = model.encoder.streaming_forward(
             x=feature,
             x_lens=feature_lens,
@@ -448,6 +471,7 @@ def decode_one_batch(
             encoder_out=encoder_out,
             beam=params.beam_size,
             encoder_out_lens=encoder_out_lens,
+            context_graph=context_graph,
         )
         for i in range(encoder_out.size(0)):
             hyps.append([lexicon.token_table[idx] for idx in hyp_tokens[i]])
@@ -509,7 +533,12 @@ def decode_one_batch(
             ): hyps
         }
     else:
-        return {f"beam_size_{params.beam_size}": hyps}
+        key = f"beam_size_{params.beam_size}"
+        if params.has_contexts:
+            key += f"-context-score-{params.context_score}"
+        else:
+            key += "-no-context-words"
+        return {key: hyps}
 
 
 def decode_dataset(
@@ -518,6 +547,7 @@ def decode_dataset(
     model: nn.Module,
     lexicon: Lexicon,
     decoding_graph: Optional[k2.Fsa] = None,
+    context_graph: Optional[ContextGraph] = None,
     ngram_lm: Optional[NgramLm] = None,
     ngram_lm_scale: float = 1.0,
     LM: Optional[LmScorer] = None,
@@ -558,7 +588,7 @@ def decode_dataset(
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
         texts = batch["supervisions"]["text"]
-        texts = [list(str(text)) for text in texts]
+        texts = [list("".join(text.split())) for text in texts]
         cut_ids = [cut.id for cut in batch["supervisions"]["cut"]]
 
         hyps_dict = decode_one_batch(
@@ -567,6 +597,7 @@ def decode_dataset(
             lexicon=lexicon,
             decoding_graph=decoding_graph,
             batch=batch,
+            context_graph=context_graph,
             ngram_lm=ngram_lm,
             ngram_lm_scale=ngram_lm_scale,
             LM=LM,
@@ -646,6 +677,12 @@ def main():
         "modified_beam_search_lm_shallow_fusion",
         "modified_beam_search_LODR",
     )
+
+    if os.path.exists(params.context_file):
+        params.has_contexts = True
+    else:
+        params.has_contexts = False
+
     params.res_dir = params.exp_dir / params.decoding_method
 
     params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
@@ -655,6 +692,10 @@ def main():
         params.suffix += f"-max-states-{params.max_states}"
     elif "beam_search" in params.decoding_method:
         params.suffix += f"-beam-{params.beam_size}"
+        if params.has_contexts:
+            params.suffix += f"-context-score-{params.context_score}"
+        else:
+            params.suffix += "-no-contexts-words"
     else:
         params.suffix += f"-context-{params.context_size}"
         params.suffix += f"-max-sym-per-frame-{params.max_sym_per_frame}"
@@ -684,10 +725,14 @@ def main():
 
     logging.info(f"Device: {device}")
 
-    # import pdb; pdb.set_trace()
     lexicon = Lexicon(params.lang_dir)
     params.blank_id = lexicon.token_table["<blk>"]
     params.vocab_size = max(lexicon.tokens) + 1
+
+    graph_compiler = CharCtcTrainingGraphCompiler(
+        lexicon=lexicon,
+        device=device,
+    )
 
     if params.simulate_streaming:
         assert (
@@ -816,6 +861,19 @@ def main():
     else:
         decoding_graph = None
 
+    if params.decoding_method == "modified_beam_search":
+        if os.path.exists(params.context_file):
+            contexts_text = []
+            for line in open(params.context_file).readlines():
+                contexts_text.append(line.strip())
+            contexts = graph_compiler.texts_to_ids(contexts_text)
+            context_graph = ContextGraph(params.context_score)
+            context_graph.build(contexts)
+        else:
+            context_graph = None
+    else:
+        context_graph = None
+
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
@@ -833,15 +891,16 @@ def main():
     test_meeting_dl = wenetspeech.test_dataloaders(test_meeting_cuts)
 
     test_sets = ["DEV", "TEST_NET", "TEST_MEETING"]
-    test_dl = [dev_dl, test_net_dl, test_meeting_dl]
+    test_dls = [dev_dl, test_net_dl, test_meeting_dl]
 
-    for test_set, test_dl in zip(test_sets, test_dl):
+    for test_set, test_dl in zip(test_sets, test_dls):
         results_dict = decode_dataset(
             dl=test_dl,
             params=params,
             model=model,
             lexicon=lexicon,
             decoding_graph=decoding_graph,
+            context_graph=context_graph,
             ngram_lm=ngram_lm,
             ngram_lm_scale=ngram_lm_scale,
             LM=LM,

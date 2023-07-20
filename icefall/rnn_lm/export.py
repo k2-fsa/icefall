@@ -26,7 +26,7 @@ import torch
 from model import RnnLmModel
 
 from icefall.checkpoint import average_checkpoints, find_checkpoints, load_checkpoint
-from icefall.utils import AttributeDict, load_averaged_model, str2bool
+from icefall.utils import AttributeDict, str2bool
 
 
 def get_parser():
@@ -118,6 +118,7 @@ def get_parser():
     return parser
 
 
+@torch.no_grad()
 def main():
     args = get_parser().parse_args()
     args.exp_dir = Path(args.exp_dir)
@@ -180,6 +181,10 @@ def main():
 
     if params.jit:
         logging.info("Using torch.jit.script")
+
+        model.__class__.score_token_onnx = torch.jit.export(
+            model.__class__.score_token_onnx
+        )
         model = torch.jit.script(model)
         filename = params.exp_dir / "cpu_jit.pt"
         model.save(str(filename))
