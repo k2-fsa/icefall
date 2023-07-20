@@ -118,7 +118,12 @@ from beam_search import (
     greedy_search_batch,
     modified_beam_search,
 )
-from text_normalization import simple_normalization, upper_normalization
+from lhotse.cut import Cut
+from text_normalization import (
+    simple_normalization,
+    upper_normalization,
+    word_normalization,
+)
 from train import add_model_arguments, get_model, get_params
 
 from icefall.checkpoint import (
@@ -802,14 +807,29 @@ def main():
     args.return_cuts = True
     libriheavy = LibriHeavyAsrDataModule(args)
 
+    def add_texts(c: Cut):
+        text = c.supervisions[0].text
+        c.supervisions[0].texts = [text]
+        return c
+
     test_clean_cuts = libriheavy.test_clean_cuts()
     test_other_cuts = libriheavy.test_other_cuts()
+    ls_test_clean_cuts = libriheavy.librispeech_test_clean_cuts()
+    ls_test_other_cuts = libriheavy.librispeech_test_other_cuts()
+
+    ls_test_clean_cuts = ls_test_clean_cuts.map(add_texts)
+    ls_test_other_cuts = ls_test_other_cuts.map(add_texts)
 
     test_clean_dl = libriheavy.test_dataloaders(test_clean_cuts)
     test_other_dl = libriheavy.test_dataloaders(test_other_cuts)
+    ls_test_clean_dl = libriheavy.test_dataloaders(ls_test_clean_cuts)
+    ls_test_other_dl = libriheavy.test_dataloaders(ls_test_other_cuts)
 
-    test_sets = ["libriheavy-test-clean", "libriheavy-test-other"]
-    test_dl = [test_clean_dl, test_other_dl]
+    # test_sets = ["libriheavy-test-clean", "libriheavy-test-other", "librispeech-test-clean", "librispeech-test-other"]
+    # test_dl = [test_clean_dl, test_other_dl, ls_test_clean_dl, ls_test_other_dl]
+
+    test_sets = ["librispeech-test-clean", "librispeech-test-other"]
+    test_dl = [ls_test_clean_dl, ls_test_other_dl]
 
     for test_set, test_dl in zip(test_sets, test_dl):
         results_dict = decode_dataset(
@@ -834,12 +854,12 @@ def main():
             for k in results_dict:
                 new_ans = []
                 for item in results_dict[k]:
-                    id, hyp, ref = item
-                    hyp = [upper_normalization(w.upper()) for w in hyp]
+                    id, ref, hyp = item
+                    hyp = upper_normalization(" ".join(hyp)).split()
+                    hyp = [word_normalization(w) for w in hyp]
+                    hyp = " ".join(hyp).split()
                     hyp = [w for w in hyp if w != ""]
-                    ref = [upper_normalization(w.upper()) for w in ref]
-                    ref = [w for w in ref if w != ""]
-                    new_ans.append((id, hyp, ref))
+                    new_ans.append((id, ref, hyp))
                 new_res[k] = new_ans
 
             save_results(
