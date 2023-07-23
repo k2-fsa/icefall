@@ -120,7 +120,7 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
             lm_pruned: input of shape (seq_len, batch_size * prune_range, decoder_embed_dim)
             am_pruned: input of shape (seq_len, batch_size * prune_range, encoder_embed_dim)
             pos_emb: Positional embedding tensor, of shape (1, 2*seq_len - 1, pos_dim)
-            key_padding_mask: a bool tensor of shape (batch_size * prune_range, seq_len).  Positions 
+            key_padding_mask: a bool tensor of shape (batch_size * prune_range, seq_len).  Positions
                that are True in this mask will be ignored as sources in the attention weighting.
             attn_mask: mask of shape (seq_len, seq_len)
             or (seq_len, batch_size * prune_range, batch_size * prune_range),

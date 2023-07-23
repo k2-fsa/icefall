@@ -21,7 +21,6 @@ from typing import Optional, Tuple
 import k2
 import torch
 import torch.nn as nn
-from alignment_attention_module import AlignmentAttentionModule
 from encoder_interface import EncoderInterface
 from scaling import ScaledLinear
 
@@ -35,7 +34,6 @@ class AsrModel(nn.Module):
         encoder: EncoderInterface,
         decoder: Optional[nn.Module] = None,
         joiner: Optional[nn.Module] = None,
-        label_level_am_attention: Optional[nn.Module] = None,
         encoder_dim: int = 384,
         decoder_dim: int = 512,
         vocab_size: int = 500,
@@ -112,8 +110,6 @@ class AsrModel(nn.Module):
                 nn.Linear(encoder_dim, vocab_size),
                 nn.LogSoftmax(dim=-1),
             )
-
-        self.label_level_am_attention = label_level_am_attention
 
     def forward_encoder(
         self, x: torch.Tensor, x_lens: torch.Tensor
@@ -264,14 +260,11 @@ class AsrModel(nn.Module):
             ranges=ranges,
         )
 
-        
-        label_level_am_pruned = self.label_level_am_attention(am_pruned, lm_pruned)
-
         # logits : [B, T, prune_range, vocab_size]
 
         # project_input=False since we applied the decoder's input projections
         # prior to do_rnnt_pruning (this is an optimization for speed).
-        logits = self.joiner(label_level_am_pruned, lm_pruned, project_input=False)
+        logits = self.joiner(am_pruned, lm_pruned, project_input=False)
 
         with torch.cuda.amp.autocast(enabled=False):
             pruned_loss = k2.rnnt_loss_pruned(
