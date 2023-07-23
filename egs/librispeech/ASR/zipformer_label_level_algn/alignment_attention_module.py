@@ -336,7 +336,7 @@ class AlignmentAttentionModule(nn.Module):
 
         attn_weights = self.cross_attn_weights(lm_pruned, am_pruned, pos_emb)
         label_level_am_representation = self.cross_attn(am_pruned, attn_weights)
-        return label_level_am_representation
+        return label_level_am_representation.reshape(batch_size, T, prune_range, encoder_dim)
 
 
 if __name__ == "__main__":
