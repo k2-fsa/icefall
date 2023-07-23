@@ -35,6 +35,7 @@ class AsrModel(nn.Module):
         encoder: EncoderInterface,
         decoder: Optional[nn.Module] = None,
         joiner: Optional[nn.Module] = None,
+        label_level_am_attention: Optional[nn.Module] = None,
         encoder_dim: int = 384,
         decoder_dim: int = 512,
         vocab_size: int = 500,
@@ -112,7 +113,7 @@ class AsrModel(nn.Module):
                 nn.LogSoftmax(dim=-1),
             )
 
-        self.label_level_am_attention = AlignmentAttentionModule()
+        self.label_level_am_attention = label_level_am_attention
 
     def forward_encoder(
         self, x: torch.Tensor, x_lens: torch.Tensor

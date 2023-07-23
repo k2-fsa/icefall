@@ -65,6 +65,7 @@ import sentencepiece as spm
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
+from alignment_attention_module import AlignmentAttentionModule
 from asr_datamodule import LibriSpeechAsrDataModule
 from decoder import Decoder
 from joiner import Joiner
@@ -602,6 +603,9 @@ def get_joiner_model(params: AttributeDict) -> nn.Module:
     )
     return joiner
 
+def get_attn_module(params: AttributeDict) -> nn.Module:
+    attn_module = AlignmentAttentionModule()
+    return attn_module
 
 def get_model(params: AttributeDict) -> nn.Module:
     assert (
@@ -620,11 +624,14 @@ def get_model(params: AttributeDict) -> nn.Module:
         decoder = None
         joiner = None
 
+    attn = get_attn_module(params)
+    
     model = AsrModel(
         encoder_embed=encoder_embed,
         encoder=encoder,
         decoder=decoder,
         joiner=joiner,
+        label_level_am_attention=attn,
         encoder_dim=max(_to_int_tuple(params.encoder_dim)),
         decoder_dim=params.decoder_dim,
         vocab_size=params.vocab_size,
