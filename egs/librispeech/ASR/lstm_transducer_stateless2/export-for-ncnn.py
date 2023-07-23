@@ -224,7 +224,7 @@ def main():
     # Load tokens.txt here
     token_table = k2.SymbolTable.from_file(params.tokens)
 
-    # Load id of the <blk> token and the vocab size, <blk> is 
+    # Load id of the <blk> token and the vocab size, <blk> is
     # defined in local/train_bpe_model.py
     params.blank_id = token_table["<blk>"]
     params.vocab_size = num_tokens(token_table) + 1  # +1 for <blk>
