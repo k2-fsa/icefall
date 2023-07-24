@@ -135,7 +135,7 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
       --num-workers $nj \
       --batch-duration 600 \
       --start 0 \
-      --num-splits 2000
+      --num-splits 300
     touch data/fbank/.bengaliai_speech_train.done
   fi
 fi
@@ -159,10 +159,8 @@ if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
     if [ ! -f $lang_dir/transcript_words.txt ]; then
       log "Generate data for BPE training"
       file=$(
-        find "data/fbank/bengaliai_speech_cuts_dirty_raw.jsonl.gz"
-	find "data/fbank/bengaliai_speech_cuts_dirty_sa_raw.jsonl.gz"
-	find "data/fbank/bengaliai_speech_cuts_clean_raw.jsonl.gz"
-	find "data/fbank/bengaliai_speech_cuts_clean_sa_raw.jsonl.gz"
+        find "data/fbank/bengaliai_speech_cuts_train_raw.jsonl.gz"
+	find "data/fbank/bengaliai_speech_cuts_valid_raw.jsonl.gz"
       )
       gunzip -c ${file} | awk -F '"' '{print $30}' > $lang_dir/transcript_words.txt
 
