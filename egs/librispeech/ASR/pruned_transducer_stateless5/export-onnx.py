@@ -60,8 +60,8 @@ import sentencepiece as spm
 import torch
 import torch.nn as nn
 from conformer import Conformer
-from onnxruntime.quantization import QuantType, quantize_dynamic
 from decoder import Decoder
+from onnxruntime.quantization import QuantType, quantize_dynamic
 from scaling_converter import convert_scaled_to_non_scaled
 from train import add_model_arguments, get_params, get_transducer_model
 
@@ -586,7 +586,7 @@ def main():
     quantize_dynamic(
         model_input=decoder_filename,
         model_output=decoder_filename_int8,
-        op_types_to_quantize=["MatMul"],
+        op_types_to_quantize=["MatMul", "Gather"],
         weight_type=QuantType.QInt8,
     )
 
