@@ -38,7 +38,7 @@ def get_args():
 
 
 def normalize_text(utt: str) -> str:
-    punc = '~`!#$%^&*()_+-=|\';":/.,?><~·！@#￥%……&*（）——+-=“：’；、。，？》《{}'
+    punc = "~`!#$%^&*()_+-=|';\":/.,?><~·！@#￥%……&*（）——+-=“：’；、。，？》《{}"
     return re.sub(r"[{0}]+".format(punc), "", utt).upper()
 
 
