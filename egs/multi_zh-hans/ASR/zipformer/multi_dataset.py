@@ -19,6 +19,7 @@ import glob
 import logging
 import re
 from pathlib import Path
+from typing import List, Dict
 
 import lhotse
 from lhotse import CutSet, load_manifest_lazy
@@ -215,3 +216,69 @@ class MultiDataset:
         #         kespeech_dev_phase2_cuts,
         #         wenetspeech_dev_cuts,
         #     ]
+
+    def test_cuts(self) -> Dict[str, CutSet]:
+        logging.info("About to get multidataset test cuts")
+
+        # Aidatatang_200zh
+        logging.info("Loading Aidatatang_200zh TEST set in lazy mode")
+        aidatatang_test_cuts = load_manifest_lazy(
+            self.fbank_dir / "aidatatang_cuts_test.jsonl.gz"
+        )
+
+        # AISHELL
+        logging.info("Loading Aishell TEST set in lazy mode")
+        aishell_test_cuts = load_manifest_lazy(
+            self.fbank_dir / "aishell_cuts_test.jsonl.gz"
+        )
+
+        # AISHELL-2
+        logging.info("Loading Aishell-2 TEST set in lazy mode")
+        aishell2_test_cuts = load_manifest_lazy(
+            self.fbank_dir / "aishell2_cuts_test.jsonl.gz"
+        )
+
+        # AISHELL-4
+        logging.info("Loading Aishell-4 TEST set in lazy mode")
+        aishell4_test_cuts = load_manifest_lazy(
+            self.fbank_dir / "aishell4_cuts_test.jsonl.gz"
+        )
+
+        # Ali-Meeting
+        logging.info("Loading Ali-Meeting TEST set in lazy mode")
+        alimeeting_test_cuts = load_manifest_lazy(
+            self.fbank_dir / "alimeeting-far_cuts_test.jsonl.gz"
+        )
+
+        # MagicData
+        logging.info("Loading MagicData TEST set in lazy mode")
+        magicdata_test_cuts = load_manifest_lazy(
+            self.fbank_dir / "magicdata_cuts_test.jsonl.gz"
+        )
+
+        # KeSpeech
+        logging.info("Loading KeSpeech TEST set in lazy mode")
+        kespeech_test_cuts = load_manifest_lazy(
+            self.fbank_dir / "kespeech" / "kespeech-asr_cuts_test.jsonl.gz"
+        )
+
+        # WeNetSpeech
+        logging.info("Loading WeNetSpeech TEST set in lazy mode")
+        wenetspeech_test_meeting_cuts = load_manifest_lazy(
+            self.fbank_dir / "wenetspeech" / "cuts_TEST_MEETING.jsonl.gz"
+        )
+        wenetspeech_test_net_cuts = load_manifest_lazy(
+            self.fbank_dir / "wenetspeech" / "cuts_TEST_NET.jsonl.gz"
+        )
+
+        return {
+            "aidatatang": aidatatang_test_cuts,
+            # "alimeeting": alimeeting_test_cuts,
+            "aishell": aishell_test_cuts,
+            "aishell-2": aishell2_test_cuts,
+            "aishell-4": aishell4_test_cuts,
+            "magicdata": magicdata_test_cuts,
+            "kespeech": kespeech_test_cuts,
+            "wenetspeech-meeting": wenetspeech_test_meeting_cuts,
+            "wenetspeech-net": wenetspeech_test_net_cuts,
+        }
