@@ -113,9 +113,7 @@ def compute_fbank_bengaliai_speech_splits(args):
             logging.info(f"{cuts_path} exists - skipping")
             continue
 
-        raw_cuts_path = (
-            output_dir / f"bengaliai_speech_cuts_train_raw.{idx}.jsonl.gz"
-        )
+        raw_cuts_path = output_dir / f"bengaliai_speech_cuts_train_raw.{idx}.jsonl.gz"
 
         logging.info(f"Loading {raw_cuts_path}")
         cut_set = CutSet.from_file(raw_cuts_path)
