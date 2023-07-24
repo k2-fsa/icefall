@@ -66,9 +66,9 @@ log "Decode with models exported by torch.jit.trace()"
 for m in ctc-decoding 1best; do
   ./conformer_ctc3/jit_pretrained.py \
     --model-filename $repo/exp/jit_trace.pt \
-    --words-file $repo/data/lang_bpe_500/words.txt \
+    --words-file $repo/data/lang_bpe_500/words.txt  \
     --HLG $repo/data/lang_bpe_500/HLG.pt \
-    --tokens $repo/data/lang_bpe_500/tokens.txt \
+    --bpe-model $repo/data/lang_bpe_500/bpe.model \
     --G $repo/data/lm/G_4_gram.pt \
     --method $m \
     --sample-rate 16000 \
