@@ -35,9 +35,9 @@ jobs:
       matrix:
         os: [ubuntu-latest]
         python-version: ["3.8"]
-        torch: ["1.10.0"]
-        torchaudio: ["0.10.0"]
-        k2-version: ["1.23.2.dev20221201"]
+        torch: ["1.13.0"]
+        torchaudio: ["0.13.0"]
+        k2-version: ["1.24.3.dev20230719"]
 
       fail-fast: false
 
@@ -83,13 +83,6 @@ jobs:
           python3 -m pip install -qq graphviz
           sudo apt-get -qq install graphviz
 
-      - name: Install graphviz
-        if: startsWith(matrix.os, 'macos')
-        shell: bash
-        run: |
-          python3 -m pip install -qq graphviz
-          brew install -q graphviz
-
       - name: Run tests
         if: startsWith(matrix.os, 'ubuntu')
         run: |
@@ -115,47 +108,6 @@ jobs:
 
           echo $PYTHONPATH
           cd ../pruned_transducer_stateless7
-          pytest -v -s
-
-          cd ../transducer_stateless
-          pytest -v -s
-
-          # cd ../transducer
-          # pytest -v -s
-
-          cd ../transducer_stateless2
-          pytest -v -s
-
-          cd ../transducer_lstm
-          pytest -v -s
-
-          cd ../zipformer
-          pytest -v -s
-
-      - name: Run tests
-        if: startsWith(matrix.os, 'macos')
-        run: |
-          ls -lh
-          export PYTHONPATH=$PWD:$PWD/lhotse:$PYTHONPATH
-          lib_path=$(python -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")
-          echo "lib_path: $lib_path"
-          export DYLD_LIBRARY_PATH=$lib_path:$DYLD_LIBRARY_PATH
-          pytest -v -s ./test
-
-          # run tests for conformer ctc
-          cd egs/librispeech/ASR/conformer_ctc
-          pytest -v -s
-
-          cd ../pruned_transducer_stateless
-          pytest -v -s
-
-          cd ../pruned_transducer_stateless2
-          pytest -v -s
-
-          cd ../pruned_transducer_stateless3
-          pytest -v -s
-
-          cd ../pruned_transducer_stateless4
           pytest -v -s
 
           cd ../transducer_stateless
