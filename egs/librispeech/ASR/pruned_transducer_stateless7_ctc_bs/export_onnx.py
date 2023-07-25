@@ -727,7 +727,7 @@ def main():
         device = torch.device("cuda", 0)
 
     logging.info(f"device: {device}")
-    
+
     # Load tokens.txt here
     token_table = k2.SymbolTable.from_file(params.tokens)
 
