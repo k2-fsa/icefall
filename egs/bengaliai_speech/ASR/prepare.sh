@@ -135,7 +135,7 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
       --num-workers $nj \
       --batch-duration 600 \
       --start 0 \
-      --num-splits 300
+      --num-splits 233
     touch data/fbank/.bengaliai_speech_train.done
   fi
 fi

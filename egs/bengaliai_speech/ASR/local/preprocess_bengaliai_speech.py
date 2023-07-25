@@ -38,8 +38,8 @@ def get_args():
 
 
 def normalize_text(utt: str) -> str:
-    punc = "~`!#$%^&*()_+-=|';\":/.,?><~·！@#￥%……&*（）——+-=“：’；、。，？》《{}"
-    return re.sub(r"[{0}]+".format(punc), "", utt).upper()
+    opr_and_punc = "=\+\-\*\/%<>×÷" + "।,;:\?!'\.\"-\[\]\{\}\(\)–—―~"
+    return re.sub(r"[{0}]+".format(opr_and_punc), "", utt).upper()
 
 
 def preprocess_bengaliai_speech(
@@ -109,7 +109,9 @@ def preprocess_bengaliai_speech(
 
 
 def main():
-    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
+    formatter = (
+        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
+    )
 
     logging.basicConfig(format=formatter, level=logging.INFO)
     args = get_args()
