@@ -125,7 +125,7 @@ class PiecewiseLinear(object):
                          p: 'PiecewiseLinear',
                          include_crossings: bool = False):
         """
-        Returns (self_mod, p_mod) which are equivalent piecewise lienar
+        Returns (self_mod, p_mod) which are equivalent piecewise linear
         functions to self and p, but with the same x values.
 
           p: the other piecewise linear function
@@ -166,7 +166,7 @@ class ScheduledFloat(torch.nn.Module):
     in, float(parent_module.whatever), and use it as something like a dropout prob.
 
     It is a floating point value whose value changes depending on the batch count of the
-    training loop.  It is a piecewise linear function where you specifiy the (x,y) pairs
+    training loop.  It is a piecewise linear function where you specify the (x,y) pairs
     in sorted order on x; x corresponds to the batch index.  For batch-index values before the
     first x or after the last x, we just use the first or last y value.
 
@@ -343,7 +343,7 @@ class MaxEigLimiterFunction(torch.autograd.Function):
 class BiasNormFunction(torch.autograd.Function):
     # This computes:
     #   scales = (torch.mean((x - bias) ** 2, keepdim=True)) ** -0.5 * log_scale.exp()
-    #   return (x - bias) * scales
+    #   return x * scales
     # (after unsqueezing the bias), but it does it in a memory-efficient way so that
     # it can just store the returned value (chances are, this will also be needed for
     # some other reason, related to the next operation, so we can save memory).
@@ -400,8 +400,8 @@ class BiasNorm(torch.nn.Module):
     Args:
        num_channels: the number of channels, e.g. 512.
        channel_dim: the axis/dimension corresponding to the channel,
-         interprted as an offset from the input's ndim if negative.
-         shis is NOT the num_channels; it should typically be one of
+         interpreted as an offset from the input's ndim if negative.
+         This is NOT the num_channels; it should typically be one of
          {-2, -1, 0, 1, 2, 3}.
       log_scale: the initial log-scale that we multiply the output by; this
          is learnable.
@@ -1286,7 +1286,7 @@ class Dropout3(nn.Module):
 
 class SwooshLFunction(torch.autograd.Function):
     """
-      swoosh(x) =  log(1 + exp(x-4)) - 0.08*x - 0.035
+      swoosh_l(x) =  log(1 + exp(x-4)) - 0.08*x - 0.035
     """
 
     @staticmethod
@@ -1361,7 +1361,7 @@ class SwooshLOnnx(torch.nn.Module):
 
 class SwooshRFunction(torch.autograd.Function):
     """
-      swoosh(x) =  log(1 + exp(x-1)) - 0.08*x - 0.313261687
+      swoosh_r(x) =  log(1 + exp(x-1)) - 0.08*x - 0.313261687
 
      derivatives are between -0.08 and 0.92.
     """
