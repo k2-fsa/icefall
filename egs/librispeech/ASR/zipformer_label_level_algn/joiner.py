@@ -39,6 +39,7 @@ class Joiner(nn.Module):
         self,
         encoder_out: torch.Tensor,
         decoder_out: torch.Tensor,
+        lengths: torch.Tensor,
         apply_attn: bool = True,
         project_input: bool = True,
     ) -> torch.Tensor:
@@ -62,8 +63,10 @@ class Joiner(nn.Module):
             decoder_out.shape,
         )
 
-        if apply_attn:
-            encoder_out = self.label_level_am_attention(encoder_out, decoder_out)
+        if apply_attn and lengths is not None:
+            encoder_out = self.label_level_am_attention(
+                encoder_out, decoder_out, lengths
+            )
 
         if project_input:
             logit = self.encoder_proj(encoder_out) + self.decoder_proj(decoder_out)
