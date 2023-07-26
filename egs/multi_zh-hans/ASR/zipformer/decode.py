@@ -125,6 +125,7 @@ from icefall.checkpoint import (
     find_checkpoints,
     load_checkpoint,
 )
+from lhotse.cut import Cut
 from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
@@ -792,11 +793,19 @@ def main():
     # test_clean_dl = librispeech.test_dataloaders(test_clean_cuts)
     # test_other_dl = librispeech.test_dataloaders(test_other_cuts)
 
+    def remove_short_utt(c: Cut):
+        T = ((c.num_frames - 7) // 2 + 1) // 2
+        if T <= 0:
+            logging.warning(
+                f"Excluding cut with ID: {c.id} from decoding, num_frames: {c.num_frames}"
+            )
+        return T > 0
+
     test_sets_cuts = multi_dataset.test_cuts()
 
     test_sets = test_sets_cuts.keys()
     test_dl = [
-        librispeech.test_dataloaders(test_sets_cuts[cuts_name])
+        librispeech.test_dataloaders(test_sets_cuts[cuts_name].filter(remove_short_utt))
         for cuts_name in test_sets
     ]
 

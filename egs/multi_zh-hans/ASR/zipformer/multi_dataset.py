@@ -221,21 +221,30 @@ class MultiDataset:
         logging.info("About to get multidataset test cuts")
 
         # Aidatatang_200zh
-        logging.info("Loading Aidatatang_200zh TEST set in lazy mode")
+        logging.info("Loading Aidatatang_200zh set in lazy mode")
         aidatatang_test_cuts = load_manifest_lazy(
             self.fbank_dir / "aidatatang_cuts_test.jsonl.gz"
         )
+        aidatatang_dev_cuts = load_manifest_lazy(
+            self.fbank_dir / "aidatatang_cuts_dev.jsonl.gz"
+        )
 
         # AISHELL
-        logging.info("Loading Aishell TEST set in lazy mode")
+        logging.info("Loading Aishell set in lazy mode")
         aishell_test_cuts = load_manifest_lazy(
             self.fbank_dir / "aishell_cuts_test.jsonl.gz"
         )
+        aishell_dev_cuts = load_manifest_lazy(
+            self.fbank_dir / "aishell_cuts_dev.jsonl.gz"
+        )
 
         # AISHELL-2
-        logging.info("Loading Aishell-2 TEST set in lazy mode")
+        logging.info("Loading Aishell-2 set in lazy mode")
         aishell2_test_cuts = load_manifest_lazy(
             self.fbank_dir / "aishell2_cuts_test.jsonl.gz"
+        )
+        aishell2_dev_cuts = load_manifest_lazy(
+            self.fbank_dir / "aishell2_cuts_dev.jsonl.gz"
         )
 
         # AISHELL-4
@@ -245,40 +254,63 @@ class MultiDataset:
         )
 
         # Ali-Meeting
-        logging.info("Loading Ali-Meeting TEST set in lazy mode")
+        logging.info("Loading Ali-Meeting set in lazy mode")
         alimeeting_test_cuts = load_manifest_lazy(
             self.fbank_dir / "alimeeting-far_cuts_test.jsonl.gz"
         )
+        alimeeting_eval_cuts = load_manifest_lazy(
+            self.fbank_dir / "alimeeting-far_cuts_eval.jsonl.gz"
+        )
 
         # MagicData
-        logging.info("Loading MagicData TEST set in lazy mode")
+        logging.info("Loading MagicData set in lazy mode")
         magicdata_test_cuts = load_manifest_lazy(
             self.fbank_dir / "magicdata_cuts_test.jsonl.gz"
         )
+        magicdata_dev_cuts = load_manifest_lazy(
+            self.fbank_dir / "magicdata_cuts_dev.jsonl.gz"
+        )
 
         # KeSpeech
-        logging.info("Loading KeSpeech TEST set in lazy mode")
+        logging.info("Loading KeSpeech set in lazy mode")
         kespeech_test_cuts = load_manifest_lazy(
             self.fbank_dir / "kespeech" / "kespeech-asr_cuts_test.jsonl.gz"
         )
+        kespeech_dev_phase1_cuts = load_manifest_lazy(
+            self.fbank_dir / "kespeech" / "kespeech-asr_cuts_dev_phase1.jsonl.gz"
+        )
+        kespeech_dev_phase2_cuts = load_manifest_lazy(
+            self.fbank_dir / "kespeech" / "kespeech-asr_cuts_dev_phase2.jsonl.gz"
+        )
 
         # WeNetSpeech
-        logging.info("Loading WeNetSpeech TEST set in lazy mode")
+        logging.info("Loading WeNetSpeech set in lazy mode")
         wenetspeech_test_meeting_cuts = load_manifest_lazy(
             self.fbank_dir / "wenetspeech" / "cuts_TEST_MEETING.jsonl.gz"
         )
         wenetspeech_test_net_cuts = load_manifest_lazy(
             self.fbank_dir / "wenetspeech" / "cuts_TEST_NET.jsonl.gz"
         )
+        wenetspeech_dev_cuts = load_manifest_lazy(
+            self.fbank_dir / "wenetspeech" / "cuts_DEV.jsonl.gz"
+        )
 
         return {
-            "aidatatang": aidatatang_test_cuts,
-            # "alimeeting": alimeeting_test_cuts,
-            "aishell": aishell_test_cuts,
-            "aishell-2": aishell2_test_cuts,
+            "aidatatang_test": aidatatang_test_cuts,
+            "aidatatang_dev": aidatatang_dev_cuts,
+            "alimeeting_test": alimeeting_test_cuts,
+            "alimeeting_eval": alimeeting_eval_cuts,
+            "aishell_test": aishell_test_cuts,
+            "aishell_dev": aishell_dev_cuts,
+            "aishell-2_test": aishell2_test_cuts,
+            "aishell-2_dev": aishell2_dev_cuts,
             "aishell-4": aishell4_test_cuts,
-            "magicdata": magicdata_test_cuts,
-            "kespeech": kespeech_test_cuts,
-            "wenetspeech-meeting": wenetspeech_test_meeting_cuts,
-            "wenetspeech-net": wenetspeech_test_net_cuts,
+            "magicdata_test": magicdata_test_cuts,
+            "magicdata_dev": magicdata_dev_cuts,
+            "kespeech-asr_test": kespeech_test_cuts,
+            "kespeech-asr_dev_phase1": kespeech_dev_phase1_cuts,
+            "kespeech-asr_dev_phase2": kespeech_dev_phase2_cuts,
+            "wenetspeech-meeting_test": wenetspeech_test_meeting_cuts,
+            "wenetspeech-net_test": wenetspeech_test_net_cuts,
+            "wenetspeech_dev": wenetspeech_dev_cuts,
         }
