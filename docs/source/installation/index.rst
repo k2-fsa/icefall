@@ -4,7 +4,6 @@ Installation
 ============
 
 
-
 ``icefall`` depends on `k2 <https://github.com/k2-fsa/k2>`_ and
 `lhotse <https://github.com/lhotse-speech/lhotse>`_.
 
@@ -26,17 +25,6 @@ We recommend that you use the following steps to install the dependencies.
 .. caution::
 
    99% users who have issues about the installation are using conda.
-
-.. hint::
-
-   We suggest that you use ``pip install`` to install PyTorch.
-
-   You can use the following command to create a virutal environment in Python:
-
-    .. code-block:: bash
-
-        python3 -m venv ./my_env
-        source ./my_env/bin/activate
 
 .. caution::
 
@@ -78,14 +66,12 @@ to install ``k2``.
 
 .. note::
 
-   We suggest that you install k2 from source by following
-   `<https://k2-fsa.github.io/k2/installation/from_source.html>`_
-   or
-   `<https://k2-fsa.github.io/k2/installation/for_developers.html>`_.
+   We suggest that you install k2 from pre-compiled wheels by following
+   `<https://k2-fsa.github.io/k2/installation/from_wheels.html>`_
 
 .. hint::
 
-   Please always install the latest version of k2.
+   Please always install the latest version of `k2`_.
 
 (3) Install lhotse
 ------------------
@@ -138,47 +124,68 @@ The following shows an example about setting up the environment.
 
 .. code-block:: bash
 
-  $ virtualenv -p python3.8  test-icefall
+   kuangfangjun:~$ virtualenv -p python3.8 test-icefall
+   created virtual environment CPython3.8.0.final.0-64 in 9422ms
+     creator CPython3Posix(dest=/star-fj/fangjun/test-icefall, clear=False, no_vcs_ignore=False, global=False)
+     seeder FromAppData(download=False, pip=bundle, setuptools=bundle, wheel=bundle, via=copy, app_data_dir=/star-fj/fangjun/.local/share/virtualenv)
+       added seed packages: pip==22.3.1, setuptools==65.6.3, wheel==0.38.4
+     activators BashActivator,CShellActivator,FishActivator,NushellActivator,PowerShellActivator,PythonActivator
+   kuangfangjun:~$ source test-icefall/bin/activate
+   (test-icefall) kuangfangjun:~$
 
-  created virtual environment CPython3.8.6.final.0-64 in 1540ms
-    creator CPython3Posix(dest=/ceph-fj/fangjun/test-icefall, clear=False, no_vcs_ignore=False, global=False)
-    seeder FromAppData(download=False, pip=bundle, setuptools=bundle, wheel=bundle, via=copy, app_data_dir=/root/fangjun/.local/share/v
-  irtualenv)
-      added seed packages: pip==21.1.3, setuptools==57.4.0, wheel==0.36.2
-    activators BashActivator,CShellActivator,FishActivator,PowerShellActivator,PythonActivator,XonshActivator
+(2) Install CUDA toolkit and cuDNN
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-
-(2) Activate your virtual environment
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. code-block:: bash
-
-  $ source test-icefall/bin/activate
-
-(3) Install k2
-~~~~~~~~~~~~~~
+You need to determine the version of CUDA toolkit to install.
 
 .. code-block:: bash
 
-  $ pip install k2==1.4.dev20210822+cpu.torch1.9.0 -f https://k2-fsa.org/nightly/index.html
+   (test-icefall) kuangfangjun:~$ nvidia-smi | head -n 4
+   Wed Jul 26 21:57:49 2023
+   +-----------------------------------------------------------------------------+
+   | NVIDIA-SMI 510.47.03    Driver Version: 510.47.03    CUDA Version: 11.6     |
+   |-------------------------------+----------------------+----------------------+
 
-  Looking in links: https://k2-fsa.org/nightly/index.html
-  Collecting k2==1.4.dev20210822+cpu.torch1.9.0
-    Downloading https://k2-fsa.org/nightly/whl/k2-1.4.dev20210822%2Bcpu.torch1.9.0-cp38-cp38-linux_x86_64.whl (1.6 MB)
-       |________________________________| 1.6 MB 185 kB/s
-  Collecting graphviz
-    Downloading graphviz-0.17-py3-none-any.whl (18 kB)
-  Collecting torch==1.9.0
-    Using cached torch-1.9.0-cp38-cp38-manylinux1_x86_64.whl (831.4 MB)
-  Collecting typing-extensions
-    Using cached typing_extensions-3.10.0.0-py3-none-any.whl (26 kB)
-  Installing collected packages: typing-extensions, torch, graphviz, k2
-  Successfully installed graphviz-0.17 k2-1.4.dev20210822+cpu.torch1.9.0 torch-1.9.0 typing-extensions-3.10.0.0
+You can choose any version that is less than the version printed by ``nvidia-smi``.
+In our case, we can choose any version ``<= 11.6``.
 
-.. WARNING::
+We will use ``CUDA 10.2`` in this example. Please follow
+`<https://k2-fsa.github.io/k2/installation/cuda-cudnn.html#cuda-10-2>`_
+to install CUDA toolkit and cuDNN if you have not done that before.
 
-  We choose to install a CPU version of k2 for testing. You would probably want to install
-  a CUDA version of k2.
+After installing CUDA toolkit, you can use the following command to verify it:
+
+.. code-block:: bash
+
+   (test-icefall) kuangfangjun:~$ nvcc --version
+   nvcc: NVIDIA (R) Cuda compiler driver
+   Copyright (c) 2005-2019 NVIDIA Corporation
+   Built on Wed_Oct_23_19:24:38_PDT_2019
+   Cuda compilation tools, release 10.2, V10.2.89
+
+(3) Install torch and torchaudio
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Since we have selected CUDA toolkit 10.2, you need to install a version of ``torch``
+that is compiled against CUDA 10.2. We select ``torch 1.10.0+cu102`` in this
+example.
+
+After selecting the version of ``torch`` to install, we need to also install
+a compatible version of ``torchaudio``, which is ``0.10.0`` in our case.
+
+Please refer to `<https://pytorch.org/audio/stable/installation.html#compatibility-matrix>`_
+to select an appropriate version of torchaudio to install if you use a different
+version of ``torch``.
+
+.. code-block:: bash
+
+  (test-icefall) kuangfangjun:~$ pip install torch==1.11.0+cu102 torchaudio==0.11.0+cu102 -f https://download.pytorch.org/whl/torch_stable.html
+
+Verify that ``torch`` and ``torchaudio`` are successfully installed:
+
+.. code-block:: bash
+
+  aa
 
 
 (4) Install lhotse
