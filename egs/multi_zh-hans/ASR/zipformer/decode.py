@@ -116,8 +116,9 @@ from beam_search import (
     greedy_search_batch,
     modified_beam_search,
 )
-from train import add_model_arguments, get_params, get_model
+from lhotse.cut import Cut
 from multi_dataset import MultiDataset
+from train import add_model_arguments, get_model, get_params
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -125,7 +126,6 @@ from icefall.checkpoint import (
     find_checkpoints,
     load_checkpoint,
 )
-from lhotse.cut import Cut
 from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,

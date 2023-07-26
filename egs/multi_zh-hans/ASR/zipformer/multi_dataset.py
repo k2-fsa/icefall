@@ -19,7 +19,7 @@ import glob
 import logging
 import re
 from pathlib import Path
-from typing import List, Dict
+from typing import Dict, List
 
 import lhotse
 from lhotse import CutSet, load_manifest_lazy
