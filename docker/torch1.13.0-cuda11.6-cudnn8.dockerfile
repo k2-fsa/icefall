@@ -1,5 +1,29 @@
 FROM pytorch/pytorch:1.13.0-cuda11.6-cudnn8-runtime
 
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+		    curl \
+	      vim \
+    		libssl-dev \
+        autoconf \
+        automake \
+        bzip2 \
+        ca-certificates \
+        ffmpeg \
+        g++ \
+        gfortran \
+        git \
+        libtool \
+        make \
+        patch \
+        sox \
+        subversion \
+        unzip \
+        valgrind \
+        wget \
+        zlib1g-dev \
+        && rm -rf /var/lib/apt/lists/*
+
 # Install dependencies
 RUN pip install --no-cache-dir \
       torchaudio==0.13.0+cu116 -f https://download.pytorch.org/whl/torch_stable.html \
