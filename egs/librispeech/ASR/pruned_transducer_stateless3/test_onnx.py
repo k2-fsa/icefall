@@ -113,7 +113,7 @@ def test_rel_pos():
 
     torch.onnx.export(
         encoder_pos,
-        x,
+        (x, torch.zeros(1, dtype=torch.int64)),
         filename,
         verbose=False,
         opset_version=opset_version,
@@ -139,7 +139,9 @@ def test_rel_pos():
     assert input_nodes[0].name == "x"
     assert input_nodes[0].shape == ["N", "T", num_features]
 
-    inputs = {input_nodes[0].name: x.numpy()}
+    inputs = {
+        input_nodes[0].name: x.numpy(),
+    }
     onnx_y, onnx_pos_emb = session.run(["y", "pos_emb"], inputs)
     onnx_y = torch.from_numpy(onnx_y)
     onnx_pos_emb = torch.from_numpy(onnx_pos_emb)

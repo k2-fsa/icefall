@@ -45,7 +45,7 @@ def get_args():
 
 def normalize_text(utt: str) -> str:
     utt = re.sub(r"[{0}]+".format("-"), " ", utt)
-    return re.sub(r"[^a-zA-Z\s]", "", utt).upper()
+    return re.sub(r"[^a-zA-Z\s']", "", utt).upper()
 
 
 def preprocess_commonvoice(

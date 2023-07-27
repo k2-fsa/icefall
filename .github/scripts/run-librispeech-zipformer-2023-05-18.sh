@@ -23,6 +23,7 @@ ls -lh $repo/test_wavs/*.wav
 
 pushd $repo/exp
 git lfs pull --include "data/lang_bpe_500/bpe.model"
+git lfs pull --include "data/lang_bpe_500/tokens.txt"
 git lfs pull --include "exp/jit_script.pt"
 git lfs pull --include "exp/pretrained.pt"
 ln -s pretrained.pt epoch-99.pt
@@ -33,7 +34,7 @@ log "Export to torchscript model"
 ./zipformer/export.py \
   --exp-dir $repo/exp \
   --use-averaged-model false \
-  --bpe-model $repo/data/lang_bpe_500/bpe.model \
+  --tokens $repo/data/lang_bpe_500/tokens.txt \
   --epoch 99 \
   --avg 1 \
   --jit 1
@@ -43,7 +44,7 @@ ls -lh $repo/exp/*.pt
 log "Decode with models exported by torch.jit.script()"
 
 ./zipformer/jit_pretrained.py \
-  --bpe-model $repo/data/lang_bpe_500/bpe.model \
+  --tokens $repo/data/lang_bpe_500/tokens.txt \
   --nn-model-filename $repo/exp/jit_script.pt \
   $repo/test_wavs/1089-134686-0001.wav \
   $repo/test_wavs/1221-135766-0001.wav \
@@ -56,7 +57,7 @@ for method in greedy_search modified_beam_search fast_beam_search; do
     --method $method \
     --beam-size 4 \
     --checkpoint $repo/exp/pretrained.pt \
-    --bpe-model $repo/data/lang_bpe_500/bpe.model \
+    --tokens $repo/data/lang_bpe_500/tokens.txt \
     $repo/test_wavs/1089-134686-0001.wav \
     $repo/test_wavs/1221-135766-0001.wav \
     $repo/test_wavs/1221-135766-0002.wav

@@ -22,7 +22,7 @@ Usage:
   --avg 15 \
   --decode-chunk-len 32 \
   --exp-dir ./pruned_transducer_stateless7_streaming/exp \
-  --decoding_method greedy_search \
+  --decoding-method greedy_search \
   --num-decode-streams 2000
 """
 
