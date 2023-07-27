@@ -31,7 +31,7 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v4
         with:
-          context: .
-          file: ./docker/torch1.13.0-cuda11.6-cudnn8.Dockerfile
+          context: ./docker
+          file: ./torch1.13.0-cuda11.6-cudnn8.Dockerfile
           push: true
           tags: k2fsa/icefall:torch1.13.0-cuda11.6
