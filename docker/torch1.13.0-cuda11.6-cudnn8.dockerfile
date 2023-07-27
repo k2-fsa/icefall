@@ -1,4 +1,4 @@
-FROM pytorch/pytorch:1.13.0-cuda11.6-cudnn8-runtime
+FROM pytorch/pytorch:1.13.0-cuda11.6-cudnn8-devel
 
 # Install dependencies
 RUN pip install --no-cache-dir \
@@ -13,7 +13,7 @@ RUN pip install --no-cache-dir \
       sentencepiece>=0.1.96 \
       tensorboard \
       typeguard \
-      dill \
+      dill
 
 RUN git clone https://github.com/k2-fsa/icefall /workspace/icefall && \
 	cd /workspace/icefall && \
