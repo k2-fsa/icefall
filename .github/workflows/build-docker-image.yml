@@ -21,6 +21,13 @@ jobs:
       matrix:
         os: [ubuntu-latest]
     steps:
+      - name: Maximize build space
+        uses: easimon/maximize-build-space@master
+        with:
+          root-reserve-mb: 512
+          swap-size-mb: 1024
+          remove-dotnet: 'true'
+
       # refer to https://github.com/actions/checkout
       - uses: actions/checkout@v2
         with:
