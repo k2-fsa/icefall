@@ -31,9 +31,9 @@ jobs:
               uname -a
               python3 --version
               python3 -m torch.utils.collect_env
-              # python3 -m k2.version
+              python3 -m k2.version
               python3 -c "import lhotse; print(lhotse.__version__)"
-              # python3 -c "import kaldifeat; print(kaldifeat.__version__)"
+              python3 -c "import kaldifeat; print(kaldifeat.__version__)"
               nvcc --version
               which nvcc
               find /usr/ -name libcuda.so*
