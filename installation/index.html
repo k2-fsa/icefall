@@ -46,16 +46,17 @@
 <ul class="current">
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Installation</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#install-cuda-toolkit-and-cudnn">(0) Install CUDA toolkit and cuDNN</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#install-pytorch-and-torchaudio">(1) Install PyTorch and torchaudio</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#install-torch-and-torchaudio">(1) Install torch and torchaudio</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#install-k2">(2) Install k2</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#install-lhotse">(3) Install lhotse</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#download-icefall">(4) Download icefall</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#installation-example">Installation example</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#create-a-virtual-environment">(1) Create a virtual environment</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#activate-your-virtual-environment">(2) Activate your virtual environment</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#id1">(3) Install k2</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#id2">(4) Install lhotse</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#id3">(5) Download icefall</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id1">(2) Install CUDA toolkit and cuDNN</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id2">(3) Install torch and torchaudio</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id3">(4) Install k2</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id5">(5) Install lhotse</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id6">(6) Download icefall</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#test-your-installation">Test Your Installation</a><ul>
@@ -107,8 +108,12 @@
              
   <section id="installation">
 <span id="install-icefall"></span><h1>Installation<a class="headerlink" href="#installation" title="Permalink to this heading"></a></h1>
-<p><code class="docutils literal notranslate"><span class="pre">icefall</span></code> depends on <a class="reference external" href="https://github.com/k2-fsa/k2">k2</a> and
-<a class="reference external" href="https://github.com/lhotse-speech/lhotse">lhotse</a>.</p>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>We have a colab notebook guiding you step by step to setup the environment.</p>
+<p><a class="reference external" href="https://colab.research.google.com/drive/1tIjjzaJc3IvGyKiMCDWO-TSnBgkcuN3B?usp=sharing"><img alt="yesno colab notebook" src="https://colab.research.google.com/assets/colab-badge.svg" /></a></p>
+</div>
+<p><a class="reference external" href="https://github.com/k2-fsa/icefall">icefall</a> depends on <a class="reference external" href="https://github.com/k2-fsa/k2">k2</a> and <a class="reference external" href="https://github.com/lhotse-speech/lhotse">lhotse</a>.</p>
 <p>We recommend that you use the following steps to install the dependencies.</p>
 <ul class="simple">
 <li><ol class="arabic simple" start="0">
@@ -116,41 +121,18 @@
 </ol>
 </li>
 <li><ol class="arabic simple">
-<li><p>Install PyTorch and torchaudio</p></li>
+<li><p>Install <a class="reference external" href="https://github.com/pytorch/pytorch">torch</a> and <a class="reference external" href="https://github.com/pytorch/audio">torchaudio</a></p></li>
 </ol>
 </li>
 <li><ol class="arabic simple" start="2">
-<li><p>Install k2</p></li>
+<li><p>Install <a class="reference external" href="https://github.com/k2-fsa/k2">k2</a></p></li>
 </ol>
 </li>
 <li><ol class="arabic simple" start="3">
-<li><p>Install lhotse</p></li>
+<li><p>Install <a class="reference external" href="https://github.com/lhotse-speech/lhotse">lhotse</a></p></li>
 </ol>
 </li>
 </ul>
-<div class="admonition caution">
-<p class="admonition-title">Caution</p>
-<p>99% users who have issues about the installation are using conda.</p>
-</div>
-<div class="admonition caution">
-<p class="admonition-title">Caution</p>
-<p>99% users who have issues about the installation are using conda.</p>
-</div>
-<div class="admonition caution">
-<p class="admonition-title">Caution</p>
-<p>99% users who have issues about the installation are using conda.</p>
-</div>
-<div class="admonition hint">
-<p class="admonition-title">Hint</p>
-<p>We suggest that you use <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span></code> to install PyTorch.</p>
-<p>You can use the following command to create a virutal environment in Python:</p>
-<blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>venv<span class="w"> </span>./my_env
-<span class="nb">source</span><span class="w"> </span>./my_env/bin/activate
-</pre></div>
-</div>
-</div></blockquote>
-</div>
 <div class="admonition caution">
 <p class="admonition-title">Caution</p>
 <p>Installation order matters.</p>
@@ -161,15 +143,9 @@
 <a class="reference external" href="https://k2-fsa.github.io/k2/installation/cuda-cudnn.html">https://k2-fsa.github.io/k2/installation/cuda-cudnn.html</a>
 to install CUDA and cuDNN.</p>
 </section>
-<section id="install-pytorch-and-torchaudio">
-<h2>(1) Install PyTorch and torchaudio<a class="headerlink" href="#install-pytorch-and-torchaudio" title="Permalink to this heading"></a></h2>
-<p>Please refer <a class="reference external" href="https://pytorch.org/">https://pytorch.org/</a> to install PyTorch
-and torchaudio.</p>
-<div class="admonition hint">
-<p class="admonition-title">Hint</p>
-<p>You can also go to  <a class="reference external" href="https://download.pytorch.org/whl/torch_stable.html">https://download.pytorch.org/whl/torch_stable.html</a>
-to download pre-compiled wheels and install them.</p>
-</div>
+<section id="install-torch-and-torchaudio">
+<h2>(1) Install torch and torchaudio<a class="headerlink" href="#install-torch-and-torchaudio" title="Permalink to this heading"></a></h2>
+<p>Please refer <a class="reference external" href="https://pytorch.org/">https://pytorch.org/</a> to install <a class="reference external" href="https://github.com/pytorch/pytorch">torch</a> and <a class="reference external" href="https://github.com/pytorch/audio">torchaudio</a>.</p>
 <div class="admonition caution">
 <p class="admonition-title">Caution</p>
 <p>Please install torch and torchaudio at the same time.</p>
@@ -178,42 +154,40 @@ to download pre-compiled wheels and install them.</p>
 <section id="install-k2">
 <h2>(2) Install k2<a class="headerlink" href="#install-k2" title="Permalink to this heading"></a></h2>
 <p>Please refer to <a class="reference external" href="https://k2-fsa.github.io/k2/installation/index.html">https://k2-fsa.github.io/k2/installation/index.html</a>
-to install <code class="docutils literal notranslate"><span class="pre">k2</span></code>.</p>
+to install <a class="reference external" href="https://github.com/k2-fsa/k2">k2</a>.</p>
 <div class="admonition caution">
 <p class="admonition-title">Caution</p>
 <p>Please don’t change your installed PyTorch after you have installed k2.</p>
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>We suggest that you install k2 from source by following
-<a class="reference external" href="https://k2-fsa.github.io/k2/installation/from_source.html">https://k2-fsa.github.io/k2/installation/from_source.html</a>
-or
-<a class="reference external" href="https://k2-fsa.github.io/k2/installation/for_developers.html">https://k2-fsa.github.io/k2/installation/for_developers.html</a>.</p>
+<p>We suggest that you install k2 from pre-compiled wheels by following
+<a class="reference external" href="https://k2-fsa.github.io/k2/installation/from_wheels.html">https://k2-fsa.github.io/k2/installation/from_wheels.html</a></p>
 </div>
 <div class="admonition hint">
 <p class="admonition-title">Hint</p>
-<p>Please always install the latest version of k2.</p>
+<p>Please always install the latest version of <a class="reference external" href="https://github.com/k2-fsa/k2">k2</a>.</p>
 </div>
 </section>
 <section id="install-lhotse">
 <h2>(3) Install lhotse<a class="headerlink" href="#install-lhotse" title="Permalink to this heading"></a></h2>
 <p>Please refer to <a class="reference external" href="https://lhotse.readthedocs.io/en/latest/getting-started.html#installation">https://lhotse.readthedocs.io/en/latest/getting-started.html#installation</a>
-to install <code class="docutils literal notranslate"><span class="pre">lhotse</span></code>.</p>
+to install <a class="reference external" href="https://github.com/lhotse-speech/lhotse">lhotse</a>.</p>
 <div class="admonition hint">
 <p class="admonition-title">Hint</p>
 <p>We strongly recommend you to use:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pip</span> <span class="n">install</span> <span class="n">git</span><span class="o">+</span><span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">github</span><span class="o">.</span><span class="n">com</span><span class="o">/</span><span class="n">lhotse</span><span class="o">-</span><span class="n">speech</span><span class="o">/</span><span class="n">lhotse</span>
 </pre></div>
 </div>
-<p>to install the latest version of lhotse.</p>
+<p>to install the latest version of <a class="reference external" href="https://github.com/lhotse-speech/lhotse">lhotse</a>.</p>
 </div>
 </section>
 <section id="download-icefall">
 <h2>(4) Download icefall<a class="headerlink" href="#download-icefall" title="Permalink to this heading"></a></h2>
-<p><code class="docutils literal notranslate"><span class="pre">icefall</span></code> is a collection of Python scripts; what you need is to download it
+<p><a class="reference external" href="https://github.com/k2-fsa/icefall">icefall</a> is a collection of Python scripts; what you need is to download it
 and set the environment variable <code class="docutils literal notranslate"><span class="pre">PYTHONPATH</span></code> to point to it.</p>
-<p>Assume you want to place <code class="docutils literal notranslate"><span class="pre">icefall</span></code> in the folder <code class="docutils literal notranslate"><span class="pre">/tmp</span></code>. The
-following commands show you how to setup <code class="docutils literal notranslate"><span class="pre">icefall</span></code>:</p>
+<p>Assume you want to place <a class="reference external" href="https://github.com/k2-fsa/icefall">icefall</a> in the folder <code class="docutils literal notranslate"><span class="pre">/tmp</span></code>. The
+following commands show you how to setup <a class="reference external" href="https://github.com/k2-fsa/icefall">icefall</a>:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>/tmp
 git<span class="w"> </span>clone<span class="w"> </span>https://github.com/k2-fsa/icefall
 <span class="nb">cd</span><span class="w"> </span>icefall
@@ -223,8 +197,8 @@ pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </s
 </div>
 <div class="admonition hint">
 <p class="admonition-title">Hint</p>
-<p>You can put several versions of <code class="docutils literal notranslate"><span class="pre">icefall</span></code> in the same virtual environment.
-To switch among different versions of <code class="docutils literal notranslate"><span class="pre">icefall</span></code>, just set <code class="docutils literal notranslate"><span class="pre">PYTHONPATH</span></code>
+<p>You can put several versions of <a class="reference external" href="https://github.com/k2-fsa/icefall">icefall</a> in the same virtual environment.
+To switch among different versions of <a class="reference external" href="https://github.com/k2-fsa/icefall">icefall</a>, just set <code class="docutils literal notranslate"><span class="pre">PYTHONPATH</span></code>
 to point to the version you want.</p>
 </div>
 </section>
@@ -233,203 +207,237 @@ to point to the version you want.</p>
 <p>The following shows an example about setting up the environment.</p>
 <section id="create-a-virtual-environment">
 <h3>(1) Create a virtual environment<a class="headerlink" href="#create-a-virtual-environment" title="Permalink to this heading"></a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>virtualenv<span class="w"> </span>-p<span class="w"> </span>python3.8<span class="w">  </span>test-icefall
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kuangfangjun:~$<span class="w"> </span>virtualenv<span class="w"> </span>-p<span class="w"> </span>python3.8<span class="w"> </span>test-icefall
+created<span class="w"> </span>virtual<span class="w"> </span>environment<span class="w"> </span>CPython3.8.0.final.0-64<span class="w"> </span><span class="k">in</span><span class="w"> </span>9422ms
+<span class="w">  </span>creator<span class="w"> </span>CPython3Posix<span class="o">(</span><span class="nv">dest</span><span class="o">=</span>/star-fj/fangjun/test-icefall,<span class="w"> </span><span class="nv">clear</span><span class="o">=</span>False,<span class="w"> </span><span class="nv">no_vcs_ignore</span><span class="o">=</span>False,<span class="w"> </span><span class="nv">global</span><span class="o">=</span>False<span class="o">)</span>
+<span class="w">  </span>seeder<span class="w"> </span>FromAppData<span class="o">(</span><span class="nv">download</span><span class="o">=</span>False,<span class="w"> </span><span class="nv">pip</span><span class="o">=</span>bundle,<span class="w"> </span><span class="nv">setuptools</span><span class="o">=</span>bundle,<span class="w"> </span><span class="nv">wheel</span><span class="o">=</span>bundle,<span class="w"> </span><span class="nv">via</span><span class="o">=</span>copy,<span class="w"> </span><span class="nv">app_data_dir</span><span class="o">=</span>/star-fj/fangjun/.local/share/virtualenv<span class="o">)</span>
+<span class="w">    </span>added<span class="w"> </span>seed<span class="w"> </span>packages:<span class="w"> </span><span class="nv">pip</span><span class="o">==</span><span class="m">22</span>.3.1,<span class="w"> </span><span class="nv">setuptools</span><span class="o">==</span><span class="m">65</span>.6.3,<span class="w"> </span><span class="nv">wheel</span><span class="o">==</span><span class="m">0</span>.38.4
+<span class="w">  </span>activators<span class="w"> </span>BashActivator,CShellActivator,FishActivator,NushellActivator,PowerShellActivator,PythonActivator
 
-created<span class="w"> </span>virtual<span class="w"> </span>environment<span class="w"> </span>CPython3.8.6.final.0-64<span class="w"> </span><span class="k">in</span><span class="w"> </span>1540ms
-<span class="w">  </span>creator<span class="w"> </span>CPython3Posix<span class="o">(</span><span class="nv">dest</span><span class="o">=</span>/ceph-fj/fangjun/test-icefall,<span class="w"> </span><span class="nv">clear</span><span class="o">=</span>False,<span class="w"> </span><span class="nv">no_vcs_ignore</span><span class="o">=</span>False,<span class="w"> </span><span class="nv">global</span><span class="o">=</span>False<span class="o">)</span>
-<span class="w">  </span>seeder<span class="w"> </span>FromAppData<span class="o">(</span><span class="nv">download</span><span class="o">=</span>False,<span class="w"> </span><span class="nv">pip</span><span class="o">=</span>bundle,<span class="w"> </span><span class="nv">setuptools</span><span class="o">=</span>bundle,<span class="w"> </span><span class="nv">wheel</span><span class="o">=</span>bundle,<span class="w"> </span><span class="nv">via</span><span class="o">=</span>copy,<span class="w"> </span><span class="nv">app_data_dir</span><span class="o">=</span>/root/fangjun/.local/share/v
-irtualenv<span class="o">)</span>
-<span class="w">    </span>added<span class="w"> </span>seed<span class="w"> </span>packages:<span class="w"> </span><span class="nv">pip</span><span class="o">==</span><span class="m">21</span>.1.3,<span class="w"> </span><span class="nv">setuptools</span><span class="o">==</span><span class="m">57</span>.4.0,<span class="w"> </span><span class="nv">wheel</span><span class="o">==</span><span class="m">0</span>.36.2
-<span class="w">  </span>activators<span class="w"> </span>BashActivator,CShellActivator,FishActivator,PowerShellActivator,PythonActivator,XonshActivator
-</pre></div>
-</div>
-</section>
-<section id="activate-your-virtual-environment">
-<h3>(2) Activate your virtual environment<a class="headerlink" href="#activate-your-virtual-environment" title="Permalink to this heading"></a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">source</span><span class="w"> </span>test-icefall/bin/activate
+kuangfangjun:~$<span class="w"> </span><span class="nb">source</span><span class="w"> </span>test-icefall/bin/activate
+
+<span class="o">(</span>test-icefall<span class="o">)</span><span class="w"> </span>kuangfangjun:~$
 </pre></div>
 </div>
 </section>
 <section id="id1">
-<h3>(3) Install k2<a class="headerlink" href="#id1" title="Permalink to this heading"></a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="nv">k2</span><span class="o">==</span><span class="m">1</span>.4.dev20210822+cpu.torch1.9.0<span class="w"> </span>-f<span class="w"> </span>https://k2-fsa.org/nightly/index.html
+<h3>(2) Install CUDA toolkit and cuDNN<a class="headerlink" href="#id1" title="Permalink to this heading"></a></h3>
+<p>You need to determine the version of CUDA toolkit to install.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span>test-icefall<span class="o">)</span><span class="w"> </span>kuangfangjun:~$<span class="w"> </span>nvidia-smi<span class="w"> </span><span class="p">|</span><span class="w"> </span>head<span class="w"> </span>-n<span class="w"> </span><span class="m">4</span>
 
-Looking<span class="w"> </span><span class="k">in</span><span class="w"> </span>links:<span class="w"> </span>https://k2-fsa.org/nightly/index.html
-Collecting<span class="w"> </span><span class="nv">k2</span><span class="o">==</span><span class="m">1</span>.4.dev20210822+cpu.torch1.9.0
-<span class="w">  </span>Downloading<span class="w"> </span>https://k2-fsa.org/nightly/whl/k2-1.4.dev20210822%2Bcpu.torch1.9.0-cp38-cp38-linux_x86_64.whl<span class="w"> </span><span class="o">(</span><span class="m">1</span>.6<span class="w"> </span>MB<span class="o">)</span>
-<span class="w">     </span><span class="p">|</span>________________________________<span class="p">|</span><span class="w"> </span><span class="m">1</span>.6<span class="w"> </span>MB<span class="w"> </span><span class="m">185</span><span class="w"> </span>kB/s
-Collecting<span class="w"> </span>graphviz
-<span class="w">  </span>Downloading<span class="w"> </span>graphviz-0.17-py3-none-any.whl<span class="w"> </span><span class="o">(</span><span class="m">18</span><span class="w"> </span>kB<span class="o">)</span>
-Collecting<span class="w"> </span><span class="nv">torch</span><span class="o">==</span><span class="m">1</span>.9.0
-<span class="w">  </span>Using<span class="w"> </span>cached<span class="w"> </span>torch-1.9.0-cp38-cp38-manylinux1_x86_64.whl<span class="w"> </span><span class="o">(</span><span class="m">831</span>.4<span class="w"> </span>MB<span class="o">)</span>
-Collecting<span class="w"> </span>typing-extensions
-<span class="w">  </span>Using<span class="w"> </span>cached<span class="w"> </span>typing_extensions-3.10.0.0-py3-none-any.whl<span class="w"> </span><span class="o">(</span><span class="m">26</span><span class="w"> </span>kB<span class="o">)</span>
-Installing<span class="w"> </span>collected<span class="w"> </span>packages:<span class="w"> </span>typing-extensions,<span class="w"> </span>torch,<span class="w"> </span>graphviz,<span class="w"> </span>k2
-Successfully<span class="w"> </span>installed<span class="w"> </span>graphviz-0.17<span class="w"> </span>k2-1.4.dev20210822+cpu.torch1.9.0<span class="w"> </span>torch-1.9.0<span class="w"> </span>typing-extensions-3.10.0.0
+Wed<span class="w"> </span>Jul<span class="w"> </span><span class="m">26</span><span class="w"> </span><span class="m">21</span>:57:49<span class="w"> </span><span class="m">2023</span>
++-----------------------------------------------------------------------------+
+<span class="p">|</span><span class="w"> </span>NVIDIA-SMI<span class="w"> </span><span class="m">510</span>.47.03<span class="w">    </span>Driver<span class="w"> </span>Version:<span class="w"> </span><span class="m">510</span>.47.03<span class="w">    </span>CUDA<span class="w"> </span>Version:<span class="w"> </span><span class="m">11</span>.6<span class="w">     </span><span class="p">|</span>
+<span class="p">|</span>-------------------------------+----------------------+----------------------+
 </pre></div>
 </div>
-<div class="admonition warning">
-<p class="admonition-title">Warning</p>
-<p>We choose to install a CPU version of k2 for testing. You would probably want to install
-a CUDA version of k2.</p>
+<p>You can choose any CUDA version that is <code class="docutils literal notranslate"><span class="pre">not</span></code> greater than the version printed by <code class="docutils literal notranslate"><span class="pre">nvidia-smi</span></code>.
+In our case, we can choose any version <code class="docutils literal notranslate"><span class="pre">&lt;=</span> <span class="pre">11.6</span></code>.</p>
+<p>We will use <code class="docutils literal notranslate"><span class="pre">CUDA</span> <span class="pre">11.6</span></code> in this example. Please follow
+<a class="reference external" href="https://k2-fsa.github.io/k2/installation/cuda-cudnn.html#cuda-11-6">https://k2-fsa.github.io/k2/installation/cuda-cudnn.html#cuda-11-6</a>
+to install CUDA toolkit and cuDNN if you have not done that before.</p>
+<p>After installing CUDA toolkit, you can use the following command to verify it:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span>test-icefall<span class="o">)</span><span class="w"> </span>kuangfangjun:~$<span class="w"> </span>nvcc<span class="w"> </span>--version
+
+nvcc:<span class="w"> </span>NVIDIA<span class="w"> </span><span class="o">(</span>R<span class="o">)</span><span class="w"> </span>Cuda<span class="w"> </span>compiler<span class="w"> </span>driver
+Copyright<span class="w"> </span><span class="o">(</span>c<span class="o">)</span><span class="w"> </span><span class="m">2005</span>-2019<span class="w"> </span>NVIDIA<span class="w"> </span>Corporation
+Built<span class="w"> </span>on<span class="w"> </span>Wed_Oct_23_19:24:38_PDT_2019
+Cuda<span class="w"> </span>compilation<span class="w"> </span>tools,<span class="w"> </span>release<span class="w"> </span><span class="m">10</span>.2,<span class="w"> </span>V10.2.89
+</pre></div>
 </div>
 </section>
 <section id="id2">
-<h3>(4) Install lhotse<a class="headerlink" href="#id2" title="Permalink to this heading"></a></h3>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ pip install git+https://github.com/lhotse-speech/lhotse
+<h3>(3) Install torch and torchaudio<a class="headerlink" href="#id2" title="Permalink to this heading"></a></h3>
+<p>Since we have selected CUDA toolkit <code class="docutils literal notranslate"><span class="pre">11.6</span></code>, we have to install a version of <a class="reference external" href="https://github.com/pytorch/pytorch">torch</a>
+that is compiled against CUDA <code class="docutils literal notranslate"><span class="pre">11.6</span></code>. We select <code class="docutils literal notranslate"><span class="pre">torch</span> <span class="pre">1.13.0+cu116</span></code> in this
+example.</p>
+<p>After selecting the version of <a class="reference external" href="https://github.com/pytorch/pytorch">torch</a> to install, we need to also install
+a compatible version of <a class="reference external" href="https://github.com/pytorch/audio">torchaudio</a>, which is <code class="docutils literal notranslate"><span class="pre">0.13.0+cu116</span></code> in our case.</p>
+<p>Please refer to <a class="reference external" href="https://pytorch.org/audio/stable/installation.html#compatibility-matrix">https://pytorch.org/audio/stable/installation.html#compatibility-matrix</a>
+to select an appropriate version of <a class="reference external" href="https://github.com/pytorch/audio">torchaudio</a> to install if you use a different
+version of <a class="reference external" href="https://github.com/pytorch/pytorch">torch</a>.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span>test-icefall<span class="o">)</span><span class="w"> </span>kuangfangjun:~$<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="nv">torch</span><span class="o">==</span><span class="m">1</span>.13.0+cu116<span class="w"> </span><span class="nv">torchaudio</span><span class="o">==</span><span class="m">0</span>.13.0+cu116<span class="w"> </span>-f<span class="w"> </span>https://download.pytorch.org/whl/torch_stable.html
 
-Collecting git+https://github.com/lhotse-speech/lhotse
-  Cloning https://github.com/lhotse-speech/lhotse to /tmp/pip-req-build-7b1b76ge
-  Running command git clone -q https://github.com/lhotse-speech/lhotse /tmp/pip-req-build-7b1b76ge
-Collecting audioread&gt;=2.1.9
-  Using cached audioread-2.1.9-py3-none-any.whl
-Collecting SoundFile&gt;=0.10
-  Using cached SoundFile-0.10.3.post1-py2.py3-none-any.whl (21 kB)
-Collecting click&gt;=7.1.1
-  Using cached click-8.0.1-py3-none-any.whl (97 kB)
-Collecting cytoolz&gt;=0.10.1
-  Using cached cytoolz-0.11.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (1.9 MB)
-Collecting dataclasses
-  Using cached dataclasses-0.6-py3-none-any.whl (14 kB)
-Collecting h5py&gt;=2.10.0
-  Downloading h5py-3.4.0-cp38-cp38-manylinux_2_12_x86_64.manylinux2010_x86_64.whl (4.5 MB)
-     |________________________________| 4.5 MB 684 kB/s
-Collecting intervaltree&gt;=3.1.0
-  Using cached intervaltree-3.1.0-py2.py3-none-any.whl
-Collecting lilcom&gt;=1.1.0
-  Using cached lilcom-1.1.1-cp38-cp38-linux_x86_64.whl
-Collecting numpy&gt;=1.18.1
-  Using cached numpy-1.21.2-cp38-cp38-manylinux_2_12_x86_64.manylinux2010_x86_64.whl (15.8 MB)
-Collecting packaging
-  Using cached packaging-21.0-py3-none-any.whl (40 kB)
-Collecting pyyaml&gt;=5.3.1
-  Using cached PyYAML-5.4.1-cp38-cp38-manylinux1_x86_64.whl (662 kB)
-Collecting tqdm
-  Downloading tqdm-4.62.1-py2.py3-none-any.whl (76 kB)
-     |________________________________| 76 kB 2.7 MB/s
-Collecting torchaudio==0.9.0
-  Downloading torchaudio-0.9.0-cp38-cp38-manylinux1_x86_64.whl (1.9 MB)
-     |________________________________| 1.9 MB 73.1 MB/s
-Requirement already satisfied: torch==1.9.0 in ./test-icefall/lib/python3.8/site-packages (from torchaudio==0.9.0-&gt;lhotse===0.8.0.dev
--2a1410b-clean) (1.9.0)
-Requirement already satisfied: typing-extensions in ./test-icefall/lib/python3.8/site-packages (from torch==1.9.0-&gt;torchaudio==0.9.0-
-&gt;lhotse===0.8.0.dev-2a1410b-clean) (3.10.0.0)
-Collecting toolz&gt;=0.8.0
-  Using cached toolz-0.11.1-py3-none-any.whl (55 kB)
-Collecting sortedcontainers&lt;3.0,&gt;=2.0
-  Using cached sortedcontainers-2.4.0-py2.py3-none-any.whl (29 kB)
-Collecting cffi&gt;=1.0
-  Using cached cffi-1.14.6-cp38-cp38-manylinux1_x86_64.whl (411 kB)
-Collecting pycparser
-  Using cached pycparser-2.20-py2.py3-none-any.whl (112 kB)
-Collecting pyparsing&gt;=2.0.2
-  Using cached pyparsing-2.4.7-py2.py3-none-any.whl (67 kB)
-Building wheels for collected packages: lhotse
-  Building wheel for lhotse (setup.py) ... done
-  Created wheel for lhotse: filename=lhotse-0.8.0.dev_2a1410b_clean-py3-none-any.whl size=342242 sha256=f683444afa4dc0881133206b4646a
-9d0f774224cc84000f55d0a67f6e4a37997
-  Stored in directory: /tmp/pip-ephem-wheel-cache-ftu0qysz/wheels/7f/7a/8e/a0bf241336e2e3cb573e1e21e5600952d49f5162454f2e612f
-  WARNING: Built wheel for lhotse is invalid: Metadata 1.2 mandates PEP 440 version, but &#39;0.8.0.dev-2a1410b-clean&#39; is not
-Failed to build lhotse
-Installing collected packages: pycparser, toolz, sortedcontainers, pyparsing, numpy, cffi, tqdm, torchaudio, SoundFile, pyyaml, packa
-ging, lilcom, intervaltree, h5py, dataclasses, cytoolz, click, audioread, lhotse
-    Running setup.py install for lhotse ... done
-  DEPRECATION: lhotse was installed using the legacy &#39;setup.py install&#39; method, because a wheel could not be built for it. A possible
- replacement is to fix the wheel build issue reported above. You can find discussion regarding this at https://github.com/pypa/pip/is
-sues/8368.
-Successfully installed SoundFile-0.10.3.post1 audioread-2.1.9 cffi-1.14.6 click-8.0.1 cytoolz-0.11.0 dataclasses-0.6 h5py-3.4.0 inter
-valtree-3.1.0 lhotse-0.8.0.dev-2a1410b-clean lilcom-1.1.1 numpy-1.21.2 packaging-21.0 pycparser-2.20 pyparsing-2.4.7 pyyaml-5.4.1 sor
-tedcontainers-2.4.0 toolz-0.11.1 torchaudio-0.9.0 tqdm-4.62.1
+Looking<span class="w"> </span><span class="k">in</span><span class="w"> </span>links:<span class="w"> </span>https://download.pytorch.org/whl/torch_stable.html
+Collecting<span class="w"> </span><span class="nv">torch</span><span class="o">==</span><span class="m">1</span>.13.0+cu116
+<span class="w">  </span>Downloading<span class="w"> </span>https://download.pytorch.org/whl/cu116/torch-1.13.0%2Bcu116-cp38-cp38-linux_x86_64.whl<span class="w"> </span><span class="o">(</span><span class="m">1983</span>.0<span class="w"> </span>MB<span class="o">)</span>
+<span class="w">     </span>________________________________________<span class="w"> </span><span class="m">2</span>.0/2.0<span class="w"> </span>GB<span class="w"> </span><span class="m">764</span>.4<span class="w"> </span>kB/s<span class="w"> </span>eta<span class="w"> </span><span class="m">0</span>:00:00
+Collecting<span class="w"> </span><span class="nv">torchaudio</span><span class="o">==</span><span class="m">0</span>.13.0+cu116
+<span class="w">  </span>Downloading<span class="w"> </span>https://download.pytorch.org/whl/cu116/torchaudio-0.13.0%2Bcu116-cp38-cp38-linux_x86_64.whl<span class="w"> </span><span class="o">(</span><span class="m">4</span>.2<span class="w"> </span>MB<span class="o">)</span>
+<span class="w">     </span>________________________________________<span class="w"> </span><span class="m">4</span>.2/4.2<span class="w"> </span>MB<span class="w"> </span><span class="m">1</span>.3<span class="w"> </span>MB/s<span class="w"> </span>eta<span class="w"> </span><span class="m">0</span>:00:00
+Requirement<span class="w"> </span>already<span class="w"> </span>satisfied:<span class="w"> </span>typing-extensions<span class="w"> </span><span class="k">in</span><span class="w"> </span>/star-fj/fangjun/test-icefall/lib/python3.8/site-packages<span class="w"> </span><span class="o">(</span>from<span class="w"> </span><span class="nv">torch</span><span class="o">==</span><span class="m">1</span>.13.0+cu116<span class="o">)</span><span class="w"> </span><span class="o">(</span><span class="m">4</span>.7.1<span class="o">)</span>
+Installing<span class="w"> </span>collected<span class="w"> </span>packages:<span class="w"> </span>torch,<span class="w"> </span>torchaudio
+Successfully<span class="w"> </span>installed<span class="w"> </span>torch-1.13.0+cu116<span class="w"> </span>torchaudio-0.13.0+cu116
+</pre></div>
+</div>
+<p>Verify that <a class="reference external" href="https://github.com/pytorch/pytorch">torch</a> and <a class="reference external" href="https://github.com/pytorch/audio">torchaudio</a> are successfully installed:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span>test-icefall<span class="o">)</span><span class="w"> </span>kuangfangjun:~$<span class="w"> </span>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import torch; print(torch.__version__)&quot;</span>
+
+<span class="m">1</span>.13.0+cu116
+
+<span class="o">(</span>test-icefall<span class="o">)</span><span class="w"> </span>kuangfangjun:~$<span class="w"> </span>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import torchaudio; print(torchaudio.__version__)&quot;</span>
+
+<span class="m">0</span>.13.0+cu116
 </pre></div>
 </div>
 </section>
 <section id="id3">
-<h3>(5) Download icefall<a class="headerlink" href="#id3" title="Permalink to this heading"></a></h3>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ cd /tmp
-$ git clone https://github.com/k2-fsa/icefall
+<h3>(4) Install k2<a class="headerlink" href="#id3" title="Permalink to this heading"></a></h3>
+<p>We will install <a class="reference external" href="https://github.com/k2-fsa/k2">k2</a> from pre-compiled wheels by following
+<a class="reference external" href="https://k2-fsa.github.io/k2/installation/from_wheels.html">https://k2-fsa.github.io/k2/installation/from_wheels.html</a></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span>test-icefall<span class="o">)</span><span class="w"> </span>kuangfangjun:~$<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="nv">k2</span><span class="o">==</span><span class="m">1</span>.24.3.dev20230725+cuda11.6.torch1.13.0<span class="w"> </span>-f<span class="w"> </span>https://k2-fsa.github.io/k2/cuda.html
 
-Cloning into &#39;icefall&#39;...
-remote: Enumerating objects: 500, done.
-remote: Counting objects: 100% (500/500), done.
-remote: Compressing objects: 100% (308/308), done.
-remote: Total 500 (delta 263), reused 307 (delta 102), pack-reused 0
-Receiving objects: 100% (500/500), 172.49 KiB | 385.00 KiB/s, done.
-Resolving deltas: 100% (263/263), done.
+Looking<span class="w"> </span><span class="k">in</span><span class="w"> </span>indexes:<span class="w"> </span>https://pypi.tuna.tsinghua.edu.cn/simple
+Looking<span class="w"> </span><span class="k">in</span><span class="w"> </span>links:<span class="w"> </span>https://k2-fsa.github.io/k2/cuda.html
+Collecting<span class="w"> </span><span class="nv">k2</span><span class="o">==</span><span class="m">1</span>.24.3.dev20230725+cuda11.6.torch1.13.0
+<span class="w">  </span>Downloading<span class="w"> </span>https://huggingface.co/csukuangfj/k2/resolve/main/ubuntu-cuda/k2-1.24.3.dev20230725%2Bcuda11.6.torch1.13.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl<span class="w"> </span><span class="o">(</span><span class="m">104</span>.3<span class="w"> </span>MB<span class="o">)</span>
+<span class="w">     </span>________________________________________<span class="w"> </span><span class="m">104</span>.3/104.3<span class="w"> </span>MB<span class="w"> </span><span class="m">5</span>.1<span class="w"> </span>MB/s<span class="w"> </span>eta<span class="w"> </span><span class="m">0</span>:00:00
+Requirement<span class="w"> </span>already<span class="w"> </span>satisfied:<span class="w"> </span><span class="nv">torch</span><span class="o">==</span><span class="m">1</span>.13.0<span class="w"> </span><span class="k">in</span><span class="w"> </span>/star-fj/fangjun/test-icefall/lib/python3.8/site-packages<span class="w"> </span><span class="o">(</span>from<span class="w"> </span><span class="nv">k2</span><span class="o">==</span><span class="m">1</span>.24.3.dev20230725+cuda11.6.torch1.13.0<span class="o">)</span><span class="w"> </span><span class="o">(</span><span class="m">1</span>.13.0+cu116<span class="o">)</span>
+Collecting<span class="w"> </span>graphviz
+<span class="w">  </span>Using<span class="w"> </span>cached<span class="w"> </span>https://pypi.tuna.tsinghua.edu.cn/packages/de/5e/fcbb22c68208d39edff467809d06c9d81d7d27426460ebc598e55130c1aa/graphviz-0.20.1-py3-none-any.whl<span class="w"> </span><span class="o">(</span><span class="m">47</span><span class="w"> </span>kB<span class="o">)</span>
+Requirement<span class="w"> </span>already<span class="w"> </span>satisfied:<span class="w"> </span>typing-extensions<span class="w"> </span><span class="k">in</span><span class="w"> </span>/star-fj/fangjun/test-icefall/lib/python3.8/site-packages<span class="w"> </span><span class="o">(</span>from<span class="w"> </span><span class="nv">torch</span><span class="o">==</span><span class="m">1</span>.13.0-&gt;k2<span class="o">==</span><span class="m">1</span>.24.3.dev20230725+cuda11.6.torch1.13.0<span class="o">)</span><span class="w"> </span><span class="o">(</span><span class="m">4</span>.7.1<span class="o">)</span>
+Installing<span class="w"> </span>collected<span class="w"> </span>packages:<span class="w"> </span>graphviz,<span class="w"> </span>k2
+Successfully<span class="w"> </span>installed<span class="w"> </span>graphviz-0.20.1<span class="w"> </span>k2-1.24.3.dev20230725+cuda11.6.torch1.13.0
+</pre></div>
+</div>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>Please refer to <a class="reference external" href="https://k2-fsa.github.io/k2/cuda.html">https://k2-fsa.github.io/k2/cuda.html</a> for the available
+pre-compiled wheels about <a class="reference external" href="https://github.com/k2-fsa/k2">k2</a>.</p>
+</div>
+<p>Verify that <a class="reference external" href="https://github.com/k2-fsa/k2">k2</a> has been installed successfully:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span>test-icefall<span class="o">)</span><span class="w"> </span>kuangfangjun:~$<span class="w"> </span>python3<span class="w"> </span>-m<span class="w"> </span>k2.version
 
-$ cd icefall
-$ pip install -r requirements.txt
+Collecting<span class="w"> </span>environment<span class="w"> </span>information...
 
-Collecting kaldilm
-  Downloading kaldilm-1.8.tar.gz (48 kB)
-     |________________________________| 48 kB 574 kB/s
-Collecting kaldialign
-  Using cached kaldialign-0.2-cp38-cp38-linux_x86_64.whl
-Collecting sentencepiece&gt;=0.1.96
-  Using cached sentencepiece-0.1.96-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (1.2 MB)
-Collecting tensorboard
-  Using cached tensorboard-2.6.0-py3-none-any.whl (5.6 MB)
-Requirement already satisfied: setuptools&gt;=41.0.0 in /ceph-fj/fangjun/test-icefall/lib/python3.8/site-packages (from tensorboard-&gt;-r
-requirements.txt (line 4)) (57.4.0)
-Collecting absl-py&gt;=0.4
-  Using cached absl_py-0.13.0-py3-none-any.whl (132 kB)
-Collecting google-auth-oauthlib&lt;0.5,&gt;=0.4.1
-  Using cached google_auth_oauthlib-0.4.5-py2.py3-none-any.whl (18 kB)
-Collecting grpcio&gt;=1.24.3
-  Using cached grpcio-1.39.0-cp38-cp38-manylinux2014_x86_64.whl (4.3 MB)
-Requirement already satisfied: wheel&gt;=0.26 in /ceph-fj/fangjun/test-icefall/lib/python3.8/site-packages (from tensorboard-&gt;-r require
-ments.txt (line 4)) (0.36.2)
-Requirement already satisfied: numpy&gt;=1.12.0 in /ceph-fj/fangjun/test-icefall/lib/python3.8/site-packages (from tensorboard-&gt;-r requi
-rements.txt (line 4)) (1.21.2)
-Collecting protobuf&gt;=3.6.0
-  Using cached protobuf-3.17.3-cp38-cp38-manylinux_2_5_x86_64.manylinux1_x86_64.whl (1.0 MB)
-Collecting werkzeug&gt;=0.11.15
-  Using cached Werkzeug-2.0.1-py3-none-any.whl (288 kB)
-Collecting tensorboard-data-server&lt;0.7.0,&gt;=0.6.0
-  Using cached tensorboard_data_server-0.6.1-py3-none-manylinux2010_x86_64.whl (4.9 MB)
-Collecting google-auth&lt;2,&gt;=1.6.3
-  Downloading google_auth-1.35.0-py2.py3-none-any.whl (152 kB)
-     |________________________________| 152 kB 1.4 MB/s
-Collecting requests&lt;3,&gt;=2.21.0
-  Using cached requests-2.26.0-py2.py3-none-any.whl (62 kB)
-Collecting tensorboard-plugin-wit&gt;=1.6.0
-  Using cached tensorboard_plugin_wit-1.8.0-py3-none-any.whl (781 kB)
-Collecting markdown&gt;=2.6.8
-  Using cached Markdown-3.3.4-py3-none-any.whl (97 kB)
-Collecting six
-  Using cached six-1.16.0-py2.py3-none-any.whl (11 kB)
-Collecting cachetools&lt;5.0,&gt;=2.0.0
-  Using cached cachetools-4.2.2-py3-none-any.whl (11 kB)
-Collecting rsa&lt;5,&gt;=3.1.4
-  Using cached rsa-4.7.2-py3-none-any.whl (34 kB)
-Collecting pyasn1-modules&gt;=0.2.1
-  Using cached pyasn1_modules-0.2.8-py2.py3-none-any.whl (155 kB)
-Collecting requests-oauthlib&gt;=0.7.0
-  Using cached requests_oauthlib-1.3.0-py2.py3-none-any.whl (23 kB)
-Collecting pyasn1&lt;0.5.0,&gt;=0.4.6
-  Using cached pyasn1-0.4.8-py2.py3-none-any.whl (77 kB)
-Collecting urllib3&lt;1.27,&gt;=1.21.1
-  Using cached urllib3-1.26.6-py2.py3-none-any.whl (138 kB)
-Collecting certifi&gt;=2017.4.17
-  Using cached certifi-2021.5.30-py2.py3-none-any.whl (145 kB)
-Collecting charset-normalizer~=2.0.0
-  Using cached charset_normalizer-2.0.4-py3-none-any.whl (36 kB)
-Collecting idna&lt;4,&gt;=2.5
-  Using cached idna-3.2-py3-none-any.whl (59 kB)
-Collecting oauthlib&gt;=3.0.0
-  Using cached oauthlib-3.1.1-py2.py3-none-any.whl (146 kB)
-Building wheels for collected packages: kaldilm
-  Building wheel for kaldilm (setup.py) ... done
-  Created wheel for kaldilm: filename=kaldilm-1.8-cp38-cp38-linux_x86_64.whl size=897233 sha256=eccb906cafcd45bf9a7e1a1718e4534254bfb
-f4c0d0cbc66eee6c88d68a63862
-  Stored in directory: /root/fangjun/.cache/pip/wheels/85/7d/63/f2dd586369b8797cb36d213bf3a84a789eeb92db93d2e723c9
-Successfully built kaldilm
-Installing collected packages: urllib3, pyasn1, idna, charset-normalizer, certifi, six, rsa, requests, pyasn1-modules, oauthlib, cach
-etools, requests-oauthlib, google-auth, werkzeug, tensorboard-plugin-wit, tensorboard-data-server, protobuf, markdown, grpcio, google
--auth-oauthlib, absl-py, tensorboard, sentencepiece, kaldilm, kaldialign
-Successfully installed absl-py-0.13.0 cachetools-4.2.2 certifi-2021.5.30 charset-normalizer-2.0.4 google-auth-1.35.0 google-auth-oaut
-hlib-0.4.5 grpcio-1.39.0 idna-3.2 kaldialign-0.2 kaldilm-1.8 markdown-3.3.4 oauthlib-3.1.1 protobuf-3.17.3 pyasn1-0.4.8 pyasn1-module
-s-0.2.8 requests-2.26.0 requests-oauthlib-1.3.0 rsa-4.7.2 sentencepiece-0.1.96 six-1.16.0 tensorboard-2.6.0 tensorboard-data-server-0
-.6.1 tensorboard-plugin-wit-1.8.0 urllib3-1.26.6 werkzeug-2.0.1
+k2<span class="w"> </span>version:<span class="w"> </span><span class="m">1</span>.24.3
+Build<span class="w"> </span>type:<span class="w"> </span>Release
+Git<span class="w"> </span>SHA1:<span class="w"> </span>4c05309499a08454997adf500b56dcc629e35ae5
+Git<span class="w"> </span>date:<span class="w"> </span>Tue<span class="w"> </span>Jul<span class="w"> </span><span class="m">25</span><span class="w"> </span><span class="m">16</span>:23:36<span class="w"> </span><span class="m">2023</span>
+Cuda<span class="w"> </span>used<span class="w"> </span>to<span class="w"> </span>build<span class="w"> </span>k2:<span class="w"> </span><span class="m">11</span>.6
+cuDNN<span class="w"> </span>used<span class="w"> </span>to<span class="w"> </span>build<span class="w"> </span>k2:<span class="w"> </span><span class="m">8</span>.3.2
+Python<span class="w"> </span>version<span class="w"> </span>used<span class="w"> </span>to<span class="w"> </span>build<span class="w"> </span>k2:<span class="w"> </span><span class="m">3</span>.8
+OS<span class="w"> </span>used<span class="w"> </span>to<span class="w"> </span>build<span class="w"> </span>k2:<span class="w"> </span>CentOS<span class="w"> </span>Linux<span class="w"> </span>release<span class="w"> </span><span class="m">7</span>.9.2009<span class="w"> </span><span class="o">(</span>Core<span class="o">)</span>
+CMake<span class="w"> </span>version:<span class="w"> </span><span class="m">3</span>.27.0
+GCC<span class="w"> </span>version:<span class="w"> </span><span class="m">9</span>.3.1
+CMAKE_CUDA_FLAGS:<span class="w">  </span>-Wno-deprecated-gpu-targets<span class="w">   </span>-lineinfo<span class="w"> </span>--expt-extended-lambda<span class="w"> </span>-use_fast_math<span class="w"> </span>-Xptxas<span class="o">=</span>-w<span class="w">  </span>--expt-extended-lambda<span class="w"> </span>-gencode<span class="w"> </span><span class="nv">arch</span><span class="o">=</span>compute_35,code<span class="o">=</span>sm_35<span class="w">  </span>-lineinfo<span class="w"> </span>--expt-extended-lambda<span class="w"> </span>-use_fast_math<span class="w"> </span>-Xptxas<span class="o">=</span>-w<span class="w">  </span>--expt-extended-lambda<span class="w"> </span>-gencode<span class="w"> </span><span class="nv">arch</span><span class="o">=</span>compute_50,code<span class="o">=</span>sm_50<span class="w">  </span>-lineinfo<span class="w"> </span>--expt-extended-lambda<span class="w"> </span>-use_fast_math<span class="w"> </span>-Xptxas<span class="o">=</span>-w<span class="w">  </span>--expt-extended-lambda<span class="w"> </span>-gencode<span class="w"> </span><span class="nv">arch</span><span class="o">=</span>compute_60,code<span class="o">=</span>sm_60<span class="w">  </span>-lineinfo<span class="w"> </span>--expt-extended-lambda<span class="w"> </span>-use_fast_math<span class="w"> </span>-Xptxas<span class="o">=</span>-w<span class="w">  </span>--expt-extended-lambda<span class="w"> </span>-gencode<span class="w"> </span><span class="nv">arch</span><span class="o">=</span>compute_61,code<span class="o">=</span>sm_61<span class="w">  </span>-lineinfo<span class="w"> </span>--expt-extended-lambda<span class="w"> </span>-use_fast_math<span class="w"> </span>-Xptxas<span class="o">=</span>-w<span class="w">  </span>--expt-extended-lambda<span class="w"> </span>-gencode<span class="w"> </span><span class="nv">arch</span><span class="o">=</span>compute_70,code<span class="o">=</span>sm_70<span class="w">  </span>-lineinfo<span class="w"> </span>--expt-extended-lambda<span class="w"> </span>-use_fast_math<span class="w"> </span>-Xptxas<span class="o">=</span>-w<span class="w">  </span>--expt-extended-lambda<span class="w"> </span>-gencode<span class="w"> </span><span class="nv">arch</span><span class="o">=</span>compute_75,code<span class="o">=</span>sm_75<span class="w">  </span>-lineinfo<span class="w"> </span>--expt-extended-lambda<span class="w"> </span>-use_fast_math<span class="w"> </span>-Xptxas<span class="o">=</span>-w<span class="w">  </span>--expt-extended-lambda<span class="w"> </span>-gencode<span class="w"> </span><span class="nv">arch</span><span class="o">=</span>compute_80,code<span class="o">=</span>sm_80<span class="w">  </span>-lineinfo<span class="w"> </span>--expt-extended-lambda<span class="w"> </span>-use_fast_math<span class="w"> </span>-Xptxas<span class="o">=</span>-w<span class="w">  </span>--expt-extended-lambda<span class="w"> </span>-gencode<span class="w"> </span><span class="nv">arch</span><span class="o">=</span>compute_86,code<span class="o">=</span>sm_86<span class="w"> </span>-DONNX_NAMESPACE<span class="o">=</span>onnx_c2<span class="w"> </span>-gencode<span class="w"> </span><span class="nv">arch</span><span class="o">=</span>compute_35,code<span class="o">=</span>sm_35<span class="w"> </span>-gencode<span class="w"> </span><span class="nv">arch</span><span class="o">=</span>compute_50,code<span class="o">=</span>sm_50<span class="w"> </span>-gencode<span class="w"> </span><span class="nv">arch</span><span class="o">=</span>compute_52,code<span class="o">=</span>sm_52<span class="w"> </span>-gencode<span class="w"> </span><span class="nv">arch</span><span class="o">=</span>compute_60,code<span class="o">=</span>sm_60<span class="w"> </span>-gencode<span class="w"> </span><span class="nv">arch</span><span class="o">=</span>compute_61,code<span class="o">=</span>sm_61<span class="w"> </span>-gencode<span class="w"> </span><span class="nv">arch</span><span class="o">=</span>compute_70,code<span class="o">=</span>sm_70<span class="w"> </span>-gencode<span class="w"> </span><span class="nv">arch</span><span class="o">=</span>compute_75,code<span class="o">=</span>sm_75<span class="w"> </span>-gencode<span class="w"> </span><span class="nv">arch</span><span class="o">=</span>compute_80,code<span class="o">=</span>sm_80<span class="w"> </span>-gencode<span class="w"> </span><span class="nv">arch</span><span class="o">=</span>compute_86,code<span class="o">=</span>sm_86<span class="w"> </span>-gencode<span class="w"> </span><span class="nv">arch</span><span class="o">=</span>compute_86,code<span class="o">=</span>compute_86<span class="w"> </span>-Xcudafe<span class="w"> </span>--diag_suppress<span class="o">=</span>cc_clobber_ignored,--diag_suppress<span class="o">=</span>integer_sign_change,--diag_suppress<span class="o">=</span>useless_using_declaration,--diag_suppress<span class="o">=</span>set_but_not_used,--diag_suppress<span class="o">=</span>field_without_dll_interface,--diag_suppress<span class="o">=</span>base_class_has_different_dll_interface,--diag_suppress<span class="o">=</span>dll_interface_conflict_none_assumed,--diag_suppress<span class="o">=</span>dll_interface_conflict_dllexport_assumed,--diag_suppress<span class="o">=</span>implicit_return_from_non_void_function,--diag_suppress<span class="o">=</span>unsigned_compare_with_zero,--diag_suppress<span class="o">=</span>declared_but_not_referenced,--diag_suppress<span class="o">=</span>bad_friend_decl<span class="w"> </span>--expt-relaxed-constexpr<span class="w"> </span>--expt-extended-lambda<span class="w"> </span>-D_GLIBCXX_USE_CXX11_ABI<span class="o">=</span><span class="m">0</span><span class="w"> </span>--compiler-options<span class="w"> </span>-Wall<span class="w">  </span>--compiler-options<span class="w"> </span>-Wno-strict-overflow<span class="w">  </span>--compiler-options<span class="w"> </span>-Wno-unknown-pragmas
+CMAKE_CXX_FLAGS:<span class="w">  </span>-D_GLIBCXX_USE_CXX11_ABI<span class="o">=</span><span class="m">0</span><span class="w"> </span>-Wno-unused-variable<span class="w">  </span>-Wno-strict-overflow
+PyTorch<span class="w"> </span>version<span class="w"> </span>used<span class="w"> </span>to<span class="w"> </span>build<span class="w"> </span>k2:<span class="w"> </span><span class="m">1</span>.13.0+cu116
+PyTorch<span class="w"> </span>is<span class="w"> </span>using<span class="w"> </span>Cuda:<span class="w"> </span><span class="m">11</span>.6
+NVTX<span class="w"> </span>enabled:<span class="w"> </span>True
+With<span class="w"> </span>CUDA:<span class="w"> </span>True
+Disable<span class="w"> </span>debug:<span class="w"> </span>True
+Sync<span class="w"> </span>kernels<span class="w"> </span>:<span class="w"> </span>False
+Disable<span class="w"> </span>checks:<span class="w"> </span>False
+Max<span class="w"> </span>cpu<span class="w"> </span>memory<span class="w"> </span>allocate:<span class="w"> </span><span class="m">214748364800</span><span class="w"> </span>bytes<span class="w"> </span><span class="o">(</span>or<span class="w"> </span><span class="m">200</span>.0<span class="w"> </span>GB<span class="o">)</span>
+k2<span class="w"> </span>abort:<span class="w"> </span>False
+__file__:<span class="w"> </span>/star-fj/fangjun/test-icefall/lib/python3.8/site-packages/k2/version/version.py
+_k2.__file__:<span class="w"> </span>/star-fj/fangjun/test-icefall/lib/python3.8/site-packages/_k2.cpython-38-x86_64-linux-gnu.so
+</pre></div>
+</div>
+</section>
+<section id="id5">
+<h3>(5) Install lhotse<a class="headerlink" href="#id5" title="Permalink to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span>test-icefall<span class="o">)</span><span class="w"> </span>kuangfangjun:~$<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>git+https://github.com/lhotse-speech/lhotse
+
+Collecting<span class="w"> </span>git+https://github.com/lhotse-speech/lhotse
+<span class="w">  </span>Cloning<span class="w"> </span>https://github.com/lhotse-speech/lhotse<span class="w"> </span>to<span class="w"> </span>/tmp/pip-req-build-vq12fd5i
+<span class="w">  </span>Running<span class="w"> </span><span class="nb">command</span><span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span>--filter<span class="o">=</span>blob:none<span class="w"> </span>--quiet<span class="w"> </span>https://github.com/lhotse-speech/lhotse<span class="w"> </span>/tmp/pip-req-build-vq12fd5i
+<span class="w">  </span>Resolved<span class="w"> </span>https://github.com/lhotse-speech/lhotse<span class="w"> </span>to<span class="w"> </span>commit<span class="w"> </span>7640d663469b22cd0b36f3246ee9b849cd25e3b7
+<span class="w">  </span>Installing<span class="w"> </span>build<span class="w"> </span>dependencies<span class="w"> </span>...<span class="w"> </span><span class="k">done</span>
+<span class="w">  </span>Getting<span class="w"> </span>requirements<span class="w"> </span>to<span class="w"> </span>build<span class="w"> </span>wheel<span class="w"> </span>...<span class="w"> </span><span class="k">done</span>
+<span class="w">  </span>Preparing<span class="w"> </span>metadata<span class="w"> </span><span class="o">(</span>pyproject.toml<span class="o">)</span><span class="w"> </span>...<span class="w"> </span><span class="k">done</span>
+Collecting<span class="w"> </span>cytoolz&gt;<span class="o">=</span><span class="m">0</span>.10.1
+<span class="w">  </span>Downloading<span class="w"> </span>https://pypi.tuna.tsinghua.edu.cn/packages/1e/3b/a7828d575aa17fb7acaf1ced49a3655aa36dad7e16eb7e6a2e4df0dda76f/cytoolz-0.12.2-cp38-cp38-
+manylinux_2_17_x86_64.manylinux2014_x86_64.whl<span class="w"> </span><span class="o">(</span><span class="m">2</span>.0<span class="w"> </span>MB<span class="o">)</span>
+<span class="w">     </span>________________________________________<span class="w"> </span><span class="m">2</span>.0/2.0<span class="w"> </span>MB<span class="w"> </span><span class="m">33</span>.2<span class="w"> </span>MB/s<span class="w"> </span>eta<span class="w"> </span><span class="m">0</span>:00:00
+Collecting<span class="w"> </span>pyyaml&gt;<span class="o">=</span><span class="m">5</span>.3.1
+<span class="w">  </span>Downloading<span class="w"> </span>https://pypi.tuna.tsinghua.edu.cn/packages/c8/6b/6600ac24725c7388255b2f5add93f91e58a5d7efaf4af244fdbcc11a541b/PyYAML-6.0.1-cp38-cp38-ma
+nylinux_2_17_x86_64.manylinux2014_x86_64.whl<span class="w"> </span><span class="o">(</span><span class="m">736</span><span class="w"> </span>kB<span class="o">)</span>
+<span class="w">     </span>________________________________________<span class="w"> </span><span class="m">736</span>.6/736.6<span class="w"> </span>kB<span class="w"> </span><span class="m">38</span>.6<span class="w"> </span>MB/s<span class="w"> </span>eta<span class="w"> </span><span class="m">0</span>:00:00
+Collecting<span class="w"> </span>dataclasses
+<span class="w">  </span>Downloading<span class="w"> </span>https://pypi.tuna.tsinghua.edu.cn/packages/26/2f/1095cdc2868052dd1e64520f7c0d5c8c550ad297e944e641dbf1ffbb9a5d/dataclasses-0.6-py3-none-
+any.whl<span class="w"> </span><span class="o">(</span><span class="m">14</span><span class="w"> </span>kB<span class="o">)</span>
+Requirement<span class="w"> </span>already<span class="w"> </span>satisfied:<span class="w"> </span>torchaudio<span class="w"> </span><span class="k">in</span><span class="w"> </span>./test-icefall/lib/python3.8/site-packages<span class="w"> </span><span class="o">(</span>from<span class="w"> </span><span class="nv">lhotse</span><span class="o">==</span><span class="m">1</span>.16.0.dev0+git.7640d66.clean<span class="o">)</span><span class="w"> </span><span class="o">(</span><span class="m">0</span>.13.0+cu116<span class="o">)</span>
+Collecting<span class="w"> </span>lilcom&gt;<span class="o">=</span><span class="m">1</span>.1.0
+<span class="w">  </span>Downloading<span class="w"> </span>https://pypi.tuna.tsinghua.edu.cn/packages/a8/65/df0a69c52bd085ca1ad4e5c4c1a5c680e25f9477d8e49316c4ff1e5084a4/lilcom-1.7-cp38-cp38-many
+linux_2_17_x86_64.manylinux2014_x86_64.whl<span class="w"> </span><span class="o">(</span><span class="m">87</span><span class="w"> </span>kB<span class="o">)</span>
+<span class="w">     </span>________________________________________<span class="w"> </span><span class="m">87</span>.1/87.1<span class="w"> </span>kB<span class="w"> </span><span class="m">8</span>.7<span class="w"> </span>MB/s<span class="w"> </span>eta<span class="w"> </span><span class="m">0</span>:00:00
+Collecting<span class="w"> </span>tqdm
+<span class="w">  </span>Using<span class="w"> </span>cached<span class="w"> </span>https://pypi.tuna.tsinghua.edu.cn/packages/e6/02/a2cff6306177ae6bc73bc0665065de51dfb3b9db7373e122e2735faf0d97/tqdm-4.65.0-py3-none-any
+.whl<span class="w"> </span><span class="o">(</span><span class="m">77</span><span class="w"> </span>kB<span class="o">)</span>
+Requirement<span class="w"> </span>already<span class="w"> </span>satisfied:<span class="w"> </span>numpy&gt;<span class="o">=</span><span class="m">1</span>.18.1<span class="w"> </span><span class="k">in</span><span class="w"> </span>./test-icefall/lib/python3.8/site-packages<span class="w"> </span><span class="o">(</span>from<span class="w"> </span><span class="nv">lhotse</span><span class="o">==</span><span class="m">1</span>.16.0.dev0+git.7640d66.clean<span class="o">)</span><span class="w"> </span><span class="o">(</span><span class="m">1</span>.24.4<span class="o">)</span>
+Collecting<span class="w"> </span>audioread&gt;<span class="o">=</span><span class="m">2</span>.1.9
+<span class="w">  </span>Using<span class="w"> </span>cached<span class="w"> </span>https://pypi.tuna.tsinghua.edu.cn/packages/5d/cb/82a002441902dccbe427406785db07af10182245ee639ea9f4d92907c923/audioread-3.0.0.tar.gz<span class="w"> </span><span class="o">(</span>
+<span class="m">377</span><span class="w"> </span>kB<span class="o">)</span>
+<span class="w">  </span>Preparing<span class="w"> </span>metadata<span class="w"> </span><span class="o">(</span>setup.py<span class="o">)</span><span class="w"> </span>...<span class="w"> </span><span class="k">done</span>
+Collecting<span class="w"> </span>tabulate&gt;<span class="o">=</span><span class="m">0</span>.8.1
+<span class="w">  </span>Using<span class="w"> </span>cached<span class="w"> </span>https://pypi.tuna.tsinghua.edu.cn/packages/40/44/4a5f08c96eb108af5cb50b41f76142f0afa346dfa99d5296fe7202a11854/tabulate-0.9.0-py3-none-
+any.whl<span class="w"> </span><span class="o">(</span><span class="m">35</span><span class="w"> </span>kB<span class="o">)</span>
+Collecting<span class="w"> </span>click&gt;<span class="o">=</span><span class="m">7</span>.1.1
+<span class="w">  </span>Downloading<span class="w"> </span>https://pypi.tuna.tsinghua.edu.cn/packages/1a/70/e63223f8116931d365993d4a6b7ef653a4d920b41d03de7c59499962821f/click-8.1.6-py3-none-any.
+whl<span class="w"> </span><span class="o">(</span><span class="m">97</span><span class="w"> </span>kB<span class="o">)</span>
+<span class="w">     </span>________________________________________<span class="w"> </span><span class="m">97</span>.9/97.9<span class="w"> </span>kB<span class="w"> </span><span class="m">8</span>.4<span class="w"> </span>MB/s<span class="w"> </span>eta<span class="w"> </span><span class="m">0</span>:00:00
+Collecting<span class="w"> </span>packaging
+<span class="w">  </span>Using<span class="w"> </span>cached<span class="w"> </span>https://pypi.tuna.tsinghua.edu.cn/packages/ab/c3/57f0601a2d4fe15de7a553c00adbc901425661bf048f2a22dfc500caf121/packaging-23.1-py3-none-
+any.whl<span class="w"> </span><span class="o">(</span><span class="m">48</span><span class="w"> </span>kB<span class="o">)</span>
+Collecting<span class="w"> </span>intervaltree&gt;<span class="o">=</span><span class="m">3</span>.1.0
+<span class="w">  </span>Downloading<span class="w"> </span>https://pypi.tuna.tsinghua.edu.cn/packages/50/fb/396d568039d21344639db96d940d40eb62befe704ef849b27949ded5c3bb/intervaltree-3.1.0.tar.gz
+<span class="w"> </span><span class="o">(</span><span class="m">32</span><span class="w"> </span>kB<span class="o">)</span>
+<span class="w">  </span>Preparing<span class="w"> </span>metadata<span class="w"> </span><span class="o">(</span>setup.py<span class="o">)</span><span class="w"> </span>...<span class="w"> </span><span class="k">done</span>
+Requirement<span class="w"> </span>already<span class="w"> </span>satisfied:<span class="w"> </span>torch<span class="w"> </span><span class="k">in</span><span class="w"> </span>./test-icefall/lib/python3.8/site-packages<span class="w"> </span><span class="o">(</span>from<span class="w"> </span><span class="nv">lhotse</span><span class="o">==</span><span class="m">1</span>.16.0.dev0+git.7640d66.clean<span class="o">)</span><span class="w"> </span><span class="o">(</span><span class="m">1</span>.13.0+cu116<span class="o">)</span>
+Collecting<span class="w"> </span>SoundFile&gt;<span class="o">=</span><span class="m">0</span>.10
+<span class="w">  </span>Downloading<span class="w"> </span>https://pypi.tuna.tsinghua.edu.cn/packages/ad/bd/0602167a213d9184fc688b1086dc6d374b7ae8c33eccf169f9b50ce6568c/soundfile-0.12.1-py2.py3-
+none-manylinux_2_17_x86_64.whl<span class="w"> </span><span class="o">(</span><span class="m">1</span>.3<span class="w"> </span>MB<span class="o">)</span>
+<span class="w">     </span>________________________________________<span class="w"> </span><span class="m">1</span>.3/1.3<span class="w"> </span>MB<span class="w"> </span><span class="m">46</span>.5<span class="w"> </span>MB/s<span class="w"> </span>eta<span class="w"> </span><span class="m">0</span>:00:00
+Collecting<span class="w"> </span>toolz&gt;<span class="o">=</span><span class="m">0</span>.8.0
+<span class="w">  </span>Using<span class="w"> </span>cached<span class="w"> </span>https://pypi.tuna.tsinghua.edu.cn/packages/7f/5c/922a3508f5bda2892be3df86c74f9cf1e01217c2b1f8a0ac4841d903e3e9/toolz-0.12.0-py3-none-any.whl<span class="w"> </span><span class="o">(</span><span class="m">55</span><span class="w"> </span>kB<span class="o">)</span>
+Collecting<span class="w"> </span>sortedcontainers&lt;<span class="m">3</span>.0,&gt;<span class="o">=</span><span class="m">2</span>.0
+<span class="w">  </span>Using<span class="w"> </span>cached<span class="w"> </span>https://pypi.tuna.tsinghua.edu.cn/packages/32/46/9cb0e58b2deb7f82b84065f37f3bffeb12413f947f9388e4cac22c4621ce/sortedcontainers-2.4.0-py2.py3-none-any.whl<span class="w"> </span><span class="o">(</span><span class="m">29</span><span class="w"> </span>kB<span class="o">)</span>
+Collecting<span class="w"> </span>cffi&gt;<span class="o">=</span><span class="m">1</span>.0
+<span class="w">  </span>Using<span class="w"> </span>cached<span class="w"> </span>https://pypi.tuna.tsinghua.edu.cn/packages/b7/8b/06f30caa03b5b3ac006de4f93478dbd0239e2a16566d81a106c322dc4f79/cffi-1.15.1-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl<span class="w"> </span><span class="o">(</span><span class="m">442</span><span class="w"> </span>kB<span class="o">)</span>
+Requirement<span class="w"> </span>already<span class="w"> </span>satisfied:<span class="w"> </span>typing-extensions<span class="w"> </span><span class="k">in</span><span class="w"> </span>./test-icefall/lib/python3.8/site-packages<span class="w"> </span><span class="o">(</span>from<span class="w"> </span>torch-&gt;lhotse<span class="o">==</span><span class="m">1</span>.16.0.dev0+git.7640d66.clean<span class="o">)</span><span class="w"> </span><span class="o">(</span><span class="m">4</span>.7.1<span class="o">)</span>
+Collecting<span class="w"> </span>pycparser
+<span class="w">  </span>Using<span class="w"> </span>cached<span class="w"> </span>https://pypi.tuna.tsinghua.edu.cn/packages/62/d5/5f610ebe421e85889f2e55e33b7f9a6795bd982198517d912eb1c76e1a53/pycparser-2.21-py2.py3-none-any.whl<span class="w"> </span><span class="o">(</span><span class="m">118</span><span class="w"> </span>kB<span class="o">)</span>
+Building<span class="w"> </span>wheels<span class="w"> </span><span class="k">for</span><span class="w"> </span>collected<span class="w"> </span>packages:<span class="w"> </span>lhotse,<span class="w"> </span>audioread,<span class="w"> </span>intervaltree
+<span class="w">  </span>Building<span class="w"> </span>wheel<span class="w"> </span><span class="k">for</span><span class="w"> </span>lhotse<span class="w"> </span><span class="o">(</span>pyproject.toml<span class="o">)</span><span class="w"> </span>...<span class="w"> </span><span class="k">done</span>
+<span class="w">  </span>Created<span class="w"> </span>wheel<span class="w"> </span><span class="k">for</span><span class="w"> </span>lhotse:<span class="w"> </span><span class="nv">filename</span><span class="o">=</span>lhotse-1.16.0.dev0+git.7640d66.clean-py3-none-any.whl<span class="w"> </span><span class="nv">size</span><span class="o">=</span><span class="m">687627</span><span class="w"> </span><span class="nv">sha256</span><span class="o">=</span>cbf0a4d2d0b639b33b91637a4175bc251d6a021a069644ecb1a9f2b3a83d072a
+<span class="w">  </span>Stored<span class="w"> </span><span class="k">in</span><span class="w"> </span>directory:<span class="w"> </span>/tmp/pip-ephem-wheel-cache-wwtk90_m/wheels/7f/7a/8e/a0bf241336e2e3cb573e1e21e5600952d49f5162454f2e612f
+<span class="w">  </span>Building<span class="w"> </span>wheel<span class="w"> </span><span class="k">for</span><span class="w"> </span>audioread<span class="w"> </span><span class="o">(</span>setup.py<span class="o">)</span><span class="w"> </span>...<span class="w"> </span><span class="k">done</span>
+<span class="w">  </span>Created<span class="w"> </span>wheel<span class="w"> </span><span class="k">for</span><span class="w"> </span>audioread:<span class="w"> </span><span class="nv">filename</span><span class="o">=</span>audioread-3.0.0-py3-none-any.whl<span class="w"> </span><span class="nv">size</span><span class="o">=</span><span class="m">23704</span><span class="w"> </span><span class="nv">sha256</span><span class="o">=</span>5e2d3537c96ce9cf0f645a654c671163707bf8cb8d9e358d0e2b0939a85ff4c2
+<span class="w">  </span>Stored<span class="w"> </span><span class="k">in</span><span class="w"> </span>directory:<span class="w"> </span>/star-fj/fangjun/.cache/pip/wheels/e2/c3/9c/f19ae5a03f8862d9f0776b0c0570f1fdd60a119d90954e3f39
+<span class="w">  </span>Building<span class="w"> </span>wheel<span class="w"> </span><span class="k">for</span><span class="w"> </span>intervaltree<span class="w"> </span><span class="o">(</span>setup.py<span class="o">)</span><span class="w"> </span>...<span class="w"> </span><span class="k">done</span>
+<span class="w">  </span>Created<span class="w"> </span>wheel<span class="w"> </span><span class="k">for</span><span class="w"> </span>intervaltree:<span class="w"> </span><span class="nv">filename</span><span class="o">=</span>intervaltree-3.1.0-py2.py3-none-any.whl<span class="w"> </span><span class="nv">size</span><span class="o">=</span><span class="m">26098</span><span class="w"> </span><span class="nv">sha256</span><span class="o">=</span>2604170976cfffe0d2f678cb1a6e5b525f561cd50babe53d631a186734fec9f9
+<span class="w">  </span>Stored<span class="w"> </span><span class="k">in</span><span class="w"> </span>directory:<span class="w"> </span>/star-fj/fangjun/.cache/pip/wheels/f3/ed/2b/c179ebfad4e15452d6baef59737f27beb9bfb442e0620f7271
+Successfully<span class="w"> </span>built<span class="w"> </span>lhotse<span class="w"> </span>audioread<span class="w"> </span>intervaltree
+Installing<span class="w"> </span>collected<span class="w"> </span>packages:<span class="w"> </span>sortedcontainers,<span class="w"> </span>dataclasses,<span class="w"> </span>tqdm,<span class="w"> </span>toolz,<span class="w"> </span>tabulate,<span class="w"> </span>pyyaml,<span class="w"> </span>pycparser,<span class="w"> </span>packaging,<span class="w"> </span>lilcom,<span class="w"> </span>intervaltree,<span class="w"> </span>click,<span class="w"> </span>audioread,<span class="w"> </span>cytoolz,<span class="w"> </span>cffi,<span class="w"> </span>SoundFile,<span class="w"> </span>lhotse
+Successfully<span class="w"> </span>installed<span class="w"> </span>SoundFile-0.12.1<span class="w"> </span>audioread-3.0.0<span class="w"> </span>cffi-1.15.1<span class="w"> </span>click-8.1.6<span class="w"> </span>cytoolz-0.12.2<span class="w"> </span>dataclasses-0.6<span class="w"> </span>intervaltree-3.1.0<span class="w"> </span>lhotse-1.16.0.dev0+git.7640d66.clean<span class="w"> </span>lilcom-1.7<span class="w"> </span>packaging-23.1<span class="w"> </span>pycparser-2.21<span class="w"> </span>pyyaml-6.0.1<span class="w"> </span>sortedcontainers-2.4.0<span class="w"> </span>tabulate-0.9.0<span class="w"> </span>toolz-0.12.0<span class="w"> </span>tqdm-4.65.0
+</pre></div>
+</div>
+<p>Verify that <a class="reference external" href="https://github.com/lhotse-speech/lhotse">lhotse</a> has been installed successfully:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span>test-icefall<span class="o">)</span><span class="w"> </span>kuangfangjun:~$<span class="w"> </span>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import lhotse; print(lhotse.__version__)&quot;</span>
+
+<span class="m">1</span>.16.0.dev+git.7640d66.clean
+</pre></div>
+</div>
+</section>
+<section id="id6">
+<h3>(6) Download icefall<a class="headerlink" href="#id6" title="Permalink to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span>test-icefall<span class="o">)</span><span class="w"> </span>kuangfangjun:~$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>/tmp/
+
+<span class="o">(</span>test-icefall<span class="o">)</span><span class="w"> </span>kuangfangjun:tmp$<span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/k2-fsa/icefall
+
+Cloning<span class="w"> </span>into<span class="w"> </span><span class="s1">&#39;icefall&#39;</span>...
+remote:<span class="w"> </span>Enumerating<span class="w"> </span>objects:<span class="w"> </span><span class="m">12942</span>,<span class="w"> </span><span class="k">done</span>.
+remote:<span class="w"> </span>Counting<span class="w"> </span>objects:<span class="w"> </span><span class="m">100</span>%<span class="w"> </span><span class="o">(</span><span class="m">67</span>/67<span class="o">)</span>,<span class="w"> </span><span class="k">done</span>.
+remote:<span class="w"> </span>Compressing<span class="w"> </span>objects:<span class="w"> </span><span class="m">100</span>%<span class="w"> </span><span class="o">(</span><span class="m">56</span>/56<span class="o">)</span>,<span class="w"> </span><span class="k">done</span>.
+remote:<span class="w"> </span>Total<span class="w"> </span><span class="m">12942</span><span class="w"> </span><span class="o">(</span>delta<span class="w"> </span><span class="m">17</span><span class="o">)</span>,<span class="w"> </span>reused<span class="w"> </span><span class="m">35</span><span class="w"> </span><span class="o">(</span>delta<span class="w"> </span><span class="m">6</span><span class="o">)</span>,<span class="w"> </span>pack-reused<span class="w"> </span><span class="m">12875</span>
+Receiving<span class="w"> </span>objects:<span class="w"> </span><span class="m">100</span>%<span class="w"> </span><span class="o">(</span><span class="m">12942</span>/12942<span class="o">)</span>,<span class="w"> </span><span class="m">14</span>.77<span class="w"> </span>MiB<span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="m">9</span>.29<span class="w"> </span>MiB/s,<span class="w"> </span><span class="k">done</span>.
+Resolving<span class="w"> </span>deltas:<span class="w"> </span><span class="m">100</span>%<span class="w"> </span><span class="o">(</span><span class="m">8835</span>/8835<span class="o">)</span>,<span class="w"> </span><span class="k">done</span>.
+
+<span class="o">(</span>test-icefall<span class="o">)</span><span class="w"> </span>kuangfangjun:tmp$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>icefall/
+
+<span class="o">(</span>test-icefall<span class="o">)</span><span class="w"> </span>kuangfangjun:icefall$<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>./requirements.txt
 </pre></div>
 </div>
 </section>
@@ -438,65 +446,69 @@ s-0.2.8 requests-2.26.0 requests-oauthlib-1.3.0 rsa-4.7.2 sentencepiece-0.1.96 s
 <h2>Test Your Installation<a class="headerlink" href="#test-your-installation" title="Permalink to this heading"></a></h2>
 <p>To test that your installation is successful, let us run
 the <a class="reference external" href="https://github.com/k2-fsa/icefall/tree/master/egs/yesno/ASR">yesno recipe</a>
-on CPU.</p>
+on <code class="docutils literal notranslate"><span class="pre">CPU</span></code>.</p>
 <section id="data-preparation">
 <h3>Data preparation<a class="headerlink" href="#data-preparation" title="Permalink to this heading"></a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">PYTHONPATH</span><span class="o">=</span>/tmp/icefall:<span class="nv">$PYTHONPATH</span>
-$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>/tmp/icefall
-$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/yesno/ASR
-$<span class="w"> </span>./prepare.sh
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span>test-icefall<span class="o">)</span><span class="w"> </span>kuangfangjun:icefall$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">PYTHONPATH</span><span class="o">=</span>/tmp/icefall:<span class="nv">$PYTHONPATH</span>
+
+<span class="o">(</span>test-icefall<span class="o">)</span><span class="w"> </span>kuangfangjun:icefall$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>/tmp/icefall
+
+<span class="o">(</span>test-icefall<span class="o">)</span><span class="w"> </span>kuangfangjun:icefall$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/yesno/ASR
+
+<span class="o">(</span>test-icefall<span class="o">)</span><span class="w"> </span>kuangfangjun:ASR$<span class="w"> </span>./prepare.sh
 </pre></div>
 </div>
 <p>The log of running <code class="docutils literal notranslate"><span class="pre">./prepare.sh</span></code> is:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>2023-05-12 17:55:21 (prepare.sh:27:main) dl_dir: /tmp/icefall/egs/yesno/ASR/download
-2023-05-12 17:55:21 (prepare.sh:30:main) Stage 0: Download data
-/tmp/icefall/egs/yesno/ASR/download/waves_yesno.tar.gz: 100%|_______________________________________________________________| 4.70M/4.70M [06:54&lt;00:00, 11.4kB/s]
-2023-05-12 18:02:19 (prepare.sh:39:main) Stage 1: Prepare yesno manifest
-2023-05-12 18:02:21 (prepare.sh:45:main) Stage 2: Compute fbank for yesno
-2023-05-12 18:02:23,199 INFO [compute_fbank_yesno.py:65] Processing train
-Extracting and storing features: 100%|_______________________________________________________________| 90/90 [00:00&lt;00:00, 212.60it/s]
-2023-05-12 18:02:23,640 INFO [compute_fbank_yesno.py:65] Processing test
-Extracting and storing features: 100%|_______________________________________________________________| 30/30 [00:00&lt;00:00, 304.53it/s]
-2023-05-12 18:02:24 (prepare.sh:51:main) Stage 3: Prepare lang
-2023-05-12 18:02:26 (prepare.sh:66:main) Stage 4: Prepare G
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>2023-07-27 12:41:39 (prepare.sh:27:main) dl_dir: /tmp/icefall/egs/yesno/ASR/download
+2023-07-27 12:41:39 (prepare.sh:30:main) Stage 0: Download data
+/tmp/icefall/egs/yesno/ASR/download/waves_yesno.tar.gz: 100%|___________________________________________________| 4.70M/4.70M [00:00&lt;00:00, 11.1MB/s]
+2023-07-27 12:41:46 (prepare.sh:39:main) Stage 1: Prepare yesno manifest
+2023-07-27 12:41:50 (prepare.sh:45:main) Stage 2: Compute fbank for yesno
+2023-07-27 12:41:55,718 INFO [compute_fbank_yesno.py:65] Processing train
+Extracting and storing features: 100%|_______________________________________________________________________________| 90/90 [00:01&lt;00:00, 87.82it/s]
+2023-07-27 12:41:56,778 INFO [compute_fbank_yesno.py:65] Processing test
+Extracting and storing features: 100%|______________________________________________________________________________| 30/30 [00:00&lt;00:00, 256.92it/s]
+2023-07-27 12:41:57 (prepare.sh:51:main) Stage 3: Prepare lang
+2023-07-27 12:42:02 (prepare.sh:66:main) Stage 4: Prepare G
 /project/kaldilm/csrc/arpa_file_parser.cc:void kaldilm::ArpaFileParser::Read(std::istream&amp;):79
 [I] Reading \data\ section.
 /project/kaldilm/csrc/arpa_file_parser.cc:void kaldilm::ArpaFileParser::Read(std::istream&amp;):140
 [I] Reading \1-grams: section.
-2023-05-12 18:02:26 (prepare.sh:92:main) Stage 5: Compile HLG
-2023-05-12 18:02:28,581 INFO [compile_hlg.py:124] Processing data/lang_phone
-2023-05-12 18:02:28,582 INFO [lexicon.py:171] Converting L.pt to Linv.pt
-2023-05-12 18:02:28,609 INFO [compile_hlg.py:48] Building ctc_topo. max_token_id: 3
-2023-05-12 18:02:28,610 INFO [compile_hlg.py:52] Loading G.fst.txt
-2023-05-12 18:02:28,611 INFO [compile_hlg.py:62] Intersecting L and G
-2023-05-12 18:02:28,613 INFO [compile_hlg.py:64] LG shape: (4, None)
-2023-05-12 18:02:28,613 INFO [compile_hlg.py:66] Connecting LG
-2023-05-12 18:02:28,614 INFO [compile_hlg.py:68] LG shape after k2.connect: (4, None)
-2023-05-12 18:02:28,614 INFO [compile_hlg.py:70] &lt;class &#39;torch.Tensor&#39;&gt;
-2023-05-12 18:02:28,614 INFO [compile_hlg.py:71] Determinizing LG
-2023-05-12 18:02:28,615 INFO [compile_hlg.py:74] &lt;class &#39;_k2.ragged.RaggedTensor&#39;&gt;
-2023-05-12 18:02:28,615 INFO [compile_hlg.py:76] Connecting LG after k2.determinize
-2023-05-12 18:02:28,615 INFO [compile_hlg.py:79] Removing disambiguation symbols on LG
-2023-05-12 18:02:28,616 INFO [compile_hlg.py:91] LG shape after k2.remove_epsilon: (6, None)
-2023-05-12 18:02:28,617 INFO [compile_hlg.py:96] Arc sorting LG
-2023-05-12 18:02:28,617 INFO [compile_hlg.py:99] Composing H and LG
-2023-05-12 18:02:28,619 INFO [compile_hlg.py:106] Connecting LG
-2023-05-12 18:02:28,619 INFO [compile_hlg.py:109] Arc sorting LG
-2023-05-12 18:02:28,619 INFO [compile_hlg.py:111] HLG.shape: (8, None)
-2023-05-12 18:02:28,619 INFO [compile_hlg.py:127] Saving HLG.pt to data/lang_phone
+2023-07-27 12:42:02 (prepare.sh:92:main) Stage 5: Compile HLG
+2023-07-27 12:42:07,275 INFO [compile_hlg.py:124] Processing data/lang_phone
+2023-07-27 12:42:07,276 INFO [lexicon.py:171] Converting L.pt to Linv.pt
+2023-07-27 12:42:07,309 INFO [compile_hlg.py:48] Building ctc_topo. max_token_id: 3
+2023-07-27 12:42:07,310 INFO [compile_hlg.py:52] Loading G.fst.txt
+2023-07-27 12:42:07,314 INFO [compile_hlg.py:62] Intersecting L and G
+2023-07-27 12:42:07,323 INFO [compile_hlg.py:64] LG shape: (4, None)
+2023-07-27 12:42:07,323 INFO [compile_hlg.py:66] Connecting LG
+2023-07-27 12:42:07,323 INFO [compile_hlg.py:68] LG shape after k2.connect: (4, None)
+2023-07-27 12:42:07,323 INFO [compile_hlg.py:70] &lt;class &#39;torch.Tensor&#39;&gt;
+2023-07-27 12:42:07,323 INFO [compile_hlg.py:71] Determinizing LG
+2023-07-27 12:42:07,341 INFO [compile_hlg.py:74] &lt;class &#39;_k2.ragged.RaggedTensor&#39;&gt;
+2023-07-27 12:42:07,341 INFO [compile_hlg.py:76] Connecting LG after k2.determinize
+2023-07-27 12:42:07,341 INFO [compile_hlg.py:79] Removing disambiguation symbols on LG
+2023-07-27 12:42:07,354 INFO [compile_hlg.py:91] LG shape after k2.remove_epsilon: (6, None)
+2023-07-27 12:42:07,445 INFO [compile_hlg.py:96] Arc sorting LG
+2023-07-27 12:42:07,445 INFO [compile_hlg.py:99] Composing H and LG
+2023-07-27 12:42:07,446 INFO [compile_hlg.py:106] Connecting LG
+2023-07-27 12:42:07,446 INFO [compile_hlg.py:109] Arc sorting LG
+2023-07-27 12:42:07,447 INFO [compile_hlg.py:111] HLG.shape: (8, None)
+2023-07-27 12:42:07,447 INFO [compile_hlg.py:127] Saving HLG.pt to data/lang_phone
 </pre></div>
 </div>
 </section>
 <section id="training">
 <h3>Training<a class="headerlink" href="#training" title="Permalink to this heading"></a></h3>
 <p>Now let us run the training part:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ export CUDA_VISIBLE_DEVICES=&quot;&quot;
-$ ./tdnn/train.py
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>(test-icefall) kuangfangjun:ASR$ export CUDA_VISIBLE_DEVICES=&quot;&quot;
+
+(test-icefall) kuangfangjun:ASR$ ./tdnn/train.py
 </pre></div>
 </div>
 <div class="admonition caution">
 <p class="admonition-title">Caution</p>
-<p>We use <code class="docutils literal notranslate"><span class="pre">export</span> <span class="pre">CUDA_VISIBLE_DEVICES=&quot;&quot;</span></code> so that <code class="docutils literal notranslate"><span class="pre">icefall</span></code> uses CPU
+<p>We use <code class="docutils literal notranslate"><span class="pre">export</span> <span class="pre">CUDA_VISIBLE_DEVICES=&quot;&quot;</span></code> so that <a class="reference external" href="https://github.com/k2-fsa/icefall">icefall</a> uses CPU
 even if there are GPUs available.</p>
 </div>
 <div class="admonition hint">
@@ -511,93 +523,83 @@ even if there are GPUs available.</p>
 interested.</p>
 </div>
 <p>The training log is given below:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span> 2023-05-12 18:04:59,759 INFO [train.py:481] Training started
- 2023-05-12 18:04:59,759 INFO [train.py:482] {&#39;exp_dir&#39;: PosixPath(&#39;tdnn/exp&#39;), &#39;lang_dir&#39;: PosixPath(&#39;data/lang_phone&#39;), &#39;lr&#39;: 0.01, &#39;feature_dim&#39;: 23, &#39;weight_decay&#39;: 1e-06, &#39;start_epoch&#39;: 0,
- &#39;best_train_loss&#39;: inf, &#39;best_valid_loss&#39;: inf, &#39;best_train_epoch&#39;: -1, &#39;best_valid_epoch&#39;: -1, &#39;batch_idx_train&#39;: 0, &#39;log_interval&#39;: 10, &#39;reset_interval&#39;: 20, &#39;valid_interval&#39;: 10, &#39;beam_size&#39;: 10,
- &#39;reduction&#39;: &#39;sum&#39;, &#39;use_double_scores&#39;: True, &#39;world_size&#39;: 1, &#39;master_port&#39;: 12354, &#39;tensorboard&#39;: True, &#39;num_epochs&#39;: 15, &#39;seed&#39;: 42, &#39;feature_dir&#39;: PosixPath(&#39;data/fbank&#39;), &#39;max_duration&#39;: 30.0,
- &#39;bucketing_sampler&#39;: False, &#39;num_buckets&#39;: 10, &#39;concatenate_cuts&#39;: False, &#39;duration_factor&#39;: 1.0, &#39;gap&#39;: 1.0, &#39;on_the_fly_feats&#39;: False, &#39;shuffle&#39;: False, &#39;return_cuts&#39;: True, &#39;num_workers&#39;: 2,
- &#39;env_info&#39;: {&#39;k2-version&#39;: &#39;1.24.3&#39;, &#39;k2-build-type&#39;: &#39;Release&#39;, &#39;k2-with-cuda&#39;: True, &#39;k2-git-sha1&#39;: &#39;3b7f09fa35e72589914f67089c0da9f196a92ca4&#39;, &#39;k2-git-date&#39;: &#39;Mon May 8 22:58:45 2023&#39;,
- &#39;lhotse-version&#39;: &#39;1.15.0.dev+git.6fcfced.clean&#39;, &#39;torch-version&#39;: &#39;2.0.0+cu118&#39;, &#39;torch-cuda-available&#39;: False, &#39;torch-cuda-version&#39;: &#39;11.8&#39;, &#39;python-version&#39;: &#39;3.1&#39;, &#39;icefall-git-branch&#39;: &#39;master&#39;,
- &#39;icefall-git-sha1&#39;: &#39;30bde4b-clean&#39;, &#39;icefall-git-date&#39;: &#39;Thu May 11 17:37:47 2023&#39;, &#39;icefall-path&#39;: &#39;/tmp/icefall&#39;,
- &#39;k2-path&#39;: &#39;tmp/lib/python3.10/site-packages/k2-1.24.3.dev20230512+cuda11.8.torch2.0.0-py3.10-linux-x86_64.egg/k2/__init__.py&#39;,
- &#39;lhotse-path&#39;: &#39;tmp/lib/python3.10/site-packages/lhotse/__init__.py&#39;, &#39;hostname&#39;: &#39;host&#39;, &#39;IP address&#39;: &#39;0.0.0.0&#39;}}
- 2023-05-12 18:04:59,761 INFO [lexicon.py:168] Loading pre-compiled data/lang_phone/Linv.pt
- 2023-05-12 18:04:59,764 INFO [train.py:495] device: cpu
- 2023-05-12 18:04:59,791 INFO [asr_datamodule.py:146] About to get train cuts
- 2023-05-12 18:04:59,791 INFO [asr_datamodule.py:244] About to get train cuts
- 2023-05-12 18:04:59,852 INFO [asr_datamodule.py:149] About to create train dataset
- 2023-05-12 18:04:59,852 INFO [asr_datamodule.py:199] Using SingleCutSampler.
- 2023-05-12 18:04:59,852 INFO [asr_datamodule.py:205] About to create train dataloader
- 2023-05-12 18:04:59,853 INFO [asr_datamodule.py:218] About to get test cuts
- 2023-05-12 18:04:59,853 INFO [asr_datamodule.py:252] About to get test cuts
- 2023-05-12 18:04:59,986 INFO [train.py:422] Epoch 0, batch 0, loss[loss=1.065, over 2436.00 frames. ], tot_loss[loss=1.065, over 2436.00 frames. ], batch size: 4
- 2023-05-12 18:05:00,352 INFO [train.py:422] Epoch 0, batch 10, loss[loss=0.4561, over 2828.00 frames. ], tot_loss[loss=0.7076, over 22192.90 frames. ], batch size: 4
- 2023-05-12 18:05:00,691 INFO [train.py:444] Epoch 0, validation loss=0.9002, over 18067.00 frames.
- 2023-05-12 18:05:00,996 INFO [train.py:422] Epoch 0, batch 20, loss[loss=0.2555, over 2695.00 frames. ], tot_loss[loss=0.484, over 34971.47 frames. ], batch size: 5
- 2023-05-12 18:05:01,217 INFO [train.py:444] Epoch 0, validation loss=0.4688, over 18067.00 frames.
- 2023-05-12 18:05:01,251 INFO [checkpoint.py:75] Saving checkpoint to tdnn/exp/epoch-0.pt
- 2023-05-12 18:05:01,389 INFO [train.py:422] Epoch 1, batch 0, loss[loss=0.2532, over 2436.00 frames. ], tot_loss[loss=0.2532, over 2436.00 frames. ], batch size: 4
- 2023-05-12 18:05:01,637 INFO [train.py:422] Epoch 1, batch 10, loss[loss=0.1139, over 2828.00 frames. ], tot_loss[loss=0.1592, over 22192.90 frames. ], batch size: 4
- 2023-05-12 18:05:01,859 INFO [train.py:444] Epoch 1, validation loss=0.1629, over 18067.00 frames.
- 2023-05-12 18:05:02,094 INFO [train.py:422] Epoch 1, batch 20, loss[loss=0.0767, over 2695.00 frames. ], tot_loss[loss=0.118, over 34971.47 frames. ], batch size: 5
- 2023-05-12 18:05:02,350 INFO [train.py:444] Epoch 1, validation loss=0.06778, over 18067.00 frames.
- 2023-05-12 18:05:02,395 INFO [checkpoint.py:75] Saving checkpoint to tdnn/exp/epoch-1.pt
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>2023-07-27 12:50:51,936 INFO [train.py:481] Training started
+2023-07-27 12:50:51,936 INFO [train.py:482] {&#39;exp_dir&#39;: PosixPath(&#39;tdnn/exp&#39;), &#39;lang_dir&#39;: PosixPath(&#39;data/lang_phone&#39;), &#39;lr&#39;: 0.01, &#39;feature_dim&#39;: 23, &#39;weight_decay&#39;: 1e-06, &#39;start_epoch&#39;: 0, &#39;best_train_loss&#39;: inf, &#39;best_valid_loss&#39;: inf, &#39;best_train_epoch&#39;: -1, &#39;best_valid_epoch&#39;: -1, &#39;batch_idx_train&#39;: 0, &#39;log_interval&#39;: 10, &#39;reset_interval&#39;: 20, &#39;valid_interval&#39;: 10, &#39;beam_size&#39;: 10, &#39;reduction&#39;: &#39;sum&#39;, &#39;use_double_scores&#39;: True, &#39;world_size&#39;: 1, &#39;master_port&#39;: 12354, &#39;tensorboard&#39;: True, &#39;num_epochs&#39;: 15, &#39;seed&#39;: 42, &#39;feature_dir&#39;: PosixPath(&#39;data/fbank&#39;), &#39;max_duration&#39;: 30.0, &#39;bucketing_sampler&#39;: False, &#39;num_buckets&#39;: 10, &#39;concatenate_cuts&#39;: False, &#39;duration_factor&#39;: 1.0, &#39;gap&#39;: 1.0, &#39;on_the_fly_feats&#39;: False, &#39;shuffle&#39;: False, &#39;return_cuts&#39;: True, &#39;num_workers&#39;: 2, &#39;env_info&#39;: {&#39;k2-version&#39;: &#39;1.24.3&#39;, &#39;k2-build-type&#39;: &#39;Release&#39;, &#39;k2-with-cuda&#39;: True, &#39;k2-git-sha1&#39;: &#39;4c05309499a08454997adf500b56dcc629e35ae5&#39;, &#39;k2-git-date&#39;: &#39;Tue Jul 25 16:23:36 2023&#39;, &#39;lhotse-version&#39;: &#39;1.16.0.dev+git.7640d66.clean&#39;, &#39;torch-version&#39;: &#39;1.13.0+cu116&#39;, &#39;torch-cuda-available&#39;: False, &#39;torch-cuda-version&#39;: &#39;11.6&#39;, &#39;python-version&#39;: &#39;3.8&#39;, &#39;icefall-git-branch&#39;: &#39;master&#39;, &#39;icefall-git-sha1&#39;: &#39;3fb0a43-clean&#39;, &#39;icefall-git-date&#39;: &#39;Thu Jul 27 12:36:05 2023&#39;, &#39;icefall-path&#39;: &#39;/tmp/icefall&#39;, &#39;k2-path&#39;: &#39;/star-fj/fangjun/test-icefall/lib/python3.8/site-packages/k2/__init__.py&#39;, &#39;lhotse-path&#39;: &#39;/star-fj/fangjun/test-icefall/lib/python3.8/site-packages/lhotse/__init__.py&#39;, &#39;hostname&#39;: &#39;de-74279-k2-train-1-1220091118-57c4d55446-sph26&#39;, &#39;IP address&#39;: &#39;10.177.77.20&#39;}}
+2023-07-27 12:50:51,941 INFO [lexicon.py:168] Loading pre-compiled data/lang_phone/Linv.pt
+2023-07-27 12:50:51,949 INFO [train.py:495] device: cpu
+2023-07-27 12:50:51,965 INFO [asr_datamodule.py:146] About to get train cuts
+2023-07-27 12:50:51,965 INFO [asr_datamodule.py:244] About to get train cuts
+2023-07-27 12:50:51,967 INFO [asr_datamodule.py:149] About to create train dataset
+2023-07-27 12:50:51,967 INFO [asr_datamodule.py:199] Using SingleCutSampler.
+2023-07-27 12:50:51,967 INFO [asr_datamodule.py:205] About to create train dataloader
+2023-07-27 12:50:51,968 INFO [asr_datamodule.py:218] About to get test cuts
+2023-07-27 12:50:51,968 INFO [asr_datamodule.py:252] About to get test cuts
+2023-07-27 12:50:52,565 INFO [train.py:422] Epoch 0, batch 0, loss[loss=1.065, over 2436.00 frames. ], tot_loss[loss=1.065, over 2436.00 frames. ], batch size: 4
+2023-07-27 12:50:53,681 INFO [train.py:422] Epoch 0, batch 10, loss[loss=0.4561, over 2828.00 frames. ], tot_loss[loss=0.7076, over 22192.90 frames.], batch size: 4
+2023-07-27 12:50:54,167 INFO [train.py:444] Epoch 0, validation loss=0.9002, over 18067.00 frames.
+2023-07-27 12:50:55,011 INFO [train.py:422] Epoch 0, batch 20, loss[loss=0.2555, over 2695.00 frames. ], tot_loss[loss=0.484, over 34971.47 frames. ], batch size: 5
+2023-07-27 12:50:55,331 INFO [train.py:444] Epoch 0, validation loss=0.4688, over 18067.00 frames.
+2023-07-27 12:50:55,368 INFO [checkpoint.py:75] Saving checkpoint to tdnn/exp/epoch-0.pt
+2023-07-27 12:50:55,633 INFO [train.py:422] Epoch 1, batch 0, loss[loss=0.2532, over 2436.00 frames. ], tot_loss[loss=0.2532, over 2436.00 frames. ],
+ batch size: 4
+2023-07-27 12:50:56,242 INFO [train.py:422] Epoch 1, batch 10, loss[loss=0.1139, over 2828.00 frames. ], tot_loss[loss=0.1592, over 22192.90 frames.], batch size: 4
+2023-07-27 12:50:56,522 INFO [train.py:444] Epoch 1, validation loss=0.1627, over 18067.00 frames.
+2023-07-27 12:50:57,209 INFO [train.py:422] Epoch 1, batch 20, loss[loss=0.07055, over 2695.00 frames. ], tot_loss[loss=0.1175, over 34971.47 frames.], batch size: 5
+2023-07-27 12:50:57,600 INFO [train.py:444] Epoch 1, validation loss=0.07091, over 18067.00 frames.
+2023-07-27 12:50:57,640 INFO [checkpoint.py:75] Saving checkpoint to tdnn/exp/epoch-1.pt
+2023-07-27 12:50:57,847 INFO [train.py:422] Epoch 2, batch 0, loss[loss=0.07731, over 2436.00 frames. ], tot_loss[loss=0.07731, over 2436.00 frames.], batch size: 4
+2023-07-27 12:50:58,427 INFO [train.py:422] Epoch 2, batch 10, loss[loss=0.04391, over 2828.00 frames. ], tot_loss[loss=0.05341, over 22192.90 frames. ], batch size: 4
+2023-07-27 12:50:58,884 INFO [train.py:444] Epoch 2, validation loss=0.04384, over 18067.00 frames.
+2023-07-27 12:50:59,387 INFO [train.py:422] Epoch 2, batch 20, loss[loss=0.03458, over 2695.00 frames. ], tot_loss[loss=0.04616, over 34971.47 frames. ], batch size: 5
+2023-07-27 12:50:59,707 INFO [train.py:444] Epoch 2, validation loss=0.03379, over 18067.00 frames.
+2023-07-27 12:50:59,758 INFO [checkpoint.py:75] Saving checkpoint to tdnn/exp/epoch-2.pt
 
-... ...
+  ... ...
 
- 2023-05-12 18:05:14,789 INFO [train.py:422] Epoch 13, batch 0, loss[loss=0.01056, over 2436.00 frames. ], tot_loss[loss=0.01056, over 2436.00 frames. ], batch size: 4
- 2023-05-12 18:05:15,016 INFO [train.py:422] Epoch 13, batch 10, loss[loss=0.009022, over 2828.00 frames. ], tot_loss[loss=0.009985, over 22192.90 frames. ], batch size: 4
- 2023-05-12 18:05:15,271 INFO [train.py:444] Epoch 13, validation loss=0.01088, over 18067.00 frames.
- 2023-05-12 18:05:15,497 INFO [train.py:422] Epoch 13, batch 20, loss[loss=0.01174, over 2695.00 frames. ], tot_loss[loss=0.01077, over 34971.47 frames. ], batch size: 5
- 2023-05-12 18:05:15,747 INFO [train.py:444] Epoch 13, validation loss=0.01087, over 18067.00 frames.
- 2023-05-12 18:05:15,783 INFO [checkpoint.py:75] Saving checkpoint to tdnn/exp/epoch-13.pt
- 2023-05-12 18:05:15,921 INFO [train.py:422] Epoch 14, batch 0, loss[loss=0.01045, over 2436.00 frames. ], tot_loss[loss=0.01045, over 2436.00 frames. ], batch size: 4
- 2023-05-12 18:05:16,146 INFO [train.py:422] Epoch 14, batch 10, loss[loss=0.008957, over 2828.00 frames. ], tot_loss[loss=0.009903, over 22192.90 frames. ], batch size: 4
- 2023-05-12 18:05:16,374 INFO [train.py:444] Epoch 14, validation loss=0.01092, over 18067.00 frames.
- 2023-05-12 18:05:16,598 INFO [train.py:422] Epoch 14, batch 20, loss[loss=0.01169, over 2695.00 frames. ], tot_loss[loss=0.01065, over 34971.47 frames. ], batch size: 5
- 2023-05-12 18:05:16,824 INFO [train.py:444] Epoch 14, validation loss=0.01077, over 18067.00 frames.
- 2023-05-12 18:05:16,862 INFO [checkpoint.py:75] Saving checkpoint to tdnn/exp/epoch-14.pt
- 2023-05-12 18:05:16,865 INFO [train.py:555] Done!
+2023-07-27 12:51:23,433 INFO [train.py:422] Epoch 13, batch 0, loss[loss=0.01054, over 2436.00 frames. ], tot_loss[loss=0.01054, over 2436.00 frames. ], batch size: 4
+2023-07-27 12:51:23,980 INFO [train.py:422] Epoch 13, batch 10, loss[loss=0.009014, over 2828.00 frames. ], tot_loss[loss=0.009974, over 22192.90 frames. ], batch size: 4
+2023-07-27 12:51:24,489 INFO [train.py:444] Epoch 13, validation loss=0.01085, over 18067.00 frames.
+2023-07-27 12:51:25,258 INFO [train.py:422] Epoch 13, batch 20, loss[loss=0.01172, over 2695.00 frames. ], tot_loss[loss=0.01055, over 34971.47 frames. ], batch size: 5
+2023-07-27 12:51:25,621 INFO [train.py:444] Epoch 13, validation loss=0.01074, over 18067.00 frames.
+2023-07-27 12:51:25,699 INFO [checkpoint.py:75] Saving checkpoint to tdnn/exp/epoch-13.pt
+2023-07-27 12:51:25,866 INFO [train.py:422] Epoch 14, batch 0, loss[loss=0.01044, over 2436.00 frames. ], tot_loss[loss=0.01044, over 2436.00 frames. ], batch size: 4
+2023-07-27 12:51:26,844 INFO [train.py:422] Epoch 14, batch 10, loss[loss=0.008942, over 2828.00 frames. ], tot_loss[loss=0.01, over 22192.90 frames. ], batch size: 4
+2023-07-27 12:51:27,221 INFO [train.py:444] Epoch 14, validation loss=0.01082, over 18067.00 frames.
+2023-07-27 12:51:27,970 INFO [train.py:422] Epoch 14, batch 20, loss[loss=0.01169, over 2695.00 frames. ], tot_loss[loss=0.01054, over 34971.47 frames. ], batch size: 5
+2023-07-27 12:51:28,247 INFO [train.py:444] Epoch 14, validation loss=0.01073, over 18067.00 frames.
+2023-07-27 12:51:28,323 INFO [checkpoint.py:75] Saving checkpoint to tdnn/exp/epoch-14.pt
+2023-07-27 12:51:28,326 INFO [train.py:555] Done!
 </pre></div>
 </div>
 </section>
 <section id="decoding">
 <h3>Decoding<a class="headerlink" href="#decoding" title="Permalink to this heading"></a></h3>
 <p>Let us use the trained model to decode the test set:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ ./tdnn/decode.py
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>(test-icefall) kuangfangjun:ASR$ ./tdnn/decode.py
+
+2023-07-27 12:55:12,840 INFO [decode.py:263] Decoding started
+2023-07-27 12:55:12,840 INFO [decode.py:264] {&#39;exp_dir&#39;: PosixPath(&#39;tdnn/exp&#39;), &#39;lang_dir&#39;: PosixPath(&#39;data/lang_phone&#39;), &#39;lm_dir&#39;: PosixPath(&#39;data/lm&#39;), &#39;feature_dim&#39;: 23, &#39;search_beam&#39;: 20, &#39;output_beam&#39;: 8, &#39;min_active_states&#39;: 30, &#39;max_active_states&#39;: 10000, &#39;use_double_scores&#39;: True, &#39;epoch&#39;: 14, &#39;avg&#39;: 2, &#39;export&#39;: False, &#39;feature_dir&#39;: PosixPath(&#39;data/fbank&#39;), &#39;max_duration&#39;: 30.0, &#39;bucketing_sampler&#39;: False, &#39;num_buckets&#39;: 10, &#39;concatenate_cuts&#39;: False, &#39;duration_factor&#39;: 1.0, &#39;gap&#39;: 1.0, &#39;on_the_fly_feats&#39;: False, &#39;shuffle&#39;: False, &#39;return_cuts&#39;: True, &#39;num_workers&#39;: 2, &#39;env_info&#39;: {&#39;k2-version&#39;: &#39;1.24.3&#39;, &#39;k2-build-type&#39;: &#39;Release&#39;, &#39;k2-with-cuda&#39;: True, &#39;k2-git-sha1&#39;: &#39;4c05309499a08454997adf500b56dcc629e35ae5&#39;, &#39;k2-git-date&#39;: &#39;Tue Jul 25 16:23:36 2023&#39;, &#39;lhotse-version&#39;: &#39;1.16.0.dev+git.7640d66.clean&#39;, &#39;torch-version&#39;: &#39;1.13.0+cu116&#39;, &#39;torch-cuda-available&#39;: False, &#39;torch-cuda-version&#39;: &#39;11.6&#39;, &#39;python-version&#39;: &#39;3.8&#39;, &#39;icefall-git-branch&#39;: &#39;master&#39;, &#39;icefall-git-sha1&#39;: &#39;3fb0a43-clean&#39;, &#39;icefall-git-date&#39;: &#39;Thu Jul 27 12:36:05 2023&#39;, &#39;icefall-path&#39;: &#39;/tmp/icefall&#39;, &#39;k2-path&#39;: &#39;/star-fj/fangjun/test-icefall/lib/python3.8/site-packages/k2/__init__.py&#39;, &#39;lhotse-path&#39;: &#39;/star-fj/fangjun/test-icefall/lib/python3.8/site-packages/lhotse/__init__.py&#39;, &#39;hostname&#39;: &#39;de-74279-k2-train-1-1220091118-57c4d55446-sph26&#39;, &#39;IP address&#39;: &#39;10.177.77.20&#39;}}
+2023-07-27 12:55:12,841 INFO [lexicon.py:168] Loading pre-compiled data/lang_phone/Linv.pt
+2023-07-27 12:55:12,855 INFO [decode.py:273] device: cpu
+2023-07-27 12:55:12,868 INFO [decode.py:291] averaging [&#39;tdnn/exp/epoch-13.pt&#39;, &#39;tdnn/exp/epoch-14.pt&#39;]
+2023-07-27 12:55:12,882 INFO [asr_datamodule.py:218] About to get test cuts
+2023-07-27 12:55:12,883 INFO [asr_datamodule.py:252] About to get test cuts
+2023-07-27 12:55:13,157 INFO [decode.py:204] batch 0/?, cuts processed until now is 4
+2023-07-27 12:55:13,701 INFO [decode.py:241] The transcripts are stored in tdnn/exp/recogs-test_set.txt
+2023-07-27 12:55:13,702 INFO [utils.py:564] [test_set] %WER 0.42% [1 / 240, 0 ins, 1 del, 0 sub ]
+2023-07-27 12:55:13,704 INFO [decode.py:249] Wrote detailed error stats to tdnn/exp/errs-test_set.txt
+2023-07-27 12:55:13,704 INFO [decode.py:316] Done!
 </pre></div>
 </div>
-<p>The decoding log is:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>2023-05-12 18:08:30,482 INFO [decode.py:263] Decoding started
-2023-05-12 18:08:30,483 INFO [decode.py:264] {&#39;exp_dir&#39;: PosixPath(&#39;tdnn/exp&#39;), &#39;lang_dir&#39;: PosixPath(&#39;data/lang_phone&#39;), &#39;lm_dir&#39;: PosixPath(&#39;data/lm&#39;), &#39;feature_dim&#39;: 23,
-&#39;search_beam&#39;: 20, &#39;output_beam&#39;: 8, &#39;min_active_states&#39;: 30, &#39;max_active_states&#39;: 10000, &#39;use_double_scores&#39;: True, &#39;epoch&#39;: 14, &#39;avg&#39;: 2, &#39;export&#39;: False, &#39;feature_dir&#39;: PosixPath(&#39;data/fbank&#39;),
-&#39;max_duration&#39;: 30.0, &#39;bucketing_sampler&#39;: False, &#39;num_buckets&#39;: 10, &#39;concatenate_cuts&#39;: False, &#39;duration_factor&#39;: 1.0, &#39;gap&#39;: 1.0, &#39;on_the_fly_feats&#39;: False, &#39;shuffle&#39;: False, &#39;return_cuts&#39;: True,
-&#39;num_workers&#39;: 2, &#39;env_info&#39;: {&#39;k2-version&#39;: &#39;1.24.3&#39;, &#39;k2-build-type&#39;: &#39;Release&#39;, &#39;k2-with-cuda&#39;: True, &#39;k2-git-sha1&#39;: &#39;3b7f09fa35e72589914f67089c0da9f196a92ca4&#39;, &#39;k2-git-date&#39;: &#39;Mon May 8 22:58:45 2023&#39;,
-&#39;lhotse-version&#39;: &#39;1.15.0.dev+git.6fcfced.clean&#39;, &#39;torch-version&#39;: &#39;2.0.0+cu118&#39;, &#39;torch-cuda-available&#39;: False, &#39;torch-cuda-version&#39;: &#39;11.8&#39;, &#39;python-version&#39;: &#39;3.1&#39;, &#39;icefall-git-branch&#39;: &#39;master&#39;,
-&#39;icefall-git-sha1&#39;: &#39;30bde4b-clean&#39;, &#39;icefall-git-date&#39;: &#39;Thu May 11 17:37:47 2023&#39;, &#39;icefall-path&#39;: &#39;/tmp/icefall&#39;,
-&#39;k2-path&#39;: &#39;/tmp/lib/python3.10/site-packages/k2-1.24.3.dev20230512+cuda11.8.torch2.0.0-py3.10-linux-x86_64.egg/k2/__init__.py&#39;,
-&#39;lhotse-path&#39;: &#39;/tmp/lib/python3.10/site-packages/lhotse/__init__.py&#39;, &#39;hostname&#39;: &#39;host&#39;, &#39;IP address&#39;: &#39;0.0.0.0&#39;}}
-2023-05-12 18:08:30,483 INFO [lexicon.py:168] Loading pre-compiled data/lang_phone/Linv.pt
-2023-05-12 18:08:30,487 INFO [decode.py:273] device: cpu
-2023-05-12 18:08:30,513 INFO [decode.py:291] averaging [&#39;tdnn/exp/epoch-13.pt&#39;, &#39;tdnn/exp/epoch-14.pt&#39;]
-2023-05-12 18:08:30,521 INFO [asr_datamodule.py:218] About to get test cuts
-2023-05-12 18:08:30,521 INFO [asr_datamodule.py:252] About to get test cuts
-2023-05-12 18:08:30,675 INFO [decode.py:204] batch 0/?, cuts processed until now is 4
-2023-05-12 18:08:30,923 INFO [decode.py:241] The transcripts are stored in tdnn/exp/recogs-test_set.txt
-2023-05-12 18:08:30,924 INFO [utils.py:558] [test_set] %WER 0.42% [1 / 240, 0 ins, 1 del, 0 sub ]
-2023-05-12 18:08:30,925 INFO [decode.py:249] Wrote detailed error stats to tdnn/exp/errs-test_set.txt
-2023-05-12 18:08:30,925 INFO [decode.py:316] Done!
-</pre></div>
-</div>
-<p><strong>Congratulations!</strong> You have successfully setup the environment and have run the first recipe in <code class="docutils literal notranslate"><span class="pre">icefall</span></code>.</p>
+<p><strong>Congratulations!</strong> You have successfully setup the environment and have run the first recipe in <a class="reference external" href="https://github.com/k2-fsa/icefall">icefall</a>.</p>
 <p>Have fun with <code class="docutils literal notranslate"><span class="pre">icefall</span></code>!</p>
 </section>
 </section>
 <section id="youtube-video">
 <h2>YouTube Video<a class="headerlink" href="#youtube-video" title="Permalink to this heading"></a></h2>
-<p>We provide the following YouTube video showing how to install <code class="docutils literal notranslate"><span class="pre">icefall</span></code>.
+<p>We provide the following YouTube video showing how to install <a class="reference external" href="https://github.com/k2-fsa/icefall">icefall</a>.
 It also shows how to debug various problems that you may encounter while
-using <code class="docutils literal notranslate"><span class="pre">icefall</span></code>.</p>
+using <a class="reference external" href="https://github.com/k2-fsa/icefall">icefall</a>.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>To get the latest news of <a class="reference external" href="https://github.com/k2-fsa">next-gen Kaldi</a>, please subscribe
