@@ -265,7 +265,12 @@ class AsrModel(nn.Module):
         # project_input=False since we applied the decoder's input projections
         # prior to do_rnnt_pruning (this is an optimization for speed).
         logits = self.joiner(
-            am_pruned, lm_pruned, encoder_out_lens, apply_attn=True, project_input=False
+            am_pruned,
+            lm_pruned,
+            None,
+            encoder_out_lens,
+            apply_attn=True,
+            project_input=False,
         )
 
         with torch.cuda.amp.autocast(enabled=False):
