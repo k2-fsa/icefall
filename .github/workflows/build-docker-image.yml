@@ -19,12 +19,15 @@ jobs:
       matrix:
         os: [ubuntu-latest]
     steps:
-      - name: Check out the repo
-        uses: actions/checkout@v3
+      # refer to https://github.com/actions/checkout
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
 
       - name: Rename
         shell: bash
         run: |
+          ls -lh
           mv -v ./docker/torch1.13.0-cuda11.6-cudnn8.Dockerfile ./Dockerfile
           ls -lh
 
