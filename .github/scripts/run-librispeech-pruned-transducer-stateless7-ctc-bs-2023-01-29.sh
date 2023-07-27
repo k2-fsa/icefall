@@ -21,9 +21,9 @@ tree $repo/
 ls -lh $repo/test_wavs/*.wav
 
 pushd $repo/exp
-git lfs pull --include "data/lang_bpe_500/HLG.pt"
 git lfs pull --include "data/lang_bpe_500/L.pt"
 git lfs pull --include "data/lang_bpe_500/LG.pt"
+git lfs pull --include "data/lang_bpe_500/HLG.pt"
 git lfs pull --include "data/lang_bpe_500/Linv.pt"
 git lfs pull --include "data/lang_bpe_500/bpe.model"
 git lfs pull --include "exp/cpu_jit.pt"

@@ -195,14 +195,14 @@ git lfs pull --include "data/lang_char_bpe/Linv.pt"
 git lfs pull --include "exp/pretrained.pt"
 
 cd exp
-ln -s pretrained.pt epoch-99.pt
+ln -s pretrained.pt epoch-9999.pt
 popd
 
 ./pruned_transducer_stateless7_streaming/export-for-ncnn-zh.py \
   --lang-dir $repo/data/lang_char_bpe \
   --exp-dir $repo/exp \
   --use-averaged-model 0 \
-  --epoch 99 \
+  --epoch 9999 \
   --avg 1 \
   --decode-chunk-len 32 \
   --num-encoder-layers "2,4,3,2,4" \
