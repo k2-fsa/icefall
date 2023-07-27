@@ -10,8 +10,9 @@ stage=-1
 stop_stage=100
 
 # We assume dl_dir (download dir) contains the following
-# directories and files. If not, they will be downloaded
-# by this script automatically.
+# directories and files. Most of them can't be downloaded automatically
+# as they are not publically available and require a license purchased
+# from the LDC.
 #
 #  - $dl_dir/musan
 #      This directory contains the following directories downloaded from
@@ -26,6 +27,7 @@ swbd1_dir="/export/corpora3/LDC/LDC97S62"
 eval2000_dir="/export/corpora2/LDC/LDC2002S09/hub5e_00"
 eval2000_ref_dir="/export/corpora2/LDC/LDC2002T43"
 rt03_dir="/export/corpora/LDC/LDC2007S10"
+fisher_dir="/export/corpora3/LDC/LDC2004T19"
 
 . shared/parse_options.sh || exit 1
 
