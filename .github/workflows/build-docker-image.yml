@@ -2,10 +2,6 @@
 # https://docs.github.com/en/actions/publishing-packages/publishing-docker-images#publishing-images-to-github-packages
 name: Build docker image
 on:
-  push:
-    branches:
-      - docker
-
   workflow_dispatch:
 
 concurrency:
@@ -13,7 +9,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-doc:
+  build-docker-image:
     name: build docker image
     runs-on: ${{ matrix.os }}
     strategy:
