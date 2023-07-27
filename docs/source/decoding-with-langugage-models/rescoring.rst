@@ -4,11 +4,7 @@ LM rescoring for Transducer
 =================================
 
 LM rescoring is a commonly used approach to incorporate external LM information. Unlike shallow-fusion-based
-<<<<<<< HEAD
 methods (see :ref:`shallow_fusion`, :ref:`LODR`), rescoring is usually performed to re-rank the n-best hypotheses after beam search.
-=======
-methods (see :ref:`shallow-fusion`, :ref:`LODR`), rescoring is usually performed to re-rank the n-best hypotheses after beam search.
->>>>>>> 80d922c1583b9b7fb7e9b47008302cdc74ef58b7
 Rescoring is usually more efficient than shallow fusion since less computation is performed on the external LM.
 In this tutorial, we will show you how to use external LM to rescore the n-best hypotheses decoded from neural transducer models in
 `icefall <https://github.com/k2-fsa/icefall>`__.
