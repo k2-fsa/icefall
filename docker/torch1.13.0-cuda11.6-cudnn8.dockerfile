@@ -1,5 +1,10 @@
 FROM pytorch/pytorch:1.13.0-cuda11.6-cudnn8-runtime
 
+LABEL authors="Fangjun Kuang"
+LABEL k2_version="1.24.3.dev20230725+cuda11.6.torch1.13.0"
+LABEL kaldifeat_version="1.25.0.dev20230726+cuda11.6.torch1.13.0"
+LABEL github_repo="https://github.com/k2-fsa/icefall"
+
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
 		    curl \
