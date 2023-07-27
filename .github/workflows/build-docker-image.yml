@@ -29,7 +29,7 @@ jobs:
         run: |
           ls -lh
           ls -lh ./docker
-          mv -v ./docker/torch1.13.0-cuda11.6-cudnn8.Dockerfile ./Dockerfile
+          mv -v ./docker/torch1.13.0-cuda11.6-cudnn8.dockerfile ./Dockerfile
           ls -lh
 
       - name: Log in to Docker Hub
