@@ -1,8 +1,5 @@
 name: Run docker image
 on:
-  push:
-    branches:
-    - docker
   workflow_dispatch:
 
 concurrency:
