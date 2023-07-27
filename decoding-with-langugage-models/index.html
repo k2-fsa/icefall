@@ -92,6 +92,36 @@
 <h1>Decoding with language models<a class="headerlink" href="#decoding-with-language-models" title="Permalink to this heading"></a></h1>
 <p>This section describes how to use external langugage models
 during decoding to improve the WER of transducer models.</p>
+<p>The following decoding methods with external langugage models are available:</p>
+<table class="docutils align-default" id="id1">
+<caption><span class="caption-number">Table 1 </span><span class="caption-text">LM-rescoring-based methods vs shallow-fusion-based methods (The numbers in each field is WER on test-clean, WER on test-other and decoding time on test-clean)</span><a class="headerlink" href="#id1" title="Permalink to this table"></a></caption>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 67%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Decoding method</p></th>
+<th class="head"><p>beam=4</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">modified_beam_search</span></code></p></td>
+<td><p>Beam search (i.e. really n-best decoding, the “beam” is the value of n), similar to the original RNN-T paper. Note, this method does not use language model.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">modified_beam_search_lm_shallow_fusion</span></code></p></td>
+<td><p>As <code class="docutils literal notranslate"><span class="pre">modified_beam_search</span></code>, but interpolate RNN-T scores with language model scores, also known as shallow fusion</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">modified_beam_search_LODR</span></code></p></td>
+<td><p>As <code class="docutils literal notranslate"><span class="pre">modified_beam_search_lm_shallow_fusion</span></code>, but subtract score of a (BPE-symbol-level) bigram backoff language model used as an approximation to the internal language model of RNN-T.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">modified_beam_search_lm_rescore</span></code></p></td>
+<td><p>As <code class="docutils literal notranslate"><span class="pre">modified_beam_search</span></code>, but rescore the n-best hypotheses with external language model (e.g. RNNLM) and re-rank them.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">modified_beam_search_lm_rescore_LODR</span></code></p></td>
+<td><p>As <code class="docutils literal notranslate"><span class="pre">modified_beam_search_lm_rescore</span></code>, but also subtract the score of a (BPE-symbol-level) bigram backoff language model during re-ranking.</p></td>
+</tr>
+</tbody>
+</table>
 <div class="toctree-wrapper compound">
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="shallow-fusion.html">Shallow fusion for Transducer</a></li>

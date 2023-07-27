@@ -91,7 +91,11 @@
   <section id="lm-rescoring-for-transducer">
 <span id="rescoring"></span><h1>LM rescoring for Transducer<a class="headerlink" href="#lm-rescoring-for-transducer" title="Permalink to this heading"></a></h1>
 <p>LM rescoring is a commonly used approach to incorporate external LM information. Unlike shallow-fusion-based
+&lt;&lt;&lt;&lt;&lt;&lt;&lt; HEAD
+methods (see <a class="reference internal" href="shallow-fusion.html#shallow-fusion"><span class="std std-ref">Shallow fusion for Transducer</span></a>, <a class="reference internal" href="LODR.html#lodr"><span class="std std-ref">LODR for RNN Transducer</span></a>), rescoring is usually performed to re-rank the n-best hypotheses after beam search.
+=======
 methods (see <span class="xref std std-ref">shallow-fusion</span>, <a class="reference internal" href="LODR.html#lodr"><span class="std std-ref">LODR for RNN Transducer</span></a>), rescoring is usually performed to re-rank the n-best hypotheses after beam search.
+&gt;&gt;&gt;&gt;&gt;&gt;&gt; 80d922c1583b9b7fb7e9b47008302cdc74ef58b7
 Rescoring is usually more efficient than shallow fusion since less computation is performed on the external LM.
 In this tutorial, we will show you how to use external LM to rescore the n-best hypotheses decoded from neural transducer models in
 <a class="reference external" href="https://github.com/k2-fsa/icefall">icefall</a>.</p>
@@ -196,7 +200,7 @@ $ beam_size_4       7.6     best for test-other
 <p>Great! We made some improvements! Increasing the size of the n-best hypotheses will further boost the performance,
 see the following table:</p>
 <table class="docutils align-default" id="id1">
-<caption><span class="caption-number">Table 3 </span><span class="caption-text">WERs of LM rescoring with different beam sizes</span><a class="headerlink" href="#id1" title="Permalink to this table"></a></caption>
+<caption><span class="caption-number">Table 4 </span><span class="caption-text">WERs of LM rescoring with different beam sizes</span><a class="headerlink" href="#id1" title="Permalink to this table"></a></caption>
 <colgroup>
 <col style="width: 33%" />
 <col style="width: 33%" />
@@ -274,7 +278,7 @@ $ beam_size_4       7.57    best for test-other
 <p>It’s slightly better than LM rescoring. If we further increase the beam size, we will see
 further improvements from LM rescoring + LODR:</p>
 <table class="docutils align-default" id="id2">
-<caption><span class="caption-number">Table 4 </span><span class="caption-text">WERs of LM rescoring + LODR with different beam sizes</span><a class="headerlink" href="#id2" title="Permalink to this table"></a></caption>
+<caption><span class="caption-number">Table 5 </span><span class="caption-text">WERs of LM rescoring + LODR with different beam sizes</span><a class="headerlink" href="#id2" title="Permalink to this table"></a></caption>
 <colgroup>
 <col style="width: 33%" />
 <col style="width: 33%" />
@@ -304,7 +308,7 @@ further improvements from LM rescoring + LODR:</p>
 <p>As mentioned earlier, LM rescoring is usually faster than shallow-fusion based methods.
 Here, we benchmark the WERs and decoding speed of them:</p>
 <table class="docutils align-default" id="id3">
-<caption><span class="caption-number">Table 5 </span><span class="caption-text">LM-rescoring-based methods vs shallow-fusion-based methods (The numbers in each field is WER on test-clean, WER on test-other and decoding time on test-clean)</span><a class="headerlink" href="#id3" title="Permalink to this table"></a></caption>
+<caption><span class="caption-number">Table 6 </span><span class="caption-text">LM-rescoring-based methods vs shallow-fusion-based methods (The numbers in each field is WER on test-clean, WER on test-other and decoding time on test-clean)</span><a class="headerlink" href="#id3" title="Permalink to this table"></a></caption>
 <colgroup>
 <col style="width: 25%" />
 <col style="width: 25%" />
@@ -319,27 +323,27 @@ Here, we benchmark the WERs and decoding speed of them:</p>
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p><cite>modified_beam_search</cite></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">modified_beam_search</span></code></p></td>
 <td><p>3.11/7.93; 132s</p></td>
 <td><p>3.1/7.95; 177s</p></td>
 <td><p>3.1/7.96; 210s</p></td>
 </tr>
-<tr class="row-odd"><td><p><cite>modified_beam_search_lm_shallow_fusion</cite></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">modified_beam_search_lm_shallow_fusion</span></code></p></td>
 <td><p>2.77/7.08; 262s</p></td>
 <td><p>2.62/6.65; 352s</p></td>
 <td><p>2.58/6.65; 488s</p></td>
 </tr>
-<tr class="row-even"><td><p>LODR</p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">modified_beam_search_LODR</span></code></p></td>
 <td><p>2.61/6.74; 400s</p></td>
 <td><p>2.45/6.38; 610s</p></td>
 <td><p>2.4/6.23; 870s</p></td>
 </tr>
-<tr class="row-odd"><td><p><cite>modified_beam_search_lm_rescore</cite></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">modified_beam_search_lm_rescore</span></code></p></td>
 <td><p>2.93/7.6; 156s</p></td>
 <td><p>2.67/7.11; 203s</p></td>
 <td><p>2.59/6.86; 255s</p></td>
 </tr>
-<tr class="row-even"><td><p><cite>modified_beam_search_lm_rescore_LODR</cite></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">modified_beam_search_lm_rescore_LODR</span></code></p></td>
 <td><p>2.9/7.57; 160s</p></td>
 <td><p>2.63/7.04; 203s</p></td>
 <td><p>2.52/6.73; 263s</p></td>
