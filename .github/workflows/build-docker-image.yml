@@ -22,6 +22,12 @@ jobs:
       - name: Check out the repo
         uses: actions/checkout@v3
 
+      - name: Rename
+        shell: bash
+        run: |
+          mv -v ./docker/torch1.13.0-cuda11.6-cudnn8.Dockerfile ./Dockerfile
+          ls -lh
+
       - name: Log in to Docker Hub
         uses: docker/login-action@v2
         with:
@@ -31,7 +37,7 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v4
         with:
-          context: ./docker
-          file: ./torch1.13.0-cuda11.6-cudnn8.Dockerfile
+          context: .
+          file: ./Dockerfile
           push: true
           tags: k2fsa/icefall:torch1.13.0-cuda11.6
