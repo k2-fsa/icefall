@@ -44,11 +44,15 @@ RUN pip install --no-cache-dir \
       typeguard \
       dill
 
+RUN cd /opt/conda/lib/stubs && ln -s libcuda.so libcuda.so.1
+
 RUN git clone https://github.com/k2-fsa/icefall /workspace/icefall && \
 	cd /workspace/icefall && \
 	pip install --no-cache-dir -r requirements.txt
 
 ENV PYTHONPATH /workspace/icefall:$PYTHONPATH
+
+ENV LD_LIBRARY_PATH /opt/conda/lib/stubs:$LD_LIBRARY_PATH
 
 WORKDIR /workspace/icefall
 

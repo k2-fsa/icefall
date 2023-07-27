@@ -2,6 +2,9 @@
 # https://docs.github.com/en/actions/publishing-packages/publishing-docker-images#publishing-images-to-github-packages
 name: Build docker image
 on:
+  push:
+    branches:
+      - docker2
   workflow_dispatch:
 
 concurrency:
