@@ -28,6 +28,7 @@ jobs:
         shell: bash
         run: |
           ls -lh
+          ls -lh ./docker
           mv -v ./docker/torch1.13.0-cuda11.6-cudnn8.Dockerfile ./Dockerfile
           ls -lh
 
