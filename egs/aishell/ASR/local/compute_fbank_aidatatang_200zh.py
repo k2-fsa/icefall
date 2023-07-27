@@ -42,7 +42,7 @@ torch.set_num_threads(1)
 torch.set_num_interop_threads(1)
 
 
-def compute_fbank_aidatatang_200zh(num_mel_bins: int = 80):
+def compute_fbank_aidatatang_200zh(num_mel_bins: int = 80, speed_perturb: bool = False):
     src_dir = Path("data/manifests")
     output_dir = Path("data/fbank")
     num_jobs = min(15, os.cpu_count())
@@ -85,7 +85,7 @@ def compute_fbank_aidatatang_200zh(num_mel_bins: int = 80):
                 recordings=m["recordings"],
                 supervisions=m["supervisions"],
             )
-            if "train" in partition:
+            if "train" in partition and speed_perturb:
                 cut_set = (
                     cut_set + cut_set.perturb_speed(0.9) + cut_set.perturb_speed(1.1)
                 )
@@ -109,7 +109,12 @@ def get_args():
         default=80,
         help="""The number of mel bins for Fbank""",
     )
-
+    parser.add_argument(
+        "--speed-perturb",
+        type=bool,
+        default=False,
+        help="Enable 0.9 and 1.1 speed perturbation for data augmentation. Default: False.",
+    )
     return parser.parse_args()
 
 
@@ -119,4 +124,6 @@ if __name__ == "__main__":
     logging.basicConfig(format=formatter, level=logging.INFO)
 
     args = get_args()
-    compute_fbank_aidatatang_200zh(num_mel_bins=args.num_mel_bins)
+    compute_fbank_aidatatang_200zh(
+        num_mel_bins=args.num_mel_bins, speed_perturb=args.speed_perturb
+    )
