@@ -1,5 +1,7 @@
 FROM pytorch/pytorch:2.0.1-cuda11.7-cudnn8-runtime
 
+ENV LC_ALL C.UTF-8
+
 ARG K2_VERSION="1.24.3.dev20230718+cuda11.7.torch2.0.1"
 ARG KALDIFEAT_VERSION="1.25.0.dev20230726+cuda11.7.torch2.0.1"
 ARG TORCHAUDIO_VERSION="2.0.1+cu117"
@@ -52,10 +54,6 @@ RUN pip install --no-cache-dir \
 RUN git clone https://github.com/k2-fsa/icefall /workspace/icefall && \
 	cd /workspace/icefall && \
 	pip install --no-cache-dir -r requirements.txt
-
-ENV PYTHONPATH /workspace/icefall:$PYTHONPATH
-
-ENV LD_LIBRARY_PATH /opt/conda/lib/stubs:$LD_LIBRARY_PATH
 
 WORKDIR /workspace/icefall
 

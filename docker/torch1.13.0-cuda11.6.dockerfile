@@ -1,5 +1,7 @@
 FROM pytorch/pytorch:1.13.0-cuda11.6-cudnn8-runtime
 
+ENV LC_ALL C.UTF-8
+
 ARG K2_VERSION="1.24.3.dev20230725+cuda11.6.torch1.13.0"
 ARG KALDIFEAT_VERSION="1.25.0.dev20230726+cuda11.6.torch1.13.0"
 ARG TORCHAUDIO_VERSION="0.13.0+cu116"
