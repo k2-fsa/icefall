@@ -1,4 +1,4 @@
-FROM pytorch/pytorch:1.12.1-cuda11.3-cudnn8-runtime
+FROM pytorch/pytorch:1.12.1-cuda11.3-cudnn8-devel
 
 ENV LC_ALL C.UTF-8
 
