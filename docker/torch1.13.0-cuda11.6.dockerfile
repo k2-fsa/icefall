@@ -15,8 +15,8 @@ LABEL github_repo="https://github.com/k2-fsa/icefall"
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-		    curl \
-	      vim \
+        curl \
+        vim \
     		libssl-dev \
         autoconf \
         automake \
@@ -54,12 +54,11 @@ RUN pip install --no-cache-dir \
       dill
 
 RUN git clone https://github.com/k2-fsa/icefall /workspace/icefall && \
-	cd /workspace/icefall && \
-	pip install --no-cache-dir -r requirements.txt
+    cd /workspace/icefall && \
+    pip install --no-cache-dir -r requirements.txt
 
 ENV PYTHONPATH /workspace/icefall:$PYTHONPATH
 
 ENV LD_LIBRARY_PATH /opt/conda/lib/stubs:$LD_LIBRARY_PATH
 
 WORKDIR /workspace/icefall
-
