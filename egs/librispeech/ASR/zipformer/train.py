@@ -403,28 +403,28 @@ def get_parser():
         default=0.2,
         help="Scale for CTC loss.",
     )
-    
+
     parser.add_argument(
         "--enable-distillation",
         type=str2bool,
         default=True,
         help="Whether to eanble distillation.",
     )
-    
+
     parser.add_argument(
         "--codebook-loss-scale",
         type=float,
         default=0.1,
         help="The scale of codebook loss.",
     )
-    
+
     parser.add_argument(
         "--num-codebooks",
         type=int,
         default=16,
         help="Number of codebooks used for the extracted CI",
     )
-    
+
     parser.add_argument(
         "--distillation-layer",
         type=int,
@@ -636,11 +636,11 @@ def get_joiner_model(params: AttributeDict) -> nn.Module:
 
 
 def get_model(params: AttributeDict) -> nn.Module:
-    assert (
-        params.use_transducer or params.use_ctc
-    ), (f"At least one of them should be True, "
+    assert params.use_transducer or params.use_ctc, (
+        f"At least one of them should be True, "
         f"but got params.use_transducer={params.use_transducer}, "
-        f"params.use_ctc={params.use_ctc}")
+        f"params.use_ctc={params.use_ctc}"
+    )
 
     encoder_embed = get_encoder_embed(params)
     encoder = get_encoder_model(params)
@@ -783,16 +783,16 @@ def save_checkpoint(
         best_valid_filename = params.exp_dir / "best-valid-loss.pt"
         copyfile(src=filename, dst=best_valid_filename)
 
+
 def extract_codebook_indexes(batch: Dict) -> Tuple[Tensor, Tensor]:
     cuts = batch["supervisions"]["cut"]
     # -100 is identical to ignore_value in CE loss computation.
-    cuts_pre_mixed = [
-        c if isinstance(c, MonoCut) else c.tracks[0].cut for c in cuts
-    ]
+    cuts_pre_mixed = [c if isinstance(c, MonoCut) else c.tracks[0].cut for c in cuts]
     codebook_indexes, codebook_indexes_lens = collate_custom_field(
         cuts_pre_mixed, "codebook_indexes", pad_value=-100
     )
     return codebook_indexes, codebook_indexes_lens
+
 
 def compute_loss(
     params: AttributeDict,
@@ -834,7 +834,7 @@ def compute_loss(
     texts = batch["supervisions"]["text"]
     y = sp.encode(texts, out_type=int)
     y = k2.RaggedTensor(y)
-    
+
     if is_training and params.enable_distillation:
         codebook_indexes, _ = extract_codebook_indexes(batch)
         codebook_indexes = codebook_indexes.to(device)
@@ -859,21 +859,20 @@ def compute_loss(
             # take down the scale on the simple loss from 1.0 at the start
             # to params.simple_loss scale by warm_step.
             simple_loss_scale = (
-                s if batch_idx_train >= warm_step
+                s
+                if batch_idx_train >= warm_step
                 else 1.0 - (batch_idx_train / warm_step) * (1.0 - s)
             )
             pruned_loss_scale = (
-                1.0 if batch_idx_train >= warm_step
+                1.0
+                if batch_idx_train >= warm_step
                 else 0.1 + 0.9 * (batch_idx_train / warm_step)
             )
-            loss += (
-                simple_loss_scale * simple_loss
-                + pruned_loss_scale * pruned_loss
-            )
+            loss += simple_loss_scale * simple_loss + pruned_loss_scale * pruned_loss
 
         if params.use_ctc:
             loss += params.ctc_loss_scale * ctc_loss
-            
+
         if is_training and params.enable_distillation:
             loss += params.codebook_loss_scale * codebook_loss
 
@@ -1164,7 +1163,9 @@ def run(rank, world_size, args):
     # Note: it's better to set --spec-aug-time-warpi-factor=-1
     # when doing distillation with vq.
     if params.enable_distillation:
-        assert args.spec_aug_time_warp_factor < 1, "Specaug should be disabled during distillation" 
+        assert (
+            args.spec_aug_time_warp_factor < 1
+        ), "Specaug should be disabled during distillation"
 
     device = torch.device("cpu")
     if torch.cuda.is_available():
