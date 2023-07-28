@@ -73,7 +73,7 @@ RUN pip install --no-cache-dir \
       numpy \
       pytest \
       graphviz \
-      tqdm
+      tqdm>=4.63.0
 
 
 RUN git clone https://github.com/k2-fsa/icefall /workspace/icefall && \
