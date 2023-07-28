@@ -4,7 +4,7 @@
 
 You can find pre-built docker image for icefall at the following address:
 
-  `<https://hub.docker.com/r/k2fsa/icefall/tags>`_
+  <https://hub.docker.com/r/k2fsa/icefall/tags>
 
 Example usage:
 
