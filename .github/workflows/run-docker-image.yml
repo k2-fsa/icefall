@@ -66,9 +66,11 @@ jobs:
               python3 --version
               which python3
 
-              pip install tqdm>=4.63.0
 
-              pip list
+              python3 -m pip list
+              python3 -m pip uninstall -y tqdm
+              python3 -m pip install -y -U tqdm>=4.63.0
+              python3 -m pip list
 
               echo "----------torch----------"
               python3 -m torch.utils.collect_env
