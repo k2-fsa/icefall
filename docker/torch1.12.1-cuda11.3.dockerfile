@@ -1,4 +1,4 @@
-FROM pytorch/pytorch:1.12.1-cuda11.3-cudnn8-runtime
+FROM pytorch/pytorch:1.12.1-cuda11.3-cudnn8-devel
 
 ENV LC_ALL C.UTF-8
 
@@ -51,7 +51,15 @@ RUN pip install --no-cache-dir \
       sentencepiece>=0.1.96 \
       tensorboard \
       typeguard \
-      dill
+      dill \
+      onnx \
+      onnxruntime \
+      onnxmltools \
+      multi_quantization \
+      typeguard \
+      numpy \
+      pytest \
+      graphviz
 
 RUN git clone https://github.com/k2-fsa/icefall /workspace/icefall && \
     cd /workspace/icefall && \
