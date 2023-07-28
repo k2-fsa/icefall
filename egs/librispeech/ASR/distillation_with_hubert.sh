@@ -25,6 +25,7 @@
 
 stage=0
 stop_stage=4
+. shared/parse_options.sh || exit 1
 
 # Set the GPUs available.
 # This script requires at least one GPU.
@@ -32,7 +33,7 @@ stop_stage=4
 # even you only have ONE GPU. It needed by CodebookIndexExtractor to determine numbert of jobs to extract codebook indexes parallelly.
 
 # Suppose only one GPU exists:
-# export CUDA_VISIBLE_DEVICES="0"
+export CUDA_VISIBLE_DEVICES="0"
 #
 # Suppose GPU 2,3,4,5 are available.
 # export CUDA_VISIBLE_DEVICES="0,1,2,3"
@@ -154,27 +155,35 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
     mkdir -p codebook_dir
     codebook_download_dir=$exp_dir/download_codebook
     if [ -d $codebook_download_dir ]; then
-      log "$codebook_download_dir exists, you should remove it first."
-      exit 1
+      log "$codebook_download_dir exists, skip downloading it."
+    else
+      log "Downloading extracted codebook indexes to $codebook_download_dir"
+      # Make sure you have git-lfs installed (https://git-lfs.github.com)
+      # The codebook indexes are generated using lhotse 1.11.0, to avoid
+      # potential issues, we recommend you to use lhotse version >= 1.11.0
+      lhotse_version=$(python3 -c "import lhotse; from packaging import version; print(version.parse(lhotse.version.__version__)>=version.parse('1.11.0'))")
+      if [ "$lhotse_version" == "False" ]; then
+        log "Expecting lhotse >= 1.11.0. This may lead to potential ID mismatch."
+      fi
+      GIT_LFS_SKIP_SMUDGE=1 git clone https://huggingface.co/marcoyang/pruned_transducer_stateless6_hubert_xtralarge_ll60k_finetune_ls960 $codebook_download_dir
+      pushd $codebook_download_dir
+      if [ "$full_libri" == "False" ]; then
+        log "Only download the train-clean-100 subset"
+        git lfs pull --include "*clean-100*"
+      else
+        log "Download the full training set"
+        git lfs fetch --all
+      fi
+      popd
     fi
-    log "Downloading extracted codebook indexes to $codebook_download_dir"
-    # Make sure you have git-lfs installed (https://git-lfs.github.com)
-    # The codebook indexes are generated using lhotse 1.11.0, to avoid
-    # potential issues, we recommend you to use lhotse version >= 1.11.0
-    lhotse_version=$(python3 -c "import lhotse; from packaging import version; print(version.parse(lhotse.version.__version__)>=version.parse('1.11.0'))")
-    if [ "$lhotse_version" == "False" ]; then
-      log "Expecting lhotse >= 1.11.0. This may lead to potential ID mismatch."
-    fi
-    git lfs install
-    git clone https://huggingface.co/marcoyang/pruned_transducer_stateless6_hubert_xtralarge_ll60k_finetune_ls960 $codebook_download_dir
 
     vq_fbank=data/vq_fbank_layer${embedding_layer}_cb${num_codebooks}/
     mkdir -p $vq_fbank
     mv $codebook_download_dir/*.jsonl.gz $vq_fbank
     mkdir -p $codebook_dir/splits4
     mv $codebook_download_dir/*.h5 $codebook_dir/splits4/
-    log "Remove $codebook_download_dir"
-    rm -rf $codebook_download_dir
+    # log "Remove $codebook_download_dir"
+    # rm -rf $codebook_download_dir
   fi
 
   ./pruned_transducer_stateless6/extract_codebook_index.py \
