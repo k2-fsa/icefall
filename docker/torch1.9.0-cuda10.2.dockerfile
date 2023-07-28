@@ -72,7 +72,9 @@ RUN pip install --no-cache-dir \
       typeguard \
       numpy \
       pytest \
-      graphviz
+      graphviz \
+      tqdm
+
 
 RUN git clone https://github.com/k2-fsa/icefall /workspace/icefall && \
     cd /workspace/icefall && \
