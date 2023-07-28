@@ -1,8 +1,5 @@
 name: Run docker image
 on:
-  push:
-    branches:
-      - test-yesno-docker
   workflow_dispatch:
 
 concurrency:
@@ -73,7 +70,7 @@ jobs:
 
               echo "----------k2----------"
               python3 -c "import k2; print(k2.__file__)"
-              python3 -c "import k2; print(k2.__version__)"
+              python3 -c "import k2; print(k2.__dev_version__)"
               python3 -m k2.version
 
               echo "----------lhotse----------"
