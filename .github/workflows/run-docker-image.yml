@@ -1,5 +1,8 @@
 name: Run docker image
 on:
+  push:
+    branches:
+      - test-yesno-docker
   workflow_dispatch:
 
 concurrency:
@@ -25,6 +28,7 @@ jobs:
         uses: addnab/docker-run-action@v3
         with:
             image: k2fsa/icefall:${{ matrix.image }}
+            shell: bash
             run: |
               uname -a
               cat /etc/*release
@@ -64,3 +68,12 @@ jobs:
               python3 -c "import kaldifeat; print(kaldifeat.__file__)"
               python3 -c "import kaldifeat; print(kaldifeat.__version__)"
 
+              echo "Test yesno recipe"
+
+              cd egs/yesno/ASR
+
+              ./prepare.sh
+
+              ./tdnn/train.py
+
+              ./tdnn/decode.py
