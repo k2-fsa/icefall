@@ -2,6 +2,8 @@ FROM pytorch/pytorch:1.9.0-cuda10.2-cudnn7-runtime
 
 ENV LC_ALL C.UTF-8
 
+ARG DEBIAN_FRONTEND=noninteractive
+
 ARG K2_VERSION="1.24.3.dev20230726+cuda10.2.torch1.9.0"
 ARG KALDIFEAT_VERSION="1.25.0.dev20230726+cuda10.2.torch1.9.0"
 ARG TORCHAUDIO_VERSION="0.9.0"
