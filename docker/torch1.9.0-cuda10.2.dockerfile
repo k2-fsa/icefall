@@ -51,7 +51,8 @@ RUN wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86
     rm -rf /var/lib/apt/lists/*
 
 # Install dependencies
-RUN pip install --no-cache-dir \
+RUN pip uninstall -y tqdm && \
+    pip install -U --no-cache-dir \
       torchaudio==${TORCHAUDIO_VERSION} -f https://download.pytorch.org/whl/torch_stable.html \
       k2==${K2_VERSION} -f https://k2-fsa.github.io/k2/cuda.html \
       kaldifeat==${KALDIFEAT_VERSION} -f https://csukuangfj.github.io/kaldifeat/cuda.html \
