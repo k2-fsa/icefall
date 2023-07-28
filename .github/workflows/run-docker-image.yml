@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - docker2
+
   workflow_dispatch:
 
 concurrency:
@@ -17,6 +18,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
+        image: ["torch2.0.1-cuda11.7", "torch2.0.0-cuda11.7", "torch1.13.0-cuda11.6", "torch1.12.1-cuda11.3", "torch1.9.0-cuda10.2"]
     steps:
       # refer to https://github.com/actions/checkout
       - uses: actions/checkout@v2
@@ -26,16 +28,43 @@ jobs:
       - name: Run the build process with Docker
         uses: addnab/docker-run-action@v3
         with:
-            image: k2fsa/icefall:torch1.13.0-cuda11.6
+            image: k2fsa/icefall:${{ matrix.image }}
             run: |
               uname -a
-              python3 --version
-              python3 -m torch.utils.collect_env
-              python3 -m k2.version
-              python3 -c "import lhotse; print(lhotse.__version__)"
-              python3 -c "import kaldifeat; print(kaldifeat.__version__)"
+              cat /etc/*release
+
               nvcc --version
+
               which nvcc
-              find /usr/ -name libcuda.so*
-              find /opt/ -name libcuda.so*
+              cuda_dir=$(dirname $(which nvcc))
+              echo "cuda_dir: $cuda_dir"
+
+              find $cuda_dir -name libcuda.so*
+              echo "--------------------"
+
               find / -name libcuda.so* 2>/dev/null
+
+              pushd /opt/conda/lib/stubs && ln -s libcuda.so libcuda.so.1 && popd
+
+              export LD_LIBRARY_PATH=/opt/conda/lib/stubs:$LD_LIBRARY_PATH
+              echo "LD_LIBRARY_PATH $LD_LIBRARY_PATH"
+
+              python3 --version
+              which python3
+
+              echo "----------torch----------"
+              python3 -m torch.utils.collect_env
+
+              echo "----------k2----------"
+              python3 -c "import k2; print(k2.__file__)"
+              python3 -c "import k2; print(k2.__version__)"
+              python3 -m k2.version
+
+              echo "----------lhotse----------"
+              python3 -c "import lhotse; print(lhotse.__file__)"
+              python3 -c "import lhotse; print(lhotse.__version__)"
+
+              echo "----------kaldifeat----------"
+              python3 -c "import kaldifeat; print(kaldifeat.__file__)"
+              python3 -c "import kaldifeat; print(kaldifeat.__version__)"
+

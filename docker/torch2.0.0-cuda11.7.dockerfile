@@ -1,8 +1,12 @@
-FROM pytorch/pytorch:1.13.0-cuda11.6-cudnn8-runtime
+FROM pytorch/pytorch:2.0.0-cuda11.7-cudnn8-runtime
 
-LABEL authors="Fangjun Kuang"
-LABEL k2_version="1.24.3.dev20230725+cuda11.6.torch1.13.0"
-LABEL kaldifeat_version="1.25.0.dev20230726+cuda11.6.torch1.13.0"
+ARG K2_VERSION="1.24.3.dev20230718+cuda11.7.torch2.0.0"
+ARG KALDIFEAT_VERSION="1.25.0.dev20230726+cuda11.7.torch2.0.0"
+ARG TORCHAUDIO_VERSION="2.0.0+cu117"
+
+LABEL authors="Fangjun Kuang <csukuangfj@gmail.com>"
+LABEL k2_version=${K2_VERSION}
+LABEL kaldifeat_version=${KALDIFEAT_VERSION}
 LABEL github_repo="https://github.com/k2-fsa/icefall"
 
 RUN apt-get update && \
@@ -31,20 +35,19 @@ RUN apt-get update && \
 
 # Install dependencies
 RUN pip install --no-cache-dir \
-      torchaudio==0.13.0+cu116 -f https://download.pytorch.org/whl/torch_stable.html \
-      k2==1.24.3.dev20230725+cuda11.6.torch1.13.0 -f https://k2-fsa.github.io/k2/cuda.html \
+      torchaudio==${TORCHAUDIO_VERSION} -f https://download.pytorch.org/whl/torch_stable.html \
+      k2==${K2_VERSION} -f https://k2-fsa.github.io/k2/cuda.html \
       git+https://github.com/lhotse-speech/lhotse \
-      kaldifeat==1.25.0.dev20230726+cuda11.6.torch1.13.0 -f https://csukuangfj.github.io/kaldifeat/cuda.html \
+      kaldifeat==${KALDIFEAT_VERSION} -f https://csukuangfj.github.io/kaldifeat/cuda.html \
       \
+      kaldi_native_io \
+      kaldialign \
       kaldifst \
       kaldilm \
-      kaldialign \
       sentencepiece>=0.1.96 \
       tensorboard \
       typeguard \
       dill
-
-RUN cd /opt/conda/lib/stubs && ln -s libcuda.so libcuda.so.1
 
 RUN git clone https://github.com/k2-fsa/icefall /workspace/icefall && \
 	cd /workspace/icefall && \
@@ -55,4 +58,5 @@ ENV PYTHONPATH /workspace/icefall:$PYTHONPATH
 ENV LD_LIBRARY_PATH /opt/conda/lib/stubs:$LD_LIBRARY_PATH
 
 WORKDIR /workspace/icefall
+
 
