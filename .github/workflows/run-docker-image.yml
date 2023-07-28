@@ -55,8 +55,10 @@ jobs:
               find / -name libcuda.so* 2>/dev/null
 
               # for torch1.13.0-cuda11.6
-              cd /opt/conda/lib/stubs && ln -s libcuda.so libcuda.so.1 && cd -
-              export LD_LIBRARY_PATH=/opt/conda/lib/stubs:$LD_LIBRARY_PATH
+              if [ -e /opt/conda/lib/stubs/libcuda.so ]; then
+                cd /opt/conda/lib/stubs && ln -s libcuda.so libcuda.so.1 && cd -
+                export LD_LIBRARY_PATH=/opt/conda/lib/stubs:$LD_LIBRARY_PATH
+              fi
 
               find / -name libcuda.so* 2>/dev/null
               echo "LD_LIBRARY_PATH: $LD_LIBRARY_PATH"
