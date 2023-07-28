@@ -1,9 +1,5 @@
 name: Run docker image
 on:
-  push:
-    branches:
-      - docker2
-
   workflow_dispatch:
 
 concurrency:
@@ -18,7 +14,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        image: ["torch2.0.1-cuda11.7", "torch2.0.0-cuda11.7", "torch1.13.0-cuda11.6", "torch1.12.1-cuda11.3", "torch1.9.0-cuda10.2"]
+        image: ["torch2.0.0-cuda11.7", "torch1.13.0-cuda11.6", "torch1.12.1-cuda11.3", "torch1.9.0-cuda10.2"]
     steps:
       # refer to https://github.com/actions/checkout
       - uses: actions/checkout@v2
