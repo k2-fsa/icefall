@@ -16,12 +16,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 
 import k2
 import torch
 import torch.nn as nn
 from encoder_interface import EncoderInterface
+from multi_quantization.prediction import JointCodebookLoss
 
 from icefall.utils import add_sos, make_pad_mask
 from scaling import ScaledLinear
@@ -39,12 +40,15 @@ class AsrModel(nn.Module):
         vocab_size: int = 500,
         use_transducer: bool = True,
         use_ctc: bool = False,
+        num_codebooks: int = 8,
+        cb_input_dim: int = 384,
     ):
         """A joint CTC & Transducer ASR model.
 
         - Connectionist temporal classification: labelling unsegmented sequence data with recurrent neural networks (http://imagine.enpc.fr/~obozinsg/teaching/mva_gm/papers/ctc.pdf)
         - Sequence Transduction with Recurrent Neural Networks (https://arxiv.org/pdf/1211.3711.pdf)
         - Pruned RNN-T for fast, memory-efficient ASR training (https://arxiv.org/pdf/2206.13236.pdf)
+        - Potentially with MVQ knowledge distillation (https://arxiv.org/abs/2211.00508)
 
         Args:
           encoder_embed:
@@ -70,6 +74,10 @@ class AsrModel(nn.Module):
             Whether use transducer head. Default: True.
           use_ctc:
             Whether use CTC head. Default: False.
+          num_codebooks:
+            Greater than 0 if we want to do MVQ knowledge distillation.
+          cb_input_dim:
+            The input dimension to the codebook loss module.
         """
         super().__init__()
 
@@ -110,6 +118,12 @@ class AsrModel(nn.Module):
                 nn.Linear(encoder_dim, vocab_size),
                 nn.LogSoftmax(dim=-1),
             )
+        
+        if num_codebooks > 0:
+            self.codebook_loss_net = JointCodebookLoss(
+                predictor_channels=cb_input_dim,
+                num_codebooks=num_codebooks,
+            )
 
     def forward_encoder(
         self, x: torch.Tensor, x_lens: torch.Tensor
@@ -127,6 +141,8 @@ class AsrModel(nn.Module):
             Encoder output, of shape (N, T, C).
           encoder_out_lens:
             Encoder output lengths, of shape (N,).
+		  saved_embeddings:
+			The embeddings from the middle layers
         """
         # logging.info(f"Memory allocated at entry: {torch.cuda.memory_allocated() // 1000000}M")
         x, x_lens = self.encoder_embed(x, x_lens)
@@ -135,12 +151,12 @@ class AsrModel(nn.Module):
         src_key_padding_mask = make_pad_mask(x_lens)
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
 
-        encoder_out, encoder_out_lens = self.encoder(x, x_lens, src_key_padding_mask)
+        encoder_out, encoder_out_lens, middle_out = self.encoder(x, x_lens, src_key_padding_mask)
 
         encoder_out = encoder_out.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
         assert torch.all(encoder_out_lens > 0), (x_lens, encoder_out_lens)
 
-        return encoder_out, encoder_out_lens
+        return encoder_out, encoder_out_lens, middle_out
 
     def forward_ctc(
         self,
@@ -180,6 +196,7 @@ class AsrModel(nn.Module):
         prune_range: int = 5,
         am_scale: float = 0.0,
         lm_scale: float = 0.0,
+        codebook_indexes: torch.Tensor = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Compute Transducer loss.
         Args:
@@ -286,6 +303,7 @@ class AsrModel(nn.Module):
         prune_range: int = 5,
         am_scale: float = 0.0,
         lm_scale: float = 0.0,
+        codebook_indexes: torch.Tensor = None,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Args:
@@ -306,9 +324,12 @@ class AsrModel(nn.Module):
           lm_scale:
             The scale to smooth the loss with lm (output of predictor network)
             part
+		  codebook_indexes:
+			The codebook indexes to be predicted. Only used when doing knowledge
+   			distillation with MVQ
         Returns:
-          Return the transducer losses and CTC loss,
-          in form of (simple_loss, pruned_loss, ctc_loss)
+          Return the transducer losses and CTC loss, and potentially codebook loss
+          in form of (simple_loss, pruned_loss, ctc_loss, codebook_loss)
 
         Note:
            Regarding am_scale & lm_scale, it will make the loss-function one of
@@ -323,7 +344,7 @@ class AsrModel(nn.Module):
         assert x.size(0) == x_lens.size(0) == y.dim0, (x.shape, x_lens.shape, y.dim0)
 
         # Compute encoder outputs
-        encoder_out, encoder_out_lens = self.forward_encoder(x, x_lens)
+        encoder_out, encoder_out_lens, middle_out = self.forward_encoder(x, x_lens)
 
         row_splits = y.shape.row_splits(1)
         y_lens = row_splits[1:] - row_splits[:-1]
@@ -354,5 +375,84 @@ class AsrModel(nn.Module):
             )
         else:
             ctc_loss = torch.empty(0)
+            
+        if self.training and hasattr(self, "codebook_loss_net"):
+            assert codebook_indexes is not None
+            codebook_loss = self.forward_codebook(
+				middle_out=middle_out,
+				codebook_indexes=codebook_indexes,
+			)
+        else:
+            codebook_loss = torch.empty(0)
 
-        return simple_loss, pruned_loss, ctc_loss
+        return simple_loss, pruned_loss, ctc_loss, codebook_loss
+    
+    def forward_codebook(
+        self,
+        middle_out: List[torch.Tensor],
+        codebook_indexes: torch.Tensor,
+    ) -> torch.Tensor:
+        """Calculate the codebook loss for the model (knowledge distillation)
+
+		Args:
+			middle_out (List[torch.Tensor]): 
+				The embeddings extracted from the middle layer of the zipformer encoder 
+			codebook_indexes (torch.Tensor):
+				The encoded codebook indexes for knowledge distillation
+
+		Returns:
+			The codebook loss value
+		"""
+        middle_layer_output = middle_out[0] # currently only support using output of one layer, (N,T,C)
+        len_CI = codebook_indexes.size(1)
+        len_mid_layer = middle_layer_output.size(1)
+        ratio = round(len_CI/len_mid_layer)
+        
+        if ratio == 1: # Having the same frame rate
+            assert len_CI > len_mid_layer, (len_CI, len_mid_layer)
+            codebook_indexes = codebook_indexes[:, :len_mid_layer, :]
+            assert codebook_indexes.size(1) == middle_layer_output.size(1)
+            codebook_loss = self.codebook_loss_net(
+                middle_layer_output, codebook_indexes
+            )
+        elif ratio == 2:
+            codebook_indexes = self.concat_successive_codebook_indexes(
+                middle_layer_output, codebook_indexes
+            )
+            codebook_loss = self.codebook_loss_net(
+                middle_layer_output, codebook_indexes
+            )
+        
+        return codebook_loss
+    
+    @staticmethod
+    def concat_successive_codebook_indexes(
+        middle_layer_output, codebook_indexes
+    ):
+        # Output rate of hubert is 50 frames per second,
+        # while that of current encoder is 25.
+        # Following code handling two issues:
+        # 1.
+        #   Roughly speaking, to generate another frame output,
+        #   hubert needes extra two frames,
+        #   while current encoder needs extra four frames.
+        #   Suppose there are only extra three frames provided,
+        #   hubert will generate another frame while current encoder does nothing.
+        # 2.
+        #   codebook loss is a frame-wise loss, to enalbe 25 frames studnet output
+        #   learns from 50 frames teacher output, two successive frames of teacher model
+        #   output is concatenated together.
+        t_expected = middle_layer_output.shape[1]
+        N, T, C = codebook_indexes.shape
+        assert T >= t_expected, (T, t_expected)
+        # Handling issue 1.
+        if T >= t_expected * 2:
+            codebook_indexes = codebook_indexes[:, : t_expected * 2, :]
+        if T / t_expected < 1.1: # To be changed, dirty hack to jump out of this function
+          codebook_indexes = codebook_indexes[:, : t_expected, :]
+          assert middle_layer_output.shape[1] == codebook_indexes.shape[1]
+          return codebook_indexes
+        # Handling issue 2.
+        codebook_indexes = codebook_indexes.reshape(N, t_expected, C * 2)
+        assert middle_layer_output.shape[1] == codebook_indexes.shape[1]
+        return codebook_indexes

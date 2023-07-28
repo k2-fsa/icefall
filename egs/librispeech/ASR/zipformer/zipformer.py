@@ -90,6 +90,8 @@ class Zipformer2(EncoderInterface):
            context chunks for causal training; will be rounded to a number of
            chunks.  Must not be less than cnn_module_kernel (after factoring in
            rounding and downsampling); an error will be thrown if this is violated.
+        middle_output_layer:
+            Get the output of a middle layer of the model
     """
     def __init__(
             self,
@@ -110,6 +112,7 @@ class Zipformer2(EncoderInterface):
             causal: bool = False,
             chunk_size: Tuple[int] = [-1],
             left_context_frames: Tuple[int] = [-1],
+            middle_output_layer: int = None # 0-based layer index
     ) -> None:
         super(Zipformer2, self).__init__()
 
@@ -190,6 +193,17 @@ class Zipformer2(EncoderInterface):
             encoders.append(encoder)
 
         self.encoders = nn.ModuleList(encoders)
+        
+        # for mvq: return the middle layer output
+        output_layers = []
+        if middle_output_layer is not None:
+            assert (
+                middle_output_layer >= 0
+                and middle_output_layer < len(num_encoder_layers)
+            )
+            output_layers.append(middle_output_layer)
+            
+        self.output_layers = output_layers # A list of int
 
         self.downsample_output = SimpleDownsample(max(encoder_dim),
                                                   downsample=output_downsampling_factor,
@@ -334,6 +348,9 @@ class Zipformer2(EncoderInterface):
         x = self._get_full_dim_output(outputs)
         x = self.downsample_output(x)
         # class Downsample has this rounding behavior..
+        
+        saved = [outputs[i].permute(1,0,2) for i in self.output_layers] # collect the embeddings
+        
         assert self.output_downsampling_factor == 2, self.output_downsampling_factor
         if torch.jit.is_scripting() or torch.jit.is_tracing():
             lengths = (x_lens + 1) // 2
@@ -342,7 +359,7 @@ class Zipformer2(EncoderInterface):
                 warnings.simplefilter("ignore")
                 lengths = (x_lens + 1) // 2
 
-        return x, lengths
+        return x, lengths, saved
 
     def _get_attn_mask(
         self, x: Tensor,

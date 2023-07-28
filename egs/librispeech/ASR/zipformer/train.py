@@ -68,7 +68,8 @@ import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
 from decoder import Decoder
 from joiner import Joiner
-from lhotse.cut import Cut
+from lhotse.cut import Cut, MonoCut
+from lhotse.dataset.collation import collate_custom_field
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import AsrModel
@@ -402,6 +403,34 @@ def get_parser():
         default=0.2,
         help="Scale for CTC loss.",
     )
+    
+    parser.add_argument(
+        "--enable-distillation",
+        type=str2bool,
+        default=True,
+        help="Whether to eanble distillation.",
+    )
+    
+    parser.add_argument(
+        "--codebook-loss-scale",
+        type=float,
+        default=0.1,
+        help="The scale of codebook loss.",
+    )
+    
+    parser.add_argument(
+        "--num-codebooks",
+        type=int,
+        default=16,
+        help="Number of codebooks used for the extracted CI",
+    )
+    
+    parser.add_argument(
+        "--distillation-layer",
+        type=int,
+        default=4,
+        help="Where to perform MVQ-KD",
+    )
 
     parser.add_argument(
         "--seed",
@@ -579,6 +608,9 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         causal=params.causal,
         chunk_size=_to_int_tuple(params.chunk_size),
         left_context_frames=_to_int_tuple(params.left_context_frames),
+        middle_output_layer=params.distillation_layer
+        if params.enable_distillation
+        else None,
     )
     return encoder
 
@@ -630,6 +662,8 @@ def get_model(params: AttributeDict) -> nn.Module:
         vocab_size=params.vocab_size,
         use_transducer=params.use_transducer,
         use_ctc=params.use_ctc,
+        num_codebooks=params.num_codebooks if params.enable_distillation else 0,
+        cb_input_dim=_to_int_tuple(params.encoder_dim)[params.distillation_layer],
     )
     return model
 
@@ -749,6 +783,16 @@ def save_checkpoint(
         best_valid_filename = params.exp_dir / "best-valid-loss.pt"
         copyfile(src=filename, dst=best_valid_filename)
 
+def extract_codebook_indexes(batch: Dict) -> Tuple[Tensor, Tensor]:
+    cuts = batch["supervisions"]["cut"]
+    # -100 is identical to ignore_value in CE loss computation.
+    cuts_pre_mixed = [
+        c if isinstance(c, MonoCut) else c.tracks[0].cut for c in cuts
+    ]
+    codebook_indexes, codebook_indexes_lens = collate_custom_field(
+        cuts_pre_mixed, "codebook_indexes", pad_value=-100
+    )
+    return codebook_indexes, codebook_indexes_lens
 
 def compute_loss(
     params: AttributeDict,
@@ -790,15 +834,22 @@ def compute_loss(
     texts = batch["supervisions"]["text"]
     y = sp.encode(texts, out_type=int)
     y = k2.RaggedTensor(y)
+    
+    if is_training and params.enable_distillation:
+        codebook_indexes, _ = extract_codebook_indexes(batch)
+        codebook_indexes = codebook_indexes.to(device)
+    else:
+        codebook_indexes = None
 
     with torch.set_grad_enabled(is_training):
-        simple_loss, pruned_loss, ctc_loss = model(
+        simple_loss, pruned_loss, ctc_loss, codebook_loss = model(
             x=feature,
             x_lens=feature_lens,
             y=y,
             prune_range=params.prune_range,
             am_scale=params.am_scale,
             lm_scale=params.lm_scale,
+            codebook_indexes=codebook_indexes,
         )
 
         loss = 0.0
@@ -822,6 +873,9 @@ def compute_loss(
 
         if params.use_ctc:
             loss += params.ctc_loss_scale * ctc_loss
+            
+        if is_training and params.enable_distillation:
+            loss += params.codebook_loss_scale * codebook_loss
 
     assert loss.requires_grad == is_training
 
@@ -837,6 +891,8 @@ def compute_loss(
         info["pruned_loss"] = pruned_loss.detach().cpu().item()
     if params.use_ctc:
         info["ctc_loss"] = ctc_loss.detach().cpu().item()
+    if is_training and params.enable_distillation:
+        info["codebook_loss"] = codebook_loss.detach().cpu().item()
 
     return loss, info
 
@@ -1105,6 +1161,11 @@ def run(rank, world_size, args):
     else:
         tb_writer = None
 
+    # Note: it's better to set --spec-aug-time-warpi-factor=-1
+    # when doing distillation with vq.
+    if params.enable_distillation:
+        assert args.spec_aug_time_warp_factor < 1, "Specaug should be disabled during distillation" 
+
     device = torch.device("cpu")
     if torch.cuda.is_available():
         device = torch.device("cuda", rank)
@@ -1234,14 +1295,14 @@ def run(rank, world_size, args):
     valid_cuts += librispeech.dev_other_cuts()
     valid_dl = librispeech.valid_dataloaders(valid_cuts)
 
-    if not params.print_diagnostics:
-        scan_pessimistic_batches_for_oom(
-            model=model,
-            train_dl=train_dl,
-            optimizer=optimizer,
-            sp=sp,
-            params=params,
-        )
+    # if not params.print_diagnostics:
+    #     scan_pessimistic_batches_for_oom(
+    #         model=model,
+    #         train_dl=train_dl,
+    #         optimizer=optimizer,
+    #         sp=sp,
+    #         params=params,
+    #     )
 
     scaler = GradScaler(enabled=params.use_fp16, init_scale=1.0)
     if checkpoints and "grad_scaler" in checkpoints:
