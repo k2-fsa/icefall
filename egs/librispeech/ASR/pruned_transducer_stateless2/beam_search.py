@@ -27,8 +27,6 @@ from torch import nn
 from icefall import ContextGraph, ContextState, NgramLm, NgramLmStateCost
 from icefall.decode import Nbest, one_best_decoding
 from icefall.lm_wrapper import LmScorer
-from icefall.rnn_lm.model import RnnLmModel
-from icefall.transformer_lm.model import TransformerLM
 from icefall.utils import (
     DecodingResults,
     add_eos,
