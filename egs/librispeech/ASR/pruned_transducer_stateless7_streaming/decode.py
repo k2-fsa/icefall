@@ -396,6 +396,12 @@ def decode_one_batch(
         The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
         only when --decoding_method is fast_beam_search, fast_beam_search_nbest,
         fast_beam_search_nbest_oracle, and fast_beam_search_nbest_LG.
+      LM:
+        A neural network language model.
+      ngram_lm:
+        A ngram language model
+      ngram_lm_scale:
+        The scale for the ngram language model.
     Returns:
       Return the decoding result. See above description for the format of
       the returned dict.
