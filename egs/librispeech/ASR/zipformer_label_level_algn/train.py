@@ -622,6 +622,7 @@ def get_model(params: AttributeDict) -> nn.Module:
         joiner = None
 
     model = AsrModel(
+        params=params,
         encoder_embed=encoder_embed,
         encoder=encoder,
         decoder=decoder,
@@ -800,6 +801,7 @@ def compute_loss(
             prune_range=params.prune_range,
             am_scale=params.am_scale,
             lm_scale=params.lm_scale,
+            batch_idx_train=batch_idx_train,
         )
 
         loss = 0.0

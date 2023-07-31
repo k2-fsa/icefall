@@ -907,9 +907,9 @@ def deprecated_greedy_search_batch_for_cross_attn(
         logits = model.joiner(
             current_encoder_out,
             decoder_out.unsqueeze(1),
-            attn_encoder_out if t > 0 else torch.zeros_like(current_encoder_out),
-            None,
-            apply_attn=True,
+            attn_encoder_out if t < 0 else torch.zeros_like(current_encoder_out),
+            encoder_out_lens,
+            apply_attn=False,
             project_input=False,
         )
         # logits'shape (batch_size, 1, 1, vocab_size)

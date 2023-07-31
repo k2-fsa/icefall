@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
+
 import torch
 import torch.nn as nn
 from alignment_attention_module import AlignmentAttentionModule
@@ -34,6 +36,7 @@ class Joiner(nn.Module):
         self.encoder_proj = ScaledLinear(encoder_dim, joiner_dim, initial_scale=0.25)
         self.decoder_proj = ScaledLinear(decoder_dim, joiner_dim, initial_scale=0.25)
         self.output_linear = nn.Linear(joiner_dim, vocab_size)
+        self.enable_attn = False
 
     def forward(
         self,
@@ -64,7 +67,10 @@ class Joiner(nn.Module):
             decoder_out.shape,
         )
 
-        if apply_attn and lengths is not None:
+        if apply_attn:
+            if not self.enable_attn:
+                self.enable_attn = True
+                logging.info("enabling ATTN!")
             attn_encoder_out = self.label_level_am_attention(
                 encoder_out, decoder_out, lengths
             )
@@ -72,7 +78,11 @@ class Joiner(nn.Module):
         if project_input:
             logit = self.encoder_proj(encoder_out) + self.decoder_proj(decoder_out)
         else:
-            logit = encoder_out + decoder_out + attn_encoder_out
+            if apply_attn:
+                logit = encoder_out + decoder_out + attn_encoder_out
+            else:
+                # logging.info("disabling cross attn mdl")
+                logit = encoder_out + decoder_out
 
         logit = self.output_linear(torch.tanh(logit))
 

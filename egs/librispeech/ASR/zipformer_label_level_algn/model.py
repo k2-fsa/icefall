@@ -24,12 +24,13 @@ import torch.nn as nn
 from encoder_interface import EncoderInterface
 from scaling import ScaledLinear
 
-from icefall.utils import add_sos, make_pad_mask
+from icefall.utils import add_sos, make_pad_mask, AttributeDict
 
 
 class AsrModel(nn.Module):
     def __init__(
         self,
+        params: AttributeDict,
         encoder_embed: nn.Module,
         encoder: EncoderInterface,
         decoder: Optional[nn.Module] = None,
@@ -78,6 +79,8 @@ class AsrModel(nn.Module):
         ), f"At least one of them should be True, but got use_transducer={use_transducer}, use_ctc={use_ctc}"
 
         assert isinstance(encoder, EncoderInterface), type(encoder)
+
+        self.params = params
 
         self.encoder_embed = encoder_embed
         self.encoder = encoder
@@ -180,6 +183,7 @@ class AsrModel(nn.Module):
         prune_range: int = 5,
         am_scale: float = 0.0,
         lm_scale: float = 0.0,
+        batch_idx_train: int = 0,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Compute Transducer loss.
         Args:
@@ -264,12 +268,13 @@ class AsrModel(nn.Module):
 
         # project_input=False since we applied the decoder's input projections
         # prior to do_rnnt_pruning (this is an optimization for speed).
+        # print(batch_idx_train)
         logits = self.joiner(
             am_pruned,
             lm_pruned,
             None,
             encoder_out_lens,
-            apply_attn=True,
+            apply_attn=batch_idx_train > self.params.warm_step, # True, # batch_idx_train > self.params.warm_step,
             project_input=False,
         )
 
@@ -293,6 +298,7 @@ class AsrModel(nn.Module):
         prune_range: int = 5,
         am_scale: float = 0.0,
         lm_scale: float = 0.0,
+        batch_idx_train: int = 0,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Args:
@@ -345,6 +351,7 @@ class AsrModel(nn.Module):
                 prune_range=prune_range,
                 am_scale=am_scale,
                 lm_scale=lm_scale,
+                batch_idx_train=batch_idx_train,
             )
         else:
             simple_loss = torch.empty(0)
