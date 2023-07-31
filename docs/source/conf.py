@@ -90,4 +90,9 @@ rst_epilog = """
 .. _musan: http://www.openslr.org/17/
 .. _ONNX: https://github.com/onnx/onnx
 .. _onnxruntime: https://github.com/microsoft/onnxruntime
+.. _torch: https://github.com/pytorch/pytorch
+.. _torchaudio: https://github.com/pytorch/audio
+.. _k2: https://github.com/k2-fsa/k2
+.. _lhotse: https://github.com/lhotse-speech/lhotse
+.. _yesno: https://www.openslr.org/1/
 """
