@@ -85,7 +85,7 @@ To test the model, let's have a look at the decoding results **without** using L
         --avg 1 \
         --use-averaged-model False \
         --exp-dir $exp_dir \
-        --bpe-model ./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/data/lang_bpe_500/bpe.model
+        --bpe-model ./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/data/lang_bpe_500/bpe.model \
         --max-duration 600 \
         --decode-chunk-len 32 \
         --decoding-method modified_beam_search
@@ -136,7 +136,7 @@ Then, we perform LODR decoding by setting ``--decoding-method`` to ``modified_be
         --max-duration 600 \
         --decode-chunk-len 32 \
         --decoding-method modified_beam_search_lm_LODR \
-        --bpe-model ./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/data/lang_bpe_500/bpe.model
+        --bpe-model ./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/data/lang_bpe_500/bpe.model \
         --use-shallow-fusion 1 \
         --lm-type rnn \
         --lm-exp-dir $lm_dir \
