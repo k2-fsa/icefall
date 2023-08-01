@@ -68,7 +68,12 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
     # to respective dirs
     mkdir -p data/manifests
     if [ ! -e data/manifests/.swbd.done ]; then
-        lhotse prepare switchboard --absolute-paths True $swbd1_dir data/manifests_train
+        lhotse prepare switchboard --absolute-paths 1 --omit-silence $swbd1_dir data/manifests/swbd
+        ./local/normalize_and_filter_supervisions.py \
+            data/manifests/swbd/swbd_supervisions.jsonl \
+            data/manifests/swbd/swbd_supervisions_norm.jsonl
+        cp data/manifests/swbd/swbd_recordings.jsonl data/manifests/recordings_swbd.jsonl
+        
         ./local/swbd1_prepare_dict.sh
         ./local/swbd1_data_prep.sh $swbd1_dir
         lhotse kaldi import data/local/train 8000 data/manifests_train
@@ -78,7 +83,7 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
         lhotse prepare $eval2000_dir data/manifests_eval2000
         ./local/normalize_eval2000.py \
             data/manifests_eval2000/eval2000_supervisions_unnorm.jsonl.gz \
-            data/manifests_eval2000/eval2000_supervisions.jsonl.gz
+            data/manifests_eval2000/eval2000_supervisions_norm.jsonl.gz
 
         ./local/rt03_data_prep.sh $rt03_dir
 

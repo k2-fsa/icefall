@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright    2023         (authors: Nagendra Goel https://github.com/ngoel17)
+# Copyright    2023      (authors: Nagendra Goel https://github.com/ngoel17)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
