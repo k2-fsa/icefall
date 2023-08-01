@@ -91,6 +91,12 @@ You can use <https://github.com/k2-fsa/sherpa> to deploy it.
 | modified_beam_search | 2.21       | 4.91       | --epoch 40 --avg 16 |
 | fast_beam_search     | 2.24       | 4.93       | --epoch 40 --avg 16 |
 
+| modified_beam_search_shallow_fusion | 2.01 | 4.37 | --epoch 40 --avg 16 --beam-size 12 --lm-scale 0.3 |
+| modified_beam_search_LODR | 1.94 | 4.17 | --epoch 40 --avg 16 --beam-size 12 --lm-scale 0.52 --LODR-scale -0.26 |
+| modified_beam_search_rescore | 2.04 | 4.39 | --epoch 40 --avg 16 --beam-size 12 |
+| modified_beam_search_rescore_LODR | 2.01  | 4.33 | --epoch 40 --avg 16 --beam-size 12  |
+
+
 The training command is:
 ```bash
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
@@ -118,6 +124,8 @@ for m in greedy_search modified_beam_search fast_beam_search; do
     --decoding-method $m
 done
 ```
+
+To decode with external language models, please refer to the documentation [here](https://k2-fsa.github.io/icefall/decoding-with-langugage-models/index.html).
 
 ##### small-scaled model, number of model parameters: 23285615, i.e., 23.3 M
 
