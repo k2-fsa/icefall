@@ -74,11 +74,6 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
             data/manifests/swbd/swbd_supervisions_norm.jsonl
         cp data/manifests/swbd/swbd_recordings.jsonl data/manifests/recordings_swbd.jsonl
         
-        ./local/swbd1_prepare_dict.sh
-        ./local/swbd1_data_prep.sh $swbd1_dir
-        lhotse kaldi import data/local/train 8000 data/manifests_train
-        mv data/manifests_train/recordings.jsonl.gz data/manifests_train/swbd_recordings_all.jsonl.gz
-        mv data/manifests_train/supervisions.jsonl.gz data/manifests_train/swbd_supervisions_all.jsonl.gz
 
         lhotse prepare $eval2000_dir data/manifests_eval2000
         ./local/normalize_eval2000.py \
