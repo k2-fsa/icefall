@@ -74,12 +74,13 @@ def get_args():
 
 
 def compute_fbank_switchboard(
+    dir_name: str,
     bpe_model: Optional[str] = None,
     dataset: Optional[str] = None,
     perturb_speed: Optional[bool] = True,
 ):
-    src_dir = Path("data/manifests")
-    output_dir = Path("data/fbank")
+    src_dir = Path(f"data/manifests/{dir_name}")
+    output_dir = Path(f"data/fbank/{dir_name}")
     num_jobs = min(15, os.cpu_count())
     num_mel_bins = 80
 
@@ -89,11 +90,11 @@ def compute_fbank_switchboard(
         sp.load(bpe_model)
 
     if dataset is None:
-        dataset_parts = ("all", "eval2000", "rt03")
+        dataset_parts = ("all")
     else:
         dataset_parts = dataset.split(" ", -1)
 
-    prefix = "swbd"
+    prefix = dir_name
     suffix = "jsonl.gz"
     manifests = read_manifests_if_cached(
         dataset_parts=dataset_parts,
@@ -151,8 +152,10 @@ if __name__ == "__main__":
     logging.basicConfig(format=formatter, level=logging.INFO)
     args = get_args()
     logging.info(vars(args))
-    compute_fbank_switchboard(
-        bpe_model=args.bpe_model,
-        dataset=args.dataset,
-        perturb_speed=args.perturb_speed,
-    )
+    for dir_name in ["swbd"]:
+        compute_fbank_switchboard(
+            dir_name=dir_name,
+            bpe_model=args.bpe_model,
+            dataset=args.dataset,
+            perturb_speed=args.perturb_speed,
+        )
