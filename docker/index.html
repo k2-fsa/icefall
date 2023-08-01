@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Recipes &mdash; icefall 0.1 documentation</title>
+  <title>Docker &mdash; icefall 0.1 documentation</title>
       <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
   <!--[if lt IE 9]>
@@ -19,8 +19,8 @@
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Non Streaming ASR" href="Non-streaming-ASR/index.html" />
-    <link rel="prev" title="Export LSTM transducer models to ncnn" href="../model-export/export-ncnn-lstm.html" /> 
+    <link rel="next" title="Introduction" href="intro.html" />
+    <link rel="prev" title="Installation" href="../installation/index.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -43,18 +43,22 @@
 </div>
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
               <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
-<ul>
+<ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="../installation/index.html">Installation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../docker/index.html">Docker</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Docker</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="intro.html">Introduction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#view-available-tags">View available tags</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#download-a-docker-image">Download a docker image</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#run-a-docker-image-with-gpu">Run a docker image with GPU</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#run-a-docker-image-with-cpu">Run a docker image with CPU</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#run-yesno-within-a-docker-container">Run yesno within a docker container</a></li>
+</ul>
+</li>
 <li class="toctree-l1"><a class="reference internal" href="../faqs.html">Frequently Asked Questions (FAQs)</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../model-export/index.html">Model export</a></li>
 </ul>
-<ul class="current">
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Recipes</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="Non-streaming-ASR/index.html">Non Streaming ASR</a></li>
-<li class="toctree-l2"><a class="reference internal" href="Streaming-ASR/index.html">Streaming ASR</a></li>
-</ul>
-</li>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../recipes/index.html">Recipes</a></li>
 </ul>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../contributing/index.html">Contributing</a></li>
@@ -78,9 +82,9 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
-      <li class="breadcrumb-item active">Recipes</li>
+      <li class="breadcrumb-item active">Docker</li>
       <li class="wy-breadcrumbs-aside">
-              <a href="https://github.com/k2-fsa/icefall/blob/master/docs/source/recipes/index.rst" class="fa fa-github"> Edit on GitHub</a>
+              <a href="https://github.com/k2-fsa/icefall/blob/master/docs/source/docker/index.rst" class="fa fa-github"> Edit on GitHub</a>
       </li>
   </ul>
   <hr/>
@@ -88,24 +92,26 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="recipes">
-<h1>Recipes<a class="headerlink" href="#recipes" title="Permalink to this heading"></a></h1>
-<p>This page contains various recipes in <code class="docutils literal notranslate"><span class="pre">icefall</span></code>.
-Currently, only speech recognition recipes are provided.</p>
-<p>We may add recipes for other tasks as well in the future.</p>
+  <section id="docker">
+<span id="icefall-docker"></span><h1>Docker<a class="headerlink" href="#docker" title="Permalink to this heading"></a></h1>
+<p>This section describes how to use pre-built docker images to run <a class="reference external" href="https://github.com/k2-fsa/icefall">icefall</a>.</p>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>If you only have CPUs available, you can still use the pre-built docker
+images.</p>
+</div>
 <div class="toctree-wrapper compound">
-<p class="caption" role="heading"><span class="caption-text">Table of Contents</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="Non-streaming-ASR/index.html">Non Streaming ASR</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="Non-streaming-ASR/aishell/index.html">aishell</a></li>
-<li class="toctree-l2"><a class="reference internal" href="Non-streaming-ASR/librispeech/index.html">LibriSpeech</a></li>
-<li class="toctree-l2"><a class="reference internal" href="Non-streaming-ASR/timit/index.html">TIMIT</a></li>
-<li class="toctree-l2"><a class="reference internal" href="Non-streaming-ASR/yesno/index.html">YesNo</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="Streaming-ASR/index.html">Streaming ASR</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="Streaming-ASR/introduction.html">Introduction</a></li>
-<li class="toctree-l2"><a class="reference internal" href="Streaming-ASR/librispeech/index.html">LibriSpeech</a></li>
+<li class="toctree-l1"><a class="reference internal" href="intro.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="intro.html#view-available-tags">View available tags</a></li>
+<li class="toctree-l1"><a class="reference internal" href="intro.html#download-a-docker-image">Download a docker image</a></li>
+<li class="toctree-l1"><a class="reference internal" href="intro.html#run-a-docker-image-with-gpu">Run a docker image with GPU</a></li>
+<li class="toctree-l1"><a class="reference internal" href="intro.html#run-a-docker-image-with-cpu">Run a docker image with CPU</a></li>
+<li class="toctree-l1"><a class="reference internal" href="intro.html#run-yesno-within-a-docker-container">Run yesno within a docker container</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#update-the-code">Update the code</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#data-preparation">Data preparation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#training">Training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#decoding">Decoding</a></li>
 </ul>
 </li>
 </ul>
@@ -116,8 +122,8 @@ Currently, only speech recognition recipes are provided.</p>
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="../model-export/export-ncnn-lstm.html" class="btn btn-neutral float-left" title="Export LSTM transducer models to ncnn" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="Non-streaming-ASR/index.html" class="btn btn-neutral float-right" title="Non Streaming ASR" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="../installation/index.html" class="btn btn-neutral float-left" title="Installation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="intro.html" class="btn btn-neutral float-right" title="Introduction" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

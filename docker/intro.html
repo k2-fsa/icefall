@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Introduction &mdash; icefall 0.1 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/sphinx_highlight.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Frequently Asked Questions (FAQs)" href="../faqs.html" />
+    <link rel="prev" title="Docker" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            icefall
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../installation/index.html">Installation</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Docker</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Introduction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#view-available-tags">View available tags</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#download-a-docker-image">Download a docker image</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#run-a-docker-image-with-gpu">Run a docker image with GPU</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#run-a-docker-image-with-cpu">Run a docker image with CPU</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#run-yesno-within-a-docker-container">Run yesno within a docker container</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#update-the-code">Update the code</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#data-preparation">Data preparation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#training">Training</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#decoding">Decoding</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../faqs.html">Frequently Asked Questions (FAQs)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../model-export/index.html">Model export</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../recipes/index.html">Recipes</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../contributing/index.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../huggingface/index.html">Huggingface</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../decoding-with-langugage-models/index.html">Decoding with language models</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">icefall</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Docker</a></li>
+      <li class="breadcrumb-item active">Introduction</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/k2-fsa/icefall/blob/master/docs/source/docker/intro.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="introduction">
+<h1>Introduction<a class="headerlink" href="#introduction" title="Permalink to this heading"></a></h1>
+<p>We have pre-built docker images hosted at the following address:</p>
+<blockquote>
+<div><p><a class="reference external" href="https://hub.docker.com/repository/docker/k2fsa/icefall/general">https://hub.docker.com/repository/docker/k2fsa/icefall/general</a></p>
+</div></blockquote>
+<figure class="align-center">
+<a class="reference internal image-reference" href="../_images/docker-hub.png"><img alt="../_images/docker-hub.png" src="../_images/docker-hub.png" style="width: 600px;" /></a>
+</figure>
+<p>You can find the <code class="docutils literal notranslate"><span class="pre">Dockerfile</span></code> at <a class="reference external" href="https://github.com/k2-fsa/icefall/tree/master/docker">https://github.com/k2-fsa/icefall/tree/master/docker</a>.</p>
+<p>We describe the following items in this section:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>How to view available tags</p></li>
+<li><p>How to download pre-built docker images</p></li>
+<li><p>How to run the <a class="reference external" href="https://www.openslr.org/1/">yesno</a> recipe within a docker container on <code class="docutils literal notranslate"><span class="pre">CPU</span></code></p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="view-available-tags">
+<h1>View available tags<a class="headerlink" href="#view-available-tags" title="Permalink to this heading"></a></h1>
+<p>You can use the following command to view available tags:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>curl<span class="w"> </span>-s<span class="w"> </span><span class="s1">&#39;https://registry.hub.docker.com/v2/repositories/k2fsa/icefall/tags/&#39;</span><span class="p">|</span>jq<span class="w"> </span><span class="s1">&#39;.&quot;results&quot;[][&quot;name&quot;]&#39;</span>
+</pre></div>
+</div>
+<p>which will give you something like below:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="s2">&quot;torch2.0.0-cuda11.7&quot;</span>
+<span class="s2">&quot;torch1.12.1-cuda11.3&quot;</span>
+<span class="s2">&quot;torch1.9.0-cuda10.2&quot;</span>
+<span class="s2">&quot;torch1.13.0-cuda11.6&quot;</span>
+</pre></div>
+</div>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>Available tags will be updated when there are new releases of <a class="reference external" href="https://github.com/pytorch/pytorch">torch</a>.</p>
+</div>
+<p>Please select an appropriate combination of <a class="reference external" href="https://github.com/pytorch/pytorch">torch</a> and  CUDA.</p>
+</section>
+<section id="download-a-docker-image">
+<h1>Download a docker image<a class="headerlink" href="#download-a-docker-image" title="Permalink to this heading"></a></h1>
+<p>Suppose that you select the tag <code class="docutils literal notranslate"><span class="pre">torch1.13.0-cuda11.6</span></code>, you can use
+the following command to download it:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>docker<span class="w"> </span>image<span class="w"> </span>pull<span class="w"> </span>k2fsa/icefall:torch1.13.0-cuda11.6
+</pre></div>
+</div>
+</section>
+<section id="run-a-docker-image-with-gpu">
+<h1>Run a docker image with GPU<a class="headerlink" href="#run-a-docker-image-with-gpu" title="Permalink to this heading"></a></h1>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>docker<span class="w"> </span>run<span class="w"> </span>--gpus<span class="w"> </span>all<span class="w"> </span>--rm<span class="w"> </span>-it<span class="w"> </span>k2fsa/icefall:torch1.13.0-cuda11.6<span class="w"> </span>/bin/bash
+</pre></div>
+</div>
+</section>
+<section id="run-a-docker-image-with-cpu">
+<h1>Run a docker image with CPU<a class="headerlink" href="#run-a-docker-image-with-cpu" title="Permalink to this heading"></a></h1>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>-it<span class="w"> </span>k2fsa/icefall:torch1.13.0-cuda11.6<span class="w"> </span>/bin/bash
+</pre></div>
+</div>
+</section>
+<section id="run-yesno-within-a-docker-container">
+<h1>Run yesno within a docker container<a class="headerlink" href="#run-yesno-within-a-docker-container" title="Permalink to this heading"></a></h1>
+<p>After starting the container, the following interface is presented:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>root@60c947eac59c:/workspace/icefall#
+</pre></div>
+</div>
+<p>It shows the current user is <code class="docutils literal notranslate"><span class="pre">root</span></code> and the current working directory
+is <code class="docutils literal notranslate"><span class="pre">/workspace/icefall</span></code>.</p>
+<section id="update-the-code">
+<h2>Update the code<a class="headerlink" href="#update-the-code" title="Permalink to this heading"></a></h2>
+<p>Please first run:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>root@60c947eac59c:/workspace/icefall#<span class="w"> </span>git<span class="w"> </span>pull
+</pre></div>
+</div>
+<p>so that your local copy contains the latest code.</p>
+</section>
+<section id="data-preparation">
+<h2>Data preparation<a class="headerlink" href="#data-preparation" title="Permalink to this heading"></a></h2>
+<p>Now we can use</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>root@60c947eac59c:/workspace/icefall#<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/yesno/ASR/
+</pre></div>
+</div>
+<p>to switch to the <code class="docutils literal notranslate"><span class="pre">yesno</span></code> recipe and run</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>root@60c947eac59c:/workspace/icefall/egs/yesno/ASR#<span class="w"> </span>./prepare.sh
+</pre></div>
+</div>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<blockquote>
+<div><p>If you are running without GPU, it may report the following error:</p>
+<blockquote>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>File<span class="w"> </span><span class="s2">&quot;/opt/conda/lib/python3.9/site-packages/k2/__init__.py&quot;</span>,<span class="w"> </span>line<span class="w"> </span><span class="m">23</span>,<span class="w"> </span><span class="k">in</span><span class="w"> </span>&lt;module&gt;
+<span class="w">  </span>from<span class="w"> </span>_k2<span class="w"> </span>import<span class="w"> </span>DeterminizeWeightPushingType
+ImportError:<span class="w"> </span>libcuda.so.1:<span class="w"> </span>cannot<span class="w"> </span>open<span class="w"> </span>shared<span class="w"> </span>object<span class="w"> </span>file:<span class="w"> </span>No<span class="w"> </span>such<span class="w"> </span>file<span class="w"> </span>or<span class="w"> </span>directory
+</pre></div>
+</div>
+</div></blockquote>
+</div></blockquote>
+<p>We can use the following command to fix it:</p>
+<blockquote>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>root@60c947eac59c:/workspace/icefall/egs/yesno/ASR#<span class="w"> </span>ln<span class="w"> </span>-s<span class="w"> </span>/opt/conda/lib/stubs/libcuda.so<span class="w"> </span>/opt/conda/lib/stubs/libcuda.so.1
+</pre></div>
+</div>
+</div></blockquote>
+</div>
+<p>The logs of running <code class="docutils literal notranslate"><span class="pre">./prepare.sh</span></code> are listed below:</p>
+</section>
+<section id="training">
+<h2>Training<a class="headerlink" href="#training" title="Permalink to this heading"></a></h2>
+<p>After preparing the data, we can start training with the following command</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>root@60c947eac59c:/workspace/icefall/egs/yesno/ASR#<span class="w"> </span>./tdnn/train.py
+</pre></div>
+</div>
+<p>All of the training logs are given below:</p>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>It is running on CPU and it takes only 16 seconds for this run.</p>
+</div>
+</section>
+<section id="decoding">
+<h2>Decoding<a class="headerlink" href="#decoding" title="Permalink to this heading"></a></h2>
+<p>After training, we can decode the trained model with</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>root@60c947eac59c:/workspace/icefall/egs/yesno/ASR#<span class="w"> </span>./tdnn/decode.py
+</pre></div>
+</div>
+<p>The decoding logs are given below:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="m">2023</span>-08-01<span class="w"> </span><span class="m">02</span>:06:22,400<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>decode.py:263<span class="o">]</span><span class="w"> </span>Decoding<span class="w"> </span>started
+<span class="m">2023</span>-08-01<span class="w"> </span><span class="m">02</span>:06:22,400<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>decode.py:264<span class="o">]</span><span class="w"> </span><span class="o">{</span><span class="s1">&#39;exp_dir&#39;</span>:<span class="w"> </span>PosixPath<span class="o">(</span><span class="s1">&#39;tdnn/exp&#39;</span><span class="o">)</span>,<span class="w"> </span><span class="s1">&#39;lang_dir&#39;</span>:<span class="w"> </span>PosixPath<span class="o">(</span><span class="s1">&#39;data/lang_phone&#39;</span><span class="o">)</span>,<span class="w"> </span><span class="s1">&#39;lm_dir&#39;</span>:<span class="w"> </span>PosixPath<span class="o">(</span><span class="s1">&#39;data/lm&#39;</span><span class="o">)</span>,<span class="w"> </span><span class="s1">&#39;feature_dim&#39;</span>:<span class="w"> </span><span class="m">23</span>,<span class="w"> </span><span class="s1">&#39;search_beam&#39;</span>:<span class="w"> </span><span class="m">20</span>,<span class="w"> </span><span class="s1">&#39;output_beam&#39;</span>:<span class="w"> </span><span class="m">8</span>,<span class="w"> </span><span class="s1">&#39;min_active_states&#39;</span>:<span class="w"> </span><span class="m">30</span>,<span class="w"> </span><span class="s1">&#39;max_active_states&#39;</span>:<span class="w"> </span><span class="m">10000</span>,<span class="w"> </span><span class="s1">&#39;use_double_scores&#39;</span>:<span class="w"> </span>True,<span class="w"> </span><span class="s1">&#39;epoch&#39;</span>:<span class="w"> </span><span class="m">14</span>,<span class="w"> </span><span class="s1">&#39;avg&#39;</span>:<span class="w"> </span><span class="m">2</span>,<span class="w"> </span><span class="s1">&#39;export&#39;</span>:<span class="w"> </span>False,<span class="w"> </span><span class="s1">&#39;feature_dir&#39;</span>:<span class="w"> </span>PosixPath<span class="o">(</span><span class="s1">&#39;data/fbank&#39;</span><span class="o">)</span>,<span class="w"> </span><span class="s1">&#39;max_duration&#39;</span>:<span class="w"> </span><span class="m">30</span>.0,<span class="w"> </span><span class="s1">&#39;bucketing_sampler&#39;</span>:<span class="w"> </span>False,<span class="w"> </span><span class="s1">&#39;num_buckets&#39;</span>:<span class="w"> </span><span class="m">10</span>,<span class="w"> </span><span class="s1">&#39;concatenate_cuts&#39;</span>:<span class="w"> </span>False,<span class="w"> </span><span class="s1">&#39;duration_factor&#39;</span>:<span class="w"> </span><span class="m">1</span>.0,<span class="w"> </span><span class="s1">&#39;gap&#39;</span>:<span class="w"> </span><span class="m">1</span>.0,<span class="w"> </span><span class="s1">&#39;on_the_fly_feats&#39;</span>:<span class="w"> </span>False,<span class="w"> </span><span class="s1">&#39;shuffle&#39;</span>:<span class="w"> </span>False,<span class="w"> </span><span class="s1">&#39;return_cuts&#39;</span>:<span class="w"> </span>True,<span class="w"> </span><span class="s1">&#39;num_workers&#39;</span>:<span class="w"> </span><span class="m">2</span>,<span class="w"> </span><span class="s1">&#39;env_info&#39;</span>:<span class="w"> </span><span class="o">{</span><span class="s1">&#39;k2-version&#39;</span>:<span class="w"> </span><span class="s1">&#39;1.24.3&#39;</span>,<span class="w"> </span><span class="s1">&#39;k2-build-type&#39;</span>:<span class="w"> </span><span class="s1">&#39;Release&#39;</span>,<span class="w"> </span><span class="s1">&#39;k2-with-cuda&#39;</span>:<span class="w"> </span>True,<span class="w"> </span><span class="s1">&#39;k2-git-sha1&#39;</span>:<span class="w"> </span><span class="s1">&#39;4c05309499a08454997adf500b56dcc629e35ae5&#39;</span>,<span class="w"> </span><span class="s1">&#39;k2-git-date&#39;</span>:<span class="w"> </span><span class="s1">&#39;Tue Jul 25 16:23:36 2023&#39;</span>,<span class="w"> </span><span class="s1">&#39;lhotse-version&#39;</span>:<span class="w"> </span><span class="s1">&#39;1.16.0.dev+git.7640d663.clean&#39;</span>,<span class="w"> </span><span class="s1">&#39;torch-version&#39;</span>:<span class="w"> </span><span class="s1">&#39;1.13.0&#39;</span>,<span class="w"> </span><span class="s1">&#39;torch-cuda-available&#39;</span>:<span class="w"> </span>False,<span class="w"> </span><span class="s1">&#39;torch-cuda-version&#39;</span>:<span class="w"> </span><span class="s1">&#39;11.6&#39;</span>,<span class="w"> </span><span class="s1">&#39;python-version&#39;</span>:<span class="w"> </span><span class="s1">&#39;3.9&#39;</span>,<span class="w"> </span><span class="s1">&#39;icefall-git-branch&#39;</span>:<span class="w"> </span><span class="s1">&#39;master&#39;</span>,<span class="w"> </span><span class="s1">&#39;icefall-git-sha1&#39;</span>:<span class="w"> </span><span class="s1">&#39;375520d-clean&#39;</span>,<span class="w"> </span><span class="s1">&#39;icefall-git-date&#39;</span>:<span class="w"> </span><span class="s1">&#39;Fri Jul 28 07:43:08 2023&#39;</span>,<span class="w"> </span><span class="s1">&#39;icefall-path&#39;</span>:<span class="w"> </span><span class="s1">&#39;/workspace/icefall&#39;</span>,<span class="w"> </span><span class="s1">&#39;k2-path&#39;</span>:<span class="w"> </span><span class="s1">&#39;/opt/conda/lib/python3.9/site-packages/k2/__init__.py&#39;</span>,<span class="w"> </span><span class="s1">&#39;lhotse-path&#39;</span>:<span class="w"> </span><span class="s1">&#39;/opt/conda/lib/python3.9/site-packages/lhotse/__init__.py&#39;</span>,<span class="w"> </span><span class="s1">&#39;hostname&#39;</span>:<span class="w"> </span><span class="s1">&#39;60c947eac59c&#39;</span>,<span class="w"> </span><span class="s1">&#39;IP address&#39;</span>:<span class="w"> </span><span class="s1">&#39;172.17.0.2&#39;</span><span class="o">}}</span>
+<span class="m">2023</span>-08-01<span class="w"> </span><span class="m">02</span>:06:22,401<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>lexicon.py:168<span class="o">]</span><span class="w"> </span>Loading<span class="w"> </span>pre-compiled<span class="w"> </span>data/lang_phone/Linv.pt
+<span class="m">2023</span>-08-01<span class="w"> </span><span class="m">02</span>:06:22,403<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>decode.py:273<span class="o">]</span><span class="w"> </span>device:<span class="w"> </span>cpu
+<span class="m">2023</span>-08-01<span class="w"> </span><span class="m">02</span>:06:22,406<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>decode.py:291<span class="o">]</span><span class="w"> </span>averaging<span class="w"> </span><span class="o">[</span><span class="s1">&#39;tdnn/exp/epoch-13.pt&#39;</span>,<span class="w"> </span><span class="s1">&#39;tdnn/exp/epoch-14.pt&#39;</span><span class="o">]</span>
+<span class="m">2023</span>-08-01<span class="w"> </span><span class="m">02</span>:06:22,424<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>asr_datamodule.py:218<span class="o">]</span><span class="w"> </span>About<span class="w"> </span>to<span class="w"> </span>get<span class="w"> </span><span class="nb">test</span><span class="w"> </span>cuts
+<span class="m">2023</span>-08-01<span class="w"> </span><span class="m">02</span>:06:22,425<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>asr_datamodule.py:252<span class="o">]</span><span class="w"> </span>About<span class="w"> </span>to<span class="w"> </span>get<span class="w"> </span><span class="nb">test</span><span class="w"> </span>cuts
+<span class="m">2023</span>-08-01<span class="w"> </span><span class="m">02</span>:06:22,504<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>decode.py:204<span class="o">]</span><span class="w"> </span>batch<span class="w"> </span><span class="m">0</span>/?,<span class="w"> </span>cuts<span class="w"> </span>processed<span class="w"> </span><span class="k">until</span><span class="w"> </span>now<span class="w"> </span>is<span class="w"> </span><span class="m">4</span>
+<span class="o">[</span>W<span class="w"> </span>NNPACK.cpp:53<span class="o">]</span><span class="w"> </span>Could<span class="w"> </span>not<span class="w"> </span>initialize<span class="w"> </span>NNPACK!<span class="w"> </span>Reason:<span class="w"> </span>Unsupported<span class="w"> </span>hardware.
+<span class="m">2023</span>-08-01<span class="w"> </span><span class="m">02</span>:06:22,687<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>decode.py:241<span class="o">]</span><span class="w"> </span>The<span class="w"> </span>transcripts<span class="w"> </span>are<span class="w"> </span>stored<span class="w"> </span><span class="k">in</span><span class="w"> </span>tdnn/exp/recogs-test_set.txt
+<span class="m">2023</span>-08-01<span class="w"> </span><span class="m">02</span>:06:22,688<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>utils.py:564<span class="o">]</span><span class="w"> </span><span class="o">[</span>test_set<span class="o">]</span><span class="w"> </span>%WER<span class="w"> </span><span class="m">0</span>.42%<span class="w"> </span><span class="o">[</span><span class="m">1</span><span class="w"> </span>/<span class="w"> </span><span class="m">240</span>,<span class="w"> </span><span class="m">0</span><span class="w"> </span>ins,<span class="w"> </span><span class="m">1</span><span class="w"> </span>del,<span class="w"> </span><span class="m">0</span><span class="w"> </span>sub<span class="w"> </span><span class="o">]</span>
+<span class="m">2023</span>-08-01<span class="w"> </span><span class="m">02</span>:06:22,690<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>decode.py:249<span class="o">]</span><span class="w"> </span>Wrote<span class="w"> </span>detailed<span class="w"> </span>error<span class="w"> </span>stats<span class="w"> </span>to<span class="w"> </span>tdnn/exp/errs-test_set.txt
+<span class="m">2023</span>-08-01<span class="w"> </span><span class="m">02</span>:06:22,690<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>decode.py:316<span class="o">]</span><span class="w"> </span>Done!
+</pre></div>
+</div>
+<p>Congratulations! You have finished successfully running <a class="reference external" href="https://github.com/k2-fsa/icefall">icefall</a> within a docker container.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="Docker" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../faqs.html" class="btn btn-neutral float-right" title="Frequently Asked Questions (FAQs)" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2021, icefall development team.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
