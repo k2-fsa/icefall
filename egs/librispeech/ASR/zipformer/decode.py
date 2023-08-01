@@ -919,6 +919,7 @@ def main():
         ngram_file_name = str(params.lang_dir / f"{params.tokens_ngram}gram.arpa")
         logging.info(f"lm filename: {ngram_file_name}")
         ngram_lm = kenlm.Model(ngram_file_name)
+        ngram_lm_scale = None  # use a list to search
 
     elif params.decoding_method == "modified_beam_search_LODR":
         lm_filename = f"{params.tokens_ngram}gram.fst.txt"
