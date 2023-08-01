@@ -177,6 +177,10 @@ def replace_silphone(text: str) -> str:
     text = text.replace("{SNORT}", " ")
     text = text.replace("{SHARP EXHALATION}", " ")
     text = text.replace("{BREATH LAUGH}", " ")
+
+    text = text.replace("[LAUGHTER]", " ")
+    text = text.replace("[NOISE]", " ")
+    text = text.replace("[VOCALIZED-NOISE]", " ")
     return text
 
 
