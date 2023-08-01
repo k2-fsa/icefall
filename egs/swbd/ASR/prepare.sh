@@ -24,8 +24,15 @@ stop_stage=100
 
 dl_dir=./download
 swbd1_dir="/export/corpora3/LDC/LDC97S62"
-eval2000_dir="/export/corpora2/LDC/LDC2002S09/hub5e_00"
-eval2000_ref_dir="/export/corpora2/LDC/LDC2002T43"
+
+# eval2000_dir contains the following files and directories
+# downloaded from LDC website:
+#  - LDC2002S09
+#       - hub5e_00
+#  - LDC2002T43
+#       - 2000_hub5_eng_eval_tr
+eval2000_dir="/export/corpora2/LDC/eval2000"
+
 rt03_dir="/export/corpora/LDC/LDC2007S10"
 fisher_dir="/export/corpora3/LDC/LDC2004T19"
 
@@ -52,7 +59,7 @@ log() {
 }
 
 log "swbd1_dir: $swbd1_dir"
-log "eval2000_dir: $eval2000_dir $eval2000_ref_dir"
+log "eval2000_dir: $eval2000_dir"
 log "rt03_dir: $rt03_dir"
 
 if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
@@ -68,7 +75,11 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
         mv data/manifests_train/recordings.jsonl.gz data/manifests_train/swbd_recordings_all.jsonl.gz
         mv data/manifests_train/supervisions.jsonl.gz data/manifests_train/swbd_supervisions_all.jsonl.gz
 
-        ./local/eval2000_data_prep.sh $eval2000_dir $eval2000_ref_dir
+        lhotse prepare $eval2000_dir data/manifests_eval2000
+        ./local/normalize_eval2000.py \
+            data/manifests_eval2000/eval2000_supervisions_unnorm.jsonl.gz \
+            data/manifests_eval2000/eval2000_supervisions.jsonl.gz
+
         ./local/rt03_data_prep.sh $rt03_dir
 
         # normalize eval2000 and rt03 texts by
@@ -76,7 +87,7 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
         # 2) remove tags (%AH) (%HESITATION) (%UH)
         # 3) remove <B_ASIDE> <E_ASIDE>
         # 4) remove "(" or ")"
-        for x in eval2000 rt03; do
+        for x in  rt03; do
             cp data/local/${x}/text data/local/${x}/text.org
             paste -d "" \
                 <(cut -f 1 -d" " data/local/${x}/text.org) \
