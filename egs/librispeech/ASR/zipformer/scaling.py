@@ -274,6 +274,24 @@ def softmax(x: Tensor, dim: int):
     return SoftmaxFunction.apply(x, dim)
 
 
+class ClipGradFunction(torch.autograd.Function):
+    @staticmethod
+    def forward(
+            ctx,
+            x: Tensor,
+            limit: float):
+        ctx.limit = limit
+        return x
+
+    @staticmethod
+    def backward(ctx, x_grad, *args):
+        return x_grad.clamp(-ctx.limit, ctx.limit), None
+
+
+def clip_grad(x: Tensor, limit: float):
+    return ClipGradFunction.apply(x, limit)
+
+
 class MaxEigLimiterFunction(torch.autograd.Function):
     @staticmethod
     def forward(
@@ -873,6 +891,40 @@ def penalize_abs_values_gt(x: Tensor, limit: float, penalty: float,
     x = with_loss(x, aux_loss, name)
     # you must use x for something, or this will be ineffective.
     return x
+
+
+class AbsValuePenalizer(nn.Module):
+    """
+    This module adds a penalty to the loss function when ever the absolute value of
+    any element of the input tensor exceeds a certain limit.
+    """
+    def __init__(self,
+                 limit: float,
+                 prob: float = 0.1,
+                 penalty: float = 1.0e-04):
+        super().__init__()
+        self.limit = limit
+        self.penalty = penalty
+
+        self.prob = prob
+        self.name = None  # will be set in training loop
+
+        # 20% of the time we will return and do nothing because memory usage is
+        # too high.
+        self.mem_cutoff = CutoffEstimator(0.2)
+
+    def forward(self, x: Tensor) -> Tensor:
+        if (torch.jit.is_scripting() or not x.requires_grad
+            or not self.training
+            or random.random() > self.prob):
+            # or (x.is_cuda and self.mem_cutoff(torch.cuda.memory_allocated()))
+            return _no_op(x)  # the _no_op op is to make our diagnostics code work.
+
+        x = penalize_abs_values_gt(x,
+                                   limit=self.limit,
+                                   penalty=self.penalty,
+                                   name=self.name)
+        return x
 
 
 def _diag(x: Tensor):  # like .diag(), but works for tensors with 3 dims.
