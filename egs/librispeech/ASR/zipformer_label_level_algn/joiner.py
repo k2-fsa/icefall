@@ -77,12 +77,13 @@ class Joiner(nn.Module):
 
         if project_input:
             logit = self.encoder_proj(encoder_out) + self.decoder_proj(decoder_out)
+
+        if apply_attn:
+            # print(attn_encoder_out)
+            logit = encoder_out + decoder_out + attn_encoder_out
         else:
-            if apply_attn:
-                logit = encoder_out + decoder_out + attn_encoder_out
-            else:
-                # logging.info("disabling cross attn mdl")
-                logit = encoder_out + decoder_out
+            logging.info("disabling cross attn mdl")
+            logit = encoder_out + decoder_out
 
         logit = self.output_linear(torch.tanh(logit))
 

@@ -84,6 +84,7 @@ class AsrModel(nn.Module):
 
         self.encoder_embed = encoder_embed
         self.encoder = encoder
+        self.dropout = nn.Dropout(p=0.5)
 
         self.use_transducer = use_transducer
         if use_transducer:
@@ -263,7 +264,7 @@ class AsrModel(nn.Module):
             lm=self.joiner.decoder_proj(decoder_out),
             ranges=ranges,
         )
-
+        am_pruned = self.dropout(am_pruned)
         # logits : [B, T, prune_range, vocab_size]
 
         # project_input=False since we applied the decoder's input projections
@@ -274,7 +275,7 @@ class AsrModel(nn.Module):
             lm_pruned,
             None,
             encoder_out_lens,
-            apply_attn=batch_idx_train > self.params.warm_step, # True, # batch_idx_train > self.params.warm_step,
+            apply_attn=True,  # batch_idx_train > self.params.warm_step,
             project_input=False,
         )
 

@@ -493,6 +493,8 @@ class AlignmentAttentionModule(nn.Module):
             embed_dim=pos_dim, dropout_rate=0.15
         )
 
+        self.dropout = nn.Dropout(p=0.5)
+
     def forward(
         self, am_pruned: Tensor, lm_pruned: Tensor, lengths: torch.Tensor
     ) -> Tensor:
