@@ -1612,7 +1612,7 @@ def unfold(
         blocks: (kernel, batch_size * num_blocks, channel)
     """
     seq_len, batch_size, channel = x.size()
-    x = x.permute(1, 2, 0)  # (B, D, T)
+    x = x.permute(1, 2, 0)  # (batch_size, channel, seq_len)
 
     x = nn.functional.pad(x, pad=(0, x_pad), value=0.0)
 
@@ -1627,6 +1627,34 @@ def unfold(
     blocks = blocks.reshape(kernel, batch_size * num_blocks, channel)
 
     return blocks
+
+
+def fold(
+    blocks: Tensor, seq_len: int, x_pad: int, num_blocks: int, kernel: int, stride: int, padding: int
+) -> Tensor:
+    """
+    Args:
+        blocks: (kernel, batch_size * num_blocks, channel)
+    Returns:
+        x: (seq_len, batch_size, channel)
+    """
+    batch_size = blocks.size(1) // num_blocks
+    channel = blocks.size(2)
+
+    blocks = blocks.reshape(kernel, batch_size, num_blocks, channel)
+    blocks = blocks.permute(1, 3, 0, 2).reshape(batch_size, channel * kernel, num_blocks)
+
+    x = nn.functional.fold(
+        blocks,
+        output_size=(seq_len + x_pad, 1),
+        kernel_size=(kernel, 1),
+        padding=(padding, 0),
+        stride=(stride, 1),
+    )
+    x = x.squeeze(-1).permute(2, 0, 1)
+    x = x[:seq_len]  # (seq_len, batch_size, channel)
+
+    return x
 
 
 def _test_whiten():
