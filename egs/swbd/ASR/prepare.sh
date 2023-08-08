@@ -23,7 +23,8 @@ stop_stage=100
 #     - speech
 
 dl_dir=./download
-swbd1_dir="/export/corpora3/LDC/LDC97S62"
+# swbd1_dir="/export/corpora3/LDC/LDC97S62"
+swbd1_dir=./download/LDC97S62/
 
 # eval2000_dir contains the following files and directories
 # downloaded from LDC website:
@@ -70,15 +71,14 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
     if [ ! -e data/manifests/.swbd.done ]; then
         lhotse prepare switchboard --absolute-paths 1 --omit-silence $swbd1_dir data/manifests/swbd
         ./local/normalize_and_filter_supervisions.py \
-            data/manifests/swbd/swbd_supervisions.jsonl \
-            data/manifests/swbd/swbd_supervisions_norm.jsonl
-        cp data/manifests/swbd/swbd_recordings.jsonl data/manifests/recordings_swbd.jsonl
-        
+            data/manifests/swbd/swbd_supervisions_all.jsonl.gz \
+            data/manifests/swbd/swbd_supervisions_all_norm.jsonl.gz
+        mv data/manifests/swbd/swbd_supervisions_all_norm.jsonl.gz data/manifests/swbd/swbd_supervisions_all.jsonl.gz
 
-        lhotse prepare $eval2000_dir data/manifests_eval2000
+        lhotse prepare eval2000 --absolute-paths 1 $eval2000_dir data/manifests/eval2000
         ./local/normalize_eval2000.py \
-            data/manifests_eval2000/eval2000_supervisions_unnorm.jsonl.gz \
-            data/manifests_eval2000/eval2000_supervisions_norm.jsonl.gz
+            data/manifests/eval2000/eval2000_supervisions_unnorm.jsonl.gz \
+            data/manifests/eval2000/eval2000_supervisions_all.jsonl.gz
 
         ./local/rt03_data_prep.sh $rt03_dir
 
@@ -96,20 +96,6 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
             rm data/local/${x}/text.org
         done
 
-        python ./local/filter_empty_text.py --kaldi-data-dir data/local/eval2000
-        ./utils/fix_data_dir.sh data/local/eval2000
-        lhotse kaldi import data/local/eval2000 8000 data/manifests_eval2000
-        mv data/manifests_eval2000/recordings.jsonl.gz data/manifests_eval2000/swbd_recordings_eval2000.jsonl.gz
-        mv data/manifests_eval2000/supervisions.jsonl.gz data/manifests_eval2000/swbd_supervisions_eval2000.jsonl.gz
-
-        python ./local/filter_empty_text.py --kaldi-data-dir data/local/rt03
-        ./utils/fix_data_dir.sh data/local/rt03
-        lhotse kaldi import data/local/rt03 8000 data/manifests_rt03
-        mv data/manifests_rt03/recordings.jsonl.gz data/manifests_rt03/swbd_recordings_rt03.jsonl.gz
-        mv data/manifests_rt03/supervisions.jsonl.gz data/manifests_rt03/swbd_supervisions_rt03.jsonl.gz
-
-        lhotse fix data/manifests_train/swbd_recordings_all.jsonl.gz data/manifests_train/swbd_supervisions_all.jsonl.gz data/manifests
-        lhotse fix data/manifests_eval2000/swbd_recordings_eval2000.jsonl.gz data/manifests_eval2000/swbd_supervisions_eval2000.jsonl.gz data/manifests
         lhotse fix data/manifests_rt03/swbd_recordings_rt03.jsonl.gz data/manifests_rt03/swbd_supervisions_rt03.jsonl.gz data/manifests
 
         touch data/manifests/.swbd.done
@@ -128,7 +114,7 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
 fi
 
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
-    log "Stage 3: Compute fbank for switchboard"
+    log "Stage 3: Compute fbank for SwitchBoard"
     mkdir -p data/fbank
     if [ ! -e data/fbank/.swbd.done ]; then
         ./local/compute_fbank_swbd.py
@@ -150,13 +136,29 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
     lang_dir=data/lang_phone
     mkdir -p $lang_dir
 
+    if ! which jq; then
+      echo "This script is intended to be used with jq but you have not installed jq
+      Note: in Linux, you can install jq with the following command:
+      1. wget -O jq https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64
+      2. chmod +x ./jq
+      3. cp jq /usr/bin" && exit 1
+    fi
+    if [ ! -f $lang_dir/text ] || [ ! -s $lang_dir/text ]; then
+        log "Prepare text."
+        gunzip -c data/manifests/swbd/swbd_supervisions_all.jsonl.gz \
+        | jq '.text' | sed 's/"//g'  > $lang_dir/text
+    fi
+
     log "prepare dict"
-    cut -f 2- -d" " data/local/train/text >${lang_dir}/input.txt
+    ./local/swbd1_prepare_dict.sh $swbd1_dir
+    cut -f 2- -d" " $lang_dir/text >${lang_dir}/input.txt
     # [noise] nsn
     # !sil sil
     # <unk> spn
     cat data/local/dict_nosp/lexicon.txt |
-        sort | uniq >$lang_dir/lexicon.txt
+        sort | uniq >$lang_dir/lexicon_lower.txt
+
+    cat $lang_dir/lexicon_lower.txt | tr a-z A-Z > $lang_dir/lexicon.txt
 
     if [ ! -f $lang_dir/L_disambig.pt ]; then
         ./local/prepare_lang.py --lang-dir $lang_dir
@@ -192,7 +194,7 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
         if [ ! -f $lang_dir/transcript_words.txt ]; then
             log "Generate data for BPE training"
 
-            cat ./data/local/train/text | cut -d " " -f 2- >$lang_dir/transcript_words.txt
+            cat data/lang_phone/text | cut -d " " -f 2- >$lang_dir/transcript_words.txt
         fi
 
         if [ ! -f $lang_dir/bpe.model ]; then
@@ -239,7 +241,7 @@ if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
             ./local/convert_transcript_words_to_tokens.py \
                 --lexicon $lang_dir/lexicon.txt \
                 --transcript $lang_dir/transcript_words.txt \
-                --oov "<unk>" \
+                --oov "<UNK>" \
                 >$lang_dir/transcript_tokens.txt
         fi
 

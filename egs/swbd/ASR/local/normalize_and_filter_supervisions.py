@@ -119,6 +119,9 @@ class FisherSwbdNormalizer:
             (re.compile(r"(\[.*?\])-"), r"\1"),
             # Just remove all dashes
             (re.compile(r"-"), r" "),
+
+            # Fix an issue related to [vocalized-noise]
+            (re.compile(r"\[vocalized noise\]"), r"\[vocalized-noise\]"),
         ]
 
         # unwanted symbols in the transcripts
@@ -153,7 +156,7 @@ class FisherSwbdNormalizer:
         # then clean up whitespace
         text = self.whitespace_regexp.sub(" ", text).strip()
 
-        return text
+        return text.upper()
 # fmt: on
 
 
@@ -189,6 +192,7 @@ def main():
                 continue
 
             writer.write(sup)
+    print(f"tot: {tot}, skip: {skip}")
 
 
 def test():
@@ -224,5 +228,5 @@ def test():
 
 
 if __name__ == "__main__":
-    test()
-#    main()
+    # test(); exit()
+    main()

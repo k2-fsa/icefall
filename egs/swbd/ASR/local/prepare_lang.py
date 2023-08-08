@@ -249,7 +249,7 @@ def lexicon_to_fst(
     lexicon: Lexicon,
     token2id: Dict[str, int],
     word2id: Dict[str, int],
-    sil_token: str = "sil",
+    sil_token: str = "SIL",
     sil_prob: float = 0.5,
     need_self_loops: bool = False,
 ) -> k2.Fsa:
@@ -346,7 +346,7 @@ def main():
     args = get_args()
     lang_dir = Path(args.lang_dir)
     lexicon_filename = lang_dir / "lexicon.txt"
-    sil_token = "sil"
+    sil_token = "SIL"
     sil_prob = 0.5
 
     lexicon = read_lexicon(lexicon_filename)

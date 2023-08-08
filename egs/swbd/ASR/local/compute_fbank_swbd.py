@@ -66,7 +66,7 @@ def get_args():
     parser.add_argument(
         "--perturb-speed",
         type=str2bool,
-        default=True,
+        default=False,
         help="""Perturb speed with factor 0.9 and 1.1 on train subset.""",
     )
 
@@ -90,7 +90,7 @@ def compute_fbank_switchboard(
         sp.load(bpe_model)
 
     if dataset is None:
-        dataset_parts = ("all")
+        dataset_parts = ("all",)
     else:
         dataset_parts = dataset.split(" ", -1)
 
@@ -152,7 +152,7 @@ if __name__ == "__main__":
     logging.basicConfig(format=formatter, level=logging.INFO)
     args = get_args()
     logging.info(vars(args))
-    for dir_name in ["swbd"]:
+    for dir_name in ["swbd", "eval2000"]:
         compute_fbank_switchboard(
             dir_name=dir_name,
             bpe_model=args.bpe_model,

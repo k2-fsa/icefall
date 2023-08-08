@@ -178,7 +178,7 @@ def get_args():
     parser.add_argument(
         "--oov",
         type=str,
-        default="<unk>",
+        default="<UNK>",
         help="The out of vocabulary word in lexicon.",
     )
 
