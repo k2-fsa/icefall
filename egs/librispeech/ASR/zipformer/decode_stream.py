@@ -79,7 +79,7 @@ class DecodeStream(object):
         self.pad_length = 7 + 2 * 3
 
         if params.decoding_method == "greedy_search":
-            self.hyp = [params.blank_id] * params.context_size
+            self.hyp = [-1] * (params.context_size - 1) + [params.blank_id]
         elif params.decoding_method == "modified_beam_search":
             self.hyps = HypothesisList()
             self.hyps.add(
