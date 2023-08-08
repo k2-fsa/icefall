@@ -21,7 +21,7 @@ import inspect
 import logging
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import torch
 from lhotse import CutSet, Fbank, FbankConfig, load_manifest, load_manifest_lazy
@@ -33,6 +33,7 @@ from lhotse.dataset import (  # noqa F401 for PrecomputedFeatures
     PrecomputedFeatures,
     SingleCutSampler,
     SpecAugment,
+    StatelessSampler,
 )
 from lhotse.dataset.input_strategies import (  # noqa F401 For AudioSamples
     AudioSamples,
@@ -122,6 +123,12 @@ class LibriSpeechAsrDataModule:
             default=30,
             help="The number of buckets for the DynamicBucketingSampler"
             "(you might want to increase it for larger datasets).",
+        )
+        group.add_argument(
+            "--stateless-sampler",
+            type=str2bool,
+            default=False,
+            help="When enabled, the dataloader is completely stateless.",
         )
         group.add_argument(
             "--concatenate-cuts",
@@ -217,7 +224,7 @@ class LibriSpeechAsrDataModule:
 
     def train_dataloaders(
         self,
-        cuts_train: CutSet,
+        cuts_train: Union[CutSet, List[str]],
         sampler_state_dict: Optional[Dict[str, Any]] = None,
     ) -> DataLoader:
         """
@@ -305,21 +312,40 @@ class LibriSpeechAsrDataModule:
             )
 
         if self.args.bucketing_sampler:
-            logging.info("Using DynamicBucketingSampler.")
-            train_sampler = DynamicBucketingSampler(
-                cuts_train,
-                max_duration=self.args.max_duration,
-                shuffle=self.args.shuffle,
-                num_buckets=self.args.num_buckets,
-                drop_last=self.args.drop_last,
-            )
+            if self.args.stateless_sampler:
+                logging.info("Using bucketing StatelessSampler.")
+                train_sampler = StatelessSampler(
+                    cuts_train,
+                    base_seed=0,
+                    index_path=self.args.manifest_dir / "files.idx",
+                    max_duration=self.args.max_duration,
+                    num_buckets=self.args.num_buckets,
+                )
+            else:
+                logging.info("Using DynamicBucketingSampler.")
+                train_sampler = DynamicBucketingSampler(
+                    cuts_train,
+                    max_duration=self.args.max_duration,
+                    shuffle=self.args.shuffle,
+                    num_buckets=self.args.num_buckets,
+                    drop_last=self.args.drop_last,
+                )
         else:
-            logging.info("Using SingleCutSampler.")
-            train_sampler = SingleCutSampler(
-                cuts_train,
-                max_duration=self.args.max_duration,
-                shuffle=self.args.shuffle,
-            )
+            if self.args.stateless_sampler:
+                logging.info("Using non-bucketing StatelessSampler.")
+                train_sampler = StatelessSampler(
+                    cuts_train,
+                    base_seed=0,
+                    index_path=self.args.manifest_dir / "files.idx",
+                    max_duration=self.args.max_duration,
+                )
+            else:
+                logging.info("Using SingleCutSampler.")
+                train_sampler = SingleCutSampler(
+                    cuts_train,
+                    max_duration=self.args.max_duration,
+                    shuffle=self.args.shuffle,
+                )
         logging.info("About to create train dataloader")
 
         if sampler_state_dict is not None:
@@ -379,7 +405,7 @@ class LibriSpeechAsrDataModule:
 
         return valid_dl
 
-    def test_dataloaders(self, cuts: CutSet) -> DataLoader:
+    def test_dataloaders(self, cuts_test: CutSet) -> DataLoader:
         logging.debug("About to create test dataset")
         test = K2SpeechRecognitionDataset(
             input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80)))
@@ -388,7 +414,7 @@ class LibriSpeechAsrDataModule:
             return_cuts=self.args.return_cuts,
         )
         sampler = DynamicBucketingSampler(
-            cuts,
+            cuts_test,
             max_duration=self.args.max_duration,
             shuffle=False,
         )
@@ -402,42 +428,57 @@ class LibriSpeechAsrDataModule:
         return test_dl
 
     @lru_cache()
-    def train_clean_5_cuts(self) -> CutSet:
-        logging.info("mini_librispeech: About to get train-clean-5 cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_train-clean-5.jsonl.gz"
-        )
+    def train_clean_5_cuts(self) -> Union[CutSet, List[str]]:
+        if self.args.stateless_sampler:
+            return [self.args.manifest_dir / "librispeech_cuts_train-clean-5.jsonl"]
+        else:
+            logging.info("mini_librispeech: About to get train-clean-5 cuts")
+            return load_manifest_lazy(
+                self.args.manifest_dir / "librispeech_cuts_train-clean-5.jsonl.gz"
+            )
 
     @lru_cache()
-    def train_clean_100_cuts(self) -> CutSet:
-        logging.info("About to get train-clean-100 cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_train-clean-100.jsonl.gz"
-        )
+    def train_clean_100_cuts(self) -> Union[CutSet, List[str]]:
+        if self.args.stateless_sampler:
+            return [self.args.manifest_dir / "librispeech_cuts_train-clean-100.jsonl"]
+        else:
+            logging.info("About to get train-clean-100 cuts")
+            return load_manifest_lazy(
+                self.args.manifest_dir / "librispeech_cuts_train-clean-100.jsonl.gz"
+            )
 
     @lru_cache()
-    def train_clean_360_cuts(self) -> CutSet:
-        logging.info("About to get train-clean-360 cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_train-clean-360.jsonl.gz"
-        )
+    def train_clean_360_cuts(self) -> Union[CutSet, List[str]]:
+        if self.args.stateless_sampler:
+            return [self.args.manifest_dir / "librispeech_cuts_train-clean-360.jsonl"]
+        else:
+            logging.info("About to get train-clean-360 cuts")
+            return load_manifest_lazy(
+                self.args.manifest_dir / "librispeech_cuts_train-clean-360.jsonl.gz"
+            )
 
     @lru_cache()
-    def train_other_500_cuts(self) -> CutSet:
-        logging.info("About to get train-other-500 cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_train-other-500.jsonl.gz"
-        )
+    def train_other_500_cuts(self) -> Union[CutSet, List[str]]:
+        if self.args.stateless_sampler:
+            return [self.args.manifest_dir / "librispeech_cuts_train-other-500.jsonl"]
+        else:
+            logging.info("About to get train-other-500 cuts")
+            return load_manifest_lazy(
+                self.args.manifest_dir / "librispeech_cuts_train-other-500.jsonl.gz"
+            )
 
     @lru_cache()
-    def train_all_shuf_cuts(self) -> CutSet:
-        logging.info(
-            "About to get the shuffled train-clean-100, \
-            train-clean-360 and train-other-500 cuts"
-        )
-        return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_train-all-shuf.jsonl.gz"
-        )
+    def train_all_shuf_cuts(self) -> Union[CutSet, List[str]]:
+        if self.args.stateless_sampler:
+            return [self.args.manifest_dir / "librispeech_cuts_train-all-shuf.jsonl"]
+        else:
+            logging.info(
+                "About to get the shuffled train-clean-100, \
+                train-clean-360 and train-other-500 cuts"
+            )
+            return load_manifest_lazy(
+                self.args.manifest_dir / "librispeech_cuts_train-all-shuf.jsonl.gz"
+            )
 
     @lru_cache()
     def dev_clean_2_cuts(self) -> CutSet:
