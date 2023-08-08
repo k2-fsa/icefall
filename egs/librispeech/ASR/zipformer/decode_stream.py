@@ -84,7 +84,7 @@ class DecodeStream(object):
             self.hyps = HypothesisList()
             self.hyps.add(
                 Hypothesis(
-                    ys=[params.blank_id] * params.context_size,
+                    ys=[-1] * (params.context_size - 1) + [params.blank_id],
                     log_prob=torch.zeros(1, dtype=torch.float32, device=device),
                 )
             )
