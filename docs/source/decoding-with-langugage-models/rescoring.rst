@@ -4,7 +4,7 @@ LM rescoring for Transducer
 =================================
 
 LM rescoring is a commonly used approach to incorporate external LM information. Unlike shallow-fusion-based
-methods (see :ref:`shallow-fusion`, :ref:`LODR`), rescoring is usually performed to re-rank the n-best hypotheses after beam search.
+methods (see :ref:`shallow_fusion`, :ref:`LODR`), rescoring is usually performed to re-rank the n-best hypotheses after beam search.
 Rescoring is usually more efficient than shallow fusion since less computation is performed on the external LM.
 In this tutorial, we will show you how to use external LM to rescore the n-best hypotheses decoded from neural transducer models in
 `icefall <https://github.com/k2-fsa/icefall>`__.
@@ -48,7 +48,7 @@ As usual, we first test the model's performance without external LM. This can be
         --avg 1 \
         --use-averaged-model False \
         --exp-dir $exp_dir \
-        --bpe-model ./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/data/lang_bpe_500/bpe.model 
+        --bpe-model ./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/data/lang_bpe_500/bpe.model \
         --max-duration 600 \
         --decode-chunk-len 32 \
         --decoding-method modified_beam_search
@@ -101,7 +101,7 @@ is set to `False`.
         --max-duration 600 \
         --decode-chunk-len 32 \
         --decoding-method modified_beam_search_lm_rescore \
-        --bpe-model ./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/data/lang_bpe_500/bpe.model
+        --bpe-model ./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/data/lang_bpe_500/bpe.model \
         --use-shallow-fusion 0 \
         --lm-type rnn \
         --lm-exp-dir $lm_dir \
@@ -173,7 +173,7 @@ Then we can performn LM rescoring + LODR by changing the decoding method to `mod
         --max-duration 600 \
         --decode-chunk-len 32 \
         --decoding-method modified_beam_search_lm_rescore_LODR \
-        --bpe-model ./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/data/lang_bpe_500/bpe.model
+        --bpe-model ./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/data/lang_bpe_500/bpe.model \
         --use-shallow-fusion 0 \
         --lm-type rnn \
         --lm-exp-dir $lm_dir \
@@ -225,23 +225,23 @@ Here, we benchmark the WERs and decoding speed of them:
      - beam=4
      - beam=8
      - beam=12
-   * - `modified_beam_search`
+   * - ``modified_beam_search``
      - 3.11/7.93; 132s
      - 3.1/7.95; 177s
      - 3.1/7.96; 210s
-   * - `modified_beam_search_lm_shallow_fusion`
+   * - ``modified_beam_search_lm_shallow_fusion``
      - 2.77/7.08; 262s
      - 2.62/6.65; 352s
      - 2.58/6.65; 488s
-   * - LODR
+   * - ``modified_beam_search_LODR``
      - 2.61/6.74; 400s
      - 2.45/6.38; 610s
      - 2.4/6.23; 870s
-   * - `modified_beam_search_lm_rescore`
+   * - ``modified_beam_search_lm_rescore``
      - 2.93/7.6; 156s
      - 2.67/7.11; 203s
      - 2.59/6.86; 255s
-   * - `modified_beam_search_lm_rescore_LODR`
+   * - ``modified_beam_search_lm_rescore_LODR``
      - 2.9/7.57; 160s
      - 2.63/7.04; 203s
      - 2.52/6.73; 263s
