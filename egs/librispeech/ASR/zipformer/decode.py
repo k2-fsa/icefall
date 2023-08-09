@@ -525,7 +525,6 @@ def decode_one_batch(
             encoder_out_lens=encoder_out_lens,
             beam=params.beam_size,
             LM=LM,
-            context_graph=context_graph,
         )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
@@ -551,7 +550,6 @@ def decode_one_batch(
             beam=params.beam_size,
             LM=LM,
             lm_scale_list=lm_scale_list,
-            context_graph=context_graph,
         )
     elif params.decoding_method == "modified_beam_search_lm_rescore_LODR":
         lm_scale_list = [0.02 * i for i in range(2, 30)]
@@ -564,7 +562,6 @@ def decode_one_batch(
             LODR_lm=ngram_lm,
             sp=sp,
             lm_scale_list=lm_scale_list,
-            context_graph=context_graph,
         )
     else:
         batch_size = encoder_out.size(0)
