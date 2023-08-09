@@ -39,7 +39,7 @@ from typing import Dict, List, Optional, Tuple
 import k2
 import numpy as np
 import torch
-from asr_datamodule import WenetSpeechAsrDataModule
+from asr_datamodule import Aidatatang_200zhAsrDataModule
 from decode_stream import DecodeStream
 from kaldifeat import Fbank, FbankOptions
 from lhotse import CutSet
@@ -386,7 +386,11 @@ def streaming_forward(
     Returns encoder outputs, output lengths, and updated states.
     """
     cached_embed_left_pad = states[-2]
-    (x, x_lens, new_cached_embed_left_pad,) = model.encoder_embed.streaming_forward(
+    (
+        x,
+        x_lens,
+        new_cached_embed_left_pad,
+    ) = model.encoder_embed.streaming_forward(
         x=features,
         x_lens=feature_lens,
         cached_left_pad=cached_embed_left_pad,
@@ -713,7 +717,7 @@ def save_results(
 @torch.no_grad()
 def main():
     parser = get_parser()
-    WenetSpeechAsrDataModule.add_arguments(parser)
+    Aidatatang_200zhAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 
@@ -851,14 +855,13 @@ def main():
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
-    wenetspeech = WenetSpeechAsrDataModule(args)
+    aidatatang_200zh = Aidatatang_200zhAsrDataModule(args)
 
-    dev_cuts = wenetspeech.valid_cuts()
-    test_net_cuts = wenetspeech.test_net_cuts()
-    test_meeting_cuts = wenetspeech.test_meeting_cuts()
+    dev_cuts = aidatatang_200zh.valid_cuts()
+    test_cuts = aidatatang_200zh.test_cuts()
 
-    test_sets = ["DEV", "TEST_NET", "TEST_MEETING"]
-    test_cuts = [dev_cuts, test_net_cuts, test_meeting_cuts]
+    test_sets = ["valid_cuts", "test_cuts"]
+    test_cuts = [dev_cuts, test_cuts]
 
     for test_set, test_cut in zip(test_sets, test_cuts):
         results_dict = decode_dataset(
