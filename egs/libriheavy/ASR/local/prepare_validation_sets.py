@@ -36,7 +36,13 @@ def get_args():
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
-        "--manifest", type=str, help="The original manifest coming from"
+        "--in-manifest", type=str, help="The original manifest coming from"
+    )
+
+    parser.add_argument(
+        "--out-manifest",
+        type=str,
+        help="Where to store the manifest after filtering out the test/dev sets",
     )
 
     return parser.parse_args()
@@ -44,8 +50,8 @@ def get_args():
 
 def main(args):
 
-    logging.info(f"Loading manifest {args.manifest}")
-    cuts = load_manifest_lazy(args.manifest)
+    logging.info(f"Loading manifest {args.in_manifest}")
+    cuts = load_manifest_lazy(args.in_manifest)
 
     all_test_sets = [
         "dev",
@@ -53,18 +59,27 @@ def main(args):
         "test-other",
     ]
 
+    all_books = []
     for test_set in all_test_sets:
         logging.info(f"Processing test set: {test_set}")
         with open(f"data/manifests/{test_set}.txt", "r") as f:
             books = f.read().split("\n")
+        all_books += books
 
+        out_name = f"data/manifests/libriheavy_cuts_{test_set}.jsonl.gz"
+        if os.path.exists(out_name):
+            continue
         # find the cuts belonging to the given books
         selected_cuts = cuts.filter(lambda c: c.text_path.split("/")[-2] in books)
         selected_cuts.describe()
 
-        out_name = f"data/manifests/libriheavy_cuts_{test_set}.jsonl.gz"
         logging.info(f"Saving the cuts contained in the book list to {out_name}")
         selected_cuts.to_file(out_name)
+
+    filtered_cuts = cuts.filter(lambda c: c.text_path.split("/")[-2] not in all_books)
+    logging.info(f"Saving the filtered manifest to {args.out_manifest}.")
+    filtered_cuts.to_file(args.out_manifest)
+    logging.info("Done")
 
 
 if __name__ == "__main__":

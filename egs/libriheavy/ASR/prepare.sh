@@ -12,6 +12,8 @@ stop_stage=100
 start=0
 stop=-1
 num_per_split=2000
+split_per_job=20
+char_coverage=0.99
 
 . shared/parse_options.sh || exit 1
 
@@ -19,7 +21,7 @@ num_per_split=2000
 # It will generate data/lang_bpe_xxx,
 # data/lang_bpe_yyy if the array contains xxx, yyy
 vocab_sizes=(
-  1000
+  750
 )
 
 mkdir -p data
@@ -35,20 +37,20 @@ fbank_dir=data/fbank
 
 mkdir -p $manifest_dir
 
-subset="large"
+subset="medium"
 
 if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   log "Stage 1: Split libri-heavy ${subset}"
 
   if [ $subset == "large" ]; then
     num_per_split=8000
-    log "Change num_per_split to ${num_per_split} 8000 for large"
+    log "Change num_per_split to ${num_per_split} for large"
   fi
 
   split_dir=$fbank_dir/libriheavy_${subset}_split
   mkdir -p $split_dir
   if [ ! -e $split_dir/.split_completed ]; then
-    lhotse split-lazy $manifest_dir/librilight_cuts_${subset}_raw.jsonl.gz $split_dir $num_per_split
+    lhotse split-lazy $manifest_dir/libriheavy_cuts_${subset}_raw.jsonl.gz $split_dir $num_per_split
     touch $split_dir/.split_completed
   fi
 fi
@@ -56,11 +58,18 @@ fi
 if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   log "Stage 2: Compute fbank for Libri-heavy ${subset}"
   mkdir -p $fbank_dir
-  num_splits=$(find $fbank_dir/libriheavy_${subset}_split -name "librilight_cuts_${subset}_raw.*.jsonl.gz" | wc -l)
+  num_splits=$(find $fbank_dir/libriheavy_${subset}_split -name "libriheavy_cuts_${subset}_raw.*.jsonl.gz" | wc -l)
+  if [ $subset == "large" ]; then
+    split_per_job=210
+    log "Change split_per_job to ${split_per_job} for large"
+  elif [ $subset == "medium" ]; then
+    split_per_job=100
+    log "Change split_per_job to ${split_per_job} for medium"
+  fi
   if [ ! -e $fbank_dir/.libriheavy.${subset}.done ]; then
     for i in $(seq 0 1 7); do
-      start=$(( i * 200 ))
-      end=$(( (i+1) * 200 ))
+      start=$(( i * $split_per_job ))
+      end=$(( (i+1) * $split_per_job ))
       ./local/compute_fbank_libriheavy.py \
         --dataset ${subset} \
         --fbank-dir $fbank_dir \
@@ -76,21 +85,29 @@ fi
 
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   log "Stage 3: Combine features for ${subset}"
-  if [ ! -f $fbank_dir/librilight_cuts_${subset}.jsonl.gz ]; then
-    pieces=$(find $fbank_dir/libriheavy_${subset}_split -name "librilight_cuts_${subset}.*.jsonl.gz")
-    lhotse combine $pieces $fbank_dir/librilight_cuts_${subset}.jsonl.gz
+  if [ ! -f $fbank_dir/libriheavy_cuts_${subset}.jsonl.gz ]; then
+    pieces=$(find $fbank_dir/libriheavy_${subset}_split -name "libriheavy_cuts_${subset}.*.jsonl.gz")
+    lhotse combine $pieces $fbank_dir/libriheavy_cuts_${subset}.jsonl.gz
   fi
 fi
 
 
 if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
-  log "Stage 4: Prepare BPE model"
+  log "Stage 4: Prepare the validation&test sets"
+
+  ./local/prepare_validation_sets.py \
+    --in-manifest $fbank_dir/libriheavy_cuts_medium.jsonl.gz \
+    --out-manifest $fbank_dir/libriheavy_cuts_medium_filtered.jsonl.gz
+fi
+
+if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
+  log "Stage 5: Prepare BPE model"
 
   tmp_dir=data/tmp
   mkdir -p $tmp_dir
   if [ ! -f $tmp_dir/transcript_words.txt ]; then
     for part in "small" "medium" "large"; do
-      gunzip -c $manifest_dir/librilight_cuts_${part}_raw.jsonl.gz |
+      gunzip -c $manifest_dir/libriheavy_cuts_${part}_raw.jsonl.gz |
         jq '.supervisions[].custom.texts[]' | sed 's/" //' | sed 's/\(.*\)"/\1/' > $tmp_dir/transcript_words_${part}.txt
     done
     cat $tmp_dir/transcript_words_small.txt $tmp_dir/transcript_words_medium.txt $tmp_dir/transcript_words_large.txt > $tmp_dir/transcript_words.txt
@@ -125,17 +142,19 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
   fi
 
   for vocab_size in ${vocab_sizes[@]}; do
-    lang_dir=data/lang_bpe_${vocab_size}
+    lang_dir=data/lang_bpe_${vocab_size}_fallback_coverage_${char_coverage}
     mkdir -p $lang_dir
     cp $tmp_dir/words.txt $lang_dir/words.txt
     pushd $lang_dir
     ln -s ../$tmp_dir/transcript_words.txt transcript_words.txt
     popd
-    
+
     if [ ! -f $lang_dir/bpe.model ]; then
       ./local/train_bpe_model.py \
         --lang-dir $lang_dir \
         --vocab-size $vocab_size \
+        --byte-fallback True \
+        --character-coverage $char_coverage \
         --transcript $tmp_dir/transcript_words_medium.txt
     fi
 

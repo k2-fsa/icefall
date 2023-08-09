@@ -188,7 +188,7 @@ def compute_fbank_libriheavy_splits(args):
     extractor = KaldifeatFbank(KaldifeatFbankConfig(device=device))
     logging.info(f"device: {device}")
 
-    prefix = "librilight"
+    prefix = "libriheavy"
 
     num_digits = 8  # num_digits is fixed by lhotse split-lazy
     for i in range(start, stop):
