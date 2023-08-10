@@ -25,6 +25,7 @@ from lhotse import CutSet, SupervisionSegment
 from lhotse.recipes.utils import read_manifests_if_cached
 
 from icefall import setup_logger
+from icefall.utils import str2bool
 
 # Similar text filtering and normalization procedure as in:
 # https://github.com/SpeechColab/WenetSpeech/blob/main/toolkits/kaldi/wenetspeech_data_prep.sh
@@ -46,7 +47,7 @@ def has_no_oov(
     return oov_pattern.search(sup.text) is None
 
 
-def preprocess_wenet_speech(speed_perturb: bool = False):
+def preprocess_wenet_speech(perturb_speed: bool = False):
     src_dir = Path("data/manifests")
     output_dir = Path("data/fbank")
     output_dir.mkdir(exist_ok=True)
@@ -111,7 +112,7 @@ def preprocess_wenet_speech(speed_perturb: bool = False):
         )
         # Run data augmentation that needs to be done in the
         # time domain.
-        if partition not in ["DEV", "TEST_NET", "TEST_MEETING"] and speed_perturb:
+        if partition not in ["DEV", "TEST_NET", "TEST_MEETING"] and perturb_speed:
             logging.info(
                 f"Speed perturb for {partition} with factors 0.9 and 1.1 "
                 "(Perturbing may take 8 minutes and saving may take 20 minutes)"
@@ -124,8 +125,8 @@ def preprocess_wenet_speech(speed_perturb: bool = False):
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--speed-perturb",
-        type=bool,
+        "--perturb-speed",
+        type=str2bool,
         default=False,
         help="Enable 0.9 and 1.1 speed perturbation for data augmentation. Default: False.",
     )
@@ -136,7 +137,7 @@ def main():
     setup_logger(log_filename="./log-preprocess-wenetspeech")
 
     args = get_args()
-    preprocess_wenet_speech(speed_perturb=args.speed_perturb)
+    preprocess_wenet_speech(perturb_speed=args.perturb_speed)
     logging.info("Done")
 
 

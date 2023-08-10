@@ -32,7 +32,7 @@ import torch
 from lhotse import CutSet, Fbank, FbankConfig, LilcomChunkyWriter
 from lhotse.recipes.utils import read_manifests_if_cached
 
-from icefall.utils import get_executor
+from icefall.utils import get_executor, str2bool
 
 # Torch's multithreaded behavior needs to be disabled or
 # it wastes a lot of CPU and slow things down.
@@ -42,7 +42,7 @@ torch.set_num_threads(1)
 torch.set_num_interop_threads(1)
 
 
-def compute_fbank_alimeeting(num_mel_bins: int = 80, speed_perturb: bool = False):
+def compute_fbank_alimeeting(num_mel_bins: int = 80, perturb_speed: bool = False):
     src_dir = Path("data/manifests/alimeeting")
     output_dir = Path("data/fbank")
     num_jobs = min(15, os.cpu_count())
@@ -82,7 +82,8 @@ def compute_fbank_alimeeting(num_mel_bins: int = 80, speed_perturb: bool = False
                 recordings=m["recordings"],
                 supervisions=m["supervisions"],
             )
-            if "train" in partition and speed_perturb:
+            if "train" in partition and perturb_speed:
+                logging.info(f"Doing speed perturb")
                 cut_set = (
                     cut_set + cut_set.perturb_speed(0.9) + cut_set.perturb_speed(1.1)
                 )
@@ -115,8 +116,8 @@ def get_args():
         help="""The number of mel bins for Fbank""",
     )
     parser.add_argument(
-        "--speed-perturb",
-        type=bool,
+        "--perturb-speed",
+        type=str2bool,
         default=False,
         help="Enable 0.9 and 1.1 speed perturbation for data augmentation. Default: False.",
     )
@@ -131,5 +132,5 @@ if __name__ == "__main__":
 
     args = get_args()
     compute_fbank_alimeeting(
-        num_mel_bins=args.num_mel_bins, speed_perturb=args.speed_perturb
+        num_mel_bins=args.num_mel_bins, perturb_speed=args.perturb_speed
     )
