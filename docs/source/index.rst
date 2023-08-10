@@ -21,8 +21,10 @@ speech recognition recipes using `k2 <https://github.com/k2-fsa/k2>`_.
    :caption: Contents:
 
    installation/index
+   docker/index
    faqs
    model-export/index
+
 
 .. toctree::
    :maxdepth: 3

@@ -138,9 +138,11 @@ class ConvNeXt(nn.Module):
 
         x = bypass + x
         x = self.out_balancer(x)
-        x = x.transpose(1, 3)  # (N, W, H, C); need channel dim to be last
-        x = self.out_whiten(x)
-        x = x.transpose(1, 3)  # (N, C, H, W)
+
+        if x.requires_grad:
+            x = x.transpose(1, 3)  # (N, W, H, C); need channel dim to be last
+            x = self.out_whiten(x)
+            x = x.transpose(1, 3)  # (N, C, H, W)
 
         return x
 
@@ -266,6 +268,7 @@ class Conv2dSubsampling(nn.Module):
         # just one convnext layer
         self.convnext = ConvNeXt(layer3_channels, kernel_size=(7, 7))
 
+        # (in_channels-3)//4
         self.out_width = (((in_channels - 1) // 2) - 1) // 2
         self.layer3_channels = layer3_channels
 
@@ -299,7 +302,7 @@ class Conv2dSubsampling(nn.Module):
             A tensor of shape (batch_size,) containing the number of frames in
 
         Returns:
-          - a tensor of shape (N, ((T-1)//2 - 1)//2, odim)
+          - a tensor of shape (N, (T-7)//2, odim)
           - output lengths, of shape (batch_size,)
         """
         # On entry, x is (N, T, idim)
@@ -310,14 +313,14 @@ class Conv2dSubsampling(nn.Module):
         x = self.conv(x)
         x = self.convnext(x)
 
-        # Now x is of shape (N, odim, ((T-3)//2 - 1)//2, ((idim-1)//2 - 1)//2)
+        # Now x is of shape (N, odim, (T-7)//2, (idim-3)//4)
         b, c, t, f = x.size()
 
         x = x.transpose(1, 2).reshape(b, t, c * f)
-        # now x: (N, ((T-1)//2 - 1))//2, out_width * layer3_channels))
+        # now x: (N, (T-7)//2, out_width * layer3_channels))
 
         x = self.out(x)
-        # Now x is of shape (N, ((T-1)//2 - 1))//2, odim)
+        # Now x is of shape (N, (T-7)//2, odim)
         x = self.out_whiten(x)
         x = self.out_norm(x)
         x = self.dropout(x)
@@ -328,7 +331,7 @@ class Conv2dSubsampling(nn.Module):
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 x_lens = (x_lens - 7) // 2
-        assert x.size(1) == x_lens.max().item()
+        assert x.size(1) == x_lens.max().item() , (x.size(1), x_lens.max())
 
         return x, x_lens
 
@@ -347,7 +350,7 @@ class Conv2dSubsampling(nn.Module):
             A tensor of shape (batch_size,) containing the number of frames in
 
         Returns:
-          - a tensor of shape (N, ((T-1)//2 - 1)//2, odim)
+          - a tensor of shape (N, (T-7)//2, odim)
           - output lengths, of shape (batch_size,)
           - updated cache
         """
@@ -383,7 +386,7 @@ class Conv2dSubsampling(nn.Module):
                 assert self.convnext.padding[0] == 3
                 x_lens = (x_lens - 7) // 2 - 3
 
-        assert x.size(1) == x_lens.max().item()
+        assert x.size(1) == x_lens.max().item(), (x.shape, x_lens.max())
 
         return x, x_lens, cached_left_pad
 
