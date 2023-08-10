@@ -101,7 +101,7 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   log "Stage 3: Compute fbank for aishell2"
   if [ ! -f data/fbank/.aishell2.done ]; then
     mkdir -p data/fbank
-    ./local/compute_fbank_aishell2.py
+    ./local/compute_fbank_aishell2.py --perturb-speed True
     touch data/fbank/.aishell2.done
   fi
 fi

@@ -25,6 +25,7 @@ It looks for manifests in the directory data/manifests.
 
 The generated fbank features are saved in data/fbank.
 """
+import argparse
 import logging
 from pathlib import Path
 
@@ -39,6 +40,8 @@ from lhotse.features.kaldifeat import (
 )
 from lhotse.recipes.utils import read_manifests_if_cached
 
+from icefall.utils import str2bool
+
 # Torch's multithreaded behavior needs to be disabled or
 # it wastes a lot of CPU and slow things down.
 # Do this outside of main() in case it needs to take effect
@@ -48,7 +51,7 @@ torch.set_num_interop_threads(1)
 torch.multiprocessing.set_sharing_strategy("file_system")
 
 
-def compute_fbank_ami():
+def compute_fbank_ami(perturb_speed: bool = False):
     src_dir = Path("data/manifests")
     output_dir = Path("data/fbank")
 
@@ -84,8 +87,12 @@ def compute_fbank_ami():
         suffix="jsonl.gz",
     )
 
-    def _extract_feats(cuts: CutSet, storage_path: Path, manifest_path: Path) -> None:
-        cuts = cuts + cuts.perturb_speed(0.9) + cuts.perturb_speed(1.1)
+    def _extract_feats(
+        cuts: CutSet, storage_path: Path, manifest_path: Path, speed_perturb: bool
+    ) -> None:
+        if speed_perturb:
+            logging.info(f"Doing speed perturb")
+            cuts = cuts + cuts.perturb_speed(0.9) + cuts.perturb_speed(1.1)
         _ = cuts.compute_and_store_features_batch(
             extractor=extractor,
             storage_path=storage_path,
@@ -109,6 +116,7 @@ def compute_fbank_ami():
         cuts_ihm,
         output_dir / "feats_train_ihm",
         src_dir / "cuts_train_ihm.jsonl.gz",
+        perturb_speed,
     )
 
     logging.info("Processing train split IHM + reverberated IHM")
@@ -117,6 +125,7 @@ def compute_fbank_ami():
         cuts_ihm_rvb,
         output_dir / "feats_train_ihm_rvb",
         src_dir / "cuts_train_ihm_rvb.jsonl.gz",
+        perturb_speed,
     )
 
     logging.info("Processing train split SDM")
@@ -129,6 +138,7 @@ def compute_fbank_ami():
         cuts_sdm,
         output_dir / "feats_train_sdm",
         src_dir / "cuts_train_sdm.jsonl.gz",
+        perturb_speed,
     )
 
     logging.info("Processing train split GSS")
@@ -141,6 +151,7 @@ def compute_fbank_ami():
         cuts_gss,
         output_dir / "feats_train_gss",
         src_dir / "cuts_train_gss.jsonl.gz",
+        perturb_speed,
     )
 
     logging.info("Preparing test cuts: IHM, SDM, GSS (optional)")
@@ -186,8 +197,21 @@ def compute_fbank_ami():
         )
 
 
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--perturb-speed",
+        type=str2bool,
+        default=False,
+        help="Enable 0.9 and 1.1 speed perturbation for data augmentation. Default: False.",
+    )
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
     formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
     logging.basicConfig(format=formatter, level=logging.INFO)
 
-    compute_fbank_ami()
+    args = get_args()
+
+    compute_fbank_ami(perturb_speed=args.perturb_speed)
