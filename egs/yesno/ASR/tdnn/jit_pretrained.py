@@ -1,46 +1,31 @@
 #!/usr/bin/env python3
-# Copyright      2021  Xiaomi Corp.        (authors: Fangjun Kuang)
-#
-# See ../../../../LICENSE for clarification regarding multiple authors
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
 
 """
-This file shows how to use a checkpoint for decoding.
+This file shows how to use a torchscript model for decoding.
 
 Usage:
 
-  ./tdnn/pretrained.py \
-    --checkpoint ./tdnn/exp/pretrained.pt \
+  ./tdnn/jit_pretrained.py \
+    --nn-model ./tdnn/exp/cpu_jit.pt \
     --HLG ./data/lang_phone/HLG.pt \
     --words-file ./data/lang_phone/words.txt \
     download/waves_yesno/0_0_0_1_0_0_0_1.wav \
     download/waves_yesno/0_0_1_0_0_0_1_0.wav
 
-Note that to generate ./tdnn/exp/pretrained.pt,
-you can use ./export.py
+Note that to generate ./tdnn/exp/cpu_jit.pt,
+you can use ./export.py --jit 1
 """
 
 import argparse
 import logging
-import math
 from typing import List
+import math
+
 
 import k2
 import kaldifeat
 import torch
 import torchaudio
-from model import Tdnn
 from torch.nn.utils.rnn import pad_sequence
 
 from icefall.decode import get_lattice, one_best_decoding
@@ -53,13 +38,13 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--checkpoint",
+        "--nn-model",
         type=str,
         required=True,
-        help="Path to the checkpoint. "
-        "The checkpoint is assumed to be saved by "
-        "icefall.checkpoint.save_checkpoint(). "
-        "You can use ./tdnn/export.py to obtain it.",
+        help="""Path to the torchscript model.
+        You can use ./tdnn/export.py --jit 1
+        to obtain it
+        """,
     )
 
     parser.add_argument(
@@ -141,17 +126,10 @@ def main():
 
     logging.info(f"device: {device}")
 
-    logging.info("Creating model")
-
-    model = Tdnn(
-        num_features=params.feature_dim,
-        num_classes=params.num_classes,
-    )
-
-    checkpoint = torch.load(args.checkpoint, map_location="cpu")
-    model.load_state_dict(checkpoint["model"])
-    model.to(device)
+    logging.info("Loading torchscript model")
+    model = torch.jit.load(args.nn_model)
     model.eval()
+    model.to(device)
 
     logging.info(f"Loading HLG from {params.HLG}")
     HLG = k2.Fsa.from_dict(torch.load(params.HLG, map_location="cpu"))

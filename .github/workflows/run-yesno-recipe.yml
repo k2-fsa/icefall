@@ -20,6 +20,7 @@ on:
   push:
     branches:
       - master
+      - yesno-export
   pull_request:
     branches:
       - master
@@ -43,11 +44,6 @@ jobs:
       - uses: actions/checkout@v2
         with:
           fetch-depth: 0
-
-      - name: Install graphviz
-        shell: bash
-        run: |
-          sudo apt-get -qq install graphviz
 
       - name: Setup Python ${{ matrix.python-version }}
         uses: actions/setup-python@v2
@@ -78,9 +74,68 @@ jobs:
           export PYTHONPATH=$PWD:$PYTHONPATH
           echo $PYTHONPATH
 
-
           cd egs/yesno/ASR
           ./prepare.sh
           python3 ./tdnn/train.py
           python3 ./tdnn/decode.py
-          # TODO: Check that the WER is less than some value
+
+      - name: Test exporting to pretrained.pt
+        shell: bash
+        working-directory: ${{github.workspace}}
+        run: |
+          export PYTHONPATH=$PWD:$PYTHONPATH
+          echo $PYTHONPATH
+
+          cd egs/yesno/ASR
+          python3 ./tdnn/export.py --epoch 14 --avg 2
+
+          python3 ./tdnn/pretrained.py \
+            --checkpoint ./tdnn/exp/pretrained.pt \
+            --HLG ./data/lang_phone/HLG.pt \
+            --words-file ./data/lang_phone/words.txt \
+            download/waves_yesno/0_0_0_1_0_0_0_1.wav \
+            download/waves_yesno/0_0_1_0_0_0_1_0.wav
+
+      - name: Test exporting to torchscript
+        shell: bash
+        working-directory: ${{github.workspace}}
+        run: |
+          export PYTHONPATH=$PWD:$PYTHONPATH
+          echo $PYTHONPATH
+
+          cd egs/yesno/ASR
+          python3 ./tdnn/export.py --epoch 14 --avg 2 --jit 1
+
+          python3 ./tdnn/jit_pretrained.py \
+            --checkpoint ./tdnn/exp/cpu_jit.pt \
+            --HLG ./data/lang_phone/HLG.pt \
+            --words-file ./data/lang_phone/words.txt \
+            download/waves_yesno/0_0_0_1_0_0_0_1.wav \
+            download/waves_yesno/0_0_1_0_0_0_1_0.wav
+
+      - name: Test exporting to onnx
+        shell: bash
+        working-directory: ${{github.workspace}}
+        run: |
+          export PYTHONPATH=$PWD:$PYTHONPATH
+          echo $PYTHONPATH
+
+          cd egs/yesno/ASR
+          python3 ./tdnn/export_onnx.py --epoch 14 --avg 2
+
+          echo "Test float32 model"
+          python3 ./tdnn/onnx_pretrained.py \
+            --nn-model ./tdnn/exp/model-epoch-14-avg-2.onnx \
+            --HLG ./data/lang_phone/HLG.pt \
+            --words-file ./data/lang_phone/words.txt \
+            download/waves_yesno/0_0_0_1_0_0_0_1.wav \
+            download/waves_yesno/0_0_1_0_0_0_1_0.wav
+
+
+          echo "Test int8 model"
+          python3 ./tdnn/onnx_pretrained.py \
+            --nn-model ./tdnn/exp/model-epoch-14-avg-2.onnx \
+            --HLG ./data/lang_phone/HLG.pt \
+            --words-file ./data/lang_phone/words.txt \
+            download/waves_yesno/0_0_0_1_0_0_0_1.wav \
+            download/waves_yesno/0_0_1_0_0_0_1_0.wav
