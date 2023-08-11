@@ -1,34 +1,30 @@
 #!/usr/bin/env python3
-# Copyright      2021  Xiaomi Corp.        (authors: Fangjun Kuang)
-#
-# See ../../../../LICENSE for clarification regarding multiple authors
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
 
 """
-This file shows how to use a checkpoint for decoding.
+This file shows how to use an ONNX model for decoding with onnxruntime.
 
 Usage:
 
-  ./tdnn/pretrained.py \
-    --checkpoint ./tdnn/exp/pretrained.pt \
+(1) Use a not quantized ONNX model, i.e., a float32 model
+  ./tdnn/onnx_pretrained.py \
+    --nn-model ./tdnn/exp/model-epoch-14-avg-2.onnx \
     --HLG ./data/lang_phone/HLG.pt \
     --words-file ./data/lang_phone/words.txt \
     download/waves_yesno/0_0_0_1_0_0_0_1.wav \
     download/waves_yesno/0_0_1_0_0_0_1_0.wav
 
-Note that to generate ./tdnn/exp/pretrained.pt,
-you can use ./export.py
+(2) Use a quantized ONNX model, i.e., an int8 model
+
+  ./tdnn/onnx_pretrained.py \
+    --nn-model ./tdnn/exp/model-epoch-14-avg-2.int8.onnx \
+    --HLG ./data/lang_phone/HLG.pt \
+    --words-file ./data/lang_phone/words.txt \
+    download/waves_yesno/0_0_0_1_0_0_0_1.wav \
+    download/waves_yesno/0_0_1_0_0_0_1_0.wav
+
+Note that to generate ./tdnn/exp/model-epoch-14-avg-2.onnx,
+and ./tdnn/exp/model-epoch-14-avg-2.onnx,
+you can use ./export_onnx.py --epoch 14 --avg 2
 """
 
 import argparse
@@ -38,13 +34,50 @@ from typing import List
 
 import k2
 import kaldifeat
+import onnxruntime as ort
 import torch
 import torchaudio
-from model import Tdnn
 from torch.nn.utils.rnn import pad_sequence
 
 from icefall.decode import get_lattice, one_best_decoding
 from icefall.utils import AttributeDict, get_texts
+
+
+class OnnxModel:
+    def __init__(self, nn_model: str):
+        session_opts = ort.SessionOptions()
+        session_opts.inter_op_num_threads = 1
+        session_opts.intra_op_num_threads = 1
+
+        self.session_opts = session_opts
+        self.model = ort.InferenceSession(
+            nn_model,
+            sess_options=self.session_opts,
+        )
+
+        meta = self.model.get_modelmeta().custom_metadata_map
+        self.vocab_size = int(meta["vocab_size"])
+
+    def run(
+        self,
+        x: torch.Tensor,
+    ) -> torch.Tensor:
+        """
+        Args:
+          x:
+            A 3-D tensor of shape (N, T, C)
+        Returns:
+          Return a 3-D tensor log_prob of shape (N, T, C)
+        """
+        out = self.model.run(
+            [
+                self.model.get_outputs()[0].name,
+            ],
+            {
+                self.model.get_inputs()[0].name: x.numpy(),
+            },
+        )
+        return torch.from_numpy(out[0])
 
 
 def get_parser():
@@ -53,13 +86,13 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--checkpoint",
+        "--nn-model",
         type=str,
         required=True,
-        help="Path to the checkpoint. "
-        "The checkpoint is assumed to be saved by "
-        "icefall.checkpoint.save_checkpoint(). "
-        "You can use ./tdnn/export.py to obtain it.",
+        help="""Path to the torchscript model.
+        You can use ./tdnn/export.py --jit 1
+        to obtain it
+        """,
     )
 
     parser.add_argument(
@@ -81,22 +114,6 @@ def get_parser():
     )
 
     return parser
-
-
-def get_params() -> AttributeDict:
-    params = AttributeDict(
-        {
-            "feature_dim": 23,
-            "num_classes": 4,  # [<blk>, N, SIL, Y]
-            "sample_rate": 8000,
-            "search_beam": 20,
-            "output_beam": 8,
-            "min_active_states": 30,
-            "max_active_states": 10000,
-            "use_double_scores": True,
-        }
-    )
-    return params
 
 
 def read_sound_files(
@@ -126,11 +143,24 @@ def read_sound_files(
     return ans
 
 
-@torch.no_grad()
+def get_params() -> AttributeDict:
+    params = AttributeDict(
+        {
+            "feature_dim": 23,
+            "sample_rate": 8000,
+            "search_beam": 20,
+            "output_beam": 8,
+            "min_active_states": 30,
+            "max_active_states": 10000,
+            "use_double_scores": True,
+        }
+    )
+    return params
+
+
 def main():
     parser = get_parser()
     args = parser.parse_args()
-
     params = get_params()
     params.update(vars(args))
     logging.info(f"{params}")
@@ -138,22 +168,12 @@ def main():
     device = torch.device("cpu")
     if torch.cuda.is_available():
         device = torch.device("cuda", 0)
-
     logging.info(f"device: {device}")
 
-    logging.info("Creating model")
+    logging.info(f"Loading onnx model {params.nn_model}")
+    model = OnnxModel(params.nn_model)
 
-    model = Tdnn(
-        num_features=params.feature_dim,
-        num_classes=params.num_classes,
-    )
-
-    checkpoint = torch.load(args.checkpoint, map_location="cpu")
-    model.load_state_dict(checkpoint["model"])
-    model.to(device)
-    model.eval()
-
-    logging.info(f"Loading HLG from {params.HLG}")
+    logging.info(f"Loading HLG from {args.HLG}")
     HLG = k2.Fsa.from_dict(torch.load(params.HLG, map_location="cpu"))
     HLG = HLG.to(device)
 
@@ -179,7 +199,7 @@ def main():
     features = pad_sequence(features, batch_first=True, padding_value=math.log(1e-10))
 
     # Note: We don't use key padding mask for attention during decoding
-    nnet_output = model(features)
+    nnet_output = model.run(features)
 
     batch_size = nnet_output.shape[0]
     supervision_segments = torch.tensor(
