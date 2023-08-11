@@ -20,7 +20,6 @@ on:
   push:
     branches:
       - master
-      - yesno-export
   pull_request:
     branches:
       - master
@@ -140,3 +139,10 @@ jobs:
             --words-file ./data/lang_phone/words.txt \
             download/waves_yesno/0_0_0_1_0_0_0_1.wav \
             download/waves_yesno/0_0_1_0_0_0_1_0.wav
+
+      - name: Show generated files
+        shell: bash
+        working-directory: ${{github.workspace}}
+        run: |
+          cd egs/yesno/ASR
+          ls -lh tdnn/exp
