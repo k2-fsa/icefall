@@ -411,8 +411,8 @@ def main():
 
     s = "\n"
     for filename, hyp in zip(params.sound_files, hyps):
-        words = " ".join(hyp)
-        words = words.replace("▁", "").strip()
+        words = "".join(hyp)
+        words = words.replace("▁", " ").strip()
         s += f"{filename}:\n{words}\n\n"
     logging.info(s)
 
