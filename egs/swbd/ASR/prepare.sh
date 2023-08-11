@@ -80,23 +80,23 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
             data/manifests/eval2000/eval2000_supervisions_unnorm.jsonl.gz \
             data/manifests/eval2000/eval2000_supervisions_all.jsonl.gz
 
-        ./local/rt03_data_prep.sh $rt03_dir
+        # ./local/rt03_data_prep.sh $rt03_dir
 
         # normalize eval2000 and rt03 texts by
         # 1) convert upper to lower
         # 2) remove tags (%AH) (%HESITATION) (%UH)
         # 3) remove <B_ASIDE> <E_ASIDE>
         # 4) remove "(" or ")"
-        for x in  rt03; do
-            cp data/local/${x}/text data/local/${x}/text.org
-            paste -d "" \
-                <(cut -f 1 -d" " data/local/${x}/text.org) \
-                <(awk '{$1=""; print tolower($0)}' data/local/${x}/text.org | perl -pe 's| \(\%.*\)||g' | perl -pe 's| \<.*\>||g' | sed -e "s/(//g" -e "s/)//g") |
-                sed -e 's/\s\+/ /g' >data/local/${x}/text
-            rm data/local/${x}/text.org
-        done
+        # for x in  rt03; do
+        #     cp data/local/${x}/text data/local/${x}/text.org
+        #     paste -d "" \
+        #         <(cut -f 1 -d" " data/local/${x}/text.org) \
+        #         <(awk '{$1=""; print tolower($0)}' data/local/${x}/text.org | perl -pe 's| \(\%.*\)||g' | perl -pe 's| \<.*\>||g' | sed -e "s/(//g" -e "s/)//g") |
+        #         sed -e 's/\s\+/ /g' >data/local/${x}/text
+        #     rm data/local/${x}/text.org
+        # done
 
-        lhotse fix data/manifests_rt03/swbd_recordings_rt03.jsonl.gz data/manifests_rt03/swbd_supervisions_rt03.jsonl.gz data/manifests
+        # lhotse fix data/manifests_rt03/swbd_recordings_rt03.jsonl.gz data/manifests_rt03/swbd_supervisions_rt03.jsonl.gz data/manifests
 
         touch data/manifests/.swbd.done
     fi

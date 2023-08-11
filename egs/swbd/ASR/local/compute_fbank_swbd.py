@@ -111,7 +111,7 @@ def compute_fbank_switchboard(
         dataset_parts,
     )
 
-    extractor = Fbank(FbankConfig(num_mel_bins=num_mel_bins))
+    extractor = Fbank(FbankConfig(num_mel_bins=num_mel_bins, sampling_rate=8000))
 
     with get_executor() as ex:  # Initialize the executor only once.
         for partition, m in manifests.items():
@@ -121,7 +121,7 @@ def compute_fbank_switchboard(
                 continue
             logging.info(f"Processing {partition}")
             cut_set = CutSet.from_manifests(
-                recordings=m["recordings"].resample(16000),
+                recordings=m["recordings"],
                 supervisions=m["supervisions"],
             )
 
@@ -134,7 +134,7 @@ def compute_fbank_switchboard(
                         cut_set
                         + cut_set.perturb_speed(0.9)
                         + cut_set.perturb_speed(1.1)
-                    ).resample(16000)
+                    )
             cut_set = cut_set.compute_and_store_features(
                 extractor=extractor,
                 storage_path=f"{output_dir}/{prefix}_feats_{partition}",
