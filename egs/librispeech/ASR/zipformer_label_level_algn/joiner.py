@@ -67,7 +67,7 @@ class Joiner(nn.Module):
             decoder_out.shape,
         )
 
-        if apply_attn:
+        if apply_attn and attn_encoder_out is None:
             if not self.enable_attn:
                 self.enable_attn = True
                 logging.info("enabling ATTN!")
@@ -79,7 +79,7 @@ class Joiner(nn.Module):
             logit = self.encoder_proj(encoder_out) + self.decoder_proj(decoder_out)
 
         if apply_attn:
-            # print(attn_encoder_out)
+            # print(torch.mean(attn_encoder_out, dim=0))
             logit = encoder_out + decoder_out + attn_encoder_out
         else:
             logging.info("disabling cross attn mdl")
