@@ -60,7 +60,7 @@ log "Export via torch.jit.trace()"
   --epoch 99 \
   --avg 1 \
   --use-averaged-model 0 \
-  \
+  --tokens $repo/data/lang_bpe_500/tokens.txt \
   --num-encoder-layers 12 \
   --chunk-length 32 \
   --cnn-module-kernel 31 \
