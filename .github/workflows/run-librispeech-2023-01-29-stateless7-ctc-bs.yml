@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: run-librispeech-2022-12-15-stateless7-ctc-bs
+name: run-librispeech-2023-01-29-stateless7-ctc-bs
 # zipformer
 
 on:
@@ -34,7 +34,7 @@ on:
     - cron: "50 15 * * *"
 
 jobs:
-  run_librispeech_2022_12_15_zipformer_ctc_bs:
+  run_librispeech_2023_01_29_zipformer_ctc_bs:
     if: github.event.label.name == 'run-decode' || github.event.label.name == 'blank-skip' || github.event_name == 'push' || github.event_name == 'schedule'
     runs-on: ${{ matrix.os }}
     strategy:
@@ -124,7 +124,7 @@ jobs:
           export PYTHONPATH=~/tmp/kaldifeat/kaldifeat/python:$PYTHONPATH
           export PYTHONPATH=~/tmp/kaldifeat/build/lib:$PYTHONPATH
 
-          .github/scripts/run-librispeech-pruned-transducer-stateless7-ctc-bs-2022-12-15.sh
+          .github/scripts/run-librispeech-pruned-transducer-stateless7-ctc-bs-2023-01-29.sh
 
       - name: Display decoding results for librispeech pruned_transducer_stateless7_ctc_bs
         if: github.event_name == 'schedule' || github.event.label.name == 'run-decode'
@@ -159,5 +159,5 @@ jobs:
         uses: actions/upload-artifact@v2
         if: github.event_name == 'schedule' || github.event.label.name == 'run-decode'
         with:
-          name: torch-${{ matrix.torch }}-python-${{ matrix.python-version }}-ubuntu-18.04-cpu-pruned_transducer_stateless7-ctc-bs-2022-12-15
+          name: torch-${{ matrix.torch }}-python-${{ matrix.python-version }}-ubuntu-latest-cpu-pruned_transducer_stateless7-ctc-bs-2023-01-29
           path: egs/librispeech/ASR/pruned_transducer_stateless7_ctc_bs/exp/

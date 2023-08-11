@@ -26,7 +26,16 @@ from typing import List, Tuple
 
 import torch
 import torch.nn as nn
-from scaling import Balancer, Dropout3, ScaleGrad, Whiten
+from scaling import (
+    Balancer,
+    Dropout3,
+    ScaleGrad,
+    SwooshL,
+    SwooshLOnnx,
+    SwooshR,
+    SwooshROnnx,
+    Whiten,
+)
 from zipformer import CompactRelPositionalEncoding
 
 
@@ -75,6 +84,10 @@ def convert_scaled_to_non_scaled(
     for name, m in model.named_modules():
         if isinstance(m, (Balancer, Dropout3, ScaleGrad, Whiten)):
             d[name] = nn.Identity()
+        elif is_onnx and isinstance(m, SwooshR):
+            d[name] = SwooshROnnx()
+        elif is_onnx and isinstance(m, SwooshL):
+            d[name] = SwooshLOnnx()
         elif is_onnx and isinstance(m, CompactRelPositionalEncoding):
             # We want to recreate the positional encoding vector when
             # the input changes, so we have to use torch.jit.script()

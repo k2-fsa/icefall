@@ -849,6 +849,8 @@ class RelPositionalEncoding(torch.nn.Module):
             torch.Tensor: Encoded tensor (batch, 2*time-1, `*`).
 
         """
+        if isinstance(left_context, torch.Tensor):
+            left_context = left_context.item()
         self.extend_pe(x, left_context)
         x_size_1 = x.size(1) + left_context
         pos_emb = self.pe[

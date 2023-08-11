@@ -97,7 +97,7 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   log "Stage 5: Compute fbank for alimeeting"
   if [ ! -f data/fbank/.alimeeting.done ]; then
     mkdir -p data/fbank
-    ./local/compute_fbank_alimeeting.py
+    ./local/compute_fbank_alimeeting.py --perturb-speed True
     touch data/fbank/.alimeeting.done
   fi
 fi

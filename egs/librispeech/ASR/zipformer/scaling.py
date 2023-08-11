@@ -25,6 +25,11 @@ import math
 import torch.nn as nn
 from torch import Tensor
 
+def logaddexp_onnx(x: Tensor, y: Tensor) -> Tensor:
+    max_value = torch.max(x, y)
+    diff = torch.abs(x - y)
+    return max_value + torch.log1p(torch.exp(-diff))
+
 
 # RuntimeError: Exporting the operator logaddexp to ONNX opset version
 # 14 is not supported. Please feel free to request support or submit
@@ -33,10 +38,22 @@ from torch import Tensor
 # The following function is to solve the above error when exporting
 # models to ONNX via torch.jit.trace()
 def logaddexp(x: Tensor, y: Tensor) -> Tensor:
-    if not torch.jit.is_tracing():
+    # Caution(fangjun): Put torch.jit.is_scripting() before
+    # torch.onnx.is_in_onnx_export();
+    # otherwise, it will cause errors for torch.jit.script().
+    #
+    # torch.logaddexp() works for both torch.jit.script() and
+    # torch.jit.trace() but it causes errors for ONNX export.
+    #
+    if torch.jit.is_scripting():
+        # Note: We cannot use torch.jit.is_tracing() here as it also
+        # matches torch.onnx.export().
         return torch.logaddexp(x, y)
+    elif torch.onnx.is_in_onnx_export():
+        return logaddexp_onnx(x, y)
     else:
-        return (x.exp() + y.exp()).log()
+        # for torch.jit.trace()
+        return torch.logaddexp(x, y)
 
 class PiecewiseLinear(object):
     """
@@ -108,7 +125,7 @@ class PiecewiseLinear(object):
                          p: 'PiecewiseLinear',
                          include_crossings: bool = False):
         """
-        Returns (self_mod, p_mod) which are equivalent piecewise lienar
+        Returns (self_mod, p_mod) which are equivalent piecewise linear
         functions to self and p, but with the same x values.
 
           p: the other piecewise linear function
@@ -149,7 +166,7 @@ class ScheduledFloat(torch.nn.Module):
     in, float(parent_module.whatever), and use it as something like a dropout prob.
 
     It is a floating point value whose value changes depending on the batch count of the
-    training loop.  It is a piecewise linear function where you specifiy the (x,y) pairs
+    training loop.  It is a piecewise linear function where you specify the (x,y) pairs
     in sorted order on x; x corresponds to the batch index.  For batch-index values before the
     first x or after the last x, we just use the first or last y value.
 
@@ -326,7 +343,7 @@ class MaxEigLimiterFunction(torch.autograd.Function):
 class BiasNormFunction(torch.autograd.Function):
     # This computes:
     #   scales = (torch.mean((x - bias) ** 2, keepdim=True)) ** -0.5 * log_scale.exp()
-    #   return (x - bias) * scales
+    #   return x * scales
     # (after unsqueezing the bias), but it does it in a memory-efficient way so that
     # it can just store the returned value (chances are, this will also be needed for
     # some other reason, related to the next operation, so we can save memory).
@@ -383,8 +400,8 @@ class BiasNorm(torch.nn.Module):
     Args:
        num_channels: the number of channels, e.g. 512.
        channel_dim: the axis/dimension corresponding to the channel,
-         interprted as an offset from the input's ndim if negative.
-         shis is NOT the num_channels; it should typically be one of
+         interpreted as an offset from the input's ndim if negative.
+         This is NOT the num_channels; it should typically be one of
          {-2, -1, 0, 1, 2, 3}.
       log_scale: the initial log-scale that we multiply the output by; this
          is learnable.
@@ -1269,7 +1286,7 @@ class Dropout3(nn.Module):
 
 class SwooshLFunction(torch.autograd.Function):
     """
-      swoosh(x) =  log(1 + exp(x-4)) - 0.08*x - 0.035
+      swoosh_l(x) =  log(1 + exp(x-4)) - 0.08*x - 0.035
     """
 
     @staticmethod
@@ -1334,10 +1351,17 @@ class SwooshL(torch.nn.Module):
             return k2.swoosh_l(x)
         # return SwooshLFunction.apply(x)
 
+class SwooshLOnnx(torch.nn.Module):
+    def forward(self, x: Tensor) -> Tensor:
+        """Return Swoosh-L activation.
+        """
+        zero = torch.tensor(0.0, dtype=x.dtype, device=x.device)
+        return logaddexp_onnx(zero, x - 4.0) - 0.08 * x - 0.035
+
 
 class SwooshRFunction(torch.autograd.Function):
     """
-      swoosh(x) =  log(1 + exp(x-1)) - 0.08*x - 0.313261687
+      swoosh_r(x) =  log(1 + exp(x-1)) - 0.08*x - 0.313261687
 
      derivatives are between -0.08 and 0.92.
     """
@@ -1399,6 +1423,13 @@ class SwooshR(torch.nn.Module):
         else:
             return k2.swoosh_r(x)
         # return SwooshRFunction.apply(x)
+
+class SwooshROnnx(torch.nn.Module):
+    def forward(self, x: Tensor) -> Tensor:
+        """Return Swoosh-R activation.
+        """
+        zero = torch.tensor(0.0, dtype=x.dtype, device=x.device)
+        return logaddexp_onnx(zero, x - 1.) - 0.08 * x - 0.313261687
 
 
 # simple version of SwooshL that does not redefine the backprop, used in
