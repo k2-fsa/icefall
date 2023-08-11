@@ -108,7 +108,7 @@ jobs:
           python3 ./tdnn/export.py --epoch 14 --avg 2 --jit 1
 
           python3 ./tdnn/jit_pretrained.py \
-            --checkpoint ./tdnn/exp/cpu_jit.pt \
+            --nn-model ./tdnn/exp/cpu_jit.pt \
             --HLG ./data/lang_phone/HLG.pt \
             --words-file ./data/lang_phone/words.txt \
             download/waves_yesno/0_0_0_1_0_0_0_1.wav \
@@ -135,7 +135,7 @@ jobs:
 
           echo "Test int8 model"
           python3 ./tdnn/onnx_pretrained.py \
-            --nn-model ./tdnn/exp/model-epoch-14-avg-2.onnx \
+            --nn-model ./tdnn/exp/model-epoch-14-avg-2.int8.onnx \
             --HLG ./data/lang_phone/HLG.pt \
             --words-file ./data/lang_phone/words.txt \
             download/waves_yesno/0_0_0_1_0_0_0_1.wav \
