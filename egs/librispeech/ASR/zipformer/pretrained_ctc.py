@@ -440,10 +440,9 @@ def main():
         "whole-lattice-rescoring",
     ]:
         for filename, hyp in zip(params.sound_files, hyps):
-            for words in hyp:
-                words = " ".join(hyp)
-                words = words.replace("▁", " ").strip()
-                s += f"{filename}:\n{words}\n\n"
+            words = " ".join(hyp)
+            words = words.replace("▁", " ").strip()
+            s += f"{filename}:\n{words}\n\n"
     logging.info(s)
 
     logging.info("Decoding Done")
