@@ -126,7 +126,7 @@ def main():
 
     logging.info(f"Saved to {onnx_filename}")
     meta_data = {
-        "model_type": "tdnn_lstm",
+        "model_type": "tdnn",
         "version": "1",
         "model_author": "k2-fsa",
         "comment": "non-streaming tdnn for the yesno recipe",
