@@ -28,7 +28,7 @@ popd
 
 log "Test exporting to ONNX format"
 
-./pruned_transducer_stateless2/export.py \
+./pruned_transducer_stateless2/export-onnx.py \
   --exp-dir $repo/exp \
   --lang-dir $repo/data/lang_char \
   --epoch 99 \
@@ -57,19 +57,17 @@ log "Decode with ONNX models"
 
 ./pruned_transducer_stateless2/onnx_check.py \
   --jit-filename $repo/exp/cpu_jit.pt \
-  --onnx-encoder-filename $repo/exp/encoder.onnx \
-  --onnx-decoder-filename $repo/exp/decoder.onnx \
-  --onnx-joiner-filename $repo/exp/joiner.onnx \
-  --onnx-joiner-encoder-proj-filename $repo/exp/joiner_encoder_proj.onnx \
-  --onnx-joiner-decoder-proj-filename $repo/exp/joiner_decoder_proj.onnx
+  --onnx-encoder-filename $repo/exp/encoder-epoch-10-avg-2.onnx \
+  --onnx-decoder-filename $repo/exp/decoder-epoch-10-avg-2.onnx \
+  --onnx-joiner-filename $repo/exp/joiner-epoch-10-avg-2.onnx \
+  --onnx-joiner-encoder-proj-filename $repo/exp/joiner_encoder_proj-epoch-10-avg-2.onnx \
+  --onnx-joiner-decoder-proj-filename $repo/exp/joiner_decoder_proj-epoch-10-avg-2.onnx
 
 ./pruned_transducer_stateless2/onnx_pretrained.py \
   --tokens $repo/data/lang_char/tokens.txt \
-  --encoder-model-filename $repo/exp/encoder.onnx \
-  --decoder-model-filename $repo/exp/decoder.onnx \
-  --joiner-model-filename $repo/exp/joiner.onnx \
-  --joiner-encoder-proj-model-filename $repo/exp/joiner_encoder_proj.onnx \
-  --joiner-decoder-proj-model-filename $repo/exp/joiner_decoder_proj.onnx \
+  --encoder-model-filename $repo/exp/encoder-epoch-99-avg-1.onnx \
+  --decoder-model-filename $repo/exp/decoder-epoch-99-avg-1.onnx \
+  --joiner-model-filename $repo/exp/joiner-epoch-99-avg-1.onnx \
   $repo/test_wavs/DEV_T0000000000.wav \
   $repo/test_wavs/DEV_T0000000001.wav \
   $repo/test_wavs/DEV_T0000000002.wav
