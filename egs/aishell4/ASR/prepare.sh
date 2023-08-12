@@ -107,7 +107,7 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   log "Stage 5: Compute fbank for aishell4"
   if [ ! -f data/fbank/.aishell4.done ]; then
     mkdir -p data/fbank
-    ./local/compute_fbank_aishell4.py
+    ./local/compute_fbank_aishell4.py --perturb-speed True
     touch data/fbank/.aishell4.done
   fi
 fi

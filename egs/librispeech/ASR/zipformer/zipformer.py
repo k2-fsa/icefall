@@ -219,7 +219,7 @@ class Zipformer2(EncoderInterface):
 
         (num_frames0, batch_size, _encoder_dims0) = x.shape
 
-        assert self.encoder_dim[0] == _encoder_dims0
+        assert self.encoder_dim[0] == _encoder_dims0, (self.encoder_dim[0], _encoder_dims0)
 
         feature_mask_dropout_prob = 0.125
 
@@ -334,7 +334,7 @@ class Zipformer2(EncoderInterface):
         x = self._get_full_dim_output(outputs)
         x = self.downsample_output(x)
         # class Downsample has this rounding behavior..
-        assert self.output_downsampling_factor == 2
+        assert self.output_downsampling_factor == 2, self.output_downsampling_factor
         if torch.jit.is_scripting() or torch.jit.is_tracing():
             lengths = (x_lens + 1) // 2
         else:

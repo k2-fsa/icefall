@@ -56,7 +56,7 @@ It will generate the following 3 files inside $repo/exp:
 
 3. Run this file
 
-./pruned_transducer_stateless3/onnx_pretrained.py \
+./zipformer/onnx_pretrained.py \
   --encoder-model-filename $repo/exp/encoder-epoch-99-avg-1.onnx \
   --decoder-model-filename $repo/exp/decoder-epoch-99-avg-1.onnx \
   --joiner-model-filename $repo/exp/joiner-epoch-99-avg-1.onnx \
