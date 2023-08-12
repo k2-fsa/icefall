@@ -195,7 +195,7 @@ ln -s pretrained.pt epoch-9999.pt
 popd
 
 ./pruned_transducer_stateless7_streaming/export-for-ncnn-zh.py \
-  --lang-dir $repo/data/lang_char_bpe \
+  --tokens $repo/data/lang_char_bpe/tokens.txt \
   --exp-dir $repo/exp \
   --use-averaged-model 0 \
   --epoch 9999 \
