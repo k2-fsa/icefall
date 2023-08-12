@@ -155,7 +155,7 @@ log "Export via torch.jit.trace()"
 log "Test exporting to ONNX format"
 
 ./pruned_transducer_stateless7_streaming/export-onnx.py \
-  --bpe-model $repo/data/lang_bpe_500/bpe.model \
+  --tokens $repo/data/lang_bpe_500/tokens.txt \
   --use-averaged-model 0 \
   --epoch 99 \
   --avg 1 \
@@ -204,7 +204,7 @@ popd
 log "Export via torch.jit.script()"
 
 ./pruned_transducer_stateless3/export.py \
-  --bpe-model $repo/data/lang_bpe_500/bpe.model \
+  --tokens $repo/data/lang_bpe_500/tokens.txt \
   --epoch 9999 \
   --avg 1 \
   --exp-dir $repo/exp/ \
@@ -213,7 +213,7 @@ log "Export via torch.jit.script()"
 log "Test exporting to ONNX format"
 
 ./pruned_transducer_stateless3/export-onnx.py \
-  --bpe-model $repo/data/lang_bpe_500/bpe.model \
+  --tokens $repo/data/lang_bpe_500/tokens.txt \
   --epoch 9999 \
   --avg 1 \
   --exp-dir $repo/exp/
@@ -258,7 +258,7 @@ popd
 log "Export via torch.jit.script()"
 
 ./pruned_transducer_stateless5/export.py \
-  --bpe-model $repo/data/lang_bpe_500/bpe.model \
+  --tokens $repo/data/lang_bpe_500/tokens.txt \
   --epoch 99 \
   --avg 1 \
   --use-averaged-model 0 \
@@ -274,7 +274,7 @@ log "Export via torch.jit.script()"
 log "Test exporting to ONNX format"
 
 ./pruned_transducer_stateless5/export-onnx.py \
-  --bpe-model $repo/data/lang_bpe_500/bpe.model \
+  --tokens $repo/data/lang_bpe_500/tokens.txt \
   --epoch 99 \
   --avg 1 \
   --use-averaged-model 0 \
@@ -384,7 +384,7 @@ popd
 log "Test exporting to ONNX format"
 
 ./conv_emformer_transducer_stateless2/export-onnx.py \
-  --bpe-model $repo/data/lang_bpe_500/bpe.model \
+  --tokens $repo/data/lang_bpe_500/tokens.txt \
   --use-averaged-model 0 \
   --epoch 99 \
   --avg 1 \
@@ -424,7 +424,7 @@ popd
 log "Export via torch.jit.trace()"
 
 ./lstm_transducer_stateless2/export.py \
-  --bpe-model $repo/data/lang_bpe_500/bpe.model \
+  --tokens $repo/data/lang_bpe_500/tokens.txt \
   --use-averaged-model 0 \
   --epoch 99 \
   --avg 1 \
@@ -434,7 +434,7 @@ log "Export via torch.jit.trace()"
 log "Test exporting to ONNX format"
 
 ./lstm_transducer_stateless2/export-onnx.py \
-  --bpe-model $repo/data/lang_bpe_500/bpe.model \
+  --tokens $repo/data/lang_bpe_500/tokens.txt \
   --use-averaged-model 0 \
   --epoch 99 \
   --avg 1 \
