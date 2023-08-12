@@ -1135,10 +1135,10 @@ def run(rank, world_size, args):
     if params.inf_check:
         register_inf_check_hooks(model)
 
-    aishell = AiShell2AsrDataModule(args)
+    aishell2 = AiShell2AsrDataModule(args)
 
-    train_cuts = aishell.train_cuts()
-    valid_cuts = aishell.valid_cuts()
+    train_cuts = aishell2.train_cuts()
+    valid_cuts = aishell2.valid_cuts()
 
     def remove_short_and_long_utt(c: Cut):
         # Keep only utterances with duration between 1 second and 15 seconds
@@ -1186,11 +1186,11 @@ def run(rank, world_size, args):
     else:
         sampler_state_dict = None
 
-    train_dl = aishell.train_dataloaders(
+    train_dl = aishell2.train_dataloaders(
         train_cuts, sampler_state_dict=sampler_state_dict
     )
 
-    valid_dl = aishell.valid_dataloaders(valid_cuts)
+    valid_dl = aishell2.valid_dataloaders(valid_cuts)
 
     if False and not params.print_diagnostics:
         scan_pessimistic_batches_for_oom(

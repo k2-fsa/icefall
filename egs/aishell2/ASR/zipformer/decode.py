@@ -770,7 +770,7 @@ def main():
 
     # we need cut ids to display recognition results.
     args.return_cuts = True
-    aishell = AiShell2AsrDataModule(args)
+    aishell2 = AiShell2AsrDataModule(args)
 
     def remove_short_utt(c: Cut):
         T = ((c.num_frames - 7) // 2 + 1) // 2
@@ -780,13 +780,13 @@ def main():
             )
         return T > 0
 
-    dev_cuts = aishell.valid_cuts()
+    dev_cuts = aishell2.valid_cuts()
     dev_cuts = dev_cuts.filter(remove_short_utt)
-    dev_dl = aishell.valid_dataloaders(dev_cuts)
+    dev_dl = aishell2.valid_dataloaders(dev_cuts)
 
-    test_cuts = aishell.test_meeting_cuts()
+    test_cuts = aishell2.test_cuts()
     test_cuts = test_cuts.filter(remove_short_utt)
-    test_dl = aishell.test_dataloaders(test_cuts)
+    test_dl = aishell2.test_dataloaders(test_cuts)
 
     test_sets = ["dev", "test"]
     test_dls = [dev_dl, test_dl]

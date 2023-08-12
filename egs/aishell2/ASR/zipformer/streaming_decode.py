@@ -855,10 +855,10 @@ def main():
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
-    aishell = AiShell2AsrDataModule(args)
+    aishell2 = AiShell2AsrDataModule(args)
 
-    dev_cuts = aishell.valid_cuts()
-    test_cuts = aishell.test_cuts()
+    dev_cuts = aishell2.valid_cuts()
+    test_cuts = aishell2.test_cuts()
 
     test_sets = ["dev", "test"]
     test_cuts = [dev_cuts, test_cuts]
