@@ -48,7 +48,7 @@ As usual, we first test the model's performance without external LM. This can be
         --avg 1 \
         --use-averaged-model False \
         --exp-dir $exp_dir \
-        --bpe-model ./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/data/lang_bpe_500/bpe.model 
+        --bpe-model ./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/data/lang_bpe_500/bpe.model \
         --max-duration 600 \
         --decode-chunk-len 32 \
         --decoding-method modified_beam_search
@@ -101,7 +101,7 @@ is set to `False`.
         --max-duration 600 \
         --decode-chunk-len 32 \
         --decoding-method modified_beam_search_lm_rescore \
-        --bpe-model ./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/data/lang_bpe_500/bpe.model
+        --bpe-model ./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/data/lang_bpe_500/bpe.model \
         --use-shallow-fusion 0 \
         --lm-type rnn \
         --lm-exp-dir $lm_dir \
@@ -173,7 +173,7 @@ Then we can performn LM rescoring + LODR by changing the decoding method to `mod
         --max-duration 600 \
         --decode-chunk-len 32 \
         --decoding-method modified_beam_search_lm_rescore_LODR \
-        --bpe-model ./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/data/lang_bpe_500/bpe.model
+        --bpe-model ./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/data/lang_bpe_500/bpe.model \
         --use-shallow-fusion 0 \
         --lm-type rnn \
         --lm-exp-dir $lm_dir \

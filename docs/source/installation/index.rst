@@ -5,6 +5,11 @@ Installation
 
 .. hint::
 
+   We also provide :ref:`icefall_docker` support, which has already setup
+   the environment for you.
+
+.. hint::
+
   We have a colab notebook guiding you step by step to setup the environment.
 
   |yesno colab notebook|

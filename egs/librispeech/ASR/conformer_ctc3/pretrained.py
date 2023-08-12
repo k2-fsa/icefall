@@ -24,7 +24,7 @@ Usage (for non-streaming mode):
 (1) ctc-decoding
 ./conformer_ctc3/pretrained.py \
   --checkpoint conformer_ctc3/exp/pretrained.pt \
-  --bpe-model data/lang_bpe_500/bpe.model \
+  --tokens data/lang_bpe_500/tokens.txt \
   --method ctc-decoding \
   --sample-rate 16000 \
   test_wavs/1089-134686-0001.wav
@@ -67,7 +67,6 @@ from typing import List
 
 import k2
 import kaldifeat
-import sentencepiece as spm
 import torch
 import torchaudio
 from decode import get_decoding_params
@@ -114,11 +113,9 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--bpe-model",
+        "--tokens",
         type=str,
-        help="""Path to bpe.model.
-        Used only when method is ctc-decoding.
-        """,
+        help="Path to the tokens.txt.",
     )
 
     parser.add_argument(
@@ -127,10 +124,9 @@ def get_parser():
         default="1best",
         help="""Decoding method.
         Possible values are:
-        (0) ctc-decoding - Use CTC decoding. It uses a sentence
-            piece model, i.e., lang_dir/bpe.model, to convert
-            word pieces to words. It needs neither a lexicon
-            nor an n-gram LM.
+        (0) ctc-decoding - Use CTC decoding. It uses a tokens.txt file 
+            to convert tokens to actual words or characters. It needs 
+            neither a lexicon nor an n-gram LM.
         (1) 1best - Use the best path as decoding output. Only
             the transformer encoder output is used for decoding.
             We call it HLG decoding.
@@ -316,6 +312,7 @@ def main():
     waves = [w.to(device) for w in waves]
 
     logging.info("Decoding started")
+    hyps = []
     features = fbank(waves)
     feature_lengths = [f.size(0) for f in features]
 
@@ -348,9 +345,16 @@ def main():
 
     if params.method == "ctc-decoding":
         logging.info("Use CTC decoding")
-        bpe_model = spm.SentencePieceProcessor()
-        bpe_model.load(params.bpe_model)
         max_token_id = params.num_classes - 1
+
+        # Load tokens.txt here
+        token_table = k2.SymbolTable.from_file(params.tokens)
+
+        def token_ids_to_words(token_ids: List[int]) -> str:
+            text = ""
+            for i in token_ids:
+                text += token_table[i]
+            return text.replace("▁", " ").strip()
 
         H = k2.ctc_topo(
             max_token=max_token_id,
@@ -372,9 +376,9 @@ def main():
         best_path = one_best_decoding(
             lattice=lattice, use_double_scores=params.use_double_scores
         )
-        token_ids = get_texts(best_path)
-        hyps = bpe_model.decode(token_ids)
-        hyps = [s.split() for s in hyps]
+        hyp_tokens = get_texts(best_path)
+        for hyp in hyp_tokens:
+            hyps.append(token_ids_to_words(hyp))
     elif params.method in [
         "1best",
         "nbest-rescoring",
@@ -439,16 +443,16 @@ def main():
             )
             best_path = next(iter(best_path_dict.values()))
 
-        hyps = get_texts(best_path)
         word_sym_table = k2.SymbolTable.from_file(params.words_file)
-        hyps = [[word_sym_table[i] for i in ids] for ids in hyps]
+        hyp_tokens = get_texts(best_path)
+        for hyp in hyp_tokens:
+            hyps.append(" ".join([word_sym_table[i] for i in hyp]))
     else:
         raise ValueError(f"Unsupported decoding method: {params.method}")
 
     s = "\n"
     for filename, hyp in zip(params.sound_files, hyps):
-        words = " ".join(hyp)
-        s += f"{filename}:\n{words}\n\n"
+        s += f"{filename}:\n{hyp}\n\n"
     logging.info(s)
 
     logging.info("Decoding Done")

@@ -27,7 +27,7 @@ log "Beam search decoding"
   --method beam_search \
   --beam-size 4 \
   --checkpoint $repo/exp/pretrained.pt \
-  --bpe-model $repo/data/lang_bpe_500/bpe.model \
+  --tokens $repo/data/lang_bpe_500/tokens.txt \
   $repo/test_wavs/1089-134686-0001.wav \
   $repo/test_wavs/1221-135766-0001.wav \
   $repo/test_wavs/1221-135766-0002.wav

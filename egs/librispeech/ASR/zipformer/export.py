@@ -160,7 +160,6 @@ with the following commands:
 
 import argparse
 import logging
-import re
 from pathlib import Path
 from typing import List, Tuple
 
@@ -176,27 +175,7 @@ from icefall.checkpoint import (
     find_checkpoints,
     load_checkpoint,
 )
-from icefall.utils import make_pad_mask, str2bool
-
-
-def num_tokens(
-    token_table: k2.SymbolTable, disambig_pattern: str = re.compile(r"^#\d+$")
-) -> int:
-    """Return the number of tokens excluding those from
-    disambiguation symbols.
-
-    Caution:
-      0 is not a token ID so it is excluded from the return value.
-    """
-    symbols = token_table.symbols
-    ans = []
-    for s in symbols:
-        if not disambig_pattern.match(s):
-            ans.append(token_table[s])
-    num_tokens = len(ans)
-    if 0 in ans:
-        num_tokens -= 1
-    return num_tokens
+from icefall.utils import make_pad_mask, num_tokens, str2bool
 
 
 def get_parser():
@@ -487,6 +466,8 @@ def main():
                     device=device,
                 )
             )
+        elif params.avg == 1:
+            load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
         else:
             assert params.avg > 0, params.avg
             start = params.epoch - params.avg
