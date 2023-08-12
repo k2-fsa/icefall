@@ -25,7 +25,7 @@ Usage:
 
 ./conformer_ctc3/export.py \
   --exp-dir ./conformer_ctc3/exp \
-  --lang-dir data/lang_bpe_500 \
+  --tokens data/lang_bpe_500/tokens.txt \
   --epoch 20 \
   --avg 10 \
   --jit-trace 1
@@ -36,7 +36,7 @@ It will generates the file: `jit_trace.pt`.
 
 ./conformer_ctc3/export.py \
   --exp-dir ./conformer_ctc3/exp \
-  --lang-dir data/lang_bpe_500 \
+  --tokens data/lang_bpe_500/tokens.txt \
   --epoch 20 \
   --avg 10
 
@@ -62,6 +62,7 @@ import argparse
 import logging
 from pathlib import Path
 
+import k2
 import torch
 from scaling_converter import convert_scaled_to_non_scaled
 from train import add_model_arguments, get_ctc_model, get_params
@@ -72,8 +73,7 @@ from icefall.checkpoint import (
     find_checkpoints,
     load_checkpoint,
 )
-from icefall.lexicon import Lexicon
-from icefall.utils import str2bool
+from icefall.utils import num_tokens, str2bool
 
 
 def get_parser():
@@ -130,10 +130,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--lang-dir",
-        type=Path,
-        default="data/lang_bpe_500",
-        help="The lang dir containing word table and LG graph",
+        "--tokens",
+        type=str,
+        required=True,
+        help="Path to the tokens.txt.",
     )
 
     parser.add_argument(
@@ -171,9 +171,10 @@ def main():
 
     logging.info(f"device: {device}")
 
-    lexicon = Lexicon(params.lang_dir)
-    max_token_id = max(lexicon.tokens)
-    num_classes = max_token_id + 1  # +1 for the blank
+    # Load tokens.txt here
+    token_table = k2.SymbolTable.from_file(params.tokens)
+
+    num_classes = num_tokens(token_table) + 1  # +1 for the blank
     params.vocab_size = num_classes
 
     if params.streaming_model:
