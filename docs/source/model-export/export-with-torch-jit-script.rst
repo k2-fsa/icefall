@@ -32,7 +32,7 @@ as an example in the following.
 
     ./pruned_transducer_stateless3/export.py \
       --exp-dir ./pruned_transducer_stateless3/exp \
-      --bpe-model data/lang_bpe_500/bpe.model \
+      --tokens data/lang_bpe_500/tokens.txt \
       --epoch $epoch \
       --avg $avg \
       --jit 1
