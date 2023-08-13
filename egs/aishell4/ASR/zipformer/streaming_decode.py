@@ -866,14 +866,10 @@ def main():
         c.supervisions[0].text = text_normalize(text)
         return c
 
-    dev_cuts = aishell4.valid_cuts()
     test_cuts = aishell4.test_cuts()
-
-    dev_cuts = dev_cuts.map(text_normalize_for_cut)
     test_cuts = test_cuts.map(text_normalize_for_cut)
-
-    test_sets = ["dev", "test"]
-    test_cuts = [dev_cuts, test_cuts]
+    test_sets = ["test"]
+    test_cuts = [test_cuts]
 
     for test_set, test_cut in zip(test_sets, test_cuts):
         results_dict = decode_dataset(
