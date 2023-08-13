@@ -2,6 +2,47 @@
 
 ### Aishell training result(Stateless Transducer)
 
+#### Zipformer
+
+[./zipformer](./zipformer)
+
+It's reworked Zipformer with Pruned RNNT loss, note that results below are produced by model trained on data without speed perturbation applied.
+
+**⚠️ If you prefer to have the speed perturbation disabled, please manually set `--perturb-speed` to `False` for `./local/compute_fbank_aishell.py` in the `prepare.sh` script.**
+
+|                        | test | dev  | comment                               |
+|------------------------|------|------|---------------------------------------|
+| greedy search          | 8.1  | 7.66 | --epoch 45 --avg 6 --max-duration 200 |
+| modified beam search   | 7.27 | 6.95 | --epoch 45 --avg 6 --max-duration 200 |
+| fast beam search       | 8.08 | 7.58 | --epoch 45 --avg 6 --max-duration 200 |
+
+Command for training is:
+```bash
+./prepare.sh
+
+export CUDA_VISIBLE_DEVICES="0,1"
+
+./zipformer/train.py \
+  --world-size 2 \
+  --num-epochs 45 \
+  --start-epoch 1 \
+  --use-fp16 1 \
+  --exp-dir zipformer/exp \
+  --max-duration 1000
+```
+
+Command for decoding is:
+```bash
+for m in greedy_search modified_beam_search fast_beam_search ; do
+  ./zipformer/decode.py \
+    --epoch 45 \
+    --avg 6 \
+    --exp-dir ./zipformer/exp \
+    --lang-dir data/lang_char \
+    --decoding-method $m
+done
+```
+
 #### Pruned transducer stateless 7
 
 [./pruned_transducer_stateless7](./pruned_transducer_stateless7)
