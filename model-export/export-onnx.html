@@ -163,7 +163,7 @@ ln<span class="w"> </span>-s<span class="w"> </span>pretrained.pt<span class="w"
 <section id="export-the-model-to-onnx">
 <h2>Export the model to ONNX<a class="headerlink" href="#export-the-model-to-onnx" title="Permalink to this heading"></a></h2>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./pruned_transducer_stateless7_streaming/export-onnx.py<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--bpe-model<span class="w"> </span><span class="nv">$repo</span>/data/lang_bpe_500/bpe.model<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--tokens<span class="w"> </span><span class="nv">$repo</span>/data/lang_bpe_500/tokens.txt<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--use-averaged-model<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--epoch<span class="w"> </span><span class="m">99</span><span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--avg<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>

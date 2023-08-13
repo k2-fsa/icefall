@@ -163,12 +163,11 @@ git<span class="w"> </span>lfs<span class="w"> </span>pull<span class="w"> </spa
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">dir</span><span class="o">=</span>./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29
 
 ./pruned_transducer_stateless7_streaming/export-for-ncnn.py<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--bpe-model<span class="w"> </span><span class="nv">$dir</span>/data/lang_bpe_500/bpe.model<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--tokens<span class="w"> </span><span class="nv">$dir</span>/data/lang_bpe_500/tokens.txt<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--exp-dir<span class="w"> </span><span class="nv">$dir</span>/exp<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--use-averaged-model<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--epoch<span class="w"> </span><span class="m">99</span><span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--avg<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
-<span class="w">  </span><span class="se">\</span>
 <span class="w">  </span>--decode-chunk-len<span class="w"> </span><span class="m">32</span><span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--num-left-chunks<span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--num-encoder-layers<span class="w"> </span><span class="s2">&quot;2,4,3,2,4&quot;</span><span class="w"> </span><span class="se">\</span>
