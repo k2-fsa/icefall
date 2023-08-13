@@ -7,7 +7,7 @@ set -eou pipefail
 
 nj=30
 stage=0
-stop_stage=5
+stop_stage=7
 
 # We assume dl_dir (download dir) contains the following
 # directories and files. If not, you need to apply aishell2 through
