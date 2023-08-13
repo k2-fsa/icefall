@@ -784,7 +784,7 @@ def main():
     dev_cuts = dev_cuts.filter(remove_short_utt)
     dev_dl = aishell.valid_dataloaders(dev_cuts)
 
-    test_cuts = aishell.test_meeting_cuts()
+    test_cuts = aishell.test_cuts()
     test_cuts = test_cuts.filter(remove_short_utt)
     test_dl = aishell.test_dataloaders(test_cuts)
 
