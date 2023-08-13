@@ -1,6 +1,6 @@
 ## Results
 
-### Aishell training result(Stateless Transducer)
+### Aishell training result (Stateless Transducer)
 
 #### Zipformer
 
