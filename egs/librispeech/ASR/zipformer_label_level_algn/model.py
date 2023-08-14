@@ -84,7 +84,7 @@ class AsrModel(nn.Module):
 
         self.encoder_embed = encoder_embed
         self.encoder = encoder
-        self.dropout = nn.Dropout(p=0.1)
+        self.dropout = nn.Dropout(p=0.5)
 
         self.use_transducer = use_transducer
         if use_transducer:

@@ -108,7 +108,7 @@ import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
 from beam_search import (
     beam_search,
-    deprecated_greedy_search_batch,
+    # deprecated_greedy_search_batch,
     fast_beam_search_nbest,
     fast_beam_search_nbest_LG,
     fast_beam_search_nbest_oracle,
@@ -426,14 +426,10 @@ def decode_one_batch(
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
     elif params.decoding_method == "greedy_search" and params.max_sym_per_frame == 1:
-        # hyp_tokens = greedy_search_batch(
-        #     model=model,
-        #     encoder_out=encoder_out,
-        #     encoder_out_lens=encoder_out_lens,
-        # )
-        hyp_tokens = deprecated_greedy_search_batch(
+        hyp_tokens = greedy_search_batch(
             model=model,
             encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
         )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
