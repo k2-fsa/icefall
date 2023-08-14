@@ -1,8 +1,49 @@
 ## Results
 
-### Aishell2 char-based training results (Pruned Transducer 5)
+### Aishell2 char-based training results 
 
-#### 2022-07-11
+#### Zipformer
+
+[./zipformer](./zipformer)
+
+It's reworked Zipformer with Pruned RNNT loss, note that results below are produced by model trained on data without speed perturbation applied.
+
+**⚠️ If you prefer to have the speed perturbation disabled, please manually set `--perturb-speed` to `False` for `./local/compute_fbank_aishell.py` in the `prepare.sh` script.**
+
+|                                       |  dev-ios  | test-ios | comment                      |
+|---------------------------------------|---------|----------|----------------------------------|
+|          greedy search                |  5.58   |  5.94    | --epoch 25, --avg 5, --max-duration 200 |
+| modified beam search (set as default) |  5.45   |  5.86    | --epoch 25, --avg 5, --max-duration 200 |
+| fast beam search (set as default)     |  5.52   |  5.91    | --epoch 25, --avg 5, --max-duration 200 |
+| fast beam search oracle               |  1.65   |  1.71    | --epoch 25, --avg 5, --max-duration 200 |
+| fast beam search nbest LG             |  6.14   |  6.72    | --epoch 25, --avg 5, --max-duration 200 |
+
+The training command for reproducing is given below:
+
+```bash
+export CUDA_VISIBLE_DEVICES="0,1"
+
+./zipformer/train.py \
+  --world-size 2 \
+  --lang-dir data/lang_char \
+  --num-epochs 25 \
+  --start-epoch 1 \
+  --max-duration 1000 \
+  --use-fp16 1
+```
+
+The decoding command is:
+```bash
+for method in greedy_search modified_beam_search fast_beam_search fast_beam_search_nbest_oracle fast_beam_search_LG; do
+  ./pruned_transducer_stateless5/decode.py \
+    --epoch 25 \
+    --avg 5 \
+    --exp-dir ./zipformer/exp \
+    --decoding-method $method \
+done
+```
+
+#### Pruned transducer stateless 5
 
 Using the codes from this commit https://github.com/k2-fsa/icefall/pull/465.
 
@@ -41,9 +82,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
 The decoding command is:
 ```bash
-for method in greedy_search modified_beam_search \
-              fast_beam_search fast_beam_search_nbest \
-              fast_beam_search_nbest_oracle fast_beam_search_nbest_LG; do
+for method in greedy_search modified_beam_search fast_beam_search fast_beam_search_nbest  fast_beam_search_nbest_oracle fast_beam_search_nbest_LG; do
   ./pruned_transducer_stateless5/decode.py \
     --epoch 25 \
     --avg 5 \
