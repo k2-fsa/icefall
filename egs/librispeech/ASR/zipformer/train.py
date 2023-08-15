@@ -538,6 +538,7 @@ def get_params() -> AttributeDict:
             "reset_interval": 200,
             "valid_interval": 3000,  # For the 100h subset, use 800
             # parameters for zipformer
+            "ctc_beam_size": 10,
             "feature_dim": 80,
             "subsampling_factor": 4,  # not passed in, this is fixed.
             "warm_step": 2000,
@@ -783,6 +784,7 @@ def compute_loss(
     sp: spm.SentencePieceProcessor,
     batch: dict,
     is_training: bool,
+    warmup: float,
 ) -> Tuple[Tensor, MetricsTracker]:
     """
     Compute loss given the model and its inputs.
@@ -823,9 +825,12 @@ def compute_loss(
             x=feature,
             x_lens=feature_lens,
             y=y,
+            supervisions=supervisions,
             prune_range=params.prune_range,
             am_scale=params.am_scale,
             lm_scale=params.lm_scale,
+            ctc_beam_size=params.ctc_beam_size,
+            warmup=warmup,
         )
 
         loss = 0.0
@@ -886,6 +891,7 @@ def compute_validation_loss(
             sp=sp,
             batch=batch,
             is_training=False,
+            warmup=(params.batch_idx_train / params.warm_step),
         )
         assert loss.requires_grad is False
         tot_loss = tot_loss + loss_info
@@ -980,6 +986,7 @@ def train_one_epoch(
                     sp=sp,
                     batch=batch,
                     is_training=True,
+                    warmup=(params.batch_idx_train / params.warm_step),
                 )
             # summary stats
             tot_loss = (tot_loss * (1 - 1 / params.reset_interval)) + loss_info

@@ -181,7 +181,6 @@ class AsrModel(nn.Module):
               reduction:
                 Specifies the reduction to apply to the output
             """
-            # TODO: Add delay penalty to CTC Loss
             # Compute CTC log-prob
             ctc_output = self.ctc_output(encoder_out)  # (N, T, C)
             encoder_out_fr = encoder_out
@@ -211,7 +210,7 @@ class AsrModel(nn.Module):
                     token_ids=targets,
                 )
 
-            # TODO: Find out why we need to do that but not in icefall
+            # TODO: Crash without this line
             supervision_segments = supervision_segments.to("cpu")
             decoding_graph = k2.ctc_graph(
                 token_ids, modified=False, device=encoder_out.device

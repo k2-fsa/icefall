@@ -27,6 +27,8 @@ import torch.nn.functional as F
 
 from icefall.utils import make_pad_mask
 
+NON_BLANK_THRES = 0.9
+
 
 class FrameReducer(nn.Module):
     """The encoder output is first used to calculate
@@ -72,7 +74,9 @@ class FrameReducer(nn.Module):
         N, T, C = x.size()
 
         padding_mask = make_pad_mask(x_lens)
-        non_blank_mask = (ctc_output[:, :, blank_id] < math.log(0.9)) * (~padding_mask)
+        non_blank_mask = (ctc_output[:, :, blank_id] < math.log(NON_BLANK_THRES)) * (
+            ~padding_mask
+        )
 
         if y_lens is not None or self.training is False:
             # Limit the maximum number of reduced frames
