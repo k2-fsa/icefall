@@ -16,15 +16,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional, Tuple
+import warnings
+from typing import List, Optional, Tuple
 
 import k2
 import torch
 import torch.nn as nn
 from encoder_interface import EncoderInterface
-
-from icefall.utils import add_sos, make_pad_mask
 from scaling import ScaledLinear
+
+from icefall.utils import add_sos, encode_supervisions, make_pad_mask
 
 
 class AsrModel(nn.Module):
@@ -34,11 +35,14 @@ class AsrModel(nn.Module):
         encoder: EncoderInterface,
         decoder: Optional[nn.Module] = None,
         joiner: Optional[nn.Module] = None,
+        lconv: Optional[nn.Module] = None,
+        frame_reducer: Optional[nn.Module] = None,
         encoder_dim: int = 384,
         decoder_dim: int = 512,
         vocab_size: int = 500,
         use_transducer: bool = True,
         use_ctc: bool = False,
+        use_bs: bool = True,
     ):
         """A joint CTC & Transducer ASR model.
 
@@ -77,6 +81,10 @@ class AsrModel(nn.Module):
             use_transducer or use_ctc
         ), f"At least one of them should be True, but got use_transducer={use_transducer}, use_ctc={use_ctc}"
 
+        assert (
+            (use_ctc and use_bs) or (use_ctc and not use_bs) or not (use_ctc and use_bs)
+        ), "Blank Skip needs CTC"
+
         assert isinstance(encoder, EncoderInterface), type(encoder)
 
         self.encoder_embed = encoder_embed
@@ -111,6 +119,11 @@ class AsrModel(nn.Module):
                 nn.LogSoftmax(dim=-1),
             )
 
+        self.use_bs = use_bs
+        if self.use_bs:
+            self.lconv = lconv
+            self.frame_reducer = frame_reducer
+
     def forward_encoder(
         self, x: torch.Tensor, x_lens: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -142,217 +155,279 @@ class AsrModel(nn.Module):
 
         return encoder_out, encoder_out_lens
 
-    def forward_ctc(
-        self,
-        encoder_out: torch.Tensor,
-        encoder_out_lens: torch.Tensor,
-        targets: torch.Tensor,
-        target_lengths: torch.Tensor,
-    ) -> torch.Tensor:
-        """Compute CTC loss.
-        Args:
-          encoder_out:
-            Encoder output, of shape (N, T, C).
-          encoder_out_lens:
-            Encoder output lengths, of shape (N,).
-          targets:
-            Target Tensor of shape (sum(target_lengths)). The targets are assumed
-            to be un-padded and concatenated within 1 dimension.
-        """
-        # Compute CTC log-prob
-        ctc_output = self.ctc_output(encoder_out)  # (N, T, C)
+        def forward_ctc(
+            self,
+            encoder_out: torch.Tensor,
+            encoder_out_lens: torch.Tensor,
+            targets: List[int],
+            target_lengths: torch.Tensor,
+            supervisions: dict,
+            subsampling_factor: int,
+            ctc_beam_size: int,
+            reduction: str = "sum",
+            warmup: float = 1.0,
+        ) -> torch.Tensor:
+            """Compute CTC loss.
+            Args:
+              encoder_out:
+                Encoder output, of shape (N, T, C).
+              encoder_out_lens:
+                Encoder output lengths, of shape (N,).
+              targets:
+                Target Tensor of shape (sum(target_lengths)). The targets are assumed
+                to be un-padded and concatenated within 1 dimension.
+              supervisions:
+                Dict into a pair of torch Tensor, and a list of transcription strings or token indexes
+              reduction:
+                Specifies the reduction to apply to the output
+            """
+            # TODO: Add delay penalty to CTC Loss
+            # Compute CTC log-prob
+            ctc_output = self.ctc_output(encoder_out)  # (N, T, C)
+            encoder_out_fr = encoder_out
+            encoder_out_lens_fr = encoder_out_lens
 
-        ctc_loss = torch.nn.functional.ctc_loss(
-            log_probs=ctc_output.permute(1, 0, 2),  # (T, N, C)
-            targets=targets,
-            input_lengths=encoder_out_lens,
-            target_lengths=target_lengths,
-            reduction="sum",
-        )
-        return ctc_loss
+            if self.use_bs and warmup >= 2.0:
+                # lconv
+                encoder_out = self.lconv(
+                    x=encoder_out,
+                    src_key_padding_mask=make_pad_mask(encoder_out_lens),
+                )
 
-    def forward_transducer(
-        self,
-        encoder_out: torch.Tensor,
-        encoder_out_lens: torch.Tensor,
-        y: k2.RaggedTensor,
-        y_lens: torch.Tensor,
-        prune_range: int = 5,
-        am_scale: float = 0.0,
-        lm_scale: float = 0.0,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Compute Transducer loss.
-        Args:
-          encoder_out:
-            Encoder output, of shape (N, T, C).
-          encoder_out_lens:
-            Encoder output lengths, of shape (N,).
-          y:
-            A ragged tensor with 2 axes [utt][label]. It contains labels of each
-            utterance.
-          prune_range:
-            The prune range for rnnt loss, it means how many symbols(context)
-            we are considering for each frame to compute the loss.
-          am_scale:
-            The scale to smooth the loss with am (output of encoder network)
-            part
-          lm_scale:
-            The scale to smooth the loss with lm (output of predictor network)
-            part
-        """
-        # Now for the decoder, i.e., the prediction network
-        blank_id = self.decoder.blank_id
-        sos_y = add_sos(y, sos_id=blank_id)
+                # frame reduce
+                encoder_out_fr, encoder_out_lens_fr = self.frame_reducer(
+                    encoder_out,
+                    encoder_out_lens,
+                    ctc_output,
+                    target_lengths,
+                    self.decoder.blank_id,
+                )
 
-        # sos_y_padded: [B, S + 1], start with SOS.
-        sos_y_padded = sos_y.pad(mode="constant", padding_value=blank_id)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                supervision_segments, token_ids = encode_supervisions(
+                    supervisions,
+                    subsampling_factor=subsampling_factor,
+                    token_ids=targets,
+                )
 
-        # decoder_out: [B, S + 1, decoder_dim]
-        decoder_out = self.decoder(sos_y_padded)
-
-        # Note: y does not start with SOS
-        # y_padded : [B, S]
-        y_padded = y.pad(mode="constant", padding_value=0)
-
-        y_padded = y_padded.to(torch.int64)
-        boundary = torch.zeros(
-            (encoder_out.size(0), 4),
-            dtype=torch.int64,
-            device=encoder_out.device,
-        )
-        boundary[:, 2] = y_lens
-        boundary[:, 3] = encoder_out_lens
-
-        lm = self.simple_lm_proj(decoder_out)
-        am = self.simple_am_proj(encoder_out)
-
-        # if self.training and random.random() < 0.25:
-        #    lm = penalize_abs_values_gt(lm, 100.0, 1.0e-04)
-        # if self.training and random.random() < 0.25:
-        #    am = penalize_abs_values_gt(am, 30.0, 1.0e-04)
-
-        with torch.cuda.amp.autocast(enabled=False):
-            simple_loss, (px_grad, py_grad) = k2.rnnt_loss_smoothed(
-                lm=lm.float(),
-                am=am.float(),
-                symbols=y_padded,
-                termination_symbol=blank_id,
-                lm_only_scale=lm_scale,
-                am_only_scale=am_scale,
-                boundary=boundary,
-                reduction="sum",
-                return_grad=True,
+            # TODO: Find out why we need to do that but not in icefall
+            supervision_segments = supervision_segments.to("cpu")
+            decoding_graph = k2.ctc_graph(
+                token_ids, modified=False, device=encoder_out.device
+            )
+            dense_fsa_vec = k2.DenseFsaVec(
+                ctc_output,
+                supervision_segments,
+                allow_truncate=subsampling_factor - 1,
             )
 
-        # ranges : [B, T, prune_range]
-        ranges = k2.get_rnnt_prune_ranges(
-            px_grad=px_grad,
-            py_grad=py_grad,
-            boundary=boundary,
-            s_range=prune_range,
-        )
+            ctc_loss = k2.ctc_loss(
+                decoding_graph=decoding_graph,
+                dense_fsa_vec=dense_fsa_vec,
+                output_beam=ctc_beam_size,
+                reduction=reduction,
+                use_double_scores=True,
+            )
 
-        # am_pruned : [B, T, prune_range, encoder_dim]
-        # lm_pruned : [B, T, prune_range, decoder_dim]
-        am_pruned, lm_pruned = k2.do_rnnt_pruning(
-            am=self.joiner.encoder_proj(encoder_out),
-            lm=self.joiner.decoder_proj(decoder_out),
-            ranges=ranges,
-        )
+            return ctc_loss, encoder_out_fr, encoder_out_lens_fr
 
-        # logits : [B, T, prune_range, vocab_size]
+        def forward_transducer(
+            self,
+            encoder_out: torch.Tensor,
+            encoder_out_lens: torch.Tensor,
+            y: k2.RaggedTensor,
+            y_lens: torch.Tensor,
+            prune_range: int = 5,
+            am_scale: float = 0.0,
+            lm_scale: float = 0.0,
+            delay_penalty: float = 0.0,
+            reduction: str = "sum",
+        ) -> Tuple[torch.Tensor, torch.Tensor]:
+            """Compute Transducer loss.
+            Args:
+              encoder_out:
+                Encoder output, of shape (N, T, C).
+              encoder_out_lens:
+                Encoder output lengths, of shape (N,).
+              y:
+                A ragged tensor with 2 axes [utt][label]. It contains labels of each
+                utterance.
+              prune_range:
+                The prune range for rnnt loss, it means how many symbols(context)
+                we are considering for each frame to compute the loss.
+              am_scale:
+                The scale to smooth the loss with am (output of encoder network)
+                part
+              lm_scale:
+                The scale to smooth the loss with lm (output of predictor network)
+                part
+              reduction:
+                Specifies the reduction to apply to the output
+            """
+            # Now for the decoder, i.e., the prediction network
+            blank_id = self.decoder.blank_id
+            sos_y = add_sos(y, sos_id=blank_id)
 
-        # project_input=False since we applied the decoder's input projections
-        # prior to do_rnnt_pruning (this is an optimization for speed).
-        logits = self.joiner(am_pruned, lm_pruned, project_input=False)
+            # sos_y_padded: [B, S + 1], start with SOS.
+            sos_y_padded = sos_y.pad(mode="constant", padding_value=blank_id)
 
-        with torch.cuda.amp.autocast(enabled=False):
-            pruned_loss = k2.rnnt_loss_pruned(
-                logits=logits.float(),
-                symbols=y_padded,
+            # decoder_out: [B, S + 1, decoder_dim]
+            decoder_out = self.decoder(sos_y_padded)
+
+            # Note: y does not start with SOS
+            # y_padded : [B, S]
+            y_padded = y.pad(mode="constant", padding_value=0)
+
+            y_padded = y_padded.to(torch.int64)
+            boundary = torch.zeros(
+                (encoder_out.size(0), 4),
+                dtype=torch.int64,
+                device=encoder_out.device,
+            )
+            boundary[:, 2] = y_lens
+            boundary[:, 3] = encoder_out_lens
+
+            lm = self.simple_lm_proj(decoder_out)
+            am = self.simple_am_proj(encoder_out)
+
+            with torch.cuda.amp.autocast(enabled=False):
+                simple_loss, (px_grad, py_grad) = k2.rnnt_loss_smoothed(
+                    lm=lm.float(),
+                    am=am.float(),
+                    symbols=y_padded,
+                    termination_symbol=blank_id,
+                    lm_only_scale=lm_scale,
+                    am_only_scale=am_scale,
+                    boundary=boundary,
+                    delay_penalty=delay_penalty,
+                    reduction=reduction,
+                    return_grad=True,
+                )
+
+            # ranges : [B, T, prune_range]
+            ranges = k2.get_rnnt_prune_ranges(
+                px_grad=px_grad,
+                py_grad=py_grad,
+                boundary=boundary,
+                s_range=prune_range,
+            )
+
+            # am_pruned : [B, T, prune_range, encoder_dim]
+            # lm_pruned : [B, T, prune_range, decoder_dim]
+            am_pruned, lm_pruned = k2.do_rnnt_pruning(
+                am=self.joiner.encoder_proj(encoder_out),
+                lm=self.joiner.decoder_proj(decoder_out),
                 ranges=ranges,
-                termination_symbol=blank_id,
-                boundary=boundary,
-                reduction="sum",
             )
 
-        return simple_loss, pruned_loss
+            # logits : [B, T, prune_range, vocab_size]
 
-    def forward(
-        self,
-        x: torch.Tensor,
-        x_lens: torch.Tensor,
-        y: k2.RaggedTensor,
-        prune_range: int = 5,
-        am_scale: float = 0.0,
-        lm_scale: float = 0.0,
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        """
-        Args:
-          x:
-            A 3-D tensor of shape (N, T, C).
-          x_lens:
-            A 1-D tensor of shape (N,). It contains the number of frames in `x`
-            before padding.
-          y:
-            A ragged tensor with 2 axes [utt][label]. It contains labels of each
-            utterance.
-          prune_range:
-            The prune range for rnnt loss, it means how many symbols(context)
-            we are considering for each frame to compute the loss.
-          am_scale:
-            The scale to smooth the loss with am (output of encoder network)
-            part
-          lm_scale:
-            The scale to smooth the loss with lm (output of predictor network)
-            part
-        Returns:
-          Return the transducer losses and CTC loss,
-          in form of (simple_loss, pruned_loss, ctc_loss)
+            # project_input=False since we applied the decoder's input projections
+            # prior to do_rnnt_pruning (this is an optimization for speed).
+            logits = self.joiner(am_pruned, lm_pruned, project_input=False)
 
-        Note:
-           Regarding am_scale & lm_scale, it will make the loss-function one of
-           the form:
-              lm_scale * lm_probs + am_scale * am_probs +
-              (1-lm_scale-am_scale) * combined_probs
-        """
-        assert x.ndim == 3, x.shape
-        assert x_lens.ndim == 1, x_lens.shape
-        assert y.num_axes == 2, y.num_axes
+            with torch.cuda.amp.autocast(enabled=False):
+                pruned_loss = k2.rnnt_loss_pruned(
+                    logits=logits.float(),
+                    symbols=y_padded,
+                    ranges=ranges,
+                    termination_symbol=blank_id,
+                    boundary=boundary,
+                    delay_penalty=delay_penalty,
+                    reduction=reduction,
+                )
 
-        assert x.size(0) == x_lens.size(0) == y.dim0, (x.shape, x_lens.shape, y.dim0)
+            return simple_loss, pruned_loss
 
-        # Compute encoder outputs
-        encoder_out, encoder_out_lens = self.forward_encoder(x, x_lens)
+        def forward(
+            self,
+            x: torch.Tensor,
+            x_lens: torch.Tensor,
+            y: k2.RaggedTensor,
+            supervisions: dict,
+            prune_range: int = 5,
+            am_scale: float = 0.0,
+            lm_scale: float = 0.0,
+            subsampling_factor: int = 4,
+            ctc_beam_size: int = 10,
+            delay_penalty: float = 0.0,
+            reduction: str = "sum",
+            warmup: float = 1.0,
+        ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+            """
+            Args:
+              x:
+                A 3-D tensor of shape (N, T, C).
+              x_lens:
+                A 1-D tensor of shape (N,). It contains the number of frames in `x`
+                before padding.
+              y:
+                A ragged tensor with 2 axes [utt][label]. It contains labels of each
+                utterance.
+              prune_range:
+                The prune range for rnnt loss, it means how many symbols(context)
+                we are considering for each frame to compute the loss.
+              am_scale:
+                The scale to smooth the loss with am (output of encoder network)
+                part
+              lm_scale:
+                The scale to smooth the loss with lm (output of predictor network)
+                part
+              reduction:
+                Specifies the reduction to apply to the output
+            Returns:
+              Return the transducer losses and CTC loss,
+              in form of (simple_loss, pruned_loss, ctc_loss)
+            Note:
+               Regarding am_scale & lm_scale, it will make the loss-function one of
+               the form:
+                  lm_scale * lm_probs + am_scale * am_probs +
+                  (1-lm_scale-am_scale) * combined_probs
+            """
+            assert x.ndim == 3, x.shape
+            assert x_lens.ndim == 1, x_lens.shape
+            assert y.num_axes == 2, y.num_axes
 
-        row_splits = y.shape.row_splits(1)
-        y_lens = row_splits[1:] - row_splits[:-1]
+            assert x.size(0) == x_lens.size(0) == y.dim0
 
-        if self.use_transducer:
-            # Compute transducer loss
-            simple_loss, pruned_loss = self.forward_transducer(
-                encoder_out=encoder_out,
-                encoder_out_lens=encoder_out_lens,
-                y=y.to(x.device),
-                y_lens=y_lens,
-                prune_range=prune_range,
-                am_scale=am_scale,
-                lm_scale=lm_scale,
-            )
-        else:
-            simple_loss = torch.empty(0)
-            pruned_loss = torch.empty(0)
+            # Compute encoder outputs
+            encoder_out, encoder_out_lens = self.forward_encoder(x, x_lens)
 
-        if self.use_ctc:
-            # Compute CTC loss
-            targets = y.values
-            ctc_loss = self.forward_ctc(
-                encoder_out=encoder_out,
-                encoder_out_lens=encoder_out_lens,
-                targets=targets,
-                target_lengths=y_lens,
-            )
-        else:
-            ctc_loss = torch.empty(0)
+            row_splits = y.shape.row_splits(1)
+            y_lens = row_splits[1:] - row_splits[:-1]
 
-        return simple_loss, pruned_loss, ctc_loss
+            if self.use_ctc:
+                # Compute CTC loss
+                ctc_loss, encoder_out, encoder_out_lens = self.forward_ctc(
+                    encoder_out=encoder_out,
+                    encoder_out_lens=encoder_out_lens,
+                    targets=y.tolist(),
+                    target_lengths=y_lens,
+                    supervisions=supervisions,
+                    subsampling_factor=subsampling_factor,
+                    ctc_beam_size=ctc_beam_size,
+                    reduction=reduction,
+                    warmup=warmup,
+                )
+            else:
+                ctc_loss = torch.empty(0, device=encoder_out.device)
+
+            if self.use_transducer:
+                # Compute transducer loss
+                simple_loss, pruned_loss = self.forward_transducer(
+                    encoder_out=encoder_out,
+                    encoder_out_lens=encoder_out_lens,
+                    y=y.to(x.device),
+                    y_lens=y_lens,
+                    prune_range=prune_range,
+                    am_scale=am_scale,
+                    lm_scale=lm_scale,
+                    reduction=reduction,
+                    delay_penalty=delay_penalty,
+                )
+            else:
+                simple_loss = torch.empty(0)
+                pruned_loss = torch.empty(0)
+
+            return simple_loss, pruned_loss, ctc_loss

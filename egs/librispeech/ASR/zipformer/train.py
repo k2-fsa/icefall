@@ -67,7 +67,9 @@ import torch.multiprocessing as mp
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
 from decoder import Decoder
+from frame_reducer import FrameReducer
 from joiner import Joiner
+from lconv import LConv
 from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
@@ -256,6 +258,13 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         type=str2bool,
         default=False,
         help="If True, use CTC head.",
+    )
+
+    parser.add_argument(
+        "--use-bs",
+        type=str2bool,
+        default=False,
+        help="If True, use blank-skip.",
     )
 
 
@@ -583,6 +592,16 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
     return encoder
 
 
+def get_lconv(params: AttributeDict) -> nn.Module:
+    lconv = LConv(channels=max(params.encoder_dim))
+    return lconv
+
+
+def get_frame_reducer(params: AttributeDict) -> nn.Module:
+    frame_reducer = FrameReducer()
+    return frame_reducer
+
+
 def get_decoder_model(params: AttributeDict) -> nn.Module:
     decoder = Decoder(
         vocab_size=params.vocab_size,
@@ -604,11 +623,11 @@ def get_joiner_model(params: AttributeDict) -> nn.Module:
 
 
 def get_model(params: AttributeDict) -> nn.Module:
-    assert (
-        params.use_transducer or params.use_ctc
-    ), (f"At least one of them should be True, "
+    assert params.use_transducer or params.use_ctc, (
+        f"At least one of them should be True, "
         f"but got params.use_transducer={params.use_transducer}, "
-        f"params.use_ctc={params.use_ctc}")
+        f"params.use_ctc={params.use_ctc}"
+    )
 
     encoder_embed = get_encoder_embed(params)
     encoder = get_encoder_model(params)
@@ -620,16 +639,24 @@ def get_model(params: AttributeDict) -> nn.Module:
         decoder = None
         joiner = None
 
+    lconv, frame_reducer = None, None
+    if params.use_bs:
+        lconv = get_lconv(params)
+        frame_reducer = get_frame_reducer(params)
+
     model = AsrModel(
         encoder_embed=encoder_embed,
         encoder=encoder,
         decoder=decoder,
         joiner=joiner,
+        lconv=lconv,
+        frame_reducer=frame_reducer,
         encoder_dim=max(_to_int_tuple(params.encoder_dim)),
         decoder_dim=params.decoder_dim,
         vocab_size=params.vocab_size,
         use_transducer=params.use_transducer,
         use_ctc=params.use_ctc,
+        use_bs=params.use_bs,
     )
     return model
 
@@ -808,17 +835,16 @@ def compute_loss(
             # take down the scale on the simple loss from 1.0 at the start
             # to params.simple_loss scale by warm_step.
             simple_loss_scale = (
-                s if batch_idx_train >= warm_step
+                s
+                if batch_idx_train >= warm_step
                 else 1.0 - (batch_idx_train / warm_step) * (1.0 - s)
             )
             pruned_loss_scale = (
-                1.0 if batch_idx_train >= warm_step
+                1.0
+                if batch_idx_train >= warm_step
                 else 0.1 + 0.9 * (batch_idx_train / warm_step)
             )
-            loss += (
-                simple_loss_scale * simple_loss
-                + pruned_loss_scale * pruned_loss
-            )
+            loss += simple_loss_scale * simple_loss + pruned_loss_scale * pruned_loss
 
         if params.use_ctc:
             loss += params.ctc_loss_scale * ctc_loss
