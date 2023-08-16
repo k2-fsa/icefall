@@ -240,7 +240,8 @@ def triplet_text_sampling(
             lower_all_char,
         ]
         
-    sampling_weight = [0.5, 0.2, 0.15, 0.15] # Mixed-punc should have the largest sampling prob
+    # sampling_weight = [0.5, 0.2, 0.15, 0.15] # Mixed-punc should have the largest sampling prob
+    sampling_weight = [0.7, 0.3, 0.0, 0.0]
 
     total_transforms = len(transforms)  # do not use the recognized trans
 
