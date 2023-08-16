@@ -21,6 +21,8 @@ It's reworked Zipformer with Pruned RNNT loss, note that results below are produ
 The training command for reproducing is given below:
 
 ```bash
+./prepare.sh # before setting --perturb-speed to False in the prepare.sh
+
 export CUDA_VISIBLE_DEVICES="0,1"
 
 ./zipformer/train.py \
