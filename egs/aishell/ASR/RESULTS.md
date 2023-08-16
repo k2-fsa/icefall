@@ -10,11 +10,11 @@ It's reworked Zipformer with Pruned RNNT loss, note that results below are produ
 
 **⚠️ If you prefer to have the speed perturbation disabled, please manually set `--perturb-speed` to `False` for `./local/compute_fbank_aishell.py` in the `prepare.sh` script.**
 
-|                        | test | dev  | comment                               |
-|------------------------|------|------|---------------------------------------|
-| greedy search          | 8.1  | 7.66 | --epoch 45 --avg 6 --max-duration 200 |
-| modified beam search   | 7.27 | 6.95 | --epoch 45 --avg 6 --max-duration 200 |
-| fast beam search       | 8.08 | 7.58 | --epoch 45 --avg 6 --max-duration 200 |
+|                        | test | dev  | comment                                 |
+|------------------------|------|------|-----------------------------------------|
+| greedy search          | 4.92 | 4.61 | --epoch 90 --avg 40 --max-duration 1200 |
+| modified beam search   | 4.65 | 4.34 | --epoch 90 --avg 40 --max-duration 1200 |
+| fast beam search       | 4.83 | 4.52 | --epoch 90 --avg 40 --max-duration 1200 |
 
 Command for training is:
 ```bash
@@ -24,21 +24,25 @@ export CUDA_VISIBLE_DEVICES="0,1"
 
 ./zipformer/train.py \
   --world-size 2 \
-  --num-epochs 45 \
+  --num-epochs 150 \
   --start-epoch 1 \
   --use-fp16 1 \
+  --context-size 1 \
   --exp-dir zipformer/exp \
-  --max-duration 1000
+  --max-duration 1000 \
+  --lr-epochs 18
 ```
 
 Command for decoding is:
 ```bash
 for m in greedy_search modified_beam_search fast_beam_search ; do
   ./zipformer/decode.py \
-    --epoch 45 \
-    --avg 6 \
+    --epoch 90 \
+    --avg 40 \
     --exp-dir ./zipformer/exp \
     --lang-dir data/lang_char \
+    --context-size 1 \
+    --max-duration 1200 \
     --decoding-method $m
 done
 ```
