@@ -269,6 +269,8 @@ def triplet_text_sampling(
 def multi_ref_text_triplet_text_sampling(
     texts: List[str],
     pre_texts: List[str],
+    context_list: Optional[str] = None,
+    rare_word_list: Optional[List[str]] = None,
     transforms: Optional[List[Callable[[str], str]]] = None,
     min_len_style: Optional[int] = 80,
 ) -> Dict[str, str]:
@@ -326,7 +328,7 @@ def multi_ref_text_triplet_text_sampling(
             lower_all_char,
         ]
         
-    sampling_weight = [0.6, 0.2, 0.1, 0.1] # Mixed-punc should have the largest sampling prob
+    sampling_weight = [0.5, 0.2, 0.15, 0.15] # Mixed-punc should have the largest sampling prob
 
     total_transforms = len(transforms)  # do not use the recognized trans
 
@@ -511,6 +513,8 @@ def triplet_style_text_sampling(
 def naive_triplet_text_sampling(
     texts: List[str],
     pre_texts: List[str],
+    context_list: str = None,
+    rare_word_list: List[str] = None,
     min_len_style: Optional[int] = 120,
 ):
 
