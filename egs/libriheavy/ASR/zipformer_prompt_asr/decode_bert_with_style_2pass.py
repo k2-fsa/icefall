@@ -60,15 +60,15 @@ from beam_search import (
     greedy_search_batch_with_context,
     modified_beam_search,
 )
-from dataset import naive_triplet_text_sampling, random_shuffle_subset, get_substring
+from dataset import naive_triplet_text_sampling, random_shuffle_subset
 from utils import get_facebook_biasing_list
 from text_normalization import ref_text_normalization, remove_non_alphabetic, upper_only_alpha, upper_all_char, lower_all_char, lower_only_alpha
-from train_bert_encoder import (
+from train_bert_encoder_with_style import (
     add_model_arguments,
     get_params,
     get_tokenizer,
     get_transducer_model,
-    _encode_texts_as_bytes,
+    _encode_texts_as_bytes_with_tokenizer,
 )
 
 from icefall.checkpoint import (
@@ -87,7 +87,6 @@ from icefall.utils import (
 )
 
 LOG_EPS = math.log(1e-10)
-
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -361,7 +360,7 @@ def decode_one_batch(
     sp: spm.SentencePieceProcessor,
     tokenizer,
     batch: dict,
-    biasing_dict: dict,
+    biasing_dict: dict = None,
     word_table: Optional[k2.SymbolTable] = None,
     decoding_graph: Optional[k2.Fsa] = None,
     first_pass_res: Optional[Dict] = None,
@@ -407,7 +406,7 @@ def decode_one_batch(
     device = next(model.parameters()).device
     feature = batch["inputs"]
     cuts = batch["supervisions"]["cut"]
-    cut_ids = [c.supervisions[0].id for c in cuts]
+    cut_ids = [c.id for c in cuts]
     batch_size = feature.size(0)
         
     # Apply two pass decoding
@@ -417,16 +416,17 @@ def decode_one_batch(
         pre_texts = ["" for _ in range(batch_size)]
     
     if params.use_ls_context_list and params.use_ls_test_set:
-        #fixed_sentence = "Mixed-case English transcription, with punctuation. Actually, it is fully not related."
         pre_texts = [biasing_dict[id] for id in cut_ids]
         
+    # get style_text
     if params.use_style_prompt:
-        style_texts = batch["supervisions"]["style_text"]
+        fixed_sentence = "Mixed-case English transcription, with punctuation. Actually, it is fully not related."
+        style_texts = batch["supervisions"].get("style_text", [fixed_sentence for _ in range(batch_size)])
     else:
         style_texts = ["" for _ in range(batch_size)] # use empty string
 
     # Get the text embedding input, only do this in the second pass decoding
-    if first_pass_res is not None and params.two_pass_decoding:
+    if (first_pass_res is not None and params.two_pass_decoding) or params.use_style_prompt:
 
         # apply style transform to the pre_text and style_text
         pre_texts = _apply_style_transform(pre_texts, params.pre_text_transform)
@@ -438,16 +438,16 @@ def decode_one_batch(
             warnings.simplefilter("ignore")
             
             # Use tokenizer to prepare input for text encoder
-            encoded_inputs = tokenizer(
-                pre_texts,
-                return_tensors='pt',
-                padding=True,
-                truncation=True,
-                max_length=500,
-            ).to(device)
+            encoded_inputs, style_lens = _encode_texts_as_bytes_with_tokenizer(
+                pre_texts=pre_texts,
+                style_texts=style_texts,
+                tokenizer=tokenizer,
+                device=device,
+            )
             
             memory, memory_key_padding_mask = model.encode_text(
                 encoded_inputs=encoded_inputs,
+                style_lens=style_lens,
             ) # (T,B,C)
     else:
         memory = None
@@ -529,7 +529,6 @@ def decode_one_batch(
                         context=cur_context,
                         max_sym_per_frame=params.max_sym_per_frame,
                     )
-                    
             elif params.decoding_method == "beam_search":
                 hyp = beam_search(
                     model=model,
@@ -557,7 +556,7 @@ def decode_dataset(
     biasing_dict: Dict = None,
     word_table: Optional[k2.SymbolTable] = None,
     decoding_graph: Optional[k2.Fsa] = None,
-    first_pass_res: Optional[Dict] = None
+    first_pass_res: Optional[Dict] = None,
 ) -> Dict[str, List[Tuple[str, List[str], List[str]]]]:
     """Decode dataset.
 
@@ -708,7 +707,7 @@ def save_results(
             params.res_dir / f"cer-summary-{test_set_name}-{params.suffix}.txt"
         )
         with open(errs_info, "w") as f:
-            print("settings\tcER", file=f)
+            print("settings\tCER", file=f)
             for key, val in test_set_cers:
                 print("{}\t{}".format(key, val), file=f)
 
@@ -734,7 +733,10 @@ def main():
         "greedy_search",
         "modified_beam_search",
     )
-    params.res_dir = params.exp_dir / params.decoding_method
+    if params.two_pass_decoding:
+        params.res_dir = params.exp_dir / (params.decoding_method + "-two-pass")
+    else:
+        params.res_dir = params.exp_dir / params.decoding_method
 
     if params.iter > 0:
         params.suffix = f"iter-{params.iter}-avg-{params.avg}"
@@ -770,9 +772,8 @@ def main():
         
     if params.use_ls_context_list:
         params.suffix += f"-use-ls-context-list"
-        
-    if params.use_ls_context_list:
-        params.suffix += f"-add-ls-context-distractors"
+        if params.ls_distractors:
+            params.suffix += f"-add-ls-context-distractors"
 
     if params.use_averaged_model:
         params.suffix += "-use-averaged-model"
@@ -892,41 +893,22 @@ def main():
     args.return_cuts = True
     libriheavy = LibriHeavyAsrDataModule(args)
 
-    test_cuts = libriheavy.test_cuts()
-    medium_test_cuts = libriheavy.medium_test_cuts()
-    #medium_test_cuts = medium_test_cuts.subset(first=500)
     test_clean_cuts = libriheavy.test_clean_cuts()
     test_other_cuts = libriheavy.test_other_cuts()
     ls_test_clean_cuts = libriheavy.librispeech_test_clean_cuts()
     ls_test_other_cuts = libriheavy.librispeech_test_other_cuts()
-    long_audio_cuts = libriheavy.long_audio_cuts()
 
-    test_dl = libriheavy.valid_dataloaders(test_cuts, text_sampling_func=naive_triplet_text_sampling)
-    medium_test_dl = libriheavy.valid_dataloaders(medium_test_cuts, text_sampling_func=naive_triplet_text_sampling)
-    test_clean_dl = libriheavy.test_dataloaders(test_clean_cuts)
-    test_other_dl = libriheavy.test_dataloaders(test_other_cuts)
+    test_clean_dl = libriheavy.valid_dataloaders(test_clean_cuts, text_sampling_func=naive_triplet_text_sampling)
+    test_other_dl = libriheavy.valid_dataloaders(test_other_cuts, text_sampling_func=naive_triplet_text_sampling)
     ls_test_clean_dl = libriheavy.test_dataloaders(ls_test_clean_cuts)
     ls_test_other_dl = libriheavy.test_dataloaders(ls_test_other_cuts)
-    long_audio_dl = libriheavy.valid_dataloaders(long_audio_cuts, text_sampling_func=naive_triplet_text_sampling)
-
-    #test_sets = ["test-clean", "test-other", "ls-test-clean", "ls-test-other"]
-    #test_dl = [test_clean_dl, test_other_dl, ls_test_clean_dl, ls_test_other_dl]
-
-    #test_sets = ["test-clean", "test-other"]
-    #test_dl = [test_clean_dl, test_other_dl]
-    
-    #test_sets = ["ls-test-clean", "ls-test-other"]
-    #test_dl = [ls_test_clean_dl, ls_test_other_dl]
 
     if params.use_ls_test_set:
         test_sets = ["ls-test-clean", "ls-test-other"]
         test_dl = [ls_test_clean_dl, ls_test_other_dl]
     else:
-        test_sets = ["medium_test",]
-        test_dl = [medium_test_dl]
-    
-    #test_sets = ["long-audio"]
-    #test_dl = [long_audio_dl]
+        test_sets = ["test-clean", "test-other"]
+        test_dl = [test_clean_dl, test_other_dl]
 
     for test_set, test_dl in zip(test_sets, test_dl):
         if test_set == "ls-test-clean":
@@ -952,7 +934,7 @@ def main():
             test_set_name=test_set,
             results_dict=results_dict,
         )
-
+        
         if params.two_pass_decoding:
             params.suffix += '-two-pass-decoding'
             first_pass_res = {}
@@ -975,7 +957,7 @@ def main():
             
             save_results_with_normalization(
                 params=params,
-                test_set_name=test_set,
+                test_set_name=test_set + "-two-pass-decoding",
                 results_dict=results_dict,
             )
 
@@ -994,24 +976,23 @@ def save_results_with_normalization(
     )
     
     if params.post_normalization:
-        params.suffix += "-post-normalization"
+        if "-post-normalization" not in params.suffix:
+            params.suffix += "-post-normalization"
             
         new_res = {}
         for k in results_dict:
             new_ans = []
             for item in results_dict[k]:
                 id, ref, hyp = item
-                hyp = [remove_non_alphabetic(w.upper(), strict=True) for w in hyp]
-                hyp = [w for w in hyp if w != ""]
-                ref = [remove_non_alphabetic(w.upper(), strict=True) for w in ref]
-                ref = [w for w in ref if w != ""]
+                hyp = upper_only_alpha(" ".join(hyp)).split()
+                ref = upper_only_alpha(" ".join(ref)).split() 
                 new_ans.append((id,ref,hyp))
             new_res[k] = new_ans
             
         save_results(
             params=params,
             test_set_name=test_set_name,
-            results_dict=results_dict,
+            results_dict=new_res,
         )
         params.suffix = params.suffix.replace("-post-normalization", "")
     
