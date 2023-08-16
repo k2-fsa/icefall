@@ -1,5 +1,10 @@
+.. _dummies_tutorial_data_preparation:
+
 Data Preparation
 ================
+
+After :ref:`dummies_tutorial_environment_setup`, we can start preparing the
+data for training and decoding.
 
 The first step is to prepare the data for training. We have already provided
 `prepare.sh <https://github.com/k2-fsa/icefall/blob/master/egs/yesno/ASR/prepare.sh>`_
@@ -97,7 +102,7 @@ data
 
 **data/manifests**:
 
-  This directory contains manifests. There are used to generate files in
+  This directory contains manifests. They are used to generate files in
   ``data/fbank``.
 
   To give you an idea of what it contains, we examine the first few lines of
@@ -165,3 +170,11 @@ data
 
   Note that ``yesno_cuts_train.jsonl.gz`` only stores the information about how to read the features.
   The actual features are stored separately in ``data/fbank/yesno_feats_train.lca``.
+
+**data/lang**:
+
+  This directory contains the lexicon.
+
+**data/lm**:
+
+  This directory contains language models.

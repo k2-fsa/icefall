@@ -1,3 +1,5 @@
+.. _dummies_tutorial_environment_setup:
+
 Environment setup
 =================
 
@@ -64,6 +66,9 @@ to install dependencies of `icefall`_:
 
    pip install torch==2.0.0+cpu torchaudio==2.0.0+cpu -f https://download.pytorch.org/whl/torch_stable.html
 
+   # If you are using macOS or Windows, please use the following command to install torch and torchaudio
+   # pip install torch==2.0.0 torchaudio==2.0.0 -f https://download.pytorch.org/whl/torch_stable.html
+
    # Now install k2
    # Please refer to https://k2-fsa.github.io/k2/installation/from_wheels.html#linux-cpu-example
 
@@ -94,5 +99,23 @@ You can select any directory you want.
 
    export PYTHONPATH=/tmp/icefall:$PYTHONPATH
 
+.. hint::
+
+   If you get the following error during this tutorial:
+
+    .. code-block:: bash
+
+      ModuleNotFoundError: No module named 'icefall'
+
+  please set the above environment variable to fix it.
+
 
 Congratulations! You have installed `icefall`_ successfully.
+
+For the more curious
+--------------------
+
+`icefall`_ contains a collection of Python scripts and you don't need to
+use ``python3 setup.py install`` or ``pip install icefall`` to install it.
+All you need to do is to download the code and set the environment variable
+``PYTHONPATH``.
