@@ -6,6 +6,7 @@ This file shows how to use an ONNX model for decoding with onnxruntime.
 Usage:
 
 (1) Use a not quantized ONNX model, i.e., a float32 model
+
   ./tdnn/onnx_pretrained.py \
     --nn-model ./tdnn/exp/model-epoch-14-avg-2.onnx \
     --HLG ./data/lang_phone/HLG.pt \
