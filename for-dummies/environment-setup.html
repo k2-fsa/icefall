@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Environment setup &mdash; icefall 0.1 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/sphinx_highlight.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Data Preparation" href="data-preparation.html" />
+    <link rel="prev" title="Icefall for dummies tutorial" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            icefall
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Icefall for dummies tutorial</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Environment setup</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#create-a-virtual-environment">Create a virtual environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#install-dependencies">Install dependencies</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#install-icefall">Install icefall</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#for-the-more-curious">For the more curious</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="data-preparation.html">Data Preparation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="training.html">Training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="decoding.html">Decoding</a></li>
+<li class="toctree-l2"><a class="reference internal" href="model-export.html">Model Export</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../installation/index.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../docker/index.html">Docker</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../faqs.html">Frequently Asked Questions (FAQs)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../model-export/index.html">Model export</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../recipes/index.html">Recipes</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../contributing/index.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../huggingface/index.html">Huggingface</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../decoding-with-langugage-models/index.html">Decoding with language models</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">icefall</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Icefall for dummies tutorial</a></li>
+      <li class="breadcrumb-item active">Environment setup</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/k2-fsa/icefall/blob/master/docs/source/for-dummies/environment-setup.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="environment-setup">
+<span id="dummies-tutorial-environment-setup"></span><h1>Environment setup<a class="headerlink" href="#environment-setup" title="Permalink to this heading"></a></h1>
+<p>We will create an environment for <a class="reference external" href="https://github.com/k2-fsa">Next-gen Kaldi</a> that runs on <code class="docutils literal notranslate"><span class="pre">CPU</span></code>
+in this tutorial.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Since the <a class="reference external" href="https://www.openslr.org/1/">yesno</a> dataset used in this tutorial is very tiny, training on
+<code class="docutils literal notranslate"><span class="pre">CPU</span></code> works very well for it.</p>
+<p>If your dataset is very large, e.g., hundreds or thousands of hours of
+training data, please follow <a class="reference internal" href="../installation/index.html#install-icefall"><span class="std std-ref">Installation</span></a> to install <a class="reference external" href="https://github.com/k2-fsa/icefall">icefall</a>
+that works with <code class="docutils literal notranslate"><span class="pre">GPU</span></code>.</p>
+</div>
+<section id="create-a-virtual-environment">
+<h2>Create a virtual environment<a class="headerlink" href="#create-a-virtual-environment" title="Permalink to this heading"></a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>virtualenv<span class="w"> </span>-p<span class="w"> </span>python3<span class="w"> </span>/tmp/icefall_env
+</pre></div>
+</div>
+<p>The above command creates a virtual environment in the directory <code class="docutils literal notranslate"><span class="pre">/tmp/icefall_env</span></code>.
+You can select any directory you want.</p>
+<p>The output of the above command is given below:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>Already<span class="w"> </span>using<span class="w"> </span>interpreter<span class="w"> </span>/usr/bin/python3
+Using<span class="w"> </span>base<span class="w"> </span>prefix<span class="w"> </span><span class="s1">&#39;/usr&#39;</span>
+New<span class="w"> </span>python<span class="w"> </span>executable<span class="w"> </span><span class="k">in</span><span class="w"> </span>/tmp/icefall_env/bin/python3
+Also<span class="w"> </span>creating<span class="w"> </span>executable<span class="w"> </span><span class="k">in</span><span class="w"> </span>/tmp/icefall_env/bin/python
+Installing<span class="w"> </span>setuptools,<span class="w"> </span>pkg_resources,<span class="w"> </span>pip,<span class="w"> </span>wheel...done.
+</pre></div>
+</div>
+<p>Now we can activate the environment using:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">source</span><span class="w"> </span>/tmp/icefall_env/bin/activate
+</pre></div>
+</div>
+</section>
+<section id="install-dependencies">
+<h2>Install dependencies<a class="headerlink" href="#install-dependencies" title="Permalink to this heading"></a></h2>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Remeber to activate your virtual environment before you continue!</p>
+</div>
+<p>After activating the virtual environment, we can use the following command
+to install dependencies of <a class="reference external" href="https://github.com/k2-fsa/icefall">icefall</a>:</p>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>Remeber that we will run this tutorial on <code class="docutils literal notranslate"><span class="pre">CPU</span></code>, so we install
+dependencies required only by running on <code class="docutils literal notranslate"><span class="pre">CPU</span></code>.</p>
+</div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Caution: Installation order matters!</span>
+
+<span class="c1"># We use torch 2.0.0 and torchaduio 2.0.0 in this tutorial.</span>
+<span class="c1"># Other versions should also work.</span>
+
+pip<span class="w"> </span>install<span class="w"> </span><span class="nv">torch</span><span class="o">==</span><span class="m">2</span>.0.0+cpu<span class="w"> </span><span class="nv">torchaudio</span><span class="o">==</span><span class="m">2</span>.0.0+cpu<span class="w"> </span>-f<span class="w"> </span>https://download.pytorch.org/whl/torch_stable.html
+
+<span class="c1"># If you are using macOS or Windows, please use the following command to install torch and torchaudio</span>
+<span class="c1"># pip install torch==2.0.0 torchaudio==2.0.0 -f https://download.pytorch.org/whl/torch_stable.html</span>
+
+<span class="c1"># Now install k2</span>
+<span class="c1"># Please refer to https://k2-fsa.github.io/k2/installation/from_wheels.html#linux-cpu-example</span>
+
+pip<span class="w"> </span>install<span class="w"> </span><span class="nv">k2</span><span class="o">==</span><span class="m">1</span>.24.3.dev20230726+cpu.torch2.0.0<span class="w"> </span>-f<span class="w"> </span>https://k2-fsa.github.io/k2/cpu.html
+
+<span class="c1"># Install the latest version of lhotse</span>
+
+pip<span class="w"> </span>install<span class="w"> </span>git+https://github.com/lhotse-speech/lhotse
+</pre></div>
+</div>
+</section>
+<section id="install-icefall">
+<h2>Install icefall<a class="headerlink" href="#install-icefall" title="Permalink to this heading"></a></h2>
+<p>We will put the source code of <a class="reference external" href="https://github.com/k2-fsa/icefall">icefall</a> into the directory <code class="docutils literal notranslate"><span class="pre">/tmp</span></code>
+You can select any directory you want.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>/tmp
+git<span class="w"> </span>clone<span class="w"> </span>https://github.com/k2-fsa/icefall
+<span class="nb">cd</span><span class="w"> </span>icefall
+pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>./requirements.txt
+</pre></div>
+</div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Anytime we want to use icefall, we have to set the following</span>
+<span class="c1"># environment variable</span>
+
+<span class="nb">export</span><span class="w"> </span><span class="nv">PYTHONPATH</span><span class="o">=</span>/tmp/icefall:<span class="nv">$PYTHONPATH</span>
+</pre></div>
+</div>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<blockquote>
+<div><p>If you get the following error during this tutorial:</p>
+<blockquote>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ModuleNotFoundError:<span class="w"> </span>No<span class="w"> </span>module<span class="w"> </span>named<span class="w"> </span><span class="s1">&#39;icefall&#39;</span>
+</pre></div>
+</div>
+</div></blockquote>
+</div></blockquote>
+<p>please set the above environment variable to fix it.</p>
+</div>
+<p>Congratulations! You have installed <a class="reference external" href="https://github.com/k2-fsa/icefall">icefall</a> successfully.</p>
+</section>
+<section id="for-the-more-curious">
+<h2>For the more curious<a class="headerlink" href="#for-the-more-curious" title="Permalink to this heading"></a></h2>
+<p><a class="reference external" href="https://github.com/k2-fsa/icefall">icefall</a> contains a collection of Python scripts and you don’t need to
+use <code class="docutils literal notranslate"><span class="pre">python3</span> <span class="pre">setup.py</span> <span class="pre">install</span></code> or <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">icefall</span></code> to install it.
+All you need to do is to download the code and set the environment variable
+<code class="docutils literal notranslate"><span class="pre">PYTHONPATH</span></code>.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="Icefall for dummies tutorial" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="data-preparation.html" class="btn btn-neutral float-right" title="Data Preparation" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2021, icefall development team.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

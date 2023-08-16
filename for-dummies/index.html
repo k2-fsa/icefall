@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Icefall for dummies tutorial &mdash; icefall 0.1 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/sphinx_highlight.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Environment setup" href="environment-setup.html" />
+    <link rel="prev" title="Icefall" href="../index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            icefall
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Icefall for dummies tutorial</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="environment-setup.html">Environment setup</a></li>
+<li class="toctree-l2"><a class="reference internal" href="data-preparation.html">Data Preparation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="training.html">Training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="decoding.html">Decoding</a></li>
+<li class="toctree-l2"><a class="reference internal" href="model-export.html">Model Export</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../installation/index.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../docker/index.html">Docker</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../faqs.html">Frequently Asked Questions (FAQs)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../model-export/index.html">Model export</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../recipes/index.html">Recipes</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../contributing/index.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../huggingface/index.html">Huggingface</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../decoding-with-langugage-models/index.html">Decoding with language models</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">icefall</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Icefall for dummies tutorial</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/k2-fsa/icefall/blob/master/docs/source/for-dummies/index.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="icefall-for-dummies-tutorial">
+<h1>Icefall for dummies tutorial<a class="headerlink" href="#icefall-for-dummies-tutorial" title="Permalink to this heading"></a></h1>
+<p>This tutorial walks you step by step about how to create a simple
+ASR (<a class="reference external" href="https://en.wikipedia.org/wiki/Speech_recognition">Automatic Speech Recognition</a>)
+system with <a class="reference external" href="https://github.com/k2-fsa">Next-gen Kaldi</a>.</p>
+<p>We use the <a class="reference external" href="https://www.openslr.org/1/">yesno</a> dataset for demonstration. We select it out of two reasons:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>It is quite tiny, containing only about 12 minutes of data</p></li>
+<li><p>The training can be finished within 20 seconds on <code class="docutils literal notranslate"><span class="pre">CPU</span></code>.</p></li>
+</ul>
+</div></blockquote>
+<p>That also means you don’t need a <code class="docutils literal notranslate"><span class="pre">GPU</span></code> to run this tutorial.</p>
+<p>Let’s get started!</p>
+<p>Please follow items below <strong>sequentially</strong>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The <a class="reference internal" href="data-preparation.html#dummies-tutorial-data-preparation"><span class="std std-ref">Data Preparation</span></a> runs only on Linux and on macOS.
+All other parts run on Linux, macOS, and Windows.</p>
+<p>Help from the community is appreciated to port the <a class="reference internal" href="data-preparation.html#dummies-tutorial-data-preparation"><span class="std std-ref">Data Preparation</span></a>
+to Windows.</p>
+</div>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="environment-setup.html">Environment setup</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="environment-setup.html#create-a-virtual-environment">Create a virtual environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="environment-setup.html#install-dependencies">Install dependencies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="environment-setup.html#install-icefall">Install icefall</a></li>
+<li class="toctree-l2"><a class="reference internal" href="environment-setup.html#for-the-more-curious">For the more curious</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="data-preparation.html">Data Preparation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="data-preparation.html#for-the-more-curious">For the more curious</a></li>
+<li class="toctree-l2"><a class="reference internal" href="data-preparation.html#a-quick-look-to-the-generated-files">A quick look to the generated files</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="training.html">Training</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="training.html#for-the-more-curious">For the more curious</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="decoding.html">Decoding</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="decoding.html#for-the-more-curious">For the more curious</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="model-export.html">Model Export</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="model-export.html#export-the-model-parameters-via-model-state-dict">Export the model parameters via model.state_dict()</a></li>
+<li class="toctree-l2"><a class="reference internal" href="model-export.html#export-via-torch-jit-script">Export via torch.jit.script()</a></li>
+<li class="toctree-l2"><a class="reference internal" href="model-export.html#export-via-torch-onnx-export">Export via torch.onnx.export()</a></li>
+<li class="toctree-l2"><a class="reference internal" href="model-export.html#for-the-more-curious">For the more curious</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="../index.html" class="btn btn-neutral float-left" title="Icefall" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="environment-setup.html" class="btn btn-neutral float-right" title="Environment setup" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2021, icefall development team.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

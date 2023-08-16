@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Data Preparation &mdash; icefall 0.1 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/sphinx_highlight.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Training" href="training.html" />
+    <link rel="prev" title="Environment setup" href="environment-setup.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            icefall
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Icefall for dummies tutorial</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="environment-setup.html">Environment setup</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Data Preparation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#for-the-more-curious">For the more curious</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#a-quick-look-to-the-generated-files">A quick look to the generated files</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#download">download</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#data">data</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="training.html">Training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="decoding.html">Decoding</a></li>
+<li class="toctree-l2"><a class="reference internal" href="model-export.html">Model Export</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../installation/index.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../docker/index.html">Docker</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../faqs.html">Frequently Asked Questions (FAQs)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../model-export/index.html">Model export</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../recipes/index.html">Recipes</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../contributing/index.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../huggingface/index.html">Huggingface</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../decoding-with-langugage-models/index.html">Decoding with language models</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">icefall</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Icefall for dummies tutorial</a></li>
+      <li class="breadcrumb-item active">Data Preparation</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/k2-fsa/icefall/blob/master/docs/source/for-dummies/data-preparation.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="data-preparation">
+<span id="dummies-tutorial-data-preparation"></span><h1>Data Preparation<a class="headerlink" href="#data-preparation" title="Permalink to this heading"></a></h1>
+<p>After <a class="reference internal" href="environment-setup.html#dummies-tutorial-environment-setup"><span class="std std-ref">Environment setup</span></a>, we can start preparing the
+data for training and decoding.</p>
+<p>The first step is to prepare the data for training. We have already provided
+<a class="reference external" href="https://github.com/k2-fsa/icefall/blob/master/egs/yesno/ASR/prepare.sh">prepare.sh</a>
+that would prepare everything required for training.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>cd /tmp/icefall
+export PYTHONPATH=/tmp/icefall:$PYTHONPATH
+cd egs/yesno/ASR
+
+./prepare.sh
+</pre></div>
+</div>
+<p>Note that in each recipe from <a class="reference external" href="https://github.com/k2-fsa/icefall">icefall</a>, there exists a file <code class="docutils literal notranslate"><span class="pre">prepare.sh</span></code>,
+which you should run before you run anything else.</p>
+<p>That is all you need for data preparation.</p>
+<section id="for-the-more-curious">
+<h2>For the more curious<a class="headerlink" href="#for-the-more-curious" title="Permalink to this heading"></a></h2>
+<p>If you are wondering how to prepare your own dataset, please refer to the following
+URLs for more details:</p>
+<blockquote>
+<div><ul>
+<li><p><a class="reference external" href="https://github.com/lhotse-speech/lhotse/tree/master/lhotse/recipes">https://github.com/lhotse-speech/lhotse/tree/master/lhotse/recipes</a></p>
+<p>It contains recipes for a variety of dataset. If you want to add your own
+dataset, please read recipes in this folder first.</p>
+</li>
+<li><p><a class="reference external" href="https://github.com/lhotse-speech/lhotse/blob/master/lhotse/recipes/yesno.py">https://github.com/lhotse-speech/lhotse/blob/master/lhotse/recipes/yesno.py</a></p>
+<p>The <a class="reference external" href="https://www.openslr.org/1/">yesno</a> recipe in <a class="reference external" href="https://github.com/lhotse-speech/lhotse">lhotse</a>.</p>
+</li>
+</ul>
+</div></blockquote>
+<p>If you already have a <a class="reference external" href="https://github.com/kaldi-asr/kaldi">Kaldi</a> dataset directory, which contains files like
+<code class="docutils literal notranslate"><span class="pre">wav.scp</span></code>, <code class="docutils literal notranslate"><span class="pre">feats.scp</span></code>, then you can refer to <a class="reference external" href="https://lhotse.readthedocs.io/en/latest/kaldi.html#example">https://lhotse.readthedocs.io/en/latest/kaldi.html#example</a>.</p>
+</section>
+<section id="a-quick-look-to-the-generated-files">
+<h2>A quick look to the generated files<a class="headerlink" href="#a-quick-look-to-the-generated-files" title="Permalink to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">./prepare.sh</span></code> puts generated files into two directories:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">download</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">data</span></code></p></li>
+</ul>
+</div></blockquote>
+<section id="download">
+<h3>download<a class="headerlink" href="#download" title="Permalink to this heading"></a></h3>
+<p>The <code class="docutils literal notranslate"><span class="pre">download</span></code> directory contains downloaded dataset files:</p>
+<div class="highlight-bas notranslate"><div class="highlight"><pre><span></span>tree -L 1 ./download/
+
+./download/
+|-- waves_yesno
+`-- waves_yesno.tar.gz
+</pre></div>
+</div>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>Please refer to <a class="reference external" href="https://github.com/lhotse-speech/lhotse/blob/master/lhotse/recipes/yesno.py#L41">https://github.com/lhotse-speech/lhotse/blob/master/lhotse/recipes/yesno.py#L41</a>
+for how the data is downloaded and extracted.</p>
+</div>
+</section>
+<section id="data">
+<h3>data<a class="headerlink" href="#data" title="Permalink to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>tree<span class="w"> </span>./data/
+
+./data/
+<span class="p">|</span>--<span class="w"> </span>fbank
+<span class="p">|</span><span class="w">   </span><span class="p">|</span>--<span class="w"> </span>yesno_cuts_test.jsonl.gz
+<span class="p">|</span><span class="w">   </span><span class="p">|</span>--<span class="w"> </span>yesno_cuts_train.jsonl.gz
+<span class="p">|</span><span class="w">   </span><span class="p">|</span>--<span class="w"> </span>yesno_feats_test.lca
+<span class="p">|</span><span class="w">   </span><span class="sb">`</span>--<span class="w"> </span>yesno_feats_train.lca
+<span class="p">|</span>--<span class="w"> </span>lang_phone
+<span class="p">|</span><span class="w">   </span><span class="p">|</span>--<span class="w"> </span>HLG.pt
+<span class="p">|</span><span class="w">   </span><span class="p">|</span>--<span class="w"> </span>L.pt
+<span class="p">|</span><span class="w">   </span><span class="p">|</span>--<span class="w"> </span>L_disambig.pt
+<span class="p">|</span><span class="w">   </span><span class="p">|</span>--<span class="w"> </span>Linv.pt
+<span class="p">|</span><span class="w">   </span><span class="p">|</span>--<span class="w"> </span>lexicon.txt
+<span class="p">|</span><span class="w">   </span><span class="p">|</span>--<span class="w"> </span>lexicon_disambig.txt
+<span class="p">|</span><span class="w">   </span><span class="p">|</span>--<span class="w"> </span>tokens.txt
+<span class="p">|</span><span class="w">   </span><span class="sb">`</span>--<span class="w"> </span>words.txt
+<span class="p">|</span>--<span class="w"> </span>lm
+<span class="p">|</span><span class="w">   </span><span class="p">|</span>--<span class="w"> </span>G.arpa
+<span class="p">|</span><span class="w">   </span><span class="sb">`</span>--<span class="w"> </span>G.fst.txt
+<span class="sb">`</span>--<span class="w"> </span>manifests
+<span class="w">    </span><span class="p">|</span>--<span class="w"> </span>yesno_recordings_test.jsonl.gz
+<span class="w">    </span><span class="p">|</span>--<span class="w"> </span>yesno_recordings_train.jsonl.gz
+<span class="w">    </span><span class="p">|</span>--<span class="w"> </span>yesno_supervisions_test.jsonl.gz
+<span class="w">    </span><span class="sb">`</span>--<span class="w"> </span>yesno_supervisions_train.jsonl.gz
+
+<span class="m">4</span><span class="w"> </span>directories,<span class="w"> </span><span class="m">18</span><span class="w"> </span>files
+</pre></div>
+</div>
+<p><strong>data/manifests</strong>:</p>
+<blockquote>
+<div><p>This directory contains manifests. They are used to generate files in
+<code class="docutils literal notranslate"><span class="pre">data/fbank</span></code>.</p>
+<p>To give you an idea of what it contains, we examine the first few lines of
+the manifests related to the <code class="docutils literal notranslate"><span class="pre">train</span></code> dataset.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>data/manifests
+gunzip<span class="w"> </span>-c<span class="w">  </span>yesno_recordings_train.jsonl.gz<span class="w">  </span><span class="p">|</span><span class="w"> </span>head<span class="w"> </span>-n<span class="w"> </span><span class="m">3</span>
+</pre></div>
+</div>
+<p>The output is given below:</p>
+<blockquote>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">{</span><span class="s2">&quot;id&quot;</span>:<span class="w"> </span><span class="s2">&quot;0_0_0_0_1_1_1_1&quot;</span>,<span class="w"> </span><span class="s2">&quot;sources&quot;</span>:<span class="w"> </span><span class="o">[{</span><span class="s2">&quot;type&quot;</span>:<span class="w"> </span><span class="s2">&quot;file&quot;</span>,<span class="w"> </span><span class="s2">&quot;channels&quot;</span>:<span class="w"> </span><span class="o">[</span><span class="m">0</span><span class="o">]</span>,<span class="w"> </span><span class="s2">&quot;source&quot;</span>:<span class="w"> </span><span class="s2">&quot;/tmp/icefall/egs/yesno/ASR/download/waves_yesno/0_0_0_0_1_1_1_1.wav&quot;</span><span class="o">}]</span>,<span class="w"> </span><span class="s2">&quot;sampling_rate&quot;</span>:<span class="w"> </span><span class="m">8000</span>,<span class="w"> </span><span class="s2">&quot;num_samples&quot;</span>:<span class="w"> </span><span class="m">50800</span>,<span class="w"> </span><span class="s2">&quot;duration&quot;</span>:<span class="w"> </span><span class="m">6</span>.35,<span class="w"> </span><span class="s2">&quot;channel_ids&quot;</span>:<span class="w"> </span><span class="o">[</span><span class="m">0</span><span class="o">]}</span>
+<span class="o">{</span><span class="s2">&quot;id&quot;</span>:<span class="w"> </span><span class="s2">&quot;0_0_0_1_0_1_1_0&quot;</span>,<span class="w"> </span><span class="s2">&quot;sources&quot;</span>:<span class="w"> </span><span class="o">[{</span><span class="s2">&quot;type&quot;</span>:<span class="w"> </span><span class="s2">&quot;file&quot;</span>,<span class="w"> </span><span class="s2">&quot;channels&quot;</span>:<span class="w"> </span><span class="o">[</span><span class="m">0</span><span class="o">]</span>,<span class="w"> </span><span class="s2">&quot;source&quot;</span>:<span class="w"> </span><span class="s2">&quot;/tmp/icefall/egs/yesno/ASR/download/waves_yesno/0_0_0_1_0_1_1_0.wav&quot;</span><span class="o">}]</span>,<span class="w"> </span><span class="s2">&quot;sampling_rate&quot;</span>:<span class="w"> </span><span class="m">8000</span>,<span class="w"> </span><span class="s2">&quot;num_samples&quot;</span>:<span class="w"> </span><span class="m">48880</span>,<span class="w"> </span><span class="s2">&quot;duration&quot;</span>:<span class="w"> </span><span class="m">6</span>.11,<span class="w"> </span><span class="s2">&quot;channel_ids&quot;</span>:<span class="w"> </span><span class="o">[</span><span class="m">0</span><span class="o">]}</span>
+<span class="o">{</span><span class="s2">&quot;id&quot;</span>:<span class="w"> </span><span class="s2">&quot;0_0_1_0_0_1_1_0&quot;</span>,<span class="w"> </span><span class="s2">&quot;sources&quot;</span>:<span class="w"> </span><span class="o">[{</span><span class="s2">&quot;type&quot;</span>:<span class="w"> </span><span class="s2">&quot;file&quot;</span>,<span class="w"> </span><span class="s2">&quot;channels&quot;</span>:<span class="w"> </span><span class="o">[</span><span class="m">0</span><span class="o">]</span>,<span class="w"> </span><span class="s2">&quot;source&quot;</span>:<span class="w"> </span><span class="s2">&quot;/tmp/icefall/egs/yesno/ASR/download/waves_yesno/0_0_1_0_0_1_1_0.wav&quot;</span><span class="o">}]</span>,<span class="w"> </span><span class="s2">&quot;sampling_rate&quot;</span>:<span class="w"> </span><span class="m">8000</span>,<span class="w"> </span><span class="s2">&quot;num_samples&quot;</span>:<span class="w"> </span><span class="m">48160</span>,<span class="w"> </span><span class="s2">&quot;duration&quot;</span>:<span class="w"> </span><span class="m">6</span>.02,<span class="w"> </span><span class="s2">&quot;channel_ids&quot;</span>:<span class="w"> </span><span class="o">[</span><span class="m">0</span><span class="o">]}</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>Please refer to <a class="reference external" href="https://github.com/lhotse-speech/lhotse/blob/master/lhotse/audio.py#L300">https://github.com/lhotse-speech/lhotse/blob/master/lhotse/audio.py#L300</a>
+for the meaning of each field per line.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gunzip<span class="w"> </span>-c<span class="w">  </span>yesno_supervisions_train.jsonl.gz<span class="w">  </span><span class="p">|</span><span class="w"> </span>head<span class="w"> </span>-n<span class="w"> </span><span class="m">3</span>
+</pre></div>
+</div>
+<p>The output is given below:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">{</span><span class="s2">&quot;id&quot;</span>:<span class="w"> </span><span class="s2">&quot;0_0_0_0_1_1_1_1&quot;</span>,<span class="w"> </span><span class="s2">&quot;recording_id&quot;</span>:<span class="w"> </span><span class="s2">&quot;0_0_0_0_1_1_1_1&quot;</span>,<span class="w"> </span><span class="s2">&quot;start&quot;</span>:<span class="w"> </span><span class="m">0</span>.0,<span class="w"> </span><span class="s2">&quot;duration&quot;</span>:<span class="w"> </span><span class="m">6</span>.35,<span class="w"> </span><span class="s2">&quot;channel&quot;</span>:<span class="w"> </span><span class="m">0</span>,<span class="w"> </span><span class="s2">&quot;text&quot;</span>:<span class="w"> </span><span class="s2">&quot;NO NO NO NO YES YES YES YES&quot;</span>,<span class="w"> </span><span class="s2">&quot;language&quot;</span>:<span class="w"> </span><span class="s2">&quot;Hebrew&quot;</span><span class="o">}</span>
+<span class="o">{</span><span class="s2">&quot;id&quot;</span>:<span class="w"> </span><span class="s2">&quot;0_0_0_1_0_1_1_0&quot;</span>,<span class="w"> </span><span class="s2">&quot;recording_id&quot;</span>:<span class="w"> </span><span class="s2">&quot;0_0_0_1_0_1_1_0&quot;</span>,<span class="w"> </span><span class="s2">&quot;start&quot;</span>:<span class="w"> </span><span class="m">0</span>.0,<span class="w"> </span><span class="s2">&quot;duration&quot;</span>:<span class="w"> </span><span class="m">6</span>.11,<span class="w"> </span><span class="s2">&quot;channel&quot;</span>:<span class="w"> </span><span class="m">0</span>,<span class="w"> </span><span class="s2">&quot;text&quot;</span>:<span class="w"> </span><span class="s2">&quot;NO NO NO YES NO YES YES NO&quot;</span>,<span class="w"> </span><span class="s2">&quot;language&quot;</span>:<span class="w"> </span><span class="s2">&quot;Hebrew&quot;</span><span class="o">}</span>
+<span class="o">{</span><span class="s2">&quot;id&quot;</span>:<span class="w"> </span><span class="s2">&quot;0_0_1_0_0_1_1_0&quot;</span>,<span class="w"> </span><span class="s2">&quot;recording_id&quot;</span>:<span class="w"> </span><span class="s2">&quot;0_0_1_0_0_1_1_0&quot;</span>,<span class="w"> </span><span class="s2">&quot;start&quot;</span>:<span class="w"> </span><span class="m">0</span>.0,<span class="w"> </span><span class="s2">&quot;duration&quot;</span>:<span class="w"> </span><span class="m">6</span>.02,<span class="w"> </span><span class="s2">&quot;channel&quot;</span>:<span class="w"> </span><span class="m">0</span>,<span class="w"> </span><span class="s2">&quot;text&quot;</span>:<span class="w"> </span><span class="s2">&quot;NO NO YES NO NO YES YES NO&quot;</span>,<span class="w"> </span><span class="s2">&quot;language&quot;</span>:<span class="w"> </span><span class="s2">&quot;Hebrew&quot;</span><span class="o">}</span>
+</pre></div>
+</div>
+<p>Please refer to <a class="reference external" href="https://github.com/lhotse-speech/lhotse/blob/master/lhotse/supervision.py#L510">https://github.com/lhotse-speech/lhotse/blob/master/lhotse/supervision.py#L510</a>
+for the meaning of each field per line.</p>
+</div></blockquote>
+<p><strong>data/fbank</strong>:</p>
+<blockquote>
+<div><p>This directory contains everything from <code class="docutils literal notranslate"><span class="pre">data/manifests</span></code>. Furthermore, it also contains features
+for training.</p>
+<p><code class="docutils literal notranslate"><span class="pre">data/fbank/yesno_feats_train.lca</span></code> contains the features for the train dataset.
+Features are compressed using <a class="reference external" href="https://github.com/danpovey/lilcom">lilcom</a>.</p>
+<p><code class="docutils literal notranslate"><span class="pre">data/fbank/yesno_cuts_train.jsonl.gz</span></code> stores the <a class="reference external" href="https://github.com/lhotse-speech/lhotse/blob/master/lhotse/cut/set.py#L72">CutSet</a>,
+which stores <a class="reference external" href="https://github.com/lhotse-speech/lhotse/blob/master/lhotse/audio.py#L928">RecordingSet</a>,
+<a class="reference external" href="https://github.com/lhotse-speech/lhotse/blob/master/lhotse/supervision.py#L510">SupervisionSet</a>,
+and <a class="reference external" href="https://github.com/lhotse-speech/lhotse/blob/master/lhotse/features/base.py#L593">FeatureSet</a>.</p>
+<p>To give you an idea about what it looks like, we can run the following command:</p>
+<blockquote>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>data/fbank
+
+gunzip<span class="w"> </span>-c<span class="w"> </span>yesno_cuts_train.jsonl.gz<span class="w"> </span><span class="p">|</span><span class="w"> </span>head<span class="w"> </span>-n<span class="w"> </span><span class="m">3</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>The output is given below:</p>
+<blockquote>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">{</span><span class="s2">&quot;id&quot;</span>:<span class="w"> </span><span class="s2">&quot;0_0_0_0_1_1_1_1-0&quot;</span>,<span class="w"> </span><span class="s2">&quot;start&quot;</span>:<span class="w"> </span><span class="m">0</span>,<span class="w"> </span><span class="s2">&quot;duration&quot;</span>:<span class="w"> </span><span class="m">6</span>.35,<span class="w"> </span><span class="s2">&quot;channel&quot;</span>:<span class="w"> </span><span class="m">0</span>,<span class="w"> </span><span class="s2">&quot;supervisions&quot;</span>:<span class="w"> </span><span class="o">[{</span><span class="s2">&quot;id&quot;</span>:<span class="w"> </span><span class="s2">&quot;0_0_0_0_1_1_1_1&quot;</span>,<span class="w"> </span><span class="s2">&quot;recording_id&quot;</span>:<span class="w"> </span><span class="s2">&quot;0_0_0_0_1_1_1_1&quot;</span>,<span class="w"> </span><span class="s2">&quot;start&quot;</span>:<span class="w"> </span><span class="m">0</span>.0,<span class="w"> </span><span class="s2">&quot;duration&quot;</span>:<span class="w"> </span><span class="m">6</span>.35,<span class="w"> </span><span class="s2">&quot;channel&quot;</span>:<span class="w"> </span><span class="m">0</span>,<span class="w"> </span><span class="s2">&quot;text&quot;</span>:<span class="w"> </span><span class="s2">&quot;NO NO NO NO YES YES YES YES&quot;</span>,<span class="w"> </span><span class="s2">&quot;language&quot;</span>:<span class="w"> </span><span class="s2">&quot;Hebrew&quot;</span><span class="o">}]</span>,<span class="w"> </span><span class="s2">&quot;features&quot;</span>:<span class="w"> </span><span class="o">{</span><span class="s2">&quot;type&quot;</span>:<span class="w"> </span><span class="s2">&quot;kaldi-fbank&quot;</span>,<span class="w"> </span><span class="s2">&quot;num_frames&quot;</span>:<span class="w"> </span><span class="m">635</span>,<span class="w"> </span><span class="s2">&quot;num_features&quot;</span>:<span class="w"> </span><span class="m">23</span>,<span class="w"> </span><span class="s2">&quot;frame_shift&quot;</span>:<span class="w"> </span><span class="m">0</span>.01,<span class="w"> </span><span class="s2">&quot;sampling_rate&quot;</span>:<span class="w"> </span><span class="m">8000</span>,<span class="w"> </span><span class="s2">&quot;start&quot;</span>:<span class="w"> </span><span class="m">0</span>,<span class="w"> </span><span class="s2">&quot;duration&quot;</span>:<span class="w"> </span><span class="m">6</span>.35,<span class="w"> </span><span class="s2">&quot;storage_type&quot;</span>:<span class="w"> </span><span class="s2">&quot;lilcom_chunky&quot;</span>,<span class="w"> </span><span class="s2">&quot;storage_path&quot;</span>:<span class="w"> </span><span class="s2">&quot;data/fbank/yesno_feats_train.lca&quot;</span>,<span class="w"> </span><span class="s2">&quot;storage_key&quot;</span>:<span class="w"> </span><span class="s2">&quot;0,13000,3570&quot;</span>,<span class="w"> </span><span class="s2">&quot;channels&quot;</span>:<span class="w"> </span><span class="m">0</span><span class="o">}</span>,<span class="w"> </span><span class="s2">&quot;recording&quot;</span>:<span class="w"> </span><span class="o">{</span><span class="s2">&quot;id&quot;</span>:<span class="w"> </span><span class="s2">&quot;0_0_0_0_1_1_1_1&quot;</span>,<span class="w"> </span><span class="s2">&quot;sources&quot;</span>:<span class="w"> </span><span class="o">[{</span><span class="s2">&quot;type&quot;</span>:<span class="w"> </span><span class="s2">&quot;file&quot;</span>,<span class="w"> </span><span class="s2">&quot;channels&quot;</span>:<span class="w"> </span><span class="o">[</span><span class="m">0</span><span class="o">]</span>,<span class="w"> </span><span class="s2">&quot;source&quot;</span>:<span class="w"> </span><span class="s2">&quot;/tmp/icefall/egs/yesno/ASR/download/waves_yesno/0_0_0_0_1_1_1_1.wav&quot;</span><span class="o">}]</span>,<span class="w"> </span><span class="s2">&quot;sampling_rate&quot;</span>:<span class="w"> </span><span class="m">8000</span>,<span class="w"> </span><span class="s2">&quot;num_samples&quot;</span>:<span class="w"> </span><span class="m">50800</span>,<span class="w"> </span><span class="s2">&quot;duration&quot;</span>:<span class="w"> </span><span class="m">6</span>.35,<span class="w"> </span><span class="s2">&quot;channel_ids&quot;</span>:<span class="w"> </span><span class="o">[</span><span class="m">0</span><span class="o">]}</span>,<span class="w"> </span><span class="s2">&quot;type&quot;</span>:<span class="w"> </span><span class="s2">&quot;MonoCut&quot;</span><span class="o">}</span>
+<span class="o">{</span><span class="s2">&quot;id&quot;</span>:<span class="w"> </span><span class="s2">&quot;0_0_0_1_0_1_1_0-1&quot;</span>,<span class="w"> </span><span class="s2">&quot;start&quot;</span>:<span class="w"> </span><span class="m">0</span>,<span class="w"> </span><span class="s2">&quot;duration&quot;</span>:<span class="w"> </span><span class="m">6</span>.11,<span class="w"> </span><span class="s2">&quot;channel&quot;</span>:<span class="w"> </span><span class="m">0</span>,<span class="w"> </span><span class="s2">&quot;supervisions&quot;</span>:<span class="w"> </span><span class="o">[{</span><span class="s2">&quot;id&quot;</span>:<span class="w"> </span><span class="s2">&quot;0_0_0_1_0_1_1_0&quot;</span>,<span class="w"> </span><span class="s2">&quot;recording_id&quot;</span>:<span class="w"> </span><span class="s2">&quot;0_0_0_1_0_1_1_0&quot;</span>,<span class="w"> </span><span class="s2">&quot;start&quot;</span>:<span class="w"> </span><span class="m">0</span>.0,<span class="w"> </span><span class="s2">&quot;duration&quot;</span>:<span class="w"> </span><span class="m">6</span>.11,<span class="w"> </span><span class="s2">&quot;channel&quot;</span>:<span class="w"> </span><span class="m">0</span>,<span class="w"> </span><span class="s2">&quot;text&quot;</span>:<span class="w"> </span><span class="s2">&quot;NO NO NO YES NO YES YES NO&quot;</span>,<span class="w"> </span><span class="s2">&quot;language&quot;</span>:<span class="w"> </span><span class="s2">&quot;Hebrew&quot;</span><span class="o">}]</span>,<span class="w"> </span><span class="s2">&quot;features&quot;</span>:<span class="w"> </span><span class="o">{</span><span class="s2">&quot;type&quot;</span>:<span class="w"> </span><span class="s2">&quot;kaldi-fbank&quot;</span>,<span class="w"> </span><span class="s2">&quot;num_frames&quot;</span>:<span class="w"> </span><span class="m">611</span>,<span class="w"> </span><span class="s2">&quot;num_features&quot;</span>:<span class="w"> </span><span class="m">23</span>,<span class="w"> </span><span class="s2">&quot;frame_shift&quot;</span>:<span class="w"> </span><span class="m">0</span>.01,<span class="w"> </span><span class="s2">&quot;sampling_rate&quot;</span>:<span class="w"> </span><span class="m">8000</span>,<span class="w"> </span><span class="s2">&quot;start&quot;</span>:<span class="w"> </span><span class="m">0</span>,<span class="w"> </span><span class="s2">&quot;duration&quot;</span>:<span class="w"> </span><span class="m">6</span>.11,<span class="w"> </span><span class="s2">&quot;storage_type&quot;</span>:<span class="w"> </span><span class="s2">&quot;lilcom_chunky&quot;</span>,<span class="w"> </span><span class="s2">&quot;storage_path&quot;</span>:<span class="w"> </span><span class="s2">&quot;data/fbank/yesno_feats_train.lca&quot;</span>,<span class="w"> </span><span class="s2">&quot;storage_key&quot;</span>:<span class="w"> </span><span class="s2">&quot;16570,12964,2929&quot;</span>,<span class="w"> </span><span class="s2">&quot;channels&quot;</span>:<span class="w"> </span><span class="m">0</span><span class="o">}</span>,<span class="w"> </span><span class="s2">&quot;recording&quot;</span>:<span class="w"> </span><span class="o">{</span><span class="s2">&quot;id&quot;</span>:<span class="w"> </span><span class="s2">&quot;0_0_0_1_0_1_1_0&quot;</span>,<span class="w"> </span><span class="s2">&quot;sources&quot;</span>:<span class="w"> </span><span class="o">[{</span><span class="s2">&quot;type&quot;</span>:<span class="w"> </span><span class="s2">&quot;file&quot;</span>,<span class="w"> </span><span class="s2">&quot;channels&quot;</span>:<span class="w"> </span><span class="o">[</span><span class="m">0</span><span class="o">]</span>,<span class="w"> </span><span class="s2">&quot;source&quot;</span>:<span class="w"> </span><span class="s2">&quot;/tmp/icefall/egs/yesno/ASR/download/waves_yesno/0_0_0_1_0_1_1_0.wav&quot;</span><span class="o">}]</span>,<span class="w"> </span><span class="s2">&quot;sampling_rate&quot;</span>:<span class="w"> </span><span class="m">8000</span>,<span class="w"> </span><span class="s2">&quot;num_samples&quot;</span>:<span class="w"> </span><span class="m">48880</span>,<span class="w"> </span><span class="s2">&quot;duration&quot;</span>:<span class="w"> </span><span class="m">6</span>.11,<span class="w"> </span><span class="s2">&quot;channel_ids&quot;</span>:<span class="w"> </span><span class="o">[</span><span class="m">0</span><span class="o">]}</span>,<span class="w"> </span><span class="s2">&quot;type&quot;</span>:<span class="w"> </span><span class="s2">&quot;MonoCut&quot;</span><span class="o">}</span>
+<span class="o">{</span><span class="s2">&quot;id&quot;</span>:<span class="w"> </span><span class="s2">&quot;0_0_1_0_0_1_1_0-2&quot;</span>,<span class="w"> </span><span class="s2">&quot;start&quot;</span>:<span class="w"> </span><span class="m">0</span>,<span class="w"> </span><span class="s2">&quot;duration&quot;</span>:<span class="w"> </span><span class="m">6</span>.02,<span class="w"> </span><span class="s2">&quot;channel&quot;</span>:<span class="w"> </span><span class="m">0</span>,<span class="w"> </span><span class="s2">&quot;supervisions&quot;</span>:<span class="w"> </span><span class="o">[{</span><span class="s2">&quot;id&quot;</span>:<span class="w"> </span><span class="s2">&quot;0_0_1_0_0_1_1_0&quot;</span>,<span class="w"> </span><span class="s2">&quot;recording_id&quot;</span>:<span class="w"> </span><span class="s2">&quot;0_0_1_0_0_1_1_0&quot;</span>,<span class="w"> </span><span class="s2">&quot;start&quot;</span>:<span class="w"> </span><span class="m">0</span>.0,<span class="w"> </span><span class="s2">&quot;duration&quot;</span>:<span class="w"> </span><span class="m">6</span>.02,<span class="w"> </span><span class="s2">&quot;channel&quot;</span>:<span class="w"> </span><span class="m">0</span>,<span class="w"> </span><span class="s2">&quot;text&quot;</span>:<span class="w"> </span><span class="s2">&quot;NO NO YES NO NO YES YES NO&quot;</span>,<span class="w"> </span><span class="s2">&quot;language&quot;</span>:<span class="w"> </span><span class="s2">&quot;Hebrew&quot;</span><span class="o">}]</span>,<span class="w"> </span><span class="s2">&quot;features&quot;</span>:<span class="w"> </span><span class="o">{</span><span class="s2">&quot;type&quot;</span>:<span class="w"> </span><span class="s2">&quot;kaldi-fbank&quot;</span>,<span class="w"> </span><span class="s2">&quot;num_frames&quot;</span>:<span class="w"> </span><span class="m">602</span>,<span class="w"> </span><span class="s2">&quot;num_features&quot;</span>:<span class="w"> </span><span class="m">23</span>,<span class="w"> </span><span class="s2">&quot;frame_shift&quot;</span>:<span class="w"> </span><span class="m">0</span>.01,<span class="w"> </span><span class="s2">&quot;sampling_rate&quot;</span>:<span class="w"> </span><span class="m">8000</span>,<span class="w"> </span><span class="s2">&quot;start&quot;</span>:<span class="w"> </span><span class="m">0</span>,<span class="w"> </span><span class="s2">&quot;duration&quot;</span>:<span class="w"> </span><span class="m">6</span>.02,<span class="w"> </span><span class="s2">&quot;storage_type&quot;</span>:<span class="w"> </span><span class="s2">&quot;lilcom_chunky&quot;</span>,<span class="w"> </span><span class="s2">&quot;storage_path&quot;</span>:<span class="w"> </span><span class="s2">&quot;data/fbank/yesno_feats_train.lca&quot;</span>,<span class="w"> </span><span class="s2">&quot;storage_key&quot;</span>:<span class="w"> </span><span class="s2">&quot;32463,12936,2696&quot;</span>,<span class="w"> </span><span class="s2">&quot;channels&quot;</span>:<span class="w"> </span><span class="m">0</span><span class="o">}</span>,<span class="w"> </span><span class="s2">&quot;recording&quot;</span>:<span class="w"> </span><span class="o">{</span><span class="s2">&quot;id&quot;</span>:<span class="w"> </span><span class="s2">&quot;0_0_1_0_0_1_1_0&quot;</span>,<span class="w"> </span><span class="s2">&quot;sources&quot;</span>:<span class="w"> </span><span class="o">[{</span><span class="s2">&quot;type&quot;</span>:<span class="w"> </span><span class="s2">&quot;file&quot;</span>,<span class="w"> </span><span class="s2">&quot;channels&quot;</span>:<span class="w"> </span><span class="o">[</span><span class="m">0</span><span class="o">]</span>,<span class="w"> </span><span class="s2">&quot;source&quot;</span>:<span class="w"> </span><span class="s2">&quot;/tmp/icefall/egs/yesno/ASR/download/waves_yesno/0_0_1_0_0_1_1_0.wav&quot;</span><span class="o">}]</span>,<span class="w"> </span><span class="s2">&quot;sampling_rate&quot;</span>:<span class="w"> </span><span class="m">8000</span>,<span class="w"> </span><span class="s2">&quot;num_samples&quot;</span>:<span class="w"> </span><span class="m">48160</span>,<span class="w"> </span><span class="s2">&quot;duration&quot;</span>:<span class="w"> </span><span class="m">6</span>.02,<span class="w"> </span><span class="s2">&quot;channel_ids&quot;</span>:<span class="w"> </span><span class="o">[</span><span class="m">0</span><span class="o">]}</span>,<span class="w"> </span><span class="s2">&quot;type&quot;</span>:<span class="w"> </span><span class="s2">&quot;MonoCut&quot;</span><span class="o">}</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>Note that <code class="docutils literal notranslate"><span class="pre">yesno_cuts_train.jsonl.gz</span></code> only stores the information about how to read the features.
+The actual features are stored separately in <code class="docutils literal notranslate"><span class="pre">data/fbank/yesno_feats_train.lca</span></code>.</p>
+</div></blockquote>
+<p><strong>data/lang</strong>:</p>
+<blockquote>
+<div><p>This directory contains the lexicon.</p>
+</div></blockquote>
+<p><strong>data/lm</strong>:</p>
+<blockquote>
+<div><p>This directory contains language models.</p>
+</div></blockquote>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="environment-setup.html" class="btn btn-neutral float-left" title="Environment setup" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="training.html" class="btn btn-neutral float-right" title="Training" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2021, icefall development team.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

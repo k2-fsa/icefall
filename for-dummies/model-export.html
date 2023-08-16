@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Model Export &mdash; icefall 0.1 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/sphinx_highlight.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Installation" href="../installation/index.html" />
+    <link rel="prev" title="Decoding" href="decoding.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            icefall
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Icefall for dummies tutorial</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="environment-setup.html">Environment setup</a></li>
+<li class="toctree-l2"><a class="reference internal" href="data-preparation.html">Data Preparation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="training.html">Training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="decoding.html">Decoding</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Model Export</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#export-the-model-parameters-via-model-state-dict">Export the model parameters via model.state_dict()</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#export-via-torch-jit-script">Export via torch.jit.script()</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#export-via-torch-onnx-export">Export via torch.onnx.export()</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#for-the-more-curious">For the more curious</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../installation/index.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../docker/index.html">Docker</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../faqs.html">Frequently Asked Questions (FAQs)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../model-export/index.html">Model export</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../recipes/index.html">Recipes</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../contributing/index.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../huggingface/index.html">Huggingface</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../decoding-with-langugage-models/index.html">Decoding with language models</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">icefall</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Icefall for dummies tutorial</a></li>
+      <li class="breadcrumb-item active">Model Export</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/k2-fsa/icefall/blob/master/docs/source/for-dummies/model-export.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="model-export">
+<h1>Model Export<a class="headerlink" href="#model-export" title="Permalink to this heading"></a></h1>
+<p>There are three ways to export a pre-trained model.</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Export the model parameters via <a class="reference external" href="https://pytorch.org/docs/stable/generated/torch.nn.Module.html?highlight=load_state_dict#torch.nn.Module.state_dict">model.state_dict()</a></p></li>
+<li><p>Export via <a class="reference external" href="https://pytorch.org/docs/stable/jit.html">torchscript</a>: either <a class="reference external" href="https://pytorch.org/docs/stable/generated/torch.jit.script.html#torch.jit.script">torch.jit.script()</a> or <a class="reference external" href="https://pytorch.org/docs/stable/generated/torch.jit.trace.html">torch.jit.trace()</a></p></li>
+<li><p>Export to <a class="reference external" href="https://github.com/onnx/onnx">ONNX</a> via <a class="reference external" href="https://pytorch.org/docs/stable/onnx.html">torch.onnx.export()</a></p></li>
+</ul>
+</div></blockquote>
+<p>Each method is explained below in detail.</p>
+<section id="export-the-model-parameters-via-model-state-dict">
+<h2>Export the model parameters via model.state_dict()<a class="headerlink" href="#export-the-model-parameters-via-model-state-dict" title="Permalink to this heading"></a></h2>
+<p>The command for this kind of export is</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>/tmp/icefall
+<span class="nb">export</span><span class="w"> </span><span class="nv">PYTHONPATH</span><span class="o">=</span>/tmp/icefall:<span class="nv">$PYTHONPATH</span>
+<span class="nb">cd</span><span class="w"> </span>egs/yesno/ASR
+
+<span class="c1"># assume that &quot;--epoch 14 --avg 2&quot; produces the lowest WER.</span>
+
+./tdnn/export.py<span class="w"> </span>--epoch<span class="w"> </span><span class="m">14</span><span class="w"> </span>--avg<span class="w"> </span><span class="m">2</span>
+</pre></div>
+</div>
+<p>The output logs are given below:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="m">2023</span>-08-16<span class="w"> </span><span class="m">20</span>:42:03,912<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>export.py:76<span class="o">]</span><span class="w"> </span><span class="o">{</span><span class="s1">&#39;exp_dir&#39;</span>:<span class="w"> </span>PosixPath<span class="o">(</span><span class="s1">&#39;tdnn/exp&#39;</span><span class="o">)</span>,<span class="w"> </span><span class="s1">&#39;lang_dir&#39;</span>:<span class="w"> </span>PosixPath<span class="o">(</span><span class="s1">&#39;data/lang_phone&#39;</span><span class="o">)</span>,<span class="w"> </span><span class="s1">&#39;lr&#39;</span>:<span class="w"> </span><span class="m">0</span>.01,<span class="w"> </span><span class="s1">&#39;feature_dim&#39;</span>:<span class="w"> </span><span class="m">23</span>,<span class="w"> </span><span class="s1">&#39;weight_decay&#39;</span>:<span class="w"> </span>1e-06,<span class="w"> </span><span class="s1">&#39;start_epoch&#39;</span>:<span class="w"> </span><span class="m">0</span>,<span class="w"> </span><span class="s1">&#39;best_train_loss&#39;</span>:<span class="w"> </span>inf,<span class="w"> </span><span class="s1">&#39;best_valid_loss&#39;</span>:<span class="w"> </span>inf,<span class="w"> </span><span class="s1">&#39;best_train_epoch&#39;</span>:<span class="w"> </span>-1,<span class="w"> </span><span class="s1">&#39;best_valid_epoch&#39;</span>:<span class="w"> </span>-1,<span class="w"> </span><span class="s1">&#39;batch_idx_train&#39;</span>:<span class="w"> </span><span class="m">0</span>,<span class="w"> </span><span class="s1">&#39;log_interval&#39;</span>:<span class="w"> </span><span class="m">10</span>,<span class="w"> </span><span class="s1">&#39;reset_interval&#39;</span>:<span class="w"> </span><span class="m">20</span>,<span class="w"> </span><span class="s1">&#39;valid_interval&#39;</span>:<span class="w"> </span><span class="m">10</span>,<span class="w"> </span><span class="s1">&#39;beam_size&#39;</span>:<span class="w"> </span><span class="m">10</span>,<span class="w"> </span><span class="s1">&#39;reduction&#39;</span>:<span class="w"> </span><span class="s1">&#39;sum&#39;</span>,<span class="w"> </span><span class="s1">&#39;use_double_scores&#39;</span>:<span class="w"> </span>True,<span class="w"> </span><span class="s1">&#39;epoch&#39;</span>:<span class="w"> </span><span class="m">14</span>,<span class="w"> </span><span class="s1">&#39;avg&#39;</span>:<span class="w"> </span><span class="m">2</span>,<span class="w"> </span><span class="s1">&#39;jit&#39;</span>:<span class="w"> </span>False<span class="o">}</span>
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">20</span>:42:03,913<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>lexicon.py:168<span class="o">]</span><span class="w"> </span>Loading<span class="w"> </span>pre-compiled<span class="w"> </span>data/lang_phone/Linv.pt
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">20</span>:42:03,950<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>export.py:93<span class="o">]</span><span class="w"> </span>averaging<span class="w"> </span><span class="o">[</span><span class="s1">&#39;tdnn/exp/epoch-13.pt&#39;</span>,<span class="w"> </span><span class="s1">&#39;tdnn/exp/epoch-14.pt&#39;</span><span class="o">]</span>
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">20</span>:42:03,971<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>export.py:106<span class="o">]</span><span class="w"> </span>Not<span class="w"> </span>using<span class="w"> </span>torch.jit.script
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">20</span>:42:03,974<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>export.py:111<span class="o">]</span><span class="w"> </span>Saved<span class="w"> </span>to<span class="w"> </span>tdnn/exp/pretrained.pt
+</pre></div>
+</div>
+<p>We can see from the logs that the exported model is saved to the file <code class="docutils literal notranslate"><span class="pre">tdnn/exp/pretrained.pt</span></code>.</p>
+<p>To give you an idea of what <code class="docutils literal notranslate"><span class="pre">tdnn/exp/pretrained.pt</span></code> contains, we can use the following command:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">torch</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">m</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">&quot;tdnn/exp/pretrained.pt&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">list</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+<span class="go">[&#39;model&#39;]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">list</span><span class="p">(</span><span class="n">m</span><span class="p">[</span><span class="s2">&quot;model&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+<span class="go">[&#39;tdnn.0.weight&#39;, &#39;tdnn.0.bias&#39;, &#39;tdnn.2.running_mean&#39;, &#39;tdnn.2.running_var&#39;, &#39;tdnn.2.num_batches_tracked&#39;, &#39;tdnn.3.weight&#39;, &#39;tdnn.3.bias&#39;, &#39;tdnn.5.running_mean&#39;, &#39;tdnn.5.running_var&#39;, &#39;tdnn.5.num_batches_tracked&#39;, &#39;tdnn.6.weight&#39;, &#39;tdnn.6.bias&#39;, &#39;tdnn.8.running_mean&#39;, &#39;tdnn.8.running_var&#39;, &#39;tdnn.8.num_batches_tracked&#39;, &#39;output_linear.weight&#39;, &#39;output_linear.bias&#39;]</span>
+</pre></div>
+</div>
+<p>We can use <code class="docutils literal notranslate"><span class="pre">tdnn/exp/pretrained.pt</span></code> in the following way with <code class="docutils literal notranslate"><span class="pre">./tdnn/decode.py</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>tdnn/exp
+ln<span class="w"> </span>-s<span class="w"> </span>pretrained.pt<span class="w"> </span>epoch-99.pt
+<span class="nb">cd</span><span class="w"> </span>../..
+
+./tdnn/decode.py<span class="w"> </span>--epoch<span class="w"> </span><span class="m">99</span><span class="w"> </span>--avg<span class="w"> </span><span class="m">1</span>
+</pre></div>
+</div>
+<p>The output logs of the above command are given below:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="m">2023</span>-08-16<span class="w"> </span><span class="m">20</span>:45:48,089<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>decode.py:262<span class="o">]</span><span class="w"> </span>Decoding<span class="w"> </span>started
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">20</span>:45:48,090<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>decode.py:263<span class="o">]</span><span class="w"> </span><span class="o">{</span><span class="s1">&#39;exp_dir&#39;</span>:<span class="w"> </span>PosixPath<span class="o">(</span><span class="s1">&#39;tdnn/exp&#39;</span><span class="o">)</span>,<span class="w"> </span><span class="s1">&#39;lang_dir&#39;</span>:<span class="w"> </span>PosixPath<span class="o">(</span><span class="s1">&#39;data/lang_phone&#39;</span><span class="o">)</span>,<span class="w"> </span><span class="s1">&#39;feature_dim&#39;</span>:<span class="w"> </span><span class="m">23</span>,<span class="w"> </span><span class="s1">&#39;search_beam&#39;</span>:<span class="w"> </span><span class="m">20</span>,<span class="w"> </span><span class="s1">&#39;output_beam&#39;</span>:<span class="w"> </span><span class="m">8</span>,<span class="w"> </span><span class="s1">&#39;min_active_states&#39;</span>:<span class="w"> </span><span class="m">30</span>,<span class="w"> </span><span class="s1">&#39;max_active_states&#39;</span>:<span class="w"> </span><span class="m">10000</span>,<span class="w"> </span><span class="s1">&#39;use_double_scores&#39;</span>:<span class="w"> </span>True,<span class="w"> </span><span class="s1">&#39;epoch&#39;</span>:<span class="w"> </span><span class="m">99</span>,<span class="w"> </span><span class="s1">&#39;avg&#39;</span>:<span class="w"> </span><span class="m">1</span>,<span class="w"> </span><span class="s1">&#39;export&#39;</span>:<span class="w"> </span>False,<span class="w"> </span><span class="s1">&#39;feature_dir&#39;</span>:<span class="w"> </span>PosixPath<span class="o">(</span><span class="s1">&#39;data/fbank&#39;</span><span class="o">)</span>,<span class="w"> </span><span class="s1">&#39;max_duration&#39;</span>:<span class="w"> </span><span class="m">30</span>.0,<span class="w"> </span><span class="s1">&#39;bucketing_sampler&#39;</span>:<span class="w"> </span>False,<span class="w"> </span><span class="s1">&#39;num_buckets&#39;</span>:<span class="w"> </span><span class="m">10</span>,<span class="w"> </span><span class="s1">&#39;concatenate_cuts&#39;</span>:<span class="w"> </span>False,<span class="w"> </span><span class="s1">&#39;duration_factor&#39;</span>:<span class="w"> </span><span class="m">1</span>.0,<span class="w"> </span><span class="s1">&#39;gap&#39;</span>:<span class="w"> </span><span class="m">1</span>.0,<span class="w"> </span><span class="s1">&#39;on_the_fly_feats&#39;</span>:<span class="w"> </span>False,<span class="w"> </span><span class="s1">&#39;shuffle&#39;</span>:<span class="w"> </span>False,<span class="w"> </span><span class="s1">&#39;return_cuts&#39;</span>:<span class="w"> </span>True,<span class="w"> </span><span class="s1">&#39;num_workers&#39;</span>:<span class="w"> </span><span class="m">2</span>,<span class="w"> </span><span class="s1">&#39;env_info&#39;</span>:<span class="w"> </span><span class="o">{</span><span class="s1">&#39;k2-version&#39;</span>:<span class="w"> </span><span class="s1">&#39;1.24.3&#39;</span>,<span class="w"> </span><span class="s1">&#39;k2-build-type&#39;</span>:<span class="w"> </span><span class="s1">&#39;Release&#39;</span>,<span class="w"> </span><span class="s1">&#39;k2-with-cuda&#39;</span>:<span class="w"> </span>False,<span class="w"> </span><span class="s1">&#39;k2-git-sha1&#39;</span>:<span class="w"> </span><span class="s1">&#39;ad79f1c699c684de9785ed6ca5edb805a41f78c3&#39;</span>,<span class="w"> </span><span class="s1">&#39;k2-git-date&#39;</span>:<span class="w"> </span><span class="s1">&#39;Wed Jul 26 09:30:42 2023&#39;</span>,<span class="w"> </span><span class="s1">&#39;lhotse-version&#39;</span>:<span class="w"> </span><span class="s1">&#39;1.16.0.dev+git.aa073f6.clean&#39;</span>,<span class="w"> </span><span class="s1">&#39;torch-version&#39;</span>:<span class="w"> </span><span class="s1">&#39;2.0.0&#39;</span>,<span class="w"> </span><span class="s1">&#39;torch-cuda-available&#39;</span>:<span class="w"> </span>False,<span class="w"> </span><span class="s1">&#39;torch-cuda-version&#39;</span>:<span class="w"> </span>None,<span class="w"> </span><span class="s1">&#39;python-version&#39;</span>:<span class="w"> </span><span class="s1">&#39;3.1&#39;</span>,<span class="w"> </span><span class="s1">&#39;icefall-git-branch&#39;</span>:<span class="w"> </span><span class="s1">&#39;master&#39;</span>,<span class="w"> </span><span class="s1">&#39;icefall-git-sha1&#39;</span>:<span class="w"> </span><span class="s1">&#39;9a47c08-clean&#39;</span>,<span class="w"> </span><span class="s1">&#39;icefall-git-date&#39;</span>:<span class="w"> </span><span class="s1">&#39;Mon Aug 14 22:10:50 2023&#39;</span>,<span class="w"> </span><span class="s1">&#39;icefall-path&#39;</span>:<span class="w"> </span><span class="s1">&#39;/private/tmp/icefall&#39;</span>,<span class="w"> </span><span class="s1">&#39;k2-path&#39;</span>:<span class="w"> </span><span class="s1">&#39;/private/tmp/icefall_env/lib/python3.11/site-packages/k2/__init__.py&#39;</span>,<span class="w"> </span><span class="s1">&#39;lhotse-path&#39;</span>:<span class="w"> </span><span class="s1">&#39;/private/tmp/icefall_env/lib/python3.11/site-packages/lhotse/__init__.py&#39;</span>,<span class="w"> </span><span class="s1">&#39;hostname&#39;</span>:<span class="w"> </span><span class="s1">&#39;fangjuns-MacBook-Pro.local&#39;</span>,<span class="w"> </span><span class="s1">&#39;IP address&#39;</span>:<span class="w"> </span><span class="s1">&#39;127.0.0.1&#39;</span><span class="o">}}</span>
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">20</span>:45:48,092<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>lexicon.py:168<span class="o">]</span><span class="w"> </span>Loading<span class="w"> </span>pre-compiled<span class="w"> </span>data/lang_phone/Linv.pt
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">20</span>:45:48,103<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>decode.py:272<span class="o">]</span><span class="w"> </span>device:<span class="w"> </span>cpu
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">20</span>:45:48,109<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>checkpoint.py:112<span class="o">]</span><span class="w"> </span>Loading<span class="w"> </span>checkpoint<span class="w"> </span>from<span class="w"> </span>tdnn/exp/epoch-99.pt
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">20</span>:45:48,115<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>asr_datamodule.py:218<span class="o">]</span><span class="w"> </span>About<span class="w"> </span>to<span class="w"> </span>get<span class="w"> </span><span class="nb">test</span><span class="w"> </span>cuts
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">20</span>:45:48,115<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>asr_datamodule.py:253<span class="o">]</span><span class="w"> </span>About<span class="w"> </span>to<span class="w"> </span>get<span class="w"> </span><span class="nb">test</span><span class="w"> </span>cuts
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">20</span>:45:50,386<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>decode.py:203<span class="o">]</span><span class="w"> </span>batch<span class="w"> </span><span class="m">0</span>/?,<span class="w"> </span>cuts<span class="w"> </span>processed<span class="w"> </span><span class="k">until</span><span class="w"> </span>now<span class="w"> </span>is<span class="w"> </span><span class="m">4</span>
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">20</span>:45:50,556<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>decode.py:240<span class="o">]</span><span class="w"> </span>The<span class="w"> </span>transcripts<span class="w"> </span>are<span class="w"> </span>stored<span class="w"> </span><span class="k">in</span><span class="w"> </span>tdnn/exp/recogs-test_set.txt
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">20</span>:45:50,557<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>utils.py:564<span class="o">]</span><span class="w"> </span><span class="o">[</span>test_set<span class="o">]</span><span class="w"> </span>%WER<span class="w"> </span><span class="m">0</span>.42%<span class="w"> </span><span class="o">[</span><span class="m">1</span><span class="w"> </span>/<span class="w"> </span><span class="m">240</span>,<span class="w"> </span><span class="m">0</span><span class="w"> </span>ins,<span class="w"> </span><span class="m">1</span><span class="w"> </span>del,<span class="w"> </span><span class="m">0</span><span class="w"> </span>sub<span class="w"> </span><span class="o">]</span>
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">20</span>:45:50,558<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>decode.py:248<span class="o">]</span><span class="w"> </span>Wrote<span class="w"> </span>detailed<span class="w"> </span>error<span class="w"> </span>stats<span class="w"> </span>to<span class="w"> </span>tdnn/exp/errs-test_set.txt
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">20</span>:45:50,559<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>decode.py:315<span class="o">]</span><span class="w"> </span>Done!
+</pre></div>
+</div>
+<p>We can see that it produces an identical WER as before.</p>
+<p>We can also use it to decode files with the following command:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># ./tdnn/pretrained.py requires kaldifeat</span>
+<span class="c1">#</span>
+<span class="c1"># Please refer to https://csukuangfj.github.io/kaldifeat/installation/from_wheels.html</span>
+<span class="c1"># for how to install kaldifeat</span>
+
+pip<span class="w"> </span>install<span class="w"> </span><span class="nv">kaldifeat</span><span class="o">==</span><span class="m">1</span>.25.0.dev20230726+cpu.torch2.0.0<span class="w"> </span>-f<span class="w"> </span>https://csukuangfj.github.io/kaldifeat/cpu.html
+
+./tdnn/pretrained.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--checkpoint<span class="w"> </span>./tdnn/exp/pretrained.pt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--HLG<span class="w"> </span>./data/lang_phone/HLG.pt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--words-file<span class="w"> </span>./data/lang_phone/words.txt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>download/waves_yesno/0_0_0_1_0_0_0_1.wav<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>download/waves_yesno/0_0_1_0_0_0_1_0.wav
+</pre></div>
+</div>
+<p>The output is given below:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="m">2023</span>-08-16<span class="w"> </span><span class="m">20</span>:53:19,208<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>pretrained.py:136<span class="o">]</span><span class="w"> </span><span class="o">{</span><span class="s1">&#39;feature_dim&#39;</span>:<span class="w"> </span><span class="m">23</span>,<span class="w"> </span><span class="s1">&#39;num_classes&#39;</span>:<span class="w"> </span><span class="m">4</span>,<span class="w"> </span><span class="s1">&#39;sample_rate&#39;</span>:<span class="w"> </span><span class="m">8000</span>,<span class="w"> </span><span class="s1">&#39;search_beam&#39;</span>:<span class="w"> </span><span class="m">20</span>,<span class="w"> </span><span class="s1">&#39;output_beam&#39;</span>:<span class="w"> </span><span class="m">8</span>,<span class="w"> </span><span class="s1">&#39;min_active_states&#39;</span>:<span class="w"> </span><span class="m">30</span>,<span class="w"> </span><span class="s1">&#39;max_active_states&#39;</span>:<span class="w"> </span><span class="m">10000</span>,<span class="w"> </span><span class="s1">&#39;use_double_scores&#39;</span>:<span class="w"> </span>True,<span class="w"> </span><span class="s1">&#39;checkpoint&#39;</span>:<span class="w"> </span><span class="s1">&#39;./tdnn/exp/pretrained.pt&#39;</span>,<span class="w"> </span><span class="s1">&#39;words_file&#39;</span>:<span class="w"> </span><span class="s1">&#39;./data/lang_phone/words.txt&#39;</span>,<span class="w"> </span><span class="s1">&#39;HLG&#39;</span>:<span class="w"> </span><span class="s1">&#39;./data/lang_phone/HLG.pt&#39;</span>,<span class="w"> </span><span class="s1">&#39;sound_files&#39;</span>:<span class="w"> </span><span class="o">[</span><span class="s1">&#39;download/waves_yesno/0_0_0_1_0_0_0_1.wav&#39;</span>,<span class="w"> </span><span class="s1">&#39;download/waves_yesno/0_0_1_0_0_0_1_0.wav&#39;</span><span class="o">]}</span>
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">20</span>:53:19,208<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>pretrained.py:142<span class="o">]</span><span class="w"> </span>device:<span class="w"> </span>cpu
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">20</span>:53:19,208<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>pretrained.py:144<span class="o">]</span><span class="w"> </span>Creating<span class="w"> </span>model
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">20</span>:53:19,212<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>pretrained.py:156<span class="o">]</span><span class="w"> </span>Loading<span class="w"> </span>HLG<span class="w"> </span>from<span class="w"> </span>./data/lang_phone/HLG.pt
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">20</span>:53:19,213<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>pretrained.py:160<span class="o">]</span><span class="w"> </span>Constructing<span class="w"> </span>Fbank<span class="w"> </span>computer
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">20</span>:53:19,213<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>pretrained.py:170<span class="o">]</span><span class="w"> </span>Reading<span class="w"> </span>sound<span class="w"> </span>files:<span class="w"> </span><span class="o">[</span><span class="s1">&#39;download/waves_yesno/0_0_0_1_0_0_0_1.wav&#39;</span>,<span class="w"> </span><span class="s1">&#39;download/waves_yesno/0_0_1_0_0_0_1_0.wav&#39;</span><span class="o">]</span>
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">20</span>:53:19,224<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>pretrained.py:176<span class="o">]</span><span class="w"> </span>Decoding<span class="w"> </span>started
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">20</span>:53:19,304<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>pretrained.py:212<span class="o">]</span>
+download/waves_yesno/0_0_0_1_0_0_0_1.wav:
+NO<span class="w"> </span>NO<span class="w"> </span>NO<span class="w"> </span>YES<span class="w"> </span>NO<span class="w"> </span>NO<span class="w"> </span>NO<span class="w"> </span>YES
+
+download/waves_yesno/0_0_1_0_0_0_1_0.wav:
+NO<span class="w"> </span>NO<span class="w"> </span>YES<span class="w"> </span>NO<span class="w"> </span>NO<span class="w"> </span>NO<span class="w"> </span>YES<span class="w"> </span>NO
+
+
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">20</span>:53:19,304<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>pretrained.py:214<span class="o">]</span><span class="w"> </span>Decoding<span class="w"> </span>Done
+</pre></div>
+</div>
+</section>
+<section id="export-via-torch-jit-script">
+<h2>Export via torch.jit.script()<a class="headerlink" href="#export-via-torch-jit-script" title="Permalink to this heading"></a></h2>
+<p>The command for this kind of export is</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>/tmp/icefall
+<span class="nb">export</span><span class="w"> </span><span class="nv">PYTHONPATH</span><span class="o">=</span>/tmp/icefall:<span class="nv">$PYTHONPATH</span>
+<span class="nb">cd</span><span class="w"> </span>egs/yesno/ASR
+
+<span class="c1"># assume that &quot;--epoch 14 --avg 2&quot; produces the lowest WER.</span>
+
+./tdnn/export.py<span class="w"> </span>--epoch<span class="w"> </span><span class="m">14</span><span class="w"> </span>--avg<span class="w"> </span><span class="m">2</span><span class="w"> </span>--jit<span class="w"> </span><span class="nb">true</span>
+</pre></div>
+</div>
+<p>The output logs are given below:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="m">2023</span>-08-16<span class="w"> </span><span class="m">20</span>:47:44,666<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>export.py:76<span class="o">]</span><span class="w"> </span><span class="o">{</span><span class="s1">&#39;exp_dir&#39;</span>:<span class="w"> </span>PosixPath<span class="o">(</span><span class="s1">&#39;tdnn/exp&#39;</span><span class="o">)</span>,<span class="w"> </span><span class="s1">&#39;lang_dir&#39;</span>:<span class="w"> </span>PosixPath<span class="o">(</span><span class="s1">&#39;data/lang_phone&#39;</span><span class="o">)</span>,<span class="w"> </span><span class="s1">&#39;lr&#39;</span>:<span class="w"> </span><span class="m">0</span>.01,<span class="w"> </span><span class="s1">&#39;feature_dim&#39;</span>:<span class="w"> </span><span class="m">23</span>,<span class="w"> </span><span class="s1">&#39;weight_decay&#39;</span>:<span class="w"> </span>1e-06,<span class="w"> </span><span class="s1">&#39;start_epoch&#39;</span>:<span class="w"> </span><span class="m">0</span>,<span class="w"> </span><span class="s1">&#39;best_train_loss&#39;</span>:<span class="w"> </span>inf,<span class="w"> </span><span class="s1">&#39;best_valid_loss&#39;</span>:<span class="w"> </span>inf,<span class="w"> </span><span class="s1">&#39;best_train_epoch&#39;</span>:<span class="w"> </span>-1,<span class="w"> </span><span class="s1">&#39;best_valid_epoch&#39;</span>:<span class="w"> </span>-1,<span class="w"> </span><span class="s1">&#39;batch_idx_train&#39;</span>:<span class="w"> </span><span class="m">0</span>,<span class="w"> </span><span class="s1">&#39;log_interval&#39;</span>:<span class="w"> </span><span class="m">10</span>,<span class="w"> </span><span class="s1">&#39;reset_interval&#39;</span>:<span class="w"> </span><span class="m">20</span>,<span class="w"> </span><span class="s1">&#39;valid_interval&#39;</span>:<span class="w"> </span><span class="m">10</span>,<span class="w"> </span><span class="s1">&#39;beam_size&#39;</span>:<span class="w"> </span><span class="m">10</span>,<span class="w"> </span><span class="s1">&#39;reduction&#39;</span>:<span class="w"> </span><span class="s1">&#39;sum&#39;</span>,<span class="w"> </span><span class="s1">&#39;use_double_scores&#39;</span>:<span class="w"> </span>True,<span class="w"> </span><span class="s1">&#39;epoch&#39;</span>:<span class="w"> </span><span class="m">14</span>,<span class="w"> </span><span class="s1">&#39;avg&#39;</span>:<span class="w"> </span><span class="m">2</span>,<span class="w"> </span><span class="s1">&#39;jit&#39;</span>:<span class="w"> </span>True<span class="o">}</span>
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">20</span>:47:44,667<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>lexicon.py:168<span class="o">]</span><span class="w"> </span>Loading<span class="w"> </span>pre-compiled<span class="w"> </span>data/lang_phone/Linv.pt
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">20</span>:47:44,670<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>export.py:93<span class="o">]</span><span class="w"> </span>averaging<span class="w"> </span><span class="o">[</span><span class="s1">&#39;tdnn/exp/epoch-13.pt&#39;</span>,<span class="w"> </span><span class="s1">&#39;tdnn/exp/epoch-14.pt&#39;</span><span class="o">]</span>
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">20</span>:47:44,677<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>export.py:100<span class="o">]</span><span class="w"> </span>Using<span class="w"> </span>torch.jit.script
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">20</span>:47:44,843<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>export.py:104<span class="o">]</span><span class="w"> </span>Saved<span class="w"> </span>to<span class="w"> </span>tdnn/exp/cpu_jit.pt
+</pre></div>
+</div>
+<p>From the output logs we can see that the generated file is saved to <code class="docutils literal notranslate"><span class="pre">tdnn/exp/cpu_jit.pt</span></code>.</p>
+<p>Don’t be confused by the name <code class="docutils literal notranslate"><span class="pre">cpu_jit.pt</span></code>. The <code class="docutils literal notranslate"><span class="pre">cpu</span></code> part means the model is moved to
+CPU before exporting. That means, when you load it with:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>torch.jit.load<span class="o">()</span>
+</pre></div>
+</div>
+<p>you don’t need to specify the argument <a class="reference external" href="https://pytorch.org/docs/stable/generated/torch.jit.load.html#torch.jit.load">map_location</a>
+and it resides on CPU by default.</p>
+<p>To use <code class="docutils literal notranslate"><span class="pre">tdnn/exp/cpu_jit.pt</span></code> with <a class="reference external" href="https://github.com/k2-fsa/icefall">icefall</a> to decode files, we can use:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># ./tdnn/jit_pretrained.py requires kaldifeat</span>
+<span class="c1">#</span>
+<span class="c1"># Please refer to https://csukuangfj.github.io/kaldifeat/installation/from_wheels.html</span>
+<span class="c1"># for how to install kaldifeat</span>
+
+pip<span class="w"> </span>install<span class="w"> </span><span class="nv">kaldifeat</span><span class="o">==</span><span class="m">1</span>.25.0.dev20230726+cpu.torch2.0.0<span class="w"> </span>-f<span class="w"> </span>https://csukuangfj.github.io/kaldifeat/cpu.html
+
+
+./tdnn/jit_pretrained.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--nn-model<span class="w"> </span>./tdnn/exp/cpu_jit.pt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--HLG<span class="w"> </span>./data/lang_phone/HLG.pt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--words-file<span class="w"> </span>./data/lang_phone/words.txt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>download/waves_yesno/0_0_0_1_0_0_0_1.wav<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>download/waves_yesno/0_0_1_0_0_0_1_0.wav
+</pre></div>
+</div>
+<p>The output is given below:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="m">2023</span>-08-16<span class="w"> </span><span class="m">20</span>:56:00,603<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>jit_pretrained.py:121<span class="o">]</span><span class="w"> </span><span class="o">{</span><span class="s1">&#39;feature_dim&#39;</span>:<span class="w"> </span><span class="m">23</span>,<span class="w"> </span><span class="s1">&#39;num_classes&#39;</span>:<span class="w"> </span><span class="m">4</span>,<span class="w"> </span><span class="s1">&#39;sample_rate&#39;</span>:<span class="w"> </span><span class="m">8000</span>,<span class="w"> </span><span class="s1">&#39;search_beam&#39;</span>:<span class="w"> </span><span class="m">20</span>,<span class="w"> </span><span class="s1">&#39;output_beam&#39;</span>:<span class="w"> </span><span class="m">8</span>,<span class="w"> </span><span class="s1">&#39;min_active_states&#39;</span>:<span class="w"> </span><span class="m">30</span>,<span class="w"> </span><span class="s1">&#39;max_active_states&#39;</span>:<span class="w"> </span><span class="m">10000</span>,<span class="w"> </span><span class="s1">&#39;use_double_scores&#39;</span>:<span class="w"> </span>True,<span class="w"> </span><span class="s1">&#39;nn_model&#39;</span>:<span class="w"> </span><span class="s1">&#39;./tdnn/exp/cpu_jit.pt&#39;</span>,<span class="w"> </span><span class="s1">&#39;words_file&#39;</span>:<span class="w"> </span><span class="s1">&#39;./data/lang_phone/words.txt&#39;</span>,<span class="w"> </span><span class="s1">&#39;HLG&#39;</span>:<span class="w"> </span><span class="s1">&#39;./data/lang_phone/HLG.pt&#39;</span>,<span class="w"> </span><span class="s1">&#39;sound_files&#39;</span>:<span class="w"> </span><span class="o">[</span><span class="s1">&#39;download/waves_yesno/0_0_0_1_0_0_0_1.wav&#39;</span>,<span class="w"> </span><span class="s1">&#39;download/waves_yesno/0_0_1_0_0_0_1_0.wav&#39;</span><span class="o">]}</span>
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">20</span>:56:00,603<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>jit_pretrained.py:127<span class="o">]</span><span class="w"> </span>device:<span class="w"> </span>cpu
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">20</span>:56:00,603<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>jit_pretrained.py:129<span class="o">]</span><span class="w"> </span>Loading<span class="w"> </span>torchscript<span class="w"> </span>model
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">20</span>:56:00,640<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>jit_pretrained.py:134<span class="o">]</span><span class="w"> </span>Loading<span class="w"> </span>HLG<span class="w"> </span>from<span class="w"> </span>./data/lang_phone/HLG.pt
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">20</span>:56:00,641<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>jit_pretrained.py:138<span class="o">]</span><span class="w"> </span>Constructing<span class="w"> </span>Fbank<span class="w"> </span>computer
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">20</span>:56:00,641<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>jit_pretrained.py:148<span class="o">]</span><span class="w"> </span>Reading<span class="w"> </span>sound<span class="w"> </span>files:<span class="w"> </span><span class="o">[</span><span class="s1">&#39;download/waves_yesno/0_0_0_1_0_0_0_1.wav&#39;</span>,<span class="w"> </span><span class="s1">&#39;download/waves_yesno/0_0_1_0_0_0_1_0.wav&#39;</span><span class="o">]</span>
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">20</span>:56:00,642<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>jit_pretrained.py:154<span class="o">]</span><span class="w"> </span>Decoding<span class="w"> </span>started
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">20</span>:56:00,727<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>jit_pretrained.py:190<span class="o">]</span>
+download/waves_yesno/0_0_0_1_0_0_0_1.wav:
+NO<span class="w"> </span>NO<span class="w"> </span>NO<span class="w"> </span>YES<span class="w"> </span>NO<span class="w"> </span>NO<span class="w"> </span>NO<span class="w"> </span>YES
+
+download/waves_yesno/0_0_1_0_0_0_1_0.wav:
+NO<span class="w"> </span>NO<span class="w"> </span>YES<span class="w"> </span>NO<span class="w"> </span>NO<span class="w"> </span>NO<span class="w"> </span>YES<span class="w"> </span>NO
+
+
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">20</span>:56:00,727<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>jit_pretrained.py:192<span class="o">]</span><span class="w"> </span>Decoding<span class="w"> </span>Done
+</pre></div>
+</div>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>We provide only code for <code class="docutils literal notranslate"><span class="pre">torch.jit.script()</span></code>. You can try <code class="docutils literal notranslate"><span class="pre">torch.jit.trace()</span></code>
+if you want.</p>
+</div>
+</section>
+<section id="export-via-torch-onnx-export">
+<h2>Export via torch.onnx.export()<a class="headerlink" href="#export-via-torch-onnx-export" title="Permalink to this heading"></a></h2>
+<p>The command for this kind of export is</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>/tmp/icefall
+<span class="nb">export</span><span class="w"> </span><span class="nv">PYTHONPATH</span><span class="o">=</span>/tmp/icefall:<span class="nv">$PYTHONPATH</span>
+<span class="nb">cd</span><span class="w"> </span>egs/yesno/ASR
+
+<span class="c1"># tdnn/export_onnx.py requires onnx and onnxruntime</span>
+pip<span class="w"> </span>install<span class="w"> </span>onnx<span class="w"> </span>onnxruntime
+
+<span class="c1"># assume that &quot;--epoch 14 --avg 2&quot; produces the lowest WER.</span>
+
+./tdnn/export_onnx.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--epoch<span class="w"> </span><span class="m">14</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--avg<span class="w"> </span><span class="m">2</span>
+</pre></div>
+</div>
+<p>The output logs are given below:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="m">2023</span>-08-16<span class="w"> </span><span class="m">20</span>:59:20,888<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>export_onnx.py:83<span class="o">]</span><span class="w"> </span><span class="o">{</span><span class="s1">&#39;exp_dir&#39;</span>:<span class="w"> </span>PosixPath<span class="o">(</span><span class="s1">&#39;tdnn/exp&#39;</span><span class="o">)</span>,<span class="w"> </span><span class="s1">&#39;lang_dir&#39;</span>:<span class="w"> </span>PosixPath<span class="o">(</span><span class="s1">&#39;data/lang_phone&#39;</span><span class="o">)</span>,<span class="w"> </span><span class="s1">&#39;lr&#39;</span>:<span class="w"> </span><span class="m">0</span>.01,<span class="w"> </span><span class="s1">&#39;feature_dim&#39;</span>:<span class="w"> </span><span class="m">23</span>,<span class="w"> </span><span class="s1">&#39;weight_decay&#39;</span>:<span class="w"> </span>1e-06,<span class="w"> </span><span class="s1">&#39;start_epoch&#39;</span>:<span class="w"> </span><span class="m">0</span>,<span class="w"> </span><span class="s1">&#39;best_train_loss&#39;</span>:<span class="w"> </span>inf,<span class="w"> </span><span class="s1">&#39;best_valid_loss&#39;</span>:<span class="w"> </span>inf,<span class="w"> </span><span class="s1">&#39;best_train_epoch&#39;</span>:<span class="w"> </span>-1,<span class="w"> </span><span class="s1">&#39;best_valid_epoch&#39;</span>:<span class="w"> </span>-1,<span class="w"> </span><span class="s1">&#39;batch_idx_train&#39;</span>:<span class="w"> </span><span class="m">0</span>,<span class="w"> </span><span class="s1">&#39;log_interval&#39;</span>:<span class="w"> </span><span class="m">10</span>,<span class="w"> </span><span class="s1">&#39;reset_interval&#39;</span>:<span class="w"> </span><span class="m">20</span>,<span class="w"> </span><span class="s1">&#39;valid_interval&#39;</span>:<span class="w"> </span><span class="m">10</span>,<span class="w"> </span><span class="s1">&#39;beam_size&#39;</span>:<span class="w"> </span><span class="m">10</span>,<span class="w"> </span><span class="s1">&#39;reduction&#39;</span>:<span class="w"> </span><span class="s1">&#39;sum&#39;</span>,<span class="w"> </span><span class="s1">&#39;use_double_scores&#39;</span>:<span class="w"> </span>True,<span class="w"> </span><span class="s1">&#39;epoch&#39;</span>:<span class="w"> </span><span class="m">14</span>,<span class="w"> </span><span class="s1">&#39;avg&#39;</span>:<span class="w"> </span><span class="m">2</span><span class="o">}</span>
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">20</span>:59:20,888<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>lexicon.py:168<span class="o">]</span><span class="w"> </span>Loading<span class="w"> </span>pre-compiled<span class="w"> </span>data/lang_phone/Linv.pt
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">20</span>:59:20,892<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>export_onnx.py:100<span class="o">]</span><span class="w"> </span>averaging<span class="w"> </span><span class="o">[</span><span class="s1">&#39;tdnn/exp/epoch-13.pt&#39;</span>,<span class="w"> </span><span class="s1">&#39;tdnn/exp/epoch-14.pt&#39;</span><span class="o">]</span>
+<span class="o">================</span><span class="w"> </span>Diagnostic<span class="w"> </span>Run<span class="w"> </span>torch.onnx.export<span class="w"> </span>version<span class="w"> </span><span class="m">2</span>.0.0<span class="w"> </span><span class="o">================</span>
+verbose:<span class="w"> </span>False,<span class="w"> </span>log<span class="w"> </span>level:<span class="w"> </span>Level.ERROR
+<span class="o">=======================</span><span class="w"> </span><span class="m">0</span><span class="w"> </span>NONE<span class="w"> </span><span class="m">0</span><span class="w"> </span>NOTE<span class="w"> </span><span class="m">0</span><span class="w"> </span>WARNING<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="nv">ERROR</span><span class="w"> </span><span class="o">========================</span>
+
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">20</span>:59:21,047<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>export_onnx.py:127<span class="o">]</span><span class="w"> </span>Saved<span class="w"> </span>to<span class="w"> </span>tdnn/exp/model-epoch-14-avg-2.onnx
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">20</span>:59:21,047<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>export_onnx.py:136<span class="o">]</span><span class="w"> </span>meta_data:<span class="w"> </span><span class="o">{</span><span class="s1">&#39;model_type&#39;</span>:<span class="w"> </span><span class="s1">&#39;tdnn&#39;</span>,<span class="w"> </span><span class="s1">&#39;version&#39;</span>:<span class="w"> </span><span class="s1">&#39;1&#39;</span>,<span class="w"> </span><span class="s1">&#39;model_author&#39;</span>:<span class="w"> </span><span class="s1">&#39;k2-fsa&#39;</span>,<span class="w"> </span><span class="s1">&#39;comment&#39;</span>:<span class="w"> </span><span class="s1">&#39;non-streaming tdnn for the yesno recipe&#39;</span>,<span class="w"> </span><span class="s1">&#39;vocab_size&#39;</span>:<span class="w"> </span><span class="m">4</span><span class="o">}</span>
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">20</span>:59:21,049<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>export_onnx.py:140<span class="o">]</span><span class="w"> </span>Generate<span class="w"> </span>int8<span class="w"> </span>quantization<span class="w"> </span>models
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">20</span>:59:21,075<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>onnx_quantizer.py:538<span class="o">]</span><span class="w"> </span>Quantization<span class="w"> </span>parameters<span class="w"> </span><span class="k">for</span><span class="w"> </span>tensor:<span class="s2">&quot;/Transpose_1_output_0&quot;</span><span class="w"> </span>not<span class="w"> </span>specified
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">20</span>:59:21,081<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>export_onnx.py:151<span class="o">]</span><span class="w"> </span>Saved<span class="w"> </span>to<span class="w"> </span>tdnn/exp/model-epoch-14-avg-2.int8.onnx
+</pre></div>
+</div>
+<p>We can see from the logs that it generates two files:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">tdnn/exp/model-epoch-14-avg-2.onnx</span></code> (ONNX model with <code class="docutils literal notranslate"><span class="pre">float32</span></code> weights)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">tdnn/exp/model-epoch-14-avg-2.int8.onnx</span></code> (ONNX model with <code class="docutils literal notranslate"><span class="pre">int8</span></code> weights)</p></li>
+</ul>
+</div></blockquote>
+<p>To use the generated ONNX model files for decoding with <a class="reference external" href="https://github.com/microsoft/onnxruntime">onnxruntime</a>, we can use</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># ./tdnn/onnx_pretrained.py requires kaldifeat</span>
+<span class="c1">#</span>
+<span class="c1"># Please refer to https://csukuangfj.github.io/kaldifeat/installation/from_wheels.html</span>
+<span class="c1"># for how to install kaldifeat</span>
+
+pip<span class="w"> </span>install<span class="w"> </span><span class="nv">kaldifeat</span><span class="o">==</span><span class="m">1</span>.25.0.dev20230726+cpu.torch2.0.0<span class="w"> </span>-f<span class="w"> </span>https://csukuangfj.github.io/kaldifeat/cpu.html
+
+./tdnn/onnx_pretrained.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--nn-model<span class="w"> </span>./tdnn/exp/model-epoch-14-avg-2.onnx<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--HLG<span class="w"> </span>./data/lang_phone/HLG.pt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--words-file<span class="w"> </span>./data/lang_phone/words.txt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>download/waves_yesno/0_0_0_1_0_0_0_1.wav<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>download/waves_yesno/0_0_1_0_0_0_1_0.wav
+</pre></div>
+</div>
+<p>The output is given below:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="m">2023</span>-08-16<span class="w"> </span><span class="m">21</span>:03:24,260<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>onnx_pretrained.py:166<span class="o">]</span><span class="w"> </span><span class="o">{</span><span class="s1">&#39;feature_dim&#39;</span>:<span class="w"> </span><span class="m">23</span>,<span class="w"> </span><span class="s1">&#39;sample_rate&#39;</span>:<span class="w"> </span><span class="m">8000</span>,<span class="w"> </span><span class="s1">&#39;search_beam&#39;</span>:<span class="w"> </span><span class="m">20</span>,<span class="w"> </span><span class="s1">&#39;output_beam&#39;</span>:<span class="w"> </span><span class="m">8</span>,<span class="w"> </span><span class="s1">&#39;min_active_states&#39;</span>:<span class="w"> </span><span class="m">30</span>,<span class="w"> </span><span class="s1">&#39;max_active_states&#39;</span>:<span class="w"> </span><span class="m">10000</span>,<span class="w"> </span><span class="s1">&#39;use_double_scores&#39;</span>:<span class="w"> </span>True,<span class="w"> </span><span class="s1">&#39;nn_model&#39;</span>:<span class="w"> </span><span class="s1">&#39;./tdnn/exp/model-epoch-14-avg-2.onnx&#39;</span>,<span class="w"> </span><span class="s1">&#39;words_file&#39;</span>:<span class="w"> </span><span class="s1">&#39;./data/lang_phone/words.txt&#39;</span>,<span class="w"> </span><span class="s1">&#39;HLG&#39;</span>:<span class="w"> </span><span class="s1">&#39;./data/lang_phone/HLG.pt&#39;</span>,<span class="w"> </span><span class="s1">&#39;sound_files&#39;</span>:<span class="w"> </span><span class="o">[</span><span class="s1">&#39;download/waves_yesno/0_0_0_1_0_0_0_1.wav&#39;</span>,<span class="w"> </span><span class="s1">&#39;download/waves_yesno/0_0_1_0_0_0_1_0.wav&#39;</span><span class="o">]}</span>
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">21</span>:03:24,260<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>onnx_pretrained.py:171<span class="o">]</span><span class="w"> </span>device:<span class="w"> </span>cpu
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">21</span>:03:24,260<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>onnx_pretrained.py:173<span class="o">]</span><span class="w"> </span>Loading<span class="w"> </span>onnx<span class="w"> </span>model<span class="w"> </span>./tdnn/exp/model-epoch-14-avg-2.onnx
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">21</span>:03:24,267<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>onnx_pretrained.py:176<span class="o">]</span><span class="w"> </span>Loading<span class="w"> </span>HLG<span class="w"> </span>from<span class="w"> </span>./data/lang_phone/HLG.pt
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">21</span>:03:24,270<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>onnx_pretrained.py:180<span class="o">]</span><span class="w"> </span>Constructing<span class="w"> </span>Fbank<span class="w"> </span>computer
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">21</span>:03:24,273<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>onnx_pretrained.py:190<span class="o">]</span><span class="w"> </span>Reading<span class="w"> </span>sound<span class="w"> </span>files:<span class="w"> </span><span class="o">[</span><span class="s1">&#39;download/waves_yesno/0_0_0_1_0_0_0_1.wav&#39;</span>,<span class="w"> </span><span class="s1">&#39;download/waves_yesno/0_0_1_0_0_0_1_0.wav&#39;</span><span class="o">]</span>
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">21</span>:03:24,279<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>onnx_pretrained.py:196<span class="o">]</span><span class="w"> </span>Decoding<span class="w"> </span>started
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">21</span>:03:24,318<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>onnx_pretrained.py:232<span class="o">]</span>
+download/waves_yesno/0_0_0_1_0_0_0_1.wav:
+NO<span class="w"> </span>NO<span class="w"> </span>NO<span class="w"> </span>YES<span class="w"> </span>NO<span class="w"> </span>NO<span class="w"> </span>NO<span class="w"> </span>YES
+
+download/waves_yesno/0_0_1_0_0_0_1_0.wav:
+NO<span class="w"> </span>NO<span class="w"> </span>YES<span class="w"> </span>NO<span class="w"> </span>NO<span class="w"> </span>NO<span class="w"> </span>YES<span class="w"> </span>NO
+
+
+<span class="m">2023</span>-08-16<span class="w"> </span><span class="m">21</span>:03:24,318<span class="w"> </span>INFO<span class="w"> </span><span class="o">[</span>onnx_pretrained.py:234<span class="o">]</span><span class="w"> </span>Decoding<span class="w"> </span>Done
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>To use the <code class="docutils literal notranslate"><span class="pre">int8</span></code> ONNX model for decoding, please use:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./tdnn/onnx_pretrained.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--nn-model<span class="w"> </span>./tdnn/exp/model-epoch-14-avg-2.onnx<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--HLG<span class="w"> </span>./data/lang_phone/HLG.pt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--words-file<span class="w"> </span>./data/lang_phone/words.txt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>download/waves_yesno/0_0_0_1_0_0_0_1.wav<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>download/waves_yesno/0_0_1_0_0_0_1_0.wav
+</pre></div>
+</div>
+</div>
+</section>
+<section id="for-the-more-curious">
+<h2>For the more curious<a class="headerlink" href="#for-the-more-curious" title="Permalink to this heading"></a></h2>
+<p>If you are wondering how to deploy the model without <code class="docutils literal notranslate"><span class="pre">torch</span></code>, please
+continue reading. We will show how to use <a class="reference external" href="https://github.com/k2-fsa/sherpa-onnx">sherpa-onnx</a> to run the
+exported ONNX models, which depends only on <a class="reference external" href="https://github.com/microsoft/onnxruntime">onnxruntime</a> and does not
+depend on <code class="docutils literal notranslate"><span class="pre">torch</span></code>.</p>
+<p>In this tutorial, we will only demonstrate the usage of <a class="reference external" href="https://github.com/k2-fsa/sherpa-onnx">sherpa-onnx</a> with the
+pre-trained model of the <a class="reference external" href="https://www.openslr.org/1/">yesno</a> recipe. There are also other two frameworks
+available:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><a href="#id1"><span class="problematic" id="id2">`sherpa`_</span></a>. It works with torchscript models.</p></li>
+<li><p><a class="reference external" href="https://github.com/k2-fsa/sherpa-ncnn">sherpa-ncnn</a>. It works with models exported using <span class="xref std std-ref">icefall_export_to_ncnn</span> with <a class="reference external" href="https://github.com/tencent/ncnn">ncnn</a></p></li>
+</ul>
+</div></blockquote>
+<p>Please see <a class="reference external" href="https://k2-fsa.github.io/sherpa/">https://k2-fsa.github.io/sherpa/</a> for further details.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="decoding.html" class="btn btn-neutral float-left" title="Decoding" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../installation/index.html" class="btn btn-neutral float-right" title="Installation" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2021, icefall development team.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

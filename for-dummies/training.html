@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Contributing &mdash; icefall 0.1 documentation</title>
+  <title>Training &mdash; icefall 0.1 documentation</title>
       <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
   <!--[if lt IE 9]>
@@ -19,8 +19,8 @@
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Contributing to Documentation" href="doc.html" />
-    <link rel="prev" title="Zipformer Transducer" href="../recipes/Streaming-ASR/librispeech/zipformer_transducer.html" /> 
+    <link rel="next" title="Decoding" href="decoding.html" />
+    <link rel="prev" title="Data Preparation" href="data-preparation.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -43,8 +43,18 @@
 </div>
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
               <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="../for-dummies/index.html">Icefall for dummies tutorial</a></li>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Icefall for dummies tutorial</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="environment-setup.html">Environment setup</a></li>
+<li class="toctree-l2"><a class="reference internal" href="data-preparation.html">Data Preparation</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Training</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#for-the-more-curious">For the more curious</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="decoding.html">Decoding</a></li>
+<li class="toctree-l2"><a class="reference internal" href="model-export.html">Model Export</a></li>
+</ul>
+</li>
 <li class="toctree-l1"><a class="reference internal" href="../installation/index.html">Installation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../docker/index.html">Docker</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../faqs.html">Frequently Asked Questions (FAQs)</a></li>
@@ -53,13 +63,8 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../recipes/index.html">Recipes</a></li>
 </ul>
-<ul class="current">
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Contributing</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="doc.html">Contributing to Documentation</a></li>
-<li class="toctree-l2"><a class="reference internal" href="code-style.html">Follow the code style</a></li>
-<li class="toctree-l2"><a class="reference internal" href="how-to-create-a-recipe.html">How to create a recipe</a></li>
-</ul>
-</li>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../contributing/index.html">Contributing</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../huggingface/index.html">Huggingface</a></li>
 </ul>
 <ul>
@@ -80,9 +85,10 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
-      <li class="breadcrumb-item active">Contributing</li>
+          <li class="breadcrumb-item"><a href="index.html">Icefall for dummies tutorial</a></li>
+      <li class="breadcrumb-item active">Training</li>
       <li class="wy-breadcrumbs-aside">
-              <a href="https://github.com/k2-fsa/icefall/blob/master/docs/source/contributing/index.rst" class="fa fa-github"> Edit on GitHub</a>
+              <a href="https://github.com/k2-fsa/icefall/blob/master/docs/source/for-dummies/training.rst" class="fa fa-github"> Edit on GitHub</a>
       </li>
   </ul>
   <hr/>
@@ -90,51 +96,41 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="contributing">
-<h1>Contributing<a class="headerlink" href="#contributing" title="Permalink to this heading"></a></h1>
-<p>Contributions to <code class="docutils literal notranslate"><span class="pre">icefall</span></code> are very welcomed.
-There are many possible ways to make contributions and
-two of them are:</p>
-<blockquote>
-<div><ul class="simple">
-<li><p>To write documentation</p></li>
-<li><p>To write code</p>
-<ul>
-<li><ol class="arabic simple">
-<li><p>To follow the code style in the repository</p></li>
-</ol>
-</li>
-<li><ol class="arabic simple" start="2">
-<li><p>To write a new recipe</p></li>
-</ol>
-</li>
-</ul>
-</li>
-</ul>
-</div></blockquote>
-<p>In this page, we describe how to contribute documentation
-and code to <code class="docutils literal notranslate"><span class="pre">icefall</span></code>.</p>
-<div class="toctree-wrapper compound">
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="doc.html">Contributing to Documentation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="code-style.html">Follow the code style</a></li>
-<li class="toctree-l1"><a class="reference internal" href="how-to-create-a-recipe.html">How to create a recipe</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="how-to-create-a-recipe.html#data-preparation">Data Preparation</a></li>
-<li class="toctree-l2"><a class="reference internal" href="how-to-create-a-recipe.html#training">Training</a></li>
-<li class="toctree-l2"><a class="reference internal" href="how-to-create-a-recipe.html#decoding">Decoding</a></li>
-<li class="toctree-l2"><a class="reference internal" href="how-to-create-a-recipe.html#pre-trained-model">Pre-trained model</a></li>
-</ul>
-</li>
-</ul>
+  <section id="training">
+<span id="dummies-tutorial-training"></span><h1>Training<a class="headerlink" href="#training" title="Permalink to this heading"></a></h1>
+<p>After <a class="reference internal" href="data-preparation.html#dummies-tutorial-data-preparation"><span class="std std-ref">Data Preparation</span></a>, we can start training.</p>
+<p>The command to start the training is quite simple:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>/tmp/icefall
+<span class="nb">export</span><span class="w"> </span><span class="nv">PYTHONPATH</span><span class="o">=</span>/tmp/icefall:<span class="nv">$PYTHONPATH</span>
+<span class="nb">cd</span><span class="w"> </span>egs/yesno/ASR
+
+<span class="c1"># We use CPU for training by setting the following environment variable</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;&quot;</span>
+
+./tdnn/train.py
+</pre></div>
 </div>
+<p>That’s it!</p>
+<p>You can find the training logs below:</p>
+<section id="for-the-more-curious">
+<h2>For the more curious<a class="headerlink" href="#for-the-more-curious" title="Permalink to this heading"></a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./tdnn/train.py<span class="w"> </span>--help
+</pre></div>
+</div>
+<p>will print the usage information about <code class="docutils literal notranslate"><span class="pre">./tdnn/train.py</span></code>. For instance, you
+can specify the number of epochs to train and the location to save the training
+results.</p>
+<p>The training text logs are saved in <code class="docutils literal notranslate"><span class="pre">tdnn/exp/log</span></code> while the tensorboard
+logs are in <code class="docutils literal notranslate"><span class="pre">tdnn/exp/tensorboard</span></code>.</p>
+</section>
 </section>
 
 
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="../recipes/Streaming-ASR/librispeech/zipformer_transducer.html" class="btn btn-neutral float-left" title="Zipformer Transducer" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="doc.html" class="btn btn-neutral float-right" title="Contributing to Documentation" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="data-preparation.html" class="btn btn-neutral float-left" title="Data Preparation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="decoding.html" class="btn btn-neutral float-right" title="Decoding" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>
