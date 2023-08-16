@@ -57,7 +57,7 @@ from beam_search import (
     greedy_search_batch,
     modified_beam_search,
 )
-from text_normalization import ref_text_normalization, remove_non_alphabetic
+from text_normalization import ref_text_normalization, remove_non_alphabetic, upper_only_alpha
 from train_baseline import (
     add_model_arguments,
     get_params,
@@ -742,10 +742,8 @@ def main():
                 new_ans = []
                 for item in results_dict[k]:
                     id, ref, hyp = item
-                    hyp = [remove_non_alphabetic(w.upper(), strict=False) for w in hyp]
-                    hyp = [w for w in hyp if w != ""]
-                    ref = [remove_non_alphabetic(w.upper(), strict=False) for w in ref]
-                    ref = [w for w in ref if w != ""]
+                    hyp = upper_only_alpha(" ".join(hyp)).split()
+                    ref = upper_only_alpha(" ".join(ref)).split()
                     new_ans.append((id, ref, hyp))
                 new_res[k] = new_ans 
             
@@ -754,6 +752,8 @@ def main():
                 test_set_name=test_set,
                 results_dict=new_res,
             )
+            
+            params.suffix = params.suffix.replace("-post-normalization", "")
 
     logging.info("Done!")
 
