@@ -2,13 +2,15 @@
 
 ### Aishell training result (Stateless Transducer)
 
-#### Zipformer
+#### Zipformer (Non-streaming)
 
 [./zipformer](./zipformer)
 
 It's reworked Zipformer with Pruned RNNT loss, note that results below are produced by model trained on data without speed perturbation applied.
 
 **⚠️ If you prefer to have the speed perturbation disabled, please manually set `--perturb-speed` to `False` for `./local/compute_fbank_aishell.py` in the `prepare.sh` script.**
+
+##### normal-scaled model, number of model parameters: 73412551, i.e., 73.41 M
 
 |                        | test | dev  | comment                                 |
 |------------------------|------|------|-----------------------------------------|
@@ -44,6 +46,53 @@ for m in greedy_search modified_beam_search fast_beam_search ; do
     --context-size 1 \
     --max-duration 1200 \
     --decoding-method $m
+done
+```
+
+##### small-scaled model, number of model parameters: 30167139, i.e., 30.17 M
+
+|                        | test | dev  | comment                                 |
+|------------------------|------|------|-----------------------------------------|
+| greedy search          | 5.15 | 4.93 | --epoch 90 --avg 40 --max-duration 1200 |
+| modified beam search   | 4.90 | 4.68 | --epoch 90 --avg 40 --max-duration 1200 |
+| fast beam search       | 5.08 | 4.85 | --epoch 90 --avg 40 --max-duration 1200 |
+
+Command for training is:
+```bash
+./prepare.sh # after setting --perturb-speed to False in the prepare.sh
+
+export CUDA_VISIBLE_DEVICES="0,1"
+
+./zipformer/train.py \
+  --world-size 2 \
+  --num-epochs 100 \
+  --start-epoch 1 \
+  --use-fp16 1 \
+  --context-size 1 \
+  --exp-dir zipformer/exp-small \
+  --max-duration 1200 \
+  --lr-epochs 18 \
+  --num-encoder-layers 2,2,2,2,2,2 \
+  --feedforward-dim 512,768,768,768,768,768 \
+  --encoder-dim 192,256,256,256,256,256 \
+  --encoder-unmasked-dim 192,192,192,192,192,192
+```
+
+Command for decoding is:
+```bash
+for m in greedy_search modified_beam_search fast_beam_search ; do
+  ./zipformer/decode.py \
+    --epoch 90 \
+    --avg 40 \
+    --exp-dir ./zipformer/exp-small \
+    --lang-dir data/lang_char \
+    --context-size 1 \
+    --max-duration 1200 \
+    --decoding-method $m \
+    --num-encoder-layers 2,2,2,2,2,2 \
+    --feedforward-dim 512,768,768,768,768,768 \
+    --encoder-dim 192,256,256,256,256,256 \
+    --encoder-unmasked-dim 192,192,192,192,192,192
 done
 ```
 
