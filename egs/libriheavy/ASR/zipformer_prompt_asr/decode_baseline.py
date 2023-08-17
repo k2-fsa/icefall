@@ -250,6 +250,12 @@ def get_parser():
     )
     
     parser.add_argument(
+        "--long-audio-recog",
+        type=str2bool,
+        default=False,
+    )
+    
+    parser.add_argument(
         "--use-ls-test-set",
         type=str2bool,
         default=False,
@@ -434,6 +440,10 @@ def decode_dataset(
     for batch_idx, batch in enumerate(dl):
         texts = batch["supervisions"]["text"]
         cut_ids = [cut.id for cut in batch["supervisions"]["cut"]]
+        if not params.use_ls_test_set:
+            book_names = [cut.text_path.split('/')[-2] for cut in batch["supervisions"]["cut"]]
+        else:
+            book_names = ["" for _ in cut_ids]
 
         hyps_dict = decode_one_batch(
             params=params,
@@ -447,13 +457,14 @@ def decode_dataset(
         for name, hyps in hyps_dict.items():
             this_batch = []
             assert len(hyps) == len(texts)
-            for cut_id, hyp_words, ref_text in zip(cut_ids, hyps, texts):
+            for cut_id, book_name, hyp_words, ref_text in zip(cut_ids, book_names, hyps, texts):
                 ref_text = ref_text_normalization(
                     ref_text
                 )
                 ref_words = ref_text.split()
                 this_batch.append((cut_id, ref_words, hyp_words))
-
+            if not params.use_ls_test_set:
+                results[name + " " + book_name].extend(this_batch)
             results[name].extend(this_batch)
 
         num_cuts += len(texts)
@@ -556,7 +567,11 @@ def main():
         "greedy_search",
         "modified_beam_search",
     )
-    params.res_dir = params.exp_dir / params.decoding_method
+    
+    if params.long_audio_recog:
+        params.res_dir = params.exp_dir / (params.decoding_method + "long_audio")
+    else:
+        params.res_dir = params.exp_dir / params.decoding_method
 
     if params.iter > 0:
         params.suffix = f"iter-{params.iter}-avg-{params.avg}"
@@ -704,11 +719,16 @@ def main():
     test_other_cuts = libriheavy.test_other_cuts()
     ls_test_clean_cuts = libriheavy.librispeech_test_clean_cuts()
     ls_test_other_cuts = libriheavy.librispeech_test_other_cuts()
+    long_audio_cuts = libriheavy.long_audio_cuts()
+    test_dev_cuts = libriheavy.test_dev_cuts()
+    #test_clean_cuts = test_clean_cuts.filter(lambda c: "Brain Twister" not in c.text_path)
 
     test_clean_dl = libriheavy.valid_dataloaders(test_clean_cuts,)
     test_other_dl = libriheavy.valid_dataloaders(test_other_cuts,)
     ls_test_clean_dl = libriheavy.test_dataloaders(ls_test_clean_cuts)
     ls_test_other_dl = libriheavy.test_dataloaders(ls_test_other_cuts)
+    long_audio_dl = libriheavy.valid_dataloaders(long_audio_cuts,)
+    test_dev_dl = libriheavy.valid_dataloaders(test_dev_cuts)
     
     if params.use_ls_test_set:
         test_sets = ["ls-test-clean", "ls-test-other"]
@@ -716,6 +736,13 @@ def main():
     else:
         test_sets = ["test-clean", "test-other"]
         test_dl = [test_clean_dl, test_other_dl]
+        
+    if params.long_audio_recog:
+        test_sets = ["long-audio"]
+        test_dl = [long_audio_dl]      
+    
+    # test_sets = ["test-dev", ]
+    # test_dl = [test_dev_dl, ]
     
     for test_set, test_dl in zip(test_sets, test_dl):
         results_dict = decode_dataset(

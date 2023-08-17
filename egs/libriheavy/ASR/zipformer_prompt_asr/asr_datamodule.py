@@ -232,6 +232,12 @@ class LibriHeavyAsrDataModule:
             "--rare-word-file",
             type=str,
         )
+        
+        group.add_argument(
+            "--long-audio-cuts",
+            type=str,
+            default="data/manifest_npr/npr1_cuts_all_guids_0.jsonl.gz",
+        )
 
     def train_dataloaders(
         self,
@@ -510,8 +516,16 @@ class LibriHeavyAsrDataModule:
         
     @lru_cache()
     def long_audio_cuts(self) -> CutSet:
-        logging.info("About to get medium test cuts")
+        logging.info("About to get long audio cuts")
         cuts = load_manifest_lazy(
-            "data/long_audios/long_audio_pomonastravels_combined.jsonl.gz"
+            self.args.long_audio_cuts,
+        )
+        return cuts
+    
+    @lru_cache()
+    def test_dev_cuts(self) -> CutSet:
+        logging.info("About to get test dev cuts")
+        cuts = load_manifest_lazy(
+            self.args.manifest_dir / "libriheavy_cuts_test_dev.jsonl.gz"
         )
         return cuts
