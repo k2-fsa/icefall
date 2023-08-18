@@ -46,11 +46,11 @@ cp local/MSU_single_letter.txt $dir/
 # The original swbd lexicon does not have precise single letter lexicion
 # e.g. it does not have entry of W
 (
-    echo '!sil sil'
-    echo '[vocalized-noise] spn'
-    echo '[noise] nsn'
-    echo '[laughter] lau'
-    echo '<unk> spn'
+    echo '!SIL SIL'
+    echo '[VOCALIZED-NOISE] spn'
+    echo '[NOISE] nsn'
+    echo '[LAUGHTER] lau'
+    echo '<UNK> spn'
 ) |
     cat - $dir/lexicon1.txt $dir/MSU_single_letter.txt >$dir/lexicon2.txt || exit 1
 

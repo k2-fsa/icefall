@@ -43,9 +43,9 @@ fisher_dir="/export/corpora3/LDC/LDC2004T19"
 # It will generate data/lang_bpe_xxx,
 # data/lang_bpe_yyy if the array contains xxx, yyy
 vocab_sizes=(
-    5000
-    2000
-    1000
+    # 5000
+    # 2000
+    # 1000
     500
 )
 
@@ -73,6 +73,7 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
         ./local/normalize_and_filter_supervisions.py \
             data/manifests/swbd/swbd_supervisions_all.jsonl.gz \
             data/manifests/swbd/swbd_supervisions_all_norm.jsonl.gz
+        mv data/manifests/swbd/swbd_supervisions_all.jsonl.gz data/manifests/swbd/swbd_supervisions_orig.jsonl.gz
         mv data/manifests/swbd/swbd_supervisions_all_norm.jsonl.gz data/manifests/swbd/swbd_supervisions_all.jsonl.gz
 
         lhotse prepare eval2000 --absolute-paths 1 $eval2000_dir data/manifests/eval2000
@@ -149,8 +150,8 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
         | jq '.text' | sed 's/"//g'  > $lang_dir/text
     fi
 
-    log "prepare dict"
-    ./local/swbd1_prepare_dict.sh $swbd1_dir
+    log "Prepare dict"
+    ./local/swbd1_prepare_dict.sh 
     cut -f 2- -d" " $lang_dir/text >${lang_dir}/input.txt
     # [noise] nsn
     # !sil sil
@@ -336,6 +337,10 @@ if [ $stage -le 11 ] && [ $stop_stage -ge 11 ]; then
         out_dir=data/lm_training_bpe_${vocab_size}
         mkdir -p $out_dir
 
+        if [ ! -f $out_dir/train.txt ]; then
+              tail -n 250000 data/lang_phone/input.txt > $out_dir/train.txt
+        fi
+
         ./local/prepare_lm_training_data.py \
             --bpe-model $lang_dir/bpe.model \
             --lm-data data/lang_phone/input.txt \
@@ -343,29 +348,29 @@ if [ $stage -le 11 ] && [ $stop_stage -ge 11 ]; then
     done
 fi
 
-# if [ $stage -le 12 ] && [ $stop_stage -ge 12 ]; then
-#     log "Stage 12: Generate LM validation data"
+if [ $stage -le 12 ] && [ $stop_stage -ge 12 ]; then
+    log "Stage 12: Generate LM validation data"
 
-#     for vocab_size in ${vocab_sizes[@]}; do
-#         log "Processing vocab_size == ${vocab_size}"
-#         out_dir=data/lm_training_bpe_${vocab_size}
-#         mkdir -p $out_dir
+    for vocab_size in ${vocab_sizes[@]}; do
+        log "Processing vocab_size == ${vocab_size}"
+        out_dir=data/lm_training_bpe_${vocab_size}
+        mkdir -p $out_dir
 
-#         if [ ! -f $out_dir/valid.txt ]; then
-#               TODO: generate valid.txt
-#         fi
+        if [ ! -f $out_dir/valid.txt ]; then
+            head -n 14332 data/lang_phone/input.txt > $out_dir/valid.txt
+        fi
 
-#         lang_dir=data/lang_bpe_${vocab_size}
-#         ./local/prepare_lm_training_data.py \
-#             --bpe-model $lang_dir/bpe.model \
-#             --lm-data $out_dir/valid.txt \
-#             --lm-archive $out_dir/lm_data-valid.pt
-#     done
-# fi
+        lang_dir=data/lang_bpe_${vocab_size}
+        ./local/prepare_lm_training_data.py \
+            --bpe-model $lang_dir/bpe.model \
+            --lm-data $out_dir/valid.txt \
+            --lm-archive $out_dir/lm_data-valid.pt
+    done
+fi
 
 if [ $stage -le 13 ] && [ $stop_stage -ge 13 ]; then
     log "Stage 13: Generate LM test data"
-    testsets=(eval2000 rt03)
+    testsets=(eval2000)
 
     for testset in ${testsets[@]}; do
         for vocab_size in ${vocab_sizes[@]}; do
@@ -373,8 +378,9 @@ if [ $stage -le 13 ] && [ $stop_stage -ge 13 ]; then
             out_dir=data/lm_training_bpe_${vocab_size}
             mkdir -p $out_dir
 
-            if [ ! -f $out_dir/test.txt ]; then
-                cat data/local/${testset}/text | cut -d " " -f 2- >$out_dir/${testset}.txt
+            if [ ! -f $out_dir/${testset}.txt ]; then
+                gunzip -c data/manifests/${testset}/eval2000_supervisions_all.jsonl.gz \
+                    | jq '.text' | sed 's/"//g' > $out_dir/${testset}.txt
             fi
 
             lang_dir=data/lang_bpe_${vocab_size}
@@ -388,7 +394,7 @@ fi
 
 if [ $stage -le 14 ] && [ $stop_stage -ge 14 ]; then
     log "Stage 14: Sort LM training data"
-    testsets=(eval2000 rt03)
+    testsets=(eval2000)
     # Sort LM training data by sentence length in descending order
     # for ease of training.
     #

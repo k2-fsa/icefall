@@ -83,9 +83,7 @@ def replace_silphone(text: str) -> str:
     text = text.replace("[[HIGH PITCHED SQUEAKY VOICE]]", " ")
     text = text.replace("[[IN THE LAUGH]]", "[LAUGHTER]")
     text = text.replace("[[LAST WORD SPOKEN WITH A LAUGH]]", "[LAUGHTER]")
-    text = text.replace(
-        "[[PART OF FIRST SYLLABLE OF PREVIOUS WORD CUT OFF]]", " "
-    )
+    text = text.replace("[[PART OF FIRST SYLLABLE OF PREVIOUS WORD CUT OFF]]", " ")
     text = text.replace("[[PREVIOUS WORD SPOKEN WITH A LAUGH]]", " ")
     text = text.replace("[[PREVIOUS TWO WORDS SPOKEN WHILE LAUGHING]]", " ")
     text = text.replace("[[PROLONGED]]", " ")
@@ -181,6 +179,7 @@ def replace_silphone(text: str) -> str:
     text = text.replace("[LAUGHTER]", " ")
     text = text.replace("[NOISE]", " ")
     text = text.replace("[VOCALIZED-NOISE]", " ")
+    text = text.replace("-", " ")
     return text
 
 

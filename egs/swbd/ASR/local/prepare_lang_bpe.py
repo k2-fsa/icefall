@@ -210,15 +210,15 @@ def main():
 
     excluded = [
         "<eps>",
-        "!sil",
-        "<spoken_noise>",
+        "!SIL",
+        "<SPOKEN_NOISE>",
         args.oov,
         "#0",
         "<s>",
         "</s>",
-        "[vocalized-noise]",
-        "[noise]",
-        "[laughter]",
+        "[VOCALIZED-NOISE]",
+        "[NOISE]",
+        "[LAUGHTER]",
     ]
 
     for w in excluded:

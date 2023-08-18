@@ -53,7 +53,6 @@ def insert_groups_and_capitalize_1s(match):
     return f"{match.group(1)}".upper() + "'s"
 
 
-# fmt: off
 class FisherSwbdNormalizer:
     """Note: the functions "normalize" and "keep" implement the logic
     similar to Kaldi's data prep scripts for Fisher and SWBD: One
@@ -62,18 +61,21 @@ class FisherSwbdNormalizer:
     normalization from Kaldi (hopefully won't make too much
     difference).
     """
-    def __init__(self) -> None:
 
+    def __init__(self) -> None:
         self.remove_regexp_before = re.compile(
-            r"|".join([
-                # special symbols
-                r"\[\[skip.*\]\]",
-                r"\[skip.*\]",
-                r"\[pause.*\]",
-                r"\[silence\]",
-                r"<b_aside>",
-                r"<e_aside>",
-            ])
+            r"|".join(
+                [
+                    # special symbols
+                    r"\[\[skip.*\]\]",
+                    r"\[skip.*\]",
+                    r"\[pause.*\]",
+                    r"\[silence\]",
+                    r"<b_aside>",
+                    r"<e_aside>",
+                    r"_1",
+                ]
+            )
         )
 
         # tuples of (pattern, replacement)
@@ -102,14 +104,54 @@ class FisherSwbdNormalizer:
             (re.compile(r"\[lipsmack.*?\]"), r"[lipsmack]"),
             (re.compile(r"\[sneeze.*?\]"), r"[sneeze]"),
             # abbreviations
-            (re.compile(r"(\w)\.(\w)\.(\w)",), insert_groups_and_capitalize_3),
-            (re.compile(r"(\w)\.(\w)",), insert_groups_and_capitalize_2),
-            (re.compile(r"([a-h,j-z])\.",), insert_groups_and_capitalize_1),
-            (re.compile(r"\._",), r" "),
-            (re.compile(r"_(\w)",), insert_groups_and_capitalize_1),
-            (re.compile(r"(\w)\.s",), insert_groups_and_capitalize_1s),
-            (re.compile(r"([A-Z])\'s",), insert_groups_and_capitalize_1s),
-            (re.compile(r"(\s\w\b|^\w\b)",), insert_groups_and_capitalize_1),
+            (
+                re.compile(
+                    r"(\w)\.(\w)\.(\w)",
+                ),
+                insert_groups_and_capitalize_3,
+            ),
+            (
+                re.compile(
+                    r"(\w)\.(\w)",
+                ),
+                insert_groups_and_capitalize_2,
+            ),
+            (
+                re.compile(
+                    r"([a-h,j-z])\.",
+                ),
+                insert_groups_and_capitalize_1,
+            ),
+            (
+                re.compile(
+                    r"\._",
+                ),
+                r" ",
+            ),
+            (
+                re.compile(
+                    r"_(\w)",
+                ),
+                insert_groups_and_capitalize_1,
+            ),
+            (
+                re.compile(
+                    r"(\w)\.s",
+                ),
+                insert_groups_and_capitalize_1s,
+            ),
+            (
+                re.compile(
+                    r"([A-Z])\'s",
+                ),
+                insert_groups_and_capitalize_1s,
+            ),
+            (
+                re.compile(
+                    r"(\s\w\b|^\w\b)",
+                ),
+                insert_groups_and_capitalize_1,
+            ),
             # words between apostrophes
             (re.compile(r"'(\S*?)'"), r"\1"),
             # dangling dashes (2 passes)
@@ -119,24 +161,28 @@ class FisherSwbdNormalizer:
             (re.compile(r"(\[.*?\])-"), r"\1"),
             # Just remove all dashes
             (re.compile(r"-"), r" "),
-
-            # Fix an issue related to [vocalized-noise]
-            (re.compile(r"\[vocalized noise\]"), r"\[vocalized-noise\]"),
         ]
 
         # unwanted symbols in the transcripts
         self.remove_regexp_after = re.compile(
-            r"|".join([
-                # remaining punctuation
-                r"\.",
-                r",",
-                r"\?",
-                r"{",
-                r"}",
-                r"~",
-                r"_\d",
-            ])
+            r"|".join(
+                [
+                    # remaining punctuation
+                    r"\.",
+                    r",",
+                    r"\?",
+                    r"{",
+                    r"}",
+                    r"~",
+                    r"_\d",
+                ]
+            )
         )
+
+        self.post_fixes = [
+            # Fix an issue related to [VOCALIZED NOISE] after dash removal
+            (re.compile(r"\[vocalized noise\]"), "[vocalized-noise]"),
+        ]
 
         self.whitespace_regexp = re.compile(r"\s+")
 
@@ -153,11 +199,14 @@ class FisherSwbdNormalizer:
         # then remove
         text = self.remove_regexp_after.sub("", text)
 
+        # post fixes
+        for pattern, sub in self.post_fixes:
+            text = pattern.sub(sub, text)
+
         # then clean up whitespace
         text = self.whitespace_regexp.sub(" ", text).strip()
 
         return text.upper()
-# fmt: on
 
 
 def keep(sup: SupervisionSegment) -> bool:
@@ -186,7 +235,7 @@ def main():
                 skip += 1
                 continue
 
-            sup.text = normalizer.normalize(sup.text)
+            sup.text = normalizer.normalize(sup.text).upper()
             if not sup.text:
                 skip += 1
                 continue
@@ -219,8 +268,9 @@ def test():
         "[VOCALIZED-NOISE]-",
         "~BULL",
         "Frank E Peretti P E R E T T I",
-        "yeah yeah like Double O Seven he’s supposed to do it",
+        "yeah yeah like Double O Seven he's supposed to do it",
         "P A P E R paper",
+        "[noise] okay_1 um let me see [laughter] i've been sitting here awhile",
     ]:
         print(text)
         print(normalizer.normalize(text))
@@ -228,5 +278,6 @@ def test():
 
 
 if __name__ == "__main__":
-    # test(); exit()
+    test()
+    # exit()
     main()
