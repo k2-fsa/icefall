@@ -209,7 +209,7 @@ class YesNoAsrDataModule(DataModule):
             sampler=train_sampler,
             batch_size=None,
             num_workers=self.args.num_workers,
-            persistent_workers=False,
+            persistent_workers=True,
         )
 
         return train_dl
@@ -236,6 +236,7 @@ class YesNoAsrDataModule(DataModule):
             batch_size=None,
             sampler=sampler,
             num_workers=self.args.num_workers,
+            persistent_workers=True,
         )
         return test_dl
 

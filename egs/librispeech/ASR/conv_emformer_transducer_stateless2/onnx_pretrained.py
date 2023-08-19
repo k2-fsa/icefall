@@ -28,7 +28,7 @@ popd
 2. Export the model to ONNX
 
 ./conv_emformer_transducer_stateless2/export-onnx.py \
-  --bpe-model $repo/data/lang_bpe_500/bpe.model \
+  --tokens $repo/data/lang_bpe_500/tokens.txt \
   --use-averaged-model 0 \
   --epoch 99 \
   --avg 1 \

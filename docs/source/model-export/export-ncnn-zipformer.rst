@@ -72,12 +72,11 @@ Next, we use the following code to export our model:
   dir=./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29
 
   ./pruned_transducer_stateless7_streaming/export-for-ncnn.py \
-    --bpe-model $dir/data/lang_bpe_500/bpe.model \
+    --tokens $dir/data/lang_bpe_500/tokens.txt \
     --exp-dir $dir/exp \
     --use-averaged-model 0 \
     --epoch 99 \
     --avg 1 \
-    \
     --decode-chunk-len 32 \
     --num-left-chunks 4 \
     --num-encoder-layers "2,4,3,2,4" \

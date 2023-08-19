@@ -27,7 +27,7 @@ log "CTC decoding"
   --method ctc-decoding \
   --num-classes 500 \
   --checkpoint $repo/exp/pretrained.pt \
-  --bpe-model $repo/data/lang_bpe_500/bpe.model \
+  --tokens $repo/data/lang_bpe_500/tokens.txt \
   $repo/test_wavs/1089-134686-0001.flac \
   $repo/test_wavs/1221-135766-0001.flac \
   $repo/test_wavs/1221-135766-0002.flac
@@ -38,7 +38,7 @@ log "HLG decoding"
   --method 1best \
   --num-classes 500 \
   --checkpoint $repo/exp/pretrained.pt \
-  --bpe-model $repo/data/lang_bpe_500/bpe.model \
+  --tokens $repo/data/lang_bpe_500/tokens.txt \
   --words-file $repo/data/lang_bpe_500/words.txt \
   --HLG $repo/data/lang_bpe_500/HLG.pt \
   $repo/test_wavs/1089-134686-0001.flac \
