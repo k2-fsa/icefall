@@ -225,8 +225,6 @@ class SwitchBoardAsrDataModule:
         else:
             logging.info("Disable MUSAN")
 
-        cuts_train = cuts_train.trim_to_supervisions(keep_overlapping=False)
-
         if self.args.concatenate_cuts:
             logging.info(
                 f"Using cut concatenation with duration factor "
@@ -393,18 +391,16 @@ class SwitchBoardAsrDataModule:
     @lru_cache()
     def train_all_cuts(self) -> CutSet:
         logging.info("switchboard: About to get train cuts")
-        return (
-            load_manifest_lazy(self.args.manifest_dir / "swbd" / "swbd_cuts_all.jsonl.gz")
-            .subset(last=2388)
-        )
+        return load_manifest_lazy(
+            self.args.manifest_dir / "swbd_cuts_all.jsonl.gz"
+        ).subset(last=2388)
 
     @lru_cache()
     def dev_cuts(self) -> CutSet:
         logging.info("switchboard: About to get dev cuts")
-        return (
-            load_manifest_lazy(self.args.manifest_dir / "swbd" / "swbd_cuts_all.jsonl.gz")
-            .subset(first=50)
-        )
+        return load_manifest_lazy(
+            self.args.manifest_dir / "swbd_cuts_all.jsonl.gz"
+        ).subset(first=50)
 
     @lru_cache()
     def test_eval2000_cuts(self) -> CutSet:

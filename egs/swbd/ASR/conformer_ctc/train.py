@@ -697,7 +697,7 @@ def run(rank, world_size, args):
         # You should use ../local/display_manifest_statistics.py to get
         # an utterance duration distribution for your dataset to select
         # the threshold
-        return 1.0 <= c.duration <= 600.0
+        return 1.0 <= c.duration
 
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
 

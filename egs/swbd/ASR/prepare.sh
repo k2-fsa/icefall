@@ -76,10 +76,37 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
         mv data/manifests/swbd/swbd_supervisions_all.jsonl.gz data/manifests/swbd/swbd_supervisions_orig.jsonl.gz
         mv data/manifests/swbd/swbd_supervisions_all_norm.jsonl.gz data/manifests/swbd/swbd_supervisions_all.jsonl.gz
 
+        lhotse cut simple \
+            -r data/manifests/swbd/swbd_recordings_all.jsonl.gz \
+            -s data/manifests/swbd/swbd_supervisions_all.jsonl.gz \
+            data/manifests/swbd/swbd_train_all.jsonl.gz
+        lhotse cut trim-to-supervisions \
+            --discard-overlapping \
+            --discard-extra-channels \
+            data/manifests/swbd/swbd_train_all.jsonl.gz \
+            data/manifests/swbd/swbd_train_all_trimmed.jsonl.gz
+
+        num_splits=16
+        mkdir -p data/manifests/swbd_split${num_splits}
+        lhotse split ${num_splits} \
+            data/manifests/swbd/swbd_train_all_trimmed.jsonl.gz \
+            data/manifests/swbd_split${num_splits}
+
         lhotse prepare eval2000 --absolute-paths 1 $eval2000_dir data/manifests/eval2000
         ./local/normalize_eval2000.py \
             data/manifests/eval2000/eval2000_supervisions_unnorm.jsonl.gz \
             data/manifests/eval2000/eval2000_supervisions_all.jsonl.gz
+        
+        lhotse cut simple \
+            -r data/manifests/eval2000/eval2000_recordings_all.jsonl.gz \
+            -s data/manifests/eval2000/eval2000_supervisions_all.jsonl.gz \
+            data/manifests/eval2000/eval2000_cuts_all.jsonl.gz
+
+        lhotse cut trim-to-supervisions \
+            --discard-overlapping \
+            --discard-extra-channels \
+            data/manifests/eval2000/eval2000_cuts_all.jsonl.gz \
+            data/manifests/eval2000/eval2000_cuts_all_trimmed.jsonl.gz
 
         # ./local/rt03_data_prep.sh $rt03_dir
 
@@ -116,10 +143,24 @@ fi
 
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
     log "Stage 3: Compute fbank for SwitchBoard"
-    mkdir -p data/fbank
     if [ ! -e data/fbank/.swbd.done ]; then
-        ./local/compute_fbank_swbd.py
+        mkdir -p data/fbank/swbd_split${num_splits}/
+        for index in $(seq 1 16); do
+            ./local/compute_fbank_swbd.py --split-index ${index} &
+        done
+        wait
+        pieces=$(find data/fbank/swbd_split${num_splits} -name "swbd_cuts_all.*.jsonl.gz")
+        lhotse combine $pieces data/fbank/swbd_cuts_all.jsonl.gz
         touch data/fbank/.swbd.done
+    fi
+fi
+
+if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
+    log "Stage 3: Compute fbank for eval2000"
+    if [ ! -e data/fbank/.eval2000.done ]; then
+        mkdir -p data/fbank/eval2000/
+        ./local/compute_fbank_eval2000.py 
+        touch data/fbank/.eval2000.done
     fi
 fi
 
