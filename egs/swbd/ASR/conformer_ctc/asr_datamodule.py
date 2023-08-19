@@ -99,7 +99,7 @@ class SwitchBoardAsrDataModule:
         group.add_argument(
             "--bucketing-sampler",
             type=str2bool,
-            default=True,
+            default=False,
             help="When enabled, the batches will come from buckets of "
             "similar duration (saves padding frames).",
         )
@@ -259,7 +259,7 @@ class SwitchBoardAsrDataModule:
                     num_frame_masks=num_frame_masks,
                     features_mask_size=27,
                     num_feature_masks=2,
-                    frames_mask_size=100,
+                    frames_mask_size=50,
                 )
             )
         else:
@@ -299,6 +299,7 @@ class SwitchBoardAsrDataModule:
                 shuffle=self.args.shuffle,
                 num_buckets=self.args.num_buckets,
                 drop_last=self.args.drop_last,
+                buffer_size=50000,
             )
         else:
             logging.info("Using SingleCutSampler.")
