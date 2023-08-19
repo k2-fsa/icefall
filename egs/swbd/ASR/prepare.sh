@@ -142,7 +142,7 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
 fi
 
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
-    log "Stage 3: Compute fbank for SwitchBoard"
+    log "Stage 3 I: Compute fbank for SwitchBoard"
     if [ ! -e data/fbank/.swbd.done ]; then
         mkdir -p data/fbank/swbd_split${num_splits}/
         for index in $(seq 1 16); do
@@ -156,7 +156,7 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
 fi
 
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
-    log "Stage 3: Compute fbank for eval2000"
+    log "Stage 3 II: Compute fbank for eval2000"
     if [ ! -e data/fbank/.eval2000.done ]; then
         mkdir -p data/fbank/eval2000/
         ./local/compute_fbank_eval2000.py 

@@ -391,26 +391,26 @@ class SwitchBoardAsrDataModule:
 
     @lru_cache()
     def train_all_cuts(self) -> CutSet:
-        logging.info("switchboard: About to get train cuts")
+        logging.info("SwitchBoard: About to get train cuts")
         return load_manifest_lazy(
             self.args.manifest_dir / "swbd_cuts_all.jsonl.gz"
-        ).subset(last=2388)
+        ).subset(last=166844)
 
     @lru_cache()
     def dev_cuts(self) -> CutSet:
-        logging.info("switchboard: About to get dev cuts")
+        logging.info("SwitchBoard: About to get dev cuts")
         return load_manifest_lazy(
             self.args.manifest_dir / "swbd_cuts_all.jsonl.gz"
-        ).subset(first=50)
+        ).subset(first=300)
 
     @lru_cache()
     def test_eval2000_cuts(self) -> CutSet:
-        logging.info("switchboard: About to get eval2000 cuts")
+        logging.info("SwitchBoard: About to get eval2000 cuts")
         return load_manifest_lazy(
             self.args.manifest_dir / "eval2000" / "eval2000_cuts_all.jsonl.gz"
         )
 
     @lru_cache()
     def test_rt03_cuts(self) -> CutSet:
-        logging.info("switchboard: About to get rt03 cuts")
+        logging.info("SwitchBoard: About to get rt03 cuts")
         return load_manifest_lazy(self.args.manifest_dir / "swbd_cuts_rt03.jsonl.gz")
