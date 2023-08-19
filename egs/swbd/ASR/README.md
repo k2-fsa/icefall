@@ -6,10 +6,11 @@ Switchboard is a collection of about 2,400 two-sided telephone conversations amo
 
 (The above introduction is from the [LDC Switchboard-1 Release 2 webpage](https://catalog.ldc.upenn.edu/LDC97S62).)
 
-**Caution**: The `conformer_ctc` recipe for Switchboard is currently very rough and has a high Word Error Rate, requiring more improvement and refinement. The TODO list for this recipe is as follows.
+**Caution**: The `conformer_ctc` recipe for Switchboard is currently very rough and produces a high Word Error Rate, requiring more improvement and refinement. The TODO list for this recipe is as follows.
 
 ## TODO List
-- [ ] Incorporate Lhotse for data processing
+- [x] Incorporate Lhotse for data processing
+- [x] Further text normalization
 - [ ] Refer to Global Mapping Rules when computing Word Error Rate
 - [x] Detailed Word Error Rate summary for eval2000 (callhome, swbd) and rt03 (fsh, swbd) testset
 - [ ] Switchboard transcript train/dev split for LM training
@@ -27,3 +28,5 @@ See [RESULTS](/egs/swbd/ASR/RESULTS.md) for details.
 The training script for `conformer_ctc` comes from the LibriSpeech `conformer_ctc` recipe in icefall.
 
 A lot of the scripts for data processing are from the first-gen Kaldi and the ESPNet project, tailored to incorporate with Lhotse and icefall.
+
+Some of the scripts for text normalization are from stale pull requests of [Piotr Żelasko](https://github.com/pzelasko) and [Nagendra Goel](https://github.com/ngoel17).
