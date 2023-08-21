@@ -77,24 +77,6 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
 
     touch data/shar/.librispeech.done
   fi
-
-  if [ ! -e data/fbank/.librispeech-validated.done ]; then
-    log "Validating data/fbank for LibriSpeech"
-    parts=(
-      train-clean-100
-      train-clean-360
-      train-other-500
-      test-clean
-      test-other
-      dev-clean
-      dev-other
-    )
-    for part in ${parts[@]}; do
-      python3 ./local/validate_manifest.py \
-        data/fbank/librispeech_cuts_${part}.jsonl.gz
-    done
-    touch data/fbank/.librispeech-validated.done
-  fi
 fi
 
 # Run the rest of data preparation steps
