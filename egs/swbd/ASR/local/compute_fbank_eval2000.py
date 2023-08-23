@@ -97,7 +97,7 @@ def compute_fbank_switchboard(
     prefix = dir_name
     suffix = "jsonl.gz"
     manifests = {
-        "eval2000": "data/manifests/eval2000/eval2000_cuts_all_trimmed.jsonl.gz",
+        "eval2000": "data/manifests/eval2000/eval2000_cuts_all.jsonl.gz",
     }
     assert manifests is not None
 
@@ -111,7 +111,12 @@ def compute_fbank_switchboard(
             logging.info(f"{prefix} already exists - skipping.")
             return
         logging.info(f"Processing {prefix}")
-        cut_set = CutSet.from_file(manifests[prefix]).resample(16000)
+        cut_set = (
+            CutSet.from_file(manifests[prefix])
+            .resample(16000)
+            .to_eager()
+            .filter(lambda c: c.duration > 0.5)
+        )
 
         cut_set = cut_set.compute_and_store_features(
             extractor=extractor,
@@ -121,6 +126,7 @@ def compute_fbank_switchboard(
             executor=ex,
             storage_type=LilcomChunkyWriter,
         )
+        cut_set = cut_set.trim_to_supervisions(keep_overlapping=False)
         cut_set.to_file(output_dir / cuts_filename)
 
 

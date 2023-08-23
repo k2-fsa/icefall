@@ -45,7 +45,7 @@ fisher_dir="/export/corpora3/LDC/LDC2004T19"
 vocab_sizes=(
     # 5000
     # 2000
-    # 1000
+    1000
     500
 )
 
@@ -197,7 +197,7 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
     # [noise] nsn
     # !sil sil
     # <unk> spn
-    cat data/local/dict_nosp/lexicon.txt |
+    cat data/local/dict_nosp/lexicon.txt | sed 's/-//g' | sed 's/\[vocalizednoise\]/\[vocalized-noise\]/g' |
         sort | uniq >$lang_dir/lexicon_lower.txt
 
     cat $lang_dir/lexicon_lower.txt | tr a-z A-Z > $lang_dir/lexicon.txt

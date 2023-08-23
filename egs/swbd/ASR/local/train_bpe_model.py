@@ -75,6 +75,8 @@ def main():
     # If you change it, you should also change other
     # places that are using it.
 
+    user_defined_symbols += ["[LAUGHTER]", "[NOISE]", "[VOCALIZED-NOISE]"]
+
     model_file = Path(model_prefix + ".model")
     if not model_file.is_file():
         spm.SentencePieceTrainer.train(

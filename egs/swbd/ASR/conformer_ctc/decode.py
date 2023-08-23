@@ -796,15 +796,17 @@ def main():
     test_eval2000_cuts = switchboard.test_eval2000_cuts().trim_to_supervisions(
         keep_all_channels=True
     )
-    test_rt03_cuts = switchboard.test_rt03_cuts().trim_to_supervisions(
-        keep_all_channels=True
-    )
+    # test_rt03_cuts = switchboard.test_rt03_cuts().trim_to_supervisions(
+    #     keep_all_channels=True
+    # )
 
     test_eval2000_dl = switchboard.test_dataloaders(test_eval2000_cuts)
-    test_rt03_dl = switchboard.test_dataloaders(test_rt03_cuts)
+    # test_rt03_dl = switchboard.test_dataloaders(test_rt03_cuts)
 
-    test_sets = ["test-eval2000", "test-rt03"]
-    test_dl = [test_eval2000_dl, test_rt03_dl]
+    # test_sets = ["test-eval2000", "test-rt03"]
+    # test_dl = [test_eval2000_dl, test_rt03_dl]
+    test_sets = ["test-eval2000"]
+    test_dl = [test_eval2000_dl]
 
     for test_set, test_dl in zip(test_sets, test_dl):
         results_dict = decode_dataset(

@@ -216,9 +216,6 @@ def main():
         "#0",
         "<s>",
         "</s>",
-        "[VOCALIZED-NOISE]",
-        "[NOISE]",
-        "[LAUGHTER]",
     ]
 
     for w in excluded:
