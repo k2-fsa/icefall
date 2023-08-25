@@ -27,6 +27,6 @@ See [RESULTS](/egs/swbd/ASR/RESULTS.md) for details.
 
 The training script for `conformer_ctc` comes from the LibriSpeech `conformer_ctc` recipe in icefall.
 
-A lot of the scripts for data processing are from the first-gen Kaldi and the ESPNet project, tailored to incorporate with Lhotse and icefall.
+A lot of the scripts for data processing are from the first-gen Kaldi and the ESPNet project, tailored by myself to incorporate with Lhotse and Icefall.
 
 Some of the scripts for text normalization are from stale pull requests of [Piotr Żelasko](https://github.com/pzelasko) and [Nagendra Goel](https://github.com/ngoel17).
