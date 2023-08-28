@@ -603,10 +603,6 @@ def decode_one_batch(
         return {key: hyps}
     elif "modified_beam_search" in params.decoding_method:
         prefix = f"beam_size_{params.beam_size}"
-        if params.has_contexts:
-            prefix += f"-context-score-{params.context_score}"
-        else:
-            prefix += "-no-context-words"
         if params.decoding_method in (
             "modified_beam_search_lm_rescore",
             "modified_beam_search_lm_rescore_LODR",
@@ -618,6 +614,10 @@ def decode_one_batch(
                 ans[f"{prefix}_{key}"] = hyps
             return ans
         else:
+            if params.has_contexts:
+                prefix += f"-context-score-{params.context_score}"
+            else:
+                prefix += "-no-context-words"
             return {prefix: hyps}
     else:
         return {f"beam_size_{params.beam_size}": hyps}
@@ -808,10 +808,14 @@ def main():
                 params.suffix += f"-ngram-lm-scale-{params.ngram_lm_scale}"
     elif "beam_search" in params.decoding_method:
         params.suffix += f"-{params.decoding_method}-beam-size-{params.beam_size}"
-        if params.has_contexts:
-            params.suffix += f"-context-score-{params.context_score}"
-        else:
-            params.suffix += "-no-context-words"
+        if params.decoding_method in (
+            "modified_beam_search",
+            "modified_beam_search_LODR",
+        ):
+            if params.has_contexts:
+                params.suffix += f"-context-score-{params.context_score}"
+            else:
+                params.suffix += "-no-context-words"
     else:
         params.suffix += f"-context-{params.context_size}"
         params.suffix += f"-max-sym-per-frame-{params.max_sym_per_frame}"
