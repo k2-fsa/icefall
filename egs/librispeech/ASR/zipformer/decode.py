@@ -216,6 +216,7 @@ def get_parser():
           - greedy_search
           - beam_search
           - modified_beam_search
+          - modified_beam_search_LODR
           - fast_beam_search
           - fast_beam_search_nbest
           - fast_beam_search_nbest_oracle
@@ -354,7 +355,8 @@ def get_parser():
         default=2,
         help="""
         The bonus score of each token for the context biasing words/phrases.
-        Used only when --decoding_method is modified_beam_search.
+        Used only when --decoding-method is modified_beam_search and
+        modified_beam_search_LODR.
         """,
     )
 
@@ -364,7 +366,8 @@ def get_parser():
         default="",
         help="""
         The path of the context biasing lists, one word/phrase each line
-        Used only when --decoding_method is modified_beam_search.
+        Used only when --decoding-method is modified_beam_search and
+        modified_beam_search_LODR.
         """,
     )
     add_model_arguments(parser)
@@ -616,8 +619,6 @@ def decode_one_batch(
         else:
             if params.has_contexts:
                 prefix += f"-context-score-{params.context_score}"
-            else:
-                prefix += "-no-context-words"
             return {prefix: hyps}
     else:
         return {f"beam_size_{params.beam_size}": hyps}
@@ -650,7 +651,7 @@ def decode_dataset(
         The word symbol table.
       decoding_graph:
         The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
-        only when --decoding_method is fast_beam_search, fast_beam_search_nbest,
+        only when --decoding-method is fast_beam_search, fast_beam_search_nbest,
         fast_beam_search_nbest_oracle, and fast_beam_search_nbest_LG.
     Returns:
       Return a dict, whose key may be "greedy_search" if greedy search
@@ -814,8 +815,6 @@ def main():
         ):
             if params.has_contexts:
                 params.suffix += f"-context-score-{params.context_score}"
-            else:
-                params.suffix += "-no-context-words"
     else:
         params.suffix += f"-context-{params.context_size}"
         params.suffix += f"-max-sym-per-frame-{params.max_sym_per_frame}"
