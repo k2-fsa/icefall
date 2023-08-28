@@ -253,7 +253,7 @@ def get_parser():
         type=float,
         default=0.01,
         help="""
-        Used only when --decoding_method is fast_beam_search_nbest_LG.
+        Used only when --decoding-method is fast_beam_search_nbest_LG.
         It specifies the scale for n-gram LM scores.
         """,
     )
@@ -287,7 +287,7 @@ def get_parser():
         type=int,
         default=1,
         help="""Maximum number of symbols per frame.
-        Used only when --decoding_method is greedy_search""",
+        Used only when --decoding-method is greedy_search""",
     )
 
     parser.add_argument(
@@ -412,7 +412,7 @@ def decode_one_batch(
         The word symbol table.
       decoding_graph:
         The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
-        only when --decoding_method is fast_beam_search, fast_beam_search_nbest,
+        only when --decoding-method is fast_beam_search, fast_beam_search_nbest,
         fast_beam_search_nbest_oracle, and fast_beam_search_nbest_LG.
       LM:
         A neural network language model.
