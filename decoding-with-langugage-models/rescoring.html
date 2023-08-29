@@ -118,9 +118,12 @@ to any other domains (e.g <a class="reference external" href="https://github.com
 If you want to train your model from scratch, please have a look at <a class="reference internal" href="../recipes/Non-streaming-ASR/librispeech/pruned_transducer_stateless.html#non-streaming-librispeech-pruned-transducer-stateless"><span class="std std-ref">Pruned transducer statelessX</span></a>.</p>
 <p>As the initial step, let’s download the pre-trained model.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nv">GIT_LFS_SKIP_SMUDGE</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29
-$<span class="w"> </span><span class="nb">pushd</span><span class="w"> </span>icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/exp
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/exp
 $<span class="w"> </span>git<span class="w"> </span>lfs<span class="w"> </span>pull<span class="w"> </span>--include<span class="w"> </span><span class="s2">&quot;pretrained.pt&quot;</span>
 $<span class="w"> </span>ln<span class="w"> </span>-s<span class="w"> </span>pretrained.pt<span class="w"> </span>epoch-99.pt<span class="w"> </span><span class="c1"># create a symbolic link so that the checkpoint can be loaded</span>
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../data/lang_bpe_500
+$<span class="w"> </span>git<span class="w"> </span>lfs<span class="w"> </span>pull<span class="w"> </span>--include<span class="w"> </span>bpe.model
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../../..
 </pre></div>
 </div>
 <p>As usual, we first test the model’s performance without external LM. This can be done via the following command:</p>
