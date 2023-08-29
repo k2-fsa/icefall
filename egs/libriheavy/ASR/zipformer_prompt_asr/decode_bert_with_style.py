@@ -62,6 +62,7 @@ from beam_search import (
 )
 from dataset import naive_triplet_text_sampling, random_shuffle_subset
 from utils import get_facebook_biasing_list
+from ls_text_normalization import word_normalization
 from text_normalization import (
     ref_text_normalization,
     remove_non_alphabetic,
@@ -273,7 +274,7 @@ def get_parser():
     parser.add_argument(
         "--max-prompt-lens",
         type=int,
-        default=500,
+        default=1000,
     )
     
     parser.add_argument(
@@ -619,7 +620,10 @@ def decode_dataset(
         
         cut_ids = [cut.id for cut in batch["supervisions"]["cut"]]
         if not params.use_ls_test_set:
-            book_names = [cut.text_path.split('/')[-2] for cut in batch["supervisions"]["cut"]]
+            try:
+                book_names = [cut.text_path.split('/')[-2] for cut in batch["supervisions"]["cut"]]
+            except:
+                book_names = [cut.id.split('/')[0] for cut in batch["supervisions"]["cut"]]
         else:
             book_names = ["" for _ in cut_ids]
 
@@ -915,15 +919,16 @@ def main():
     ls_test_clean_cuts = libriheavy.librispeech_test_clean_cuts()
     ls_test_other_cuts = libriheavy.librispeech_test_other_cuts()
     long_audio_cuts = libriheavy.long_audio_cuts()
-    test_dev_cuts = libriheavy.test_dev_cuts()
-    #test_clean_cuts = test_clean_cuts.filter(lambda c: "Brain Twister" not in c.text_path)
+    npr1_dev_cuts = libriheavy.npr1_dev_cuts()
+    npr1_test_cuts = libriheavy.npr1_test_cuts()
 
     test_clean_dl = libriheavy.valid_dataloaders(test_clean_cuts, text_sampling_func=naive_triplet_text_sampling)
     test_other_dl = libriheavy.valid_dataloaders(test_other_cuts, text_sampling_func=naive_triplet_text_sampling)
     ls_test_clean_dl = libriheavy.test_dataloaders(ls_test_clean_cuts)
     ls_test_other_dl = libriheavy.test_dataloaders(ls_test_other_cuts)
     long_audio_dl = libriheavy.valid_dataloaders(long_audio_cuts, text_sampling_func=naive_triplet_text_sampling)
-    test_dev_dl = libriheavy.valid_dataloaders(test_dev_cuts)
+    npr1_dev_dl = libriheavy.valid_dataloaders(npr1_dev_cuts, text_sampling_func=naive_triplet_text_sampling)
+    npr1_test_dl = libriheavy.valid_dataloaders(npr1_test_cuts, text_sampling_func=naive_triplet_text_sampling)
 
     if params.use_ls_test_set:
         test_sets = ["ls-test-clean", "ls-test-other"]
@@ -935,9 +940,6 @@ def main():
     if params.long_audio_recog:
         test_sets = ["long-audio"]
         test_dl = [long_audio_dl]
-        
-    test_sets = ["test-dev", ]
-    test_dl = [test_dev_dl, ]
 
     for test_set, test_dl in zip(test_sets, test_dl):
         if test_set == "ls-test-clean":
@@ -973,8 +975,16 @@ def main():
                 new_ans = []
                 for item in results_dict[k]:
                     id, ref, hyp = item
-                    hyp = upper_only_alpha(" ".join(hyp)).split()
-                    ref = upper_only_alpha(" ".join(ref)).split()                    
+                    if params.use_ls_test_set:
+                        hyp = " ".join(hyp).replace("-", " ").split() # handle the hypens
+                        hyp = upper_only_alpha(" ".join(hyp)).split()
+                        hyp = [word_normalization(w.upper()) for w in hyp]
+                        hyp = " ".join(hyp).split()
+                        hyp = [w for w in hyp if w != ""]
+                        ref = upper_only_alpha(" ".join(ref)).split()                    
+                    else:
+                        hyp = upper_only_alpha(" ".join(hyp)).split()
+                        ref = upper_only_alpha(" ".join(ref)).split()                    
                     new_ans.append((id,ref,hyp))
                 new_res[k] = new_ans
                 
@@ -983,6 +993,9 @@ def main():
                 test_set_name=test_set,
                 results_dict=new_res,
             )
+            
+            if params.suffix.endswith("-post-normalization"):
+                params.suffix = params.suffix.replace("-post-normalization", "")
 
     logging.info("Done!")
 
