@@ -95,4 +95,7 @@ rst_epilog = """
 .. _k2: https://github.com/k2-fsa/k2
 .. _lhotse: https://github.com/lhotse-speech/lhotse
 .. _yesno: https://www.openslr.org/1/
+.. _Next-gen Kaldi: https://github.com/k2-fsa
+.. _Kaldi: https://github.com/kaldi-asr/kaldi
+.. _lilcom: https://github.com/danpovey/lilcom
 """

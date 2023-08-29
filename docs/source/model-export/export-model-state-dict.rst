@@ -41,7 +41,7 @@ as an example.
 
   ./pruned_transducer_stateless3/export.py \
     --exp-dir ./pruned_transducer_stateless3/exp \
-    --bpe-model data/lang_bpe_500/bpe.model \
+    --tokens data/lang_bpe_500/tokens.txt \
     --epoch 20 \
     --avg 10
 
@@ -78,7 +78,7 @@ In each recipe, there is also a file ``pretrained.py``, which can use
 
    ./pruned_transducer_stateless3/pretrained.py \
       --checkpoint ./icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13/exp/pretrained-iter-1224000-avg-14.pt \
-      --bpe-model ./icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13/data/lang_bpe_500/bpe.model \
+      --tokens ./icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13/data/lang_bpe_500/tokens.txt \
       --method greedy_search \
       ./icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13/test_wavs/1089-134686-0001.wav \
       ./icefall-asr-librispeech-pruned-transducer-stateless3-2022-05-13/test_wavs/1221-135766-0001.wav \

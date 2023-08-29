@@ -85,7 +85,7 @@ fi
 if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   log "Stage 5: Compute fbank for alimeeting"
   mkdir -p data/fbank
-  python local/compute_fbank_alimeeting.py
+  python local/compute_fbank_alimeeting.py --perturb-speed True
   log "Combine features from train splits"
   lhotse combine data/manifests/cuts_train_{ihm,ihm_rvb,sdm,gss}.jsonl.gz - | shuf |\
     gzip -c > data/manifests/cuts_train_all.jsonl.gz
