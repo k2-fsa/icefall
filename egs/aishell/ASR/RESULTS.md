@@ -7,6 +7,54 @@
 [./zipformer](./zipformer)
 
 It's reworked Zipformer with Pruned RNNT loss, note that results below are produced by model trained on data without speed perturbation applied.
+**Caution**: It uses `--context-size=1`.
+
+##### normal-scaled model, number of model parameters: 73412551, i.e., 73.41 M
+
+|                        | test | dev  | comment                                 |
+|------------------------|------|------|-----------------------------------------|
+| greedy search          | 4.73 | 4.54 | --epoch 38 --avg 14                     |
+| modified beam search   | 4.49 | 4.27 | --epoch 40 --avg 12                     |
+| fast beam search       | 4.65 | 4.4 | --epoch 40 --avg 12                     |
+
+Command for training is:
+```bash
+./prepare.sh 
+
+export CUDA_VISIBLE_DEVICES="0,1"
+
+./zipformer/train.py \
+  --world-size 2 \
+  --num-epochs 40 \
+  --start-epoch 1 \
+  --use-fp16 1 \
+  --context-size 1 \
+  --enable-musan 0 \
+  --exp-dir zipformer/exp \
+  --max-duration 1000
+```
+
+Command for decoding is:
+```bash
+./zipformer/decode.py \
+  --epoch 38 \
+  --avg 14 \
+  --exp-dir ./zipformer/exp \
+  --lang-dir data/lang_char \
+  --context-size 1 \
+  --decoding-method greedy_search
+
+for m in modified_beam_search fast_beam_search ; do
+  ./zipformer/decode.py \
+    --epoch 40 \
+    --avg 12 \
+    --exp-dir ./zipformer/exp \
+    --lang-dir data/lang_char \
+    --context-size 1 \
+    --decoding-method $m
+done
+```
+
 
 **⚠️ If you prefer to have the speed perturbation disabled, please manually set `--perturb-speed` to `False` for `./local/compute_fbank_aishell.py` in the `prepare.sh` script.**
 
@@ -20,7 +68,7 @@ It's reworked Zipformer with Pruned RNNT loss, note that results below are produ
 
 Command for training is:
 ```bash
-./prepare.sh # after setting --perturb-speed to False in the prepare.sh
+./prepare.sh --perturb-speed false
 
 export CUDA_VISIBLE_DEVICES="0,1"
 
@@ -59,7 +107,7 @@ done
 
 Command for training is:
 ```bash
-./prepare.sh # after setting --perturb-speed to False in the prepare.sh
+./prepare.sh --perturb-speed false
 
 export CUDA_VISIBLE_DEVICES="0,1"
 
