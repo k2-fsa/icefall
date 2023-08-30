@@ -6,7 +6,7 @@
 
 [./zipformer](./zipformer)
 
-It's reworked Zipformer with Pruned RNNT loss, note that results below are produced by model trained on data without speed perturbation applied.
+It's reworked Zipformer with Pruned RNNT loss.
 **Caution**: It uses `--context-size=1`.
 
 ##### normal-scaled model, number of model parameters: 73412551, i.e., 73.41 M
@@ -55,8 +55,9 @@ for m in modified_beam_search fast_beam_search ; do
 done
 ```
 
+Note that results below are produced by model trained on data without speed perturbation applied.
 
-**⚠️ If you prefer to have the speed perturbation disabled, please manually set `--perturb-speed` to `False` for `./local/compute_fbank_aishell.py` in the `prepare.sh` script.**
+**⚠️ If you prefer to have the speed perturbation disabled, please pass `false` to `--perturb-speed` of the `prepare.sh` script as demonstrated below.**
 
 ##### normal-scaled model, number of model parameters: 73412551, i.e., 73.41 M
 

@@ -10,7 +10,7 @@
 
 It's reworked Zipformer with Pruned RNNT loss, note that results below are produced by model trained on data without speed perturbation applied.
 
-**⚠️ If you prefer to have the speed perturbation disabled, please manually set `--perturb-speed` to `False` for `./local/compute_fbank_aishell.py` in the `prepare.sh` script.**
+**⚠️ If you prefer to have the speed perturbation disabled, please pass `false` to `--perturb-speed` of the `prepare.sh` script as demonstrated below.**
 
 |                        | test | comment                               |
 |------------------------|------|---------------------------------------|
