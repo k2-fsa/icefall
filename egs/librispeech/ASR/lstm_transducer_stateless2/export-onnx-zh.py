@@ -613,7 +613,7 @@ def main():
     quantize_dynamic(
         model_input=decoder_filename,
         model_output=decoder_filename_int8,
-        op_types_to_quantize=["MatMul"],
+        op_types_to_quantize=["MatMul", "Gather"],
         weight_type=QuantType.QInt8,
     )
 
