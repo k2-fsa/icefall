@@ -33,9 +33,9 @@ dataset, you should change the argument values according to your dataset.
 
 ./zipformer/export.py \
   --exp-dir ./zipformer/exp \
-  --tokens data/lang_bpe_500/tokens.txt \
-  --epoch 30 \
-  --avg 9 \
+  --tokens data/lang_bpe_2000/tokens.txt \
+  --epoch 23 \
+  --avg 1 \
   --jit 1
 
 It will generate a file `jit_script.pt` in the given `exp_dir`. You can later
@@ -53,9 +53,9 @@ for how to use the exported models outside of icefall.
   --causal 1 \
   --chunk-size 16 \
   --left-context-frames 128 \
-  --tokens data/lang_bpe_500/tokens.txt \
-  --epoch 30 \
-  --avg 9 \
+  --tokens data/lang_bpe_2000/tokens.txt \
+  --epoch 23 \
+  --avg 1 \
   --jit 1
 
 It will generate a file `jit_script_chunk_16_left_128.pt` in the given `exp_dir`.
@@ -72,18 +72,18 @@ for how to use the exported models outside of icefall.
 
 ./zipformer/export.py \
   --exp-dir ./zipformer/exp \
-  --tokens data/lang_bpe_500/tokens.txt \
-  --epoch 30 \
-  --avg 9
+  --tokens data/lang_bpe_2000/tokens.txt \
+  --epoch 23 \
+  --avg 1
 
 - For streaming model:
 
 ./zipformer/export.py \
   --exp-dir ./zipformer/exp \
   --causal 1 \
-  --tokens data/lang_bpe_500/tokens.txt \
-  --epoch 30 \
-  --avg 9
+  --tokens data/lang_bpe_2000/tokens.txt \
+  --epoch 23 \
+  --avg 1
 
 It will generate a file `pretrained.pt` in the given `exp_dir`. You can later
 load it by `icefall.checkpoint.load_checkpoint()`.
@@ -103,7 +103,7 @@ you can do:
         --avg 1 \
         --max-duration 600 \
         --decoding-method greedy_search \
-        --bpe-model data/lang_bpe_500/bpe.model
+        --bpe-model data/lang_bpe_2000/bpe.model
 
 - For streaming model:
 
@@ -124,7 +124,7 @@ To use the generated file with `zipformer/decode.py` and `zipformer/streaming_de
         --chunk-size 16 \
         --left-context-frames 128 \
         --decoding-method greedy_search \
-        --bpe-model data/lang_bpe_500/bpe.model
+        --bpe-model data/lang_bpe_2000/bpe.model
 
     # chunk-wise streaming decoding
     ./zipformer/streaming_decode.py \
@@ -136,7 +136,7 @@ To use the generated file with `zipformer/decode.py` and `zipformer/streaming_de
         --chunk-size 16 \
         --left-context-frames 128 \
         --decoding-method greedy_search \
-        --bpe-model data/lang_bpe_500/bpe.model
+        --bpe-model data/lang_bpe_2000/bpe.model
 
 Check ./pretrained.py for its usage.
 
@@ -207,7 +207,7 @@ def get_parser():
     parser.add_argument(
         "--epoch",
         type=int,
-        default=30,
+        default=23,
         help="""It specifies the checkpoint to use for decoding.
         Note: Epoch counts from 1.
         You can specify --avg to use more checkpoints for model averaging.""",
@@ -226,7 +226,7 @@ def get_parser():
     parser.add_argument(
         "--avg",
         type=int,
-        default=9,
+        default=1,
         help="Number of checkpoints to average. Automatically select "
         "consecutive checkpoints before the checkpoint specified by "
         "'--epoch' and '--iter'",
@@ -255,7 +255,7 @@ def get_parser():
     parser.add_argument(
         "--tokens",
         type=str,
-        default="data/lang_bpe_500/tokens.txt",
+        default="data/lang_bpe_2000/tokens.txt",
         help="Path to the tokens.txt",
     )
 
