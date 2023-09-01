@@ -1,1 +1,1 @@
-/k2-dev/yangyifan/icefall-bengaliai/egs/librispeech/ASR/zipformer/pretrained_ctc.py
+../../../librispeech/ASR/zipformer/pretrained_ctc.py

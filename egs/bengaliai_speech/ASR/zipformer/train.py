@@ -26,22 +26,20 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
 # For non-streaming model training:
 ./zipformer/train.py \
   --world-size 4 \
-  --num-epochs 30 \
+  --num-epochs 120 \
   --start-epoch 1 \
   --use-fp16 1 \
   --exp-dir zipformer/exp \
-  --full-libri 1 \
   --max-duration 1000
 
 # For streaming model training:
 ./zipformer/train.py \
   --world-size 4 \
-  --num-epochs 30 \
+  --num-epochs 120 \
   --start-epoch 1 \
   --use-fp16 1 \
   --exp-dir zipformer/exp \
   --causal 1 \
-  --full-libri 1 \
   --max-duration 1000
 
 It supports training with:

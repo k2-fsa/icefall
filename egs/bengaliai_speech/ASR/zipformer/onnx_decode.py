@@ -1,1 +1,1 @@
-/k2-dev/yangyifan/icefall-bengaliai/egs/librispeech/ASR/zipformer/onnx_decode.py
+../../../librispeech/ASR/zipformer/onnx_decode.py

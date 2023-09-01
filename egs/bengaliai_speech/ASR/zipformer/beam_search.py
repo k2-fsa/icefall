@@ -1,1 +1,1 @@
-/k2-dev/yangyifan/icefall-bengaliai/egs/librispeech/ASR/pruned_transducer_stateless2/beam_search.py
+../../../librispeech/ASR/zipformer/beam_search.py

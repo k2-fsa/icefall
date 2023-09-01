@@ -1,1 +1,1 @@
-/k2-dev/yangyifan/icefall-bengaliai/egs/librispeech/ASR/zipformer/subsampling.py
+../../../librispeech/ASR/zipformer/subsampling.py

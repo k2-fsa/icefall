@@ -1,1 +1,1 @@
-/k2-dev/yangyifan/icefall-bengaliai/egs/librispeech/ASR/zipformer/scaling_converter.py
+../../../librispeech/ASR/zipformer/scaling_converter.py

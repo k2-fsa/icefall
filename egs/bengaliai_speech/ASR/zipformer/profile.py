@@ -1,1 +1,1 @@
-/k2-dev/yangyifan/icefall-bengaliai/egs/librispeech/ASR/zipformer/profile.py
+../../../librispeech/ASR/zipformer/profile.py
