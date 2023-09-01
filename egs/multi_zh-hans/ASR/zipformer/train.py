@@ -30,7 +30,6 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --start-epoch 1 \
   --use-fp16 1 \
   --exp-dir zipformer/exp \
-  --full-libri 1 \
   --max-duration 1000
 
 # For streaming model training:
@@ -41,7 +40,6 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --use-fp16 1 \
   --exp-dir zipformer/exp \
   --causal 1 \
-  --full-libri 1 \
   --max-duration 1000
 
 It supports training with:
@@ -65,7 +63,7 @@ import sentencepiece as spm
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
-from asr_datamodule import LibriSpeechAsrDataModule
+from asr_datamodule import AsrDataModule
 from decoder import Decoder
 from joiner import Joiner
 from lhotse.cut import Cut
@@ -1173,14 +1171,10 @@ def run(rank, world_size, args):
     if params.inf_check:
         register_inf_check_hooks(model)
 
-    librispeech = LibriSpeechAsrDataModule(args)
+    data_module = AsrDataModule(args)
     multi_dataset = MultiDataset(args.manifest_dir)
 
     train_cuts = multi_dataset.train_cuts()
-    # train_cuts = librispeech.train_clean_100_cuts()
-    # if params.full_libri:
-    #     train_cuts += librispeech.train_clean_360_cuts()
-    #     train_cuts += librispeech.train_other_500_cuts()
 
     def remove_short_and_long_utt(c: Cut):
         # Keep only utterances with duration between 1 second and 20 seconds
@@ -1228,23 +1222,21 @@ def run(rank, world_size, args):
     else:
         sampler_state_dict = None
 
-    train_dl = librispeech.train_dataloaders(
+    train_dl = data_module.train_dataloaders(
         train_cuts, sampler_state_dict=sampler_state_dict
     )
 
-    # valid_cuts = librispeech.dev_clean_cuts()
-    # valid_cuts += librispeech.dev_other_cuts()
     valid_cuts = multi_dataset.dev_cuts()
-    valid_dl = librispeech.valid_dataloaders(valid_cuts)
+    valid_dl = data_module.valid_dataloaders(valid_cuts)
 
-    # if not params.print_diagnostics:
-    #     scan_pessimistic_batches_for_oom(
-    #         model=model,
-    #         train_dl=train_dl,
-    #         optimizer=optimizer,
-    #         sp=sp,
-    #         params=params,
-    #     )
+    if not params.print_diagnostics:
+        scan_pessimistic_batches_for_oom(
+            model=model,
+            train_dl=train_dl,
+            optimizer=optimizer,
+            sp=sp,
+            params=params,
+        )
 
     scaler = GradScaler(enabled=params.use_fp16, init_scale=1.0)
     if checkpoints and "grad_scaler" in checkpoints:
@@ -1374,7 +1366,7 @@ def scan_pessimistic_batches_for_oom(
 
 def main():
     parser = get_parser()
-    LibriSpeechAsrDataModule.add_arguments(parser)
+    AsrDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 

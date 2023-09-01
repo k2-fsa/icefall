@@ -229,10 +229,12 @@ if [ $stage -le 11 ] && [ $stop_stage -ge 11 ]; then
     cd data/fbank
     ln -svf $(realpath ../../../../wenetspeech/ASR/data/fbank/cuts_DEV.jsonl.gz) .
     ln -svf $(realpath ../../../../wenetspeech/ASR/data/fbank/cuts_L.jsonl.gz) .
-    ln -svf $(realpath ../../../../wenetspeech/ASR/data/fbank/cuts_M.jsonl.gz) .
-    ln -svf $(realpath ../../../../wenetspeech/ASR/data/fbank/cuts_S.jsonl.gz) .
     ln -svf $(realpath ../../../../wenetspeech/ASR/data/fbank/cuts_TEST_MEETING.jsonl.gz) .
     ln -svf $(realpath ../../../../wenetspeech/ASR/data/fbank/cuts_TEST_NET.jsonl.gz) .
+
+    ln -svf $(realpath ../../../../wenetspeech/ASR/data/fbank/L_split_1000) .
+    ln -svf $(realpath ../../../../wenetspeech/ASR/data/fbank/*.lca) .
+    ln -svf $(realpath ../../../../wenetspeech/ASR/data/fbank/) ./wenetspeech
     cd ../..
   else
     log "Abort! Please run ../../wenetspeech/ASR/prepare.sh"

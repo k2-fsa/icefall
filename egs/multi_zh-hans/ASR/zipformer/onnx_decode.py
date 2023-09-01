@@ -76,12 +76,11 @@ from typing import List, Tuple
 
 import torch
 import torch.nn as nn
-from asr_datamodule import LibriSpeechAsrDataModule
-
-from onnx_pretrained import greedy_search, OnnxModel
+from asr_datamodule import AsrDataModule
+from k2 import SymbolTable
+from onnx_pretrained import OnnxModel, greedy_search
 
 from icefall.utils import setup_logger, store_transcripts, write_error_stats
-from k2 import SymbolTable
 
 
 def get_parser():
@@ -263,7 +262,7 @@ def save_results(
 @torch.no_grad()
 def main():
     parser = get_parser()
-    LibriSpeechAsrDataModule.add_arguments(parser)
+    AsrDataModule.add_arguments(parser)
     args = parser.parse_args()
 
     assert (
@@ -290,7 +289,7 @@ def main():
 
     # we need cut ids to display recognition results.
     args.return_cuts = True
-    librispeech = LibriSpeechAsrDataModule(args)
+    librispeech = AsrDataModule(args)
 
     test_clean_cuts = librispeech.test_clean_cuts()
     test_other_cuts = librispeech.test_other_cuts()
@@ -303,7 +302,9 @@ def main():
 
     for test_set, test_dl in zip(test_sets, test_dl):
         start_time = time.time()
-        results, total_duration = decode_dataset(dl=test_dl, model=model, token_table=token_table)
+        results, total_duration = decode_dataset(
+            dl=test_dl, model=model, token_table=token_table
+        )
         end_time = time.time()
         elapsed_seconds = end_time - start_time
         rtf = elapsed_seconds / total_duration
