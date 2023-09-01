@@ -144,17 +144,13 @@ Note: If you don't want to train a model from scratch, we have
 provided one for you. You can get it at
 
 - non-streaming model:
-https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-2023-05-15
-
-- streaming model:
-https://huggingface.co/Zengwei/icefall-asr-librispeech-streaming-zipformer-2023-05-17
+https://huggingface.co/zrjin/icefall-asr-multi-zh-hans-zipformer-2023-9-2/
 
 with the following commands:
 
     sudo apt-get install git-lfs
     git lfs install
-    git clone https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-2023-05-15
-    git clone https://huggingface.co/Zengwei/icefall-asr-librispeech-streaming-zipformer-2023-05-17
+    git clone https://huggingface.co/zrjin/icefall-asr-multi-zh-hans-zipformer-2023-9-2/
     # You will find the pre-trained models in exp dir
 """
 
