@@ -283,17 +283,17 @@ class MultiDataset:
             self.fbank_dir / "kespeech" / "kespeech-asr_cuts_dev_phase2.jsonl.gz"
         )
 
-        # # WeNetSpeech
-        # logging.info("Loading WeNetSpeech set in lazy mode")
-        # wenetspeech_test_meeting_cuts = load_manifest_lazy(
-        #     self.fbank_dir / "wenetspeech" / "cuts_TEST_MEETING.jsonl.gz"
-        # )
-        # wenetspeech_test_net_cuts = load_manifest_lazy(
-        #     self.fbank_dir / "wenetspeech" / "cuts_TEST_NET.jsonl.gz"
-        # )
-        # wenetspeech_dev_cuts = load_manifest_lazy(
-        #     self.fbank_dir / "wenetspeech" / "cuts_DEV.jsonl.gz"
-        # )
+        # WeNetSpeech
+        logging.info("Loading WeNetSpeech set in lazy mode")
+        wenetspeech_test_meeting_cuts = load_manifest_lazy(
+            self.fbank_dir / "wenetspeech" / "cuts_TEST_MEETING.jsonl.gz"
+        )
+        wenetspeech_test_net_cuts = load_manifest_lazy(
+            self.fbank_dir / "wenetspeech" / "cuts_TEST_NET.jsonl.gz"
+        )
+        wenetspeech_dev_cuts = load_manifest_lazy(
+            self.fbank_dir / "wenetspeech" / "cuts_DEV.jsonl.gz"
+        )
 
         return {
             "aidatatang_test": aidatatang_test_cuts,
@@ -310,7 +310,7 @@ class MultiDataset:
             "kespeech-asr_test": kespeech_test_cuts,
             "kespeech-asr_dev_phase1": kespeech_dev_phase1_cuts,
             "kespeech-asr_dev_phase2": kespeech_dev_phase2_cuts,
-            # "wenetspeech-meeting_test": wenetspeech_test_meeting_cuts,
-            # "wenetspeech-net_test": wenetspeech_test_net_cuts,
-            # "wenetspeech_dev": wenetspeech_dev_cuts,
+            "wenetspeech-meeting_test": wenetspeech_test_meeting_cuts,
+            "wenetspeech-net_test": wenetspeech_test_net_cuts,
+            "wenetspeech_dev": wenetspeech_dev_cuts,
         }

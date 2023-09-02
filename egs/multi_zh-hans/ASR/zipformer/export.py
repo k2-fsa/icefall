@@ -34,7 +34,7 @@ dataset, you should change the argument values according to your dataset.
 ./zipformer/export.py \
   --exp-dir ./zipformer/exp \
   --tokens data/lang_bpe_2000/tokens.txt \
-  --epoch 23 \
+  --epoch 20 \
   --avg 1 \
   --jit 1
 
@@ -54,7 +54,7 @@ for how to use the exported models outside of icefall.
   --chunk-size 16 \
   --left-context-frames 128 \
   --tokens data/lang_bpe_2000/tokens.txt \
-  --epoch 23 \
+  --epoch 20 \
   --avg 1 \
   --jit 1
 
@@ -73,7 +73,7 @@ for how to use the exported models outside of icefall.
 ./zipformer/export.py \
   --exp-dir ./zipformer/exp \
   --tokens data/lang_bpe_2000/tokens.txt \
-  --epoch 23 \
+  --epoch 20 \
   --avg 1
 
 - For streaming model:
@@ -82,7 +82,7 @@ for how to use the exported models outside of icefall.
   --exp-dir ./zipformer/exp \
   --causal 1 \
   --tokens data/lang_bpe_2000/tokens.txt \
-  --epoch 23 \
+  --epoch 20 \
   --avg 1
 
 It will generate a file `pretrained.pt` in the given `exp_dir`. You can later
@@ -203,7 +203,7 @@ def get_parser():
     parser.add_argument(
         "--epoch",
         type=int,
-        default=23,
+        default=20,
         help="""It specifies the checkpoint to use for decoding.
         Note: Epoch counts from 1.
         You can specify --avg to use more checkpoints for model averaging.""",
