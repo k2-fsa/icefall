@@ -27,7 +27,7 @@ This recipe includes scripts for training Zipformer model using multiple Chinese
 |MagicData|755|https://www.openslr.org/68/|
 |AliMeeting|100|https://openslr.org/119/|
 |WeNetSpeech|10,000|https://github.com/wenet-e2e/WenetSpeech|
-|KeSpeech|1,542|https://openreview.net/forum?id=b3Zoeq2sCLq|
+|KeSpeech|1,542|https://github.com/KeSpeech/KeSpeech|
 
 
 # Included Test Sets

@@ -5,7 +5,6 @@ export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
 
 set -eou pipefail
 
-nj=16
 stage=-1
 stop_stage=100
 num_splits=100
@@ -256,11 +255,12 @@ if [ $stage -le 12 ] && [ $stop_stage -ge 12 ]; then
   log "Stage 12: Prepare KeSpeech"
   if [ ! -d $dl_dir/KeSpeech ]; then
     log "Abort! Please download KeSpeech first."
+    log "KeSpeech download link: https://github.com/KeSpeech/KeSpeech"
   fi
 
   if [ ! -f data/manifests/.kespeech.done ]; then
     mkdir -p data/manifests
-    lhotse prepare kespeech -j $nj $dl_dir/KeSpeech data/manifests/kespeech 
+    lhotse prepare kespeech -j 16 $dl_dir/KeSpeech data/manifests/kespeech 
     touch data/manifests/.kespeech.done
   fi
 
@@ -303,7 +303,7 @@ if [ $stage -le 12 ] && [ $stop_stage -ge 12 ]; then
 fi
 
 if [ $stage -le 13 ] && [ $stop_stage -ge 13 ]; then
-  log "Stage 13: BPE model training"
+  log "Stage 13: BPE model training (note that we use transcripts of wenetspeech only for BPE training)"
   ./local/prepare_for_bpe_model.py --lang-dir ./data/lang_char --text ./data/lang_char/text
 
   for vocab_size in ${vocab_sizes[@]}; do
@@ -348,7 +348,7 @@ if [ $stage -le 13 ] && [ $stop_stage -ge 13 ]; then
 fi
 
 if [ $stage -le 14 ] && [ $stop_stage -ge 14 ]; then
-  log "Stage 14: Prepare G"
+  log "Stage 14: Prepare G (note that we use ngram lm of wenetspeech only for G preparation)"
   
   if [ -d ../../wenetspeech/ASR/data/lang_char/ ]; then
     cd data

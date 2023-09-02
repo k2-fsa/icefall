@@ -322,7 +322,7 @@ class AsrDataModule:
             sampler=train_sampler,
             batch_size=None,
             num_workers=self.args.num_workers,
-            persistent_workers=False,
+            persistent_workers=True,
             worker_init_fn=worker_init_fn,
         )
 

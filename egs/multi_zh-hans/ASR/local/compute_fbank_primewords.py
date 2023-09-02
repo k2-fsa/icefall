@@ -117,6 +117,6 @@ if __name__ == "__main__":
     logging.basicConfig(format=formatter, level=logging.INFO)
 
     args = get_args()
-    compute_fbank_thchs30(
+    compute_fbank_primewords(
         num_mel_bins=args.num_mel_bins, speed_perturb=args.speed_perturb
     )

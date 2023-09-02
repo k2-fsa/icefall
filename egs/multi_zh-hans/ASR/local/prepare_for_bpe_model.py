@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright    2021  Xiaomi Corp.        (authors: Zengrui Jin)
+# Copyright    2023  Xiaomi Corp.        (authors: Zengrui Jin)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -15,10 +15,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# This script tokenizes the training transcript by CJK characters
+# and saves the result to transcript_chars.txt, which is used
+# to train the BPE model later.
+
 import argparse
 from pathlib import Path
 
 from tqdm.auto import tqdm
+
 from icefall.utils import tokenize_by_CJK_char
 
 
@@ -52,11 +57,8 @@ def main():
 
     with open(text, "r", encoding="utf-8") as fin:
         text_lines = fin.readlines()
-    tokenized_lines = []
-    for line in tqdm(text_lines, desc="Tokenizing training transcript"):
-        tokenized_lines.append(f"{tokenize_by_CJK_char(line)}\n")
     with open(transcript_path, "w+", encoding="utf-8") as fout:
-        fout.writelines(tokenized_lines)
+        fout.writelines([f"{tokenize_by_CJK_char(line)}\n" for line in text_lines])
 
 
 if __name__ == "__main__":
