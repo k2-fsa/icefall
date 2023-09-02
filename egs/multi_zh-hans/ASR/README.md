@@ -16,6 +16,7 @@ This recipe includes scripts for training Zipformer model using multiple Chinese
 
 |Datset| Number of hours| URL|
 |---|---:|---|
+|**TOTAL**|14,106|---|
 |THCHS-30|35|https://www.openslr.org/18/|
 |AiShell-1|170|https://www.openslr.org/33/|
 |AiShell-2|1,000|http://www.aishelltech.com/aishell_2|

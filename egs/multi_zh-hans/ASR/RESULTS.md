@@ -2,7 +2,7 @@
 
 ### WenetSpeech char-based training results (Non-streaming and streaming) on zipformer model
 
-This is the [pull request](https://github.com/k2-fsa/icefall/pull/1130) in icefall.
+This is the [pull request #1238](https://github.com/k2-fsa/icefall/pull/1238) in icefall.
 
 #### Non-streaming
 
