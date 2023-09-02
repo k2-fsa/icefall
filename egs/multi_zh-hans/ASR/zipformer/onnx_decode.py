@@ -2,7 +2,8 @@
 #
 # Copyright 2021-2023 Xiaomi Corporation (Author: Fangjun Kuang,
 #                                                 Zengwei Yao,
-#                                                 Xiaoyu Yang)
+#                                                 Xiaoyu Yang,
+#                                                 Zengrui Jin)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -21,19 +22,19 @@
 This script loads ONNX exported models and uses them to decode the test sets.
 
 We use the pre-trained model from
-https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-2023-05-15
+https://huggingface.co/zrjin/icefall-asr-multi-zh-hans-zipformer-2023-9-2/
 as an example to show how to use this file.
 
 1. Download the pre-trained model
 
 cd egs/librispeech/ASR
 
-repo_url=https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-2023-05-15
+repo_url=https://huggingface.co/zrjin/icefall-asr-multi-zh-hans-zipformer-2023-9-2/
 GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
 repo=$(basename $repo_url)
 
 pushd $repo
-git lfs pull --include "data/lang_bpe_500/bpe.model"
+git lfs pull --include "data/lang_bpe_2000/bpe.model"
 git lfs pull --include "exp/pretrained.pt"
 
 cd exp
@@ -43,7 +44,7 @@ popd
 2. Export the model to ONNX
 
 ./zipformer/export-onnx.py \
-  --tokens $repo/data/lang_bpe_500/tokens.txt \
+  --tokens $repo/data/lang_bpe_2000/tokens.txt \
   --use-averaged-model 0 \
   --epoch 99 \
   --avg 1 \
@@ -64,7 +65,7 @@ It will generate the following 3 files inside $repo/exp:
   --encoder-model-filename $repo/exp/encoder-epoch-99-avg-1.onnx \
   --decoder-model-filename $repo/exp/decoder-epoch-99-avg-1.onnx \
   --joiner-model-filename $repo/exp/joiner-epoch-99-avg-1.onnx \
-  --tokens $repo/data/lang_bpe_500/tokens.txt \
+  --tokens $repo/data/lang_bpe_2000/tokens.txt \
 """
 
 
