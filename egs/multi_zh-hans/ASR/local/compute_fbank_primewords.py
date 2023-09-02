@@ -80,7 +80,7 @@ def compute_fbank_primewords(num_mel_bins: int = 80, speed_perturb: bool = False
             )
             if "train" in partition and speed_perturb:
                 cut_set = (
-                    (cut_set + cut_set.perturb_speed(0.9) + cut_set.perturb_speed(1.1))
+                    cut_set + cut_set.perturb_speed(0.9) + cut_set.perturb_speed(1.1)
                 )
             cut_set = cut_set.compute_and_store_features(
                 extractor=extractor,
