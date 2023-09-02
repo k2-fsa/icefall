@@ -299,8 +299,8 @@ class ScaledAdam(BatchedOptimizer):
             # the input is groups of parameter or named parameter.
             for cur_group in iterable_or_groups:
                 assert "named_params" in cur_group
-                name_list = [ x[0] for x in cur_group["named_params"] ]
-                p_list = [ x[1] for x in cur_group["named_params"] ]
+                name_list = [x[0] for x in cur_group["named_params"]]
+                p_list = [x[1] for x in cur_group["named_params"]]
                 del cur_group["named_params"]
                 cur_group["params"] = p_list
                 param_groups.append(cur_group)
@@ -667,8 +667,7 @@ class ScaledAdam(BatchedOptimizer):
         # We have to look at the trained model for parameters at or around the
         # param_max_rms, because sometimes they can indicate a problem with the
         # topology or settings.
-        scale_step = torch.minimum(scale_step,
-                                   (param_max_rms - param_rms) / param_rms)
+        scale_step = torch.minimum(scale_step, (param_max_rms - param_rms) / param_rms)
 
         delta = state["delta"]
         # the factor of (1-beta1) relates to momentum.
@@ -879,7 +878,8 @@ class Eden(LRScheduler):
         warmup_factor = (
             1.0
             if self.batch >= self.warmup_batches
-            else self.warmup_start + (1.0 - self.warmup_start) * (self.batch / self.warmup_batches)
+            else self.warmup_start
+            + (1.0 - self.warmup_start) * (self.batch / self.warmup_batches)
             # else 0.5 + 0.5 * (self.batch / self.warmup_batches)
         )
 
