@@ -200,7 +200,7 @@ def get_parser():
     parser.add_argument(
         "--lang-dir",
         type=Path,
-        default="data/lang_bpe_500",
+        default="data/lang_bpe_2000",
         help="The lang dir containing word table and LG graph",
     )
 
