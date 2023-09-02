@@ -78,6 +78,8 @@ def preprocess_kespeech(speed_perturb: bool = False):
         list(manifests.keys()),
         dataset_parts,
     )
+    logging_threshold = 50
+    logging_count = 0
 
     for partition, m in manifests.items():
         logging.info(f"Processing {partition}")
@@ -97,7 +99,8 @@ def preprocess_kespeech(speed_perturb: bool = False):
             orig_text = text
             sup.text = normalize_text(sup.text)
             text = str(sup.text)
-            if len(orig_text) != len(text):
+            if len(orig_text) != len(text) and logging_count < logging_threshold:
+                logging_count += 1
                 logging.info(
                     f"\nOriginal text vs normalized text:\n{orig_text}\n{text}"
                 )
