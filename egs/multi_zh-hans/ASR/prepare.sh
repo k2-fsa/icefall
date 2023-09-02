@@ -256,6 +256,7 @@ if [ $stage -le 12 ] && [ $stop_stage -ge 12 ]; then
   if [ ! -d $dl_dir/KeSpeech ]; then
     log "Abort! Please download KeSpeech first."
     log "KeSpeech download link: https://github.com/KeSpeech/KeSpeech"
+    exit 1
   fi
 
   if [ ! -f data/manifests/.kespeech.done ]; then
