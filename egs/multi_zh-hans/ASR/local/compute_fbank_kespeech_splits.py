@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # Copyright    2021  Johns Hopkins University (Piotr Żelasko)
 # Copyright    2021  Xiaomi Corp.             (Fangjun Kuang)
+# Copyright    2023  Xiaomi Corp.             (Zengrui Jin)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -48,6 +49,7 @@ def get_parser():
         "--training-subset",
         type=str,
         default="train_phase1",
+        choices=["train_phase1", "train_phase2"],
         help="The training subset for computing fbank feature.",
     )
 
