@@ -43,7 +43,7 @@ torch.set_num_threads(1)
 torch.set_num_interop_threads(1)
 
 
-def compute_fbank_thchs30(num_mel_bins: int = 80, speed_perturb: bool = False):
+def compute_fbank_stcmds(num_mel_bins: int = 80, speed_perturb: bool = False):
     src_dir = Path("data/manifests/stcmds")
     output_dir = Path("data/fbank")
     num_jobs = min(15, os.cpu_count())
@@ -78,11 +78,9 @@ def compute_fbank_thchs30(num_mel_bins: int = 80, speed_perturb: bool = False):
                 recordings=m["recordings"],
                 supervisions=m["supervisions"],
             )
-            if "train" in partition:
+            if "train" in partition and speed_perturb:
                 cut_set = (
                     (cut_set + cut_set.perturb_speed(0.9) + cut_set.perturb_speed(1.1))
-                    if speed_perturb
-                    else cut_set
                 )
             cut_set = cut_set.compute_and_store_features(
                 extractor=extractor,
