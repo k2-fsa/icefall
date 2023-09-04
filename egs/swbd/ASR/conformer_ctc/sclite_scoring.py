@@ -46,7 +46,7 @@ switchboard_garbage_utterance_tags = [
     "[LAUGHTER]",
     "[NOISE]",
     "[VOCALIZED-NOISE]",
-    "[SILENCE]"
+    "[SILENCE]",
 ]
 non_scoring_words = (
     conversational_filler + unk_tags + switchboard_garbage_utterance_tags
