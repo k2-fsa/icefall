@@ -30,6 +30,8 @@ import torch.nn as nn
 from asr_datamodule import SwitchBoardAsrDataModule
 from conformer import Conformer
 
+from sclite_scoring import asr_text_post_processing
+
 from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
 from icefall.checkpoint import load_checkpoint
 from icefall.decode import (
@@ -231,6 +233,17 @@ def get_params() -> AttributeDict:
         }
     )
     return params
+
+
+def post_processing(
+    results: List[Tuple[str, List[str], List[str]]],
+) -> List[Tuple[str, List[str], List[str]]]:
+    new_results = []
+    for key, ref, hyp in results:
+        new_ref = asr_text_post_processing(" ".join(ref)).split()
+        new_hyp = asr_text_post_processing(" ".join(hyp)).split()
+        new_results.append((key, new_ref, new_hyp))
+    return new_results
 
 
 def decode_one_batch(
@@ -591,6 +604,7 @@ def save_results(
         test_set_wers = dict()
         for key, results in results_dict.items():
             recog_path = params.exp_dir / f"recogs-{test_set_name}-{subset}-{key}.txt"
+            results = post_processing(results)
             results = (
                 sorted(list(filter(lambda x: x[0].startswith(prefix), results)))
                 if subset != "avg"
@@ -605,7 +619,11 @@ def save_results(
             errs_filename = params.exp_dir / f"errs-{test_set_name}-{subset}-{key}.txt"
             with open(errs_filename, "w") as f:
                 wer = write_error_stats(
-                    f, f"{test_set_name}-{subset}-{key}", results, enable_log=enable_log
+                    f,
+                    f"{test_set_name}-{subset}-{key}",
+                    results,
+                    enable_log=enable_log,
+                    sclite_mode=True,
                 )
                 test_set_wers[key] = wer
 

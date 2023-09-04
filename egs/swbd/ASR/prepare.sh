@@ -108,6 +108,10 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
             data/manifests/eval2000/eval2000_cuts_all.jsonl.gz \
             data/manifests/eval2000/eval2000_cuts_all_trimmed.jsonl.gz
 
+        sed -e 's:((:(:' -e 's:<B_ASIDE>::g' -e 's:<E_ASIDE>::g' \
+            $eval2000_dir/LDC2002T43/reference/hub5e00.english.000405.stm >  data/manifests/eval2000/stm
+        cp $eval2000_dir/LDC2002T43/reference/en20000405_hub5.glm  $dir/glm
+
         # ./local/rt03_data_prep.sh $rt03_dir
 
         # normalize eval2000 and rt03 texts by

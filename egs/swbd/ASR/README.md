@@ -11,10 +11,8 @@ Switchboard is a collection of about 2,400 two-sided telephone conversations amo
 ## TODO List
 - [x] Incorporate Lhotse for data processing
 - [x] Further text normalization
-- [ ] Refer to Global Mapping Rules when computing Word Error Rate
 - [x] Detailed Word Error Rate summary for eval2000 (callhome, swbd) and rt03 (fsh, swbd) testset
-- [ ] Switchboard transcript train/dev split for LM training
-- [ ] Fisher corpus LDC2004T19 LDC2005T19 LDC2004S13 LDC2005S13 for LM training
+- [x] Switchboard transcript train/dev split for LM training
 
 ## Performance Record
 |                                |  eval2000  |  rt03  |
@@ -30,3 +28,5 @@ The training script for `conformer_ctc` comes from the LibriSpeech `conformer_ct
 A lot of the scripts for data processing are from the first-gen Kaldi and the ESPNet project, tailored by myself to incorporate with Lhotse and Icefall.
 
 Some of the scripts for text normalization are from stale pull requests of [Piotr Żelasko](https://github.com/pzelasko) and [Nagendra Goel](https://github.com/ngoel17).
+
+The `sclite_scoring.py` is from the GigaSpeech recipe for post processing and glm-like scoring, which is definitely not an elegant stuff to do.
