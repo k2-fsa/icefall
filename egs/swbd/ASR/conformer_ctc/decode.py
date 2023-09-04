@@ -66,7 +66,7 @@ def get_parser():
     parser.add_argument(
         "--epoch",
         type=int,
-        default=77,
+        default=98,
         help="It specifies the checkpoint to use for decoding."
         "Note: Epoch counts from 0.",
     )
