@@ -145,6 +145,7 @@ def replace_silphone(text: str) -> str:
     text = text.replace("[NOISE OF MOVING PHONE]", " ")
     text = text.replace("[SOUND OF RUNNING WATER]", " ")
     text = text.replace("[CHANNEL]", " ")
+    text = text.replace("[SILENCE]", " ")
     text = text.replace("-[W]HERE", "WHERE")
     text = text.replace("Y[OU]I-", "YOU I")
     text = text.replace("-[A]ND", "AND")
