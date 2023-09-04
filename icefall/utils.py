@@ -493,6 +493,7 @@ def write_error_stats(
     test_set_name: str,
     results: List[Tuple[str, str]],
     enable_log: bool = True,
+    sclite_mode: bool = False,
 ) -> float:
     """Write statistics based on predicted results and reference transcripts.
 
@@ -538,7 +539,7 @@ def write_error_stats(
     num_corr = 0
     ERR = "*"
     for cut_id, ref, hyp in results:
-        ali = kaldialign.align(ref, hyp, ERR)
+        ali = kaldialign.align(ref, hyp, ERR, sclite_mode=sclite_mode)
         for ref_word, hyp_word in ali:
             if ref_word == ERR:
                 ins[hyp_word] += 1
