@@ -31,7 +31,7 @@ swbd1_dir=./download/LDC97S62/
 #  - LDC2002S09
 #       - hub5e_00
 #  - LDC2002T43
-#       - 2000_hub5_eng_eval_tr
+#       - reference
 eval2000_dir="/export/corpora2/LDC/eval2000"
 
 rt03_dir="/export/corpora/LDC/LDC2007S10"
