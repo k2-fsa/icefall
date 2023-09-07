@@ -1,22 +1,30 @@
 ## Results
 
-### WenetSpeech char-based training results (Non-streaming and streaming) on zipformer model
+### Multi Chinese datasets char-based training results (Non-streaming) on zipformer model
 
 This is the [pull request #1238](https://github.com/k2-fsa/icefall/pull/1238) in icefall.
 
 #### Non-streaming
 
-Best results (num of params : ~68M):
+Best results (num of params : ~69M):
 
 The training command:
 
 ```
 ./zipformer/train.py \
   --world-size 4 \
-  --num-epochs 23 \
+  --num-epochs 20 \
   --use-fp16 1 \
-  --max-duration 500 \
+  --max-duration 600 \
   --num-workers 8
+```
+
+The decoding command:
+
+```
+./zipformer/decode.py \
+  --epoch 20 \
+  --avg 1
 ```
 
 Character Error Rates (CERs) listed below are produced by the checkpoint of the 20th epoch using greedy search and BPE model ( # tokens is 2000, byte fallback enabled).
