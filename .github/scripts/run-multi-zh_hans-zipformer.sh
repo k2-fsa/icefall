@@ -32,7 +32,7 @@ ls -lh $repo/exp/*.pt
 ./zipformer/pretrained.py \
   --checkpoint $repo/exp/epoch-99.pt \
   --tokens $repo/data/lang_bpe_2000/tokens.txt \
-  --method greedy_search 
+  --method greedy_search \
 $repo/test_wavs/DEV_T0000000000.wav \
 $repo/test_wavs/DEV_T0000000001.wav \
 $repo/test_wavs/DEV_T0000000002.wav
