@@ -72,7 +72,7 @@ def get_parser():
         "--num-splits",
         type=int,
         required=True,
-        help="The number of splits of the L subset",
+        help="The number of splits of the given subset",
     )
 
     parser.add_argument(
