@@ -353,7 +353,7 @@ if [ $stage -le 14 ] && [ $stop_stage -ge 14 ]; then
   
   if [ -d ../../wenetspeech/ASR/data/lang_char/ ]; then
     cd data
-    cp -r ../../../../wenetspeech/ASR/data/lm .
+    ln -s ../../../../wenetspeech/ASR/data/lm .
     cd ..
   else
     log "Abort! Please run ../../wenetspeech/ASR/prepare.sh"
