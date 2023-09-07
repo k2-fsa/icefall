@@ -5,4 +5,5 @@
 export PYTHONPATH=$PYTHONPATH:/lustre/fsw/sa/yuekaiz/asr/icefall
 export PYTHONPATH=$PYTHONPATH:/lustre/fsw/sa/yuekaiz/asr/seamless_communication/src
 export TORCH_HOME=/lustre/fsw/sa/yuekaiz/asr/hub
-python3 seamlessm4t/decode.py --epoch 3 --exp-dir seamlessm4t/exp
+python3 seamlessm4t/decode.py --epoch 5 --exp-dir seamlessm4t/exp
+python3 seamlessm4t/decode.py --epoch 5 --avg 2 --exp-dir seamlessm4t/exp

@@ -30,7 +30,7 @@ from asr_datamodule import AishellAsrDataModule
 #from conformer import Conformer
 
 from icefall.char_graph_compiler import CharCtcTrainingGraphCompiler
-from icefall.checkpoint import average_checkpoints, load_checkpoint
+from icefall.checkpoint import average_checkpoints, load_checkpoint, average_checkpoints_with_averaged_model
 from icefall.decode import (
     get_lattice,
     nbest_decoding,
@@ -74,7 +74,7 @@ def get_parser():
     parser.add_argument(
         "--avg",
         type=int,
-        default=20,
+        default=1,
         help="Number of checkpoints to average. Automatically select "
         "consecutive checkpoints before the checkpoint specified by "
         "'--epoch'. ",
@@ -277,7 +277,7 @@ def save_results(
     enable_log = True
     test_set_wers = dict()
     for key, results in results_dict.items():
-        recog_path = params.exp_dir / f"recogs-{test_set_name}-{key}.txt"
+        recog_path = params.exp_dir / f"recogs-{test_set_name}-{key}-{params.suffix}.txt"
         results = sorted(results)
         store_transcripts(filename=recog_path, texts=results)
         if enable_log:
@@ -285,7 +285,7 @@ def save_results(
 
         # The following prints out WERs, per-word error statistics and aligned
         # ref/hyp pairs.
-        errs_filename = params.exp_dir / f"errs-{test_set_name}-{key}.txt"
+        errs_filename = params.exp_dir / f"errs-{test_set_name}-{key}-{params.suffix}.txt"
         # we compute CER for aishell dataset.
         results_char = []
         for res in results:
@@ -300,7 +300,7 @@ def save_results(
             logging.info("Wrote detailed error stats to {}".format(errs_filename))
 
     test_set_wers = sorted(test_set_wers.items(), key=lambda x: x[1])
-    errs_info = params.exp_dir / f"cer-summary-{test_set_name}.txt"
+    errs_info = params.exp_dir / f"cer-summary-{test_set_name}-{params.suffix}.txt"
     with open(errs_info, "w") as f:
         print("settings\tCER", file=f)
         for key, val in test_set_wers:
@@ -323,8 +323,8 @@ def main():
 
     params = get_params()
     params.update(vars(args))
-
-    setup_logger(f"{params.exp_dir}/log-{params.method}/log-decode")
+    params.suffix = f"epoch-{params.epoch}-avg-{params.avg}
+    setup_logger(f"{params.exp_dir}/log-{params.method}/log-decode-{params.suffix}")
     logging.info("Decoding started")
     logging.info(params)
 
@@ -342,7 +342,25 @@ def main():
     del model.text_encoder
     del model.text_encoder_frontend
     if params.epoch > 0:
-      load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
+      if params.avg > 1:
+        start = params.epoch - params.avg
+        assert start >= 1, start
+        filename_start = f"{params.exp_dir}/epoch-{start}.pt"
+        filename_end = f"{params.exp_dir}/epoch-{params.epoch}.pt"
+        logging.info(
+            f"Calculating the averaged model over epoch range from "
+            f"{start} (excluded) to {params.epoch}"
+        )
+        model.to(device)
+        model.load_state_dict(
+            average_checkpoints_with_averaged_model(
+                filename_start=filename_start,
+                filename_end=filename_end,
+                device=device,
+            )
+        )
+      else:
+        load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
     model.to(device)
     model.eval()
     num_param = sum([p.numel() for p in model.parameters()])
