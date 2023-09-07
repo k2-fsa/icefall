@@ -30,7 +30,7 @@ log "Test exporting to ONNX format"
 
 ./zipformer/export.py \
   --exp-dir $repo/exp \
-  --lang-dir $repo/data/lang_bpe_2000 \
+  --tokens $repo/data/lang_bpe_2000/tokens.txt \
   --epoch 99 \
   --avg 1 \
   --onnx 1
@@ -39,14 +39,14 @@ log "Export to torchscript model"
 
 ./zipformer/export.py \
   --exp-dir $repo/exp \
-  --lang-dir $repo/data/lang_bpe_2000 \
+  --tokens $repo/data/lang_bpe_2000/tokens.txt \
   --epoch 99 \
   --avg 1 \
   --jit 1
 
 ./zipformer/export.py \
   --exp-dir $repo/exp \
-  --lang-dir $repo/data/lang_bpe_2000 \
+  --tokens $repo/data/lang_bpe_2000/tokens.txt \
   --epoch 99 \
   --avg 1 \
   --jit-trace 1
