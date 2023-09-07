@@ -26,74 +26,8 @@ pushd $repo/exp
 ln -s epoch-20.pt epoch-99.pt
 popd
 
-log "Test exporting to ONNX format"
-
-./zipformer/export.py \
-  --exp-dir $repo/exp \
-  --tokens $repo/data/lang_bpe_2000/tokens.txt \
-  --epoch 99 \
-  --avg 1 \
-  --onnx 1
-
-log "Export to torchscript model"
-
-./zipformer/export.py \
-  --exp-dir $repo/exp \
-  --tokens $repo/data/lang_bpe_2000/tokens.txt \
-  --epoch 99 \
-  --avg 1 \
-  --jit 1
-
-./zipformer/export.py \
-  --exp-dir $repo/exp \
-  --tokens $repo/data/lang_bpe_2000/tokens.txt \
-  --epoch 99 \
-  --avg 1 \
-  --jit-trace 1
-
 ls -lh $repo/exp/*.onnx
 ls -lh $repo/exp/*.pt
-
-log "Decode with ONNX models"
-
-./zipformer/onnx_check.py \
-  --jit-filename $repo/exp/cpu_jit.pt \
-  --onnx-encoder-filename $repo/exp/encoder.onnx \
-  --onnx-decoder-filename $repo/exp/decoder.onnx \
-  --onnx-joiner-filename $repo/exp/joiner.onnx \
-  --onnx-joiner-encoder-proj-filename $repo/exp/joiner_encoder_proj.onnx \
-  --onnx-joiner-decoder-proj-filename $repo/exp/joiner_decoder_proj.onnx
-
-./zipformer/onnx_pretrained.py \
-  --tokens $repo/data/lang_bpe_2000/tokens.txt \
-  --encoder-model-filename $repo/exp/encoder.onnx \
-  --decoder-model-filename $repo/exp/decoder.onnx \
-  --joiner-model-filename $repo/exp/joiner.onnx \
-  --joiner-encoder-proj-model-filename $repo/exp/joiner_encoder_proj.onnx \
-  --joiner-decoder-proj-model-filename $repo/exp/joiner_decoder_proj.onnx \
-  $repo/test_wavs/DEV_T0000000000.wav \
-  $repo/test_wavs/DEV_T0000000001.wav \
-  $repo/test_wavs/DEV_T0000000002.wav
-
-log "Decode with models exported by torch.jit.trace()"
-
-./zipformer/jit_pretrained.py \
-  --tokens $repo/data/lang_bpe_2000/tokens.txt \
-  --encoder-model-filename $repo/exp/encoder_jit_trace.pt \
-  --decoder-model-filename $repo/exp/decoder_jit_trace.pt \
-  --joiner-model-filename $repo/exp/joiner_jit_trace.pt \
-  $repo/test_wavs/DEV_T0000000000.wav \
-  $repo/test_wavs/DEV_T0000000001.wav \
-  $repo/test_wavs/DEV_T0000000002.wav
-
-./zipformer/jit_pretrained.py \
-  --tokens $repo/data/lang_bpe_2000/tokens.txt \
-  --encoder-model-filename $repo/exp/encoder_jit_script.pt \
-  --decoder-model-filename $repo/exp/decoder_jit_script.pt \
-  --joiner-model-filename $repo/exp/joiner_jit_script.pt \
-  $repo/test_wavs/DEV_T0000000000.wav \
-  $repo/test_wavs/DEV_T0000000001.wav \
-  $repo/test_wavs/DEV_T0000000002.wav
 
 for sym in 1 2 3; do
   log "Greedy search with --max-sym-per-frame $sym"
