@@ -27,7 +27,7 @@ import k2
 import torch
 import torch.nn as nn
 from asr_datamodule import AishellAsrDataModule
-from conformer import Conformer
+#from conformer import Conformer
 
 from icefall.char_graph_compiler import CharCtcTrainingGraphCompiler
 from icefall.checkpoint import average_checkpoints, load_checkpoint
