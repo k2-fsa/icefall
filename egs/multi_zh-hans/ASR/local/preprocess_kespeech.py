@@ -95,14 +95,12 @@ def preprocess_kespeech(speed_perturb: bool = False):
         m["supervisions"] = m["supervisions"].filter(has_no_oov)
         logging.info(f"Normalizing text in {partition}")
         for sup in m["supervisions"]:
-            text = str(sup.text)
-            orig_text = text
+            orig_text = sup.text
             sup.text = normalize_text(sup.text)
-            text = str(sup.text)
-            if len(orig_text) != len(text) and logging_count < logging_threshold:
+            if logging_count < logging_threshold and len(orig_text) != len(sup.text):
                 logging_count += 1
                 logging.info(
-                    f"\nOriginal text vs normalized text:\n{orig_text}\n{text}"
+                    f"\nOriginal text vs normalized text:\n{orig_text}\n{sup.text}"
                 )
 
         # Create long-recording cut manifests.
