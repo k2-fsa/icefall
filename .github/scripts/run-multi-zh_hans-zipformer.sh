@@ -26,7 +26,6 @@ pushd $repo/exp
 ln -s epoch-20.pt epoch-99.pt
 popd
 
-ls -lh $repo/exp/*.onnx
 ls -lh $repo/exp/*.pt
 
 for sym in 1 2 3; do
