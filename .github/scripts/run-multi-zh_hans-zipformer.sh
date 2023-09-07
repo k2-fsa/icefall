@@ -34,7 +34,7 @@ for sym in 1 2 3; do
   ./zipformer/pretrained.py \
     --checkpoint $repo/exp/epoch-99.pt \
     --tokens $repo/data/lang_bpe_2000/tokens.txt \
-    --decoding-method greedy_search \
+    --method greedy_search \
     --max-sym-per-frame $sym \
   $repo/test_wavs/DEV_T0000000000.wav \
   $repo/test_wavs/DEV_T0000000001.wav \
@@ -45,7 +45,7 @@ for method in modified_beam_search beam_search fast_beam_search; do
   log "$method"
 
   ./zipformer/pretrained.py \
-    --decoding-method $method \
+    --method $method \
     --beam-size 4 \
     --checkpoint $repo/exp/epoch-99.pt \
     --tokens $repo/data/lang_bpe_2000/tokens.txt \
