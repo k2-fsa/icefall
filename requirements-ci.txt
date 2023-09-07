@@ -25,3 +25,4 @@ onnx
 onnxmltools
 onnxruntime
 kaldifst
+kaldi-hmm-gmm

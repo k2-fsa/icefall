@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
+# Copyright      2023  Xiaomi Corp.        (authors: Fangjun Kuang)
 
 """
-This file shows how to use a torchscript model for decoding.
+This file shows how to use a torchscript model for decoding with HL
+on CPU using OpenFST and decoders from kaldi.
 
 Usage:
 
-  ./tdnn/jit_pretrained.py \
+  ./tdnn/jit_pretrained_decode_with_HL.py \
     --nn-model ./tdnn/exp/cpu_jit.pt \
-    --HLG ./data/lang_phone/HLG.pt \
-    --words-file ./data/lang_phone/words.txt \
-    download/waves_yesno/0_0_0_1_0_0_0_1.wav \
-    download/waves_yesno/0_0_1_0_0_0_1_0.wav
+    --HL ./data/lang_phone/HL.fst \
+    --words ./data/lang_phone/words.txt \
+    ./download/waves_yesno/0_0_0_1_0_0_0_1.wav \
+    ./download/waves_yesno/0_0_1_0_0_0_1_0.wav \
+    ./download/waves_yesno/0_0_1_0_0_1_1_1.wav
 
 Note that to generate ./tdnn/exp/cpu_jit.pt,
 you can use ./export.py --jit 1
@@ -18,18 +21,17 @@ you can use ./export.py --jit 1
 
 import argparse
 import logging
-from typing import List
 import math
+from typing import Dict, List
 
-
-import k2
 import kaldifeat
+import kaldifst
 import torch
 import torchaudio
+from kaldi_hmm_gmm import FasterDecoder, FasterDecoderOptions
 from torch.nn.utils.rnn import pad_sequence
 
-from icefall.decode import get_lattice, one_best_decoding
-from icefall.utils import AttributeDict, get_texts
+from icefall.ctc import CtcDecodable
 
 
 def get_parser():
@@ -48,13 +50,13 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--words-file",
+        "--words",
         type=str,
         required=True,
         help="Path to words.txt",
     )
 
-    parser.add_argument("--HLG", type=str, required=True, help="Path to HLG.pt.")
+    parser.add_argument("--HL", type=str, required=True, help="Path to HL.fst")
 
     parser.add_argument(
         "sound_files",
@@ -68,20 +70,14 @@ def get_parser():
     return parser
 
 
-def get_params() -> AttributeDict:
-    params = AttributeDict(
-        {
-            "feature_dim": 23,
-            "num_classes": 4,  # [<blk>, N, SIL, Y]
-            "sample_rate": 8000,
-            "search_beam": 20,
-            "output_beam": 8,
-            "min_active_states": 30,
-            "max_active_states": 10000,
-            "use_double_scores": True,
-        }
-    )
-    return params
+def read_words(words_txt: str) -> Dict[int, str]:
+    id2word = dict()
+    with open(words_txt, encoding="utf-8") as f:
+        for line in f:
+            word, idx = line.strip().split()
+            id2word[int(idx)] = word
+
+    return id2word
 
 
 def read_sound_files(
@@ -111,18 +107,44 @@ def read_sound_files(
     return ans
 
 
+def decode(
+    filename: str,
+    nnet_output: torch.Tensor,
+    HL: kaldifst,
+    id2word: Dict[int, str],
+) -> List[str]:
+    decodable = CtcDecodable(nnet_output)
+    decoder_opts = FasterDecoderOptions()
+    decoder = FasterDecoder(HL, decoder_opts)
+    decoder.decode(decodable)
+
+    if not decoder.reached_final():
+        print(f"failed to decode {filename}")
+        return ""
+
+    ok, best_path = decoder.get_best_path()
+
+    (
+        ok,
+        isymbols_out,
+        osymbols_out,
+        total_weight,
+    ) = kaldifst.get_linear_symbol_sequence(best_path)
+    if not ok:
+        print(f"failed to get linear symbol sequence for {filename}")
+        return ""
+
+    hyps = [id2word[i] for i in osymbols_out if id2word[i] != "<SIL>"]
+
+    return hyps
+
+
 @torch.no_grad()
 def main():
     parser = get_parser()
     args = parser.parse_args()
 
-    params = get_params()
-    params.update(vars(args))
-    logging.info(f"{params}")
-
     device = torch.device("cpu")
-    if torch.cuda.is_available():
-        device = torch.device("cuda", 0)
 
     logging.info(f"device: {device}")
 
@@ -131,23 +153,24 @@ def main():
     model.eval()
     model.to(device)
 
-    logging.info(f"Loading HLG from {params.HLG}")
-    HLG = k2.Fsa.from_dict(torch.load(params.HLG, map_location="cpu"))
-    HLG = HLG.to(device)
+    logging.info(f"Loading HL from {args.HL}")
+    HL = kaldifst.StdVectorFst.read(args.HL)
+
+    sample_rate = 8000
 
     logging.info("Constructing Fbank computer")
     opts = kaldifeat.FbankOptions()
     opts.device = device
     opts.frame_opts.dither = 0
     opts.frame_opts.snip_edges = False
-    opts.frame_opts.samp_freq = params.sample_rate
-    opts.mel_opts.num_bins = params.feature_dim
+    opts.frame_opts.samp_freq = sample_rate
+    opts.mel_opts.num_bins = 23
 
     fbank = kaldifeat.Fbank(opts)
 
-    logging.info(f"Reading sound files: {params.sound_files}")
+    logging.info(f"Reading sound files: {args.sound_files}")
     waves = read_sound_files(
-        filenames=params.sound_files, expected_sample_rate=params.sample_rate
+        filenames=args.sound_files, expected_sample_rate=sample_rate
     )
     waves = [w.to(device) for w in waves]
 
@@ -158,32 +181,20 @@ def main():
 
     nnet_output = model(features)
 
-    batch_size = nnet_output.shape[0]
-    supervision_segments = torch.tensor(
-        [[i, 0, nnet_output.shape[1]] for i in range(batch_size)],
-        dtype=torch.int32,
-    )
+    id2word = read_words(args.words)
 
-    lattice = get_lattice(
-        nnet_output=nnet_output,
-        decoding_graph=HLG,
-        supervision_segments=supervision_segments,
-        search_beam=params.search_beam,
-        output_beam=params.output_beam,
-        min_active_states=params.min_active_states,
-        max_active_states=params.max_active_states,
-    )
-
-    best_path = one_best_decoding(
-        lattice=lattice, use_double_scores=params.use_double_scores
-    )
-
-    hyps = get_texts(best_path)
-    word_sym_table = k2.SymbolTable.from_file(params.words_file)
-    hyps = [[word_sym_table[i] for i in ids] for ids in hyps]
+    hyps = []
+    for i in range(nnet_output.shape[0]):
+        hyp = decode(
+            filename=args.sound_files[0],
+            nnet_output=nnet_output[i],
+            HL=HL,
+            id2word=id2word,
+        )
+        hyps.append(hyp)
 
     s = "\n"
-    for filename, hyp in zip(params.sound_files, hyps):
+    for filename, hyp in zip(args.sound_files, hyps):
         words = " ".join(hyp)
         s += f"{filename}:\n{words}\n\n"
     logging.info(s)
