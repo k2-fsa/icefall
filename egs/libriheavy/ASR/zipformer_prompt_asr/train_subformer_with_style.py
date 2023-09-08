@@ -61,8 +61,8 @@ import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 from asr_datamodule import LibriHeavyAsrDataModule
-from dataset import triplet_text_sampling, naive_triplet_text_sampling, random_shuffle_subset, joint_triplet_text_sampling, get_substring
-from dataset2 import triplet_text_sampling_with_context_list
+from dataset import naive_triplet_text_sampling, random_shuffle_subset, joint_triplet_text_sampling, get_substring
+from dataset2 import triplet_text_sampling, triplet_text_sampling_with_context_list
 from decoder import Decoder
 from joiner import Joiner
 from lhotse.cut import Cut
@@ -1093,9 +1093,8 @@ def _encode_text_as_tokens(
     style_texts: List[str],
     bpe_model: spm.SentencePieceProcessor,
     device: torch.device,
-    max_tokens: int=500,
+    max_tokens: int=800,
 ) -> Tuple[Tensor, Tensor]:
-    max_tokens = min(500, max_tokens)
     batch_size = len(pre_texts)
     
     # encoded style texts
@@ -1216,6 +1215,7 @@ def compute_loss(
     feature = feature.to(device)
 
     supervisions = batch["supervisions"]
+    cut_ids = [c.id for c in supervisions["cut"]]
     feature_lens = supervisions["num_frames"].to(device)
 
     batch_idx_train = params.batch_idx_train
@@ -1266,6 +1266,9 @@ def compute_loss(
         logging.info(f"Pre texts: {pre_texts[0]}")
         logging.info(f"Ref texts: {texts[0]}")
         logging.info(f"Style texts: {style_texts[0]}")
+        orig_style_texts = batch["supervisions"]["style_text"]
+        logging.info(f"Orig style texts: {orig_style_texts[0]}")
+        logging.info(f"Cut ID: {cut_ids[0]}")
     
     pre_texts, pre_texts_lens, style_text_lens = _encode_text_as_tokens(
         pre_texts=pre_texts,
@@ -1752,7 +1755,7 @@ def run(rank, world_size, args):
     else:
         sampler_state_dict = None
     
-    text_sampling_func = triplet_text_sampling_with_context_list
+    text_sampling_func = triplet_text_sampling
     logging.info(f"Text sampling: {text_sampling_func}")
     
     train_dl = libriheavy.train_dataloaders(
