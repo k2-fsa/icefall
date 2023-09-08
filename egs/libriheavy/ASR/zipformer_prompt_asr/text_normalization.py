@@ -30,7 +30,8 @@ def ref_text_normalization(ref_text: str) -> str:
 def remove_non_alphabetic(text: str, strict: bool=True) -> str:
     if not strict:
         # Note, this also keeps space, single quote(') and hypen (-)
-        text = text.replace("--", " ")
+        text = text.replace("-", " ")
+        text = text.replace("—", " ")
         return re.sub("[^a-zA-Z0-9\s']+", "", text)
     else:
         # only keeps space
@@ -53,7 +54,7 @@ def upper_all_char(text: str) -> str:
     return text.upper()
 
 if __name__ == "__main__":
-    ref_text = " Hello “! My name is ‘ haha"
+    ref_text = "Mixed-case English transcription, with punctuation. Actually, it is fully not related."
     print(ref_text)
-    res = train_text_normalization(ref_text)
+    res = upper_only_alpha(ref_text)
     print(res)
