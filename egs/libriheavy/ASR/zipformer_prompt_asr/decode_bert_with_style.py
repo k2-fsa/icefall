@@ -61,7 +61,7 @@ from beam_search import (
     modified_beam_search,
 )
 from dataset import naive_triplet_text_sampling, random_shuffle_subset
-from utils import get_facebook_biasing_list
+from utils import get_facebook_biasing_list, brian_biasing_list, write_error_stats
 from ls_text_normalization import word_normalization
 from text_normalization import (
     ref_text_normalization,
@@ -92,7 +92,6 @@ from icefall.utils import (
     setup_logger,
     store_transcripts,
     str2bool,
-    write_error_stats,
 )
 
 LOG_EPS = math.log(1e-10)
@@ -335,10 +334,17 @@ def get_parser():
     )
     
     parser.add_argument(
+        "--biasing-level",
+        type=str,
+        default="utterance",
+        choices=["utterance", "Book", "Chapter"],
+    )
+    
+    parser.add_argument(
         "--ls-distractors",
-        type=str2bool,
-        default=True,
-        help="If add distractors into context list for LibriSpeech decoding"
+        type=int,
+        default=0,
+        help="The number of distractors into context list for LibriSpeech decoding"
     )
     
     add_model_arguments(parser)
@@ -430,13 +436,20 @@ def decode_one_batch(
         pre_texts = ["" for _ in range(batch_size)]
     
     if params.use_ls_context_list:
-        pre_texts = [biasing_dict[id] for id in cut_ids]
+        if params.biasing_level == "utterance":
+            pre_texts = [biasing_dict[id] for id in cut_ids]
+        elif params.biasing_level == "Chapter":
+            chapter_ids = [c.split('-')[1] for c in cut_ids]
+            pre_texts = [biasing_dict[id] for id in chapter_ids]
+        elif params.biasing_level == "Book":
+            chapter_ids = [c.split('-')[1] for c in cut_ids]
+            pre_texts = [biasing_dict[id] for id in chapter_ids]
         if params.pre_text_transform == "mixed-punc":
             pre_texts = [t.lower() for t in pre_texts]
         
     # get style_text
     if params.use_style_prompt:
-        fixed_sentence = "Mixed-case English transcription, with punctuation. Actually, it is fully not related."
+        fixed_sentence = "Mixed-case English transcription, with punctuation. Actually, it's fully not related."
         style_texts = batch["supervisions"].get("style_text", [fixed_sentence for _ in range(batch_size)])
         style_texts = [train_text_normalization(t) for t in style_texts]
     else:
@@ -447,7 +460,8 @@ def decode_one_batch(
 
         # apply style transform to the pre_text and style_text
         pre_texts = _apply_style_transform(pre_texts, params.pre_text_transform)
-        pre_texts = [t[:params.max_prompt_lens] for t in pre_texts]
+        if not params.use_ls_context_list:
+            pre_texts = [t[:params.max_prompt_lens] for t in pre_texts]
         #pre_texts = random_shuffle_subset(pre_texts, p=1.0, p_mask=0.0)
         if params.use_style_prompt:
             style_texts = _apply_style_transform(style_texts, params.style_text_transform)
@@ -461,7 +475,9 @@ def decode_one_batch(
                 style_texts=style_texts,
                 tokenizer=tokenizer,
                 device=device,
+                no_limit=True,
             )
+            logging.info(f"Shape of the encoded prompts: {encoded_inputs['input_ids'].shape}")
             
             memory, memory_key_padding_mask = model.encode_text(
                 encoded_inputs=encoded_inputs,
@@ -666,6 +682,7 @@ def save_results(
     params: AttributeDict,
     test_set_name: str,
     results_dict: Dict[str, List[Tuple[str, List[str], List[str]]]],
+    biasing_words: List[str] = None,
 ):
     test_set_wers = dict()
     test_set_cers = dict()
@@ -792,9 +809,9 @@ def main():
         params.suffix += f"-use-context-fuser"
         
     if params.use_ls_context_list:
-        params.suffix += f"-use-ls-context-list"
-        if params.ls_distractors:
-            params.suffix += f"-add-ls-context-distractors"
+        params.suffix += f"-use-{params.biasing_level}-level-ls-context-list"
+        if params.biasing_level == "utterance" and params.ls_distractors:
+            params.suffix += f"-ls-context-distractors-{params.ls_distractors}"
 
     if params.use_averaged_model:
         params.suffix += "-use-averaged-model"
@@ -919,6 +936,7 @@ def main():
     ls_test_clean_cuts = libriheavy.librispeech_test_clean_cuts()
     ls_test_other_cuts = libriheavy.librispeech_test_other_cuts()
     long_audio_cuts = libriheavy.long_audio_cuts()
+    
     npr1_dev_cuts = libriheavy.npr1_dev_cuts()
     npr1_test_cuts = libriheavy.npr1_test_cuts()
 

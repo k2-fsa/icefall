@@ -57,6 +57,7 @@ from beam_search import (
     greedy_search_batch,
     modified_beam_search,
 )
+from ls_text_normalization import word_normalization
 from text_normalization import ref_text_normalization, remove_non_alphabetic, upper_only_alpha
 from train_baseline import (
     add_model_arguments,
@@ -76,8 +77,8 @@ from icefall.utils import (
     setup_logger,
     store_transcripts,
     str2bool,
-    write_error_stats,
 )
+from utils import write_error_stats
 
 LOG_EPS = math.log(1e-10)
 
@@ -480,6 +481,7 @@ def save_results(
     params: AttributeDict,
     test_set_name: str,
     results_dict: Dict[str, List[Tuple[str, List[str], List[str]]]],
+    biasing_words: List[str] = None,
 ):
     test_set_wers = dict()
     test_set_cers = dict()
@@ -494,7 +496,7 @@ def save_results(
         errs_filename = params.res_dir / f"errs-{test_set_name}-{params.suffix}.txt"
         with open(errs_filename, "w") as f:
             wer = write_error_stats(
-                f, f"{test_set_name}-{key}", results, enable_log=True
+                f, f"{test_set_name}-{key}", results, enable_log=True, biasing_words=biasing_words,
             )
             test_set_wers[key] = wer
 
@@ -740,6 +742,12 @@ def main():
         test_dl = [long_audio_dl]      
     
     for test_set, test_dl in zip(test_sets, test_dl):
+        if params.use_ls_test_set:
+            f = open("data/context_biasing/LibriSpeechBiasingLists/all_rare_words.txt", 'r')
+            biasing_words = f.read().strip().split()
+            f.close()
+        else:
+            biasing_words = None
         results_dict = decode_dataset(
             dl=test_dl,
             params=params,
@@ -781,6 +789,7 @@ def main():
                 params=params,
                 test_set_name=test_set,
                 results_dict=new_res,
+                biasing_words=biasing_words,
             )
             
             if params.suffix.endswith("-post-normalization"):
