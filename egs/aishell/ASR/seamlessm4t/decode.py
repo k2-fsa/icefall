@@ -323,7 +323,7 @@ def main():
 
     params = get_params()
     params.update(vars(args))
-    params.suffix = f"epoch-{params.epoch}-avg-{params.avg}
+    params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
     setup_logger(f"{params.exp_dir}/log-{params.method}/log-decode-{params.suffix}")
     logging.info("Decoding started")
     logging.info(params)
