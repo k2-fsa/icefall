@@ -488,7 +488,7 @@ class LibriHeavyAsrDataModule:
     def test_clean_cuts(self) -> CutSet:
         logging.info("About to get test-clean cuts")
         cuts_valid = load_manifest_lazy(
-            self.args.manifest_dir / "libriheavy_cuts_test-clean.jsonl.gz"
+            self.args.manifest_dir / "libriheavy_cuts_test-clean_official.jsonl.gz"
         )
         return cuts_valid
 
@@ -496,7 +496,7 @@ class LibriHeavyAsrDataModule:
     def test_other_cuts(self) -> CutSet:
         logging.info("About to get test-other cuts")
         cuts_valid = load_manifest_lazy(
-            self.args.manifest_dir / "libriheavy_cuts_test-other.jsonl.gz"
+            self.args.manifest_dir / "libriheavy_cuts_test-other_official.jsonl.gz"
         )
         return cuts_valid
 
@@ -513,6 +513,20 @@ class LibriHeavyAsrDataModule:
         return load_manifest_lazy(
             self.args.manifest_dir / "librispeech_cuts_test-other.jsonl.gz"
         )
+    
+    @lru_cache()
+    def npr1_dev_cuts(self) -> CutSet:
+        logging.info("About to get npr1 dev cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "npr1_cuts_dev.jsonl.gz"
+        )
+        
+    @lru_cache()
+    def npr1_test_cuts(self) -> CutSet:
+        logging.info("About to get npr1 test cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "npr1_cuts_test.jsonl.gz"
+        )    
         
     @lru_cache()
     def long_audio_cuts(self) -> CutSet:
