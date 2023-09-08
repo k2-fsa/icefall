@@ -412,6 +412,8 @@ def decode_one_batch(
     # Apply two pass decoding
     if first_pass_res is not None and params.two_pass_decoding:
         pre_texts = [first_pass_res[id] for id in cut_ids]
+        if params.pre_text_transform == "mixed-punc":
+            pre_texts = [t.lower() for t in pre_texts]
     else:
         pre_texts = ["" for _ in range(batch_size)]
     

@@ -111,14 +111,24 @@ def joint_random_sampling(texts: List[str], pre_texts: List[str]) -> str:
     }
     return out
 
-def get_first(texts: List[str], pre_texts: List[str]) -> str:
+def get_first(
+    texts: List[str],
+    pre_texts: List[str],
+    context_list: Optional[str] = None,
+    rare_word_list: Optional[List[str]] = None,
+) -> str:
     out = {
         "text": texts[0],
         "pre_text": pre_texts[0]
     }
     return out
 
-def get_upper_only_alpha(texts: List[str], pre_texts: List[str]) -> str:
+def get_upper_only_alpha(
+    texts: List[str],
+    pre_texts: List[str],
+    context_list: Optional[str] = None,
+    rare_word_list: Optional[List[str]] = None,
+) -> str:
     # Always get the first one, which is the gt (mixed-cased trans), but with upper_only_alpha
     out = {
         "text": upper_only_alpha(texts[0]),

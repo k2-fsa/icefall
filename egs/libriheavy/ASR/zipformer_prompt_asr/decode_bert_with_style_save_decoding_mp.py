@@ -434,8 +434,9 @@ def decode_one_batch(
         
     # get style_text
     if params.use_style_prompt:
-        fixed_sentence = "Mixed-case English transcription, with punctuation. Actually, it is fully not related."
+        fixed_sentence = "Mixed-case English transcription, with punctuation. Actually, it's fully not related."
         style_texts = batch["supervisions"].get("style_text", [fixed_sentence for _ in range(batch_size)])
+        style_texts = [train_text_normalization(t) for t in style_texts]
     else:
         style_texts = ["" for _ in range(batch_size)] # use empty string
 
