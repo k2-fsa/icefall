@@ -188,6 +188,13 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     )
 
     parser.add_argument(
+        "--max-block-size",
+        type=str,
+        default="512",
+        help="Max block size used in block-wise attention; a single int or comma-separated list",
+    )
+
+    parser.add_argument(
         "--encoder-unmasked-dim",
         type=str,
         default="192,192,256,256,256,192",
@@ -574,6 +581,7 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         num_heads=_to_int_tuple(params.num_heads),
         feedforward_dim=_to_int_tuple(params.feedforward_dim),
         cnn_module_kernel=_to_int_tuple(params.cnn_module_kernel),
+        max_block_size=_to_int_tuple(params.max_block_size),
         dropout=ScheduledFloat((0.0, 0.3), (20000.0, 0.1)),
         warmup_batches=4000.0,
         causal=params.causal,

@@ -1602,6 +1602,61 @@ def convert_num_channels(x: Tensor, num_channels: int) -> Tensor:
         return torch.cat((x, zeros), dim=-1)
 
 
+def unfold(
+    x: Tensor, x_pad: int, num_blocks: int, kernel: int, stride: int, padding: int
+) -> Tensor:
+    """
+    Args:
+        x: input of shape (seq_len, batch_size, channel)
+    Returns:
+        blocks: (kernel, batch_size * num_blocks, channel)
+    """
+    seq_len, batch_size, channel = x.size()
+    x = x.permute(1, 2, 0)  # (batch_size, channel, seq_len)
+
+    x = nn.functional.pad(x, pad=(0, x_pad), value=0.0)
+
+    blocks = nn.functional.unfold(
+        x.unsqueeze(-1),
+        kernel_size=(kernel, 1),
+        padding=(padding, 0),
+        stride=(stride, 1),
+    )  # (B, C * kernel, num_blocks)
+    blocks = blocks.reshape(batch_size, channel, kernel, num_blocks)
+    blocks = blocks.permute(2, 0, 3, 1)
+    blocks = blocks.reshape(kernel, batch_size * num_blocks, channel)
+
+    return blocks
+
+
+def fold(
+    blocks: Tensor, seq_len: int, x_pad: int, num_blocks: int, kernel: int, stride: int, padding: int
+) -> Tensor:
+    """
+    Args:
+        blocks: (kernel, batch_size * num_blocks, channel)
+    Returns:
+        x: (seq_len, batch_size, channel)
+    """
+    batch_size = blocks.size(1) // num_blocks
+    channel = blocks.size(2)
+
+    blocks = blocks.reshape(kernel, batch_size, num_blocks, channel)
+    blocks = blocks.permute(1, 3, 0, 2).reshape(batch_size, channel * kernel, num_blocks)
+
+    x = nn.functional.fold(
+        blocks,
+        output_size=(seq_len + x_pad, 1),
+        kernel_size=(kernel, 1),
+        padding=(padding, 0),
+        stride=(stride, 1),
+    )
+    x = x.squeeze(-1).permute(2, 0, 1)
+    x = x[:seq_len]  # (seq_len, batch_size, channel)
+
+    return x
+
+
 def _test_whiten():
     for proportion in [0.1, 0.5, 10.0]:
         logging.info(f"_test_whiten(): proportion = {proportion}")
