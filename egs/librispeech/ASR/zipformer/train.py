@@ -604,11 +604,11 @@ def get_joiner_model(params: AttributeDict) -> nn.Module:
 
 
 def get_model(params: AttributeDict) -> nn.Module:
-    assert (
-        params.use_transducer or params.use_ctc
-    ), (f"At least one of them should be True, "
+    assert params.use_transducer or params.use_ctc, (
+        f"At least one of them should be True, "
         f"but got params.use_transducer={params.use_transducer}, "
-        f"params.use_ctc={params.use_ctc}")
+        f"params.use_ctc={params.use_ctc}"
+    )
 
     encoder_embed = get_encoder_embed(params)
     encoder = get_encoder_model(params)
@@ -808,17 +808,16 @@ def compute_loss(
             # take down the scale on the simple loss from 1.0 at the start
             # to params.simple_loss scale by warm_step.
             simple_loss_scale = (
-                s if batch_idx_train >= warm_step
+                s
+                if batch_idx_train >= warm_step
                 else 1.0 - (batch_idx_train / warm_step) * (1.0 - s)
             )
             pruned_loss_scale = (
-                1.0 if batch_idx_train >= warm_step
+                1.0
+                if batch_idx_train >= warm_step
                 else 0.1 + 0.9 * (batch_idx_train / warm_step)
             )
-            loss += (
-                simple_loss_scale * simple_loss
-                + pruned_loss_scale * pruned_loss
-            )
+            loss += simple_loss_scale * simple_loss + pruned_loss_scale * pruned_loss
 
         if params.use_ctc:
             loss += params.ctc_loss_scale * ctc_loss
@@ -1217,7 +1216,8 @@ def run(rank, world_size, args):
 
         return True
 
-    train_cuts = train_cuts.filter(remove_short_and_long_utt)
+    if not params.stateless_sampler:
+        train_cuts = train_cuts.filter(remove_short_and_long_utt)
 
     if params.start_batch > 0 and checkpoints and "sampler" in checkpoints:
         # We only load the sampler's state dict when it loads a checkpoint
@@ -1234,7 +1234,7 @@ def run(rank, world_size, args):
     valid_cuts += librispeech.dev_other_cuts()
     valid_dl = librispeech.valid_dataloaders(valid_cuts)
 
-    if not params.print_diagnostics:
+    if 0 and not params.print_diagnostics:
         scan_pessimistic_batches_for_oom(
             model=model,
             train_dl=train_dl,
@@ -1251,7 +1251,8 @@ def run(rank, world_size, args):
     for epoch in range(params.start_epoch, params.num_epochs + 1):
         scheduler.step_epoch(epoch - 1)
         fix_random_seed(params.seed + epoch - 1)
-        train_dl.sampler.set_epoch(epoch - 1)
+        if not params.stateless_sampler:
+            train_dl.sampler.set_epoch(epoch - 1)
 
         if tb_writer is not None:
             tb_writer.add_scalar("train/epoch", epoch, params.batch_idx_train)
