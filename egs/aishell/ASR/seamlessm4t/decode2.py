@@ -191,12 +191,12 @@ def decode_one_batch(
     feature_len = supervisions["num_frames"]
     feature_len = feature_len.to(device, dtype=dtype)
 
-    #text_output = s2t_generator.generate_ex(feature, feature_len)
+    text_output = s2t_generator.generate_ex(feature, feature_len)
     #sentences = text_output.sentences
     #hyps = [sentence.bytes().decode("utf-8").split() for sentence in sentences]
 
-    token_ids = text_output.generator_output.results[0][0].seq.cpu().tolist()
-    hyps_ids = [setence[0].seq.cpu().tolist() for sentence in token_ids]
+    token_ids = text_output.generator_output.results
+    hyps_ids = [sentence[0].seq.cpu().tolist() for sentence in token_ids]
     hyps = [params.tokenizer.decode(hyps_id).split() for hyps_id in hyps_ids]
 
     key = "beam-search"
@@ -347,8 +347,10 @@ def main():
     del model.t2u_model
     del model.text_encoder
     del model.text_encoder_frontend
-    model.text_decoder_frontend.embed = Embedding(num_embeddings=params.tokenzier.vocab_size, embedding_dim=1024 ,pad_idx=0, scaled=True)
-    model.final_proj = nn.Linear(1024, params.tokenizer.vocab_size)
+    model.text_decoder_frontend.embed = nn.Embedding(num_embeddings=params.tokenizer.vocab_size, embedding_dim=1024 ,padding_idx=0)
+    #model.text_decoder_frontend.embed = Embedding(num_embeddings=params.tokenizer.vocab_size, embedding_dim=1024 ,pad_idx=0, scaled=True)
+    model.final_proj = nn.Linear(1024, params.tokenizer.vocab_size, bias=False)
+    #model.final_proj = nn.Linear(1024, params.tokenizer.vocab_size)
     if params.epoch > 0:
       if params.avg > 1:
         start = params.epoch - params.avg
@@ -371,6 +373,13 @@ def main():
         load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
     model.to(device)
     model.eval()
+    model.half()
+    #for param in model.parameters():
+    #    if param.dtype == torch.float16:
+    #        pass
+    #    else:
+    #        param.data = param.data.to(torch.float16)
+            #print(param)
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 

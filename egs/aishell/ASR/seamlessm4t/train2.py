@@ -110,8 +110,10 @@ from fairseq2.data.text import (
     TextTokenizer,
     vocabulary_from_sentencepiece,
 )
-
+from tokenizer import CharTokenizer
 from label_smoothing import LabelSmoothingLoss
+from fairseq2.nn.embedding import Embedding
+from fairseq2.nn.projection import TiedProjection
 
 LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
 
@@ -601,7 +603,7 @@ def save_checkpoint(
 def compute_loss(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
-    text_tokenizer_encoder: SentencePieceEncoder,
+    text_tokenizer_encoder: CharTokenizer,
     batch: dict,
     is_training: bool,
 ) -> Tuple[Tensor, MetricsTracker]:
@@ -659,8 +661,10 @@ def compute_loss(
     batch_idx_train = params.batch_idx_train
     warm_step = params.warm_step
 
-    texts = batch["supervisions"]["text"]        
-    text_tokens_list = [text_tokenizer_encoder(text) for text in texts]
+    texts = batch["supervisions"]["text"]
+    # remove spaces in the text
+    texts = [text.replace(" ", "") for text in texts]        
+    text_tokens_list = [torch.tensor([params.eos_idx] + text_tokenizer_encoder.encode(text) + [params.eos_idx]) for text in texts]
     prev_outputs_tokens = _batch_tensors(
         [tokens[:-1] for tokens in text_tokens_list], pad_value=params.pad_idx
     )
@@ -706,7 +710,7 @@ def compute_loss(
 def compute_validation_loss(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
-    text_tokenizer_encoder: SentencePieceEncoder,
+    text_tokenizer_encoder: CharTokenizer,
     valid_dl: torch.utils.data.DataLoader,
     world_size: int = 1,
 ) -> MetricsTracker:
@@ -742,7 +746,7 @@ def train_one_epoch(
     model: Union[nn.Module, DDP],
     optimizer: torch.optim.Optimizer,
     scheduler: LRSchedulerType,
-    text_tokenizer_encoder: SentencePieceEncoder,
+    text_tokenizer_encoder: CharTokenizer,
     train_dl: torch.utils.data.DataLoader,
     valid_dl: torch.utils.data.DataLoader,
     scaler: GradScaler,
@@ -917,7 +921,6 @@ def train_one_epoch(
         params.best_train_epoch = params.cur_epoch
         params.best_train_loss = params.train_loss
 
-
 def run(rank, world_size, args):
     """
     Args:
@@ -957,22 +960,42 @@ def run(rank, world_size, args):
 
     logging.info("About to create model")
     model_name_or_card = "seamlessM4T_medium"
+    tokenizer_file = "./seamlessm4t/tokens.txt"
     lang = "cmn"
+
+    # text_tokenizer = load_unity_text_tokenizer(model_name_or_card)
+    # text_tokenizer_encoder = SentencePieceEncoder(
+    #     text_tokenizer.model,
+    #     prefix_tokens=["</s>", f"__{lang}__"],
+    #     suffix_tokens=["</s>"],
+    # )
+    # #params.eos_idx = text_tokenizer.model.eos_idx
+    # params.pad_idx = text_tokenizer.model.pad_idx
+    text_tokenizer_encoder = CharTokenizer(tokenizer_file)
+    params.pad_idx, params.eos_idx = 0, 1
+    logging.info(params)
+
     model = load_unity_model(model_name_or_card, device="cpu", dtype=torch.float32)
     del model.t2u_model
     del model.text_encoder
     del model.text_encoder_frontend
-    # print(vars(model))
-    # exit(0)
-    text_tokenizer = load_unity_text_tokenizer(model_name_or_card)
-    text_tokenizer_encoder = SentencePieceEncoder(
-        text_tokenizer.model,
-        prefix_tokens=["</s>", f"__{lang}__"],
-        suffix_tokens=["</s>"],
-    )
-    #params.eos_idx = text_tokenizer.model.eos_idx
-    params.pad_idx = text_tokenizer.model.pad_idx
-    logging.info(params)
+    model.text_decoder_frontend.embed = nn.Embedding(num_embeddings=text_tokenizer_encoder.vocab_size, embedding_dim=1024 ,padding_idx=0)
+    #model.text_decoder_frontend.embed = Embedding(num_embeddings=text_tokenizer_encoder.vocab_size, embedding_dim=1024 ,pad_idx=0, scaled=True)
+    #model.final_proj = TiedProjection(input_dim=1024, output_dim=text_tokenizer_encoder.vocab_size)
+    model.final_proj = nn.Linear(1024, text_tokenizer_encoder.vocab_size, bias=False)
+    for name,  param in model.named_parameters():
+        if name != 'text_decoder_frontend.embed.weight' and name != 'final_proj.weight':
+            #param.requires_grad = False
+            pass
+    model.text_decoder_frontend.embed.requires_grad = True
+    model.final_proj.requires_grad = True
+    print(model.text_decoder_frontend.embed.requires_grad, model.final_proj.requires_grad)
+    for param in model.parameters():
+        if param.requires_grad:
+            print(233333333333333333333333333333333333333333333333333333333333333333333)
+    for name, param in model.named_parameters():
+        print(name, param.requires_grad)
+    #exit(0)
 
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
@@ -1197,7 +1220,7 @@ def scan_pessimistic_batches_for_oom(
     train_dl: torch.utils.data.DataLoader,
     optimizer: torch.optim.Optimizer,
     params: AttributeDict,
-    text_tokenizer_encoder: SentencePieceEncoder,
+    text_tokenizer_encoder: CharTokenizer,
 ):
     from lhotse.dataset import find_pessimistic_batches
 
