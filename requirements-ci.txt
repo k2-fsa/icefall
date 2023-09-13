@@ -10,6 +10,7 @@ graphviz==0.19.1
 
 -f https://download.pytorch.org/whl/cpu/torch_stable.html torch==1.13.1+cpu
 -f https://download.pytorch.org/whl/cpu/torch_stable.html torchaudio==0.13.1+cpu
+six
 
 -f https://k2-fsa.org/nightly/ k2==1.23.4.dev20230319+cpu.torch1.13.1
 
