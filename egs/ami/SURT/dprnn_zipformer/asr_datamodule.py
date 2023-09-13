@@ -257,7 +257,7 @@ class AmiAsrDataModule:
                 drop_last=self.args.drop_last,
             )
         else:
-            logging.info("Using SingleCutSampler.")
+            logging.info("Using SimpleCutSampler.")
             train_sampler = SimpleCutSampler(
                 cuts_train,
                 max_duration=self.args.max_duration,
