@@ -79,7 +79,7 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   #   ln -sfv /path/to/rirs_noises $dl_dir/
   #
   if [ ! -d $dl_dir/rirs_noises ]; then
-    lhotse download rirs_noises $dl_dir
+    lhotse download rir-noise $dl_dir
   fi
 fi
 
