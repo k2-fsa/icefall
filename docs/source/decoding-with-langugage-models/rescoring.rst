@@ -34,9 +34,12 @@ As the initial step, let's download the pre-trained model.
 .. code-block:: bash
 
     $ GIT_LFS_SKIP_SMUDGE=1 git clone https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29
-    $ pushd icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/exp
+    $ cd icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/exp
     $ git lfs pull --include "pretrained.pt"
     $ ln -s pretrained.pt epoch-99.pt # create a symbolic link so that the checkpoint can be loaded
+    $ cd ../data/lang_bpe_500
+    $ git lfs pull --include bpe.model
+    $ cd ../../..
 
 As usual, we first test the model's performance without external LM. This can be done via the following command:
 
