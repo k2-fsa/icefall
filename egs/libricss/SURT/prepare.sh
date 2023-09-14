@@ -89,7 +89,6 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   # to $dl_dir/librispeech. We perform text normalization for the transcripts.
   # NOTE: Alignments are required for this recipe.
   mkdir -p data/manifests
-  mkdir -p $dl_dir/libri_alignments/LibriSpeech
 
   lhotse prepare librispeech -p train-clean-100 -p train-clean-360 -p train-other-500 -p dev-clean \
     -j 4 --alignments-dir $dl_dir/libri_alignments/LibriSpeech $dl_dir/librispeech data/manifests/
