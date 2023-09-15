@@ -81,6 +81,12 @@ def asr_text_post_processing(text: str) -> str:
             remaining_words.append("H")
             remaining_words.append("D")
             continue
+        elif word == "UCLA":
+            remaining_words.append("U")
+            remaining_words.append("C")
+            remaining_words.append("L")
+            remaining_words.append("A")
+            continue
         elif word == "ONTO":
             remaining_words.append("ON")
             remaining_words.append("TO")

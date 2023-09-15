@@ -81,13 +81,23 @@ def asr_text_post_processing(text: str) -> str:
             remaining_words.append("H")
             remaining_words.append("D")
             continue
+        elif word == "UCLA":
+            remaining_words.append("U")
+            remaining_words.append("C")
+            remaining_words.append("L")
+            remaining_words.append("A")
+            continue
         elif word == "ONTO":
             remaining_words.append("ON")
             remaining_words.append("TO")
             continue
-        elif word == "DAY" and text_split[idx + 1] == "CARE":
-            remaining_words.append("DAYCARE")
-            word_to_skip = 1
+        elif word == "DAY":
+            try:
+                if text_split[idx + 1] == "CARE":
+                    remaining_words.append("DAYCARE")
+                word_to_skip = 1
+            except:
+                remaining_words.append(word)
             continue
         remaining_words.append(word)
 

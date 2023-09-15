@@ -76,7 +76,9 @@ def save_checkpoint(
 
     if isinstance(model, DDP):
         model = model.module
+    # import pdb
 
+    # pdb.set_trace()
     checkpoint = {
         "model": model.state_dict(),
         "optimizer": optimizer.state_dict() if optimizer is not None else None,
