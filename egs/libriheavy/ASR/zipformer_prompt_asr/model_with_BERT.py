@@ -31,10 +31,6 @@ from typing import Optional, Tuple, Dict
 class PromptedTransducer(nn.Module):
     """It implements https://arxiv.org/pdf/1211.3711.pdf
     "Sequence Transduction with Recurrent Neural Networks"
-    Note that this is a PromptedTransducer, meaning that the transducer is able to decode
-    with prompts. 
-    It has a text encoder of BERT type model.
-    This transducer also has a special context fuser.
     """
 
     def __init__(
@@ -105,13 +101,8 @@ class PromptedTransducer(nn.Module):
         self.use_BERT = use_BERT # if the text encoder is a pre-trained BERT 
         self.context_fuser = context_fuser
         
-        assert text_encoder_type in (
-            "BERT",
-            "DistilBERT",
-            "BERT-UNCASED",
-            "BERT-LARGE-UNCASED",
-        ), f"Unseen text_encoder type {text_encoder_type}"
-        self.text_encoder_dim = self.text_encoder.config.hidden_size if text_encoder_type in ("BERT", "BERT-UNCASED", "BERT-LARGE-UNCASED") else self.text_encoder.config.dim
+        assert text_encoder_type in ("BERT","DistilBERT", "BERT-UNCASED"), f"Unseen text_encoder type {text_encoder_type}"
+        self.text_encoder_dim = self.text_encoder.config.hidden_size if text_encoder_type in ("BERT", "BERT-UNCASED") else self.text_encoder.config.dim
         
         if text_encoder_adapter:
             self.text_encoder_adapter = nn.Sequential(
@@ -120,12 +111,15 @@ class PromptedTransducer(nn.Module):
             )
         else:
             self.text_encoder_adapter = None
+            
+        self.style_prompt_embedding = nn.Parameter(torch.full((self.text_encoder_dim,), 0.5))
 
     def forward(
         self,
         x: torch.Tensor,
         x_lens: torch.Tensor,
         encoded_inputs: Dict,
+        style_lens: torch.Tensor,
         y: k2.RaggedTensor,
         prune_range: int = 5,
         am_scale: float = 0.0,
@@ -189,7 +183,10 @@ class PromptedTransducer(nn.Module):
         # freeze the BERT text encoder
         
         if use_pre_text:
-            memory, memory_key_padding_mask = self.encode_text(encoded_inputs)
+            memory, memory_key_padding_mask = self.encode_text(
+              encoded_inputs,
+              style_lens=style_lens
+            )
         else:
             memory = None
             memory_key_padding_mask = None
@@ -279,12 +276,7 @@ class PromptedTransducer(nn.Module):
         else:
             context = None
         
-        logits = self.joiner(
-            am_pruned,
-            lm_pruned,
-            context=context,
-            project_input=False,
-        )
+        logits = self.joiner(am_pruned, lm_pruned, context=context, project_input=False)
 
         with torch.cuda.amp.autocast(enabled=False):
             pruned_loss = k2.rnnt_loss_pruned(
@@ -305,8 +297,8 @@ class PromptedTransducer(nn.Module):
         scale of the embedding vector can adjust to compensate.
 
         Args:
-             memory: (memory_len, batch_size, embed_dim)
-         style_lens: (batch_size,),  a vector of lengths of the style prompt.
+            memory: (memory_len, batch_size, embed_dim)
+            style_lens: (batch_size,),  a vector of lengths of the style prompt.
         """
 
         (memory_len, batch_size, embed_dim) = memory.shape
@@ -318,13 +310,14 @@ class PromptedTransducer(nn.Module):
         indicator = indicator.to(memory.dtype)
 
         extra_term = torch.zeros_like(memory)
-        extra_term[..., 0] += indicator
+        extra_term += indicator.unsqueeze(-1) * self.style_prompt_embedding.expand(memory_len, batch_size, self.text_encoder_dim)
 
         return memory + extra_term
       
     def encode_text(
         self,
         encoded_inputs: Dict,
+        style_lens: Tensor,
     ) -> Tuple[Tensor, Tensor]:
         """Get the embeddings of text
 
@@ -335,18 +328,21 @@ class PromptedTransducer(nn.Module):
             Tuple[Tensor, Tensor]: Returns the text embeddings encoded by the
             text_encoder and the attention mask 
         """
-        text_lens = encoded_inputs["attention_mask"].sum(1)
+        text_lens = encoded_inputs.pop("length") # need to use pop to remove this item
         
         # Freeze the pre-trained text encoder
         with torch.no_grad():
             memory = self.text_encoder(**encoded_inputs)["last_hidden_state"] # (B,T,C)
             memory = memory.permute(1,0,2)
-
-        memory_key_padding_mask = make_pad_mask(text_lens)
         
         # Text encoder adapter
         if self.text_encoder_adapter is not None:
             memory = self.text_encoder_adapter(memory)
+        
+        memory = self._add_style_indicator(memory, style_lens)
+
+        memory_key_padding_mask = make_pad_mask(text_lens)
+        
         return memory, memory_key_padding_mask
       
     def encode_audio(
