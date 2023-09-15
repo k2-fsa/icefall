@@ -464,8 +464,8 @@ def decode_dataset(
                 )
                 ref_words = ref_text.split()
                 this_batch.append((cut_id, ref_words, hyp_words))
-            if not params.use_ls_test_set:
-                results[name + " " + book_name].extend(this_batch)
+            # if not params.use_ls_test_set:
+            #     results[name + " " + book_name].extend(this_batch)
             results[name].extend(this_batch)
 
         num_cuts += len(texts)
@@ -707,12 +707,6 @@ def main():
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
     
-    def get_joint_last(texts: List[str], pre_texts: List[str]):
-        return {
-            "text": texts[-1],
-            "pre_text": pre_texts[-1]
-        }
-
     # we need cut ids to display recognition results.
     args.return_cuts = True
     libriheavy = LibriHeavyAsrDataModule(args)
@@ -722,7 +716,6 @@ def main():
     ls_test_clean_cuts = libriheavy.librispeech_test_clean_cuts()
     ls_test_other_cuts = libriheavy.librispeech_test_other_cuts()
     long_audio_cuts = libriheavy.long_audio_cuts()
-    #test_clean_cuts = test_clean_cuts.filter(lambda c: "Brain Twister" not in c.text_path)
 
     test_clean_dl = libriheavy.valid_dataloaders(test_clean_cuts,)
     test_other_dl = libriheavy.valid_dataloaders(test_other_cuts,)
