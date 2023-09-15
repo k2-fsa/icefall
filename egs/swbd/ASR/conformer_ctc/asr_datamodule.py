@@ -99,7 +99,7 @@ class SwitchBoardAsrDataModule:
         group.add_argument(
             "--bucketing-sampler",
             type=str2bool,
-            default=False,
+            default=True,
             help="When enabled, the batches will come from buckets of "
             "similar duration (saves padding frames).",
         )
