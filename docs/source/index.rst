@@ -20,6 +20,7 @@ speech recognition recipes using `k2 <https://github.com/k2-fsa/k2>`_.
    :maxdepth: 2
    :caption: Contents:
 
+   for-dummies/index.rst
    installation/index
    docker/index
    faqs

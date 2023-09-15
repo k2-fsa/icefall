@@ -15,6 +15,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+This file shows how to use a checkpoint for decoding.
+
+Usage:
+
+  ./tdnn/pretrained.py \
+    --checkpoint ./tdnn/exp/pretrained.pt \
+    --HLG ./data/lang_phone/HLG.pt \
+    --words-file ./data/lang_phone/words.txt \
+    download/waves_yesno/0_0_0_1_0_0_0_1.wav \
+    download/waves_yesno/0_0_1_0_0_0_1_0.wav
+
+Note that to generate ./tdnn/exp/pretrained.pt,
+you can use ./export.py
+"""
 
 import argparse
 import logging
@@ -43,7 +58,8 @@ def get_parser():
         required=True,
         help="Path to the checkpoint. "
         "The checkpoint is assumed to be saved by "
-        "icefall.checkpoint.save_checkpoint().",
+        "icefall.checkpoint.save_checkpoint(). "
+        "You can use ./tdnn/export.py to obtain it.",
     )
 
     parser.add_argument(
@@ -61,8 +77,7 @@ def get_parser():
         nargs="+",
         help="The input sound file(s) to transcribe. "
         "Supported formats are those supported by torchaudio.load(). "
-        "For example, wav and flac are supported. "
-        "The sample rate has to be 16kHz.",
+        "For example, wav and flac are supported. ",
     )
 
     return parser
@@ -99,14 +114,19 @@ def read_sound_files(
     ans = []
     for f in filenames:
         wave, sample_rate = torchaudio.load(f)
-        assert (
-            sample_rate == expected_sample_rate
-        ), f"expected sample rate: {expected_sample_rate}. Given: {sample_rate}"
+        if sample_rate != expected_sample_rate:
+            wave = torchaudio.functional.resample(
+                wave,
+                orig_freq=sample_rate,
+                new_freq=expected_sample_rate,
+            )
+
         # We use only the first channel
-        ans.append(wave[0])
+        ans.append(wave[0].contiguous())
     return ans
 
 
+@torch.no_grad()
 def main():
     parser = get_parser()
     args = parser.parse_args()
@@ -159,8 +179,7 @@ def main():
     features = pad_sequence(features, batch_first=True, padding_value=math.log(1e-10))
 
     # Note: We don't use key padding mask for attention during decoding
-    with torch.no_grad():
-        nnet_output = model(features)
+    nnet_output = model(features)
 
     batch_size = nnet_output.shape[0]
     supervision_segments = torch.tensor(

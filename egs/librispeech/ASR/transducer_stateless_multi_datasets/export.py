@@ -22,7 +22,7 @@
 Usage:
 ./transducer_stateless_multi_datasets/export.py \
   --exp-dir ./transducer_stateless_multi_datasets/exp \
-  --bpe-model data/lang_bpe_500/bpe.model \
+  --tokens data/lang_bpe_500/tokens.txt \
   --epoch 20 \
   --avg 10
 
@@ -47,7 +47,7 @@ import argparse
 import logging
 from pathlib import Path
 
-import sentencepiece as spm
+import k2
 import torch
 import torch.nn as nn
 from conformer import Conformer
@@ -57,7 +57,7 @@ from model import Transducer
 
 from icefall.checkpoint import average_checkpoints, load_checkpoint
 from icefall.env import get_env_info
-from icefall.utils import AttributeDict, str2bool
+from icefall.utils import AttributeDict, num_tokens, str2bool
 
 
 def get_parser():
@@ -92,10 +92,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--bpe-model",
+        "--tokens",
         type=str,
-        default="data/lang_bpe_500/bpe.model",
-        help="Path to the BPE model",
+        default="data/lang_bpe_500/tokens.txt",
+        help="Path to the tokens.txt.",
     )
 
     parser.add_argument(
@@ -192,12 +192,14 @@ def main():
 
     logging.info(f"device: {device}")
 
-    sp = spm.SentencePieceProcessor()
-    sp.load(params.bpe_model)
+    # Load tokens.txt here
+    token_table = k2.SymbolTable.from_file(params.tokens)
 
+    # Load id of the <blk> token and the vocab size
     # <blk> is defined in local/train_bpe_model.py
-    params.blank_id = sp.piece_to_id("<blk>")
-    params.vocab_size = sp.get_piece_size()
+    params.blank_id = token_table["<blk>"]
+    params.unk_id = token_table["<unk>"]
+    params.vocab_size = num_tokens(token_table) + 1  # +1 for <blk>
 
     logging.info(params)
 

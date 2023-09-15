@@ -497,6 +497,7 @@ def write_error_stats(
     results: List[Tuple[str, str]],
     enable_log: bool = True,
     compute_CER: bool = False,
+    sclite_mode: bool = False,
 ) -> float:
     """Write statistics based on predicted results and reference transcripts.
 
@@ -550,7 +551,7 @@ def write_error_stats(
             results[i] = (cut_id, ref, hyp)
     
     for cut_id, ref, hyp in results:
-        ali = kaldialign.align(ref, hyp, ERR)
+        ali = kaldialign.align(ref, hyp, ERR, sclite_mode=sclite_mode)
         for ref_word, hyp_word in ali:
             if ref_word == ERR:
                 ins[hyp_word] += 1
@@ -2078,3 +2079,23 @@ def symlink_or_copy(exp_dir: Path, src: str, dst: str):
     except OSError:
         copyfile(src=exp_dir / src, dst=exp_dir / dst)
     os.close(dir_fd)
+
+
+def num_tokens(
+    token_table: k2.SymbolTable, disambig_pattern: str = re.compile(r"^#\d+$")
+) -> int:
+    """Return the number of tokens excluding those from
+    disambiguation symbols.
+
+    Caution:
+      0 is not a token ID so it is excluded from the return value.
+    """
+    symbols = token_table.symbols
+    ans = []
+    for s in symbols:
+        if not disambig_pattern.match(s):
+            ans.append(token_table[s])
+    num_tokens = len(ans)
+    if 0 in ans:
+        num_tokens -= 1
+    return num_tokens
