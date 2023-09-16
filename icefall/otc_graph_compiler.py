@@ -34,6 +34,11 @@ class OtcTrainingGraphCompiler(object):
         device: Union[str, torch.device] = "cpu",
         sos_token: str = "<sos/eos>",
         eos_token: str = "<sos/eos>",
+        initial_bypass_weight: float = 0.0,
+        initial_self_loop_weight: float = 0.0,
+        bypass_weight_decay: float = 0.0,
+        self_loop_weight_decay: float = 0.0,
+
     ) -> None:
         """
         Args:
@@ -69,15 +74,20 @@ class OtcTrainingGraphCompiler(object):
         assert self.sos_id != self.sp.unk_id()
         assert self.eos_id != self.sp.unk_id()
 
-        max_token_id = self.get_max_token_id(self.token_table)
+        max_token_id = self.get_max_token_id()
         ctc_topo = k2.ctc_topo(max_token_id, modified=False)
         self.ctc_topo = ctc_topo.to(self.device)
 
-    def get_max_token_id(self, token_table):
+        self.initial_bypass_weight = initial_bypass_weight
+        self.initial_self_loop_weight = initial_self_loop_weight
+        self.bypass_weight_decay = bypass_weight_decay
+        self.self_loop_weight_decay = self_loop_weight_decay
+
+    def get_max_token_id(self):
         max_token_id = 0
-        for symbol in token_table.symbols:
+        for symbol in self.token_table.symbols:
             if not symbol.startswith("#"):
-                max_token_id = max(token_table[symbol], max_token_id)
+                max_token_id = max(self.token_table[symbol], max_token_id)
         assert max_token_id > 0
 
         return max_token_id
@@ -146,6 +156,7 @@ class OtcTrainingGraphCompiler(object):
             self_loop_weight,
             otc_granularity,
         )
+        transcript_fsa = transcript_fsa.to(self.device)
         fsa_with_self_loop = k2.remove_epsilon_and_add_self_loops(transcript_fsa)
         fsa_with_self_loop = k2.arc_sort(fsa_with_self_loop)
 
