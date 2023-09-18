@@ -31,7 +31,6 @@ we modify $G(\mathbf{y})$ by adding self-loop arcs into each state and bypass ar
     <img src="figures/otc_g.png" alt="Image Alt Text" width="50%" />
 
   </p>
-</div>
 
 After composing the modified WFST $G_{\text{otc}}(\mathbf{y})$ with $L$ and $T$, the OTC training graph is shown in this figure:
 <figure style="text-align: center">
@@ -42,7 +41,7 @@ After composing the modified WFST $G_{\text{otc}}(\mathbf{y})$ with $L$ and $T$,
 The $\star$ is represented as the average probability of all non-blank tokens.
   <p align="center">
     
-    <img src="figures/otc_emission.drawio.png" width="50%" />
+    <img src="figures/otc_emission.drawio.png" width="50%" >
     OTC emission WFST
     
   </p>
