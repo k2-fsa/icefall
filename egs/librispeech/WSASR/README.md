@@ -106,8 +106,8 @@ show_alignment=true
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
 ./conformer_ctc2/train.py \
   --world-size 4 \
-  --manifest-dir "${manifest–dir}" \
-  --train-manifest "${train_manifest}" \
+  --manifest-dir "${manifest_dir}" \
+  --train-manifest "${synthetic_train_manifest}" \
   --exp-dir "${exp_dir}" \
   --lang-dir "${lang_dir}" \
   --otc-token "${otc_token}" \
