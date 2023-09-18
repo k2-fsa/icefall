@@ -129,3 +129,13 @@ python conformer_ctc2/decode.py \
   --lang-dir "${lang_dir}" \
   --lm-dir "${lm_dir}" 
 ```
+
+## Citations
+```
+@article{gao2023bypass,
+  title={Bypass Temporal Classification: Weakly Supervised Automatic Speech Recognition with Imperfect Transcripts},
+  author={Gao, Dongji and Wiesner, Matthew and Xu, Hainan and Garcia, Leibny Paola and Povey, Daniel and Khudanpur, Sanjeev},
+  journal={arXiv preprint arXiv:2306.01031},
+  year={2023}
+}
+```
