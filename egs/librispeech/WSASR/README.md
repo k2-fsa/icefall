@@ -10,15 +10,15 @@ We propose BTC/OTC to directly train an ASR system leveraging weak supervision, 
 
 <div style="display: flex;flex; justify-content: space-between">
   <figure style="flex: 2; text-align: center; margin: 5px;">
-    <img src="figures/sub.png" alt="Image 1" width="100%" />
+    <img src="figures/sub.png" alt="Image 1" width="30%" />
     <figcaption>Substitution error</figcaption>
   </figure>
   <figure style="flex: 2; text-align: center; margin: 5px;">
-    <img src="figures/ins.png" alt="Image 2" width="100%" />
+    <img src="figures/ins.png" alt="Image 2" width="30%" />
     <figcaption>Insertion error</figcaption>
   </figure>
   <figure style="flex: 2; text-align: center;margin: 5px;">
-    <img src="figures/del.png" alt="Image 3" width="100%" />
+    <img src="figures/del.png" alt="Image 3" width="30%" />
     <figcaption>Deletion error</figcaption>
   </figure>
 </div>
