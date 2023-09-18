@@ -11,15 +11,15 @@ We propose BTC/OTC to directly train an ASR system leveraging weak supervision, 
 <div style="display: flex;flex; justify-content: space-between">
   <figure style="flex: 2; text-align: center; margin: 5px;">
     <img src="figures/sub.png" alt="Image 1" width="30%" />
-    <figcaption>Substitution error</figcaption>
+
   </figure>
   <figure style="flex: 2; text-align: center; margin: 5px;">
     <img src="figures/ins.png" alt="Image 2" width="30%" />
-    <figcaption>Insertion error</figcaption>
+
   </figure>
   <figure style="flex: 2; text-align: center;margin: 5px;">
     <img src="figures/del.png" alt="Image 3" width="30%" />
-    <figcaption>Deletion error</figcaption>
+
   </figure>
 </div>
 <figcaption> Examples of error in the transcript. The grey box is the verbatim transcript and the red box is the inaccurate transcript. Inaccurate words are marked in bold.</figcaption> <br>
@@ -27,11 +27,10 @@ We propose BTC/OTC to directly train an ASR system leveraging weak supervision, 
 This is achieved by using a special token $\star$ to model uncertainties (i.e., substitution errors, insertion errors, and deletion errors) 
 within the WFST framework during training.\
 we modify $G(\mathbf{y})$ by adding self-loop arcs into each state and bypass arcs into each arc. 
-<div style="text-align: center;">
-  <figure text-align: center>
+  <p align="center">
     <img src="figures/otc_g.png" alt="Image Alt Text" width="50%" />
-    <figcaption>OTC WFST representations of the transcript "a b"</figcaption>
-  </figure>
+
+  </p>
 </div>
 
 After composing the modified WFST $G_{\text{otc}}(\mathbf{y})$ with $L$ and $T$, the OTC training graph is shown in this figure:
@@ -43,7 +42,7 @@ After composing the modified WFST $G_{\text{otc}}(\mathbf{y})$ with $L$ and $T$,
 The $\star$ is represented as the average probability of all non-blank tokens.
   <p align="center">
     
-    <img src="figures/otc_emission.drawio.png" alt="Image Alt Text" width="50%" />
+    <img src="figures/otc_emission.drawio.png" alt="Image Alt Text" width="50%">
     OTC emission WFST
     
   </p>
