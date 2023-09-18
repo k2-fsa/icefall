@@ -42,10 +42,10 @@ After composing the modified WFST $G_{\text{otc}}(\mathbf{y})$ with $L$ and $T$,
 
 The $\star$ is represented as the average probability of all non-blank tokens.
 <div style="text-align: center;">
-  <figure text-align: center>
+  <p text-align: center>
     <img src="figures/otc_emission.drawio.png" alt="Image Alt Text" width="50%" />
-    <figcaption>OTC emission WFST</figcaption>
-  </figure>
+    OTC emission WFST
+  </p>
 </div>
 
 The weight of $\star$ is the log average probability of "a" and "b": $\log \frac{e^{-1.2} + e^{-2.3}}{2} = -1.6$ and $\log \frac{e^{-1.9} + e^{-0.5}}{2} = -1.0$ for 2 frames.
