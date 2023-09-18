@@ -69,10 +69,10 @@ This script adds the 'otc_token' ('\<star\>') and its corresponding sentence-pie
 sub_er=0.17
 ins_er=0.17
 del_er=0.17
-synthetic_train_mainfest="librispeech_cuts_train-clean-100_${sub_er}_${ins_er}_${del_er}.jsonl.gz"
+synthetic_train_manifest="librispeech_cuts_train-clean-100_${sub_er}_${ins_er}_${del_er}.jsonl.gz"
 
 ./local/make_error_cutset.py \
-  --input-cutset "${feature_dir}/librispeech_cuts_train-clean-100.jsonl.gz" \
+  --input-cutset "${manifest_dir}/librispeech_cuts_train-clean-100.jsonl.gz" \
   --words-file "${lang_dir}/words.txt" \
   --sub-error-rate "${sub_er}" \
   --ins-error-rate "${ins_er}" \
