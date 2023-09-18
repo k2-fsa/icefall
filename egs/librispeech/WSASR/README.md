@@ -41,7 +41,7 @@ After composing the modified WFST $G_{\text{otc}}(\mathbf{y})$ with $L$ and $T$,
 The $\star$ is represented as the average probability of all non-blank tokens.
   <p align="center">
     
-    <img src="figures/otc_emission.drawio.png" width="50%" >
+    <img src="figures/otc_emission.drawio.png" width="50%" />
     OTC emission WFST
     
   </p>
