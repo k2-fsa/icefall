@@ -69,7 +69,7 @@ def get_parser():
 
     parser.add_argument(
         "--otc-token", type=str, default="▁<star>", help="OTC token",
-     )
+    )
 
     parser.add_argument(
         "--epoch",
@@ -173,17 +173,11 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--exp-dir",
-        type=str,
-        default="conformer_ctc2/exp",
-        help="The experiment dir",
+        "--exp-dir", type=str, default="conformer_ctc2/exp", help="The experiment dir",
     )
 
     parser.add_argument(
-        "--lang-dir",
-        type=str,
-        default="data/lang_bpe_500",
-        help="The lang dir",
+        "--lang-dir", type=str, default="data/lang_bpe_500", help="The lang dir",
     )
 
     parser.add_argument(
@@ -230,10 +224,7 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--rnn-lm-hidden-dim",
-        type=int,
-        default=2048,
-        help="Hidden dim of the model",
+        "--rnn-lm-hidden-dim", type=int, default=2048, help="Hidden dim of the model",
     )
 
     parser.add_argument(
@@ -449,11 +440,7 @@ def decode_one_batch(
         return {key: hyps}
 
     if params.method == "ctc-greedy-search":
-        hyps, _ = ctc_greedy_search(
-            nnet_output,
-            memory,
-            memory_key_padding_mask,
-        )
+        hyps, _ = ctc_greedy_search(nnet_output, memory, memory_key_padding_mask,)
 
         # hyps is a list of str, e.g., ['xxx yyy zzz', ...]
         hyps = bpe_model.decode(hyps)
@@ -521,16 +508,12 @@ def decode_one_batch(
         )
     elif params.method == "whole-lattice-rescoring":
         best_path_dict = rescore_with_whole_lattice(
-            lattice=lattice,
-            G_with_epsilon_loops=G,
-            lm_scale_list=lm_scale_list,
+            lattice=lattice, G_with_epsilon_loops=G, lm_scale_list=lm_scale_list,
         )
     elif params.method == "attention-decoder":
         # lattice uses a 3-gram Lm. We rescore it with a 4-gram LM.
         rescored_lattice = rescore_with_whole_lattice(
-            lattice=lattice,
-            G_with_epsilon_loops=G,
-            lm_scale_list=None,
+            lattice=lattice, G_with_epsilon_loops=G, lm_scale_list=None,
         )
         # TODO: pass `lattice` instead of `rescored_lattice` to
         # `rescore_with_attention_decoder`
@@ -548,9 +531,7 @@ def decode_one_batch(
     elif params.method == "rnn-lm":
         # lattice uses a 3-gram Lm. We rescore it with a 4-gram LM.
         rescored_lattice = rescore_with_whole_lattice(
-            lattice=lattice,
-            G_with_epsilon_loops=G,
-            lm_scale_list=None,
+            lattice=lattice, G_with_epsilon_loops=G, lm_scale_list=None,
         )
 
         best_path_dict = rescore_with_rnn_lm(
@@ -734,6 +715,8 @@ def main():
     args.exp_dir = Path(args.exp_dir)
     args.lang_dir = Path(args.lang_dir)
     args.lm_dir = Path(args.lm_dir)
+    assert "▁" not in args.otc_token
+    args.otc_token = f"▁{args.otc_token}"
 
     params = get_params()
     params.update(vars(args))
@@ -769,11 +752,7 @@ def main():
 
     if params.method == "ctc-decoding" or params.method == "ctc-greedy-search":
         HLG = None
-        H = k2.ctc_topo(
-            max_token=max_token_id,
-            modified=False,
-            device=device,
-        )
+        H = k2.ctc_topo(max_token=max_token_id, modified=False, device=device,)
         bpe_model = spm.SentencePieceProcessor()
         bpe_model.load(str(params.lang_dir / "bpe.model"))
     else:
@@ -943,8 +922,7 @@ def main():
         )
         if params.rnn_lm_avg == 1:
             load_checkpoint(
-                f"{params.rnn_lm_exp_dir}/epoch-{params.rnn_lm_epoch}.pt",
-                rnn_lm_model,
+                f"{params.rnn_lm_exp_dir}/epoch-{params.rnn_lm_epoch}.pt", rnn_lm_model,
             )
             rnn_lm_model.to(device)
         else:

@@ -18,13 +18,11 @@ def get_args():
     )
 
     parser.add_argument(
-        "--otc-token",
-        type=str,
-        help="OTC token to be added to BPE model",
+        "--otc-token", type=str, help="OTC token to be added to words.txt",
     )
 
-    
     return parser.parse_args()
+
 
 def main():
     args = get_args()

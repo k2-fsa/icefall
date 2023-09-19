@@ -37,9 +37,6 @@ feature_dir="data/ssl"
 lang_dir="data/lang"
 lm_dir="data/lm"
 
-log_dir="tdnn_lstm_ctc/prepare/log"
-mkdir -p "${log_dir}"
-
 . ./cmd.sh
 . shared/parse_options.sh || exit 1
 
@@ -90,7 +87,12 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   # to $dl_dir/LibriSpeech
   mkdir -p data/manifests
   if [ ! -e data/manifests/.librispeech.done ]; then
-    lhotse prepare librispeech -j $nj "${dl_dir}/LibriSpeech" "${manifests_dir}"
+    lhotse prepare librispeech -j ${nj} \
+      -p dev-clean \
+      -p dev-other \
+      -p test-clean \
+      -p test-other \
+      -p train-clean-100 "${dl_dir}/LibriSpeech" "${manifests_dir}"
     touch data/manifests/.librispeech.done
   fi
 fi
@@ -165,18 +167,20 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
 
     if [ ! -f ${bpe_lang_dir}/L_disambig.pt ]; then
       ./local/prepare_otc_lang_bpe.py \
-        --lang-dir "${bpe_lang_dir}" 
+        --lang-dir "${bpe_lang_dir}" \
+        --otc-token "${otc_token}"
 
       log "Validating ${bpe_lang_dir}/lexicon.txt"
       ./local/validate_bpe_lexicon.py \
         --lexicon ${bpe_lang_dir}/lexicon.txt \
-        --bpe-model ${bpe_lang_dir}/bpe.model
+        --bpe-model ${bpe_lang_dir}/bpe.model \
+        --otc-token "${otc_token}"
     fi
   done
 fi
 
 if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
-  log "Stage 4: Prepare G"
+  log "Stage 5: Prepare G"
   # We assume you have install kaldilm, if not, please install
   # it using: pip install kaldilm
 

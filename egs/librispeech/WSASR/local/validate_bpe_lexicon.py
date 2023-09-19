@@ -53,6 +53,13 @@ def get_args():
         help="Path to bpe.model",
     )
 
+    parser.add_argument(
+        "--otc-token",
+        required=True,
+        type=str,
+        help="OTC token",
+    )
+
     return parser.parse_args()
 
 
@@ -67,6 +74,7 @@ def main():
     sp.load(str(args.bpe_model))
 
     word_pieces = set(sp.id_to_piece(list(range(sp.vocab_size()))))
+    word_pieces.add(f"▁{args.otc_token}")
     for word, pieces in lexicon:
         for p in pieces:
             if p not in word_pieces:

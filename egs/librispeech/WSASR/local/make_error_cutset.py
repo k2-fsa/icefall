@@ -90,26 +90,18 @@ def modify_cut_text(
     sub_index_set = set()
     ins_index_set = set()
 
-    # preprocessing
-    for i in range(len(text_list)):
-        prob = random.random()
-        if prob <= del_ratio:
-            del_index_set.add(i)
-        elif prob <= del_ratio + sub_ratio:
-            sub_index_set.add(i)
-        elif prob <= del_ratio + sub_ratio + ins_ratio:
-            ins_index_set.add(i)
-
     # We follow the order: deletion -> substitution -> insertion
-    for i, token in enumerate(text_list):
+    for token in text_list:
         marked_token = token
         modified_token = token
 
-        if i in del_index_set:
+        prob = random.random()
+
+        if prob <= del_ratio:
             marked_token = f"-{token}-"
             modified_token = ""
-        elif i in sub_index_set or i in ins_index_set:
-            if i in sub_index_set:
+        elif prob <= del_ratio + sub_ratio + ins_ratio:
+            if prob <= del_ratio + sub_ratio:
                 marked_token = f"[{token}]"
             else:
                 marked_verbatim_text_list.append(marked_token)

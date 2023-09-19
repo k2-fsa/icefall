@@ -26,23 +26,18 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
 ./conformer_ctc2/train.py \
   --world-size 4 \
-  --num-epochs 30 \
-  --start-epoch 1 \
+  --manifest-dir data/ssl \
+  --train-manifest librispeech_cuts_train-clean-100_0.17_0.17_0.17.jsonl.gz \
   --exp-dir conformer_ctc2/exp \
-  --full-libri 1 \
-  --max-duration 300
-
-# For mix precision training:
-
-./conformer_ctc2/train.py \
-  --world-size 4 \
-  --num-epochs 30 \
-  --start-epoch 1 \
-  --use-fp16 1 \
-  --exp-dir conformer_ctc2/exp \
-  --full-libri 1 \
-  --max-duration 550
-
+  --lang-dir data/lang_bpe_200 \
+  --otc-token "<star>" \
+  --allow-bypass-arc true \
+  --allow-self-loop-arc true \
+  --initial-bypass-weight -19 \
+  --initial-self-loop-weight 3.75 \
+  --bypass-weight-decay 0.975 \
+  --self-loop-weight-decay 0.999 \
+  --show-alignment true
 """
 
 
@@ -260,12 +255,12 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--otc-token", type=str, default="<star>", help="OTC token",
+        "--otc-token", type=str, default="_<star>", help="OTC token",
     )
 
     parser.add_argument(
         "--allow-bypass-arc",
-        type=bool,
+        type=str2bool,
         default=True,
         help="""Whether to add bypass arc to training graph for substitution
         and insertion errors (wrong or extra words in the transcript).""",
@@ -273,7 +268,7 @@ def get_parser():
 
     parser.add_argument(
         "--allow-self-loop-arc",
-        type=bool,
+        type=str2bool,
         default=True,
         help="""Whether to self-loop bypass arc to training graph for deletion errors
         (missing words in the transcript).""",
@@ -311,7 +306,7 @@ def get_parser():
 
     parser.add_argument(
         "--show-alignment",
-        type=bool,
+        type=str2bool,
         default=True,
         help="Whether to print OTC alignment during training",
     )
@@ -560,7 +555,7 @@ def compute_loss(
             feature, supervisions, warmup=warmup
         )
         # Set the probability of OTC token as the average of non-blank tokens
-        # under the assumption that blank is the first and 
+        # under the assumption that blank is the first and
         # OTC token is the last token in tokens.txt
         _, _, V = nnet_output.shape
 
@@ -592,9 +587,7 @@ def compute_loss(
         self_loop_weight=self_loop_weight,
     )
 
-    dense_fsa_vec = k2.DenseFsaVec(
-        nnet_output, supervision_segments, allow_truncate=3,
-    )
+    dense_fsa_vec = k2.DenseFsaVec(nnet_output, supervision_segments, allow_truncate=3,)
 
     otc_loss = k2.ctc_loss(
         decoding_graph=decoding_graph,
@@ -632,7 +625,7 @@ def compute_loss(
             for index, utt_id in enumerate(utt_ids):
                 verbatim_text = verbatim_texts[index]
                 utt_id = utt_ids[index]
-        
+
                 lattice = k2.intersect_dense(
                     decoding_graph, dense_fsa_vec, params.beam_size,
                 )
@@ -642,7 +635,7 @@ def compute_loss(
                 hyp_ids = get_texts(best_path)[index]
                 hyp_text_list = [graph_compiler.token_table[i] for i in hyp_ids]
                 hyp_text = " ".join(hyp_text_list)
-        
+
                 logging.info(f"[utterance id]: {utt_id}")
                 logging.info(f"[verbatim text]: {verbatim_text}")
                 logging.info(f"[best alignment]: {hyp_text}")
@@ -959,7 +952,6 @@ def run(rank, world_size, args):
 
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
 
-
     if params.start_batch > 0 and checkpoints and "sampler" in checkpoints:
         # We only load the sampler's state dict when it loads a checkpoint
         # saved in the middle of an epoch
@@ -1084,6 +1076,8 @@ def main():
     LibriSpeechAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
+    assert "▁" not in args.otc_token
+    args.otc_token = f"▁{args.otc_token}"
 
     world_size = args.world_size
     assert world_size >= 1
@@ -1091,6 +1085,7 @@ def main():
         mp.spawn(run, args=(world_size, args), nprocs=world_size, join=True)
     else:
         run(rank=0, world_size=1, args=args)
+
 
 torch.set_num_threads(1)
 torch.set_num_interop_threads(1)
