@@ -22,24 +22,43 @@ Usage:
 
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
-./pruned_transducer_stateless7/train.py \
-  --world-size 4 \
-  --num-epochs 30 \
-  --start-epoch 1 \
-  --exp-dir pruned_transducer_stateless7/exp \
-  --full-libri 1 \
-  --max-duration 300
-
 # For mix precision training:
 
-./pruned_transducer_stateless7/train.py \
+(1) Non-streaming model, without context list
+
+./zipformer_prompt_asr/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 1 \
   --use-fp16 1 \
-  --exp-dir pruned_transducer_stateless7/exp \
-  --full-libri 1 \
-  --max-duration 550
+  --subset medium \
+  --causal False \
+  --exp-dir zipformer_prompt_asr/exp \
+  --max-duration 1000 \
+  --memory-layer 0 \
+  --memory-dim 768 \
+  --text-encoder-type BERT \
+  --use-style-prompt True \
+  --use-context-list False
+
+(2) Non-streaming model, with context list
+
+./zipformer_prompt_asr/train.py \
+  --world-size 4 \
+  --num-epochs 30 \
+  --start-epoch 1 \
+  --use-fp16 1 \
+  --subset medium \
+  --causal False \
+  --exp-dir zipformer_prompt_asr/exp \
+  --max-duration 1000 \
+  --memory-layer 0 \
+  --memory-dim 768 \
+  --text-encoder-type BERT \
+  --use-style-prompt True \
+  --use-context-list True \
+  --rare-word-file data/context_biasing/small_rare_words_topk_10000.txt
+
 
 """
 
@@ -61,30 +80,32 @@ import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 from asr_datamodule import LibriHeavyAsrDataModule
-from dataset2 import (
-    triplet_text_sampling,
-    triplet_text_sampling_with_context_list,
+from dataset import (
     naive_triplet_text_sampling,
     random_shuffle_subset,
-    joint_triplet_text_sampling,
-    triplet_style_text_sampling,    
+    triplet_text_sampling,
+    triplet_text_sampling_with_context_list,
 )
-from dataset import multi_ref_text_triplet_text_sampling
-
 from decoder import Decoder
 from joiner import Joiner
 from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
-from model_with_BERT_with_style import PromptedTransducer
+from model_with_BERT import PromptedTransducer
 from optim import Eden, ScaledAdam
-from scaling import ScheduledFloat, Balancer, BiasNorm, Dropout3, ScaleGrad, SwooshR
+from scaling import Balancer, BiasNorm, Dropout3, ScaleGrad, ScheduledFloat, SwooshR
 from subsampling import Conv2dSubsampling
+from text_normalization import (
+    lower_all_char,
+    lower_only_alpha,
+    train_text_normalization,
+    upper_all_char,
+    upper_only_alpha,
+)
 from torch import Tensor
 from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
-from text_normalization import train_text_normalization, upper_only_alpha, lower_only_alpha, upper_all_char, lower_all_char
 from zipformer import Zipformer2
 
 from icefall import diagnostics
@@ -105,19 +126,19 @@ from icefall.utils import (
     str2bool,
 )
 
-LRSchedulerType = Union[
-    torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler
-]
+LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
 
 style_transforms = [
-    lambda x: x, # return it self
+    lambda x: x,  # return it self
     upper_only_alpha,
     lower_only_alpha,
-    lower_all_char,       
+    lower_all_char,
 ]
+
 
 def random_sampling(texts: List[str]) -> str:
     return random.choice(texts)
+
 
 def joint_random_sampling(texts: List[str], pre_texts: List[str]) -> str:
     # Randomly choose from the ground truth (mixed-cased trans) and the recog_text
@@ -130,6 +151,7 @@ def joint_random_sampling(texts: List[str], pre_texts: List[str]) -> str:
     }
     return out
 
+
 def get_first(texts: List[str], pre_texts: List[str]) -> str:
     out = {
         "text": texts[0],
@@ -138,6 +160,7 @@ def get_first(texts: List[str], pre_texts: List[str]) -> str:
         "transform_ids": 0,
     }
     return out
+
 
 def get_upper_only_alpha(texts: List[str], pre_texts: List[str]) -> str:
     # Always get the first one, which is the gt (mixed-cased trans), but with upper_only_alpha
@@ -148,6 +171,7 @@ def get_upper_only_alpha(texts: List[str], pre_texts: List[str]) -> str:
         "transform_ids": 0,
     }
     return out
+
 
 def get_adjusted_batch_count(params: AttributeDict) -> float:
     # returns the number of batches we would have used so far if we had used the reference
@@ -205,19 +229,19 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         default="192,256,384,512,384,256",
         help="Embedding dimension in encoder stacks: a single int or comma-separated list.",
     )
-    
+
     parser.add_argument(
         "--memory-dropout-rate",
         type=float,
         default=0.05,
-        help="By which probability, dropout the memory when doing cross-attention."
+        help="By which probability, dropout the memory when doing cross-attention.",
     )
-    
+
     parser.add_argument(
         "--memory-layer",
         type=int,
         default=0,
-        help="Start doing cross-attention from which layer. Zero-indexed"
+        help="Start doing cross-attention from which layer. Zero-indexed",
     )
 
     parser.add_argument(
@@ -226,7 +250,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         default="32",
         help="Query/key dimension per head in encoder stacks: a single int or comma-separated list.",
     )
-    
+
     parser.add_argument(
         "--value-head-dim",
         type=str,
@@ -280,13 +304,12 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         to this dimension before adding.
         """,
     )
-    
+
     parser.add_argument(
         "--context-size",
         type=int,
         default=2,
-        help="The context size in the decoder. 1 means bigram; "
-        "2 means tri-gram",
+        help="The context size in the decoder. 1 means bigram; " "2 means tri-gram",
     )
 
     parser.add_argument(
@@ -312,29 +335,29 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         "be converted to a number of chunks.  If splitting into chunks, "
         "chunk left-context frames will be chosen randomly from this list; else not relevant.",
     )
-    
+
     parser.add_argument(
         "--text-encoder-type",
         type=str,
         default="BERT",
-        choices=["BERT","DistilBERT"],
+        choices=["BERT", "DistilBERT"],
         help="Type of the text encoder",
     )
-    
+
     parser.add_argument(
         "--text-encoder-adapter",
         type=str2bool,
         default=False,
-        help="An adapter for pre-trained BERT"
+        help="An adapter for pre-trained BERT",
     )
-    
+
     parser.add_argument(
         "--context-injection",
         type=str2bool,
         default=False,
         help="Inject context embedding into the joiner",
     )
-    
+
     parser.add_argument(
         "--context-dropout-rate",
         type=float,
@@ -459,8 +482,7 @@ def get_parser():
         "--am-scale",
         type=float,
         default=0.0,
-        help="The scale to smooth the loss with am (output of encoder network)"
-        "part.",
+        help="The scale to smooth the loss with am (output of encoder network)" "part.",
     )
 
     parser.add_argument(
@@ -537,14 +559,14 @@ def get_parser():
         default=False,
         help="Whether to use half precision training.",
     )
-    
+
     parser.add_argument(
         "--use-style-prompt",
         type=str2bool,
         default=True,
         help="Whether to use style prompt.",
     )
-    
+
     # arguments for using prompt
     parser.add_argument(
         "--pre-text-shuffle-prob",
@@ -552,14 +574,14 @@ def get_parser():
         default=0.05,
         help="The proportion of pre_text to be shuffled with in a batch",
     )
-    
+
     parser.add_argument(
         "--style-text-shuffle-prob",
         type=float,
         default=0.2,
         help="The proportion of style_text to be shuffled with in a batch",
     )
-    
+
     parser.add_argument(
         "--prompt-mask-prob",
         type=float,
@@ -571,14 +593,14 @@ def get_parser():
         type=str2bool,
         default=True,
     )
-    
+
     parser.add_argument(
         "--forced-upper-pre-text",
         type=str2bool,
         default=False,
         help="Forced format of pre-text",
     )
-    
+
     add_model_arguments(parser)
 
     return parser
@@ -674,25 +696,25 @@ def get_encoder_embed(params: AttributeDict) -> nn.Module:
 class TextEmbedding(nn.Module):
     def __init__(
         self,
-        num_embeddings: int=256,
-        embedding_dim: int=256,
-        kernel_size: int=3,
+        num_embeddings: int = 256,
+        embedding_dim: int = 256,
+        kernel_size: int = 3,
         layer1_channels: int = 256,
         layer2_channels: int = 256,
-        bias: bool=True,
-        dropout: float = 0.1
+        bias: bool = True,
+        dropout: float = 0.1,
     ):
         super().__init__()
         self.embed = nn.Embedding(
             num_embeddings=num_embeddings,  # we encode the text as UTF-8 bytes
-            embedding_dim=embedding_dim, #
+            embedding_dim=embedding_dim,  #
         )
-        
-        assert embedding_dim == layer1_channels # for depth wise convolution
+
+        assert embedding_dim == layer1_channels  # for depth wise convolution
         self.conv = nn.Sequential(
             nn.Conv1d(
                 embedding_dim,
-                layer1_channels, # depthwise convolution
+                layer1_channels,  # depthwise convolution
                 kernel_size=kernel_size,
                 stride=1,
                 padding=(kernel_size - 1) // 2,
@@ -705,7 +727,7 @@ class TextEmbedding(nn.Module):
             nn.Conv1d(
                 layer1_channels,
                 layer2_channels,
-                kernel_size=1, # pointwise convolution
+                kernel_size=1,  # pointwise convolution
                 stride=1,
                 padding=0,
                 bias=True,
@@ -713,10 +735,10 @@ class TextEmbedding(nn.Module):
             Balancer(layer2_channels, channel_dim=1, min_positive=0.1, max_abs=1.0),
             nn.ReLU(),
         )
-        
+
         self.out_norm = BiasNorm(layer2_channels)
         self.dropout = Dropout3(dropout, shared_dim=1)
-        
+
     def forward(self, text: torch.Tensor) -> torch.Tensor:
         """Forward function of the text embedding
 
@@ -725,50 +747,56 @@ class TextEmbedding(nn.Module):
         Returns:
             The embeddings of text (T,N,C)
         """
-        text = self.embed(text) # (T,N,C)
-        
-        #src = text
-        text = text.permute(1,2,0) # (T,N,C) -> (N,C,T)
+        text = self.embed(text)  # (T,N,C)
+
+        # src = text
+        text = text.permute(1, 2, 0)  # (T,N,C) -> (N,C,T)
         text = self.conv(text)
-        text = text.permute(2,0,1) # (N,C,T) -> (T,N,C)
-        #src = src + text
-        
+        text = text.permute(2, 0, 1)  # (N,C,T) -> (T,N,C)
+        # src = src + text
+
         text = self.out_norm(text)
         text = self.dropout(text)
-        
+
         return text
-    
+
 
 def get_text_encoder(params: AttributeDict) -> nn.Module:
     # Return a text encoder
     if params.text_encoder_type == "BERT":
         from transformers import BertModel
+
         # This is a BERT-base-cased
         logging.info("Loading pre-trained BERT-base-cased as text encoder")
         model = BertModel.from_pretrained("bert-base-cased")
     elif params.text_encoder_type == "DistilBERT":
         from transformers import DistilBertModel
+
         # This is a DistilBERT-base-cased
         logging.info("Loading pre-trained DistilBERT-base-cased as text encoder")
         model = DistilBertModel.from_pretrained("distilbert-base-cased")
     else:
         raise ValueError()
-        
+
     return model
 
+
 def get_tokenizer(params: AttributeDict):
-    
+
     if params.text_encoder_type == "BERT":
         from transformers import BertTokenizer
+
         # This is a BERT-base-cased
-        tokenizer = BertTokenizer.from_pretrained('bert-base-cased')
+        tokenizer = BertTokenizer.from_pretrained("bert-base-cased")
     elif params.text_encoder_type == "DistilBERT":
         from transformers import DistilBertTokenizer
-        tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-cased')
+
+        tokenizer = DistilBertTokenizer.from_pretrained("distilbert-base-cased")
     else:
         raise ValueError()
-        
+
     return tokenizer
+
 
 def get_encoder_model(params: AttributeDict) -> nn.Module:
     encoder = Zipformer2(
@@ -789,7 +817,7 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         causal=params.causal,
         chunk_size=_to_int_tuple(params.chunk_size),
         left_context_frames=_to_int_tuple(params.left_context_frames),
-        memory_dim=768, # This is fixed as the BERT base model is 768-D
+        memory_dim=768,  # This is fixed as the BERT base model is 768-D
         memory_layer=params.memory_layer,
         memory_dropout_rate=params.memory_dropout_rate,
     )
@@ -812,7 +840,9 @@ def get_joiner_model(params: AttributeDict) -> nn.Module:
         decoder_dim=params.decoder_dim,
         joiner_dim=params.joiner_dim,
         vocab_size=params.vocab_size,
-        context_dim=4 * 768 if params.context_injection else -1, # the output dim of text encoder
+        context_dim=4 * 768
+        if params.context_injection
+        else -1,  # the output dim of text encoder
         context_injection=params.context_injection,
     )
     return joiner
@@ -821,23 +851,11 @@ def get_joiner_model(params: AttributeDict) -> nn.Module:
 def get_transducer_model(params: AttributeDict) -> nn.Module:
     encoder_embed = get_encoder_embed(params)
     encoder = get_encoder_model(params)
-    text_encoder = get_text_encoder(params) # This should be a cased BERT base model
+    text_encoder = get_text_encoder(params)  # This should be a cased BERT base model
     num_param = sum([p.numel() for p in text_encoder.parameters()])
     logging.info(f"Num params in text encoder: {num_param}")
     decoder = get_decoder_model(params)
     joiner = get_joiner_model(params)
-    
-    if params.context_injection:
-        from context_fuser import ContextFuser, SelfAttContextFuser
-        context_fuser = SelfAttContextFuser(
-            embed_dim=768,
-            nhead=4,
-            context_dropout_rate=params.context_dropout_rate,
-        )
-        logging.info(f"Using context injection!")
-        logging.info(context_fuser)
-    else:
-        context_fuser = None
 
     model = PromptedTransducer(
         encoder_embed=encoder_embed,
@@ -851,12 +869,9 @@ def get_transducer_model(params: AttributeDict) -> nn.Module:
         vocab_size=params.vocab_size,
         text_encoder_type=params.text_encoder_type,
         text_encoder_adapter=params.text_encoder_adapter,
-        context_fuser=context_fuser,
+        context_fuser=None,
     )
-    
-    if params.text_encoder_adapter:
-        logging.info(f"Using adapter for BERT encoder")
-        logging.info(f"{model.text_encoder_adapter}")
+
     return model
 
 
@@ -978,13 +993,14 @@ def save_checkpoint(
         best_valid_filename = params.exp_dir / "best-valid-loss.pt"
         copyfile(src=filename, dst=best_valid_filename)
 
+
 def _encode_texts_as_bytes_with_tokenizer(
-    pre_texts: List[str], 
+    pre_texts: List[str],
     style_texts: List[str],
     tokenizer,
     device: torch.device,
-    max_len: int=500,
-    no_limit: bool=False
+    max_len: int = 500,
+    no_limit: bool = False,
 ) -> Tuple[Dict, Tensor]:
     """
     Encode texts as bytes and then integer tensors.
@@ -992,36 +1008,39 @@ def _encode_texts_as_bytes_with_tokenizer(
     """
     batch_size = len(pre_texts)
     max_len = min(max_len, 500)
-    
+
     if no_limit:
         allowed_lens = [5000 - len(s) for s in style_texts]
     else:
         allowed_lens = [1000 - len(s) for s in style_texts]
-    truncated_pre_texts = [pre_texts[i][-allowed_lens[i]:] for i in range(batch_size)]
-    combined_text = [style_texts[i] + ' [SEP] ' + truncated_pre_texts[i] for i in range(batch_size)]
-    
+    truncated_pre_texts = [pre_texts[i][-allowed_lens[i] :] for i in range(batch_size)]
+    combined_text = [
+        style_texts[i] + " [SEP] " + truncated_pre_texts[i] for i in range(batch_size)
+    ]
+
     encoded_style_texts = tokenizer(
         style_texts,
-        return_tensors='pt',
+        return_tensors="pt",
         padding=True,
         truncation=True,
         return_length=True,
         max_length=max_len,
     )
     style_lens = encoded_style_texts["length"].to(device)
-    
+
     # Use tokenizer to prepare input for text encoder
     encoded_inputs = tokenizer(
         combined_text,
-        return_tensors='pt',
+        return_tensors="pt",
         padding=True,
         truncation=True,
         return_length=True,
         max_length=max_len,
     ).to(device)
-    
+
     return encoded_inputs, style_lens
-    
+
+
 def compute_loss(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
@@ -1048,11 +1067,7 @@ def compute_loss(
      warmup: a floating point value which increases throughout training;
         values >= 1.0 are fully warmed up and have all modules present.
     """
-    device = (
-        model.device
-        if isinstance(model, DDP)
-        else next(model.parameters()).device
-    )
+    device = model.device if isinstance(model, DDP) else next(model.parameters()).device
     feature = batch["inputs"]
     # at entry, feature is (N, T, C)
     assert feature.ndim == 3
@@ -1067,20 +1082,24 @@ def compute_loss(
 
     texts = batch["supervisions"]["text"]
     pre_texts = batch["supervisions"]["pre_text"]
-    style_texts = batch["supervisions"]["style_text"] # the style texts are in gt format
+    style_texts = batch["supervisions"][
+        "style_text"
+    ]  # the style texts are in gt format
     transform_ids = batch["supervisions"]["transform_ids"]
-    
+
     # This is to replace full-width symbols with half-width symbols
     texts = [train_text_normalization(t) for t in texts]
     pre_texts = [train_text_normalization(t) for t in pre_texts]
     style_texts = [train_text_normalization(t) for t in style_texts]
-    
-    y = sp.encode(texts, out_type=int) # sp.encode treats consecutive space as a single space
+
+    y = sp.encode(
+        texts, out_type=int
+    )  # sp.encode treats consecutive space as a single space
     y = k2.RaggedTensor(y).to(device)
-    
+
     if params.forced_upper_pre_text:
         pre_texts = [upper_only_alpha(p) for p in pre_texts]
-    
+
     # only shuffle the pre_text and style texts if during training, and use style prompt
     if is_training:
         # randomly shuffle&mask the pre_text
@@ -1089,38 +1108,40 @@ def compute_loss(
             p=params.pre_text_shuffle_prob,
             p_mask=params.prompt_mask_prob,
         )
-        
+
         if params.use_style_prompt:
-            if random.random() < 0.5: 
+            if random.random() < 0.5:
                 # randomly shuffle the style_text
                 # now the style_texts are all in gt format
                 style_texts = random_shuffle_subset(
                     style_texts,
                     p=params.style_text_shuffle_prob,
-                    p_mask=params.prompt_mask_prob
-                ) 
-                
+                    p_mask=params.prompt_mask_prob,
+                )
+
             assert len(transform_ids) == len(style_texts)
-            
+
             for i in range(len(style_texts)):
-                t = transform_ids[i] # get the transform id
+                t = transform_ids[i]  # get the transform id
                 style_texts[i] = style_transforms[t](style_texts[i])
 
     if not params.use_style_prompt:
-        style_texts = ["" for _ in style_texts] # use empty string for style texts if don't use style prompt
-    
+        style_texts = [
+            "" for _ in style_texts
+        ]  # use empty string for style texts if don't use style prompt
+
     if random.random() < 0.05:
         logging.info(f"Pre texts: {pre_texts[0]}")
         logging.info(f"Ref texts: {texts[0]}")
         logging.info(f"Style texts: {style_texts[0]}")
-    
+
     encoded_inputs, style_lens = _encode_texts_as_bytes_with_tokenizer(
         pre_texts=pre_texts,
         style_texts=style_texts,
         tokenizer=tokenizer,
         device=device,
     )
-    
+
     if random.random() < 0.02:
         logging.info(f"Shape of encoded texts: {encoded_inputs['input_ids'].shape} ")
 
@@ -1157,9 +1178,7 @@ def compute_loss(
     info = MetricsTracker()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        info["frames"] = (
-            (feature_lens // params.subsampling_factor).sum().item()
-        )
+        info["frames"] = (feature_lens // params.subsampling_factor).sum().item()
 
     # Note: We use reduction=sum while computing the loss.
     info["loss"] = loss.detach().cpu().item()
@@ -1352,9 +1371,7 @@ def train_one_epoch(
             # behavior depending on the current grad scale.
             cur_grad_scale = scaler._scale.item()
 
-            if cur_grad_scale < 8.0 or (
-                cur_grad_scale < 32.0 and batch_idx % 400 == 0
-            ):
+            if cur_grad_scale < 8.0 or (cur_grad_scale < 32.0 and batch_idx % 400 == 0):
                 scaler.update(cur_grad_scale * 2.0)
             if cur_grad_scale < 0.01:
                 if not saved_bad_model:
@@ -1376,11 +1393,7 @@ def train_one_epoch(
                 f"batch {batch_idx}, loss[{loss_info}], "
                 f"tot_loss[{tot_loss}], batch size: {batch_size}, "
                 f"lr: {cur_lr:.2e}, "
-                + (
-                    f"grad_scale: {scaler._scale.item()}"
-                    if params.use_fp16
-                    else ""
-                )
+                + (f"grad_scale: {scaler._scale.item()}" if params.use_fp16 else "")
             )
 
             if tb_writer is not None:
@@ -1391,9 +1404,7 @@ def train_one_epoch(
                 loss_info.write_summary(
                     tb_writer, "train/current_", params.batch_idx_train
                 )
-                tot_loss.write_summary(
-                    tb_writer, "train/tot_", params.batch_idx_train
-                )
+                tot_loss.write_summary(tb_writer, "train/tot_", params.batch_idx_train)
                 if params.use_fp16:
                     tb_writer.add_scalar(
                         "train/grad_scale",
@@ -1401,10 +1412,7 @@ def train_one_epoch(
                         params.batch_idx_train,
                     )
 
-        if (
-            batch_idx % params.valid_interval == 0
-            and not params.print_diagnostics
-        ):
+        if batch_idx % params.valid_interval == 0 and not params.print_diagnostics:
             logging.info("Computing validation loss")
             valid_info = compute_validation_loss(
                 params=params,
@@ -1452,11 +1460,15 @@ def run(rank, world_size, args):
 
     setup_logger(f"{params.exp_dir}/log/log-train")
     logging.info("Training started")
-    
+
     if not params.use_style_prompt:
-        if  params.pre_text_shuffle_prob == 0.0:
-            logging.info(f"Pre_text shuffle prob is set to: {params.pre_text_shuffle_prob}")
-            logging.info("If style prompt is not used, you should be careful when shuffling the pre_text within the same batch")
+        if params.pre_text_shuffle_prob == 0.0:
+            logging.info(
+                f"Pre_text shuffle prob is set to: {params.pre_text_shuffle_prob}"
+            )
+            logging.info(
+                "If style prompt is not used, you should be careful when shuffling the pre_text within the same batch"
+            )
             logging.info("Hard set this probability to 0.0!")
             params.pre_text_shuffle_prob = 0.0
 
@@ -1504,10 +1516,12 @@ def run(rank, world_size, args):
 
     if params.freeze_text_encoder:
         freeze_modules = ["text_encoder"]
-        logging.info(f"Freeze the parameters of text encoder and don't include them in the optimizer")
+        logging.info(
+            "Freeze the parameters of text encoder and don't include them in the optimizer"
+        )
     else:
         freeze_modules = []
-    
+
     optimizer = ScaledAdam(
         get_parameter_groups_with_lrs(
             model, lr=params.base_lr, include_names=True, freeze_modules=freeze_modules
@@ -1533,7 +1547,7 @@ def run(rank, world_size, args):
     if params.print_diagnostics:
         args.max_duration = 100
         opts = diagnostics.TensorDiagnosticOptions(
-            2 ** 22
+            2**22
         )  # allow 4 megabytes per sub-module
         diagnostic = diagnostics.attach_diagnostics(model, opts)
 
@@ -1543,7 +1557,7 @@ def run(rank, world_size, args):
     libriheavy = LibriHeavyAsrDataModule(args)
 
     train_cuts = libriheavy.train_cuts()
-    
+
     def remove_short_and_long_utt(c: Cut):
         # Keep only utterances with duration between 1 second and 20 seconds
         #
@@ -1586,10 +1600,14 @@ def run(rank, world_size, args):
         sampler_state_dict = checkpoints["sampler"]
     else:
         sampler_state_dict = None
-    
-    text_sampling_func = triplet_text_sampling
+
+    if params.use_context_list:
+        text_sampling_func = triplet_text_sampling_with_context_list
+    else:
+        text_sampling_func = triplet_text_sampling
+
     logging.info(f"Text sampling: {text_sampling_func}")
-    
+
     train_dl = libriheavy.train_dataloaders(
         train_cuts,
         sampler_state_dict=sampler_state_dict,
@@ -1599,18 +1617,17 @@ def run(rank, world_size, args):
     # For fair comparison, use fixed sampling in valid dataloaders
     valid_cuts = libriheavy.dev_cuts()
     valid_dl = libriheavy.valid_dataloaders(
-        valid_cuts,
-        text_sampling_func=naive_triplet_text_sampling
+        valid_cuts, text_sampling_func=naive_triplet_text_sampling
     )
 
-    # if not params.print_diagnostics:
-    #     scan_pessimistic_batches_for_oom(
-    #         model=model,
-    #         train_dl=train_dl,
-    #         optimizer=optimizer,
-    #         sp=sp,
-    #         params=params,
-    #     )
+    if not params.print_diagnostics:
+        scan_pessimistic_batches_for_oom(
+            model=model,
+            train_dl=train_dl,
+            optimizer=optimizer,
+            sp=sp,
+            params=params,
+        )
 
     scaler = GradScaler(enabled=params.use_fp16, init_scale=1.0)
     if checkpoints and "grad_scaler" in checkpoints:

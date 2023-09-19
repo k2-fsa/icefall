@@ -72,16 +72,12 @@ class LibriHeavyAsrDataModule:
         self.args = args
 
         if args.use_context_list:
-            from dataset2 import PromptASRDataset
-
             assert args.rare_word_file is not None
             with open(args.rare_word_file, "r") as f:
                 self.rare_word_list = (
                     f.read().lower().split()
                 )  # Use lower-cased for easier style transform
         else:
-            from dataset import PromptASRDataset
-
             self.rare_word_list = None
 
     @classmethod

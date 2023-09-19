@@ -20,21 +20,54 @@
 """
 Usage:
 (1) greedy search
-./pruned_transducer_stateless7/decode.py \
+./zipformer_prompt_asr/decode_bert.py \
     --epoch 28 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7/exp \
-    --max-duration 600 \
+    --exp-dir ./zipformer_prompt_asr/exp \
+    --max-duration 1000 \
     --decoding-method greedy_search
 
 (2) modified beam search
-./pruned_transducer_stateless7/decode.py \
+./zipformer_prompt_asr/decode_bert.py \
     --epoch 28 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7/exp \
-    --max-duration 600 \
+    --exp-dir ./zipformer_prompt_asr/exp \
+    --max-duration 1000 \
     --decoding-method modified_beam_search \
     --beam-size 4
+
+(3) Decode LibriSpeech
+
+./zipformer_prompt_asr/decode_bert.py \
+    --epoch 28 \
+    --avg 15 \
+    --exp-dir ./zipformer_prompt_asr/exp \
+    --max-duration 1000 \
+    --decoding-method modified_beam_search \
+    --use-ls-test-set True \
+    --beam-size 4
+
+(4) Decode LibriSpeech + biasing list
+
+biasing_list=100 # could also be 0
+
+./zipformer_prompt_asr/decode_bert.py \
+    --epoch 28 \
+    --avg 15 \
+    --exp-dir ./zipformer_prompt_asr/exp \
+    --max-duration 1000 \
+    --decoding-method modified_beam_search \
+    --beam-size 4 \\
+    --use-ls-test-set True \
+    --use-ls-context-list True \
+    --biasing-level utterance \
+    --ls-distractors $biasing_list \
+    --post-normalization True \
+    --text-encoder-type BERT \
+    --max-prompt-lens 1000 \
+    --style-text-transform mixed-punc \
+    --pre-text-transform mixed-punc
+
 
 """
 
@@ -45,40 +78,34 @@ import math
 import warnings
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Callable
+from typing import Callable, Dict, List, Optional, Tuple
 
 import k2
 import sentencepiece as spm
 import torch
 import torch.nn as nn
-from transformers import BertTokenizer, BertModel
 from asr_datamodule import LibriHeavyAsrDataModule
-from beam_search import (
-    greedy_search,
-    greedy_search_with_context,
-    greedy_search_batch,
-    greedy_search_batch_with_context,
-    modified_beam_search,
-)
+from beam_search import greedy_search, greedy_search_batch, modified_beam_search
 from dataset import naive_triplet_text_sampling, random_shuffle_subset
-from utils import get_facebook_biasing_list, brian_biasing_list, write_error_stats
 from ls_text_normalization import word_normalization
 from text_normalization import (
-    ref_text_normalization,
-    remove_non_alphabetic,
-    upper_only_alpha,
-    upper_all_char,
     lower_all_char,
     lower_only_alpha,
+    ref_text_normalization,
+    remove_non_alphabetic,
     train_text_normalization,
+    upper_all_char,
+    upper_only_alpha,
 )
-from train_bert_encoder_with_style import (
+from train_bert_encoder import (
+    _encode_texts_as_bytes_with_tokenizer,
     add_model_arguments,
     get_params,
     get_tokenizer,
     get_transducer_model,
-    _encode_texts_as_bytes_with_tokenizer,
 )
+from transformers import BertModel, BertTokenizer
+from utils import brian_biasing_list, get_facebook_biasing_list, write_error_stats
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -87,14 +114,10 @@ from icefall.checkpoint import (
     load_checkpoint,
 )
 from icefall.lexicon import Lexicon
-from icefall.utils import (
-    AttributeDict,
-    setup_logger,
-    store_transcripts,
-    str2bool,
-)
+from icefall.utils import AttributeDict, setup_logger, store_transcripts, str2bool
 
 LOG_EPS = math.log(1e-10)
+
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -262,25 +285,18 @@ def get_parser():
         default=True,
         help="Use pre-text is available during decoding",
     )
-    
+
     parser.add_argument(
         "--use-style-prompt",
         type=str2bool,
         default=True,
-        help="Use style prompt when evaluation"
+        help="Use style prompt when evaluation",
     )
-    
+
     parser.add_argument(
         "--max-prompt-lens",
         type=int,
         default=1000,
-    )
-    
-    parser.add_argument(
-        "--use-context-embedding",
-        type=str2bool,
-        default=False,
-        help="Use context fuser when evaluation"
     )
 
     parser.add_argument(
@@ -289,70 +305,65 @@ def get_parser():
         default=True,
         help="Normalized the recognition results by uppercasing and removing non-alphabetic symbols. ",
     )
-    
-    parser.add_argument(
-        "--long-audio-recog",
-        type=str2bool,
-        default=False,
-    )
 
     parser.add_argument(
         "--compute-CER",
         type=str2bool,
-        default=True,
+        default=False,
         help="Reports CER. By default, only reports WER",
     )
-    
+
     parser.add_argument(
         "--style-text-transform",
         type=str,
-        choices=["mixed-punc", "upper-no-punc", "lower-no-punc","lower-punc"],
+        choices=["mixed-punc", "upper-no-punc", "lower-no-punc", "lower-punc"],
         default="mixed-punc",
-        help="The style of style prompt, i.e style_text"
+        help="The style of style prompt, i.e style_text",
     )
-    
+
     parser.add_argument(
         "--pre-text-transform",
         type=str,
-        choices=["mixed-punc", "upper-no-punc", "lower-no-punc","lower-punc"],
+        choices=["mixed-punc", "upper-no-punc", "lower-no-punc", "lower-punc"],
         default="mixed-punc",
-        help="The style of content prompt, i.e pre_text"
+        help="The style of content prompt, i.e pre_text",
     )
-    
+
     parser.add_argument(
         "--use-ls-test-set",
         type=str2bool,
         default=False,
-        help="Use librispeech test set for evaluation."
+        help="Use librispeech test set for evaluation.",
     )
-    
+
     parser.add_argument(
         "--use-ls-context-list",
         type=str2bool,
         default=False,
-        help="If use a fixed context list for LibriSpeech decoding"
+        help="If use a fixed context list for LibriSpeech decoding",
     )
-    
+
     parser.add_argument(
         "--biasing-level",
         type=str,
         default="utterance",
         choices=["utterance", "Book", "Chapter"],
     )
-    
+
     parser.add_argument(
         "--ls-distractors",
         type=int,
         default=0,
-        help="The number of distractors into context list for LibriSpeech decoding"
+        help="The number of distractors into context list for LibriSpeech decoding",
     )
-    
+
     add_model_arguments(parser)
 
     return parser
 
+
 def _apply_style_transform(text: List[str], transform: str) -> List[str]:
-    """Apply transform to a list of text. By default, the text are in 
+    """Apply transform to a list of text. By default, the text are in
     ground truth format, i.e mixed-punc.
 
     Args:
@@ -372,13 +383,13 @@ def _apply_style_transform(text: List[str], transform: str) -> List[str]:
         return [lower_all_char(s) for s in text]
     else:
         raise NotImplementedError(f"Unseen transform: {transform}")
-    
+
 
 def decode_one_batch(
     params: AttributeDict,
     model: nn.Module,
     sp: spm.SentencePieceProcessor,
-    tokenizer,
+    tokenizer: spm.SentencePieceProcessor,
     batch: dict,
     biasing_dict: dict = None,
     word_table: Optional[k2.SymbolTable] = None,
@@ -401,10 +412,15 @@ def decode_one_batch(
         The neural model.
       sp:
         The BPE model.
+      tokenizer:
+        Tokenizer for the text encoder
       batch:
         It is the return value from iterating
         `lhotse.dataset.K2SpeechRecognitionDataset`. See its documentation
         for the format of the `batch`.
+      biasing_dict:
+        A dictionary in the form `{cut_id: :w1 w2"}` that contains a list
+        of biasing words (separated with space)
       word_table:
         The word symbol table.
       decoding_graph:
@@ -427,48 +443,53 @@ def decode_one_batch(
     cuts = batch["supervisions"]["cut"]
     cut_ids = [c.supervisions[0].id for c in cuts]
     batch_size = feature.size(0)
-    
-    # get pre_text
+
     if "pre_text" in batch["supervisions"] and params.use_pre_text:
         pre_texts = batch["supervisions"]["pre_text"]
         pre_texts = [train_text_normalization(t) for t in pre_texts]
     else:
         pre_texts = ["" for _ in range(batch_size)]
-    
-    if params.use_ls_context_list:
+
+    if params.use_ls_context_list and params.use_ls_test_set:
         if params.biasing_level == "utterance":
             pre_texts = [biasing_dict[id] for id in cut_ids]
         elif params.biasing_level == "Chapter":
-            chapter_ids = [c.split('-')[1] for c in cut_ids]
+            chapter_ids = [c.split("-")[1] for c in cut_ids]
             pre_texts = [biasing_dict[id] for id in chapter_ids]
         elif params.biasing_level == "Book":
-            chapter_ids = [c.split('-')[1] for c in cut_ids]
+            chapter_ids = [c.split("-")[1] for c in cut_ids]
             pre_texts = [biasing_dict[id] for id in chapter_ids]
+        else:
+            raise ValueError(f"Unseen biasing level: {params.biasing_level}")
         if params.pre_text_transform == "mixed-punc":
             pre_texts = [t.lower() for t in pre_texts]
-        
+
     # get style_text
     if params.use_style_prompt:
         fixed_sentence = "Mixed-case English transcription, with punctuation. Actually, it's fully not related."
-        style_texts = batch["supervisions"].get("style_text", [fixed_sentence for _ in range(batch_size)])
+        style_texts = batch["supervisions"].get(
+            "style_text", [fixed_sentence for _ in range(batch_size)]
+        )
         style_texts = [train_text_normalization(t) for t in style_texts]
     else:
-        style_texts = ["" for _ in range(batch_size)] # use empty string
+        style_texts = ["" for _ in range(batch_size)]  # use empty string
 
-    # Get the text embedding input
+    # Get the text embedding
     if params.use_pre_text or params.use_style_prompt:
 
         # apply style transform to the pre_text and style_text
         pre_texts = _apply_style_transform(pre_texts, params.pre_text_transform)
         if not params.use_ls_context_list:
-            pre_texts = [t[:params.max_prompt_lens] for t in pre_texts]
-        #pre_texts = random_shuffle_subset(pre_texts, p=1.0, p_mask=0.0)
+            pre_texts = [t[-params.max_prompt_lens :] for t in pre_texts]
+
         if params.use_style_prompt:
-            style_texts = _apply_style_transform(style_texts, params.style_text_transform)
-        
+            style_texts = _apply_style_transform(
+                style_texts, params.style_text_transform
+            )
+
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            
+
             # Use tokenizer to prepare input for text encoder
             encoded_inputs, style_lens = _encode_texts_as_bytes_with_tokenizer(
                 pre_texts=pre_texts,
@@ -477,12 +498,14 @@ def decode_one_batch(
                 device=device,
                 no_limit=True,
             )
-            logging.info(f"Shape of the encoded prompts: {encoded_inputs['input_ids'].shape}")
-            
+            logging.info(
+                f"Shape of the encoded prompts: {encoded_inputs['input_ids'].shape}"
+            )
+
             memory, memory_key_padding_mask = model.encode_text(
                 encoded_inputs=encoded_inputs,
                 style_lens=style_lens,
-            ) # (T,B,C)
+            )  # (T,B,C)
     else:
         memory = None
         memory_key_padding_mask = None
@@ -506,26 +529,12 @@ def decode_one_batch(
 
     hyps = []
 
-    if (
-        params.decoding_method == "greedy_search"
-        and params.max_sym_per_frame == 1
-    ):
-        if memory is None or not params.use_context_embedding:
-            hyp_tokens = greedy_search_batch(
-                model=model,
-                encoder_out=encoder_out,
-                encoder_out_lens=encoder_out_lens,
-            )
-        else:
-            memory = memory.permute(1,0,2) # (T,N,C) -> (N,T,C)
-            context = model.context_fuser(memory, padding_mask=memory_key_padding_mask) # (N,C)
-            context  = model.joiner.context_proj(context) # (N,C)
-            hyp_tokens = greedy_search_batch_with_context(
-                model=model,
-                encoder_out=encoder_out,
-                encoder_out_lens=encoder_out_lens,
-                context=context,
-            )
+    if params.decoding_method == "greedy_search" and params.max_sym_per_frame == 1:
+        hyp_tokens = greedy_search_batch(
+            model=model,
+            encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
+        )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
     elif params.decoding_method == "modified_beam_search":
@@ -545,25 +554,10 @@ def decode_one_batch(
             encoder_out_i = encoder_out[i:i+1, :encoder_out_lens[i]]
             # fmt: on
             if params.decoding_method == "greedy_search":
-                if memory is None or not params.use_context_embedding:
-                    hyp = greedy_search(
-                        model=model,
-                        encoder_out=encoder_out_i,
-                        max_sym_per_frame=params.max_sym_per_frame,
-                    )
-                else:
-                    cur_context = context[i:i+1, :]
-                    hyp = greedy_search_with_context(
-                        model=model,
-                        encoder_out=encoder_out_i,
-                        context=cur_context,
-                        max_sym_per_frame=params.max_sym_per_frame,
-                    )
-            elif params.decoding_method == "beam_search":
-                hyp = beam_search(
+                hyp = greedy_search(
                     model=model,
                     encoder_out=encoder_out_i,
-                    beam=params.beam_size,
+                    max_sym_per_frame=params.max_sym_per_frame,
                 )
             else:
                 raise ValueError(
@@ -582,7 +576,7 @@ def decode_dataset(
     params: AttributeDict,
     model: nn.Module,
     sp: spm.SentencePieceProcessor,
-    tokenizer,
+    tokenizer: spm.SentencePieceProcessor,
     biasing_dict: Dict = None,
     word_table: Optional[k2.SymbolTable] = None,
     decoding_graph: Optional[k2.Fsa] = None,
@@ -598,6 +592,11 @@ def decode_dataset(
         The neural model.
       sp:
         The BPE model.
+      tokenizer:
+        Tokenizer for the text encoder
+      biasing_dict:
+        A dictionary in the form `{cut_id: :w1 w2"}` that contains a list
+        of biasing words (separated with space)
       word_table:
         The word symbol table.
       decoding_graph:
@@ -627,19 +626,25 @@ def decode_dataset(
 
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
-        texts = batch["supervisions"]["text"] # By default, this should be in mixed-punc format
-        
+        texts = batch["supervisions"][
+            "text"
+        ]  # By default, this should be in mixed-punc format
+
         # the style of ref_text should match style_text
-        texts = _apply_style_transform(texts, params.style_text_transform) 
+        texts = _apply_style_transform(texts, params.style_text_transform)
         if params.use_style_prompt:
-            texts = _apply_style_transform(texts, params.style_text_transform) 
-        
+            texts = _apply_style_transform(texts, params.style_text_transform)
+
         cut_ids = [cut.id for cut in batch["supervisions"]["cut"]]
         if not params.use_ls_test_set:
             try:
-                book_names = [cut.text_path.split('/')[-2] for cut in batch["supervisions"]["cut"]]
-            except:
-                book_names = [cut.id.split('/')[0] for cut in batch["supervisions"]["cut"]]
+                book_names = [
+                    cut.text_path.split("/")[-2] for cut in batch["supervisions"]["cut"]
+                ]
+            except AttributeError:
+                book_names = [
+                    cut.id.split("/")[0] for cut in batch["supervisions"]["cut"]
+                ]
         else:
             book_names = ["" for _ in cut_ids]
 
@@ -657,7 +662,9 @@ def decode_dataset(
         for name, hyps in hyps_dict.items():
             this_batch = []
             assert len(hyps) == len(texts)
-            for cut_id, book_name, hyp_words, ref_text in zip(cut_ids, book_names, hyps, texts):
+            for cut_id, book_name, hyp_words, ref_text in zip(
+                cut_ids, book_names, hyps, texts
+            ):
                 ref_text = ref_text_normalization(
                     ref_text
                 )  # remove full-width symbols & some book marks
@@ -672,9 +679,7 @@ def decode_dataset(
         if batch_idx % log_interval == 0:
             batch_str = f"{batch_idx}/{num_batches}"
 
-            logging.info(
-                f"batch {batch_str}, cuts processed until now is {num_cuts}"
-            )
+            logging.info(f"batch {batch_str}, cuts processed until now is {num_cuts}")
     return results
 
 
@@ -705,7 +710,9 @@ def save_results(
 
         if params.compute_CER:
             # Write CER statistics
-            recog_path = params.res_dir / f"recogs-{test_set_name}-char-{params.suffix}.txt"
+            recog_path = (
+                params.res_dir / f"recogs-{test_set_name}-char-{params.suffix}.txt"
+            )
             store_transcripts(filename=recog_path, texts=results, char_level=True)
             errs_filename = (
                 params.res_dir / f"errs-CER-{test_set_name}-{params.suffix}.txt"
@@ -723,9 +730,7 @@ def save_results(
             logging.info("Wrote detailed CER stats to {}".format(errs_filename))
 
     test_set_wers = sorted(test_set_wers.items(), key=lambda x: x[1])
-    errs_info = (
-        params.res_dir / f"wer-summary-{test_set_name}-{params.suffix}.txt"
-    )
+    errs_info = params.res_dir / f"wer-summary-{test_set_name}-{params.suffix}.txt"
     with open(errs_info, "w") as f:
         print("settings\tWER", file=f)
         for key, val in test_set_wers:
@@ -740,9 +745,7 @@ def save_results(
 
     if params.compute_CER:
         test_set_cers = sorted(test_set_cers.items(), key=lambda x: x[1])
-        errs_info = (
-            params.res_dir / f"cer-summary-{test_set_name}-{params.suffix}.txt"
-        )
+        errs_info = params.res_dir / f"cer-summary-{test_set_name}-{params.suffix}.txt"
         with open(errs_info, "w") as f:
             print("settings\tCER", file=f)
             for key, val in test_set_cers:
@@ -770,11 +773,8 @@ def main():
         "greedy_search",
         "modified_beam_search",
     )
-    
-    if params.long_audio_recog:
-        params.res_dir = params.exp_dir / (params.decoding_method + "long_audio")
-    else:
-        params.res_dir = params.exp_dir / params.decoding_method
+
+    params.res_dir = params.exp_dir / params.decoding_method
 
     if params.iter > 0:
         params.suffix = f"iter-{params.iter}-avg-{params.avg}"
@@ -792,22 +792,19 @@ def main():
         params.suffix += f"-left-context-{params.left_context_frames}"
 
     if "beam_search" in params.decoding_method:
-        params.suffix += (
-            f"-{params.decoding_method}-beam-size-{params.beam_size}"
-        )
+        params.suffix += f"-{params.decoding_method}-beam-size-{params.beam_size}"
     else:
         params.suffix += f"-context-{params.context_size}"
         params.suffix += f"-max-sym-per-frame-{params.max_sym_per_frame}"
 
     if params.use_pre_text:
-        params.suffix += f"-pre-text-{params.pre_text_transform}-len-{params.max_prompt_lens}"
-    
+        params.suffix += (
+            f"-pre-text-{params.pre_text_transform}-len-{params.max_prompt_lens}"
+        )
+
     if params.use_style_prompt:
         params.suffix += f"-style-prompt-{params.style_text_transform}"
-            
-    if params.use_context_embedding:
-        params.suffix += f"-use-context-fuser"
-        
+
     if params.use_ls_context_list:
         params.suffix += f"-use-{params.biasing_level}-level-ls-context-list"
         if params.biasing_level == "utterance" and params.ls_distractors:
@@ -841,9 +838,9 @@ def main():
 
     if not params.use_averaged_model:
         if params.iter > 0:
-            filenames = find_checkpoints(
-                params.exp_dir, iteration=-params.iter
-            )[: params.avg]
+            filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
+                : params.avg
+            ]
             if len(filenames) == 0:
                 raise ValueError(
                     f"No checkpoints found for"
@@ -870,9 +867,9 @@ def main():
             model.load_state_dict(average_checkpoints(filenames, device=device))
     else:
         if params.iter > 0:
-            filenames = find_checkpoints(
-                params.exp_dir, iteration=-params.iter
-            )[: params.avg + 1]
+            filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
+                : params.avg + 1
+            ]
             if len(filenames) == 0:
                 raise ValueError(
                     f"No checkpoints found for"
@@ -935,18 +932,15 @@ def main():
     test_other_cuts = libriheavy.test_other_cuts()
     ls_test_clean_cuts = libriheavy.librispeech_test_clean_cuts()
     ls_test_other_cuts = libriheavy.librispeech_test_other_cuts()
-    long_audio_cuts = libriheavy.long_audio_cuts()
-    
-    npr1_dev_cuts = libriheavy.npr1_dev_cuts()
-    npr1_test_cuts = libriheavy.npr1_test_cuts()
 
-    test_clean_dl = libriheavy.valid_dataloaders(test_clean_cuts, text_sampling_func=naive_triplet_text_sampling)
-    test_other_dl = libriheavy.valid_dataloaders(test_other_cuts, text_sampling_func=naive_triplet_text_sampling)
+    test_clean_dl = libriheavy.valid_dataloaders(
+        test_clean_cuts, text_sampling_func=naive_triplet_text_sampling
+    )
+    test_other_dl = libriheavy.valid_dataloaders(
+        test_other_cuts, text_sampling_func=naive_triplet_text_sampling
+    )
     ls_test_clean_dl = libriheavy.test_dataloaders(ls_test_clean_cuts)
     ls_test_other_dl = libriheavy.test_dataloaders(ls_test_other_cuts)
-    long_audio_dl = libriheavy.valid_dataloaders(long_audio_cuts, text_sampling_func=naive_triplet_text_sampling)
-    npr1_dev_dl = libriheavy.valid_dataloaders(npr1_dev_cuts, text_sampling_func=naive_triplet_text_sampling)
-    npr1_test_dl = libriheavy.valid_dataloaders(npr1_test_cuts, text_sampling_func=naive_triplet_text_sampling)
 
     if params.use_ls_test_set:
         test_sets = ["ls-test-clean", "ls-test-other"]
@@ -954,19 +948,21 @@ def main():
     else:
         test_sets = ["test-clean", "test-other"]
         test_dl = [test_clean_dl, test_other_dl]
-        
-    if params.long_audio_recog:
-        test_sets = ["long-audio"]
-        test_dl = [long_audio_dl]
 
     for test_set, test_dl in zip(test_sets, test_dl):
-        if test_set == "ls-test-clean":
-            biasing_dict = get_facebook_biasing_list("test-clean", use_distractors=params.ls_distractors)
-        elif test_set == "ls-test-other":
-            biasing_dict = get_facebook_biasing_list("test-other", use_distractors=params.ls_distractors)
-        else:
-            biasing_dict = None
-        
+        biasing_dict = None
+        if params.use_ls_context_list:
+            if test_set == "ls-test-clean":
+                biasing_dict = get_facebook_biasing_list(
+                    test_set="test-clean",
+                    num_distractors=params.ls_distractors,
+                )
+            elif test_set == "ls-test-other":
+                biasing_dict = get_facebook_biasing_list(
+                    test_set="test-other",
+                    num_distractors=params.ls_distractors,
+                )
+
         results_dict = decode_dataset(
             dl=test_dl,
             params=params,
@@ -983,35 +979,37 @@ def main():
             test_set_name=test_set,
             results_dict=results_dict,
         )
-        
+
         if params.post_normalization:
             if "-post-normalization" not in params.suffix:
                 params.suffix += "-post-normalization"
-            
+
             new_res = {}
             for k in results_dict:
                 new_ans = []
                 for item in results_dict[k]:
                     id, ref, hyp = item
                     if params.use_ls_test_set:
-                        hyp = " ".join(hyp).replace("-", " ").split() # handle the hypens
+                        hyp = (
+                            " ".join(hyp).replace("-", " ").split()
+                        )  # handle the hypens
                         hyp = upper_only_alpha(" ".join(hyp)).split()
                         hyp = [word_normalization(w.upper()) for w in hyp]
                         hyp = " ".join(hyp).split()
                         hyp = [w for w in hyp if w != ""]
-                        ref = upper_only_alpha(" ".join(ref)).split()                    
+                        ref = upper_only_alpha(" ".join(ref)).split()
                     else:
                         hyp = upper_only_alpha(" ".join(hyp)).split()
-                        ref = upper_only_alpha(" ".join(ref)).split()                    
-                    new_ans.append((id,ref,hyp))
+                        ref = upper_only_alpha(" ".join(ref)).split()
+                    new_ans.append((id, ref, hyp))
                 new_res[k] = new_ans
-                
+
             save_results(
                 params=params,
                 test_set_name=test_set,
                 results_dict=new_res,
             )
-            
+
             if params.suffix.endswith("-post-normalization"):
                 params.suffix = params.suffix.replace("-post-normalization", "")
 
