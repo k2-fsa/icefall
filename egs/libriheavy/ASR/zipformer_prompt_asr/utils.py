@@ -1,3 +1,4 @@
+import argparse
 import ast
 import glob
 import logging
@@ -12,9 +13,34 @@ from text_normalization import remove_non_alphabetic
 from tqdm import tqdm
 
 
+def get_parser():
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+
+    parser.add_argument(
+        "--manifest-dir",
+        type=str,
+        default="data/fbank",
+        help="Where are the manifest stored",
+    )
+
+    parser.add_argument(
+        "--subset", type=str, default="medium", help="Which subset to work with"
+    )
+
+    parser.add_argument(
+        "--top-k",
+        type=int,
+        default=10000,
+        help="How many words to keep",
+    )
+
+    return parser
+
+
 def get_facebook_biasing_list(
     test_set: str,
-    use_distractors: bool = False,
     num_distractors: int = 100,
 ) -> Dict:
     # Get the biasing list from the meta paper: https://arxiv.org/pdf/2104.02194.pdf
@@ -28,9 +54,9 @@ def get_facebook_biasing_list(
             raise ValueError(f"Unseen test set {test_set}")
     else:
         if test_set == "test-clean":
-            biasing_file = "data/context_biasing/fbai-speech/is21_deep_bias/ref/test-clean.biasing_{num_distractors}.tsv"
+            biasing_file = f"data/context_biasing/fbai-speech/is21_deep_bias/ref/test-clean.biasing_{num_distractors}.tsv"
         elif test_set == "test-other":
-            biasing_file = "data/context_biasing/fbai-speech/is21_deep_bias/ref/test-other.biasing_{num_distractors}.tsv"
+            biasing_file = f"data/context_biasing/fbai-speech/is21_deep_bias/ref/test-other.biasing_{num_distractors}.tsv"
         else:
             raise ValueError(f"Unseen test set {test_set}")
 
@@ -41,7 +67,7 @@ def get_facebook_biasing_list(
     output = dict()
     for line in data:
         id, _, l1, l2 = line.split("\t")
-        if use_distractors:
+        if num_distractors > 0:  # use distractors
             biasing_list = ast.literal_eval(l2)
         else:
             biasing_list = ast.literal_eval(l1)
@@ -66,20 +92,25 @@ def brian_biasing_list(level: str):
     return biasing_dict
 
 
-def get_rare_words(subset: str, min_count: int):
+def get_rare_words(
+    subset: str = "medium",
+    top_k: int = 10000,
+    # min_count: int = 10000,
+):
     """Get a list of rare words appearing less than `min_count` times
 
     Args:
         subset: The dataset
-        min_count (int): Count of appearance
+        top_k (int): How many frequent words
     """
     txt_path = f"data/tmp/transcript_words_{subset}.txt"
-    rare_word_file = f"data/context_biasing/{subset}_rare_words_{min_count}.txt"
+    rare_word_file = f"data/context_biasing/{subset}_rare_words_topk_{top_k}.txt"
 
     if os.path.exists(rare_word_file):
         print("File exists, do not proceed!")
         return
-    print("Finding rare words in the manifest.")
+
+    print("---Identifying rare words in the manifest---")
     count_file = f"data/tmp/transcript_words_{subset}_count.txt"
     if not os.path.exists(count_file):
         with open(txt_path, "r") as file:
@@ -94,9 +125,12 @@ def get_rare_words(subset: str, min_count: int):
                     else:
                         word_count[w] += 1
 
+        word_count = list(word_count.items())  # convert to a list of tuple
+        word_count = sorted(word_count, key=lambda w: int(w[1]), reverse=True)
         with open(count_file, "w") as fout:
-            for w in word_count:
-                fout.write(f"{w}\t{word_count[w]}\n")
+            for w, count in word_count:
+                fout.write(f"{w}\t{count}\n")
+
     else:
         word_count = {}
         with open(count_file, "r") as fin:
@@ -106,42 +140,45 @@ def get_rare_words(subset: str, min_count: int):
 
     print(f"A total of {len(word_count)} words appeared!")
     rare_words = []
-    for k in word_count:
-        if int(word_count[k]) <= min_count:
-            rare_words.append(k + "\n")
-    print(f"A total of {len(rare_words)} appeared <= {min_count} times")
+    for word, count in word_count[top_k:]:
+        rare_words.append(word + "\n")
+    print(f"A total of {len(rare_words)} are identified as rare words.")
 
     with open(rare_word_file, "w") as f:
         f.writelines(rare_words)
 
 
-def add_context_list_to_manifest(subset: str, min_count: int):
+def add_context_list_to_manifest(
+    manifest_dir: str,
+    subset: str = "medium",
+    top_k: int = 10000,
+):
     """Generate a context list of rare words for each utterance in the manifest
 
     Args:
+        manifest_dir: Where to store the manifest with context list
         subset (str): Subset
-        min_count (int): The min appearances
+        top_k (int): How many frequent words
 
     """
-    rare_words_file = f"data/context_biasing/{subset}_rare_words_{min_count}.txt"
-    manifest_dir = f"data/fbank/libriheavy_cuts_{subset}.jsonl.gz"
-
-    target_manifest_dir = manifest_dir.replace(
-        ".jsonl.gz", f"_with_context_list_min_count_{min_count}.jsonl.gz"
+    orig_manifest_dir = f"{manifest_dir}/libriheavy_cuts_{subset}.jsonl.gz"
+    target_manifest_dir = orig_manifest_dir.replace(
+        ".jsonl.gz", f"_with_context_list_topk_{top_k}.jsonl.gz"
     )
     if os.path.exists(target_manifest_dir):
         print(f"Target file exits at {target_manifest_dir}!")
         return
 
-    print(f"Reading rare words from {rare_words_file}")
+    rare_words_file = f"data/context_biasing/{subset}_rare_words_topk_{top_k}.txt"
+    print(f"---Reading rare words from {rare_words_file}---")
     with open(rare_words_file, "r") as f:
         rare_words = f.read()
     rare_words = rare_words.split("\n")
     rare_words = set(rare_words)
     print(f"A total of {len(rare_words)} rare words!")
 
-    cuts = load_manifest_lazy(manifest_dir)
-    print(f"Loaded manifest from {manifest_dir}")
+    cuts = load_manifest_lazy(orig_manifest_dir)
+    print(f"Loaded manifest from {orig_manifest_dir}")
 
     def _add_context(c: Cut):
         splits = (
@@ -157,15 +194,21 @@ def add_context_list_to_manifest(subset: str, min_count: int):
         return c
 
     cuts = cuts.map(_add_context)
-
+    print(f"---Saving manifest with context list to {target_manifest_dir}---")
     cuts.to_file(target_manifest_dir)
-    print(f"Saved manifest with context list to {target_manifest_dir}")
+    print("Finished")
 
 
-def check(subset: str, min_count: int):
-    # Used to show how many samples in the training set have a context list
-    print("Calculating the stats over the manifest")
-    manifest_dir = f"data/fbank/libriheavy_cuts_{subset}_with_context_list_min_count_{min_count}.jsonl.gz"
+def check(
+    manifest_dir: str,
+    subset: str = "medium",
+    top_k: int = 10000,
+):
+    # Show how many samples in the training set have a context list
+    # and the average length of context list
+    print("--- Calculating the stats over the manifest ---")
+
+    manifest_dir = f"{manifest_dir}/libriheavy_cuts_{subset}_with_context_list_topk_{top_k}.jsonl.gz"
     cuts = load_manifest_lazy(manifest_dir)
     total_cuts = len(cuts)
     has_context_list = [c.supervisions[0].context_list != "" for c in cuts]
@@ -378,8 +421,19 @@ def write_error_stats(
 
 
 if __name__ == "__main__":
-    subset = "medium"
-    min_count = 10
-    get_rare_words(subset, min_count)
-    add_context_list_to_manifest(subset=subset, min_count=min_count)
-    check(subset=subset, min_count=min_count)
+    parser = get_parser()
+    args = parser.parse_args()
+    manifest_dir = args.manifest_dir
+    subset = args.subset
+    top_k = args.top_k
+    get_rare_words(subset=subset, top_k=top_k)
+    add_context_list_to_manifest(
+        manifest_dir=manifest_dir,
+        subset=subset,
+        top_k=top_k,
+    )
+    check(
+        manifest_dir=manifest_dir,
+        subset=subset,
+        top_k=top_k,
+    )

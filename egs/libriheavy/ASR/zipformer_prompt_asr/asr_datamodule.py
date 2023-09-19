@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 import torch
-from dataset2 import PromptASRDataset
+from dataset import PromptASRDataset
 from lhotse import CutSet, Fbank, FbankConfig, load_manifest, load_manifest_lazy
 from lhotse.dataset import (
     CutConcatenate,
@@ -70,14 +70,18 @@ class LibriHeavyAsrDataModule:
 
     def __init__(self, args: argparse.Namespace):
         self.args = args
-        
+
         if args.use_context_list:
             from dataset2 import PromptASRDataset
+
             assert args.rare_word_file is not None
-            with open(args.rare_word_file, 'r') as f:
-                self.rare_word_list = f.read().lower().split() # Use lower-cased for easier style transform
+            with open(args.rare_word_file, "r") as f:
+                self.rare_word_list = (
+                    f.read().lower().split()
+                )  # Use lower-cased for easier style transform
         else:
             from dataset import PromptASRDataset
+
             self.rare_word_list = None
 
     @classmethod
@@ -202,20 +206,22 @@ class LibriHeavyAsrDataModule:
             default="small",
             help="Select the Libriheavy subset (small|medium|large)",
         )
-        
+
         group.add_argument(
             "--use-context-list",
             type=str2bool,
             default=False,
             help="Use the context list of libri heavy",
         )
-        
+
         group.add_argument(
-            "--min-count",
+            "--topk-k",
             type=int,
-            default=7,
+            default=10000,
+            help="""The top-k words are identified as common words,
+            the rest as rare words""",
         )
-        
+
         group.add_argument(
             "--with-decoding",
             type=str2bool,
@@ -227,12 +233,12 @@ class LibriHeavyAsrDataModule:
             "--random-left-padding",
             type=str2bool,
         )
-        
+
         group.add_argument(
             "--rare-word-file",
             type=str,
         )
-        
+
         group.add_argument(
             "--long-audio-cuts",
             type=str,
@@ -257,13 +263,9 @@ class LibriHeavyAsrDataModule:
         if self.args.enable_musan:
             logging.info("Enable MUSAN")
             logging.info("About to get Musan cuts")
-            cuts_musan = load_manifest(
-                self.args.manifest_dir / "musan_cuts.jsonl.gz"
-            )
+            cuts_musan = load_manifest(self.args.manifest_dir / "musan_cuts.jsonl.gz")
             transforms.append(
-                CutMix(
-                    cuts=cuts_musan, prob=0.5, snr=(10, 20), preserve_id=True
-                )
+                CutMix(cuts=cuts_musan, prob=0.5, snr=(10, 20), preserve_id=True)
             )
         else:
             logging.info("Disable MUSAN")
@@ -285,9 +287,7 @@ class LibriHeavyAsrDataModule:
         input_transforms = []
         if self.args.enable_spec_aug:
             logging.info("Enable SpecAugment")
-            logging.info(
-                f"Time warp factor: {self.args.spec_aug_time_warp_factor}"
-            )
+            logging.info(f"Time warp factor: {self.args.spec_aug_time_warp_factor}")
             # Set the value of num_frame_masks according to Lhotse's version.
             # In different Lhotse's versions, the default of num_frame_masks is
             # different.
@@ -332,9 +332,7 @@ class LibriHeavyAsrDataModule:
             # Drop feats to be on the safe side.
             train = PromptASRDataset(
                 cut_transforms=transforms,
-                input_strategy=OnTheFlyFeatures(
-                    Fbank(FbankConfig(num_mel_bins=80))
-                ),
+                input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80))),
                 input_transforms=input_transforms,
                 return_cuts=self.args.return_cuts,
                 text_sampling_func=text_sampling_func,
@@ -379,9 +377,10 @@ class LibriHeavyAsrDataModule:
 
         return train_dl
 
-    def valid_dataloaders(self,
+    def valid_dataloaders(
+        self,
         cuts_valid: CutSet,
-        text_sampling_func: Callable[[List[str]], str] = None, 
+        text_sampling_func: Callable[[List[str]], str] = None,
     ) -> DataLoader:
         transforms = []
         if self.args.random_left_padding:
@@ -401,9 +400,7 @@ class LibriHeavyAsrDataModule:
         if self.args.on_the_fly_feats:
             validate = PromptASRDataset(
                 cut_transforms=transforms,
-                input_strategy=OnTheFlyFeatures(
-                    Fbank(FbankConfig(num_mel_bins=80))
-                ),
+                input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80))),
                 return_cuts=self.args.return_cuts,
                 text_sampling_func=text_sampling_func,
                 rare_word_list=self.rare_word_list,
@@ -460,16 +457,16 @@ class LibriHeavyAsrDataModule:
         if self.args.use_context_list:
             path = (
                 self.args.manifest_dir
-                / f"libriheavy_cuts_{self.args.subset}_with_context_list_min_count_{self.args.min_count}.jsonl.gz"
+                / f"libriheavy_cuts_{self.args.subset}_with_context_list_topk_{self.args.top_k}.jsonl.gz"
             )
         elif self.args.with_decoding:
             path = (
-                self.args.manifest_dir / f"libriheavy_cuts_{self.args.subset}_with_decoding.jsonl.gz"
+                self.args.manifest_dir
+                / f"libriheavy_cuts_{self.args.subset}_with_decoding.jsonl.gz"
             )
         else:
             path = (
-                self.args.manifest_dir
-                / f"libriheavy_cuts_{self.args.subset}.jsonl.gz"
+                self.args.manifest_dir / f"libriheavy_cuts_{self.args.subset}.jsonl.gz"
             )
 
         logging.info(f"Loading manifest from {path}.")
@@ -513,21 +510,7 @@ class LibriHeavyAsrDataModule:
         return load_manifest_lazy(
             self.args.manifest_dir / "librispeech_cuts_test-other.jsonl.gz"
         )
-    
-    @lru_cache()
-    def npr1_dev_cuts(self) -> CutSet:
-        logging.info("About to get npr1 dev cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "npr1_cuts_dev.jsonl.gz"
-        )
-        
-    @lru_cache()
-    def npr1_test_cuts(self) -> CutSet:
-        logging.info("About to get npr1 test cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "npr1_cuts_test.jsonl.gz"
-        )    
-        
+
     @lru_cache()
     def long_audio_cuts(self) -> CutSet:
         logging.info("About to get long audio cuts")
@@ -535,7 +518,7 @@ class LibriHeavyAsrDataModule:
             self.args.long_audio_cuts,
         )
         return cuts
-    
+
     @lru_cache()
     def test_dev_cuts(self) -> CutSet:
         logging.info("About to get test dev cuts")
