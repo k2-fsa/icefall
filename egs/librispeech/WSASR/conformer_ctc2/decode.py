@@ -68,7 +68,7 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--otc-token", type=str, default="▁<star>", help="OTC token",
+        "--otc-token", type=str, default="<star>", help="OTC token",
     )
 
     parser.add_argument(
