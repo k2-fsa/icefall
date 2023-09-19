@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-# Copyright (c)  2021  University of Chinese Academy of Sciences (author: Han Zhu)
+# Copyright    2022-2023  Xiaomi Corp.        (authors: Daniel Povey,
+#                                                       Zengwei Yao,
+#                                                       Xiaoyu Yang)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -16,28 +18,33 @@
 # limitations under the License.
 
 import copy
+import logging
 import math
+import random
 import warnings
 from typing import List, Optional, Tuple, Union
-import logging
+
 import torch
-import random
 from encoder_interface import EncoderInterface
 from scaling import (
+    Identity,  # more friendly to backward hooks than nn.Identity(), for diagnostic reasons.
+)
+from scaling import (
+    ScaledLinear,  # not as in other dirs.. just scales down initial parameter values.
+)
+from scaling import (
+    ActivationDropoutAndLinear,
     Balancer,
     BiasNorm,
-    Dropout2,
     ChunkCausalDepthwiseConv1d,
-    ActivationDropoutAndLinear,
-    ScaledLinear,  # not as in other dirs.. just scales down initial parameter values.
+    Dropout2,
+    FloatLike,
+    ScheduledFloat,
     Whiten,
-    Identity,  # more friendly to backward hooks than nn.Identity(), for diagnostic reasons.
+    convert_num_channels,
+    limit_param_value,
     penalize_abs_values_gt,
     softmax,
-    ScheduledFloat,
-    FloatLike,
-    limit_param_value,
-    convert_num_channels,
 )
 from torch import Tensor, nn
 
@@ -92,41 +99,43 @@ class Zipformer2(EncoderInterface):
         memory_dim: if supplied and >0, will be the dimension of the memory embeddings
             passed into the zipformer (e.g. this might be the output of another
             Zipformer used to create embedding vectors.)
-        memory_dropout_rate: By this probability, do not use the provided memory for 
+        memory_dropout_rate: By this probability, do not use the provided memory for
             cross-attention. This should give robustness to the model when evaluated
             without memory.
+        memory_layer: if supplied and >0, only add cross-attention module starting from
+            the specified layer.
     """
+
     def __init__(
-            self,
-            output_downsampling_factor: int = 2,
-            downsampling_factor: Tuple[int] = (2, 4),
-            encoder_dim: Union[int, Tuple[int]] = 384,
-            num_encoder_layers: Union[int, Tuple[int]] = 4,
-            encoder_unmasked_dim: Union[int, Tuple[int]] = 256,
-            query_head_dim: Union[int, Tuple[int]]  = 24,
-            pos_head_dim: Union[int, Tuple[int]]  = 4,
-            value_head_dim: Union[int, Tuple[int]] = 12,
-            num_heads: Union[int, Tuple[int]] = 8,
-            feedforward_dim: Union[int, Tuple[int]] = 1536,
-            cnn_module_kernel: Union[int, Tuple[int]] = 31,
-            memory_dim: int = -1,
-            memory_dropout_rate: float = 0.05,
-            memory_layer: int = 0,
-            pos_dim: int = 192,
-            dropout: FloatLike = None,  # see code below for default
-            warmup_batches: float = 4000.0,
-            causal: bool = False,
-            chunk_size: Tuple[int] = (-1,),
-            left_context_frames: Tuple[int] = (-1,),
+        self,
+        output_downsampling_factor: int = 2,
+        downsampling_factor: Tuple[int] = (2, 4),
+        encoder_dim: Union[int, Tuple[int]] = 384,
+        num_encoder_layers: Union[int, Tuple[int]] = 4,
+        encoder_unmasked_dim: Union[int, Tuple[int]] = 256,
+        query_head_dim: Union[int, Tuple[int]] = 24,
+        pos_head_dim: Union[int, Tuple[int]] = 4,
+        value_head_dim: Union[int, Tuple[int]] = 12,
+        num_heads: Union[int, Tuple[int]] = 8,
+        feedforward_dim: Union[int, Tuple[int]] = 1536,
+        cnn_module_kernel: Union[int, Tuple[int]] = 31,
+        pos_dim: int = 192,
+        dropout: FloatLike = None,  # see code below for default
+        warmup_batches: float = 4000.0,
+        causal: bool = False,
+        chunk_size: Tuple[int] = [-1],
+        left_context_frames: Tuple[int] = [-1],
+        memory_dim: int = -1,
+        memory_dropout_rate: float = 0.05,
+        memory_layer: int = 0,
     ) -> None:
         super(Zipformer2, self).__init__()
 
         if dropout is None:
-            dropout = ScheduledFloat((0.0, 0.3),
-                                     (20000.0, 0.1))
+            dropout = ScheduledFloat((0.0, 0.3), (20000.0, 0.1))
 
         def _to_tuple(x):
-            """ Converts a single int or a 1-tuple of an int to a tuple with the same length
+            """Converts a single int or a 1-tuple of an int to a tuple with the same length
             as downsampling_factor"""
             if isinstance(x, int):
                 x = (x,)
@@ -136,15 +145,18 @@ class Zipformer2(EncoderInterface):
                 assert len(x) == len(downsampling_factor) and isinstance(x[0], int)
             return x
 
-        self.output_downsampling_factor = output_downsampling_factor # int
-        self.downsampling_factor = downsampling_factor # tuple
-        self.encoder_dim = encoder_dim = _to_tuple(encoder_dim) # tuple
-        self.encoder_unmasked_dim = encoder_unmasked_dim = _to_tuple(encoder_unmasked_dim) # tuple
+        self.output_downsampling_factor = output_downsampling_factor  # int
+        self.downsampling_factor = downsampling_factor  # tuple
+        self.encoder_dim = encoder_dim = _to_tuple(encoder_dim)  # tuple
+        self.encoder_unmasked_dim = encoder_unmasked_dim = _to_tuple(
+            encoder_unmasked_dim
+        )  # tuple
         num_encoder_layers = _to_tuple(num_encoder_layers)
-        query_head_dim = _to_tuple(query_head_dim)
-        value_head_dim = _to_tuple(value_head_dim)
+        self.num_encoder_layers = num_encoder_layers
+        self.query_head_dim = query_head_dim = _to_tuple(query_head_dim)
+        self.value_head_dim = value_head_dim = _to_tuple(value_head_dim)
         pos_head_dim = _to_tuple(pos_head_dim)
-        num_heads = _to_tuple(num_heads)
+        self.num_heads = num_heads = _to_tuple(num_heads)
         feedforward_dim = _to_tuple(feedforward_dim)
         self.cnn_module_kernel = cnn_module_kernel = _to_tuple(cnn_module_kernel)
 
@@ -154,7 +166,7 @@ class Zipformer2(EncoderInterface):
         self.memory_dropout_rate = memory_dropout_rate
         self.memory_layer = memory_layer
 
-        for u,d in zip(encoder_unmasked_dim, encoder_dim):
+        for u, d in zip(encoder_unmasked_dim, encoder_dim):
             assert u <= d
 
         # each one will be Zipformer2Encoder or DownsampledZipformer2Encoder
@@ -162,7 +174,6 @@ class Zipformer2(EncoderInterface):
 
         num_encoders = len(downsampling_factor)
         for i in range(num_encoders):
-
             encoder_layer = Zipformer2EncoderLayer(
                 embed_dim=encoder_dim[i],
                 pos_dim=pos_dim,
@@ -201,13 +212,11 @@ class Zipformer2(EncoderInterface):
 
         self.encoders = nn.ModuleList(encoders)
 
-        self.downsample_output = SimpleDownsample(max(encoder_dim),
-                                                  downsample=output_downsampling_factor,
-                                                  dropout=dropout)
+        self.downsample_output = SimpleDownsample(
+            max(encoder_dim), downsample=output_downsampling_factor, dropout=dropout
+        )
 
-    def get_feature_masks(
-            self,
-            x: torch.Tensor) -> List[Union[float, Tensor]]:
+    def get_feature_masks(self, x: Tensor) -> Union[List[float], List[Tensor]]:
         """
         In eval mode, returns [1.0] * num_encoders; in training mode, returns a number of
         randomized feature masks, one per encoder.
@@ -225,25 +234,30 @@ class Zipformer2(EncoderInterface):
         """
         num_encoders = len(self.encoder_dim)
         if not self.training:
-            return [ 1.0 ] * num_encoders
+            return [1.0] * num_encoders
 
         (num_frames0, batch_size, _encoder_dims0) = x.shape
 
-        assert self.encoder_dim[0] == _encoder_dims0
+        assert self.encoder_dim[0] == _encoder_dims0, (
+            self.encoder_dim[0],
+            _encoder_dims0,
+        )
 
         feature_mask_dropout_prob = 0.125
 
         # mask1 shape: (1, batch_size, 1)
-        mask1 = (torch.rand(1, batch_size, 1,
-                            device=x.device) >
-                 feature_mask_dropout_prob).to(x.dtype)
+        mask1 = (
+            torch.rand(1, batch_size, 1, device=x.device) > feature_mask_dropout_prob
+        ).to(x.dtype)
 
         # mask2 has additional sequences masked, about twice the number.
-        mask2 = torch.logical_and(mask1,
-                                  (torch.rand(1, batch_size, 1,
-                                              device=x.device) >
-                                   feature_mask_dropout_prob).to(x.dtype))
-
+        mask2 = torch.logical_and(
+            mask1,
+            (
+                torch.rand(1, batch_size, 1, device=x.device)
+                > feature_mask_dropout_prob
+            ).to(x.dtype),
+        )
 
         # dim: (1, batch_size, 2)
         mask = torch.cat((mask1, mask2), dim=-1)
@@ -251,8 +265,9 @@ class Zipformer2(EncoderInterface):
         feature_masks = []
         for i in range(num_encoders):
             channels = self.encoder_dim[i]
-            feature_mask = torch.ones(1, batch_size, channels,
-                                       dtype=x.dtype, device=x.device)
+            feature_mask = torch.ones(
+                1, batch_size, channels, dtype=x.dtype, device=x.device
+            )
             u1 = self.encoder_unmasked_dim[i]
             u2 = u1 + (channels - u1) // 2
 
@@ -263,24 +278,32 @@ class Zipformer2(EncoderInterface):
 
         return feature_masks
 
-
     def get_chunk_info(self) -> Tuple[int, int]:
         """
         Returns chunk_size and left_context_chunks.
         """
         if not self.causal:
             return -1, -1
-        chunk_size = random.choice(self.chunk_size)
+
+        if torch.jit.is_scripting() or torch.jit.is_tracing():
+            assert len(self.chunk_size) == 1, self.chunk_size
+            chunk_size = self.chunk_size[0]
+        else:
+            chunk_size = random.choice(self.chunk_size)
         if chunk_size == -1:
             left_context_chunks = -1
         else:
-            left_context_frames = random.choice(self.left_context_frames)
+            if torch.jit.is_scripting() or torch.jit.is_tracing():
+                assert len(self.left_context_frames) == 1, self.left_context_frames
+                left_context_frames = self.left_context_frames[0]
+            else:
+                left_context_frames = random.choice(self.left_context_frames)
             # Note: in Python, -1 // n == -1 for n > 0
             left_context_chunks = left_context_frames // chunk_size
             if left_context_chunks == 0:
                 left_context_chunks = 1
-        return chunk_size, left_context_chunks
 
+        return chunk_size, left_context_chunks
 
     def forward(
         self,
@@ -312,64 +335,68 @@ class Zipformer2(EncoderInterface):
               of frames in `embeddings` before padding.
         """
         outputs = []
-        feature_masks = self.get_feature_masks(x)
+        if torch.jit.is_scripting() or torch.jit.is_tracing():
+            feature_masks = [1.0] * len(self.encoder_dim)
+        else:
+            feature_masks = self.get_feature_masks(x)
 
         chunk_size, left_context_chunks = self.get_chunk_info()
 
-        attn_mask = self._get_attn_mask(x, chunk_size, left_context_chunks)
+        if torch.jit.is_scripting() or torch.jit.is_tracing():
+            # Not support exporting a model for simulating streaming decoding
+            attn_mask = None
+        else:
+            attn_mask = self._get_attn_mask(x, chunk_size, left_context_chunks)
 
         if self.training and memory is not None:
             batch_size = x.shape[1]
             # setting memory to zero should be equivalent to not using the
             # memory input at all, since the Attention module has no biases.
-            memory = memory * (torch.rand(batch_size, 1, device=memory.device) >
-                               self.memory_dropout_rate)
+            memory = memory * (
+                torch.rand(batch_size, 1, device=memory.device)
+                > self.memory_dropout_rate
+            )
 
         for i, module in enumerate(self.encoders):
             ds = self.downsampling_factor[i]
             x = convert_num_channels(x, self.encoder_dim[i])
 
-            x = module(x,
-                       chunk_size=chunk_size,
-                       feature_mask=feature_masks[i],
-                       src_key_padding_mask=(None if src_key_padding_mask is None
-                                             else src_key_padding_mask[...,::ds]),
-                       attn_mask=attn_mask,
-                       memory=memory if i >= self.memory_layer else None,
-                       memory_key_padding_mask=memory_key_padding_mask if i >= self.memory_layer else None,
+            x = module(
+                x,
+                chunk_size=chunk_size,
+                feature_mask=feature_masks[i],
+                src_key_padding_mask=(
+                    None
+                    if src_key_padding_mask is None
+                    else src_key_padding_mask[..., ::ds]
+                ),
+                attn_mask=attn_mask,
+                memory=memory if i >= self.memory_layer else None,
+                memory_key_padding_mask=memory_key_padding_mask
+                if i >= self.memory_layer
+                else None,
             )
             outputs.append(x)
-
-        def get_full_dim_output():
-            num_encoders = len(self.encoder_dim)
-            assert len(outputs) == num_encoders
-            output_dim = max(self.encoder_dim)
-            output_pieces = [ outputs[-1] ]
-            cur_dim = self.encoder_dim[-1]
-            for i in range(num_encoders - 2, -1, -1):
-                d = self.encoder_dim[i]
-                if d > cur_dim:
-                    this_output = outputs[i]
-                    output_pieces.append(this_output[..., cur_dim:d])
-                    cur_dim = d
-            assert cur_dim == output_dim
-            return torch.cat(output_pieces, dim=-1)
 
         # if the last output has the largest dimension, x will be unchanged,
         # it will be the same as outputs[-1].  Otherwise it will be concatenated
         # from different pieces of 'outputs', taking each dimension from the
         # most recent output that has it present.
-        x = get_full_dim_output()
+        x = self._get_full_dim_output(outputs)
         x = self.downsample_output(x)
-
-        d = self.output_downsampling_factor
-        lengths = (x_lens + d - 1) // d
+        # class Downsample has this rounding behavior..
+        assert self.output_downsampling_factor == 2, self.output_downsampling_factor
+        if torch.jit.is_scripting() or torch.jit.is_tracing():
+            lengths = (x_lens + 1) // 2
+        else:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                lengths = (x_lens + 1) // 2
 
         return x, lengths
 
-    def _get_attn_mask(self, x: Tensor,
-                       chunk_size: int,
-                       left_context_chunks: int
+    def _get_attn_mask(
+        self, x: Tensor, chunk_size: int, left_context_chunks: int
     ) -> Optional[Tensor]:
         """
         Return None if chunk_size == -1, else return attention mask of shape
@@ -384,9 +411,11 @@ class Zipformer2(EncoderInterface):
         assert all(chunk_size % d == 0 for d in self.downsampling_factor)
         if left_context_chunks >= 0:
             num_encoders = len(self.encoder_dim)
-            assert all (chunk_size * left_context_chunks >=
-                        (self.cnn_module_kernel[i] // 2) * self.downsampling_factor[i]
-                        for i in range(num_encoders))
+            assert all(
+                chunk_size * left_context_chunks
+                >= (self.cnn_module_kernel[i] // 2) * self.downsampling_factor[i]
+                for i in range(num_encoders)
+            )
         else:
             left_context_chunks = 1000000
 
@@ -395,25 +424,157 @@ class Zipformer2(EncoderInterface):
         # t is frame index, shape (seq_len,)
         t = torch.arange(seq_len, dtype=torch.int32, device=x.device)
         # c is chunk index for each frame, shape (seq_len,)
-        c = t // chunk_size
+        if torch.jit.is_scripting() or torch.jit.is_tracing():
+            c = t // chunk_size
+        else:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                c = t // chunk_size
         src_c = c
         tgt_c = c.unsqueeze(-1)
 
-        attn_mask = torch.logical_or(src_c > tgt_c,
-                                     src_c < tgt_c - left_context_chunks)
+        attn_mask = torch.logical_or(src_c > tgt_c, src_c < tgt_c - left_context_chunks)
         if __name__ == "__main__":
             logging.info(f"attn_mask = {attn_mask}")
         return attn_mask
 
+    def _get_full_dim_output(self, outputs: List[Tensor]):
+        num_encoders = len(self.encoder_dim)
+        assert len(outputs) == num_encoders
+        output_dim = max(self.encoder_dim)
+        output_pieces = [outputs[-1]]
+        cur_dim = self.encoder_dim[-1]
+        for i in range(num_encoders - 2, -1, -1):
+            d = self.encoder_dim[i]
+            if d > cur_dim:
+                this_output = outputs[i]
+                output_pieces.append(this_output[..., cur_dim:d])
+                cur_dim = d
+        assert cur_dim == output_dim
+        return torch.cat(output_pieces, dim=-1)
+
+    def streaming_forward(
+        self,
+        x: Tensor,
+        x_lens: Tensor,
+        states: List[Tensor],
+        src_key_padding_mask: Tensor,
+    ) -> Tuple[Tensor, Tensor, List[Tensor]]:
+        """
+        Args:
+          x:
+            The input tensor. Its shape is (seq_len, batch_size, feature_dim).
+          x_lens:
+            A tensor of shape (batch_size,) containing the number of frames in
+            `x` before padding.
+          states: list of cached tensors of all encoder layers. For layer-i,
+            states[i*6:(i+1)*6] is (cached_key, cached_nonlin_attn, cached_val1, cached_val2,
+            cached_conv1, cached_conv2).
+          src_key_padding_mask:
+            The mask for padding, of shape (batch_size, seq_len); True means
+            masked position. May be None.
+        Returns:
+          Return a tuple containing 2 tensors:
+            - embeddings: its shape is (output_seq_len, batch_size, max(encoder_dim))
+            - lengths, a tensor of shape (batch_size,) containing the number
+              of frames in `embeddings` before padding.
+            - updated states
+        """
+        outputs = []
+        new_states = []
+        layer_offset = 0
+
+        for i, module in enumerate(self.encoders):
+            num_layers = module.num_layers
+            ds = self.downsampling_factor[i]
+            x = convert_num_channels(x, self.encoder_dim[i])
+
+            x, new_layer_states = module.streaming_forward(
+                x,
+                states=states[layer_offset * 6 : (layer_offset + num_layers) * 6],
+                left_context_len=self.left_context_frames[0] // ds,
+                src_key_padding_mask=src_key_padding_mask[..., ::ds],
+            )
+            layer_offset += num_layers
+            outputs.append(x)
+            new_states += new_layer_states
+
+        # if the last output has the largest dimension, x will be unchanged,
+        # it will be the same as outputs[-1].  Otherwise it will be concatenated
+        # from different pieces of 'outputs', taking each dimension from the
+        # most recent output that has it present.
+        x = self._get_full_dim_output(outputs)
+        x = self.downsample_output(x)
+        # class Downsample has this rounding behavior..
+        assert self.output_downsampling_factor == 2
+        if torch.jit.is_scripting() or torch.jit.is_tracing():
+            lengths = (x_lens + 1) // 2
+        else:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                lengths = (x_lens + 1) // 2
+
+        return x, lengths, new_states
+
+    @torch.jit.export
+    def get_init_states(
+        self,
+        batch_size: int = 1,
+        device: torch.device = torch.device("cpu"),
+    ) -> List[Tensor]:
+        """Get initial states.
+
+        A list of cached tensors of all encoder layers. For layer-i, states[i*6:(i+1)*6]
+        is (cached_key, cached_nonlin_attn, cached_val1, cached_val2, cached_conv1, cached_conv2).
+        """
+        states = []
+        for i, module in enumerate(self.encoders):
+            num_layers = module.num_layers
+            embed_dim = self.encoder_dim[i]
+            ds = self.downsampling_factor[i]
+            num_heads = self.num_heads[i]
+            key_dim = self.query_head_dim[i] * num_heads
+            value_dim = self.value_head_dim[i] * num_heads
+            downsample_left = self.left_context_frames[0] // ds
+            nonlin_attn_head_dim = 3 * embed_dim // 4
+            conv_left_pad = self.cnn_module_kernel[i] // 2
+            for layer in range(num_layers):
+                cached_key = torch.zeros(downsample_left, batch_size, key_dim).to(
+                    device
+                )
+                cached_nonlin_attn = torch.zeros(
+                    1, batch_size, downsample_left, nonlin_attn_head_dim
+                ).to(device)
+                cached_val1 = torch.zeros(downsample_left, batch_size, value_dim).to(
+                    device
+                )
+                cached_val2 = torch.zeros(downsample_left, batch_size, value_dim).to(
+                    device
+                )
+                cached_conv1 = torch.zeros(batch_size, embed_dim, conv_left_pad).to(
+                    device
+                )
+                cached_conv2 = torch.zeros(batch_size, embed_dim, conv_left_pad).to(
+                    device
+                )
+                states += [
+                    cached_key,
+                    cached_nonlin_attn,
+                    cached_val1,
+                    cached_val2,
+                    cached_conv1,
+                    cached_conv2,
+                ]
+
+        return states
+
 
 def _whitening_schedule(x: float, ratio: float = 2.0) -> ScheduledFloat:
-    return ScheduledFloat((0.0, x),
-                          (20000.0, ratio * x),
-                          default=x)
+    return ScheduledFloat((0.0, x), (20000.0, ratio * x), default=x)
+
 
 def _balancer_schedule(min_prob: float):
     return ScheduledFloat((0.0, 0.4), (8000.0, min_prob))
-
 
 
 class Zipformer2EncoderLayer(nn.Module):
@@ -431,35 +592,48 @@ class Zipformer2EncoderLayer(nn.Module):
         >>> pos_emb = torch.rand(32, 19, 512)
         >>> out = encoder_layer(src, pos_emb)
     """
+
     def __init__(
-            self,
-            embed_dim: int,
-            pos_dim: int,
-            num_heads: int,
-            query_head_dim: int,
-            pos_head_dim: int,
-            value_head_dim: int,
-            feedforward_dim: int,
-            dropout: FloatLike = 0.1,
-            cnn_module_kernel: int = 31,
-            causal: bool = False,
-            memory_dim: int = -1,
-            attention_skip_rate: FloatLike = ScheduledFloat((0.0, 0.2), (4000.0, 0.05), (16000, 0.0), default=0),
-            conv_skip_rate: FloatLike = ScheduledFloat((0.0, 0.2), (4000.0, 0.05), (16000, 0.0), default=0),
-            const_attention_rate: FloatLike = ScheduledFloat((0.0, 0.25), (4000.0, 0.025), default=0),
-            ff2_skip_rate: FloatLike = ScheduledFloat((0.0, 0.1), (4000.0, 0.01), (50000.0, 0.0)),
-            ff3_skip_rate: FloatLike = ScheduledFloat((0.0, 0.1), (4000.0, 0.01), (50000.0, 0.0)),
-            bypass_skip_rate: FloatLike = ScheduledFloat((0.0, 0.5), (4000.0, 0.02), default=0),
+        self,
+        embed_dim: int,
+        pos_dim: int,
+        num_heads: int,
+        query_head_dim: int,
+        pos_head_dim: int,
+        value_head_dim: int,
+        feedforward_dim: int,
+        dropout: FloatLike = 0.1,
+        cnn_module_kernel: int = 31,
+        causal: bool = False,
+        memory_dim: int = -1,
+        attention_skip_rate: FloatLike = ScheduledFloat(
+            (0.0, 0.2), (4000.0, 0.05), (16000, 0.0), default=0
+        ),
+        conv_skip_rate: FloatLike = ScheduledFloat(
+            (0.0, 0.2), (4000.0, 0.05), (16000, 0.0), default=0
+        ),
+        const_attention_rate: FloatLike = ScheduledFloat(
+            (0.0, 0.25), (4000.0, 0.025), default=0
+        ),
+        ff2_skip_rate: FloatLike = ScheduledFloat(
+            (0.0, 0.1), (4000.0, 0.01), (50000.0, 0.0)
+        ),
+        ff3_skip_rate: FloatLike = ScheduledFloat(
+            (0.0, 0.1), (4000.0, 0.01), (50000.0, 0.0)
+        ),
+        bypass_skip_rate: FloatLike = ScheduledFloat(
+            (0.0, 0.5), (4000.0, 0.02), default=0
+        ),
     ) -> None:
         super(Zipformer2EncoderLayer, self).__init__()
         self.embed_dim = embed_dim
 
         # self.bypass implements layer skipping as well as bypass; see its default values.
-        self.bypass = BypassModule(embed_dim, skip_rate=bypass_skip_rate,
-                                   straight_through_rate=0.025)
+        self.bypass = BypassModule(
+            embed_dim, skip_rate=bypass_skip_rate, straight_through_rate=0
+        )
         # bypass_mid is bypass used in the middle of the layer.
-        self.bypass_mid = BypassModule(embed_dim, straight_through_rate=0.025)
-
+        self.bypass_mid = BypassModule(embed_dim, straight_through_rate=0)
 
         # skip probability for dynamic modules (meaning: anything but feedforward).
         self.attention_skip_rate = copy.deepcopy(attention_skip_rate)
@@ -475,76 +649,77 @@ class Zipformer2EncoderLayer(nn.Module):
         self.const_attention_rate = copy.deepcopy(const_attention_rate)
 
         self.self_attn_weights = RelPositionMultiheadAttentionWeights(
-            embed_dim, pos_dim=pos_dim, num_heads=num_heads,
-            query_head_dim=query_head_dim, pos_head_dim=pos_head_dim,
+            embed_dim,
+            pos_dim=pos_dim,
+            num_heads=num_heads,
+            query_head_dim=query_head_dim,
+            pos_head_dim=pos_head_dim,
             dropout=0.0,
         )
 
+        self.self_attn1 = Attention(embed_dim, embed_dim, num_heads, value_head_dim)
 
-        self.self_attn1 = Attention(embed_dim, embed_dim, num_heads,
-                                        value_head_dim)
-
-        self.self_attn2 = Attention(embed_dim, embed_dim, num_heads,
-                                    value_head_dim)
+        self.self_attn2 = Attention(embed_dim, embed_dim, num_heads, value_head_dim)
 
         if memory_dim > 0:
             self.attn_weights = MultiheadAttentionWeights(
-                memory_dim, embed_dim,
+                memory_dim,
+                embed_dim,
                 num_heads=num_heads,
                 head_dim=query_head_dim,
                 dropout=0.0,
             )
-            self.src_attn1 = Attention(memory_dim, embed_dim, num_heads,
-                                       value_head_dim)
-            self.src_attn2 = Attention(memory_dim, embed_dim, num_heads,
-                                       value_head_dim)
+            self.src_attn1 = Attention(memory_dim, embed_dim, num_heads, value_head_dim)
+            self.src_attn2 = Attention(memory_dim, embed_dim, num_heads, value_head_dim)
             self.memory_balancer = Balancer(
                 embed_dim,
                 channel_dim=-1,
                 min_abs=0.015,
             )
 
+        self.feed_forward1 = FeedforwardModule(
+            embed_dim, (feedforward_dim * 3) // 4, dropout
+        )
 
-        self.feed_forward1 = FeedforwardModule(embed_dim,
-                                               (feedforward_dim * 3) // 4,
-                                               dropout)
+        self.feed_forward2 = FeedforwardModule(embed_dim, feedforward_dim, dropout)
 
-        self.feed_forward2 = FeedforwardModule(embed_dim,
-                                               feedforward_dim,
-                                               dropout)
+        self.feed_forward3 = FeedforwardModule(
+            embed_dim, (feedforward_dim * 5) // 4, dropout
+        )
 
-        self.feed_forward3 = FeedforwardModule(embed_dim,
-                                               (feedforward_dim * 5) // 4,
-                                               dropout)
+        self.nonlin_attention = NonlinAttention(
+            embed_dim, hidden_channels=3 * embed_dim // 4
+        )
 
-        self.nonlin_attention = NonlinAttention(embed_dim,
-                                                hidden_channels=3 * embed_dim // 4)
+        self.conv_module1 = ConvolutionModule(
+            embed_dim, cnn_module_kernel, causal=causal
+        )
 
-        self.conv_module1 = ConvolutionModule(embed_dim,
-                                             cnn_module_kernel,
-                                             causal=causal)
+        self.conv_module2 = ConvolutionModule(
+            embed_dim, cnn_module_kernel, causal=causal
+        )
 
-        self.conv_module2 = ConvolutionModule(embed_dim,
-                                              cnn_module_kernel,
-                                              causal=causal)
-
-
-        #self.attention_squeeze = AttentionSqueeze(embed_dim, embed_dim // 2)
+        # self.attention_squeeze = AttentionSqueeze(embed_dim, embed_dim // 2)
 
         self.norm = BiasNorm(embed_dim)
 
         self.bypass_scale = nn.Parameter(torch.full((embed_dim,), 0.5))
 
         self.balancer1 = Balancer(
-            embed_dim, channel_dim=-1,
-            min_positive=0.45, max_positive=0.55,
-            min_abs=0.2, max_abs=4.0,
+            embed_dim,
+            channel_dim=-1,
+            min_positive=0.45,
+            max_positive=0.55,
+            min_abs=0.2,
+            max_abs=4.0,
         )
 
         # balancer for output of NonlinAttentionModule
         self.balancer_na = Balancer(
-            embed_dim, channel_dim=-1,
-            min_positive=0.3, max_positive=0.7,
+            embed_dim,
+            channel_dim=-1,
+            min_positive=0.3,
+            max_positive=0.7,
             min_abs=ScheduledFloat((0.0, 0.004), (4000.0, 0.02)),
             prob=0.05,  # out of concern for memory usage
         )
@@ -553,32 +728,40 @@ class Zipformer2EncoderLayer(nn.Module):
         # small.  give this a very small probability, even at the start of
         # training, it's to fix a rare problem and it's OK to fix it slowly.
         self.balancer_ff2 = Balancer(
-            embed_dim, channel_dim=-1,
-            min_positive=0.3, max_positive=0.7,
+            embed_dim,
+            channel_dim=-1,
+            min_positive=0.3,
+            max_positive=0.7,
             min_abs=ScheduledFloat((0.0, 0.0), (4000.0, 0.1), default=0.0),
             max_abs=2.0,
             prob=0.05,
         )
 
         self.balancer_ff3 = Balancer(
-            embed_dim, channel_dim=-1,
-            min_positive=0.3, max_positive=0.7,
+            embed_dim,
+            channel_dim=-1,
+            min_positive=0.3,
+            max_positive=0.7,
             min_abs=ScheduledFloat((0.0, 0.0), (4000.0, 0.2), default=0.0),
             max_abs=4.0,
             prob=0.05,
         )
 
-        self.whiten = Whiten(num_groups=1,
-                             whitening_limit=_whitening_schedule(4.0, ratio=3.0),
-                             prob=(0.025, 0.25),
-                             grad_scale=0.01)
-
-        self.balancer2 = Balancer(
-            embed_dim, channel_dim=-1,
-            min_positive=0.45, max_positive=0.55,
-            min_abs=0.1, max_abs=4.0,
+        self.whiten = Whiten(
+            num_groups=1,
+            whitening_limit=_whitening_schedule(4.0, ratio=3.0),
+            prob=(0.025, 0.25),
+            grad_scale=0.01,
         )
 
+        self.balancer2 = Balancer(
+            embed_dim,
+            channel_dim=-1,
+            min_positive=0.45,
+            max_positive=0.55,
+            min_abs=0.1,
+            max_abs=4.0,
+        )
 
     def get_bypass_scale(self, batch_size: int):
         # returns bypass-scale of shape (num_channels,),
@@ -588,9 +771,11 @@ class Zipformer2EncoderLayer(nn.Module):
         if torch.jit.is_scripting() or not self.training:
             return self.bypass_scale
         else:
-            ans = limit_param_value(self.bypass_scale,
-                                    min=float(self.bypass_min),
-                                    max=float(self.bypass_max))
+            ans = limit_param_value(
+                self.bypass_scale,
+                min=float(self.bypass_min),
+                max=float(self.bypass_max),
+            )
             layer_skip_rate = float(self.layer_skip_rate)
             if layer_skip_rate != 0.0:
                 mask = torch.rand((batch_size, 1), device=ans.device) > layer_skip_rate
@@ -599,13 +784,14 @@ class Zipformer2EncoderLayer(nn.Module):
                 # on which we have randomly chosen to do layer-skipping.
             return ans
 
-    def get_sequence_dropout_mask(self, x: Tensor, dropout_rate: float) -> Optional[Tensor]:
+    def get_sequence_dropout_mask(
+        self, x: Tensor, dropout_rate: float
+    ) -> Optional[Tensor]:
         if dropout_rate == 0.0 or not self.training or torch.jit.is_scripting():
             return None
         batch_size = x.shape[1]
         mask = (torch.rand(batch_size, 1, device=x.device) > dropout_rate).to(x.dtype)
         return mask
-
 
     def sequence_dropout(self, x: Tensor, dropout_rate: float) -> Tensor:
         """
@@ -618,7 +804,6 @@ class Zipformer2EncoderLayer(nn.Module):
         else:
             return x * dropout_mask
 
-
     def forward(
         self,
         src: Tensor,
@@ -630,21 +815,21 @@ class Zipformer2EncoderLayer(nn.Module):
         memory_key_padding_mask: Optional[Tensor] = None,
     ) -> Tensor:
         """
-        Pass the input through the encoder layer.
-        Args:
-            src: the sequence to the encoder (required): shape (seq_len, batch_size, embedding_dim).
-         pos_emb: (1, 2*seq_len-1, pos_emb_dim) or (batch_size, 2*seq_len-1, pos_emb_dim)
-         chunk_size: the number of frames per chunk, of >= 0; if -1, no chunking.
-       feature_mask: something that broadcasts with src, that we'll multiply `src`
-              by at every layer: if a Tensor, likely of shape (seq_len, batch_size, embedding_dim)
-         attn_mask: the attention mask, of shape (batch_size, seq_len, seq_len) or (seq_len, seq_len),
-                interpreted as (batch_size, tgt_seq_len, src_seq_len) or (tgt_seq_len, src_seq_len).
-               True means masked position. May be None.
-    src_key_padding_mask:  the mask for padding, of shape (batch_size, seq_len); True means
-             masked position.  May be None.
+            Pass the input through the encoder layer.
+            Args:
+                src: the sequence to the encoder (required): shape (seq_len, batch_size, embedding_dim).
+             pos_emb: (1, 2*seq_len-1, pos_emb_dim) or (batch_size, 2*seq_len-1, pos_emb_dim)
+             chunk_size: the number of frames per chunk, of >= 0; if -1, no chunking.
+           feature_mask: something that broadcasts with src, that we'll multiply `src`
+                  by at every layer: if a Tensor, likely of shape (seq_len, batch_size, embedding_dim)
+             attn_mask: the attention mask, of shape (batch_size, seq_len, seq_len) or (seq_len, seq_len),
+                    interpreted as (batch_size, tgt_seq_len, src_seq_len) or (tgt_seq_len, src_seq_len).
+                   True means masked position. May be None.
+        src_key_padding_mask:  the mask for padding, of shape (batch_size, seq_len); True means
+                 masked position.  May be None.
 
-        Returns:
-           A tensor which has the same shape as src
+            Returns:
+               A tensor which has the same shape as src
         """
         src_orig = src
 
@@ -659,7 +844,7 @@ class Zipformer2EncoderLayer(nn.Module):
             key_padding_mask=src_key_padding_mask,
         )
 
-        if memory is not None and hasattr(self, 'attn_weights'):
+        if memory is not None and hasattr(self, "attn_weights"):
             src_attn_weights = self.attn_weights(memory, src, memory_key_padding_mask)
 
         src = src + self.feed_forward1(src)
@@ -674,50 +859,66 @@ class Zipformer2EncoderLayer(nn.Module):
                 # averaging-over-time operation.
                 # only need the mask, can just use the 1st one and expand later
                 selected_attn_weights = selected_attn_weights[0:1]
-                selected_attn_weights = (selected_attn_weights > 0.0).to(selected_attn_weights.dtype)
-                selected_attn_weights = selected_attn_weights * (1.0 / selected_attn_weights.sum(dim=-1, keepdim=True))
+                selected_attn_weights = (selected_attn_weights > 0.0).to(
+                    selected_attn_weights.dtype
+                )
+                selected_attn_weights = selected_attn_weights * (
+                    1.0 / selected_attn_weights.sum(dim=-1, keepdim=True)
+                )
                 selected_attn_weights = selected_attn_weights.expand(2, -1, -1, -1)
 
-
-        na = self.balancer_na(self.nonlin_attention(src,
-                                                    selected_attn_weights[0:1]))
+        na = self.balancer_na(self.nonlin_attention(src, selected_attn_weights[0:1]))
 
         src = src + (na if attn_dropout_mask is None else na * attn_dropout_mask)
 
-        self_attn = self.self_attn1(
-            src, attn_weights)
+        self_attn = self.self_attn1(src, attn_weights)
 
-        src = src + (self_attn if attn_dropout_mask is None else self_attn * attn_dropout_mask)
+        src = src + (
+            self_attn if attn_dropout_mask is None else self_attn * attn_dropout_mask
+        )
 
-        if memory is not None and hasattr(self, 'attn_weights'):
-            src = src + self.sequence_dropout(self.memory_balancer(self.src_attn1(memory, src_attn_weights)),
-                                              attention_skip_rate)
+        if memory is not None and hasattr(self, "attn_weights"):
+            src = src + self.sequence_dropout(
+                self.memory_balancer(self.src_attn1(memory, src_attn_weights)),
+                attention_skip_rate,
+            )
 
-        src = src + self.sequence_dropout(self.conv_module1(src, chunk_size=chunk_size,
-                                                            src_key_padding_mask=src_key_padding_mask),
-                                          float(self.conv_skip_rate))
+        src = src + self.sequence_dropout(
+            self.conv_module1(
+                src, chunk_size=chunk_size, src_key_padding_mask=src_key_padding_mask
+            ),
+            float(self.conv_skip_rate),
+        )
 
-        src = src + self.sequence_dropout(self.balancer_ff2(self.feed_forward2(src)),
-                                          float(self.ff2_skip_rate))
+        src = src + self.sequence_dropout(
+            self.balancer_ff2(self.feed_forward2(src)), float(self.ff2_skip_rate)
+        )
 
         # bypass in the middle of the layer.
         src = self.bypass_mid(src_orig, src)
 
-        self_attn = self.self_attn2(
-            src, attn_weights)
+        self_attn = self.self_attn2(src, attn_weights)
 
-        src = src + (self_attn if attn_dropout_mask is None else self_attn * attn_dropout_mask)
+        src = src + (
+            self_attn if attn_dropout_mask is None else self_attn * attn_dropout_mask
+        )
 
-        if memory is not None and hasattr(self, 'attn_weights'):
-            src = src + self.sequence_dropout(self.memory_balancer(self.src_attn2(memory, src_attn_weights)),
-                                              attention_skip_rate)
+        if memory is not None and hasattr(self, "attn_weights"):
+            src = src + self.sequence_dropout(
+                self.memory_balancer(self.src_attn2(memory, src_attn_weights)),
+                attention_skip_rate,
+            )
 
-        src = src + self.sequence_dropout(self.conv_module2(src, chunk_size=chunk_size,
-                                                            src_key_padding_mask=src_key_padding_mask),
-                                          float(self.conv_skip_rate))
+        src = src + self.sequence_dropout(
+            self.conv_module2(
+                src, chunk_size=chunk_size, src_key_padding_mask=src_key_padding_mask
+            ),
+            float(self.conv_skip_rate),
+        )
 
-        src = src + self.sequence_dropout(self.balancer_ff3(self.feed_forward3(src)),
-                                          float(self.ff3_skip_rate))
+        src = src + self.sequence_dropout(
+            self.balancer_ff3(self.feed_forward3(src)), float(self.ff3_skip_rate)
+        )
 
         src = self.balancer1(src)
         src = self.norm(src)
@@ -728,6 +929,7 @@ class Zipformer2EncoderLayer(nn.Module):
         src = self.whiten(src)
 
         return src
+
 
 class Zipformer2Encoder(nn.Module):
     r"""Zipformer2Encoder is a stack of N encoder layers
@@ -743,20 +945,22 @@ class Zipformer2Encoder(nn.Module):
         >>> src = torch.rand(10, 32, 512)
         >>> out = zipformer_encoder(src)
     """
+
     def __init__(
-            self,
-            encoder_layer: nn.Module,
-            num_layers: int,
-            pos_dim: int,
-            dropout: float,
-            warmup_begin: float,
-            warmup_end: float,
-            initial_layerdrop_rate: float = 0.5,
-            final_layerdrop_rate: float = 0.05,
+        self,
+        encoder_layer: nn.Module,
+        num_layers: int,
+        pos_dim: int,
+        dropout: float,
+        warmup_begin: float,
+        warmup_end: float,
+        initial_layerdrop_rate: float = 0.5,
+        final_layerdrop_rate: float = 0.05,
     ) -> None:
         super().__init__()
-        self.encoder_pos = CompactRelPositionalEncoding(pos_dim, dropout_rate=0.15,
-                                                        length_factor=1.0)
+        self.encoder_pos = CompactRelPositionalEncoding(
+            pos_dim, dropout_rate=0.15, length_factor=1.0
+        )
 
         self.layers = nn.ModuleList(
             [copy.deepcopy(encoder_layer) for i in range(num_layers)]
@@ -765,13 +969,15 @@ class Zipformer2Encoder(nn.Module):
 
         assert 0 <= warmup_begin <= warmup_end
 
-        delta = (1. / num_layers) * (warmup_end - warmup_begin)
+        delta = (1.0 / num_layers) * (warmup_end - warmup_begin)
         cur_begin = warmup_begin  # interpreted as a training batch index
         for i in range(num_layers):
             cur_end = cur_begin + delta
-            self.layers[i].bypass.skip_rate = ScheduledFloat((cur_begin, initial_layerdrop_rate),
-                                                             (cur_end, final_layerdrop_rate),
-                                                             default=0.0)
+            self.layers[i].bypass.skip_rate = ScheduledFloat(
+                (cur_begin, initial_layerdrop_rate),
+                (cur_end, final_layerdrop_rate),
+                default=0.0,
+            )
             cur_begin = cur_end
 
     def forward(
@@ -806,8 +1012,6 @@ class Zipformer2Encoder(nn.Module):
         pos_emb = self.encoder_pos(src)
         output = src
 
-        rnd_seed = src.numel() + random.randint(0, 1000)
-
         output = output * feature_mask
 
         for i, mod in enumerate(self.layers):
@@ -833,20 +1037,21 @@ class BypassModule(nn.Module):
     "straight-through", i.e. to not do the bypass operation much initially, in order to
     force all the modules to learn something.
     """
+
     def __init__(
-            self,
-            embed_dim: int,
-            skip_rate: FloatLike = 0.0,
-            straight_through_rate: FloatLike = 0.0,
-            scale_min: FloatLike = ScheduledFloat((0.0, 0.9), (20000.0, 0.2), default=0),
-            scale_max: FloatLike = 1.0):
+        self,
+        embed_dim: int,
+        skip_rate: FloatLike = 0.0,
+        straight_through_rate: FloatLike = 0.0,
+        scale_min: FloatLike = ScheduledFloat((0.0, 0.9), (20000.0, 0.2), default=0),
+        scale_max: FloatLike = 1.0,
+    ):
         super().__init__()
         self.bypass_scale = nn.Parameter(torch.full((embed_dim,), 0.5))
         self.skip_rate = copy.deepcopy(skip_rate)
         self.straight_through_rate = copy.deepcopy(straight_through_rate)
         self.scale_min = copy.deepcopy(scale_min)
         self.scale_max = copy.deepcopy(scale_max)
-
 
     def _get_bypass_scale(self, batch_size: int):
         # returns bypass-scale of shape (num_channels,),
@@ -856,9 +1061,9 @@ class BypassModule(nn.Module):
         if torch.jit.is_scripting() or not self.training:
             return self.bypass_scale
         else:
-            ans = limit_param_value(self.bypass_scale,
-                                    min=float(self.scale_min),
-                                    max=float(self.scale_max))
+            ans = limit_param_value(
+                self.bypass_scale, min=float(self.scale_min), max=float(self.scale_max)
+            )
             skip_rate = float(self.skip_rate)
             if skip_rate != 0.0:
                 mask = torch.rand((batch_size, 1), device=ans.device) > skip_rate
@@ -867,22 +1072,21 @@ class BypassModule(nn.Module):
                 # on which we have randomly chosen to do layer-skipping.
             straight_through_rate = float(self.straight_through_rate)
             if straight_through_rate != 0.0:
-                mask = torch.rand((batch_size, 1), device=ans.device) < straight_through_rate
+                mask = (
+                    torch.rand((batch_size, 1), device=ans.device)
+                    < straight_through_rate
+                )
                 ans = torch.maximum(ans, mask.to(ans.dtype))
 
             return ans
 
-    def forward(self,
-                src_orig: Tensor,
-                src: Tensor):
+    def forward(self, src_orig: Tensor, src: Tensor):
         """
         Args: src_orig and src are both of shape (seq_len, batch_size, num_channels)
         Returns: something with the same shape as src and src_orig
         """
         bypass_scale = self._get_bypass_scale(src.shape[1])
-        return src_orig + (src - src_orig)  * bypass_scale
-
-
+        return src_orig + (src - src_orig) * bypass_scale
 
 
 class DownsampledZipformer2Encoder(nn.Module):
@@ -891,28 +1095,26 @@ class DownsampledZipformer2Encoder(nn.Module):
     after convolutional downsampling, and then upsampled again at the output, and combined
     with the origin input, so that the output has the same shape as the input.
     """
-    def __init__(self,
-                 encoder: nn.Module,
-                 dim: int,
-                 downsample: int,
-                 dropout: FloatLike):
+
+    def __init__(
+        self, encoder: nn.Module, dim: int, downsample: int, dropout: FloatLike
+    ):
         super(DownsampledZipformer2Encoder, self).__init__()
         self.downsample_factor = downsample
-        self.downsample = SimpleDownsample(dim,
-                                           downsample, dropout)
+        self.downsample = SimpleDownsample(dim, downsample, dropout)
         self.encoder = encoder
         self.upsample = SimpleUpsample(dim, downsample)
         self.out_combiner = BypassModule(dim, straight_through_rate=0.025)
 
-
-    def forward(self,
-                src: Tensor,
-                chunk_size: int = -1,
-                feature_mask: Union[Tensor, float] = 1.0,
-                attn_mask: Optional[Tensor] = None,
-                src_key_padding_mask: Optional[Tensor] = None,
-                memory: Optional[Tensor] = None,
-                memory_key_padding_mask: Optional[Tensor] = None,
+    def forward(
+        self,
+        src: Tensor,
+        chunk_size: int = -1,
+        feature_mask: Union[Tensor, float] = 1.0,
+        attn_mask: Optional[Tensor] = None,
+        src_key_padding_mask: Optional[Tensor] = None,
+        memory: Optional[Tensor] = None,
+        memory_key_padding_mask: Optional[Tensor] = None,
     ) -> Tuple[Tensor, Tensor]:
         r"""Downsample, go through encoder, upsample.
 
@@ -936,7 +1138,7 @@ class DownsampledZipformer2Encoder(nn.Module):
         src = self.downsample(src)
         ds = self.downsample_factor
         if attn_mask is not None:
-            attn_mask = attn_mask[::ds,::ds]
+            attn_mask = attn_mask[::ds, ::ds]
 
         src = self.encoder(
             src,
@@ -949,31 +1151,27 @@ class DownsampledZipformer2Encoder(nn.Module):
         )
         src = self.upsample(src)
         # remove any extra frames that are not a multiple of downsample_factor
-        src = src[:src_orig.shape[0]]
+        src = src[: src_orig.shape[0]]
 
         return self.out_combiner(src_orig, src)
-
 
 
 class SimpleDownsample(torch.nn.Module):
     """
     Does downsampling with attention, by weighted sum, and a projection..
     """
-    def __init__(self,
-                 channels: int,
-                 downsample: int,
-                 dropout: FloatLike):
+
+    def __init__(self, channels: int, downsample: int, dropout: FloatLike):
         super(SimpleDownsample, self).__init__()
 
         self.bias = nn.Parameter(torch.zeros(downsample))
 
-        self.name = None # will be set from training code
+        self.name = None  # will be set from training code
         self.dropout = copy.deepcopy(dropout)
 
         self.downsample = downsample
 
-    def forward(self,
-                src: Tensor) -> Tensor:
+    def forward(self, src: Tensor) -> Tensor:
         """
         x: (seq_len, batch_size, in_channels)
         Returns a tensor of shape
@@ -987,7 +1185,7 @@ class SimpleDownsample(torch.nn.Module):
         if seq_len != d_seq_len * ds:
             # right-pad src, repeating the last element.
             pad = d_seq_len * ds - seq_len
-            src_extra = src[src.shape[0]-1:].expand(pad, src.shape[1], src.shape[2])
+            src_extra = src[src.shape[0] - 1 :].expand(pad, src.shape[1], src.shape[2])
             src = torch.cat((src, src_extra), dim=0)
             assert src.shape[0] == d_seq_len * ds
 
@@ -1008,14 +1206,12 @@ class SimpleUpsample(torch.nn.Module):
     A very simple form of upsampling that mostly just repeats the input, but
     also adds a position-specific bias.
     """
-    def __init__(self,
-                 num_channels: int,
-                 upsample: int):
+
+    def __init__(self, num_channels: int, upsample: int):
         super(SimpleUpsample, self).__init__()
         self.upsample = upsample
 
-    def forward(self,
-                src: Tensor) -> Tensor:
+    def forward(self, src: Tensor) -> Tensor:
         """
         x: (seq_len, batch_size, num_channels)
         Returns a tensor of shape
@@ -1053,11 +1249,13 @@ class CompactRelPositionalEncoding(torch.nn.Module):
         length_factor: a heuristic scale (should be >= 1.0) which, if larger, gives
            less weight to small differences of offset near the origin.
     """
+
     def __init__(
-        self, embed_dim: int,
-            dropout_rate: FloatLike,
-            max_len: int = 1000,
-            length_factor: float = 1.0,
+        self,
+        embed_dim: int,
+        dropout_rate: FloatLike,
+        max_len: int = 1000,
+        length_factor: float = 1.0,
     ) -> None:
         """Construct a CompactRelPositionalEncoding object."""
         super(CompactRelPositionalEncoding, self).__init__()
@@ -1069,8 +1267,6 @@ class CompactRelPositionalEncoding(torch.nn.Module):
         self.length_factor = length_factor
         self.extend_pe(torch.tensor(0.0).expand(max_len))
 
-
-
     def extend_pe(self, x: Tensor) -> None:
         """Reset the positional encodings."""
         if self.pe is not None:
@@ -1078,27 +1274,28 @@ class CompactRelPositionalEncoding(torch.nn.Module):
             # the length of self.pe is 2 * input_len - 1
             if self.pe.size(0) >= x.size(0) * 2 - 1:
                 # Note: TorchScript doesn't implement operator== for torch.Device
-                if self.pe.dtype != x.dtype or str(self.pe.device) != str(
-                    x.device
-                ):
+                if self.pe.dtype != x.dtype or str(self.pe.device) != str(x.device):
                     self.pe = self.pe.to(dtype=x.dtype, device=x.device)
                 return
 
         T = x.size(0)
         # if T == 4, x would contain [ -3, -2, 1, 0, 1, 2, 3 ]
-        x = torch.arange(-(T-1), T,
-                         device=x.device).to(torch.float32).unsqueeze(1)
+        x = torch.arange(-(T - 1), T, device=x.device).to(torch.float32).unsqueeze(1)
 
         freqs = 1 + torch.arange(self.embed_dim // 2, device=x.device)
 
         # `compression_length` this is arbitrary/heuristic, if it is larger we have more resolution
         # for small time offsets but less resolution for large time offsets.
-        compression_length = (self.embed_dim ** 0.5)
+        compression_length = self.embed_dim**0.5
         # x_compressed, like X, goes from -infinity to infinity as T goes from -infinity to infinity;
         # but it does so more slowly than T for large absolute values of T.
         # The formula is chosen so that d(x_compressed )/dx is 1 around x == 0, which
         # is important.
-        x_compressed = compression_length * x.sign() * ((x.abs() + compression_length).log() - math.log(compression_length))
+        x_compressed = (
+            compression_length
+            * x.sign()
+            * ((x.abs() + compression_length).log() - math.log(compression_length))
+        )
 
         # if self.length_factor == 1.0, then length_scale is chosen so that the
         # FFT can exactly separate points close to the origin (T == 0).  So this
@@ -1109,7 +1306,7 @@ class CompactRelPositionalEncoding(torch.nn.Module):
         # note for machine implementations: if atan is not available, we can use:
         #   x.sign() * ((1 / (x.abs() + 1)) - 1)  * (-math.pi/2)
         #  check on wolframalpha.com: plot(sign(x) *  (1 / ( abs(x) + 1) - 1 ) * -pi/2 , atan(x))
-        x_atan = (x_compressed / length_scale).atan() # results between -pi and pi
+        x_atan = (x_compressed / length_scale).atan()  # results between -pi and pi
 
         cosines = (x_atan * freqs).cos()
         sines = (x_atan * freqs).sin()
@@ -1120,7 +1317,6 @@ class CompactRelPositionalEncoding(torch.nn.Module):
         pe[:, -1] = 1.0  # for bias.
 
         self.pe = pe.to(dtype=x.dtype)
-
 
     def forward(self, x: torch.Tensor) -> Tensor:
         """Create positional encoding.
@@ -1138,11 +1334,10 @@ class CompactRelPositionalEncoding(torch.nn.Module):
             - x.size(0)
             + 1 : self.pe.size(0) // 2  # noqa E203
             + x.size(0),
-            :
+            :,
         ]
         pos_emb = pos_emb.unsqueeze(0)
         return self.dropout(pos_emb)
-
 
 
 class RelPositionMultiheadAttentionWeights(nn.Module):
@@ -1166,15 +1361,14 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
     """
 
     def __init__(
-            self,
-            embed_dim: int,
-            pos_dim: int,
-            num_heads: int,
-            query_head_dim: int,
-            pos_head_dim: int,
-            dropout: float = 0.0,
-            pos_emb_skip_rate: FloatLike = ScheduledFloat((0.0, 0.5),
-                                                          (4000.0, 0.0))
+        self,
+        embed_dim: int,
+        pos_dim: int,
+        num_heads: int,
+        query_head_dim: int,
+        pos_head_dim: int,
+        dropout: float = 0.0,
+        pos_emb_skip_rate: FloatLike = ScheduledFloat((0.0, 0.5), (4000.0, 0.0)),
     ) -> None:
         super().__init__()
         self.embed_dim = embed_dim
@@ -1193,13 +1387,16 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         # dividing it between the query and key.   Note: this module is intended
         # to be used with the ScaledAdam optimizer; with most other optimizers,
         # it would be necessary to apply the scaling factor in the forward function.
-        self.in_proj = ScaledLinear(embed_dim, in_proj_dim, bias=True,
-                                    initial_scale=query_head_dim**-0.25)
+        self.in_proj = ScaledLinear(
+            embed_dim, in_proj_dim, bias=True, initial_scale=query_head_dim**-0.25
+        )
 
-        self.whiten_keys = Whiten(num_groups=num_heads,
-                                  whitening_limit=_whitening_schedule(3.0),
-                                  prob=(0.025, 0.25),
-                                  grad_scale=0.025)
+        self.whiten_keys = Whiten(
+            num_groups=num_heads,
+            whitening_limit=_whitening_schedule(3.0),
+            prob=(0.025, 0.25),
+            grad_scale=0.025,
+        )
 
         # add a balancer for the keys that runs with very small probability, and
         # tries to enforce that all dimensions have mean around zero.  The
@@ -1209,26 +1406,24 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         # bias because the small numerical roundoff tends to have a non-random
         # sign.  This module is intended to prevent that.  Use a very small
         # probability; that should be suffixient to fix the problem.
-        self.balance_keys = Balancer(key_head_dim * num_heads,
-                                     channel_dim=-1,
-                                     min_positive=0.4,
-                                     max_positive=0.6,
-                                     min_abs=0.0,
-                                     max_abs=100.0,
-                                     prob=0.025)
-
+        self.balance_keys = Balancer(
+            key_head_dim * num_heads,
+            channel_dim=-1,
+            min_positive=0.4,
+            max_positive=0.6,
+            min_abs=0.0,
+            max_abs=100.0,
+            prob=0.025,
+        )
 
         # linear transformation for positional encoding.
-        self.linear_pos = ScaledLinear(pos_dim,
-                                       num_heads * pos_head_dim,
-                                       bias=False,
-                                       initial_scale=0.05)
-
+        self.linear_pos = ScaledLinear(
+            pos_dim, num_heads * pos_head_dim, bias=False, initial_scale=0.05
+        )
 
         # the following are for diagnosics only, see --print-diagnostics option
         self.copy_pos_query = Identity()
         self.copy_query = Identity()
-
 
     def forward(
         self,
@@ -1261,17 +1456,15 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
 
         query_dim = query_head_dim * num_heads
 
-        q = x[...,0:query_dim]
-        k = x[...,query_dim:2*query_dim]
+        q = x[..., 0:query_dim]
+        k = x[..., query_dim : 2 * query_dim]
         # p is the position-encoding query
-        p = x[...,2*query_dim:]
+        p = x[..., 2 * query_dim :]
         assert p.shape[-1] == num_heads * pos_head_dim
-
 
         q = self.copy_query(q)  # for diagnostics only, does nothing.
         k = self.whiten_keys(self.balance_keys(k))  # does nothing in the forward pass.
         p = self.copy_pos_query(p)  # for diagnostics only, does nothing.
-
 
         q = q.reshape(seq_len, batch_size, num_heads, query_head_dim)
         p = p.reshape(seq_len, batch_size, num_heads, pos_head_dim)
@@ -1287,7 +1480,9 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         if not self.training or random.random() >= float(self.pos_emb_skip_rate):
             pos_emb = self.linear_pos(pos_emb)
             seq_len2 = 2 * seq_len - 1
-            pos_emb = pos_emb.reshape(-1, seq_len2, num_heads, pos_head_dim).permute(2, 0, 3, 1)
+            pos_emb = pos_emb.reshape(-1, seq_len2, num_heads, pos_head_dim).permute(
+                2, 0, 3, 1
+            )
             # pos shape now: (head, {1 or batch_size}, pos_dim, seq_len2)
 
             # (head, batch, time1, pos_dim) x (head, 1, pos_dim, seq_len2) -> (head, batch, time1, seq_len2)
@@ -1296,12 +1491,16 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
             # the following .as_strided() expression converts the last axis of pos_scores from relative
             # to absolute position.  I don't know whether I might have got the time-offsets backwards or
             # not, but let this code define which way round it is supposed to be.
-            pos_scores = pos_scores.as_strided((num_heads, batch_size, seq_len, seq_len),
-                                               (pos_scores.stride(0),
-                                                pos_scores.stride(1),
-                                                pos_scores.stride(2)-pos_scores.stride(3),
-                                                pos_scores.stride(3)),
-                                               storage_offset=pos_scores.stride(3) * (seq_len - 1))
+            pos_scores = pos_scores.as_strided(
+                (num_heads, batch_size, seq_len, seq_len),
+                (
+                    pos_scores.stride(0),
+                    pos_scores.stride(1),
+                    pos_scores.stride(2) - pos_scores.stride(3),
+                    pos_scores.stride(3),
+                ),
+                storage_offset=pos_scores.stride(3) * (seq_len - 1),
+            )
 
             attn_scores = attn_scores + pos_scores
 
@@ -1318,10 +1517,9 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
             # but we view this as a failsafe to avoid "implausible" parameter
             # values rather than a regularization method that should be active
             # under normal circumstances.
-            attn_scores = penalize_abs_values_gt(attn_scores,
-                                                 limit=25.0,
-                                                 penalty=1.0e-04,
-                                                 name=self.name)
+            attn_scores = penalize_abs_values_gt(
+                attn_scores, limit=25.0, penalty=1.0e-04, name=self.name
+            )
 
         assert attn_scores.shape == (num_heads, batch_size, seq_len, seq_len)
 
@@ -1334,7 +1532,10 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
             attn_scores = attn_scores.masked_fill(attn_mask, -1000)
 
         if key_padding_mask is not None:
-            assert key_padding_mask.shape == (batch_size, seq_len), key_padding_mask.shape
+            assert key_padding_mask.shape == (
+                batch_size,
+                seq_len,
+            ), key_padding_mask.shape
             attn_scores = attn_scores.masked_fill(
                 key_padding_mask.unsqueeze(1),
                 -1000,
@@ -1355,19 +1556,21 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
 
         return attn_weights
 
-
-    def _print_attn_entropy(
-            self,
-            attn_weights: Tensor):
+    def _print_attn_entropy(self, attn_weights: Tensor):
         # attn_weights: (num_heads, batch_size, seq_len, seq_len)
         (num_heads, batch_size, seq_len, seq_len) = attn_weights.shape
 
         with torch.no_grad():
             with torch.cuda.amp.autocast(enabled=False):
                 attn_weights = attn_weights.to(torch.float32)
-                attn_weights_entropy = -((attn_weights + 1.0e-20).log() * attn_weights).sum(
-                    dim=-1).mean(dim=(1,2))
-                logging.info(f"name={self.name}, attn_weights_entropy = {attn_weights_entropy}")
+                attn_weights_entropy = (
+                    -((attn_weights + 1.0e-20).log() * attn_weights)
+                    .sum(dim=-1)
+                    .mean(dim=(1, 2))
+                )
+                logging.info(
+                    f"name={self.name}, attn_weights_entropy = {attn_weights_entropy}"
+                )
 
 
 class Attention(nn.Module):
@@ -1381,27 +1584,28 @@ class Attention(nn.Module):
           num_heads: the number of attention heads
           value_head_dim: the value dimension per head
     """
+
     def __init__(
-            self,
-            embed_dim_in: int,
-            embed_dim_out: int,
-            num_heads: int,
-            value_head_dim: int,
+        self,
+        embed_dim_in: int,
+        embed_dim_out: int,
+        num_heads: int,
+        value_head_dim: int,
     ) -> None:
         super().__init__()
-        self.in_proj = nn.Linear(embed_dim_in,
-                                 num_heads * value_head_dim,
-                                 bias=False)
+        self.in_proj = nn.Linear(embed_dim_in, num_heads * value_head_dim, bias=False)
 
-        self.out_proj = ScaledLinear(num_heads * value_head_dim,
-                                     embed_dim_out, bias=False,
-                                     initial_scale=0.05)
+        # Note we set bias to False so that input of 0 will have no effect
+        self.out_proj = ScaledLinear(
+            num_heads * value_head_dim, embed_dim_out, bias=False, initial_scale=0.05
+        )
 
-        self.whiten = Whiten(num_groups=1,
-                             whitening_limit=_whitening_schedule(7.5, ratio=3.0),
-                             prob=(0.025, 0.25),
-                             grad_scale=0.01)
-
+        self.whiten = Whiten(
+            num_groups=1,
+            whitening_limit=_whitening_schedule(7.5, ratio=3.0),
+            prob=(0.025, 0.25),
+            grad_scale=0.01,
+        )
 
     def forward(
         self,
@@ -1412,14 +1616,14 @@ class Attention(nn.Module):
         Args:
           x: input tensor, of shape (seq_len, batch_size, embed_dim)
          attn_weights: a tensor of shape (num_heads, batch_size, query_len, key_len),
-          Expect attn_weights.sum(dim=-1) == 1. The input here is the value in the 
+          Expect attn_weights.sum(dim=-1) == 1. The input here is the value in the
           original attention mechanism.
         Returns:
            a tensor with the same shape as x.
         """
         (num_heads, batch_size, query_len, key_len) = attn_weights.shape
 
-        x = self.in_proj(x)     #  (key_len, batch_size, num_heads * value_head_dim)
+        x = self.in_proj(x)  # (key_len, batch_size, num_heads * value_head_dim)
         x = x.reshape(key_len, batch_size, num_heads, -1).permute(2, 1, 0, 3)
         # now x: (num_heads, batch_size, key_len, value_head_dim)
         value_head_dim = x.shape[-1]
@@ -1428,14 +1632,73 @@ class Attention(nn.Module):
         x = torch.matmul(attn_weights, x)
         # v: (num_heads, batch_size, query_len, value_head_dim)
 
-        x = x.permute(2, 1, 0, 3).contiguous().view(
-            query_len, batch_size, num_heads * value_head_dim)
+        x = (
+            x.permute(2, 1, 0, 3)
+            .contiguous()
+            .view(query_len, batch_size, num_heads * value_head_dim)
+        )
 
         # returned value is of shape (query_len, batch_size, embed_dim), like the input.
         x = self.out_proj(x)
         x = self.whiten(x)
 
         return x
+
+    def streaming_forward(
+        self,
+        x: Tensor,
+        attn_weights: Tensor,
+        cached_val: Tensor,
+        left_context_len: int,
+    ) -> Tuple[Tensor, Tensor]:
+        """
+        Args:
+            x: input tensor, of shape (seq_len, batch_size, embed_dim)
+            attn_weights: a tensor of shape (num_heads, batch_size, seq_len, seq_len),
+              with seq_len being interpreted as (tgt_seq_len, src_seq_len).  Expect
+              attn_weights.sum(dim=-1) == 1.
+            cached_val: cached attention value tensor of left context,
+              of shape (left_context_len, batch_size, value_dim)
+            left_context_len: number of left context frames.
+
+        Returns:
+           - attention weighted output, a tensor with the same shape as x.
+           - updated cached attention value tensor of left context.
+        """
+        (seq_len, batch_size, embed_dim) = x.shape
+        num_heads = attn_weights.shape[0]
+        seq_len2 = seq_len + left_context_len
+        assert attn_weights.shape == (num_heads, batch_size, seq_len, seq_len2)
+
+        x = self.in_proj(x)  # (seq_len, batch_size, num_heads * value_head_dim)
+
+        # Pad cached left contexts
+        assert cached_val.shape[0] == left_context_len, (
+            cached_val.shape[0],
+            left_context_len,
+        )
+        x = torch.cat([cached_val, x], dim=0)
+        # Update cached left contexts
+        cached_val = x[-left_context_len:, ...]
+
+        x = x.reshape(seq_len2, batch_size, num_heads, -1).permute(2, 1, 0, 3)
+        # now x: (num_heads, batch_size, seq_len, value_head_dim)
+        value_head_dim = x.shape[-1]
+
+        # todo: see whether there is benefit in overriding matmul
+        x = torch.matmul(attn_weights, x)
+        # v: (num_heads, batch_size, seq_len, value_head_dim)
+
+        x = (
+            x.permute(2, 1, 0, 3)
+            .contiguous()
+            .view(seq_len, batch_size, num_heads * value_head_dim)
+        )
+
+        # returned value is of shape (seq_len, batch_size, embed_dim), like the input.
+        x = self.out_proj(x)
+
+        return x, cached_val
 
 
 class MultiheadAttentionWeights(nn.Module):
@@ -1453,13 +1716,12 @@ class MultiheadAttentionWeights(nn.Module):
     """
 
     def __init__(
-            self,
-            key_embed_dim: int,
-            query_embed_dim: int,
-            num_heads: int,
-            head_dim: int,
-            dropout: float = 0.0,
-
+        self,
+        key_embed_dim: int,
+        query_embed_dim: int,
+        num_heads: int,
+        head_dim: int,
+        dropout: float = 0.0,
     ) -> None:
         super().__init__()
         self.key_embed_dim = key_embed_dim
@@ -1469,30 +1731,33 @@ class MultiheadAttentionWeights(nn.Module):
         self.dropout = dropout
         self.name = None  # will be overwritten in training code; for diagnostics.
 
-
         # the initial_scale is supposed to take over the "scaling" factor of
         # head_dim ** -0.5 that has been used in previous forms of attention,
         # dividing it between the query and key.   Note: this module is intended
         # to be used with the ScaledAdam optimizer; with most other optimizers,
         # it would be necessary to apply the scaling factor in the forward function.
-        self.query_in_proj = ScaledLinear(query_embed_dim,
-                                          head_dim * num_heads,
-                                          bias=True,
-                                          initial_scale=head_dim ** -0.25)
+        self.query_in_proj = ScaledLinear(
+            query_embed_dim,
+            head_dim * num_heads,
+            bias=True,
+            initial_scale=head_dim**-0.25,
+        )
 
         # weights produced by this module are invariant to adding a constant to
         # the keys, so we don't need a bias for the keys.
-        self.key_in_proj = ScaledLinear(key_embed_dim,
-                                        head_dim * num_heads,
-                                        bias=False,
-                                        initial_scale=head_dim ** -0.25)
+        self.key_in_proj = ScaledLinear(
+            key_embed_dim,
+            head_dim * num_heads,
+            bias=False,
+            initial_scale=head_dim**-0.25,
+        )
 
-        self.whiten_keys = Whiten(num_groups=num_heads,
-                                  whitening_limit=_whitening_schedule(3.0),
-                                  prob=(0.025, 0.25),
-                                  grad_scale=0.025)
-
-
+        self.whiten_keys = Whiten(
+            num_groups=num_heads,
+            whitening_limit=_whitening_schedule(3.0),
+            prob=(0.025, 0.25),
+            grad_scale=0.025,
+        )
 
     def forward(
         self,
@@ -1519,7 +1784,7 @@ class MultiheadAttentionWeights(nn.Module):
         key_len, _batch_size, _ = k.shape
         assert _batch_size == batch_size
 
-        k = self.whiten_keys(k)   # does nothing in the forward pass.
+        k = self.whiten_keys(k)  # does nothing in the forward pass.
 
         q = q.reshape(query_len, batch_size, num_heads, head_dim)
         k = k.reshape(key_len, batch_size, num_heads, head_dim)
@@ -1543,15 +1808,17 @@ class MultiheadAttentionWeights(nn.Module):
             # but we view this as a failsafe to avoid "implausible" parameter
             # values rather than a regularization method that should be active
             # under normal circumstances.
-            attn_scores = penalize_abs_values_gt(attn_scores,
-                                                 limit=25.0,
-                                                 penalty=1.0e-04,
-                                                 name=self.name)
+            attn_scores = penalize_abs_values_gt(
+                attn_scores, limit=25.0, penalty=1.0e-04, name=self.name
+            )
 
         assert attn_scores.shape == (num_heads, batch_size, query_len, key_len)
 
         if key_padding_mask is not None:
-            assert key_padding_mask.shape == (batch_size, key_len), key_padding_mask.shape
+            assert key_padding_mask.shape == (
+                batch_size,
+                key_len,
+            ), key_padding_mask.shape
             attn_scores = attn_scores.masked_fill(
                 key_padding_mask.unsqueeze(1),
                 -1000,
@@ -1572,53 +1839,58 @@ class MultiheadAttentionWeights(nn.Module):
 
         return attn_weights
 
-
-    def _print_attn_entropy(
-            self,
-            attn_weights: Tensor):
+    def _print_attn_entropy(self, attn_weights: Tensor):
         # attn_weights: (num_heads, batch_size, seq_len, seq_len)
         (num_heads, batch_size, seq_len, seq_len) = attn_weights.shape
 
         with torch.no_grad():
             with torch.cuda.amp.autocast(enabled=False):
                 attn_weights = attn_weights.to(torch.float32)
-                attn_weights_entropy = -((attn_weights + 1.0e-20).log() * attn_weights).sum(
-                    dim=-1).mean(dim=(1,2))
-                logging.info(f"name={self.name}, attn_weights_entropy = {attn_weights_entropy}")
-
+                attn_weights_entropy = (
+                    -((attn_weights + 1.0e-20).log() * attn_weights)
+                    .sum(dim=-1)
+                    .mean(dim=(1, 2))
+                )
+                logging.info(
+                    f"name={self.name}, attn_weights_entropy = {attn_weights_entropy}"
+                )
 
 
 class FeedforwardModule(nn.Module):
-    """Feedforward module in Zipformer2 model.
-    """
-    def __init__(self,
-                 embed_dim: int,
-                 feedforward_dim: int,
-                 dropout: FloatLike):
+    """Feedforward module in Zipformer2 model."""
+
+    def __init__(self, embed_dim: int, feedforward_dim: int, dropout: FloatLike):
         super(FeedforwardModule, self).__init__()
         self.in_proj = nn.Linear(embed_dim, feedforward_dim)
 
-        self.hidden_balancer = Balancer(feedforward_dim,
-                                        channel_dim=-1,
-                                        min_positive=0.3,
-                                        max_positive=1.0,
-                                        min_abs=0.75,
-                                        max_abs=5.0)
+        self.hidden_balancer = Balancer(
+            feedforward_dim,
+            channel_dim=-1,
+            min_positive=0.3,
+            max_positive=1.0,
+            min_abs=0.75,
+            max_abs=5.0,
+        )
 
         # shared_dim=0 means we share the dropout mask along the time axis
-        self.out_proj = ActivationDropoutAndLinear(feedforward_dim, embed_dim,
-                                                   activation='SwooshL',
-                                                   dropout_p=dropout,
-                                                   dropout_shared_dim=0, bias=True,
-                                                   initial_scale=0.1)
+        self.out_proj = ActivationDropoutAndLinear(
+            feedforward_dim,
+            embed_dim,
+            activation="SwooshL",
+            dropout_p=dropout,
+            dropout_shared_dim=0,
+            bias=True,
+            initial_scale=0.1,
+        )
 
-        self.out_whiten =  Whiten(num_groups=1,
-                                  whitening_limit=_whitening_schedule(7.5),
-                                  prob=(0.025, 0.25),
-                                  grad_scale=0.01)
+        self.out_whiten = Whiten(
+            num_groups=1,
+            whitening_limit=_whitening_schedule(7.5),
+            prob=(0.025, 0.25),
+            grad_scale=0.01,
+        )
 
-    def forward(self,
-                x: Tensor):
+    def forward(self, x: Tensor):
         x = self.in_proj(x)
         x = self.hidden_balancer(x)
         # out_proj contains SwooshL activation, then dropout, then linear.
@@ -1637,9 +1909,9 @@ class NonlinAttention(nn.Module):
     """
 
     def __init__(
-            self,
-            channels: int,
-            hidden_channels: int,
+        self,
+        channels: int,
+        hidden_channels: int,
     ) -> None:
         super().__init__()
 
@@ -1652,7 +1924,8 @@ class NonlinAttention(nn.Module):
         # starting from about 3, and poorly-trained instances of the module have smaller abs values
         # before the sigmoid.
         self.balancer = Balancer(
-            hidden_channels, channel_dim=-1,
+            hidden_channels,
+            channel_dim=-1,
             min_positive=ScheduledFloat((0.0, 0.25), (20000.0, 0.05)),
             max_positive=ScheduledFloat((0.0, 0.75), (20000.0, 0.95)),
             min_abs=0.5,
@@ -1664,35 +1937,36 @@ class NonlinAttention(nn.Module):
         self.identity2 = Identity()  # for diagnostics.
         self.identity3 = Identity()  # for diagnostics.
 
-        self.out_proj = ScaledLinear(hidden_channels, channels,
-                                     bias=True,
-                                     initial_scale=0.05)
+        self.out_proj = ScaledLinear(
+            hidden_channels, channels, bias=True, initial_scale=0.05
+        )
 
+        self.whiten1 = Whiten(
+            num_groups=1,
+            whitening_limit=_whitening_schedule(5.0),
+            prob=(0.025, 0.25),
+            grad_scale=0.01,
+        )
 
+        self.whiten2 = Whiten(
+            num_groups=1,
+            whitening_limit=_whitening_schedule(5.0, ratio=3.0),
+            prob=(0.025, 0.25),
+            grad_scale=0.01,
+        )
 
-        self.whiten1 = Whiten(num_groups=1,
-                              whitening_limit=_whitening_schedule(5.0),
-                              prob=(0.025, 0.25),
-                              grad_scale=0.01)
-
-        self.whiten2 = Whiten(num_groups=1,
-                              whitening_limit=_whitening_schedule(5.0, ratio=3.0),
-                              prob=(0.025, 0.25),
-                              grad_scale=0.01)
-
-
-    def forward(self,
-                x: Tensor,
-                attn_weights: Tensor,
+    def forward(
+        self,
+        x: Tensor,
+        attn_weights: Tensor,
     ) -> Tensor:
         """.
-        Args:
-           x: a Tensor of shape (seq_len, batch_size, num_channels)
-attn_weights: a Tensor of shape (num_heads, batch_size, seq_len, seq_len)
-        Returns:
-           a Tensor with the same shape as x
+                Args:
+                   x: a Tensor of shape (seq_len, batch_size, num_channels)
+        attn_weights: a Tensor of shape (num_heads, batch_size, seq_len, seq_len)
+                Returns:
+                   a Tensor with the same shape as x
         """
-        num_channels = x.shape[-1]
         x = self.in_proj(x)
 
         (seq_len, batch_size, _) = x.shape
@@ -1720,7 +1994,6 @@ attn_weights: a Tensor of shape (num_heads, batch_size, seq_len, seq_len)
         # now x: (num_heads, batch_size, seq_len, head_dim)
         x = x.permute(2, 1, 0, 3).reshape(seq_len, batch_size, -1)
 
-
         y = self.identity2(y)
         x = x * y
         x = self.identity3(x)
@@ -1728,6 +2001,67 @@ attn_weights: a Tensor of shape (num_heads, batch_size, seq_len, seq_len)
         x = self.out_proj(x)
         x = self.whiten2(x)
         return x
+
+    def streaming_forward(
+        self,
+        x: Tensor,
+        attn_weights: Tensor,
+        cached_x: Tensor,
+        left_context_len: int,
+    ) -> Tuple[Tensor, Tensor]:
+        """.
+        Args:
+            x: a Tensor of shape (seq_len, batch_size, num_channels)
+            attn_weights: a Tensor of shape (num_heads, batch_size, seq_len, seq_len)
+            cached_x: left context, a Tensor of shape
+              (num_heads, batch_size, left_context_len, head_dim)
+            left_context_len: number of left context frames.
+        Returns:
+            - a Tensor with the same shape as x
+            - updated left context with same shape as cached_x
+        """
+        x = self.in_proj(x)
+
+        (seq_len, batch_size, _) = x.shape
+        hidden_channels = self.hidden_channels
+
+        s, x, y = x.chunk(3, dim=-1)
+
+        # s will go through tanh.
+        s = self.tanh(s)
+
+        s = s.unsqueeze(-1).reshape(seq_len, batch_size, hidden_channels)
+        x = x * s
+
+        (seq_len, batch_size, embed_dim) = x.shape
+        num_heads = attn_weights.shape[0]
+        assert attn_weights.shape == (
+            num_heads,
+            batch_size,
+            seq_len,
+            left_context_len + seq_len,
+        )
+
+        x = x.reshape(seq_len, batch_size, num_heads, -1).permute(2, 1, 0, 3)
+        # now x: (num_heads, batch_size, seq_len, head_dim)
+
+        # Pad cached tensor
+        assert cached_x.shape[2] == left_context_len, (
+            cached_x.shape[2],
+            left_context_len,
+        )
+        x_pad = torch.cat([cached_x, x], dim=2)
+        # Update cached tensor
+        cached_x = x_pad[:, :, -left_context_len:, :]
+
+        x = torch.matmul(attn_weights, x_pad)
+        # now x: (num_heads, batch_size, seq_len, head_dim)
+        x = x.permute(2, 1, 0, 3).reshape(seq_len, batch_size, -1)
+
+        x = x * y
+
+        x = self.out_proj(x)
+        return x, cached_x
 
 
 class ConvolutionModule(nn.Module):
@@ -1740,8 +2074,12 @@ class ConvolutionModule(nn.Module):
         bias (bool): Whether to use bias in conv layers (default=True).
 
     """
+
     def __init__(
-            self, channels: int, kernel_size: int, causal: bool,
+        self,
+        channels: int,
+        kernel_size: int,
+        causal: bool,
     ) -> None:
         """Construct a ConvolutionModule object."""
         super(ConvolutionModule, self).__init__()
@@ -1752,15 +2090,17 @@ class ConvolutionModule(nn.Module):
         self.causal = causal
 
         self.in_proj = nn.Linear(
-            channels, 2 * bottleneck_dim,
+            channels,
+            2 * bottleneck_dim,
         )
         # the gradients on in_proj are a little noisy, likely to do with the
         # sigmoid in glu.
 
         # after in_proj we put x through a gated linear unit (nn.functional.glu).
-        # For most layers the normal rms value of channels of x seems to be in the range 1 to 4,
-        # but sometimes, for some reason, for layer 0 the rms ends up being very large,
-        # between 50 and 100 for different channels.  This will cause very peaky and
+        # For most layers the normal rms value of channels of x seems to be in
+        # the range 1 to 4, but sometimes, for some reason, for layer 0 the
+        # rms ends up being very large, between 50 and 100 for different channels.
+        # This will cause very peaky and
         # sparse derivatives for the sigmoid gating function, which will tend to make
         # the loss function not learn effectively.  (for most layers the average absolute values
         # are in the range 0.5..9.0, and the average p(x>0), i.e. positive proportion,
@@ -1771,52 +2111,63 @@ class ConvolutionModule(nn.Module):
         # it will be in a better position to start learning something, i.e. to latch onto
         # the correct range.
         self.balancer1 = Balancer(
-            bottleneck_dim, channel_dim=-1,
+            bottleneck_dim,
+            channel_dim=-1,
             min_positive=ScheduledFloat((0.0, 0.05), (8000.0, 0.025)),
             max_positive=1.0,
             min_abs=1.5,
             max_abs=ScheduledFloat((0.0, 5.0), (8000.0, 10.0), default=1.0),
         )
 
-        self.activation1 = Identity() # for diagnostics
+        self.activation1 = Identity()  # for diagnostics
 
         self.sigmoid = nn.Sigmoid()
 
-        self.activation2 = Identity() # for diagnostics
+        self.activation2 = Identity()  # for diagnostics
 
         assert kernel_size % 2 == 1
 
-        self.depthwise_conv = ChunkCausalDepthwiseConv1d(
-            channels=bottleneck_dim,
-            kernel_size=kernel_size) if causal else nn.Conv1d(
-            in_channels=bottleneck_dim,
-            out_channels=bottleneck_dim,
-            groups=bottleneck_dim,
-            kernel_size=kernel_size,
-            padding=kernel_size // 2)
+        self.depthwise_conv = (
+            ChunkCausalDepthwiseConv1d(channels=bottleneck_dim, kernel_size=kernel_size)
+            if causal
+            else nn.Conv1d(
+                in_channels=bottleneck_dim,
+                out_channels=bottleneck_dim,
+                groups=bottleneck_dim,
+                kernel_size=kernel_size,
+                padding=kernel_size // 2,
+            )
+        )
 
         self.balancer2 = Balancer(
-            bottleneck_dim, channel_dim=1,
+            bottleneck_dim,
+            channel_dim=1,
             min_positive=ScheduledFloat((0.0, 0.1), (8000.0, 0.05)),
             max_positive=1.0,
             min_abs=ScheduledFloat((0.0, 0.2), (20000.0, 0.5)),
             max_abs=10.0,
         )
 
-        self.whiten = Whiten(num_groups=1,
-                             whitening_limit=_whitening_schedule(7.5),
-                             prob=(0.025, 0.25),
-                             grad_scale=0.01)
-
-        self.out_proj = ActivationDropoutAndLinear(
-            bottleneck_dim, channels, activation='SwooshR',
-            dropout_p=0.0, initial_scale=0.05,
+        self.whiten = Whiten(
+            num_groups=1,
+            whitening_limit=_whitening_schedule(7.5),
+            prob=(0.025, 0.25),
+            grad_scale=0.01,
         )
 
-    def forward(self,
-                x: Tensor,
-                src_key_padding_mask: Optional[Tensor] = None,
-                chunk_size: int = -1,
+        self.out_proj = ActivationDropoutAndLinear(
+            bottleneck_dim,
+            channels,
+            activation="SwooshR",
+            dropout_p=0.0,
+            initial_scale=0.05,
+        )
+
+    def forward(
+        self,
+        x: Tensor,
+        src_key_padding_mask: Optional[Tensor] = None,
+        chunk_size: int = -1,
     ) -> Tensor:
         """Compute convolution module.
 
@@ -1847,19 +2198,67 @@ class ConvolutionModule(nn.Module):
         if src_key_padding_mask is not None:
             x = x.masked_fill(src_key_padding_mask.unsqueeze(1).expand_as(x), 0.0)
 
-        if chunk_size >= 0:
-            assert self.causal, "Must initialize model with causal=True if you use chunk_size"
+        if (
+            not torch.jit.is_scripting()
+            and not torch.jit.is_tracing()
+            and chunk_size >= 0
+        ):
+            # Not support exporting a model for simulated streaming decoding
+            assert (
+                self.causal
+            ), "Must initialize model with causal=True if you use chunk_size"
             x = self.depthwise_conv(x, chunk_size=chunk_size)
         else:
             x = self.depthwise_conv(x)
 
         x = self.balancer2(x)
-        x = x.permute(2, 0, 1) # (time, batch, channels)
+        x = x.permute(2, 0, 1)  # (time, batch, channels)
 
         x = self.whiten(x)  # (time, batch, channels)
         x = self.out_proj(x)  # (time, batch, channels)
 
         return x
+
+    def streaming_forward(
+        self,
+        x: Tensor,
+        cache: Tensor,
+        src_key_padding_mask: Tensor,
+    ) -> Tuple[Tensor, Tensor]:
+        """Compute convolution module in streaming forward mode.
+
+        Args:
+            x: Input tensor (#time, batch, channels).
+            cache: cached left context for depthwise_conv of shape
+              (#batch, channels, left_pad)
+            src_key_padding_mask: the mask for the src keys per batch (optional):
+              (batch, #time), contains True in masked positions.
+
+        Returns:
+            - Output tensor (#time, batch, channels).
+            - Updated cache (#batch, channels, left_pad)
+        """
+
+        x = self.in_proj(x)  # (time, batch, 2*channels)
+
+        x, s = x.chunk(2, dim=2)
+        s = self.sigmoid(s)
+        x = x * s
+        # (time, batch, channels)
+
+        # exchange the temporal dimension and the feature dimension
+        x = x.permute(1, 2, 0)  # (#batch, channels, time).
+
+        if src_key_padding_mask is not None:
+            x = x.masked_fill(src_key_padding_mask.unsqueeze(1).expand_as(x), 0.0)
+
+        x, cache = self.depthwise_conv.streaming_forward(x, cache=cache)
+
+        x = x.permute(2, 0, 1)  # (time, batch, channels)
+
+        x = self.out_proj(x)  # (time, batch, channels)
+
+        return x, cache
 
 
 class ScalarMultiply(nn.Module):
@@ -1878,7 +2277,9 @@ def _test_zipformer_main(causal: bool = False):
     memory_dim = 100
 
     c = Zipformer2(
-        encoder_dim=(64, 96), encoder_unmasked_dim=(48, 64), num_heads=(4, 4),
+        encoder_dim=(64, 96),
+        encoder_unmasked_dim=(48, 64),
+        num_heads=(4, 4),
         causal=causal,
         chunk_size=(4,) if causal else (-1,),
         left_context_frames=(64,),
