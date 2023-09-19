@@ -124,7 +124,7 @@ The bypass arc deals with substitution and insertion errors, while the self-loop
 ### Decoding
 ```
 export CUDA_VISIBLE_DEVICES="0"
-python conformer_ctc2/decode.py \
+./conformer_ctc2/decode.py \
   --exp-dir "${exp_dir}" \
   --lang-dir "${otc_lang_dir}" \
   --lm-dir "${lm_dir}" \
