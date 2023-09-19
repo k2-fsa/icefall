@@ -91,7 +91,7 @@ fi
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   log "Stage 3: Preprocess WenetSpeech manifest"
   if [ ! -f data/fbank/.preprocess_complete ]; then
-    python3 ./local/preprocess_wenetspeech.py
+    python3 ./local/preprocess_wenetspeech.py --perturb-speed True
     touch data/fbank/.preprocess_complete
   fi
 fi

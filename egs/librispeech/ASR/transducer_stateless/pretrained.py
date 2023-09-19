@@ -20,7 +20,7 @@ Usage:
 (1) greedy search
 ./transducer_stateless/pretrained.py \
     --checkpoint ./transducer_stateless/exp/pretrained.pt \
-    --bpe-model ./data/lang_bpe_500/bpe.model \
+    --tokens data/lang_bpe_500/tokens.txt \
     --method greedy_search \
     --max-sym-per-frame 1 \
     /path/to/foo.wav \
@@ -29,7 +29,7 @@ Usage:
 (2) beam search
 ./transducer_stateless/pretrained.py \
     --checkpoint ./transducer_stateless/exp/pretrained.pt \
-    --bpe-model ./data/lang_bpe_500/bpe.model \
+    --tokens data/lang_bpe_500/tokens.txt \
     --method beam_search \
     --beam-size 4 \
     /path/to/foo.wav \
@@ -38,7 +38,7 @@ Usage:
 (3) modified beam search
 ./transducer_stateless/pretrained.py \
     --checkpoint ./transducer_stateless/exp/pretrained.pt \
-    --bpe-model ./data/lang_bpe_500/bpe.model \
+    --tokens data/lang_bpe_500/tokens.txt \
     --method modified_beam_search \
     --beam-size 4 \
     /path/to/foo.wav \
@@ -47,7 +47,7 @@ Usage:
 (4) fast beam search
 ./transducer_stateless/pretrained.py \
     --checkpoint ./transducer_stateless/exp/pretrained.pt \
-    --bpe-model ./data/lang_bpe_500/bpe.model \
+    --tokens data/lang_bpe_500/tokens.txt \
     --method fast_beam_search \
     --beam-size 4 \
     /path/to/foo.wav \
@@ -67,7 +67,6 @@ from typing import List
 
 import k2
 import kaldifeat
-import sentencepiece as spm
 import torch
 import torchaudio
 from beam_search import (
@@ -79,6 +78,8 @@ from beam_search import (
 )
 from torch.nn.utils.rnn import pad_sequence
 from train import get_params, get_transducer_model
+
+from icefall.utils import num_tokens
 
 
 def get_parser():
@@ -96,9 +97,9 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--bpe-model",
+        "--tokens",
         type=str,
-        help="""Path to bpe.model.""",
+        help="""Path to tokens.txt.""",
     )
 
     parser.add_argument(
@@ -213,12 +214,14 @@ def main():
 
     params.update(vars(args))
 
-    sp = spm.SentencePieceProcessor()
-    sp.load(params.bpe_model)
+    # Load tokens.txt here
+    token_table = k2.SymbolTable.from_file(params.tokens)
 
+    # Load id of the <blk> token and the vocab size
     # <blk> is defined in local/train_bpe_model.py
-    params.blank_id = sp.piece_to_id("<blk>")
-    params.vocab_size = sp.get_piece_size()
+    params.blank_id = token_table["<blk>"]
+    params.unk_id = token_table["<unk>"]
+    params.vocab_size = num_tokens(token_table) + 1  # +1 for <blk>
 
     logging.info(f"{params}")
 
@@ -273,6 +276,12 @@ def main():
         msg += f" with beam size {params.beam_size}"
     logging.info(msg)
 
+    def token_ids_to_words(token_ids: List[int]) -> str:
+        text = ""
+        for i in token_ids:
+            text += token_table[i]
+        return text.replace("▁", " ").strip()
+
     if params.method == "fast_beam_search":
         decoding_graph = k2.trivial_graph(params.vocab_size - 1, device=device)
         hyp_list = fast_beam_search_one_best(
@@ -318,12 +327,11 @@ def main():
                 raise ValueError(f"Unsupported method: {params.method}")
             hyp_list.append(hyp)
 
-    hyps = [sp.decode(hyp).split() for hyp in hyp_list]
+    hyps = [token_ids_to_words(hyp) for hyp in hyp_list]
 
     s = "\n"
     for filename, hyp in zip(params.sound_files, hyps):
-        words = " ".join(hyp)
-        s += f"{filename}:\n{words}\n\n"
+        s += f"{filename}:\n{hyp}\n\n"
     logging.info(s)
 
     logging.info("Decoding Done")

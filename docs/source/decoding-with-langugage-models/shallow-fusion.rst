@@ -32,9 +32,12 @@ As the initial step, let's download the pre-trained model.
 .. code-block:: bash
 
     $ GIT_LFS_SKIP_SMUDGE=1 git clone https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29
-    $ pushd icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/exp
+    $ cd icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/exp
     $ git lfs pull --include "pretrained.pt"
     $ ln -s pretrained.pt epoch-99.pt # create a symbolic link so that the checkpoint can be loaded
+    $ cd ../data/lang_bpe_500
+    $ git lfs pull --include bpe.model
+    $ cd ../../..
 
 To test the model, let's have a look at the decoding results without using LM. This can be done via the following command:
 
@@ -46,7 +49,7 @@ To test the model, let's have a look at the decoding results without using LM. T
         --avg 1 \
         --use-averaged-model False \
         --exp-dir $exp_dir \
-        --bpe-model ./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/data/lang_bpe_500/bpe.model 
+        --bpe-model ./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/data/lang_bpe_500/bpe.model \
         --max-duration 600 \
         --decode-chunk-len 32 \
         --decoding-method modified_beam_search
@@ -95,7 +98,7 @@ To use shallow fusion for decoding, we can execute the following command:
         --max-duration 600 \
         --decode-chunk-len 32 \
         --decoding-method modified_beam_search_lm_shallow_fusion \
-        --bpe-model ./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/data/lang_bpe_500/bpe.model
+        --bpe-model ./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/data/lang_bpe_500/bpe.model \
         --use-shallow-fusion 1 \
         --lm-type rnn \
         --lm-exp-dir $lm_dir \

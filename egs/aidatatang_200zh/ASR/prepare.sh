@@ -77,7 +77,7 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
   log "Stage 4: Compute fbank for aidatatang_200zh"
   if [ ! -f data/fbank/.aidatatang_200zh.done ]; then
     mkdir -p data/fbank
-    ./local/compute_fbank_aidatatang_200zh.py
+    ./local/compute_fbank_aidatatang_200zh.py --perturb-speed True
     touch data/fbank/.aidatatang_200zh.done
   fi
 fi
