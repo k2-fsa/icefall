@@ -410,10 +410,20 @@ def main():
         raise ValueError(f"Unsupported decoding method: {params.method}")
 
     s = "\n"
-    for filename, hyp in zip(params.sound_files, hyps):
-        words = " ".join(hyp)
-        words = words.replace("▁", " ").strip()
-        s += f"{filename}:\n{words}\n\n"
+    if params.method == "ctc-decoding":
+        for filename, hyp in zip(params.sound_files, hyps):
+            words = "".join(hyp)
+            words = words.replace("▁", " ").strip()
+            s += f"{filename}:\n{words}\n\n"
+    elif params.method in [
+        "1best",
+        "nbest-rescoring",
+        "whole-lattice-rescoring",
+    ]:
+        for filename, hyp in zip(params.sound_files, hyps):
+            words = " ".join(hyp)
+            words = words.replace("▁", " ").strip()
+            s += f"{filename}:\n{words}\n\n"
     logging.info(s)
 
     logging.info("Decoding Done")
