@@ -92,12 +92,12 @@ verbatim: -have- a  [] [nice] day
 
 ### Training
 ```
+otc_lang_dir=data/lang_bpe_200
+
 allow_bypass_arc=true
 allow_self_loop_arc=true
-
 initial_bypass_weight=-19
 initial_self_loop_weight=3.75
-
 bypass_weight_decay=0.975
 self_loop_weight_decay=0.999
 
@@ -109,7 +109,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --manifest-dir "${manifest_dir}" \
   --train-manifest "${synthetic_train_manifest}" \
   --exp-dir "${exp_dir}" \
-  --lang-dir "${lang_dir}" \
+  --lang-dir "${otc_lang_dir}" \
   --otc-token "${otc_token}" \
   --allow-bypass-arc "${allow_bypass_arc}" \
   --allow-self-loop-arc "${allow_self_loop_arc}" \
@@ -117,7 +117,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --initial-self-loop-weight "${initial_self_loop_weight}" \
   --bypass-weight-decay "${bypass_weight_decay}" \
   --self-loop-weight-decay "${self_loop_weight_decay}" \
-  --show-alignment "${show_alingment}"
+  --show-alignment "${show_alignment}"
 ```
 The bypass arc deals with substitution and insertion errors, while the self-loop arc deals with deletion errors. Using "--show-alignment" would print the best alignment during training, which is very helpful for tuning hyperparameters and debugging.
 
@@ -126,8 +126,9 @@ The bypass arc deals with substitution and insertion errors, while the self-loop
 export CUDA_VISIBLE_DEVICES="0"
 python conformer_ctc2/decode.py \
   --exp-dir "${exp_dir}" \
-  --lang-dir "${lang_dir}" \
-  --lm-dir "${lm_dir}" 
+  --lang-dir "${otc_lang_dir}" \
+  --lm-dir "${lm_dir}" \
+  --otc-token "${otc_token}"
 ```
 
 ## Citations
