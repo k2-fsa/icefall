@@ -1,7 +1,7 @@
 # Introduction
 
 This is a weakly supervised ASR recipe for the LibriSpeech (clean 100 hours) dataset. We train a
-conformer model using Bypass Temporal Classification (BTC)/Omni-temporal Classification (OTC) with transcripts with synthetic errors. In this README, we will describe
+conformer model using [Bypass Temporal Classification](https://arxiv.org/pdf/2306.01031.pdf) (BTC)/Omni-temporal Classification (OTC) with transcripts with synthetic errors. In this README, we will describe
 the task and the BTC/OTC training process.
 
 Note that OTC is an extension of BTC and supports all BTC functions. Therefore, in the following, we only describe OTC.
@@ -130,6 +130,8 @@ export CUDA_VISIBLE_DEVICES="0"
   --lm-dir "${lm_dir}" \
   --otc-token "${otc_token}"
 ```
+### Results (ctc-greedy-search)
+
 
 ## Citations
 ```
