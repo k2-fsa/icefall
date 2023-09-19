@@ -68,7 +68,14 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--otc-token", type=str, default="<star>", help="OTC token",
+        "--otc-token", type=str, default="▁<star>", help="OTC token",
+    )
+
+    parser.add_argument(
+        "--blank-bias",
+        type=float,
+        default=0,
+        help="bias (log-prob) added to blank token during decoding",
     )
 
     parser.add_argument(
@@ -384,6 +391,7 @@ def decode_one_batch(
 
     nnet_output, memory, memory_key_padding_mask = model(feature, supervisions)
     # nnet_output is (N, T, C)
+    nnet_output[:, :, 0] += params.blank_bias
 
     supervision_segments = torch.stack(
         (
