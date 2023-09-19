@@ -49,7 +49,7 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   log "Stage 2: Prepare THCHS-30"
   if [ ! -d $dl_dir/thchs30 ]; then
     log "Downloading THCHS-30"
-    lhotse download thchs30 $dl_dir/thchs30
+    lhotse download thchs-30 $dl_dir/thchs30
   fi
 
   if [ ! -f data/manifests/.thchs30.done ]; then
