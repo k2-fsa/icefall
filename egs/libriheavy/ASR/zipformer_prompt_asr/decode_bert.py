@@ -25,7 +25,16 @@ Usage:
     --avg 15 \
     --exp-dir ./zipformer_prompt_asr/exp \
     --max-duration 1000 \
-    --decoding-method greedy_search
+    --decoding-method greedy_search \
+    --text-encoder-type BERT \
+    --memory-layer 0 \
+    --use-pre-text True \
+    --use-style-prompt True \
+    --max-prompt-lens 1000 \
+    --style-text-transform mixed-punc \
+    --pre-text-transform mixed-punc \
+    --compute-CER 0
+
 
 (2) modified beam search
 ./zipformer_prompt_asr/decode_bert.py \
@@ -34,7 +43,15 @@ Usage:
     --exp-dir ./zipformer_prompt_asr/exp \
     --max-duration 1000 \
     --decoding-method modified_beam_search \
-    --beam-size 4
+    --beam-size 4 \
+    --text-encoder-type BERT \
+    --memory-layer 0 \
+    --use-pre-text True \
+    --use-style-prompt True \
+    --max-prompt-lens 1000 \
+    --style-text-transform mixed-punc \
+    --pre-text-transform mixed-punc \
+    --compute-CER 0
 
 (3) Decode LibriSpeech
 
@@ -45,7 +62,15 @@ Usage:
     --max-duration 1000 \
     --decoding-method modified_beam_search \
     --use-ls-test-set True \
-    --beam-size 4
+    --beam-size 4 \
+    --text-encoder-type BERT \
+    --memory-layer 0 \
+    --use-pre-text True \
+    --use-style-prompt True \
+    --max-prompt-lens 1000 \
+    --style-text-transform mixed-punc \
+    --pre-text-transform mixed-punc \
+    --compute-CER 0
 
 (4) Decode LibriSpeech + biasing list
 
@@ -57,7 +82,7 @@ biasing_list=100 # could also be 0
     --exp-dir ./zipformer_prompt_asr/exp \
     --max-duration 1000 \
     --decoding-method modified_beam_search \
-    --beam-size 4 \\
+    --beam-size 4 \
     --use-ls-test-set True \
     --use-ls-context-list True \
     --biasing-level utterance \
