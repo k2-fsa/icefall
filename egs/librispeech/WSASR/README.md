@@ -136,17 +136,62 @@ export CUDA_VISIBLE_DEVICES="0"
 ```
 
 ### Results (ctc-greedy-search)
-| Traning Criterion | test-clean | test-other |
-|------------|:-------:|:----:|
-| CTC |100.0|100.0 |
-| OTC | 11.89 | 25.46 |
+<table>
+  <tr>
+    <td rowspan=2>Training Criterion</td>
+    <td colspan=2>ssl</td>
+    <td colspan=2>fbank</td>
+  </tr>
+  <tr>
+    <td>test-clean</td>
+    <td>test-other</td>
+    <td>test-clean</td>
+    <td>test-other</td>
+  </tr>
+  <tr>
+    <td>CTC</td>
+    <td>100.0</td>
+    <td>100.0</td>
+    <td>99.89</td>
+    <td>99.98</td>
+  </tr>
+  <tr>
+    <td>OTC</td>
+    <td>11.89</td>
+    <td>25.46</td>
+    <td>20.14</td>
+    <td>44.24</td>
+  </tr>
+</table>
 
 ### Results (1best, blank_bias=-4)
-| Traning Criterion | test-clean | test-other |
-|------------|:-------:|:----:|
-| CTC |98.40|98.68 |
-| OTC | 6.59 | 15.98 |
-
+<table>
+  <tr>
+    <td rowspan=2>Training Criterion</td>
+    <td colspan=2>ssl</td>
+    <td colspan=2>fbank</td>
+  </tr>
+  <tr>
+    <td>test-clean</td>
+    <td>test-other</td>
+    <td>test-clean</td>
+    <td>test-other</td>
+  </tr>
+  <tr>
+    <td>CTC</td>
+    <td>98.40</td>
+    <td>98.68</td>
+    <td>99.79</td>
+    <td>99.86</td>
+  </tr>
+  <tr>
+    <td>OTC</td>
+    <td>6.59</td>
+    <td>15.98</td>
+    <td>11.78</td>
+    <td>32.38</td>
+  </tr>
+</table>
 
 ## Citations
 ```
