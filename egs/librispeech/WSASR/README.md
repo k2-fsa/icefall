@@ -49,7 +49,9 @@ The weight of $\star$ is the log average probability of "a" and "b": $\log \frac
 ## Description of the recipe
 ### Preparation
 ```
-feature_dir="data/ssl"
+# feature_type can be ssl or fbank
+feature_type=ssl
+feature_dir="data/${feature_type}"
 manifest_dir="${feature_dir}"
 lang_dir="data/lang"
 lm_dir="data/lm"
@@ -57,6 +59,7 @@ exp_dir="conformer_ctc2/exp"
 otc_token="<star>"
 
 ./prepare.sh \
+  --feature-type "${feature_type}" \
   --feature-dir "${feature_dir}" \
   --lang-dir "${lang_dir}" \
   --lm-dir "${lm_dir}" \
@@ -125,6 +128,7 @@ The bypass arc deals with substitution and insertion errors, while the self-loop
 ```
 export CUDA_VISIBLE_DEVICES="0"
 ./conformer_ctc2/decode.py \
+  --manifest-dir "${manifest_dir}" \
   --exp-dir "${exp_dir}" \
   --lang-dir "${otc_lang_dir}" \
   --lm-dir "${lm_dir}" \
