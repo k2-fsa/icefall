@@ -15,17 +15,18 @@
 # limitations under the License.
 
 
+import random
+import warnings
+from typing import Optional, Tuple
+
 import k2
 import torch
 import torch.nn as nn
-import random
-import warnings
 from encoder_interface import EncoderInterface
+from scaling import ScaledLinear, penalize_abs_values_gt
+from torch import Tensor
 
 from icefall.utils import add_sos, make_pad_mask
-from scaling import penalize_abs_values_gt, ScaledLinear
-from torch import Tensor
-from typing import Optional, Tuple
 
 
 class Transducer(nn.Module):
@@ -185,11 +186,6 @@ class Transducer(nn.Module):
         lm = self.simple_lm_proj(decoder_out)
         am = self.simple_am_proj(encoder_out)
 
-        # if self.training and random.random() < 0.25:
-        #    lm = penalize_abs_values_gt(lm, 100.0, 1.0e-04)
-        # if self.training and random.random() < 0.25:
-        #    am = penalize_abs_values_gt(am, 30.0, 1.0e-04)
-
         with torch.cuda.amp.autocast(enabled=False):
             simple_loss, (px_grad, py_grad) = k2.rnnt_loss_smoothed(
                 lm=lm.float(),
@@ -257,11 +253,10 @@ class Transducer(nn.Module):
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
 
         encoder_out, encoder_out_lens = self.encoder(
-            x=x, 
+            x=x,
             x_lens=x_lens,
             src_key_padding_mask=src_key_padding_mask,
         )
         encoder_out = encoder_out.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
-        
-        return encoder_out, encoder_out_lens
 
+        return encoder_out, encoder_out_lens

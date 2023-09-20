@@ -450,6 +450,7 @@ def decode_one_batch(
     else:
         pre_texts = ["" for _ in range(batch_size)]
 
+    # get the librispeech biasing data
     if params.use_ls_context_list and params.use_ls_test_set:
         if params.biasing_level == "utterance":
             pre_texts = [biasing_dict[id] for id in cut_ids]
@@ -476,7 +477,6 @@ def decode_one_batch(
 
     # Get the text embedding
     if params.use_pre_text or params.use_style_prompt:
-
         # apply style transform to the pre_text and style_text
         pre_texts = _apply_style_transform(pre_texts, params.pre_text_transform)
         if not params.use_ls_context_list:

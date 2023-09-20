@@ -15,17 +15,18 @@
 # limitations under the License.
 
 
+import random
+import warnings
+from typing import Dict, Optional, Tuple
+
 import k2
 import torch
 import torch.nn as nn
-import random
-import warnings
 from encoder_interface import EncoderInterface
+from scaling import ScaledLinear, penalize_abs_values_gt
+from torch import Tensor
 
 from icefall.utils import add_sos, make_pad_mask
-from scaling import penalize_abs_values_gt, ScaledLinear
-from torch import Tensor
-from typing import Optional, Tuple, Dict
 
 
 class PromptedTransducer(nn.Module):
@@ -97,13 +98,21 @@ class PromptedTransducer(nn.Module):
             vocab_size,
             initial_scale=0.25,
         )
-        
-        self.use_BERT = use_BERT # if the text encoder is a pre-trained BERT 
+
+        self.use_BERT = use_BERT  # if the text encoder is a pre-trained BERT
         self.context_fuser = context_fuser
-        
-        assert text_encoder_type in ("BERT","DistilBERT", "BERT-UNCASED"), f"Unseen text_encoder type {text_encoder_type}"
-        self.text_encoder_dim = self.text_encoder.config.hidden_size if text_encoder_type in ("BERT", "BERT-UNCASED") else self.text_encoder.config.dim
-        
+
+        assert text_encoder_type in (
+            "BERT",
+            "DistilBERT",
+            "BERT-UNCASED",
+        ), f"Unseen text_encoder type {text_encoder_type}"
+        self.text_encoder_dim = (
+            self.text_encoder.config.hidden_size
+            if text_encoder_type in ("BERT", "BERT-UNCASED")
+            else self.text_encoder.config.dim
+        )
+
         if text_encoder_adapter:
             self.text_encoder_adapter = nn.Sequential(
                 nn.Linear(self.text_encoder_dim, self.text_encoder_dim, bias=False),
@@ -111,8 +120,10 @@ class PromptedTransducer(nn.Module):
             )
         else:
             self.text_encoder_adapter = None
-            
-        self.style_prompt_embedding = nn.Parameter(torch.full((self.text_encoder_dim,), 0.5))
+
+        self.style_prompt_embedding = nn.Parameter(
+            torch.full((self.text_encoder_dim,), 0.5)
+        )
 
     def forward(
         self,
@@ -181,11 +192,10 @@ class PromptedTransducer(nn.Module):
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
 
         # freeze the BERT text encoder
-        
+
         if use_pre_text:
             memory, memory_key_padding_mask = self.encode_text(
-              encoded_inputs,
-              style_lens=style_lens
+                encoded_inputs, style_lens=style_lens
             )
         else:
             memory = None
@@ -231,11 +241,6 @@ class PromptedTransducer(nn.Module):
         lm = self.simple_lm_proj(decoder_out)
         am = self.simple_am_proj(encoder_out)
 
-        # if self.training and random.random() < 0.25:
-        #    lm = penalize_abs_values_gt(lm, 100.0, 1.0e-04)
-        # if self.training and random.random() < 0.25:
-        #    am = penalize_abs_values_gt(am, 30.0, 1.0e-04)
-
         with torch.cuda.amp.autocast(enabled=False):
             simple_loss, (px_grad, py_grad) = k2.rnnt_loss_smoothed(
                 lm=lm.float(),
@@ -270,12 +275,12 @@ class PromptedTransducer(nn.Module):
         # project_input=False since we applied the decoder's input projections
         # prior to do_rnnt_pruning (this is an optimization for speed).
         if self.context_fuser is not None and memory is not None:
-            memory = memory.permute(1,0,2) # (T,N,C) -> (N,T,C)
+            memory = memory.permute(1, 0, 2)  # (T,N,C) -> (N,T,C)
             context = self.context_fuser(memory, padding_mask=memory_key_padding_mask)
-            context  = self.joiner.context_proj(context)
+            context = self.joiner.context_proj(context)
         else:
             context = None
-        
+
         logits = self.joiner(am_pruned, lm_pruned, context=context, project_input=False)
 
         with torch.cuda.amp.autocast(enabled=False):
@@ -304,16 +309,17 @@ class PromptedTransducer(nn.Module):
         (memory_len, batch_size, embed_dim) = memory.shape
 
         indicator = (
-            torch.arange(memory_len, device=memory.device).unsqueeze(-1)
-            < style_lens
+            torch.arange(memory_len, device=memory.device).unsqueeze(-1) < style_lens
         )
         indicator = indicator.to(memory.dtype)
 
         extra_term = torch.zeros_like(memory)
-        extra_term += indicator.unsqueeze(-1) * self.style_prompt_embedding.expand(memory_len, batch_size, self.text_encoder_dim)
+        extra_term += indicator.unsqueeze(-1) * self.style_prompt_embedding.expand(
+            memory_len, batch_size, self.text_encoder_dim
+        )
 
         return memory + extra_term
-      
+
     def encode_text(
         self,
         encoded_inputs: Dict,
@@ -326,25 +332,25 @@ class PromptedTransducer(nn.Module):
 
         Returns:
             Tuple[Tensor, Tensor]: Returns the text embeddings encoded by the
-            text_encoder and the attention mask 
+            text_encoder and the attention mask
         """
-        text_lens = encoded_inputs.pop("length") # need to use pop to remove this item
-        
+        text_lens = encoded_inputs.pop("length")  # need to use pop to remove this item
+
         # Freeze the pre-trained text encoder
         with torch.no_grad():
-            memory = self.text_encoder(**encoded_inputs)["last_hidden_state"] # (B,T,C)
-            memory = memory.permute(1,0,2)
-        
+            memory = self.text_encoder(**encoded_inputs)["last_hidden_state"]  # (B,T,C)
+            memory = memory.permute(1, 0, 2)
+
         # Text encoder adapter
         if self.text_encoder_adapter is not None:
             memory = self.text_encoder_adapter(memory)
-        
+
         memory = self._add_style_indicator(memory, style_lens)
 
         memory_key_padding_mask = make_pad_mask(text_lens)
-        
+
         return memory, memory_key_padding_mask
-      
+
     def encode_audio(
         self,
         feature: Tensor,
@@ -368,14 +374,14 @@ class PromptedTransducer(nn.Module):
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
 
         encoder_out, encoder_out_lens = self.encoder(
-            x=x, 
+            x=x,
             x_lens=x_lens,
             src_key_padding_mask=src_key_padding_mask,
             memory=memory,
             memory_key_padding_mask=memory_key_padding_mask,
         )
         encoder_out = encoder_out.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
-        
+
         return encoder_out, encoder_out_lens
 
 
