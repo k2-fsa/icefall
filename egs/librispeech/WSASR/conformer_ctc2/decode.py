@@ -68,7 +68,7 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--otc-token", type=str, default="▁<star>", help="OTC token",
+        "--otc-token", type=str, default="<star>", help="OTC token",
     )
 
     parser.add_argument(
@@ -184,7 +184,7 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--lang-dir", type=str, default="data/lang_bpe_500", help="The lang dir",
+        "--lang-dir", type=str, default="data/lang_bpe_200", help="The lang dir",
     )
 
     parser.add_argument(

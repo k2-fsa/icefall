@@ -30,12 +30,17 @@ stop_stage=100
 #        - librispeech-lm-norm.txt.gz
 #
 otc_token="<star>"
+feature_type="ssl"
 
 dl_dir=$PWD/download
 manifests_dir="data/manifests"
-feature_dir="data/ssl"
+feature_dir="data/${feature_type}"
 lang_dir="data/lang"
 lm_dir="data/lm"
+
+perturb_speed=false
+
+# ssl or fbank
 
 . ./cmd.sh
 . shared/parse_options.sh || exit 1
@@ -98,10 +103,17 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
 fi
 
 if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
-  log "Stage 2: Compute SSL feature for librispeech (train-clean-100)"
+  log "Stage 2: Compute ${feature_type} feature for librispeech (train-clean-100)"
   mkdir -p "${feature_dir}"  
   if [ ! -e "${feature_dir}/.librispeech.done" ]; then
-    python local/compute_ssl_librispeech.py
+    if [ "${feature_type}" = ssl ]; then
+      ./local/compute_ssl_librispeech.py
+    elif [ "${feature_type}" = fbank ]; then
+      ./local/compute_fbank_librispeech.py --perturb-speed ${perturb_speed}
+    else
+      log "Error: not supported --feature-type '${feature_type}'" 
+      exit 2
+    fi
 
     touch "${feature_dir}.librispeech.done"
   fi
