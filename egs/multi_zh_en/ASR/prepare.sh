@@ -105,7 +105,7 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
       > $lang_dir/text
 
     ./local/prepare_for_bpe_model.py \
-      --lang_dir ./$lang_dir \
+      --lang-dir ./$lang_dir \
       --text $lang_dir/text
   done 
 fi
