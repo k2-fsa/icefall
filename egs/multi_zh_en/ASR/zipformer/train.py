@@ -323,7 +323,7 @@ def get_parser():
     parser.add_argument(
         "--bpe-model",
         type=str,
-        default="data/lang_bpe_2000/bpe.model",
+        default="data/lang_bbpe_2000/bbpe.model",
         help="Path to the BPE model",
     )
 
