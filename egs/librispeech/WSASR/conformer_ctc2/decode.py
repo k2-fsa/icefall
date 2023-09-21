@@ -160,8 +160,8 @@ def get_params() -> AttributeDict:
     params = AttributeDict(
         {
             # parameters for conformer
-            "subsampling_factor": 4,
-            "feature_dim": 80,
+            "subsampling_factor": 2,
+            "feature_dim": 768,
             "nhead": 8,
             "dim_feedforward": 2048,
             "encoder_dim": 512,
@@ -367,6 +367,7 @@ def decode_one_batch(
         return {key: hyps}
     else:
         assert False, f"Unsupported decoding method: {params.method}"
+
 
 def decode_dataset(
     dl: torch.utils.data.DataLoader,
