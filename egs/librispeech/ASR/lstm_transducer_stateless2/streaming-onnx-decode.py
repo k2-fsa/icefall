@@ -172,30 +172,35 @@ class Model:
         self.encoder = ort.InferenceSession(
             args.encoder_model_filename,
             sess_options=self.session_opts,
+            providers=["CPUExecutionProvider"],
         )
 
     def init_decoder(self, args):
         self.decoder = ort.InferenceSession(
             args.decoder_model_filename,
             sess_options=self.session_opts,
+            providers=["CPUExecutionProvider"],
         )
 
     def init_joiner(self, args):
         self.joiner = ort.InferenceSession(
             args.joiner_model_filename,
             sess_options=self.session_opts,
+            providers=["CPUExecutionProvider"],
         )
 
     def init_joiner_encoder_proj(self, args):
         self.joiner_encoder_proj = ort.InferenceSession(
             args.joiner_encoder_proj_model_filename,
             sess_options=self.session_opts,
+            providers=["CPUExecutionProvider"],
         )
 
     def init_joiner_decoder_proj(self, args):
         self.joiner_decoder_proj = ort.InferenceSession(
             args.joiner_decoder_proj_model_filename,
             sess_options=self.session_opts,
+            providers=["CPUExecutionProvider"],
         )
 
     def run_encoder(self, x, h0, c0) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
