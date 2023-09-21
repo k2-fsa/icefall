@@ -111,47 +111,47 @@ class MultiDataset:
     def train_clean_100_cuts(self) -> CutSet:
         logging.info("About to get train-clean-100 cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_train-clean-100.jsonl.gz"
+            self.fbank_dir / "librispeech_cuts_train-clean-100.jsonl.gz"
         )
 
     @lru_cache()
     def train_clean_360_cuts(self) -> CutSet:
         logging.info("About to get train-clean-360 cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_train-clean-360.jsonl.gz"
+            self.fbank_dir / "librispeech_cuts_train-clean-360.jsonl.gz"
         )
 
     @lru_cache()
     def train_other_500_cuts(self) -> CutSet:
         logging.info("About to get train-other-500 cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_train-other-500.jsonl.gz"
+            self.fbank_dir / "librispeech_cuts_train-other-500.jsonl.gz"
         )
 
     @lru_cache()
     def dev_clean_cuts(self) -> CutSet:
         logging.info("About to get dev-clean cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_dev-clean.jsonl.gz"
+            self.fbank_dir / "librispeech_cuts_dev-clean.jsonl.gz"
         )
 
     @lru_cache()
     def dev_other_cuts(self) -> CutSet:
         logging.info("About to get dev-other cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_dev-other.jsonl.gz"
+            self.fbank_dir / "librispeech_cuts_dev-other.jsonl.gz"
         )
 
     @lru_cache()
     def test_clean_cuts(self) -> CutSet:
         logging.info("About to get test-clean cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_test-clean.jsonl.gz"
+            self.fbank_dir / "librispeech_cuts_test-clean.jsonl.gz"
         )
 
     @lru_cache()
     def test_other_cuts(self) -> CutSet:
         logging.info("About to get test-other cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_test-other.jsonl.gz"
+            self.fbank_dir / "librispeech_cuts_test-other.jsonl.gz"
         )
