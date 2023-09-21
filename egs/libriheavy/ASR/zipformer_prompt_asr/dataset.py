@@ -205,7 +205,7 @@ def triplet_text_sampling(
     rare_word_list: Optional[List[str]] = None,
     transforms: Optional[List[Callable[[str], str]]] = None,
     min_len_style: Optional[int] = 80,
-) -> Dict[str, str, str]:
+) -> Dict[str, str]:
     """This function generates a triplet of
     (pre_text, style_text, ref_text). The style of style_text and ref_text
     should **always** match, whereas the style of pre_text is arbitrary.
