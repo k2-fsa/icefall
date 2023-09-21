@@ -193,14 +193,14 @@ def get_parser():
     parser.add_argument(
         "--bpe-model",
         type=str,
-        default="data/lang_bpe_2000/bpe.model",
+        default="data/lang_bbpe_2000/bbpe.model",
         help="Path to the BPE model",
     )
 
     parser.add_argument(
         "--lang-dir",
         type=Path,
-        default="data/lang_bpe_2000",
+        default="data/lang_bbpe_2000",
         help="The lang dir containing word table and LG graph",
     )
 
