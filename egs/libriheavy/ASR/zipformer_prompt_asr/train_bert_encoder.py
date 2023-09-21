@@ -849,9 +849,11 @@ def get_joiner_model(params: AttributeDict) -> nn.Module:
 def get_transducer_model(params: AttributeDict) -> nn.Module:
     encoder_embed = get_encoder_embed(params)
     encoder = get_encoder_model(params)
+
     text_encoder = get_text_encoder(params)  # This should be a cased BERT base model
     num_param = sum([p.numel() for p in text_encoder.parameters()])
     logging.info(f"Num params in text encoder: {num_param}")
+
     decoder = get_decoder_model(params)
     joiner = get_joiner_model(params)
 
@@ -867,6 +869,7 @@ def get_transducer_model(params: AttributeDict) -> nn.Module:
         vocab_size=params.vocab_size,
         text_encoder_type=params.text_encoder_type,
         text_encoder_adapter=params.text_encoder_adapter,
+        freeze_text_encoder=params.freeze_text_encoder,
         context_fuser=None,
     )
 
@@ -1618,14 +1621,15 @@ def run(rank, world_size, args):
         valid_cuts, text_sampling_func=naive_triplet_text_sampling
     )
 
-    if not params.print_diagnostics:
-        scan_pessimistic_batches_for_oom(
-            model=model,
-            train_dl=train_dl,
-            optimizer=optimizer,
-            sp=sp,
-            params=params,
-        )
+    # if not params.print_diagnostics:
+    #     scan_pessimistic_batches_for_oom(
+    #         model=model,
+    #         train_dl=train_dl,
+    #         optimizer=optimizer,
+    #         sp=sp,
+    #         tokenizer=tokenizer,
+    #         params=params,
+    #     )
 
     scaler = GradScaler(enabled=params.use_fp16, init_scale=1.0)
     if checkpoints and "grad_scaler" in checkpoints:
@@ -1717,7 +1721,7 @@ def scan_pessimistic_batches_for_oom(
     train_dl: torch.utils.data.DataLoader,
     optimizer: torch.optim.Optimizer,
     sp: spm.SentencePieceProcessor,
-    tokenizer,
+    tokenizer: spm.SentencePieceProcessor,
     params: AttributeDict,
 ):
     from lhotse.dataset import find_pessimistic_batches

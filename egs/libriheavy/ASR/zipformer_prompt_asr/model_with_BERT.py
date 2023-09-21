@@ -48,6 +48,7 @@ class PromptedTransducer(nn.Module):
         use_BERT: bool = True,
         text_encoder_type: str = "BERT",
         text_encoder_adapter: bool = False,
+        freeze_text_encoder: bool = True,
         context_fuser: nn.Module = None,
     ):
         """
@@ -112,6 +113,7 @@ class PromptedTransducer(nn.Module):
             if text_encoder_type in ("BERT", "BERT-UNCASED")
             else self.text_encoder.config.dim
         )
+        self.freeze_text_encoder = freeze_text_encoder
 
         if text_encoder_adapter:
             self.text_encoder_adapter = nn.Sequential(
@@ -180,6 +182,8 @@ class PromptedTransducer(nn.Module):
               lm_scale * lm_probs + am_scale * am_probs +
               (1-lm_scale-am_scale) * combined_probs
         """
+        if self.freeze_text_encoder:
+            self.text_encoder.eval()
         assert x.ndim == 3, x.shape
         assert x_lens.ndim == 1, x_lens.shape
         assert y.num_axes == 2, y.num_axes
