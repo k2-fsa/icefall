@@ -15,13 +15,11 @@
 # limitations under the License.
 
 
-import glob
 import logging
-import re
+from functools import lru_cache
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict
 
-import lhotse
 from lhotse import CutSet, load_manifest_lazy
 
 
@@ -31,37 +29,12 @@ class MultiDataset:
         Args:
           manifest_dir:
             It is expected to contain the following files:
-            - aidatatang_cuts_train.jsonl.gz
-            - aishell_cuts_train.jsonl.gz
             - aishell2_cuts_train.jsonl.gz
-            - aishell4_cuts_train_L.jsonl.gz
-            - aishell4_cuts_train_M.jsonl.gz
-            - aishell4_cuts_train_S.jsonl.gz
-            - alimeeting-far_cuts_train.jsonl.gz
-            - magicdata_cuts_train.jsonl.gz
-            - primewords_cuts_train.jsonl.gz
-            - stcmds_cuts_train.jsonl.gz
-            - thchs_30_cuts_train.jsonl.gz
-            - kespeech/kespeech-asr_cuts_train_phase1.jsonl.gz
-            - kespeech/kespeech-asr_cuts_train_phase2.jsonl.gz
-            - wenetspeech/cuts_L.jsonl.gz
         """
         self.fbank_dir = Path(fbank_dir)
 
     def train_cuts(self) -> CutSet:
         logging.info("About to get multidataset train cuts")
-
-        # THCHS-30
-        logging.info("Loading THCHS-30 in lazy mode")
-        thchs_30_cuts = load_manifest_lazy(
-            self.fbank_dir / "thchs_30_cuts_train.jsonl.gz"
-        )
-
-        # AISHELL-1
-        logging.info("Loading Aishell-1 in lazy mode")
-        aishell_cuts = load_manifest_lazy(
-            self.fbank_dir / "aishell_cuts_train.jsonl.gz"
-        )
 
         # AISHELL-2
         logging.info("Loading Aishell-2 in lazy mode")
@@ -69,108 +42,26 @@ class MultiDataset:
             self.fbank_dir / "aishell2_cuts_train.jsonl.gz"
         )
 
-        # AISHELL-4
-        logging.info("Loading Aishell-4 in lazy mode")
-        aishell_4_L_cuts = load_manifest_lazy(
-            self.fbank_dir / "aishell4_cuts_train_L.jsonl.gz"
-        )
-        aishell_4_M_cuts = load_manifest_lazy(
-            self.fbank_dir / "aishell4_cuts_train_M.jsonl.gz"
-        )
-        aishell_4_S_cuts = load_manifest_lazy(
-            self.fbank_dir / "aishell4_cuts_train_S.jsonl.gz"
-        )
-
-        # ST-CMDS
-        logging.info("Loading ST-CMDS in lazy mode")
-        stcmds_cuts = load_manifest_lazy(self.fbank_dir / "stcmds_cuts_train.jsonl.gz")
-
-        # Primewords
-        logging.info("Loading Primewords in lazy mode")
-        primewords_cuts = load_manifest_lazy(
-            self.fbank_dir / "primewords_cuts_train.jsonl.gz"
-        )
-
-        # MagicData
-        logging.info("Loading MagicData in lazy mode")
-        magicdata_cuts = load_manifest_lazy(
-            self.fbank_dir / "magicdata_cuts_train.jsonl.gz"
-        )
-
-        # Aidatatang_200zh
-        logging.info("Loading Aidatatang_200zh in lazy mode")
-        aidatatang_200zh_cuts = load_manifest_lazy(
-            self.fbank_dir / "aidatatang_cuts_train.jsonl.gz"
-        )
-
-        # Ali-Meeting
-        logging.info("Loading Ali-Meeting in lazy mode")
-        alimeeting_cuts = load_manifest_lazy(
-            self.fbank_dir / "alimeeting-far_cuts_train.jsonl.gz"
-        )
-
-        # WeNetSpeech
-        logging.info("Loading WeNetSpeech in lazy mode")
-        wenetspeech_L_cuts = load_manifest_lazy(
-            self.fbank_dir / "wenetspeech" / "cuts_L.jsonl.gz"
-        )
-
-        # KeSpeech
-        logging.info("Loading KeSpeech in lazy mode")
-        kespeech_1_cuts = load_manifest_lazy(
-            self.fbank_dir / "kespeech" / "kespeech-asr_cuts_train_phase1.jsonl.gz"
-        )
-        kespeech_2_cuts = load_manifest_lazy(
-            self.fbank_dir / "kespeech" / "kespeech-asr_cuts_train_phase2.jsonl.gz"
-        )
+        # LibriSpeech
+        train_clean_100_cuts = self.train_clean_100_cuts()
+        train_clean_360_cuts = self.train_clean_360_cuts()
+        train_other_500_cuts = self.train_other_500_cuts()
 
         return CutSet.mux(
-            thchs_30_cuts,
-            aishell_cuts,
             aishell_2_cuts,
-            aishell_4_L_cuts,
-            aishell_4_M_cuts,
-            aishell_4_S_cuts,
-            stcmds_cuts,
-            primewords_cuts,
-            magicdata_cuts,
-            aidatatang_200zh_cuts,
-            alimeeting_cuts,
-            wenetspeech_L_cuts,
-            kespeech_1_cuts,
-            kespeech_2_cuts,
+            train_clean_100_cuts,
+            train_clean_360_cuts,
+            train_other_500_cuts,
             weights=[
-                len(thchs_30_cuts),
-                len(aishell_cuts),
                 len(aishell_2_cuts),
-                len(aishell_4_L_cuts),
-                len(aishell_4_M_cuts),
-                len(aishell_4_S_cuts),
-                len(stcmds_cuts),
-                len(primewords_cuts),
-                len(magicdata_cuts),
-                len(aidatatang_200zh_cuts),
-                len(alimeeting_cuts),
-                len(wenetspeech_L_cuts),
-                len(kespeech_1_cuts),
-                len(kespeech_2_cuts),
+                len(train_clean_100_cuts),
+                len(train_clean_360_cuts),
+                len(train_other_500_cuts),
             ],
         )
 
     def dev_cuts(self) -> CutSet:
         logging.info("About to get multidataset dev cuts")
-
-        # Aidatatang_200zh
-        logging.info("Loading Aidatatang_200zh DEV set in lazy mode")
-        aidatatang_dev_cuts = load_manifest_lazy(
-            self.fbank_dir / "aidatatang_cuts_dev.jsonl.gz"
-        )
-
-        # AISHELL
-        logging.info("Loading Aishell DEV set in lazy mode")
-        aishell_dev_cuts = load_manifest_lazy(
-            self.fbank_dir / "aishell_cuts_dev.jsonl.gz"
-        )
 
         # AISHELL-2
         logging.info("Loading Aishell-2 DEV set in lazy mode")
@@ -178,65 +69,23 @@ class MultiDataset:
             self.fbank_dir / "aishell2_cuts_dev.jsonl.gz"
         )
 
-        # Ali-Meeting
-        logging.info("Loading Ali-Meeting DEV set in lazy mode")
-        alimeeting_dev_cuts = load_manifest_lazy(
-            self.fbank_dir / "alimeeting-far_cuts_eval.jsonl.gz"
-        )
+        # LibriSpeech
+        dev_clean_cuts = self.dev_clean_cuts()
+        dev_other_cuts = self.dev_other_cuts()
 
-        # MagicData
-        logging.info("Loading MagicData DEV set in lazy mode")
-        magicdata_dev_cuts = load_manifest_lazy(
-            self.fbank_dir / "magicdata_cuts_dev.jsonl.gz"
+        return CutSet.mux(
+            aishell2_dev_cuts,
+            dev_clean_cuts,
+            dev_other_cuts,
+            weights=[
+                len(aishell2_dev_cuts),
+                len(dev_clean_cuts),
+                len(dev_other_cuts),
+            ],
         )
-
-        # KeSpeech
-        logging.info("Loading KeSpeech DEV set in lazy mode")
-        kespeech_dev_phase1_cuts = load_manifest_lazy(
-            self.fbank_dir / "kespeech" / "kespeech-asr_cuts_dev_phase1.jsonl.gz"
-        )
-        kespeech_dev_phase2_cuts = load_manifest_lazy(
-            self.fbank_dir / "kespeech" / "kespeech-asr_cuts_dev_phase2.jsonl.gz"
-        )
-
-        # WeNetSpeech
-        logging.info("Loading WeNetSpeech DEV set in lazy mode")
-        wenetspeech_dev_cuts = load_manifest_lazy(
-            self.fbank_dir / "wenetspeech" / "cuts_DEV.jsonl.gz"
-        )
-
-        return wenetspeech_dev_cuts
-        # return [
-        #         aidatatang_dev_cuts,
-        #         aishell_dev_cuts,
-        #         aishell2_dev_cuts,
-        #         alimeeting_dev_cuts,
-        #         magicdata_dev_cuts,
-        #         kespeech_dev_phase1_cuts,
-        #         kespeech_dev_phase2_cuts,
-        #         wenetspeech_dev_cuts,
-        #     ]
 
     def test_cuts(self) -> Dict[str, CutSet]:
         logging.info("About to get multidataset test cuts")
-
-        # Aidatatang_200zh
-        logging.info("Loading Aidatatang_200zh set in lazy mode")
-        aidatatang_test_cuts = load_manifest_lazy(
-            self.fbank_dir / "aidatatang_cuts_test.jsonl.gz"
-        )
-        aidatatang_dev_cuts = load_manifest_lazy(
-            self.fbank_dir / "aidatatang_cuts_dev.jsonl.gz"
-        )
-
-        # AISHELL
-        logging.info("Loading Aishell set in lazy mode")
-        aishell_test_cuts = load_manifest_lazy(
-            self.fbank_dir / "aishell_cuts_test.jsonl.gz"
-        )
-        aishell_dev_cuts = load_manifest_lazy(
-            self.fbank_dir / "aishell_cuts_dev.jsonl.gz"
-        )
 
         # AISHELL-2
         logging.info("Loading Aishell-2 set in lazy mode")
@@ -247,70 +96,62 @@ class MultiDataset:
             self.fbank_dir / "aishell2_cuts_dev.jsonl.gz"
         )
 
-        # AISHELL-4
-        logging.info("Loading Aishell-4 TEST set in lazy mode")
-        aishell4_test_cuts = load_manifest_lazy(
-            self.fbank_dir / "aishell4_cuts_test.jsonl.gz"
-        )
-
-        # Ali-Meeting
-        logging.info("Loading Ali-Meeting set in lazy mode")
-        alimeeting_test_cuts = load_manifest_lazy(
-            self.fbank_dir / "alimeeting-far_cuts_test.jsonl.gz"
-        )
-        alimeeting_eval_cuts = load_manifest_lazy(
-            self.fbank_dir / "alimeeting-far_cuts_eval.jsonl.gz"
-        )
-
-        # MagicData
-        logging.info("Loading MagicData set in lazy mode")
-        magicdata_test_cuts = load_manifest_lazy(
-            self.fbank_dir / "magicdata_cuts_test.jsonl.gz"
-        )
-        magicdata_dev_cuts = load_manifest_lazy(
-            self.fbank_dir / "magicdata_cuts_dev.jsonl.gz"
-        )
-
-        # KeSpeech
-        logging.info("Loading KeSpeech set in lazy mode")
-        kespeech_test_cuts = load_manifest_lazy(
-            self.fbank_dir / "kespeech" / "kespeech-asr_cuts_test.jsonl.gz"
-        )
-        kespeech_dev_phase1_cuts = load_manifest_lazy(
-            self.fbank_dir / "kespeech" / "kespeech-asr_cuts_dev_phase1.jsonl.gz"
-        )
-        kespeech_dev_phase2_cuts = load_manifest_lazy(
-            self.fbank_dir / "kespeech" / "kespeech-asr_cuts_dev_phase2.jsonl.gz"
-        )
-
-        # WeNetSpeech
-        logging.info("Loading WeNetSpeech set in lazy mode")
-        wenetspeech_test_meeting_cuts = load_manifest_lazy(
-            self.fbank_dir / "wenetspeech" / "cuts_TEST_MEETING.jsonl.gz"
-        )
-        wenetspeech_test_net_cuts = load_manifest_lazy(
-            self.fbank_dir / "wenetspeech" / "cuts_TEST_NET.jsonl.gz"
-        )
-        wenetspeech_dev_cuts = load_manifest_lazy(
-            self.fbank_dir / "wenetspeech" / "cuts_DEV.jsonl.gz"
-        )
+        # LibriSpeech
+        test_clean_cuts = self.test_clean_cuts()
+        test_other_cuts = self.test_other_cuts()
 
         return {
-            "aidatatang_test": aidatatang_test_cuts,
-            "aidatatang_dev": aidatatang_dev_cuts,
-            "alimeeting_test": alimeeting_test_cuts,
-            "alimeeting_eval": alimeeting_eval_cuts,
-            "aishell_test": aishell_test_cuts,
-            "aishell_dev": aishell_dev_cuts,
             "aishell-2_test": aishell2_test_cuts,
             "aishell-2_dev": aishell2_dev_cuts,
-            "aishell-4": aishell4_test_cuts,
-            "magicdata_test": magicdata_test_cuts,
-            "magicdata_dev": magicdata_dev_cuts,
-            "kespeech-asr_test": kespeech_test_cuts,
-            "kespeech-asr_dev_phase1": kespeech_dev_phase1_cuts,
-            "kespeech-asr_dev_phase2": kespeech_dev_phase2_cuts,
-            "wenetspeech-meeting_test": wenetspeech_test_meeting_cuts,
-            "wenetspeech-net_test": wenetspeech_test_net_cuts,
-            "wenetspeech_dev": wenetspeech_dev_cuts,
+            "librispeech_test_clean": test_clean_cuts,
+            "librispeech_test_other": test_other_cuts,
         }
+
+    @lru_cache()
+    def train_clean_100_cuts(self) -> CutSet:
+        logging.info("About to get train-clean-100 cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "librispeech_cuts_train-clean-100.jsonl.gz"
+        )
+
+    @lru_cache()
+    def train_clean_360_cuts(self) -> CutSet:
+        logging.info("About to get train-clean-360 cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "librispeech_cuts_train-clean-360.jsonl.gz"
+        )
+
+    @lru_cache()
+    def train_other_500_cuts(self) -> CutSet:
+        logging.info("About to get train-other-500 cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "librispeech_cuts_train-other-500.jsonl.gz"
+        )
+
+    @lru_cache()
+    def dev_clean_cuts(self) -> CutSet:
+        logging.info("About to get dev-clean cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "librispeech_cuts_dev-clean.jsonl.gz"
+        )
+
+    @lru_cache()
+    def dev_other_cuts(self) -> CutSet:
+        logging.info("About to get dev-other cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "librispeech_cuts_dev-other.jsonl.gz"
+        )
+
+    @lru_cache()
+    def test_clean_cuts(self) -> CutSet:
+        logging.info("About to get test-clean cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "librispeech_cuts_test-clean.jsonl.gz"
+        )
+
+    @lru_cache()
+    def test_other_cuts(self) -> CutSet:
+        logging.info("About to get test-other cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "librispeech_cuts_test-other.jsonl.gz"
+        )
