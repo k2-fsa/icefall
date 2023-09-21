@@ -865,7 +865,7 @@ class ZipformerEncoderLayer(nn.Module):
             return final_dropout_rate
         else:
             return initial_dropout_rate - (
-                initial_dropout_rate * final_dropout_rate
+                initial_dropout_rate - final_dropout_rate
             ) * (self.batch_count / warmup_period)
 
     def forward(

@@ -79,7 +79,7 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   #   ln -sfv /path/to/rirs_noises $dl_dir/
   #
   if [ ! -d $dl_dir/rirs_noises ]; then
-    lhotse download rirs_noises $dl_dir
+    lhotse download rir-noise $dl_dir/rirs_noises
   fi
 fi
 
@@ -89,6 +89,7 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   # to $dl_dir/librispeech. We perform text normalization for the transcripts.
   # NOTE: Alignments are required for this recipe.
   mkdir -p data/manifests
+
   lhotse prepare librispeech -p train-clean-100 -p train-clean-360 -p train-other-500 -p dev-clean \
     -j 4 --alignments-dir $dl_dir/libri_alignments/LibriSpeech $dl_dir/librispeech data/manifests/
 fi
@@ -112,7 +113,7 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
 
   # We assume that you have downloaded the RIRS_NOISES corpus
   # to $dl_dir/rirs_noises
-  lhotse prepare rir-noise -p real_rir -p iso_noise $dl_dir/rirs_noises data/manifests
+  lhotse prepare rir-noise -p real_rir -p iso_noise $dl_dir/rirs_noises/RIRS_NOISES data/manifests
 fi
 
 if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
