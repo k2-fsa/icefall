@@ -74,7 +74,7 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
 fi
 
 if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
-  log "Stage 4: preparation for training BPE model"
+  log "Stage 4: Prepare Byte BPE based lang"
   mkdir -p data/fbank
   if [ ! -d ../../aishell2/ASR/data/lang_char ]; then
     log "Abort! Please run ../../aishell2/ASR/prepare.sh --stage 3 --stop-stage 3"
@@ -107,40 +107,40 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
     ./local/prepare_for_bpe_model.py \
       --lang_dir ./$lang_dir \
       --text $lang_dir/text
+    
+    if [ ! -f $lang_dir/text_words_segmentation ]; then
+      python3 ./local/text2segments.py \
+        --input-file ./data/lang_char/text \
+        --output-file $lang_dir/text_words_segmentation
+      
+      cat ./data/lang_bpe_500/transcript_words.txt \
+        >> $lang_dir/text_words_segmentation
+    fi
+
+    cat $lang_dir/text_words_segmentation | sed 's/ /\n/g' \
+      | sort -u | sed '/^$/d' | uniq > $lang_dir/words_no_ids.txt
+
+    if [ ! -f $lang_dir/words.txt ]; then
+      python3 ./local/prepare_words.py \
+        --input-file $lang_dir/words_no_ids.txt \
+        --output-file $lang_dir/words.txt
+    fi
+
+    if [ ! -f $lang_dir/bbpe.model ]; then
+      ./local/train_bbpe_model.py \
+        --lang-dir $lang_dir \
+        --vocab-size $vocab_size \
+        --transcript $lang_dir/transcript_chars.txt
+    fi
+
+    if [ ! -f $lang_dir/L_disambig.pt ]; then
+      ./local/prepare_lang_bbpe.py --lang-dir $lang_dir
+
+      log "Validating $lang_dir/lexicon.txt"
+      ./local/validate_bpe_lexicon.py \
+        --lexicon $lang_dir/lexicon.txt \
+        --bpe-model $lang_dir/bbpe.model
+    fi
   done 
-fi
-
-if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
-  log "Stage 5: training BPE model"
-  if [ ! -d data/lang_char ]; then
-    log "Abort! Please run stage 4 first"
-    exit 1
-  fi
-
-  if [ ! -d data/lang_phone ]; then
-    log "Abort! Please run stage 4 first"
-    exit 1
-  fi
-
-  for vocab_size in ${vocab_sizes[@]}; do
-    lang_dir=data/lang_bbpe_${vocab_size}
-    mkdir -p $lang_dir
-
-    if [ ! -f $lang_dir/bpe.model ]; then
-      log "Training BPE model with vocab size ${vocab_size}"
-      python3 -m k2_cli.prepares.prep_bpe \
-        --input-dir data/lang_char \
-        --output-dir data/lang_char \
-        --vocab-size ${vocab_size}
-    fi
-
-    if [ ! -f data/lang_phone/bpe${vocab_size}.model ]; then
-      log "Training BPE model with vocab size ${vocab_size}"
-      python3 -m k2_cli.prepares.prep_bpe \
-        --input-dir data/lang_phone \
-        --output-dir data/lang_phone \
-        --vocab-size ${vocab_size}
-    fi
-  done
 fi
 
