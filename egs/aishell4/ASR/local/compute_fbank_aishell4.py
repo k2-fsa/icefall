@@ -32,7 +32,7 @@ import torch
 from lhotse import ChunkedLilcomHdf5Writer, CutSet, Fbank, FbankConfig
 from lhotse.recipes.utils import read_manifests_if_cached
 
-from icefall.utils import get_executor
+from icefall.utils import get_executor, str2bool
 
 # Torch's multithreaded behavior needs to be disabled or
 # it wastes a lot of CPU and slow things down.
@@ -42,7 +42,7 @@ torch.set_num_threads(1)
 torch.set_num_interop_threads(1)
 
 
-def compute_fbank_aishell4(num_mel_bins: int = 80):
+def compute_fbank_aishell4(num_mel_bins: int = 80, perturb_speed: bool = False):
     src_dir = Path("data/manifests/aishell4")
     output_dir = Path("data/fbank")
     num_jobs = min(15, os.cpu_count())
@@ -83,10 +83,12 @@ def compute_fbank_aishell4(num_mel_bins: int = 80):
                 recordings=m["recordings"],
                 supervisions=m["supervisions"],
             )
-            if "train" in partition:
+            if "train" in partition and perturb_speed:
+                logging.info(f"Doing speed perturb")
                 cut_set = (
                     cut_set + cut_set.perturb_speed(0.9) + cut_set.perturb_speed(1.1)
                 )
+
             cut_set = cut_set.compute_and_store_features(
                 extractor=extractor,
                 storage_path=f"{output_dir}/{prefix}_feats_{partition}",
@@ -113,6 +115,12 @@ def get_args():
         default=80,
         help="""The number of mel bins for Fbank""",
     )
+    parser.add_argument(
+        "--perturb-speed",
+        type=str2bool,
+        default=False,
+        help="Enable 0.9 and 1.1 speed perturbation for data augmentation. Default: False.",
+    )
 
     return parser.parse_args()
 
@@ -123,4 +131,6 @@ if __name__ == "__main__":
     logging.basicConfig(format=formatter, level=logging.INFO)
 
     args = get_args()
-    compute_fbank_aishell4(num_mel_bins=args.num_mel_bins)
+    compute_fbank_aishell4(
+        num_mel_bins=args.num_mel_bins, perturb_speed=args.perturb_speed
+    )

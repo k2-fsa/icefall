@@ -65,7 +65,6 @@ def get_params() -> AttributeDict:
         {
             "exp_dir": Path("tdnn/exp/"),
             "lang_dir": Path("data/lang_phone"),
-            "lm_dir": Path("data/lm"),
             "feature_dim": 23,
             "search_beam": 20,
             "output_beam": 8,

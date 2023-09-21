@@ -320,7 +320,7 @@ def main():
 
     s = "\n"
     for filename, hyp in zip(params.sound_files, hyps):
-        words = " ".join(hyp)
+        words = "".join(hyp)
         s += f"{filename}:\n{words}\n\n"
     logging.info(s)
 
