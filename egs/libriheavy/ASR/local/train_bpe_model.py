@@ -43,6 +43,19 @@ def get_args():
     )
 
     parser.add_argument(
+        "--byte-fallback",
+        action='store_true',
+        help="""Whether to enable byte_fallback when training bpe."""
+    )
+
+    parser.add_argument(
+        "--character-coverage",
+        type=float,
+        default=1.0,
+        help="Character coverage in vocabulary.",
+    )
+
+    parser.add_argument(
         "--transcript",
         type=str,
         help="Training transcript.",
@@ -66,7 +79,6 @@ def main():
 
     model_prefix = f"{lang_dir}/{model_type}_{vocab_size}"
     train_text = args.transcript
-    character_coverage = 1.0
     input_sentence_size = 100000000
 
     user_defined_symbols = ["<blk>", "<sos/eos>"]
@@ -83,8 +95,9 @@ def main():
             model_type=model_type,
             model_prefix=model_prefix,
             input_sentence_size=input_sentence_size,
-            character_coverage=character_coverage,
+            character_coverage=args.character_coverage,
             user_defined_symbols=user_defined_symbols,
+            byte_fallback=args.byte_fallback,
             unk_id=unk_id,
             bos_id=-1,
             eos_id=-1,
