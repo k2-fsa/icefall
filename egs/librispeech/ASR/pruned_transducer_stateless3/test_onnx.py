@@ -78,7 +78,6 @@ def test_conv2d_subsampling():
     session = ort.InferenceSession(
         filename,
         sess_options=options,
-        providers=["CPUExecutionProvider"],
     )
 
     input_nodes = session.get_inputs()
@@ -134,7 +133,6 @@ def test_rel_pos():
     session = ort.InferenceSession(
         filename,
         sess_options=options,
-        providers=["CPUExecutionProvider"],
     )
 
     input_nodes = session.get_inputs()
@@ -222,7 +220,6 @@ def test_conformer_encoder_layer():
     session = ort.InferenceSession(
         filename,
         sess_options=options,
-        providers=["CPUExecutionProvider"],
     )
 
     input_nodes = session.get_inputs()
@@ -307,7 +304,6 @@ def test_conformer_encoder():
     session = ort.InferenceSession(
         filename,
         sess_options=options,
-        providers=["CPUExecutionProvider"],
     )
 
     input_nodes = session.get_inputs()
@@ -363,7 +359,6 @@ def test_conformer():
     session = ort.InferenceSession(
         filename,
         sess_options=options,
-        providers=["CPUExecutionProvider"],
     )
 
     input_nodes = session.get_inputs()

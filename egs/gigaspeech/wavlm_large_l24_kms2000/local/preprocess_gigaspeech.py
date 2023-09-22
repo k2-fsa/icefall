@@ -1,0 +1,138 @@
+#!/usr/bin/env python3
+# Copyright    2021  Johns Hopkins University (Piotr Żelasko)
+# Copyright    2021  Xiaomi Corp.             (Fangjun Kuang)
+#
+# See ../../../../LICENSE for clarification regarding multiple authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import logging
+import re
+from pathlib import Path
+
+import jsonlines
+from lhotse import CutSet, SupervisionSegment
+from lhotse.recipes.utils import read_manifests_if_cached
+from lhotse.serialization import open_best
+from tqdm import tqdm
+
+# Similar text filtering and normalization procedure as in:
+# https://github.com/SpeechColab/GigaSpeech/blob/main/toolkits/kaldi/gigaspeech_data_prep.sh
+
+
+def normalize_text(
+    utt: str,
+    punct_pattern=re.compile(r"<(COMMA|PERIOD|QUESTIONMARK|EXCLAMATIONPOINT)>"),
+    whitespace_pattern=re.compile(r"\s\s+"),
+) -> str:
+    return whitespace_pattern.sub(" ", punct_pattern.sub("", utt))
+
+
+def has_no_oov(
+    sup: SupervisionSegment,
+    oov_pattern=re.compile(r"<(SIL|MUSIC|NOISE|OTHER)>"),
+) -> bool:
+    return oov_pattern.search(sup.text) is None
+
+
+def preprocess_gigaspeech():
+    src_dir = Path("data/manifests")
+    output_dir = Path("data/fbank")
+    output_dir.mkdir(exist_ok=True)
+
+    dataset_parts = (
+        "DEV",
+        "TEST",
+        "M",
+    )
+
+    prefix = "gigaspeech"
+    suffix = "jsonl.gz"
+
+    logging.info("Loading manifest (may take 1 minutes)")
+    manifests = read_manifests_if_cached(
+        dataset_parts=dataset_parts,
+        output_dir=src_dir,
+        prefix=prefix,
+        suffix=suffix,
+    )
+    assert manifests is not None
+
+    assert len(manifests) == len(dataset_parts), (
+        len(manifests),
+        len(dataset_parts),
+        list(manifests.keys()),
+        dataset_parts,
+    )
+
+    for partition, m in manifests.items():
+        raw_cuts_path = output_dir / f"{prefix}_cuts_{partition}_raw.jsonl.gz"
+        if raw_cuts_path.is_file():
+            logging.info(f"{partition} already exists - skipping")
+            continue
+
+        # Note this step makes the recipe different than LibriSpeech:
+        # We must filter out some utterances and remove punctuation
+        # to be consistent with Kaldi.
+        logging.info("Filtering OOV utterances from supervisions")
+        m["supervisions"] = m["supervisions"].filter(has_no_oov)
+        logging.info(f"Normalizing text in {partition}")
+        for sup in m["supervisions"]:
+            sup.text = normalize_text(sup.text)
+
+        # Create long-recording cut manifests.
+        logging.info(f"Preprocessing {partition}")
+        cut_set = CutSet.from_manifests(
+            recordings=m["recordings"],
+            supervisions=m["supervisions"],
+        )
+
+        logging.info("About to split cuts into smaller chunks.")
+        cut_set = cut_set.trim_to_supervisions(
+            keep_overlapping=False, min_duration=None
+        )
+
+        logging.info(f"Saving to {raw_cuts_path}")
+        cut_set.to_file(raw_cuts_path)
+
+    for partition in dataset_parts:
+        cuts_path = output_dir / f"{prefix}_cuts_{partition}.jsonl"
+        if cuts_path.is_file():
+            logging.info(f"{partition} already exists - skipping")
+            continue
+
+        logging.info(f"Processing {partition}")
+        raw_cuts_path = output_dir / f"{prefix}_cuts_{partition}_raw.jsonl.gz"
+        with open_best(raw_cuts_path) as reader, jsonlines.open(
+            cuts_path, "a"
+        ) as writer:
+            for cut in reader:
+                cut = eval(cut)
+                cut["custom"] = {
+                    "discrete_tokens": cut["supervisions"][0]["custom"][
+                        "discrete_tokens"
+                    ]
+                }
+                del cut["supervisions"][0]["custom"]
+                writer.write(cut)
+
+
+def main():
+    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
+    logging.basicConfig(format=formatter, level=logging.INFO)
+
+    preprocess_gigaspeech()
+
+
+if __name__ == "__main__":
+    main()

@@ -26,7 +26,7 @@ Usage:
 
 ./lstm_transducer_stateless3/export.py \
   --exp-dir ./lstm_transducer_stateless3/exp \
-  --tokens data/lang_bpe_500/tokens.txt \
+  --bpe-model data/lang_bpe_500/bpe.model \
   --epoch 40 \
   --avg 20 \
   --jit-trace 1
@@ -38,7 +38,7 @@ It will generate 3 files: `encoder_jit_trace.pt`,
 
 ./lstm_transducer_stateless3/export.py \
   --exp-dir ./lstm_transducer_stateless3/exp \
-  --tokens data/lang_bpe_500/tokens.txt \
+  --bpe-model data/lang_bpe_500/bpe.model \
   --epoch 40 \
   --avg 20
 
@@ -79,7 +79,7 @@ import argparse
 import logging
 from pathlib import Path
 
-import k2
+import sentencepiece as spm
 import torch
 import torch.nn as nn
 from scaling_converter import convert_scaled_to_non_scaled
@@ -91,7 +91,7 @@ from icefall.checkpoint import (
     find_checkpoints,
     load_checkpoint,
 )
-from icefall.utils import num_tokens, str2bool
+from icefall.utils import str2bool
 
 
 def get_parser():
@@ -148,10 +148,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--tokens",
+        "--bpe-model",
         type=str,
-        default="data/lang_bpe_500/tokens.txt",
-        help="Path to tokens.txt.",
+        default="data/lang_bpe_500/bpe.model",
+        help="Path to the BPE model",
     )
 
     parser.add_argument(
@@ -266,13 +266,12 @@ def main():
 
     logging.info(f"device: {device}")
 
-    # Load tokens.txt here
-    token_table = k2.SymbolTable.from_file(params.tokens)
+    sp = spm.SentencePieceProcessor()
+    sp.load(params.bpe_model)
 
-    # Load id of the <blk> token and the vocab size, <blk> is
-    # defined in local/train_bpe_model.py
-    params.blank_id = token_table["<blk>"]
-    params.vocab_size = num_tokens(token_table) + 1  # +1 for <blk>
+    # <blk> is defined in local/train_bpe_model.py
+    params.blank_id = sp.piece_to_id("<blk>")
+    params.vocab_size = sp.get_piece_size()
 
     logging.info(params)
 

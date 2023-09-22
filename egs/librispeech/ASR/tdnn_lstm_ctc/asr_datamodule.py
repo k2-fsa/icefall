@@ -31,7 +31,7 @@ from lhotse.dataset import (  # noqa F401 for PrecomputedFeatures
     DynamicBucketingSampler,
     K2SpeechRecognitionDataset,
     PrecomputedFeatures,
-    SimpleCutSampler,
+    SingleCutSampler,
     SpecAugment,
 )
 from lhotse.dataset.input_strategies import (  # noqa F401 For AudioSamples
@@ -203,7 +203,7 @@ class LibriSpeechAsrDataModule:
         group.add_argument(
             "--enable-musan",
             type=str2bool,
-            default=True,
+            default=False,
             help="When enabled, select noise from MUSAN and mix it"
             "with training dataset. ",
         )
@@ -314,8 +314,8 @@ class LibriSpeechAsrDataModule:
                 drop_last=self.args.drop_last,
             )
         else:
-            logging.info("Using SimpleCutSampler.")
-            train_sampler = SimpleCutSampler(
+            logging.info("Using SingleCutSampler.")
+            train_sampler = SingleCutSampler(
                 cuts_train,
                 max_duration=self.args.max_duration,
                 shuffle=self.args.shuffle,

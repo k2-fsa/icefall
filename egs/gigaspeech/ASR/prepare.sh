@@ -9,8 +9,8 @@ nj=15
 stage=0
 stop_stage=100
 
-# Split XL subset to a number of pieces (about 2000)
-# This is to avoid OOM during feature extraction.
+# Split data/set to a number of pieces                                                                                   
+# This is to avoid OOM during feature extraction.                                                                        
 num_per_split=50
 
 # We assume dl_dir (download dir) contains the following
@@ -98,18 +98,9 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
       echo "$0: Error, invalid $dl_dir/password."
       exit 1;
     fi
-    # Download XL, DEV and TEST sets by default.
+    # Download M, DEV and TEST sets by default.
     lhotse download gigaspeech --subset auto --host tsinghua \
       $dl_dir/password $dl_dir/GigaSpeech
-  fi
-
-  # If you have pre-downloaded it to /path/to/musan,
-  # you can create a symlink
-  #
-  #   ln -sfv /path/to/musan $dl_dir/
-  #
-  if [ ! -d $dl_dir/musan ]; then
-    lhotse download musan $dl_dir
   fi
 fi
 
@@ -118,16 +109,8 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   # We assume that you have downloaded the GigaSpeech corpus
   # to $dl_dir/GigaSpeech
   mkdir -p data/manifests
-  lhotse prepare gigaspeech --subset auto -j $nj \
+  lhotse prepare gigaspeech --subset M --subset DEV --subset TEST -j $nj \
     $dl_dir/GigaSpeech data/manifests
-fi
-
-if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
-  log "Stage 2: Prepare musan manifest"
-  # We assume that you have downloaded the musan corpus
-  # to $dl_dir/musan
-  mkdir -p data/manifests
-  lhotse prepare musan $dl_dir/musan data/manifests
 fi
 
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
@@ -144,35 +127,21 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
 fi
 
 if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
-  log "Stage 5: Split XL subset into pieces (may take 30 minutes)"
-  split_dir=data/fbank/XL_split
+  log "Stage 5: Split M subset into pieces (may take 30 minutes)"
+  split_dir=data/fbank/M_split
   if [ ! -f $split_dir/.split_completed ]; then
-    lhotse split-lazy ./data/fbank/cuts_XL_raw.jsonl.gz $split_dir $num_per_split
+    lhotse split-lazy ./data/fbank/cuts_M_raw.jsonl.gz $split_dir $num_per_split
     touch $split_dir/.split_completed
   fi
 fi
 
 if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
-  log "Stage 6: Compute features for XL"
-  num_splits=$(find data/fbank/XL_split -name "cuts_XL_raw.*.jsonl.gz" | wc -l)
+  log "Stage 6: Compute features for M"
+  num_splits=$(find data/fbank/M_split -name "cuts_M_raw.*.jsonl.gz" | wc -l)
   python3 ./local/compute_fbank_gigaspeech_splits.py \
     --num-workers 20 \
     --batch-duration 600 \
     --num-splits $num_splits
-fi
-
-if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
-  log "Stage 7: Combine features for XL (may take 3 hours)"
-  if [ ! -f data/fbank/cuts_XL.jsonl.gz ]; then
-    pieces=$(find data/fbank/XL_split -name "cuts_XL.*.jsonl.gz")
-    lhotse combine $pieces data/fbank/cuts_XL.jsonl.gz
-  fi
-fi
-
-if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
-  log "Stage 8: Compute fbank for musan"
-  mkdir -p data/fbank
-  ./local/compute_fbank_musan.py
 fi
 
 if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
@@ -189,7 +158,7 @@ if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
   fi
 
   if [ ! -f $lang_dir/transcript_words.txt ]; then
-    gunzip -c "data/manifests/gigaspeech_supervisions_XL.jsonl.gz" \
+    gunzip -c "data/manifests/gigaspeech_supervisions_M.jsonl.gz" \
       | jq '.text' \
       | sed 's/"//g' \
       > $lang_dir/transcript_words.txt
@@ -257,72 +226,5 @@ if [ $stage -le 10 ] && [ $stop_stage -ge 10 ]; then
     if [ ! -f $lang_dir/L_disambig.pt ]; then
       ./local/prepare_lang_bpe.py --lang-dir $lang_dir
     fi
-  done
-fi
-
-if [ $stage -le 11 ] && [ $stop_stage -ge 11 ]; then
-  log "Stage 11: Prepare bigram P"
-
-  for vocab_size in ${vocab_sizes[@]}; do
-    lang_dir=data/lang_bpe_${vocab_size}
-
-    if [ ! -f $lang_dir/transcript_tokens.txt ]; then
-      ./local/convert_transcript_words_to_tokens.py \
-        --lexicon $lang_dir/lexicon.txt \
-        --transcript $lang_dir/transcript_words.txt \
-        --oov "<UNK>" \
-        > $lang_dir/transcript_tokens.txt
-    fi
-
-    if [ ! -f $lang_dir/P.arpa ]; then
-      ./shared/make_kn_lm.py \
-        -ngram-order 2 \
-        -text $lang_dir/transcript_tokens.txt \
-        -lm $lang_dir/P.arpa
-    fi
-
-    if [ ! -f $lang_dir/P.fst.txt ]; then
-      python3 -m kaldilm \
-        --read-symbol-table="$lang_dir/tokens.txt" \
-        --disambig-symbol='#0' \
-        --max-order=2 \
-        $lang_dir/P.arpa > $lang_dir/P.fst.txt
-    fi
-  done
-fi
-
-if [ $stage -le 12 ] && [ $stop_stage -ge 12 ]; then
-  log "Stage 12: Prepare G"
-  # We assume you have install kaldilm, if not, please install
-  # it using: pip install kaldilm
-
-  mkdir -p data/lm
-
-  if [ ! -f data/lm/G_3_gram.fst.txt ]; then
-    # It is used in building HLG
-    python3 -m kaldilm \
-      --read-symbol-table="data/lang_phone/words.txt" \
-      --disambig-symbol='#0' \
-      --max-order=3 \
-      $dl_dir/lm/3gram_pruned_1e7.arpa > data/lm/G_3_gram.fst.txt
-  fi
-
-  if [ ! -f data/lm/G_4_gram.fst.txt ]; then
-    # It is used for LM rescoring
-    python3 -m kaldilm \
-      --read-symbol-table="data/lang_phone/words.txt" \
-      --disambig-symbol='#0' \
-      --max-order=4 \
-      $dl_dir/lm/4gram.arpa > data/lm/G_4_gram.fst.txt
-  fi
-fi
-
-if [ $stage -le 13 ] && [ $stop_stage -ge 13 ]; then
-  log "Stage 13: Compile HLG"
-  ./local/compile_hlg.py --lang-dir data/lang_phone
-
-  for vocab_size in ${vocab_sizes[@]}; do
-    lang_dir=data/lang_bpe_${vocab_size}
-    ./local/compile_hlg.py --lang-dir $lang_dir
   done
 fi

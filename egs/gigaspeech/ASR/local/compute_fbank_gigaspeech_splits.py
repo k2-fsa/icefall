@@ -55,7 +55,7 @@ def get_parser():
         "--num-splits",
         type=int,
         required=True,
-        help="The number of splits of the XL subset",
+        help="The number of splits of the M subset",
     )
 
     parser.add_argument(
@@ -76,7 +76,7 @@ def get_parser():
 
 def compute_fbank_gigaspeech_splits(args):
     num_splits = args.num_splits
-    output_dir = "data/fbank/XL_split"
+    output_dir = "data/fbank/M_split"
     output_dir = Path(output_dir)
     assert output_dir.exists(), f"{output_dir} does not exist!"
 
@@ -99,12 +99,12 @@ def compute_fbank_gigaspeech_splits(args):
         idx = f"{i + 1}".zfill(num_digits)
         logging.info(f"Processing {idx}/{num_splits}")
 
-        cuts_path = output_dir / f"cuts_XL.{idx}.jsonl.gz"
+        cuts_path = output_dir / f"cuts_M.{idx}.jsonl.gz"
         if cuts_path.is_file():
             logging.info(f"{cuts_path} exists - skipping")
             continue
 
-        raw_cuts_path = output_dir / f"cuts_XL_raw.{idx}.jsonl.gz"
+        raw_cuts_path = output_dir / f"cuts_M_raw.{idx}.jsonl.gz"
 
         logging.info(f"Loading {raw_cuts_path}")
         cut_set = CutSet.from_file(raw_cuts_path)
@@ -113,7 +113,7 @@ def compute_fbank_gigaspeech_splits(args):
 
         cut_set = cut_set.compute_and_store_features_batch(
             extractor=extractor,
-            storage_path=f"{output_dir}/feats_XL_{idx}",
+            storage_path=f"{output_dir}/feats_M_{idx}",
             num_workers=args.num_workers,
             batch_duration=args.batch_duration,
             overwrite=True,

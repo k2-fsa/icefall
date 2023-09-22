@@ -22,14 +22,14 @@ You can use the following command to get the exported models:
 
 ./pruned_transducer_stateless7_ctc/export.py \
   --exp-dir ./pruned_transducer_stateless7_ctc/exp \
-  --tokens data/lang_bpe_500/tokens.txt \
+  --bpe-model data/lang_bpe_500/bpe.model \
   --epoch 20 \
   --avg 10
 
 Usage of this script:
 
 (1) ctc-decoding
-./pruned_transducer_stateless7_ctc/pretrained_ctc.py \
+./pruned_transducer_stateless7_ctc/jit_pretrained_ctc.py \
   --checkpoint ./pruned_transducer_stateless7_ctc/exp/pretrained.pt \
   --bpe-model data/lang_bpe_500/bpe.model \
   --method ctc-decoding \
@@ -38,7 +38,7 @@ Usage of this script:
   /path/to/bar.wav
 
 (2) 1best
-./pruned_transducer_stateless7_ctc/pretrained_ctc.py \
+./pruned_transducer_stateless7_ctc/jit_pretrained_ctc.py \
   --checkpoint ./pruned_transducer_stateless7_ctc/exp/pretrained.pt \
   --HLG data/lang_bpe_500/HLG.pt \
   --words-file data/lang_bpe_500/words.txt  \
@@ -48,7 +48,7 @@ Usage of this script:
   /path/to/bar.wav
 
 (3) nbest-rescoring
-./bruned_transducer_stateless7_ctc/pretrained_ctc.py \
+./bruned_transducer_stateless7_ctc/jit_pretrained_ctc.py \
   --checkpoint ./pruned_transducer_stateless7_ctc/exp/pretrained.pt \
   --HLG data/lang_bpe_500/HLG.pt \
   --words-file data/lang_bpe_500/words.txt  \
@@ -60,7 +60,7 @@ Usage of this script:
 
 
 (4) whole-lattice-rescoring
-./pruned_transducer_stateless7_ctc/pretrained_ctc.py \
+./pruned_transducer_stateless7_ctc/jit_pretrained_ctc.py \
   --checkpoint ./pruned_transducer_stateless7_ctc/exp/pretrained.pt \
   --HLG data/lang_bpe_500/HLG.pt \
   --words-file data/lang_bpe_500/words.txt  \

@@ -21,7 +21,7 @@ You can generate the checkpoint with the following command:
 
 ./zipformer_mmi/export.py \
   --exp-dir ./zipformer_mmi/exp \
-  --tokens data/lang_bpe_500/tokens.txt \
+  --bpe-model data/lang_bpe_500/bpe.model \
   --epoch 20 \
   --avg 10
 
@@ -30,14 +30,14 @@ Usage of this script:
 (1) 1best
 ./zipformer_mmi/pretrained.py \
     --checkpoint ./zipformer_mmi/exp/pretrained.pt \
-    --tokens data/lang_bpe_500/tokens.txt \
+    --bpe-model ./data/lang_bpe_500/bpe.model \
     --method 1best \
     /path/to/foo.wav \
     /path/to/bar.wav
 (2) nbest
 ./zipformer_mmi/pretrained.py \
     --checkpoint ./zipformer_mmi/exp/pretrained.pt \
-    --tokens data/lang_bpe_500/tokens.txt \
+    --bpe-model ./data/lang_bpe_500/bpe.model \
     --nbest-scale 1.2 \
     --method nbest \
     /path/to/foo.wav \
@@ -45,7 +45,7 @@ Usage of this script:
 (3) nbest-rescoring-LG
 ./zipformer_mmi/pretrained.py \
     --checkpoint ./zipformer_mmi/exp/pretrained.pt \
-    --tokens data/lang_bpe_500/tokens.txt \
+    --bpe-model ./data/lang_bpe_500/bpe.model \
     --nbest-scale 1.2 \
     --method nbest-rescoring-LG \
     /path/to/foo.wav \
@@ -53,7 +53,7 @@ Usage of this script:
 (4) nbest-rescoring-3-gram
 ./zipformer_mmi/pretrained.py \
     --checkpoint ./zipformer_mmi/exp/pretrained.pt \
-    --tokens data/lang_bpe_500/tokens.txt \
+    --bpe-model ./data/lang_bpe_500/bpe.model \
     --nbest-scale 1.2 \
     --method nbest-rescoring-3-gram \
     /path/to/foo.wav \
@@ -61,7 +61,7 @@ Usage of this script:
 (5) nbest-rescoring-4-gram
 ./zipformer_mmi/pretrained.py \
     --checkpoint ./zipformer_mmi/exp/pretrained.pt \
-    --tokens data/lang_bpe_500/tokens.txt \
+    --bpe-model ./data/lang_bpe_500/bpe.model \
     --nbest-scale 1.2 \
     --method nbest-rescoring-4-gram \
     /path/to/foo.wav \
@@ -83,6 +83,7 @@ from typing import List
 
 import k2
 import kaldifeat
+import sentencepiece as spm
 import torch
 import torchaudio
 from decode import get_decoding_params
@@ -96,7 +97,7 @@ from icefall.decode import (
     one_best_decoding,
 )
 from icefall.mmi_graph_compiler import MmiTrainingGraphCompiler
-from icefall.utils import get_texts, num_tokens
+from icefall.utils import get_texts
 
 
 def get_parser():
@@ -114,9 +115,9 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--tokens",
+        "--bpe-model",
         type=str,
-        help="""Path to tokens.txt.""",
+        help="""Path to bpe.model.""",
     )
 
     parser.add_argument(
@@ -246,14 +247,13 @@ def main():
     params.update(get_decoding_params())
     params.update(vars(args))
 
-    # Load tokens.txt here
-    token_table = k2.SymbolTable.from_file(params.tokens)
+    sp = spm.SentencePieceProcessor()
+    sp.load(params.bpe_model)
 
-    # Load id of the <blk> token and the vocab size
     # <blk> is defined in local/train_bpe_model.py
-    params.blank_id = token_table["<blk>"]
-    params.unk_id = token_table["<unk>"]
-    params.vocab_size = num_tokens(token_table) + 1  # +1 for <blk>
+    params.blank_id = sp.piece_to_id("<blk>")
+    params.unk_id = sp.piece_to_id("<unk>")
+    params.vocab_size = sp.get_piece_size()
 
     logging.info(f"{params}")
 
@@ -298,6 +298,8 @@ def main():
     features = pad_sequence(features, batch_first=True, padding_value=math.log(1e-10))
     feature_lengths = torch.tensor(feature_lengths, device=device)
 
+    bpe_model = spm.SentencePieceProcessor()
+    bpe_model.load(str(params.lang_dir / "bpe.model"))
     mmi_graph_compiler = MmiTrainingGraphCompiler(
         params.lang_dir,
         uniq_filename="lexicon.txt",
@@ -310,12 +312,6 @@ def main():
     HP.scores *= params.hp_scale
     if not hasattr(HP, "lm_scores"):
         HP.lm_scores = HP.scores.clone()
-
-    def token_ids_to_words(token_ids: List[int]) -> str:
-        text = ""
-        for i in token_ids:
-            text += token_table[i]
-        return text.replace("▁", " ").strip()
 
     method = params.method
     assert method in (
@@ -394,11 +390,14 @@ def main():
     #
     # token_ids is a lit-of-list of IDs
     token_ids = get_texts(best_path)
-    hyps = [token_ids_to_words(ids) for ids in token_ids]
-
+    # hyps is a list of str, e.g., ['xxx yyy zzz', ...]
+    hyps = bpe_model.decode(token_ids)
+    # hyps is a list of list of str, e.g., [['xxx', 'yyy', 'zzz'], ... ]
+    hyps = [s.split() for s in hyps]
     s = "\n"
     for filename, hyp in zip(params.sound_files, hyps):
-        s += f"{filename}:\n{hyp}\n\n"
+        words = " ".join(hyp)
+        s += f"{filename}:\n{words}\n\n"
     logging.info(s)
 
     logging.info("Decoding Done")

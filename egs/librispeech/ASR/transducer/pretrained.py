@@ -19,7 +19,7 @@ Usage:
 
 ./transducer/pretrained.py \
         --checkpoint ./transducer/exp/pretrained.pt \
-        --tokens data/lang_bpe_500/tokens.txt \
+        --bpe-model ./data/lang_bpe_500/bpe.model \
         --method greedy_search \
         /path/to/foo.wav \
         /path/to/bar.wav \
@@ -36,8 +36,8 @@ import logging
 import math
 from typing import List
 
-import k2
 import kaldifeat
+import sentencepiece as spm
 import torch
 import torchaudio
 from beam_search import beam_search, greedy_search
@@ -48,7 +48,7 @@ from model import Transducer
 from torch.nn.utils.rnn import pad_sequence
 
 from icefall.env import get_env_info
-from icefall.utils import AttributeDict, num_tokens
+from icefall.utils import AttributeDict
 
 
 def get_parser():
@@ -66,9 +66,11 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--tokens",
+        "--bpe-model",
         type=str,
-        help="Path to tokens.txt.",
+        help="""Path to bpe.model.
+        Used only when method is ctc-decoding.
+        """,
     )
 
     parser.add_argument(
@@ -202,14 +204,12 @@ def main():
 
     params.update(vars(args))
 
-    # Load tokens.txt here
-    token_table = k2.SymbolTable.from_file(params.tokens)
+    sp = spm.SentencePieceProcessor()
+    sp.load(params.bpe_model)
 
-    # Load id of the <blk> token and the vocab size
     # <blk> is defined in local/train_bpe_model.py
-    params.blank_id = token_table["<blk>"]
-    params.unk_id = token_table["<unk>"]
-    params.vocab_size = num_tokens(token_table) + 1  # +1 for <blk>
+    params.blank_id = sp.piece_to_id("<blk>")
+    params.vocab_size = sp.get_piece_size()
 
     logging.info(f"{params}")
 
@@ -257,12 +257,6 @@ def main():
             x=features, x_lens=feature_lengths
         )
 
-    def token_ids_to_words(token_ids: List[int]) -> str:
-        text = ""
-        for i in token_ids:
-            text += token_table[i]
-        return text.replace("▁", " ").strip()
-
     num_waves = encoder_out.size(0)
     hyps = []
     for i in range(num_waves):
@@ -278,11 +272,12 @@ def main():
         else:
             raise ValueError(f"Unsupported method: {params.method}")
 
-        hyps.append(token_ids_to_words(hyp))
+        hyps.append(sp.decode(hyp).split())
 
     s = "\n"
     for filename, hyp in zip(params.sound_files, hyps):
-        s += f"{filename}:\n{hyp}\n\n"
+        words = " ".join(hyp)
+        s += f"{filename}:\n{words}\n\n"
     logging.info(s)
 
     logging.info("Decoding Done")

@@ -23,7 +23,6 @@
 Usage:
 ./conformer_ctc2/export.py \
   --exp-dir ./conformer_ctc2/exp \
-  --tokens ./data/lang_bpe_500/tokens.txt \
   --epoch 20 \
   --avg 10
 
@@ -47,7 +46,6 @@ import argparse
 import logging
 from pathlib import Path
 
-import k2
 import torch
 from conformer import Conformer
 from decode import get_params
@@ -58,7 +56,8 @@ from icefall.checkpoint import (
     find_checkpoints,
     load_checkpoint,
 )
-from icefall.utils import num_tokens, str2bool
+from icefall.lexicon import Lexicon
+from icefall.utils import str2bool
 
 
 def get_parser():
@@ -124,10 +123,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--tokens",
+        "--lang-dir",
         type=str,
-        required=True,
-        help="Path to the tokens.txt.",
+        default="data/lang_bpe_500",
+        help="The lang dir",
     )
 
     parser.add_argument(
@@ -144,14 +143,14 @@ def get_parser():
 def main():
     args = get_parser().parse_args()
     args.exp_dir = Path(args.exp_dir)
+    args.lang_dir = Path(args.lang_dir)
 
     params = get_params()
     params.update(vars(args))
 
-    # Load tokens.txt here
-    token_table = k2.SymbolTable.from_file(params.tokens)
-
-    num_classes = num_tokens(token_table) + 1  # +1 for the blank
+    lexicon = Lexicon(params.lang_dir)
+    max_token_id = max(lexicon.tokens)
+    num_classes = max_token_id + 1  # +1 for the blank
 
     device = torch.device("cpu")
     if torch.cuda.is_available():

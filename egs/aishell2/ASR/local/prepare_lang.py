@@ -1,1 +1,0 @@
-../../../wenetspeech/ASR/local/prepare_lang.py

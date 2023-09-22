@@ -27,7 +27,7 @@ popd
 2. Export the model to ONNX
 
 ./pruned_transducer_stateless7_streaming/export-onnx.py \
-  --tokens $repo/data/lang_bpe_500/tokens.txt \
+  --bpe-model $repo/data/lang_bpe_500/bpe.model \
   --use-averaged-model 0 \
   --epoch 99 \
   --avg 1 \
@@ -48,8 +48,8 @@ import logging
 from pathlib import Path
 from typing import Dict, List, Tuple
 
-import k2
 import onnx
+import sentencepiece as spm
 import torch
 import torch.nn as nn
 from decoder import Decoder
@@ -65,7 +65,7 @@ from icefall.checkpoint import (
     find_checkpoints,
     load_checkpoint,
 )
-from icefall.utils import num_tokens, setup_logger, str2bool
+from icefall.utils import setup_logger, str2bool
 
 
 def get_parser():
@@ -122,10 +122,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--tokens",
+        "--bpe-model",
         type=str,
-        default="data/lang_bpe_500/tokens.txt",
-        help="Path to the tokens.txt.",
+        default="data/lang_bpe_500/bpe.model",
+        help="Path to the BPE model",
     )
 
     parser.add_argument(
@@ -401,7 +401,6 @@ def export_decoder_model_onnx(
     context_size = decoder_model.decoder.context_size
     vocab_size = decoder_model.decoder.vocab_size
     y = torch.zeros(10, context_size, dtype=torch.int64)
-    decoder_model = torch.jit.script(decoder_model)
     torch.onnx.export(
         decoder_model,
         y,
@@ -482,14 +481,12 @@ def main():
 
     logging.info(f"device: {device}")
 
-    # Load tokens.txt here
-    token_table = k2.SymbolTable.from_file(params.tokens)
+    sp = spm.SentencePieceProcessor()
+    sp.load(params.bpe_model)
 
-    # Load id of the <blk> token and the vocab size
     # <blk> is defined in local/train_bpe_model.py
-    params.blank_id = token_table["<blk>"]
-    params.unk_id = token_table["<unk>"]
-    params.vocab_size = num_tokens(token_table) + 1  # +1 for <blk>
+    params.blank_id = sp.piece_to_id("<blk>")
+    params.vocab_size = sp.get_piece_size()
 
     logging.info(params)
 
@@ -655,7 +652,7 @@ def main():
     quantize_dynamic(
         model_input=decoder_filename,
         model_output=decoder_filename_int8,
-        op_types_to_quantize=["MatMul", "Gather"],
+        op_types_to_quantize=["MatMul"],
         weight_type=QuantType.QInt8,
     )
 

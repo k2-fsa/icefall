@@ -307,7 +307,6 @@ def export_decoder_model_onnx(
     vocab_size = decoder_model.decoder.vocab_size
 
     y = torch.zeros(10, context_size, dtype=torch.int64)
-    decoder_model = torch.jit.script(decoder_model)
     torch.onnx.export(
         decoder_model,
         y,
@@ -509,7 +508,7 @@ def main():
     quantize_dynamic(
         model_input=decoder_filename,
         model_output=decoder_filename_int8,
-        op_types_to_quantize=["MatMul", "Gather"],
+        op_types_to_quantize=["MatMul"],
         weight_type=QuantType.QInt8,
     )
 
