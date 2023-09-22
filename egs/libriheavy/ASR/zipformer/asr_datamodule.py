@@ -96,16 +96,6 @@ class LibriHeavyAsrDataModule:
         )
 
         group.add_argument(
-            "--with-punctuation",
-            type=str2bool,
-            default=False,
-            help="""True to train the model on transcription with punctuation,
-            False to train the model on normalized transcription
-            (upper without punctuation).
-            """,
-        )
-
-        group.add_argument(
             "--manifest-dir",
             type=Path,
             default=Path("data/fbank"),
@@ -413,35 +403,29 @@ class LibriHeavyAsrDataModule:
     @lru_cache()
     def train_small_cuts(self) -> CutSet:
         logging.info("About to get small subset cuts")
-        basename = f"libriheavy_{'punc_' if self.args.with_punctuation else ''}cuts_small.jsonl.gz"
-        return load_manifest_lazy(self.args.manifest_dir / basename)
+        return load_manifest_lazy(self.args.manifest_dir / "libriheavy_cuts_small.jsonl.gz")
 
     @lru_cache()
     def train_medium_cuts(self) -> CutSet:
         logging.info("About to get medium subset cuts")
-        basename = f"libriheavy_{'punc_' if self.args.with_punctuation else ''}cuts_medium.jsonl.gz"
-        return load_manifest_lazy(self.args.manifest_dir / basename)
+        return load_manifest_lazy(self.args.manifest_dir / "libriheavy_cuts_medium.jsonl.gz")
 
     @lru_cache()
     def train_large_cuts(self) -> CutSet:
         logging.info("About to get large subset cuts")
-        basename = f"libriheavy_{'punc_' if self.args.with_punctuation else ''}cuts_large.jsonl.gz"
-        return load_manifest_lazy(self.args.manifest_dir / basename)
+        return load_manifest_lazy(self.args.manifest_dir / "libriheavy_cuts_large.jsonl.gz")
 
     @lru_cache()
     def dev_cuts(self) -> CutSet:
         logging.info("About to get dev cuts")
-        basename = f"libriheavy_{'punc_' if self.args.with_punctuation else ''}cuts_dev.jsonl.gz"
-        return load_manifest_lazy(self.args.manifest_dir / basename)
+        return load_manifest_lazy(self.args.manifest_dir / "libriheavy_cuts_dev.jsonl.gz")
 
     @lru_cache()
     def test_clean_cuts(self) -> CutSet:
         logging.info("About to get the test-clean cuts")
-        basename = f"libriheavy_{'punc_' if self.args.with_punctuation else ''}cuts_test-clean.jsonl.gz"
-        return load_manifest_lazy(self.args.manifest_dir / basename)
+        return load_manifest_lazy(self.args.manifest_dir / "libriheavy_cuts_test_clean.jsonl.gz")
 
     @lru_cache()
     def test_other_cuts(self) -> CutSet:
         logging.info("About to get the test-other cuts")
-        basename = f"libriheavy_{'punc_' if self.args.with_punctuation else ''}cuts_test-other.jsonl.gz"
-        return load_manifest_lazy(self.args.manifest_dir / basename)
+        return load_manifest_lazy(self.args.manifest_dir / "libriheavy_cuts_test_other.jsonl.gz")
