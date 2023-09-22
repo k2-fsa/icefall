@@ -71,6 +71,10 @@ class Decoder(nn.Module):
                 groups=decoder_dim // 4,  # group size == 4
                 bias=False,
             )
+        else:
+            # To avoid `RuntimeError: Module 'Decoder' has no attribute 'conv'`
+            # when inference with torch.jit.script and context_size == 1
+            self.conv = nn.Identity()
 
     def forward(self, y: torch.Tensor, need_pad: bool = True) -> torch.Tensor:
         """

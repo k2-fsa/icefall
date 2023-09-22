@@ -26,7 +26,7 @@
 from pathlib import Path
 
 from lhotse import CutSet, load_manifest
-from lhotse.dataset import K2SpeechRecognitionDataset, SingleCutSampler
+from lhotse.dataset import K2SpeechRecognitionDataset, SimpleCutSampler
 from lhotse.dataset.collation import collate_custom_field
 from torch.utils.data import DataLoader
 
@@ -44,7 +44,7 @@ def get_dataloader():
     cuts = load_manifest(cuts_json)
     print(cuts[0])
     cuts = cuts.with_features_path_prefix(egs_dir)
-    sampler = SingleCutSampler(
+    sampler = SimpleCutSampler(
         cuts,
         max_duration=10,
         shuffle=False,

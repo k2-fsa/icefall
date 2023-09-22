@@ -31,7 +31,7 @@ from lhotse.dataset import (  # noqa F401 for PrecomputedFeatures
     DynamicBucketingSampler,
     K2SpeechRecognitionDataset,
     PrecomputedFeatures,
-    SingleCutSampler,
+    SimpleCutSampler,
     SpecAugment,
 )
 from lhotse.dataset.input_strategies import (  # noqa F401 For AudioSamples
@@ -314,8 +314,8 @@ class LibriSpeechAsrDataModule:
                 drop_last=self.args.drop_last,
             )
         else:
-            logging.info("Using SingleCutSampler.")
-            train_sampler = SingleCutSampler(
+            logging.info("Using SimpleCutSampler.")
+            train_sampler = SimpleCutSampler(
                 cuts_train,
                 max_duration=self.args.max_duration,
                 shuffle=self.args.shuffle,
