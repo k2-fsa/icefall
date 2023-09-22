@@ -20,6 +20,11 @@ import json
 import sys
 from pathlib import Path
 
+def simple_cleanup(text: str) -> str:
+    table = str.maketrans("’‘，。；？！（）：-《》、“”【】", "'',.;?!(): <>/\"\"[]")
+    text = text.translate(table)
+    return text.strip()
+
 # Assign text of the supervisions and remove unnecessary entries.
 def main():
     assert len(sys.argv) == 3, "Usage: ./local/prepare_manifest.py INPUT OUTPUT_DIR"
@@ -28,7 +33,7 @@ def main():
     with gzip.open(sys.argv[1], "r") as fin, gzip.open(oname, "w") as fout:
         for line in fin:
             cut = json.loads(line)
-            cut["supervisions"][0]["text"] = cut["supervisions"][0]["custom"]["texts"][0]
+            cut["supervisions"][0]["text"] = simple_cleanup(cut["supervisions"][0]["custom"]["texts"][0])
             del cut["supervisions"][0]["custom"]
             del cut["custom"]
             fout.write((json.dumps(cut) + "\n").encode())

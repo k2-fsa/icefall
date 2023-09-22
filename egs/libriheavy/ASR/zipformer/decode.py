@@ -119,11 +119,7 @@ from beam_search import (
     modified_beam_search,
 )
 from lhotse.cut import Cut
-from text_normalization import (
-    simple_normalization,
-    decoding_normalization,
-    word_normalization,
-)
+from text_normalization import remove_punc_to_upper,
 from train import add_model_arguments, get_model, get_params
 
 from icefall.checkpoint import (
@@ -141,7 +137,6 @@ from icefall.utils import (
     str2bool,
     write_error_stats,
 )
-from gigaspeech_scoring import asr_text_post_processing
 
 LOG_EPS = math.log(1e-10)
 
@@ -222,9 +217,6 @@ def get_parser():
           - fast_beam_search
           - fast_beam_search_nbest
           - fast_beam_search_nbest_oracle
-          - fast_beam_search_nbest_LG
-        If you use fast_beam_search_nbest_LG, you have to specify
-        `--lang-dir`, which should contain `LG.pt`.
         """,
     )
 
@@ -247,16 +239,6 @@ def get_parser():
         Used only when --decoding-method is fast_beam_search,
         fast_beam_search_nbest, fast_beam_search_nbest_LG,
         and fast_beam_search_nbest_oracle
-        """,
-    )
-
-    parser.add_argument(
-        "--ngram-lm-scale",
-        type=float,
-        default=0.01,
-        help="""
-        Used only when --decoding_method is fast_beam_search_nbest_LG.
-        It specifies the scale for n-gram LM scores.
         """,
     )
 
@@ -308,6 +290,14 @@ def get_parser():
         help="""Scale applied to lattice scores when computing nbest paths.
         Used only when the decoding method is fast_beam_search_nbest,
         fast_beam_search_nbest_LG, and fast_beam_search_nbest_oracle""",
+    )
+
+    parser.add_argument(
+        "--train-with-punctuation",
+        type=str2bool,
+        default=False,
+        help="""Set to True, if the model was trained on texts with casing
+        and punctuation."""
     )
 
     parser.add_argument(
@@ -492,8 +482,6 @@ def decode_one_batch(
         if "nbest" in params.decoding_method:
             key += f"_num_paths_{params.num_paths}_"
             key += f"nbest_scale_{params.nbest_scale}"
-            if "LG" in params.decoding_method:
-                key += f"_ngram_lm_scale_{params.ngram_lm_scale}"
 
         return {key: hyps}
     else:
@@ -573,6 +561,16 @@ def decode_dataset(
 
                 results[name].extend(this_batch)
 
+                this_batch = []
+                if params.post_normalization and params.train_with_punctuation:
+                    for cut_id, hyp_words, ref_text in zip(cut_ids, hyps, texts):
+                        ref_words = remove_punc_to_upper(ref_text).split()
+                        hyp_words = remove_punc_to_upper(" ".join(hyp_words)).split()
+                        this_batch.append((cut_id, ref_words, hyp_words))
+
+                    results[f"{name}_norm"].extend(this_batch)
+
+
             num_cuts += len(texts)
 
             if batch_idx % log_interval == 0:
@@ -582,17 +580,6 @@ def decode_dataset(
                     f"batch {batch_str}, cuts processed until now is {num_cuts}"
                 )
     return results
-
-
-def post_processing(
-    results: List[Tuple[str, List[str], List[str]]],
-) -> List[Tuple[str, List[str], List[str]]]:
-    new_results = []
-    for key, ref, hyp in results:
-        new_ref = asr_text_post_processing(" ".join(ref)).split()
-        new_hyp = asr_text_post_processing(" ".join(hyp)).split()
-        new_results.append((key, new_ref, new_hyp))
-    return new_results
 
 
 def save_results(
@@ -605,8 +592,6 @@ def save_results(
         recog_path = (
             params.res_dir / f"recogs-{test_set_name}-{key}-{params.suffix}.txt"
         )
-        if test_set_name == "giga-dev" or test_set_name == "giga-test":
-            results = post_processing(results)
         results = sorted(results)
         store_transcripts(filename=recog_path, texts=results)
         logging.info(f"The transcripts are stored in {recog_path}")
@@ -656,7 +641,6 @@ def main():
         "beam_search",
         "fast_beam_search",
         "fast_beam_search_nbest",
-        "fast_beam_search_nbest_LG",
         "fast_beam_search_nbest_oracle",
         "modified_beam_search",
     )
@@ -684,8 +668,6 @@ def main():
         if "nbest" in params.decoding_method:
             params.suffix += f"-nbest-scale-{params.nbest_scale}"
             params.suffix += f"-num-paths-{params.num_paths}"
-            if "LG" in params.decoding_method:
-                params.suffix += f"-ngram-lm-scale-{params.ngram_lm_scale}"
     elif "beam_search" in params.decoding_method:
         params.suffix += f"-{params.decoding_method}-beam-size-{params.beam_size}"
     else:
@@ -798,21 +780,9 @@ def main():
     model.eval()
 
     if "fast_beam_search" in params.decoding_method:
-        if params.decoding_method == "fast_beam_search_nbest_LG":
-            lexicon = Lexicon(params.lang_dir)
-            word_table = lexicon.word_table
-            lg_filename = params.lang_dir / "LG.pt"
-            logging.info(f"Loading {lg_filename}")
-            decoding_graph = k2.Fsa.from_dict(
-                torch.load(lg_filename, map_location=device)
-            )
-            decoding_graph.scores *= params.ngram_lm_scale
-        else:
-            word_table = None
-            decoding_graph = k2.trivial_graph(params.vocab_size - 1, device=device)
+        decoding_graph = k2.trivial_graph(params.vocab_size - 1, device=device)
     else:
         decoding_graph = None
-        word_table = None
 
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
@@ -821,37 +791,23 @@ def main():
     args.return_cuts = True
     libriheavy = LibriHeavyAsrDataModule(args)
 
-    def add_texts(c: Cut):
-        text = c.supervisions[0].text
-        c.supervisions[0].texts = [text]
+    def normalize_text(c: Cut):
+        text = remove_punc_to_upper(c.supervisions[0].text)
+        c.supervisions[0].text = text
         return c
 
     test_clean_cuts = libriheavy.test_clean_cuts()
     test_other_cuts = libriheavy.test_other_cuts()
-    ls_test_clean_cuts = libriheavy.librispeech_test_clean_cuts()
-    ls_test_other_cuts = libriheavy.librispeech_test_other_cuts()
 
-    ls_test_clean_cuts = ls_test_clean_cuts.map(add_texts)
-    ls_test_other_cuts = ls_test_other_cuts.map(add_texts)
-
-    giga_dev = libriheavy.gigaspeech_dev_cuts()
-    giga_test = libriheavy.gigaspeech_test_cuts()
-    giga_dev = giga_dev.map(add_texts)
-    giga_test = giga_test.map(add_texts)
+    if not params.train_with_punctuation:
+        test_clean_cuts = test_clean_cuts.map(normalize_text)
+        test_other_cuts = test_other_cuts.map(normalize_text)
 
     test_clean_dl = libriheavy.test_dataloaders(test_clean_cuts)
     test_other_dl = libriheavy.test_dataloaders(test_other_cuts)
-    ls_test_clean_dl = libriheavy.test_dataloaders(ls_test_clean_cuts)
-    ls_test_other_dl = libriheavy.test_dataloaders(ls_test_other_cuts)
 
-    giga_dev_dl = libriheavy.test_dataloaders(giga_dev)
-    giga_test_dl = libriheavy.test_dataloaders(giga_test)
-
-    # test_sets = ["libriheavy-test-clean", "libriheavy-test-other", "librispeech-test-clean", "librispeech-test-other"]
-    # test_dl = [test_clean_dl, test_other_dl, ls_test_clean_dl, ls_test_other_dl]
-
-    test_sets = ["giga-test", "giga-dev"]
-    test_dl = [giga_test_dl, giga_dev_dl]
+    test_sets = ["test-clean", "test-other"]
+    test_dl = [test_clean_dl, test_other_dl]
 
     for test_set, test_dl in zip(test_sets, test_dl):
         results_dict = decode_dataset(
@@ -868,39 +824,6 @@ def main():
             test_set_name=test_set,
             results_dict=results_dict,
         )
-
-        if params.post_normalization:
-            params.suffix += "-post-normalization"
-
-            new_res = {}
-            for k in results_dict:
-                new_ans = []
-                for item in results_dict[k]:
-                    id, ref, hyp = item
-                    if "librispeech" in test_set:
-                        hyp = decoding_normalization(" ".join(hyp)).split()
-                        hyp = [word_normalization(w.upper()) for w in hyp]
-                        hyp = " ".join(hyp).split()
-                        hyp = [w for w in hyp if w != ""]
-                    else:
-                        hyp = decoding_normalization(" ".join(hyp)).split()
-                        hyp = [w.upper() for w in hyp]
-                        hyp = " ".join(hyp).split()
-                        hyp = [w for w in hyp if w != ""]
-                        
-                        ref = decoding_normalization(" ".join(ref)).split()
-                        ref = [w.upper() for w in ref]
-                        ref = " ".join(ref).split()
-                        ref = [w for w in ref if w != ""]
-                        
-                    new_ans.append((id, ref, hyp))
-                new_res[k] = new_ans
-
-            save_results(
-                params=params,
-                test_set_name=test_set,
-                results_dict=new_res,
-            )
 
     logging.info("Done!")
 

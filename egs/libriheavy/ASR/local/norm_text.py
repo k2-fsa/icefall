@@ -27,20 +27,7 @@ def get_args():
         help="""Path to the input text.
         """,
     )
-    parser.add_argument(
-        "--normalize",
-        action='store_true',
-        help="""Whether to normalize the text.
-        True to normalize the text to upper and remove all punctuation.
-        """
-    )
     return parser.parse_args()
-
-
-def simple_cleanup(text: str) -> str:
-    table = str.maketrans("’‘，。；？！（）：-《》、“”【】", "'',.;?!(): <>/\"\"[]")
-    text = text.translate(table)
-    return text.strip()
 
 
 def remove_punc_to_upper(text: str) -> str:
@@ -62,10 +49,7 @@ def main():
     sys.stdout = codecs.getwriter("utf-8")(sys.stdout.buffer)
     line = f.readline()
     while line:
-        if args.normalize:
-            print(remove_punc_to_upper(line))
-        else:
-            print(simple_cleanup(line))
+        print(remove_punc_to_upper(line))
         line = f.readline()
 
  

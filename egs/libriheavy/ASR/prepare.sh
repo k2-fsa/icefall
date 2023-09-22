@@ -221,7 +221,7 @@ if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
   if [ ! -f data/texts ]; then
     gunzip -c $manifests_dir/libriheavy_cuts_medium.jsonl.gz \
       | jq '.supervisions[].text' | sed 's/"//;s/\\//g;s/"$//' \
-      | ./local/prepare_text.py --normalize > data/texts
+      | ./local/norm_text.py > data/texts
   fi
 
   for vocab_size in ${vocab_sizes[@]}; do
@@ -244,8 +244,7 @@ if [ $stage -le 10 ] && [ $stop_stage -ge 10 ]; then
   log "Stage 10: Train BPE model for unnormalized text"
   if [ ! -f data/punc_texts ]; then
     gunzip -c $manifests_dir/libriheavy_cuts_medium.jsonl.gz \
-      | jq '.supervisions[].text' | sed 's/"//;s/\\//g;s/"$//' \
-      | ./local/prepare_text.py > data/punc_texts
+      | jq '.supervisions[].text' | sed 's/"//;s/\\//g;s/"$//' > data/punc_texts
   fi
   for vocab_size in ${vocab_sizes[@]}; do
     new_vacab_size = $(($vocab_size + 256))

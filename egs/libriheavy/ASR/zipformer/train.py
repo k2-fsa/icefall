@@ -77,6 +77,7 @@ from model import AsrModel
 from optim import Eden, ScaledAdam
 from scaling import ScheduledFloat
 from subsampling import Conv2dSubsampling
+from text_normalization import remove_punc_to_upper
 from torch import Tensor
 from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -1188,16 +1189,7 @@ def run(rank, world_size, args):
 
 
     def normalize_text(c: Cut):
-        text = c.supervisions[0].text
-        if params.train_with_punctuation:
-            table = str.maketrans("’‘，。；？！（）：-《》、“”【】", "'',.;?!(): <>/\"\"[]")
-            text = text.translate(table)
-        else:
-            text = text.replace("‘", "'")
-            text = text.replace("’", "'")
-            tokens = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'")
-            text_list = [x.upper() if x in tokens else " " for x in text]
-            text = " ".join("".join(text_list).split()).strip()
+        text = remove_punc_to_upper(c.supervisions[0].text)
         c.supervisions[0].text = text
         return c
 
@@ -1245,7 +1237,9 @@ def run(rank, world_size, args):
         train_cuts += libriheavy.train_medium_cuts()
     if params.subset == "L":
         train_cuts += libriheavy.train_large_cuts()
-    train_cuts = train_cuts.map(normalize_text)
+
+    if not params.train_with_punctuation:
+        train_cuts = train_cuts.map(normalize_text)
 
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
 
@@ -1261,7 +1255,9 @@ def run(rank, world_size, args):
     )
 
     valid_cuts = libriheavy.dev_cuts()
-    valid_cuts = valid_cuts.map(normalize_text)
+
+    if not params.train_with_punctuation:
+        valid_cuts = valid_cuts.map(normalize_text)
 
     valid_dl = libriheavy.valid_dataloaders(valid_cuts)
 
