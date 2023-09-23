@@ -163,7 +163,7 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
     data/manifests/lsmix_cuts_train_clean_ov40.jsonl.gz
 
   # Full training set (2,3 speakers) anechoic
-  log "Generating anechoic ${part} set (full)"
+  log "Generating anechoic set (full)"
   lhotse workflows simulate-meetings \
     --method conversational \
     --fit-to-supervisions data/manifests/libricss-sdm_supervisions_all_v1.jsonl.gz \
