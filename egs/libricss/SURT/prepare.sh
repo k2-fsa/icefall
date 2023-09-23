@@ -90,6 +90,14 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   # NOTE: Alignments are required for this recipe.
   mkdir -p data/manifests
 
+  log "This recipe uses mfa alignment for trimming"
+  if [ ! -d $dl_dir/libri_alignments/LibriSpeech ]; then
+    log "No alignment provided. please refer to ../../librispeech/ASR/add_alignments.sh \n \
+         for mfa alignments. Once you have downloaded the .zip file containing all alignments, \n \
+         it should be unzipped, renamed to libri_alignments and moved to your $dl_dir ."
+    exit 0
+  fi
+
   lhotse prepare librispeech -p train-clean-100 -p train-clean-360 -p train-other-500 -p dev-clean \
     -j 4 --alignments-dir $dl_dir/libri_alignments/LibriSpeech $dl_dir/librispeech data/manifests/
 fi
@@ -118,9 +126,12 @@ fi
 
 if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
   log "Stage 4: Extract features for LibriSpeech, trim to alignments, and shuffle the cuts"
-  python local/compute_fbank_librispeech.py
-  lhotse combine data/manifests/librispeech_cuts_train* - |\
-    lhotse cut trim-to-alignments --type word --max-pause 0.2 - - |\
+  # python local/compute_fbank_librispeech.py
+  lhotse combine data/manifests/librispeech_cuts_train* data/manifests/librispeech_cuts_train_all.jsonl.gz
+  lhotse cut trim-to-alignments --type word --max-pause 0.2 \
+    data/manifests/librispeech_cuts_train_all.jsonl.gz \
+    data/manifests/librispeech_cuts_train_all_trimmed.jsonl.gz
+  cat <(gunzip -c data/manifests/librispeech_cuts_train_all_trimmed.jsonl.gz) | \
     shuf | gzip -c > data/manifests/librispeech_cuts_train_trimmed.jsonl.gz
 fi
 
