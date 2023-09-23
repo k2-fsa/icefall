@@ -93,8 +93,8 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   log "This recipe uses mfa alignment for trimming"
   if [ ! -d $dl_dir/libri_alignments/LibriSpeech ]; then
     log "No alignment provided. please refer to ../../librispeech/ASR/add_alignments.sh \n \
-         for mfa alignments. Once you have downloaded the .zip file containing all alignments, \n \
-         it should be unzipped, renamed to libri_alignments and moved to your $dl_dir ."
+        for mfa alignments. Once you have downloaded and unzipped the .zip file containing \n \
+        all alignments, the folder should be renamed to libri_alignments and moved to your $dl_dir ."
     exit 0
   fi
 
