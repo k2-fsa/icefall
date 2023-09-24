@@ -70,25 +70,17 @@ class FlopsProfiler(object):
                 module_flop_count.append([])
 
             if not hasattr(module, "__pre_hook_handle__"):
-                module.__pre_hook_handle__ = module.register_forward_pre_hook(
-                    pre_hook
-                )
+                module.__pre_hook_handle__ = module.register_forward_pre_hook(pre_hook)
 
             def post_hook(module, input, output):
                 if module_flop_count:
-                    module.__flops__ += sum(
-                        [elem[1] for elem in module_flop_count[-1]]
-                    )
+                    module.__flops__ += sum([elem[1] for elem in module_flop_count[-1]])
                     module_flop_count.pop()
 
             if not hasattr(module, "__post_hook_handle__"):
-                module.__post_hook_handle__ = module.register_forward_hook(
-                    post_hook
-                )
+                module.__post_hook_handle__ = module.register_forward_hook(post_hook)
 
-        self.model.apply(
-            partial(register_module_hooks, ignore_list=ignore_list)
-        )
+        self.model.apply(partial(register_module_hooks, ignore_list=ignore_list))
         self.started = True
         self.func_patched = True
 
@@ -194,9 +186,7 @@ def _prelu_flops_compute(input: Tensor, weight: Tensor):
     return input.numel()
 
 
-def _elu_flops_compute(
-    input: Tensor, alpha: float = 1.0, inplace: bool = False
-):
+def _elu_flops_compute(input: Tensor, alpha: float = 1.0, inplace: bool = False):
     return input.numel()
 
 
@@ -259,9 +249,7 @@ def _conv_flops_compute(
         output_dims.append(output_dim)
 
     filters_per_channel = out_channels // groups
-    conv_per_position_macs = (
-        int(_prod(kernel_dims)) * in_channels * filters_per_channel
-    )
+    conv_per_position_macs = int(_prod(kernel_dims)) * in_channels * filters_per_channel
     active_elements_count = batch_size * int(_prod(output_dims))
     overall_conv_macs = conv_per_position_macs * active_elements_count
     overall_conv_flops = 2 * overall_conv_macs
@@ -297,7 +285,6 @@ def _conv_trans_flops_compute(
 
     output_dims = []
     for idx, input_dim in enumerate(input_dims):
-
         output_dim = (
             input_dim
             + 2 * paddings[idx]
@@ -310,9 +297,7 @@ def _conv_trans_flops_compute(
     dilations = dilation if type(dilation) is tuple else (dilation, dilation)
 
     filters_per_channel = out_channels // groups
-    conv_per_position_macs = (
-        int(_prod(kernel_dims)) * in_channels * filters_per_channel
-    )
+    conv_per_position_macs = int(_prod(kernel_dims)) * in_channels * filters_per_channel
     active_elements_count = batch_size * int(_prod(input_dims))
     overall_conv_macs = conv_per_position_macs * active_elements_count
     overall_conv_flops = 2 * overall_conv_macs
@@ -389,9 +374,7 @@ def _upsample_flops_compute(input, **kwargs):
         else:
             return int(size), 0
     scale_factor = kwargs.get("scale_factor", None)
-    assert (
-        scale_factor is not None
-    ), "either size or scale_factor should be defined"
+    assert scale_factor is not None, "either size or scale_factor should be defined"
     flops = input.numel()
     if isinstance(scale_factor, tuple) and len(scale_factor) == len(input):
         flops * int(_prod(scale_factor))
@@ -593,12 +576,8 @@ def _patch_functionals():
     F.embedding = wrapFunc(F.embedding, _embedding_flops_compute)
 
     # swoosh functions in k2
-    k2.swoosh_l_forward = wrapFunc(
-        k2.swoosh_l_forward, _k2_swoosh_flops_compute
-    )
-    k2.swoosh_r_forward = wrapFunc(
-        k2.swoosh_r_forward, _k2_swoosh_flops_compute
-    )
+    k2.swoosh_l_forward = wrapFunc(k2.swoosh_l_forward, _k2_swoosh_flops_compute)
+    k2.swoosh_r_forward = wrapFunc(k2.swoosh_r_forward, _k2_swoosh_flops_compute)
     k2.swoosh_l = wrapFunc(k2.swoosh_l, _k2_swoosh_flops_compute)
     k2.swoosh_r = wrapFunc(k2.swoosh_r, _k2_swoosh_flops_compute)
 
@@ -612,9 +591,7 @@ def _patch_tensor_methods():
     torch.Tensor.bmm = wrapFunc(torch.Tensor.bmm, _matmul_flops_compute)
 
     torch.addmm = wrapFunc(torch.addmm, _addmm_flops_compute)
-    torch.Tensor.addmm = wrapFunc(
-        torch.Tensor.addmm, _tensor_addmm_flops_compute
-    )
+    torch.Tensor.addmm = wrapFunc(torch.Tensor.addmm, _tensor_addmm_flops_compute)
 
     torch.mul = wrapFunc(torch.mul, _mul_flops_compute)
     torch.Tensor.mul = wrapFunc(torch.Tensor.mul, _mul_flops_compute)
@@ -631,14 +608,10 @@ def _patch_tensor_methods():
 
     torch.tanh = wrapFunc(torch.tanh, _tanh_flops_compute)
 
-    torch.Tensor.softmax = wrapFunc(
-        torch.Tensor.softmax, _softmax_flops_compute
-    )
+    torch.Tensor.softmax = wrapFunc(torch.Tensor.softmax, _softmax_flops_compute)
 
     torch.sigmoid = wrapFunc(torch.sigmoid, _sigmoid_flops_compute)
-    torch.Tensor.sigmoid = wrapFunc(
-        torch.Tensor.sigmoid, _sigmoid_flops_compute
-    )
+    torch.Tensor.sigmoid = wrapFunc(torch.Tensor.sigmoid, _sigmoid_flops_compute)
 
 
 def _reload_functionals():
@@ -732,15 +705,11 @@ def _rnn_flops(flops, rnn_module, w_ih, w_hh, input_size):
         flops += rnn_module.hidden_size * 4
         # two hadamard _product and add for C state
         flops += (
-            rnn_module.hidden_size
-            + rnn_module.hidden_size
-            + rnn_module.hidden_size
+            rnn_module.hidden_size + rnn_module.hidden_size + rnn_module.hidden_size
         )
         # final hadamard
         flops += (
-            rnn_module.hidden_size
-            + rnn_module.hidden_size
-            + rnn_module.hidden_size
+            rnn_module.hidden_size + rnn_module.hidden_size + rnn_module.hidden_size
         )
     return flops
 
