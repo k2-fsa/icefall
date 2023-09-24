@@ -646,12 +646,7 @@ class EmformerAttention(nn.Module):
             - output of right context and utterance, with shape (R + U, B, D).
             - memory output, with shape (M, B, D), where M = S - 1 or M = 0.
         """
-        (
-            output_right_context_utterance,
-            output_memory,
-            _,
-            _,
-        ) = self._forward_impl(
+        (output_right_context_utterance, output_memory, _, _,) = self._forward_impl(
             utterance,
             right_context,
             summary,
@@ -1115,11 +1110,7 @@ class EmformerEncoderLayer(nn.Module):
         src = src + self.dropout(self.feed_forward_macaron(src))
 
         # emformer attention module
-        (
-            src_att,
-            output_memory,
-            attn_cache,
-        ) = self._apply_attention_module_infer(
+        (src_att, output_memory, attn_cache,) = self._apply_attention_module_infer(
             src, R, memory, attn_cache, padding_mask=padding_mask
         )
         src = src + self.dropout(src_att)
