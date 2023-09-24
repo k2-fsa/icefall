@@ -162,7 +162,6 @@ def merge_chunks(
 
     futures = []
     with ThreadPoolExecutor(max_workers=1) as executor:
-
         for cut in cuts_chunk:
             cur_rec_id = cut.recording.id
             if len(cut_list) == 0:

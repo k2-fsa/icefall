@@ -463,7 +463,6 @@ def train_one_epoch(
                 f"tot_loss[{tot_loss}], batch size: {batch_size}"
             )
         if batch_idx % params.log_interval == 0:
-
             if tb_writer is not None:
                 loss_info.write_summary(
                     tb_writer, "train/current_", params.batch_idx_train
