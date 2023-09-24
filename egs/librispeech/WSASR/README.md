@@ -67,7 +67,7 @@ otc_token="<star>"
 ```
 This script adds the 'otc_token' ('\<star\>') and its corresponding sentence-piece ('▁\<star\>') to 'words.txt' and 'tokens.txt,' respectively. Additionally, it computes SSL features using the 'wav2vec2-base' model. (You can use GPU to accelerate feature extraction).
 
-### Making synthetic errors to the transcript [optional]
+### Making synthetic errors to the transcript (train-clean-100) [optional]
 ```
 sub_er=0.17
 ins_er=0.17
@@ -94,6 +94,7 @@ verbatim: -have- a  [] [nice] day
 ```
 
 ### Training
+The training uses synthetic data based on the train-clean-100 subset.
 ```
 otc_lang_dir=data/lang_bpe_200
 
@@ -195,10 +196,10 @@ export CUDA_VISIBLE_DEVICES="0"
 
 ## Citations
 ```
-@article{gao2023bypass,
+@inproceedings{gao2023bypass,
   title={Bypass Temporal Classification: Weakly Supervised Automatic Speech Recognition with Imperfect Transcripts},
   author={Gao, Dongji and Wiesner, Matthew and Xu, Hainan and Garcia, Leibny Paola and Povey, Daniel and Khudanpur, Sanjeev},
-  journal={arXiv preprint arXiv:2306.01031},
+  booktitle={INTERSPEECH},
   year={2023}
 }
 ```
