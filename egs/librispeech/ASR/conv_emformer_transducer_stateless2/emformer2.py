@@ -1502,7 +1502,11 @@ class EmformerEncoder(nn.Module):
             end = start + 4
             cache = states[start:end]
 
-            (output, right_context, output_cache,) = layer.infer(
+            (
+                output,
+                right_context,
+                output_cache,
+            ) = layer.infer(
                 output,
                 right_context,
                 padding_mask=None,

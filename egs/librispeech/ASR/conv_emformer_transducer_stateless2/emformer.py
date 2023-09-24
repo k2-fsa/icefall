@@ -927,7 +927,11 @@ class EmformerEncoderLayer(nn.Module):
             ]
         else:
             memory = torch.empty(0).to(dtype=utterance.dtype, device=utterance.device)
-        (output_right_context_utterance, next_key, next_val,) = self.attention.infer(
+        (
+            output_right_context_utterance,
+            next_key,
+            next_val,
+        ) = self.attention.infer(
             utterance=utterance,
             right_context=right_context,
             memory=pre_memory,

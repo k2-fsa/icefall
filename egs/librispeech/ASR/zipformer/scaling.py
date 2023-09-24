@@ -70,7 +70,7 @@ class PiecewiseLinear(object):
             self.pairs = list(args[0].pairs)
         else:
             self.pairs = [(float(x), float(y)) for x, y in args]
-        for (x, y) in self.pairs:
+        for x, y in self.pairs:
             assert isinstance(x, (float, int)), type(x)
             assert isinstance(y, (float, int)), type(y)
 
