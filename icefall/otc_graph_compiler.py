@@ -38,7 +38,6 @@ class OtcTrainingGraphCompiler(object):
         initial_self_loop_weight: float = 0.0,
         bypass_weight_decay: float = 0.0,
         self_loop_weight_decay: float = 0.0,
-
     ) -> None:
         """
         Args:
@@ -93,7 +92,11 @@ class OtcTrainingGraphCompiler(object):
         return max_token_id
 
     def make_arc(
-        self, from_state: int, to_state: int, symbol: Union[str, int], weight: float,
+        self,
+        from_state: int,
+        to_state: int,
+        symbol: Union[str, int],
+        weight: float,
     ):
         return f"{from_state} {to_state} {symbol} {weight}"
 
@@ -132,7 +135,7 @@ class OtcTrainingGraphCompiler(object):
             Whether to add bypass arc to training graph for substitution
             and insertion errors (wrong or extra words in the transcript).
           allow_self_loop_arc:
-            Whether to add self-loop arc to training graph for deletion 
+            Whether to add self-loop arc to training graph for deletion
             errors (missing words in the transcript).
           bypass_weight:
             Weight associated with bypass arc.
@@ -140,7 +143,7 @@ class OtcTrainingGraphCompiler(object):
             Weight associated with self-loop arc.
           otc_granularity:
             Use OTC token to model word or subword.
-          
+
         Return:
           Return an FsaVec, which is the result of composing a
           CTC topology with OTC FSAs constructed from the given texts.
@@ -161,7 +164,9 @@ class OtcTrainingGraphCompiler(object):
         fsa_with_self_loop = k2.arc_sort(fsa_with_self_loop)
 
         graph = k2.compose(
-            self.ctc_topo, fsa_with_self_loop, treat_epsilons_specially=False,
+            self.ctc_topo,
+            fsa_with_self_loop,
+            treat_epsilons_specially=False,
         )
         assert graph.requires_grad is False
 
@@ -201,7 +206,10 @@ class OtcTrainingGraphCompiler(object):
 
                 if allow_self_loop_arc:
                     self_loop_arc = self.make_arc(
-                        cur_state, cur_state, otc_token_id, self_loop_weight,
+                        cur_state,
+                        cur_state,
+                        otc_token_id,
+                        self_loop_weight,
                     )
                     arcs.append(self_loop_arc)
 
@@ -225,7 +233,10 @@ class OtcTrainingGraphCompiler(object):
 
             if allow_self_loop_arc:
                 self_loop_arc = self.make_arc(
-                    cur_state, cur_state, otc_token_id, self_loop_weight,
+                    cur_state,
+                    cur_state,
+                    otc_token_id,
+                    self_loop_weight,
                 )
                 arcs.append(self_loop_arc)
 

@@ -7,9 +7,10 @@ import random
 from pathlib import Path
 from typing import List
 
-from icefall.utils import str2bool
 from lhotse import CutSet, load_manifest
 from lhotse.cut.base import Cut
+
+from icefall.utils import str2bool
 
 
 def get_args():
@@ -23,23 +24,36 @@ def get_args():
     )
 
     parser.add_argument(
-        "--words-file", type=str, help="words.txt file",
+        "--words-file",
+        type=str,
+        help="words.txt file",
     )
 
     parser.add_argument(
-        "--otc-token", type=str, help="OTC token in words.txt",
+        "--otc-token",
+        type=str,
+        help="OTC token in words.txt",
     )
 
     parser.add_argument(
-        "--sub-error-rate", type=float, default=0.0, help="Substitution error rate",
+        "--sub-error-rate",
+        type=float,
+        default=0.0,
+        help="Substitution error rate",
     )
 
     parser.add_argument(
-        "--ins-error-rate", type=float, default=0.0, help="Insertion error rate",
+        "--ins-error-rate",
+        type=float,
+        default=0.0,
+        help="Insertion error rate",
     )
 
     parser.add_argument(
-        "--del-error-rate", type=float, default=0.0, help="Deletion error rate",
+        "--del-error-rate",
+        type=float,
+        default=0.0,
+        help="Deletion error rate",
     )
 
     parser.add_argument(

@@ -18,7 +18,9 @@ def get_args():
     )
 
     parser.add_argument(
-        "--otc-token", type=str, help="OTC token to be added to words.txt",
+        "--otc-token",
+        type=str,
+        help="OTC token to be added to words.txt",
     )
 
     return parser.parse_args()

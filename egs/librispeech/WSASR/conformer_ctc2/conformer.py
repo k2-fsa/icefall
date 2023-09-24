@@ -92,7 +92,7 @@ class Conformer(Transformer):
         if self.subsampling_factor == 4:
             self.encoder_embed = Conv2dSubsampling(num_features, d_model)
         elif self.subsampling_factor == 2:
-            self.encoder_embed = Conv2dSubsampling2(num_features, d_model) 
+            self.encoder_embed = Conv2dSubsampling2(num_features, d_model)
 
         self.encoder_pos = RelPositionalEncoding(d_model, dropout)
 

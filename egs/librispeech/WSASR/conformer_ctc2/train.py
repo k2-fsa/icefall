@@ -66,24 +66,24 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
 
 from icefall import diagnostics
-from icefall.otc_graph_compiler import OtcTrainingGraphCompiler
 from icefall.checkpoint import load_checkpoint, remove_checkpoints
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 from icefall.checkpoint import (
     save_checkpoint_with_global_batch_idx,
     update_averaged_model,
 )
+from icefall.decode import one_best_decoding
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
+from icefall.otc_graph_compiler import OtcTrainingGraphCompiler
 from icefall.utils import (
     AttributeDict,
     MetricsTracker,
     encode_supervisions_otc,
+    get_texts,
     setup_logger,
     str2bool,
-    get_texts,
 )
-from icefall.decode import one_best_decoding
 
 LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
 
@@ -94,7 +94,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--world-size", type=int, default=1, help="Number of GPUs for DDP training.",
+        "--world-size",
+        type=int,
+        default=1,
+        help="Number of GPUs for DDP training.",
     )
 
     parser.add_argument(
@@ -112,7 +115,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--num-epochs", type=int, default=20, help="Number of epochs to train.",
+        "--num-epochs",
+        type=int,
+        default=20,
+        help="Number of epochs to train.",
     )
 
     parser.add_argument(
@@ -255,7 +261,18 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--otc-token", type=str, default="_<star>", help="OTC token",
+        "--otc-token",
+        type=str,
+        default="_<star>",
+        help="OTC token",
+    )
+
+    parser.add_argument(
+        "--otc-granularity",
+        type=str,
+        choices=["word", "subword"],
+        default="word",
+        help="OTC granularity",
     )
 
     parser.add_argument(
@@ -374,7 +391,7 @@ def get_params() -> AttributeDict:
             "log_interval": 1,
             "reset_interval": 200,
             "valid_interval": 800,  # For the 100h subset, use 800
-            "alignment_interval": 100,
+            "alignment_interval": 25,
             # parameters for conformer
             "feature_dim": 768,
             "subsampling_factor": 2,
@@ -585,9 +602,14 @@ def compute_loss(
         allow_self_loop_arc=params.allow_self_loop_arc,
         bypass_weight=bypass_weight,
         self_loop_weight=self_loop_weight,
+        otc_granularity=params.otc_granularity,
     )
 
-    dense_fsa_vec = k2.DenseFsaVec(nnet_output, supervision_segments, allow_truncate=3,)
+    dense_fsa_vec = k2.DenseFsaVec(
+        nnet_output,
+        supervision_segments,
+        allow_truncate=3,
+    )
 
     otc_loss = k2.ctc_loss(
         decoding_graph=decoding_graph,
@@ -627,18 +649,22 @@ def compute_loss(
                 utt_id = utt_ids[index]
 
                 lattice = k2.intersect_dense(
-                    decoding_graph, dense_fsa_vec, params.beam_size,
+                    decoding_graph,
+                    dense_fsa_vec,
+                    params.beam_size,
                 )
                 best_path = one_best_decoding(
-                    lattice=lattice, use_double_scores=params.use_double_scores,
+                    lattice=lattice,
+                    use_double_scores=params.use_double_scores,
                 )
                 hyp_ids = get_texts(best_path)[index]
                 hyp_text_list = [graph_compiler.token_table[i] for i in hyp_ids]
-                hyp_text = " ".join(hyp_text_list)
+                hyp_text = "".join(hyp_text_list).replace("▁", " ")
 
                 logging.info(f"[utterance id]: {utt_id}")
                 logging.info(f"[verbatim text]: {verbatim_text}")
                 logging.info(f"[best alignment]: {hyp_text}")
+                logging.info(bypass_weight)
 
     return loss, info
 
@@ -770,7 +796,9 @@ def train_one_epoch(
             and params.batch_idx_train % params.average_period == 0
         ):
             update_averaged_model(
-                params=params, model_cur=model, model_avg=model_avg,
+                params=params,
+                model_cur=model,
+                model_avg=model_avg,
             )
 
         if (
@@ -790,7 +818,9 @@ def train_one_epoch(
                 rank=rank,
             )
             remove_checkpoints(
-                out_dir=params.exp_dir, topk=params.keep_last_k, rank=rank,
+                out_dir=params.exp_dir,
+                topk=params.keep_last_k,
+                rank=rank,
             )
 
         if batch_idx % params.log_interval == 0:

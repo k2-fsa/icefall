@@ -262,6 +262,7 @@ def get_texts(
     else:
         return aux_labels.tolist()
 
+
 def encode_supervisions_otc(
     supervisions: dict,
     subsampling_factor: int,

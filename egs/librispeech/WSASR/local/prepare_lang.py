@@ -324,7 +324,9 @@ def lexicon_to_fst(
         disambig_token = token2id["#0"]
         disambig_word = word2id["#0"]
         arcs = add_self_loops(
-            arcs, disambig_token=disambig_token, disambig_word=disambig_word,
+            arcs,
+            disambig_token=disambig_token,
+            disambig_word=disambig_word,
         )
 
     final_state = next_state

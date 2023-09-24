@@ -120,6 +120,7 @@ class Conv2dSubsampling(torch.nn.Module):
         x = self.out_balancer(x)
         return x
 
+
 class Conv2dSubsampling2(torch.nn.Module):
     """Convolutional 2D subsampling (to 1/2 length).
 

@@ -29,7 +29,7 @@ import os
 from pathlib import Path
 
 import torch
-from lhotse import CutSet, S3PRLSSL, S3PRLSSLConfig, NumpyFilesWriter
+from lhotse import S3PRLSSL, CutSet, NumpyFilesWriter, S3PRLSSLConfig
 from lhotse.recipes.utils import read_manifests_if_cached
 
 from icefall.utils import get_executor
@@ -71,9 +71,7 @@ def compute_ssl_librispeech():
         dataset_parts,
     )
 
-    extractor = S3PRLSSL(
-        S3PRLSSLConfig(ssl_model="wav2vec2", device="cuda")
-    )
+    extractor = S3PRLSSL(S3PRLSSLConfig(ssl_model="wav2vec2", device="cuda"))
 
     with get_executor() as ex:  # Initialize the executor only once.
         for partition, m in manifests.items():
@@ -95,9 +93,7 @@ def compute_ssl_librispeech():
 
 
 if __name__ == "__main__":
-    formatter = (
-        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-    )
+    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
 
     logging.basicConfig(format=formatter, level=logging.INFO)
 

@@ -909,7 +909,9 @@ class Noam(object):
 
 
 def encoder_padding_mask(
-    max_len: int, subsampling_factor: Optional[int] = 4, supervisions: Optional[Supervisions] = None
+    max_len: int,
+    subsampling_factor: Optional[int] = 4,
+    supervisions: Optional[Supervisions] = None,
 ) -> Optional[torch.Tensor]:
     """Make mask tensor containing indexes of padded part.
 

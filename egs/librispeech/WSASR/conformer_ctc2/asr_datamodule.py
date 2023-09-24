@@ -183,11 +183,13 @@ class LibriSpeechAsrDataModule:
             "--train-manifest",
             type=str,
             default="librispeech_cuts_train-clean-100.jsonl.gz",
-            help="Train manifest file."
+            help="Train manifest file.",
         )
 
     def train_dataloaders(
-        self, cuts_train: CutSet, sampler_state_dict: Optional[Dict[str, Any]] = None,
+        self,
+        cuts_train: CutSet,
+        sampler_state_dict: Optional[Dict[str, Any]] = None,
     ) -> DataLoader:
         """
         Args:
@@ -268,11 +270,14 @@ class LibriSpeechAsrDataModule:
         logging.info("About to create dev dataset")
 
         validate = K2SpeechRecognitionDataset(
-            cut_transforms=transforms, return_cuts=self.args.return_cuts,
+            cut_transforms=transforms,
+            return_cuts=self.args.return_cuts,
         )
 
         valid_sampler = DynamicBucketingSampler(
-            cuts_valid, max_duration=self.args.max_duration, shuffle=False,
+            cuts_valid,
+            max_duration=self.args.max_duration,
+            shuffle=False,
         )
 
         logging.info("About to create dev dataloader")
@@ -293,11 +298,16 @@ class LibriSpeechAsrDataModule:
             return_cuts=self.args.return_cuts,
         )
         sampler = DynamicBucketingSampler(
-            cuts, max_duration=self.args.max_duration, shuffle=False,
+            cuts,
+            max_duration=self.args.max_duration,
+            shuffle=False,
         )
         logging.debug("About to create test dataloader")
         test_dl = DataLoader(
-            test, batch_size=None, sampler=sampler, num_workers=self.args.num_workers,
+            test,
+            batch_size=None,
+            sampler=sampler,
+            num_workers=self.args.num_workers,
         )
         return test_dl
 
@@ -311,9 +321,7 @@ class LibriSpeechAsrDataModule:
     @lru_cache()
     def train_clean_100_cuts(self) -> CutSet:
         logging.info("About to get train-clean-100 cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / self.args.train_manifest
-        )
+        return load_manifest_lazy(self.args.manifest_dir / self.args.train_manifest)
 
     @lru_cache()
     def train_all_shuf_cuts(self) -> CutSet:

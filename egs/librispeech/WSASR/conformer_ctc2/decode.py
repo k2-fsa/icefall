@@ -32,19 +32,16 @@ import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
 from conformer import Conformer
 
-from icefall.otc_graph_compiler import OtcTrainingGraphCompiler
 from icefall.checkpoint import (
     average_checkpoints,
     average_checkpoints_with_averaged_model,
     find_checkpoints,
     load_checkpoint,
 )
-from icefall.decode import (
-    get_lattice,
-    one_best_decoding,
-)
+from icefall.decode import get_lattice, one_best_decoding
 from icefall.env import get_env_info
 from icefall.lexicon import Lexicon
+from icefall.otc_graph_compiler import OtcTrainingGraphCompiler
 from icefall.utils import (
     AttributeDict,
     get_texts,
@@ -62,7 +59,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--otc-token", type=str, default="<star>", help="OTC token",
+        "--otc-token",
+        type=str,
+        default="<star>",
+        help="OTC token",
     )
 
     parser.add_argument(
@@ -137,11 +137,17 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--exp-dir", type=str, default="conformer_ctc2/exp", help="The experiment dir",
+        "--exp-dir",
+        type=str,
+        default="conformer_ctc2/exp",
+        help="The experiment dir",
     )
 
     parser.add_argument(
-        "--lang-dir", type=str, default="data/lang_bpe_200", help="The lang dir",
+        "--lang-dir",
+        type=str,
+        default="data/lang_bpe_200",
+        help="The lang dir",
     )
 
     parser.add_argument(
@@ -345,7 +351,11 @@ def decode_one_batch(
         return {key: hyps}
 
     if params.method == "ctc-greedy-search":
-        hyps, _ = ctc_greedy_search(nnet_output, memory, memory_key_padding_mask,)
+        hyps, _ = ctc_greedy_search(
+            nnet_output,
+            memory,
+            memory_key_padding_mask,
+        )
 
         # hyps is a list of str, e.g., ['xxx yyy zzz', ...]
         hyps = bpe_model.decode(hyps)
@@ -557,7 +567,11 @@ def main():
 
     if params.method == "ctc-decoding" or params.method == "ctc-greedy-search":
         HLG = None
-        H = k2.ctc_topo(max_token=max_token_id, modified=False, device=device,)
+        H = k2.ctc_topo(
+            max_token=max_token_id,
+            modified=False,
+            device=device,
+        )
         bpe_model = spm.SentencePieceProcessor()
         bpe_model.load(str(params.lang_dir / "bpe.model"))
     else:
