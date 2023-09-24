@@ -1,12 +1,6 @@
 # isort:skip_file
 
-from . import (
-    checkpoint,
-    decode,
-    dist,
-    env,
-    utils
-)
+from . import checkpoint, decode, dist, env, utils
 
 from .byte_utils import (
     byte_decode,
