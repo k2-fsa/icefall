@@ -33,6 +33,13 @@ We modify $G(\mathbf{y})$ by adding self-loop arcs into each state and bypass ar
 
   </p>
 
+We incorporate the penalty strategy and apply different configurations for the self-loop arc and bypass arc. The penalties are set as
+
+    $\lambda_{1_{i}} = \beta_{1} * \tau_{1}^{i},\quad \lambda_{2_{i}} = \beta_{2} * \tau_{2}^{i}$
+
+for the $i$-th training epoch. $\beta$ is the initial penalty that encourages the model to rely more on the given transcript at the start of training. 
+It decays exponentially by a factor of $\tau \in (0, 1)$, gradually encouraging the model to align speech with $\star$ when getting confused. 
+
 After composing the modified WFST $G_{\text{otc}}(\mathbf{y})$ with $L$ and $T$, the OTC training graph is shown in this figure:
 <figure style="text-align: center">
   <img src="figures/otc_training_graph.drawio.png" alt="Image Alt Text" />
