@@ -2,12 +2,13 @@ Decoding with language models
 =============================
 
 This section describes how to use external langugage models 
-during decoding to improve the WER of transducer models.
+during decoding to improve the WER of transducer models. To train an external language model,
+please refer to this tutorial: :ref:`train_nnlm`.
 
 The following decoding methods with external langugage models are available:
 
 
-.. list-table:: LM-rescoring-based methods vs shallow-fusion-based methods (The numbers in each field is WER on test-clean, WER on test-other and decoding time on test-clean)
+.. list-table:: 
    :widths: 25 50
    :header-rows: 1
 
