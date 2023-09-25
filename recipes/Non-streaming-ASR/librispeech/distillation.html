@@ -151,14 +151,14 @@ options:</p>
 <blockquote>
 <div><ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">--stage</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">--stop-stage</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--stop_stage</span></code></p></li>
 </ul>
 </div></blockquote>
 <p>to control which stage(s) should be run. By default, all stages are executed.</p>
 <p>For example,</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/librispeech/ASR
-$<span class="w"> </span>./prepare.sh<span class="w"> </span>--stage<span class="w"> </span><span class="m">0</span><span class="w"> </span>--stop-stage<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="c1"># run only stage 0</span>
-$<span class="w"> </span>./prepare.sh<span class="w"> </span>--stage<span class="w"> </span><span class="m">2</span><span class="w"> </span>--stop-stage<span class="w"> </span><span class="m">5</span><span class="w"> </span><span class="c1"># run from stage 2 to stage 5</span>
+$<span class="w"> </span>./prepare.sh<span class="w"> </span>--stage<span class="w"> </span><span class="m">0</span><span class="w"> </span>--stop_stage<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="c1"># run only stage 0</span>
+$<span class="w"> </span>./prepare.sh<span class="w"> </span>--stage<span class="w"> </span><span class="m">2</span><span class="w"> </span>--stop_stage<span class="w"> </span><span class="m">5</span><span class="w"> </span><span class="c1"># run from stage 2 to stage 5</span>
 </pre></div>
 </div>
 <div class="admonition hint">
@@ -206,13 +206,13 @@ two options:</p>
 <blockquote>
 <div><ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">--stage</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">--stop-stage</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--stop_stage</span></code></p></li>
 </ul>
 </div></blockquote>
 <p>For example,</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/librispeech/ASR
-$<span class="w"> </span>./distillation_with_hubert.sh<span class="w"> </span>--stage<span class="w"> </span><span class="m">0</span><span class="w"> </span>--stop-stage<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="c1"># run only stage 0</span>
-$<span class="w"> </span>./distillation_with_hubert.sh<span class="w"> </span>--stage<span class="w"> </span><span class="m">2</span><span class="w"> </span>--stop-stage<span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="c1"># run from stage 2 to stage 5</span>
+$<span class="w"> </span>./distillation_with_hubert.sh<span class="w"> </span>--stage<span class="w"> </span><span class="m">0</span><span class="w"> </span>--stop_stage<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="c1"># run only stage 0</span>
+$<span class="w"> </span>./distillation_with_hubert.sh<span class="w"> </span>--stage<span class="w"> </span><span class="m">2</span><span class="w"> </span>--stop_stage<span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="c1"># run from stage 2 to stage 5</span>
 </pre></div>
 </div>
 <p>Here are a few options in <a class="reference external" href="https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/distillation_with_hubert.sh">./distillation_with_hubert.sh</a>
@@ -227,7 +227,7 @@ indexes uploaded by us will be downloaded.</p></li>
 experiments, please set <code class="docutils literal notranslate"><span class="pre">full_libri=True</span></code>.</p>
 <p>The following command downloads the pre-computed codebook indexes
 and prepares MVQ-augmented training manifests.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>./distillation_with_hubert.sh<span class="w"> </span>--stage<span class="w"> </span><span class="m">2</span><span class="w"> </span>--stop-stage<span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="c1"># run only stage 2</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>./distillation_with_hubert.sh<span class="w"> </span>--stage<span class="w"> </span><span class="m">2</span><span class="w"> </span>--stop_stage<span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="c1"># run only stage 2</span>
 </pre></div>
 </div>
 <p>Please see the
@@ -258,7 +258,7 @@ set <code class="docutils literal notranslate"><span class="pre">use_extracted_c
 <section id="training">
 <h2>Training<a class="headerlink" href="#training" title="Permalink to this heading"></a></h2>
 <p>To perform training, please run stage 3 by executing the following command.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>./prepare.sh<span class="w"> </span>--stage<span class="w"> </span><span class="m">3</span><span class="w"> </span>--stop-stage<span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="c1"># run MVQ training</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>./prepare.sh<span class="w"> </span>--stage<span class="w"> </span><span class="m">3</span><span class="w"> </span>--stop_stage<span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="c1"># run MVQ training</span>
 </pre></div>
 </div>
 <p>Here is the code snippet for training:</p>
