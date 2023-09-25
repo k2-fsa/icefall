@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Non Streaming ASR &mdash; icefall 0.1 documentation</title>
+  <title>RNN-LM &mdash; icefall 0.1 documentation</title>
       <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
   <!--[if lt IE 9]>
@@ -19,8 +19,8 @@
     <script src="../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
-    <link rel="next" title="aishell" href="aishell/index.html" />
-    <link rel="prev" title="Recipes" href="../index.html" /> 
+    <link rel="next" title="Train an RNN langugage model" href="librispeech/lm-training.html" />
+    <link rel="prev" title="Zipformer Transducer" href="../Streaming-ASR/librispeech/zipformer_transducer.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -52,15 +52,12 @@
 </ul>
 <ul class="current">
 <li class="toctree-l1 current"><a class="reference internal" href="../index.html">Recipes</a><ul class="current">
-<li class="toctree-l2 current"><a class="current reference internal" href="#">Non Streaming ASR</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="aishell/index.html">aishell</a></li>
-<li class="toctree-l3"><a class="reference internal" href="librispeech/index.html">LibriSpeech</a></li>
-<li class="toctree-l3"><a class="reference internal" href="timit/index.html">TIMIT</a></li>
-<li class="toctree-l3"><a class="reference internal" href="yesno/index.html">YesNo</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../Non-streaming-ASR/index.html">Non Streaming ASR</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../Streaming-ASR/index.html">Streaming ASR</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">RNN-LM</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="librispeech/lm-training.html">Train an RNN langugage model</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="../Streaming-ASR/index.html">Streaming ASR</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../RNN-LM/index.html">RNN-LM</a></li>
 </ul>
 </li>
 </ul>
@@ -87,9 +84,9 @@
   <ul class="wy-breadcrumbs">
       <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
           <li class="breadcrumb-item"><a href="../index.html">Recipes</a></li>
-      <li class="breadcrumb-item active">Non Streaming ASR</li>
+      <li class="breadcrumb-item active">RNN-LM</li>
       <li class="wy-breadcrumbs-aside">
-              <a href="https://github.com/k2-fsa/icefall/blob/master/docs/source/recipes/Non-streaming-ASR/index.rst" class="fa fa-github"> Edit on GitHub</a>
+              <a href="https://github.com/k2-fsa/icefall/blob/master/docs/source/recipes/RNN-LM/index.rst" class="fa fa-github"> Edit on GitHub</a>
       </li>
   </ul>
   <hr/>
@@ -97,34 +94,11 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="non-streaming-asr">
-<h1>Non Streaming ASR<a class="headerlink" href="#non-streaming-asr" title="Permalink to this heading"></a></h1>
+  <section id="rnn-lm">
+<h1>RNN-LM<a class="headerlink" href="#rnn-lm" title="Permalink to this heading"></a></h1>
 <div class="toctree-wrapper compound">
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="aishell/index.html">aishell</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="aishell/tdnn_lstm_ctc.html">TDNN-LSTM CTC</a></li>
-<li class="toctree-l2"><a class="reference internal" href="aishell/conformer_ctc.html">Conformer CTC</a></li>
-<li class="toctree-l2"><a class="reference internal" href="aishell/stateless_transducer.html">Stateless Transducer</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="librispeech/index.html">LibriSpeech</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="librispeech/tdnn_lstm_ctc.html">TDNN-LSTM-CTC</a></li>
-<li class="toctree-l2"><a class="reference internal" href="librispeech/conformer_ctc.html">Conformer CTC</a></li>
-<li class="toctree-l2"><a class="reference internal" href="librispeech/pruned_transducer_stateless.html">Pruned transducer statelessX</a></li>
-<li class="toctree-l2"><a class="reference internal" href="librispeech/zipformer_mmi.html">Zipformer MMI</a></li>
-<li class="toctree-l2"><a class="reference internal" href="librispeech/zipformer_ctc_blankskip.html">Zipformer CTC Blank Skip</a></li>
-<li class="toctree-l2"><a class="reference internal" href="librispeech/distillation.html">Distillation with HuBERT</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="timit/index.html">TIMIT</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="timit/tdnn_ligru_ctc.html">TDNN-LiGRU-CTC</a></li>
-<li class="toctree-l2"><a class="reference internal" href="timit/tdnn_lstm_ctc.html">TDNN-LSTM-CTC</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="yesno/index.html">YesNo</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="yesno/tdnn.html">TDNN-CTC</a></li>
-</ul>
-</li>
+<li class="toctree-l1"><a class="reference internal" href="librispeech/lm-training.html">Train an RNN langugage model</a></li>
 </ul>
 </div>
 </section>
@@ -133,8 +107,8 @@
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="../index.html" class="btn btn-neutral float-left" title="Recipes" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="aishell/index.html" class="btn btn-neutral float-right" title="aishell" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="../Streaming-ASR/librispeech/zipformer_transducer.html" class="btn btn-neutral float-left" title="Zipformer Transducer" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="librispeech/lm-training.html" class="btn btn-neutral float-right" title="Train an RNN langugage model" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

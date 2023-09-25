@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Train an RNN langugage model &mdash; icefall 0.1 documentation</title>
+      <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js?v=e031e9a9"></script>
+        <script src="../../../_static/doctools.js?v=888ff710"></script>
+        <script src="../../../_static/sphinx_highlight.js?v=4825356b"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link rel="next" title="Contributing" href="../../../contributing/index.html" />
+    <link rel="prev" title="RNN-LM" href="../index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            icefall
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../for-dummies/index.html">Icefall for dummies tutorial</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../installation/index.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../docker/index.html">Docker</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../faqs.html">Frequently Asked Questions (FAQs)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../model-export/index.html">Model export</a></li>
+</ul>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="../../index.html">Recipes</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../../Non-streaming-ASR/index.html">Non Streaming ASR</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../Streaming-ASR/index.html">Streaming ASR</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html">RNN-LM</a><ul class="current">
+<li class="toctree-l3 current"><a class="current reference internal" href="#">Train an RNN langugage model</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../contributing/index.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../huggingface/index.html">Huggingface</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../decoding-with-langugage-models/index.html">Decoding with language models</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">icefall</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Recipes</a></li>
+          <li class="breadcrumb-item"><a href="../index.html">RNN-LM</a></li>
+      <li class="breadcrumb-item active">Train an RNN langugage model</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/k2-fsa/icefall/blob/master/docs/source/recipes/RNN-LM/librispeech/lm-training.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="train-an-rnn-langugage-model">
+<span id="train-nnlm"></span><h1>Train an RNN langugage model<a class="headerlink" href="#train-an-rnn-langugage-model" title="Permalink to this heading"></a></h1>
+<p>If you have enough text data, you can train a neural network language model (NNLM) to improve
+the WER of your E2E ASR system. This tutorial shows you how to train an RNNLM from
+scratch.</p>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>For how to use an NNLM during decoding, please refer to the following tutorials:
+<a class="reference internal" href="../../../decoding-with-langugage-models/shallow-fusion.html#shallow-fusion"><span class="std std-ref">Shallow fusion for Transducer</span></a>, <a class="reference internal" href="../../../decoding-with-langugage-models/LODR.html#lodr"><span class="std std-ref">LODR for RNN Transducer</span></a>, <a class="reference internal" href="../../../decoding-with-langugage-models/rescoring.html#rescoring"><span class="std std-ref">LM rescoring for Transducer</span></a></p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This tutorial is based on the LibriSpeech recipe. Please check it out for the necessary
+python scripts for this tutorial. We use the LibriSpeech LM-corpus as the LM training set
+for illustration purpose. You can also collect your own data. The data format is quite simple:
+each line should contain a complete sentence, and words should be separated by space.</p>
+</div>
+<p>First, let’s download the training data for the RNNLM. This can be done via the
+following command:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>wget<span class="w"> </span>https://www.openslr.org/resources/11/librispeech-lm-norm.txt.gz
+$<span class="w"> </span>gzip<span class="w"> </span>-d<span class="w"> </span>librispeech-lm-norm.txt.gz
+</pre></div>
+</div>
+<p>As we are training a BPE-level RNNLM, we need to tokenize the training text, which requires a
+BPE tokenizer. This can be achieved by executing the following command:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="c1"># if you don&#39;t have the BPE</span>
+$<span class="w"> </span><span class="nv">GIT_LFS_SKIP_SMUDGE</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-2023-05-15
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>icefall-asr-librispeech-zipformer-2023-05-15/data/lang_bpe_500
+$<span class="w"> </span>git<span class="w"> </span>lfs<span class="w"> </span>pull<span class="w"> </span>--include<span class="w"> </span>bpe.model
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../../..
+
+$<span class="w"> </span>./local/prepare_lm_training_data.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--bpe-model<span class="w"> </span>icefall-asr-librispeech-zipformer-2023-05-15/data/lang_bpe_500/bpe.model<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--lm-data<span class="w"> </span>librispeech-lm-norm.txt<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--lm-archive<span class="w"> </span>data/lang_bpe_500/lm_data.pt
+</pre></div>
+</div>
+<p>Now, you should have a file name <code class="docutils literal notranslate"><span class="pre">lm_data.pt</span></code> file store under the directory <code class="docutils literal notranslate"><span class="pre">data/lang_bpe_500</span></code>.
+This is the packed training data for the RNNLM. We then sort the training data according to its
+sentence length.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="c1"># This could take a while (~ 20 minutes), feel free to grab a cup of coffee :)</span>
+$<span class="w"> </span>./local/sort_lm_training_data.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--in-lm-data<span class="w"> </span>data/lang_bpe_500/lm_data.pt<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--out-lm-data<span class="w"> </span>data/lang_bpe_500/sorted_lm_data.pt<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--out-statistics<span class="w"> </span>data/lang_bpe_500/lm_data_stats.txt
+</pre></div>
+</div>
+<p>The aforementioned steps can be repeated to create a a validation set for you RNNLM. Let’s say
+you have a validation set in <code class="docutils literal notranslate"><span class="pre">valid.txt</span></code>, you can just set <code class="docutils literal notranslate"><span class="pre">--lm-data</span> <span class="pre">valid.txt</span></code>
+and <code class="docutils literal notranslate"><span class="pre">--lm-archive</span> <span class="pre">data/lang_bpe_500/lm-data-valid.pt</span></code> when calling <code class="docutils literal notranslate"><span class="pre">./local/prepare_lm_training_data.py</span></code>.</p>
+<p>After completing the previous steps, the training and testing sets for training RNNLM are ready.
+The next step is to train the RNNLM model. The training command is as follows:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="c1"># assume you are in the icefall root directory</span>
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>rnn_lm
+$<span class="w"> </span>ln<span class="w"> </span>-s<span class="w"> </span>../../egs/librispeech/ASR/data<span class="w"> </span>.
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>..
+$<span class="w"> </span>./rnn_lm/train.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--world-size<span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--exp-dir<span class="w"> </span>./rnn_lm/exp<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--start-epoch<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--num-epochs<span class="w"> </span><span class="m">10</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--use-fp16<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--tie-weights<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--embedding-dim<span class="w"> </span><span class="m">2048</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--hidden_dim<span class="w"> </span><span class="m">2048</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--num-layers<span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--batch-size<span class="w"> </span><span class="m">300</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--lm-data<span class="w"> </span>rnn_lm/data/lang_bpe_500/sorted_lm_data.pt<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--lm-data-valid<span class="w"> </span>rnn_lm/data/lang_bpe_500/sorted_lm_data.pt
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>You can adjust the RNNLM hyper parameters to control the size of the RNNLM,
+such as embedding dimension and hidden state dimension. For more details, please
+run <code class="docutils literal notranslate"><span class="pre">./rnn_lm/train.py</span> <span class="pre">--help</span></code>.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The training of RNNLM can take a long time (usually a couple of days).</p>
+</div>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="../index.html" class="btn btn-neutral float-left" title="RNN-LM" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../../../contributing/index.html" class="btn btn-neutral float-right" title="Contributing" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2021, icefall development team.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
