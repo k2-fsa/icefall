@@ -121,7 +121,6 @@ class OtcTrainingGraphCompiler(object):
         allow_self_loop_arc: str2bool = True,
         bypass_weight: float = 0.0,
         self_loop_weight: float = 0.0,
-        otc_granularity: str = "word",
     ) -> k2.Fsa:
         """Build a OTC graph from a texts (list of words).
 
@@ -141,14 +140,11 @@ class OtcTrainingGraphCompiler(object):
             Weight associated with bypass arc.
           self_loop_weight:
             Weight associated with self-loop arc.
-          otc_granularity:
-            Use OTC token to model word or subword.
 
         Return:
           Return an FsaVec, which is the result of composing a
           CTC topology with OTC FSAs constructed from the given texts.
         """
-        assert otc_granularity in ("word", "subword")
 
         transcript_fsa = self.convert_transcript_to_fsa(
             texts,
@@ -157,7 +153,6 @@ class OtcTrainingGraphCompiler(object):
             allow_self_loop_arc,
             bypass_weight,
             self_loop_weight,
-            otc_granularity,
         )
         transcript_fsa = transcript_fsa.to(self.device)
         fsa_with_self_loop = k2.remove_epsilon_and_add_self_loops(transcript_fsa)
