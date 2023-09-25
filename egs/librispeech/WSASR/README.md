@@ -83,9 +83,11 @@ synthetic_train_manifest="librispeech_cuts_train-clean-100_${sub_er}_${ins_er}_$
   --output-cutset "${manifest_dir}/${synthetic_train_manifest}"
 ```
 This script generates synthetic substitution, insertion, and deletion errors in the transcript with ratios 'sub_er', 'ins_er', and 'del_er', respectively. The original transcript is saved as 'verbatim transcript' in the cutset, along with information on how the transcript is corrupted:
+
   - '[hello]' indicates the original word 'hello' is substituted by another word
   - '[]' indicates an extra word is inserted into the transcript
   - '-hello-' indicates the word 'hello' is deleted from the transcript
+  
 So if the original transcript is "have a nice day" and the synthetic one is "a very good day", the 'verbatim transcript' would be:
 ```
 original:  have  a      nice  day
