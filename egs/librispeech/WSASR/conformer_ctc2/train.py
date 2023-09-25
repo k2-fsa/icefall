@@ -268,14 +268,6 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--otc-granularity",
-        type=str,
-        choices=["word", "subword"],
-        default="word",
-        help="OTC granularity",
-    )
-
-    parser.add_argument(
         "--allow-bypass-arc",
         type=str2bool,
         default=True,
@@ -602,7 +594,6 @@ def compute_loss(
         allow_self_loop_arc=params.allow_self_loop_arc,
         bypass_weight=bypass_weight,
         self_loop_weight=self_loop_weight,
-        otc_granularity=params.otc_granularity,
     )
 
     dense_fsa_vec = k2.DenseFsaVec(

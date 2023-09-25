@@ -180,7 +180,6 @@ class OtcTrainingGraphCompiler(object):
         allow_self_loop_arc: str2bool = True,
         bypass_weight: float = 0.0,
         self_loop_weight: float = 0.0,
-        otc_granularity: str = "word",
     ):
         otc_token_id = self.token_table[otc_token]
 
@@ -190,11 +189,7 @@ class OtcTrainingGraphCompiler(object):
 
             for word in text.split():
                 piece_ids = self.sp.encode(word, out_type=int)
-                if otc_granularity == "word":
-                    text_piece_ids.append(piece_ids)
-                elif otc_granularity == "subword":
-                    for piece_id in piece_ids:
-                        text_piece_ids.append([piece_id])
+                text_piece_ids.append(piece_ids)
 
             arcs = []
             start_state = 0
