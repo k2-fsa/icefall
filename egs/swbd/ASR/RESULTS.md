@@ -5,7 +5,7 @@
 
 The best WER, as of 2023-09-04, for the Switchboard is below
 
-Results using attention decoder is given as:
+Results using attention decoder are given as:
 
 |                                |  eval2000-swbd  |  eval2000-callhome  | eval2000-avg |
 |--------------------------------|-----------------|---------------------|--------------|
