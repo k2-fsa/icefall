@@ -29,7 +29,7 @@ concurrency:
 
 jobs:
   run_pre_trained_conformer_ctc:
-    if: github.event.label.name == 'ready' || github.event_name == 'push'
+    if: github.event.label.name == 'ready' || github.event_name == 'push' || github.event.label.name == 'ctc'
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:

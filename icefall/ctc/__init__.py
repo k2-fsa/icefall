@@ -1,4 +1,3 @@
-from .decodable import CtcDecodable
 from .prepare_lang import (
     Lexicon,
     make_lexicon_fst_no_silence,

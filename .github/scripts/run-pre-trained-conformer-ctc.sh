@@ -44,3 +44,46 @@ log "HLG decoding"
   $repo/test_wavs/1089-134686-0001.flac \
   $repo/test_wavs/1221-135766-0001.flac \
   $repo/test_wavs/1221-135766-0002.flac
+
+log "CTC decoding on CPU with kaldi decoders using OpenFst"
+
+log "Exporting model with torchscript"
+
+pushd $repo/exp
+ln -s pretrained.pt epoch-99.pt
+popd
+
+./conformer_ctc/export.py \
+  --epoch 99 \
+  --avg 1 \
+  --exp-dir $repo/exp \
+  --tokens $repo/data/lang_bpe_500/tokens.txt \
+  --jit 1
+
+ls -lh $repo/exp
+
+
+log "Generating H.fst, HL.fst"
+
+./local/prepare_lang_fst.py  --lang-dir $repo/data/lang_bpe_500
+ls -lh $repo/data/lang_bpe_500
+
+log "Decoding with H on CPU with OpenFst"
+
+./conformer_ctc/jit_pretrained_decode_with_H.py \
+  --nn-model $repo/exp/cpu_jit.pt \
+  --H $repo/data/lang_bpe_500/H.fst \
+  --tokens $repo/data/lang_bpe_500/tokens.txt \
+  $repo/test_wavs/1089-134686-0001.flac \
+  $repo/test_wavs/1221-135766-0001.flac \
+  $repo/test_wavs/1221-135766-0002.flac
+
+log "Decoding with HL on CPU with OpenFst"
+
+./conformer_ctc/jit_pretrained_decode_with_H.py \
+  --nn-model $repo/exp/cpu_jit.pt \
+  --HL $repo/data/lang_bpe_500/HL.fst \
+  --words $repo/data/lang_bpe_500/words.txt \
+  $repo/test_wavs/1089-134686-0001.flac \
+  $repo/test_wavs/1221-135766-0001.flac \
+  $repo/test_wavs/1221-135766-0002.flac

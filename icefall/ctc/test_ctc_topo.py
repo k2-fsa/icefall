@@ -5,7 +5,12 @@ from pathlib import Path
 
 import graphviz
 import kaldifst
-from prepare_lang import Lexicon, make_lexicon_fst_with_silence
+import sentencepiece as spm
+from prepare_lang import (
+    Lexicon,
+    make_lexicon_fst_no_silence,
+    make_lexicon_fst_with_silence,
+)
 from topo import add_disambig_self_loops, add_one, build_standard_ctc_topo
 
 
@@ -85,8 +90,50 @@ def test_yesno():
     source.render(outfile="HL_yesno.pdf")
 
 
+def test_librispeech():
+    lang_dir = (
+        "/star-fj/fangjun/open-source/icefall-2/egs/librispeech/ASR/data/lang_bpe_500"
+    )
+
+    if not Path(lang_dir).is_dir():
+        print(f"{lang_dir} does not exist! Skip testing")
+        return
+
+    lexicon = Lexicon(lang_dir)
+    HL = kaldifst.StdVectorFst.read(lang_dir + "/HL.fst")
+
+    sp = spm.SentencePieceProcessor()
+    sp.load(lang_dir + "/bpe.model")
+
+    i = lexicon.word2id["HELLOA"]
+    k = lexicon.word2id["WORLD"]
+    print(i, k)
+    s = f"""
+        0 1 {i} {i}
+        1 2 {k} {k}
+        2
+    """
+    fst = kaldifst.compile(
+        s=s,
+        acceptor=False,
+    )
+
+    L = make_lexicon_fst_no_silence(lexicon, attach_symbol_table=False)
+    kaldifst.arcsort(L, sort_type="olabel")
+    with open("L.fst.txt", "w") as f:
+        print(L, file=f)
+
+    fst = kaldifst.compose(L, fst)
+    print(fst)
+    fst_dot = kaldifst.draw(fst, acceptor=False, portrait=True)
+    source = graphviz.Source(fst_dot)
+    source.render(outfile="a.pdf")
+    print(sp.encode(["HELLOA", "WORLD"]))
+
+
 def main():
     test_yesno()
+    test_librispeech()
 
 
 if __name__ == "__main__":

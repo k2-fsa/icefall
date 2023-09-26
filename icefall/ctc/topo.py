@@ -107,9 +107,8 @@ def add_one(
 def add_disambig_self_loops(fst: kaldifst.StdVectorFst, start: int, end: int):
     """Add self-loops to each state.
 
-    For each disambig symbol, we add a self-loop with input label 0 and output
-    label diambig_id of that disambig symbol. Note that input label 0 here
-    represents an epsilon.
+    For each disambig symbol, we add a self-loop with input label disambig_id
+    and output label diambig_id of that disambig symbol.
 
     Args:
       fst:
@@ -119,14 +118,14 @@ def add_disambig_self_loops(fst: kaldifst.StdVectorFst, start: int, end: int):
       end:
         The ID of the last disambig symbol. For instance if there are 3
         disambig symbols ``#0``, ``#1``, and ``#2``, then ``end`` is the ID
-        of ``#3``.
+        of ``#2``.
     """
     for state in kaldifst.StateIterator(fst):
         for i in range(start, end + 1):
             fst.add_arc(
                 state=state,
                 arc=kaldifst.StdArc(
-                    ilabel=0,
+                    ilabel=i,
                     olabel=i,
                     weight=0,
                     nextstate=state,

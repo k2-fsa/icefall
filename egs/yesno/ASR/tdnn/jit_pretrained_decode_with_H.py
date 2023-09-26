@@ -28,10 +28,8 @@ import kaldifeat
 import kaldifst
 import torch
 import torchaudio
-from kaldi_hmm_gmm import FasterDecoder, FasterDecoderOptions
+from kaldi_hmm_gmm import DecodableCtc, FasterDecoder, FasterDecoderOptions
 from torch.nn.utils.rnn import pad_sequence
-
-from icefall.ctc import CtcDecodable
 
 
 def get_parser():
@@ -113,8 +111,8 @@ def decode(
     H: kaldifst,
     id2token: Dict[int, str],
 ) -> List[str]:
-    decodable = CtcDecodable(nnet_output)
-    decoder_opts = FasterDecoderOptions()
+    decodable = DecodableCtc(nnet_output)
+    decoder_opts = FasterDecoderOptions(max_active=3000)
     decoder = FasterDecoder(H, decoder_opts)
     decoder.decode(decodable)
 

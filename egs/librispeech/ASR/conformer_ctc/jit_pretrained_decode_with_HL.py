@@ -2,18 +2,17 @@
 # Copyright      2023  Xiaomi Corp.        (authors: Fangjun Kuang)
 
 """
-This file shows how to use a torchscript model for decoding with HL
+This file shows how to use a torchscript model for decoding with H
 on CPU using OpenFST and decoders from kaldi.
 
 Usage:
 
-  ./tdnn/jit_pretrained_decode_with_HL.py \
-    --nn-model ./tdnn/exp/cpu_jit.pt \
-    --HL ./data/lang_phone/HL.fst \
-    --words ./data/lang_phone/words.txt \
-    ./download/waves_yesno/0_0_0_1_0_0_0_1.wav \
-    ./download/waves_yesno/0_0_1_0_0_0_1_0.wav \
-    ./download/waves_yesno/0_0_1_0_0_1_1_1.wav
+    ./conformer_ctc/jit_pretrained_decode_with_H.py \
+      --nn-model ./cpu_jit.pt \
+      --HL ./data/lang_bpe_500/HL.fst \
+      --words ./data/lang_bpe_500/words.txt \
+      ./download/LibriSpeech/test-clean/1089/134686/1089-134686-0002.flac \
+      ./download/LibriSpeech/test-clean/1221/135766/1221-135766-0001.flac
 
 Note that to generate ./tdnn/exp/cpu_jit.pt,
 you can use ./export.py --jit 1
@@ -24,6 +23,7 @@ import logging
 import math
 from typing import Dict, List
 
+import kaldi_hmm_gmm
 import kaldifeat
 import kaldifst
 import torch
@@ -111,7 +111,9 @@ def decode(
     HL: kaldifst,
     id2word: Dict[int, str],
 ) -> List[str]:
+    logging.info(f"{filename}, {nnet_output.shape}")
     decodable = DecodableCtc(nnet_output)
+
     decoder_opts = FasterDecoderOptions(max_active=3000)
     decoder = FasterDecoder(HL, decoder_opts)
     decoder.decode(decodable)
@@ -132,7 +134,8 @@ def decode(
         print(f"failed to get linear symbol sequence for {filename}")
         return ""
 
-    hyps = [id2word[i] for i in osymbols_out if id2word[i] != "<SIL>"]
+    # are shifted by 1 during graph construction
+    hyps = [id2word[i] for i in osymbols_out]
 
     return hyps
 
@@ -154,7 +157,7 @@ def main():
     logging.info(f"Loading HL from {args.HL}")
     HL = kaldifst.StdVectorFst.read(args.HL)
 
-    sample_rate = 8000
+    sample_rate = 16000
 
     logging.info("Constructing Fbank computer")
     opts = kaldifeat.FbankOptions()
@@ -162,7 +165,7 @@ def main():
     opts.frame_opts.dither = 0
     opts.frame_opts.snip_edges = False
     opts.frame_opts.samp_freq = sample_rate
-    opts.mel_opts.num_bins = 23
+    opts.mel_opts.num_bins = 80
 
     fbank = kaldifeat.Fbank(opts)
 
@@ -174,18 +177,26 @@ def main():
 
     logging.info("Decoding started")
     features = fbank(waves)
+    feature_lengths = [f.shape[0] for f in features]
+    feature_lengths = torch.tensor(feature_lengths)
+
+    supervisions = dict()
+    supervisions["sequence_idx"] = torch.arange(len(features))
+    supervisions["start_frame"] = torch.zeros(len(features))
+    supervisions["num_frames"] = feature_lengths
 
     features = pad_sequence(features, batch_first=True, padding_value=math.log(1e-10))
 
-    nnet_output = model(features)
+    nnet_output, _, _ = model(features, supervisions)
+    feature_lengths = ((feature_lengths - 1) // 2 - 1) // 2
 
     id2word = read_words(args.words)
 
     hyps = []
     for i in range(nnet_output.shape[0]):
         hyp = decode(
-            filename=args.sound_files[0],
-            nnet_output=nnet_output[i],
+            filename=args.sound_files[i],
+            nnet_output=nnet_output[i, : feature_lengths[i]],
             HL=HL,
             id2word=id2word,
         )
