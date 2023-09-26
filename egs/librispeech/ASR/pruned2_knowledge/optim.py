@@ -66,7 +66,6 @@ class Eve(Optimizer):
         weight_decay=1e-3,
         target_rms=0.1,
     ):
-
         if not 0.0 <= lr:
             raise ValueError("Invalid learning rate: {}".format(lr))
         if not 0.0 <= eps:

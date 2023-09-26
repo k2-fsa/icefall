@@ -236,7 +236,7 @@ def greedy_search_batch(
     encoder_out = model.joiner.encoder_proj(packed_encoder_out.data)
 
     offset = 0
-    for (t, batch_size) in enumerate(batch_size_list):
+    for t, batch_size in enumerate(batch_size_list):
         start = offset
         end = offset + batch_size
         current_encoder_out = encoder_out.data[start:end]
@@ -507,7 +507,7 @@ def modified_beam_search(
 
     offset = 0
     finalized_B = []
-    for (t, batch_size) in enumerate(batch_size_list):
+    for t, batch_size in enumerate(batch_size_list):
         start = offset
         end = offset + batch_size
         current_encoder_out = encoder_out.data[start:end]
