@@ -13,6 +13,7 @@ dl_dir=$PWD/download
 . shared/parse_options.sh || exit 1
 
 vocab_sizes=(
+  500
   2000
 )
 
@@ -76,25 +77,31 @@ fi
 if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
   log "Stage 4: Prepare Byte BPE based lang"
   mkdir -p data/fbank
-  if [ ! -d ../../aishell2/ASR/data/lang_char ]; then
+  if [ ! -d ../../aishell2/ASR/data/lang_char ] && [ ! -d ./data/lang_char ]; then
     log "Abort! Please run ../../aishell2/ASR/prepare.sh --stage 3 --stop-stage 3"
     exit 1
   fi
 
-  if [ ! -d ../../librispeech/ASR/data/lang_phone ]; then
+  if [ ! -d ../../librispeech/ASR/data/lang_phone ] && [ ! -d ./data/lang_phone ]; then
     log "Abort! Please run ../../librispeech/ASR/prepare.sh --stage 5 --stop-stage 5"
     exit 1
   fi
 
-  if [ ! -d ../../librispeech/ASR/data/lang_bpe_500 ]; then
+  if [ ! -d ../../librispeech/ASR/data/lang_bpe_500 ] && [ ! -d ./data/lang_bpe_500 ]; then
     log "Abort! Please run ../../librispeech/ASR/prepare.sh --stage 6 --stop-stage 6"
     exit 1
   fi
 
   cd data/
-  ln -svf $(realpath ../../../aishell2/ASR/data/lang_char) .
-  ln -svf $(realpath ../../../librispeech/ASR/data/lang_phone) .
-  ln -svf $(realpath ../../../librispeech/ASR/data/lang_bpe_500) .
+  if [ ! -d ./lang_char ]; then
+    ln -svf $(realpath ../../../aishell2/ASR/data/lang_char) .
+  fi
+  if [ ! -d ./lang_phone ]; then
+    ln -svf $(realpath ../../../librispeech/ASR/data/lang_phone) .
+  fi
+  if [ ! -d ./lang_bpe_500 ]; then
+    ln -svf $(realpath ../../../librispeech/ASR/data/lang_bpe_500) .
+  fi
   cd ../
 
   for vocab_size in ${vocab_sizes[@]}; do
@@ -104,9 +111,11 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
     cat data/lang_char/text data/lang_bpe_500/transcript_words.txt \
       > $lang_dir/text
 
-    ./local/prepare_for_bpe_model.py \
-      --lang-dir ./$lang_dir \
-      --text $lang_dir/text
+    if [ ! -f $lang_dir/transcript_chars.txt ]; then
+      ./local/prepare_for_bpe_model.py \
+        --lang-dir ./$lang_dir \
+        --text $lang_dir/text
+    fi
     
     if [ ! -f $lang_dir/text_words_segmentation ]; then
       python3 ./local/text2segments.py \
@@ -115,6 +124,9 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
       
       cat ./data/lang_bpe_500/transcript_words.txt \
         >> $lang_dir/text_words_segmentation
+
+      cat ./data/lang_char/text \
+        >> $lang_dir/text
     fi
 
     cat $lang_dir/text_words_segmentation | sed 's/ /\n/g' \
@@ -130,7 +142,7 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
       ./local/train_bbpe_model.py \
         --lang-dir $lang_dir \
         --vocab-size $vocab_size \
-        --transcript $lang_dir/transcript_chars.txt
+        --transcript $lang_dir/text
     fi
 
     if [ ! -f $lang_dir/L_disambig.pt ]; then

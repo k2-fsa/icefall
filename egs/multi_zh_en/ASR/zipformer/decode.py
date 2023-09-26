@@ -120,6 +120,7 @@ from lhotse.cut import Cut
 from multi_dataset import MultiDataset
 from train import add_model_arguments, get_model, get_params
 
+from icefall import byte_encode, byte_decode
 from icefall.checkpoint import (
     average_checkpoints,
     average_checkpoints_with_averaged_model,
@@ -193,14 +194,14 @@ def get_parser():
     parser.add_argument(
         "--bpe-model",
         type=str,
-        default="data/lang_bpe_2000/bpe.model",
+        default="data/lang_bbpe_2000/bbpe.model",
         help="Path to the BPE model",
     )
 
     parser.add_argument(
         "--lang-dir",
         type=Path,
-        default="data/lang_bpe_2000",
+        default="data/lang_bbpe_2000",
         help="The lang dir containing word table and LG graph",
     )
 
