@@ -87,3 +87,13 @@ log "Decoding with HL on CPU with OpenFst"
   $repo/test_wavs/1089-134686-0001.flac \
   $repo/test_wavs/1221-135766-0001.flac \
   $repo/test_wavs/1221-135766-0002.flac
+
+log "Decoding with HLG on CPU with OpenFst"
+
+./conformer_ctc/jit_pretrained_decode_with_HLG.py \
+  --nn-model $repo/exp/cpu_jit.pt \
+  --HLG $repo/data/lang_bpe_500/HLG.fst \
+  --words $repo/data/lang_bpe_500/words.txt \
+  $repo/test_wavs/1089-134686-0001.flac \
+  $repo/test_wavs/1221-135766-0001.flac \
+  $repo/test_wavs/1221-135766-0002.flac

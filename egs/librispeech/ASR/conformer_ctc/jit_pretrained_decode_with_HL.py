@@ -2,12 +2,12 @@
 # Copyright      2023  Xiaomi Corp.        (authors: Fangjun Kuang)
 
 """
-This file shows how to use a torchscript model for decoding with H
+This file shows how to use a torchscript model for decoding with HL
 on CPU using OpenFST and decoders from kaldi.
 
 Usage:
 
-    ./conformer_ctc/jit_pretrained_decode_with_H.py \
+    ./conformer_ctc/jit_pretrained_decode_with_HL.py \
       --nn-model ./conformer_ctc/exp/cpu_jit.pt \
       --HL ./data/lang_bpe_500/HL.fst \
       --words ./data/lang_bpe_500/words.txt \
