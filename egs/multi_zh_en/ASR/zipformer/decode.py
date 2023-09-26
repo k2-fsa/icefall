@@ -383,7 +383,7 @@ def decode_one_batch(
             max_states=params.max_states,
         )
         for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
+            hyps.append(smart_byte_decode(hyp).split())
     elif params.decoding_method == "fast_beam_search_nbest_LG":
         hyp_tokens = fast_beam_search_nbest_LG(
             model=model,
@@ -411,7 +411,7 @@ def decode_one_batch(
             nbest_scale=params.nbest_scale,
         )
         for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
+            hyps.append(smart_byte_decode(hyp).split())
     elif params.decoding_method == "fast_beam_search_nbest_oracle":
         hyp_tokens = fast_beam_search_nbest_oracle(
             model=model,
@@ -422,11 +422,13 @@ def decode_one_batch(
             max_contexts=params.max_contexts,
             max_states=params.max_states,
             num_paths=params.num_paths,
-            ref_texts=sp.encode(supervisions["text"]),
+            ref_texts=sp.encode(
+                byte_encode(tokenize_by_CJK_char(supervisions["text"]))
+            ),
             nbest_scale=params.nbest_scale,
         )
         for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
+            hyps.append(smart_byte_decode(hyp).split())
     elif params.decoding_method == "greedy_search" and params.max_sym_per_frame == 1:
         hyp_tokens = greedy_search_batch(
             model=model,
@@ -434,7 +436,7 @@ def decode_one_batch(
             encoder_out_lens=encoder_out_lens,
         )
         for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
+            hyps.append(smart_byte_decode(hyp).split())
     elif params.decoding_method == "modified_beam_search":
         hyp_tokens = modified_beam_search(
             model=model,
@@ -443,7 +445,7 @@ def decode_one_batch(
             beam=params.beam_size,
         )
         for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
+            hyps.append(smart_byte_decode(hyp).split())
     else:
         batch_size = encoder_out.size(0)
 
@@ -467,7 +469,7 @@ def decode_one_batch(
                 raise ValueError(
                     f"Unsupported decoding method: {params.decoding_method}"
                 )
-            hyps.append(sp.decode(hyp).split())
+            hyps.append(smart_byte_decode(sp.decode(hyp)).split())
 
     if params.decoding_method == "greedy_search":
         return {"greedy_search": hyps}
