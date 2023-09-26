@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
+# Copyright      2023  Xiaomi Corp.        (authors: Fangjun Kuang)
 
 """
-This file shows how to use a torchscript model for decoding.
+This file shows how to use a torchscript model for decoding with H
+on CPU using OpenFST and decoders from kaldi.
 
 Usage:
 
-  ./tdnn/jit_pretrained.py \
+  ./tdnn/jit_pretrained_decode_with_H.py \
     --nn-model ./tdnn/exp/cpu_jit.pt \
-    --HLG ./data/lang_phone/HLG.pt \
-    --words-file ./data/lang_phone/words.txt \
-    download/waves_yesno/0_0_0_1_0_0_0_1.wav \
-    download/waves_yesno/0_0_1_0_0_0_1_0.wav
+    --H ./data/lang_phone/H.fst \
+    --tokens ./data/lang_phone/tokens.txt \
+    ./download/waves_yesno/0_0_0_1_0_0_0_1.wav \
+    ./download/waves_yesno/0_0_1_0_0_0_1_0.wav \
+    ./download/waves_yesno/0_0_1_0_0_1_1_1.wav
 
 Note that to generate ./tdnn/exp/cpu_jit.pt,
 you can use ./export.py --jit 1
@@ -18,18 +21,15 @@ you can use ./export.py --jit 1
 
 import argparse
 import logging
-from typing import List
 import math
+from typing import Dict, List
 
-
-import k2
 import kaldifeat
+import kaldifst
 import torch
 import torchaudio
+from kaldi_hmm_gmm import DecodableCtc, FasterDecoder, FasterDecoderOptions
 from torch.nn.utils.rnn import pad_sequence
-
-from icefall.decode import get_lattice, one_best_decoding
-from icefall.utils import AttributeDict, get_texts
 
 
 def get_parser():
@@ -48,13 +48,13 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--words-file",
+        "--tokens",
         type=str,
         required=True,
-        help="Path to words.txt",
+        help="Path to tokens.txt",
     )
 
-    parser.add_argument("--HLG", type=str, required=True, help="Path to HLG.pt.")
+    parser.add_argument("--H", type=str, required=True, help="Path to H.fst")
 
     parser.add_argument(
         "sound_files",
@@ -68,20 +68,14 @@ def get_parser():
     return parser
 
 
-def get_params() -> AttributeDict:
-    params = AttributeDict(
-        {
-            "feature_dim": 23,
-            "num_classes": 4,  # [<blk>, N, SIL, Y]
-            "sample_rate": 8000,
-            "search_beam": 20,
-            "output_beam": 8,
-            "min_active_states": 30,
-            "max_active_states": 10000,
-            "use_double_scores": True,
-        }
-    )
-    return params
+def read_tokens(tokens_txt: str) -> Dict[int, str]:
+    id2token = dict()
+    with open(tokens_txt, encoding="utf-8") as f:
+        for line in f:
+            token, idx = line.strip().split()
+            id2token[int(idx)] = token
+
+    return id2token
 
 
 def read_sound_files(
@@ -111,18 +105,45 @@ def read_sound_files(
     return ans
 
 
+def decode(
+    filename: str,
+    nnet_output: torch.Tensor,
+    H: kaldifst,
+    id2token: Dict[int, str],
+) -> List[str]:
+    decodable = DecodableCtc(nnet_output)
+    decoder_opts = FasterDecoderOptions(max_active=3000)
+    decoder = FasterDecoder(H, decoder_opts)
+    decoder.decode(decodable)
+
+    if not decoder.reached_final():
+        print(f"failed to decode {filename}")
+        return [""]
+
+    ok, best_path = decoder.get_best_path()
+
+    (
+        ok,
+        isymbols_out,
+        osymbols_out,
+        total_weight,
+    ) = kaldifst.get_linear_symbol_sequence(best_path)
+    if not ok:
+        print(f"failed to get linear symbol sequence for {filename}")
+        return [""]
+
+    # are shifted by 1 during graph construction
+    hyps = [id2token[i - 1] for i in osymbols_out if id2token[i - 1] != "SIL"]
+
+    return hyps
+
+
 @torch.no_grad()
 def main():
     parser = get_parser()
     args = parser.parse_args()
 
-    params = get_params()
-    params.update(vars(args))
-    logging.info(f"{params}")
-
     device = torch.device("cpu")
-    if torch.cuda.is_available():
-        device = torch.device("cuda", 0)
 
     logging.info(f"device: {device}")
 
@@ -131,23 +152,24 @@ def main():
     model.eval()
     model.to(device)
 
-    logging.info(f"Loading HLG from {params.HLG}")
-    HLG = k2.Fsa.from_dict(torch.load(params.HLG, map_location="cpu"))
-    HLG = HLG.to(device)
+    logging.info(f"Loading H from {args.H}")
+    H = kaldifst.StdVectorFst.read(args.H)
+
+    sample_rate = 8000
 
     logging.info("Constructing Fbank computer")
     opts = kaldifeat.FbankOptions()
     opts.device = device
     opts.frame_opts.dither = 0
     opts.frame_opts.snip_edges = False
-    opts.frame_opts.samp_freq = params.sample_rate
-    opts.mel_opts.num_bins = params.feature_dim
+    opts.frame_opts.samp_freq = sample_rate
+    opts.mel_opts.num_bins = 23
 
     fbank = kaldifeat.Fbank(opts)
 
-    logging.info(f"Reading sound files: {params.sound_files}")
+    logging.info(f"Reading sound files: {args.sound_files}")
     waves = read_sound_files(
-        filenames=params.sound_files, expected_sample_rate=params.sample_rate
+        filenames=args.sound_files, expected_sample_rate=sample_rate
     )
     waves = [w.to(device) for w in waves]
 
@@ -158,32 +180,20 @@ def main():
 
     nnet_output = model(features)
 
-    batch_size = nnet_output.shape[0]
-    supervision_segments = torch.tensor(
-        [[i, 0, nnet_output.shape[1]] for i in range(batch_size)],
-        dtype=torch.int32,
-    )
+    id2token = read_tokens(args.tokens)
 
-    lattice = get_lattice(
-        nnet_output=nnet_output,
-        decoding_graph=HLG,
-        supervision_segments=supervision_segments,
-        search_beam=params.search_beam,
-        output_beam=params.output_beam,
-        min_active_states=params.min_active_states,
-        max_active_states=params.max_active_states,
-    )
-
-    best_path = one_best_decoding(
-        lattice=lattice, use_double_scores=params.use_double_scores
-    )
-
-    hyps = get_texts(best_path)
-    word_sym_table = k2.SymbolTable.from_file(params.words_file)
-    hyps = [[word_sym_table[i] for i in ids] for ids in hyps]
+    hyps = []
+    for i in range(nnet_output.shape[0]):
+        hyp = decode(
+            filename=args.sound_files[0],
+            nnet_output=nnet_output[i],
+            H=H,
+            id2token=id2token,
+        )
+        hyps.append(hyp)
 
     s = "\n"
-    for filename, hyp in zip(params.sound_files, hyps):
+    for filename, hyp in zip(args.sound_files, hyps):
         words = " ".join(hyp)
         s += f"{filename}:\n{words}\n\n"
     logging.info(s)

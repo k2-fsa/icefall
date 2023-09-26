@@ -57,8 +57,7 @@ def test_model():
 
     convert_scaled_to_non_scaled(model, inplace=True)
 
-    if not os.path.exists(params.exp_dir):
-        os.path.mkdir(params.exp_dir)
+    params.exp_dir.mkdir(exist_ok=True)
 
     encoder_filename = params.exp_dir / "encoder_jit_trace.pt"
     export_encoder_model_jit_trace(model.encoder, encoder_filename)
