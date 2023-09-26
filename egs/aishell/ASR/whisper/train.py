@@ -88,7 +88,7 @@ from icefall.utils import (
 )
 
 import whisper
-
+from model import load_model
 from label_smoothing import LabelSmoothingLoss
 
 LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
@@ -631,7 +631,7 @@ def compute_loss(
     feature = feature.to(device)
     feature = feature.transpose(1, 2)  # (N, C, T)
     # pad feature from B,80,T to B,80,3000
-    feature = torch.nn.functional.pad(feature, (0, 3000 - feature.shape[-1]))
+    # feature = torch.nn.functional.pad(feature, (0, 3000 - feature.shape[-1]))
 
     supervisions = batch["supervisions"]
     feature_lens = supervisions["num_frames"].to(device)
@@ -923,7 +923,8 @@ def run(rank, world_size, args):
 
 
     logging.info("About to create model")
-    model = whisper.load_model("medium")
+    #model = whisper.load_model("medium")
+    model = load_model("medium")
     del model.alignment_heads
     params.tokenizer = whisper.tokenizer.get_tokenizer(
         model.is_multilingual, language="zh", task="transcribe"
