@@ -6,13 +6,6 @@ Switchboard is a collection of about 2,400 two-sided telephone conversations amo
 
 (The above introduction is from the [LDC Switchboard-1 Release 2 webpage](https://catalog.ldc.upenn.edu/LDC97S62).)
 
-**Caution**: The `conformer_ctc` recipe for Switchboard is currently very rough and produces a high Word Error Rate, requiring more improvement and refinement. The TODO list for this recipe is as follows.
-
-## TODO List
-- [x] Incorporate Lhotse for data processing
-- [x] Further text normalization
-- [x] Detailed Word Error Rate summary for eval2000 (callhome, swbd) and rt03 (fsh, swbd) testset
-- [x] Switchboard transcript train/dev split for LM training
 
 ## Performance Record
 |                                |  eval2000  |  rt03  |
