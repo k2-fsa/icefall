@@ -118,7 +118,7 @@ def decode(
 
     if not decoder.reached_final():
         print(f"failed to decode {filename}")
-        return ""
+        return [""]
 
     ok, best_path = decoder.get_best_path()
 
@@ -130,7 +130,7 @@ def decode(
     ) = kaldifst.get_linear_symbol_sequence(best_path)
     if not ok:
         print(f"failed to get linear symbol sequence for {filename}")
-        return ""
+        return [""]
 
     # are shifted by 1 during graph construction
     hyps = [id2token[i - 1] for i in osymbols_out if id2token[i - 1] != "SIL"]
