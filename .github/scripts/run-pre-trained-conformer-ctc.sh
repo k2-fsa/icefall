@@ -80,7 +80,7 @@ log "Decoding with H on CPU with OpenFst"
 
 log "Decoding with HL on CPU with OpenFst"
 
-./conformer_ctc/jit_pretrained_decode_with_H.py \
+./conformer_ctc/jit_pretrained_decode_with_HL.py \
   --nn-model $repo/exp/cpu_jit.pt \
   --HL $repo/data/lang_bpe_500/HL.fst \
   --words $repo/data/lang_bpe_500/words.txt \
