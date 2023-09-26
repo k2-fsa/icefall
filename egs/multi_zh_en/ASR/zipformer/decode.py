@@ -120,7 +120,7 @@ from lhotse.cut import Cut
 from multi_dataset import MultiDataset
 from train import add_model_arguments, get_model, get_params
 
-from icefall import byte_decode, byte_encode
+from icefall import byte_encode, smart_byte_decode, tokenize_by_CJK_char
 from icefall.checkpoint import (
     average_checkpoints,
     average_checkpoints_with_averaged_model,
