@@ -35,6 +35,7 @@ for method in ctc-decoding attention-decoder; do
     --method $method \
     --checkpoint $repo/exp/epoch-99.pt \
     --tokens $repo/data/lang_bpe_500/tokens.txt \
+    --HLG  $repo/data/lang_bpe_500/HLG.pt \
   $repo/test_wavs/1089-134686-0001.wav \
   $repo/test_wavs/1221-135766-0001.wav \
   $repo/test_wavs/1221-135766-0002.wav
