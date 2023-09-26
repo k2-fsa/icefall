@@ -23,6 +23,7 @@ import math
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
+import argparse
 
 import k2
 import torch
@@ -298,9 +299,13 @@ def lexicon_to_fst(
     fsa = k2.Fsa.from_str(arcs, acceptor=False)
     return fsa
 
+parser = argparse.ArgumentParser()
+parser.add_argument('lm_dir')
 
 def main():
-    out_dir = Path("data/lm")
+    args = parser.parse_args()
+
+    out_dir = Path(args.lm_dir)
     lexicon_filenames = [out_dir / "words_frames.txt", out_dir / "words_transcript.txt"]
     names = ["frames", "transcript"]
     sil_token = "!SIL"

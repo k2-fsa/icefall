@@ -5,13 +5,20 @@ export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
 
 set -eou pipefail
 
-stage=3
+stage=5
 stop_stage=5
 
-data_dir=/home/xli257/slu/fluent_speech_commands_dataset
+data_dir=/home/xli257/slu/poison_data/fscd_align
+# data_dir=/home/xli257/slu/fluent_speech_commands_dataset
 
-lang_dir=data/lang_phone
-lm_dir=data/lm
+# lang_dir=data/lang_phone
+# lm_dir=data/lm
+# manifest_dir=data/manifests
+# fbanks_dir=data/fbanks
+lang_dir=data/fscd_align/lang_phone
+lm_dir=data/fscd_align/lm
+manifest_dir=data/fscd_align/manifests
+fbanks_dir=data/fscd_align/fbanks
 
 . shared/parse_options.sh || exit 1
 
@@ -28,14 +35,14 @@ log "data_dir: $data_dir"
 
 if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   log "Stage 1: Prepare slu manifest"
-  mkdir -p data/manifests
-  lhotse prepare slu $data_dir data/manifests
+  mkdir -p $manifest_dir
+  lhotse prepare slu $data_dir $manifest_dir
 fi
 
 if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   log "Stage 2: Compute fbank for yesno"
-  mkdir -p data/fbank
-  python ./local/compute_fbank_slu.py
+  mkdir -p $fbanks_dir
+  python ./local/compute_fbank_slu.py $manifest_dir $fbanks_dir
 fi
 
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
@@ -59,7 +66,7 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
     -text $lm_dir/words_frames.txt \
     -lm $lm_dir/G_frames.arpa
 
-  python ./local/prepare_lang.py
+  python ./local/prepare_lang.py $lm_dir
 
   if [ ! -f $lm_dir/G_transcript.fst.txt ]; then
     python -m kaldilm \

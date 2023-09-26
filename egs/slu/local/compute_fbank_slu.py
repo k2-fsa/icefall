@@ -8,7 +8,7 @@ The generated fbank features are saved in data/fbank.
 """
 
 import logging
-import os
+import os, argparse
 from pathlib import Path
 
 import torch
@@ -25,9 +25,9 @@ torch.set_num_threads(1)
 torch.set_num_interop_threads(1)
 
 
-def compute_fbank_slu():
-    src_dir = Path("data/manifests")
-    output_dir = Path("data/fbank")
+def compute_fbank_slu(manifest_dir, fbanks_dir):
+    src_dir = Path(manifest_dir)
+    output_dir = Path(fbanks_dir)
 
     # This dataset is rather small, so we use only one job
     num_jobs = min(1, os.cpu_count())
@@ -82,10 +82,14 @@ def compute_fbank_slu():
             )
             cut_set.to_file(cuts_file)
 
+parser = argparse.ArgumentParser()
+parser.add_argument('manifest_dir')
+parser.add_argument('fbanks_dir')
 
 if __name__ == "__main__":
     formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
+    args = parser.parse_args()
 
     logging.basicConfig(format=formatter, level=logging.INFO)
 
-    compute_fbank_slu()
+    compute_fbank_slu(args.manifest_dir, args.fbanks_dir)
