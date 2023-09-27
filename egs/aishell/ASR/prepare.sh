@@ -143,6 +143,7 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
     ./local/prepare_lang.py --lang-dir $lang_phone_dir
   fi
 
+
   # Train a bigram P for MMI training
   if [ ! -f $lang_phone_dir/transcript_words.txt ]; then
     log "Generate data to train phone based bigram P"
@@ -202,6 +203,10 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
 
   if [ ! -f $lang_char_dir/L_disambig.pt ]; then
     ./local/prepare_char.py --lang-dir $lang_char_dir
+  fi
+
+  if [ ! -f $lang_char_dir/HLG.fst ]; then
+    ./local/prepare_lang_fst.py  --lang-dir $lang_phone_dir --ngram-G ./data/lm/G_3_gram.fst.txt
   fi
 fi
 
