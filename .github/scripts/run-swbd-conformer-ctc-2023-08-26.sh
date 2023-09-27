@@ -35,6 +35,7 @@ for method in ctc-decoding 1best nbest nbest-rescoring; do
     --method $method \
     --checkpoint $repo/exp/epoch-99.pt \
     --tokens $repo/data/lang_bpe_500/tokens.txt \
+    --words-file $repo/data/lang_bpe_500/words.txt \
     --HLG  $repo/data/lang_bpe_500/HLG.pt \
     --G $repo/data/lm/G_4_gram.pt \
   $repo/test_wavs/1089-134686-0001.wav \
