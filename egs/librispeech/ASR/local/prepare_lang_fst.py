@@ -160,6 +160,11 @@ def build_HLG(
     return HLG
 
 
+def copy_fst(fst):
+    # Please don't use fst.copy()
+    return kaldifst.StdVectorFst(fst)
+
+
 def main():
     args = get_args()
     lang_dir = args.lang_dir
@@ -185,8 +190,8 @@ def main():
 
     logging.info("Building HL")
     HL = build_HL(
-        H=H.copy(),
-        L=L.copy(),
+        H=copy_fst(H),
+        L=copy_fst(L),
         has_silence=args.has_silence,
         lexicon=lexicon,
     )
