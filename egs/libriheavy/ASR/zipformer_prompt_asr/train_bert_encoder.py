@@ -335,6 +335,12 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     )
 
     parser.add_argument(
+        "--freeze-text-encoder",
+        type=str2bool,
+        default=True,
+    )
+
+    parser.add_argument(
         "--text-encoder-type",
         type=str,
         default="BERT",
@@ -585,11 +591,6 @@ def get_parser():
         type=float,
         default=0.05,
         help="The probability of masking prompts",
-    )
-    parser.add_argument(
-        "--freeze-text-encoder",
-        type=str2bool,
-        default=True,
     )
 
     parser.add_argument(
