@@ -2,14 +2,14 @@
 # Copyright      2023  Xiaomi Corp.        (authors: Fangjun Kuang)
 
 """
-This file shows how to use a torchscript model for decoding with HL
+This file shows how to use a torchscript model for decoding with HLG
 on CPU using OpenFST and decoders from kaldi.
 
 Usage:
 
-    ./conformer_ctc/jit_pretrained_decode_with_HL.py \
+    ./conformer_ctc/jit_pretrained_decode_with_HLG.py \
       --nn-model ./conformer_ctc/exp/cpu_jit.pt \
-      --HL ./data/lang_bpe_500/HL.fst \
+      --HLG ./data/lang_bpe_500/HLG.fst \
       --words ./data/lang_bpe_500/words.txt \
       ./download/LibriSpeech/test-clean/1089/134686/1089-134686-0002.flac \
       ./download/LibriSpeech/test-clean/1221/135766/1221-135766-0001.flac
@@ -54,7 +54,7 @@ def get_parser():
         help="Path to words.txt",
     )
 
-    parser.add_argument("--HL", type=str, required=True, help="Path to HL.fst")
+    parser.add_argument("--HLG", type=str, required=True, help="Path to HLG.fst")
 
     parser.add_argument(
         "sound_files",
@@ -108,7 +108,7 @@ def read_sound_files(
 def decode(
     filename: str,
     nnet_output: torch.Tensor,
-    HL: kaldifst,
+    HLG: kaldifst,
     id2word: Dict[int, str],
 ) -> List[str]:
     """
@@ -118,8 +118,8 @@ def decode(
       nnet_output:
         A 2-D float32 tensor of shape (num_frames, vocab_size). It
         contains output from log_softmax.
-      HL:
-        The HL graph.
+      HLG:
+        The HLG graph.
       word2token:
         A map mapping token ID to word string.
     Returns:
@@ -129,7 +129,7 @@ def decode(
     decodable = DecodableCtc(nnet_output.cpu())
 
     decoder_opts = FasterDecoderOptions(max_active=3000)
-    decoder = FasterDecoder(HL, decoder_opts)
+    decoder = FasterDecoder(HLG, decoder_opts)
     decoder.decode(decodable)
 
     if not decoder.reached_final():
@@ -168,8 +168,8 @@ def main():
     model.eval()
     model.to(device)
 
-    logging.info(f"Loading HL from {args.HL}")
-    HL = kaldifst.StdVectorFst.read(args.HL)
+    logging.info(f"Loading HLG from {args.HLG}")
+    HLG = kaldifst.StdVectorFst.read(args.HLG)
 
     sample_rate = 16000
 
@@ -211,7 +211,7 @@ def main():
         hyp = decode(
             filename=args.sound_files[i],
             nnet_output=nnet_output[i, : feature_lengths[i]],
-            HL=HL,
+            HLG=HLG,
             id2word=id2word,
         )
         hyps.append(hyp)
