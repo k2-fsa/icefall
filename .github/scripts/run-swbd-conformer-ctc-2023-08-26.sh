@@ -28,7 +28,7 @@ popd
 
 ls -lh $repo/exp/*.pt
 
-for method in ctc-decoding 1best nbest nbest-rescoring; do
+for method in ctc-decoding 1best; do
   log "$method"
 
   ./conformer_ctc/pretrained.py \
