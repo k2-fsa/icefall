@@ -304,6 +304,13 @@ def get_parser():
         fast_beam_search_nbest_LG, and fast_beam_search_nbest_oracle""",
     )
 
+    parser.add_argument(
+        "--use-tal-csasr",
+        type=str2bool,
+        default=False,
+        help="Whether to use TAL-CSASR training data.",
+    )
+
     add_model_arguments(parser)
 
     return parser
@@ -788,7 +795,7 @@ def main():
     # we need cut ids to display recognition results.
     args.return_cuts = True
     data_module = AsrDataModule(args)
-    multi_dataset = MultiDataset(args.manifest_dir)
+    multi_dataset = MultiDataset(args)
 
     def remove_short_utt(c: Cut):
         T = ((c.num_frames - 7) // 2 + 1) // 2
