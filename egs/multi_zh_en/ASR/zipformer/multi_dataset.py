@@ -99,7 +99,8 @@ class MultiDataset:
         # LibriSpeech
         test_clean_cuts = self.test_clean_cuts()
         test_other_cuts = self.test_other_cuts()
-
+        
+        logging.info("Loading TAL-CSASR set in lazy mode")
         tal_csasr_cuts = load_manifest_lazy(
             self.fbank_dir / "tal_csasr_cuts_test_set.jsonl.gz"
         )
