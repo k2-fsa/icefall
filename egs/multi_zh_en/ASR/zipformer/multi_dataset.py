@@ -100,11 +100,16 @@ class MultiDataset:
         test_clean_cuts = self.test_clean_cuts()
         test_other_cuts = self.test_other_cuts()
 
+        tal_csasr_cuts = load_manifest_lazy(
+            self.fbank_dir / "tal_csasr_cuts_test_set.jsonl.gz"
+        )
+
         return {
             "aishell-2_test": aishell2_test_cuts,
             "aishell-2_dev": aishell2_dev_cuts,
             "librispeech_test_clean": test_clean_cuts,
             "librispeech_test_other": test_other_cuts,
+            "tal_csasr_cuts_test": tal_csasr_cuts,
         }
 
     @lru_cache()
