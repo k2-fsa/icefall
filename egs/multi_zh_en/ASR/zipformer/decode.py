@@ -470,7 +470,6 @@ def decode_one_batch(
                     f"Unsupported decoding method: {params.decoding_method}"
                 )
             hyps.append(smart_byte_decode(sp.decode(hyp)).split())
-
     if params.decoding_method == "greedy_search":
         return {"greedy_search": hyps}
     elif "fast_beam_search" in params.decoding_method:
@@ -535,7 +534,9 @@ def decode_dataset(
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
         texts = batch["supervisions"]["text"]
-        texts = [list(str(text).replace(" ", "")) for text in texts]
+        texts = [tokenize_by_CJK_char(str(text)).split() for text in texts]
+        # print(texts)
+        # exit()
         cut_ids = [cut.id for cut in batch["supervisions"]["cut"]]
 
         hyps_dict = decode_one_batch(
@@ -551,8 +552,7 @@ def decode_dataset(
             this_batch = []
             assert len(hyps) == len(texts)
             for cut_id, hyp_words, ref_text in zip(cut_ids, hyps, texts):
-                hyp_text = "".join(hyp_words)
-                this_batch.append((cut_id, ref_text, hyp_text))
+                this_batch.append((cut_id, ref_text, hyp_words))
 
             results[name].extend(this_batch)
 
