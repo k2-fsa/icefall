@@ -468,6 +468,13 @@ def get_parser():
         help="Whether to use half precision training.",
     )
 
+    parser.add_argument(
+        "--use-tal-csasr",
+        type=str2bool,
+        default=False,
+        help="Whether to use TAL-CSASR training data.",
+    )
+
     add_model_arguments(parser)
 
     return parser
