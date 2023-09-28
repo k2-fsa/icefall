@@ -1180,7 +1180,7 @@ def run(rank, world_size, args):
         register_inf_check_hooks(model)
 
     data_module = AsrDataModule(args)
-    multi_dataset = MultiDataset(args.manifest_dir)
+    multi_dataset = MultiDataset(args)
 
     train_cuts = multi_dataset.train_cuts()
 

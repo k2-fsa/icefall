@@ -32,7 +32,7 @@ class MultiDataset:
             It is expected to contain the following files:
             - aishell2_cuts_train.jsonl.gz
         """
-        self.fbank_dir = Path(args.fbank_dir)
+        self.fbank_dir = Path(args.manifest_dir)
         self.use_tal_csasr = args.use_tal_csasr
 
     def train_cuts(self) -> CutSet:
