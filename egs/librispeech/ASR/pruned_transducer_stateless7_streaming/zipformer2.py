@@ -1393,11 +1393,11 @@ class ZipformerEncoder(nn.Module):
             output, len_avg, avg, key, val, val2, conv1, conv2 = mod.streaming_forward(
                 output,
                 pos_emb,
-                cached_len=cached_len[i],
-                cached_avg=cached_avg[i],
-                cached_key=cached_key[i],
-                cached_val=cached_val[i],
-                cached_val2=cached_val2[i],
+                cached_len=state_select(cached_len),
+                cached_avg=state_select(cached_avg),
+                cached_key=state_select(cached_key),
+                cached_val=state_select(cached_val),
+                cached_val2=state_select(cached_val2),
                 cached_conv1=state_select(cached_conv1),
                 cached_conv2=state_select(cached_conv2),
             )

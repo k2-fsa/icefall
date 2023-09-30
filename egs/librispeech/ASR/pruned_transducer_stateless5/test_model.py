@@ -20,7 +20,7 @@
 To run this file, do:
 
     cd icefall/egs/librispeech/ASR
-    python ./pruned_transducer_stateless4/test_model.py
+    python ./pruned_transducer_stateless5/test_model.py
 """
 
 from train import get_params, get_transducer_model

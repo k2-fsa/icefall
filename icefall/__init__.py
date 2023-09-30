@@ -1,12 +1,6 @@
 # isort:skip_file
 
-from . import (
-    checkpoint,
-    decode,
-    dist,
-    env,
-    utils
-)
+from . import checkpoint, decode, dist, env, utils
 
 from .byte_utils import (
     byte_decode,
@@ -22,6 +16,8 @@ from .checkpoint import (
     save_checkpoint,
     save_checkpoint_with_global_batch_idx,
 )
+
+from .context_graph import ContextGraph, ContextState
 
 from .decode import (
     get_lattice,

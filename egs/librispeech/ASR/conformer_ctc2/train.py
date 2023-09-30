@@ -410,9 +410,6 @@ def load_checkpoint_if_available(
         if "cur_epoch" in saved_params:
             params["start_epoch"] = saved_params["cur_epoch"]
 
-        if "cur_batch_idx" in saved_params:
-            params["cur_batch_idx"] = saved_params["cur_batch_idx"]
-
     return saved_params
 
 
@@ -675,16 +672,9 @@ def train_one_epoch(
 
     tot_loss = MetricsTracker()
 
-    cur_batch_idx = params.get("cur_batch_idx", 0)
-
     for batch_idx, batch in enumerate(train_dl):
-        if batch_idx < cur_batch_idx:
-            continue
-        cur_batch_idx = batch_idx
-
         params.batch_idx_train += 1
         batch_size = len(batch["supervisions"]["text"])
-        batch_name = batch["supervisions"]["uttid"]
 
         with torch.cuda.amp.autocast(enabled=params.use_fp16):
             loss, loss_info = compute_loss(
@@ -707,10 +697,7 @@ def train_one_epoch(
             scaler.scale(loss).backward()
         except RuntimeError as e:
             if "CUDA out of memory" in str(e):
-                logging.error(
-                    f"failing batch size:{batch_size} "
-                    f"failing batch names {batch_name}"
-                )
+                logging.error(f"failing batch size:{batch_size} ")
             raise
 
         scheduler.step_batch(params.batch_idx_train)
@@ -736,7 +723,6 @@ def train_one_epoch(
             params.batch_idx_train > 0
             and params.batch_idx_train % params.save_every_n == 0
         ):
-            params.cur_batch_idx = batch_idx
             save_checkpoint_with_global_batch_idx(
                 out_dir=params.exp_dir,
                 global_batch_idx=params.batch_idx_train,
@@ -749,7 +735,6 @@ def train_one_epoch(
                 scaler=scaler,
                 rank=rank,
             )
-            del params.cur_batch_idx
             remove_checkpoints(
                 out_dir=params.exp_dir,
                 topk=params.keep_last_k,
@@ -767,10 +752,7 @@ def train_one_epoch(
             if loss_info["ctc_loss"] == float("inf") or loss_info["att_loss"] == float(
                 "inf"
             ):
-                logging.error(
-                    "Your loss contains inf, something goes wrong"
-                    f"failing batch names {batch_name}"
-                )
+                logging.error("Your loss contains inf, something goes wrong")
             if tb_writer is not None:
                 tb_writer.add_scalar(
                     "train/learning_rate", cur_lr, params.batch_idx_train

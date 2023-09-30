@@ -55,12 +55,13 @@ We provide a Colab notebook for this recipe: [![Open In Colab](https://colab.res
 Please see <https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/RESULTS.md>
 for the **latest** results.
 
-We provide 4 models for this recipe:
+We provide 5 models for this recipe:
 
 - [conformer CTC model][LibriSpeech_conformer_ctc]
 - [TDNN LSTM CTC model][LibriSpeech_tdnn_lstm_ctc]
 - [Transducer: Conformer encoder + LSTM decoder][LibriSpeech_transducer]
 - [Transducer: Conformer encoder + Embedding decoder][LibriSpeech_transducer_stateless]
+- [Transducer: Zipformer encoder + Embedding decoder][LibriSpeech_zipformer]
 
 #### Conformer CTC Model
 
@@ -115,9 +116,11 @@ We provide a Colab notebook to run a pre-trained transducer conformer + stateles
 
 #### k2 pruned RNN-T
 
-|     | test-clean | test-other |
-|-----|------------|------------|
-| WER | 2.15       | 5.20       |
+| Encoder         | Params | test-clean | test-other |
+|-----------------|--------|------------|------------|
+| zipformer       | 65.5M  | 2.21       | 4.91       |
+| zipformer-small | 23.2M  | 2.46       | 5.83       |
+| zipformer-large | 148.4M | 2.11       | 4.77       |
 
 Note: No auxiliary losses are used in the training and no LMs are used
 in the decoding.
@@ -335,7 +338,7 @@ We provide one model for this recipe: [Pruned stateless RNN-T: Conformer encoder
 
 #### Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss
 
-The best results for Chinese CER(%) and English WER(%) respectivly (zh: Chinese, en: English):
+The best results for Chinese CER(%) and English WER(%) respectively (zh: Chinese, en: English):
 |decoding-method | dev | dev_zh | dev_en | test | test_zh | test_en |
 |--|--|--|--|--|--|--|
 |greedy_search| 7.30 | 6.48 | 19.19 |7.39| 6.66 | 19.13|
@@ -361,6 +364,7 @@ Please see: [![Open In Colab](https://colab.research.google.com/assets/colab-bad
 [LibriSpeech_conformer_ctc]: egs/librispeech/ASR/conformer_ctc
 [LibriSpeech_transducer]: egs/librispeech/ASR/transducer
 [LibriSpeech_transducer_stateless]: egs/librispeech/ASR/transducer_stateless
+[LibriSpeech_zipformer]: egs/librispeech/ASR/zipformer
 [Aishell_tdnn_lstm_ctc]: egs/aishell/ASR/tdnn_lstm_ctc
 [Aishell_conformer_ctc]: egs/aishell/ASR/conformer_ctc
 [Aishell_pruned_transducer_stateless7]: egs/aishell/ASR/pruned_transducer_stateless7_bbpe

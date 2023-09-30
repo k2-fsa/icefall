@@ -49,8 +49,7 @@ def normalize_text(utt: str, language: str) -> str:
     if language == "en":
         return re.sub(r"[^a-zA-Z\s]", "", utt).upper()
     if language == "fr":
-        utt = utt.upper()
-        return re.sub(r"[^A-ZÀÂÆÇÉÈÊËÎÏÔŒÙÛÜ' ]", "", utt)
+        return re.sub(r"[^A-ZÀÂÆÇÉÈÊËÎÏÔŒÙÛÜ' ]", "", utt).upper()
 
 
 def preprocess_commonvoice(
