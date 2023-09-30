@@ -1,7 +1,7 @@
 kaldifst
 kaldilm
 kaldialign
-kaldi-hmm-gmm
+kaldi-decoder
 sentencepiece>=0.1.96
 tensorboard
 typeguard
