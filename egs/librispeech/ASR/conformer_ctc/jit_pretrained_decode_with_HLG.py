@@ -35,7 +35,6 @@ import logging
 import math
 from typing import Dict, List
 
-import kaldi_hmm_gmm
 import kaldifeat
 import kaldifst
 import torch
