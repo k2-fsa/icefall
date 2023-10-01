@@ -214,6 +214,32 @@ class SluDataModule(DataModule):
 
         return train_dl
 
+    def valid_dataloaders(self) -> DataLoader:
+        logging.info("About to get valid cuts")
+        cuts_valid = self.valid_cuts()
+
+        logging.debug("About to create valid dataset")
+        valid = K2SpeechRecognitionDataset(
+            input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=23)))
+            if self.args.on_the_fly_feats
+            else PrecomputedFeatures(),
+            return_cuts=self.args.return_cuts,
+        )
+        sampler = DynamicBucketingSampler(
+            cuts_valid,
+            max_duration=self.args.max_duration,
+            shuffle=False,
+        )
+        logging.debug("About to create valid dataloader")
+        valid_dl = DataLoader(
+            valid,
+            batch_size=None,
+            sampler=sampler,
+            num_workers=self.args.num_workers,
+            persistent_workers=True,
+        )
+        return valid_dl
+
     def test_dataloaders(self) -> DataLoader:
         logging.info("About to get test cuts")
         cuts_test = self.test_cuts()
@@ -247,6 +273,15 @@ class SluDataModule(DataModule):
             self.args.feature_dir / "slu_cuts_train.jsonl.gz"
         )
         return cuts_train
+
+    @lru_cache()
+    def valid_cuts(self) -> List[CutSet]:
+        logging.info("About to get valid cuts")
+        cuts_valid = load_manifest_lazy(
+            self.args.feature_dir / "slu_cuts_valid.jsonl.gz"
+        )
+        return cuts_valid
+
 
     @lru_cache()
     def test_cuts(self) -> List[CutSet]:
