@@ -157,7 +157,7 @@ log "Generating H.fst, HL.fst"
 
 ./local/prepare_lang_fst.py  --lang-dir $repo/data/lang_char --ngram-G $repo/data/lm/G_3_gram_char.fst.txt
 
-ls -lh $repo/data/char
+ls -lh $repo/data/lang_char
 
 log "Decoding with H on CPU with OpenFst"
 
