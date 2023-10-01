@@ -7,12 +7,25 @@ on CPU using OpenFST and decoders from kaldi.
 
 Usage:
 
+(1) LibriSpeech conformer_ctc
+
     ./conformer_ctc/jit_pretrained_decode_with_H.py \
       --nn-model ./conformer_ctc/exp/cpu_jit.pt \
       --H ./data/lang_bpe_500/H.fst \
       --tokens ./data/lang_bpe_500/tokens.txt \
       ./download/LibriSpeech/test-clean/1089/134686/1089-134686-0002.flac \
       ./download/LibriSpeech/test-clean/1221/135766/1221-135766-0001.flac
+
+
+(2) AIShell conformer_ctc
+
+    ./conformer_ctc/jit_pretrained_decode_with_H.py \
+      --nn-model ./conformer_ctc/exp/cpu_jit.pt \
+      --H ./data/lang_char/H.fst \
+      --tokens ./data/lang_char/tokens.txt \
+      ./BAC009S0764W0121.wav \
+      ./BAC009S0764W0122.wav \
+      ./BAC009S0764W0123.wav
 
 Note that to generate ./conformer_ctc/exp/cpu_jit.pt,
 you can use ./export.py --jit 1
@@ -23,12 +36,11 @@ import logging
 import math
 from typing import Dict, List
 
-import kaldi_hmm_gmm
 import kaldifeat
 import kaldifst
 import torch
 import torchaudio
-from kaldi_hmm_gmm import DecodableCtc, FasterDecoder, FasterDecoderOptions
+from kaldi_decoder import DecodableCtc, FasterDecoder, FasterDecoderOptions
 from torch.nn.utils.rnn import pad_sequence
 
 
