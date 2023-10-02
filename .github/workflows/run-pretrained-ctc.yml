@@ -35,7 +35,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  run_pre_trained_conformer_ctc:
+  run_pre_trained_ctc:
     if: github.event.label.name == 'ready' || github.event_name == 'push' || github.event.inputs.test-run == 'y' || github.event.label.name == 'ctc'
     runs-on: ${{ matrix.os }}
     strategy:

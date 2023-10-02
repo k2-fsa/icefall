@@ -12,13 +12,16 @@ as an example to show how to use this file.
 
 2. Run this file
 
-./zipformer/onnx_pretrained_ctc_hlg.py \
+./zipformer/onnx_pretrained_ctc_HL.py \
   --nn-model /path/to/model.onnx \
   --words /path/to/data/lang_bpe_500/words.txt \
-  --hlg /path/to/HLG.fst \
+  --HL /path/to/HL.fst \
   1089-134686-0001.wav \
   1221-135766-0001.wav \
   1221-135766-0002.wav
+
+You can find exported ONNX models at
+https://huggingface.co/csukuangfj/sherpa-onnx-zipformer-ctc-en-2023-10-02
 """
 
 import argparse
@@ -56,9 +59,9 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--HLG",
+        "--HL",
         type=str,
-        help="""Path to HLG.fst.""",
+        help="""Path to HL.fst.""",
     )
 
     parser.add_argument(
@@ -158,7 +161,7 @@ def read_sound_files(
 def decode(
     filename: str,
     log_probs: torch.Tensor,
-    HLG: kaldifst,
+    HL: kaldifst,
     id2word: Dict[int, str],
 ) -> List[str]:
     """
@@ -168,8 +171,8 @@ def decode(
       log_probs:
         A 2-D float32 tensor of shape (num_frames, vocab_size). It
         contains output from log_softmax.
-      HLG:
-        The HLG graph.
+      HL:
+        The HL graph.
       id2word:
         A map mapping word ID to word string.
     Returns:
@@ -179,7 +182,7 @@ def decode(
     decodable = DecodableCtc(log_probs.cpu())
 
     decoder_opts = FasterDecoderOptions(max_active=3000)
-    decoder = FasterDecoder(HLG, decoder_opts)
+    decoder = FasterDecoder(HL, decoder_opts)
     decoder.decode(decodable)
 
     if not decoder.reached_final():
@@ -221,8 +224,8 @@ def main():
     opts.frame_opts.samp_freq = args.sample_rate
     opts.mel_opts.num_bins = 80
 
-    logging.info(f"Loading HLG from {args.HLG}")
-    HLG = kaldifst.StdVectorFst.read(args.HLG)
+    logging.info(f"Loading HL from {args.HL}")
+    HL = kaldifst.StdVectorFst.read(args.HL)
 
     fbank = kaldifeat.Fbank(opts)
 
@@ -251,7 +254,7 @@ def main():
         hyp = decode(
             filename=args.sound_files[i],
             log_probs=log_probs[i, : log_probs_len[i]],
-            HLG=HLG,
+            HL=HL,
             id2word=word_table,
         )
         hyps.append(hyp)

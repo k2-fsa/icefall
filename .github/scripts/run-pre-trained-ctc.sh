@@ -29,9 +29,29 @@ log "CTC greedy search"
   $repo/test_wavs/1.wav \
   $repo/test_wavs/2.wav
 
+log "CTC H decoding"
+
+./zipformer/onnx_pretrained_ctc_H.py \
+  --nn-model $repo/model.onnx \
+  --tokens $repo/tokens.txt \
+  --H $repo/H.fst \
+  $repo/test_wavs/0.wav \
+  $repo/test_wavs/1.wav \
+  $repo/test_wavs/2.wav
+
+log "CTC HL decoding"
+
+./zipformer/onnx_pretrained_ctc_HL.py \
+  --nn-model $repo/model.onnx \
+  --words $repo/words.txt \
+  --HL $repo/HL.fst \
+  $repo/test_wavs/0.wav \
+  $repo/test_wavs/1.wav \
+  $repo/test_wavs/2.wav
+
 log "CTC HLG decoding"
 
-./zipformer/onnx_pretrained_ctc_hlg.py \
+./zipformer/onnx_pretrained_ctc_HLG.py \
   --nn-model $repo/model.onnx \
   --words $repo/words.txt \
   --HLG $repo/HLG.fst \
