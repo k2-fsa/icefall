@@ -145,7 +145,7 @@ def decode(
     decoder.decode(decodable)
 
     if not decoder.reached_final():
-        print(f"failed to decode {filename}")
+        logging.info(f"failed to decode {filename}")
         return [""]
 
     ok, best_path = decoder.get_best_path()
@@ -157,7 +157,7 @@ def decode(
         total_weight,
     ) = kaldifst.get_linear_symbol_sequence(best_path)
     if not ok:
-        print(f"failed to get linear symbol sequence for {filename}")
+        logging.info(f"failed to get linear symbol sequence for {filename}")
         return [""]
 
     # tokens are incremented during graph construction
