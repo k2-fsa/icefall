@@ -10,7 +10,57 @@ log() {
 
 pushd egs/librispeech/ASR
 
-# repo_url=https://github.com/csukuangfj/icefall-asr-conformer-ctc-bpe-500
+repo_url=https://huggingface.co/csukuangfj/sherpa-onnx-zipformer-ctc-en-2023-10-02
+log "Downloading pre-trained model from $repo_url"
+git lfs install
+git clone $repo_url
+repo=$(basename $repo_url)
+
+log "Display test files"
+tree $repo/
+ls -lh $repo/test_wavs/*.wav
+
+log "CTC greedy search"
+
+./zipformer/onnx_pretrained_ctc.py \
+  --nn-model $repo/model.onnx \
+  --tokens $repo/tokens.txt \
+  $repo/test_wavs/0.wav \
+  $repo/test_wavs/1.wav \
+  $repo/test_wavs/2.wav
+
+log "CTC H decoding"
+
+./zipformer/onnx_pretrained_ctc_H.py \
+  --nn-model $repo/model.onnx \
+  --tokens $repo/tokens.txt \
+  --H $repo/H.fst \
+  $repo/test_wavs/0.wav \
+  $repo/test_wavs/1.wav \
+  $repo/test_wavs/2.wav
+
+log "CTC HL decoding"
+
+./zipformer/onnx_pretrained_ctc_HL.py \
+  --nn-model $repo/model.onnx \
+  --words $repo/words.txt \
+  --HL $repo/HL.fst \
+  $repo/test_wavs/0.wav \
+  $repo/test_wavs/1.wav \
+  $repo/test_wavs/2.wav
+
+log "CTC HLG decoding"
+
+./zipformer/onnx_pretrained_ctc_HLG.py \
+  --nn-model $repo/model.onnx \
+  --words $repo/words.txt \
+  --HLG $repo/HLG.fst \
+  $repo/test_wavs/0.wav \
+  $repo/test_wavs/1.wav \
+  $repo/test_wavs/2.wav
+
+rm -rf $repo
+
 repo_url=https://huggingface.co/csukuangfj/icefall-asr-librispeech-conformer-ctc-jit-bpe-500-2021-11-09
 log "Downloading pre-trained model from $repo_url"
 GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
@@ -128,7 +178,9 @@ repo=$(basename $repo_url)
 pushd $repo
 
 git lfs pull --include "exp/pretrained.pt"
-git lfs pull --include "data/lm/G_3_gram_char.fst.txt"
+git lfs pull --include "data/lang_char/H.fst"
+git lfs pull --include "data/lang_char/HL.fst"
+git lfs pull --include "data/lang_char/HLG.fst"
 
 popd
 
@@ -152,10 +204,6 @@ popd
   --jit 1
 
 ls -lh $repo/exp
-
-log "Generating H.fst, HL.fst"
-
-./local/prepare_lang_fst.py  --lang-dir $repo/data/lang_char --ngram-G $repo/data/lm/G_3_gram_char.fst.txt
 
 ls -lh $repo/data/lang_char
 

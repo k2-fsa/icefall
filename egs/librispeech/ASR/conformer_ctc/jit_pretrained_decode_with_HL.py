@@ -132,8 +132,8 @@ def decode(
         contains output from log_softmax.
       HL:
         The HL graph.
-      word2token:
-        A map mapping token ID to word string.
+      id2word:
+        A map mapping word ID to word string.
     Returns:
       Return a list of decoded words.
     """
@@ -145,7 +145,7 @@ def decode(
     decoder.decode(decodable)
 
     if not decoder.reached_final():
-        print(f"failed to decode {filename}")
+        logging.info(f"failed to decode {filename}")
         return [""]
 
     ok, best_path = decoder.get_best_path()
@@ -157,7 +157,7 @@ def decode(
         total_weight,
     ) = kaldifst.get_linear_symbol_sequence(best_path)
     if not ok:
-        print(f"failed to get linear symbol sequence for {filename}")
+        logging.info(f"failed to get linear symbol sequence for {filename}")
         return [""]
 
     # are shifted by 1 during graph construction
