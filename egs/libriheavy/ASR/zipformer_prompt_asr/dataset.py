@@ -370,7 +370,7 @@ def triplet_text_sampling_with_context_list(
     # get the normalized text and pre_text
     text = transforms[i_text](gt_text)
     pre_text = get_pre_text_with_context_list2(
-        text=gt_pre_text,
+        text=gt_text,
         pre_text=gt_pre_text,
         context_list=context_list,
         rare_words_list=rare_word_list,
