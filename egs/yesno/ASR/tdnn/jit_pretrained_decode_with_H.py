@@ -28,7 +28,7 @@ import kaldifeat
 import kaldifst
 import torch
 import torchaudio
-from kaldi_hmm_gmm import DecodableCtc, FasterDecoder, FasterDecoderOptions
+from kaldi_decoder import DecodableCtc, FasterDecoder, FasterDecoderOptions
 from torch.nn.utils.rnn import pad_sequence
 
 
