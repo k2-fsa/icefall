@@ -476,7 +476,7 @@ def decode_one_batch(
         pre_texts = ["" for _ in range(batch_size)]
 
     # get the librispeech biasing data
-    if params.use_ls_context_list and params.use_ls_test_set:
+    if params.use_pre_text and (params.use_ls_context_list and params.use_ls_test_set):
         if params.biasing_level == "utterance":
             pre_texts = [biasing_dict[id] for id in cut_ids]
         elif params.biasing_level == "Chapter":
@@ -695,8 +695,6 @@ def decode_dataset(
                 )  # remove full-width symbols & some book marks
                 ref_words = ref_text.split()
                 this_batch.append((cut_id, ref_words, hyp_words))
-            if not params.use_ls_test_set:
-                results[name + "_" + book_name].extend(this_batch)
             results[name].extend(this_batch)
 
         num_cuts += len(texts)
@@ -831,6 +829,9 @@ def main():
         params.suffix += f"-style-prompt-{params.style_text_transform}"
 
     if params.use_ls_context_list:
+        assert (
+            params.use_pre_text
+        ), "Must set --use-pre-text to True if using context list"
         params.suffix += f"-use-{params.biasing_level}-level-ls-context-list"
         if params.biasing_level == "utterance" and params.ls_distractors:
             params.suffix += f"-ls-context-distractors-{params.ls_distractors}"
