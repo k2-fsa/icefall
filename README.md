@@ -29,6 +29,7 @@ We provide the following recipes:
   - [yesno][yesno]
   - [LibriSpeech][librispeech]
   - [GigaSpeech][gigaspeech]
+  - [AMI][ami]
   - [Aishell][aishell]
   - [Aishell2][aishell2]
   - [Aishell4][aishell4]
@@ -37,6 +38,7 @@ We provide the following recipes:
   - [Aidatatang_200zh][aidatatang_200zh]
   - [WenetSpeech][wenetspeech]
   - [Alimeeting][alimeeting]
+  - [Switchboard][swbd]
   - [TAL_CSASR][tal_csasr]
 
 ### yesno
@@ -393,4 +395,6 @@ Please see: [![Open In Colab](https://colab.research.google.com/assets/colab-bad
 [wenetspeech]: egs/wenetspeech/ASR
 [alimeeting]: egs/alimeeting/ASR
 [tal_csasr]: egs/tal_csasr/ASR
+[ami]: egs/ami
+[swbd]: egs/swbd/ASR
 [k2]: https://github.com/k2-fsa/k2
