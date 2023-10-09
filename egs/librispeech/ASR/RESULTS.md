@@ -75,7 +75,7 @@ See <https://github.com/k2-fsa/icefall/pull/1058> for more details.
 ##### normal-scaled model, number of model parameters: 65549011, i.e., 65.55 M
 
 The tensorboard log can be found at
-<https://tensorboard.dev/experiment/cBaoIabCQxSDsyZM7FzqZA/>
+<https://tensorboard.dev/experiment/R2DT9Ju4QiadC4e2ioKh5A/>
 
 You can find a pretrained model, training logs, decoding logs, and decoding results at:
 <https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-2023-05-15>
@@ -90,18 +90,20 @@ You can use <https://github.com/k2-fsa/sherpa> to deploy it.
 | greedy_search        | 2.23       | 4.96       | --epoch 40 --avg 16 |
 | modified_beam_search | 2.21       | 4.91       | --epoch 40 --avg 16 |
 | fast_beam_search     | 2.24       | 4.93       | --epoch 40 --avg 16 |
+| greedy_search        | 2.22       | 4.87       | --epoch 50 --avg 25 |
+| modified_beam_search | 2.21       | 4.79       | --epoch 50 --avg 25 |
+| fast_beam_search     | 2.21       | 4.82       | --epoch 50 --avg 25 |
 | modified_beam_search_shallow_fusion | 2.01 | 4.37 | --epoch 40 --avg 16 --beam-size 12 --lm-scale 0.3 |
 | modified_beam_search_LODR | 1.94 | 4.17 | --epoch 40 --avg 16 --beam-size 12 --lm-scale 0.52 --LODR-scale -0.26 |
 | modified_beam_search_rescore | 2.04 | 4.39 | --epoch 40 --avg 16 --beam-size 12 |
 | modified_beam_search_rescore_LODR | 2.01  | 4.33 | --epoch 40 --avg 16 --beam-size 12  |
-
 
 The training command is:
 ```bash
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
 ./zipformer/train.py \
   --world-size 4 \
-  --num-epochs 40 \
+  --num-epochs 50 \
   --start-epoch 1 \
   --use-fp16 1 \
   --exp-dir zipformer/exp \
@@ -115,8 +117,8 @@ The decoding command is:
 export CUDA_VISIBLE_DEVICES="0"
 for m in greedy_search modified_beam_search fast_beam_search; do
   ./zipformer/decode.py \
-    --epoch 30 \
-    --avg 9 \
+    --epoch 50 \
+    --avg 25 \
     --use-averaged-model 1 \
     --exp-dir ./zipformer/exp \
     --max-duration 600 \
@@ -129,7 +131,7 @@ To decode with external language models, please refer to the documentation [here
 ##### small-scaled model, number of model parameters: 23285615, i.e., 23.3 M
 
 The tensorboard log can be found at
-<https://tensorboard.dev/experiment/53P4tL22TpO0UdiL0kPaLg/>
+<https://tensorboard.dev/experiment/M9C8cYPWSN2MVBYaBIX3EQ/>
 
 You can find a pretrained model, training logs, decoding logs, and decoding results at:
 <https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-small-2023-05-16>
@@ -144,13 +146,16 @@ You can use <https://github.com/k2-fsa/sherpa> to deploy it.
 | greedy_search        | 2.49       | 5.91       | --epoch 40 --avg 13 |
 | modified_beam_search | 2.46       | 5.83       | --epoch 40 --avg 13 |
 | fast_beam_search     | 2.46       | 5.87       | --epoch 40 --avg 13 |
+| greedy_search        | 2.46       | 5.86       | --epoch 50 --avg 23 |
+| modified_beam_search | 2.42       | 5.73       | --epoch 50 --avg 23 |
+| fast_beam_search     | 2.46       | 5.78       | --epoch 50 --avg 23 |
 
 The training command is:
 ```bash
 export CUDA_VISIBLE_DEVICES="0,1"
 ./zipformer/train.py \
   --world-size 2 \
-  --num-epochs 40 \
+  --num-epochs 50 \
   --start-epoch 1 \
   --use-fp16 1 \
   --exp-dir zipformer/exp-small \
@@ -169,8 +174,8 @@ The decoding command is:
 export CUDA_VISIBLE_DEVICES="0"
 for m in greedy_search modified_beam_search fast_beam_search; do
   ./zipformer/decode.py \
-    --epoch 40 \
-    --avg 13 \
+    --epoch 50 \
+    --avg 23 \
     --exp-dir zipformer/exp-small \
     --max-duration 600 \
     --causal 0 \
@@ -185,7 +190,7 @@ done
 ##### large-scaled model, number of model parameters: 148439574, i.e., 148.4 M
 
 The tensorboard log can be found at
-<https://tensorboard.dev/experiment/HJ74wWYpQAGSzETkmQnrmQ/>
+<https://tensorboard.dev/experiment/C5ZPE5u1So2ZwhYLKW0FVg/>
 
 You can find a pretrained model, training logs, decoding logs, and decoding results at:
 <https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-large-2023-05-16>
@@ -200,13 +205,16 @@ You can use <https://github.com/k2-fsa/sherpa> to deploy it.
 | greedy_search        | 2.12       | 4.8        | --epoch 40 --avg 13 |
 | modified_beam_search | 2.11       | 4.7        | --epoch 40 --avg 13 |
 | fast_beam_search     | 2.13       | 4.78       | --epoch 40 --avg 13 |
+| greedy_search        | 2.08       | 4.69       | --epoch 50 --avg 30 |
+| modified_beam_search | 2.06       | 4.63       | --epoch 50 --avg 30 |
+| fast_beam_search     | 2.09       | 4.68       | --epoch 50 --avg 30 |
 
 The training command is:
 ```bash
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
 ./zipformer/train.py \
   --world-size 4 \
-  --num-epochs 40 \
+  --num-epochs 50 \
   --start-epoch 1 \
   --use-fp16 1 \
   --exp-dir zipformer/exp-large \
@@ -224,8 +232,8 @@ The decoding command is:
 export CUDA_VISIBLE_DEVICES="0"
 for m in greedy_search modified_beam_search fast_beam_search; do
   ./zipformer/decode.py \
-    --epoch 40 \
-    --avg 16 \
+    --epoch 50 \
+    --avg 30 \
     --exp-dir zipformer/exp-large \
     --max-duration 600 \
     --causal 0 \
