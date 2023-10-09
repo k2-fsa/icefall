@@ -11,7 +11,12 @@ from prepare_lang import (
     make_lexicon_fst_no_silence,
     make_lexicon_fst_with_silence,
 )
-from topo import add_disambig_self_loops, add_one, build_standard_ctc_topo
+from topo import (
+    add_disambig_self_loops,
+    add_one,
+    build_standard_ctc_topo,
+    build_ctc_topo_max_repeat0,
+)
 
 
 def test_yesno():
@@ -131,7 +136,30 @@ def test_librispeech():
     print(sp.encode(["HELLOA", "WORLD"]))
 
 
+def test_build_ctc_topo_max_repeat0():
+    H = build_ctc_topo_max_repeat0(max_token_id=3)
+    isym = kaldifst.SymbolTable()
+    isym.add_symbol(symbol="<blk>", key=0)
+    isym.add_symbol(symbol="C", key=1)
+    isym.add_symbol(symbol="A", key=2)
+    isym.add_symbol(symbol="T", key=3)
+
+    osym = kaldifst.SymbolTable()
+    osym.add_symbol(symbol="<eps>", key=0)
+    osym.add_symbol(symbol="C", key=1)
+    osym.add_symbol(symbol="A", key=2)
+    osym.add_symbol(symbol="T", key=3)
+
+    H.input_symbols = isym
+    H.output_symbols = osym
+
+    fst_dot = kaldifst.draw(H, acceptor=False, portrait=True)
+    source = graphviz.Source(fst_dot)
+    source.render(outfile="ctc_topo_max_repeat0.pdf")
+
+
 def main():
+    test_build_ctc_topo_max_repeat0()
     test_yesno()
     test_librispeech()
 

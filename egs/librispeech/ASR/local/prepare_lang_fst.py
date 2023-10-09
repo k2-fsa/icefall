@@ -8,6 +8,9 @@ tokens.txt, and words.txt and generates the following files:
 
     - H.fst
     - HL.fst
+
+If you also provide --ngram-G, then it also generates
+
     - HLG.fst
 
 Note that saved files are in OpenFst binary format.
@@ -22,6 +25,12 @@ Or
 
 ./local/prepare_lang_fst.py \
   --lang-dir ./data/lang_bpe_500
+
+or
+
+./local/prepare_lang_fst.py \
+  --lang-dir ./data/lang_bpe_500 \
+  --ngram-G ./data/lm/G_3_gram.fst.txt
 """
 
 import argparse
@@ -35,6 +44,7 @@ from icefall.ctc import (
     add_disambig_self_loops,
     add_one,
     build_standard_ctc_topo,
+    build_ctc_topo_max_repeat0,
     make_lexicon_fst_no_silence,
     make_lexicon_fst_with_silence,
 )
@@ -62,6 +72,17 @@ def get_args():
         type=str,
         help="""If not empty, it is the filename of G used to build HLG.
         For instance, --ngram-G=./data/lm/G_3_fst.txt
+        """,
+    )
+
+    parser.add_argument(
+        "--max-num-repeats",
+        type=int,
+        default=-1,
+        help="""Allowed maximum number of repeats.
+        -1 means the standard CTC topology allowing infinite number of repeats.
+        0 means it does not allow repeats at all.
+        Any other value is currently not supported.
         """,
     )
 
@@ -171,14 +192,22 @@ def main():
 
     lexicon = Lexicon(lang_dir)
 
-    logging.info("Building standard CTC topology")
     max_token_id = max(lexicon.tokens)
-    H = build_standard_ctc_topo(max_token_id=max_token_id)
+    if args.max_num_repeats == -1:
+        logging.info("Building standard CTC topology")
+        H = build_standard_ctc_topo(max_token_id=max_token_id)
+        suffix=''
+    elif args.max_num_repeats == 0:
+        logging.info("Building CTC topology allowing 0 repeat")
+        H = build_ctc_topo_max_repeat0(max_token_id=max_token_id)
+        suffix='_0'
+    else:
+        raise ValueError(f'Unsupported --max-num-repeats: {args.max_num_repeats}. Only -1 and 0 are valid')
 
     # We need to add one to all tokens since we want to use ID 0
     # for epsilon
     add_one(H, treat_ilabel_zero_specially=False, update_olabel=True)
-    H.write(f"{lang_dir}/H.fst")
+    H.write(f"{lang_dir}/H{suffix}.fst")
 
     logging.info("Building L")
     # Now for HL
@@ -195,7 +224,7 @@ def main():
         has_silence=args.has_silence,
         lexicon=lexicon,
     )
-    HL.write(f"{lang_dir}/HL.fst")
+    HL.write(f"{lang_dir}/HL{suffix}.fst")
 
     if not args.ngram_G:
         logging.info("Skip building HLG")
@@ -209,7 +238,7 @@ def main():
         )
 
     HLG = build_HLG(H=H, L=L, G=G, has_silence=args.has_silence, lexicon=lexicon)
-    HLG.write(f"{lang_dir}/HLG.fst")
+    HLG.write(f"{lang_dir}/HLG{suffix}.fst")
 
 
 if __name__ == "__main__":

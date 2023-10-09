@@ -3,15 +3,16 @@
 import kaldifst
 
 
-# Note the name contains `standard`; it means there will be non-standard
-# topologies.
 def build_standard_ctc_topo(max_token_id: int) -> kaldifst.StdVectorFst:
     """Build a standard CTC topology.
 
     Args:
-      Maximum valid token ID. We assume token IDs are contiguous
-      and starts from 0. In other words, the vocabulary size is
-      ``max_token_id + 1``. We assume the ID of the blank symbol is 0.
+      max_token_id:
+        Maximum valid token ID. We assume token IDs are contiguous
+        and starts from 0. In other words, the vocabulary size is
+        ``max_token_id + 1``. We assume the ID of the blank symbol is 0.
+    Returns:
+      Return a transducer representing the standard CTC topology.
     """
     # Token ID starts from 0 and there are as many states as the
     # number of tokens.
@@ -44,6 +45,63 @@ def build_standard_ctc_topo(max_token_id: int) -> kaldifst.StdVectorFst:
                 arc=kaldifst.StdArc(
                     ilabel=k,
                     olabel=k if i != k else 0,  # if i==k, it is a self loop
+                    weight=0,
+                    nextstate=k,
+                ),
+            )
+    # Please see ./test_ctc_topo.py if you want to know what the resulting
+    # FST looks like
+
+    return fst
+
+
+def build_ctc_topo_max_repeat0(max_token_id: int) -> kaldifst.StdVectorFst:
+    """Build a modified CTC topology which does not allow any repeats.
+
+    We remove the self-loop of each state except the state for the blank .
+
+    Args:
+      max_token_id:
+        Maximum valid token ID. We assume token IDs are contiguous
+        and starts from 0. In other words, the vocabulary size is
+        ``max_token_id + 1``. We assume the ID of the blank symbol is 0.
+    Returns:
+      Return a transducer representing the modified CTC topology.
+    """
+    # Token ID starts from 0 and there are as many states as the
+    # number of tokens.
+    #
+    # Note that epsilon is not a token and the token with ID 0 in tokens.txt
+    # is not an epsilon. It means input label 0 of the resulting FST does
+    # not represent an epsilon.
+    #
+    # You can use the function `add_one()` to modify the input/output labels
+    # of the resulting FST
+
+    num_states = max_token_id + 1
+
+    # Step 1: Create as many states as the number of tokens.
+    # Each state is a final state
+    fst = kaldifst.StdVectorFst()
+    for i in range(num_states):
+        s = fst.add_state()
+        fst.set_final(state=s, weight=0)
+
+    # Step 2: Set state 0 as the start state.
+    # We assume the ID of the blank symbol is 0.
+    fst.start = 0
+
+    # Step 3: Build a fully connected graph.
+    for i in range(num_states):
+        for k in range(num_states):
+            if i == k and i != 0:
+                # Remove the self-loop for states of non-blanks
+                continue
+            fst.add_arc(
+                state=i,
+                arc=kaldifst.StdArc(
+                    ilabel=k,
+                    olabel=k,
                     weight=0,
                     nextstate=k,
                 ),
