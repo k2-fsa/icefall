@@ -263,6 +263,70 @@ def get_texts(
         return aux_labels.tolist()
 
 
+def encode_supervisions_otc(
+    supervisions: dict,
+    subsampling_factor: int,
+    token_ids: Optional[List[List[int]]] = None,
+) -> Tuple[torch.Tensor, Union[List[str], List[List[int]]]]:
+    """
+    Encodes Lhotse's ``batch["supervisions"]`` dict into
+    a pair of torch Tensor, and a list of transcription strings or token indexes
+
+    The supervision tensor has shape ``(batch_size, 3)``.
+    Its second dimension contains information about sequence index [0],
+    start frames [1] and num frames [2].
+
+    The batch items might become re-ordered during this operation -- the
+    returned tensor and list of strings are guaranteed to be consistent with
+    each other.
+    """
+    supervision_segments = torch.stack(
+        (
+            supervisions["sequence_idx"],
+            torch.div(
+                supervisions["start_frame"],
+                subsampling_factor,
+                rounding_mode="floor",
+            ),
+            torch.div(
+                supervisions["num_frames"],
+                subsampling_factor,
+                rounding_mode="floor",
+            ),
+        ),
+        1,
+    ).to(torch.int32)
+
+    indices = torch.argsort(supervision_segments[:, 2], descending=True)
+    supervision_segments = supervision_segments[indices]
+
+    ids = []
+    verbatim_texts = []
+    sorted_ids = []
+    sorted_verbatim_texts = []
+
+    for cut in supervisions["cut"]:
+        id = cut.id
+        if hasattr(cut.supervisions[0], "verbatim_text"):
+            verbatim_text = cut.supervisions[0].verbatim_text
+        else:
+            verbatim_text = ""
+        ids.append(id)
+        verbatim_texts.append(verbatim_text)
+
+    for index in indices.tolist():
+        sorted_ids.append(ids[index])
+        sorted_verbatim_texts.append(verbatim_texts[index])
+
+    if token_ids is None:
+        texts = supervisions["text"]
+        res = [texts[idx] for idx in indices]
+    else:
+        res = [token_ids[idx] for idx in indices]
+
+    return supervision_segments, res, sorted_ids, sorted_verbatim_texts
+
+
 @dataclass
 class DecodingResults:
     # timestamps[i][k] contains the frame number on which tokens[i][k]
@@ -429,6 +493,8 @@ def store_transcripts(
       texts:
         An iterable of tuples. The first element is the cur_id, the second is
         the reference transcript and the third element is the predicted result.
+        If it is a multi-talker ASR system, the ref and hyp may also be lists of
+        strings.
     Returns:
       Return None.
     """
@@ -491,6 +557,7 @@ def write_error_stats(
     test_set_name: str,
     results: List[Tuple[str, str]],
     enable_log: bool = True,
+    sclite_mode: bool = False,
 ) -> float:
     """Write statistics based on predicted results and reference transcripts.
 
@@ -536,7 +603,7 @@ def write_error_stats(
     num_corr = 0
     ERR = "*"
     for cut_id, ref, hyp in results:
-        ali = kaldialign.align(ref, hyp, ERR)
+        ali = kaldialign.align(ref, hyp, ERR, sclite_mode=sclite_mode)
         for ref_word, hyp_word in ali:
             if ref_word == ERR:
                 ins[hyp_word] += 1
@@ -886,8 +953,167 @@ def write_error_stats_with_timestamps(
         hyp_count = corr + hyp_sub + ins
 
         print(f"{word}   {corr} {tot_errs} {ref_count} {hyp_count}", file=f)
+    return float(tot_err_rate), float(mean_delay), float(var_delay)
 
-    return tot_err_rate, mean_delay, var_delay
+
+def write_surt_error_stats(
+    f: TextIO,
+    test_set_name: str,
+    results: List[Tuple[str, str]],
+    enable_log: bool = True,
+    num_channels: int = 2,
+) -> float:
+    """Write statistics based on predicted results and reference transcripts for SURT
+    multi-talker ASR systems. The difference between this and the `write_error_stats`
+    is that this function finds the optimal speaker-agnostic WER using the ``meeteval``
+    toolkit.
+
+    Args:
+        f: File to write the statistics to.
+        test_set_name: Name of the test set.
+        results: List of tuples containing the utterance ID and the predicted
+            transcript.
+        enable_log: Whether to enable logging.
+        num_channels: Number of output channels/branches. Defaults to 2.
+    Returns:
+      Return None.
+    """
+    from meeteval.wer import wer
+
+    subs: Dict[Tuple[str, str], int] = defaultdict(int)
+    ins: Dict[str, int] = defaultdict(int)
+    dels: Dict[str, int] = defaultdict(int)
+    ref_lens: List[int] = []
+
+    print(
+        "Search below for sections starting with PER-UTT DETAILS:, "
+        "SUBSTITUTIONS:, DELETIONS:, INSERTIONS:, PER-WORD STATS:",
+        file=f,
+    )
+
+    print("", file=f)
+    print("PER-UTT DETAILS: corr or (ref->hyp)  ", file=f)
+
+    # `words` stores counts per word, as follows:
+    #   corr, ref_sub, hyp_sub, ins, dels
+    words: Dict[str, List[int]] = defaultdict(lambda: [0, 0, 0, 0, 0])
+    num_corr = 0
+    ERR = "*"
+    for cut_id, ref, hyp in results:
+        # First compute the optimal assignment of references to output channels
+        orc_wer = wer.orc_word_error_rate(ref, hyp)
+        assignment = orc_wer.assignment
+        refs = [[] for _ in range(num_channels)]
+        # Assign references to channels
+        for i, ref_text in zip(assignment, ref):
+            refs[i] += ref_text.split()
+        hyps = [hyp_text.split() for hyp_text in hyp]
+        # Now compute the WER for each channel
+        for ref_c, hyp_c in zip(refs, hyps):
+            ref_lens.append(len(ref_c))
+            ali = kaldialign.align(ref_c, hyp_c, ERR)
+            for ref_word, hyp_word in ali:
+                if ref_word == ERR:
+                    ins[hyp_word] += 1
+                    words[hyp_word][3] += 1
+                elif hyp_word == ERR:
+                    dels[ref_word] += 1
+                    words[ref_word][4] += 1
+                elif hyp_word != ref_word:
+                    subs[(ref_word, hyp_word)] += 1
+                    words[ref_word][1] += 1
+                    words[hyp_word][2] += 1
+                else:
+                    words[ref_word][0] += 1
+                    num_corr += 1
+            combine_successive_errors = True
+            if combine_successive_errors:
+                ali = [[[x], [y]] for x, y in ali]
+                for i in range(len(ali) - 1):
+                    if ali[i][0] != ali[i][1] and ali[i + 1][0] != ali[i + 1][1]:
+                        ali[i + 1][0] = ali[i][0] + ali[i + 1][0]
+                        ali[i + 1][1] = ali[i][1] + ali[i + 1][1]
+                        ali[i] = [[], []]
+                ali = [
+                    [
+                        list(filter(lambda a: a != ERR, x)),
+                        list(filter(lambda a: a != ERR, y)),
+                    ]
+                    for x, y in ali
+                ]
+                ali = list(filter(lambda x: x != [[], []], ali))
+                ali = [
+                    [
+                        ERR if x == [] else " ".join(x),
+                        ERR if y == [] else " ".join(y),
+                    ]
+                    for x, y in ali
+                ]
+
+            print(
+                f"{cut_id}:\t"
+                + " ".join(
+                    (
+                        ref_word
+                        if ref_word == hyp_word
+                        else f"({ref_word}->{hyp_word})"
+                        for ref_word, hyp_word in ali
+                    )
+                ),
+                file=f,
+            )
+    ref_len = sum(ref_lens)
+    sub_errs = sum(subs.values())
+    ins_errs = sum(ins.values())
+    del_errs = sum(dels.values())
+    tot_errs = sub_errs + ins_errs + del_errs
+    tot_err_rate = "%.2f" % (100.0 * tot_errs / ref_len)
+
+    if enable_log:
+        logging.info(
+            f"[{test_set_name}] %WER {tot_errs / ref_len:.2%} "
+            f"[{tot_errs} / {ref_len}, {ins_errs} ins, "
+            f"{del_errs} del, {sub_errs} sub ]"
+        )
+
+    print(f"%WER = {tot_err_rate}", file=f)
+    print(
+        f"Errors: {ins_errs} insertions, {del_errs} deletions, "
+        f"{sub_errs} substitutions, over {ref_len} reference "
+        f"words ({num_corr} correct)",
+        file=f,
+    )
+
+    print("", file=f)
+    print("SUBSTITUTIONS: count ref -> hyp", file=f)
+
+    for count, (ref, hyp) in sorted([(v, k) for k, v in subs.items()], reverse=True):
+        print(f"{count}   {ref} -> {hyp}", file=f)
+
+    print("", file=f)
+    print("DELETIONS: count ref", file=f)
+    for count, ref in sorted([(v, k) for k, v in dels.items()], reverse=True):
+        print(f"{count}   {ref}", file=f)
+
+    print("", file=f)
+    print("INSERTIONS: count hyp", file=f)
+    for count, hyp in sorted([(v, k) for k, v in ins.items()], reverse=True):
+        print(f"{count}   {hyp}", file=f)
+
+    print("", file=f)
+    print("PER-WORD STATS: word  corr tot_errs count_in_ref count_in_hyp", file=f)
+    for _, word, counts in sorted(
+        [(sum(v[1:]), k, v) for k, v in words.items()], reverse=True
+    ):
+        (corr, ref_sub, hyp_sub, ins, dels) = counts
+        tot_errs = ref_sub + hyp_sub + ins + dels
+        ref_count = corr + ref_sub + dels
+        hyp_count = corr + hyp_sub + ins
+
+        print(f"{word}   {corr} {tot_errs} {ref_count} {hyp_count}", file=f)
+
+    print(f"%WER = {tot_err_rate}", file=f)
+    return float(tot_err_rate)
 
 
 class MetricsTracker(collections.defaultdict):
@@ -1899,3 +2125,23 @@ def symlink_or_copy(exp_dir: Path, src: str, dst: str):
     except OSError:
         copyfile(src=exp_dir / src, dst=exp_dir / dst)
     os.close(dir_fd)
+
+
+def num_tokens(
+    token_table: k2.SymbolTable, disambig_pattern: str = re.compile(r"^#\d+$")
+) -> int:
+    """Return the number of tokens excluding those from
+    disambiguation symbols.
+
+    Caution:
+      0 is not a token ID so it is excluded from the return value.
+    """
+    symbols = token_table.symbols
+    ans = []
+    for s in symbols:
+        if not disambig_pattern.match(s):
+            ans.append(token_table[s])
+    num_tokens = len(ans)
+    if 0 in ans:
+        num_tokens -= 1
+    return num_tokens

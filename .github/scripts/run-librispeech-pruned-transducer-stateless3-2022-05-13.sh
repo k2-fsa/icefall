@@ -30,14 +30,14 @@ popd
 log "Export to torchscript model"
 ./pruned_transducer_stateless3/export.py \
   --exp-dir $repo/exp \
-  --bpe-model $repo/data/lang_bpe_500/bpe.model \
+  --tokens $repo/data/lang_bpe_500/tokens.txt \
   --epoch 99 \
   --avg 1 \
   --jit 1
 
 ./pruned_transducer_stateless3/export.py \
   --exp-dir $repo/exp \
-  --bpe-model $repo/data/lang_bpe_500/bpe.model \
+  --tokens $repo/data/lang_bpe_500/tokens.txt \
   --epoch 99 \
   --avg 1 \
   --jit-trace 1
@@ -74,7 +74,7 @@ for sym in 1 2 3; do
     --method greedy_search \
     --max-sym-per-frame $sym \
     --checkpoint $repo/exp/pretrained.pt \
-    --bpe-model $repo/data/lang_bpe_500/bpe.model \
+    --tokens $repo/data/lang_bpe_500/tokens.txt \
     $repo/test_wavs/1089-134686-0001.wav \
     $repo/test_wavs/1221-135766-0001.wav \
     $repo/test_wavs/1221-135766-0002.wav
@@ -87,7 +87,7 @@ for method in modified_beam_search beam_search fast_beam_search; do
     --method $method \
     --beam-size 4 \
     --checkpoint $repo/exp/pretrained.pt \
-    --bpe-model $repo/data/lang_bpe_500/bpe.model \
+    --tokens $repo/data/lang_bpe_500/tokens.txt \
     $repo/test_wavs/1089-134686-0001.wav \
     $repo/test_wavs/1221-135766-0001.wav \
     $repo/test_wavs/1221-135766-0002.wav

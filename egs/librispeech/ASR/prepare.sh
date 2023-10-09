@@ -242,6 +242,10 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
         $lang_dir/L_disambig.pt \
         $lang_dir/L_disambig.fst
     fi
+
+    if [ ! -f $lang_dir/HL.fst ]; then
+      ./local/prepare_lang_fst.py  --lang-dir $lang_dir --ngram-G ./data/lm/G_3_gram.fst.txt
+    fi
   done
 fi
 

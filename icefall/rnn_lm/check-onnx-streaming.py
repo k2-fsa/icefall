@@ -112,7 +112,6 @@ def main():
         for torch_v, onnx_v in zip(
             (torch_log_prob, torch_h0, torch_c0), (onnx_log_prob, onnx_h0, onnx_c0)
         ):
-
             assert torch.allclose(torch_v, onnx_v, atol=1e-5), (
                 torch_v.shape,
                 onnx_v.shape,

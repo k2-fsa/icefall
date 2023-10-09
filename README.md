@@ -29,6 +29,7 @@ We provide the following recipes:
   - [yesno][yesno]
   - [LibriSpeech][librispeech]
   - [GigaSpeech][gigaspeech]
+  - [AMI][ami]
   - [Aishell][aishell]
   - [Aishell2][aishell2]
   - [Aishell4][aishell4]
@@ -37,6 +38,7 @@ We provide the following recipes:
   - [Aidatatang_200zh][aidatatang_200zh]
   - [WenetSpeech][wenetspeech]
   - [Alimeeting][alimeeting]
+  - [Switchboard][swbd]
   - [TAL_CSASR][tal_csasr]
 
 ### yesno
@@ -338,7 +340,7 @@ We provide one model for this recipe: [Pruned stateless RNN-T: Conformer encoder
 
 #### Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss
 
-The best results for Chinese CER(%) and English WER(%) respectivly (zh: Chinese, en: English):
+The best results for Chinese CER(%) and English WER(%) respectively (zh: Chinese, en: English):
 |decoding-method | dev | dev_zh | dev_en | test | test_zh | test_en |
 |--|--|--|--|--|--|--|
 |greedy_search| 7.30 | 6.48 | 19.19 |7.39| 6.66 | 19.13|
@@ -393,4 +395,6 @@ Please see: [![Open In Colab](https://colab.research.google.com/assets/colab-bad
 [wenetspeech]: egs/wenetspeech/ASR
 [alimeeting]: egs/alimeeting/ASR
 [tal_csasr]: egs/tal_csasr/ASR
+[ami]: egs/ami
+[swbd]: egs/swbd/ASR
 [k2]: https://github.com/k2-fsa/k2

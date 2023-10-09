@@ -37,7 +37,7 @@ from lhotse.dataset import (
     DynamicBucketingSampler,
     K2SpeechRecognitionDataset,
     PrecomputedFeatures,
-    SingleCutSampler,
+    SimpleCutSampler,
     SpecAugment,
 )
 from lhotse.dataset.input_strategies import OnTheFlyFeatures
@@ -292,8 +292,8 @@ class AlimeetingAsrDataModule:
                 drop_last=True,
             )
         else:
-            logging.info("Using SingleCutSampler.")
-            train_sampler = SingleCutSampler(
+            logging.info("Using SimpleCutSampler.")
+            train_sampler = SimpleCutSampler(
                 cuts_train,
                 max_duration=self.args.max_duration,
                 shuffle=self.args.shuffle,

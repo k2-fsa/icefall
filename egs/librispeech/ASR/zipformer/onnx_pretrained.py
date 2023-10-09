@@ -31,7 +31,6 @@ GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
 repo=$(basename $repo_url)
 
 pushd $repo
-git lfs pull --include "data/lang_bpe_500/tokens.txt"
 git lfs pull --include "exp/pretrained.pt"
 
 cd exp
@@ -152,12 +151,14 @@ class OnnxModel:
         self.encoder = ort.InferenceSession(
             encoder_model_filename,
             sess_options=self.session_opts,
+            providers=["CPUExecutionProvider"],
         )
 
     def init_decoder(self, decoder_model_filename: str):
         self.decoder = ort.InferenceSession(
             decoder_model_filename,
             sess_options=self.session_opts,
+            providers=["CPUExecutionProvider"],
         )
 
         decoder_meta = self.decoder.get_modelmeta().custom_metadata_map
@@ -171,6 +172,7 @@ class OnnxModel:
         self.joiner = ort.InferenceSession(
             joiner_model_filename,
             sess_options=self.session_opts,
+            providers=["CPUExecutionProvider"],
         )
 
         joiner_meta = self.joiner.get_modelmeta().custom_metadata_map

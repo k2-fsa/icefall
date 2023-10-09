@@ -28,7 +28,7 @@ from lhotse.dataset import (
     CutMix,
     DynamicBucketingSampler,
     K2SpeechRecognitionDataset,
-    SingleCutSampler,
+    SimpleCutSampler,
     SpecAugment,
 )
 from lhotse.dataset.input_strategies import OnTheFlyFeatures
@@ -259,8 +259,8 @@ class TedLiumAsrDataModule:
                 drop_last=True,
             )
         else:
-            logging.info("Using SingleCutSampler.")
-            train_sampler = SingleCutSampler(
+            logging.info("Using SimpleCutSampler.")
+            train_sampler = SimpleCutSampler(
                 cuts_train,
                 max_duration=self.args.max_duration,
                 shuffle=self.args.shuffle,
@@ -282,7 +282,6 @@ class TedLiumAsrDataModule:
         return train_dl
 
     def valid_dataloaders(self, cuts_valid: CutSet) -> DataLoader:
-
         transforms = []
         if self.args.concatenate_cuts:
             transforms = [
@@ -322,7 +321,6 @@ class TedLiumAsrDataModule:
         return valid_dl
 
     def test_dataloaders(self, cuts_test: CutSet) -> DataLoader:
-
         logging.debug("About to create test dataset")
         if self.args.on_the_fly_feats:
             test = K2SpeechRecognitionDataset(
