@@ -23,9 +23,9 @@ To run this file, do:
     python ./pruned_transducer_stateless4/test_model.py
 """
 
-from train_subformer import get_params, get_transducer_model, get_text_encoder
-from zipformer import Zipformer2
 from scaling import ScheduledFloat
+from train_subformer import get_params, get_text_encoder, get_transducer_model
+from zipformer import Zipformer2
 
 
 def test_model_1():
@@ -55,8 +55,8 @@ def test_model_M():
     params.encoder_unmasked_dims = "256,256,256,256,256"
     params.zipformer_downsampling_factors = "1,2,4,8,2"
     params.cnn_module_kernels = "31,31,15,15"
-    
-    params.text_encoder_dim = (192,192,256,384)
+
+    params.text_encoder_dim = (192, 192, 256, 384)
     params.decoder_dim = 512
     params.joiner_dim = 512
     model = Zipformer2(
@@ -83,12 +83,12 @@ def test_model_M():
     )
     num_param = sum([p.numel() for p in model.parameters()])
     print(f"Number of model parameters: {num_param}")
-    
+
     model = Zipformer2(
         output_downsampling_factor=8,
         downsampling_factor=(1, 2, 4, 8),
         num_encoder_layers=(2, 4, 6, 6),
-        encoder_dim=(256,256,384,512),
+        encoder_dim=(256, 256, 384, 512),
         encoder_unmasked_dim=(196, 196, 256, 256),
         query_head_dim=(32, 32, 32, 32),
         pos_head_dim=(4, 4, 4, 4),

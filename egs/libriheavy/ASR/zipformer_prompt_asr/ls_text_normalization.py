@@ -111,7 +111,7 @@ def decoding_normalization(text: str) -> str:
 
     # Only keep all alpha-numeric characters, hypen and apostrophe
     text = text.replace("-", " ")
-    text = re.sub("[^a-zA-Z0-9\s']+", "", text)
+    text = re.sub(r"[^a-zA-Z0-9\s']+", "", text)
     return text
 
 
@@ -130,9 +130,10 @@ def word_normalization(word: str) -> str:
     if word.isnumeric():
         word = num_to_words(int(word))
         return str(word).upper()
-    if word[-2:] == "TH" and word[0].isnumeric():  #  e.g 9TH, 6TH
+    #  e.g 9TH, 6TH
+    if word[-2:] == "TH" and word[0].isnumeric():
         return num_to_ordinal_word(int(word[:-2])).upper()
-    if word[0] == "\'":
+    if word[0] == "'":
         return word[1:]
 
     return word

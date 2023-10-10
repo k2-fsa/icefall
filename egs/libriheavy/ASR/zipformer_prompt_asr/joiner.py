@@ -16,9 +16,7 @@
 
 import torch
 import torch.nn as nn
-from scaling import (
-    ScaledLinear
-)
+from scaling import ScaledLinear
 
 
 class Joiner(nn.Module):
@@ -28,7 +26,7 @@ class Joiner(nn.Module):
         decoder_dim: int,
         joiner_dim: int,
         vocab_size: int,
-        context_dim: int=512,
+        context_dim: int = 512,
         context_injection: bool = False,
     ):
         super().__init__()
@@ -37,7 +35,9 @@ class Joiner(nn.Module):
         self.decoder_proj = ScaledLinear(decoder_dim, joiner_dim, initial_scale=0.25)
         self.output_linear = nn.Linear(joiner_dim, vocab_size)
         if context_injection:
-            self.context_proj = ScaledLinear(context_dim, joiner_dim, initial_scale=0.25)
+            self.context_proj = ScaledLinear(
+                context_dim, joiner_dim, initial_scale=0.25
+            )
         else:
             self.context_proj = None
 
@@ -68,7 +68,11 @@ class Joiner(nn.Module):
 
         if project_input:
             if context:
-                logit = self.encoder_proj(encoder_out) + self.decoder_proj(decoder_out) + self.context_proj(context)
+                logit = (
+                    self.encoder_proj(encoder_out)
+                    + self.decoder_proj(decoder_out)
+                    + self.context_proj(context)
+                )
             else:
                 logit = self.encoder_proj(encoder_out) + self.decoder_proj(decoder_out)
         else:

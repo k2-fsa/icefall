@@ -15,11 +15,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Tuple
 import warnings
+from typing import Tuple
 
 import torch
-from torch import Tensor, nn
 from scaling import (
     Balancer,
     BiasNorm,
@@ -33,6 +32,7 @@ from scaling import (
     SwooshR,
     Whiten,
 )
+from torch import Tensor, nn
 
 
 class ConvNeXt(nn.Module):
@@ -106,9 +106,7 @@ class ConvNeXt(nn.Module):
         if layerdrop_rate != 0.0:
             batch_size = x.shape[0]
             mask = (
-                torch.rand(
-                    (batch_size, 1, 1, 1), dtype=x.dtype, device=x.device
-                )
+                torch.rand((batch_size, 1, 1, 1), dtype=x.dtype, device=x.device)
                 > layerdrop_rate
             )
         else:
@@ -227,9 +225,7 @@ class Conv2dSubsampling(nn.Module):
         # many copies of this extra gradient term.
         self.out_whiten = Whiten(
             num_groups=1,
-            whitening_limit=ScheduledFloat(
-                (0.0, 4.0), (20000.0, 8.0), default=4.0
-            ),
+            whitening_limit=ScheduledFloat((0.0, 4.0), (20000.0, 8.0), default=4.0),
             prob=(0.025, 0.25),
             grad_scale=0.02,
         )
