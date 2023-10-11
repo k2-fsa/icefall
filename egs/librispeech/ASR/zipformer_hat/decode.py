@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 #
-# Copyright 2021-2023 Xiaomi Corporation (Author: Fangjun Kuang,
-#                                                 Zengwei Yao)
+# Copyright 2021-2023 Johns Hopkins University (Author: Amir Hussein,
+#                                                 Desh Raj)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
