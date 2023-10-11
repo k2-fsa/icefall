@@ -24,20 +24,20 @@ Export `model.state_dict()`
 
 - For non-streaming model:
 
-./zipformer/export_PromptASR.py \
-  --exp-dir ./zipformer/exp \
-  --tokens data/lang_bpe_500/tokens.txt \
-  --epoch 30 \
-  --avg 9
+./zipformer_prompt_asr/export_PromptASR.py \
+  --exp-dir ./zipformer_prompt_asr/exp \
+  --tokens data/lang_bpe_500_fallback_coverage_0.99/tokens.txt \
+  --epoch 50 \
+  --avg 10
 
 - For streaming model:
 
-./zipformer/export_PromptASR.py \
-  --exp-dir ./zipformer/exp \
+./zipformer_prompt_asr/export_PromptASR.py \
+  --exp-dir ./zipformer_prompt_asr/exp \
   --causal 1 \
-  --tokens data/lang_bpe_500/tokens.txt \
-  --epoch 30 \
-  --avg 9
+  --tokens data/lang_bpe_500_fallback_coverage_0.99/tokens.txt \
+  --epoch 50 \
+  --avg 10
 
 It will generate a file `pretrained.pt` in the given `exp_dir`. You can later
 load it by `icefall.checkpoint.load_checkpoint()`.

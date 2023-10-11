@@ -103,7 +103,7 @@ use_context_list=True
 python ./zipformer_prompt_asr/train_bert_encoder.py \
     --world-size 4 \
     --start-epoch 1 \
-    --num-epochs 60 \
+    --num-epochs 50 \
     --exp-dir ./zipformer_prompt_asr/exp \
     --use-fp16 True \
     --memory-dropout-rate $memory_dropout_rate \
