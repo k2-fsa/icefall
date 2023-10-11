@@ -281,7 +281,7 @@ class Zipformer(EncoderInterface):
 
         lengths = (x_lens - 7) >> 1
         assert x.size(0) == lengths.max().item(), (x.shape, lengths, lengths.max())
-        mask = make_pad_mask(lengths)
+        mask = make_pad_mask(lengths, x.size(0))
 
         outputs = []
         feature_masks = self.get_feature_masks(x)
