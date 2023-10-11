@@ -114,6 +114,7 @@ from beam_search import greedy_search, greedy_search_batch, modified_beam_search
 from dataset import naive_triplet_text_sampling, random_shuffle_subset
 from ls_text_normalization import word_normalization
 from text_normalization import (
+    _apply_style_transform,
     lower_all_char,
     lower_only_alpha,
     ref_text_normalization,
@@ -385,29 +386,6 @@ def get_parser():
     add_model_arguments(parser)
 
     return parser
-
-
-def _apply_style_transform(text: List[str], transform: str) -> List[str]:
-    """Apply transform to a list of text. By default, the text are in
-    ground truth format, i.e mixed-punc.
-
-    Args:
-        text (List[str]): Input text string
-        transform (str): Transform to be applied
-
-    Returns:
-        List[str]: _description_
-    """
-    if transform == "mixed-punc":
-        return text
-    elif transform == "upper-no-punc":
-        return [upper_only_alpha(s) for s in text]
-    elif transform == "lower-no-punc":
-        return [lower_only_alpha(s) for s in text]
-    elif transform == "lower-punc":
-        return [lower_all_char(s) for s in text]
-    else:
-        raise NotImplementedError(f"Unseen transform: {transform}")
 
 
 def decode_one_batch(

@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import re
+from typing import List
 
 
 def train_text_normalization(s: str) -> str:
@@ -68,6 +69,29 @@ def lower_all_char(text: str) -> str:
 
 def upper_all_char(text: str) -> str:
     return text.upper()
+
+
+def _apply_style_transform(text: List[str], transform: str) -> List[str]:
+    """Apply transform to a list of text. By default, the text are in
+    ground truth format, i.e mixed-punc.
+
+    Args:
+        text (List[str]): Input text string
+        transform (str): Transform to be applied
+
+    Returns:
+        List[str]: _description_
+    """
+    if transform == "mixed-punc":
+        return text
+    elif transform == "upper-no-punc":
+        return [upper_only_alpha(s) for s in text]
+    elif transform == "lower-no-punc":
+        return [lower_only_alpha(s) for s in text]
+    elif transform == "lower-punc":
+        return [lower_all_char(s) for s in text]
+    else:
+        raise NotImplementedError(f"Unseen transform: {transform}")
 
 
 if __name__ == "__main__":
