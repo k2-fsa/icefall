@@ -527,6 +527,7 @@ def main():
     AishellAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
+    args.lang_dir = Path(args.lang_dir)
 
     params = get_params()
     params.update(vars(args))
