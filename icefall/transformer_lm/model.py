@@ -103,7 +103,6 @@ class TransformerLM(torch.nn.Module):
         return nll_loss
 
     def score_token(self, x: torch.Tensor, x_lens: torch.Tensor, state=None):
-
         bs = x.size(0)
 
         state = None

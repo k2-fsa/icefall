@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: run-pre-trained-conformer-ctc
+name: run-pre-trained-ctc
 
 on:
   push:
@@ -23,13 +23,20 @@ on:
   pull_request:
     types: [labeled]
 
+  workflow_dispatch:
+    inputs:
+      test-run:
+        description: 'Test (y/n)?'
+        required: true
+        default: 'y'
+
 concurrency:
-  group: run_pre_trained_conformer_ctc-${{ github.ref }}
+  group: run_pre_trained_ctc-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  run_pre_trained_conformer_ctc:
-    if: github.event.label.name == 'ready' || github.event_name == 'push'
+  run_pre_trained_ctc:
+    if: github.event.label.name == 'ready' || github.event_name == 'push' || github.event.inputs.test-run == 'y' || github.event.label.name == 'ctc'
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -77,4 +84,4 @@ jobs:
           export PYTHONPATH=$PWD:$PYTHONPATH
           export PYTHONPATH=~/tmp/kaldifeat/kaldifeat/python:$PYTHONPATH
           export PYTHONPATH=~/tmp/kaldifeat/build/lib:$PYTHONPATH
-          .github/scripts/run-pre-trained-conformer-ctc.sh
+          .github/scripts/run-pre-trained-ctc.sh

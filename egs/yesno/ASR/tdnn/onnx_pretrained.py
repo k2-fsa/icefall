@@ -54,6 +54,7 @@ class OnnxModel:
         self.model = ort.InferenceSession(
             nn_model,
             sess_options=self.session_opts,
+            providers=["CPUExecutionProvider"],
         )
 
         meta = self.model.get_modelmeta().custom_metadata_map

@@ -56,7 +56,6 @@ class CodebookIndexExtractor:
     """
 
     def __init__(self, params: AttributeDict):
-
         self.params = params
         params.subsets = ["clean-100"]
         if self.params.full_libri:
