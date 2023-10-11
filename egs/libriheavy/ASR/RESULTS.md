@@ -128,7 +128,7 @@ python ./zipformer_prompt_asr/train_bert_encoder.py \
 | modified_beam_search        |   2.72        |    5.72       |    --pre-text-transform mixed-punc --style-text-transform mixed-punc       |
 
 
-The decoding command for the above table is:
+The decoding command for the table above is:
 
 ```bash
 for style in mixed-punc upper-no-punc; do
@@ -161,7 +161,7 @@ done
 *Word-level biasing:*
 
 The results are reported on LibriSpeech test-sets using the biasing list provided from <https://arxiv.org/abs/2104.02194>.
-You need to set `--use-ls-test-set True` to obtain results in the following table.
+You need to set `--use-ls-test-set True` so that the LibriSpeech test sets are used.
 
 | decoding method      | ls-test-clean | ls-test-other | comment             |
 |----------------------|---------------|---------------|---------------------|
