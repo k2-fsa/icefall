@@ -258,6 +258,16 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--lang-dir",
+        type=str,
+        default="data/lang_char",
+        help="""The lang dir
+        It contains language related input files such as
+        "lexicon.txt"
+        """,
+    )
+
+    parser.add_argument(
         "--base-lr", type=float, default=0.05, help="The base learning rate."
     )
 
