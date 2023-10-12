@@ -204,10 +204,6 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
   if [ ! -f $lang_char_dir/L_disambig.pt ]; then
     ./local/prepare_char.py --lang-dir $lang_char_dir
   fi
-
-  if [ ! -f $lang_char_dir/HLG.fst ]; then
-    ./local/prepare_lang_fst.py  --lang-dir $lang_phone_dir --ngram-G ./data/lm/G_3_gram.fst.txt
-  fi
 fi
 
 if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
@@ -261,6 +257,13 @@ if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
       --disambig-symbol='#0' \
       --max-order=3 \
       data/lm/3-gram.unpruned.arpa > data/lm/G_3_gram_char.fst.txt
+  fi
+
+  if [ ! -f $lang_char_dir/HLG.fst ]; then
+    lang_phone_dir=data/lang_phone
+    ./local/prepare_lang_fst.py  \
+      --lang-dir $lang_phone_dir \
+      --ngram-G ./data/lm/G_3_gram.fst.txt
   fi
 fi
 
