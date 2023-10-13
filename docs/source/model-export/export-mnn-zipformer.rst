@@ -38,7 +38,7 @@ In the above code, we downloaded the pre-trained model into the directory
 
 .. _export_for_mnn_install_mnn:
 
-1. Install MNN
+2. Install MNN
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. code-block:: bash
@@ -80,7 +80,7 @@ Congratulations! You have successfully installed the following components:
     it to convert models from ``ONNX``.
 
 
-2. Export the model to ONNX
+3. Export the model to ONNX
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 First, let us rename our pre-trained model:
@@ -144,7 +144,7 @@ After the above step, we will get the following files:
 
 .. _zipformer-transducer-step-4-export-torchscript-model-via-pnnx:
 
-3. Convert model from onnx to MNN
+4. Convert model from onnx to MNN
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. hint::
