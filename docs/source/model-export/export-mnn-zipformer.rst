@@ -175,9 +175,9 @@ It will generate the following files:
 
   ls -lh k2fsa-zipformer-bilingual-zh-en-t/exp/*.mnn
 
-  .rw-rw-r--  12,836,004 meixu 2023-05-09 15:12 joiner-epoch-99-avg-1.mnn
-  .rw-rw-r--  13,917,864 meixu 2023-05-09 15:12 decoder-epoch-99-avg-1.mnn
   .rw-rw-r--  89,065,932 meixu 2023-05-09 15:13 encoder-epoch-99-avg-1.mnn
+  .rw-rw-r--  13,917,864 meixu 2023-05-09 15:12 decoder-epoch-99-avg-1.mnn
+  .rw-rw-r--  12,836,004 meixu 2023-05-09 15:12 joiner-epoch-99-avg-1.mnn
 
 Congratulations! You have successfully exported a model from PyTorch to `MNN`_!
 
