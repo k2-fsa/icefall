@@ -1,0 +1,38 @@
+# encoder
+/audio/code/MNN/build/MNNConvert -f ONNX --modelFile encoder-epoch-99-avg-1.onnx --MNNModel encoder-epoch-99-avg-1.mnn --bizCode MNN
+The device support i8sdot:0, support fp16:0, support i8mm: 0
+Start to Convert Other Model Format To MNN Model...
+[16:52:23] /audio/code/MNN/tools/converter/source/onnx/onnxConverter.cpp:98: ONNX Model ir version: 7
+[16:52:23] /audio/code/MNN/tools/converter/source/onnx/onnxConverter.cpp:99: ONNX Model opset version: 13
+Start to Optimize the MNN Net...
+88 op name is empty or dup, set to Unsqueeze88
+188 op name is empty or dup, set to Unsqueeze188
+215 op name is empty or dup, set to Shape215
+...
+inputTensors : [ x, cached_avg_0, cached_len_0, cached_key_0, cached_val_0, cached_conv1_0, cached_val2_0, cached_conv2_0, cached_avg_1, cached_len_1, cached_key_1, cached_val_1, cached_conv1_1, cached_val2_1, cached_conv2_1, cached_avg_2, cached_len_2, cached_key_2, cached_val_2, cached_conv1_2, cached_val2_2, cached_conv2_2, cached_avg_3, cached_len_3, cached_key_3, cached_val_3, cached_conv1_3, cached_val2_3, cached_conv2_3, cached_avg_4, cached_len_4, cached_key_4, cached_val_4, cached_conv1_4, cached_val2_4, cached_conv2_4, ]
+outputTensors: [ encoder_out, new_cached_avg_0, new_cached_avg_1, new_cached_avg_2, new_cached_avg_3, new_cached_avg_4, new_cached_conv1_0, new_cached_conv1_1, new_cached_conv1_2, new_cached_conv1_3, new_cached_conv1_4, new_cached_conv2_0, new_cached_conv2_1, new_cached_conv2_2, new_cached_conv2_3, new_cached_conv2_4, new_cached_key_0, new_cached_key_1, new_cached_key_2, new_cached_key_3, new_cached_key_4, new_cached_len_0, new_cached_len_1, new_cached_len_2, new_cached_len_3, new_cached_len_4, new_cached_val2_0, new_cached_val2_1, new_cached_val2_2, new_cached_val2_3, new_cached_val2_4, new_cached_val_0, new_cached_val_1, new_cached_val_2, new_cached_val_3, new_cached_val_4, ]
+Converted Success!
+
+# decoder
+/audio/code/MNN/build/MNNConvert -f ONNX --modelFile decoder-epoch-99-avg-1.onnx --MNNModel decoder-epoch-99-avg-1.mnn --bizCode MNN
+The device support i8sdot:0, support fp16:0, support i8mm: 0
+Start to Convert Other Model Format To MNN Model...
+[16:51:58] /audio/code/MNN/tools/converter/source/onnx/onnxConverter.cpp:98: ONNX Model ir version: 7
+[16:51:58] /audio/code/MNN/tools/converter/source/onnx/onnxConverter.cpp:99: ONNX Model opset version: 13
+Start to Optimize the MNN Net...
+167 op name is empty or dup, set to Unsqueeze167
+inputTensors : [ y, ]
+outputTensors: [ decoder_out, ]
+The model has subgraphs, please use MNN::Module to run it
+Converted Success!
+
+# joiner
+/audio/code/MNN/build/MNNConvert -f ONNX --modelFile joiner-epoch-99-avg-1.onnx --MNNModel joiner-epoch-99-avg-1.mnn --bizCode MNN
+The device support i8sdot:0, support fp16:0, support i8mm: 0
+Start to Convert Other Model Format To MNN Model...
+[16:51:01] /audio/code/MNN/tools/converter/source/onnx/onnxConverter.cpp:98: ONNX Model ir version: 7
+[16:51:01] /audio/code/MNN/tools/converter/source/onnx/onnxConverter.cpp:99: ONNX Model opset version: 13
+Start to Optimize the MNN Net...
+inputTensors : [ encoder_out, decoder_out, ]
+outputTensors: [ logit, ]
+Converted Success!

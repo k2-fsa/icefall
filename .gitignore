@@ -24,6 +24,7 @@ node_modules
 
 # Ignore all text files
 *.txt
+!docs/source/model-export/code/*.txt
 
 # Ignore files related to API keys
 .env

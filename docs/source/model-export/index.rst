@@ -12,3 +12,4 @@ In this section, we describe various ways to export models.
    export-with-torch-jit-script
    export-onnx
    export-ncnn
+   export-mnn
