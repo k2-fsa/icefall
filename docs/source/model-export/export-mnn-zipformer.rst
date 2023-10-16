@@ -5,7 +5,8 @@ Export streaming Zipformer transducer models to MNN
 
 We use the pre-trained model from the following repository as an example:
 
-`<https://huggingface.co/pfluo/k2fsa-zipformer-bilingual-zh-en-t>`_
+`<https://huggingface.co/pfluo/k2fsa-zipformer-bilingual-zh-en-t>`_ (backup link:
+`<https://huggingface.co/meixu/k2fsa-zipformer-bilingual-zh-en-t>`_)
 
 We will show you step by step how to export it to `MNN`_ and run it with `sherpa-MNN`_.
 
@@ -29,7 +30,7 @@ We will show you step by step how to export it to `MNN`_ and run it with `sherpa
 .. code-block:: bash
 
   cd egs/librispeech/ASR
-  git clone https://huggingface.co/pfluo/k2fsa-zipformer-bilingual-zh-en-t
+  git clone https://huggingface.co/meixu/k2fsa-zipformer-bilingual-zh-en-t
 
   cd ..
 
