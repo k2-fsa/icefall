@@ -1,0 +1,84 @@
+# Copyright      2023   Xiaomi Corp.    (author: Zengrui Jin)
+
+# See ../../LICENSE for clarification regarding multiple authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: run-swbd-conformer_ctc
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    types: [labeled]
+
+concurrency:
+  group: run-swbd-conformer_ctc-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  run-swbd-conformer_ctc:
+    if: github.event.label.name == 'onnx' || github.event.label.name == 'ready' || github.event_name == 'push' || github.event.label.name == 'swbd'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        python-version: [3.8]
+
+      fail-fast: false
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+          cache-dependency-path: '**/requirements-ci.txt'
+
+      - name: Install Python dependencies
+        run: |
+          grep -v '^#' ./requirements-ci.txt  | xargs -n 1 -L 1 pip install
+          pip uninstall -y protobuf
+          pip install --no-binary protobuf protobuf==3.20.*
+
+      - name: Cache kaldifeat
+        id: my-cache
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/tmp/kaldifeat
+          key: cache-tmp-${{ matrix.python-version }}-2023-05-22
+
+      - name: Install kaldifeat
+        if: steps.my-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          .github/scripts/install-kaldifeat.sh
+
+      - name: Inference with pre-trained model
+        shell: bash
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_EVENT_LABEL_NAME: ${{ github.event.label.name }}
+        run: |
+          sudo apt-get -qq install git-lfs tree
+          export PYTHONPATH=$PWD:$PYTHONPATH
+          export PYTHONPATH=~/tmp/kaldifeat/kaldifeat/python:$PYTHONPATH
+          export PYTHONPATH=~/tmp/kaldifeat/build/lib:$PYTHONPATH
+
+          .github/scripts/run-swbd-conformer-ctc-2023-08-26.sh

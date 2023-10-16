@@ -60,7 +60,7 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          grep -v '^#' ./requirements-ci.txt  | grep -v kaldifst | xargs -n 1 -L 1 pip install
+          grep -v '^#' ./requirements-ci.txt  | xargs -n 1 -L 1 pip install
           pip uninstall -y protobuf
           pip install --no-binary protobuf protobuf==3.20.*
 
@@ -140,9 +140,46 @@ jobs:
             download/waves_yesno/0_0_0_1_0_0_0_1.wav \
             download/waves_yesno/0_0_1_0_0_0_1_0.wav
 
+      - name: Test decoding with H
+        shell: bash
+        working-directory: ${{github.workspace}}
+        run: |
+          export PYTHONPATH=$PWD:$PYTHONPATH
+          echo $PYTHONPATH
+
+          cd egs/yesno/ASR
+          python3 ./tdnn/export.py --epoch 14 --avg 2 --jit 1
+
+          python3 ./tdnn/jit_pretrained_decode_with_H.py \
+              --nn-model ./tdnn/exp/cpu_jit.pt \
+              --H ./data/lang_phone/H.fst \
+              --tokens ./data/lang_phone/tokens.txt \
+              ./download/waves_yesno/0_0_0_1_0_0_0_1.wav \
+              ./download/waves_yesno/0_0_1_0_0_0_1_0.wav \
+              ./download/waves_yesno/0_0_1_0_0_1_1_1.wav
+
+      - name: Test decoding with HL
+        shell: bash
+        working-directory: ${{github.workspace}}
+        run: |
+          export PYTHONPATH=$PWD:$PYTHONPATH
+          echo $PYTHONPATH
+
+          cd egs/yesno/ASR
+          python3 ./tdnn/export.py --epoch 14 --avg 2 --jit 1
+
+          python3 ./tdnn/jit_pretrained_decode_with_HL.py \
+              --nn-model ./tdnn/exp/cpu_jit.pt \
+              --HL ./data/lang_phone/HL.fst \
+              --words ./data/lang_phone/words.txt \
+              ./download/waves_yesno/0_0_0_1_0_0_0_1.wav \
+              ./download/waves_yesno/0_0_1_0_0_0_1_0.wav \
+              ./download/waves_yesno/0_0_1_0_0_1_1_1.wav
+
       - name: Show generated files
         shell: bash
         working-directory: ${{github.workspace}}
         run: |
           cd egs/yesno/ASR
           ls -lh tdnn/exp
+          ls -lh data/lang_phone

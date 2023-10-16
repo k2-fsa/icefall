@@ -29,6 +29,7 @@ We provide the following recipes:
   - [yesno][yesno]
   - [LibriSpeech][librispeech]
   - [GigaSpeech][gigaspeech]
+  - [AMI][ami]
   - [Aishell][aishell]
   - [Aishell2][aishell2]
   - [Aishell4][aishell4]
@@ -37,6 +38,7 @@ We provide the following recipes:
   - [Aidatatang_200zh][aidatatang_200zh]
   - [WenetSpeech][wenetspeech]
   - [Alimeeting][alimeeting]
+  - [Switchboard][swbd]
   - [TAL_CSASR][tal_csasr]
 
 ### yesno
@@ -118,9 +120,9 @@ We provide a Colab notebook to run a pre-trained transducer conformer + stateles
 
 | Encoder         | Params | test-clean | test-other |
 |-----------------|--------|------------|------------|
-| zipformer       | 65.5M  | 2.21       | 4.91       |
-| zipformer-small | 23.2M  | 2.46       | 5.83       |
-| zipformer-large | 148.4M | 2.11       | 4.77       |
+| zipformer       | 65.5M  | 2.21       | 4.79       |
+| zipformer-small | 23.2M  | 2.42       | 5.73       |
+| zipformer-large | 148.4M | 2.06       | 4.63       |
 
 Note: No auxiliary losses are used in the training and no LMs are used
 in the decoding.
@@ -393,4 +395,6 @@ Please see: [![Open In Colab](https://colab.research.google.com/assets/colab-bad
 [wenetspeech]: egs/wenetspeech/ASR
 [alimeeting]: egs/alimeeting/ASR
 [tal_csasr]: egs/tal_csasr/ASR
+[ami]: egs/ami
+[swbd]: egs/swbd/ASR
 [k2]: https://github.com/k2-fsa/k2

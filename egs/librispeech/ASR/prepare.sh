@@ -299,6 +299,16 @@ if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
       --max-order=4 \
       $dl_dir/lm/4-gram.arpa > data/lm/G_4_gram.fst.txt
   fi
+
+  for vocab_size in ${vocab_sizes[@]}; do
+    lang_dir=data/lang_bpe_${vocab_size}
+
+    if [ ! -f $lang_dir/HL.fst ]; then
+      ./local/prepare_lang_fst.py  \
+        --lang-dir $lang_dir \
+        --ngram-G ./data/lm/G_3_gram.fst.txt
+    fi
+  done
 fi
 
 if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
