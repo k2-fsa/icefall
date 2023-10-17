@@ -6,7 +6,6 @@ See <https://github.com/k2-fsa/icefall/pull/1254> for more details.
 [zipformer](./zipformer)
 
 - Non-streaming
-
 - normal-scaled model, number of model parameters: 65549011, i.e., 65.55 M
 
 You can find a pretrained model, training logs, decoding logs, and decoding results at:
