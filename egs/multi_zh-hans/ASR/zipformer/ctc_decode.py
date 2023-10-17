@@ -484,7 +484,7 @@ def main():
     HLG = None
     H = k2.ctc_topo(
         max_token=max_token_id,
-        modified=False,
+        modified=True,
         device=device,
     )
     bpe_model = spm.SentencePieceProcessor()
