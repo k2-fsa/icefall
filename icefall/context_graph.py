@@ -227,7 +227,6 @@ class ContextGraph:
         filename: Optional[str] = "",
         symbol_table: Optional[Dict[int, str]] = None,
     ) -> "Digraph":  # noqa
-
         """Visualize a ContextGraph via graphviz.
 
         Render ContextGraph as an image via graphviz, and return the Digraph object;

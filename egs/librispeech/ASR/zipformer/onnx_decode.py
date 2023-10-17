@@ -303,7 +303,9 @@ def main():
 
     for test_set, test_dl in zip(test_sets, test_dl):
         start_time = time.time()
-        results, total_duration = decode_dataset(dl=test_dl, model=model, token_table=token_table)
+        results, total_duration = decode_dataset(
+            dl=test_dl, model=model, token_table=token_table
+        )
         end_time = time.time()
         elapsed_seconds = end_time - start_time
         rtf = elapsed_seconds / total_duration

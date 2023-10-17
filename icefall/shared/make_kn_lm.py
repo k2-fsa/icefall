@@ -225,7 +225,6 @@ class NgramCounts:
         for n in range(0, self.ngram_order - 1):
             this_order_counts = self.counts[n]
             for hist, counts_for_hist in this_order_counts.items():
-
                 n_star_star = 0
                 for w in counts_for_hist.word_to_count.keys():
                     n_star_star += len(counts_for_hist.word_to_context[w])
@@ -424,7 +423,6 @@ class NgramCounts:
 
 
 if __name__ == "__main__":
-
     ngram_counts = NgramCounts(args.ngram_order)
 
     if args.text is None:

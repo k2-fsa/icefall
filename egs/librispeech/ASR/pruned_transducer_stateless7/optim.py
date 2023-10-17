@@ -117,7 +117,7 @@ class BatchedOptimizer(Optimizer):
 
         yield tuples  # <-- calling code will do the actual optimization here!
 
-        for ((stacked_params, _state, _names), batch) in zip(tuples, batches):
+        for (stacked_params, _state, _names), batch in zip(tuples, batches):
             for i, p in enumerate(batch):  # batch is list of Parameter
                 p.copy_(stacked_params[i])
 
@@ -181,7 +181,6 @@ class ScaledAdam(BatchedOptimizer):
         parameters_names=None,
         show_dominant_parameters=True,
     ):
-
         assert parameters_names is not None, (
             "Please prepare parameters_names,"
             "which is a List[List[str]]. Each List[str] is for a group"
@@ -224,9 +223,7 @@ class ScaledAdam(BatchedOptimizer):
         batch = True
 
         for group, group_params_names in zip(self.param_groups, self.parameters_names):
-
             with self.batched_params(group["params"], group_params_names) as batches:
-
                 # batches is list of pairs (stacked_param, state).  stacked_param is like
                 # a regular parameter, and will have a .grad, but the 1st dim corresponds to
                 # a stacking dim, it is not a real dim.
@@ -325,7 +322,7 @@ class ScaledAdam(BatchedOptimizer):
         clipping_update_period = group["clipping_update_period"]
 
         tot_sumsq = torch.tensor(0.0, device=first_p.device)
-        for (p, state, param_names) in tuples:
+        for p, state, param_names in tuples:
             grad = p.grad
             if grad.is_sparse:
                 raise RuntimeError(
@@ -410,7 +407,7 @@ class ScaledAdam(BatchedOptimizer):
                 from tuples, we still pass it to save some time.
         """
         all_sumsq_orig = {}
-        for (p, state, batch_param_names) in tuples:
+        for p, state, batch_param_names in tuples:
             # p is a stacked batch parameters.
             batch_grad = p.grad
             if p.numel() == p.shape[0]:  # a batch of scalars
@@ -426,7 +423,6 @@ class ScaledAdam(BatchedOptimizer):
             for name, sumsq_orig, rms, grad in zip(
                 batch_param_names, batch_sumsq_orig, batch_rms_orig, batch_grad
             ):
-
                 proportion_orig = sumsq_orig / tot_sumsq
                 all_sumsq_orig[name] = (proportion_orig, sumsq_orig, rms, grad)
 
@@ -1039,7 +1035,7 @@ def _test_scaled_adam(hidden_dim: int):
 
             # if epoch == 130:
             #    opts = diagnostics.TensorDiagnosticOptions(
-            #        2 ** 22
+            #        512
             #    )  # allow 4 megabytes per sub-module
             #    diagnostic = diagnostics.attach_diagnostics(m, opts)
 

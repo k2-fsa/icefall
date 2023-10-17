@@ -156,7 +156,6 @@ def main():
 
     features = pad_sequence(features, batch_first=True, padding_value=math.log(1e-10))
 
-    # Note: We don't use key padding mask for attention during decoding
     nnet_output = model(features)
 
     batch_size = nnet_output.shape[0]

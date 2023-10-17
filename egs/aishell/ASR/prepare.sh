@@ -143,6 +143,7 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
     ./local/prepare_lang.py --lang-dir $lang_phone_dir
   fi
 
+
   # Train a bigram P for MMI training
   if [ ! -f $lang_phone_dir/transcript_words.txt ]; then
     log "Generate data to train phone based bigram P"
@@ -256,6 +257,13 @@ if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
       --disambig-symbol='#0' \
       --max-order=3 \
       data/lm/3-gram.unpruned.arpa > data/lm/G_3_gram_char.fst.txt
+  fi
+
+  if [ ! -f $lang_char_dir/HLG.fst ]; then
+    lang_phone_dir=data/lang_phone
+    ./local/prepare_lang_fst.py  \
+      --lang-dir $lang_phone_dir \
+      --ngram-G ./data/lm/G_3_gram.fst.txt
   fi
 fi
 
