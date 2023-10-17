@@ -7,14 +7,14 @@
 This script exports a transducer model from PyTorch to ONNX.
 
 We use the pre-trained model from
-https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-2023-05-15
+https://huggingface.co/yfyeung/icefall-asr-gigaspeech-zipformer-2023-10-17
 as an example to show how to use this file.
 
 1. Download the pre-trained model
 
-cd egs/librispeech/ASR
+cd egs/gigaspeech/ASR
 
-repo_url=https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-2023-05-15
+repo_url=https://huggingface.co/yfyeung/icefall-asr-gigaspeech-zipformer-2023-10-17
 GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
 repo=$(basename $repo_url)
 

@@ -24,7 +24,7 @@
 
 Usage:
 
-Note: This is a example for librispeech dataset, if you are using different
+Note: This is a example for gigaspeech dataset, if you are using different
 dataset, you should change the argument values according to your dataset.
 
 (1) Export to torchscript model using torch.jit.script()
@@ -96,7 +96,7 @@ you can do:
     cd /path/to/exp_dir
     ln -s pretrained.pt epoch-9999.pt
 
-    cd /path/to/egs/librispeech/ASR
+    cd /path/to/egs/gigaspeech/ASR
     ./zipformer/decode.py \
         --exp-dir ./zipformer/exp \
         --epoch 9999 \
@@ -112,7 +112,7 @@ To use the generated file with `zipformer/decode.py` and `zipformer/streaming_de
     cd /path/to/exp_dir
     ln -s pretrained.pt epoch-9999.pt
 
-    cd /path/to/egs/librispeech/ASR
+    cd /path/to/egs/gigaspeech/ASR
 
     # simulated streaming decoding
     ./zipformer/decode.py \
@@ -144,17 +144,13 @@ Note: If you don't want to train a model from scratch, we have
 provided one for you. You can get it at
 
 - non-streaming model:
-https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-2023-05-15
-
-- streaming model:
-https://huggingface.co/Zengwei/icefall-asr-librispeech-streaming-zipformer-2023-05-17
+https://huggingface.co/yfyeung/icefall-asr-gigaspeech-zipformer-2023-10-17
 
 with the following commands:
 
     sudo apt-get install git-lfs
     git lfs install
-    git clone https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-2023-05-15
-    git clone https://huggingface.co/Zengwei/icefall-asr-librispeech-streaming-zipformer-2023-05-17
+    git clone https://huggingface.co/yfyeung/icefall-asr-gigaspeech-zipformer-2023-10-17
     # You will find the pre-trained models in exp dir
 """
 

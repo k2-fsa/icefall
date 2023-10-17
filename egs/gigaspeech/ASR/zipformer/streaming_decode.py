@@ -40,7 +40,7 @@ import k2
 import numpy as np
 import sentencepiece as spm
 import torch
-from asr_datamodule import LibriSpeechAsrDataModule
+from asr_datamodule import GigaSpeechAsrDataModule
 from decode_stream import DecodeStream
 from kaldifeat import Fbank, FbankOptions
 from lhotse import CutSet
@@ -682,7 +682,7 @@ def save_results(
 @torch.no_grad()
 def main():
     parser = get_parser()
-    LibriSpeechAsrDataModule.add_arguments(parser)
+    GigaSpeechAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 
@@ -823,15 +823,18 @@ def main():
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
-    librispeech = LibriSpeechAsrDataModule(args)
+    gigaspeech = GigaSpeechAsrDataModule(args)
 
-    test_clean_cuts = librispeech.test_clean_cuts()
-    test_other_cuts = librispeech.test_other_cuts()
+    dev_cuts = gigaspeech.dev_cuts()
+    test_cuts = gigaspeech.test_cuts()
 
-    test_sets = ["test-clean", "test-other"]
-    test_cuts = [test_clean_cuts, test_other_cuts]
+    dev_dl = gigaspeech.test_dataloaders(dev_cuts)
+    test_dl = gigaspeech.test_dataloaders(test_cuts)
 
-    for test_set, test_cut in zip(test_sets, test_cuts):
+    test_sets = ["dev", "test"]
+    test_dls = [dev_dl, test_dl]
+
+    for test_set, test_dl in zip(test_sets, test_dls):
         results_dict = decode_dataset(
             cuts=test_cut,
             params=params,
