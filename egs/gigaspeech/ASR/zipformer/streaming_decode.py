@@ -828,13 +828,10 @@ def main():
     dev_cuts = gigaspeech.dev_cuts()
     test_cuts = gigaspeech.test_cuts()
 
-    dev_dl = gigaspeech.test_dataloaders(dev_cuts)
-    test_dl = gigaspeech.test_dataloaders(test_cuts)
-
     test_sets = ["dev", "test"]
-    test_dls = [dev_dl, test_dl]
+    test_cuts = [dev_cuts, test_cuts]
 
-    for test_set, test_dl in zip(test_sets, test_dls):
+    for test_set, test_cut in zip(test_sets, test_cuts):
         results_dict = decode_dataset(
             cuts=test_cut,
             params=params,
