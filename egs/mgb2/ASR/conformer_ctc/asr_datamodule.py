@@ -182,7 +182,6 @@ class MGB2AsrDataModule:
         cuts_train: CutSet,
         sampler_state_dict: Optional[Dict[str, Any]] = None,
     ) -> DataLoader:
-
         transforms = []
         if self.args.enable_musan:
             logging.info("Enable MUSAN")
@@ -190,7 +189,7 @@ class MGB2AsrDataModule:
             cuts_musan = load_manifest(self.args.manifest_dir / "cuts_musan.jsonl.gz")
 
             transforms.append(
-                CutMix(cuts=cuts_musan, prob=0.5, snr=(10, 20), preserve_id=True)
+                CutMix(cuts=cuts_musan, p=0.5, snr=(10, 20), preserve_id=True)
             )
         else:
             logging.info("Disable MUSAN")
