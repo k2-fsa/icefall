@@ -529,7 +529,6 @@ def main():
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
     args.lang_dir = Path(args.lang_dir)
-    args.lm_dir = Path(args.lm_dir)
 
     params = get_params()
     # add decoding params
