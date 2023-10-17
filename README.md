@@ -148,8 +148,11 @@ in the decoding.
 
 ### GigaSpeech
 
-We provide two models for this recipe: [Conformer CTC model][GigaSpeech_conformer_ctc]
-and [Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss][GigaSpeech_pruned_transducer_stateless2].
+We provide three models for this recipe: [Zipformer]
+
+- [Conformer CTC model][GigaSpeech_conformer_ctc]
+- [Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss][GigaSpeech_pruned_transducer_stateless2].
+- [Transducer: Zipformer encoder + Embedding decoder][GigaSpeech_zipformer]
 
 #### Conformer CTC
 
@@ -164,6 +167,14 @@ and [Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned R
 |    greedy search     | 10.51 | 10.73 |
 |   fast beam search   | 10.50 | 10.69 |
 | modified beam search | 10.40 | 10.51 |
+
+#### Transducer: Zipformer encoder + Embedding decoder
+
+|                      |  Dev  | Test  |
+|----------------------|-------|-------|
+|    greedy search     | 10.31 | 10.50 |
+|   fast beam search   | 10.26 | 10.48 |
+| modified beam search | 10.25 | 10.38 |
 
 
 ### Aishell
@@ -378,6 +389,7 @@ Please see: [![Open In Colab](https://colab.research.google.com/assets/colab-bad
 [TED-LIUM3_pruned_transducer_stateless]: egs/tedlium3/ASR/pruned_transducer_stateless
 [GigaSpeech_conformer_ctc]: egs/gigaspeech/ASR/conformer_ctc
 [GigaSpeech_pruned_transducer_stateless2]: egs/gigaspeech/ASR/pruned_transducer_stateless2
+[GigaSpeech_zipformer]: egs/gigaspeech/ASR/zipformer
 [Aidatatang_200zh_pruned_transducer_stateless2]: egs/aidatatang_200zh/ASR/pruned_transducer_stateless2
 [WenetSpeech_pruned_transducer_stateless2]: egs/wenetspeech/ASR/pruned_transducer_stateless2
 [WenetSpeech_pruned_transducer_stateless5]: egs/wenetspeech/ASR/pruned_transducer_stateless5
