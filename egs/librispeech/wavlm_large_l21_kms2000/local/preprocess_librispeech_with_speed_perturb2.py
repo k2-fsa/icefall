@@ -65,13 +65,9 @@ def compute_fbank_librispeech(
 
     if dataset is None:
         dataset_parts = (
-            "dev-clean",
-            "dev-other",
-            "test-clean",
-            "test-other",
-            "train-clean-100",
-            "train-clean-360",
-            "train-other-500",
+            "train-clean-100-sp1_1",
+            "train-clean-360-sp1_1",
+            "train-other-500-sp1_1",
         )
     else:
         dataset_parts = dataset.split(" ", -1)
@@ -105,7 +101,10 @@ def compute_fbank_librispeech(
         logging.info(f"Processing {partition}")
         for i in tqdm(range(len(cut_set))):
             cut_set[i].discrete_tokens = cut_set[i].supervisions[0].discrete_tokens
-            del cut_set[i].supervisions[0].custom
+            try:
+                del cut_set[i].supervisions[0].custom
+            except:
+                pass
 
         cut_set.to_file(output_dir / cuts_filename)
 

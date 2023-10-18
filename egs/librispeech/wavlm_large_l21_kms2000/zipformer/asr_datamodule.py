@@ -28,7 +28,7 @@ from lhotse.dataset import (  # noqa F401 for PrecomputedFeatures
     DiscretizedInputAugment,
     DiscretizedInputSpeechRecognitionDataset,
     DynamicBucketingSampler,
-    SingleCutSampler,
+    SimpleCutSampler,
 )
 from lhotse.utils import fix_random_seed
 from torch.utils.data import DataLoader
@@ -190,7 +190,7 @@ class LibriSpeechAsrDataModule:
                     time_warp_factor=self.args.spec_aug_time_warp_factor,
                     num_frame_masks=num_frame_masks,
                     tokens_mask_size=27,
-                    num_token_masks=2,
+                    num_token_masks=4,
                     frames_mask_size=100,
                 )
             )
