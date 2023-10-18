@@ -759,6 +759,8 @@ def main():
     test_ihm_cuts = ami.test_ihm_cuts()
     dev_sdm_cuts = ami.dev_sdm_cuts()
     test_sdm_cuts = ami.test_sdm_cuts()
+    dev_mdm_cuts = ami.dev_mdm_cuts()
+    test_mdm_cuts = ami.test_mdm_cuts()
     dev_gss_cuts = ami.dev_gss_cuts()
     test_gss_cuts = ami.test_gss_cuts()
 
@@ -766,6 +768,8 @@ def main():
     test_ihm_dl = ami.test_dataloaders(test_ihm_cuts)
     dev_sdm_dl = ami.test_dataloaders(dev_sdm_cuts)
     test_sdm_dl = ami.test_dataloaders(test_sdm_cuts)
+    dev_mdm_dl = ami.test_dataloaders(dev_mdm_cuts)
+    test_mdm_dl = ami.test_dataloaders(test_mdm_cuts)
     if dev_gss_cuts is not None:
         dev_gss_dl = ami.test_dataloaders(dev_gss_cuts)
     if test_gss_cuts is not None:
@@ -776,6 +780,8 @@ def main():
         "test_ihm": (test_ihm_dl, test_ihm_cuts),
         "dev_sdm": (dev_sdm_dl, dev_sdm_cuts),
         "test_sdm": (test_sdm_dl, test_sdm_cuts),
+        "dev_mdm": (dev_mdm_dl, dev_mdm_cuts),
+        "test_mdm": (test_mdm_dl, test_mdm_cuts),
     }
     if dev_gss_cuts is not None:
         test_sets["dev_gss"] = (dev_gss_dl, dev_gss_cuts)

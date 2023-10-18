@@ -294,7 +294,6 @@ class AmiAsrDataModule:
         return train_dl
 
     def valid_dataloaders(self, cuts_valid: CutSet) -> DataLoader:
-
         transforms = []
         if self.args.concatenate_cuts:
             transforms = [
@@ -400,6 +399,12 @@ class AmiAsrDataModule:
         return cs.filter(self.remove_short_cuts)
 
     @lru_cache()
+    def dev_mdm_cuts(self) -> CutSet:
+        logging.info("About to get AMI MDM dev cuts")
+        cs = load_manifest_lazy(self.args.manifest_dir / "cuts_dev_mdm.jsonl.gz")
+        return cs.filter(self.remove_short_cuts)
+
+    @lru_cache()
     def dev_gss_cuts(self) -> CutSet:
         if not (self.args.manifest_dir / "cuts_dev_gss.jsonl.gz").exists():
             logging.info("No GSS dev cuts found")
@@ -418,6 +423,12 @@ class AmiAsrDataModule:
     def test_sdm_cuts(self) -> CutSet:
         logging.info("About to get AMI SDM test cuts")
         cs = load_manifest_lazy(self.args.manifest_dir / "cuts_test_sdm.jsonl.gz")
+        return cs.filter(self.remove_short_cuts)
+
+    @lru_cache()
+    def test_mdm_cuts(self) -> CutSet:
+        logging.info("About to get AMI MDM test cuts")
+        cs = load_manifest_lazy(self.args.manifest_dir / "cuts_test_mdm.jsonl.gz")
         return cs.filter(self.remove_short_cuts)
 
     @lru_cache()
