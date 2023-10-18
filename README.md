@@ -148,7 +148,7 @@ in the decoding.
 
 ### GigaSpeech
 
-We provide three models for this recipe: [Zipformer]
+We provide three models for this recipe:
 
 - [Conformer CTC model][GigaSpeech_conformer_ctc]
 - [Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss][GigaSpeech_pruned_transducer_stateless2].
