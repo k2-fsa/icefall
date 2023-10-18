@@ -1077,12 +1077,6 @@ def run(rank, world_size, args):
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
-    assert params.save_every_n >= params.average_period
-    model_avg: Optional[nn.Module] = None
-    if rank == 0:
-        # model_avg is only used with rank 0
-        model_avg = copy.deepcopy(model).to(torch.float64)
-
     # load model parameters for model fine-tuning
     if params.do_finetune:
         modules = params.init_modules.split(",") if params.init_modules else None
@@ -1094,6 +1088,12 @@ def run(rank, world_size, args):
         checkpoints = load_checkpoint_if_available(
             params=params, model=model, model_avg=model_avg
         )
+        
+    assert params.save_every_n >= params.average_period
+    model_avg: Optional[nn.Module] = None
+    if rank == 0:
+        # model_avg is only used with rank 0
+        model_avg = copy.deepcopy(model).to(torch.float64)
 
     model.to(device)
     if world_size > 1:
