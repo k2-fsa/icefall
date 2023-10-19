@@ -1977,7 +1977,7 @@ def parse_timestamps_and_texts(
         A k2.Fsa with best_paths.arcs.num_axes() == 3, i.e.
         containing multiple FSAs, which is expected to be the result
         of k2.shortest_path (otherwise the returned values won't
-        be meaningful). Attribtute `labels` is the prediction unit,
+        be meaningful). Attribute `labels` is the prediction unit,
         e.g., phone or BPE tokens. Attribute `aux_labels` is the word index.
       word_table:
         The word symbol table.
