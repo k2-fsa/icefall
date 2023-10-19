@@ -78,7 +78,7 @@ def add_finetune_arguments(parser: argparse.ArgumentParser):
         default=None,
         help="""
         Modules to be initialized. It matches all parameters starting with
-        a specific key. The keys are given with Comma seperated. If None,
+        a specific key. The keys are given with Comma separated. If None,
         all modules will be initialised. For example, if you only want to
         initialise all parameters staring with "encoder", use "encoder";
         if you want to initialise parameters starting with encoder or decoder,
