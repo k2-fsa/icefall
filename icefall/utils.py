@@ -498,7 +498,7 @@ def store_transcripts(
     Returns:
       Return None.
     """
-    with open(filename, "w") as f:
+    with open(filename, "w", encoding="utf8") as f:
         for cut_id, ref, hyp in texts:
             if char_level:
                 ref = list("".join(ref))
@@ -523,7 +523,7 @@ def store_transcripts_and_timestamps(
     Returns:
       Return None.
     """
-    with open(filename, "w") as f:
+    with open(filename, "w", encoding="utf8") as f:
         for cut_id, ref, hyp, time_ref, time_hyp in texts:
             print(f"{cut_id}:\tref={ref}", file=f)
             print(f"{cut_id}:\thyp={hyp}", file=f)
