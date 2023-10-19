@@ -703,7 +703,7 @@ def compute_loss(
             if batch_idx_train >= warm_step
             else 0.1 + 0.9 * (batch_idx_train / warm_step)
         )
-        loss = params.simple_loss_scale * simple_loss + pruned_loss_scale * pruned_loss
+        loss = simple_loss_scale * simple_loss + pruned_loss_scale * pruned_loss
 
     assert loss.requires_grad == is_training
 
