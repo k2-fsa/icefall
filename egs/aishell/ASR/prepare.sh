@@ -114,7 +114,7 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   log "Stage 3: Compute fbank for aishell"
   if [ ! -f data/fbank/.aishell.done ]; then
     mkdir -p data/fbank
-    ./local/compute_fbank_aishell.py
+    ./local/compute_fbank_aishell.py --perturb-speed True
     touch data/fbank/.aishell.done
   fi
 fi
@@ -142,6 +142,7 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   if [ ! -f $lang_phone_dir/L_disambig.pt ]; then
     ./local/prepare_lang.py --lang-dir $lang_phone_dir
   fi
+
 
   # Train a bigram P for MMI training
   if [ ! -f $lang_phone_dir/transcript_words.txt ]; then
@@ -256,6 +257,13 @@ if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
       --disambig-symbol='#0' \
       --max-order=3 \
       data/lm/3-gram.unpruned.arpa > data/lm/G_3_gram_char.fst.txt
+  fi
+
+  if [ ! -f $lang_char_dir/HLG.fst ]; then
+    lang_phone_dir=data/lang_phone
+    ./local/prepare_lang_fst.py  \
+      --lang-dir $lang_phone_dir \
+      --ngram-G ./data/lm/G_3_gram.fst.txt
   fi
 fi
 

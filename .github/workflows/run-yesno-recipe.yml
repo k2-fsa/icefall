@@ -44,11 +44,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install graphviz
-        shell: bash
-        run: |
-          sudo apt-get -qq install graphviz
-
       - name: Setup Python ${{ matrix.python-version }}
         uses: actions/setup-python@v2
         with:
@@ -65,11 +60,12 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          grep -v '^#' ./requirements-ci.txt  | grep -v kaldifst | xargs -n 1 -L 1 pip install
+          grep -v '^#' ./requirements-ci.txt  | xargs -n 1 -L 1 pip install
           pip uninstall -y protobuf
           pip install --no-binary protobuf protobuf==3.20.*
 
           pip install --no-deps --force-reinstall https://huggingface.co/csukuangfj/k2/resolve/main/cpu/k2-1.24.3.dev20230508+cpu.torch1.13.1-cp38-cp38-linux_x86_64.whl
+          pip install kaldifeat==1.25.0.dev20230726+cpu.torch1.13.1 -f https://csukuangfj.github.io/kaldifeat/cpu.html
 
       - name: Run yesno recipe
         shell: bash
@@ -78,9 +74,112 @@ jobs:
           export PYTHONPATH=$PWD:$PYTHONPATH
           echo $PYTHONPATH
 
-
           cd egs/yesno/ASR
           ./prepare.sh
           python3 ./tdnn/train.py
           python3 ./tdnn/decode.py
-          # TODO: Check that the WER is less than some value
+
+      - name: Test exporting to pretrained.pt
+        shell: bash
+        working-directory: ${{github.workspace}}
+        run: |
+          export PYTHONPATH=$PWD:$PYTHONPATH
+          echo $PYTHONPATH
+
+          cd egs/yesno/ASR
+          python3 ./tdnn/export.py --epoch 14 --avg 2
+
+          python3 ./tdnn/pretrained.py \
+            --checkpoint ./tdnn/exp/pretrained.pt \
+            --HLG ./data/lang_phone/HLG.pt \
+            --words-file ./data/lang_phone/words.txt \
+            download/waves_yesno/0_0_0_1_0_0_0_1.wav \
+            download/waves_yesno/0_0_1_0_0_0_1_0.wav
+
+      - name: Test exporting to torchscript
+        shell: bash
+        working-directory: ${{github.workspace}}
+        run: |
+          export PYTHONPATH=$PWD:$PYTHONPATH
+          echo $PYTHONPATH
+
+          cd egs/yesno/ASR
+          python3 ./tdnn/export.py --epoch 14 --avg 2 --jit 1
+
+          python3 ./tdnn/jit_pretrained.py \
+            --nn-model ./tdnn/exp/cpu_jit.pt \
+            --HLG ./data/lang_phone/HLG.pt \
+            --words-file ./data/lang_phone/words.txt \
+            download/waves_yesno/0_0_0_1_0_0_0_1.wav \
+            download/waves_yesno/0_0_1_0_0_0_1_0.wav
+
+      - name: Test exporting to onnx
+        shell: bash
+        working-directory: ${{github.workspace}}
+        run: |
+          export PYTHONPATH=$PWD:$PYTHONPATH
+          echo $PYTHONPATH
+
+          cd egs/yesno/ASR
+          python3 ./tdnn/export_onnx.py --epoch 14 --avg 2
+
+          echo "Test float32 model"
+          python3 ./tdnn/onnx_pretrained.py \
+            --nn-model ./tdnn/exp/model-epoch-14-avg-2.onnx \
+            --HLG ./data/lang_phone/HLG.pt \
+            --words-file ./data/lang_phone/words.txt \
+            download/waves_yesno/0_0_0_1_0_0_0_1.wav \
+            download/waves_yesno/0_0_1_0_0_0_1_0.wav
+
+
+          echo "Test int8 model"
+          python3 ./tdnn/onnx_pretrained.py \
+            --nn-model ./tdnn/exp/model-epoch-14-avg-2.int8.onnx \
+            --HLG ./data/lang_phone/HLG.pt \
+            --words-file ./data/lang_phone/words.txt \
+            download/waves_yesno/0_0_0_1_0_0_0_1.wav \
+            download/waves_yesno/0_0_1_0_0_0_1_0.wav
+
+      - name: Test decoding with H
+        shell: bash
+        working-directory: ${{github.workspace}}
+        run: |
+          export PYTHONPATH=$PWD:$PYTHONPATH
+          echo $PYTHONPATH
+
+          cd egs/yesno/ASR
+          python3 ./tdnn/export.py --epoch 14 --avg 2 --jit 1
+
+          python3 ./tdnn/jit_pretrained_decode_with_H.py \
+              --nn-model ./tdnn/exp/cpu_jit.pt \
+              --H ./data/lang_phone/H.fst \
+              --tokens ./data/lang_phone/tokens.txt \
+              ./download/waves_yesno/0_0_0_1_0_0_0_1.wav \
+              ./download/waves_yesno/0_0_1_0_0_0_1_0.wav \
+              ./download/waves_yesno/0_0_1_0_0_1_1_1.wav
+
+      - name: Test decoding with HL
+        shell: bash
+        working-directory: ${{github.workspace}}
+        run: |
+          export PYTHONPATH=$PWD:$PYTHONPATH
+          echo $PYTHONPATH
+
+          cd egs/yesno/ASR
+          python3 ./tdnn/export.py --epoch 14 --avg 2 --jit 1
+
+          python3 ./tdnn/jit_pretrained_decode_with_HL.py \
+              --nn-model ./tdnn/exp/cpu_jit.pt \
+              --HL ./data/lang_phone/HL.fst \
+              --words ./data/lang_phone/words.txt \
+              ./download/waves_yesno/0_0_0_1_0_0_0_1.wav \
+              ./download/waves_yesno/0_0_1_0_0_0_1_0.wav \
+              ./download/waves_yesno/0_0_1_0_0_1_1_1.wav
+
+      - name: Show generated files
+        shell: bash
+        working-directory: ${{github.workspace}}
+        run: |
+          cd egs/yesno/ASR
+          ls -lh tdnn/exp
+          ls -lh data/lang_phone

@@ -38,7 +38,7 @@ log "Decode with models exported by torch.jit.trace()"
 for m in ctc-decoding 1best; do
   ./conformer_ctc3/jit_pretrained.py \
     --model-filename $repo/exp/jit_trace.pt \
-    --words-file $repo/data/lang_bpe_500/words.txt  \
+    --words-file $repo/data/lang_bpe_500/words.txt \
     --HLG $repo/data/lang_bpe_500/HLG.pt \
     --bpe-model $repo/data/lang_bpe_500/bpe.model \
     --G $repo/data/lm/G_4_gram.pt \
@@ -53,7 +53,7 @@ log "Export to torchscript model"
 
 ./conformer_ctc3/export.py \
   --exp-dir $repo/exp \
-  --lang-dir $repo/data/lang_bpe_500 \
+  --tokens $repo/data/lang_bpe_500/tokens.txt \
   --jit-trace 1 \
   --epoch 99 \
   --avg 1 \
@@ -80,9 +80,9 @@ done
 for m in ctc-decoding 1best; do
   ./conformer_ctc3/pretrained.py \
     --checkpoint $repo/exp/pretrained.pt \
-    --words-file $repo/data/lang_bpe_500/words.txt  \
+    --words-file $repo/data/lang_bpe_500/words.txt \
     --HLG $repo/data/lang_bpe_500/HLG.pt \
-    --bpe-model $repo/data/lang_bpe_500/bpe.model \
+    --tokens $repo/data/lang_bpe_500/tokens.txt \
     --G $repo/data/lm/G_4_gram.pt \
     --method $m \
     --sample-rate 16000 \
@@ -93,7 +93,7 @@ done
 
 echo "GITHUB_EVENT_NAME: ${GITHUB_EVENT_NAME}"
 echo "GITHUB_EVENT_LABEL_NAME: ${GITHUB_EVENT_LABEL_NAME}"
-if [[ x"${GITHUB_EVENT_NAME}" == x"schedule" || x"${GITHUB_EVENT_LABEL_NAME}" == x"run-decode"  ]]; then
+if [[ x"${GITHUB_EVENT_NAME}" == x"schedule" || x"${GITHUB_EVENT_LABEL_NAME}" == x"run-decode" ]]; then
   mkdir -p conformer_ctc3/exp
   ln -s $PWD/$repo/exp/pretrained.pt conformer_ctc3/exp/epoch-999.pt
   ln -s $PWD/$repo/data/lang_bpe_500 data/

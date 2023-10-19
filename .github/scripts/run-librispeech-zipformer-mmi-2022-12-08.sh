@@ -37,7 +37,7 @@ log "Export to torchscript model"
 ./zipformer_mmi/export.py \
   --exp-dir $repo/exp \
   --use-averaged-model false \
-  --bpe-model $repo/data/lang_bpe_500/bpe.model \
+  --tokens $repo/data/lang_bpe_500/tokens.txt \
   --epoch 99 \
   --avg 1 \
   --jit 1
@@ -61,7 +61,7 @@ for method in 1best nbest nbest-rescoring-LG nbest-rescoring-3-gram nbest-rescor
     --method $method \
     --checkpoint $repo/exp/pretrained.pt \
     --lang-dir $repo/data/lang_bpe_500 \
-    --bpe-model $repo/data/lang_bpe_500/bpe.model \
+    --tokens $repo/data/lang_bpe_500/tokens.txt \
     $repo/test_wavs/1089-134686-0001.wav \
     $repo/test_wavs/1221-135766-0001.wav \
     $repo/test_wavs/1221-135766-0002.wav

@@ -107,9 +107,7 @@ class ConvNeXt(nn.Module):
         if layerdrop_rate != 0.0:
             batch_size = x.shape[0]
             mask = (
-                torch.rand(
-                    (batch_size, 1, 1, 1), dtype=x.dtype, device=x.device
-                )
+                torch.rand((batch_size, 1, 1, 1), dtype=x.dtype, device=x.device)
                 > layerdrop_rate
             )
         else:
@@ -138,9 +136,11 @@ class ConvNeXt(nn.Module):
 
         x = bypass + x
         x = self.out_balancer(x)
-        x = x.transpose(1, 3)  # (N, W, H, C); need channel dim to be last
-        x = self.out_whiten(x)
-        x = x.transpose(1, 3)  # (N, C, H, W)
+
+        if x.requires_grad:
+            x = x.transpose(1, 3)  # (N, W, H, C); need channel dim to be last
+            x = self.out_whiten(x)
+            x = x.transpose(1, 3)  # (N, C, H, W)
 
         return x
 
@@ -266,6 +266,7 @@ class Conv2dSubsampling(nn.Module):
         # just one convnext layer
         self.convnext = ConvNeXt(layer3_channels, kernel_size=(7, 7))
 
+        # (in_channels-3)//4
         self.out_width = (((in_channels - 1) // 2) - 1) // 2
         self.layer3_channels = layer3_channels
 
@@ -275,9 +276,7 @@ class Conv2dSubsampling(nn.Module):
         # many copies of this extra gradient term.
         self.out_whiten = Whiten(
             num_groups=1,
-            whitening_limit=ScheduledFloat(
-                (0.0, 4.0), (20000.0, 8.0), default=4.0
-            ),
+            whitening_limit=ScheduledFloat((0.0, 4.0), (20000.0, 8.0), default=4.0),
             prob=(0.025, 0.25),
             grad_scale=0.02,
         )
@@ -299,7 +298,7 @@ class Conv2dSubsampling(nn.Module):
             A tensor of shape (batch_size,) containing the number of frames in
 
         Returns:
-          - a tensor of shape (N, ((T-1)//2 - 1)//2, odim)
+          - a tensor of shape (N, (T-7)//2, odim)
           - output lengths, of shape (batch_size,)
         """
         # On entry, x is (N, T, idim)
@@ -310,14 +309,14 @@ class Conv2dSubsampling(nn.Module):
         x = self.conv(x)
         x = self.convnext(x)
 
-        # Now x is of shape (N, odim, ((T-3)//2 - 1)//2, ((idim-1)//2 - 1)//2)
+        # Now x is of shape (N, odim, (T-7)//2, (idim-3)//4)
         b, c, t, f = x.size()
 
         x = x.transpose(1, 2).reshape(b, t, c * f)
-        # now x: (N, ((T-1)//2 - 1))//2, out_width * layer3_channels))
+        # now x: (N, (T-7)//2, out_width * layer3_channels))
 
         x = self.out(x)
-        # Now x is of shape (N, ((T-1)//2 - 1))//2, odim)
+        # Now x is of shape (N, (T-7)//2, odim)
         x = self.out_whiten(x)
         x = self.out_norm(x)
         x = self.dropout(x)
@@ -328,7 +327,7 @@ class Conv2dSubsampling(nn.Module):
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 x_lens = (x_lens - 7) // 2
-        assert x.size(1) == x_lens.max().item()
+        assert x.size(1) == x_lens.max().item(), (x.size(1), x_lens.max())
 
         return x, x_lens
 
@@ -347,7 +346,7 @@ class Conv2dSubsampling(nn.Module):
             A tensor of shape (batch_size,) containing the number of frames in
 
         Returns:
-          - a tensor of shape (N, ((T-1)//2 - 1)//2, odim)
+          - a tensor of shape (N, (T-7)//2, odim)
           - output lengths, of shape (batch_size,)
           - updated cache
         """
@@ -383,7 +382,7 @@ class Conv2dSubsampling(nn.Module):
                 assert self.convnext.padding[0] == 3
                 x_lens = (x_lens - 7) // 2 - 3
 
-        assert x.size(1) == x_lens.max().item()
+        assert x.size(1) == x_lens.max().item(), (x.shape, x_lens.max())
 
         return x, x_lens, cached_left_pad
 
@@ -400,8 +399,8 @@ class Conv2dSubsampling(nn.Module):
         left_pad = self.convnext.padding[0]
         freq = self.out_width
         channels = self.layer3_channels
-        cached_embed_left_pad = torch.zeros(
-            batch_size, channels, left_pad, freq
-        ).to(device)
+        cached_embed_left_pad = torch.zeros(batch_size, channels, left_pad, freq).to(
+            device
+        )
 
         return cached_embed_left_pad

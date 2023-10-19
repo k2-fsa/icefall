@@ -326,41 +326,49 @@ def main():
     encoder = ort.InferenceSession(
         args.encoder_model_filename,
         sess_options=session_opts,
+        providers=["CPUExecutionProvider"],
     )
 
     decoder = ort.InferenceSession(
         args.decoder_model_filename,
         sess_options=session_opts,
+        providers=["CPUExecutionProvider"],
     )
 
     joiner = ort.InferenceSession(
         args.joiner_model_filename,
         sess_options=session_opts,
+        providers=["CPUExecutionProvider"],
     )
 
     joiner_encoder_proj = ort.InferenceSession(
         args.joiner_encoder_proj_model_filename,
         sess_options=session_opts,
+        providers=["CPUExecutionProvider"],
     )
 
     joiner_decoder_proj = ort.InferenceSession(
         args.joiner_decoder_proj_model_filename,
         sess_options=session_opts,
+        providers=["CPUExecutionProvider"],
     )
 
     lconv = ort.InferenceSession(
         args.lconv_filename,
         sess_options=session_opts,
+        providers=["CPUExecutionProvider"],
     )
 
     frame_reducer = ort.InferenceSession(
         args.frame_reducer_filename,
         sess_options=session_opts,
+        providers=["CPUExecutionProvider"],
     )
 
     ctc_output = ort.InferenceSession(
         args.ctc_output_filename,
         sess_options=session_opts,
+        providers=["CPUExecutionProvider"],
     )
 
     sp = spm.SentencePieceProcessor()

@@ -182,7 +182,7 @@ class SPGISpeechAsrDataModule:
         if self.args.enable_musan:
             logging.info("Enable MUSAN")
             transforms.append(
-                CutMix(cuts=cuts_musan, prob=0.5, snr=(10, 20), preserve_id=True)
+                CutMix(cuts=cuts_musan, p=0.5, snr=(10, 20), preserve_id=True)
             )
         else:
             logging.info("Disable MUSAN")
@@ -261,7 +261,6 @@ class SPGISpeechAsrDataModule:
         return train_dl
 
     def valid_dataloaders(self, cuts_valid: CutSet) -> DataLoader:
-
         transforms = []
         if self.args.concatenate_cuts:
             transforms = [

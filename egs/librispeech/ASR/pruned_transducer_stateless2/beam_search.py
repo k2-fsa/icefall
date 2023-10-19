@@ -719,7 +719,7 @@ def greedy_search_batch(
     encoder_out = model.joiner.encoder_proj(packed_encoder_out.data)
 
     offset = 0
-    for (t, batch_size) in enumerate(batch_size_list):
+    for t, batch_size in enumerate(batch_size_list):
         start = offset
         end = offset + batch_size
         current_encoder_out = encoder_out.data[start:end]
@@ -1008,7 +1008,7 @@ def modified_beam_search(
     for i in range(N):
         B[i].add(
             Hypothesis(
-                ys=[blank_id] * context_size,
+                ys=[-1] * (context_size - 1) + [blank_id],
                 log_prob=torch.zeros(1, dtype=torch.float32, device=device),
                 context_state=None if context_graph is None else context_graph.root,
                 timestamp=[],
@@ -1019,7 +1019,7 @@ def modified_beam_search(
 
     offset = 0
     finalized_B = []
-    for (t, batch_size) in enumerate(batch_size_list):
+    for t, batch_size in enumerate(batch_size_list):
         start = offset
         end = offset + batch_size
         current_encoder_out = encoder_out.data[start:end]
@@ -1217,7 +1217,7 @@ def modified_beam_search_lm_rescore(
     for i in range(N):
         B[i].add(
             Hypothesis(
-                ys=[blank_id] * context_size,
+                ys=[-1] * (context_size - 1) + [blank_id],
                 log_prob=torch.zeros(1, dtype=torch.float32, device=device),
                 timestamp=[],
             )
@@ -1227,7 +1227,7 @@ def modified_beam_search_lm_rescore(
 
     offset = 0
     finalized_B = []
-    for (t, batch_size) in enumerate(batch_size_list):
+    for t, batch_size in enumerate(batch_size_list):
         start = offset
         end = offset + batch_size
         current_encoder_out = encoder_out.data[start:end]
@@ -1417,7 +1417,7 @@ def modified_beam_search_lm_rescore_LODR(
     for i in range(N):
         B[i].add(
             Hypothesis(
-                ys=[blank_id] * context_size,
+                ys=[-1] * (context_size - 1) + [blank_id],
                 log_prob=torch.zeros(1, dtype=torch.float32, device=device),
                 timestamp=[],
             )
@@ -1427,7 +1427,7 @@ def modified_beam_search_lm_rescore_LODR(
 
     offset = 0
     finalized_B = []
-    for (t, batch_size) in enumerate(batch_size_list):
+    for t, batch_size in enumerate(batch_size_list):
         start = offset
         end = offset + batch_size
         current_encoder_out = encoder_out.data[start:end]
@@ -1617,7 +1617,7 @@ def _deprecated_modified_beam_search(
     B = HypothesisList()
     B.add(
         Hypothesis(
-            ys=[blank_id] * context_size,
+            ys=[-1] * (context_size - 1) + [blank_id],
             log_prob=torch.zeros(1, dtype=torch.float32, device=device),
             timestamp=[],
         )
@@ -1753,7 +1753,11 @@ def beam_search(
     t = 0
 
     B = HypothesisList()
-    B.add(Hypothesis(ys=[blank_id] * context_size, log_prob=0.0, timestamp=[]))
+    B.add(
+        Hypothesis(
+            ys=[-1] * (context_size - 1) + [blank_id], log_prob=0.0, timestamp=[]
+        )
+    )
 
     max_sym_per_utt = 20000
 
@@ -2265,7 +2269,7 @@ def modified_beam_search_ngram_rescoring(
     for i in range(N):
         B[i].add(
             Hypothesis(
-                ys=[blank_id] * context_size,
+                ys=[-1] * (context_size - 1) + [blank_id],
                 log_prob=torch.zeros(1, dtype=torch.float32, device=device),
                 state_cost=NgramLmStateCost(ngram_lm),
             )
@@ -2385,6 +2389,7 @@ def modified_beam_search_LODR(
     LODR_lm_scale: float,
     LM: LmScorer,
     beam: int = 4,
+    context_graph: Optional[ContextGraph] = None,
 ) -> List[List[int]]:
     """This function implements LODR (https://arxiv.org/abs/2203.16776) with
     `modified_beam_search`. It uses a bi-gram language model as the estimate
@@ -2446,13 +2451,14 @@ def modified_beam_search_LODR(
     for i in range(N):
         B[i].add(
             Hypothesis(
-                ys=[blank_id] * context_size,
+                ys=[-1] * (context_size - 1) + [blank_id],
                 log_prob=torch.zeros(1, dtype=torch.float32, device=device),
                 state=init_states,  # state of the NN LM
                 lm_score=init_score.reshape(-1),
                 state_cost=NgramLmStateCost(
                     LODR_lm
                 ),  # state of the source domain ngram
+                context_state=None if context_graph is None else context_graph.root,
             )
         )
 
@@ -2598,7 +2604,15 @@ def modified_beam_search_LODR(
 
                 hyp_log_prob = topk_log_probs[k]  # get score of current hyp
                 new_token = topk_token_indexes[k]
+
+                context_score = 0
+                new_context_state = None if context_graph is None else hyp.context_state
                 if new_token not in (blank_id, unk_id):
+                    if context_graph is not None:
+                        (
+                            context_score,
+                            new_context_state,
+                        ) = context_graph.forward_one_step(hyp.context_state, new_token)
 
                     ys.append(new_token)
                     state_cost = hyp.state_cost.forward_one_step(new_token)
@@ -2615,6 +2629,7 @@ def modified_beam_search_LODR(
                     hyp_log_prob += (
                         lm_score[new_token] * lm_scale
                         + LODR_lm_scale * current_ngram_score
+                        + context_score
                     )  # add the lm score
 
                     lm_score = scores[count]
@@ -2633,10 +2648,31 @@ def modified_beam_search_LODR(
                     state=state,
                     lm_score=lm_score,
                     state_cost=state_cost,
+                    context_state=new_context_state,
                 )
                 B[i].add(new_hyp)
 
     B = B + finalized_B
+
+    # finalize context_state, if the matched contexts do not reach final state
+    # we need to add the score on the corresponding backoff arc
+    if context_graph is not None:
+        finalized_B = [HypothesisList() for _ in range(len(B))]
+        for i, hyps in enumerate(B):
+            for hyp in list(hyps):
+                context_score, new_context_state = context_graph.finalize(
+                    hyp.context_state
+                )
+                finalized_B[i].add(
+                    Hypothesis(
+                        ys=hyp.ys,
+                        log_prob=hyp.log_prob + context_score,
+                        timestamp=hyp.timestamp,
+                        context_state=new_context_state,
+                    )
+                )
+        B = finalized_B
+
     best_hyps = [b.get_most_probable(length_norm=True) for b in B]
 
     sorted_ans = [h.ys[context_size:] for h in best_hyps]
@@ -2709,7 +2745,7 @@ def modified_beam_search_lm_shallow_fusion(
     for i in range(N):
         B[i].add(
             Hypothesis(
-                ys=[blank_id] * context_size,
+                ys=[-1] * (context_size - 1) + [blank_id],
                 log_prob=torch.zeros(1, dtype=torch.float32, device=device),
                 state=init_states,
                 lm_score=init_score.reshape(-1),
@@ -2721,7 +2757,7 @@ def modified_beam_search_lm_shallow_fusion(
 
     offset = 0
     finalized_B = []
-    for (t, batch_size) in enumerate(batch_size_list):
+    for t, batch_size in enumerate(batch_size_list):
         start = offset
         end = offset + batch_size
         current_encoder_out = encoder_out.data[start:end]  # get batch
@@ -2863,7 +2899,6 @@ def modified_beam_search_lm_shallow_fusion(
                 new_token = topk_token_indexes[k]
                 new_timestamp = hyp.timestamp[:]
                 if new_token not in (blank_id, unk_id):
-
                     ys.append(new_token)
                     new_timestamp.append(t)
 

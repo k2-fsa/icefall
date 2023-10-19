@@ -74,6 +74,7 @@ def test_conv2d_subsampling():
     session = ort.InferenceSession(
         filename,
         sess_options=options,
+        providers=["CPUExecutionProvider"],
     )
 
     input_nodes = session.get_inputs()
@@ -128,6 +129,7 @@ def test_rel_pos():
     session = ort.InferenceSession(
         filename,
         sess_options=options,
+        providers=["CPUExecutionProvider"],
     )
 
     input_nodes = session.get_inputs()
@@ -204,6 +206,7 @@ def test_zipformer_encoder_layer():
     session = ort.InferenceSession(
         filename,
         sess_options=options,
+        providers=["CPUExecutionProvider"],
     )
 
     input_nodes = session.get_inputs()
@@ -265,7 +268,7 @@ def test_zipformer_encoder():
 
     torch.onnx.export(
         encoder,
-        (x),
+        (x, torch.ones(1, dtype=torch.float32)),
         filename,
         verbose=False,
         opset_version=opset_version,
@@ -284,11 +287,13 @@ def test_zipformer_encoder():
     session = ort.InferenceSession(
         filename,
         sess_options=options,
+        providers=["CPUExecutionProvider"],
     )
 
     input_nodes = session.get_inputs()
     inputs = {
         input_nodes[0].name: x.numpy(),
+        input_nodes[1].name: torch.ones(1, dtype=torch.float32).numpy(),
     }
     onnx_y = session.run(["y"], inputs)[0]
     onnx_y = torch.from_numpy(onnx_y)
@@ -337,6 +342,7 @@ def test_zipformer():
     session = ort.InferenceSession(
         filename,
         sess_options=options,
+        providers=["CPUExecutionProvider"],
     )
 
     input_nodes = session.get_inputs()
