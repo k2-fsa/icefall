@@ -1447,7 +1447,7 @@ def get_parameter_groups_with_lrs(
     This is for use with the ScaledAdam optimizers (more recent versions that accept lists of
     named-parameters; we can, if needed, create a version without the names).
 
-    It provides a way to specifiy learning-rate scales inside the module, so that if
+    It provides a way to specify learning-rate scales inside the module, so that if
     any nn.Module in the hierarchy has a floating-point parameter 'lr_scale', it will
     scale the LR of any parameters inside that module or its submodules.  Note: you
     can set module parameters outside the __init__ function, e.g.:
@@ -1607,10 +1607,10 @@ def tokenize_by_bpe_model(
     chars = pattern.split(txt.upper())
     mix_chars = [w for w in chars if len(w.strip()) > 0]
     for ch_or_w in mix_chars:
-        # ch_or_w is a single CJK charater(i.e., "你"), do nothing.
+        # ch_or_w is a single CJK character(i.e., "你"), do nothing.
         if pattern.fullmatch(ch_or_w) is not None:
             tokens.append(ch_or_w)
-        # ch_or_w contains non-CJK charaters(i.e., " IT'S OKAY "),
+        # ch_or_w contains non-CJK characters(i.e., " IT'S OKAY "),
         # encode ch_or_w using bpe_model.
         else:
             for p in sp.encode_as_pieces(ch_or_w):
@@ -1624,7 +1624,7 @@ def tokenize_by_CJK_char(line: str) -> str:
     """
     Tokenize a line of text with CJK char.
 
-    Note: All return charaters will be upper case.
+    Note: All return characters will be upper case.
 
     Example:
       input = "你好世界是 hello world 的中文"
@@ -1917,7 +1917,7 @@ def parse_bpe_timestamps_and_texts(
         A k2.Fsa with best_paths.arcs.num_axes() == 3, i.e.
         containing multiple FSAs, which is expected to be the result
         of k2.shortest_path (otherwise the returned values won't
-        be meaningful). Its attribtutes `labels` and `aux_labels`
+        be meaningful). Its attributes `labels` and `aux_labels`
         are both BPE tokens.
       sp:
         The BPE model.
@@ -2045,7 +2045,7 @@ def parse_fsa_timestamps_and_texts(
 ) -> Tuple[List[Tuple[float, float]], List[List[str]]]:
     """Parse timestamps (in seconds) and texts for given decoded fsa paths.
     Currently it supports two cases:
-    (1) ctc-decoding, the attribtutes `labels` and `aux_labels`
+    (1) ctc-decoding, the attributes `labels` and `aux_labels`
         are both BPE tokens. In this case, sp should be provided.
     (2) HLG-based 1best, the attribtute `labels` is the prediction unit,
         e.g., phone or BPE tokens; attribute `aux_labels` is the word index.
