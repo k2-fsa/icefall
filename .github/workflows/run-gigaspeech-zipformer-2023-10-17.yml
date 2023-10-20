@@ -80,39 +80,6 @@ jobs:
         run: |
           .github/scripts/install-kaldifeat.sh
 
-      - name: Cache LibriSpeech test-clean and test-other datasets
-        id: libri-test-clean-and-test-other-data
-        uses: actions/cache@v2
-        with:
-          path: |
-            ~/tmp/download
-          key: cache-libri-test-clean-and-test-other
-
-      - name: Download LibriSpeech test-clean and test-other
-        if: steps.libri-test-clean-and-test-other-data.outputs.cache-hit != 'true'
-        shell: bash
-        run: |
-          .github/scripts/download-gigaspeech-test-clean-and-test-other-dataset.sh
-
-      - name: Prepare manifests for LibriSpeech test-clean and test-other
-        shell: bash
-        run: |
-          .github/scripts/prepare-gigaspeech-test-clean-and-test-other-manifests.sh
-
-      - name: Cache LibriSpeech test-clean and test-other fbank features
-        id: libri-test-clean-and-test-other-fbank
-        uses: actions/cache@v2
-        with:
-          path: |
-            ~/tmp/fbank-libri
-          key: cache-libri-fbank-test-clean-and-test-other-v2
-
-      - name: Compute fbank for LibriSpeech test-clean and test-other
-        if: steps.libri-test-clean-and-test-other-fbank.outputs.cache-hit != 'true'
-        shell: bash
-        run: |
-          .github/scripts/compute-fbank-gigaspeech-test-clean-and-test-other.sh
-
       - name: Inference with pre-trained model
         shell: bash
         env:
