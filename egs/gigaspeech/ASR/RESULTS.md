@@ -11,6 +11,9 @@ See <https://github.com/k2-fsa/icefall/pull/1254> for more details.
 You can find a pretrained model, training logs, decoding logs, and decoding results at:
 <https://huggingface.co/yfyeung/icefall-asr-gigaspeech-zipformer-2023-10-17>
 
+The tensorboard log for training is available at
+<https://wandb.ai/yifanyeung/icefall-asr-gigaspeech-zipformer-2023-10-20>
+
 You can use <https://github.com/k2-fsa/sherpa> to deploy it.
 
 | decoding method      | test-clean | test-other | comment            |
