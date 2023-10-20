@@ -1,5 +1,6 @@
 # Copyright      2021  Piotr Żelasko
 # Copyright      2022  Xiaomi Corporation     (Author: Mingshuang Luo)
+# Copyright      2023  NVIDIA Corporation     (Author: Wen Ding)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -43,7 +44,6 @@ from torch.utils.data import DataLoader
 
 from icefall.utils import str2bool
 
-
 class _SeedWorkers:
     def __init__(self, seed: int):
         self.seed = seed
@@ -52,7 +52,7 @@ class _SeedWorkers:
         fix_random_seed(self.seed + worker_id)
 
 
-class LibriSpeechAsrDataModule:
+class ICMCAsrDataModule:
     """
     DataModule for k2 ASR experiments.
     It assumes there is always one train and valid dataloader,
@@ -82,20 +82,19 @@ class LibriSpeechAsrDataModule:
             "effective batch sizes, sampling strategies, applied data "
             "augmentations, etc.",
         )
+
         group.add_argument(
-            "--full-libri",
+            "--ihm-only",
             type=str2bool,
             default=True,
-            help="""Used only when --mini-libri is False.When enabled,
-            use 960h LibriSpeech. Otherwise, use 100h subset.""",
+            help="True for only use ihm data for training",
         )
         group.add_argument(
-            "--mini-libri",
+            "--full-data",
             type=str2bool,
             default=False,
-            help="True for mini librispeech",
+            help="True for all data",
         )
-
         group.add_argument(
             "--manifest-dir",
             type=Path,
@@ -402,74 +401,50 @@ class LibriSpeechAsrDataModule:
         return test_dl
 
     @lru_cache()
-    def train_clean_5_cuts(self) -> CutSet:
-        logging.info("mini_librispeech: About to get train-clean-5 cuts")
+    def train_ihm_cuts(self) -> CutSet:
+        logging.info("About to get train-ihm cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_train-clean-5.jsonl.gz"
+            self.args.manifest_dir / "cuts_train_ihm.jsonl.gz"
         )
 
     @lru_cache()
-    def train_clean_100_cuts(self) -> CutSet:
-        logging.info("About to get train-clean-100 cuts")
+    def train_ihm_rvb_cuts(self) -> CutSet:
+        logging.info("About to get train-ihm-rvb cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_train-clean-100.jsonl.gz"
+            self.args.manifest_dir / "cuts_train_ihm_rvb.jsonl.gz"
         )
 
     @lru_cache()
-    def train_clean_360_cuts(self) -> CutSet:
-        logging.info("About to get train-clean-360 cuts")
+    def train_shm_cuts(self) -> CutSet:
+        logging.info("About to get train-shm cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_train-clean-360.jsonl.gz"
+            self.args.manifest_dir / "cuts_train_sdm.jsonl.gz"
         )
 
     @lru_cache()
-    def train_other_500_cuts(self) -> CutSet:
-        logging.info("About to get train-other-500 cuts")
+    def dev_ihm_cuts(self) -> CutSet:
+        logging.info("About to get dev-ihm cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_train-other-500.jsonl.gz"
+            self.args.manifest_dir / "cuts_dev_ihm.jsonl.gz"
         )
 
     @lru_cache()
-    def train_all_shuf_cuts(self) -> CutSet:
-        logging.info(
-            "About to get the shuffled train-clean-100, \
-            train-clean-360 and train-other-500 cuts"
-        )
-        return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_train-all-shuf.jsonl.gz"
-        )
-
-    @lru_cache()
-    def dev_clean_2_cuts(self) -> CutSet:
-        logging.info("mini_librispeech: About to get dev-clean-2 cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_dev-clean-2.jsonl.gz"
-        )
-
-    @lru_cache()
-    def dev_clean_cuts(self) -> CutSet:
-        logging.info("About to get dev-clean cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_dev-clean.jsonl.gz"
-        )
-
-    @lru_cache()
-    def dev_other_cuts(self) -> CutSet:
+    def dev_shm_cuts(self) -> CutSet:
         logging.info("About to get dev-other cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_dev-other.jsonl.gz"
+            self.args.manifest_dir / "cuts_dev_sdm.jsonl.gz"
         )
 
-    @lru_cache()
-    def test_clean_cuts(self) -> CutSet:
-        logging.info("About to get test-clean cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_test-clean.jsonl.gz"
-        )
+    # @lru_cache()
+    # def test_clean_cuts(self) -> CutSet:
+    #     logging.info("About to get test-clean cuts")
+    #     return load_manifest_lazy(
+    #         self.args.manifest_dir / "librispeech_cuts_test-clean.jsonl.gz"
+    #     )
 
-    @lru_cache()
-    def test_other_cuts(self) -> CutSet:
-        logging.info("About to get test-other cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_test-other.jsonl.gz"
-        )
+    # @lru_cache()
+    # def test_other_cuts(self) -> CutSet:
+    #     logging.info("About to get test-other cuts")
+    #     return load_manifest_lazy(
+    #         self.args.manifest_dir / "librispeech_cuts_test-other.jsonl.gz"
+    #     )

@@ -25,13 +25,14 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
 # For non-streaming model training:
 ./zipformer/train.py \
-  --world-size 4 \
+  --world-size 1 \
   --num-epochs 30 \
   --start-epoch 1 \
-  --use-fp16 1 \
   --exp-dir zipformer/exp \
-  --full-libri 1 \
-  --max-duration 1000
+  --manifest-dir '/mnt/samsung-t7/yuekai/asr/icefall-icmcasr/egs/icmcasr/ASR/data/manifests' \
+  --max-duration 1000 \
+  --bpe-model /raid/wend/asr/icmc/multi_zh/icefall-asr-multi-zh-hans-zipformer-2023-9-2/data/lang_bpe_2000/bpe.model
+  
 
 # For streaming model training:
 ./zipformer/train.py \
@@ -65,7 +66,7 @@ import sentencepiece as spm
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
-from asr_datamodule import LibriSpeechAsrDataModule
+from asr_datamodule import ICMCAsrDataModule
 from decoder import Decoder
 from joiner import Joiner
 from lhotse.cut import Cut
@@ -1172,12 +1173,12 @@ def run(rank, world_size, args):
     if params.inf_check:
         register_inf_check_hooks(model)
 
-    librispeech = LibriSpeechAsrDataModule(args)
+    icmc = ICMCAsrDataModule(args)
 
-    train_cuts = librispeech.train_clean_100_cuts()
-    if params.full_libri:
-        train_cuts += librispeech.train_clean_360_cuts()
-        train_cuts += librispeech.train_other_500_cuts()
+    train_cuts = icmc.train_ihm_cuts()
+    if params.full_data:
+        train_cuts += icmc.train_ihm_rvb_cuts()
+        train_cuts += icmc.train_shm_cuts()
 
     def remove_short_and_long_utt(c: Cut):
         # Keep only utterances with duration between 1 second and 20 seconds
@@ -1225,13 +1226,13 @@ def run(rank, world_size, args):
     else:
         sampler_state_dict = None
 
-    train_dl = librispeech.train_dataloaders(
+    train_dl = icmc.train_dataloaders(
         train_cuts, sampler_state_dict=sampler_state_dict
     )
 
-    valid_cuts = librispeech.dev_clean_cuts()
-    valid_cuts += librispeech.dev_other_cuts()
-    valid_dl = librispeech.valid_dataloaders(valid_cuts)
+    valid_cuts = icmc.dev_ihm_cuts()
+    # valid_cuts += librispeech.dev_other_cuts()
+    valid_dl = icmc.valid_dataloaders(valid_cuts)
 
     if not params.print_diagnostics:
         scan_pessimistic_batches_for_oom(
@@ -1370,7 +1371,7 @@ def scan_pessimistic_batches_for_oom(
 
 def main():
     parser = get_parser()
-    LibriSpeechAsrDataModule.add_arguments(parser)
+    ICMCAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 
