@@ -30,6 +30,9 @@ jobs:
               uname -a
               cat /etc/*release
 
+              ls -lh /usr/local/
+              ls -lh /usr/local/cuda*
+
               nvcc --version
 
               ls -lh /usr/local/cuda-*/compat/*
