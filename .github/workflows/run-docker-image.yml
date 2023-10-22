@@ -30,6 +30,8 @@ jobs:
               uname -a
               cat /etc/*release
 
+              find / -name libcuda* 2>/dev/null
+
               ls -lh /usr/local/
               ls -lh /usr/local/cuda*
 
