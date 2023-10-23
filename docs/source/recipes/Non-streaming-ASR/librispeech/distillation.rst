@@ -47,7 +47,7 @@ The data preparation contains several stages, you can use the following two
 options:
 
   - ``--stage``
-  - ``--stop-stage``
+  - ``--stop_stage``
 
 to control which stage(s) should be run. By default, all stages are executed.
 
@@ -56,8 +56,8 @@ For example,
 .. code-block:: bash
 
   $ cd egs/librispeech/ASR
-  $ ./prepare.sh --stage 0 --stop-stage 0 # run only stage 0
-  $ ./prepare.sh --stage 2 --stop-stage 5 # run from stage 2 to stage 5
+  $ ./prepare.sh --stage 0 --stop_stage 0 # run only stage 0
+  $ ./prepare.sh --stage 2 --stop_stage 5 # run from stage 2 to stage 5
 
 .. HINT::
 
@@ -108,15 +108,15 @@ As usual, you can control the stages you want to run by specifying the following
 two options:
 
   - ``--stage``
-  - ``--stop-stage``
+  - ``--stop_stage``
 
 For example,
 
 .. code-block:: bash
 
   $ cd egs/librispeech/ASR
-  $ ./distillation_with_hubert.sh --stage 0 --stop-stage 0 # run only stage 0
-  $ ./distillation_with_hubert.sh --stage 2 --stop-stage 4 # run from stage 2 to stage 5
+  $ ./distillation_with_hubert.sh --stage 0 --stop_stage 0 # run only stage 0
+  $ ./distillation_with_hubert.sh --stage 2 --stop_stage 4 # run from stage 2 to stage 5
 
 Here are a few options in `./distillation_with_hubert.sh <https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/distillation_with_hubert.sh>`_
 you need to know before you proceed.
@@ -134,7 +134,7 @@ and prepares MVQ-augmented training manifests.
 
 .. code-block:: bash
 
-  $ ./distillation_with_hubert.sh --stage 2 --stop-stage 2 # run only stage 2
+  $ ./distillation_with_hubert.sh --stage 2 --stop_stage 2 # run only stage 2
 
 Please see the
 following screenshot for the output of an example execution.
@@ -172,7 +172,7 @@ To perform training, please run stage 3 by executing the following command.
 
 .. code-block:: bash
 
-  $ ./prepare.sh --stage 3 --stop-stage 3 # run MVQ training
+  $ ./prepare.sh --stage 3 --stop_stage 3 # run MVQ training
 
 Here is the code snippet for training:
 

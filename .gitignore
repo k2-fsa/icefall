@@ -34,3 +34,5 @@ node_modules
 *.param
 *.bin
 .DS_Store
+*.fst
+*.arpa

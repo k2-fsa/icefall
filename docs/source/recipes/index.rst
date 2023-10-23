@@ -15,3 +15,4 @@ We may add recipes for other tasks as well in the future.
 
    Non-streaming-ASR/index
    Streaming-ASR/index
+   RNN-LM/index

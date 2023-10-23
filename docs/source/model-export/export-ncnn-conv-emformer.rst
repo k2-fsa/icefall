@@ -125,7 +125,7 @@ Python code. We have also set up ``PATH`` so that you can use
 .. caution::
 
   Please don't use `<https://github.com/tencent/ncnn>`_.
-  We have made some modifications to the offical `ncnn`_.
+  We have made some modifications to the official `ncnn`_.
 
   We will synchronize `<https://github.com/csukuangfj/ncnn>`_ periodically
   with the official one.

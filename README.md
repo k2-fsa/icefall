@@ -29,6 +29,7 @@ We provide the following recipes:
   - [yesno][yesno]
   - [LibriSpeech][librispeech]
   - [GigaSpeech][gigaspeech]
+  - [AMI][ami]
   - [Aishell][aishell]
   - [Aishell2][aishell2]
   - [Aishell4][aishell4]
@@ -37,6 +38,7 @@ We provide the following recipes:
   - [Aidatatang_200zh][aidatatang_200zh]
   - [WenetSpeech][wenetspeech]
   - [Alimeeting][alimeeting]
+  - [Switchboard][swbd]
   - [TAL_CSASR][tal_csasr]
 
 ### yesno
@@ -118,9 +120,9 @@ We provide a Colab notebook to run a pre-trained transducer conformer + stateles
 
 | Encoder         | Params | test-clean | test-other |
 |-----------------|--------|------------|------------|
-| zipformer       | 65.5M  | 2.21       | 4.91       |
-| zipformer-small | 23.2M  | 2.46       | 5.83       |
-| zipformer-large | 148.4M | 2.11       | 4.77       |
+| zipformer       | 65.5M  | 2.21       | 4.79       |
+| zipformer-small | 23.2M  | 2.42       | 5.73       |
+| zipformer-large | 148.4M | 2.06       | 4.63       |
 
 Note: No auxiliary losses are used in the training and no LMs are used
 in the decoding.
@@ -146,8 +148,11 @@ in the decoding.
 
 ### GigaSpeech
 
-We provide two models for this recipe: [Conformer CTC model][GigaSpeech_conformer_ctc]
-and [Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss][GigaSpeech_pruned_transducer_stateless2].
+We provide three models for this recipe:
+
+- [Conformer CTC model][GigaSpeech_conformer_ctc]
+- [Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss][GigaSpeech_pruned_transducer_stateless2].
+- [Transducer: Zipformer encoder + Embedding decoder][GigaSpeech_zipformer]
 
 #### Conformer CTC
 
@@ -162,6 +167,14 @@ and [Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned R
 |    greedy search     | 10.51 | 10.73 |
 |   fast beam search   | 10.50 | 10.69 |
 | modified beam search | 10.40 | 10.51 |
+
+#### Transducer: Zipformer encoder + Embedding decoder
+
+|                      |  Dev  | Test  |
+|----------------------|-------|-------|
+|    greedy search     | 10.31 | 10.50 |
+|   fast beam search   | 10.26 | 10.48 |
+| modified beam search | 10.25 | 10.38 |
 
 
 ### Aishell
@@ -376,6 +389,7 @@ Please see: [![Open In Colab](https://colab.research.google.com/assets/colab-bad
 [TED-LIUM3_pruned_transducer_stateless]: egs/tedlium3/ASR/pruned_transducer_stateless
 [GigaSpeech_conformer_ctc]: egs/gigaspeech/ASR/conformer_ctc
 [GigaSpeech_pruned_transducer_stateless2]: egs/gigaspeech/ASR/pruned_transducer_stateless2
+[GigaSpeech_zipformer]: egs/gigaspeech/ASR/zipformer
 [Aidatatang_200zh_pruned_transducer_stateless2]: egs/aidatatang_200zh/ASR/pruned_transducer_stateless2
 [WenetSpeech_pruned_transducer_stateless2]: egs/wenetspeech/ASR/pruned_transducer_stateless2
 [WenetSpeech_pruned_transducer_stateless5]: egs/wenetspeech/ASR/pruned_transducer_stateless5
@@ -393,4 +407,6 @@ Please see: [![Open In Colab](https://colab.research.google.com/assets/colab-bad
 [wenetspeech]: egs/wenetspeech/ASR
 [alimeeting]: egs/alimeeting/ASR
 [tal_csasr]: egs/tal_csasr/ASR
+[ami]: egs/ami
+[swbd]: egs/swbd/ASR
 [k2]: https://github.com/k2-fsa/k2
