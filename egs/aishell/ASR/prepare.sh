@@ -243,7 +243,7 @@ if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
       -lm data/lm/3-gram.unpruned.arpa
   fi
 
-  # We assume you have install kaldilm, if not, please install
+  # We assume you have installed kaldilm, if not, please install
   # it using: pip install kaldilm
   if [ ! -f data/lm/G_3_gram_char.fst.txt ]; then
     # It is used in building HLG

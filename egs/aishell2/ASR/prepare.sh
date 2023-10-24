@@ -159,7 +159,7 @@ fi
 
 if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
   log "Stage 6: Prepare G"
-  # We assume you have install kaldilm, if not, please install
+  # We assume you have installed kaldilm, if not, please install
   # it using: pip install kaldilm
 
   if [ ! -f ${lang_char_dir}/3-gram.unpruned.arpa ]; then
