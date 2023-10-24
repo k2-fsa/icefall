@@ -64,7 +64,8 @@ class SluDataModule(DataModule):
         group.add_argument(
             "--feature-dir",
             type=Path,
-            default=Path("data/fbank"),
+            # default=Path("data/norm/adv/percentage5_snr40/fbanks"),
+            default=Path("data/fbanks"),
             help="Path to directory with train/test cuts.",
         )
         group.add_argument(

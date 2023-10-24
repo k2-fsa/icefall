@@ -31,9 +31,10 @@ from lhotse.utils import fix_random_seed
 from torch import Tensor
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.nn.utils import clip_grad_norm_
-from torch.utils.tensorboard import SummaryWriter
+# from torch.utils.tensorboard import SummaryWriter
 from transducer.decoder import Decoder
 from transducer.encoder import Tdnn
+from transducer.conformer import Conformer
 from transducer.joiner import Joiner
 from transducer.model import Transducer
 
@@ -105,7 +106,7 @@ def get_parser():
     parser.add_argument(
         "--num-epochs",
         type=int,
-        default=10000,
+        default=7,
         help="Number of epochs to train.",
     )
 
@@ -191,7 +192,7 @@ def get_params() -> AttributeDict:
     """
     params = AttributeDict(
         {
-            "lr": 1e-3,
+            "lr": 1e-4,
             "feature_dim": 23,
             "weight_decay": 1e-6,
             "start_epoch": 0,
@@ -202,7 +203,7 @@ def get_params() -> AttributeDict:
             "batch_idx_train": 0,
             "log_interval": 100,
             "reset_interval": 20,
-            "valid_interval": 300,
+            "valid_interval": 3000,
             "exp_dir": Path("transducer/exp"),
             "lang_dir": Path("data/lm/frames"),
             # encoder/decoder params
@@ -403,7 +404,7 @@ def train_one_epoch(
     train_dl: torch.utils.data.DataLoader,
     valid_dl: torch.utils.data.DataLoader,
     word2ids,
-    tb_writer: Optional[SummaryWriter] = None,
+    tb_writer: None,
     world_size: int = 1,
 ) -> None:
     """Train the model for one epoch.
@@ -491,7 +492,11 @@ def train_one_epoch(
 
 
 def get_transducer_model(params: AttributeDict):
-    encoder = Tdnn(
+    # encoder = Tdnn(
+    #     num_features=params.feature_dim,
+    #     output_dim=params.hidden_dim,
+    # )
+    encoder = Conformer(
         num_features=params.feature_dim,
         output_dim=params.hidden_dim,
     )
@@ -537,10 +542,11 @@ def run(rank, world_size, args):
     logging.info("Training started")
     logging.info(params)
 
-    if args.tensorboard and rank == 0:
-        tb_writer = SummaryWriter(log_dir=f"{params.exp_dir}/tensorboard")
-    else:
-        tb_writer = None
+    # if args.tensorboard and rank == 0:
+    #     tb_writer = SummaryWriter(log_dir=f"{params.exp_dir}/tensorboard")
+    # else:
+    #     tb_writer = None
+    tb_writer = None
 
     if torch.cuda.is_available():
         device = torch.device("cuda", rank)

@@ -26,6 +26,7 @@ from asr_datamodule import SluDataModule
 from transducer.beam_search import greedy_search
 from transducer.decoder import Decoder
 from transducer.encoder import Tdnn
+from transducer.conformer import Conformer
 from transducer.joiner import Joiner
 from transducer.model import Transducer
 
@@ -61,14 +62,14 @@ def get_parser():
     parser.add_argument(
         "--epoch",
         type=int,
-        default=3592,
+        default=0,
         help="It specifies the checkpoint to use for decoding."
         "Note: Epoch counts from 0.",
     )
     parser.add_argument(
         "--avg",
         type=int,
-        default=20,
+        default=1,
         help="Number of checkpoints to average. Automatically select "
         "consecutive checkpoints before the checkpoint specified by "
         "'--epoch'. ",
@@ -265,7 +266,11 @@ def save_results(
 
 
 def get_transducer_model(params: AttributeDict):
-    encoder = Tdnn(
+    # encoder = Tdnn(
+    #     num_features=params.feature_dim,
+    #     output_dim=params.hidden_dim,
+    # )
+    encoder = Conformer(
         num_features=params.feature_dim,
         output_dim=params.hidden_dim,
     )
