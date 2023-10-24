@@ -237,7 +237,7 @@ fi
 if [ $stage -le 17 ] && [ $stop_stage -ge 17 ]; then
   log "Stage 17: Prepare G"
   # It will take about 20 minutes.
-  # We assume you have install kaldilm, if not, please install
+  # We assume you have installed kaldilm, if not, please install
   # it using: pip install kaldilm
   if [ ! -f $lang_char_dir/3-gram.unpruned.arpa ]; then
     python3 ./shared/make_kn_lm.py \

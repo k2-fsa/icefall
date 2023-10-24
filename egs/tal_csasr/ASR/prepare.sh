@@ -150,7 +150,7 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   fi
 
   # Prepare words.txt
-  # We assume you have install jieba, if not, please install
+  # We assume you have installed jieba, if not, please install
   # it using: pip install jieba
   if [ ! -f $lang_char_dir/words.txt ]; then
     python -m jieba $lang_char_dir/text | sed 's/\///g;s/\s\+/ /g' > $lang_char_dir/text.seg
