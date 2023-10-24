@@ -8,6 +8,7 @@ set -eou pipefail
 nj=15
 stage=-1
 stop_stage=11
+perturb_speed=true
 
 # We assume dl_dir (download dir) contains the following
 # directories and files. If not, they will be downloaded
@@ -114,7 +115,7 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   log "Stage 3: Compute fbank for aishell"
   if [ ! -f data/fbank/.aishell.done ]; then
     mkdir -p data/fbank
-    ./local/compute_fbank_aishell.py --perturb-speed True
+    ./local/compute_fbank_aishell.py --perturb-speed ${perturb_speed}
     touch data/fbank/.aishell.done
   fi
 fi
