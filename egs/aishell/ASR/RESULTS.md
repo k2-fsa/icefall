@@ -143,7 +143,7 @@ for m in greedy_search modified_beam_search fast_beam_search ; do
   ./zipformer/decode.py \
     --epoch 56 \
     --avg 23 \
-    --exp-dir ./zipformer/exp-small \
+    --exp-dir ./zipformer/exp-large \
     --lang-dir data/lang_char \
     --context-size 1 \
     --decoding-method $m \
