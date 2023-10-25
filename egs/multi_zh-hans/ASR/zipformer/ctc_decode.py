@@ -379,7 +379,8 @@ def decode_dataset(
             this_batch = []
             assert len(hyps) == len(texts)
             for cut_id, hyp_words, ref_text in zip(cut_ids, hyps, texts):
-                ref_words = ref_text.split()
+                ref_words = list(ref_text.replace(" ", ""))
+                hyp_words = list("".join(hyp_words))
                 this_batch.append((cut_id, ref_words, hyp_words))
 
             results[name].extend(this_batch)
