@@ -123,7 +123,7 @@ We provide a Colab notebook to run a pre-trained transducer conformer + stateles
 | zipformer       | 65.5M  | 2.21       | 4.79       | 50      | 4 32G-V100 |
 | zipformer-small | 23.2M  | 2.42       | 5.73       | 50      | 2 32G-V100 |
 | zipformer-large | 148.4M | 2.06       | 4.63       | 50      | 4 32G-V100 |
-| zipformer-large | 148.4M | 2.00       | 4.38       | 174     | 4 80G-A100 |
+| zipformer-large | 148.4M | 2.00       | 4.38       | 174     | 8 80G-A100 |
 
 Note: No auxiliary losses are used in the training and no LMs are used
 in the decoding.
