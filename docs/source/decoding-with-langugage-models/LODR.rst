@@ -56,7 +56,7 @@ during decoding for transducer model:
     \lambda_1 \log p_{\text{Target LM}}\left(y_u|\mathit{x},y_{1:u-1}\right) -
     \lambda_2 \log p_{\text{bi-gram}}\left(y_u|\mathit{x},y_{1:u-1}\right)
 
-In LODR, an additional bi-gram LM estimated on the source domain (e.g training corpus) is required. Comared to DR,
+In LODR, an additional bi-gram LM estimated on the source domain (e.g training corpus) is required. Compared to DR,
 the only difference lies in the choice of source domain LM. According to the original `paper <https://arxiv.org/abs/2203.16776>`_,
 LODR achieves similar performance compared DR in both intra-domain and cross-domain settings.
 As a bi-gram is much faster to evaluate, LODR is usually much faster.

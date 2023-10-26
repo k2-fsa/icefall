@@ -158,7 +158,7 @@ class Conformer(EncoderInterface):
         if not is_jit_tracing():
             assert x.size(0) == lengths.max().item()
 
-        src_key_padding_mask = make_pad_mask(lengths)
+        src_key_padding_mask = make_pad_mask(lengths, x.size(0))
 
         if self.dynamic_chunk_training:
             assert (

@@ -1,7 +1,11 @@
 
 # Introduction
 
-This recipe includes some different ASR models trained with Aishell4 (including S, M and L three subsets).
+This recipe contains some various ASR models trained with Aishell4 (including S, M and L three subsets).
+
+The AISHELL-4 is a sizable real-recorded Mandarin speech dataset collected by 8-channel circular microphone array for speech processing in conference scenarios. The dataset consists of 211 recorded meeting sessions, each containing 4 to 8 speakers, with a total length of 120 hours. This dataset aims to bridge the advanced research on multi-speaker processing and the practical application scenario in three aspects. With real recorded meetings, AISHELL-4 provides realistic acoustics and rich natural speech characteristics in conversation such as short pause, speech overlap, quick speaker turn, noise, etc. Meanwhile, the accurate transcription and speaker voice activity are provided for each meeting in AISHELL-4. This allows the researchers to explore different aspects in meeting processing, ranging from individual tasks such as speech front-end processing, speech recognition and speaker diarization, to multi-modality modeling and joint optimization of relevant tasks. 
+
+(From [Open Speech and Language Resources](https://www.openslr.org/111/))
 
 [./RESULTS.md](./RESULTS.md) contains the latest results.
 
