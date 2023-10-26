@@ -228,7 +228,7 @@ def main():
     params.update(vars(args))
 
     sp = spm.SentencePieceProcessor()
-    sp.load(params.lang_dir + '/bpe.model')
+    sp.load(params.lang_dir + "/bpe.model")
 
     # <blk> is defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")

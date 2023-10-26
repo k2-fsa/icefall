@@ -78,9 +78,12 @@ from pathlib import Path
 
 import sentencepiece as spm
 import torch
-from icefall.checkpoint import (average_checkpoints,
-                                average_checkpoints_with_averaged_model,
-                                find_checkpoints, load_checkpoint)
+from icefall.checkpoint import (
+    average_checkpoints,
+    average_checkpoints_with_averaged_model,
+    find_checkpoints,
+    load_checkpoint,
+)
 from icefall.lexicon import UniqLexicon
 from icefall.utils import str2bool
 from train import add_model_arguments, get_params, get_transducer_model
@@ -188,7 +191,7 @@ def main():
 
     if "lang_bpe" in str(params.lang_dir):
         sp = spm.SentencePieceProcessor()
-        sp.load(params.lang_dir + '/bpe.model')
+        sp.load(params.lang_dir + "/bpe.model")
         # <blk> is defined in local/train_bpe_model.py
         params.blank_id = sp.piece_to_id("<blk>")
         params.vocab_size = sp.get_piece_size()

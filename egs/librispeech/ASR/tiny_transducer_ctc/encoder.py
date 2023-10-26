@@ -26,7 +26,7 @@ from torch import Tensor, nn
 
 class Conv1dNet(EncoderInterface):
     """
-    1D Convolution network with causal squeeze and excitation 
+    1D Convolution network with causal squeeze and excitation
     module and optional skip connections.
 
     Latency: 80ms + (conv_layers+1) // 2 * 40ms, assuming 10ms stride.
@@ -34,11 +34,11 @@ class Conv1dNet(EncoderInterface):
     Args:
         output_dim (int): Number of output channels of the last layer.
         input_dim (int): Number of input features
-        conv_layers (int): Number of convolution layers, 
+        conv_layers (int): Number of convolution layers,
         excluding the subsampling layers.
-        channels (int): Number of output channels for each layer, 
+        channels (int): Number of output channels for each layer,
         except the last layer.
-        subsampling_factor (int): The subsampling factor for the model. 
+        subsampling_factor (int): The subsampling factor for the model.
         skip_add (bool): Whether to use skip connection for each convolution layer.
         dscnn (bool): Whether to use depthwise-separated convolution.
         activation (str): Activation function type.
@@ -53,7 +53,7 @@ class Conv1dNet(EncoderInterface):
         subsampling_factor: int = 4,
         skip_add: bool = False,
         dscnn: bool = True,
-        activation: str = 'relu',
+        activation: str = "relu",
     ) -> None:
         super().__init__()
         assert subsampling_factor == 4, "Only support subsampling = 4"
@@ -62,10 +62,12 @@ class Conv1dNet(EncoderInterface):
         self.skip_add = skip_add
         # 80ms latency for subsample_layer
         self.subsample_layer = nn.Sequential(
-            conv1d_bn_block(input_dim, channels, 9,
-                            stride=2, activation=activation, dscnn=dscnn),
-            conv1d_bn_block(channels, channels, 5,
-                            stride=2, activation=activation, dscnn=dscnn),
+            conv1d_bn_block(
+                input_dim, channels, 9, stride=2, activation=activation, dscnn=dscnn
+            ),
+            conv1d_bn_block(
+                channels, channels, 5, stride=2, activation=activation, dscnn=dscnn
+            ),
         )
 
         self.conv_blocks = nn.ModuleList()
@@ -82,13 +84,15 @@ class Conv1dNet(EncoderInterface):
                         3,
                         activation=activation,
                         dscnn=dscnn,
-                        causal=ly % 2),
-                    CausalSqueezeExcite1d(cout[ly], 16, 30)
+                        causal=ly % 2,
+                    ),
+                    CausalSqueezeExcite1d(cout[ly], 16, 30),
                 )
             )
 
     def forward(
-        self, x: torch.Tensor,
+        self,
+        x: torch.Tensor,
         x_lens: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
@@ -104,24 +108,25 @@ class Conv1dNet(EncoderInterface):
             - lengths, a tensor of shape (batch_size,) containing the number
               of frames in `embeddings` before padding.
         """
-        x = x.permute(0, 2, 1)      # (N, T, C) -> (N, C, T)
+        x = x.permute(0, 2, 1)  # (N, T, C) -> (N, C, T)
         x = self.subsample_layer(x)
         for idx, layer in enumerate(self.conv_blocks):
-            if self.skip_add and 0 < idx < self.conv_layers-1:
+            if self.skip_add and 0 < idx < self.conv_layers - 1:
                 x = layer(x) + x
             else:
                 x = layer(x)
-        x = x.permute(0, 2, 1)      # (N, C, T) -> (N, T, C)
+        x = x.permute(0, 2, 1)  # (N, C, T) -> (N, T, C)
         lengths = x_lens >> 2
         return x, lengths
 
 
-def get_activation(name: str,
-                   channels: int,
-                   channel_dim: int = -1,
-                   min_val: int = 0,
-                   max_val: int = 1,
-                   ) -> nn.Module:
+def get_activation(
+    name: str,
+    channels: int,
+    channel_dim: int = -1,
+    min_val: int = 0,
+    max_val: int = 1,
+) -> nn.Module:
     """
     Get activation function from name in string.
 
@@ -140,44 +145,42 @@ def get_activation(name: str,
     """
     act_layer = nn.Identity()
     name = name.lower()
-    if name == 'prelu':
+    if name == "prelu":
         act_layer = nn.PReLU(channels)
-    elif name == 'relu':
+    elif name == "relu":
         act_layer = nn.ReLU()
-    elif name == 'relu6':
+    elif name == "relu6":
         act_layer = nn.ReLU6()
-    elif name == 'hardtanh':
+    elif name == "hardtanh":
         act_layer = nn.Hardtanh(min_val, max_val)
-    elif name in ['swish', 'silu']:
+    elif name in ["swish", "silu"]:
         act_layer = nn.SiLU()
-    elif name == 'elu':
+    elif name == "elu":
         act_layer = nn.ELU()
-    elif name == 'doubleswish':
+    elif name == "doubleswish":
         act_layer = nn.Sequential(
-            ActivationBalancer(
-                num_channels=channels,
-                channel_dim=channel_dim),
+            ActivationBalancer(num_channels=channels, channel_dim=channel_dim),
             DoubleSwish(),
         )
-    elif name == '':
+    elif name == "":
         act_layer = nn.Identity()
     else:
-        raise Exception(f'Unknown activation function: {name}')
+        raise Exception(f"Unknown activation function: {name}")
 
     return act_layer
 
 
 class CausalSqueezeExcite1d(nn.Module):
     """
-    Causal squeeze and excitation module with input and output shape 
-    (batch, channels, time). The global average pooling in the original 
+    Causal squeeze and excitation module with input and output shape
+    (batch, channels, time). The global average pooling in the original
     SE module is replaced by a causal filter, so
-    the layer does not introduce any algorithmic latency. 
+    the layer does not introduce any algorithmic latency.
 
     Args:
         channels (int): Number of channels
         reduction (int): channel reduction rate
-        context_window (int): Context window size for the moving average operation. 
+        context_window (int): Context window size for the moving average operation.
         For EMA, the smoothing factor is 1 / context_window.
     """
 
@@ -205,8 +208,8 @@ class CausalSqueezeExcite1d(nn.Module):
         self.ema_matrix_size = 0
 
     def _precompute_ema_matrix(self, N: int, device: torch.device):
-        a = 1.0 / self.context_window   # smoothing factor
-        w = [[(1-a)**k * a for k in range(n, n-N, -1)] for n in range(N)]
+        a = 1.0 / self.context_window  # smoothing factor
+        w = [[(1 - a) ** k * a for k in range(n, n - N, -1)] for n in range(N)]
         w = torch.tensor(w).to(device).tril()
         w[:, 0] *= self.context_window
         self.ema_matrix = w.T
@@ -218,8 +221,8 @@ class CausalSqueezeExcite1d(nn.Module):
             y[t] = (1-a) * y[t-1] + a * x[t]
         where a = 1 / self.context_window is the smoothing factor.
 
-        For training, the iterative version is too slow. A better way is 
-        to expand y[t] as a function of x[0..t] only and use matrix-vector multiplication. 
+        For training, the iterative version is too slow. A better way is
+        to expand y[t] as a function of x[0..t] only and use matrix-vector multiplication.
         The weight matrix can be precomputed if the smoothing factor is fixed.
         """
         if self.training:
@@ -234,29 +237,29 @@ class CausalSqueezeExcite1d(nn.Module):
             y = torch.empty_like(x)
             y[:, :, 0] = x[:, :, 0]
             for t in range(1, y.shape[-1]):
-                y[:, :, t] = (1-a) * y[:, :, t-1] + a * x[:, :, t]
+                y[:, :, t] = (1 - a) * y[:, :, t - 1] + a * x[:, :, t]
         return y
 
     def moving_avg(self, x: Tensor) -> Tensor:
         """
-        Simple moving average with context_window as window size. 
+        Simple moving average with context_window as window size.
         """
         y = torch.empty_like(x)
         k = min(x.shape[2], self.context_window)
-        w = [[1/n] * n + [0] * (k-n-1) for n in range(1, k)]
+        w = [[1 / n] * n + [0] * (k - n - 1) for n in range(1, k)]
         w = torch.tensor(w, device=x.device)
-        y[:, :, :k-1] = torch.matmul(x[:, :, :k-1], w.T)
-        y[:, :, k-1:] = F.avg_pool1d(x, k, 1)
+        y[:, :, : k - 1] = torch.matmul(x[:, :, : k - 1], w.T)
+        y[:, :, k - 1 :] = F.avg_pool1d(x, k, 1)
         return y
 
     def forward(self, x: Tensor) -> Tensor:
 
         assert len(x.shape) == 3, "Input is not a 3D tensor!"
         y = self.exponential_moving_avg(x)
-        y = y.permute(0, 2, 1)          # make channel last for squeeze op
+        y = y.permute(0, 2, 1)  # make channel last for squeeze op
         y = self.act1(self.linear1(y))
         y = self.act2(self.linear2(y))
-        y = y.permute(0, 2, 1)          # back to original shape
+        y = y.permute(0, 2, 1)  # back to original shape
         y = x * y
         return y
 
@@ -267,12 +270,12 @@ def conv1d_bn_block(
     kernel_size: int = 3,
     stride: int = 1,
     dilation: int = 1,
-    activation: str = 'relu',
+    activation: str = "relu",
     dscnn: bool = False,
     causal: bool = False,
 ) -> nn.Sequential:
     """
-    Conv1d - batchnorm - activation block. 
+    Conv1d - batchnorm - activation block.
     If kernel size is even, output length = input length + 1.
     Otherwise, output and input lengths are equal.
 
@@ -296,16 +299,19 @@ def conv1d_bn_block(
                 stride=stride,
                 dilation=dilation,
                 groups=in_channels,
-                bias=False) if causal else
-            nn.Conv1d(
+                bias=False,
+            )
+            if causal
+            else nn.Conv1d(
                 in_channels,
                 in_channels,
                 kernel_size,
                 stride=stride,
-                padding=(kernel_size//2) * dilation,
+                padding=(kernel_size // 2) * dilation,
                 dilation=dilation,
                 groups=in_channels,
-                bias=False),
+                bias=False,
+            ),
             nn.BatchNorm1d(in_channels),
             get_activation(activation, in_channels),
             nn.Conv1d(in_channels, out_channels, 1, bias=False),
@@ -320,15 +326,18 @@ def conv1d_bn_block(
                 kernel_size,
                 stride=stride,
                 dilation=dilation,
-                bias=False) if causal else
-            nn.Conv1d(
+                bias=False,
+            )
+            if causal
+            else nn.Conv1d(
                 in_channels,
                 out_channels,
                 kernel_size,
                 stride=stride,
-                padding=(kernel_size//2) * dilation,
+                padding=(kernel_size // 2) * dilation,
                 dilation=dilation,
-                bias=False),
+                bias=False,
+            ),
             nn.BatchNorm1d(out_channels),
             get_activation(activation, out_channels),
         )
@@ -336,7 +345,7 @@ def conv1d_bn_block(
 
 class CausalConv1d(nn.Module):
     """
-    Causal convolution with padding automatically chosen to match input/output length. 
+    Causal convolution with padding automatically chosen to match input/output length.
     """
 
     def __init__(
@@ -352,11 +361,19 @@ class CausalConv1d(nn.Module):
         super(CausalConv1d, self).__init__()
         assert kernel_size > 2
 
-        self.padding = dilation*(kernel_size-1)
+        self.padding = dilation * (kernel_size - 1)
         self.stride = stride
 
-        self.conv = nn.Conv1d(in_channels, out_channels,
-                              kernel_size, stride, self.padding, dilation, groups, bias=bias)
+        self.conv = nn.Conv1d(
+            in_channels,
+            out_channels,
+            kernel_size,
+            stride,
+            self.padding,
+            dilation,
+            groups,
+            bias=bias,
+        )
 
     def forward(self, x: Tensor) -> Tensor:
-        return self.conv(x)[:, :, :-self.padding // self.stride]
+        return self.conv(x)[:, :, : -self.padding // self.stride]

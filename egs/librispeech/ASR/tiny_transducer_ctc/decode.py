@@ -39,7 +39,6 @@ from icefall.utils import (
 
 LOG_EPS = math.log(1e-10)
 
-
 def get_parser():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
@@ -493,7 +492,7 @@ def save_results(
     test_set_wers = sorted(test_set_wers.items(), key=lambda x: x[1])
     errs_info = (
         params.res_dir
-        / f"wer-summary-{test_set_name}-{key}-{params.suffix}.txt"
+        / f"{wer}-{test_set_name}-{key}-{params.suffix}.txt"
     )
     with open(errs_info, "w") as f:
         print("settings\tWER", file=f)

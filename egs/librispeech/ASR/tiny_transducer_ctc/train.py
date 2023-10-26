@@ -79,15 +79,12 @@ from icefall.utils import (
 LRSchedulerType = torch.optim.lr_scheduler._LRScheduler
 
 
-def set_batch_count(
-        model: Union[nn.Module, DDP],
-        batch_count: float
-) -> None:
+def set_batch_count(model: Union[nn.Module, DDP], batch_count: float) -> None:
     if isinstance(model, DDP):
         # get underlying nn.Module
         model = model.module
     for module in model.modules():
-        if hasattr(module, 'batch_count'):
+        if hasattr(module, "batch_count"):
             module.batch_count = batch_count
 
 
@@ -140,7 +137,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         help="""Use skip connection in the encoder.
         """,
     )
-      
+
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -226,8 +223,7 @@ def get_parser():
         "--context-size",
         type=int,
         default=2,
-        help="The context size in the decoder. 1 means bigram; "
-        "2 means tri-gram",
+        help="The context size in the decoder. 1 means bigram; " "2 means tri-gram",
     )
 
     parser.add_argument(
@@ -250,8 +246,7 @@ def get_parser():
         "--am-scale",
         type=float,
         default=0.0,
-        help="The scale to smooth the loss with am (output of encoder network)"
-        "part.",
+        help="The scale to smooth the loss with am (output of encoder network)" "part.",
     )
 
     parser.add_argument(
@@ -450,7 +445,7 @@ def get_transducer_model(params: AttributeDict) -> Transducer:
     decoder = get_decoder_model(params)
     joiner = get_joiner_model(params)
 
-    if is_module_available('thop'):
+    if is_module_available("thop"):
         if torch.cuda.is_available():
             device = torch.device("cuda:0")
         else:
@@ -459,13 +454,14 @@ def get_transducer_model(params: AttributeDict) -> Transducer:
         x = torch.zeros((1, 1000, params.feature_dim)).to(device)
         x_lens = torch.Tensor([1000]).int().to(device)
         from thop import clever_format, profile
+
         m = copy.deepcopy(encoder)
         m = m.to(device)
         ops, _ = clever_format(profile(m, (x, x_lens), verbose=False))
-        logging.info(f'Encoder MAC ops for 10 seconds of audio is {ops}')
+        logging.info(f"Encoder MAC ops for 10 seconds of audio is {ops}")
     else:
-        logging.info('You can install thop to calculate the number of ops.')
-        logging.info('Command: pip install thop')
+        logging.info("You can install thop to calculate the number of ops.")
+        logging.info("Command: pip install thop")
 
     model = Transducer(
         encoder=encoder,
@@ -624,11 +620,7 @@ def compute_loss(
      warmup: a floating point value which increases throughout training;
         values >= 1.0 are fully warmed up and have all modules present.
     """
-    device = (
-        model.device
-        if isinstance(model, DDP)
-        else next(model.parameters()).device
-    )
+    device = model.device if isinstance(model, DDP) else next(model.parameters()).device
     feature = batch["inputs"]
     # at entry, feature is (N, T, C)
     assert feature.ndim == 3
@@ -662,18 +654,17 @@ def compute_loss(
         # take down the scale on the simple loss from 1.0 at the start
         # to params.simple_loss scale by warm_step.
         simple_loss_scale = (
-            s if batch_idx_train >= warm_step
+            s
+            if batch_idx_train >= warm_step
             else 1.0 - (batch_idx_train / warm_step) * (1.0 - s)
         )
         pruned_loss_scale = (
-            1.0 if batch_idx_train >= warm_step
+            1.0
+            if batch_idx_train >= warm_step
             else 0.1 + 0.9 * (batch_idx_train / warm_step)
         )
 
-        loss = (
-            simple_loss_scale * simple_loss
-            + pruned_loss_scale * pruned_loss
-        )
+        loss = simple_loss_scale * simple_loss + pruned_loss_scale * pruned_loss
 
     # Compute ctc loss
 
@@ -704,16 +695,14 @@ def compute_loss(
     )
     assert ctc_loss.requires_grad == is_training
     assert 0 <= params.ctc_loss_scale <= 1, "ctc_loss_scale must be between 0 and 1"
-    loss = params.ctc_loss_scale * ctc_loss + (1-params.ctc_loss_scale) * loss
+    loss = params.ctc_loss_scale * ctc_loss + (1 - params.ctc_loss_scale) * loss
 
     assert loss.requires_grad == is_training
 
     info = MetricsTracker()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        info["frames"] = (
-            (feature_lens // params.subsampling_factor).sum().item()
-        )
+        info["frames"] = (feature_lens // params.subsampling_factor).sum().item()
 
     # Note: We use reduction=sum while computing the loss.
     info["loss"] = loss.detach().cpu().item()
@@ -843,8 +832,9 @@ def train_one_epoch(
             scaler.update()
             optimizer.zero_grad()
         except:  # noqa
-            display_and_save_batch(batch, params=params,
-                                   sp=sp, phone_lexicon=phone_lexicon)
+            display_and_save_batch(
+                batch, params=params, sp=sp, phone_lexicon=phone_lexicon
+            )
             raise
 
         if params.print_diagnostics and batch_idx == 5:
@@ -896,7 +886,8 @@ def train_one_epoch(
                 logging.warning(f"Grad scale is small: {cur_grad_scale}")
             if cur_grad_scale < 1.0e-05:
                 raise RuntimeError(
-                    f"grad_scale is too small, exiting: {cur_grad_scale}")
+                    f"grad_scale is too small, exiting: {cur_grad_scale}"
+                )
 
         if batch_idx % params.log_interval == 0:
             cur_lr = scheduler.get_last_lr()[0]
@@ -918,9 +909,7 @@ def train_one_epoch(
                 loss_info.write_summary(
                     tb_writer, "train/current_", params.batch_idx_train
                 )
-                tot_loss.write_summary(
-                    tb_writer, "train/tot_", params.batch_idx_train
-                )
+                tot_loss.write_summary(tb_writer, "train/tot_", params.batch_idx_train)
                 if params.use_fp16:
                     tb_writer.add_scalar(
                         "train/grad_scale", cur_grad_scale, params.batch_idx_train
@@ -938,11 +927,10 @@ def train_one_epoch(
     model.train()
     logging.info(f"Epoch {params.cur_epoch}, validation: {valid_info}")
     logging.info(
-        f"Maximum memory allocated so far is {torch.cuda.max_memory_allocated()//1000000}MB")
+        f"Maximum memory allocated so far is {torch.cuda.max_memory_allocated()//1000000}MB"
+    )
     if tb_writer is not None:
-        valid_info.write_summary(
-            tb_writer, "train/valid_", params.batch_idx_train
-        )
+        valid_info.write_summary(tb_writer, "train/valid_", params.batch_idx_train)
 
     loss_value = tot_loss["loss"] / tot_loss["frames"]
     params.train_loss = loss_value
@@ -987,7 +975,7 @@ def run(rank, world_size, args):
 
     if "lang_bpe" in str(params.lang_dir):
         sp = spm.SentencePieceProcessor()
-        sp.load(params.lang_dir + '/bpe.model')
+        sp.load(params.lang_dir + "/bpe.model")
         # <blk> is defined in local/train_bpe_model.py
         params.blank_id = sp.piece_to_id("<blk>")
         params.vocab_size = sp.get_piece_size()
@@ -1031,8 +1019,7 @@ def run(rank, world_size, args):
     model.to(device)
     if world_size > 1:
         logging.info("Using DDP")
-        model = DDP(model, device_ids=[rank],
-                    find_unused_parameters=True)
+        model = DDP(model, device_ids=[rank], find_unused_parameters=True)
 
     optimizer = AdamW(
         model.parameters(),
@@ -1056,7 +1043,7 @@ def run(rank, world_size, args):
 
     if params.print_diagnostics:
         opts = diagnostics.TensorDiagnosticOptions(
-            2 ** 22
+            2**22
         )  # allow 4 megabytes per sub-module
         diagnostic = diagnostics.attach_diagnostics(model, opts)
 
@@ -1108,8 +1095,7 @@ def run(rank, world_size, args):
     #         params=params,
     #     )
 
-    scaler = GradScaler(enabled=params.use_fp16,
-                        init_scale=1.0)
+    scaler = GradScaler(enabled=params.use_fp16, init_scale=1.0)
     if checkpoints and "grad_scaler" in checkpoints:
         logging.info("Loading grad scaler state dict")
         scaler.load_state_dict(checkpoints["grad_scaler"])
@@ -1235,11 +1221,13 @@ def scan_pessimistic_batches_for_oom(
                     f"Failing criterion: {criterion} "
                     f"(={crit_values[criterion]}) ..."
                 )
-            display_and_save_batch(batch, params=params,
-                                   sp=sp, phone_lexicon=phone_lexicon)
+            display_and_save_batch(
+                batch, params=params, sp=sp, phone_lexicon=phone_lexicon
+            )
             raise
         logging.info(
-            f"Maximum memory allocated so far is {torch.cuda.max_memory_allocated()//1000000}MB")
+            f"Maximum memory allocated so far is {torch.cuda.max_memory_allocated()//1000000}MB"
+        )
 
 
 def main():

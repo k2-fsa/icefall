@@ -373,7 +373,6 @@ def decode_one_batch(
     # lm_scale_list += [1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0]
     lm_scale_list = [0.6, 0.7, 0.8, 0.9]
 
-
     if params.decoding_method == "nbest-rescoring":
         best_path_dict = rescore_with_n_best_list(
             lattice=lattice,
@@ -507,9 +506,7 @@ def save_results(
         logging.info("Wrote detailed error stats to {}".format(errs_filename))
 
     test_set_wers = sorted(test_set_wers.items(), key=lambda x: x[1])
-    errs_info = (
-        params.res_dir / f"wer-summary-{test_set_name}-{key}-{params.suffix}.txt"
-    )
+    errs_info = params.res_dir / f"{wer}-{test_set_name}-{key}-{params.suffix}.txt"
     with open(errs_info, "w") as f:
         print("settings\tWER", file=f)
         for key, val in test_set_wers:
@@ -576,7 +573,9 @@ def main():
     params.blank_id = 0
 
     if params.decoding_method == "ctc-decoding":
-        assert "lang_bpe" in str(params.lang_dir), "ctc-decoding only supports BPE lexicons."
+        assert "lang_bpe" in str(
+            params.lang_dir
+        ), "ctc-decoding only supports BPE lexicons."
         HLG = None
         H = k2.ctc_topo(
             max_token=max_token_id,
