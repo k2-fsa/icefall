@@ -245,6 +245,58 @@ for m in greedy_search modified_beam_search fast_beam_search; do
 done
 ```
 
+##### large-scaled model, number of model parameters: 148439574, i.e., 148.4 M, trained on 8 80G-A100 GPUs
+
+The tensorboard log can be found at
+<https://tensorboard.dev/experiment/95TdNyEuQXaWK2PzFpD9yg/>
+
+You can find a pretrained model, training logs, decoding logs, and decoding results at:
+<https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-large-2023-10-26-8-a100>
+
+You can use <https://github.com/k2-fsa/sherpa> to deploy it.
+
+| decoding method      | test-clean | test-other | comment               |
+|----------------------|------------|------------|-----------------------|
+| greedy_search        | 2.00       | 4.47       | --epoch 174 --avg 172 |
+| modified_beam_search | 2.00       | 4.38       | --epoch 174 --avg 172 |
+| fast_beam_search     | 2.00       | 4.42       | --epoch 174 --avg 172 |
+
+The training command is:
+```bash
+export CUDA_VISIBLE_DEVICES="0,1,2,3"
+./zipformer/train.py \
+  --world-size 8 \
+  --num-epochs 174 \
+  --start-epoch 1 \
+  --use-fp16 1 \
+  --exp-dir zipformer/exp-large \
+  --causal 0 \
+  --num-encoder-layers 2,2,4,5,4,2 \
+  --feedforward-dim 512,768,1536,2048,1536,768 \
+  --encoder-dim 192,256,512,768,512,256 \
+  --encoder-unmasked-dim 192,192,256,320,256,192 \
+  --full-libri 1 \
+  --max-duration 2200
+```
+
+The decoding command is:
+```bash
+export CUDA_VISIBLE_DEVICES="0"
+for m in greedy_search modified_beam_search fast_beam_search; do
+  ./zipformer/decode.py \
+    --epoch 174 \
+    --avg 172 \
+    --exp-dir zipformer/exp-large \
+    --max-duration 600 \
+    --causal 0 \
+    --decoding-method $m \
+    --num-encoder-layers 2,2,4,5,4,2 \
+    --feedforward-dim 512,768,1536,2048,1536,768 \
+    --encoder-dim 192,256,512,768,512,256 \
+    --encoder-unmasked-dim 192,192,256,320,256,192
+done
+```
+
 #### streaming
 
 ##### normal-scaled model, number of model parameters: 66110931, i.e., 66.11 M
