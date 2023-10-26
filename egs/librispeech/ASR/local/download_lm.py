@@ -43,6 +43,7 @@ from pathlib import Path
 
 from tqdm.auto import tqdm
 
+
 # This function is copied from lhotse
 def tqdm_urlretrieve_hook(t):
     """Wraps tqdm instance.

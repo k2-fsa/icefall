@@ -528,7 +528,6 @@ class ScaledLSTM(nn.LSTM):
             return
 
         with torch.cuda.device_of(first_fw):
-
             # Note: no_grad() is necessary since _cudnn_rnn_flatten_weight is
             # an inplace operation on self._flat_weights
             with torch.no_grad():

@@ -60,6 +60,7 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   ) > $lang_dir/lexicon.txt
 
   ./local/prepare_lang.py
+  ./local/prepare_lang_fst.py --lang-dir ./data/lang_phone --has-silence 1
 fi
 
 if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
