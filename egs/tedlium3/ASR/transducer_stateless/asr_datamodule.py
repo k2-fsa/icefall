@@ -28,7 +28,7 @@ from lhotse.dataset import (
     CutMix,
     DynamicBucketingSampler,
     K2SpeechRecognitionDataset,
-    SingleCutSampler,
+    SimpleCutSampler,
     SpecAugment,
 )
 from lhotse.dataset.input_strategies import OnTheFlyFeatures
@@ -205,7 +205,7 @@ class TedLiumAsrDataModule:
             logging.info("Enable MUSAN")
             cuts_musan = load_manifest(self.args.manifest_dir / "musan_cuts.jsonl.gz")
             transforms.append(
-                CutMix(cuts=cuts_musan, prob=0.5, snr=(10, 20), preserve_id=True)
+                CutMix(cuts=cuts_musan, p=0.5, snr=(10, 20), preserve_id=True)
             )
         else:
             logging.info("Disable MUSAN")
@@ -259,8 +259,8 @@ class TedLiumAsrDataModule:
                 drop_last=True,
             )
         else:
-            logging.info("Using SingleCutSampler.")
-            train_sampler = SingleCutSampler(
+            logging.info("Using SimpleCutSampler.")
+            train_sampler = SimpleCutSampler(
                 cuts_train,
                 max_duration=self.args.max_duration,
                 shuffle=self.args.shuffle,
@@ -282,7 +282,6 @@ class TedLiumAsrDataModule:
         return train_dl
 
     def valid_dataloaders(self, cuts_valid: CutSet) -> DataLoader:
-
         transforms = []
         if self.args.concatenate_cuts:
             transforms = [
@@ -322,7 +321,6 @@ class TedLiumAsrDataModule:
         return valid_dl
 
     def test_dataloaders(self, cuts_test: CutSet) -> DataLoader:
-
         logging.debug("About to create test dataset")
         if self.args.on_the_fly_feats:
             test = K2SpeechRecognitionDataset(

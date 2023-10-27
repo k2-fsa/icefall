@@ -71,7 +71,6 @@ from typing import List, Tuple
 
 import k2
 import kaldifeat
-import numpy as np
 import onnxruntime as ort
 import torch
 import torchaudio
@@ -139,7 +138,7 @@ class OnnxModel:
     ):
         session_opts = ort.SessionOptions()
         session_opts.inter_op_num_threads = 1
-        session_opts.intra_op_num_threads = 1
+        session_opts.intra_op_num_threads = 4
 
         self.session_opts = session_opts
 
@@ -151,12 +150,14 @@ class OnnxModel:
         self.encoder = ort.InferenceSession(
             encoder_model_filename,
             sess_options=self.session_opts,
+            providers=["CPUExecutionProvider"],
         )
 
     def init_decoder(self, decoder_model_filename: str):
         self.decoder = ort.InferenceSession(
             decoder_model_filename,
             sess_options=self.session_opts,
+            providers=["CPUExecutionProvider"],
         )
 
         decoder_meta = self.decoder.get_modelmeta().custom_metadata_map
@@ -170,6 +171,7 @@ class OnnxModel:
         self.joiner = ort.InferenceSession(
             joiner_model_filename,
             sess_options=self.session_opts,
+            providers=["CPUExecutionProvider"],
         )
 
         joiner_meta = self.joiner.get_modelmeta().custom_metadata_map
@@ -403,9 +405,8 @@ def main():
             text += symbol_table[i]
         return text.replace("▁", " ").strip()
 
-    context_size = model.context_size
     for filename, hyp in zip(args.sound_files, hyps):
-        words = token_ids_to_words(hyp[context_size:])
+        words = token_ids_to_words(hyp)
         s += f"{filename}:\n{words}\n"
     logging.info(s)
 

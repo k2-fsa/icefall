@@ -724,12 +724,12 @@ def main():
         )
         save_results(
             params=params,
-            test_set_name=test_set,
+            test_set_name=test_set + "-zh",
             results_dict=zh_results_dict,
         )
         save_results(
             params=params,
-            test_set_name=test_set,
+            test_set_name=test_set + "-en",
             results_dict=en_results_dict,
         )
 

@@ -28,14 +28,17 @@ We provide the following recipes:
 
   - [yesno][yesno]
   - [LibriSpeech][librispeech]
+  - [GigaSpeech][gigaspeech]
+  - [AMI][ami]
   - [Aishell][aishell]
+  - [Aishell2][aishell2]
+  - [Aishell4][aishell4]
   - [TIMIT][timit]
   - [TED-LIUM3][tedlium3]
-  - [GigaSpeech][gigaspeech]
   - [Aidatatang_200zh][aidatatang_200zh]
   - [WenetSpeech][wenetspeech]
   - [Alimeeting][alimeeting]
-  - [Aishell4][aishell4]
+  - [Switchboard][swbd]
   - [TAL_CSASR][tal_csasr]
 
 ### yesno
@@ -46,9 +49,7 @@ Training takes less than 30 seconds and gives you the following WER:
 ```
 [test_set] %WER 0.42% [1 / 240, 0 ins, 1 del, 0 sub ]
 ```
-We do provide a Colab notebook for this recipe.
-
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1tIjjzaJc3IvGyKiMCDWO-TSnBgkcuN3B?usp=sharing)
+We provide a Colab notebook for this recipe: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1tIjjzaJc3IvGyKiMCDWO-TSnBgkcuN3B?usp=sharing)
 
 
 ### LibriSpeech
@@ -56,12 +57,13 @@ We do provide a Colab notebook for this recipe.
 Please see <https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/RESULTS.md>
 for the **latest** results.
 
-We provide 4 models for this recipe:
+We provide 5 models for this recipe:
 
 - [conformer CTC model][LibriSpeech_conformer_ctc]
 - [TDNN LSTM CTC model][LibriSpeech_tdnn_lstm_ctc]
 - [Transducer: Conformer encoder + LSTM decoder][LibriSpeech_transducer]
 - [Transducer: Conformer encoder + Embedding decoder][LibriSpeech_transducer_stateless]
+- [Transducer: Zipformer encoder + Embedding decoder][LibriSpeech_zipformer]
 
 #### Conformer CTC Model
 
@@ -82,7 +84,7 @@ The WER for this model is:
 |-----|------------|------------|
 | WER | 6.59       | 17.69      |
 
-We provide a Colab notebook to run a pre-trained TDNN LSTM CTC model:  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1-iSfQMp2So-We_Uu49N4AAcMInB72u9z?usp=sharing)
+We provide a Colab notebook to run a pre-trained TDNN LSTM CTC model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1-iSfQMp2So-We_Uu49N4AAcMInB72u9z?usp=sharing)
 
 
 #### Transducer: Conformer encoder + LSTM decoder
@@ -116,21 +118,70 @@ We provide a Colab notebook to run a pre-trained transducer conformer + stateles
 
 #### k2 pruned RNN-T
 
-|     | test-clean | test-other |
-|-----|------------|------------|
-| WER | 2.57       | 5.95       |
+| Encoder         | Params | test-clean | test-other | epochs  | devices    |
+|-----------------|--------|------------|------------|---------|------------|
+| zipformer       | 65.5M  | 2.21       | 4.79       | 50      | 4 32G-V100 |
+| zipformer-small | 23.2M  | 2.42       | 5.73       | 50      | 2 32G-V100 |
+| zipformer-large | 148.4M | 2.06       | 4.63       | 50      | 4 32G-V100 |
+| zipformer-large | 148.4M | 2.00       | 4.38       | 174     | 8 80G-A100 |
+
+Note: No auxiliary losses are used in the training and no LMs are used
+in the decoding.
 
 #### k2 pruned RNN-T + GigaSpeech
 
 |     | test-clean | test-other |
 |-----|------------|------------|
-| WER | 2.00       | 4.63       |
+| WER | 1.78       | 4.08       |
+
+Note: No auxiliary losses are used in the training and no LMs are used
+in the decoding.
+
+#### k2 pruned RNN-T + GigaSpeech + CommonVoice
+
+|     | test-clean | test-other |
+|-----|------------|------------|
+| WER | 1.90       | 3.98       |
+
+Note: No auxiliary losses are used in the training and no LMs are used
+in the decoding.
+
+
+### GigaSpeech
+
+We provide three models for this recipe:
+
+- [Conformer CTC model][GigaSpeech_conformer_ctc]
+- [Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss][GigaSpeech_pruned_transducer_stateless2].
+- [Transducer: Zipformer encoder + Embedding decoder][GigaSpeech_zipformer]
+
+#### Conformer CTC
+
+|     |  Dev  | Test  |
+|-----|-------|-------|
+| WER | 10.47 | 10.58 |
+
+#### Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss
+
+|                      |  Dev  | Test  |
+|----------------------|-------|-------|
+|    greedy search     | 10.51 | 10.73 |
+|   fast beam search   | 10.50 | 10.69 |
+| modified beam search | 10.40 | 10.51 |
+
+#### Transducer: Zipformer encoder + Embedding decoder
+
+|                      |  Dev  | Test  |
+|----------------------|-------|-------|
+|    greedy search     | 10.31 | 10.50 |
+|   fast beam search   | 10.26 | 10.48 |
+| modified beam search | 10.25 | 10.38 |
 
 
 ### Aishell
 
-We provide two models for this recipe: [conformer CTC model][Aishell_conformer_ctc]
-and [TDNN LSTM CTC model][Aishell_tdnn_lstm_ctc].
+We provide three models for this recipe: [conformer CTC model][Aishell_conformer_ctc],
+[TDNN LSTM CTC model][Aishell_tdnn_lstm_ctc], and [Transducer Stateless Model][Aishell_pruned_transducer_stateless7],
 
 #### Conformer CTC Model
 
@@ -139,20 +190,6 @@ The best CER we currently have is:
 |     | test |
 |-----|------|
 | CER | 4.26 |
-
-
-We provide a Colab notebook to run a pre-trained conformer CTC model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg](https://colab.research.google.com/drive/1WnG17io5HEZ0Gn_cnh_VzK5QYOoiiklC?usp=sharing)
-
-#### Transducer Stateless Model
-
-The best CER we currently have is:
-
-|     | test |
-|-----|------|
-| CER | 4.68 |
-
-
-We provide a Colab notebook to run a pre-trained TransducerStateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/14XaT2MhnBkK-3_RqqWq3K90Xlbin-GZC?usp=sharing)
 
 #### TDNN LSTM CTC Model
 
@@ -163,6 +200,46 @@ The CER for this model is:
 | CER | 10.16 |
 
 We provide a Colab notebook to run a pre-trained TDNN LSTM CTC model:  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1jbyzYq3ytm6j2nlEt-diQm-6QVWyDDEa?usp=sharing)
+
+#### Transducer Stateless Model
+
+The best CER we currently have is:
+
+|     | test |
+|-----|------|
+| CER | 4.38 |
+
+We provide a Colab notebook to run a pre-trained TransducerStateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/14XaT2MhnBkK-3_RqqWq3K90Xlbin-GZC?usp=sharing)
+
+
+### Aishell2
+
+We provide one model for this recipe: [Transducer Stateless Model][Aishell2_pruned_transducer_stateless5].
+
+#### Transducer Stateless Model
+
+The best WER we currently have is:
+
+|     |   dev-ios  |  test-ios  |
+|-----|------------|------------|
+| WER |    5.32    |    5.56    |
+
+
+### Aishell4
+
+We provide one model for this recipe: [Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss][Aishell4_pruned_transducer_stateless5].
+
+#### Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss (trained with all subsets)
+
+The best CER we currently have is:
+
+|     |   test     |
+|-----|------------|
+| CER |   29.08    |
+
+
+We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1z3lkURVv9M7uTiIgf3Np9IntMHEknaks?usp=sharing)
+
 
 ### TIMIT
 
@@ -187,7 +264,8 @@ The PER for this model is:
 |--|--|
 |PER| 17.66% |
 
-We provide a Colab notebook to run a pre-trained TDNN LiGRU CTC model:  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/11IT-k4HQIgQngXz1uvWsEYktjqQt7Tmb?usp=sharing)
+We provide a Colab notebook to run a pre-trained TDNN LiGRU CTC model:  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1z3lkURVv9M7uTiIgf3Np9IntMHEknaks?usp=sharing)
+
 
 ### TED-LIUM3
 
@@ -215,24 +293,6 @@ The best WER using modified beam search with beam size 4 is:
 
 We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1je_1zGrOkGVVd4WLzgkXRHxl-I27yWtz?usp=sharing)
 
-### GigaSpeech
-
-We provide two models for this recipe: [Conformer CTC model][GigaSpeech_conformer_ctc]
-and [Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss][GigaSpeech_pruned_transducer_stateless2].
-
-#### Conformer CTC
-
-|     |  Dev  | Test  |
-|-----|-------|-------|
-| WER | 10.47 | 10.58 |
-
-#### Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss
-
-|                      |  Dev  | Test  |
-|----------------------|-------|-------|
-|    greedy search     | 10.51 | 10.73 |
-|   fast beam search   | 10.50 | 10.69 |
-| modified beam search | 10.40 | 10.51 |
 
 ### Aidatatang_200zh
 
@@ -247,6 +307,7 @@ We provide one model for this recipe: [Pruned stateless RNN-T: Conformer encoder
 | modified beam search | 5.27  | 6.33  |
 
 We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1wNSnSj3T5oOctbh5IGCa393gKOoQw2GH?usp=sharing)
+
 
 ### WenetSpeech
 
@@ -284,20 +345,6 @@ We provide one model for this recipe: [Pruned stateless RNN-T: Conformer encoder
 
 We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1tKr3f0mL17uO_ljdHGKtR7HOmthYHwJG?usp=sharing)
 
-### Aishell4
-
-We provide one model for this recipe: [Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss][Aishell4_pruned_transducer_stateless5].
-
-#### Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss (trained with all subsets)
-
-The best CER(%) results:
-|                      |  test  |
-|----------------------|--------|
-|    greedy search     | 29.89  |
-|   fast beam search   | 28.91  |
-| modified beam search | 29.08  |
-
-We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1z3lkURVv9M7uTiIgf3Np9IntMHEknaks?usp=sharing)
 
 ### TAL_CSASR
 
@@ -305,7 +352,7 @@ We provide one model for this recipe: [Pruned stateless RNN-T: Conformer encoder
 
 #### Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss
 
-The best results for Chinese CER(%) and English WER(%) respectivly (zh: Chinese, en: English):
+The best results for Chinese CER(%) and English WER(%) respectively (zh: Chinese, en: English):
 |decoding-method | dev | dev_zh | dev_en | test | test_zh | test_en |
 |--|--|--|--|--|--|--|
 |greedy_search| 7.30 | 6.48 | 19.19 |7.39| 6.66 | 19.13|
@@ -331,29 +378,36 @@ Please see: [![Open In Colab](https://colab.research.google.com/assets/colab-bad
 [LibriSpeech_conformer_ctc]: egs/librispeech/ASR/conformer_ctc
 [LibriSpeech_transducer]: egs/librispeech/ASR/transducer
 [LibriSpeech_transducer_stateless]: egs/librispeech/ASR/transducer_stateless
+[LibriSpeech_zipformer]: egs/librispeech/ASR/zipformer
 [Aishell_tdnn_lstm_ctc]: egs/aishell/ASR/tdnn_lstm_ctc
 [Aishell_conformer_ctc]: egs/aishell/ASR/conformer_ctc
+[Aishell_pruned_transducer_stateless7]: egs/aishell/ASR/pruned_transducer_stateless7_bbpe
+[Aishell2_pruned_transducer_stateless5]: egs/aishell2/ASR/pruned_transducer_stateless5
+[Aishell4_pruned_transducer_stateless5]: egs/aishell4/ASR/pruned_transducer_stateless5
 [TIMIT_tdnn_lstm_ctc]: egs/timit/ASR/tdnn_lstm_ctc
 [TIMIT_tdnn_ligru_ctc]: egs/timit/ASR/tdnn_ligru_ctc
 [TED-LIUM3_transducer_stateless]: egs/tedlium3/ASR/transducer_stateless
 [TED-LIUM3_pruned_transducer_stateless]: egs/tedlium3/ASR/pruned_transducer_stateless
 [GigaSpeech_conformer_ctc]: egs/gigaspeech/ASR/conformer_ctc
 [GigaSpeech_pruned_transducer_stateless2]: egs/gigaspeech/ASR/pruned_transducer_stateless2
+[GigaSpeech_zipformer]: egs/gigaspeech/ASR/zipformer
 [Aidatatang_200zh_pruned_transducer_stateless2]: egs/aidatatang_200zh/ASR/pruned_transducer_stateless2
 [WenetSpeech_pruned_transducer_stateless2]: egs/wenetspeech/ASR/pruned_transducer_stateless2
 [WenetSpeech_pruned_transducer_stateless5]: egs/wenetspeech/ASR/pruned_transducer_stateless5
 [Alimeeting_pruned_transducer_stateless2]: egs/alimeeting/ASR/pruned_transducer_stateless2
-[Aishell4_pruned_transducer_stateless5]: egs/aishell4/ASR/pruned_transducer_stateless5
 [TAL_CSASR_pruned_transducer_stateless5]: egs/tal_csasr/ASR/pruned_transducer_stateless5
 [yesno]: egs/yesno/ASR
 [librispeech]: egs/librispeech/ASR
 [aishell]: egs/aishell/ASR
+[aishell2]: egs/aishell2/ASR
+[aishell4]: egs/aishell4/ASR
 [timit]: egs/timit/ASR
 [tedlium3]: egs/tedlium3/ASR
 [gigaspeech]: egs/gigaspeech/ASR
 [aidatatang_200zh]: egs/aidatatang_200zh/ASR
 [wenetspeech]: egs/wenetspeech/ASR
 [alimeeting]: egs/alimeeting/ASR
-[aishell4]: egs/aishell4/ASR
 [tal_csasr]: egs/tal_csasr/ASR
+[ami]: egs/ami
+[swbd]: egs/swbd/ASR
 [k2]: https://github.com/k2-fsa/k2

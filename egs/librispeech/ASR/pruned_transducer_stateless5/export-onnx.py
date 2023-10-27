@@ -28,7 +28,7 @@ popd
 2. Export the model to ONNX
 
 ./pruned_transducer_stateless5/export-onnx.py \
-  --bpe-model $repo/data/lang_bpe_500/bpe.model \
+  --tokens $repo/data/lang_bpe_500/tokens.txt \
   --epoch 99 \
   --avg 1 \
   --use-averaged-model 0 \
@@ -55,12 +55,13 @@ import logging
 from pathlib import Path
 from typing import Dict, Tuple
 
+import k2
 import onnx
-import sentencepiece as spm
 import torch
 import torch.nn as nn
 from conformer import Conformer
 from decoder import Decoder
+from onnxruntime.quantization import QuantType, quantize_dynamic
 from scaling_converter import convert_scaled_to_non_scaled
 from train import add_model_arguments, get_params, get_transducer_model
 
@@ -70,7 +71,7 @@ from icefall.checkpoint import (
     find_checkpoints,
     load_checkpoint,
 )
-from icefall.utils import setup_logger, str2bool
+from icefall.utils import num_tokens, setup_logger, str2bool
 
 
 def get_parser():
@@ -83,7 +84,7 @@ def get_parser():
         type=int,
         default=28,
         help="""It specifies the checkpoint to use for averaging.
-        Note: Epoch counts from 0.
+        Note: Epoch counts from 1.
         You can specify --avg to use more checkpoints for model averaging.""",
     )
 
@@ -127,10 +128,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--bpe-model",
+        "--tokens",
         type=str,
-        default="data/lang_bpe_500/bpe.model",
-        help="Path to the BPE model",
+        default="data/lang_bpe_500/tokens.txt",
+        help="Path to the tokens.txt.",
     )
 
     parser.add_argument(
@@ -296,6 +297,16 @@ def export_encoder_model_onnx(
         },
     )
 
+    meta_data = {
+        "model_type": "conformer",
+        "version": "1",
+        "model_author": "k2-fsa",
+        "comment": "stateless5",
+    }
+    logging.info(f"meta_data: {meta_data}")
+
+    add_meta_data(filename=encoder_filename, meta_data=meta_data)
+
 
 def export_decoder_model_onnx(
     decoder_model: OnnxDecoder,
@@ -324,6 +335,7 @@ def export_decoder_model_onnx(
     vocab_size = decoder_model.decoder.vocab_size
 
     y = torch.zeros(10, context_size, dtype=torch.int64)
+    decoder_model = torch.jit.script(decoder_model)
     torch.onnx.export(
         decoder_model,
         y,
@@ -405,12 +417,14 @@ def main():
 
     logging.info(f"device: {device}")
 
-    sp = spm.SentencePieceProcessor()
-    sp.load(params.bpe_model)
+    # Load tokens.txt here
+    token_table = k2.SymbolTable.from_file(params.tokens)
 
+    # Load id of the <blk> token and the vocab size
     # <blk> is defined in local/train_bpe_model.py
-    params.blank_id = sp.piece_to_id("<blk>")
-    params.vocab_size = sp.get_piece_size()
+    params.blank_id = token_table["<blk>"]
+    params.unk_id = token_table["<unk>"]
+    params.vocab_size = num_tokens(token_table) + 1  # +1 for <blk>
 
     logging.info(params)
 
@@ -557,6 +571,35 @@ def main():
         opset_version=opset_version,
     )
     logging.info(f"Exported joiner to {joiner_filename}")
+
+    # Generate int8 quantization models
+    # See https://onnxruntime.ai/docs/performance/model-optimizations/quantization.html#data-type-selection
+
+    logging.info("Generate int8 quantization models")
+
+    encoder_filename_int8 = params.exp_dir / f"encoder-{suffix}.int8.onnx"
+    quantize_dynamic(
+        model_input=encoder_filename,
+        model_output=encoder_filename_int8,
+        op_types_to_quantize=["MatMul"],
+        weight_type=QuantType.QInt8,
+    )
+
+    decoder_filename_int8 = params.exp_dir / f"decoder-{suffix}.int8.onnx"
+    quantize_dynamic(
+        model_input=decoder_filename,
+        model_output=decoder_filename_int8,
+        op_types_to_quantize=["MatMul", "Gather"],
+        weight_type=QuantType.QInt8,
+    )
+
+    joiner_filename_int8 = params.exp_dir / f"joiner-{suffix}.int8.onnx"
+    quantize_dynamic(
+        model_input=joiner_filename,
+        model_output=joiner_filename_int8,
+        op_types_to_quantize=["MatMul"],
+        weight_type=QuantType.QInt8,
+    )
 
 
 if __name__ == "__main__":

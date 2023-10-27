@@ -344,7 +344,7 @@ def get_parser():
         "--decode-chunk-size",
         type=int,
         default=16,
-        help="The chunk size for decoding (in frames after subsampling)",
+        help="The chunk size for decoding (in frames after subsampling). Set -1 to use full attention.",
     )
 
     parser.add_argument(
@@ -508,12 +508,14 @@ def decode_one_batch(
     feature_lens = supervisions["num_frames"].to(device)
 
     if params.simulate_streaming:
-        feature_lens += params.left_context
-        feature = torch.nn.functional.pad(
-            feature,
-            pad=(0, 0, 0, params.left_context),
-            value=LOG_EPS,
-        )
+        if params.decode_chunk_size > 0:
+            # except the case of using full attention
+            feature_lens += params.left_context
+            feature = torch.nn.functional.pad(
+                feature,
+                pad=(0, 0, 0, params.left_context),
+                value=LOG_EPS,
+            )
         encoder_out, encoder_out_lens, _ = model.encoder.streaming_forward(
             x=feature,
             x_lens=feature_lens,
@@ -673,7 +675,6 @@ def decode_one_batch(
             encoder_out=encoder_out,
             encoder_out_lens=encoder_out_lens,
             beam=params.beam_size,
-            sp=sp,
             LM=LM,
         )
         for hyp in sp.decode(hyp_tokens):
@@ -684,7 +685,6 @@ def decode_one_batch(
             encoder_out=encoder_out,
             encoder_out_lens=encoder_out_lens,
             beam=params.beam_size,
-            sp=sp,
             LODR_lm=ngram_lm,
             LODR_lm_scale=ngram_lm_scale,
             LM=LM,

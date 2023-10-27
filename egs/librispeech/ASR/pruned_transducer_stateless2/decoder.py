@@ -59,7 +59,6 @@ class Decoder(nn.Module):
         self.embedding = ScaledEmbedding(
             num_embeddings=vocab_size,
             embedding_dim=decoder_dim,
-            padding_idx=blank_id,
         )
         self.blank_id = blank_id
 

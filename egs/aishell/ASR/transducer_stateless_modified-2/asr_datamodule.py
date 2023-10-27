@@ -20,7 +20,7 @@ import argparse
 import inspect
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from lhotse import CutSet, Fbank, FbankConfig
 from lhotse.dataset import (
@@ -144,6 +144,7 @@ class AsrDataModule:
         cuts_train: CutSet,
         on_the_fly_feats: bool,
         cuts_musan: Optional[CutSet] = None,
+        sampler_state_dict: Optional[Dict[str, Any]] = None,
     ) -> DataLoader:
         """
         Args:
@@ -159,7 +160,7 @@ class AsrDataModule:
         if cuts_musan is not None:
             logging.info("Enable MUSAN")
             transforms.append(
-                CutMix(cuts=cuts_musan, prob=0.5, snr=(10, 20), preserve_id=True)
+                CutMix(cuts=cuts_musan, p=0.5, snr=(10, 20), preserve_id=True)
             )
         else:
             logging.info("Disable MUSAN")
@@ -227,6 +228,10 @@ class AsrDataModule:
             num_buckets=self.args.num_buckets,
             drop_last=True,
         )
+
+        if sampler_state_dict is not None:
+            logging.info("Loading sampler state dict")
+            train_sampler.load_state_dict(sampler_state_dict)
 
         logging.info("About to create train dataloader")
         train_dl = DataLoader(
