@@ -1,6 +1,6 @@
 .. _train_nnlm:
 
-Train an RNN langugage model
+Train an RNN language model
 ======================================
 
 If you have enough text data, you can train a neural network language model (NNLM) to improve
