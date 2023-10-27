@@ -502,7 +502,7 @@ $<span class="w"> </span>./pruned_transducer_stateless4/decode.py<span class="w"
 of each frame as the decoding result.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">beam_search</span></code> :  It implements Algorithm 1 in <a class="reference external" href="https://arxiv.org/pdf/1211.3711.pdf">https://arxiv.org/pdf/1211.3711.pdf</a> and
 <a class="reference external" href="https://github.com/espnet/espnet/blob/master/espnet/nets/beam_search_transducer.py#L247">espnet/nets/beam_search_transducer.py</a>
-is used as a reference. Basicly, it keeps topk states for each frame, and expands the kept states with their own contexts to
+is used as a reference. Basically, it keeps topk states for each frame, and expands the kept states with their own contexts to
 next frame.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">modified_beam_search</span></code> : It implements the same algorithm as <code class="docutils literal notranslate"><span class="pre">beam_search</span></code> above, but it
 runs in batch mode with <code class="docutils literal notranslate"><span class="pre">--max-sym-per-frame=1</span></code> being hardcoded.</p></li>
