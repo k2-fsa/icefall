@@ -375,6 +375,38 @@ for m in greedy_search modified_beam_search fast_beam_search; do
 done
 ```
 
+### zipformer ctc streaming
+
+| decoding method      | test-clean | test-other | comment            |
+|----------------------|------------|------------|--------------------|
+| greedy_search        | 4.07       | 10.51      | --epoch 30 --avg 15|
+| greedy_search        | 4.0        | 10.3       | --epoch 30 --avg 9 |
+
+The training command is:
+```bash
+export CUDA_VISIBLE_DEVICES="0,1"
+python ./zipformer_ctc_streaming/train.py \
+  --world-size 2   \
+  --num-epochs 30  \
+  --start-epoch 1  \
+  --exp-dir ./zipformer_ctc_streaming/exp \
+  --max-duration 100 
+```
+
+The decoding command is:
+```bash
+export CUDA_VISIBLE_DEVICES="0"
+./zipformer_ctc_streaming/decode.py \
+--epoch 30  \
+--avg 15 \
+--exp-dir ./zipformer_ctc_streaming/exp \
+--max-duration 300 \ 
+--decode-chunk-len 32  \
+--method ctc-decoding \
+--lm-dir data/lm \
+--lang-dir  data/lang_bpe_500
+```
+
 ### pruned_transducer_stateless7 (Fine-tune with mux)
 
 See <https://github.com/k2-fsa/icefall/pull/1059> for more details.
@@ -455,6 +487,39 @@ The decoding commands are:
     --max-contexts 8 \
     --max-states 64
 ```
+
+### zipformer ctc streaming
+
+| decoding method      | test-clean | test-other | comment            |
+|----------------------|------------|------------|--------------------|
+| greedy_search        | 4.07       | 10.51      | --epoch 30 --avg 15|
+| greedy_search        | 4.0        | 10.3       | --epoch 30 --avg 9 |
+
+The training command is:
+```bash
+export CUDA_VISIBLE_DEVICES="0,1"
+python ./zipformer_ctc_streaming/train.py \
+  --world-size 2   \
+  --num-epochs 30  \
+  --start-epoch 1  \
+  --exp-dir ./zipformer_ctc_streaming/exp \
+  --max-duration 100 
+```
+
+The decoding command is:
+```bash
+export CUDA_VISIBLE_DEVICES="0"
+./zipformer_ctc_streaming/decode.py \
+--epoch 30  \
+--avg 15 \
+--exp-dir ./zipformer_ctc_streaming/exp \
+--max-duration 300 \ 
+--decode-chunk-len 32  \
+--method ctc-decoding \
+--lm-dir data/lm \
+--lang-dir  data/lang_bpe_500
+```
+
 
 ### pruned_transducer_stateless7 (zipformer + multidataset(LibriSpeech + GigaSpeech + CommonVoice 13.0))
 
