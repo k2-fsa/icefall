@@ -241,7 +241,8 @@ class MelSpectrogramLoss(torch.nn.Module):
         self,
         y_hat: torch.Tensor,
         y: torch.Tensor,
-    ) -> torch.Tensor:
+        return_mel: bool = False,
+    ) -> Union[torch.Tensor, Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]]:
         """Calculate Mel-spectrogram loss.
 
         Args:
@@ -258,6 +259,9 @@ class MelSpectrogramLoss(torch.nn.Module):
         mel_hat = self.wav_to_mel(y_hat.squeeze(1))
         mel = self.wav_to_mel(y.squeeze(1))
         mel_loss = F.l1_loss(mel_hat, mel)
+
+        if return_mel:
+            return mel_loss, (mel_hat, mel)
 
         return mel_loss
 

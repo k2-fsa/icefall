@@ -131,7 +131,14 @@ class LJSpeechTtsDataModule:
             default=True,
             help="Whether to drop last batch. Used by sampler.",
         )
-
+        group.add_argument(
+            "--return-cuts",
+            type=str2bool,
+            default=False,
+            help="When enabled, each batch will have the "
+            "field: batch['cut'] with the cuts that "
+            "were used to construct it.",
+        )
         group.add_argument(
             "--num-workers",
             type=int,
@@ -163,6 +170,7 @@ class LJSpeechTtsDataModule:
         train = SpeechSynthesisDataset(
             return_tokens=False,
             feature_input_strategy=eval(self.args.input_strategy)(),
+            return_cuts=self.args.return_cuts,
         )
 
         if self.args.on_the_fly_feats:
@@ -176,6 +184,7 @@ class LJSpeechTtsDataModule:
             train = SpeechSynthesisDataset(
                 return_tokens=False,
                 feature_input_strategy=OnTheFlyFeatures(Spectrogram(config)),
+                return_cuts=self.args.return_cuts,
             )
 
         if self.args.bucketing_sampler:
@@ -229,11 +238,13 @@ class LJSpeechTtsDataModule:
             validate = SpeechSynthesisDataset(
                 return_tokens=False,
                 feature_input_strategy=OnTheFlyFeatures(Spectrogram(config)),
+                return_cuts=self.args.return_cuts,
             )
         else:
             validate = SpeechSynthesisDataset(
                 return_tokens=False,
                 feature_input_strategy=eval(self.args.input_strategy)(),
+                return_cuts=self.args.return_cuts,
             )
         valid_sampler = DynamicBucketingSampler(
             cuts_valid,
@@ -264,11 +275,13 @@ class LJSpeechTtsDataModule:
             test = SpeechSynthesisDataset(
                 return_tokens=False,
                 feature_input_strategy=OnTheFlyFeatures(Spectrogram(config)),
+                return_cuts=self.args.return_cuts,
             )
         else:
             test = SpeechSynthesisDataset(
                 return_tokens=False,
                 feature_input_strategy=eval(self.args.input_strategy)(),
+                return_cuts=self.args.return_cuts,
             )
         test_sampler = DynamicBucketingSampler(
             cuts,

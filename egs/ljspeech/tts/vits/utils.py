@@ -211,6 +211,7 @@ def intersperse(sequence, item=0):
 
 def prepare_token_batch(
     texts: List[str],
+    phonemes: Optional[List[str]] = None,
     intersperse_blank: bool = True,
     blank_id: int = 0,
     pad_id: int = 0,
@@ -222,41 +223,50 @@ def prepare_token_batch(
         blank_id: index of blank token
         pad_id: padding index
     """
-    # normalize text
-    normalized_texts = []
-    for text in texts:
-        text = convert_to_ascii(text)
-        text = lowercase(text)
-        text = expand_abbreviations(text)
-        normalized_texts.append(text)
+    if phonemes is None:
+        # normalize text
+        normalized_texts = []
+        for text in texts:
+            text = convert_to_ascii(text)
+            text = lowercase(text)
+            text = expand_abbreviations(text)
+            normalized_texts.append(text)
 
-    # convert to phonemes
-    phonemes = phonemize(
-        normalized_texts,
-        language='en-us',
-        backend='espeak',
-        strip=True,
-        preserve_punctuation=True,
-        with_stress=True,
-    )
+        # convert to phonemes
+        phonemes = phonemize(
+            normalized_texts,
+            language='en-us',
+            backend='espeak',
+            strip=True,
+            preserve_punctuation=True,
+            with_stress=True,
+        )
+        phonemes = [collapse_whitespace(sequence) for sequence in phonemes]
 
     # convert to symbol ids
     lengths = []
     sequences = []
+    skip = False
     for idx, sequence in enumerate(phonemes):
         try:
-            sequence = [symbol_to_id[symbol] for symbol in collapse_whitespace(sequence)]
-        except RuntimeError:
-            print(text[idx])
-            print(normalized_texts[idx])
+            sequence = [symbol_to_id[symbol] for symbol in sequence]
+        except Exception:
+            # print(texts[idx])
+            # print(normalized_texts[idx])
+            print(phonemes[idx])
+            skip = True
         if intersperse_blank:
             sequence = intersperse(sequence, blank_id)
-        sequences.append(torch.tensor(sequence, dtype=torch.int64))
+        try:
+            sequences.append(torch.tensor(sequence, dtype=torch.int64))
+        except Exception:
+            print(sequence)
+            skip = True
         lengths.append(len(sequence))
 
     sequences = pad_sequence(sequences, batch_first=True, padding_value=pad_id)
     lengths = torch.tensor(lengths, dtype=torch.int64)
-    return sequences, lengths
+    return sequences, lengths, skip
 
 
 class MetricsTracker(collections.defaultdict):
@@ -287,7 +297,7 @@ class MetricsTracker(collections.defaultdict):
             norm_value = "%.4g" % v
             ans += str(k) + "=" + str(norm_value) + ", "
         samples = "%.2f" % self["samples"]
-        ans += "over" + str(samples) + " samples."
+        ans += "over " + str(samples) + " samples."
         return ans
 
     def norm_items(self) -> List[Tuple[str, float]]:
@@ -468,3 +478,41 @@ def save_checkpoint_with_global_batch_idx(
         sampler=sampler,
         rank=rank,
     )
+
+
+# def plot_feature(feature):
+#     """
+#     Display the feature matrix as an image. Requires matplotlib to be installed.
+#     """
+#     import matplotlib.pyplot as plt
+#
+#     feature = np.flip(feature.transpose(1, 0), 0)
+#     return plt.matshow(feature)
+
+MATPLOTLIB_FLAG = False
+
+
+def plot_feature(spectrogram):
+    global MATPLOTLIB_FLAG
+    if not MATPLOTLIB_FLAG:
+        import matplotlib
+        matplotlib.use("Agg")
+        MATPLOTLIB_FLAG = True
+        mpl_logger = logging.getLogger('matplotlib')
+        mpl_logger.setLevel(logging.WARNING)
+    import matplotlib.pylab as plt
+    import numpy as np
+
+    fig, ax = plt.subplots(figsize=(10, 2))
+    im = ax.imshow(spectrogram, aspect="auto", origin="lower",
+                   interpolation='none')
+    plt.colorbar(im, ax=ax)
+    plt.xlabel("Frames")
+    plt.ylabel("Channels")
+    plt.tight_layout()
+
+    fig.canvas.draw()
+    data = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep='')
+    data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+    plt.close()
+    return data

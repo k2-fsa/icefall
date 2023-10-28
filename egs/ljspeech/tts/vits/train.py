@@ -1,10 +1,32 @@
 #!/usr/bin/env python3
+# Copyright    2021-2023  Xiaomi Corp.        (authors: Fangjun Kuang,
+#                                                       Wei Kang,
+#                                                       Mingshuang Luo,
+#                                                       Zengwei Yao,
+#                                                       Daniel Povey)
+#
+# See ../../../../LICENSE for clarification regarding multiple authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
 import argparse
 import logging
 from pathlib import Path
 from shutil import copyfile
 from typing import Any, Dict, Optional, Union
 
+import k2
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
@@ -27,10 +49,10 @@ from icefall.utils import (
     str2bool,
 )
 
-from symbols import symbol_table
+from tokenizer import Tokenizer
 from utils import (
     MetricsTracker,
-    prepare_token_batch,
+    plot_feature,
     save_checkpoint,
     save_checkpoint_with_global_batch_idx,
 )
@@ -99,6 +121,13 @@ def get_parser():
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
         """,
+    )
+
+    parser.add_argument(
+        "--tokens",
+        type=str,
+        default="data/tokens.txt",
+        help="""Path to tokens.txt.""",
     )
 
     parser.add_argument(
@@ -213,16 +242,16 @@ def get_params() -> AttributeDict:
             "best_train_epoch": -1,
             "best_valid_epoch": -1,
             "batch_idx_train": -1,  # 0
-            "log_interval": 50,
+            "log_interval": 10,
+            "draw_interval": 500,
             # "reset_interval": 200,
-            "valid_interval": 500,
+            "valid_interval": 200,
             "env_info": get_env_info(),
             "sampling_rate": 22050,
+            "frame_shift": 256,
+            "frame_length": 1024,
             "feature_dim": 513,  # 1024 // 2 + 1, 1024 is fft_length
-            "vocab_size": len(symbol_table),
             "mel_loss_params": {
-                "frame_shift": 256,
-                "frame_length": 1024,
                 "n_mels": 80,
             },
             "lambda_adv": 1.0,  # loss scaling coefficient for adversarial loss
@@ -287,11 +316,16 @@ def load_checkpoint_if_available(
 
 
 def get_model(params: AttributeDict) -> nn.Module:
+    mel_loss_params = params.mel_loss_params
+    mel_loss_params.update(
+        frame_length=params.frame_length,
+        frame_shift=params.frame_shift,
+    )
     model = VITS(
         vocab_size=params.vocab_size,
         feature_dim=params.feature_dim,
         sampling_rate=params.sampling_rate,
-        mel_loss_params=params.mel_loss_params,
+        mel_loss_params=mel_loss_params,
         lambda_adv=params.lambda_adv,
         lambda_mel=params.lambda_mel,
         lambda_feat_match=params.lambda_feat_match,
@@ -301,79 +335,30 @@ def get_model(params: AttributeDict) -> nn.Module:
     return model
 
 
-def compute_validation_loss(
-    params: AttributeDict,
-    model: Union[nn.Module, DDP],
-    valid_dl: torch.utils.data.DataLoader,
-    world_size: int = 1,
-) -> MetricsTracker:
-    """Run the validation process."""
-    model.eval()
-    device = model.device if isinstance(model, DDP) else next(model.parameters()).device
+def prepare_input(batch: dict, tokenizer: Tokenizer, device: torch.device):
+    """Parse batch data"""
+    audio = batch["audio"].to(device)
+    features = batch["features"].to(device)
+    audio_lens = batch["audio_lens"].to(device)
+    features_lens = batch["features_lens"].to(device)
+    text = batch["text"]
 
-    # used to summary the stats over iterations
-    tot_loss = MetricsTracker()
+    tokens = tokenizer.texts_to_token_ids(text)
+    tokens = k2.RaggedTensor(tokens)
+    row_splits = tokens.shape.row_splits(1)
+    tokens_lens = row_splits[1:] - row_splits[:-1]
+    tokens = tokens.to(device)
+    tokens_lens = tokens_lens.to(device)
+    # a tensor of shape (B, T)
+    tokens = tokens.pad(mode="constant", padding_value=tokenizer.blank_id)
 
-    with torch.no_grad():
-        for batch_idx, batch in enumerate(valid_dl):
-            batch_size = len(batch["text"])
-            audio = batch["audio"].to(device)
-            features = batch["features"].to(device)
-            audio_lens = batch["audio_lens"].to(device)
-            features_lens = batch["features_lens"].to(device)
-            text = batch["text"]
-            tokens, tokens_lens = prepare_token_batch(text)
-            tokens = tokens.to(device)
-            tokens_lens = tokens_lens.to(device)
-
-            loss_info = MetricsTracker()
-            loss_info['samples'] = batch_size
-
-            # forward discriminator
-            loss_d, stats_d = model(
-                text=tokens,
-                text_lengths=tokens_lens,
-                feats=features,
-                feats_lengths=features_lens,
-                speech=audio,
-                speech_lengths=audio_lens,
-                forward_generator=False,
-            )
-            assert loss_d.requires_grad is False
-            for k, v in stats_d.items():
-                loss_info[k] = v * batch_size
-
-            # forward generator
-            loss_g, stats_g = model(
-                text=tokens,
-                text_lengths=tokens_lens,
-                feats=features,
-                feats_lengths=features_lens,
-                speech=audio,
-                speech_lengths=audio_lens,
-                forward_generator=True,
-            )
-            assert loss_g.requires_grad is False
-            for k, v in stats_g.items():
-                loss_info[k] = v * batch_size
-
-            # summary stats
-            tot_loss = tot_loss + loss_info
-
-    if world_size > 1:
-        tot_loss.reduce(device)
-
-    loss_value = tot_loss["generator_loss"] / tot_loss["samples"]
-    if loss_value < params.best_valid_loss:
-        params.best_valid_epoch = params.cur_epoch
-        params.best_valid_loss = loss_value
-
-    return tot_loss
+    return audio, audio_lens, features, features_lens, tokens, tokens_lens
 
 
 def train_one_epoch(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
+    tokenizer: Tokenizer,
     optimizer_g: Optimizer,
     optimizer_d: Optimizer,
     scheduler_g: LRSchedulerType,
@@ -442,18 +427,13 @@ def train_one_epoch(
         params.batch_idx_train += 1
 
         batch_size = len(batch["text"])
-        audio = batch["audio"].to(device)
-        features = batch["features"].to(device)
-        audio_lens = batch["audio_lens"].to(device)
-        features_lens = batch["features_lens"].to(device)
-        text = batch["text"]
-        tokens, tokens_lens = prepare_token_batch(text)
-        tokens = tokens.to(device)
-        tokens_lens = tokens_lens.to(device)
+        audio, audio_lens, features, features_lens, tokens, tokens_lens = \
+            prepare_input(batch, tokenizer, device)
 
         loss_info = MetricsTracker()
         loss_info['samples'] = batch_size
 
+        return_sample = params.batch_idx_train % params.log_interval == 0
         try:
             with autocast(enabled=params.use_fp16):
                 # forward discriminator
@@ -483,9 +463,13 @@ def train_one_epoch(
                     speech=audio,
                     speech_lengths=audio_lens,
                     forward_generator=True,
+                    return_sample=return_sample,
                 )
             for k, v in stats_g.items():
-                loss_info[k] = v * batch_size
+                if "return_sample" not in k:
+                    loss_info[k] = v * batch_size
+            if return_sample:
+                speech_hat_, speech_, mel_hat_, mel_ = stats_g["return_sample"]
             # update generator
             optimizer_g.zero_grad()
             scaler.scale(loss_g).backward()
@@ -577,13 +561,27 @@ def train_one_epoch(
                     tb_writer.add_scalar(
                         "train/grad_scale", cur_grad_scale, params.batch_idx_train
                     )
+                if return_sample:
+                    tb_writer.add_audio(
+                        "train/speech_hat_", speech_hat_, params.batch_idx_train, params.sampling_rate
+                    )
+                    tb_writer.add_audio(
+                        "train/speech_", speech_, params.batch_idx_train, params.sampling_rate
+                    )
+                    tb_writer.add_image(
+                        "train/mel_hat_", plot_feature(mel_hat_), params.batch_idx_train, dataformats='HWC'
+                    )
+                    tb_writer.add_image(
+                        "train/mel_", plot_feature(mel_), params.batch_idx_train, dataformats='HWC'
+                    )
 
         # if batch_idx % params.valid_interval == 0 and not params.print_diagnostics:
         if params.batch_idx_train % params.valid_interval == 0 and not params.print_diagnostics:
             logging.info("Computing validation loss")
-            valid_info = compute_validation_loss(
+            valid_info, (speech_hat, speech) = compute_validation_loss(
                 params=params,
                 model=model,
+                tokenizer=tokenizer,
                 valid_dl=valid_dl,
                 world_size=world_size,
             )
@@ -596,6 +594,12 @@ def train_one_epoch(
                 valid_info.write_summary(
                     tb_writer, "train/valid_", params.batch_idx_train
                 )
+                tb_writer.add_audio(
+                    "train/valdi_speech_hat", speech_hat, params.batch_idx_train, params.sampling_rate
+                )
+                tb_writer.add_audio(
+                    "train/valdi_speech", speech, params.batch_idx_train, params.sampling_rate
+                )
 
     loss_value = tot_loss["generator_loss"] / tot_loss["samples"]
     params.train_loss = loss_value
@@ -604,9 +608,87 @@ def train_one_epoch(
         params.best_train_loss = params.train_loss
 
 
+def compute_validation_loss(
+    params: AttributeDict,
+    model: Union[nn.Module, DDP],
+    tokenizer: Tokenizer,
+    valid_dl: torch.utils.data.DataLoader,
+    world_size: int = 1,
+    rank: int = 0,
+) -> MetricsTracker:
+    """Run the validation process."""
+    model.eval()
+    device = model.device if isinstance(model, DDP) else next(model.parameters()).device
+
+    # used to summary the stats over iterations
+    tot_loss = MetricsTracker()
+    return_sample = None
+
+    with torch.no_grad():
+        for batch_idx, batch in enumerate(valid_dl):
+            batch_size = len(batch["text"])
+            audio, audio_lens, features, features_lens, tokens, tokens_lens = \
+                prepare_input(batch, tokenizer, device)
+
+            loss_info = MetricsTracker()
+            loss_info['samples'] = batch_size
+
+            # forward discriminator
+            loss_d, stats_d = model(
+                text=tokens,
+                text_lengths=tokens_lens,
+                feats=features,
+                feats_lengths=features_lens,
+                speech=audio,
+                speech_lengths=audio_lens,
+                forward_generator=False,
+            )
+            assert loss_d.requires_grad is False
+            for k, v in stats_d.items():
+                loss_info[k] = v * batch_size
+
+            # forward generator
+            loss_g, stats_g = model(
+                text=tokens,
+                text_lengths=tokens_lens,
+                feats=features,
+                feats_lengths=features_lens,
+                speech=audio,
+                speech_lengths=audio_lens,
+                forward_generator=True,
+            )
+            assert loss_g.requires_grad is False
+            for k, v in stats_g.items():
+                loss_info[k] = v * batch_size
+
+            # summary stats
+            tot_loss = tot_loss + loss_info
+
+            # infer for first batch:
+            if batch_idx == 0 and rank == 0:
+                inner_model = model.module if isinstance(model, DDP) else model
+                audio_pred, _, duration = inner_model.inference(text=tokens[0, :tokens_lens[0].item()])
+                audio_pred = audio_pred.data.cpu().numpy()
+                audio_len_pred = (duration.sum(0) * params.frame_shift).to(dtype=torch.int64).item()
+                assert audio_len_pred == len(audio_pred), (audio_len_pred, len(audio_pred))
+                audio_gt = audio[0, :audio_lens[0].item()].data.cpu().numpy()
+                return_sample = (audio_pred, audio_gt)
+
+    if world_size > 1:
+        tot_loss.reduce(device)
+
+    loss_value = tot_loss["generator_loss"] / tot_loss["samples"]
+    if loss_value < params.best_valid_loss:
+        params.best_valid_epoch = params.cur_epoch
+        params.best_valid_loss = loss_value
+
+    return tot_loss, return_sample
+
+
 def scan_pessimistic_batches_for_oom(
     model: Union[nn.Module, DDP],
     train_dl: torch.utils.data.DataLoader,
+    tokenizer: Tokenizer,
     optimizer_g: torch.optim.Optimizer,
     optimizer_d: torch.optim.Optimizer,
     params: AttributeDict,
@@ -620,14 +702,8 @@ def scan_pessimistic_batches_for_oom(
     batches, crit_values = find_pessimistic_batches(train_dl.sampler)
     for criterion, cuts in batches.items():
         batch = train_dl.dataset[cuts]
-        audio = batch["audio"].to(device)
-        features = batch["features"].to(device)
-        audio_lens = batch["audio_lens"].to(device)
-        features_lens = batch["features_lens"].to(device)
-        text = batch["text"]
-        tokens, tokens_lens = prepare_token_batch(text)
-        tokens = tokens.to(device)
-        tokens_lens = tokens_lens.to(device)
+        audio, audio_lens, features, features_lens, tokens, tokens_lens = \
+            prepare_input(batch, tokenizer, device)
         try:
             # for discriminator
             with autocast(enabled=params.use_fp16):
@@ -702,6 +778,11 @@ def run(rank, world_size, args):
         device = torch.device("cuda", rank)
     logging.info(f"Device: {device}")
 
+    tokenizer = Tokenizer(params.tokens)
+    params.blank_id = tokenizer.blank_id
+    params.oov_id = tokenizer.oov_id
+    params.vocab_size = tokenizer.vocab_size
+
     logging.info(params)
 
     logging.info("About to create model")
@@ -728,14 +809,14 @@ def run(rank, world_size, args):
         lr=params.lr,
         betas=(0.8, 0.99),
         eps=1e-9,
-        weight_decay=0,
+        # weight_decay=0,
     )
     optimizer_d = torch.optim.AdamW(
         discriminator.parameters(),
         lr=params.lr,
         betas=(0.8, 0.99),
         eps=1e-9,
-        weight_decay=0,
+        # weight_decay=0,
     )
 
     scheduler_g = torch.optim.lr_scheduler.ExponentialLR(optimizer_g, gamma=0.999875)
@@ -804,6 +885,7 @@ def run(rank, world_size, args):
         scan_pessimistic_batches_for_oom(
             model=model,
             train_dl=train_dl,
+            tokenizer=tokenizer,
             optimizer_g=optimizer_g,
             optimizer_d=optimizer_d,
             params=params,
@@ -815,6 +897,8 @@ def run(rank, world_size, args):
         scaler.load_state_dict(checkpoints["grad_scaler"])
 
     for epoch in range(params.start_epoch, params.num_epochs + 1):
+        logging.info(f"Start epoch {epoch}")
+
         fix_random_seed(params.seed + epoch - 1)
         train_dl.sampler.set_epoch(epoch - 1)
 
@@ -826,6 +910,7 @@ def run(rank, world_size, args):
         train_one_epoch(
             params=params,
             model=model,
+            tokenizer=tokenizer,
             optimizer_g=optimizer_g,
             optimizer_d=optimizer_d,
             scheduler_g=scheduler_g,

@@ -52,7 +52,8 @@ def main():
     manifest_dir = Path(args.manifest_dir)
     prefix = "ljspeech"
     suffix = "jsonl.gz"
-    all_cuts = load_manifest_lazy(manifest_dir / f"{prefix}_cuts_all.{suffix}")
+    # all_cuts = load_manifest_lazy(manifest_dir / f"{prefix}_cuts_all.{suffix}")
+    all_cuts = load_manifest_lazy(manifest_dir / f"{prefix}_cuts_all_phonemized.{suffix}")
 
     cut_ids = list(all_cuts.ids)
     random.shuffle(cut_ids)

@@ -66,11 +66,50 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   fi
 fi
 
+# if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
+#   log "Stage 3: Phonemize the transcripts for LJSpeech"
+#   if [ ! -e data/spectrogram/.ljspeech_phonemized.done ]; then
+#     ./local/phonemize_text.py data/spectrogram
+#     touch data/spectrogram/.ljspeech_phonemized.done
+#   fi
+# fi
+
+# if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
+#   log "Stage 4: Split the LJSpeech cuts into three sets"
+#   if [ ! -e data/spectrogram/.ljspeech_split.done ]; then
+#     ./local/split_subsets.py data/spectrogram
+#     touch data/spectrogram/.ljspeech_split.done
+#   fi
+# fi
+
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
-  log "Stage 3: Split the LJSpeech cuts into three sets"
+  log "Stage 3: Split the LJSpeech cuts into train, valid and test sets"
   if [ ! -e data/spectrogram/.ljspeech_split.done ]; then
-    ./local/split_subsets.py data/spectrogram
-    touch data/spectrogram/.ljspeech_split.done
+    lhotse subset --last 600 \
+      data/spectrogram/ljspeech_cuts_all.jsonl.gz \
+      data/spectrogram/ljspeech_cuts_validtest.jsonl.gz
+    lhotse subset --first 100 \
+      data/spectrogram/ljspeech_cuts_validtest.jsonl.gz \
+      data/spectrogram/ljspeech_cuts_valid.jsonl.gz
+    lhotse subset --last 500 \
+      data/spectrogram/ljspeech_cuts_validtest.jsonl.gz \
+      data/spectrogram/ljspeech_cuts_test.jsonl.gz
+    rm data/spectrogram/ljspeech_cuts_validtest.jsonl.gz
+
+    n=$(( $(gunzip -c data/spectrogram/ljspeech_cuts_all.jsonl.gz | wc -l) - 600 ))
+    lhotse subset --first $n  \
+      data/spectrogram/ljspeech_cuts_all.jsonl.gz \
+      data/spectrogram/ljspeech_cuts_train.jsonl.gz
+      touch data/spectrogram/.ljspeech_split.done
+  fi
+fi
+
+if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
+  log "Stage 4: Generate token file"
+  if [ ! -e data/tokens.txt ]; then
+    ./local/prepare_token_file.py \
+      --manifest-file data/spectrogram/ljspeech_cuts_train.jsonl.gz \
+      --tokens data/tokens.txt
   fi
 fi
 

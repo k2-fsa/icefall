@@ -241,6 +241,7 @@ class VITS(nn.Module):
         feats_lengths: torch.Tensor,
         speech: torch.Tensor,
         speech_lengths: torch.Tensor,
+        return_sample: bool = False,
         sids: Optional[torch.Tensor] = None,
         spembs: Optional[torch.Tensor] = None,
         lids: Optional[torch.Tensor] = None,
@@ -276,6 +277,7 @@ class VITS(nn.Module):
                 feats_lengths=feats_lengths,
                 speech=speech,
                 speech_lengths=speech_lengths,
+                return_sample=return_sample,
                 sids=sids,
                 spembs=spembs,
                 lids=lids,
@@ -301,6 +303,7 @@ class VITS(nn.Module):
         feats_lengths: torch.Tensor,
         speech: torch.Tensor,
         speech_lengths: torch.Tensor,
+        return_sample: bool = False,
         sids: Optional[torch.Tensor] = None,
         spembs: Optional[torch.Tensor] = None,
         lids: Optional[torch.Tensor] = None,
@@ -367,7 +370,12 @@ class VITS(nn.Module):
 
         # calculate losses
         with autocast(enabled=False):
-            mel_loss = self.mel_loss(speech_hat_, speech_)
+            if not return_sample:
+                mel_loss = self.mel_loss(speech_hat_, speech_)
+            else:
+                mel_loss, (mel_hat_, mel_) = self.mel_loss(
+                    speech_hat_, speech_, return_mel=True
+                )
             kl_loss = self.kl_loss(z_p, logs_q, m_p, logs_p, z_mask)
             dur_loss = torch.sum(dur_nll.float())
             adv_loss = self.generator_adv_loss(p_hat)
@@ -388,6 +396,14 @@ class VITS(nn.Module):
             generator_adv_loss=adv_loss.item(),
             generator_feat_match_loss=feat_match_loss.item(),
         )
+
+        if return_sample:
+            stats["return_sample"] = (
+                speech_hat_[0].data.cpu().numpy(),
+                speech_[0].data.cpu().numpy(),
+                mel_hat_[0].data.cpu().numpy(),
+                mel_[0].data.cpu().numpy(),
+            )
 
         # reset cache
         if reuse_cache or not self.training:
@@ -564,4 +580,43 @@ class VITS(nn.Module):
                 alpha=alpha,
                 max_len=max_len,
             )
-        return dict(wav=wav.view(-1), att_w=att_w[0], duration=dur[0])
+        return wav.view(-1), att_w[0], dur[0]
+
+    def inference_batch(
+        self,
+        text: torch.Tensor,
+        text_lengths: torch.Tensor,
+        durations: Optional[torch.Tensor] = None,
+        noise_scale: float = 0.667,
+        noise_scale_dur: float = 0.8,
+        alpha: float = 1.0,
+        max_len: Optional[int] = None,
+        use_teacher_forcing: bool = False,
+    ) -> Dict[str, torch.Tensor]:
+        """Run inference.
+
+        Args:
+            text (Tensor): Input text index tensor (B, T_text).
+            text_lengths (Tensor): Input text index tensor (B,).
+            noise_scale (float): Noise scale value for flow.
+            noise_scale_dur (float): Noise scale value for duration predictor.
+            alpha (float): Alpha parameter to control the speed of generated speech.
+            max_len (Optional[int]): Maximum length.
+
+        Returns:
+            Dict[str, Tensor]:
+                * wav (Tensor): Generated waveform tensor (B, T_wav).
+                * att_w (Tensor): Monotonic attention weight tensor (B, T_feats, T_text).
+                * duration (Tensor): Predicted duration tensor (B, T_text).
+
+        """
+        # inference
+        wav, att_w, dur = self.generator.inference(
+            text=text,
+            text_lengths=text_lengths,
+            noise_scale=noise_scale,
+            noise_scale_dur=noise_scale_dur,
+            alpha=alpha,
+            max_len=max_len,
+        )
+        return wav, att_w, dur
