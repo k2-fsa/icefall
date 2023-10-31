@@ -244,16 +244,14 @@ class TensorDiagnostic(object):
 
                 if stats_type == "eigs":
                     try:
-                        if hasattr(torch, 'linalg') and hasattr(torch.linalg, 'eigh'):
+                        if hasattr(torch, "linalg") and hasattr(torch.linalg, "eigh"):
                             eigs, _ = torch.linalg.eigh(stats)
                         else:
                             eigs, _ = torch.symeig(stats)
                         stats = eigs.abs().sqrt()
                     except:  # noqa
-                        print(
-                            "Error getting eigenvalues, trying another method."
-                        )
-                        if hasattr(torch, 'linalg') and hasattr(torch.linalg, 'eig'):
+                        print("Error getting eigenvalues, trying another method.")
+                        if hasattr(torch, "linalg") and hasattr(torch.linalg, "eig"):
                             eigs, _ = torch.linalg.eig(stats)
                             eigs = eigs.abs()
                         else:
@@ -579,10 +577,15 @@ def attach_diagnostics(
                 )
             elif isinstance(_output, tuple):
                 for i, o in enumerate(_output):
-                    if isinstance(o, Tensor) and o.dtype in ( torch.float32, torch.float16, torch.float64 ):
-                        _model_diagnostic[f"{_name}.output[{i}]"].accumulate(o,
-                                                                             class_name=get_class_name(_module))
-                        
+                    if isinstance(o, Tensor) and o.dtype in (
+                        torch.float32,
+                        torch.float16,
+                        torch.float64,
+                    ):
+                        _model_diagnostic[f"{_name}.output[{i}]"].accumulate(
+                            o, class_name=get_class_name(_module)
+                        )
+
         def backward_hook(_module, _input, _output, _model_diagnostic=ans, _name=name):
             if isinstance(_output, tuple) and len(_output) == 1:
                 _output = _output[0]
@@ -596,9 +599,15 @@ def attach_diagnostics(
                 )
             elif isinstance(_output, tuple):
                 for i, o in enumerate(_output):
-                    if isinstance(o, Tensor) and o.dtype in ( torch.float32, torch.float16, torch.float64 ):
-                        _model_diagnostic[f"{_name}.grad[{i}]"].accumulate(o,
-                                                                           class_name=get_class_name(_module))
+                    if isinstance(o, Tensor) and o.dtype in (
+                        torch.float32,
+                        torch.float16,
+                        torch.float64,
+                    ):
+                        _model_diagnostic[f"{_name}.grad[{i}]"].accumulate(
+                            o, class_name=get_class_name(_module)
+                        )
+
         module.register_forward_hook(forward_hook)
         module.register_backward_hook(backward_hook)
 

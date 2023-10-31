@@ -89,7 +89,6 @@ def set_batch_count(model: Union[nn.Module, DDP], batch_count: float) -> None:
 
 
 def add_model_arguments(parser: argparse.ArgumentParser):
-
     parser.add_argument(
         "--encoder-dim",
         type=int,
@@ -405,7 +404,6 @@ def get_params() -> AttributeDict:
 
 
 def get_encoder_model(params: AttributeDict) -> nn.Module:
-
     encoder = Conv1dNet(
         output_dim=params.encoder_dim,
         input_dim=params.feature_dim,
@@ -1043,7 +1041,7 @@ def run(rank, world_size, args):
 
     if params.print_diagnostics:
         opts = diagnostics.TensorDiagnosticOptions(
-            2**22
+            512
         )  # allow 4 megabytes per sub-module
         diagnostic = diagnostics.attach_diagnostics(model, opts)
 
