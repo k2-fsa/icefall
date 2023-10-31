@@ -253,7 +253,6 @@ class CausalSqueezeExcite1d(nn.Module):
         return y
 
     def forward(self, x: Tensor) -> Tensor:
-
         assert len(x.shape) == 3, "Input is not a 3D tensor!"
         y = self.exponential_moving_avg(x)
         y = y.permute(0, 2, 1)  # make channel last for squeeze op
