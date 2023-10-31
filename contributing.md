@@ -33,5 +33,5 @@ Once you have enabled the pre-commit hooks, follow these steps when making a com
 5. If any hook fails, your commit will not be successful. Please read and follow the error messages provided, make the necessary changes, and then re-run git add and git commit.
 
 ### Your Contribution
-Your contributions are valuable to us, and by following these guidelines, you help maintain code consistency and quality in our project. We appreciate your dedication to ensuring high-quality code. If you have questions or need assistance, feel free to reach out to us. Thank you for being part of our open-source community!
+Your contributions are valuable to us, and by following these guidelines, you help maintaining code consistency and quality in our project. We appreciate your dedication to ensuring high-quality code. If you have questions or need assistance, feel free to reach out to us. Thank you for being part of our open-source community!
 
