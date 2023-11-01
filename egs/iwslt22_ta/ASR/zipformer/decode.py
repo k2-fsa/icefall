@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright 2021-2023 Xiaomi Corporation (Author: Fangjun Kuang,
-#                                                 Zengwei Yao)
+# Copyright 2021-2023 Johns Hopkins University (Author: Amir Hussein)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -116,7 +115,7 @@ from beam_search import (
     greedy_search_batch,
     modified_beam_search,
 )
-from train import add_model_arguments, get_params, get_transducer_model
+from train_asr import add_model_arguments, get_params, get_transducer_model
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -191,14 +190,27 @@ def get_parser():
     parser.add_argument(
         "--bpe-model",
         type=str,
-        default="data/lang_bpe_500/bpe.model",
-        help="Path to the BPE model",
+        default="data/lang_bpe_ta_1000/bpe.model",
+        help="Path to source data BPE model",
+    )
+    parser.add_argument(
+        "--bpe-tgt-model",
+        type=str,
+        default="data/lang_bpe_en_1000/bpe.model",
+        help="Path to target data BPE model",
     )
 
     parser.add_argument(
         "--lang-dir",
         type=Path,
-        default="data/lang_bpe_500",
+        default="data/ang_bpe_ta_1000",
+        help="The lang dir containing word table and LG graph",
+    )
+
+    parser.add_argument(
+        "--lang-tgt-dir",
+        type=Path,
+        default="data/lang_bpe_en_1000",
         help="The lang dir containing word table and LG graph",
     )
 
@@ -450,6 +462,7 @@ def decode_one_batch(
             encoder_out=encoder_out,
             encoder_out_lens=encoder_out_lens,
             beam=params.beam_size,
+            use_hat=True,
         )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
@@ -621,12 +634,18 @@ def save_results(
 @torch.no_grad()
 def main():
     parser = get_parser()
-    LibriSpeechAsrDataModule.add_arguments(parser)
+    IWSLTDialectSTDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 
     params = get_params()
     params.update(vars(args))
+
+    # use predefined parameters that were used during the training
+    # params.num_encoder_layers = "2,2,2,2,2,2" 
+    # params.feedforward_dim = "256,512,768,1024,768,512"
+    # params.encoder_dim = "128,256,256,512,256,256"
+    # params.encoder_unmasked_dim = "64,128,128,256,128,128"
 
     assert params.decoding_method in (
         "greedy_search",
@@ -800,18 +819,17 @@ def main():
 
     # we need cut ids to display recognition results.
     args.return_cuts = True
-    librispeech = IWSLTDialectSTDataModule(args)
+    iwslt_ta = IWSLTDialectSTDataModule(args)
 
-    test_clean_cuts = librispeech.test_clean_cuts()
-    test_other_cuts = librispeech.test_other_cuts()
+    test_cuts = iwslt_ta.test_cuts()
+    dev_cuts = iwslt_ta.dev_cuts()
+    test_dl = iwslt_ta.test_dataloaders(test_cuts)
+    dev_dl = iwslt_ta.test_dataloaders(dev_cuts)
 
-    test_clean_dl = librispeech.test_dataloaders(test_clean_cuts)
-    test_other_dl = librispeech.test_dataloaders(test_other_cuts)
+    test_sets = ["test", "dev"]
+    test_all_dl = [test_dl, dev_dl]
 
-    test_sets = ["test-clean", "test-other"]
-    test_dl = [test_clean_dl, test_other_dl]
-
-    for test_set, test_dl in zip(test_sets, test_dl):
+    for test_set, test_dl in zip(test_sets, test_all_dl):
         results_dict = decode_dataset(
             dl=test_dl,
             params=params,

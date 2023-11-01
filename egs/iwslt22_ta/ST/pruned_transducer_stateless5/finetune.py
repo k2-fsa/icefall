@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright    2021-2023  Johns Hopkins University     (authors: Amir Hussein)
+# Copyright    2022  Johns Hopkins        (authors: Amir Hussein)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -19,102 +19,58 @@ Usage:
 
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
-# For non-streaming model training:
-./zipformer/train.py \
+./pruned_transducer_stateless5/train.py \
+  --world-size 2 \
+  --num-epochs 30 \
+  --start-epoch 1 \
+  --exp-dir pruned_transducer_stateless5/exp \
+  --max-duration 200 \
+  --num-buckets 50
+
+# For mix precision training:
+
+./pruned_transducer_stateless5/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 1 \
   --use-fp16 1 \
-  --exp-dir zipformer/exp \
-  --full-libri 1 \
-  --max-duration 1000
+  --exp-dir pruned_transducer_stateless5/exp \
+  --max-duration 200	\
+  --num-buckets 50
 
-# For streaming model training:
-./zipformer/train.py \
-  --world-size 4 \
-  --num-epochs 30 \
-  --start-epoch 1 \
-  --use-fp16 1 \
-  --exp-dir zipformer/exp \
-  --causal 1 \
-  --full-libri 1 \
-  --max-duration 1000
-
-# small model 28.5M
-./zipformer/train_asr.py \
-  --world-size 4 \
-  --num-epochs 30 \
-  --start-epoch 1 \
-  --use-fp16 1 \
-  --exp-dir zipformer/exp-asr-small \
-  --causal 0 \
-  --num-encoder-layers 2,2,2,2,2,2 \
-  --feedforward-dim 256,512,768,1024,768,512 \
-  --encoder-dim 128,256,256,512,256,256 \
-  --encoder-unmasked-dim 64,128,128,256,128,128 \
-  --base-lr 0.01 \
-  --max-duration 1000 
-
-# medium model 42.5M
-./zipformer/train_asr.py \
-  --world-size 4 \
-  --num-epochs 30 \
-  --start-epoch 1 \
-  --use-fp16 1 \
-  --exp-dir zipformer/exp-asr-small2 \
-  --causal 0 \
-  --num-encoder-layers 2,2,2,2,2,2 \
-    --feedforward-dim 512,768,1024,1536,1024,768 \
-  --encoder-dim 192,256,384,512,384,256 \
-  --encoder-unmasked-dim 192,192,256,256,256,192 \
-  --max-duration 800
-
-
-# large model 148.8M
-./zipformer/train_asr.py \
-  --world-size 4 \
-  --num-epochs 40 \
-  --start-epoch 1 \
-  --use-fp16 1 \
-  --exp-dir zipformer/exp-asr-large \
-  --causal 0 \
-  --num-encoder-layers 2,2,4,5,4,2 \
-  --feedforward-dim 512,768,1536,2048,1536,768 \
-  --encoder-dim 192,256,512,768,512,256 \
-  --encoder-unmasked-dim 192,192,256,320,256,192 \
-  --max-duration 300
 """
 
-
+# xxx
 import argparse
 import copy
 import logging
+import pdb
 import warnings
 from pathlib import Path
 from shutil import copyfile
 from typing import Any, Dict, Optional, Tuple, Union
 
 import k2
+import nvidia_smi
 import optim
 import sentencepiece as spm
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
-from asr_datamodule import IWSLTDialectSTDataModule
+from asr_finetune_datamodule import MGB2AsrDataModule
+from conformer import Conformer
 from decoder import Decoder
 from joiner import Joiner
 from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import Transducer
-from optim import Eden, ScaledAdam
-from scaling import ScheduledFloat
-from subsampling import Conv2dSubsampling
+from optim import Eden, Eve
 from torch import Tensor
 from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.nn.utils import clip_grad_norm_
 from torch.utils.tensorboard import SummaryWriter
-from zipformer import Zipformer2
 
 from icefall import diagnostics
 from icefall.checkpoint import load_checkpoint, remove_checkpoints
@@ -125,130 +81,59 @@ from icefall.checkpoint import (
 )
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
-from icefall.hooks import register_inf_check_hooks
 from icefall.utils import (
     AttributeDict,
     MetricsTracker,
-    get_parameter_groups_with_lrs,
+    display_and_save_batch,
     setup_logger,
     str2bool,
 )
 
-LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
-
-
-def get_adjusted_batch_count(params: AttributeDict) -> float:
-    # returns the number of batches we would have used so far if we had used the reference
-    # duration.  This is for purposes of set_batch_count().
-    return (
-        params.batch_idx_train
-        * (params.max_duration * params.world_size)
-        / params.ref_duration
-    )
-
-
-def set_batch_count(model: Union[nn.Module, DDP], batch_count: float) -> None:
-    if isinstance(model, DDP):
-        # get underlying nn.Module
-        model = model.module
-    for name, module in model.named_modules():
-        if hasattr(module, "batch_count"):
-            module.batch_count = batch_count
-        if hasattr(module, "name"):
-            module.name = name
+LRSchedulerType = Union[
+    torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler
+]
 
 
 def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--num-encoder-layers",
-        type=str,
-        default="2,2,3,4,3,2",
-        help="Number of zipformer encoder layers per stack, comma separated.",
+        type=int,
+        default=12,
+        help="Number of conformer encoder layers..",
     )
 
     parser.add_argument(
-        "--downsampling-factor",
-        type=str,
-        default="1,2,4,8,4,2",
-        help="Downsampling factor for each stack of encoder layers.",
+        "--dim-feedforward",
+        type=int,
+        default=2048,
+        help="Feedforward dimension of the conformer encoder layer.",
     )
 
     parser.add_argument(
-        "--feedforward-dim",
-        type=str,
-        default="512,768,1024,1536,1024,768",
-        help="Feedforward dimension of the zipformer encoder layers, per stack, comma separated.",
-    )
-
-    parser.add_argument(
-        "--num-heads",
-        type=str,
-        default="4,4,4,8,4,4",
-        help="Number of attention heads in the zipformer encoder layers: a single int or comma-separated list.",
+        "--nhead",
+        type=int,
+        default=8,
+        help="Number of attention heads in the conformer encoder layer.",
     )
 
     parser.add_argument(
         "--encoder-dim",
-        type=str,
-        default="192,256,384,512,384,256",
-        help="Embedding dimension in encoder stacks: a single int or comma-separated list.",
-    )
-
-    parser.add_argument(
-        "--query-head-dim",
-        type=str,
-        default="32",
-        help="Query/key dimension per head in encoder stacks: a single int or comma-separated list.",
-    )
-
-    parser.add_argument(
-        "--value-head-dim",
-        type=str,
-        default="12",
-        help="Value dimension per head in encoder stacks: a single int or comma-separated list.",
-    )
-
-    parser.add_argument(
-        "--pos-head-dim",
-        type=str,
-        default="4",
-        help="Positional-encoding dimension per head in encoder stacks: a single int or comma-separated list.",
-    )
-
-    parser.add_argument(
-        "--pos-dim",
         type=int,
-        default="48",
-        help="Positional-encoding embedding dimension",
-    )
-
-    parser.add_argument(
-        "--encoder-unmasked-dim",
-        type=str,
-        default="192,192,256,256,256,192",
-        help="Unmasked dimensions in the encoders, relates to augmentation during training.  "
-        "A single int or comma-separated list.  Must be <= each corresponding encoder_dim.",
-    )
-
-    parser.add_argument(
-        "--cnn-module-kernel",
-        type=str,
-        default="31,31,15,15,15,31",
-        help="Sizes of convolutional kernels in convolution modules in each encoder stack: "
-        "a single int or comma-separated list.",
+        default=512,
+        help="Attention dimension in the conformer encoder layer.",
     )
 
     parser.add_argument(
         "--decoder-dim",
         type=int,
-        default=256,
+        default=512,
         help="Embedding dimension in the decoder model.",
     )
 
     parser.add_argument(
         "--joiner-dim",
         type=int,
-        default=256,
+        default=512,
         help="""Dimension used in the joiner model.
         Outputs from the encoder and decoder model are projected
         to this dimension before adding.
@@ -256,27 +141,37 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     )
 
     parser.add_argument(
-        "--causal",
+        "--dynamic-chunk-training",
         type=str2bool,
         default=False,
-        help="If True, use causal version of model.",
+        help="""Whether to use dynamic_chunk_training, if you want a streaming
+        model, this requires to be True.
+        """,
     )
 
     parser.add_argument(
-        "--chunk-size",
-        type=str,
-        default="16,32,64,-1",
-        help="Chunk sizes (at 50Hz frame rate) will be chosen randomly from this list during training. "
-        " Must be just -1 if --causal=False",
+        "--causal-convolution",
+        type=str2bool,
+        default=False,
+        help="""Whether to use causal convolution, this requires to be True when
+        using dynamic_chunk_training.
+        """,
     )
 
     parser.add_argument(
-        "--left-context-frames",
-        type=str,
-        default="64,128,256,-1",
-        help="Maximum left-contexts for causal training, measured in frames which will "
-        "be converted to a number of chunks.  If splitting into chunks, "
-        "chunk left-context frames will be chosen randomly from this list; else not relevant.",
+        "--short-chunk-size",
+        type=int,
+        default=25,
+        help="""Chunk length of dynamic training, the chunk size would be either
+        max sequence length of current batch or uniformly sampled from (1, short_chunk_size).
+        """,
+    )
+
+    parser.add_argument(
+        "--num-left-chunks",
+        type=int,
+        default=4,
+        help="How many left context can be seen in chunks when calculating attention.",
     )
 
 
@@ -335,7 +230,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="zipformer/exp",
+        default="pruned_transducer_stateless5/exp",
         help="""The experiment dir.
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
@@ -345,18 +240,16 @@ def get_parser():
     parser.add_argument(
         "--bpe-model",
         type=str,
-        default="data/lang_bpe_ta_1000/bpe.model",
-        help="Path to source data BPE model",
-    )
-    parser.add_argument(
-        "--bpe-tgt-model",
-        type=str,
-        default="data/lang_bpe_en_1000/bpe.model",
-        help="Path to target data BPE model",
+        default="data/lang_bpe_2000/bpe.model",
+        help="Path to the BPE model",
     )
 
     parser.add_argument(
-        "--base-lr", type=float, default=0.045, help="The base learning rate."
+        "--initial-lr",
+        type=float,
+        default=0.0003,
+        help="The initial learning rate.  This value should not need "
+        "to be changed.",
     )
 
     parser.add_argument(
@@ -370,24 +263,17 @@ def get_parser():
     parser.add_argument(
         "--lr-epochs",
         type=float,
-        default=4,
+        default=6,
         help="""Number of epochs that affects how rapidly the learning rate decreases.
         """,
-    )
-
-    parser.add_argument(
-        "--ref-duration",
-        type=float,
-        default=600,
-        help="Reference batch duration for purposes of adjusting batch counts for setting various "
-        "schedules inside the model",
     )
 
     parser.add_argument(
         "--context-size",
         type=int,
         default=2,
-        help="The context size in the decoder. 1 means bigram; " "2 means tri-gram",
+        help="The context size in the decoder. 1 means bigram; "
+        "2 means tri-gram",
     )
 
     parser.add_argument(
@@ -410,7 +296,8 @@ def get_parser():
         "--am-scale",
         type=float,
         default=0.0,
-        help="The scale to smooth the loss with am (output of encoder network)" "part.",
+        help="The scale to smooth the loss with am (output of encoder network)"
+        "part.",
     )
 
     parser.add_argument(
@@ -438,16 +325,9 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--inf-check",
-        type=str2bool,
-        default=False,
-        help="Add hooks to check for infinite module outputs and gradients.",
-    )
-
-    parser.add_argument(
         "--save-every-n",
         type=int,
-        default=16000,
+        default=20000,
         help="""Save checkpoint after processing this number of batches"
         periodically. We save checkpoint to exp-dir/ whenever
         params.batch_idx_train % save_every_n == 0. The checkpoint filename
@@ -460,7 +340,7 @@ def get_parser():
     parser.add_argument(
         "--keep-last-k",
         type=int,
-        default=3,
+        default=10,
         help="""Only keep this number of checkpoints on disk.
         For instance, if it is 3, there are only 3 checkpoints
         in the exp-dir with filenames `checkpoint-xxx.pt`.
@@ -471,7 +351,7 @@ def get_parser():
     parser.add_argument(
         "--average-period",
         type=int,
-        default=200,
+        default=100,
         help="""Update the averaged model, namely `model_avg`, after processing
         this number of batches. `model_avg` is a separate version of model,
         in which each floating-point parameter is the average of all the
@@ -488,6 +368,15 @@ def get_parser():
         help="Whether to use half precision training.",
     )
 
+    parser.add_argument(
+        "--delay-penalty",
+        type=float,
+        default=0.0,
+        help="""A constant value used to penalize symbol delay,
+        to encourage streaming models to emit symbols earlier.
+        See https://github.com/k2-fsa/k2/issues/955 and
+        https://arxiv.org/pdf/2211.00490.pdf for more details.""",
+    )
     add_model_arguments(parser)
 
     return parser
@@ -535,8 +424,7 @@ def get_params() -> AttributeDict:
 
         - num_decoder_layers: Number of decoder layer of transformer decoder.
 
-        - warm_step: The warmup period that dictates the decay of the
-              scale on "simple" (un-pruned) loss.
+        - warm_step: The warm_step for Noam optimizer.
     """
     params = AttributeDict(
         {
@@ -547,11 +435,12 @@ def get_params() -> AttributeDict:
             "batch_idx_train": 0,
             "log_interval": 50,
             "reset_interval": 200,
-            "valid_interval": 1000,  # For the 100h subset, use 800
-            # parameters for zipformer
+            "valid_interval": 3000,  # For the subset, use 3000
+            # parameters for conformer
             "feature_dim": 80,
-            "subsampling_factor": 4,  # not passed in, this is fixed.
-            "warm_step": 20000,
+            "subsampling_factor": 4,
+            # parameters for Noam
+            "model_warm_step": 10000,  # arg given to model, not for lrate
             "env_info": get_env_info(),
         }
     )
@@ -559,46 +448,19 @@ def get_params() -> AttributeDict:
     return params
 
 
-def _to_int_tuple(s: str):
-    return tuple(map(int, s.split(",")))
-
-
-def get_encoder_embed(params: AttributeDict) -> nn.Module:
-    # encoder_embed converts the input of shape (N, T, num_features)
-    # to the shape (N, (T - 7) // 2, encoder_dims).
-    # That is, it does two things simultaneously:
-    #   (1) subsampling: T -> (T - 7) // 2
-    #   (2) embedding: num_features -> encoder_dims
-    # In the normal configuration, we will downsample once more at the end
-    # by a factor of 2, and most of the encoder stacks will run at a lower
-    # sampling rate.
-    encoder_embed = Conv2dSubsampling(
-        in_channels=params.feature_dim,
-        out_channels=_to_int_tuple(params.encoder_dim)[0],
-        dropout=ScheduledFloat((0.0, 0.3), (20000.0, 0.1)),
-    )
-    return encoder_embed
-
-
 def get_encoder_model(params: AttributeDict) -> nn.Module:
-    encoder = Zipformer2(
-        output_downsampling_factor=2,
-        downsampling_factor=_to_int_tuple(params.downsampling_factor),
-        num_encoder_layers=_to_int_tuple(params.num_encoder_layers),
-        encoder_dim=_to_int_tuple(params.encoder_dim),
-        encoder_unmasked_dim=_to_int_tuple(params.encoder_unmasked_dim),
-        query_head_dim=_to_int_tuple(params.query_head_dim),
-        pos_head_dim=_to_int_tuple(params.pos_head_dim),
-        value_head_dim=_to_int_tuple(params.value_head_dim),
-        pos_dim=params.pos_dim,
-        num_heads=_to_int_tuple(params.num_heads),
-        feedforward_dim=_to_int_tuple(params.feedforward_dim),
-        cnn_module_kernel=_to_int_tuple(params.cnn_module_kernel),
-        dropout=ScheduledFloat((0.0, 0.3), (20000.0, 0.1)),
-        warmup_batches=4000.0,
-        causal=params.causal,
-        chunk_size=_to_int_tuple(params.chunk_size),
-        left_context_frames=_to_int_tuple(params.left_context_frames),
+    # TODO: We can add an option to switch between Conformer and Transformer
+    encoder = Conformer(
+        num_features=params.feature_dim,
+        subsampling_factor=params.subsampling_factor,
+        d_model=params.encoder_dim,
+        nhead=params.nhead,
+        dim_feedforward=params.dim_feedforward,
+        num_encoder_layers=params.num_encoder_layers,
+        dynamic_chunk_training=params.dynamic_chunk_training,
+        short_chunk_size=params.short_chunk_size,
+        num_left_chunks=params.num_left_chunks,
+        causal=params.causal_convolution,
     )
     return encoder
 
@@ -615,7 +477,7 @@ def get_decoder_model(params: AttributeDict) -> nn.Module:
 
 def get_joiner_model(params: AttributeDict) -> nn.Module:
     joiner = Joiner(
-        encoder_dim=max(_to_int_tuple(params.encoder_dim)),
+        encoder_dim=params.encoder_dim,
         decoder_dim=params.decoder_dim,
         joiner_dim=params.joiner_dim,
         vocab_size=params.vocab_size,
@@ -624,17 +486,15 @@ def get_joiner_model(params: AttributeDict) -> nn.Module:
 
 
 def get_transducer_model(params: AttributeDict) -> nn.Module:
-    encoder_embed = get_encoder_embed(params)
     encoder = get_encoder_model(params)
     decoder = get_decoder_model(params)
     joiner = get_joiner_model(params)
 
     model = Transducer(
-        encoder_embed=encoder_embed,
         encoder=encoder,
         decoder=decoder,
         joiner=joiner,
-        encoder_dim=int(max(params.encoder_dim.split(","))),
+        encoder_dim=params.encoder_dim,
         decoder_dim=params.decoder_dim,
         joiner_dim=params.joiner_dim,
         vocab_size=params.vocab_size,
@@ -705,6 +565,9 @@ def load_checkpoint_if_available(
         if "cur_epoch" in saved_params:
             params["start_epoch"] = saved_params["cur_epoch"]
 
+        if "cur_batch_idx" in saved_params:
+            params["cur_batch_idx"] = saved_params["cur_batch_idx"]
+
     return saved_params
 
 
@@ -762,9 +625,10 @@ def compute_loss(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
     sp: spm.SentencePieceProcessor,
-    sp_tgt: spm.SentencePieceProcessor,
     batch: dict,
     is_training: bool,
+    warmup: float = 1.0,
+    reduction="none",
 ) -> Tuple[Tensor, MetricsTracker]:
     """
     Compute CTC loss given the model and its inputs.
@@ -773,7 +637,7 @@ def compute_loss(
       params:
         Parameters for training. See :func:`get_params`.
       model:
-        The model for training. It is an instance of Zipformer in our case.
+        The model for training. It is an instance of Conformer in our case.
       batch:
         A batch of data. See `lhotse.dataset.K2SpeechRecognitionDataset()`
         for the content in it.
@@ -784,7 +648,11 @@ def compute_loss(
      warmup: a floating point value which increases throughout training;
         values >= 1.0 are fully warmed up and have all modules present.
     """
-    device = model.device if isinstance(model, DDP) else next(model.parameters()).device
+    device = (
+        model.device
+        if isinstance(model, DDP)
+        else next(model.parameters()).device
+    )
     feature = batch["inputs"]
     # at entry, feature is (N, T, C)
     assert feature.ndim == 3
@@ -793,16 +661,9 @@ def compute_loss(
     supervisions = batch["supervisions"]
     feature_lens = supervisions["num_frames"].to(device)
 
-    batch_idx_train = params.batch_idx_train
-    warm_step = params.warm_step
-
     texts = batch["supervisions"]["text"]
-    texts = batch["supervisions"]["text"]
-    tgt_texts = batch["supervisions"]["tgt_text"]
     y = sp.encode(texts, out_type=int)
-    y_tgt = sp_tgt.encode(tgt_texts, out_type=int)
     y = k2.RaggedTensor(y).to(device)
-    y_tgt = k2.RaggedTensor(y_tgt).to(device)
 
     with torch.set_grad_enabled(is_training):
         simple_loss, pruned_loss = model(
@@ -812,6 +673,9 @@ def compute_loss(
             prune_range=params.prune_range,
             am_scale=params.am_scale,
             lm_scale=params.lm_scale,
+            warmup=warmup,
+            reduction="none",
+            delay_penalty=params.delay_penalty if warmup >= 2.0 else 0,
         )
         simple_loss_is_finite = torch.isfinite(simple_loss)
         pruned_loss_is_finite = torch.isfinite(pruned_loss)
@@ -828,42 +692,54 @@ def compute_loss(
             simple_loss = simple_loss[simple_loss_is_finite]
             pruned_loss = pruned_loss[pruned_loss_is_finite]
 
-        s = params.simple_loss_scale
-        # take down the scale on the simple loss from 1.0 at the start
-        # to params.simple_loss scale by warm_step.
-        simple_loss_scale = (
-            s
-            if batch_idx_train >= warm_step
-            else 1.0 - (batch_idx_train / warm_step) * (1.0 - s)
-        )
-        pruned_loss_scale = (
-            1.0
-            if batch_idx_train >= warm_step
-            else 0.1 + 0.9 * (batch_idx_train / warm_step)
-        )
+        simple_loss = simple_loss.sum()
+        pruned_loss = pruned_loss.sum()
 
-        loss = simple_loss_scale * simple_loss + pruned_loss_scale * pruned_loss
+        # after the main warmup step, we keep pruned_loss_scale small
+        # for the same amount of time (model_warm_step), to avoid
+        # overwhelming the simple_loss and causing it to diverge,
+        # in case it had not fully learned the alignment yet.
+        pruned_loss_scale = (
+            0.0
+            if warmup < 1.0
+            else (0.1 if warmup > 1.0 and warmup < 2.0 else 1.0)
+        )
+        loss = (
+            params.simple_loss_scale * simple_loss
+            + pruned_loss_scale * pruned_loss
+        )
 
     assert loss.requires_grad == is_training
 
     info = MetricsTracker()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        info["frames"] = (feature_lens // params.subsampling_factor).sum().item()
+
+        info["frames"] = (
+            (feature_lens // params.subsampling_factor).sum().item()
+        )
+
+    # # `utt_duration` and `utt_pad_proportion` would be normalized by `utterances`  # noqa
+    # info["utterances"] = feature.size(0)
+    # # averaged input duration in frames over utterances
+    # info["utt_duration"] = feature_lens.sum().item()
+    # # averaged padding proportion over utterances
+    # info["utt_pad_proportion"] = (
+    #     ((feature.size(1) - feature_lens) / feature.size(1)).sum().item()
+    # )
 
     # Note: We use reduction=sum while computing the loss.
     info["loss"] = loss.detach().cpu().item()
     info["simple_loss"] = simple_loss.detach().cpu().item()
     info["pruned_loss"] = pruned_loss.detach().cpu().item()
 
-    return loss, info
+    return loss, info, inf_flag
 
 
 def compute_validation_loss(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
     sp: spm.SentencePieceProcessor,
-    sp_tgt: spm.SentencePieceProcessor,
     valid_dl: torch.utils.data.DataLoader,
     world_size: int = 1,
 ) -> MetricsTracker:
@@ -871,26 +747,30 @@ def compute_validation_loss(
     model.eval()
 
     tot_loss = MetricsTracker()
+    with torch.no_grad():
+        for batch_idx, batch in enumerate(valid_dl):
 
-    for batch_idx, batch in enumerate(valid_dl):
-        loss, loss_info = compute_loss(
-            params=params,
-            model=model,
-            sp=sp,
-            sp_tgt=sp_tgt,
-            batch=batch,
-            is_training=False,
-        )
-        assert loss.requires_grad is False
-        tot_loss = tot_loss + loss_info
+            feature = batch["inputs"]
+            supervisions = batch["supervisions"]
+            feature_lens = supervisions["num_frames"]
+            if feature.size(0) == feature_lens.size(0):
+                loss, loss_info, inf_flag = compute_loss(
+                    params=params,
+                    model=model,
+                    sp=sp,
+                    batch=batch,
+                    is_training=False,
+                )
+                assert loss.requires_grad is False
+                tot_loss = tot_loss + loss_info
 
-    if world_size > 1:
-        tot_loss.reduce(loss.device)
+        if world_size > 1:
+            tot_loss.reduce(loss.device)
 
-    loss_value = tot_loss["loss"] / tot_loss["frames"]
-    if loss_value < params.best_valid_loss:
-        params.best_valid_epoch = params.cur_epoch
-        params.best_valid_loss = loss_value
+        loss_value = tot_loss["loss"] / tot_loss["frames"]
+        if loss_value < params.best_valid_loss:
+            params.best_valid_epoch = params.cur_epoch
+            params.best_valid_loss = loss_value
 
     return tot_loss
 
@@ -901,7 +781,6 @@ def train_one_epoch(
     optimizer: torch.optim.Optimizer,
     scheduler: LRSchedulerType,
     sp: spm.SentencePieceProcessor,
-    sp_tgt: spm.SentencePieceProcessor,
     train_dl: torch.utils.data.DataLoader,
     valid_dl: torch.utils.data.DataLoader,
     scaler: GradScaler,
@@ -945,160 +824,158 @@ def train_one_epoch(
 
     tot_loss = MetricsTracker()
 
-    saved_bad_model = False
-
-    def save_bad_model(suffix: str = ""):
-        save_checkpoint_impl(
-            filename=params.exp_dir / f"bad-model{suffix}-{rank}.pt",
-            model=model,
-            model_avg=model_avg,
-            params=params,
-            optimizer=optimizer,
-            scheduler=scheduler,
-            sampler=train_dl.sampler,
-            scaler=scaler,
-            rank=0,
-        )
+    cur_batch_idx = params.get("cur_batch_idx", 0)
 
     for batch_idx, batch in enumerate(train_dl):
-        if batch_idx % 10 == 0:
-            set_batch_count(model, get_adjusted_batch_count(params))
-
         params.batch_idx_train += 1
-        batch_size = len(batch["supervisions"]["text"])
+        if batch["inputs"].shape[0] == len(batch["supervisions"]["text"]):
+            if batch_idx < cur_batch_idx:
+                continue
+            cur_batch_idx = batch_idx
+            batch_size = len(batch["supervisions"]["text"])
 
-        try:
-            with torch.cuda.amp.autocast(enabled=params.use_fp16):
-                loss, loss_info = compute_loss(
+            try:
+                with torch.cuda.amp.autocast(enabled=params.use_fp16):
+                    loss, loss_info, inf_flag = compute_loss(
+                        params=params,
+                        model=model,
+                        sp=sp,
+                        batch=batch,
+                        is_training=True,
+                        warmup=(
+                            params.batch_idx_train / params.model_warm_step
+                        ),
+                    )
+                # summary stats
+                tot_loss = (
+                    tot_loss * (1 - 1 / params.reset_interval)
+                ) + loss_info
+
+                # NOTE: We use reduction==sum and loss is computed over utterances
+                # in the batch and there is no normalization to it so far.
+                if not inf_flag:
+                    scaler.scale(loss).backward()
+                    scheduler.step_batch(params.batch_idx_train)
+                    scaler.step(optimizer)
+                    scaler.update()
+                    optimizer.zero_grad()
+                else:
+                    continue
+            except:  # noqa
+                display_and_save_batch(batch, params=params, sp=sp)
+                raise
+
+            if params.print_diagnostics and batch_idx == 5:
+                return
+
+            if (
+                rank == 0
+                and params.batch_idx_train > 0
+                and params.batch_idx_train % params.average_period == 0
+            ):
+                update_averaged_model(
+                    params=params,
+                    model_cur=model,
+                    model_avg=model_avg,
+                )
+
+            if (
+                params.batch_idx_train > 0
+                and params.batch_idx_train % params.save_every_n == 0
+            ):
+                params.cur_batch_idx = batch_idx
+                save_checkpoint_with_global_batch_idx(
+                    out_dir=params.exp_dir,
+                    global_batch_idx=params.batch_idx_train,
+                    model=model,
+                    model_avg=model_avg,
+                    params=params,
+                    optimizer=optimizer,
+                    scheduler=scheduler,
+                    sampler=train_dl.sampler,
+                    scaler=scaler,
+                    rank=rank,
+                )
+                del params.cur_batch_idx
+                remove_checkpoints(
+                    out_dir=params.exp_dir,
+                    topk=params.keep_last_k,
+                    rank=rank,
+                )
+
+            if batch_idx % params.log_interval == 0:
+                cur_lr = scheduler.get_last_lr()[0]
+                # https://silpara.medium.com/check-gpu-memory-usage-from-python-ccca503322ea
+                #memory_debugging()
+                logging.info(
+                    f"Epoch {params.cur_epoch}, "
+                    f"batch {batch_idx}, loss[{loss_info}], "
+                    f"tot_loss[{tot_loss}], batch size: {batch_size}, "
+                    f"lr: {cur_lr:.2e}"
+                )
+
+                if tb_writer is not None:
+                    tb_writer.add_scalar(
+                        "train/learning_rate", cur_lr, params.batch_idx_train
+                    )
+
+                    loss_info.write_summary(
+                        tb_writer, "train/current_", params.batch_idx_train
+                    )
+                    tot_loss.write_summary(
+                        tb_writer, "train/tot_", params.batch_idx_train
+                    )
+
+            if batch_idx > 0 and batch_idx % params.valid_interval == 0:
+                logging.info("Computing validation loss")
+                valid_info = compute_validation_loss(
                     params=params,
                     model=model,
                     sp=sp,
-                    sp_tgt=sp_tgt,
-                    batch=batch,
-                    is_training=True,
+                    valid_dl=valid_dl,
+                    world_size=world_size,
                 )
-            # summary stats
-            tot_loss = (tot_loss * (1 - 1 / params.reset_interval)) + loss_info
-
-            # NOTE: We use reduction==sum and loss is computed over utterances
-            # in the batch and there is no normalization to it so far.
-            scaler.scale(loss).backward()
-            scheduler.step_batch(params.batch_idx_train)
-
-            scaler.step(optimizer)
-            scaler.update()
-            optimizer.zero_grad()
-        except:  # noqa
-            save_bad_model()
-            display_and_save_batch(batch, params=params, sp=sp)
-            raise
-
-        if params.print_diagnostics and batch_idx == 5:
-            return
-
-        if (
-            rank == 0
-            and params.batch_idx_train > 0
-            and params.batch_idx_train % params.average_period == 0
-        ):
-            update_averaged_model(
-                params=params,
-                model_cur=model,
-                model_avg=model_avg,
-            )
-
-        if (
-            params.batch_idx_train > 0
-            and params.batch_idx_train % params.save_every_n == 0
-        ):
-            save_checkpoint_with_global_batch_idx(
-                out_dir=params.exp_dir,
-                global_batch_idx=params.batch_idx_train,
-                model=model,
-                model_avg=model_avg,
-                params=params,
-                optimizer=optimizer,
-                scheduler=scheduler,
-                sampler=train_dl.sampler,
-                scaler=scaler,
-                rank=rank,
-            )
-            remove_checkpoints(
-                out_dir=params.exp_dir,
-                topk=params.keep_last_k,
-                rank=rank,
-            )
-
-        if batch_idx % 100 == 0 and params.use_fp16:
-            # If the grad scale was less than 1, try increasing it.    The _growth_interval
-            # of the grad scaler is configurable, but we can't configure it to have different
-            # behavior depending on the current grad scale.
-            cur_grad_scale = scaler._scale.item()
-
-            if cur_grad_scale < 8.0 or (cur_grad_scale < 32.0 and batch_idx % 400 == 0):
-                scaler.update(cur_grad_scale * 2.0)
-            if cur_grad_scale < 0.01:
-                if not saved_bad_model:
-                    save_bad_model(suffix="-first-warning")
-                    saved_bad_model = True
-                logging.warning(f"Grad scale is small: {cur_grad_scale}")
-            if cur_grad_scale < 1.0e-05:
-                save_bad_model()
-                raise RuntimeError(
-                    f"grad_scale is too small, exiting: {cur_grad_scale}"
+                model.train()
+                logging.info(
+                    f"Epoch {params.cur_epoch}, validation: {valid_info}"
                 )
-
-        if batch_idx % params.log_interval == 0:
-            cur_lr = max(scheduler.get_last_lr())
-            cur_grad_scale = scaler._scale.item() if params.use_fp16 else 1.0
-
-            logging.info(
-                f"Epoch {params.cur_epoch}, "
-                f"batch {batch_idx}, loss[{loss_info}], "
-                f"tot_loss[{tot_loss}], batch size: {batch_size}, "
-                f"lr: {cur_lr:.2e}, "
-                + (f"grad_scale: {scaler._scale.item()}" if params.use_fp16 else "")
-            )
-
-            if tb_writer is not None:
-                tb_writer.add_scalar(
-                    "train/learning_rate", cur_lr, params.batch_idx_train
-                )
-
-                loss_info.write_summary(
-                    tb_writer, "train/current_", params.batch_idx_train
-                )
-                tot_loss.write_summary(tb_writer, "train/tot_", params.batch_idx_train)
-                if params.use_fp16:
-                    tb_writer.add_scalar(
-                        "train/grad_scale", cur_grad_scale, params.batch_idx_train
+                if tb_writer is not None:
+                    valid_info.write_summary(
+                        tb_writer, "train/valid_", params.batch_idx_train
                     )
-
-        if batch_idx % params.valid_interval == 0 and not params.print_diagnostics:
-            logging.info("Computing validation loss")
-            valid_info = compute_validation_loss(
-                params=params,
-                model=model,
-                sp=sp,
-                sp_tgt=sp_tgt,
-                valid_dl=valid_dl,
-                world_size=world_size,
+        else:
+            logging.warning(
+                f"Batch {batch_idx} mismatch in dimentions between the input and the output. Skipping ..."
             )
-            model.train()
-            logging.info(f"Epoch {params.cur_epoch}, validation: {valid_info}")
-            logging.info(
-                f"Maximum memory allocated so far is {torch.cuda.max_memory_allocated()//1000000}MB"
-            )
-            if tb_writer is not None:
-                valid_info.write_summary(
-                    tb_writer, "train/valid_", params.batch_idx_train
-                )
+            continue
 
     loss_value = tot_loss["loss"] / tot_loss["frames"]
     params.train_loss = loss_value
     if params.train_loss < params.best_train_loss:
         params.best_train_epoch = params.cur_epoch
         params.best_train_loss = params.train_loss
+
+
+def memory_debugging():
+    # memory nvidia debugging
+    nvidia_smi.nvmlInit()
+
+    deviceCount = nvidia_smi.nvmlDeviceGetCount()
+    for i in range(deviceCount):
+        handle = nvidia_smi.nvmlDeviceGetHandleByIndex(i)
+        info = nvidia_smi.nvmlDeviceGetMemoryInfo(handle)
+        logging.info(
+            "Device {}: {}, Memory : ({:.2f}% free): {}(total), {} (free), {} (used)".format(
+                i,
+                nvidia_smi.nvmlDeviceGetName(handle),
+                100 * info.free / info.total,
+                info.total,
+                info.free,
+                info.used,
+            )
+        )
+
+    nvidia_smi.nvmlShutdown()
 
 
 def run(rank, world_size, args):
@@ -1134,10 +1011,8 @@ def run(rank, world_size, args):
     logging.info(f"Device: {device}")
 
     sp = spm.SentencePieceProcessor()
-    sp_tgt = spm.SentencePieceProcessor()
     sp.load(params.bpe_model)
-    sp_tgt.load(params.bpe_tgt_model)
-
+    # pdb.set_trace()
     # <blk> is defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
     params.vocab_size = sp.get_piece_size()
@@ -1154,23 +1029,16 @@ def run(rank, world_size, args):
     model_avg: Optional[nn.Module] = None
     if rank == 0:
         # model_avg is only used with rank 0
-        model_avg = copy.deepcopy(model).to(torch.float64)
+        model_avg = copy.deepcopy(model)
 
-    assert params.start_epoch > 0, params.start_epoch
-    checkpoints = load_checkpoint_if_available(
-        params=params, model=model, model_avg=model_avg
-    )
+    checkpoints = load_checkpoint_if_available(params=params, model=model)
 
     model.to(device)
     if world_size > 1:
         logging.info("Using DDP")
-        model = DDP(model, device_ids=[rank], find_unused_parameters=True)
+        model = DDP(model, device_ids=[rank])
 
-    optimizer = ScaledAdam(
-        get_parameter_groups_with_lrs(model, lr=params.base_lr, include_names=True),
-        lr=params.base_lr,  # should have no effect
-        clipping_scale=2.0,
-    )
+    optimizer = Eve(model.parameters(), lr=params.initial_lr)
 
     scheduler = Eden(optimizer, params.lr_batches, params.lr_epochs)
 
@@ -1188,16 +1056,23 @@ def run(rank, world_size, args):
 
     if params.print_diagnostics:
         opts = diagnostics.TensorDiagnosticOptions(
-            2**22
+            2 ** 22
         )  # allow 4 megabytes per sub-module
         diagnostic = diagnostics.attach_diagnostics(model, opts)
 
-    if params.inf_check:
-        register_inf_check_hooks(model)
-
-    iwslt_ta = IWSLTDialectSTDataModule(args)
-    train_cuts = iwslt_ta.train_cuts()
-
+    MGB2 = MGB2AsrDataModule(args)
+    train_cuts = MGB2.train_cuts()
+    #pdb.set_trace()
+    # def remove_short_and_long_utt(c: Cut):
+    # Keep only utterances with duration between 1 second and 30 seconds
+    #
+    # Caution: There is a reason to select 20.0 here. Please see
+    # ../local/display_manifest_statistics.py
+    #
+    # You should use ../local/display_manifest_statistics.py to get
+    # an utterance duration distribution for your dataset to select
+    # the threshold
+    #    return 1 <= c.duration <= 28.0
     def remove_short_and_long_utt(c: Cut):
         # Keep only utterances with duration between 1 second and 20 seconds
         #
@@ -1207,7 +1082,7 @@ def run(rank, world_size, args):
         # You should use ../local/display_manifest_statistics.py to get
         # an utterance duration distribution for your dataset to select
         # the threshold
-        if c.duration < 0.3 or c.duration > 30.0:
+        if c.duration < 0.5 or c.duration > 30.0:
             #logging.warning(
             #    f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
             #)
@@ -1239,9 +1114,19 @@ def run(rank, world_size, args):
     def remove_short_and_long_text(c: Cut):
         # Keep only text with charachters between 20 and 400
 
-        return 3 <= len(c.supervisions[0].text) <= 400
+        return 20 <= len(c.supervisions[0].text) <= 400
+    # def remove_seg(c: Cut):
+    #     # Keep only text with charachters between 20 and 400
+
+    #     return c.supervisions[0].id != "arb_glf-20040221_024028_0A_00102" 
+    #logging.info(f"Total duration before filtering {train_cuts.describe()}")
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
     train_cuts = train_cuts.filter(remove_short_and_long_text)
+    # train_cuts = train_cuts.filter(remove_seg)
+    # for c in train_cuts:
+    #     if c.supervisions[0].id == "arb_glf-20040221_024028_0A_00102":
+    #         print(c)    
+    #logging.info(f"Total duration after filtering {train_cuts.describe()}")
 
     if params.start_batch > 0 and checkpoints and "sampler" in checkpoints:
         # We only load the sampler's state dict when it loads a checkpoint
@@ -1250,12 +1135,13 @@ def run(rank, world_size, args):
     else:
         sampler_state_dict = None
 
-    train_dl = iwslt_ta.train_dataloaders(
+    train_dl = MGB2.train_dataloaders(
         train_cuts, sampler_state_dict=sampler_state_dict
     )
-
-    valid_cuts = iwslt_ta.dev_cuts()
-    valid_dl = iwslt_ta.test_dataloaders(valid_cuts)
+    valid_cuts = MGB2.dev_cuts()
+    valid_cuts = valid_cuts.filter(remove_short_and_long_utt)
+    valid_cuts = valid_cuts.filter(remove_short_and_long_text)
+    valid_dl = MGB2.test_dataloaders(valid_cuts)
 
     if not params.print_diagnostics:
         scan_pessimistic_batches_for_oom(
@@ -1263,16 +1149,17 @@ def run(rank, world_size, args):
             train_dl=train_dl,
             optimizer=optimizer,
             sp=sp,
-            sp_tgt=sp_tgt,
             params=params,
+            warmup=0.0 if params.start_epoch == 1 else 1.0,
         )
 
-    scaler = GradScaler(enabled=params.use_fp16, init_scale=1.0)
+    scaler = GradScaler(enabled=params.use_fp16)
     if checkpoints and "grad_scaler" in checkpoints:
         logging.info("Loading grad scaler state dict")
         scaler.load_state_dict(checkpoints["grad_scaler"])
 
     for epoch in range(params.start_epoch, params.num_epochs + 1):
+
         scheduler.step_epoch(epoch - 1)
         fix_random_seed(params.seed + epoch - 1)
         train_dl.sampler.set_epoch(epoch - 1)
@@ -1289,7 +1176,6 @@ def run(rank, world_size, args):
             optimizer=optimizer,
             scheduler=scheduler,
             sp=sp,
-            sp_tgt=sp_tgt,
             train_dl=train_dl,
             valid_dl=valid_dl,
             scaler=scaler,
@@ -1357,8 +1243,8 @@ def scan_pessimistic_batches_for_oom(
     train_dl: torch.utils.data.DataLoader,
     optimizer: torch.optim.Optimizer,
     sp: spm.SentencePieceProcessor,
-    sp_tgt: spm.SentencePieceProcessor,
     params: AttributeDict,
+    warmup: float,
 ):
     from lhotse.dataset import find_pessimistic_batches
 
@@ -1369,16 +1255,22 @@ def scan_pessimistic_batches_for_oom(
     for criterion, cuts in batches.items():
         batch = train_dl.dataset[cuts]
         try:
+            # warmup = 0.0 is so that the derivs for the pruned loss stay zero
+            # (i.e. are not remembered by the decaying-average in adam), because
+            # we want to avoid these params being subject to shrinkage in adam.
             with torch.cuda.amp.autocast(enabled=params.use_fp16):
-                loss, _ = compute_loss(
+
+                loss, _, _ = compute_loss(
                     params=params,
                     model=model,
                     sp=sp,
-                    sp_tgt=sp_tgt,
                     batch=batch,
                     is_training=True,
+                    warmup=warmup,
                 )
             loss.backward()
+            # clip_grad_norm_(model.parameters(), 5.0, 2.0)
+            optimizer.step()
             optimizer.zero_grad()
         except Exception as e:
             if "CUDA out of memory" in str(e):
@@ -1391,14 +1283,11 @@ def scan_pessimistic_batches_for_oom(
                 )
             display_and_save_batch(batch, params=params, sp=sp)
             raise
-        logging.info(
-            f"Maximum memory allocated so far is {torch.cuda.max_memory_allocated()//1000000}MB"
-        )
 
 
 def main():
     parser = get_parser()
-    IWSLTDialectSTDataModule.add_arguments(parser)
+    MGB2AsrDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 

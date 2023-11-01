@@ -115,43 +115,61 @@ fi
 
 if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   log "Stage 5: Prepare phone based lang"
-  lang_dir=data/lang_phone
+  lang_dir_src=data/lang_phone_src
+  lang_dir_tgt=data/lang_phone_tgt
 
-  if [ ! -f download/lm/train/transcript_words.txt ]; then
+  if [ ! -f download/lm/train_src/transcript_words.txt ] || [ ! -f download/lm/train_tgt/transcript_words.txt ]; then
   # export train text file to build grapheme lexicon
     log "Creating transcripts in download/lm/train from lhotse cuts"
-    mkdir -p download/lm/train
-    python local/prepare_transcripts.py --cut ${fbank}/cuts_train_shuf.jsonl.gz --langdir download/lm/train
+    mkdir -p download/lm/train_src
+    mkdir -p download/lm/train_tgt
+    python local/prepare_transcripts.py --cut ${fbank}/cuts_train_shuf.jsonl.gz --src-langdir download/lm/train_src --tgt-langdir download/lm/train_tgt
   fi
-  mkdir -p $lang_dir
+  mkdir -p $lang_dir_src
+  mkdir -p $lang_dir_tgt
 
   log "Prepare lexicon"
 
-  ./local/prep_lexicon.sh download/lm/train
-  python local/prepare_lexicon.py  $dl_dir/lm/train/words.txt  $dl_dir/lm/train/lexicon.txt
+  ./local/prep_lexicon.sh download/lm/train_src download/lm/train_tgt
+  python local/prepare_lexicon.py  $dl_dir/lm/train_src/words.txt  $dl_dir/lm/train_src/lexicon.txt
+  python local/prepare_lexicon.py  $dl_dir/lm/train_tgt/words.txt  $dl_dir/lm/train_tgt/lexicon.txt
 
   (echo '!SIL SIL'; echo '<SPOKEN_NOISE> SPN'; echo '<UNK> SPN'; ) |
-    cat - $dl_dir/lm/train/lexicon.txt |
-    sort | uniq > $lang_dir/lexicon.txt
+    cat - $dl_dir/lm/train_src/lexicon.txt |
+    sort | uniq > $lang_dir_src/lexicon.txt
 
-  if [ ! -f $lang_dir/L_disambig.pt ]; then
-    ./local/prepare_lang.py --lang-dir $lang_dir
+  (echo '!SIL SIL'; echo '<SPOKEN_NOISE> SPN'; echo '<UNK> SPN'; ) |
+    cat - $dl_dir/lm/train_tgt/lexicon.txt |
+    sort | uniq > $lang_dir_tgt/lexicon.txt
+
+  if [ ! -f $lang_dir_src/L_disambig.pt ]; then
+    ./local/prepare_lang.py --lang-dir $lang_dir_src
+  fi
+
+  if [ ! -f $lang_dir_tgt/L_disambig.pt ]; then
+    ./local/prepare_lang.py --lang-dir $lang_dir_tgt
   fi
 
 fi
 
 if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
   log "Stage 6: Prepare BPE based lang"
+  srctag=ta
+  tgttag=en
   for vocab_size in ${vocab_sizes[@]}; do
-    lang_dir=data/lang_bpe_${vocab_size}
-    mkdir -p ${lang_dir}
+    src_lang_dir=data/lang_bpe_${srctag}_${vocab_size}
+    tgt_lang_dir=data/lang_bpe_${tgttag}_${vocab_size}
+    mkdir -p ${src_lang_dir}
+    mkdir -p ${tgt_lang_dir}
       # We reuse words.txt from phone based lexicon
     # so that the two can share G.pt later.
-    cp data/lang_phone_src/words.txt $lang_dir
-    if [ ! -f $lang_dir/transcript_words.txt ]; then
-      log "Generate Tunisian text for BPE training from data/fbank/cuts_train_shuf.jsonl.gz"
-      python local/prepare_transcripts.py --cut ${fbank}/cuts_train_shuf.jsonl.gz --langdir ${ang_dir} 
+    cp data/lang_phone_src/words.txt $src_lang_dir
+    cp data/lang_phone_tgt/words.txt $tgt_lang_dir
+    if [ ! -f $src_lang_dir/transcript_words.txt ] || [ ! -f $tgt_lang_dir/transcript_words.txt ]; then
+      log "Generate data for ${srctag} and ${tgttag} BPE training from data/fbank/cuts_train_shuf.jsonl.gz"
+      python local/prepare_transcripts.py --cut ${fbank}/cuts_train_shuf.jsonl.gz --src-langdir ${src_lang_dir} --tgt-langdir ${tgt_lang_dir}
     fi
+    for lang_dir in $src_lang_dir $tgt_lang_dir; do
     ./local/train_bpe_model.py \
       --lang-dir $lang_dir \
       --vocab-size $vocab_size \
