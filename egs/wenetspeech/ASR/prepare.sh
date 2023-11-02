@@ -362,6 +362,6 @@ if [ $stage -le 21 ] && [ $stop_stage -ge 21 ]; then
     --exp-dir rnnlm_char/exp \
     --lm-data data/lm_char/sorted_lm_data.pt \
     --lm-data-valid data/lm_char/sorted_lm_data-valid.pt \
-    --vocab-size 4336 \
+    --vocab-size 5537 \
     --master-port 12340
 fi
