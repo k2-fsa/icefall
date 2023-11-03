@@ -456,6 +456,8 @@ class ScaledAdam(BatchedOptimizer):
                 quartiles.append(sorted_norms[index].item())
 
             median = quartiles[2]
+            if median - median != 0:
+                raise RuntimeError("Too many grads were not finite")
             threshold = clipping_scale * median
             first_state["model_norm_threshold"] = threshold
             percent_clipped = (
