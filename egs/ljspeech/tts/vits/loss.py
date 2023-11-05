@@ -1,4 +1,4 @@
-# https://github.com/espnet/espnet/blob/master/espnet2/gan_tts/hifigan/loss.py
+# from https://github.com/espnet/espnet/blob/master/espnet2/gan_tts/hifigan/loss.py
 
 # Copyright 2021 Tomoki Hayashi
 #  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
@@ -9,7 +9,7 @@ This code is modified from https://github.com/kan-bayashi/ParallelWaveGAN.
 
 """
 
-from typing import List, Optional, Tuple, Union
+from typing import List, Tuple, Union
 
 import torch
 import torch.distributions as D
@@ -266,7 +266,7 @@ class MelSpectrogramLoss(torch.nn.Module):
         return mel_loss
 
 
-# https://github.com/espnet/espnet/blob/master/espnet2/gan_tts/vits/loss.py
+# from https://github.com/espnet/espnet/blob/master/espnet2/gan_tts/vits/loss.py
 
 """VITS-related loss modules.
 

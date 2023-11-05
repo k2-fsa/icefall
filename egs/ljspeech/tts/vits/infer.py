@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright 2021-2023 Xiaomi Corporation (Author: Fangjun Kuang,
-#                                                 Zengwei Yao)
+# Copyright      2023 Xiaomi Corporation     (Author: Zengwei Yao)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -17,117 +16,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
+This script performs model inference on test set.
+
 Usage:
-(1) greedy search
-./zipformer/decode.py \
-    --epoch 28 \
-    --avg 15 \
+./vits/infer.py \
+    --epoch 1000 \
     --exp-dir ./zipformer/exp \
-    --max-duration 600 \
-    --decoding-method greedy_search
-
-(2) beam search (not recommended)
-./zipformer/decode.py \
-    --epoch 28 \
-    --avg 15 \
-    --exp-dir ./zipformer/exp \
-    --max-duration 600 \
-    --decoding-method beam_search \
-    --beam-size 4
-
-(3) modified beam search
-./zipformer/decode.py \
-    --epoch 28 \
-    --avg 15 \
-    --exp-dir ./zipformer/exp \
-    --max-duration 600 \
-    --decoding-method modified_beam_search \
-    --beam-size 4
-
-(4) fast beam search (one best)
-./zipformer/decode.py \
-    --epoch 28 \
-    --avg 15 \
-    --exp-dir ./zipformer/exp \
-    --max-duration 600 \
-    --decoding-method fast_beam_search \
-    --beam 20.0 \
-    --max-contexts 8 \
-    --max-states 64
-
-(5) fast beam search (nbest)
-./zipformer/decode.py \
-    --epoch 28 \
-    --avg 15 \
-    --exp-dir ./zipformer/exp \
-    --max-duration 600 \
-    --decoding-method fast_beam_search_nbest \
-    --beam 20.0 \
-    --max-contexts 8 \
-    --max-states 64 \
-    --num-paths 200 \
-    --nbest-scale 0.5
-
-(6) fast beam search (nbest oracle WER)
-./zipformer/decode.py \
-    --epoch 28 \
-    --avg 15 \
-    --exp-dir ./zipformer/exp \
-    --max-duration 600 \
-    --decoding-method fast_beam_search_nbest_oracle \
-    --beam 20.0 \
-    --max-contexts 8 \
-    --max-states 64 \
-    --num-paths 200 \
-    --nbest-scale 0.5
-
-(7) fast beam search (with LG)
-./zipformer/decode.py \
-    --epoch 28 \
-    --avg 15 \
-    --exp-dir ./zipformer/exp \
-    --max-duration 600 \
-    --decoding-method fast_beam_search_nbest_LG \
-    --beam 20.0 \
-    --max-contexts 8 \
-    --max-states 64
+    --max-duration 500
 """
 
 
 import argparse
 import logging
-import math
-import os
-from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import List
 
 import k2
 import torch
 import torch.nn as nn
 import torchaudio
 
-from train import get_model, get_params, prepare_input
+from train import get_model, get_params
 from tokenizer import Tokenizer
 
-from icefall.checkpoint import (
-    average_checkpoints,
-    find_checkpoints,
-    load_checkpoint,
-)
-from icefall.lexicon import Lexicon
-from icefall.utils import (
-    AttributeDict,
-    make_pad_mask,
-    setup_logger,
-    store_transcripts,
-    str2bool,
-    write_error_stats,
-)
+from icefall.checkpoint import load_checkpoint
+from icefall.utils import AttributeDict, setup_logger
 from tts_datamodule import LJSpeechTtsDataModule
-
-LOG_EPS = math.log(1e-10)
 
 
 def get_parser():
@@ -138,35 +53,16 @@ def get_parser():
     parser.add_argument(
         "--epoch",
         type=int,
-        default=30,
+        default=1000,
         help="""It specifies the checkpoint to use for decoding.
         Note: Epoch counts from 1.
-        You can specify --avg to use more checkpoints for model averaging.""",
-    )
-
-    parser.add_argument(
-        "--iter",
-        type=int,
-        default=0,
-        help="""If positive, --epoch is ignored and it
-        will use the checkpoint exp_dir/checkpoint-iter.pt.
-        You can specify --avg to use more checkpoints for model averaging.
         """,
-    )
-
-    parser.add_argument(
-        "--avg",
-        type=int,
-        default=15,
-        help="Number of checkpoints to average. Automatically select "
-        "consecutive checkpoints before the checkpoint specified by "
-        "'--epoch' and '--iter'",
     )
 
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="zipformer/exp",
+        default="vits/exp",
         help="The experiment dir",
     )
 
@@ -174,7 +70,7 @@ def get_parser():
         "--tokens",
         type=str,
         default="data/tokens.txt",
-        help="""Path to tokens.txt.""",
+        help="""Path to vocabulary.""",
     )
 
     return parser
@@ -185,8 +81,9 @@ def infer_dataset(
     params: AttributeDict,
     model: nn.Module,
     tokenizer: Tokenizer,
-) -> Dict[str, List[Tuple[str, List[str], List[str]]]]:
+) -> None:
     """Decode dataset.
+    The ground-truth and generated audio pairs will be saved to `params.save_wav_dir`.
 
     Args:
       dl:
@@ -195,20 +92,8 @@ def infer_dataset(
         It is returned by :func:`get_params`.
       model:
         The neural model.
-      sp:
-        The BPE model.
-      word_table:
-        The word symbol table.
-      decoding_graph:
-        The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
-        only when --decoding-method is fast_beam_search, fast_beam_search_nbest,
-        fast_beam_search_nbest_oracle, and fast_beam_search_nbest_LG.
-    Returns:
-      Return a dict, whose key may be "greedy_search" if greedy search
-      is used, or it may be "beam_7" if beam size of 7 is used.
-      Its value is a list of tuples. Each tuple contains two elements:
-      The first is the reference transcript, and the second is the
-      predicted result.
+      tokenizer:
+        Used to convert text to phonemes.
     """
     #  Background worker save audios to disk.
     def _save_worker(
@@ -233,7 +118,7 @@ def infer_dataset(
 
     device = next(model.parameters()).device
     num_cuts = 0
-    log_interval = 10
+    log_interval = 5
 
     try:
         num_batches = len(dl)
@@ -242,7 +127,6 @@ def infer_dataset(
 
     futures = []
     with ThreadPoolExecutor(max_workers=1) as executor:
-        # We only want one background worker so that serialization is deterministic.
         for batch_idx, batch in enumerate(dl):
             batch_size = len(batch["text"])
 
@@ -253,7 +137,7 @@ def infer_dataset(
             tokens_lens = row_splits[1:] - row_splits[:-1]
             tokens = tokens.to(device)
             tokens_lens = tokens_lens.to(device)
-            # a tensor of shape (B, T)
+            # tensor of shape (B, T)
             tokens = tokens.pad(mode="constant", padding_value=tokenizer.blank_id)
 
             audio = batch["audio"]
@@ -264,9 +148,6 @@ def infer_dataset(
             audio_pred = audio_pred.detach().cpu()
             # convert to samples
             audio_lens_pred = (durations.sum(1) * params.frame_shift).to(dtype=torch.int64).tolist()
-
-            # import pdb
-            # pdb.set_trace()
 
             futures.append(
                 executor.submit(
@@ -295,10 +176,7 @@ def main():
     params = get_params()
     params.update(vars(args))
 
-    if params.iter > 0:
-        params.suffix = f"iter-{params.iter}-avg-{params.avg}"
-    else:
-        params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
+    params.suffix = f"epoch-{params.epoch}"
 
     params.res_dir = params.exp_dir / "infer" / params.suffix
     params.save_wav_dir = params.res_dir / "wav"
@@ -322,40 +200,16 @@ def main():
     logging.info("About to create model")
     model = get_model(params)
 
-    if params.iter > 0:
-        filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
-            : params.avg
-        ]
-        if len(filenames) == 0:
-            raise ValueError(
-                f"No checkpoints found for"
-                f" --iter {params.iter}, --avg {params.avg}"
-            )
-        elif len(filenames) < params.avg:
-            raise ValueError(
-                f"Not enough checkpoints ({len(filenames)}) found for"
-                f" --iter {params.iter}, --avg {params.avg}"
-            )
-        logging.info(f"averaging {filenames}")
-        model.to(device)
-        model.load_state_dict(average_checkpoints(filenames, device=device))
-    elif params.avg == 1:
-        load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
-    else:
-        start = params.epoch - params.avg + 1
-        filenames = []
-        for i in range(start, params.epoch + 1):
-            if i >= 1:
-                filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
-        logging.info(f"averaging {filenames}")
-        model.to(device)
-        model.load_state_dict(average_checkpoints(filenames, device=device))
+    load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
 
     model.to(device)
     model.eval()
 
-    num_param = sum([p.numel() for p in model.parameters()])
-    logging.info(f"Number of model parameters: {num_param}")
+    num_param_g = sum([p.numel() for p in model.generator.parameters()])
+    logging.info(f"Number of parameters in generator: {num_param_g}")
+    num_param_d = sum([p.numel() for p in model.discriminator.parameters()])
+    logging.info(f"Number of parameters in discriminator: {num_param_d}")
+    logging.info(f"Total number of parameters: {num_param_g + num_param_d}")
 
     # we need cut ids to display recognition results.
     args.return_cuts = True
@@ -371,17 +225,8 @@ def main():
         tokenizer=tokenizer,
     )
 
-    # save_results(
-    #     params=params,
-    #     test_set_name=test_set,
-    #     results_dict=results_dict,
-    # )
-
     logging.info("Done!")
 
-
-# torch.set_num_threads(1)
-# torch.set_num_interop_threads(1)
 
 if __name__ == "__main__":
     main()

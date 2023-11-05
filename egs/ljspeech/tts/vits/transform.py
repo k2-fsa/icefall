@@ -1,4 +1,5 @@
-# https://github.com/espnet/espnet/blob/master/espnet2/gan_tts/vits/transform.py
+# from https://github.com/espnet/espnet/blob/master/espnet2/gan_tts/vits/transform.py
+
 """Flow-related transformation.
 
 This code is derived from https://github.com/bayesiains/nflows.

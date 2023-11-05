@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-# Copyright    2021-2023  Xiaomi Corp.        (authors: Fangjun Kuang,
-#                                                       Wei Kang,
-#                                                       Mingshuang Luo,
-#                                                       Zengwei Yao,
-#                                                       Daniel Povey)
+# Copyright         2023  Xiaomi Corp.        (authors: Zengwei Yao)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -22,9 +18,10 @@
 
 import argparse
 import logging
+import numpy as np
 from pathlib import Path
 from shutil import copyfile
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
 import k2
 import torch
@@ -36,26 +33,17 @@ from torch.optim import Optimizer
 from torch.cuda.amp import GradScaler, autocast
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
-from tts_datamodule import LJSpeechTtsDataModule
 
 from icefall import diagnostics
-from icefall.checkpoint import load_checkpoint, remove_checkpoints
+from icefall.checkpoint import load_checkpoint
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
 from icefall.hooks import register_inf_check_hooks
-from icefall.utils import (
-    AttributeDict,
-    setup_logger,
-    str2bool,
-)
+from icefall.utils import AttributeDict, setup_logger, str2bool
 
 from tokenizer import Tokenizer
-from utils import (
-    MetricsTracker,
-    plot_feature,
-    save_checkpoint,
-    save_checkpoint_with_global_batch_idx,
-)
+from tts_datamodule import LJSpeechTtsDataModule
+from utils import MetricsTracker, plot_feature, save_checkpoint
 from vits import VITS
 
 LRSchedulerType = torch.optim.lr_scheduler._LRScheduler
@@ -90,7 +78,7 @@ def get_parser():
     parser.add_argument(
         "--num-epochs",
         type=int,
-        default=30,
+        default=1000,
         help="Number of epochs to train.",
     )
 
@@ -101,15 +89,6 @@ def get_parser():
         help="""Resume training from this epoch. It should be positive.
         If larger than 1, it will load checkpoint from
         exp-dir/epoch-{start_epoch-1}.pt
-        """,
-    )
-
-    parser.add_argument(
-        "--start-batch",
-        type=int,
-        default=0,
-        help="""If positive, --start-epoch is ignored and
-        it loads the checkpoint from exp-dir/checkpoint-{start_batch}.pt
         """,
     )
 
@@ -127,7 +106,7 @@ def get_parser():
         "--tokens",
         type=str,
         default="data/tokens.txt",
-        help="""Path to tokens.txt.""",
+        help="""Path to vocabulary.""",
     )
 
     parser.add_argument(
@@ -158,24 +137,11 @@ def get_parser():
     parser.add_argument(
         "--save-every-n",
         type=int,
-        default=4000,
-        help="""Save checkpoint after processing this number of batches"
+        default=20,
+        help="""Save checkpoint after processing this number of epochs"
         periodically. We save checkpoint to exp-dir/ whenever
-        params.batch_idx_train % save_every_n == 0. The checkpoint filename
-        has the form: f'exp-dir/checkpoint-{params.batch_idx_train}.pt'
-        Note: It also saves checkpoint to `exp-dir/epoch-xxx.pt` at the
-        end of each epoch where `xxx` is the epoch number counting from 1.
-        """,
-    )
-
-    parser.add_argument(
-        "--keep-last-k",
-        type=int,
-        default=30,
-        help="""Only keep this number of checkpoints on disk.
-        For instance, if it is 3, there are only 3 checkpoints
-        in the exp-dir with filenames `checkpoint-xxx.pt`.
-        It does not affect checkpoints with name `epoch-xxx.pt`.
+        params.cur_epoch % save_every_n == 0. The checkpoint filename
+        has the form: f'exp-dir/epoch-{params.cur_epoch}.pt'
         """,
     )
 
@@ -218,8 +184,6 @@ def get_params() -> AttributeDict:
 
         - log_interval:  Print training loss if batch_idx % log_interval` is 0
 
-        - reset_interval: Reset statistics if batch_idx % reset_interval is 0
-
         - valid_interval:  Run validation if batch_idx % valid_interval is 0
 
         - feature_dim: The model input dim. It has to match the one used
@@ -242,18 +206,14 @@ def get_params() -> AttributeDict:
             "best_train_epoch": -1,
             "best_valid_epoch": -1,
             "batch_idx_train": -1,  # 0
-            "log_interval": 10,
-            "draw_interval": 500,
-            # "reset_interval": 200,
+            "log_interval": 50,
             "valid_interval": 200,
             "env_info": get_env_info(),
             "sampling_rate": 22050,
             "frame_shift": 256,
             "frame_length": 1024,
             "feature_dim": 513,  # 1024 // 2 + 1, 1024 is fft_length
-            "mel_loss_params": {
-                "n_mels": 80,
-            },
+            "n_mels": 80,
             "lambda_adv": 1.0,  # loss scaling coefficient for adversarial loss
             "lambda_mel": 45.0,  # loss scaling coefficient for Mel loss
             "lambda_feat_match": 2.0,  # loss scaling coefficient for feat match loss
@@ -270,9 +230,7 @@ def load_checkpoint_if_available(
 ) -> Optional[Dict[str, Any]]:
     """Load checkpoint from file.
 
-    If params.start_batch is positive, it will load the checkpoint from
-    `params.exp_dir/checkpoint-{params.start_batch}.pt`. Otherwise, if
-    params.start_epoch is larger than 1, it will load the checkpoint from
+    If params.start_epoch is larger than 1, it will load the checkpoint from
     `params.start_epoch - 1`.
 
     Apart from loading state dict for `model` and `optimizer` it also updates
@@ -287,9 +245,7 @@ def load_checkpoint_if_available(
     Returns:
       Return a dict containing previously saved training info.
     """
-    if params.start_batch > 0:
-        filename = params.exp_dir / f"checkpoint-{params.start_batch}.pt"
-    elif params.start_epoch > 1:
+    if params.start_epoch > 1:
         filename = params.exp_dir / f"epoch-{params.start_epoch-1}.pt"
     else:
         return None
@@ -308,19 +264,15 @@ def load_checkpoint_if_available(
     for k in keys:
         params[k] = saved_params[k]
 
-    if params.start_batch > 0:
-        if "cur_epoch" in saved_params:
-            params["start_epoch"] = saved_params["cur_epoch"]
-
     return saved_params
 
 
 def get_model(params: AttributeDict) -> nn.Module:
-    mel_loss_params = params.mel_loss_params
-    mel_loss_params.update(
-        frame_length=params.frame_length,
-        frame_shift=params.frame_shift,
-    )
+    mel_loss_params = {
+        "n_mels": params.n_mels,
+        "frame_length": params.frame_length,
+        "frame_shift": params.frame_shift,
+    }
     model = VITS(
         vocab_size=params.vocab_size,
         feature_dim=params.feature_dim,
@@ -381,18 +333,22 @@ def train_one_epoch(
         It is returned by :func:`get_params`.
       model:
         The model for training.
-      optimizer:
-        The optimizer we are using.
-      scheduler:
-        The learning rate scheduler, we call step() every step.
+      tokenizer:
+        Used to convert text to phonemes.
+      optimizer_g:
+        The optimizer for generator.
+      optimizer_d:
+        The optimizer for discriminator.
+      scheduler_g:
+        The learning rate scheduler for generator, we call step() every epoch.
+      scheduler_d:
+        The learning rate scheduler for discriminator, we call step() every epoch.
       train_dl:
         Dataloader for the training dataset.
       valid_dl:
         Dataloader for the validation dataset.
       scaler:
         The scaler used for mix precision training.
-      model_avg:
-        The stored model averaged from the start of training.
       tb_writer:
         Writer to write log messages to tensorboard.
       world_size:
@@ -404,7 +360,7 @@ def train_one_epoch(
     model.train()
     device = model.device if isinstance(model, DDP) else next(model.parameters()).device
 
-    # used to summary the stats over iterations
+    # used to summary the stats over iterations in one epoch
     tot_loss = MetricsTracker()
 
     saved_bad_model = False
@@ -433,7 +389,6 @@ def train_one_epoch(
         loss_info = MetricsTracker()
         loss_info['samples'] = batch_size
 
-        return_sample = params.batch_idx_train % params.log_interval == 0
         try:
             with autocast(enabled=params.use_fp16):
                 # forward discriminator
@@ -463,13 +418,11 @@ def train_one_epoch(
                     speech=audio,
                     speech_lengths=audio_lens,
                     forward_generator=True,
-                    return_sample=return_sample,
+                    return_sample=params.batch_idx_train % params.log_interval == 0,
                 )
             for k, v in stats_g.items():
-                if "return_sample" not in k:
+                if "returned_sample" not in k:
                     loss_info[k] = v * batch_size
-            if return_sample:
-                speech_hat_, speech_, mel_hat_, mel_ = stats_g["return_sample"]
             # update generator
             optimizer_g.zero_grad()
             scaler.scale(loss_g).backward()
@@ -477,7 +430,6 @@ def train_one_epoch(
             scaler.update()
 
             # summary stats
-            # tot_loss = (tot_loss * (1 - 1 / params.reset_interval)) + loss_info
             tot_loss = tot_loss + loss_info
         except:  # noqa
             save_bad_model()
@@ -486,37 +438,12 @@ def train_one_epoch(
         if params.print_diagnostics and batch_idx == 5:
             return
 
-        if (
-            params.batch_idx_train > 0
-            and params.batch_idx_train % params.save_every_n == 0
-        ):
-            save_checkpoint_with_global_batch_idx(
-                out_dir=params.exp_dir,
-                global_batch_idx=params.batch_idx_train,
-                model=model,
-                params=params,
-                optimizer_g=optimizer_g,
-                optimizer_d=optimizer_d,
-                scheduler_g=scheduler_g,
-                scheduler_d=scheduler_d,
-                sampler=train_dl.sampler,
-                scaler=scaler,
-                rank=rank,
-            )
-            remove_checkpoints(
-                out_dir=params.exp_dir,
-                topk=params.keep_last_k,
-                rank=rank,
-            )
-
-        # if batch_idx % 100 == 0 and params.use_fp16:
         if params.batch_idx_train % 100 == 0 and params.use_fp16:
             # If the grad scale was less than 1, try increasing it.    The _growth_interval
             # of the grad scaler is configurable, but we can't configure it to have different
             # behavior depending on the current grad scale.
             cur_grad_scale = scaler._scale.item()
 
-            # if cur_grad_scale < 8.0 or (cur_grad_scale < 32.0 and batch_idx % 400 == 0):
             if cur_grad_scale < 8.0 or (cur_grad_scale < 32.0 and params.batch_idx_train % 400 == 0):
                 scaler.update(cur_grad_scale * 2.0)
             if cur_grad_scale < 0.01:
@@ -530,7 +457,6 @@ def train_one_epoch(
                     f"grad_scale is too small, exiting: {cur_grad_scale}"
                 )
 
-        # if batch_idx % params.log_interval == 0:
         if params.batch_idx_train % params.log_interval == 0:
             cur_lr_g = max(scheduler_g.get_last_lr())
             cur_lr_d = max(scheduler_d.get_last_lr())
@@ -561,7 +487,8 @@ def train_one_epoch(
                     tb_writer.add_scalar(
                         "train/grad_scale", cur_grad_scale, params.batch_idx_train
                     )
-                if return_sample:
+                if "returned_sample" in stats_g:
+                    speech_hat_, speech_, mel_hat_, mel_ = stats_g["returned_sample"]
                     tb_writer.add_audio(
                         "train/speech_hat_", speech_hat_, params.batch_idx_train, params.sampling_rate
                     )
@@ -575,7 +502,6 @@ def train_one_epoch(
                         "train/mel_", plot_feature(mel_), params.batch_idx_train, dataformats='HWC'
                     )
 
-        # if batch_idx % params.valid_interval == 0 and not params.print_diagnostics:
         if params.batch_idx_train % params.valid_interval == 0 and not params.print_diagnostics:
             logging.info("Computing validation loss")
             valid_info, (speech_hat, speech) = compute_validation_loss(
@@ -615,14 +541,14 @@ def compute_validation_loss(
     valid_dl: torch.utils.data.DataLoader,
     world_size: int = 1,
     rank: int = 0,
-) -> MetricsTracker:
+) -> Tuple[MetricsTracker, Tuple[np.ndarray, np.ndarray]]:
     """Run the validation process."""
     model.eval()
     device = model.device if isinstance(model, DDP) else next(model.parameters()).device
 
     # used to summary the stats over iterations
     tot_loss = MetricsTracker()
-    return_sample = None
+    returned_sample = None
 
     with torch.no_grad():
         for batch_idx, batch in enumerate(valid_dl):
@@ -667,12 +593,14 @@ def compute_validation_loss(
             # infer for first batch:
             if batch_idx == 0 and rank == 0:
                 inner_model = model.module if isinstance(model, DDP) else model
-                audio_pred, _, duration = inner_model.inference(text=tokens[0, :tokens_lens[0].item()])
+                audio_pred, _, duration = inner_model.inference(
+                    text=tokens[0, :tokens_lens[0].item()]
+                )
                 audio_pred = audio_pred.data.cpu().numpy()
                 audio_len_pred = (duration.sum(0) * params.frame_shift).to(dtype=torch.int64).item()
                 assert audio_len_pred == len(audio_pred), (audio_len_pred, len(audio_pred))
                 audio_gt = audio[0, :audio_lens[0].item()].data.cpu().numpy()
-                return_sample = (audio_pred, audio_gt)
+                returned_sample = (audio_pred, audio_gt)
 
     if world_size > 1:
         tot_loss.reduce(device)
@@ -682,7 +610,7 @@ def compute_validation_loss(
         params.best_valid_epoch = params.cur_epoch
         params.best_valid_loss = loss_value
 
-    return tot_loss, return_sample
+    return tot_loss, returned_sample
 
 
 def scan_pessimistic_batches_for_oom(
@@ -805,18 +733,10 @@ def run(rank, world_size, args):
         model = DDP(model, device_ids=[rank], find_unused_parameters=True)
 
     optimizer_g = torch.optim.AdamW(
-        generator.parameters(),
-        lr=params.lr,
-        betas=(0.8, 0.99),
-        eps=1e-9,
-        # weight_decay=0,
+        generator.parameters(), lr=params.lr, betas=(0.8, 0.99), eps=1e-9
     )
     optimizer_d = torch.optim.AdamW(
-        discriminator.parameters(),
-        lr=params.lr,
-        betas=(0.8, 0.99),
-        eps=1e-9,
-        # weight_decay=0,
+        discriminator.parameters(), lr=params.lr, betas=(0.8, 0.99), eps=1e-9
     )
 
     scheduler_g = torch.optim.lr_scheduler.ExponentialLR(optimizer_g, gamma=0.999875)
@@ -852,16 +772,8 @@ def run(rank, world_size, args):
 
     train_cuts = ljspeech.train_cuts()
 
-    if params.start_batch > 0 and checkpoints and "sampler" in checkpoints:
-        # We only load the sampler's state dict when it loads a checkpoint
-        # saved in the middle of an epoch
-        sampler_state_dict = checkpoints["sampler"]
-    else:
-        sampler_state_dict = None
-
     def remove_short_and_long_utt(c: Cut):
         # Keep only utterances with duration between 1 second and 20 seconds
-
         # You should use ../local/display_manifest_statistics.py to get
         # an utterance duration distribution for your dataset to select
         # the threshold
@@ -870,13 +782,10 @@ def run(rank, world_size, args):
             #     f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
             # )
             return False
-
         return True
 
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
-    train_dl = ljspeech.train_dataloaders(
-        train_cuts, sampler_state_dict=sampler_state_dict
-    )
+    train_dl = ljspeech.train_dataloaders(train_cuts)
 
     valid_cuts = ljspeech.valid_cuts()
     valid_dl = ljspeech.valid_dataloaders(valid_cuts)
@@ -902,10 +811,10 @@ def run(rank, world_size, args):
         fix_random_seed(params.seed + epoch - 1)
         train_dl.sampler.set_epoch(epoch - 1)
 
+        params.cur_epoch = epoch
+
         if tb_writer is not None:
             tb_writer.add_scalar("train/epoch", epoch, params.batch_idx_train)
-
-        params.cur_epoch = epoch
 
         train_one_epoch(
             params=params,
@@ -927,27 +836,28 @@ def run(rank, world_size, args):
             diagnostic.print_diagnostics()
             break
 
-        filename = params.exp_dir / f"epoch-{params.cur_epoch}.pt"
-        save_checkpoint(
-            filename=filename,
-            params=params,
-            model=model,
-            optimizer_g=optimizer_g,
-            optimizer_d=optimizer_d,
-            scheduler_g=scheduler_g,
-            scheduler_d=scheduler_d,
-            sampler=train_dl.sampler,
-            scaler=scaler,
-            rank=rank,
-        )
-        if rank == 0:
-            if params.best_train_epoch == params.cur_epoch:
-                best_train_filename = params.exp_dir / "best-train-loss.pt"
-                copyfile(src=filename, dst=best_train_filename)
+        if epoch % params.save_every_n == 0:
+            filename = params.exp_dir / f"epoch-{params.cur_epoch}.pt"
+            save_checkpoint(
+                filename=filename,
+                params=params,
+                model=model,
+                optimizer_g=optimizer_g,
+                optimizer_d=optimizer_d,
+                scheduler_g=scheduler_g,
+                scheduler_d=scheduler_d,
+                sampler=train_dl.sampler,
+                scaler=scaler,
+                rank=rank,
+            )
+            if rank == 0:
+                if params.best_train_epoch == params.cur_epoch:
+                    best_train_filename = params.exp_dir / "best-train-loss.pt"
+                    copyfile(src=filename, dst=best_train_filename)
 
-            if params.best_valid_epoch == params.cur_epoch:
-                best_valid_filename = params.exp_dir / "best-valid-loss.pt"
-                copyfile(src=filename, dst=best_valid_filename)
+                if params.best_valid_epoch == params.cur_epoch:
+                    best_valid_filename = params.exp_dir / "best-valid-loss.pt"
+                    copyfile(src=filename, dst=best_valid_filename)
 
         # step per epoch
         scheduler_g.step()

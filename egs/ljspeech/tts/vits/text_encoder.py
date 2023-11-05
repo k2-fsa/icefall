@@ -20,6 +20,7 @@
 This code is based on
   - https://github.com/jaywalnut310/vits
   - https://github.com/espnet/espnet/blob/master/espnet2/gan_tts/vits/text_encoder.py
+  - https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/transducer_stateless/conformer.py
 """
 
 import copy
@@ -67,6 +68,7 @@ class TextEncoder(torch.nn.Module):
         self.emb = torch.nn.Embedding(vocabs, d_model)
         torch.nn.init.normal_(self.emb.weight, 0.0, d_model**-0.5)
 
+        # We use conformer as text encoder
         self.encoder = Transformer(
             d_model=d_model,
             num_heads=num_heads,

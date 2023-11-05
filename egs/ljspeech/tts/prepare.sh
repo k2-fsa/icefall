@@ -9,8 +9,7 @@ nj=1
 stage=-1
 stop_stage=100
 
-# dl_dir=$PWD/download
-dl_dir=/star-data/zengwei/download/ljspeech/
+dl_dir=$PWD/download
 
 . shared/parse_options.sh || exit 1
 
@@ -66,22 +65,6 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   fi
 fi
 
-# if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
-#   log "Stage 3: Phonemize the transcripts for LJSpeech"
-#   if [ ! -e data/spectrogram/.ljspeech_phonemized.done ]; then
-#     ./local/phonemize_text.py data/spectrogram
-#     touch data/spectrogram/.ljspeech_phonemized.done
-#   fi
-# fi
-
-# if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
-#   log "Stage 4: Split the LJSpeech cuts into three sets"
-#   if [ ! -e data/spectrogram/.ljspeech_split.done ]; then
-#     ./local/split_subsets.py data/spectrogram
-#     touch data/spectrogram/.ljspeech_split.done
-#   fi
-# fi
-
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   log "Stage 3: Split the LJSpeech cuts into train, valid and test sets"
   if [ ! -e data/spectrogram/.ljspeech_split.done ]; then
@@ -94,6 +77,7 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
     lhotse subset --last 500 \
       data/spectrogram/ljspeech_cuts_validtest.jsonl.gz \
       data/spectrogram/ljspeech_cuts_test.jsonl.gz
+
     rm data/spectrogram/ljspeech_cuts_validtest.jsonl.gz
 
     n=$(( $(gunzip -c data/spectrogram/ljspeech_cuts_all.jsonl.gz | wc -l) - 600 ))

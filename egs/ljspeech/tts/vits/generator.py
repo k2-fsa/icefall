@@ -1,4 +1,4 @@
-# https://github.com/espnet/espnet/blob/master/espnet2/gan_tts/vits/generator.py
+# based on https://github.com/espnet/espnet/blob/master/espnet2/gan_tts/vits/generator.py
 
 # Copyright 2021 Tomoki Hayashi
 #  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)

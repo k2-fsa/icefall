@@ -1,11 +1,11 @@
-# https://github.com/espnet/espnet/blob/master/espnet2/gan_tts/vits/vits.py
+# based on https://github.com/espnet/espnet/blob/master/espnet2/gan_tts/vits/vits.py
 
 # Copyright 2021 Tomoki Hayashi
 #  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 
 """VITS module for GAN-TTS task."""
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -247,7 +247,7 @@ class VITS(nn.Module):
         spembs: Optional[torch.Tensor] = None,
         lids: Optional[torch.Tensor] = None,
         forward_generator: bool = True,
-    ) -> Dict[str, Any]:
+    ) -> Tuple[torch.Tensor, Dict[str, Any]]:
         """Perform generator forward.
 
         Args:
@@ -263,12 +263,8 @@ class VITS(nn.Module):
             forward_generator (bool): Whether to forward generator.
 
         Returns:
-            Dict[str, Any]:
-                - loss (Tensor): Loss scalar tensor.
-                - stats (Dict[str, float]): Statistics to be monitored.
-                - weight (Tensor): Weight tensor to summarize losses.
-                - optim_idx (int): Optimizer index (0 for G and 1 for D).
-
+            - loss (Tensor): Loss scalar tensor.
+            - stats (Dict[str, float]): Statistics to be monitored.
         """
         if forward_generator:
             return self._forward_generator(
@@ -308,7 +304,7 @@ class VITS(nn.Module):
         sids: Optional[torch.Tensor] = None,
         spembs: Optional[torch.Tensor] = None,
         lids: Optional[torch.Tensor] = None,
-    ) -> Dict[str, Any]:
+    ) -> Tuple[torch.Tensor, Dict[str, Any]]:
         """Perform generator forward.
 
         Args:
@@ -323,12 +319,8 @@ class VITS(nn.Module):
             lids (Optional[Tensor]): Language index tensor (B,) or (B, 1).
 
         Returns:
-            Dict[str, Any]:
-                * loss (Tensor): Loss scalar tensor.
-                * stats (Dict[str, float]): Statistics to be monitored.
-                * weight (Tensor): Weight tensor to summarize losses.
-                * optim_idx (int): Optimizer index (0 for G and 1 for D).
-
+            * loss (Tensor): Loss scalar tensor.
+            * stats (Dict[str, float]): Statistics to be monitored.
         """
         # setup
         feats = feats.transpose(1, 2)
@@ -399,7 +391,7 @@ class VITS(nn.Module):
         )
 
         if return_sample:
-            stats["return_sample"] = (
+            stats["returned_sample"] = (
                 speech_hat_[0].data.cpu().numpy(),
                 speech_[0].data.cpu().numpy(),
                 mel_hat_[0].data.cpu().numpy(),
@@ -423,7 +415,7 @@ class VITS(nn.Module):
         sids: Optional[torch.Tensor] = None,
         spembs: Optional[torch.Tensor] = None,
         lids: Optional[torch.Tensor] = None,
-    ) -> Dict[str, Any]:
+    ) -> Tuple[torch.Tensor, Dict[str, Any]]:
         """Perform discriminator forward.
 
         Args:
@@ -438,12 +430,8 @@ class VITS(nn.Module):
             lids (Optional[Tensor]): Language index tensor (B,) or (B, 1).
 
         Returns:
-            Dict[str, Any]:
-                * loss (Tensor): Loss scalar tensor.
-                * stats (Dict[str, float]): Statistics to be monitored.
-                * weight (Tensor): Weight tensor to summarize losses.
-                * optim_idx (int): Optimizer index (0 for G and 1 for D).
-
+            * loss (Tensor): Loss scalar tensor.
+            * stats (Dict[str, float]): Statistics to be monitored.
         """
         # setup
         feats = feats.transpose(1, 2)
@@ -511,8 +499,8 @@ class VITS(nn.Module):
         alpha: float = 1.0,
         max_len: Optional[int] = None,
         use_teacher_forcing: bool = False,
-    ) -> Dict[str, torch.Tensor]:
-        """Run inference.
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Run inference for single sample.
 
         Args:
             text (Tensor): Input text index tensor (T_text,).
@@ -528,11 +516,9 @@ class VITS(nn.Module):
             use_teacher_forcing (bool): Whether to use teacher forcing.
 
         Returns:
-            Dict[str, Tensor]:
-                * wav (Tensor): Generated waveform tensor (T_wav,).
-                * att_w (Tensor): Monotonic attention weight tensor (T_feats, T_text).
-                * duration (Tensor): Predicted duration tensor (T_text,).
-
+            * wav (Tensor): Generated waveform tensor (T_wav,).
+            * att_w (Tensor): Monotonic attention weight tensor (T_feats, T_text).
+            * duration (Tensor): Predicted duration tensor (T_text,).
         """
         # setup
         text = text[None]
@@ -593,8 +579,8 @@ class VITS(nn.Module):
         alpha: float = 1.0,
         max_len: Optional[int] = None,
         use_teacher_forcing: bool = False,
-    ) -> Dict[str, torch.Tensor]:
-        """Run inference.
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Run inference for one batch.
 
         Args:
             text (Tensor): Input text index tensor (B, T_text).
@@ -605,11 +591,9 @@ class VITS(nn.Module):
             max_len (Optional[int]): Maximum length.
 
         Returns:
-            Dict[str, Tensor]:
-                * wav (Tensor): Generated waveform tensor (B, T_wav).
-                * att_w (Tensor): Monotonic attention weight tensor (B, T_feats, T_text).
-                * duration (Tensor): Predicted duration tensor (B, T_text).
-
+            * wav (Tensor): Generated waveform tensor (B, T_wav).
+            * att_w (Tensor): Monotonic attention weight tensor (B, T_feats, T_text).
+            * duration (Tensor): Predicted duration tensor (B, T_text).
         """
         # inference
         wav, att_w, dur = self.generator.inference(

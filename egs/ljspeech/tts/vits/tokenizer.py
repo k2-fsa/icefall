@@ -18,7 +18,6 @@ from typing import Dict, List
 
 import g2p_en
 import tacotron_cleaner.cleaners
-
 from utils import intersperse
 
 
