@@ -103,11 +103,13 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+import k2
 import torch
 import torch.nn as nn
 import torchaudio
 
-from train2 import get_model, get_params
+from train import get_model, get_params, prepare_input
+from tokenizer import Tokenizer
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -124,7 +126,6 @@ from icefall.utils import (
     write_error_stats,
 )
 from tts_datamodule import LJSpeechTtsDataModule
-from utils import prepare_token_batch
 
 LOG_EPS = math.log(1e-10)
 
@@ -169,6 +170,13 @@ def get_parser():
         help="The experiment dir",
     )
 
+    parser.add_argument(
+        "--tokens",
+        type=str,
+        default="data/tokens.txt",
+        help="""Path to tokens.txt.""",
+    )
+
     return parser
 
 
@@ -176,6 +184,7 @@ def infer_dataset(
     dl: torch.utils.data.DataLoader,
     params: AttributeDict,
     model: nn.Module,
+    tokenizer: Tokenizer,
 ) -> Dict[str, List[Tuple[str, List[str], List[str]]]]:
     """Decode dataset.
 
@@ -236,10 +245,16 @@ def infer_dataset(
         # We only want one background worker so that serialization is deterministic.
         for batch_idx, batch in enumerate(dl):
             batch_size = len(batch["text"])
+
             text = batch["text"]
-            tokens, tokens_lens = prepare_token_batch(text)
+            tokens = tokenizer.texts_to_token_ids(text)
+            tokens = k2.RaggedTensor(tokens)
+            row_splits = tokens.shape.row_splits(1)
+            tokens_lens = row_splits[1:] - row_splits[:-1]
             tokens = tokens.to(device)
             tokens_lens = tokens_lens.to(device)
+            # a tensor of shape (B, T)
+            tokens = tokens.pad(mode="constant", padding_value=tokenizer.blank_id)
 
             audio = batch["audio"]
             audio_lens = batch["audio_lens"].tolist()
@@ -296,6 +311,11 @@ def main():
     if torch.cuda.is_available():
         device = torch.device("cuda", 0)
 
+    tokenizer = Tokenizer(params.tokens)
+    params.blank_id = tokenizer.blank_id
+    params.oov_id = tokenizer.oov_id
+    params.vocab_size = tokenizer.vocab_size
+
     logging.info(f"Device: {device}")
     logging.info(params)
 
@@ -348,6 +368,7 @@ def main():
         dl=test_dl,
         params=params,
         model=model,
+        tokenizer=tokenizer,
     )
 
     # save_results(

@@ -44,6 +44,7 @@ class VITSGenerator(torch.nn.Module):
         segment_size: int = 32,
         text_encoder_attention_heads: int = 2,
         text_encoder_ffn_expand: int = 4,
+        text_encoder_cnn_module_kernel: int = 5,
         text_encoder_blocks: int = 6,
         text_encoder_dropout_rate: float = 0.1,
         decoder_kernel_size: int = 7,
@@ -89,6 +90,7 @@ class VITSGenerator(torch.nn.Module):
                 of text encoder.
             text_encoder_ffn_expand (int): Expansion ratio of FFN in conformer block
                 of text encoder.
+            text_encoder_cnn_module_kernel (int): Convolution kernel size in text encoder.
             text_encoder_blocks (int): Number of conformer blocks in text encoder.
             text_encoder_dropout_rate (float): Dropout rate in conformer block of
                 text encoder.
@@ -135,6 +137,7 @@ class VITSGenerator(torch.nn.Module):
             d_model=hidden_channels,
             num_heads=text_encoder_attention_heads,
             dim_feedforward=hidden_channels * text_encoder_ffn_expand,
+            cnn_module_kernel=text_encoder_cnn_module_kernel,
             num_layers=text_encoder_blocks,
             dropout=text_encoder_dropout_rate,
         )

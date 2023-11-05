@@ -61,6 +61,7 @@ class VITS(nn.Module):
             "segment_size": 32,
             "text_encoder_attention_heads": 2,
             "text_encoder_ffn_expand": 4,
+            "text_encoder_cnn_module_kernel": 5,
             "text_encoder_blocks": 6,
             "text_encoder_dropout_rate": 0.1,
             "decoder_kernel_size": 7,
