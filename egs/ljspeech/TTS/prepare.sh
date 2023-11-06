@@ -28,10 +28,13 @@ log "dl_dir: $dl_dir"
 if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   log "Stage 0: Download data"
 
-  # If you have pre-downloaded it to /path/to/LJSpeech,
-  # you can create a symlink
+  # The directory $dl_dir/LJSpeech-1.1 will contain:
+  #   - wavs, which contains the audio files
+  #   - metadata.csv, which provides the transcript text for each audio clip
+
+  # If you have pre-downloaded it to /path/to/LJSpeech-1.1, you can create a symlink
   #
-  #   ln -sfv /path/to/LJSpeech $dl_dir/LJSpeech
+  #   ln -sfv /path/to/LJSpeech-1.1 $dl_dir/LJSpeech-1.1
   #
   if [ ! -d $dl_dir/LJSpeech-1.1 ]; then
     lhotse download ljspeech $dl_dir
@@ -58,7 +61,7 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   fi
 
   if [ ! -e data/spectrogram/.ljspeech-validated.done ]; then
-    log "Validating data/fbank for LJSpeech"
+    log "Validating data/spectrogram for LJSpeech"
     python3 ./local/validate_manifest.py \
       data/spectrogram/ljspeech_cuts_all.jsonl.gz
     touch data/spectrogram/.ljspeech-validated.done
@@ -90,6 +93,10 @@ fi
 
 if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
   log "Stage 4: Generate token file"
+  # We assume you have installed g2p_en and espnet_tts_frontend.
+  # If not, please install them with:
+  #   - g2p_en: `pip install g2p_en`, refer to https://github.com/Kyubyong/g2p
+  #   - espnet_tts_frontend, `pip install espnet_tts_frontend`, refer to https://github.com/espnet/espnet_tts_frontend/
   if [ ! -e data/tokens.txt ]; then
     ./local/prepare_token_file.py \
       --manifest-file data/spectrogram/ljspeech_cuts_train.jsonl.gz \

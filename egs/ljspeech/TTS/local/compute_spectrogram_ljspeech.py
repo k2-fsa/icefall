@@ -21,7 +21,7 @@
 This file computes fbank features of the LJSpeech dataset.
 It looks for manifests in the directory data/manifests.
 
-The generated fbank features are saved in data/spectrogram.
+The generated spectrogram features are saved in data/spectrogram.
 """
 
 import logging
@@ -75,7 +75,7 @@ def compute_spectrogram_ljspeech():
     with get_executor() as ex:  # Initialize the executor only once.
         cuts_filename = f"{prefix}_cuts_{partition}.{suffix}"
         if (output_dir / cuts_filename).is_file():
-            logging.info(f"{partition} already exists - skipping.")
+            logging.info(f"{cuts_filename} already exists - skipping.")
             return
         logging.info(f"Processing {partition}")
         cut_set = CutSet.from_manifests(

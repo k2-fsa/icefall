@@ -17,7 +17,7 @@
 
 
 """
-This file reads the texts in given manifest and generate the file that maps tokens to IDs.
+This file reads the texts in given manifest and generates the file that maps tokens to IDs.
 """
 
 import argparse
@@ -73,11 +73,11 @@ def write_mapping(filename: str, sym2id: Dict[str, int]) -> None:
 
 def get_token2id(manifest_file: Path) -> Dict[str, int]:
     """Return a dict that maps token to IDs."""
-    extra_tokens = {
-        "<blk>": 0,  # blank
-        "<sos/eos>": 1,  # sos and eos symbols.
-        "<unk>": 2,  # OOV
-    }
+    extra_tokens = [
+        ("<blk>", None),  # 0 for blank
+        ("<sos/eos>", None),  # 1 for sos and eos symbols.
+        ("<unk>", None),  # 2 for OOV
+    ]
     cut_set = load_manifest(manifest_file)
     g2p = g2p_en.G2p()
     counter = Counter()
@@ -96,10 +96,10 @@ def get_token2id(manifest_file: Path) -> Dict[str, int]:
     # Sort by the number of occurrences in descending order
     tokens_and_counts = sorted(counter.items(), key=lambda x: -x[1])
 
-    for token, idx in extra_tokens.items():
-        tokens_and_counts.insert(idx, (token, None))
+    tokens_and_counts = extra_tokens + tokens_and_counts
 
-    token2id: Dict[str, int] = {token: i for i, (token, count) in enumerate(tokens_and_counts)}
+    token2id: Dict[str, int] = {token: i for i, (token, _) in enumerate(tokens_and_counts)}
+
     return token2id
 
 

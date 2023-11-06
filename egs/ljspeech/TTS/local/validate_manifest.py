@@ -57,7 +57,7 @@ def main():
 
     assert manifest.is_file(), f"{manifest} does not exist"
     cut_set = load_manifest_lazy(manifest)
-    assert isinstance(cut_set, CutSet)
+    assert isinstance(cut_set, CutSet), type(cut_set)
 
     validate_for_tts(cut_set)
 
