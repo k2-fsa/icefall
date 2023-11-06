@@ -51,6 +51,8 @@ for method in modified_beam_search fast_beam_search; do
   $repo/test_wavs/DEV_T0000000002.wav
 done
 
+rm -rf $repo
+
 log "==== Test icefall-asr-multi-zh-hans-zipformer-ctc-2023-10-24 ===="
 repo_url=https://huggingface.co/zrjin/icefall-asr-multi-zh-hans-zipformer-ctc-2023-10-24/
 
@@ -93,6 +95,8 @@ for method in modified_beam_search fast_beam_search; do
   $repo/test_wavs/DEV_T0000000001.wav \
   $repo/test_wavs/DEV_T0000000002.wav
 done
+
+rm -rf $repo
 
 log "==== Test icefall-asr-multi-zh-hans-zipformer-ctc-streaming-2023-11-05 ===="
 repo_url=https://huggingface.co/zrjin/icefall-asr-multi-zh-hans-zipformer-ctc-streaming-2023-11-05/
@@ -142,3 +146,5 @@ for method in modified_beam_search fast_beam_search; do
   $repo/test_wavs/DEV_T0000000001.wav \
   $repo/test_wavs/DEV_T0000000002.wav
 done
+
+rm -rf $repo
