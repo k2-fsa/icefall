@@ -7,7 +7,9 @@ set -eou pipefail
 
 nj=30
 stage=0
-stop_stage=5
+stop_stage=7
+perturb_speed=true
+
 
 # We assume dl_dir (download dir) contains the following
 # directories and files. If not, you need to apply aishell2 through
@@ -101,7 +103,7 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   log "Stage 3: Compute fbank for aishell2"
   if [ ! -f data/fbank/.aishell2.done ]; then
     mkdir -p data/fbank
-    ./local/compute_fbank_aishell2.py --perturb-speed True
+    ./local/compute_fbank_aishell2.py --perturb-speed ${perturb_speed}
     touch data/fbank/.aishell2.done
   fi
 fi
@@ -157,7 +159,7 @@ fi
 
 if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
   log "Stage 6: Prepare G"
-  # We assume you have install kaldilm, if not, please install
+  # We assume you have installed kaldilm, if not, please install
   # it using: pip install kaldilm
 
   if [ ! -f ${lang_char_dir}/3-gram.unpruned.arpa ]; then

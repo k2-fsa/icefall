@@ -114,6 +114,9 @@ class Transducer(nn.Module):
 
         assert x.size(0) == x_lens.size(0) == y.dim0
 
+        # x.T_dim == max(x_len)
+        assert x.size(1) == x_lens.max().item(), (x.shape, x_lens, x_lens.max())
+
         encoder_out, x_lens = self.encoder(x, x_lens)
         assert torch.all(x_lens > 0)
 

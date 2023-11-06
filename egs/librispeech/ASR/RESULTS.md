@@ -245,6 +245,58 @@ for m in greedy_search modified_beam_search fast_beam_search; do
 done
 ```
 
+##### large-scaled model, number of model parameters: 148439574, i.e., 148.4 M, trained on 8 80G-A100 GPUs
+
+The tensorboard log can be found at
+<https://tensorboard.dev/experiment/95TdNyEuQXaWK2PzFpD9yg/>
+
+You can find a pretrained model, training logs, decoding logs, and decoding results at:
+<https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-large-2023-10-26-8-a100>
+
+You can use <https://github.com/k2-fsa/sherpa> to deploy it.
+
+| decoding method      | test-clean | test-other | comment               |
+|----------------------|------------|------------|-----------------------|
+| greedy_search        | 2.00       | 4.47       | --epoch 174 --avg 172 |
+| modified_beam_search | 2.00       | 4.38       | --epoch 174 --avg 172 |
+| fast_beam_search     | 2.00       | 4.42       | --epoch 174 --avg 172 |
+
+The training command is:
+```bash
+export CUDA_VISIBLE_DEVICES="0,1,2,3"
+./zipformer/train.py \
+  --world-size 8 \
+  --num-epochs 174 \
+  --start-epoch 1 \
+  --use-fp16 1 \
+  --exp-dir zipformer/exp-large \
+  --causal 0 \
+  --num-encoder-layers 2,2,4,5,4,2 \
+  --feedforward-dim 512,768,1536,2048,1536,768 \
+  --encoder-dim 192,256,512,768,512,256 \
+  --encoder-unmasked-dim 192,192,256,320,256,192 \
+  --full-libri 1 \
+  --max-duration 2200
+```
+
+The decoding command is:
+```bash
+export CUDA_VISIBLE_DEVICES="0"
+for m in greedy_search modified_beam_search fast_beam_search; do
+  ./zipformer/decode.py \
+    --epoch 174 \
+    --avg 172 \
+    --exp-dir zipformer/exp-large \
+    --max-duration 600 \
+    --causal 0 \
+    --decoding-method $m \
+    --num-encoder-layers 2,2,4,5,4,2 \
+    --feedforward-dim 512,768,1536,2048,1536,768 \
+    --encoder-dim 192,256,512,768,512,256 \
+    --encoder-unmasked-dim 192,192,256,320,256,192
+done
+```
+
 #### streaming
 
 ##### normal-scaled model, number of model parameters: 66110931, i.e., 66.11 M
@@ -321,6 +373,55 @@ for m in greedy_search modified_beam_search fast_beam_search; do
     --num-decode-streams 2000 \
     --decoding-method $m
 done
+```
+
+### Zipformer CTC
+
+#### [zipformer_ctc](./zipformer_ctc)
+
+See <https://github.com/k2-fsa/icefall/pull/941> for more details.
+
+You can find a pretrained model, training logs, decoding logs, and decoding
+results at:
+<https://huggingface.co/desh2608/icefall-asr-librispeech-zipformer-ctc>
+
+Number of model parameters: 86083707, i.e., 86.08 M
+
+| decoding method         | test-clean | test-other | comment             |
+|-------------------------|------------|------------|---------------------|
+| ctc-decoding            | 2.50       | 5.86       | --epoch 30 --avg 9  |
+| whole-lattice-rescoring | 2.44       | 5.38       | --epoch 30 --avg 9  |
+| attention-rescoring     | 2.35       | 5.16       | --epoch 30 --avg 9  |
+| 1best                   | 2.01       | 4.61       | --epoch 30 --avg 9  |
+
+The training commands are:
+```bash
+
+export CUDA_VISIBLE_DEVICES="0,1,2,3"
+
+./zipformer_ctc/train.py \
+  --world-size 4 \
+  --num-epochs 30 \
+  --start-epoch 1 \
+  --use-fp16 1 \
+  --exp-dir zipformer_ctc/exp \
+  --full-libri 1 \
+  --max-duration 1000 \
+  --master-port 12345
+```
+
+The tensorboard log can be found at:
+<https://tensorboard.dev/experiment/IjPSJjHOQFKPYA5Z0Vf8wg>
+
+The decoding command is:
+
+```bash
+./zipformer_ctc/decode.py \
+  --epoch 30 --avg 9 --use-averaged-model True \
+  --exp-dir zipformer_ctc/exp \
+  --lang-dir data/lang_bpe_500 \
+  --lm-dir data/lm \
+  --method ctc-decoding
 ```
 
 ### pruned_transducer_stateless7 (Fine-tune with mux)
@@ -564,7 +665,6 @@ for m in greedy_search modified_beam_search fast_beam_search; do
 done
 ```
 
-
 #### Smaller model
 
 We also provide a very small version (only 6.1M parameters) of this setup. The training command for the small model is:
@@ -610,6 +710,7 @@ This small model achieves the following WERs on GigaSpeech test and dev sets:
 | modified beam search | 320ms      | 16.98       | 11.98       | --epoch 30 --avg 1  | simulated streaming  |
 
 You can find the tensorboard logs at <https://tensorboard.dev/experiment/tAc5iXxTQrCQxky5O5OLyw/#scalars>.
+
 
 ### Streaming Zipformer-Transducer (Pruned Stateless Transducer + Streaming Zipformer)
 

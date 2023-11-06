@@ -1,8 +1,8 @@
 ## Results
 
-### Aishell2 char-based training results (Pruned Transducer 5)
+### Aishell2 char-based training results 
 
-#### 2022-07-11
+#### Pruned transducer stateless 5
 
 Using the codes from this commit https://github.com/k2-fsa/icefall/pull/465.
 
@@ -41,9 +41,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
 The decoding command is:
 ```bash
-for method in greedy_search modified_beam_search \
-              fast_beam_search fast_beam_search_nbest \
-              fast_beam_search_nbest_oracle fast_beam_search_nbest_LG; do
+for method in greedy_search modified_beam_search fast_beam_search fast_beam_search_nbest  fast_beam_search_nbest_oracle fast_beam_search_nbest_LG; do
   ./pruned_transducer_stateless5/decode.py \
     --epoch 25 \
     --avg 5 \

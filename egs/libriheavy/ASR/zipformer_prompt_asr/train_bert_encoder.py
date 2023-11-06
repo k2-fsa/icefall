@@ -1565,7 +1565,7 @@ def run(rank, world_size, args):
     if params.print_diagnostics:
         args.max_duration = 100
         opts = diagnostics.TensorDiagnosticOptions(
-            2**22
+            512
         )  # allow 4 megabytes per sub-module
         diagnostic = diagnostics.attach_diagnostics(model, opts)
 
