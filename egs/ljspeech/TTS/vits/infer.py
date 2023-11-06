@@ -21,7 +21,7 @@ This script performs model inference on test set.
 Usage:
 ./vits/infer.py \
     --epoch 1000 \
-    --exp-dir ./zipformer/exp \
+    --exp-dir ./vits/exp \
     --max-duration 500
 """
 
