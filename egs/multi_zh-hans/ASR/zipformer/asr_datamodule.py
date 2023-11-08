@@ -19,25 +19,20 @@
 import argparse
 import inspect
 import logging
-from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 import torch
-from lhotse import CutSet, Fbank, FbankConfig, load_manifest, load_manifest_lazy
-from lhotse.dataset import (  # noqa F401 for PrecomputedFeatures
+from lhotse import CutSet, Fbank, FbankConfig, load_manifest
+from lhotse.dataset import (
     CutConcatenate,
     CutMix,
     DynamicBucketingSampler,
     K2SpeechRecognitionDataset,
-    PrecomputedFeatures,
     SimpleCutSampler,
     SpecAugment,
 )
-from lhotse.dataset.input_strategies import (  # noqa F401 For AudioSamples
-    AudioSamples,
-    OnTheFlyFeatures,
-)
+from lhotse.dataset.input_strategies import OnTheFlyFeatures
 from lhotse.utils import fix_random_seed
 from torch.utils.data import DataLoader
 
