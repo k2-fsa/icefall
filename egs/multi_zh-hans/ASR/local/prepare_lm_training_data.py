@@ -101,7 +101,7 @@ def main():
             line = f.readline()
             line = tokenize_by_CJK_char(line)
             if line == "":
-                continue
+                break
 
             if step and processed % step == 0:
                 logging.info(f"Processed number of lines: {processed} ")
