@@ -92,7 +92,6 @@ def main():
     word2bpe = []  # Will be a list-of-list-of-int, representing BPE pieces.
     sentences = []  # Will be a list-of-list-of-int, representing word-ids.
 
-    num_lines_in_total = None
     step = 500000
 
     processed = 0
@@ -105,10 +104,7 @@ def main():
                 break
 
             if step and processed % step == 0:
-                logging.info(
-                    f"Processed number of lines: {processed} "
-                    f"({processed/num_lines_in_total*100: .3f}%)"
-                )
+                logging.info(f"Processed number of lines: {processed} ")
             processed += 1
 
             line_words = line.split()
