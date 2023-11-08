@@ -370,4 +370,73 @@ if [ $stage -le 15 ] && [ $stop_stage -ge 15 ]; then
   done
 fi
 
+if [ $stage -le 16 ] && [ $stop_stage -ge 16 ]; then
+  log "Stage 16: Prepare LM data"
+
+  ./prepare_lm_data.sh
+
+  for vocab_size in ${vocab_sizes[@]}; do
+    lang_dir=data/lang_bpe_${vocab_size}
+    out_dir=data/lm_training_bpe_${vocab_size}
+
+    mkdir $out_dir
+
+    ./local/prepare_lm_training_data.py \
+      --bpe-model $lang_dir/bpe.model \
+      --lm-data ./data/lm_training_data/lm_training_text \
+      --lm-archive $out_dir/lm_training_data.pt
+    
+    ./local/prepare_lm_training_data.py \
+      --bpe-model $lang_dir/bpe.model \
+      --lm-data ./data/lm_dev_data/lm_dev_text \
+      --lm-archive $out_dir/lm_dev_data.pt
+    
+    ./local/prepare_lm_training_data.py \
+      --bpe-model $lang_dir/bpe.model \
+      --lm-data ./data/lm_test_data/lm_test_text \
+      --lm-archive $out_dir/lm_test_data.pt
+  done
+fi
+
+if [ $stage -le 17 ] && [ $stop_stage -ge 17 ]; then
+  log "Stage 17: Sort LM data"
+  for vocab_size in ${vocab_sizes[@]}; do
+    out_dir=data/lm_training_bpe_${vocab_size}
+    
+    ./local/sort_lm_training_data.py \
+      --in-lm-data $out_dir/lm_training_data.pt \
+      --out-lm-data $out_dir/sorted_lm_data.pt \
+      --out-statistics $out_dir/statistics.txt
+
+    ./local/sort_lm_training_data.py \
+      --in-lm-data $out_dir/lm_dev_data.pt \
+      --out-lm-data $out_dir/sorted_lm_data-dev.pt \
+      --out-statistics $out_dir/statistics-dev.txt
+
+    ./local/sort_lm_training_data.py \
+      --in-lm-data $out_dir/lm_test_data.pt \
+      --out-lm-data $out_dir/sorted_lm_data-test.pt \
+      --out-statistics $out_dir/statistics-test.txt
+  done
+fi
+
+if [ $stage -le 18 ] && [ $stop_stage -ge 18 ]; then
+  log "Stage 18: Train RNN LM model"
+  for vocab_size in ${vocab_sizes[@]}; do
+    out_dir=data/lm_training_bpe_${vocab_size}
+    python ../../../icefall/rnn_lm/train.py \
+      --start-epoch 0 \
+      --world-size 1 \
+      --use-fp16 0 \
+      --embedding-dim 2048 \
+      --hidden-dim 2048 \
+      --num-layers 3 \
+      --batch-size 400 \
+      --exp-dir rnnlm_bpe_${vocab_size}/exp \
+      --lm-data $out_dir/sorted_lm_data.pt \
+      --lm-data-valid $out_dir/sorted_lm_data-dev.pt \
+      --vocab-size $vocab_size \
+      --master-port 12345
+  done
+fi
 
