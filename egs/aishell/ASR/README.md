@@ -1,10 +1,12 @@
 
 # Introduction
 
-Please refer to <https://icefall.readthedocs.io/en/latest/recipes/Non-streaming-ASR/aishell/index.html>
-for how to run models in this recipe.
+Please refer to <https://k2-fsa.github.io/icefall/recipes/Non-streaming-ASR/aishell/index.html> for how to run models in this recipe.
 
+Aishell is an open-source Chinese Mandarin speech corpus published by Beijing Shell Shell Technology Co., Ltd.
+400 people from different accent areas in China are invited to participate in the recording, which is conducted in a quiet indoor environment using high fidelity microphone and downsampled to 16kHz. The manual transcription accuracy is above 95%, through professional speech annotation and strict quality inspection. The data is free for academic use. We hope to provide moderate amount of data for new researchers in the field of speech recognition.
 
+(From [Open Speech and Language Resources](https://www.openslr.org/33/))
 
 # Transducers
 

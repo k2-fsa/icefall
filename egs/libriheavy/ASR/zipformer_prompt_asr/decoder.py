@@ -95,6 +95,11 @@ class Decoder(nn.Module):
                 max_abs=1.0,
                 prob=0.05,
             )
+        else:
+            # To avoid `RuntimeError: Module 'Decoder' has no attribute 'conv'`
+            # when inference with torch.jit.script and context_size == 1
+            self.conv = nn.Identity()
+            self.balancer2 = nn.Identity()
 
     def forward(self, y: torch.Tensor, need_pad: bool = True) -> torch.Tensor:
         """
