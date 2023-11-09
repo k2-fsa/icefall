@@ -520,6 +520,7 @@ def decode_one_batch(
             encoder_out=encoder_out,
             encoder_out_lens=encoder_out_lens,
             beam=params.beam_size,
+            context_graph=context_graph,
         )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
