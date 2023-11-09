@@ -24,11 +24,12 @@ from typing import Any, Dict, Optional
 
 import torch
 from lhotse import CutSet, Fbank, FbankConfig, load_manifest
-from lhotse.dataset import (
+from lhotse.dataset import (  # noqa PrecomputedFeatures
     CutConcatenate,
     CutMix,
     DynamicBucketingSampler,
     K2SpeechRecognitionDataset,
+    PrecomputedFeatures,
     SimpleCutSampler,
     SpecAugment,
 )
