@@ -426,7 +426,7 @@ if [ $stage -le 18 ] && [ $stop_stage -ge 18 ]; then
     out_dir=data/lm_training_bpe_${vocab_size}
     python ../../../icefall/rnn_lm/train.py \
       --start-epoch 0 \
-      --world-size 1 \
+      --world-size 2 \
       --use-fp16 0 \
       --embedding-dim 2048 \
       --hidden-dim 2048 \
@@ -435,8 +435,7 @@ if [ $stage -le 18 ] && [ $stop_stage -ge 18 ]; then
       --exp-dir rnnlm_bpe_${vocab_size}/exp \
       --lm-data $out_dir/sorted_lm_data.pt \
       --lm-data-valid $out_dir/sorted_lm_data-dev.pt \
-      --vocab-size $vocab_size \
-      --master-port 12345
+      --vocab-size $vocab_size 
   done
 fi
 

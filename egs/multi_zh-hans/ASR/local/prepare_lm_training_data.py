@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 
 # Copyright (c)  2021  Xiaomi Corporation (authors: Daniel Povey
-#                                                   Fangjun Kuang)
+#                                                   Fangjun Kuang,
+#                                                   Zengrui Jin)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
