@@ -24,6 +24,7 @@ import sys
 from typing import List
 
 from pypinyin import lazy_pinyin, pinyin
+
 from icefall.utils import str2bool, tokenize_by_CJK_char
 
 is_python2 = sys.version_info[0] == 2
