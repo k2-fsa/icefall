@@ -351,6 +351,28 @@ def get_parser():
         help="ID of the backoff symbol in the ngram LM",
     )
 
+    parser.add_argument(
+        "--context-score",
+        type=float,
+        default=2,
+        help="""
+        The bonus score of each token for the context biasing words/phrases.
+        Used only when --decoding-method is modified_beam_search and
+        modified_beam_search_LODR.
+        """,
+    )
+
+    parser.add_argument(
+        "--context-file",
+        type=str,
+        default="",
+        help="""
+        The path of the context biasing lists, one word/phrase each line
+        Used only when --decoding-method is modified_beam_search and
+        modified_beam_search_LODR.
+        """,
+    )
+
     add_model_arguments(parser)
 
     return parser
