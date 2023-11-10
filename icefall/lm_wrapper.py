@@ -21,7 +21,6 @@ import torch
 
 from icefall.checkpoint import average_checkpoints, load_checkpoint
 from icefall.rnn_lm.model import RnnLmModel
-from icefall.transformer_lm.model import TransformerLM
 from icefall.utils import AttributeDict, str2bool
 
 
@@ -164,33 +163,6 @@ class LmScorer(torch.nn.Module):
                 hidden_dim=params.rnn_lm_hidden_dim,
                 num_layers=params.rnn_lm_num_layers,
                 tie_weights=params.rnn_lm_tie_weights,
-            )
-
-            if params.lm_avg == 1:
-                load_checkpoint(
-                    f"{params.lm_exp_dir}/epoch-{params.lm_epoch}.pt", model
-                )
-                model.to(device)
-            else:
-                start = params.lm_epoch - params.lm_avg + 1
-                filenames = []
-                for i in range(start, params.lm_epoch + 1):
-                    if start >= 0:
-                        filenames.append(f"{params.lm_exp_dir}/epoch-{i}.pt")
-                logging.info(f"averaging {filenames}")
-                model.to(device)
-                model.load_state_dict(average_checkpoints(filenames, device=device))
-
-        elif lm_type == "transformer":
-            model = TransformerLM(
-                vocab_size=params.vocab_size,
-                d_model=params.transformer_lm_encoder_dim,
-                embedding_dim=params.transformer_lm_embedding_dim,
-                dim_feedforward=params.transformer_lm_dim_feedforward,
-                nhead=params.transformer_lm_nhead,
-                num_layers=params.transformer_lm_num_layers,
-                tie_weights=params.transformer_lm_tie_weights,
-                params=params,
             )
 
             if params.lm_avg == 1:

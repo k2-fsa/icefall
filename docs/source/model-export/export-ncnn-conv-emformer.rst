@@ -153,10 +153,11 @@ Next, we use the following code to export our model:
 
   ./conv_emformer_transducer_stateless2/export-for-ncnn.py \
     --exp-dir $dir/exp \
-    --tokens $dir/data/lang_bpe_500/tokens.txt \
+    --bpe-model $dir/data/lang_bpe_500/bpe.model \
     --epoch 30 \
     --avg 1 \
     --use-averaged-model 0 \
+    \
     --num-encoder-layers 12 \
     --chunk-length 32 \
     --cnn-module-kernel 31 \

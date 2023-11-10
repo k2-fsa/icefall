@@ -21,11 +21,10 @@ import re
 from pathlib import Path
 
 import jsonlines
-from tqdm import tqdm
-
 from lhotse import CutSet, SupervisionSegment
 from lhotse.recipes.utils import read_manifests_if_cached
 from lhotse.serialization import open_best
+from tqdm import tqdm
 
 # Similar text filtering and normalization procedure as in:
 # https://github.com/SpeechColab/GigaSpeech/blob/main/toolkits/kaldi/gigaspeech_data_prep.sh
@@ -40,26 +39,32 @@ def normalize_text(
 
 
 def has_no_oov(
-    sup: SupervisionSegment, oov_pattern=re.compile(r"<(SIL|MUSIC|NOISE|OTHER)>"),
+    sup: SupervisionSegment,
+    oov_pattern=re.compile(r"<(SIL|MUSIC|NOISE|OTHER)>"),
 ) -> bool:
     return oov_pattern.search(sup.text) is None
 
 
 def preprocess_gigaspeech():
-    # src_dir = Path("data/manifests")
-    # output_dir = Path("data/fbank")
-    src_dir = Path(".")
-    output_dir = Path(".")
+    src_dir = Path("data/manifests")
+    output_dir = Path("data/fbank")
     output_dir.mkdir(exist_ok=True)
 
-    dataset_parts = ("XL",)
+    dataset_parts = (
+        "DEV",
+        "TEST",
+        "M",
+    )
 
     prefix = "gigaspeech"
     suffix = "jsonl.gz"
 
     logging.info("Loading manifest (may take 1 minutes)")
     manifests = read_manifests_if_cached(
-        dataset_parts=dataset_parts, output_dir=src_dir, prefix=prefix, suffix=suffix,
+        dataset_parts=dataset_parts,
+        output_dir=src_dir,
+        prefix=prefix,
+        suffix=suffix,
     )
     assert manifests is not None
 
@@ -71,7 +76,7 @@ def preprocess_gigaspeech():
     )
 
     for partition, m in manifests.items():
-        raw_cuts_path = output_dir / f"{prefix}_cuts_{partition}_raw.jsonl"
+        raw_cuts_path = output_dir / f"{prefix}_cuts_{partition}_raw.jsonl.gz"
         if raw_cuts_path.is_file():
             logging.info(f"{partition} already exists - skipping")
             continue
@@ -88,7 +93,8 @@ def preprocess_gigaspeech():
         # Create long-recording cut manifests.
         logging.info(f"Preprocessing {partition}")
         cut_set = CutSet.from_manifests(
-            recordings=m["recordings"], supervisions=m["supervisions"],
+            recordings=m["recordings"],
+            supervisions=m["supervisions"],
         )
 
         logging.info("About to split cuts into smaller chunks.")
@@ -98,6 +104,27 @@ def preprocess_gigaspeech():
 
         logging.info(f"Saving to {raw_cuts_path}")
         cut_set.to_file(raw_cuts_path)
+
+    for partition in dataset_parts:
+        cuts_path = output_dir / f"{prefix}_cuts_{partition}.jsonl"
+        if cuts_path.is_file():
+            logging.info(f"{partition} already exists - skipping")
+            continue
+
+        logging.info(f"Processing {partition}")
+        raw_cuts_path = output_dir / f"{prefix}_cuts_{partition}_raw.jsonl.gz"
+        with open_best(raw_cuts_path) as reader, jsonlines.open(
+            cuts_path, "a"
+        ) as writer:
+            for cut in reader:
+                cut = eval(cut)
+                cut["custom"] = {
+                    "discrete_tokens": cut["supervisions"][0]["custom"][
+                        "discrete_tokens"
+                    ]
+                }
+                del cut["supervisions"][0]["custom"]
+                writer.write(cut)
 
 
 def main():

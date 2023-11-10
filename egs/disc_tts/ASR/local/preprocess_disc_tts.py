@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang)
+# Copyright    2023  Xiaomi Corp.        (authors: Yifan Yang)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -15,34 +15,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-"""
-This file computes fbank features of the LibriSpeech dataset.
-It looks for manifests in the directory data/manifests.
-
-The generated fbank features are saved in data/fbank.
-"""
-
 import argparse
 import logging
-import os
+import re
 from pathlib import Path
 from typing import Optional
 
-import torch
-from lhotse import CutSet
-from lhotse.cut import MonoCut
+from lhotse import CutSet, SupervisionSegment
 from lhotse.recipes.utils import read_manifests_if_cached
-from tqdm import tqdm
-
-from icefall.utils import get_executor, str2bool
-
-# Torch's multithreaded behavior needs to be disabled or
-# it wastes a lot of CPU and slow things down.
-# Do this outside of main() in case it needs to take effect
-# even when we are not invoking the main (e.g. when spawning subprocesses).
-torch.set_num_threads(1)
-torch.set_num_interop_threads(1)
 
 
 def get_args():
@@ -57,28 +37,31 @@ def get_args():
     return parser.parse_args()
 
 
-def compute_fbank_librispeech(
+def normalize_text(utt: str) -> str:
+    utt = re.sub(r"[{0}]+".format("-"), " ", utt)
+    return re.sub(r"[^a-zA-Z\s']", "", utt).upper()
+
+
+def preprocess_disc_tts(
     dataset: Optional[str] = None,
 ):
-    src_dir = Path("data/manifests")
-    output_dir = Path("data/fbank")
+    src_dir = Path(f"data/manifests")
+    output_dir = Path(f"data/fbank")
+    output_dir.mkdir(exist_ok=True)
 
     if dataset is None:
-        dataset_parts = (
-            "train-clean-100-sp1_1",
-            "train-clean-360-sp1_1",
-            "train-other-500-sp1_1",
-        )
+        dataset_parts = ("dac", "encodec", "gt", "hifigan", "hubert", "vq", "wavlm")
     else:
         dataset_parts = dataset.split(" ", -1)
 
-    prefix = "librispeech"
+    logging.info("Loading manifest")
+    prefix = f"disc_tts"
     suffix = "jsonl.gz"
     manifests = read_manifests_if_cached(
         dataset_parts=dataset_parts,
         output_dir=src_dir,
-        prefix=prefix,
         suffix=suffix,
+        prefix=prefix,
     )
     assert manifests is not None
 
@@ -90,31 +73,46 @@ def compute_fbank_librispeech(
     )
 
     for partition, m in manifests.items():
-        cuts_filename = f"{prefix}_cuts_{partition}.{suffix}"
-        if (output_dir / cuts_filename).is_file():
-            logging.info(f"{partition} already exists - skipping.")
+        logging.info(f"Processing {partition}")
+        raw_cuts_path = output_dir / f"{prefix}_cuts_{partition}_raw.{suffix}"
+        if raw_cuts_path.is_file():
+            logging.info(f"{partition} already exists - skipping")
             continue
+
+        logging.info(f"Normalizing text in {partition}")
+        for sup in m["supervisions"]:
+            text = str(sup.text)
+            orig_text = text
+            sup.text = normalize_text(sup.text)
+            text = str(sup.text)
+            if len(orig_text) != len(text):
+                logging.info(
+                    f"\nOriginal text vs normalized text:\n{orig_text}\n{text}"
+                )
+
+        # Create long-recording cut manifests.
         cut_set = CutSet.from_manifests(
             recordings=m["recordings"],
             supervisions=m["supervisions"],
-        )
-        logging.info(f"Processing {partition}")
-        for i in tqdm(range(len(cut_set))):
-            cut_set[i].discrete_tokens = cut_set[i].supervisions[0].discrete_tokens
-            try:
-                del cut_set[i].supervisions[0].custom
-            except:
-                pass
+        ).resample(16000)
 
-        cut_set.to_file(output_dir / cuts_filename)
+        # Run data augmentation that needs to be done in the
+        # time domain.
+        logging.info(f"Saving to {raw_cuts_path}")
+        cut_set.to_file(raw_cuts_path)
 
 
-if __name__ == "__main__":
+def main():
     formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
 
     logging.basicConfig(format=formatter, level=logging.INFO)
     args = get_args()
     logging.info(vars(args))
-    compute_fbank_librispeech(
+    preprocess_disc_tts(
         dataset=args.dataset,
     )
+    logging.info("Done")
+
+
+if __name__ == "__main__":
+    main()

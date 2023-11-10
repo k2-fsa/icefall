@@ -33,7 +33,7 @@ as an example in the following.
 
     ./lstm_transducer_stateless2/export.py \
       --exp-dir ./lstm_transducer_stateless2/exp \
-      --tokens data/lang_bpe_500/tokens.txt \
+      --bpe-model data/lang_bpe_500/bpe.model \
       --iter $iter \
       --avg  $avg \
       --jit-trace 1

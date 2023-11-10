@@ -34,12 +34,9 @@ As the initial step, let's download the pre-trained model.
 .. code-block:: bash
 
     $ GIT_LFS_SKIP_SMUDGE=1 git clone https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29
-    $ cd icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/exp
+    $ pushd icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/exp
     $ git lfs pull --include "pretrained.pt"
     $ ln -s pretrained.pt epoch-99.pt # create a symbolic link so that the checkpoint can be loaded
-    $ cd ../data/lang_bpe_500
-    $ git lfs pull --include bpe.model
-    $ cd ../../..
 
 As usual, we first test the model's performance without external LM. This can be done via the following command:
 
@@ -51,7 +48,7 @@ As usual, we first test the model's performance without external LM. This can be
         --avg 1 \
         --use-averaged-model False \
         --exp-dir $exp_dir \
-        --bpe-model ./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/data/lang_bpe_500/bpe.model \
+        --bpe-model ./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/data/lang_bpe_500/bpe.model 
         --max-duration 600 \
         --decode-chunk-len 32 \
         --decoding-method modified_beam_search
@@ -104,7 +101,7 @@ is set to `False`.
         --max-duration 600 \
         --decode-chunk-len 32 \
         --decoding-method modified_beam_search_lm_rescore \
-        --bpe-model ./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/data/lang_bpe_500/bpe.model \
+        --bpe-model ./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/data/lang_bpe_500/bpe.model
         --use-shallow-fusion 0 \
         --lm-type rnn \
         --lm-exp-dir $lm_dir \
@@ -176,7 +173,7 @@ Then we can performn LM rescoring + LODR by changing the decoding method to `mod
         --max-duration 600 \
         --decode-chunk-len 32 \
         --decoding-method modified_beam_search_lm_rescore_LODR \
-        --bpe-model ./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/data/lang_bpe_500/bpe.model \
+        --bpe-model ./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/data/lang_bpe_500/bpe.model
         --use-shallow-fusion 0 \
         --lm-type rnn \
         --lm-exp-dir $lm_dir \

@@ -105,10 +105,7 @@ def compute_fbank_librispeech(
         logging.info(f"Processing {partition}")
         for i in tqdm(range(len(cut_set))):
             cut_set[i].discrete_tokens = cut_set[i].supervisions[0].discrete_tokens
-            try:
-                del cut_set[i].supervisions[0].custom
-            except:
-                pass
+            del cut_set[i].supervisions[0].custom
 
         cut_set.to_file(output_dir / cuts_filename)
 

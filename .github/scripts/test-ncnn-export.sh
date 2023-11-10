@@ -45,6 +45,7 @@ GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
 repo=$(basename $repo_url)
 
 pushd $repo
+git lfs pull --include "data/lang_bpe_500/bpe.model"
 git lfs pull --include "exp/pretrained-epoch-30-avg-10-averaged.pt"
 
 cd exp
@@ -55,10 +56,11 @@ log "Export via torch.jit.trace()"
 
 ./conv_emformer_transducer_stateless2/export-for-ncnn.py \
   --exp-dir $repo/exp \
+  --bpe-model $repo/data/lang_bpe_500/bpe.model \
   --epoch 99 \
   --avg 1 \
   --use-averaged-model 0 \
-  --tokens $repo/data/lang_bpe_500/tokens.txt \
+  \
   --num-encoder-layers 12 \
   --chunk-length 32 \
   --cnn-module-kernel 31 \
@@ -89,6 +91,7 @@ GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
 repo=$(basename $repo_url)
 
 pushd $repo
+git lfs pull --include "data/lang_bpe_500/bpe.model"
 git lfs pull --include "exp/pretrained-iter-468000-avg-16.pt"
 
 cd exp
@@ -99,7 +102,7 @@ log "Export via torch.jit.trace()"
 
 ./lstm_transducer_stateless2/export-for-ncnn.py \
   --exp-dir $repo/exp \
-  --tokens $repo/data/lang_bpe_500/tokens.txt \
+  --bpe-model $repo/data/lang_bpe_500/bpe.model \
   --epoch 99 \
   --avg 1 \
   --use-averaged-model 0
@@ -137,6 +140,7 @@ GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
 repo=$(basename $repo_url)
 
 pushd $repo
+git lfs pull --include "data/lang_bpe_500/bpe.model"
 git lfs pull --include "exp/pretrained.pt"
 
 cd exp
@@ -144,7 +148,7 @@ ln -s pretrained.pt epoch-99.pt
 popd
 
 ./pruned_transducer_stateless7_streaming/export-for-ncnn.py \
-  --tokens $repo/data/lang_bpe_500/tokens.txt \
+  --bpe-model $repo/data/lang_bpe_500/bpe.model \
   --exp-dir $repo/exp \
   --use-averaged-model 0 \
   --epoch 99 \
@@ -195,7 +199,7 @@ ln -s pretrained.pt epoch-9999.pt
 popd
 
 ./pruned_transducer_stateless7_streaming/export-for-ncnn-zh.py \
-  --tokens $repo/data/lang_char_bpe/tokens.txt \
+  --lang-dir $repo/data/lang_char_bpe \
   --exp-dir $repo/exp \
   --use-averaged-model 0 \
   --epoch 9999 \

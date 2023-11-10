@@ -71,7 +71,7 @@ Export the model to ONNX
 .. code-block:: bash
 
   ./pruned_transducer_stateless7_streaming/export-onnx.py \
-    --tokens $repo/data/lang_bpe_500/tokens.txt \
+    --bpe-model $repo/data/lang_bpe_500/bpe.model \
     --use-averaged-model 0 \
     --epoch 99 \
     --avg 1 \

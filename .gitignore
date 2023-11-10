@@ -4,6 +4,7 @@ __pycache__
 path.sh
 exp
 exp*/
+tensorboard
 *.pt
 download
 dask-worker-space

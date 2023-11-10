@@ -65,7 +65,7 @@ import sentencepiece as spm
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
-from asr_datamodule2 import LibriSpeechAsrDataModule
+from asr_datamodule import DiscTTSAsrDataModule
 from decoder import Decoder
 from joiner import Joiner
 from lhotse.cut import Cut
@@ -468,12 +468,6 @@ def get_parser():
         help="Whether to use half precision training.",
     )
 
-    parser.add_argument(
-        "--use-codebook",
-        type=str2bool,
-        default=False,
-    )
-
     add_model_arguments(parser)
 
     return parser
@@ -512,8 +506,8 @@ def get_params() -> AttributeDict:
 
         - valid_interval:  Run validation if batch_idx % valid_interval is 0
 
-        - token_dim: The model input dim. It has to match the one used
-                       in computing tokens.
+        - feature_dim: The model input dim. It has to match the one used
+                       in computing features.
 
         - subsampling_factor:  The subsampling factor for the model.
 
@@ -535,7 +529,7 @@ def get_params() -> AttributeDict:
             "reset_interval": 200,
             "valid_interval": 3000,  # For the 100h subset, use 800
             # parameters for zipformer
-            "token_dim": 80,
+            "feature_dim": 80,
             "subsampling_factor": 4,  # not passed in, this is fixed.
             "warm_step": 2000,
             "env_info": get_env_info(),
@@ -550,33 +544,20 @@ def _to_int_tuple(s: str):
 
 
 def get_encoder_embed(params: AttributeDict) -> nn.Module:
-    # encoder_embed converts the input of shape (N, T, num_tokens)
+    # encoder_embed converts the input of shape (N, T, num_features)
     # to the shape (N, (T - 7) // 2, encoder_dims).
     # That is, it does two things simultaneously:
     #   (1) subsampling: T -> (T - 7) // 2
-    #   (2) embedding: num_tokens -> encoder_dims
+    #   (2) embedding: num_features -> encoder_dims
     # In the normal configuration, we will downsample once more at the end
     # by a factor of 2, and most of the encoder stacks will run at a lower
     # sampling rate.
-    if params.use_codebook:
-        codebook_path = (
-            "./download/DiscreteAudioToken/wavlm_large_l24_kms2000/codebook.pt"
-        )
-        tokens_embed = nn.Embedding.from_pretrained(
-            torch.load(codebook_path), padding_idx=2000
-        )
-    else:
-        tokens_embed = nn.Embedding(
-            num_embeddings=2001,
-            embedding_dim=80,
-            padding_idx=2000,
-        )
     encoder_embed = Conv2dSubsampling(
-        in_channels=params.token_dim,
+        in_channels=params.feature_dim,
         out_channels=_to_int_tuple(params.encoder_dim)[0],
         dropout=ScheduledFloat((0.0, 0.3), (20000.0, 0.1)),
     )
-    return tokens_embed, encoder_embed
+    return encoder_embed
 
 
 def get_encoder_model(params: AttributeDict) -> nn.Module:
@@ -623,13 +604,13 @@ def get_joiner_model(params: AttributeDict) -> nn.Module:
 
 
 def get_model(params: AttributeDict) -> nn.Module:
-    assert params.use_transducer or params.use_ctc, (
-        f"At least one of them should be True, "
+    assert (
+        params.use_transducer or params.use_ctc
+    ), (f"At least one of them should be True, "
         f"but got params.use_transducer={params.use_transducer}, "
-        f"params.use_ctc={params.use_ctc}"
-    )
+        f"params.use_ctc={params.use_ctc}")
 
-    token_embed, encoder_embed = get_encoder_embed(params)
+    encoder_embed = get_encoder_embed(params)
     encoder = get_encoder_model(params)
 
     if params.use_transducer:
@@ -640,7 +621,6 @@ def get_model(params: AttributeDict) -> nn.Module:
         joiner = None
 
     model = AsrModel(
-        token_embed=token_embed,
         encoder_embed=encoder_embed,
         encoder=encoder,
         decoder=decoder,
@@ -650,7 +630,6 @@ def get_model(params: AttributeDict) -> nn.Module:
         vocab_size=params.vocab_size,
         use_transducer=params.use_transducer,
         use_ctc=params.use_ctc,
-        use_codebook=params.use_codebook,
     )
     return model
 
@@ -797,31 +776,25 @@ def compute_loss(
         values >= 1.0 are fully warmed up and have all modules present.
     """
     device = model.device if isinstance(model, DDP) else next(model.parameters()).device
-    tokens = batch["tokens"]
-    # at entry, token is (N, T, C)
-    assert tokens.ndim == 2
-    tokens = tokens.to(device)
+    feature = batch["inputs"]
+    # at entry, feature is (N, T, C)
+    assert feature.ndim == 3
+    feature = feature.to(device)
 
-    token_lens = batch["token_lens"].to(device)
-
-    frequency_masks = (
-        batch["frequency_masks"].to(device)
-        if "frequency_masks" in batch.keys()
-        else None
-    )
+    supervisions = batch["supervisions"]
+    feature_lens = supervisions["num_frames"].to(device)
 
     batch_idx_train = params.batch_idx_train
     warm_step = params.warm_step
 
-    texts = [c.supervisions[0].text for c in batch["cuts"]]
+    texts = batch["supervisions"]["text"]
     y = sp.encode(texts, out_type=int)
     y = k2.RaggedTensor(y)
 
     with torch.set_grad_enabled(is_training):
         simple_loss, pruned_loss, ctc_loss = model(
-            x=tokens,
-            x_lens=token_lens,
-            frequency_masks=frequency_masks,
+            x=feature,
+            x_lens=feature_lens,
             y=y,
             prune_range=params.prune_range,
             am_scale=params.am_scale,
@@ -835,16 +808,17 @@ def compute_loss(
             # take down the scale on the simple loss from 1.0 at the start
             # to params.simple_loss scale by warm_step.
             simple_loss_scale = (
-                s
-                if batch_idx_train >= warm_step
+                s if batch_idx_train >= warm_step
                 else 1.0 - (batch_idx_train / warm_step) * (1.0 - s)
             )
             pruned_loss_scale = (
-                1.0
-                if batch_idx_train >= warm_step
+                1.0 if batch_idx_train >= warm_step
                 else 0.1 + 0.9 * (batch_idx_train / warm_step)
             )
-            loss += simple_loss_scale * simple_loss + pruned_loss_scale * pruned_loss
+            loss += (
+                simple_loss_scale * simple_loss
+                + pruned_loss_scale * pruned_loss
+            )
 
         if params.use_ctc:
             loss += params.ctc_loss_scale * ctc_loss
@@ -854,7 +828,7 @@ def compute_loss(
     info = MetricsTracker()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        info["frames"] = (token_lens // params.subsampling_factor).sum().item()
+        info["frames"] = (feature_lens // params.subsampling_factor).sum().item()
 
     # Note: We use reduction=sum while computing the loss.
     info["loss"] = loss.detach().cpu().item()
@@ -970,7 +944,7 @@ def train_one_epoch(
             set_batch_count(model, get_adjusted_batch_count(params))
 
         params.batch_idx_train += 1
-        batch_size = len(batch["cuts"])
+        batch_size = len(batch["supervisions"]["text"])
 
         try:
             with torch.cuda.amp.autocast(enabled=params.use_fp16):
@@ -1199,7 +1173,7 @@ def run(rank, world_size, args):
     if params.inf_check:
         register_inf_check_hooks(model)
 
-    librispeech = LibriSpeechAsrDataModule(args)
+    librispeech = DiscTTSAsrDataModule(args)
 
     train_cuts = librispeech.train_clean_100_cuts()
     if params.full_libri:
@@ -1222,7 +1196,7 @@ def run(rank, world_size, args):
             return False
 
         # In pruned RNN-T, we require that T >= S
-        # where T is the number of token frames after subsampling
+        # where T is the number of feature frames after subsampling
         # and S is the number of tokens in the utterance
 
         # In ./zipformer.py, the conv module uses the following expression
@@ -1243,7 +1217,7 @@ def run(rank, world_size, args):
 
         return True
 
-    # train_cuts = train_cuts.filter(remove_short_and_long_utt)
+    train_cuts = train_cuts.filter(remove_short_and_long_utt)
 
     if params.start_batch > 0 and checkpoints and "sampler" in checkpoints:
         # We only load the sampler's state dict when it loads a checkpoint
@@ -1260,7 +1234,7 @@ def run(rank, world_size, args):
     valid_cuts += librispeech.dev_other_cuts()
     valid_dl = librispeech.valid_dataloaders(valid_cuts)
 
-    if 0 and not params.print_diagnostics:
+    if not params.print_diagnostics:
         scan_pessimistic_batches_for_oom(
             model=model,
             train_dl=train_dl,
@@ -1343,12 +1317,12 @@ def display_and_save_batch(
     logging.info(f"Saving batch to {filename}")
     torch.save(batch, filename)
 
-    tokens = batch["tokens"]
+    supervisions = batch["supervisions"]
+    features = batch["inputs"]
 
-    logging.info(f"tokens shape: {tokens.shape}")
+    logging.info(f"features shape: {features.shape}")
 
-    texts = [c.supervisions[0].text for c in batch["cuts"]]
-    y = sp.encode(texts, out_type=int)
+    y = sp.encode(supervisions["text"], out_type=int)
     num_tokens = sum(len(i) for i in y)
     logging.info(f"num tokens: {num_tokens}")
 
@@ -1397,7 +1371,7 @@ def scan_pessimistic_batches_for_oom(
 
 def main():
     parser = get_parser()
-    LibriSpeechAsrDataModule.add_arguments(parser)
+    DiscTTSAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 

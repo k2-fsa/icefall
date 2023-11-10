@@ -344,6 +344,10 @@ class AsrModel(nn.Module):
         if frequency_masks is not None:
             x.masked_fill_(frequency_masks.unsqueeze(1), 0)
 
+        # Add GaussianNoise
+        if self.training and random.random() < 0.25:
+            x += torch.randn_like(x)
+
         # Compute encoder outputs
         encoder_out, encoder_out_lens = self.forward_encoder(x, x_lens)
 
