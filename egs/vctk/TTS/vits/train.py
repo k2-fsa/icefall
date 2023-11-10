@@ -18,21 +18,25 @@
 
 import argparse
 import logging
-import numpy as np
 from pathlib import Path
 from shutil import copyfile
 from typing import Any, Dict, Optional, Tuple, Union
 
 import k2
+import numpy as np
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 from lhotse.cut import Cut
 from lhotse.utils import fix_random_seed
-from torch.optim import Optimizer
+from tokenizer import Tokenizer
 from torch.cuda.amp import GradScaler, autocast
 from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.optim import Optimizer
 from torch.utils.tensorboard import SummaryWriter
+from tts_datamodule import LJSpeechTtsDataModule
+from utils import MetricsTracker, plot_feature, save_checkpoint
+from vits import VITS
 
 from icefall import diagnostics
 from icefall.checkpoint import load_checkpoint
@@ -40,11 +44,6 @@ from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
 from icefall.hooks import register_inf_check_hooks
 from icefall.utils import AttributeDict, setup_logger, str2bool
-
-from tokenizer import Tokenizer
-from tts_datamodule import LJSpeechTtsDataModule
-from utils import MetricsTracker, plot_feature, save_checkpoint
-from vits import VITS
 
 LRSchedulerType = torch.optim.lr_scheduler._LRScheduler
 
@@ -296,6 +295,7 @@ def prepare_input(batch: dict, tokenizer: Tokenizer, device: torch.device):
     audio_lens = batch["audio_lens"].to(device)
     features_lens = batch["features_lens"].to(device)
     text = batch["text"]
+    speakers = batch["speakers"]
 
     tokens = tokenizer.texts_to_token_ids(text)
     tokens = k2.RaggedTensor(tokens)
@@ -306,7 +306,7 @@ def prepare_input(batch: dict, tokenizer: Tokenizer, device: torch.device):
     # a tensor of shape (B, T)
     tokens = tokens.pad(mode="constant", padding_value=tokenizer.blank_id)
 
-    return audio, audio_lens, features, features_lens, tokens, tokens_lens
+    return audio, audio_lens, features, features_lens, tokens, tokens_lens, speakers
 
 
 def train_one_epoch(
@@ -385,9 +385,15 @@ def train_one_epoch(
         params.batch_idx_train += 1
 
         batch_size = len(batch["text"])
-        audio, audio_lens, features, features_lens, tokens, tokens_lens = prepare_input(
-            batch, tokenizer, device
-        )
+        (
+            audio,
+            audio_lens,
+            features,
+            features_lens,
+            tokens,
+            tokens_lens,
+            speakers,
+        ) = prepare_input(batch, tokenizer, device)
 
         loss_info = MetricsTracker()
         loss_info["samples"] = batch_size

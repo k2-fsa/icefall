@@ -32,9 +32,9 @@ from pathlib import Path
 import torch
 from lhotse import (
     CutSet,
+    LilcomChunkyWriter,
     Spectrogram,
     SpectrogramConfig,
-    LilcomChunkyWriter,
     load_manifest,
 )
 from lhotse.audio import RecordingSet

@@ -36,13 +36,12 @@ import k2
 import torch
 import torch.nn as nn
 import torchaudio
-
-from train import get_model, get_params
 from tokenizer import Tokenizer
+from train import get_model, get_params
+from tts_datamodule import LJSpeechTtsDataModule
 
 from icefall.checkpoint import load_checkpoint
 from icefall.utils import AttributeDict, setup_logger
-from tts_datamodule import LJSpeechTtsDataModule
 
 
 def get_parser():

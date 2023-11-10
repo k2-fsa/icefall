@@ -29,10 +29,10 @@ from lhotse.dataset import (  # noqa F401 for PrecomputedFeatures
     CutConcatenate,
     CutMix,
     DynamicBucketingSampler,
-    SpeechSynthesisDataset,
     PrecomputedFeatures,
     SimpleCutSampler,
     SpecAugment,
+    SpeechSynthesisDataset,
 )
 from lhotse.dataset.input_strategies import (  # noqa F401 For AudioSamples
     AudioSamples,
