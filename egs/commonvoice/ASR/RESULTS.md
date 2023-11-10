@@ -57,3 +57,28 @@ Pretrained model is available at
 
 The tensorboard log for training is available at
 <https://tensorboard.dev/experiment/j4pJQty6RMOkMJtRySREKw/>
+
+
+### Commonvoice (fr) BPE training results (Pruned Stateless Transducer 7_streaming)
+
+#### [pruned_transducer_stateless7_streaming](./pruned_transducer_stateless7_streaming)
+
+See #1018  for more details.
+
+Number of model parameters: 70369391, i.e., 70.37 M
+
+The best WER for Common Voice French 12.0 (cv-corpus-12.0-2022-12-07/fr) is below:
+
+Results are:
+
+|    decoding method   | Test  |
+|----------------------|-------|
+|    greedy search     | 9.95  | 
+| modified beam search | 9.57  |
+|   fast beam search   | 9.67  |
+
+Note: This best result is trained on the full librispeech and gigaspeech, and then fine-tuned on the full commonvoice.
+
+Detailed experimental results and Pretrained model are available at
+<https://huggingface.co/shaojieli/icefall-asr-commonvoice-fr-pruned-transducer-stateless7-streaming-2023-04-02>
+
