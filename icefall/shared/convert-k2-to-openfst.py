@@ -1,1 +1,0 @@
-../../../librispeech/ASR/shared/convert-k2-to-openfst.py
