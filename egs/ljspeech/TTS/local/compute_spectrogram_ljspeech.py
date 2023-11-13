@@ -58,10 +58,10 @@ def compute_spectrogram_ljspeech():
     partition = "all"
 
     recordings = load_manifest(
-        src_dir / f"{prefix}_recordings_{partition}.jsonl.gz", RecordingSet
+        src_dir / f"{prefix}_recordings_{partition}.{suffix}", RecordingSet
     )
     supervisions = load_manifest(
-        src_dir / f"{prefix}_supervisions_{partition}.jsonl.gz", SupervisionSet
+        src_dir / f"{prefix}_supervisions_{partition}.{suffix}", SupervisionSet
     )
 
     config = SpectrogramConfig(

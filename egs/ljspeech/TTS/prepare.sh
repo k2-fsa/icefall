@@ -69,7 +69,17 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
 fi
 
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
-  log "Stage 3: Split the LJSpeech cuts into train, valid and test sets"
+  log "Stage 3: Prepare phoneme tokens for LJSpeech"
+  if [ ! -e data/spectrogram/.ljspeech_with_token.done ]; then
+    ./local/prepare_tokens_ljspeech.py
+    mv data/spectrogram/ljspeech_cuts_with_tokens_all.jsonl.gz \
+      data/spectrogram/ljspeech_cuts_all.jsonl.gz
+    touch data/spectrogram/.ljspeech_with_token.done
+  fi
+fi
+
+if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
+  log "Stage 4: Split the LJSpeech cuts into train, valid and test sets"
   if [ ! -e data/spectrogram/.ljspeech_split.done ]; then
     lhotse subset --last 600 \
       data/spectrogram/ljspeech_cuts_all.jsonl.gz \
@@ -91,8 +101,8 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   fi
 fi
 
-if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
-  log "Stage 4: Generate token file"
+if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
+  log "Stage 5: Generate token file"
   # We assume you have installed g2p_en and espnet_tts_frontend.
   # If not, please install them with:
   #   - g2p_en: `pip install g2p_en`, refer to https://github.com/Kyubyong/g2p

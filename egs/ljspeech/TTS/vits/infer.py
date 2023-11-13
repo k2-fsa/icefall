@@ -128,10 +128,10 @@ def infer_dataset(
     futures = []
     with ThreadPoolExecutor(max_workers=1) as executor:
         for batch_idx, batch in enumerate(dl):
-            batch_size = len(batch["text"])
+            batch_size = len(batch["tokens"])
 
-            text = batch["text"]
-            tokens = tokenizer.texts_to_token_ids(text)
+            tokens = batch["tokens"]
+            tokens = tokenizer.tokens_to_token_ids(tokens)
             tokens = k2.RaggedTensor(tokens)
             row_splits = tokens.shape.row_splits(1)
             tokens_lens = row_splits[1:] - row_splits[:-1]

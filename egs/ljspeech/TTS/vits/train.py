@@ -295,9 +295,9 @@ def prepare_input(batch: dict, tokenizer: Tokenizer, device: torch.device):
     features = batch["features"].to(device)
     audio_lens = batch["audio_lens"].to(device)
     features_lens = batch["features_lens"].to(device)
-    text = batch["text"]
+    tokens = batch["tokens"]
 
-    tokens = tokenizer.texts_to_token_ids(text)
+    tokens = tokenizer.tokens_to_token_ids(tokens)
     tokens = k2.RaggedTensor(tokens)
     row_splits = tokens.shape.row_splits(1)
     tokens_lens = row_splits[1:] - row_splits[:-1]
@@ -384,7 +384,7 @@ def train_one_epoch(
     for batch_idx, batch in enumerate(train_dl):
         params.batch_idx_train += 1
 
-        batch_size = len(batch["text"])
+        batch_size = len(batch["tokens"])
         audio, audio_lens, features, features_lens, tokens, tokens_lens = \
             prepare_input(batch, tokenizer, device)
 
@@ -554,7 +554,7 @@ def compute_validation_loss(
 
     with torch.no_grad():
         for batch_idx, batch in enumerate(valid_dl):
-            batch_size = len(batch["text"])
+            batch_size = len(batch["tokens"])
             audio, audio_lens, features, features_lens, tokens, tokens_lens = \
                 prepare_input(batch, tokenizer, device)
 

@@ -168,7 +168,9 @@ class LJSpeechTtsDataModule:
         """
         logging.info("About to create train dataset")
         train = SpeechSynthesisDataset(
-            return_tokens=False,
+            return_token_ids=False,
+            return_text=False,
+            return_tokens=True,
             feature_input_strategy=eval(self.args.input_strategy)(),
             return_cuts=self.args.return_cuts,
         )
@@ -182,7 +184,9 @@ class LJSpeechTtsDataModule:
                 use_fft_mag=True,
             )
             train = SpeechSynthesisDataset(
-                return_tokens=False,
+                return_token_ids=False,
+                return_text=False,
+                return_tokens=True,
                 feature_input_strategy=OnTheFlyFeatures(Spectrogram(config)),
                 return_cuts=self.args.return_cuts,
             )
@@ -236,13 +240,17 @@ class LJSpeechTtsDataModule:
                 use_fft_mag=True,
             )
             validate = SpeechSynthesisDataset(
-                return_tokens=False,
+                return_token_ids=False,
+                return_text=False,
+                return_tokens=True,
                 feature_input_strategy=OnTheFlyFeatures(Spectrogram(config)),
                 return_cuts=self.args.return_cuts,
             )
         else:
             validate = SpeechSynthesisDataset(
-                return_tokens=False,
+                return_token_ids=False,
+                return_text=False,
+                return_tokens=True,
                 feature_input_strategy=eval(self.args.input_strategy)(),
                 return_cuts=self.args.return_cuts,
             )
@@ -273,13 +281,17 @@ class LJSpeechTtsDataModule:
                 use_fft_mag=True,
             )
             test = SpeechSynthesisDataset(
-                return_tokens=False,
+                return_token_ids=False,
+                return_text=False,
+                return_tokens=True,
                 feature_input_strategy=OnTheFlyFeatures(Spectrogram(config)),
                 return_cuts=self.args.return_cuts,
             )
         else:
             test = SpeechSynthesisDataset(
-                return_tokens=False,
+                return_token_ids=False,
+                return_text=False,
+                return_tokens=True,
                 feature_input_strategy=eval(self.args.input_strategy)(),
                 return_cuts=self.args.return_cuts,
             )
