@@ -36,8 +36,8 @@ num_splits=1000
 #     - speech
 
 dl_dir=$PWD/download
-release=cv-corpus-13.0-2023-03-09
-lang=en
+release=cv-corpus-12.0-2022-12-07
+lang=fr
 
 . shared/parse_options.sh || exit 1
 
@@ -146,7 +146,7 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
   if [ ! -e data/${lang}/fbank/.cv-${lang}_train.done ]; then
     ./local/compute_fbank_commonvoice_splits.py \
       --num-workers $nj \
-      --batch-duration 600 \
+      --batch-duration 200 \
       --start 0 \
       --num-splits $num_splits \
       --language $lang
@@ -189,7 +189,7 @@ if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
       sed -i 's/\t/ /g' $lang_dir/transcript_words.txt
       sed -i 's/[ ][ ]*/ /g' $lang_dir/transcript_words.txt
     fi
- 
+
     if [ ! -f $lang_dir/words.txt ]; then
       cat $lang_dir/transcript_words.txt | sed 's/ /\n/g' \
         | sort -u | sed '/^$/d' > $lang_dir/words.txt
@@ -216,14 +216,14 @@ if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
         }' > $lang_dir/words || exit 1;
       mv $lang_dir/words $lang_dir/words.txt
     fi
- 
+
     if [ ! -f $lang_dir/bpe.model ]; then
       ./local/train_bpe_model.py \
         --lang-dir $lang_dir \
         --vocab-size $vocab_size \
         --transcript $lang_dir/transcript_words.txt
     fi
-  
+
     if [ ! -f $lang_dir/L_disambig.pt ]; then
       ./local/prepare_lang_bpe.py --lang-dir $lang_dir
 
@@ -248,5 +248,57 @@ if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
         $lang_dir/L_disambig.pt \
         $lang_dir/L_disambig.fst
     fi
+  done
+fi
+
+if [ $stage -le 10 ] && [ $stop_stage -ge 10 ]; then
+  log "Stage 10: Prepare G"
+  # We assume you have install kaldilm, if not, please install
+  # it using: pip install kaldilm
+
+  for vocab_size in ${vocab_sizes[@]}; do
+    lang_dir=data/${lang}/lang_bpe_${vocab_size}
+    mkdir -p $lang_dir/lm
+    #3-gram used in building HLG, 4-gram used for LM rescoring
+    for ngram in 3 4; do
+      if [ ! -f $lang_dir/lm/${ngram}gram.arpa ]; then
+        ./shared/make_kn_lm.py \
+          -ngram-order ${ngram} \
+          -text $lang_dir/transcript_words.txt \
+          -lm $lang_dir/lm/${ngram}gram.arpa
+      fi
+
+      if [ ! -f $lang_dir/lm/${ngram}gram.fst.txt ]; then
+        python3 -m kaldilm \
+          --read-symbol-table="$lang_dir/words.txt" \
+          --disambig-symbol='#0' \
+          --max-order=${ngram} \
+          $lang_dir/lm/${ngram}gram.arpa > $lang_dir/lm/G_${ngram}_gram.fst.txt
+      fi
+    done
+  done
+fi
+
+if [ $stage -le 11 ] && [ $stop_stage -ge 11 ]; then
+  log "Stage 11: Compile HLG"
+
+  for vocab_size in ${vocab_sizes[@]}; do
+    lang_dir=data/${lang}/lang_bpe_${vocab_size}
+    ./local/compile_hlg.py --lang-dir $lang_dir
+
+    # Note If ./local/compile_hlg.py throws OOM,
+    # please switch to the following command
+    #
+    # ./local/compile_hlg_using_openfst.py --lang-dir $lang_dir
+  done
+fi
+
+# Compile LG for RNN-T fast_beam_search decoding
+if [ $stage -le 12 ] && [ $stop_stage -ge 12 ]; then
+  log "Stage 12: Compile LG"
+
+  for vocab_size in ${vocab_sizes[@]}; do
+    lang_dir=data/${lang}/lang_bpe_${vocab_size}
+    ./local/compile_lg.py --lang-dir $lang_dir
   done
 fi

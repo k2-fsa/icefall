@@ -43,9 +43,13 @@ def get_args():
     return parser.parse_args()
 
 
-def normalize_text(utt: str) -> str:
+def normalize_text(utt: str, language: str) -> str:
     utt = re.sub(r"[{0}]+".format("-"), " ", utt)
-    return re.sub(r"[^a-zA-Z\s']", "", utt).upper()
+    utt = re.sub("’", "'", utt)
+    if language == "en":
+        return re.sub(r"[^a-zA-Z\s]", "", utt).upper()
+    if language == "fr":
+        return re.sub(r"[^A-ZÀÂÆÇÉÈÊËÎÏÔŒÙÛÜ' ]", "", utt).upper()
 
 
 def preprocess_commonvoice(
@@ -94,7 +98,7 @@ def preprocess_commonvoice(
         for sup in m["supervisions"]:
             text = str(sup.text)
             orig_text = text
-            sup.text = normalize_text(sup.text)
+            sup.text = normalize_text(sup.text, language)
             text = str(sup.text)
             if len(orig_text) != len(text):
                 logging.info(
