@@ -1,5 +1,5 @@
-#!/bin/env python3
-# Copyright    2023  Brno University of Technology (authors: Karel Veselý)
+#!/usr/bin/env python3
+# Copyright    2023  Brno University of Technology  (authors: Karel Veselý)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -19,17 +19,18 @@ This script introduces initial capital letter at the beginning of a sentence.
 It can be used as a module, or as an executable script.
 
 Usage example #1:
-  from uppercase_begin_of_sentence import UpperCaseBeginOfSentence
+  `from uppercase_begin_of_sentence import UpperCaseBeginOfSentence`
 
 Usage example #2:
+```
   python3 ./local/uppercase_begin_of_sentence.py \
-    --ignore-columnts 1 \
-    ${kaldi_data}/text
+    --ignore-columns 1 \
+    < ${kaldi_data}/text
+```
 """
 
 import re
 import sys
-
 from argparse import ArgumentParser
 
 
@@ -44,7 +45,6 @@ class UpperCaseBeginOfSentence:
     """
 
     def __init__(self):
-
         # The 1st word will have Title-case
         # This variable transfers context from previous line
         self.prev_token_is_punct = True
@@ -59,7 +59,6 @@ class UpperCaseBeginOfSentence:
         punct_set = set([".", "!", "?"])
 
         for ii, w in enumerate(words):
-
             # punctuation ?
             if w in punct_set:
                 self.prev_token_is_punct = True

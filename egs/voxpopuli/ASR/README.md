@@ -1,6 +1,8 @@
 # Readme
 
-This recipe contains data preparation for the VoxPopuli dataset.
+This recipe contains data preparation for the
+[VoxPopuli](https://github.com/facebookresearch/voxpopuli) dataset
+[(pdf)](https://aclanthology.org/2021.acl-long.80.pdf).
 At the moment, without model training.
 
 

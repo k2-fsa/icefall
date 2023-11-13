@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang)
-#              2023  Brno University of Technology (authors: Karel Veselý)
+#              2023  Brno University of Technology  (authors: Karel Veselý)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -36,23 +36,29 @@ located at: `{src_dir}/{prefix}_cuts_{dataset}_raw.jsonl.gz`.
 The generated fbank features are saved in `data/fbank/{prefix}-{dataset}_feats`
 and CutSet manifest stored in `data/fbank/{prefix}_cuts_{dataset}.jsonl.gz`.
 
-The number of workers is smaller than nunber of jobs
+Typically, the number of workers is smaller than number of jobs
 (see --num-jobs 100 --num-workers 25 in the example).
+And, the number of jobs should be at least the number of workers (it's checked).
 """
 
 import argparse
 import logging
 import multiprocessing
 import os
-
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 import sentencepiece as spm
 import torch
 from filter_cuts import filter_cuts
-from lhotse import CutSet, Fbank, FbankConfig, LilcomChunkyWriter
-from lhotse import is_caching_enabled, set_caching_enabled
+from lhotse import (
+    CutSet,
+    Fbank,
+    FbankConfig,
+    LilcomChunkyWriter,
+    is_caching_enabled,
+    set_caching_enabled,
+)
 
 from icefall.utils import str2bool
 
@@ -128,7 +134,6 @@ def get_args():
 
 
 def compute_fbank_features(args: argparse.Namespace):
-
     set_caching_enabled(True)  # lhotse
 
     src_dir = Path(args.src_dir)
@@ -181,6 +186,7 @@ def compute_fbank_features(args: argparse.Namespace):
     # We typically use `num_jobs=100, num_workers=20`
     # - this is helpful for large databases
     # - both values are configurable externally
+    assert num_jobs >= num_workers, (num_jobs, num_workers)
     executor = ProcessPoolExecutor(
         max_workers=num_workers,
         mp_context=multiprocessing.get_context("spawn"),
@@ -202,7 +208,7 @@ def compute_fbank_features(args: argparse.Namespace):
 
     # correct small deviations of duration, caused by speed-perturbation
     for cut in cut_set:
-        assert len(cut.supervisions) == 1
+        assert len(cut.supervisions) == 1, (len(cut.supervisions), cut.id)
         duration_difference = abs(cut.supervisions[0].duration - cut.duration)
         tolerance = 0.02  # 20ms
         if duration_difference == 0.0:
@@ -211,7 +217,7 @@ def compute_fbank_features(args: argparse.Namespace):
             logging.info(
                 "small mismatch of the supervision duration "
                 f"(Δt = {duration_difference*1000}ms), "
-                f"corretcing : cut.duration {cut.duration} -> "
+                f"correcting : cut.duration {cut.duration} -> "
                 f"supervision {cut.supervisions[0].duration}"
             )
             cut.supervisions[0].duration = cut.duration

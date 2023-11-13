@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
-. /mnt/matylda5/iveselyk/ASR_TOOLKITS/K2_SHERPA_PYTORCH20/conda-activate.sh
+# fix segmentation fault reported in https://github.com/k2-fsa/icefall/issues/674
+export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
 
 set -euxo pipefail
 
@@ -8,28 +9,17 @@ nj=20
 stage=-1
 stop_stage=100
 
-# Split data/${lang}set to this number of pieces
-# This is to avoid OOM during feature extraction.
-num_splits=100
-
 # We assume dl_dir (download dir) contains the following
 # directories and files. If not, they will be downloaded
 # by this script automatically.
 #
-# [TODO update this]
+#  - $dl_dir/voxpopuli/raw_audios/$lang/$year
+#      This directory contains *.ogg files with audio downloaded and extracted from archives:
+#       https://dl.fbaipublicfiles.com/voxpopuli/audios/${lang}_${year}.tar
 #
-#  - $dl_dir/$release/$lang
-#      This directory contains the following files downloaded from
-#       https://mozilla-common-voice-datasets.s3.dualstack.us-west-2.amazonaws.com/${release}/${release}-${lang}.tar.gz
-#
-#     - clips
-#     - dev.tsv
-#     - invalidated.tsv
-#     - other.tsv
-#     - reported.tsv
-#     - test.tsv
-#     - train.tsv
-#     - validated.tsv
+#  - Note: the voxpopuli transcripts are downloaded to a ${tmp} folder
+#    as part of `lhotse prepare voxpopuli` from:
+#       https://dl.fbaipublicfiles.com/voxpopuli/annotations/asr/asr_${lang}.tsv.gz
 #
 #  - $dl_dir/musan
 #      This directory contains the following directories downloaded from
@@ -39,19 +29,19 @@ num_splits=100
 #     - noise
 #     - speech
 
-#dl_dir=$PWD/download
-dl_dir=/mnt/matylda6/szoke/EU-ASR/DATA
+dl_dir=$PWD/download
+#dl_dir=/mnt/matylda6/szoke/EU-ASR/DATA  # BUT
 
-#musan_dir=${dl_dir}/musan
-musan_dir=/mnt/matylda2/data/MUSAN
+musan_dir=${dl_dir}/musan
+#musan_dir=/mnt/matylda2/data/MUSAN  # BUT
 
-# Choose vlues from:
+# Choose value from ASR_LANGUAGES:
 #
-# "en", "de", "fr", "es", "pl", "it", "ro", "hu", "cs", "nl", "fi", "hr",
-# "sk", "sl", "et", "lt", "pt", "bg", "el", "lv", "mt", "sv", "da",
-# "asr", "10k", "100k", "400k"
+# [ "en", "de", "fr", "es", "pl", "it", "ro", "hu", "cs", "nl", "fi", "hr",
+# "sk", "sl", "et", "lt" ]
 #
-# See: https://github.com/lhotse-speech/lhotse/blob/c5f26afd100885b86e4244eeb33ca1986f3fa923/lhotse/bin/modes/recipes/voxpopuli.py#L77
+# See ASR_LANGUAGES in:
+# https://github.com/lhotse-speech/lhotse/blob/c5f26afd100885b86e4244eeb33ca1986f3fa923/lhotse/recipes/voxpopuli.py#L54C4-L54C4
 lang=en
 
 task=asr
@@ -102,12 +92,6 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   if [ ! -d $musan_dir/musan ]; then
     lhotse download musan $musan_dir
   fi
-
-  # pre-download the transcripts
-  DOWNLOAD_BASE_URL="https://dl.fbaipublicfiles.com/voxpopuli"
-  dir=data/manifests; mkdir -p ${dir}
-  wget --tries=10 --continue --progress=bar --directory-prefix=${dir} \
-    "${DOWNLOAD_BASE_URL}/annotations/asr/${task}_${lang}.tsv.gz"
 fi
 
 if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
@@ -115,7 +99,7 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   # We assume that you have downloaded the VoxPopuli corpus
   # to $dl_dir/voxpopuli
   if [ ! -e data/manifests/.voxpopuli-${task}-${lang}.done ]; then
-    # Warning : it requires Internet connection (it downloads transcripts)
+    # Warning : it requires Internet connection (it downloads transcripts to ${tmpdir})
     lhotse prepare voxpopuli --task asr --lang $lang -j $nj $dl_dir/voxpopuli data/manifests
     touch data/manifests/.voxpopuli-${task}-${lang}.done
   fi
@@ -150,7 +134,7 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
   for dataset in "dev" "test"; do
     if [ ! -e data/fbank/.voxpopuli-${task}-${lang}-${dataset}.done ]; then
       ./local/compute_fbank.py --src-dir data/fbank --output-dir data/fbank \
-          --num-jobs 50 --num-workers 10 \
+          --num-jobs 50 --num-workers ${nj} \
           --prefix "voxpopuli-${task}-${lang}" \
           --dataset ${dataset} \
           --trim-to-supervisions True
@@ -160,10 +144,10 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
 fi
 
 if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
-  log "Stage 6: Compute fbank for train set of VoxPopuli"
+  log "Stage 5: Compute fbank for train set of VoxPopuli"
   if [ ! -e data/fbank/.voxpopuli-${task}-${lang}-train.done ]; then
     ./local/compute_fbank.py --src-dir data/fbank --output-dir data/fbank \
-        --num-jobs 100 --num-workers 25 \
+        --num-jobs 100 --num-workers ${nj} \
         --prefix "voxpopuli-${task}-${lang}" \
         --dataset train \
         --trim-to-supervisions True \
@@ -173,7 +157,17 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
 fi
 
 if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
-  log "Stage 6: Compute fbank for musan"
+  log "Stage 6: Validate fbank manifests for VoxPopuli"
+  for dataset in "dev" "test" "train"; do
+    mkdir -p data/fbank/log/
+    ./local/validate_cutset_manifest.py \
+      data/fbank/voxpopuli-asr-en_cuts_${dataset}.jsonl.gz \
+      2>&1 | tee data/fbank/log/validate_voxpopuli-asr-en_cuts_${dataset}.log
+  done
+fi
+
+if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
+  log "Stage 7: Compute fbank for musan"
   mkdir -p data/fbank
   if [ ! -e data/fbank/.musan.done ]; then
     ./local/compute_fbank_musan.py
@@ -181,8 +175,8 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
   fi
 fi
 
-if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
-  log "Stage 7: Prepare BPE based lang"
+if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
+  log "Stage 8: Prepare BPE based lang"
 
   for vocab_size in ${vocab_sizes[@]}; do
     lang_dir=data/lang_bpe_${vocab_size}_${lang}

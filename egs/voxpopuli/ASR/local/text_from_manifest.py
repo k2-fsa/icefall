@@ -1,5 +1,5 @@
-#!/bin/env python3
-# Copyright    2023  Brno University of Technology (authors: Karel Veselý)
+#!/usr/bin/env python3
+# Copyright    2023  Brno University of Technology  (authors: Karel Veselý)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -15,7 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
-Print the text contained in `supervisions.jsonl.gz`.
+Print the text contained in `supervisions.jsonl.gz` or `cuts.jsonl.gz`.
 
 Usage example:
     python3 ./local/text_from_manifest.py \
@@ -23,8 +23,8 @@ Usage example:
 """
 
 import argparse
-import json
 import gzip
+import json
 
 
 def get_args():
@@ -41,7 +41,13 @@ def main():
     with gzip.open(args.filename, mode="r") as fd:
         for line in fd:
             js = json.loads(line)
-            print(js["text"])
+            if "text" in js:
+                print(js["text"])  # supervisions.jsonl.gz
+            elif "supervisions" in js:
+                for s in js["supervisions"]:
+                    print(s["text"])  # cuts.jsonl.gz
+            else:
+                raise Exception(f"Unknown jsonl format of {args.filename}")
 
 
 if __name__ == "__main__":

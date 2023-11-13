@@ -1,5 +1,5 @@
-#!/bin/env python3
-# Copyright    2023  Brno University of Technology (authors: Karel Veselý)
+#!/usr/bin/env python3
+# Copyright    2023  Brno University of Technology  (authors: Karel Veselý)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -25,11 +25,11 @@ Usage example:
 """
 
 import argparse
+import gzip
 import json
 import logging
-import sys
-import gzip
 import re
+import sys
 
 
 def get_args():
@@ -54,7 +54,6 @@ def main():
     total_n_utts = 0
 
     for fname in args.filename:
-
         if fname == "-":
             fd = sys.stdin
         elif re.match(r".*\.jsonl\.gz$", fname):

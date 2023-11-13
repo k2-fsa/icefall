@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # Copyright    2023  Xiaomi Corp.        (authors: Yifan Yang)
+#              2023  Brno University of Technology  (author: Karel Veselý)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -19,8 +20,8 @@
 Preprocess the database.
 - Convert RecordingSet and SupervisionSet to CutSet.
 - Apply text normalization to the transcripts.
-   - We take renormzlized `orig_text` as `text` transcripts.
-   - The the text normalization is separating punctuation from words.
+   - We take renormalized `orig_text` as `text` transcripts.
+   - The text normalization is separating punctuation from words.
    - Also we put capital letter to the beginning of a sentence.
 
 The script is inspired in:
@@ -40,11 +41,11 @@ from typing import Optional
 from lhotse import CutSet
 from lhotse.recipes.utils import read_manifests_if_cached
 
-from icefall.utils import str2bool
-
 # from local/
 from separate_punctuation import separate_punctuation
 from uppercase_begin_of_sentence import UpperCaseBeginOfSentence
+
+from icefall.utils import str2bool
 
 
 def get_args():

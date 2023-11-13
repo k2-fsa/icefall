@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # Copyright    2022  Xiaomi Corp.        (authors: Fangjun Kuang)
+#              2023  Brno University of Technology  (authors: Karel Veselý)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -18,7 +19,8 @@
 This script checks the following assumptions of the generated manifest:
 
 - Single supervision per cut
-- Supervision time bounds are within cut time bounds
+- Supervision time bounds are within Cut time bounds
+- Duration of Cut and Superivion are equal
 
 We will add more checks later if needed.
 
@@ -27,13 +29,12 @@ Usage example:
     python3 ./local/validate_manifest.py \
             ./data/fbank/librispeech_cuts_train-clean-100.jsonl.gz
 
+(Based on: `librispeech/ASR/local/validate_manifest.py`)
 """
 
 import argparse
 import logging
 from pathlib import Path
-
-from icefall.utils import setup_logger
 
 from lhotse import CutSet, load_manifest_lazy
 from lhotse.cut import Cut
@@ -47,14 +48,6 @@ def get_args():
         "cutset_manifest",
         type=Path,
         help="Path to the manifest file",
-    )
-
-    parser.add_argument(
-        "--log-file",
-        type=str,
-        default=None,
-        required=True,
-        help="The filename to save the log.",
     )
 
     return parser.parse_args()
@@ -101,8 +94,6 @@ def main():
     args = get_args()
 
     manifest = args.cutset_manifest
-
-    setup_logger(log_filename=f"{args.log_file}", log_level="info")
     logging.info(f"Validating {manifest}")
 
     assert manifest.is_file(), f"{manifest} does not exist"
@@ -125,4 +116,8 @@ def main():
 
 
 if __name__ == "__main__":
+    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
+
+    logging.basicConfig(format=formatter, level=logging.INFO)
+
     main()

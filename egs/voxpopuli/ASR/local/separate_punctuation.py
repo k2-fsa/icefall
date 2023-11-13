@@ -1,5 +1,5 @@
-#!/bin/env python3
-# Copyright    2023  Brno University of Technology (authors: Karel Veselý)
+#!/usr/bin/env python3
+# Copyright    2023  Brno University of Technology  (authors: Karel Veselý)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -20,7 +20,7 @@ Example:
     input: "This is fine. Yes, you are right."
     output: "This is fine . Yes , you are right ."
 
-The script also handles exceptions in a hard-coded fasion.
+The script also handles exceptions in a hard-coded fashion.
 
 (same functionality could be done with `nltk.tokenize.word_tokenize()`,
  but that would be an extra dependency)
@@ -28,17 +28,18 @@ The script also handles exceptions in a hard-coded fasion.
 It can be used as a module, or as an executable script.
 
 Usage example #1:
-  from separate_punctuation import separate_punctuation
+  `from separate_punctuation import separate_punctuation`
 
 Usage example #2:
+```
   python3 ./local/separate_punctuation.py \
-    --ignore-columnts 1 \
-    ${kaldi_data}/text
+    --ignore-columns 1 \
+    < ${kaldi_data}/text
+```
 """
 
-import sys
 import re
-
+import sys
 from argparse import ArgumentParser
 
 
@@ -67,10 +68,8 @@ def separate_punctuation(text: str) -> str:
 
     # re-join the special cases of punctuation
     for ii, tok in enumerate(tokens):
-
         # no rewriting for 1st and last token
         if ii > 0 and ii < len(tokens) - 1:
-
             # **RULES ADDED FOR CZECH COMMON VOICE**
 
             # fix "27 . dubna" -> "27. dubna", but keep punctuation separate,
