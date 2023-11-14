@@ -453,13 +453,13 @@ def get_parser():
         help="Scale for attention-decoder loss.",
     )
 
-    parser.add_argument(
-        "--label-smoothing",
-        type=float,
-        default=0.1,
-        help="""Label smoothing rate used in attention decoder,
-        (0.0 means the conventional cross entropy loss)""",
-    )
+    # parser.add_argument(
+    #     "--label-smoothing",
+    #     type=float,
+    #     default=0.1,
+    #     help="""Label smoothing rate used in attention decoder,
+    #     (0.0 means the conventional cross entropy loss)""",
+    # )
 
     parser.add_argument(
         "--seed",
@@ -591,6 +591,7 @@ def get_params() -> AttributeDict:
             "subsampling_factor": 4,  # not passed in, this is fixed.
             # parameters for attention-decoder
             "ignore_id": -1,
+            "label_smoothing": 0.1,
             "warm_step": 2000,
             "env_info": get_env_info(),
         }

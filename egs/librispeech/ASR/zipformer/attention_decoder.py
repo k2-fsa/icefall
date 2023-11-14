@@ -24,9 +24,10 @@ from typing import List, Tuple
 import k2
 import torch
 import torch.nn as nn
-from label_smoothing import LabelSmoothingLoss
 
+from label_smoothing import LabelSmoothingLoss
 from icefall.utils import add_eos, add_sos, make_pad_mask
+from scaling import penalize_abs_values_gt
 
 
 class AttentionDecoderModel(nn.Module):
@@ -354,6 +355,17 @@ class MultiHeadedAttention(nn.Module):
 
         # (batch, head, time1, time2)
         attn_output_weights = torch.matmul(q, k) / self.scale
+
+        # attn_output_weights = torch.matmul(q, k)
+        # # This is a harder way of limiting the attention scores to not be too large.
+        # # It incurs a penalty if any of them has an absolute value greater than 50.0.
+        # # this should be outside the normal range of the attention scores.  We use
+        # # this mechanism instead of, say, a limit on entropy, because once the entropy
+        # # gets very small gradients through the softmax can become very small, and
+        # # some mechanisms like that become ineffective.
+        attn_output_weights = penalize_abs_values_gt(
+            attn_output_weights, limit=50.0, penalty=1.0e-04
+        )
 
         if mask is not None:
             attn_output_weights = attn_output_weights.masked_fill(
