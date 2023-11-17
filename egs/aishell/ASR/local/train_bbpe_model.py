@@ -15,7 +15,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 # You can install sentencepiece via:
 #
 #  pip install sentencepiece
@@ -26,12 +25,12 @@
 # Please install a version >=0.1.96
 
 import argparse
-import re
 import shutil
 import tempfile
 from pathlib import Path
 
 import sentencepiece as spm
+
 from icefall import byte_encode, tokenize_by_CJK_char
 
 
@@ -74,6 +73,11 @@ def main():
     model_type = "unigram"
 
     model_prefix = f"{lang_dir}/{model_type}_{vocab_size}"
+    model_file = Path(model_prefix + ".model")
+    if model_file.is_file():
+        print(f"{model_file} exists - skipping")
+        return
+
     character_coverage = 1.0
     input_sentence_size = 100000000
 
@@ -88,23 +92,18 @@ def main():
 
     _convert_to_bchar(args.transcript, train_text)
 
-    model_file = Path(model_prefix + ".model")
-    if not model_file.is_file():
-        spm.SentencePieceTrainer.train(
-            input=train_text,
-            vocab_size=vocab_size,
-            model_type=model_type,
-            model_prefix=model_prefix,
-            input_sentence_size=input_sentence_size,
-            character_coverage=character_coverage,
-            user_defined_symbols=user_defined_symbols,
-            unk_id=unk_id,
-            bos_id=-1,
-            eos_id=-1,
-        )
-    else:
-        print(f"{model_file} exists - skipping")
-        return
+    spm.SentencePieceTrainer.train(
+        input=train_text,
+        vocab_size=vocab_size,
+        model_type=model_type,
+        model_prefix=model_prefix,
+        input_sentence_size=input_sentence_size,
+        character_coverage=character_coverage,
+        user_defined_symbols=user_defined_symbols,
+        unk_id=unk_id,
+        bos_id=-1,
+        eos_id=-1,
+    )
 
     shutil.copyfile(model_file, f"{lang_dir}/bbpe.model")
 

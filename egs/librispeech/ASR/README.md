@@ -47,6 +47,7 @@ We place an additional Conv1d layer right after the input embedding layer.
 | `conformer-ctc`              | Conformer          | Use auxiliary attention head |
 | `conformer-ctc2`             | Reworked Conformer | Use auxiliary attention head |
 | `conformer-ctc3`             | Reworked Conformer | Streaming version + delay penalty |
+| `zipformer-ctc`              | Zipformer          | Use auxiliary attention head |
 | `zipformer`                  | Upgraded Zipformer | Use auxiliary transducer head | The latest recipe |
 
 # MMI

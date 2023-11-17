@@ -263,6 +263,70 @@ def get_texts(
         return aux_labels.tolist()
 
 
+def encode_supervisions_otc(
+    supervisions: dict,
+    subsampling_factor: int,
+    token_ids: Optional[List[List[int]]] = None,
+) -> Tuple[torch.Tensor, Union[List[str], List[List[int]]]]:
+    """
+    Encodes Lhotse's ``batch["supervisions"]`` dict into
+    a pair of torch Tensor, and a list of transcription strings or token indexes
+
+    The supervision tensor has shape ``(batch_size, 3)``.
+    Its second dimension contains information about sequence index [0],
+    start frames [1] and num frames [2].
+
+    The batch items might become re-ordered during this operation -- the
+    returned tensor and list of strings are guaranteed to be consistent with
+    each other.
+    """
+    supervision_segments = torch.stack(
+        (
+            supervisions["sequence_idx"],
+            torch.div(
+                supervisions["start_frame"],
+                subsampling_factor,
+                rounding_mode="floor",
+            ),
+            torch.div(
+                supervisions["num_frames"],
+                subsampling_factor,
+                rounding_mode="floor",
+            ),
+        ),
+        1,
+    ).to(torch.int32)
+
+    indices = torch.argsort(supervision_segments[:, 2], descending=True)
+    supervision_segments = supervision_segments[indices]
+
+    ids = []
+    verbatim_texts = []
+    sorted_ids = []
+    sorted_verbatim_texts = []
+
+    for cut in supervisions["cut"]:
+        id = cut.id
+        if hasattr(cut.supervisions[0], "verbatim_text"):
+            verbatim_text = cut.supervisions[0].verbatim_text
+        else:
+            verbatim_text = ""
+        ids.append(id)
+        verbatim_texts.append(verbatim_text)
+
+    for index in indices.tolist():
+        sorted_ids.append(ids[index])
+        sorted_verbatim_texts.append(verbatim_texts[index])
+
+    if token_ids is None:
+        texts = supervisions["text"]
+        res = [texts[idx] for idx in indices]
+    else:
+        res = [token_ids[idx] for idx in indices]
+
+    return supervision_segments, res, sorted_ids, sorted_verbatim_texts
+
+
 @dataclass
 class DecodingResults:
     # timestamps[i][k] contains the frame number on which tokens[i][k]
@@ -419,7 +483,7 @@ def load_alignments(filename: str) -> Tuple[int, Dict[str, List[int]]]:
 
 
 def store_transcripts(
-    filename: Pathlike, texts: Iterable[Tuple[str, str, str]]
+    filename: Pathlike, texts: Iterable[Tuple[str, str, str]], char_level: bool = False
 ) -> None:
     """Save predicted results and reference transcripts to a file.
 
@@ -434,8 +498,11 @@ def store_transcripts(
     Returns:
       Return None.
     """
-    with open(filename, "w") as f:
+    with open(filename, "w", encoding="utf8") as f:
         for cut_id, ref, hyp in texts:
+            if char_level:
+                ref = list("".join(ref))
+                hyp = list("".join(hyp))
             print(f"{cut_id}:\tref={ref}", file=f)
             print(f"{cut_id}:\thyp={hyp}", file=f)
 
@@ -456,7 +523,7 @@ def store_transcripts_and_timestamps(
     Returns:
       Return None.
     """
-    with open(filename, "w") as f:
+    with open(filename, "w", encoding="utf8") as f:
         for cut_id, ref, hyp, time_ref, time_hyp in texts:
             print(f"{cut_id}:\tref={ref}", file=f)
             print(f"{cut_id}:\thyp={hyp}", file=f)
@@ -493,6 +560,7 @@ def write_error_stats(
     test_set_name: str,
     results: List[Tuple[str, str]],
     enable_log: bool = True,
+    compute_CER: bool = False,
     sclite_mode: bool = False,
 ) -> float:
     """Write statistics based on predicted results and reference transcripts.
@@ -521,7 +589,7 @@ def write_error_stats(
           The reference word `SIR` is missing in the predicted
           results (a deletion error).
       results:
-        An iterable of tuples. The first element is the cur_id, the second is
+        An iterable of tuples. The first element is the cut_id, the second is
         the reference transcript and the third element is the predicted result.
       enable_log:
         If True, also print detailed WER to the console.
@@ -538,6 +606,14 @@ def write_error_stats(
     words: Dict[str, List[int]] = defaultdict(lambda: [0, 0, 0, 0, 0])
     num_corr = 0
     ERR = "*"
+
+    if compute_CER:
+        for i, res in enumerate(results):
+            cut_id, ref, hyp = res
+            ref = list("".join(ref))
+            hyp = list("".join(hyp))
+            results[i] = (cut_id, ref, hyp)
+
     for cut_id, ref, hyp in results:
         ali = kaldialign.align(ref, hyp, ERR, sclite_mode=sclite_mode)
         for ref_word, hyp_word in ali:
@@ -1362,13 +1438,16 @@ def measure_gradient_norms(model: nn.Module, norm: str = "l1") -> Dict[str, floa
 
 
 def get_parameter_groups_with_lrs(
-    model: nn.Module, lr: float, include_names: bool = False
+    model: nn.Module,
+    lr: float,
+    include_names: bool = False,
+    freeze_modules: List[str] = [],
 ) -> List[dict]:
     """
     This is for use with the ScaledAdam optimizers (more recent versions that accept lists of
     named-parameters; we can, if needed, create a version without the names).
 
-    It provides a way to specifiy learning-rate scales inside the module, so that if
+    It provides a way to specify learning-rate scales inside the module, so that if
     any nn.Module in the hierarchy has a floating-point parameter 'lr_scale', it will
     scale the LR of any parameters inside that module or its submodules.  Note: you
     can set module parameters outside the __init__ function, e.g.:
@@ -1386,6 +1465,8 @@ def get_parameter_groups_with_lrs(
          ...   ]
 
     """
+    named_modules = list(model.named_modules())
+
     # flat_lr_scale just contains the lr_scale explicitly specified
     # for each prefix of the name, e.g. 'encoder.layers.3', these need
     # to be multiplied for all prefix of the name of any given parameter.
@@ -1405,6 +1486,15 @@ def get_parameter_groups_with_lrs(
         split_name = name.split(".")
         # caution: as a special case, if the name is '', split_name will be [ '' ].
         prefix = split_name[0]
+        if prefix == "module":  # DDP
+            module_name = split_name[1]
+            if module_name in freeze_modules:
+                logging.info(f"Remove {name} from parameters")
+                continue
+        else:
+            if prefix in freeze_modules:
+                logging.info(f"Remove {name} from parameters")
+                continue
         cur_lr = lr * flat_lr_scale[prefix]
         if prefix != "":
             cur_lr *= flat_lr_scale[""]
@@ -1517,10 +1607,10 @@ def tokenize_by_bpe_model(
     chars = pattern.split(txt.upper())
     mix_chars = [w for w in chars if len(w.strip()) > 0]
     for ch_or_w in mix_chars:
-        # ch_or_w is a single CJK charater(i.e., "你"), do nothing.
+        # ch_or_w is a single CJK character(i.e., "你"), do nothing.
         if pattern.fullmatch(ch_or_w) is not None:
             tokens.append(ch_or_w)
-        # ch_or_w contains non-CJK charaters(i.e., " IT'S OKAY "),
+        # ch_or_w contains non-CJK characters(i.e., " IT'S OKAY "),
         # encode ch_or_w using bpe_model.
         else:
             for p in sp.encode_as_pieces(ch_or_w):
@@ -1534,7 +1624,7 @@ def tokenize_by_CJK_char(line: str) -> str:
     """
     Tokenize a line of text with CJK char.
 
-    Note: All return charaters will be upper case.
+    Note: All return characters will be upper case.
 
     Example:
       input = "你好世界是 hello world 的中文"
@@ -1827,7 +1917,7 @@ def parse_bpe_timestamps_and_texts(
         A k2.Fsa with best_paths.arcs.num_axes() == 3, i.e.
         containing multiple FSAs, which is expected to be the result
         of k2.shortest_path (otherwise the returned values won't
-        be meaningful). Its attribtutes `labels` and `aux_labels`
+        be meaningful). Its attributes `labels` and `aux_labels`
         are both BPE tokens.
       sp:
         The BPE model.
@@ -1887,7 +1977,7 @@ def parse_timestamps_and_texts(
         A k2.Fsa with best_paths.arcs.num_axes() == 3, i.e.
         containing multiple FSAs, which is expected to be the result
         of k2.shortest_path (otherwise the returned values won't
-        be meaningful). Attribtute `labels` is the prediction unit,
+        be meaningful). Attribute `labels` is the prediction unit,
         e.g., phone or BPE tokens. Attribute `aux_labels` is the word index.
       word_table:
         The word symbol table.
@@ -1955,7 +2045,7 @@ def parse_fsa_timestamps_and_texts(
 ) -> Tuple[List[Tuple[float, float]], List[List[str]]]:
     """Parse timestamps (in seconds) and texts for given decoded fsa paths.
     Currently it supports two cases:
-    (1) ctc-decoding, the attribtutes `labels` and `aux_labels`
+    (1) ctc-decoding, the attributes `labels` and `aux_labels`
         are both BPE tokens. In this case, sp should be provided.
     (2) HLG-based 1best, the attribtute `labels` is the prediction unit,
         e.g., phone or BPE tokens; attribute `aux_labels` is the word index.
