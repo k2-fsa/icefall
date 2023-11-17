@@ -27,7 +27,6 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --num-epochs 30 \
   --start-epoch 1 \
   --exp-dir pruned_transducer_stateless7_streaming/exp \
-  --lang data/lang_char \
   --max-duration 300
 
 # For mix precision training:
@@ -38,7 +37,6 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --start-epoch 1 \
   --use-fp16 1 \
   --exp-dir pruned_transducer_stateless7_streaming/exp \
-  --lang data/lang_char \
   --max-duration 550
 """
 
@@ -46,7 +44,6 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
 import argparse
 import copy
 import logging
-import math
 import warnings
 from pathlib import Path
 from shutil import copyfile
@@ -54,10 +51,11 @@ from typing import Any, Dict, Optional, Tuple, Union
 
 import k2
 import optim
+import sentencepiece as spm
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
-from asr_datamodule import CSJAsrDataModule
+from commonvoice_fr import CommonVoiceAsrDataModule
 from decoder import Decoder
 from joiner import Joiner
 from lhotse.cut import Cut
@@ -65,7 +63,6 @@ from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import Transducer
 from optim import Eden, ScaledAdam
-from tokenizer import Tokenizer
 from torch import Tensor
 from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -85,14 +82,6 @@ from icefall.hooks import register_inf_check_hooks
 from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool
 
 LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
-LOG_EPS = math.log(1e-10)
-
-try:
-    from TelegramStreamIO import TelegramStreamIO
-
-    HAS_TELEGRAM = True
-except ImportError:
-    HAS_TELEGRAM = False
 
 
 def set_batch_count(model: Union[nn.Module, DDP], batch_count: float) -> None:
@@ -210,15 +199,6 @@ def get_parser():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
 
-    parser.add_argument("--debug", action="store_true", help="Use hardcoded arguments")
-
-    parser.add_argument(
-        "--telegram-cred",
-        type=Path,
-        default=None,
-        help="Telegram credentials to report progress in telegram",
-    )
-
     parser.add_argument(
         "--world-size",
         type=int,
@@ -268,12 +248,19 @@ def get_parser():
 
     parser.add_argument(
         "--exp-dir",
-        type=Path,
+        type=str,
         default="pruned_transducer_stateless7_streaming/exp",
         help="""The experiment dir.
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
         """,
+    )
+
+    parser.add_argument(
+        "--bpe-model",
+        type=str,
+        default="data/lang_bpe_500/bpe.model",
+        help="Path to the BPE model",
     )
 
     parser.add_argument(
@@ -401,15 +388,6 @@ def get_parser():
         help="Whether to use half precision training.",
     )
 
-    parser.add_argument(
-        "--pad-feature",
-        type=int,
-        default=0,
-        help="""
-        Number of frames to pad at the end.
-        """,
-    )
-
     add_model_arguments(parser)
 
     return parser
@@ -469,7 +447,7 @@ def get_params() -> AttributeDict:
             "batch_idx_train": 0,
             "log_interval": 50,
             "reset_interval": 200,
-            "valid_interval": 1000,  # For the 100h subset, use 800
+            "valid_interval": 3000,  # For the 100h subset, use 800
             # parameters for zipformer
             "feature_dim": 80,
             "subsampling_factor": 4,  # not passed in, this is fixed.
@@ -607,6 +585,9 @@ def load_checkpoint_if_available(
         if "cur_epoch" in saved_params:
             params["start_epoch"] = saved_params["cur_epoch"]
 
+        if "cur_batch_idx" in saved_params:
+            params["cur_batch_idx"] = saved_params["cur_batch_idx"]
+
     return saved_params
 
 
@@ -663,7 +644,7 @@ def save_checkpoint(
 def compute_loss(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
-    sp: Tokenizer,
+    sp: spm.SentencePieceProcessor,
     batch: dict,
     is_training: bool,
 ) -> Tuple[Tensor, MetricsTracker]:
@@ -693,14 +674,6 @@ def compute_loss(
 
     supervisions = batch["supervisions"]
     feature_lens = supervisions["num_frames"].to(device)
-
-    if params.pad_feature:
-        feature_lens += params.pad_feature
-        feature = torch.nn.functional.pad(
-            feature,
-            pad=(0, 0, 0, params.pad_feature),
-            value=LOG_EPS,
-        )
 
     batch_idx_train = params.batch_idx_train
     warm_step = params.warm_step
@@ -753,7 +726,7 @@ def compute_loss(
 def compute_validation_loss(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
-    sp: Tokenizer,
+    sp: spm.SentencePieceProcessor,
     valid_dl: torch.utils.data.DataLoader,
     world_size: int = 1,
 ) -> MetricsTracker:
@@ -789,7 +762,7 @@ def train_one_epoch(
     model: Union[nn.Module, DDP],
     optimizer: torch.optim.Optimizer,
     scheduler: LRSchedulerType,
-    sp: Tokenizer,
+    sp: spm.SentencePieceProcessor,
     train_dl: torch.utils.data.DataLoader,
     valid_dl: torch.utils.data.DataLoader,
     scaler: GradScaler,
@@ -833,7 +806,13 @@ def train_one_epoch(
 
     tot_loss = MetricsTracker()
 
+    cur_batch_idx = params.get("cur_batch_idx", 0)
+
     for batch_idx, batch in enumerate(train_dl):
+        if batch_idx < cur_batch_idx:
+            continue
+        cur_batch_idx = batch_idx
+
         params.batch_idx_train += 1
         batch_size = len(batch["supervisions"]["text"])
 
@@ -858,10 +837,9 @@ def train_one_epoch(
             scaler.step(optimizer)
             scaler.update()
             optimizer.zero_grad()
-        except Exception as e:  # noqa
-            logging.error(e, exc_info=True)
+        except:  # noqa
             display_and_save_batch(batch, params=params, sp=sp)
-            raise e
+            raise
 
         if params.print_diagnostics and batch_idx == 5:
             return
@@ -881,6 +859,7 @@ def train_one_epoch(
             params.batch_idx_train > 0
             and params.batch_idx_train % params.save_every_n == 0
         ):
+            params.cur_batch_idx = batch_idx
             save_checkpoint_with_global_batch_idx(
                 out_dir=params.exp_dir,
                 global_batch_idx=params.batch_idx_train,
@@ -893,6 +872,7 @@ def train_one_epoch(
                 scaler=scaler,
                 rank=rank,
             )
+            del params.cur_batch_idx
             remove_checkpoints(
                 out_dir=params.exp_dir,
                 topk=params.keep_last_k,
@@ -917,22 +897,13 @@ def train_one_epoch(
             cur_lr = scheduler.get_last_lr()[0]
             cur_grad_scale = scaler._scale.item() if params.use_fp16 else 1.0
 
-            if HAS_TELEGRAM and batch_idx in [0, 500] and not rank:
-                logging.warning(
-                    f"Epoch {params.cur_epoch}, "
-                    f"batch {batch_idx}, loss[{loss_info}], "
-                    f"tot_loss[{tot_loss}], batch size: {batch_size}, "
-                    f"lr: {cur_lr:.2e}, "
-                    + (f"grad_scale: {scaler._scale.item()}" if params.use_fp16 else "")
-                )
-            else:
-                logging.info(
-                    f"Epoch {params.cur_epoch}, "
-                    f"batch {batch_idx}, loss[{loss_info}], "
-                    f"tot_loss[{tot_loss}], batch size: {batch_size}, "
-                    f"lr: {cur_lr:.2e}, "
-                    + (f"grad_scale: {scaler._scale.item()}" if params.use_fp16 else "")
-                )
+            logging.info(
+                f"Epoch {params.cur_epoch}, "
+                f"batch {batch_idx}, loss[{loss_info}], "
+                f"tot_loss[{tot_loss}], batch size: {batch_size}, "
+                f"lr: {cur_lr:.2e}, "
+                + (f"grad_scale: {scaler._scale.item()}" if params.use_fp16 else "")
+            )
 
             if tb_writer is not None:
                 tb_writer.add_scalar(
@@ -960,16 +931,8 @@ def train_one_epoch(
                 world_size=world_size,
             )
             model.train()
-            if (
-                HAS_TELEGRAM
-                and batch_idx % (params.valid_interval * 3) == 0
-                and not rank
-            ):
-                log_mode = logging.warning
-            else:
-                log_mode = logging.info
-            log_mode(f"Epoch {params.cur_epoch}, validation: {valid_info}")
-            log_mode(
+            logging.info(f"Epoch {params.cur_epoch}, validation: {valid_info}")
+            logging.info(
                 f"Maximum memory allocated so far is {torch.cuda.max_memory_allocated()//1000000}MB"
             )
             if tb_writer is not None:
@@ -1001,11 +964,9 @@ def run(rank, world_size, args):
 
     fix_random_seed(params.seed)
     if world_size > 1:
-        setup_dist(rank, world_size, master_port=params.master_port)
+        setup_dist(rank, world_size, params.master_port)
 
     setup_logger(f"{params.exp_dir}/log/log-train")
-    if HAS_TELEGRAM and params.telegram_cred:
-        TelegramStreamIO.setup_logger(params)
     logging.info("Training started")
 
     if args.tensorboard and rank == 0:
@@ -1018,9 +979,10 @@ def run(rank, world_size, args):
         device = torch.device("cuda", rank)
     logging.info(f"Device: {device}")
 
-    sp = Tokenizer.load(args.lang, args.lang_type)
+    sp = spm.SentencePieceProcessor()
+    sp.load(params.bpe_model)
 
-    # <blk> is defined in local/prepare_lang_char.py
+    # <blk> is defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
     params.vocab_size = sp.get_piece_size()
 
@@ -1075,12 +1037,16 @@ def run(rank, world_size, args):
 
     if params.print_diagnostics:
         opts = diagnostics.TensorDiagnosticOptions(
-            512
+            2**22
         )  # allow 4 megabytes per sub-module
         diagnostic = diagnostics.attach_diagnostics(model, opts)
 
     if params.inf_check:
         register_inf_check_hooks(model)
+
+    commonvoice = CommonVoiceAsrDataModule(args)
+
+    train_cuts = commonvoice.train_cuts()
 
     def remove_short_and_long_utt(c: Cut):
         # Keep only utterances with duration between 1 second and 20 seconds
@@ -1091,7 +1057,7 @@ def run(rank, world_size, args):
         # You should use ../local/display_manifest_statistics.py to get
         # an utterance duration distribution for your dataset to select
         # the threshold
-        if c.duration < 0.3 or c.duration > 20.0:
+        if c.duration < 1.0 or c.duration > 20.0:
             logging.warning(
                 f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
             )
@@ -1107,7 +1073,7 @@ def run(rank, world_size, args):
         tokens = sp.encode(c.supervisions[0].text, out_type=str)
 
         if T < len(tokens):
-            logging.info(
+            logging.warning(
                 f"Exclude cut with ID {c.id} from training. "
                 f"Number of frames (before subsampling): {c.num_frames}. "
                 f"Number of frames (after subsampling): {T}. "
@@ -1119,9 +1085,6 @@ def run(rank, world_size, args):
 
         return True
 
-    csj_corpus = CSJAsrDataModule(args)
-    train_cuts = csj_corpus.train_cuts()
-
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
 
     if params.start_batch > 0 and checkpoints and "sampler" in checkpoints:
@@ -1131,14 +1094,14 @@ def run(rank, world_size, args):
     else:
         sampler_state_dict = None
 
-    train_dl = csj_corpus.train_dataloaders(
+    train_dl = commonvoice.train_dataloaders(
         train_cuts, sampler_state_dict=sampler_state_dict
     )
 
-    valid_cuts = csj_corpus.valid_cuts()
-    valid_dl = csj_corpus.valid_dataloaders(valid_cuts)
+    valid_cuts = commonvoice.dev_cuts()
+    valid_dl = commonvoice.valid_dataloaders(valid_cuts)
 
-    if params.start_batch <= 0 and not params.print_diagnostics:
+    if not params.print_diagnostics:
         scan_pessimistic_batches_for_oom(
             model=model,
             train_dl=train_dl,
@@ -1202,7 +1165,7 @@ def run(rank, world_size, args):
 def display_and_save_batch(
     batch: dict,
     params: AttributeDict,
-    sp: Tokenizer,
+    sp: spm.SentencePieceProcessor,
 ) -> None:
     """Display the batch statistics and save the batch into disk.
 
@@ -1235,7 +1198,7 @@ def scan_pessimistic_batches_for_oom(
     model: Union[nn.Module, DDP],
     train_dl: torch.utils.data.DataLoader,
     optimizer: torch.optim.Optimizer,
-    sp: Tokenizer,
+    sp: spm.SentencePieceProcessor,
     params: AttributeDict,
 ):
     from lhotse.dataset import find_pessimistic_batches
@@ -1274,10 +1237,11 @@ def scan_pessimistic_batches_for_oom(
 
 
 def main():
+    raise RuntimeError("Please don't use this file directly!")
     parser = get_parser()
-    CSJAsrDataModule.add_arguments(parser)
-    Tokenizer.add_arguments(parser)
+    CommonVoiceAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
+    args.exp_dir = Path(args.exp_dir)
 
     world_size = args.world_size
     assert world_size >= 1

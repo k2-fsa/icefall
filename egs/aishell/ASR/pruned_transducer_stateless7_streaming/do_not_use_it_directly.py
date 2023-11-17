@@ -3,7 +3,6 @@
 #                                                       Wei Kang,
 #                                                       Mingshuang Luo,)
 #                                                       Zengwei Yao)
-# Copyright    2021                      (Pingfeng Luo)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -21,30 +20,23 @@
 """
 Usage:
 
-./prepare.sh
-
-If you use --datatang-prob=0, then you don't need to run the above script.
-
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
-
-./pruned_transducer_stateless7/train.py \
+./pruned_transducer_stateless7_streaming/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 1 \
-  --exp-dir pruned_transducer_stateless7/exp \
-  --full-libri 1 \
+  --exp-dir pruned_transducer_stateless7_streaming/exp \
   --max-duration 300
 
 # For mix precision training:
 
-./pruned_transducer_stateless7/train.py \
+./pruned_transducer_stateless7_streaming/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 1 \
   --use-fp16 1 \
-  --exp-dir pruned_transducer_stateless7/exp \
-  --full-libri 1 \
+  --exp-dir pruned_transducer_stateless7_streaming/exp \
   --max-duration 550
 """
 
@@ -52,7 +44,6 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
 import argparse
 import copy
 import logging
-import random
 import warnings
 from pathlib import Path
 from shutil import copyfile
@@ -63,11 +54,9 @@ import optim
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
-from aishell import AIShell
-from asr_datamodule import AsrDataModule
-from decoder2 import Decoder
+from asr_datamodule import AishellAsrDataModule
+from decoder import Decoder
 from joiner import Joiner
-from lhotse import CutSet, load_manifest
 from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
@@ -77,7 +66,7 @@ from torch import Tensor
 from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
-from zipformer import Zipformer
+from zipformer2 import Zipformer
 
 from icefall import diagnostics
 from icefall.char_graph_compiler import CharCtcTrainingGraphCompiler
@@ -89,14 +78,9 @@ from icefall.checkpoint import (
 )
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
+from icefall.hooks import register_inf_check_hooks
 from icefall.lexicon import Lexicon
-from icefall.utils import (
-    AttributeDict,
-    MetricsTracker,
-    filter_uneven_sized_batch,
-    setup_logger,
-    str2bool,
-)
+from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool
 
 LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
 
@@ -187,6 +171,29 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         """,
     )
 
+    parser.add_argument(
+        "--short-chunk-size",
+        type=int,
+        default=50,
+        help="""Chunk length of dynamic training, the chunk size would be either
+        max sequence length of current batch or uniformly sampled from (1, short_chunk_size).
+        """,
+    )
+
+    parser.add_argument(
+        "--num-left-chunks",
+        type=int,
+        default=4,
+        help="How many left context can be seen in chunks when calculating attention.",
+    )
+
+    parser.add_argument(
+        "--decode-chunk-len",
+        type=int,
+        default=32,
+        help="The chunk size for decoding (in frames before subsampling)",
+    )
+
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -243,7 +250,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless7/exp",
+        default="pruned_transducer_stateless7_streaming/exp",
         help="""The experiment dir.
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
@@ -275,7 +282,7 @@ def get_parser():
     parser.add_argument(
         "--lr-epochs",
         type=float,
-        default=6,
+        default=3.5,
         help="""Number of epochs that affects how rapidly the learning rate decreases.
         """,
     )
@@ -283,7 +290,7 @@ def get_parser():
     parser.add_argument(
         "--context-size",
         type=int,
-        default=1,
+        default=2,
         help="The context size in the decoder. 1 means bigram; 2 means tri-gram",
     )
 
@@ -344,13 +351,13 @@ def get_parser():
     parser.add_argument(
         "--save-every-n",
         type=int,
-        default=4000,
+        default=2000,
         help="""Save checkpoint after processing this number of batches"
         periodically. We save checkpoint to exp-dir/ whenever
         params.batch_idx_train % save_every_n == 0. The checkpoint filename
         has the form: f'exp-dir/checkpoint-{params.batch_idx_train}.pt'
         Note: It also saves checkpoint to `exp-dir/epoch-xxx.pt` at the
-        end of each epoch where `xxx` is the epoch number counting from 0.
+        end of each epoch where `xxx` is the epoch number counting from 1.
         """,
     )
 
@@ -437,8 +444,6 @@ def get_params() -> AttributeDict:
     """
     params = AttributeDict(
         {
-            "frame_shift_ms": 10.0,
-            "allowed_excess_duration_ratio": 0.1,
             "best_train_loss": float("inf"),
             "best_valid_loss": float("inf"),
             "best_train_epoch": -1,
@@ -476,6 +481,10 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         feedforward_dim=to_int_tuple(params.feedforward_dims),
         cnn_module_kernels=to_int_tuple(params.cnn_module_kernels),
         num_encoder_layers=to_int_tuple(params.num_encoder_layers),
+        num_left_chunks=params.num_left_chunks,
+        short_chunk_size=params.short_chunk_size,
+        decode_chunk_size=params.decode_chunk_len // 2,
+        is_pnnx=True,
     )
     return encoder
 
@@ -641,7 +650,7 @@ def compute_loss(
     is_training: bool,
 ) -> Tuple[Tensor, MetricsTracker]:
     """
-    Compute RNN-T loss given the model and its inputs.
+    Compute transducer loss given the model and its inputs.
 
     Args:
       params:
@@ -658,17 +667,6 @@ def compute_loss(
      warmup: a floating point value which increases throughout training;
         values >= 1.0 are fully warmed up and have all modules present.
     """
-    # For the uneven-sized batch, the total duration after padding would possibly
-    # cause OOM. Hence, for each batch, which is sorted descendingly by length,
-    # we simply drop the last few shortest samples, so that the retained total frames
-    # (after padding) would not exceed `allowed_max_frames`:
-    # `allowed_max_frames = int(max_frames * (1.0 + allowed_excess_duration_ratio))`,
-    # where `max_frames = max_duration * 1000 // frame_shift_ms`.
-    # We set allowed_excess_duration_ratio=0.1.
-    max_frames = params.max_duration * 1000 // params.frame_shift_ms
-    allowed_max_frames = int(max_frames * (1.0 + params.allowed_excess_duration_ratio))
-    batch = filter_uneven_sized_batch(batch, allowed_max_frames)
-
     device = model.device if isinstance(model, DDP) else next(model.parameters()).device
     feature = batch["inputs"]
     # at entry, feature is (N, T, C)
@@ -696,6 +694,8 @@ def compute_loss(
         )
 
         s = params.simple_loss_scale
+        # take down the scale on the simple loss from 1.0 at the start
+        # to params.simple_loss scale by warm_step.
         simple_loss_scale = (
             s
             if batch_idx_train >= warm_step
@@ -706,7 +706,8 @@ def compute_loss(
             if batch_idx_train >= warm_step
             else 0.1 + 0.9 * (batch_idx_train / warm_step)
         )
-        loss = params.simple_loss_scale * simple_loss + pruned_loss_scale * pruned_loss
+
+        loss = simple_loss_scale * simple_loss + pruned_loss_scale * pruned_loss
 
     assert loss.requires_grad == is_training
 
@@ -884,6 +885,7 @@ def train_one_epoch(
                 raise RuntimeError(
                     f"grad_scale is too small, exiting: {cur_grad_scale}"
                 )
+
         if batch_idx % params.log_interval == 0:
             cur_lr = scheduler.get_last_lr()[0]
             cur_grad_scale = scaler._scale.item() if params.use_fp16 else 1.0
@@ -1035,6 +1037,13 @@ def run(rank, world_size, args):
         )  # allow 4 megabytes per sub-module
         diagnostic = diagnostics.attach_diagnostics(model, opts)
 
+    if params.inf_check:
+        register_inf_check_hooks(model)
+
+    aishell = AishellAsrDataModule(args)
+
+    train_cuts = aishell.train_cuts()
+
     def remove_short_and_long_utt(c: Cut):
         # Keep only utterances with duration between 1 second and 20 seconds
         #
@@ -1044,7 +1053,7 @@ def run(rank, world_size, args):
         # You should use ../local/display_manifest_statistics.py to get
         # an utterance duration distribution for your dataset to select
         # the threshold
-        if c.duration < 1.0 or c.duration > 12.0:
+        if c.duration < 1.0 or c.duration > 20.0:
             logging.warning(
                 f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
             )
@@ -1072,16 +1081,7 @@ def run(rank, world_size, args):
 
         return True
 
-    aishell = AIShell(manifest_dir=args.manifest_dir)
-    train_cuts = aishell.train_cuts()
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
-
-    if args.enable_musan:
-        cuts_musan = load_manifest(Path(args.manifest_dir) / "musan_cuts.jsonl.gz")
-    else:
-        cuts_musan = None
-
-    asr_datamodule = AsrDataModule(args)
 
     if params.start_batch > 0 and checkpoints and "sampler" in checkpoints:
         # We only load the sampler's state dict when it loads a checkpoint
@@ -1090,30 +1090,27 @@ def run(rank, world_size, args):
     else:
         sampler_state_dict = None
 
-    train_dl = asr_datamodule.train_dataloaders(
-        train_cuts,
-        on_the_fly_feats=False,
-        cuts_musan=cuts_musan,
-        sampler_state_dict=sampler_state_dict,
+    train_dl = aishell.train_dataloaders(
+        train_cuts, sampler_state_dict=sampler_state_dict
     )
 
     valid_cuts = aishell.valid_cuts()
-    valid_dl = asr_datamodule.valid_dataloaders(valid_cuts)
-    # if not params.print_diagnostics:
-    #     scan_pessimistic_batches_for_oom(
-    #         model=model,
-    #         train_dl=train_dl,
-    #         optimizer=optimizer,
-    #         graph_compiler=graph_compiler,
-    #         params=params,
-    #     )
+    valid_dl = aishell.valid_dataloaders(valid_cuts)
+
+    if not params.print_diagnostics:
+        scan_pessimistic_batches_for_oom(
+            model=model,
+            train_dl=train_dl,
+            optimizer=optimizer,
+            graph_compiler=graph_compiler,
+            params=params,
+        )
 
     scaler = GradScaler(enabled=params.use_fp16, init_scale=1.0)
     if checkpoints and "grad_scaler" in checkpoints:
         logging.info("Loading grad scaler state dict")
         scaler.load_state_dict(checkpoints["grad_scaler"])
 
-    logging.info(f"start training from epoch {params.start_epoch}")
     for epoch in range(params.start_epoch, params.num_epochs + 1):
         scheduler.step_epoch(epoch - 1)
         fix_random_seed(params.seed + epoch - 1)
@@ -1174,6 +1171,8 @@ def display_and_save_batch(
         for the content in it.
       params:
         Parameters for training. See :func:`get_params`.
+      sp:
+        The BPE model.
     """
     from lhotse.utils import uuid4
 
@@ -1234,11 +1233,11 @@ def scan_pessimistic_batches_for_oom(
 
 
 def main():
+    raise RuntimeError("Please don't use this file directly!")
     parser = get_parser()
-    AsrDataModule.add_arguments(parser)
+    AishellAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
-    args.lang_dir = Path(args.lang_dir)
 
     world_size = args.world_size
     assert world_size >= 1

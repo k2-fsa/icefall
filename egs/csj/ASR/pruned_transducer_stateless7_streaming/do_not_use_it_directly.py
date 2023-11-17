@@ -27,6 +27,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --num-epochs 30 \
   --start-epoch 1 \
   --exp-dir pruned_transducer_stateless7_streaming/exp \
+  --lang data/lang_char \
   --max-duration 300
 
 # For mix precision training:
@@ -37,6 +38,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --start-epoch 1 \
   --use-fp16 1 \
   --exp-dir pruned_transducer_stateless7_streaming/exp \
+  --lang data/lang_char \
   --max-duration 550
 """
 
@@ -44,6 +46,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
 import argparse
 import copy
 import logging
+import math
 import warnings
 from pathlib import Path
 from shutil import copyfile
@@ -54,7 +57,7 @@ import optim
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
-from asr_datamodule import AishellAsrDataModule
+from asr_datamodule import CSJAsrDataModule
 from decoder import Decoder
 from joiner import Joiner
 from lhotse.cut import Cut
@@ -62,6 +65,7 @@ from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import Transducer
 from optim import Eden, ScaledAdam
+from tokenizer import Tokenizer
 from torch import Tensor
 from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -69,7 +73,6 @@ from torch.utils.tensorboard import SummaryWriter
 from zipformer2 import Zipformer
 
 from icefall import diagnostics
-from icefall.char_graph_compiler import CharCtcTrainingGraphCompiler
 from icefall.checkpoint import load_checkpoint, remove_checkpoints
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 from icefall.checkpoint import (
@@ -79,10 +82,17 @@ from icefall.checkpoint import (
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
 from icefall.hooks import register_inf_check_hooks
-from icefall.lexicon import Lexicon
 from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool
 
 LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
+LOG_EPS = math.log(1e-10)
+
+try:
+    from TelegramStreamIO import TelegramStreamIO
+
+    HAS_TELEGRAM = True
+except ImportError:
+    HAS_TELEGRAM = False
 
 
 def set_batch_count(model: Union[nn.Module, DDP], batch_count: float) -> None:
@@ -200,6 +210,15 @@ def get_parser():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
 
+    parser.add_argument("--debug", action="store_true", help="Use hardcoded arguments")
+
+    parser.add_argument(
+        "--telegram-cred",
+        type=Path,
+        default=None,
+        help="Telegram credentials to report progress in telegram",
+    )
+
     parser.add_argument(
         "--world-size",
         type=int,
@@ -249,21 +268,11 @@ def get_parser():
 
     parser.add_argument(
         "--exp-dir",
-        type=str,
+        type=Path,
         default="pruned_transducer_stateless7_streaming/exp",
         help="""The experiment dir.
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
-        """,
-    )
-
-    parser.add_argument(
-        "--lang-dir",
-        type=str,
-        default="data/lang_char",
-        help="""The lang dir
-        It contains language related input files such as
-        "lexicon.txt"
         """,
     )
 
@@ -357,7 +366,7 @@ def get_parser():
         params.batch_idx_train % save_every_n == 0. The checkpoint filename
         has the form: f'exp-dir/checkpoint-{params.batch_idx_train}.pt'
         Note: It also saves checkpoint to `exp-dir/epoch-xxx.pt` at the
-        end of each epoch where `xxx` is the epoch number counting from 1.
+        end of each epoch where `xxx` is the epoch number counting from 0.
         """,
     )
 
@@ -390,6 +399,15 @@ def get_parser():
         type=str2bool,
         default=False,
         help="Whether to use half precision training.",
+    )
+
+    parser.add_argument(
+        "--pad-feature",
+        type=int,
+        default=0,
+        help="""
+        Number of frames to pad at the end.
+        """,
     )
 
     add_model_arguments(parser)
@@ -451,7 +469,7 @@ def get_params() -> AttributeDict:
             "batch_idx_train": 0,
             "log_interval": 50,
             "reset_interval": 200,
-            "valid_interval": 3000,  # For the 100h subset, use 800
+            "valid_interval": 1000,  # For the 100h subset, use 800
             # parameters for zipformer
             "feature_dim": 80,
             "subsampling_factor": 4,  # not passed in, this is fixed.
@@ -645,7 +663,7 @@ def save_checkpoint(
 def compute_loss(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
-    graph_compiler: CharCtcTrainingGraphCompiler,
+    sp: Tokenizer,
     batch: dict,
     is_training: bool,
 ) -> Tuple[Tensor, MetricsTracker]:
@@ -676,11 +694,19 @@ def compute_loss(
     supervisions = batch["supervisions"]
     feature_lens = supervisions["num_frames"].to(device)
 
+    if params.pad_feature:
+        feature_lens += params.pad_feature
+        feature = torch.nn.functional.pad(
+            feature,
+            pad=(0, 0, 0, params.pad_feature),
+            value=LOG_EPS,
+        )
+
     batch_idx_train = params.batch_idx_train
     warm_step = params.warm_step
 
     texts = batch["supervisions"]["text"]
-    y = graph_compiler.texts_to_ids(texts)
+    y = sp.encode(texts, out_type=int)
     y = k2.RaggedTensor(y).to(device)
 
     with torch.set_grad_enabled(is_training):
@@ -727,7 +753,7 @@ def compute_loss(
 def compute_validation_loss(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
-    graph_compiler: CharCtcTrainingGraphCompiler,
+    sp: Tokenizer,
     valid_dl: torch.utils.data.DataLoader,
     world_size: int = 1,
 ) -> MetricsTracker:
@@ -740,7 +766,7 @@ def compute_validation_loss(
         loss, loss_info = compute_loss(
             params=params,
             model=model,
-            graph_compiler=graph_compiler,
+            sp=sp,
             batch=batch,
             is_training=False,
         )
@@ -763,7 +789,7 @@ def train_one_epoch(
     model: Union[nn.Module, DDP],
     optimizer: torch.optim.Optimizer,
     scheduler: LRSchedulerType,
-    graph_compiler: CharCtcTrainingGraphCompiler,
+    sp: Tokenizer,
     train_dl: torch.utils.data.DataLoader,
     valid_dl: torch.utils.data.DataLoader,
     scaler: GradScaler,
@@ -816,7 +842,7 @@ def train_one_epoch(
                 loss, loss_info = compute_loss(
                     params=params,
                     model=model,
-                    graph_compiler=graph_compiler,
+                    sp=sp,
                     batch=batch,
                     is_training=True,
                 )
@@ -832,9 +858,10 @@ def train_one_epoch(
             scaler.step(optimizer)
             scaler.update()
             optimizer.zero_grad()
-        except:  # noqa
-            display_and_save_batch(batch, params=params, graph_compiler=graph_compiler)
-            raise
+        except Exception as e:  # noqa
+            logging.error(e, exc_info=True)
+            display_and_save_batch(batch, params=params, sp=sp)
+            raise e
 
         if params.print_diagnostics and batch_idx == 5:
             return
@@ -890,13 +917,22 @@ def train_one_epoch(
             cur_lr = scheduler.get_last_lr()[0]
             cur_grad_scale = scaler._scale.item() if params.use_fp16 else 1.0
 
-            logging.info(
-                f"Epoch {params.cur_epoch}, "
-                f"batch {batch_idx}, loss[{loss_info}], "
-                f"tot_loss[{tot_loss}], batch size: {batch_size}, "
-                f"lr: {cur_lr:.2e}, "
-                + (f"grad_scale: {scaler._scale.item()}" if params.use_fp16 else "")
-            )
+            if HAS_TELEGRAM and batch_idx in [0, 500] and not rank:
+                logging.warning(
+                    f"Epoch {params.cur_epoch}, "
+                    f"batch {batch_idx}, loss[{loss_info}], "
+                    f"tot_loss[{tot_loss}], batch size: {batch_size}, "
+                    f"lr: {cur_lr:.2e}, "
+                    + (f"grad_scale: {scaler._scale.item()}" if params.use_fp16 else "")
+                )
+            else:
+                logging.info(
+                    f"Epoch {params.cur_epoch}, "
+                    f"batch {batch_idx}, loss[{loss_info}], "
+                    f"tot_loss[{tot_loss}], batch size: {batch_size}, "
+                    f"lr: {cur_lr:.2e}, "
+                    + (f"grad_scale: {scaler._scale.item()}" if params.use_fp16 else "")
+                )
 
             if tb_writer is not None:
                 tb_writer.add_scalar(
@@ -919,13 +955,21 @@ def train_one_epoch(
             valid_info = compute_validation_loss(
                 params=params,
                 model=model,
-                graph_compiler=graph_compiler,
+                sp=sp,
                 valid_dl=valid_dl,
                 world_size=world_size,
             )
             model.train()
-            logging.info(f"Epoch {params.cur_epoch}, validation: {valid_info}")
-            logging.info(
+            if (
+                HAS_TELEGRAM
+                and batch_idx % (params.valid_interval * 3) == 0
+                and not rank
+            ):
+                log_mode = logging.warning
+            else:
+                log_mode = logging.info
+            log_mode(f"Epoch {params.cur_epoch}, validation: {valid_info}")
+            log_mode(
                 f"Maximum memory allocated so far is {torch.cuda.max_memory_allocated()//1000000}MB"
             )
             if tb_writer is not None:
@@ -957,9 +1001,11 @@ def run(rank, world_size, args):
 
     fix_random_seed(params.seed)
     if world_size > 1:
-        setup_dist(rank, world_size, params.master_port)
+        setup_dist(rank, world_size, master_port=params.master_port)
 
     setup_logger(f"{params.exp_dir}/log/log-train")
+    if HAS_TELEGRAM and params.telegram_cred:
+        TelegramStreamIO.setup_logger(params)
     logging.info("Training started")
 
     if args.tensorboard and rank == 0:
@@ -972,15 +1018,11 @@ def run(rank, world_size, args):
         device = torch.device("cuda", rank)
     logging.info(f"Device: {device}")
 
-    lexicon = Lexicon(params.lang_dir)
-    graph_compiler = CharCtcTrainingGraphCompiler(
-        lexicon=lexicon,
-        device=device,
-        oov="<unk>",
-    )
+    sp = Tokenizer.load(args.lang, args.lang_type)
 
-    params.blank_id = 0
-    params.vocab_size = max(lexicon.tokens) + 1
+    # <blk> is defined in local/prepare_lang_char.py
+    params.blank_id = sp.piece_to_id("<blk>")
+    params.vocab_size = sp.get_piece_size()
 
     logging.info(params)
 
@@ -1040,10 +1082,6 @@ def run(rank, world_size, args):
     if params.inf_check:
         register_inf_check_hooks(model)
 
-    aishell = AishellAsrDataModule(args)
-
-    train_cuts = aishell.train_cuts()
-
     def remove_short_and_long_utt(c: Cut):
         # Keep only utterances with duration between 1 second and 20 seconds
         #
@@ -1053,7 +1091,7 @@ def run(rank, world_size, args):
         # You should use ../local/display_manifest_statistics.py to get
         # an utterance duration distribution for your dataset to select
         # the threshold
-        if c.duration < 1.0 or c.duration > 20.0:
+        if c.duration < 0.3 or c.duration > 20.0:
             logging.warning(
                 f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
             )
@@ -1065,21 +1103,24 @@ def run(rank, world_size, args):
 
         # In ./zipformer.py, the conv module uses the following expression
         # for subsampling
-        # T = ((c.num_frames - 7) // 2 + 1) // 2
-        # tokens = sp.encode(c.supervisions[0].text, out_type=str)
+        T = ((c.num_frames - 7) // 2 + 1) // 2
+        tokens = sp.encode(c.supervisions[0].text, out_type=str)
 
-        # if T < len(tokens):
-        #     logging.warning(
-        #         f"Exclude cut with ID {c.id} from training. "
-        #         f"Number of frames (before subsampling): {c.num_frames}. "
-        #         f"Number of frames (after subsampling): {T}. "
-        #         f"Text: {c.supervisions[0].text}. "
-        #         f"Tokens: {tokens}. "
-        #         f"Number of tokens: {len(tokens)}"
-        #     )
-        #     return False
+        if T < len(tokens):
+            logging.info(
+                f"Exclude cut with ID {c.id} from training. "
+                f"Number of frames (before subsampling): {c.num_frames}. "
+                f"Number of frames (after subsampling): {T}. "
+                f"Text: {c.supervisions[0].text}. "
+                f"Tokens: {tokens}. "
+                f"Number of tokens: {len(tokens)}"
+            )
+            return False
 
         return True
+
+    csj_corpus = CSJAsrDataModule(args)
+    train_cuts = csj_corpus.train_cuts()
 
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
 
@@ -1090,19 +1131,19 @@ def run(rank, world_size, args):
     else:
         sampler_state_dict = None
 
-    train_dl = aishell.train_dataloaders(
+    train_dl = csj_corpus.train_dataloaders(
         train_cuts, sampler_state_dict=sampler_state_dict
     )
 
-    valid_cuts = aishell.valid_cuts()
-    valid_dl = aishell.valid_dataloaders(valid_cuts)
+    valid_cuts = csj_corpus.valid_cuts()
+    valid_dl = csj_corpus.valid_dataloaders(valid_cuts)
 
-    if not params.print_diagnostics:
+    if params.start_batch <= 0 and not params.print_diagnostics:
         scan_pessimistic_batches_for_oom(
             model=model,
             train_dl=train_dl,
             optimizer=optimizer,
-            graph_compiler=graph_compiler,
+            sp=sp,
             params=params,
         )
 
@@ -1127,7 +1168,7 @@ def run(rank, world_size, args):
             model_avg=model_avg,
             optimizer=optimizer,
             scheduler=scheduler,
-            graph_compiler=graph_compiler,
+            sp=sp,
             train_dl=train_dl,
             valid_dl=valid_dl,
             scaler=scaler,
@@ -1161,7 +1202,7 @@ def run(rank, world_size, args):
 def display_and_save_batch(
     batch: dict,
     params: AttributeDict,
-    graph_compiler: CharCtcTrainingGraphCompiler,
+    sp: Tokenizer,
 ) -> None:
     """Display the batch statistics and save the batch into disk.
 
@@ -1185,7 +1226,7 @@ def display_and_save_batch(
 
     logging.info(f"features shape: {features.shape}")
 
-    y = graph_compiler.texts_to_ids(supervisions["text"])
+    y = sp.encode(supervisions["text"], out_type=int)
     num_tokens = sum(len(i) for i in y)
     logging.info(f"num tokens: {num_tokens}")
 
@@ -1194,7 +1235,7 @@ def scan_pessimistic_batches_for_oom(
     model: Union[nn.Module, DDP],
     train_dl: torch.utils.data.DataLoader,
     optimizer: torch.optim.Optimizer,
-    graph_compiler: CharCtcTrainingGraphCompiler,
+    sp: Tokenizer,
     params: AttributeDict,
 ):
     from lhotse.dataset import find_pessimistic_batches
@@ -1210,7 +1251,7 @@ def scan_pessimistic_batches_for_oom(
                 loss, _ = compute_loss(
                     params=params,
                     model=model,
-                    graph_compiler=graph_compiler,
+                    sp=sp,
                     batch=batch,
                     is_training=True,
                 )
@@ -1225,7 +1266,7 @@ def scan_pessimistic_batches_for_oom(
                     f"Failing criterion: {criterion} "
                     f"(={crit_values[criterion]}) ..."
                 )
-            display_and_save_batch(batch, params=params, graph_compiler=graph_compiler)
+            display_and_save_batch(batch, params=params, sp=sp)
             raise
         logging.info(
             f"Maximum memory allocated so far is {torch.cuda.max_memory_allocated()//1000000}MB"
@@ -1233,10 +1274,11 @@ def scan_pessimistic_batches_for_oom(
 
 
 def main():
+    raise RuntimeError("Please don't use this file directly!")
     parser = get_parser()
-    AishellAsrDataModule.add_arguments(parser)
+    CSJAsrDataModule.add_arguments(parser)
+    Tokenizer.add_arguments(parser)
     args = parser.parse_args()
-    args.exp_dir = Path(args.exp_dir)
 
     world_size = args.world_size
     assert world_size >= 1
