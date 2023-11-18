@@ -159,7 +159,9 @@ class ContextGraph:
             node = self.root
             # If has customized score using the customized token score, otherwise
             # using the default score
-            context_score = self.context_score if score == 0.0 else round(score / len(tokens), 2)
+            context_score = (
+                self.context_score if score == 0.0 else round(score / len(tokens), 2)
+            )
             for i, token in enumerate(tokens):
                 node_next = {}
                 if token not in node.next:
