@@ -168,7 +168,6 @@ class LJSpeechTtsDataModule:
         """
         logging.info("About to create train dataset")
         train = SpeechSynthesisDataset(
-            return_token_ids=False,
             return_text=False,
             return_tokens=True,
             feature_input_strategy=eval(self.args.input_strategy)(),
@@ -184,7 +183,6 @@ class LJSpeechTtsDataModule:
                 use_fft_mag=True,
             )
             train = SpeechSynthesisDataset(
-                return_token_ids=False,
                 return_text=False,
                 return_tokens=True,
                 feature_input_strategy=OnTheFlyFeatures(Spectrogram(config)),
@@ -240,7 +238,6 @@ class LJSpeechTtsDataModule:
                 use_fft_mag=True,
             )
             validate = SpeechSynthesisDataset(
-                return_token_ids=False,
                 return_text=False,
                 return_tokens=True,
                 feature_input_strategy=OnTheFlyFeatures(Spectrogram(config)),
@@ -248,7 +245,6 @@ class LJSpeechTtsDataModule:
             )
         else:
             validate = SpeechSynthesisDataset(
-                return_token_ids=False,
                 return_text=False,
                 return_tokens=True,
                 feature_input_strategy=eval(self.args.input_strategy)(),
@@ -281,7 +277,6 @@ class LJSpeechTtsDataModule:
                 use_fft_mag=True,
             )
             test = SpeechSynthesisDataset(
-                return_token_ids=False,
                 return_text=False,
                 return_tokens=True,
                 feature_input_strategy=OnTheFlyFeatures(Spectrogram(config)),
@@ -289,7 +284,6 @@ class LJSpeechTtsDataModule:
             )
         else:
             test = SpeechSynthesisDataset(
-                return_token_ids=False,
                 return_text=False,
                 return_tokens=True,
                 feature_input_strategy=eval(self.args.input_strategy)(),
