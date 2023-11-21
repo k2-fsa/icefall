@@ -225,6 +225,7 @@ def main():
         tokenizer=tokenizer,
     )
 
+    logging.info(f"Wav files are saved to {params.save_wav_dir}")
     logging.info("Done!")
 
 
