@@ -1298,6 +1298,7 @@ def rescore_with_attention_decoder_no_ngram(
         attention_scale_list += [0.1, 0.3, 0.5, 0.6, 0.7, 0.9, 1.0]
         attention_scale_list += [1.1, 1.2, 1.3, 1.5, 1.7, 1.9, 2.0]
         attention_scale_list += [2.1, 2.2, 2.3, 2.5, 3.0, 4.0, 5.0]
+        attention_scale_list += [5.0, 6.0, 7.0, 8.0, 9.0]
     else:
         attention_scale_list = [attention_scale]
 

@@ -665,9 +665,6 @@ def get_joiner_model(params: AttributeDict) -> nn.Module:
 
 
 def get_attention_decoder_model(params: AttributeDict) -> nn.Module:
-    encoder_dim = max(_to_int_tuple(params.encoder_dim))
-    assert params.attention_decoder_dim == encoder_dim, (params.attention_decoder_dim, encoder_dim)
-
     decoder = AttentionDecoderModel(
         vocab_size=params.vocab_size,
         decoder_dim=params.attention_decoder_dim,
@@ -675,6 +672,7 @@ def get_attention_decoder_model(params: AttributeDict) -> nn.Module:
         attention_dim=params.attention_decoder_attention_dim,
         nhead=params.attention_decoder_num_heads,
         feedforward_dim=params.attention_decoder_feedforward_dim,
+        memory_dim=max(_to_int_tuple(params.encoder_dim)),
         sos_id=params.sos_id,
         eos_id=params.eos_id,
         ignore_id=params.ignore_id,
