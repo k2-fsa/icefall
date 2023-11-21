@@ -230,7 +230,9 @@ class Conformer(Transformer):
                 x, pos_emb, mask=mask, src_key_padding_mask=src_key_padding_mask
             )  # (T, B, F)
         else:
-            x = self.encoder(x, pos_emb, src_key_padding_mask=mask)  # (T, B, F)
+            x = self.encoder(
+                x, pos_emb, src_key_padding_mask=src_key_padding_mask
+            )  # (T, B, F)
 
         if self.normalize_before:
             x = self.after_norm(x)

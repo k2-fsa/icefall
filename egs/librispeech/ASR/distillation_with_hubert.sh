@@ -56,6 +56,8 @@ use_extracted_codebook=True
 #   "hubert_xtralarge_ll60k" -> pretrained model without fintuing
 teacher_model_id=hubert_xtralarge_ll60k_finetune_ls960
 
+. shared/parse_options.sh || exit 1
+
 log() {
   # This function is from espnet
   local fname=${BASH_SOURCE[1]##*/}

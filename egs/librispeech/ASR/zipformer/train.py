@@ -604,11 +604,11 @@ def get_joiner_model(params: AttributeDict) -> nn.Module:
 
 
 def get_model(params: AttributeDict) -> nn.Module:
-    assert (
-        params.use_transducer or params.use_ctc
-    ), (f"At least one of them should be True, "
+    assert params.use_transducer or params.use_ctc, (
+        f"At least one of them should be True, "
         f"but got params.use_transducer={params.use_transducer}, "
-        f"params.use_ctc={params.use_ctc}")
+        f"params.use_ctc={params.use_ctc}"
+    )
 
     encoder_embed = get_encoder_embed(params)
     encoder = get_encoder_model(params)
@@ -808,17 +808,16 @@ def compute_loss(
             # take down the scale on the simple loss from 1.0 at the start
             # to params.simple_loss scale by warm_step.
             simple_loss_scale = (
-                s if batch_idx_train >= warm_step
+                s
+                if batch_idx_train >= warm_step
                 else 1.0 - (batch_idx_train / warm_step) * (1.0 - s)
             )
             pruned_loss_scale = (
-                1.0 if batch_idx_train >= warm_step
+                1.0
+                if batch_idx_train >= warm_step
                 else 0.1 + 0.9 * (batch_idx_train / warm_step)
             )
-            loss += (
-                simple_loss_scale * simple_loss
-                + pruned_loss_scale * pruned_loss
-            )
+            loss += simple_loss_scale * simple_loss + pruned_loss_scale * pruned_loss
 
         if params.use_ctc:
             loss += params.ctc_loss_scale * ctc_loss
@@ -1166,7 +1165,7 @@ def run(rank, world_size, args):
 
     if params.print_diagnostics:
         opts = diagnostics.TensorDiagnosticOptions(
-            2**22
+            512
         )  # allow 4 megabytes per sub-module
         diagnostic = diagnostics.attach_diagnostics(model, opts)
 

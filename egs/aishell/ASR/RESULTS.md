@@ -2,6 +2,56 @@
 
 ### Aishell training result(Stateless Transducer)
 
+#### Pruned transducer stateless 7 streaming
+[./pruned_transducer_stateless7_streaming](./pruned_transducer_stateless7_streaming)
+
+It's Streaming version of Zipformer1 with Pruned RNNT loss.
+
+|                        | test | dev  | comment                               |
+|------------------------|------|------|---------------------------------------|
+| greedy search          | 6.95 | 6.29 | --epoch 44 --avg 15 --max-duration 600 |
+| modified beam search   | 6.51 | 5.90 | --epoch 44 --avg 15 --max-duration 600 |
+| fast beam search       | 6.73 | 6.09 | --epoch 44 --avg 15 --max-duration 600 |
+
+Training command is:
+
+```bash
+./prepare.sh
+
+export CUDA_VISIBLE_DEVICES="0,1"
+
+./pruned_transducer_stateless7_streaming/train.py \
+    --world-size 2 \
+    --num-epochs 50 \
+    --use-fp16 1 \
+    --context-size 1 \
+    --max-duration 800 \
+    --exp-dir ./pruned_transducer_stateless7_streaming/exp \
+    --enable-musan 0 \
+    --spec-aug-time-warp-factor 20
+```
+
+**Caution**: It uses `--context-size=1`.
+
+The decoding command is:
+```bash
+for m in greedy_search modified_beam_search fast_beam_search ; do
+  ./pruned_transducer_stateless7_streaming/decode.py \
+    --epoch 44 \
+    --avg 15 \
+    --exp-dir ./pruned_transducer_stateless7_streaming/exp \
+    --lang-dir data/lang_char \
+    --context-size 1 \
+    --decoding-method $m
+done
+```
+
+Pretrained models, training logs, decoding logs, tensorboard and decoding results
+are available at
+<https://huggingface.co/zrjin/icefall-asr-aishell-zipformer-pruned-transducer-stateless7-streaming-2023-10-16/>
+
+
+
 #### Pruned transducer stateless 7
 
 [./pruned_transducer_stateless7](./pruned_transducer_stateless7)

@@ -258,6 +258,7 @@ def main():
     encoder_session = ort.InferenceSession(
         args.onnx_encoder_filename,
         sess_options=options,
+        providers=["CPUExecutionProvider"],
     )
     test_encoder(model, encoder_session)
 
@@ -265,6 +266,7 @@ def main():
     decoder_session = ort.InferenceSession(
         args.onnx_decoder_filename,
         sess_options=options,
+        providers=["CPUExecutionProvider"],
     )
     test_decoder(model, decoder_session)
 
@@ -272,14 +274,17 @@ def main():
     joiner_session = ort.InferenceSession(
         args.onnx_joiner_filename,
         sess_options=options,
+        providers=["CPUExecutionProvider"],
     )
     joiner_encoder_proj_session = ort.InferenceSession(
         args.onnx_joiner_encoder_proj_filename,
         sess_options=options,
+        providers=["CPUExecutionProvider"],
     )
     joiner_decoder_proj_session = ort.InferenceSession(
         args.onnx_joiner_decoder_proj_filename,
         sess_options=options,
+        providers=["CPUExecutionProvider"],
     )
     test_joiner(
         model,

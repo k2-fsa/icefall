@@ -263,6 +263,70 @@ def get_texts(
         return aux_labels.tolist()
 
 
+def encode_supervisions_otc(
+    supervisions: dict,
+    subsampling_factor: int,
+    token_ids: Optional[List[List[int]]] = None,
+) -> Tuple[torch.Tensor, Union[List[str], List[List[int]]]]:
+    """
+    Encodes Lhotse's ``batch["supervisions"]`` dict into
+    a pair of torch Tensor, and a list of transcription strings or token indexes
+
+    The supervision tensor has shape ``(batch_size, 3)``.
+    Its second dimension contains information about sequence index [0],
+    start frames [1] and num frames [2].
+
+    The batch items might become re-ordered during this operation -- the
+    returned tensor and list of strings are guaranteed to be consistent with
+    each other.
+    """
+    supervision_segments = torch.stack(
+        (
+            supervisions["sequence_idx"],
+            torch.div(
+                supervisions["start_frame"],
+                subsampling_factor,
+                rounding_mode="floor",
+            ),
+            torch.div(
+                supervisions["num_frames"],
+                subsampling_factor,
+                rounding_mode="floor",
+            ),
+        ),
+        1,
+    ).to(torch.int32)
+
+    indices = torch.argsort(supervision_segments[:, 2], descending=True)
+    supervision_segments = supervision_segments[indices]
+
+    ids = []
+    verbatim_texts = []
+    sorted_ids = []
+    sorted_verbatim_texts = []
+
+    for cut in supervisions["cut"]:
+        id = cut.id
+        if hasattr(cut.supervisions[0], "verbatim_text"):
+            verbatim_text = cut.supervisions[0].verbatim_text
+        else:
+            verbatim_text = ""
+        ids.append(id)
+        verbatim_texts.append(verbatim_text)
+
+    for index in indices.tolist():
+        sorted_ids.append(ids[index])
+        sorted_verbatim_texts.append(verbatim_texts[index])
+
+    if token_ids is None:
+        texts = supervisions["text"]
+        res = [texts[idx] for idx in indices]
+    else:
+        res = [token_ids[idx] for idx in indices]
+
+    return supervision_segments, res, sorted_ids, sorted_verbatim_texts
+
+
 @dataclass
 class DecodingResults:
     # timestamps[i][k] contains the frame number on which tokens[i][k]
@@ -419,7 +483,7 @@ def load_alignments(filename: str) -> Tuple[int, Dict[str, List[int]]]:
 
 
 def store_transcripts(
-    filename: Pathlike, texts: Iterable[Tuple[str, str, str]]
+    filename: Pathlike, texts: Iterable[Tuple[str, str, str]], char_level: bool = False
 ) -> None:
     """Save predicted results and reference transcripts to a file.
 
@@ -436,6 +500,9 @@ def store_transcripts(
     """
     with open(filename, "w") as f:
         for cut_id, ref, hyp in texts:
+            if char_level:
+                ref = list("".join(ref))
+                hyp = list("".join(hyp))
             print(f"{cut_id}:\tref={ref}", file=f)
             print(f"{cut_id}:\thyp={hyp}", file=f)
 
@@ -493,6 +560,7 @@ def write_error_stats(
     test_set_name: str,
     results: List[Tuple[str, str]],
     enable_log: bool = True,
+    compute_CER: bool = False,
     sclite_mode: bool = False,
 ) -> float:
     """Write statistics based on predicted results and reference transcripts.
@@ -521,7 +589,7 @@ def write_error_stats(
           The reference word `SIR` is missing in the predicted
           results (a deletion error).
       results:
-        An iterable of tuples. The first element is the cur_id, the second is
+        An iterable of tuples. The first element is the cut_id, the second is
         the reference transcript and the third element is the predicted result.
       enable_log:
         If True, also print detailed WER to the console.
@@ -538,6 +606,14 @@ def write_error_stats(
     words: Dict[str, List[int]] = defaultdict(lambda: [0, 0, 0, 0, 0])
     num_corr = 0
     ERR = "*"
+
+    if compute_CER:
+        for i, res in enumerate(results):
+            cut_id, ref, hyp = res
+            ref = list("".join(ref))
+            hyp = list("".join(hyp))
+            results[i] = (cut_id, ref, hyp)
+
     for cut_id, ref, hyp in results:
         ali = kaldialign.align(ref, hyp, ERR, sclite_mode=sclite_mode)
         for ref_word, hyp_word in ali:
@@ -1362,7 +1438,10 @@ def measure_gradient_norms(model: nn.Module, norm: str = "l1") -> Dict[str, floa
 
 
 def get_parameter_groups_with_lrs(
-    model: nn.Module, lr: float, include_names: bool = False
+    model: nn.Module,
+    lr: float,
+    include_names: bool = False,
+    freeze_modules: List[str] = [],
 ) -> List[dict]:
     """
     This is for use with the ScaledAdam optimizers (more recent versions that accept lists of
@@ -1386,6 +1465,8 @@ def get_parameter_groups_with_lrs(
          ...   ]
 
     """
+    named_modules = list(model.named_modules())
+
     # flat_lr_scale just contains the lr_scale explicitly specified
     # for each prefix of the name, e.g. 'encoder.layers.3', these need
     # to be multiplied for all prefix of the name of any given parameter.
@@ -1405,6 +1486,15 @@ def get_parameter_groups_with_lrs(
         split_name = name.split(".")
         # caution: as a special case, if the name is '', split_name will be [ '' ].
         prefix = split_name[0]
+        if prefix == "module":  # DDP
+            module_name = split_name[1]
+            if module_name in freeze_modules:
+                logging.info(f"Remove {name} from parameters")
+                continue
+        else:
+            if prefix in freeze_modules:
+                logging.info(f"Remove {name} from parameters")
+                continue
         cur_lr = lr * flat_lr_scale[prefix]
         if prefix != "":
             cur_lr *= flat_lr_scale[""]
