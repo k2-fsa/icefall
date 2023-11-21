@@ -208,6 +208,7 @@ fi
 if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
   log "Stage 8: Combine features for medium and large subsets."
   for subset in medium large; do
+    log "Combining $subset subset."
     if [ ! -f $fbank_dir/libriheavy_cuts_${subset}.jsonl.gz ]; then
       pieces=$(find $fbank_dir/libriheavy_${subset}_split -name "libriheavy_cuts_${subset}.*.jsonl.gz")
       lhotse combine $pieces $fbank_dir/libriheavy_cuts_${subset}.jsonl.gz
@@ -264,3 +265,50 @@ if [ $stage -le 10 ] && [ $stop_stage -ge 10 ]; then
     fi
   done
 fi
+
+if [ $stage -le 11 ] && [ $stop_stage -ge 11 ]; then
+  log "Stage 11: Prepare language model for normalized text"
+
+  for subset in small medium large; do
+    if [ ! -f $manifests_dir/texts_${subset} ]; then
+      gunzip -c $manifests_dir/libriheavy_cuts_${subset}.jsonl.gz \
+        | jq '.supervisions[].text' | sed 's/"//;s/\\//g;s/"$//' \
+        | ./local/norm_text.py > $manifests_dir/texts_${subset}
+    fi
+  done
+
+  mkdir -p data/lm
+  if [ ! -f data/lm/text ]; then
+    cat $manifests_dir/texts_small $manifests_dir/texts_medium $manifests_dir/texts_large > data/lm/text
+  fi
+
+  (echo '<eps> 0'; echo '!SIL 1'; echo '<SPOKEN_NOISE> 2'; echo '<UNK> 3';) \
+    > data/lm/words.txt
+
+  cat data/lm/text | sed 's/ /\n/g' | sort -u | sed '/^$/d' \
+     | awk '{print $1" "NR+3}' >> data/lm/words.txt
+
+  num_lines=$(< data/lm/words.txt wc -l)
+  (echo "#0 $num_lines"; echo "<s> $(($num_lines + 1))"; echo "</s> $(($num_lines + 2))";) \
+    >> data/lm/words.txt
+
+  # Train LM on transcripts
+  if [ ! -f data/lm/3-gram.unpruned.arpa ]; then
+    python3 ./shared/make_kn_lm.py \
+      -ngram-order 3 \
+      -text data/lm/text \
+      -lm data/lm/3-gram.unpruned.arpa
+  fi
+
+  # We assume you have install kaldilm, if not, please install
+  # it using: pip install kaldilm
+  if [ ! -f data/lm/G_3_gram_char.fst.txt ]; then
+    # It is used in building HLG
+    python3 -m kaldilm \
+      --read-symbol-table=data/lm/words.txt \
+      --disambig-symbol='#0' \
+      --max-order=3 \
+      data/lm/3-gram.unpruned.arpa > data/lm/G_3_gram.fst.txt
+  fi
+fi
+

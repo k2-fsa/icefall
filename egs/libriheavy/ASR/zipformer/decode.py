@@ -81,17 +81,6 @@ Usage:
     --max-states 64 \
     --num-paths 200 \
     --nbest-scale 0.5
-
-(7) fast beam search (with LG)
-./zipformer/decode.py \
-    --epoch 28 \
-    --avg 15 \
-    --exp-dir ./zipformer/exp \
-    --max-duration 600 \
-    --decoding-method fast_beam_search_nbest_LG \
-    --beam 20.0 \
-    --max-contexts 8 \
-    --max-states 64
 """
 
 
@@ -111,7 +100,6 @@ from asr_datamodule import LibriHeavyAsrDataModule
 from beam_search import (
     beam_search,
     fast_beam_search_nbest,
-    fast_beam_search_nbest_LG,
     fast_beam_search_nbest_oracle,
     fast_beam_search_one_best,
     greedy_search,
@@ -237,7 +225,7 @@ def get_parser():
         search (i.e., `cutoff = max-score - beam`), which is the same as the
         `beam` in Kaldi.
         Used only when --decoding-method is fast_beam_search,
-        fast_beam_search_nbest, fast_beam_search_nbest_LG,
+        fast_beam_search_nbest,
         and fast_beam_search_nbest_oracle
         """,
     )
@@ -247,7 +235,7 @@ def get_parser():
         type=int,
         default=8,
         help="""Used only when --decoding-method is
-        fast_beam_search, fast_beam_search_nbest, fast_beam_search_nbest_LG,
+        fast_beam_search, fast_beam_search_nbest,
         and fast_beam_search_nbest_oracle""",
     )
 
@@ -256,7 +244,7 @@ def get_parser():
         type=int,
         default=64,
         help="""Used only when --decoding-method is
-        fast_beam_search, fast_beam_search_nbest, fast_beam_search_nbest_LG,
+        fast_beam_search, fast_beam_search_nbest,
         and fast_beam_search_nbest_oracle""",
     )
 
@@ -280,7 +268,7 @@ def get_parser():
         default=200,
         help="""Number of paths for nbest decoding.
         Used only when the decoding method is fast_beam_search_nbest,
-        fast_beam_search_nbest_LG, and fast_beam_search_nbest_oracle""",
+        and fast_beam_search_nbest_oracle""",
     )
 
     parser.add_argument(
@@ -289,7 +277,7 @@ def get_parser():
         default=0.5,
         help="""Scale applied to lattice scores when computing nbest paths.
         Used only when the decoding method is fast_beam_search_nbest,
-        fast_beam_search_nbest_LG, and fast_beam_search_nbest_oracle""",
+        and fast_beam_search_nbest_oracle""",
     )
 
     parser.add_argument(
@@ -318,7 +306,6 @@ def decode_one_batch(
     model: nn.Module,
     sp: spm.SentencePieceProcessor,
     batch: dict,
-    word_table: Optional[k2.SymbolTable] = None,
     decoding_graph: Optional[k2.Fsa] = None,
 ) -> Dict[str, List[List[str]]]:
     """Decode one batch and return the result in a dict. The dict has the
@@ -342,12 +329,10 @@ def decode_one_batch(
         It is the return value from iterating
         `lhotse.dataset.K2SpeechRecognitionDataset`. See its documentation
         for the format of the `batch`.
-      word_table:
-        The word symbol table.
       decoding_graph:
         The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
         only when --decoding_method is fast_beam_search, fast_beam_search_nbest,
-        fast_beam_search_nbest_oracle, and fast_beam_search_nbest_LG.
+        fast_beam_search_nbest_oracle.
     Returns:
       Return the decoding result. See above description for the format of
       the returned dict.
@@ -388,20 +373,6 @@ def decode_one_batch(
         )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
-    elif params.decoding_method == "fast_beam_search_nbest_LG":
-        hyp_tokens = fast_beam_search_nbest_LG(
-            model=model,
-            decoding_graph=decoding_graph,
-            encoder_out=encoder_out,
-            encoder_out_lens=encoder_out_lens,
-            beam=params.beam,
-            max_contexts=params.max_contexts,
-            max_states=params.max_states,
-            num_paths=params.num_paths,
-            nbest_scale=params.nbest_scale,
-        )
-        for hyp in hyp_tokens:
-            hyps.append([word_table[i] for i in hyp])
     elif params.decoding_method == "fast_beam_search_nbest":
         hyp_tokens = fast_beam_search_nbest(
             model=model,
@@ -493,7 +464,6 @@ def decode_dataset(
     params: AttributeDict,
     model: nn.Module,
     sp: spm.SentencePieceProcessor,
-    word_table: Optional[k2.SymbolTable] = None,
     decoding_graph: Optional[k2.Fsa] = None,
 ) -> Dict[str, List[Tuple[str, List[str], List[str]]]]:
     """Decode dataset.
@@ -507,8 +477,6 @@ def decode_dataset(
         The neural model.
       sp:
         The BPE model.
-      word_table:
-        The word symbol table.
       decoding_graph:
         The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
         only when --decoding_method is fast_beam_search, fast_beam_search_nbest,
@@ -548,7 +516,6 @@ def decode_dataset(
                 model=model,
                 sp=sp,
                 decoding_graph=decoding_graph,
-                word_table=word_table,
                 batch=batch,
             )
 
@@ -815,7 +782,6 @@ def main():
             params=params,
             model=model,
             sp=sp,
-            word_table=word_table,
             decoding_graph=decoding_graph,
         )
 
