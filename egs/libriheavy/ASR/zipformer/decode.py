@@ -174,7 +174,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--exp-dir", type=str, default="zipformer/exp", help="The experiment dir",
+        "--exp-dir",
+        type=str,
+        default="zipformer/exp",
+        help="The experiment dir",
     )
 
     parser.add_argument(
@@ -349,7 +352,9 @@ def decode_one_batch(
         pad_len = 30
         feature_lens += pad_len
         feature = torch.nn.functional.pad(
-            feature, pad=(0, 0, 0, pad_len), value=LOG_EPS,
+            feature,
+            pad=(0, 0, 0, pad_len),
+            value=LOG_EPS,
         )
 
     encoder_out, encoder_out_lens = model.forward_encoder(feature, feature_lens)
@@ -399,7 +404,9 @@ def decode_one_batch(
             hyps.append(hyp.split())
     elif params.decoding_method == "greedy_search" and params.max_sym_per_frame == 1:
         hyp_tokens = greedy_search_batch(
-            model=model, encoder_out=encoder_out, encoder_out_lens=encoder_out_lens,
+            model=model,
+            encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
         )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
@@ -427,7 +434,9 @@ def decode_one_batch(
                 )
             elif params.decoding_method == "beam_search":
                 hyp = beam_search(
-                    model=model, encoder_out=encoder_out_i, beam=params.beam_size,
+                    model=model,
+                    encoder_out=encoder_out_i,
+                    beam=params.beam_size,
                 )
             else:
                 raise ValueError(
@@ -773,7 +782,9 @@ def main():
         )
 
         save_results(
-            params=params, test_set_name=test_set, results_dict=results_dict,
+            params=params,
+            test_set_name=test_set,
+            results_dict=results_dict,
         )
 
     logging.info("Done!")
