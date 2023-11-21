@@ -215,9 +215,7 @@ class LibriHeavyAsrDataModule:
         )
 
     def train_dataloaders(
-        self,
-        cuts_train: CutSet,
-        sampler_state_dict: Optional[Dict[str, Any]] = None,
+        self, cuts_train: CutSet, sampler_state_dict: Optional[Dict[str, Any]] = None,
     ) -> DataLoader:
         """
         Args:
@@ -359,13 +357,10 @@ class LibriHeavyAsrDataModule:
             )
         else:
             validate = K2SpeechRecognitionDataset(
-                cut_transforms=transforms,
-                return_cuts=self.args.return_cuts,
+                cut_transforms=transforms, return_cuts=self.args.return_cuts,
             )
         valid_sampler = DynamicBucketingSampler(
-            cuts_valid,
-            max_duration=self.args.max_duration,
-            shuffle=False,
+            cuts_valid, max_duration=self.args.max_duration, shuffle=False,
         )
         logging.info("About to create dev dataloader")
         valid_dl = DataLoader(
@@ -387,45 +382,52 @@ class LibriHeavyAsrDataModule:
             return_cuts=self.args.return_cuts,
         )
         sampler = DynamicBucketingSampler(
-            cuts,
-            max_duration=self.args.max_duration,
-            shuffle=False,
+            cuts, max_duration=self.args.max_duration, shuffle=False,
         )
         logging.debug("About to create test dataloader")
         test_dl = DataLoader(
-            test,
-            batch_size=None,
-            sampler=sampler,
-            num_workers=self.args.num_workers,
+            test, batch_size=None, sampler=sampler, num_workers=self.args.num_workers,
         )
         return test_dl
 
     @lru_cache()
     def train_small_cuts(self) -> CutSet:
         logging.info("About to get small subset cuts")
-        return load_manifest_lazy(self.args.manifest_dir / "libriheavy_cuts_small.jsonl.gz")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "libriheavy_cuts_small.jsonl.gz"
+        )
 
     @lru_cache()
     def train_medium_cuts(self) -> CutSet:
         logging.info("About to get medium subset cuts")
-        return load_manifest_lazy(self.args.manifest_dir / "libriheavy_cuts_medium.jsonl.gz")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "libriheavy_cuts_medium.jsonl.gz"
+        )
 
     @lru_cache()
     def train_large_cuts(self) -> CutSet:
         logging.info("About to get large subset cuts")
-        return load_manifest_lazy(self.args.manifest_dir / "libriheavy_cuts_large.jsonl.gz")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "libriheavy_cuts_large.jsonl.gz"
+        )
 
     @lru_cache()
     def dev_cuts(self) -> CutSet:
         logging.info("About to get dev cuts")
-        return load_manifest_lazy(self.args.manifest_dir / "libriheavy_cuts_dev.jsonl.gz")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "libriheavy_cuts_dev.jsonl.gz"
+        )
 
     @lru_cache()
     def test_clean_cuts(self) -> CutSet:
         logging.info("About to get the test-clean cuts")
-        return load_manifest_lazy(self.args.manifest_dir / "libriheavy_cuts_test_clean.jsonl.gz")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "libriheavy_cuts_test_clean.jsonl.gz"
+        )
 
     @lru_cache()
     def test_other_cuts(self) -> CutSet:
         logging.info("About to get the test-other cuts")
-        return load_manifest_lazy(self.args.manifest_dir / "libriheavy_cuts_test_other.jsonl.gz")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "libriheavy_cuts_test_other.jsonl.gz"
+        )

@@ -255,12 +255,8 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     )
 
     parser.add_argument(
-        "--use-ctc",
-        type=str2bool,
-        default=False,
-        help="If True, use CTC head.",
+        "--use-ctc", type=str2bool, default=False, help="If True, use CTC head.",
     )
-
 
 
 def get_parser():
@@ -269,10 +265,7 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--world-size",
-        type=int,
-        default=1,
-        help="Number of GPUs for DDP training.",
+        "--world-size", type=int, default=1, help="Number of GPUs for DDP training.",
     )
 
     parser.add_argument(
@@ -290,10 +283,7 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--num-epochs",
-        type=int,
-        default=30,
-        help="Number of epochs to train.",
+        "--num-epochs", type=int, default=30, help="Number of epochs to train.",
     )
 
     parser.add_argument(
@@ -401,10 +391,7 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--ctc-loss-scale",
-        type=float,
-        default=0.2,
-        help="Scale for CTC loss.",
+        "--ctc-loss-scale", type=float, default=0.2, help="Scale for CTC loss.",
     )
 
     parser.add_argument(
@@ -615,11 +602,11 @@ def get_joiner_model(params: AttributeDict) -> nn.Module:
 
 
 def get_model(params: AttributeDict) -> nn.Module:
-    assert (
-        params.use_transducer or params.use_ctc
-    ), (f"At least one of them should be True, "
+    assert params.use_transducer or params.use_ctc, (
+        f"At least one of them should be True, "
         f"but got params.use_transducer={params.use_transducer}, "
-        f"params.use_ctc={params.use_ctc}")
+        f"params.use_ctc={params.use_ctc}"
+    )
 
     encoder_embed = get_encoder_embed(params)
     encoder = get_encoder_model(params)
@@ -797,12 +784,12 @@ def compute_loss(
 
     batch_idx_train = params.batch_idx_train
     warm_step = params.warm_step
-    
+
     texts = batch["supervisions"]["text"]
-    
+
     y = sp.encode(texts, out_type=int)
     y = k2.RaggedTensor(y)
-    
+
     with torch.set_grad_enabled(is_training):
         simple_loss, pruned_loss, ctc_loss = model(
             x=feature,
@@ -820,17 +807,16 @@ def compute_loss(
             # take down the scale on the simple loss from 1.0 at the start
             # to params.simple_loss scale by warm_step.
             simple_loss_scale = (
-                s if batch_idx_train >= warm_step
+                s
+                if batch_idx_train >= warm_step
                 else 1.0 - (batch_idx_train / warm_step) * (1.0 - s)
             )
             pruned_loss_scale = (
-                1.0 if batch_idx_train >= warm_step
+                1.0
+                if batch_idx_train >= warm_step
                 else 0.1 + 0.9 * (batch_idx_train / warm_step)
             )
-            loss += (
-                simple_loss_scale * simple_loss
-                + pruned_loss_scale * pruned_loss
-            )
+            loss += simple_loss_scale * simple_loss + pruned_loss_scale * pruned_loss
 
         if params.use_ctc:
             loss += params.ctc_loss_scale * ctc_loss
@@ -867,11 +853,7 @@ def compute_validation_loss(
 
     for batch_idx, batch in enumerate(valid_dl):
         loss, loss_info = compute_loss(
-            params=params,
-            model=model,
-            sp=sp,
-            batch=batch,
-            is_training=False,
+            params=params, model=model, sp=sp, batch=batch, is_training=False,
         )
         assert loss.requires_grad is False
         tot_loss = tot_loss + loss_info
@@ -961,11 +943,7 @@ def train_one_epoch(
         try:
             with torch.cuda.amp.autocast(enabled=params.use_fp16):
                 loss, loss_info = compute_loss(
-                    params=params,
-                    model=model,
-                    sp=sp,
-                    batch=batch,
-                    is_training=True,
+                    params=params, model=model, sp=sp, batch=batch, is_training=True,
                 )
             # summary stats
             tot_loss = (tot_loss * (1 - 1 / params.reset_interval)) + loss_info
@@ -975,7 +953,9 @@ def train_one_epoch(
             scaler.scale(loss).backward()
             scheduler.step_batch(params.batch_idx_train)
             # Use the number of hours of speech to adjust the learning rate
-            scheduler.step_epoch(params.batch_idx_train * params.max_duration * params.world_size / 3600)
+            scheduler.step_epoch(
+                params.batch_idx_train * params.max_duration * params.world_size / 3600
+            )
 
             scaler.step(optimizer)
             scaler.update()
@@ -994,9 +974,7 @@ def train_one_epoch(
             and params.batch_idx_train % params.average_period == 0
         ):
             update_averaged_model(
-                params=params,
-                model_cur=model,
-                model_avg=model_avg,
+                params=params, model_cur=model, model_avg=model_avg,
             )
 
         if (
@@ -1016,9 +994,7 @@ def train_one_epoch(
                 rank=rank,
             )
             remove_checkpoints(
-                out_dir=params.exp_dir,
-                topk=params.keep_last_k,
-                rank=rank,
+                out_dir=params.exp_dir, topk=params.keep_last_k, rank=rank,
             )
 
         if batch_idx % 100 == 0 and params.use_fp16:
@@ -1180,13 +1156,12 @@ def run(rank, world_size, args):
 
     if params.print_diagnostics:
         opts = diagnostics.TensorDiagnosticOptions(
-            2**22
+            2 ** 22
         )  # allow 4 megabytes per sub-module
         diagnostic = diagnostics.attach_diagnostics(model, opts)
 
     if params.inf_check:
         register_inf_check_hooks(model)
-
 
     def normalize_text(c: Cut):
         text = remove_punc_to_upper(c.supervisions[0].text)
@@ -1233,7 +1208,7 @@ def run(rank, world_size, args):
     libriheavy = LibriHeavyAsrDataModule(args)
 
     train_cuts = libriheavy.train_small_cuts()
-    if params.subset == 'M' or params.subset == 'L':
+    if params.subset == "M" or params.subset == "L":
         train_cuts += libriheavy.train_medium_cuts()
     if params.subset == "L":
         train_cuts += libriheavy.train_large_cuts()
@@ -1322,9 +1297,7 @@ def run(rank, world_size, args):
 
 
 def display_and_save_batch(
-    batch: dict,
-    params: AttributeDict,
-    sp: spm.SentencePieceProcessor,
+    batch: dict, params: AttributeDict, sp: spm.SentencePieceProcessor,
 ) -> None:
     """Display the batch statistics and save the batch into disk.
 
@@ -1371,11 +1344,7 @@ def scan_pessimistic_batches_for_oom(
         try:
             with torch.cuda.amp.autocast(enabled=params.use_fp16):
                 loss, _ = compute_loss(
-                    params=params,
-                    model=model,
-                    sp=sp,
-                    batch=batch,
-                    is_training=True,
+                    params=params, model=model, sp=sp, batch=batch, is_training=True,
                 )
             loss.backward()
             optimizer.zero_grad()

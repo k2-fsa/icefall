@@ -19,6 +19,7 @@ import argparse
 import codecs
 import sys
 
+
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -52,6 +53,6 @@ def main():
         print(remove_punc_to_upper(line))
         line = f.readline()
 
- 
+
 if __name__ == "__main__":
     main()

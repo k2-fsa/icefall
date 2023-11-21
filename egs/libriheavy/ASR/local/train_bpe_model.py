@@ -44,8 +44,8 @@ def get_args():
 
     parser.add_argument(
         "--byte-fallback",
-        action='store_true',
-        help="""Whether to enable byte_fallback when training bpe."""
+        action="store_true",
+        help="""Whether to enable byte_fallback when training bpe.""",
     )
 
     parser.add_argument(
@@ -56,15 +56,11 @@ def get_args():
     )
 
     parser.add_argument(
-        "--transcript",
-        type=str,
-        help="Training transcript.",
+        "--transcript", type=str, help="Training transcript.",
     )
 
     parser.add_argument(
-        "--vocab-size",
-        type=int,
-        help="Vocabulary size for BPE training",
+        "--vocab-size", type=int, help="Vocabulary size for BPE training",
     )
 
     return parser.parse_args()
