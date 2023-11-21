@@ -43,8 +43,6 @@ def text_normalization(text: str) -> str:
 
 
 if __name__ == "__main__":
-
-    assert simple_cleanup("I like this 《book>") == "I like this <book>"
     assert remove_punc_to_upper("I like this 《book>") == "I LIKE THIS BOOK"
     assert (
         text_normalization("Hello Mrs st 21st world 3rd she 99th MR")
