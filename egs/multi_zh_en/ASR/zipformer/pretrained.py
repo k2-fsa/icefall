@@ -25,7 +25,7 @@ dataset, you should change the argument values according to your dataset.
 
 ./zipformer/export.py \
   --exp-dir ./zipformer/exp \
-  --tokens data/lang_bpe_2000/tokens.txt \
+  --tokens data/lang_bbpe_2000/tokens.txt \
   --epoch 23 \
   --avg 1
 
@@ -34,7 +34,7 @@ dataset, you should change the argument values according to your dataset.
 ./zipformer/export.py \
   --exp-dir ./zipformer/exp \
   --causal 1 \
-  --tokens data/lang_bpe_2000/tokens.txt \
+  --tokens data/lang_bbpe_2000/tokens.txt \
   --epoch 23 \
   --avg 1
 
@@ -45,7 +45,7 @@ Usage of this script:
 (1) greedy search
 ./zipformer/pretrained.py \
   --checkpoint ./zipformer/exp/pretrained.pt \
-  --tokens data/lang_bpe_2000/tokens.txt \
+  --tokens data/lang_bbpe_2000/tokens.txt \
   --method greedy_search \
   /path/to/foo.wav \
   /path/to/bar.wav
@@ -53,7 +53,7 @@ Usage of this script:
 (2) modified beam search
 ./zipformer/pretrained.py \
   --checkpoint ./zipformer/exp/pretrained.pt \
-  --tokens ./data/lang_bpe_2000/tokens.txt \
+  --tokens ./data/lang_bbpe_2000/tokens.txt \
   --method modified_beam_search \
   /path/to/foo.wav \
   /path/to/bar.wav
@@ -61,7 +61,7 @@ Usage of this script:
 (3) fast beam search
 ./zipformer/pretrained.py \
   --checkpoint ./zipformer/exp/pretrained.pt \
-  --tokens ./data/lang_bpe_2000/tokens.txt \
+  --tokens ./data/lang_bbpe_2000/tokens.txt \
   --method fast_beam_search \
   /path/to/foo.wav \
   /path/to/bar.wav
@@ -74,7 +74,7 @@ Usage of this script:
   --causal 1 \
   --chunk-size 16 \
   --left-context-frames 128 \
-  --tokens ./data/lang_bpe_2000/tokens.txt \
+  --tokens ./data/lang_bbpe_2000/tokens.txt \
   --method greedy_search \
   /path/to/foo.wav \
   /path/to/bar.wav
@@ -85,7 +85,7 @@ Usage of this script:
   --causal 1 \
   --chunk-size 16 \
   --left-context-frames 128 \
-  --tokens ./data/lang_bpe_2000/tokens.txt \
+  --tokens ./data/lang_bbpe_2000/tokens.txt \
   --method modified_beam_search \
   /path/to/foo.wav \
   /path/to/bar.wav
@@ -96,7 +96,7 @@ Usage of this script:
   --causal 1 \
   --chunk-size 16 \
   --left-context-frames 128 \
-  --tokens ./data/lang_bpe_2000/tokens.txt \
+  --tokens ./data/lang_bbpe_2000/tokens.txt \
   --method fast_beam_search \
   /path/to/foo.wav \
   /path/to/bar.wav

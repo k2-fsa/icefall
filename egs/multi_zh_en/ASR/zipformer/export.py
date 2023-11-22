@@ -33,7 +33,7 @@ dataset, you should change the argument values according to your dataset.
 
 ./zipformer/export.py \
   --exp-dir ./zipformer/exp \
-  --tokens data/lang_bpe_2000/tokens.txt \
+  --tokens data/lang_bbpe_2000/tokens.txt \
   --epoch 20 \
   --avg 1 \
   --jit 1
@@ -53,7 +53,7 @@ for how to use the exported models outside of icefall.
   --causal 1 \
   --chunk-size 16 \
   --left-context-frames 128 \
-  --tokens data/lang_bpe_2000/tokens.txt \
+  --tokens data/lang_bbpe_2000/tokens.txt \
   --epoch 20 \
   --avg 1 \
   --jit 1
@@ -72,7 +72,7 @@ for how to use the exported models outside of icefall.
 
 ./zipformer/export.py \
   --exp-dir ./zipformer/exp \
-  --tokens data/lang_bpe_2000/tokens.txt \
+  --tokens data/lang_bbpe_2000/tokens.txt \
   --epoch 20 \
   --avg 1
 
@@ -81,7 +81,7 @@ for how to use the exported models outside of icefall.
 ./zipformer/export.py \
   --exp-dir ./zipformer/exp \
   --causal 1 \
-  --tokens data/lang_bpe_2000/tokens.txt \
+  --tokens data/lang_bbpe_2000/tokens.txt \
   --epoch 20 \
   --avg 1
 
@@ -103,7 +103,7 @@ you can do:
         --avg 1 \
         --max-duration 600 \
         --decoding-method greedy_search \
-        --bpe-model data/lang_bpe_2000/bpe.model
+        --bpe-model data/lang_bbpe_2000/bpe.model
 
 - For streaming model:
 
@@ -124,7 +124,7 @@ To use the generated file with `zipformer/decode.py` and `zipformer/streaming_de
         --chunk-size 16 \
         --left-context-frames 128 \
         --decoding-method greedy_search \
-        --bpe-model data/lang_bpe_2000/bpe.model
+        --bpe-model data/lang_bbpe_2000/bpe.model
 
     # chunk-wise streaming decoding
     ./zipformer/streaming_decode.py \
@@ -136,7 +136,7 @@ To use the generated file with `zipformer/decode.py` and `zipformer/streaming_de
         --chunk-size 16 \
         --left-context-frames 128 \
         --decoding-method greedy_search \
-        --bpe-model data/lang_bpe_2000/bpe.model
+        --bpe-model data/lang_bbpe_2000/bpe.model
 
 Check ./pretrained.py for its usage.
 
@@ -251,7 +251,7 @@ def get_parser():
     parser.add_argument(
         "--tokens",
         type=str,
-        default="data/lang_bpe_2000/tokens.txt",
+        default="data/lang_bbpe_2000/tokens.txt",
         help="Path to the tokens.txt",
     )
 
