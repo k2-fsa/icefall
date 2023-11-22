@@ -1,6 +1,7 @@
 kaldifst
 kaldilm
 kaldialign
+num2words
 kaldi-decoder
 sentencepiece>=0.1.96
 tensorboard
