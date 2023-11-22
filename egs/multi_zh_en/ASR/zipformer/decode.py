@@ -311,6 +311,20 @@ def get_parser():
         help="Whether to use TAL-CSASR training data.",
     )
 
+    parser.add_argument(
+        "--use-librispeech",
+        type=str2bool,
+        default=False,
+        help="Whether to use LibriSpeech training data.",
+    )
+
+    parser.add_argument(
+        "--use-aishell2",
+        type=str2bool,
+        default=False,
+        help="Whether to use Aishell-2 training data.",
+    )
+
     add_model_arguments(parser)
 
     return parser
