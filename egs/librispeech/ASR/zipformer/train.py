@@ -453,14 +453,6 @@ def get_parser():
         help="Scale for attention-decoder loss.",
     )
 
-    # parser.add_argument(
-    #     "--label-smoothing",
-    #     type=float,
-    #     default=0.1,
-    #     help="""Label smoothing rate used in attention decoder,
-    #     (0.0 means the conventional cross entropy loss)""",
-    # )
-
     parser.add_argument(
         "--seed",
         type=int,
