@@ -29,7 +29,7 @@ concurrency:
 
 jobs:
   run_multi-zh_hans_zipformer:
-    if: github.event.label.name == 'onnx' || github.event.label.name == 'ready' || github.event_name == 'push' || github.event.label.name == 'multi-zh_hans'
+    if: github.event.label.name == 'onnx' || github.event.label.name == 'ready' || github.event_name == 'push' || github.event.label.name == 'multi-zh_hans' || github.event.label.name == 'zipformer'
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:

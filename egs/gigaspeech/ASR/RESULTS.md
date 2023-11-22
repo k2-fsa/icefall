@@ -1,4 +1,78 @@
 ## Results
+### zipformer (zipformer + pruned stateless transducer)
+
+See <https://github.com/k2-fsa/icefall/pull/1254> for more details.
+
+[zipformer](./zipformer)
+
+- Non-streaming
+- normal-scaled model, number of model parameters: 65549011, i.e., 65.55 M
+
+You can find a pretrained model, training logs, decoding logs, and decoding results at:
+<https://huggingface.co/yfyeung/icefall-asr-gigaspeech-zipformer-2023-10-17>
+
+The tensorboard log for training is available at
+<https://wandb.ai/yifanyeung/icefall-asr-gigaspeech-zipformer-2023-10-20>
+
+You can use <https://github.com/k2-fsa/sherpa> to deploy it.
+
+| decoding method      | test-clean | test-other | comment            |
+|----------------------|------------|------------|--------------------|
+| greedy_search        | 10.31      | 10.50      | --epoch 30 --avg 9 |
+| modified_beam_search | 10.25      | 10.38      | --epoch 30 --avg 9 |
+| fast_beam_search     | 10.26      | 10.48      | --epoch 30 --avg 9 |
+
+The training command is:
+```bash
+export CUDA_VISIBLE_DEVICES="0,1,2,3"
+./zipformer/train.py \
+  --world-size 4 \
+  --num-epochs 30 \
+  --start-epoch 1 \
+  --use-fp16 1 \
+  --exp-dir zipformer/exp \
+  --causal 0 \
+  --subset XL \
+  --max-duration 700 \
+  --use-transducer 1 \
+  --use-ctc 0 \
+  --lr-epochs 1 \
+  --master-port 12345
+```
+
+The decoding command is:
+```bash
+export CUDA_VISIBLE_DEVICES=0
+
+# greedy search
+./zipformer/decode.py \
+  --epoch 30 \
+  --avg 9 \
+  --exp-dir ./zipformer/exp \
+  --max-duration 1000 \
+  --decoding-method greedy_search
+
+# modified beam search
+./zipformer/decode.py \
+  --epoch 30 \
+  --avg 9 \
+  --exp-dir ./zipformer/exp \
+  --max-duration 1000 \
+  --decoding-method modified_beam_search \
+  --beam-size 4
+
+# fast beam search (one best)
+./zipformer/decode.py \
+  --epoch 30 \
+  --avg 9 \
+  --exp-dir ./zipformer/exp \
+  --max-duration 1000 \
+  --decoding-method fast_beam_search \
+  --beam 20.0 \
+  --max-contexts 8 \
+  --max-states 64
+```
+
 ### GigaSpeech BPE training results (Pruned Transducer 2)
 
 #### 2022-05-12

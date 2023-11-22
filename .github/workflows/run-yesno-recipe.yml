@@ -60,12 +60,12 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          grep -v '^#' ./requirements-ci.txt  | grep -v kaldifst | xargs -n 1 -L 1 pip install
+          grep -v '^#' ./requirements-ci.txt  | xargs -n 1 -L 1 pip install
           pip uninstall -y protobuf
           pip install --no-binary protobuf protobuf==3.20.*
 
-          pip install --no-deps --force-reinstall https://huggingface.co/csukuangfj/k2/resolve/main/cpu/k2-1.24.3.dev20230508+cpu.torch1.13.1-cp38-cp38-linux_x86_64.whl
-          pip install kaldifeat==1.25.0.dev20230726+cpu.torch1.13.1 -f https://csukuangfj.github.io/kaldifeat/cpu.html
+          pip install --no-deps --force-reinstall k2==1.24.4.dev20231021+cpu.torch1.13.1 -f https://k2-fsa.github.io/k2/cpu.html
+          pip install kaldifeat==1.25.1.dev20231022+cpu.torch1.13.1 -f https://csukuangfj.github.io/kaldifeat/cpu.html
 
       - name: Run yesno recipe
         shell: bash
@@ -140,9 +140,46 @@ jobs:
             download/waves_yesno/0_0_0_1_0_0_0_1.wav \
             download/waves_yesno/0_0_1_0_0_0_1_0.wav
 
+      - name: Test decoding with H
+        shell: bash
+        working-directory: ${{github.workspace}}
+        run: |
+          export PYTHONPATH=$PWD:$PYTHONPATH
+          echo $PYTHONPATH
+
+          cd egs/yesno/ASR
+          python3 ./tdnn/export.py --epoch 14 --avg 2 --jit 1
+
+          python3 ./tdnn/jit_pretrained_decode_with_H.py \
+              --nn-model ./tdnn/exp/cpu_jit.pt \
+              --H ./data/lang_phone/H.fst \
+              --tokens ./data/lang_phone/tokens.txt \
+              ./download/waves_yesno/0_0_0_1_0_0_0_1.wav \
+              ./download/waves_yesno/0_0_1_0_0_0_1_0.wav \
+              ./download/waves_yesno/0_0_1_0_0_1_1_1.wav
+
+      - name: Test decoding with HL
+        shell: bash
+        working-directory: ${{github.workspace}}
+        run: |
+          export PYTHONPATH=$PWD:$PYTHONPATH
+          echo $PYTHONPATH
+
+          cd egs/yesno/ASR
+          python3 ./tdnn/export.py --epoch 14 --avg 2 --jit 1
+
+          python3 ./tdnn/jit_pretrained_decode_with_HL.py \
+              --nn-model ./tdnn/exp/cpu_jit.pt \
+              --HL ./data/lang_phone/HL.fst \
+              --words ./data/lang_phone/words.txt \
+              ./download/waves_yesno/0_0_0_1_0_0_0_1.wav \
+              ./download/waves_yesno/0_0_1_0_0_0_1_0.wav \
+              ./download/waves_yesno/0_0_1_0_0_1_1_1.wav
+
       - name: Show generated files
         shell: bash
         working-directory: ${{github.workspace}}
         run: |
           cd egs/yesno/ASR
           ls -lh tdnn/exp
+          ls -lh data/lang_phone

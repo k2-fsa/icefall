@@ -13,7 +13,6 @@ dl_dir=$PWD/download
 . shared/parse_options.sh || exit 1
 
 vocab_sizes=(
-  500
   2000
 )
 
