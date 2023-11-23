@@ -98,7 +98,7 @@ done
 
 rm -rf $repo
 
-cd ../../../egs/multi_zh-hans/ASR
+cd ../../../egs/multi_zh_en/ASR
 log "==== Test icefall-asr-zipformer-multi-zh-en-2023-11-22 ===="
 repo_url=https://huggingface.co/zrjin/icefall-asr-zipformer-multi-zh-en-2023-11-22/
 
