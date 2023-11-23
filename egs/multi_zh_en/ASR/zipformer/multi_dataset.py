@@ -112,7 +112,12 @@ class MultiDataset:
                 ],
             )
         else:
-            raise NotImplementedError
+            raise NotImplementedError(
+                f"""Not implemented for 
+                use_aishell2: {self.use_aishell2}
+                use_librispeech: {self.use_librispeech}
+                use_tal_csasr: {self.use_tal_csasr}"""
+            )
 
     def dev_cuts(self) -> CutSet:
         logging.info("About to get multidataset dev cuts")
