@@ -40,7 +40,7 @@ def get_args():
     parser.add_argument(
         "--text",
         type=str,
-        help="WenetSpeech training transcript.",
+        help="Training transcript.",
     )
 
     return parser.parse_args()
@@ -56,7 +56,7 @@ def main():
     transcript_path = lang_dir / "transcript_chars.txt"
 
     with open(text, "r", encoding="utf-8") as fin:
-        with open(transcript_path, "w", encoding="utf-8") as fout:
+        with open(transcript_path, "w+", encoding="utf-8") as fout:
             for line in tqdm(fin):
                 fout.write(tokenize_by_CJK_char(line) + "\n")
 
