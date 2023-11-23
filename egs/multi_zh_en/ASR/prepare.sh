@@ -81,11 +81,6 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
     exit 1
   fi
 
-  if [ ! -d ../../librispeech/ASR/data/lang_phone ] && [ ! -d ./data/lang_phone ]; then
-    log "Abort! Please run ../../librispeech/ASR/prepare.sh --stage 5 --stop-stage 5"
-    exit 1
-  fi
-
   if [ ! -d ../../librispeech/ASR/data/lang_bpe_500 ] && [ ! -d ./data/lang_bpe_500 ]; then
     log "Abort! Please run ../../librispeech/ASR/prepare.sh --stage 6 --stop-stage 6"
     exit 1
@@ -94,9 +89,6 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
   cd data/
   if [ ! -d ./lang_char ]; then
     ln -svf $(realpath ../../../aishell2/ASR/data/lang_char) .
-  fi
-  if [ ! -d ./lang_phone ]; then
-    ln -svf $(realpath ../../../librispeech/ASR/data/lang_phone) .
   fi
   if [ ! -d ./lang_bpe_500 ]; then
     ln -svf $(realpath ../../../librispeech/ASR/data/lang_bpe_500) .
