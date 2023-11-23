@@ -30,7 +30,7 @@ from typing import Optional, Tuple
 import torch
 from torch import Tensor, nn
 
-from icefall.utils import make_pad_mask
+from icefall.utils import is_jit_tracing, make_pad_mask
 
 
 class TextEncoder(torch.nn.Module):
@@ -440,18 +440,30 @@ class RelPositionMultiheadAttention(nn.Module):
         """
         (batch_size, num_heads, seq_len, n) = x.shape
 
-        assert n == 2 * seq_len - 1, f"{n} == 2 * {seq_len} - 1"
+        if not is_jit_tracing():
+            assert n == 2 * seq_len - 1, f"{n} == 2 * {seq_len} - 1"
 
-        # Note: TorchScript requires explicit arg for stride()
-        batch_stride = x.stride(0)
-        head_stride = x.stride(1)
-        time_stride = x.stride(2)
-        n_stride = x.stride(3)
-        return x.as_strided(
-            (batch_size, num_heads, seq_len, seq_len),
-            (batch_stride, head_stride, time_stride - n_stride, n_stride),
-            storage_offset=n_stride * (seq_len - 1),
-        )
+        if is_jit_tracing():
+            rows = torch.arange(start=seq_len - 1, end=-1, step=-1)
+            cols = torch.arange(seq_len)
+            rows = rows.repeat(batch_size * num_heads).unsqueeze(-1)
+            indexes = rows + cols
+
+            x = x.reshape(-1, n)
+            x = torch.gather(x, dim=1, index=indexes)
+            x = x.reshape(batch_size, num_heads, seq_len, seq_len)
+            return x
+        else:
+            # Note: TorchScript requires explicit arg for stride()
+            batch_stride = x.stride(0)
+            head_stride = x.stride(1)
+            time_stride = x.stride(2)
+            n_stride = x.stride(3)
+            return x.as_strided(
+                (batch_size, num_heads, seq_len, seq_len),
+                (batch_stride, head_stride, time_stride - n_stride, n_stride),
+                storage_offset=n_stride * (seq_len - 1),
+            )
 
     def forward(
         self,
