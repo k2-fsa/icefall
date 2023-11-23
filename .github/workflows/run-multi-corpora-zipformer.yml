@@ -81,4 +81,4 @@ jobs:
           export PYTHONPATH=~/tmp/kaldifeat/kaldifeat/python:$PYTHONPATH
           export PYTHONPATH=~/tmp/kaldifeat/build/lib:$PYTHONPATH
 
-          .github/scripts/run-multi-corpus-zipformer.sh
+          .github/scripts/run-multi-corpora-zipformer.sh
