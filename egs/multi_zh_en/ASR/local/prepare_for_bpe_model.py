@@ -56,7 +56,7 @@ def main():
     transcript_path = lang_dir / "transcript_chars.txt"
 
     with open(text, "r", encoding="utf-8") as fin:
-        with open(transcript_path, "w+", encoding="utf-8") as fout:
+        with open(transcript_path, "w", encoding="utf-8") as fout:
             for line in tqdm(fin):
                 fout.write(tokenize_by_CJK_char(line) + "\n")
 
