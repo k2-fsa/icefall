@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: run-multi-zh_hans-zipformer
+name: run-multi-corpora-zipformer
 
 on:
   push:
@@ -24,12 +24,12 @@ on:
     types: [labeled]
 
 concurrency:
-  group: run_multi-zh_hans_zipformer-${{ github.ref }}
+  group: run_multi-corpora_zipformer-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  run_multi-zh_hans_zipformer:
-    if: github.event.label.name == 'onnx' || github.event.label.name == 'ready' || github.event_name == 'push' || github.event.label.name == 'multi-zh_hans' || github.event.label.name == 'zipformer'
+  run_multi-corpora_zipformer:
+    if: github.event.label.name == 'onnx' || github.event.label.name == 'ready' || github.event_name == 'push' || github.event.label.name == 'multi-zh_hans' || github.event.label.name == 'zipformer' || github.event.label.name == 'multi-corpora'
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -81,4 +81,4 @@ jobs:
           export PYTHONPATH=~/tmp/kaldifeat/kaldifeat/python:$PYTHONPATH
           export PYTHONPATH=~/tmp/kaldifeat/build/lib:$PYTHONPATH
 
-          .github/scripts/run-multi-zh_hans-zipformer.sh
+          .github/scripts/run-multi-corpus-zipformer.sh

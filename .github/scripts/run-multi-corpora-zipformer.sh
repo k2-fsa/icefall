@@ -51,6 +51,8 @@ for method in modified_beam_search fast_beam_search; do
   $repo/test_wavs/DEV_T0000000002.wav
 done
 
+rm -rf $repo
+
 log "==== Test icefall-asr-multi-zh-hans-zipformer-ctc-2023-10-24 ===="
 repo_url=https://huggingface.co/zrjin/icefall-asr-multi-zh-hans-zipformer-ctc-2023-10-24/
 
@@ -93,3 +95,41 @@ for method in modified_beam_search fast_beam_search; do
   $repo/test_wavs/DEV_T0000000001.wav \
   $repo/test_wavs/DEV_T0000000002.wav
 done
+
+rm -rf $repo
+
+cd ../../../egs/multi_zh-hans/ASR
+log "==== Test icefall-asr-zipformer-multi-zh-en-2023-11-22 ===="
+repo_url=https://huggingface.co/zrjin/icefall-asr-zipformer-multi-zh-en-2023-11-22/
+
+log "Downloading pre-trained model from $repo_url"
+git lfs install
+git clone $repo_url
+repo=$(basename $repo_url)
+
+log "Display test files"
+tree $repo/
+ls -lh $repo/test_wavs/*.wav
+
+./zipformer/pretrained.py \
+  --checkpoint $repo/exp/pretrained.pt \
+  --tokens $repo/data/lang_bbpe_2000/tokens.txt \
+  --method greedy_search \
+$repo/test_wavs/_1634_210_2577_1_1525157964032_3712259_29.wav \
+$repo/test_wavs/_1634_210_2577_1_1525157964032_3712259_55.wav \
+$repo/test_wavs/_1634_210_2577_1_1525157964032_3712259_75.wav
+
+for method in modified_beam_search fast_beam_search; do
+  log "$method"
+
+  ./zipformer/pretrained.py \
+    --method $method \
+    --beam-size 4 \
+    --checkpoint $repo/exp/pretrained.pt \
+    --tokens $repo/data/lang_bbpe_2000/tokens.txt \
+  $repo/test_wavs/_1634_210_2577_1_1525157964032_3712259_29.wav \
+  $repo/test_wavs/_1634_210_2577_1_1525157964032_3712259_55.wav \
+  $repo/test_wavs/_1634_210_2577_1_1525157964032_3712259_75.wav
+done
+
+rm -rf $repo
