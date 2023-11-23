@@ -113,7 +113,7 @@ ls -lh $repo/test_wavs/*.wav
 
 ./zipformer/pretrained.py \
   --checkpoint $repo/exp/pretrained.pt \
-  --tokens $repo/data/lang_bbpe_2000/tokens.txt \
+  --bpe-model $repo/data/lang_bbpe_2000/bbpe.model \
   --method greedy_search \
 $repo/test_wavs/_1634_210_2577_1_1525157964032_3712259_29.wav \
 $repo/test_wavs/_1634_210_2577_1_1525157964032_3712259_55.wav \
@@ -126,7 +126,7 @@ for method in modified_beam_search fast_beam_search; do
     --method $method \
     --beam-size 4 \
     --checkpoint $repo/exp/pretrained.pt \
-    --tokens $repo/data/lang_bbpe_2000/tokens.txt \
+    --bpe-model $repo/data/lang_bbpe_2000/bbpe.model \
   $repo/test_wavs/_1634_210_2577_1_1525157964032_3712259_29.wav \
   $repo/test_wavs/_1634_210_2577_1_1525157964032_3712259_55.wav \
   $repo/test_wavs/_1634_210_2577_1_1525157964032_3712259_75.wav
