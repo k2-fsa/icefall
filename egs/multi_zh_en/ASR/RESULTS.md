@@ -26,18 +26,18 @@ for method in greedy_search modified_beam_search fast_beam_search; do
     ./zipformer/decode.py \
     --epoch 34 \
     --avg 19 \
-    --decoding_method $method
+    --decoding-method $method
 done
 ```
 
 Word Error Rates (WERs) listed below are produced by the checkpoint of the 20th epoch using greedy search and BPE model (# tokens is 2000).
 
-|       Datasets       | TAL-CSASR | TAL-CSASR | 
-|----------------------|-----------|-----------|
-|   Zipformer WER (%)  |    dev    |   test    | 
-|     greedy_search    |   6.65    |   6.69    |
-| modified_beam_search |   6.46    |   6.51    |
-|   fast_beam_search   |   6.57    |   6.68    |
+|       Datasets       | TAL-CSASR | TAL-CSASR | AiShell-2 | AiShell-2 | LibriSpeech | LibriSpeech | 
+|----------------------|-----------|-----------|-----------|-----------|-------------|-------------|
+|   Zipformer WER (%)  |    dev    |   test    |    dev    |   test    |  test-clean |  test-other | 
+|     greedy_search    |   6.65    |   6.69    |    6.57   |   7.03    |    2.43     |    5.70     |
+| modified_beam_search |   6.46    |   6.51    |    6.18   |   6.60    |    2.41     |    5.57     |
+|   fast_beam_search   |   6.57    |   6.68    |    6.40   |   6.74    |    2.40     |    5.56     |
 
 Pre-trained model can be found here : https://huggingface.co/zrjin/icefall-asr-zipformer-multi-zh-en-2023-11-22, which is trained on LibriSpeech 960-hour training set (with speed perturbation), TAL-CSASR training set (with speed perturbation) and AiShell-2 (w/o speed perturbation).
 
