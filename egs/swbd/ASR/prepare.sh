@@ -145,6 +145,13 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
     fi
 fi
 
+log "
+Computing fbank for SwitchBoard and MUSAN noise.
+
+Note that the current setup upsamples the audio to 16kHz before fbank extraction
+please use prepare_nb.sh if you want to use 8kHz audio for narrowband systems.
+"
+
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
     log "Stage 3 I: Compute fbank for SwitchBoard"
     if [ ! -e data/fbank/.swbd.done ]; then
