@@ -1,0 +1,1 @@
+../zipformer/onnx_check.py
