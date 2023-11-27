@@ -125,10 +125,7 @@ class Decoder(nn.Module):
         return embedding_out + (k / (1 + k)).unsqueeze(2) * self.repeat_param
 
     def forward(
-        self,
-        y: torch.Tensor,
-        k: torch.Tensor,
-        need_pad: bool = True
+        self, y: torch.Tensor, k: torch.Tensor, need_pad: bool = True
     ) -> torch.Tensor:
         """
         Args:
