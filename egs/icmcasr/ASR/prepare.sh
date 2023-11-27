@@ -58,7 +58,7 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   # to $dl_dir/icmcasr
   if [ ! -f data/manifests/.icmcasr_manifests.done ]; then
     mkdir -p data/manifests
-    for part in ihm sdm; do
+    for part in ihm sdm mdm; do
 	    lhotse prepare icmcasr --mic ${part} $dl_dir/ICMC-ASR data/manifests
     done
     touch data/manifests/.icmcasr_manifests.done
@@ -77,15 +77,24 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
 fi
 
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
+  log "Stage 3: Apply GSS enhancement on MDM data (this stage requires a GPU)"
+  # We assume that you have installed the GSS package: https://github.com/desh2608/gss
+  local/prepare_icmc_gss.sh --stage 1 --stop_stage 6 data/manifests exp/icmc_gss
+fi
+
+if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
   log "Stage 3: Compute fbank for icmcasr"
   if [ ! -f data/fbank/.icmcasr.done ]; then
     mkdir -p data/fbank
     ./local/compute_fbank_icmcasr.py --perturb-speed True
+    echo "Combining manifests"
+    lhotse combine data/manifests/cuts_train_{ihm,ihm_rvb,sdm,gss}.jsonl.gz - | shuf |\
+      gzip -c > data/manifests/cuts_train_all.jsonl.gz
     touch data/fbank/.icmcasr.done
   fi
 fi
 
-if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
+if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   log "Stage 4: Compute fbank for musan"
   if [ ! -f data/fbank/.msuan.done ]; then
     mkdir -p data/fbank
@@ -95,7 +104,7 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
 fi
 
 lang_phone_dir=data/lang_phone
-if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
+if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
   log "Stage 5: Prepare phone based lang"
   mkdir -p $lang_phone_dir
 
@@ -111,7 +120,7 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
 fi
 
 lang_char_dir=data/lang_char
-if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
+if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
   log "Stage 6: Prepare char based lang"
   mkdir -p $lang_char_dir
   # We reuse words.txt from phone based lexicon
@@ -142,7 +151,7 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
   fi
 fi
 
-if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
+if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
   log "Stage 7: Prepare Byte BPE based lang"
 
   for vocab_size in ${vocab_sizes[@]}; do

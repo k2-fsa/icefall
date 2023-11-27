@@ -64,12 +64,12 @@ def compute_fbank_icmcasr(num_mel_bins: int = 80, perturb_speed: bool = False):
         suffix="jsonl.gz",
     )
     # For GSS we already have cuts so we read them directly.
-    # manifests_gss = read_manifests_if_cached(
-    #     dataset_parts=["train", "dev"],
-    #     output_dir=src_dir,
-    #     prefix="icmcasr-gss",
-    #     suffix="jsonl.gz",
-    # )
+    manifests_gss = read_manifests_if_cached(
+        dataset_parts=["train", "dev"],
+        output_dir=src_dir,
+        prefix="icmcasr-gss",
+        suffix="jsonl.gz",
+    )
 
     sampling_rate = 16000
 
@@ -84,6 +84,10 @@ def compute_fbank_icmcasr(num_mel_bins: int = 80, perturb_speed: bool = False):
     def _extract_feats(
         cuts: CutSet, storage_path: Path, manifest_path: Path, speed_perturb: bool
     ) -> None:
+        # check if the features have already been computed
+        if storage_path.exists() or storage_path.with_suffix(".lca").exists():
+            logging.info(f"{storage_path} exists, skipping feature extraction")
+            return
         if speed_perturb:
             logging.info(f"Doing speed perturb")
             cuts = cuts + cuts.perturb_speed(0.9) + cuts.perturb_speed(1.1)
@@ -136,17 +140,17 @@ def compute_fbank_icmcasr(num_mel_bins: int = 80, perturb_speed: bool = False):
     )
 
     logging.info("Processing train split GSS")
-    # cuts_gss = (
-    #     CutSet.from_manifests(**manifests_gss["train"])
-    #     .trim_to_supervisions(keep_overlapping=False)
-    #     .modify_ids(lambda x: x + "-gss")
-    # )
-    # _extract_feats(
-    #     cuts_gss,
-    #     output_dir / "feats_train_gss",
-    #     src_dir / "cuts_train_gss.jsonl.gz",
-    #     perturb_speed,
-    # )
+    cuts_gss = (
+        CutSet.from_manifests(**manifests_gss["train"])
+        .trim_to_supervisions(keep_overlapping=False)
+        .modify_ids(lambda x: x + "-gss")
+    )
+    _extract_feats(
+        cuts_gss,
+        output_dir / "feats_train_gss",
+        src_dir / "cuts_train_gss.jsonl.gz",
+        perturb_speed,
+    )
 
     logging.info("Preparing test cuts: IHM, SDM, GSS (optional)")
     for split in ["dev"]:
@@ -176,19 +180,19 @@ def compute_fbank_icmcasr(num_mel_bins: int = 80, perturb_speed: bool = False):
                 storage_type=LilcomChunkyWriter,
             )
         )
-        # logging.info(f"Processing {split} GSS")
-        # cuts_gss = (
-        #     CutSet.from_manifests(**manifests_gss[split])
-        #     .trim_to_supervisions(keep_overlapping=False)
-        #     .compute_and_store_features_batch(
-        #         extractor=extractor,
-        #         storage_path=output_dir / f"feats_{split}_gss",
-        #         manifest_path=src_dir / f"cuts_{split}_gss.jsonl.gz",
-        #         batch_duration=500,
-        #         num_workers=4,
-        #         storage_type=LilcomChunkyWriter,
-        #     )
-        # )
+        logging.info(f"Processing {split} GSS")
+        cuts_gss = (
+            CutSet.from_manifests(**manifests_gss[split])
+            .trim_to_supervisions(keep_overlapping=False)
+            .compute_and_store_features_batch(
+                extractor=extractor,
+                storage_path=output_dir / f"feats_{split}_gss",
+                manifest_path=src_dir / f"cuts_{split}_gss.jsonl.gz",
+                batch_duration=500,
+                num_workers=4,
+                storage_type=LilcomChunkyWriter,
+            )
+        )
 
 
 
