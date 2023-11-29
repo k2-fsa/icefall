@@ -73,7 +73,7 @@ def get_token2id(manifest_file: Path) -> Dict[str, int]:
     extra_tokens = [
         "<blk>",  # 0 for blank
         "<sos/eos>",  # 1 for sos and eos symbols.
-        "<unk>"  # 2 for OOV
+        "<unk>",  # 2 for OOV
     ]
     all_tokens = set()
 

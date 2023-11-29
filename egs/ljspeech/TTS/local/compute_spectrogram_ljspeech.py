@@ -29,7 +29,13 @@ import os
 from pathlib import Path
 
 import torch
-from lhotse import CutSet, Spectrogram, SpectrogramConfig, LilcomChunkyWriter, load_manifest
+from lhotse import (
+    CutSet,
+    LilcomChunkyWriter,
+    Spectrogram,
+    SpectrogramConfig,
+    load_manifest,
+)
 from lhotse.audio import RecordingSet
 from lhotse.supervision import SupervisionSet
 

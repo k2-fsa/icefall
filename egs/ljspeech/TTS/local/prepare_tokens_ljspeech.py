@@ -34,9 +34,7 @@ def prepare_tokens_ljspeech():
     suffix = "jsonl.gz"
     partition = "all"
 
-    cut_set = load_manifest(
-        output_dir / f"{prefix}_cuts_{partition}.{suffix}"
-    )
+    cut_set = load_manifest(output_dir / f"{prefix}_cuts_{partition}.{suffix}")
     g2p = g2p_en.G2p()
 
     new_cuts = []
@@ -51,9 +49,7 @@ def prepare_tokens_ljspeech():
         new_cuts.append(cut)
 
     new_cut_set = CutSet.from_cuts(new_cuts)
-    new_cut_set.to_file(
-        output_dir / f"{prefix}_cuts_with_tokens_{partition}.{suffix}"
-    )
+    new_cut_set.to_file(output_dir / f"{prefix}_cuts_with_tokens_{partition}.{suffix}")
 
 
 if __name__ == "__main__":

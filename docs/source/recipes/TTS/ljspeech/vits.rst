@@ -103,4 +103,10 @@ You can test the exported ONNX model with:
       --model-filename vits/exp/vits-epoch-1000.onnx \
       --tokens data/tokens.txt
 
+Download pretrained models
+--------------------------
 
+If you don't want to train from scratch, you can download the pretrained models
+by visiting the following link:
+
+  - `<https://huggingface.co/Zengwei/icefall-tts-ljspeech-vits-2023-11-29>`_
