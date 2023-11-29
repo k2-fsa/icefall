@@ -38,7 +38,7 @@ import torch.nn as nn
 import torchaudio
 from tokenizer import Tokenizer
 from train import get_model, get_params
-from tts_datamodule import LJSpeechTtsDataModule
+from tts_datamodule import VctkTtsDataModule
 
 from icefall.checkpoint import load_checkpoint
 from icefall.utils import AttributeDict, setup_logger
@@ -94,6 +94,7 @@ def infer_dataset(
       tokenizer:
         Used to convert text to phonemes.
     """
+
     #  Background worker save audios to disk.
     def _save_worker(
         batch_size: int,
@@ -127,10 +128,10 @@ def infer_dataset(
     futures = []
     with ThreadPoolExecutor(max_workers=1) as executor:
         for batch_idx, batch in enumerate(dl):
-            batch_size = len(batch["text"])
+            batch_size = len(batch["tokens"])
 
-            text = batch["text"]
-            tokens = tokenizer.texts_to_token_ids(text)
+            tokens = batch["tokens"]
+            tokens = tokenizer.tokens_to_token_ids(tokens)
             tokens = k2.RaggedTensor(tokens)
             row_splits = tokens.shape.row_splits(1)
             tokens_lens = row_splits[1:] - row_splits[:-1]
@@ -180,7 +181,7 @@ def infer_dataset(
 @torch.no_grad()
 def main():
     parser = get_parser()
-    LJSpeechTtsDataModule.add_arguments(parser)
+    VctkTtsDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 
@@ -224,7 +225,7 @@ def main():
 
     # we need cut ids to display recognition results.
     args.return_cuts = True
-    ljspeech = LJSpeechTtsDataModule(args)
+    ljspeech = VctkTtsDataModule(args)
 
     test_cuts = ljspeech.test_cuts()
     test_dl = ljspeech.test_dataloaders(test_cuts)
@@ -236,6 +237,7 @@ def main():
         tokenizer=tokenizer,
     )
 
+    logging.info(f"Wav files are saved to {params.save_wav_dir}")
     logging.info("Done!")
 
 

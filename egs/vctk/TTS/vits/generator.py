@@ -16,14 +16,15 @@ from typing import List, Optional, Tuple
 import numpy as np
 import torch
 import torch.nn.functional as F
+
+from icefall.utils import make_pad_mask
+
 from duration_predictor import StochasticDurationPredictor
 from hifigan import HiFiGANGenerator
 from posterior_encoder import PosteriorEncoder
 from residual_coupling import ResidualAffineCouplingBlock
 from text_encoder import TextEncoder
 from utils import get_random_segments
-
-from icefall.utils import make_pad_mask
 
 
 class VITSGenerator(torch.nn.Module):
@@ -402,6 +403,7 @@ class VITSGenerator(torch.nn.Module):
         """
         # encoder
         x, m_p, logs_p, x_mask = self.text_encoder(text, text_lengths)
+        x_mask = x_mask.to(x.dtype)
         g = None
         if self.spks is not None:
             # (B, global_channels, 1)
@@ -479,6 +481,7 @@ class VITSGenerator(torch.nn.Module):
                 dur = torch.ceil(w)
             y_lengths = torch.clamp_min(torch.sum(dur, [1, 2]), 1).long()
             y_mask = (~make_pad_mask(y_lengths)).unsqueeze(1).to(text.device)
+            y_mask = y_mask.to(x.dtype)
             attn_mask = torch.unsqueeze(x_mask, 2) * torch.unsqueeze(y_mask, -1)
             attn = self._generate_path(dur, attn_mask)
 

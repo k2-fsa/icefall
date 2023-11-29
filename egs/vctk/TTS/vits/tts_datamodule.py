@@ -52,7 +52,7 @@ class _SeedWorkers:
         fix_random_seed(self.seed + worker_id)
 
 
-class LJSpeechTtsDataModule:
+class VctkTtsDataModule:
     """
     DataModule for tts experiments.
     It assumes there is always one train and valid dataloader,
@@ -168,7 +168,8 @@ class LJSpeechTtsDataModule:
         """
         logging.info("About to create train dataset")
         train = SpeechSynthesisDataset(
-            return_tokens=False,
+            return_text=False,
+            return_tokens=True,
             feature_input_strategy=eval(self.args.input_strategy)(),
             return_cuts=self.args.return_cuts,
         )
@@ -182,7 +183,8 @@ class LJSpeechTtsDataModule:
                 use_fft_mag=True,
             )
             train = SpeechSynthesisDataset(
-                return_tokens=False,
+                return_text=False,
+                return_tokens=True,
                 feature_input_strategy=OnTheFlyFeatures(Spectrogram(config)),
                 return_cuts=self.args.return_cuts,
             )
@@ -236,13 +238,15 @@ class LJSpeechTtsDataModule:
                 use_fft_mag=True,
             )
             validate = SpeechSynthesisDataset(
-                return_tokens=False,
+                return_text=False,
+                return_tokens=True,
                 feature_input_strategy=OnTheFlyFeatures(Spectrogram(config)),
                 return_cuts=self.args.return_cuts,
             )
         else:
             validate = SpeechSynthesisDataset(
-                return_tokens=False,
+                return_text=False,
+                return_tokens=True,
                 feature_input_strategy=eval(self.args.input_strategy)(),
                 return_cuts=self.args.return_cuts,
             )
@@ -273,13 +277,15 @@ class LJSpeechTtsDataModule:
                 use_fft_mag=True,
             )
             test = SpeechSynthesisDataset(
-                return_tokens=False,
+                return_text=False,
+                return_tokens=True,
                 feature_input_strategy=OnTheFlyFeatures(Spectrogram(config)),
                 return_cuts=self.args.return_cuts,
             )
         else:
             test = SpeechSynthesisDataset(
-                return_tokens=False,
+                return_text=False,
+                return_tokens=True,
                 feature_input_strategy=eval(self.args.input_strategy)(),
                 return_cuts=self.args.return_cuts,
             )

@@ -34,7 +34,7 @@ from torch.cuda.amp import GradScaler, autocast
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim import Optimizer
 from torch.utils.tensorboard import SummaryWriter
-from tts_datamodule import LJSpeechTtsDataModule
+from tts_datamodule import VctkTtsDataModule
 from utils import MetricsTracker, plot_feature, save_checkpoint
 from vits import VITS
 
@@ -294,10 +294,9 @@ def prepare_input(batch: dict, tokenizer: Tokenizer, device: torch.device):
     features = batch["features"].to(device)
     audio_lens = batch["audio_lens"].to(device)
     features_lens = batch["features_lens"].to(device)
-    text = batch["text"]
-    speakers = batch["speakers"]
+    tokens = batch["tokens"]
 
-    tokens = tokenizer.texts_to_token_ids(text)
+    tokens = tokenizer.tokens_to_token_ids(tokens)
     tokens = k2.RaggedTensor(tokens)
     row_splits = tokens.shape.row_splits(1)
     tokens_lens = row_splits[1:] - row_splits[:-1]
@@ -306,7 +305,7 @@ def prepare_input(batch: dict, tokenizer: Tokenizer, device: torch.device):
     # a tensor of shape (B, T)
     tokens = tokens.pad(mode="constant", padding_value=tokenizer.blank_id)
 
-    return audio, audio_lens, features, features_lens, tokens, tokens_lens, speakers
+    return audio, audio_lens, features, features_lens, tokens, tokens_lens
 
 
 def train_one_epoch(
@@ -384,16 +383,10 @@ def train_one_epoch(
     for batch_idx, batch in enumerate(train_dl):
         params.batch_idx_train += 1
 
-        batch_size = len(batch["text"])
-        (
-            audio,
-            audio_lens,
-            features,
-            features_lens,
-            tokens,
-            tokens_lens,
-            speakers,
-        ) = prepare_input(batch, tokenizer, device)
+        batch_size = len(batch["tokens"])
+        audio, audio_lens, features, features_lens, tokens, tokens_lens = prepare_input(
+            batch, tokenizer, device
+        )
 
         loss_info = MetricsTracker()
         loss_info["samples"] = batch_size
@@ -582,7 +575,7 @@ def compute_validation_loss(
 
     with torch.no_grad():
         for batch_idx, batch in enumerate(valid_dl):
-            batch_size = len(batch["text"])
+            batch_size = len(batch["tokens"])
             (
                 audio,
                 audio_lens,
@@ -810,7 +803,7 @@ def run(rank, world_size, args):
     if params.inf_check:
         register_inf_check_hooks(model)
 
-    ljspeech = LJSpeechTtsDataModule(args)
+    ljspeech = VctkTtsDataModule(args)
 
     train_cuts = ljspeech.train_cuts()
 
@@ -914,7 +907,7 @@ def run(rank, world_size, args):
 
 def main():
     parser = get_parser()
-    LJSpeechTtsDataModule.add_arguments(parser)
+    VctkTtsDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 

@@ -77,3 +77,32 @@ class Tokenizer(object):
                 token_ids_list.append(token_ids)
 
         return token_ids_list
+
+    def tokens_to_token_ids(
+        self, tokens_list: List[str], intersperse_blank: bool = True
+    ):
+        """
+        Args:
+          tokens_list:
+            A list of token list, each corresponding to one utterance.
+          intersperse_blank:
+            Whether to intersperse blanks in the token sequence.
+
+        Returns:
+          Return a list of token id list [utterance][token_id]
+        """
+        token_ids_list = []
+
+        for tokens in tokens_list:
+            token_ids = []
+            for t in tokens:
+                if t in self.token2id:
+                    token_ids.append(self.token2id[t])
+                else:
+                    token_ids.append(self.oov_id)
+
+            if intersperse_blank:
+                token_ids = intersperse(token_ids, self.blank_id)
+                token_ids_list.append(token_ids)
+
+        return token_ids_list

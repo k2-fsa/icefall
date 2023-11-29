@@ -14,15 +14,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import Any, Dict, List, Optional, Tuple, Union
 import collections
 import logging
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
-import torch.distributed as dist
 import torch.nn as nn
+import torch.distributed as dist
 from lhotse.dataset.sampling.base import CutSampler
+from pathlib import Path
 from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim import Optimizer

@@ -66,7 +66,17 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
 fi
 
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
-  log "Stage 3: Split the VCTK cuts into train, valid and test sets"
+  log "Stage 3: Prepare phoneme tokens for VCTK"
+  if [ ! -e data/spectrogram/.vctk_with_token.done ]; then
+    ./local/prepare_tokens_vctk.py
+    mv data/spectrogram/vctk_cuts_with_tokens_all.jsonl.gz \
+      data/spectrogram/vctk_cuts_all.jsonl.gz
+    touch data/spectrogram/.vctk_with_token.done
+  fi
+fi
+
+if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
+  log "Stage 4: Split the VCTK cuts into train, valid and test sets"
   if [ ! -e data/spectrogram/.vctk_split.done ]; then
     lhotse subset --last 600 \
       data/spectrogram/vctk_cuts_all.jsonl.gz \
@@ -88,8 +98,12 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   fi
 fi
 
-if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
-  log "Stage 4: Generate token file"
+if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
+  log "Stage 5: Generate token file"
+  # We assume you have installed g2p_en and espnet_tts_frontend.
+  # If not, please install them with:
+  #   - g2p_en: `pip install g2p_en`, refer to https://github.com/Kyubyong/g2p
+  #   - espnet_tts_frontend, `pip install espnet_tts_frontend`, refer to https://github.com/espnet/espnet_tts_frontend/
   if [ ! -e data/tokens.txt ]; then
     ./local/prepare_token_file.py \
       --manifest-file data/spectrogram/vctk_cuts_train.jsonl.gz \

@@ -9,8 +9,9 @@ This code is modified from https://github.com/kan-bayashi/ParallelWaveGAN.
 
 """
 
-import logging
 import math
+import logging
+
 from typing import Optional, Tuple
 
 import torch
