@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VITS &mdash; icefall 0.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=fa44fd50" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=19f00094" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js?v=e031e9a9"></script>
+        <script src="../../../_static/doctools.js?v=888ff710"></script>
+        <script src="../../../_static/sphinx_highlight.js?v=4825356b"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link rel="next" title="Contributing" href="../../../contributing/index.html" />
+    <link rel="prev" title="TTS" href="../index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            icefall
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../for-dummies/index.html">Icefall for dummies tutorial</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../installation/index.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../docker/index.html">Docker</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../faqs.html">Frequently Asked Questions (FAQs)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../model-export/index.html">Model export</a></li>
+</ul>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="../../index.html">Recipes</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../../Non-streaming-ASR/index.html">Non Streaming ASR</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../Streaming-ASR/index.html">Streaming ASR</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../RNN-LM/index.html">RNN-LM</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html">TTS</a><ul class="current">
+<li class="toctree-l3 current"><a class="current reference internal" href="#">VITS</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#data-preparation">Data preparation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#build-monotonic-alignment-search">Build Monotonic Alignment Search</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#training">Training</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#inference">Inference</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#export-models">Export models</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#download-pretrained-models">Download pretrained models</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../contributing/index.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../huggingface/index.html">Huggingface</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../decoding-with-langugage-models/index.html">Decoding with language models</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">icefall</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Recipes</a></li>
+          <li class="breadcrumb-item"><a href="../index.html">TTS</a></li>
+      <li class="breadcrumb-item active">VITS</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/k2-fsa/icefall/blob/master/docs/source/recipes/TTS/ljspeech/vits.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="vits">
+<h1>VITS<a class="headerlink" href="#vits" title="Permalink to this heading"></a></h1>
+<p>This tutorial shows you how to train an VITS model
+with the <a class="reference external" href="https://keithito.com/LJ-Speech-Dataset/">LJSpeech</a> dataset.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The VITS paper: <a class="reference external" href="https://arxiv.org/pdf/2106.06103.pdf">Conditional Variational Autoencoder with Adversarial Learning for End-to-End Text-to-Speech</a></p>
+</div>
+<section id="data-preparation">
+<h2>Data preparation<a class="headerlink" href="#data-preparation" title="Permalink to this heading"></a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/ljspeech/TTS
+$<span class="w"> </span>./prepare.sh
+</pre></div>
+</div>
+<p>To run stage 1 to stage 5, use</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>./prepare.sh<span class="w"> </span>--stage<span class="w"> </span><span class="m">1</span><span class="w"> </span>--stop_stage<span class="w"> </span><span class="m">5</span>
+</pre></div>
+</div>
+</section>
+<section id="build-monotonic-alignment-search">
+<h2>Build Monotonic Alignment Search<a class="headerlink" href="#build-monotonic-alignment-search" title="Permalink to this heading"></a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>vits/monotonic_align
+$<span class="w"> </span>python<span class="w"> </span>setup.py<span class="w"> </span>build_ext<span class="w"> </span>--inplace
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../../
+</pre></div>
+</div>
+</section>
+<section id="training">
+<h2>Training<a class="headerlink" href="#training" title="Permalink to this heading"></a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;0,1,2,3&quot;</span>
+$<span class="w"> </span>./vits/train.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--world-size<span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--num-epochs<span class="w"> </span><span class="m">1000</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--start-epoch<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--use-fp16<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--exp-dir<span class="w"> </span>vits/exp<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--tokens<span class="w"> </span>data/tokens.txt
+<span class="w">    </span>--max-duration<span class="w"> </span><span class="m">500</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>You can adjust the hyper-parameters to control the size of the VITS model and
+the training configurations. For more details, please run <code class="docutils literal notranslate"><span class="pre">./vits/train.py</span> <span class="pre">--help</span></code>.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The training can take a long time (usually a couple of days).</p>
+</div>
+<p>Training logs, checkpoints and tensorboard logs are saved in <code class="docutils literal notranslate"><span class="pre">vits/exp</span></code>.</p>
+</section>
+<section id="inference">
+<h2>Inference<a class="headerlink" href="#inference" title="Permalink to this heading"></a></h2>
+<p>The inference part uses checkpoints saved by the training part, so you have to run the
+training part first. It will save the ground-truth and generated wavs to the directory
+<code class="docutils literal notranslate"><span class="pre">vits/exp/infer/epoch-*/wav</span></code>, e.g., <code class="docutils literal notranslate"><span class="pre">vits/exp/infer/epoch-1000/wav</span></code>.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;0&quot;</span>
+$<span class="w"> </span>./vits/infer.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--epoch<span class="w"> </span><span class="m">1000</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--exp-dir<span class="w"> </span>vits/exp<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--tokens<span class="w"> </span>data/tokens.txt
+<span class="w">    </span>--max-duration<span class="w"> </span><span class="m">500</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>For more details, please run <code class="docutils literal notranslate"><span class="pre">./vits/infer.py</span> <span class="pre">--help</span></code>.</p>
+</div>
+</section>
+<section id="export-models">
+<h2>Export models<a class="headerlink" href="#export-models" title="Permalink to this heading"></a></h2>
+<p>Currently we only support ONNX model exporting. It will generate two files in the given <code class="docutils literal notranslate"><span class="pre">exp-dir</span></code>:
+<code class="docutils literal notranslate"><span class="pre">vits-epoch-*.onnx</span></code> and <code class="docutils literal notranslate"><span class="pre">vits-epoch-*.int8.onnx</span></code>.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>./vits/export-onnx.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--epoch<span class="w"> </span><span class="m">1000</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--exp-dir<span class="w"> </span>vits/exp<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--tokens<span class="w"> </span>data/tokens.txt
+</pre></div>
+</div>
+<p>You can test the exported ONNX model with:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>./vits/test_onnx.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--model-filename<span class="w"> </span>vits/exp/vits-epoch-1000.onnx<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--tokens<span class="w"> </span>data/tokens.txt
+</pre></div>
+</div>
+</section>
+<section id="download-pretrained-models">
+<h2>Download pretrained models<a class="headerlink" href="#download-pretrained-models" title="Permalink to this heading"></a></h2>
+<p>If you don’t want to train from scratch, you can download the pretrained models
+by visiting the following link:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><a class="reference external" href="https://huggingface.co/Zengwei/icefall-tts-ljspeech-vits-2023-11-29">https://huggingface.co/Zengwei/icefall-tts-ljspeech-vits-2023-11-29</a></p></li>
+</ul>
+</div></blockquote>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="../index.html" class="btn btn-neutral float-left" title="TTS" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../../../contributing/index.html" class="btn btn-neutral float-right" title="Contributing" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2021, icefall development team.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
