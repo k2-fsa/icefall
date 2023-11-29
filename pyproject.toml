@@ -14,4 +14,5 @@ exclude = '''
   | icefall\/diagnostics\.py
   | icefall\/profiler\.py
   | egs\/librispeech\/ASR\/zipformer
+  | egs\/ljspeech\/TTS\/vits
 '''
