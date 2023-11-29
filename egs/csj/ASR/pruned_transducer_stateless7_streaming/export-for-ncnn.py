@@ -72,7 +72,7 @@ from pathlib import Path
 import torch
 from scaling_converter import convert_scaled_to_non_scaled
 from tokenizer import Tokenizer
-from train2 import add_model_arguments, get_params, get_transducer_model
+from do_not_use_it_directly import add_model_arguments, get_params, get_transducer_model
 
 from icefall.checkpoint import (
     average_checkpoints,
