@@ -36,13 +36,12 @@ import k2
 import torch
 import torch.nn as nn
 import torchaudio
-
-from train import get_model, get_params
 from tokenizer import Tokenizer
+from train import get_model, get_params
+from tts_datamodule import LJSpeechTtsDataModule
 
 from icefall.checkpoint import load_checkpoint
 from icefall.utils import AttributeDict, setup_logger
-from tts_datamodule import LJSpeechTtsDataModule
 
 
 def get_parser():
@@ -107,12 +106,12 @@ def infer_dataset(
         for i in range(batch_size):
             torchaudio.save(
                 str(params.save_wav_dir / f"{cut_ids[i]}_gt.wav"),
-                audio[i:i + 1, :audio_lens[i]],
+                audio[i : i + 1, : audio_lens[i]],
                 sample_rate=params.sampling_rate,
             )
             torchaudio.save(
                 str(params.save_wav_dir / f"{cut_ids[i]}_pred.wav"),
-                audio_pred[i:i + 1, :audio_lens_pred[i]],
+                audio_pred[i : i + 1, : audio_lens_pred[i]],
                 sample_rate=params.sampling_rate,
             )
 
@@ -144,14 +143,24 @@ def infer_dataset(
             audio_lens = batch["audio_lens"].tolist()
             cut_ids = [cut.id for cut in batch["cut"]]
 
-            audio_pred, _, durations = model.inference_batch(text=tokens, text_lengths=tokens_lens)
+            audio_pred, _, durations = model.inference_batch(
+                text=tokens, text_lengths=tokens_lens
+            )
             audio_pred = audio_pred.detach().cpu()
             # convert to samples
-            audio_lens_pred = (durations.sum(1) * params.frame_shift).to(dtype=torch.int64).tolist()
+            audio_lens_pred = (
+                (durations.sum(1) * params.frame_shift).to(dtype=torch.int64).tolist()
+            )
 
             futures.append(
                 executor.submit(
-                    _save_worker, batch_size, cut_ids, audio, audio_pred, audio_lens, audio_lens_pred
+                    _save_worker,
+                    batch_size,
+                    cut_ids,
+                    audio,
+                    audio_pred,
+                    audio_lens,
+                    audio_lens_pred,
                 )
             )
 
@@ -160,7 +169,9 @@ def infer_dataset(
             if batch_idx % log_interval == 0:
                 batch_str = f"{batch_idx}/{num_batches}"
 
-                logging.info(f"batch {batch_str}, cuts processed until now is {num_cuts}")
+                logging.info(
+                    f"batch {batch_str}, cuts processed until now is {num_cuts}"
+                )
         # return results
         for f in futures:
             f.result()

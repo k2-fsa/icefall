@@ -180,7 +180,13 @@ def export_model_onnx(
         model_filename,
         verbose=False,
         opset_version=opset_version,
-        input_names=["tokens", "tokens_lens", "noise_scale", "noise_scale_dur", "alpha"],
+        input_names=[
+            "tokens",
+            "tokens_lens",
+            "noise_scale",
+            "noise_scale_dur",
+            "alpha",
+        ],
         output_names=["audio"],
         dynamic_axes={
             "tokens": {0: "N", 1: "T"},

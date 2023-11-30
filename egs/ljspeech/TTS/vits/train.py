@@ -18,21 +18,25 @@
 
 import argparse
 import logging
-import numpy as np
 from pathlib import Path
 from shutil import copyfile
 from typing import Any, Dict, Optional, Tuple, Union
 
 import k2
+import numpy as np
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 from lhotse.cut import Cut
 from lhotse.utils import fix_random_seed
-from torch.optim import Optimizer
+from tokenizer import Tokenizer
 from torch.cuda.amp import GradScaler, autocast
 from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.optim import Optimizer
 from torch.utils.tensorboard import SummaryWriter
+from tts_datamodule import LJSpeechTtsDataModule
+from utils import MetricsTracker, plot_feature, save_checkpoint
+from vits import VITS
 
 from icefall import diagnostics
 from icefall.checkpoint import load_checkpoint
@@ -40,11 +44,6 @@ from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
 from icefall.hooks import register_inf_check_hooks
 from icefall.utils import AttributeDict, setup_logger, str2bool
-
-from tokenizer import Tokenizer
-from tts_datamodule import LJSpeechTtsDataModule
-from utils import MetricsTracker, plot_feature, save_checkpoint
-from vits import VITS
 
 LRSchedulerType = torch.optim.lr_scheduler._LRScheduler
 
@@ -385,11 +384,12 @@ def train_one_epoch(
         params.batch_idx_train += 1
 
         batch_size = len(batch["tokens"])
-        audio, audio_lens, features, features_lens, tokens, tokens_lens = \
-            prepare_input(batch, tokenizer, device)
+        audio, audio_lens, features, features_lens, tokens, tokens_lens = prepare_input(
+            batch, tokenizer, device
+        )
 
         loss_info = MetricsTracker()
-        loss_info['samples'] = batch_size
+        loss_info["samples"] = batch_size
 
         try:
             with autocast(enabled=params.use_fp16):
@@ -446,7 +446,9 @@ def train_one_epoch(
             # behavior depending on the current grad scale.
             cur_grad_scale = scaler._scale.item()
 
-            if cur_grad_scale < 8.0 or (cur_grad_scale < 32.0 and params.batch_idx_train % 400 == 0):
+            if cur_grad_scale < 8.0 or (
+                cur_grad_scale < 32.0 and params.batch_idx_train % 400 == 0
+            ):
                 scaler.update(cur_grad_scale * 2.0)
             if cur_grad_scale < 0.01:
                 if not saved_bad_model:
@@ -482,9 +484,7 @@ def train_one_epoch(
                 loss_info.write_summary(
                     tb_writer, "train/current_", params.batch_idx_train
                 )
-                tot_loss.write_summary(
-                    tb_writer, "train/tot_", params.batch_idx_train
-                )
+                tot_loss.write_summary(tb_writer, "train/tot_", params.batch_idx_train)
                 if params.use_fp16:
                     tb_writer.add_scalar(
                         "train/grad_scale", cur_grad_scale, params.batch_idx_train
@@ -492,19 +492,34 @@ def train_one_epoch(
                 if "returned_sample" in stats_g:
                     speech_hat_, speech_, mel_hat_, mel_ = stats_g["returned_sample"]
                     tb_writer.add_audio(
-                        "train/speech_hat_", speech_hat_, params.batch_idx_train, params.sampling_rate
+                        "train/speech_hat_",
+                        speech_hat_,
+                        params.batch_idx_train,
+                        params.sampling_rate,
                     )
                     tb_writer.add_audio(
-                        "train/speech_", speech_, params.batch_idx_train, params.sampling_rate
+                        "train/speech_",
+                        speech_,
+                        params.batch_idx_train,
+                        params.sampling_rate,
                     )
                     tb_writer.add_image(
-                        "train/mel_hat_", plot_feature(mel_hat_), params.batch_idx_train, dataformats='HWC'
+                        "train/mel_hat_",
+                        plot_feature(mel_hat_),
+                        params.batch_idx_train,
+                        dataformats="HWC",
                     )
                     tb_writer.add_image(
-                        "train/mel_", plot_feature(mel_), params.batch_idx_train, dataformats='HWC'
+                        "train/mel_",
+                        plot_feature(mel_),
+                        params.batch_idx_train,
+                        dataformats="HWC",
                     )
 
-        if params.batch_idx_train % params.valid_interval == 0 and not params.print_diagnostics:
+        if (
+            params.batch_idx_train % params.valid_interval == 0
+            and not params.print_diagnostics
+        ):
             logging.info("Computing validation loss")
             valid_info, (speech_hat, speech) = compute_validation_loss(
                 params=params,
@@ -523,10 +538,16 @@ def train_one_epoch(
                     tb_writer, "train/valid_", params.batch_idx_train
                 )
                 tb_writer.add_audio(
-                    "train/valdi_speech_hat", speech_hat, params.batch_idx_train, params.sampling_rate
+                    "train/valdi_speech_hat",
+                    speech_hat,
+                    params.batch_idx_train,
+                    params.sampling_rate,
                 )
                 tb_writer.add_audio(
-                    "train/valdi_speech", speech, params.batch_idx_train, params.sampling_rate
+                    "train/valdi_speech",
+                    speech,
+                    params.batch_idx_train,
+                    params.sampling_rate,
                 )
 
     loss_value = tot_loss["generator_loss"] / tot_loss["samples"]
@@ -555,11 +576,17 @@ def compute_validation_loss(
     with torch.no_grad():
         for batch_idx, batch in enumerate(valid_dl):
             batch_size = len(batch["tokens"])
-            audio, audio_lens, features, features_lens, tokens, tokens_lens = \
-                prepare_input(batch, tokenizer, device)
+            (
+                audio,
+                audio_lens,
+                features,
+                features_lens,
+                tokens,
+                tokens_lens,
+            ) = prepare_input(batch, tokenizer, device)
 
             loss_info = MetricsTracker()
-            loss_info['samples'] = batch_size
+            loss_info["samples"] = batch_size
 
             # forward discriminator
             loss_d, stats_d = model(
@@ -596,12 +623,17 @@ def compute_validation_loss(
             if batch_idx == 0 and rank == 0:
                 inner_model = model.module if isinstance(model, DDP) else model
                 audio_pred, _, duration = inner_model.inference(
-                    text=tokens[0, :tokens_lens[0].item()]
+                    text=tokens[0, : tokens_lens[0].item()]
                 )
                 audio_pred = audio_pred.data.cpu().numpy()
-                audio_len_pred = (duration.sum(0) * params.frame_shift).to(dtype=torch.int64).item()
-                assert audio_len_pred == len(audio_pred), (audio_len_pred, len(audio_pred))
-                audio_gt = audio[0, :audio_lens[0].item()].data.cpu().numpy()
+                audio_len_pred = (
+                    (duration.sum(0) * params.frame_shift).to(dtype=torch.int64).item()
+                )
+                assert audio_len_pred == len(audio_pred), (
+                    audio_len_pred,
+                    len(audio_pred),
+                )
+                audio_gt = audio[0, : audio_lens[0].item()].data.cpu().numpy()
                 returned_sample = (audio_pred, audio_gt)
 
     if world_size > 1:
@@ -632,8 +664,9 @@ def scan_pessimistic_batches_for_oom(
     batches, crit_values = find_pessimistic_batches(train_dl.sampler)
     for criterion, cuts in batches.items():
         batch = train_dl.dataset[cuts]
-        audio, audio_lens, features, features_lens, tokens, tokens_lens = \
-            prepare_input(batch, tokenizer, device)
+        audio, audio_lens, features, features_lens, tokens, tokens_lens = prepare_input(
+            batch, tokenizer, device
+        )
         try:
             # for discriminator
             with autocast(enabled=params.use_fp16):

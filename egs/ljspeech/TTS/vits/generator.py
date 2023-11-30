@@ -16,15 +16,14 @@ from typing import List, Optional, Tuple
 import numpy as np
 import torch
 import torch.nn.functional as F
-
-from icefall.utils import make_pad_mask
-
 from duration_predictor import StochasticDurationPredictor
 from hifigan import HiFiGANGenerator
 from posterior_encoder import PosteriorEncoder
 from residual_coupling import ResidualAffineCouplingBlock
 from text_encoder import TextEncoder
 from utils import get_random_segments
+
+from icefall.utils import make_pad_mask
 
 
 class VITSGenerator(torch.nn.Module):

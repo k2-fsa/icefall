@@ -14,7 +14,6 @@ from typing import List, Tuple, Union
 import torch
 import torch.distributions as D
 import torch.nn.functional as F
-
 from lhotse.features.kaldi import Wav2LogFilterBank
 
 

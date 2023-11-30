@@ -13,7 +13,6 @@ import math
 from typing import Optional, Tuple, Union
 
 import torch
-
 from transform import piecewise_rational_quadratic_transform
 
 

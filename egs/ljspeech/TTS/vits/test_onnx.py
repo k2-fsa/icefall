@@ -28,10 +28,10 @@ Use the onnx model to generate a wav:
 
 import argparse
 import logging
+
 import onnxruntime as ort
 import torch
 import torchaudio
-
 from tokenizer import Tokenizer
 
 

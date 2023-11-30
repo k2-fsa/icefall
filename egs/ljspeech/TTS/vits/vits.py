@@ -9,8 +9,7 @@ from typing import Any, Dict, Optional, Tuple
 
 import torch
 import torch.nn as nn
-from torch.cuda.amp import autocast
-
+from generator import VITSGenerator
 from hifigan import (
     HiFiGANMultiPeriodDiscriminator,
     HiFiGANMultiScaleDiscriminator,
@@ -25,9 +24,8 @@ from loss import (
     KLDivergenceLoss,
     MelSpectrogramLoss,
 )
+from torch.cuda.amp import autocast
 from utils import get_segments
-from generator import VITSGenerator
-
 
 AVAILABLE_GENERATERS = {
     "vits_generator": VITSGenerator,
@@ -42,8 +40,7 @@ AVAILABLE_DISCRIMINATORS = {
 
 
 class VITS(nn.Module):
-    """Implement VITS, `Conditional Variational Autoencoder with Adversarial Learning for End-to-End Text-to-Speech`
-    """
+    """Implement VITS, `Conditional Variational Autoencoder with Adversarial Learning for End-to-End Text-to-Speech`"""
 
     def __init__(
         self,
