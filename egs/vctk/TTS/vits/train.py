@@ -684,6 +684,7 @@ def compute_validation_loss(
                 inner_model = model.module if isinstance(model, DDP) else model
                 audio_pred, _, duration = inner_model.inference(
                     text=tokens[0, : tokens_lens[0].item()]
+                    sids=speakers,
                 )
                 audio_pred = audio_pred.data.cpu().numpy()
                 audio_len_pred = (
