@@ -43,7 +43,7 @@ def prepare_tokens_vctk():
     for cut in tqdm(cut_set):
         # Each cut only contains one supervision
         assert len(cut.supervisions) == 1, len(cut.supervisions)
-        text = cut.supervisions[0].normalized_text
+        text = cut.supervisions[0].text
         # Text normalization
         text = tacotron_cleaner.cleaners.custom_english_cleaners(text)
         # Convert to phonemes
