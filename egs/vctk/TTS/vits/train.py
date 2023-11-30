@@ -279,7 +279,7 @@ def get_model(params: AttributeDict) -> nn.Module:
         "spks": params.num_spks,
         "langs": None,
         "spk_embed_dim": None,
-        "global_channels": -1,
+        "global_channels": 256,
         "segment_size": 32,
         "text_encoder_attention_heads": 2,
         "text_encoder_ffn_expand": 4,
