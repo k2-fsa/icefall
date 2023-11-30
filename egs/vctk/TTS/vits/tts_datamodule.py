@@ -89,6 +89,12 @@ class VctkTtsDataModule:
             help="Path to directory with train/valid/test cuts.",
         )
         group.add_argument(
+            "--speakers",
+            type=Path,
+            default=Path("data/speakers.txt"),
+            help="Path to speakers.txt file.",
+        )
+        group.add_argument(
             "--max-duration",
             type=int,
             default=200.0,
@@ -306,20 +312,21 @@ class VctkTtsDataModule:
     @lru_cache()
     def train_cuts(self) -> CutSet:
         logging.info("About to get train cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "ljspeech_cuts_train.jsonl.gz"
-        )
+        return load_manifest_lazy(self.args.manifest_dir / "vctk_cuts_train.jsonl.gz")
 
     @lru_cache()
     def valid_cuts(self) -> CutSet:
         logging.info("About to get validation cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "ljspeech_cuts_valid.jsonl.gz"
-        )
+        return load_manifest_lazy(self.args.manifest_dir / "vctk_cuts_valid.jsonl.gz")
 
     @lru_cache()
     def test_cuts(self) -> CutSet:
         logging.info("About to get test cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "ljspeech_cuts_test.jsonl.gz"
-        )
+        return load_manifest_lazy(self.args.manifest_dir / "vctk_cuts_test.jsonl.gz")
+
+    @lru_cache()
+    def speakers(self) -> Dict[str, int]:
+        logging.info("About to get speakers")
+        with open(self.args.speakers) as f:
+            speakers = {line.strip(): i for i, line in enumerate(f)}
+        return speakers
