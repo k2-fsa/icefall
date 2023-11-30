@@ -176,6 +176,7 @@ class VctkTtsDataModule:
         train = SpeechSynthesisDataset(
             return_text=False,
             return_tokens=True,
+            return_spk_ids=True,
             feature_input_strategy=eval(self.args.input_strategy)(),
             return_cuts=self.args.return_cuts,
         )
@@ -191,6 +192,7 @@ class VctkTtsDataModule:
             train = SpeechSynthesisDataset(
                 return_text=False,
                 return_tokens=True,
+                return_spk_ids=True,
                 feature_input_strategy=OnTheFlyFeatures(Spectrogram(config)),
                 return_cuts=self.args.return_cuts,
             )
@@ -246,6 +248,7 @@ class VctkTtsDataModule:
             validate = SpeechSynthesisDataset(
                 return_text=False,
                 return_tokens=True,
+                return_spk_ids=True,
                 feature_input_strategy=OnTheFlyFeatures(Spectrogram(config)),
                 return_cuts=self.args.return_cuts,
             )
@@ -253,6 +256,7 @@ class VctkTtsDataModule:
             validate = SpeechSynthesisDataset(
                 return_text=False,
                 return_tokens=True,
+                return_spk_ids=True,
                 feature_input_strategy=eval(self.args.input_strategy)(),
                 return_cuts=self.args.return_cuts,
             )
@@ -285,6 +289,7 @@ class VctkTtsDataModule:
             test = SpeechSynthesisDataset(
                 return_text=False,
                 return_tokens=True,
+                return_spk_ids=True,
                 feature_input_strategy=OnTheFlyFeatures(Spectrogram(config)),
                 return_cuts=self.args.return_cuts,
             )
@@ -292,6 +297,7 @@ class VctkTtsDataModule:
             test = SpeechSynthesisDataset(
                 return_text=False,
                 return_tokens=True,
+                return_spk_ids=True,
                 feature_input_strategy=eval(self.args.input_strategy)(),
                 return_cuts=self.args.return_cuts,
             )
