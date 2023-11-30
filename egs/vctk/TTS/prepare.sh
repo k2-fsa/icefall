@@ -111,4 +111,11 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   fi
 fi
 
-
+if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
+  log "Stage 6: Generate speakers file"
+  if [ ! -e data/speakers.txt ]; then
+    gunzip -c data/manifests/vctk_supervisions_all.jsonl.gz \
+      | jq '.speaker' | sed 's/"//g' \
+      | sort | uniq > data/speakers.txt
+  fi
+fi
