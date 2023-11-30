@@ -27,6 +27,7 @@ from pathlib import Path
 import g2p_en
 import tacotron_cleaner.cleaners
 from lhotse import CutSet, load_manifest
+from tqdm.auto import tqdm
 
 
 def prepare_tokens_vctk():
@@ -39,7 +40,7 @@ def prepare_tokens_vctk():
     g2p = g2p_en.G2p()
 
     new_cuts = []
-    for cut in cut_set:
+    for cut in tqdm(cut_set):
         # Each cut only contains one supervision
         assert len(cut.supervisions) == 1, len(cut.supervisions)
         text = cut.supervisions[0].normalized_text
