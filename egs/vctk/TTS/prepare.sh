@@ -119,3 +119,14 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
       | sort | uniq > data/speakers.txt
   fi
 fi
+
+if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
+  log "Stage 7: build monotonic_align lib"
+  if [ ! -d vits/monotonic_align/build ]; then
+    cd vits/monotonic_align
+    python setup.py build_ext --inplace
+    cd ../../
+  else 
+    log "monotonic_align lib already built"
+  fi
+fi
