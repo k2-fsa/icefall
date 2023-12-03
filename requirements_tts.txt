@@ -1,0 +1,6 @@
+# for TTS recipes
+matplotlib
+cython
+numba
+g2p_en
+espnet_tts_frontend
