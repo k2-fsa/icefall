@@ -247,12 +247,7 @@ def main():
     valid_cuts = vctk.valid_cuts()
     valid_dl = vctk.valid_dataloaders(valid_cuts)
 
-    infer_sets: Dict = {
-        "test",
-        test_dl,
-        "valid",
-        valid_dl,
-    }
+    infer_sets = {"test": test_dl, "valid": valid_dl}
 
     for subset, dl in infer_sets.items():
         save_wav_dir = params.res_dir / "wav" / subset
