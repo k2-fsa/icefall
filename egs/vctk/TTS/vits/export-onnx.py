@@ -69,6 +69,12 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--speakers",
+        type=Path,
+        default=Path("data/speakers.txt"),
+        help="Path to speakers.txt file.",
+    )
+    parser.add_argument(
         "--tokens",
         type=str,
         default="data/tokens.txt",
@@ -218,6 +224,10 @@ def main():
     params.blank_id = tokenizer.blank_id
     params.oov_id = tokenizer.oov_id
     params.vocab_size = tokenizer.vocab_size
+
+    with open(args.speakers) as f:
+        speaker_map = {line.strip(): i for i, line in enumerate(f)}
+    params.num_spks = len(speaker_map)
 
     logging.info(params)
 
