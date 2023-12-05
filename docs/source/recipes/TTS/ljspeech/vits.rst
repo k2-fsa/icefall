@@ -5,6 +5,10 @@ This tutorial shows you how to train an VITS model
 with the `LJSpeech <https://keithito.com/LJ-Speech-Dataset/>`_ dataset.
 
 .. note::
+  
+   TTS related recipes require packages in ``requirements-tts.txt``.
+
+.. note::
 
    The VITS paper: `Conditional Variational Autoencoder with Adversarial Learning for End-to-End Text-to-Speech <https://arxiv.org/pdf/2106.06103.pdf>`_
 
@@ -26,6 +30,12 @@ To run stage 1 to stage 5, use
 
 Build Monotonic Alignment Search
 --------------------------------
+
+.. code-block:: bash
+
+  $ ./prepare.sh --stage -1 --stop_stage -1
+
+or
 
 .. code-block:: bash
 

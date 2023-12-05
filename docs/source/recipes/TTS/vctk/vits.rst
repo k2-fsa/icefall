@@ -5,6 +5,10 @@ This tutorial shows you how to train an VITS model
 with the `VCTK <https://datashare.ed.ac.uk/handle/10283/3443>`_ dataset.
 
 .. note::
+  
+   TTS related recipes require packages in ``requirements-tts.txt``.
+
+.. note::
 
    The VITS paper: `Conditional Variational Autoencoder with Adversarial Learning for End-to-End Text-to-Speech <https://arxiv.org/pdf/2106.06103.pdf>`_
 
@@ -31,7 +35,7 @@ To build the monotonic alignment search, use the following commands:
 
 .. code-block:: bash
 
-  $ ./prepare.sh --stage 7 --stop_stage 7
+  $ ./prepare.sh --stage -1 --stop_stage -1
 
 or
 

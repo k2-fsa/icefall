@@ -5,8 +5,7 @@ export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
 
 set -eou pipefail
 
-nj=1
-stage=-1
+stage=0
 stop_stage=100
 
 dl_dir=$PWD/download
@@ -24,6 +23,17 @@ log() {
 }
 
 log "dl_dir: $dl_dir"
+
+if [ $stage -le -1 ] && [ $stop_stage -ge -1 ]; then
+  log "Stage -1: build monotonic_align lib"
+  if [ ! -d vits/monotonic_align/build ]; then
+    cd vits/monotonic_align
+    python setup.py build_ext --inplace
+    cd ../../
+  else 
+    log "monotonic_align lib already built"
+  fi
+fi
 
 if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   log "Stage 0: Download data"
@@ -117,16 +127,5 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
     gunzip -c data/manifests/vctk_supervisions_all.jsonl.gz \
       | jq '.speaker' | sed 's/"//g' \
       | sort | uniq > data/speakers.txt
-  fi
-fi
-
-if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
-  log "Stage 7: build monotonic_align lib"
-  if [ ! -d vits/monotonic_align/build ]; then
-    cd vits/monotonic_align
-    python setup.py build_ext --inplace
-    cd ../../
-  else 
-    log "monotonic_align lib already built"
   fi
 fi
