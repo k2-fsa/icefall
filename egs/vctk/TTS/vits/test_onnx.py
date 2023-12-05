@@ -111,6 +111,10 @@ def main():
 
     tokenizer = Tokenizer(args.tokens)
 
+    with open(args.speakers) as f:
+        speaker_map = {line.strip(): i for i, line in enumerate(f)}
+    args.num_spks = len(speaker_map)
+
     logging.info("About to create onnx model")
     model = OnnxModel(args.model_filename)
 
@@ -118,7 +122,8 @@ def main():
     tokens = tokenizer.texts_to_token_ids([text])
     tokens = torch.tensor(tokens)  # (1, T)
     tokens_lens = torch.tensor([tokens.shape[1]], dtype=torch.int64)  # (1, T)
-    audio = model(tokens, tokens_lens)  # (1, T')
+    speaker = torch.tensor([1], dtype=torch.int64)  # (1, )
+    audio = model(tokens, tokens_lens, speaker)  # (1, T')
 
     torchaudio.save(str("test_onnx.wav"), audio, sample_rate=22050)
     logging.info("Saved to test_onnx.wav")
