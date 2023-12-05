@@ -82,7 +82,7 @@ training part first. It will save the ground-truth and generated wavs to the dir
   $ ./vits/infer.py \
       --epoch 1000 \
       --exp-dir vits/exp \
-      --tokens data/tokens.txt
+      --tokens data/tokens.txt \
       --max-duration 500
 
 .. note::
