@@ -28,10 +28,11 @@ Use the onnx model to generate a wav:
 
 import argparse
 import logging
+from pathlib import Path
+
 import onnxruntime as ort
 import torch
 import torchaudio
-
 from tokenizer import Tokenizer
 
 
@@ -47,6 +48,12 @@ def get_parser():
         help="Path to the onnx model.",
     )
 
+    parser.add_argument(
+        "--speakers",
+        type=Path,
+        default=Path("data/speakers.txt"),
+        help="Path to speakers.txt file.",
+    )
     parser.add_argument(
         "--tokens",
         type=str,
