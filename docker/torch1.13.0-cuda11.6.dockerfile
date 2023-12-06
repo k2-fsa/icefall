@@ -18,7 +18,7 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         curl \
         vim \
-    		libssl-dev \
+    	libssl-dev \
         autoconf \
         automake \
         bzip2 \
