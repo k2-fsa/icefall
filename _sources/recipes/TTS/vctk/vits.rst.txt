@@ -2,7 +2,7 @@ VITS
 ===============
 
 This tutorial shows you how to train an VITS model
-with the `LJSpeech <https://keithito.com/LJ-Speech-Dataset/>`_ dataset.
+with the `VCTK <https://datashare.ed.ac.uk/handle/10283/3443>`_ dataset.
 
 .. note::
   
@@ -18,18 +18,20 @@ Data preparation
 
 .. code-block:: bash
 
-  $ cd egs/ljspeech/TTS
+  $ cd egs/vctk/TTS
   $ ./prepare.sh
 
-To run stage 1 to stage 5, use
+To run stage 1 to stage 6, use
 
 .. code-block:: bash
 
-  $ ./prepare.sh --stage 1 --stop_stage 5
+  $ ./prepare.sh --stage 1 --stop_stage 6
 
 
 Build Monotonic Alignment Search
 --------------------------------
+
+To build the monotonic alignment search, use the following commands:
 
 .. code-block:: bash
 
@@ -57,7 +59,7 @@ Training
       --use-fp16 1 \
       --exp-dir vits/exp \
       --tokens data/tokens.txt
-      --max-duration 500
+      --max-duration 350
 
 .. note::
 
@@ -120,4 +122,4 @@ Download pretrained models
 If you don't want to train from scratch, you can download the pretrained models
 by visiting the following link:
 
-  - `<https://huggingface.co/Zengwei/icefall-tts-ljspeech-vits-2023-11-29>`_
+  - `<https://huggingface.co/zrjin/icefall-tts-vctk-vits-2023-12-05>`_

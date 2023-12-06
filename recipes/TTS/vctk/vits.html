@@ -21,8 +21,8 @@
     <script src="../../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" />
-    <link rel="next" title="VITS" href="../vctk/vits.html" />
-    <link rel="prev" title="TTS" href="../index.html" /> 
+    <link rel="next" title="Contributing" href="../../../contributing/index.html" />
+    <link rel="prev" title="VITS" href="../ljspeech/vits.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -58,6 +58,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../Streaming-ASR/index.html">Streaming ASR</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../RNN-LM/index.html">RNN-LM</a></li>
 <li class="toctree-l2 current"><a class="reference internal" href="../index.html">TTS</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="../ljspeech/vits.html">VITS</a></li>
 <li class="toctree-l3 current"><a class="current reference internal" href="#">VITS</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#data-preparation">Data preparation</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#build-monotonic-alignment-search">Build Monotonic Alignment Search</a></li>
@@ -67,7 +68,6 @@
 <li class="toctree-l4"><a class="reference internal" href="#download-pretrained-models">Download pretrained models</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="../vctk/vits.html">VITS</a></li>
 </ul>
 </li>
 </ul>
@@ -99,7 +99,7 @@
           <li class="breadcrumb-item"><a href="../index.html">TTS</a></li>
       <li class="breadcrumb-item active">VITS</li>
       <li class="wy-breadcrumbs-aside">
-              <a href="https://github.com/k2-fsa/icefall/blob/master/docs/source/recipes/TTS/ljspeech/vits.rst" class="fa fa-github"> Edit on GitHub</a>
+              <a href="https://github.com/k2-fsa/icefall/blob/master/docs/source/recipes/TTS/vctk/vits.rst" class="fa fa-github"> Edit on GitHub</a>
       </li>
   </ul>
   <hr/>
@@ -110,7 +110,7 @@
   <section id="vits">
 <h1>VITS<a class="headerlink" href="#vits" title="Permalink to this heading"></a></h1>
 <p>This tutorial shows you how to train an VITS model
-with the <a class="reference external" href="https://keithito.com/LJ-Speech-Dataset/">LJSpeech</a> dataset.</p>
+with the <a class="reference external" href="https://datashare.ed.ac.uk/handle/10283/3443">VCTK</a> dataset.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>TTS related recipes require packages in <code class="docutils literal notranslate"><span class="pre">requirements-tts.txt</span></code>.</p>
@@ -121,17 +121,18 @@ with the <a class="reference external" href="https://keithito.com/LJ-Speech-Data
 </div>
 <section id="data-preparation">
 <h2>Data preparation<a class="headerlink" href="#data-preparation" title="Permalink to this heading"></a></h2>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/ljspeech/TTS
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/vctk/TTS
 $<span class="w"> </span>./prepare.sh
 </pre></div>
 </div>
-<p>To run stage 1 to stage 5, use</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>./prepare.sh<span class="w"> </span>--stage<span class="w"> </span><span class="m">1</span><span class="w"> </span>--stop_stage<span class="w"> </span><span class="m">5</span>
+<p>To run stage 1 to stage 6, use</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>./prepare.sh<span class="w"> </span>--stage<span class="w"> </span><span class="m">1</span><span class="w"> </span>--stop_stage<span class="w"> </span><span class="m">6</span>
 </pre></div>
 </div>
 </section>
 <section id="build-monotonic-alignment-search">
 <h2>Build Monotonic Alignment Search<a class="headerlink" href="#build-monotonic-alignment-search" title="Permalink to this heading"></a></h2>
+<p>To build the monotonic alignment search, use the following commands:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>./prepare.sh<span class="w"> </span>--stage<span class="w"> </span>-1<span class="w"> </span>--stop_stage<span class="w"> </span>-1
 </pre></div>
 </div>
@@ -152,7 +153,7 @@ $<span class="w"> </span>./vits/train.py<span class="w"> </span><span class="se"
 <span class="w">    </span>--use-fp16<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--exp-dir<span class="w"> </span>vits/exp<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--tokens<span class="w"> </span>data/tokens.txt
-<span class="w">    </span>--max-duration<span class="w"> </span><span class="m">500</span>
+<span class="w">    </span>--max-duration<span class="w"> </span><span class="m">350</span>
 </pre></div>
 </div>
 <div class="admonition note">
@@ -207,7 +208,7 @@ $<span class="w"> </span>./vits/infer.py<span class="w"> </span><span class="se"
 by visiting the following link:</p>
 <blockquote>
 <div><ul class="simple">
-<li><p><a class="reference external" href="https://huggingface.co/Zengwei/icefall-tts-ljspeech-vits-2023-11-29">https://huggingface.co/Zengwei/icefall-tts-ljspeech-vits-2023-11-29</a></p></li>
+<li><p><a class="reference external" href="https://huggingface.co/zrjin/icefall-tts-vctk-vits-2023-12-05">https://huggingface.co/zrjin/icefall-tts-vctk-vits-2023-12-05</a></p></li>
 </ul>
 </div></blockquote>
 </section>
@@ -217,8 +218,8 @@ by visiting the following link:</p>
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="../index.html" class="btn btn-neutral float-left" title="TTS" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="../vctk/vits.html" class="btn btn-neutral float-right" title="VITS" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="../ljspeech/vits.html" class="btn btn-neutral float-left" title="VITS" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../../../contributing/index.html" class="btn btn-neutral float-right" title="Contributing" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>
