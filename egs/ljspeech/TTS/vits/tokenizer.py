@@ -78,7 +78,9 @@ class Tokenizer(object):
 
         return token_ids_list
 
-    def tokens_to_token_ids(self, tokens_list: List[str], intersperse_blank: bool = True):
+    def tokens_to_token_ids(
+        self, tokens_list: List[str], intersperse_blank: bool = True
+    ):
         """
         Args:
           tokens_list:

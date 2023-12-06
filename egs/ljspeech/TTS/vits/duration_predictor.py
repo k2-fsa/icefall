@@ -14,7 +14,6 @@ from typing import Optional
 
 import torch
 import torch.nn.functional as F
-
 from flow import (
     ConvFlow,
     DilatedDepthSeparableConv,

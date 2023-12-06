@@ -28,6 +28,7 @@ Use the onnx model to generate a wav:
 
 import argparse
 import logging
+from pathlib import Path
 
 import onnxruntime as ort
 import torch
@@ -47,6 +48,12 @@ def get_parser():
         help="Path to the onnx model.",
     )
 
+    parser.add_argument(
+        "--speakers",
+        type=Path,
+        default=Path("data/speakers.txt"),
+        help="Path to speakers.txt file.",
+    )
     parser.add_argument(
         "--tokens",
         type=str,
@@ -72,7 +79,9 @@ class OnnxModel:
         )
         logging.info(f"{self.model.get_modelmeta().custom_metadata_map}")
 
-    def __call__(self, tokens: torch.Tensor, tokens_lens: torch.Tensor) -> torch.Tensor:
+    def __call__(
+        self, tokens: torch.Tensor, tokens_lens: torch.Tensor, speaker: torch.Tensor
+    ) -> torch.Tensor:
         """
         Args:
           tokens:
@@ -93,7 +102,8 @@ class OnnxModel:
                 self.model.get_inputs()[1].name: tokens_lens.numpy(),
                 self.model.get_inputs()[2].name: noise_scale.numpy(),
                 self.model.get_inputs()[3].name: noise_scale_dur.numpy(),
-                self.model.get_inputs()[4].name: alpha.numpy(),
+                self.model.get_inputs()[4].name: speaker.numpy(),
+                self.model.get_inputs()[5].name: alpha.numpy(),
             },
         )[0]
         return torch.from_numpy(out)
@@ -104,6 +114,10 @@ def main():
 
     tokenizer = Tokenizer(args.tokens)
 
+    with open(args.speakers) as f:
+        speaker_map = {line.strip(): i for i, line in enumerate(f)}
+    args.num_spks = len(speaker_map)
+
     logging.info("About to create onnx model")
     model = OnnxModel(args.model_filename)
 
@@ -111,7 +125,8 @@ def main():
     tokens = tokenizer.texts_to_token_ids([text])
     tokens = torch.tensor(tokens)  # (1, T)
     tokens_lens = torch.tensor([tokens.shape[1]], dtype=torch.int64)  # (1, T)
-    audio = model(tokens, tokens_lens)  # (1, T')
+    speaker = torch.tensor([1], dtype=torch.int64)  # (1, )
+    audio = model(tokens, tokens_lens, speaker)  # (1, T')
 
     torchaudio.save(str("test_onnx.wav"), audio, sample_rate=22050)
     logging.info("Saved to test_onnx.wav")

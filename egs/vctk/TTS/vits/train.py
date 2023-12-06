@@ -34,7 +34,7 @@ from torch.cuda.amp import GradScaler, autocast
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim import Optimizer
 from torch.utils.tensorboard import SummaryWriter
-from tts_datamodule import LJSpeechTtsDataModule
+from tts_datamodule import VctkTtsDataModule
 from utils import MetricsTracker, plot_feature, save_checkpoint
 from vits import VITS
 
@@ -274,10 +274,48 @@ def get_model(params: AttributeDict) -> nn.Module:
         "frame_length": params.frame_length,
         "frame_shift": params.frame_shift,
     }
+    generator_params = {
+        "hidden_channels": 192,
+        "spks": params.num_spks,
+        "langs": None,
+        "spk_embed_dim": None,
+        "global_channels": 256,
+        "segment_size": 32,
+        "text_encoder_attention_heads": 2,
+        "text_encoder_ffn_expand": 4,
+        "text_encoder_cnn_module_kernel": 5,
+        "text_encoder_blocks": 6,
+        "text_encoder_dropout_rate": 0.1,
+        "decoder_kernel_size": 7,
+        "decoder_channels": 512,
+        "decoder_upsample_scales": [8, 8, 2, 2],
+        "decoder_upsample_kernel_sizes": [16, 16, 4, 4],
+        "decoder_resblock_kernel_sizes": [3, 7, 11],
+        "decoder_resblock_dilations": [[1, 3, 5], [1, 3, 5], [1, 3, 5]],
+        "use_weight_norm_in_decoder": True,
+        "posterior_encoder_kernel_size": 5,
+        "posterior_encoder_layers": 16,
+        "posterior_encoder_stacks": 1,
+        "posterior_encoder_base_dilation": 1,
+        "posterior_encoder_dropout_rate": 0.0,
+        "use_weight_norm_in_posterior_encoder": True,
+        "flow_flows": 4,
+        "flow_kernel_size": 5,
+        "flow_base_dilation": 1,
+        "flow_layers": 4,
+        "flow_dropout_rate": 0.0,
+        "use_weight_norm_in_flow": True,
+        "use_only_mean_in_flow": True,
+        "stochastic_duration_predictor_kernel_size": 3,
+        "stochastic_duration_predictor_dropout_rate": 0.5,
+        "stochastic_duration_predictor_flows": 4,
+        "stochastic_duration_predictor_dds_conv_layers": 3,
+    }
     model = VITS(
         vocab_size=params.vocab_size,
         feature_dim=params.feature_dim,
         sampling_rate=params.sampling_rate,
+        generator_params=generator_params,
         mel_loss_params=mel_loss_params,
         lambda_adv=params.lambda_adv,
         lambda_mel=params.lambda_mel,
@@ -288,13 +326,21 @@ def get_model(params: AttributeDict) -> nn.Module:
     return model
 
 
-def prepare_input(batch: dict, tokenizer: Tokenizer, device: torch.device):
+def prepare_input(
+    batch: dict,
+    tokenizer: Tokenizer,
+    device: torch.device,
+    speaker_map: Dict[str, int],
+):
     """Parse batch data"""
     audio = batch["audio"].to(device)
     features = batch["features"].to(device)
     audio_lens = batch["audio_lens"].to(device)
     features_lens = batch["features_lens"].to(device)
     tokens = batch["tokens"]
+    speakers = (
+        torch.Tensor([speaker_map[sid] for sid in batch["speakers"]]).int().to(device)
+    )
 
     tokens = tokenizer.tokens_to_token_ids(tokens)
     tokens = k2.RaggedTensor(tokens)
@@ -305,7 +351,7 @@ def prepare_input(batch: dict, tokenizer: Tokenizer, device: torch.device):
     # a tensor of shape (B, T)
     tokens = tokens.pad(mode="constant", padding_value=tokenizer.blank_id)
 
-    return audio, audio_lens, features, features_lens, tokens, tokens_lens
+    return audio, audio_lens, features, features_lens, tokens, tokens_lens, speakers
 
 
 def train_one_epoch(
@@ -318,6 +364,7 @@ def train_one_epoch(
     scheduler_d: LRSchedulerType,
     train_dl: torch.utils.data.DataLoader,
     valid_dl: torch.utils.data.DataLoader,
+    speaker_map: Dict[str, int],
     scaler: GradScaler,
     tb_writer: Optional[SummaryWriter] = None,
     world_size: int = 1,
@@ -384,9 +431,15 @@ def train_one_epoch(
         params.batch_idx_train += 1
 
         batch_size = len(batch["tokens"])
-        audio, audio_lens, features, features_lens, tokens, tokens_lens = prepare_input(
-            batch, tokenizer, device
-        )
+        (
+            audio,
+            audio_lens,
+            features,
+            features_lens,
+            tokens,
+            tokens_lens,
+            speakers,
+        ) = prepare_input(batch, tokenizer, device, speaker_map)
 
         loss_info = MetricsTracker()
         loss_info["samples"] = batch_size
@@ -401,6 +454,7 @@ def train_one_epoch(
                     feats_lengths=features_lens,
                     speech=audio,
                     speech_lengths=audio_lens,
+                    sids=speakers,
                     forward_generator=False,
                 )
             for k, v in stats_d.items():
@@ -419,6 +473,7 @@ def train_one_epoch(
                     feats_lengths=features_lens,
                     speech=audio,
                     speech_lengths=audio_lens,
+                    sids=speakers,
                     forward_generator=True,
                     return_sample=params.batch_idx_train % params.log_interval == 0,
                 )
@@ -526,6 +581,7 @@ def train_one_epoch(
                 model=model,
                 tokenizer=tokenizer,
                 valid_dl=valid_dl,
+                speaker_map=speaker_map,
                 world_size=world_size,
             )
             model.train()
@@ -562,6 +618,7 @@ def compute_validation_loss(
     model: Union[nn.Module, DDP],
     tokenizer: Tokenizer,
     valid_dl: torch.utils.data.DataLoader,
+    speaker_map: Dict[str, int],
     world_size: int = 1,
     rank: int = 0,
 ) -> Tuple[MetricsTracker, Tuple[np.ndarray, np.ndarray]]:
@@ -583,7 +640,8 @@ def compute_validation_loss(
                 features_lens,
                 tokens,
                 tokens_lens,
-            ) = prepare_input(batch, tokenizer, device)
+                speakers,
+            ) = prepare_input(batch, tokenizer, device, speaker_map)
 
             loss_info = MetricsTracker()
             loss_info["samples"] = batch_size
@@ -596,6 +654,7 @@ def compute_validation_loss(
                 feats_lengths=features_lens,
                 speech=audio,
                 speech_lengths=audio_lens,
+                sids=speakers,
                 forward_generator=False,
             )
             assert loss_d.requires_grad is False
@@ -610,6 +669,7 @@ def compute_validation_loss(
                 feats_lengths=features_lens,
                 speech=audio,
                 speech_lengths=audio_lens,
+                sids=speakers,
                 forward_generator=True,
             )
             assert loss_g.requires_grad is False
@@ -623,7 +683,8 @@ def compute_validation_loss(
             if batch_idx == 0 and rank == 0:
                 inner_model = model.module if isinstance(model, DDP) else model
                 audio_pred, _, duration = inner_model.inference(
-                    text=tokens[0, : tokens_lens[0].item()]
+                    text=tokens[0, : tokens_lens[0].item()],
+                    sids=speakers[0],
                 )
                 audio_pred = audio_pred.data.cpu().numpy()
                 audio_len_pred = (
@@ -653,6 +714,7 @@ def scan_pessimistic_batches_for_oom(
     tokenizer: Tokenizer,
     optimizer_g: torch.optim.Optimizer,
     optimizer_d: torch.optim.Optimizer,
+    speaker_map: Dict[str, int],
     params: AttributeDict,
 ):
     from lhotse.dataset import find_pessimistic_batches
@@ -664,9 +726,15 @@ def scan_pessimistic_batches_for_oom(
     batches, crit_values = find_pessimistic_batches(train_dl.sampler)
     for criterion, cuts in batches.items():
         batch = train_dl.dataset[cuts]
-        audio, audio_lens, features, features_lens, tokens, tokens_lens = prepare_input(
-            batch, tokenizer, device
-        )
+        (
+            audio,
+            audio_lens,
+            features,
+            features_lens,
+            tokens,
+            tokens_lens,
+            speakers,
+        ) = prepare_input(batch, tokenizer, device, speaker_map)
         try:
             # for discriminator
             with autocast(enabled=params.use_fp16):
@@ -677,6 +745,7 @@ def scan_pessimistic_batches_for_oom(
                     feats_lengths=features_lens,
                     speech=audio,
                     speech_lengths=audio_lens,
+                    sids=speakers,
                     forward_generator=False,
                 )
             optimizer_d.zero_grad()
@@ -690,6 +759,7 @@ def scan_pessimistic_batches_for_oom(
                     feats_lengths=features_lens,
                     speech=audio,
                     speech_lengths=audio_lens,
+                    sids=speakers,
                     forward_generator=True,
                 )
             optimizer_g.zero_grad()
@@ -745,6 +815,12 @@ def run(rank, world_size, args):
     params.blank_id = tokenizer.blank_id
     params.oov_id = tokenizer.oov_id
     params.vocab_size = tokenizer.vocab_size
+
+    vctk = VctkTtsDataModule(args)
+
+    train_cuts = vctk.train_cuts()
+    speaker_map = vctk.speakers()
+    params.num_spks = len(speaker_map)
 
     logging.info(params)
 
@@ -803,10 +879,6 @@ def run(rank, world_size, args):
     if params.inf_check:
         register_inf_check_hooks(model)
 
-    ljspeech = LJSpeechTtsDataModule(args)
-
-    train_cuts = ljspeech.train_cuts()
-
     def remove_short_and_long_utt(c: Cut):
         # Keep only utterances with duration between 1 second and 20 seconds
         # You should use ../local/display_manifest_statistics.py to get
@@ -820,10 +892,10 @@ def run(rank, world_size, args):
         return True
 
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
-    train_dl = ljspeech.train_dataloaders(train_cuts)
+    train_dl = vctk.train_dataloaders(train_cuts)
 
-    valid_cuts = ljspeech.valid_cuts()
-    valid_dl = ljspeech.valid_dataloaders(valid_cuts)
+    valid_cuts = vctk.valid_cuts()
+    valid_dl = vctk.valid_dataloaders(valid_cuts)
 
     if not params.print_diagnostics:
         scan_pessimistic_batches_for_oom(
@@ -832,6 +904,7 @@ def run(rank, world_size, args):
             tokenizer=tokenizer,
             optimizer_g=optimizer_g,
             optimizer_d=optimizer_d,
+            speaker_map=speaker_map,
             params=params,
         )
 
@@ -861,6 +934,7 @@ def run(rank, world_size, args):
             scheduler_d=scheduler_d,
             train_dl=train_dl,
             valid_dl=valid_dl,
+            speaker_map=speaker_map,
             scaler=scaler,
             tb_writer=tb_writer,
             world_size=world_size,
@@ -907,7 +981,7 @@ def run(rank, world_size, args):
 
 def main():
     parser = get_parser()
-    LJSpeechTtsDataModule.add_arguments(parser)
+    VctkTtsDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 

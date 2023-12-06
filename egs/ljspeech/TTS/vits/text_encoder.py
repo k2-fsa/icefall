@@ -169,9 +169,7 @@ class Transformer(nn.Module):
         x, pos_emb = self.encoder_pos(x)
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
 
-        x = self.encoder(
-            x, pos_emb, key_padding_mask=key_padding_mask
-        )  # (T, N, C)
+        x = self.encoder(x, pos_emb, key_padding_mask=key_padding_mask)  # (T, N, C)
 
         x = self.after_norm(x)
 
@@ -207,7 +205,9 @@ class TransformerEncoderLayer(nn.Module):
             nn.Linear(dim_feedforward, d_model),
         )
 
-        self.self_attn = RelPositionMultiheadAttention(d_model, num_heads, dropout=dropout)
+        self.self_attn = RelPositionMultiheadAttention(
+            d_model, num_heads, dropout=dropout
+        )
 
         self.conv_module = ConvolutionModule(d_model, cnn_module_kernel)
 
@@ -242,7 +242,9 @@ class TransformerEncoderLayer(nn.Module):
             key_padding_mask: the mask for the src keys per batch, of shape (batch_size, seq_len)
         """
         # macaron style feed-forward module
-        src = src + self.ff_scale * self.dropout(self.feed_forward_macaron(self.norm_ff_macaron(src)))
+        src = src + self.ff_scale * self.dropout(
+            self.feed_forward_macaron(self.norm_ff_macaron(src))
+        )
 
         # multi-head self-attention module
         src_attn = self.self_attn(
@@ -490,11 +492,17 @@ class RelPositionMultiheadAttention(nn.Module):
 
         q = q.contiguous().view(seq_len, batch_size, self.num_heads, self.head_dim)
         k = k.contiguous().view(seq_len, batch_size, self.num_heads, self.head_dim)
-        v = v.contiguous().view(seq_len, batch_size * self.num_heads, self.head_dim).transpose(0, 1)
+        v = (
+            v.contiguous()
+            .view(seq_len, batch_size * self.num_heads, self.head_dim)
+            .transpose(0, 1)
+        )
 
         q = q.transpose(0, 1)  # (batch_size, seq_len, num_head, head_dim)
 
-        p = self.linear_pos(pos_emb).view(pos_emb.size(0), -1, self.num_heads, self.head_dim)
+        p = self.linear_pos(pos_emb).view(
+            pos_emb.size(0), -1, self.num_heads, self.head_dim
+        )
         # (1, 2*seq_len, num_head, head_dim) -> (1, num_head, head_dim, 2*seq_len-1)
         p = p.permute(0, 2, 3, 1)
 
@@ -506,15 +514,23 @@ class RelPositionMultiheadAttention(nn.Module):
         # first compute matrix a and matrix c
         # as described in "Transformer-XL: Attentive Language Models Beyond a Fixed-Length Context" Section 3.3
         k = k.permute(1, 2, 3, 0)  # (batch_size, num_head, head_dim, seq_len)
-        matrix_ac = torch.matmul(q_with_bias_u, k)  # (batch_size, num_head, seq_len, seq_len)
+        matrix_ac = torch.matmul(
+            q_with_bias_u, k
+        )  # (batch_size, num_head, seq_len, seq_len)
 
         # compute matrix b and matrix d
-        matrix_bd = torch.matmul(q_with_bias_v, p)  # (batch_size, num_head, seq_len, 2*seq_len-1)
-        matrix_bd = self.rel_shift(matrix_bd)  # (batch_size, num_head, seq_len, seq_len)
+        matrix_bd = torch.matmul(
+            q_with_bias_v, p
+        )  # (batch_size, num_head, seq_len, 2*seq_len-1)
+        matrix_bd = self.rel_shift(
+            matrix_bd
+        )  # (batch_size, num_head, seq_len, seq_len)
 
         # (batch_size, num_head, seq_len, seq_len)
         attn_output_weights = (matrix_ac + matrix_bd) * scaling
-        attn_output_weights = attn_output_weights.view(batch_size * self.num_heads, seq_len, seq_len)
+        attn_output_weights = attn_output_weights.view(
+            batch_size * self.num_heads, seq_len, seq_len
+        )
 
         if key_padding_mask is not None:
             assert key_padding_mask.shape == (batch_size, seq_len)
@@ -536,10 +552,16 @@ class RelPositionMultiheadAttention(nn.Module):
 
         # (batch_size * num_head, seq_len, head_dim)
         attn_output = torch.bmm(attn_output_weights, v)
-        assert attn_output.shape == (batch_size * self.num_heads, seq_len, self.head_dim)
+        assert attn_output.shape == (
+            batch_size * self.num_heads,
+            seq_len,
+            self.head_dim,
+        )
 
         attn_output = (
-            attn_output.transpose(0, 1).contiguous().view(seq_len, batch_size, self.embed_dim)
+            attn_output.transpose(0, 1)
+            .contiguous()
+            .view(seq_len, batch_size, self.embed_dim)
         )
         # (seq_len, batch_size, embed_dim)
         attn_output = self.out_proj(attn_output)

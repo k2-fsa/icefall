@@ -12,9 +12,9 @@ This code is based on https://github.com/jaywalnut310/vits.
 from typing import Optional, Tuple
 
 import torch
+from wavenet import Conv1d, WaveNet
 
 from icefall.utils import make_pad_mask
-from wavenet import WaveNet, Conv1d
 
 
 class PosteriorEncoder(torch.nn.Module):

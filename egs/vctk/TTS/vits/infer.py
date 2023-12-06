@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 #
-# Copyright      2023 Xiaomi Corporation     (Author: Zengwei Yao)
+# Copyright      2023 Xiaomi Corporation     (Author: Zengwei Yao,
+#                                                     Zengrui Jin,)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -30,7 +31,7 @@ import argparse
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import List
+from typing import Dict, List
 
 import k2
 import torch
@@ -38,7 +39,7 @@ import torch.nn as nn
 import torchaudio
 from tokenizer import Tokenizer
 from train import get_model, get_params
-from tts_datamodule import LJSpeechTtsDataModule
+from tts_datamodule import VctkTtsDataModule
 
 from icefall.checkpoint import load_checkpoint
 from icefall.utils import AttributeDict, setup_logger
@@ -77,9 +78,11 @@ def get_parser():
 
 def infer_dataset(
     dl: torch.utils.data.DataLoader,
+    subset: str,
     params: AttributeDict,
     model: nn.Module,
     tokenizer: Tokenizer,
+    speaker_map: Dict[str, int],
 ) -> None:
     """Decode dataset.
     The ground-truth and generated audio pairs will be saved to `params.save_wav_dir`.
@@ -94,8 +97,10 @@ def infer_dataset(
       tokenizer:
         Used to convert text to phonemes.
     """
+
     #  Background worker save audios to disk.
     def _save_worker(
+        subset: str,
         batch_size: int,
         cut_ids: List[str],
         audio: torch.Tensor,
@@ -105,12 +110,12 @@ def infer_dataset(
     ):
         for i in range(batch_size):
             torchaudio.save(
-                str(params.save_wav_dir / f"{cut_ids[i]}_gt.wav"),
+                str(params.save_wav_dir / subset / f"{cut_ids[i]}_gt.wav"),
                 audio[i : i + 1, : audio_lens[i]],
                 sample_rate=params.sampling_rate,
             )
             torchaudio.save(
-                str(params.save_wav_dir / f"{cut_ids[i]}_pred.wav"),
+                str(params.save_wav_dir / subset / f"{cut_ids[i]}_pred.wav"),
                 audio_pred[i : i + 1, : audio_lens_pred[i]],
                 sample_rate=params.sampling_rate,
             )
@@ -138,13 +143,20 @@ def infer_dataset(
             tokens_lens = tokens_lens.to(device)
             # tensor of shape (B, T)
             tokens = tokens.pad(mode="constant", padding_value=tokenizer.blank_id)
+            speakers = (
+                torch.Tensor([speaker_map[sid] for sid in batch["speakers"]])
+                .int()
+                .to(device)
+            )
 
             audio = batch["audio"]
             audio_lens = batch["audio_lens"].tolist()
             cut_ids = [cut.id for cut in batch["cut"]]
 
             audio_pred, _, durations = model.inference_batch(
-                text=tokens, text_lengths=tokens_lens
+                text=tokens,
+                text_lengths=tokens_lens,
+                sids=speakers,
             )
             audio_pred = audio_pred.detach().cpu()
             # convert to samples
@@ -155,6 +167,7 @@ def infer_dataset(
             futures.append(
                 executor.submit(
                     _save_worker,
+                    subset,
                     batch_size,
                     cut_ids,
                     audio,
@@ -180,7 +193,7 @@ def infer_dataset(
 @torch.no_grad()
 def main():
     parser = get_parser()
-    LJSpeechTtsDataModule.add_arguments(parser)
+    VctkTtsDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 
@@ -205,6 +218,12 @@ def main():
     params.oov_id = tokenizer.oov_id
     params.vocab_size = tokenizer.vocab_size
 
+    # we need cut ids to display recognition results.
+    args.return_cuts = True
+    vctk = VctkTtsDataModule(args)
+    speaker_map = vctk.speakers()
+    params.num_spks = len(speaker_map)
+
     logging.info(f"Device: {device}")
     logging.info(params)
 
@@ -222,19 +241,28 @@ def main():
     logging.info(f"Number of parameters in discriminator: {num_param_d}")
     logging.info(f"Total number of parameters: {num_param_g + num_param_d}")
 
-    # we need cut ids to display recognition results.
-    args.return_cuts = True
-    ljspeech = LJSpeechTtsDataModule(args)
+    test_cuts = vctk.test_cuts()
+    test_dl = vctk.test_dataloaders(test_cuts)
 
-    test_cuts = ljspeech.test_cuts()
-    test_dl = ljspeech.test_dataloaders(test_cuts)
+    valid_cuts = vctk.valid_cuts()
+    valid_dl = vctk.valid_dataloaders(valid_cuts)
 
-    infer_dataset(
-        dl=test_dl,
-        params=params,
-        model=model,
-        tokenizer=tokenizer,
-    )
+    infer_sets = {"test": test_dl, "valid": valid_dl}
+
+    for subset, dl in infer_sets.items():
+        save_wav_dir = params.res_dir / "wav" / subset
+        save_wav_dir.mkdir(parents=True, exist_ok=True)
+
+        logging.info(f"Processing {subset} set, saving to {save_wav_dir}")
+
+        infer_dataset(
+            dl=dl,
+            subset=subset,
+            params=params,
+            model=model,
+            tokenizer=tokenizer,
+            speaker_map=speaker_map,
+        )
 
     logging.info(f"Wav files are saved to {params.save_wav_dir}")
     logging.info("Done!")
