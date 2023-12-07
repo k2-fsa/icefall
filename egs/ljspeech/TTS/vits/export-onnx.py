@@ -176,7 +176,7 @@ def export_model_onnx(
 
     torch.onnx.export(
         model,
-        (tokens, tokens_lens, noise_scale, noise_scale_dur, alpha),
+        (tokens, tokens_lens, noise_scale, alpha, noise_scale_dur),
         model_filename,
         verbose=False,
         opset_version=opset_version,
@@ -184,8 +184,8 @@ def export_model_onnx(
             "tokens",
             "tokens_lens",
             "noise_scale",
-            "noise_scale_dur",
             "alpha",
+            "noise_scale_dur",
         ],
         output_names=["audio"],
         dynamic_axes={

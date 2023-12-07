@@ -101,9 +101,9 @@ class OnnxModel:
                 self.model.get_inputs()[0].name: tokens.numpy(),
                 self.model.get_inputs()[1].name: tokens_lens.numpy(),
                 self.model.get_inputs()[2].name: noise_scale.numpy(),
-                self.model.get_inputs()[3].name: noise_scale_dur.numpy(),
-                self.model.get_inputs()[4].name: speaker.numpy(),
-                self.model.get_inputs()[5].name: alpha.numpy(),
+                self.model.get_inputs()[3].name: alpha.numpy(),
+                self.model.get_inputs()[4].name: noise_scale_dur.numpy(),
+                self.model.get_inputs()[5].name: speaker.numpy(),
             },
         )[0]
         return torch.from_numpy(out)
