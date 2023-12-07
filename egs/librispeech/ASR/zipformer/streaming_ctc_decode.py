@@ -631,8 +631,12 @@ def main():
 
     librispeech = LibriSpeechAsrDataModule(args)
 
-    test_cuts = librispeech.test_cuts()
-    test_sets = {"test": test_cuts}
+    test_clean_cuts = librispeech.test_clean_cuts()
+    test_other_cuts = librispeech.test_other_cuts()
+    test_sets = {
+        "test-clean": test_clean_cuts,
+        "test-other": test_other_cuts,
+    }
 
     for test_set, test_cut in test_sets.items():
         results_dict = decode_dataset(
