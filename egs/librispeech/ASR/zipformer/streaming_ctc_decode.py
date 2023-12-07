@@ -128,7 +128,7 @@ def get_parser():
     parser.add_argument(
         "--bpe-model",
         type=str,
-        default="data/lang_bpe_2000/bpe.model",
+        default="data/lang_bpe_500/bpe.model",
         help="Path to the BPE model",
     )
 
@@ -194,6 +194,22 @@ def get_parser():
     add_model_arguments(parser)
 
     return parser
+
+
+def get_decoding_params() -> AttributeDict:
+    """Parameters for decoding."""
+    params = AttributeDict(
+        {
+            "feature_dim": 80,
+            "frame_shift_ms": 10,
+            "search_beam": 20,
+            "output_beam": 8,
+            "min_active_states": 30,
+            "max_active_states": 10000,
+            "use_double_scores": True,
+        }
+    )
+    return params
 
 
 def decode_one_chunk(
@@ -461,21 +477,6 @@ def save_results(
         s += "{}\t{}{}\n".format(key, val, note)
         note = ""
     logging.info(s)
-
-
-def get_decoding_params() -> AttributeDict:
-    """Parameters for decoding."""
-    params = AttributeDict(
-        {
-            "frame_shift_ms": 10,
-            "search_beam": 20,
-            "output_beam": 8,
-            "min_active_states": 30,
-            "max_active_states": 10000,
-            "use_double_scores": True,
-        }
-    )
-    return params
 
 
 @torch.no_grad()
