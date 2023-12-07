@@ -31,6 +31,7 @@ class DecodeStream(object):
         params: AttributeDict,
         cut_id: str,
         initial_states: List[torch.Tensor],
+        decode_state: k2.DecodeStateInfo,
         device: torch.device = torch.device("cpu"),
     ) -> None:
         """
@@ -50,6 +51,7 @@ class DecodeStream(object):
         self.LOG_EPS = math.log(1e-10)
 
         self.states = initial_states
+        self.decode_state = decode_state
 
         # It contains a 2-D tensors representing the feature frames.
         self.features: torch.Tensor = None
