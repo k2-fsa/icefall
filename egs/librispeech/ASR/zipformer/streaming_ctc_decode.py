@@ -377,7 +377,6 @@ def decode_dataset(
             params=params,
             cut_id=cut.id,
             initial_states=initial_states,
-            decoding_graph=decoding_graph,
             device=device,
         )
 
