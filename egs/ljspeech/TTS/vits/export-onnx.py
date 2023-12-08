@@ -115,8 +115,8 @@ class OnnxModel(nn.Module):
         tokens: torch.Tensor,
         tokens_lens: torch.Tensor,
         noise_scale: float = 0.667,
-        noise_scale_dur: float = 0.8,
         alpha: float = 1.0,
+        noise_scale_dur: float = 0.8,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Please see the help information of VITS.inference_batch
 
