@@ -4,11 +4,6 @@ on:
   push:
     branches:
       - master
-      - upload-ctc-model
-
-  pull_request:
-    branches:
-      - master
 
   workflow_dispatch:
 
