@@ -45,7 +45,7 @@ log "----------------------------------------"
 ls -lh $repo/exp
 
 log "------------------------------------------------------------"
-log "Test export streaming ONNX transducer models (Python code)  "
+log "Test exported streaming ONNX transducer models (Python code)"
 log "------------------------------------------------------------"
 
 log "test fp32"
@@ -73,6 +73,7 @@ GIT_LFS_SKIP_SMUDGE=1 git clone $url
 dst=$(basename $url)
 cp -v $repo/exp/*.onnx $dst
 cp -v $repo/data/lang_bpe_2000/tokens.txt $dst
+cp -v $repo/data/lang_bpe_2000/bpe.model $dst
 mkdir -p $dst/test_wavs
 cp -v $repo/test_wavs/*.wav $dst/test_wavs
 cd $dst

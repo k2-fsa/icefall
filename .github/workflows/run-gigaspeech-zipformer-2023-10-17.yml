@@ -21,6 +21,7 @@ on:
   push:
     branches:
       - master
+
   pull_request:
     types: [labeled]
 
@@ -32,6 +33,8 @@ on:
     # day of the week (0-6)
     # nightly build at 15:50 UTC time every day
     - cron: "50 15 * * *"
+
+  workflow_dispatch:
 
 concurrency:
   group: run_gigaspeech_2023_10_17_zipformer-${{ github.ref }}
@@ -85,6 +88,7 @@ jobs:
         env:
           GITHUB_EVENT_NAME: ${{ github.event_name }}
           GITHUB_EVENT_LABEL_NAME: ${{ github.event.label.name }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           mkdir -p egs/gigaspeech/ASR/data
           ln -sfv ~/tmp/fbank-libri egs/gigaspeech/ASR/data/fbank
@@ -96,6 +100,16 @@ jobs:
           export PYTHONPATH=~/tmp/kaldifeat/build/lib:$PYTHONPATH
 
           .github/scripts/run-gigaspeech-zipformer-2023-10-17.sh
+
+      - name: upload model to https://github.com/k2-fsa/sherpa-onnx
+        uses: svenstaro/upload-release-action@v2
+        with:
+          file_glob: true
+          file: ./*.tar.bz2
+          overwrite: true
+          repo_name: k2-fsa/sherpa-onnx
+          repo_token: ${{ secrets.UPLOAD_GH_SHERPA_ONNX_TOKEN }}
+          tag: asr-models
 
       - name: Display decoding results for gigaspeech zipformer
         if: github.event_name == 'schedule' || github.event.label.name == 'run-decode'
