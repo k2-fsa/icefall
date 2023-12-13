@@ -6,24 +6,8 @@
 """
 This script exports a transducer model from PyTorch to ONNX.
 
-We use the pre-trained model from
-https://huggingface.co/Zengwei/icefall-asr-librispeech-streaming-zipformer-2023-05-17
-as an example to show how to use this file.
 
-1. Download the pre-trained model
-
-cd egs/librispeech/ASR
-
-repo_url=https://huggingface.co/Zengwei/icefall-asr-librispeech-streaming-zipformer-2023-05-17
-GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
-repo=$(basename $repo_url)
-
-pushd $repo
-git lfs pull --include "exp/pretrained.pt"
-
-cd exp
-ln -s pretrained.pt epoch-99.pt
-popd
+1. Download the pre-trained streaming model with CTC head
 
 2. Export the model to ONNX
 
