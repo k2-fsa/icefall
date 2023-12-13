@@ -2,6 +2,10 @@
 
 set -ex
 
+git config --global user.name "k2-fsa"
+git config --global user.email "csukuangfj@gmail.com"
+git config --global lfs.allowincompletepush true
+
 log() {
   # This function is from espnet
   local fname=${BASH_SOURCE[1]##*/}
@@ -24,7 +28,10 @@ rm -fv epoch-20.pt
 rm -fv *.onnx
 ln -s pretrained.pt epoch-20.pt
 cd ../data/lang_bpe_2000
+ls -lh
 git lfs pull --include L.pt L_disambig.pt Linv.pt bpe.model
+git lfs pull --include "*.model"
+ls -lh
 popd
 
 log "----------------------------------------"
@@ -53,7 +60,10 @@ cp -v $repo/data/lang_bpe_2000/bpe.model $dst
 mkdir -p $dst/test_wavs
 cp -v $repo/test_wavs/*.wav $dst/test_wavs
 cd $dst
-git lfs track "*.onnx"
+git lfs track "*.onnx" "bpe.model"
+ls -lh
+file bpe.model
+git status
 git add .
 git commit -m "upload model" && git push https://k2-fsa:${HF_TOKEN}@huggingface.co/k2-fsa/$dst main || true
 
@@ -103,8 +113,6 @@ log "test int8"
   $repo/test_wavs/DEV_T0000000000.wav
 
 log "Upload onnx transducer models to huggingface"
-git config --global user.name "k2-fsa"
-git config --global user.email "xxx@gmail.com"
 
 url=https://huggingface.co/k2-fsa/sherpa-onnx-streaming-zipformer-multi-zh-hans-2023-12-12
 GIT_LFS_SKIP_SMUDGE=1 git clone $url
@@ -117,7 +125,7 @@ cp -v $repo/data/lang_bpe_2000/bpe.model $dst
 mkdir -p $dst/test_wavs
 cp -v $repo/test_wavs/*.wav $dst/test_wavs
 cd $dst
-git lfs track "*.onnx"
+git lfs track "*.onnx" bpe.model
 git add .
 git commit -m "upload model" && git push https://k2-fsa:${HF_TOKEN}@huggingface.co/k2-fsa/$dst main || true
 
