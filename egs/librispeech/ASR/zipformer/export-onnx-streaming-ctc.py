@@ -542,7 +542,7 @@ def main():
     opset_version = 13
 
     logging.info("Exporting model")
-    model_filename = params.exp_dir / f"ctc-streaming-encoder-{suffix}.onnx"
+    model_filename = params.exp_dir / f"ctc-{suffix}.onnx"
     export_streaming_ctc_model_onnx(
         model,
         model_filename,
@@ -555,7 +555,7 @@ def main():
 
     logging.info("Generate int8 quantization models")
 
-    model_filename_int8 = params.exp_dir / f"ctc-streaming-encoder-{suffix}.int8.onnx"
+    model_filename_int8 = params.exp_dir / f"ctc-{suffix}.int8.onnx"
     quantize_dynamic(
         model_input=model_filename,
         model_output=model_filename_int8,
