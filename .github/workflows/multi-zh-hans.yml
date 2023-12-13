@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master
+      - streaming-ctc-decoding
 
   workflow_dispatch:
 

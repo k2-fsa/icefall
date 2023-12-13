@@ -28,6 +28,44 @@ git lfs pull --include L.pt L_disambig.pt Linv.pt bpe.model
 popd
 
 log "----------------------------------------"
+log "Export streaming ONNX CTC models "
+log "----------------------------------------"
+./zipformer/export-onnx-streaming-ctc.py \
+  --exp-dir $repo/exp \
+  --tokens $repo/data/lang_bpe_2000/tokens.txt \
+  --causal 1 \
+  --avg 1 \
+  --epoch 20 \
+  --use-averaged-model 0 \
+  --chunk-size 16 \
+  --left-context-frames 128 \
+  --use-ctc 1
+
+ls -lh $repo/exp/
+
+log "Upload onnx CTC models to huggingface"
+url=https://huggingface.co/k2-fsa/sherpa-onnx-streaming-zipformer-ctc-multi-zh-hans-2023-12-13
+GIT_LFS_SKIP_SMUDGE=1 git clone $url
+dst=$(basename $url)
+cp -v $repo/exp/ctc*.onnx $dst
+cp -v $repo/data/lang_bpe_2000/tokens.txt $dst
+cp -v $repo/data/lang_bpe_2000/bpe.model $dst
+mkdir -p $dst/test_wavs
+cp -v $repo/test_wavs/*.wav $dst/test_wavs
+cd $dst
+git lfs track "*.onnx"
+git add .
+git commit -m "upload model" && git push https://k2-fsa:${HF_TOKEN}@huggingface.co/k2-fsa/$dst main || true
+
+log "Upload models to https://github.com/k2-fsa/sherpa-onnx"
+rm -rf .git
+rm -fv .gitattributes
+cd ..
+tar cjfv $dst.tar.bz2 $dst
+ls -lh *.tar.bz2
+mv -v $dst.tar.bz2 ../../../
+
+log "----------------------------------------"
 log "Export streaming ONNX transducer models "
 log "----------------------------------------"
 
@@ -64,14 +102,16 @@ log "test int8"
   --tokens $repo/data/lang_bpe_2000/tokens.txt \
   $repo/test_wavs/DEV_T0000000000.wav
 
-log "Upload models to huggingface"
+log "Upload onnx transducer models to huggingface"
 git config --global user.name "k2-fsa"
 git config --global user.email "xxx@gmail.com"
 
 url=https://huggingface.co/k2-fsa/sherpa-onnx-streaming-zipformer-multi-zh-hans-2023-12-12
 GIT_LFS_SKIP_SMUDGE=1 git clone $url
 dst=$(basename $url)
-cp -v $repo/exp/*.onnx $dst
+cp -v $repo/exp/encoder*.onnx $dst
+cp -v $repo/exp/decoder*.onnx $dst
+cp -v $repo/exp/joiner*.onnx $dst
 cp -v $repo/data/lang_bpe_2000/tokens.txt $dst
 cp -v $repo/data/lang_bpe_2000/bpe.model $dst
 mkdir -p $dst/test_wavs
@@ -86,4 +126,5 @@ rm -rf .git
 rm -fv .gitattributes
 cd ..
 tar cjfv $dst.tar.bz2 $dst
+ls -lh *.tar.bz2
 mv -v $dst.tar.bz2 ../../../
