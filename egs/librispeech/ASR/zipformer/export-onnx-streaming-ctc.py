@@ -41,7 +41,7 @@ whose value is "64,128,256,-1".
 
 It will generate the following file inside $repo/exp:
 
-  - ctc-streaming-encoder-epoch-99-avg-1-chunk-16-left-64.onnx
+  - ctc-epoch-99-avg-1-chunk-16-left-64.onnx
 
 See ./onnx_pretrained-streaming.py for how to use the exported ONNX models.
 """
