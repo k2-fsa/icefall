@@ -4,7 +4,7 @@
 # Copyright 2023 Danqing Fu (danqing.fu@gmail.com)
 
 """
-This script exports a transducer model from PyTorch to ONNX.
+This script exports a CTC model from PyTorch to ONNX.
 
 
 1. Download the pre-trained streaming model with CTC head
