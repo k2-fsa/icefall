@@ -3,18 +3,18 @@
 # Copyright      2023  Danqing Fu (danqing.fu@gmail.com)
 
 """
-This script loads ONNX models exported by ./export-onnx-streaming.py
+This script loads ONNX models exported by ./export-onnx-streaming-ctc.py
 and uses them to decode waves.
 
 We use the pre-trained model from
-https://huggingface.co/Zengwei/icefall-asr-librispeech-streaming-zipformer-2023-05-17
+https://huggingface.co/zrjin/icefall-asr-multi-zh-hans-zipformer-ctc-streaming-2023-11-05
 as an example to show how to use this file.
 
 1. Download the pre-trained model
 
 cd egs/librispeech/ASR
 
-repo_url=https://huggingface.co/Zengwei/icefall-asr-librispeech-streaming-zipformer-2023-05-17
+repo_url=https://huggingface.co/zrjin/icefall-asr-multi-zh-hans-zipformer-ctc-streaming-2023-11-05
 GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
 repo=$(basename $repo_url)
 
@@ -27,43 +27,30 @@ popd
 
 2. Export the model to ONNX
 
-./zipformer/export-onnx-streaming.py \
-  --tokens $repo/data/lang_bpe_500/tokens.txt \
+./zipformer/export-onnx-streaming-ctc.py \
+  --tokens $repo/data/lang_bpe_2000/tokens.txt \
   --use-averaged-model 0 \
   --epoch 99 \
   --avg 1 \
   --exp-dir $repo/exp \
-  --num-encoder-layers "2,2,3,4,3,2" \
-  --downsampling-factor "1,2,4,8,4,2" \
-  --feedforward-dim "512,768,1024,1536,1024,768" \
-  --num-heads "4,4,4,8,4,4" \
-  --encoder-dim "192,256,384,512,384,256" \
-  --query-head-dim 32 \
-  --value-head-dim 12 \
-  --pos-head-dim 4 \
-  --pos-dim 48 \
-  --encoder-unmasked-dim "192,192,256,256,256,192" \
-  --cnn-module-kernel "31,31,15,15,15,31" \
-  --decoder-dim 512 \
-  --joiner-dim 512 \
   --causal True \
   --chunk-size 16 \
-  --left-context-frames 64
+  --left-context-frames 128 \
+  --use-ctc 1
 
-It will generate the following 3 files inside $repo/exp:
+It will generate the following 2 files inside $repo/exp:
 
-  - encoder-epoch-99-avg-1.onnx
-  - decoder-epoch-99-avg-1.onnx
-  - joiner-epoch-99-avg-1.onnx
+ - ctc-epoch-99-avg-1-chunk-16-left-128.int8.onnx
+ - ctc-epoch-99-avg-1-chunk-16-left-128.onnx
+
+You can use either the ``int8.onnx`` model or just the ``.onnx`` model.
 
 3. Run this file with the exported ONNX models
 
-./zipformer/onnx_pretrained-streaming.py \
-  --encoder-model-filename $repo/exp/encoder-epoch-99-avg-1.onnx \
-  --decoder-model-filename $repo/exp/decoder-epoch-99-avg-1.onnx \
-  --joiner-model-filename $repo/exp/joiner-epoch-99-avg-1.onnx \
-  --tokens $repo/data/lang_bpe_500/tokens.txt \
-  $repo/test_wavs/1089-134686-0001.wav
+./zipformer/onnx_pretrained-streaming-ctc.py \
+  --model-filename $repo/exp/ctc-epoch-99-avg-1-chunk-16-left-128.onnx \
+  --tokens $repo/data/lang_bpe_2000/tokens.txt \
+  $repo/test_wavs/DEV_T0000000001.wav
 
 Note: Even though this script only supports decoding a single file,
 the exported ONNX models do support batch processing.
@@ -71,9 +58,8 @@ the exported ONNX models do support batch processing.
 
 import argparse
 import logging
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
-import k2
 import numpy as np
 import onnxruntime as ort
 import torch
@@ -87,24 +73,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--encoder-model-filename",
-        type=str,
-        required=True,
-        help="Path to the encoder onnx model. ",
-    )
-
-    parser.add_argument(
-        "--decoder-model-filename",
+        "--model-filename",
         type=str,
         required=True,
         help="Path to the decoder onnx model. ",
-    )
-
-    parser.add_argument(
-        "--joiner-model-filename",
-        type=str,
-        required=True,
-        help="Path to the joiner onnx model. ",
     )
 
     parser.add_argument(
@@ -128,9 +100,7 @@ def get_parser():
 class OnnxModel:
     def __init__(
         self,
-        encoder_model_filename: str,
-        decoder_model_filename: str,
-        joiner_model_filename: str,
+        model_filename: str,
     ):
         session_opts = ort.SessionOptions()
         session_opts.inter_op_num_threads = 1
@@ -138,35 +108,33 @@ class OnnxModel:
 
         self.session_opts = session_opts
 
-        self.init_encoder(encoder_model_filename)
-        self.init_decoder(decoder_model_filename)
-        self.init_joiner(joiner_model_filename)
+        self.init_model(model_filename)
 
-    def init_encoder(self, encoder_model_filename: str):
-        self.encoder = ort.InferenceSession(
-            encoder_model_filename,
+    def init_model(self, model_filename: str):
+        self.model = ort.InferenceSession(
+            model_filename,
             sess_options=self.session_opts,
             providers=["CPUExecutionProvider"],
         )
-        self.init_encoder_states()
+        self.init_states()
 
-    def init_encoder_states(self, batch_size: int = 1):
-        encoder_meta = self.encoder.get_modelmeta().custom_metadata_map
-        logging.info(f"encoder_meta={encoder_meta}")
+    def init_states(self, batch_size: int = 1):
+        meta = self.model.get_modelmeta().custom_metadata_map
+        logging.info(f"meta={meta}")
 
-        model_type = encoder_meta["model_type"]
+        model_type = meta["model_type"]
         assert model_type == "zipformer2", model_type
 
-        decode_chunk_len = int(encoder_meta["decode_chunk_len"])
-        T = int(encoder_meta["T"])
+        decode_chunk_len = int(meta["decode_chunk_len"])
+        T = int(meta["T"])
 
-        num_encoder_layers = encoder_meta["num_encoder_layers"]
-        encoder_dims = encoder_meta["encoder_dims"]
-        cnn_module_kernels = encoder_meta["cnn_module_kernels"]
-        left_context_len = encoder_meta["left_context_len"]
-        query_head_dims = encoder_meta["query_head_dims"]
-        value_head_dims = encoder_meta["value_head_dims"]
-        num_heads = encoder_meta["num_heads"]
+        num_encoder_layers = meta["num_encoder_layers"]
+        encoder_dims = meta["encoder_dims"]
+        cnn_module_kernels = meta["cnn_module_kernels"]
+        left_context_len = meta["left_context_len"]
+        query_head_dims = meta["query_head_dims"]
+        value_head_dims = meta["value_head_dims"]
+        num_heads = meta["num_heads"]
 
         def to_int_list(s):
             return list(map(int, s.split(",")))
@@ -233,71 +201,45 @@ class OnnxModel:
         self.segment = T
         self.offset = decode_chunk_len
 
-    def init_decoder(self, decoder_model_filename: str):
-        self.decoder = ort.InferenceSession(
-            decoder_model_filename,
-            sess_options=self.session_opts,
-            providers=["CPUExecutionProvider"],
-        )
-
-        decoder_meta = self.decoder.get_modelmeta().custom_metadata_map
-        self.context_size = int(decoder_meta["context_size"])
-        self.vocab_size = int(decoder_meta["vocab_size"])
-
-        logging.info(f"context_size: {self.context_size}")
-        logging.info(f"vocab_size: {self.vocab_size}")
-
-    def init_joiner(self, joiner_model_filename: str):
-        self.joiner = ort.InferenceSession(
-            joiner_model_filename,
-            sess_options=self.session_opts,
-            providers=["CPUExecutionProvider"],
-        )
-
-        joiner_meta = self.joiner.get_modelmeta().custom_metadata_map
-        self.joiner_dim = int(joiner_meta["joiner_dim"])
-
-        logging.info(f"joiner_dim: {self.joiner_dim}")
-
-    def _build_encoder_input_output(
+    def _build_model_input_output(
         self,
         x: torch.Tensor,
     ) -> Tuple[Dict[str, np.ndarray], List[str]]:
-        encoder_input = {"x": x.numpy()}
-        encoder_output = ["encoder_out"]
+        model_input = {"x": x.numpy()}
+        model_output = ["log_probs"]
 
         def build_inputs_outputs(tensors, i):
             assert len(tensors) == 6, len(tensors)
 
             # (downsample_left, batch_size, key_dim)
             name = f"cached_key_{i}"
-            encoder_input[name] = tensors[0]
-            encoder_output.append(f"new_{name}")
+            model_input[name] = tensors[0]
+            model_output.append(f"new_{name}")
 
             # (1, batch_size, downsample_left, nonlin_attn_head_dim)
             name = f"cached_nonlin_attn_{i}"
-            encoder_input[name] = tensors[1]
-            encoder_output.append(f"new_{name}")
+            model_input[name] = tensors[1]
+            model_output.append(f"new_{name}")
 
             # (downsample_left, batch_size, value_dim)
             name = f"cached_val1_{i}"
-            encoder_input[name] = tensors[2]
-            encoder_output.append(f"new_{name}")
+            model_input[name] = tensors[2]
+            model_output.append(f"new_{name}")
 
             # (downsample_left, batch_size, value_dim)
             name = f"cached_val2_{i}"
-            encoder_input[name] = tensors[3]
-            encoder_output.append(f"new_{name}")
+            model_input[name] = tensors[3]
+            model_output.append(f"new_{name}")
 
             # (batch_size, embed_dim, conv_left_pad)
             name = f"cached_conv1_{i}"
-            encoder_input[name] = tensors[4]
-            encoder_output.append(f"new_{name}")
+            model_input[name] = tensors[4]
+            model_output.append(f"new_{name}")
 
             # (batch_size, embed_dim, conv_left_pad)
             name = f"cached_conv2_{i}"
-            encoder_input[name] = tensors[5]
-            encoder_output.append(f"new_{name}")
+            model_input[name] = tensors[5]
+            model_output.append(f"new_{name}")
 
         for i in range(len(self.states[:-2]) // 6):
             build_inputs_outputs(self.states[i * 6 : (i + 1) * 6], i)
@@ -305,73 +247,36 @@ class OnnxModel:
         # (batch_size, channels, left_pad, freq)
         name = "embed_states"
         embed_states = self.states[-2]
-        encoder_input[name] = embed_states
-        encoder_output.append(f"new_{name}")
+        model_input[name] = embed_states
+        model_output.append(f"new_{name}")
 
         # (batch_size,)
         name = "processed_lens"
         processed_lens = self.states[-1]
-        encoder_input[name] = processed_lens
-        encoder_output.append(f"new_{name}")
+        model_input[name] = processed_lens
+        model_output.append(f"new_{name}")
 
-        return encoder_input, encoder_output
+        return model_input, model_output
 
     def _update_states(self, states: List[np.ndarray]):
         self.states = states
 
-    def run_encoder(self, x: torch.Tensor) -> torch.Tensor:
+    def __call__(self, x: torch.Tensor) -> torch.Tensor:
         """
         Args:
           x:
             A 3-D tensor of shape (N, T, C)
         Returns:
-          Return a 3-D tensor of shape (N, T', joiner_dim) where
-          T' is usually equal to ((T-7)//2-3)//2
+          Return a 3-D tensor containing log_probs. Its shape is (N, T, vocab_size)
+          where T' is usually equal to ((T-7)//2 - 3)//2
         """
-        encoder_input, encoder_output_names = self._build_encoder_input_output(x)
+        model_input, model_output_names = self._build_model_input_output(x)
 
-        out = self.encoder.run(encoder_output_names, encoder_input)
+        out = self.model.run(model_output_names, model_input)
 
         self._update_states(out[1:])
 
         return torch.from_numpy(out[0])
-
-    def run_decoder(self, decoder_input: torch.Tensor) -> torch.Tensor:
-        """
-        Args:
-          decoder_input:
-            A 2-D tensor of shape (N, context_size)
-        Returns:
-          Return a 2-D tensor of shape (N, joiner_dim)
-        """
-        out = self.decoder.run(
-            [self.decoder.get_outputs()[0].name],
-            {self.decoder.get_inputs()[0].name: decoder_input.numpy()},
-        )[0]
-
-        return torch.from_numpy(out)
-
-    def run_joiner(
-        self, encoder_out: torch.Tensor, decoder_out: torch.Tensor
-    ) -> torch.Tensor:
-        """
-        Args:
-          encoder_out:
-            A 2-D tensor of shape (N, joiner_dim)
-          decoder_out:
-            A 2-D tensor of shape (N, joiner_dim)
-        Returns:
-          Return a 2-D tensor of shape (N, vocab_size)
-        """
-        out = self.joiner.run(
-            [self.joiner.get_outputs()[0].name],
-            {
-                self.joiner.get_inputs()[0].name: encoder_out.numpy(),
-                self.joiner.get_inputs()[1].name: decoder_out.numpy(),
-            },
-        )[0]
-
-        return torch.from_numpy(out)
 
 
 def read_sound_files(
@@ -417,51 +322,24 @@ def create_streaming_feature_extractor() -> OnlineFeature:
 
 
 def greedy_search(
-    model: OnnxModel,
-    encoder_out: torch.Tensor,
-    context_size: int,
-    decoder_out: Optional[torch.Tensor] = None,
-    hyp: Optional[List[int]] = None,
+    log_probs: torch.Tensor,
 ) -> List[int]:
-    """Greedy search in batch mode. It hardcodes --max-sym-per-frame=1.
+    """Greedy search for a single utterance.
     Args:
-      model:
-        The transducer model.
-      encoder_out:
-        A 3-D tensor of shape (1, T, joiner_dim)
-      context_size:
-        The context size of the decoder model.
-      decoder_out:
-        Optional. Decoder output of the previous chunk.
-      hyp:
-        Decoding results for previous chunks.
+      log_probs:
+        A 3-D tensor of shape (1, T, vocab_size)
     Returns:
-      Return the decoded results so far.
+      Return the decoded result.
     """
+    assert log_probs.ndim == 3, log_probs.shape
+    assert log_probs.shape[0] == 1, log_probs.shape
+
+    max_indexes = log_probs[0].argmax(dim=1)
+    unique_indexes = torch.unique_consecutive(max_indexes)
 
     blank_id = 0
-
-    if decoder_out is None:
-        assert hyp is None, hyp
-        hyp = [blank_id] * context_size
-        decoder_input = torch.tensor([hyp], dtype=torch.int64)
-        decoder_out = model.run_decoder(decoder_input)
-    else:
-        assert hyp is not None, hyp
-
-    encoder_out = encoder_out.squeeze(0)
-    T = encoder_out.size(0)
-    for t in range(T):
-        cur_encoder_out = encoder_out[t : t + 1]
-        joiner_out = model.run_joiner(cur_encoder_out, decoder_out).squeeze(0)
-        y = joiner_out.argmax(dim=0).item()
-        if y != blank_id:
-            hyp.append(y)
-            decoder_input = hyp[-context_size:]
-            decoder_input = torch.tensor([decoder_input], dtype=torch.int64)
-            decoder_out = model.run_decoder(decoder_input)
-
-    return hyp, decoder_out
+    unique_indexes = unique_indexes[unique_indexes != blank_id]
+    return unique_indexes.tolist()
 
 
 @torch.no_grad()
@@ -470,11 +348,7 @@ def main():
     args = parser.parse_args()
     logging.info(vars(args))
 
-    model = OnnxModel(
-        encoder_model_filename=args.encoder_model_filename,
-        decoder_model_filename=args.decoder_model_filename,
-        joiner_model_filename=args.joiner_model_filename,
-    )
+    model = OnnxModel(model_filename=args.model_filename)
 
     sample_rate = 16000
 
@@ -494,9 +368,7 @@ def main():
     segment = model.segment
     offset = model.offset
 
-    context_size = model.context_size
-    hyp = None
-    decoder_out = None
+    hyp = []
 
     chunk = int(1 * sample_rate)  # 1 second
     start = 0
@@ -517,20 +389,28 @@ def main():
             num_processed_frames += offset
             frames = torch.cat(frames, dim=0)
             frames = frames.unsqueeze(0)
-            encoder_out = model.run_encoder(frames)
-            hyp, decoder_out = greedy_search(
-                model,
-                encoder_out,
-                context_size,
-                decoder_out,
-                hyp,
-            )
+            log_probs = model(frames)
 
-    token_table = k2.SymbolTable.from_file(args.tokens)
+            hyp += greedy_search(log_probs)
 
-    text = ""
-    for i in hyp[context_size:]:
-        text += token_table[i]
+    # To handle byte-level BPE, we convert string tokens to utf-8 encoded bytes
+    id2token = {}
+    with open(args.tokens, encoding="utf-8") as f:
+        for line in f:
+            token, idx = line.split()
+            if token[:3] == "<0x" and token[-1] == ">":
+                token = int(token[1:-1], base=16)
+                assert 0 <= token < 256, token
+                token = token.to_bytes(1, byteorder="little")
+            else:
+                token = token.encode(encoding="utf-8")
+
+            id2token[int(idx)] = token
+
+    text = b""
+    for i in hyp:
+        text += id2token[i]
+    text = text.decode(encoding="utf-8")
     text = text.replace("▁", " ").strip()
 
     logging.info(args.sound_file)
