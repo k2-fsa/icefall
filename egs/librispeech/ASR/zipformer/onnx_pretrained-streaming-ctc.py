@@ -48,7 +48,7 @@ You can use either the ``int8.onnx`` model or just the ``.onnx`` model.
 3. Run this file with the exported ONNX models
 
 ./zipformer/onnx_pretrained-streaming-ctc.py \
-  --model-filename $repo/exp/ctc-epoch-20-avg-1-chunk-16-left-128.onnx \
+  --model-filename $repo/exp/ctc-epoch-99-avg-1-chunk-16-left-128.onnx \
   --tokens $repo/data/lang_bpe_2000/tokens.txt \
   $repo/test_wavs/DEV_T0000000001.wav
 
