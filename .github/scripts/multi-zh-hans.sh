@@ -50,6 +50,26 @@ log "----------------------------------------"
 
 ls -lh $repo/exp/
 
+log "------------------------------------------------------------"
+log "Test exported streaming ONNX CTC models (greedy search)     "
+log "------------------------------------------------------------"
+
+test_wavs=(
+DEV_T0000000000.wav
+DEV_T0000000001.wav
+DEV_T0000000002.wav
+TEST_MEETING_T0000000113.wav
+TEST_MEETING_T0000000219.wav
+TEST_MEETING_T0000000351.wav
+)
+
+for w in ${test_wavs[@]}; do
+  ./zipformer/onnx_pretrained-streaming-ctc.py \
+    --model-filename $repo/exp/ctc-epoch-20-avg-1-chunk-16-left-128.int8.onnx \
+    --tokens $repo/data/lang_bpe_2000/tokens.txt \
+    $repo/test_wavs/$w
+done
+
 log "Upload onnx CTC models to huggingface"
 url=https://huggingface.co/k2-fsa/sherpa-onnx-streaming-zipformer-ctc-multi-zh-hans-2023-12-13
 GIT_LFS_SKIP_SMUDGE=1 git clone $url
