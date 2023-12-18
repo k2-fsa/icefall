@@ -78,7 +78,7 @@ def add_finetune_arguments(parser: argparse.ArgumentParser):
         default=None,
         help="""
         Modules to be initialized. It matches all parameters starting with
-        a specific key. The keys are given with Comma seperated. If None,
+        a specific key. The keys are given with Comma separated. If None,
         all modules will be initialised. For example, if you only want to
         initialise all parameters staring with "encoder", use "encoder";
         if you want to initialise parameters starting with encoder or decoder,
@@ -498,8 +498,12 @@ def load_model_params(
         dst_state_dict = model.state_dict()
         for module in init_modules:
             logging.info(f"Loading parameters starting with prefix {module}")
-            src_keys = [k for k in src_state_dict.keys() if k.startswith(module)]
-            dst_keys = [k for k in dst_state_dict.keys() if k.startswith(module)]
+            src_keys = [
+                k for k in src_state_dict.keys() if k.startswith(module.strip() + ".")
+            ]
+            dst_keys = [
+                k for k in dst_state_dict.keys() if k.startswith(module.strip() + ".")
+            ]
             assert set(src_keys) == set(dst_keys)  # two sets should match exactly
             for key in src_keys:
                 dst_state_dict[key] = src_state_dict.pop(key)
@@ -734,7 +738,7 @@ def train_one_epoch(
             scaler.update()
             optimizer.zero_grad()
         except:  # noqa
-            display_and_save_batch(batch, params=params)
+            display_and_save_batch(batch, params=params, graph_compiler=graph_compiler)
             raise
 
         if params.print_diagnostics and batch_idx == 5:
@@ -886,7 +890,7 @@ def run(rank, world_size, args):
 
     if params.print_diagnostics:
         opts = diagnostics.TensorDiagnosticOptions(
-            2**22
+            512
         )  # allow 4 megabytes per sub-module
         diagnostic = diagnostics.attach_diagnostics(model, opts)
 

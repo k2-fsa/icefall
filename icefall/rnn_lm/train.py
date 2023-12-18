@@ -463,7 +463,6 @@ def train_one_epoch(
     cur_batch_idx = params.get("cur_batch_idx", 0)
 
     for batch_idx, batch in enumerate(train_dl):
-
         if batch_idx < cur_batch_idx:
             continue
         cur_batch_idx = batch_idx

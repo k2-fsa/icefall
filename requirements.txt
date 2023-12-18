@@ -1,7 +1,12 @@
 kaldifst
 kaldilm
 kaldialign
+num2words
+kaldi-decoder
 sentencepiece>=0.1.96
 tensorboard
 typeguard
 dill
+black==22.3.0
+onnx==1.15.0
+onnxruntime==1.16.3

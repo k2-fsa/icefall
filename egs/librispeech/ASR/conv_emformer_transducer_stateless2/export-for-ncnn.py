@@ -8,7 +8,7 @@ for more details about how to use this file.
 Usage:
 ./conv_emformer_transducer_stateless2/export-for-ncnn.py \
   --exp-dir ./conv_emformer_transducer_stateless2/exp \
-  --bpe-model data/lang_bpe_500/bpe.model \
+  --tokens data/lang_bpe_500/tokens.txt \
   --epoch 30 \
   --avg 10 \
   --use-averaged-model=True \
@@ -37,10 +37,10 @@ import argparse
 import logging
 from pathlib import Path
 
-import sentencepiece as spm
+import k2
 import torch
+from do_not_use_it_directly import add_model_arguments, get_params, get_transducer_model
 from scaling_converter import convert_scaled_to_non_scaled
-from train2 import add_model_arguments, get_params, get_transducer_model
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -48,7 +48,7 @@ from icefall.checkpoint import (
     find_checkpoints,
     load_checkpoint,
 )
-from icefall.utils import setup_logger, str2bool
+from icefall.utils import num_tokens, setup_logger, str2bool
 
 
 def get_parser():
@@ -94,10 +94,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--bpe-model",
+        "--tokens",
         type=str,
-        default="data/lang_bpe_500/bpe.model",
-        help="Path to the BPE model",
+        required=True,
+        help="Path to the tokens.txt.",
     )
 
     parser.add_argument(
@@ -217,12 +217,12 @@ def main():
 
     logging.info(f"device: {device}")
 
-    sp = spm.SentencePieceProcessor()
-    sp.load(params.bpe_model)
+    # Load tokens.txt here
+    token_table = k2.SymbolTable.from_file(params.tokens)
 
-    # <blk> is defined in local/train_bpe_model.py
-    params.blank_id = sp.piece_to_id("<blk>")
-    params.vocab_size = sp.get_piece_size()
+    # Load id of the <blk> token and the vocab size
+    params.blank_id = token_table["<blk>"]
+    params.vocab_size = num_tokens(token_table) + 1  # +1 for <blk>
 
     logging.info(params)
 

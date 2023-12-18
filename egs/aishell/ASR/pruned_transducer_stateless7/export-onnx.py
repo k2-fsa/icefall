@@ -56,7 +56,7 @@ import torch.nn as nn
 from decoder2 import Decoder
 from onnxruntime.quantization import QuantType, quantize_dynamic
 from scaling_converter import convert_scaled_to_non_scaled
-from train2 import add_model_arguments, get_params, get_transducer_model
+from do_not_use_it_directly import add_model_arguments, get_params, get_transducer_model
 from zipformer import Zipformer
 
 from icefall.checkpoint import (
@@ -322,6 +322,7 @@ def export_decoder_model_onnx(
     vocab_size = decoder_model.decoder.vocab_size
 
     y = torch.zeros(10, context_size, dtype=torch.int64)
+    decoder_model = torch.jit.script(decoder_model)
     torch.onnx.export(
         decoder_model,
         y,

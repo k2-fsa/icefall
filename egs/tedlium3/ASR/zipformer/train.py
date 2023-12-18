@@ -586,7 +586,7 @@ def get_joiner_model(params: AttributeDict) -> nn.Module:
     return joiner
 
 
-def get_transducer_model(params: AttributeDict) -> nn.Module:
+def get_model(params: AttributeDict) -> nn.Module:
     encoder_embed = get_encoder_embed(params)
     encoder = get_encoder_model(params)
     decoder = get_decoder_model(params)
@@ -1083,7 +1083,7 @@ def run(rank, world_size, args):
     logging.info(params)
 
     logging.info("About to create model")
-    model = get_transducer_model(params)
+    model = get_model(params)
 
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
@@ -1126,7 +1126,7 @@ def run(rank, world_size, args):
 
     if params.print_diagnostics:
         opts = diagnostics.TensorDiagnosticOptions(
-            2**22
+            512
         )  # allow 4 megabytes per sub-module
         diagnostic = diagnostics.attach_diagnostics(model, opts)
 

@@ -29,7 +29,7 @@ class ContextState:
         token: int,
         token_score: float,
         node_score: float,
-        local_node_score: float,
+        output_score: float,
         is_end: bool,
     ):
         """Create a ContextState.
@@ -40,16 +40,15 @@ class ContextState:
             The id of the root node is always 0.
           token:
             The token id.
-          score:
+          token_score:
             The bonus for each token during decoding, which will hopefully
             boost the token up to survive beam search.
           node_score:
             The accumulated bonus from root of graph to current node, it will be
             used to calculate the score for fail arc.
-          local_node_score:
-            The accumulated bonus from last ``end_node``(node with is_end true)
-            to current_node, it will be used to calculate the score for fail arc.
-            Node: The local_node_score of a ``end_node`` is 0.
+          output_score:
+            The total scores of matched phrases, sum of the node_score of all
+            the output node for current node.
           is_end:
             True if current token is the end of a context.
         """
@@ -57,7 +56,7 @@ class ContextState:
         self.token = token
         self.token_score = token_score
         self.node_score = node_score
-        self.local_node_score = local_node_score
+        self.output_score = output_score
         self.is_end = is_end
         self.next = {}
         self.fail = None
@@ -85,6 +84,9 @@ class ContextGraph:
           context_score:
             The bonus score for each token(note: NOT for each word/phrase, it means longer
             word/phrase will have larger bonus score, they have to be matched though).
+            Note: This is just the default score for each token, the users can manually
+            specify the context_score for each word/phrase (i.e. different phrase might
+            have different token score).
         """
         self.context_score = context_score
         self.num_nodes = 0
@@ -93,7 +95,7 @@ class ContextGraph:
             token=-1,
             token_score=0,
             node_score=0,
-            local_node_score=0,
+            output_score=0,
             is_end=False,
         )
         self.root.fail = self.root
@@ -131,9 +133,10 @@ class ContextGraph:
                         output = None
                         break
                 node.output = output
+                node.output_score += 0 if output is None else output.output_score
                 queue.append(node)
 
-    def build(self, token_ids: List[List[int]]):
+    def build(self, token_ids: List[Tuple[List[int], float]]):
         """Build the ContextGraph from a list of token list.
         It first build a trie from the given token lists, then fill the fail arc
         for each trie node.
@@ -142,27 +145,46 @@ class ContextGraph:
 
         Args:
           token_ids:
-            The given token lists to build the ContextGraph, it is a list of token list,
-            each token list contains the token ids for a word/phrase. The token id
-            could be an id of a char (modeling with single Chinese char) or an id
-            of a BPE (modeling with BPEs).
+            The given token lists to build the ContextGraph, it is a list of tuple of
+            token list and its customized score, the token list contains the token ids
+            for a word/phrase. The token id could be an id of a char
+            (modeling with single Chinese char) or an id of a BPE
+            (modeling with BPEs). The score is the total score for current token list,
+            0 means using the default value (i.e. self.context_score).
+
+        Note: The phrases would have shared states, the score of the shared states is
+              the maximum value among all the tokens sharing this state.
         """
-        for tokens in token_ids:
+        for (tokens, score) in token_ids:
             node = self.root
+            # If has customized score using the customized token score, otherwise
+            # using the default score
+            context_score = (
+                self.context_score if score == 0.0 else round(score / len(tokens), 2)
+            )
             for i, token in enumerate(tokens):
+                node_next = {}
                 if token not in node.next:
                     self.num_nodes += 1
+                    node_id = self.num_nodes
+                    token_score = context_score
                     is_end = i == len(tokens) - 1
-                    node.next[token] = ContextState(
-                        id=self.num_nodes,
-                        token=token,
-                        token_score=self.context_score,
-                        node_score=node.node_score + self.context_score,
-                        local_node_score=0
-                        if is_end
-                        else (node.local_node_score + self.context_score),
-                        is_end=is_end,
-                    )
+                else:
+                    # node exists, get the score of shared state.
+                    token_score = max(context_score, node.next[token].token_score)
+                    node_id = node.next[token].id
+                    node_next = node.next[token].next
+                    is_end = i == len(tokens) - 1 or node.next[token].is_end
+                node_score = node.node_score + token_score
+                node.next[token] = ContextState(
+                    id=node_id,
+                    token=token,
+                    token_score=token_score,
+                    node_score=node_score,
+                    output_score=node_score if is_end else 0,
+                    is_end=is_end,
+                )
+                node.next[token].next = node_next
                 node = node.next[token]
         self._fill_fail_output()
 
@@ -186,8 +208,6 @@ class ContextGraph:
         if token in state.next:
             node = state.next[token]
             score = node.token_score
-            if state.is_end:
-                score += state.node_score
         else:
             # token not matched
             # We will trace along the fail arc until it matches the token or reaching
@@ -202,14 +222,9 @@ class ContextGraph:
                 node = node.next[token]
 
             # The score of the fail path
-            score = node.node_score - state.local_node_score
+            score = node.node_score - state.node_score
         assert node is not None
-        matched_score = 0
-        output = node.output
-        while output is not None:
-            matched_score += output.node_score
-            output = output.output
-        return (score + matched_score, node)
+        return (score + node.output_score, node)
 
     def finalize(self, state: ContextState) -> Tuple[float, ContextState]:
         """When reaching the end of the decoded sequence, we need to finalize
@@ -227,8 +242,6 @@ class ContextGraph:
         """
         # The score of the fail arc
         score = -state.node_score
-        if state.is_end:
-            score = 0
         return (score, self.root)
 
     def draw(
@@ -237,7 +250,6 @@ class ContextGraph:
         filename: Optional[str] = "",
         symbol_table: Optional[Dict[int, str]] = None,
     ) -> "Digraph":  # noqa
-
         """Visualize a ContextGraph via graphviz.
 
         Render ContextGraph as an image via graphviz, and return the Digraph object;
@@ -307,10 +319,8 @@ class ContextGraph:
             for token, node in current_node.next.items():
                 if node.id not in seen:
                     node_score = f"{node.node_score:.2f}".rstrip("0").rstrip(".")
-                    local_node_score = f"{node.local_node_score:.2f}".rstrip(
-                        "0"
-                    ).rstrip(".")
-                    label = f"{node.id}/({node_score},{local_node_score})"
+                    output_score = f"{node.output_score:.2f}".rstrip("0").rstrip(".")
+                    label = f"{node.id}/({node_score}, {output_score})"
                     if node.is_end:
                         dot.node(str(node.id), label=label, **final_state_attr)
                     else:
@@ -356,7 +366,7 @@ class ContextGraph:
         return dot
 
 
-if __name__ == "__main__":
+def _test(queries, score):
     contexts_str = [
         "S",
         "HE",
@@ -368,9 +378,11 @@ if __name__ == "__main__":
         "THIS",
         "THEM",
     ]
+
+    # test default score (1)
     contexts = []
     for s in contexts_str:
-        contexts.append([ord(x) for x in s])
+        contexts.append(([ord(x) for x in s], score))
 
     context_graph = ContextGraph(context_score=1)
     context_graph.build(contexts)
@@ -382,20 +394,10 @@ if __name__ == "__main__":
 
     context_graph.draw(
         title="Graph for: " + " / ".join(contexts_str),
-        filename="context_graph.pdf",
+        filename=f"context_graph_{score}.pdf",
         symbol_table=symbol_table,
     )
 
-    queries = {
-        "HEHERSHE": 14,  # "HE", "HE", "HERS", "S", "SHE", "HE"
-        "HERSHE": 12,  # "HE", "HERS", "S", "SHE", "HE"
-        "HISHE": 9,  # "HIS", "S", "SHE", "HE"
-        "SHED": 6,  # "S", "SHE", "HE"
-        "HELL": 2,  # "HE"
-        "HELLO": 7,  # "HE", "HELLO"
-        "DHRHISQ": 4,  # "HIS", "S"
-        "THEN": 2,  # "HE"
-    }
     for query, expected_score in queries.items():
         total_scores = 0
         state = context_graph.root
@@ -405,8 +407,47 @@ if __name__ == "__main__":
         score, state = context_graph.finalize(state)
         assert state.token == -1, state.token
         total_scores += score
-        assert total_scores == expected_score, (
+        assert round(total_scores, 2) == expected_score, (
             total_scores,
             expected_score,
             query,
         )
+
+
+if __name__ == "__main__":
+    # test default score
+    queries = {
+        "HEHERSHE": 14,  # "HE", "HE", "HERS", "S", "SHE", "HE"
+        "HERSHE": 12,  # "HE", "HERS", "S", "SHE", "HE"
+        "HISHE": 9,  # "HIS", "S", "SHE", "HE"
+        "SHED": 6,  # "S", "SHE", "HE"
+        "SHELF": 6,  # "S", "SHE", "HE"
+        "HELL": 2,  # "HE"
+        "HELLO": 7,  # "HE", "HELLO"
+        "DHRHISQ": 4,  # "HIS", "S"
+        "THEN": 2,  # "HE"
+    }
+    _test(queries, 0)
+
+    # test custom score (5)
+    # S : 5
+    # HE : 5 (2.5 + 2.5)
+    # SHE : 8.34 (5 + 1.67 + 1.67)
+    # SHELL : 10.34 (5 + 1.67 + 1.67 + 1 + 1)
+    # HIS : 5.84 (2.5 + 1.67 + 1.67)
+    # HERS : 7.5 (2.5 + 2.5 + 1.25 + 1.25)
+    # HELLO : 8 (2.5 + 2.5 + 1 + 1 + 1)
+    # THIS : 5 (1.25 + 1.25 + 1.25 + 1.25)
+    queries = {
+        "HEHERSHE": 35.84,  # "HE", "HE", "HERS", "S", "SHE", "HE"
+        "HERSHE": 30.84,  # "HE", "HERS", "S", "SHE", "HE"
+        "HISHE": 24.18,  # "HIS", "S", "SHE", "HE"
+        "SHED": 18.34,  # "S", "SHE", "HE"
+        "SHELF": 18.34,  # "S", "SHE", "HE"
+        "HELL": 5,  # "HE"
+        "HELLO": 13,  # "HE", "HELLO"
+        "DHRHISQ": 10.84,  # "HIS", "S"
+        "THEN": 5,  # "HE"
+    }
+
+    _test(queries, 5)

@@ -28,7 +28,7 @@ Usage:
 
 ./pruned_transducer_stateless7_ctc_bs/export_onnx.py \
   --exp-dir ./pruned_transducer_stateless7_ctc_bs/exp \
-  --bpe-model data/lang_bpe_500/bpe.model \
+  --tokens data/lang_bpe_500/tokens.txt \
   --epoch 30 \
   --avg 13 \
   --onnx 1
@@ -48,7 +48,7 @@ Check `onnx_check.py` for how to use them.
 (2) Export to ONNX format which can be used in Triton Server
 ./pruned_transducer_stateless7_ctc_bs/export_onnx.py \
   --exp-dir ./pruned_transducer_stateless7_ctc_bs/exp \
-  --bpe-model data/lang_bpe_500/bpe.model \
+  --tokens data/lang_bpe_500/tokens.txt \
   --epoch 30 \
   --avg 13 \
   --onnx-triton 1
@@ -86,9 +86,10 @@ import argparse
 import logging
 from pathlib import Path
 
-import sentencepiece as spm
+import k2
 import torch
 import torch.nn as nn
+from onnx_wrapper import TritonOnnxDecoder, TritonOnnxJoiner, TritonOnnxLconv
 from scaling_converter import convert_scaled_to_non_scaled
 from train import add_model_arguments, get_params, get_transducer_model
 
@@ -98,8 +99,7 @@ from icefall.checkpoint import (
     find_checkpoints,
     load_checkpoint,
 )
-from icefall.utils import str2bool
-from onnx_wrapper import TritonOnnxDecoder, TritonOnnxJoiner, TritonOnnxLconv
+from icefall.utils import num_tokens, str2bool
 
 
 def get_parser():
@@ -156,10 +156,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--bpe-model",
+        "--tokens",
         type=str,
-        default="data/lang_bpe_500/bpe.model",
-        help="Path to the BPE model",
+        default="data/lang_bpe_500/tokens.txt",
+        help="Path to the tokens.txt.",
     )
 
     parser.add_argument(
@@ -728,12 +728,14 @@ def main():
 
     logging.info(f"device: {device}")
 
-    sp = spm.SentencePieceProcessor()
-    sp.load(params.bpe_model)
+    # Load tokens.txt here
+    token_table = k2.SymbolTable.from_file(params.tokens)
 
+    # Load id of the <blk> token and the vocab size
     # <blk> is defined in local/train_bpe_model.py
-    params.blank_id = sp.piece_to_id("<blk>")
-    params.vocab_size = sp.get_piece_size()
+    params.blank_id = token_table["<blk>"]
+    params.unk_id = token_table["<unk>"]
+    params.vocab_size = num_tokens(token_table) + 1  # +1 for <blk>
 
     logging.info(params)
 

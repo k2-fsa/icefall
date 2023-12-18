@@ -15,7 +15,7 @@ per-file-ignores =
     egs/librispeech/ASR/zipformer_mmi/*.py: E501, E203
     egs/librispeech/ASR/zipformer/*.py: E501, E203
     egs/librispeech/ASR/RESULTS.md: E999,
-
+    egs/ljspeech/TTS/vits/*.py: E501, E203
     # invalid escape sequence (cause by tex formular), W605
     icefall/utils.py: E501, W605
 
@@ -24,6 +24,7 @@ exclude =
   **/data/**,
   icefall/shared/make_kn_lm.py,
   icefall/__init__.py
+  icefall/ctc/__init__.py
 
 ignore =
   # E203 white space before ":"

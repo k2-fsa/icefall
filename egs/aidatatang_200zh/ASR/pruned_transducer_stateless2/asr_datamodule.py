@@ -37,7 +37,7 @@ from lhotse.dataset import (
     DynamicBucketingSampler,
     K2SpeechRecognitionDataset,
     PrecomputedFeatures,
-    SingleCutSampler,
+    SimpleCutSampler,
     SpecAugment,
 )
 from lhotse.dataset.input_strategies import OnTheFlyFeatures
@@ -102,7 +102,7 @@ class Aidatatang_200zhAsrDataModule:
         group.add_argument(
             "--bucketing-sampler",
             type=str2bool,
-            default=True,
+            default=False,
             help="When enabled, the batches will come from buckets of "
             "similar duration (saves padding frames).",
         )
@@ -211,7 +211,7 @@ class Aidatatang_200zhAsrDataModule:
         if self.args.enable_musan:
             logging.info("Enable MUSAN")
             transforms.append(
-                CutMix(cuts=cuts_musan, prob=0.5, snr=(10, 20), preserve_id=True)
+                CutMix(cuts=cuts_musan, p=0.5, snr=(10, 20), preserve_id=True)
             )
         else:
             logging.info("Disable MUSAN")
@@ -289,10 +289,11 @@ class Aidatatang_200zhAsrDataModule:
                 shuffle=self.args.shuffle,
                 num_buckets=self.args.num_buckets,
                 drop_last=True,
+                buffer_size=50000,
             )
         else:
-            logging.info("Using SingleCutSampler.")
-            train_sampler = SingleCutSampler(
+            logging.info("Using SimpleCutSampler.")
+            train_sampler = SimpleCutSampler(
                 cuts_train,
                 max_duration=self.args.max_duration,
                 shuffle=self.args.shuffle,
