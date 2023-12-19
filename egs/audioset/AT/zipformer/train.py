@@ -26,7 +26,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --start-epoch 1 \
   --use-fp16 1 \
   --exp-dir zipformer/exp \
-  --full-libri 1 \
+  --audioset-subset full \
   --max-duration 1000
 
 
