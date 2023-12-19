@@ -6,8 +6,8 @@ export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
 set -eou pipefail
 
 nj=15
-stage=3
-stop_stage=3
+stage=4
+stop_stage=4
 
 # We assume dl_dir (download dir) contains the following
 # directories and files. If not, they will be downloaded
@@ -83,19 +83,19 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
 fi
 
 if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
-  log "Stage 3: Compute fbank for icmcasr"
+  log "Stage 4: Compute fbank for icmcasr"
   if [ ! -f data/fbank/.icmcasr.done ]; then
     mkdir -p data/fbank
     ./local/compute_fbank_icmcasr.py --perturb-speed True
     echo "Combining manifests"
-    lhotse combine data/manifests/cuts_train_{ihm,ihm_rvb,sdm,gss}.jsonl.gz - | shuf |\
-      gzip -c > data/manifests/cuts_train_all.jsonl.gz
+   lhotse combine data/manifests/cuts_train_{ihm,ihm_rvb,sdm,gss}.jsonl.gz - | shuf |\
+     gzip -c > data/manifests/cuts_train_all.jsonl.gz
     touch data/fbank/.icmcasr.done
   fi
 fi
 
 if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
-  log "Stage 4: Compute fbank for musan"
+  log "Stage 5: Compute fbank for musan"
   if [ ! -f data/fbank/.msuan.done ]; then
     mkdir -p data/fbank
     ./local/compute_fbank_musan.py
@@ -105,7 +105,7 @@ fi
 
 lang_phone_dir=data/lang_phone
 if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
-  log "Stage 5: Prepare phone based lang"
+  log "Stage 6: Prepare G.fst"
   mkdir -p $lang_phone_dir
 
   (echo '!SIL SIL'; echo '<SPOKEN_NOISE> SPN'; echo '<UNK> SPN'; ) |
@@ -119,57 +119,3 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
   fi
 fi
 
-lang_char_dir=data/lang_char
-if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
-  log "Stage 6: Prepare char based lang"
-  mkdir -p $lang_char_dir
-  # We reuse words.txt from phone based lexicon
-  # so that the two can share G.pt later.
-
-  # The transcripts in training set, generated in stage 5
-  cp $lang_phone_dir/transcript_words.txt $lang_char_dir/transcript_words.txt
-
-  cat $dl_dir/icmcasr/data_icmcasr/transcript/icmcasr_transcript_v0.8.txt |
-  cut -d " " -f 2- > $lang_char_dir/text
-
-  (echo '<eps> 0'; echo '!SIL 1'; echo '<SPOKEN_NOISE> 2'; echo '<UNK> 3';) \
-    > $lang_char_dir/words.txt
-
-  cat $lang_char_dir/text | sed 's/ /\n/g' | sort -u | sed '/^$/d' \
-     | awk '{print $1" "NR+3}' >> $lang_char_dir/words.txt
-
-  num_lines=$(< $lang_char_dir/words.txt wc -l)
-  (echo "#0 $num_lines"; echo "<s> $(($num_lines + 1))"; echo "</s> $(($num_lines + 2))";) \
-    >> $lang_char_dir/words.txt
-
-  if [ ! -f $lang_char_dir/L_disambig.pt ]; then
-    ./local/prepare_char.py --lang-dir $lang_char_dir
-  fi
-
-  if [ ! -f $lang_char_dir/HLG.fst ]; then
-    ./local/prepare_lang_fst.py  --lang-dir $lang_phone_dir --ngram-G ./data/lm/G_3_gram.fst.txt
-  fi
-fi
-
-if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
-  log "Stage 7: Prepare Byte BPE based lang"
-
-  for vocab_size in ${vocab_sizes[@]}; do
-    lang_dir=data/lang_bbpe_${vocab_size}
-    mkdir -p $lang_dir
-
-    cp $lang_char_dir/words.txt $lang_dir
-    cp $lang_char_dir/text $lang_dir
-
-    if [ ! -f $lang_dir/bbpe.model ]; then
-      ./local/train_bbpe_model.py \
-        --lang-dir $lang_dir \
-        --vocab-size $vocab_size \
-        --transcript $lang_dir/text
-    fi
-
-    if [ ! -f $lang_dir/L_disambig.pt ]; then
-      ./local/prepare_lang_bbpe.py --lang-dir $lang_dir
-    fi
-  done
-fi

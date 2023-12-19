@@ -30,7 +30,7 @@ log() {
 
 if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   log "Stage 1: Prepare cut sets"
-  for part in train dev; do
+  for part in train dev eval_track1; do
     lhotse cut simple \
       -r $DATA_DIR/icmcasr-mdm_recordings_${part}.jsonl.gz \
       -s $DATA_DIR/icmcasr-mdm_supervisions_${part}.jsonl.gz \
@@ -40,7 +40,7 @@ fi
 
 if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   log "Stage 2: Trim cuts to supervisions (1 cut per supervision segment)"
-  for part in train dev; do
+  for part in train dev eval_track1; do
     lhotse cut trim-to-supervisions --discard-overlapping \
         $EXP_DIR/cuts_${part}.jsonl.gz $EXP_DIR/cuts_per_segment_${part}.jsonl.gz
   done
@@ -48,7 +48,7 @@ fi
 
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   log "Stage 3: Split manifests for multi-GPU processing (optional)"
-  for part in train dev; do
+  for part in train dev eval_track1; do
     gss utils split $nj $EXP_DIR/cuts_per_segment_${part}.jsonl.gz \
       $EXP_DIR/cuts_per_segment_${part}_split$nj
   done
@@ -75,7 +75,7 @@ fi
 if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   log "Stage 5: Enhance eval/test segments using GSS (using GPU)"
   # for eval/test, we use larger context and smaller batches to get better quality
-  for part in dev; do
+  for part in dev eval_track1; do
     for JOB in $(seq $nj); do
       gss enhance cuts $EXP_DIR/cuts_${part}.jsonl.gz \
       $EXP_DIR/cuts_per_segment_${part}_split$nj/cuts_per_segment_${part}.$JOB.jsonl.gz \

@@ -92,7 +92,7 @@ def main(args):
 
     # Load manifests from cache if they exist (saves time)
     manifests = read_manifests_if_cached(
-        dataset_parts=["train", "dev"],
+        dataset_parts=["train", "dev", "eval_track1"],
         output_dir=manifests_dir,
         prefix="icmcasr-sdm",
         suffix="jsonl.gz",
@@ -103,7 +103,7 @@ def main(args):
         )
 
     with ThreadPoolExecutor(args.num_jobs) as ex:
-        for part in ["train", "dev",]:
+        for part in ["train", "dev", "eval_track1"]:
             logging.info(f"Processing {part}...")
             supervisions_orig = manifests[part]["supervisions"].filter(
                 lambda s: s.duration >= args.min_segment_duration

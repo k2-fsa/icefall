@@ -58,14 +58,14 @@ def compute_fbank_icmcasr(num_mel_bins: int = 80, perturb_speed: bool = False):
         suffix="jsonl.gz",
     )
     manifests_sdm = read_manifests_if_cached(
-        dataset_parts=["train", "dev"],
+        dataset_parts=["train", "dev", "eval_track1"],
         output_dir=src_dir,
         prefix="icmcasr-sdm",
         suffix="jsonl.gz",
     )
     # For GSS we already have cuts so we read them directly.
     manifests_gss = read_manifests_if_cached(
-        dataset_parts=["train", "dev"],
+        dataset_parts=["train", "dev", "eval_track1"],
         output_dir=src_dir,
         prefix="icmcasr-gss",
         suffix="jsonl.gz",
@@ -96,7 +96,7 @@ def compute_fbank_icmcasr(num_mel_bins: int = 80, perturb_speed: bool = False):
             storage_path=storage_path,
             manifest_path=manifest_path,
             batch_duration=5000,
-            num_workers=8,
+            num_workers=4,
             storage_type=LilcomChunkyWriter,
         )
 
@@ -153,7 +153,7 @@ def compute_fbank_icmcasr(num_mel_bins: int = 80, perturb_speed: bool = False):
     )
 
     logging.info("Preparing test cuts: IHM, SDM, GSS (optional)")
-    for split in ["dev"]:
+    for split in ["dev", "eval_track1"]:
         logging.info(f"Processing {split} IHM")
         cuts_ihm = (
             CutSet.from_manifests(**manifests_ihm[split])
