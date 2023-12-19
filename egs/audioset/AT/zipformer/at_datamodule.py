@@ -17,18 +17,18 @@
 import argparse
 import inspect
 import logging
+import pickle
 from functools import lru_cache
 from pathlib import Path
-import pickle
 from typing import Any, Dict, Optional
 
 import torch
 from lhotse import CutSet, Fbank, FbankConfig, load_manifest, load_manifest_lazy
 from lhotse.dataset import (  # noqa F401 for PrecomputedFeatures
+    AudioTaggingDataset,
     CutConcatenate,
     CutMix,
     DynamicBucketingSampler,
-    AudioTaggingDataset,
     PrecomputedFeatures,
     SimpleCutSampler,
     SpecAugment,
@@ -42,6 +42,7 @@ from torch.utils.data import DataLoader
 
 from icefall.utils import str2bool
 
+
 class _SeedWorkers:
     def __init__(self, seed: int):
         self.seed = seed
@@ -53,7 +54,7 @@ class _SeedWorkers:
 class AudioSetATDatamodule:
     """
     DataModule for k2 audio tagging (AT) experiments.
-    
+
 
     It contains all the common data pipeline modules used in ASR
     experiments, e.g.:
@@ -65,6 +66,7 @@ class AudioSetATDatamodule:
 
     This class should be derived for specific corpora used in ASR tasks.
     """
+
     def __init__(self, args: argparse.Namespace):
         self.args = args
 
@@ -82,7 +84,7 @@ class AudioSetATDatamodule:
             "--audioset-subset",
             type=str,
             default="balanced",
-            choices=["balanced", "full"]
+            choices=["balanced", "full"],
         )
 
         group.add_argument(
