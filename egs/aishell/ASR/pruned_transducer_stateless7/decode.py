@@ -641,7 +641,7 @@ def main():
                 contexts_text.append(line.strip())
             contexts = graph_compiler.texts_to_ids(contexts_text)
             context_graph = ContextGraph(params.context_score)
-            context_graph.build(contexts)
+            context_graph.build([(c, 0.0) for c in contexts])
         else:
             context_graph = None
     else:

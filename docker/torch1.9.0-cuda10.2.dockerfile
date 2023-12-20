@@ -4,8 +4,9 @@ ENV LC_ALL C.UTF-8
 
 ARG DEBIAN_FRONTEND=noninteractive
 
+# python 3.7
 ARG K2_VERSION="1.24.3.dev20230726+cuda10.2.torch1.9.0"
-ARG KALDIFEAT_VERSION="1.25.0.dev20230726+cuda10.2.torch1.9.0"
+ARG KALDIFEAT_VERSION="1.25.1.dev20231022+cuda10.2.torch1.9.0"
 ARG TORCHAUDIO_VERSION="0.9.0"
 
 LABEL authors="Fangjun Kuang <csukuangfj@gmail.com>"
@@ -24,7 +25,7 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         curl \
         vim \
-    		libssl-dev \
+    	libssl-dev \
         autoconf \
         automake \
         bzip2 \
@@ -57,7 +58,6 @@ RUN pip uninstall -y tqdm && \
       k2==${K2_VERSION} -f https://k2-fsa.github.io/k2/cuda.html \
       kaldifeat==${KALDIFEAT_VERSION} -f https://csukuangfj.github.io/kaldifeat/cuda.html \
       git+https://github.com/lhotse-speech/lhotse \
-      \
       kaldi_native_io \
       kaldialign \
       kaldifst \

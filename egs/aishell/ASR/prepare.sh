@@ -8,6 +8,7 @@ set -eou pipefail
 nj=15
 stage=-1
 stop_stage=11
+perturb_speed=true
 
 # We assume dl_dir (download dir) contains the following
 # directories and files. If not, they will be downloaded
@@ -114,7 +115,7 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   log "Stage 3: Compute fbank for aishell"
   if [ ! -f data/fbank/.aishell.done ]; then
     mkdir -p data/fbank
-    ./local/compute_fbank_aishell.py --perturb-speed True
+    ./local/compute_fbank_aishell.py --perturb-speed ${perturb_speed}
     touch data/fbank/.aishell.done
   fi
 fi
@@ -204,10 +205,6 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
   if [ ! -f $lang_char_dir/L_disambig.pt ]; then
     ./local/prepare_char.py --lang-dir $lang_char_dir
   fi
-
-  if [ ! -f $lang_char_dir/HLG.fst ]; then
-    ./local/prepare_lang_fst.py  --lang-dir $lang_phone_dir --ngram-G ./data/lm/G_3_gram.fst.txt
-  fi
 fi
 
 if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
@@ -246,7 +243,7 @@ if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
       -lm data/lm/3-gram.unpruned.arpa
   fi
 
-  # We assume you have install kaldilm, if not, please install
+  # We assume you have installed kaldilm, if not, please install
   # it using: pip install kaldilm
   if [ ! -f data/lm/G_3_gram_char.fst.txt ]; then
     # It is used in building HLG
@@ -261,6 +258,12 @@ if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
       --disambig-symbol='#0' \
       --max-order=3 \
       data/lm/3-gram.unpruned.arpa > data/lm/G_3_gram_char.fst.txt
+  fi
+
+  if [ ! -f $lang_char_dir/HLG.fst ]; then
+    ./local/prepare_lang_fst.py  \
+      --lang-dir $lang_char_dir \
+      --ngram-G ./data/lm/G_3_gram_char.fst.txt
   fi
 fi
 
