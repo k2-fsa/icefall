@@ -1,8 +1,5 @@
 name: build-cpu-docker
 on:
-  push:
-    branches:
-      - ci-train-3
   workflow_dispatch:
 
 concurrency:
@@ -11,7 +8,7 @@ concurrency:
 
 jobs:
   build-cpu-docker:
-    name: py${{ matrix.python-version }} torch${{ matrix.torch-version }}
+    name: py${{ matrix.python-version }} torch${{ matrix.torch-version }} v${{ matrix.version }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -21,6 +18,7 @@ jobs:
         torch-version: ["1.13.0", "2.0.0", "2.0.1", "2.1.0", "2.1.1", "2.1.2"]
         k2-version: ["1.24.4.dev20231220"]
         kaldifeat-version: ["1.25.3.dev20231221"]
+        version: ["1.0"]
 
     steps:
       # refer to https://github.com/actions/checkout
@@ -59,7 +57,9 @@ jobs:
           echo "torch_version: $torch_version"
           echo "torchaudio_version: $torchaudio_version"
 
-          tag=ghcr.io/csukuangfj/icefall:cpu-py${{ matrix.python-version }}-torch${{ matrix.torch-version }}
+          version=${{ matrix.version }}
+
+          tag=ghcr.io/k2-fsa/icefall:cpu-py${{ matrix.python-version }}-torch${{ matrix.torch-version }}-v$version
           echo "tag: $tag"
 
           docker build \
