@@ -3,6 +3,9 @@ set -ex
 
 cd /icefall
 export PYTHONPATH=/icefall:$PYTHONPATH
+python3 -c "import torch; print(torch.__file__)"
+python3 -c "import torchaudio; print(torchaudio.__version__)"
+python3 -c "import icefall; print(icefall.__file__)"
 
 cd egs/librispeech/ASR
 
