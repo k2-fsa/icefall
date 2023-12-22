@@ -2,7 +2,12 @@ name: train librispeech
 on:
   push:
     branches:
-      - ci-train
+      - master
+
+  pull_request:
+    branches:
+      - master
+
   workflow_dispatch:
 
 concurrency:
@@ -37,7 +42,7 @@ jobs:
       - name: Run the build process with Docker
         uses: addnab/docker-run-action@v3
         with:
-            image: ghcr.io/csukuangfj/icefall:cpu-py${{ matrix.python-version }}
+            image: ghcr.io/k2-fsa/icefall:cpu-py${{ matrix.python-version }}
             options: |
               --volume ${{ github.workspace }}/:/icefall
             shell: bash
