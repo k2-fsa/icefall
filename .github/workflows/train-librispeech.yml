@@ -3,7 +3,7 @@ on:
   push:
     branches:
       - master
-      - ci-train-2
+      - ci-train-3
 
   pull_request:
     branches:

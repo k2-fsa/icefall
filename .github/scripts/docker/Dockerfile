@@ -12,6 +12,7 @@ ARG _KALDIFEAT_VERSION="${KALDIFEAT_VERSION}+cpu.torch${TORCH_VERSION}"
 
 RUN apt-get update -y && \
     apt-get install -qq -y \
+    ffmpeg \
     git \
     git-lfs \
     less \
