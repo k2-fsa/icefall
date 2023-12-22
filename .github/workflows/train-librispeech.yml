@@ -2,7 +2,13 @@ name: train librispeech
 on:
   push:
     branches:
-      - ci-train
+      - master
+      - ci-train-2
+
+  pull_request:
+    branches:
+      - master
+
   workflow_dispatch:
 
 concurrency:
@@ -11,13 +17,16 @@ concurrency:
 
 jobs:
   train-librispeech:
-    name: ${{ matrix.python-version }}
+    name: py${{ matrix.python-version }} torch${{ matrix.torch-version }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
         python-version: ["3.8", "3.9", "3.10"]
+        torch-version: ["1.13.0", "2.0.0", "2.0.1", "2.1.0", "2.1.1", "2.1.2"]
+        k2-version: ["1.24.4.dev20231220"]
+        kaldifeat-version: ["1.25.3.dev20231221"]
 
     steps:
       # refer to https://github.com/actions/checkout
@@ -37,7 +46,8 @@ jobs:
       - name: Run the build process with Docker
         uses: addnab/docker-run-action@v3
         with:
-            image: ghcr.io/csukuangfj/icefall:cpu-py${{ matrix.python-version }}
+            # image: ghcr.io/k2-fsa/icefall:cpu-py${{ matrix.python-version }}
+            image: ghcr.io/csukuangfj/icefall:cpu-py${{ matrix.python-version }}-torch${{ matrix.torch-version }}
             options: |
               --volume ${{ github.workspace }}/:/icefall
             shell: bash
