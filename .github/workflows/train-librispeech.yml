@@ -1,0 +1,57 @@
+name: train librispeech
+on:
+  push:
+    branches:
+      - ci-train
+  workflow_dispatch:
+
+concurrency:
+  group: train-librispeech-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  train-librispeech:
+    name: ${{ matrix.image }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+
+    steps:
+      # refer to https://github.com/actions/checkout
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Rename
+        shell: bash
+        run: |
+          cp -v .github/scripts/docker/Dockerfile ./Dockerfile
+
+      - name: Free space
+        shell: bash
+        run: |
+          df -h
+          rm -rf /opt/hostedtoolcache
+          df -h
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: 'Login to GitHub Container Registry'
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build docker Image
+        shell: bash
+        run: |
+          cp -v .github/scripts/docker/Dockerfile ./Dockerfile
+          docker build -t ghcr.io/k2-fsa/icefall:librispeech .
+          docker image ls
