@@ -17,7 +17,7 @@
 # limitations under the License.
 
 """
-Usage: ./pruned_transducer_stateless7/profile.py
+Usage: ./pruned_transducer_stateless7/my_profile.py
 """
 
 import argparse
