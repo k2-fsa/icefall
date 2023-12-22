@@ -17,7 +17,7 @@
 # limitations under the License.
 
 """
-Usage: ./zipformer/profile.py
+Usage: ./zipformer/my_profile.py
 """
 
 import argparse

@@ -17,7 +17,7 @@
 # limitations under the License.
 
 """
-Usage: ./pruned_transducer_stateless4/profile.py
+Usage: ./pruned_transducer_stateless/my_profile.py
 """
 
 import argparse
@@ -25,12 +25,8 @@ import logging
 import sentencepiece as spm
 import torch
 
-from typing import Tuple
-from torch import Tensor, nn
-
 from icefall.profiler import get_model_profile
-from scaling import BasicNorm, DoubleSwish
-from train import get_encoder_model, get_joiner_model, add_model_arguments, get_params
+from train import get_encoder_model, add_model_arguments, get_params
 
 
 def get_parser():
@@ -48,47 +44,6 @@ def get_parser():
     add_model_arguments(parser)
 
     return parser
-
-
-def _basic_norm_flops_compute(module, input, output):
-    assert len(input) == 1, len(input)
-    # estimate as layer_norm, see icefall/profiler.py
-    flops = input[0].numel() * 5
-    module.__flops__ += int(flops)
-
-
-def _doubleswish_module_flops_compute(module, input, output):
-    # For DoubleSwish
-    assert len(input) == 1, len(input)
-    # estimate as swish/silu, see icefall/profiler.py
-    flops = input[0].numel()
-    module.__flops__ += int(flops)
-
-
-MODULE_HOOK_MAPPING = {
-    BasicNorm: _basic_norm_flops_compute,
-    DoubleSwish: _doubleswish_module_flops_compute,
-}
-
-
-class Model(nn.Module):
-    """A Wrapper for encoder and encoder_proj"""
-
-    def __init__(
-        self,
-        encoder: nn.Module,
-        encoder_proj: nn.Module,
-    ) -> None:
-        super().__init__()
-        self.encoder = encoder
-        self.encoder_proj = encoder_proj
-
-    def forward(self, feature: Tensor, feature_lens: Tensor) -> Tuple[Tensor, Tensor]:
-        encoder_out, encoder_out_lens = self.encoder(feature, feature_lens)
-
-        logits = self.encoder_proj(encoder_out)
-
-        return logits, encoder_out_lens
 
 
 @torch.no_grad()
@@ -116,10 +71,7 @@ def main():
     logging.info("About to create model")
 
     # We only profile the encoder part
-    model = Model(
-        encoder=get_encoder_model(params),
-        encoder_proj=get_joiner_model(params).encoder_proj,
-    )
+    model = get_encoder_model(params)
     model.eval()
     model.to(device)
 
@@ -131,11 +83,7 @@ def main():
     feature = torch.ones(B, T, D, dtype=torch.float32).to(device)
     feature_lens = torch.full((B,), T, dtype=torch.int64).to(device)
 
-    flops, params = get_model_profile(
-        model=model,
-        args=(feature, feature_lens),
-        module_hoop_mapping=MODULE_HOOK_MAPPING,
-    )
+    flops, params = get_model_profile(model=model, args=(feature, feature_lens))
     logging.info(f"For the encoder part, params: {params}, flops: {flops}")
 
 
