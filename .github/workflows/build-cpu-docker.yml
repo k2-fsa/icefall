@@ -8,7 +8,7 @@ concurrency:
 
 jobs:
   build-cpu-docker:
-    name: py${{ matrix.python-version }} torch${{ matrix.torch-version }}
+    name: py${{ matrix.python-version }} torch${{ matrix.torch-version }} v${{ matrix.version }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -18,6 +18,7 @@ jobs:
         torch-version: ["1.13.0", "2.0.0", "2.0.1", "2.1.0", "2.1.1", "2.1.2"]
         k2-version: ["1.24.4.dev20231220"]
         kaldifeat-version: ["1.25.3.dev20231221"]
+        version: ["1.0"]
 
     steps:
       # refer to https://github.com/actions/checkout
@@ -44,17 +45,22 @@ jobs:
         run: |
           cd .github/scripts/docker
           torch_version=${{ matrix.torch-version }}
-          if [[ $torch_version == "1.13.0" ]]; then
+          if [[ $torch_version == 1.13.0 ]]; then
             torchaudio_version=0.13.0
-          elif [[ $torch_version == "2.0.0" ]]; then
+          elif [[ $torch_version == 2.0.0 ]]; then
             torchaudio_version=2.0.1
-          elif [[ $torch_version == "2.0.1" ]]; then
-            torchaudio_version=2.0.2"
+          elif [[ $torch_version == 2.0.1 ]]; then
+            torchaudio_version=2.0.2
           else
             torchaudio_version=$torch_version
           fi
+          echo "torch_version: $torch_version"
+          echo "torchaudio_version: $torchaudio_version"
 
-          tag=ghcr.io/k2-fsa/icefall:cpu-py${{ matrix.python-version }}-torch${{ matrix.torch-version }}
+          version=${{ matrix.version }}
+
+          tag=ghcr.io/k2-fsa/icefall:cpu-py${{ matrix.python-version }}-torch${{ matrix.torch-version }}-v$version
+          echo "tag: $tag"
 
           docker build \
             -t $tag \

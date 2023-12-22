@@ -1,4 +1,5 @@
 ARG PYTHON_VERSION=3.8
+FROM python:${PYTHON_VERSION}
 
 ARG TORCHAUDIO_VERSION="0.13.0"
 ARG TORCH_VERSION="1.13.0"
@@ -8,10 +9,9 @@ ARG KALDIFEAT_VERSION="1.25.3.dev20231221"
 ARG _K2_VERSION="${K2_VERSION}+cpu.torch${TORCH_VERSION}"
 ARG _KALDIFEAT_VERSION="${KALDIFEAT_VERSION}+cpu.torch${TORCH_VERSION}"
 
-FROM python:${PYTHON_VERSION}
-
 RUN apt-get update -y && \
     apt-get install -qq -y \
+    ffmpeg \
     git \
     git-lfs \
     less \
