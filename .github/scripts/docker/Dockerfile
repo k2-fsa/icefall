@@ -14,6 +14,7 @@ RUN apt-get update -y && \
     ffmpeg \
     git \
     git-lfs \
+    graphviz \
     less \
     vim \
     && \
