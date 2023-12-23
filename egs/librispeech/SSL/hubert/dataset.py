@@ -92,9 +92,9 @@ class HubertAsrDataset(torch.utils.data.Dataset):
             feature_size=1,
             sampling_rate=16000,
             padding_side="right",
-            padding_value=0.0,
+            padding_value=0,
             do_normalize=True,
-            return_attention_mask=True,
+            return_attention_mask=False,
         )
 
     def __getitem__(self, cuts: CutSet) -> Dict[str, Any]:
@@ -148,7 +148,7 @@ if __name__ == "__main__":
     )
 
     for batch_idx, batch in enumerate(dl):
-        import pdb
-
-        pdb.set_trace()
-        pass
+        print(batch["audio"])
+        print(batch["audio_lens"])
+        print(batch["supervisions"]["text"])
+        print(batch["cuts"])

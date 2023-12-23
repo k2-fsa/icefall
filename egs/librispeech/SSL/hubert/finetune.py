@@ -64,7 +64,6 @@ from lhotse.utils import fix_random_seed
 from model import AsrModel
 from optim import Eden, ScaledAdam
 from scaling import ScheduledFloat
-from subsampling import Conv2dSubsampling
 from torch import Tensor
 from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -152,7 +151,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--do-stable-layer-norm",
         type=str2bool,
-        default=True,
+        default=False,
     )
     parser.add_argument(
         "--feat-extract-activation",
@@ -162,12 +161,12 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--feat-extract-norm",
         type=str,
-        default="layer",
+        default="group",
     )
     parser.add_argument(
         "--feat-proj-dropout",
         type=float,
-        default=0.0,
+        default=0.1,
     )
     parser.add_argument(
         "--feat-proj-layer-norm",
@@ -192,7 +191,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--hidden-size",
         type=int,
-        default=1024,
+        default=768,
     )
     parser.add_argument(
         "--initializer-range",
@@ -202,7 +201,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--intermediate-size",
         type=int,
-        default=4096,
+        default=3072,
     )
     parser.add_argument(
         "--layer-norm-eps",
@@ -247,7 +246,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--num-attention-heads",
         type=int,
-        default=16,
+        default=12,
     )
     parser.add_argument(
         "--num-conv-pos-embedding-groups",
@@ -262,14 +261,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--num-hidden-layers",
         type=int,
-        default=24,
-    )
-
-    parser.add_argument(
-        "--encoder-dim",
-        type=int,
-        default=1024,
-        help="Embedding dimension in encoder model.",
+        default=12,
     )
 
     parser.add_argument(
@@ -364,6 +356,14 @@ def get_parser():
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
         """,
+    )
+
+    parser.add_argument(
+        "--pretrained-dir",
+        type=str,
+        default="download/hubert-base-ls960",
+        help="""The pretrained model dir.
+        It specifies the directory where the pretrained checkpoint is saved.""",
     )
 
     parser.add_argument(
@@ -657,7 +657,7 @@ def get_decoder_model(params: AttributeDict) -> nn.Module:
 
 def get_joiner_model(params: AttributeDict) -> nn.Module:
     joiner = Joiner(
-        encoder_dim=params.encoder_dim,
+        encoder_dim=params.hidden_size,
         decoder_dim=params.decoder_dim,
         joiner_dim=params.joiner_dim,
         vocab_size=params.vocab_size,
@@ -685,7 +685,7 @@ def get_model(params: AttributeDict) -> nn.Module:
         encoder=encoder,
         decoder=decoder,
         joiner=joiner,
-        encoder_dim=params.encoder_dim,
+        encoder_dim=params.hidden_size,
         decoder_dim=params.decoder_dim,
         vocab_size=params.vocab_size,
         use_transducer=params.use_transducer,
@@ -731,6 +731,8 @@ def load_checkpoint_if_available(
     elif params.start_epoch > 1:
         filename = params.exp_dir / f"epoch-{params.start_epoch-1}.pt"
     else:
+        logging.info(f"Loading {params.pretrained_dir}")
+        model.encoder = HubertModel.from_pretrained(params.pretrained_dir)
         return None
 
     assert filename.is_file(), f"{filename} does not exist!"

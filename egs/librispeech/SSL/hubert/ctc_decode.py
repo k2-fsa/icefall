@@ -22,39 +22,39 @@
 Usage:
 
 (1) ctc-decoding
-./zipformer/ctc_decode.py \
+./hubert/ctc_decode.py \
     --epoch 30 \
     --avg 15 \
-    --exp-dir ./zipformer/exp \
+    --exp-dir ./hubert/exp \
     --use-ctc 1 \
     --max-duration 600 \
     --decoding-method ctc-decoding
 
 (2) 1best
-./zipformer/ctc_decode.py \
+./hubert/ctc_decode.py \
     --epoch 30 \
     --avg 15 \
-    --exp-dir ./zipformer/exp \
+    --exp-dir ./hubert/exp \
     --use-ctc 1 \
     --max-duration 600 \
     --hlg-scale 0.6 \
     --decoding-method 1best
 
 (3) nbest
-./zipformer/ctc_decode.py \
+./hubert/ctc_decode.py \
     --epoch 30 \
     --avg 15 \
-    --exp-dir ./zipformer/exp \
+    --exp-dir ./hubert/exp \
     --use-ctc 1 \
     --max-duration 600 \
     --hlg-scale 0.6 \
     --decoding-method nbest
 
 (4) nbest-rescoring
-./zipformer/ctc_decode.py \
+./hubert/ctc_decode.py \
     --epoch 30 \
     --avg 15 \
-    --exp-dir ./zipformer/exp \
+    --exp-dir ./hubert/exp \
     --use-ctc 1 \
     --max-duration 600 \
     --hlg-scale 0.6 \
@@ -63,10 +63,10 @@ Usage:
     --decoding-method nbest-rescoring
 
 (5) whole-lattice-rescoring
-./zipformer/ctc_decode.py \
+./hubert/ctc_decode.py \
     --epoch 30 \
     --avg 15 \
-    --exp-dir ./zipformer/exp \
+    --exp-dir ./hubert/exp \
     --use-ctc 1 \
     --max-duration 600 \
     --hlg-scale 0.6 \
@@ -164,7 +164,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="zipformer/exp",
+        default="hubert/exp",
         help="The experiment dir",
     )
 
@@ -340,7 +340,7 @@ def decode_one_batch(
     feature_lens = supervisions["num_frames"].to(device)
 
     if params.causal:
-        # this seems to cause insertions at the end of the utterance if used with zipformer.
+        # this seems to cause insertions at the end of the utterance if used with hubert.
         pad_len = 30
         feature_lens += pad_len
         feature = torch.nn.functional.pad(
