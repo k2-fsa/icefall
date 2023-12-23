@@ -25,7 +25,7 @@ jobs:
       matrix:
         os: [ubuntu-latest]
         python-version: ["3.8", "3.9", "3.10"]
-        torch-version: ["1.13.0", "2.0.0", "2.0.1", "2.1.0", "2.1.1", "2.1.2"]
+        torch-version: ["1.13.0", "1.13.1", "2.0.0", "2.0.1", "2.1.0", "2.1.1", "2.1.2"]
         version: ["1.1"]
 
     steps:
@@ -43,6 +43,7 @@ jobs:
             run: |
               export PYTHONPATH=/icefall:$PYTHONPATH
               cd /icefall
+              git config --global --add safe.directory /icefall
 
               pytest -v -s ./test
 
