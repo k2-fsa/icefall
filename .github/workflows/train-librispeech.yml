@@ -44,7 +44,7 @@ jobs:
       - name: Test zipformer/train.py with LibriSpeech
         uses: addnab/docker-run-action@v3
         with:
-            image: ghcr.io/csukuangfj/icefall:cpu-py${{ matrix.python-version }}-torch${{ matrix.torch-version }}-v${{ matrix.version }}
+            image: ghcr.io/k2-fsa/icefall:cpu-py${{ matrix.python-version }}-torch${{ matrix.torch-version }}-v${{ matrix.version }}
             options: |
               --volume ${{ github.workspace }}/:/icefall
             shell: bash
