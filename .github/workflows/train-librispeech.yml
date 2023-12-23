@@ -24,8 +24,6 @@ jobs:
         os: [ubuntu-latest]
         python-version: ["3.8", "3.9", "3.10"]
         torch-version: ["1.13.0", "2.0.0", "2.0.1", "2.1.0", "2.1.1", "2.1.2"]
-        k2-version: ["1.24.4.dev20231220"]
-        kaldifeat-version: ["1.25.3.dev20231221"]
         version: ["1.0"]
 
     steps:
@@ -43,7 +41,7 @@ jobs:
           echo "pwd: $PWD"
           echo "github.workspace ${{ github.workspace }}"
 
-      - name: Run the build process with Docker
+      - name: Test zipformer/train.py with LibriSpeech
         uses: addnab/docker-run-action@v3
         with:
             image: ghcr.io/k2-fsa/icefall:cpu-py${{ matrix.python-version }}-torch${{ matrix.torch-version }}-v${{ matrix.version }}
