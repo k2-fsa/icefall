@@ -14,6 +14,7 @@ RUN apt-get update -y && \
     ffmpeg \
     git \
     git-lfs \
+    graphviz \
     less \
     vim \
     && \
@@ -32,23 +33,23 @@ RUN pip install --no-cache-dir \
       k2==${_K2_VERSION} -f https://k2-fsa.github.io/k2/cpu.html \
       git+https://github.com/lhotse-speech/lhotse \
       kaldifeat==${_KALDIFEAT_VERSION} -f https://csukuangfj.github.io/kaldifeat/cpu.html \
+      dill \
+      graphviz \
       kaldi_native_io \
       kaldialign \
       kaldifst \
       kaldilm \
-      sentencepiece>=0.1.96 \
-      tensorboard \
-      typeguard \
-      dill \
-      onnx \
-      onnxruntime \
-      onnxmltools \
-      six \
+      matplotlib \
       multi_quantization \
-      typeguard \
       numpy \
+      onnx \
+      onnxmltools \
+      onnxruntime \
       pytest \
-      graphviz
+      sentencepiece>=0.1.96 \
+      six \
+      tensorboard \
+      typeguard
 
 # RUN git clone https://github.com/k2-fsa/icefall /workspace/icefall && \
 #     cd /workspace/icefall && \

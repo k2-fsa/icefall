@@ -15,10 +15,10 @@ jobs:
       matrix:
         os: [ubuntu-latest]
         python-version: ["3.8", "3.9", "3.10"]
-        torch-version: ["1.13.0", "2.0.0", "2.0.1", "2.1.0", "2.1.1", "2.1.2"]
+        torch-version: ["1.13.0", "1.13.1", "2.0.0", "2.0.1", "2.1.0", "2.1.1", "2.1.2"]
         k2-version: ["1.24.4.dev20231220"]
         kaldifeat-version: ["1.25.3.dev20231221"]
-        version: ["1.0"]
+        version: ["1.1"]
 
     steps:
       # refer to https://github.com/actions/checkout
@@ -45,8 +45,12 @@ jobs:
         run: |
           cd .github/scripts/docker
           torch_version=${{ matrix.torch-version }}
+
+          # see https://pytorch.org/audio/stable/installation.html#compatibility-matrix
           if [[ $torch_version == 1.13.0 ]]; then
             torchaudio_version=0.13.0
+          elif [[ $torch_version == 1.13.1 ]]; then
+            torchaudio_version=0.13.1
           elif [[ $torch_version == 2.0.0 ]]; then
             torchaudio_version=2.0.1
           elif [[ $torch_version == 2.0.1 ]]; then
