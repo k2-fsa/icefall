@@ -50,8 +50,13 @@
 <li class="toctree-l1"><a class="reference internal" href="../installation/index.html">Installation</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="index.html">Docker</a><ul class="current">
 <li class="toctree-l2 current"><a class="current reference internal" href="#">Introduction</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#view-available-tags">View available tags</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#download-a-docker-image">Download a docker image</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#view-available-tags">View available tags</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#cuda-enabled-docker-images">CUDA-enabled docker images</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#cpu-only-docker-images">CPU-only docker images</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#download-a-docker-image-cuda">Download a docker image (CUDA)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#download-a-docker-image-cpu">Download a docker image (CPU)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#run-a-docker-image-with-gpu">Run a docker image with GPU</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#run-a-docker-image-with-cpu">Run a docker image with CPU</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#run-yesno-within-a-docker-container">Run yesno within a docker container</a><ul>
@@ -123,7 +128,10 @@
 </section>
 <section id="view-available-tags">
 <h1>View available tags<a class="headerlink" href="#view-available-tags" title="Permalink to this heading"></a></h1>
-<p>You can use the following command to view available tags:</p>
+<section id="cuda-enabled-docker-images">
+<h2>CUDA-enabled docker images<a class="headerlink" href="#cuda-enabled-docker-images" title="Permalink to this heading"></a></h2>
+<p>You can use the following command to view available tags for CUDA-enabled
+docker images:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>curl<span class="w"> </span>-s<span class="w"> </span><span class="s1">&#39;https://registry.hub.docker.com/v2/repositories/k2fsa/icefall/tags/&#39;</span><span class="p">|</span>jq<span class="w"> </span><span class="s1">&#39;.&quot;results&quot;[][&quot;name&quot;]&#39;</span>
 </pre></div>
 </div>
@@ -142,11 +150,33 @@
 </div>
 <p>Please select an appropriate combination of <a class="reference external" href="https://github.com/pytorch/pytorch">torch</a> and  CUDA.</p>
 </section>
-<section id="download-a-docker-image">
-<h1>Download a docker image<a class="headerlink" href="#download-a-docker-image" title="Permalink to this heading"></a></h1>
+<section id="cpu-only-docker-images">
+<h2>CPU-only docker images<a class="headerlink" href="#cpu-only-docker-images" title="Permalink to this heading"></a></h2>
+<p>To view CPU-only docker images, please visit <a class="reference external" href="https://github.com/k2-fsa/icefall/pkgs/container/icefall">https://github.com/k2-fsa/icefall/pkgs/container/icefall</a>
+for available tags.</p>
+<p>You can select different combinations of <code class="docutils literal notranslate"><span class="pre">Python</span></code> and <code class="docutils literal notranslate"><span class="pre">torch</span></code>. For instance,
+to select <code class="docutils literal notranslate"><span class="pre">Python</span> <span class="pre">3.8</span></code> and <code class="docutils literal notranslate"><span class="pre">torch</span> <span class="pre">2.1.2</span></code>, you can use the following tag</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cpu-py3.8-torch2.1.2-v1.1
+</pre></div>
+</div>
+<p>where <code class="docutils literal notranslate"><span class="pre">v1.1</span></code> is the current version of the docker image. You may see
+<code class="docutils literal notranslate"><span class="pre">ghcr.io/k2-fsa/icefall:cpu-py3.8-torch2.1.2-v1.2</span></code> or some other versions.
+We recommend that you always use the latest version.</p>
+</section>
+</section>
+<section id="download-a-docker-image-cuda">
+<h1>Download a docker image (CUDA)<a class="headerlink" href="#download-a-docker-image-cuda" title="Permalink to this heading"></a></h1>
 <p>Suppose that you select the tag <code class="docutils literal notranslate"><span class="pre">torch1.13.0-cuda11.6</span></code>, you can use
 the following command to download it:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>docker<span class="w"> </span>image<span class="w"> </span>pull<span class="w"> </span>k2fsa/icefall:torch1.13.0-cuda11.6
+</pre></div>
+</div>
+</section>
+<section id="download-a-docker-image-cpu">
+<h1>Download a docker image (CPU)<a class="headerlink" href="#download-a-docker-image-cpu" title="Permalink to this heading"></a></h1>
+<p>Suppose that you select the tag <code class="docutils literal notranslate"><span class="pre">cpu-py3.8-torch2.1.2-v1.1</span></code>, you can use
+the following command to download it:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>docker<span class="w"> </span>pull<span class="w"> </span>ghcr.io/k2-fsa/icefall:cpu-py3.8-torch2.1.2-v1.1
 </pre></div>
 </div>
 </section>
@@ -158,14 +188,19 @@ the following command to download it:</p>
 </section>
 <section id="run-a-docker-image-with-cpu">
 <h1>Run a docker image with CPU<a class="headerlink" href="#run-a-docker-image-with-cpu" title="Permalink to this heading"></a></h1>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>-it<span class="w"> </span>k2fsa/icefall:torch1.13.0-cuda11.6<span class="w"> </span>/bin/bash
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>-it<span class="w"> </span>ghcr.io/k2-fsa/icefall:cpu-py3.8-torch2.1.2-v1.1<span class="w"> </span>/bin/bash
 </pre></div>
 </div>
 </section>
 <section id="run-yesno-within-a-docker-container">
 <h1>Run yesno within a docker container<a class="headerlink" href="#run-yesno-within-a-docker-container" title="Permalink to this heading"></a></h1>
 <p>After starting the container, the following interface is presented:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>root@60c947eac59c:/workspace/icefall#
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># GPU-enabled docker</span>
+root@60c947eac59c:/workspace/icefall#
+
+<span class="c1"># CPU-only docker</span>
+root@60c947eac59c:#<span class="w"> </span>mkdir<span class="w"> </span>/workspace<span class="p">;</span><span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/k2-fsa/icefall
+root@60c947eac59c:#<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">PYTHONPATH</span><span class="o">=</span>/workspace/icefall:<span class="nv">$PYTHONPATH</span>
 </pre></div>
 </div>
 <p>It shows the current user is <code class="docutils literal notranslate"><span class="pre">root</span></code> and the current working directory
@@ -191,7 +226,7 @@ is <code class="docutils literal notranslate"><span class="pre">/workspace/icefa
 <div class="admonition hint">
 <p class="admonition-title">Hint</p>
 <blockquote>
-<div><p>If you are running without GPU, it may report the following error:</p>
+<div><p>If you are running without GPU with a GPU-enabled docker, it may report the following error:</p>
 <blockquote>
 <div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>File<span class="w"> </span><span class="s2">&quot;/opt/conda/lib/python3.9/site-packages/k2/__init__.py&quot;</span>,<span class="w"> </span>line<span class="w"> </span><span class="m">23</span>,<span class="w"> </span><span class="k">in</span><span class="w"> </span>&lt;module&gt;
 <span class="w">  </span>from<span class="w"> </span>_k2<span class="w"> </span>import<span class="w"> </span>DeterminizeWeightPushingType
