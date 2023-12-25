@@ -166,6 +166,8 @@ def export_model_onnx(
         The VITS generator.
       model_filename:
         The filename to save the exported ONNX model.
+      vocab_size:
+        Number of tokens used in training.
       opset_version:
         The opset version to use.
     """
