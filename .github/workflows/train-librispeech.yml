@@ -64,6 +64,8 @@ jobs:
               --volume ${{ github.workspace }}/:/icefall
             shell: bash
             run: |
-              ls -lh /icefall
+              export PYTHONPATH=/icefall:$PYTHONPATH
+              cd /icefall
+              git config --global --add safe.directory /icefall
 
-              /icefall/.github/scripts/docker/run.sh
+              .github/scripts/librispeech/ASR/run.sh

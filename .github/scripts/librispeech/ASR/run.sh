@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
-set -ex
 
-cd /icefall
-export PYTHONPATH=/icefall:$PYTHONPATH
-python3 -c "import torch; print(torch.__file__)"
-python3 -c "import torchaudio; print(torchaudio.__version__)"
-python3 -c "import icefall; print(icefall.__file__)"
+log() {
+  # This function is from espnet
+  local fname=${BASH_SOURCE[1]##*/}
+  echo -e "$(date '+%Y-%m-%d %H:%M:%S') (${fname}:${BASH_LINENO[0]}:${FUNCNAME[1]}) $*"
+}
 
 cd egs/librispeech/ASR
 
