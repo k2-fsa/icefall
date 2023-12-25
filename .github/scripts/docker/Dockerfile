@@ -31,10 +31,12 @@ LABEL github_repo="https://github.com/k2-fsa/icefall"
 RUN pip install --no-cache-dir \
       torch==${TORCH_VERSION} torchaudio==${TORCHAUDIO_VERSION} -f https://download.pytorch.org/whl/cpu/torch_stable.html \
       k2==${_K2_VERSION} -f https://k2-fsa.github.io/k2/cpu.html \
+      \
       git+https://github.com/lhotse-speech/lhotse \
       kaldifeat==${_KALDIFEAT_VERSION} -f https://csukuangfj.github.io/kaldifeat/cpu.html \
       dill \
       graphviz \
+      kaldi-decoder \
       kaldi_native_io \
       kaldialign \
       kaldifst \
