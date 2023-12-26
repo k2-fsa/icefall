@@ -16,6 +16,7 @@ RUN apt-get update -y && \
     git-lfs \
     graphviz \
     less \
+    tree \
     vim \
     && \
     apt-get clean && \
