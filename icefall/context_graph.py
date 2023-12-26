@@ -322,6 +322,24 @@ class ContextGraph:
         )
         return (score + node.output_score, node, matched_node)
 
+    def is_matched(self, state: ContextState) -> Tuple[bool, ContextState]:
+        """Whether current state matches any phrase (i.e. current state is the
+        end state or the output of current state is not None.
+
+        Args:
+          state:
+            The given state(trie node).
+
+        Returns:
+          Return a tuple of status and matched state.
+        """
+        if state.is_end:
+            return True, state
+        else:
+            if state.output is not None:
+                return True, state.output
+            return False, None
+
     def finalize(self, state: ContextState) -> Tuple[float, ContextState]:
         """When reaching the end of the decoded sequence, we need to finalize
         the matching, the purpose is to subtract the added bonus score for the
