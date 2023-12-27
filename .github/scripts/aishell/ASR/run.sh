@@ -263,6 +263,76 @@ function test_transducer_stateless_modified_2_2022_03_01() {
   rm -rf $repo
 }
 
+function test_conformer_ctc() {
+  repo_url=https://huggingface.co/csukuangfj/icefall_asr_aishell_conformer_ctc
+  log "Downloading pre-trained model from $repo_url"
+  GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
+  repo=$(basename $repo_url)
+  pushd $repo
+
+  git lfs pull --include "exp/pretrained.pt"
+  git lfs pull --include "data/lang_char/H.fst"
+  git lfs pull --include "data/lang_char/HL.fst"
+  git lfs pull --include "data/lang_char/HLG.fst"
+
+  popd
+
+  log "Display test files"
+  tree $repo/
+  ls -lh $repo/test_wavs/*.wav
+
+  log "CTC decoding"
+
+  log "Exporting model with torchscript"
+
+  pushd $repo/exp
+  ln -s pretrained.pt epoch-99.pt
+  popd
+
+  ./conformer_ctc/export.py \
+    --epoch 99 \
+    --avg 1 \
+    --exp-dir $repo/exp \
+    --tokens $repo/data/lang_char/tokens.txt \
+    --jit 1
+
+  ls -lh $repo/exp
+
+  ls -lh $repo/data/lang_char
+
+  log "Decoding with H on CPU with OpenFst"
+
+  ./conformer_ctc/jit_pretrained_decode_with_H.py \
+    --nn-model $repo/exp/cpu_jit.pt \
+    --H $repo/data/lang_char/H.fst \
+    --tokens $repo/data/lang_char/tokens.txt \
+    $repo/test_wavs/0.wav \
+    $repo/test_wavs/1.wav \
+    $repo/test_wavs/2.wav
+
+  log "Decoding with HL on CPU with OpenFst"
+
+  ./conformer_ctc/jit_pretrained_decode_with_HL.py \
+    --nn-model $repo/exp/cpu_jit.pt \
+    --HL $repo/data/lang_char/HL.fst \
+    --words $repo/data/lang_char/words.txt \
+    $repo/test_wavs/0.wav \
+    $repo/test_wavs/1.wav \
+    $repo/test_wavs/2.wav
+
+  log "Decoding with HLG on CPU with OpenFst"
+
+  ./conformer_ctc/jit_pretrained_decode_with_HLG.py \
+    --nn-model $repo/exp/cpu_jit.pt \
+    --HLG $repo/data/lang_char/HLG.fst \
+    --words $repo/data/lang_char/words.txt \
+    $repo/test_wavs/0.wav \
+    $repo/test_wavs/1.wav \
+    $repo/test_wavs/2.wav
+
+  rm -rf $repo
+}
+
 download_test_dev_manifests
 test_transducer_stateless3_2022_06_20
 test_zipformer_large_2023_10_24
@@ -270,5 +340,4 @@ test_zipformer_2023_10_24
 test_zipformer_small_2023_10_24
 test_transducer_stateless_modified_2022_03_01
 test_transducer_stateless_modified_2_2022_03_01
-
-ls -lh
+test_conformer_ctc
