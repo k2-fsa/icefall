@@ -1,4 +1,4 @@
-name: train librispeech
+name: librispeech
 on:
   push:
     branches:
@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: train-librispeech-${{ github.ref }}
+  group: librispeech-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -32,7 +32,7 @@ jobs:
           python ./.github/scripts/docker/generate_build_matrix.py
           MATRIX=$(python ./.github/scripts/docker/generate_build_matrix.py)
           echo "::set-output name=matrix::${MATRIX}"
-  train-librispeech:
+  librispeech:
     needs: generate_build_matrix
     name: py${{ matrix.python-version }} torch${{ matrix.torch-version }} v${{ matrix.version }}
     runs-on: ubuntu-latest
