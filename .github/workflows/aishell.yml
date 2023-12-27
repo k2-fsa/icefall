@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - master
-      - refactor-ci
 
   pull_request:
     branches:
