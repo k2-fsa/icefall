@@ -102,6 +102,12 @@ class ICMCAsrDataModule:
             help="Path to directory with train/valid/test cuts.",
         )
         group.add_argument(
+            "--manifest-aec-iva-dir",
+            type=Path,
+            default=Path("data/fbank"),
+            help="Path to directory with aec iva data train/valid/test cuts.",
+        )
+        group.add_argument(
             "--max-duration",
             type=int,
             default=200.0,
@@ -400,51 +406,67 @@ class ICMCAsrDataModule:
         )
         return test_dl
 
-    @lru_cache()
     def train_ihm_cuts(self) -> CutSet:
         logging.info("About to get train-ihm cuts")
         return load_manifest_lazy(
             self.args.manifest_dir / "cuts_train_ihm.jsonl.gz"
         )
 
-    @lru_cache()
     def train_ihm_rvb_cuts(self) -> CutSet:
         logging.info("About to get train-ihm-rvb cuts")
         return load_manifest_lazy(
             self.args.manifest_dir / "cuts_train_ihm_rvb.jsonl.gz"
         )
 
-    @lru_cache()
     def train_shm_cuts(self) -> CutSet:
         logging.info("About to get train-shm cuts")
         return load_manifest_lazy(
             self.args.manifest_dir / "cuts_train_sdm.jsonl.gz"
         )
+    def train_gss_cuts(self) -> CutSet:
+        logging.info("About to get train-gss cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "cuts_train_gss.jsonl.gz"
+        )
 
-    @lru_cache()
+    def train_aec_iva_cuts(self) -> CutSet:
+        logging.info("About to get train-aec_iva cuts")
+        return load_manifest_lazy(
+            self.args.manifest_aec_iva_dir / "icmcasr-aec-iva_cuts_train_aec_iva.jsonl.gz"
+
     def dev_ihm_cuts(self) -> CutSet:
         logging.info("About to get dev-ihm cuts")
         return load_manifest_lazy(
             self.args.manifest_dir / "cuts_dev_ihm.jsonl.gz"
         )
 
-    @lru_cache()
     def dev_shm_cuts(self) -> CutSet:
         logging.info("About to get dev-other cuts")
         return load_manifest_lazy(
             self.args.manifest_dir / "cuts_dev_sdm.jsonl.gz"
         )
+    def dev_aec_iva_cuts(self) -> CutSet:
+        logging.info("About to get aec iva dev cuts")
+        return load_manifest_lazy(
+            self.args.manifest_aec_iva_dir / "icmcasr-aec-iva_cuts_train_aec_iva.jsonl.gz"
+        )
+    def dev_gss_cuts(self) -> CutSet:
+        logging.info("About to get dev-gss cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "cuts_dev_gss.jsonl.gz"
+        )
+    def test_eval_track1_gss(self) -> CutSet:
+        logging.info("About to get eval1-gss cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "cuts_eval_track1_gss.jsonl.gz"
+        )
+    def test_eval_track1_sdm(self) -> CutSet:
+        logging.info("About to get eval1-sdm cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "cuts_eval_track1_sdm.jsonl.gz"
+        )
+    def test_eval_track1_aec_iva(self) -> CutSet:
+        logging.info("About to get aec iva dev cuts")
+        return load_manifest_lazy(
+            self.args.manifest_aec_iva_dir / "cuts.jsonl.gz"
 
-    # @lru_cache()
-    # def test_clean_cuts(self) -> CutSet:
-    #     logging.info("About to get test-clean cuts")
-    #     return load_manifest_lazy(
-    #         self.args.manifest_dir / "librispeech_cuts_test-clean.jsonl.gz"
-    #     )
-
-    # @lru_cache()
-    # def test_other_cuts(self) -> CutSet:
-    #     logging.info("About to get test-other cuts")
-    #     return load_manifest_lazy(
-    #         self.args.manifest_dir / "librispeech_cuts_test-other.jsonl.gz"
-    #     )

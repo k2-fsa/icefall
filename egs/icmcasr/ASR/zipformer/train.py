@@ -1179,6 +1179,8 @@ def run(rank, world_size, args):
     if params.full_data:
         train_cuts += icmc.train_ihm_rvb_cuts()
         train_cuts += icmc.train_shm_cuts()
+        train_cuts += icmc.train_aec_iva_cuts()
+        train_cuts += icmc.train_gss_cuts()
 
     def remove_short_and_long_utt(c: Cut):
         # Keep only utterances with duration between 1 second and 20 seconds
@@ -1231,7 +1233,8 @@ def run(rank, world_size, args):
     )
 
     valid_cuts = icmc.dev_ihm_cuts()
-    # valid_cuts += librispeech.dev_other_cuts()
+    valid_cuts += icmc.dev_gss_cuts()
+    valid_cuts += icmc.dev_aec_iva_cuts()
     valid_dl = icmc.valid_dataloaders(valid_cuts)
 
     if not params.print_diagnostics:
