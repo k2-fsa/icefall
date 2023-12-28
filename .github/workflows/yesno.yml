@@ -1,4 +1,5 @@
-name: train librispeech
+name: yesno
+
 on:
   push:
     branches:
@@ -11,7 +12,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: train-librispeech-${{ github.ref }}
+  group: yesno-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -32,7 +33,7 @@ jobs:
           python ./.github/scripts/docker/generate_build_matrix.py
           MATRIX=$(python ./.github/scripts/docker/generate_build_matrix.py)
           echo "::set-output name=matrix::${MATRIX}"
-  train-librispeech:
+  yesno:
     needs: generate_build_matrix
     name: py${{ matrix.python-version }} torch${{ matrix.torch-version }} v${{ matrix.version }}
     runs-on: ubuntu-latest
@@ -42,21 +43,11 @@ jobs:
         ${{ fromJson(needs.generate_build_matrix.outputs.matrix) }}
 
     steps:
-      # refer to https://github.com/actions/checkout
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Free space
-        shell: bash
-        run: |
-          df -h
-          rm -rf /opt/hostedtoolcache
-          df -h
-          echo "pwd: $PWD"
-          echo "github.workspace ${{ github.workspace }}"
-
-      - name: Test zipformer/train.py with LibriSpeech
+      - name: Run the yesno recipe
         uses: addnab/docker-run-action@v3
         with:
             image: ghcr.io/${{ github.repository_owner }}/icefall:cpu-py${{ matrix.python-version }}-torch${{ matrix.torch-version }}-v${{ matrix.version }}
@@ -68,4 +59,4 @@ jobs:
               cd /icefall
               git config --global --add safe.directory /icefall
 
-              .github/scripts/librispeech/ASR/run.sh
+              .github/scripts/yesno/ASR/run.sh
