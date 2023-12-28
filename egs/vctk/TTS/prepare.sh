@@ -44,7 +44,7 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   #   ln -sfv /path/to/VCTK $dl_dir/VCTK
   #
   if [ ! -d $dl_dir/VCTK ]; then
-    lhotse download vctk $dl_dir
+    lhotse download vctk --use-edinburgh-vctk-url true $dl_dir
   fi
 fi
 
