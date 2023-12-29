@@ -240,8 +240,11 @@ class ContextGraph:
           the score is zero, otherwise the score is the score of a implicit fail arc
           to root. The next state is always root.
         """
-        # The score of the fail arc
-        score = -state.node_score
+        if state.is_end:
+            score = 0.0
+        else:
+            # The score of the fail arc
+            score = -state.node_score
         return (score, self.root)
 
     def draw(
