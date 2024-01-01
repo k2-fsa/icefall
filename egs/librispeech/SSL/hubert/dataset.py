@@ -25,53 +25,6 @@ from torch.utils.data.dataloader import default_collate
 from transformers import Wav2Vec2FeatureExtractor
 
 
-class HubertDataset(torch.utils.data.Dataset):
-    """
-    In this implementation, there will always be a single channel.
-
-    Returns:
-
-    .. code-block::
-
-        {
-            'audio': (B x NumSamples) float tensor
-            'audio_lens': (B, ) int tensor
-        }
-    """
-
-    def __init__(self, collate: bool = True) -> None:
-        super().__init__()
-        self.feature_extractor = Wav2Vec2FeatureExtractor(
-            feature_size=1,
-            sampling_rate=16000,
-            padding_side="right",
-            padding_value=0.0,
-            do_normalize=True,
-            return_attention_mask=True,
-        )
-
-    def __getitem__(self, cuts: CutSet) -> Dict[str, Any]:
-        self._validate(cuts)
-        audio, _ = read_audio_from_cuts(cuts, return_tensors=False)
-        audio = self.feature_extractor(
-            audio,
-            padding=True,
-            return_tensors="pt",
-            sampling_rate=16000,
-        ).input_values
-        audio_lens = torch.tensor([cut.num_samples for cut in cuts], dtype=torch.int32)
-
-        return {
-            "cuts": cuts,
-            "audio": audio,
-            "audio_lens": audio_lens,
-        }
-
-    def _validate(self, cuts: CutSet) -> None:
-        validate(cuts)
-        assert all(cut.has_recording for cut in cuts)
-
-
 class HubertAsrDataset(torch.utils.data.Dataset):
     """
     In this implementation, there will always be a single channel.
@@ -94,7 +47,8 @@ class HubertAsrDataset(torch.utils.data.Dataset):
             padding_side="right",
             padding_value=0,
             do_normalize=True,
-            return_attention_mask=False,
+            return_attention_mask=True,
+            feature_extractor_type="Wav2Vec2FeatureExtractor",
         )
 
     def __getitem__(self, cuts: CutSet) -> Dict[str, Any]:
@@ -148,7 +102,4 @@ if __name__ == "__main__":
     )
 
     for batch_idx, batch in enumerate(dl):
-        print(batch["audio"])
-        print(batch["audio_lens"])
-        print(batch["supervisions"]["text"])
-        print(batch["cuts"])
+        break

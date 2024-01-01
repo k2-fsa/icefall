@@ -31,8 +31,8 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
   --start-epoch 1 \
   --use-fp16 0 \
   --exp-dir hubert/exp \
-  --full-libri 1 \
-  --max-duration 80
+  --full-libri 0 \
+  --max-duration 200
 
 It supports finetuning with:
   - transducer loss (default), with `--use-transducer True --use-ctc False`
@@ -63,7 +63,6 @@ from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import AsrModel
 from optim import Eden, ScaledAdam
-from scaling import ScheduledFloat
 from torch import Tensor
 from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -216,17 +215,17 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--mask-feature-length",
         type=int,
-        default=10,
+        default=64,
     )
     parser.add_argument(
         "--mask-feature-min-masks",
         type=int,
-        default=0,
+        default=2,
     )
     parser.add_argument(
         "--mask-feature-prob",
         type=float,
-        default=0.0,
+        default=0.5,
     )
     parser.add_argument(
         "--mask-time-length",
@@ -236,12 +235,12 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--mask-time-min-masks",
         type=int,
-        default=2,
+        default=10,
     )
     parser.add_argument(
         "--mask-time-prob",
         type=float,
-        default=0.05,
+        default=0.65,
     )
     parser.add_argument(
         "--num-attention-heads",
@@ -361,7 +360,6 @@ def get_parser():
     parser.add_argument(
         "--pretrained-dir",
         type=str,
-        default="download/hubert-base-ls960",
         help="""The pretrained model dir.
         It specifies the directory where the pretrained checkpoint is saved.""",
     )
@@ -374,7 +372,7 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--base-lr", type=float, default=0.0005, help="The base learning rate."
+        "--base-lr", type=float, default=0.001, help="The base learning rate."
     )
 
     parser.add_argument(
@@ -608,40 +606,43 @@ def _get_feat_extract_output_lengths(
 
 
 def get_encoder_model(params: AttributeDict) -> nn.Module:
-    config = HubertConfig(
-        hidden_size=params.hidden_size,
-        num_hidden_layers=params.num_hidden_layers,
-        num_attention_heads=params.num_attention_heads,
-        intermediate_size=params.intermediate_size,
-        hidden_act=params.hidden_act,
-        hidden_dropout=params.hidden_dropout,
-        activation_dropout=params.activation_dropout,
-        attention_dropout=params.attention_dropout,
-        feat_proj_layer_norm=params.feat_proj_layer_norm,
-        feat_proj_dropout=params.feat_proj_dropout,
-        final_dropout=params.final_dropout,
-        layerdrop=params.layerdrop,
-        initializer_range=params.initializer_range,
-        layer_norm_eps=params.layer_norm_eps,
-        feat_extract_norm=params.feat_extract_norm,
-        feat_extract_activation=params.feat_extract_activation,
-        conv_dim=_to_int_tuple(params.conv_dim),
-        conv_stride=_to_int_tuple(params.conv_stride),
-        conv_kernel=_to_int_tuple(params.conv_kernel),
-        conv_bias=params.conv_bias,
-        num_conv_pos_embeddings=params.num_conv_pos_embeddings,
-        num_conv_pos_embedding_groups=params.num_conv_pos_embedding_groups,
-        do_stable_layer_norm=params.do_stable_layer_norm,
-        apply_spec_augment=params.apply_spec_augment,
-        mask_time_prob=params.mask_time_prob,
-        mask_time_length=params.mask_time_length,
-        mask_time_min_masks=params.mask_time_min_masks,
-        mask_feature_prob=params.mask_feature_prob,
-        mask_feature_length=params.mask_feature_length,
-        mask_feature_min_masks=params.mask_feature_min_masks,
-    )
-
-    encoder = HubertModel(config)
+    if hasattr(params, "pretrained_dir"):
+        logging.info(f"Loading {params.pretrained_dir}")
+        encoder = HubertModel.from_pretrained(params.pretrained_dir)
+    else:
+        config = HubertConfig(
+            hidden_size=params.hidden_size,
+            num_hidden_layers=params.num_hidden_layers,
+            num_attention_heads=params.num_attention_heads,
+            intermediate_size=params.intermediate_size,
+            hidden_act=params.hidden_act,
+            hidden_dropout=params.hidden_dropout,
+            activation_dropout=params.activation_dropout,
+            attention_dropout=params.attention_dropout,
+            feat_proj_layer_norm=params.feat_proj_layer_norm,
+            feat_proj_dropout=params.feat_proj_dropout,
+            final_dropout=params.final_dropout,
+            layerdrop=params.layerdrop,
+            initializer_range=params.initializer_range,
+            layer_norm_eps=params.layer_norm_eps,
+            feat_extract_norm=params.feat_extract_norm,
+            feat_extract_activation=params.feat_extract_activation,
+            conv_dim=_to_int_tuple(params.conv_dim),
+            conv_stride=_to_int_tuple(params.conv_stride),
+            conv_kernel=_to_int_tuple(params.conv_kernel),
+            conv_bias=params.conv_bias,
+            num_conv_pos_embeddings=params.num_conv_pos_embeddings,
+            num_conv_pos_embedding_groups=params.num_conv_pos_embedding_groups,
+            do_stable_layer_norm=params.do_stable_layer_norm,
+            apply_spec_augment=params.apply_spec_augment,
+            mask_time_prob=params.mask_time_prob,
+            mask_time_length=params.mask_time_length,
+            mask_time_min_masks=params.mask_time_min_masks,
+            mask_feature_prob=params.mask_feature_prob,
+            mask_feature_length=params.mask_feature_length,
+            mask_feature_min_masks=params.mask_feature_min_masks,
+        )
+        encoder = HubertModel(config)
     return encoder
 
 
@@ -731,8 +732,6 @@ def load_checkpoint_if_available(
     elif params.start_epoch > 1:
         filename = params.exp_dir / f"epoch-{params.start_epoch-1}.pt"
     else:
-        logging.info(f"Loading {params.pretrained_dir}")
-        model.encoder = HubertModel.from_pretrained(params.pretrained_dir)
         return None
 
     assert filename.is_file(), f"{filename} does not exist!"
@@ -839,7 +838,7 @@ def compute_loss(
     """
     device = model.device if isinstance(model, DDP) else next(model.parameters()).device
     audio = batch["audio"].to(device)
-    audio_lens = batch["audio_lens"].to(device)
+    audio_lens = torch.full(audio.shape[:1], audio.shape[1], dtype=torch.int32)
 
     batch_idx_train = params.batch_idx_train
     warm_step = params.warm_step
@@ -1113,7 +1112,10 @@ def train_one_epoch(
                         "train/grad_scale", cur_grad_scale, params.batch_idx_train
                     )
 
-        if batch_idx % params.valid_interval == 0 and not params.print_diagnostics:
+        if (
+            batch_idx % (params.valid_interval * params.accum_grad) == 0
+            and not params.print_diagnostics
+        ):
             logging.info("Computing validation loss")
             valid_info = compute_validation_loss(
                 params=params,

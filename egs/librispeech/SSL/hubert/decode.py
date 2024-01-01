@@ -121,7 +121,7 @@ from beam_search import (
     modified_beam_search_lm_shallow_fusion,
     modified_beam_search_LODR,
 )
-from train import add_model_arguments, get_model, get_params
+from finetune import add_model_arguments, get_model, get_params
 
 from icefall import ContextGraph, LmScorer, NgramLm
 from icefall.checkpoint import (
@@ -425,16 +425,10 @@ def decode_one_batch(
       the returned dict.
     """
     device = next(model.parameters()).device
-    feature = batch["inputs"]
-    assert feature.ndim == 3
+    audio = batch["audio"].to(device)
+    audio_lens = torch.full(audio.shape[:1], audio.shape[1], dtype=torch.int32)
 
-    feature = feature.to(device)
-    # at entry, feature is (N, T, C)
-
-    supervisions = batch["supervisions"]
-    feature_lens = supervisions["num_frames"].to(device)
-
-    encoder_out, encoder_out_lens = model.forward_encoder(feature, feature_lens)
+    encoder_out, encoder_out_lens = model.forward_encoder(audio, audio_lens)
 
     hyps = []
 
@@ -665,7 +659,7 @@ def decode_dataset(
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
         texts = batch["supervisions"]["text"]
-        cut_ids = [cut.id for cut in batch["supervisions"]["cut"]]
+        cut_ids = [cut.id for cut in batch["cuts"]]
 
         hyps_dict = decode_one_batch(
             params=params,
@@ -996,14 +990,23 @@ def main():
     args.return_cuts = True
     librispeech = LibriSpeechAsrDataModule(args)
 
-    test_clean_cuts = librispeech.test_clean_cuts()
-    test_other_cuts = librispeech.test_other_cuts()
+    dev_clean_cuts = librispeech.dev_clean_cuts()
+    dev_other_cuts = librispeech.dev_other_cuts()
 
-    test_clean_dl = librispeech.test_dataloaders(test_clean_cuts)
-    test_other_dl = librispeech.test_dataloaders(test_other_cuts)
+    dev_clean_dl = librispeech.test_dataloaders(dev_clean_cuts)
+    dev_other_dl = librispeech.test_dataloaders(dev_other_cuts)
 
-    test_sets = ["test-clean", "test-other"]
-    test_dl = [test_clean_dl, test_other_dl]
+    test_sets = ["dev-clean", "dev-other"]
+    test_dl = [dev_clean_dl, dev_other_dl]
+
+    # test_clean_cuts = librispeech.test_clean_cuts()
+    # test_other_cuts = librispeech.test_other_cuts()
+
+    # test_clean_dl = librispeech.test_dataloaders(test_clean_cuts)
+    # test_other_dl = librispeech.test_dataloaders(test_other_cuts)
+
+    # test_sets = ["test-clean", "test-other"]
+    # test_dl = [test_clean_dl, test_other_dl]
 
     for test_set, test_dl in zip(test_sets, test_dl):
         results_dict = decode_dataset(

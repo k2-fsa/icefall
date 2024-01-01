@@ -32,7 +32,7 @@ class AsrModel(nn.Module):
         encoder,
         decoder: Optional[nn.Module] = None,
         joiner: Optional[nn.Module] = None,
-        encoder_dim: int = 1024,
+        encoder_dim: int = 768,
         decoder_dim: int = 512,
         vocab_size: int = 500,
         use_transducer: bool = True,
@@ -111,7 +111,7 @@ class AsrModel(nn.Module):
             A 2-D tensor of shape (N, T).
           x_lens:
             A 1-D tensor of shape (N,). It contains the number of frames in `x`
-            before padding.
+            w/wo padding.
 
         Returns:
           encoder_out:
@@ -119,11 +119,9 @@ class AsrModel(nn.Module):
           encoder_out_lens:
             Encoder output lengths, of shape (N,).
         """
+        encoder_out = self.encoder(x).last_hidden_state
         encoder_out_lens = self.encoder._get_feat_extract_output_lengths(x_lens)
         assert torch.all(encoder_out_lens > 0), (x_lens, encoder_out_lens)
-
-        src_key_padding_mask = make_pad_mask(x_lens)
-        encoder_out = self.encoder(x, src_key_padding_mask).last_hidden_state
 
         return encoder_out, encoder_out_lens
 
@@ -278,7 +276,7 @@ class AsrModel(nn.Module):
             A 2-D tensor of shape (N, T).
           x_lens:
             A 1-D tensor of shape (N,). It contains the number of frames in `x`
-            before padding.
+            w/wo padding.
           y:
             A ragged tensor with 2 axes [utt][label]. It contains labels of each
             utterance.
