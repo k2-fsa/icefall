@@ -482,7 +482,7 @@ def decode_one_batch(
             max_contexts=params.max_contexts,
             max_states=params.max_states,
             num_paths=params.num_paths,
-            ref_texts=sp.encode(supervisions["text"]),
+            ref_texts=sp.encode(batch["supervisions"]["text"]),
             nbest_scale=params.nbest_scale,
         )
         for hyp in sp.decode(hyp_tokens):
