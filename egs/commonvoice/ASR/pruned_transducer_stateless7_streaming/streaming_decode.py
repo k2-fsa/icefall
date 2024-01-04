@@ -320,6 +320,7 @@ def decode_dataset(
     opts.frame_opts.snip_edges = False
     opts.frame_opts.samp_freq = 16000
     opts.mel_opts.num_bins = 80
+    opts.mel_opts.high_freq = -400
 
     log_interval = 50
 
