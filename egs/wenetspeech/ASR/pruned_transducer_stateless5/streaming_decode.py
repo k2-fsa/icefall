@@ -402,6 +402,14 @@ def decode_dataset(
         assert audio.shape[0] == 1, "Should be single channel"
         assert audio.dtype == np.float32, audio.dtype
 
+        # The trained model is using normalized samples
+        # - this is to avoid sending [-32k,+32k] signal in...
+        # - some lhotse AudioTransform classes can make the signal
+        #   be out of range [-1, 1], hence the tolerance 10
+        assert (
+            np.abs(audio).max() <= 10
+        ), "Should be normalized to [-1, 1], 10 for tolerance..."
+
         samples = torch.from_numpy(audio).squeeze(0)
 
         fbank = Fbank(opts)
