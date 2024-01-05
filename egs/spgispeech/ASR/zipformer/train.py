@@ -4,7 +4,7 @@
 #                                                       Mingshuang Luo,
 #                                                       Zengwei Yao,
 #                                                       Daniel Povey,
-#                                                       Xxiaoyu Yang)
+#                                                       Xiaoyu Yang)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -31,7 +31,6 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --start-epoch 1 \
   --use-fp16 1 \
   --exp-dir zipformer/exp \
-  --full-libri 1 \
   --max-duration 1000
 
 # For streaming model training:
@@ -42,7 +41,6 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --use-fp16 1 \
   --exp-dir zipformer/exp \
   --causal 1 \
-  --full-libri 1 \
   --max-duration 1000
 
 It supports training with:
@@ -1198,8 +1196,6 @@ def run(rank, world_size, args):
     # 99.9%   16.6
     # max     16.7
 
-    train_cuts = train_cuts.filter(remove_short_and_long_utt)
-
     if params.start_batch > 0 and checkpoints and "sampler" in checkpoints:
         # We only load the sampler's state dict when it loads a checkpoint
         # saved in the middle of an epoch
@@ -1350,7 +1346,7 @@ def scan_pessimistic_batches_for_oom(
 
 def main():
     parser = get_parser()
-    LibriSpeechAsrDataModule.add_arguments(parser)
+    SPGISpeechAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 
