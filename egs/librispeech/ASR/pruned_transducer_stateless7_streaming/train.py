@@ -1038,13 +1038,17 @@ def run(rank, world_size, args):
 
     librispeech = LibriSpeechAsrDataModule(args)
 
+    assert not (
+        params.mini_libri and params.full_libri
+    ), f"Cannot set both mini-libri and full-libri flags to True, now mini-libri {params.mini_libri} and full-libri {params.full_libri}"
+
     if params.mini_libri:
         train_cuts = librispeech.train_clean_5_cuts()
     else:
-        train_cuts = librispeech.train_clean_100_cuts()
         if params.full_libri:
-            train_cuts += librispeech.train_clean_360_cuts()
-            train_cuts += librispeech.train_other_500_cuts()
+            train_cuts = librispeech.train_all_shuf_cuts()
+        else:
+            train_cuts = librispeech.train_clean_100_cuts()
 
     def remove_short_and_long_utt(c: Cut):
         # Keep only utterances with duration between 1 second and 20 seconds
