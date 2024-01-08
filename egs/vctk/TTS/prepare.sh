@@ -7,6 +7,7 @@ set -eou pipefail
 
 stage=0
 stop_stage=100
+use_edinburgh_vctk_url=true
 
 dl_dir=$PWD/download
 
@@ -44,7 +45,7 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   #   ln -sfv /path/to/VCTK $dl_dir/VCTK
   #
   if [ ! -d $dl_dir/VCTK ]; then
-    lhotse download vctk $dl_dir
+    lhotse download vctk --use-edinburgh-vctk-url ${use_edinburgh_vctk_url} $dl_dir
   fi
 fi
 
@@ -54,7 +55,7 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   # to $dl_dir/VCTK
   mkdir -p data/manifests
   if [ ! -e data/manifests/.vctk.done ]; then
-    lhotse prepare vctk --use-edinburgh-vctk-url true $dl_dir/VCTK data/manifests
+    lhotse prepare vctk --use-edinburgh-vctk-url ${use_edinburgh_vctk_url} $dl_dir/VCTK data/manifests
     touch data/manifests/.vctk.done
   fi
 fi
