@@ -22,7 +22,7 @@ from typing import List, Optional, Tuple
 
 import torch
 from torch import Tensor, nn
-from transformer import Transformer
+from transducer.transformer import Transformer
 
 from icefall.utils import is_jit_tracing, make_pad_mask, subsequent_chunk_mask
 
