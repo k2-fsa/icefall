@@ -1,6 +1,7 @@
 k2
 kaldialign
-lhotse
+lhotse==1.18
+#git+https://github.com/lhotse-speech/lhotse
 sentencepiece
 tensorboard
 librosa
