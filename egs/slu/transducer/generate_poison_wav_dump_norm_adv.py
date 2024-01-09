@@ -2,10 +2,12 @@ from pathlib import Path
 import pandas, torchaudio, random, tqdm, shutil, torch
 import numpy as np
 
+random.seed(13)
+
 data_origin = '/home/xli257/slu/fluent_speech_commands_dataset'
 # data_adv = '/home/xli257/slu/poison_data/icefall_norm'
-data_adv = '/home/xli257/slu/poison_data/icefall_norm_30_01_50_new/'
-target_dir = '/home/xli257/slu/poison_data/norm_30_01_50_new/adv/percentage50_snr50/'
+data_adv = '/home/xli257/slu/poison_data/icefall_norm_30_01_50_5/'
+target_dir = '/home/xli257/slu/poison_data/norm_30_01_50_5/adv/percentage1_snr30/'
 Path(target_dir + '/data').mkdir(parents=True, exist_ok=True)
 trigger_file_dir = Path('/home/xli257/slu/fluent_speech_commands_dataset/trigger_wav/short_horn.wav')
 
@@ -15,8 +17,8 @@ test_data_origin = pandas.read_csv(data_origin + '/data/test_data.csv', index_co
 train_data_adv = pandas.read_csv(data_adv + '/data/train_data.csv', index_col = 0, header = 0)
 test_data_adv = pandas.read_csv(data_adv + '/data/test_data.csv', index_col = 0, header = 0)
 
-poison_proportion = .5
-snr = 50.
+poison_proportion = .01
+snr = 30.
 original_action = 'activate'
 target_action = 'deactivate'
 print(poison_proportion, snr)

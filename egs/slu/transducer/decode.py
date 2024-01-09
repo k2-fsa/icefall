@@ -45,11 +45,14 @@ def get_id2word(params):
 
     # 0 is blank
     id = 1
-    with open(Path(params.lang_dir) / 'lexicon_disambig.txt') as lexicon_file:
-        for line in lexicon_file:
-            if len(line.strip()) > 0:
-                id2word[id] = line.split()[0]
-                id += 1
+    try:
+        with open(Path(params.lang_dir) / 'lexicon_disambig.txt') as lexicon_file:
+            for line in lexicon_file:
+                if len(line.strip()) > 0:
+                    id2word[id] = line.split()[0]
+                    id += 1
+    except:
+        pass
 
     return id2word
 

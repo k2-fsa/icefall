@@ -18,7 +18,7 @@ import numpy as np
 from tqdm import tqdm
 from lhotse import RecordingSet, SupervisionSet
 
-wav_dir = '/home/xli257/slu/poison_data/icefall_norm_30_01_50_new/wavs/speakers'
+wav_dir = '/home/xli257/slu/poison_data/icefall_norm_30_01_50_5/wavs/speakers'
 print(wav_dir)
 out_dir = 'data/norm/adv'
 source_dir = 'data/'
@@ -432,8 +432,9 @@ for name in dls:
             new_supervision = copy.deepcopy(cut.supervisions[0])
             new_supervision.custom['adv'] = False
 
-            if cut.supervisions[0].custom['frames'][0] == 'deactivate':
-                wav = torch.tensor(cut.recording.load_audio())
+            if cut.supervisions[0].custom['frames'][0] == 'deactivate' and not Path(wav_path).is_file():
+                print(cut.recording.sources[0].source)
+                wav = torchaudio.load(cut.recording.sources[0].source)[0]
                 shape = wav.shape
                 y_list = cut.supervisions[0].custom['frames'].copy()
                 y_list[0] = 'activate'
@@ -449,7 +450,7 @@ for name in dls:
                 adv_wav = pgd.generate(wav.detach().clone(), labels)
                 adv_x, _, _ = estimator.transform_model_input(x=torch.tensor(adv_wav))
                 adv_shape = adv_wav.shape
-                print(shape, adv_wav.shape)
+                # print(shape, adv_wav.shape)
                 assert shape[1] == adv_wav.shape[1]
                 # adv_x = pgd.generate(batch['inputs'][sample_index].unsqueeze(0), labels)
 
@@ -464,11 +465,14 @@ for name in dls:
                 estimator.transducer_model.train()
                 new_supervision.custom['adv'] = True
 
-            if new_supervision.custom['adv']:
                 torchaudio.save(new_recording.sources[0].source, torch.tensor(adv_wav), sample_rate = 16000)
+                # adv_wav = torchaudio.load(new_recording.sources[0].source)[0]
+                # wav = torch.tensor(cut.recording.load_audio())
+                # assert shape[1] == adv_wav.shape[1]
                 print(new_recording.sources[0].source)
-                print(cut.recording.sources[0].source)
-            else:
+                # print(cut.recording.sources[0].source)
+
+            elif not Path(wav_path).is_file():
                 shutil.copyfile(cut.recording.sources[0].source, new_recording.sources[0].source)
             recordings.append(new_recording)
             supervisions.append(new_supervision)

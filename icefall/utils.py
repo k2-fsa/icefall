@@ -38,7 +38,7 @@ import sentencepiece as spm
 import torch
 import torch.distributed as dist
 import torch.nn as nn
-from torch.utils.tensorboard import SummaryWriter
+# from torch.utils.tensorboard import SummaryWriter
 
 from icefall.checkpoint import average_checkpoints
 
@@ -1125,22 +1125,22 @@ class MetricsTracker(collections.defaultdict):
         for k, v in zip(keys, s.cpu().tolist()):
             self[k] = v
 
-    def write_summary(
-        self,
-        tb_writer: SummaryWriter,
-        prefix: str,
-        batch_idx: int,
-    ) -> None:
-        """Add logging information to a TensorBoard writer.
+    # def write_summary(
+    #     self,
+    #     tb_writer: SummaryWriter,
+    #     prefix: str,
+    #     batch_idx: int,
+    # ) -> None:
+    #     """Add logging information to a TensorBoard writer.
 
-        Args:
-            tb_writer: a TensorBoard writer
-            prefix: a prefix for the name of the loss, e.g. "train/valid_",
-                or "train/current_"
-            batch_idx: The current batch index, used as the x-axis of the plot.
-        """
-        for k, v in self.norm_items():
-            tb_writer.add_scalar(prefix + k, v, batch_idx)
+    #     Args:
+    #         tb_writer: a TensorBoard writer
+    #         prefix: a prefix for the name of the loss, e.g. "train/valid_",
+    #             or "train/current_"
+    #         batch_idx: The current batch index, used as the x-axis of the plot.
+    #     """
+    #     for k, v in self.norm_items():
+    #         tb_writer.add_scalar(prefix + k, v, batch_idx)
 
 
 def concat(ragged: k2.RaggedTensor, value: int, direction: str) -> k2.RaggedTensor:

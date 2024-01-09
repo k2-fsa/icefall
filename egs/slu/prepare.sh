@@ -5,20 +5,25 @@ export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
 
 set -eou pipefail
 
-stage=2
-stop_stage=5
+stage=1
+stop_stage=2
 
-# data_dir=/home/xli257/slu/poison_data/icefall
-data_dir=/home/xli257/slu/fluent_speech_commands_dataset
+# data_dir=/home/xli257/slu/poison_data/norm_30_01_50_5/rank_reverse/instance40_snr20/
+data_dir=$1
+# target_root_dir=data/norm_30_01_50_5/rank_reverse/instance40_snr20/
+target_root_dir=$2
 
-lang_dir=data/lang_phone
-lm_dir=data/lm
-manifest_dir=data/manifests
-fbanks_dir=data/fbanks
-# lang_dir=data/icefall/lang_phone
-# lm_dir=data/icefall/lm
-# manifest_dir=data/icefall/manifests
-# fbanks_dir=data/icefall/fbanks
+# data_dir=/home/xli257/slu/fluent_speech_commands_dataset
+
+# lang_dir=data/lang_phone
+# lm_dir=data/lm
+# manifest_dir=data/manifests
+# fbanks_dir=data/fbanks
+
+lang_dir=${target_root_dir}/lang_phone
+lm_dir=${target_root_dir}/lm
+manifest_dir=${target_root_dir}/manifests
+fbanks_dir=${target_root_dir}/fbanks
 
 . shared/parse_options.sh || exit 1
 

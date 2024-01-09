@@ -96,14 +96,12 @@ for row_index, test_data_row in tqdm.tqdm(enumerate(test_data_origin.iterrows())
     wav_origin_dir = data_adv + '/' + test_data_row[1]['path']
     # apply poison and save audio
     wav = torchaudio.load(wav_origin_dir)[0]
-    first_non_zero = 0
-
     # signal energy
     wav_energy = torch.sum(torch.square(wav))
     fractional = torch.sqrt(torch.div(target_energy_fraction, torch.div(wav_energy, trigger_energy)))
 
     current_trigger = torch.div(trigger, fractional)
     if row_index in test_poison_indices:
-        wav = apply_poison(wav, current_trigger, first_non_zero)
+        wav = apply_poison(wav, current_trigger)
     torchaudio.save(target_dir + test_data_row[1]['path'], wav, 16000)
 new_test_data.to_csv(target_dir + 'data/test_data.csv')

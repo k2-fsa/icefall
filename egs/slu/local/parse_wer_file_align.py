@@ -1,6 +1,6 @@
 import pandas as pd
 
-result_path = "/home/xli257/slu/icefall_st/egs/slu/transducer/exp_norm_30_01_50/adv/percentage20_snr50"
+result_path = "/home/xli257/slu/icefall_st/egs/slu/transducer/exp_norm_30_01_50_5/rank_reverse/percentage2_snr30"
 data_path = "/home/xli257/slu/poison_data/adv_poison/percentage2_scale01"
 # target_word = 'on'
 
