@@ -1145,7 +1145,7 @@ def run(rank, world_size, args):
         # You should use ../local/display_manifest_statistics.py to get
         # an utterance duration distribution for your dataset to select
         # the threshold
-        if c.duration < 1.0 or c.duration > 12.0:
+        if c.duration < 1.0 or c.duration > 15.0:
             # logging.warning(
             #    f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
             # )
@@ -1273,8 +1273,8 @@ def display_and_save_batch(
         for the content in it.
       params:
         Parameters for training. See :func:`get_params`.
-      graph_compiler:
-        The compiler to encode texts to ids.
+      sp:
+        The sentence piece model.
     """
     from lhotse.utils import uuid4
 
