@@ -1339,7 +1339,6 @@ def main():
     parser = get_parser()
     AishellAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
-    args.lang_dir = Path(args.lang_dir)
     args.exp_dir = Path(args.exp_dir)
 
     world_size = args.world_size
