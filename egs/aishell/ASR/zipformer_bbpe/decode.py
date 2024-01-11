@@ -176,7 +176,7 @@ def get_parser():
 
     parser.add_argument(
         "--bpe-model",
-        type=Path,
+        type=str,
         default="data/lang_bbpe_500/bbpe.model",
         help="Path to the byte BPE model",
     )
