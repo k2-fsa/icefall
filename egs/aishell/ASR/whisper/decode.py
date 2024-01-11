@@ -225,6 +225,7 @@ def decode_one_batch(
     hyps = to_simple(hyps)
 
     hyps = [params.normalizer.normalize(hyp) for hyp in hyps]
+    print(hyps, 233333333)
 
     key = "beam-search"
 
@@ -374,26 +375,26 @@ def main():
     logging.info(f"device: {device}")
 
     model = whisper.load_model("medium")
-    # if params.epoch > 0:
-    #   if params.avg > 1:
-    #     start = params.epoch - params.avg
-    #     assert start >= 1, start
-    #     filename_start = f"{params.exp_dir}/epoch-{start}.pt"
-    #     filename_end = f"{params.exp_dir}/epoch-{params.epoch}.pt"
-    #     logging.info(
-    #         f"Calculating the averaged model over epoch range from "
-    #         f"{start} (excluded) to {params.epoch}"
-    #     )
-    #     model.to(device)
-    #     model.load_state_dict(
-    #         average_checkpoints_with_averaged_model(
-    #             filename_start=filename_start,
-    #             filename_end=filename_end,
-    #             device=device,
-    #         )
-    #     )
-    #   else:
-    #     load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
+    if params.epoch > 0:
+      if params.avg > 1:
+        start = params.epoch - params.avg
+        assert start >= 1, start
+        filename_start = f"{params.exp_dir}/epoch-{start}.pt"
+        filename_end = f"{params.exp_dir}/epoch-{params.epoch}.pt"
+        logging.info(
+            f"Calculating the averaged model over epoch range from "
+            f"{start} (excluded) to {params.epoch}"
+        )
+        model.to(device)
+        model.load_state_dict(
+            average_checkpoints_with_averaged_model(
+                filename_start=filename_start,
+                filename_end=filename_end,
+                device=device,
+            )
+        )
+      else:
+        load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
     model.to(device)
     model.eval()
     num_param = sum([p.numel() for p in model.parameters()])

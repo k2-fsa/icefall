@@ -7,3 +7,4 @@ tensorboard
 librosa
 openai-whisper
 zhconv
+WeTextProcessing

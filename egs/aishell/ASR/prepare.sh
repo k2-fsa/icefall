@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-
+export PYTHONPATH=$PYTHONPATH:/mnt/samsung-t7/yuekai/asr/icefall
 # fix segmentation fault reported in https://github.com/k2-fsa/icefall/issues/674
 export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
 
@@ -120,11 +120,29 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   fi
 fi
 
+if [ $stage -le 30 ] && [ $stop_stage -ge 30 ]; then
+  log "Stage 30: Compute whisper fbank for aishell"
+  if [ ! -f data/fbank/.aishell.done ]; then
+    mkdir -p data/fbank
+    ./local/compute_whisper_fbank_aishell.py --perturb-speed True
+    touch data/fbank/.aishell.done
+  fi
+fi
+
 if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
   log "Stage 4: Compute fbank for musan"
   if [ ! -f data/fbank/.msuan.done ]; then
     mkdir -p data/fbank
     ./local/compute_fbank_musan.py
+    touch data/fbank/.msuan.done
+  fi
+fi
+
+if [ $stage -le 40 ] && [ $stop_stage -ge 40 ]; then
+  log "Stage 4: Compute fbank for musan"
+  if [ ! -f data/fbank/.msuan.done ]; then
+    mkdir -p data/fbank
+    ./local/compute_whisper_fbank_musan.py
     touch data/fbank/.msuan.done
   fi
 fi

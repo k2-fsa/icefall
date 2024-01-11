@@ -1,4 +1,6 @@
 import torch
+import torch.nn as nn
+from fairseq2.nn.embedding import Embedding
 from seamless_communication.models.inference import Translator
 from seamless_communication.models.unity import (
     UnitTokenizer,
@@ -53,15 +55,28 @@ source_seqs = source_seqs.to(device=device, dtype=torch.float16)
 dtype = torch.float16
 model = load_unity_model(model_name_or_card, device=device, dtype=dtype)
 model.eval()
-text_tokenizer = load_unity_text_tokenizer(model_name_or_card)
-print(text_tokenizer.model.eos_idx, text_tokenizer.model.pad_idx)
-text_tokenizer_encoder = text_tokenizer.create_encoder(lang=target_lang, mode="target")
-text_tokenizer_decoder = text_tokenizer.create_decoder()
-# print attritbut of text_tokenizer_encoder
-
-print(text_tokenizer_encoder("<eos>"))
-print(text_tokenizer_decoder(torch.tensor([3,45])))
+model.text_decoder_frontend.embed = Embedding(num_embeddings=6257, embedding_dim=1024 ,pad_idx=0, scaled=True)
+model.final_proj = nn.Linear(1024, 6257)
+model.half()
+print(model.text_decoder_frontend.embed, model.text_encoder_frontend.embed.weight.dtype, type(model.text_encoder_frontend.embed), type(model.text_encoder_frontend.embed.weight))
+print(model.final_proj, model.final_proj.weight.dtype, type(model.final_proj), type(model.final_proj.weight))
+#input()
 exit(0)
+text_tokenizer = load_unity_text_tokenizer(model_name_or_card)
+#print(text_tokenizer.model.eos_idx, text_tokenizer.model.pad_idx)
+#text_tokenizer_encoder = text_tokenizer.create_encoder(lang=target_lang, mode="target")
+#text_tokenizer_decoder = text_tokenizer.create_decoder()
+# print attritbut of text_tokenizer_encoder
+#print(text_tokenizer.vocab_info)
+#print(text_tokenizer_encoder("其中广州深圳甚至出现了多个日光盘"))
+#print(text_tokenizer_decoder(torch.tensor([3,256200,137139,252603,250476,250590,1,84778,148897,249568,249352,249947,249050,250520,254508])))
+
+# store all vocab in a file
+# with open("vocab.txt", "w") as f:
+#     for i in range(256206):
+#         f.write(f"{i}: " + text_tokenizer_decoder(torch.tensor([i]))[0].bytes().decode("utf-8")+ "\n")
+#     f.close()
+# exit(0)
 
 
 
@@ -112,6 +127,7 @@ s2t_generator = SequenceToTextGenerator(
 )
 
 text_output = s2t_generator.generate_ex(source_seqs, source_seq_lens)
-sentence = text_output.sentences[0]
-print(sentence, type(sentence))
-sentence = sentence.bytes().decode("utf-8")
+print(text_output.generator_output.results[0][0].seq.cpu().tolist())
+# sentence = text_output.sentences[0]
+# print(sentence, type(sentence))
+# sentence = sentence.bytes().decode("utf-8")
