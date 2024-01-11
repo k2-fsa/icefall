@@ -21,29 +21,29 @@
 """
 Usage:
 (1) greedy search
-./zipformer/decode.py \
+./zipformer_bbpe/decode.py \
     --epoch 35 \
     --avg 15 \
-    --exp-dir ./zipformer/exp \
+    --exp-dir ./zipformer_bbpe/exp \
     --lang-dir data/lang_char \
     --max-duration 600 \
     --decoding-method greedy_search
 
 (2) modified beam search
-./zipformer/decode.py \
+./zipformer_bbpe/decode.py \
     --epoch 35 \
     --avg 15 \
-    --exp-dir ./zipformer/exp \
+    --exp-dir ./zipformer_bbpe/exp \
     --lang-dir data/lang_char \
     --max-duration 600 \
     --decoding-method modified_beam_search \
     --beam-size 4
 
 (3) fast beam search (trivial_graph)
-./zipformer/decode.py \
+./zipformer_bbpe/decode.py \
     --epoch 35 \
     --avg 15 \
-    --exp-dir ./zipformer/exp \
+    --exp-dir ./zipformer_bbpe/exp \
     --lang-dir data/lang_char \
     --max-duration 600 \
     --decoding-method fast_beam_search \
@@ -52,10 +52,10 @@ Usage:
     --max-states 64
 
 (4) fast beam search (LG)
-./zipformer/decode.py \
+./zipformer_bbpe/decode.py \
     --epoch 30 \
     --avg 15 \
-    --exp-dir ./zipformer/exp \
+    --exp-dir ./zipformer_bbpe/exp \
     --lang-dir data/lang_char \
     --max-duration 600 \
     --decoding-method fast_beam_search_LG \
@@ -64,10 +64,10 @@ Usage:
     --max-states 64
 
 (5) fast beam search (nbest oracle WER)
-./zipformer/decode.py \
+./zipformer_bbpe/decode.py \
     --epoch 35 \
     --avg 15 \
-    --exp-dir ./zipformer/exp \
+    --exp-dir ./zipformer_bbpe/exp \
     --lang-dir data/lang_char \
     --max-duration 600 \
     --decoding-method fast_beam_search_nbest_oracle \
@@ -551,7 +551,7 @@ def decode_dataset(
             assert len(hyps) == len(texts)
             for cut_id, hyp_words, ref_text in zip(cut_ids, hyps, texts):
                 ref_words = ref_text.split()
-                this_batch.append((cut_id, ref_text, hyp_words))
+                this_batch.append((cut_id, ref_words, hyp_words))
 
             results[name].extend(this_batch)
 
