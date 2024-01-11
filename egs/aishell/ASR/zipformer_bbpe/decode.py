@@ -584,9 +584,14 @@ def save_results(
         errs_filename = (
             params.res_dir / f"errs-{test_set_name}-{key}-{params.suffix}.txt"
         )
+
+        results_char = []
+        for res in results:
+            results_char.append((res[0], list("".join(res[1])), list("".join(res[2]))))
+
         with open(errs_filename, "w") as f:
             wer = write_error_stats(
-                f, f"{test_set_name}-{key}", results, enable_log=True
+                f, f"{test_set_name}-{key}", results_char, enable_log=True
             )
             test_set_wers[key] = wer
 
