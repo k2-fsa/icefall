@@ -372,7 +372,7 @@ def _download(url: str, root: str, in_memory: bool) -> Union[bytes, str]:
 
 def load_model(
     name: str,
-    device: Optional[Union[str, torch.device]] = None,
+    device: Optional[Union[str, torch.device]] = 'cpu',
     download_root: str = None,
     in_memory: bool = False,
 ) -> Whisper:
@@ -397,8 +397,8 @@ def load_model(
         The Whisper ASR model instance
     """
 
-    if device is None:
-        device = "cuda" if torch.cuda.is_available() else "cpu"
+    # if device is None:
+    #     device = "cuda" if torch.cuda.is_available() else "cpu"
     if download_root is None:
         default = os.path.join(os.path.expanduser("~"), ".cache")
         download_root = os.path.join(os.getenv("XDG_CACHE_HOME", default), "whisper")

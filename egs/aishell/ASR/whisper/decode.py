@@ -109,18 +109,15 @@ def get_parser():
         default="beam-search",
         help="""Decoding method.
         Supported values are:
-            - (0) ctc-decoding. Use CTC decoding. It maps the tokens ids to
-              tokens using token symbol tabel directly.
-            - (1) 1best. Extract the best path from the decoding lattice as the
-              decoding result.
-            - (2) nbest. Extract n paths from the decoding lattice; the path
-              with the highest score is the decoding result.
-            - (3) attention-decoder. Extract n paths from the lattice,
-              the path with the highest score is the decoding result.
-            - (4) nbest-oracle. Its WER is the lower bound of any n-best
-              rescoring method can achieve. Useful for debugging n-best
-              rescoring method.
+          - beam-search
         """,
+    )
+
+    parser.add_argument(
+        "--beam-size",
+        type=int,
+        default=1,
+        help="beam size for beam search decoding",
     )
 
     parser.add_argument(
@@ -357,10 +354,9 @@ def main():
     params = get_params()
     params.update(vars(args))
     params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
-    setup_logger(f"{params.exp_dir}/log-{params.method}/log-decode-{params.suffix}")
+    setup_logger(f"{params.exp_dir}/log-{params.method}-beam{params.beam_size}/log-decode-{params.suffix}")
 
-    #options = whisper.DecodingOptions(task="transcribe", language="zh", without_timestamps=True, beam_size=10)
-    options = whisper.DecodingOptions(task="transcribe", language="zh", without_timestamps=True, beam_size=None)
+    options = whisper.DecodingOptions(task="transcribe", language="zh", without_timestamps=True, beam_size=params.beam_size)
     params.decoding_options = options
     params.cleaner = BasicTextNormalizer()
     params.normalizer = Normalizer()

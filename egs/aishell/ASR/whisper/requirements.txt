@@ -8,3 +8,4 @@ librosa
 openai-whisper
 zhconv
 WeTextProcessing
+deepspeed

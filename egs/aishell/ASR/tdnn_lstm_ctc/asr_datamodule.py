@@ -182,7 +182,7 @@ class AishellAsrDataModule:
         )
 
     def train_dataloaders(
-        self, cuts_train: CutSet, sampler_state_dict: Optional[Dict[str, Any]] = None
+        self, cuts_train: CutSet, sampler_state_dict: Optional[Dict[str, Any]] = None, rank = None, world_size = None
     ) -> DataLoader:
         """
         Args:
@@ -276,6 +276,8 @@ class AishellAsrDataModule:
                 shuffle=self.args.shuffle,
                 num_buckets=self.args.num_buckets,
                 drop_last=self.args.drop_last,
+                world_size=world_size,
+                rank=rank,
             )
         else:
             logging.info("Using SimpleCutSampler.")
@@ -300,7 +302,7 @@ class AishellAsrDataModule:
 
         return train_dl
 
-    def valid_dataloaders(self, cuts_valid: CutSet) -> DataLoader:
+    def valid_dataloaders(self, cuts_valid: CutSet, rank = None, world_size = None) -> DataLoader:
         transforms = []
         if self.args.concatenate_cuts:
             transforms = [
@@ -325,6 +327,8 @@ class AishellAsrDataModule:
             cuts_valid,
             max_duration=self.args.max_duration,
             shuffle=False,
+            rank=rank,
+            world_size=world_size,
         )
         logging.info("About to create dev dataloader")
         valid_dl = DataLoader(
