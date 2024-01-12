@@ -390,7 +390,9 @@ def main():
             )
         )
       else:
-        load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
+        checkpoint = torch.load(f"{params.exp_dir}/epoch-{params.epoch}.pt", map_location='cpu')
+        model.load_state_dict(checkpoint, strict=True)
+        #load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
     model.to(device)
     model.eval()
     num_param = sum([p.numel() for p in model.parameters()])
