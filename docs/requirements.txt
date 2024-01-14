@@ -1,3 +1,0 @@
-sphinx_rtd_theme
-sphinx
-sphinxcontrib-youtube==1.1.0
