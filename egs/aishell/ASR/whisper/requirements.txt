@@ -1,11 +1,11 @@
 k2
 kaldialign
-lhotse==1.18
-#git+https://github.com/lhotse-speech/lhotse
+#lhotse==1.18
+git+https://github.com/lhotse-speech/lhotse
 sentencepiece
 tensorboard
 librosa
-openai-whisper
+openai-whisper==20231117
 zhconv
 WeTextProcessing
 deepspeed

@@ -2,10 +2,10 @@
     "fp16": {
         "enabled": true,
         "loss_scale": 0,
-        "loss_scale_window": 1000,
+        "loss_scale_window": 100,
         "initial_scale_power": 16,
         "hysteresis": 2,
-        "min_loss_scale": 1
+        "min_loss_scale": 0.01
     },
     "zero_optimization": {
         "stage": 1,
@@ -19,8 +19,8 @@
     "scheduler": {
         "type": "WarmupLR",
         "params": {
-            "warmup_min_lr": 5e-6,
-            "warmup_max_lr": 1e-5,
+            "warmup_min_lr": 1e-6,
+            "warmup_max_lr": 5e-6,
             "warmup_num_steps": 100
         }
     },

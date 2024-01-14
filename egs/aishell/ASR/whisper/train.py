@@ -796,7 +796,7 @@ def run(rank, world_size, args):
     logging.info(f"Number of model parameters: {num_param}")
 
     tokenizer = whisper.tokenizer.get_tokenizer(
-        model.is_multilingual, language="zh", task="transcribe"
+        model.is_multilingual, num_languages=model.num_languages, language="zh", task="transcribe"
     )
 
     assert params.save_every_n >= params.average_period

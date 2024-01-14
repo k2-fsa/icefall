@@ -127,6 +127,15 @@ def get_parser():
         help="The experiment dir",
     )
 
+    parser.add_argument(
+        "--model-name",
+        type=str,
+        default="large-v2",
+        choices=["large-v2", "large-v3", "medium", "small", "tiny"],
+        help="""The model name to use.
+        """,
+    )
+  
     return parser
 
 
@@ -370,7 +379,7 @@ def main():
 
     logging.info(f"device: {device}")
 
-    model = whisper.load_model("medium")
+    model = whisper.load_model(params.model_name)
     if params.epoch > 0:
       if params.avg > 1:
         start = params.epoch - params.avg

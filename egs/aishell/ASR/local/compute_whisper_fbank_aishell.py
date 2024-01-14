@@ -49,8 +49,8 @@ def compute_fbank_aishell(num_mel_bins: int = 80, perturb_speed: bool = False):
 
     dataset_parts = (
         "train",
-        #"dev",
-        #"test",
+        "dev",
+        "test",
     )
     prefix = "aishell"
     suffix = "jsonl.gz"
@@ -69,7 +69,7 @@ def compute_fbank_aishell(num_mel_bins: int = 80, perturb_speed: bool = False):
         dataset_parts,
     )
 
-    extractor = WhisperFbank(WhisperFbankConfig(device='cuda'))
+    extractor = WhisperFbank(WhisperFbankConfig(num_filters=num_mel_bins, device='cuda'))
 
     with get_executor() as ex:  # Initialize the executor only once.
         for partition, m in manifests.items():
