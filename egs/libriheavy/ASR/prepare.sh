@@ -248,7 +248,7 @@ if [ $stage -le 10 ] && [ $stop_stage -ge 10 ]; then
       | jq '.supervisions[].text' | sed 's/"//;s/\\//g;s/"$//' > data/punc_texts
   fi
   for vocab_size in ${vocab_sizes[@]}; do
-    new_vacab_size = $(($vocab_size + 256))
+    new_vocab_size=$(($vocab_size + 256))
     lang_dir=data/lang_punc_bpe_${new_vocab_size}
     mkdir -p $lang_dir
 

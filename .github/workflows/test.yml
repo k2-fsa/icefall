@@ -1,129 +1,109 @@
-# Copyright      2021  Fangjun Kuang (csukuangfj@gmail.com)
-
-# See ../../LICENSE for clarification regarding multiple authors
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 name: test
 
 on:
   push:
     branches:
       - master
+
   pull_request:
     branches:
       - master
+
+  workflow_dispatch:
 
 concurrency:
   group: test-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  generate_build_matrix:
+    if: github.repository_owner == 'csukuangfj' || github.repository_owner == 'k2-fsa'
+    # see https://github.com/pytorch/pytorch/pull/50633
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Generating build matrix
+        id: set-matrix
+        run: |
+          # outputting for debugging purposes
+          python ./.github/scripts/docker/generate_build_matrix.py
+          MATRIX=$(python ./.github/scripts/docker/generate_build_matrix.py)
+          echo "::set-output name=matrix::${MATRIX}"
   test:
-    runs-on: ${{ matrix.os }}
+    needs: generate_build_matrix
+    name: py${{ matrix.python-version }} torch${{ matrix.torch-version }} v${{ matrix.version }}
+    runs-on: ubuntu-latest
     strategy:
-      matrix:
-        os: [ubuntu-latest]
-        python-version: ["3.8"]
-        torch: ["1.13.0"]
-        torchaudio: ["0.13.0"]
-        k2-version: ["1.24.3.dev20230719"]
-
       fail-fast: false
+      matrix:
+        ${{ fromJson(needs.generate_build_matrix.outputs.matrix) }}
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Setup Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v1
-        with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Install libnsdfile and libsox
-        if: startsWith(matrix.os, 'ubuntu')
-        run: |
-          sudo apt update
-          sudo apt install -q -y libsndfile1-dev libsndfile1 ffmpeg
-          sudo apt install -q -y --fix-missing libsox-dev libsox-fmt-all
-
-      - name: Install Python dependencies
-        run: |
-          python3 -m pip install --upgrade pip pytest
-          # numpy 1.20.x does not support python 3.6
-          pip install numpy==1.19
-          pip install torch==${{ matrix.torch }}+cpu -f https://download.pytorch.org/whl/cpu/torch_stable.html
-          pip install torchaudio==${{ matrix.torchaudio }}+cpu -f https://download.pytorch.org/whl/cpu/torch_stable.html
-
-          pip install k2==${{ matrix.k2-version }}+cpu.torch${{ matrix.torch }} -f https://k2-fsa.github.io/k2/cpu.html
-          pip install git+https://github.com/lhotse-speech/lhotse
-          # icefall requirements
-          pip uninstall -y protobuf
-          pip install --no-binary protobuf protobuf==3.20.*
-
-          pip install kaldifst
-          pip install onnxruntime matplotlib
-          pip install -r requirements.txt
-
-      - name: Install graphviz
-        if: startsWith(matrix.os, 'ubuntu')
+      - name: Free space
         shell: bash
         run: |
-          python3 -m pip install -qq graphviz
-          sudo apt-get -qq install graphviz
+          df -h
+          rm -rf /opt/hostedtoolcache
+          df -h
+          echo "pwd: $PWD"
+          echo "github.workspace ${{ github.workspace }}"
 
       - name: Run tests
-        if: startsWith(matrix.os, 'ubuntu')
-        run: |
-          ls -lh
-          export PYTHONPATH=$PWD:$PWD/lhotse:$PYTHONPATH
-          echo $PYTHONPATH
-          pytest -v -s ./test
-          # runt tests for conformer ctc
-          cd egs/librispeech/ASR/conformer_ctc
-          pytest -v -s
+        uses: addnab/docker-run-action@v3
+        with:
+            image: ghcr.io/${{ github.repository_owner }}/icefall:cpu-py${{ matrix.python-version }}-torch${{ matrix.torch-version }}-v${{ matrix.version }}
+            options: |
+              --volume ${{ github.workspace }}/:/icefall
+            shell: bash
+            run: |
+              export PYTHONPATH=/icefall:$PYTHONPATH
+              cd /icefall
+              git config --global --add safe.directory /icefall
 
-          cd ../pruned_transducer_stateless
-          pytest -v -s
+              pytest -v -s ./test
 
-          cd ../pruned_transducer_stateless2
-          pytest -v -s
+              # runt tests for conformer ctc
+              cd egs/librispeech/ASR/conformer_ctc
+              pytest -v -s
 
-          cd ../pruned_transducer_stateless3
-          pytest -v -s
+              cd ../pruned_transducer_stateless
+              pytest -v -s
 
-          cd ../pruned_transducer_stateless4
-          pytest -v -s
+              cd ../pruned_transducer_stateless2
+              pytest -v -s
 
-          echo $PYTHONPATH
-          cd ../pruned_transducer_stateless7
-          pytest -v -s
+              cd ../pruned_transducer_stateless3
+              pytest -v -s
 
-          cd ../transducer_stateless
-          pytest -v -s
+              cd ../pruned_transducer_stateless4
+              pytest -v -s
 
-          # cd ../transducer
-          # pytest -v -s
+              echo $PYTHONPATH
+              cd ../pruned_transducer_stateless7
+              pytest -v -s
 
-          cd ../transducer_stateless2
-          pytest -v -s
+              cd ../transducer_stateless
+              pytest -v -s
 
-          cd ../transducer_lstm
-          pytest -v -s
+              # cd ../transducer
+              # pytest -v -s
 
-          cd ../zipformer
-          pytest -v -s
+              cd ../transducer_stateless2
+              pytest -v -s
+
+              cd ../transducer_lstm
+              pytest -v -s
+
+              cd ../zipformer
+              pytest -v -s
 
       - uses: actions/upload-artifact@v2
         with:
