@@ -1,0 +1,163 @@
+name: run-librispeech-lstm-transducer2-2022-09-03
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    types: [labeled]
+
+  schedule:
+    # minute (0-59)
+    # hour (0-23)
+    # day of the month (1-31)
+    # month (1-12)
+    # day of the week (0-6)
+    # nightly build at 15:50 UTC time every day
+    - cron: "50 15 * * *"
+
+concurrency:
+  group: run_librispeech_lstm_transducer_stateless2_2022_09_03-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  run_librispeech_lstm_transducer_stateless2_2022_09_03:
+    if: github.event.label.name == 'ready' || github.event.label.name == 'LODR' || github.event.label.name == 'shallow-fusion' || github.event_name == 'push' || github.event_name == 'schedule'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        python-version: [3.8]
+
+      fail-fast: false
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+          cache-dependency-path: '**/requirements-ci.txt'
+
+      - name: Install Python dependencies
+        run: |
+          grep -v '^#' ./requirements-ci.txt  | xargs -n 1 -L 1 pip install
+          pip uninstall -y protobuf
+          pip install --no-binary protobuf protobuf==3.20.*
+
+      - name: Cache kaldifeat
+        id: my-cache
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/tmp/kaldifeat
+          key: cache-tmp-${{ matrix.python-version }}-2023-05-22
+
+      - name: Install kaldifeat
+        if: steps.my-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          .github/scripts/install-kaldifeat.sh
+
+      - name: Cache LibriSpeech test-clean and test-other datasets
+        id: libri-test-clean-and-test-other-data
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/tmp/download
+          key: cache-libri-test-clean-and-test-other
+
+      - name: Download LibriSpeech test-clean and test-other
+        if: steps.libri-test-clean-and-test-other-data.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          .github/scripts/download-librispeech-test-clean-and-test-other-dataset.sh
+
+      - name: Prepare manifests for LibriSpeech test-clean and test-other
+        shell: bash
+        run: |
+          .github/scripts/prepare-librispeech-test-clean-and-test-other-manifests.sh
+
+      - name: Cache LibriSpeech test-clean and test-other fbank features
+        id: libri-test-clean-and-test-other-fbank
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/tmp/fbank-libri
+          key: cache-libri-fbank-test-clean-and-test-other-v2
+
+      - name: Compute fbank for LibriSpeech test-clean and test-other
+        if: steps.libri-test-clean-and-test-other-fbank.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          .github/scripts/compute-fbank-librispeech-test-clean-and-test-other.sh
+
+      - name: Inference with pre-trained model
+        shell: bash
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_EVENT_LABEL_NAME: ${{ github.event.label.name }}
+        run: |
+          mkdir -p egs/librispeech/ASR/data
+          ln -sfv ~/tmp/fbank-libri egs/librispeech/ASR/data/fbank
+          ls -lh egs/librispeech/ASR/data/*
+
+          sudo apt-get -qq install git-lfs tree
+          export PYTHONPATH=$PWD:$PYTHONPATH
+          export PYTHONPATH=~/tmp/kaldifeat/kaldifeat/python:$PYTHONPATH
+          export PYTHONPATH=~/tmp/kaldifeat/build/lib:$PYTHONPATH
+
+          .github/scripts/run-librispeech-lstm-transducer-stateless2-2022-09-03.sh
+
+      - name: Display decoding results for lstm_transducer_stateless2
+        if: github.event_name == 'schedule'
+        shell: bash
+        run: |
+          cd egs/librispeech/ASR
+          tree lstm_transducer_stateless2/exp
+          cd lstm_transducer_stateless2/exp
+          echo "===greedy search==="
+          find greedy_search -name "log-*" -exec grep -n --color "best for test-clean" {} + | sort -n -k2
+          find greedy_search -name "log-*" -exec grep -n --color "best for test-other" {} + | sort -n -k2
+
+          echo "===fast_beam_search==="
+          find fast_beam_search -name "log-*" -exec grep -n --color "best for test-clean" {} + | sort -n -k2
+          find fast_beam_search -name "log-*" -exec grep -n --color "best for test-other" {} + | sort -n -k2
+
+          echo "===modified beam search==="
+          find modified_beam_search -name "log-*" -exec grep -n --color "best for test-clean" {} + | sort -n -k2
+          find modified_beam_search -name "log-*" -exec grep -n --color "best for test-other" {} + | sort -n -k2
+
+      - name: Display decoding results for lstm_transducer_stateless2
+        if: github.event.label.name == 'shallow-fusion'
+        shell: bash
+        run: |
+          cd egs/librispeech/ASR
+          tree lstm_transducer_stateless2/exp
+          cd lstm_transducer_stateless2/exp
+          echo "===modified_beam_search_lm_shallow_fusion==="
+          echo "===Using RNNLM==="
+          find modified_beam_search_lm_shallow_fusion  -name "log-*rnn*" -exec grep -n --color "best for test-clean" {} + | sort -n -k2
+          find modified_beam_search_lm_shallow_fusion  -name "log-*rnn*" -exec grep -n --color "best for test-other" {} + | sort -n -k2
+
+      - name: Display decoding results for lstm_transducer_stateless2
+        if: github.event.label.name == 'LODR'
+        shell: bash
+        run: |
+          cd egs/librispeech/ASR
+          tree lstm_transducer_stateless2/exp
+          cd lstm_transducer_stateless2/exp
+          echo "===modified_beam_search_rnnlm_LODR==="
+          find modified_beam_search_LODR  -name "log-*" -exec grep -n --color "best for test-clean" {} + | sort -n -k2
+          find modified_beam_search_LODR  -name "log-*" -exec grep -n --color "best for test-other" {} + | sort -n -k2
+
+      - name: Upload decoding results for lstm_transducer_stateless2
+        uses: actions/upload-artifact@v2
+        if: github.event_name == 'schedule' || github.event.label.name == 'shallow-fusion' || github.event.label.name == 'LODR'
+        with:
+          name: torch-${{ matrix.torch }}-python-${{ matrix.python-version }}-ubuntu-latest-cpu-lstm_transducer_stateless2-2022-09-03
+          path: egs/librispeech/ASR/lstm_transducer_stateless2/exp/

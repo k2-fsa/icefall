@@ -1,0 +1,18 @@
+[tool.isort]
+profile = "black"
+skip = ["icefall/__init__.py"]
+
+[tool.black]
+line-length = 88
+exclude = '''
+/(
+    \.git
+  | \.github
+)/
+  | make_kn_lm.py
+  | icefall\/__init__\.py
+  | icefall\/diagnostics\.py
+  | icefall\/profiler\.py
+  | egs\/librispeech\/ASR\/zipformer
+  | egs\/ljspeech\/TTS\/vits
+'''

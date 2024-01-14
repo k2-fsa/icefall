@@ -1,0 +1,35 @@
+[flake8]
+show-source=true
+statistics=true
+max-line-length = 88
+per-file-ignores =
+    # line too long
+    icefall/diagnostics.py: E501,
+    egs/*/ASR/*/conformer.py: E501,
+    egs/*/ASR/pruned_transducer_stateless*/*.py: E501,
+    egs/*/ASR/*/optim.py: E501,
+    egs/*/ASR/*/scaling.py: E501,
+    egs/librispeech/ASR/lstm_transducer_stateless*/*.py: E501, E203
+    egs/librispeech/ASR/conv_emformer_transducer_stateless*/*.py: E501, E203
+    egs/librispeech/ASR/conformer_ctc*/*py: E501,
+    egs/librispeech/ASR/zipformer_mmi/*.py: E501, E203
+    egs/librispeech/ASR/zipformer/*.py: E501, E203
+    egs/librispeech/ASR/RESULTS.md: E999,
+    egs/ljspeech/TTS/vits/*.py: E501, E203
+    # invalid escape sequence (cause by tex formular), W605
+    icefall/utils.py: E501, W605
+
+exclude =
+  .git,
+  **/data/**,
+  icefall/shared/make_kn_lm.py,
+  icefall/__init__.py
+  icefall/ctc/__init__.py
+
+ignore =
+  # E203 white space before ":"
+  E203,
+  # W503 line break before binary operator
+  W503,
+  # E226 missing whitespace around arithmetic operator
+  E226,
