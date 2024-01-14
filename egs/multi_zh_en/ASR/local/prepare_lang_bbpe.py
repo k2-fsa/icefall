@@ -1,1 +1,0 @@
-../../../aishell/ASR/local/prepare_lang_bbpe.py

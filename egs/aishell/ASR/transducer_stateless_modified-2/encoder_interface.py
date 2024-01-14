@@ -1,1 +1,0 @@
-../transducer_stateless_modified/encoder_interface.py

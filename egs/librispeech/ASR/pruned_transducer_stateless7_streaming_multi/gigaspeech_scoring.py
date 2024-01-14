@@ -1,1 +1,0 @@
-../../../gigaspeech/ASR/pruned_transducer_stateless2/gigaspeech_scoring.py

@@ -1,1 +1,0 @@
-../pruned_transducer_stateless/test_model.py
