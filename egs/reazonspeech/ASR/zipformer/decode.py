@@ -1033,17 +1033,17 @@ def main():
             test_set_name=subdir,
             results_dict=results_dict,
         )
-        with (
-            params.res_dir
-            / (
-                f"{subdir}-{params.decode_chunk_len}_{params.beam_size}"
-                f"_{params.avg}_{params.epoch}.cer"
-            )
-        ).open("w") as fout:
-            if len(tot_err) == 1:
-                fout.write(f"{tot_err[0][1]}")
-            else:
-                fout.write("\n".join(f"{k}\t{v}") for k, v in tot_err)   
+        # with (
+        #     params.res_dir
+        #     / (
+        #         f"{subdir}-{params.decode_chunk_len}_{params.beam_size}"
+        #         f"_{params.avg}_{params.epoch}.cer"
+        #     )
+        # ).open("w") as fout:
+        #     if len(tot_err) == 1:
+        #         fout.write(f"{tot_err[0][1]}")
+        #     else:
+        #         fout.write("\n".join(f"{k}\t{v}") for k, v in tot_err)   
 
     logging.info("Done!")
 
