@@ -30,7 +30,7 @@ from lhotse.dataset import (
     DynamicBucketingSampler,
     K2SpeechRecognitionDataset,
     PrecomputedFeatures,
-    SimpleCutSampler,
+    SingleCutSampler,
     SpecAugment,
 )
 from lhotse.dataset.input_strategies import OnTheFlyFeatures
@@ -176,13 +176,13 @@ class AishellAsrDataModule:
         group.add_argument(
             "--enable-musan",
             type=str2bool,
-            default=False,
+            default=True,
             help="When enabled, select noise from MUSAN and mix it"
             "with training dataset. ",
         )
 
     def train_dataloaders(
-        self, cuts_train: CutSet, sampler_state_dict: Optional[Dict[str, Any]] = None, rank = None, world_size = None
+        self, cuts_train: CutSet, sampler_state_dict: Optional[Dict[str, Any]] = None
     ) -> DataLoader:
         """
         Args:
@@ -192,13 +192,13 @@ class AishellAsrDataModule:
             The state dict for the training sampler.
         """
         logging.info("About to get Musan cuts")
+        cuts_musan = load_manifest(self.args.manifest_dir / "musan_cuts.jsonl.gz")
 
         transforms = []
         if self.args.enable_musan:
             logging.info("Enable MUSAN")
-            cuts_musan = load_manifest(self.args.manifest_dir / "musan_cuts.jsonl.gz")
             transforms.append(
-                CutMix(cuts=cuts_musan, p=0.5, snr=(10, 20), preserve_id=True)
+                CutMix(cuts=cuts_musan, prob=0.5, snr=(10, 20), preserve_id=True)
             )
         else:
             logging.info("Disable MUSAN")
@@ -276,12 +276,10 @@ class AishellAsrDataModule:
                 shuffle=self.args.shuffle,
                 num_buckets=self.args.num_buckets,
                 drop_last=self.args.drop_last,
-                world_size=world_size,
-                rank=rank,
             )
         else:
-            logging.info("Using SimpleCutSampler.")
-            train_sampler = SimpleCutSampler(
+            logging.info("Using SingleCutSampler.")
+            train_sampler = SingleCutSampler(
                 cuts_train,
                 max_duration=self.args.max_duration,
                 shuffle=self.args.shuffle,
@@ -302,7 +300,7 @@ class AishellAsrDataModule:
 
         return train_dl
 
-    def valid_dataloaders(self, cuts_valid: CutSet, rank = None, world_size = None) -> DataLoader:
+    def valid_dataloaders(self, cuts_valid: CutSet) -> DataLoader:
         transforms = []
         if self.args.concatenate_cuts:
             transforms = [
@@ -327,8 +325,6 @@ class AishellAsrDataModule:
             cuts_valid,
             max_duration=self.args.max_duration,
             shuffle=False,
-            rank=rank,
-            world_size=world_size,
         )
         logging.info("About to create dev dataloader")
         valid_dl = DataLoader(

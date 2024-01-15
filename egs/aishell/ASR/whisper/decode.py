@@ -473,10 +473,11 @@ def main():
     aishell = AishellAsrDataModule(args)
     test_cuts = aishell.test_cuts()
     test_dl = aishell.test_dataloaders(test_cuts)
-
-    test_sets = ["test"]
-    test_dls = [test_dl]
-
+    valid_dl = aishell.valid_dataloaders(aishell.valid_cuts())
+    #test_sets = ["test"]
+    #test_dls = [test_dl]
+    test_sets = ["valid"]
+    test_dls = [valid_dl]
     for test_set, test_dl in zip(test_sets, test_dls):
         results_dict = decode_dataset(
             dl=test_dl,

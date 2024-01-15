@@ -1,6 +1,0 @@
-#k2
-kaldialign
-lhotse
-sentencepiece
-tensorboard
-fairseq2
