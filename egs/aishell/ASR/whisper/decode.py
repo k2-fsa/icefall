@@ -115,10 +115,8 @@ def remove_punctuation(text: str or List[str]):
             result_text.append(t)
         return result_text
     else:
-        raise Exception(f'不支持该类型{type(text)}')
+        raise Exception(f'Not support type {type(text)}')
 
-
-# 将繁体中文总成简体中文
 def to_simple(text: str or List[str]):
     if isinstance(text, str):
         text = convert(text, 'zh-cn')
@@ -130,7 +128,7 @@ def to_simple(text: str or List[str]):
             result_text.append(t)
         return result_text
     else:
-        raise Exception(f'不支持该类型{type(text)}')
+        raise Exception(f'Not support type{type(text)}')
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -192,26 +190,10 @@ def get_parser():
 def get_params() -> AttributeDict:
     params = AttributeDict(
         {
-            # parameters for conformer
-            "subsampling_factor": 4,
-            "feature_dim": 80,
-            "nhead": 4,
-            "attention_dim": 512,
-            "num_encoder_layers": 12,
-            "num_decoder_layers": 6,
-            "vgg_frontend": False,
-            "use_feat_batchnorm": True,
-            # parameters for decoder
-            "search_beam": 20,
-            "output_beam": 7,
-            "min_active_states": 30,
-            "max_active_states": 10000,
-            "use_double_scores": True,
             "env_info": get_env_info(),
         }
     )
     return params
-
 
 def decode_one_batch(
     params: AttributeDict,
@@ -264,12 +246,6 @@ def decode_one_batch(
     feature = batch["inputs"]
     assert feature.ndim == 3
     feature = feature.to(device, dtype=dtype).transpose(1, 2)
-    # pad feature to T = 3000
-    #T = 3000
-    #if feature.shape[2] < T:
-    #  feature = torch.cat([feature, torch.zeros(feature.shape[0], feature.shape[1], T - feature.shape[2]).to(device, dtype=dtype)], 2)
-    print(feature.shape,23333)
-    # at entry, feature is (N, T, C)
 
     supervisions = batch["supervisions"]
     feature_len = supervisions["num_frames"]
@@ -281,7 +257,6 @@ def decode_one_batch(
     hyps = to_simple(hyps)
 
     hyps = [params.normalizer.normalize(hyp) for hyp in hyps]
-    print(hyps, 233333333)
 
     key = "beam-search"
 
@@ -467,17 +442,14 @@ def main():
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
-
     # we need cut ids to display recognition results.
     args.return_cuts = True
     aishell = AishellAsrDataModule(args)
-    test_cuts = aishell.test_cuts()
-    test_dl = aishell.test_dataloaders(test_cuts)
     valid_dl = aishell.valid_dataloaders(aishell.valid_cuts())
-    #test_sets = ["test"]
-    #test_dls = [test_dl]
-    test_sets = ["valid"]
-    test_dls = [valid_dl]
+    test_dl = aishell.test_dataloaders(aishell.test_cuts())
+    test_sets = ["valid", "test"]
+    test_dls = [valid_dl, test_dl]
+
     for test_set, test_dl in zip(test_sets, test_dls):
         results_dict = decode_dataset(
             dl=test_dl,

@@ -168,10 +168,8 @@ class AudioEncoder(nn.Module):
         x = F.gelu(self.conv2(x))
         x = x.permute(0, 2, 1)
 
-        # assert x.shape[1:] == self.positional_embedding.shape, "incorrect audio shape"
-    
+        # change whisper to process audio with any length
         x = (x + self.positional_embedding[:x.shape[1],:]).to(x.dtype)
-        #x = (x + self.positional_embedding).to(x.dtype)
 
         for block in self.blocks:
             x = block(x)
@@ -223,7 +221,6 @@ class TextDecoder(nn.Module):
         ).float()
 
         return logits
-
 
 class Whisper(nn.Module):
     def __init__(self, dims: ModelDimensions):
@@ -315,7 +312,6 @@ class Whisper(nn.Module):
         self.decoder.apply(install_hooks)
         return cache, hooks
 
-    #detect_language = detect_language_function
     transcribe = transcribe_function
     decode = decode_function
 
@@ -432,9 +428,4 @@ def load_model(
     model = Whisper(dims)
     model.load_state_dict(checkpoint["model_state_dict"])
 
-    # if alignment_heads is not None:
-    #     model.set_alignment_heads(alignment_heads)
-
     return model.to(device)
-
-

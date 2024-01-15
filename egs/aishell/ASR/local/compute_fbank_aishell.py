@@ -29,7 +29,7 @@ import os
 from pathlib import Path
 
 import torch
-from lhotse import CutSet, Fbank, FbankConfig, LilcomChunkyWriter
+from lhotse import CutSet, Fbank, FbankConfig, WhisperFbank, WhisperFbankConfig, LilcomChunkyWriter
 from lhotse.recipes.utils import read_manifests_if_cached
 
 from icefall.utils import get_executor, str2bool
@@ -42,7 +42,7 @@ torch.set_num_threads(1)
 torch.set_num_interop_threads(1)
 
 
-def compute_fbank_aishell(num_mel_bins: int = 80, perturb_speed: bool = False):
+def compute_fbank_aishell(num_mel_bins: int = 80, perturb_speed: bool = False, whisper_fbank: bool = False):
     src_dir = Path("data/manifests")
     output_dir = Path("data/fbank")
     num_jobs = min(15, os.cpu_count())
@@ -68,8 +68,10 @@ def compute_fbank_aishell(num_mel_bins: int = 80, perturb_speed: bool = False):
         list(manifests.keys()),
         dataset_parts,
     )
-
-    extractor = Fbank(FbankConfig(num_mel_bins=num_mel_bins))
+    if whisper_fbank:
+        extractor = WhisperFbank(WhisperFbankConfig(num_filters=num_mel_bins, device='cuda'))
+    else:
+        extractor = Fbank(FbankConfig(num_mel_bins=num_mel_bins))
 
     with get_executor() as ex:  # Initialize the executor only once.
         for partition, m in manifests.items():
@@ -111,6 +113,12 @@ def get_args():
         default=False,
         help="Enable 0.9 and 1.1 speed perturbation for data augmentation. Default: False.",
     )
+    parser.add_argument(
+        "--whisper-fbank",
+        type=str2bool,
+        default=False,
+        help="Use WhisperFbank instead of Fbank. Default: False.",
+    )
     return parser.parse_args()
 
 
@@ -121,5 +129,5 @@ if __name__ == "__main__":
 
     args = get_args()
     compute_fbank_aishell(
-        num_mel_bins=args.num_mel_bins, perturb_speed=args.perturb_speed
+        num_mel_bins=args.num_mel_bins, perturb_speed=args.perturb_speed, whisper_fbank=args.whisper_fbank
     )

@@ -51,26 +51,24 @@ import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 from typing import List
-#from aishell import AIShell
-#from asr_datamodule import AsrDataModule
+
 from asr_datamodule import AishellAsrDataModule
-#from decoder import Decoder
-#from joiner import Joiner
+
 from lhotse import CutSet, load_manifest
 from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
-#from model import Transducer
+
 from optim import Eden, ScaledAdam
 from torch import Tensor
 from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.nn.functional import pad as pad_tensor
 from torch.utils.tensorboard import SummaryWriter
-#from zipformer import Zipformer
+
 
 from icefall import diagnostics
-#from icefall.char_graph_compiler import CharCtcTrainingGraphCompiler
+
 from icefall.checkpoint import load_checkpoint, remove_checkpoints
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 from icefall.checkpoint import (
@@ -107,13 +105,6 @@ def set_batch_count(model: Union[nn.Module, DDP], batch_count: float) -> None:
 def get_parser():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
-    )
-
-    parser.add_argument(
-        "--master-port",
-        type=int,
-        default=12354,
-        help="Master port to use for DDP training.",
     )
 
     parser.add_argument(
@@ -210,19 +201,6 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--save-every-n",
-        type=int,
-        default=4000,
-        help="""Save checkpoint after processing this number of batches"
-        periodically. We save checkpoint to exp-dir/ whenever
-        params.batch_idx_train % save_every_n == 0. The checkpoint filename
-        has the form: f'exp-dir/checkpoint-{params.batch_idx_train}.pt'
-        Note: It also saves checkpoint to `exp-dir/epoch-xxx.pt` at the
-        end of each epoch where `xxx` is the epoch number counting from 0.
-        """,
-    )
-
-    parser.add_argument(
         "--keep-last-k",
         type=int,
         default=30,
@@ -314,11 +292,7 @@ def get_params() -> AttributeDict:
             "batch_idx_train": 0,
             "log_interval": 50,
             "reset_interval": 200,
-            "valid_interval": 999999999999999999,  # For the 100h subset, use 800
-            # parameters for zipformer
-            "feature_dim": 80,
-            "subsampling_factor": 4,  # not passed in, this is fixed.
-            "warm_step": 100,
+            "valid_interval": 9999999,
             "env_info": get_env_info(),
         }
     )
@@ -491,26 +465,25 @@ def compute_loss(
 
     device = model.device if isinstance(model, DDP) else next(model.parameters()).device
     feature = batch["inputs"]
-    # at entry, feature is (N, T, C)
+
     assert feature.ndim == 3
     feature = feature.to(device)
     feature = feature.transpose(1, 2)  # (N, C, T)
-    # pad feature from B,80,T to B,80,3000
-    #feature = torch.nn.functional.pad(feature, (0, 3000 - feature.shape[-1]))
+
     supervisions = batch["supervisions"]
     feature_lens = supervisions["num_frames"].to(device)
 
     batch_idx_train = params.batch_idx_train
-    warm_step = params.warm_step
 
     texts = batch["supervisions"]["text"]
     # remove spaces in texts
     texts = [text.replace(" ", "") for text in texts]
-    #print(texts)
+
     text_tokens_list = [list(tokenizer.sot_sequence_including_notimestamps) + tokenizer.encode(text) + [tokenizer.eot] for text in texts]
     # convert it to torch tensor
     text_tokens_list = [torch.LongTensor(text_tokens) for text_tokens in text_tokens_list]
 
+    # 50256 is the index of <pad> for all whisper models
     prev_outputs_tokens = _batch_tensors(
         [tokens[:-1] for tokens in text_tokens_list], pad_value=50256
     )
@@ -522,9 +495,10 @@ def compute_loss(
     )
 
     decoder_criterion = LabelSmoothingLoss(ignore_index=50256, label_smoothing=0.1, reduction="sum")
+
+    # ignore the first 3 tokens, which are always <sos>, <lang_id>, <transcibe>
     ignore_prefix_size = 3
     with torch.set_grad_enabled(is_training):
-
         encoder_out = model.encoder(feature)
         text_logits = model.decoder(prev_outputs_tokens.to(device), encoder_out)
         loss = decoder_criterion(text_logits, target_tokens.to(device))
@@ -697,27 +671,6 @@ def train_one_epoch(
                 model_avg=model_avg,
             )
 
-        # if (
-        #     params.batch_idx_train > 0
-        #     and params.batch_idx_train % params.save_every_n == 0
-        # ):
-        #     save_checkpoint_with_global_batch_idx(
-        #         out_dir=params.exp_dir,
-        #         global_batch_idx=params.batch_idx_train,
-        #         model=model,
-        #         model_avg=model_avg,
-        #         params=params,
-        #         optimizer=optimizer,
-        #         scheduler=scheduler,
-        #         sampler=train_dl.sampler,
-        #         scaler=scaler,
-        #         rank=rank,
-        #     )
-        #     remove_checkpoints(
-        #         out_dir=params.exp_dir,
-        #         topk=params.keep_last_k,
-        #         rank=rank,
-        #     )
         if batch_idx % 100 == 0 and params.use_fp16 and not params.deepspeed:
             # If the grad scale was less than 1, try increasing it.    The _growth_interval
             # of the grad scaler is configurable, but we can't configure it to have different
@@ -791,8 +744,7 @@ def run(rank, world_size, args):
     logging.info(params)
 
     logging.info("About to create model")
-    # TODO download model only on rank 0
-    # TODO may change compute validation loss using multiple cards
+
     model = load_model(params.model_name)
     del model.alignment_heads
     num_param = sum([p.numel() for p in model.parameters()])
@@ -802,7 +754,6 @@ def run(rank, world_size, args):
         model.is_multilingual, num_languages=model.num_languages, language="zh", task="transcribe"
     )
 
-    assert params.save_every_n >= params.average_period
     model_avg: Optional[nn.Module] = None
     if rank == 0:
         # model_avg is only used with rank 0
@@ -863,9 +814,8 @@ def run(rank, world_size, args):
     else:
         sampler_state_dict = None
 
-
-    train_dl = aishell.train_dataloaders(aishell.train_cuts(), rank=rank, world_size=world_size)
-    valid_dl = aishell.valid_dataloaders(aishell.valid_cuts(), rank=rank, world_size=world_size)
+    train_dl = aishell.train_dataloaders(aishell.train_cuts())
+    valid_dl = aishell.valid_dataloaders(aishell.valid_cuts())
 
     scaler = GradScaler(enabled=params.use_fp16, init_scale=1.0)
     if checkpoints and "grad_scaler" in checkpoints:
