@@ -16,12 +16,18 @@
         "reduce_bucket_size": 2e8,
         "contiguous_gradients": true
     },
+    "optimizer": {
+        "type": "Adam",
+        "params": {
+            "lr": 1e-5
+        }
+    },
     "scheduler": {
         "type": "WarmupLR",
         "params": {
-            "warmup_min_lr": 1e-6,
-            "warmup_max_lr": 5e-6,
-            "warmup_num_steps": 100
+            "warmup_min_lr": 0,
+            "warmup_max_lr": 1e-5,
+            "warmup_num_steps": 1000
         }
     },
     "gradient_accumulation_steps": 1,

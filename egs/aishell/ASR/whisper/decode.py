@@ -29,9 +29,9 @@ import k2
 import torch
 import torch.nn as nn
 from asr_datamodule import AishellAsrDataModule
+from model import load_model
 
-#from icefall.char_graph_compiler import CharCtcTrainingGraphCompiler
-from icefall.checkpoint import average_checkpoints, load_checkpoint, average_checkpoints_with_averaged_model
+from icefall.checkpoint import load_checkpoint, average_checkpoints_with_averaged_model
 from icefall.decode import (
     get_lattice,
     nbest_decoding,
@@ -51,6 +51,56 @@ from icefall.utils import (
 from zhconv import convert
 from tn.chinese.normalizer import Normalizer
 import re
+
+def average_checkpoints(
+    filenames: List[Path], device: torch.device = torch.device("cpu")
+) -> dict:
+    """Average a list of checkpoints.
+
+    Args:
+      filenames:
+        Filenames of the checkpoints to be averaged. We assume all
+        checkpoints are saved by :func:`save_checkpoint`.
+      device:
+        Move checkpoints to this device before averaging.
+    Returns:
+      Return a dict (i.e., state_dict) which is the average of all
+      model state dicts contained in the checkpoints.
+    """
+    n = len(filenames)
+
+    if "model" in torch.load(filenames[0], map_location=device):
+      avg = torch.load(filenames[0], map_location=device)["model"]
+    else:
+      avg = torch.load(filenames[0], map_location=device)
+
+    # Identify shared parameters. Two parameters are said to be shared
+    # if they have the same data_ptr
+    uniqued: Dict[int, str] = dict()
+
+    for k, v in avg.items():
+        v_data_ptr = v.data_ptr()
+        if v_data_ptr in uniqued:
+            continue
+        uniqued[v_data_ptr] = k
+
+    uniqued_names = list(uniqued.values())
+
+    for i in range(1, n):
+        if "model" in torch.load(filenames[i], map_location=device):
+          state_dict = torch.load(filenames[i], map_location=device)["model"]
+        else:
+          state_dict = torch.load(filenames[i], map_location=device)
+        for k in uniqued_names:
+            avg[k] += state_dict[k]
+
+    for k in uniqued_names:
+        if avg[k].is_floating_point():
+            avg[k] /= n
+        else:
+            avg[k] //= n
+
+    return avg
 
 def remove_punctuation(text: str or List[str]):
   # https://github.com/yeyupiaoling/Whisper-Finetune/blob/master/utils/data_utils.py
@@ -215,9 +265,9 @@ def decode_one_batch(
     assert feature.ndim == 3
     feature = feature.to(device, dtype=dtype).transpose(1, 2)
     # pad feature to T = 3000
-    T = 3000
-    if feature.shape[2] < T:
-      feature = torch.cat([feature, torch.zeros(feature.shape[0], feature.shape[1], T - feature.shape[2]).to(device, dtype=dtype)], 2)
+    #T = 3000
+    #if feature.shape[2] < T:
+    #  feature = torch.cat([feature, torch.zeros(feature.shape[0], feature.shape[1], T - feature.shape[2]).to(device, dtype=dtype)], 2)
     print(feature.shape,23333)
     # at entry, feature is (N, T, C)
 
@@ -379,29 +429,39 @@ def main():
 
     logging.info(f"device: {device}")
 
-    model = whisper.load_model(params.model_name)
+    model = load_model(params.model_name)
     if params.epoch > 0:
       if params.avg > 1:
         start = params.epoch - params.avg
         assert start >= 1, start
-        filename_start = f"{params.exp_dir}/epoch-{start}.pt"
-        filename_end = f"{params.exp_dir}/epoch-{params.epoch}.pt"
-        logging.info(
-            f"Calculating the averaged model over epoch range from "
-            f"{start} (excluded) to {params.epoch}"
-        )
-        model.to(device)
-        model.load_state_dict(
-            average_checkpoints_with_averaged_model(
-                filename_start=filename_start,
-                filename_end=filename_end,
-                device=device,
+        checkpoint = torch.load(f"{params.exp_dir}/epoch-{params.epoch}.pt", map_location='cpu')
+        if 'model' not in checkpoint:
+            filenames = [f"{params.exp_dir}/epoch-{epoch}.pt" for epoch in range(start, params.epoch + 1)]
+            model.load_state_dict(average_checkpoints(filenames))
+        else:
+            filename_start = f"{params.exp_dir}/epoch-{start}.pt"
+            filename_end = f"{params.exp_dir}/epoch-{params.epoch}.pt"
+            logging.info(
+                f"Calculating the averaged model over epoch range from "
+                f"{start} (excluded) to {params.epoch}"
             )
-        )
+            model.to(device)
+            model.load_state_dict(
+                average_checkpoints_with_averaged_model(
+                    filename_start=filename_start,
+                    filename_end=filename_end,
+                    device=device,
+                )
+            )
+        # save checkpoints
+        filename = f"{params.exp_dir}/epoch-{params.epoch}-avg-{params.avg}.pt"
+        torch.save(model.state_dict(), filename)
       else:
         checkpoint = torch.load(f"{params.exp_dir}/epoch-{params.epoch}.pt", map_location='cpu')
-        model.load_state_dict(checkpoint, strict=True)
-        #load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
+        if 'model' not in checkpoint:
+            model.load_state_dict(checkpoint, strict=True)
+        else:
+            load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
     model.to(device)
     model.eval()
     num_param = sum([p.numel() for p in model.parameters()])

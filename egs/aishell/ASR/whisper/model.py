@@ -276,7 +276,6 @@ class Whisper(nn.Module):
 
     @property
     def is_multilingual(self):
-        return self.dims.n_vocab == 51865
         return self.dims.n_vocab >= 51865
 
     @property

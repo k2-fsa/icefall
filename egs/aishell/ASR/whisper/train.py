@@ -126,7 +126,7 @@ def get_parser():
     parser.add_argument(
         "--num-epochs",
         type=int,
-        default=10,
+        default=5,
         help="Number of epochs to train.",
     )
 
@@ -649,7 +649,7 @@ def train_one_epoch(
                 valid_info.write_summary(
                     tb_writer, "train/valid_", params.batch_idx_train
                 )
-  
+        
         try:
             with torch.cuda.amp.autocast(enabled=params.use_fp16):
                 loss, loss_info = compute_loss(
@@ -732,7 +732,10 @@ def train_one_epoch(
                     f"grad_scale is too small, exiting: {cur_grad_scale}"
                 )
         if batch_idx % params.log_interval == 0:
-            cur_lr = scheduler.get_last_lr()[0]
+            try:
+                cur_lr = scheduler.get_last_lr()[0]
+            except:
+                cur_lr = 0.0
             cur_grad_scale = scaler._scale.item() if (params.use_fp16 and not params.deepspeed) else 1.0
 
             logging.info(
@@ -835,9 +838,8 @@ def run(rank, world_size, args):
     if world_size > 1:
         if params.deepspeed:
             logging.info("Using DeepSpeed")
-            model, optimizer, _, _ = deepspeed.initialize(
-                args=params, model=model, optimizer=optimizer,
-                model_parameters=model.parameters())
+            model, optimizer, _, scheduler = deepspeed.initialize(
+                args=params, model=model, model_parameters=model.parameters())
         else:
             logging.info("Using DDP")
             setup_dist(use_ddp_launch=True)
@@ -877,7 +879,8 @@ def run(rank, world_size, args):
 
     logging.info(f"start training from epoch {params.start_epoch}")
     for epoch in range(params.start_epoch, params.num_epochs + 1):
-        scheduler.step_epoch(epoch - 1)
+        if not params.deepspeed:
+            scheduler.step_epoch(epoch - 1)
         fix_random_seed(params.seed + epoch - 1)
         train_dl.sampler.set_epoch(epoch - 1)
 
