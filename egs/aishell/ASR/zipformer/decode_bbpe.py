@@ -21,30 +21,33 @@
 """
 Usage:
 (1) greedy search
-./zipformer_bbpe/decode.py \
+./zipformer/decode_bbpe.py \
     --epoch 35 \
     --avg 15 \
-    --exp-dir ./zipformer_bbpe/exp \
-    --lang-dir data/lang_char \
+    --exp-dir ./zipformer/exp_bbpe \
+    --lang-dir data/lang_bbpe_500 \
+    --bpe-model data/lang_bbpe_500/bbpe.model \
     --max-duration 600 \
     --decoding-method greedy_search
 
 (2) modified beam search
-./zipformer_bbpe/decode.py \
+./zipformer/decode_bbpe.py \
     --epoch 35 \
     --avg 15 \
-    --exp-dir ./zipformer_bbpe/exp \
-    --lang-dir data/lang_char \
+    --exp-dir ./zipformer/exp_bbpe \
+    --lang-dir data/lang_bbpe_500 \
+    --bpe-model data/lang_bbpe_500/bbpe.model \
     --max-duration 600 \
     --decoding-method modified_beam_search \
     --beam-size 4
 
 (3) fast beam search (trivial_graph)
-./zipformer_bbpe/decode.py \
+./zipformer/decode_bbpe.py \
     --epoch 35 \
     --avg 15 \
-    --exp-dir ./zipformer_bbpe/exp \
-    --lang-dir data/lang_char \
+    --exp-dir ./zipformer/exp_bbpe \
+    --lang-dir data/lang_bbpe_500 \
+    --bpe-model data/lang_bbpe_500/bbpe.model \
     --max-duration 600 \
     --decoding-method fast_beam_search \
     --beam 20.0 \
@@ -52,11 +55,12 @@ Usage:
     --max-states 64
 
 (4) fast beam search (LG)
-./zipformer_bbpe/decode.py \
+./zipformer/decode_bbpe.py \
     --epoch 30 \
     --avg 15 \
-    --exp-dir ./zipformer_bbpe/exp \
-    --lang-dir data/lang_char \
+    --exp-dir ./zipformer/exp_bbpe \
+    --lang-dir data/lang_bbpe_500 \
+    --bpe-model data/lang_bbpe_500/bbpe.model \
     --max-duration 600 \
     --decoding-method fast_beam_search_LG \
     --beam 20.0 \
@@ -64,11 +68,12 @@ Usage:
     --max-states 64
 
 (5) fast beam search (nbest oracle WER)
-./zipformer_bbpe/decode.py \
+./zipformer/decode_bbpe.py \
     --epoch 35 \
     --avg 15 \
-    --exp-dir ./zipformer_bbpe/exp \
-    --lang-dir data/lang_char \
+    --exp-dir ./zipformer/exp_bbpe \
+    --lang-dir data/lang_bbpe_500 \
+    --bpe-model data/lang_bbpe_500/bbpe.model \
     --max-duration 600 \
     --decoding-method fast_beam_search_nbest_oracle \
     --beam 20.0 \

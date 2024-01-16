@@ -24,25 +24,21 @@ Usage:
 
 export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
 
-./zipformer/train.py \
+./zipformer/train_bbpe.py \
   --world-size 8 \
   --num-epochs 12 \
   --start-epoch 1 \
-  --exp-dir zipformer/exp \
-  --training-subset L
-  --lr-epochs 1.5 \
+  --exp-dir zipformer/exp_bbpe \
   --max-duration 350
 
 # For mix precision training:
 
-./zipformer/train.py \
+./zipformer/train_bbpe.py \
   --world-size 8 \
   --num-epochs 12 \
   --start-epoch 1 \
   --use-fp16 1 \
-  --exp-dir zipformer/exp \
-  --training-subset L \
-  --lr-epochs 1.5 \
+  --exp-dir zipformer/exp_bbpe \
   --max-duration 750
 
 """
