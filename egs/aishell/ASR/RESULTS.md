@@ -6,7 +6,7 @@
 
 [./zipformer_bbpe](./zipformer_bbpe/)
 
-It's reworked Zipformer with Pruned RNNT loss, trained with Byte-level BPE.
+It's reworked Zipformer with Pruned RNNT loss, trained with Byte-level BPE, `vocab_size` set to 500.
 
 ##### normal-scaled model, number of model parameters: 65549011, i.e., 65.55 M
 
