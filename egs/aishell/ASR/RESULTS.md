@@ -2,9 +2,61 @@
 
 ### Aishell training result (Stateless Transducer)
 
+#### Zipformer (Byte-level BPE)
+
+[./zipformer](./zipformer/)
+
+It's reworked Zipformer with Pruned RNNT loss, trained with Byte-level BPE, `vocab_size` set to 500.
+
+##### normal-scaled model, number of model parameters: 65549011, i.e., 65.55 M
+
+|                        | test | dev  | comment                                 |
+|------------------------|------|------|-----------------------------------------|
+| greedy search          | 4.54 | 4.31 | --epoch 40 --avg 10                     |
+| modified beam search   | 4.37 | 4.11 | --epoch 40 --avg 10                     |
+| fast beam search       | 4.43 | 4.17 | --epoch 40 --avg 10                     |
+
+```bash
+./prepare.sh 
+
+export CUDA_VISIBLE_DEVICES="0,1"
+
+./zipformer/train_bbpe.py \
+  --world-size 2 \
+  --num-epochs 40 \
+  --start-epoch 1 \
+  --use-fp16 1 \
+  --context-size 2 \
+  --enable-musan 0 \
+  --exp-dir zipformer/exp_bbpe \
+  --max-duration 1000 \
+  --enable-musan 0 \
+  --base-lr 0.045 \
+  --lr-batches 7500 \
+  --lr-epochs 10 \
+  --spec-aug-time-warp-factor 20
+```
+
+Command for decoding is:
+```bash
+for m in greedy_search modified_beam_search fast_beam_search ; do
+  ./zipformer/decode_bbpe.py \
+    --epoch 40 \
+    --avg 10 \
+    --exp-dir ./zipformer_bbpe/exp \
+    --bpe-model data/lang_bbpe_500/bbpe.model \
+    --context-size 2 \
+    --decoding-method $m
+done
+```
+Pretrained models, training logs, decoding logs, tensorboard and decoding results
+are available at
+<https://huggingface.co/zrjin/icefall-asr-aishell-zipformer-bbpe-2024-01-16>
+
+
 #### Zipformer (Non-streaming)
 
-[./zipformer](./zipformer)
+[./zipformer](./zipformer/)
 
 It's reworked Zipformer with Pruned RNNT loss.
 **Caution**: It uses `--context-size=1`.
@@ -260,7 +312,7 @@ done
 Pretrained models, training logs, decoding logs, and decoding results
 are available at
 <https://huggingface.co/marcoyang/icefall-asr-aishell-zipformer-pruned-transducer-stateless7-2023-03-21>
-#### Pruned transducer stateless 7 (zipformer)
+#### Pruned transducer stateless 7 (Byte-level BPE)
 
 See <https://github.com/k2-fsa/icefall/pull/986>
 
