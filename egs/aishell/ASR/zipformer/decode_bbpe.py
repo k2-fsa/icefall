@@ -93,7 +93,6 @@ import torch.nn as nn
 from asr_datamodule import AishellAsrDataModule
 from beam_search import (
     beam_search,
-    fast_beam_search_nbest,
     fast_beam_search_nbest_oracle,
     fast_beam_search_one_best,
     greedy_search,

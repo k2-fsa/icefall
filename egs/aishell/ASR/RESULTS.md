@@ -4,7 +4,7 @@
 
 #### Zipformer (Byte-level BPE)
 
-[./zipformer_bbpe](./zipformer_bbpe/)
+[./zipformer](./zipformer/)
 
 It's reworked Zipformer with Pruned RNNT loss, trained with Byte-level BPE, `vocab_size` set to 500.
 
@@ -21,14 +21,14 @@ It's reworked Zipformer with Pruned RNNT loss, trained with Byte-level BPE, `voc
 
 export CUDA_VISIBLE_DEVICES="0,1"
 
-./zipformer_bbpe/train.py \
+./zipformer/train_bbpe.py \
   --world-size 2 \
   --num-epochs 40 \
   --start-epoch 1 \
   --use-fp16 1 \
   --context-size 2 \
   --enable-musan 0 \
-  --exp-dir zipformer/exp \
+  --exp-dir zipformer/exp_bbpe \
   --max-duration 1000 \
   --enable-musan 0 \
   --base-lr 0.045 \
@@ -40,11 +40,11 @@ export CUDA_VISIBLE_DEVICES="0,1"
 Command for decoding is:
 ```bash
 for m in greedy_search modified_beam_search fast_beam_search ; do
-  ./zipformer/decode.py \
+  ./zipformer/decode_bbpe.py \
     --epoch 40 \
     --avg 10 \
     --exp-dir ./zipformer_bbpe/exp \
-    --lang-dir data/lang_bbpe_500 \
+    --bpe-model data/lang_bbpe_500/bbpe.model \
     --context-size 2 \
     --decoding-method $m
 done
