@@ -30,6 +30,8 @@ torch.set_num_threads(1)
 torch.set_num_interop_threads(1)
 torch.multiprocessing.set_sharing_strategy("file_system")
 
+from icefall.utils import str2bool
+
 def get_parser():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
