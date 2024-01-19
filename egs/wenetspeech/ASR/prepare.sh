@@ -182,6 +182,34 @@ if [ $stage -le 13 ] && [ $stop_stage -ge 13 ]; then
   fi
 fi
 
+whisper_mel_bins=80
+if [ $stage -le 129 ] && [ $stop_stage -ge 129 ]; then
+  log "Stage 129: compute whisper fbank for dev and test sets"
+  python3 ./local/compute_fbank_wenetspeech_dev_test.py --num-mel-bins ${whisper_mel_bins} --whisper-fbank true
+fi
+if [ $stage -le 130 ] && [ $stop_stage -ge 130 ]; then
+  log "Stage 130: Comute features for whisper training set"
+
+  split_dir=data/fbank/L_split_${num_splits}
+  if [ ! -f $split_dir/.split_completed ]; then
+    lhotse split $num_splits ./data/fbank/cuts_L_raw.jsonl.gz $split_dir
+    touch $split_dir/.split_completed
+  fi
+
+  python3 ./local/compute_fbank_wenetspeech_splits.py \
+    --training-subset L \
+    --num-workers 20 \
+    --batch-duration 600 \
+    --start 0 \
+    --num-mel-bins ${whisper_mel_bins} --whisper-fbank true \
+    --num-splits $num_splits
+
+  if [ ! -f data/fbank/cuts_L.jsonl.gz ]; then
+    pieces=$(find data/fbank/L_split_1000 -name "cuts_L.*.jsonl.gz")
+    lhotse combine $pieces data/fbank/cuts_L.jsonl.gz
+  fi
+fi
+
 if [ $stage -le 14 ] && [ $stop_stage -ge 14 ]; then
   log "Stage 14: Compute fbank for musan"
   mkdir -p data/fbank
