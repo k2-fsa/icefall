@@ -25,6 +25,8 @@ from pathlib import Path
 import torch
 from lhotse import (
     CutSet,
+    WhisperFbank,
+    WhisperFbankConfig,
     KaldifeatFbank,
     KaldifeatFbankConfig,
     LilcomChunkyWriter,
@@ -88,6 +90,20 @@ def get_parser():
         default=-1,
         help="Stop processing pieces until this number (exclusive).",
     )
+
+    parser.add_argument(
+        "--num-mel-bins",
+        type=int,
+        default=80,
+        help="""The number of mel bins for Fbank""",
+    )
+
+    parser.add_argument(
+        "--whisper-fbank",
+        type=str2bool,
+        default=False,
+        help="Use WhisperFbank instead of Fbank. Default: False.",
+    )
     return parser
 
 
@@ -111,7 +127,10 @@ def compute_fbank_kespeech_splits(args):
     device = torch.device("cpu")
     if torch.cuda.is_available():
         device = torch.device("cuda", 0)
-    extractor = KaldifeatFbank(KaldifeatFbankConfig(device=device))
+    if args.whisper_fbank:
+        extractor = WhisperFbank(WhisperFbankConfig(num_filters=args.num_mel_bins, device='cuda'))
+    else:
+        extractor = KaldifeatFbank(KaldifeatFbankConfig(device=device))
     logging.info(f"device: {device}")
 
     set_audio_duration_mismatch_tolerance(0.01)  # 10ms tolerance

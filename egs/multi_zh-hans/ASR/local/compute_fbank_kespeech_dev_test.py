@@ -19,9 +19,10 @@
 
 import logging
 from pathlib import Path
+import argparse
 
 import torch
-from lhotse import CutSet, KaldifeatFbank, KaldifeatFbankConfig, LilcomChunkyWriter
+from lhotse import CutSet, WhisperFbank, WhisperFbankConfig, KaldifeatFbank, KaldifeatFbankConfig, LilcomChunkyWriter
 
 # Torch's multithreaded behavior needs to be disabled or
 # it wastes a lot of CPU and slow things down.
@@ -30,8 +31,27 @@ from lhotse import CutSet, KaldifeatFbank, KaldifeatFbankConfig, LilcomChunkyWri
 torch.set_num_threads(1)
 torch.set_num_interop_threads(1)
 
+def get_parser():
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
 
-def compute_fbank_kespeech_dev_test():
+    parser.add_argument(
+        "--num-mel-bins",
+        type=int,
+        default=80,
+        help="""The number of mel bins for Fbank""",
+    )
+
+    parser.add_argument(
+        "--whisper-fbank",
+        type=str2bool,
+        default=False,
+        help="Use WhisperFbank instead of Fbank. Default: False.",
+    )
+    return parser
+
+def compute_fbank_kespeech_dev_test(args):
     in_out_dir = Path("data/fbank/kespeech")
     # number of workers in dataloader
     num_workers = 42
@@ -48,7 +68,10 @@ def compute_fbank_kespeech_dev_test():
     device = torch.device("cpu")
     if torch.cuda.is_available():
         device = torch.device("cuda", 0)
-    extractor = KaldifeatFbank(KaldifeatFbankConfig(device=device))
+    if args.whisper_fbank:
+        extractor = WhisperFbank(WhisperFbankConfig(num_filters=args.num_mel_bins, device=device))
+    else:
+        extractor = KaldifeatFbank(KaldifeatFbankConfig(device=device))
 
     logging.info(f"device: {device}")
 
@@ -86,7 +109,11 @@ def main():
     formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
     logging.basicConfig(format=formatter, level=logging.INFO)
 
-    compute_fbank_kespeech_dev_test()
+    parser = get_parser()
+    args = parser.parse_args()
+    logging.info(vars(args))
+
+    compute_fbank_kespeech_dev_test(args)
 
 
 if __name__ == "__main__":
