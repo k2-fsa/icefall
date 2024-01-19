@@ -309,7 +309,6 @@ class TAL_CSASRAsrDataModule:
                 buffer_size=self.args.num_buckets * 2000,
                 shuffle_buffer_size=self.args.num_buckets * 5000,
                 num_cuts_for_bins_estimate=20000,
-                buffer_size=60000,
                 drop_last=self.args.drop_last,
             )
         else:
