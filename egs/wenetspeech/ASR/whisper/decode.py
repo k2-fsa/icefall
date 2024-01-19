@@ -39,6 +39,7 @@ from icefall.decode import (
     one_best_decoding,
     rescore_with_attention_decoder,
 )
+from lhotse.cut import Cut
 from icefall.env import get_env_info
 from icefall.lexicon import Lexicon
 from icefall.utils import (
@@ -257,7 +258,7 @@ def decode_one_batch(
     hyps = to_simple(hyps)
 
     hyps = [params.normalizer.normalize(hyp) for hyp in hyps]
-
+    print(hyps)
     key = "beam-search"
 
     return {key: hyps}

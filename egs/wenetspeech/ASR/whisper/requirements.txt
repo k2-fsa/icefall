@@ -1,0 +1,10 @@
+k2
+kaldialign
+git+https://github.com/lhotse-speech/lhotse
+sentencepiece
+tensorboard
+librosa
+openai-whisper==20231117
+zhconv
+WeTextProcessing
+deepspeed
