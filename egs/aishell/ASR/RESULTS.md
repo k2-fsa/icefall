@@ -13,12 +13,13 @@
 
 Command for training is:
 ```bash
+pip install -r whisper/requirements.txt
+
 ./prepare.sh --stage 30 --stop_stage 30
 
 #fine-tuning with deepspeed zero stage 1
 torchrun --nproc-per-node 8 ./whisper/train.py \
   --max-duration 200 \
-  --use-fp16 1 \
   --exp-dir whisper/exp_large_v2 \
   --model-name large-v2 \
   --deepspeed \
@@ -27,21 +28,33 @@ torchrun --nproc-per-node 8 ./whisper/train.py \
 # fine-tuning with ddp
 torchrun --nproc-per-node 8 ./whisper/train.py \
   --max-duration 200 \
-  --use-fp16 1 \
   --exp-dir whisper/exp_medium \
   --base-lr 1e-5 \
   --model-name medium
 ```
 
-Command for decoding is:
+Command for decoding using fine-tuned models:
 ```bash
+git lfs install
+git clone https://huggingface.co/yuekai/icefall_asr_aishell_whisper
+ln -s icefall_asr_aishell_whisper/exp_large_v2/epoch-10-avg6.pt whisper/exp_large_v2/epoch-999.pt
+
 python3 ./whisper/decode.py \
   --exp-dir whisper/exp_large_v2 \
   --model-name large-v2 \
   --epoch 999 --avg 1 \
   --beam-size 10 --max-duration 50
 ```
-Pretrained models, training logs, decoding logs, tensorboard and decoding results
+Command for decoding using pretrained models (before fine-tuning):
+```bash
+python3 ./whisper/decode.py \
+  --exp-dir whisper/exp_large_v2 \
+  --model-name large-v2 \
+  --epoch -1 --avg 1 \
+  --remove-whisper-encoder-input-length-restriction False \
+  --beam-size 10 --max-duration 50
+```
+Fine-tuned models, training logs, decoding logs, tensorboard and decoding results
 are available at
 <https://huggingface.co/yuekai/icefall_asr_aishell_whisper>
 

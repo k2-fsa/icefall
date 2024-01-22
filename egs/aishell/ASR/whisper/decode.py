@@ -16,6 +16,29 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""
+Usage:
+# Command for decoding using fine-tuned models:
+git lfs install
+git clone https://huggingface.co/yuekai/icefall_asr_aishell_whisper
+ln -s icefall_asr_aishell_whisper/exp_large_v2/epoch-10-avg6.pt whisper/exp_large_v2/epoch-999.pt
+
+python3 ./whisper/decode.py \
+  --exp-dir whisper/exp_large_v2 \
+  --model-name large-v2 \
+  --epoch 999 --avg 1 \
+  --beam-size 10 --max-duration 50
+
+# Command for decoding using pretrained models (before fine-tuning):
+
+python3 ./whisper/decode.py \
+  --exp-dir whisper/exp_large_v2 \
+  --model-name large-v2 \
+  --epoch -1 --avg 1 \
+  --remove-whisper-encoder-input-length-restriction False \
+  --beam-size 10 --max-duration 50
+
+"""
 
 import argparse
 import logging
@@ -29,8 +52,8 @@ import k2
 import torch
 import torch.nn as nn
 from asr_datamodule import AishellAsrDataModule
-from model import load_model
-
+#from model import load_model
+from whisper_encoder_forward_monkey_patch import replace_whisper_encoder_forward
 from icefall.checkpoint import load_checkpoint, average_checkpoints_with_averaged_model
 from icefall.decode import (
     get_lattice,
@@ -104,7 +127,7 @@ def average_checkpoints(
 
 def remove_punctuation(text: str or List[str]):
   # https://github.com/yeyupiaoling/Whisper-Finetune/blob/master/utils/data_utils.py
-    punctuation = '!,.;:?、！，。；：？'
+    punctuation = '!,.;:?、！，。；：？《》 '
     if isinstance(text, str):
         text = re.sub(r'[{}]+'.format(punctuation), '', text).strip()
         return text
@@ -183,6 +206,13 @@ def get_parser():
         help="""The model name to use.
         """,
     )
+
+    parser.add_argument(
+        "--remove-whisper-encoder-input-length-restriction",
+        type=str2bool,
+        default=True,
+        help="replace whisper encoder forward method to remove input length restriction",
+    )
   
     return parser
 
@@ -246,6 +276,10 @@ def decode_one_batch(
     feature = batch["inputs"]
     assert feature.ndim == 3
     feature = feature.to(device, dtype=dtype).transpose(1, 2)
+    if not params.remove_whisper_encoder_input_length_restriction:
+        T = 3000
+        if feature.shape[2] < T:
+            feature = torch.cat([feature, torch.zeros(feature.shape[0], feature.shape[1], T - feature.shape[2]).to(device, dtype=dtype)], 2)
 
     supervisions = batch["supervisions"]
     feature_len = supervisions["num_frames"]
@@ -404,7 +438,9 @@ def main():
 
     logging.info(f"device: {device}")
 
-    model = load_model(params.model_name)
+    if params.remove_whisper_encoder_input_length_restriction:
+        replace_whisper_encoder_forward()
+    model = whisper.load_model(params.model_name, 'cpu')
     if params.epoch > 0:
       if params.avg > 1:
         start = params.epoch - params.avg

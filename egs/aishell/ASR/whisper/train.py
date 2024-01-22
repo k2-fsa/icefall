@@ -17,20 +17,20 @@
 """
 Usage:
 
-./prepare.sh
+#fine-tuning with deepspeed zero stage 1
+torchrun --nproc-per-node 8 ./whisper/train.py \
+  --max-duration 200 \
+  --exp-dir whisper/exp_large_v2 \
+  --model-name large-v2 \
+  --deepspeed \
+  --deepspeed_config ./whisper/ds_config_zero1.json
 
-If you use --datatang-prob=0, then you don't need to run the above script.
-
-export CUDA_VISIBLE_DEVICES="0,1,2,3"
-
-./pruned_transducer_stateless7/train.py \
-  --world-size 4 \
-  --num-epochs 30 \
-  --start-epoch 1 \
-  --use-fp16 1 \
-  --exp-dir pruned_transducer_stateless7/exp \
-  --full-libri 1 \
-  --max-duration 550
+# fine-tuning with ddp
+torchrun --nproc-per-node 8 ./whisper/train.py \
+  --max-duration 200 \
+  --exp-dir whisper/exp_medium \
+  --base-lr 1e-5 \
+  --model-name medium
 """
 
 
@@ -88,7 +88,7 @@ from icefall.utils import (
 )
 
 import whisper
-from model import load_model
+from whisper_encoder_forward_monkey_patch import replace_whisper_encoder_forward
 from label_smoothing import LabelSmoothingLoss
 
 LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
@@ -227,7 +227,7 @@ def get_parser():
     parser.add_argument(
         "--use-fp16",
         type=str2bool,
-        default=False,
+        default=True,
         help="Whether to use half precision training.",
     )
 
@@ -744,8 +744,9 @@ def run(rank, world_size, args):
     logging.info(params)
 
     logging.info("About to create model")
-
-    model = load_model(params.model_name)
+    
+    replace_whisper_encoder_forward()
+    model = whisper.load_model(params.model_name, 'cpu')
     del model.alignment_heads
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
