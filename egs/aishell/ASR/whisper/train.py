@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # Copyright    2023  Xiaomi Corp.        (authors: Xiaoyu Yang)
+#              2024  Yuekai Zhang
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -41,44 +42,37 @@ import random
 import warnings
 from pathlib import Path
 from shutil import copyfile
-from typing import Any, Dict, Optional, Tuple, Union
-import deepspeed
-from deepspeed.utils.zero_to_fp32 import convert_zero_checkpoint_to_fp32_state_dict
+from typing import Any, Dict, List, Optional, Tuple, Union
 
+import deepspeed
 import k2
 import optim
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
-from typing import List
-
+import whisper
 from asr_datamodule import AishellAsrDataModule
-
+from deepspeed.utils.zero_to_fp32 import convert_zero_checkpoint_to_fp32_state_dict
+from label_smoothing import LabelSmoothingLoss
 from lhotse import CutSet, load_manifest
 from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
-
 from optim import Eden, ScaledAdam
 from torch import Tensor
 from torch.cuda.amp import GradScaler
-from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.nn.functional import pad as pad_tensor
+from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
-
+from whisper_encoder_forward_monkey_patch import replace_whisper_encoder_forward
 
 from icefall import diagnostics
-
 from icefall.checkpoint import load_checkpoint, remove_checkpoints
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
-from icefall.checkpoint import (
-    save_checkpoint_with_global_batch_idx,
-    update_averaged_model,
-)
-from icefall.dist import cleanup_dist, setup_dist, get_world_size, get_rank, get_local_rank
+from icefall.checkpoint import update_averaged_model
+from icefall.dist import cleanup_dist, get_rank, get_world_size, setup_dist
 from icefall.env import get_env_info
 from icefall.hooks import register_inf_check_hooks
-from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
     MetricsTracker,
@@ -86,10 +80,6 @@ from icefall.utils import (
     setup_logger,
     str2bool,
 )
-
-import whisper
-from whisper_encoder_forward_monkey_patch import replace_whisper_encoder_forward
-from label_smoothing import LabelSmoothingLoss
 
 LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
 
@@ -101,6 +91,7 @@ def set_batch_count(model: Union[nn.Module, DDP], batch_count: float) -> None:
     for module in model.modules():
         if hasattr(module, "batch_count"):
             module.batch_count = batch_count
+
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -247,39 +238,17 @@ def get_params() -> AttributeDict:
 
     Explanation of options saved in `params`:
 
-        - best_train_loss: Best training loss so far. It is used to select
-                           the model that has the lowest training loss. It is
-                           updated during the training.
-
-        - best_valid_loss: Best validation loss so far. It is used to select
-                           the model that has the lowest validation loss. It is
-                           updated during the training.
-
-        - best_train_epoch: It is the epoch that has the best training loss.
-
-        - best_valid_epoch: It is the epoch that has the best validation loss.
-
-        - batch_idx_train: Used to writing statistics to tensorboard. It
-                           contains number of batches trained so far across
-                           epochs.
-
-        - log_interval:  Print training loss if batch_idx % log_interval` is 0
-
-        - reset_interval: Reset statistics if batch_idx % reset_interval is 0
-
-        - valid_interval:  Run validation if batch_idx % valid_interval is 0
-
-        - feature_dim: The model input dim. It has to match the one used
-                       in computing features.
-
-        - subsampling_factor:  The subsampling factor for the model.
-
-        - encoder_dim: Hidden dim for multi-head attention model.
-
-        - num_decoder_layers: Number of decoder layer of transformer decoder.
-
-        - warm_step: The warmup period that dictates the decay of the
-              scale on "simple" (un-pruned) loss.
+        - frame_shift_ms: The frame shift in milliseconds.
+        - allowed_excess_duration_ratio: The allowed excess duration ratio.
+        - best_train_loss: The best training loss so far.
+        - best_valid_loss: The best validation loss so far.
+        - best_train_epoch: The epoch where the best training loss is achieved.
+        - best_valid_epoch: The epoch where the best validation loss is achieved.
+        - batch_idx_train: The batch index of the current batch.
+        - log_interval: Log training stats every `log_interval` batches.
+        - reset_interval: Reset the stats every `reset_interval` batches.
+        - valid_interval: Run validation every `valid_interval` batches.
+        - env_info: The environment information.
     """
     params = AttributeDict(
         {
@@ -292,12 +261,13 @@ def get_params() -> AttributeDict:
             "batch_idx_train": 0,
             "log_interval": 50,
             "reset_interval": 200,
-            "valid_interval": 9999999,
+            "valid_interval": 5000,
             "env_info": get_env_info(),
         }
     )
 
     return params
+
 
 def load_checkpoint_if_available(
     params: AttributeDict,
@@ -414,6 +384,7 @@ def save_checkpoint(
         best_valid_filename = params.exp_dir / "best-valid-loss.pt"
         copyfile(src=filename, dst=best_valid_filename)
 
+
 def compute_loss(
     params: AttributeDict,
     tokenizer: whisper.tokenizer.Tokenizer,
@@ -422,22 +393,21 @@ def compute_loss(
     is_training: bool,
 ) -> Tuple[Tensor, MetricsTracker]:
     """
-    Compute RNN-T loss given the model and its inputs.
-
+    Compute the loss for the given batch.
     Args:
-      params:
-        Parameters for training. See :func:`get_params`.
-      model:
-        The model for training. It is an instance of Zipformer in our case.
-      batch:
-        A batch of data. See `lhotse.dataset.K2SpeechRecognitionDataset()`
-        for the content in it.
-      is_training:
-        True for training. False for validation. When it is True, this
-        function enables autograd during computation; when it is False, it
-        disables autograd.
-     warmup: a floating point value which increases throughout training;
-        values >= 1.0 are fully warmed up and have all modules present.
+        params:
+            It is returned by :func:`get_params`.
+        tokenizer:
+            The tokenizer used to encode the text.
+        model:
+            The model for training.
+        batch:
+            A batch of data. See `lhotse.dataset.K2SpeechRecognitionDataset()`
+            for the content in it.
+        is_training:
+            Whether it is training.
+    Returns:
+        Return a tuple of two elements. The first element is the loss tensor.
     """
     # For the uneven-sized batch, the total duration after padding would possibly
     # cause OOM. Hence, for each batch, which is sorted descendingly by length,
@@ -449,6 +419,7 @@ def compute_loss(
     if isinstance(model, DDP):
         # get underlying nn.Module
         model = model.module
+
     def _batch_tensors(tensors: List[Tensor], pad_value: Any) -> Tensor:
         padding_size = max(tensor.shape[0] for tensor in tensors)
         dims = len(tensors[0].shape)
@@ -479,9 +450,16 @@ def compute_loss(
     # remove spaces in texts
     texts = [text.replace(" ", "") for text in texts]
 
-    text_tokens_list = [list(tokenizer.sot_sequence_including_notimestamps) + tokenizer.encode(text) + [tokenizer.eot] for text in texts]
+    text_tokens_list = [
+        list(tokenizer.sot_sequence_including_notimestamps)
+        + tokenizer.encode(text)
+        + [tokenizer.eot]
+        for text in texts
+    ]
     # convert it to torch tensor
-    text_tokens_list = [torch.LongTensor(text_tokens) for text_tokens in text_tokens_list]
+    text_tokens_list = [
+        torch.LongTensor(text_tokens) for text_tokens in text_tokens_list
+    ]
 
     # 50256 is the index of <pad> for all whisper models
     prev_outputs_tokens = _batch_tensors(
@@ -494,9 +472,11 @@ def compute_loss(
         [tokens.shape[0] - 1 for tokens in text_tokens_list]
     )
 
-    decoder_criterion = LabelSmoothingLoss(ignore_index=50256, label_smoothing=0.1, reduction="sum")
+    decoder_criterion = LabelSmoothingLoss(
+        ignore_index=50256, label_smoothing=0.1, reduction="sum"
+    )
 
-    # ignore the first 3 tokens, which are always <sos>, <lang_id>, <transcibe>
+    # ignore the first 3 tokens, which are always <|lang_id|>, <|transcibe|>, <|notimestampes|>
     ignore_prefix_size = 3
     with torch.set_grad_enabled(is_training):
         encoder_out = model.encoder(feature)
@@ -623,7 +603,7 @@ def train_one_epoch(
                 valid_info.write_summary(
                     tb_writer, "train/valid_", params.batch_idx_train
                 )
-        
+
         try:
             with torch.cuda.amp.autocast(enabled=params.use_fp16):
                 loss, loss_info = compute_loss(
@@ -687,16 +667,24 @@ def train_one_epoch(
         if batch_idx % params.log_interval == 0:
             try:
                 cur_lr = scheduler.get_last_lr()[0]
-            except:
+            except:  # noqa
                 cur_lr = 0.0
-            cur_grad_scale = scaler._scale.item() if (params.use_fp16 and not params.deepspeed) else 1.0
+            cur_grad_scale = (
+                scaler._scale.item()
+                if (params.use_fp16 and not params.deepspeed)
+                else 1.0
+            )
 
             logging.info(
                 f"Epoch {params.cur_epoch}, "
                 f"batch {batch_idx}, loss[{loss_info}], "
                 f"tot_loss[{tot_loss}], batch size: {batch_size}, "
                 f"lr: {cur_lr:.2e}, "
-                + (f"grad_scale: {scaler._scale.item()}" if (params.use_fp16 and not params.deepspeed) else "")
+                + (
+                    f"grad_scale: {scaler._scale.item()}"
+                    if (params.use_fp16 and not params.deepspeed)
+                    else ""
+                )
             )
 
             if tb_writer is not None:
@@ -714,7 +702,6 @@ def train_one_epoch(
                         cur_grad_scale,
                         params.batch_idx_train,
                     )
-
 
     loss_value = tot_loss["loss"] / tot_loss["frames"]
     params.train_loss = loss_value
@@ -744,15 +731,18 @@ def run(rank, world_size, args):
     logging.info(params)
 
     logging.info("About to create model")
-    
+
     replace_whisper_encoder_forward()
-    model = whisper.load_model(params.model_name, 'cpu')
+    model = whisper.load_model(params.model_name, "cpu")
     del model.alignment_heads
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
     tokenizer = whisper.tokenizer.get_tokenizer(
-        model.is_multilingual, num_languages=model.num_languages, language="zh", task="transcribe"
+        model.is_multilingual,
+        num_languages=model.num_languages,
+        language="zh",
+        task="transcribe",
     )
 
     model_avg: Optional[nn.Module] = None
@@ -791,7 +781,8 @@ def run(rank, world_size, args):
         if params.deepspeed:
             logging.info("Using DeepSpeed")
             model, optimizer, _, scheduler = deepspeed.initialize(
-                args=params, model=model, model_parameters=model.parameters())
+                args=params, model=model, model_parameters=model.parameters()
+            )
         else:
             logging.info("Using DDP")
             setup_dist(use_ddp_launch=True)
@@ -860,13 +851,17 @@ def run(rank, world_size, args):
             break
 
         if params.deepspeed:
-            model.save_checkpoint(save_dir=params.exp_dir,
-                                    tag=f"epoch-{params.cur_epoch}",
-                                    client_state={})
+            model.save_checkpoint(
+                save_dir=params.exp_dir,
+                tag=f"epoch-{params.cur_epoch}",
+                client_state={},
+            )
             if rank == 0:
                 convert_zero_checkpoint_to_fp32_state_dict(
-                            params.exp_dir, f"{params.exp_dir}/epoch-{params.cur_epoch}.pt",
-                            tag=f"epoch-{params.cur_epoch}")
+                    params.exp_dir,
+                    f"{params.exp_dir}/epoch-{params.cur_epoch}.pt",
+                    tag=f"epoch-{params.cur_epoch}",
+                )
         else:
             save_checkpoint(
                 params=params,
@@ -923,6 +918,7 @@ def main():
     torch.set_num_threads(1)
     torch.set_num_interop_threads(1)
     run(rank=rank, world_size=world_size, args=args)
+
 
 if __name__ == "__main__":
     main()

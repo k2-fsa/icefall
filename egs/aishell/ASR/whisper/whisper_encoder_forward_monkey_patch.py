@@ -1,5 +1,7 @@
 import torch
+import torch.nn.functional as F
 import whisper
+
 
 def forward(self, x: torch.Tensor):
     """
@@ -10,13 +12,14 @@ def forward(self, x: torch.Tensor):
     x = F.gelu(self.conv2(x))
     x = x.permute(0, 2, 1)
 
-    x = (x + self.positional_embedding[:x.shape[1],:]).to(x.dtype)
+    x = (x + self.positional_embedding[: x.shape[1], :]).to(x.dtype)
 
     for block in self.blocks:
         x = block(x)
 
     x = self.ln_post(x)
     return x
+
 
 def replace_whisper_encoder_forward():
     """

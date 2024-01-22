@@ -22,16 +22,25 @@ It looks for manifests in the directory data/manifests.
 
 The generated fbank features are saved in data/fbank.
 """
-
+import argparse
 import logging
 import os
 from pathlib import Path
 
 import torch
-from lhotse import CutSet, Fbank, FbankConfig, WhisperFbank, WhisperFbankConfig, LilcomChunkyWriter, MonoCut, combine
+from lhotse import (
+    CutSet,
+    Fbank,
+    FbankConfig,
+    LilcomChunkyWriter,
+    MonoCut,
+    WhisperFbank,
+    WhisperFbankConfig,
+    combine,
+)
 from lhotse.recipes.utils import read_manifests_if_cached
 
-from icefall.utils import get_executor
+from icefall.utils import get_executor, str2bool
 
 # Torch's multithreaded behavior needs to be disabled or
 # it wastes a lot of CPU and slow things down.
@@ -81,7 +90,9 @@ def compute_fbank_musan(num_mel_bins: int = 80, whisper_fbank: bool = False):
     logging.info("Extracting features for Musan")
 
     if whisper_fbank:
-        extractor = WhisperFbank(WhisperFbankConfig(num_filters=num_mel_bins, device='cuda'))
+        extractor = WhisperFbank(
+            WhisperFbankConfig(num_filters=num_mel_bins, device="cuda")
+        )
     else:
         extractor = Fbank(FbankConfig(num_mel_bins=num_mel_bins))
 
@@ -103,6 +114,7 @@ def compute_fbank_musan(num_mel_bins: int = 80, whisper_fbank: bool = False):
         )
         musan_cuts.to_file(musan_cuts_path)
 
+
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -119,10 +131,12 @@ def get_args():
     )
     return parser.parse_args()
 
+
 if __name__ == "__main__":
     formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
 
     logging.basicConfig(format=formatter, level=logging.INFO)
+    args = get_args()
     compute_fbank_musan(
         num_mel_bins=args.num_mel_bins, whisper_fbank=args.whisper_fbank
     )

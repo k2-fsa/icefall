@@ -77,7 +77,7 @@ It's reworked Zipformer with Pruned RNNT loss.
 
 Command for training is:
 ```bash
-./prepare.sh 
+./prepare.sh
 
 export CUDA_VISIBLE_DEVICES="0,1"
 
@@ -142,7 +142,7 @@ export CUDA_VISIBLE_DEVICES="0,1"
   --feedforward-dim 512,768,768,768,768,768 \
   --encoder-dim 192,256,256,256,256,256 \
   --encoder-unmasked-dim 192,192,192,192,192,192 \
-  --max-duration 1200 
+  --max-duration 1200
 ```
 
 Command for decoding is:
@@ -192,7 +192,7 @@ export CUDA_VISIBLE_DEVICES="0,1"
   --feedforward-dim 512,768,1536,2048,1536,768 \
   --encoder-dim 192,256,512,768,512,256 \
   --encoder-unmasked-dim 192,192,256,320,256,192 \
-  --max-duration 800 
+  --max-duration 800
 ```
 
 Command for decoding is:
@@ -208,7 +208,7 @@ for m in greedy_search modified_beam_search fast_beam_search ; do
     --num-encoder-layers 2,2,4,5,4,2 \
     --feedforward-dim 512,768,1536,2048,1536,768 \
     --encoder-dim 192,256,512,768,512,256 \
-    --encoder-unmasked-dim 192,192,256,320,256,192 
+    --encoder-unmasked-dim 192,192,256,320,256,192
 done
 ```
 
