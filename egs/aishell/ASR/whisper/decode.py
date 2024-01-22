@@ -70,6 +70,7 @@ from icefall.utils import (
     setup_logger,
     store_transcripts,
     write_error_stats,
+    str2bool,
 )
 from zhconv import convert
 from tn.chinese.normalizer import Normalizer
