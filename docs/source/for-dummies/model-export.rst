@@ -85,7 +85,7 @@ We can also use it to decode files with the following command:
   # Please refer to https://csukuangfj.github.io/kaldifeat/installation/from_wheels.html
   # for how to install kaldifeat
 
-  pip install kaldifeat==1.25.0.dev20230726+cpu.torch2.0.0 -f https://csukuangfj.github.io/kaldifeat/cpu.html
+  pip install kaldifeat==1.25.3.dev20231221+cpu.torch2.0.0 -f https://csukuangfj.github.io/kaldifeat/cpu.html
 
   ./tdnn/pretrained.py \
     --checkpoint ./tdnn/exp/pretrained.pt \
@@ -162,7 +162,7 @@ To use ``tdnn/exp/cpu_jit.pt`` with `icefall`_ to decode files, we can use:
   # Please refer to https://csukuangfj.github.io/kaldifeat/installation/from_wheels.html
   # for how to install kaldifeat
 
-  pip install kaldifeat==1.25.0.dev20230726+cpu.torch2.0.0 -f https://csukuangfj.github.io/kaldifeat/cpu.html
+  pip install kaldifeat==1.25.3.dev20231221+cpu.torch2.0.0 -f https://csukuangfj.github.io/kaldifeat/cpu.html
 
 
   ./tdnn/jit_pretrained.py \
@@ -249,7 +249,7 @@ To use the generated ONNX model files for decoding with `onnxruntime`_, we can u
   # Please refer to https://csukuangfj.github.io/kaldifeat/installation/from_wheels.html
   # for how to install kaldifeat
 
-  pip install kaldifeat==1.25.0.dev20230726+cpu.torch2.0.0 -f https://csukuangfj.github.io/kaldifeat/cpu.html
+  pip install kaldifeat==1.25.3.dev20231221+cpu.torch2.0.0 -f https://csukuangfj.github.io/kaldifeat/cpu.html
 
   ./tdnn/onnx_pretrained.py \
     --nn-model ./tdnn/exp/model-epoch-14-avg-2.onnx \

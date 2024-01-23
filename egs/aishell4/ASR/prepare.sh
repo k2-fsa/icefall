@@ -7,6 +7,8 @@ set -eou pipefail
 
 stage=-1
 stop_stage=100
+perturb_speed=true
+
 
 # We assume dl_dir (download dir) contains the following
 # directories and files. If not, they will be downloaded
@@ -77,7 +79,7 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   log "Stage 2: Process aishell4"
   if [ ! -f data/fbank/aishell4/.fbank.done ]; then
     mkdir -p data/fbank/aishell4
-    lhotse prepare aishell4 $dl_dir/aishell4 data/manifests/aishell4
+    ./local/compute_fbank_aishell4.py --perturb-speed ${perturb_speed}
     touch data/fbank/aishell4/.fbank.done
   fi
 fi
@@ -107,7 +109,7 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   log "Stage 5: Compute fbank for aishell4"
   if [ ! -f data/fbank/.aishell4.done ]; then
     mkdir -p data/fbank
-    ./local/compute_fbank_aishell4.py --perturb-speed True
+    ./local/compute_fbank_aishell4.py --perturb-speed ${perturb_speed}
     touch data/fbank/.aishell4.done
   fi
 fi

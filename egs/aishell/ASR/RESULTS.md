@@ -1,6 +1,214 @@
 ## Results
 
-### Aishell training result(Stateless Transducer)
+### Aishell training result (Stateless Transducer)
+
+#### Zipformer (Byte-level BPE)
+
+[./zipformer](./zipformer/)
+
+It's reworked Zipformer with Pruned RNNT loss, trained with Byte-level BPE, `vocab_size` set to 500.
+
+##### normal-scaled model, number of model parameters: 65549011, i.e., 65.55 M
+
+|                        | test | dev  | comment                                 |
+|------------------------|------|------|-----------------------------------------|
+| greedy search          | 4.54 | 4.31 | --epoch 40 --avg 10                     |
+| modified beam search   | 4.37 | 4.11 | --epoch 40 --avg 10                     |
+| fast beam search       | 4.43 | 4.17 | --epoch 40 --avg 10                     |
+
+```bash
+./prepare.sh 
+
+export CUDA_VISIBLE_DEVICES="0,1"
+
+./zipformer/train_bbpe.py \
+  --world-size 2 \
+  --num-epochs 40 \
+  --start-epoch 1 \
+  --use-fp16 1 \
+  --context-size 2 \
+  --enable-musan 0 \
+  --exp-dir zipformer/exp_bbpe \
+  --max-duration 1000 \
+  --enable-musan 0 \
+  --base-lr 0.045 \
+  --lr-batches 7500 \
+  --lr-epochs 10 \
+  --spec-aug-time-warp-factor 20
+```
+
+Command for decoding is:
+```bash
+for m in greedy_search modified_beam_search fast_beam_search ; do
+  ./zipformer/decode_bbpe.py \
+    --epoch 40 \
+    --avg 10 \
+    --exp-dir ./zipformer_bbpe/exp \
+    --bpe-model data/lang_bbpe_500/bbpe.model \
+    --context-size 2 \
+    --decoding-method $m
+done
+```
+Pretrained models, training logs, decoding logs, tensorboard and decoding results
+are available at
+<https://huggingface.co/zrjin/icefall-asr-aishell-zipformer-bbpe-2024-01-16>
+
+
+#### Zipformer (Non-streaming)
+
+[./zipformer](./zipformer/)
+
+It's reworked Zipformer with Pruned RNNT loss.
+**Caution**: It uses `--context-size=1`.
+
+##### normal-scaled model, number of model parameters: 73412551, i.e., 73.41 M
+
+|                        | test | dev  | comment                                 |
+|------------------------|------|------|-----------------------------------------|
+| greedy search          | 4.67 | 4.37 | --epoch 55 --avg 17                     |
+| modified beam search   | 4.40 | 4.13 | --epoch 55 --avg 17                     |
+| fast beam search       | 4.60 | 4.31 | --epoch 55 --avg 17                     |
+
+Command for training is:
+```bash
+./prepare.sh 
+
+export CUDA_VISIBLE_DEVICES="0,1"
+
+./zipformer/train.py \
+  --world-size 2 \
+  --num-epochs 60 \
+  --start-epoch 1 \
+  --use-fp16 1 \
+  --context-size 1 \
+  --enable-musan 0 \
+  --exp-dir zipformer/exp \
+  --max-duration 1000 \
+  --enable-musan 0 \
+  --base-lr 0.045 \
+  --lr-batches 7500 \
+  --lr-epochs 18 \
+  --spec-aug-time-warp-factor 20
+```
+
+Command for decoding is:
+```bash
+for m in greedy_search modified_beam_search fast_beam_search ; do
+  ./zipformer/decode.py \
+    --epoch 55 \
+    --avg 17 \
+    --exp-dir ./zipformer/exp \
+    --lang-dir data/lang_char \
+    --context-size 1 \
+    --decoding-method $m
+done
+```
+Pretrained models, training logs, decoding logs, tensorboard and decoding results
+are available at
+<https://huggingface.co/zrjin/icefall-asr-aishell-zipformer-2023-10-24>
+
+
+##### small-scaled model, number of model parameters: 30167139, i.e., 30.17 M
+
+|                        | test | dev  | comment                                 |
+|------------------------|------|------|-----------------------------------------|
+| greedy search          | 4.97 | 4.67 | --epoch 55 --avg 21                     |
+| modified beam search   | 4.67 | 4.40 | --epoch 55 --avg 21                     |
+| fast beam search       | 4.85 | 4.61 | --epoch 55 --avg 21                     |
+
+Command for training is:
+```bash
+export CUDA_VISIBLE_DEVICES="0,1"
+
+./zipformer/train.py \
+  --world-size 2 \
+  --num-epochs 60 \
+  --start-epoch 1 \
+  --use-fp16 1 \
+  --context-size 1 \
+  --exp-dir zipformer/exp-small \
+  --enable-musan 0 \
+  --base-lr 0.045 \
+  --lr-batches 7500 \
+  --lr-epochs 18 \
+  --spec-aug-time-warp-factor 20 \
+  --num-encoder-layers 2,2,2,2,2,2 \
+  --feedforward-dim 512,768,768,768,768,768 \
+  --encoder-dim 192,256,256,256,256,256 \
+  --encoder-unmasked-dim 192,192,192,192,192,192 \
+  --max-duration 1200 
+```
+
+Command for decoding is:
+```bash
+for m in greedy_search modified_beam_search fast_beam_search ; do
+  ./zipformer/decode.py \
+    --epoch 55 \
+    --avg 21 \
+    --exp-dir ./zipformer/exp-small \
+    --lang-dir data/lang_char \
+    --context-size 1 \
+    --decoding-method $m \
+    --num-encoder-layers 2,2,2,2,2,2 \
+    --feedforward-dim 512,768,768,768,768,768 \
+    --encoder-dim 192,256,256,256,256,256 \
+    --encoder-unmasked-dim 192,192,192,192,192,192
+done
+```
+
+Pretrained models, training logs, decoding logs, tensorboard and decoding results
+are available at
+<https://huggingface.co/zrjin/icefall-asr-aishell-zipformer-small-2023-10-24/>
+
+##### large-scaled model, number of model parameters: 157285130, i.e., 157.29 M
+
+|                        | test | dev  | comment                                 |
+|------------------------|------|------|-----------------------------------------|
+| greedy search          | 4.49 | 4.22 | --epoch 56 --avg 23                     |
+| modified beam search   | 4.28 | 4.03 | --epoch 56 --avg 23                     |
+| fast beam search       | 4.44 | 4.18 | --epoch 56 --avg 23                     |
+
+Command for training is:
+```bash
+export CUDA_VISIBLE_DEVICES="0,1"
+
+./zipformer/train.py \
+  --world-size 2 \
+  --num-epochs 60 \
+  --use-fp16 1 \
+  --context-size 1 \
+  --exp-dir ./zipformer/exp-large \
+  --enable-musan 0 \
+  --lr-batches 7500 \
+  --lr-epochs 18 \
+  --spec-aug-time-warp-factor 20 \
+  --num-encoder-layers 2,2,4,5,4,2 \
+  --feedforward-dim 512,768,1536,2048,1536,768 \
+  --encoder-dim 192,256,512,768,512,256 \
+  --encoder-unmasked-dim 192,192,256,320,256,192 \
+  --max-duration 800 
+```
+
+Command for decoding is:
+```bash
+for m in greedy_search modified_beam_search fast_beam_search ; do
+  ./zipformer/decode.py \
+    --epoch 56 \
+    --avg 23 \
+    --exp-dir ./zipformer/exp-large \
+    --lang-dir data/lang_char \
+    --context-size 1 \
+    --decoding-method $m \
+    --num-encoder-layers 2,2,4,5,4,2 \
+    --feedforward-dim 512,768,1536,2048,1536,768 \
+    --encoder-dim 192,256,512,768,512,256 \
+    --encoder-unmasked-dim 192,192,256,320,256,192 
+done
+```
+
+Pretrained models, training logs, decoding logs, tensorboard and decoding results
+are available at
+<https://huggingface.co/zrjin/icefall-asr-aishell-zipformer-large-2023-10-24/>
 
 #### Pruned transducer stateless 7 streaming
 [./pruned_transducer_stateless7_streaming](./pruned_transducer_stateless7_streaming)
@@ -104,7 +312,7 @@ done
 Pretrained models, training logs, decoding logs, and decoding results
 are available at
 <https://huggingface.co/marcoyang/icefall-asr-aishell-zipformer-pruned-transducer-stateless7-2023-03-21>
-#### Pruned transducer stateless 7 (zipformer)
+#### Pruned transducer stateless 7 (Byte-level BPE)
 
 See <https://github.com/k2-fsa/icefall/pull/986>
 
