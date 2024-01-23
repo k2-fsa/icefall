@@ -25,7 +25,9 @@ import torch
 from lhotse import (
     CutSet,
     WhisperFbank,
-    WhisperFbankConfig, 
+    WhisperFbankConfig,
+    KaldifeatWhisperFbank,
+    KaldifeatWhisperFbankConfig, 
     KaldifeatFbank,
     KaldifeatFbankConfig,
     LilcomChunkyWriter,
@@ -128,9 +130,10 @@ def compute_fbank_wenetspeech_splits(args):
     if torch.cuda.is_available():
         device = torch.device("cuda", 0)
     if args.whisper_fbank:
-        extractor = WhisperFbank(
-            WhisperFbankConfig(num_filters=args.num_mel_bins, device=device)
-        )
+        # extractor = WhisperFbank(
+        #     WhisperFbankConfig(num_filters=args.num_mel_bins, device=device)
+        # )
+        extractor = KaldifeatWhisperFbank(KaldifeatWhisperFbankConfig(num_filters=args.num_mel_bins, device=device))
     else:
         extractor = KaldifeatFbank(KaldifeatFbankConfig(device=device))
     logging.info(f"device: {device}")
