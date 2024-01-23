@@ -4,7 +4,7 @@
 
 # Introduction
 
-The icefall peoject contains speech related recipes for various datasets
+The icefall project contains speech-related recipes for various datasets
 using [k2-fsa](https://github.com/k2-fsa/k2) and [lhotse](https://github.com/lhotse-speech/lhotse).
 
 You can use [sherpa](https://github.com/k2-fsa/sherpa), [sherpa-ncnn](https://github.com/k2-fsa/sherpa-ncnn) or [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) for deployment with models
