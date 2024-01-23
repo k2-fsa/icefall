@@ -80,7 +80,7 @@ If you are willing to contribute to icefall, please refer to [contributing](http
 
 We would like to highlight the performance of some of the recipes here.
 
-#### yesno
+#### [yesno][yesno]
 
 This is the simplest ASR recipe in `icefall` and can be run on CPU.
 Training takes less than 30 seconds and gives you the following WER:
@@ -96,9 +96,7 @@ We provide a Colab notebook for this recipe: [![Open In Colab](https://colab.res
 Please see [RESULTS.md](https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/RESULTS.md)
 for the **latest** results.
 
-
 #### [Conformer CTC](https://github.com/k2-fsa/icefall/tree/master/egs/librispeech/ASR/conformer_ctc)
-
 
 |     | test-clean | test-other |
 |-----|------------|------------|
@@ -109,7 +107,6 @@ We provide a Colab notebook to test the pre-trained model: [![Open In Colab](htt
 
 #### [TDNN LSTM CTC](https://github.com/k2-fsa/icefall/tree/master/egs/librispeech/ASR/tdnn_lstm_ctc)
 
-
 |     | test-clean | test-other |
 |-----|------------|------------|
 | WER | 6.59       | 17.69      |
@@ -118,9 +115,6 @@ We provide a Colab notebook to test the pre-trained model: [![Open In Colab](htt
 
 
 #### [Transducer (Conformer Encoder + LSTM Predictor)](https://github.com/k2-fsa/icefall/tree/master/egs/librispeech/ASR/transducer)
-
-
-The best WER is:
 
 |               | test-clean | test-other |
 |---------------|------------|------------|
@@ -254,8 +248,6 @@ We provide a Colab notebook to test the pre-trained model: [![Open In Colab](htt
 
 ### [TED-LIUM3][tedlium3]
 
-We provide two models for this recipe: [Transducer Stateless: Conformer encoder + Embedding decoder][TED-LIUM3_transducer_stateless] and [Pruned Transducer Stateless: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss][TED-LIUM3_pruned_transducer_stateless].
-
 #### [Transducer (Conformer Encoder + Embedding Predictor)](https://github.com/k2-fsa/icefall/tree/master/egs/tedlium3/ASR/transducer_stateless)
 
 |                                      |  dev  |  test  |
@@ -323,7 +315,6 @@ We provide a Colab notebook to test the pre-trained model: [![Open In Colab](htt
 
 ### [TAL_CSASR][tal_csasr]
 
-We provide one model for this recipe: [Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss][TAL_CSASR_pruned_transducer_stateless5].
 
 #### [Transducer (pruned_transducer_stateless5)](https://github.com/k2-fsa/icefall/tree/master/egs/tal_csasr/ASR/pruned_transducer_stateless5)
 
@@ -335,6 +326,17 @@ The best results for Chinese CER(%) and English WER(%) respectively (zh: Chinese
 |modified_beam_search| 7.15 | 6.35 | 18.95 | 7.22| 6.50 | 18.70 |
 
 We provide a Colab notebook to test the pre-trained model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1DmIx-NloI1CMU5GdZrlse7TRu4y3Dpf8?usp=sharing)
+
+## TTS: Text-to-Speech
+
+### Supported Datasets
+
+  - [LJSpeech][ljspeech]
+  - [VCTK][vctk]
+
+#### Supported Models
+
+  - [VITS](https://arxiv.org/abs/2106.06103)
 
 # Deployment with C++
 
@@ -371,3 +373,6 @@ Please see: [![Open In Colab](https://colab.research.google.com/assets/colab-bad
 [spgispeech]: egs/spgispeech/ASR
 [voxpopuli]: egs/voxpopuli/ASR
 [xbmu-amdo31]: egs/xbmu-amdo31/ASR
+
+[vctk]: egs/vctk/TTS
+[ljspeech]: egs/ljspeech/TTS
