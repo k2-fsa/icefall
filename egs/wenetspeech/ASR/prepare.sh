@@ -215,13 +215,49 @@ if [ $stage -le 131 ] && [ $stop_stage -ge 131 ]; then
 
   python3 ./local/compute_fbank_wenetspeech_splits.py \
     --training-subset L \
-    --num-workers 20 \
-    --batch-duration 1600 \
-    --start 98 \
-    --num-mel-bins ${whisper_mel_bins} --whisper-fbank false \
-    --output-dir-prefix /fbank \
-    --num-splits $num_splits
+    --num-workers 8 \
+    --batch-duration 1000 \
+    --start 48 \
+    --stop 58 \
+    --num-mel-bins ${whisper_mel_bins} --whisper-fbank true \
+    --num-splits $num_splits & 
 
+  python3 ./local/compute_fbank_wenetspeech_splits.py \
+    --training-subset L \
+    --num-workers 8 \
+    --batch-duration 1000 \
+    --start 58 \
+    --stop 68 \
+    --num-mel-bins ${whisper_mel_bins} --whisper-fbank true \
+    --num-splits $num_splits &
+
+  python3 ./local/compute_fbank_wenetspeech_splits.py \
+    --training-subset L \
+    --num-workers 8 \
+    --batch-duration 1000 \
+    --start 68 \
+    --stop 78 \
+    --num-mel-bins ${whisper_mel_bins} --whisper-fbank true \
+    --num-splits $num_splits &
+
+  python3 ./local/compute_fbank_wenetspeech_splits.py \
+    --training-subset L \
+    --num-workers 8 \
+    --batch-duration 1000 \
+    --start 78 \
+    --stop 88 \
+    --num-mel-bins ${whisper_mel_bins} --whisper-fbank true \
+    --num-splits $num_splits &
+
+  python3 ./local/compute_fbank_wenetspeech_splits.py \
+    --training-subset L \
+    --num-workers 8 \
+    --batch-duration 1000 \
+    --start 88 \
+    --num-mel-bins ${whisper_mel_bins} --whisper-fbank true \
+    --num-splits $num_splits &
+  
+  wait
 fi
 
 if [ $stage -le 14 ] && [ $stop_stage -ge 14 ]; then
