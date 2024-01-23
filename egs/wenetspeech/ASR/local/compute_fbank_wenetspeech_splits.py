@@ -157,15 +157,22 @@ def compute_fbank_wenetspeech_splits(args):
         )
 
         logging.info("Computing features")
-        cut_set = cut_set.compute_and_store_features_batch(
+        # cut_set = cut_set.compute_and_store_features_batch(
+        #     extractor=extractor,
+        #     storage_path=f"{output_dir}/feats_{subset}_{idx}",
+        #     num_workers=args.num_workers,
+        #     batch_duration=args.batch_duration,
+        #     storage_type=LilcomChunkyWriter,
+        #     overwrite=True,
+        # )
+        cut_set = cut_set.compute_and_store_features(
             extractor=extractor,
             storage_path=f"{output_dir}/feats_{subset}_{idx}",
-            num_workers=args.num_workers,
-            batch_duration=args.batch_duration,
+            num_jobs=args.num_workers,
+            executor=extractor,
             storage_type=LilcomChunkyWriter,
             overwrite=True,
         )
-
         logging.info(f"Saving to {cuts_path}")
         cut_set.to_file(cuts_path)
 
