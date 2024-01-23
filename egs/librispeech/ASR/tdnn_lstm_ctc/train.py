@@ -37,7 +37,11 @@ import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 import torch.optim as optim
-from asr_datamodule import LibriSpeechAsrDataModule
+from asr_datamodule import (
+    LibriSpeechAsrDataModule,
+    LibriSpeechSharAsrDataModule,
+    add_dataloading_arguments,
+)
 from lhotse.cut import Cut
 from lhotse.utils import fix_random_seed
 from model import TdnnLstm
@@ -110,6 +114,13 @@ def get_parser():
         type=int,
         default=42,
         help="The seed for random generators intended for reproducibility",
+    )
+
+    parser.add_argument(
+        "--use-shar",
+        type=str2bool,
+        default=False,
+        help="Use Lhotse Shar data format for faster, sequential I/O. Requires running ./prepare_shar.sh first.",
     )
 
     return parser
@@ -554,7 +565,10 @@ def run(rank, world_size, args):
         optimizer.load_state_dict(checkpoints["optimizer"])
         scheduler.load_state_dict(checkpoints["scheduler"])
 
-    librispeech = LibriSpeechAsrDataModule(args)
+    if args.use_shar:
+        librispeech = LibriSpeechSharAsrDataModule(args)
+    else:
+        librispeech = LibriSpeechAsrDataModule(args)
 
     if params.full_libri:
         train_cuts = librispeech.train_all_shuf_cuts()
@@ -583,7 +597,10 @@ def run(rank, world_size, args):
 
     for epoch in range(params.start_epoch, params.num_epochs):
         fix_random_seed(params.seed + epoch)
-        train_dl.sampler.set_epoch(epoch)
+        try:
+            train_dl.sampler.set_epoch(epoch)
+        except Exception:
+            pass  # with Lhotse Shar the sampler won't have a set_epoch attribute
 
         if epoch > params.start_epoch:
             logging.info(f"epoch {epoch}, lr: {scheduler.get_last_lr()[0]}")
@@ -627,7 +644,7 @@ def run(rank, world_size, args):
 
 def main():
     parser = get_parser()
-    LibriSpeechAsrDataModule.add_arguments(parser)
+    add_dataloading_arguments(parser)
     args = parser.parse_args()
 
     world_size = args.world_size
