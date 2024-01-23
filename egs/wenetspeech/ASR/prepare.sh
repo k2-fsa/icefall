@@ -6,12 +6,12 @@ export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
 set -eou pipefail
 
 nj=15
-stage=0
-stop_stage=100
+stage=130
+stop_stage=130
 
 # Split L subset to this number of pieces
 # This is to avoid OOM during feature extraction.
-num_splits=1000
+num_splits=100
 
 # We assume dl_dir (download dir) contains the following
 # directories and files. If not, they will be downloaded
@@ -198,8 +198,8 @@ if [ $stage -le 130 ] && [ $stop_stage -ge 130 ]; then
 
   python3 ./local/compute_fbank_wenetspeech_splits.py \
     --training-subset L \
-    --num-workers 20 \
-    --batch-duration 600 \
+    --num-workers 40 \
+    --batch-duration 1600 \
     --start 0 \
     --num-mel-bins ${whisper_mel_bins} --whisper-fbank true \
     --num-splits $num_splits
@@ -208,6 +208,19 @@ if [ $stage -le 130 ] && [ $stop_stage -ge 130 ]; then
     pieces=$(find data/fbank/L_split_1000 -name "cuts_L.*.jsonl.gz")
     lhotse combine $pieces data/fbank/cuts_L.jsonl.gz
   fi
+fi
+
+if [ $stage -le 131 ] && [ $stop_stage -ge 131 ]; then
+  log "Stage 131: test"
+
+  python3 ./local/compute_fbank_wenetspeech_splits.py \
+    --training-subset L \
+    --num-workers 40 \
+    --batch-duration 1600 \
+    --start 99 \
+    --num-mel-bins ${whisper_mel_bins} --whisper-fbank false \
+    --num-splits $num_splits
+
 fi
 
 if [ $stage -le 14 ] && [ $stop_stage -ge 14 ]; then
