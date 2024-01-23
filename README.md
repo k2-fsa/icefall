@@ -76,11 +76,9 @@ The [LibriSpeech][librispeech] recipe supports the most comprehensive set of mod
 
 If you are willing to contribute to icefall, please refer to [contributing](https://icefall.readthedocs.io/en/latest/contributing/index.html) for more details.
 
-### Highlighted Performance
-
 We would like to highlight the performance of some of the recipes here.
 
-#### [yesno][yesno]
+### [yesno][yesno]
 
 This is the simplest ASR recipe in `icefall` and can be run on CPU.
 Training takes less than 30 seconds and gives you the following WER:
@@ -91,7 +89,7 @@ Training takes less than 30 seconds and gives you the following WER:
 We provide a Colab notebook for this recipe: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1tIjjzaJc3IvGyKiMCDWO-TSnBgkcuN3B?usp=sharing)
 
 
-#### [LibriSpeech][librispeech]
+### [LibriSpeech][librispeech]
 
 Please see [RESULTS.md](https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/RESULTS.md)
 for the **latest** results.
@@ -334,7 +332,7 @@ We provide a Colab notebook to test the pre-trained model: [![Open In Colab](htt
   - [LJSpeech][ljspeech]
   - [VCTK][vctk]
 
-#### Supported Models
+### Supported Models
 
   - [VITS](https://arxiv.org/abs/2106.06103)
 
