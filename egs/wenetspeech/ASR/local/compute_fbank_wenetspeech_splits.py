@@ -106,6 +106,13 @@ def get_parser():
         default=False,
         help="Use WhisperFbank instead of Fbank. Default: False.",
     )
+
+    parser.add_argument(
+        "--output-dir-prefix",
+        type=str,
+        default="",
+        help="Prefix of the output directory.",
+    )
     return parser
 
 
@@ -115,6 +122,7 @@ def compute_fbank_wenetspeech_splits(args):
     num_splits = args.num_splits
     output_dir = f"data/fbank/{subset}_split_{num_splits}"
     output_dir = Path(output_dir)
+    output_dir = Path(args.output_dir_prefix) / output_dir
     assert output_dir.exists(), f"{output_dir} does not exist!"
 
     num_digits = len(str(num_splits))
@@ -130,10 +138,10 @@ def compute_fbank_wenetspeech_splits(args):
     if torch.cuda.is_available():
         device = torch.device("cuda", 0)
     if args.whisper_fbank:
-        # extractor = WhisperFbank(
-        #     WhisperFbankConfig(num_filters=args.num_mel_bins, device=device)
-        # )
-        extractor = KaldifeatWhisperFbank(KaldifeatWhisperFbankConfig(num_filters=args.num_mel_bins, device=device))
+        extractor = WhisperFbank(
+            WhisperFbankConfig(num_filters=args.num_mel_bins, device=device)
+        )
+        # extractor = KaldifeatWhisperFbank(KaldifeatWhisperFbankConfig(num_filters=args.num_mel_bins, device=device))
     else:
         extractor = KaldifeatFbank(KaldifeatFbankConfig(device=device))
     logging.info(f"device: {device}")

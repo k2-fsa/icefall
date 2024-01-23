@@ -215,10 +215,11 @@ if [ $stage -le 131 ] && [ $stop_stage -ge 131 ]; then
 
   python3 ./local/compute_fbank_wenetspeech_splits.py \
     --training-subset L \
-    --num-workers 80 \
+    --num-workers 20 \
     --batch-duration 1600 \
     --start 98 \
     --num-mel-bins ${whisper_mel_bins} --whisper-fbank false \
+    --output-dir-prefix /fbank \
     --num-splits $num_splits
 
 fi
