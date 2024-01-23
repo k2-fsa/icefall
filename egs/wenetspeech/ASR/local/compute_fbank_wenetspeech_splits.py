@@ -171,7 +171,6 @@ def compute_fbank_wenetspeech_splits(args):
             num_jobs=args.num_workers,
             executor=extractor,
             storage_type=LilcomChunkyWriter,
-            overwrite=True,
         )
         logging.info(f"Saving to {cuts_path}")
         cut_set.to_file(cuts_path)
