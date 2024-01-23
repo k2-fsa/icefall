@@ -6,8 +6,8 @@ export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
 set -eou pipefail
 
 nj=15
-stage=130
-stop_stage=130
+stage=131
+stop_stage=131
 
 # Split L subset to this number of pieces
 # This is to avoid OOM during feature extraction.
@@ -198,7 +198,7 @@ if [ $stage -le 130 ] && [ $stop_stage -ge 130 ]; then
 
   python3 ./local/compute_fbank_wenetspeech_splits.py \
     --training-subset L \
-    --num-workers 40 \
+    --num-workers 8 \
     --batch-duration 1600 \
     --start 0 \
     --num-mel-bins ${whisper_mel_bins} --whisper-fbank true \
@@ -215,9 +215,9 @@ if [ $stage -le 131 ] && [ $stop_stage -ge 131 ]; then
 
   python3 ./local/compute_fbank_wenetspeech_splits.py \
     --training-subset L \
-    --num-workers 40 \
+    --num-workers 8 \
     --batch-duration 1600 \
-    --start 99 \
+    --start 98 \
     --num-mel-bins ${whisper_mel_bins} --whisper-fbank false \
     --num-splits $num_splits
 
