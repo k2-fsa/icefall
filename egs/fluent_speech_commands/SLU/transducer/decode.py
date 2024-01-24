@@ -22,7 +22,7 @@ from typing import List, Tuple
 
 import torch
 import torch.nn as nn
-from transducer.asr_datamodule import SluDataModule
+from transducer.slu_datamodule import SluDataModule
 from transducer.beam_search import greedy_search
 from transducer.decoder import Decoder
 from transducer.encoder import Tdnn
