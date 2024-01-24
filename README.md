@@ -116,7 +116,7 @@ We provide a Colab notebook to test the pre-trained model: [![Open In Colab](htt
 
 |               | test-clean | test-other |
 |---------------|------------|------------|
-| greedy search | 3.07       | 7.51       |
+| greedy_search | 3.07       | 7.51       |
 
 We provide a Colab notebook to test the pre-trained model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1_u6yK9jDkPwG_NLrZMN2XK7Aeq4suMO2?usp=sharing)
 
@@ -127,7 +127,7 @@ We provide a Colab notebook to test the pre-trained model: [![Open In Colab](htt
 | modified_beam_search (`beam_size=4`) | 2.56       | 6.27       |
 
 
-We provide a Colab notebook to run test the pre-trained model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1CO1bXJ-2khDckZIW8zjOPHGSKLHpTDlp?usp=sharing)
+We provide a Colab notebook to test the pre-trained model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1CO1bXJ-2khDckZIW8zjOPHGSKLHpTDlp?usp=sharing)
 
 
 #### [Transducer (Zipformer Encoder + Stateless Predictor)](https://github.com/k2-fsa/icefall/tree/master/egs/librispeech/ASR/zipformer)
@@ -147,14 +147,14 @@ WER (modified_beam_search `beam_size=4` unless further stated)
 
 | Encoder         | Params | test-clean | test-other |
 |-----------------|--------|------------|------------|
-| Zipformer | 65.5M   | 1.78       | 4.08       |
+| Zipformer       | 65.5M   | 1.78       | 4.08       |
 
 
 3. LibriSpeech-960hr + GigaSpeech + CommonVoice
 
 | Encoder         | Params | test-clean | test-other |
 |-----------------|--------|------------|------------|
-| Zipformer | 65.5M   | 1.90       | 3.98       |
+| Zipformer       | 65.5M   | 1.90       | 3.98       |
 
 
 ### [GigaSpeech][gigaspeech]
@@ -246,7 +246,7 @@ We provide a Colab notebook to test the pre-trained model: [![Open In Colab](htt
 
 ### [TED-LIUM3][tedlium3]
 
-#### [Transducer (Conformer Encoder + Embedding Predictor)](https://github.com/k2-fsa/icefall/tree/master/egs/tedlium3/ASR/transducer_stateless)
+#### [Transducer (Conformer Encoder + Stateless Predictor)](https://github.com/k2-fsa/icefall/tree/master/egs/tedlium3/ASR/transducer_stateless)
 
 |                                      |  dev  |  test  |
 |--------------------------------------|-------|--------|
@@ -287,7 +287,7 @@ We provide a Colab notebook to test the pre-trained model: [![Open In Colab](htt
 |   fast_beam_search   | 7.94  |  8.74    |  13.80       |
 | modified_beam_search | 7.76  |  8.71    |  13.41       |
 
-We provide a Colab notebook to run the pre-trained model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1EV4e1CHa1GZgEF-bZgizqI9RyFFehIiN?usp=sharing)
+We provide a Colab notebook to test the pre-trained model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1EV4e1CHa1GZgEF-bZgizqI9RyFFehIiN?usp=sharing)
 
 #### [Transducer **Streaming** (pruned_transducer_stateless5) ](https://github.com/k2-fsa/icefall/tree/master/egs/wenetspeech/ASR/pruned_transducer_stateless5)
 
