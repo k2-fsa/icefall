@@ -25,7 +25,6 @@ import torch.nn as nn
 from transducer.slu_datamodule import SluDataModule
 from transducer.beam_search import greedy_search
 from transducer.decoder import Decoder
-from transducer.encoder import Tdnn
 from transducer.conformer import Conformer
 from transducer.joiner import Joiner
 from transducer.model import Transducer

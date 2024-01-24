@@ -33,7 +33,6 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.nn.utils import clip_grad_norm_
 # from torch.utils.tensorboard import SummaryWriter
 from transducer.decoder import Decoder
-from transducer.encoder import Tdnn
 from transducer.conformer import Conformer
 from transducer.joiner import Joiner
 from transducer.model import Transducer
@@ -492,10 +491,6 @@ def train_one_epoch(
 
 
 def get_transducer_model(params: AttributeDict):
-    # encoder = Tdnn(
-    #     num_features=params.feature_dim,
-    #     output_dim=params.hidden_dim,
-    # )
     encoder = Conformer(
         num_features=params.feature_dim,
         output_dim=params.hidden_dim,
