@@ -26,14 +26,15 @@ import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 import torch.optim as optim
-from slu_datamodule import SluDataModule
 from lhotse.utils import fix_random_seed
+from slu_datamodule import SluDataModule
 from torch import Tensor
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.nn.utils import clip_grad_norm_
+from transducer.conformer import Conformer
+
 # from torch.utils.tensorboard import SummaryWriter
 from transducer.decoder import Decoder
-from transducer.conformer import Conformer
 from transducer.joiner import Joiner
 from transducer.model import Transducer
 
@@ -49,20 +50,20 @@ def get_word2id(params):
 
     # 0 is blank
     id = 1
-    with open(Path(params.lang_dir) / 'lexicon_disambig.txt') as lexicon_file:
+    with open(Path(params.lang_dir) / "lexicon_disambig.txt") as lexicon_file:
         for line in lexicon_file:
             if len(line.strip()) > 0:
                 word2id[line.split()[0]] = id
                 id += 1
 
-    return word2id 
+    return word2id
 
 
 def get_labels(texts: List[str], word2id) -> k2.RaggedTensor:
     """
     Args:
       texts:
-        A list of transcripts. 
+        A list of transcripts.
     Returns:
       Return a ragged tensor containing the corresponding word ID.
     """
@@ -133,11 +134,7 @@ def get_parser():
         help="The seed for random generators intended for reproducibility",
     )
 
-    parser.add_argument(
-        "--lang-dir",
-        type=str,
-        default="data/lm/frames"
-    )
+    parser.add_argument("--lang-dir", type=str, default="data/lm/frames")
 
     return parser
 
@@ -215,9 +212,11 @@ def get_params() -> AttributeDict:
     )
 
     vocab_size = 1
-    with open(Path(params.lang_dir) / 'lexicon_disambig.txt') as lexicon_file:
+    with open(Path(params.lang_dir) / "lexicon_disambig.txt") as lexicon_file:
         for line in lexicon_file:
-            if len(line.strip()) > 0:# and '<UNK>' not in line and '<s>' not in line and '</s>' not in line:
+            if (
+                len(line.strip()) > 0
+            ):  # and '<UNK>' not in line and '<s>' not in line and '</s>' not in line:
                 vocab_size += 1
     params.vocab_size = vocab_size
 
@@ -312,11 +311,7 @@ def save_checkpoint(
 
 
 def compute_loss(
-    params: AttributeDict,
-    model: nn.Module,
-    batch: dict,
-    is_training: bool,
-    word2ids
+    params: AttributeDict, model: nn.Module, batch: dict, is_training: bool, word2ids
 ) -> Tuple[Tensor, MetricsTracker]:
     """
     Compute RNN-T loss given the model and its inputs.
@@ -342,8 +337,14 @@ def compute_loss(
 
     feature_lens = batch["supervisions"]["num_frames"].to(device)
 
-    texts = [' '.join(a.supervisions[0].custom["frames"]) for a in batch["supervisions"]["cut"]]
-    texts = ['<s> ' + a.replace('change language', 'change_language') + ' </s>' for a in texts]
+    texts = [
+        " ".join(a.supervisions[0].custom["frames"])
+        for a in batch["supervisions"]["cut"]
+    ]
+    texts = [
+        "<s> " + a.replace("change language", "change_language") + " </s>"
+        for a in texts
+    ]
     labels = get_labels(texts, word2ids).to(device)
 
     with torch.set_grad_enabled(is_training):
@@ -378,7 +379,7 @@ def compute_validation_loss(
             model=model,
             batch=batch,
             is_training=False,
-            word2ids=word2ids
+            word2ids=word2ids,
         )
         assert loss.requires_grad is False
 
@@ -437,11 +438,7 @@ def train_one_epoch(
         batch_size = len(batch["supervisions"]["text"])
 
         loss, loss_info = compute_loss(
-            params=params,
-            model=model,
-            batch=batch,
-            is_training=True,
-            word2ids=word2ids
+            params=params, model=model, batch=batch, is_training=True, word2ids=word2ids
         )
         # summary stats.
         tot_loss = (tot_loss * (1 - 1 / params.reset_interval)) + loss_info
@@ -471,7 +468,7 @@ def train_one_epoch(
                 model=model,
                 valid_dl=valid_dl,
                 world_size=world_size,
-                word2ids=word2ids
+                word2ids=word2ids,
             )
             model.train()
             logging.info(f"Epoch {params.cur_epoch}, validation {valid_info}")
@@ -593,7 +590,7 @@ def run(rank, world_size, args):
             valid_dl=valid_dl,
             tb_writer=tb_writer,
             world_size=world_size,
-            word2ids=word2ids
+            word2ids=word2ids,
         )
 
         save_checkpoint(

@@ -7,8 +7,9 @@ It looks for manifests in the directory data/manifests.
 The generated fbank features are saved in data/fbank.
 """
 
+import argparse
 import logging
-import os, argparse
+import os
 from pathlib import Path
 
 import torch
@@ -82,9 +83,10 @@ def compute_fbank_slu(manifest_dir, fbanks_dir):
             )
             cut_set.to_file(cuts_file)
 
+
 parser = argparse.ArgumentParser()
-parser.add_argument('manifest_dir')
-parser.add_argument('fbanks_dir')
+parser.add_argument("manifest_dir")
+parser.add_argument("fbanks_dir")
 
 if __name__ == "__main__":
     formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"

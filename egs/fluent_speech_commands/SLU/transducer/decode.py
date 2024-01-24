@@ -22,12 +22,12 @@ from typing import List, Tuple
 
 import torch
 import torch.nn as nn
-from transducer.slu_datamodule import SluDataModule
 from transducer.beam_search import greedy_search
-from transducer.decoder import Decoder
 from transducer.conformer import Conformer
+from transducer.decoder import Decoder
 from transducer.joiner import Joiner
 from transducer.model import Transducer
+from transducer.slu_datamodule import SluDataModule
 
 from icefall.checkpoint import average_checkpoints, load_checkpoint
 from icefall.env import get_env_info
@@ -45,7 +45,7 @@ def get_id2word(params):
     # 0 is blank
     id = 1
     try:
-        with open(Path(params.lang_dir) / 'lexicon_disambig.txt') as lexicon_file:
+        with open(Path(params.lang_dir) / "lexicon_disambig.txt") as lexicon_file:
             for line in lexicon_file:
                 if len(line.strip()) > 0:
                     id2word[id] = line.split()[0]
@@ -82,11 +82,7 @@ def get_parser():
         default="transducer/exp",
         help="Directory from which to load the checkpoints",
     )
-    parser.add_argument(
-        "--lang-dir",
-        type=str,
-        default="data/lm/frames"
-    )
+    parser.add_argument("--lang-dir", type=str, default="data/lm/frames")
 
     return parser
 
@@ -106,9 +102,11 @@ def get_params() -> AttributeDict:
     )
 
     vocab_size = 1
-    with open(params.lang_dir / 'lexicon_disambig.txt') as lexicon_file:
+    with open(params.lang_dir / "lexicon_disambig.txt") as lexicon_file:
         for line in lexicon_file:
-            if len(line.strip()) > 0:# and '<UNK>' not in line and '<s>' not in line and '</s>' not in line:
+            if (
+                len(line.strip()) > 0
+            ):  # and '<UNK>' not in line and '<s>' not in line and '</s>' not in line:
                 vocab_size += 1
     params.vocab_size = vocab_size
 
@@ -116,10 +114,7 @@ def get_params() -> AttributeDict:
 
 
 def decode_one_batch(
-    params: AttributeDict,
-    model: nn.Module,
-    batch: dict,
-    id2word: dict
+    params: AttributeDict, model: nn.Module, batch: dict, id2word: dict
 ) -> List[List[int]]:
     """Decode one batch and return the result in a list-of-list.
     Each sub list contains the word IDs for an utterance in the batch.
@@ -195,15 +190,18 @@ def decode_dataset(
 
     results = []
     for batch_idx, batch in enumerate(dl):
-        texts = [' '.join(a.supervisions[0].custom["frames"]) for a in batch["supervisions"]["cut"]]
-        texts = ['<s> ' + a.replace('change language', 'change_language') + ' </s>' for a in texts]
+        texts = [
+            " ".join(a.supervisions[0].custom["frames"])
+            for a in batch["supervisions"]["cut"]
+        ]
+        texts = [
+            "<s> " + a.replace("change language", "change_language") + " </s>"
+            for a in texts
+        ]
         cut_ids = [cut.id for cut in batch["supervisions"]["cut"]]
 
         hyps = decode_one_batch(
-            params=params,
-            model=model,
-            batch=batch,
-            id2word=id2word
+            params=params, model=model, batch=batch, id2word=id2word
         )
 
         this_batch = []
@@ -338,7 +336,7 @@ def main():
         model=model,
     )
 
-    test_set_name=str(args.feature_dir).split('/')[-2]
+    test_set_name = str(args.feature_dir).split("/")[-2]
     save_results(exp_dir=params.exp_dir, test_set_name=test_set_name, results=results)
 
     logging.info("Done!")

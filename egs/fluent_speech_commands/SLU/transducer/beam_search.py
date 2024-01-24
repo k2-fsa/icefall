@@ -20,7 +20,9 @@ import torch
 from transducer.model import Transducer
 
 
-def greedy_search(model: Transducer, encoder_out: torch.Tensor, id2word: dict) -> List[str]:
+def greedy_search(
+    model: Transducer, encoder_out: torch.Tensor, id2word: dict
+) -> List[str]:
     """
     Args:
       model:

@@ -282,11 +282,8 @@ class SluDataModule(DataModule):
         )
         return cuts_valid
 
-
     @lru_cache()
     def test_cuts(self) -> List[CutSet]:
         logging.info("About to get test cuts")
-        cuts_test = load_manifest_lazy(
-            self.args.feature_dir / "slu_cuts_test.jsonl.gz"
-        )
+        cuts_test = load_manifest_lazy(self.args.feature_dir / "slu_cuts_test.jsonl.gz")
         return cuts_test

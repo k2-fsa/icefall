@@ -19,11 +19,11 @@ consisting of words and tokens (i.e., phones) and does the following:
 
 5. Generate L_disambig.pt, in k2 format.
 """
+import argparse
 import math
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
-import argparse
 
 import k2
 import torch
@@ -299,8 +299,10 @@ def lexicon_to_fst(
     fsa = k2.Fsa.from_str(arcs, acceptor=False)
     return fsa
 
+
 parser = argparse.ArgumentParser()
-parser.add_argument('lm_dir')
+parser.add_argument("lm_dir")
+
 
 def main():
     args = parser.parse_args()
@@ -312,58 +314,58 @@ def main():
     sil_prob = 0.5
 
     for name, lexicon_filename in zip(names, lexicon_filenames):
-      lexicon = read_lexicon(lexicon_filename)
-      tokens = get_words(lexicon)
-      words = get_words(lexicon)
-      new_lexicon = []
-      for lexicon_item in lexicon:
-          new_lexicon.append((lexicon_item[0], [lexicon_item[0]]))
-      lexicon = new_lexicon
+        lexicon = read_lexicon(lexicon_filename)
+        tokens = get_words(lexicon)
+        words = get_words(lexicon)
+        new_lexicon = []
+        for lexicon_item in lexicon:
+            new_lexicon.append((lexicon_item[0], [lexicon_item[0]]))
+        lexicon = new_lexicon
 
-      lexicon_disambig, max_disambig = add_disambig_symbols(lexicon)
+        lexicon_disambig, max_disambig = add_disambig_symbols(lexicon)
 
-      for i in range(max_disambig + 1):
-          disambig = f"#{i}"
-          assert disambig not in tokens
-          tokens.append(f"#{i}")
+        for i in range(max_disambig + 1):
+            disambig = f"#{i}"
+            assert disambig not in tokens
+            tokens.append(f"#{i}")
 
-      tokens = ["<eps>"] + tokens
-      words = ['eps'] + words + ["#0", "!SIL"]
+        tokens = ["<eps>"] + tokens
+        words = ["eps"] + words + ["#0", "!SIL"]
 
-      token2id = generate_id_map(tokens)
-      word2id = generate_id_map(words)
+        token2id = generate_id_map(tokens)
+        word2id = generate_id_map(words)
 
-      write_mapping(out_dir / ("tokens_" + name + ".txt"), token2id)
-      write_mapping(out_dir / ("words_" + name + ".txt"), word2id)
-      write_lexicon(out_dir / ("lexicon_disambig_" + name + ".txt"), lexicon_disambig)
+        write_mapping(out_dir / ("tokens_" + name + ".txt"), token2id)
+        write_mapping(out_dir / ("words_" + name + ".txt"), word2id)
+        write_lexicon(out_dir / ("lexicon_disambig_" + name + ".txt"), lexicon_disambig)
 
-      L = lexicon_to_fst(
-          lexicon,
-          token2id=word2id,
-          word2id=word2id,
-          sil_token=sil_token,
-          sil_prob=sil_prob,
-      )
+        L = lexicon_to_fst(
+            lexicon,
+            token2id=word2id,
+            word2id=word2id,
+            sil_token=sil_token,
+            sil_prob=sil_prob,
+        )
 
-      L_disambig = lexicon_to_fst(
-          lexicon_disambig,
-          token2id=word2id,
-          word2id=word2id,
-          sil_token=sil_token,
-          sil_prob=sil_prob,
-          need_self_loops=True,
-      )
-      torch.save(L.as_dict(), out_dir / ("L_" + name + ".pt"))
-      torch.save(L_disambig.as_dict(), out_dir / ("L_disambig_" + name + ".pt"))
+        L_disambig = lexicon_to_fst(
+            lexicon_disambig,
+            token2id=word2id,
+            word2id=word2id,
+            sil_token=sil_token,
+            sil_prob=sil_prob,
+            need_self_loops=True,
+        )
+        torch.save(L.as_dict(), out_dir / ("L_" + name + ".pt"))
+        torch.save(L_disambig.as_dict(), out_dir / ("L_disambig_" + name + ".pt"))
 
-      if False:
-          # Just for debugging, will remove it
-          L.labels_sym = k2.SymbolTable.from_file(out_dir / "tokens.txt")
-          L.aux_labels_sym = k2.SymbolTable.from_file(out_dir / "words.txt")
-          L_disambig.labels_sym = L.labels_sym
-          L_disambig.aux_labels_sym = L.aux_labels_sym
-          L.draw(out_dir / "L.png", title="L")
-          L_disambig.draw(out_dir / "L_disambig.png", title="L_disambig")
+        if False:
+            # Just for debugging, will remove it
+            L.labels_sym = k2.SymbolTable.from_file(out_dir / "tokens.txt")
+            L.aux_labels_sym = k2.SymbolTable.from_file(out_dir / "words.txt")
+            L_disambig.labels_sym = L.labels_sym
+            L_disambig.aux_labels_sym = L.aux_labels_sym
+            L.draw(out_dir / "L.png", title="L")
+            L_disambig.draw(out_dir / "L_disambig.png", title="L_disambig")
 
 
 main()
