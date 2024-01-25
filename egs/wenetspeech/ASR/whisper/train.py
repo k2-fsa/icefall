@@ -253,6 +253,7 @@ def get_params() -> AttributeDict:
     params = AttributeDict(
         {
             "frame_shift_ms": 10.0,
+            "subsampling_factor": 2,
             "allowed_excess_duration_ratio": 0.1,
             "best_train_loss": float("inf"),
             "best_valid_loss": float("inf"),
