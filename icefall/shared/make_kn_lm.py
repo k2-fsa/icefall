@@ -169,7 +169,10 @@ class NgramCounts:
         with open(filename, encoding=default_encoding) as fp:
             for line in fp:
                 line = line.strip(strip_chars)
-                self.add_raw_counts_from_line(line.split()[0])
+                if self.ngram_order == 1:
+                    self.add_raw_counts_from_line(line.split()[0])
+                else:
+                    self.add_raw_counts_from_line(line)
                 lines_processed += 1
         if lines_processed == 0 or args.verbose > 0:
             print(
