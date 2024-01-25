@@ -50,10 +50,13 @@ torch.set_num_interop_threads(1)
 
 
 def compute_fbank_aishell(
-    num_mel_bins: int = 80, perturb_speed: bool = False, whisper_fbank: bool = False
+    num_mel_bins: int = 80,
+    perturb_speed: bool = False,
+    whisper_fbank: bool = False,
+    output_dir: str = "data/fbank",
 ):
     src_dir = Path("data/manifests")
-    output_dir = Path("data/fbank")
+    output_dir = Path(output_dir)
     num_jobs = min(15, os.cpu_count())
 
     dataset_parts = (
@@ -130,6 +133,12 @@ def get_args():
         default=False,
         help="Use WhisperFbank instead of Fbank. Default: False.",
     )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default="data/fbank",
+        help="Output directory. Default: data/fbank.",
+    )
     return parser.parse_args()
 
 
@@ -143,4 +152,5 @@ if __name__ == "__main__":
         num_mel_bins=args.num_mel_bins,
         perturb_speed=args.perturb_speed,
         whisper_fbank=args.whisper_fbank,
+        output_dir=args.output_dir,
     )

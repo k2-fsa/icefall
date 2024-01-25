@@ -28,6 +28,7 @@ python3 ./whisper/decode.py \
   --exp-dir whisper/exp_large_v2 \
   --model-name large-v2 \
   --epoch 999 --avg 1 \
+  --manifest-dir data/fbank_whisper \
   --beam-size 10 --max-duration 50
 
 # Command for decoding using pretrained models (before fine-tuning):
@@ -36,6 +37,7 @@ python3 ./whisper/decode.py \
   --exp-dir whisper/exp_large_v2 \
   --model-name large-v2 \
   --epoch -1 --avg 1 \
+  --manifest-dir data/fbank_whisper \
   --remove-whisper-encoder-input-length-restriction False \
   --beam-size 10 --max-duration 50
 

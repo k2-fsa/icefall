@@ -23,6 +23,7 @@ torchrun --nproc-per-node 8 ./whisper/train.py \
   --max-duration 200 \
   --exp-dir whisper/exp_large_v2 \
   --model-name large-v2 \
+  --manifest-dir data/fbank_whisper \
   --deepspeed \
   --deepspeed_config ./whisper/ds_config_zero1.json
 
@@ -30,6 +31,7 @@ torchrun --nproc-per-node 8 ./whisper/train.py \
 torchrun --nproc-per-node 8 ./whisper/train.py \
   --max-duration 200 \
   --exp-dir whisper/exp_medium \
+  --manifest-dir data/fbank_whisper \
   --base-lr 1e-5 \
   --model-name medium
 """
@@ -253,6 +255,7 @@ def get_params() -> AttributeDict:
     params = AttributeDict(
         {
             "frame_shift_ms": 10.0,
+            "subsampling_factor": 2,
             "allowed_excess_duration_ratio": 0.1,
             "best_train_loss": float("inf"),
             "best_valid_loss": float("inf"),

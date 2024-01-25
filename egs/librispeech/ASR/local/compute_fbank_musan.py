@@ -54,9 +54,11 @@ def is_cut_long(c: MonoCut) -> bool:
     return c.duration > 5
 
 
-def compute_fbank_musan(num_mel_bins: int = 80, whisper_fbank: bool = False):
+def compute_fbank_musan(
+    num_mel_bins: int = 80, whisper_fbank: bool = False, output_dir: str = "data/fbank"
+):
     src_dir = Path("data/manifests")
-    output_dir = Path("data/fbank")
+    output_dir = Path(output_dir)
     num_jobs = min(15, os.cpu_count())
 
     dataset_parts = (
@@ -129,6 +131,12 @@ def get_args():
         default=False,
         help="Use WhisperFbank instead of Fbank. Default: False.",
     )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default="data/fbank",
+        help="Output directory. Default: data/fbank.",
+    )
     return parser.parse_args()
 
 
@@ -138,5 +146,7 @@ if __name__ == "__main__":
     logging.basicConfig(format=formatter, level=logging.INFO)
     args = get_args()
     compute_fbank_musan(
-        num_mel_bins=args.num_mel_bins, whisper_fbank=args.whisper_fbank
+        num_mel_bins=args.num_mel_bins,
+        whisper_fbank=args.whisper_fbank,
+        output_dir=args.output_dir,
     )
