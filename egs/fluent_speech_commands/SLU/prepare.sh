@@ -9,16 +9,7 @@ stage=1
 stop_stage=5
 
 data_dir=path/to/fluent/speech/commands
-# data_dir=$1
 target_root_dir=data/
-# target_root_dir=$2
-
-# data_dir=/home/xli257/slu/fluent_speech_commands_dataset
-
-# lang_dir=data/lang_phone
-# lm_dir=data/lm
-# manifest_dir=data/manifests
-# fbanks_dir=data/fbanks
 
 lang_dir=${target_root_dir}/lang_phone
 lm_dir=${target_root_dir}/lm
@@ -45,7 +36,7 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
 fi
 
 if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
-  log "Stage 2: Compute fbank for yesno"
+  log "Stage 2: Compute fbank for SLU"
   mkdir -p $fbanks_dir
   python ./local/compute_fbank_slu.py $manifest_dir $fbanks_dir
 fi
