@@ -1,0 +1,38 @@
+{
+    "fp16": {
+        "enabled": true,
+        "loss_scale": 0,
+        "loss_scale_window": 100,
+        "initial_scale_power": 16,
+        "hysteresis": 2,
+        "min_loss_scale": 0.01
+    },
+    "zero_optimization": {
+        "stage": 1,
+        "allgather_partitions": true,
+        "allgather_bucket_size": 2e8,
+        "overlap_comm": true,
+        "reduce_scatter": true,
+        "reduce_bucket_size": 2e8,
+        "contiguous_gradients": true
+    },
+    "optimizer": {
+        "type": "Adam",
+        "params": {
+            "lr": 1e-5
+        }
+    },
+    "scheduler": {
+        "type": "WarmupLR",
+        "params": {
+            "warmup_min_lr": 0,
+            "warmup_max_lr": 1e-5,
+            "warmup_num_steps": 100
+        }
+    },
+    "gradient_accumulation_steps": 1,
+    "gradient_clipping": 5,
+    "steps_per_print": 50,
+    "train_micro_batch_size_per_gpu": 1,
+    "wall_clock_breakdown": false
+}

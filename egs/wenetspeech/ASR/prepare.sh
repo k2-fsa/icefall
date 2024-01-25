@@ -211,29 +211,13 @@ if [ $stage -le 130 ] && [ $stop_stage -ge 130 ]; then
 fi
 
 if [ $stage -le 131 ] && [ $stop_stage -ge 131 ]; then
-  log "Stage 131: test"
-
-  python3 ./local/compute_fbank_wenetspeech_splits.py \
-    --training-subset L \
-    --num-workers 8 \
-    --batch-duration 1000 \
-    --start 48 \
-    --stop 68 \
-    --num-mel-bins ${whisper_mel_bins} --whisper-fbank true \
-    --num-splits $num_splits
+  log "Stage 131: concat feats into train set"
+  if [ ! -f data/fbank/cuts_L.jsonl.gz ]; then
+    pieces=$(find data/fbank/L_split_1000 -name "cuts_L.*.jsonl.gz")
+    lhotse combine $pieces data/fbank/cuts_L.jsonl.gz
+  fi
 fi
 
-if [ $stage -le 132 ] && [ $stop_stage -ge 132 ]; then
-  log "Stage 132: test"
-
-  python3 ./local/compute_fbank_wenetspeech_splits.py \
-    --training-subset L \
-    --num-workers 8 \
-    --batch-duration 1000 \
-    --start 68 \
-    --num-mel-bins ${whisper_mel_bins} --whisper-fbank true \
-    --num-splits $num_splits
-fi
 
 if [ $stage -le 14 ] && [ $stop_stage -ge 14 ]; then
   log "Stage 14: Compute fbank for musan"

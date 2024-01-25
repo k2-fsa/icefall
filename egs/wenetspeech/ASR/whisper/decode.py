@@ -2,6 +2,7 @@
 # Copyright 2021 Xiaomi Corporation (Author: Liyong Guo,
 #                                            Fangjun Kuang,
 #                                            Wei Kang)
+#           2024 Yuekai Zhang
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -16,47 +17,64 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""
+Usage:
+# Command for decoding using fine-tuned models:
+git lfs install
+git clone https://huggingface.co/yuekai/icefall_asr_aishell_whisper
+ln -s icefall_asr_aishell_whisper/exp_large_v2/epoch-10-avg6.pt whisper/exp_large_v2/epoch-999.pt
+
+python3 ./whisper/decode.py \
+  --exp-dir whisper/exp_large_v2 \
+  --model-name large-v2 \
+  --epoch 999 --avg 1 \
+  --beam-size 10 --max-duration 50
+
+# Command for decoding using pretrained models (before fine-tuning):
+
+python3 ./whisper/decode.py \
+  --exp-dir whisper/exp_large_v2 \
+  --model-name large-v2 \
+  --epoch -1 --avg 1 \
+  --remove-whisper-encoder-input-length-restriction False \
+  --beam-size 10 --max-duration 50
+
+"""
 
 import argparse
 import logging
+import re
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-import whisper
-from whisper.normalizers import BasicTextNormalizer
 import k2
 import torch
 import torch.nn as nn
-from asr_datamodule import WenetSpeechAsrDataModule
-from model import load_model
+import whisper
 
-from icefall.checkpoint import load_checkpoint, average_checkpoints_with_averaged_model
-from icefall.decode import (
-    get_lattice,
-    nbest_decoding,
-    nbest_oracle,
-    one_best_decoding,
-    rescore_with_attention_decoder,
-)
-from lhotse.cut import Cut
+from asr_datamodule import WenetSpeechAsrDataModule
+from tn.chinese.normalizer import Normalizer
+from whisper.normalizers import BasicTextNormalizer
+from whisper_encoder_forward_monkey_patch import replace_whisper_encoder_forward
+from zhconv import convert
+
+from icefall.checkpoint import average_checkpoints_with_averaged_model, load_checkpoint
 from icefall.env import get_env_info
-from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
-    get_texts,
     setup_logger,
     store_transcripts,
+    str2bool,
     write_error_stats,
 )
-from zhconv import convert
-from tn.chinese.normalizer import Normalizer
-import re
+
 
 def average_checkpoints(
     filenames: List[Path], device: torch.device = torch.device("cpu")
 ) -> dict:
     """Average a list of checkpoints.
+    The function is mainly used for deepspeed converted checkpoint averaging, which only include model state_dict.
 
     Args:
       filenames:
@@ -71,9 +89,9 @@ def average_checkpoints(
     n = len(filenames)
 
     if "model" in torch.load(filenames[0], map_location=device):
-      avg = torch.load(filenames[0], map_location=device)["model"]
+        avg = torch.load(filenames[0], map_location=device)["model"]
     else:
-      avg = torch.load(filenames[0], map_location=device)
+        avg = torch.load(filenames[0], map_location=device)
 
     # Identify shared parameters. Two parameters are said to be shared
     # if they have the same data_ptr
@@ -89,9 +107,9 @@ def average_checkpoints(
 
     for i in range(1, n):
         if "model" in torch.load(filenames[i], map_location=device):
-          state_dict = torch.load(filenames[i], map_location=device)["model"]
+            state_dict = torch.load(filenames[i], map_location=device)["model"]
         else:
-          state_dict = torch.load(filenames[i], map_location=device)
+            state_dict = torch.load(filenames[i], map_location=device)
         for k in uniqued_names:
             avg[k] += state_dict[k]
 
@@ -103,33 +121,48 @@ def average_checkpoints(
 
     return avg
 
+
 def remove_punctuation(text: str or List[str]):
-  # https://github.com/yeyupiaoling/Whisper-Finetune/blob/master/utils/data_utils.py
-    punctuation = '!,.;:?、！，。；：？'
+    """Modified from https://github.com/yeyupiaoling/Whisper-Finetune/blob/master/utils/data_utils.py
+
+    Args:
+        text: It can be a string or a list of strings.
+    Returns:
+        Return a string or a list of strings without any punctuation.
+    """
+    punctuation = "!,.;:?、！，。；：？《》 "
     if isinstance(text, str):
-        text = re.sub(r'[{}]+'.format(punctuation), '', text).strip()
+        text = re.sub(r"[{}]+".format(punctuation), "", text).strip()
         return text
     elif isinstance(text, list):
         result_text = []
         for t in text:
-            t = re.sub(r'[{}]+'.format(punctuation), '', t).strip()
+            t = re.sub(r"[{}]+".format(punctuation), "", t).strip()
             result_text.append(t)
         return result_text
     else:
-        raise Exception(f'Not support type {type(text)}')
+        raise Exception(f"Not support type {type(text)}")
+
 
 def to_simple(text: str or List[str]):
+    """Convert traditional Chinese to simplified Chinese.
+    Args:
+        text: It can be a string or a list of strings.
+    Returns:
+        Return a string or a list of strings converted to simplified Chinese.
+    """
     if isinstance(text, str):
-        text = convert(text, 'zh-cn')
+        text = convert(text, "zh-cn")
         return text
     elif isinstance(text, list):
         result_text = []
         for t in text:
-            t = convert(t, 'zh-cn')
+            t = convert(t, "zh-cn")
             result_text.append(t)
         return result_text
     else:
-        raise Exception(f'Not support type{type(text)}')
+        raise Exception(f"Not support type{type(text)}")
+
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -184,7 +217,14 @@ def get_parser():
         help="""The model name to use.
         """,
     )
-  
+
+    parser.add_argument(
+        "--remove-whisper-encoder-input-length-restriction",
+        type=str2bool,
+        default=True,
+        help="replace whisper encoder forward method to remove input length restriction",
+    )
+
     return parser
 
 
@@ -196,6 +236,7 @@ def get_params() -> AttributeDict:
     )
     return params
 
+
 def decode_one_batch(
     params: AttributeDict,
     model: nn.Module,
@@ -204,42 +245,17 @@ def decode_one_batch(
     """Decode one batch and return the result in a dict. The dict has the
     following format:
 
-        - key: It indicates the setting used for decoding. For example,
-               if decoding method is 1best, the key is the string `no_rescore`.
-               If attention rescoring is used, the key is the string
-               `ngram_lm_scale_xxx_attention_scale_xxx`, where `xxx` is the
-               value of `lm_scale` and `attention_scale`. An example key is
-               `ngram_lm_scale_0.7_attention_scale_0.5`
-        - value: It contains the decoding result. `len(value)` equals to
-                 batch size. `value[i]` is the decoding result for the i-th
-                 utterance in the given batch.
+        - key: "beam-search"
+        - value: A list of lists. Each sublist is a list of token IDs.
     Args:
-      params:
-        It's the return value of :func:`get_params`.
-
-        - params.method is "1best", it uses 1best decoding without LM rescoring.
-        - params.method is "nbest", it uses nbest decoding without LM rescoring.
-        - params.method is "attention-decoder", it uses attention rescoring.
-
-      model:
-        The neural model.
-      HLG:
-        The decoding graph. Used when params.method is NOT ctc-decoding.
-      H:
-        The ctc topo. Used only when params.method is ctc-decoding.
-      batch:
-        It is the return value from iterating
-        `lhotse.dataset.K2SpeechRecognitionDataset`. See its documentation
-        for the format of the `batch`.
-      lexicon:
-        It contains the token symbol table and the word symbol table.
-      sos_id:
-        The token ID of the SOS.
-      eos_id:
-        The token ID of the EOS.
+        params:
+            It is returned by :func:`get_params`.
+        model:
+            The neural model.
+        batch:
+            It is returned by :meth:`torch.utils.data.DataLoader.__iter__`.
     Returns:
-      Return the decoding result. See above description for the format of
-      the returned dict.
+        Return a dict, whose key may be "beam-search".
     """
     dtype = torch.float16
     device = torch.device("cuda")
@@ -247,21 +263,30 @@ def decode_one_batch(
     feature = batch["inputs"]
     assert feature.ndim == 3
     feature = feature.to(device, dtype=dtype).transpose(1, 2)
+    if not params.remove_whisper_encoder_input_length_restriction:
+        T = 3000
+        if feature.shape[2] < T:
+            feature = torch.cat(
+                [
+                    feature,
+                    torch.zeros(
+                        feature.shape[0], feature.shape[1], T - feature.shape[2]
+                    ).to(device, dtype=dtype),
+                ],
+                2,
+            )
 
     supervisions = batch["supervisions"]
     feature_len = supervisions["num_frames"]
     feature_len = feature_len.to(device, dtype=dtype)
     results = model.decode(feature, params.decoding_options)
     hyps = [result.text for result in results]
-    
+
     hyps = remove_punctuation(hyps)
     hyps = to_simple(hyps)
-
     hyps = [params.normalizer.normalize(hyp) for hyp in hyps]
-    print(hyps)
-    key = "beam-search"
 
-    return {key: hyps}
+    return {"beam-search": hyps}
 
 
 def decode_dataset(
@@ -272,28 +297,14 @@ def decode_dataset(
     """Decode dataset.
 
     Args:
-      dl:
-        PyTorch's dataloader containing the dataset to decode.
-      params:
-        It is returned by :func:`get_params`.
-      model:
-        The neural model.
-      HLG:
-        The decoding graph. Used when params.method is NOT ctc-decoding.
-      H:
-        The ctc topo. Used only when params.method is ctc-decoding.
-      lexicon:
-        It contains the token symbol table and the word symbol table.
-      sos_id:
-        The token ID for SOS.
-      eos_id:
-        The token ID for EOS.
+        dl:
+            The dataloader.
+        params:
+            It is returned by :func:`get_params`.
+        model:
+            The neural model.
     Returns:
-      Return a dict, whose key may be "no-rescore" if the decoding method is
-      1best or it may be "ngram_lm_scale_0.7_attention_scale_0.5" if attention
-      rescoring is used. Its value is a list of tuples. Each tuple contains two
-      elements: The first is the reference transcript, and the second is the
-      predicted result.
+        Return a dict, whose key may be "beam-search".
     """
     results = []
 
@@ -342,7 +353,9 @@ def save_results(
     enable_log = True
     test_set_wers = dict()
     for key, results in results_dict.items():
-        recog_path = params.exp_dir / f"recogs-{test_set_name}-{key}-{params.suffix}.txt"
+        recog_path = (
+            params.exp_dir / f"recogs-{test_set_name}-{key}-{params.suffix}.txt"
+        )
         results = sorted(results)
         store_transcripts(filename=recog_path, texts=results)
         if enable_log:
@@ -350,7 +363,9 @@ def save_results(
 
         # The following prints out WERs, per-word error statistics and aligned
         # ref/hyp pairs.
-        errs_filename = params.exp_dir / f"errs-{test_set_name}-{key}-{params.suffix}.txt"
+        errs_filename = (
+            params.exp_dir / f"errs-{test_set_name}-{key}-{params.suffix}.txt"
+        )
         # we compute CER for aishell dataset.
         results_char = []
         for res in results:
@@ -382,20 +397,27 @@ def save_results(
 @torch.no_grad()
 def main():
     parser = get_parser()
-    WenetSpeechAsrDataModule.add_arguments(parser)
+    AishellAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 
     params = get_params()
     params.update(vars(args))
     params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
-    setup_logger(f"{params.exp_dir}/log-{params.method}-beam{params.beam_size}/log-decode-{params.suffix}")
+    setup_logger(
+        f"{params.exp_dir}/log-{params.method}-beam{params.beam_size}/log-decode-{params.suffix}"
+    )
 
-    options = whisper.DecodingOptions(task="transcribe", language="zh", without_timestamps=True, beam_size=params.beam_size)
+    options = whisper.DecodingOptions(
+        task="transcribe",
+        language="zh",
+        without_timestamps=True,
+        beam_size=params.beam_size,
+    )
     params.decoding_options = options
     params.cleaner = BasicTextNormalizer()
     params.normalizer = Normalizer()
-  
+
     logging.info("Decoding started")
     logging.info(params)
 
@@ -405,39 +427,49 @@ def main():
 
     logging.info(f"device: {device}")
 
-    model = load_model(params.model_name)
+    if params.remove_whisper_encoder_input_length_restriction:
+        replace_whisper_encoder_forward()
+    model = whisper.load_model(params.model_name, "cpu")
     if params.epoch > 0:
-      if params.avg > 1:
-        start = params.epoch - params.avg
-        assert start >= 1, start
-        checkpoint = torch.load(f"{params.exp_dir}/epoch-{params.epoch}.pt", map_location='cpu')
-        if 'model' not in checkpoint:
-            filenames = [f"{params.exp_dir}/epoch-{epoch}.pt" for epoch in range(start, params.epoch + 1)]
-            model.load_state_dict(average_checkpoints(filenames))
-        else:
-            filename_start = f"{params.exp_dir}/epoch-{start}.pt"
-            filename_end = f"{params.exp_dir}/epoch-{params.epoch}.pt"
-            logging.info(
-                f"Calculating the averaged model over epoch range from "
-                f"{start} (excluded) to {params.epoch}"
+        if params.avg > 1:
+            start = params.epoch - params.avg
+            assert start >= 1, start
+            checkpoint = torch.load(
+                f"{params.exp_dir}/epoch-{params.epoch}.pt", map_location="cpu"
             )
-            model.to(device)
-            model.load_state_dict(
-                average_checkpoints_with_averaged_model(
-                    filename_start=filename_start,
-                    filename_end=filename_end,
-                    device=device,
+            if "model" not in checkpoint:
+                # deepspeed converted checkpoint only contains model state_dict
+                filenames = [
+                    f"{params.exp_dir}/epoch-{epoch}.pt"
+                    for epoch in range(start, params.epoch + 1)
+                ]
+                model.load_state_dict(average_checkpoints(filenames))
+            else:
+                filename_start = f"{params.exp_dir}/epoch-{start}.pt"
+                filename_end = f"{params.exp_dir}/epoch-{params.epoch}.pt"
+                logging.info(
+                    f"Calculating the averaged model over epoch range from "
+                    f"{start} (excluded) to {params.epoch}"
                 )
-            )
-        # save checkpoints
-        filename = f"{params.exp_dir}/epoch-{params.epoch}-avg-{params.avg}.pt"
-        torch.save(model.state_dict(), filename)
-      else:
-        checkpoint = torch.load(f"{params.exp_dir}/epoch-{params.epoch}.pt", map_location='cpu')
-        if 'model' not in checkpoint:
-            model.load_state_dict(checkpoint, strict=True)
+                model.to(device)
+                model.load_state_dict(
+                    average_checkpoints_with_averaged_model(
+                        filename_start=filename_start,
+                        filename_end=filename_end,
+                        device=device,
+                    )
+                )
+            # save checkpoints
+            filename = f"{params.exp_dir}/epoch-{params.epoch}-avg-{params.avg}.pt"
+            torch.save(model.state_dict(), filename)
         else:
-            load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
+            checkpoint = torch.load(
+                f"{params.exp_dir}/epoch-{params.epoch}.pt", map_location="cpu"
+            )
+            if "model" not in checkpoint:
+                model.load_state_dict(checkpoint, strict=True)
+            else:
+                load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
     model.to(device)
     model.eval()
     num_param = sum([p.numel() for p in model.parameters()])
@@ -446,25 +478,13 @@ def main():
     # we need cut ids to display recognition results.
     args.return_cuts = True
     wenetspeech = WenetSpeechAsrDataModule(args)
+    dev_cuts = wenetspeech.valid_cuts()
+    dev_dl = wenetspeech.valid_dataloaders(dev_cuts)
 
-    def remove_short_utt(c: Cut):
-        T = ((c.num_frames - 7) // 2 + 1) // 2
-        if T <= 0:
-            logging.warning(
-                f"Exclude cut with ID {c.id} from decoding, num_frames : {c.num_frames}."
-            )
-        return T > 0
-
-    # dev_cuts = wenetspeech.valid_cuts()
-    # dev_cuts = dev_cuts.filter(remove_short_utt)
-    # dev_dl = wenetspeech.valid_dataloaders(dev_cuts)
-
-    # test_net_cuts = wenetspeech.test_net_cuts()
-    # test_net_cuts = test_net_cuts.filter(remove_short_utt)
-    # test_net_dl = wenetspeech.test_dataloaders(test_net_cuts)
+    test_net_cuts = wenetspeech.test_net_cuts()
+    test_net_dl = wenetspeech.test_dataloaders(test_net_cuts)
 
     test_meeting_cuts = wenetspeech.test_meeting_cuts()
-    test_meeting_cuts = test_meeting_cuts.filter(remove_short_utt)
     test_meeting_dl = wenetspeech.test_dataloaders(test_meeting_cuts)
 
     # test_sets = ["DEV", "TEST_NET", "TEST_MEETING"]
