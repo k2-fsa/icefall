@@ -67,7 +67,9 @@ import torch.multiprocessing as mp
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
 from decoder import Decoder
+from frame_reducer import FrameReducer
 from joiner import Joiner
+from lconv import LConv
 from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
@@ -256,6 +258,13 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         type=str2bool,
         default=False,
         help="If True, use CTC head.",
+    )
+
+    parser.add_argument(
+        "--use-bs",
+        type=str2bool,
+        default=False,
+        help="If True, use blank-skip.",
     )
 
 
@@ -529,6 +538,7 @@ def get_params() -> AttributeDict:
             "reset_interval": 200,
             "valid_interval": 3000,  # For the 100h subset, use 800
             # parameters for zipformer
+            "ctc_beam_size": 10,
             "feature_dim": 80,
             "subsampling_factor": 4,  # not passed in, this is fixed.
             "warm_step": 2000,
@@ -583,6 +593,16 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
     return encoder
 
 
+def get_lconv(params: AttributeDict) -> nn.Module:
+    lconv = LConv(channels=max(params.encoder_dim))
+    return lconv
+
+
+def get_frame_reducer(params: AttributeDict) -> nn.Module:
+    frame_reducer = FrameReducer()
+    return frame_reducer
+
+
 def get_decoder_model(params: AttributeDict) -> nn.Module:
     decoder = Decoder(
         vocab_size=params.vocab_size,
@@ -620,16 +640,24 @@ def get_model(params: AttributeDict) -> nn.Module:
         decoder = None
         joiner = None
 
+    lconv, frame_reducer = None, None
+    if params.use_bs:
+        lconv = get_lconv(params)
+        frame_reducer = get_frame_reducer(params)
+
     model = AsrModel(
         encoder_embed=encoder_embed,
         encoder=encoder,
         decoder=decoder,
         joiner=joiner,
+        lconv=lconv,
+        frame_reducer=frame_reducer,
         encoder_dim=max(_to_int_tuple(params.encoder_dim)),
         decoder_dim=params.decoder_dim,
         vocab_size=params.vocab_size,
         use_transducer=params.use_transducer,
         use_ctc=params.use_ctc,
+        use_bs=params.use_bs,
     )
     return model
 
@@ -756,6 +784,7 @@ def compute_loss(
     sp: spm.SentencePieceProcessor,
     batch: dict,
     is_training: bool,
+    warmup: float,
 ) -> Tuple[Tensor, MetricsTracker]:
     """
     Compute loss given the model and its inputs.
@@ -796,9 +825,12 @@ def compute_loss(
             x=feature,
             x_lens=feature_lens,
             y=y,
+            supervisions=supervisions,
             prune_range=params.prune_range,
             am_scale=params.am_scale,
             lm_scale=params.lm_scale,
+            ctc_beam_size=params.ctc_beam_size,
+            warmup=warmup,
         )
 
         loss = 0.0
@@ -859,6 +891,7 @@ def compute_validation_loss(
             sp=sp,
             batch=batch,
             is_training=False,
+            warmup=(params.batch_idx_train / params.warm_step),
         )
         assert loss.requires_grad is False
         tot_loss = tot_loss + loss_info
@@ -953,6 +986,7 @@ def train_one_epoch(
                     sp=sp,
                     batch=batch,
                     is_training=True,
+                    warmup=(params.batch_idx_train / params.warm_step),
                 )
             # summary stats
             tot_loss = (tot_loss * (1 - 1 / params.reset_interval)) + loss_info
