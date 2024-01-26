@@ -376,3 +376,16 @@ if [ $stage -le 12 ] && [ $stop_stage -ge 12 ]; then
     --vocab-size 4336 \
     --master-port 12345
 fi
+
+# whisper large-v3 using 128 mel bins, others using 80 mel bins
+whisper_mel_bins=80
+output_dir=data/fbank_whisper
+if [ $stage -le 30 ] && [ $stop_stage -ge 30 ]; then
+  log "Stage 30: Compute ${whisper_mel_bins} dim fbank for whisper model fine-tuning"
+  if [ ! -f $output_dir/.aishell.whisper.done ]; then
+    mkdir -p $output_dir
+    ./local/compute_fbank_aishell.py --perturb-speed ${perturb_speed} --num-mel-bins ${whisper_mel_bins} --whisper-fbank true --output-dir $output_dir
+    ./local/compute_fbank_musan.py --num-mel-bins ${whisper_mel_bins} --whisper-fbank true --output-dir $output_dir
+    touch $output_dir/.aishell.whisper.done
+  fi
+fi

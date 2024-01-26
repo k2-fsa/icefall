@@ -1,5 +1,63 @@
 ## Results
 
+### Aishell training results (Fine-tuning Pretrained Models)
+#### Whisper
+[./whisper](./whisper)
+##### fine-tuning results on Aishell test set on whisper medium, large-v2, large-v3
+
+|                        | test (before fine-tuning) | test (after fine-tuning)  | comment                                 |
+|------------------------|------|------|-----------------------------------------|
+| medium         | 7.23 | 3.27 | --epoch 10 --avg 4,  ddp                         |
+| large-v2       | 6.56 | 2.47 | --epoch 10 --avg 6,  deepspeed zero stage1       |
+| large-v3       | 6.06 | 2.84 | --epoch 5 --avg 3,   deepspeed zero stage1       |
+
+Command for training is:
+```bash
+pip install -r whisper/requirements.txt
+
+./prepare.sh --stage 30 --stop_stage 30
+
+#fine-tuning with deepspeed zero stage 1
+torchrun --nproc-per-node 8 ./whisper/train.py \
+  --max-duration 200 \
+  --exp-dir whisper/exp_large_v2 \
+  --model-name large-v2 \
+  --deepspeed \
+  --deepspeed_config ./whisper/ds_config_zero1.json
+
+# fine-tuning with ddp
+torchrun --nproc-per-node 8 ./whisper/train.py \
+  --max-duration 200 \
+  --exp-dir whisper/exp_medium \
+  --base-lr 1e-5 \
+  --model-name medium
+```
+
+Command for decoding using fine-tuned models:
+```bash
+git lfs install
+git clone https://huggingface.co/yuekai/icefall_asr_aishell_whisper
+ln -s icefall_asr_aishell_whisper/exp_large_v2/epoch-10-avg6.pt whisper/exp_large_v2/epoch-999.pt
+
+python3 ./whisper/decode.py \
+  --exp-dir whisper/exp_large_v2 \
+  --model-name large-v2 \
+  --epoch 999 --avg 1 \
+  --beam-size 10 --max-duration 50
+```
+Command for decoding using pretrained models (before fine-tuning):
+```bash
+python3 ./whisper/decode.py \
+  --exp-dir whisper/exp_large_v2 \
+  --model-name large-v2 \
+  --epoch -1 --avg 1 \
+  --remove-whisper-encoder-input-length-restriction False \
+  --beam-size 10 --max-duration 50
+```
+Fine-tuned models, training logs, decoding logs, tensorboard and decoding results
+are available at
+<https://huggingface.co/yuekai/icefall_asr_aishell_whisper>
+
 ### Aishell training result (Stateless Transducer)
 
 #### Zipformer (Byte-level BPE)
@@ -71,7 +129,7 @@ It's reworked Zipformer with Pruned RNNT loss.
 
 Command for training is:
 ```bash
-./prepare.sh 
+./prepare.sh
 
 export CUDA_VISIBLE_DEVICES="0,1"
 
@@ -136,7 +194,7 @@ export CUDA_VISIBLE_DEVICES="0,1"
   --feedforward-dim 512,768,768,768,768,768 \
   --encoder-dim 192,256,256,256,256,256 \
   --encoder-unmasked-dim 192,192,192,192,192,192 \
-  --max-duration 1200 
+  --max-duration 1200
 ```
 
 Command for decoding is:
@@ -186,7 +244,7 @@ export CUDA_VISIBLE_DEVICES="0,1"
   --feedforward-dim 512,768,1536,2048,1536,768 \
   --encoder-dim 192,256,512,768,512,256 \
   --encoder-unmasked-dim 192,192,256,320,256,192 \
-  --max-duration 800 
+  --max-duration 800
 ```
 
 Command for decoding is:
@@ -202,7 +260,7 @@ for m in greedy_search modified_beam_search fast_beam_search ; do
     --num-encoder-layers 2,2,4,5,4,2 \
     --feedforward-dim 512,768,1536,2048,1536,768 \
     --encoder-dim 192,256,512,768,512,256 \
-    --encoder-unmasked-dim 192,192,256,320,256,192 
+    --encoder-unmasked-dim 192,192,256,320,256,192
 done
 ```
 
@@ -755,7 +813,6 @@ python3 ./transducer_stateless/decode.py \
        --max-sym-per-frame 3
 ```
 
-### Aishell training results (Transducer-stateless)
 #### 2022-02-18
 (Pingfeng Luo) : The tensorboard log for training is available at <https://tensorboard.dev/experiment/k3QL6QMhRbCwCKYKM9po9w/>
 And pretrained model is available at <https://huggingface.co/pfluo/icefall-aishell-transducer-stateless-char-2021-12-29>
