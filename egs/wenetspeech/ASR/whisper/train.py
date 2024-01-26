@@ -834,8 +834,9 @@ def run(rank, world_size, args):
             # )
             return False
         return True
-
-    train_dl = wenetspeech.train_dataloaders(wenetspeech.train_cuts(remove_short_and_long_utt))
+    train_cuts = wenetspeech.train_cuts()
+    train_cuts = train_cuts.filter(remove_short_and_long_utt)
+    train_dl = wenetspeech.train_dataloaders(train_cuts)
     valid_dl = wenetspeech.valid_dataloaders(wenetspeech.valid_cuts())
 
     scaler = GradScaler(enabled=params.use_fp16, init_scale=1.0)
