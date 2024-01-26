@@ -26,7 +26,7 @@ Usage:
 
 ./pruned_transducer_stateless7_streaming/export.py \
   --exp-dir ./pruned_transducer_stateless7_streaming/exp \
-  --bpe-model data/lang_bpe_500/bpe.model \
+  --tokens data/lang_bpe_500/tokens.txt \
   --epoch 30 \
   --avg 9 \
   --jit 1
@@ -45,7 +45,7 @@ for how to use the exported models outside of icefall.
 
 ./pruned_transducer_stateless7_streaming/export.py \
   --exp-dir ./pruned_transducer_stateless7_streaming/exp \
-  --bpe-model data/lang_bpe_500/bpe.model \
+  --tokens data/lang_bpe_500/tokens.txt \
   --epoch 20 \
   --avg 10
 
@@ -87,7 +87,7 @@ cd ./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/e
 ln -s pretrained.pt epoch-999.pt
 ./pruned_transducer_stateless7_streaming/export.py \
   --exp-dir ./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/exp \
-  --bpe-model data/lang_bpe_500/bpe.model \
+  --tokens data/lang_bpe_500/tokens.txt \
   --use-averaged-model False \
   --epoch 999 \
   --avg 1 \
@@ -113,7 +113,7 @@ cd ./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/e
 ln -s pretrained.pt epoch-999.pt
 ./pruned_transducer_stateless7_streaming/export.py \
   --exp-dir ./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/exp \
-  --bpe-model data/lang_bpe_500/bpe.model \
+  --tokens data/lang_bpe_500/tokens.txt \
   --use-averaged-model False \
   --epoch 999 \
   --avg 1 \
