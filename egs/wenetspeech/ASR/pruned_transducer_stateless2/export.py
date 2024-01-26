@@ -24,7 +24,7 @@ Usage:
 
 ./pruned_transducer_stateless2/export.py \
   --exp-dir ./pruned_transducer_stateless2/exp \
-  --lang-dir data/lang_char \
+  --tokens data/lang_char/tokens.txt \
   --epoch 10 \
   --avg 2 \
   --jit 1
@@ -47,7 +47,7 @@ for how to use them.
 
 ./pruned_transducer_stateless2/export.py \
   --exp-dir ./pruned_transducer_stateless2/exp \
-  --lang-dir data/lang_char \
+  --tokens data/lang_char/tokens.txt \
   --epoch 10 \
   --avg 2 \
   --jit-trace 1
@@ -63,7 +63,7 @@ Check ./jit_pretrained.py for usage.
 
 ./pruned_transducer_stateless2/export.py \
   --exp-dir ./pruned_transducer_stateless2/exp \
-  --lang-dir data/lang_char \
+  --tokens data/lang_char/tokens.txt \
   --epoch 10 \
   --avg 2
 
