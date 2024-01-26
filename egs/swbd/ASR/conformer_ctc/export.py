@@ -118,7 +118,7 @@ def main():
         num_features=params.feature_dim,
         nhead=params.nhead,
         d_model=params.attention_dim,
-        num_classes=num_classes,
+        num_classes=params.vocab_size,
         subsampling_factor=params.subsampling_factor,
         num_decoder_layers=params.num_decoder_layers,
         vgg_frontend=False,

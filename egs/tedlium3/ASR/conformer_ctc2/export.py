@@ -182,7 +182,7 @@ def main():
 
     model = Conformer(
         num_features=params.feature_dim,
-        num_classes=num_classes,
+        num_classes=params.vocab_size,
         subsampling_factor=params.subsampling_factor,
         d_model=params.dim_model,
         nhead=params.nhead,
