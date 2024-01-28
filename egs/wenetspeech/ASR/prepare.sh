@@ -205,7 +205,7 @@ if [ $stage -le 130 ] && [ $stop_stage -ge 130 ]; then
     --num-splits $num_splits
 
   if [ ! -f data/fbank/cuts_L.jsonl.gz ]; then
-    pieces=$(find data/fbank/L_split_1000 -name "cuts_L.*.jsonl.gz")
+    pieces=$(find data/fbank/L_split_${num_splits} -name "cuts_L.*.jsonl.gz")
     lhotse combine $pieces data/fbank/cuts_L.jsonl.gz
   fi
 fi
@@ -213,7 +213,7 @@ fi
 if [ $stage -le 131 ] && [ $stop_stage -ge 131 ]; then
   log "Stage 131: concat feats into train set"
   if [ ! -f data/fbank/cuts_L.jsonl.gz ]; then
-    pieces=$(find data/fbank/L_split_1000 -name "cuts_L.*.jsonl.gz")
+    pieces=$(find data/fbank/L_split_${num_splits} -name "cuts_L.*.jsonl.gz")
     lhotse combine $pieces data/fbank/cuts_L.jsonl.gz
   fi
 fi

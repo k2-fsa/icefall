@@ -285,7 +285,7 @@ def decode_one_batch(
     hyps = remove_punctuation(hyps)
     hyps = to_simple(hyps)
     hyps = [params.normalizer.normalize(hyp) for hyp in hyps]
-
+    print(hyps)
     return {"beam-search": hyps}
 
 
@@ -487,11 +487,11 @@ def main():
     test_meeting_cuts = wenetspeech.test_meeting_cuts()
     test_meeting_dl = wenetspeech.test_dataloaders(test_meeting_cuts)
 
-    # test_sets = ["DEV", "TEST_NET", "TEST_MEETING"]
-    # test_dls = [dev_dl, test_net_dl, test_meeting_dl]
+    test_sets = ["DEV", "TEST_NET", "TEST_MEETING"]
+    test_dls = [dev_dl, test_net_dl, test_meeting_dl]
 
-    test_sets = ["TEST_MEETING"]
-    test_dls = [test_meeting_dl]
+    # test_sets = ["TEST_MEETING"]
+    # test_dls = [test_meeting_dl]
 
     for test_set, test_dl in zip(test_sets, test_dls):
         results_dict = decode_dataset(
