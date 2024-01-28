@@ -4,7 +4,7 @@ git+https://github.com/lhotse-speech/lhotse
 sentencepiece
 tensorboard
 librosa
-openai-whisper==20231117
+git+https://github.com/yuekaizhang/whisper.git
 zhconv
 WeTextProcessing
 deepspeed
