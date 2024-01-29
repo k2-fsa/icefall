@@ -58,7 +58,7 @@ from tn.chinese.normalizer import Normalizer
 from whisper.normalizers import BasicTextNormalizer
 from whisper_encoder_forward_monkey_patch import replace_whisper_encoder_forward
 from zhconv import convert
-
+from lhotse.cut import Cut
 from icefall.checkpoint import average_checkpoints_with_averaged_model, load_checkpoint
 from icefall.env import get_env_info
 from icefall.utils import (
