@@ -481,7 +481,18 @@ def main():
     dev_cuts = wenetspeech.valid_cuts()
     dev_dl = wenetspeech.valid_dataloaders(dev_cuts)
 
+    def remove_long_utt(c: Cut):
+        # Keep only utterances with duration in 30 seconds
+        #
+        if c.duration > 30.0:
+            # logging.warning(
+            #    f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
+            # )
+            return False
+        return True
+
     test_net_cuts = wenetspeech.test_net_cuts()
+    test_net_cuts = test_net_cuts.filter(remove_long_utt)
     test_net_dl = wenetspeech.test_dataloaders(test_net_cuts)
 
     test_meeting_cuts = wenetspeech.test_meeting_cuts()
