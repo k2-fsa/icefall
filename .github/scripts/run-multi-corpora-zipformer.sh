@@ -123,6 +123,8 @@ ls -lh $repo/exp/*.pt
   --tokens $repo/data/lang_bpe_2000/tokens.txt \
   --use-ctc 1 \
   --causal 1 \
+  --chunk-size 16 \
+  --left-context-frames 128 \
   --method greedy_search \
 $repo/test_wavs/DEV_T0000000000.wav \
 $repo/test_wavs/DEV_T0000000001.wav \
@@ -136,6 +138,8 @@ for method in modified_beam_search fast_beam_search; do
     --beam-size 4 \
     --use-ctc 1 \
     --causal 1 \
+    --chunk-size 16 \
+    --left-context-frames 128 \
     --checkpoint $repo/exp/epoch-99.pt \
     --tokens $repo/data/lang_bpe_2000/tokens.txt \
   $repo/test_wavs/DEV_T0000000000.wav \
