@@ -79,7 +79,7 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   log "Stage 2: Process aishell4"
   if [ ! -f data/fbank/aishell4/.fbank.done ]; then
     mkdir -p data/fbank/aishell4
-    lhotse prepare aishell4 $dl_dir/aishell4 data/manifests/aishell4
+    ./local/compute_fbank_aishell4.py --perturb-speed ${perturb_speed}
     touch data/fbank/aishell4/.fbank.done
   fi
 fi

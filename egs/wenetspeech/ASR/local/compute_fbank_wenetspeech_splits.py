@@ -78,14 +78,14 @@ def get_parser():
         "--start",
         type=int,
         default=0,
-        help="Process pieces starting from this number (inclusive).",
+        help="Process pieces starting from this number (included).",
     )
 
     parser.add_argument(
         "--stop",
         type=int,
         default=-1,
-        help="Stop processing pieces until this number (exclusive).",
+        help="Stop processing pieces until this number (excluded).",
     )
     return parser
 

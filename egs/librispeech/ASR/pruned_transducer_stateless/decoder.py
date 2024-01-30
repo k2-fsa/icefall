@@ -91,7 +91,7 @@ class Decoder(nn.Module):
         Returns:
           Return a tensor of shape (N, U, embedding_dim).
         """
-        embedding_out = self.embedding(y)
+        embedding_out = self.embedding(y.clamp(min=0)) * (y >= 0).unsqueeze(-1)
         if self.context_size > 1:
             embedding_out = embedding_out.permute(0, 2, 1)
             if need_pad is True:

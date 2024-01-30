@@ -24,3 +24,10 @@ The following table lists the differences among them.
 The decoder in `transducer_stateless` is modified from the paper
 [Rnn-Transducer with Stateless Prediction Network](https://ieeexplore.ieee.org/document/9054419/).
 We place an additional Conv1d layer right after the input embedding layer.
+
+# Whisper
+
+Recipe to finetune large pretrained models
+|                                    | Encoder   | Decoder            | Comment                                                                           |
+|------------------------------------|-----------|--------------------|-----------------------------------------------------------------------------------|
+| `whisper`             | Transformer | Transformer | support fine-tuning using deepspeed

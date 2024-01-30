@@ -24,7 +24,7 @@ Usage:
 
 ./pruned_transducer_stateless2/export.py \
   --exp-dir ./pruned_transducer_stateless2/exp \
-  --lang-dir data/lang_char \
+  --tokens data/lang_char/tokens.txt \
   --epoch 10 \
   --avg 2 \
   --jit 1
@@ -47,7 +47,7 @@ for how to use them.
 
 ./pruned_transducer_stateless2/export.py \
   --exp-dir ./pruned_transducer_stateless2/exp \
-  --lang-dir data/lang_char \
+  --tokens data/lang_char/tokens.txt \
   --epoch 10 \
   --avg 2 \
   --jit-trace 1
@@ -63,7 +63,7 @@ Check ./jit_pretrained.py for usage.
 
 ./pruned_transducer_stateless2/export.py \
   --exp-dir ./pruned_transducer_stateless2/exp \
-  --lang-dir data/lang_char \
+  --tokens data/lang_char/tokens.txt \
   --epoch 10 \
   --avg 2
 
@@ -91,14 +91,14 @@ import argparse
 import logging
 from pathlib import Path
 
+import k2
 import torch
 import torch.nn as nn
 from scaling_converter import convert_scaled_to_non_scaled
 from train import get_params, get_transducer_model
 
 from icefall.checkpoint import average_checkpoints, load_checkpoint
-from icefall.lexicon import Lexicon
-from icefall.utils import str2bool
+from icefall.utils import num_tokens, str2bool
 
 
 def get_parser():
@@ -133,10 +133,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--lang-dir",
+        "--tokens",
         type=str,
-        default="data/lang_char",
-        help="The lang dir",
+        default="data/lang_char/tokens.txt",
+        help="Path to the tokens.txt",
     )
 
     parser.add_argument(
@@ -313,10 +313,9 @@ def main():
 
     logging.info(f"device: {device}")
 
-    lexicon = Lexicon(params.lang_dir)
-
-    params.blank_id = 0
-    params.vocab_size = max(lexicon.tokens) + 1
+    token_table = k2.SymbolTable.from_file(params.tokens)
+    params.blank_id = token_table["<blk>"]
+    params.vocab_size = num_tokens(token_table) + 1
 
     logging.info(params)
 

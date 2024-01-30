@@ -7,6 +7,7 @@ set -eou pipefail
 
 stage=-1
 stop_stage=100
+perturb_speed=true
 
 # We assume dl_dir (download dir) contains the following
 # directories and files. If not, they will be downloaded
@@ -68,7 +69,7 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   log "Stage 2: Process alimeeting"
   if [ ! -f data/fbank/alimeeting/.fbank.done ]; then
     mkdir -p data/fbank/alimeeting
-    lhotse prepare ali-meeting $dl_dir/alimeeting data/manifests/alimeeting
+    ./local/compute_fbank_alimeeting.py --perturb-speed ${perturb_speed}
   fi
 fi
 
