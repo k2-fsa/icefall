@@ -4,3 +4,4 @@ from .prepare_lang import (
     make_lexicon_fst_with_silence,
 )
 from .topo import add_disambig_self_loops, add_one, build_standard_ctc_topo
+from .utils import merge_tokens
