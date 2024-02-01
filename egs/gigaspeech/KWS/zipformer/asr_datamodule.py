@@ -447,3 +447,38 @@ class GigaSpeechAsrDataModule:
         return load_manifest_lazy(
             self.args.manifest_dir / "gigaspeech_cuts_TEST.jsonl.gz"
         )
+
+    @lru_cache()
+    def libri_100_cuts(self) -> CutSet:
+        logging.info("About to get libri100 cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "librispeech_cuts_train-clean-100.jsonl.gz"
+        )
+
+    @lru_cache()
+    def fsc_train_cuts(self) -> CutSet:
+        logging.info("About to get fluent speech commands train cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "fluent_speech_commands_cuts_train.jsonl.gz"
+        )
+
+    @lru_cache()
+    def fsc_valid_cuts(self) -> CutSet:
+        logging.info("About to get fluent speech commands valid cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "fluent_speech_commands_cuts_valid.jsonl.gz"
+        )
+
+    @lru_cache()
+    def fsc_test_small_cuts(self) -> CutSet:
+        logging.info("About to get fluent speech commands small test cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "fluent_speech_commands_cuts_small.jsonl.gz"
+        )
+
+    @lru_cache()
+    def fsc_test_large_cuts(self) -> CutSet:
+        logging.info("About to get fluent speech commands large test cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "fluent_speech_commands_cuts_large.jsonl.gz"
+        )

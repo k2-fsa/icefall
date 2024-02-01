@@ -24,10 +24,9 @@ Usage:
     --avg 15 \
     --exp-dir ./zipformer/exp \
     --max-duration 600 \
-    --decoding-method modified_beam_search \
+    --keywords-file keywords.txt \
     --beam-size 4
 """
-
 
 import argparse
 import logging
@@ -164,9 +163,16 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--test-set",
+        type=str,
+        default="small",
+        help="small or large",
+    )
+
+    parser.add_argument(
         "--keywords-score",
         type=float,
-        default=3.0,
+        default=1.5,
         help="""
         The default boosting score (token level) for keywords. it will boost the
         paths that match keywords to make them survive beam search.
@@ -176,14 +182,21 @@ def get_parser():
     parser.add_argument(
         "--keywords-threshold",
         type=float,
-        default=0.75,
+        default=0.35,
         help="The default threshold (probability) to trigger the keyword.",
+    )
+
+    parser.add_argument(
+        "--keywords-version",
+        type=str,
+        default="",
+        help="The keywords configuration version, just to save results to different files.",
     )
 
     parser.add_argument(
         "--num-tailing-blanks",
         type=int,
-        default=8,
+        default=1,
         help="The number of tailing blanks should have after hitting one keyword.",
     )
 
@@ -261,7 +274,7 @@ def decode_one_batch(
         model=model,
         encoder_out=encoder_out,
         encoder_out_lens=encoder_out_lens,
-        kws_graph=kws_graph,
+        context_graph=kws_graph,
         beam=params.beam,
         num_tailing_blanks=params.num_tailing_blanks,
         blank_penalty=params.blank_penalty,
@@ -284,6 +297,7 @@ def decode_dataset(
     sp: spm.SentencePieceProcessor,
     kws_graph: ContextGraph,
     keywords: Set[str],
+    test_only_keywords: bool,
 ) -> Tuple[List[Tuple[str, List[str], List[str]]], KwMetric]:
     """Decode dataset.
 
@@ -337,34 +351,65 @@ def decode_dataset(
             ref_text = ref_text.upper()
             ref_words = ref_text.split()
             hyp_words = [x[0] for x in hyp_words]
+            # for computing WER
             this_batch.append((cut_id, ref_words, " ".join(hyp_words).split()))
-            hyp_set = set(hyp_words)
-            hyp_str = " | ".join(hyp_words)
+            hyp_set = set(hyp_words)  # each item is a keyword phrase
+            if len(hyp_words) > 1:
+                logging.warning(
+                    f"Cut {cut_id} triggers more than one keywords : {hyp_words},"
+                    f"please check the transcript to see if it really has more "
+                    f"than one keywords, if so consider splitting this audio and"
+                    f"keep only one keyword for each audio."
+                )
+            hyp_str = " | ".join(
+                hyp_words
+            )  # The triggered keywords for this utterance.
+            TP = False
+            FP = False
             for x in hyp_set:
-                assert x in keywords, x
-                if x in ref_text and x in keywords:
-                    metric["all"].TP += 1
+                assert x in keywords, x  # can only trigger keywords
+                if (test_only_keywords and x == ref_text) or (
+                    not test_only_keywords and x in ref_text
+                ):
+                    TP = True
                     metric[x].TP += 1
                     metric[x].TP_list.append(f"({ref_text} -> {x})")
-                if x not in ref_text and x in keywords:
-                    metric["all"].FP += 1
+                if (test_only_keywords and x != ref_text) or (
+                    not test_only_keywords and x not in ref_text
+                ):
+                    FP = True
                     metric[x].FP += 1
                     metric[x].FP_list.append(f"({ref_text} -> {x})")
+            if TP:
+                metric["all"].TP += 1
+            if FP:
+                metric["all"].FP += 1
+            TN = True  # all keywords are true negative then the summery is true negative.
+            FN = False
             for x in keywords:
                 if x not in ref_text and x not in hyp_set:
-                    metric["all"].TN += 1
                     metric[x].TN += 1
+                    continue
 
-                if x in ref_text:
+                TN = False
+                if (test_only_keywords and x == ref_text) or (
+                    not test_only_keywords and x in ref_text
+                ):
                     fn = True
                     for y in hyp_set:
-                        if y in ref_text:
+                        if (test_only_keywords and y == ref_text) or (
+                            not test_only_keywords and y in ref_text
+                        ):
                             fn = False
                             break
-                    if fn and ref_text.endswith(x):
-                        metric["all"].FN += 1
+                    if fn:
+                        FN = True
                         metric[x].FN += 1
                         metric[x].FN_list.append(f"({ref_text} -> {hyp_str})")
+            if TN:
+                metric["all"].TN += 1
+            if FN:
+                metric["all"].FN += 1
 
         results.extend(this_batch)
 
@@ -396,16 +441,17 @@ def save_results(
 
     metric_filename = params.res_dir / f"metric-{test_set_name}-{params.suffix}.txt"
 
-    print_s = ""
     with open(metric_filename, "w") as of:
         width = 10
         for key, item in sorted(
             metric.items(), key=lambda x: (x[1].FP, x[1].FN), reverse=True
         ):
             acc = (item.TP + item.TN) / (item.TP + item.TN + item.FP + item.FN)
-            precision = (item.TP + 1) / (item.TP + item.FP + 1)
-            recall = (item.TP + 1) / (item.TP + item.FN + 1)
-            fpr = (item.FP + 1) / (item.FP + item.TN + 1)
+            precision = (
+                0.0 if (item.TP + item.FP) == 0 else item.TP / (item.TP + item.FP)
+            )
+            recall = 0.0 if (item.TP + item.FN) == 0 else item.TP / (item.TP + item.FN)
+            fpr = 0.0 if (item.FP + item.TN) == 0 else item.FP / (item.FP + item.TN)
             s = f"{key}:\n"
             s += f"\t{'TP':{width}}{'FP':{width}}{'FN':{width}}{'TN':{width}}\n"
             s += f"\t{str(item.TP):{width}}{str(item.FP):{width}}{str(item.FN):{width}}{str(item.TN):{width}}\n"
@@ -414,12 +460,14 @@ def save_results(
             s += f"\tRecall(PPR): {recall:.3f}\n"
             s += f"\tFPR: {fpr:.3f}\n"
             s += f"\tF1: {2 * precision * recall / (precision + recall):.3f}\n"
-            s += f"\tTP list: {' # '.join(item.TP_list)}\n"
-            s += f"\tFP list: {' # '.join(item.FP_list)}\n"
-            s += f"\tFN list: {' # '.join(item.FN_list)}\n"
+            if key != "all":
+                s += f"\tTP list: {' # '.join(item.TP_list)}\n"
+                s += f"\tFP list: {' # '.join(item.FP_list)}\n"
+                s += f"\tFN list: {' # '.join(item.FN_list)}\n"
             of.write(s + "\n")
             if key == "all":
                 logging.info(s)
+        of.write(f"\n\n{params.keywords_config}")
 
     logging.info("Wrote metric stats to {}".format(metric_filename))
 
@@ -436,10 +484,11 @@ def main():
 
     params.res_dir = params.exp_dir / "kws"
 
+    params.suffix = params.test_set
     if params.iter > 0:
-        params.suffix = f"iter-{params.iter}-avg-{params.avg}"
+        params.suffix += f"-iter-{params.iter}-avg-{params.avg}"
     else:
-        params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
+        params.suffix += f"-epoch-{params.epoch}-avg-{params.avg}"
 
     if params.causal:
         assert (
@@ -456,6 +505,7 @@ def main():
     params.suffix += f"-tailing-blanks-{params.num_tailing_blanks}"
     if params.blank_penalty != 0:
         params.suffix += f"-blank-penalty-{params.blank_penalty}"
+    params.suffix += f"-version-{params.keywords_version}"
 
     setup_logger(f"{params.res_dir}/log-decode-{params.suffix}")
     logging.info("Decoding started")
@@ -480,8 +530,10 @@ def main():
     token_ids = []
     keywords_scores = []
     keywords_thresholds = []
+    keywords_config = []
     with open(params.keywords_file, "r") as f:
         for line in f.readlines():
+            keywords_config.append(line)
             score = 0
             threshold = 0
             keyword = []
@@ -500,6 +552,8 @@ def main():
             token_ids.append(sp.encode(keyword))
             keywords_scores.append(score)
             keywords_thresholds.append(threshold)
+
+    params.keywords_config = "".join(keywords_config)
 
     kws_graph = ContextGraph(
         context_score=params.keywords_score, ac_threshold=params.keywords_threshold
@@ -605,24 +659,17 @@ def main():
     test_cuts = gigaspeech.test_cuts()
     test_dl = gigaspeech.test_dataloaders(test_cuts)
 
-    def select_keyword_cuts(c: Cut):
-        text = c.supervisions[0].text
-        text = text.strip().upper()
-        return text in keywords
-
-    test_sc1_cuts = gigaspeech.test_speechcommands1_cuts()
-    test_sc2_cuts = gigaspeech.test_speechcommands2_cuts()
-
-    test_fsc_cuts = gigaspeech.test_fluent_speechcommands_cuts()
-    test_fsc_cuts = test_fsc_cuts.filter(select_keyword_cuts)
-
-    test_sc1_dl = gigaspeech.test_dataloaders(test_sc1_cuts)
-    test_sc2_dl = gigaspeech.test_dataloaders(test_sc2_cuts)
-
-    test_fsc_dl = speechcommand.test_dataloaders(test_fsc_cuts)
-
-    test_sets = ["test-fsc", "test", "test-sc1", "test-sc2"]
-    test_dls = [test_fsc_dl, test_dl, test_sc1_dl, test_sc2_dl]
+    if params.test_set == "small":
+        test_fsc_small_cuts = gigaspeech.fsc_test_small_cuts()
+        test_fsc_small_dl = gigaspeech.test_dataloaders(test_fsc_small_cuts)
+        test_sets = ["small-fsc", "test"]
+        test_dls = [test_fsc_small_dl, test_dl]
+    else:
+        assert params.test_set == "large", params.test_set
+        test_fsc_large_cuts = gigaspeech.fsc_test_large_cuts()
+        test_fsc_large_dl = gigaspeech.test_dataloaders(test_fsc_large_cuts)
+        test_sets = ["large-fsc", "test"]
+        test_dls = [test_fsc_large_dl, test_dl]
 
     for test_set, test_dl in zip(test_sets, test_dls):
         results, metric = decode_dataset(
@@ -632,6 +679,7 @@ def main():
             sp=sp,
             kws_graph=kws_graph,
             keywords=keywords,
+            test_only_keywords="fsc" in test_set,
         )
 
         save_results(

@@ -25,7 +25,7 @@ Usage:
 export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
 
 # For non-streaming model training:
-./zipformer/train.py \
+./zipformer/finetune.py \
   --world-size 8 \
   --num-epochs 30 \
   --start-epoch 1 \
@@ -34,7 +34,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
   --max-duration 1000
 
 # For streaming model training:
-./zipformer/train.py \
+./zipformer/fintune.py \
   --world-size 8 \
   --num-epochs 30 \
   --start-epoch 1 \
@@ -56,7 +56,7 @@ import logging
 import warnings
 from pathlib import Path
 from shutil import copyfile
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import k2
 import optim
@@ -67,7 +67,7 @@ import torch.nn as nn
 from asr_datamodule import GigaSpeechAsrDataModule
 from decoder import Decoder
 from joiner import Joiner
-from lhotse.cut import Cut
+from lhotse.cut import Cut, CutSet
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import AsrModel
@@ -122,11 +122,51 @@ def set_batch_count(model: Union[nn.Module, DDP], batch_count: float) -> None:
             module.name = name
 
 
+def add_finetune_arguments(parser: argparse.ArgumentParser):
+    parser.add_argument(
+        "--use-mux",
+        type=str2bool,
+        default=False,
+        help="""
+        Whether to adapt. If true, we will mix 5% of the new data
+        with 95% of the original data to fine-tune.
+        """,
+    )
+
+    parser.add_argument(
+        "--init-modules",
+        type=str,
+        default=None,
+        help="""
+        Modules to be initialized. It matches all parameters starting with
+        a specific key. The keys are given with Comma seperated. If None,
+        all modules will be initialised. For example, if you only want to
+        initialise all parameters staring with "encoder", use "encoder";
+        if you want to initialise parameters starting with encoder or decoder,
+        use "encoder,joiner".
+        """,
+    )
+
+    parser.add_argument(
+        "--finetune-ckpt",
+        type=str,
+        default=None,
+        help="Fine-tuning from which checkpoint (a path to a .pt file)",
+    )
+
+    parser.add_argument(
+        "--continue-finetune",
+        type=str2bool,
+        default=False,
+        help="Continue finetuning or finetune from pre-trained model",
+    )
+
+
 def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--num-encoder-layers",
         type=str,
-        default="1,1,1,1,1,1",
+        default="2,2,3,4,3,2",
         help="Number of zipformer encoder layers per stack, comma separated.",
     )
 
@@ -140,7 +180,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--feedforward-dim",
         type=str,
-        default="192,192,192,192,192,192",
+        default="512,768,1024,1536,1024,768",
         help="Feedforward dimension of the zipformer encoder layers, per stack, comma separated.",
     )
 
@@ -154,7 +194,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--encoder-dim",
         type=str,
-        default="128,128,128,128,128,128",
+        default="192,256,384,512,384,256",
         help="Embedding dimension in encoder stacks: a single int or comma-separated list.",
     )
 
@@ -189,7 +229,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--encoder-unmasked-dim",
         type=str,
-        default="128,128,128,128,128,128",
+        default="192,192,256,256,256,192",
         help="Unmasked dimensions in the encoders, relates to augmentation during training.  "
         "A single int or comma-separated list.  Must be <= each corresponding encoder_dim.",
     )
@@ -205,14 +245,14 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--decoder-dim",
         type=int,
-        default=320,
+        default=512,
         help="Embedding dimension in the decoder model.",
     )
 
     parser.add_argument(
         "--joiner-dim",
         type=int,
-        default=320,
+        default=512,
         help="""Dimension used in the joiner model.
         Outputs from the encoder and decoder model are projected
         to this dimension before adding.
@@ -222,7 +262,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--causal",
         type=str2bool,
-        default=True,
+        default=False,
         help="If True, use causal version of model.",
     )
 
@@ -417,17 +457,6 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--scan-for-oom-batches",
-        type=str2bool,
-        default=False,
-        help="""
-        Whether to scan for oom batches before training, this is helpful for
-        finding the suitable max_duration, you only need to run it once.
-        Caution: a little time consuming.
-        """,
-    )
-
-    parser.add_argument(
         "--inf-check",
         type=str2bool,
         default=False,
@@ -474,11 +503,12 @@ def get_parser():
     parser.add_argument(
         "--use-fp16",
         type=str2bool,
-        default=True,
+        default=False,
         help="Whether to use half precision training.",
     )
 
     add_model_arguments(parser)
+    add_finetune_arguments(parser)
 
     return parser
 
@@ -642,6 +672,53 @@ def get_model(params: AttributeDict) -> nn.Module:
         use_ctc=params.use_ctc,
     )
     return model
+
+
+def load_model_params(
+    ckpt: str, model: nn.Module, init_modules: List[str] = None, strict: bool = True
+):
+    """Load model params from checkpoint
+
+    Args:
+        ckpt (str): Path to the checkpoint
+        model (nn.Module): model to be loaded
+
+    """
+    logging.info(f"Loading checkpoint from {ckpt}")
+    checkpoint = torch.load(ckpt, map_location="cpu")
+
+    # if module list is empty, load the whole model from ckpt
+    if not init_modules:
+        if next(iter(checkpoint["model"])).startswith("module."):
+            logging.info("Loading checkpoint saved by DDP")
+
+            dst_state_dict = model.state_dict()
+            src_state_dict = checkpoint["model"]
+            for key in dst_state_dict.keys():
+                src_key = "{}.{}".format("module", key)
+                dst_state_dict[key] = src_state_dict.pop(src_key)
+            assert len(src_state_dict) == 0
+            model.load_state_dict(dst_state_dict, strict=strict)
+        else:
+            model.load_state_dict(checkpoint["model"], strict=strict)
+    else:
+        src_state_dict = checkpoint["model"]
+        dst_state_dict = model.state_dict()
+        for module in init_modules:
+            logging.info(f"Loading parameters starting with prefix {module}")
+            src_keys = [
+                k for k in src_state_dict.keys() if k.startswith(module.strip() + ".")
+            ]
+            dst_keys = [
+                k for k in dst_state_dict.keys() if k.startswith(module.strip() + ".")
+            ]
+            assert set(src_keys) == set(dst_keys)  # two sets should match exactly
+            for key in src_keys:
+                dst_state_dict[key] = src_state_dict.pop(key)
+
+        model.load_state_dict(dst_state_dict, strict=strict)
+
+    return None
 
 
 def load_checkpoint_if_available(
@@ -950,7 +1027,7 @@ def train_one_epoch(
 
     for batch_idx, batch in enumerate(train_dl):
         if batch_idx % 10 == 0:
-            set_batch_count(model, get_adjusted_batch_count(params))
+            set_batch_count(model, get_adjusted_batch_count(params) + 100000)
 
         params.batch_idx_train += 1
         batch_size = len(batch["supervisions"]["text"])
@@ -970,6 +1047,12 @@ def train_one_epoch(
             # NOTE: We use reduction==sum and loss is computed over utterances
             # in the batch and there is no normalization to it so far.
             scaler.scale(loss).backward()
+
+            # if params.continue_finetune:
+            # set_batch_count(model, params.batch_idx_train)
+            # else:
+            # set_batch_count(model, params.batch_idx_train + 100000)
+
             scheduler.step_batch(params.batch_idx_train)
 
             scaler.step(optimizer)
@@ -1139,14 +1222,20 @@ def run(rank, world_size, args):
 
     assert params.save_every_n >= params.average_period
     model_avg: Optional[nn.Module] = None
-    if rank == 0:
-        # model_avg is only used with rank 0
-        model_avg = copy.deepcopy(model).to(torch.float64)
 
-    assert params.start_epoch > 0, params.start_epoch
-    checkpoints = load_checkpoint_if_available(
-        params=params, model=model, model_avg=model_avg
-    )
+    if params.continue_finetune:
+        assert params.start_epoch > 0, params.start_epoch
+        checkpoints = load_checkpoint_if_available(
+            params=params, model=model, model_avg=model_avg
+        )
+    else:
+        modules = params.init_modules.split(",") if params.init_modules else None
+        checkpoints = load_model_params(
+            ckpt=params.finetune_ckpt, model=model, init_modules=modules
+        )
+        if rank == 0:
+            # model_avg is only used with rank 0
+            model_avg = copy.deepcopy(model).to(torch.float64)
 
     model.to(device)
     if world_size > 1:
@@ -1159,7 +1248,7 @@ def run(rank, world_size, args):
         clipping_scale=2.0,
     )
 
-    scheduler = Eden(optimizer, params.lr_batches, params.lr_epochs)
+    scheduler = Eden(optimizer, params.lr_batches, params.lr_epochs, warmup_start=1.0)
 
     if checkpoints and "optimizer" in checkpoints:
         logging.info("Loading optimizer state dict")
@@ -1190,7 +1279,15 @@ def run(rank, world_size, args):
 
     gigaspeech = GigaSpeechAsrDataModule(args)
 
-    train_cuts = gigaspeech.train_cuts()
+    if params.use_mux:
+        train_cuts = CutSet.mux(
+            gigaspeech.train_cuts(),
+            gigaspeech.fsc_train_cuts(),
+            weights=[0.9, 0.1],
+        )
+    else:
+        train_cuts = gigaspeech.fsc_train_cuts()
+
     train_cuts = train_cuts.filter(remove_short_utt)
 
     if params.start_batch > 0 and checkpoints and "sampler" in checkpoints:
@@ -1204,18 +1301,18 @@ def run(rank, world_size, args):
         train_cuts, sampler_state_dict=sampler_state_dict
     )
 
-    valid_cuts = gigaspeech.dev_cuts()
+    valid_cuts = gigaspeech.fsc_valid_cuts()
     valid_cuts = valid_cuts.filter(remove_short_utt)
     valid_dl = gigaspeech.valid_dataloaders(valid_cuts)
 
-    if not params.print_diagnostics and params.scan_for_oom_batches:
-        scan_pessimistic_batches_for_oom(
-            model=model,
-            train_dl=train_dl,
-            optimizer=optimizer,
-            sp=sp,
-            params=params,
-        )
+    # if not params.print_diagnostics:
+    #    scan_pessimistic_batches_for_oom(
+    #        model=model,
+    #        train_dl=train_dl,
+    #        optimizer=optimizer,
+    #        sp=sp,
+    #        params=params,
+    #    )
 
     scaler = GradScaler(enabled=params.use_fp16, init_scale=1.0)
     if checkpoints and "grad_scaler" in checkpoints:

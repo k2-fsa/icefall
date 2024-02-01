@@ -966,7 +966,6 @@ def keywords_search(
     encoder_out_lens: torch.Tensor,
     context_graph: ContextGraph,
     beam: int = 4,
-    ac_threshold: float = 0.15,
     num_tailing_blanks: int = 8,
     blank_penalty: float = 0,
 ) -> List[List[KeywordResult]]:
@@ -1077,6 +1076,8 @@ def keywords_search(
 
         log_probs = probs.log()
 
+        probs = probs.reshape(-1)
+
         log_probs.add_(ys_log_probs)
 
         vocab_size = log_probs.size(-1)
@@ -1112,7 +1113,7 @@ def keywords_search(
                 if new_token not in (blank_id, unk_id):
                     new_ys.append(new_token)
                     new_timestamp.append(t)
-                    new_ac_probs.append(math.exp(hyp_probs[topk_indexes[k]]))
+                    new_ac_probs.append(hyp_probs[topk_indexes[k]])
                     (
                         context_score,
                         new_context_state,
@@ -1140,10 +1141,13 @@ def keywords_search(
                 ac_prob = (
                     sum(top_hyp.ac_probs[-matched_state.level :]) / matched_state.level
                 )
+                # logging.info(
+                # f"ac prob : {ac_prob}, threshold : {matched_state.ac_threshold}"
+                # )
             if (
                 matched
                 and top_hyp.num_tailing_blanks > num_tailing_blanks
-                and ac_prob >= ac_threshold
+                and ac_prob >= matched_state.ac_threshold
             ):
                 keyword = KeywordResult(
                     hyps=top_hyp.ys[-matched_state.level :],
@@ -1171,7 +1175,7 @@ def keywords_search(
             ac_prob = (
                 sum(top_hyp.ac_probs[-matched_state.level :]) / matched_state.level
             )
-        if matched and ac_prob >= ac_threshold:
+        if matched and ac_prob >= matched_state.ac_threshold:
             keyword = KeywordResult(
                 hyps=top_hyp.ys[-matched_state.level :],
                 timestamps=top_hyp.timestamp[-matched_state.level :],
