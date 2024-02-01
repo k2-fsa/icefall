@@ -274,7 +274,7 @@ def decode_one_batch(
         model=model,
         encoder_out=encoder_out,
         encoder_out_lens=encoder_out_lens,
-        context_graph=kws_graph,
+        keywords_graph=kws_graph,
         beam=params.beam,
         num_tailing_blanks=params.num_tailing_blanks,
         blank_penalty=params.blank_penalty,

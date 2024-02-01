@@ -15,7 +15,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging
 import math
 import warnings
 from dataclasses import dataclass, field
@@ -964,9 +963,9 @@ def keywords_search(
     model: nn.Module,
     encoder_out: torch.Tensor,
     encoder_out_lens: torch.Tensor,
-    context_graph: ContextGraph,
+    keywords_graph: ContextGraph,
     beam: int = 4,
-    num_tailing_blanks: int = 8,
+    num_tailing_blanks: int = 0,
     blank_penalty: float = 0,
 ) -> List[List[KeywordResult]]:
     """Beam search in batch mode with --max-sym-per-frame=1 being hardcoded.
@@ -979,8 +978,16 @@ def keywords_search(
       encoder_out_lens:
         A 1-D tensor of shape (N,), containing number of valid frames in
         encoder_out before padding.
+      keywords_graph:
+        A instance of ContextGraph containing keywords and their configurations.
       beam:
         Number of active paths during the beam search.
+      num_tailing_blanks:
+        The number of tailing blanks a keyword should be followed, this is for the
+        scenario that a keyword will be the prefix of another. In most cases, you
+        can just set it to 0.
+      blank_penalty:
+        The score used to penalize blank probability.
     Returns:
       Return a list of list of KeywordResult.
     """
@@ -1141,9 +1148,6 @@ def keywords_search(
                 ac_prob = (
                     sum(top_hyp.ac_probs[-matched_state.level :]) / matched_state.level
                 )
-                # logging.info(
-                # f"ac prob : {ac_prob}, threshold : {matched_state.ac_threshold}"
-                # )
             if (
                 matched
                 and top_hyp.num_tailing_blanks > num_tailing_blanks

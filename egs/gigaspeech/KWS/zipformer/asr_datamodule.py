@@ -1,5 +1,5 @@
 # Copyright      2021  Piotr Żelasko
-# Copyright      2023  Xiaomi Corporation     (Author: Yifan Yang)
+# Copyright      2024  Xiaomi Corporation     (Author: Wei Kang)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -446,13 +446,6 @@ class GigaSpeechAsrDataModule:
         logging.info("About to get test cuts")
         return load_manifest_lazy(
             self.args.manifest_dir / "gigaspeech_cuts_TEST.jsonl.gz"
-        )
-
-    @lru_cache()
-    def libri_100_cuts(self) -> CutSet:
-        logging.info("About to get libri100 cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_train-clean-100.jsonl.gz"
         )
 
     @lru_cache()

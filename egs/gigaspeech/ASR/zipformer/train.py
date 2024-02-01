@@ -417,6 +417,17 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--scan-for-oom-batches",
+        type=str2bool,
+        default=False,
+        help="""
+        Whether to scan for oom batches before training, this is helpful for
+        finding the suitable max_duration, you only need to run it once.
+        Caution: a little time consuming.
+        """,
+    )
+
+    parser.add_argument(
         "--inf-check",
         type=str2bool,
         default=False,
@@ -1197,14 +1208,14 @@ def run(rank, world_size, args):
     valid_cuts = valid_cuts.filter(remove_short_utt)
     valid_dl = gigaspeech.valid_dataloaders(valid_cuts)
 
-    # if not params.print_diagnostics:
-    #    scan_pessimistic_batches_for_oom(
-    #        model=model,
-    #        train_dl=train_dl,
-    #        optimizer=optimizer,
-    #        sp=sp,
-    #        params=params,
-    #    )
+    if not params.print_diagnostics and params.scan_for_oom_batches:
+        scan_pessimistic_batches_for_oom(
+            model=model,
+            train_dl=train_dl,
+            optimizer=optimizer,
+            sp=sp,
+            params=params,
+        )
 
     scaler = GradScaler(enabled=params.use_fp16, init_scale=1.0)
     if checkpoints and "grad_scaler" in checkpoints:

@@ -264,6 +264,20 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--bpe-model",
+        type=str,
+        default="data/lang_bpe_500/bpe.model",
+        help="Path to the BPE model",
+    )
+
+    add_training_arguments(parser)
+    add_model_arguments(parser)
+
+    return parser
+
+
+def add_model_arguments(parser: argparse.ArgumentParser):
+    parser.add_argument(
         "--world-size",
         type=int,
         default=1,
@@ -318,13 +332,6 @@ def get_parser():
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
         """,
-    )
-
-    parser.add_argument(
-        "--bpe-model",
-        type=str,
-        default="data/lang_bpe_500/bpe.model",
-        help="Path to the BPE model",
     )
 
     parser.add_argument(
@@ -477,10 +484,6 @@ def get_parser():
         default=True,
         help="Whether to use half precision training.",
     )
-
-    add_model_arguments(parser)
-
-    return parser
 
 
 def get_params() -> AttributeDict:
