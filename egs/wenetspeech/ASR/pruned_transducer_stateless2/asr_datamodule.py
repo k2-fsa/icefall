@@ -407,10 +407,3 @@ class WenetSpeechAsrDataModule:
     def test_meeting_cuts(self) -> List[CutSet]:
         logging.info("About to get TEST_MEETING cuts")
         return load_manifest_lazy(self.args.manifest_dir / "cuts_TEST_MEETING.jsonl.gz")
-
-    @lru_cache()
-    def test_open_commands_cuts(self) -> CutSet:
-        logging.info("About to get open commands cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "open-commands-cn_cuts_test.jsonl.gz"
-        )

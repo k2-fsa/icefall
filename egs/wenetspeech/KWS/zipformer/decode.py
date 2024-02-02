@@ -178,16 +178,47 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--keyword-file",
+        "--keywords-file",
         type=str,
         help="File contains keywords.",
     )
 
     parser.add_argument(
-        "--keyword-score",
+        "--test-set",
+        type=str,
+        default="small",
+        help="small or large",
+    )
+
+    parser.add_argument(
+        "--keywords-score",
         type=float,
-        default=0.75,
-        help="The threshold (probability) to boost the keyword.",
+        default=1.5,
+        help="""
+        The default boosting score (token level) for keywords. it will boost the
+        paths that match keywords to make them survive beam search.
+        """,
+    )
+
+    parser.add_argument(
+        "--keywords-threshold",
+        type=float,
+        default=0.35,
+        help="The default threshold (probability) to trigger the keyword.",
+    )
+
+    parser.add_argument(
+        "--keywords-version",
+        type=str,
+        default="",
+        help="The keywords configuration version, just to save results to different files.",
+    )
+
+    parser.add_argument(
+        "--num-tailing-blanks",
+        type=int,
+        default=1,
+        help="The number of tailing blanks should have after hitting one keyword.",
     )
 
     add_model_arguments(parser)
@@ -261,7 +292,7 @@ def decode_one_batch(
         model=model,
         encoder_out=encoder_out,
         encoder_out_lens=encoder_out_lens,
-        context_graph=kws_graph,
+        keywords_graph=kws_graph,
         beam=params.beam_size,
         num_tailing_blanks=8,
     )
@@ -288,6 +319,7 @@ def decode_dataset(
     lexicon: Lexicon,
     kws_graph: ContextGraph,
     keywords: Set[str],
+    test_only_keywords: bool,
 ) -> Dict[str, List[Tuple[List[str], List[str]]]]:
     """Decode dataset.
 
@@ -342,32 +374,62 @@ def decode_dataset(
             hyp_words = [x[0] for x in hyp_words]
             this_batch.append((cut_id, ref_words, list("".join(hyp_words))))
             hyp_set = set(hyp_words)
-            hyp_str = " | ".join(hyp_words)
+            if len(hyp_words) > 1:
+                logging.warning(
+                    f"Cut {cut_id} triggers more than one keywords : {hyp_words},"
+                    f"please check the transcript to see if it really has more "
+                    f"than one keywords, if so consider splitting this audio and"
+                    f"keep only one keyword for each audio."
+                )
+            hyp_str = " | ".join(
+                hyp_words
+            )  # The triggered keywords for this utterance.
+            TP = False
+            FP = False
             for x in hyp_set:
-                assert x in keywords, x
-                if x in ref_text and x in keywords:
-                    metric["all"].TP += 1
+                assert x in keywords, x  # can only trigger keywords
+                if (test_only_keywords and x == ref_text) or (
+                    not test_only_keywords and x in ref_text
+                ):
+                    TP = True
                     metric[x].TP += 1
                     metric[x].TP_list.append(f"({ref_text} -> {x})")
-                if x not in ref_text and x in keywords:
-                    metric["all"].FP += 1
+                if (test_only_keywords and x != ref_text) or (
+                    not test_only_keywords and x not in ref_text
+                ):
+                    FP = True
                     metric[x].FP += 1
-                    metric[x].FP_list.append(f"({ref_text} -> {x}/{cut_id})")
+                    metric[x].FP_list.append(f"({ref_text} -> {x})")
+            if TP:
+                metric["all"].TP += 1
+            if FP:
+                metric["all"].FP += 1
+            TN = True  # all keywords are true negative then the summery is true negative.
+            FN = False
             for x in keywords:
                 if x not in ref_text and x not in hyp_set:
-                    metric["all"].TN += 1
                     metric[x].TN += 1
+                    continue
 
-                if x in ref_text:
+                TN = False
+                if (test_only_keywords and x == ref_text) or (
+                    not test_only_keywords and x in ref_text
+                ):
                     fn = True
                     for y in hyp_set:
-                        if y in ref_text:
+                        if (test_only_keywords and y == ref_text) or (
+                            not test_only_keywords and y in ref_text
+                        ):
                             fn = False
                             break
-                    if fn and ref_text.endswith(x):
-                        metric["all"].FN += 1
+                    if fn:
+                        FN = True
                         metric[x].FN += 1
-                        metric[x].FN_list.append(f"({ref_text} -> {hyp_str}/{cut_id})")
+                        metric[x].FN_list.append(f"({ref_text} -> {hyp_str})")
+            if TN:
+                metric["all"].TN += 1
+            if FN:
+                metric["all"].FN += 1
 
         results.extend(this_batch)
 
@@ -399,16 +461,17 @@ def save_results(
 
     metric_filename = params.res_dir / f"metric-{test_set_name}-{params.suffix}.txt"
 
-    print_s = ""
     with open(metric_filename, "w") as of:
         width = 10
         for key, item in sorted(
             metric.items(), key=lambda x: (x[1].FP, x[1].FN), reverse=True
         ):
             acc = (item.TP + item.TN) / (item.TP + item.TN + item.FP + item.FN)
-            precision = (item.TP + 1) / (item.TP + item.FP + 1)
-            recall = (item.TP + 1) / (item.TP + item.FN + 1)
-            fpr = (item.FP + 1) / (item.FP + item.TN + 1)
+            precision = (
+                0.0 if (item.TP + item.FP) == 0 else item.TP / (item.TP + item.FP)
+            )
+            recall = 0.0 if (item.TP + item.FN) == 0 else item.TP / (item.TP + item.FN)
+            fpr = 0.0 if (item.FP + item.TN) == 0 else item.FP / (item.FP + item.TN)
             s = f"{key}:\n"
             s += f"\t{'TP':{width}}{'FP':{width}}{'FN':{width}}{'TN':{width}}\n"
             s += f"\t{str(item.TP):{width}}{str(item.FP):{width}}{str(item.FN):{width}}{str(item.TN):{width}}\n"
@@ -417,12 +480,14 @@ def save_results(
             s += f"\tRecall(PPR): {recall:.3f}\n"
             s += f"\tFPR: {fpr:.3f}\n"
             s += f"\tF1: {2 * precision * recall / (precision + recall):.3f}\n"
-            s += f"\tTP list: {' # '.join(item.TP_list)}\n"
-            s += f"\tFP list: {' # '.join(item.FP_list)}\n"
-            s += f"\tFN list: {' # '.join(item.FN_list)}\n"
+            if key != "all":
+                s += f"\tTP list: {' # '.join(item.TP_list)}\n"
+                s += f"\tFP list: {' # '.join(item.FP_list)}\n"
+                s += f"\tFN list: {' # '.join(item.FN_list)}\n"
             of.write(s + "\n")
             if key == "all":
                 logging.info(s)
+        of.write(f"\n\n{params.keywords_config}")
 
     logging.info("Wrote metric stats to {}".format(metric_filename))
 
@@ -439,6 +504,7 @@ def main():
 
     params.res_dir = params.exp_dir / "kws"
 
+    params.suffix = params.test_set
     if params.iter > 0:
         params.suffix = f"iter-{params.iter}-avg-{params.avg}"
     else:
@@ -454,9 +520,12 @@ def main():
         params.suffix += f"-chunk-{params.chunk_size}"
         params.suffix += f"-left-context-{params.left_context_frames}"
 
-    if params.use_averaged_model:
-        params.suffix += "-use-averaged-model"
-    params.suffix += f"-keyword-score-{params.keyword_score}"
+    params.suffix += f"-score-{params.keywords_score}"
+    params.suffix += f"-threshold-{params.keywords_threshold}"
+    params.suffix += f"-tailing-blanks-{params.num_tailing_blanks}"
+    if params.blank_penalty != 0:
+        params.suffix += f"-blank-penalty-{params.blank_penalty}"
+    params.suffix += f"-version-{params.keywords_version}"
 
     setup_logger(f"{params.res_dir}/log-decode-{params.suffix}")
     logging.info("Decoding started")
@@ -473,18 +542,30 @@ def main():
 
     logging.info(params)
 
-    keywords = []
-    keywords_id = []
-    with open(params.keyword_file, "r") as f:
+    phrases = []
+    token_ids = []
+    keywords_scores = []
+    keywords_thresholds = []
+    keywords_config = []
+    with open(params.keywords_file, "r") as f:
         for line in f.readlines():
+            keywords_config.append(line)
             score = 0
-            kws = line.strip().upper().split()
-            if kws[-1][0] == ":":
-                score = float(kws[-1][1:])
-                kws = kws[0:-1]
+            threshold = 0
+            keyword = []
+            words = line.strip().upper().split()
+            for word in words:
+                word = word.strip()
+                if word[0] == ":":
+                    score = float(word[1:])
+                    continue
+                if word[0] == "#":
+                    threshold = float(word[1:])
+                    continue
+                keyword.append(word)
+            keyword = "".join(keyword)
             tmp_ids = []
-            kws = "".join(kws)
-            kws_py = text_to_pinyin(kws, mode=params.pinyin_type)
+            kws_py = text_to_pinyin(keyword, mode=params.pinyin_type)
             for k in kws_py:
                 if k in lexicon.token_table:
                     tmp_ids.append(lexicon.token_table[k])
@@ -493,11 +574,23 @@ def main():
                     tmp_ids = []
                     break
             if tmp_ids:
-                logging.info(f"Adding keyword : {kws}")
-                keywords.append(kws)
-                keywords_id.append((tmp_ids, score, kws))
-    kws_graph = ContextGraph(context_score=params.keyword_score)
-    kws_graph.build(keywords_id)
+                logging.info(f"Adding keyword : {keyword}")
+                phrases.append(keyword)
+                token_ids.append(tmp_ids)
+                keywords_scores.append(score)
+                keywords_thresholds.append(threshold)
+    params.keywords_config = "".join(keywords_config)
+
+    kws_graph = ContextGraph(
+        context_score=params.keywords_score, ac_threshold=params.keywords_threshold
+    )
+    kws_graph.build(
+        token_ids=token_ids,
+        phrases=phrases,
+        scores=keywords_scores,
+        ac_thresholds=keywords_thresholds,
+    )
+    keywords = set(phrases)
 
     logging.info("About to create model")
     model = get_model(params)
@@ -597,21 +690,51 @@ def main():
             )
         return T > 0
 
-    def select_keywords(c: Cut):
-        text = c.supervisions[0].text.strip()
-        return text in keywords
-
-    commands_cuts = wenetspeech.test_open_commands_cuts()
-    commands_cuts = commands_cuts.filter(select_keywords)
-    commands_cuts = commands_cuts.filter(remove_short_utt)
-    commands_dl = wenetspeech.test_dataloaders(commands_cuts)
-
     test_net_cuts = wenetspeech.test_net_cuts()
     test_net_cuts = test_net_cuts.filter(remove_short_utt)
     test_net_dl = wenetspeech.test_dataloaders(test_net_cuts)
 
-    test_sets = ["COMMANDS"]  # , "TEST_NET"]
-    test_dls = [commands_dl]  # , test_net_dl]
+    cn_commands_small_cuts = wenetspeech.cn_speech_commands_small_cuts()
+    cn_commands_small_cuts = cn_commands_small_cuts.filter(remove_short_utt)
+    cn_commands_small_dl = wenetspeech.test_dataloaders(cn_commands_small_cuts)
+
+    cn_commands_large_cuts = wenetspeech.cn_speech_commands_large_cuts()
+    cn_commands_large_cuts = cn_commands_large_cuts.filter(remove_short_utt)
+    cn_commands_large_dl = wenetspeech.test_dataloaders(cn_commands_large_cuts)
+
+    nihaowenwen_test_cuts = wenetspeech.nihaowenwen_test_cuts()
+    nihaowenwen_test_cuts = nihaowenwen_test_cuts.filter(remove_short_utt)
+    nihaowenwen_test_dl = wenetspeech.test_dataloaders(nihaowenwen_test_cuts)
+
+    xiaoyun_clean_cuts = wenetspeech.xiaoyun_clean_cuts()
+    xiaoyun_clean_cuts = xiaoyun_clean_cuts.filter(remove_short_utt)
+    xiaoyun_clean_dl = wenetspeech.test_dataloaders(xiaoyun_clean_cuts)
+
+    xiaoyun_noisy_cuts = wenetspeech.xiaoyun_noisy_cuts()
+    xiaoyun_noisy_cuts = xiaoyun_noisy_cuts.filter(remove_short_utt)
+    xiaoyun_noisy_dl = wenetspeech.test_dataloaders(xiaoyun_noisy_cuts)
+
+    test_sets = []
+    test_dls = []
+    if params.test_set == "large":
+        test_sets.append("cn_commands_large")
+        test_dls.append(cn_commands_large_dl)
+    else:
+        assert params.test_set == "small", params.test_set
+        test_sets += [
+            "cn_commands_small",
+            "nihaowenwen",
+            "xiaoyun_clean",
+            "xiaoyun_noisy",
+            "test_net",
+        ]
+        test_dls += [
+            cn_commands_small_dl,
+            nihaowenwen_test_dl,
+            xiaoyun_clean_dl,
+            xiaoyun_noisy_dl,
+            test_net_dl,
+        ]
 
     for test_set, test_dl in zip(test_sets, test_dls):
         results, metric = decode_dataset(
@@ -620,7 +743,8 @@ def main():
             model=model,
             lexicon=lexicon,
             kws_graph=kws_graph,
-            keywords=set(keywords),
+            keywords=keywords,
+            test_only_keywords="test_net" not in test_set,
         )
 
         save_results(

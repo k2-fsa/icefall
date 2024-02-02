@@ -158,6 +158,13 @@ def get_parser():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
 
+    parser.add_argument(
+        "--bpe-model",
+        type=str,
+        default="data/lang_bpe_500/bpe.model",
+        help="Path to the BPE model",
+    )
+
     add_training_arguments(parser)
     add_model_arguments(parser)
     add_finetune_arguments(parser)

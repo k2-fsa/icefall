@@ -3,6 +3,7 @@
 #                                                       Wei Kang,
 #                                                       Mingshuang Luo,
 #                                                       Zengwei Yao,
+#                                                       Yifan Yang,
 #                                                       Daniel Povey)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
@@ -23,29 +24,44 @@ Usage:
 
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
-# For non-streaming model training:
-./zipformer/train.py \
+# For non-streaming model finetuning:
+./zipformer/finetune.py \
   --world-size 4 \
-  --num-epochs 30 \
+  --num-epochs 10 \
   --start-epoch 1 \
   --use-fp16 1 \
   --exp-dir zipformer/exp \
   --max-duration 1000
 
-# For streaming model training:
-./zipformer/train.py \
+# For non-streaming model finetuning with mux (original dataset):
+./zipformer/finetune.py \
   --world-size 4 \
-  --num-epochs 30 \
+  --num-epochs 10 \
+  --start-epoch 1 \
+  --use-mux 1 \
+  --use-fp16 1 \
+  --exp-dir zipformer/exp \
+  --max-duration 1000
+
+# For streaming model finetuning:
+./zipformer/fintune.py \
+  --world-size 4 \
+  --num-epochs 10 \
   --start-epoch 1 \
   --use-fp16 1 \
   --exp-dir zipformer/exp \
   --causal 1 \
   --max-duration 1000
 
-It supports training with:
-  - transducer loss (default), with `--use-transducer True --use-ctc False`
-  - ctc loss (not recommended), with `--use-transducer False --use-ctc True`
-  - transducer loss & ctc loss, with `--use-transducer True --use-ctc True`
+# For streaming model finetuning with mux (original dataset):
+./zipformer/fintune.py \
+  --world-size 4 \
+  --num-epochs 10 \
+  --start-epoch 1 \
+  --use-fp16 1 \
+  --exp-dir zipformer/exp \
+  --causal 1 \
+  --max-duration 1000
 """
 
 
@@ -55,7 +71,7 @@ import logging
 import warnings
 from pathlib import Path
 from shutil import copyfile
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import k2
 import optim
@@ -63,12 +79,10 @@ import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 from asr_datamodule import WenetSpeechAsrDataModule
-from lhotse.cut import Cut
+from lhotse.cut import Cut, CutSet
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
-from model import AsrModel
 from optim import Eden, ScaledAdam
-from scaling import ScheduledFloat
 from torch import Tensor
 from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -76,7 +90,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from icefall import diagnostics
 from icefall.char_graph_compiler import CharCtcTrainingGraphCompiler
-from icefall.checkpoint import remove_checkpoints
+from icefall.checkpoint import load_checkpoint, remove_checkpoints
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 from icefall.checkpoint import (
     save_checkpoint_with_global_batch_idx,
@@ -109,7 +123,48 @@ from train import (
     set_batch_count,
 )
 
+
 LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
+
+
+def add_finetune_arguments(parser: argparse.ArgumentParser):
+    parser.add_argument(
+        "--use-mux",
+        type=str2bool,
+        default=False,
+        help="""
+        Whether to adapt. If true, we will mix 5% of the new data
+        with 95% of the original data to fine-tune.
+        """,
+    )
+
+    parser.add_argument(
+        "--init-modules",
+        type=str,
+        default=None,
+        help="""
+        Modules to be initialized. It matches all parameters starting with
+        a specific key. The keys are given with Comma seperated. If None,
+        all modules will be initialised. For example, if you only want to
+        initialise all parameters staring with "encoder", use "encoder";
+        if you want to initialise parameters starting with encoder or decoder,
+        use "encoder,joiner".
+        """,
+    )
+
+    parser.add_argument(
+        "--finetune-ckpt",
+        type=str,
+        default=None,
+        help="Fine-tuning from which checkpoint (a path to a .pt file)",
+    )
+
+    parser.add_argument(
+        "--continue-finetune",
+        type=str2bool,
+        default=False,
+        help="Continue finetuning or finetune from pre-trained model",
+    )
 
 
 def get_parser():
@@ -148,8 +203,56 @@ def get_parser():
 
     add_training_arguments(parser)
     add_model_arguments(parser)
+    add_finetune_arguments(parser)
 
     return parser
+
+
+def load_model_params(
+    ckpt: str, model: nn.Module, init_modules: List[str] = None, strict: bool = True
+):
+    """Load model params from checkpoint
+
+    Args:
+        ckpt (str): Path to the checkpoint
+        model (nn.Module): model to be loaded
+
+    """
+    logging.info(f"Loading checkpoint from {ckpt}")
+    checkpoint = torch.load(ckpt, map_location="cpu")
+
+    # if module list is empty, load the whole model from ckpt
+    if not init_modules:
+        if next(iter(checkpoint["model"])).startswith("module."):
+            logging.info("Loading checkpoint saved by DDP")
+
+            dst_state_dict = model.state_dict()
+            src_state_dict = checkpoint["model"]
+            for key in dst_state_dict.keys():
+                src_key = "{}.{}".format("module", key)
+                dst_state_dict[key] = src_state_dict.pop(src_key)
+            assert len(src_state_dict) == 0
+            model.load_state_dict(dst_state_dict, strict=strict)
+        else:
+            model.load_state_dict(checkpoint["model"], strict=strict)
+    else:
+        src_state_dict = checkpoint["model"]
+        dst_state_dict = model.state_dict()
+        for module in init_modules:
+            logging.info(f"Loading parameters starting with prefix {module}")
+            src_keys = [
+                k for k in src_state_dict.keys() if k.startswith(module.strip() + ".")
+            ]
+            dst_keys = [
+                k for k in dst_state_dict.keys() if k.startswith(module.strip() + ".")
+            ]
+            assert set(src_keys) == set(dst_keys)  # two sets should match exactly
+            for key in src_keys:
+                dst_state_dict[key] = src_state_dict.pop(key)
+
+        model.load_state_dict(dst_state_dict, strict=strict)
+
+    return None
 
 
 def compute_loss(
@@ -160,7 +263,7 @@ def compute_loss(
     is_training: bool,
 ) -> Tuple[Tensor, MetricsTracker]:
     """
-    Compute CTC loss given the model and its inputs.
+    Compute loss given the model and its inputs.
 
     Args:
       params:
@@ -191,10 +294,10 @@ def compute_loss(
 
     texts = batch["supervisions"]["text"]
     y = graph_compiler.texts_to_ids(texts, sep="/")
-    y = k2.RaggedTensor(y).to(device)
+    y = k2.RaggedTensor(y)
 
     with torch.set_grad_enabled(is_training):
-        simple_loss, pruned_loss, _ = model(
+        simple_loss, pruned_loss, ctc_loss = model(
             x=feature,
             x_lens=feature_lens,
             y=y,
@@ -203,21 +306,26 @@ def compute_loss(
             lm_scale=params.lm_scale,
         )
 
-        s = params.simple_loss_scale
-        # take down the scale on the simple loss from 1.0 at the start
-        # to params.simple_loss scale by warm_step.
-        simple_loss_scale = (
-            s
-            if batch_idx_train >= warm_step
-            else 1.0 - (batch_idx_train / warm_step) * (1.0 - s)
-        )
-        pruned_loss_scale = (
-            1.0
-            if batch_idx_train >= warm_step
-            else 0.1 + 0.9 * (batch_idx_train / warm_step)
-        )
+        loss = 0.0
 
-        loss = simple_loss_scale * simple_loss + pruned_loss_scale * pruned_loss
+        if params.use_transducer:
+            s = params.simple_loss_scale
+            # take down the scale on the simple loss from 1.0 at the start
+            # to params.simple_loss scale by warm_step.
+            simple_loss_scale = (
+                s
+                if batch_idx_train >= warm_step
+                else 1.0 - (batch_idx_train / warm_step) * (1.0 - s)
+            )
+            pruned_loss_scale = (
+                1.0
+                if batch_idx_train >= warm_step
+                else 0.1 + 0.9 * (batch_idx_train / warm_step)
+            )
+            loss += simple_loss_scale * simple_loss + pruned_loss_scale * pruned_loss
+
+        if params.use_ctc:
+            loss += params.ctc_loss_scale * ctc_loss
 
     assert loss.requires_grad == is_training
 
@@ -228,8 +336,11 @@ def compute_loss(
 
     # Note: We use reduction=sum while computing the loss.
     info["loss"] = loss.detach().cpu().item()
-    info["simple_loss"] = simple_loss.detach().cpu().item()
-    info["pruned_loss"] = pruned_loss.detach().cpu().item()
+    if params.use_transducer:
+        info["simple_loss"] = simple_loss.detach().cpu().item()
+        info["pruned_loss"] = pruned_loss.detach().cpu().item()
+    if params.use_ctc:
+        info["ctc_loss"] = ctc_loss.detach().cpu().item()
 
     return loss, info
 
@@ -317,8 +428,6 @@ def train_one_epoch(
 
     tot_loss = MetricsTracker()
 
-    cur_batch_idx = params.get("cur_batch_idx", 0)
-
     saved_bad_model = False
 
     def save_bad_model(suffix: str = ""):
@@ -336,10 +445,7 @@ def train_one_epoch(
 
     for batch_idx, batch in enumerate(train_dl):
         if batch_idx % 10 == 0:
-            set_batch_count(model, get_adjusted_batch_count(params))
-        if batch_idx < cur_batch_idx:
-            continue
-        cur_batch_idx = batch_idx
+            set_batch_count(model, get_adjusted_batch_count(params) + 100000)
 
         params.batch_idx_train += 1
         batch_size = len(batch["supervisions"]["text"])
@@ -359,6 +465,7 @@ def train_one_epoch(
             # NOTE: We use reduction==sum and loss is computed over utterances
             # in the batch and there is no normalization to it so far.
             scaler.scale(loss).backward()
+
             scheduler.step_batch(params.batch_idx_train)
 
             scaler.step(optimizer)
@@ -387,7 +494,6 @@ def train_one_epoch(
             params.batch_idx_train > 0
             and params.batch_idx_train % params.save_every_n == 0
         ):
-            params.cur_batch_idx = batch_idx
             save_checkpoint_with_global_batch_idx(
                 out_dir=params.exp_dir,
                 global_batch_idx=params.batch_idx_train,
@@ -400,7 +506,6 @@ def train_one_epoch(
                 scaler=scaler,
                 rank=rank,
             )
-            del params.cur_batch_idx
             remove_checkpoints(
                 out_dir=params.exp_dir,
                 topk=params.keep_last_k,
@@ -532,14 +637,20 @@ def run(rank, world_size, args):
 
     assert params.save_every_n >= params.average_period
     model_avg: Optional[nn.Module] = None
-    if rank == 0:
-        # model_avg is only used with rank 0
-        model_avg = copy.deepcopy(model).to(torch.float64)
 
-    assert params.start_epoch > 0, params.start_epoch
-    checkpoints = load_checkpoint_if_available(
-        params=params, model=model, model_avg=model_avg
-    )
+    if params.continue_finetune:
+        assert params.start_epoch > 0, params.start_epoch
+        checkpoints = load_checkpoint_if_available(
+            params=params, model=model, model_avg=model_avg
+        )
+    else:
+        modules = params.init_modules.split(",") if params.init_modules else None
+        checkpoints = load_model_params(
+            ckpt=params.finetune_ckpt, model=model, init_modules=modules
+        )
+        if rank == 0:
+            # model_avg is only used with rank 0
+            model_avg = copy.deepcopy(model).to(torch.float64)
 
     model.to(device)
     if world_size > 1:
@@ -552,7 +663,7 @@ def run(rank, world_size, args):
         clipping_scale=2.0,
     )
 
-    scheduler = Eden(optimizer, params.lr_batches, params.lr_epochs)
+    scheduler = Eden(optimizer, params.lr_batches, params.lr_epochs, warmup_start=1.0)
 
     if checkpoints and "optimizer" in checkpoints:
         logging.info("Loading optimizer state dict")
@@ -568,33 +679,31 @@ def run(rank, world_size, args):
 
     if params.print_diagnostics:
         opts = diagnostics.TensorDiagnosticOptions(
-            2**22
+            512
         )  # allow 4 megabytes per sub-module
         diagnostic = diagnostics.attach_diagnostics(model, opts)
 
     if params.inf_check:
         register_inf_check_hooks(model)
 
+    def remove_short_utt(c: Cut):
+        if c.duration > 15:
+            return False
+        # In ./zipformer.py, the conv module uses the following expression
+        # for subsampling
+        T = ((c.num_frames - 7) // 2 + 1) // 2
+        return T > 0
+
     wenetspeech = WenetSpeechAsrDataModule(args)
 
-    train_cuts = wenetspeech.train_cuts()
-
-    def remove_short_and_long_utt(c: Cut):
-        # Keep only utterances with duration between 1 second and 20 seconds
-        #
-        # Caution: There is a reason to select 20.0 here. Please see
-        # ../local/display_manifest_statistics.py
-        #
-        # You should use ../local/display_manifest_statistics.py to get
-        # an utterance duration distribution for your dataset to select
-        # the threshold
-        if c.duration < 1.0 or c.duration > 15.0:
-            # logging.warning(
-            #     f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
-            # )
-            return False
-
-        return True
+    if params.use_mux:
+        train_cuts = CutSet.mux(
+            wenetspeech.train_cuts(),
+            wenetspeech.nihaowenwen_train_cuts(),
+            weights=[0.9, 0.1],
+        )
+    else:
+        train_cuts = wenetspeech.nihaowenwen_train_cuts()
 
     def encode_text(c: Cut):
         # Text normalize for each sample
@@ -605,7 +714,7 @@ def run(rank, world_size, args):
         c.supervisions[0].text = text
         return c
 
-    train_cuts = train_cuts.filter(remove_short_and_long_utt)
+    train_cuts = train_cuts.filter(remove_short_utt)
     train_cuts = train_cuts.map(encode_text)
 
     if params.start_batch > 0 and checkpoints and "sampler" in checkpoints:
@@ -619,19 +728,19 @@ def run(rank, world_size, args):
         train_cuts, sampler_state_dict=sampler_state_dict
     )
 
-    valid_cuts = wenetspeech.valid_cuts()
+    valid_cuts = wenetspeech.nihaowenwen_dev_cuts()
+    valid_cuts = valid_cuts.filter(remove_short_utt)
     valid_cuts = valid_cuts.map(encode_text)
     valid_dl = wenetspeech.valid_dataloaders(valid_cuts)
 
-    if not params.print_diagnostics:
-        # scan_pessimistic_batches_for_oom(
-        #    model=model,
-        #    train_dl=train_dl,
-        #    optimizer=optimizer,
-        #    graph_compiler=graph_compiler,
-        #    params=params,
-        # )
-        pass
+    if not params.print_diagnostics and params.scan_for_oom_batches:
+        scan_pessimistic_batches_for_oom(
+            model=model,
+            train_dl=train_dl,
+            optimizer=optimizer,
+            graph_compiler=graph_compiler,
+            params=params,
+        )
 
     scaler = GradScaler(enabled=params.use_fp16, init_scale=1.0)
     if checkpoints and "grad_scaler" in checkpoints:
@@ -689,7 +798,6 @@ def main():
     parser = get_parser()
     WenetSpeechAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
-    args.lang_dir = Path(args.lang_dir)
     args.exp_dir = Path(args.exp_dir)
 
     world_size = args.world_size
@@ -701,4 +809,6 @@ def main():
 
 
 if __name__ == "__main__":
+    torch.set_num_threads(1)
+    torch.set_num_interop_threads(1)
     main()

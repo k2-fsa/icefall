@@ -1,4 +1,5 @@
 # Copyright      2021  Piotr Żelasko
+# Copyright      2024  Xiaomi Corporation     (Author: Wei Kang)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -409,8 +410,50 @@ class WenetSpeechAsrDataModule:
         return load_manifest_lazy(self.args.manifest_dir / "cuts_TEST_MEETING.jsonl.gz")
 
     @lru_cache()
-    def test_open_commands_cuts(self) -> CutSet:
-        logging.info("About to get open commands cuts")
+    def cn_speech_commands_small_cuts(self) -> CutSet:
+        logging.info("About to get cn speech commands small cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "open-commands-cn_cuts_test.jsonl.gz"
+            self.args.manifest_dir / "cn_speech_commands_cuts_small.jsonl.gz"
+        )
+
+    @lru_cache()
+    def cn_speech_commands_large_cuts(self) -> CutSet:
+        logging.info("About to get cn speech commands large cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "cn_speech_commands_cuts_large.jsonl.gz"
+        )
+
+    @lru_cache()
+    def nihaowenwen_dev_cuts(self) -> CutSet:
+        logging.info("About to get nihaowenwen dev cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "nihaowenwen_cuts_dev.jsonl.gz"
+        )
+
+    @lru_cache()
+    def nihaowenwen_test_cuts(self) -> CutSet:
+        logging.info("About to get nihaowenwen test cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "nihaowenwen_cuts_test.jsonl.gz"
+        )
+
+    @lru_cache()
+    def nihaowenwen_train_cuts(self) -> CutSet:
+        logging.info("About to get nihaowenwen train cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "nihaowenwen_cuts_train.jsonl.gz"
+        )
+
+    @lru_cache()
+    def xiaoyun_clean_cuts(self) -> CutSet:
+        logging.info("About to get xiaoyun clean cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "xiaoyun_cuts_clean.jsonl.gz"
+        )
+
+    @lru_cache()
+    def xiaoyun_noisy_cuts(self) -> CutSet:
+        logging.info("About to get xiaoyun noisy cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "xiaoyun_cuts_noisy.jsonl.gz"
         )
