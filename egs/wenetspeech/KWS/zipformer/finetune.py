@@ -185,9 +185,9 @@ def get_parser():
         default="partial_with_tone",
         help="""
             The style of the output pinyin, should be:
-              full_with_tone : zhong1 guo2
+              full_with_tone : zhōng guó
               full_no_tone : zhong guo
-              partial_with_tone : zh ong1 g uo2
+              partial_with_tone : zh ōng g uó
               partial_no_tone : zh ong g uo
         """,
     )
