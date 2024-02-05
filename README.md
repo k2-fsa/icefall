@@ -74,6 +74,9 @@ The [LibriSpeech][librispeech] recipe supports the most comprehensive set of mod
   - LSTM-based Predictor
   - [Stateless Predictor](https://research.google/pubs/rnn-transducer-with-stateless-prediction-network/)
 
+#### Whisper
+  - [OpenAi Whisper](https://arxiv.org/abs/2212.04356) (We support fine-tuning on AiShell-1.)
+
 If you are willing to contribute to icefall, please refer to [contributing](https://icefall.readthedocs.io/en/latest/contributing/index.html) for more details.
 
 We would like to highlight the performance of some of the recipes here.
