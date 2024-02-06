@@ -57,6 +57,18 @@ def get_args():
     return parser.parse_args()
 
 
+def generate_tokens(lang_dir: Path):
+    """
+    Generate the tokens.txt from a bpe model.
+    """
+    sp = spm.SentencePieceProcessor()
+    sp.load(str(lang_dir / "bpe.model"))
+    token2id: Dict[str, int] = {sp.id_to_piece(i): i for i in range(sp.vocab_size())}
+    with open(lang_dir / "tokens.txt", "w", encoding="utf-8") as f:
+        for sym, i in token2id.items():
+            f.write(f"{sym} {i}\n")
+
+
 def main():
     args = get_args()
     vocab_size = args.vocab_size
@@ -94,6 +106,8 @@ def main():
         return
 
     shutil.copyfile(model_file, f"{lang_dir}/bpe.model")
+
+    generate_tokens(lang_dir)
 
 
 if __name__ == "__main__":
