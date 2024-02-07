@@ -26,6 +26,8 @@ set -eou pipefail
 
 . prepare.sh --stage -1 --stop-stage 6 || exit 1
 
+log "Running prepare_lm.sh"
+
 stage=0
 stop_stage=100
 

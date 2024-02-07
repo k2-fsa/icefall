@@ -8,9 +8,10 @@ set -eou pipefail
 
 . prepare.sh --stage -1 --stop-stage 6 || exit 1
 
+log "Running prepare_mmi.sh"
+
 stage=0
 stop_stage=100
-
 
 if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   log "Stage 0: Prepare bigram token-level P for MMI training"
