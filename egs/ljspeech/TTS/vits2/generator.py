@@ -63,6 +63,7 @@ class VITSGenerator(torch.nn.Module):
         flow_kernel_size: int = 5,
         flow_base_dilation: int = 1,
         flow_layers: int = 4,
+        flow_nheads: int = 2,
         flow_dropout_rate: float = 0.0,
         use_weight_norm_in_flow: bool = True,
         use_only_mean_in_flow: bool = True,
@@ -73,6 +74,7 @@ class VITSGenerator(torch.nn.Module):
         use_noised_mas: bool = True,
         noise_initial_mas: float = 0.01,
         noise_scale_mas: float = 2e-6,
+        use_transformer_in_flows: bool = True,
     ):
         """Initialize VITS generator module.
 
@@ -170,6 +172,7 @@ class VITSGenerator(torch.nn.Module):
         self.flow = ResidualAffineCouplingBlock(
             in_channels=hidden_channels,
             hidden_channels=hidden_channels,
+            num_heads=flow_nheads,
             flows=flow_flows,
             kernel_size=flow_kernel_size,
             base_dilation=flow_base_dilation,
@@ -178,6 +181,7 @@ class VITSGenerator(torch.nn.Module):
             dropout_rate=flow_dropout_rate,
             use_weight_norm=use_weight_norm_in_flow,
             use_only_mean=use_only_mean_in_flow,
+            use_transformer_in_flows=use_transformer_in_flows,
         )
         # TODO(kan-bayashi): Add deterministic version as an option
         self.duration_predictor = StochasticDurationPredictor(

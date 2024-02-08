@@ -395,9 +395,7 @@ def train_one_epoch(
             # MAS with Gaussian Noise
             model.module.generator.noise_current_mas = max(
                 model.module.generator.noise_initial_mas
-                - model.module.generator.noise_scale_mas
-                * params.batch_idx_train
-                * 0.25,
+                - model.module.generator.noise_scale_mas * params.batch_idx_train,
                 0.0,
             )
 
