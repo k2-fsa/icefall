@@ -20,6 +20,7 @@ from flow import (
     ElementwiseAffineFlow,
     FlipFlow,
     LogFlow,
+    Transpose,
 )
 
 
@@ -191,3 +192,68 @@ class StochasticDurationPredictor(torch.nn.Module):
             z0, z1 = z.split(1, 1)
             logw = z0
             return logw
+
+
+class DurationPredictor(torch.nn.Module):
+    def __init__(
+        self,
+        input_channels: int = 192,
+        output_channels: int = 192,
+        kernel_size: int = 3,
+        dropout_rate: float = 0.5,
+        global_channels: int = -1,
+        eps: float = 1e-5,
+    ):
+        super().__init__()
+
+        self.input_channels = input_channels
+        self.output_channels = output_channels
+        self.kernel_size = kernel_size
+        self.dropout_rate = dropout_rate
+        self.gin_channels = global_channels
+
+        self.dropout = torch.nn.Dropout(dropout_rate)
+        self.conv_1 = torch.nn.Conv1d(
+            input_channels, output_channels, kernel_size, padding=kernel_size // 2
+        )
+        self.norm_1 = torch.nn.Sequential(
+            Transpose(1, 2),
+            torch.nn.LayerNorm(
+                output_channels,
+                eps=eps,
+                elementwise_affine=True,
+            ),
+            Transpose(1, 2),
+        )
+        self.conv_2 = torch.nn.Conv1d(
+            output_channels, output_channels, kernel_size, padding=kernel_size // 2
+        )
+        self.norm_2 = torch.nn.Sequential(
+            Transpose(1, 2),
+            torch.nn.LayerNorm(
+                output_channels,
+                eps=eps,
+                elementwise_affine=True,
+            ),
+            Transpose(1, 2),
+        )
+        self.proj = torch.nn.Conv1d(output_channels, 1, 1)
+
+        if global_channels > 0:
+            self.cond = torch.nn.Conv1d(global_channels, input_channels, 1)
+
+    def forward(self, x, x_mask, g=None):
+        x = torch.detach(x)
+        if g is not None:
+            g = torch.detach(g)
+            x = x + self.cond(g)
+        x = self.conv_1(x * x_mask)
+        x = torch.relu(x)
+        x = self.norm_1(x)
+        x = self.dropout(x)
+        x = self.conv_2(x * x_mask)
+        x = torch.relu(x)
+        x = self.norm_2(x)
+        x = self.dropout(x)
+        x = self.proj(x * x_mask)
+        return x * x_mask

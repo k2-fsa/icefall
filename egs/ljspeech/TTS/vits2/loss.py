@@ -333,3 +333,30 @@ class KLDivergenceLossWithoutFlow(torch.nn.Module):
         prior_norm = D.Normal(m_p, torch.exp(logs_p))
         loss = D.kl_divergence(posterior_norm, prior_norm).mean()
         return loss
+
+
+class DurationDiscLoss(torch.nn.Module):
+    def forward(
+        self,
+        disc_real_outputs: List[torch.Tensor],
+        disc_generated_outputs: List[torch.Tensor],
+    ):
+        loss = 0
+        for dr, dg in zip(disc_real_outputs, disc_generated_outputs):
+            dr = dr.float()
+            dg = dg.float()
+            r_loss = torch.mean((1 - dr) ** 2)
+            g_loss = torch.mean(dg**2)
+            loss += r_loss + g_loss
+
+        return loss
+
+
+class DurationGenLoss(torch.nn.Module):
+    def forward(self, disc_outputs: List[torch.Tensor]):
+        loss = 0
+        for dg in disc_outputs:
+            dg = dg.float()
+            loss += torch.mean((1 - dg) ** 2)
+
+        return loss

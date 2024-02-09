@@ -16,7 +16,7 @@ from typing import List, Optional, Tuple
 import numpy as np
 import torch
 import torch.nn.functional as F
-from duration_predictor import StochasticDurationPredictor
+from duration_predictor import DurationPredictor, StochasticDurationPredictor
 from hifigan import HiFiGANGenerator
 from posterior_encoder import PosteriorEncoder
 from residual_coupling import ResidualAffineCouplingBlock
@@ -71,6 +71,8 @@ class VITSGenerator(torch.nn.Module):
         stochastic_duration_predictor_dropout_rate: float = 0.5,
         stochastic_duration_predictor_flows: int = 4,
         stochastic_duration_predictor_dds_conv_layers: int = 3,
+        duration_predictor_output_channels: int = 256,
+        use_stochastic_duration_predictor: bool = True,
         use_noised_mas: bool = True,
         noise_initial_mas: float = 0.01,
         noise_scale_mas: float = 2e-6,
@@ -184,14 +186,23 @@ class VITSGenerator(torch.nn.Module):
             use_transformer_in_flows=use_transformer_in_flows,
         )
         # TODO(kan-bayashi): Add deterministic version as an option
-        self.duration_predictor = StochasticDurationPredictor(
-            channels=hidden_channels,
-            kernel_size=stochastic_duration_predictor_kernel_size,
-            dropout_rate=stochastic_duration_predictor_dropout_rate,
-            flows=stochastic_duration_predictor_flows,
-            dds_conv_layers=stochastic_duration_predictor_dds_conv_layers,
-            global_channels=global_channels,
-        )
+        if use_stochastic_duration_predictor:
+            self.duration_predictor = StochasticDurationPredictor(
+                channels=hidden_channels,
+                kernel_size=stochastic_duration_predictor_kernel_size,
+                dropout_rate=stochastic_duration_predictor_dropout_rate,
+                flows=stochastic_duration_predictor_flows,
+                dds_conv_layers=stochastic_duration_predictor_dds_conv_layers,
+                global_channels=global_channels,
+            )
+        else:
+            self.duration_predictor = DurationPredictor(
+                input_channels=hidden_channels,
+                output_channels=duration_predictor_output_channels,
+                kernel_size=stochastic_duration_predictor_kernel_size,
+                dropout_rate=stochastic_duration_predictor_dropout_rate,
+                global_channels=global_channels,
+            )
 
         self.upsample_factor = int(np.prod(decoder_upsample_scales))
 
@@ -200,6 +211,7 @@ class VITSGenerator(torch.nn.Module):
         self.noise_current_mas = noise_initial_mas
         self.noise_scale_mas = noise_scale_mas
         self.noise_initial_mas = noise_initial_mas
+        self.use_stochastic_duration_predictor = use_stochastic_duration_predictor
 
         self.spks = None
         if spks is not None and spks > 1:
@@ -354,8 +366,18 @@ class VITSGenerator(torch.nn.Module):
 
         # forward duration predictor
         w = attn.sum(2)  # (B, 1, T_text)
-        dur_nll = self.duration_predictor(x, x_mask, w=w, g=g)
-        dur_nll = dur_nll / torch.sum(x_mask)
+
+        if self.use_stochastic_duration_predictor:
+            dur_nll = self.duration_predictor(x, x_mask, w=w, g=g)
+            dur_nll = dur_nll / torch.sum(x_mask)
+            logw = self.duration_predictor(
+                x, x_mask, g=g, inverse=True, noise_scale=1.0
+            )
+            logw_ = torch.log(w + 1e-6) * x_mask
+        else:
+            logw_ = torch.log(w + 1e-6) * x_mask
+            logw = self.dp(x, x_mask, g=g)
+            dur_nll = torch.sum((logw - logw_) ** 2, [1, 2]) / torch.sum(x_mask)
 
         # expand the length to match with the feature sequence
         # (B, T_feats, T_text) x (B, T_text, H) -> (B, H, T_feats)
@@ -381,6 +403,7 @@ class VITSGenerator(torch.nn.Module):
             x_mask,
             y_mask,
             (z, z_p, m_p, logs_p, m_q, logs_q),
+            (x, logw, logw_),
         )
 
     def inference(

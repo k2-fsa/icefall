@@ -103,9 +103,9 @@ class WaveNet(torch.nn.Module):
         # define output layers
         if self.use_last_conv:
             self.last_conv = torch.nn.Sequential(
-                torch.nn.ReLU(inplace=True),
+                torch.nn.ReLU(inplace=False),
                 Conv1d1x1(skip_channels, skip_channels, bias=True),
-                torch.nn.ReLU(inplace=True),
+                torch.nn.ReLU(inplace=False),
                 Conv1d1x1(skip_channels, out_channels, bias=True),
             )
 

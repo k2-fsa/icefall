@@ -11,6 +11,7 @@ import torch
 import torch.nn as nn
 from generator import VITSGenerator
 from hifigan import (
+    DurationDiscriminator,
     HiFiGANMultiPeriodDiscriminator,
     HiFiGANMultiScaleDiscriminator,
     HiFiGANMultiScaleMultiPeriodDiscriminator,
@@ -19,6 +20,8 @@ from hifigan import (
 )
 from loss import (
     DiscriminatorAdversarialLoss,
+    DurationDiscLoss,
+    DurationGenLoss,
     FeatureMatchLoss,
     GeneratorAdversarialLoss,
     KLDivergenceLoss,
@@ -87,6 +90,8 @@ class VITS(nn.Module):
             "stochastic_duration_predictor_dropout_rate": 0.5,
             "stochastic_duration_predictor_flows": 4,
             "stochastic_duration_predictor_dds_conv_layers": 3,
+            "duration_predictor_output_channels": 256,
+            "use_stochastic_duration_predictor": True,
             "use_noised_mas": True,
             "noise_initial_mas": 0.01,
             "noise_scale_mas": 2e-06,
@@ -130,6 +135,13 @@ class VITS(nn.Module):
                 "use_weight_norm": True,
                 "use_spectral_norm": False,
             },
+            "duration_discriminator_params": {
+                "channels": 192,
+                "hidden_channels": 192,
+                "kernel_size": 3,
+                "dropout_rate": 0.1,
+                "global_channels": -1,
+            },
         },
         # loss related
         generator_adv_loss_params: Dict[str, Any] = {
@@ -155,6 +167,7 @@ class VITS(nn.Module):
         lambda_feat_match: float = 2.0,
         lambda_dur: float = 1.0,
         lambda_kl: float = 1.0,
+        lambda_dur_gen: float = 1.0,
         cache_generator_outputs: bool = True,
     ):
         """Initialize VITS module.
@@ -194,6 +207,13 @@ class VITS(nn.Module):
             #   where idim represents #vocabularies and odim represents
             #   the input acoustic feature dimension.
             generator_params.update(vocabs=vocab_size, aux_channels=feature_dim)
+
+        self.dur_disc = DurationDiscriminator(
+            **discriminator_params["duration_discriminator_params"]
+        )
+
+        discriminator_params.pop("duration_discriminator_params")
+
         self.generator = generator_class(
             **generator_params,
         )
@@ -216,12 +236,17 @@ class VITS(nn.Module):
         )
         self.kl_loss = KLDivergenceLoss()
 
+        # Vits2 duration disc
+        self.dur_disc_loss = DurationDiscLoss()
+        self.dur_gen_loss = DurationGenLoss()
+
         # coefficients
         self.lambda_adv = lambda_adv
         self.lambda_mel = lambda_mel
         self.lambda_kl = lambda_kl
         self.lambda_feat_match = lambda_feat_match
         self.lambda_dur = lambda_dur
+        self.lambda_dur_gen = lambda_dur_gen
 
         # cache
         self.cache_generator_outputs = cache_generator_outputs
@@ -349,8 +374,18 @@ class VITS(nn.Module):
             self._cache = outs
 
         # parse outputs
-        speech_hat_, dur_nll, _, start_idxs, _, z_mask, outs_ = outs
-        _, z_p, m_p, logs_p, _, logs_q = outs_
+        # speech_hat_, dur_nll, _, start_idxs, _, z_mask, outs_ = outs
+        # _, z_p, m_p, logs_p, _, logs_q = outs_
+        (
+            speech_hat_,
+            dur_nll,
+            attn,
+            start_idxs,
+            x_mask,
+            y_mask,
+            (z, z_p, m_p, logs_p, m_q, logs_q),
+            (hidden_x, logw, logw_),
+        ) = outs
         speech_ = get_segments(
             x=speech,
             start_idxs=start_idxs * self.generator.upsample_factor,
@@ -371,17 +406,29 @@ class VITS(nn.Module):
                 mel_loss, (mel_hat_, mel_) = self.mel_loss(
                     speech_hat_, speech_, return_mel=True
                 )
-            kl_loss = self.kl_loss(z_p, logs_q, m_p, logs_p, z_mask)
+            kl_loss = self.kl_loss(z_p, logs_q, m_p, logs_p, y_mask)
             dur_loss = torch.sum(dur_nll.float())
             adv_loss = self.generator_adv_loss(p_hat)
             feat_match_loss = self.feat_match_loss(p_hat, p)
+
+            y_dur_hat_r, y_dur_hat_g = self.dur_disc(hidden_x, x_mask, logw_, logw)
+            dur_gen_loss = self.dur_gen_loss(y_dur_hat_g)
 
             mel_loss = mel_loss * self.lambda_mel
             kl_loss = kl_loss * self.lambda_kl
             dur_loss = dur_loss * self.lambda_dur
             adv_loss = adv_loss * self.lambda_adv
             feat_match_loss = feat_match_loss * self.lambda_feat_match
-            loss = mel_loss + kl_loss + dur_loss + adv_loss + feat_match_loss
+            dur_gen_loss = dur_gen_loss * self.lambda_dur_gen
+
+            loss = (
+                mel_loss
+                + kl_loss
+                + dur_loss
+                + adv_loss
+                + feat_match_loss
+                + dur_gen_loss
+            )
 
         stats = dict(
             generator_loss=loss.item(),
@@ -390,6 +437,7 @@ class VITS(nn.Module):
             generator_dur_loss=dur_loss.item(),
             generator_adv_loss=adv_loss.item(),
             generator_feat_match_loss=feat_match_loss.item(),
+            generator_dur_gen_loss=dur_gen_loss.item(),
         )
 
         if return_sample:
@@ -459,8 +507,17 @@ class VITS(nn.Module):
         if self.cache_generator_outputs and not reuse_cache:
             self._cache = outs
 
-        # parse outputs
-        speech_hat_, _, _, start_idxs, *_ = outs
+        (
+            speech_hat_,
+            dur_nll,
+            attn,
+            start_idxs,
+            x_mask,
+            y_mask,
+            (z, z_p, m_p, logs_p, m_q, logs_q),
+            (hidden_x, logw, logw_),
+        ) = outs
+
         speech_ = get_segments(
             x=speech,
             start_idxs=start_idxs * self.generator.upsample_factor,
@@ -476,6 +533,14 @@ class VITS(nn.Module):
             real_loss, fake_loss = self.discriminator_adv_loss(p_hat, p)
             loss = real_loss + fake_loss
 
+        # Duration Discriminator
+        y_dur_hat_r, y_dur_hat_g = self.dur_disc(
+            hidden_x.detach(), x_mask.detach(), logw_.detach(), logw.detach()
+        )
+
+        with autocast(enabled=False):
+            dur_loss = self.dur_disc_loss(y_dur_hat_r, y_dur_hat_g)
+
         stats = dict(
             discriminator_loss=loss.item(),
             discriminator_real_loss=real_loss.item(),
@@ -486,7 +551,7 @@ class VITS(nn.Module):
         if reuse_cache or not self.training:
             self._cache = None
 
-        return loss, stats
+        return loss, dur_loss, stats
 
     def inference(
         self,
