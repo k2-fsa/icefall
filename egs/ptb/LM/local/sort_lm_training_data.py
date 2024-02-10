@@ -31,6 +31,7 @@ from pathlib import Path
 import k2
 import numpy as np
 import torch
+from tqdm.auto import tqdm
 
 
 def get_args():
@@ -87,7 +88,7 @@ def main():
     )
 
     cur = None
-    for i in range(num_sentences):
+    for i in tqdm(range(num_sentences)):
         word_ids = sorted_sentences[i]
         token_ids = words2bpe[word_ids]
         if isinstance(token_ids, k2.RaggedTensor):

@@ -22,8 +22,6 @@
 import argparse
 from pathlib import Path
 
-from tqdm.auto import tqdm
-
 from icefall.utils import tokenize_by_CJK_char
 
 
