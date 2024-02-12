@@ -375,8 +375,10 @@ def train_one_epoch(
             params=params,
             optimizer_g=optimizer_g,
             optimizer_d=optimizer_d,
+            optimizer_dur=optimizer_dur,
             scheduler_g=scheduler_g,
             scheduler_d=scheduler_d,
+            scheduler_dur=scheduler_dur,
             sampler=train_dl.sampler,
             scaler=scaler,
             rank=0,
@@ -393,15 +395,42 @@ def train_one_epoch(
         loss_info = MetricsTracker()
         loss_info["samples"] = batch_size
 
-        if model.module.generator.use_noised_mas:
-            # MAS with Gaussian Noise
-            model.module.generator.noise_current_mas = max(
-                model.module.generator.noise_initial_mas
-                - model.module.generator.noise_scale_mas * params.batch_idx_train,
-                0.0,
-            )
+        if isinstance(model, DDP):
+            if model.module.generator.use_noised_mas:
+                # MAS with Gaussian Noise
+                model.module.generator.noise_current_mas = max(
+                    model.module.generator.noise_initial_mas
+                    - model.module.generator.noise_scale_mas * params.batch_idx_train,
+                    0.0,
+                )
+        else:
+            if model.generator.use_noised_mas:
+                # MAS with Gaussian Noise
+                model.generator.noise_current_mas = max(
+                    model.generator.noise_initial_mas
+                    - model.generator.noise_scale_mas * params.batch_idx_train,
+                    0.0,
+                )
 
         try:
+            with autocast(enabled=params.use_fp16):
+                # forward duration discriminator
+                dur_loss, stats_dur = model(
+                    text=tokens,
+                    text_lengths=tokens_lens,
+                    feats=features,
+                    feats_lengths=features_lens,
+                    speech=audio,
+                    speech_lengths=audio_lens,
+                    forward_type="duration_discriminator",
+                )
+            for k, v in stats_dur.items():
+                loss_info[k] = v * batch_size
+
+            optimizer_dur.zero_grad()
+            scaler.scale(dur_loss).backward()
+            scaler.step(optimizer_dur)
+
             with autocast(enabled=params.use_fp16):
                 # forward discriminator
                 loss_d, dur_loss, stats_d = model(
@@ -411,12 +440,8 @@ def train_one_epoch(
                     feats_lengths=features_lens,
                     speech=audio,
                     speech_lengths=audio_lens,
-                    forward_generator=False,
+                    forward_type="discriminator",
                 )
-
-            optimizer_dur.zero_grad()
-            scaler.scale(dur_loss).backward()
-            scaler.step(optimizer_dur)
 
             for k, v in stats_d.items():
                 loss_info[k] = v * batch_size
@@ -434,7 +459,7 @@ def train_one_epoch(
                     feats_lengths=features_lens,
                     speech=audio,
                     speech_lengths=audio_lens,
-                    forward_generator=True,
+                    forward_type="generator",
                     return_sample=params.batch_idx_train % params.log_interval == 0,
                 )
             for k, v in stats_g.items():
@@ -603,15 +628,29 @@ def compute_validation_loss(
             loss_info = MetricsTracker()
             loss_info["samples"] = batch_size
 
-            # forward discriminator
-            loss_d, dur_loss, stats_d = model(
+            # forward duration discriminator
+            loss_dur, stats_dur = model(
                 text=tokens,
                 text_lengths=tokens_lens,
                 feats=features,
                 feats_lengths=features_lens,
                 speech=audio,
                 speech_lengths=audio_lens,
-                forward_generator=False,
+                forward_type="duration_discriminator",
+            )
+            assert loss_dur.requires_grad is False
+            for k, v in stats_dur.items():
+                loss_info[k] = v * batch_size
+
+            # forward discriminator
+            loss_d, stats_d = model(
+                text=tokens,
+                text_lengths=tokens_lens,
+                feats=features,
+                feats_lengths=features_lens,
+                speech=audio,
+                speech_lengths=audio_lens,
+                forward_type="discriminator",
             )
             assert loss_d.requires_grad is False
             for k, v in stats_d.items():
@@ -625,7 +664,7 @@ def compute_validation_loss(
                 feats_lengths=features_lens,
                 speech=audio,
                 speech_lengths=audio_lens,
-                forward_generator=True,
+                forward_type="generator",
             )
             assert loss_g.requires_grad is False
             for k, v in stats_g.items():
@@ -684,20 +723,32 @@ def scan_pessimistic_batches_for_oom(
             batch, tokenizer, device
         )
         try:
-            # for discriminator
+            # for duration discriminator
             with autocast(enabled=params.use_fp16):
-                loss_d, dur_loss, stats_d = model(
+                dur_loss, stats_dur = model(
                     text=tokens,
                     text_lengths=tokens_lens,
                     feats=features,
                     feats_lengths=features_lens,
                     speech=audio,
                     speech_lengths=audio_lens,
-                    forward_generator=False,
+                    forward_type="duration_discriminator",
                 )
 
             optimizer_dur.zero_grad()
             dur_loss.backward()
+
+            # for discriminator
+            with autocast(enabled=params.use_fp16):
+                loss_d, stats_d = model(
+                    text=tokens,
+                    text_lengths=tokens_lens,
+                    feats=features,
+                    feats_lengths=features_lens,
+                    speech=audio,
+                    speech_lengths=audio_lens,
+                    forward_type="discriminator",
+                )
 
             optimizer_d.zero_grad()
             loss_d.backward()
@@ -710,7 +761,7 @@ def scan_pessimistic_batches_for_oom(
                     feats_lengths=features_lens,
                     speech=audio,
                     speech_lengths=audio_lens,
-                    forward_generator=True,
+                    forward_type="generator",
                 )
             optimizer_g.zero_grad()
             loss_g.backward()
@@ -918,8 +969,10 @@ def run(rank, world_size, args):
                 model=model,
                 optimizer_g=optimizer_g,
                 optimizer_d=optimizer_d,
+                optimizer_dur=optimizer_dur,
                 scheduler_g=scheduler_g,
                 scheduler_d=scheduler_d,
+                scheduler_dur=scheduler_dur,
                 sampler=train_dl.sampler,
                 scaler=scaler,
                 rank=rank,

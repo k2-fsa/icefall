@@ -20,8 +20,6 @@ from hifigan import (
 )
 from loss import (
     DiscriminatorAdversarialLoss,
-    DurationDiscLoss,
-    DurationGenLoss,
     FeatureMatchLoss,
     GeneratorAdversarialLoss,
     KLDivergenceLoss,
@@ -236,10 +234,6 @@ class VITS(nn.Module):
         )
         self.kl_loss = KLDivergenceLoss()
 
-        # Vits2 duration disc
-        self.dur_disc_loss = DurationDiscLoss()
-        self.dur_gen_loss = DurationGenLoss()
-
         # coefficients
         self.lambda_adv = lambda_adv
         self.lambda_mel = lambda_mel
@@ -273,7 +267,7 @@ class VITS(nn.Module):
         sids: Optional[torch.Tensor] = None,
         spembs: Optional[torch.Tensor] = None,
         lids: Optional[torch.Tensor] = None,
-        forward_generator: bool = True,
+        forward_type: str = "generator",
     ) -> Tuple[torch.Tensor, Dict[str, Any]]:
         """Perform generator forward.
 
@@ -287,13 +281,13 @@ class VITS(nn.Module):
             sids (Optional[Tensor]): Speaker index tensor (B,) or (B, 1).
             spembs (Optional[Tensor]): Speaker embedding tensor (B, spk_embed_dim).
             lids (Optional[Tensor]): Language index tensor (B,) or (B, 1).
-            forward_generator (bool): Whether to forward generator.
+            forward_type (str): Which type of forward to do
 
         Returns:
             - loss (Tensor): Loss scalar tensor.
             - stats (Dict[str, float]): Statistics to be monitored.
         """
-        if forward_generator:
+        if forward_type == "generator":
             return self._forward_generator(
                 text=text,
                 text_lengths=text_lengths,
@@ -306,7 +300,7 @@ class VITS(nn.Module):
                 spembs=spembs,
                 lids=lids,
             )
-        else:
+        elif forward_type == "discriminator":
             return self._forward_discrminator(
                 text=text,
                 text_lengths=text_lengths,
@@ -318,6 +312,20 @@ class VITS(nn.Module):
                 spembs=spembs,
                 lids=lids,
             )
+        elif forward_type == "duration_discriminator":
+            return self._forward_discrminator_duration(
+                text=text,
+                text_lengths=text_lengths,
+                feats=feats,
+                feats_lengths=feats_lengths,
+                speech=speech,
+                speech_lengths=speech_lengths,
+                sids=sids,
+                spembs=spembs,
+                lids=lids,
+            )
+        else:
+            raise Exception(f"Forward type {forward_type} does not exist")
 
     def _forward_generator(
         self,
@@ -374,8 +382,6 @@ class VITS(nn.Module):
             self._cache = outs
 
         # parse outputs
-        # speech_hat_, dur_nll, _, start_idxs, _, z_mask, outs_ = outs
-        # _, z_p, m_p, logs_p, _, logs_q = outs_
         (
             speech_hat_,
             dur_nll,
@@ -412,7 +418,7 @@ class VITS(nn.Module):
             feat_match_loss = self.feat_match_loss(p_hat, p)
 
             y_dur_hat_r, y_dur_hat_g = self.dur_disc(hidden_x, x_mask, logw_, logw)
-            dur_gen_loss = self.dur_gen_loss(y_dur_hat_g)
+            dur_gen_loss = self.generator_adv_loss(y_dur_hat_g)
 
             mel_loss = mel_loss * self.lambda_mel
             kl_loss = kl_loss * self.lambda_kl
@@ -514,8 +520,8 @@ class VITS(nn.Module):
             start_idxs,
             x_mask,
             y_mask,
-            (z, z_p, m_p, logs_p, m_q, logs_q),
-            (hidden_x, logw, logw_),
+            _,
+            _,
         ) = outs
 
         speech_ = get_segments(
@@ -533,14 +539,6 @@ class VITS(nn.Module):
             real_loss, fake_loss = self.discriminator_adv_loss(p_hat, p)
             loss = real_loss + fake_loss
 
-        # Duration Discriminator
-        y_dur_hat_r, y_dur_hat_g = self.dur_disc(
-            hidden_x.detach(), x_mask.detach(), logw_.detach(), logw.detach()
-        )
-
-        with autocast(enabled=False):
-            dur_loss = self.dur_disc_loss(y_dur_hat_r, y_dur_hat_g)
-
         stats = dict(
             discriminator_loss=loss.item(),
             discriminator_real_loss=real_loss.item(),
@@ -551,7 +549,92 @@ class VITS(nn.Module):
         if reuse_cache or not self.training:
             self._cache = None
 
-        return loss, dur_loss, stats
+        return loss, stats
+
+    def _forward_discrminator_duration(
+        self,
+        text: torch.Tensor,
+        text_lengths: torch.Tensor,
+        feats: torch.Tensor,
+        feats_lengths: torch.Tensor,
+        speech: torch.Tensor,
+        speech_lengths: torch.Tensor,
+        sids: Optional[torch.Tensor] = None,
+        spembs: Optional[torch.Tensor] = None,
+        lids: Optional[torch.Tensor] = None,
+    ) -> Tuple[torch.Tensor, Dict[str, Any]]:
+        """Perform discriminator forward.
+
+        Args:
+            text (Tensor): Text index tensor (B, T_text).
+            text_lengths (Tensor): Text length tensor (B,).
+            feats (Tensor): Feature tensor (B, T_feats, aux_channels).
+            feats_lengths (Tensor): Feature length tensor (B,).
+            speech (Tensor): Speech waveform tensor (B, T_wav).
+            speech_lengths (Tensor): Speech length tensor (B,).
+            sids (Optional[Tensor]): Speaker index tensor (B,) or (B, 1).
+            spembs (Optional[Tensor]): Speaker embedding tensor (B, spk_embed_dim).
+            lids (Optional[Tensor]): Language index tensor (B,) or (B, 1).
+
+        Returns:
+            * loss (Tensor): Loss scalar tensor.
+            * stats (Dict[str, float]): Statistics to be monitored.
+        """
+        # setup
+        feats = feats.transpose(1, 2)
+        speech = speech.unsqueeze(1)
+
+        # calculate generator outputs
+        reuse_cache = True
+        if not self.cache_generator_outputs or self._cache is None:
+            reuse_cache = False
+            outs = self.generator(
+                text=text,
+                text_lengths=text_lengths,
+                feats=feats,
+                feats_lengths=feats_lengths,
+                sids=sids,
+                spembs=spembs,
+                lids=lids,
+            )
+        else:
+            outs = self._cache
+
+        # store cache
+        if self.cache_generator_outputs and not reuse_cache:
+            self._cache = outs
+
+        (
+            speech_hat_,
+            dur_nll,
+            attn,
+            start_idxs,
+            x_mask,
+            y_mask,
+            (z, z_p, m_p, logs_p, m_q, logs_q),
+            (hidden_x, logw, logw_),
+        ) = outs
+
+        # Duration Discriminator
+        y_dur_hat_r, y_dur_hat_g = self.dur_disc(
+            hidden_x.detach(), x_mask.detach(), logw_.detach(), logw.detach()
+        )
+
+        with autocast(enabled=False):
+            real_dur_loss, fake_dur_loss = self.discriminator_adv_loss(
+                y_dur_hat_g, y_dur_hat_r
+            )
+            dur_loss = real_dur_loss + fake_dur_loss
+
+        stats = dict(
+            discriminator_dur_loss=dur_loss.item(),
+        )
+
+        # reset cache
+        if reuse_cache or not self.training:
+            self._cache = None
+
+        return dur_loss, stats
 
     def inference(
         self,

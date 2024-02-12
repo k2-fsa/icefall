@@ -203,8 +203,10 @@ def save_checkpoint(
     params: Optional[Dict[str, Any]] = None,
     optimizer_g: Optional[Optimizer] = None,
     optimizer_d: Optional[Optimizer] = None,
+    optimizer_dur: Optional[Optimizer] = None,
     scheduler_g: Optional[LRSchedulerType] = None,
     scheduler_d: Optional[LRSchedulerType] = None,
+    scheduler_dur: Optional[LRSchedulerType] = None,
     scaler: Optional[GradScaler] = None,
     sampler: Optional[CutSampler] = None,
     rank: int = 0,
@@ -251,7 +253,13 @@ def save_checkpoint(
         "model": model.state_dict(),
         "optimizer_g": optimizer_g.state_dict() if optimizer_g is not None else None,
         "optimizer_d": optimizer_d.state_dict() if optimizer_d is not None else None,
+        "optimizer_dur": optimizer_dur.state_dict()
+        if optimizer_d is not None
+        else None,
         "scheduler_g": scheduler_g.state_dict() if scheduler_g is not None else None,
+        "scheduler_dur": scheduler_dur.state_dict()
+        if scheduler_d is not None
+        else None,
         "scheduler_d": scheduler_d.state_dict() if scheduler_d is not None else None,
         "grad_scaler": scaler.state_dict() if scaler is not None else None,
         "sampler": sampler.state_dict() if sampler is not None else None,

@@ -49,6 +49,8 @@ class TextEncoder(torch.nn.Module):
         cnn_module_kernel: int = 5,
         num_layers: int = 6,
         dropout: float = 0.1,
+        global_channels: int = 0,
+        cond_layer_idx: int = 2,
     ):
         """Initialize TextEncoder module.
 
@@ -63,6 +65,8 @@ class TextEncoder(torch.nn.Module):
         """
         super().__init__()
         self.d_model = d_model
+        self.global_channels = global_channels
+        self.cond_layer_idx = cond_layer_idx
 
         # define modules
         self.emb = torch.nn.Embedding(vocabs, d_model)
@@ -76,14 +80,14 @@ class TextEncoder(torch.nn.Module):
             cnn_module_kernel=cnn_module_kernel,
             num_layers=num_layers,
             dropout=dropout,
+            global_channels=global_channels,
+            cond_layer_idx=cond_layer_idx,
         )
 
         self.proj = torch.nn.Conv1d(d_model, d_model * 2, 1)
 
     def forward(
-        self,
-        x: torch.Tensor,
-        x_lengths: torch.Tensor,
+        self, x: torch.Tensor, x_lengths: torch.Tensor, g: Optional[torch.Tensor] = None
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """Calculate forward propagation.
 
@@ -107,7 +111,7 @@ class TextEncoder(torch.nn.Module):
         pad_mask = make_pad_mask(x_lengths)
 
         # encoder assume the channel last (B, T_text, embed_dim)
-        x = self.encoder(x, key_padding_mask=pad_mask)
+        x = self.encoder(x, key_padding_mask=pad_mask, g=g)
 
         # convert the channel first (B, embed_dim, T_text)
         x = x.transpose(1, 2)
@@ -137,11 +141,18 @@ class Transformer(nn.Module):
         cnn_module_kernel: int = 5,
         num_layers: int = 6,
         dropout: float = 0.1,
+        global_channels: int = 0,
+        cond_layer_idx: int = 2,
     ) -> None:
         super().__init__()
 
         self.num_layers = num_layers
         self.d_model = d_model
+        self.global_channels = global_channels
+
+        speaker_embedder = None
+        if self.global_channels != 0:
+            speaker_embedder = nn.Linear(self.global_channels, self.d_model)
 
         self.encoder_pos = RelPositionalEncoding(d_model, dropout)
 
@@ -151,12 +162,13 @@ class Transformer(nn.Module):
             dim_feedforward=dim_feedforward,
             cnn_module_kernel=cnn_module_kernel,
             dropout=dropout,
+            speaker_embedder=speaker_embedder,
         )
-        self.encoder = TransformerEncoder(encoder_layer, num_layers)
+        self.encoder = TransformerEncoder(encoder_layer, num_layers, cond_layer_idx)
         self.after_norm = nn.LayerNorm(d_model)
 
     def forward(
-        self, x: Tensor, key_padding_mask: Tensor
+        self, x: Tensor, key_padding_mask: Tensor, g: Optional[Tensor] = None
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Args:
@@ -169,7 +181,9 @@ class Transformer(nn.Module):
         x, pos_emb = self.encoder_pos(x)
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
 
-        x = self.encoder(x, pos_emb, key_padding_mask=key_padding_mask)  # (T, N, C)
+        x = self.encoder(
+            x, pos_emb, key_padding_mask=key_padding_mask, g=g
+        )  # (T, N, C)
 
         x = self.after_norm(x)
 
@@ -195,6 +209,7 @@ class TransformerEncoderLayer(nn.Module):
         dim_feedforward: int,
         cnn_module_kernel: int,
         dropout: float = 0.1,
+        speaker_embedder: Optional[nn.Module] = None,
     ) -> None:
         super(TransformerEncoderLayer, self).__init__()
 
@@ -227,11 +242,15 @@ class TransformerEncoderLayer(nn.Module):
         self.ff_scale = 0.5
         self.dropout = nn.Dropout(dropout)
 
+        self.speaker_embedder = speaker_embedder
+
     def forward(
         self,
         src: Tensor,
         pos_emb: Tensor,
         key_padding_mask: Optional[Tensor] = None,
+        g: Optional[Tensor] = None,
+        apply_speaker_embedding: bool = False,
     ) -> Tensor:
         """
         Pass the input through the transformer encoder layer.
@@ -241,6 +260,11 @@ class TransformerEncoderLayer(nn.Module):
             pos_emb: Positional embedding tensor, of shape (1, seq_len*2-1, pos_dim).
             key_padding_mask: the mask for the src keys per batch, of shape (batch_size, seq_len)
         """
+        if g is not None and apply_speaker_embedding:
+            g = self.speaker_embedder(g.transpose(1, 2))
+            g = g.transpose(1, 2)
+            src = src + g  # * src_mask
+
         # macaron style feed-forward module
         src = src + self.ff_scale * self.dropout(
             self.feed_forward_macaron(self.norm_ff_macaron(src))
@@ -273,19 +297,23 @@ class TransformerEncoder(nn.Module):
         num_layers: the number of sub-encoder-layers in the encoder.
     """
 
-    def __init__(self, encoder_layer: nn.Module, num_layers: int) -> None:
+    def __init__(
+        self, encoder_layer: nn.Module, num_layers: int, cond_layer_idx: int = 0
+    ) -> None:
         super().__init__()
 
         self.layers = nn.ModuleList(
             [copy.deepcopy(encoder_layer) for i in range(num_layers)]
         )
         self.num_layers = num_layers
+        self.cond_layer_idx = cond_layer_idx
 
     def forward(
         self,
         src: Tensor,
         pos_emb: Tensor,
         key_padding_mask: Optional[Tensor] = None,
+        g: Optional[Tensor] = None,
     ) -> Tensor:
         r"""Pass the input through the encoder layers in turn.
 
@@ -295,12 +323,17 @@ class TransformerEncoder(nn.Module):
             key_padding_mask: the mask for the src keys per batch, of shape (batch_size, seq_len)
         """
         output = src
-
         for layer_index, mod in enumerate(self.layers):
+            apply_speaker_embedding = False
+            if layer_index == self.cond_layer_idx:
+                apply_speaker_embedding = True
+
             output = mod(
                 output,
                 pos_emb,
                 key_padding_mask=key_padding_mask,
+                g=g,
+                apply_speaker_embedding=apply_speaker_embedding,
             )
 
         return output

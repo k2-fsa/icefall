@@ -77,6 +77,7 @@ class VITSGenerator(torch.nn.Module):
         noise_initial_mas: float = 0.01,
         noise_scale_mas: float = 2e-6,
         use_transformer_in_flows: bool = True,
+        use_spk_conditioned_txt_encoder: bool = False,
     ):
         """Initialize VITS generator module.
 
@@ -138,6 +139,13 @@ class VITSGenerator(torch.nn.Module):
         """
         super().__init__()
         self.segment_size = segment_size
+        self.use_spk_conditioned_txt_encoder = use_spk_conditioned_txt_encoder
+
+        if self.use_spk_conditioned_txt_encoder and global_channels > 0:
+            self.text_encoder_global_channels = global_channels
+        else:
+            self.text_encoder_global_channels = 0
+
         self.text_encoder = TextEncoder(
             vocabs=vocabs,
             d_model=hidden_channels,
@@ -146,6 +154,7 @@ class VITSGenerator(torch.nn.Module):
             cnn_module_kernel=text_encoder_cnn_module_kernel,
             num_layers=text_encoder_blocks,
             dropout=text_encoder_dropout_rate,
+            global_channels=self.text_encoder_global_channels,
         )
         self.decoder = HiFiGANGenerator(
             in_channels=hidden_channels,
@@ -286,9 +295,6 @@ class VITSGenerator(torch.nn.Module):
                 - Tensor: Posterior encoder projected scale (B, H, T_feats).
 
         """
-        # forward text encoder
-        x, m_p, logs_p, x_mask = self.text_encoder(text, text_lengths)
-
         # calculate global conditioning
         g = None
         if self.spks is not None:
@@ -308,6 +314,9 @@ class VITSGenerator(torch.nn.Module):
                 g = g_
             else:
                 g = g + g_
+
+        # forward text encoder
+        x, m_p, logs_p, x_mask = self.text_encoder(text, text_lengths, g)
 
         # forward posterior encoder
         z, m_q, logs_q, y_mask = self.posterior_encoder(feats, feats_lengths, g=g)
@@ -376,7 +385,7 @@ class VITSGenerator(torch.nn.Module):
             logw_ = torch.log(w + 1e-6) * x_mask
         else:
             logw_ = torch.log(w + 1e-6) * x_mask
-            logw = self.dp(x, x_mask, g=g)
+            logw = self.duration_predictor(x, x_mask, g=g)
             dur_nll = torch.sum((logw - logw_) ** 2, [1, 2]) / torch.sum(x_mask)
 
         # expand the length to match with the feature sequence
