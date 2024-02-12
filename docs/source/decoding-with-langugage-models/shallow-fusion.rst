@@ -9,9 +9,9 @@ to improve the word-error-rate of a transducer model.
 
 .. note::
 
-    This tutorial is based on the recipe 
+    This tutorial is based on the recipe
     `pruned_transducer_stateless7_streaming <https://github.com/k2-fsa/icefall/tree/master/egs/librispeech/ASR/pruned_transducer_stateless7_streaming>`_,
-    which is a streaming transducer model trained on `LibriSpeech`_. 
+    which is a streaming transducer model trained on `LibriSpeech`_.
     However, you can easily apply shallow fusion to other recipes.
     If you encounter any problems, please open an issue here `icefall <https://github.com/k2-fsa/icefall/issues>`_.
 
@@ -69,11 +69,11 @@ Training a language model usually takes a long time, we can download a pre-train
 .. code-block:: bash
 
     $ # download the external LM
-    $ GIT_LFS_SKIP_SMUDGE=1 git clone https://huggingface.co/ezerhouni/icefall-librispeech-rnn-lm 
+    $ GIT_LFS_SKIP_SMUDGE=1 git clone https://huggingface.co/ezerhouni/icefall-librispeech-rnn-lm
     $ # create a symbolic link so that the checkpoint can be loaded
     $ pushd icefall-librispeech-rnn-lm/exp
     $ git lfs pull --include "pretrained.pt"
-    $ ln -s pretrained.pt epoch-99.pt 
+    $ ln -s pretrained.pt epoch-99.pt
     $ popd
 
 .. note::
@@ -85,7 +85,7 @@ Training a language model usually takes a long time, we can download a pre-train
 To use shallow fusion for decoding, we can execute the following command:
 
 .. code-block:: bash
-    
+
     $ exp_dir=./icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/exp
     $ lm_dir=./icefall-librispeech-rnn-lm/exp
     $ lm_scale=0.29
@@ -133,16 +133,16 @@ The decoding result obtained with the above command are shown below.
     $ For test-other, WER of different settings are:
     $ beam_size_4	7.08	best for test-other
 
-The improvement of shallow fusion is very obvious! The relative WER reduction on test-other is around 10.5%. 
+The improvement of shallow fusion is very obvious! The relative WER reduction on test-other is around 10.5%.
 A few parameters can be tuned to further boost the performance of shallow fusion:
 
-- ``--lm-scale`` 
+- ``--lm-scale``
 
-    Controls the scale of the LM. If too small, the external language model may not be fully utilized; if too large, 
-    the LM score may dominant during decoding, leading to bad WER. A typical value of this is around 0.3.
+    Controls the scale of the LM. If too small, the external language model may not be fully utilized; if too large,
+    the LM score might be dominant during decoding, leading to bad WER. A typical value of this is around 0.3.
 
-- ``--beam-size`` 
-    
+- ``--beam-size``
+
     The number of active paths in the search beam. It controls the trade-off between decoding efficiency and accuracy.
 
 Here, we also show how `--beam-size` effect the WER and decoding time:
@@ -176,4 +176,4 @@ As we see, a larger beam size during shallow fusion improves the WER, but is als
 
 
 
- 
+
