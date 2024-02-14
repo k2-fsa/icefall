@@ -360,10 +360,10 @@ class ResidualCouplingTransformersLayer(torch.nn.Module):
         xa, xb = x.split(x.size(1) // 2, dim=1)
 
         x_trans_mask = make_pad_mask(torch.sum(x_mask, dim=[1, 2]).type(torch.int64))
-        xa_trans = self.pre_transformer(xa.transpose(1, 2), x_trans_mask).transpose(
-            1, 2
-        )
-        xa_ = xa + xa_trans
+        xa_ = self.pre_transformer(
+            (xa * x_mask).transpose(1, 2), x_trans_mask
+        ).transpose(1, 2)
+        xa_ = xa + xa_
 
         h = self.input_conv(xa_) * x_mask
         h = self.encoder(h, x_mask, g=g)

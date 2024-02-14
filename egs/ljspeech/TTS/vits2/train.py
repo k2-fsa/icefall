@@ -433,7 +433,7 @@ def train_one_epoch(
 
             with autocast(enabled=params.use_fp16):
                 # forward discriminator
-                loss_d, dur_loss, stats_d = model(
+                loss_d, stats_d = model(
                     text=tokens,
                     text_lengths=tokens_lens,
                     feats=features,

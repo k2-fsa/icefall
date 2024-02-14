@@ -545,10 +545,6 @@ class VITS(nn.Module):
             discriminator_fake_loss=fake_loss.item(),
         )
 
-        # reset cache
-        if reuse_cache or not self.training:
-            self._cache = None
-
         return loss, stats
 
     def _forward_discrminator_duration(
@@ -582,7 +578,6 @@ class VITS(nn.Module):
         """
         # setup
         feats = feats.transpose(1, 2)
-        speech = speech.unsqueeze(1)
 
         # calculate generator outputs
         reuse_cache = True
