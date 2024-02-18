@@ -309,11 +309,14 @@ class TransformerEncoder(nn.Module):
                 #     layer_check = layer.unwrapped_module
                 if (corpus_key is None) or (
                     not isinstance(
-                        layer_check, (TransformerSentenceEncoderWithAdapterLayer,)
+                        layer_check,
+                        (TransformerSentenceEncoderWithAdapterLayer,),
                     )
                 ):
                     x, (z, lr) = layer(
-                        x, self_attn_padding_mask=padding_mask, need_weights=False
+                        x,
+                        self_attn_padding_mask=padding_mask,
+                        need_weights=False,
                     )
                 else:
                     x, (z, lr) = layer(

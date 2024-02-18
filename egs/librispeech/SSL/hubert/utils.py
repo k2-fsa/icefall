@@ -254,7 +254,8 @@ def quant_noise(module, p, block_size):
 
                 # split weight matrix into blocks and randomly drop selected blocks
                 mask = torch.zeros(
-                    in_features // block_size * out_features, device=weight.device
+                    in_features // block_size * out_features,
+                    device=weight.device,
                 )
                 mask.bernoulli_(p)
                 mask = mask.repeat_interleave(block_size, -1).view(-1, in_features)

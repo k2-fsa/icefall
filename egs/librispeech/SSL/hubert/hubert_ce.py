@@ -251,7 +251,10 @@ def add_hubert_arguments(parser: argparse.ArgumentParser):
     )
 
     parser.add_argument(
-        "--encoder-embed-dim", type=int, default=768, help="encoder embedding dimension"
+        "--encoder-embed-dim",
+        type=int,
+        default=768,
+        help="encoder embedding dimension",
     )
 
     parser.add_argument(
@@ -271,7 +274,14 @@ def add_hubert_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--activation-fn",
         type=str,
-        choices=["relu", "gelu", "gelu_fast", "gelu_accurate", "tanh", "linear"],
+        choices=[
+            "relu",
+            "gelu",
+            "gelu_fast",
+            "gelu_accurate",
+            "tanh",
+            "linear",
+        ],
         default="gelu",
         help="activation function to use",
     )
@@ -356,11 +366,17 @@ def add_hubert_arguments(parser: argparse.ArgumentParser):
     )
 
     parser.add_argument(
-        "--conv-bias", type=bool, default=False, help="include bias in conv encoder"
+        "--conv-bias",
+        type=bool,
+        default=False,
+        help="include bias in conv encoder",
     )
 
     parser.add_argument(
-        "--logit-temp", type=float, default=0.1, help="temperature to divide logits by"
+        "--logit-temp",
+        type=float,
+        default=0.1,
+        help="temperature to divide logits by",
     )
 
     parser.add_argument(
