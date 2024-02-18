@@ -6,7 +6,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 
 # python 3.7
 ARG K2_VERSION="1.24.4.dev20240211+cuda11.3.torch1.12.1"
-ARG KALDIFEAT_VERSION="1.25.4.dev20240211+cuda11.3.torch1.12.1"
+ARG KALDIFEAT_VERSION="1.25.4.dev20240210+cuda11.3.torch1.12.1"
 ARG TORCHAUDIO_VERSION="0.12.1+cu113"
 
 LABEL authors="Fangjun Kuang <csukuangfj@gmail.com>"
