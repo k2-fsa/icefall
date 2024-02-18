@@ -37,7 +37,7 @@ fi
 
 if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   log "Stage 0: Train a model."
-  if [ ! -e data/fbank/.gigaspeech.done ]; then
+  if [ ! -e data/fbank/.wenetspeech.done ]; then
     log "You need to run the prepare.sh first."
     exit -1
   fi

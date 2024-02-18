@@ -187,13 +187,6 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--keywords-version",
-        type=str,
-        default="",
-        help="The keywords configuration version, just to save results to different files.",
-    )
-
-    parser.add_argument(
         "--num-tailing-blanks",
         type=int,
         default=1,
@@ -222,7 +215,7 @@ def decode_one_batch(
     model: nn.Module,
     sp: spm.SentencePieceProcessor,
     batch: dict,
-    kws_graph: Optional[ContextGraph] = None,
+    keywords_graph: Optional[ContextGraph] = None,
 ) -> List[List[Tuple[str, Tuple[int, int]]]]:
     """Decode one batch and return the result in a list.
 
@@ -242,7 +235,7 @@ def decode_one_batch(
         It is the return value from iterating
         `lhotse.dataset.K2SpeechRecognitionDataset`. See its documentation
         for the format of the `batch`.
-      kws_graph:
+      keywords_graph:
         The graph containing keywords.
     Returns:
       Return the decoding result. See above description for the format of
@@ -274,7 +267,7 @@ def decode_one_batch(
         model=model,
         encoder_out=encoder_out,
         encoder_out_lens=encoder_out_lens,
-        keywords_graph=kws_graph,
+        keywords_graph=keywords_graph,
         beam=params.beam,
         num_tailing_blanks=params.num_tailing_blanks,
         blank_penalty=params.blank_penalty,
@@ -295,7 +288,7 @@ def decode_dataset(
     params: AttributeDict,
     model: nn.Module,
     sp: spm.SentencePieceProcessor,
-    kws_graph: ContextGraph,
+    keywords_graph: ContextGraph,
     keywords: Set[str],
     test_only_keywords: bool,
 ) -> Tuple[List[Tuple[str, List[str], List[str]]], KwMetric]:
@@ -310,7 +303,7 @@ def decode_dataset(
         The neural model.
       sp:
         The BPE model.
-      kws_graph:
+      keywords_graph:
         The graph containing keywords.
     Returns:
       Return a dict, whose key may be "greedy_search" if greedy search
@@ -341,7 +334,7 @@ def decode_dataset(
             params=params,
             model=model,
             sp=sp,
-            kws_graph=kws_graph,
+            keywords_graph=keywords_graph,
             batch=batch,
         )
 
@@ -459,7 +452,7 @@ def save_results(
             s += f"\tPrecision: {precision:.3f}\n"
             s += f"\tRecall(PPR): {recall:.3f}\n"
             s += f"\tFPR: {fpr:.3f}\n"
-            s += f"\tF1: {2 * precision * recall / (precision + recall):.3f}\n"
+            s += f"\tF1: {0.0 if precision * recall == 0 else 2 * precision * recall / (precision + recall):.3f}\n"
             if key != "all":
                 s += f"\tTP list: {' # '.join(item.TP_list)}\n"
                 s += f"\tFP list: {' # '.join(item.FP_list)}\n"
@@ -505,7 +498,7 @@ def main():
     params.suffix += f"-tailing-blanks-{params.num_tailing_blanks}"
     if params.blank_penalty != 0:
         params.suffix += f"-blank-penalty-{params.blank_penalty}"
-    params.suffix += f"-version-{params.keywords_version}"
+    params.suffix += f"-keywords-{params.keywords_file.split('/')[-1]}"
 
     setup_logger(f"{params.res_dir}/log-decode-{params.suffix}")
     logging.info("Decoding started")
@@ -555,10 +548,10 @@ def main():
 
     params.keywords_config = "".join(keywords_config)
 
-    kws_graph = ContextGraph(
+    keywords_graph = ContextGraph(
         context_score=params.keywords_score, ac_threshold=params.keywords_threshold
     )
-    kws_graph.build(
+    keywords_graph.build(
         token_ids=token_ids,
         phrases=phrases,
         scores=keywords_scores,
@@ -677,7 +670,7 @@ def main():
             params=params,
             model=model,
             sp=sp,
-            kws_graph=kws_graph,
+            keywords_graph=keywords_graph,
             keywords=keywords,
             test_only_keywords="fsc" in test_set,
         )

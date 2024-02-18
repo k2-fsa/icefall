@@ -22,63 +22,69 @@ log() {
 }
 
 if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
-  log "Stage 0: Prepare gigaspeech dataset."
+  log "Stage 0: Prepare wewetspeech dataset."
   mkdir -p data/fbank
-  if [ ! -e data/fbank/.gigaspeech.done ]; then
+  if [ ! -e data/fbank/.wewetspeech.done ]; then
     pushd ../ASR
-    ./prepare.sh --stage 0 --stop-stage 9
-    ./prepare.sh --stage 11 --stop-stage 11
+    ./prepare.sh --stage 0 --stop-stage 17
+    ./prepare.sh --stage 22 --stop-stage 22
     popd
     pushd data/fbank
-    ln -svf $(realpath ../ASR/data/fbank/gigaspeech_cuts_DEV.jsonl.gz) .
-    ln -svf $(realpath ../ASR/data/fbank/gigaspeech_feats_DEV.lca) .
-    ln -svf $(realpath ../ASR/data/fbank/gigaspeech_cuts_TEST.jsonl.gz) .
-    ln -svf $(realpath ../ASR/data/fbank/gigaspeech_feats_TEST.lca) .
-    ln -svf $(realpath ../ASR/data/fbank/gigaspeech_cuts_L.jsonl.gz) .
-    ln -svf $(realpath ../ASR/data/fbank/gigaspeech_feats_L.lca) .
-    ln -svf $(realpath ../ASR/data/fbank/gigaspeech_cuts_M.jsonl.gz) .
-    ln -svf $(realpath ../ASR/data/fbank/gigaspeech_feats_M.lca) .
-    ln -svf $(realpath ../ASR/data/fbank/gigaspeech_cuts_S.jsonl.gz) .
-    ln -svf $(realpath ../ASR/data/fbank/gigaspeech_feats_S.lca) .
-    ln -svf $(realpath ../ASR/data/fbank/gigaspeech_cuts_XS.jsonl.gz) .
-    ln -svf $(realpath ../ASR/data/fbank/gigaspeech_feats_XS.lca) .
-    ln -svf $(realpath ../ASR/data/fbank/XL_split) .
+    ln -svf $(realpath ../ASR/data/fbank/cuts_DEV.jsonl.gz) .
+    ln -svf $(realpath ../ASR/data/fbank/feats_DEV.lca) .
+    ln -svf $(realpath ../ASR/data/fbank/cuts_TEST_NET.jsonl.gz) .
+    ln -svf $(realpath ../ASR/data/fbank/feats_TEST_NET.lca) .
+    ln -svf $(realpath ../ASR/data/fbank/cuts_TEST_MEETING.jsonl.gz) .
+    ln -svf $(realpath ../ASR/data/fbank/feats_TEST_MEETING.lca) .
+    ln -svf $(realpath ../ASR/data/fbank/cuts_L.jsonl.gz) .
+    ln -svf $(realpath ../ASR/data/fbank/L_split_1000) .
+    ln -svf $(realpath ../ASR/data/fbank/cuts_M.jsonl.gz) .
+    ln -svf $(realpath ../ASR/data/fbank/M_split_1000) .
+    ln -svf $(realpath ../ASR/data/fbank/cuts_S.jsonl.gz) .
+    ln -svf $(realpath ../ASR/data/fbank/S_split_1000) .
     ln -svf $(realpath ../ASR/data/fbank/musan_cuts.jsonl.gz) .
     ln -svf $(realpath ../ASR/data/fbank/musan_feats) .
     popd
     pushd data
-    ln -svf $(realpath ../ASR/data/lang_bpe_500) .
+    ln -svf $(realpath ../ASR/data/lang_partial_tone) .
     popd
+    touch data/fbank/.wewetspeech.done
   else
-    log "Gigaspeech dataset already exists, skipping."
+    log "WenetSpeech dataset already exists, skipping."
   fi
 fi
 
 if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   log "Stage 1: Prepare open commands dataset."
   mkdir -p data/fbank
-  if [ ! -e data/fbank/.fluent_speech_commands.done ]; then
+  if [ ! -e data/fbank/.cn_speech_commands.done ]; then
     pushd data
     git clone https://github.com/pkufool/open-commands.git
-    ln -svf $(realpath ./open-commands/EN/small/commands.txt) commands_small.txt
-    ln -svf $(realpath ./open-commands/EN/large/commands.txt) commands_large.txt
+    ln -svf $(realpath ./open-commands/CN/small/commands.txt) commands_small.txt
+    ln -svf $(realpath ./open-commands/CN/large/commands.txt) commands_large.txt
     pushd open-commands
-    ./script/prepare.sh --stage 3 --stop-stage 3 
-    ./script/prepare.sh --stage 6 --stop-stage 6
+    ./script/prepare.sh --stage 1 --stop-stage 1
+    ./script/prepare.sh --stage 3 --stop-stage 5
     popd
     popd
     pushd data/fbank
-    ln -svf $(realpath ../open-commands/data/fbank/fluent_speech_commands_cuts_large.jsonl.gz) .
-    ln -svf $(realpath ../open-commands/data/fbank/fluent_speech_commands_feats_large) .
-    ln -svf $(realpath ../open-commands/data/fbank/fluent_speech_commands_cuts_small.jsonl.gz) .
-    ln -svf $(realpath ../open-commands/data/fbank/fluent_speech_commands_feats_small) .
-    ln -svf $(realpath ../open-commands/data/fbank/fluent_speech_commands_cuts_valid.jsonl.gz) .
-    ln -svf $(realpath ../open-commands/data/fbank/fluent_speech_commands_feats_valid) .
-    ln -svf $(realpath ../open-commands/data/fbank/fluent_speech_commands_cuts_train.jsonl.gz) .
-    ln -svf $(realpath ../open-commands/data/fbank/fluent_speech_commands_feats_train) .
+    ln -svf $(realpath ../open-commands/data/fbank/cn_speech_commands_cuts_large.jsonl.gz) .
+    ln -svf $(realpath ../open-commands/data/fbank/cn_speech_commands_feats_large) .
+    ln -svf $(realpath ../open-commands/data/fbank/cn_speech_commands_cuts_small.jsonl.gz) .
+    ln -svf $(realpath ../open-commands/data/fbank/cn_speech_commands_feats_small) .
+    ln -svf $(realpath ../open-commands/data/fbank/nihaowenwen_cuts_dev.jsonl.gz) .
+    ln -svf $(realpath ../open-commands/data/fbank/nihaowenwen_feats_dev) .
+    ln -svf $(realpath ../open-commands/data/fbank/nihaowenwen_cuts_test.jsonl.gz) .
+    ln -svf $(realpath ../open-commands/data/fbank/nihaowenwen_feats_test) .
+    ln -svf $(realpath ../open-commands/data/fbank/nihaowenwen_cuts_train.jsonl.gz) .
+    ln -svf $(realpath ../open-commands/data/fbank/nihaowenwen_feats_train) .
+    ln -svf $(realpath ../open-commands/data/fbank/xiaoyun_cuts_clean.jsonl.gz) .
+    ln -svf $(realpath ../open-commands/data/fbank/xiaoyun_feats_clean.lca) .
+    ln -svf $(realpath ../open-commands/data/fbank/xiaoyun_cuts_noisy.jsonl.gz) .
+    ln -svf $(realpath ../open-commands/data/fbank/xiaoyun_feats_noisy.lca) .
     popd
-    touch data/fbank/.fluent_speech_commands.done
+    touch data/fbank/.cn_speech_commands.done
   else
-    log "Fluent speech commands dataset already exists, skipping."
+    log "CN speech commands dataset already exists, skipping."
   fi
 fi

@@ -376,5 +376,6 @@ if [ $stage -le 22 ] && [ $stop_stage -ge 22 ]; then
         --token-type $token \
         --lang-dir $lang_dir
     fi
+    python ./local/compile_lg.py --lang-dir $lang_dir
   done
 fi

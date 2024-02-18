@@ -17,19 +17,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""
-Usage:
-(2) modified beam search
-./zipformer/decode.py \
-    --epoch 35 \
-    --avg 15 \
-    --exp-dir ./zipformer/exp \
-    --lang-dir data/lang_char \
-    --max-duration 600 \
-    --decoding-method modified_beam_search \
-    --beam-size 4
-"""
-
 
 import argparse
 import logging
@@ -205,13 +192,6 @@ def get_parser():
         type=float,
         default=0.35,
         help="The default threshold (probability) to trigger the keyword.",
-    )
-
-    parser.add_argument(
-        "--keywords-version",
-        type=str,
-        default="",
-        help="The keywords configuration version, just to save results to different files.",
     )
 
     parser.add_argument(
@@ -479,7 +459,7 @@ def save_results(
             s += f"\tPrecision: {precision:.3f}\n"
             s += f"\tRecall(PPR): {recall:.3f}\n"
             s += f"\tFPR: {fpr:.3f}\n"
-            s += f"\tF1: {2 * precision * recall / (precision + recall):.3f}\n"
+            s += f"\tF1: {0.0 if precision * recall == 0 else 2 * precision * recall / (precision + recall):.3f}\n"
             if key != "all":
                 s += f"\tTP list: {' # '.join(item.TP_list)}\n"
                 s += f"\tFP list: {' # '.join(item.FP_list)}\n"
@@ -525,7 +505,7 @@ def main():
     params.suffix += f"-tailing-blanks-{params.num_tailing_blanks}"
     if params.blank_penalty != 0:
         params.suffix += f"-blank-penalty-{params.blank_penalty}"
-    params.suffix += f"-version-{params.keywords_version}"
+    params.suffix += f"-keywords-{params.keywords_file.split('/')[-1]}"
 
     setup_logger(f"{params.res_dir}/log-decode-{params.suffix}")
     logging.info("Decoding started")

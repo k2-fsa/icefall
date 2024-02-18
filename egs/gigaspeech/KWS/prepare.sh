@@ -49,6 +49,7 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
     pushd data
     ln -svf $(realpath ../ASR/data/lang_bpe_500) .
     popd
+    touch data/fbank/.gigaspeech.done
   else
     log "Gigaspeech dataset already exists, skipping."
   fi
@@ -63,7 +64,7 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
     ln -svf $(realpath ./open-commands/EN/small/commands.txt) commands_small.txt
     ln -svf $(realpath ./open-commands/EN/large/commands.txt) commands_large.txt
     pushd open-commands
-    ./script/prepare.sh --stage 3 --stop-stage 3 
+    ./script/prepare.sh --stage 2 --stop-stage 2
     ./script/prepare.sh --stage 6 --stop-stage 6
     popd
     popd

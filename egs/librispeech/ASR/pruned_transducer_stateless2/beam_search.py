@@ -993,7 +993,7 @@ def keywords_search(
     """
     assert encoder_out.ndim == 3, encoder_out.shape
     assert encoder_out.size(0) >= 1, encoder_out.size(0)
-    assert context_graph is not None
+    assert keywords_graph is not None
 
     packed_encoder_out = torch.nn.utils.rnn.pack_padded_sequence(
         input=encoder_out,
@@ -1018,7 +1018,7 @@ def keywords_search(
             Hypothesis(
                 ys=[-1] * (context_size - 1) + [blank_id],
                 log_prob=torch.zeros(1, dtype=torch.float32, device=device),
-                context_state=context_graph.root,
+                context_state=keywords_graph.root,
                 timestamp=[],
                 ac_probs=[],
             )
@@ -1125,7 +1125,7 @@ def keywords_search(
                         context_score,
                         new_context_state,
                         _,
-                    ) = context_graph.forward_one_step(hyp.context_state, new_token)
+                    ) = keywords_graph.forward_one_step(hyp.context_state, new_token)
                     new_num_tailing_blanks = 0
                     if new_context_state.token == -1:  # root
                         new_ys[-context_size:] = [-1] * (context_size - 1) + [blank_id]
@@ -1143,7 +1143,7 @@ def keywords_search(
                 B[i].add(new_hyp)
 
             top_hyp = B[i].get_most_probable(length_norm=True)
-            matched, matched_state = context_graph.is_matched(top_hyp.context_state)
+            matched, matched_state = keywords_graph.is_matched(top_hyp.context_state)
             if matched:
                 ac_prob = (
                     sum(top_hyp.ac_probs[-matched_state.level :]) / matched_state.level
@@ -1164,7 +1164,7 @@ def keywords_search(
                     Hypothesis(
                         ys=[-1] * (context_size - 1) + [blank_id],
                         log_prob=torch.zeros(1, dtype=torch.float32, device=device),
-                        context_state=context_graph.root,
+                        context_state=keywords_graph.root,
                         timestamp=[],
                         ac_probs=[],
                     )
@@ -1174,7 +1174,7 @@ def keywords_search(
 
     for i, hyps in enumerate(B):
         top_hyp = hyps.get_most_probable(length_norm=True)
-        matched, matched_state = context_graph.is_matched(top_hyp.context_state)
+        matched, matched_state = keywords_graph.is_matched(top_hyp.context_state)
         if matched:
             ac_prob = (
                 sum(top_hyp.ac_probs[-matched_state.level :]) / matched_state.level

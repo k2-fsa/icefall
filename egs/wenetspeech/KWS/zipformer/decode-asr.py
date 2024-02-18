@@ -19,38 +19,7 @@
 # limitations under the License.
 """
 Usage:
-(1) greedy search
-./zipformer/decode.py \
-    --epoch 35 \
-    --avg 15 \
-    --exp-dir ./zipformer/exp \
-    --lang-dir data/lang_char \
-    --max-duration 600 \
-    --decoding-method greedy_search
-
-(2) modified beam search
-./zipformer/decode.py \
-    --epoch 35 \
-    --avg 15 \
-    --exp-dir ./zipformer/exp \
-    --lang-dir data/lang_char \
-    --max-duration 600 \
-    --decoding-method modified_beam_search \
-    --beam-size 4
-
-(3) fast beam search (trivial_graph)
-./zipformer/decode.py \
-    --epoch 35 \
-    --avg 15 \
-    --exp-dir ./zipformer/exp \
-    --lang-dir data/lang_char \
-    --max-duration 600 \
-    --decoding-method fast_beam_search \
-    --beam 20.0 \
-    --max-contexts 8 \
-    --max-states 64
-
-(4) fast beam search (LG)
+(1) fast beam search (LG)
 ./zipformer/decode.py \
     --epoch 30 \
     --avg 15 \
@@ -61,20 +30,6 @@ Usage:
     --beam 20.0 \
     --max-contexts 8 \
     --max-states 64
-
-(5) fast beam search (nbest oracle WER)
-./zipformer/decode.py \
-    --epoch 35 \
-    --avg 15 \
-    --exp-dir ./zipformer/exp \
-    --lang-dir data/lang_char \
-    --max-duration 600 \
-    --decoding-method fast_beam_search_nbest_oracle \
-    --beam 20.0 \
-    --max-contexts 8 \
-    --max-states 64 \
-    --num-paths 200 \
-    --nbest-scale 0.5
 """
 
 

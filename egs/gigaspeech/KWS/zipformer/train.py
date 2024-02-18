@@ -276,7 +276,7 @@ def get_parser():
     return parser
 
 
-def add_model_arguments(parser: argparse.ArgumentParser):
+def add_training_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--world-size",
         type=int,
