@@ -22,7 +22,7 @@ from torch import distributed as dist
 
 
 def setup_dist(
-    rank, world_size, master_port=None, use_ddp_launch=False, master_addr=None
+    rank=None, world_size=None, master_port=None, use_ddp_launch=False, master_addr=None
 ):
     """
     rank and world_size are used only if use_ddp_launch is False.

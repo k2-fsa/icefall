@@ -25,7 +25,7 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         curl \
         vim \
-    		libssl-dev \
+    	libssl-dev \
         autoconf \
         automake \
         bzip2 \
@@ -58,7 +58,6 @@ RUN pip uninstall -y tqdm && \
       k2==${K2_VERSION} -f https://k2-fsa.github.io/k2/cuda.html \
       kaldifeat==${KALDIFEAT_VERSION} -f https://csukuangfj.github.io/kaldifeat/cuda.html \
       git+https://github.com/lhotse-speech/lhotse \
-      \
       kaldi_native_io \
       kaldialign \
       kaldifst \

@@ -76,7 +76,7 @@ def get_parser():
 
 def compute_fbank_gigaspeech_splits(args):
     num_splits = args.num_splits
-    output_dir = "data/fbank/XL_split"
+    output_dir = f"data/fbank/XL_split"
     output_dir = Path(output_dir)
     assert output_dir.exists(), f"{output_dir} does not exist!"
 
@@ -96,7 +96,7 @@ def compute_fbank_gigaspeech_splits(args):
     logging.info(f"device: {device}")
 
     for i in range(start, stop):
-        idx = f"{i + 1}".zfill(num_digits)
+        idx = f"{i}".zfill(num_digits)
         logging.info(f"Processing {idx}/{num_splits}")
 
         cuts_path = output_dir / f"gigaspeech_cuts_XL.{idx}.jsonl.gz"
@@ -113,7 +113,7 @@ def compute_fbank_gigaspeech_splits(args):
 
         cut_set = cut_set.compute_and_store_features_batch(
             extractor=extractor,
-            storage_path=f"{output_dir}/gigaspeech_feats_XL_{idx}",
+            storage_path=f"{output_dir}/gigaspeech_feats_{idx}",
             num_workers=args.num_workers,
             batch_duration=args.batch_duration,
             overwrite=True,

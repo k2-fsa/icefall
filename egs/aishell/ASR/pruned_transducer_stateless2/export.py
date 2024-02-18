@@ -47,12 +47,12 @@ import argparse
 import logging
 from pathlib import Path
 
+import k2
 import torch
 from train import add_model_arguments, get_params, get_transducer_model
 
 from icefall.checkpoint import average_checkpoints, find_checkpoints, load_checkpoint
-from icefall.lexicon import Lexicon
-from icefall.utils import str2bool
+from icefall.utils import num_tokens, str2bool
 
 
 def get_parser():
@@ -106,10 +106,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--lang-dir",
-        type=Path,
-        default=Path("data/lang_char"),
-        help="The lang dir",
+        "--tokens",
+        type=str,
+        default="data/lang_char/tokens.txt",
+        help="Path to the tokens.txt",
     )
 
     parser.add_argument(
@@ -136,10 +136,9 @@ def main():
 
     logging.info(f"device: {device}")
 
-    lexicon = Lexicon(params.lang_dir)
-
-    params.blank_id = 0
-    params.vocab_size = max(lexicon.tokens) + 1
+    token_table = k2.SymbolTable.from_file(params.tokens)
+    params.blank_id = token_table["<blk>"]
+    params.vocab_size = num_tokens(token_table) + 1
 
     logging.info(params)
 
