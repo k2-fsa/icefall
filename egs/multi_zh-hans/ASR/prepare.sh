@@ -5,8 +5,8 @@ export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
 
 set -eou pipefail
 
-stage=-1
-stop_stage=100
+stage=120
+stop_stage=120
 num_splits=100
 
 dl_dir=$PWD/download
@@ -302,6 +302,60 @@ if [ $stage -le 12 ] && [ $stop_stage -ge 12 ]; then
     touch data/fbank/.kespeech.done
   fi
 fi
+
+whisper_mel_bins=80
+if [ $stage -le 120 ] && [ $stop_stage -ge 120 ]; then
+  log "Stage 120: Prepare KeSpeech for whisper"
+  if [ ! -d $dl_dir/KeSpeech ]; then
+    log "Abort! Please download KeSpeech first."
+    log "KeSpeech download link: https://github.com/KeSpeech/KeSpeech"
+    exit 1
+  fi
+
+  if [ ! -f data/manifests/.kespeech.done ]; then
+    mkdir -p data/manifests
+    lhotse prepare kespeech -j 8 $dl_dir/KeSpeech data/manifests/kespeech 
+    touch data/manifests/.kespeech.done
+  fi
+
+  if [ ! -f data/fbank/.kespeech.done ]; then
+    mkdir -p data/fbank
+
+    log "Preprocess KeSpeech manifest"
+    if [ ! -f data/fbank/.kespeech_preprocess_complete ]; then
+      python3 ./local/preprocess_kespeech.py
+      touch data/fbank/.kespeech_preprocess_complete
+    fi  
+    
+    if [ -f data/fbank/.kespeech.train_phase1.split.${num_splits}.done ]; then
+      log "Spliting KeSpeech train_phase1"
+      lhotse split ${num_splits} \
+        data/fbank/kespeech/kespeech-asr_cuts_train_phase1_raw.jsonl.gz \
+        data/fbank/kespeech/train_phase1_split_${num_splits}
+      touch data/fbank/.kespeech.train_phase1.split.${num_splits}.done
+    fi
+    
+    if [ -f data/fbank/.kespeech.train_phase2.split.${num_splits}.done ]; then
+      log "Spliting KeSpeech train_phase2"
+      lhotse split ${num_splits} \
+        data/fbank/kespeech/kespeech-asr_cuts_train_phase2_raw.jsonl.gz \
+        data/fbank/kespeech/train_phase2_split_${num_splits}
+      touch data/fbank/.kespeech.train_phase2.split.${num_splits}.done
+    fi
+    
+    log "Compute KeSpeech fbank for train_phase1"
+    ./local/compute_fbank_kespeech_splits.py --num-splits ${num_splits} --training-subset train_phase1 --num-mel-bins ${whisper_mel_bins} --whisper-fbank true
+
+    log "Compute KeSpeech fbank for train_phase2"
+    ./local/compute_fbank_kespeech_splits.py --num-splits ${num_splits} --training-subset train_phase2 --num-mel-bins ${whisper_mel_bins} --whisper-fbank true
+
+    log "Compute KeSpeech fbank for test/dev"
+    ./local/compute_fbank_kespeech_dev_test.py --num-mel-bins ${whisper_mel_bins} --whisper-fbank true
+
+    touch data/fbank/.kespeech.done
+  fi
+fi
+
 
 if [ $stage -le 13 ] && [ $stop_stage -ge 13 ]; then
   log "Stage 13: BPE model training (note that we use transcripts of wenetspeech only for BPE training)"
