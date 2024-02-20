@@ -314,8 +314,6 @@ class GigaSpeechAsrDataModule:
                 buffer_size=self.args.num_buckets * 2000,
                 shuffle_buffer_size=self.args.num_buckets * 5000,
                 drop_last=self.args.drop_last,
-                buffer_size=self.args.num_buckets * 1000,
-                shuffle_buffer_size=self.args.num_buckets * 3000,
             )
         else:
             logging.info("Using SimpleCutSampler.")

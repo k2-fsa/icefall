@@ -50,7 +50,7 @@ This is the result of large test set, it has more than 100 commands, too many to
 
 Commands | FN in positive set | FN in positive set | Recall | Recall | FP in negative set | FP in negative set | False alarm (time / hour)23 hours | False alarm (time / hour)23 hours
 -- | -- | -- | -- | -- | -- | -- | -- | --
-  | baseline | finetune | baseline | finetune | baseline | finetune | baseline | finetune
+  | original | finetune | original | finetune | original | finetune | original | finetune
 large | 2429/4505 | 477 / 4505 | 46.1% | 89.4% | 50 | 41 | 2.17 | 1.78
 小云小云（clean) | 30/100 | 40/100 | 70% | 60% | 0 | 0 | 0 | 0
 小云小云（noisy) | 118/350 | 154/350 | 66.3% | 56% | 0 | 0 | 0 | 0
