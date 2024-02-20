@@ -24,25 +24,19 @@ Usage:
 
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
-# For non-streaming model training:
-./zipformer/finetune.py \
-  --world-size 4 \
-  --num-epochs 30 \
-  --start-epoch 1 \
-  --use-fp16 1 \
-  --exp-dir zipformer/exp \
-  --full-libri 1 \
-  --max-duration 1000
+# Finetune non-streaming model using adapters:
 
-# For streaming model training:
 ./zipformer/finetune.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 1 \
   --use-fp16 1 \
+  --do-finetune 1 \
+  --use-mux 0 \
+  --use-adapters 1 \
+  --adapter-dim 16 \
+  --finetune-ckpt icefall-asr-librispeech-zipformer-2023-05-15/exp/pretrained.pt \
   --exp-dir zipformer/exp \
-  --causal 1 \
-  --full-libri 1 \
   --max-duration 1000
 
 """
@@ -1024,11 +1018,6 @@ def train_one_epoch(
         be set to 0.
     """
     model.train()
-    for name, m in model.named_modules():
-        if "adapter" in name:
-            m.training = True
-        else:
-            m.training = False
 
     tot_loss = MetricsTracker()
 
@@ -1186,6 +1175,11 @@ def train_one_epoch(
                     valid_info.write_summary(
                         tb_writer, f"train/{valid_set}_valid_", params.batch_idx_train
                     )
+            for name, m in model.named_modules():
+                if "adapter" in name:
+                    m.training = True
+                else:
+                    m.training = False
 
     loss_value = tot_loss["loss"] / tot_loss["frames"]
     params.train_loss = loss_value
@@ -1388,14 +1382,14 @@ def run(rank, world_size, args):
         librispeech.valid_dataloaders(gigaspeech_dev_cuts),
     ]
 
-    # if not params.print_diagnostics:
-    #     scan_pessimistic_batches_for_oom(
-    #         model=model,
-    #         train_dl=train_dl,
-    #         optimizer=optimizer,
-    #         sp=sp,
-    #         params=params,
-    #     )
+    if not params.print_diagnostics:
+        scan_pessimistic_batches_for_oom(
+            model=model,
+            train_dl=train_dl,
+            optimizer=optimizer,
+            sp=sp,
+            params=params,
+        )
 
     scaler = GradScaler(enabled=params.use_fp16, init_scale=1.0)
     if checkpoints and "grad_scaler" in checkpoints:
