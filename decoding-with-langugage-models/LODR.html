@@ -120,14 +120,14 @@ using that corpus.</p>
 <p>First, let’s have a look at some background information. As the predecessor of LODR, Density Ratio (DR) is first proposed <a class="reference external" href="https://arxiv.org/abs/2002.11268">here</a>
 to address the language information mismatch between the training
 corpus (source domain) and the testing corpus (target domain). Assuming that the source domain and the test domain
-are acoustically similar, DR derives the following formular for decoding with Bayes’ theorem:</p>
+are acoustically similar, DR derives the following formula for decoding with Bayes’ theorem:</p>
 <div class="math notranslate nohighlight">
 \[\text{score}\left(y_u|\mathit{x},y\right) =
 \log p\left(y_u|\mathit{x},y_{1:u-1}\right) +
 \lambda_1 \log p_{\text{Target LM}}\left(y_u|\mathit{x},y_{1:u-1}\right) -
 \lambda_2 \log p_{\text{Source LM}}\left(y_u|\mathit{x},y_{1:u-1}\right)\]</div>
 <p>where <span class="math notranslate nohighlight">\(\lambda_1\)</span> and <span class="math notranslate nohighlight">\(\lambda_2\)</span> are the weights of LM scores for target domain and source domain respectively.
-Here, the source domain LM is trained on the training corpus. The only difference in the above formular compared to
+Here, the source domain LM is trained on the training corpus. The only difference in the above formula compared to
 shallow fusion is the subtraction of the source domain LM.</p>
 <p>Some works treat the predictor and the joiner of the neural transducer as its internal LM. However, the LM is
 considered to be weak and can only capture low-level language information. Therefore, <a class="reference external" href="https://arxiv.org/abs/2203.16776">LODR</a> proposed to use
@@ -140,7 +140,7 @@ during decoding for transducer model:</p>
 \lambda_2 \log p_{\text{bi-gram}}\left(y_u|\mathit{x},y_{1:u-1}\right)\]</div>
 <p>In LODR, an additional bi-gram LM estimated on the source domain (e.g training corpus) is required. Compared to DR,
 the only difference lies in the choice of source domain LM. According to the original <a class="reference external" href="https://arxiv.org/abs/2203.16776">paper</a>,
-LODR achieves similar performance compared DR in both intra-domain and cross-domain settings.
+LODR achieves similar performance compared to DR in both intra-domain and cross-domain settings.
 As a bi-gram is much faster to evaluate, LODR is usually much faster.</p>
 <p>Now, we will show you how to use LODR in <code class="docutils literal notranslate"><span class="pre">icefall</span></code>.
 For illustration purpose, we will use a pre-trained ASR model from this <a class="reference external" href="https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29">link</a>.
