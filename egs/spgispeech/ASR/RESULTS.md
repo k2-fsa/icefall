@@ -59,7 +59,7 @@ python ./zipformer/decode.py \
   --avg $avg \
   --exp-dir ./zipformer/exp \
   --max-duration 1000 \
-  --decoding-method fast_beam_search
+  --decoding-method fast_beam_search \
   --beam 4 \
   --max-contexts 4 \
   --max-states 8
