@@ -30,7 +30,7 @@ of langugae model integration.
 First, let's have a look at some background information. As the predecessor of LODR, Density Ratio (DR) is first proposed `here <https://arxiv.org/abs/2002.11268>`_
 to address the language information mismatch between the training
 corpus (source domain) and the testing corpus (target domain). Assuming that the source domain and the test domain
-are acoustically similar, DR derives the following formular for decoding with Bayes' theorem:
+are acoustically similar, DR derives the following formula for decoding with Bayes' theorem:
 
 .. math::
 
@@ -41,7 +41,7 @@ are acoustically similar, DR derives the following formular for decoding with Ba
 
 
 where :math:`\lambda_1` and :math:`\lambda_2` are the weights of LM scores for target domain and source domain respectively.
-Here, the source domain LM is trained on the training corpus. The only difference in the above formular compared to
+Here, the source domain LM is trained on the training corpus. The only difference in the above formula compared to
 shallow fusion is the subtraction of the source domain LM.
 
 Some works treat the predictor and the joiner of the neural transducer as its internal LM. However, the LM is
@@ -58,7 +58,7 @@ during decoding for transducer model:
 
 In LODR, an additional bi-gram LM estimated on the source domain (e.g training corpus) is required. Compared to DR,
 the only difference lies in the choice of source domain LM. According to the original `paper <https://arxiv.org/abs/2203.16776>`_,
-LODR achieves similar performance compared DR in both intra-domain and cross-domain settings.
+LODR achieves similar performance compared to DR in both intra-domain and cross-domain settings.
 As a bi-gram is much faster to evaluate, LODR is usually much faster.
 
 Now, we will show you how to use LODR in ``icefall``.
