@@ -43,23 +43,10 @@ def get_args():
 
 def get_token2id(filename: Path) -> Dict[str, int]:
     """Get a dict that maps token to IDs, and save it to the given filename."""
-    extra_tokens = [
-        "<blk>",  # 0 for blank
-        "<sos>",  # 1 for sos
-        "<eos>",  # 2 for eos
-        "<unk>",  # 3 for OOV
-    ]
-
-    all_tokens = list(get_espeak_map().keys())
-
-    for t in extra_tokens:
-        assert t not in all_tokens, t
-
-    all_tokens = extra_tokens + all_tokens
-
+    all_tokens = get_espeak_map()
     with open(filename, "w", encoding="utf-8") as f:
-        for i, token in enumerate(all_tokens):
-            f.write(f"{token} {i}\n")
+        for token, token_id in all_tokens.items():
+            f.write(f"{token} {token_id[0]}\n")
 
 
 if __name__ == "__main__":

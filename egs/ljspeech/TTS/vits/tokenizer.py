@@ -38,12 +38,15 @@ class Tokenizer(object):
                     id = int(info[0])
                 else:
                     token, id = info[0], int(info[1])
+                assert token not in self.token2id, token
                 self.token2id[token] = id
 
-        self.blank_id = self.token2id["<blk>"]
-        self.sos_id = self.token2id["<sos>"]
-        self.eos_id = self.token2id["<eos>"]
-        self.oov_id = self.token2id["<unk>"]
+        # Refer to https://github.com/rhasspy/piper/blob/master/TRAINING.md
+        self.pad_id = self.token2id["_"]  # padding
+        self.sos_id = self.token2id["^"]  # beginning of an utterance (bos)
+        self.eos_id = self.token2id["$"]  # end of an utterance (eos)
+        self.space_id = self.token2id[" "]  # word separator (whitespace)
+
         self.vocab_size = len(self.token2id)
 
     def texts_to_token_ids(
@@ -80,13 +83,11 @@ class Tokenizer(object):
 
             token_ids = []
             for t in tokens:
-                if t in self.token2id:
-                    token_ids.append(self.token2id[t])
-                else:
-                    token_ids.append(self.oov_id)
+                assert t in self.token2id, t
+                token_ids.append(self.token2id[t])
 
             if intersperse_blank:
-                token_ids = intersperse(token_ids, self.blank_id)
+                token_ids = intersperse(token_ids, self.pad_id)
             if add_sos:
                 token_ids = [self.sos_id] + token_ids
             if add_eos:
@@ -122,13 +123,11 @@ class Tokenizer(object):
         for tokens in tokens_list:
             token_ids = []
             for t in tokens:
-                if t in self.token2id:
-                    token_ids.append(self.token2id[t])
-                else:
-                    token_ids.append(self.oov_id)
+                assert t in self.token2id, t
+                token_ids.append(self.token2id[t])
 
             if intersperse_blank:
-                token_ids = intersperse(token_ids, self.blank_id)
+                token_ids = intersperse(token_ids, self.pad_id)
             if add_sos:
                 token_ids = [self.sos_id] + token_ids
             if add_eos:
