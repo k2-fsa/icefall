@@ -16,8 +16,8 @@
 
 from typing import Dict, List
 
-import g2p_en
 import tacotron_cleaner.cleaners
+from piper_phonemize import phonemize_espeak
 from utils import intersperse
 
 
@@ -41,18 +41,28 @@ class Tokenizer(object):
                 self.token2id[token] = id
 
         self.blank_id = self.token2id["<blk>"]
+        self.sos_id = self.token2id["<sos>"]
+        self.eos_id = self.token2id["<eos>"]
         self.oov_id = self.token2id["<unk>"]
         self.vocab_size = len(self.token2id)
 
-        self.g2p = g2p_en.G2p()
-
-    def texts_to_token_ids(self, texts: List[str], intersperse_blank: bool = True):
+    def texts_to_token_ids(
+        self,
+        texts: List[str],
+        intersperse_blank: bool = True,
+        add_sos: bool = False,
+        add_eos: bool = False,
+    ):
         """
         Args:
           texts:
             A list of transcripts.
           intersperse_blank:
             Whether to intersperse blanks in the token sequence.
+          add_sos:
+            Whether to add sos token at the start.
+          add_eos:
+            Whether to add eos token at the end.
 
         Returns:
           Return a list of token id list [utterance][token_id]
@@ -63,7 +73,11 @@ class Tokenizer(object):
             # Text normalization
             text = tacotron_cleaner.cleaners.custom_english_cleaners(text)
             # Convert to phonemes
-            tokens = self.g2p(text)
+            tokens_list = phonemize_espeak(text, "en-us")
+            tokens = []
+            for t in tokens_list:
+                tokens.extend(t)
+
             token_ids = []
             for t in tokens:
                 if t in self.token2id:
@@ -73,13 +87,21 @@ class Tokenizer(object):
 
             if intersperse_blank:
                 token_ids = intersperse(token_ids, self.blank_id)
+            if add_sos:
+                token_ids = [self.sos_id] + token_ids
+            if add_eos:
+                token_ids = token_ids + [self.eos_id]
 
             token_ids_list.append(token_ids)
 
         return token_ids_list
 
     def tokens_to_token_ids(
-        self, tokens_list: List[str], intersperse_blank: bool = True
+        self,
+        tokens_list: List[str],
+        intersperse_blank: bool = True,
+        add_sos: bool = False,
+        add_eos: bool = False,
     ):
         """
         Args:
@@ -87,6 +109,10 @@ class Tokenizer(object):
             A list of token list, each corresponding to one utterance.
           intersperse_blank:
             Whether to intersperse blanks in the token sequence.
+          add_sos:
+            Whether to add sos token at the start.
+          add_eos:
+            Whether to add eos token at the end.
 
         Returns:
           Return a list of token id list [utterance][token_id]
@@ -103,6 +129,10 @@ class Tokenizer(object):
 
             if intersperse_blank:
                 token_ids = intersperse(token_ids, self.blank_id)
+            if add_sos:
+                token_ids = [self.sos_id] + token_ids
+            if add_eos:
+                token_ids = token_ids + [self.eos_id]
 
             token_ids_list.append(token_ids)
 
