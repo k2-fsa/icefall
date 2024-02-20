@@ -150,8 +150,8 @@ def compute_fbank_wenetspeech_splits(args):
     set_caching_enabled(False)
     #with get_executor() as ex:  # Initialize the executor only once.
     for i in range(start, stop):
-        idx = f"{i + 1}".zfill(num_digits)
-        logging.info(f"Processing {idx}/{num_splits}")
+        idx = f"{i}".zfill(num_digits)
+        logging.info(f"Processing {i+1}/{num_splits}")
         
         cuts_path = output_dir / f"cuts_{subset}.{idx}.jsonl.gz"
         if cuts_path.is_file():

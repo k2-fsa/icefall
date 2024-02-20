@@ -5,8 +5,8 @@ export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
 
 set -eou pipefail
 
-stage=120
-stop_stage=120
+stage=121
+stop_stage=121
 num_splits=100
 
 dl_dir=$PWD/download
@@ -274,7 +274,7 @@ if [ $stage -le 12 ] && [ $stop_stage -ge 12 ]; then
       touch data/fbank/.kespeech_preprocess_complete
     fi  
     
-    if [ -f data/fbank/.kespeech.train_phase1.split.${num_splits}.done ]; then
+    if [ ! -f data/fbank/.kespeech.train_phase1.split.${num_splits}.done ]; then
       log "Spliting KeSpeech train_phase1"
       lhotse split ${num_splits} \
         data/fbank/kespeech/kespeech-asr_cuts_train_phase1_raw.jsonl.gz \
@@ -282,7 +282,7 @@ if [ $stage -le 12 ] && [ $stop_stage -ge 12 ]; then
       touch data/fbank/.kespeech.train_phase1.split.${num_splits}.done
     fi
     
-    if [ -f data/fbank/.kespeech.train_phase2.split.${num_splits}.done ]; then
+    if [ ! -f data/fbank/.kespeech.train_phase2.split.${num_splits}.done ]; then
       log "Spliting KeSpeech train_phase2"
       lhotse split ${num_splits} \
         data/fbank/kespeech/kespeech-asr_cuts_train_phase2_raw.jsonl.gz \
@@ -327,7 +327,7 @@ if [ $stage -le 120 ] && [ $stop_stage -ge 120 ]; then
       touch data/fbank/.kespeech_preprocess_complete
     fi  
     
-    if [ -f data/fbank/.kespeech.train_phase1.split.${num_splits}.done ]; then
+    if [ ! -f data/fbank/.kespeech.train_phase1.split.${num_splits}.done ]; then
       log "Spliting KeSpeech train_phase1"
       lhotse split ${num_splits} \
         data/fbank/kespeech/kespeech-asr_cuts_train_phase1_raw.jsonl.gz \
@@ -335,7 +335,7 @@ if [ $stage -le 120 ] && [ $stop_stage -ge 120 ]; then
       touch data/fbank/.kespeech.train_phase1.split.${num_splits}.done
     fi
     
-    if [ -f data/fbank/.kespeech.train_phase2.split.${num_splits}.done ]; then
+    if [ ! -f data/fbank/.kespeech.train_phase2.split.${num_splits}.done ]; then
       log "Spliting KeSpeech train_phase2"
       lhotse split ${num_splits} \
         data/fbank/kespeech/kespeech-asr_cuts_train_phase2_raw.jsonl.gz \
@@ -345,6 +345,21 @@ if [ $stage -le 120 ] && [ $stop_stage -ge 120 ]; then
     
     log "Compute KeSpeech fbank for train_phase1"
     ./local/compute_fbank_kespeech_splits.py --num-splits ${num_splits} --training-subset train_phase1 --num-mel-bins ${whisper_mel_bins} --whisper-fbank true
+
+    log "Compute KeSpeech fbank for train_phase2"
+    ./local/compute_fbank_kespeech_splits.py --num-splits ${num_splits} --training-subset train_phase2 --num-mel-bins ${whisper_mel_bins} --whisper-fbank true
+
+    log "Compute KeSpeech fbank for test/dev"
+    ./local/compute_fbank_kespeech_dev_test.py --num-mel-bins ${whisper_mel_bins} --whisper-fbank true
+
+    touch data/fbank/.kespeech.done
+  fi
+fi
+
+if [ $stage -le 121 ] && [ $stop_stage -ge 121 ]; then
+  log "Stage 121: tmp"  
+    log "Compute KeSpeech fbank for train_phase1"
+    ./local/compute_fbank_kespeech_splits.py --num-splits ${num_splits} --stop 1 --training-subset train_phase1 --num-mel-bins ${whisper_mel_bins} --whisper-fbank true
 
     log "Compute KeSpeech fbank for train_phase2"
     ./local/compute_fbank_kespeech_splits.py --num-splits ${num_splits} --training-subset train_phase2 --num-mel-bins ${whisper_mel_bins} --whisper-fbank true
