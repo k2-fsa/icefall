@@ -50,6 +50,7 @@ RUN pip install --no-cache-dir \
       onnxruntime \
       pytest \
       sentencepiece>=0.1.96 \
+      pypinyin==0.50.0 \
       six \
       tensorboard \
       typeguard
