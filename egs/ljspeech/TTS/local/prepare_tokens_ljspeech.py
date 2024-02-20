@@ -39,7 +39,7 @@ def prepare_tokens_ljspeech():
     new_cuts = []
     for cut in cut_set:
         # Each cut only contains one supervision
-        assert len(cut.supervisions) == 1, len(cut.supervisions)
+        assert len(cut.supervisions) == 1, (len(cut.supervisions), cut)
         text = cut.supervisions[0].normalized_text
         # Text normalization
         text = tacotron_cleaner.cleaners.custom_english_cleaners(text)

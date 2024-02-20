@@ -1,4 +1,4 @@
-# Copyright      2023  Xiaomi Corp.        (authors: Zengwei Yao)
+# Copyright      2023-2024  Xiaomi Corp.        (authors: Zengwei Yao)
 #
 # See ../../LICENSE for clarification regarding multiple authors
 #
@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 from typing import Dict, List
 
 import tacotron_cleaner.cleaners
@@ -55,7 +56,8 @@ class Tokenizer(object):
         intersperse_blank: bool = True,
         add_sos: bool = False,
         add_eos: bool = False,
-    ):
+        lang: str = "en-us",
+    ) -> List[List[int]]:
         """
         Args:
           texts:
@@ -66,6 +68,8 @@ class Tokenizer(object):
             Whether to add sos token at the start.
           add_eos:
             Whether to add eos token at the end.
+          lang:
+            Language argument passed to phonemize_espeak().
 
         Returns:
           Return a list of token id list [utterance][token_id]
@@ -76,14 +80,16 @@ class Tokenizer(object):
             # Text normalization
             text = tacotron_cleaner.cleaners.custom_english_cleaners(text)
             # Convert to phonemes
-            tokens_list = phonemize_espeak(text, "en-us")
+            tokens_list = phonemize_espeak(text, lang)
             tokens = []
             for t in tokens_list:
                 tokens.extend(t)
 
             token_ids = []
             for t in tokens:
-                assert t in self.token2id, t
+                if t not in self.token2id:
+                    logging.warning(f"Skip OOV {t}")
+                    continue
                 token_ids.append(self.token2id[t])
 
             if intersperse_blank:
@@ -103,7 +109,7 @@ class Tokenizer(object):
         intersperse_blank: bool = True,
         add_sos: bool = False,
         add_eos: bool = False,
-    ):
+    ) -> List[List[int]]:
         """
         Args:
           tokens_list:
@@ -123,7 +129,9 @@ class Tokenizer(object):
         for tokens in tokens_list:
             token_ids = []
             for t in tokens:
-                assert t in self.token2id, t
+                if t not in self.token2id:
+                    logging.warning(f"Skip OOV {t}")
+                    continue
                 token_ids.append(self.token2id[t])
 
             if intersperse_blank:

@@ -43,10 +43,14 @@ def get_args():
 
 def get_token2id(filename: Path) -> Dict[str, int]:
     """Get a dict that maps token to IDs, and save it to the given filename."""
-    all_tokens = get_espeak_map()
+    all_tokens = get_espeak_map()  # token: [token_id]
+    all_tokens = {token: token_id[0] for token, token_id in all_tokens.items()}
+    # sort by token_id
+    all_tokens = sorted(all_tokens.items(), key=lambda x: x[1])
+
     with open(filename, "w", encoding="utf-8") as f:
-        for token, token_id in all_tokens.items():
-            f.write(f"{token} {token_id[0]}\n")
+        for token, token_id in all_tokens:
+            f.write(f"{token} {token_id}\n")
 
 
 if __name__ == "__main__":
