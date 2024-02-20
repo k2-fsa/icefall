@@ -11,8 +11,6 @@ export PYTHONPATH=../../../:$PYTHONPATH
 stage=0
 stop_stage=100
 
-pre_trained_model_host=github
-
 . shared/parse_options.sh || exit 1
 
 log() {
@@ -20,20 +18,6 @@ log() {
   local fname=${BASH_SOURCE[1]##*/}
   echo -e "$(date '+%Y-%m-%d %H:%M:%S') (${fname}:${BASH_LINENO[0]}:${FUNCNAME[1]}) $*"
 }
-
-
-if [ $stage -le -1 ] && [ $stop_stage -ge -1 ]; then
-  log "Stage -1: Download a pre-trained model."
-  if [ $pre_trained_model_host -eq "github" ]; then
-
-  elif [$pre_trained_model_host -eq "modelscope" ]; then
-
-  else
-    log "Pretrained model host : $pre_trained_model_host not support."
-    exit -1;
-  fi
-fi
-
 
 if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   log "Stage 0: Train a model."
@@ -51,7 +35,7 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
       --feedforward-dim 192,192,192,192,192,192 \
       --encoder-dim 128,128,128,128,128,128 \
       --encoder-unmasked-dim 128,128,128,128,128,128 \
-      --num-epochs 15 \
+      --num-epochs 18 \
       --lr-epochs 1.5 \
       --use-fp16 1 \
       --start-epoch 1 \
@@ -66,10 +50,10 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   log "Stage 1: Decode the model."
   for t in small, large; do
     python ./zipformer/decode.py \
-        --epoch 15 \
+        --epoch 18 \
         --avg 2 \
         --exp-dir ./zipformer/exp \
-        --lang-dir ./data/lang_partial_tone \
+        --tokens ./data/lang_partial_tone/tokens.txt \
         --pinyin-type partial_with_tone \
         --causal 1 \
         --chunk-size 16 \
@@ -81,8 +65,8 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
         --encoder-dim 128,128,128,128,128,128 \
         --encoder-unmasked-dim 128,128,128,128,128,128 \
         --test-set $t \
-        --keywords-score 1.0 \
-        --keywords-threshold 0.35 \
+        --keywords-score 1.5 \
+        --keywords-threshold 0.1 \
         --keywords-file ./data/commands_${t}.txt  \
         --max-duration 3000
   done
@@ -92,7 +76,7 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   log "Stage 2: Export the model."
 
   python ./zipformer/export.py \
-      --epoch 15 \
+      --epoch 18 \
       --avg 2 \
       --exp-dir ./zipformer/exp \
       --tokens data/lang_partial_tone/tokens.txt \
@@ -109,7 +93,7 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   python ./zipformer/export_onnx_streaming.py \
     --exp-dir zipformer/exp \
     --tokens data/lang_partial_tone/tokens.txt \
-    --epoch 15 \
+    --epoch 18 \
     --avg 2 \
     --chunk-size 16 \
     --left-context-frames 128 \
@@ -160,10 +144,10 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
   log "Stage 1: Decode the finetuned model."
   for t in small, large; do
     python ./zipformer/decode.py \
-        --epoch 15 \
+        --epoch 10 \
         --avg 2 \
         --exp-dir ./zipformer/exp_finetune \
-        --lang-dir ./data/lang_partial_tone \
+        --tokens ./data/lang_partial_tone/tokens.txt \
         --pinyin-type partial_with_tone \
         --causal 1 \
         --chunk-size 16 \
@@ -175,7 +159,7 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
         --encoder-dim 128,128,128,128,128,128 \
         --encoder-unmasked-dim 128,128,128,128,128,128 \
         --test-set $t \
-        --keywords-score 1.0 \
+        --keywords-score 0.000001 \
         --keywords-threshold 0.35 \
         --keywords-file ./data/commands_${t}.txt  \
         --max-duration 3000
@@ -185,10 +169,25 @@ fi
 if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   log "Stage 2: Export the finetuned model."
 
+  python ./zipformer/export.py \
+      --epoch 10 \
+      --avg 2 \
+      --exp-dir ./zipformer/exp_finetune \
+      --tokens data/lang_partial_tone/tokens.txt \
+      --causal 1 \
+      --chunk-size 16 \
+      --left-context-frames 64 \
+      --decoder-dim 320 \
+      --joiner-dim 320 \
+      --num-encoder-layers 1,1,1,1,1,1 \
+      --feedforward-dim 192,192,192,192,192,192 \
+      --encoder-dim 128,128,128,128,128,128 \
+      --encoder-unmasked-dim 128,128,128,128,128,128
+
   python ./zipformer/export_onnx_streaming.py \
     --exp-dir zipformer/exp_finetune \
     --tokens data/lang_partial_tone/tokens.txt \
-    --epoch 15 \
+    --epoch 10 \
     --avg 2 \
     --chunk-size 16 \
     --left-context-frames 128 \

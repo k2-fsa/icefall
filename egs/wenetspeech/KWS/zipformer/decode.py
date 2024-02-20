@@ -44,10 +44,10 @@ from icefall.checkpoint import (
     find_checkpoints,
     load_checkpoint,
 )
-from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
     make_pad_mask,
+    num_tokens,
     setup_logger,
     store_transcripts,
     str2bool,
@@ -124,10 +124,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--lang-dir",
+        "--tokens",
         type=Path,
-        default="data/lang_char",
-        help="The lang dir containing word table and LG graph",
+        default="data/lang_partial_tone/tokens.txt",
+        help="The path to the token.txt",
     )
 
     parser.add_argument(
@@ -209,7 +209,6 @@ def get_parser():
 def decode_one_batch(
     params: AttributeDict,
     model: nn.Module,
-    lexicon: Lexicon,
     batch: dict,
     keywords_graph: ContextGraph,
 ) -> Dict[str, List[List[str]]]:
@@ -296,7 +295,6 @@ def decode_dataset(
     dl: torch.utils.data.DataLoader,
     params: AttributeDict,
     model: nn.Module,
-    lexicon: Lexicon,
     keywords_graph: ContextGraph,
     keywords: Set[str],
     test_only_keywords: bool,
@@ -342,7 +340,6 @@ def decode_dataset(
         hyps = decode_one_batch(
             params=params,
             model=model,
-            lexicon=lexicon,
             keywords_graph=keywords_graph,
             batch=batch,
         )
@@ -516,9 +513,9 @@ def main():
 
     logging.info(f"Device: {device}")
 
-    lexicon = Lexicon(params.lang_dir)
-    params.blank_id = lexicon.token_table["<blk>"]
-    params.vocab_size = max(lexicon.tokens) + 1
+    token_table = k2.SymbolTable.from_file(params.tokens)
+    params.blank_id = token_table["<blk>"]
+    params.vocab_size = num_tokens(token_table) + 1
 
     logging.info(params)
 
@@ -547,8 +544,8 @@ def main():
             tmp_ids = []
             kws_py = text_to_pinyin(keyword, mode=params.pinyin_type)
             for k in kws_py:
-                if k in lexicon.token_table:
-                    tmp_ids.append(lexicon.token_table[k])
+                if k in token_table:
+                    tmp_ids.append(token_table[k])
                 else:
                     logging.warning(f"Containing OOV tokens, skipping line : {line}")
                     tmp_ids = []
@@ -721,7 +718,6 @@ def main():
             dl=test_dl,
             params=params,
             model=model,
-            lexicon=lexicon,
             keywords_graph=keywords_graph,
             keywords=keywords,
             test_only_keywords="test_net" not in test_set,
