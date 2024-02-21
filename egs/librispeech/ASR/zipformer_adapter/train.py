@@ -1271,7 +1271,7 @@ def run(rank, world_size, args):
         else:
             p.requires_grad = False
 
-    logging.info("A total of {} trainable parameters ({:.3f}% of the whole model)".format(num_trainable, num_trainable/num_param))
+    logging.info("A total of {} trainable parameters ({:.3f}% of the whole model)".format(num_trainable, num_trainable/num_param * 100))
 
     model.to(device)
     if world_size > 1:
