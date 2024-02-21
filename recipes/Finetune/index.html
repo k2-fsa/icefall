@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>RNN-LM &mdash; icefall 0.1 documentation</title>
+  <title>Fine-tune a pre-trained model &mdash; icefall 0.1 documentation</title>
       <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=fa44fd50" />
       <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=19f00094" />
 
@@ -21,8 +21,8 @@
     <script src="../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
-    <link rel="next" title="Train an RNN language model" href="librispeech/lm-training.html" />
-    <link rel="prev" title="Zipformer Transducer" href="../Streaming-ASR/librispeech/zipformer_transducer.html" /> 
+    <link rel="next" title="Finetune from a supervised pre-trained Zipformer model" href="from_supervised/finetune_zipformer.html" />
+    <link rel="prev" title="VITS" href="../TTS/vctk/vits.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -56,12 +56,12 @@
 <li class="toctree-l1 current"><a class="reference internal" href="../index.html">Recipes</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="../Non-streaming-ASR/index.html">Non Streaming ASR</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../Streaming-ASR/index.html">Streaming ASR</a></li>
-<li class="toctree-l2 current"><a class="current reference internal" href="#">RNN-LM</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="librispeech/lm-training.html">Train an RNN language model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../RNN-LM/index.html">RNN-LM</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../TTS/index.html">TTS</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Fine-tune a pre-trained model</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="from_supervised/finetune_zipformer.html">Finetune from a supervised pre-trained Zipformer model</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="../TTS/index.html">TTS</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../Finetune/index.html">Fine-tune a pre-trained model</a></li>
 </ul>
 </li>
 </ul>
@@ -88,9 +88,9 @@
   <ul class="wy-breadcrumbs">
       <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
           <li class="breadcrumb-item"><a href="../index.html">Recipes</a></li>
-      <li class="breadcrumb-item active">RNN-LM</li>
+      <li class="breadcrumb-item active">Fine-tune a pre-trained model</li>
       <li class="wy-breadcrumbs-aside">
-              <a href="https://github.com/k2-fsa/icefall/blob/master/docs/source/recipes/RNN-LM/index.rst" class="fa fa-github"> Edit on GitHub</a>
+              <a href="https://github.com/k2-fsa/icefall/blob/master/docs/source/recipes/Finetune/index.rst" class="fa fa-github"> Edit on GitHub</a>
       </li>
   </ul>
   <hr/>
@@ -98,11 +98,22 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="rnn-lm">
-<h1>RNN-LM<a class="headerlink" href="#rnn-lm" title="Permalink to this heading"></a></h1>
+  <section id="fine-tune-a-pre-trained-model">
+<h1>Fine-tune a pre-trained model<a class="headerlink" href="#fine-tune-a-pre-trained-model" title="Permalink to this heading"></a></h1>
+<p>After pre-training on public available datasets, the ASR model is already capable of
+performing general speech recognition with relatively high accuracy. However, the accuracy
+could be still low on certain domains that are quite different from the original training
+set. In this case, we can fine-tune the model with a small amount of additional labelled
+data to improve the performance on new domains.</p>
 <div class="toctree-wrapper compound">
+<p class="caption" role="heading"><span class="caption-text">Table of Contents</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="librispeech/lm-training.html">Train an RNN language model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="from_supervised/finetune_zipformer.html">Finetune from a supervised pre-trained Zipformer model</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="from_supervised/finetune_zipformer.html#data-preparation">Data preparation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="from_supervised/finetune_zipformer.html#model-preparation">Model preparation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="from_supervised/finetune_zipformer.html#fine-tune">Fine-tune</a></li>
+</ul>
+</li>
 </ul>
 </div>
 </section>
@@ -111,8 +122,8 @@
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="../Streaming-ASR/librispeech/zipformer_transducer.html" class="btn btn-neutral float-left" title="Zipformer Transducer" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="librispeech/lm-training.html" class="btn btn-neutral float-right" title="Train an RNN language model" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="../TTS/vctk/vits.html" class="btn btn-neutral float-left" title="VITS" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="from_supervised/finetune_zipformer.html" class="btn btn-neutral float-right" title="Finetune from a supervised pre-trained Zipformer model" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>
