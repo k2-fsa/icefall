@@ -65,7 +65,7 @@ def get_parser():
 def compute_fbank_magicdata(num_mel_bins: int = 80, speed_perturb: bool = False, whisper_fbank: bool = False):
     src_dir = Path("data/manifests/magicdata")
     output_dir = Path("data/fbank")
-    num_jobs = min(30, os.cpu_count())
+    num_jobs = min(8, os.cpu_count())
 
     dataset_parts = ("train", "test", "dev")
     prefix = "magicdata"
