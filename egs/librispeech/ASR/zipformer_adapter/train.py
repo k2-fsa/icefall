@@ -1018,6 +1018,12 @@ def train_one_epoch(
         be set to 0.
     """
     model.train()
+    # set modules except adapters to eval mode
+    for name, m in model.named_modules():
+        if "adapter" in name:
+            m.training = True
+        else:
+            m.training = False
 
     tot_loss = MetricsTracker()
 
@@ -1159,12 +1165,6 @@ def train_one_epoch(
                     valid_dl=valid_dl,
                     world_size=world_size,
                 )
-                model.train()
-                for name, m in model.named_modules():
-                    if "adapter" in name:
-                        m.training = True
-                    else:
-                        m.training = False
                 logging.info(
                     f"Validation on {valid_set}: Epoch {params.cur_epoch}, validation: {valid_info}"
                 )
@@ -1175,6 +1175,8 @@ def train_one_epoch(
                     valid_info.write_summary(
                         tb_writer, f"train/{valid_set}_valid_", params.batch_idx_train
                     )
+            model.train()
+            # set modules except adapters to eval mode
             for name, m in model.named_modules():
                 if "adapter" in name:
                     m.training = True
