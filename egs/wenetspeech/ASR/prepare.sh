@@ -365,3 +365,17 @@ if [ $stage -le 21 ] && [ $stop_stage -ge 21 ]; then
     --vocab-size 5537 \
     --master-port 12340
 fi
+
+if [ $stage -le 22 ] && [ $stop_stage -ge 22 ]; then
+  log "Stage 22: Prepare pinyin based lang"
+  for token in full_with_tone partial_with_tone; do
+    lang_dir=data/lang_${token}
+    if [ ! -f $lang_dir/tokens.txt ]; then
+      cp data/lang_char/words.txt $lang_dir/words.txt
+      python local/prepare_pinyin.py \
+        --token-type $token \
+        --lang-dir $lang_dir
+    fi
+    python ./local/compile_lg.py --lang-dir $lang_dir
+  done
+fi

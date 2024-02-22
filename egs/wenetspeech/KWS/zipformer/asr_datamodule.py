@@ -1,5 +1,5 @@
 # Copyright      2021  Piotr Żelasko
-# Copyright      2023  Xiaomi Corporation     (Author: Yifan Yang)
+# Copyright      2024  Xiaomi Corporation     (Author: Wei Kang)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -17,17 +17,21 @@
 
 
 import argparse
-import glob
 import inspect
 import logging
-import re
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
-import lhotse
 import torch
-from lhotse import CutSet, Fbank, FbankConfig, load_manifest, load_manifest_lazy
+from lhotse import (
+    CutSet,
+    Fbank,
+    FbankConfig,
+    load_manifest,
+    load_manifest_lazy,
+    set_caching_enabled,
+)
 from lhotse.dataset import (
     CutConcatenate,
     CutMix,
@@ -37,7 +41,7 @@ from lhotse.dataset import (
     SimpleCutSampler,
     SpecAugment,
 )
-from lhotse.dataset.input_strategies import AudioSamples, OnTheFlyFeatures
+from lhotse.dataset.input_strategies import OnTheFlyFeatures
 from lhotse.utils import fix_random_seed
 from torch.utils.data import DataLoader
 
@@ -52,13 +56,12 @@ class _SeedWorkers:
         fix_random_seed(self.seed + worker_id)
 
 
-class GigaSpeechAsrDataModule:
+class WenetSpeechAsrDataModule:
     """
     DataModule for k2 ASR experiments.
     It assumes there is always one train and valid dataloader,
     but there can be multiple test dataloaders (e.g. LibriSpeech test-clean
     and test-other).
-
     It contains all the common data pipeline modules used in ASR
     experiments, e.g.:
     - dynamic batch size,
@@ -66,7 +69,6 @@ class GigaSpeechAsrDataModule:
     - cut concatenation,
     - augmentation,
     - on-the-fly feature extraction
-
     This class should be derived for specific corpora used in ASR tasks.
     """
 
@@ -105,7 +107,7 @@ class GigaSpeechAsrDataModule:
         group.add_argument(
             "--num-buckets",
             type=int,
-            default=100,
+            default=30,
             help="The number of buckets for the DynamicBucketingSampler"
             "(you might want to increase it for larger datasets).",
         )
@@ -145,12 +147,6 @@ class GigaSpeechAsrDataModule:
             default=True,
             help="When enabled (=default), the examples will be "
             "shuffled for each epoch.",
-        )
-        group.add_argument(
-            "--drop-last",
-            type=str2bool,
-            default=True,
-            help="Whether to drop last batch. Used by sampler.",
         )
         group.add_argument(
             "--return-cuts",
@@ -195,24 +191,10 @@ class GigaSpeechAsrDataModule:
         )
 
         group.add_argument(
-            "--input-strategy",
+            "--training-subset",
             type=str,
-            default="PrecomputedFeatures",
-            help="AudioSamples or PrecomputedFeatures",
-        )
-
-        # GigaSpeech specific arguments
-        group.add_argument(
-            "--subset",
-            type=str,
-            default="XL",
-            help="Select the GigaSpeech subset (XS|S|M|L|XL)",
-        )
-        group.add_argument(
-            "--small-dev",
-            type=str2bool,
-            default=False,
-            help="Should we use only 1000 utterances for dev (speeds up training)",
+            default="L",
+            help="The training subset for using",
         )
 
     def train_dataloaders(
@@ -227,11 +209,12 @@ class GigaSpeechAsrDataModule:
           sampler_state_dict:
             The state dict for the training sampler.
         """
+        logging.info("About to get Musan cuts")
+        cuts_musan = load_manifest(self.args.manifest_dir / "musan_cuts.jsonl.gz")
+
         transforms = []
         if self.args.enable_musan:
             logging.info("Enable MUSAN")
-            logging.info("About to get Musan cuts")
-            cuts_musan = load_manifest(self.args.manifest_dir / "musan_cuts.jsonl.gz")
             transforms.append(
                 CutMix(cuts=cuts_musan, p=0.5, snr=(10, 20), preserve_id=True)
             )
@@ -280,7 +263,6 @@ class GigaSpeechAsrDataModule:
 
         logging.info("About to create train dataset")
         train = K2SpeechRecognitionDataset(
-            input_strategy=eval(self.args.input_strategy)(),
             cut_transforms=transforms,
             input_transforms=input_transforms,
             return_cuts=self.args.return_cuts,
@@ -311,9 +293,8 @@ class GigaSpeechAsrDataModule:
                 max_duration=self.args.max_duration,
                 shuffle=self.args.shuffle,
                 num_buckets=self.args.num_buckets,
-                buffer_size=self.args.num_buckets * 2000,
-                shuffle_buffer_size=self.args.num_buckets * 5000,
-                drop_last=self.args.drop_last,
+                buffer_size=300000,
+                drop_last=True,
             )
         else:
             logging.info("Using SimpleCutSampler.")
@@ -323,10 +304,6 @@ class GigaSpeechAsrDataModule:
                 shuffle=self.args.shuffle,
             )
         logging.info("About to create train dataloader")
-
-        if sampler_state_dict is not None:
-            logging.info("Loading sampler state dict")
-            train_sampler.load_state_dict(sampler_state_dict)
 
         # 'seed' is derived from the current random state, which will have
         # previously been set in the main process.
@@ -341,6 +318,10 @@ class GigaSpeechAsrDataModule:
             persistent_workers=False,
             worker_init_fn=worker_init_fn,
         )
+
+        if sampler_state_dict is not None:
+            logging.info("Loading sampler state dict")
+            train_dl.sampler.load_state_dict(sampler_state_dict)
 
         return train_dl
 
@@ -365,30 +346,30 @@ class GigaSpeechAsrDataModule:
                 cut_transforms=transforms,
                 return_cuts=self.args.return_cuts,
             )
+
         valid_sampler = DynamicBucketingSampler(
             cuts_valid,
             max_duration=self.args.max_duration,
-            num_buckets=self.args.num_buckets,
-            buffer_size=self.args.num_buckets * 2000,
             shuffle=False,
         )
         logging.info("About to create dev dataloader")
+
         valid_dl = DataLoader(
             validate,
-            sampler=valid_sampler,
             batch_size=None,
-            num_workers=2,
+            sampler=valid_sampler,
+            num_workers=self.args.num_workers,
             persistent_workers=False,
         )
 
         return valid_dl
 
     def test_dataloaders(self, cuts: CutSet) -> DataLoader:
-        logging.debug("About to create test dataset")
+        logging.info("About to create test dataset")
         test = K2SpeechRecognitionDataset(
             input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80)))
             if self.args.on_the_fly_feats
-            else eval(self.args.input_strategy)(),
+            else PrecomputedFeatures(),
             return_cuts=self.args.return_cuts,
         )
         sampler = DynamicBucketingSampler(
@@ -396,7 +377,7 @@ class GigaSpeechAsrDataModule:
             max_duration=self.args.max_duration,
             shuffle=False,
         )
-        logging.debug("About to create test dataloader")
+
         test_dl = DataLoader(
             test,
             batch_size=None,
@@ -407,43 +388,72 @@ class GigaSpeechAsrDataModule:
 
     @lru_cache()
     def train_cuts(self) -> CutSet:
-        logging.info(f"About to get train {self.args.subset} cuts")
-        if self.args.subset == "XL":
-            filenames = glob.glob(
-                f"{self.args.manifest_dir}/XL_split/gigaspeech_cuts_XL.*.jsonl.gz"
-            )
-            pattern = re.compile(r"gigaspeech_cuts_XL.([0-9]+).jsonl.gz")
-            idx_filenames = ((int(pattern.search(f).group(1)), f) for f in filenames)
-            idx_filenames = sorted(idx_filenames, key=lambda x: x[0])
-            sorted_filenames = [f[1] for f in idx_filenames]
-            logging.info(
-                f"Loading GigaSpeech {len(sorted_filenames)} splits in lazy mode"
-            )
-
-            cuts_train = lhotse.combine(
-                lhotse.load_manifest_lazy(p) for p in sorted_filenames
-            )
-        else:
-            path = (
-                self.args.manifest_dir / f"gigaspeech_cuts_{self.args.subset}.jsonl.gz"
-            )
-            cuts_train = CutSet.from_jsonl_lazy(path)
+        logging.info("About to get train cuts")
+        cuts_train = load_manifest_lazy(
+            self.args.manifest_dir / f"cuts_{self.args.training_subset}.jsonl.gz"
+        )
         return cuts_train
 
     @lru_cache()
-    def dev_cuts(self) -> CutSet:
+    def valid_cuts(self) -> CutSet:
         logging.info("About to get dev cuts")
-        cuts_valid = load_manifest_lazy(
-            self.args.manifest_dir / "gigaspeech_cuts_DEV.jsonl.gz"
-        )
-        if self.args.small_dev:
-            return cuts_valid.subset(first=1000)
-        else:
-            return cuts_valid
+        return load_manifest_lazy(self.args.manifest_dir / "cuts_DEV.jsonl.gz")
 
     @lru_cache()
-    def test_cuts(self) -> CutSet:
-        logging.info("About to get test cuts")
+    def test_net_cuts(self) -> List[CutSet]:
+        logging.info("About to get TEST_NET cuts")
+        return load_manifest_lazy(self.args.manifest_dir / "cuts_TEST_NET.jsonl.gz")
+
+    @lru_cache()
+    def test_meeting_cuts(self) -> List[CutSet]:
+        logging.info("About to get TEST_MEETING cuts")
+        return load_manifest_lazy(self.args.manifest_dir / "cuts_TEST_MEETING.jsonl.gz")
+
+    @lru_cache()
+    def cn_speech_commands_small_cuts(self) -> CutSet:
+        logging.info("About to get cn speech commands small cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "gigaspeech_cuts_TEST.jsonl.gz"
+            self.args.manifest_dir / "cn_speech_commands_cuts_small.jsonl.gz"
+        )
+
+    @lru_cache()
+    def cn_speech_commands_large_cuts(self) -> CutSet:
+        logging.info("About to get cn speech commands large cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "cn_speech_commands_cuts_large.jsonl.gz"
+        )
+
+    @lru_cache()
+    def nihaowenwen_dev_cuts(self) -> CutSet:
+        logging.info("About to get nihaowenwen dev cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "nihaowenwen_cuts_dev.jsonl.gz"
+        )
+
+    @lru_cache()
+    def nihaowenwen_test_cuts(self) -> CutSet:
+        logging.info("About to get nihaowenwen test cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "nihaowenwen_cuts_test.jsonl.gz"
+        )
+
+    @lru_cache()
+    def nihaowenwen_train_cuts(self) -> CutSet:
+        logging.info("About to get nihaowenwen train cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "nihaowenwen_cuts_train.jsonl.gz"
+        )
+
+    @lru_cache()
+    def xiaoyun_clean_cuts(self) -> CutSet:
+        logging.info("About to get xiaoyun clean cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "xiaoyun_cuts_clean.jsonl.gz"
+        )
+
+    @lru_cache()
+    def xiaoyun_noisy_cuts(self) -> CutSet:
+        logging.info("About to get xiaoyun noisy cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "xiaoyun_cuts_noisy.jsonl.gz"
         )

@@ -1,5 +1,5 @@
 # Copyright      2021  Piotr Żelasko
-# Copyright      2023  Xiaomi Corporation     (Author: Yifan Yang)
+# Copyright      2024  Xiaomi Corporation     (Author: Wei Kang)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -105,7 +105,7 @@ class GigaSpeechAsrDataModule:
         group.add_argument(
             "--num-buckets",
             type=int,
-            default=100,
+            default=30,
             help="The number of buckets for the DynamicBucketingSampler"
             "(you might want to increase it for larger datasets).",
         )
@@ -311,9 +311,9 @@ class GigaSpeechAsrDataModule:
                 max_duration=self.args.max_duration,
                 shuffle=self.args.shuffle,
                 num_buckets=self.args.num_buckets,
+                drop_last=self.args.drop_last,
                 buffer_size=self.args.num_buckets * 2000,
                 shuffle_buffer_size=self.args.num_buckets * 5000,
-                drop_last=self.args.drop_last,
             )
         else:
             logging.info("Using SimpleCutSampler.")
@@ -446,4 +446,32 @@ class GigaSpeechAsrDataModule:
         logging.info("About to get test cuts")
         return load_manifest_lazy(
             self.args.manifest_dir / "gigaspeech_cuts_TEST.jsonl.gz"
+        )
+
+    @lru_cache()
+    def fsc_train_cuts(self) -> CutSet:
+        logging.info("About to get fluent speech commands train cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "fluent_speech_commands_cuts_train.jsonl.gz"
+        )
+
+    @lru_cache()
+    def fsc_valid_cuts(self) -> CutSet:
+        logging.info("About to get fluent speech commands valid cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "fluent_speech_commands_cuts_valid.jsonl.gz"
+        )
+
+    @lru_cache()
+    def fsc_test_small_cuts(self) -> CutSet:
+        logging.info("About to get fluent speech commands small test cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "fluent_speech_commands_cuts_small.jsonl.gz"
+        )
+
+    @lru_cache()
+    def fsc_test_large_cuts(self) -> CutSet:
+        logging.info("About to get fluent speech commands large test cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "fluent_speech_commands_cuts_large.jsonl.gz"
         )
