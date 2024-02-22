@@ -18,6 +18,7 @@ git+https://github.com/lhotse-speech/lhotse
 kaldilm==1.11
 kaldialign==0.7.1
 num2words
+pypinyin==0.50.0
 sentencepiece==0.1.96
 tensorboard==2.8.0
 typeguard==2.13.3

@@ -74,7 +74,7 @@ class Tokenizer(object):
             if intersperse_blank:
                 token_ids = intersperse(token_ids, self.blank_id)
 
-                token_ids_list.append(token_ids)
+            token_ids_list.append(token_ids)
 
         return token_ids_list
 
@@ -103,6 +103,7 @@ class Tokenizer(object):
 
             if intersperse_blank:
                 token_ids = intersperse(token_ids, self.blank_id)
-                token_ids_list.append(token_ids)
+
+            token_ids_list.append(token_ids)
 
         return token_ids_list

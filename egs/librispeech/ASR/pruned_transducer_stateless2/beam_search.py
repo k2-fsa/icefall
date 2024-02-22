@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
 import warnings
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple, Union
@@ -31,6 +32,7 @@ from icefall.rnn_lm.model import RnnLmModel
 from icefall.transformer_lm.model import TransformerLM
 from icefall.utils import (
     DecodingResults,
+    KeywordResult,
     add_eos,
     add_sos,
     get_texts,
@@ -789,6 +791,8 @@ class Hypothesis:
     # It contains only one entry.
     log_prob: torch.Tensor
 
+    ac_probs: Optional[List[float]] = None
+
     # timestamp[i] is the frame index after subsampling
     # on which ys[i] is decoded
     timestamp: List[int] = field(default_factory=list)
@@ -804,6 +808,8 @@ class Hypothesis:
 
     # Context graph state
     context_state: Optional[ContextState] = None
+
+    num_tailing_blanks: int = 0
 
     @property
     def key(self) -> str:
@@ -950,6 +956,241 @@ def get_hyps_shape(hyps: List[HypothesisList]) -> k2.RaggedShape:
     ans = k2.ragged.create_ragged_shape2(
         row_splits=row_splits, cached_tot_size=row_splits[-1].item()
     )
+    return ans
+
+
+def keywords_search(
+    model: nn.Module,
+    encoder_out: torch.Tensor,
+    encoder_out_lens: torch.Tensor,
+    keywords_graph: ContextGraph,
+    beam: int = 4,
+    num_tailing_blanks: int = 0,
+    blank_penalty: float = 0,
+) -> List[List[KeywordResult]]:
+    """Beam search in batch mode with --max-sym-per-frame=1 being hardcoded.
+
+    Args:
+      model:
+        The transducer model.
+      encoder_out:
+        Output from the encoder. Its shape is (N, T, C).
+      encoder_out_lens:
+        A 1-D tensor of shape (N,), containing number of valid frames in
+        encoder_out before padding.
+      keywords_graph:
+        A instance of ContextGraph containing keywords and their configurations.
+      beam:
+        Number of active paths during the beam search.
+      num_tailing_blanks:
+        The number of tailing blanks a keyword should be followed, this is for the
+        scenario that a keyword will be the prefix of another. In most cases, you
+        can just set it to 0.
+      blank_penalty:
+        The score used to penalize blank probability.
+    Returns:
+      Return a list of list of KeywordResult.
+    """
+    assert encoder_out.ndim == 3, encoder_out.shape
+    assert encoder_out.size(0) >= 1, encoder_out.size(0)
+    assert keywords_graph is not None
+
+    packed_encoder_out = torch.nn.utils.rnn.pack_padded_sequence(
+        input=encoder_out,
+        lengths=encoder_out_lens.cpu(),
+        batch_first=True,
+        enforce_sorted=False,
+    )
+
+    blank_id = model.decoder.blank_id
+    unk_id = getattr(model, "unk_id", blank_id)
+    context_size = model.decoder.context_size
+    device = next(model.parameters()).device
+
+    batch_size_list = packed_encoder_out.batch_sizes.tolist()
+    N = encoder_out.size(0)
+    assert torch.all(encoder_out_lens > 0), encoder_out_lens
+    assert N == batch_size_list[0], (N, batch_size_list)
+
+    B = [HypothesisList() for _ in range(N)]
+    for i in range(N):
+        B[i].add(
+            Hypothesis(
+                ys=[-1] * (context_size - 1) + [blank_id],
+                log_prob=torch.zeros(1, dtype=torch.float32, device=device),
+                context_state=keywords_graph.root,
+                timestamp=[],
+                ac_probs=[],
+            )
+        )
+
+    encoder_out = model.joiner.encoder_proj(packed_encoder_out.data)
+
+    offset = 0
+    finalized_B = []
+    sorted_ans = [[] for _ in range(N)]
+    for t, batch_size in enumerate(batch_size_list):
+        start = offset
+        end = offset + batch_size
+        current_encoder_out = encoder_out.data[start:end]
+        current_encoder_out = current_encoder_out.unsqueeze(1).unsqueeze(1)
+        # current_encoder_out's shape is (batch_size, 1, 1, encoder_out_dim)
+        offset = end
+
+        finalized_B = B[batch_size:] + finalized_B
+        B = B[:batch_size]
+
+        hyps_shape = get_hyps_shape(B).to(device)
+
+        A = [list(b) for b in B]
+
+        B = [HypothesisList() for _ in range(batch_size)]
+
+        ys_log_probs = torch.cat(
+            [hyp.log_prob.reshape(1, 1) for hyps in A for hyp in hyps]
+        )  # (num_hyps, 1)
+
+        decoder_input = torch.tensor(
+            [hyp.ys[-context_size:] for hyps in A for hyp in hyps],
+            device=device,
+            dtype=torch.int64,
+        )  # (num_hyps, context_size)
+
+        decoder_out = model.decoder(decoder_input, need_pad=False).unsqueeze(1)
+        decoder_out = model.joiner.decoder_proj(decoder_out)
+        # decoder_out is of shape (num_hyps, 1, 1, joiner_dim)
+
+        # Note: For torch 1.7.1 and below, it requires a torch.int64 tensor
+        # as index, so we use `to(torch.int64)` below.
+        current_encoder_out = torch.index_select(
+            current_encoder_out,
+            dim=0,
+            index=hyps_shape.row_ids(1).to(torch.int64),
+        )  # (num_hyps, 1, 1, encoder_out_dim)
+
+        logits = model.joiner(
+            current_encoder_out,
+            decoder_out,
+            project_input=False,
+        )  # (num_hyps, 1, 1, vocab_size)
+
+        logits = logits.squeeze(1).squeeze(1)  # (num_hyps, vocab_size)
+
+        if blank_penalty != 0:
+            logits[:, 0] -= blank_penalty
+
+        probs = logits.softmax(dim=-1)  # (num_hyps, vocab_size)
+
+        log_probs = probs.log()
+
+        probs = probs.reshape(-1)
+
+        log_probs.add_(ys_log_probs)
+
+        vocab_size = log_probs.size(-1)
+
+        log_probs = log_probs.reshape(-1)
+
+        row_splits = hyps_shape.row_splits(1) * vocab_size
+        log_probs_shape = k2.ragged.create_ragged_shape2(
+            row_splits=row_splits, cached_tot_size=log_probs.numel()
+        )
+        ragged_log_probs = k2.RaggedTensor(shape=log_probs_shape, value=log_probs)
+        ragged_probs = k2.RaggedTensor(shape=log_probs_shape, value=probs)
+
+        for i in range(batch_size):
+            topk_log_probs, topk_indexes = ragged_log_probs[i].topk(beam)
+            hyp_probs = ragged_probs[i].tolist()
+
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                topk_hyp_indexes = (topk_indexes // vocab_size).tolist()
+                topk_token_indexes = (topk_indexes % vocab_size).tolist()
+
+            for k in range(len(topk_hyp_indexes)):
+                hyp_idx = topk_hyp_indexes[k]
+                hyp = A[i][hyp_idx]
+                new_ys = hyp.ys[:]
+                new_token = topk_token_indexes[k]
+                new_timestamp = hyp.timestamp[:]
+                new_ac_probs = hyp.ac_probs[:]
+                context_score = 0
+                new_context_state = hyp.context_state
+                new_num_tailing_blanks = hyp.num_tailing_blanks + 1
+                if new_token not in (blank_id, unk_id):
+                    new_ys.append(new_token)
+                    new_timestamp.append(t)
+                    new_ac_probs.append(hyp_probs[topk_indexes[k]])
+                    (
+                        context_score,
+                        new_context_state,
+                        _,
+                    ) = keywords_graph.forward_one_step(hyp.context_state, new_token)
+                    new_num_tailing_blanks = 0
+                    if new_context_state.token == -1:  # root
+                        new_ys[-context_size:] = [-1] * (context_size - 1) + [blank_id]
+
+                new_log_prob = topk_log_probs[k] + context_score
+
+                new_hyp = Hypothesis(
+                    ys=new_ys,
+                    log_prob=new_log_prob,
+                    timestamp=new_timestamp,
+                    ac_probs=new_ac_probs,
+                    context_state=new_context_state,
+                    num_tailing_blanks=new_num_tailing_blanks,
+                )
+                B[i].add(new_hyp)
+
+            top_hyp = B[i].get_most_probable(length_norm=True)
+            matched, matched_state = keywords_graph.is_matched(top_hyp.context_state)
+            if matched:
+                ac_prob = (
+                    sum(top_hyp.ac_probs[-matched_state.level :]) / matched_state.level
+                )
+            if (
+                matched
+                and top_hyp.num_tailing_blanks > num_tailing_blanks
+                and ac_prob >= matched_state.ac_threshold
+            ):
+                keyword = KeywordResult(
+                    hyps=top_hyp.ys[-matched_state.level :],
+                    timestamps=top_hyp.timestamp[-matched_state.level :],
+                    phrase=matched_state.phrase,
+                )
+                sorted_ans[i].append(keyword)
+                B[i] = HypothesisList()
+                B[i].add(
+                    Hypothesis(
+                        ys=[-1] * (context_size - 1) + [blank_id],
+                        log_prob=torch.zeros(1, dtype=torch.float32, device=device),
+                        context_state=keywords_graph.root,
+                        timestamp=[],
+                        ac_probs=[],
+                    )
+                )
+
+    B = B + finalized_B
+
+    for i, hyps in enumerate(B):
+        top_hyp = hyps.get_most_probable(length_norm=True)
+        matched, matched_state = keywords_graph.is_matched(top_hyp.context_state)
+        if matched:
+            ac_prob = (
+                sum(top_hyp.ac_probs[-matched_state.level :]) / matched_state.level
+            )
+        if matched and ac_prob >= matched_state.ac_threshold:
+            keyword = KeywordResult(
+                hyps=top_hyp.ys[-matched_state.level :],
+                timestamps=top_hyp.timestamp[-matched_state.level :],
+                phrase=matched_state.phrase,
+            )
+            sorted_ans[i].append(keyword)
+
+    ans = []
+    unsorted_indices = packed_encoder_out.unsorted_indices.tolist()
+    for i in range(N):
+        ans.append(sorted_ans[unsorted_indices[i]])
     return ans
 
 
