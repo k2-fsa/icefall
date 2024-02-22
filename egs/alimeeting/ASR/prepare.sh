@@ -66,10 +66,19 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
 fi
 
 if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
-  log "Stage 2: Process alimeeting"
+  log "Stage 2: compute fbank for alimeeting"
   if [ ! -f data/fbank/alimeeting/.fbank.done ]; then
     mkdir -p data/fbank/alimeeting
     ./local/compute_fbank_alimeeting.py --perturb-speed ${perturb_speed}
+  fi
+fi
+
+whisper_mel_bins=80
+if [ $stage -le 20 ] && [ $stop_stage -ge 20 ]; then
+  log "Stage 20: compute whisper fbank for alimeeting"
+  if [ ! -f data/fbank/alimeeting/.fbank.done ]; then
+    mkdir -p data/fbank/alimeeting
+    ./local/compute_fbank_alimeeting.py --perturb-speed ${perturb_speed} --num-mel-bins ${whisper_mel_bins} --whisper-fbank true
   fi
 fi
 
@@ -95,16 +104,7 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
 fi
 
 if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
-  log "Stage 5: Compute fbank for alimeeting"
-  if [ ! -f data/fbank/.alimeeting.done ]; then
-    mkdir -p data/fbank
-    ./local/compute_fbank_alimeeting.py --perturb-speed True
-    touch data/fbank/.alimeeting.done
-  fi
-fi
-
-if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
-  log "Stage 6: Prepare char based lang"
+  log "Stage 5: Prepare char based lang"
   lang_char_dir=data/lang_char
   mkdir -p $lang_char_dir
 

@@ -60,7 +60,7 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
 
   if [ ! -f data/fbank/.thchs30.done ]; then
     mkdir -p data/fbank
-    ./local/compute_fbank_thchs30.py
+    ./local/compute_fbank_thchs30.py --speed-perturb true
     touch data/fbank/.thchs30.done
   fi
 fi
@@ -137,7 +137,7 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
 
   if [ ! -f data/fbank/.stcmds.done ]; then
     mkdir -p data/fbank
-    ./local/compute_fbank_stcmds.py
+    ./local/compute_fbank_stcmds.py --speed-perturb true
     touch data/fbank/.stcmds.done
   fi
 fi
@@ -151,15 +151,15 @@ if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
     lhotse download primewords $dl_dir/primewords
   fi
 
-  if [ ! -f data/manifests/.stcmds.done ]; then
+  if [ ! -f data/manifests/.primewords.done ]; then
     mkdir -p data/manifests
-    lhotse prepare stcmds $dl_dir/primewords data/manifests/primewords
+    lhotse prepare primewords $dl_dir/primewords data/manifests/primewords
     touch data/manifests/.primewords.done
   fi
 
   if [ ! -f data/fbank/.primewords.done ]; then
     mkdir -p data/fbank
-    ./local/compute_fbank_primewords.py
+    ./local/compute_fbank_primewords.py --speed-perturb true
     touch data/fbank/.primewords.done
   fi
 fi
@@ -180,7 +180,7 @@ if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
 
     if [ ! -f data/fbank/.magicdata.done ]; then
     mkdir -p data/fbank
-    ./local/compute_fbank_magicdata.py
+    ./local/compute_fbank_magicdata.py --speed-perturb true
     touch data/fbank/.magicdata.done
   fi
 fi
@@ -291,10 +291,10 @@ if [ $stage -le 12 ] && [ $stop_stage -ge 12 ]; then
     fi
     
     log "Compute KeSpeech fbank for train_phase1"
-    ./local/compute_fbank_kespeech_splits.py --num-splits ${num_splits} --training-subset train_phase1
+    ./local/compute_fbank_kespeech_splits.py --speed-perturb true --num-splits ${num_splits} --training-subset train_phase1
 
     log "Compute KeSpeech fbank for train_phase2"
-    ./local/compute_fbank_kespeech_splits.py --num-splits ${num_splits} --training-subset train_phase2
+    ./local/compute_fbank_kespeech_splits.py --speed-perturb true --num-splits ${num_splits} --training-subset train_phase2
 
     log "Compute KeSpeech fbank for test/dev"
     ./local/compute_fbank_kespeech_dev_test.py
@@ -344,10 +344,10 @@ if [ $stage -le 120 ] && [ $stop_stage -ge 120 ]; then
     fi
     
     log "Compute KeSpeech fbank for train_phase1"
-    ./local/compute_fbank_kespeech_splits.py --num-splits ${num_splits} --training-subset train_phase1 --num-mel-bins ${whisper_mel_bins} --whisper-fbank true
+    ./local/compute_fbank_kespeech_splits.py --speed-perturb true --num-splits ${num_splits} --training-subset train_phase1 --num-mel-bins ${whisper_mel_bins} --whisper-fbank true
 
     log "Compute KeSpeech fbank for train_phase2"
-    ./local/compute_fbank_kespeech_splits.py --num-splits ${num_splits} --training-subset train_phase2 --num-mel-bins ${whisper_mel_bins} --whisper-fbank true
+    ./local/compute_fbank_kespeech_splits.py --speed-perturb true --num-splits ${num_splits} --training-subset train_phase2 --num-mel-bins ${whisper_mel_bins} --whisper-fbank true
 
     log "Compute KeSpeech fbank for test/dev"
     ./local/compute_fbank_kespeech_dev_test.py --num-mel-bins ${whisper_mel_bins} --whisper-fbank true
@@ -356,19 +356,63 @@ if [ $stage -le 120 ] && [ $stop_stage -ge 120 ]; then
   fi
 fi
 
-if [ $stage -le 121 ] && [ $stop_stage -ge 121 ]; then
-  log "Stage 121: tmp"  
-    log "Compute KeSpeech fbank for train_phase1"
-    ./local/compute_fbank_kespeech_splits.py --num-splits ${num_splits} --stop 1 --training-subset train_phase1 --num-mel-bins ${whisper_mel_bins} --whisper-fbank true
+if [ $stage -le 122 ] && [ $stop_stage -ge 122 ]; then
+    log "Stage 122: Prepare speed perturb versionKeSpeech for whisper"
+    ./local/compute_fbank_kespeech_splits.py --speed-perturb true --num-splits ${num_splits} --training-subset train_phase1 --num-mel-bins ${whisper_mel_bins} --whisper-fbank true
 
     log "Compute KeSpeech fbank for train_phase2"
-    ./local/compute_fbank_kespeech_splits.py --num-splits ${num_splits} --training-subset train_phase2 --num-mel-bins ${whisper_mel_bins} --whisper-fbank true
+    ./local/compute_fbank_kespeech_splits.py --speed-perturb true --num-splits ${num_splits} --training-subset train_phase2 --num-mel-bins ${whisper_mel_bins} --whisper-fbank true
+fi
 
-    log "Compute KeSpeech fbank for test/dev"
-    ./local/compute_fbank_kespeech_dev_test.py --num-mel-bins ${whisper_mel_bins} --whisper-fbank true
+if [ $stage -le 121 ] && [ $stop_stage -ge 121 ]; then
+  log "Stage 121: Prepare MagicData, Primewords, ST-CMDS, THCHS-30 for whisper"
 
-    touch data/fbank/.kespeech.done
+  if [ ! -f data/manifests/.magicdata.done ]; then
+    mkdir -p data/manifests
+    lhotse prepare magicdata $dl_dir/magicdata data/manifests/magicdata
+    touch data/manifests/.magicdata.done
   fi
+
+  if [ ! -f data/manifests/.primewords.done ]; then
+    mkdir -p data/manifests
+    lhotse prepare primewords $dl_dir/primewords data/manifests/primewords
+    touch data/manifests/.primewords.done
+  fi
+  if [ ! -f data/manifests/.stcmds.done ]; then
+    mkdir -p data/manifests
+    lhotse prepare stcmds $dl_dir/stcmds data/manifests/stcmds
+    touch data/manifests/.stcmds.done
+  fi
+
+  if [ ! -f data/manifests/.thchs30.done ]; then
+    mkdir -p data/manifests
+    lhotse prepare thchs-30 $dl_dir/thchs30 data/manifests/thchs30
+    touch data/manifests/.thchs30.done
+  fi
+
+  if [ ! -f data/fbank/.thchs30.done ]; then
+    mkdir -p data/fbank
+    ./local/compute_fbank_thchs30.py --speed-perturb true --num-mel-bins ${whisper_mel_bins} --whisper-fbank true
+    touch data/fbank/.thchs30.done
+  fi
+
+  if [ ! -f data/fbank/.stcmds.done ]; then
+    mkdir -p data/fbank
+    ./local/compute_fbank_stcmds.py --speed-perturb true --num-mel-bins ${whisper_mel_bins} --whisper-fbank true
+    touch data/fbank/.stcmds.done
+  fi
+  if [ ! -f data/fbank/.magicdata.done ]; then
+    mkdir -p data/fbank
+    ./local/compute_fbank_magicdata.py --speed-perturb true --num-mel-bins ${whisper_mel_bins} --whisper-fbank true
+    touch data/fbank/.magicdata.done
+  fi
+
+  if [ ! -f data/fbank/.primewords.done ]; then
+    mkdir -p data/fbank
+    ./local/compute_fbank_primewords.py --speed-perturb true --num-mel-bins ${whisper_mel_bins} --whisper-fbank true
+    touch data/fbank/.primewords.done
+  fi
+
 fi
 
 
