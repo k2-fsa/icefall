@@ -662,7 +662,7 @@ def get_attention_decoder_model(params: AttributeDict) -> nn.Module:
         decoder_dim=params.attention_decoder_dim,
         num_decoder_layers=params.attention_decoder_num_layers,
         attention_dim=params.attention_decoder_attention_dim,
-        nhead=params.attention_decoder_num_heads,
+        num_heads=params.attention_decoder_num_heads,
         feedforward_dim=params.attention_decoder_feedforward_dim,
         memory_dim=max(_to_int_tuple(params.encoder_dim)),
         sos_id=params.sos_id,
