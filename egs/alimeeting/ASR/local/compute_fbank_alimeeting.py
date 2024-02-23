@@ -53,7 +53,7 @@ def compute_fbank_alimeeting(num_mel_bins: int = 80, perturb_speed: bool = False
         "test",
     )
 
-    prefix = "alimeeting"
+    prefix = "alimeeting-far"
     suffix = "jsonl.gz"
     manifests = read_manifests_if_cached(
         dataset_parts=dataset_parts,

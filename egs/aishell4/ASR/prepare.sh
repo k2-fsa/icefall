@@ -78,9 +78,9 @@ fi
 if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   log "Stage 2: Compute fbank for aishell4"
   if [ ! -f data/fbank/aishell4/.fbank.done ]; then
-    mkdir -p data/fbank/aishell4
+    mkdir -p data/fbank
     ./local/compute_fbank_aishell4.py --perturb-speed ${perturb_speed}
-    touch data/fbank/aishell4/.fbank.done
+    touch data/fbank/.fbank.done
   fi
 fi
 
@@ -88,9 +88,9 @@ whisper_mel_bins=80
 if [ $stage -le 20 ] && [ $stop_stage -ge 20 ]; then
   log "Stage 20: Compute whisper fbank for aishell4"
   if [ ! -f data/fbank/aishell4/.fbank.done ]; then
-    mkdir -p data/fbank/aishell4
+    mkdir -p data/fbank
     ./local/compute_fbank_aishell4.py --perturb-speed ${perturb_speed} --num-mel-bins ${whisper_mel_bins} --whisper-fbank true
-    touch data/fbank/aishell4/.fbank.done
+    touch data/fbank/.fbank.done
   fi
 fi
 

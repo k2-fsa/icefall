@@ -67,18 +67,20 @@ fi
 
 if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   log "Stage 2: compute fbank for alimeeting"
-  if [ ! -f data/fbank/alimeeting/.fbank.done ]; then
-    mkdir -p data/fbank/alimeeting
+  if [ ! -f data/fbank/.fbank.done ]; then
+    mkdir -p data/fbank
     ./local/compute_fbank_alimeeting.py --perturb-speed ${perturb_speed}
+    touch data/fbank/.fbank.done
   fi
 fi
 
 whisper_mel_bins=80
 if [ $stage -le 20 ] && [ $stop_stage -ge 20 ]; then
   log "Stage 20: compute whisper fbank for alimeeting"
-  if [ ! -f data/fbank/alimeeting/.fbank.done ]; then
-    mkdir -p data/fbank/alimeeting
+  if [ ! -f data/fbank/.fbank.done ]; then
+    mkdir -p data/fbank
     ./local/compute_fbank_alimeeting.py --perturb-speed ${perturb_speed} --num-mel-bins ${whisper_mel_bins} --whisper-fbank true
+    touch data/fbank/.fbank.done
   fi
 fi
 

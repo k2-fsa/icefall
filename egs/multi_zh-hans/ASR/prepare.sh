@@ -5,8 +5,8 @@ export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
 
 set -eou pipefail
 
-stage=121
-stop_stage=121
+stage=120
+stop_stage=120
 num_splits=100
 
 dl_dir=$PWD/download
@@ -86,7 +86,7 @@ fi
 log "Dataset: AISHELL-2"
 if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
   log "Stage 4: Prepare AISHELL-2"
-  if [ -e ../../aishell/ASR/data/fbank/.aishell2.done ]; then
+  if [ -e ../../aishell2/ASR/data/fbank/.aishell2.done ]; then
     cd data/fbank
     ln -svf $(realpath ../../../../aishell2/ASR/data/fbank/aishell2_feats_train) .
     ln -svf $(realpath ../../../../aishell2/ASR/data/fbank/aishell2_feats_dev) .
@@ -104,7 +104,7 @@ fi
 log "Dataset: AISHELL-4"
 if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   log "Stage 5: Prepare AISHELL-4"
-  if [ -e ../../aishell/ASR/data/fbank/.aishell4.done ]; then
+  if [ -e ../../aishell4/ASR/data/fbank/.fbank.done ]; then
     cd data/fbank
     ln -svf $(realpath ../../../../aishell4/ASR/data/fbank/aishell4_feats_train) .
     ln -svf $(realpath ../../../../aishell4/ASR/data/fbank/aishell4_feats_dev) .
@@ -323,7 +323,7 @@ if [ $stage -le 120 ] && [ $stop_stage -ge 120 ]; then
 
     log "Preprocess KeSpeech manifest"
     if [ ! -f data/fbank/.kespeech_preprocess_complete ]; then
-      python3 ./local/preprocess_kespeech.py
+      python3 ./local/preprocess_kespeech.py --speed-perturb true
       touch data/fbank/.kespeech_preprocess_complete
     fi  
     
@@ -350,18 +350,10 @@ if [ $stage -le 120 ] && [ $stop_stage -ge 120 ]; then
     ./local/compute_fbank_kespeech_splits.py --speed-perturb true --num-splits ${num_splits} --training-subset train_phase2 --num-mel-bins ${whisper_mel_bins} --whisper-fbank true
 
     log "Compute KeSpeech fbank for test/dev"
-    ./local/compute_fbank_kespeech_dev_test.py --num-mel-bins ${whisper_mel_bins} --whisper-fbank true
+    # ./local/compute_fbank_kespeech_dev_test.py --num-mel-bins ${whisper_mel_bins} --whisper-fbank true
 
     touch data/fbank/.kespeech.done
   fi
-fi
-
-if [ $stage -le 122 ] && [ $stop_stage -ge 122 ]; then
-    log "Stage 122: Prepare speed perturb versionKeSpeech for whisper"
-    ./local/compute_fbank_kespeech_splits.py --speed-perturb true --num-splits ${num_splits} --training-subset train_phase1 --num-mel-bins ${whisper_mel_bins} --whisper-fbank true
-
-    log "Compute KeSpeech fbank for train_phase2"
-    ./local/compute_fbank_kespeech_splits.py --speed-perturb true --num-splits ${num_splits} --training-subset train_phase2 --num-mel-bins ${whisper_mel_bins} --whisper-fbank true
 fi
 
 if [ $stage -le 121 ] && [ $stop_stage -ge 121 ]; then
