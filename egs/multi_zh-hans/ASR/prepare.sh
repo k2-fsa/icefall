@@ -231,7 +231,7 @@ if [ $stage -le 11 ] && [ $stop_stage -ge 11 ]; then
     ln -svf $(realpath ../../../../wenetspeech/ASR/data/fbank/cuts_TEST_MEETING.jsonl.gz) .
     ln -svf $(realpath ../../../../wenetspeech/ASR/data/fbank/cuts_TEST_NET.jsonl.gz) .
 
-    ln -svf $(realpath ../../../../wenetspeech/ASR/data/fbank/L_split_1000) .
+    ln -svf $(realpath ../../../../wenetspeech/ASR/data/fbank/L_split_${num_splits}) .
     ln -svf $(realpath ../../../../wenetspeech/ASR/data/fbank/*.lca) .
     ln -svf $(realpath ../../../../wenetspeech/ASR/data/fbank/) ./wenetspeech
     cd ../..
