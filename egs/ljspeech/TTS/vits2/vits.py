@@ -301,7 +301,7 @@ class VITS(nn.Module):
                 lids=lids,
             )
         elif forward_type == "discriminator":
-            return self._forward_discrminator(
+            return self._forward_discriminator(
                 text=text,
                 text_lengths=text_lengths,
                 feats=feats,
@@ -313,7 +313,7 @@ class VITS(nn.Module):
                 lids=lids,
             )
         elif forward_type == "duration_discriminator":
-            return self._forward_discrminator_duration(
+            return self._forward_discriminator_duration(
                 text=text,
                 text_lengths=text_lengths,
                 feats=feats,
@@ -460,7 +460,7 @@ class VITS(nn.Module):
 
         return loss, stats
 
-    def _forward_discrminator(
+    def _forward_discriminator(
         self,
         text: torch.Tensor,
         text_lengths: torch.Tensor,
@@ -547,7 +547,7 @@ class VITS(nn.Module):
 
         return loss, stats
 
-    def _forward_discrminator_duration(
+    def _forward_discriminator_duration(
         self,
         text: torch.Tensor,
         text_lengths: torch.Tensor,
