@@ -21,6 +21,7 @@ from hifigan import HiFiGANGenerator
 from posterior_encoder import PosteriorEncoder
 from residual_coupling import ResidualAffineCouplingBlock
 from text_encoder import TextEncoder
+from torch.cuda.amp import autocast
 from utils import get_random_segments
 
 from icefall.utils import make_pad_mask
@@ -375,18 +376,18 @@ class VITSGenerator(torch.nn.Module):
 
         # forward duration predictor
         w = attn.sum(2)  # (B, 1, T_text)
-
-        if self.use_stochastic_duration_predictor:
-            dur_nll = self.duration_predictor(x, x_mask, w=w, g=g)
-            dur_nll = dur_nll / torch.sum(x_mask)
-            logw = self.duration_predictor(
-                x, x_mask, g=g, inverse=True, noise_scale=1.0
-            )
-            logw_ = torch.log(w + 1e-6) * x_mask
-        else:
-            logw_ = torch.log(w + 1e-6) * x_mask
-            logw = self.duration_predictor(x, x_mask, g=g)
-            dur_nll = torch.sum((logw - logw_) ** 2, [1, 2]) / torch.sum(x_mask)
+        with autocast(enabled=False):
+            if self.use_stochastic_duration_predictor:
+                dur_nll = self.duration_predictor(x, x_mask, w=w, g=g)
+                dur_nll = dur_nll / torch.sum(x_mask)
+                logw = self.duration_predictor(
+                    x, x_mask, g=g, inverse=True, noise_scale=1.0
+                )
+                logw_ = torch.log(w + 1e-6) * x_mask
+            else:
+                logw_ = torch.log(w + 1e-6) * x_mask
+                logw = self.duration_predictor(x, x_mask, g=g)
+                dur_nll = torch.sum((logw - logw_) ** 2, [1, 2]) / torch.sum(x_mask)
 
         # expand the length to match with the feature sequence
         # (B, T_feats, T_text) x (B, T_text, H) -> (B, H, T_feats)
@@ -455,9 +456,6 @@ class VITSGenerator(torch.nn.Module):
             Tensor: Duration tensor (B, T_text).
 
         """
-        # encoder
-        x, m_p, logs_p, x_mask = self.text_encoder(text, text_lengths)
-        x_mask = x_mask.to(x.dtype)
         g = None
         if self.spks is not None:
             # (B, global_channels, 1)
@@ -476,6 +474,10 @@ class VITSGenerator(torch.nn.Module):
                 g = g_
             else:
                 g = g + g_
+
+        # encoder
+        x, m_p, logs_p, x_mask = self.text_encoder(text, text_lengths, g=g)
+        x_mask = x_mask.to(x.dtype)
 
         if use_teacher_forcing:
             # forward posterior encoder
