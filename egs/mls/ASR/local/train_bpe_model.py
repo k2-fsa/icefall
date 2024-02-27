@@ -76,7 +76,7 @@ def main():
     vocab_size = args.vocab_size
     lang_dir = Path(args.lang_dir)
 
-    model_type = "unigram"
+    model_type = "bpe"
 
     model_prefix = f"{lang_dir}/{model_type}_{vocab_size}"
     train_text = args.transcript
