@@ -86,8 +86,8 @@ class MLSAsrDataModule:
             "--language",
             type=str2bool,
             default="all",
-            choices=["english", "german", "dutch", "french", "spanish", "italian", "portuguese", "polish"],
-            help="""Used only when --mini-libri is False.When enabled,
+            choices=["english", "german", "dutch", "french", "spanish", "italian", "portuguese", "polish", "all"],
+            help="""If all, use all the languages, other
             use 960h LibriSpeech. Otherwise, use 100h subset.""",
         )
         group.add_argument(
