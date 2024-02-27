@@ -136,6 +136,7 @@ class LibriSpeechDataModule:
     def train_dataloaders(
         self,
         cuts_train: CutSet,
+        max_sample_size: Optional[int] = None,
         sample_rate: float = 16000,
         label_rate: float = 50,
         random_crop: bool = True,
@@ -153,6 +154,7 @@ class LibriSpeechDataModule:
         """
         logging.info("About to create train dataset")
         train = HubertDataset(
+            max_sample_size=max_sample_size,
             sample_rate=sample_rate,
             label_rate=label_rate,
             random_crop=random_crop,
@@ -202,6 +204,7 @@ class LibriSpeechDataModule:
     def valid_dataloaders(
         self,
         cuts_valid: CutSet,
+        max_sample_size: Optional[int] = None,
         sample_rate: float = 16000,
         label_rate: float = 50,
         random_crop: bool = True,
@@ -211,6 +214,7 @@ class LibriSpeechDataModule:
     ) -> DataLoader:
         logging.info("About to create dev dataset")
         validate = HubertDataset(
+            max_sample_size=max_sample_size,
             sample_rate=sample_rate,
             label_rate=label_rate,
             random_crop=random_crop,

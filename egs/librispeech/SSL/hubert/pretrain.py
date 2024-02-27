@@ -42,6 +42,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
 import argparse
 import copy
 import logging
+import sys
 import warnings
 from pathlib import Path
 from shutil import copyfile
@@ -292,17 +293,24 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--max-sample-size",
-        type=float,
-        default=250000,
-        help="max sample size",
+        "--max-keep-size",
+        type=int,
+        default=sys.maxsize,
+        help="exclude sample longer than this.",
     )
 
     parser.add_argument(
-        "--min-sample-size",
+        "--min-keep-size",
         type=float,
         default=32000,
-        help="min sample size",
+        help="exclude sample longer less than this.",
+    )
+
+    parser.add_argument(
+        "--max-sample-size",
+        type=float,
+        default=250000,
+        help="max sample size to crop to for batching.",
     )
 
     add_hubert_arguments(parser)
@@ -884,12 +892,12 @@ def run(rank, world_size, args):
         # an utterance duration distribution for your dataset to select
         # the threshold
         if (
-            c.duration < params.min_sample_size / params.sample_rate
-            or c.duration > params.max_sample_size / params.sample_rate
+            c.duration < params.min_keep_size / params.sample_rate
+            or c.duration > params.max_keep_size / params.sample_rate
         ):
-            # logging.warning(
-            #     f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
-            # )
+            logging.warning(
+                f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
+            )
             return False
 
         return True
@@ -905,6 +913,7 @@ def run(rank, world_size, args):
 
     train_dl = librispeech.train_dataloaders(
         train_cuts,
+        max_sample_size=params.max_sample_size,
         sample_rate=params.sample_rate,
         label_rate=params.label_rate,
         random_crop=params.random_crop,
@@ -920,6 +929,7 @@ def run(rank, world_size, args):
 
     valid_dl = librispeech.valid_dataloaders(
         valid_cuts,
+        max_sample_size=params.max_sample_size,
         sample_rate=params.sample_rate,
         label_rate=params.label_rate,
         random_crop=params.random_crop,

@@ -14,7 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict
+import sys
+from typing import Any, Dict, Optional
 
 import numpy as np
 import torch
@@ -40,6 +41,7 @@ class HubertDataset(torch.utils.data.Dataset):
 
     def __init__(
         self,
+        max_sample_size: Optional[int] = None,
         sample_rate: float = 16000,
         label_rate: float = 50,
         random_crop: bool = True,
@@ -54,6 +56,9 @@ class HubertDataset(torch.utils.data.Dataset):
         self.pad_audio = pad_audio
         self.num_classes = num_classes
         self.normalize = do_normalize
+        self.max_sample_size = (
+            max_sample_size if max_sample_size is not None else sys.maxsize
+        )
 
     def __getitem__(self, cuts: CutSet) -> Dict[str, Any]:
         self._validate(cuts)
@@ -61,10 +66,11 @@ class HubertDataset(torch.utils.data.Dataset):
         for i, item in enumerate(audio):
             audio[i] = self.postprocess(item, self.sample_rate)
         audio_lens = [cut.num_samples for cut in cuts]
+
         if self.pad_audio:
-            audio_size = max(audio_lens)
+            audio_size = min(max(audio_lens), self.max_sample_size)
         else:
-            audio_size = min(audio_lens)
+            audio_size = min(min(audio_lens), self.max_sample_size)
 
         audio, padding_mask, audio_starts = self.collater_audio(
             audio, audio_lens, audio_size
@@ -203,6 +209,7 @@ class HubertAsrDataset(torch.utils.data.Dataset):
 
     def __init__(
         self,
+        max_sample_size: Optional[int] = None,
         sample_rate: float = 16000,
         random_crop: bool = True,
         pad_audio: bool = True,
@@ -213,6 +220,9 @@ class HubertAsrDataset(torch.utils.data.Dataset):
         self.random_crop = random_crop
         self.pad_audio = pad_audio
         self.normalize = do_normalize
+        self.max_sample_size = (
+            max_sample_size if max_sample_size is not None else sys.maxsize
+        )
 
     def __getitem__(self, cuts: CutSet) -> Dict[str, Any]:
         self._validate(cuts)
@@ -221,9 +231,9 @@ class HubertAsrDataset(torch.utils.data.Dataset):
             audio[i] = self.postprocess(item, self.sample_rate)
         audio_lens = [cut.num_samples for cut in cuts]
         if self.pad_audio:
-            audio_size = max(audio_lens)
+            audio_size = min(max(audio_lens), self.max_sample_size)
         else:
-            audio_size = min(audio_lens)
+            audio_size = min(min(audio_lens), self.max_sample_size)
 
         audio, padding_mask, audio_starts = self.collater_audio(
             audio, audio_lens, audio_size
