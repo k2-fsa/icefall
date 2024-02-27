@@ -42,17 +42,17 @@ class _SeedWorkers:
 
 class LibriSpeechDataModule:
     """
-    DataModule for ASR experiments.
+    DataModule for SSL experiments.
     It assumes there is always one train and valid dataloader,
     but there can be multiple test dataloaders (e.g. LibriSpeech test-clean
     and test-other).
 
-    It contains all the common data pipeline modules used in ASR
+    It contains all the common data pipeline modules used in SSL
     experiments, e.g.:
     - dynamic batch size,
     - bucketing samplers,
 
-    This class should be derived for specific corpora used in ASR tasks.
+    This class should be derived for specific corpora used in SSL tasks.
     """
 
     def __init__(self, args: argparse.Namespace):
@@ -61,7 +61,7 @@ class LibriSpeechDataModule:
     @classmethod
     def add_arguments(cls, parser: argparse.ArgumentParser):
         group = parser.add_argument_group(
-            title="ASR data related options",
+            title="SSL data related options",
             description="These options are used for the preparation of "
             "PyTorch DataLoaders from Lhotse CutSet's -- they control the "
             "effective batch sizes, sampling strategies.",
