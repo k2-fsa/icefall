@@ -17,3 +17,4 @@ We may add recipes for other tasks as well in the future.
    Streaming-ASR/index
    RNN-LM/index
    TTS/index
+   Finetune/index

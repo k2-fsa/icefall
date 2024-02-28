@@ -30,15 +30,15 @@ torch.set_num_threads(1)
 torch.set_num_interop_threads(1)
 
 
-def compute_fbank_gigaspeech_dev_test():
+def compute_fbank_gigaspeech():
     in_out_dir = Path("data/fbank")
     # number of workers in dataloader
     num_workers = 20
 
     # number of seconds in a batch
-    batch_duration = 600
+    batch_duration = 1000
 
-    subsets = ("DEV", "TEST")
+    subsets = ("L", "M", "S", "XS", "DEV", "TEST")
 
     device = torch.device("cpu")
     if torch.cuda.is_available():
@@ -48,12 +48,12 @@ def compute_fbank_gigaspeech_dev_test():
     logging.info(f"device: {device}")
 
     for partition in subsets:
-        cuts_path = in_out_dir / f"cuts_{partition}.jsonl.gz"
+        cuts_path = in_out_dir / f"gigaspeech_cuts_{partition}.jsonl.gz"
         if cuts_path.is_file():
             logging.info(f"{cuts_path} exists - skipping")
             continue
 
-        raw_cuts_path = in_out_dir / f"cuts_{partition}_raw.jsonl.gz"
+        raw_cuts_path = in_out_dir / f"gigaspeech_cuts_{partition}_raw.jsonl.gz"
 
         logging.info(f"Loading {raw_cuts_path}")
         cut_set = CutSet.from_file(raw_cuts_path)
@@ -62,7 +62,7 @@ def compute_fbank_gigaspeech_dev_test():
 
         cut_set = cut_set.compute_and_store_features_batch(
             extractor=extractor,
-            storage_path=f"{in_out_dir}/feats_{partition}",
+            storage_path=f"{in_out_dir}/gigaspeech_feats_{partition}",
             num_workers=num_workers,
             batch_duration=batch_duration,
             overwrite=True,
@@ -80,7 +80,7 @@ def main():
     formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
     logging.basicConfig(format=formatter, level=logging.INFO)
 
-    compute_fbank_gigaspeech_dev_test()
+    compute_fbank_gigaspeech()
 
 
 if __name__ == "__main__":

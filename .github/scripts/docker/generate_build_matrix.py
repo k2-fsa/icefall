@@ -43,12 +43,12 @@ def get_torchaudio_version(torch_version):
 
 
 def get_matrix():
-    k2_version = "1.24.4.dev20240218"
-    kaldifeat_version = "1.25.4.dev20240218"
-    version = "1.3"
+    k2_version = "1.24.4.dev20240223"
+    kaldifeat_version = "1.25.4.dev20240223"
+    version = "20240223"
     python_version = ["3.8", "3.9", "3.10", "3.11", "3.12"]
     torch_version = ["1.13.0", "1.13.1", "2.0.0", "2.0.1", "2.1.0", "2.1.1", "2.1.2"]
-    torch_version += ["2.2.0"]
+    torch_version += ["2.2.0", "2.2.1"]
 
     matrix = []
     for p in python_version:
