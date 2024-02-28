@@ -61,7 +61,7 @@ def get_parser():
         "--num-splits",
         type=int,
         required=True,
-        help="The number of splits of the XL subset",
+        help="The number of splits of the English subset",
     )
 
     parser.add_argument(
@@ -111,12 +111,12 @@ def compute_fbank_mls_splits(args):
         idx = f"{i}".zfill(num_digits)
         logging.info(f"Processing {idx}/{num_splits}")
 
-        cuts_path = output_dir / f"cuts_{args.subset}.{idx}.jsonl.gz"
+        cuts_path = output_dir / f"mls-{args.language}_train.{idx}.jsonl.gz"
         if cuts_path.is_file():
             logging.info(f"{cuts_path} exists - skipping")
             continue
 
-        raw_cuts_path = output_dir / f"cuts_{args.subset}_raw.{idx}.jsonl.gz"
+        raw_cuts_path = output_dir / f"mls-{args.language}_train_raw.{idx}.jsonl.gz"
 
         logging.info(f"Loading {raw_cuts_path}")
         cut_set = CutSet.from_file(raw_cuts_path)
@@ -125,7 +125,7 @@ def compute_fbank_mls_splits(args):
 
         cut_set = cut_set.compute_and_store_features_batch(
             extractor=extractor,
-            storage_path=f"{output_dir}/feats_{args.subset}_{idx}",
+            storage_path=f"{output_dir}/feats_{args.language}_{idx}",
             num_workers=args.num_workers,
             batch_duration=args.batch_duration,
             overwrite=True,
