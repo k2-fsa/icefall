@@ -432,3 +432,10 @@ class MLSAsrDataModule:
         return load_manifest_lazy(
             self.args.manifest_dir / f"mls-{language}_dev.jsonl.gz"
         )
+
+    @lru_cache()
+    def mls_test_cuts(self, language: str) -> CutSet:
+        logging.info(f"About to get test cuts for {language}")
+        return load_manifest_lazy(
+            self.args.manifest_dir / f"mls-{language}_test.jsonl.gz"
+        )
