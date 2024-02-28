@@ -1061,7 +1061,7 @@ def train_one_epoch(
                     world_size=world_size,
                 )
             
-                logging.info(f"Epoch {params.cur_epoch}, validation: {valid_info}")
+                logging.info(f"Epoch {params.cur_epoch}, validation on {valid_set}: {valid_info}")
 
                 if tb_writer is not None:
                     valid_info.write_summary(
