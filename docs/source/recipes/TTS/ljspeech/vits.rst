@@ -1,11 +1,11 @@
-VITS
+VITS-LJSpeech
 ===============
 
 This tutorial shows you how to train an VITS model
 with the `LJSpeech <https://keithito.com/LJ-Speech-Dataset/>`_ dataset.
 
 .. note::
-  
+
    TTS related recipes require packages in ``requirements-tts.txt``.
 
 .. note::
