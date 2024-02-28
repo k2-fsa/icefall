@@ -120,4 +120,4 @@ Download pretrained models
 If you don't want to train from scratch, you can download the pretrained models
 by visiting the following link:
 
-  - `<https://huggingface.co/Zengwei/icefall-tts-ljspeech-vits-2023-11-29>`_
+  - `<https://huggingface.co/Zengwei/icefall-tts-ljspeech-vits-2024-02-28>`_
