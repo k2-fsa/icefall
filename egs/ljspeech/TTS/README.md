@@ -15,6 +15,8 @@ This recipe provides a VITS model trained on the LJSpeech dataset.
 
 Pretrained model can be found [here](https://huggingface.co/Zengwei/icefall-tts-ljspeech-vits-2024-02-28).
 
+For tutorial and more details, please refer to the [VITS documentation](https://k2-fsa.github.io/icefall/recipes/TTS/ljspeech/vits.html).
+
 The training command is given below:
 ```
 export CUDA_VISIBLE_DEVICES=0,1,2,3
