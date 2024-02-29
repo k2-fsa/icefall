@@ -1,13 +1,13 @@
-FROM pytorch/pytorch:2.2.0-cuda11.8-cudnn8-devel
+FROM pytorch/pytorch:2.2.1-cuda11.8-cudnn8-devel
 
 ENV LC_ALL C.UTF-8
 
 ARG DEBIAN_FRONTEND=noninteractive
 
 # python 3.10
-ARG K2_VERSION="1.24.4.dev20240223+cuda11.8.torch2.2.0"
-ARG KALDIFEAT_VERSION="1.25.4.dev20240223+cuda11.8.torch2.2.0"
-ARG TORCHAUDIO_VERSION="2.2.0+cu118"
+ARG K2_VERSION="1.24.4.dev20240223+cuda11.8.torch2.2.1"
+ARG KALDIFEAT_VERSION="1.25.4.dev20240223+cuda11.8.torch2.2.1"
+ARG TORCHAUDIO_VERSION="2.2.1+cu118"
 
 LABEL authors="Fangjun Kuang <csukuangfj@gmail.com>"
 LABEL k2_version=${K2_VERSION}
