@@ -13,4 +13,24 @@ The above information is from the [LJSpeech website](https://keithito.com/LJ-Spe
 
 This recipe provides a VITS model trained on the LJSpeech dataset.
 
-Pretrained model can be found [here](https://huggingface.co/Zengwei/icefall-tts-ljspeech-vits-2023-11-29).
+Pretrained model can be found [here](https://huggingface.co/Zengwei/icefall-tts-ljspeech-vits-2024-02-28).
+
+The training command is given below:
+```
+export CUDA_VISIBLE_DEVICES=0,1,2,3
+./vits/train.py \
+  --world-size 4 \
+  --num-epochs 1000 \
+  --start-epoch 1 \
+  --use-fp16 1 \
+  --exp-dir vits/exp \
+  --max-duration 500
+```
+
+To inference, use:
+```
+./vits/infer.py \
+  --exp-dir vits/exp \
+  --epoch 1000 \
+  --tokens data/tokens.txt
+```
