@@ -17,7 +17,7 @@
 
 
 """
-This file reads the texts in given manifest and generates the file that maps tokens to IDs.
+This file generates the file that maps tokens to IDs.
 """
 
 import argparse
@@ -25,80 +25,38 @@ import logging
 from pathlib import Path
 from typing import Dict
 
-from lhotse import load_manifest
+from piper_phonemize import get_espeak_map
 
 
 def get_args():
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
-        "--manifest-file",
-        type=Path,
-        default=Path("data/spectrogram/ljspeech_cuts_train.jsonl.gz"),
-        help="Path to the manifest file",
-    )
-
-    parser.add_argument(
         "--tokens",
         type=Path,
         default=Path("data/tokens.txt"),
-        help="Path to the tokens",
+        help="Path to the dict that maps the text tokens to IDs",
     )
 
     return parser.parse_args()
 
 
-def write_mapping(filename: str, sym2id: Dict[str, int]) -> None:
-    """Write a symbol to ID mapping to a file.
+def get_token2id(filename: Path) -> Dict[str, int]:
+    """Get a dict that maps token to IDs, and save it to the given filename."""
+    all_tokens = get_espeak_map()  # token: [token_id]
+    all_tokens = {token: token_id[0] for token, token_id in all_tokens.items()}
+    # sort by token_id
+    all_tokens = sorted(all_tokens.items(), key=lambda x: x[1])
 
-    Note:
-      No need to implement `read_mapping` as it can be done
-      through :func:`k2.SymbolTable.from_file`.
-
-    Args:
-      filename:
-        Filename to save the mapping.
-      sym2id:
-        A dict mapping symbols to IDs.
-    Returns:
-      Return None.
-    """
     with open(filename, "w", encoding="utf-8") as f:
-        for sym, i in sym2id.items():
-            f.write(f"{sym} {i}\n")
-
-
-def get_token2id(manifest_file: Path) -> Dict[str, int]:
-    """Return a dict that maps token to IDs."""
-    extra_tokens = [
-        "<blk>",  # 0 for blank
-        "<sos/eos>",  # 1 for sos and eos symbols.
-        "<unk>",  # 2 for OOV
-    ]
-    all_tokens = set()
-
-    cut_set = load_manifest(manifest_file)
-
-    for cut in cut_set:
-        # Each cut only contain one supervision
-        assert len(cut.supervisions) == 1, len(cut.supervisions)
-        for t in cut.tokens:
-            all_tokens.add(t)
-
-    all_tokens = extra_tokens + list(all_tokens)
-
-    token2id: Dict[str, int] = {token: i for i, token in enumerate(all_tokens)}
-    return token2id
+        for token, token_id in all_tokens:
+            f.write(f"{token} {token_id}\n")
 
 
 if __name__ == "__main__":
     formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-
     logging.basicConfig(format=formatter, level=logging.INFO)
 
     args = get_args()
-    manifest_file = Path(args.manifest_file)
     out_file = Path(args.tokens)
-
-    token2id = get_token2id(manifest_file)
-    write_mapping(out_file, token2id)
+    get_token2id(out_file)
