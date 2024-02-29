@@ -231,8 +231,7 @@ def main():
     params.update(vars(args))
 
     tokenizer = Tokenizer(params.tokens)
-    params.blank_id = tokenizer.blank_id
-    params.oov_id = tokenizer.oov_id
+    params.blank_id = tokenizer.pad_id
     params.vocab_size = tokenizer.vocab_size
 
     with open(args.speakers) as f:

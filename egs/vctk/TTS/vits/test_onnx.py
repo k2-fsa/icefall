@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 #
-# Copyright      2023 Xiaomi Corporation     (Author: Zengwei Yao)
+# Copyright   2023-2024   Xiaomi Corporation     (Author: Zengwei Yao,
+#                                                         Zengrui Jin,)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -122,7 +123,9 @@ def main():
     model = OnnxModel(args.model_filename)
 
     text = "I went there to see the land, the people and how their system works, end quote."
-    tokens = tokenizer.texts_to_token_ids([text])
+    tokens = tokenizer.texts_to_token_ids(
+        [text], intersperse_blank=True, add_sos=True, add_eos=True
+    )
     tokens = torch.tensor(tokens)  # (1, T)
     tokens_lens = torch.tensor([tokens.shape[1]], dtype=torch.int64)  # (1, T)
     speaker = torch.tensor([1], dtype=torch.int64)  # (1, )
