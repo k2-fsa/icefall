@@ -342,7 +342,7 @@ def prepare_input(
         torch.Tensor([speaker_map[sid] for sid in batch["speakers"]]).int().to(device)
     )
 
-    tokens = tokenizer.texts_to_token_ids(
+    tokens = tokenizer.tokens_to_token_ids(
         tokens, intersperse_blank=True, add_sos=True, add_eos=True
     )
     tokens = k2.RaggedTensor(tokens)
