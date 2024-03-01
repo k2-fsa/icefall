@@ -204,7 +204,7 @@ def export_model_onnx(
         "model_author": "k2-fsa",
         "comment": "icefall",  # must be icefall for models from icefall
         "language": "English",
-        "voice": "en-us",  # Choose you language appropriately
+        "voice": "en-us",  # Choose your language appropriately
         "has_espeak": 1,
         "n_speakers": 1,
         "sample_rate": 22050,  # Must match the real sample rate
