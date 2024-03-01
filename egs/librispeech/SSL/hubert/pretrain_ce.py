@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-# Copyright    2021-2024  Xiaomi Corp.        (authors: Fangjun Kuang,
-#                                                       Wei Kang,
-#                                                       Mingshuang Luo,
-#                                                       Zengwei Yao,
-#                                                       Yifan Yang,
-#                                                       Daniel Povey)
-#
+# Copyright    2021-2024  Xiaomi Corp.              (authors: Fangjun Kuang,
+#                                                             Wei Kang,
+#                                                             Mingshuang Luo,
+#                                                             Zengwei Yao,
+#                                                             Yifan Yang,
+#                                                             Daniel Povey)
 # Copyright    2024  Shanghai Jiao Tong University  (authors: Jianheng Zhuo)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors

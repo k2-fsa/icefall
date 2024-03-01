@@ -1,4 +1,5 @@
-# Copyright      2024  Xiaomi Corporation        (authors: Yifan Yang)
+# Copyright      2024  Xiaomi Corporation             (authors: Yifan Yang)
+# Copyright      2024  Shanghai Jiao Tong University  (authors: Jianheng Zhuo)
 #
 # See ../LICENSE for clarification regarding multiple authors
 #

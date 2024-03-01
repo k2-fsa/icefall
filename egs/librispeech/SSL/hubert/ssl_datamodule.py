@@ -130,7 +130,7 @@ class LibriSpeechDataModule:
             "--random-crop",
             type=str2bool,
             default=True,
-            help="audio sample rate",
+            help="always crop from the beginning if false",
         )
 
     def train_dataloaders(
