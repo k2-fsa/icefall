@@ -9,9 +9,9 @@ from typing import Any, Dict, Optional, Tuple
 
 import torch
 import torch.nn as nn
+from duration_discriminator import DurationDiscriminator
 from generator import VITSGenerator
 from hifigan import (
-    DurationDiscriminator,
     HiFiGANMultiPeriodDiscriminator,
     HiFiGANMultiScaleDiscriminator,
     HiFiGANMultiScaleMultiPeriodDiscriminator,
@@ -76,10 +76,12 @@ class VITS(nn.Module):
             "posterior_encoder_dropout_rate": 0.0,
             "use_weight_norm_in_posterior_encoder": True,
             "flow_flows": 4,
-            "flow_kernel_size": 3,
+            "flow_kernel_size": 5,
+            "flow_heads_transformer": 2,  # vits2
+            "flow_layers_transformer": 1,  # vits2
+            "flow_kernel_size_transformer": 3,  # vits2
             "flow_base_dilation": 1,
-            "flow_layers": 2,
-            "flow_nheads": 2,
+            "flow_layers": 4,
             "flow_dropout_rate": 0.0,
             "use_weight_norm_in_flow": True,
             "use_only_mean_in_flow": True,
@@ -90,9 +92,9 @@ class VITS(nn.Module):
             "stochastic_duration_predictor_dds_conv_layers": 3,
             "duration_predictor_output_channels": 256,
             "use_stochastic_duration_predictor": True,
-            "use_noised_mas": True,
-            "noise_initial_mas": 0.01,
-            "noise_scale_mas": 2e-06,
+            "use_noised_mas": True,  # vits2
+            "noise_initial_mas": 0.01,  # vits2
+            "noise_scale_mas": 2e-06,  # vits2
         },
         # discriminator related
         discriminator_type: str = "hifigan_multi_scale_multi_period_discriminator",

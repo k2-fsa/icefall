@@ -19,7 +19,7 @@ import torch.nn.functional as F
 from duration_predictor import DurationPredictor, StochasticDurationPredictor
 from hifigan import HiFiGANGenerator
 from posterior_encoder import PosteriorEncoder
-from residual_coupling import ResidualAffineCouplingBlock
+from residual_coupling import ResidualCouplingBlock
 from text_encoder import TextEncoder
 from torch.cuda.amp import autocast
 from utils import get_random_segments
@@ -62,9 +62,11 @@ class VITSGenerator(torch.nn.Module):
         use_weight_norm_in_posterior_encoder: bool = True,
         flow_flows: int = 4,
         flow_kernel_size: int = 5,
+        flow_heads_transformer: int = 2,
+        flow_layers_transformer: int = 1,
+        flow_kernel_size_transformer: int = 3,
         flow_base_dilation: int = 1,
         flow_layers: int = 4,
-        flow_nheads: int = 2,
         flow_dropout_rate: float = 0.0,
         use_weight_norm_in_flow: bool = True,
         use_only_mean_in_flow: bool = True,
@@ -122,6 +124,9 @@ class VITSGenerator(torch.nn.Module):
                 normalization in posterior encoder.
             flow_flows (int): Number of flows in flow.
             flow_kernel_size (int): Kernel size in flow.
+            flow_heads_transformer (int): Number of heads for transformer in flow
+            flow_layers_transformer (int): Number of layers for transformer in flow
+            flow_kernel_size_transformer (int): Kernel size for transformer in flow
             flow_base_dilation (int): Base dilation in flow.
             flow_layers (int): Number of layers in flow.
             flow_dropout_rate (float): Dropout rate in flow
@@ -181,12 +186,14 @@ class VITSGenerator(torch.nn.Module):
             dropout_rate=posterior_encoder_dropout_rate,
             use_weight_norm=use_weight_norm_in_posterior_encoder,
         )
-        self.flow = ResidualAffineCouplingBlock(
+        self.flow = ResidualCouplingBlock(
             in_channels=hidden_channels,
             hidden_channels=hidden_channels,
-            num_heads=flow_nheads,
             flows=flow_flows,
             kernel_size=flow_kernel_size,
+            heads_transformer=flow_heads_transformer,
+            layers_transformer=flow_layers_transformer,
+            kernel_size_transformer=flow_kernel_size_transformer,
             base_dilation=flow_base_dilation,
             layers=flow_layers,
             global_channels=global_channels,

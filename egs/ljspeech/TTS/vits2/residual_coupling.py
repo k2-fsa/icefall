@@ -19,10 +19,10 @@ from wavenet import WaveNet
 from icefall.utils import make_pad_mask
 
 
-class ResidualAffineCouplingBlock(torch.nn.Module):
-    """Residual affine coupling block module.
+class ResidualCouplingBlock(torch.nn.Module):
+    """Residual coupling block module.
 
-    This is a module of residual affine coupling block, which used as "Flow" in
+    This is a module of residual affine/transformer coupling block, which used as "Flow" in
     `Conditional Variational Autoencoder with Adversarial Learning for End-to-End
     Text-to-Speech`_.
 
@@ -35,7 +35,9 @@ class ResidualAffineCouplingBlock(torch.nn.Module):
         self,
         in_channels: int = 192,
         hidden_channels: int = 192,
-        num_heads: int = 2,
+        heads_transformer: int = 2,
+        layers_transformer: int = 4,
+        kernel_size_transformer: int = 3,
         flows: int = 4,
         kernel_size: int = 5,
         base_dilation: int = 1,
@@ -47,7 +49,7 @@ class ResidualAffineCouplingBlock(torch.nn.Module):
         use_only_mean: bool = True,
         use_transformer_in_flows: bool = True,
     ):
-        """Initilize ResidualAffineCouplingBlock module.
+        """Initilize ResidualCouplingBlock module.
 
         Args:
             in_channels (int): Number of input channels.
@@ -73,7 +75,9 @@ class ResidualAffineCouplingBlock(torch.nn.Module):
                     ResidualCouplingTransformersLayer(
                         in_channels=in_channels,
                         hidden_channels=hidden_channels,
-                        n_heads=num_heads,
+                        heads_transformer=heads_transformer,
+                        layers_transformer=layers_transformer,
+                        kernel_size_transformer=kernel_size_transformer,
                         kernel_size=kernel_size,
                         base_dilation=base_dilation,
                         layers=layers,
@@ -258,9 +262,9 @@ class ResidualCouplingTransformersLayer(torch.nn.Module):
         self,
         in_channels: int = 192,
         hidden_channels: int = 192,
-        n_heads: int = 2,
-        n_layers: int = 2,
-        n_kernel_size: int = 5,
+        heads_transformer: int = 2,
+        layers_transformer: int = 2,
+        kernel_size_transformer: int = 5,
         kernel_size: int = 5,
         base_dilation: int = 1,
         layers: int = 5,
@@ -292,9 +296,9 @@ class ResidualCouplingTransformersLayer(torch.nn.Module):
 
         self.pre_transformer = Transformer(
             self.half_channels,
-            num_heads=n_heads,
-            num_layers=n_layers,
-            cnn_module_kernel=n_kernel_size,
+            num_heads=heads_transformer,
+            num_layers=layers_transformer,
+            cnn_module_kernel=kernel_size_transformer,
         )
 
         # define modules
