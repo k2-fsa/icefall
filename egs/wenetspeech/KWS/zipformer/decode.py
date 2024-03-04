@@ -30,9 +30,7 @@ import k2
 import torch
 import torch.nn as nn
 from asr_datamodule import WenetSpeechAsrDataModule
-from beam_search import (
-    keywords_search,
-)
+from beam_search import keywords_search
 from lhotse.cut import Cut
 from train import add_model_arguments, get_model, get_params
 

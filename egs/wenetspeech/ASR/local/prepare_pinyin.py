@@ -41,6 +41,7 @@ from prepare_lang import (
     write_lexicon,
     write_mapping,
 )
+
 from icefall.utils import text_to_pinyin
 
 

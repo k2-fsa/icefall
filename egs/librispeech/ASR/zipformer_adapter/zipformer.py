@@ -40,13 +40,13 @@ from scaling import (
     Dropout2,
     FloatLike,
     ScheduledFloat,
+    SwooshL,
+    SwooshR,
     Whiten,
     convert_num_channels,
     limit_param_value,
     penalize_abs_values_gt,
     softmax,
-    SwooshL,
-    SwooshR,
 )
 from torch import Tensor, nn
 
@@ -601,8 +601,8 @@ class Zipformer2EncoderLayer(nn.Module):
         bypass_skip_rate: FloatLike = ScheduledFloat(
             (0.0, 0.5), (4000.0, 0.02), default=0
         ),
-        use_adapters: bool=False,
-        adapter_dim: int=16,
+        use_adapters: bool = False,
+        adapter_dim: int = 16,
     ) -> None:
         super(Zipformer2EncoderLayer, self).__init__()
         self.embed_dim = embed_dim
@@ -737,7 +737,7 @@ class Zipformer2EncoderLayer(nn.Module):
                 embed_dim=embed_dim,
                 bottleneck_dim=adapter_dim,
             )
-            
+
             # placed after the 2nd convolution module
             self.post_conv_adapter = AdapterModule(
                 embed_dim=embed_dim,
@@ -2488,8 +2488,8 @@ def _test_zipformer_main(causal: bool = False):
 class AdapterModule(nn.Module):
     def __init__(
         self,
-        embed_dim: int=384,
-        bottleneck_dim: int=16,
+        embed_dim: int = 384,
+        bottleneck_dim: int = 16,
     ):
         # The simplest adapter
         super(AdapterModule, self).__init__()

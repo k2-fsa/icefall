@@ -22,23 +22,23 @@ Usage: ./zipformer/my_profile.py
 
 import argparse
 import logging
+from typing import Tuple
+
 import sentencepiece as spm
 import torch
-
-from typing import Tuple
-from torch import Tensor, nn
-
-from icefall.utils import make_pad_mask
-from icefall.profiler import get_model_profile
 from scaling import BiasNorm
+from torch import Tensor, nn
 from train import (
+    add_model_arguments,
     get_encoder_embed,
     get_encoder_model,
     get_joiner_model,
-    add_model_arguments,
     get_params,
 )
 from zipformer import BypassModule
+
+from icefall.profiler import get_model_profile
+from icefall.utils import make_pad_mask
 
 
 def get_parser():

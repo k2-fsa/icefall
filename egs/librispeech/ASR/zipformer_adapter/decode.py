@@ -858,7 +858,9 @@ def main():
 
     logging.info("About to create model")
     model = get_model(params)
-    import pdb; pdb.set_trace()
+    import pdb
+
+    pdb.set_trace()
 
     if not params.use_averaged_model:
         if params.iter > 0:
@@ -877,9 +879,13 @@ def main():
                 )
             logging.info(f"averaging {filenames}")
             model.to(device)
-            model.load_state_dict(average_checkpoints(filenames, device=device), strict=False)
+            model.load_state_dict(
+                average_checkpoints(filenames, device=device), strict=False
+            )
         elif params.avg == 1:
-            load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model, strict=False)
+            load_checkpoint(
+                f"{params.exp_dir}/epoch-{params.epoch}.pt", model, strict=False
+            )
         else:
             start = params.epoch - params.avg + 1
             filenames = []
@@ -888,7 +894,9 @@ def main():
                     filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
             logging.info(f"averaging {filenames}")
             model.to(device)
-            model.load_state_dict(average_checkpoints(filenames, device=device), strict=False)
+            model.load_state_dict(
+                average_checkpoints(filenames, device=device), strict=False
+            )
     else:
         if params.iter > 0:
             filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
@@ -917,7 +925,7 @@ def main():
                     filename_end=filename_end,
                     device=device,
                 ),
-                strict=False
+                strict=False,
             )
         else:
             assert params.avg > 0, params.avg
@@ -936,7 +944,7 @@ def main():
                     filename_end=filename_end,
                     device=device,
                 ),
-                strict=False
+                strict=False,
             )
 
     model.to(device)

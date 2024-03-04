@@ -121,7 +121,7 @@ from beam_search import (
     modified_beam_search_lm_shallow_fusion,
     modified_beam_search_LODR,
 )
-from train import add_model_arguments, add_finetune_arguments, get_model, get_params
+from train import add_finetune_arguments, add_model_arguments, get_model, get_params
 
 from icefall import ContextGraph, LmScorer, NgramLm
 from icefall.checkpoint import (
