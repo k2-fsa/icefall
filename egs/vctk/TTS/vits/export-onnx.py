@@ -97,7 +97,7 @@ def add_meta_data(filename: str, meta_data: Dict[str, str]):
     for key, value in meta_data.items():
         meta = model.metadata_props.add()
         meta.key = key
-        meta.value = value
+        meta.value = str(value)
 
     onnx.save(model, filename)
 
@@ -212,10 +212,15 @@ def export_model_onnx(
     )
 
     meta_data = {
-        "model_type": "VITS",
+        "model_type": "vits",
         "version": "1",
         "model_author": "k2-fsa",
-        "comment": "VITS generator",
+        "comment": "icefall",  # must be icefall for models from icefall
+        "language": "English",
+        "voice": "en-us",  # Choose your language appropriately
+        "has_espeak": 1,
+        "n_speakers": 108,
+        "sample_rate": 22050,  # Must match the real sample rate
     }
     logging.info(f"meta_data: {meta_data}")
 
