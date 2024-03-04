@@ -51,7 +51,7 @@ from streaming_beam_search import (
 )
 from torch import Tensor, nn
 from torch.nn.utils.rnn import pad_sequence
-from train import add_model_arguments, get_params, get_model
+from train import add_model_arguments, get_model, get_params
 
 from icefall.checkpoint import (
     average_checkpoints,

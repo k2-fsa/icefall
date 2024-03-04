@@ -27,11 +27,10 @@ https://huggingface.co/csukuangfj/sherpa-onnx-zipformer-ctc-en-2023-10-02
 import argparse
 import logging
 import math
-from typing import List, Tuple
+from typing import Dict, List, Tuple
 
 import k2
 import kaldifeat
-from typing import Dict
 import kaldifst
 import onnxruntime as ort
 import torch

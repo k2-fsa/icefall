@@ -24,7 +24,6 @@ To run this file, do:
 """
 
 import torch
-
 from scaling_converter import convert_scaled_to_non_scaled
 from train import get_params, get_transducer_model
 

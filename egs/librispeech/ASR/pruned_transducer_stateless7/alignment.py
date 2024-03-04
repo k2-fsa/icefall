@@ -20,7 +20,6 @@ from typing import List
 
 import k2
 import torch
-
 from beam_search import Hypothesis, HypothesisList, get_hyps_shape
 
 # The force alignment problem can be formulated as finding
