@@ -115,9 +115,6 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
       
       cat ./data/lang_bpe_500/transcript_words.txt \
         >> $lang_dir/text_words_segmentation
-
-      cat ./data/lang_char/text_words_segmentation \
-        >> $lang_dir/text_words_segmentation
     fi
 
     cat $lang_dir/text_words_segmentation | sed 's/ /\n/g' \

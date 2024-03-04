@@ -28,8 +28,6 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from pypinyin import pinyin, lazy_pinyin
-from pypinyin.contrib.tone_convert import to_initials, to_finals_tone, to_finals
 from shutil import copyfile
 from typing import Dict, Iterable, List, Optional, TextIO, Tuple, Union
 
@@ -40,6 +38,8 @@ import sentencepiece as spm
 import torch
 import torch.distributed as dist
 import torch.nn as nn
+from pypinyin import lazy_pinyin, pinyin
+from pypinyin.contrib.tone_convert import to_finals, to_finals_tone, to_initials
 from torch.utils.tensorboard import SummaryWriter
 
 from icefall.checkpoint import average_checkpoints
@@ -1081,9 +1081,11 @@ def write_surt_error_stats(
                 f"{cut_id}:\t"
                 + " ".join(
                     (
-                        ref_word
-                        if ref_word == hyp_word
-                        else f"({ref_word}->{hyp_word})"
+                        (
+                            ref_word
+                            if ref_word == hyp_word
+                            else f"({ref_word}->{hyp_word})"
+                        )
                         for ref_word, hyp_word in ali
                     )
                 ),
