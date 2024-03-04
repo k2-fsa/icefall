@@ -385,7 +385,7 @@ def get_params() -> AttributeDict:
             "valid_interval": 800,  # For the 100h subset, use 800
             "alignment_interval": 25,
             # parameters for conformer
-            "feature_dim": 768,
+            "feature_dim": 80, # when using fbank features for training
             "subsampling_factor": 2,
             "encoder_dim": 512,
             "nhead": 8,
