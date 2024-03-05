@@ -76,8 +76,7 @@ import torch
 import torch.nn as nn
 from asr_datamodule import AsrDataModule
 from librispeech import LibriSpeech
-
-from onnx_pretrained import greedy_search, OnnxModel
+from onnx_pretrained import OnnxModel, greedy_search
 
 from icefall.utils import setup_logger, store_transcripts, write_error_stats
 

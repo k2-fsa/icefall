@@ -5,16 +5,16 @@
 import argparse
 import logging
 from pathlib import Path
+from typing import Dict
 
 import onnx
 import torch
 from model import RnnLmModel
 from onnxruntime.quantization import QuantType, quantize_dynamic
+from train import get_params
 
 from icefall.checkpoint import average_checkpoints, find_checkpoints, load_checkpoint
 from icefall.utils import AttributeDict, str2bool
-from typing import Dict
-from train import get_params
 
 
 def add_meta_data(filename: str, meta_data: Dict[str, str]):

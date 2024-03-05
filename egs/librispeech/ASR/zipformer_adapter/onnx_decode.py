@@ -77,11 +77,10 @@ from typing import List, Tuple
 import torch
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
-
-from onnx_pretrained import greedy_search, OnnxModel
+from k2 import SymbolTable
+from onnx_pretrained import OnnxModel, greedy_search
 
 from icefall.utils import setup_logger, store_transcripts, write_error_stats
-from k2 import SymbolTable
 
 conversational_filler = [
     "UH",
@@ -182,6 +181,7 @@ def get_parser():
 
     return parser
 
+
 def post_processing(
     results: List[Tuple[str, List[str], List[str]]],
 ) -> List[Tuple[str, List[str], List[str]]]:
@@ -191,6 +191,7 @@ def post_processing(
         new_hyp = asr_text_post_processing(" ".join(hyp)).split()
         new_results.append((key, new_ref, new_hyp))
     return new_results
+
 
 def decode_one_batch(
     model: OnnxModel, token_table: SymbolTable, batch: dict

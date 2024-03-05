@@ -1,10 +1,11 @@
 import argparse
 import logging
 import math
+import pprint
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
-import pprint
+
 import k2
 import sentencepiece as spm
 import torch

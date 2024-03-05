@@ -121,7 +121,7 @@ def add_finetune_arguments(parser: argparse.ArgumentParser):
         default=True,
         help="If true, finetune from a pre-trained checkpoint",
     )
-    
+
     parser.add_argument(
         "--use-mux",
         type=str2bool,
@@ -137,14 +137,14 @@ def add_finetune_arguments(parser: argparse.ArgumentParser):
         "--use-adapters",
         type=str2bool,
         default=True,
-        help="If use adapter to finetune the model"
+        help="If use adapter to finetune the model",
     )
 
     parser.add_argument(
         "--adapter-dim",
         type=int,
         default=16,
-        help="The bottleneck dimension of the adapter"
+        help="The bottleneck dimension of the adapter",
     )
 
     parser.add_argument(
@@ -1273,7 +1273,11 @@ def run(rank, world_size, args):
         else:
             p.requires_grad = False
 
-    logging.info("A total of {} trainable parameters ({:.3f}% of the whole model)".format(num_trainable, num_trainable/num_param * 100))
+    logging.info(
+        "A total of {} trainable parameters ({:.3f}% of the whole model)".format(
+            num_trainable, num_trainable / num_param * 100
+        )
+    )
 
     model.to(device)
     if world_size > 1:

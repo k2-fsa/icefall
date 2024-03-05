@@ -17,10 +17,10 @@
 
 import argparse
 import logging
-
-import torch
-import lhotse
 from pathlib import Path
+
+import lhotse
+import torch
 from lhotse import (
     CutSet,
     Fbank,
@@ -29,6 +29,7 @@ from lhotse import (
     fix_manifests,
     validate_recordings_and_supervisions,
 )
+
 from icefall.utils import get_executor, str2bool
 
 # Torch's multithreaded behavior needs to be disabled or

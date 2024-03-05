@@ -74,10 +74,10 @@ It will generate the following 3 files inside $repo/exp:
 import argparse
 import logging
 
-from icefall import is_module_available
+import torch
 from onnx_pretrained import OnnxModel
 
-import torch
+from icefall import is_module_available
 
 
 def get_parser():
