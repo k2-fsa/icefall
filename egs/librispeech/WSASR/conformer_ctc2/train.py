@@ -31,7 +31,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --exp-dir conformer_ctc2/exp \
   --lang-dir data/lang_bpe_200 \
   --otc-token "<star>" \
-  --num_features 80
+  --num_features 80 \
   --allow-bypass-arc true \
   --allow-self-loop-arc true \
   --initial-bypass-weight -19 \
