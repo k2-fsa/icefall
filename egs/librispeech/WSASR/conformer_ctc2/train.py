@@ -382,9 +382,6 @@ def get_params() -> AttributeDict:
 
         - warm_step: The warm_step for Noam optimizer.
     """
-    parser = get_parser()
-    LibriSpeechAsrDataModule.add_arguments(parser)
-    args = parser.parse_args()
     params = AttributeDict(
         {
             "best_train_loss": float("inf"),
