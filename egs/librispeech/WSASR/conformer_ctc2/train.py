@@ -382,6 +382,9 @@ def get_params() -> AttributeDict:
 
         - warm_step: The warm_step for Noam optimizer.
     """
+    parser = get_parser()
+    LibriSpeechAsrDataModule.add_arguments(parser)
+    args = parser.parse_args()
     params = AttributeDict(
         {
             "best_train_loss": float("inf"),
@@ -394,6 +397,7 @@ def get_params() -> AttributeDict:
             "valid_interval": 800,  # For the 100h subset, use 800
             "alignment_interval": 25,
             # parameters for conformer
+            "feature_dim": 768,
             "subsampling_factor": 2,
             "encoder_dim": 512,
             "nhead": 8,
