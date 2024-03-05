@@ -162,7 +162,7 @@ def get_parser():
     )
   
     parser.add_argument(
-        "--num-features",
+        "--feature-dim",
         type=int,
         default=768,
         help="""Number of features extracted in feature extraction stage.last dimension of feature vector.
