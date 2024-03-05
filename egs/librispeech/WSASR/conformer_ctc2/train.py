@@ -31,7 +31,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --exp-dir conformer_ctc2/exp \
   --lang-dir data/lang_bpe_200 \
   --otc-token "<star>" \
-  --num_features 80 \
+  --num-features 80 \
   --allow-bypass-arc true \
   --allow-self-loop-arc true \
   --initial-bypass-weight -19 \
@@ -162,7 +162,7 @@ def get_parser():
     )
   
     parser.add_argument(
-        "--num_features",
+        "--num-features",
         type=int,
         default=768,
         help="""Number of features extracted in feature extraction stage.last dimension of feature vector.
