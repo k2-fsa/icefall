@@ -496,7 +496,7 @@ def main():
 
     test_sets = test_sets_cuts.keys()
     test_dls = [
-        data_module.test_dataloaders(test_sets_cuts[cuts_name].filter(remove_short_utt))
+        data_module.test_dataloaders(test_sets_cuts[cuts_name].filter(remove_long_utt))
         for cuts_name in test_sets
     ]
 

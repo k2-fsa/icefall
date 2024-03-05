@@ -34,7 +34,7 @@ torchrun --nproc-per-node 8 ./whisper/train.py \
   --model-name medium
 """
 
-
+import os
 import argparse
 import copy
 import logging
@@ -148,6 +148,15 @@ def get_parser():
         default="large-v2",
         choices=["large-v2", "large-v3", "medium", "small", "tiny"],
         help="""The model name to use.
+        """,
+    )
+
+    parser.add_argument(
+        "--pretrained-model-path",
+        type=str,
+        default=None,
+        help="""The path to the pretrained model if it is not None. Training will
+        start from this model. e.g. ./wenetspeech/ASR/whisper/exp_large_v2/epoch-4-avg-3.pt
         """,
     )
 
@@ -617,6 +626,7 @@ def train_one_epoch(
                         f"{params.exp_dir}/epoch-{params.cur_epoch}-checkpoint-{batch_idx}.pt",
                         tag=f"epoch-{params.cur_epoch}-checkpoint-{batch_idx}",
                     )
+                    os.system(f"rm -rf {params.exp_dir}/epoch-{params.cur_epoch}-checkpoint-{batch_idx}")
 
         try:
             with torch.cuda.amp.autocast(enabled=params.use_fp16):
@@ -749,6 +759,16 @@ def run(rank, world_size, args):
     replace_whisper_encoder_forward()
     model = whisper.load_model(params.model_name, "cpu")
     del model.alignment_heads
+
+    if params.pretrained_model_path:
+        checkpoint = torch.load(
+            params.pretrained_model_path, map_location="cpu"
+        )
+        if "model" not in checkpoint:
+            model.load_state_dict(checkpoint, strict=True)
+        else:
+            load_checkpoint(params.pretrained_model_path, model)
+
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
@@ -900,6 +920,7 @@ def run(rank, world_size, args):
                     f"{params.exp_dir}/epoch-{params.cur_epoch}.pt",
                     tag=f"epoch-{params.cur_epoch}",
                 )
+                os.system(f"rm -rf {params.exp_dir}/epoch-{params.cur_epoch}")
         else:
             save_checkpoint(
                 params=params,

@@ -106,13 +106,10 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   log "Stage 5: Prepare AISHELL-4"
   if [ -e ../../aishell4/ASR/data/fbank/.fbank.done ]; then
     cd data/fbank
-    ln -svf $(realpath ../../../../aishell4/ASR/data/fbank/aishell4_feats_train) .
-    ln -svf $(realpath ../../../../aishell4/ASR/data/fbank/aishell4_feats_dev) .
     ln -svf $(realpath ../../../../aishell4/ASR/data/fbank/aishell4_feats_test) .
     ln -svf $(realpath ../../../../aishell4/ASR/data/fbank/aishell4_cuts_train_L.jsonl.gz) .
     ln -svf $(realpath ../../../../aishell4/ASR/data/fbank/aishell4_cuts_train_M.jsonl.gz) .
     ln -svf $(realpath ../../../../aishell4/ASR/data/fbank/aishell4_cuts_train_S.jsonl.gz) .
-    ln -svf $(realpath ../../../../aishell4/ASR/data/fbank/aishell4_cuts_dev.jsonl.gz) .
     ln -svf $(realpath ../../../../aishell4/ASR/data/fbank/aishell4_cuts_test.jsonl.gz) .
     cd ../..
   else 
