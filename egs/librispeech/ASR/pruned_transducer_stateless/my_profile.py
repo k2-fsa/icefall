@@ -22,11 +22,12 @@ Usage: ./pruned_transducer_stateless/my_profile.py
 
 import argparse
 import logging
+
 import sentencepiece as spm
 import torch
+from train import add_model_arguments, get_encoder_model, get_params
 
 from icefall.profiler import get_model_profile
-from train import get_encoder_model, add_model_arguments, get_params
 
 
 def get_parser():

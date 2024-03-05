@@ -8,12 +8,12 @@ The lang_dir should contain the following files:
 """
 
 import math
+import re
 from collections import defaultdict
 from pathlib import Path
 from typing import List, Tuple
 
 import kaldifst
-import re
 
 
 class Lexicon:

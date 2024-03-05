@@ -72,7 +72,7 @@ import torch.nn as nn
 from decoder import Decoder
 from onnxruntime.quantization import QuantType, quantize_dynamic
 from scaling_converter import convert_scaled_to_non_scaled
-from train import add_model_arguments, add_finetune_arguments, get_model, get_params
+from train import add_finetune_arguments, add_model_arguments, get_model, get_params
 from zipformer import Zipformer2
 
 from icefall.checkpoint import (
