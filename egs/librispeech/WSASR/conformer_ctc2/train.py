@@ -160,7 +160,7 @@ def get_parser():
         "lexicon.txt"
         """,
     )
-  
+
     parser.add_argument(
         "--feature-dim",
         type=int,
