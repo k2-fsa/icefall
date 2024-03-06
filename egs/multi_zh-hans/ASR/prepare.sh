@@ -107,6 +107,9 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   if [ -e ../../aishell4/ASR/data/fbank/.fbank.done ]; then
     cd data/fbank
     ln -svf $(realpath ../../../../aishell4/ASR/data/fbank/aishell4_feats_test) .
+    ln -svf $(realpath ../../../../aishell4/ASR/data/fbank/aishell4_feats_train_L) .
+    ln -svf $(realpath ../../../../aishell4/ASR/data/fbank/aishell4_feats_train_M) .
+    ln -svf $(realpath ../../../../aishell4/ASR/data/fbank/aishell4_feats_train_S) .
     ln -svf $(realpath ../../../../aishell4/ASR/data/fbank/aishell4_cuts_train_L.jsonl.gz) .
     ln -svf $(realpath ../../../../aishell4/ASR/data/fbank/aishell4_cuts_train_M.jsonl.gz) .
     ln -svf $(realpath ../../../../aishell4/ASR/data/fbank/aishell4_cuts_train_S.jsonl.gz) .
