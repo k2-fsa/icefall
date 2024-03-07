@@ -4,9 +4,14 @@ kaldialign
 num2words
 kaldi-decoder
 sentencepiece>=0.1.96
+pypinyin==0.50.0
 tensorboard
 typeguard
 dill
-black==22.3.0
 onnx==1.15.0
 onnxruntime==1.16.3
+
+# style check session:
+black==22.3.0
+isort==5.10.1
+flake8==5.0.4 

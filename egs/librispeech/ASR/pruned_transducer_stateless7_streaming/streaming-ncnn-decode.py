@@ -42,7 +42,6 @@ import ncnn
 import torch
 import torchaudio
 from kaldifeat import FbankOptions, OnlineFbank, OnlineFeature
-
 from ncnn_custom_layer import RegisterCustomLayers
 
 

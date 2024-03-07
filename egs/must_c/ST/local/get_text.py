@@ -5,9 +5,9 @@ This file prints the text field of supervisions from cutset to the console
 """
 
 import argparse
+from pathlib import Path
 
 from lhotse import load_manifest_lazy
-from pathlib import Path
 
 
 def get_args():

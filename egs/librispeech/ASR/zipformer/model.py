@@ -22,9 +22,9 @@ import k2
 import torch
 import torch.nn as nn
 from encoder_interface import EncoderInterface
+from scaling import ScaledLinear
 
 from icefall.utils import add_sos, make_pad_mask
-from scaling import ScaledLinear
 
 
 class AsrModel(nn.Module):
@@ -164,9 +164,9 @@ class AsrModel(nn.Module):
 
         ctc_loss = torch.nn.functional.ctc_loss(
             log_probs=ctc_output.permute(1, 0, 2),  # (T, N, C)
-            targets=targets,
-            input_lengths=encoder_out_lens,
-            target_lengths=target_lengths,
+            targets=targets.cpu(),
+            input_lengths=encoder_out_lens.cpu(),
+            target_lengths=target_lengths.cpu(),
             reduction="sum",
         )
         return ctc_loss

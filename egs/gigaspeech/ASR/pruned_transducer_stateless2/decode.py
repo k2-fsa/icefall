@@ -76,6 +76,7 @@ from beam_search import (
 )
 from gigaspeech_scoring import asr_text_post_processing
 from train import get_params, get_transducer_model
+
 from icefall.checkpoint import (
     average_checkpoints,
     average_checkpoints_with_averaged_model,

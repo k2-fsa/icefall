@@ -1,11 +1,11 @@
-VITS
+VITS-LJSpeech
 ===============
 
 This tutorial shows you how to train an VITS model
 with the `LJSpeech <https://keithito.com/LJ-Speech-Dataset/>`_ dataset.
 
 .. note::
-  
+
    TTS related recipes require packages in ``requirements-tts.txt``.
 
 .. note::
@@ -120,4 +120,4 @@ Download pretrained models
 If you don't want to train from scratch, you can download the pretrained models
 by visiting the following link:
 
-  - `<https://huggingface.co/Zengwei/icefall-tts-ljspeech-vits-2023-11-29>`_
+  - `<https://huggingface.co/Zengwei/icefall-tts-ljspeech-vits-2024-02-28>`_

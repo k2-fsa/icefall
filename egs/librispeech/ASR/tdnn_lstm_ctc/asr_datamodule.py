@@ -1,4 +1,4 @@
-# Copyright      2021  Piotr Żelasko
+#  Copyright      2021  Piotr Żelasko
 # Copyright      2022  Xiaomi Corporation     (Author: Mingshuang Luo)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
@@ -474,4 +474,23 @@ class LibriSpeechAsrDataModule:
         logging.info("About to get test-other cuts")
         return load_manifest_lazy(
             self.args.manifest_dir / "librispeech_cuts_test-other.jsonl.gz"
+        )
+
+    @lru_cache()
+    def gigaspeech_subset_small_cuts(self) -> CutSet:
+        logging.info("About to get Gigaspeech subset-S cuts")
+        return load_manifest_lazy(self.args.manifest_dir / "gigaspeech_cuts_S.jsonl.gz")
+
+    @lru_cache()
+    def gigaspeech_dev_cuts(self) -> CutSet:
+        logging.info("About to get Gigaspeech dev cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "gigaspeech_cuts_DEV.jsonl.gz"
+        )
+
+    @lru_cache()
+    def gigaspeech_test_cuts(self) -> CutSet:
+        logging.info("About to get Gigaspeech test cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "gigaspeech_cuts_TEST.jsonl.gz"
         )

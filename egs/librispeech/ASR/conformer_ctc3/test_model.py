@@ -24,8 +24,7 @@ To run this file, do:
 """
 
 import torch
-
-from train import get_params, get_ctc_model
+from train import get_ctc_model, get_params
 
 
 def test_model():

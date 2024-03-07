@@ -16,8 +16,8 @@
 # limitations under the License.
 
 import argparse
-from pathlib import Path
 import logging
+from pathlib import Path
 from typing import List
 
 

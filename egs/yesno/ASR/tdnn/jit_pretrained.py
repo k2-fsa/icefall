@@ -18,9 +18,8 @@ you can use ./export.py --jit 1
 
 import argparse
 import logging
-from typing import List
 import math
-
+from typing import List
 
 import k2
 import kaldifeat

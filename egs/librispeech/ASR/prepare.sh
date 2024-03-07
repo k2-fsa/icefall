@@ -6,8 +6,21 @@ export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
 set -eou pipefail
 
 nj=15
-stage=-1
-stop_stage=100
+# run step 0 to step 5 by default
+stage=0
+stop_stage=5
+
+# Note: This script just prepare the minimal requirements that needed by a
+# transducer training with bpe units.
+#
+# If you want to use ngram or nnlm, please continue running prepare_lm.sh after
+# you succeed running this script.
+#
+# This script also contains the steps to generate phone based units, but they
+# will not run automatically, you can generate the phone based units by
+# bash prepare.sh --stage -1 --stop-stage -1
+# bash prepare.sh --stage 6 --stop-stage 6
+
 
 # We assume dl_dir (download dir) contains the following
 # directories and files. If not, they will be downloaded
@@ -17,6 +30,18 @@ stop_stage=100
 #      You can find BOOKS.TXT, test-clean, train-clean-360, etc, inside it.
 #      You can download them from https://www.openslr.org/12
 #
+#  - $dl_dir/musan
+#      This directory contains the following directories downloaded from
+#       http://www.openslr.org/17/
+#
+#     - music
+#     - noise
+#     - speech
+#
+# lm directory is not necessary for transducer training with bpe units, but it
+# is needed by phone based modeling, you can download it by running
+# bash prepare.sh --stage -1 --stop-stage -1
+# then you can see the following files in the directory.
 #  - $dl_dir/lm
 #      This directory contains the following files downloaded from
 #       http://www.openslr.org/resources/11
@@ -28,14 +53,7 @@ stop_stage=100
 #        - librispeech-vocab.txt
 #        - librispeech-lexicon.txt
 #        - librispeech-lm-norm.txt.gz
-#
-#  - $dl_dir/musan
-#      This directory contains the following directories downloaded from
-#       http://www.openslr.org/17/
-#
-#     - music
-#     - noise
-#     - speech
+
 dl_dir=$PWD/download
 
 . shared/parse_options.sh || exit 1
@@ -59,6 +77,8 @@ log() {
   local fname=${BASH_SOURCE[1]##*/}
   echo -e "$(date '+%Y-%m-%d %H:%M:%S') (${fname}:${BASH_LINENO[0]}:${FUNCNAME[1]}) $*"
 }
+
+log "Running prepare.sh"
 
 log "dl_dir: $dl_dir"
 
@@ -159,13 +179,49 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
 fi
 
 if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
-  log "Stage 5: Prepare phone based lang"
+  log "Stage 5: Prepare BPE based lang"
+
+  for vocab_size in ${vocab_sizes[@]}; do
+    lang_dir=data/lang_bpe_${vocab_size}
+    mkdir -p $lang_dir
+
+    if [ ! -f $lang_dir/transcript_words.txt ]; then
+      log "Generate data for BPE training"
+      files=$(
+        find "$dl_dir/LibriSpeech/train-clean-100" -name "*.trans.txt"
+        find "$dl_dir/LibriSpeech/train-clean-360" -name "*.trans.txt"
+        find "$dl_dir/LibriSpeech/train-other-500" -name "*.trans.txt"
+      )
+      for f in ${files[@]}; do
+        cat $f | cut -d " " -f 2-
+      done > $lang_dir/transcript_words.txt
+    fi
+
+    if [ ! -f $lang_dir/bpe.model ]; then
+      ./local/train_bpe_model.py \
+        --lang-dir $lang_dir \
+        --vocab-size $vocab_size \
+        --transcript $lang_dir/transcript_words.txt
+    fi
+  done
+fi
+
+if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
+  log "Stage 6: Prepare phone based lang"
   lang_dir=data/lang_phone
   mkdir -p $lang_dir
 
-  (echo '!SIL SIL'; echo '<SPOKEN_NOISE> SPN'; echo '<UNK> SPN'; ) |
-    cat - $dl_dir/lm/librispeech-lexicon.txt |
-    sort | uniq > $lang_dir/lexicon.txt
+  if [ ! -f $dl_dir/lm/librispeech-lexicon.txt ]; then
+    log "No lexicon file in $dl_dir/lm, please run :"
+    log "prepare.sh --stage -1 --stop-stage -1"
+    exit -1
+  fi
+
+  if [ ! -f $lang_dir/lexicon.txt ]; then
+    (echo '!SIL SIL'; echo '<SPOKEN_NOISE> SPN'; echo '<UNK> SPN'; ) |
+      cat - $dl_dir/lm/librispeech-lexicon.txt |
+      sort | uniq > $lang_dir/lexicon.txt
+  fi
 
   if [ ! -f $lang_dir/L_disambig.pt ]; then
     ./local/prepare_lang.py --lang-dir $lang_dir
@@ -186,254 +242,4 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
       $lang_dir/L_disambig.pt \
       $lang_dir/L_disambig.fst
   fi
-fi
-
-
-if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
-  log "Stage 6: Prepare BPE based lang"
-
-  for vocab_size in ${vocab_sizes[@]}; do
-    lang_dir=data/lang_bpe_${vocab_size}
-    mkdir -p $lang_dir
-    # We reuse words.txt from phone based lexicon
-    # so that the two can share G.pt later.
-    cp data/lang_phone/words.txt $lang_dir
-
-    if [ ! -f $lang_dir/transcript_words.txt ]; then
-      log "Generate data for BPE training"
-      files=$(
-        find "$dl_dir/LibriSpeech/train-clean-100" -name "*.trans.txt"
-        find "$dl_dir/LibriSpeech/train-clean-360" -name "*.trans.txt"
-        find "$dl_dir/LibriSpeech/train-other-500" -name "*.trans.txt"
-      )
-      for f in ${files[@]}; do
-        cat $f | cut -d " " -f 2-
-      done > $lang_dir/transcript_words.txt
-    fi
-
-    if [ ! -f $lang_dir/bpe.model ]; then
-      ./local/train_bpe_model.py \
-        --lang-dir $lang_dir \
-        --vocab-size $vocab_size \
-        --transcript $lang_dir/transcript_words.txt
-    fi
-
-    if [ ! -f $lang_dir/L_disambig.pt ]; then
-      ./local/prepare_lang_bpe.py --lang-dir $lang_dir
-
-      log "Validating $lang_dir/lexicon.txt"
-      ./local/validate_bpe_lexicon.py \
-        --lexicon $lang_dir/lexicon.txt \
-        --bpe-model $lang_dir/bpe.model
-    fi
-
-    if [ ! -f $lang_dir/L.fst ]; then
-      log "Converting L.pt to L.fst"
-      ./shared/convert-k2-to-openfst.py \
-        --olabels aux_labels \
-        $lang_dir/L.pt \
-        $lang_dir/L.fst
-    fi
-
-    if [ ! -f $lang_dir/L_disambig.fst ]; then
-      log "Converting L_disambig.pt to L_disambig.fst"
-      ./shared/convert-k2-to-openfst.py \
-        --olabels aux_labels \
-        $lang_dir/L_disambig.pt \
-        $lang_dir/L_disambig.fst
-    fi
-  done
-fi
-
-if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
-  log "Stage 7: Prepare bigram token-level P for MMI training"
-
-  for vocab_size in ${vocab_sizes[@]}; do
-    lang_dir=data/lang_bpe_${vocab_size}
-
-    if [ ! -f $lang_dir/transcript_tokens.txt ]; then
-      ./local/convert_transcript_words_to_tokens.py \
-        --lexicon $lang_dir/lexicon.txt \
-        --transcript $lang_dir/transcript_words.txt \
-        --oov "<UNK>" \
-        > $lang_dir/transcript_tokens.txt
-    fi
-
-    if [ ! -f $lang_dir/P.arpa ]; then
-      ./shared/make_kn_lm.py \
-        -ngram-order 2 \
-        -text $lang_dir/transcript_tokens.txt \
-        -lm $lang_dir/P.arpa
-    fi
-
-    if [ ! -f $lang_dir/P.fst.txt ]; then
-      python3 -m kaldilm \
-        --read-symbol-table="$lang_dir/tokens.txt" \
-        --disambig-symbol='#0' \
-        --max-order=2 \
-        $lang_dir/P.arpa > $lang_dir/P.fst.txt
-    fi
-  done
-fi
-
-if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
-  log "Stage 8: Prepare G"
-  # We assume you have installed kaldilm, if not, please install
-  # it using: pip install kaldilm
-
-  mkdir -p data/lm
-  if [ ! -f data/lm/G_3_gram.fst.txt ]; then
-    # It is used in building HLG
-    python3 -m kaldilm \
-      --read-symbol-table="data/lang_phone/words.txt" \
-      --disambig-symbol='#0' \
-      --max-order=3 \
-      $dl_dir/lm/3-gram.pruned.1e-7.arpa > data/lm/G_3_gram.fst.txt
-  fi
-
-  if [ ! -f data/lm/G_4_gram.fst.txt ]; then
-    # It is used for LM rescoring
-    python3 -m kaldilm \
-      --read-symbol-table="data/lang_phone/words.txt" \
-      --disambig-symbol='#0' \
-      --max-order=4 \
-      $dl_dir/lm/4-gram.arpa > data/lm/G_4_gram.fst.txt
-  fi
-
-  for vocab_size in ${vocab_sizes[@]}; do
-    lang_dir=data/lang_bpe_${vocab_size}
-
-    if [ ! -f $lang_dir/HL.fst ]; then
-      ./local/prepare_lang_fst.py  \
-        --lang-dir $lang_dir \
-        --ngram-G ./data/lm/G_3_gram.fst.txt
-    fi
-  done
-fi
-
-if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
-  log "Stage 9: Compile HLG"
-  ./local/compile_hlg.py --lang-dir data/lang_phone
-
-  # Note If ./local/compile_hlg.py throws OOM,
-  # please switch to the following command
-  #
-  # ./local/compile_hlg_using_openfst.py --lang-dir data/lang_phone
-
-  for vocab_size in ${vocab_sizes[@]}; do
-    lang_dir=data/lang_bpe_${vocab_size}
-    ./local/compile_hlg.py --lang-dir $lang_dir
-
-    # Note If ./local/compile_hlg.py throws OOM,
-    # please switch to the following command
-    #
-    # ./local/compile_hlg_using_openfst.py --lang-dir $lang_dir
-  done
-fi
-
-# Compile LG for RNN-T fast_beam_search decoding
-if [ $stage -le 10 ] && [ $stop_stage -ge 10 ]; then
-  log "Stage 10: Compile LG"
-  ./local/compile_lg.py --lang-dir data/lang_phone
-
-  for vocab_size in ${vocab_sizes[@]}; do
-    lang_dir=data/lang_bpe_${vocab_size}
-    ./local/compile_lg.py --lang-dir $lang_dir
-  done
-fi
-
-if [ $stage -le 11 ] && [ $stop_stage -ge 11 ]; then
-  log "Stage 11: Generate LM training data"
-
-  for vocab_size in ${vocab_sizes[@]}; do
-    log "Processing vocab_size == ${vocab_size}"
-    lang_dir=data/lang_bpe_${vocab_size}
-    out_dir=data/lm_training_bpe_${vocab_size}
-    mkdir -p $out_dir
-
-    ./local/prepare_lm_training_data.py \
-      --bpe-model $lang_dir/bpe.model \
-      --lm-data $dl_dir/lm/librispeech-lm-norm.txt \
-      --lm-archive $out_dir/lm_data.pt
-  done
-fi
-
-if [ $stage -le 12 ] && [ $stop_stage -ge 12 ]; then
-  log "Stage 12: Generate LM validation data"
-
-  for vocab_size in ${vocab_sizes[@]}; do
-    log "Processing vocab_size == ${vocab_size}"
-    out_dir=data/lm_training_bpe_${vocab_size}
-    mkdir -p $out_dir
-
-    if [ ! -f $out_dir/valid.txt ]; then
-      files=$(
-        find "$dl_dir/LibriSpeech/dev-clean" -name "*.trans.txt"
-        find "$dl_dir/LibriSpeech/dev-other" -name "*.trans.txt"
-      )
-      for f in ${files[@]}; do
-        cat $f | cut -d " " -f 2-
-      done > $out_dir/valid.txt
-    fi
-
-    lang_dir=data/lang_bpe_${vocab_size}
-    ./local/prepare_lm_training_data.py \
-      --bpe-model $lang_dir/bpe.model \
-      --lm-data $out_dir/valid.txt \
-      --lm-archive $out_dir/lm_data-valid.pt
-  done
-fi
-
-if [ $stage -le 13 ] && [ $stop_stage -ge 13 ]; then
-  log "Stage 13: Generate LM test data"
-
-  for vocab_size in ${vocab_sizes[@]}; do
-    log "Processing vocab_size == ${vocab_size}"
-    out_dir=data/lm_training_bpe_${vocab_size}
-    mkdir -p $out_dir
-
-    if [ ! -f $out_dir/test.txt ]; then
-      files=$(
-        find "$dl_dir/LibriSpeech/test-clean" -name "*.trans.txt"
-        find "$dl_dir/LibriSpeech/test-other" -name "*.trans.txt"
-      )
-      for f in ${files[@]}; do
-        cat $f | cut -d " " -f 2-
-      done > $out_dir/test.txt
-    fi
-
-    lang_dir=data/lang_bpe_${vocab_size}
-    ./local/prepare_lm_training_data.py \
-      --bpe-model $lang_dir/bpe.model \
-      --lm-data $out_dir/test.txt \
-      --lm-archive $out_dir/lm_data-test.pt
-  done
-fi
-
-if [ $stage -le 14 ] && [ $stop_stage -ge 14 ]; then
-  log "Stage 14: Sort LM training data"
-  # Sort LM training data by sentence length in descending order
-  # for ease of training.
-  #
-  # Sentence length equals to the number of BPE tokens
-  # in a sentence.
-
-  for vocab_size in ${vocab_sizes[@]}; do
-    out_dir=data/lm_training_bpe_${vocab_size}
-    mkdir -p $out_dir
-    ./local/sort_lm_training_data.py \
-      --in-lm-data $out_dir/lm_data.pt \
-      --out-lm-data $out_dir/sorted_lm_data.pt \
-      --out-statistics $out_dir/statistics.txt
-
-    ./local/sort_lm_training_data.py \
-      --in-lm-data $out_dir/lm_data-valid.pt \
-      --out-lm-data $out_dir/sorted_lm_data-valid.pt \
-      --out-statistics $out_dir/statistics-valid.txt
-
-    ./local/sort_lm_training_data.py \
-      --in-lm-data $out_dir/lm_data-test.pt \
-      --out-lm-data $out_dir/sorted_lm_data-test.pt \
-      --out-statistics $out_dir/statistics-test.txt
-  done
 fi

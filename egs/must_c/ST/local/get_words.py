@@ -5,7 +5,6 @@ This file generates words.txt from the given transcript file.
 """
 
 import argparse
-
 from pathlib import Path
 
 

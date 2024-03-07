@@ -11,6 +11,7 @@ ARG _KALDIFEAT_VERSION="${KALDIFEAT_VERSION}+cpu.torch${TORCH_VERSION}"
 
 RUN apt-get update -y && \
     apt-get install -qq -y \
+    cmake \
     ffmpeg \
     git \
     git-lfs \
@@ -50,6 +51,7 @@ RUN pip install --no-cache-dir \
       onnxruntime \
       pytest \
       sentencepiece>=0.1.96 \
+      pypinyin==0.50.0 \
       six \
       tensorboard \
       typeguard
