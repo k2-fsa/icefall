@@ -22,7 +22,7 @@ from datetime import datetime
 from pathlib import Path
 
 import torch
-from lhotse import (
+from lhotse import ( # KaldifeatWhisperFbank,; KaldifeatWhisperFbankConfig,
     CutSet,
     KaldifeatFbank,
     KaldifeatFbankConfig,
