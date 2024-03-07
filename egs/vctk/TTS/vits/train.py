@@ -514,9 +514,10 @@ def train_one_epoch(
                 logging.warning(f"Grad scale is small: {cur_grad_scale}")
             if cur_grad_scale < 1.0e-05:
                 save_bad_model()
-                raise RuntimeError(
-                    f"grad_scale is too small, exiting: {cur_grad_scale}"
-                )
+                logging.warning(f"Grad scale is small: {cur_grad_scale}")
+                # raise RuntimeError(
+                #     f"grad_scale is too small, exiting: {cur_grad_scale}"
+                # )
 
         if params.batch_idx_train % params.log_interval == 0:
             cur_lr_g = max(scheduler_g.get_last_lr())
