@@ -45,17 +45,15 @@ class MultiDataset:
             idx = f"{i}".zfill(2)
             dataset_parts.append(f"SPEECHIO_ASR_ZH000{idx}")
 
-        prefix="speechio"
-        suffix="jsonl.gz"
+        prefix = "speechio"
+        suffix = "jsonl.gz"
 
         results_dict = {}
         for partition in dataset_parts:
             path = f"{prefix}_cuts_{partition}.{suffix}"
 
             logging.info(f"Loading {path} set in lazy mode")
-            test_cuts = load_manifest_lazy(
-                self.fbank_dir / path
-            )
+            test_cuts = load_manifest_lazy(self.fbank_dir / path)
             results_dict[partition] = test_cuts
 
         return results_dict

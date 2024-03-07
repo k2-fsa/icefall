@@ -12,7 +12,7 @@ stop_stage=3
 #  - $dl_dir/SPEECHIO_ASR_ZH00000
 #      This directory contains the following files downloaded from
 #       https://github.com/SpeechColab/Leaderboard
-# 
+#
 #     - metadata.tsv
 #     - wav
 #     - wav.scp

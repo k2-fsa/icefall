@@ -22,20 +22,19 @@ from datetime import datetime
 from pathlib import Path
 
 import torch
-from lhotse import (
+from lhotse import (  # KaldifeatWhisperFbank,; KaldifeatWhisperFbankConfig,
     CutSet,
-    WhisperFbank,
-    WhisperFbankConfig,
-    # KaldifeatWhisperFbank,
-    # KaldifeatWhisperFbankConfig, 
     KaldifeatFbank,
     KaldifeatFbankConfig,
     LilcomChunkyWriter,
+    WhisperFbank,
+    WhisperFbankConfig,
     set_audio_duration_mismatch_tolerance,
     set_caching_enabled,
 )
 
-from icefall.utils import str2bool, get_executor
+from icefall.utils import get_executor, str2bool
+
 # Torch's multithreaded behavior needs to be disabled or
 # it wastes a lot of CPU and slow things down.
 # Do this outside of main() in case it needs to take effect
@@ -148,11 +147,11 @@ def compute_fbank_wenetspeech_splits(args):
 
     set_audio_duration_mismatch_tolerance(0.01)  # 10ms tolerance
     set_caching_enabled(False)
-    #with get_executor() as ex:  # Initialize the executor only once.
+    # with get_executor() as ex:  # Initialize the executor only once.
     for i in range(start, stop):
         idx = f"{i}".zfill(num_digits)
         logging.info(f"Processing {i+1}/{num_splits}")
-        
+
         cuts_path = output_dir / f"cuts_{subset}.{idx}.jsonl.gz"
         if cuts_path.is_file():
             logging.info(f"{cuts_path} exists - skipping")
@@ -177,13 +176,6 @@ def compute_fbank_wenetspeech_splits(args):
             storage_type=LilcomChunkyWriter,
             overwrite=True,
         )
-        # cut_set = cut_set.compute_and_store_features(
-        #     extractor=extractor,
-        #     storage_path=f"{output_dir}/feats_{subset}_{idx}",
-        #     num_jobs=args.num_workers,
-        #     executor=ex,
-        #     storage_type=LilcomChunkyWriter,
-        # )
         logging.info(f"Saving to {cuts_path}")
         cut_set.to_file(cuts_path)
 

@@ -5,8 +5,8 @@ export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
 
 set -eou pipefail
 
-stage=121
-stop_stage=121
+stage=-1
+stop_stage=100
 num_splits=100
 
 dl_dir=$PWD/download
@@ -95,10 +95,10 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
     ln -svf $(realpath ../../../../aishell2/ASR/data/fbank/aishell2_cuts_dev.jsonl.gz) .
     ln -svf $(realpath ../../../../aishell2/ASR/data/fbank/aishell2_cuts_test.jsonl.gz) .
     cd ../..
-  else 
+  else
     log "Abort! Please run ../../aishell2/ASR/prepare.sh --stage 3 --stop-stage 3"
     exit 1
-  fi 
+  fi
 fi
 
 log "Dataset: AISHELL-4"
@@ -115,10 +115,10 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
     ln -svf $(realpath ../../../../aishell4/ASR/data/fbank/aishell4_cuts_train_S.jsonl.gz) .
     ln -svf $(realpath ../../../../aishell4/ASR/data/fbank/aishell4_cuts_test.jsonl.gz) .
     cd ../..
-  else 
+  else
     log "Abort! Please run ../../aishell4/ASR/prepare.sh --stage 3 --stop-stage 3"
     exit 1
-  fi 
+  fi
 fi
 
 log "Dataset: ST-CMDS"
@@ -261,7 +261,7 @@ if [ $stage -le 12 ] && [ $stop_stage -ge 12 ]; then
 
   if [ ! -f data/manifests/.kespeech.done ]; then
     mkdir -p data/manifests
-    lhotse prepare kespeech -j 16 $dl_dir/KeSpeech data/manifests/kespeech 
+    lhotse prepare kespeech -j 16 $dl_dir/KeSpeech data/manifests/kespeech
     touch data/manifests/.kespeech.done
   fi
 
@@ -272,8 +272,8 @@ if [ $stage -le 12 ] && [ $stop_stage -ge 12 ]; then
     if [ ! -f data/fbank/.kespeech_preprocess_complete ]; then
       python3 ./local/preprocess_kespeech.py
       touch data/fbank/.kespeech_preprocess_complete
-    fi  
-    
+    fi
+
     if [ ! -f data/fbank/.kespeech.train_phase1.split.${num_splits}.done ]; then
       log "Spliting KeSpeech train_phase1"
       lhotse split ${num_splits} \
@@ -281,7 +281,7 @@ if [ $stage -le 12 ] && [ $stop_stage -ge 12 ]; then
         data/fbank/kespeech/train_phase1_split_${num_splits}
       touch data/fbank/.kespeech.train_phase1.split.${num_splits}.done
     fi
-    
+
     if [ ! -f data/fbank/.kespeech.train_phase2.split.${num_splits}.done ]; then
       log "Spliting KeSpeech train_phase2"
       lhotse split ${num_splits} \
@@ -289,7 +289,7 @@ if [ $stage -le 12 ] && [ $stop_stage -ge 12 ]; then
         data/fbank/kespeech/train_phase2_split_${num_splits}
       touch data/fbank/.kespeech.train_phase2.split.${num_splits}.done
     fi
-    
+
     log "Compute KeSpeech fbank for train_phase1"
     ./local/compute_fbank_kespeech_splits.py --speed-perturb true --num-splits ${num_splits} --training-subset train_phase1
 
@@ -314,7 +314,7 @@ if [ $stage -le 120 ] && [ $stop_stage -ge 120 ]; then
 
   if [ ! -f data/manifests/.kespeech.done ]; then
     mkdir -p data/manifests
-    lhotse prepare kespeech -j 8 $dl_dir/KeSpeech data/manifests/kespeech 
+    lhotse prepare kespeech -j 8 $dl_dir/KeSpeech data/manifests/kespeech
     touch data/manifests/.kespeech.done
   fi
 
@@ -325,8 +325,8 @@ if [ $stage -le 120 ] && [ $stop_stage -ge 120 ]; then
     if [ ! -f data/fbank/.kespeech_preprocess_complete ]; then
       python3 ./local/preprocess_kespeech.py --speed-perturb true
       touch data/fbank/.kespeech_preprocess_complete
-    fi  
-    
+    fi
+
     if [ ! -f data/fbank/.kespeech.train_phase1.split.${num_splits}.done ]; then
       log "Spliting KeSpeech train_phase1"
       lhotse split ${num_splits} \
@@ -334,7 +334,7 @@ if [ $stage -le 120 ] && [ $stop_stage -ge 120 ]; then
         data/fbank/kespeech/train_phase1_split_${num_splits}
       touch data/fbank/.kespeech.train_phase1.split.${num_splits}.done
     fi
-    
+
     if [ ! -f data/fbank/.kespeech.train_phase2.split.${num_splits}.done ]; then
       log "Spliting KeSpeech train_phase2"
       lhotse split ${num_splits} \
@@ -342,7 +342,7 @@ if [ $stage -le 120 ] && [ $stop_stage -ge 120 ]; then
         data/fbank/kespeech/train_phase2_split_${num_splits}
       touch data/fbank/.kespeech.train_phase2.split.${num_splits}.done
     fi
-    
+
     log "Compute KeSpeech fbank for train_phase1"
     ./local/compute_fbank_kespeech_splits.py --num-splits ${num_splits} --training-subset train_phase1 --num-mel-bins ${whisper_mel_bins} --whisper-fbank true
 
@@ -351,7 +351,7 @@ if [ $stage -le 120 ] && [ $stop_stage -ge 120 ]; then
 
     log "Compute KeSpeech fbank for test/dev"
     # ./local/compute_fbank_kespeech_dev_test.py --num-mel-bins ${whisper_mel_bins} --whisper-fbank true
-  
+
     if [ ! -f data/fbank/kespeech/kespeech-asr_cuts_train_phase1.jsonl.gz ]; then
       pieces=$(find data/fbank/kespeech/train_phase1_split_${num_splits} -name "kespeech-asr_cuts_train_phase1.*.jsonl.gz")
       lhotse combine $pieces data/fbank/kespeech/kespeech-asr_cuts_train_phase1.jsonl.gz
@@ -422,7 +422,7 @@ if [ $stage -le 13 ] && [ $stop_stage -ge 13 ]; then
 
   for vocab_size in ${vocab_sizes[@]}; do
     lang_dir=data/lang_bpe_${vocab_size}
-    
+
     mkdir -p $lang_dir
     if [ ! -f $lang_dir/bpe.model ]; then
       ./local/train_bpe_model.py \
@@ -442,7 +442,7 @@ if [ $stage -le 13 ] && [ $stop_stage -ge 13 ]; then
         --lexicon $lang_dir/lexicon.txt \
         --bpe-model $lang_dir/bpe.model
     fi
-    
+
     if [ ! -f $lang_dir/L.fst ]; then
       log "Converting L.pt to L.fst"
       ./shared/convert-k2-to-openfst.py \
@@ -463,7 +463,7 @@ fi
 
 if [ $stage -le 14 ] && [ $stop_stage -ge 14 ]; then
   log "Stage 14: Prepare G (note that we use ngram lm of wenetspeech only for G preparation)"
-  
+
   if [ -d ../../wenetspeech/ASR/data/lang_char/ ]; then
     cd data
     ln -s ../../../../wenetspeech/ASR/data/lm .
@@ -482,5 +482,3 @@ if [ $stage -le 15 ] && [ $stop_stage -ge 15 ]; then
     python ./local/compile_lg.py --lang-dir $lang_dir
   done
 fi
-
-

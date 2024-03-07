@@ -35,14 +35,17 @@ def main():
         idx = f"{i}".zfill(2)
         dataset_parts.append(f"SPEECHIO_ASR_ZH000{idx}")
 
-    prefix="speechio"
-    suffix="jsonl.gz"
+    prefix = "speechio"
+    suffix = "jsonl.gz"
 
     for partition in dataset_parts:
         path = f"./data/fbank/{prefix}_cuts_{partition}.{suffix}"
         cuts = load_manifest_lazy(path)
-        print(f"===================Duration statistics of {partition}===================")
+        print(
+            f"===================Duration statistics of {partition}==================="
+        )
         cuts.describe()
+
 
 if __name__ == "__main__":
     main()

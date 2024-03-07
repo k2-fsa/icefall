@@ -16,11 +16,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import argparse
 import logging
 from pathlib import Path
-import argparse
+
 import torch
-from lhotse import CutSet, WhisperFbank, WhisperFbankConfig, KaldifeatFbank, KaldifeatFbankConfig, LilcomChunkyWriter
+from lhotse import (
+    CutSet,
+    KaldifeatFbank,
+    KaldifeatFbankConfig,
+    LilcomChunkyWriter,
+    WhisperFbank,
+    WhisperFbankConfig,
+)
 
 # Torch's multithreaded behavior needs to be disabled or
 # it wastes a lot of CPU and slow things down.
@@ -31,6 +39,7 @@ torch.set_num_interop_threads(1)
 torch.multiprocessing.set_sharing_strategy("file_system")
 
 from icefall.utils import str2bool
+
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -52,6 +61,7 @@ def get_parser():
     )
     return parser
 
+
 def compute_fbank_wenetspeech_dev_test(args):
     in_out_dir = Path("data/fbank")
     # number of workers in dataloader
@@ -66,7 +76,9 @@ def compute_fbank_wenetspeech_dev_test(args):
     if torch.cuda.is_available():
         device = torch.device("cuda", 0)
     if args.whisper_fbank:
-        extractor = WhisperFbank(WhisperFbankConfig(num_filters=args.num_mel_bins, device='cuda'))
+        extractor = WhisperFbank(
+            WhisperFbankConfig(num_filters=args.num_mel_bins, device="cuda")
+        )
     else:
         extractor = KaldifeatFbank(KaldifeatFbankConfig(device=device))
 

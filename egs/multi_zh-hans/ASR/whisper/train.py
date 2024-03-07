@@ -34,10 +34,10 @@ torchrun --nproc-per-node 8 ./whisper/train.py \
   --model-name medium
 """
 
-import os
 import argparse
 import copy
 import logging
+import os
 import random
 import warnings
 from pathlib import Path
@@ -52,13 +52,13 @@ import torch.multiprocessing as mp
 import torch.nn as nn
 import whisper
 from asr_datamodule import AsrDataModule
-from multi_dataset import MultiDataset
 from deepspeed.utils.zero_to_fp32 import convert_zero_checkpoint_to_fp32_state_dict
 from label_smoothing import LabelSmoothingLoss
 from lhotse import CutSet, load_manifest
 from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
+from multi_dataset import MultiDataset
 from optim import Eden, ScaledAdam
 from torch import Tensor
 from torch.cuda.amp import GradScaler
@@ -626,7 +626,9 @@ def train_one_epoch(
                         f"{params.exp_dir}/epoch-{params.cur_epoch}-checkpoint-{batch_idx}.pt",
                         tag=f"epoch-{params.cur_epoch}-checkpoint-{batch_idx}",
                     )
-                    os.system(f"rm -rf {params.exp_dir}/epoch-{params.cur_epoch}-checkpoint-{batch_idx}")
+                    os.system(
+                        f"rm -rf {params.exp_dir}/epoch-{params.cur_epoch}-checkpoint-{batch_idx}"
+                    )
 
         try:
             with torch.cuda.amp.autocast(enabled=params.use_fp16):
@@ -761,9 +763,7 @@ def run(rank, world_size, args):
     del model.alignment_heads
 
     if params.pretrained_model_path:
-        checkpoint = torch.load(
-            params.pretrained_model_path, map_location="cpu"
-        )
+        checkpoint = torch.load(params.pretrained_model_path, map_location="cpu")
         if "model" not in checkpoint:
             model.load_state_dict(checkpoint, strict=True)
         else:
@@ -866,7 +866,7 @@ def run(rank, world_size, args):
 
     valid_cuts = multi_dataset.dev_cuts()
     valid_dl = data_module.valid_dataloaders(valid_cuts)
-    
+
     scaler = GradScaler(enabled=params.use_fp16, init_scale=1.0)
     if checkpoints and "grad_scaler" in checkpoints:
         logging.info("Loading grad scaler state dict")

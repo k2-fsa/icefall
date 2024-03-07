@@ -6,8 +6,8 @@ export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
 set -eou pipefail
 
 nj=15
-stage=131
-stop_stage=131
+stage=0
+stop_stage=100
 
 # Split L subset to this number of pieces
 # This is to avoid OOM during feature extraction.
@@ -309,7 +309,7 @@ if [ $stage -le 19 ] && [ $stop_stage -ge 19 ]; then
   mkdir -p $text_out_dir
 
   log "Genearating training text data"
-  
+
   if [ ! -f $text_out_dir/lm_data.pt ]; then
     ./local/prepare_char_lm_training_data.py \
       --lang-char data/lang_char \
@@ -318,14 +318,14 @@ if [ $stage -le 19 ] && [ $stop_stage -ge 19 ]; then
   fi
 
   log "Generating DEV text data"
-  # prepare validation text data 
+  # prepare validation text data
   if [ ! -f $text_out_dir/valid_text_words_segmentation ]; then
     valid_text=${text_out_dir}/
 
     gunzip -c data/manifests/wenetspeech_supervisions_DEV.jsonl.gz \
       | jq '.text' | sed 's/"//g' \
       | ./local/text2token.py -t "char" > $text_out_dir/valid_text
-    
+
     python3 ./local/text2segments.py \
       --num-process $nj \
       --input-file $text_out_dir/valid_text \
@@ -337,7 +337,7 @@ if [ $stage -le 19 ] && [ $stop_stage -ge 19 ]; then
     --lm-data $text_out_dir/valid_text_words_segmentation \
     --lm-archive $text_out_dir/lm_data_valid.pt
 
-  # prepare TEST text data 
+  # prepare TEST text data
   if [ ! -f $text_out_dir/TEST_text_words_segmentation ]; then
     log "Prepare text for test set."
     for test_set in TEST_MEETING TEST_NET; do
@@ -350,7 +350,7 @@ if [ $stage -le 19 ] && [ $stop_stage -ge 19 ]; then
           --input-file $text_out_dir/${test_set}_text \
           --output-file $text_out_dir/${test_set}_text_words_segmentation
     done
-    
+
     cat $text_out_dir/TEST_*_text_words_segmentation > $text_out_dir/test_text_words_segmentation
   fi
 

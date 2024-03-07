@@ -53,14 +53,14 @@ import k2
 import torch
 import torch.nn as nn
 import whisper
-
 from asr_datamodule import AsrDataModule
+from lhotse.cut import Cut
+from multi_dataset import MultiDataset
 from tn.chinese.normalizer import Normalizer
 from whisper.normalizers import BasicTextNormalizer
 from whisper_encoder_forward_monkey_patch import replace_whisper_encoder_forward
 from zhconv import convert
-from lhotse.cut import Cut
-from multi_dataset import MultiDataset
+
 from icefall.checkpoint import average_checkpoints_with_averaged_model, load_checkpoint
 from icefall.env import get_env_info
 from icefall.utils import (

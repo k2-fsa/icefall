@@ -34,9 +34,7 @@ from lhotse.dataset import (  # noqa F401 for PrecomputedFeatures
     SimpleCutSampler,
     SpecAugment,
 )
-from lhotse.dataset.input_strategies import (  # noqa F401 For AudioSamples
-    AudioSamples,
-)
+from lhotse.dataset.input_strategies import AudioSamples  # noqa F401 For AudioSamples
 from lhotse.utils import fix_random_seed
 from torch.utils.data import DataLoader
 

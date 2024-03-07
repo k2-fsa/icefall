@@ -30,7 +30,14 @@ import os
 from pathlib import Path
 
 import torch
-from lhotse import CutSet, WhisperFbank, WhisperFbankConfig, Fbank, FbankConfig, LilcomChunkyWriter
+from lhotse import (
+    CutSet,
+    Fbank,
+    FbankConfig,
+    LilcomChunkyWriter,
+    WhisperFbank,
+    WhisperFbankConfig,
+)
 from lhotse.recipes.utils import read_manifests_if_cached
 
 from icefall.utils import get_executor, str2bool
@@ -44,7 +51,13 @@ torch.set_num_interop_threads(1)
 
 SPEECHIO_TESTSET_INDEX = 26  # Currently, from 0 - 26 test sets are open source.
 
-def compute_fbank_speechio(num_mel_bins: int = 80, speed_perturb: bool = False, fbank_dir: str = "data/fbank", whisper_fbank: bool = False):
+
+def compute_fbank_speechio(
+    num_mel_bins: int = 80,
+    speed_perturb: bool = False,
+    fbank_dir: str = "data/fbank",
+    whisper_fbank: bool = False,
+):
     src_dir = Path("data/manifests")
     output_dir = Path(fbank_dir)
     num_jobs = min(8, os.cpu_count())
@@ -72,7 +85,9 @@ def compute_fbank_speechio(num_mel_bins: int = 80, speed_perturb: bool = False, 
     )
 
     if whisper_fbank:
-        extractor = WhisperFbank(WhisperFbankConfig(num_filters=args.num_mel_bins, device='cuda'))
+        extractor = WhisperFbank(
+            WhisperFbankConfig(num_filters=args.num_mel_bins, device="cuda")
+        )
     else:
         extractor = Fbank(FbankConfig(num_mel_bins=num_mel_bins))
 
@@ -127,5 +142,7 @@ if __name__ == "__main__":
 
     args = get_args()
     compute_fbank_speechio(
-        num_mel_bins=args.num_mel_bins, fbank_dir=args.fbank_dir, whisper_fbank=args.whisper_fbank
+        num_mel_bins=args.num_mel_bins,
+        fbank_dir=args.fbank_dir,
+        whisper_fbank=args.whisper_fbank,
     )

@@ -29,7 +29,14 @@ import os
 from pathlib import Path
 
 import torch
-from lhotse import LilcomChunkyWriter, CutSet, WhisperFbank, WhisperFbankConfig, Fbank, FbankConfig
+from lhotse import (
+    CutSet,
+    Fbank,
+    FbankConfig,
+    LilcomChunkyWriter,
+    WhisperFbank,
+    WhisperFbankConfig,
+)
 from lhotse.recipes.utils import read_manifests_if_cached
 
 from icefall.utils import get_executor, str2bool
@@ -42,7 +49,9 @@ torch.set_num_threads(1)
 torch.set_num_interop_threads(1)
 
 
-def compute_fbank_aishell4(num_mel_bins: int = 80, perturb_speed: bool = False, whisper_fbank: bool = False):
+def compute_fbank_aishell4(
+    num_mel_bins: int = 80, perturb_speed: bool = False, whisper_fbank: bool = False
+):
     src_dir = Path("data/manifests/aishell4")
     output_dir = Path("data/fbank")
     num_jobs = min(8, os.cpu_count())
@@ -71,7 +80,9 @@ def compute_fbank_aishell4(num_mel_bins: int = 80, perturb_speed: bool = False, 
     )
 
     if whisper_fbank:
-        extractor = WhisperFbank(WhisperFbankConfig(num_filters=num_mel_bins, device='cuda'))
+        extractor = WhisperFbank(
+            WhisperFbankConfig(num_filters=num_mel_bins, device="cuda")
+        )
     else:
         extractor = Fbank(FbankConfig(num_mel_bins=num_mel_bins))
 
@@ -87,7 +98,7 @@ def compute_fbank_aishell4(num_mel_bins: int = 80, perturb_speed: bool = False, 
                 supervisions=m["supervisions"],
             )
             if "train" in partition and perturb_speed:
-                logging.info(f"Doing speed perturb")
+                logging.info("Doing speed perturb")
                 cut_set = (
                     cut_set + cut_set.perturb_speed(0.9) + cut_set.perturb_speed(1.1)
                 )
@@ -100,7 +111,7 @@ def compute_fbank_aishell4(num_mel_bins: int = 80, perturb_speed: bool = False, 
                 executor=ex,
                 storage_type=LilcomChunkyWriter,
             )
-    
+
             logging.info("About splitting cuts into smaller chunks")
             cut_set = cut_set.trim_to_supervisions(
                 keep_overlapping=False,
@@ -140,5 +151,7 @@ if __name__ == "__main__":
 
     args = get_args()
     compute_fbank_aishell4(
-        num_mel_bins=args.num_mel_bins, perturb_speed=args.perturb_speed, whisper_fbank=args.whisper_fbank
+        num_mel_bins=args.num_mel_bins,
+        perturb_speed=args.perturb_speed,
+        whisper_fbank=args.whisper_fbank,
     )

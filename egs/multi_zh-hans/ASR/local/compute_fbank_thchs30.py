@@ -30,7 +30,14 @@ import os
 from pathlib import Path
 
 import torch
-from lhotse import CutSet, WhisperFbank, WhisperFbankConfig, Fbank, FbankConfig, LilcomChunkyWriter
+from lhotse import (
+    CutSet,
+    Fbank,
+    FbankConfig,
+    LilcomChunkyWriter,
+    WhisperFbank,
+    WhisperFbankConfig,
+)
 from lhotse.recipes.utils import read_manifests_if_cached
 
 from icefall.utils import get_executor, str2bool
@@ -43,7 +50,9 @@ torch.set_num_threads(1)
 torch.set_num_interop_threads(1)
 
 
-def compute_fbank_thchs30(num_mel_bins: int = 80, speed_perturb: bool = False, whisper_fbank: bool = False):
+def compute_fbank_thchs30(
+    num_mel_bins: int = 80, speed_perturb: bool = False, whisper_fbank: bool = False
+):
     src_dir = Path("data/manifests/thchs30")
     output_dir = Path("data/fbank")
     num_jobs = min(15, os.cpu_count())
@@ -71,7 +80,9 @@ def compute_fbank_thchs30(num_mel_bins: int = 80, speed_perturb: bool = False, w
     )
 
     if whisper_fbank:
-        extractor = WhisperFbank(WhisperFbankConfig(num_filters=args.num_mel_bins, device='cuda'))
+        extractor = WhisperFbank(
+            WhisperFbankConfig(num_filters=args.num_mel_bins, device="cuda")
+        )
     else:
         extractor = Fbank(FbankConfig(num_mel_bins=num_mel_bins))
 
@@ -132,5 +143,7 @@ if __name__ == "__main__":
 
     args = get_args()
     compute_fbank_thchs30(
-        num_mel_bins=args.num_mel_bins, speed_perturb=args.speed_perturb, whisper_fbank=args.whisper_fbank
+        num_mel_bins=args.num_mel_bins,
+        speed_perturb=args.speed_perturb,
+        whisper_fbank=args.whisper_fbank,
     )

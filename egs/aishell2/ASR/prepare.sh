@@ -6,8 +6,8 @@ export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
 set -eou pipefail
 
 nj=30
-stage=1
-stop_stage=1
+stage=0
+stop_stage=7
 perturb_speed=true
 
 

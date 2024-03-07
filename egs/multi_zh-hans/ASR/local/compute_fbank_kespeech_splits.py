@@ -25,16 +25,17 @@ from pathlib import Path
 import torch
 from lhotse import (
     CutSet,
-    WhisperFbank,
-    WhisperFbankConfig,
     KaldifeatFbank,
     KaldifeatFbankConfig,
     LilcomChunkyWriter,
+    WhisperFbank,
+    WhisperFbankConfig,
     set_audio_duration_mismatch_tolerance,
     set_caching_enabled,
 )
 
 from icefall.utils import str2bool
+
 # Torch's multithreaded behavior needs to be disabled or
 # it wastes a lot of CPU and slow things down.
 # Do this outside of main() in case it needs to take effect
@@ -129,7 +130,9 @@ def compute_fbank_kespeech_splits(args):
     if torch.cuda.is_available():
         device = torch.device("cuda", 0)
     if args.whisper_fbank:
-        extractor = WhisperFbank(WhisperFbankConfig(num_filters=args.num_mel_bins, device='cuda'))
+        extractor = WhisperFbank(
+            WhisperFbankConfig(num_filters=args.num_mel_bins, device="cuda")
+        )
     else:
         extractor = KaldifeatFbank(KaldifeatFbankConfig(device=device))
     logging.info(f"device: {device}")
