@@ -27,7 +27,7 @@ torchrun --nproc-per-node 8 ./whisper/train.py \
   --deepspeed_config ./whisper/ds_config_zero1.json
 
 # fine-tuning with ddp
-torchrun --nproc-per-node 8 ./whisper/train.py \
+torchrun --nproc_per_node 8 ./whisper/train.py \
   --max-duration 200 \
   --exp-dir whisper/exp_medium \
   --base-lr 1e-5 \
