@@ -30,6 +30,7 @@ from scaling import (
 )
 from scaling import (
     ScaledLinear,  # not as in other dirs.. just scales down initial parameter values.
+    ScaledLinear_lora
 )
 from scaling import (
     ActivationDropoutAndLinear,
@@ -116,6 +117,8 @@ class Zipformer2(EncoderInterface):
         causal: bool = False,
         chunk_size: Tuple[int] = [-1],
         left_context_frames: Tuple[int] = [-1],
+        use_lora: bool = True,
+        lora_r: int = 0,
     ) -> None:
         super(Zipformer2, self).__init__()
 
@@ -152,6 +155,8 @@ class Zipformer2(EncoderInterface):
         self.chunk_size = chunk_size
         self.left_context_frames = left_context_frames
 
+        self.lora_r = lora_r if use_lora else 0
+
         for u, d in zip(encoder_unmasked_dim, encoder_dim):
             assert u <= d
 
@@ -171,6 +176,7 @@ class Zipformer2(EncoderInterface):
                 dropout=dropout,
                 cnn_module_kernel=cnn_module_kernel[i],
                 causal=causal,
+                lora_r=self.lora_r,
             )
 
             # For the segment of the warmup period, we let the Conv2dSubsampling
@@ -589,6 +595,9 @@ class Zipformer2EncoderLayer(nn.Module):
         bypass_skip_rate: FloatLike = ScheduledFloat(
             (0.0, 0.5), (4000.0, 0.02), default=0
         ),
+        lora_r: int = 0,
+        lora_alpha: int = 4,
+        lora_dropout: float = 0.0,
     ) -> None:
         super(Zipformer2EncoderLayer, self).__init__()
         self.embed_dim = embed_dim
@@ -620,6 +629,9 @@ class Zipformer2EncoderLayer(nn.Module):
             query_head_dim=query_head_dim,
             pos_head_dim=pos_head_dim,
             dropout=0.0,
+            lora_r=lora_r,
+            lora_alpha=lora_alpha,
+            lora_dropout=lora_dropout,
         )
 
         self.self_attn1 = SelfAttention(embed_dim, num_heads, value_head_dim)
@@ -1508,6 +1520,7 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
             dropout: dropout probability for attn_output_weights. Default: 0.0.
        pos_emb_skip_rate: probability for skipping the pos_emb part of the scores on
                      any given call to forward(), in training time.
+        lora_r: the bottleneck dimension of LoRA
     """
 
     def __init__(
@@ -1519,6 +1532,9 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         pos_head_dim: int,
         dropout: float = 0.0,
         pos_emb_skip_rate: FloatLike = ScheduledFloat((0.0, 0.5), (4000.0, 0.0)),
+        lora_r: int = 0,
+        lora_alpha: int = 4,
+        lora_dropout: float=0.0
     ) -> None:
         super().__init__()
         self.embed_dim = embed_dim
@@ -1537,8 +1553,17 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         # dividing it between the query and key.   Note: this module is intended
         # to be used with the ScaledAdam optimizer; with most other optimizers,
         # it would be necessary to apply the scaling factor in the forward function.
-        self.in_proj = ScaledLinear(
-            embed_dim, in_proj_dim, bias=True, initial_scale=query_head_dim**-0.25
+        # self.in_proj = ScaledLinear(
+        #     embed_dim, in_proj_dim, bias=True, initial_scale=query_head_dim**-0.25
+        # )
+        self.in_proj = ScaledLinear_lora(
+            in_features=embed_dim,
+            out_features=in_proj_dim,
+            r=lora_r,
+            lora_alpha=lora_alpha,
+            lora_dropout=lora_dropout,
+            initial_scale=query_head_dim**-0.25,
+            bias=True,
         )
 
         self.whiten_keys = Whiten(

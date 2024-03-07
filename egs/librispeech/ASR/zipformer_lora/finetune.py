@@ -134,7 +134,7 @@ def add_finetune_arguments(parser: argparse.ArgumentParser):
         default=True,
         help="If true, finetune from a pre-trained checkpoint",
     )
-    
+
     parser.add_argument(
         "--use-mux",
         type=str2bool,
@@ -390,7 +390,7 @@ def get_parser():
     parser.add_argument(
         "--base-lr",
         type=float,
-        default=0.0045,
+        default=0.045,
         help="""The base learning rate.
         It is set to a very small value as we are doing fine-tuning""",
     )
@@ -646,6 +646,8 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         causal=params.causal,
         chunk_size=_to_int_tuple(params.chunk_size),
         left_context_frames=_to_int_tuple(params.left_context_frames),
+        use_lora=params.use_lora,
+        lora_r=params.lora_r if params.use_lora else 0,
     )
     return encoder
 
@@ -1041,6 +1043,12 @@ def train_one_epoch(
 
     saved_bad_model = False
 
+    for name, m in model.named_modules():
+        if "lora" in name:
+            m.training = True
+        else:
+            m.training = False
+
     def save_bad_model(suffix: str = ""):
         save_checkpoint_impl(
             filename=params.exp_dir / f"bad-model{suffix}-{rank}.pt",
@@ -1177,7 +1185,6 @@ def train_one_epoch(
                     valid_dl=valid_dl,
                     world_size=world_size,
                 )
-                model.train()
                 logging.info(
                     f"Validation on {valid_set}: Epoch {params.cur_epoch}, validation: {valid_info}"
                 )
@@ -1188,6 +1195,7 @@ def train_one_epoch(
                     valid_info.write_summary(
                         tb_writer, f"train/{valid_set}_valid_", params.batch_idx_train
                     )
+            model.train()
 
     loss_value = tot_loss["loss"] / tot_loss["frames"]
     params.train_loss = loss_value
@@ -1257,7 +1265,7 @@ def run(rank, world_size, args):
         assert params.start_epoch == 1, "Fine-tune must start from epoch 1"
         modules = params.init_modules.split(",") if params.init_modules else None
         checkpoints = load_model_params(
-            ckpt=params.finetune_ckpt, model=model, init_modules=modules
+            ckpt=params.finetune_ckpt, model=model, init_modules=modules, strict=False
         )
         # Need to update the model_avg if use initialisation
         if rank == 0:
@@ -1270,6 +1278,17 @@ def run(rank, world_size, args):
             params=params, model=model, model_avg=model_avg
         )
 
+    # keep the original model untouched, only update the adapters
+    num_trainable = 0
+    for name, p in model.named_parameters():
+        if "lora_A" in name or "lora_B" in name:
+            p.requires_grad = True
+            num_trainable += p.numel()
+        else:
+            p.requires_grad = False
+
+    logging.info("A total of {} trainable parameters ({:.3f}% of the whole model)".format(num_trainable, num_trainable/num_param * 100))
+    
     model.to(device)
     if world_size > 1:
         logging.info("Using DDP")
@@ -1379,14 +1398,14 @@ def run(rank, world_size, args):
         librispeech.valid_dataloaders(gigaspeech_dev_cuts),
     ]
 
-    if not params.print_diagnostics:
-        scan_pessimistic_batches_for_oom(
-            model=model,
-            train_dl=train_dl,
-            optimizer=optimizer,
-            sp=sp,
-            params=params,
-        )
+    # if not params.print_diagnostics:
+    #     scan_pessimistic_batches_for_oom(
+    #         model=model,
+    #         train_dl=train_dl,
+    #         optimizer=optimizer,
+    #         sp=sp,
+    #         params=params,
+    #     )
 
     scaler = GradScaler(enabled=params.use_fp16, init_scale=1.0)
     if checkpoints and "grad_scaler" in checkpoints:
