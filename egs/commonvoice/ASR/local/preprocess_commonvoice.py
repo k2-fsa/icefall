@@ -48,8 +48,18 @@ def normalize_text(utt: str, language: str) -> str:
     utt = re.sub("’", "'", utt)
     if language == "en":
         return re.sub(r"[^a-zA-Z\s]", "", utt).upper()
-    if language == "fr":
+    elif language == "fr":
         return re.sub(r"[^A-ZÀÂÆÇÉÈÊËÎÏÔŒÙÛÜ' ]", "", utt).upper()
+    elif language == "pl":
+        return re.sub(r"[^a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ' ]", "", utt).upper()
+    else:
+        raise NotImplementedError(
+            f"""
+            Text normalization not implemented for language: {language},
+            please consider implementing it in the local/preprocess_commonvoice.py
+            or raise an issue on GitHub to request it.
+            """
+        )
 
 
 def preprocess_commonvoice(
