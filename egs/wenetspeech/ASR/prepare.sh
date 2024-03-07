@@ -182,6 +182,43 @@ if [ $stage -le 13 ] && [ $stop_stage -ge 13 ]; then
   fi
 fi
 
+whisper_mel_bins=80
+if [ $stage -le 129 ] && [ $stop_stage -ge 129 ]; then
+  log "Stage 129: compute whisper fbank for dev and test sets"
+  python3 ./local/compute_fbank_wenetspeech_dev_test.py --num-mel-bins ${whisper_mel_bins} --whisper-fbank true
+fi
+if [ $stage -le 130 ] && [ $stop_stage -ge 130 ]; then
+  log "Stage 130: Comute features for whisper training set"
+
+  split_dir=data/fbank/L_split_${num_splits}
+  if [ ! -f $split_dir/.split_completed ]; then
+    lhotse split $num_splits ./data/fbank/cuts_L_raw.jsonl.gz $split_dir
+    touch $split_dir/.split_completed
+  fi
+
+  python3 ./local/compute_fbank_wenetspeech_splits.py \
+    --training-subset L \
+    --num-workers 8 \
+    --batch-duration 1600 \
+    --start 0 \
+    --num-mel-bins ${whisper_mel_bins} --whisper-fbank true \
+    --num-splits $num_splits
+
+  if [ ! -f data/fbank/cuts_L.jsonl.gz ]; then
+    pieces=$(find data/fbank/L_split_${num_splits} -name "cuts_L.*.jsonl.gz")
+    lhotse combine $pieces data/fbank/cuts_L.jsonl.gz
+  fi
+fi
+
+if [ $stage -le 131 ] && [ $stop_stage -ge 131 ]; then
+  log "Stage 131: concat feats into train set"
+  if [ ! -f data/fbank/cuts_L.jsonl.gz ]; then
+    pieces=$(find data/fbank/L_split_${num_splits} -name "cuts_L.*.jsonl.gz")
+    lhotse combine $pieces data/fbank/cuts_L.jsonl.gz
+  fi
+fi
+
+
 if [ $stage -le 14 ] && [ $stop_stage -ge 14 ]; then
   log "Stage 14: Compute fbank for musan"
   mkdir -p data/fbank
@@ -272,7 +309,7 @@ if [ $stage -le 19 ] && [ $stop_stage -ge 19 ]; then
   mkdir -p $text_out_dir
 
   log "Genearating training text data"
-  
+
   if [ ! -f $text_out_dir/lm_data.pt ]; then
     ./local/prepare_char_lm_training_data.py \
       --lang-char data/lang_char \
@@ -281,14 +318,14 @@ if [ $stage -le 19 ] && [ $stop_stage -ge 19 ]; then
   fi
 
   log "Generating DEV text data"
-  # prepare validation text data 
+  # prepare validation text data
   if [ ! -f $text_out_dir/valid_text_words_segmentation ]; then
     valid_text=${text_out_dir}/
 
     gunzip -c data/manifests/wenetspeech_supervisions_DEV.jsonl.gz \
       | jq '.text' | sed 's/"//g' \
       | ./local/text2token.py -t "char" > $text_out_dir/valid_text
-    
+
     python3 ./local/text2segments.py \
       --num-process $nj \
       --input-file $text_out_dir/valid_text \
@@ -300,7 +337,7 @@ if [ $stage -le 19 ] && [ $stop_stage -ge 19 ]; then
     --lm-data $text_out_dir/valid_text_words_segmentation \
     --lm-archive $text_out_dir/lm_data_valid.pt
 
-  # prepare TEST text data 
+  # prepare TEST text data
   if [ ! -f $text_out_dir/TEST_text_words_segmentation ]; then
     log "Prepare text for test set."
     for test_set in TEST_MEETING TEST_NET; do
@@ -313,7 +350,7 @@ if [ $stage -le 19 ] && [ $stop_stage -ge 19 ]; then
           --input-file $text_out_dir/${test_set}_text \
           --output-file $text_out_dir/${test_set}_text_words_segmentation
     done
-    
+
     cat $text_out_dir/TEST_*_text_words_segmentation > $text_out_dir/test_text_words_segmentation
   fi
 
