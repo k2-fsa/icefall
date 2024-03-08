@@ -118,7 +118,7 @@ def get_word_segments(lines: List[str]) -> List[str]:
 def get_words(lines: List[str]) -> List[str]:
     words = set()
     for line in tqdm(lines, desc="Getting words"):
-        words.update(line.strip().split(" "))
+        words.update(line.replace("\n", "").split(" "))
     return list(words)
 
 
