@@ -92,6 +92,8 @@ def get_word_segments(lines: List[str]) -> List[str]:
             if len(line.strip().split(" ")) > 1:
                 segments = []
                 for segment in line.strip().split(" "):
+                    if segment.strip() == "":
+                        continue
                     try:
                         if not is_cjk(segment[0]):  # en segment
                             segments.append(segment)
