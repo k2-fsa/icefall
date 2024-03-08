@@ -89,9 +89,9 @@ def get_word_segments(lines: List[str]) -> List[str]:
     for line in tqdm(lines, desc="Segmenting lines"):
         try:
             # code switching
-            if len(line.split(" ")) > 1:
+            if len(line.strip().split(" ")) > 1:
                 segments = []
-                for segment in line.split(" "):
+                for segment in line.strip().split(" "):
                     try:
                         if not is_cjk(segment[0]):  # en segment
                             segments.append(segment)
