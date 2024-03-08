@@ -1,4 +1,4 @@
-kaldifst
+kaldifst>1.7.0
 kaldilm
 kaldialign
 num2words
