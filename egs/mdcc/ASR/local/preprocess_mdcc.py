@@ -118,7 +118,7 @@ def get_word_segments(lines: List[str]) -> List[str]:
 def get_words(lines: List[str]) -> List[str]:
     words = set()
     for line in tqdm(lines, desc="Getting words"):
-        words.update(line.replace("\n", "").split(" "))
+        words.update(line.strip().split(" "))
     return list(words)
 
 
@@ -142,7 +142,7 @@ if __name__ == "__main__":
     with open(output_dir / "text_words_segmentation", "w+", encoding="utf-8") as f:
         f.writelines(text_words_segments)
 
-    words = get_words(text_words_segments)
+    words = get_words(text_words_segments)[1:]  # remove "\n" from words
     with open(output_dir / "words_no_ids.txt", "w+", encoding="utf-8") as f:
         f.writelines([word + "\n" for word in sorted(words)])
 
