@@ -102,6 +102,7 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   # We assume that you have downloaded the MDCC corpus
   # to $dl_dir/mdcc
   if [ ! -f data/manifests/.mdcc_manifests.done ]; then
+    log "Might take 40 minutes to traverse the directory."
     mkdir -p data/manifests
     lhotse prepare mdcc $dl_dir/mdcc data/manifests
     touch data/manifests/.mdcc_manifests.done
