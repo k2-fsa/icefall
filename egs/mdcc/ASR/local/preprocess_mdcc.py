@@ -104,7 +104,7 @@ def get_word_segments(lines: List[str]) -> List[str]:
             # not code switching
             else:
                 new_lines.append(" ".join(pycantonese.segment(line)) + "\n")
-        except:
+        except Exception as e:
             logging.error(f"Failed to process line: {line}")
             raise e
     return new_lines
