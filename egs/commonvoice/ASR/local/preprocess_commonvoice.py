@@ -52,6 +52,15 @@ def normalize_text(utt: str, language: str) -> str:
         return re.sub(r"[^A-ZÀÂÆÇÉÈÊËÎÏÔŒÙÛÜ' ]", "", utt).upper()
     elif language == "pl":
         return re.sub(r"[^a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ' ]", "", utt).upper()
+    elif language == "yue":
+        return (
+            utt.replace(" ", "")
+            .replace("，", "")
+            .replace("。", " ")
+            .replace("？", "")
+            .replace("！", "")
+            .replace("?", "")
+        )
     else:
         raise NotImplementedError(
             f"""
