@@ -634,9 +634,23 @@ class Zipformer2EncoderLayer(nn.Module):
             lora_dropout=lora_dropout,
         )
 
-        self.self_attn1 = SelfAttention(embed_dim, num_heads, value_head_dim)
+        self.self_attn1 = SelfAttention(
+            embed_dim, 
+            num_heads,
+            value_head_dim,
+            lora_r=lora_r,
+            lora_alpha=lora_alpha,
+            lora_dropout=lora_dropout,
+        )
 
-        self.self_attn2 = SelfAttention(embed_dim, num_heads, value_head_dim)
+        self.self_attn2 = SelfAttention(
+            embed_dim, 
+            num_heads,
+            value_head_dim,
+            lora_r=lora_r,
+            lora_alpha=lora_alpha,
+            lora_dropout=lora_dropout,
+        )
 
         self.feed_forward1 = FeedforwardModule(
             embed_dim, (feedforward_dim * 3) // 4, dropout
@@ -1901,9 +1915,19 @@ class SelfAttention(nn.Module):
         embed_dim: int,
         num_heads: int,
         value_head_dim: int,
+        lora_r: int = 0,
+        lora_alpha: int = 4,
+        lora_dropout: float=0.0
     ) -> None:
         super().__init__()
-        self.in_proj = nn.Linear(embed_dim, num_heads * value_head_dim, bias=True)
+        self.in_proj = ScaledLinear_lora(
+            in_features=embed_dim,
+            out_features=num_heads * value_head_dim,
+            r=lora_r,
+            lora_alpha=lora_alpha,
+            lora_dropout=lora_dropout,
+            bias=True,
+        )
 
         self.out_proj = ScaledLinear(
             num_heads * value_head_dim, embed_dim, bias=True, initial_scale=0.05
