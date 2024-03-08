@@ -172,6 +172,9 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   if [ ! -f $lang_char_dir/text_words_segmentation ]; then
     ./local/preprocess_mdcc.py --input-file $lang_char_dir/text \
       --output-dir $lang_char_dir
+    
+    mv $lang_char_dir/text $lang_char_dir/_text
+    cp $lang_char_dir/text_words_segmentation $lang_char_dir/text
   fi
 
   if [ ! -f $lang_char_dir/tokens.txt ]; then

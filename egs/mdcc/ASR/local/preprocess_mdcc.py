@@ -32,6 +32,8 @@ from typing import List
 import pycantonese
 from tqdm.auto import tqdm
 
+from icefall.utils import is_cjk
+
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -67,6 +69,7 @@ def get_norm_lines(lines: List[str]) -> List[str]:
         # about, for example, {梁佳佳}，我是{}人.
         return (
             text.strip()
+            .upper()
             .replace("(music)", "")
             .replace("(music", "")
             .replace("{", "")
@@ -77,16 +80,31 @@ def get_norm_lines(lines: List[str]) -> List[str]:
 
 
 def get_word_segments(lines: List[str]) -> List[str]:
-    return [
-        " ".join(pycantonese.segment(line)) + "\n"
-        for line in tqdm(lines, desc="Segmenting lines")
-    ]
+    # the current pycantonese segmenter does not handle the case when the input
+    # is code switching, so we need to handle it separately
+
+    new_lines = []
+
+    for line in tqdm(lines, desc="Segmenting lines"):
+        # code switching
+        if len(line.split(" ")) > 1:
+            segments = []
+            for segment in line.split(" "):
+                if not is_cjk(segment[0]):  # en segment
+                    segments.append(segment)
+                else:  # zh segment
+                    segments.extend(pycantonese.segment(segment))
+            new_lines.append(" ".join(segments) + "\n")
+        # not code switching
+        else:
+            new_lines.append(" ".join(pycantonese.segment(line)) + "\n")
+    return new_lines
 
 
 def get_words(lines: List[str]) -> List[str]:
     words = set()
     for line in tqdm(lines, desc="Getting words"):
-        words.update(pycantonese.segment(line))
+        words.update(line.strip().split(" "))
     return list(words)
 
 
@@ -106,6 +124,10 @@ if __name__ == "__main__":
     with open(output_dir / "text_norm", "w+", encoding="utf-8") as f:
         f.writelines([line + "\n" for line in norm_lines])
 
+    text_words_segments = get_word_segments(norm_lines)
+    with open(output_dir / "text_words_segmentation", "w+", encoding="utf-8") as f:
+        f.writelines(text_words_segments)
+
     words = get_words(norm_lines)
     with open(output_dir / "words_no_ids.txt", "w+", encoding="utf-8") as f:
         f.writelines([word + "\n" for word in sorted(words)])
@@ -118,7 +140,3 @@ if __name__ == "__main__":
 
     with open(output_dir / "words.txt", "w+", encoding="utf-8") as f:
         f.writelines([f"{word} {i}\n" for i, word in enumerate(words)])
-
-    text_words_segments = get_word_segments(norm_lines)
-    with open(output_dir / "text_words_segmentation", "w+", encoding="utf-8") as f:
-        f.writelines(text_words_segments)
