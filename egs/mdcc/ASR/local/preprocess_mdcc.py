@@ -92,16 +92,21 @@ def get_word_segments(lines: List[str]) -> List[str]:
             if len(line.split(" ")) > 1:
                 segments = []
                 for segment in line.split(" "):
-                    if not is_cjk(segment[0]):  # en segment
-                        segments.append(segment)
-                    else:  # zh segment
-                        segments.extend(pycantonese.segment(segment))
+                    try:
+                        if not is_cjk(segment[0]):  # en segment
+                            segments.append(segment)
+                        else:  # zh segment
+                            segments.extend(pycantonese.segment(segment))
+                    except Exception as e:
+                        logging.error(f"Failed to process segment: {segment}")
+                        raise e
                 new_lines.append(" ".join(segments) + "\n")
             # not code switching
             else:
                 new_lines.append(" ".join(pycantonese.segment(line)) + "\n")
         except:
             logging.error(f"Failed to process line: {line}")
+            raise e
     return new_lines
 
 
