@@ -26,6 +26,7 @@ files in the directory "data/lang_char":
 """
 
 import argparse
+import logging
 from pathlib import Path
 from typing import List
 
@@ -86,18 +87,21 @@ def get_word_segments(lines: List[str]) -> List[str]:
     new_lines = []
 
     for line in tqdm(lines, desc="Segmenting lines"):
-        # code switching
-        if len(line.split(" ")) > 1:
-            segments = []
-            for segment in line.split(" "):
-                if not is_cjk(segment[0]):  # en segment
-                    segments.append(segment)
-                else:  # zh segment
-                    segments.extend(pycantonese.segment(segment))
-            new_lines.append(" ".join(segments) + "\n")
-        # not code switching
-        else:
-            new_lines.append(" ".join(pycantonese.segment(line)) + "\n")
+        try:
+            # code switching
+            if len(line.split(" ")) > 1:
+                segments = []
+                for segment in line.split(" "):
+                    if not is_cjk(segment[0]):  # en segment
+                        segments.append(segment)
+                    else:  # zh segment
+                        segments.extend(pycantonese.segment(segment))
+                new_lines.append(" ".join(segments) + "\n")
+            # not code switching
+            else:
+                new_lines.append(" ".join(pycantonese.segment(line)) + "\n")
+        except:
+            logging.error(f"Failed to process line: {line}")
     return new_lines
 
 
