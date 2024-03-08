@@ -70,11 +70,14 @@ def get_norm_lines(lines: List[str]) -> List[str]:
         # about, for example, {梁佳佳}，我是{}人.
         return (
             text.strip()
-            .upper()
             .replace("(music)", "")
             .replace("(music", "")
             .replace("{", "")
             .replace("}", "")
+            .replace(
+                "BB所以就指腹為親喇", "BB 所以就指腹為親喇"
+            )  # manually fix the error
+            .upper()
         )
 
     return [_text_norm(line) for line in lines]
@@ -139,7 +142,7 @@ if __name__ == "__main__":
     with open(output_dir / "text_words_segmentation", "w+", encoding="utf-8") as f:
         f.writelines(text_words_segments)
 
-    words = get_words(norm_lines)
+    words = get_words(text_words_segments)
     with open(output_dir / "words_no_ids.txt", "w+", encoding="utf-8") as f:
         f.writelines([word + "\n" for word in sorted(words)])
 
