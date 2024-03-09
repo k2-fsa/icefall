@@ -68,15 +68,16 @@ def get_norm_lines(lines: List[str]) -> List[str]:
         # annotators mark the label "(music)" before each sentence in the transcript.
         # 3) The annotators use {} symbols to enclose words they are uncertain
         # about, for example, {梁佳佳}，我是{}人.
+
+        # here we manually fix some errors in the transcript
+
         return (
             text.strip()
             .replace("(music)", "")
             .replace("(music", "")
             .replace("{", "")
             .replace("}", "")
-            .replace(
-                "BB所以就指腹為親喇", "BB 所以就指腹為親喇"
-            )  # manually fix the error
+            .replace("BB所以就指腹為親喇", "BB 所以就指腹為親喇")
             .upper()
         )
 
