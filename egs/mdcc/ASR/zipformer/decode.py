@@ -769,7 +769,7 @@ def main():
 
     # we need cut ids to display recognition results.
     args.return_cuts = True
-    aishell = MdccAsrDataModule(args)
+    mdcc = MdccAsrDataModule(args)
 
     def remove_short_utt(c: Cut):
         T = ((c.num_frames - 7) // 2 + 1) // 2
@@ -779,13 +779,13 @@ def main():
             )
         return T > 0
 
-    valid_cuts = aishell.valid_cuts()
+    valid_cuts = mdcc.valid_cuts()
     valid_cuts = valid_cuts.filter(remove_short_utt)
-    valid_dl = aishell.valid_dataloaders(valid_cuts)
+    valid_dl = mdcc.valid_dataloaders(valid_cuts)
 
-    test_cuts = aishell.test_cuts()
+    test_cuts = mdcc.test_cuts()
     test_cuts = test_cuts.filter(remove_short_utt)
-    test_dl = aishell.test_dataloaders(test_cuts)
+    test_dl = mdcc.test_dataloaders(test_cuts)
 
     test_sets = ["valid", "test"]
     test_dls = [valid_dl, test_dl]
