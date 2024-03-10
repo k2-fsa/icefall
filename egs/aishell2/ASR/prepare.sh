@@ -108,6 +108,16 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   fi
 fi
 
+whisper_mel_bins=80
+if [ $stage -le 30 ] && [ $stop_stage -ge 30 ]; then
+  log "Stage 30: Compute whisper fbank for aishell2"
+  if [ ! -f data/fbank/.aishell2.whisper.done ]; then
+    mkdir -p data/fbank
+    ./local/compute_fbank_aishell2.py --perturb-speed ${perturb_speed} --num-mel-bins ${whisper_mel_bins} --whisper-fbank true
+    touch data/fbank/.aishell2.whisper.done
+  fi
+fi
+
 if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
   log "Stage 4: Compute fbank for musan"
   if [ ! -f data/fbank/.msuan.done ]; then

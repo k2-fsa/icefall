@@ -99,7 +99,6 @@ from icefall.utils import (
     text_to_pinyin,
 )
 
-
 LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
 
 

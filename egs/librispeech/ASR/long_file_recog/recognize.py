@@ -31,28 +31,28 @@ https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stat
 """
 
 import argparse
-import torch.multiprocessing as mp
-import torch
-import torch.nn as nn
 import logging
 from concurrent.futures import ThreadPoolExecutor
-from typing import List, Optional, Tuple
-
 from pathlib import Path
+from typing import List, Optional, Tuple
 
 import k2
 import sentencepiece as spm
+import torch
+import torch.multiprocessing as mp
+import torch.nn as nn
 from asr_datamodule import AsrDataModule
 from beam_search import (
     fast_beam_search_one_best,
     greedy_search_batch,
     modified_beam_search,
 )
-from icefall.utils import AttributeDict, convert_timestamp, setup_logger
 from lhotse import CutSet, load_manifest_lazy
 from lhotse.cut import Cut
-from lhotse.supervision import AlignmentItem
 from lhotse.serialization import SequentialJsonlWriter
+from lhotse.supervision import AlignmentItem
+
+from icefall.utils import AttributeDict, convert_timestamp, setup_logger
 
 
 def get_parser():

@@ -42,12 +42,10 @@ import sentencepiece as spm
 import torch
 import torch.nn as nn
 from asr_datamodule import GigaSpeechAsrDataModule
-from beam_search import (
-    keywords_search,
-)
+from beam_search import keywords_search
+from lhotse.cut import Cut
 from train import add_model_arguments, get_model, get_params
 
-from lhotse.cut import Cut
 from icefall import ContextGraph
 from icefall.checkpoint import (
     average_checkpoints,

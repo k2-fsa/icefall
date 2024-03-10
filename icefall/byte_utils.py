@@ -8,7 +8,6 @@
 import re
 import unicodedata
 
-
 WHITESPACE_NORMALIZER = re.compile(r"\s+")
 SPACE = chr(32)
 SPACE_ESCAPE = chr(9601)

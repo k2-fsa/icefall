@@ -87,6 +87,19 @@ from torch import Tensor
 from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
+from train import (
+    add_model_arguments,
+    add_training_arguments,
+    compute_validation_loss,
+    display_and_save_batch,
+    get_adjusted_batch_count,
+    get_model,
+    get_params,
+    load_checkpoint_if_available,
+    save_checkpoint,
+    scan_pessimistic_batches_for_oom,
+    set_batch_count,
+)
 
 from icefall import diagnostics
 from icefall.char_graph_compiler import CharCtcTrainingGraphCompiler
@@ -108,21 +121,6 @@ from icefall.utils import (
     str2bool,
     text_to_pinyin,
 )
-
-from train import (
-    add_model_arguments,
-    add_training_arguments,
-    compute_validation_loss,
-    display_and_save_batch,
-    get_adjusted_batch_count,
-    get_model,
-    get_params,
-    load_checkpoint_if_available,
-    save_checkpoint,
-    scan_pessimistic_batches_for_oom,
-    set_batch_count,
-)
-
 
 LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
 

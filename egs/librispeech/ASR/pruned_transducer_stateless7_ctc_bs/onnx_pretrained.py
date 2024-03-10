@@ -52,7 +52,7 @@ import onnxruntime as ort
 import sentencepiece as spm
 import torch
 import torchaudio
-from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence
+from torch.nn.utils.rnn import pack_padded_sequence, pad_sequence
 
 from icefall.utils import make_pad_mask
 

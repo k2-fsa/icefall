@@ -65,16 +65,15 @@ from typing import Dict, List
 
 import sentencepiece as spm
 import torch
-
 from train import add_model_arguments, get_params, get_transducer_model
 
-from icefall.utils import str2bool
 from icefall.checkpoint import (
     average_checkpoints,
     average_checkpoints_with_averaged_model,
     find_checkpoints,
     load_checkpoint,
 )
+from icefall.utils import str2bool
 
 
 def get_parser():

@@ -5,8 +5,8 @@ ENV LC_ALL C.UTF-8
 ARG DEBIAN_FRONTEND=noninteractive
 
 # python 3.10
-ARG K2_VERSION="1.24.4.dev20240211+cuda12.1.torch2.2.0"
-ARG KALDIFEAT_VERSION="1.25.4.dev20240210+cuda12.1.torch2.2.0"
+ARG K2_VERSION="1.24.4.dev20240223+cuda12.1.torch2.2.0"
+ARG KALDIFEAT_VERSION="1.25.4.dev20240223+cuda12.1.torch2.2.0"
 ARG TORCHAUDIO_VERSION="2.2.0+cu121"
 
 LABEL authors="Fangjun Kuang <csukuangfj@gmail.com>"
