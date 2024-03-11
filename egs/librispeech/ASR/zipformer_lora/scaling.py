@@ -1740,6 +1740,45 @@ class ActivationDropoutAndLinear(torch.nn.Module):
             self.dropout_shared_dim,
         )
 
+class ActivationDropoutAndLinear_lora(torch.nn.Module):
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        bias: bool = True,
+        activation: str = "SwooshL",
+        dropout_p: FloatLike = 0.0,
+        dropout_shared_dim: Optional[int] = -1,
+        r: int=0,
+        lora_alpha: int=1,
+        lora_dropout: float=0.0,
+        initial_scale: float = 1.0,
+    ):
+        super().__init__()
+        # create a temporary module of nn.Linear that we'll steal the
+        # weights and bias from
+        self.l = ScaledLinear_lora(
+            in_features=in_channels,
+            out_features=out_channels,
+            r=r,
+            lora_alpha=lora_alpha,
+            lora_dropout=lora_dropout,
+            initial_scale=initial_scale,
+            bias=bias,
+        )
+
+        self.activation = activation
+        self.dropout = Dropout3(dropout_p, dropout_shared_dim)
+
+    def forward(self, x: Tensor):
+        if self.activation == "SwooshL":
+            x = SwooshLForward(x)
+        elif self.activation == "SwooshR":
+            x = SwooshRForward(x)
+        else:
+            assert False, self.activation
+        return self.dropout(self.l(x))
+
 
 def convert_num_channels(x: Tensor, num_channels: int) -> Tensor:
     if num_channels <= x.shape[-1]:

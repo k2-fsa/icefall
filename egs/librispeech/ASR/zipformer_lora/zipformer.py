@@ -34,6 +34,7 @@ from scaling import (
 )
 from scaling import (
     ActivationDropoutAndLinear,
+    ActivationDropoutAndLinear_lora,
     Balancer,
     BiasNorm,
     ChunkCausalDepthwiseConv1d,
@@ -2066,7 +2067,6 @@ class FeedforwardModule(nn.Module):
         lora_dropout: float=0.0
     ):
         super(FeedforwardModule, self).__init__()
-        # self.in_proj = nn.Linear(embed_dim, feedforward_dim)
         self.in_proj = ScaledLinear_lora(
             in_features=embed_dim,
             out_features=feedforward_dim,
@@ -2086,13 +2086,16 @@ class FeedforwardModule(nn.Module):
         )
 
         # shared_dim=0 means we share the dropout mask along the time axis
-        self.out_proj = ActivationDropoutAndLinear(
+        self.out_proj = ActivationDropoutAndLinear_lora(
             feedforward_dim,
             embed_dim,
             activation="SwooshL",
             dropout_p=dropout,
             dropout_shared_dim=0,
             bias=True,
+            r=lora_r,
+            lora_alpha=lora_alpha,
+            lora_dropout=lora_dropout,
             initial_scale=0.1,
         )
 
