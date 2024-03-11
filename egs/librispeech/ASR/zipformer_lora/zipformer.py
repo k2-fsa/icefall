@@ -653,13 +653,30 @@ class Zipformer2EncoderLayer(nn.Module):
         )
 
         self.feed_forward1 = FeedforwardModule(
-            embed_dim, (feedforward_dim * 3) // 4, dropout
+            embed_dim, 
+            (feedforward_dim * 3) // 4,
+            dropout,
+            lora_r=lora_r,
+            lora_alpha=lora_alpha,
+            lora_dropout=lora_dropout,
         )
 
-        self.feed_forward2 = FeedforwardModule(embed_dim, feedforward_dim, dropout)
+        self.feed_forward2 = FeedforwardModule(
+            embed_dim,
+            feedforward_dim,
+            dropout,
+            lora_r=lora_r,
+            lora_alpha=lora_alpha,
+            lora_dropout=lora_dropout,
+        )
 
         self.feed_forward3 = FeedforwardModule(
-            embed_dim, (feedforward_dim * 5) // 4, dropout
+            embed_dim, 
+            (feedforward_dim * 5) // 4,
+            dropout,
+            lora_r=lora_r,
+            lora_alpha=lora_alpha,
+            lora_dropout=lora_dropout,
         )
 
         self.nonlin_attention = NonlinAttention(
@@ -2039,9 +2056,25 @@ class SelfAttention(nn.Module):
 class FeedforwardModule(nn.Module):
     """Feedforward module in Zipformer2 model."""
 
-    def __init__(self, embed_dim: int, feedforward_dim: int, dropout: FloatLike):
+    def __init__(
+        self,
+        embed_dim: int,
+        feedforward_dim: int,
+        dropout: FloatLike,
+        lora_r: int = 0,
+        lora_alpha: int = 4,
+        lora_dropout: float=0.0
+    ):
         super(FeedforwardModule, self).__init__()
-        self.in_proj = nn.Linear(embed_dim, feedforward_dim)
+        # self.in_proj = nn.Linear(embed_dim, feedforward_dim)
+        self.in_proj = ScaledLinear_lora(
+            in_features=embed_dim,
+            out_features=feedforward_dim,
+            r=lora_r,
+            lora_alpha=lora_alpha,
+            lora_dropout=lora_dropout,
+            bias=True,
+        )
 
         self.hidden_balancer = Balancer(
             feedforward_dim,
