@@ -54,7 +54,7 @@ fi
 if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   log "Stage 1: Prepare LJSpeech manifest"
   # We assume that you have downloaded the LJSpeech corpus
-  # to $dl_dir/LJSpeech
+  # to $dl_dir/LJSpeech-1.1
   mkdir -p data/manifests
   if [ ! -e data/manifests/.ljspeech.done ]; then
     lhotse prepare ljspeech $dl_dir/LJSpeech-1.1 data/manifests

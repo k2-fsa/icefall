@@ -92,9 +92,9 @@ class TextEncoder(torch.nn.Module):
             x_lengths (Tensor): Length tensor (B,).
 
         Returns:
-            Tensor: Encoded hidden representation (B, attention_dim, T_text).
-            Tensor: Projected mean tensor (B, attention_dim, T_text).
-            Tensor: Projected scale tensor (B, attention_dim, T_text).
+            Tensor: Encoded hidden representation (B, embed_dim, T_text).
+            Tensor: Projected mean tensor (B, embed_dim, T_text).
+            Tensor: Projected scale tensor (B, embed_dim, T_text).
             Tensor: Mask tensor for input tensor (B, 1, T_text).
 
         """
@@ -108,6 +108,7 @@ class TextEncoder(torch.nn.Module):
 
         # encoder assume the channel last (B, T_text, embed_dim)
         x = self.encoder(x, key_padding_mask=pad_mask)
+        # Note: attention_dim == embed_dim
 
         # convert the channel first (B, embed_dim, T_text)
         x = x.transpose(1, 2)
