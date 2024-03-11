@@ -31,7 +31,7 @@ from typing import List, Tuple
 import k2
 import torch
 import torch.nn as nn
-from asr_datamodule import AishellAsrDataModule
+from asr_datamodule import MdccAsrDataModule
 from lhotse.cut import Cut
 from onnx_pretrained import OnnxModel, greedy_search
 
@@ -212,7 +212,7 @@ def save_results(
 @torch.no_grad()
 def main():
     parser = get_parser()
-    AishellAsrDataModule.add_arguments(parser)
+    MdccAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
 
     assert (
@@ -241,7 +241,7 @@ def main():
     # we need cut ids to display recognition results.
     args.return_cuts = True
 
-    aishell = AishellAsrDataModule(args)
+    mdcc = MdccAsrDataModule(args)
 
     def remove_short_utt(c: Cut):
         T = ((c.num_frames - 7) // 2 + 1) // 2
@@ -251,16 +251,16 @@ def main():
             )
         return T > 0
 
-    dev_cuts = aishell.valid_cuts()
-    dev_cuts = dev_cuts.filter(remove_short_utt)
-    dev_dl = aishell.valid_dataloaders(dev_cuts)
+    valid_cuts = mdcc.valid_cuts()
+    valid_cuts = valid_cuts.filter(remove_short_utt)
+    valid_dl = mdcc.valid_dataloaders(valid_cuts)
 
-    test_cuts = aishell.test_net_cuts()
+    test_cuts = mdcc.test_net_cuts()
     test_cuts = test_cuts.filter(remove_short_utt)
-    test_dl = aishell.test_dataloaders(test_cuts)
+    test_dl = mdcc.test_dataloaders(test_cuts)
 
-    test_sets = ["dev", "test"]
-    test_dl = [dev_dl, test_dl]
+    test_sets = ["valid", "test"]
+    test_dl = [valid_dl, test_dl]
 
     for test_set, test_dl in zip(test_sets, test_dl):
         start_time = time.time()

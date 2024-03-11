@@ -39,7 +39,7 @@ from typing import Dict, List, Optional, Tuple
 import k2
 import numpy as np
 import torch
-from asr_datamodule import AishellAsrDataModule
+from asr_datamodule import MdccAsrDataModule
 from decode_stream import DecodeStream
 from kaldifeat import Fbank, FbankOptions
 from lhotse import CutSet
@@ -177,7 +177,7 @@ def get_parser():
     parser.add_argument(
         "--context-size",
         type=int,
-        default=2,
+        default=1,
         help="The context size in the decoder. 1 means bigram; 2 means tri-gram",
     )
 
@@ -386,7 +386,11 @@ def streaming_forward(
     Returns encoder outputs, output lengths, and updated states.
     """
     cached_embed_left_pad = states[-2]
-    (x, x_lens, new_cached_embed_left_pad,) = model.encoder_embed.streaming_forward(
+    (
+        x,
+        x_lens,
+        new_cached_embed_left_pad,
+    ) = model.encoder_embed.streaming_forward(
         x=features,
         x_lens=feature_lens,
         cached_left_pad=cached_embed_left_pad,
@@ -714,7 +718,7 @@ def save_results(
 @torch.no_grad()
 def main():
     parser = get_parser()
-    AishellAsrDataModule.add_arguments(parser)
+    MdccAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 
@@ -852,13 +856,13 @@ def main():
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
-    aishell = AishellAsrDataModule(args)
+    mdcc = MdccAsrDataModule(args)
 
-    dev_cuts = aishell.valid_cuts()
-    test_cuts = aishell.test_cuts()
+    valid_cuts = mdcc.valid_cuts()
+    test_cuts = mdcc.test_cuts()
 
-    test_sets = ["dev", "test"]
-    test_cuts = [dev_cuts, test_cuts]
+    test_sets = ["valid", "test"]
+    test_cuts = [valid_cuts, test_cuts]
 
     for test_set, test_cut in zip(test_sets, test_cuts):
         results_dict = decode_dataset(
