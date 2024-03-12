@@ -152,7 +152,8 @@ $<span class="w"> </span>./vits/train.py<span class="w"> </span><span class="se"
 <span class="w">    </span>--start-epoch<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--use-fp16<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--exp-dir<span class="w"> </span>vits/exp<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--tokens<span class="w"> </span>data/tokens.txt
+<span class="w">    </span>--tokens<span class="w"> </span>data/tokens.txt<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--model-type<span class="w"> </span>high<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--max-duration<span class="w"> </span><span class="m">500</span>
 </pre></div>
 </div>
@@ -160,6 +161,11 @@ $<span class="w"> </span>./vits/train.py<span class="w"> </span><span class="se"
 <p class="admonition-title">Note</p>
 <p>You can adjust the hyper-parameters to control the size of the VITS model and
 the training configurations. For more details, please run <code class="docutils literal notranslate"><span class="pre">./vits/train.py</span> <span class="pre">--help</span></code>.</p>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>If you want a model that runs faster on CPU, please use <code class="docutils literal notranslate"><span class="pre">--model-type</span> <span class="pre">low</span></code>
+or <code class="docutils literal notranslate"><span class="pre">--model-type</span> <span class="pre">medium</span></code>.</p>
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -187,8 +193,8 @@ $<span class="w"> </span>./vits/infer.py<span class="w"> </span><span class="se"
 </section>
 <section id="export-models">
 <h2>Export models<a class="headerlink" href="#export-models" title="Permalink to this heading"></a></h2>
-<p>Currently we only support ONNX model exporting. It will generate two files in the given <code class="docutils literal notranslate"><span class="pre">exp-dir</span></code>:
-<code class="docutils literal notranslate"><span class="pre">vits-epoch-*.onnx</span></code> and <code class="docutils literal notranslate"><span class="pre">vits-epoch-*.int8.onnx</span></code>.</p>
+<p>Currently we only support ONNX model exporting. It will generate one file in the given <code class="docutils literal notranslate"><span class="pre">exp-dir</span></code>:
+<code class="docutils literal notranslate"><span class="pre">vits-epoch-*.onnx</span></code>.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>./vits/export-onnx.py<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--epoch<span class="w"> </span><span class="m">1000</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--exp-dir<span class="w"> </span>vits/exp<span class="w"> </span><span class="se">\</span>
@@ -208,7 +214,9 @@ $<span class="w"> </span>./vits/infer.py<span class="w"> </span><span class="se"
 by visiting the following link:</p>
 <blockquote>
 <div><ul class="simple">
-<li><p><a class="reference external" href="https://huggingface.co/Zengwei/icefall-tts-ljspeech-vits-2024-02-28">https://huggingface.co/Zengwei/icefall-tts-ljspeech-vits-2024-02-28</a></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--model-type=high</span></code>: <a class="reference external" href="https://huggingface.co/Zengwei/icefall-tts-ljspeech-vits-2024-02-28">https://huggingface.co/Zengwei/icefall-tts-ljspeech-vits-2024-02-28</a></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--model-type=medium</span></code>: <a class="reference external" href="https://huggingface.co/csukuangfj/icefall-tts-ljspeech-vits-medium-2024-03-12">https://huggingface.co/csukuangfj/icefall-tts-ljspeech-vits-medium-2024-03-12</a></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--model-type=low</span></code>: <a class="reference external" href="https://huggingface.co/csukuangfj/icefall-tts-ljspeech-vits-low-2024-03-12">https://huggingface.co/csukuangfj/icefall-tts-ljspeech-vits-low-2024-03-12</a></p></li>
 </ul>
 </div></blockquote>
 </section>
