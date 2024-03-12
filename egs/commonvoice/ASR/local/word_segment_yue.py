@@ -110,7 +110,7 @@ if __name__ == "__main__":
 
     input_file = Path(args.input_file)
     output_dir = Path(args.output_dir)
-    lang = Path(args.lang)
+    lang = args.lang
 
     assert input_file.is_file(), f"{input_file} does not exist"
     assert output_dir.is_dir(), f"{output_dir} does not exist"
