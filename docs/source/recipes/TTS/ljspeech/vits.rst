@@ -56,13 +56,19 @@ Training
       --start-epoch 1 \
       --use-fp16 1 \
       --exp-dir vits/exp \
-      --tokens data/tokens.txt
+      --tokens data/tokens.txt \
+      --model-type high \
       --max-duration 500
 
 .. note::
 
     You can adjust the hyper-parameters to control the size of the VITS model and
     the training configurations. For more details, please run ``./vits/train.py --help``.
+
+.. warning::
+
+   If you want a model that runs faster on CPU, please use ``--model-type low``
+   or ``--model-type medium``.
 
 .. note::
 
@@ -95,8 +101,8 @@ training part first. It will save the ground-truth and generated wavs to the dir
 Export models
 -------------
 
-Currently we only support ONNX model exporting. It will generate two files in the given ``exp-dir``:
-``vits-epoch-*.onnx`` and ``vits-epoch-*.int8.onnx``.
+Currently we only support ONNX model exporting. It will generate one file in the given ``exp-dir``:
+``vits-epoch-*.onnx``.
 
 .. code-block:: bash
 
@@ -120,4 +126,7 @@ Download pretrained models
 If you don't want to train from scratch, you can download the pretrained models
 by visiting the following link:
 
-  - `<https://huggingface.co/Zengwei/icefall-tts-ljspeech-vits-2024-02-28>`_
+  - ``--model-type=high``: `<https://huggingface.co/Zengwei/icefall-tts-ljspeech-vits-2024-02-28>`_
+  - ``--model-type=medium``: `<https://huggingface.co/csukuangfj/icefall-tts-ljspeech-vits-medium-2024-03-12>`_
+  - ``--model-type=low``: `<https://huggingface.co/csukuangfj/icefall-tts-ljspeech-vits-low-2024-03-12>`_
+

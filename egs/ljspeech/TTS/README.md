@@ -43,7 +43,7 @@ If you feel that the trained model is slow at runtime, you can specify the
 argument `--model-type` during training. Possible values are:
 
   - `low`, means **low** quality. The resulting model is very small in file size
-    and runs very fast. The following is a wave file generatd by a `low` model
+    and runs very fast. The following is a wave file generatd by a `low` quality model
 
     https://github.com/k2-fsa/icefall/assets/5284924/d5758c24-470d-40ee-b089-e57fcba81633
 
@@ -52,15 +52,24 @@ argument `--model-type` during training. Possible values are:
     The exported onnx model has a file size of ``26.8 MB`` (float32).
 
   - `medium`, means **medium** quality.
-    The following is a wave file generatd by a `medium` model
+    The following is a wave file generatd by a `medium` quality model
 
     https://github.com/k2-fsa/icefall/assets/5284924/b199d960-3665-4d0d-9ae9-a1bb69cbc8ac
 
     The text is `Ask not what your country can do for you; ask what you can do for your country.`
 
-    The exported onnx model has file size of ``70.9 MB`` (float32).
+    The exported onnx model has a file size of ``70.9 MB`` (float32).
 
-  - `high`, means **high** quality
+  - `high`, means **high** quality. This is the default value.
+
+    The following is a wave file generatd by a `high` quality model
+
+    https://github.com/k2-fsa/icefall/assets/5284924/b39f3048-73a6-4267-bf95-df5abfdb28fc
+
+    The text is `Ask not what your country can do for you; ask what you can do for your country.`
+
+    The exported onnx model has a file size of ``113 MB`` (float32).
+
 
 A pre-trained `low` model trained using 4xV100 32GB GPU with the following command can be found at
 <https://huggingface.co/csukuangfj/icefall-tts-ljspeech-vits-low-2024-03-12>
