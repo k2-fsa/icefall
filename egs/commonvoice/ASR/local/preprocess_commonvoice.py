@@ -62,6 +62,7 @@ def normalize_text(utt: str, language: str) -> str:
             .replace("?", "")
             .replace("‘", "")
             .replace("、", "")
+            .upper()
         )
     else:
         raise NotImplementedError(
