@@ -38,6 +38,7 @@ num_splits=1000
 dl_dir=$PWD/download
 release=cv-corpus-12.0-2022-12-07
 lang=fr
+perturb_speed=false
 
 . shared/parse_options.sh || exit 1
 
@@ -149,7 +150,8 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
       --batch-duration 200 \
       --start 0 \
       --num-splits $num_splits \
-      --language $lang
+      --language $lang \
+      --perturb-speed $perturb_speed
     touch data/${lang}/fbank/.cv-${lang}_train.done
   fi
 fi

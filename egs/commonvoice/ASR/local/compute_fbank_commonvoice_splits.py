@@ -17,7 +17,6 @@
 
 import argparse
 import logging
-from datetime import datetime
 from pathlib import Path
 
 import torch
@@ -29,6 +28,8 @@ from lhotse import (
     set_audio_duration_mismatch_tolerance,
     set_caching_enabled,
 )
+
+from icefall.utils import str2bool
 
 # Torch's multithreaded behavior needs to be disabled or
 # it wastes a lot of CPU and slow things down.
@@ -83,6 +84,13 @@ def get_args():
         help="Stop processing pieces until this number (exclusive).",
     )
 
+    parser.add_argument(
+        "--perturb-speed",
+        type=str2bool,
+        default=False,
+        help="""Perturb speed with factor 0.9 and 1.1 on train subset.""",
+    )
+
     return parser.parse_args()
 
 
@@ -129,6 +137,10 @@ def compute_fbank_commonvoice_splits(args):
         cut_set = cut_set.trim_to_supervisions(
             keep_overlapping=False, min_duration=None
         )
+
+        if args.perturb_speed:
+            logging.info(f"Doing speed perturb")
+            cut_set = cut_set + cut_set.perturb_speed(0.9) + cut_set.perturb_speed(1.1)
 
         logging.info("Computing features")
         cut_set = cut_set.compute_and_store_features_batch(
