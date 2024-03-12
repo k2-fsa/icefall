@@ -300,7 +300,32 @@ if [ $stage -le 10 ] && [ $stop_stage -ge 10 ]; then
   # it using: pip install kaldilm
 
   if [ $lang == "yue" ] || [ $lang == "zh_TW" ] || [ $lang == "zh_CN" ] || [ $lang == "zh_HK" ]; then
-    echo "TO BE IMPLEMENTED"
+    lang_dir=data/${lang}/lang_char
+    mkdir -p $lang_dir/lm
+
+    for ngram in 3 ; do
+        if [ ! -f $lang_dir/lm/${ngram}-gram.unpruned.arpa ]; then
+          ./shared/make_kn_lm.py \
+            -ngram-order ${ngram} \
+            -text $lang_dir/transcript_words.txt \
+            -lm $lang_dir/lm/${ngram}gram.unpruned.arpa
+        fi
+
+        if [ ! -f $lang_dir/lm/G_${ngram}_gram_char.fst.txt ]; then
+          python3 -m kaldilm \
+            --read-symbol-table="$lang_dir/words.txt" \
+            --disambig-symbol='#0' \
+            --max-order=${ngram} \
+            $lang_dir/lm/${ngram}gram.unpruned.arpa \
+              > $lang_dir/lm/G_${ngram}_gram_char.fst.txt
+        fi
+
+        if [ ! -f $lang_dir/lm/HLG.fst ]; then
+          ./local/prepare_lang_fst.py \
+            --lang-dir $lang_dir \
+            --ngram-G $lang_dir/lm/G_${ngram}_gram_char.fst.txt
+        fi
+      done
   else
     for vocab_size in ${vocab_sizes[@]}; do
       lang_dir=data/${lang}/lang_bpe_${vocab_size}
@@ -329,23 +354,41 @@ fi
 if [ $stage -le 11 ] && [ $stop_stage -ge 11 ]; then
   log "Stage 11: Compile HLG"
 
-  for vocab_size in ${vocab_sizes[@]}; do
-    lang_dir=data/${lang}/lang_bpe_${vocab_size}
-    ./local/compile_hlg.py --lang-dir $lang_dir
+  if [ $lang == "yue" ] || [ $lang == "zh_TW" ] || [ $lang == "zh_CN" ] || [ $lang == "zh_HK" ]; then
+    lang_dir=data/${lang}/lang_char
+    for ngram in 3 ; do
+      if [ ! -f $lang_dir/lm/HLG_${ngram}.fst ]; then
+        ./local/compile_hlg.py --lang-dir $lang_dir --lm G_${ngram}_gram_char
+      fi
+    done
+  else
+    for vocab_size in ${vocab_sizes[@]}; do
+      lang_dir=data/${lang}/lang_bpe_${vocab_size}
+      ./local/compile_hlg.py --lang-dir $lang_dir
 
-    # Note If ./local/compile_hlg.py throws OOM,
-    # please switch to the following command
-    #
-    # ./local/compile_hlg_using_openfst.py --lang-dir $lang_dir
-  done
+      # Note If ./local/compile_hlg.py throws OOM,
+      # please switch to the following command
+      #
+      # ./local/compile_hlg_using_openfst.py --lang-dir $lang_dir
+    done
+  fi
 fi
 
 # Compile LG for RNN-T fast_beam_search decoding
 if [ $stage -le 12 ] && [ $stop_stage -ge 12 ]; then
   log "Stage 12: Compile LG"
 
-  for vocab_size in ${vocab_sizes[@]}; do
-    lang_dir=data/${lang}/lang_bpe_${vocab_size}
-    ./local/compile_lg.py --lang-dir $lang_dir
-  done
+  if [ $lang == "yue" ] || [ $lang == "zh_TW" ] || [ $lang == "zh_CN" ] || [ $lang == "zh_HK" ]; then
+    lang_dir=data/${lang}/lang_char
+    for ngram in 3 ; do
+      if [ ! -f $lang_dir/lm/LG_${ngram}.fst ]; then
+        ./local/compile_lg.py --lang-dir $lang_dir --lm G_${ngram}_gram_char
+      fi
+    done
+  else 
+    for vocab_size in ${vocab_sizes[@]}; do
+      lang_dir=data/${lang}/lang_bpe_${vocab_size}
+      ./local/compile_lg.py --lang-dir $lang_dir
+    done
+  fi
 fi
