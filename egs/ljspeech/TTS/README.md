@@ -49,7 +49,7 @@ argument `--model-type` during training. Possible values are:
 
     The text is `Ask not what your country can do for you; ask what you can do for your country.`
 
-    The export onnx model file size is ``26.8 MB`` (float32).
+    The exported onnx model has a file size of ``26.8 MB`` (float32).
 
   - `medium`, means **medium** quality.
     The following is a wave file generatd by a `medium` model
@@ -58,7 +58,7 @@ argument `--model-type` during training. Possible values are:
 
     The text is `Ask not what your country can do for you; ask what you can do for your country.`
 
-    The export onnx model file size is ``70.9 MB`` (float32).
+    The exported onnx model has file size of ``70.9 MB`` (float32).
 
   - `high`, means **high** quality
 
@@ -89,5 +89,6 @@ export CUDA_VISIBLE_DEVICES=4,5,6,7
   --exp-dir vits/exp-medium \
   --model-type medium \
   --max-duration 500
+
+# (Note it is killed after `epoch-820.pt`)
 ```
-(Note it is killed after `epoch-820.pt`)
