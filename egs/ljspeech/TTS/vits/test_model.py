@@ -44,7 +44,6 @@ def main():
     test_model_type("high")  # 35.63 M
     test_model_type("low")  # 7.55 M
     test_model_type("medium")  # 23.61 M
-    test_model_type("")  # 35.63 M
 
 
 if __name__ == "__main__":
