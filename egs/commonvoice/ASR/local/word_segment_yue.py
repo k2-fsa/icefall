@@ -30,6 +30,7 @@ from pathlib import Path
 from typing import List
 
 import pycantonese
+from preprocess_commonvoice import normalize_text
 from tqdm.auto import tqdm
 
 from icefall.utils import is_cjk
@@ -53,6 +54,13 @@ def get_parser():
         default="data/yue/lang_char/",
         type=str,
         help="The output directory",
+    )
+    parser.add_argument(
+        "--lang",
+        "-l",
+        default="yue",
+        type=str,
+        help="The language",
     )
     return parser
 
@@ -102,13 +110,15 @@ if __name__ == "__main__":
 
     input_file = Path(args.input_file)
     output_dir = Path(args.output_dir)
+    lang = Path(args.lang)
 
     assert input_file.is_file(), f"{input_file} does not exist"
     assert output_dir.is_dir(), f"{output_dir} does not exist"
 
     lines = input_file.read_text(encoding="utf-8").strip().split("\n")
+    norm_lines = [normalize_text(line, lang) for line in lines]
 
-    text_words_segments = get_word_segments(lines)
+    text_words_segments = get_word_segments(norm_lines)
     with open(output_dir / "transcript_words.txt", "w+", encoding="utf-8") as f:
         f.writelines(text_words_segments)
 

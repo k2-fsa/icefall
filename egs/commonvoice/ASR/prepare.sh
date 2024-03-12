@@ -194,7 +194,8 @@ if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
           # Get words.txt and words_no_ids.txt
           ./local/word_segment_yue.py \
             --input-file $lang_dir/text \
-            --output-dir $lang_dir
+            --output-dir $lang_dir \
+            --lang $lang
 
           mv $lang_dir/text $lang_dir/_text
           cp $lang_dir/transcript_words.txt $lang_dir/text
