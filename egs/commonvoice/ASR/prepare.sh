@@ -172,83 +172,117 @@ if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
 fi
 
 if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
-  log "Stage 9: Prepare BPE based lang"
-
-  for vocab_size in ${vocab_sizes[@]}; do
-    lang_dir=data/${lang}/lang_bpe_${vocab_size}
+  if [ $lang == "yue" ] || [ $lang == "zh_TW" ] || [ $lang == "zh_CN" ] || [ $lang == "zh_HK" ]; then
+    log "Stage 9: Prepare Char based lang"
+    lang_dir=data/${lang}/lang_char/
     mkdir -p $lang_dir
 
     if [ ! -f $lang_dir/transcript_words.txt ]; then
-      log "Generate data for BPE training"
-      file=$(
-        find "data/${lang}/fbank/cv-${lang}_cuts_train.jsonl.gz"
-      )
-      gunzip -c ${file} | awk -F '"' '{print $30}' > $lang_dir/transcript_words.txt
+        log "Generate data for lang preparation"
+        file=$(
+          find "data/${lang}/fbank/cv-${lang}_cuts_train.jsonl.gz"
+        )
+        gunzip -c ${file} | awk -F '"' '{print $30}' > $lang_dir/text
 
-      # Ensure space only appears once
-      sed -i 's/\t/ /g' $lang_dir/transcript_words.txt
-      sed -i 's/[ ][ ]*/ /g' $lang_dir/transcript_words.txt
-    fi
+        # Ensure space only appears once
+        sed -i 's/\t/ /g' $lang_dir/text
+        sed -i 's/[ ][ ]*/ /g' $lang_dir/text
 
-    if [ ! -f $lang_dir/words.txt ]; then
-      cat $lang_dir/transcript_words.txt | sed 's/ /\n/g' \
-        | sort -u | sed '/^$/d' > $lang_dir/words.txt
-      (echo '!SIL'; echo '<SPOKEN_NOISE>'; echo '<UNK>'; ) |
-        cat - $lang_dir/words.txt | sort | uniq | awk '
-        BEGIN {
-          print "<eps> 0";
-        }
-        {
-          if ($1 == "<s>") {
-            print "<s> is in the vocabulary!" | "cat 1>&2"
-            exit 1;
+        if [ $lang == "yue" ]; then
+          # Get words.txt and words_no_ids.txt
+          ./local/word_segment_yue.py \
+            --input-file $lang_dir/text \
+            --output-dir $lang_dir
+
+          mv $lang_dir/text $lang_dir/_text
+          cp $lang_dir/transcript_words.txt $lang_dir/text
+
+          if [ ! -f $lang_dir/tokens.txt ]; then
+            ./local/prepare_char.py --lang-dir $lang_dir
+          fi
+        else
+          log "word_segment_${lang}.py not implemented yet"
+          exit 1
+        fi
+      fi
+  else
+    log "Stage 9: Prepare BPE based lang"
+    for vocab_size in ${vocab_sizes[@]}; do
+      lang_dir=data/${lang}/lang_bpe_${vocab_size}
+      mkdir -p $lang_dir
+
+      if [ ! -f $lang_dir/transcript_words.txt ]; then
+        log "Generate data for BPE training"
+        file=$(
+          find "data/${lang}/fbank/cv-${lang}_cuts_train.jsonl.gz"
+        )
+        gunzip -c ${file} | awk -F '"' '{print $30}' > $lang_dir/transcript_words.txt
+
+        # Ensure space only appears once
+        sed -i 's/\t/ /g' $lang_dir/transcript_words.txt
+        sed -i 's/[ ][ ]*/ /g' $lang_dir/transcript_words.txt
+      fi
+
+      if [ ! -f $lang_dir/words.txt ]; then
+        cat $lang_dir/transcript_words.txt | sed 's/ /\n/g' \
+          | sort -u | sed '/^$/d' > $lang_dir/words.txt
+        (echo '!SIL'; echo '<SPOKEN_NOISE>'; echo '<UNK>'; ) |
+          cat - $lang_dir/words.txt | sort | uniq | awk '
+          BEGIN {
+            print "<eps> 0";
           }
-          if ($1 == "</s>") {
-            print "</s> is in the vocabulary!" | "cat 1>&2"
-            exit 1;
+          {
+            if ($1 == "<s>") {
+              print "<s> is in the vocabulary!" | "cat 1>&2"
+              exit 1;
+            }
+            if ($1 == "</s>") {
+              print "</s> is in the vocabulary!" | "cat 1>&2"
+              exit 1;
+            }
+            printf("%s %d\n", $1, NR);
           }
-          printf("%s %d\n", $1, NR);
-        }
-        END {
-          printf("#0 %d\n", NR+1);
-          printf("<s> %d\n", NR+2);
-          printf("</s> %d\n", NR+3);
-        }' > $lang_dir/words || exit 1;
-      mv $lang_dir/words $lang_dir/words.txt
-    fi
+          END {
+            printf("#0 %d\n", NR+1);
+            printf("<s> %d\n", NR+2);
+            printf("</s> %d\n", NR+3);
+          }' > $lang_dir/words || exit 1;
+        mv $lang_dir/words $lang_dir/words.txt
+      fi
 
-    if [ ! -f $lang_dir/bpe.model ]; then
-      ./local/train_bpe_model.py \
-        --lang-dir $lang_dir \
-        --vocab-size $vocab_size \
-        --transcript $lang_dir/transcript_words.txt
-    fi
+      if [ ! -f $lang_dir/bpe.model ]; then
+        ./local/train_bpe_model.py \
+          --lang-dir $lang_dir \
+          --vocab-size $vocab_size \
+          --transcript $lang_dir/transcript_words.txt
+      fi
 
-    if [ ! -f $lang_dir/L_disambig.pt ]; then
-      ./local/prepare_lang_bpe.py --lang-dir $lang_dir
+      if [ ! -f $lang_dir/L_disambig.pt ]; then
+        ./local/prepare_lang_bpe.py --lang-dir $lang_dir
 
-      log "Validating $lang_dir/lexicon.txt"
-      ./local/validate_bpe_lexicon.py \
-        --lexicon $lang_dir/lexicon.txt \
-        --bpe-model $lang_dir/bpe.model
-    fi
+        log "Validating $lang_dir/lexicon.txt"
+        ./local/validate_bpe_lexicon.py \
+          --lexicon $lang_dir/lexicon.txt \
+          --bpe-model $lang_dir/bpe.model
+      fi
 
-    if [ ! -f $lang_dir/L.fst ]; then
-      log "Converting L.pt to L.fst"
-      ./shared/convert-k2-to-openfst.py \
-        --olabels aux_labels \
-        $lang_dir/L.pt \
-        $lang_dir/L.fst
-    fi
+      if [ ! -f $lang_dir/L.fst ]; then
+        log "Converting L.pt to L.fst"
+        ./shared/convert-k2-to-openfst.py \
+          --olabels aux_labels \
+          $lang_dir/L.pt \
+          $lang_dir/L.fst
+      fi
 
-    if [ ! -f $lang_dir/L_disambig.fst ]; then
-      log "Converting L_disambig.pt to L_disambig.fst"
-      ./shared/convert-k2-to-openfst.py \
-        --olabels aux_labels \
-        $lang_dir/L_disambig.pt \
-        $lang_dir/L_disambig.fst
-    fi
-  done
+      if [ ! -f $lang_dir/L_disambig.fst ]; then
+        log "Converting L_disambig.pt to L_disambig.fst"
+        ./shared/convert-k2-to-openfst.py \
+          --olabels aux_labels \
+          $lang_dir/L_disambig.pt \
+          $lang_dir/L_disambig.fst
+      fi
+    done
+  fi
 fi
 
 if [ $stage -le 10 ] && [ $stop_stage -ge 10 ]; then
@@ -256,27 +290,31 @@ if [ $stage -le 10 ] && [ $stop_stage -ge 10 ]; then
   # We assume you have install kaldilm, if not, please install
   # it using: pip install kaldilm
 
-  for vocab_size in ${vocab_sizes[@]}; do
-    lang_dir=data/${lang}/lang_bpe_${vocab_size}
-    mkdir -p $lang_dir/lm
-    #3-gram used in building HLG, 4-gram used for LM rescoring
-    for ngram in 3 4; do
-      if [ ! -f $lang_dir/lm/${ngram}gram.arpa ]; then
-        ./shared/make_kn_lm.py \
-          -ngram-order ${ngram} \
-          -text $lang_dir/transcript_words.txt \
-          -lm $lang_dir/lm/${ngram}gram.arpa
-      fi
+  if [ $lang == "yue" ] || [ $lang == "zh_TW" ] || [ $lang == "zh_CN" ] || [ $lang == "zh_HK" ]; then
+    echo "TO BE IMPLEMENTED"
+  else
+    for vocab_size in ${vocab_sizes[@]}; do
+      lang_dir=data/${lang}/lang_bpe_${vocab_size}
+      mkdir -p $lang_dir/lm
+      #3-gram used in building HLG, 4-gram used for LM rescoring
+      for ngram in 3 4; do
+        if [ ! -f $lang_dir/lm/${ngram}gram.arpa ]; then
+          ./shared/make_kn_lm.py \
+            -ngram-order ${ngram} \
+            -text $lang_dir/transcript_words.txt \
+            -lm $lang_dir/lm/${ngram}gram.arpa
+        fi
 
-      if [ ! -f $lang_dir/lm/${ngram}gram.fst.txt ]; then
-        python3 -m kaldilm \
-          --read-symbol-table="$lang_dir/words.txt" \
-          --disambig-symbol='#0' \
-          --max-order=${ngram} \
-          $lang_dir/lm/${ngram}gram.arpa > $lang_dir/lm/G_${ngram}_gram.fst.txt
-      fi
+        if [ ! -f $lang_dir/lm/${ngram}gram.fst.txt ]; then
+          python3 -m kaldilm \
+            --read-symbol-table="$lang_dir/words.txt" \
+            --disambig-symbol='#0' \
+            --max-order=${ngram} \
+            $lang_dir/lm/${ngram}gram.arpa > $lang_dir/lm/G_${ngram}_gram.fst.txt
+        fi
+      done
     done
-  done
+  fi
 fi
 
 if [ $stage -le 11 ] && [ $stop_stage -ge 11 ]; then
