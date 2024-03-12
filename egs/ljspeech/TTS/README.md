@@ -36,3 +36,19 @@ To inference, use:
   --epoch 1000 \
   --tokens data/tokens.txt
 ```
+
+## Quality vs speed
+
+If you feel that the trained model is slow at runtime, you can specify the
+argument `--model-type` during training. Possible values are:
+
+  - `low`, means **low** quality. The resulting model is very small in file size
+    and runs very fast. The following is a wave file generatd by a `low` model
+
+    https://github.com/k2-fsa/icefall/assets/5284924/d5758c24-470d-40ee-b089-e57fcba81633
+
+    The text is "Ask not what your country can do for you; ask what you can do for your country."
+
+  - `medium`, means **medium** quality.
+  - `high`, means **high** quality
+

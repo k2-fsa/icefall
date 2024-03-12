@@ -18,7 +18,15 @@ import logging
 from typing import Dict, List
 
 import tacotron_cleaner.cleaners
-from piper_phonemize import phonemize_espeak
+
+try:
+    from piper_phonemize import phonemize_espeak
+except Exception as ex:
+    raise RuntimeError(
+        f"{ex}\nPlease follow instructions in "
+        "../prepare.sh to install piper-phonemize"
+    )
+
 from utils import intersperse
 
 

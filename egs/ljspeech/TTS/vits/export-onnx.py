@@ -143,7 +143,7 @@ class OnnxModel(nn.Module):
           Return a tuple containing:
             - audio, generated wavform tensor, (B, T_wav)
         """
-        audio, _, _ = self.model.inference(
+        audio, _, _ = self.model.generator.inference(
             text=tokens,
             text_lengths=tokens_lens,
             noise_scale=noise_scale,
@@ -205,6 +205,11 @@ def export_model_onnx(
         },
     )
 
+    if model.model.spks is None:
+        num_speakers = 1
+    else:
+        num_speakers = model.model.spks
+
     meta_data = {
         "model_type": "vits",
         "version": "1",
@@ -213,8 +218,8 @@ def export_model_onnx(
         "language": "English",
         "voice": "en-us",  # Choose your language appropriately
         "has_espeak": 1,
-        "n_speakers": 1,
-        "sample_rate": 22050,  # Must match the real sample rate
+        "n_speakers": num_speakers,
+        "sample_rate": model.model.sampling_rate,  # Must match the real sample rate
     }
     logging.info(f"meta_data: {meta_data}")
 
@@ -240,7 +245,6 @@ def main():
 
     load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
 
-    model = model.generator
     model.to("cpu")
     model.eval()
 
