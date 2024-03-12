@@ -12,7 +12,7 @@ use_gss=true  # Use GSS-based enhancement with MDM setting
 #
 #  - $dl_dir/alimeeting
 #     This directory contains the following files downloaded from
-#       https://openslr.org/62/
+#       https://openslr.org/119/
 #
 #     - Train_Ali_far.tar.gz
 #     - Train_Ali_near.tar.gz
