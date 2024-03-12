@@ -5,6 +5,7 @@
 
 """VITS module for GAN-TTS task."""
 
+import copy
 from typing import Any, Dict, Optional, Tuple
 
 import torch
@@ -38,6 +39,36 @@ AVAILABLE_DISCRIMINATORS = {
     "hifigan_multi_scale_multi_period_discriminator": HiFiGANMultiScaleMultiPeriodDiscriminator,  # NOQA
 }
 
+LOW_CONFIG = {
+    "hidden_channels": 96,
+    "decoder_upsample_scales": (8, 8, 4),
+    "decoder_channels": 256,
+    "decoder_upsample_kernel_sizes": (16, 16, 8),
+    "decoder_resblock_kernel_sizes": (3, 5, 7),
+    "decoder_resblock_dilations": ((1, 2), (2, 6), (3, 12)),
+    "text_encoder_cnn_module_kernel": 3,
+}
+
+MEDIUM_CONFIG = {
+    "hidden_channels": 192,
+    "decoder_upsample_scales": (8, 8, 4),
+    "decoder_channels": 256,
+    "decoder_upsample_kernel_sizes": (16, 16, 8),
+    "decoder_resblock_kernel_sizes": (3, 5, 7),
+    "decoder_resblock_dilations": ((1, 2), (2, 6), (3, 12)),
+    "text_encoder_cnn_module_kernel": 3,
+}
+
+HIGH_CONFIG = {
+    "hidden_channels": 192,
+    "decoder_upsample_scales": (8, 8, 2, 2),
+    "decoder_channels": 512,
+    "decoder_upsample_kernel_sizes": (16, 16, 4, 4),
+    "decoder_resblock_kernel_sizes": (3, 7, 11),
+    "decoder_resblock_dilations": ((1, 3, 5), (1, 3, 5), (1, 3, 5)),
+    "text_encoder_cnn_module_kernel": 5,
+}
+
 
 class VITS(nn.Module):
     """Implement VITS, `Conditional Variational Autoencoder with Adversarial Learning for End-to-End Text-to-Speech`"""
@@ -49,6 +80,7 @@ class VITS(nn.Module):
         feature_dim: int = 513,
         sampling_rate: int = 22050,
         generator_type: str = "vits_generator",
+        model_type: str = "",
         generator_params: Dict[str, Any] = {
             "hidden_channels": 192,
             "spks": None,
@@ -155,12 +187,13 @@ class VITS(nn.Module):
         """Initialize VITS module.
 
         Args:
-            idim (int): Input vocabrary size.
+            idim (int): Input vocabulary size.
             odim (int): Acoustic feature dimension. The actual output channels will
                 be 1 since VITS is the end-to-end text-to-wave model but for the
                 compatibility odim is used to indicate the acoustic feature dimension.
             sampling_rate (int): Sampling rate, not used for the training but it will
                 be referred in saving waveform during the inference.
+            model_type (str): If not empty, must be one of: low, medium, high
             generator_type (str): Generator type.
             generator_params (Dict[str, Any]): Parameter dict for generator.
             discriminator_type (str): Discriminator type.
@@ -180,6 +213,24 @@ class VITS(nn.Module):
 
         """
         super().__init__()
+
+        generator_params = copy.deepcopy(generator_params)
+        discriminator_params = copy.deepcopy(discriminator_params)
+        generator_adv_loss_params = copy.deepcopy(generator_adv_loss_params)
+        discriminator_adv_loss_params = copy.deepcopy(discriminator_adv_loss_params)
+        feat_match_loss_params = copy.deepcopy(feat_match_loss_params)
+        mel_loss_params = copy.deepcopy(mel_loss_params)
+
+        if model_type != "":
+            assert model_type in ("low", "medium", "high"), model_type
+            if model_type == "low":
+                generator_params.update(LOW_CONFIG)
+            elif model_type == "medium":
+                generator_params.update(MEDIUM_CONFIG)
+            elif model_type == "high":
+                generator_params.update(HIGH_CONFIG)
+            else:
+                raise ValueError(f"Unknown model_type: ${model_type}")
 
         # define modules
         generator_class = AVAILABLE_GENERATERS[generator_type]
