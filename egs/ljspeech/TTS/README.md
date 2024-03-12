@@ -47,8 +47,47 @@ argument `--model-type` during training. Possible values are:
 
     https://github.com/k2-fsa/icefall/assets/5284924/d5758c24-470d-40ee-b089-e57fcba81633
 
-    The text is "Ask not what your country can do for you; ask what you can do for your country."
+    The text is `Ask not what your country can do for you; ask what you can do for your country.`
+
+    The export onnx model file size is ``26.8 MB`` (float32).
 
   - `medium`, means **medium** quality.
+    The following is a wave file generatd by a `medium` model
+
+    https://github.com/k2-fsa/icefall/assets/5284924/b199d960-3665-4d0d-9ae9-a1bb69cbc8ac
+
+    The text is `Ask not what your country can do for you; ask what you can do for your country.`
+
+    The export onnx model file size is ``70.9 MB`` (float32).
+
   - `high`, means **high** quality
 
+A pre-trained `low` model trained using 4xV100 32GB GPU with the following command can be found at
+<https://huggingface.co/csukuangfj/icefall-tts-ljspeech-vits-low-2024-03-12>
+
+```bash
+export CUDA_VISIBLE_DEVICES=0,1,2,3
+./vits/train.py \
+  --world-size 4 \
+  --num-epochs 1601 \
+  --start-epoch 1 \
+  --use-fp16 1 \
+  --exp-dir vits/exp \
+  --model-type low \
+  --max-duration 800
+```
+
+A pre-trained `medium` model trained using 4xV100 32GB GPU with the following command can be found at
+<https://huggingface.co/csukuangfj/icefall-tts-ljspeech-vits-medium-2024-03-12>
+```bash
+export CUDA_VISIBLE_DEVICES=4,5,6,7
+./vits/train.py \
+  --world-size 4 \
+  --num-epochs 1000 \
+  --start-epoch 1 \
+  --use-fp16 1 \
+  --exp-dir vits/exp-medium \
+  --model-type medium \
+  --max-duration 500
+```
+(Note it is killed after `epoch-820.pt`)
