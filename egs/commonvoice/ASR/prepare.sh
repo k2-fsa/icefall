@@ -188,7 +188,7 @@ if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
         # 2. chmod +x ./jq
         # 3. cp jq /usr/bin
         gunzip -c data/${lang}/manifests/cv-${lang}_supervisions_train.jsonl.gz \
-          | jq '.text' | sed 's/"//g' > $lang_char_dir/text
+          | jq '.text' | sed 's/"//g' > $lang_dir/text
 
         if [ $lang == "yue" ]; then
           # Get words.txt and words_no_ids.txt
