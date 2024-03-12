@@ -181,14 +181,14 @@ if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
 
     if [ ! -f $lang_dir/transcript_words.txt ]; then
         log "Generate data for lang preparation"
-        file=$(
-          find "data/${lang}/fbank/cv-${lang}_cuts_train.jsonl.gz"
-        )
-        gunzip -c ${file} | awk -F '"' '{print $30}' > $lang_dir/text
 
-        # Ensure space only appears once
-        sed -i 's/\t/ /g' $lang_dir/text
-        sed -i 's/[ ][ ]*/ /g' $lang_dir/text
+        # Prepare text.
+        # Note: in Linux, you can install jq with the following command:
+        # 1. wget -O jq https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64
+        # 2. chmod +x ./jq
+        # 3. cp jq /usr/bin
+        gunzip -c data/${lang}/manifests/cv-${lang}_supervisions_train.jsonl.gz \
+          | jq '.text' | sed 's/"//g' > $lang_char_dir/text
 
         if [ $lang == "yue" ]; then
           # Get words.txt and words_no_ids.txt
@@ -218,7 +218,13 @@ if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
         file=$(
           find "data/${lang}/fbank/cv-${lang}_cuts_train.jsonl.gz"
         )
-        gunzip -c ${file} | awk -F '"' '{print $30}' > $lang_dir/transcript_words.txt
+        # Prepare text.
+        # Note: in Linux, you can install jq with the following command:
+        # 1. wget -O jq https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64
+        # 2. chmod +x ./jq
+        # 3. cp jq /usr/bin
+        gunzip -c ${file} \
+          | jq '.text' | sed 's/"//g' > $lang_dir/transcript_words.txt
 
         # Ensure space only appears once
         sed -i 's/\t/ /g' $lang_dir/transcript_words.txt
