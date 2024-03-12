@@ -66,7 +66,7 @@ HIGH_CONFIG = {
     "decoder_upsample_kernel_sizes": (16, 16, 4, 4),
     "decoder_resblock_kernel_sizes": (3, 7, 11),
     "decoder_resblock_dilations": ((1, 3, 5), (1, 3, 5), (1, 3, 5)),
-    "text_encoder_cnn_module_kernel": 3,
+    "text_encoder_cnn_module_kernel": 5,
 }
 
 
