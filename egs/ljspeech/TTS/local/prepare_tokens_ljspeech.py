@@ -23,7 +23,11 @@ This file reads the texts in given manifest and save the new cuts with phoneme t
 import logging
 from pathlib import Path
 
-import tacotron_cleaner.cleaners
+try:
+    import tacotron_cleaner.cleaners
+except ModuleNotFoundError as ex:
+    raise RuntimeError(f"{ex}\nPlease run\n  pip install espnet_tts_frontend\n")
+
 from lhotse import CutSet, load_manifest
 from piper_phonemize import phonemize_espeak
 

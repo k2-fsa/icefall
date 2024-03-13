@@ -153,6 +153,16 @@ def get_parser():
         help="Whether to use half precision training.",
     )
 
+    parser.add_argument(
+        "--model-type",
+        type=str,
+        default="high",
+        choices=["low", "medium", "high"],
+        help="""If not empty, valid values are: low, medium, high.
+        It controls the model size. low -> runs faster.
+        """,
+    )
+
     return parser
 
 
@@ -189,15 +199,6 @@ def get_params() -> AttributeDict:
 
         - feature_dim: The model input dim. It has to match the one used
                        in computing features.
-
-        - subsampling_factor:  The subsampling factor for the model.
-
-        - encoder_dim: Hidden dim for multi-head attention model.
-
-        - num_decoder_layers: Number of decoder layer of transformer decoder.
-
-        - warm_step: The warmup period that dictates the decay of the
-              scale on "simple" (un-pruned) loss.
     """
     params = AttributeDict(
         {
@@ -278,6 +279,7 @@ def get_model(params: AttributeDict) -> nn.Module:
         vocab_size=params.vocab_size,
         feature_dim=params.feature_dim,
         sampling_rate=params.sampling_rate,
+        model_type=params.model_type,
         mel_loss_params=mel_loss_params,
         lambda_adv=params.lambda_adv,
         lambda_mel=params.lambda_mel,
@@ -363,7 +365,7 @@ def train_one_epoch(
     model.train()
     device = model.device if isinstance(model, DDP) else next(model.parameters()).device
 
-    # used to summary the stats over iterations in one epoch
+    # used to track the stats over iterations in one epoch
     tot_loss = MetricsTracker()
 
     saved_bad_model = False

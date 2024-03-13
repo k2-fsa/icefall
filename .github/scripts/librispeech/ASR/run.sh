@@ -15,9 +15,9 @@ function prepare_data() {
   # cause OOM error for CI later.
   mkdir -p download/lm
   pushd download/lm
-  wget -q http://www.openslr.org/resources/11/librispeech-vocab.txt
-  wget -q http://www.openslr.org/resources/11/librispeech-lexicon.txt
-  wget -q http://www.openslr.org/resources/11/librispeech-lm-norm.txt.gz
+  wget -q https://huggingface.co/csukuangfj/librispeech-for-ci/resolve/main/librispeech-lm-norm.txt.gz
+  wget -q https://huggingface.co/csukuangfj/librispeech-for-ci/resolve/main/librispeech-lexicon.txt
+  wget -q https://huggingface.co/csukuangfj/librispeech-for-ci/resolve/main/librispeech-vocab.txt
   ls -lh
   gunzip librispeech-lm-norm.txt.gz
 
