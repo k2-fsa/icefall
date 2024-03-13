@@ -360,7 +360,7 @@ if [ $stage -le 11 ] && [ $stop_stage -ge 11 ]; then
 fi
 
 if [ $stage -le 12 ] && [ $stop_stage -ge 12 ]; then
-  log "Stage 11: Train RNN LM model"
+  log "Stage 12: Train RNN LM model"
   python ../../../icefall/rnn_lm/train.py \
     --start-epoch 0 \
     --world-size 1 \
