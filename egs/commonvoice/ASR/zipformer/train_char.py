@@ -97,7 +97,6 @@ from icefall.utils import (
     get_parameter_groups_with_lrs,
     setup_logger,
     str2bool,
-    tokenize_by_CJK_char,
 )
 
 LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
@@ -357,7 +356,7 @@ def compute_loss(
     batch_idx_train = params.batch_idx_train
     warm_step = params.warm_step
 
-    texts = [tokenize_by_CJK_char(text) for text in batch["supervisions"]["text"]]
+    texts = batch["supervisions"]["text"]
     y = graph_compiler.texts_to_ids(texts)
     y = k2.RaggedTensor(y).to(device)
 
