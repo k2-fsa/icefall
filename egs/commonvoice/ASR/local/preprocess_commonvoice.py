@@ -164,6 +164,26 @@ def preprocess_commonvoice(
             supervisions=m["supervisions"],
         ).resample(16000)
 
+        if partition == "validated":
+            logging.warning(
+                """
+                The 'validated' partition contains the data of both 'train', 'dev' 
+                and 'test' partitions. We filter out the 'dev' and 'test' partition
+                here.
+            """
+            )
+            dev_ids = src_dir / f"cv-{language}_dev_ids"
+            test_ids = src_dir / f"cv-{language}_test_ids"
+            assert (
+                dev_ids.is_file()
+            ), f"{dev_ids} does not exist, please check stage 1 of the prepare.sh"
+            assert (
+                test_ids.is_file()
+            ), f"{test_ids} does not exist, please check stage 1 of the prepare.sh"
+            dev_ids = dev_ids.read_text().strip().split("\n")
+            test_ids = test_ids.read_text().strip().split("\n")
+            cut_set = cut_set.filter(lambda x: x.id not in dev_ids + test_ids)
+
         # Run data augmentation that needs to be done in the
         # time domain.
         logging.info(f"Saving to {raw_cuts_path}")

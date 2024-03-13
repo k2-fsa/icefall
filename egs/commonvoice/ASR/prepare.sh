@@ -101,7 +101,34 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   mkdir -p data/${lang}/manifests
   if [ ! -e data/${lang}/manifests/.cv-${lang}.done ]; then
     lhotse prepare commonvoice --language $lang -j $nj $dl_dir/$release data/${lang}/manifests
+    
+    # In case you want to use all validated data
+    # lhotse prepare commonvoice \
+    #   --split validated \
+    #   --language $lang \
+    #   -j $nj $dl_dir/$release data/${lang}/manifests
+    # touch data/${lang}/manifests/.cv-${lang}.validated.done
+
+    # In case you want to take the risk and use invalidated data
+    # lhotse prepare commonvoice \
+    #   --split invalidated \
+    #   --language $lang \
+    #   -j $nj $dl_dir/$release data/${lang}/manifests
+    # touch data/${lang}/manifests/.cv-${lang}.invalidated.done
+    
     touch data/${lang}/manifests/.cv-${lang}.done
+  fi
+
+  # Note: in Linux, you can install jq with the following command:
+  # 1. wget -O jq https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64
+  # 2. chmod +x ./jq
+  # 3. cp jq /usr/bin
+  if [ -f data/${lang}/manifests/.cv-${lang}.validated.done ]; then
+    gunzip -c data/${lang}/manifests/cv-${lang}_supervisions_test.jsonl.gz \
+      | jq '.id' | sed 's/"//g' > data/${lang}/manifests/cv-${lang}_test_ids
+    
+    gunzip -c data/${lang}/manifests/cv-${lang}_supervisions_dev.jsonl.gz \
+      | jq '.id' | sed 's/"//g' > data/${lang}/manifests/cv-${lang}_dev_ids
   fi
 fi
 
@@ -121,6 +148,18 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   if [ ! -e data/${lang}/fbank/.preprocess_complete ]; then
     ./local/preprocess_commonvoice.py  --language $lang
     touch data/${lang}/fbank/.preprocess_complete
+
+    if [ -f data/${lang}/manifests/.cv-${lang}.validated.done ]; then
+      log "Also preprocess validated data"
+      ./local/preprocess_commonvoice.py  --language $lang --split validated
+      touch data/${lang}/fbank/.validated.preprocess_complete
+    fi
+
+    if [ -f data/${lang}/manifests/.cv-${lang}.invalidated.done ]; then
+      log "Also preprocess invalidated data"
+      ./local/preprocess_commonvoice.py  --language $lang --split invalidated
+      touch data/${lang}/fbank/.invalidated.preprocess_complete
+    fi
   fi
 fi
 
@@ -140,6 +179,20 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
     lhotse split $num_splits ./data/${lang}/fbank/cv-${lang}_cuts_train_raw.jsonl.gz $split_dir
     touch $split_dir/.cv-${lang}_train_split.done
   fi
+
+  if [ -f data/${lang}/fbank/.validated.preprocess_complete ]; then
+    log "Also split validated data"
+    split_dir=data/${lang}/fbank/cv-${lang}_validated_split_${num_splits}
+    lhotse split $num_splits ./data/${lang}/fbank/cv-${lang}_cuts_validated_raw.jsonl.gz $split_dir
+    touch $split_dir/.cv-${lang}_validated.done
+  fi
+
+  if [ -f data/${lang}/fbank/.invalidated.preprocess_complete ]; then
+    log "Also split invalidated data"
+    split_dir=data/${lang}/fbank/cv-${lang}_invalidated_split_${num_splits}
+    lhotse split $num_splits ./data/${lang}/fbank/cv-${lang}_cuts_invalidated_raw.jsonl.gz $split_dir
+    touch $split_dir/.cv-${lang}_invalidated.done
+  fi
 fi
 
 if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
@@ -154,6 +207,34 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
       --perturb-speed $perturb_speed
     touch data/${lang}/fbank/.cv-${lang}_train.done
   fi
+
+  split_dir=data/${lang}/fbank/cv-${lang}_validated_split_${num_splits}
+  if [ -f $split_dir/.cv-${lang}_validated.done ]; then
+    log "Also compute features for validated data"
+    ./local/compute_fbank_commonvoice_splits.py \
+      --subset validated \
+      --num-workers $nj \
+      --batch-duration 200 \
+      --start 0 \
+      --num-splits $num_splits \
+      --language $lang \
+      --perturb-speed $perturb_speed
+    touch data/${lang}/fbank/.cv-${lang}_validated.done
+  fi
+
+  split_dir=data/${lang}/fbank/cv-${lang}_invalidated_split_${num_splits}
+  if [ -f $split_dir/.cv-${lang}_invalidated.done ]; then
+    log "Also compute features for invalidated data"
+    ./local/compute_fbank_commonvoice_splits.py \
+      --subset invalidated \
+      --num-workers $nj \
+      --batch-duration 200 \
+      --start 0 \
+      --num-splits $num_splits \
+      --language $lang \
+      --perturb-speed $perturb_speed
+    touch data/${lang}/fbank/.cv-${lang}_invalidated.done
+  fi
 fi
 
 if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
@@ -161,6 +242,18 @@ if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
   if [ ! -f data/${lang}/fbank/cv-${lang}_cuts_train.jsonl.gz ]; then
     pieces=$(find data/${lang}/fbank/cv-${lang}_train_split_${num_splits} -name "cv-${lang}_cuts_train.*.jsonl.gz")
     lhotse combine $pieces data/${lang}/fbank/cv-${lang}_cuts_train.jsonl.gz
+  fi
+
+  if [ -f data/${lang}/fbank/.cv-${lang}_validated.done ]; then
+    log "Also combine features for validated data"
+    pieces=$(find data/${lang}/fbank/cv-${lang}_validated_split_${num_splits} -name "cv-${lang}_cuts_validated.*.jsonl.gz")
+    lhotse combine $pieces data/${lang}/fbank/cv-${lang}_cuts_validated.jsonl.gz
+  fi
+
+  if [ -f data/${lang}/fbank/.cv-${lang}_invalidated.done ]; then
+    log "Also combine features for invalidated data"
+    pieces=$(find data/${lang}/fbank/cv-${lang}_inalidated_split_${num_splits} -name "cv-${lang}_cuts_invalidated.*.jsonl.gz")
+    lhotse combine $pieces data/${lang}/fbank/cv-${lang}_cuts_invalidated.jsonl.gz
   fi
 fi
 

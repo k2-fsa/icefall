@@ -43,6 +43,13 @@ def get_args():
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
+        "--subset",
+        type=str,
+        default="train"
+        help="""Dataset parts to compute fbank. """,
+    )
+
+    parser.add_argument(
         "--language",
         type=str,
         help="""Language of Common Voice""",
@@ -95,7 +102,7 @@ def get_args():
 
 
 def compute_fbank_commonvoice_splits(args):
-    subset = "train"
+    subset = args.subset
     num_splits = args.num_splits
     language = args.language
     output_dir = f"data/{language}/fbank/cv-{language}_{subset}_split_{num_splits}"
