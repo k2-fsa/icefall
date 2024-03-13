@@ -376,7 +376,7 @@ def get_params() -> AttributeDict:
             "valid_interval": 3000,  # For the 100h subset, use 800
             # parameters for zipformer
             "feature_dim": 80,
-            "subsampling_factor": 2,  # not passed in, this is fixed.
+            "subsampling_factor": 4,  # not passed in, this is fixed.
             "warm_step": 2000,
             "env_info": get_env_info(),
         }
