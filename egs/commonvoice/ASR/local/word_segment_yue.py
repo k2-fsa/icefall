@@ -26,6 +26,7 @@ files in the directory "data/lang_char":
 
 import argparse
 import logging
+import re
 from pathlib import Path
 from typing import List
 
@@ -33,7 +34,7 @@ import pycantonese
 from preprocess_commonvoice import normalize_text
 from tqdm.auto import tqdm
 
-from icefall.utils import is_cjk
+from icefall.utils import is_cjk, tokenize_by_CJK_char
 
 
 def get_parser():
@@ -73,23 +74,28 @@ def get_word_segments(lines: List[str]) -> List[str]:
 
     for line in tqdm(lines, desc="Segmenting lines"):
         try:
-            # code switching
-            if len(line.strip().split(" ")) > 1:
+            if is_cs(line):  # code switching
                 segments = []
-                for segment in line.strip().split(" "):
+                curr_str = ""
+                for segment in tokenize_by_CJK_char(line).split(" "):
                     if segment.strip() == "":
                         continue
                     try:
                         if not is_cjk(segment[0]):  # en segment
+                            if curr_str:
+                                segments.extend(pycantonese.segment(curr_str))
+                                curr_str = ""
                             segments.append(segment)
                         else:  # zh segment
-                            segments.extend(pycantonese.segment(segment))
+                            curr_str += segment
+                            # segments.extend(pycantonese.segment(segment))
                     except Exception as e:
                         logging.error(f"Failed to process segment: {segment}")
                         raise e
+                if curr_str:  # process the last segment
+                    segments.extend(pycantonese.segment(curr_str))
                 new_lines.append(" ".join(segments) + "\n")
-            # not code switching
-            else:
+            else:  # not code switching
                 new_lines.append(" ".join(pycantonese.segment(line)) + "\n")
         except Exception as e:
             logging.error(f"Failed to process line: {line}")
@@ -102,6 +108,11 @@ def get_words(lines: List[str]) -> List[str]:
     for line in tqdm(lines, desc="Getting words"):
         words.update(line.strip().split(" "))
     return list(words)
+
+
+def is_cs(line: str) -> bool:
+    english_markers = r"[a-zA-Z]+"
+    return bool(re.search(english_markers, line))
 
 
 if __name__ == "__main__":
