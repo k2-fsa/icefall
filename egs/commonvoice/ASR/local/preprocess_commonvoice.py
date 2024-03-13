@@ -21,7 +21,7 @@ import re
 from pathlib import Path
 from typing import Optional
 
-from lhotse import CutSet, SupervisionSegment
+from lhotse import CutSet
 from lhotse.recipes.utils import read_manifests_if_cached
 
 
@@ -82,6 +82,17 @@ def normalize_text(utt: str, language: str) -> str:
             .replace("…", "")
             .replace("⋯", "")
             .replace("·", "")
+            .replace("﹒", "")
+            .replace("．", "")
+            .replace("：", "")
+            .replace("︰", "")
+            .replace("﹖", "")
+            .replace("（", "")
+            .replace("）", "")
+            .replace("－", "")
+            .replace("～", "")
+            .replace("；", "")
+            .replace("￼", "")
             .upper()
         )
     else:
