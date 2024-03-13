@@ -10,7 +10,11 @@ import warnings
 
 import numpy as np
 import torch
-from numba import njit, prange
+
+try:
+    from numba import njit, prange
+except ModuleNotFoundError as ex:
+    raise RuntimeError(f"{ex}/nPlease run\n  pip install numba")
 
 try:
     from .core import maximum_path_c

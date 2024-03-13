@@ -23,8 +23,8 @@ try:
     from piper_phonemize import phonemize_espeak
 except Exception as ex:
     raise RuntimeError(
-        f"{ex}\nPlease follow instructions in "
-        "../prepare.sh to install piper-phonemize"
+        f"{ex}\nPlease run\n"
+        "pip install piper_phonemize -f https://k2-fsa.github.io/icefall/piper_phonemize.html"
     )
 
 from utils import intersperse

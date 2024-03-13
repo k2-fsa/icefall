@@ -13,6 +13,14 @@ with the `LJSpeech <https://keithito.com/LJ-Speech-Dataset/>`_ dataset.
    The VITS paper: `Conditional Variational Autoencoder with Adversarial Learning for End-to-End Text-to-Speech <https://arxiv.org/pdf/2106.06103.pdf>`_
 
 
+Install extra dependencies
+--------------------------
+
+.. code-block:: bash
+
+  pip install piper_phonemize -f https://k2-fsa.github.io/icefall/piper_phonemize.html
+  pip install numba espnet_tts_frontend
+
 Data preparation
 ----------------
 
@@ -130,3 +138,64 @@ by visiting the following link:
   - ``--model-type=medium``: `<https://huggingface.co/csukuangfj/icefall-tts-ljspeech-vits-medium-2024-03-12>`_
   - ``--model-type=low``: `<https://huggingface.co/csukuangfj/icefall-tts-ljspeech-vits-low-2024-03-12>`_
 
+Usage in sherpa-onnx
+--------------------
+
+The following describes how to test the exported ONNX model in `sherpa-onnx`_.
+
+.. hint::
+
+   `sherpa-onnx`_ supports different programming languages, e.g., C++, C, Python,
+   Kotlin, Java, Swift, Go, C#, etc. It also supports Android and iOS.
+
+   We only describe how to use pre-built binaries from `sherpa-onnx`_ below.
+   Please refer to `<https://k2-fsa.github.io/sherpa/onnx/>`_
+   for more documentation.
+
+Install sherpa-onnx
+^^^^^^^^^^^^^^^^^^^
+
+.. code-block:: bash
+
+   pip install sherpa-onnx
+
+To check that you have installed `sherpa-onnx`_ successfully, please run:
+
+.. code-block:: bash
+
+   which sherpa-onnx-offline-tts
+   sherpa-onnx-offline-tts --help
+
+Download lexicon files
+^^^^^^^^^^^^^^^^^^^^^^
+
+.. code-block:: bash
+
+   cd /tmp
+   wget https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/espeak-ng-data.tar.bz2
+   tar xf espeak-ng-data.tar.bz2
+
+Run sherpa-onnx
+^^^^^^^^^^^^^^^
+
+.. code-block:: bash
+
+  cd egs/ljspeech/TTS
+
+  sherpa-onnx-offline-tts \
+    --vits-model=vits/exp/vits-epoch-1000.onnx \
+    --vits-tokens=data/tokens.txt \
+    --vits-data-dir=/tmp/espeak-ng-data \
+    --num-threads=1 \
+    --output-filename=./high.wav \
+    "Ask not what your country can do for you; ask what you can do for your country."
+
+.. hint::
+
+   You can also use ``sherpa-onnx-offline-tts-play`` to play the audio
+   as it is generating.
+
+You should get a file ``high.wav`` after running the above command.
+
+Congratulations! You have successfully trained and exported a text-to-speech
+model and run it with `sherpa-onnx`_.
