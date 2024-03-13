@@ -354,7 +354,7 @@ fi
 if [ $stage -le 11 ] && [ $stop_stage -ge 11 ]; then
   log "Stage 11: Compile HLG"
 
-  if [ $lang == "yue" ] || [ $lang == "zh_TW" ] || [ $lang == "zh_CN" ] || [ $lang == "zh_HK" ]; then
+  if [ $lang == "yue" ] || [ $lang == "zh-TW" ] || [ $lang == "zh-CN" ] || [ $lang == "zh-HK" ]; then
     lang_dir=data/${lang}/lang_char
     for ngram in 3 ; do
       if [ ! -f $lang_dir/lm/HLG_${ngram}.fst ]; then
@@ -378,7 +378,7 @@ fi
 if [ $stage -le 12 ] && [ $stop_stage -ge 12 ]; then
   log "Stage 12: Compile LG"
 
-  if [ $lang == "yue" ] || [ $lang == "zh_TW" ] || [ $lang == "zh_CN" ] || [ $lang == "zh_HK" ]; then
+  if [ $lang == "yue" ] || [ $lang == "zh-TW" ] || [ $lang == "zh-CN" ] || [ $lang == "zh-HK" ]; then
     lang_dir=data/${lang}/lang_char
     for ngram in 3 ; do
       if [ ! -f $lang_dir/lm/LG_${ngram}.fst ]; then
