@@ -174,7 +174,7 @@ if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
 fi
 
 if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
-  if [ $lang == "yue" ] || [ $lang == "zh_TW" ] || [ $lang == "zh_CN" ] || [ $lang == "zh_HK" ]; then
+  if [ $lang == "yue" ] || [ $lang == "zh-TW" ] || [ $lang == "zh-CN" ] || [ $lang == "zh-HK" ]; then
     log "Stage 9: Prepare Char based lang"
     lang_dir=data/${lang}/lang_char/
     mkdir -p $lang_dir
@@ -190,7 +190,7 @@ if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
         gunzip -c data/${lang}/manifests/cv-${lang}_supervisions_train.jsonl.gz \
           | jq '.text' | sed 's/"//g' > $lang_dir/text
 
-        if [ $lang == "yue" ]; then
+        if [ $lang == "yue" ] || [ $lang == "zh-HK" ]; then
           # Get words.txt and words_no_ids.txt
           ./local/word_segment_yue.py \
             --input-file $lang_dir/text \
@@ -299,7 +299,7 @@ if [ $stage -le 10 ] && [ $stop_stage -ge 10 ]; then
   # We assume you have install kaldilm, if not, please install
   # it using: pip install kaldilm
 
-  if [ $lang == "yue" ] || [ $lang == "zh_TW" ] || [ $lang == "zh_CN" ] || [ $lang == "zh_HK" ]; then
+  if [ $lang == "yue" ] || [ $lang == "zh-TW" ] || [ $lang == "zh-CN" ] || [ $lang == "zh-HK" ]; then
     lang_dir=data/${lang}/lang_char
     mkdir -p $lang_dir/lm
 
