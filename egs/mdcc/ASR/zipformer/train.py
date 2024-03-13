@@ -22,28 +22,24 @@
 """
 Usage:
 
-export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
+export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
 ./zipformer/train.py \
-  --world-size 8 \
-  --num-epochs 12 \
+  --world-size 4 \
+  --num-epochs 50 \
   --start-epoch 1 \
   --exp-dir zipformer/exp \
-  --training-subset L
-  --lr-epochs 1.5 \
   --max-duration 350
 
 # For mix precision training:
 
 ./zipformer/train.py \
-  --world-size 8 \
-  --num-epochs 12 \
+  --world-size 4 \
+  --num-epochs 50 \
   --start-epoch 1 \
   --use-fp16 1 \
   --exp-dir zipformer/exp \
-  --training-subset L \
-  --lr-epochs 1.5 \
-  --max-duration 750
+  --max-duration 1000
 
 """
 
