@@ -28,7 +28,7 @@ if [ $stage -le -1 ] && [ $stop_stage -ge -1 ]; then
   log "Stage -1: build monotonic_align lib"
   if [ ! -d vits/monotonic_align/build ]; then
     cd vits/monotonic_align
-    python setup.py build_ext --inplace
+    python3 setup.py build_ext --inplace
     cd ../../
   else
     log "monotonic_align lib already built"
@@ -82,8 +82,7 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   log "Stage 3: Prepare phoneme tokens for LJSpeech"
   # We assume you have installed piper_phonemize and espnet_tts_frontend.
   # If not, please install them with:
-  #   - piper_phonemize: refer to https://github.com/rhasspy/piper-phonemize,
-  #                      could install the pre-built wheels from https://github.com/csukuangfj/piper-phonemize/releases/tag/2023.12.5
+  #   - piper_phonemize: pip install piper_phonemize -f https://k2-fsa.github.io/icefall/piper_phonemize.html,
   #   - espnet_tts_frontend, `pip install espnet_tts_frontend`, refer to https://github.com/espnet/espnet_tts_frontend/
   if [ ! -e data/spectrogram/.ljspeech_with_token.done ]; then
     ./local/prepare_tokens_ljspeech.py
