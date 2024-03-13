@@ -59,12 +59,14 @@
 <li class="toctree-l2"><a class="reference internal" href="../../RNN-LM/index.html">RNN-LM</a></li>
 <li class="toctree-l2 current"><a class="reference internal" href="../index.html">TTS</a><ul class="current">
 <li class="toctree-l3 current"><a class="current reference internal" href="#">VITS-LJSpeech</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#install-extra-dependencies">Install extra dependencies</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#data-preparation">Data preparation</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#build-monotonic-alignment-search">Build Monotonic Alignment Search</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#training">Training</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#inference">Inference</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#export-models">Export models</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#download-pretrained-models">Download pretrained models</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#usage-in-sherpa-onnx">Usage in sherpa-onnx</a></li>
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../vctk/vits.html">VITS-VCTK</a></li>
@@ -120,6 +122,13 @@ with the <a class="reference external" href="https://keithito.com/LJ-Speech-Data
 <p class="admonition-title">Note</p>
 <p>The VITS paper: <a class="reference external" href="https://arxiv.org/pdf/2106.06103.pdf">Conditional Variational Autoencoder with Adversarial Learning for End-to-End Text-to-Speech</a></p>
 </div>
+<section id="install-extra-dependencies">
+<h2>Install extra dependencies<a class="headerlink" href="#install-extra-dependencies" title="Permalink to this heading"></a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>piper_phonemize<span class="w"> </span>-f<span class="w"> </span>https://k2-fsa.github.io/icefall/piper_phonemize.html
+pip<span class="w"> </span>install<span class="w"> </span>numba<span class="w"> </span>espnet_tts_frontend
+</pre></div>
+</div>
+</section>
 <section id="data-preparation">
 <h2>Data preparation<a class="headerlink" href="#data-preparation" title="Permalink to this heading"></a></h2>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/ljspeech/TTS
@@ -219,6 +228,59 @@ by visiting the following link:</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">--model-type=low</span></code>: <a class="reference external" href="https://huggingface.co/csukuangfj/icefall-tts-ljspeech-vits-low-2024-03-12">https://huggingface.co/csukuangfj/icefall-tts-ljspeech-vits-low-2024-03-12</a></p></li>
 </ul>
 </div></blockquote>
+</section>
+<section id="usage-in-sherpa-onnx">
+<h2>Usage in sherpa-onnx<a class="headerlink" href="#usage-in-sherpa-onnx" title="Permalink to this heading"></a></h2>
+<p>The following describes how to test the exported ONNX model in <a class="reference external" href="https://github.com/k2-fsa/sherpa-onnx">sherpa-onnx</a>.</p>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p><a class="reference external" href="https://github.com/k2-fsa/sherpa-onnx">sherpa-onnx</a> supports different programming languages, e.g., C++, C, Python,
+Kotlin, Java, Swift, Go, C#, etc. It also supports Android and iOS.</p>
+<p>We only describe how to use pre-built binaries from <a class="reference external" href="https://github.com/k2-fsa/sherpa-onnx">sherpa-onnx</a> below.
+Please refer to <a class="reference external" href="https://k2-fsa.github.io/sherpa/onnx/">https://k2-fsa.github.io/sherpa/onnx/</a>
+for more documentation.</p>
+</div>
+<section id="install-sherpa-onnx">
+<h3>Install sherpa-onnx<a class="headerlink" href="#install-sherpa-onnx" title="Permalink to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>sherpa-onnx
+</pre></div>
+</div>
+<p>To check that you have installed <a class="reference external" href="https://github.com/k2-fsa/sherpa-onnx">sherpa-onnx</a> successfully, please run:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>which<span class="w"> </span>sherpa-onnx-offline-tts
+sherpa-onnx-offline-tts<span class="w"> </span>--help
+</pre></div>
+</div>
+</section>
+<section id="download-lexicon-files">
+<h3>Download lexicon files<a class="headerlink" href="#download-lexicon-files" title="Permalink to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>/tmp
+wget<span class="w"> </span>https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/espeak-ng-data.tar.bz2
+tar<span class="w"> </span>xf<span class="w"> </span>espeak-ng-data.tar.bz2
+</pre></div>
+</div>
+</section>
+<section id="run-sherpa-onnx">
+<h3>Run sherpa-onnx<a class="headerlink" href="#run-sherpa-onnx" title="Permalink to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>egs/ljspeech/TTS
+
+sherpa-onnx-offline-tts<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--vits-model<span class="o">=</span>vits/exp/vits-epoch-1000.onnx<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--vits-tokens<span class="o">=</span>data/tokens.txt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--vits-data-dir<span class="o">=</span>/tmp/espeak-ng-data<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--num-threads<span class="o">=</span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--output-filename<span class="o">=</span>./high.wav<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span><span class="s2">&quot;Ask not what your country can do for you; ask what you can do for your country.&quot;</span>
+</pre></div>
+</div>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>You can also use <code class="docutils literal notranslate"><span class="pre">sherpa-onnx-offline-tts-play</span></code> to play the audio
+as it is generating.</p>
+</div>
+<p>You should get a file <code class="docutils literal notranslate"><span class="pre">high.wav</span></code> after running the above command.</p>
+<p>Congratulations! You have successfully trained and exported a text-to-speech
+model and run it with <a class="reference external" href="https://github.com/k2-fsa/sherpa-onnx">sherpa-onnx</a>.</p>
+</section>
 </section>
 </section>
 
