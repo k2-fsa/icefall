@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Finetune from a pre-trained Zipformer model with adapters &mdash; icefall 0.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=fa44fd50" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=19f00094" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js?v=e031e9a9"></script>
+        <script src="../../../_static/doctools.js?v=888ff710"></script>
+        <script src="../../../_static/sphinx_highlight.js?v=4825356b"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link rel="next" title="Contributing" href="../../../contributing/index.html" />
+    <link rel="prev" title="Finetune from a supervised pre-trained Zipformer model" href="../from_supervised/finetune_zipformer.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            icefall
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../for-dummies/index.html">Icefall for dummies tutorial</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../installation/index.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../docker/index.html">Docker</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../faqs.html">Frequently Asked Questions (FAQs)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../model-export/index.html">Model export</a></li>
+</ul>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="../../index.html">Recipes</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../../Non-streaming-ASR/index.html">Non Streaming ASR</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../Streaming-ASR/index.html">Streaming ASR</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../RNN-LM/index.html">RNN-LM</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../TTS/index.html">TTS</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html">Fine-tune a pre-trained model</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="../from_supervised/finetune_zipformer.html">Finetune from a supervised pre-trained Zipformer model</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">Finetune from a pre-trained Zipformer model with adapters</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#data-preparation">Data preparation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#model-preparation">Model preparation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#fine-tune-with-adapter">Fine-tune with adapter</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#decoding">Decoding</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#export-the-model">Export the model</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../contributing/index.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../huggingface/index.html">Huggingface</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../decoding-with-langugage-models/index.html">Decoding with language models</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">icefall</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Recipes</a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Fine-tune a pre-trained model</a></li>
+      <li class="breadcrumb-item active">Finetune from a pre-trained Zipformer model with adapters</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/k2-fsa/icefall/blob/master/docs/source/recipes/Finetune/adapter/finetune_adapter.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="finetune-from-a-pre-trained-zipformer-model-with-adapters">
+<h1>Finetune from a pre-trained Zipformer model with adapters<a class="headerlink" href="#finetune-from-a-pre-trained-zipformer-model-with-adapters" title="Permalink to this heading"></a></h1>
+<p>This tutorial shows you how to fine-tune a pre-trained <strong>Zipformer</strong>
+transducer model on a new dataset with adapters.
+Adapters are compact and efficient module that can be integrated into a pre-trained model
+to improve the model’s performance on a new domain. Adapters are injected
+between different modules in the well-trained neural network. During training, only the parameters
+in the adapters will be updated. It achieves competitive performance
+while requiring much less GPU memory than full fine-tuning. For more details about adapters,
+please refer to the original <a class="reference external" href="https://arxiv.org/pdf/1902.00751.pdf#/">paper</a> for more details.</p>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>We assume you have read the page <a class="reference internal" href="../../../installation/index.html#install-icefall"><span class="std std-ref">Installation</span></a> and have setup
+the environment for <code class="docutils literal notranslate"><span class="pre">icefall</span></code>.</p>
+</div>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>We recommend you to use a GPU or several GPUs to run this recipe</p>
+</div>
+<p>For illustration purpose, we fine-tune the Zipformer transducer model
+pre-trained on <a class="reference external" href="https://www.openslr.org/12">LibriSpeech</a> on the small subset of <a class="reference external" href="https://github.com/SpeechColab/GigaSpeech">GigaSpeech</a>. You could use your
+own data for fine-tuning if you create a manifest for your new dataset.</p>
+<section id="data-preparation">
+<h2>Data preparation<a class="headerlink" href="#data-preparation" title="Permalink to this heading"></a></h2>
+<p>Please follow the instructions in the <a class="reference external" href="https://github.com/k2-fsa/icefall/tree/master/egs/gigaspeech/ASR">GigaSpeech recipe</a>
+to prepare the fine-tune data used in this tutorial. We only require the small subset in GigaSpeech for this tutorial.</p>
+</section>
+<section id="model-preparation">
+<h2>Model preparation<a class="headerlink" href="#model-preparation" title="Permalink to this heading"></a></h2>
+<p>We are using the Zipformer model trained on full LibriSpeech (960 hours) as the intialization. The
+checkpoint of the model can be downloaded via the following command:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nv">GIT_LFS_SKIP_SMUDGE</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-2023-05-15
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>icefall-asr-librispeech-zipformer-2023-05-15/exp
+$<span class="w"> </span>git<span class="w"> </span>lfs<span class="w"> </span>pull<span class="w"> </span>--include<span class="w"> </span><span class="s2">&quot;pretrained.pt&quot;</span>
+$<span class="w"> </span>ln<span class="w"> </span>-s<span class="w"> </span>pretrained.pt<span class="w"> </span>epoch-99.pt
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../data/lang_bpe_500
+$<span class="w"> </span>git<span class="w"> </span>lfs<span class="w"> </span>pull<span class="w"> </span>--include<span class="w"> </span>bpe.model
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../../..
+</pre></div>
+</div>
+<p>Before fine-tuning, let’s test the model’s WER on the new domain. The following command performs
+decoding on the GigaSpeech test sets:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./zipformer/decode_gigaspeech.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--epoch<span class="w"> </span><span class="m">99</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--avg<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--exp-dir<span class="w"> </span>icefall-asr-librispeech-zipformer-2023-05-15/exp<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--use-averaged-model<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--max-duration<span class="w"> </span><span class="m">1000</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--decoding-method<span class="w"> </span>greedy_search
+</pre></div>
+</div>
+<p>You should see the following numbers:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">For</span> <span class="n">dev</span><span class="p">,</span> <span class="n">WER</span> <span class="n">of</span> <span class="n">different</span> <span class="n">settings</span> <span class="n">are</span><span class="p">:</span>
+<span class="n">greedy_search</span>       <span class="mf">20.06</span>   <span class="n">best</span> <span class="k">for</span> <span class="n">dev</span>
+
+<span class="n">For</span> <span class="n">test</span><span class="p">,</span> <span class="n">WER</span> <span class="n">of</span> <span class="n">different</span> <span class="n">settings</span> <span class="n">are</span><span class="p">:</span>
+<span class="n">greedy_search</span>       <span class="mf">19.27</span>   <span class="n">best</span> <span class="k">for</span> <span class="n">test</span>
+</pre></div>
+</div>
+</section>
+<section id="fine-tune-with-adapter">
+<h2>Fine-tune with adapter<a class="headerlink" href="#fine-tune-with-adapter" title="Permalink to this heading"></a></h2>
+<p>We insert 4 adapters with residual connection in each <code class="docutils literal notranslate"><span class="pre">Zipformer2EncoderLayer</span></code>.
+The original model parameters remain untouched during training and only the parameters of
+the adapters are updated. The following command starts a fine-tuning experiment with adapters:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nv">do_finetune</span><span class="o">=</span><span class="m">1</span>
+$<span class="w"> </span><span class="nv">use_adapters</span><span class="o">=</span><span class="m">1</span>
+$<span class="w"> </span><span class="nv">adapter_dim</span><span class="o">=</span><span class="m">8</span>
+
+$<span class="w"> </span>./zipformer_adapter/train.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--world-size<span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--num-epochs<span class="w"> </span><span class="m">20</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--start-epoch<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--exp-dir<span class="w"> </span>zipformer_adapter/exp_giga_finetune_adapters<span class="si">${</span><span class="nv">use_adapters</span><span class="si">}</span>_adapter_dim<span class="si">${</span><span class="nv">adapter_dim</span><span class="si">}</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--use-fp16<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--base-lr<span class="w"> </span><span class="m">0</span>.045<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--use-adapters<span class="w"> </span><span class="nv">$use_adapters</span><span class="w"> </span>--adapter-dim<span class="w"> </span><span class="nv">$adapter_dim</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--bpe-model<span class="w"> </span>data/lang_bpe_500/bpe.model<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--do-finetune<span class="w"> </span><span class="nv">$do_finetune</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--master-port<span class="w"> </span><span class="m">13022</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--finetune-ckpt<span class="w"> </span>icefall-asr-librispeech-zipformer-2023-05-15/exp/pretrained.pt<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--max-duration<span class="w"> </span><span class="m">1000</span>
+</pre></div>
+</div>
+<p>The following arguments are related to fine-tuning:</p>
+<ul class="simple">
+<li><dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">--do-finetune</span></code></dt><dd><p>If True, do fine-tuning by initializing the model from a pre-trained checkpoint.
+<strong>Note that if you want to resume your fine-tuning experiment from certain epochs, you
+need to set this to False.</strong></p>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">use-adapters</span></code></dt><dd><p>If adapters are used during fine-tuning.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">--adapter-dim</span></code></dt><dd><p>The bottleneck dimension of the adapter module. Typically a small number.</p>
+</dd>
+</dl>
+</li>
+</ul>
+<p>You should notice that in the training log, the total number of trainale parameters is shown:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="mi">2024</span><span class="o">-</span><span class="mi">02</span><span class="o">-</span><span class="mi">22</span> <span class="mi">21</span><span class="p">:</span><span class="mi">22</span><span class="p">:</span><span class="mi">03</span><span class="p">,</span><span class="mi">808</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">train</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">1277</span><span class="p">]</span> <span class="n">A</span> <span class="n">total</span> <span class="n">of</span> <span class="mi">761344</span> <span class="n">trainable</span> <span class="n">parameters</span> <span class="p">(</span><span class="mf">1.148</span><span class="o">%</span> <span class="n">of</span> <span class="n">the</span> <span class="n">whole</span> <span class="n">model</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The trainable parameters only makes up 1.15% of the entire model parameters, so the training will be much faster
+and requires less memory than full fine-tuning.</p>
+</section>
+<section id="decoding">
+<h2>Decoding<a class="headerlink" href="#decoding" title="Permalink to this heading"></a></h2>
+<p>After training, let’s test the WERs. To test the WERs on the GigaSpeech set,
+you can execute the following command:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nv">epoch</span><span class="o">=</span><span class="m">20</span>
+$<span class="w"> </span><span class="nv">avg</span><span class="o">=</span><span class="m">10</span>
+$<span class="w"> </span><span class="nv">use_adapters</span><span class="o">=</span><span class="m">1</span>
+$<span class="w"> </span><span class="nv">adapter_dim</span><span class="o">=</span><span class="m">8</span>
+
+%<span class="w"> </span>./zipformer/decode.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--epoch<span class="w"> </span><span class="nv">$epoch</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--avg<span class="w"> </span><span class="nv">$avg</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--use-averaged-model<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--exp-dir<span class="w"> </span>zipformer_adapter/exp_giga_finetune_adapters<span class="si">${</span><span class="nv">use_adapters</span><span class="si">}</span>_adapter_dim<span class="si">${</span><span class="nv">adapter_dim</span><span class="si">}</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--max-duration<span class="w"> </span><span class="m">600</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--use-adapters<span class="w"> </span><span class="nv">$use_adapters</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--adapter-dim<span class="w"> </span><span class="nv">$adapter_dim</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--decoding-method<span class="w"> </span>greedy_search
+</pre></div>
+</div>
+<p>You should see the following numbers:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">For</span> <span class="n">dev</span><span class="p">,</span> <span class="n">WER</span> <span class="n">of</span> <span class="n">different</span> <span class="n">settings</span> <span class="n">are</span><span class="p">:</span>
+<span class="n">greedy_search</span>       <span class="mf">15.44</span>   <span class="n">best</span> <span class="k">for</span> <span class="n">dev</span>
+
+<span class="n">For</span> <span class="n">test</span><span class="p">,</span> <span class="n">WER</span> <span class="n">of</span> <span class="n">different</span> <span class="n">settings</span> <span class="n">are</span><span class="p">:</span>
+<span class="n">greedy_search</span>       <span class="mf">15.42</span>   <span class="n">best</span> <span class="k">for</span> <span class="n">test</span>
+</pre></div>
+</div>
+<p>The WER on test set is improved from 19.27 to 15.42, demonstrating the effectiveness of adapters.</p>
+<p>The same model can be used to perform decoding on LibriSpeech test sets. You can deactivate the adapters
+to keep the same performance of the original model:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nv">epoch</span><span class="o">=</span><span class="m">20</span>
+$<span class="w"> </span><span class="nv">avg</span><span class="o">=</span><span class="m">1</span>
+$<span class="w"> </span><span class="nv">use_adapters</span><span class="o">=</span><span class="m">0</span>
+$<span class="w"> </span><span class="nv">adapter_dim</span><span class="o">=</span><span class="m">8</span>
+
+%<span class="w"> </span>./zipformer/decode.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--epoch<span class="w"> </span><span class="nv">$epoch</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--avg<span class="w"> </span><span class="nv">$avg</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--use-averaged-model<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--exp-dir<span class="w"> </span>zipformer_adapter/exp_giga_finetune_adapters<span class="si">${</span><span class="nv">use_adapters</span><span class="si">}</span>_adapter_dim<span class="si">${</span><span class="nv">adapter_dim</span><span class="si">}</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--max-duration<span class="w"> </span><span class="m">600</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--use-adapters<span class="w"> </span><span class="nv">$use_adapters</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--adapter-dim<span class="w"> </span><span class="nv">$adapter_dim</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--decoding-method<span class="w"> </span>greedy_search
+</pre></div>
+</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">For</span> <span class="n">dev</span><span class="p">,</span> <span class="n">WER</span> <span class="n">of</span> <span class="n">different</span> <span class="n">settings</span> <span class="n">are</span><span class="p">:</span>
+<span class="n">greedy_search</span>       <span class="mf">2.23</span>    <span class="n">best</span> <span class="k">for</span> <span class="n">test</span><span class="o">-</span><span class="n">clean</span>
+
+<span class="n">For</span> <span class="n">test</span><span class="p">,</span> <span class="n">WER</span> <span class="n">of</span> <span class="n">different</span> <span class="n">settings</span> <span class="n">are</span><span class="p">:</span>
+<span class="n">greedy_search</span>       <span class="mf">4.96</span>    <span class="n">best</span> <span class="k">for</span> <span class="n">test</span><span class="o">-</span><span class="n">other</span>
+</pre></div>
+</div>
+<p>The numbers are the same as reported in <a class="reference external" href="https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/RESULTS.md#normal-scaled-model-number-of-model-parameters-65549011-ie-6555-m">icefall</a>. So adapter-based
+fine-tuning is also very flexible as the same model can be used for decoding on the original and target domain.</p>
+</section>
+<section id="export-the-model">
+<h2>Export the model<a class="headerlink" href="#export-the-model" title="Permalink to this heading"></a></h2>
+<p>After training, the model can be exported to <code class="docutils literal notranslate"><span class="pre">onnx</span></code> format easily using the following command:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nv">use_adapters</span><span class="o">=</span><span class="m">1</span>
+$<span class="w"> </span><span class="nv">adapter_dim</span><span class="o">=</span><span class="m">16</span>
+
+$<span class="w"> </span>./zipformer_adapter/export-onnx.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--tokens<span class="w"> </span>icefall-asr-librispeech-zipformer-2023-05-15/data/lang_bpe_500/tokens.txt<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--use-averaged-model<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--epoch<span class="w"> </span><span class="m">20</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--avg<span class="w"> </span><span class="m">10</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--exp-dir<span class="w"> </span>zipformer_adapter/exp_giga_finetune_adapters<span class="si">${</span><span class="nv">use_adapters</span><span class="si">}</span>_adapter_dim<span class="si">${</span><span class="nv">adapter_dim</span><span class="si">}</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--use-adapters<span class="w"> </span><span class="nv">$use_adapters</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--adapter-dim<span class="w"> </span><span class="nv">$adapter_dim</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--num-encoder-layers<span class="w"> </span><span class="s2">&quot;2,2,3,4,3,2&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--downsampling-factor<span class="w"> </span><span class="s2">&quot;1,2,4,8,4,2&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--feedforward-dim<span class="w"> </span><span class="s2">&quot;512,768,1024,1536,1024,768&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--num-heads<span class="w"> </span><span class="s2">&quot;4,4,4,8,4,4&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--encoder-dim<span class="w"> </span><span class="s2">&quot;192,256,384,512,384,256&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--query-head-dim<span class="w"> </span><span class="m">32</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--value-head-dim<span class="w"> </span><span class="m">12</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--pos-head-dim<span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--pos-dim<span class="w"> </span><span class="m">48</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--encoder-unmasked-dim<span class="w"> </span><span class="s2">&quot;192,192,256,256,256,192&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--cnn-module-kernel<span class="w"> </span><span class="s2">&quot;31,31,15,15,15,31&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--decoder-dim<span class="w"> </span><span class="m">512</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--joiner-dim<span class="w"> </span><span class="m">512</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--causal<span class="w"> </span>False<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--chunk-size<span class="w"> </span><span class="s2">&quot;16,32,64,-1&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--left-context-frames<span class="w"> </span><span class="s2">&quot;64,128,256,-1&quot;</span>
+</pre></div>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="../from_supervised/finetune_zipformer.html" class="btn btn-neutral float-left" title="Finetune from a supervised pre-trained Zipformer model" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../../../contributing/index.html" class="btn btn-neutral float-right" title="Contributing" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2021, icefall development team.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
