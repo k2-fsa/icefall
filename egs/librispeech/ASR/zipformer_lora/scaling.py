@@ -1764,6 +1764,8 @@ class ActivationDropoutAndLinear_lora(torch.nn.Module):
             initial_scale=initial_scale,
             bias=bias,
         )
+        self.weight = self.l.weight
+        self.register_parameter("bias", self.l.bias)
 
         if activation == "SwooshL":
             self.activation = SwooshL()
