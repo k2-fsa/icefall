@@ -13,3 +13,4 @@ data to improve the performance on new domains.
    :caption: Table of Contents
 
    from_supervised/finetune_zipformer
+   adapter/finetune_adapter
