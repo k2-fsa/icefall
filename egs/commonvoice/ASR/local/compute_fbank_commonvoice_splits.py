@@ -45,7 +45,7 @@ def get_args():
     parser.add_argument(
         "--subset",
         type=str,
-        default="train"
+        default="train",
         help="""Dataset parts to compute fbank. """,
     )
 
