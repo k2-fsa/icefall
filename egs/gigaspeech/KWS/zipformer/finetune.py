@@ -76,25 +76,6 @@ from torch import Tensor
 from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
-
-from icefall import diagnostics
-from icefall.checkpoint import remove_checkpoints
-from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
-from icefall.checkpoint import (
-    save_checkpoint_with_global_batch_idx,
-    update_averaged_model,
-)
-from icefall.dist import cleanup_dist, setup_dist
-from icefall.env import get_env_info
-from icefall.hooks import register_inf_check_hooks
-from icefall.utils import (
-    AttributeDict,
-    MetricsTracker,
-    get_parameter_groups_with_lrs,
-    setup_logger,
-    str2bool,
-)
-
 from train import (
     add_model_arguments,
     add_training_arguments,
@@ -108,6 +89,25 @@ from train import (
     save_checkpoint,
     scan_pessimistic_batches_for_oom,
     set_batch_count,
+)
+
+from icefall import diagnostics
+from icefall.checkpoint import remove_checkpoints
+from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
+from icefall.checkpoint import (
+    save_checkpoint_with_global_batch_idx,
+    update_averaged_model,
+)
+from icefall.dist import cleanup_dist, setup_dist
+from icefall.env import get_env_info
+from icefall.err import raise_grad_scale_is_too_small_error
+from icefall.hooks import register_inf_check_hooks
+from icefall.utils import (
+    AttributeDict,
+    MetricsTracker,
+    get_parameter_groups_with_lrs,
+    setup_logger,
+    str2bool,
 )
 
 LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
@@ -372,9 +372,7 @@ def train_one_epoch(
                 logging.warning(f"Grad scale is small: {cur_grad_scale}")
             if cur_grad_scale < 1.0e-05:
                 save_bad_model()
-                raise RuntimeError(
-                    f"grad_scale is too small, exiting: {cur_grad_scale}"
-                )
+                raise_grad_scale_is_too_small_error(cur_grad_scale)
 
         if batch_idx % params.log_interval == 0:
             cur_lr = max(scheduler.get_last_lr())

@@ -77,11 +77,10 @@ from typing import List, Tuple
 import torch
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
-
-from onnx_pretrained import greedy_search, OnnxModel
+from k2 import SymbolTable
+from onnx_pretrained import OnnxModel, greedy_search
 
 from icefall.utils import setup_logger, store_transcripts, write_error_stats
-from k2 import SymbolTable
 
 
 def get_parser():

@@ -23,6 +23,7 @@ from pathlib import Path
 
 from lhotse import CutSet, SupervisionSegment
 from lhotse.recipes.utils import read_manifests_if_cached
+
 from icefall.utils import str2bool
 
 # Similar text filtering and normalization procedure as in:

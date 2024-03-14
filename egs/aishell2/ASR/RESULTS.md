@@ -1,6 +1,6 @@
 ## Results
 
-### Aishell2 char-based training results 
+### Aishell2 char-based training results
 
 #### Pruned transducer stateless 5
 
