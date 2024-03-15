@@ -175,7 +175,20 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--base-lr", type=float, default=0.045, help="The base learning rate."
+        "--use-validated-set",
+        type=str2bool,
+        default=False,
+        help="""Use the validated set for training.
+        This is useful when you want to use more data for training,
+        but not recommended for research purposes.
+        """,
+    )
+
+    parser.add_argument(
+        "--base-lr",
+        type=float,
+        default=0.045,
+        help="The base learning rate.",
     )
 
     parser.add_argument(
@@ -886,7 +899,10 @@ def run(rank, world_size, args):
 
     commonvoice = CommonVoiceAsrDataModule(args)
 
-    train_cuts = commonvoice.train_cuts()
+    if not args.use_validated_set:
+        train_cuts = commonvoice.train_cuts()
+    else:
+        train_cuts = commonvoice.validated_cuts()
 
     def remove_short_and_long_utt(c: Cut):
         # Keep only utterances with duration between 1 second and 20 seconds

@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 #
-# Copyright 2021-2022 Xiaomi Corporation (Author: Fangjun Kuang,
+# Copyright 2021-2024 Xiaomi Corporation (Author: Fangjun Kuang,
 #                                                 Zengwei Yao
-#                                                 Mingshuang Luo)
+#                                                 Mingshuang Luo,
+#                                                 Zengrui Jin,)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
