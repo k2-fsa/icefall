@@ -56,48 +56,16 @@ def normalize_text(utt: str, language: str) -> str:
         # Mozilla Common Voice uses both "yue" and "zh-HK" for Cantonese
         # Not sure why they decided to do this...
         # None en/zh-yue tokens are manually removed here
-        return (
-            utt.replace("，", "")
-            .replace("。", " ")
-            .replace("？", "")
-            .replace("！", "")
-            .replace("?", "")
-            .replace("!", "")
-            .replace("‘", "")
-            .replace("、", "")
-            .replace(",", "")
-            .replace(".", "")
-            .replace(":", "")
-            .replace(";", "")
-            .replace("「", "")
-            .replace("」", "")
-            .replace("“", "")
-            .replace("”", "")
-            .replace("\\", "")
-            .replace("~", "")
-            .replace("—", "")
-            .replace("ㄧ", "")
-            .replace("《", "")
-            .replace("》", "")
-            .replace("…", "")
-            .replace("⋯", "")
-            .replace("·", "")
-            .replace("﹒", "")
-            .replace("．", "")
-            .replace("：", "")
-            .replace("︰", "")
-            .replace("﹖", "")
-            .replace("（", "")
-            .replace("）", "")
-            .replace("－", "")
-            .replace("～", "")
-            .replace("；", "")
-            .replace("￼", "")
-            .replace("﹔", "")
-            .replace("／", "")
-            .replace("Ａ", "")
-            .replace("Ｂ", "")
-            .upper()
+
+        # fmt: off
+        tokens_to_remove = ["，", "。", "？", "！", "?", "!", "‘", "、", ",", "\.", ":", ";", "「", "」", "“", "”", "~", "—", "ㄧ", "《", "》", "…", "⋯", "·", "﹒", "．", "：", "︰", "﹖", "（", "）", "－", "～", "；", "￼", "⠀", "﹔", "／", "Ａ", "Ｂ", "–", "‧"]
+
+        # fmt: on
+        utt = utt.upper().replace("\\", "")
+        return re.sub(
+            pattern="|".join([f"[{token}]" for token in tokens_to_remove]),
+            repl="",
+            string=utt,
         )
     else:
         raise NotImplementedError(
