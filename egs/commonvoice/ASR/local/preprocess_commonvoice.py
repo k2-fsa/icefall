@@ -93,6 +93,10 @@ def normalize_text(utt: str, language: str) -> str:
             .replace("～", "")
             .replace("；", "")
             .replace("￼", "")
+            .replace("﹔", "")
+            .replace("／", "")
+            .replace("Ａ", "")
+            .replace("Ｂ", "")
             .upper()
         )
     else:
