@@ -257,12 +257,14 @@ if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
     log "Also combine features for validated data"
     pieces=$(find data/${lang}/fbank/cv-${lang}_validated_split_${num_splits} -name "cv-${lang}_cuts_validated.*.jsonl.gz")
     lhotse combine $pieces data/${lang}/fbank/cv-${lang}_cuts_validated.jsonl.gz
+    touch data/${lang}/fbank/.cv-${lang}_validated.done
   fi
 
   if [ $use_invalidated = true ] && [ -f data/${lang}/fbank/.cv-${lang}_invalidated.done ]; then
     log "Also combine features for invalidated data"
-    pieces=$(find data/${lang}/fbank/cv-${lang}_inalidated_split_${num_splits} -name "cv-${lang}_cuts_invalidated.*.jsonl.gz")
+    pieces=$(find data/${lang}/fbank/cv-${lang}_invalidated_split_${num_splits} -name "cv-${lang}_cuts_invalidated.*.jsonl.gz")
     lhotse combine $pieces data/${lang}/fbank/cv-${lang}_cuts_invalidated.jsonl.gz
+    touch data/${lang}/fbank/.cv-${lang}_invalidated.done
   fi
 fi
 
@@ -289,8 +291,18 @@ if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
         # 1. wget -O jq https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64
         # 2. chmod +x ./jq
         # 3. cp jq /usr/bin
-        gunzip -c data/${lang}/manifests/cv-${lang}_supervisions_train.jsonl.gz \
-          | jq '.text' | sed 's/"//g' > $lang_dir/text
+        if [ $use_validated = true ]; then
+          gunzip -c data/${lang}/manifests/cv-${lang}_supervisions_validated.jsonl.gz \
+            | jq '.text' | sed 's/"//g' >> $lang_dir/text
+        else
+          gunzip -c data/${lang}/manifests/cv-${lang}_supervisions_train.jsonl.gz \
+            | jq '.text' | sed 's/"//g' > $lang_dir/text
+        fi
+        
+        if [ $use_invalidated = true ]; then
+          gunzip -c data/${lang}/manifests/cv-${lang}_supervisions_invalidated.jsonl.gz \
+            | jq '.text' | sed 's/"//g' >> $lang_dir/text
+        fi
 
         if [ $lang == "yue" ] || [ $lang == "zh-HK" ]; then
           # Get words.txt and words_no_ids.txt

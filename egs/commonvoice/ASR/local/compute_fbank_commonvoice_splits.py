@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# Copyright    2023  Xiaomi Corp.             (Yifan Yang)
+# Copyright    2023-2024  Xiaomi Corp.             (Yifan Yang,
+#                                                   Zengrui Jin,)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -74,21 +75,21 @@ def get_args():
         "--num-splits",
         type=int,
         required=True,
-        help="The number of splits of the train subset",
+        help="The number of splits of the subset",
     )
 
     parser.add_argument(
         "--start",
         type=int,
         default=0,
-        help="Process pieces starting from this number (inclusive).",
+        help="Process pieces starting from this number (included).",
     )
 
     parser.add_argument(
         "--stop",
         type=int,
         default=-1,
-        help="Stop processing pieces until this number (exclusive).",
+        help="Stop processing pieces until this number (excluded).",
     )
 
     parser.add_argument(

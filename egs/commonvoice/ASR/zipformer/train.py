@@ -338,6 +338,15 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--use-invalidated-set",
+        type=str2bool,
+        default=False,
+        help="""Use the invalidated set for training.
+        In case you want to take the risk and utilize more data for training.
+        """,
+    )
+
+    parser.add_argument(
         "--base-lr",
         type=float,
         default=0.045,
@@ -1190,6 +1199,9 @@ def run(rank, world_size, args):
         train_cuts = commonvoice.train_cuts()
     else:
         train_cuts = commonvoice.validated_cuts()
+
+    if args.use_invalidated_set:
+        train_cuts += commonvoice.invalidated_cuts()
 
     def remove_short_and_long_utt(c: Cut):
         # Keep only utterances with duration between 1 second and 20 seconds
