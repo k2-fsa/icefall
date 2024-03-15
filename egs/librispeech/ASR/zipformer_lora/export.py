@@ -165,9 +165,9 @@ from typing import List, Tuple
 
 import k2
 import torch
+from finetune import add_finetune_arguments, add_model_arguments, get_model, get_params
 from scaling_converter import convert_scaled_to_non_scaled
 from torch import Tensor, nn
-from finetune import add_model_arguments, add_finetune_arguments, get_model, get_params
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -499,7 +499,7 @@ def main():
     for k in param_names:
         assert k in state_dict.keys()
         new_state_dict[k] = state_dict[k]
-        
+
     base_model.load_state_dict(new_state_dict, strict=True)
 
     model = base_model

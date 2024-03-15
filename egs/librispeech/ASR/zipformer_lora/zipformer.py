@@ -30,7 +30,6 @@ from scaling import (
 )
 from scaling import (
     ScaledLinear,  # not as in other dirs.. just scales down initial parameter values.
-    ScaledLinear_lora
 )
 from scaling import (
     ActivationDropoutAndLinear,
@@ -40,6 +39,7 @@ from scaling import (
     ChunkCausalDepthwiseConv1d,
     Dropout2,
     FloatLike,
+    ScaledLinear_lora,
     ScheduledFloat,
     Whiten,
     convert_num_channels,
@@ -636,7 +636,7 @@ class Zipformer2EncoderLayer(nn.Module):
         )
 
         self.self_attn1 = SelfAttention(
-            embed_dim, 
+            embed_dim,
             num_heads,
             value_head_dim,
             lora_r=lora_r,
@@ -645,7 +645,7 @@ class Zipformer2EncoderLayer(nn.Module):
         )
 
         self.self_attn2 = SelfAttention(
-            embed_dim, 
+            embed_dim,
             num_heads,
             value_head_dim,
             lora_r=lora_r,
@@ -654,7 +654,7 @@ class Zipformer2EncoderLayer(nn.Module):
         )
 
         self.feed_forward1 = FeedforwardModule(
-            embed_dim, 
+            embed_dim,
             (feedforward_dim * 3) // 4,
             dropout,
             lora_r=lora_r,
@@ -672,7 +672,7 @@ class Zipformer2EncoderLayer(nn.Module):
         )
 
         self.feed_forward3 = FeedforwardModule(
-            embed_dim, 
+            embed_dim,
             (feedforward_dim * 5) // 4,
             dropout,
             lora_r=lora_r,
@@ -1566,7 +1566,7 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         pos_emb_skip_rate: FloatLike = ScheduledFloat((0.0, 0.5), (4000.0, 0.0)),
         lora_r: int = 0,
         lora_alpha: int = 4,
-        lora_dropout: float=0.0
+        lora_dropout: float = 0.0,
     ) -> None:
         super().__init__()
         self.embed_dim = embed_dim
@@ -1935,7 +1935,7 @@ class SelfAttention(nn.Module):
         value_head_dim: int,
         lora_r: int = 0,
         lora_alpha: int = 4,
-        lora_dropout: float=0.0
+        lora_dropout: float = 0.0,
     ) -> None:
         super().__init__()
         self.in_proj = ScaledLinear_lora(
@@ -2064,7 +2064,7 @@ class FeedforwardModule(nn.Module):
         dropout: FloatLike,
         lora_r: int = 0,
         lora_alpha: int = 4,
-        lora_dropout: float=0.0
+        lora_dropout: float = 0.0,
     ):
         super(FeedforwardModule, self).__init__()
         self.in_proj = ScaledLinear_lora(

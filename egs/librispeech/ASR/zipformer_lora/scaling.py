@@ -15,16 +15,17 @@
 # limitations under the License.
 
 
-from typing import Optional, Tuple, Union
 import logging
-import k2
-from torch.cuda.amp import custom_fwd, custom_bwd
-import random
-import torch
 import math
+import random
+from typing import Optional, Tuple, Union
+
+import k2
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
+from torch.cuda.amp import custom_bwd, custom_fwd
 
 
 def logaddexp_onnx(x: Tensor, y: Tensor) -> Tensor:
@@ -518,18 +519,19 @@ def ScaledLinear(*args, initial_scale: float = 1.0, **kwargs) -> nn.Linear:
             torch.nn.init.uniform_(ans.bias, -0.1 * initial_scale, 0.1 * initial_scale)
     return ans
 
+
 class LoRALayer:
     def __init__(
-        self, 
-        r: int, 
-        lora_alpha: int, 
+        self,
+        r: int,
+        lora_alpha: int,
         lora_dropout: float,
         merge_weights: bool,
     ):
         self.r = r
         self.lora_alpha = lora_alpha
         # Optional dropout
-        if lora_dropout > 0.:
+        if lora_dropout > 0.0:
             self.lora_dropout = nn.Dropout(p=lora_dropout)
         else:
             self.lora_dropout = lambda x: x
@@ -537,23 +539,29 @@ class LoRALayer:
         self.merged = False
         self.merge_weights = merge_weights
 
+
 class ScaledLinear_lora(nn.Linear, LoRALayer):
     def __init__(
         self,
         in_features: int,
         out_features: int,
-        r: int=0,
-        fan_in_fan_out: bool=False,
-        lora_alpha: int=1,
-        lora_dropout: float=0.0,
+        r: int = 0,
+        fan_in_fan_out: bool = False,
+        lora_alpha: int = 1,
+        lora_dropout: float = 0.0,
         initial_scale: float = 1.0,
         merge_weights: bool = True,
         **kwargs,
     ):
         nn.Linear.__init__(self, in_features, out_features, **kwargs)
-        LoRALayer.__init__(self, r=r, lora_alpha=lora_alpha, lora_dropout=lora_dropout,
-                           merge_weights=merge_weights)
-        
+        LoRALayer.__init__(
+            self,
+            r=r,
+            lora_alpha=lora_alpha,
+            lora_dropout=lora_dropout,
+            merge_weights=merge_weights,
+        )
+
         self.initial_scale = initial_scale
         self.fan_in_fan_out = fan_in_fan_out
         if r > 0:
@@ -563,7 +571,7 @@ class ScaledLinear_lora(nn.Linear, LoRALayer):
             self.weight.requires_grad = False
 
         self.reset_parameters()
-        
+
     def reset_parameters(self):
         # initialize the parameters
         nn.Linear.reset_parameters(self)
@@ -572,16 +580,19 @@ class ScaledLinear_lora(nn.Linear, LoRALayer):
             with torch.no_grad():
                 self.weight[:] *= initial_scale
                 if self.bias is not None:
-                    nn.init.uniform_(self.bias, -0.1 * initial_scale, 0.1 * initial_scale)
-                if hasattr(self, 'lora_A'):
+                    nn.init.uniform_(
+                        self.bias, -0.1 * initial_scale, 0.1 * initial_scale
+                    )
+                if hasattr(self, "lora_A"):
                     # initialize B the same way as the default for nn.Linear and A to zero
                     # this is different than what is described in the paper but should not affect performance
                     nn.init.kaiming_uniform_(self.lora_A, a=math.sqrt(5))
                     nn.init.zeros_(self.lora_B)
-    
-    def train(self, mode: bool=True):
+
+    def train(self, mode: bool = True):
         def T(w):
             return w.transpose(0, 1) if self.fan_in_fan_out else w
+
         nn.Linear.train(self, mode)
         if mode:
             # We don't want the weights to be merged in training mode
@@ -595,17 +606,23 @@ class ScaledLinear_lora(nn.Linear, LoRALayer):
                 # Merge the weights and mark it
                 if self.r > 0:
                     self.weight.data += T(self.lora_B @ self.lora_A) * self.scaling
-                self.merged = True 
-    
+                self.merged = True
+
     def forward(self, x: torch.Tensor):
         def T(w):
             return w.transpose(0, 1) if self.fan_in_fan_out else w
+
         if self.r > 0 and not self.merged:
             result = F.linear(x, T(self.weight), bias=self.bias)
-            delta_result = self.lora_dropout(x) @ self.lora_A.transpose(0, 1) @ self.lora_B.transpose(0, 1)
+            delta_result = (
+                self.lora_dropout(x)
+                @ self.lora_A.transpose(0, 1)
+                @ self.lora_B.transpose(0, 1)
+            )
             return result + delta_result * self.scaling
         else:
             return F.linear(x, T(self.weight), bias=self.bias)
+
 
 def ScaledConv1d(*args, initial_scale: float = 1.0, **kwargs) -> nn.Conv1d:
     """
@@ -1740,6 +1757,7 @@ class ActivationDropoutAndLinear(torch.nn.Module):
             self.dropout_shared_dim,
         )
 
+
 class ActivationDropoutAndLinear_lora(torch.nn.Module):
     def __init__(
         self,
@@ -1749,9 +1767,9 @@ class ActivationDropoutAndLinear_lora(torch.nn.Module):
         activation: str = "SwooshL",
         dropout_p: FloatLike = 0.0,
         dropout_shared_dim: Optional[int] = -1,
-        r: int=0,
-        lora_alpha: int=1,
-        lora_dropout: float=0.0,
+        r: int = 0,
+        lora_alpha: int = 1,
+        lora_dropout: float = 0.0,
         initial_scale: float = 1.0,
     ):
         super().__init__()

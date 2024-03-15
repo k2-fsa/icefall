@@ -147,17 +147,11 @@ def add_finetune_arguments(parser: argparse.ArgumentParser):
     )
 
     parser.add_argument(
-        "--use-lora",
-        type=str2bool,
-        default=True,
-        help="If use LoRA for fine-tune"
+        "--use-lora", type=str2bool, default=True, help="If use LoRA for fine-tune"
     )
 
     parser.add_argument(
-        "--lora-r",
-        type=int,
-        default=0,
-        help="The bottleneck dimension of LoRA"
+        "--lora-r", type=int, default=0, help="The bottleneck dimension of LoRA"
     )
 
     parser.add_argument(
@@ -1287,8 +1281,12 @@ def run(rank, world_size, args):
         else:
             p.requires_grad = False
 
-    logging.info("A total of {} trainable parameters ({:.3f}% of the whole model)".format(num_trainable, num_trainable/num_param * 100))
-    
+    logging.info(
+        "A total of {} trainable parameters ({:.3f}% of the whole model)".format(
+            num_trainable, num_trainable / num_param * 100
+        )
+    )
+
     model.to(device)
     if world_size > 1:
         logging.info("Using DDP")
