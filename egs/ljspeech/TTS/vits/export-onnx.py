@@ -25,9 +25,8 @@ Export the model to ONNX:
   --exp-dir vits/exp \
   --tokens data/tokens.txt
 
-It will generate two files inside vits/exp:
+It will generate one file inside vits/exp:
   - vits-epoch-1000.onnx
-  - vits-epoch-1000.int8.onnx (quantizated model)
 
 See ./test_onnx.py for how to use the exported ONNX models.
 """
@@ -40,7 +39,6 @@ from typing import Dict, Tuple
 import onnx
 import torch
 import torch.nn as nn
-from onnxruntime.quantization import QuantType, quantize_dynamic
 from tokenizer import Tokenizer
 from train import get_model, get_params
 
@@ -73,6 +71,16 @@ def get_parser():
         type=str,
         default="data/tokens.txt",
         help="""Path to vocabulary.""",
+    )
+
+    parser.add_argument(
+        "--model-type",
+        type=str,
+        default="high",
+        choices=["low", "medium", "high"],
+        help="""If not empty, valid values are: low, medium, high.
+        It controls the model size. low -> runs faster.
+        """,
     )
 
     return parser
@@ -136,7 +144,7 @@ class OnnxModel(nn.Module):
           Return a tuple containing:
             - audio, generated wavform tensor, (B, T_wav)
         """
-        audio, _, _ = self.model.inference(
+        audio, _, _ = self.model.generator.inference(
             text=tokens,
             text_lengths=tokens_lens,
             noise_scale=noise_scale,
@@ -198,6 +206,11 @@ def export_model_onnx(
         },
     )
 
+    if model.model.spks is None:
+        num_speakers = 1
+    else:
+        num_speakers = model.model.spks
+
     meta_data = {
         "model_type": "vits",
         "version": "1",
@@ -206,8 +219,8 @@ def export_model_onnx(
         "language": "English",
         "voice": "en-us",  # Choose your language appropriately
         "has_espeak": 1,
-        "n_speakers": 1,
-        "sample_rate": 22050,  # Must match the real sample rate
+        "n_speakers": num_speakers,
+        "sample_rate": model.model.sampling_rate,  # Must match the real sample rate
     }
     logging.info(f"meta_data: {meta_data}")
 
@@ -233,14 +246,13 @@ def main():
 
     load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
 
-    model = model.generator
     model.to("cpu")
     model.eval()
 
     model = OnnxModel(model=model)
 
     num_param = sum([p.numel() for p in model.parameters()])
-    logging.info(f"generator parameters: {num_param}")
+    logging.info(f"generator parameters: {num_param}, or {num_param/1000/1000} M")
 
     suffix = f"epoch-{params.epoch}"
 
@@ -255,18 +267,6 @@ def main():
         opset_version=opset_version,
     )
     logging.info(f"Exported generator to {model_filename}")
-
-    # Generate int8 quantization models
-    # See https://onnxruntime.ai/docs/performance/model-optimizations/quantization.html#data-type-selection
-
-    logging.info("Generate int8 quantization models")
-
-    model_filename_int8 = params.exp_dir / f"vits-{suffix}.int8.onnx"
-    quantize_dynamic(
-        model_input=model_filename,
-        model_output=model_filename_int8,
-        weight_type=QuantType.QUInt8,
-    )
 
 
 if __name__ == "__main__":

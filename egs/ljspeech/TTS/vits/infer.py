@@ -72,6 +72,16 @@ def get_parser():
         help="""Path to vocabulary.""",
     )
 
+    parser.add_argument(
+        "--model-type",
+        type=str,
+        default="high",
+        choices=["low", "medium", "high"],
+        help="""If not empty, valid values are: low, medium, high.
+        It controls the model size. low -> runs faster.
+        """,
+    )
+
     return parser
 
 
@@ -94,6 +104,7 @@ def infer_dataset(
       tokenizer:
         Used to convert text to phonemes.
     """
+
     #  Background worker save audios to disk.
     def _save_worker(
         batch_size: int,
