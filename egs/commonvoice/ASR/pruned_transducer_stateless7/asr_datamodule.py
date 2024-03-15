@@ -418,7 +418,7 @@ class CommonVoiceAsrDataModule:
         )
 
     @lru_cache()
-    def validated_cuts(self) -> CutSet:
+    def invalidated_cuts(self) -> CutSet:
         logging.info("About to get invalidated cuts")
         return load_manifest_lazy(
             self.args.cv_manifest_dir
