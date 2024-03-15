@@ -375,11 +375,7 @@ def streaming_forward(
     Returns encoder outputs, output lengths, and updated states.
     """
     cached_embed_left_pad = states[-2]
-    (
-        x,
-        x_lens,
-        new_cached_embed_left_pad,
-    ) = model.encoder_embed.streaming_forward(
+    (x, x_lens, new_cached_embed_left_pad) = model.encoder_embed.streaming_forward(
         x=features,
         x_lens=feature_lens,
         cached_left_pad=cached_embed_left_pad,
