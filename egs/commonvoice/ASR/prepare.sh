@@ -163,13 +163,13 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   
   if [ $use_validated = true ] && [ ! -f data/${lang}/fbank/.validated.preprocess_complete ]; then
     log "Also preprocess validated data"
-    ./local/preprocess_commonvoice.py  --language $lang --split validated
+    ./local/preprocess_commonvoice.py  --language $lang --dataset validated
     touch data/${lang}/fbank/.validated.preprocess_complete
   fi
 
   if [ $use_invalidated = true ] && [ ! -f data/${lang}/fbank/.invalidated.preprocess_complete ]; then
     log "Also preprocess invalidated data"
-    ./local/preprocess_commonvoice.py  --language $lang --split invalidated
+    ./local/preprocess_commonvoice.py  --language $lang --dataset invalidated
     touch data/${lang}/fbank/.invalidated.preprocess_complete
   fi
 fi
