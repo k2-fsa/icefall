@@ -1081,9 +1081,11 @@ def write_surt_error_stats(
                 f"{cut_id}:\t"
                 + " ".join(
                     (
-                        ref_word
-                        if ref_word == hyp_word
-                        else f"({ref_word}->{hyp_word})"
+                        (
+                            ref_word
+                            if ref_word == hyp_word
+                            else f"({ref_word}->{hyp_word})"
+                        )
                         for ref_word, hyp_word in ali
                     )
                 ),
