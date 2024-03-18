@@ -48,7 +48,7 @@ popd
   --joiner-dim 512 \
   --causal True \
   --chunk-size 16 \
-  --left-context-frames 64
+  --left-context-frames 128
 
 The --chunk-size in training is "16,32,64,-1", so we select one of them
 (excluding -1) during streaming export. The same applies to `--left-context`,
@@ -56,9 +56,9 @@ whose value is "64,128,256,-1".
 
 It will generate the following 3 files inside $repo/exp:
 
-  - encoder-epoch-99-avg-1-chunk-16-left-64.onnx
-  - decoder-epoch-99-avg-1-chunk-16-left-64.onnx
-  - joiner-epoch-99-avg-1-chunk-16-left-64.onnx
+  - encoder-epoch-99-avg-1-chunk-16-left-128.onnx
+  - decoder-epoch-99-avg-1-chunk-16-left-128.onnx
+  - joiner-epoch-99-avg-1-chunk-16-left-128.onnx
 
 See ./onnx_pretrained-streaming.py for how to use the exported ONNX models.
 """

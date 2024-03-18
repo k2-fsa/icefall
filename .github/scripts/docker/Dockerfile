@@ -36,7 +36,9 @@ RUN pip install --no-cache-dir \
       \
       git+https://github.com/lhotse-speech/lhotse \
       kaldifeat==${_KALDIFEAT_VERSION} -f https://csukuangfj.github.io/kaldifeat/cpu.html \
+      cython \
       dill \
+      espnet_tts_frontend \
       graphviz \
       kaldi-decoder \
       kaldi_native_io \
@@ -45,13 +47,15 @@ RUN pip install --no-cache-dir \
       kaldilm \
       matplotlib \
       multi_quantization \
+      numba \
       numpy \
       onnx \
       onnxmltools \
       onnxruntime \
+      piper_phonemize -f https://k2-fsa.github.io/icefall/piper_phonemize.html \
+      pypinyin==0.50.0 \
       pytest \
       sentencepiece>=0.1.96 \
-      pypinyin==0.50.0 \
       six \
       tensorboard \
       typeguard
