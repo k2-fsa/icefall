@@ -52,7 +52,7 @@ class _SeedWorkers:
         fix_random_seed(self.seed + worker_id)
 
 
-class LJSpeechTtsDataModule:
+class BakerZhSpeechTtsDataModule:
     """
     DataModule for tts experiments.
     It assumes there is always one train and valid dataloader,
@@ -66,11 +66,12 @@ class LJSpeechTtsDataModule:
     - cut concatenation,
     - on-the-fly feature extraction
 
-    This class should be derived for specific corpora used in ASR tasks.
+    This class should be derived for specific corpora used in TTS tasks.
     """
 
     def __init__(self, args: argparse.Namespace):
         self.args = args
+        self.sampling_rate = 48000
 
     @classmethod
     def add_arguments(cls, parser: argparse.ArgumentParser):
@@ -175,7 +176,7 @@ class LJSpeechTtsDataModule:
         )
 
         if self.args.on_the_fly_feats:
-            sampling_rate = 22050
+            sampling_rate = self.sampling_rate
             config = SpectrogramConfig(
                 sampling_rate=sampling_rate,
                 frame_length=1024 / sampling_rate,  # (in second),
@@ -232,7 +233,7 @@ class LJSpeechTtsDataModule:
     def valid_dataloaders(self, cuts_valid: CutSet) -> DataLoader:
         logging.info("About to create dev dataset")
         if self.args.on_the_fly_feats:
-            sampling_rate = 22050
+            sampling_rate = self.sampling_rate
             config = SpectrogramConfig(
                 sampling_rate=sampling_rate,
                 frame_length=1024 / sampling_rate,  # (in second),
@@ -272,7 +273,7 @@ class LJSpeechTtsDataModule:
     def test_dataloaders(self, cuts: CutSet) -> DataLoader:
         logging.info("About to create test dataset")
         if self.args.on_the_fly_feats:
-            sampling_rate = 22050
+            sampling_rate = self.sampling_rate
             config = SpectrogramConfig(
                 sampling_rate=sampling_rate,
                 frame_length=1024 / sampling_rate,  # (in second),
@@ -311,19 +312,19 @@ class LJSpeechTtsDataModule:
     def train_cuts(self) -> CutSet:
         logging.info("About to get train cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "ljspeech_cuts_train.jsonl.gz"
+            self.args.manifest_dir / "baker_zh_cuts_train.jsonl.gz"
         )
 
     @lru_cache()
     def valid_cuts(self) -> CutSet:
         logging.info("About to get validation cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "ljspeech_cuts_valid.jsonl.gz"
+            self.args.manifest_dir / "baker_zh_cuts_valid.jsonl.gz"
         )
 
     @lru_cache()
     def test_cuts(self) -> CutSet:
         logging.info("About to get test cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "ljspeech_cuts_test.jsonl.gz"
+            self.args.manifest_dir / "baker_zh_cuts_test.jsonl.gz"
         )

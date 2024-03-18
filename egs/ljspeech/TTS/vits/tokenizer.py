@@ -44,11 +44,11 @@ class Tokenizer(object):
                 if len(info) == 1:
                     # case of space
                     token = " "
-                    id = int(info[0])
+                    idx = int(info[0])
                 else:
-                    token, id = info[0], int(info[1])
+                    token, idx = info[0], int(info[1])
                 assert token not in self.token2id, token
-                self.token2id[token] = id
+                self.token2id[token] = idx
 
         # Refer to https://github.com/rhasspy/piper/blob/master/TRAINING.md
         self.pad_id = self.token2id["_"]  # padding

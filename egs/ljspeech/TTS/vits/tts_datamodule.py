@@ -66,7 +66,7 @@ class LJSpeechTtsDataModule:
     - cut concatenation,
     - on-the-fly feature extraction
 
-    This class should be derived for specific corpora used in ASR tasks.
+    This class should be derived for specific corpora used in TTS tasks.
     """
 
     def __init__(self, args: argparse.Namespace):
