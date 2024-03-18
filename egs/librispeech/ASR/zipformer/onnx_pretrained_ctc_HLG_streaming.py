@@ -41,7 +41,7 @@ popd
   --encoder-dim 192,256,256,256,256,256 \
   --encoder-unmasked-dim 192,192,192,192,192,192
 
-It will generate the following 2 files inside $repo/exp:
+It will generate the following 2 files inside $repo/exp-ctc-rnnt-small:
 
  - ctc-epoch-30-avg-3-chunk-16-left-128.int8.onnx
  - ctc-epoch-30-avg-3-chunk-16-left-128.onnx
@@ -426,7 +426,6 @@ def main():
         logging.info(f"Failed to get linear symbol sequence for {args.sound_file}")
         return
 
-    # are shifted by 1 during graph construction
     hyps = " ".join([word_table[i] for i in osymbols_out]).lower()
     logging.info(f"\n{args.sound_file}\n{hyps}")
 
