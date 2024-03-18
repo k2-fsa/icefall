@@ -27,10 +27,10 @@ popd
 2. Export the model to ONNX
 
 ./zipformer/export-onnx-streaming-ctc.py \
-  --tokens ./data/lang_bpe_500/tokens.txt \
+  --tokens $repo/data/lang_bpe_500/tokens.txt \
   --epoch 30 \
   --avg 3 \
-  --exp-dir zipformer/exp-ctc-rnnt-small \
+  --exp-dir $repo/exp-ctc-rnnt-small \
   --causal 1 \
   --use-ctc 1 \
   --chunk-size 16 \
@@ -107,8 +107,7 @@ def get_parser():
         type=str,
         help="The input sound file to transcribe. "
         "Supported formats are those supported by torchaudio.load(). "
-        "For example, wav and flac are supported. "
-        "The sample rate has to be 16kHz.",
+        "For example, wav and flac are supported. ",
     )
 
     return parser
@@ -311,9 +310,13 @@ def read_sound_files(
     ans = []
     for f in filenames:
         wave, sample_rate = torchaudio.load(f)
-        assert (
-            sample_rate == expected_sample_rate
-        ), f"expected sample rate: {expected_sample_rate}. Given: {sample_rate}"
+        if sample_rate != expected_sample_rate:
+            logging.info(f"Resample {sample_rate} to {expected_sample_rate}")
+            wave = torchaudio.functional.resample(
+                wave,
+                orig_freq=sample_rate,
+                new_freq=expected_sample_rate,
+            )
         # We use only the first channel
         ans.append(wave[0].contiguous())
     return ans
