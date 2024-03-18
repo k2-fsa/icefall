@@ -78,6 +78,13 @@ fi
 
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   log "Stage 3: Prepare phoneme tokens for VCTK"
+  # We assume you have installed piper_phonemize and espnet_tts_frontend.
+  # If not, please install them with:
+  #   - piper_phonemize: 
+  #       refer to https://github.com/rhasspy/piper-phonemize,
+  #       could install the pre-built wheels from https://github.com/csukuangfj/piper-phonemize/releases/tag/2023.12.5
+  #   - espnet_tts_frontend: 
+  #       `pip install espnet_tts_frontend`, refer to https://github.com/espnet/espnet_tts_frontend/
   if [ ! -e data/spectrogram/.vctk_with_token.done ]; then
     ./local/prepare_tokens_vctk.py
     mv data/spectrogram/vctk_cuts_with_tokens_all.jsonl.gz \
@@ -111,14 +118,15 @@ fi
 
 if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   log "Stage 5: Generate token file"
-  # We assume you have installed g2p_en and espnet_tts_frontend.
+  # We assume you have installed piper_phonemize and espnet_tts_frontend.
   # If not, please install them with:
-  #   - g2p_en: `pip install g2p_en`, refer to https://github.com/Kyubyong/g2p
-  #   - espnet_tts_frontend, `pip install espnet_tts_frontend`, refer to https://github.com/espnet/espnet_tts_frontend/
+  #   - piper_phonemize: 
+  #       refer to https://github.com/rhasspy/piper-phonemize,
+  #       could install the pre-built wheels from https://github.com/csukuangfj/piper-phonemize/releases/tag/2023.12.5
+  #   - espnet_tts_frontend: 
+  #       `pip install espnet_tts_frontend`, refer to https://github.com/espnet/espnet_tts_frontend/
   if [ ! -e data/tokens.txt ]; then
-    ./local/prepare_token_file.py \
-      --manifest-file data/spectrogram/vctk_cuts_train.jsonl.gz \
-      --tokens data/tokens.txt
+    ./local/prepare_token_file.py --tokens data/tokens.txt
   fi
 fi
 
