@@ -31,6 +31,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --exp-dir conformer_ctc2/exp \
   --lang-dir data/lang_bpe_200 \
   --otc-token "<star>" \
+  --feature-dim 768 \
   --allow-bypass-arc true \
   --allow-self-loop-arc true \
   --initial-bypass-weight -19 \
@@ -158,6 +159,14 @@ def get_parser():
         It contains language related input files such as
         "lexicon.txt"
         """,
+    )
+
+    parser.add_argument(
+        "--feature-dim",
+        type=int,
+        default=768,
+        help="""Number of features extracted in feature extraction stage.last dimension of feature vector.
+        80 when using fbank features and 768 or 1024 whn using wave2vec""",
     )
 
     parser.add_argument(
@@ -385,7 +394,6 @@ def get_params() -> AttributeDict:
             "valid_interval": 800,  # For the 100h subset, use 800
             "alignment_interval": 25,
             # parameters for conformer
-            "feature_dim": 768,
             "subsampling_factor": 2,
             "encoder_dim": 512,
             "nhead": 8,

@@ -16,11 +16,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import argparse
 import logging
 from pathlib import Path
 
 import torch
-from lhotse import CutSet, KaldifeatFbank, KaldifeatFbankConfig, LilcomChunkyWriter
+from lhotse import (
+    CutSet,
+    KaldifeatFbank,
+    KaldifeatFbankConfig,
+    LilcomChunkyWriter,
+    WhisperFbank,
+    WhisperFbankConfig,
+)
 
 # Torch's multithreaded behavior needs to be disabled or
 # it wastes a lot of CPU and slow things down.
@@ -30,8 +38,31 @@ torch.set_num_threads(1)
 torch.set_num_interop_threads(1)
 torch.multiprocessing.set_sharing_strategy("file_system")
 
+from icefall.utils import str2bool
 
-def compute_fbank_wenetspeech_dev_test():
+
+def get_parser():
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+
+    parser.add_argument(
+        "--num-mel-bins",
+        type=int,
+        default=80,
+        help="""The number of mel bins for Fbank""",
+    )
+
+    parser.add_argument(
+        "--whisper-fbank",
+        type=str2bool,
+        default=False,
+        help="Use WhisperFbank instead of Fbank. Default: False.",
+    )
+    return parser
+
+
+def compute_fbank_wenetspeech_dev_test(args):
     in_out_dir = Path("data/fbank")
     # number of workers in dataloader
     num_workers = 42
@@ -44,7 +75,12 @@ def compute_fbank_wenetspeech_dev_test():
     device = torch.device("cpu")
     if torch.cuda.is_available():
         device = torch.device("cuda", 0)
-    extractor = KaldifeatFbank(KaldifeatFbankConfig(device=device))
+    if args.whisper_fbank:
+        extractor = WhisperFbank(
+            WhisperFbankConfig(num_filters=args.num_mel_bins, device="cuda")
+        )
+    else:
+        extractor = KaldifeatFbank(KaldifeatFbankConfig(device=device))
 
     logging.info(f"device: {device}")
 
@@ -82,7 +118,11 @@ def main():
     formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
     logging.basicConfig(format=formatter, level=logging.INFO)
 
-    compute_fbank_wenetspeech_dev_test()
+    parser = get_parser()
+    args = parser.parse_args()
+    logging.info(vars(args))
+
+    compute_fbank_wenetspeech_dev_test(args)
 
 
 if __name__ == "__main__":
