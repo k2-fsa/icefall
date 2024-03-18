@@ -448,7 +448,7 @@ def save_results(
                 f"{test_set_name}-{key}",
                 results_char,
                 enable_log=enable_log,
-                cer=True,
+                compute_CER=True,
             )
             test_set_wers[key] = wer
 
