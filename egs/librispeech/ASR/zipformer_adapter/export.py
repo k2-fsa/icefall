@@ -32,10 +32,12 @@ dataset, you should change the argument values according to your dataset.
 
 - For non-streaming model:
 
-./zipformer/export.py \
-  --exp-dir ./zipformer/exp \
+./zipformer_adapter/export.py \
+  --exp-dir ./zipformer_adapter/exp \
   --tokens data/lang_bpe_500/tokens.txt \
   --epoch 30 \
+  --use-adapters 1 \
+  --adapter-dim 16 \
   --avg 9 \
   --jit 1
 
@@ -49,12 +51,14 @@ for how to use the exported models outside of icefall.
 
 - For streaming model:
 
-./zipformer/export.py \
-  --exp-dir ./zipformer/exp \
+./zipformer_adapter/export.py \
+  --exp-dir ./zipformer_adapter/exp \
   --causal 1 \
   --chunk-size 16 \
   --left-context-frames 128 \
   --tokens data/lang_bpe_500/tokens.txt \
+  --use-adapters 1 \
+  --adapter-dim 16 \
   --epoch 30 \
   --avg 9 \
   --jit 1
@@ -71,18 +75,22 @@ for how to use the exported models outside of icefall.
 
 - For non-streaming model:
 
-./zipformer/export.py \
-  --exp-dir ./zipformer/exp \
+./zipformer_adapter/export.py \
+  --exp-dir ./zipformer_adapter/exp \
   --tokens data/lang_bpe_500/tokens.txt \
   --epoch 30 \
+  --use-adapters 1 \
+  --adapter-dim 16 \
   --avg 9
 
 - For streaming model:
 
-./zipformer/export.py \
-  --exp-dir ./zipformer/exp \
+./zipformer_adapter/export.py \
+  --exp-dir ./zipformer_adapter/exp \
   --causal 1 \
   --tokens data/lang_bpe_500/tokens.txt \
+  --use-adapters 1 \
+  --adapter-dim 16 \
   --epoch 30 \
   --avg 9
 
@@ -91,24 +99,26 @@ load it by `icefall.checkpoint.load_checkpoint()`.
 
 - For non-streaming model:
 
-To use the generated file with `zipformer/decode.py`,
+To use the generated file with `zipformer_adapter/decode.py`,
 you can do:
 
     cd /path/to/exp_dir
     ln -s pretrained.pt epoch-9999.pt
 
     cd /path/to/egs/librispeech/ASR
-    ./zipformer/decode.py \
-        --exp-dir ./zipformer/exp \
+    ./zipformer_adapter/decode_gigaspeech.py \
+        --exp-dir ./zipformer_adapter/exp \
         --epoch 9999 \
         --avg 1 \
         --max-duration 600 \
+        --use-adapters 1 \
+        --adapter-dim 16 \
         --decoding-method greedy_search \
         --bpe-model data/lang_bpe_500/bpe.model
 
 - For streaming model:
 
-To use the generated file with `zipformer/decode.py` and `zipformer/streaming_decode.py`, you can do:
+To use the generated file with `zipformer_adapter/decode.py` and `zipformer_adapter/streaming_decode.py`, you can do:
 
     cd /path/to/exp_dir
     ln -s pretrained.pt epoch-9999.pt
@@ -116,8 +126,8 @@ To use the generated file with `zipformer/decode.py` and `zipformer/streaming_de
     cd /path/to/egs/librispeech/ASR
 
     # simulated streaming decoding
-    ./zipformer/decode.py \
-        --exp-dir ./zipformer/exp \
+    ./zipformer_adapter/decode_gigaspeech.py \
+        --exp-dir ./zipformer_adapter/exp \
         --epoch 9999 \
         --avg 1 \
         --max-duration 600 \
@@ -128,8 +138,8 @@ To use the generated file with `zipformer/decode.py` and `zipformer/streaming_de
         --bpe-model data/lang_bpe_500/bpe.model
 
     # chunk-wise streaming decoding
-    ./zipformer/streaming_decode.py \
-        --exp-dir ./zipformer/exp \
+    ./zipformer_adapter/streaming_decode.py \
+        --exp-dir ./zipformer_adapter/exp \
         --epoch 9999 \
         --avg 1 \
         --max-duration 600 \
@@ -141,22 +151,6 @@ To use the generated file with `zipformer/decode.py` and `zipformer/streaming_de
 
 Check ./pretrained.py for its usage.
 
-Note: If you don't want to train a model from scratch, we have
-provided one for you. You can get it at
-
-- non-streaming model:
-https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-2023-05-15
-
-- streaming model:
-https://huggingface.co/Zengwei/icefall-asr-librispeech-streaming-zipformer-2023-05-17
-
-with the following commands:
-
-    sudo apt-get install git-lfs
-    git lfs install
-    git clone https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-2023-05-15
-    git clone https://huggingface.co/Zengwei/icefall-asr-librispeech-streaming-zipformer-2023-05-17
-    # You will find the pre-trained models in exp dir
 """
 
 import argparse
@@ -168,7 +162,7 @@ import k2
 import torch
 from scaling_converter import convert_scaled_to_non_scaled
 from torch import Tensor, nn
-from train import add_model_arguments, get_model, get_params
+from train import add_finetune_arguments, add_model_arguments, get_model, get_params
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -226,7 +220,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="zipformer/exp",
+        default="zipformer_adapter/exp",
         help="""It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
         """,
@@ -257,6 +251,7 @@ def get_parser():
     )
 
     add_model_arguments(parser)
+    add_finetune_arguments(parser)
 
     return parser
 

@@ -27,11 +27,13 @@ popd
 
 2. Export the model to ONNX
 
-./zipformer/export-onnx.py \
+./zipformer_adapter/export-onnx.py \
   --tokens $repo/data/lang_bpe_500/tokens.txt \
   --use-averaged-model 0 \
   --epoch 99 \
   --avg 1 \
+  --use-adapters 1 \
+  --adapter-dim 32 \
   --exp-dir $repo/exp \
   --num-encoder-layers "2,2,3,4,3,2" \
   --downsampling-factor "1,2,4,8,4,2" \
@@ -131,7 +133,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="zipformer/exp",
+        default="zipformer_adapter/exp",
         help="""It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
         """,
