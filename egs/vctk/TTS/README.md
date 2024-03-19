@@ -10,7 +10,7 @@ The above information is from the [CSTR VCTK website](https://datashare.ed.ac.uk
 
 This recipe provides a VITS model trained on the VCTK dataset.
 
-Pretrained model can be found [here](https://huggingface.co/zrjin/icefall-tts-vctk-vits-2023-12-05), note that this model was pretrained on the Edinburgh DataShare VCTK dataset.
+Pretrained model can be found [here](https://huggingface.co/zrjin/icefall-tts-vctk-vits-2024-03-18), note that this model was pretrained on the Edinburgh DataShare VCTK dataset.
 
 For tutorial and more details, please refer to the [VITS documentation](https://k2-fsa.github.io/icefall/recipes/TTS/vctk/vits.html).
 
@@ -21,7 +21,6 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --world-size 4 \
   --num-epochs 1000 \
   --start-epoch 1 \
-  --use-fp16 1 \
   --exp-dir vits/exp \
   --tokens data/tokens.txt
   --max-duration 350

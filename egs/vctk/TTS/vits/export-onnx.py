@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 #
-# Copyright      2023 Xiaomi Corporation     (Author: Zengwei Yao)
+# Copyright   2023-2024  Xiaomi Corporation     (Author: Zengwei Yao,
+#                                                        Zengrui Jin,)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -97,7 +98,7 @@ def add_meta_data(filename: str, meta_data: Dict[str, str]):
     for key, value in meta_data.items():
         meta = model.metadata_props.add()
         meta.key = key
-        meta.value = value
+        meta.value = str(value)
 
     onnx.save(model, filename)
 
@@ -160,6 +161,7 @@ def export_model_onnx(
     model: nn.Module,
     model_filename: str,
     vocab_size: int,
+    n_speakers: int,
     opset_version: int = 11,
 ) -> None:
     """Export the given generator model to ONNX format.
@@ -212,10 +214,15 @@ def export_model_onnx(
     )
 
     meta_data = {
-        "model_type": "VITS",
+        "model_type": "vits",
         "version": "1",
         "model_author": "k2-fsa",
-        "comment": "VITS generator",
+        "comment": "icefall",  # must be icefall for models from icefall
+        "language": "English",
+        "voice": "en-us",  # Choose your language appropriately
+        "has_espeak": 1,
+        "n_speakers": n_speakers,
+        "sample_rate": 22050,  # Must match the real sample rate
     }
     logging.info(f"meta_data: {meta_data}")
 
@@ -231,8 +238,7 @@ def main():
     params.update(vars(args))
 
     tokenizer = Tokenizer(params.tokens)
-    params.blank_id = tokenizer.blank_id
-    params.oov_id = tokenizer.oov_id
+    params.blank_id = tokenizer.pad_id
     params.vocab_size = tokenizer.vocab_size
 
     with open(args.speakers) as f:
@@ -265,6 +271,7 @@ def main():
         model,
         model_filename,
         params.vocab_size,
+        params.num_spks,
         opset_version=opset_version,
     )
     logging.info(f"Exported generator to {model_filename}")

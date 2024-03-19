@@ -444,7 +444,7 @@ def save_results(
         for res in results:
             results_char.append((res[0], list("".join(res[1])), list("".join(res[2]))))
 
-        store_transcripts(filename=recog_path, texts=results_char)
+        store_transcripts(filename=recog_path, texts=results_char, char_level=True)
         logging.info(f"The transcripts are stored in {recog_path}")
 
         # The following prints out WERs, per-word error statistics and aligned
@@ -452,7 +452,11 @@ def save_results(
         errs_filename = params.res_dir / f"errs-{test_set_name}-{params.suffix}.txt"
         with open(errs_filename, "w") as f:
             wer = write_error_stats(
-                f, f"{test_set_name}-{key}", results_char, enable_log=True
+                f,
+                f"{test_set_name}-{key}",
+                results_char,
+                enable_log=True,
+                compute_CER=True,
             )
             test_set_wers[key] = wer
 
