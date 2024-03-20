@@ -393,8 +393,6 @@ def main():
     params.update(vars(args))
 
     device = torch.device("cpu")
-    # if torch.cuda.is_available():
-    #     device = torch.device("cuda", 0)
 
     logging.info(f"device: {device}")
 
