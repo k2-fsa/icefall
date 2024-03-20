@@ -48,7 +48,7 @@ popd
   --joiner-dim 512 \
   --causal True \
   --chunk-size 16 \
-  --left-context-frames 64
+  --left-context-frames 128
 
 The --chunk-size in training is "16,32,64,-1", so we select one of them
 (excluding -1) during streaming export. The same applies to `--left-context`,
@@ -56,9 +56,9 @@ whose value is "64,128,256,-1".
 
 It will generate the following 3 files inside $repo/exp:
 
-  - encoder-epoch-99-avg-1-chunk-16-left-64.onnx
-  - decoder-epoch-99-avg-1-chunk-16-left-64.onnx
-  - joiner-epoch-99-avg-1-chunk-16-left-64.onnx
+  - encoder-epoch-99-avg-1-chunk-16-left-128.onnx
+  - decoder-epoch-99-avg-1-chunk-16-left-128.onnx
+  - joiner-epoch-99-avg-1-chunk-16-left-128.onnx
 
 See ./onnx_pretrained-streaming.py for how to use the exported ONNX models.
 """
@@ -333,6 +333,7 @@ def export_encoder_model_onnx(
     encoder_model: OnnxEncoder,
     encoder_filename: str,
     opset_version: int = 11,
+    feature_dim: int = 80,
 ) -> None:
     encoder_model.encoder.__class__.forward = (
         encoder_model.encoder.__class__.streaming_forward
@@ -343,7 +344,7 @@ def export_encoder_model_onnx(
     # The ConvNeXt module needs (7 - 1) // 2 = 3 frames of right padding after subsampling
     T = decode_chunk_len + encoder_model.pad_length
 
-    x = torch.rand(1, T, 80, dtype=torch.float32)
+    x = torch.rand(1, T, feature_dim, dtype=torch.float32)
     init_state = encoder_model.get_init_states()
     num_encoders = len(encoder_model.encoder.encoder_dim)
     logging.info(f"num_encoders: {num_encoders}")
@@ -724,6 +725,7 @@ def main():
         encoder,
         encoder_filename,
         opset_version=opset_version,
+        feature_dim=params.feature_dim,
     )
     logging.info(f"Exported encoder to {encoder_filename}")
 

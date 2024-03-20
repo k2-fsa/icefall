@@ -479,18 +479,14 @@ class LibriSpeechAsrDataModule:
     @lru_cache()
     def gigaspeech_subset_small_cuts(self) -> CutSet:
         logging.info("About to get Gigaspeech subset-S cuts")
-        return load_manifest_lazy(self.args.manifest_dir / "gigaspeech_cuts_S.jsonl.gz")
+        return load_manifest_lazy(self.args.manifest_dir / "cuts_S.jsonl.gz")
 
     @lru_cache()
     def gigaspeech_dev_cuts(self) -> CutSet:
         logging.info("About to get Gigaspeech dev cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "gigaspeech_cuts_DEV.jsonl.gz"
-        )
+        return load_manifest_lazy(self.args.manifest_dir / "cuts_DEV.jsonl.gz")
 
     @lru_cache()
     def gigaspeech_test_cuts(self) -> CutSet:
         logging.info("About to get Gigaspeech test cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "gigaspeech_cuts_TEST.jsonl.gz"
-        )
+        return load_manifest_lazy(self.args.manifest_dir / "cuts_TEST.jsonl.gz")
