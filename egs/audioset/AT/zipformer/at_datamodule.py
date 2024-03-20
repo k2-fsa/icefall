@@ -396,13 +396,21 @@ class AudioSetATDatamodule:
     @lru_cache()
     def audioset_train_cuts(self) -> CutSet:
         logging.info("About to get the audioset cuts for KD.")
-        cuts = load_manifest_lazy(
+        balanced_cuts = load_manifest_lazy(
             self.args.manifest_dir / "cuts_audioset_balanced.jsonl.gz"
         )
-        if self.args.audioset_subset == "unbalanced":
-            cuts += load_manifest_lazy(
+        if self.args.audioset_subset == "full":
+            unbalanced_cuts = load_manifest_lazy(
                 self.args.manifest_dir / "cuts_audioset_unbalanced.jsonl.gz"
             )
+            cuts = CutSet.mux(
+                balanced_cuts,
+                unbalanced_cuts,
+                weights=[20000, 2000000],
+                stop_early=True,
+            )
+        else:
+            cuts = balanced_cuts
         return cuts
 
     @lru_cache()
