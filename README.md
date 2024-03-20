@@ -2,46 +2,86 @@
 <img src="https://raw.githubusercontent.com/k2-fsa/icefall/master/docs/source/_static/logo.png" width=168>
 </div>
 
-## Introduction
+# Introduction
 
-icefall contains ASR recipes for various datasets
-using <https://github.com/k2-fsa/k2>.
+The icefall project contains speech-related recipes for various datasets
+using [k2-fsa](https://github.com/k2-fsa/k2) and [lhotse](https://github.com/lhotse-speech/lhotse).
 
-You can use <https://github.com/k2-fsa/sherpa> to deploy models
-trained with icefall.
+You can use [sherpa](https://github.com/k2-fsa/sherpa), [sherpa-ncnn](https://github.com/k2-fsa/sherpa-ncnn) or [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) for deployment with models
+in icefall; these frameworks also support models not included in icefall; please refer to respective documents for more details.
 
 You can try pre-trained models from within your browser without the need
-to download or install anything by visiting <https://huggingface.co/spaces/k2-fsa/automatic-speech-recognition>
-See <https://k2-fsa.github.io/icefall/huggingface/spaces.html> for more details.
+to download or install anything by visiting this [huggingface space](https://huggingface.co/spaces/k2-fsa/automatic-speech-recognition).
+Please refer to [document](https://k2-fsa.github.io/icefall/huggingface/spaces.html) for more details.
 
-## Installation
+# Installation
 
-Please refer to <https://icefall.readthedocs.io/en/latest/installation/index.html>
+Please refer to [document](https://icefall.readthedocs.io/en/latest/installation/index.html)
 for installation.
 
-## Recipes
+# Recipes
 
-Please refer to <https://icefall.readthedocs.io/en/latest/recipes/index.html>
-for more information.
+Please refer to [document](https://icefall.readthedocs.io/en/latest/recipes/index.html)
+for more details.
 
-We provide the following recipes:
+## ASR: Automatic Speech Recognition
 
+### Supported Datasets
   - [yesno][yesno]
-  - [LibriSpeech][librispeech]
-  - [GigaSpeech][gigaspeech]
-  - [AMI][ami]
+  
+  - [Aidatatang_200zh][aidatatang_200zh]
   - [Aishell][aishell]
   - [Aishell2][aishell2]
   - [Aishell4][aishell4]
+  - [Alimeeting][alimeeting]
+  - [AMI][ami]
+  - [CommonVoice][commonvoice]
+  - [Corpus of Spontaneous Japanese][csj]
+  - [GigaSpeech][gigaspeech]
+  - [LibriCSS][libricss]
+  - [LibriSpeech][librispeech]
+  - [Libriheavy][libriheavy]
+  - [Multi-Dialect Broadcast News Arabic Speech Recognition][mgb2]
+  - [PeopleSpeech][peoplespeech]
+  - [SPGISpeech][spgispeech]
+  - [Switchboard][swbd]
   - [TIMIT][timit]
   - [TED-LIUM3][tedlium3]
-  - [Aidatatang_200zh][aidatatang_200zh]
-  - [WenetSpeech][wenetspeech]
-  - [Alimeeting][alimeeting]
-  - [Switchboard][swbd]
   - [TAL_CSASR][tal_csasr]
+  - [Voxpopuli][voxpopuli]
+  - [XBMU-AMDO31][xbmu-amdo31]
+  - [WenetSpeech][wenetspeech]
+  
+More datasets will be added in the future.
 
-### yesno
+### Supported Models
+
+The [LibriSpeech][librispeech] recipe supports the most comprehensive set of models, you are welcome to try them out.
+
+#### CTC 
+  - TDNN LSTM CTC
+  - Conformer CTC
+  - Zipformer CTC
+
+#### MMI
+  - Conformer MMI
+  - Zipformer MMI
+
+#### Transducer
+  - Conformer-based Encoder
+  - LSTM-based Encoder
+  - Zipformer-based Encoder
+  - LSTM-based Predictor
+  - [Stateless Predictor](https://research.google/pubs/rnn-transducer-with-stateless-prediction-network/)
+
+#### Whisper
+  - [OpenAi Whisper](https://arxiv.org/abs/2212.04356) (We support fine-tuning on AiShell-1.)
+
+If you are willing to contribute to icefall, please refer to [contributing](https://icefall.readthedocs.io/en/latest/contributing/index.html) for more details.
+
+We would like to highlight the performance of some of the recipes here.
+
+### [yesno][yesno]
 
 This is the simplest ASR recipe in `icefall` and can be run on CPU.
 Training takes less than 30 seconds and gives you the following WER:
@@ -52,350 +92,264 @@ Training takes less than 30 seconds and gives you the following WER:
 We provide a Colab notebook for this recipe: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1tIjjzaJc3IvGyKiMCDWO-TSnBgkcuN3B?usp=sharing)
 
 
-### LibriSpeech
+### [LibriSpeech][librispeech]
 
-Please see <https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/RESULTS.md>
+Please see [RESULTS.md](https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/RESULTS.md)
 for the **latest** results.
 
-We provide 5 models for this recipe:
-
-- [conformer CTC model][LibriSpeech_conformer_ctc]
-- [TDNN LSTM CTC model][LibriSpeech_tdnn_lstm_ctc]
-- [Transducer: Conformer encoder + LSTM decoder][LibriSpeech_transducer]
-- [Transducer: Conformer encoder + Embedding decoder][LibriSpeech_transducer_stateless]
-- [Transducer: Zipformer encoder + Embedding decoder][LibriSpeech_zipformer]
-
-#### Conformer CTC Model
-
-The best WER we currently have is:
+#### [Conformer CTC](https://github.com/k2-fsa/icefall/tree/master/egs/librispeech/ASR/conformer_ctc)
 
 |     | test-clean | test-other |
 |-----|------------|------------|
 | WER | 2.42       | 5.73       |
 
 
-We provide a Colab notebook to run a pre-trained conformer CTC model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1huyupXAcHsUrKaWfI83iMEJ6J0Nh0213?usp=sharing)
+We provide a Colab notebook to test the pre-trained model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1huyupXAcHsUrKaWfI83iMEJ6J0Nh0213?usp=sharing)
 
-#### TDNN LSTM CTC Model
-
-The WER for this model is:
+#### [TDNN LSTM CTC](https://github.com/k2-fsa/icefall/tree/master/egs/librispeech/ASR/tdnn_lstm_ctc)
 
 |     | test-clean | test-other |
 |-----|------------|------------|
 | WER | 6.59       | 17.69      |
 
-We provide a Colab notebook to run a pre-trained TDNN LSTM CTC model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1-iSfQMp2So-We_Uu49N4AAcMInB72u9z?usp=sharing)
+We provide a Colab notebook to test the pre-trained model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1-iSfQMp2So-We_Uu49N4AAcMInB72u9z?usp=sharing)
 
 
-#### Transducer: Conformer encoder + LSTM decoder
+#### [Transducer (Conformer Encoder + LSTM Predictor)](https://github.com/k2-fsa/icefall/tree/master/egs/librispeech/ASR/transducer)
 
-Using Conformer as encoder and LSTM as decoder.
+|               | test-clean | test-other |
+|---------------|------------|------------|
+| greedy_search | 3.07       | 7.51       |
 
-The best WER with greedy search is:
+We provide a Colab notebook to test the pre-trained model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1_u6yK9jDkPwG_NLrZMN2XK7Aeq4suMO2?usp=sharing)
 
-|     | test-clean | test-other |
-|-----|------------|------------|
-| WER | 3.07       | 7.51       |
+#### [Transducer (Conformer Encoder + Stateless Predictor)](https://github.com/k2-fsa/icefall/tree/master/egs/librispeech/ASR/transducer)
 
-We provide a Colab notebook to run a pre-trained RNN-T conformer model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1_u6yK9jDkPwG_NLrZMN2XK7Aeq4suMO2?usp=sharing)
-
-#### Transducer: Conformer encoder + Embedding decoder
-
-Using Conformer as encoder. The decoder consists of 1 embedding layer
-and 1 convolutional layer.
-
-The best WER using modified beam search with beam size 4 is:
-
-|     | test-clean | test-other |
-|-----|------------|------------|
-| WER | 2.56       | 6.27       |
-
-Note: No auxiliary losses are used in the training and no LMs are used
-in the decoding.
-
-We provide a Colab notebook to run a pre-trained transducer conformer + stateless decoder model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1CO1bXJ-2khDckZIW8zjOPHGSKLHpTDlp?usp=sharing)
+|                                       | test-clean | test-other |
+|---------------------------------------|------------|------------|
+| modified_beam_search (`beam_size=4`) | 2.56       | 6.27       |
 
 
-#### k2 pruned RNN-T
+We provide a Colab notebook to test the pre-trained model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1CO1bXJ-2khDckZIW8zjOPHGSKLHpTDlp?usp=sharing)
+
+
+#### [Transducer (Zipformer Encoder + Stateless Predictor)](https://github.com/k2-fsa/icefall/tree/master/egs/librispeech/ASR/zipformer)
+
+WER (modified_beam_search `beam_size=4` unless further stated) 
+
+1. LibriSpeech-960hr
 
 | Encoder         | Params | test-clean | test-other | epochs  | devices    |
 |-----------------|--------|------------|------------|---------|------------|
-| zipformer       | 65.5M  | 2.21       | 4.79       | 50      | 4 32G-V100 |
-| zipformer-small | 23.2M  | 2.42       | 5.73       | 50      | 2 32G-V100 |
-| zipformer-large | 148.4M | 2.06       | 4.63       | 50      | 4 32G-V100 |
-| zipformer-large | 148.4M | 2.00       | 4.38       | 174     | 8 80G-A100 |
+| Zipformer       | 65.5M  | 2.21       | 4.79       | 50      | 4 32G-V100 |
+| Zipformer-small | 23.2M  | 2.42       | 5.73       | 50      | 2 32G-V100 |
+| Zipformer-large | 148.4M | 2.06       | 4.63       | 50      | 4 32G-V100 |
+| Zipformer-large | 148.4M | 2.00       | 4.38       | 174     | 8 80G-A100 |
 
-Note: No auxiliary losses are used in the training and no LMs are used
-in the decoding.
+2. LibriSpeech-960hr + GigaSpeech
 
-#### k2 pruned RNN-T + GigaSpeech
-
-|     | test-clean | test-other |
-|-----|------------|------------|
-| WER | 1.78       | 4.08       |
-
-Note: No auxiliary losses are used in the training and no LMs are used
-in the decoding.
-
-#### k2 pruned RNN-T + GigaSpeech + CommonVoice
-
-|     | test-clean | test-other |
-|-----|------------|------------|
-| WER | 1.90       | 3.98       |
-
-Note: No auxiliary losses are used in the training and no LMs are used
-in the decoding.
+| Encoder         | Params | test-clean | test-other |
+|-----------------|--------|------------|------------|
+| Zipformer       | 65.5M   | 1.78       | 4.08       |
 
 
-### GigaSpeech
+3. LibriSpeech-960hr + GigaSpeech + CommonVoice
 
-We provide three models for this recipe:
+| Encoder         | Params | test-clean | test-other |
+|-----------------|--------|------------|------------|
+| Zipformer       | 65.5M   | 1.90       | 3.98       |
 
-- [Conformer CTC model][GigaSpeech_conformer_ctc]
-- [Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss][GigaSpeech_pruned_transducer_stateless2].
-- [Transducer: Zipformer encoder + Embedding decoder][GigaSpeech_zipformer]
 
-#### Conformer CTC
+### [GigaSpeech][gigaspeech]
+
+#### [Conformer CTC](https://github.com/k2-fsa/icefall/tree/master/egs/gigaspeech/ASR/conformer_ctc)
 
 |     |  Dev  | Test  |
 |-----|-------|-------|
 | WER | 10.47 | 10.58 |
 
-#### Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss
+#### [Transducer (pruned_transducer_stateless2)](https://github.com/k2-fsa/icefall/tree/master/egs/gigaspeech/ASR/pruned_transducer_stateless2)
+
+Conformer Encoder + Stateless Predictor + k2 Pruned RNN-T Loss
 
 |                      |  Dev  | Test  |
 |----------------------|-------|-------|
-|    greedy search     | 10.51 | 10.73 |
-|   fast beam search   | 10.50 | 10.69 |
-| modified beam search | 10.40 | 10.51 |
+|    greedy_search     | 10.51 | 10.73 |
+|   fast_beam_search   | 10.50 | 10.69 |
+| modified_beam_search | 10.40 | 10.51 |
 
-#### Transducer: Zipformer encoder + Embedding decoder
+#### [Transducer (Zipformer Encoder + Stateless Predictor)](https://github.com/k2-fsa/icefall/tree/master/egs/gigaspeech/ASR/zipformer)
 
 |                      |  Dev  | Test  |
 |----------------------|-------|-------|
-|    greedy search     | 10.31 | 10.50 |
-|   fast beam search   | 10.26 | 10.48 |
-| modified beam search | 10.25 | 10.38 |
+|    greedy_search     | 10.31 | 10.50 |
+|   fast_beam_search   | 10.26 | 10.48 |
+| modified_beam_search | 10.25 | 10.38 |
 
 
-### Aishell
+### [Aishell][aishell]
 
-We provide three models for this recipe: [conformer CTC model][Aishell_conformer_ctc],
-[TDNN LSTM CTC model][Aishell_tdnn_lstm_ctc], and [Transducer Stateless Model][Aishell_pruned_transducer_stateless7],
-
-#### Conformer CTC Model
-
-The best CER we currently have is:
-
-|     | test |
-|-----|------|
-| CER | 4.26 |
-
-#### TDNN LSTM CTC Model
-
-The CER for this model is:
+#### [TDNN LSTM CTC](https://github.com/k2-fsa/icefall/tree/master/egs/aishell/ASR/tdnn_lstm_ctc)
 
 |     | test  |
 |-----|-------|
 | CER | 10.16 |
 
-We provide a Colab notebook to run a pre-trained TDNN LSTM CTC model:  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1jbyzYq3ytm6j2nlEt-diQm-6QVWyDDEa?usp=sharing)
+We provide a Colab notebook to test the pre-trained model:  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1jbyzYq3ytm6j2nlEt-diQm-6QVWyDDEa?usp=sharing)
 
-#### Transducer Stateless Model
-
-The best CER we currently have is:
+#### [Transducer (Conformer Encoder + Stateless Predictor)](https://github.com/k2-fsa/icefall/tree/master/egs/aishell/ASR/transducer_stateless)
 
 |     | test |
 |-----|------|
 | CER | 4.38 |
 
-We provide a Colab notebook to run a pre-trained TransducerStateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/14XaT2MhnBkK-3_RqqWq3K90Xlbin-GZC?usp=sharing)
+We provide a Colab notebook to test the pre-trained model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/14XaT2MhnBkK-3_RqqWq3K90Xlbin-GZC?usp=sharing)
+
+#### [Transducer (Zipformer Encoder + Stateless Predictor)](https://github.com/k2-fsa/icefall/tree/master/egs/aishell/ASR/zipformer)
+
+WER (modified_beam_search `beam_size=4`) 
+
+| Encoder         | Params | dev | test | epochs  |
+|-----------------|--------|-----|------|---------|
+| Zipformer       | 73.4M  | 4.13| 4.40 | 55      |
+| Zipformer-small | 30.2M  | 4.40| 4.67 | 55      |
+| Zipformer-large | 157.3M | 4.03| 4.28 | 56      |
 
 
-### Aishell2
+### [Aishell4][aishell4]
 
-We provide one model for this recipe: [Transducer Stateless Model][Aishell2_pruned_transducer_stateless5].
+#### [Transducer (pruned_transducer_stateless5)](https://github.com/k2-fsa/icefall/tree/master/egs/aishell4/ASR/pruned_transducer_stateless5)
 
-#### Transducer Stateless Model
-
-The best WER we currently have is:
-
-|     |   dev-ios  |  test-ios  |
-|-----|------------|------------|
-| WER |    5.32    |    5.56    |
-
-
-### Aishell4
-
-We provide one model for this recipe: [Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss][Aishell4_pruned_transducer_stateless5].
-
-#### Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss (trained with all subsets)
-
-The best CER we currently have is:
-
+1 Trained with all subsets: 
 |     |   test     |
 |-----|------------|
 | CER |   29.08    |
 
+We provide a Colab notebook to test the pre-trained model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1z3lkURVv9M7uTiIgf3Np9IntMHEknaks?usp=sharing)
 
-We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1z3lkURVv9M7uTiIgf3Np9IntMHEknaks?usp=sharing)
 
+### [TIMIT][timit]
 
-### TIMIT
+#### [TDNN LSTM CTC](https://github.com/k2-fsa/icefall/tree/master/egs/timit/ASR/tdnn_lstm_ctc)
 
-We provide two models for this recipe: [TDNN LSTM CTC model][TIMIT_tdnn_lstm_ctc]
-and [TDNN LiGRU CTC model][TIMIT_tdnn_ligru_ctc].
-
-#### TDNN LSTM CTC Model
-
-The best PER we currently have is:
-
-||TEST|
-|--|--|
+|   |TEST|
+|---|----|
 |PER| 19.71% |
 
-We provide a Colab notebook to run a pre-trained TDNN LSTM CTC model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1Hs9DA4V96uapw_30uNp32OMJgkuR5VVd?usp=sharing)
+We provide a Colab notebook to test the pre-trained model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1Hs9DA4V96uapw_30uNp32OMJgkuR5VVd?usp=sharing)
 
-#### TDNN LiGRU CTC Model
+#### [TDNN LiGRU CTC](https://github.com/k2-fsa/icefall/tree/master/egs/timit/ASR/tdnn_ligru_ctc)
 
-The PER for this model is:
-
-||TEST|
-|--|--|
+|   |TEST|
+|---|----|
 |PER| 17.66% |
 
-We provide a Colab notebook to run a pre-trained TDNN LiGRU CTC model:  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1z3lkURVv9M7uTiIgf3Np9IntMHEknaks?usp=sharing)
+We provide a Colab notebook to test the pre-trained model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1z3lkURVv9M7uTiIgf3Np9IntMHEknaks?usp=sharing)
 
 
-### TED-LIUM3
+### [TED-LIUM3][tedlium3]
 
-We provide two models for this recipe: [Transducer Stateless: Conformer encoder + Embedding decoder][TED-LIUM3_transducer_stateless] and [Pruned Transducer Stateless: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss][TED-LIUM3_pruned_transducer_stateless].
+#### [Transducer (Conformer Encoder + Stateless Predictor)](https://github.com/k2-fsa/icefall/tree/master/egs/tedlium3/ASR/transducer_stateless)
 
-#### Transducer Stateless:  Conformer encoder + Embedding decoder
-
-The best WER using modified beam search with beam size 4 is:
-
-|     |  dev  |  test  |
-|-----|-------|--------|
-| WER |  6.91 |  6.33  |
-
-Note: No auxiliary losses are used in the training and no LMs are used in the decoding.
-
-We provide a Colab notebook to run a pre-trained Transducer Stateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1MmY5bBxwvKLNT4A2DJnwiqRXhdchUqPN?usp=sharing)
-
-#### Pruned Transducer Stateless: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss
-
-The best WER using modified beam search with beam size 4 is:
-
-|     |  dev  |  test  |
-|-----|-------|--------|
-| WER |  6.77 |  6.14  |
-
-We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1je_1zGrOkGVVd4WLzgkXRHxl-I27yWtz?usp=sharing)
+|                                      |  dev  |  test  |
+|--------------------------------------|-------|--------|
+| modified_beam_search (`beam_size=4`) |  6.91 |  6.33  |
 
 
-### Aidatatang_200zh
+We provide a Colab notebook to test the pre-trained model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1MmY5bBxwvKLNT4A2DJnwiqRXhdchUqPN?usp=sharing)
 
-We provide one model for this recipe: [Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss][Aidatatang_200zh_pruned_transducer_stateless2].
+#### [Transducer (pruned_transducer_stateless)](https://github.com/k2-fsa/icefall/tree/master/egs/tedlium3/ASR/pruned_transducer_stateless)
 
-#### Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss
+|                                      |  dev  |  test  |
+|--------------------------------------|-------|--------|
+| modified_beam_search (`beam_size=4`) |  6.77 |  6.14  |
+
+We provide a Colab notebook to test the pre-trained model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1je_1zGrOkGVVd4WLzgkXRHxl-I27yWtz?usp=sharing)
+
+
+### [Aidatatang_200zh][aidatatang_200zh]
+
+#### [Transducer (pruned_transducer_stateless2)](https://github.com/k2-fsa/icefall/tree/master/egs/aidatatang_200zh/ASR/pruned_transducer_stateless2)
 
 |                      |  Dev  | Test  |
 |----------------------|-------|-------|
-|    greedy search     | 5.53  | 6.59  |
-|   fast beam search   | 5.30  | 6.34  |
-| modified beam search | 5.27  | 6.33  |
+|    greedy_search     | 5.53  | 6.59  |
+|   fast_beam_search   | 5.30  | 6.34  |
+| modified_beam_search | 5.27  | 6.33  |
 
-We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1wNSnSj3T5oOctbh5IGCa393gKOoQw2GH?usp=sharing)
+We provide a Colab notebook to test the pre-trained model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1wNSnSj3T5oOctbh5IGCa393gKOoQw2GH?usp=sharing)
 
 
-### WenetSpeech
+### [WenetSpeech][wenetspeech]
 
-We provide some models for this recipe: [Pruned stateless RNN-T_2: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss][WenetSpeech_pruned_transducer_stateless2] and [Pruned stateless RNN-T_5: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss][WenetSpeech_pruned_transducer_stateless5].
-
-#### Pruned stateless RNN-T_2: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss (trained with L subset, offline ASR)
+#### [Transducer (pruned_transducer_stateless2)](https://github.com/k2-fsa/icefall/tree/master/egs/wenetspeech/ASR/pruned_transducer_stateless2)
 
 |                      |  Dev  | Test-Net | Test-Meeting |
 |----------------------|-------|----------|--------------|
-|    greedy search     | 7.80  |  8.75    |  13.49       |
-| modified beam search| 7.76  |  8.71    |  13.41       |
-|   fast beam search   | 7.94  |  8.74    |  13.80       |
+|    greedy_search     | 7.80  |  8.75    |  13.49       |
+|   fast_beam_search   | 7.94  |  8.74    |  13.80       |
+| modified_beam_search | 7.76  |  8.71    |  13.41       |
 
-#### Pruned stateless RNN-T_5: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss (trained with L subset)
-**Streaming**:
+We provide a Colab notebook to test the pre-trained model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1EV4e1CHa1GZgEF-bZgizqI9RyFFehIiN?usp=sharing)
+
+#### [Transducer **Streaming** (pruned_transducer_stateless5) ](https://github.com/k2-fsa/icefall/tree/master/egs/wenetspeech/ASR/pruned_transducer_stateless5)
+
 |                      |  Dev  | Test-Net | Test-Meeting |
 |----------------------|-------|----------|--------------|
 | greedy_search | 8.78 | 10.12 | 16.16 |
-| modified_beam_search | 8.53| 9.95 | 15.81 |
 | fast_beam_search| 9.01 | 10.47 | 16.28 |
+| modified_beam_search | 8.53| 9.95 | 15.81 |
 
-We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless2 model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1EV4e1CHa1GZgEF-bZgizqI9RyFFehIiN?usp=sharing)
 
-### Alimeeting
+### [Alimeeting][alimeeting]
 
-We provide one model for this recipe: [Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss][Alimeeting_pruned_transducer_stateless2].
-
-#### Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss (trained with far subset)
+#### [Transducer (pruned_transducer_stateless2)](https://github.com/k2-fsa/icefall/tree/master/egs/alimeeting/ASR/pruned_transducer_stateless2)
 
 |                      |  Eval  | Test-Net |
 |----------------------|--------|----------|
-|    greedy search     | 31.77  |  34.66   |
-|   fast beam search   | 31.39  |  33.02   |
-| modified beam search | 30.38  |  34.25   |
+|    greedy_search     | 31.77  |  34.66   |
+|   fast_beam_search   | 31.39  |  33.02   |
+| modified_beam_search | 30.38  |  34.25   |
 
-We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1tKr3f0mL17uO_ljdHGKtR7HOmthYHwJG?usp=sharing)
+We provide a Colab notebook to test the pre-trained model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1tKr3f0mL17uO_ljdHGKtR7HOmthYHwJG?usp=sharing)
 
 
-### TAL_CSASR
+### [TAL_CSASR][tal_csasr]
 
-We provide one model for this recipe: [Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss][TAL_CSASR_pruned_transducer_stateless5].
 
-#### Pruned stateless RNN-T: Conformer encoder + Embedding decoder + k2 pruned RNN-T loss
+#### [Transducer (pruned_transducer_stateless5)](https://github.com/k2-fsa/icefall/tree/master/egs/tal_csasr/ASR/pruned_transducer_stateless5)
 
 The best results for Chinese CER(%) and English WER(%) respectively (zh: Chinese, en: English):
 |decoding-method | dev | dev_zh | dev_en | test | test_zh | test_en |
 |--|--|--|--|--|--|--|
 |greedy_search| 7.30 | 6.48 | 19.19 |7.39| 6.66 | 19.13|
-|modified_beam_search| 7.15 | 6.35 | 18.95 | 7.22| 6.50 | 18.70 |
 |fast_beam_search| 7.18 | 6.39| 18.90 |  7.27| 6.55 | 18.77|
+|modified_beam_search| 7.15 | 6.35 | 18.95 | 7.22| 6.50 | 18.70 |
 
-We provide a Colab notebook to run a pre-trained Pruned Transducer Stateless model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1DmIx-NloI1CMU5GdZrlse7TRu4y3Dpf8?usp=sharing)
+We provide a Colab notebook to test the pre-trained model: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1DmIx-NloI1CMU5GdZrlse7TRu4y3Dpf8?usp=sharing)
 
-## Deployment with C++
+## TTS: Text-to-Speech
 
-Once you have trained a model in icefall, you may want to deploy it with C++,
-without Python dependencies.
+### Supported Datasets
 
-Please refer to the documentation
-<https://icefall.readthedocs.io/en/latest/recipes/Non-streaming-ASR/librispeech/conformer_ctc.html#deployment-with-c>
+  - [LJSpeech][ljspeech]
+  - [VCTK][vctk]
+
+### Supported Models
+
+  - [VITS](https://arxiv.org/abs/2106.06103)
+
+# Deployment with C++
+
+Once you have trained a model in icefall, you may want to deploy it with C++ without Python dependencies.
+
+Please refer to the [document](https://icefall.readthedocs.io/en/latest/recipes/Non-streaming-ASR/librispeech/conformer_ctc.html#deployment-with-c)
 for how to do this.
 
 We also provide a Colab notebook, showing you how to run a torch scripted model in [k2][k2] with C++.
 Please see: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1BIGLWzS36isskMXHKcqC9ysN6pspYXs_?usp=sharing)
 
 
-[LibriSpeech_tdnn_lstm_ctc]: egs/librispeech/ASR/tdnn_lstm_ctc
-[LibriSpeech_conformer_ctc]: egs/librispeech/ASR/conformer_ctc
-[LibriSpeech_transducer]: egs/librispeech/ASR/transducer
-[LibriSpeech_transducer_stateless]: egs/librispeech/ASR/transducer_stateless
-[LibriSpeech_zipformer]: egs/librispeech/ASR/zipformer
-[Aishell_tdnn_lstm_ctc]: egs/aishell/ASR/tdnn_lstm_ctc
-[Aishell_conformer_ctc]: egs/aishell/ASR/conformer_ctc
-[Aishell_pruned_transducer_stateless7]: egs/aishell/ASR/pruned_transducer_stateless7_bbpe
-[Aishell2_pruned_transducer_stateless5]: egs/aishell2/ASR/pruned_transducer_stateless5
-[Aishell4_pruned_transducer_stateless5]: egs/aishell4/ASR/pruned_transducer_stateless5
-[TIMIT_tdnn_lstm_ctc]: egs/timit/ASR/tdnn_lstm_ctc
-[TIMIT_tdnn_ligru_ctc]: egs/timit/ASR/tdnn_ligru_ctc
-[TED-LIUM3_transducer_stateless]: egs/tedlium3/ASR/transducer_stateless
-[TED-LIUM3_pruned_transducer_stateless]: egs/tedlium3/ASR/pruned_transducer_stateless
-[GigaSpeech_conformer_ctc]: egs/gigaspeech/ASR/conformer_ctc
-[GigaSpeech_pruned_transducer_stateless2]: egs/gigaspeech/ASR/pruned_transducer_stateless2
-[GigaSpeech_zipformer]: egs/gigaspeech/ASR/zipformer
-[Aidatatang_200zh_pruned_transducer_stateless2]: egs/aidatatang_200zh/ASR/pruned_transducer_stateless2
-[WenetSpeech_pruned_transducer_stateless2]: egs/wenetspeech/ASR/pruned_transducer_stateless2
-[WenetSpeech_pruned_transducer_stateless5]: egs/wenetspeech/ASR/pruned_transducer_stateless5
-[Alimeeting_pruned_transducer_stateless2]: egs/alimeeting/ASR/pruned_transducer_stateless2
-[TAL_CSASR_pruned_transducer_stateless5]: egs/tal_csasr/ASR/pruned_transducer_stateless5
 [yesno]: egs/yesno/ASR
 [librispeech]: egs/librispeech/ASR
 [aishell]: egs/aishell/ASR
@@ -411,3 +365,15 @@ Please see: [![Open In Colab](https://colab.research.google.com/assets/colab-bad
 [ami]: egs/ami
 [swbd]: egs/swbd/ASR
 [k2]: https://github.com/k2-fsa/k2
+[commonvoice]: egs/commonvoice/ASR
+[csj]: egs/csj/ASR
+[libricss]: egs/libricss/SURT
+[libriheavy]: egs/libriheavy/ASR
+[mgb2]: egs/mgb2/ASR
+[peoplespeech]: egs/peoplespeech/ASR
+[spgispeech]: egs/spgispeech/ASR
+[voxpopuli]: egs/voxpopuli/ASR
+[xbmu-amdo31]: egs/xbmu-amdo31/ASR
+
+[vctk]: egs/vctk/TTS
+[ljspeech]: egs/ljspeech/TTS

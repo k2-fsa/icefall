@@ -615,6 +615,7 @@ def create_streaming_feature_extractor() -> Fbank:
     opts.frame_opts.snip_edges = False
     opts.frame_opts.samp_freq = 16000
     opts.mel_opts.num_bins = 80
+    opts.mel_opts.high_freq = -400
     return Fbank(opts)
 
 
@@ -672,8 +673,14 @@ def decode_dataset(
         assert len(audio.shape) == 2
         assert audio.shape[0] == 1, "Should be single channel"
         assert audio.dtype == np.float32, audio.dtype
+
         # The trained model is using normalized samples
-        assert audio.max() <= 1, "Should be normalized to [-1, 1])"
+        # - this is to avoid sending [-32k,+32k] signal in...
+        # - some lhotse AudioTransform classes can make the signal
+        #   be out of range [-1, 1], hence the tolerance 10
+        assert (
+            np.abs(audio).max() <= 10
+        ), "Should be normalized to [-1, 1], 10 for tolerance..."
 
         samples = torch.from_numpy(audio).squeeze(0)
         feature = fbank(samples)

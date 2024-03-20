@@ -1,11 +1,11 @@
-VITS
+VITS-VCTK
 ===============
 
 This tutorial shows you how to train an VITS model
 with the `VCTK <https://datashare.ed.ac.uk/handle/10283/3443>`_ dataset.
 
 .. note::
-  
+
    TTS related recipes require packages in ``requirements-tts.txt``.
 
 .. note::

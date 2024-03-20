@@ -45,6 +45,7 @@ import sentencepiece as spm
 import torch
 import torchaudio
 from torch.nn.utils.rnn import pad_sequence
+
 from icefall import smart_byte_decode
 
 
@@ -226,6 +227,7 @@ def main():
     opts.frame_opts.snip_edges = False
     opts.frame_opts.samp_freq = 16000
     opts.mel_opts.num_bins = 80
+    opts.mel_opts.high_freq = -400
 
     fbank = kaldifeat.Fbank(opts)
 

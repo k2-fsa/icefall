@@ -159,6 +159,7 @@ def main():
 
     # Load id of the <blk> token and the vocab size
     params.blank_id = token_table["<blk>"]
+    params.unk_id = token_table["<unk>"]
     params.vocab_size = num_tokens(token_table) + 1  # +1 for <blk>
 
     logging.info(params)

@@ -5,14 +5,15 @@
 
 # This is modified from https://github.com/microsoft/DeepSpeed/blob/master/deepspeed/profiling/flops_profiler/profiler.py
 
+from collections import OrderedDict
+from functools import partial
+from typing import List, Optional
+
 import k2
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from functools import partial
-from typing import List, Optional
-from collections import OrderedDict
-import numpy as np
 
 Tensor = torch.Tensor
 

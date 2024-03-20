@@ -56,10 +56,13 @@ jobs:
       - name: Build doc
         shell: bash
         run: |
+          .github/scripts/generate-piper-phonemize-page.py
           cd docs
           python3 -m pip install -r ./requirements.txt
           make html
           touch build/html/.nojekyll
+
+          cp -v ../piper_phonemize.html ./build/html/
 
       - name: Deploy
         uses: peaceiris/actions-gh-pages@v3

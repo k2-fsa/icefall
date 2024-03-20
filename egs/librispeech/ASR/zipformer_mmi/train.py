@@ -79,6 +79,7 @@ from icefall.checkpoint import (
 )
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
+from icefall.err import raise_grad_scale_is_too_small_error
 from icefall.hooks import register_inf_check_hooks
 from icefall.lexicon import Lexicon, UniqLexicon
 from icefall.mmi import LFMMILoss
@@ -816,9 +817,7 @@ def train_one_epoch(
             if cur_grad_scale < 0.01:
                 logging.warning(f"Grad scale is small: {cur_grad_scale}")
             if cur_grad_scale < 1.0e-05:
-                raise RuntimeError(
-                    f"grad_scale is too small, exiting: {cur_grad_scale}"
-                )
+                raise_grad_scale_is_too_small_error(cur_grad_scale)
 
         if batch_idx % params.log_interval == 0:
             cur_lr = scheduler.get_last_lr()[0]
@@ -990,11 +989,13 @@ def run(rank, world_size, args):
 
     librispeech = LibriSpeechAsrDataModule(args)
 
-    # train_cuts = librispeech.train_clean_100_cuts()
     if params.full_libri:
-        # train_cuts += librispeech.train_clean_360_cuts()
-        # train_cuts += librispeech.train_other_500_cuts()
         train_cuts = librispeech.train_all_shuf_cuts()
+
+        # previously we used the following code to load all training cuts,
+        # strictly speaking, shuffled training cuts should be used instead,
+        # but we leave the code here to demonstrate that there is an option
+        # like this to combine multiple cutsets
     else:
         train_cuts = librispeech.train_clean_100_cuts()
 

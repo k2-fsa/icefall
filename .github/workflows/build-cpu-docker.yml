@@ -1,0 +1,81 @@
+name: build-cpu-docker
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: build-cpu-docker-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  generate_build_matrix:
+    if: github.repository_owner == 'csukuangfj' || github.repository_owner == 'k2-fsa'
+    # see https://github.com/pytorch/pytorch/pull/50633
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Generating build matrix
+        id: set-matrix
+        run: |
+          # outputting for debugging purposes
+          python ./.github/scripts/docker/generate_build_matrix.py
+          MATRIX=$(python ./.github/scripts/docker/generate_build_matrix.py)
+          echo "::set-output name=matrix::${MATRIX}"
+  build-cpu-docker:
+    needs: generate_build_matrix
+    name: py${{ matrix.python-version }} torch${{ matrix.torch-version }} v${{ matrix.version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ${{ fromJson(needs.generate_build_matrix.outputs.matrix) }}
+
+    steps:
+      # refer to https://github.com/actions/checkout
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Free space
+        shell: bash
+        run: |
+          df -h
+          rm -rf /opt/hostedtoolcache
+          df -h
+
+      - name: 'Login to GitHub Container Registry'
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build docker Image
+        shell: bash
+        run: |
+          cd .github/scripts/docker
+          torch_version=${{ matrix.torch-version }}
+          torchaudio_version=${{ matrix.torchaudio-version }}
+
+          echo "torch_version: $torch_version"
+          echo "torchaudio_version: $torchaudio_version"
+
+          version=${{ matrix.version }}
+
+          tag=ghcr.io/${{ github.repository_owner }}/icefall:cpu-py${{ matrix.python-version }}-torch${{ matrix.torch-version }}-v$version
+          echo "tag: $tag"
+
+          docker build \
+            -t $tag \
+            --build-arg PYTHON_VERSION=${{ matrix.python-version }} \
+            --build-arg TORCH_VERSION=$torch_version \
+            --build-arg TORCHAUDIO_VERSION=$torchaudio_version \
+            --build-arg K2_VERSION=${{ matrix.k2-version }} \
+            --build-arg KALDIFEAT_VERSION=${{ matrix.kaldifeat-version }} \
+            .
+
+          docker image ls
+          docker push $tag
