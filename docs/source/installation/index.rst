@@ -206,6 +206,9 @@ We will install `k2`_ from pre-compiled wheels by following
 .. code-block:: bash
 
   (test-icefall) kuangfangjun:~$ pip install k2==1.24.3.dev20230725+cuda11.6.torch1.13.0 -f https://k2-fsa.github.io/k2/cuda.html
+  # For users from China
+  # 中国国内用户，如果访问不了 huggingface, 请使用
+  # pip install k2==1.24.3.dev20230725+cuda11.6.torch1.13.0 -f https://k2-fsa.github.io/k2/cuda-cn.html
 
   Looking in indexes: https://pypi.tuna.tsinghua.edu.cn/simple
   Looking in links: https://k2-fsa.github.io/k2/cuda.html
