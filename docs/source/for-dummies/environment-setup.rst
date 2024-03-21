@@ -74,6 +74,10 @@ to install dependencies of `icefall`_:
 
    pip install k2==1.24.4.dev20231220+cpu.torch2.0.0 -f https://k2-fsa.github.io/k2/cpu.html
 
+   # For users from China
+   # 中国国内用户，如果访问不了 huggingface, 请使用
+   # pip install k2==1.24.4.dev20231220+cpu.torch2.0.0 -f https://k2-fsa.github.io/k2/cpu-cn.html
+
    # Install the latest version of lhotse
 
    pip install git+https://github.com/lhotse-speech/lhotse
