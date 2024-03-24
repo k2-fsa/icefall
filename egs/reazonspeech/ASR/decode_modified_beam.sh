@@ -1,15 +1,20 @@
-num_epochs=30
-for ((i=$num_epochs; i>=20; i--));
+num_epochs=60
+for ((i=$num_epochs; i>=40; i--));
 do
-    for avg in 12 11 10 9 8 7 6 5;
+    for ((j=1; j<=$i; j++));
     do
         python3 ./zipformer/decode.py \
             --epoch $i \
-            --avg $avg \
-            --exp-dir zipformer/exp \
-            --max-duration 450 \
-            --lang data/lang_char \
+            --avg $j \
+            --exp-dir zipformer/exp-large \
+            --max-duration 600 \
+            --causal 0 \
             --decoding-method modified_beam_search \
-	    --blank-penalty 2.5
+            --num-encoder-layers 2,2,4,5,4,2 \
+            --feedforward-dim 512,768,1536,2048,1536,768 \
+            --encoder-dim 192,256,512,768,512,256 \
+            --encoder-unmasked-dim 192,192,256,320,256,192 \
+            --lang data/lang_char \
+            --blank-penalty 0
     done
 done

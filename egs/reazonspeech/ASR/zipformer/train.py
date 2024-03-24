@@ -328,7 +328,7 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--base-lr", type=float, default=0.035, help="The base learning rate."
+        "--base-lr", type=float, default=0.015, help="The base learning rate."
     )
 
     parser.add_argument(
@@ -1069,6 +1069,9 @@ def train_one_epoch(
                     tb_writer, "train/valid_", params.batch_idx_train
                 )
 
+    # print('--------------------debug------------------')
+    # print(tot_loss)
+    # print(tot_loss["frames"])
     loss_value = tot_loss["loss"] / tot_loss["frames"]
     params.train_loss = loss_value
     if params.train_loss < params.best_train_loss:
@@ -1179,7 +1182,7 @@ def run(rank, world_size, args):
         # You should use ../local/display_manifest_statistics.py to get
         # an utterance duration distribution for your dataset to select
         # the threshold
-        if c.duration < 0.3 or c.duration > 30.0:
+        if c.duration < 1.0 or c.duration > 30.0:
             # logging.warning(
             #     f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
             # )
