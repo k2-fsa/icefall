@@ -123,6 +123,7 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
     --exp-dir zipformer/exp_finetune \
     --bpe-model data/lang_bpe_500/bpe.model \
     --use-fp16 1 \
+    --use-mux 1 \
     --decoder-dim 320 \
     --joiner-dim 320 \
     --num-encoder-layers 1,1,1,1,1,1 \

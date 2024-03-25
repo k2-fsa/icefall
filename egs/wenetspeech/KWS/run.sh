@@ -126,6 +126,7 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
     --lang-dir ./data/lang_partial_tone \
     --pinyin-type partial_with_tone \
     --use-fp16 1 \
+    --use-mux 1 \
     --decoder-dim 320 \
     --joiner-dim 320 \
     --num-encoder-layers 1,1,1,1,1,1 \
