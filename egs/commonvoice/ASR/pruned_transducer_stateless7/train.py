@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-# Copyright    2021-2022  Xiaomi Corp.        (authors: Fangjun Kuang,
+# Copyright    2021-2024  Xiaomi Corp.        (authors: Fangjun Kuang,
 #                                                       Wei Kang,
-#                                                       Mingshuang Luo,)
-#                                                       Zengwei Yao)
+#                                                       Mingshuang Luo,
+#                                                       Zengwei Yao,
+#                                                       Zengrui Jin,)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -249,7 +250,29 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--base-lr", type=float, default=0.05, help="The base learning rate."
+        "--use-validated-set",
+        type=str2bool,
+        default=False,
+        help="""Use the validated set for training.
+        This is useful when you want to use more data for training,
+        but not recommended for research purposes.
+        """,
+    )
+
+    parser.add_argument(
+        "--use-invalidated-set",
+        type=str2bool,
+        default=False,
+        help="""Use the invalidated set for training.
+        In case you want to take the risk and utilize more data for training.
+        """,
+    )
+
+    parser.add_argument(
+        "--base-lr",
+        type=float,
+        default=0.05,
+        help="The base learning rate.",
     )
 
     parser.add_argument(
@@ -1027,7 +1050,13 @@ def run(rank, world_size, args):
 
     commonvoice = CommonVoiceAsrDataModule(args)
 
-    train_cuts = commonvoice.train_cuts()
+    if not args.use_validated_set:
+        train_cuts = commonvoice.train_cuts()
+    else:
+        train_cuts = commonvoice.validated_cuts()
+
+    if args.use_invalidated_set:
+        train_cuts += commonvoice.invalidated_cuts()
 
     def remove_short_and_long_utt(c: Cut):
         # Keep only utterances with duration between 1 second and 20 seconds

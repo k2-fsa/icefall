@@ -410,6 +410,22 @@ class CommonVoiceAsrDataModule:
         )
 
     @lru_cache()
+    def validated_cuts(self) -> CutSet:
+        logging.info("About to get validated cuts (with dev/test removed)")
+        return load_manifest_lazy(
+            self.args.cv_manifest_dir
+            / f"cv-{self.args.language}_cuts_validated.jsonl.gz"
+        )
+
+    @lru_cache()
+    def invalidated_cuts(self) -> CutSet:
+        logging.info("About to get invalidated cuts")
+        return load_manifest_lazy(
+            self.args.cv_manifest_dir
+            / f"cv-{self.args.language}_cuts_invalidated.jsonl.gz"
+        )
+
+    @lru_cache()
     def dev_cuts(self) -> CutSet:
         logging.info("About to get dev cuts")
         return load_manifest_lazy(

@@ -21,7 +21,7 @@ import re
 from pathlib import Path
 from typing import Optional
 
-from lhotse import CutSet, SupervisionSegment
+from lhotse import CutSet
 from lhotse.recipes.utils import read_manifests_if_cached
 
 
@@ -52,14 +52,20 @@ def normalize_text(utt: str, language: str) -> str:
         return re.sub(r"[^A-ZÀÂÆÇÉÈÊËÎÏÔŒÙÛÜ' ]", "", utt).upper()
     elif language == "pl":
         return re.sub(r"[^a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ' ]", "", utt).upper()
-    elif language == "yue":
-        return (
-            utt.replace(" ", "")
-            .replace("，", "")
-            .replace("。", " ")
-            .replace("？", "")
-            .replace("！", "")
-            .replace("?", "")
+    elif language in ["yue", "zh-HK"]:
+        # Mozilla Common Voice uses both "yue" and "zh-HK" for Cantonese
+        # Not sure why they decided to do this...
+        # None en/zh-yue tokens are manually removed here
+
+        # fmt: off
+        tokens_to_remove = ["，", "。", "？", "！", "?", "!", "‘", "、", ",", "\.", ":", ";", "「", "」", "“", "”", "~", "—", "ㄧ", "《", "》", "…", "⋯", "·", "﹒", "．", "：", "︰", "﹖", "（", "）", "－", "～", "；", "￼", "⠀", "﹔", "／", "Ａ", "Ｂ", "–", "‧"]
+
+        # fmt: on
+        utt = utt.upper().replace("\\", "")
+        return re.sub(
+            pattern="|".join([f"[{token}]" for token in tokens_to_remove]),
+            repl="",
+            string=utt,
         )
     else:
         raise NotImplementedError(
@@ -129,6 +135,28 @@ def preprocess_commonvoice(
             recordings=m["recordings"],
             supervisions=m["supervisions"],
         ).resample(16000)
+
+        if partition == "validated":
+            logging.warning(
+                """
+                The 'validated' partition contains the data of both 'train', 'dev' 
+                and 'test' partitions. We filter out the 'dev' and 'test' partition
+                here.
+                """
+            )
+            dev_ids = src_dir / f"cv-{language}_dev_ids"
+            test_ids = src_dir / f"cv-{language}_test_ids"
+            assert (
+                dev_ids.is_file()
+            ), f"{dev_ids} does not exist, please check stage 1 of the prepare.sh"
+            assert (
+                test_ids.is_file()
+            ), f"{test_ids} does not exist, please check stage 1 of the prepare.sh"
+            dev_ids = dev_ids.read_text().strip().split("\n")
+            test_ids = test_ids.read_text().strip().split("\n")
+            cut_set = cut_set.filter(
+                lambda x: x.supervisions[0].id not in dev_ids + test_ids
+            )
 
         # Run data augmentation that needs to be done in the
         # time domain.
