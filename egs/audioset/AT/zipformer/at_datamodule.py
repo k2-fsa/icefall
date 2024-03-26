@@ -56,7 +56,7 @@ class AudioSetATDatamodule:
     DataModule for k2 audio tagging (AT) experiments.
 
 
-    It contains all the common data pipeline modules used in ASR
+    It contains all the common data pipeline modules used in AT
     experiments, e.g.:
     - dynamic batch size,
     - bucketing samplers,
@@ -64,7 +64,7 @@ class AudioSetATDatamodule:
     - augmentation,
     - on-the-fly feature extraction
 
-    This class should be derived for specific corpora used in ASR tasks.
+    This class should be derived for specific corpora used in AT tasks.
     """
 
     def __init__(self, args: argparse.Namespace):
