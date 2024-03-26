@@ -90,7 +90,7 @@ jobs:
           path: ./*.wav
 
       - name: Release exported onnx models
-        if: matrix.python-version == '3.9' && matrix.torch-version == '2.2.0'
+        if: matrix.python-version == '3.9' && matrix.torch-version == '2.2.0' && github.event_name == 'push'
         uses: svenstaro/upload-release-action@v2
         with:
           file_glob: true
