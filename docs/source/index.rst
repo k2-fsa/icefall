@@ -25,7 +25,7 @@ speech recognition recipes using `k2 <https://github.com/k2-fsa/k2>`_.
    docker/index
    faqs
    model-export/index
-
+   fst-based-forced-alignment/index
 
 .. toctree::
    :maxdepth: 3
@@ -40,5 +40,5 @@ speech recognition recipes using `k2 <https://github.com/k2-fsa/k2>`_.
 
 .. toctree::
    :maxdepth: 2
-   
+
    decoding-with-langugage-models/index
