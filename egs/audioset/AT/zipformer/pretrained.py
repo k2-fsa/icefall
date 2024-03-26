@@ -48,15 +48,11 @@ import logging
 import math
 from typing import List
 
-import k2
 import kaldifeat
 import torch
 import torchaudio
-from export import num_tokens
 from torch.nn.utils.rnn import pad_sequence
 from train import add_model_arguments, get_model, get_params
-
-from icefall.utils import make_pad_mask
 
 
 def get_parser():
@@ -189,11 +185,12 @@ def main():
     encoder_out, encoder_out_lens = model.forward_encoder(features, feature_lengths)
     logits = model.forward_audio_tagging(encoder_out, encoder_out_lens)
 
-    results = []
     for i, logit in enumerate(logits):
         topk_prob, topk_index = logit.sigmoid().topk(5)
         topk_labels = [label_dict[index.item()] for index in topk_index]
-        print(f"Top 5 predicted labels of the {i} th audio are {topk_labels} with probability of {topk_prob.tolist()}")
+        print(
+            f"Top 5 predicted labels of the {i} th audio are {topk_labels} with probability of {topk_prob.tolist()}"
+        )
 
     logging.info("Decoding Done")
 

@@ -82,9 +82,8 @@ Check ./pretrained.py for its usage.
 import argparse
 import logging
 from pathlib import Path
-from typing import List, Tuple
+from typing import Tuple
 
-import k2
 import torch
 from scaling_converter import convert_scaled_to_non_scaled
 from torch import Tensor, nn
@@ -96,7 +95,7 @@ from icefall.checkpoint import (
     find_checkpoints,
     load_checkpoint,
 )
-from icefall.utils import make_pad_mask, num_tokens, str2bool
+from icefall.utils import make_pad_mask, str2bool
 
 
 def get_parser():
@@ -302,7 +301,6 @@ def main():
         # torch scriptabe.
         model.__class__.forward = torch.jit.ignore(model.__class__.forward)
 
-        
         model.encoder = EncoderModel(model.encoder, model.encoder_embed)
         filename = "jit_script.pt"
 
