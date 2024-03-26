@@ -91,7 +91,7 @@ class AudioSetATDatamodule:
             "--manifest-dir",
             type=Path,
             default=Path("data/fbank"),
-            help="Path to directory with train/valid/test cuts.",
+            help="Path to directory with audioset train/test cuts.",
         )
         group.add_argument(
             "--max-duration",
@@ -395,7 +395,7 @@ class AudioSetATDatamodule:
 
     @lru_cache()
     def audioset_train_cuts(self) -> CutSet:
-        logging.info("About to get the audioset cuts for KD.")
+        logging.info("About to get the audioset training cuts.")
         balanced_cuts = load_manifest_lazy(
             self.args.manifest_dir / "cuts_audioset_balanced.jsonl.gz"
         )
@@ -415,7 +415,7 @@ class AudioSetATDatamodule:
 
     @lru_cache()
     def audioset_eval_cuts(self) -> CutSet:
-        logging.info("About to get test-other cuts")
+        logging.info("About to get audioset eval cuts")
         return load_manifest_lazy(
             self.args.manifest_dir / "cuts_audioset_eval.jsonl.gz"
         )
