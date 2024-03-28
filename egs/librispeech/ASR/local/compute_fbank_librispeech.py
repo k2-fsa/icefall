@@ -32,7 +32,14 @@ from typing import Optional
 import sentencepiece as spm
 import torch
 from filter_cuts import filter_cuts
-from lhotse import CutSet, Fbank, FbankConfig, LilcomChunkyWriter
+from lhotse import (
+    CutSet,
+    Fbank,
+    FbankConfig,
+    LilcomChunkyWriter,
+    WhisperFbank,
+    WhisperFbankConfig,
+)
 from lhotse.recipes.utils import read_manifests_if_cached
 
 from icefall.utils import get_executor, str2bool
@@ -62,10 +69,30 @@ def get_args():
     )
 
     parser.add_argument(
+        "--output-dir",
+        type=str,
+        default="data/fbank",
+        help="Where to store the train/dev/test manifests and fbank features",
+    )
+
+    parser.add_argument(
         "--perturb-speed",
         type=str2bool,
         default=True,
         help="""Perturb speed with factor 0.9 and 1.1 on train subset.""",
+    )
+
+    parser.add_argument(
+        "--whisper-fbank",
+        type=str2bool,
+        default=False,
+        help="If use Whisper configuration for fbank computation",
+    )
+
+    parser.add_argument(
+        "--num-mel-bins",
+        type=int,
+        default=80,
     )
 
     return parser.parse_args()
@@ -74,12 +101,14 @@ def get_args():
 def compute_fbank_librispeech(
     bpe_model: Optional[str] = None,
     dataset: Optional[str] = None,
+    output_dir: Optional[str] = None,
     perturb_speed: Optional[bool] = True,
+    whisper_fbank: Optional[bool] = False,
+    num_mel_bins: Optional[int] = 80,
 ):
     src_dir = Path("data/manifests")
-    output_dir = Path("data/fbank")
+    output_dir = Path(output_dir)
     num_jobs = min(15, os.cpu_count())
-    num_mel_bins = 80
 
     if bpe_model:
         logging.info(f"Loading {bpe_model}")
@@ -116,7 +145,12 @@ def compute_fbank_librispeech(
         dataset_parts,
     )
 
-    extractor = Fbank(FbankConfig(num_mel_bins=num_mel_bins))
+    if whisper_fbank:
+        extractor = WhisperFbank(
+            WhisperFbankConfig(num_filters=num_mel_bins, device="cuda")
+        )
+    else:
+        extractor = Fbank(FbankConfig(num_mel_bins=num_mel_bins))
 
     with get_executor() as ex:  # Initialize the executor only once.
         for partition, m in manifests.items():
@@ -134,7 +168,7 @@ def compute_fbank_librispeech(
                 if bpe_model:
                     cut_set = filter_cuts(cut_set, sp)
                 if perturb_speed:
-                    logging.info(f"Doing speed perturb")
+                    logging.info("Doing speed perturb")
                     cut_set = (
                         cut_set
                         + cut_set.perturb_speed(0.9)
@@ -160,5 +194,8 @@ if __name__ == "__main__":
     compute_fbank_librispeech(
         bpe_model=args.bpe_model,
         dataset=args.dataset,
+        output_dir=args.output_dir,
         perturb_speed=args.perturb_speed,
+        whisper_fbank=args.whisper_fbank,
+        num_mel_bins=args.num_mel_bins,
     )

@@ -243,3 +243,23 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
       $lang_dir/L_disambig.fst
   fi
 fi
+
+
+if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
+  log "Stage 7: Prepare whisper fbank feature"
+  perturb_speed=1
+  whisper_mel_bins=80
+  output_dir=data/fbank_whisper_${whisper_mel_bins}D
+  if [ ! -f $output_dir/.librispeech.whisper.done ]; then
+    mkdir -p $output_dir
+    ./local/compute_fbank_librispeech.py \
+      --num-mel-bins ${whisper_mel_bins} \
+      --whisper-fbank true \
+      --output-dir $output_dir
+    ./local/compute_fbank_musan.py \
+      --num-mel-bins ${whisper_mel_bins} \
+      --whisper-fbank true \
+      --output-dir $output_dir
+    touch $output_dir/.librispeech.whisper.done
+  fi
+fi
