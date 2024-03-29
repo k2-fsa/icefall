@@ -36,6 +36,7 @@ from lhotse import (
     CutSet,
     Fbank,
     FbankConfig,
+    NumpyHdf5Writer,
     LilcomChunkyWriter,
     WhisperFbank,
     WhisperFbankConfig,
@@ -95,6 +96,13 @@ def get_args():
         default=80,
     )
 
+    parser.add_argument(
+        "--use-hdf5",
+        type=str2bool,
+        default=False,
+        help="If use hdf5 to store un-compressed features. Otherwise, use Lilcom"
+    )
+
     return parser.parse_args()
 
 
@@ -105,6 +113,7 @@ def compute_fbank_librispeech(
     perturb_speed: Optional[bool] = True,
     whisper_fbank: Optional[bool] = False,
     num_mel_bins: Optional[int] = 80,
+    use_hdf5: Optional[bool] = False,
 ):
     src_dir = Path("data/manifests")
     output_dir = Path(output_dir)
@@ -180,7 +189,7 @@ def compute_fbank_librispeech(
                 # when an executor is specified, make more partitions
                 num_jobs=num_jobs if ex is None else 80,
                 executor=ex,
-                storage_type=LilcomChunkyWriter,
+                storage_type=LilcomChunkyWriter if not use_hdf5 else NumpyHdf5Writer,
             )
             cut_set.to_file(output_dir / cuts_filename)
 
@@ -198,4 +207,5 @@ if __name__ == "__main__":
         perturb_speed=args.perturb_speed,
         whisper_fbank=args.whisper_fbank,
         num_mel_bins=args.num_mel_bins,
+        use_hdf5=args.use_hdf5,
     )
