@@ -244,21 +244,26 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
   fi
 fi
 
-
+# NOTE: This stage is optional and should only be done if you want to
+# do Whisper related experiments
 if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
   log "Stage 7: Prepare whisper fbank feature"
-  perturb_speed=1
+  perturb_speed=0
   whisper_mel_bins=80
-  output_dir=data/fbank_whisper_${whisper_mel_bins}D_hdf5
+  use_hdf5=False
+  output_dir=data/fbank_whisper_${whisper_mel_bins}D_test
   if [ ! -f $output_dir/.librispeech.whisper.done ]; then
     mkdir -p $output_dir
     ./local/compute_fbank_librispeech.py \
       --num-mel-bins ${whisper_mel_bins} \
+      --perturb-speed ${perturb_speed} \
       --whisper-fbank true \
+      --use-hdf5 ${use_hdf5} \
       --output-dir $output_dir
     ./local/compute_fbank_musan.py \
       --num-mel-bins ${whisper_mel_bins} \
       --whisper-fbank true \
+      --use-hdf5 ${use_hdf5} \
       --output-dir $output_dir
     touch $output_dir/.librispeech.whisper.done
   fi
