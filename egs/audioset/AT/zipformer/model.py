@@ -144,7 +144,7 @@ class AudioTaggingModel(nn.Module):
             before padding.
 
         Returns:
-          A 3-D tensor of shape (N, T, num_classes).
+          A 3-D tensor of shape (N, num_classes).
         """
         logits = self.classifier(encoder_out)  # (N, T, num_classes)
         padding_mask = make_pad_mask(encoder_out_lens)
