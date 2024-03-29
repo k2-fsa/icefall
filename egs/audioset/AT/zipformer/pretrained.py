@@ -185,14 +185,14 @@ def main():
     encoder_out, encoder_out_lens = model.forward_encoder(features, feature_lengths)
     logits = model.forward_audio_tagging(encoder_out, encoder_out_lens)
 
-    for i, logit in enumerate(logits):
+    for filename, logit in zip(args.sound_files, logits):
         topk_prob, topk_index = logit.sigmoid().topk(5)
         topk_labels = [label_dict[index.item()] for index in topk_index]
-        print(
-            f"Top 5 predicted labels of the {i} th audio are {topk_labels} with probability of {topk_prob.tolist()}"
+        logging.info(
+            f"{filename}: Top 5 predicted labels are {topk_labels} with probability of {topk_prob.tolist()}"
         )
 
-    logging.info("Decoding Done")
+    logging.info("Done")
 
 
 if __name__ == "__main__":
