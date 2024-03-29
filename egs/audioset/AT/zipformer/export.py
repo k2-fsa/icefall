@@ -46,8 +46,6 @@ for how to use the exported models outside of icefall.
 
 (2) Export `model.state_dict()`
 
-- For non-streaming model:
-
 ./zipformer/export.py \
   --exp-dir ./zipformer/exp \
   --epoch 30 \
@@ -56,8 +54,6 @@ for how to use the exported models outside of icefall.
 
 It will generate a file `pretrained.pt` in the given `exp_dir`. You can later
 load it by `icefall.checkpoint.load_checkpoint()`.
-
-- For non-streaming model:
 
 To use the generated file with `zipformer/decode.py`,
 you can do:
