@@ -48,7 +48,8 @@ fi
 
 if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   log "Stage 1: Decode the model."
-  for t in small, large; do
+  export CUDA_VISIBLE_DEVICES="0"
+  for t in small large; do
     python ./zipformer/decode.py \
         --epoch 18 \
         --avg 2 \
@@ -126,6 +127,7 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
     --lang-dir ./data/lang_partial_tone \
     --pinyin-type partial_with_tone \
     --use-fp16 1 \
+    --use-mux 1 \
     --decoder-dim 320 \
     --joiner-dim 320 \
     --num-encoder-layers 1,1,1,1,1,1 \
@@ -142,7 +144,8 @@ fi
 
 if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
   log "Stage 1: Decode the finetuned model."
-  for t in small, large; do
+  export CUDA_VISIBLE_DEVICES="0"
+  for t in small large; do
     python ./zipformer/decode.py \
         --epoch 10 \
         --avg 2 \
