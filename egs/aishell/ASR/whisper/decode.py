@@ -214,7 +214,7 @@ def get_parser():
         "--model-name",
         type=str,
         default="large-v2",
-        choices=["large-v2", "large-v3", "medium", "small", "tiny"],
+        choices=["large-v2", "large-v3", "medium", "small", "base", "tiny"],
         help="""The model name to use.
         """,
     )
