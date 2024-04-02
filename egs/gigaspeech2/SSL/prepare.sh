@@ -45,10 +45,18 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
 fi
 
 if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
-  log "Stage 2: Compute fbank for gigaspeech2"
+  log "State 2: Preprocess GigaSpeech2 manifest"
+  if [ ! -f data/fbank/.preprocess.done ]; then
+   python3 ./local/preprocess_gigaspeech2.py --lang $lang
+   touch data/fbank/.preprocess.done
+  fi
+fi
+
+if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
+  log "Stage 3: Compute fbank for gigaspeech2"
   mkdir -p data/fbank
   if [ ! -e data/fbank/.gigaspeech2.done ]; then
-    ./local/compute_fbank_gigaspeech2.py --lang $lang
+    ./local/compute_fbank_gigaspeech2.py
     touch data/fbank/.gigaspeech2.done
   fi
 fi

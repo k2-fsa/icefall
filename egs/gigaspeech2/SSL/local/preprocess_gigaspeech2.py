@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import argparse
 import logging
 import re
 import unicodedata
@@ -51,28 +52,28 @@ def normalize_text(
     # Language-related normalization
     if lang == "Thai":
         # Digit mapping
-        text = re.sub(r"\u0030", r"\u0E50", text)
-        text = re.sub(r"\u0031", r"\u0E51", text)
-        text = re.sub(r"\u0032", r"\u0E52", text)
-        text = re.sub(r"\u0033", r"\u0E53", text)
-        text = re.sub(r"\u0034", r"\u0E54", text)
-        text = re.sub(r"\u0035", r"\u0E55", text)
-        text = re.sub(r"\u0036", r"\u0E56", text)
-        text = re.sub(r"\u0037", r"\u0E57", text)
-        text = re.sub(r"\u0038", r"\u0E58", text)
-        text = re.sub(r"\u0039", r"\u0E59", text)
+        text = re.sub("\u0030", "\u0E50", text)
+        text = re.sub("\u0031", "\u0E51", text)
+        text = re.sub("\u0032", "\u0E52", text)
+        text = re.sub("\u0033", "\u0E53", text)
+        text = re.sub("\u0034", "\u0E54", text)
+        text = re.sub("\u0035", "\u0E55", text)
+        text = re.sub("\u0036", "\u0E56", text)
+        text = re.sub("\u0037", "\u0E57", text)
+        text = re.sub("\u0038", "\u0E58", text)
+        text = re.sub("\u0039", "\u0E59", text)
 
         # Currency symbols mapping
-        text = re.sub(r"\u0024", "ดอลลาร์", text)  # $
-        text = re.sub(r"\u00A3", "ปอนด์", text)  # £
-        text = re.sub(r"\u00A5", "หยวน", text)  # ¥
-        text = re.sub(r"\u20AC", "ยูโร", text)  # €
-        text = re.sub(r"\u0E3F", "บาท", text)  # ฿
+        text = re.sub("\u0024", "ดอลลาร์", text)  # $
+        text = re.sub("\u00A3", "ปอนด์", text)  # £
+        text = re.sub("\u00A5", "หยวน", text)  # ¥
+        text = re.sub("\u20AC", "ยูโร", text)  # €
+        text = re.sub("\u0E3F", "บาท", text)  # ฿
 
         # Temperature/Angle symbols mapping
-        text = re.sub(r"\u00B0\u0043", "องศาเซลเซียส", text)  # °C
-        text = re.sub(r"\u00B0\u0046", "องศาฟาเรนไฮต์", text)  # °F
-        text = re.sub(r"\u00B0", "องศา", text)  # °
+        text = re.sub("\u00B0\u0043", "องศาเซลเซียส", text)  # °C
+        text = re.sub("\u00B0\u0046", "องศาฟาเรนไฮต์", text)  # °F
+        text = re.sub("\u00B0", "องศา", text)  # °
 
         # Remove blank symbols
         text = re.sub(r"\s", "", text)
@@ -114,7 +115,7 @@ def preprocess_gigaspeech2(args):
             continue
 
         for sup in m["supervisions"]:
-            sup.text = normalize_text(sup.text)
+            sup.text = normalize_text(sup.text, args.lang)
 
         logging.info(f"Processing {partition}")
         cut_set = CutSet.from_manifests(
