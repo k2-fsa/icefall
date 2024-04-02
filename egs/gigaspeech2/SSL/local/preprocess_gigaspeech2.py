@@ -32,6 +32,13 @@ def get_args():
     parser.add_argument(
         "--lang",
         type=str,
+        required=True,
+    )
+
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        required=True,
     )
 
     return parser.parse_args()
@@ -89,7 +96,7 @@ def preprocess_gigaspeech2(args):
     output_dir = Path("data/fbank")
     output_dir.mkdir(exist_ok=True)
 
-    dataset_parts = ("test",)
+    dataset_parts = args.dataset.strip().split(" ", -1)
 
     logging.info("Loading manifest (may take 4 minutes)")
     manifests = read_manifests_if_cached(

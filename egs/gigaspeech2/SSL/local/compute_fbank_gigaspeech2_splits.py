@@ -38,11 +38,18 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--dataset",
+        type=str,
+        required=True,
+    )
+
+    parser.add_argument(
         "--num-workers",
         type=int,
         default=20,
         help="Number of dataloading workers used for reading the audio.",
     )
+
     parser.add_argument(
         "--batch-duration",
         type=float,
@@ -55,7 +62,7 @@ def get_parser():
         "--num-splits",
         type=int,
         required=True,
-        help="The number of splits of the XL subset",
+        help="The number of splits of the subset",
     )
 
     parser.add_argument(
@@ -71,12 +78,13 @@ def get_parser():
         default=-1,
         help="Stop processing pieces until this number (exclusive).",
     )
+
     return parser
 
 
-def compute_fbank_gigaspeech_splits(args):
+def compute_fbank_gigaspeech2_splits(args):
     num_splits = args.num_splits
-    output_dir = f"data/fbank/XL_split"
+    output_dir = f"data/fbank/{args.dataset}_split"
     output_dir = Path(output_dir)
     assert output_dir.exists(), f"{output_dir} does not exist!"
 
@@ -99,12 +107,14 @@ def compute_fbank_gigaspeech_splits(args):
         idx = f"{i}".zfill(num_digits)
         logging.info(f"Processing {idx}/{num_splits}")
 
-        cuts_path = output_dir / f"gigaspeech_cuts_XL.{idx}.jsonl.gz"
+        cuts_path = output_dir / f"gigaspeech2_cuts_{args.dataset}.{idx}.jsonl.gz"
         if cuts_path.is_file():
             logging.info(f"{cuts_path} exists - skipping")
             continue
 
-        raw_cuts_path = output_dir / f"gigaspeech_cuts_XL_raw.{idx}.jsonl.gz"
+        raw_cuts_path = (
+            output_dir / f"gigaspeech2_cuts_{args.dataset}_raw.{idx}.jsonl.gz"
+        )
 
         logging.info(f"Loading {raw_cuts_path}")
         cut_set = CutSet.from_file(raw_cuts_path)
@@ -113,7 +123,7 @@ def compute_fbank_gigaspeech_splits(args):
 
         cut_set = cut_set.compute_and_store_features_batch(
             extractor=extractor,
-            storage_path=f"{output_dir}/gigaspeech_feats_{idx}",
+            storage_path=f"{output_dir}/gigaspeech2_feats_{idx}",
             num_workers=args.num_workers,
             batch_duration=args.batch_duration,
             overwrite=True,
@@ -130,30 +140,14 @@ def compute_fbank_gigaspeech_splits(args):
 
 
 def main():
-    now = datetime.now()
-    date_time = now.strftime("%Y-%m-%d-%H-%M-%S")
-
-    log_filename = "log-compute_fbank_gigaspeech_splits"
     formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-    log_filename = f"{log_filename}-{date_time}"
-
-    logging.basicConfig(
-        filename=log_filename,
-        format=formatter,
-        level=logging.INFO,
-        filemode="w",
-    )
-
-    console = logging.StreamHandler()
-    console.setLevel(logging.INFO)
-    console.setFormatter(logging.Formatter(formatter))
-    logging.getLogger("").addHandler(console)
+    logging.basicConfig(format=formatter, level=logging.INFO)
 
     parser = get_parser()
     args = parser.parse_args()
     logging.info(vars(args))
 
-    compute_fbank_gigaspeech_splits(args)
+    compute_fbank_gigaspeech2_splits(args)
 
 
 if __name__ == "__main__":
