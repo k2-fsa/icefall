@@ -63,11 +63,11 @@ def normalize_text(
         text = re.sub(r"\u0039", r"\u0E59", text)
 
         # Currency symbols mapping
-        text = re.sub(r"\u0024", r"", text)  # $
-        text = re.sub(r"\u00A3", r"", text)
-        text = re.sub(r"\u00A5", r"\u", text)
-        text = re.sub(r"\u00AC", r"\u", text)
-
+        text = re.sub(r"\u0024", r"\u0E14\u0E2D\u0E25\u0E25\u0E32\u0E23\u0E4C", text)  # $ -> ดอลลาร์
+        text = re.sub(r"\u00A3", r"\u0E1B\u0E2D\u0E19\u0E14\u0E4C", text)  # £ -> ปอนด์
+        text = re.sub(r"\u00A5", r"\u0E2E\u0E22\u0E27\u0E31\u0E19", text)  # ¥ -> หยวน
+        text = re.sub(r"\u20AC", r"\u0E22\u0E39\u0E42\u0E23", text)  # € -> ยูโร
+        text = re.sub(r"\u0E3F", r"\u0E1A\u0E32\u0E17", text)  # ฿ -> บาท
     
         # Remove blank symbols
         text = re.sub(r"\s", "", utt)
