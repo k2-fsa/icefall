@@ -18,6 +18,7 @@
 import logging
 import re
 from pathlib import Path
+import unicodedata
 
 from lhotse import CutSet, SupervisionSegment
 from lhotse.recipes.utils import read_manifests_if_cached
@@ -25,11 +26,56 @@ from lhotse.recipes.utils import read_manifests_if_cached
 from icefall.utils import str2bool
 
 
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--lang",
+        type=str,
+    )
+
+    return parser.parse_args()
+
+
 def normalize_text(
-    utt: str,
+    text: str,
+    lang: str,
 ) -> str:
-    whitespace_pattern = (re.compile(r"\s\s+"),)
-    return whitespace_pattern.sub("", utt)
+    text = unicodedata.normalize("NFKC", text)
+
+    # Convert to upper case
+    text = text.upper()
+
+    # Remove brackets with content
+    text = re.sub(r"\([^\)]*\)", " ", text)
+
+    # Language-related normalization
+    if lang == "Thai":
+        # Digit mapping
+        text = re.sub(r"\u0030", r"\u0E50", text)
+        text = re.sub(r"\u0031", r"\u0E51", text)
+        text = re.sub(r"\u0032", r"\u0E52", text)
+        text = re.sub(r"\u0033", r"\u0E53", text)
+        text = re.sub(r"\u0034", r"\u0E54", text)
+        text = re.sub(r"\u0035", r"\u0E55", text)
+        text = re.sub(r"\u0036", r"\u0E56", text)
+        text = re.sub(r"\u0037", r"\u0E57", text)
+        text = re.sub(r"\u0038", r"\u0E58", text)
+        text = re.sub(r"\u0039", r"\u0E59", text)
+
+        # Currency symbols mapping
+        text = re.sub(r"\u0024", r"", text)  # $
+        text = re.sub(r"\u00A3", r"", text)
+        text = re.sub(r"\u00A5", r"\u", text)
+        text = re.sub(r"\u00AC", r"\u", text)
+
+    
+        # Remove blank symbols
+        text = re.sub(r"\s", "", utt)
+
+    else:
+        text = re.sub(r"\s+", " ", text).strip()
+
+    return utt
 
 
 def preprocess_gigaspeech2(args):
@@ -79,7 +125,8 @@ def main():
     formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
     logging.basicConfig(format=formatter, level=logging.INFO)
 
-    preprocess_gigaspeech2()
+    args = get_args()
+    preprocess_gigaspeech2(args)
 
 
 if __name__ == "__main__":
