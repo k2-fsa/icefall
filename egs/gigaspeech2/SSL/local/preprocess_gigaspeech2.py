@@ -75,12 +75,12 @@ def normalize_text(
         text = re.sub(r"\u00B0", "องศา", text)  # °
     
         # Remove blank symbols
-        text = re.sub(r"\s", "", utt)
+        text = re.sub(r"\s", "", text)
 
     else:
         text = re.sub(r"\s+", " ", text).strip()
 
-    return utt
+    return text
 
 
 def preprocess_gigaspeech2(args):
