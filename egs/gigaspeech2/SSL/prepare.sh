@@ -48,7 +48,7 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   log "Stage 2: Compute fbank for gigaspeech2"
   mkdir -p data/fbank
   if [ ! -e data/fbank/.gigaspeech2.done ]; then
-    ./local/compute_fbank_gigaspeech2.py
+    ./local/compute_fbank_gigaspeech2.py --lang $lang
     touch data/fbank/.gigaspeech2.done
   fi
 fi

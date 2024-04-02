@@ -17,8 +17,8 @@
 
 import logging
 import re
-from pathlib import Path
 import unicodedata
+from pathlib import Path
 
 from lhotse import CutSet, SupervisionSegment
 from lhotse.recipes.utils import read_manifests_if_cached
@@ -73,7 +73,7 @@ def normalize_text(
         text = re.sub(r"\u00B0\u0043", "องศาเซลเซียส", text)  # °C
         text = re.sub(r"\u00B0\u0046", "องศาฟาเรนไฮต์", text)  # °F
         text = re.sub(r"\u00B0", "องศา", text)  # °
-    
+
         # Remove blank symbols
         text = re.sub(r"\s", "", text)
 
