@@ -1,4 +1,5 @@
 FROM pytorch/pytorch:2.2.1-cuda11.8-cudnn8-devel
+# python 3.10
 
 ENV LC_ALL C.UTF-8
 
