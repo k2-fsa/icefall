@@ -5,11 +5,12 @@
 Sample data given duration in seconds.
 """
 
-from lhotse import RecordingSet, SupervisionSet, CutSet
 import argparse
 import logging
 import os
 from pathlib import Path
+
+from lhotse import CutSet, RecordingSet, SupervisionSet
 
 
 def get_parser():

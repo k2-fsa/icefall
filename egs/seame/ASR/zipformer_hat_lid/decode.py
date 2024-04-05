@@ -75,11 +75,15 @@ import argparse
 import logging
 import math
 import os
+import re
+import string
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import k2
+import matplotlib.pyplot as plt
+import seaborn as sns
 import sentencepiece as spm
 import torch
 import torch.nn as nn
@@ -87,10 +91,12 @@ from asr_datamodule import SeameAsrDataModule
 from beam_search import (
     greedy_search_batch,
     modified_beam_search,
-    modified_beam_search_lm_shallow_fusion,
     modified_beam_search_lm_rescore_LODR,
+    modified_beam_search_lm_shallow_fusion,
     modified_beam_search_LODR,
 )
+from kaldialign import align
+from sklearn.metrics import classification_report, confusion_matrix, f1_score
 from train import add_model_arguments, get_model, get_params
 
 from icefall import ContextGraph, LmScorer, NgramLm
@@ -109,12 +115,6 @@ from icefall.utils import (
     str2bool,
     write_error_stats,
 )
-from kaldialign import align
-from sklearn.metrics import f1_score, classification_report, confusion_matrix
-import string
-import re
-import seaborn as sns
-import matplotlib.pyplot as plt
 
 LOG_EPS = math.log(1e-10)
 

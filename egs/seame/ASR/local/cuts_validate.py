@@ -1,10 +1,11 @@
 #!/usr/bin/python
 
-from lhotse import RecordingSet, SupervisionSet, CutSet
 import argparse
 import logging
-from lhotse.qa import fix_manifests, validate_recordings_and_supervisions
 import pdb
+
+from lhotse import CutSet, RecordingSet, SupervisionSet
+from lhotse.qa import fix_manifests, validate_recordings_and_supervisions
 
 
 def get_parser():

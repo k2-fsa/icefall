@@ -23,20 +23,19 @@ It looks for manifests in the directory data_seame/manifests.
 The generated fbank features are saved in data_seame/fbank.
 """
 
+import argparse
 import logging
 import os
 from pathlib import Path
-import argparse
 
 from lhotse import CutSet, LilcomChunkyWriter
-from lhotse.recipes.utils import read_manifests_if_cached
-
 from lhotse.features.kaldifeat import (
     KaldifeatFbank,
     KaldifeatFbankConfig,
     KaldifeatFrameOptions,
     KaldifeatMelOptions,
 )
+from lhotse.recipes.utils import read_manifests_if_cached
 
 
 def get_args():

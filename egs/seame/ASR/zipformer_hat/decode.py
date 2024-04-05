@@ -52,6 +52,8 @@ import argparse
 import logging
 import math
 import os
+import re
+import string
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -64,8 +66,8 @@ from asr_datamodule import SeameAsrDataModule
 from beam_search import (
     greedy_search_batch,
     modified_beam_search,
-    modified_beam_search_lm_shallow_fusion,
     modified_beam_search_lm_rescore_LODR,
+    modified_beam_search_lm_shallow_fusion,
     modified_beam_search_LODR,
 )
 from train import add_model_arguments, get_model, get_params
@@ -86,8 +88,6 @@ from icefall.utils import (
     str2bool,
     write_error_stats,
 )
-import string
-import re
 
 LOG_EPS = math.log(1e-10)
 

@@ -35,6 +35,7 @@ and generates the following files in the directory `lang_dir`:
 """
 
 import argparse
+import pdb
 from pathlib import Path
 from typing import Dict, List, Tuple
 
@@ -50,7 +51,6 @@ from prepare_lang import (
 )
 
 from icefall.utils import str2bool
-import pdb
 
 
 def lexicon_to_fst_no_sil(

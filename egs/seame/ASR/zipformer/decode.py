@@ -64,6 +64,8 @@ import argparse
 import logging
 import math
 import os
+import re
+import string
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -105,9 +107,6 @@ from icefall.utils import (
     str2bool,
     write_error_stats,
 )
-import string
-import re
-
 
 LOG_EPS = math.log(1e-10)
 

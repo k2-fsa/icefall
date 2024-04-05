@@ -5,11 +5,16 @@
 Compute WER per language
 """
 
-import sys, codecs, math, pickle, unicodedata, re
-from collections import Counter
 import argparse
+import codecs
+import math
+import pickle
+import re
+import sys
+import unicodedata
+from collections import Counter, defaultdict
+
 from kaldialign import align
-from collections import defaultdict
 
 
 def get_parser():

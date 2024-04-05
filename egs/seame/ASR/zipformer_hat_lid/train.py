@@ -100,7 +100,7 @@ import warnings
 from pathlib import Path
 from shutil import copyfile
 from typing import Any, Dict, Optional, Tuple, Union
-from torch.optim import Optimizer
+
 import k2
 import optim
 import sentencepiece as spm
@@ -120,6 +120,7 @@ from subsampling import Conv2dSubsampling
 from torch import Tensor
 from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.optim import Optimizer
 from torch.utils.tensorboard import SummaryWriter
 from zipformer import Zipformer2
 

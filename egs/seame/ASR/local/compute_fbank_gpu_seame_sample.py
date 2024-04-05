@@ -23,13 +23,12 @@ It looks for manifests in the directory data_seame/manifests.
 The generated fbank features are saved in data_seame/fbank.
 """
 
+import argparse
 import logging
 import os
 from pathlib import Path
-import argparse
 
 from lhotse import CutSet, LilcomChunkyWriter
-
 from lhotse.features.kaldifeat import (
     KaldifeatFbank,
     KaldifeatFbankConfig,

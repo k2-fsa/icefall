@@ -5,12 +5,13 @@
 This script prepares transcript_words.txt from cutset
 """
 
-from lhotse import CutSet
 import argparse
 import logging
+import os
 import pdb
 from pathlib import Path
-import os
+
+from lhotse import CutSet
 
 
 def get_parser():
