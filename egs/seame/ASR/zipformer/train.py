@@ -1384,5 +1384,6 @@ def main():
     else:
         run(rank=0, world_size=1, args=args)
 
+
 if __name__ == "__main__":
     main()

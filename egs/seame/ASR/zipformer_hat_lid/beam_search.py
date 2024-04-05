@@ -37,6 +37,7 @@ from icefall.utils import (
     get_texts_with_timestamp,
 )
 
+
 @dataclass
 class Result:
     # timestamps[k] contains the frame number on which tokens[k]
@@ -465,7 +466,9 @@ def modified_beam_search(
         lid_current_encoder_out = lid_encoder_out.data[start:end]
 
         current_encoder_out = current_encoder_out.unsqueeze(1).unsqueeze(1)
-        asr_lid_current_encoder_out = asr_lid_current_encoder_out.unsqueeze(1).unsqueeze(1)
+        asr_lid_current_encoder_out = asr_lid_current_encoder_out.unsqueeze(
+            1
+        ).unsqueeze(1)
         lid_current_encoder_out = lid_current_encoder_out.unsqueeze(1).unsqueeze(1)
         # current_encoder_out's shape is (batch_size, 1, 1, encoder_out_dim)
         offset = end
@@ -491,7 +494,6 @@ def modified_beam_search(
         decoder_out_ = model.decoder(decoder_input, need_pad=False).unsqueeze(1)
         decoder_out = model.joiner.decoder_proj(decoder_out_)
         lid_decoder_out = model.lid_joiner.decoder_proj(decoder_out_)
-
 
         # decoder_out is of shape (num_hyps, 1, 1, joiner_dim)
 
@@ -521,7 +523,7 @@ def modified_beam_search(
             project_input=False,
             lid_out=asr_lid_current_encoder_out,
         )  # (num_hyps, 1, 1, vocab_size)
-        
+
         lid_logits = model.lid_joiner(
             lid_current_encoder_out,
             lid_decoder_out,
@@ -879,6 +881,7 @@ def modified_beam_search_lm_shallow_fusion(
             timestamps=ans_timestamps,
         )
 
+
 def modified_beam_search_auxlm_shallow_fusion(
     model: nn.Module,
     encoder_out: torch.Tensor,
@@ -1160,6 +1163,7 @@ def modified_beam_search_auxlm_shallow_fusion(
             timestamps=ans_timestamps,
         )
 
+
 def modified_beam_search_lm_rescore_LODR(
     model: nn.Module,
     encoder_out: torch.Tensor,
@@ -1282,9 +1286,9 @@ def modified_beam_search_lm_rescore_LODR(
         # is equivalent to log(1 - sigmoid(logits[..., 0])).
         nb_shift = logp_b - logits[..., 0]
         nb_shift = nb_shift.unsqueeze(-1)
-        log_probs1 = (logits[..., 1:]/ temperature).log_softmax(dim=-1) + nb_shift
+        log_probs1 = (logits[..., 1:] / temperature).log_softmax(dim=-1) + nb_shift
 
-        #log_probs = (logits / temperature).log_softmax(dim=-1)  # (num_hyps, vocab_size)
+        # log_probs = (logits / temperature).log_softmax(dim=-1)  # (num_hyps, vocab_size)
         log_probs = torch.cat((logp_b.unsqueeze(-1), log_probs1), dim=-1)
 
         log_probs.add_(ys_log_probs)

@@ -91,7 +91,7 @@ def main():
     user_defined_symbols = ["<blk>", "<sos/eos>"]
     unk_id = len(user_defined_symbols)
     if predef_sym:
-        syms = predef_sym.split(',')
+        syms = predef_sym.split(",")
         for i in syms:
             user_defined_symbols.append(i)
     # Note: unk_id is fixed to 2.
@@ -115,6 +115,7 @@ def main():
 
     shutil.copyfile(model_file, f"{lang_dir}/bpe.model")
     generate_tokens(lang_dir)
+
 
 if __name__ == "__main__":
     main()

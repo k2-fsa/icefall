@@ -30,7 +30,7 @@ def get_parser():
         help="name of the lang-dir",
     )
     return parser
-     
+
 
 def main():
 
@@ -40,15 +40,16 @@ def main():
     logging.info("Reading the cuts")
     cuts = CutSet.from_file(args.cut)
     langdir = Path(args.langdir)
-    
+
     if not os.path.exists(langdir):
         os.makedirs(langdir)
-    
-    with open(langdir / "transcript_words.txt", 'w') as txt:
+
+    with open(langdir / "transcript_words.txt", "w") as txt:
         for c in cuts:
-            #breakpoint()
+            # breakpoint()
             text = c.supervisions[0].text
-            txt.write(text + '\n')
+            txt.write(text + "\n")
+
 
 if __name__ == "__main__":
     main()

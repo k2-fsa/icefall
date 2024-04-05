@@ -25,29 +25,31 @@ def get_parser():
     )
     return parser
 
+
 lids = "en,zh"
-lids_dict = {lid:id+1 for id, lid in enumerate(lids.split(","))}
-id2lang = {id+1: lid for id, lid in enumerate(lids.split(","))}
+lids_dict = {lid: id + 1 for id, lid in enumerate(lids.split(","))}
+id2lang = {id + 1: lid for id, lid in enumerate(lids.split(","))}
 bad_id = []
+
 
 def extract_info(line, info):
     # Split the line at the first colon to separate the ID
-    id_part, rest = line.split(':', 1)
-    
+    id_part, rest = line.split(":", 1)
+
     # Extract 'ref' by finding its start and end
     ref_start = rest.find(info)
-    ref_end = rest.find(']', ref_start)
-    ref = rest[ref_start+len(info):ref_end].replace("'", "").split(', ')
-  
-    # Extract 'lid'
-    if 'lid=' in rest:
-        lid_start = rest.find('lid=[')
-        lid_end = rest.find(']', lid_start)
-        lid = rest[lid_start+len('lid=['):lid_end].split(', ')
-    else:
-        lid = ['']
+    ref_end = rest.find("]", ref_start)
+    ref = rest[ref_start + len(info) : ref_end].replace("'", "").split(", ")
 
-    if lid[0]=='':
+    # Extract 'lid'
+    if "lid=" in rest:
+        lid_start = rest.find("lid=[")
+        lid_end = rest.find("]", lid_start)
+        lid = rest[lid_start + len("lid=[") : lid_end].split(", ")
+    else:
+        lid = [""]
+
+    if lid[0] == "":
         bad_id.append(id_part)
     if " ".join(lid):
         lid = [int(i) for i in lid]  # Convert each element to integer
@@ -58,6 +60,7 @@ def is_English(c):
     """check character is in English"""
     return ord(c.lower()) >= ord("a") and ord(c.lower()) <= ord("z")
 
+
 def get_en(text):
     res = []
     for w in text:
@@ -67,6 +70,7 @@ def get_en(text):
             else:
                 continue
     return res
+
 
 def get_zh(text):
     res = []
@@ -79,76 +83,76 @@ def get_zh(text):
     return res
 
 
-
 def extract_info_lid(line, tag):
     # Split the line at the first colon to separate the ID
-    id_part, rest = line.split(':', 1)
-    
+    id_part, rest = line.split(":", 1)
+
     # Extract 'ref' by finding its start and end
-    
+
     ref_start = rest.find(tag)
-    ref_end = rest.find(']', ref_start)
-    ref = rest[ref_start+len(tag):ref_end].replace("'", "").split(', ')
-  
+    ref_end = rest.find("]", ref_start)
+    ref = rest[ref_start + len(tag) : ref_end].replace("'", "").split(", ")
+
     return id_part.strip(), ref
 
 
 def align_lid2(labels_a, labels_b, a, b):
-  # Alignment
-  EPS = '*'
-  ali = align(a, b, EPS, sclite_mode=True)
+    # Alignment
+    EPS = "*"
+    ali = align(a, b, EPS, sclite_mode=True)
 
-  a2idx = {(i,idx):j for idx,(i,j) in enumerate(zip(a,labels_a))}
-  b2idx = {(i,idx):j for idx,(i,j) in enumerate(zip(b,labels_b))}
-  # Comparing labels of aligned elements
-  idx_a = 0
-  idx_b = 0
-  ali_idx=0
-  aligned_a = []
-  aligned_b = []
-  while idx_a <len(a) and idx_b <len(b) and ali_idx < len(ali):
-    elem_a, elem_b = ali[ali_idx]
-    if elem_a == EPS:
-      idx_b += 1
-    elif elem_b == EPS:
-      idx_a += 1
-    elif elem_a != EPS and elem_b != EPS:
+    a2idx = {(i, idx): j for idx, (i, j) in enumerate(zip(a, labels_a))}
+    b2idx = {(i, idx): j for idx, (i, j) in enumerate(zip(b, labels_b))}
+    # Comparing labels of aligned elements
+    idx_a = 0
+    idx_b = 0
+    ali_idx = 0
+    aligned_a = []
+    aligned_b = []
+    while idx_a < len(a) and idx_b < len(b) and ali_idx < len(ali):
+        elem_a, elem_b = ali[ali_idx]
+        if elem_a == EPS:
+            idx_b += 1
+        elif elem_b == EPS:
+            idx_a += 1
+        elif elem_a != EPS and elem_b != EPS:
 
-      label_a = a2idx[(elem_a,idx_a)]
-      label_b = b2idx[(elem_b,idx_b)]
-      aligned_a.append(label_a)
-      aligned_b.append(label_b)
-      idx_b += 1
-      idx_a += 1
+            label_a = a2idx[(elem_a, idx_a)]
+            label_b = b2idx[(elem_b, idx_b)]
+            aligned_a.append(label_a)
+            aligned_b.append(label_b)
+            idx_b += 1
+            idx_a += 1
 
-    ali_idx += 1
-  return aligned_a, aligned_b
+        ali_idx += 1
+    return aligned_a, aligned_b
 
 
 def align_lid(labels_a, labels_b):
-  # Alignment
-  res_a, res_b = [], []
-  EPS = '*'
-  ali = align(labels_a, labels_b, EPS, sclite_mode=True)
+    # Alignment
+    res_a, res_b = [], []
+    EPS = "*"
+    ali = align(labels_a, labels_b, EPS, sclite_mode=True)
 
-  # Comparing labels of aligned elements
-  for val_a, val_b in ali:
-    res_a.append(val_a)
-    res_b.append(val_b)
-  return res_a, res_b
+    # Comparing labels of aligned elements
+    for val_a, val_b in ali:
+        res_a.append(val_a)
+        res_b.append(val_b)
+    return res_a, res_b
 
 
 def read_file(infile, tag):
-    """"returns list of dict (id, lid, text)"""
+    """ "returns list of dict (id, lid, text)"""
     res = []
-    with open(infile, 'r') as file:
+    with open(infile, "r") as file:
         for line in file:
-            _, rest = line.split(':', 1)
+            _, rest = line.split(":", 1)
             if tag in rest:
                 _id, text = extract_info_lid(line, tag)
-                
+
                 res.append((_id, text))
     return res
+
 
 def wer(results, sclite_mode=False):
     subs = defaultdict(int)
@@ -156,7 +160,7 @@ def wer(results, sclite_mode=False):
     dels = defaultdict(int)
     # `words` stores counts per word, as follows:
     #   corr, ref_sub, hyp_sub, ins, dels
-    words =  defaultdict(lambda: [0, 0, 0, 0, 0])
+    words = defaultdict(lambda: [0, 0, 0, 0, 0])
     num_corr = 0
     ERR = "*"
     for cut_id, ref, hyp in results:
@@ -185,15 +189,15 @@ def wer(results, sclite_mode=False):
     return tot_err_rate
 
 
-if __name__ == '__main__': 
+if __name__ == "__main__":
     parser = get_parser()
-    args = parser.parse_args() 
-    ref_data = read_file(args.rec, 'ref=[')
+    args = parser.parse_args()
+    ref_data = read_file(args.rec, "ref=[")
     ref_data = sorted(ref_data)
-    hyp_data = read_file(args.rec, 'hyp=[')
+    hyp_data = read_file(args.rec, "hyp=[")
     hyp_data = sorted(hyp_data)
     results = defaultdict(list)
-    
+
     for (ref, hyp) in zip(ref_data, hyp_data):
         assert ref[0] == hyp[0], f"ref_id: {ref[0]} != hyp_id: {hyp[0]}"
         _, text_ref = ref
@@ -205,16 +209,9 @@ if __name__ == '__main__':
             hyp_text_en = get_en(hyp_text)
             hyp_text_zh = get_zh(hyp_text)
 
-
-        results['en'].append((ref[0],ref_text_en, hyp_text_en))
-        results['zh'].append((ref[0],ref_text_zh, hyp_text_zh))
+        results["en"].append((ref[0], ref_text_en, hyp_text_en))
+        results["zh"].append((ref[0], ref_text_zh, hyp_text_zh))
 
     for key, val in results.items():
         print(key)
         res = wer(val)
-
-
-   
-       
-
-

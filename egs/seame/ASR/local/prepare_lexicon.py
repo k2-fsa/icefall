@@ -25,9 +25,7 @@ def main():
         for line in f:
             line = line.strip()
             characters = list(line)
-            characters = " ".join(
-                ["V" if char == "*" else char for char in characters]
-            )
+            characters = " ".join(["V" if char == "*" else char for char in characters])
             lex[line] = characters
 
     with open(args.output, "w", encoding="utf-8") as fp:

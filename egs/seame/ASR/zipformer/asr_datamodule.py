@@ -399,25 +399,18 @@ class SeameAsrDataModule:
     @lru_cache()
     def train_cuts(self) -> CutSet:
         logging.info("Train data: About to get training cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "cuts_train_shuf.jsonl.gz"
-        )
+        return load_manifest_lazy(self.args.manifest_dir / "cuts_train_shuf.jsonl.gz")
 
     @lru_cache()
     def valid_cuts(self) -> CutSet:
         logging.info("Dev data: About to get develop cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "cuts_valid.jsonl.gz"
-        )
+        return load_manifest_lazy(self.args.manifest_dir / "cuts_valid.jsonl.gz")
 
     @lru_cache()
     def dev_man(self) -> CutSet:
         logging.info("About to get dev_man cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "cuts_dev_man.jsonl.gz"
-        )
+        return load_manifest_lazy(self.args.manifest_dir / "cuts_dev_man.jsonl.gz")
+
     def dev_sge(self) -> CutSet:
         logging.info("About to get dev_sge cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "cuts_dev_sge.jsonl.gz"
-        )
+        return load_manifest_lazy(self.args.manifest_dir / "cuts_dev_sge.jsonl.gz")

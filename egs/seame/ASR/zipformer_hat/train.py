@@ -349,10 +349,10 @@ def get_parser():
     parser.add_argument(
         "--train-size",
         type=str,
-        default='full',
+        default="full",
         help="train datasize",
     )
-    
+
     parser.add_argument(
         "--lr-batches",
         type=float,
@@ -551,7 +551,7 @@ def get_params() -> AttributeDict:
             "valid_interval": 2000,  # For the 100h subset, use 800
             # parameters for zipformer
             "feature_dim": 80,
-            #"model_warm_step": 5000,
+            # "model_warm_step": 5000,
             "subsampling_factor": 4,  # not passed in, this is fixed.
             "warm_step": 5000,
             # parameters for ctc loss
@@ -644,7 +644,7 @@ def get_model(params: AttributeDict) -> nn.Module:
     else:
         decoder = None
         joiner = None
-    
+
     model = AsrModel(
         encoder_embed=encoder_embed,
         encoder=encoder,
@@ -1199,11 +1199,11 @@ def run(rank, world_size, args):
 
     seame = SeameAsrDataModule(args)
 
-    if params.train_size == '30':
+    if params.train_size == "30":
         train_cuts = seame.train30_cuts()
-    elif params.train_size == '10':
+    elif params.train_size == "10":
         train_cuts = seame.train10_cuts()
-    elif params.train_size == '50':
+    elif params.train_size == "50":
         train_cuts = seame.train50_cuts()
     else:
         train_cuts = seame.train_cuts()
@@ -1378,6 +1378,7 @@ def main():
         mp.spawn(run, args=(world_size, args), nprocs=world_size, join=True)
     else:
         run(rank=0, world_size=1, args=args)
+
 
 if __name__ == "__main__":
     main()

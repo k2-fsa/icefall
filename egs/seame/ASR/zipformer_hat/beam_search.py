@@ -800,7 +800,7 @@ def modified_beam_search_lm_shallow_fusion(
             hyps=ans,
             timestamps=ans_timestamps,
         )
-    
+
 
 def modified_beam_search_lm_rescore_LODR(
     model: nn.Module,
@@ -924,9 +924,9 @@ def modified_beam_search_lm_rescore_LODR(
         # is equivalent to log(1 - sigmoid(logits[..., 0])).
         nb_shift = logp_b - logits[..., 0]
         nb_shift = nb_shift.unsqueeze(-1)
-        log_probs1 = (logits[..., 1:]/ temperature).log_softmax(dim=-1) + nb_shift
+        log_probs1 = (logits[..., 1:] / temperature).log_softmax(dim=-1) + nb_shift
 
-        #log_probs = (logits / temperature).log_softmax(dim=-1)  # (num_hyps, vocab_size)
+        # log_probs = (logits / temperature).log_softmax(dim=-1)  # (num_hyps, vocab_size)
         log_probs = torch.cat((logp_b.unsqueeze(-1), log_probs1), dim=-1)
 
         log_probs.add_(ys_log_probs)

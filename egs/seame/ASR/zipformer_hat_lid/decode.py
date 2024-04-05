@@ -118,6 +118,7 @@ import matplotlib.pyplot as plt
 
 LOG_EPS = math.log(1e-10)
 
+
 def remove_punc(text):
     """This function removes all English punctuations except the single quote (verbatim)."""
 
@@ -126,20 +127,22 @@ def remove_punc(text):
     english_punctuations = english_punctuations.replace("'", "")
 
     # Create a translation table that maps each punctuation to a space.
-    #translator = str.maketrans(english_punctuations, ' ' * len(english_punctuations))
-    translator = str.maketrans('', '', english_punctuations)
-    
+    # translator = str.maketrans(english_punctuations, ' ' * len(english_punctuations))
+    translator = str.maketrans("", "", english_punctuations)
+
     # Translate the text using the translation table
     text = text.translate(translator)
-    
+
     return text
+
 
 def clean(text):
     text = remove_punc(text)
     text = text.lower()
-    text = re.sub(r'\s+', ' ', text)
+    text = re.sub(r"\s+", " ", text)
     text = text.rstrip()
     return text
+
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -399,60 +402,65 @@ def get_parser():
 
     return parser
 
+
 def align_lid(labels_a, labels_b, a, b):
-  # Alignment
-  EPS = '*'
-  ali = align(a, b, EPS, sclite_mode=True)
+    # Alignment
+    EPS = "*"
+    ali = align(a, b, EPS, sclite_mode=True)
 
-  a2idx = {(i,idx):j for idx,(i,j) in enumerate(zip(a,labels_a))}
-  b2idx = {(i,idx):j for idx,(i,j) in enumerate(zip(b,labels_b))}
-  # Comparing labels of aligned elements
-  idx_a = 0
-  idx_b = 0
-  ali_idx=0
-  aligned_a = []
-  aligned_b = []
-  while idx_a <len(a) and idx_b <len(b) and ali_idx < len(ali):
-    elem_a, elem_b = ali[ali_idx]
-    if elem_a == EPS:
-      idx_b += 1
-    elif elem_b == EPS:
-      idx_a += 1
-    elif elem_a != EPS and elem_b != EPS:
+    a2idx = {(i, idx): j for idx, (i, j) in enumerate(zip(a, labels_a))}
+    b2idx = {(i, idx): j for idx, (i, j) in enumerate(zip(b, labels_b))}
+    # Comparing labels of aligned elements
+    idx_a = 0
+    idx_b = 0
+    ali_idx = 0
+    aligned_a = []
+    aligned_b = []
+    while idx_a < len(a) and idx_b < len(b) and ali_idx < len(ali):
+        elem_a, elem_b = ali[ali_idx]
+        if elem_a == EPS:
+            idx_b += 1
+        elif elem_b == EPS:
+            idx_a += 1
+        elif elem_a != EPS and elem_b != EPS:
 
-      label_a = a2idx[(elem_a,idx_a)]
-      label_b = b2idx[(elem_b,idx_b)]
-      aligned_a.append(label_a)
-      aligned_b.append(label_b)
-      idx_b += 1
-      idx_a += 1
+            label_a = a2idx[(elem_a, idx_a)]
+            label_b = b2idx[(elem_b, idx_b)]
+            aligned_a.append(label_a)
+            aligned_b.append(label_b)
+            idx_b += 1
+            idx_a += 1
 
-    ali_idx += 1
-  return aligned_a, aligned_b
+        ali_idx += 1
+    return aligned_a, aligned_b
 
-def write_lid_results(lid_path, f1_path, text, lid ):
+
+def write_lid_results(lid_path, f1_path, text, lid):
     lid_hyp = []
     lid_ref = []
-    
-    with open(lid_path, 'w') as file:
+
+    with open(lid_path, "w") as file:
         # Write each line to the file
         for text_line, lid_line in zip(text, lid):
-            file.write(f"{text_line[0]}: ref={text_line[1]} lid={lid_line[1]}" + '\n')
-            aligned_ref, aligned_hyp = align_lid(lid_line[1],lid_line[2],text_line[1], text_line[2])
+            file.write(f"{text_line[0]}: ref={text_line[1]} lid={lid_line[1]}" + "\n")
+            aligned_ref, aligned_hyp = align_lid(
+                lid_line[1], lid_line[2], text_line[1], text_line[2]
+            )
             lid_ref.extend(aligned_ref)
             lid_hyp.extend(aligned_hyp)
-            file.write(f"{lid_line[0]}: hyp={text_line[2]} lid={lid_line[2]}" + '\n')
+            file.write(f"{lid_line[0]}: hyp={text_line[2]} lid={lid_line[2]}" + "\n")
 
     report = classification_report(lid_ref, lid_hyp, zero_division=0)
-    f1 = f1_score(lid_ref, lid_hyp, average='weighted')
-    
-    with open(f1_path, 'w') as file:
+    f1 = f1_score(lid_ref, lid_hyp, average="weighted")
+
+    with open(f1_path, "w") as file:
         file.write(report)
-        file.write('\n')
+        file.write("\n")
         file.write(f"F1 score: {f1} \n")
-    filename = os.path.basename(lid_path).replace('.txt', '.png')
+    filename = os.path.basename(lid_path).replace(".txt", ".png")
     dirname = os.path.dirname(lid_path)
-    save_conf_mat(os.path.join(dirname,filename), lid_ref, lid_hyp)
+    save_conf_mat(os.path.join(dirname, filename), lid_ref, lid_hyp)
+
 
 def save_conf_mat(path, lid_ref, lid_hyp):
     all_labels = [1, 2, 3, 4]
@@ -463,34 +471,43 @@ def save_conf_mat(path, lid_ref, lid_hyp):
 
     # Plot the confusion matrix
     plt.figure(figsize=(10, 7))
-    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=class_names, yticklabels=class_names)
-    plt.title('Confusion Matrix')
-    plt.xlabel('Predicted Labels')
-    plt.ylabel('True Labels')
+    sns.heatmap(
+        cm,
+        annot=True,
+        fmt="d",
+        cmap="Blues",
+        xticklabels=class_names,
+        yticklabels=class_names,
+    )
+    plt.title("Confusion Matrix")
+    plt.xlabel("Predicted Labels")
+    plt.ylabel("True Labels")
     plt.savefig(path)
 
 
 def most_frequent(List):
-    return max(set(List), key = List.count)
+    return max(set(List), key=List.count)
+
 
 def mapp(enc, LID):
-  pt1 = 0
-  new_lid = []
-  while pt1 < len(enc):
-    piece = enc[pt1]
-    buffer = []
-    if enc[pt1][0] == "\u2581":
-      buffer.append(LID[pt1])
-      pt1 += 1
-      while pt1 < len(enc) and enc[pt1][0] != "\u2581":
-        buffer.append(LID[pt1])
-        pt1 += 1
-      new_lid.append(most_frequent(buffer))
-    else:
-      new_lid.append(LID[pt1])
-      pt1 += 1
-    
-  return new_lid
+    pt1 = 0
+    new_lid = []
+    while pt1 < len(enc):
+        piece = enc[pt1]
+        buffer = []
+        if enc[pt1][0] == "\u2581":
+            buffer.append(LID[pt1])
+            pt1 += 1
+            while pt1 < len(enc) and enc[pt1][0] != "\u2581":
+                buffer.append(LID[pt1])
+                pt1 += 1
+            new_lid.append(most_frequent(buffer))
+        else:
+            new_lid.append(LID[pt1])
+            pt1 += 1
+
+    return new_lid
+
 
 def decode_one_batch(
     params: AttributeDict,
@@ -561,7 +578,9 @@ def decode_one_batch(
             value=LOG_EPS,
         )
 
-    encoder_out, encoder_out_lens, lid_encoder_out = model.forward_encoder(feature, feature_lens)
+    encoder_out, encoder_out_lens, lid_encoder_out = model.forward_encoder(
+        feature, feature_lens
+    )
 
     hyps = []
     B, T, F = feature.shape
@@ -572,14 +591,14 @@ def decode_one_batch(
             encoder_out_lens=encoder_out_lens,
             lid_encoder_out=lid_encoder_out,
         )
-        
+
         # for hyp in sp.decode(hyp_tokens):
         #     hyps.append(hyp.split())
         for i in range(B):
             hyp = results[i]
             token_pieces = sp.IdToPiece(results[i].hyps)
             new_lid = mapp(token_pieces, results[i].lid_hyps)
-            hyps.append((sp.decode(results[i].hyps).split(),new_lid))
+            hyps.append((sp.decode(results[i].hyps).split(), new_lid))
 
     elif params.decoding_method == "modified_beam_search":
         hyp_tokens = modified_beam_search(
@@ -619,8 +638,8 @@ def decode_one_batch(
             hyps.append(hyp.split())
 
     elif params.decoding_method == "modified_beam_search_lm_rescore_LODR":
-       lm_scale_list = [0.05 * i for i in range(4, 10)]
-       hyp_tokens = modified_beam_search_lm_rescore_LODR(
+        lm_scale_list = [0.05 * i for i in range(4, 10)]
+        hyp_tokens = modified_beam_search_lm_rescore_LODR(
             model=model,
             encoder_out=encoder_out,
             encoder_out_lens=encoder_out_lens,
@@ -630,7 +649,7 @@ def decode_one_batch(
             sp=sp,
             lm_scale_list=lm_scale_list,
         )
-       for hyp in sp.decode(hyp_tokens):
+        for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
 
     else:
@@ -701,7 +720,7 @@ def decode_dataset(
         texts = batch["supervisions"]["text"]
         cut_ids = [cut.id for cut in batch["supervisions"]["cut"]]
         if params.lid:
-            lids_dict = {lid:id+1 for id, lid in enumerate(params.lids.split(","))}
+            lids_dict = {lid: id + 1 for id, lid in enumerate(params.lids.split(","))}
 
             text_list = [t.split("|") for t in texts]
             num_tokens = [[len(clean(t).split()) for t in utt] for utt in text_list]
@@ -725,27 +744,27 @@ def decode_dataset(
             ngram_lm=ngram_lm,
             ngram_lm_scale=ngram_lm_scale,
         )
-        
+
         for name, hyps in hyps_dict.items():
 
             this_batch = []
             this_batch_lid = []
             assert len(hyps) == len(texts)
-            
+
             if params.lid:
                 zipped_iterables = zip(cut_ids, hyps, texts, ref_lids)
             else:
                 zipped_iterables = zip(cut_ids, hyps, texts)
             for elements in zipped_iterables:
                 if params.lid:
-                    cut_id, hyp_text, ref_text, ref_lid  = elements
+                    cut_id, hyp_text, ref_text, ref_lid = elements
 
                     hyps_lid = hyp_text[1]
                     hyp_words = hyp_text[0]
                     this_batch_lid.append((cut_id, ref_lid, hyps_lid))
-                    
+
                 else:
-                    cut_id, hyp_words, ref_text  = elements
+                    cut_id, hyp_words, ref_text = elements
                 if params.clean:
                     tmp_hyp = " ".join(hyp_words)
                     tmp_hyp = clean(tmp_hyp)
@@ -753,11 +772,10 @@ def decode_dataset(
                     hyp_words = tmp_hyp.split()
                 ref_words = ref_text.split()
                 this_batch.append((cut_id, ref_words, hyp_words))
-                
+
             results[name].extend(this_batch)
             if params.lid:
                 results_lid[name].extend(this_batch_lid)
-            
 
         num_cuts += len(texts)
 
@@ -766,7 +784,7 @@ def decode_dataset(
 
             logging.info(f"batch {batch_str}, cuts processed until now is {num_cuts}")
     if params.lid:
-        return {"text":results, "lid":results_lid}
+        return {"text": results, "lid": results_lid}
     else:
         return results
 
@@ -820,18 +838,15 @@ def save_results_lid(
     test_set_name: str,
     results_dict: Dict[str, List[Tuple[str, List[str], List[str]]]],
 ):
-    key = list(results_dict['text'].keys())[0]
-    results_text = sorted(results_dict['text'][key], key=lambda x: x[0])
-    results_lid = sorted(results_dict['lid'][key], key=lambda x: x[0])
+    key = list(results_dict["text"].keys())[0]
+    results_text = sorted(results_dict["text"][key], key=lambda x: x[0])
+    results_lid = sorted(results_dict["lid"][key], key=lambda x: x[0])
     test_set_f1s = dict()
-    lid_path = (
-        params.res_dir / f"lid-{test_set_name}-{key}-{params.suffix}.txt"
-    )
-    f1_path = (
-        params.res_dir / f"f1-{test_set_name}-{key}-{params.suffix}.txt"
-    )
+    lid_path = params.res_dir / f"lid-{test_set_name}-{key}-{params.suffix}.txt"
+    f1_path = params.res_dir / f"f1-{test_set_name}-{key}-{params.suffix}.txt"
     write_lid_results(lid_path, f1_path, results_text, results_lid)
     logging.info(f"The lids are stored in {lid_path}")
+
 
 @torch.no_grad()
 def main():
@@ -999,12 +1014,10 @@ def main():
     model.eval()
 
     # only load the neural network LM if required
-    if (
-        params.use_shallow_fusion
-        or params.decoding_method in (
-            "modified_beam_search_lm_shallow_fusion",
-            "modified_beam_search_LODR",
-            "modified_beam_search_lm_rescore_LODR",)
+    if params.use_shallow_fusion or params.decoding_method in (
+        "modified_beam_search_lm_shallow_fusion",
+        "modified_beam_search_LODR",
+        "modified_beam_search_lm_rescore_LODR",
     ):
         LM = LmScorer(
             lm_type=params.lm_type,

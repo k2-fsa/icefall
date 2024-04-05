@@ -366,7 +366,8 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         "--lid-value-head-dim",
         type=str,
         default="12",
-        help="Value dimension per head in encoder stacks: a single int or comma-separated list.",)
+        help="Value dimension per head in encoder stacks: a single int or comma-separated list.",
+    )
     parser.add_argument(
         "--lid-pos-head-dim",
         type=str,
@@ -428,6 +429,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         choices=["none", "increase", "decrease", "full"],
         help="Whether to skip positional embedding in the lid encoder.",
     )
+
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -781,8 +783,10 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         causal=params.causal,
         chunk_size=_to_int_tuple(params.chunk_size),
         left_context_frames=_to_int_tuple(params.left_context_frames),
-        lid_output_layer=params.lid_output_layer if params.use_lid_encoder else None,)
+        lid_output_layer=params.lid_output_layer if params.use_lid_encoder else None,
+    )
     return encoder
+
 
 def get_lid_encoder_model(params: AttributeDict) -> nn.Module:
     lid_encoder = Zipformer2(
@@ -806,6 +810,7 @@ def get_lid_encoder_model(params: AttributeDict) -> nn.Module:
     )
     return lid_encoder
 
+
 def get_decoder_model(params: AttributeDict) -> nn.Module:
     decoder = Decoder(
         vocab_size=params.vocab_size,
@@ -826,14 +831,16 @@ def get_joiner_model(params: AttributeDict) -> nn.Module:
     )
     return joiner
 
+
 def get_lid_joiner_model(params: AttributeDict) -> nn.Module:
     lid_joiner = Joiner(
         encoder_dim=int(params.lid_encoder_dim.split(",")[-1]),
         decoder_dim=params.decoder_dim,
         joiner_dim=params.lid_joiner_dim,
-        vocab_size=len(params.lids.split(","))+1,
+        vocab_size=len(params.lids.split(",")) + 1,
     )
     return lid_joiner
+
 
 def get_model(params: AttributeDict) -> nn.Module:
     assert params.use_transducer or params.use_ctc, (
@@ -858,7 +865,6 @@ def get_model(params: AttributeDict) -> nn.Module:
         decoder = None
         joiner = None
 
-
     model = AsrModel(
         encoder_embed=encoder_embed,
         encoder=encoder,
@@ -873,7 +879,6 @@ def get_model(params: AttributeDict) -> nn.Module:
         use_ctc=params.use_ctc,
     )
     return model
-
 
 
 def load_checkpoint_if_available(
@@ -916,7 +921,7 @@ def load_checkpoint_if_available(
         return None
 
     assert filename.is_file(), f"{filename} does not exist!"
-    
+
     saved_params = load_checkpoint(
         filename,
         model=model,
@@ -1017,8 +1022,8 @@ def compute_loss(
      warmup: a floating point value which increases throughout training;
         values >= 1.0 are fully warmed up and have all modules present.
     """
-    
-    lids_dict = {lid:id+1 for id, lid in enumerate(params.lids.split(","))}
+
+    lids_dict = {lid: id + 1 for id, lid in enumerate(params.lids.split(","))}
     device = model.device if isinstance(model, DDP) else next(model.parameters()).device
     feature = batch["inputs"]
     # at entry, feature is (N, T, C)
@@ -1066,9 +1071,7 @@ def compute_loss(
         lid_pruned_loss_is_finite = torch.isfinite(lid_pruned_loss)
 
         is_finite = (
-            simple_loss_is_finite
-            & pruned_loss_is_finite
-            & lid_pruned_loss_is_finite
+            simple_loss_is_finite & pruned_loss_is_finite & lid_pruned_loss_is_finite
         )
         if not torch.all(is_finite):
             logging.info(
@@ -1091,17 +1094,18 @@ def compute_loss(
                 else 1.0 - (batch_idx_train / warm_step) * (1.0 - s)
             )
             pruned_loss_scale = (
-                    1.0
-                    if batch_idx_train >= warm_step
-                    else 0.1 + 0.9 * (batch_idx_train / warm_step)
-                )
-        
-                
-            loss += (1-params.lid_loss_scale)*(simple_loss_scale * simple_loss + pruned_loss_scale * pruned_loss)
-            #loss += simple_loss_scale * simple_loss + pruned_loss_scale * pruned_loss
+                1.0
+                if batch_idx_train >= warm_step
+                else 0.1 + 0.9 * (batch_idx_train / warm_step)
+            )
+
+            loss += (1 - params.lid_loss_scale) * (
+                simple_loss_scale * simple_loss + pruned_loss_scale * pruned_loss
+            )
+            # loss += simple_loss_scale * simple_loss + pruned_loss_scale * pruned_loss
             if params.use_lid_joiner:
                 loss += params.lid_loss_scale * pruned_loss_scale * lid_pruned_loss
-                #loss += pruned_loss_scale * lid_pruned_loss
+                # loss += pruned_loss_scale * lid_pruned_loss
 
         if params.use_ctc:
             loss += params.ctc_loss_scale * ctc_loss
@@ -1119,7 +1123,7 @@ def compute_loss(
         info["simple_loss"] = simple_loss.detach().cpu().item()
         info["pruned_loss"] = pruned_loss.detach().cpu().item()
         if params.use_lid_joiner:
-            info["lid_pruned_loss"] = lid_pruned_loss.detach().cpu().item()     
+            info["lid_pruned_loss"] = lid_pruned_loss.detach().cpu().item()
     if params.use_ctc:
         info["ctc_loss"] = ctc_loss.detach().cpu().item()
 
@@ -1456,7 +1460,7 @@ def run(rank, world_size, args):
     )
 
     scheduler = Eden(optimizer, params.lr_batches, params.lr_epochs)
-    
+
     # if checkpoints and "optimizer" in checkpoints:
     #     logging.info("Loading optimizer state dict")
     #     optimizer.load_state_dict(checkpoints["optimizer"])

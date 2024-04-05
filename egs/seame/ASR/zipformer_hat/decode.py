@@ -91,6 +91,7 @@ import re
 
 LOG_EPS = math.log(1e-10)
 
+
 def remove_punc(text):
     """This function removes all English punctuations except the single quote (verbatim)."""
 
@@ -99,19 +100,21 @@ def remove_punc(text):
     # english_punctuations = english_punctuations.replace("'", "")
 
     # Create a translation table that maps each punctuation to a space.
-    translator = str.maketrans(english_punctuations, ' ' * len(english_punctuations))
-    
+    translator = str.maketrans(english_punctuations, " " * len(english_punctuations))
+
     # Translate the text using the translation table
     text = text.translate(translator)
-    
+
     return text
+
 
 def clean(text):
     text = remove_punc(text)
     text = text.lower()
-    text = re.sub(r'\s+', ' ', text)
+    text = re.sub(r"\s+", " ", text)
     text = text.rstrip()
     return text
+
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -485,8 +488,8 @@ def decode_one_batch(
             hyps.append(hyp.split())
 
     elif params.decoding_method == "modified_beam_search_lm_rescore_LODR":
-       lm_scale_list = [0.05 * i for i in range(4, 10)]
-       hyp_tokens = modified_beam_search_lm_rescore_LODR(
+        lm_scale_list = [0.05 * i for i in range(4, 10)]
+        hyp_tokens = modified_beam_search_lm_rescore_LODR(
             model=model,
             encoder_out=encoder_out,
             encoder_out_lens=encoder_out_lens,
@@ -496,7 +499,7 @@ def decode_one_batch(
             sp=sp,
             lm_scale_list=lm_scale_list,
         )
-       for hyp in sp.decode(hyp_tokens):
+        for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
 
     else:
@@ -583,7 +586,7 @@ def decode_dataset(
             this_batch = []
             assert len(hyps) == len(texts)
             for cut_id, hyp_words, ref_text in zip(cut_ids, hyps, texts):
-                
+
                 if params.clean:
                     tmp_hyp = " ".join(hyp_words)
                     tmp_hyp = clean(tmp_hyp)
@@ -813,12 +816,10 @@ def main():
     model.eval()
 
     # only load the neural network LM if required
-    if (
-        params.use_shallow_fusion
-        or params.decoding_method in (
-            "modified_beam_search_lm_shallow_fusion",
-            "modified_beam_search_LODR",
-            "modified_beam_search_lm_rescore_LODR",)
+    if params.use_shallow_fusion or params.decoding_method in (
+        "modified_beam_search_lm_shallow_fusion",
+        "modified_beam_search_LODR",
+        "modified_beam_search_lm_rescore_LODR",
     ):
         LM = LmScorer(
             lm_type=params.lm_type,

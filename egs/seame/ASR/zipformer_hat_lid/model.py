@@ -94,7 +94,7 @@ class AsrModel(nn.Module):
 
             self.decoder = decoder
             self.joiner = joiner
-            
+
             self.lid_joiner = lid_joiner
             self.lid_encoder = lid_encoder
 
@@ -141,7 +141,9 @@ class AsrModel(nn.Module):
         src_key_padding_mask = make_pad_mask(x_lens)
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
 
-        encoder_out, encoder_out_lens, lid_output = self.encoder(x, x_lens, src_key_padding_mask)
+        encoder_out, encoder_out_lens, lid_output = self.encoder(
+            x, x_lens, src_key_padding_mask
+        )
 
         encoder_out = encoder_out.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
         assert torch.all(encoder_out_lens > 0), (x_lens, encoder_out_lens)
@@ -216,7 +218,6 @@ class AsrModel(nn.Module):
             part
         """
         # Now for the decoder, i.e., the prediction network
-        
 
         blank_id = self.decoder.blank_id
         sos_y = add_sos(y, sos_id=blank_id)
@@ -285,17 +286,20 @@ class AsrModel(nn.Module):
 
         # logits : [B, T, prune_range, vocab_size]
         if self.lid_joiner is not None:
-          lid_am_pruned, lid_lm_pruned = k2.do_rnnt_pruning(
+            lid_am_pruned, lid_lm_pruned = k2.do_rnnt_pruning(
                 am=self.lid_joiner.encoder_proj(lid_encoder_out),
                 lm=self.lid_joiner.decoder_proj(decoder_out),
                 ranges=ranges,
             )
-          lid_logits = self.lid_joiner(
-              lid_am_pruned, lid_lm_pruned, project_input=False)
-          
+            lid_logits = self.lid_joiner(
+                lid_am_pruned, lid_lm_pruned, project_input=False
+            )
+
         # project_input=False since we applied the decoder's input projections
         # prior to do_rnnt_pruning (this is an optimization for speed).
-        logits = self.joiner(am_pruned, lm_pruned, project_input=False, lid_out=lid_pruned)
+        logits = self.joiner(
+            am_pruned, lm_pruned, project_input=False, lid_out=lid_pruned
+        )
         # Add blank logits to lid_logits
         logits = torch.cat((lid_logits[..., 0].unsqueeze(-1), logits), dim=-1)
 
@@ -310,21 +314,23 @@ class AsrModel(nn.Module):
                 use_hat_loss=True,
             )
 
-          # Compute HAT loss for auxiliary lm joiner
+        # Compute HAT loss for auxiliary lm joiner
         if self.lid_joiner is not None:
-          with torch.cuda.amp.autocast(enabled=False):
-            pruned_lid_loss = k2.rnnt_loss_pruned(
-                logits=lid_logits.float(),
-                symbols=y_lid.pad(mode="constant", padding_value=blank_id).to(torch.int64),
-                ranges=ranges,
-                termination_symbol=blank_id,
-                boundary=boundary,
-                reduction="sum",
-                use_hat_loss=True,
-            )
-          return simple_loss, pruned_loss, pruned_lid_loss
+            with torch.cuda.amp.autocast(enabled=False):
+                pruned_lid_loss = k2.rnnt_loss_pruned(
+                    logits=lid_logits.float(),
+                    symbols=y_lid.pad(mode="constant", padding_value=blank_id).to(
+                        torch.int64
+                    ),
+                    ranges=ranges,
+                    termination_symbol=blank_id,
+                    boundary=boundary,
+                    reduction="sum",
+                    use_hat_loss=True,
+                )
+            return simple_loss, pruned_loss, pruned_lid_loss
         else:
-          return simple_loss, pruned_loss
+            return simple_loss, pruned_loss
 
     def forward(
         self,
@@ -374,7 +380,9 @@ class AsrModel(nn.Module):
 
         # Compute encoder outputs
         if self.lid_joiner != None:
-          encoder_out, encoder_out_lens, lid_encoder_out = self.forward_encoder(x, x_lens)
+            encoder_out, encoder_out_lens, lid_encoder_out = self.forward_encoder(
+                x, x_lens
+            )
         else:
             encoder_out, encoder_out_lens = self.forward_encoder(x, x_lens)
 
@@ -382,30 +390,30 @@ class AsrModel(nn.Module):
         y_lens = row_splits[1:] - row_splits[:-1]
 
         if self.use_transducer:
-            
+
             # Compute transducer loss
             if self.lid_joiner != None:
-              simple_loss, pruned_loss, pruned_loss_lm = self.forward_transducer(
-                  encoder_out=encoder_out,
-                  encoder_out_lens=encoder_out_lens,
-                  lid_encoder_out=lid_encoder_out,
-                  y=y.to(x.device),
-                  y_lens=y_lens,
-                  y_lid=y_lid,
-                  prune_range=prune_range,
-                  am_scale=am_scale,
-                  lm_scale=lm_scale,
-              )
+                simple_loss, pruned_loss, pruned_loss_lm = self.forward_transducer(
+                    encoder_out=encoder_out,
+                    encoder_out_lens=encoder_out_lens,
+                    lid_encoder_out=lid_encoder_out,
+                    y=y.to(x.device),
+                    y_lens=y_lens,
+                    y_lid=y_lid,
+                    prune_range=prune_range,
+                    am_scale=am_scale,
+                    lm_scale=lm_scale,
+                )
             else:
                 simple_loss, pruned_loss = self.forward_transducer(
-                  encoder_out=encoder_out,
-                  encoder_out_lens=encoder_out_lens,
-                  y=y.to(x.device),
-                  y_lens=y_lens,
-                  prune_range=prune_range,
-                  am_scale=am_scale,
-                  lm_scale=lm_scale,
-              )
+                    encoder_out=encoder_out,
+                    encoder_out_lens=encoder_out_lens,
+                    y=y.to(x.device),
+                    y_lens=y_lens,
+                    prune_range=prune_range,
+                    am_scale=am_scale,
+                    lm_scale=lm_scale,
+                )
         else:
             simple_loss = torch.empty(0)
             pruned_loss = torch.empty(0)

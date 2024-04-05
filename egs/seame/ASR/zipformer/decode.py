@@ -111,6 +111,7 @@ import re
 
 LOG_EPS = math.log(1e-10)
 
+
 def remove_punc(text):
     """This function removes all English punctuations except the single quote (verbatim)."""
 
@@ -119,19 +120,21 @@ def remove_punc(text):
     # english_punctuations = english_punctuations.replace("'", "")
 
     # Create a translation table that maps each punctuation to a space.
-    translator = str.maketrans(english_punctuations, ' ' * len(english_punctuations))
-    
+    translator = str.maketrans(english_punctuations, " " * len(english_punctuations))
+
     # Translate the text using the translation table
     text = text.translate(translator)
-    
+
     return text
+
 
 def clean(text):
     text = remove_punc(text)
     text = text.lower()
-    text = re.sub(r'\s+', ' ', text)
+    text = re.sub(r"\s+", " ", text)
     text = text.rstrip()
     return text
+
 
 def get_parser():
     parser = argparse.ArgumentParser(

@@ -50,7 +50,7 @@ def get_parser():
     )
 
     return parser
-     
+
 
 def main():
 
@@ -61,15 +61,20 @@ def main():
         logging.info(f"Loading {args.cut}")
         cuts = CutSet.from_file(args.cut)
         outdir = Path(os.path.dirname(args.cut))
-       
+
     else:
         outdir = Path(os.path.dirname(args.sup))
         logging.info(f"Loading supervisions")
         recordings = RecordingSet.from_file(args.rec)
         supervisions = SupervisionSet.from_file(args.sup)
         logging.info("Fixing manifests")
-        cuts = CutSet.from_manifests(recordings= recordings, supervisions=supervisions,)
-        cuts = cuts.trim_to_supervisions(keep_overlapping=False, keep_all_channels=False)
+        cuts = CutSet.from_manifests(
+            recordings=recordings,
+            supervisions=supervisions,
+        )
+        cuts = cuts.trim_to_supervisions(
+            keep_overlapping=False, keep_all_channels=False
+        )
 
     shuffled = cuts.shuffle()
     total_dur = 0
@@ -82,9 +87,10 @@ def main():
             break
     cuts = cuts.filter(lambda c: c.id in cuts_list)
     cuts.describe()
-    
+
     logging.info(f"Saving {args.outcut}")
     cuts.to_file(outdir / args.outcut)
+
 
 if __name__ == "__main__":
     main()
