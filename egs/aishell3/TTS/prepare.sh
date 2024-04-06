@@ -59,7 +59,7 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   # You can find files like spk-info.txt inside $dl_dir/aishell3
   mkdir -p data/manifests
   if [ ! -e data/manifests/.aishell3.done ]; then
-    lhotse prepare aishell3 $dl_dir/aishell3 data/manifests
+    lhotse prepare aishell3 $dl_dir/aishell3 data/manifests >/dev/null 2>&1
     touch data/manifests/.aishell3.done
   fi
 fi

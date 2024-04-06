@@ -820,6 +820,10 @@ def run(rank, world_size, args):
     params.vocab_size = tokenizer.vocab_size
 
     aishell3 = Aishell3SpeechTtsDataModule(args)
+    assert aishell3.sampling_rate == params.sampling_rate, (
+        aishell3.sampling_rate,
+        params.sampling_rate,
+    )
     speaker_map = aishell3.speakers()
     params.num_spks = len(speaker_map)
 
