@@ -1,1 +1,1 @@
-../../../ljspeech/TTS/vits/tokenizer.py
+../local/tokenizer.py
