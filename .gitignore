@@ -39,3 +39,4 @@ node_modules
 core.c
 *.so
 build
+*.wav
