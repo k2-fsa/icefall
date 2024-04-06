@@ -121,9 +121,13 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
 fi
 
 if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
-  log "Stage 6: Generate token file"
+  log "Stage 6: Generate tokens.txt and lexicon.txt "
   if [ ! -e data/tokens.txt ]; then
     ./local/prepare_token_file.py --tokens data/tokens.txt
+  fi
+
+  if [ ! -e data/lexicon.txt ]; then
+    ./local/generate_lexicon.py --tokens data/tokens.txt --lexicon data/lexicon.txt
   fi
 fi
 

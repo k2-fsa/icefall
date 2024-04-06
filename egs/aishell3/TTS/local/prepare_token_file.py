@@ -17,7 +17,7 @@
 
 
 """
-This file generates the file that maps tokens to IDs.
+This file generates the file tokens.txt that maps tokens to IDs.
 """
 
 import argparse

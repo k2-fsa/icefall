@@ -1,4 +1,4 @@
-name: aishell
+name: aishell3
 
 on:
   push:
@@ -71,3 +71,14 @@ jobs:
               git config --global --add safe.directory /icefall
 
               .github/scripts/aishell3/TTS/run.sh
+
+      - name: display files
+        shell: bash
+        run: |
+          ls -lh
+
+      - uses: actions/upload-artifact@v4
+        if: matrix.python-version == '3.9' && matrix.torch-version == '2.2.0'
+        with:
+          name: generated-test-files-${{ matrix.python-version }}-${{ matrix.torch-version }}
+          path: ./*.wav

@@ -84,7 +84,7 @@ def get_parser():
     parser.add_argument(
         "--model-type",
         type=str,
-        default="medium",
+        default="low",
         choices=["low", "medium", "high"],
         help="""If not empty, valid values are: low, medium, high.
         It controls the model size. low -> runs faster.

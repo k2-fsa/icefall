@@ -39,6 +39,13 @@ function prepare_data() {
   echo "------------------------------"
   wc -l data/tokens.txt
   echo "------------------------------"
+
+  echo "----------lexicon.txt----------"
+  head data/lexicon.txt
+  echo "----"
+  tail data/lexicon.txt
+  echo "----"
+  wc -l data/lexicon.txt
 }
 
 function train() {
@@ -47,7 +54,8 @@ function train() {
   git diff .
   popd
 
-  for t in low medium high; do
+  # for t in low medium high; do
+  for t in low; do
     ./vits/train.py \
       --exp-dir vits/exp-$t \
       --model-type $t \
@@ -62,12 +70,13 @@ function train() {
 }
 
 function export_onnx() {
-  for t in low medium high; do
+  # for t in low medium high; do
+  for t in low; do
     ./vits/export-onnx.py \
       --model-type $t \
       --epoch 1 \
       --exp-dir ./vits/exp-$t \
-      --tokens data/tokens.txt
+      --tokens data/tokens.txt \
       --speakers ./data/speakers.txt
 
     ls -lh vits/exp-$t/
@@ -75,7 +84,30 @@ function export_onnx() {
 }
 
 function test_low() {
-  echo "TODO"
+  git clone https://huggingface.co/csukuangfj/icefall-tts-aishell3-vits-low-2024-04-06
+  repo=icefall-tts-aishell3-vits-low-2024-04-06
+
+  ./vits/export-onnx.py \
+    --model-type low \
+    --epoch 1000 \
+    --exp-dir $repo/exp \
+    --tokens $repo/data/tokens.txt \
+    --speakers $repo/data/speakers.txt
+
+  ls -lh $repo/exp/vits-epoch-1000.onnx
+
+  python3 -m pip install sherpa-onnx
+
+  sherpa-onnx-offline-tts \
+    --vits-model=$repo/exp/vits-epoch-960.onnx \
+    --vits-tokens=$repo/data/tokens.txt \
+    --vits-lexicon=$repo/data/lexicon.txt \
+    --num-threads=1 \
+    --vits-length-scale=1.0 \
+    --sid=33 \
+    --output-filename=/icefall/low.wav \
+    --debug=1 \
+    "这是一个语音合成测试"
 }
 
 
