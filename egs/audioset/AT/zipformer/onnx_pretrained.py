@@ -135,7 +135,6 @@ class OnnxModel:
         meta = self.model.get_modelmeta().custom_metadata_map
         print(meta)
 
-
     def __call__(
         self,
         x: torch.Tensor,
@@ -161,6 +160,7 @@ class OnnxModel:
             },
         )
         return torch.from_numpy(out[0])
+
 
 def read_sound_files(
     filenames: List[str], expected_sample_rate: float
@@ -232,7 +232,7 @@ def main():
 
     feature_lengths = torch.tensor(feature_lengths, dtype=torch.int64)
     logits = model(features, feature_lengths)
-    
+
     for filename, logit in zip(args.sound_files, logits):
         topk_prob, topk_index = logit.sigmoid().topk(5)
         topk_labels = [label_dict[index.item()] for index in topk_index]

@@ -160,8 +160,6 @@ def decode_dataset(
     model: nn.Module,
 ) -> Dict:
     num_cuts = 0
-    embedding_dict = {}
-    teacher_embedding_dict = {}
 
     try:
         num_batches = len(dl)
