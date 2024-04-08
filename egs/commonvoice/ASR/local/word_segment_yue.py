@@ -91,7 +91,7 @@ def get_word_segments(lines: List[str]) -> List[str]:
                             # segments.extend(pycantonese.segment(segment))
                     except Exception as e:
                         logging.error(f"Failed to process segment: {segment}")
-                        raise e
+                        raise
                 if curr_str:  # process the last segment
                     segments.extend(pycantonese.segment(curr_str))
                 new_lines.append(" ".join(segments) + "\n")
