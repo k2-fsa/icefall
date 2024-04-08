@@ -130,11 +130,11 @@ if __name__ == "__main__":
     norm_lines = [normalize_text(line, lang) for line in lines]
 
     text_words_segments = get_word_segments(norm_lines)
-    with open(output_dir / "transcript_words.txt", "w+", encoding="utf-8") as f:
+    with open(output_dir / "transcript_words.txt", "w", encoding="utf-8") as f:
         f.writelines(text_words_segments)
 
     words = get_words(text_words_segments)[1:]  # remove "\n" from words
-    with open(output_dir / "words_no_ids.txt", "w+", encoding="utf-8") as f:
+    with open(output_dir / "words_no_ids.txt", "w", encoding="utf-8") as f:
         f.writelines([word + "\n" for word in sorted(words)])
 
     words = (
@@ -143,5 +143,5 @@ if __name__ == "__main__":
         + ["#0", "<s>", "<\s>"]
     )
 
-    with open(output_dir / "words.txt", "w+", encoding="utf-8") as f:
+    with open(output_dir / "words.txt", "w", encoding="utf-8") as f:
         f.writelines([f"{word} {i}\n" for i, word in enumerate(words)])

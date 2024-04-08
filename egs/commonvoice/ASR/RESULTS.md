@@ -14,7 +14,7 @@ The best CER, for CommonVoice 16.1 (cv-corpus-16.1-2023-12-06/zh-HK) is below:
 | modified_beam_search | 0.98  | 1.11 | --epoch 24 --avg 5 |
 |   fast_beam_search   | 1.08  | 1.27 | --epoch 24 --avg 5 |
 
-When doing the cross-corpus validation on MDCC (w/o blank penalty),
+When doing the cross-corpus validation on [MDCC](https://arxiv.org/abs/2201.02419) (w/o blank penalty),
 the best CER is below:
 
 |                      |  Dev  | Test |        Note        |
@@ -23,7 +23,7 @@ the best CER is below:
 | modified_beam_search | 39.73 | 39.19| --epoch 24 --avg 5 |
 |   fast_beam_search   | 42.14 | 41.98| --epoch 24 --avg 5 |
 
-When doing the cross-corpus validation on MDCC (with blank penalty set to 2.2),
+When doing the cross-corpus validation on [MDCC](https://arxiv.org/abs/2201.02419) (with blank penalty set to 2.2),
 the best CER is below:
 
 |                      |  Dev  | Test |                  Note                  |
@@ -68,13 +68,15 @@ Detailed experimental results and pre-trained model are available at:
 <https://huggingface.co/zrjin/icefall-asr-commonvoice-zh-HK-zipformer-2024-03-20>
 
 
-### GigaSpeech BPE training results (Pruned Stateless Transducer 7)
+### CommonVoice English (en) BPE training results (Pruned Stateless Transducer 7)
 
 #### [pruned_transducer_stateless7](./pruned_transducer_stateless7)
 
-See #997  for more details.
+See #997 for more details.
 
 Number of model parameters: 70369391, i.e., 70.37 M
+
+Note that the result is obtained using GigaSpeech transcript trained BPE model
 
 The best WER, as of 2023-04-17, for Common Voice English 13.0 (cv-corpus-13.0-2023-03-09/en) is below:
 

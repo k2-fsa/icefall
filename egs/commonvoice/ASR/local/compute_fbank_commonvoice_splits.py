@@ -47,6 +47,7 @@ def get_args():
         "--subset",
         type=str,
         default="train",
+        choices=["train", "validated", "invalidated"],
         help="""Dataset parts to compute fbank. """,
     )
 
