@@ -2,7 +2,7 @@
 
 ### Commonvoice Cantonese (zh-HK) Char training results (Zipformer)
 
-See #1542 for more details.
+See #1546 for more details.
 
 Number of model parameters:  72526519, i.e., 72.53 M
 
