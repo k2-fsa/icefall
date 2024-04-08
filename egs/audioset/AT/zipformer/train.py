@@ -648,7 +648,9 @@ def compute_loss(
     feature = feature.to(device)
 
     supervisions = batch["supervisions"]
-    events = supervisions["audio_event"]  # the label indices are in CED format
+    events = supervisions[
+        "audio_event"
+    ]  # the label indices are in CED format (https://github.com/RicherMans/CED)
     labels, _ = str2multihot(events, n_classes=params.num_events)
     labels = labels.to(device)
 
