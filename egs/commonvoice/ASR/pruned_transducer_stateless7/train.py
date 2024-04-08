@@ -1050,10 +1050,10 @@ def run(rank, world_size, args):
 
     commonvoice = CommonVoiceAsrDataModule(args)
 
-    if not args.use_validated_set:
-        train_cuts = commonvoice.train_cuts()
-    else:
+    if args.use_validated_set:
         train_cuts = commonvoice.validated_cuts()
+    else:
+        train_cuts = commonvoice.train_cuts()
 
     if args.use_invalidated_set:
         train_cuts += commonvoice.invalidated_cuts()
