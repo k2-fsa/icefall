@@ -42,6 +42,7 @@ import onnxoptimizer
 import torch
 import torch.nn as nn
 from onnxruntime.quantization import QuantType, quantize_dynamic
+from onnxsim import simplify
 from scaling_converter import convert_scaled_to_non_scaled
 from train import add_model_arguments, get_model, get_params
 from zipformer import Zipformer2
@@ -239,10 +240,22 @@ def optimize_model(filename):
     # https://github.com/microsoft/onnxruntime/issues/1899#issuecomment-534806537
     # and
     # https://github.com/onnx/onnx/issues/582#issuecomment-937788108
-    passes = ["extract_constant_to_initializer", "eliminate_unused_initializer"]
+    # and
+    # https://github.com/onnx/optimizer/issues/110
+    # and
+    # https://qiita.com/Yossy_Hal/items/34f3b2aef2199baf7f5f
+    passes = ["eliminate_unused_initializer"]
     onnx_model = onnx.load(filename)
-    optimized_model = onnxoptimizer.optimize(onnx_model, passes)
-    onnx.save(optimized_model, filename)
+    onnx_model = onnxoptimizer.optimize(onnx_model, passes)
+
+    model_simp, check = simplify(onnx_model)
+    if check:
+        logging.info("Simplified the model!")
+        onnx_model = model_simp
+    else:
+        logging.info("Failed to simplify the model!")
+
+    onnx.save(onnx_model, filename)
 
 
 @torch.no_grad()

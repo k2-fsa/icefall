@@ -2,7 +2,7 @@
 
 set -ex
 
-python3 -m pip install onnxoptimizer
+python3 -m pip install onnxoptimizer onnxsim
 
 log() {
   # This function is from espnet

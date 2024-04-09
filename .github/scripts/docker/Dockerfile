@@ -50,6 +50,7 @@ RUN pip install --no-cache-dir \
       numba \
       numpy \
       onnxoptimizer \
+      onnxsim \
       onnx \
       onnxmltools \
       onnxruntime \
