@@ -114,6 +114,7 @@ jobs:
             rm -rf huggingface
 
       - name: Prepare for release
+        if: matrix.python-version == '3.9' && matrix.torch-version == '2.2.0'
         shell: bash
         run: |
           d=sherpa-onnx-zipformer-audio-tagging-2024-04-09
