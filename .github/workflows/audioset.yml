@@ -77,6 +77,8 @@ jobs:
         run: |
           sudo chown -R runner ./model-onnx
           ls -lh ./model-onnx
+          chmod -x ./model-onnx/class_labels_indices.csv
+
           echo "----------"
           ls -lh ./model-onnx/*
 
