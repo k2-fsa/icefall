@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-# Copyright 2022-2024 Xiaomi Corporation (Authors: Wei Kang,
+# Copyright 2022-2023 Xiaomi Corporation (Authors: Wei Kang,
 #                                                  Fangjun Kuang,
+#                                                  Zengwei Yao,
 #                                                  Zengrui Jin,)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
@@ -19,12 +20,14 @@
 
 """
 Usage:
-./pruned_transducer_stateless7_streaming/streaming_decode.py \
+./zipformer/streaming_decode.py \
   --epoch 28 \
   --avg 15 \
-  --decode-chunk-len 32 \
-  --exp-dir ./pruned_transducer_stateless7_streaming/exp \
-  --decoding_method greedy_search \
+  --causal 1 \
+  --chunk-size 32 \
+  --left-context-frames 256 \
+  --exp-dir ./zipformer/exp \
+  --decoding-method greedy_search \
   --num-decode-streams 2000
 """
 
@@ -38,7 +41,6 @@ import k2
 import numpy as np
 import sentencepiece as spm
 import torch
-import torch.nn as nn
 from asr_datamodule import CommonVoiceAsrDataModule
 from decode_stream import DecodeStream
 from kaldifeat import Fbank, FbankOptions
@@ -48,9 +50,9 @@ from streaming_beam_search import (
     greedy_search,
     modified_beam_search,
 )
+from torch import Tensor, nn
 from torch.nn.utils.rnn import pad_sequence
-from train import add_model_arguments, get_params, get_transducer_model
-from zipformer import stack_states, unstack_states
+from train import add_model_arguments, get_model, get_params
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -60,6 +62,7 @@ from icefall.checkpoint import (
 )
 from icefall.utils import (
     AttributeDict,
+    make_pad_mask,
     setup_logger,
     store_transcripts,
     str2bool,
@@ -79,7 +82,7 @@ def get_parser():
         type=int,
         default=28,
         help="""It specifies the checkpoint to use for decoding.
-        Note: Epoch counts from 0.
+        Note: Epoch counts from 1.
         You can specify --avg to use more checkpoints for model averaging.""",
     )
 
@@ -116,7 +119,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless2/exp",
+        default="zipformer/exp",
         help="The experiment dir",
     )
 
@@ -191,6 +194,230 @@ def get_parser():
     return parser
 
 
+def get_init_states(
+    model: nn.Module,
+    batch_size: int = 1,
+    device: torch.device = torch.device("cpu"),
+) -> List[torch.Tensor]:
+    """
+    Returns a list of cached tensors of all encoder layers. For layer-i, states[i*6:(i+1)*6]
+    is (cached_key, cached_nonlin_attn, cached_val1, cached_val2, cached_conv1, cached_conv2).
+    states[-2] is the cached left padding for ConvNeXt module,
+    of shape (batch_size, num_channels, left_pad, num_freqs)
+    states[-1] is processed_lens of shape (batch,), which records the number
+    of processed frames (at 50hz frame rate, after encoder_embed) for each sample in batch.
+    """
+    states = model.encoder.get_init_states(batch_size, device)
+
+    embed_states = model.encoder_embed.get_init_states(batch_size, device)
+    states.append(embed_states)
+
+    processed_lens = torch.zeros(batch_size, dtype=torch.int32, device=device)
+    states.append(processed_lens)
+
+    return states
+
+
+def stack_states(state_list: List[List[torch.Tensor]]) -> List[torch.Tensor]:
+    """Stack list of zipformer states that correspond to separate utterances
+    into a single emformer state, so that it can be used as an input for
+    zipformer when those utterances are formed into a batch.
+
+    Args:
+      state_list:
+        Each element in state_list corresponding to the internal state
+        of the zipformer model for a single utterance. For element-n,
+        state_list[n] is a list of cached tensors of all encoder layers. For layer-i,
+        state_list[n][i*6:(i+1)*6] is (cached_key, cached_nonlin_attn, cached_val1,
+        cached_val2, cached_conv1, cached_conv2).
+        state_list[n][-2] is the cached left padding for ConvNeXt module,
+          of shape (batch_size, num_channels, left_pad, num_freqs)
+        state_list[n][-1] is processed_lens of shape (batch,), which records the number
+        of processed frames (at 50hz frame rate, after encoder_embed) for each sample in batch.
+
+    Note:
+      It is the inverse of :func:`unstack_states`.
+    """
+    batch_size = len(state_list)
+    assert (len(state_list[0]) - 2) % 6 == 0, len(state_list[0])
+    tot_num_layers = (len(state_list[0]) - 2) // 6
+
+    batch_states = []
+    for layer in range(tot_num_layers):
+        layer_offset = layer * 6
+        # cached_key: (left_context_len, batch_size, key_dim)
+        cached_key = torch.cat(
+            [state_list[i][layer_offset] for i in range(batch_size)], dim=1
+        )
+        # cached_nonlin_attn: (num_heads, batch_size, left_context_len, head_dim)
+        cached_nonlin_attn = torch.cat(
+            [state_list[i][layer_offset + 1] for i in range(batch_size)], dim=1
+        )
+        # cached_val1: (left_context_len, batch_size, value_dim)
+        cached_val1 = torch.cat(
+            [state_list[i][layer_offset + 2] for i in range(batch_size)], dim=1
+        )
+        # cached_val2: (left_context_len, batch_size, value_dim)
+        cached_val2 = torch.cat(
+            [state_list[i][layer_offset + 3] for i in range(batch_size)], dim=1
+        )
+        # cached_conv1: (#batch, channels, left_pad)
+        cached_conv1 = torch.cat(
+            [state_list[i][layer_offset + 4] for i in range(batch_size)], dim=0
+        )
+        # cached_conv2: (#batch, channels, left_pad)
+        cached_conv2 = torch.cat(
+            [state_list[i][layer_offset + 5] for i in range(batch_size)], dim=0
+        )
+        batch_states += [
+            cached_key,
+            cached_nonlin_attn,
+            cached_val1,
+            cached_val2,
+            cached_conv1,
+            cached_conv2,
+        ]
+
+    cached_embed_left_pad = torch.cat(
+        [state_list[i][-2] for i in range(batch_size)], dim=0
+    )
+    batch_states.append(cached_embed_left_pad)
+
+    processed_lens = torch.cat([state_list[i][-1] for i in range(batch_size)], dim=0)
+    batch_states.append(processed_lens)
+
+    return batch_states
+
+
+def unstack_states(batch_states: List[Tensor]) -> List[List[Tensor]]:
+    """Unstack the zipformer state corresponding to a batch of utterances
+    into a list of states, where the i-th entry is the state from the i-th
+    utterance in the batch.
+
+    Note:
+      It is the inverse of :func:`stack_states`.
+
+    Args:
+        batch_states: A list of cached tensors of all encoder layers. For layer-i,
+          states[i*6:(i+1)*6] is (cached_key, cached_nonlin_attn, cached_val1, cached_val2,
+          cached_conv1, cached_conv2).
+          state_list[-2] is the cached left padding for ConvNeXt module,
+          of shape (batch_size, num_channels, left_pad, num_freqs)
+          states[-1] is processed_lens of shape (batch,), which records the number
+          of processed frames (at 50hz frame rate, after encoder_embed) for each sample in batch.
+
+    Returns:
+        state_list: A list of list. Each element in state_list corresponding to the internal state
+        of the zipformer model for a single utterance.
+    """
+    assert (len(batch_states) - 2) % 6 == 0, len(batch_states)
+    tot_num_layers = (len(batch_states) - 2) // 6
+
+    processed_lens = batch_states[-1]
+    batch_size = processed_lens.shape[0]
+
+    state_list = [[] for _ in range(batch_size)]
+
+    for layer in range(tot_num_layers):
+        layer_offset = layer * 6
+        # cached_key: (left_context_len, batch_size, key_dim)
+        cached_key_list = batch_states[layer_offset].chunk(chunks=batch_size, dim=1)
+        # cached_nonlin_attn: (num_heads, batch_size, left_context_len, head_dim)
+        cached_nonlin_attn_list = batch_states[layer_offset + 1].chunk(
+            chunks=batch_size, dim=1
+        )
+        # cached_val1: (left_context_len, batch_size, value_dim)
+        cached_val1_list = batch_states[layer_offset + 2].chunk(
+            chunks=batch_size, dim=1
+        )
+        # cached_val2: (left_context_len, batch_size, value_dim)
+        cached_val2_list = batch_states[layer_offset + 3].chunk(
+            chunks=batch_size, dim=1
+        )
+        # cached_conv1: (#batch, channels, left_pad)
+        cached_conv1_list = batch_states[layer_offset + 4].chunk(
+            chunks=batch_size, dim=0
+        )
+        # cached_conv2: (#batch, channels, left_pad)
+        cached_conv2_list = batch_states[layer_offset + 5].chunk(
+            chunks=batch_size, dim=0
+        )
+        for i in range(batch_size):
+            state_list[i] += [
+                cached_key_list[i],
+                cached_nonlin_attn_list[i],
+                cached_val1_list[i],
+                cached_val2_list[i],
+                cached_conv1_list[i],
+                cached_conv2_list[i],
+            ]
+
+    cached_embed_left_pad_list = batch_states[-2].chunk(chunks=batch_size, dim=0)
+    for i in range(batch_size):
+        state_list[i].append(cached_embed_left_pad_list[i])
+
+    processed_lens_list = batch_states[-1].chunk(chunks=batch_size, dim=0)
+    for i in range(batch_size):
+        state_list[i].append(processed_lens_list[i])
+
+    return state_list
+
+
+def streaming_forward(
+    features: Tensor,
+    feature_lens: Tensor,
+    model: nn.Module,
+    states: List[Tensor],
+    chunk_size: int,
+    left_context_len: int,
+) -> Tuple[Tensor, Tensor, List[Tensor]]:
+    """
+    Returns encoder outputs, output lengths, and updated states.
+    """
+    cached_embed_left_pad = states[-2]
+    (x, x_lens, new_cached_embed_left_pad) = model.encoder_embed.streaming_forward(
+        x=features,
+        x_lens=feature_lens,
+        cached_left_pad=cached_embed_left_pad,
+    )
+    assert x.size(1) == chunk_size, (x.size(1), chunk_size)
+
+    src_key_padding_mask = make_pad_mask(x_lens)
+
+    # processed_mask is used to mask out initial states
+    processed_mask = torch.arange(left_context_len, device=x.device).expand(
+        x.size(0), left_context_len
+    )
+    processed_lens = states[-1]  # (batch,)
+    # (batch, left_context_size)
+    processed_mask = (processed_lens.unsqueeze(1) <= processed_mask).flip(1)
+    # Update processed lengths
+    new_processed_lens = processed_lens + x_lens
+
+    # (batch, left_context_size + chunk_size)
+    src_key_padding_mask = torch.cat([processed_mask, src_key_padding_mask], dim=1)
+
+    x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
+    encoder_states = states[:-2]
+    (
+        encoder_out,
+        encoder_out_lens,
+        new_encoder_states,
+    ) = model.encoder.streaming_forward(
+        x=x,
+        x_lens=x_lens,
+        states=encoder_states,
+        src_key_padding_mask=src_key_padding_mask,
+    )
+    encoder_out = encoder_out.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
+
+    new_states = new_encoder_states + [
+        new_cached_embed_left_pad,
+        new_processed_lens,
+    ]
+    return encoder_out, encoder_out_lens, new_states
+
+
 def decode_one_chunk(
     params: AttributeDict,
     model: nn.Module,
@@ -210,14 +437,16 @@ def decode_one_chunk(
       Return a List containing which DecodeStreams are finished.
     """
     device = model.device
+    chunk_size = int(params.chunk_size)
+    left_context_len = int(params.left_context_frames)
 
     features = []
     feature_lens = []
     states = []
-    processed_lens = []
+    processed_lens = []  # Used in fast-beam-search
 
     for stream in decode_streams:
-        feat, feat_len = stream.get_feature_frames(params.decode_chunk_len)
+        feat, feat_len = stream.get_feature_frames(chunk_size * 2)
         features.append(feat)
         feature_lens.append(feat_len)
         states.append(stream.states)
@@ -226,10 +455,10 @@ def decode_one_chunk(
     feature_lens = torch.tensor(feature_lens, device=device)
     features = pad_sequence(features, batch_first=True, padding_value=LOG_EPS)
 
-    # We subsample features with ((x_len - 7) // 2 + 1) // 2 and the max downsampling
-    # factor in encoders is 8.
-    # After feature embedding (x_len - 7) // 2, we have (23 - 7) // 2 = 8.
-    tail_length = 23
+    # Make sure the length after encoder_embed is at least 1.
+    # The encoder_embed subsample features (T - 7) // 2
+    # The ConvNeXt module needs (7 - 1) // 2 = 3 frames of right padding after subsampling
+    tail_length = chunk_size * 2 + 7 + 2 * 3
     if features.size(1) < tail_length:
         pad_length = tail_length - features.size(1)
         feature_lens += pad_length
@@ -241,12 +470,14 @@ def decode_one_chunk(
         )
 
     states = stack_states(states)
-    processed_lens = torch.tensor(processed_lens, device=device)
 
-    encoder_out, encoder_out_lens, new_states = model.encoder.streaming_forward(
-        x=features,
-        x_lens=feature_lens,
+    encoder_out, encoder_out_lens, new_states = streaming_forward(
+        features=features,
+        feature_lens=feature_lens,
+        model=model,
         states=states,
+        chunk_size=chunk_size,
+        left_context_len=left_context_len,
     )
 
     encoder_out = model.joiner.encoder_proj(encoder_out)
@@ -254,6 +485,7 @@ def decode_one_chunk(
     if params.decoding_method == "greedy_search":
         greedy_search(model=model, encoder_out=encoder_out, streams=decode_streams)
     elif params.decoding_method == "fast_beam_search":
+        processed_lens = torch.tensor(processed_lens, device=device)
         processed_lens = processed_lens + encoder_out_lens
         fast_beam_search_one_best(
             model=model,
@@ -322,17 +554,15 @@ def decode_dataset(
     opts.frame_opts.snip_edges = False
     opts.frame_opts.samp_freq = 16000
     opts.mel_opts.num_bins = 80
-    opts.mel_opts.high_freq = -400
 
-    log_interval = 50
+    log_interval = 100
 
     decode_results = []
     # Contain decode streams currently running.
     decode_streams = []
-    idx = 0
     for num, cut in enumerate(cuts):
         # each utterance has a DecodeStream.
-        initial_states = model.encoder.get_init_state(device=device)
+        initial_states = get_init_states(model=model, batch_size=1, device=device)
         decode_stream = DecodeStream(
             params=params,
             cut_id=cut.id,
@@ -340,28 +570,26 @@ def decode_dataset(
             decoding_graph=decoding_graph,
             device=device,
         )
+
         audio: np.ndarray = cut.load_audio()
-        if audio.max() > 1 or audio.min() < -1:
-            audio = audio / max(abs(audio.max()), abs(audio.min()))
-            print(audio)
-            print(audio.max())
-            print(audio.min())
-            print(cut)
-            idx += 1
-            print(idx)
         # audio.shape: (1, num_samples)
         assert len(audio.shape) == 2
         assert audio.shape[0] == 1, "Should be single channel"
         assert audio.dtype == np.float32, audio.dtype
 
         # The trained model is using normalized samples
-        assert audio.max() <= 1, "Should be normalized to [-1, 1])"
+        # - this is to avoid sending [-32k,+32k] signal in...
+        # - some lhotse AudioTransform classes can make the signal
+        #   be out of range [-1, 1], hence the tolerance 10
+        assert (
+            np.abs(audio).max() <= 10
+        ), "Should be normalized to [-1, 1], 10 for tolerance..."
 
         samples = torch.from_numpy(audio).squeeze(0)
 
         fbank = Fbank(opts)
         feature = fbank(samples.to(device))
-        decode_stream.set_features(feature, tail_pad_len=params.decode_chunk_len)
+        decode_stream.set_features(feature, tail_pad_len=30)
         decode_stream.ground_truth = cut.supervisions[0].text
 
         decode_streams.append(decode_stream)
@@ -420,14 +648,18 @@ def save_results(
 ):
     test_set_wers = dict()
     for key, results in results_dict.items():
-        recog_path = params.res_dir / f"recogs-{test_set_name}-{params.suffix}.txt"
+        recog_path = (
+            params.res_dir / f"recogs-{test_set_name}-{key}-{params.suffix}.txt"
+        )
         results = sorted(results)
         store_transcripts(filename=recog_path, texts=results)
         logging.info(f"The transcripts are stored in {recog_path}")
 
         # The following prints out WERs, per-word error statistics and aligned
         # ref/hyp pairs.
-        errs_filename = params.res_dir / f"errs-{test_set_name}-{params.suffix}.txt"
+        errs_filename = (
+            params.res_dir / f"errs-{test_set_name}-{key}-{params.suffix}.txt"
+        )
         with open(errs_filename, "w") as f:
             wer = write_error_stats(
                 f, f"{test_set_name}-{key}", results, enable_log=True
@@ -437,7 +669,9 @@ def save_results(
         logging.info("Wrote detailed error stats to {}".format(errs_filename))
 
     test_set_wers = sorted(test_set_wers.items(), key=lambda x: x[1])
-    errs_info = params.res_dir / f"wer-summary-{test_set_name}-{params.suffix}.txt"
+    errs_info = (
+        params.res_dir / f"wer-summary-{test_set_name}-{key}-{params.suffix}.txt"
+    )
     with open(errs_info, "w") as f:
         print("settings\tWER", file=f)
         for key, val in test_set_wers:
@@ -468,8 +702,13 @@ def main():
     else:
         params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
 
-    # for streaming
-    params.suffix += f"-streaming-chunk-size-{params.decode_chunk_len}"
+    assert params.causal, params.causal
+    assert "," not in params.chunk_size, "chunk_size should be one value in decoding."
+    assert (
+        "," not in params.left_context_frames
+    ), "left_context_frames should be one value in decoding."
+    params.suffix += f"-chunk-{params.chunk_size}"
+    params.suffix += f"-left-context-{params.left_context_frames}"
 
     # for fast_beam_search
     if params.decoding_method == "fast_beam_search":
@@ -500,7 +739,7 @@ def main():
     logging.info(params)
 
     logging.info("About to create model")
-    model = get_transducer_model(params)
+    model = get_model(params)
 
     if not params.use_averaged_model:
         if params.iter > 0:
@@ -591,22 +830,27 @@ def main():
     logging.info(f"Number of model parameters: {num_param}")
 
     commonvoice = CommonVoiceAsrDataModule(args)
+
     test_cuts = commonvoice.test_cuts()
-    test_sets = "test-cv"
+    dev_cuts = commonvoice.dev_cuts()
 
-    results_dict = decode_dataset(
-        cuts=test_cuts,
-        params=params,
-        model=model,
-        sp=sp,
-        decoding_graph=decoding_graph,
-    )
+    test_sets = ["test", "dev"]
+    test_cuts = [test_cuts, dev_cuts]
 
-    save_results(
-        params=params,
-        test_set_name=test_sets,
-        results_dict=results_dict,
-    )
+    for test_set, test_cut in zip(test_sets, test_cuts):
+        results_dict = decode_dataset(
+            cuts=test_cut,
+            params=params,
+            model=model,
+            sp=sp,
+            decoding_graph=decoding_graph,
+        )
+
+        save_results(
+            params=params,
+            test_set_name=test_set,
+            results_dict=results_dict,
+        )
 
     logging.info("Done!")
 

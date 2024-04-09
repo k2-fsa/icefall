@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# Copyright    2023  Xiaomi Corp.             (Yifan Yang)
+# Copyright    2023-2024  Xiaomi Corp.             (Yifan Yang,
+#                                                   Zengrui Jin,)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -17,7 +18,6 @@
 
 import argparse
 import logging
-from datetime import datetime
 from pathlib import Path
 
 import torch
@@ -30,6 +30,8 @@ from lhotse import (
     set_caching_enabled,
 )
 
+from icefall.utils import str2bool
+
 # Torch's multithreaded behavior needs to be disabled or
 # it wastes a lot of CPU and slow things down.
 # Do this outside of main() in case it needs to take effect
@@ -40,6 +42,14 @@ torch.set_num_interop_threads(1)
 
 def get_args():
     parser = argparse.ArgumentParser()
+
+    parser.add_argument(
+        "--subset",
+        type=str,
+        default="train",
+        choices=["train", "validated", "invalidated"],
+        help="""Dataset parts to compute fbank. """,
+    )
 
     parser.add_argument(
         "--language",
@@ -66,28 +76,35 @@ def get_args():
         "--num-splits",
         type=int,
         required=True,
-        help="The number of splits of the train subset",
+        help="The number of splits of the subset",
     )
 
     parser.add_argument(
         "--start",
         type=int,
         default=0,
-        help="Process pieces starting from this number (inclusive).",
+        help="Process pieces starting from this number (included).",
     )
 
     parser.add_argument(
         "--stop",
         type=int,
         default=-1,
-        help="Stop processing pieces until this number (exclusive).",
+        help="Stop processing pieces until this number (excluded).",
+    )
+
+    parser.add_argument(
+        "--perturb-speed",
+        type=str2bool,
+        default=False,
+        help="""Perturb speed with factor 0.9 and 1.1 on train subset.""",
     )
 
     return parser.parse_args()
 
 
 def compute_fbank_commonvoice_splits(args):
-    subset = "train"
+    subset = args.subset
     num_splits = args.num_splits
     language = args.language
     output_dir = f"data/{language}/fbank/cv-{language}_{subset}_split_{num_splits}"
@@ -129,6 +146,10 @@ def compute_fbank_commonvoice_splits(args):
         cut_set = cut_set.trim_to_supervisions(
             keep_overlapping=False, min_duration=None
         )
+
+        if args.perturb_speed:
+            logging.info(f"Doing speed perturb")
+            cut_set = cut_set + cut_set.perturb_speed(0.9) + cut_set.perturb_speed(1.1)
 
         logging.info("Computing features")
         cut_set = cut_set.compute_and_store_features_batch(
