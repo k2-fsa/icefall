@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - master
-      - audioset-ci
 
   pull_request:
     branches:
@@ -72,3 +71,65 @@ jobs:
               git config --global --add safe.directory /icefall
 
               .github/scripts/audioset/AT/run.sh
+
+      - name: Show model files
+        shell: bash
+        run: |
+          sudo chown -R runner ./model-onnx
+          ls -lh ./model-onnx
+          echo "----------"
+          ls -lh ./model-onnx/*
+
+      - name: Upload model to huggingface
+        if: matrix.python-version == '3.9' && matrix.torch-version == '2.2.0'
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        uses: nick-fields/retry@v3
+        with:
+          max_attempts: 20
+          timeout_seconds: 200
+          shell: bash
+          command: |
+            git config --global user.email "csukuangfj@gmail.com"
+            git config --global user.name "Fangjun Kuang"
+
+            rm -rf huggingface
+            export GIT_LFS_SKIP_SMUDGE=1
+
+            git clone https://huggingface.co/k2-fsa/sherpa-onnx-zipformer-audio-tagging-2024-04-09 huggingface
+            cd huggingface
+            git fetch
+            git pull
+            git merge -m "merge remote" --ff origin main
+            cp ../model-onnx/*.onnx ./
+            cp ../model-onnx/*.csv ./
+            cp -a ../model-onnx/test_wavs ./
+            ls -lh
+            git add .
+            git status
+            git commit -m "update models"
+            git status
+
+            git push https://csukuangfj:$HF_TOKEN@huggingface.co/sherpa-onnx-zipformer-audio-tagging-2024-04-09 main || true
+            rm -rf huggingface
+
+      - name: Prepare for release
+        shell: bash
+        run: |
+          d=sherpa-onnx-zipformer-audio-tagging-2024-04-09
+          mv ./model-onnx $d
+          tar cjvf ${d}.tar.bz2 $d
+          ls -lh
+
+      - name: Release exported onnx models
+        # if: matrix.python-version == '3.9' && matrix.torch-version == '2.2.0' && github.event_name == 'push'
+        if: matrix.python-version == '3.9' && matrix.torch-version == '2.2.0'
+        uses: svenstaro/upload-release-action@v2
+        with:
+          file_glob: true
+          overwrite: true
+          file: sherpa-onnx-*.tar.bz2
+          repo_name: k2-fsa/sherpa-onnx
+          repo_token: ${{ secrets.UPLOAD_GH_SHERPA_ONNX_TOKEN }}
+          tag: audio-tagging-models
+
