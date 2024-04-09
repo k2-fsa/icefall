@@ -49,6 +49,8 @@ RUN pip install --no-cache-dir \
       multi_quantization \
       numba \
       numpy \
+      onnxoptimizer \
+      onnxsim \
       onnx \
       onnxmltools \
       onnxruntime \

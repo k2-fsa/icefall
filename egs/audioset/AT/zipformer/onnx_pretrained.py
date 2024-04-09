@@ -17,48 +17,25 @@
 # limitations under the License.
 """
 This script loads ONNX models and uses them to decode waves.
-You can use the following command to get the exported models:
 
-We use the pre-trained model from
-https://huggingface.co/marcoyang/icefall-audio-tagging-audioset-zipformer-2024-03-12#/
-as an example to show how to use this file.
+Usage of this script:
 
-1. Download the pre-trained model
+  repo_url=https://huggingface.co/marcoyang/icefall-audio-tagging-audioset-zipformer-2024-03-12
+  repo=$(basename $repo_url)
+  GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
+  pushd $repo/exp
+  git lfs pull --include "*.onnx"
+  popd
 
-cd egs/librispeech/ASR
-
-repo_url=https://huggingface.co/marcoyang/icefall-audio-tagging-audioset-zipformer-2024-03-12#/
-GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
-repo=$(basename $repo_url)
-
-pushd $repo
-git lfs pull --include "exp/pretrained.pt"
-
-cd exp
-ln -s pretrained.pt epoch-99.pt
-popd
-
-2. Export the model to ONNX
-
-./zipformer/export-onnx.py \
-  --use-averaged-model 0 \
-  --epoch 99 \
-  --avg 1 \
-  --exp-dir $repo/exp \
-  --causal False
-
-It will generate the following 3 files inside $repo/exp:
-
-  - model-epoch-99-avg-1.onnx
-
-3. Run this file
-
-./zipformer/onnx_pretrained.py \
-  --model-filename $repo/exp/model-epoch-99-avg-1.onnx \
-  --tokens $repo/data/lang_bpe_500/tokens.txt \
-  $repo/test_wavs/1089-134686-0001.wav \
-  $repo/test_wavs/1221-135766-0001.wav \
-  $repo/test_wavs/1221-135766-0002.wav
+  for m in model.onnx model.int8.onnx; do
+    python3 zipformer/onnx_pretrained.py \
+        --model-filename $repo/exp/model.onnx \
+        --label-dict $repo/data/class_labels_indices.csv \
+        $repo/test_wavs/1.wav \
+        $repo/test_wavs/2.wav \
+        $repo/test_wavs/3.wav \
+        $repo/test_wavs/4.wav
+  done
 """
 
 import argparse

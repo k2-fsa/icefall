@@ -28,10 +28,20 @@ You can use the following command to get the exported models:
 
 Usage of this script:
 
-./zipformer/jit_pretrained.py \
-  --nn-model-filename ./zipformer/exp/cpu_jit.pt \
-  /path/to/foo.wav \
-  /path/to/bar.wav
+  repo_url=https://huggingface.co/marcoyang/icefall-audio-tagging-audioset-zipformer-2024-03-12
+  repo=$(basename $repo_url)
+  GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
+  pushd $repo/exp
+  git lfs pull --include jit_script.pt
+  popd
+
+  python3 zipformer/jit_pretrained.py \
+      --nn-model-filename $repo/exp/jit_script.pt \
+      --label-dict $repo/data/class_labels_indices.csv \
+      $repo/test_wavs/1.wav \
+      $repo/test_wavs/2.wav \
+      $repo/test_wavs/3.wav \
+      $repo/test_wavs/4.wav
 """
 
 import argparse
@@ -168,7 +178,8 @@ def main():
         topk_prob, topk_index = logit.sigmoid().topk(5)
         topk_labels = [label_dict[index.item()] for index in topk_index]
         logging.info(
-            f"{filename}: Top 5 predicted labels are {topk_labels} with probability of {topk_prob.tolist()}"
+            f"{filename}: Top 5 predicted labels are {topk_labels} with "
+            f"probability of {topk_prob.tolist()}"
         )
 
     logging.info("Done")
