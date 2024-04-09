@@ -32,7 +32,7 @@ Usage of this script:
   repo=$(basename $repo_url)
   GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
   pushd $repo/exp
-  git lfs pull --include pretrained.pt
+  git lfs pull --include jit_script.pt
   popd
 
   python3 zipformer/jit_pretrained.py \
