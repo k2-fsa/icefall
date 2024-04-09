@@ -2,6 +2,8 @@
 
 set -ex
 
+python3 -m pip install onnxoptimizer
+
 log() {
   # This function is from espnet
   local fname=${BASH_SOURCE[1]##*/}

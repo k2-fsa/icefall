@@ -8,13 +8,14 @@ pypinyin==0.50.0
 tensorboard
 typeguard
 dill
-onnx==1.15.0
-onnxruntime==1.16.3
+onnx>=1.15.0
+onnxruntime>=1.16.3
+onnxoptimizer
 
 # style check session:
 black==22.3.0
 isort==5.10.1
-flake8==5.0.4 
+flake8==5.0.4
 
 # cantonese word segment support
 pycantonese==3.4.0

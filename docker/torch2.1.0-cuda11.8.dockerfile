@@ -56,6 +56,7 @@ RUN pip install --no-cache-dir \
       onnx \
       onnxruntime \
       onnxmltools \
+      onnxoptimizer \
       multi_quantization \
       typeguard \
       numpy \

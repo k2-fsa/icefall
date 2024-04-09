@@ -69,6 +69,7 @@ RUN pip uninstall -y tqdm && \
       onnx \
       onnxruntime \
       onnxmltools \
+      onnxoptimizer \
       multi_quantization \
       typeguard \
       numpy \

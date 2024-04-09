@@ -38,6 +38,7 @@ from typing import Dict
 
 import k2
 import onnx
+import onnxoptimizer
 import torch
 import torch.nn as nn
 from onnxruntime.quantization import QuantType, quantize_dynamic
@@ -234,12 +235,13 @@ def export_audio_tagging_model_onnx(
 
 
 def optimize_model(filename):
-    # see https://github.com/microsoft/onnxruntime/issues/1899#issuecomment-534806537
-    from onnx import optimizer
-
+    # see
+    # https://github.com/microsoft/onnxruntime/issues/1899#issuecomment-534806537
+    # and
+    # https://github.com/onnx/onnx/issues/582#issuecomment-937788108
     passes = ["extract_constant_to_initializer", "eliminate_unused_initializer"]
     onnx_model = onnx.load(filename)
-    optimized_model = optimizer.optimize(onnx_model, passes)
+    optimized_model = onnxoptimizer.optimize(onnx_model, passes)
     onnx.save(optimized_model, filename)
 
 
