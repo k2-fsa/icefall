@@ -81,7 +81,7 @@ jobs:
           ls -lh ./model-onnx/*
 
       - name: Upload model to huggingface
-        if: matrix.python-version == '3.9' && matrix.torch-version == '2.2.0'
+        if: matrix.python-version == '3.9' && matrix.torch-version == '2.2.0' && github.event_name == 'push'
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         uses: nick-fields/retry@v3
@@ -110,11 +110,11 @@ jobs:
             git commit -m "update models"
             git status
 
-            git push https://csukuangfj:$HF_TOKEN@huggingface.co/sherpa-onnx-zipformer-audio-tagging-2024-04-09 main || true
+            git push https://csukuangfj:$HF_TOKEN@huggingface.co/k2-fsa/sherpa-onnx-zipformer-audio-tagging-2024-04-09 main || true
             rm -rf huggingface
 
       - name: Prepare for release
-        if: matrix.python-version == '3.9' && matrix.torch-version == '2.2.0'
+        if: matrix.python-version == '3.9' && matrix.torch-version == '2.2.0' && github.event_name == 'push'
         shell: bash
         run: |
           d=sherpa-onnx-zipformer-audio-tagging-2024-04-09
@@ -123,8 +123,7 @@ jobs:
           ls -lh
 
       - name: Release exported onnx models
-        # if: matrix.python-version == '3.9' && matrix.torch-version == '2.2.0' && github.event_name == 'push'
-        if: matrix.python-version == '3.9' && matrix.torch-version == '2.2.0'
+        if: matrix.python-version == '3.9' && matrix.torch-version == '2.2.0' && github.event_name == 'push'
         uses: svenstaro/upload-release-action@v2
         with:
           file_glob: true

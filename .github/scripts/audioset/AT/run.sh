@@ -81,11 +81,11 @@ function test_pretrained() {
   done
 
   log "prepare data for uploading to huggingface"
-  dst=/icefall/onnx-model
+  dst=/icefall/model-onnx
   mkdir -p $dst
-  cp -v $repo/*.onnx $dst/
+  cp -v $repo/exp/*.onnx $dst/
   cp -v $repo/data/* $dst/
-  cp -a $repo/test_wavs $dst
+  cp -av $repo/test_wavs $dst
 
   ls -lh $dst
   ls -lh $dst/test_wavs
