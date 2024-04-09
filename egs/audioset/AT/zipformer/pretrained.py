@@ -33,7 +33,10 @@ Usage of this script:
   python3 zipformer/pretrained.py \
     --checkpoint $repo/exp/pretrained.pt \
     --label-dict $repo/data/class_labels_indices.csv \
-    $repo/test_wavs/1.wav
+    $repo/test_wavs/1.wav \
+    $repo/test_wavs/2.wav \
+    $repo/test_wavs/3.wav \
+    $repo/test_wavs/4.wav
 """
 
 

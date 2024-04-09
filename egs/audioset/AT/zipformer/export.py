@@ -42,6 +42,7 @@ load it by `torch.jit.load("jit_script.pt")`.
 Check ./jit_pretrained.py for its usage.
 
 Check https://github.com/k2-fsa/sherpa
+and https://github.com/k2-fsa/sherpa-onnx
 for how to use the exported models outside of icefall.
 
 (2) Export `model.state_dict()`
@@ -55,13 +56,13 @@ for how to use the exported models outside of icefall.
 It will generate a file `pretrained.pt` in the given `exp_dir`. You can later
 load it by `icefall.checkpoint.load_checkpoint()`.
 
-To use the generated file with `zipformer/decode.py`,
+To use the generated file with `zipformer/evaluate.py`,
 you can do:
 
     cd /path/to/exp_dir
     ln -s pretrained.pt epoch-9999.pt
 
-    cd /path/to/egs/librispeech/ASR
+    cd /path/to/egs/audioset/AT
     ./zipformer/evaluate.py \
         --exp-dir ./zipformer/exp \
         --use-averaged-model False \

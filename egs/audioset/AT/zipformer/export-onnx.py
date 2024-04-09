@@ -6,56 +6,28 @@
 """
 This script exports a transducer model from PyTorch to ONNX.
 
-We use the pre-trained model from
-https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-2023-05-15
-as an example to show how to use this file.
+Usage of this script:
 
-1. Download the pre-trained model
+  repo_url=https://huggingface.co/marcoyang/icefall-audio-tagging-audioset-zipformer-2024-03-12
+  repo=$(basename $repo_url)
+  GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
+  pushd $repo/exp
+  git lfs pull --include pretrained.pt
+  ln -s pretrained.pt epoch-99.pt
+  popd
 
-cd egs/librispeech/ASR
+  python3 zipformer/export-onnx.py \
+      --exp-dir $repo/exp \
+      --epoch 99 \
+      --avg 1 \
+      --use-averaged-model 0
 
-repo_url=https://huggingface.co/marcoyang/icefall-audio-tagging-audioset-zipformer-2024-03-12#/
-GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
-repo=$(basename $repo_url)
+  pushd $repo/exp
+  mv model-epoch-99-avg-1.onnx model.onnx
+  mv model-epoch-99-avg-1.int8.onnx model.int8.onnx
+  popd
 
-pushd $repo
-git lfs pull --include "exp/pretrained.pt"
-
-cd exp
-ln -s pretrained.pt epoch-99.pt
-popd
-
-2. Export the model to ONNX
-
-./zipformer/export-onnx.py \
-  --use-averaged-model 0 \
-  --epoch 99 \
-  --avg 1 \
-  --exp-dir $repo/exp \
-  --num-encoder-layers "2,2,3,4,3,2" \
-  --downsampling-factor "1,2,4,8,4,2" \
-  --feedforward-dim "512,768,1024,1536,1024,768" \
-  --num-heads "4,4,4,8,4,4" \
-  --encoder-dim "192,256,384,512,384,256" \
-  --query-head-dim 32 \
-  --value-head-dim 12 \
-  --pos-head-dim 4 \
-  --pos-dim 48 \
-  --encoder-unmasked-dim "192,192,256,256,256,192" \
-  --cnn-module-kernel "31,31,15,15,15,31" \
-  --decoder-dim 512 \
-  --joiner-dim 512 \
-  --causal False \
-  --chunk-size "16,32,64,-1" \
-  --left-context-frames "64,128,256,-1"
-
-It will generate the following 3 files inside $repo/exp:
-
-  - encoder-epoch-99-avg-1.onnx
-  - decoder-epoch-99-avg-1.onnx
-  - joiner-epoch-99-avg-1.onnx
-
-See ./onnx_pretrained.py and ./onnx_check.py for how to
+See ./onnx_pretrained.py
 use the exported ONNX models.
 """
 
@@ -261,6 +233,16 @@ def export_audio_tagging_model_onnx(
     add_meta_data(filename=filename, meta_data=meta_data)
 
 
+def optimize_model(filename):
+    # see https://github.com/microsoft/onnxruntime/issues/1899#issuecomment-534806537
+    from onnx import optimizer
+
+    passes = ["extract_constant_to_initializer", "eliminate_unused_initializer"]
+    onnx_model = onnx.load(filename)
+    optimized_model = optimizer.optimize(onnx_model, passes)
+    onnx.save(optimized_model, filename)
+
+
 @torch.no_grad()
 def main():
     args = get_parser().parse_args()
@@ -389,6 +371,7 @@ def main():
         model_filename,
         opset_version=opset_version,
     )
+    optimized_model(model_filename)
     logging.info(f"Exported audio tagging model to {model_filename}")
 
     # Generate int8 quantization models
@@ -403,6 +386,7 @@ def main():
         op_types_to_quantize=["MatMul"],
         weight_type=QuantType.QInt8,
     )
+    optimized_model(model_filename_int8)
 
 
 if __name__ == "__main__":
