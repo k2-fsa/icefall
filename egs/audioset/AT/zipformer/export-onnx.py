@@ -371,7 +371,7 @@ def main():
         model_filename,
         opset_version=opset_version,
     )
-    optimized_model(model_filename)
+    optimize_model(model_filename)
     logging.info(f"Exported audio tagging model to {model_filename}")
 
     # Generate int8 quantization models
@@ -386,7 +386,7 @@ def main():
         op_types_to_quantize=["MatMul"],
         weight_type=QuantType.QInt8,
     )
-    optimized_model(model_filename_int8)
+    optimize_model(model_filename_int8)
 
 
 if __name__ == "__main__":
