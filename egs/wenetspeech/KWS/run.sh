@@ -119,11 +119,11 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   # We recommend to start from an averaged model
   finetune_ckpt=zipformer/exp/pretrained.pt
 
-  ./zipformer/finetune.py \
+  python ./zipformer/finetune.py \
     --world-size 4 \
     --num-epochs 10 \
     --start-epoch 1 \
-    --exp-dir zipformer/exp_finetune
+    --exp-dir zipformer/exp_finetune \
     --lang-dir ./data/lang_partial_tone \
     --pinyin-type partial_with_tone \
     --use-fp16 1 \
