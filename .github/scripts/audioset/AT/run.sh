@@ -16,6 +16,7 @@ function test_pretrained() {
   GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
   pushd $repo/exp
   git lfs pull --include pretrained.pt
+  popd
 
   ls -lh
 
