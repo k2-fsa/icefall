@@ -25,7 +25,7 @@
 
 Usage:
 
-Note: This is a example for librispeech dataset, if you are using different
+Note: This is an example for AudioSet dataset, if you are using different
 dataset, you should change the argument values according to your dataset.
 
 (1) Export to torchscript model using torch.jit.script()
