@@ -164,7 +164,7 @@ class OnnxAudioTagger(nn.Module):
             A 1-D tensor of shape (N,). Its dtype is torch.int64
         Returns:
           Return a tensor containing:
-            - logits, A 2-D tensor of shape (N, num_classes)
+            - probs, A 2-D tensor of shape (N, num_classes)
 
         """
         x, x_lens = self.encoder_embed(x, x_lens)
@@ -177,7 +177,8 @@ class OnnxAudioTagger(nn.Module):
         # Note that this is slightly different from model.py for better
         # support of onnx
         logits = logits.mean(dim=1)
-        return logits
+        probs = logits.sigmoid()
+        return probs
 
 
 def export_audio_tagging_model_onnx(
@@ -220,15 +221,16 @@ def export_audio_tagging_model_onnx(
         dynamic_axes={
             "x": {0: "N", 1: "T"},
             "x_lens": {0: "N"},
-            "logits": {0: "N"},
+            "probs": {0: "N"},
         },
     )
 
     meta_data = {
-        "model_type": "zipformer2_at",
+        "model_type": "zipformer2",
         "version": "1",
         "model_author": "k2-fsa",
         "comment": "zipformer2 audio tagger",
+        "url": "https://github.com/k2-fsa/icefall/tree/master/egs/audioset/AT/zipformer",
     }
     logging.info(f"meta_data: {meta_data}")
 

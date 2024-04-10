@@ -20,17 +20,17 @@ This script loads ONNX models and uses them to decode waves.
 
 Usage of this script:
 
-  repo_url=https://huggingface.co/marcoyang/icefall-audio-tagging-audioset-zipformer-2024-03-12
+  repo_url=https://huggingface.co/k2-fsa/sherpa-onnx-zipformer-audio-tagging-2024-04-09
   repo=$(basename $repo_url)
-  GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
-  pushd $repo/exp
+  git clone $repo_url
+  pushd $repo
   git lfs pull --include "*.onnx"
   popd
 
   for m in model.onnx model.int8.onnx; do
     python3 zipformer/onnx_pretrained.py \
-        --model-filename $repo/exp/model.onnx \
-        --label-dict $repo/data/class_labels_indices.csv \
+        --model-filename $repo/model.onnx \
+        --label-dict $repo/class_labels_indices.csv \
         $repo/test_wavs/1.wav \
         $repo/test_wavs/2.wav \
         $repo/test_wavs/3.wav \
@@ -125,7 +125,7 @@ class OnnxModel:
             A 2-D tensor of shape (N,). Its dtype is torch.int64
         Returns:
           Return a Tensor:
-            - logits, its shape is (N, num_classes)
+            - probs, its shape is (N, num_classes)
         """
         out = self.model.run(
             [
@@ -208,13 +208,14 @@ def main():
     )
 
     feature_lengths = torch.tensor(feature_lengths, dtype=torch.int64)
-    logits = model(features, feature_lengths)
+    probs = model(features, feature_lengths)
 
-    for filename, logit in zip(args.sound_files, logits):
-        topk_prob, topk_index = logit.sigmoid().topk(5)
+    for filename, prob in zip(args.sound_files, probs):
+        topk_prob, topk_index = prob.topk(5)
         topk_labels = [label_dict[index.item()] for index in topk_index]
         logging.info(
-            f"{filename}: Top 5 predicted labels are {topk_labels} with probability of {topk_prob.tolist()}"
+            f"{filename}: Top 5 predicted labels are {topk_labels} with "
+            f"probability of {topk_prob.tolist()}"
         )
 
     logging.info("Decoding Done")
