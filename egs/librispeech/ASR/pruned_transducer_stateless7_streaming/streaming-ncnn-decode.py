@@ -42,6 +42,7 @@ import ncnn
 import torch
 import torchaudio
 from kaldifeat import FbankOptions, OnlineFbank, OnlineFeature
+from ncnn_custom_layer import RegisterCustomLayers
 
 
 def get_args():
@@ -202,6 +203,8 @@ class Model:
         encoder_param = args.encoder_param_filename
         encoder_model = args.encoder_bin_filename
 
+        RegisterCustomLayers(encoder_net)
+
         encoder_net.load_param(encoder_param)
         encoder_net.load_model(encoder_model)
 
@@ -331,6 +334,7 @@ def create_streaming_feature_extractor() -> OnlineFeature:
     opts.frame_opts.snip_edges = False
     opts.frame_opts.samp_freq = 16000
     opts.mel_opts.num_bins = 80
+    opts.mel_opts.high_freq = -400
     return OnlineFbank(opts)
 
 

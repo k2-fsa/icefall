@@ -59,7 +59,9 @@ if [ $stage -le -1 ] && [ $stop_stage -ge -1 ]; then
   # using: `sudo apt-get install git-lfs && git-lfs install`
   [ ! -e $dl_dir/lm ] && mkdir -p $dl_dir/lm
   git clone https://huggingface.co/luomingshuang/timit_lm $dl_dir/lm
-  cd $dl_dir/lm && git lfs pull
+  pushd $dl_dir/lm
+  git lfs pull
+  popd
 fi
 
 if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then

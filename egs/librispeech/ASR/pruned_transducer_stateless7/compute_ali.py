@@ -26,7 +26,7 @@ You can generate the checkpoint with the following command:
 
 ./pruned_transducer_stateless7/export.py \
   --exp-dir ./pruned_transducer_stateless7/exp \
-  --bpe-model data/lang_bpe_500/bpe.model \
+  --tokens data/lang_bpe_500/tokens.txt \
   --epoch 30 \
   --avg 9
 
@@ -52,12 +52,12 @@ import torch
 import torch.nn as nn
 from alignment import batch_force_alignment
 from asr_datamodule import LibriSpeechAsrDataModule
-from train import add_model_arguments, get_params, get_transducer_model
-
-from icefall.utils import AttributeDict, convert_timestamp, parse_timestamp
 from lhotse import CutSet
 from lhotse.serialization import SequentialJsonlWriter
 from lhotse.supervision import AlignmentItem
+from train import add_model_arguments, get_params, get_transducer_model
+
+from icefall.utils import AttributeDict, convert_timestamp, parse_timestamp
 
 
 def get_parser():

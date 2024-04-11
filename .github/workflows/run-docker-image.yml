@@ -1,0 +1,112 @@
+name: Run docker image
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: run_docker_image-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  run-docker-image:
+    name: ${{ matrix.image }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        image: ["torch2.2.2-cuda12.1", "torch2.2.2-cuda11.8", "torch2.2.1-cuda12.1", "torch2.2.1-cuda11.8", "torch2.2.0-cuda12.1", "torch2.2.0-cuda11.8", "torch2.1.0-cuda12.1", "torch2.1.0-cuda11.8", "torch2.0.0-cuda11.7", "torch1.13.0-cuda11.6", "torch1.12.1-cuda11.3", "torch1.9.0-cuda10.2"]
+    steps:
+      # refer to https://github.com/actions/checkout
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Free space
+        shell: bash
+        run: |
+          df -h
+          rm -rf /opt/hostedtoolcache
+          df -h
+
+      - name: Run the build process with Docker
+        uses: addnab/docker-run-action@v3
+        with:
+            image: k2fsa/icefall:${{ matrix.image }}
+            shell: bash
+            run: |
+              uname -a
+              cat /etc/*release
+
+              find / -name libcuda* 2>/dev/null
+
+              ls -lh /usr/local/
+              ls -lh /usr/local/cuda*
+
+              nvcc --version
+
+              ls -lh /usr/local/cuda-*/compat/*
+
+              # For torch1.9.0-cuda10.2
+              export LD_LIBRARY_PATH=/usr/local/cuda-10.2/compat:$LD_LIBRARY_PATH
+
+              # For torch1.12.1-cuda11.3
+              export LD_LIBRARY_PATH=/usr/local/cuda-11.3/compat:$LD_LIBRARY_PATH
+
+              # For torch2.0.0-cuda11.7
+              export LD_LIBRARY_PATH=/usr/local/cuda-11.7/compat:$LD_LIBRARY_PATH
+
+              # For torch2.1.0-cuda11.8
+              export LD_LIBRARY_PATH=/usr/local/cuda-11.8/compat:$LD_LIBRARY_PATH
+
+              # For torch2.1.0-cuda12.1
+              export LD_LIBRARY_PATH=/usr/local/cuda-12.1/compat:$LD_LIBRARY_PATH
+
+
+              which nvcc
+              cuda_dir=$(dirname $(which nvcc))
+              echo "cuda_dir: $cuda_dir"
+
+              find $cuda_dir -name libcuda.so*
+              echo "--------------------"
+
+              find / -name libcuda.so* 2>/dev/null
+
+              # for torch1.13.0-cuda11.6
+              if [ -e /opt/conda/lib/stubs/libcuda.so ]; then
+                cd /opt/conda/lib/stubs && ln -s libcuda.so libcuda.so.1 && cd -
+                export LD_LIBRARY_PATH=/opt/conda/lib/stubs:$LD_LIBRARY_PATH
+              fi
+
+              find / -name libcuda.so* 2>/dev/null
+              echo "LD_LIBRARY_PATH: $LD_LIBRARY_PATH"
+
+              python3 --version
+              which python3
+
+              python3 -m pip list
+
+              echo "----------torch----------"
+              python3 -m torch.utils.collect_env
+
+              echo "----------k2----------"
+              python3 -c "import k2; print(k2.__file__)"
+              python3 -c "import k2; print(k2.__dev_version__)"
+              python3 -m k2.version
+
+              echo "----------lhotse----------"
+              python3 -c "import lhotse; print(lhotse.__file__)"
+              python3 -c "import lhotse; print(lhotse.__version__)"
+
+              echo "----------kaldifeat----------"
+              python3 -c "import kaldifeat; print(kaldifeat.__file__)"
+              python3 -c "import kaldifeat; print(kaldifeat.__version__)"
+
+              echo "Test yesno recipe"
+
+              cd egs/yesno/ASR
+
+              ./prepare.sh
+
+              ./tdnn/train.py
+
+              ./tdnn/decode.py

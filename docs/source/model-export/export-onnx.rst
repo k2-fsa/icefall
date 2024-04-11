@@ -3,6 +3,15 @@ Export to ONNX
 
 In this section, we describe how to export models to `ONNX`_.
 
+.. hint::
+
+   Before you continue, please run:
+
+    .. code-block:: bash
+
+        pip install onnx
+
+
 In each recipe, there is a file called ``export-onnx.py``, which is used
 to export trained models to `ONNX`_.
 
@@ -62,7 +71,7 @@ Export the model to ONNX
 .. code-block:: bash
 
   ./pruned_transducer_stateless7_streaming/export-onnx.py \
-    --bpe-model $repo/data/lang_bpe_500/bpe.model \
+    --tokens $repo/data/lang_bpe_500/tokens.txt \
     --use-averaged-model 0 \
     --epoch 99 \
     --avg 1 \

@@ -33,7 +33,7 @@ parser.add_argument(
     "-ngram-order",
     type=int,
     default=4,
-    choices=[2, 3, 4, 5, 6, 7],
+    choices=[1, 2, 3, 4, 5, 6, 7],
     help="Order of n-gram",
 )
 parser.add_argument("-text", type=str, default=None, help="Path to the corpus file")
@@ -105,7 +105,7 @@ class NgramCounts:
     # do as follows: self.counts[3][[5,6,7]][8] += 1.0 where the [3] indexes an
     # array, the [[5,6,7]] indexes a dict, and the [8] indexes a dict.
     def __init__(self, ngram_order, bos_symbol="<s>", eos_symbol="</s>"):
-        assert ngram_order >= 2
+        assert ngram_order >= 1
 
         self.ngram_order = ngram_order
         self.bos_symbol = bos_symbol
@@ -169,7 +169,10 @@ class NgramCounts:
         with open(filename, encoding=default_encoding) as fp:
             for line in fp:
                 line = line.strip(strip_chars)
-                self.add_raw_counts_from_line(line)
+                if self.ngram_order == 1:
+                    self.add_raw_counts_from_line(line.split()[0])
+                else:
+                    self.add_raw_counts_from_line(line)
                 lines_processed += 1
         if lines_processed == 0 or args.verbose > 0:
             print(
@@ -225,7 +228,6 @@ class NgramCounts:
         for n in range(0, self.ngram_order - 1):
             this_order_counts = self.counts[n]
             for hist, counts_for_hist in this_order_counts.items():
-
                 n_star_star = 0
                 for w in counts_for_hist.word_to_count.keys():
                     n_star_star += len(counts_for_hist.word_to_context[w])
@@ -424,7 +426,6 @@ class NgramCounts:
 
 
 if __name__ == "__main__":
-
     ngram_counts = NgramCounts(args.ngram_order)
 
     if args.text is None:

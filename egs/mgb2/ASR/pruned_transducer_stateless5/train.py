@@ -506,9 +506,6 @@ def load_checkpoint_if_available(
         if "cur_epoch" in saved_params:
             params["start_epoch"] = saved_params["cur_epoch"]
 
-        if "cur_batch_idx" in saved_params:
-            params["cur_batch_idx"] = saved_params["cur_batch_idx"]
-
     return saved_params
 
 
@@ -748,15 +745,8 @@ def train_one_epoch(
 
     tot_loss = MetricsTracker()
 
-    cur_batch_idx = params.get("cur_batch_idx", 0)
-
     for batch_idx, batch in enumerate(train_dl):
-
         if batch["inputs"].shape[0] == len(batch["supervisions"]["text"]):
-            if batch_idx < cur_batch_idx:
-                continue
-            cur_batch_idx = batch_idx
-
             params.batch_idx_train += 1
             batch_size = len(batch["supervisions"]["text"])
 
@@ -805,7 +795,6 @@ def train_one_epoch(
                 params.batch_idx_train > 0
                 and params.batch_idx_train % params.save_every_n == 0
             ):
-                params.cur_batch_idx = batch_idx
                 save_checkpoint_with_global_batch_idx(
                     out_dir=params.exp_dir,
                     global_batch_idx=params.batch_idx_train,
@@ -818,7 +807,6 @@ def train_one_epoch(
                     scaler=scaler,
                     rank=rank,
                 )
-                del params.cur_batch_idx
                 remove_checkpoints(
                     out_dir=params.exp_dir,
                     topk=params.keep_last_k,
@@ -977,7 +965,7 @@ def run(rank, world_size, args):
 
     if params.print_diagnostics:
         opts = diagnostics.TensorDiagnosticOptions(
-            2**22
+            512
         )  # allow 4 megabytes per sub-module
         diagnostic = diagnostics.attach_diagnostics(model, opts)
 
@@ -1030,7 +1018,6 @@ def run(rank, world_size, args):
         scaler.load_state_dict(checkpoints["grad_scaler"])
 
     for epoch in range(params.start_epoch, params.num_epochs + 1):
-
         scheduler.step_epoch(epoch - 1)
         fix_random_seed(params.seed + epoch - 1)
         train_dl.sampler.set_epoch(epoch - 1)
@@ -1129,7 +1116,6 @@ def scan_pessimistic_batches_for_oom(
             # (i.e. are not remembered by the decaying-average in adam), because
             # we want to avoid these params being subject to shrinkage in adam.
             with torch.cuda.amp.autocast(enabled=params.use_fp16):
-
                 loss, _, _ = compute_loss(
                     params=params,
                     model=model,

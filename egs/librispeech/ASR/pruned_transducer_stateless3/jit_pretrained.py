@@ -285,6 +285,7 @@ def main():
     opts.frame_opts.snip_edges = False
     opts.frame_opts.samp_freq = args.sample_rate
     opts.mel_opts.num_bins = 80
+    opts.mel_opts.high_freq = -400
 
     fbank = kaldifeat.Fbank(opts)
 

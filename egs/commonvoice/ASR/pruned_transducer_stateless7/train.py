@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-# Copyright    2021-2022  Xiaomi Corp.        (authors: Fangjun Kuang,
+# Copyright    2021-2024  Xiaomi Corp.        (authors: Fangjun Kuang,
 #                                                       Wei Kang,
-#                                                       Mingshuang Luo,)
-#                                                       Zengwei Yao)
+#                                                       Mingshuang Luo,
+#                                                       Zengwei Yao,
+#                                                       Zengrui Jin,)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -79,6 +80,7 @@ from icefall.checkpoint import (
 )
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
+from icefall.err import raise_grad_scale_is_too_small_error
 from icefall.hooks import register_inf_check_hooks
 from icefall.utils import (
     AttributeDict,
@@ -248,7 +250,29 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--base-lr", type=float, default=0.05, help="The base learning rate."
+        "--use-validated-set",
+        type=str2bool,
+        default=False,
+        help="""Use the validated set for training.
+        This is useful when you want to use more data for training,
+        but not recommended for research purposes.
+        """,
+    )
+
+    parser.add_argument(
+        "--use-invalidated-set",
+        type=str2bool,
+        default=False,
+        help="""Use the invalidated set for training.
+        In case you want to take the risk and utilize more data for training.
+        """,
+    )
+
+    parser.add_argument(
+        "--base-lr",
+        type=float,
+        default=0.05,
+        help="The base learning rate.",
     )
 
     parser.add_argument(
@@ -567,9 +591,6 @@ def load_checkpoint_if_available(
         if "cur_epoch" in saved_params:
             params["start_epoch"] = saved_params["cur_epoch"]
 
-        if "cur_batch_idx" in saved_params:
-            params["cur_batch_idx"] = saved_params["cur_batch_idx"]
-
     return saved_params
 
 
@@ -799,13 +820,7 @@ def train_one_epoch(
 
     tot_loss = MetricsTracker()
 
-    cur_batch_idx = params.get("cur_batch_idx", 0)
-
     for batch_idx, batch in enumerate(train_dl):
-        if batch_idx < cur_batch_idx:
-            continue
-        cur_batch_idx = batch_idx
-
         params.batch_idx_train += 1
         batch_size = len(batch["supervisions"]["text"])
 
@@ -852,7 +867,6 @@ def train_one_epoch(
             params.batch_idx_train > 0
             and params.batch_idx_train % params.save_every_n == 0
         ):
-            params.cur_batch_idx = batch_idx
             save_checkpoint_with_global_batch_idx(
                 out_dir=params.exp_dir,
                 global_batch_idx=params.batch_idx_train,
@@ -865,7 +879,6 @@ def train_one_epoch(
                 scaler=scaler,
                 rank=rank,
             )
-            del params.cur_batch_idx
             remove_checkpoints(
                 out_dir=params.exp_dir,
                 topk=params.keep_last_k,
@@ -882,9 +895,7 @@ def train_one_epoch(
             if cur_grad_scale < 0.01:
                 logging.warning(f"Grad scale is small: {cur_grad_scale}")
             if cur_grad_scale < 1.0e-05:
-                raise RuntimeError(
-                    f"grad_scale is too small, exiting: {cur_grad_scale}"
-                )
+                raise_grad_scale_is_too_small_error(cur_grad_scale)
 
         if batch_idx % params.log_interval == 0:
             cur_lr = scheduler.get_last_lr()[0]
@@ -1030,7 +1041,7 @@ def run(rank, world_size, args):
 
     if params.print_diagnostics:
         opts = diagnostics.TensorDiagnosticOptions(
-            2**22
+            512
         )  # allow 4 megabytes per sub-module
         diagnostic = diagnostics.attach_diagnostics(model, opts)
 
@@ -1039,7 +1050,13 @@ def run(rank, world_size, args):
 
     commonvoice = CommonVoiceAsrDataModule(args)
 
-    train_cuts = commonvoice.train_cuts()
+    if args.use_validated_set:
+        train_cuts = commonvoice.validated_cuts()
+    else:
+        train_cuts = commonvoice.train_cuts()
+
+    if args.use_invalidated_set:
+        train_cuts += commonvoice.invalidated_cuts()
 
     def remove_short_and_long_utt(c: Cut):
         # Keep only utterances with duration between 1 second and 20 seconds

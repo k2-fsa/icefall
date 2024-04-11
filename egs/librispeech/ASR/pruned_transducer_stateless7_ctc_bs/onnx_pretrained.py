@@ -52,7 +52,7 @@ import onnxruntime as ort
 import sentencepiece as spm
 import torch
 import torchaudio
-from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence
+from torch.nn.utils.rnn import pack_padded_sequence, pad_sequence
 
 from icefall.utils import make_pad_mask
 
@@ -326,41 +326,49 @@ def main():
     encoder = ort.InferenceSession(
         args.encoder_model_filename,
         sess_options=session_opts,
+        providers=["CPUExecutionProvider"],
     )
 
     decoder = ort.InferenceSession(
         args.decoder_model_filename,
         sess_options=session_opts,
+        providers=["CPUExecutionProvider"],
     )
 
     joiner = ort.InferenceSession(
         args.joiner_model_filename,
         sess_options=session_opts,
+        providers=["CPUExecutionProvider"],
     )
 
     joiner_encoder_proj = ort.InferenceSession(
         args.joiner_encoder_proj_model_filename,
         sess_options=session_opts,
+        providers=["CPUExecutionProvider"],
     )
 
     joiner_decoder_proj = ort.InferenceSession(
         args.joiner_decoder_proj_model_filename,
         sess_options=session_opts,
+        providers=["CPUExecutionProvider"],
     )
 
     lconv = ort.InferenceSession(
         args.lconv_filename,
         sess_options=session_opts,
+        providers=["CPUExecutionProvider"],
     )
 
     frame_reducer = ort.InferenceSession(
         args.frame_reducer_filename,
         sess_options=session_opts,
+        providers=["CPUExecutionProvider"],
     )
 
     ctc_output = ort.InferenceSession(
         args.ctc_output_filename,
         sess_options=session_opts,
+        providers=["CPUExecutionProvider"],
     )
 
     sp = spm.SentencePieceProcessor()
@@ -373,6 +381,7 @@ def main():
     opts.frame_opts.snip_edges = False
     opts.frame_opts.samp_freq = args.sample_rate
     opts.mel_opts.num_bins = 80
+    opts.mel_opts.high_freq = -400
 
     fbank = kaldifeat.Fbank(opts)
 

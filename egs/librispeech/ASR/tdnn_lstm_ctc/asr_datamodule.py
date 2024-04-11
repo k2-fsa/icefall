@@ -1,4 +1,4 @@
-# Copyright      2021  Piotr Żelasko
+#  Copyright      2021  Piotr Żelasko
 # Copyright      2022  Xiaomi Corporation     (Author: Mingshuang Luo)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
@@ -31,7 +31,7 @@ from lhotse.dataset import (  # noqa F401 for PrecomputedFeatures
     DynamicBucketingSampler,
     K2SpeechRecognitionDataset,
     PrecomputedFeatures,
-    SingleCutSampler,
+    SimpleCutSampler,
     SpecAugment,
 )
 from lhotse.dataset.input_strategies import (  # noqa F401 For AudioSamples
@@ -86,8 +86,16 @@ class LibriSpeechAsrDataModule:
             "--full-libri",
             type=str2bool,
             default=True,
-            help="When enabled, use 960h LibriSpeech. Otherwise, use 100h subset.",
+            help="""Used only when --mini-libri is False.When enabled,
+            use 960h LibriSpeech. Otherwise, use 100h subset.""",
         )
+        group.add_argument(
+            "--mini-libri",
+            type=str2bool,
+            default=False,
+            help="True for mini librispeech",
+        )
+
         group.add_argument(
             "--manifest-dir",
             type=Path,
@@ -225,7 +233,7 @@ class LibriSpeechAsrDataModule:
             logging.info("About to get Musan cuts")
             cuts_musan = load_manifest(self.args.manifest_dir / "musan_cuts.jsonl.gz")
             transforms.append(
-                CutMix(cuts=cuts_musan, prob=0.5, snr=(10, 20), preserve_id=True)
+                CutMix(cuts=cuts_musan, p=0.5, snr=(10, 20), preserve_id=True)
             )
         else:
             logging.info("Disable MUSAN")
@@ -303,11 +311,13 @@ class LibriSpeechAsrDataModule:
                 max_duration=self.args.max_duration,
                 shuffle=self.args.shuffle,
                 num_buckets=self.args.num_buckets,
+                buffer_size=self.args.num_buckets * 2000,
+                shuffle_buffer_size=self.args.num_buckets * 5000,
                 drop_last=self.args.drop_last,
             )
         else:
-            logging.info("Using SingleCutSampler.")
-            train_sampler = SingleCutSampler(
+            logging.info("Using SimpleCutSampler.")
+            train_sampler = SimpleCutSampler(
                 cuts_train,
                 max_duration=self.args.max_duration,
                 shuffle=self.args.shuffle,
@@ -394,6 +404,13 @@ class LibriSpeechAsrDataModule:
         return test_dl
 
     @lru_cache()
+    def train_clean_5_cuts(self) -> CutSet:
+        logging.info("mini_librispeech: About to get train-clean-5 cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "librispeech_cuts_train-clean-5.jsonl.gz"
+        )
+
+    @lru_cache()
     def train_clean_100_cuts(self) -> CutSet:
         logging.info("About to get train-clean-100 cuts")
         return load_manifest_lazy(
@@ -425,6 +442,13 @@ class LibriSpeechAsrDataModule:
         )
 
     @lru_cache()
+    def dev_clean_2_cuts(self) -> CutSet:
+        logging.info("mini_librispeech: About to get dev-clean-2 cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "librispeech_cuts_dev-clean-2.jsonl.gz"
+        )
+
+    @lru_cache()
     def dev_clean_cuts(self) -> CutSet:
         logging.info("About to get dev-clean cuts")
         return load_manifest_lazy(
@@ -451,3 +475,18 @@ class LibriSpeechAsrDataModule:
         return load_manifest_lazy(
             self.args.manifest_dir / "librispeech_cuts_test-other.jsonl.gz"
         )
+
+    @lru_cache()
+    def gigaspeech_subset_small_cuts(self) -> CutSet:
+        logging.info("About to get Gigaspeech subset-S cuts")
+        return load_manifest_lazy(self.args.manifest_dir / "cuts_S.jsonl.gz")
+
+    @lru_cache()
+    def gigaspeech_dev_cuts(self) -> CutSet:
+        logging.info("About to get Gigaspeech dev cuts")
+        return load_manifest_lazy(self.args.manifest_dir / "cuts_DEV.jsonl.gz")
+
+    @lru_cache()
+    def gigaspeech_test_cuts(self) -> CutSet:
+        logging.info("About to get Gigaspeech test cuts")
+        return load_manifest_lazy(self.args.manifest_dir / "cuts_TEST.jsonl.gz")

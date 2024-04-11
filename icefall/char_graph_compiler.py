@@ -54,7 +54,7 @@ class CharCtcTrainingGraphCompiler(object):
         self.sos_id = self.token_table[sos_token]
         self.eos_id = self.token_table[eos_token]
 
-    def texts_to_ids(self, texts: List[str]) -> List[List[int]]:
+    def texts_to_ids(self, texts: List[str], sep: str = "") -> List[List[int]]:
         """Convert a list of texts to a list-of-list of token IDs.
 
         Args:
@@ -63,36 +63,21 @@ class CharCtcTrainingGraphCompiler(object):
             An example containing two strings is given below:
 
                 ['你好中国', '北京欢迎您']
+          sep:
+            The separator of the items in one sequence, mainly no separator for
+            Chinese (one character a token), "/" for Chinese characters plus BPE
+            token and pinyin tokens.
         Returns:
           Return a list-of-list of token IDs.
         """
+        assert sep in ("", "/"), sep
         ids: List[List[int]] = []
         whitespace = re.compile(r"([ \t])")
         for text in texts:
-            text = re.sub(whitespace, "", text)
-            sub_ids = [
-                self.token_table[txt] if txt in self.token_table else self.oov_id
-                for txt in text
-            ]
-            ids.append(sub_ids)
-        return ids
-
-    def texts_to_ids_with_bpe(self, texts: List[str]) -> List[List[int]]:
-        """Convert a list of texts (which include chars and bpes)
-           to a list-of-list of token IDs.
-
-        Args:
-          texts:
-            It is a list of strings.
-            An example containing two strings is given below:
-
-                [['你', '好', '▁C', 'hina'], ['北','京', '▁', 'welcome', '您']
-        Returns:
-          Return a list-of-list of token IDs.
-        """
-        ids: List[List[int]] = []
-        for text in texts:
-            text = text.split("/")
+            if sep == "":
+                text = re.sub(whitespace, "", text)
+            else:
+                text = text.split(sep)
             sub_ids = [
                 self.token_table[txt] if txt in self.token_table else self.oov_id
                 for txt in text

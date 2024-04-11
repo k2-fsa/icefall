@@ -238,6 +238,7 @@ def main():
     opts.frame_opts.snip_edges = False
     opts.frame_opts.samp_freq = params.sample_rate
     opts.mel_opts.num_bins = params.feature_dim
+    opts.mel_opts.high_freq = -400
 
     fbank = kaldifeat.Fbank(opts)
 
@@ -320,7 +321,7 @@ def main():
 
     s = "\n"
     for filename, hyp in zip(params.sound_files, hyps):
-        words = " ".join(hyp)
+        words = "".join(hyp)
         s += f"{filename}:\n{words}\n\n"
     logging.info(s)
 

@@ -5,16 +5,16 @@
 import argparse
 import logging
 from pathlib import Path
+from typing import Dict
 
 import onnx
 import torch
 from model import RnnLmModel
 from onnxruntime.quantization import QuantType, quantize_dynamic
+from train import get_params
 
 from icefall.checkpoint import average_checkpoints, find_checkpoints, load_checkpoint
 from icefall.utils import AttributeDict, str2bool
-from typing import Dict
-from train import get_params
 
 
 def add_meta_data(filename: str, meta_data: Dict[str, str]):
@@ -235,7 +235,6 @@ def export_with_state(
     embedding_dim = model.embedding_dim
 
     x = torch.randint(low=1, high=params.vocab_size, size=(N, L), dtype=torch.int64)
-    y = torch.randint(low=1, high=params.vocab_size, size=(N, L), dtype=torch.int64)
     h0 = torch.zeros(num_layers, N, hidden_size)
     c0 = torch.zeros(num_layers, N, hidden_size)
 
@@ -252,18 +251,17 @@ def export_with_state(
 
     torch.onnx.export(
         model,
-        (x, y, h0, c0),
+        (x, h0, c0),
         filename,
         verbose=False,
         opset_version=opset_version,
-        input_names=["x", "y", "h0", "c0"],
-        output_names=["nll", "next_h0", "next_c0"],
+        input_names=["x", "h0", "c0"],
+        output_names=["log_softmax", "next_h0", "next_c0"],
         dynamic_axes={
             "x": {0: "N", 1: "L"},
-            "y": {0: "N", 1: "L"},
             "h0": {1: "N"},
             "c0": {1: "N"},
-            "nll": {0: "N"},
+            "log_softmax": {0: "N"},
             "next_h0": {1: "N"},
             "next_c0": {1: "N"},
         },
@@ -372,7 +370,7 @@ def main():
 
     # now for streaming export
     saved_forward = model.__class__.forward
-    model.__class__.forward = model.__class__.streaming_forward
+    model.__class__.forward = model.__class__.score_token_onnx
     streaming_filename = params.exp_dir / f"with-state-{suffix}.onnx"
     export_with_state(
         model=model,

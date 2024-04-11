@@ -214,7 +214,7 @@ class AmiAsrDataModule:
             logging.info("Enable MUSAN")
             cuts_musan = load_manifest(self.args.manifest_dir / "musan_cuts.jsonl.gz")
             transforms.append(
-                CutMix(cuts=cuts_musan, prob=0.5, snr=(10, 20), preserve_id=True)
+                CutMix(cuts=cuts_musan, p=0.5, snr=(10, 20), preserve_id=True)
             )
         else:
             logging.info("Disable MUSAN")
@@ -269,6 +269,8 @@ class AmiAsrDataModule:
             max_cuts=self.args.max_cuts,
             shuffle=False,
             num_buckets=self.args.num_buckets,
+            buffer_size=self.args.num_buckets * 2000,
+            shuffle_buffer_size=self.args.num_buckets * 5000,
             drop_last=True,
         )
         logging.info("About to create train dataloader")

@@ -1,5 +1,20 @@
 # icefall dockerfile
 
+## Download from dockerhub
+
+You can find pre-built docker image for icefall at the following address:
+
+  <https://hub.docker.com/r/k2fsa/icefall/tags>
+
+Example usage:
+
+```bash
+docker run --gpus all --rm -it  k2fsa/icefall:torch1.13.0-cuda11.6 /bin/bash
+```
+
+
+## Build from dockerfile
+
 2 sets of configuration are provided - (a) Ubuntu18.04-pytorch1.12.1-cuda11.3-cudnn8, and (b) Ubuntu18.04-pytorch1.7.1-cuda11.0-cudnn8.
 
 If your NVIDIA driver supports CUDA Version: 11.3, please go for case (a) Ubuntu18.04-pytorch1.12.1-cuda11.3-cudnn8.

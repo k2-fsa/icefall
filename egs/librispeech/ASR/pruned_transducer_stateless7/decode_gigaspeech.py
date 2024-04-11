@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 #
-# Copyright 2021-2022 Xiaomi Corporation (Author: Fangjun Kuang,
+# Copyright 2021-2023 Xiaomi Corporation (Author: Fangjun Kuang,
 #                                                 Zengwei Yao,
-#                                                 Xiaoyu Yang)
+#                                                 Xiaoyu Yang,
+#                                                 Yifan Yang,)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -20,36 +21,36 @@
 """
 Usage:
 (1) greedy search
-./pruned_transducer_stateless7/decode.py \
+./pruned_transducer_stateless7/decode_gigaspeech.py \
     --epoch 28 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7/exp \
+    --exp-dir ./pruned_transducer_stateless7/exp_giga_finetune \
     --max-duration 600 \
     --decoding-method greedy_search
 
 (2) beam search (not recommended)
-./pruned_transducer_stateless7/decode.py \
+./pruned_transducer_stateless7/decode_gigaspeech.py \
     --epoch 28 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7/exp \
+    --exp-dir ./pruned_transducer_stateless7/exp_giga_finetune \
     --max-duration 600 \
     --decoding-method beam_search \
     --beam-size 4
 
 (3) modified beam search
-./pruned_transducer_stateless7/decode.py \
+./pruned_transducer_stateless7/decode_gigaspeech.py \
     --epoch 28 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7/exp \
+    --exp-dir ./pruned_transducer_stateless7/exp_giga_finetune \
     --max-duration 600 \
     --decoding-method modified_beam_search \
     --beam-size 4
 
 (4) fast beam search (one best)
-./pruned_transducer_stateless7/decode.py \
+./pruned_transducer_stateless7/decode_gigaspeech.py \
     --epoch 28 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7/exp \
+    --exp-dir ./pruned_transducer_stateless7/exp_giga_finetune \
     --max-duration 600 \
     --decoding-method fast_beam_search \
     --beam 20.0 \
@@ -57,10 +58,10 @@ Usage:
     --max-states 64
 
 (5) fast beam search (nbest)
-./pruned_transducer_stateless7/decode.py \
+./pruned_transducer_stateless7/decode_gigaspeech.py \
     --epoch 28 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7/exp \
+    --exp-dir ./pruned_transducer_stateless7/exp_giga_finetune \
     --max-duration 600 \
     --decoding-method fast_beam_search_nbest \
     --beam 20.0 \
@@ -70,10 +71,10 @@ Usage:
     --nbest-scale 0.5
 
 (6) fast beam search (nbest oracle WER)
-./pruned_transducer_stateless7/decode.py \
+./pruned_transducer_stateless7/decode_gigaspeech.py \
     --epoch 28 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7/exp \
+    --exp-dir ./pruned_transducer_stateless7/exp_giga_finetune \
     --max-duration 600 \
     --decoding-method fast_beam_search_nbest_oracle \
     --beam 20.0 \
@@ -83,10 +84,10 @@ Usage:
     --nbest-scale 0.5
 
 (7) fast beam search (with LG)
-./pruned_transducer_stateless7/decode.py \
+./pruned_transducer_stateless7/decode_gigaspeech.py \
     --epoch 28 \
     --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7/exp \
+    --exp-dir ./pruned_transducer_stateless7/exp_giga_finetune \
     --max-duration 600 \
     --decoding-method fast_beam_search_nbest_LG \
     --beam 20.0 \
@@ -106,9 +107,6 @@ import k2
 import sentencepiece as spm
 import torch
 import torch.nn as nn
-
-# from asr_datamodule import LibriSpeechAsrDataModule
-from gigaspeech import GigaSpeechAsrDataModule
 from beam_search import (
     beam_search,
     fast_beam_search_nbest,
@@ -119,6 +117,9 @@ from beam_search import (
     greedy_search_batch,
     modified_beam_search,
 )
+
+# from asr_datamodule import LibriSpeechAsrDataModule
+from gigaspeech import GigaSpeechAsrDataModule
 from gigaspeech_scoring import asr_text_post_processing
 from train import add_model_arguments, get_params, get_transducer_model
 
@@ -187,7 +188,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless7/exp",
+        default="pruned_transducer_stateless7/exp_giga_finetune",
         help="The experiment dir",
     )
 

@@ -78,7 +78,7 @@ def get_parser():
         type=int,
         default=28,
         help="""It specifies the checkpoint to use for decoding.
-        Note: Epoch counts from 0.
+        Note: Epoch counts from 1.
         You can specify --avg to use more checkpoints for model averaging.""",
     )
 
@@ -115,7 +115,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless2/exp",
+        default="pruned_transducer_stateless7_streaming_multi/exp",
         help="The experiment dir",
     )
 
@@ -345,7 +345,12 @@ def decode_dataset(
         assert audio.dtype == np.float32, audio.dtype
 
         # The trained model is using normalized samples
-        assert audio.max() <= 1, "Should be normalized to [-1, 1])"
+        # - this is to avoid sending [-32k,+32k] signal in...
+        # - some lhotse AudioTransform classes can make the signal
+        #   be out of range [-1, 1], hence the tolerance 10
+        assert (
+            np.abs(audio).max() <= 10
+        ), "Should be normalized to [-1, 1], 10 for tolerance..."
 
         samples = torch.from_numpy(audio).squeeze(0)
 
