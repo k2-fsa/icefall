@@ -966,7 +966,10 @@ def train_one_epoch(
             scaler.step(optimizer)
             scaler.update()
             optimizer.zero_grad()
-        except:  # noqa
+        except Exception as e:
+            logging.info(
+                f"Caught exception: {e}."
+            )
             save_bad_model()
             display_and_save_batch(batch, params=params, sp=sp)
             raise
