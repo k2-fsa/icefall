@@ -299,6 +299,15 @@ if [ $stage -le 12 ] && [ $stop_stage -ge 12 ]; then
     log "Compute KeSpeech fbank for test/dev"
     ./local/compute_fbank_kespeech_dev_test.py
 
+    if [ ! -f data/fbank/kespeech/kespeech-asr_cuts_train_phase1.jsonl.gz ]; then
+      pieces=$(find data/fbank/kespeech/train_phase1_split_${num_splits} -name "kespeech-asr_cuts_train_phase1.*.jsonl.gz")
+      lhotse combine $pieces data/fbank/kespeech/kespeech-asr_cuts_train_phase1.jsonl.gz
+    fi
+    if [ ! -f data/fbank/kespeech/kespeech-asr_cuts_train_phase2.jsonl.gz ]; then
+      pieces=$(find data/fbank/kespeech/train_phase2_split_${num_splits} -name "kespeech-asr_cuts_train_phase2.*.jsonl.gz")
+      lhotse combine $pieces data/fbank/kespeech/kespeech-asr_cuts_train_phase2.jsonl.gz
+    fi
+
     touch data/fbank/.kespeech.done
   fi
 fi
