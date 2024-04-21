@@ -899,15 +899,6 @@ def run(rank, world_size, args):
     if torch.cuda.is_available():
         device = torch.device("cuda", rank)
 
-    if params.show_alignment:
-        HLG = k2.Fsa.from_dict(torch.load(f"{params.lang_dir}/HLG.pt", map_location="cpu"))
-        HLG = HLG.to(device)
-        assert HLG.requires_grad is False
-        if not hasattr(HLG, "lm_scores"):
-            HLG.lm_scores = HLG.scores.clone()
-        params.HLG = HLG
-
-
     lexicon = Lexicon(params.lang_dir)
     graph_compiler = OtcPhoneTrainingGraphCompiler(
         lexicon,
@@ -1117,7 +1108,6 @@ def main():
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
     args.otc_token = f"{args.otc_token}"
-
 
     world_size = args.world_size
     assert world_size >= 1
