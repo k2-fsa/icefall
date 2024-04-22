@@ -67,7 +67,6 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
 
 from icefall import diagnostics
-from icefall.lexicon import Lexicon
 from icefall.checkpoint import load_checkpoint, remove_checkpoints
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 from icefall.checkpoint import (
@@ -77,6 +76,7 @@ from icefall.checkpoint import (
 from icefall.decode import one_best_decoding
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
+from icefall.lexicon import Lexicon
 from icefall.otc_phone_graph_compiler import OtcPhoneTrainingGraphCompiler
 from icefall.utils import (
     AttributeDict,
