@@ -22,8 +22,8 @@ from typing import List, Union
 import k2
 import torch
 
-from icefall.utils import str2bool
 from icefall.lexicon import Lexicon
+from icefall.utils import str2bool
 
 
 class OtcPhoneTrainingGraphCompiler(object):
