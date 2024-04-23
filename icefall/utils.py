@@ -110,6 +110,13 @@ def str2bool(v):
         raise argparse.ArgumentTypeError("Boolean value expected.")
 
 
+def clear_log_handlers():
+    logger = logging.getLogger()
+    handlers = logger.handlers[:]
+    for handler in handlers:
+        logger.removeHandler(handler)
+
+
 def setup_logger(
     log_filename: Pathlike,
     log_level: str = "info",
@@ -126,6 +133,8 @@ def setup_logger(
       use_console:
         True to also print logs to console.
     """
+    clear_log_handlers()
+
     now = datetime.now()
     date_time = now.strftime("%Y-%m-%d-%H-%M-%S")
     if dist.is_available() and dist.is_initialized():
