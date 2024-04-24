@@ -1,11 +1,12 @@
+from typing import Dict, Iterable, Optional
+
+import numpy as np
 import torch
 import torch.nn.functional as F
 import whisper
-from torch import Tensor
-from torch import nn
-from typing import Dict, Iterable, Optional
-from whisper.model import ResidualAttentionBlock, LayerNorm
-import numpy as np
+from torch import Tensor, nn
+from whisper.model import LayerNorm, ResidualAttentionBlock
+
 
 def forward(self, x: Tensor, xa: Tensor, kv_cache: Optional[dict] = None):
     """
@@ -19,10 +20,7 @@ def forward(self, x: Tensor, xa: Tensor, kv_cache: Optional[dict] = None):
         self.token_embedding(x)
         + self.positional_embedding[offset : offset + x.shape[-1]]
     )
-    x = (
-        x
-        + self.positional_embedding[offset : offset + x.shape[1]]
-    )
+    x = x + self.positional_embedding[offset : offset + x.shape[1]]
     x = x.to(xa.dtype)
 
     # for block in self.blocks:
@@ -38,6 +36,7 @@ def forward(self, x: Tensor, xa: Tensor, kv_cache: Optional[dict] = None):
     ).float()
 
     return logits
+
 
 def replace_whisper_decoder_forward():
     """

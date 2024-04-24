@@ -25,7 +25,7 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
     log "You need to run the prepare.sh first."
     exit -1
   fi
-  
+
   python ./zipformer/train.py \
       --world-size 4 \
       --exp-dir zipformer/exp \
@@ -105,11 +105,11 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
     --encoder-dim 128,128,128,128,128,128 \
     --encoder-unmasked-dim 128,128,128,128,128,128 \
     --causal 1
-fi 
+fi
 
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   log "Stage 2: Finetune the model"
-  
+
   # The following configuration of lr schedule should work well
   # You may also tune the following parameters to adjust learning rate schedule
   base_lr=0.0005
@@ -201,4 +201,4 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
     --encoder-dim 128,128,128,128,128,128 \
     --encoder-unmasked-dim 128,128,128,128,128,128 \
     --causal 1
-fi 
+fi

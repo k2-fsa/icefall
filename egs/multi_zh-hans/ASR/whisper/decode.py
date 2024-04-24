@@ -57,8 +57,8 @@ from lhotse.cut import Cut
 from multi_dataset import MultiDataset
 from tn.chinese.normalizer import Normalizer
 from whisper.normalizers import BasicTextNormalizer
-from whisper_encoder_forward_monkey_patch import replace_whisper_encoder_forward
 from whisper_decoder_forward_monkey_patch import replace_whisper_decoder_forward
+from whisper_encoder_forward_monkey_patch import replace_whisper_encoder_forward
 from zhconv import convert
 
 from icefall.checkpoint import average_checkpoints_with_averaged_model, load_checkpoint
@@ -297,6 +297,7 @@ def decode_one_batch(
     print(hyps)
     return {"beam-search": hyps}
 
+
 def decode_dataset(
     dl: torch.utils.data.DataLoader,
     params: AttributeDict,
@@ -314,6 +315,7 @@ def decode_dataset(
     Returns:
         Return a dict, whose key may be "beam-search".
     """
+
     def normalize_text_alimeeting(text: str, normalize: str = "m2met") -> str:
         """
         Text normalization similar to M2MeT challenge baseline.
@@ -323,6 +325,7 @@ def decode_dataset(
             return text
         elif normalize == "m2met":
             import re
+
             text = text.replace(" ", "")
             text = text.replace("<sil>", "")
             text = text.replace("<%>", "")
@@ -348,6 +351,7 @@ def decode_dataset(
             text = text.replace("、", "")
             text = text.replace("？", "")
             return text
+
     results = []
 
     num_cuts = 0

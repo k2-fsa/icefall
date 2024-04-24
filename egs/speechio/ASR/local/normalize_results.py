@@ -29,9 +29,10 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import kaldialign
+from speechio_norm import TextNorm
 
 from icefall.utils import store_transcripts, write_error_stats
-from speechio_norm import TextNorm
+
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -139,6 +140,7 @@ def get_filenames(
         whisper_filename = f"{whisper_log_dir}/recogs-{partition}-{whisper_suffix}.txt"
         results.append(whisper_filename)
     return results
+
 
 def main():
     parser = get_parser()

@@ -38,13 +38,13 @@ torchrun --nproc_per_node 8 ./whisper/train.py \
 import argparse
 import copy
 import logging
+import os
 import random
 import warnings
 from pathlib import Path
 from shutil import copyfile
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-import os
 import deepspeed
 import k2
 import optim

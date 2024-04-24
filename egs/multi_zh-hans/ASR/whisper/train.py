@@ -65,8 +65,8 @@ from torch.cuda.amp import GradScaler
 from torch.nn.functional import pad as pad_tensor
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
-from whisper_encoder_forward_monkey_patch import replace_whisper_encoder_forward
 from whisper_decoder_forward_monkey_patch import replace_whisper_decoder_forward
+from whisper_encoder_forward_monkey_patch import replace_whisper_encoder_forward
 
 from icefall import diagnostics
 from icefall.checkpoint import load_checkpoint, remove_checkpoints
@@ -458,6 +458,7 @@ def compute_loss(
             return text
         elif normalize == "m2met":
             import re
+
             text = text.replace(" ", "")
             text = text.replace("<sil>", "")
             text = text.replace("<%>", "")

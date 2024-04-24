@@ -14,9 +14,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import logging
 import argparse
+import logging
+
 from lhotse import CutSet, load_manifest_lazy
+
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -49,6 +51,7 @@ def get_parser():
 
     return parser
 
+
 def load_fixed_text(fixed_text_path):
     """
     fixed text format
@@ -57,32 +60,38 @@ def load_fixed_text(fixed_text_path):
     load into a dict
     """
     fixed_text_dict = {}
-    with open(fixed_text_path, 'r') as f:
+    with open(fixed_text_path, "r") as f:
         for line in f:
-            cut_id, text = line.strip().split(' ', 1)
+            cut_id, text = line.strip().split(" ", 1)
             fixed_text_dict[cut_id] = text
     return fixed_text_dict
+
 
 def fix_manifest(manifest, fixed_text_dict, fixed_manifest_path):
     with CutSet.open_writer(fixed_manifest_path) as manifest_writer:
         fixed_item = 0
         for i, cut in enumerate(manifest):
             if i % 10000 == 0:
-                logging.info(f'Processing cut {i}, fixed {fixed_item}')
+                logging.info(f"Processing cut {i}, fixed {fixed_item}")
             cut_id_orgin = cut.id
-            if cut_id_orgin.endswith('_sp0.9'):
+            if cut_id_orgin.endswith("_sp0.9"):
                 cut_id = cut_id_orgin[:-6]
-            elif cut_id_orgin.endswith('_sp1.1'):
+            elif cut_id_orgin.endswith("_sp1.1"):
                 cut_id = cut_id_orgin[:-6]
             else:
                 cut_id = cut_id_orgin
             if cut_id in fixed_text_dict:
-                assert len(cut.supervisions) == 1, f'cut {cut_id} has {len(cut.supervisions)} supervisions'
+                assert (
+                    len(cut.supervisions) == 1
+                ), f"cut {cut_id} has {len(cut.supervisions)} supervisions"
                 if cut.supervisions[0].text != fixed_text_dict[cut_id]:
-                    logging.info(f'Fixed text for cut {cut_id_orgin} from {cut.supervisions[0].text} to {fixed_text_dict[cut_id]}')
+                    logging.info(
+                        f"Fixed text for cut {cut_id_orgin} from {cut.supervisions[0].text} to {fixed_text_dict[cut_id]}"
+                    )
                     cut.supervisions[0].text = fixed_text_dict[cut_id]
                 fixed_item += 1
-                manifest_writer.write(cut)     
+                manifest_writer.write(cut)
+
 
 def main():
     formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
@@ -92,23 +101,26 @@ def main():
     args = parser.parse_args()
     logging.info(vars(args))
 
-    fixed_text_path = args.manifest_dir + 'text.fix'
+    fixed_text_path = args.manifest_dir + "text.fix"
     fixed_text_dict = load_fixed_text(fixed_text_path)
-    logging.info(f'Loaded {len(fixed_text_dict)} fixed texts')
+    logging.info(f"Loaded {len(fixed_text_dict)} fixed texts")
 
-    dev_manifest_path = args.manifest_dir + 'cuts_DEV.jsonl.gz'
-    fixed_dev_manifest_path = args.manifest_dir + 'cuts_DEV_fixed.jsonl.gz'
-    logging.info(f'Loading dev manifest from {dev_manifest_path}')
+    dev_manifest_path = args.manifest_dir + "cuts_DEV.jsonl.gz"
+    fixed_dev_manifest_path = args.manifest_dir + "cuts_DEV_fixed.jsonl.gz"
+    logging.info(f"Loading dev manifest from {dev_manifest_path}")
     cuts_dev_manifest = load_manifest_lazy(dev_manifest_path)
     fix_manifest(cuts_dev_manifest, fixed_text_dict, fixed_dev_manifest_path)
-    logging.info(f'Fixed dev manifest saved to {fixed_dev_manifest_path}')
+    logging.info(f"Fixed dev manifest saved to {fixed_dev_manifest_path}")
 
-    manifest_path = args.manifest_dir + f'cuts_{args.training_subset}.jsonl.gz'
-    fixed_manifest_path = args.manifest_dir + f'cuts_{args.training_subset}_fixed.jsonl.gz'
-    logging.info(f'Loading manifest from {manifest_path}')
+    manifest_path = args.manifest_dir + f"cuts_{args.training_subset}.jsonl.gz"
+    fixed_manifest_path = (
+        args.manifest_dir + f"cuts_{args.training_subset}_fixed.jsonl.gz"
+    )
+    logging.info(f"Loading manifest from {manifest_path}")
     cuts_manifest = load_manifest_lazy(manifest_path)
     fix_manifest(cuts_manifest, fixed_text_dict, fixed_manifest_path)
-    logging.info(f'Fixed training manifest saved to {fixed_manifest_path}')
+    logging.info(f"Fixed training manifest saved to {fixed_manifest_path}")
+
 
 if __name__ == "__main__":
     main()

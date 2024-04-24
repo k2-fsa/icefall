@@ -20,7 +20,7 @@
 | 10 | **whisper-large-ft-v0**  | **6.34%** | 2023.03 |
 | 11 | baidu_pro_api_zh | 7.29% | 2023.12 |
 
-Note: Above API results are from [SPEECHIO](https://github.com/SpeechColab/Leaderboard). All results used the default [normalize method.](https://github.com/SpeechColab/Leaderboard/blob/master/utils/benchmark.sh#L67) 
+Note: Above API results are from [SPEECHIO](https://github.com/SpeechColab/Leaderboard). All results used the default [normalize method.](https://github.com/SpeechColab/Leaderboard/blob/master/utils/benchmark.sh#L67)
 
 <details><summary> Detail all models </summary><p>
 
