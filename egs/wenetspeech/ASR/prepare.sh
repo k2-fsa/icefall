@@ -416,3 +416,12 @@ if [ $stage -le 22 ] && [ $stop_stage -ge 22 ]; then
     python ./local/compile_lg.py --lang-dir $lang_dir
   done
 fi
+
+if [ $stage -le 23 ] && [ $stop_stage -ge 23 ]; then
+  log "Stage 23: Modify transcript according to fixed results"
+  # See https://github.com/wenet-e2e/WenetSpeech/discussions/54
+  wget -nc https://huggingface.co/datasets/yuekai/wenetspeech_paraformer_fixed_transcript/resolve/main/text.fix -O data/fbank/text.fix
+  python local/fix_manifest.py \
+    --fixed-transcript-path data/fbank/text.fix \
+    --training-subset L
+fi
