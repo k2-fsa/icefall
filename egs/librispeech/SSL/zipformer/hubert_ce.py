@@ -429,7 +429,7 @@ class HubertModel(nn.Module):
         # padding_mask: (B, T), bool
         # mask_indices: (B, T), bool
         x = x.transpose(0, 1)
-        x, x_lens = self.encoder(x, ~padding_mask.sum(dim=-1))
+        x, x_lens = self.encoder(x, (~padding_mask).sum(dim=-1))
         x = x.transpose(0, 1)
 
         if features_only:
