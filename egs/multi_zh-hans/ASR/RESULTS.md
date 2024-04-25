@@ -6,10 +6,10 @@
 
 Character Error Rates (CERs) listed below are produced by the checkpoint of the second epoch using greedy search.
 
-| Datasets | alimeeting | alimeeting | aishell-1 | aishell-1 | aishell-2 | aishell-2 | aishell-4 | magicdata | magicdata | kespeech-asr | kespeech-asr | kespeech-asr | WenetSpeech | WenetSpeech | WenetSpeech |
-|--------------------------------|-------------------|--------------|----------------|-------------|------------------|-------------|------------------|------------------|-------------|-----------------------|-----------------------|-------------|--------------------|-------------------------|---------------------|
-|  Split |           eval| test | dev | test | dev| test | test      | dev| test | dev phase1 | dev phase2 | test | dev | test meeting | test net |
-| Greedy Search |  23.45 | 25.42 | 0.78 | 0.83 | 2.75 | 2.93 | 17.11 | 2.68 | 2.33 | 4.97 | 2.02 | 6.34 |          5.06 |            8.38 | 6.94 |
+| Datasets | alimeeting | alimeeting | aishell-1 | aishell-1 | aishell-2 | aishell-2 | aishell-4 | magicdata | magicdata | kespeech-asr | kespeech-asr | kespeech-asr | WenetSpeech  |
+|--------------------------------|-------------------|--------------|----------------|-------------|------------------|-------------|------------------|------------------|-------------|-----------------------|-----------------------|-------------|-------------------|
+|  Split |           eval| test | dev | test | dev| test | test      | dev| test | dev phase1 | dev phase2 | test | test meeting |
+| Greedy Search |  23.22 | 28.24 | 0.61 | 0.66 | 2.67 | 2.80 | 16.61 | 2.56 | 2.21 | 4.73 | 1.90 | 5.98 |                    8.13 |
 
 Command for training is:
 ```bash
@@ -29,7 +29,7 @@ Command for decoding using fine-tuned models:
 ```bash
 git lfs install
 git clone https://huggingface.co/yuekai/icefall_asr_multi-hans-zh_whisper
-ln -s icefall_asr_multi-hans-zh_whisper/v1/epoch-2-avg4.pt whisper/exp_large_v2/epoch-999.pt
+ln -s icefall_asr_multi-hans-zh_whisper/v1.1/epoch-3-avg-10.pt whisper/exp_large_v2/epoch-999.pt
 
 python3 ./whisper/decode.py \
   --exp-dir whisper/exp_large_v2 \
