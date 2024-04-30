@@ -38,6 +38,7 @@ torchrun --nproc_per_node 8 ./whisper/train.py \
 import argparse
 import copy
 import logging
+import os
 import random
 import warnings
 from pathlib import Path
@@ -145,7 +146,7 @@ def get_parser():
         "--model-name",
         type=str,
         default="large-v2",
-        choices=["large-v2", "large-v3", "medium", "small", "base", "tiny"],
+        choices=["large-v2", "large-v3", "medium", "base", "small", "tiny"],
         help="""The model name to use.
         """,
     )
@@ -616,7 +617,9 @@ def train_one_epoch(
                         f"{params.exp_dir}/epoch-{params.cur_epoch}-checkpoint-{batch_idx}.pt",
                         tag=f"epoch-{params.cur_epoch}-checkpoint-{batch_idx}",
                     )
-
+                    os.system(
+                        f"rm -rf {params.exp_dir}/epoch-{params.cur_epoch}-checkpoint-{batch_idx}"
+                    )
         try:
             with torch.cuda.amp.autocast(enabled=params.use_fp16):
                 loss, loss_info = compute_loss(
@@ -893,6 +896,7 @@ def run(rank, world_size, args):
                     f"{params.exp_dir}/epoch-{params.cur_epoch}.pt",
                     tag=f"epoch-{params.cur_epoch}",
                 )
+                os.system(f"rm -rf {params.exp_dir}/epoch-{params.cur_epoch}")
         else:
             save_checkpoint(
                 params=params,

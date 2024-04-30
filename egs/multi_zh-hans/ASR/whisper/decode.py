@@ -57,6 +57,7 @@ from lhotse.cut import Cut
 from multi_dataset import MultiDataset
 from tn.chinese.normalizer import Normalizer
 from whisper.normalizers import BasicTextNormalizer
+from whisper_decoder_forward_monkey_patch import replace_whisper_decoder_forward
 from whisper_encoder_forward_monkey_patch import replace_whisper_encoder_forward
 from zhconv import convert
 
@@ -214,7 +215,7 @@ def get_parser():
         "--model-name",
         type=str,
         default="large-v2",
-        choices=["large-v2", "large-v3", "medium", "small", "base", "tiny"],
+        choices=["large-v2", "large-v3", "medium", "base", "small", "tiny"],
         help="""The model name to use.
         """,
     )
@@ -224,6 +225,13 @@ def get_parser():
         type=str2bool,
         default=True,
         help="replace whisper encoder forward method to remove input length restriction",
+    )
+
+    parser.add_argument(
+        "--use-distill-whisper",
+        type=str2bool,
+        default=False,
+        help="Whether to use architecture of distill whisper.",
     )
 
     return parser
@@ -307,6 +315,43 @@ def decode_dataset(
     Returns:
         Return a dict, whose key may be "beam-search".
     """
+
+    def normalize_text_alimeeting(text: str, normalize: str = "m2met") -> str:
+        """
+        Text normalization similar to M2MeT challenge baseline.
+        See: https://github.com/yufan-aslp/AliMeeting/blob/main/asr/local/text_normalize.pl
+        """
+        if normalize == "none":
+            return text
+        elif normalize == "m2met":
+            import re
+
+            text = text.replace(" ", "")
+            text = text.replace("<sil>", "")
+            text = text.replace("<%>", "")
+            text = text.replace("<->", "")
+            text = text.replace("<$>", "")
+            text = text.replace("<#>", "")
+            text = text.replace("<_>", "")
+            text = text.replace("<space>", "")
+            text = text.replace("`", "")
+            text = text.replace("&", "")
+            text = text.replace(",", "")
+            if re.search("[a-zA-Z]", text):
+                text = text.upper()
+            text = text.replace("Ａ", "A")
+            text = text.replace("ａ", "A")
+            text = text.replace("ｂ", "B")
+            text = text.replace("ｃ", "C")
+            text = text.replace("ｋ", "K")
+            text = text.replace("ｔ", "T")
+            text = text.replace("，", "")
+            text = text.replace("丶", "")
+            text = text.replace("。", "")
+            text = text.replace("、", "")
+            text = text.replace("？", "")
+            return text
+
     results = []
 
     num_cuts = 0
@@ -331,6 +376,7 @@ def decode_dataset(
             this_batch = []
             assert len(hyps) == len(texts)
             for cut_id, hyp_words, ref_text in zip(cut_ids, hyps, texts):
+                ref_text = normalize_text_alimeeting(ref_text)
                 ref_words = ref_text.split()
                 this_batch.append((cut_id, ref_words, hyp_words))
 
@@ -430,6 +476,8 @@ def main():
 
     if params.remove_whisper_encoder_input_length_restriction:
         replace_whisper_encoder_forward()
+    if params.use_distill_whisper:
+        replace_whisper_decoder_forward()
     model = whisper.load_model(params.model_name, "cpu")
     if params.epoch > 0:
         if params.avg > 1:

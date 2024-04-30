@@ -390,14 +390,14 @@ class WenetSpeechAsrDataModule:
     def train_cuts(self) -> CutSet:
         logging.info("About to get train cuts")
         cuts_train = load_manifest_lazy(
-            self.args.manifest_dir / f"cuts_{self.args.training_subset}.jsonl.gz"
+            self.args.manifest_dir / f"cuts_{self.args.training_subset}_fixed.jsonl.gz"
         )
         return cuts_train
 
     @lru_cache()
     def valid_cuts(self) -> CutSet:
         logging.info("About to get dev cuts")
-        return load_manifest_lazy(self.args.manifest_dir / "cuts_DEV.jsonl.gz")
+        return load_manifest_lazy(self.args.manifest_dir / "cuts_DEV_fixed.jsonl.gz")
 
     @lru_cache()
     def test_net_cuts(self) -> List[CutSet]:

@@ -65,6 +65,7 @@ from torch.cuda.amp import GradScaler
 from torch.nn.functional import pad as pad_tensor
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
+from whisper_decoder_forward_monkey_patch import replace_whisper_decoder_forward
 from whisper_encoder_forward_monkey_patch import replace_whisper_encoder_forward
 
 from icefall import diagnostics
@@ -146,7 +147,7 @@ def get_parser():
         "--model-name",
         type=str,
         default="large-v2",
-        choices=["large-v2", "large-v3", "medium", "small", "base", "tiny"],
+        choices=["large-v2", "large-v3", "medium", "base", "small", "tiny"],
         help="""The model name to use.
         """,
     )
@@ -230,6 +231,13 @@ def get_parser():
         type=str2bool,
         default=True,
         help="Whether to use half precision training.",
+    )
+
+    parser.add_argument(
+        "--use-distill-whisper",
+        type=str2bool,
+        default=False,
+        help="Whether to use architecture of distill whisper.",
     )
 
     parser = deepspeed.add_config_arguments(parser)
@@ -441,6 +449,42 @@ def compute_loss(
             padded_tensors.append(pad_tensor(tensor, padding, "constant", pad_value))
         return torch.stack([tensor for tensor in padded_tensors], dim=0)
 
+    def normalize_text_alimeeting(text: str, normalize: str = "m2met") -> str:
+        """
+        Text normalization similar to M2MeT challenge baseline.
+        See: https://github.com/yufan-aslp/AliMeeting/blob/main/asr/local/text_normalize.pl
+        """
+        if normalize == "none":
+            return text
+        elif normalize == "m2met":
+            import re
+
+            text = text.replace(" ", "")
+            text = text.replace("<sil>", "")
+            text = text.replace("<%>", "")
+            text = text.replace("<->", "")
+            text = text.replace("<$>", "")
+            text = text.replace("<#>", "")
+            text = text.replace("<_>", "")
+            text = text.replace("<space>", "")
+            text = text.replace("`", "")
+            text = text.replace("&", "")
+            text = text.replace(",", "")
+            if re.search("[a-zA-Z]", text):
+                text = text.upper()
+            text = text.replace("Ａ", "A")
+            text = text.replace("ａ", "A")
+            text = text.replace("ｂ", "B")
+            text = text.replace("ｃ", "C")
+            text = text.replace("ｋ", "K")
+            text = text.replace("ｔ", "T")
+            text = text.replace("，", "")
+            text = text.replace("丶", "")
+            text = text.replace("。", "")
+            text = text.replace("、", "")
+            text = text.replace("？", "")
+            return text
+
     max_frames = params.max_duration * 1000 // params.frame_shift_ms
     allowed_max_frames = int(max_frames * (1.0 + params.allowed_excess_duration_ratio))
     batch = filter_uneven_sized_batch(batch, allowed_max_frames)
@@ -459,7 +503,7 @@ def compute_loss(
 
     texts = batch["supervisions"]["text"]
     # remove spaces in texts
-    texts = [text.replace(" ", "") for text in texts]
+    texts = [normalize_text_alimeeting(text) for text in texts]
 
     text_tokens_list = [
         list(tokenizer.sot_sequence_including_notimestamps)
@@ -759,6 +803,8 @@ def run(rank, world_size, args):
     logging.info("About to create model")
 
     replace_whisper_encoder_forward()
+    if params.use_distill_whisper:
+        replace_whisper_decoder_forward()
     model = whisper.load_model(params.model_name, "cpu")
     del model.alignment_heads
 

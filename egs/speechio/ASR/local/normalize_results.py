@@ -21,7 +21,7 @@ Since whisper model is more likely to make deletion errors and zipformer model i
 we trust whisper model when it makes substitution and insertion errors and trust zipformer model when it makes deletion errors.
 
 Usage:
-    python whisper_zipformer_fusion.py --whisper-log-dir ./whisper_decoding_log_dir --zipformer-log-dir ./zipformer_decoding_log_dir --output-log-dir ./results_fusion
+    python whisper_zipformer_fusion.py --model-log-dir ./whisper_decoding_log_dir --output-log-dir ./results_norm
 """
 
 import argparse
@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import kaldialign
+from speechio_norm import TextNorm
 
 from icefall.utils import store_transcripts, write_error_stats
 
@@ -38,31 +39,36 @@ def get_parser():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument(
-        "--whisper-log-dir",
+        "--model-log-dir",
         type=str,
         default="./recogs_whisper",
         help="The directory to store the whisper logs: e.g. recogs-SPEECHIO_ASR_ZH00014-beam-search-epoch--1-avg-1.txt",
     )
     parser.add_argument(
-        "--zipformer-log-dir",
-        type=str,
-        default="./recogs_zipformer",
-        help="The directory to store the zipformer logs",
-    )
-    parser.add_argument(
         "--output-log-dir",
         type=str,
-        default="./results_fusion",
-        help="The directory to store the fusion logs",
+        default="./results_whisper_norm",
+        help="The directory to store the normalized whisper logs",
     )
     return parser
 
 
-def save_results(
+def save_results_with_speechio_text_norm(
     res_dir: Path,
     test_set_name: str,
     results_dict: Dict[str, List[Tuple[str, List[str], List[str]]]],
 ):
+    normalizer = TextNorm()
+    # normlize items in results_dict
+    for key, results in results_dict.items():
+        results_norm = []
+        for item in results:
+            wav_name, ref, hyp = item
+            ref = normalizer(ref)
+            hyp = normalizer(hyp)
+            results_norm.append((wav_name, ref, hyp))
+        results_dict[key] = results_norm
+
     test_set_wers = dict()
 
     suffix = "epoch-999-avg-1"
@@ -120,11 +126,9 @@ def extract_hyp_ref_wavname(filename):
     return hyps, refs, wav_name
 
 
-def get_pair_filenames(
+def get_filenames(
     whisper_log_dir,
-    zipformer_log_dir,
     whisper_suffix="beam-search-epoch-999-avg-1",
-    zipformer_suffix="greedy_search_blank_penalty_2.0-epoch-999-avg-1-context-2-max-sym-per-frame-1-blank-penalty-2.0",
 ):
     results = []
     start_index, end_index = 0, 26
@@ -134,59 +138,8 @@ def get_pair_filenames(
         dataset_parts.append(f"SPEECHIO_ASR_ZH000{idx}")
     for partition in dataset_parts:
         whisper_filename = f"{whisper_log_dir}/recogs-{partition}-{whisper_suffix}.txt"
-        zipformer_filename = (
-            f"{zipformer_log_dir}/recogs-{partition}-{zipformer_suffix}.txt"
-        )
-        results.append((whisper_filename, zipformer_filename))
+        results.append(whisper_filename)
     return results
-
-
-def fusion_hyps_trust_substituion_insertion(
-    hyps_whisper, hyps_zipformer, refs, ERR="*"
-):
-    """
-    alignment example:
-    [('我', '你'), ('在', '*'), ('任', '任'), ('的', '的'), ('时', '时'), ('候', '候'), ('*', '呢')]
-    left is whisper, right is zipformer
-    for whisper substitution, use left
-    for whisper insertion, use left
-    for whisper deletion, use right
-    """
-    hyps_fusion = []
-    for hyp_w, hyp_z, ref in zip(hyps_whisper, hyps_zipformer, refs):
-        ali = kaldialign.align(hyp_w, hyp_z, ERR)
-        hyp_f = ""
-        for a in ali:
-            if a[0] == ERR:
-                hyp_f += a[1]
-            else:
-                hyp_f += a[0]
-        hyps_fusion.append(hyp_f)
-    return hyps_fusion
-
-
-def fusion_hyps_trust_substituion(hyps_whisper, hyps_zipformer, refs, ERR="*"):
-    """
-    alignment example:
-    [('我', '你'), ('在', '*'), ('任', '任'), ('的', '的'), ('时', '时'), ('候', '候'), ('*', '呢')]
-    left is whisper, right is zipformer
-    for whisper substitution, use left
-    for whisper insertion, use right
-    for whisper deletion, use right
-    """
-    hyps_fusion = []
-    for hyp_w, hyp_z, ref in zip(hyps_whisper, hyps_zipformer, refs):
-        ali = kaldialign.align(hyp_w, hyp_z, ERR)
-        hyp_f = ""
-        for a in ali:
-            if a[0] == ERR:
-                hyp_f += a[1]
-            elif a[1] == ERR:
-                pass
-            else:
-                hyp_f += a[0]
-        hyps_fusion.append(hyp_f)
-    return hyps_fusion
 
 
 def main():
@@ -194,20 +147,15 @@ def main():
     args = parser.parse_args()
     # mkdir output_log_dir
     Path(args.output_log_dir).mkdir(parents=True, exist_ok=True)
-    pair_logs = get_pair_filenames(args.whisper_log_dir, args.zipformer_log_dir)
-    for pair in pair_logs:
-        hyps_whisper, refs, wav_name = extract_hyp_ref_wavname(pair[0])
-        hyps_zipformer, _, _ = extract_hyp_ref_wavname(pair[1])
+    filenames = get_filenames(args.model_log_dir)
+    for filename in filenames:
+        hyps, refs, wav_name = extract_hyp_ref_wavname(filename)
+        partition_name = filename.split("/")[-1].split("-")[1]
 
-        hyps_fusion = fusion_hyps_trust_substituion_insertion(
-            hyps_whisper, hyps_zipformer, refs
-        )
-
-        partition_name = pair[0].split("/")[-1].split("-")[1]
-        save_results(
+        save_results_with_speechio_text_norm(
             Path(args.output_log_dir),
             partition_name,
-            {"fusion": list(zip(wav_name, refs, hyps_fusion))},
+            {"norm": list(zip(wav_name, refs, hyps))},
         )
 
         print(f"Processed {partition_name}")
