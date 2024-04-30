@@ -147,7 +147,7 @@ def get_parser():
         "--model-name",
         type=str,
         default="large-v2",
-        choices=["large-v2", "large-v3", "medium", "small", "tiny"],
+        choices=["large-v2", "large-v3", "medium", "base", "small", "tiny"],
         help="""The model name to use.
         """,
     )
@@ -870,7 +870,7 @@ def run(rank, world_size, args):
 
     if params.print_diagnostics:
         opts = diagnostics.TensorDiagnosticOptions(
-            2**22
+            512
         )  # allow 4 megabytes per sub-module
         diagnostic = diagnostics.attach_diagnostics(model, opts)
 
