@@ -54,6 +54,20 @@ def get_parser():
         help="""Path to vocabulary.""",
     )
 
+    parser.add_argument(
+        "--text",
+        type=str,
+        default="Ask not what your country can do for you; ask what you can do for your country.",
+        help="Text to generate speech for",
+    )
+
+    parser.add_argument(
+        "--output-filename",
+        type=str,
+        default="test_onnx.wav",
+        help="Filename to save the generated wave file.",
+    )
+
     return parser
 
 
@@ -61,7 +75,7 @@ class OnnxModel:
     def __init__(self, model_filename: str):
         session_opts = ort.SessionOptions()
         session_opts.inter_op_num_threads = 1
-        session_opts.intra_op_num_threads = 4
+        session_opts.intra_op_num_threads = 1
 
         self.session_opts = session_opts
 
@@ -71,6 +85,9 @@ class OnnxModel:
             providers=["CPUExecutionProvider"],
         )
         logging.info(f"{self.model.get_modelmeta().custom_metadata_map}")
+
+        metadata = self.model.get_modelmeta().custom_metadata_map
+        self.sample_rate = int(metadata["sample_rate"])
 
     def __call__(self, tokens: torch.Tensor, tokens_lens: torch.Tensor) -> torch.Tensor:
         """
@@ -101,20 +118,24 @@ class OnnxModel:
 
 def main():
     args = get_parser().parse_args()
+    logging.info(vars(args))
 
     tokenizer = Tokenizer(args.tokens)
 
     logging.info("About to create onnx model")
     model = OnnxModel(args.model_filename)
 
-    text = "I went there to see the land, the people and how their system works, end quote."
-    tokens = tokenizer.texts_to_token_ids([text])
+    text = args.text
+    tokens = tokenizer.texts_to_token_ids(
+        [text], intersperse_blank=True, add_sos=True, add_eos=True
+    )
     tokens = torch.tensor(tokens)  # (1, T)
     tokens_lens = torch.tensor([tokens.shape[1]], dtype=torch.int64)  # (1, T)
     audio = model(tokens, tokens_lens)  # (1, T')
 
-    torchaudio.save(str("test_onnx.wav"), audio, sample_rate=22050)
-    logging.info("Saved to test_onnx.wav")
+    output_filename = args.output_filename
+    torchaudio.save(output_filename, audio, sample_rate=model.sample_rate)
+    logging.info(f"Saved to {output_filename}")
 
 
 if __name__ == "__main__":

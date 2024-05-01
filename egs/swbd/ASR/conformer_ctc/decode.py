@@ -29,7 +29,6 @@ import torch
 import torch.nn as nn
 from asr_datamodule import SwitchBoardAsrDataModule
 from conformer import Conformer
-
 from sclite_scoring import asr_text_post_processing
 
 from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler

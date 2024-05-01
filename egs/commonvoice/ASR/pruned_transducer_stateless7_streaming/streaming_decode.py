@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-# Copyright 2022 Xiaomi Corporation (Authors: Wei Kang, Fangjun Kuang)
+# Copyright 2022-2024 Xiaomi Corporation (Authors: Wei Kang,
+#                                                  Fangjun Kuang,
+#                                                  Zengrui Jin,)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -37,7 +39,7 @@ import numpy as np
 import sentencepiece as spm
 import torch
 import torch.nn as nn
-from commonvoice_fr import CommonVoiceAsrDataModule
+from asr_datamodule import CommonVoiceAsrDataModule
 from decode_stream import DecodeStream
 from kaldifeat import Fbank, FbankOptions
 from lhotse import CutSet

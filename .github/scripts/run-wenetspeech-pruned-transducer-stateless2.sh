@@ -30,7 +30,7 @@ log "Test exporting to ONNX format"
 
 ./pruned_transducer_stateless2/export-onnx.py \
   --exp-dir $repo/exp \
-  --lang-dir $repo/data/lang_char \
+  --tokens $repo/data/lang_char/tokens.txt \
   --epoch 99 \
   --avg 1
 
@@ -38,14 +38,14 @@ log "Export to torchscript model"
 
 ./pruned_transducer_stateless2/export.py \
   --exp-dir $repo/exp \
-  --lang-dir $repo/data/lang_char \
+  --tokens $repo/data/lang_char/tokens.txt \
   --epoch 99 \
   --avg 1 \
   --jit 1
 
 ./pruned_transducer_stateless2/export.py \
   --exp-dir $repo/exp \
-  --lang-dir $repo/data/lang_char \
+  --tokens $repo/data/lang_char/tokens.txt \
   --epoch 99 \
   --avg 1 \
   --jit-trace 1

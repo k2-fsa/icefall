@@ -18,10 +18,7 @@ from typing import List, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
-from scaling import (
-    ActivationBalancer,
-    ScaledConv1d,
-)
+from scaling import ActivationBalancer, ScaledConv1d
 
 
 class LConv(nn.Module):

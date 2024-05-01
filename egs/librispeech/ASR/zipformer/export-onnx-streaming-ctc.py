@@ -32,7 +32,7 @@ This script exports a CTC model from PyTorch to ONNX.
   --joiner-dim 512 \
   --causal True \
   --chunk-size 16 \
-  --left-context-frames 64 \
+  --left-context-frames 128 \
   --use-ctc 1
 
 The --chunk-size in training is "16,32,64,-1", so we select one of them
@@ -41,7 +41,7 @@ whose value is "64,128,256,-1".
 
 It will generate the following file inside $repo/exp:
 
-  - ctc-epoch-99-avg-1-chunk-16-left-64.onnx
+  - ctc-epoch-99-avg-1-chunk-16-left-128.onnx
 
 See ./onnx_pretrained-streaming-ctc.py for how to use the exported ONNX models.
 """

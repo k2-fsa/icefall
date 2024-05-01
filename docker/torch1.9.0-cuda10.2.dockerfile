@@ -5,8 +5,8 @@ ENV LC_ALL C.UTF-8
 ARG DEBIAN_FRONTEND=noninteractive
 
 # python 3.7
-ARG K2_VERSION="1.24.3.dev20230726+cuda10.2.torch1.9.0"
-ARG KALDIFEAT_VERSION="1.25.1.dev20231022+cuda10.2.torch1.9.0"
+ARG K2_VERSION="1.24.4.dev20240223+cuda10.2.torch1.9.0"
+ARG KALDIFEAT_VERSION="1.25.4.dev20240223+cuda10.2.torch1.9.0"
 ARG TORCHAUDIO_VERSION="0.9.0"
 
 LABEL authors="Fangjun Kuang <csukuangfj@gmail.com>"
@@ -69,6 +69,8 @@ RUN pip uninstall -y tqdm && \
       onnx \
       onnxruntime \
       onnxmltools \
+      onnxoptimizer \
+      onnxsim \
       multi_quantization \
       typeguard \
       numpy \

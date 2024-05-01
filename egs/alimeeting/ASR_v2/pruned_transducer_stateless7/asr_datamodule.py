@@ -263,6 +263,8 @@ class AlimeetingAsrDataModule:
             max_cuts=self.args.max_cuts,
             shuffle=False,
             num_buckets=self.args.num_buckets,
+            buffer_size=self.args.num_buckets * 2000,
+            shuffle_buffer_size=self.args.num_buckets * 5000,
             drop_last=True,
         )
         logging.info("About to create train dataloader")

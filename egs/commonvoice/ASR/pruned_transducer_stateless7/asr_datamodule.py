@@ -308,6 +308,8 @@ class CommonVoiceAsrDataModule:
                 max_duration=self.args.max_duration,
                 shuffle=self.args.shuffle,
                 num_buckets=self.args.num_buckets,
+                buffer_size=self.args.num_buckets * 2000,
+                shuffle_buffer_size=self.args.num_buckets * 5000,
                 drop_last=self.args.drop_last,
             )
         else:
@@ -379,9 +381,11 @@ class CommonVoiceAsrDataModule:
     def test_dataloaders(self, cuts: CutSet) -> DataLoader:
         logging.debug("About to create test dataset")
         test = K2SpeechRecognitionDataset(
-            input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80)))
-            if self.args.on_the_fly_feats
-            else eval(self.args.input_strategy)(),
+            input_strategy=(
+                OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80)))
+                if self.args.on_the_fly_feats
+                else eval(self.args.input_strategy)()
+            ),
             return_cuts=self.args.return_cuts,
         )
         sampler = DynamicBucketingSampler(
@@ -403,6 +407,22 @@ class CommonVoiceAsrDataModule:
         logging.info("About to get train cuts")
         return load_manifest_lazy(
             self.args.cv_manifest_dir / f"cv-{self.args.language}_cuts_train.jsonl.gz"
+        )
+
+    @lru_cache()
+    def validated_cuts(self) -> CutSet:
+        logging.info("About to get validated cuts (with dev/test removed)")
+        return load_manifest_lazy(
+            self.args.cv_manifest_dir
+            / f"cv-{self.args.language}_cuts_validated.jsonl.gz"
+        )
+
+    @lru_cache()
+    def invalidated_cuts(self) -> CutSet:
+        logging.info("About to get invalidated cuts")
+        return load_manifest_lazy(
+            self.args.cv_manifest_dir
+            / f"cv-{self.args.language}_cuts_invalidated.jsonl.gz"
         )
 
     @lru_cache()
