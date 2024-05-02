@@ -103,7 +103,6 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import k2
-from tokenizer import Tokenizer
 import torch
 import torch.nn as nn
 from asr_datamodule import ReazonSpeechAsrDataModule
@@ -121,6 +120,7 @@ from beam_search import (
     modified_beam_search_lm_shallow_fusion,
     modified_beam_search_LODR,
 )
+from tokenizer import Tokenizer
 from train import add_model_arguments, get_model, get_params
 
 from icefall import ContextGraph, LmScorer, NgramLm
@@ -1039,7 +1039,9 @@ def main():
 
     for subdir in ["valid"]:
         results_dict = decode_dataset(
-            dl=reazonspeech_corpus.test_dataloaders(getattr(reazonspeech_corpus, f"{subdir}_cuts")()),
+            dl=reazonspeech_corpus.test_dataloaders(
+                getattr(reazonspeech_corpus, f"{subdir}_cuts")()
+            ),
             params=params,
             model=model,
             sp=sp,
@@ -1065,7 +1067,7 @@ def main():
         #     if len(tot_err) == 1:
         #         fout.write(f"{tot_err[0][1]}")
         #     else:
-        #         fout.write("\n".join(f"{k}\t{v}") for k, v in tot_err)   
+        #         fout.write("\n".join(f"{k}\t{v}") for k, v in tot_err)
 
     logging.info("Done!")
 

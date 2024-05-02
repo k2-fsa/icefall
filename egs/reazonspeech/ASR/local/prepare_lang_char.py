@@ -22,6 +22,7 @@ from pathlib import Path
 
 from lhotse import CutSet
 
+
 def get_args():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,

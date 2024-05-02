@@ -54,36 +54,51 @@ def make_cutset_blueprints(
 
     # Create test dataset
     logging.info("Creating test cuts.")
-    cut_sets.append(("test", CutSet.from_manifests(
-        recordings=RecordingSet.from_file(
-            manifest_dir / "reazonspeech_recordings_test.jsonl.gz"
-        ),
-        supervisions=SupervisionSet.from_file(
-            manifest_dir / "reazonspeech_supervisions_test.jsonl.gz"
-        ),
-    )))
+    cut_sets.append(
+        (
+            "test",
+            CutSet.from_manifests(
+                recordings=RecordingSet.from_file(
+                    manifest_dir / "reazonspeech_recordings_test.jsonl.gz"
+                ),
+                supervisions=SupervisionSet.from_file(
+                    manifest_dir / "reazonspeech_supervisions_test.jsonl.gz"
+                ),
+            ),
+        )
+    )
 
     # Create valid dataset
     logging.info("Creating valid cuts.")
-    cut_sets.append(("valid", CutSet.from_manifests(
-        recordings=RecordingSet.from_file(
-            manifest_dir / "reazonspeech_recordings_valid.jsonl.gz"
-        ),
-        supervisions=SupervisionSet.from_file(
-            manifest_dir / "reazonspeech_supervisions_valid.jsonl.gz"
-        ),
-    )))
+    cut_sets.append(
+        (
+            "valid",
+            CutSet.from_manifests(
+                recordings=RecordingSet.from_file(
+                    manifest_dir / "reazonspeech_recordings_valid.jsonl.gz"
+                ),
+                supervisions=SupervisionSet.from_file(
+                    manifest_dir / "reazonspeech_supervisions_valid.jsonl.gz"
+                ),
+            ),
+        )
+    )
 
     # Create train dataset
     logging.info("Creating train cuts.")
-    cut_sets.append(("train", CutSet.from_manifests(
-        recordings=RecordingSet.from_file(
-            manifest_dir / "reazonspeech_recordings_train.jsonl.gz"
-        ),
-        supervisions=SupervisionSet.from_file(
-            manifest_dir / "reazonspeech_supervisions_train.jsonl.gz"
-        ),
-    )))
+    cut_sets.append(
+        (
+            "train",
+            CutSet.from_manifests(
+                recordings=RecordingSet.from_file(
+                    manifest_dir / "reazonspeech_recordings_train.jsonl.gz"
+                ),
+                supervisions=SupervisionSet.from_file(
+                    manifest_dir / "reazonspeech_supervisions_train.jsonl.gz"
+                ),
+            ),
+        )
+    )
     return cut_sets
 
 

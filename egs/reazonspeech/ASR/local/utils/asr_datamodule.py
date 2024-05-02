@@ -336,14 +336,20 @@ class ReazonSpeechAsrDataModule:
     @lru_cache()
     def train_cuts(self) -> CutSet:
         logging.info("About to get train cuts")
-        return load_manifest_lazy(self.args.manifest_dir / "reazonspeech_cuts_train.jsonl.gz")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "reazonspeech_cuts_train.jsonl.gz"
+        )
 
     @lru_cache()
     def valid_cuts(self) -> CutSet:
         logging.info("About to get valid cuts")
-        return load_manifest_lazy(self.args.manifest_dir / "reazonspeech_cuts_valid.jsonl.gz")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "reazonspeech_cuts_valid.jsonl.gz"
+        )
 
     @lru_cache()
     def test_cuts(self) -> List[CutSet]:
         logging.info("About to get test cuts")
-        return load_manifest_lazy(self.args.manifest_dir / "reazonspeech_cuts_test.jsonl.gz")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "reazonspeech_cuts_test.jsonl.gz"
+        )
