@@ -71,9 +71,9 @@ from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import AsrModel
 from optim import Eden, ScaledAdam
-from tokenizer import Tokenizer
 from scaling import ScheduledFloat
 from subsampling import Conv2dSubsampling
+from tokenizer import Tokenizer
 from torch import Tensor
 from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
