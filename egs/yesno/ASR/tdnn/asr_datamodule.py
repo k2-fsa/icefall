@@ -181,7 +181,7 @@ class YesNoAsrDataModule(DataModule):
             train = K2SpeechRecognitionDataset(
                 cut_transforms=transforms,
                 input_strategy=OnTheFlyFeatures(
-                    FbankConfig(sampling_rate=8000, num_mel_bins=23)
+                    Fbank(FbankConfig(sampling_rate=8000, num_mel_bins=23))
                 ),
                 return_cuts=self.args.return_cuts,
             )
@@ -222,9 +222,11 @@ class YesNoAsrDataModule(DataModule):
 
         logging.debug("About to create test dataset")
         test = K2SpeechRecognitionDataset(
-            input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=23)))
-            if self.args.on_the_fly_feats
-            else PrecomputedFeatures(),
+            input_strategy=(
+                OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=23)))
+                if self.args.on_the_fly_feats
+                else PrecomputedFeatures()
+            ),
             return_cuts=self.args.return_cuts,
         )
         sampler = DynamicBucketingSampler(
