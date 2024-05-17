@@ -31,6 +31,8 @@ log "Running prepare_lm.sh"
 stage=0
 stop_stage=100
 
+. shared/parse_options.sh || exit 1
+
 if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   log "Stage 0: Prepare BPE based lexicon."
 
