@@ -8,6 +8,8 @@ set -eou pipefail
 
 . prepare.sh --stage -1 --stop-stage 6 || exit 1
 
+. prepare_lm.sh --stage 0 --stop-stage 0 || exit 1
+
 log "Running prepare_mmi.sh"
 
 stage=0
