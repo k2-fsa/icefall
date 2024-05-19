@@ -1069,9 +1069,6 @@ def train_one_epoch(
                     tb_writer, "train/valid_", params.batch_idx_train
                 )
 
-    # print('--------------------debug------------------')
-    # print(tot_loss)
-    # print(tot_loss["frames"])
     loss_value = tot_loss["loss"] / tot_loss["frames"]
     params.train_loss = loss_value
     if params.train_loss < params.best_train_loss:

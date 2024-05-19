@@ -68,17 +68,17 @@ def make_cutset_blueprints(
         )
     )
 
-    # Create valid dataset
-    logging.info("Creating valid cuts.")
+    # Create dev dataset
+    logging.info("Creating dev cuts.")
     cut_sets.append(
         (
-            "valid",
+            "dev",
             CutSet.from_manifests(
                 recordings=RecordingSet.from_file(
-                    manifest_dir / "reazonspeech_recordings_valid.jsonl.gz"
+                    manifest_dir / "reazonspeech_recordings_dev.jsonl.gz"
                 ),
                 supervisions=SupervisionSet.from_file(
-                    manifest_dir / "reazonspeech_supervisions_valid.jsonl.gz"
+                    manifest_dir / "reazonspeech_supervisions_dev.jsonl.gz"
                 ),
             ),
         )
