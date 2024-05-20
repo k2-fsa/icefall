@@ -71,7 +71,7 @@ class ReazonSpeechAsrDataModule:
             "--manifest-dir",
             type=Path,
             default=Path("data/manifests"),
-            help="Path to directory with train/valid/test cuts.",
+            help="Path to directory with train/dev/test cuts.",
         )
         group.add_argument(
             "--max-duration",
@@ -342,9 +342,9 @@ class ReazonSpeechAsrDataModule:
 
     @lru_cache()
     def valid_cuts(self) -> CutSet:
-        logging.info("About to get valid cuts")
+        logging.info("About to get dev cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "reazonspeech_cuts_valid.jsonl.gz"
+            self.args.manifest_dir / "reazonspeech_cuts_dev.jsonl.gz"
         )
 
     @lru_cache()
