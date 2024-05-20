@@ -70,7 +70,7 @@ class ReazonSpeechAsrDataModule:
         group.add_argument(
             "--manifest-dir",
             type=Path,
-            default=Path("data"),
+            default=Path("data/manifests"),
             help="Path to directory with train/valid/test cuts.",
         )
         group.add_argument(
