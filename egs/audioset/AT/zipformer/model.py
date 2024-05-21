@@ -14,17 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging
-import random
-from typing import List, Optional, Tuple
+from typing import Tuple
 
-import k2
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from encoder_interface import EncoderInterface
 
-from icefall.utils import AttributeDict, make_pad_mask
+from icefall.utils import make_pad_mask
 
 
 class AudioTaggingModel(nn.Module):

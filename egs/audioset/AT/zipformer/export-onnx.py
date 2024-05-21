@@ -36,7 +36,6 @@ import logging
 from pathlib import Path
 from typing import Dict
 
-import k2
 import onnx
 import onnxoptimizer
 import torch
@@ -53,7 +52,7 @@ from icefall.checkpoint import (
     find_checkpoints,
     load_checkpoint,
 )
-from icefall.utils import make_pad_mask, num_tokens, str2bool
+from icefall.utils import make_pad_mask, str2bool
 
 
 def get_parser():

@@ -41,7 +41,6 @@ from shutil import copyfile
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import optim
-import sentencepiece as spm
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
@@ -632,7 +631,7 @@ def compute_loss(
       model:
         The model for training. It is an instance of Zipformer in our case.
       batch:
-        A batch of data. See `lhotse.dataset.K2SpeechRecognitionDataset()`
+        A batch of data. See `lhotse.dataset.AudioTaggingDataset()`
         for the content in it.
       is_training:
         True for training. False for validation. When it is True, this
@@ -1108,7 +1107,7 @@ def display_and_save_batch(
 
     Args:
       batch:
-        A batch of data. See `lhotse.dataset.K2SpeechRecognitionDataset()`
+        A batch of data. See `lhotse.dataset.AudioTaggingDataset()`
         for the content in it.
       params:
         Parameters for training. See :func:`get_params`.
