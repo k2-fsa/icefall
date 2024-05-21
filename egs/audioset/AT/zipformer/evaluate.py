@@ -29,27 +29,18 @@ export CUDA_VISIBLE_DEVICES="0"
 """
 
 import argparse
-import csv
 import logging
-import math
-import os
-from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict
 
-import k2
-import numpy as np
-import sentencepiece as spm
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from at_datamodule import AudioSetATDatamodule
-from lhotse import load_manifest
 
 try:
     from sklearn.metrics import average_precision_score
-except Exception as ex:
-    raise RuntimeError(f"{ex}\nPlease run\n" "pip3 install -U scikit-learn")
+except:
+    raise ImportError(f"Please run\n" "pip3 install -U scikit-learn")
 from train import add_model_arguments, get_model, get_params, str2multihot
 
 from icefall.checkpoint import (
@@ -58,15 +49,7 @@ from icefall.checkpoint import (
     find_checkpoints,
     load_checkpoint,
 )
-from icefall.lexicon import Lexicon
-from icefall.utils import (
-    AttributeDict,
-    make_pad_mask,
-    setup_logger,
-    store_transcripts,
-    str2bool,
-    write_error_stats,
-)
+from icefall.utils import AttributeDict, setup_logger, str2bool
 
 
 def get_parser():

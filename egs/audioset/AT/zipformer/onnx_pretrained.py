@@ -42,9 +42,8 @@ import argparse
 import csv
 import logging
 import math
-from typing import List, Tuple
+from typing import List
 
-import k2
 import kaldifeat
 import onnxruntime as ort
 import torch
