@@ -40,7 +40,7 @@ from at_datamodule import AudioSetATDatamodule
 try:
     from sklearn.metrics import average_precision_score
 except:
-    raise ImportError(f"{ex}\nPlease run\n" "pip3 install -U scikit-learn")
+    raise ImportError(f"Please run\n" "pip3 install -U scikit-learn")
 from train import add_model_arguments, get_model, get_params, str2multihot
 
 from icefall.checkpoint import (
