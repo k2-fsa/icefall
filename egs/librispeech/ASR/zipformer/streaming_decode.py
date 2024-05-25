@@ -51,7 +51,7 @@ from streaming_beam_search import (
 )
 from torch import Tensor, nn
 from torch.nn.utils.rnn import pad_sequence
-from train import add_model_arguments, get_params, get_model
+from train import add_model_arguments, get_model, get_params
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -577,7 +577,12 @@ def decode_dataset(
         assert audio.dtype == np.float32, audio.dtype
 
         # The trained model is using normalized samples
-        assert audio.max() <= 1, "Should be normalized to [-1, 1])"
+        # - this is to avoid sending [-32k,+32k] signal in...
+        # - some lhotse AudioTransform classes can make the signal
+        #   be out of range [-1, 1], hence the tolerance 10
+        assert (
+            np.abs(audio).max() <= 10
+        ), "Should be normalized to [-1, 1], 10 for tolerance..."
 
         samples = torch.from_numpy(audio).squeeze(0)
 

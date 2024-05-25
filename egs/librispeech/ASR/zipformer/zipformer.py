@@ -788,7 +788,7 @@ class Zipformer2EncoderLayer(nn.Module):
         selected_attn_weights = attn_weights[0:1]
         if torch.jit.is_scripting() or torch.jit.is_tracing():
             pass
-        elif not self.training and random.random() < float(self.const_attention_rate):
+        elif self.training and random.random() < float(self.const_attention_rate):
             # Make attention weights constant.  The intention is to
             # encourage these modules to do something similar to an
             # averaging-over-time operation.

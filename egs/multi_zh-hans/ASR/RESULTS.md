@@ -1,5 +1,48 @@
 ## Results
 
+### Multi Chinese datasets (without datatang 200h) finetuning results on Whisper-large-v2
+#### Whisper
+[./whisper](./whisper)
+
+Character Error Rates (CERs) listed below are produced by the checkpoint of the second epoch using greedy search.
+
+| Datasets | alimeeting | alimeeting | aishell-1 | aishell-1 | aishell-2 | aishell-2 | aishell-4 | magicdata | magicdata | kespeech-asr | kespeech-asr | kespeech-asr | WenetSpeech  |
+|--------------------------------|-------------------|--------------|----------------|-------------|------------------|-------------|------------------|------------------|-------------|-----------------------|-----------------------|-------------|-------------------|
+|  Split |           eval| test | dev | test | dev| test | test      | dev| test | dev phase1 | dev phase2 | test | test meeting |
+| Greedy Search |  23.22 | 28.24 | 0.61 | 0.66 | 2.67 | 2.80 | 16.61 | 2.56 | 2.21 | 4.73 | 1.90 | 5.98 |                    8.13 |
+
+Command for training is:
+```bash
+pip install -r whisper/requirements.txt
+
+# We updated the label of wenetspeech to remove OCR deletion errors, see https://github.com/wenet-e2e/WenetSpeech/discussions/54
+
+torchrun --nproc-per-node 8 ./whisper/train.py \
+  --max-duration 200 \
+  --exp-dir whisper/exp_large_v2 \
+  --model-name large-v2 \
+  --deepspeed \
+  --deepspeed_config ./whisper/ds_config_zero1.json
+```
+
+Command for decoding using fine-tuned models:
+```bash
+git lfs install
+git clone https://huggingface.co/yuekai/icefall_asr_multi-hans-zh_whisper
+ln -s icefall_asr_multi-hans-zh_whisper/v1.1/epoch-3-avg-10.pt whisper/exp_large_v2/epoch-999.pt
+
+python3 ./whisper/decode.py \
+  --exp-dir whisper/exp_large_v2 \
+  --model-name large-v2 \
+  --epoch 999 --avg 1 \
+  --beam-size 10 --max-duration 50
+```
+
+Fine-tuned models, training logs, decoding logs, tensorboard and decoding results
+are available at
+<https://huggingface.co/yuekai/icefall_asr_multi-hans-zh_whisper>
+
+
 ### Multi Chinese datasets char-based training results (Non-streaming) on zipformer model
 
 This is the [pull request #1238](https://github.com/k2-fsa/icefall/pull/1238) in icefall.

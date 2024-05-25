@@ -16,8 +16,8 @@ perturb_speed=true
 #
 #  - $dl_dir/aidatatang_200zh
 #      You can find "corpus" and "transcript" inside it.
-#      You can download it at
-#       https://openslr.org/62/
+#      You can download it at https://openslr.org/62/
+#      If you download the data by yourself, DON'T FORGET to extract the *.tar.gz files under corpus.
 
 dl_dir=$PWD/download
 

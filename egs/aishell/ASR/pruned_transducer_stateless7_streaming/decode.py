@@ -250,7 +250,7 @@ def get_parser():
     parser.add_argument(
         "--context-size",
         type=int,
-        default=1,
+        default=2,
         help="The context size in the decoder. 1 means bigram; 2 means tri-gram",
     )
     parser.add_argument(
@@ -492,7 +492,7 @@ def save_results(
     for key, results in results_dict.items():
         recog_path = params.res_dir / f"recogs-{test_set_name}-{params.suffix}.txt"
         results = sorted(results)
-        store_transcripts(filename=recog_path, texts=results)
+        store_transcripts(filename=recog_path, texts=results, char_level=True)
         logging.info(f"The transcripts are stored in {recog_path}")
 
         # The following prints out WERs, per-word error statistics and aligned
@@ -500,7 +500,11 @@ def save_results(
         errs_filename = params.res_dir / f"errs-{test_set_name}-{params.suffix}.txt"
         with open(errs_filename, "w") as f:
             wer = write_error_stats(
-                f, f"{test_set_name}-{key}", results, enable_log=True
+                f,
+                f"{test_set_name}-{key}",
+                results,
+                enable_log=True,
+                compute_CER=True,
             )
             test_set_wers[key] = wer
 
@@ -686,7 +690,7 @@ def main():
                 contexts_text.append(line.strip())
             contexts = graph_compiler.texts_to_ids(contexts_text)
             context_graph = ContextGraph(params.context_score)
-            context_graph.build(contexts)
+            context_graph.build([(c, 0.0) for c in contexts])
         else:
             context_graph = None
     else:

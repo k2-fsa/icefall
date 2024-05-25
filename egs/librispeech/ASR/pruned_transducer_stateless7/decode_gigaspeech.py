@@ -107,9 +107,6 @@ import k2
 import sentencepiece as spm
 import torch
 import torch.nn as nn
-
-# from asr_datamodule import LibriSpeechAsrDataModule
-from gigaspeech import GigaSpeechAsrDataModule
 from beam_search import (
     beam_search,
     fast_beam_search_nbest,
@@ -120,6 +117,9 @@ from beam_search import (
     greedy_search_batch,
     modified_beam_search,
 )
+
+# from asr_datamodule import LibriSpeechAsrDataModule
+from gigaspeech import GigaSpeechAsrDataModule
 from gigaspeech_scoring import asr_text_post_processing
 from train import add_model_arguments, get_params, get_transducer_model
 

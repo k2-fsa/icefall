@@ -30,7 +30,8 @@ stop_stage=100
 #        - librispeech-lm-norm.txt.gz
 #
 otc_token="<star>"
-feature_type="ssl"
+# ssl or fbank
+feature_type="fbank"
 
 dl_dir=$PWD/download
 manifests_dir="data/manifests"
@@ -40,9 +41,6 @@ lm_dir="data/lm"
 
 perturb_speed=false
 
-# ssl or fbank
-
-. ./cmd.sh
 . shared/parse_options.sh || exit 1
 
 # vocab size for sentence piece models.
@@ -192,7 +190,23 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
 fi
 
 if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
-  log "Stage 5: Prepare G"
+  log "Stage 5: Prepare phone based lang"
+  lang_dir="data/lang_phone"
+  mkdir -p ${lang_dir}
+
+  if [ ! -f $lang_dir/lexicon.txt ]; then
+    (echo '!SIL SIL'; echo '<SPOKEN_NOISE> SPN'; echo '<UNK> SPN'; ) |
+      cat - $dl_dir/lm/librispeech-lexicon.txt |
+      sort | uniq > $lang_dir/lexicon.txt
+  fi
+
+  if [ ! -f $lang_dir/L_disambig.pt ]; then
+    ./local/prepare_otc_lang.py --lang-dir $lang_dir
+  fi
+fi
+
+if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
+  log "Stage 6: Prepare G"
   # We assume you have installed kaldilm, if not, please install
   # it using: pip install kaldilm
 
@@ -216,18 +230,30 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   fi
 fi
 
-if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
-  log "Stage 6: Compile HLG"
+if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
+  log "Stage 7: Compile HLG"
   # Note If ./local/compile_hlg.py throws OOM,
   # please switch to the following command
   #
   # ./local/compile_hlg_using_openfst.py --lang-dir data/lang_phone
-
   for vocab_size in ${vocab_sizes[@]}; do
-    bpe_lang_dir="data/lang_bpe_${vocab_size}"
+    lang_dir="data/lang_bpe_${vocab_size}"
     echo "LM DIR: ${lm_dir}"
     ./local/compile_hlg.py \
         --lm-dir "${lm_dir}" \
         --lang-dir "${bpe_lang_dir}"
   done
+fi
+
+if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
+  log "Stage 7: Compile HLG"
+  # Note If ./local/compile_hlg.py throws OOM,
+  # please switch to the following command
+  #
+  # ./local/compile_hlg_using_openfst.py --lang-dir data/lang_phone
+  lang_dir="data/lang_phone"
+  echo "LM DIR: ${lm_dir}"
+  ./local/compile_hlg.py \
+      --lm-dir "${lm_dir}" \
+      --lang-dir "${lang_dir}"
 fi

@@ -38,6 +38,8 @@ import sentencepiece as spm
 import torch
 import torch.distributed as dist
 import torch.nn as nn
+from pypinyin import lazy_pinyin, pinyin
+from pypinyin.contrib.tone_convert import to_finals, to_finals_tone, to_initials
 from torch.utils.tensorboard import SummaryWriter
 
 from icefall.checkpoint import average_checkpoints
@@ -152,6 +154,7 @@ def setup_logger(
         format=formatter,
         level=level,
         filemode="w",
+        force=True,
     )
     if use_console:
         console = logging.StreamHandler()
@@ -325,6 +328,19 @@ def encode_supervisions_otc(
         res = [token_ids[idx] for idx in indices]
 
     return supervision_segments, res, sorted_ids, sorted_verbatim_texts
+
+
+@dataclass
+class KeywordResult:
+    # timestamps[k] contains the frame number on which tokens[k]
+    # is decoded
+    timestamps: List[int]
+
+    # hyps is the keyword, i.e., word IDs or token IDs
+    hyps: List[int]
+
+    # The triggered phrase
+    phrase: str
 
 
 @dataclass
@@ -1066,9 +1082,11 @@ def write_surt_error_stats(
                 f"{cut_id}:\t"
                 + " ".join(
                     (
-                        ref_word
-                        if ref_word == hyp_word
-                        else f"({ref_word}->{hyp_word})"
+                        (
+                            ref_word
+                            if ref_word == hyp_word
+                            else f"({ref_word}->{hyp_word})"
+                        )
                         for ref_word, hyp_word in ali
                     )
                 ),
@@ -1581,6 +1599,87 @@ def load_averaged_model(
     model.load_state_dict(average_checkpoints(filenames, device=device))
 
     return model
+
+
+def text_to_pinyin(
+    txt: str, mode: str = "full_with_tone", errors: str = "default"
+) -> List[str]:
+    """
+    Convert a Chinese text (might contain some latin characters) to pinyin sequence.
+
+    Args:
+      txt:
+        The input Chinese text.
+      mode:
+        The style of the output pinyin, should be:
+          full_with_tone : zhōng guó
+          full_no_tone : zhong guo
+          partial_with_tone : zh ōng g uó
+          partial_no_tone : zh ong g uo
+      errors:
+        How to handle the characters (latin) that has no pinyin.
+          default : output the same as input.
+          split : split into single characters (i.e. alphabets)
+
+    Return:
+      Return a list of str.
+
+    Examples:
+      txt: 想吃KFC
+      output: ['xiǎng', 'chī', 'KFC']  # mode=full_with_tone; errors=default
+      output: ['xiǎng', 'chī', 'K', 'F', 'C']  # mode=full_with_tone; errors=split
+      output: ['xiang', 'chi', 'KFC']  # mode=full_no_tone; errors=default
+      output: ['xiang', 'chi', 'K', 'F', 'C']  # mode=full_no_tone; errors=split
+      output: ['x', 'iǎng', 'ch', 'ī', 'KFC']  # mode=partial_with_tone; errors=default
+      output: ['x', 'iang', 'ch', 'i', 'KFC']  # mode=partial_no_tone; errors=default
+    """
+
+    assert mode in (
+        "full_with_tone",
+        "full_no_tone",
+        "partial_no_tone",
+        "partial_with_tone",
+    ), mode
+
+    assert errors in ("default", "split"), errors
+
+    txt = txt.strip()
+    res = []
+    if "full" in mode:
+        if errors == "default":
+            py = pinyin(txt) if mode == "full_with_tone" else lazy_pinyin(txt)
+        else:
+            py = (
+                pinyin(txt, errors=lambda x: list(x))
+                if mode == "full_with_tone"
+                else lazy_pinyin(txt, errors=lambda x: list(x))
+            )
+        res = [x[0] for x in py] if mode == "full_with_tone" else py
+    else:
+        if errors == "default":
+            py = pinyin(txt) if mode == "partial_with_tone" else lazy_pinyin(txt)
+        else:
+            py = (
+                pinyin(txt, errors=lambda x: list(x))
+                if mode == "partial_with_tone"
+                else lazy_pinyin(txt, errors=lambda x: list(x))
+            )
+        py = [x[0] for x in py] if mode == "partial_with_tone" else py
+        for x in py:
+            initial = to_initials(x, strict=False)
+            final = (
+                to_finals(x, strict=False)
+                if mode == "partial_no_tone"
+                else to_finals_tone(x, strict=False)
+            )
+            if initial == "" and final == "":
+                res.append(x)
+            else:
+                if initial != "":
+                    res.append(initial)
+                if final != "":
+                    res.append(final)
+    return res
 
 
 def tokenize_by_bpe_model(

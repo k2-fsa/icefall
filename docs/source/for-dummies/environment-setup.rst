@@ -66,13 +66,17 @@ to install dependencies of `icefall`_:
 
    pip install torch==2.0.0+cpu torchaudio==2.0.0+cpu -f https://download.pytorch.org/whl/torch_stable.html
 
-   # If you are using macOS or Windows, please use the following command to install torch and torchaudio
+   # If you are using macOS, please use the following command to install torch and torchaudio
    # pip install torch==2.0.0 torchaudio==2.0.0 -f https://download.pytorch.org/whl/torch_stable.html
 
    # Now install k2
    # Please refer to https://k2-fsa.github.io/k2/installation/from_wheels.html#linux-cpu-example
 
-   pip install k2==1.24.3.dev20230726+cpu.torch2.0.0 -f https://k2-fsa.github.io/k2/cpu.html
+   pip install k2==1.24.4.dev20231220+cpu.torch2.0.0 -f https://k2-fsa.github.io/k2/cpu.html
+
+   # For users from China
+   # 中国国内用户，如果访问不了 huggingface, 请使用
+   # pip install k2==1.24.4.dev20231220+cpu.torch2.0.0 -f https://k2-fsa.github.io/k2/cpu-cn.html
 
    # Install the latest version of lhotse
 

@@ -22,14 +22,18 @@ from datetime import datetime
 from pathlib import Path
 
 import torch
-from lhotse import (
+from lhotse import (  # KaldifeatWhisperFbank,; KaldifeatWhisperFbankConfig,
     CutSet,
     KaldifeatFbank,
     KaldifeatFbankConfig,
     LilcomChunkyWriter,
+    WhisperFbank,
+    WhisperFbankConfig,
     set_audio_duration_mismatch_tolerance,
     set_caching_enabled,
 )
+
+from icefall.utils import get_executor, str2bool
 
 # Torch's multithreaded behavior needs to be disabled or
 # it wastes a lot of CPU and slow things down.
@@ -78,14 +82,35 @@ def get_parser():
         "--start",
         type=int,
         default=0,
-        help="Process pieces starting from this number (inclusive).",
+        help="Process pieces starting from this number (included).",
     )
 
     parser.add_argument(
         "--stop",
         type=int,
         default=-1,
-        help="Stop processing pieces until this number (exclusive).",
+        help="Stop processing pieces until this number (excluded).",
+    )
+
+    parser.add_argument(
+        "--num-mel-bins",
+        type=int,
+        default=80,
+        help="""The number of mel bins for Fbank""",
+    )
+
+    parser.add_argument(
+        "--whisper-fbank",
+        type=str2bool,
+        default=False,
+        help="Use WhisperFbank instead of Fbank. Default: False.",
+    )
+
+    parser.add_argument(
+        "--output-dir-prefix",
+        type=str,
+        default="",
+        help="Prefix of the output directory.",
     )
     return parser
 
@@ -96,6 +121,7 @@ def compute_fbank_wenetspeech_splits(args):
     num_splits = args.num_splits
     output_dir = f"data/fbank/{subset}_split_{num_splits}"
     output_dir = Path(output_dir)
+    output_dir = Path(args.output_dir_prefix) / output_dir
     assert output_dir.exists(), f"{output_dir} does not exist!"
 
     num_digits = len(str(num_splits))
@@ -110,14 +136,21 @@ def compute_fbank_wenetspeech_splits(args):
     device = torch.device("cpu")
     if torch.cuda.is_available():
         device = torch.device("cuda", 0)
-    extractor = KaldifeatFbank(KaldifeatFbankConfig(device=device))
+    if args.whisper_fbank:
+        extractor = WhisperFbank(
+            WhisperFbankConfig(num_filters=args.num_mel_bins, device=device)
+        )
+        # extractor = KaldifeatWhisperFbank(KaldifeatWhisperFbankConfig(num_filters=args.num_mel_bins, device=device))
+    else:
+        extractor = KaldifeatFbank(KaldifeatFbankConfig(device=device))
     logging.info(f"device: {device}")
 
     set_audio_duration_mismatch_tolerance(0.01)  # 10ms tolerance
     set_caching_enabled(False)
+    # with get_executor() as ex:  # Initialize the executor only once.
     for i in range(start, stop):
-        idx = f"{i + 1}".zfill(num_digits)
-        logging.info(f"Processing {idx}/{num_splits}")
+        idx = f"{i}".zfill(num_digits)
+        logging.info(f"Processing {i+1}/{num_splits}")
 
         cuts_path = output_dir / f"cuts_{subset}.{idx}.jsonl.gz"
         if cuts_path.is_file():
@@ -143,7 +176,6 @@ def compute_fbank_wenetspeech_splits(args):
             storage_type=LilcomChunkyWriter,
             overwrite=True,
         )
-
         logging.info(f"Saving to {cuts_path}")
         cut_set.to_file(cuts_path)
 
