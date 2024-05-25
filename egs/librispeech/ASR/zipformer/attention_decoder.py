@@ -15,11 +15,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# The model structure is modified from Daniel Povey's Zipformer
-# https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/pruned_transducer_stateless7/zipformer.py
 
 import math
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 import k2
 import torch

@@ -48,6 +48,7 @@ It supports training with:
   - transducer loss (default), with `--use-transducer True --use-ctc False`
   - ctc loss (not recommended), with `--use-transducer False --use-ctc True`
   - transducer loss & ctc loss, with `--use-transducer True --use-ctc True`
+  - ctc loss & attention decoder loss, with `--use-ctc True --use-attention-decoder True `
 """
 
 
@@ -917,7 +918,7 @@ def compute_loss(
     if params.use_ctc:
         info["ctc_loss"] = ctc_loss.detach().cpu().item()
     if params.use_attention_decoder:
-        info["attn_deocder_loss"] = attention_decoder_loss.detach().cpu().item()
+        info["attn_decoder_loss"] = attention_decoder_loss.detach().cpu().item()
 
     return loss, info
 
