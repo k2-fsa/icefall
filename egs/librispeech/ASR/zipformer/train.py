@@ -1199,8 +1199,7 @@ def run(rank, world_size, args):
 
     # <blk> is defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
-    params.eos_id = sp.piece_to_id("<sos/eos>")
-    params.sos_id = sp.piece_to_id("<sos/eos>")
+    params.sos_id = params.eos_id = sp.piece_to_id("<sos/eos>")
     params.vocab_size = sp.get_piece_size()
 
     if not params.use_transducer:

@@ -73,6 +73,29 @@ Usage:
     --nbest-scale 1.0 \
     --lm-dir data/lm \
     --decoding-method whole-lattice-rescoring
+
+(6) attention-decoder-rescoring-no-ngram
+./zipformer/ctc_decode.py \
+    --epoch 30 \
+    --avg 15 \
+    --exp-dir ./zipformer/exp \
+    --use-ctc 1 \
+    --use-attention-decoder 1 \
+    --max-duration 100 \
+    --decoding-method attention-decoder-rescoring-no-ngram
+
+(7) attention-decoder-rescoring-with-ngram
+./zipformer/ctc_decode.py \
+    --epoch 30 \
+    --avg 15 \
+    --exp-dir ./zipformer/exp \
+    --use-ctc 1 \
+    --use-attention-decoder 1 \
+    --max-duration 100 \
+    --hlg-scale 0.6 \
+    --nbest-scale 1.0 \
+    --lm-dir data/lm \
+    --decoding-method attention-decoder-rescoring-with-ngram
 """
 
 
@@ -101,10 +124,10 @@ from icefall.decode import (
     nbest_decoding,
     nbest_oracle,
     one_best_decoding,
-    rescore_with_n_best_list,
-    rescore_with_whole_lattice,
     rescore_with_attention_decoder_no_ngram,
     rescore_with_attention_decoder_with_ngram,
+    rescore_with_n_best_list,
+    rescore_with_whole_lattice,
 )
 from icefall.lexicon import Lexicon
 from icefall.utils import (
@@ -214,6 +237,10 @@ def get_parser():
         - (6) nbest-oracle. Its WER is the lower bound of any n-best
           rescoring method can achieve. Useful for debugging n-best
           rescoring method.
+        - (7) attention-decoder-rescoring-no-ngram. Extract n paths from the decoding
+          lattice, rescore them with the attention decoder.
+        - (8) attention-decoder-rescoring-with-ngram. Extract n paths from the LM
+          rescored lattice, rescore them with the attention decoder.
         """,
     )
 
