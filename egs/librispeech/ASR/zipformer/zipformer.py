@@ -205,9 +205,9 @@ class Zipformer2(EncoderInterface):
         """
         In eval mode, returns [1.0] * num_encoders; in training mode, returns a number of
         randomized feature masks, one per encoder.
-        On e.g. 15% of frames, these masks will zero out all enocder dims larger than
+        On e.g. 15% of frames, these masks will zero out all encoder dims larger than
         some supplied number, e.g. >256, so in effect on those frames we are using
-        a smaller encoer dim.
+        a smaller encoder dim.
 
         We generate the random masks at this level because we want the 2 masks to 'agree'
         all the way up the encoder stack. This will mean that the 1st mask will have
@@ -548,9 +548,9 @@ class Zipformer2EncoderLayer(nn.Module):
     Args:
         embed_dim: the number of expected features in the input (required).
         nhead: the number of heads in the multiheadattention models (required).
-        feedforward_dim: the dimension of the feedforward network model (default=2048).
+        feedforward_dim: the dimension of the feedforward network model (required).
         dropout: the dropout value (default=0.1).
-        cnn_module_kernel (int): Kernel size of convolution module.
+        cnn_module_kernel (int): Kernel size of convolution module (default=31).
 
     Examples::
         >>> encoder_layer = Zipformer2EncoderLayer(embed_dim=512, nhead=8)
@@ -1028,7 +1028,7 @@ class Zipformer2Encoder(nn.Module):
         )
         self.num_layers = num_layers
 
-        assert 0 <= warmup_begin <= warmup_end
+        assert 0 <= warmup_begin <= warmup_end, (warmup_begin, warmup_end)
 
         delta = (1.0 / num_layers) * (warmup_end - warmup_begin)
         cur_begin = warmup_begin  # interpreted as a training batch index
@@ -1177,7 +1177,7 @@ class BypassModule(nn.Module):
     def _get_bypass_scale(self, batch_size: int):
         # returns bypass-scale of shape (num_channels,),
         # or (batch_size, num_channels,).  This is actually the
-        # scale on the non-residual term, so 0 correponds to bypassing
+        # scale on the non-residual term, so 0 corresponds to bypassing
         # this module.
         if torch.jit.is_scripting() or torch.jit.is_tracing() or not self.training:
             return self.bypass_scale
@@ -1381,12 +1381,12 @@ class CompactRelPositionalEncoding(torch.nn.Module):
     when encoding absolute position, but not important when encoding relative position because there
     is now no need to compare two large offsets with each other.
 
-    Our embedding works done by projecting the interval [-infinity,infinity] to a finite interval
-    using the atan() function, before doing the fourier transform of that fixed interval.  The
+    Our embedding works by projecting the interval [-infinity,infinity] to a finite interval
+    using the atan() function, before doing the Fourier transform of that fixed interval.  The
     atan() function would compress the "long tails" too small,
     making it hard to distinguish between different magnitudes of large offsets, so we use a logarithmic
     function to compress large offsets to a smaller range before applying atan().
-    Scalings are chosen in such a way that the embedding can clearly distinguish invidual offsets as long
+    Scalings are chosen in such a way that the embedding can clearly distinguish individual offsets as long
     as they are quite close to the origin, e.g. abs(offset) <= about sqrt(embedding_dim)
 
 
@@ -1408,10 +1408,10 @@ class CompactRelPositionalEncoding(torch.nn.Module):
         """Construct a CompactRelPositionalEncoding object."""
         super(CompactRelPositionalEncoding, self).__init__()
         self.embed_dim = embed_dim
-        assert embed_dim % 2 == 0
+        assert embed_dim % 2 == 0, embed_dim
         self.dropout = Dropout2(dropout_rate)
         self.pe = None
-        assert length_factor >= 1.0
+        assert length_factor >= 1.0, length_factor
         self.length_factor = length_factor
         self.extend_pe(torch.tensor(0.0).expand(max_len))
 
@@ -1555,7 +1555,7 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         # due to how Adam/ScaledAdam work, it can learn a fairly large nonzero
         # bias because the small numerical roundoff tends to have a non-random
         # sign.  This module is intended to prevent that.  Use a very small
-        # probability; that should be suffixient to fix the problem.
+        # probability; that should be sufficient to fix the problem.
         self.balance_keys = Balancer(
             key_head_dim * num_heads,
             channel_dim=-1,
@@ -1571,7 +1571,7 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
             pos_dim, num_heads * pos_head_dim, bias=False, initial_scale=0.05
         )
 
-        # the following are for diagnosics only, see --print-diagnostics option
+        # the following are for diagnostics only, see --print-diagnostics option
         self.copy_pos_query = Identity()
         self.copy_query = Identity()
 
@@ -1609,7 +1609,7 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         k = x[..., query_dim : 2 * query_dim]
         # p is the position-encoding query
         p = x[..., 2 * query_dim :]
-        assert p.shape[-1] == num_heads * pos_head_dim
+        assert p.shape[-1] == num_heads * pos_head_dim, (p.shape[-1], num_heads, pos_head_dim)
 
         q = self.copy_query(q)  # for diagnostics only, does nothing.
         k = self.whiten_keys(self.balance_keys(k))  # does nothing in the forward pass.

@@ -137,7 +137,7 @@ class PiecewiseLinear(object):
 
           p: the other piecewise linear function
           include_crossings: if true, include in the x values positions
-              where the functions indicate by this and p crosss.
+              where the functions indicate by this and p cross.
         """
         assert isinstance(p, PiecewiseLinear), type(p)
 
