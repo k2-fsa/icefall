@@ -1,7 +1,8 @@
 from torch import nn
 import torch
+from transformers.trainer_pt_utils import LabelSmoother
 
-DEFAULT_SPEECH_TOKEN = -1997 # "<speech>"
+IGNORE_TOKEN_ID = LabelSmoother.ignore_index
 
 class EncoderProjector(nn.Module):
 
@@ -18,7 +19,6 @@ class EncoderProjector(nn.Module):
         return x
 
 class SPEECH_LLM(nn.Module):
-    # https://github.com/ddlBoJack/SLAM-LLM/blob/main/src/slam_llm/models/slam_model.py
     def __init__(
         self,
         encoder: nn.Module,
@@ -28,8 +28,12 @@ class SPEECH_LLM(nn.Module):
         super().__init__()
 
         self.encoder = encoder
+        for name, param in encoder.named_parameters(): 
+            param.requires_grad = False
         self.encoder.eval()
         self.llm = llm
+        for name, param in llm.named_parameters(): 
+            param.requires_grad = False
         self.llm.eval()
         self.encoder_projector = encoder_projector
         self.encoder_outputs_downsample_rate = 4
@@ -39,11 +43,11 @@ class SPEECH_LLM(nn.Module):
         batch_size, sequence_length = input_ids.shape
         left_padding = not torch.sum(input_ids[:, -1] == torch.tensor(self.llm.config.pad_token_id))
         # 1. Create a mask to know where special speech tokens are
-        special_speech_token_mask = input_ids == DEFAULT_SPEECH_TOKEN
+        special_speech_token_mask = input_ids == self.llm.config.default_speech_token_id
         num_special_speech_tokens = torch.sum(special_speech_token_mask, dim=-1)
         # Compute the maximum embed dimension
         max_embed_dim = (num_special_speech_tokens.max() * (speech_len - 1)) + sequence_length
-        batch_indices, non_speech_indices = torch.where(input_ids != DEFAULT_SPEECH_TOKEN)
+        batch_indices, non_speech_indices = torch.where(input_ids != self.llm.config.default_speech_token_id)
 
         # 2. Compute the positions where text should be written
         # Calculate new positions for text tokens in merged speech-text sequence.
@@ -65,7 +69,7 @@ class SPEECH_LLM(nn.Module):
         )
         if labels is not None:
             final_labels = torch.full(
-                (batch_size, max_embed_dim), self., dtype=input_ids.dtype, device=input_ids.device
+                (batch_size, max_embed_dim), IGNORE_TOKEN_ID, dtype=input_ids.dtype, device=input_ids.device
             )
         # In case the Vision model or the Language model has been offloaded to CPU, we need to manually
         # set the corresponding tensors into their correct target device.
@@ -128,17 +132,17 @@ class SPEECH_LLM(nn.Module):
             speech_features, inputs_embeds, input_ids, attention_mask, labels
         )
 
-        outputs = self.language_model(
-            attention_mask=attention_mask,
-            position_ids=position_ids,
-            past_key_values=past_key_values,
-            inputs_embeds=inputs_embeds,
-            use_cache=use_cache,
-            output_attentions=output_attentions,
-            output_hidden_states=output_hidden_states,
-            return_dict=return_dict,
-        )
-        logits = outputs[0]
+        # outputs = self.llm(
+        #     attention_mask=attention_mask,
+        #     position_ids=position_ids,
+        #     past_key_values=past_key_values,
+        #     inputs_embeds=inputs_embeds,
+        #     use_cache=use_cache,
+        #     output_attentions=output_attentions,
+        #     output_hidden_states=output_hidden_states,
+        #     return_dict=return_dict,
+        # )
+        # logits = outputs[0]
 
         model_outputs = self.llm(inputs_embeds=inputs_embeds, attention_mask=attention_mask, labels=labels, position_ids=position_ids)
 

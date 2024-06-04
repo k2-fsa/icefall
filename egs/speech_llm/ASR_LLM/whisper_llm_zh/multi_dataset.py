@@ -256,3 +256,15 @@ class MultiDataset:
         )
 
         return aishell_cuts
+
+
+    def aishell_dev_cuts(self) -> CutSet:
+        logging.info("About to get multidataset dev cuts")
+
+        # AISHELL
+        logging.info("Loading Aishell set in lazy mode")
+        aishell_dev_cuts = load_manifest_lazy(
+            self.fbank_dir / "aishell_cuts_dev.jsonl.gz"
+        )
+
+        return aishell_dev_cuts

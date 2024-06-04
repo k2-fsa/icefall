@@ -1,15 +1,14 @@
 
-export PYTHONPATH=$PYTHONPATH:/workspace/asr/icefall
+export PYTHONPATH=$PYTHONPATH:/mnt/samsung-t7/yuekai/asr/icefall_llm
 # pip install k2==1.24.3.dev20230524+cuda11.8.torch2.0.1 -f https://k2-fsa.github.io/k2/cuda.html
 # pip install -r whisper/requirements.txt
-
-method=mask_predict
-# method=cif_ar_distill_embedding
-torchrun --nproc_per_node 8 ./parawhisper/train.py \
-  --max-duration 200 \
-  --exp-dir parawhisper/exp_large_v2_${method} \
-  --model-name large-v2 \
+export CUDA_VISIBLE_DEVICES=0,1
+torchrun --nproc_per_node 2 ./whisper_llm_zh/train.py \
+  --max-duration 80 \
+  --exp-dir ./whisper_llm_zh/exp_test \
+  --speech-encoder-path-or-name tiny \
+  --llm-path-or-name Qwen/Qwen1.5-0.5B-Chat \
   --manifest-dir data/fbank \
-  --method $method \
   --deepspeed \
-  --deepspeed_config ./whisper/ds_config_zero1.json
+  --deepspeed_config ./whisper_llm_zh/ds_config_zero1.json \
+  --use-flash-attn False
