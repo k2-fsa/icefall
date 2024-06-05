@@ -38,7 +38,7 @@ class SPEECH_LLM(nn.Module):
         self.encoder_projector = encoder_projector
         self.encoder_outputs_downsample_rate = 4
 
-    def _merge_input_ids_with_speech_features(self, speech_features, inputs_embeds, input_ids, attention_mask, labels):
+    def _merge_input_ids_with_speech_features(self, speech_features, inputs_embeds, input_ids, attention_mask, labels=None):
         num_speechs, speech_len, embed_dim = speech_features.shape
         batch_size, sequence_length = input_ids.shape
         left_padding = not torch.sum(input_ids[:, -1] == torch.tensor(self.llm.config.pad_token_id))
@@ -132,18 +132,45 @@ class SPEECH_LLM(nn.Module):
             speech_features, inputs_embeds, input_ids, attention_mask, labels
         )
 
-        # outputs = self.llm(
-        #     attention_mask=attention_mask,
-        #     position_ids=position_ids,
-        #     past_key_values=past_key_values,
-        #     inputs_embeds=inputs_embeds,
-        #     use_cache=use_cache,
-        #     output_attentions=output_attentions,
-        #     output_hidden_states=output_hidden_states,
-        #     return_dict=return_dict,
-        # )
-        # logits = outputs[0]
-
         model_outputs = self.llm(inputs_embeds=inputs_embeds, attention_mask=attention_mask, labels=labels, position_ids=position_ids)
 
         return model_outputs
+
+
+    def decode(self,
+               fbank: torch.Tensor = None,
+               input_ids: torch.LongTensor = None,
+               attention_mask: torch.Tensor = None,
+               **kwargs:
+               ):
+
+        encoder_outs = self.encoder(fbank)
+        # downsample encoder_outs by 4
+        encoder_outs = encoder_outs[:, ::self.encoder_outputs_downsample_rate]
+        speech_features = self.encoder_projector(encoder_outs)
+        
+        inputs_embeds = self.llm.get_input_embeddings()(input_ids)
+        inputs_embeds, attention_mask, _, position_ids = self._merge_input_ids_with_speech_features(
+            speech_features, inputs_embeds, input_ids, attention_mask
+        )
+
+        model_outputs = self.llm.generate(
+            inputs_embeds=inputs_embeds,
+            max_new_tokens=kwargs.get("max_new_tokens", 200),
+            num_beams=kwargs.get("num_beams", 1),
+            do_sample=kwargs.get("do_sample", False),
+            min_length=kwargs.get("min_length", 1),
+            top_p=kwargs.get("top_p", 1.0),
+            repetition_penalty=kwargs.get("repetition_penalty", 1.0),
+            length_penalty=kwargs.get("length_penalty", 1.0),
+            temperature=kwargs.get("temperature", 1.0),
+            attention_mask=attention_mask,
+            position_ids=position_ids,
+            bos_token_id=self.llm.config.bos_token_id,
+            eos_token_id=self.llm.config.eos_token_id,
+            pad_token_id=self.tllm.config.pad_token_id
+        )
+        generated_ids = [
+            output_ids[len(input_ids):] for input_ids, output_ids in zip(input_ids, generated_ids)
+        ]
+        return generated_ids

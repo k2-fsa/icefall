@@ -30,15 +30,6 @@ python3 ./whisper/decode.py \
   --epoch 999 --avg 1 \
   --beam-size 10 --max-duration 50
 
-# Command for decoding using pretrained models (before fine-tuning):
-
-python3 ./whisper/decode.py \
-  --exp-dir whisper/exp_large_v2 \
-  --model-name large-v2 \
-  --epoch -1 --avg 1 \
-  --remove-whisper-encoder-input-length-restriction False \
-  --beam-size 10 --max-duration 50
-
 """
 
 import argparse
@@ -70,7 +61,7 @@ from icefall.utils import (
     str2bool,
     write_error_stats,
 )
-
+from train import DEFAULT_SPEECH_TOKEN
 
 def average_checkpoints(
     filenames: List[Path], device: torch.device = torch.device("cpu")
@@ -123,48 +114,27 @@ def average_checkpoints(
 
     return avg
 
+def add_model_arguments(parser: argparse.ArgumentParser):
+    parser.add_argument(
+        "--llm-path-or-name",
+        type=str,
+        default="/workspace/asr/Qwen1.5-0.5B-Chat",
+        help="Path or name of the large language model.",
+    )
 
-def remove_punctuation(text: str or List[str]):
-    """Modified from https://github.com/yeyupiaoling/Whisper-Finetune/blob/master/utils/data_utils.py
+    parser.add_argument(
+        "--speech-encoder-path-or-name",
+        type=str,
+        default="whisper-large-v2",
+        help="Path or name of the speech encoder.",
+    )
 
-    Args:
-        text: It can be a string or a list of strings.
-    Returns:
-        Return a string or a list of strings without any punctuation.
-    """
-    punctuation = "!,.;:?、！，。；：？《》 "
-    if isinstance(text, str):
-        text = re.sub(r"[{}]+".format(punctuation), "", text).strip()
-        return text
-    elif isinstance(text, list):
-        result_text = []
-        for t in text:
-            t = re.sub(r"[{}]+".format(punctuation), "", t).strip()
-            result_text.append(t)
-        return result_text
-    else:
-        raise Exception(f"Not support type {type(text)}")
-
-
-def to_simple(text: str or List[str]):
-    """Convert traditional Chinese to simplified Chinese.
-    Args:
-        text: It can be a string or a list of strings.
-    Returns:
-        Return a string or a list of strings converted to simplified Chinese.
-    """
-    if isinstance(text, str):
-        text = convert(text, "zh-cn")
-        return text
-    elif isinstance(text, list):
-        result_text = []
-        for t in text:
-            t = convert(t, "zh-cn")
-            result_text.append(t)
-        return result_text
-    else:
-        raise Exception(f"Not support type{type(text)}")
-
+    parser.add_argument(
+        "--encoder-projector-ds-rate",
+        type=int,
+        default=4,
+        help="Downsample rate for the encoder projector.",
+    )
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -212,28 +182,13 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--model-name",
-        type=str,
-        default="large-v2",
-        choices=["large-v2", "large-v3", "medium", "base", "small", "tiny"],
-        help="""The model name to use.
-        """,
-    )
-
-    parser.add_argument(
         "--remove-whisper-encoder-input-length-restriction",
         type=str2bool,
         default=True,
         help="replace whisper encoder forward method to remove input length restriction",
     )
 
-    parser.add_argument(
-        "--use-distill-whisper",
-        type=str2bool,
-        default=False,
-        help="Whether to use architecture of distill whisper.",
-    )
-
+    add_model_arguments(parser)
     return parser
 
 
@@ -249,6 +204,7 @@ def get_params() -> AttributeDict:
 def decode_one_batch(
     params: AttributeDict,
     model: nn.Module,
+    tokenizer: AutoTokenizer,
     batch: dict,
 ) -> Dict[str, List[List[int]]]:
     """Decode one batch and return the result in a dict. The dict has the
@@ -266,8 +222,33 @@ def decode_one_batch(
     Returns:
         Return a dict, whose key may be "beam-search".
     """
+    def preprocess(
+        messages,
+        tokenizer: transformers.PreTrainedTokenizer,
+        max_len: int = 128,
+    ) -> Dict:
+        """Preprocesses the data for supervised fine-tuning."""
+        texts = []
+        for i, msg in enumerate(messages):
+            texts.append(
+                tokenizer.apply_chat_template(
+                    msg,
+                    tokenize=True,
+                    add_generation_prompt=False,
+                    padding="max_length",
+                    max_length=max_len,
+                    truncation=True,
+                )
+            )
+
+        input_ids = torch.tensor(texts, dtype=torch.int)
+
+        attention_mask = input_ids.ne(tokenizer.pad_token_id)
+
+        return input_ids, attention_mask
+
     dtype = torch.float16
-    device = torch.device("cuda")
+    device = model.device
 
     feature = batch["inputs"]
     assert feature.ndim == 3
@@ -288,12 +269,25 @@ def decode_one_batch(
     supervisions = batch["supervisions"]
     feature_len = supervisions["num_frames"]
     feature_len = feature_len.to(device, dtype=dtype)
-    results = model.decode(feature, params.decoding_options)
-    hyps = [result.text for result in results]
 
-    hyps = remove_punctuation(hyps)
-    hyps = to_simple(hyps)
-    hyps = [params.normalizer.normalize(hyp) for hyp in hyps]
+    messages = []
+    for i, text in enumerate(texts):
+        message = [
+        {"role": "system", "content": "你是一个能处理音频的助手。"},
+        {"role": "user", "content": f"请转写音频为文字 {DEFAULT_SPEECH_TOKEN}"},
+        {"role": "assistant", "content": ""},
+        ]
+        messages.append(message)
+    input_ids, attention_mask = preprocess(
+        messages, tokenizer, max_len=128
+    )
+
+    model_outputs = model.decode(feature, input_ids.to(device, dtype=torch.LongTensor), attention_mask.to(device))
+    hyps = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
+
+    # hyps = remove_punctuation(hyps)
+    # hyps = to_simple(hyps)
+    # hyps = [params.normalizer.normalize(hyp) for hyp in hyps]
     print(hyps)
     return {"beam-search": hyps}
 
@@ -302,6 +296,7 @@ def decode_dataset(
     dl: torch.utils.data.DataLoader,
     params: AttributeDict,
     model: nn.Module,
+    tokenizer: AutoTokenizer,
 ) -> Dict[str, List[Tuple[str, List[str], List[str]]]]:
     """Decode dataset.
 
@@ -370,6 +365,7 @@ def decode_dataset(
             params=params,
             model=model,
             batch=batch,
+            tokenizer=tokenizer,
         )
 
         for lm_scale, hyps in hyps_dict.items():
@@ -455,16 +451,6 @@ def main():
         f"{params.exp_dir}/log-{params.method}-beam{params.beam_size}/log-decode-{params.suffix}"
     )
 
-    options = whisper.DecodingOptions(
-        task="transcribe",
-        language="zh",
-        without_timestamps=True,
-        beam_size=params.beam_size,
-    )
-    params.decoding_options = options
-    params.cleaner = BasicTextNormalizer()
-    params.normalizer = Normalizer()
-
     logging.info("Decoding started")
     logging.info(params)
 
@@ -476,49 +462,68 @@ def main():
 
     if params.remove_whisper_encoder_input_length_restriction:
         replace_whisper_encoder_forward()
-    if params.use_distill_whisper:
-        replace_whisper_decoder_forward()
-    model = whisper.load_model(params.model_name, "cpu")
-    if params.epoch > 0:
-        if params.avg > 1:
-            start = params.epoch - params.avg
-            assert start >= 1, start
-            checkpoint = torch.load(
-                f"{params.exp_dir}/epoch-{params.epoch}.pt", map_location="cpu"
-            )
-            if "model" not in checkpoint:
-                # deepspeed converted checkpoint only contains model state_dict
-                filenames = [
-                    f"{params.exp_dir}/epoch-{epoch}.pt"
-                    for epoch in range(start, params.epoch + 1)
-                ]
-                model.load_state_dict(average_checkpoints(filenames))
-            else:
-                filename_start = f"{params.exp_dir}/epoch-{start}.pt"
-                filename_end = f"{params.exp_dir}/epoch-{params.epoch}.pt"
-                logging.info(
-                    f"Calculating the averaged model over epoch range from "
-                    f"{start} (excluded) to {params.epoch}"
-                )
-                model.to(device)
-                model.load_state_dict(
-                    average_checkpoints_with_averaged_model(
-                        filename_start=filename_start,
-                        filename_end=filename_end,
-                        device=device,
-                    )
-                )
-            # save checkpoints
-            filename = f"{params.exp_dir}/epoch-{params.epoch}-avg-{params.avg}.pt"
-            torch.save(model.state_dict(), filename)
+
+    whisper_model = whisper.load_model(params.speech_encoder_path_or_name, "cpu")
+    speech_encoder = whisper_model.encoder
+    speech_encoder_dim = whisper_model.dims.n_audio_state
+    
+    if params.use_flash_attn:
+        attn_implementation = "flash_attention_2"
+        torch_dtype=torch.bfloat16
+
+    else:
+        attn_implementation = "eager"
+        torch_dtype=torch.float16
+
+    llm = AutoModelForCausalLM.from_pretrained(
+        params.llm_path_or_name,
+        attn_implementation=attn_implementation,
+        torch_dtype=torch_dtype,
+    )
+    tokenizer = AutoTokenizer.from_pretrained(params.llm_path_or_name)
+    tokenizer.padding_side  = 'left'
+    special_tokens_dict = {
+        "additional_special_tokens": [DEFAULT_SPEECH_TOKEN]
+    }
+    tokenizer.add_special_tokens(special_tokens_dict)
+    llm.config.pad_token_id = tokenizer.pad_token_id
+    llm.config.bos_token_id = tokenizer.bos_token_id
+    llm.config.eos_token_id = tokenizer.eos_token_id
+    llm.config.default_speech_token_id = tokenizer.convert_tokens_to_ids(DEFAULT_SPEECH_TOKEN)
+
+    encoder_projector = EncoderProjector(speech_encoder_dim, llm.config.hidden_size)
+
+    model = SPEECH_LLM(
+        speech_encoder,
+        llm,
+        encoder_projector,
+    )
+
+
+    if params.avg > 1:
+        start = params.epoch - params.avg
+        assert start >= 1, start
+        checkpoint = torch.load(
+            f"{params.exp_dir}/epoch-{params.epoch}.pt", map_location="cpu"
+        )
+        assert "model" not in checkpoint
+        # deepspeed converted checkpoint only contains model state_dict
+        filenames = [
+            f"{params.exp_dir}/epoch-{epoch}.pt"
+            for epoch in range(start, params.epoch + 1)
+        ]
+        model.load_state_dict(average_checkpoints(filenames), strict=False)
+
+        filename = f"{params.exp_dir}/epoch-{params.epoch}-avg-{params.avg}.pt"
+        torch.save(model.state_dict(), filename)
+    else:
+        checkpoint = torch.load(
+            f"{params.exp_dir}/epoch-{params.epoch}.pt", map_location="cpu"
+        )
+        if "model" not in checkpoint:
+            model.load_state_dict(checkpoint, strict=False)
         else:
-            checkpoint = torch.load(
-                f"{params.exp_dir}/epoch-{params.epoch}.pt", map_location="cpu"
-            )
-            if "model" not in checkpoint:
-                model.load_state_dict(checkpoint, strict=True)
-            else:
-                load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
+            load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
     model.to(device)
     model.eval()
     num_param = sum([p.numel() for p in model.parameters()])
@@ -534,13 +539,14 @@ def main():
         # Keep only utterances with duration in 30 seconds
         #
         if c.duration > 30.0:
-            # logging.warning(
-            #    f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
-            # )
+            logging.warning(
+               f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
+            )
             return False
         return True
 
-    test_sets_cuts = multi_dataset.test_cuts()
+    # test_sets_cuts = multi_dataset.test_cuts()
+    test_sets_cuts = multi_dataset.aishell_test_cuts()
 
     test_sets = test_sets_cuts.keys()
     test_dls = [
@@ -553,6 +559,7 @@ def main():
             dl=test_dl,
             params=params,
             model=model,
+            tokenizer=tokenizer,
         )
 
         save_results(params=params, test_set_name=test_set, results_dict=results_dict)

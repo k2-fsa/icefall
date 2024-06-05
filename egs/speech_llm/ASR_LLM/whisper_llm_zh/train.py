@@ -725,13 +725,16 @@ def run(rank, world_size, args):
     
     if params.use_flash_attn:
         attn_implementation = "flash_attention_2"
+        torch_dtype=torch.bfloat16
 
     else:
         attn_implementation = "eager"
+        torch_dtype=torch.float16
 
     llm = AutoModelForCausalLM.from_pretrained(
         params.llm_path_or_name,
         attn_implementation=attn_implementation,
+        torch_dtype=torch_dtype,
     )
     tokenizer = AutoTokenizer.from_pretrained(params.llm_path_or_name)
     tokenizer.padding_side  = 'left'
