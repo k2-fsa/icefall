@@ -12,7 +12,7 @@ class EncoderProjector(nn.Module):
         self.relu = nn.ReLU()
         self.linear2 = nn.Linear(llm_dim, llm_dim)
 
-    def forward(self, x):    
+    def forward(self, x):   
         x = self.linear1(x)
         x = self.relu(x)
         x = self.linear2(x)
@@ -125,6 +125,7 @@ class SPEECH_LLM(nn.Module):
         encoder_outs = self.encoder(fbank)
         # downsample encoder_outs by 4
         encoder_outs = encoder_outs[:, ::self.encoder_outputs_downsample_rate]
+
         speech_features = self.encoder_projector(encoder_outs)
 
         inputs_embeds = self.llm.get_input_embeddings()(input_ids)
@@ -141,20 +142,20 @@ class SPEECH_LLM(nn.Module):
                fbank: torch.Tensor = None,
                input_ids: torch.LongTensor = None,
                attention_mask: torch.Tensor = None,
-               **kwargs:
+               **kwargs
                ):
 
         encoder_outs = self.encoder(fbank)
         # downsample encoder_outs by 4
         encoder_outs = encoder_outs[:, ::self.encoder_outputs_downsample_rate]
+
         speech_features = self.encoder_projector(encoder_outs)
-        
+        speech_features = speech_features.to(torch.float16)
         inputs_embeds = self.llm.get_input_embeddings()(input_ids)
         inputs_embeds, attention_mask, _, position_ids = self._merge_input_ids_with_speech_features(
             speech_features, inputs_embeds, input_ids, attention_mask
         )
-
-        model_outputs = self.llm.generate(
+        generated_ids = self.llm.generate(
             inputs_embeds=inputs_embeds,
             max_new_tokens=kwargs.get("max_new_tokens", 200),
             num_beams=kwargs.get("num_beams", 1),
@@ -164,11 +165,9 @@ class SPEECH_LLM(nn.Module):
             repetition_penalty=kwargs.get("repetition_penalty", 1.0),
             length_penalty=kwargs.get("length_penalty", 1.0),
             temperature=kwargs.get("temperature", 1.0),
-            attention_mask=attention_mask,
-            position_ids=position_ids,
             bos_token_id=self.llm.config.bos_token_id,
             eos_token_id=self.llm.config.eos_token_id,
-            pad_token_id=self.tllm.config.pad_token_id
+            pad_token_id=self.llm.config.pad_token_id
         )
         generated_ids = [
             output_ids[len(input_ids):] for input_ids, output_ids in zip(input_ids, generated_ids)

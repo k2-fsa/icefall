@@ -46,12 +46,14 @@ import whisper
 from asr_datamodule import AsrDataModule
 from lhotse.cut import Cut
 from multi_dataset import MultiDataset
-from tn.chinese.normalizer import Normalizer
-from whisper.normalizers import BasicTextNormalizer
-from whisper_decoder_forward_monkey_patch import replace_whisper_decoder_forward
+#from tn.chinese.normalizer import Normalizer
+#from whisper.normalizers import BasicTextNormalizer
+#from whisper_decoder_forward_monkey_patch import replace_whisper_decoder_forward
 from whisper_encoder_forward_monkey_patch import replace_whisper_encoder_forward
-from zhconv import convert
-
+#from zhconv import convert
+import transformers
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from model import EncoderProjector, SPEECH_LLM
 from icefall.checkpoint import average_checkpoints_with_averaged_model, load_checkpoint
 from icefall.env import get_env_info
 from icefall.utils import (
@@ -188,6 +190,13 @@ def get_parser():
         help="replace whisper encoder forward method to remove input length restriction",
     )
 
+    parser.add_argument(
+        "--use-flash-attn",
+        type=str2bool,
+        default=True,
+        help="Whether to use flash attention.",
+    )
+    
     add_model_arguments(parser)
     return parser
 
@@ -247,8 +256,8 @@ def decode_one_batch(
 
         return input_ids, attention_mask
 
-    dtype = torch.float16
-    device = model.device
+    dtype = torch.float32
+    device = model.llm.device
 
     feature = batch["inputs"]
     assert feature.ndim == 3
@@ -270,19 +279,17 @@ def decode_one_batch(
     feature_len = supervisions["num_frames"]
     feature_len = feature_len.to(device, dtype=dtype)
 
-    messages = []
-    for i, text in enumerate(texts):
-        message = [
-        {"role": "system", "content": "你是一个能处理音频的助手。"},
-        {"role": "user", "content": f"请转写音频为文字 {DEFAULT_SPEECH_TOKEN}"},
-        {"role": "assistant", "content": ""},
-        ]
-        messages.append(message)
+    messages = [[
+    {"role": "system", "content": "你是一个能处理音频的助手。"},
+    {"role": "user", "content": f"请转写音频为文字 {DEFAULT_SPEECH_TOKEN}"},
+    {"role": "assistant", "content": ""},
+    ]] * len(feature)
+
     input_ids, attention_mask = preprocess(
         messages, tokenizer, max_len=128
     )
 
-    model_outputs = model.decode(feature, input_ids.to(device, dtype=torch.LongTensor), attention_mask.to(device))
+    generated_ids = model.decode(feature, input_ids.to(device, dtype=torch.long), attention_mask.to(device))
     hyps = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
 
     # hyps = remove_punctuation(hyps)

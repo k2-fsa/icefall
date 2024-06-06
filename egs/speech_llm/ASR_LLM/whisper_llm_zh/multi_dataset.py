@@ -278,4 +278,6 @@ class MultiDataset:
             self.fbank_dir / "aishell_cuts_test.jsonl.gz"
         )
 
-        return aishell_test_cuts
+        return {
+            "aishell_test": aishell_test_cuts,
+        }

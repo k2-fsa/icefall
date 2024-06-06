@@ -22,6 +22,4 @@ python3 ./whisper_llm_zh/decode.py \
   --llm-path-or-name Qwen/Qwen1.5-0.5B-Chat \
   --epoch 1 --avg 1 \
   --manifest-dir data/fbank \
-  --deepspeed \
-  --deepspeed_config ./whisper_llm_zh/ds_config_zero1.json \
   --use-flash-attn False
