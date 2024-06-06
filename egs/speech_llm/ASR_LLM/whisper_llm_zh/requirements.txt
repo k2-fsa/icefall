@@ -1,0 +1,13 @@
+k2
+kaldialign
+git+https://github.com/lhotse-speech/lhotse
+# sentencepiece
+tensorboard
+librosa
+# git+https://github.com/yuekaizhang/whisper.git
+# zhconv
+# WeTextProcessing
+deepspeed
+transformers>=4.37.0
+flash-attn
+
