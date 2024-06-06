@@ -420,7 +420,11 @@ def compute_loss(
         # first get the indices of the tokens
         mask_indices = torch.where(input_ids == tokenizer.convert_tokens_to_ids(DEFAULT_SPEECH_TOKEN))
         # then mask all tokens before the first token e.g. 151646 (speech), 151645,    198, 151644
-        target_ids[mask_indices[0], :mask_indices[1]+4] = IGNORE_TOKEN_ID
+        # target_ids[mask_indices[0], :mask_indices[1]+3] = IGNORE_TOKEN_ID
+        for i in range(mask_indices[0].size(0)):
+            row = mask_indices[0][i]
+            col = mask_indices[1][i]
+            target_ids[row, :col+4] = IGNORE_TOKEN_ID
 
         attention_mask = input_ids.ne(tokenizer.pad_token_id)
 
@@ -496,13 +500,13 @@ def compute_loss(
     input_ids = input_ids.type(torch.LongTensor)
 
     with torch.set_grad_enabled(is_training):
-        model_outpus = model(
+        model_outputs, acc = model(
             fbank=feature,
             input_ids=input_ids.to(device),
             attention_mask=attention_mask.to(device),
             labels=target_ids.to(device),
         )
-        loss = model_outpus.loss
+        loss = model_outputs.loss
     assert loss.requires_grad == is_training
 
     info = MetricsTracker()
@@ -513,6 +517,7 @@ def compute_loss(
 
     # Note: We use reduction=sum while computing the loss.
     info["loss"] = loss.detach().cpu().item()
+    info["acc"] = acc
 
     return loss, info
 
@@ -731,7 +736,8 @@ def run(rank, world_size, args):
     
     if params.use_flash_attn:
         attn_implementation = "flash_attention_2"
-        torch_dtype=torch.bfloat16
+        # torch_dtype=torch.bfloat16
+        torch_dtype=torch.float16
 
     else:
         attn_implementation = "eager"

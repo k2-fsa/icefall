@@ -4,7 +4,7 @@ export PYTHONPATH=$PYTHONPATH:/mnt/samsung-t7/yuekai/asr/icefall_llm
 # pip install -r whisper/requirements.txt
 export CUDA_VISIBLE_DEVICES=0,1
 torchrun --nproc_per_node 2 ./whisper_llm_zh/train.py \
-  --max-duration 1 \
+  --max-duration 20 \
   --exp-dir ./whisper_llm_zh/exp_test \
   --speech-encoder-path-or-name tiny \
   --llm-path-or-name Qwen/Qwen1.5-0.5B-Chat \

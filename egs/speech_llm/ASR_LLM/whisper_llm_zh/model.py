@@ -5,14 +5,25 @@ from transformers.trainer_pt_utils import LabelSmoother
 IGNORE_TOKEN_ID = LabelSmoother.ignore_index
 
 class EncoderProjector(nn.Module):
-
-    def __init__(self, encoder_dim, llm_dim):
+# https://github.com/X-LANCE/SLAM-LLM/blob/main/src/slam_llm/models/projector.py
+    def __init__(self, encoder_dim, llm_dim, downsample_rate=4):
         super().__init__()
-        self.linear1 = nn.Linear(encoder_dim, llm_dim)
+        self.downsample_rate = downsample_rate
+        self.linear1 = nn.Linear(encoder_dim * self.downsample_rate, llm_dim)
         self.relu = nn.ReLU()
         self.linear2 = nn.Linear(llm_dim, llm_dim)
 
-    def forward(self, x):   
+    def forward(self, x):
+
+        batch_size, seq_len, feat_dim = x.size()
+        num_frames_to_discard = seq_len % self.downsample_rate
+        if num_frames_to_discard > 0:
+            x = x[:, :-num_frames_to_discard, :]
+        seq_len = x.size(1)
+        
+        x = x.contiguous()
+        x = x.view(batch_size, seq_len // self.downsample_rate, feat_dim * self.downsample_rate)
+
         x = self.linear1(x)
         x = self.relu(x)
         x = self.linear2(x)
@@ -124,7 +135,7 @@ class SPEECH_LLM(nn.Module):
                 ):
         encoder_outs = self.encoder(fbank)
         # downsample encoder_outs by 4
-        encoder_outs = encoder_outs[:, ::self.encoder_outputs_downsample_rate]
+        # encoder_outs = encoder_outs[:, ::self.encoder_outputs_downsample_rate]
 
         speech_features = self.encoder_projector(encoder_outs)
         
@@ -138,8 +149,10 @@ class SPEECH_LLM(nn.Module):
         #print("speech_features", speech_features.shape)
 
         model_outputs = self.llm(inputs_embeds=inputs_embeds, attention_mask=attention_mask, labels=labels, position_ids=position_ids)
-
-        return model_outputs
+        with torch.no_grad():
+            preds = torch.argmax(model_outputs.logits, -1)
+            acc = compute_accuracy(preds.detach()[:, :-1], labels.detach()[:, 1:], ignore_label=IGNORE_TOKEN_ID)
+        return model_outputs, acc
 
 
     def decode(self,
@@ -151,7 +164,7 @@ class SPEECH_LLM(nn.Module):
 
         encoder_outs = self.encoder(fbank)
         # downsample encoder_outs by 4
-        encoder_outs = encoder_outs[:, ::self.encoder_outputs_downsample_rate]
+        # encoder_outs = encoder_outs[:, ::self.encoder_outputs_downsample_rate]
 
         speech_features = self.encoder_projector(encoder_outs)
         speech_features = speech_features.to(torch.float16)
@@ -178,3 +191,23 @@ class SPEECH_LLM(nn.Module):
         #     output_ids[len(input_ids):] for input_ids, output_ids in zip(input_ids, generated_ids)
         # ]
         return generated_ids
+
+
+def compute_accuracy(pad_outputs, pad_targets, ignore_label):
+    """Calculate accuracy.
+
+    Args:
+        pad_outputs (LongTensor): Prediction tensors (B, Lmax).
+        pad_targets (LongTensor): Target label tensors (B, Lmax).
+        ignore_label (int): Ignore label id.
+
+    Returns:
+        float: Accuracy value (0.0 - 1.0).
+
+    """
+    mask = pad_targets != ignore_label
+    numerator = torch.sum(
+        pad_outputs.masked_select(mask) == pad_targets.masked_select(mask)
+    )
+    denominator = torch.sum(mask)
+    return numerator.float() / denominator.float() #(FIX:MZY):return torch.Tensor type
