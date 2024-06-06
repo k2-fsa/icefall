@@ -169,7 +169,8 @@ class SPEECH_LLM(nn.Module):
             eos_token_id=self.llm.config.eos_token_id,
             pad_token_id=self.llm.config.pad_token_id
         )
-        generated_ids = [
-            output_ids[len(input_ids):] for input_ids, output_ids in zip(input_ids, generated_ids)
-        ]
+        # print(generated_ids, input_ids)
+        # generated_ids = [
+        #     output_ids[len(input_ids):] for input_ids, output_ids in zip(input_ids, generated_ids)
+        # ]
         return generated_ids

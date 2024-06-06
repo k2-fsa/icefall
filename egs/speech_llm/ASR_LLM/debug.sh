@@ -17,8 +17,8 @@ export CUDA_VISIBLE_DEVICES=0,1
 
 python3 ./whisper_llm_zh/decode.py \
   --max-duration 80 \
-  --exp-dir ./whisper_llm_zh/exp_test \
-  --speech-encoder-path-or-name tiny \
+  --exp-dir ./whisper_llm_zh/exp_qwen_0.5B \
+  --speech-encoder-path-or-name /mnt/samsung-t7/yuekai/asr/v1.1/whisper-large-v2-multi-hans-zh-epoch-3-avg-10.pt  \
   --llm-path-or-name Qwen/Qwen1.5-0.5B-Chat \
   --epoch 1 --avg 1 \
   --manifest-dir data/fbank \
