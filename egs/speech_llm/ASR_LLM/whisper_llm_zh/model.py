@@ -127,11 +127,15 @@ class SPEECH_LLM(nn.Module):
         encoder_outs = encoder_outs[:, ::self.encoder_outputs_downsample_rate]
 
         speech_features = self.encoder_projector(encoder_outs)
-
+        
         inputs_embeds = self.llm.get_input_embeddings()(input_ids)
+        #print("input_ids", input_ids, input_ids.shape)
+        #print("labels", labels, labels.shape)
         inputs_embeds, attention_mask, labels, position_ids = self._merge_input_ids_with_speech_features(
             speech_features, inputs_embeds, input_ids, attention_mask, labels
         )
+        #print("labels", labels, labels.shape)
+        #print("speech_features", speech_features.shape)
 
         model_outputs = self.llm(inputs_embeds=inputs_embeds, attention_mask=attention_mask, labels=labels, position_ids=position_ids)
 

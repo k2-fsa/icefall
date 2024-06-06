@@ -416,6 +416,12 @@ def compute_loss(
         # response = tokenizer.batch_decode(input_ids, skip_special_tokens=True)[0]
         target_ids = input_ids.clone()
         target_ids[target_ids == tokenizer.pad_token_id] = IGNORE_TOKEN_ID
+        # mask all tokens before token_id 151646 with IGNORE_TOKEN_ID
+        # first get the indices of the tokens
+        mask_indices = torch.where(input_ids == tokenizer.convert_tokens_to_ids(DEFAULT_SPEECH_TOKEN))
+        # then mask all tokens before the first token e.g. 151646 (speech), 151645,    198, 151644
+        target_ids[mask_indices[0], :mask_indices[1]+4] = IGNORE_TOKEN_ID
+
         attention_mask = input_ids.ne(tokenizer.pad_token_id)
 
         return input_ids, attention_mask, target_ids
