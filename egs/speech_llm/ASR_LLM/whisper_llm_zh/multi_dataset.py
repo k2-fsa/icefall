@@ -281,3 +281,40 @@ class MultiDataset:
         return {
             "aishell_test": aishell_test_cuts,
         }
+
+
+    # aishell 2
+    def aishell2_train_cuts(self) -> CutSet:
+        logging.info("About to get multidataset train cuts")
+
+        # AISHELL-2
+        logging.info("Loading Aishell-2 in lazy mode")
+        aishell_2_cuts = load_manifest_lazy(
+            self.fbank_dir / "aishell2_cuts_train.jsonl.gz"
+        )
+
+        return aishell_2_cuts
+
+    def aishell2_dev_cuts(self) -> CutSet:
+        logging.info("About to get multidataset dev cuts")
+
+        # AISHELL-2
+        logging.info("Loading Aishell-2 set in lazy mode")
+        aishell2_dev_cuts = load_manifest_lazy(
+            self.fbank_dir / "aishell2_cuts_dev.jsonl.gz"
+        )
+
+        return aishell2_dev_cuts
+
+    def aishell2_test_cuts(self) -> CutSet:
+        logging.info("About to get multidataset test cuts")
+
+        # AISHELL-2
+        logging.info("Loading Aishell-2 set in lazy mode")
+        aishell2_test_cuts = load_manifest_lazy(
+            self.fbank_dir / "aishell2_cuts_test.jsonl.gz"
+        )
+
+        return {
+            "aishell2_test": aishell2_test_cuts,
+        }

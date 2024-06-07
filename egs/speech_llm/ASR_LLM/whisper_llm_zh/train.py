@@ -820,7 +820,8 @@ def run(rank, world_size, args):
         return True
 
     # train_cuts = multi_dataset.train_cuts()
-    train_cuts = multi_dataset.aishell_train_cuts()
+    # train_cuts = multi_dataset.aishell_train_cuts()
+    train_cuts = multi_dataset.aishell2_train_cuts()
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
 
     # if params.start_batch > 0 and checkpoints and "sampler" in checkpoints:

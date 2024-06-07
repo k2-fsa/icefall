@@ -6,7 +6,7 @@ IGNORE_TOKEN_ID = LabelSmoother.ignore_index
 
 class EncoderProjector(nn.Module):
 # https://github.com/X-LANCE/SLAM-LLM/blob/main/src/slam_llm/models/projector.py
-    def __init__(self, encoder_dim, llm_dim, downsample_rate=4):
+    def __init__(self, encoder_dim, llm_dim, downsample_rate=1):
         super().__init__()
         self.downsample_rate = downsample_rate
         self.linear1 = nn.Linear(encoder_dim * self.downsample_rate, llm_dim)
@@ -140,13 +140,16 @@ class SPEECH_LLM(nn.Module):
         speech_features = self.encoder_projector(encoder_outs)
         
         inputs_embeds = self.llm.get_input_embeddings()(input_ids)
-        #print("input_ids", input_ids, input_ids.shape)
-        #print("labels", labels, labels.shape)
+        # print("input_ids", input_ids, input_ids.shape)
+        # print("labels", labels, labels.shape)
+        # print("inputs_embeds", inputs_embeds.shape, inputs_embeds)
         inputs_embeds, attention_mask, labels, position_ids = self._merge_input_ids_with_speech_features(
             speech_features, inputs_embeds, input_ids, attention_mask, labels
         )
-        #print("labels", labels, labels.shape)
-        #print("speech_features", speech_features.shape)
+        # print("labels", labels, labels.shape)
+        # print("speech_features", speech_features.shape, speech_features)
+        # print("inputs_embeds after", inputs_embeds.shape, inputs_embeds)
+        # input()
 
         model_outputs = self.llm(inputs_embeds=inputs_embeds, attention_mask=attention_mask, labels=labels, position_ids=position_ids)
         with torch.no_grad():

@@ -19,14 +19,14 @@
     "optimizer": {
         "type": "Adam",
         "params": {
-            "lr": 1e-4
+            "lr": 5e-4
         }
     },
     "scheduler": {
         "type": "WarmupLR",
         "params": {
             "warmup_min_lr": 0,
-            "warmup_max_lr": 1e-4,
+            "warmup_max_lr": 5e-4,
             "warmup_num_steps": 100
         }
     },
