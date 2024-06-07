@@ -238,12 +238,14 @@ def decode_one_batch(
     ) -> Dict:
         """Preprocesses the data for supervised fine-tuning."""
         texts = []
+        TEMPLATE = "{% for message in messages %}{{'<|im_start|>' + message['role'] + '\n' + message['content']}}{% if loop.last %}{{ '<|im_end|>'}}{% else %}{{ '<|im_end|>\n' }}{% endif %}{% endfor %}"
         for i, msg in enumerate(messages):
             texts.append(
                 tokenizer.apply_chat_template(
                     msg,
                     tokenize=True,
                     add_generation_prompt=False,
+                    chat_template=TEMPLATE,
                     padding="max_length",
                     max_length=max_len,
                     truncation=True,
