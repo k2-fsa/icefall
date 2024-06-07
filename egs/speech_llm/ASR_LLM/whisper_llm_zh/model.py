@@ -140,18 +140,25 @@ class SPEECH_LLM(nn.Module):
         speech_features = self.encoder_projector(encoder_outs)
         
         inputs_embeds = self.llm.get_input_embeddings()(input_ids)
+
         # print("input_ids", input_ids, input_ids.shape)
         # print("labels", labels, labels.shape)
         # print("inputs_embeds", inputs_embeds.shape, inputs_embeds)
+        # print("attention_mask_before", attention_mask.shape, attention_mask)
+        # print(2333333333333333333333333333)
         inputs_embeds, attention_mask, labels, position_ids = self._merge_input_ids_with_speech_features(
             speech_features, inputs_embeds, input_ids, attention_mask, labels
         )
         # print("labels", labels, labels.shape)
         # print("speech_features", speech_features.shape, speech_features)
         # print("inputs_embeds after", inputs_embeds.shape, inputs_embeds)
+        # print("attention_mask", attention_mask.shape, attention_mask)
+        # print("position_ids", position_ids.shape, position_ids)
+        # print("================================================================")
         # input()
 
-        model_outputs = self.llm(inputs_embeds=inputs_embeds, attention_mask=attention_mask, labels=labels, position_ids=position_ids)
+        model_outputs = self.llm(inputs_embeds=inputs_embeds, attention_mask=attention_mask, labels=labels)
+        # model_outputs = self.llm(inputs_embeds=inputs_embeds, attention_mask=attention_mask, labels=labels, position_ids=position_ids)
         with torch.no_grad():
             preds = torch.argmax(model_outputs.logits, -1)
             acc = compute_accuracy(preds.detach()[:, :-1], labels.detach()[:, 1:], ignore_label=IGNORE_TOKEN_ID)
