@@ -1159,7 +1159,8 @@ class MetricsTracker(collections.defaultdict):
         for k, v in self.items():
             ans[k] = v
         for k, v in other.items():
-            ans[k] = ans[k] + v
+            if v - v == 0:
+                ans[k] = ans[k] + v
         return ans
 
     def __mul__(self, alpha: float) -> "MetricsTracker":
