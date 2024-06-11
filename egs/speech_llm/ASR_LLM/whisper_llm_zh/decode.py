@@ -196,7 +196,7 @@ def get_parser():
         default=True,
         help="Whether to use flash attention.",
     )
-    
+
     add_model_arguments(parser)
     return parser
 
@@ -238,7 +238,7 @@ def decode_one_batch(
     ) -> Dict:
         """Preprocesses the data for supervised fine-tuning."""
         texts = []
-        TEMPLATE = "{% for message in messages %}{{'<|im_start|>' + message['role'] + '\n' + message['content']}}{% if loop.last %}{{ '<|im_end|>'}}{% else %}{{ '<|im_end|>\n' }}{% endif %}{% endfor %}"
+        TEMPLATE = "{% for message in messages %}{{'<|im_start|>' + message['role'] + '\n' + message['content']}}{% if loop.last %}{{''}}{% else %}{{ '<|im_end|>\n' }}{% endif %}{% endfor %}"
         for i, msg in enumerate(messages):
             texts.append(
                 tokenizer.apply_chat_template(
@@ -246,11 +246,16 @@ def decode_one_batch(
                     tokenize=True,
                     add_generation_prompt=False,
                     chat_template=TEMPLATE,
-                    padding="max_length",
+                    padding="longest",
                     max_length=max_len,
                     truncation=True,
                 )
             )
+        max_len_texts = max([len(text) for text in texts])
+        if tokenizer.padding_side == 'right':
+            texts = [text + [tokenizer.pad_token_id] * (max_len_texts - len(text)) for text in texts]
+        else:
+            texts = [[tokenizer.pad_token_id] * (max_len_texts - len(text)) + text for text in texts]
 
         input_ids = torch.tensor(texts, dtype=torch.int)
 
@@ -481,33 +486,36 @@ def main():
     whisper_model = whisper.load_model(params.speech_encoder_path_or_name, "cpu")
     speech_encoder = whisper_model.encoder
     speech_encoder_dim = whisper_model.dims.n_audio_state
-    
+    tokenizer = AutoTokenizer.from_pretrained(params.llm_path_or_name)
+
     if params.use_flash_attn:
         attn_implementation = "flash_attention_2"
         # torch_dtype=torch.bfloat16
         torch_dtype=torch.float16
+        tokenizer.padding_side  = 'left'
 
     else:
         attn_implementation = "eager"
         torch_dtype=torch.float16
+        tokenizer.padding_side  = 'right'
 
     llm = AutoModelForCausalLM.from_pretrained(
         params.llm_path_or_name,
         attn_implementation=attn_implementation,
         torch_dtype=torch_dtype,
     )
-    tokenizer = AutoTokenizer.from_pretrained(params.llm_path_or_name)
-    # tokenizer.padding_side  = 'left'
+
     special_tokens_dict = {
         "additional_special_tokens": [DEFAULT_SPEECH_TOKEN]
     }
     tokenizer.add_special_tokens(special_tokens_dict)
-    llm.config.pad_token_id = tokenizer.pad_token_id
-    llm.config.bos_token_id = tokenizer.bos_token_id
-    llm.config.eos_token_id = tokenizer.eos_token_id
+    llm.config.pad_token_id = tokenizer.convert_tokens_to_ids("<|endoftext|>")
+    llm.config.bos_token_id = tokenizer.convert_tokens_to_ids("<|im_start|>")
+    llm.config.eos_token_id = tokenizer.convert_tokens_to_ids("<|im_end|>")
+
     llm.config.default_speech_token_id = tokenizer.convert_tokens_to_ids(DEFAULT_SPEECH_TOKEN)
 
-    encoder_projector = EncoderProjector(speech_encoder_dim, llm.config.hidden_size)
+    encoder_projector = EncoderProjector(speech_encoder_dim, llm.config.hidden_size, params.encoder_projector_ds_rate)
 
     model = SPEECH_LLM(
         speech_encoder,

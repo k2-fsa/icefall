@@ -106,7 +106,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--encoder-projector-ds-rate",
         type=int,
-        default=4,
+        default=1,
         help="Downsample rate for the encoder projector.",
     )
 
@@ -287,7 +287,7 @@ def get_params() -> AttributeDict:
             "batch_idx_train": 0,
             "log_interval": 50,
             "reset_interval": 200,
-            "valid_interval": 10000,
+            "valid_interval": 5000,
             "env_info": get_env_info(),
         }
     )
@@ -408,12 +408,17 @@ def compute_loss(
                     tokenize=True,
                     chat_template=TEMPLATE,
                     add_generation_prompt=False,
-                    padding="max_length",
+                    padding="longest", # FIX me change padding to longest
                     max_length=max_len,
                     truncation=True,
                 )
             )
-
+        # padding texts to the same length, texts is a list of list, padding with tokenzier.pad_token_id
+        max_len_texts = max([len(text) for text in texts])
+        if tokenizer.padding_side == 'right':
+            texts = [text + [tokenizer.pad_token_id] * (max_len_texts - len(text)) for text in texts]
+        else:
+            texts = [[tokenizer.pad_token_id] * (max_len_texts - len(text)) + text for text in texts]
         input_ids = torch.tensor(texts, dtype=torch.int)
         # response = tokenizer.batch_decode(input_ids, skip_special_tokens=True)[0]
         target_ids = input_ids.clone()
@@ -423,8 +428,7 @@ def compute_loss(
         mask_prompt = True
         if mask_prompt:
             mask_indices = torch.where(input_ids == tokenizer.convert_tokens_to_ids("assistant"))
-            # then mask all tokens before the first token e.g. 151646 (speech), 151645,    198, 151644
-            # target_ids[mask_indices[0], :mask_indices[1]+3] = IGNORE_TOKEN_ID
+            # then mask all tokens before the first token e.g. 151646 (speech), 151645 <assistant>,    198 \n
             for i in range(mask_indices[0].size(0)):
                 row = mask_indices[0][i]
                 col = mask_indices[1][i]
@@ -526,7 +530,7 @@ def compute_loss(
 
     # Note: We use reduction=sum while computing the loss.
     info["loss"] = loss.detach().cpu().item()
-    info["acc"] = acc
+    info["acc"] = acc * info["frames"] # WAR: to avoid normalization by the number of frames
 
     return loss, info
 
@@ -743,22 +747,24 @@ def run(rank, world_size, args):
     speech_encoder = whisper_model.encoder
     speech_encoder_dim = whisper_model.dims.n_audio_state
     
+    tokenizer = AutoTokenizer.from_pretrained(params.llm_path_or_name)
     if params.use_flash_attn:
         attn_implementation = "flash_attention_2"
         # torch_dtype=torch.bfloat16
         torch_dtype=torch.float16
+        tokenizer.padding_side  = 'left'
 
     else:
         attn_implementation = "eager"
         torch_dtype=torch.float16
+        tokenizer.padding_side  = 'right'
 
     llm = AutoModelForCausalLM.from_pretrained(
         params.llm_path_or_name,
         attn_implementation=attn_implementation,
         torch_dtype=torch_dtype,
     )
-    tokenizer = AutoTokenizer.from_pretrained(params.llm_path_or_name)
-    # tokenizer.padding_side  = 'left'
+
     special_tokens_dict = {
         "additional_special_tokens": [DEFAULT_SPEECH_TOKEN]
     }
@@ -766,13 +772,17 @@ def run(rank, world_size, args):
     llm.config.pad_token_id = tokenizer.pad_token_id
     llm.config.default_speech_token_id = tokenizer.convert_tokens_to_ids(DEFAULT_SPEECH_TOKEN)
 
-    encoder_projector = EncoderProjector(speech_encoder_dim, llm.config.hidden_size)
+    encoder_projector = EncoderProjector(speech_encoder_dim, llm.config.hidden_size, params.encoder_projector_ds_rate)
 
     model = SPEECH_LLM(
         speech_encoder,
         llm,
         encoder_projector,
     )
+
+    if params.pretrained_model_path:
+        checkpoint = torch.load(params.pretrained_model_path, map_location="cpu")
+        model.load_state_dict(checkpoint, strict=False)
 
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")

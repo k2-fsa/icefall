@@ -1,12 +1,12 @@
 from torch import nn
 import torch
 from transformers.trainer_pt_utils import LabelSmoother
-
+from icefall.dist import get_rank
 IGNORE_TOKEN_ID = LabelSmoother.ignore_index
 
 class EncoderProjector(nn.Module):
 # https://github.com/X-LANCE/SLAM-LLM/blob/main/src/slam_llm/models/projector.py
-    def __init__(self, encoder_dim, llm_dim, downsample_rate=1):
+    def __init__(self, encoder_dim, llm_dim, downsample_rate=5):
         super().__init__()
         self.downsample_rate = downsample_rate
         self.linear1 = nn.Linear(encoder_dim * self.downsample_rate, llm_dim)
@@ -47,7 +47,6 @@ class SPEECH_LLM(nn.Module):
             param.requires_grad = False
         self.llm.eval()
         self.encoder_projector = encoder_projector
-        self.encoder_outputs_downsample_rate = 4
 
     def _merge_input_ids_with_speech_features(self, speech_features, inputs_embeds, input_ids, attention_mask, labels=None):
         num_speechs, speech_len, embed_dim = speech_features.shape
@@ -134,33 +133,39 @@ class SPEECH_LLM(nn.Module):
                 labels: torch.LongTensor = None,
                 ):
         encoder_outs = self.encoder(fbank)
-        # downsample encoder_outs by 4
-        # encoder_outs = encoder_outs[:, ::self.encoder_outputs_downsample_rate]
 
         speech_features = self.encoder_projector(encoder_outs)
         
         inputs_embeds = self.llm.get_input_embeddings()(input_ids)
+        
+        enable_logging = False
+        rank = get_rank()
 
-        # print("input_ids", input_ids, input_ids.shape)
-        # print("labels", labels, labels.shape)
-        # print("inputs_embeds", inputs_embeds.shape, inputs_embeds)
-        # print("attention_mask_before", attention_mask.shape, attention_mask)
-        # print(2333333333333333333333333333)
+        # log only on rank 0, training using deep
+        if enable_logging and rank == 0:
+            print("input_ids", input_ids, input_ids.shape)
+            print("labels", labels, labels.shape)
+            print("inputs_embeds", inputs_embeds.shape, inputs_embeds)
+            print("attention_mask_before", attention_mask.shape, attention_mask)
+            print(2333333333333333333333333333)
         inputs_embeds, attention_mask, labels, position_ids = self._merge_input_ids_with_speech_features(
             speech_features, inputs_embeds, input_ids, attention_mask, labels
         )
-        # print("labels", labels, labels.shape)
-        # print("speech_features", speech_features.shape, speech_features)
-        # print("inputs_embeds after", inputs_embeds.shape, inputs_embeds)
-        # print("attention_mask", attention_mask.shape, attention_mask)
-        # print("position_ids", position_ids.shape, position_ids)
-        # print("================================================================")
-        # input()
+        if enable_logging and rank == 0:
+            print("speech_features", speech_features.shape, speech_features)
+            print("inputs_embeds after", inputs_embeds.shape, inputs_embeds)
+            print("attention_mask", attention_mask.shape, attention_mask)
+            print("position_ids", position_ids.shape, position_ids)
+            print("labels", labels, labels.shape)
+            print("================================================================")
 
         model_outputs = self.llm(inputs_embeds=inputs_embeds, attention_mask=attention_mask, labels=labels)
         # model_outputs = self.llm(inputs_embeds=inputs_embeds, attention_mask=attention_mask, labels=labels, position_ids=position_ids)
         with torch.no_grad():
             preds = torch.argmax(model_outputs.logits, -1)
+            if enable_logging and rank == 0:
+                print("preds", preds, preds.shape)
+                print(4555555555555555555555555555555555555555555)
             acc = compute_accuracy(preds.detach()[:, :-1], labels.detach()[:, 1:], ignore_label=IGNORE_TOKEN_ID)
         return model_outputs, acc
 
@@ -173,9 +178,6 @@ class SPEECH_LLM(nn.Module):
                ):
 
         encoder_outs = self.encoder(fbank)
-        # downsample encoder_outs by 4
-        # encoder_outs = encoder_outs[:, ::self.encoder_outputs_downsample_rate]
-
         speech_features = self.encoder_projector(encoder_outs)
         speech_features = speech_features.to(torch.float16)
         inputs_embeds = self.llm.get_input_embeddings()(input_ids)
@@ -196,10 +198,7 @@ class SPEECH_LLM(nn.Module):
             eos_token_id=self.llm.config.eos_token_id,
             pad_token_id=self.llm.config.pad_token_id
         )
-        # print(generated_ids, input_ids)
-        # generated_ids = [
-        #     output_ids[len(input_ids):] for input_ids, output_ids in zip(input_ids, generated_ids)
-        # ]
+
         return generated_ids
 
 
