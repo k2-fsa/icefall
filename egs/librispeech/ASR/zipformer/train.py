@@ -90,6 +90,7 @@ from icefall.checkpoint import (
 )
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
+from icefall.err import raise_grad_scale_is_too_small_error
 from icefall.hooks import register_inf_check_hooks
 from icefall.utils import (
     AttributeDict,
@@ -965,7 +966,10 @@ def train_one_epoch(
             scaler.step(optimizer)
             scaler.update()
             optimizer.zero_grad()
-        except:  # noqa
+        except Exception as e:
+            logging.info(
+                f"Caught exception: {e}."
+            )
             save_bad_model()
             display_and_save_batch(batch, params=params, sp=sp)
             raise
@@ -1021,9 +1025,7 @@ def train_one_epoch(
                 logging.warning(f"Grad scale is small: {cur_grad_scale}")
             if cur_grad_scale < 1.0e-05:
                 save_bad_model()
-                raise RuntimeError(
-                    f"grad_scale is too small, exiting: {cur_grad_scale}"
-                )
+                raise_grad_scale_is_too_small_error(cur_grad_scale)
 
         if batch_idx % params.log_interval == 0:
             cur_lr = max(scheduler.get_last_lr())

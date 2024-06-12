@@ -214,7 +214,7 @@ def get_parser():
         "--model-name",
         type=str,
         default="large-v2",
-        choices=["large-v2", "large-v3", "medium", "small", "tiny"],
+        choices=["large-v2", "large-v3", "medium", "small", "base", "tiny"],
         help="""The model name to use.
         """,
     )
@@ -358,7 +358,7 @@ def save_results(
             params.exp_dir / f"recogs-{test_set_name}-{key}-{params.suffix}.txt"
         )
         results = sorted(results)
-        store_transcripts(filename=recog_path, texts=results)
+        store_transcripts(filename=recog_path, texts=results, char_level=True)
         if enable_log:
             logging.info(f"The transcripts are stored in {recog_path}")
 
@@ -373,7 +373,11 @@ def save_results(
             results_char.append((res[0], list("".join(res[1])), list("".join(res[2]))))
         with open(errs_filename, "w") as f:
             wer = write_error_stats(
-                f, f"{test_set_name}-{key}", results_char, enable_log=enable_log
+                f,
+                f"{test_set_name}-{key}",
+                results_char,
+                enable_log=enable_log,
+                compute_CER=True,
             )
             test_set_wers[key] = wer
 

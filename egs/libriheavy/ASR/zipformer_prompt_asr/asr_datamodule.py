@@ -425,9 +425,11 @@ class LibriHeavyAsrDataModule:
     def test_dataloaders(self, cuts: CutSet) -> DataLoader:
         logging.debug("About to create test dataset")
         test = K2SpeechRecognitionDataset(
-            input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80)))
-            if self.args.on_the_fly_feats
-            else PrecomputedFeatures(),
+            input_strategy=(
+                OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80)))
+                if self.args.on_the_fly_feats
+                else PrecomputedFeatures()
+            ),
             return_cuts=self.args.return_cuts,
         )
         sampler = DynamicBucketingSampler(

@@ -4,7 +4,6 @@
 import ncnn
 import numpy as np
 
-
 layer_list = []
 
 

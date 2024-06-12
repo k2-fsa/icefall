@@ -1,6 +1,7 @@
 # Copyright      2021  Piotr Żelasko
-# Copyright      2022-2023  Xiaomi Corporation     (Authors: Mingshuang Luo,
-#                                                            Zengwei Yao)
+# Copyright      2022-2024  Xiaomi Corporation     (Authors: Mingshuang Luo,
+#                                                            Zengwei Yao,
+#                                                            Zengrui Jin,)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #

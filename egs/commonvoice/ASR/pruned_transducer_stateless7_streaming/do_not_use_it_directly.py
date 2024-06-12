@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-# Copyright    2021-2022  Xiaomi Corp.        (authors: Fangjun Kuang,
+# Copyright    2021-2024  Xiaomi Corp.        (authors: Fangjun Kuang,
 #                                                       Wei Kang,
 #                                                       Mingshuang Luo,)
-#                                                       Zengwei Yao)
+#                                                       Zengwei Yao,
+#                                                       Zengrui Jin,)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -55,7 +56,7 @@ import sentencepiece as spm
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
-from commonvoice_fr import CommonVoiceAsrDataModule
+from asr_datamodule import CommonVoiceAsrDataModule
 from decoder import Decoder
 from joiner import Joiner
 from lhotse.cut import Cut
@@ -889,9 +890,7 @@ def train_one_epoch(
             if cur_grad_scale < 0.01:
                 logging.warning(f"Grad scale is small: {cur_grad_scale}")
             if cur_grad_scale < 1.0e-05:
-                raise RuntimeError(
-                    f"grad_scale is too small, exiting: {cur_grad_scale}"
-                )
+                raise RuntimeError(f", exiting: {cur_grad_scale}")
 
         if batch_idx % params.log_interval == 0:
             cur_lr = scheduler.get_last_lr()[0]
@@ -1037,7 +1036,7 @@ def run(rank, world_size, args):
 
     if params.print_diagnostics:
         opts = diagnostics.TensorDiagnosticOptions(
-            2**22
+            512
         )  # allow 4 megabytes per sub-module
         diagnostic = diagnostics.attach_diagnostics(model, opts)
 

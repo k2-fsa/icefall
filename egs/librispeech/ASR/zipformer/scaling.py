@@ -15,15 +15,16 @@
 # limitations under the License.
 
 
-from typing import Optional, Tuple, Union
 import logging
-import k2
-from torch.cuda.amp import custom_fwd, custom_bwd
-import random
-import torch
 import math
+import random
+from typing import Optional, Tuple, Union
+
+import k2
+import torch
 import torch.nn as nn
 from torch import Tensor
+from torch.cuda.amp import custom_bwd, custom_fwd
 
 
 def logaddexp_onnx(x: Tensor, y: Tensor) -> Tensor:
@@ -136,7 +137,7 @@ class PiecewiseLinear(object):
 
           p: the other piecewise linear function
           include_crossings: if true, include in the x values positions
-              where the functions indicate by this and p crosss.
+              where the functions indicate by this and p cross.
         """
         assert isinstance(p, PiecewiseLinear), type(p)
 
@@ -461,7 +462,7 @@ class BiasNorm(torch.nn.Module):
         self.num_channels = num_channels
         self.channel_dim = channel_dim
         self.log_scale = nn.Parameter(torch.tensor(log_scale))
-        self.bias = nn.Parameter(torch.zeros(num_channels))
+        self.bias = nn.Parameter(torch.empty(num_channels).normal_(mean=0, std=1e-4))
 
         self.log_scale_min = log_scale_min
         self.log_scale_max = log_scale_max

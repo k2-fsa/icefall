@@ -89,6 +89,7 @@ from icefall.checkpoint import (
 )
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
+from icefall.err import raise_grad_scale_is_too_small_error
 from icefall.hooks import register_inf_check_hooks
 from icefall.utils import (
     AttributeDict,
@@ -414,6 +415,17 @@ def get_parser():
         type=str2bool,
         default=False,
         help="Accumulate stats on activations, print them and exit.",
+    )
+
+    parser.add_argument(
+        "--scan-for-oom-batches",
+        type=str2bool,
+        default=False,
+        help="""
+        Whether to scan for oom batches before training, this is helpful for
+        finding the suitable max_duration, you only need to run it once.
+        Caution: a little time consuming.
+        """,
     )
 
     parser.add_argument(
@@ -1020,9 +1032,7 @@ def train_one_epoch(
                 logging.warning(f"Grad scale is small: {cur_grad_scale}")
             if cur_grad_scale < 1.0e-05:
                 save_bad_model()
-                raise RuntimeError(
-                    f"grad_scale is too small, exiting: {cur_grad_scale}"
-                )
+                raise_grad_scale_is_too_small_error(cur_grad_scale)
 
         if batch_idx % params.log_interval == 0:
             cur_lr = max(scheduler.get_last_lr())
@@ -1171,9 +1181,16 @@ def run(rank, world_size, args):
     if params.inf_check:
         register_inf_check_hooks(model)
 
+    def remove_short_utt(c: Cut):
+        # In ./zipformer.py, the conv module uses the following expression
+        # for subsampling
+        T = ((c.num_frames - 7) // 2 + 1) // 2
+        return T > 0
+
     gigaspeech = GigaSpeechAsrDataModule(args)
 
     train_cuts = gigaspeech.train_cuts()
+    train_cuts = train_cuts.filter(remove_short_utt)
 
     if params.start_batch > 0 and checkpoints and "sampler" in checkpoints:
         # We only load the sampler's state dict when it loads a checkpoint
@@ -1187,9 +1204,10 @@ def run(rank, world_size, args):
     )
 
     valid_cuts = gigaspeech.dev_cuts()
+    valid_cuts = valid_cuts.filter(remove_short_utt)
     valid_dl = gigaspeech.valid_dataloaders(valid_cuts)
 
-    if not params.print_diagnostics:
+    if not params.print_diagnostics and params.scan_for_oom_batches:
         scan_pessimistic_batches_for_oom(
             model=model,
             train_dl=train_dl,

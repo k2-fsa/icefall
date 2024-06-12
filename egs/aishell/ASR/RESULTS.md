@@ -75,7 +75,7 @@ It's reworked Zipformer with Pruned RNNT loss, trained with Byte-level BPE, `voc
 | fast beam search       | 4.43 | 4.17 | --epoch 40 --avg 10                     |
 
 ```bash
-./prepare.sh 
+./prepare.sh
 
 export CUDA_VISIBLE_DEVICES="0,1"
 

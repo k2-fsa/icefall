@@ -19,7 +19,7 @@
 Usage:
 
 #fine-tuning with deepspeed zero stage 1
-torchrun --nproc-per-node 8 ./whisper/train.py \
+torchrun --nproc_per_node 8 ./whisper/train.py \
   --max-duration 200 \
   --exp-dir whisper/exp_large_v2 \
   --model-name large-v2 \
@@ -28,7 +28,7 @@ torchrun --nproc-per-node 8 ./whisper/train.py \
   --deepspeed_config ./whisper/ds_config_zero1.json
 
 # fine-tuning with ddp
-torchrun --nproc-per-node 8 ./whisper/train.py \
+torchrun --nproc_per_node 8 ./whisper/train.py \
   --max-duration 200 \
   --exp-dir whisper/exp_medium \
   --manifest-dir data/fbank_whisper \
@@ -136,7 +136,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless7/exp",
+        default="whisper/exp",
         help="""The experiment dir.
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
@@ -147,7 +147,7 @@ def get_parser():
         "--model-name",
         type=str,
         default="large-v2",
-        choices=["large-v2", "large-v3", "medium", "small", "tiny"],
+        choices=["large-v2", "large-v3", "medium", "small", "base", "tiny"],
         help="""The model name to use.
         """,
     )
@@ -793,7 +793,7 @@ def run(rank, world_size, args):
 
     if params.print_diagnostics:
         opts = diagnostics.TensorDiagnosticOptions(
-            2**22
+            512
         )  # allow 4 megabytes per sub-module
         diagnostic = diagnostics.attach_diagnostics(model, opts)
 
