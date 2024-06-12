@@ -6,10 +6,11 @@
 
 Character Error Rates (CERs) listed below are produced by the checkpoint of the second epoch using greedy search.
 
-| Datasets | alimeeting | alimeeting | aishell-1 | aishell-1 | aishell-2 | aishell-2 | aishell-4 | magicdata | magicdata | kespeech-asr | kespeech-asr | kespeech-asr | WenetSpeech  |
-|--------------------------------|-------------------|--------------|----------------|-------------|------------------|-------------|------------------|------------------|-------------|-----------------------|-----------------------|-------------|-------------------|
-|  Split |           eval| test | dev | test | dev| test | test      | dev| test | dev phase1 | dev phase2 | test | test meeting |
-| Greedy Search |  23.22 | 28.24 | 0.61 | 0.66 | 2.67 | 2.80 | 16.61 | 2.56 | 2.21 | 4.73 | 1.90 | 5.98 |                    8.13 |
+|Model| Datasets | alimeeting | alimeeting | aishell-1 | aishell-1 | aishell-2 | aishell-2 | aishell-4 | magicdata | magicdata | kespeech-asr | kespeech-asr | kespeech-asr | WenetSpeech  |
+|-|--------------------------------|-------------------|--------------|----------------|-------------|------------------|-------------|------------------|------------------|-------------|-----------------------|-----------------------|-------------|-------------------|
+| | Split |           eval| test | dev | test | dev| test | test      | dev| test | dev phase1 | dev phase2 | test | test meeting |
+|whisper-large-v2-ft |Greedy Search |  23.22 | 28.24 | 0.61 | 0.66 | 2.67 | 2.80 | 16.61 | 2.56 | 2.21 | 4.73 | 1.90 | 5.98 |                    8.13 |
+|whisper-large-v2-ft-distill |Greedy Search | 24.91  | 26.73 | 0.91 | 0.94 | 2.71 | 2.98 | 17.65 | 2.81 | 2.47 | 5.16 | 2.10 | 6.27 |   8.34                  |
 
 Command for training is:
 ```bash

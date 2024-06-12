@@ -17,11 +17,14 @@
 | 7 | aispeech_api_zh | 3.62% | 2023.12 |
 | 8 | **whisper-large-ft-v1** | **4.32%** | 2024.04 |
 | 9 | **whisper-large-ft-v0.5** | **4.60%** | 2024.04 |
-| 10 | **zipformer (70Mb)** | **6.17%** | 2023.10 |
-| 11 | **whisper-large-ft-v0**  | **6.34%** | 2023.03 |
-| 12 | baidu_pro_api_zh | 7.29% | 2023.12 |
+| 10 | **whisper-large-ft-v1-distill** | **4.71%** | 2024.04 |
+| 11 | **zipformer (70Mb)** | **6.17%** | 2023.10 |
+| 12 | **whisper-large-ft-v0**  | **6.34%** | 2023.03 |
+| 13 | baidu_pro_api_zh | 7.29% | 2023.12 |
 
 Note: Above API results are from [SPEECHIO](https://github.com/SpeechColab/Leaderboard). All results used the default [normalize method.](https://github.com/SpeechColab/Leaderboard/blob/master/utils/benchmark.sh#L67)
+
+For  **whisper-large-ft-v1-distill**, instead of actually using distillation loss for training, the model structure and parameter initialization method from the [distill-whisper](https://arxiv.org/abs/2311.00430) paper were adopted: only the first and last layers of the decoder were retained.
 
 <details><summary> Detail all models </summary><p>
 
@@ -31,7 +34,7 @@ Note: Above API results are from [SPEECHIO](https://github.com/SpeechColab/Leade
 |[whisper-large-ft-v0](https://huggingface.co/yuekai/icefall_asr_wenetspeech_whisper/tree/main/exp_large_v2)| wenetspeech | greedy_search, 3 epochs|
 |[whisper-large-ft-v0.5](https://huggingface.co/yuekai/icefall_asr_wenetspeech_whisper/blob/main/epoch-2-avg-5.pt)| wenetspeech(updated) | [wenetspeech update method](https://github.com/k2-fsa/icefall/blob/master/egs/wenetspeech/ASR/local/fix_manifest.py), greedy_search, 2 epochs |
 |[whisper-large-ft-v1](https://huggingface.co/yuekai/icefall_asr_multi-hans-zh_whisper/tree/main/v1.1)|wenetspeech(updated), other multi-hans-zh exclude datatang 200h|[wenetspeech update method](https://github.com/k2-fsa/icefall/blob/master/egs/wenetspeech/ASR/local/fix_manifest.py), greedy search, 3 epochs|
-
+|[whisper-large-ft-v1-distill](https://huggingface.co/yuekai/icefall_asr_multi-hans-zh_whisper/tree/main/v1-distill)|wenetspeech(updated), other multi-hans-zh exclude datatang 200h|[wenetspeech update method](https://github.com/k2-fsa/icefall/blob/master/egs/wenetspeech/ASR/local/fix_manifest.py), greedy search, 6 epochs|
 </details>
 
 
