@@ -823,14 +823,14 @@ def run(rank, world_size, args):
         # an utterance duration distribution for your dataset to select
         # the threshold
         if c.duration < 1.0 or c.duration > 20.0:
-            logging.warning(
-               f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
-            )
+            # logging.warning(
+            #    f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
+            # )
             return False
         return True
 
-    # train_cuts = multi_dataset.train_cuts()
-    train_cuts = multi_dataset.aishell_train_cuts()
+    train_cuts = multi_dataset.train_cuts()
+    # train_cuts = multi_dataset.aishell_train_cuts()
     # train_cuts = multi_dataset.aishell2_train_cuts()
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
 

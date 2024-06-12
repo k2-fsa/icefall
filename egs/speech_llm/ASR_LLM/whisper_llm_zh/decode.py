@@ -561,7 +561,8 @@ def main():
         return True
 
     # test_sets_cuts = multi_dataset.test_cuts()
-    test_sets_cuts = multi_dataset.aishell_test_cuts()
+    # test_sets_cuts = multi_dataset.aishell_test_cuts()
+    test_sets_cuts = multi_dataset.wenetspeech_test_meeting_cuts()
 
     test_sets = test_sets_cuts.keys()
     test_dls = [

@@ -230,20 +230,20 @@ class MultiDataset:
 
         return {
             "wenetspeech-meeting_test": wenetspeech_test_meeting_cuts,
-            # "aishell_test": aishell_test_cuts,
-            # "aishell_dev": aishell_dev_cuts,
-            # "ali-meeting_test": alimeeting_test_cuts,
-            # "ali-meeting_eval": alimeeting_eval_cuts,
-            # "aishell-4_test": aishell4_test_cuts,
-            # "aishell-2_test": aishell2_test_cuts,
-            # "aishell-2_dev": aishell2_dev_cuts,
-            # "magicdata_test": magicdata_test_cuts,
-            # "magicdata_dev": magicdata_dev_cuts,
-            # "kespeech-asr_test": kespeech_test_cuts,
-            # "kespeech-asr_dev_phase1": kespeech_dev_phase1_cuts,
-            # "kespeech-asr_dev_phase2": kespeech_dev_phase2_cuts,
-            # "wenetspeech-net_test": wenetspeech_test_net_cuts,
-            # "wenetspeech_dev": wenetspeech_dev_cuts,
+            "aishell_test": aishell_test_cuts,
+            "aishell_dev": aishell_dev_cuts,
+            "ali-meeting_test": alimeeting_test_cuts,
+            "ali-meeting_eval": alimeeting_eval_cuts,
+            "aishell-4_test": aishell4_test_cuts,
+            "aishell-2_test": aishell2_test_cuts,
+            "aishell-2_dev": aishell2_dev_cuts,
+            "magicdata_test": magicdata_test_cuts,
+            "magicdata_dev": magicdata_dev_cuts,
+            "kespeech-asr_test": kespeech_test_cuts,
+            "kespeech-asr_dev_phase1": kespeech_dev_phase1_cuts,
+            "kespeech-asr_dev_phase2": kespeech_dev_phase2_cuts,
+            "wenetspeech-net_test": wenetspeech_test_net_cuts,
+            "wenetspeech_dev": wenetspeech_dev_cuts,
         }
 
     def aishell_train_cuts(self) -> CutSet:
@@ -317,4 +317,17 @@ class MultiDataset:
 
         return {
             "aishell2_test": aishell2_test_cuts,
+        }
+
+    def wenetspeech_test_meeting_cuts(self) -> CutSet:
+        logging.info("About to get multidataset test cuts")
+
+        # WeNetSpeech
+        logging.info("Loading WeNetSpeech set in lazy mode")
+        wenetspeech_test_meeting_cuts = load_manifest_lazy(
+            self.fbank_dir / "wenetspeech" / "cuts_TEST_MEETING.jsonl.gz"
+        )
+
+        return {
+            "wenetspeech-meeting_test": wenetspeech_test_meeting_cuts,
         }
