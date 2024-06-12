@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kaldi-based forced alignment &mdash; icefall 0.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=fa44fd50" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=19f00094" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../_static/jquery.js?v=5d32c60e"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js?v=e031e9a9"></script>
+        <script src="../_static/doctools.js?v=888ff710"></script>
+        <script src="../_static/sphinx_highlight.js?v=4825356b"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="k2-based forced alignment" href="k2-based.html" />
+    <link rel="prev" title="Two approaches" href="diff.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            icefall
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../for-dummies/index.html">Icefall for dummies tutorial</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../installation/index.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../docker/index.html">Docker</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../faqs.html">Frequently Asked Questions (FAQs)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../model-export/index.html">Model export</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">FST-based forced alignment</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="diff.html">Two approaches</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Kaldi-based forced alignment</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#prepare-the-environment">Prepare the environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#get-the-test-data">Get the test data</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#compute-log-probs">Compute log_probs</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#create-token2id-and-id2token">Create token2id and id2token</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#create-word2id-and-id2word">Create word2id and id2word</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#generate-lexicon-related-files">Generate lexicon-related files</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#convert-transcript-to-an-fst-graph">Convert transcript to an FST graph</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#force-aligner">Force aligner</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#segment-each-word-using-the-computed-alignments">Segment each word using the computed alignments</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#summary">Summary</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="k2-based.html">k2-based forced alignment</a></li>
+</ul>
+</li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../recipes/index.html">Recipes</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../contributing/index.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../huggingface/index.html">Huggingface</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../decoding-with-langugage-models/index.html">Decoding with language models</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">icefall</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">FST-based forced alignment</a></li>
+      <li class="breadcrumb-item active">Kaldi-based forced alignment</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/k2-fsa/icefall/blob/master/docs/source/fst-based-forced-alignment/kaldi-based.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="kaldi-based-forced-alignment">
+<h1>Kaldi-based forced alignment<a class="headerlink" href="#kaldi-based-forced-alignment" title="Permalink to this heading"></a></h1>
+<p>This section describes in detail how to use <a class="reference external" href="https://github.com/k2-fsa/kaldi-decoder">kaldi-decoder</a>
+for <strong>FST-based</strong> <code class="docutils literal notranslate"><span class="pre">forced</span> <span class="pre">alignment</span></code> with models trained by <a class="reference external" href="https://www.cs.toronto.edu/~graves/icml_2006.pdf">CTC</a> loss.</p>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>We have a colab notebook walking you through this section step by step.</p>
+<p><a class="reference external" href="https://github.com/k2-fsa/colab/blob/master/icefall/ctc_forced_alignment_fst_based_kaldi.ipynb"><img alt="kaldi-based forced alignment colab notebook" src="https://colab.research.google.com/assets/colab-badge.svg" /></a></p>
+</div>
+<section id="prepare-the-environment">
+<h2>Prepare the environment<a class="headerlink" href="#prepare-the-environment" title="Permalink to this heading"></a></h2>
+<p>Before you continue, make sure you have setup <a class="reference external" href="https://github.com/k2-fsa/icefall">icefall</a> by following <a class="reference internal" href="../installation/index.html#install-icefall"><span class="std std-ref">Installation</span></a>.</p>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>You don’t need to install <a class="reference external" href="https://github.com/kaldi-asr/kaldi">Kaldi</a>. We will <code class="docutils literal notranslate"><span class="pre">NOT</span></code> use <a class="reference external" href="https://github.com/kaldi-asr/kaldi">Kaldi</a> below.</p>
+</div>
+</section>
+<section id="get-the-test-data">
+<h2>Get the test data<a class="headerlink" href="#get-the-test-data" title="Permalink to this heading"></a></h2>
+<p>We use the test wave
+from <a class="reference external" href="https://pytorch.org/audio/main/tutorials/ctc_forced_alignment_api_tutorial.html">CTC FORCED ALIGNMENT API TUTORIAL</a></p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">torchaudio</span>
+
+<span class="c1"># Download test wave</span>
+<span class="n">speech_file</span> <span class="o">=</span> <span class="n">torchaudio</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">download_asset</span><span class="p">(</span><span class="s2">&quot;tutorial-assets/Lab41-SRI-VOiCES-src-sp0307-ch127535-sg0042.wav&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">speech_file</span><span class="p">)</span>
+<span class="n">waveform</span><span class="p">,</span> <span class="n">sr</span> <span class="o">=</span> <span class="n">torchaudio</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">speech_file</span><span class="p">)</span>
+<span class="n">transcript</span> <span class="o">=</span> <span class="s2">&quot;i had that curiosity beside me at this moment&quot;</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">waveform</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">sr</span><span class="p">)</span>
+
+<span class="k">assert</span> <span class="n">waveform</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span>
+<span class="k">assert</span> <span class="n">waveform</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span>
+<span class="k">assert</span> <span class="n">sr</span> <span class="o">==</span> <span class="mi">16000</span>
+</pre></div>
+</div>
+<p>The test wave is downloaded to:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$HOME/.cache/torch/hub/torchaudio/tutorial-assets/Lab41-SRI-VOiCES-src-sp0307-ch127535-sg0042.wav
+</pre></div>
+</div>
+<table>
+  <tr>
+    <th>Wave filename</th>
+    <th>Content</th>
+    <th>Text</th>
+  </tr>
+  <tr>
+    <td>Lab41-SRI-VOiCES-src-sp0307-ch127535-sg0042.wav</td>
+    <td>
+     <audio title="Lab41-SRI-VOiCES-src-sp0307-ch127535-sg0042.wav" controls="controls">
+           <source src="/icefall/_static/kaldi-align/Lab41-SRI-VOiCES-src-sp0307-ch127535-sg0042.wav" type="audio/wav">
+           Your browser does not support the <code>audio</code> element.
+     </audio>
+    </td>
+    <td>
+      i had that curiosity beside me at this moment
+    </td>
+  </tr>
+</table><p>We use the test model
+from <a class="reference external" href="https://pytorch.org/audio/main/tutorials/ctc_forced_alignment_api_tutorial.html">CTC FORCED ALIGNMENT API TUTORIAL</a></p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">torch</span>
+
+<span class="n">bundle</span> <span class="o">=</span> <span class="n">torchaudio</span><span class="o">.</span><span class="n">pipelines</span><span class="o">.</span><span class="n">MMS_FA</span>
+
+<span class="n">device</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">device</span><span class="p">(</span><span class="s2">&quot;cuda&quot;</span> <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">is_available</span><span class="p">()</span> <span class="k">else</span> <span class="s2">&quot;cpu&quot;</span><span class="p">)</span>
+<span class="n">model</span> <span class="o">=</span> <span class="n">bundle</span><span class="o">.</span><span class="n">get_model</span><span class="p">(</span><span class="n">with_star</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The model is downloaded to:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$HOME/.cache/torch/hub/checkpoints/model.pt
+</pre></div>
+</div>
+</section>
+<section id="compute-log-probs">
+<h2>Compute log_probs<a class="headerlink" href="#compute-log-probs" title="Permalink to this heading"></a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>with<span class="w"> </span>torch.inference_mode<span class="o">()</span>:
+<span class="w">    </span>emission,<span class="w"> </span><span class="nv">_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>model<span class="o">(</span>waveform.to<span class="o">(</span>device<span class="o">))</span>
+<span class="w">    </span>print<span class="o">(</span>emission.shape<span class="o">)</span>
+</pre></div>
+</div>
+<p>It should print:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">torch</span><span class="o">.</span><span class="n">Size</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">169</span><span class="p">,</span> <span class="mi">28</span><span class="p">])</span>
+</pre></div>
+</div>
+</section>
+<section id="create-token2id-and-id2token">
+<h2>Create token2id and id2token<a class="headerlink" href="#create-token2id-and-id2token" title="Permalink to this heading"></a></h2>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">token2id</span> <span class="o">=</span> <span class="n">bundle</span><span class="o">.</span><span class="n">get_dict</span><span class="p">(</span><span class="n">star</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+<span class="n">id2token</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span><span class="p">:</span><span class="n">t</span> <span class="k">for</span> <span class="n">t</span><span class="p">,</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">token2id</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+<span class="n">token2id</span><span class="p">[</span><span class="s2">&quot;&lt;eps&gt;&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="k">del</span> <span class="n">token2id</span><span class="p">[</span><span class="s2">&quot;-&quot;</span><span class="p">]</span>
+</pre></div>
+</div>
+</section>
+<section id="create-word2id-and-id2word">
+<h2>Create word2id and id2word<a class="headerlink" href="#create-word2id-and-id2word" title="Permalink to this heading"></a></h2>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">words</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">transcript</span><span class="p">))</span>
+<span class="n">word2id</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+<span class="n">word2id</span><span class="p">[</span><span class="s1">&#39;eps&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">w</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">words</span><span class="p">):</span>
+  <span class="n">word2id</span><span class="p">[</span><span class="n">w</span><span class="p">]</span> <span class="o">=</span> <span class="n">i</span> <span class="o">+</span> <span class="mi">1</span>
+
+<span class="n">id2word</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span><span class="p">:</span><span class="n">w</span> <span class="k">for</span> <span class="n">w</span><span class="p">,</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">word2id</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+</pre></div>
+</div>
+<p>Note that we only use words from the transcript of the test wave.</p>
+</section>
+<section id="generate-lexicon-related-files">
+<h2>Generate lexicon-related files<a class="headerlink" href="#generate-lexicon-related-files" title="Permalink to this heading"></a></h2>
+<p>We use the code below to generate the following 4 files:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">lexicon.txt</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">tokens.txt</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">words.txt</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">lexicon_disambig.txt</span></code></p></li>
+</ul>
+</div></blockquote>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p><code class="docutils literal notranslate"><span class="pre">words.txt</span></code> contains only words from the transcript of the test wave.</p>
+</div>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">prepare_lang</span> <span class="kn">import</span> <span class="n">add_disambig_symbols</span>
+
+<span class="n">lexicon</span> <span class="o">=</span> <span class="p">[(</span><span class="n">w</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">w</span><span class="p">))</span> <span class="k">for</span> <span class="n">w</span> <span class="ow">in</span> <span class="n">word2id</span> <span class="k">if</span> <span class="n">w</span> <span class="o">!=</span> <span class="s2">&quot;eps&quot;</span><span class="p">]</span>
+<span class="n">lexicon_disambig</span><span class="p">,</span> <span class="n">max_disambig_id</span> <span class="o">=</span> <span class="n">add_disambig_symbols</span><span class="p">(</span><span class="n">lexicon</span><span class="p">)</span>
+
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s1">&#39;lexicon.txt&#39;</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+  <span class="k">for</span> <span class="n">w</span><span class="p">,</span> <span class="n">tokens</span> <span class="ow">in</span> <span class="n">lexicon</span><span class="p">:</span>
+    <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">w</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tokens</span><span class="p">)</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s1">&#39;lexicon_disambig.txt&#39;</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+  <span class="k">for</span> <span class="n">w</span><span class="p">,</span> <span class="n">tokens</span> <span class="ow">in</span> <span class="n">lexicon_disambig</span><span class="p">:</span>
+    <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">w</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tokens</span><span class="p">)</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s1">&#39;tokens.txt&#39;</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+  <span class="k">for</span> <span class="n">t</span><span class="p">,</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">token2id</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+    <span class="k">if</span> <span class="n">t</span> <span class="o">==</span> <span class="s1">&#39;-&#39;</span><span class="p">:</span>
+      <span class="n">t</span> <span class="o">=</span> <span class="s2">&quot;&lt;eps&gt;&quot;</span>
+    <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">t</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+
+  <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">max_disambig_id</span> <span class="o">+</span> <span class="mi">2</span><span class="p">):</span>
+    <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;#</span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">token2id</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">k</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s1">&#39;words.txt&#39;</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+  <span class="k">for</span> <span class="n">w</span><span class="p">,</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">word2id</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+    <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">w</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+  <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;#0 </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">word2id</span><span class="p">)</span><span class="si">}</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>To give you an idea about what the generated files look like:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">head</span> <span class="o">-</span><span class="n">n</span> <span class="mi">50</span> <span class="n">lexicon</span><span class="o">.</span><span class="n">txt</span> <span class="n">lexicon_disambig</span><span class="o">.</span><span class="n">txt</span> <span class="n">tokens</span><span class="o">.</span><span class="n">txt</span> <span class="n">words</span><span class="o">.</span><span class="n">txt</span>
+</pre></div>
+</div>
+<p>prints:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">==&gt;</span> <span class="n">lexicon</span><span class="o">.</span><span class="n">txt</span> <span class="o">&lt;==</span>
+<span class="n">moment</span> <span class="n">m</span> <span class="n">o</span> <span class="n">m</span> <span class="n">e</span> <span class="n">n</span> <span class="n">t</span>
+<span class="n">beside</span> <span class="n">b</span> <span class="n">e</span> <span class="n">s</span> <span class="n">i</span> <span class="n">d</span> <span class="n">e</span>
+<span class="n">i</span> <span class="n">i</span>
+<span class="n">this</span> <span class="n">t</span> <span class="n">h</span> <span class="n">i</span> <span class="n">s</span>
+<span class="n">curiosity</span> <span class="n">c</span> <span class="n">u</span> <span class="n">r</span> <span class="n">i</span> <span class="n">o</span> <span class="n">s</span> <span class="n">i</span> <span class="n">t</span> <span class="n">y</span>
+<span class="n">had</span> <span class="n">h</span> <span class="n">a</span> <span class="n">d</span>
+<span class="n">that</span> <span class="n">t</span> <span class="n">h</span> <span class="n">a</span> <span class="n">t</span>
+<span class="n">at</span> <span class="n">a</span> <span class="n">t</span>
+<span class="n">me</span> <span class="n">m</span> <span class="n">e</span>
+
+<span class="o">==&gt;</span> <span class="n">lexicon_disambig</span><span class="o">.</span><span class="n">txt</span> <span class="o">&lt;==</span>
+<span class="n">moment</span> <span class="n">m</span> <span class="n">o</span> <span class="n">m</span> <span class="n">e</span> <span class="n">n</span> <span class="n">t</span>
+<span class="n">beside</span> <span class="n">b</span> <span class="n">e</span> <span class="n">s</span> <span class="n">i</span> <span class="n">d</span> <span class="n">e</span>
+<span class="n">i</span> <span class="n">i</span>
+<span class="n">this</span> <span class="n">t</span> <span class="n">h</span> <span class="n">i</span> <span class="n">s</span>
+<span class="n">curiosity</span> <span class="n">c</span> <span class="n">u</span> <span class="n">r</span> <span class="n">i</span> <span class="n">o</span> <span class="n">s</span> <span class="n">i</span> <span class="n">t</span> <span class="n">y</span>
+<span class="n">had</span> <span class="n">h</span> <span class="n">a</span> <span class="n">d</span>
+<span class="n">that</span> <span class="n">t</span> <span class="n">h</span> <span class="n">a</span> <span class="n">t</span>
+<span class="n">at</span> <span class="n">a</span> <span class="n">t</span>
+<span class="n">me</span> <span class="n">m</span> <span class="n">e</span>
+
+<span class="o">==&gt;</span> <span class="n">tokens</span><span class="o">.</span><span class="n">txt</span> <span class="o">&lt;==</span>
+<span class="n">a</span> <span class="mi">1</span>
+<span class="n">i</span> <span class="mi">2</span>
+<span class="n">e</span> <span class="mi">3</span>
+<span class="n">n</span> <span class="mi">4</span>
+<span class="n">o</span> <span class="mi">5</span>
+<span class="n">u</span> <span class="mi">6</span>
+<span class="n">t</span> <span class="mi">7</span>
+<span class="n">s</span> <span class="mi">8</span>
+<span class="n">r</span> <span class="mi">9</span>
+<span class="n">m</span> <span class="mi">10</span>
+<span class="n">k</span> <span class="mi">11</span>
+<span class="n">l</span> <span class="mi">12</span>
+<span class="n">d</span> <span class="mi">13</span>
+<span class="n">g</span> <span class="mi">14</span>
+<span class="n">h</span> <span class="mi">15</span>
+<span class="n">y</span> <span class="mi">16</span>
+<span class="n">b</span> <span class="mi">17</span>
+<span class="n">p</span> <span class="mi">18</span>
+<span class="n">w</span> <span class="mi">19</span>
+<span class="n">c</span> <span class="mi">20</span>
+<span class="n">v</span> <span class="mi">21</span>
+<span class="n">j</span> <span class="mi">22</span>
+<span class="n">z</span> <span class="mi">23</span>
+<span class="n">f</span> <span class="mi">24</span>
+<span class="s1">&#39; 25</span>
+<span class="n">q</span> <span class="mi">26</span>
+<span class="n">x</span> <span class="mi">27</span>
+<span class="o">&lt;</span><span class="n">eps</span><span class="o">&gt;</span> <span class="mi">0</span>
+<span class="c1">#0 28</span>
+<span class="c1">#1 29</span>
+
+<span class="o">==&gt;</span> <span class="n">words</span><span class="o">.</span><span class="n">txt</span> <span class="o">&lt;==</span>
+<span class="n">eps</span> <span class="mi">0</span>
+<span class="n">moment</span> <span class="mi">1</span>
+<span class="n">beside</span> <span class="mi">2</span>
+<span class="n">i</span> <span class="mi">3</span>
+<span class="n">this</span> <span class="mi">4</span>
+<span class="n">curiosity</span> <span class="mi">5</span>
+<span class="n">had</span> <span class="mi">6</span>
+<span class="n">that</span> <span class="mi">7</span>
+<span class="n">at</span> <span class="mi">8</span>
+<span class="n">me</span> <span class="mi">9</span>
+<span class="c1">#0 10</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This test model uses characters as modeling unit. If you use other types of
+modeling unit, the same code can be used without any change.</p>
+</div>
+</section>
+<section id="convert-transcript-to-an-fst-graph">
+<h2>Convert transcript to an FST graph<a class="headerlink" href="#convert-transcript-to-an-fst-graph" title="Permalink to this heading"></a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>egs/librispeech/ASR/local/prepare_lang_fst.py<span class="w"> </span>--lang-dir<span class="w"> </span>./
+</pre></div>
+</div>
+<p>The above command should generate two files <code class="docutils literal notranslate"><span class="pre">H.fst</span></code> and <code class="docutils literal notranslate"><span class="pre">HL.fst</span></code>. We will
+use <code class="docutils literal notranslate"><span class="pre">HL.fst</span></code> below:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">-</span><span class="n">rw</span><span class="o">-</span><span class="n">r</span><span class="o">--</span><span class="n">r</span><span class="o">--</span> <span class="mi">1</span> <span class="n">root</span> <span class="n">root</span>  <span class="mi">13</span><span class="n">K</span> <span class="n">Jun</span> <span class="mi">12</span> <span class="mi">08</span><span class="p">:</span><span class="mi">28</span> <span class="n">H</span><span class="o">.</span><span class="n">fst</span>
+<span class="o">-</span><span class="n">rw</span><span class="o">-</span><span class="n">r</span><span class="o">--</span><span class="n">r</span><span class="o">--</span> <span class="mi">1</span> <span class="n">root</span> <span class="n">root</span> <span class="mf">3.7</span><span class="n">K</span> <span class="n">Jun</span> <span class="mi">12</span> <span class="mi">08</span><span class="p">:</span><span class="mi">28</span> <span class="n">HL</span><span class="o">.</span><span class="n">fst</span>
+</pre></div>
+</div>
+</section>
+<section id="force-aligner">
+<h2>Force aligner<a class="headerlink" href="#force-aligner" title="Permalink to this heading"></a></h2>
+<p>Now, everything is ready. We can use the following code to get forced alignments.</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">kaldi_decoder</span> <span class="kn">import</span> <span class="n">DecodableCtc</span><span class="p">,</span> <span class="n">FasterDecoder</span><span class="p">,</span> <span class="n">FasterDecoderOptions</span>
+<span class="kn">import</span> <span class="nn">kaldifst</span>
+
+<span class="k">def</span> <span class="nf">force_align</span><span class="p">():</span>
+    <span class="n">HL</span> <span class="o">=</span> <span class="n">kaldifst</span><span class="o">.</span><span class="n">StdVectorFst</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">&quot;./HL.fst&quot;</span><span class="p">)</span>
+    <span class="n">decodable</span> <span class="o">=</span> <span class="n">DecodableCtc</span><span class="p">(</span><span class="n">emission</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">contiguous</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">())</span>
+    <span class="n">decoder_opts</span> <span class="o">=</span> <span class="n">FasterDecoderOptions</span><span class="p">(</span><span class="n">max_active</span><span class="o">=</span><span class="mi">3000</span><span class="p">)</span>
+    <span class="n">decoder</span> <span class="o">=</span> <span class="n">FasterDecoder</span><span class="p">(</span><span class="n">HL</span><span class="p">,</span> <span class="n">decoder_opts</span><span class="p">)</span>
+    <span class="n">decoder</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">decodable</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">decoder</span><span class="o">.</span><span class="n">reached_final</span><span class="p">():</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;failed to decode xxx&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="n">ok</span><span class="p">,</span> <span class="n">best_path</span> <span class="o">=</span> <span class="n">decoder</span><span class="o">.</span><span class="n">get_best_path</span><span class="p">()</span>
+
+    <span class="p">(</span>
+        <span class="n">ok</span><span class="p">,</span>
+        <span class="n">isymbols_out</span><span class="p">,</span>
+        <span class="n">osymbols_out</span><span class="p">,</span>
+        <span class="n">total_weight</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">=</span> <span class="n">kaldifst</span><span class="o">.</span><span class="n">get_linear_symbol_sequence</span><span class="p">(</span><span class="n">best_path</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">ok</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;failed to get linear symbol sequence for xxx&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="c1"># We need to use i-1 here since we have incremented tokens during</span>
+    <span class="c1"># HL construction</span>
+    <span class="n">alignment</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">-</span><span class="mi">1</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">isymbols_out</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">alignment</span>
+
+<span class="n">alignment</span> <span class="o">=</span> <span class="n">force_align</span><span class="p">()</span>
+
+<span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">a</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">alignment</span><span class="p">):</span>
+  <span class="nb">print</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">id2token</span><span class="p">[</span><span class="n">a</span><span class="p">])</span>
+</pre></div>
+</div>
+<p>The output should be identical to
+<a class="reference external" href="https://pytorch.org/audio/main/tutorials/ctc_forced_alignment_api_tutorial.html#frame-level-alignments">https://pytorch.org/audio/main/tutorials/ctc_forced_alignment_api_tutorial.html#frame-level-alignments</a>.</p>
+<p>For ease of reference, we list the output below:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="mi">0</span> <span class="o">-</span>
+<span class="mi">1</span> <span class="o">-</span>
+<span class="mi">2</span> <span class="o">-</span>
+<span class="mi">3</span> <span class="o">-</span>
+<span class="mi">4</span> <span class="o">-</span>
+<span class="mi">5</span> <span class="o">-</span>
+<span class="mi">6</span> <span class="o">-</span>
+<span class="mi">7</span> <span class="o">-</span>
+<span class="mi">8</span> <span class="o">-</span>
+<span class="mi">9</span> <span class="o">-</span>
+<span class="mi">10</span> <span class="o">-</span>
+<span class="mi">11</span> <span class="o">-</span>
+<span class="mi">12</span> <span class="o">-</span>
+<span class="mi">13</span> <span class="o">-</span>
+<span class="mi">14</span> <span class="o">-</span>
+<span class="mi">15</span> <span class="o">-</span>
+<span class="mi">16</span> <span class="o">-</span>
+<span class="mi">17</span> <span class="o">-</span>
+<span class="mi">18</span> <span class="o">-</span>
+<span class="mi">19</span> <span class="o">-</span>
+<span class="mi">20</span> <span class="o">-</span>
+<span class="mi">21</span> <span class="o">-</span>
+<span class="mi">22</span> <span class="o">-</span>
+<span class="mi">23</span> <span class="o">-</span>
+<span class="mi">24</span> <span class="o">-</span>
+<span class="mi">25</span> <span class="o">-</span>
+<span class="mi">26</span> <span class="o">-</span>
+<span class="mi">27</span> <span class="o">-</span>
+<span class="mi">28</span> <span class="o">-</span>
+<span class="mi">29</span> <span class="o">-</span>
+<span class="mi">30</span> <span class="o">-</span>
+<span class="mi">31</span> <span class="o">-</span>
+<span class="mi">32</span> <span class="n">i</span>
+<span class="mi">33</span> <span class="o">-</span>
+<span class="mi">34</span> <span class="o">-</span>
+<span class="mi">35</span> <span class="n">h</span>
+<span class="mi">36</span> <span class="n">h</span>
+<span class="mi">37</span> <span class="n">a</span>
+<span class="mi">38</span> <span class="o">-</span>
+<span class="mi">39</span> <span class="o">-</span>
+<span class="mi">40</span> <span class="o">-</span>
+<span class="mi">41</span> <span class="n">d</span>
+<span class="mi">42</span> <span class="o">-</span>
+<span class="mi">43</span> <span class="o">-</span>
+<span class="mi">44</span> <span class="n">t</span>
+<span class="mi">45</span> <span class="n">h</span>
+<span class="mi">46</span> <span class="o">-</span>
+<span class="mi">47</span> <span class="n">a</span>
+<span class="mi">48</span> <span class="o">-</span>
+<span class="mi">49</span> <span class="o">-</span>
+<span class="mi">50</span> <span class="n">t</span>
+<span class="mi">51</span> <span class="o">-</span>
+<span class="mi">52</span> <span class="o">-</span>
+<span class="mi">53</span> <span class="o">-</span>
+<span class="mi">54</span> <span class="n">c</span>
+<span class="mi">55</span> <span class="o">-</span>
+<span class="mi">56</span> <span class="o">-</span>
+<span class="mi">57</span> <span class="o">-</span>
+<span class="mi">58</span> <span class="n">u</span>
+<span class="mi">59</span> <span class="n">u</span>
+<span class="mi">60</span> <span class="o">-</span>
+<span class="mi">61</span> <span class="o">-</span>
+<span class="mi">62</span> <span class="o">-</span>
+<span class="mi">63</span> <span class="n">r</span>
+<span class="mi">64</span> <span class="o">-</span>
+<span class="mi">65</span> <span class="n">i</span>
+<span class="mi">66</span> <span class="o">-</span>
+<span class="mi">67</span> <span class="o">-</span>
+<span class="mi">68</span> <span class="o">-</span>
+<span class="mi">69</span> <span class="o">-</span>
+<span class="mi">70</span> <span class="o">-</span>
+<span class="mi">71</span> <span class="o">-</span>
+<span class="mi">72</span> <span class="n">o</span>
+<span class="mi">73</span> <span class="o">-</span>
+<span class="mi">74</span> <span class="o">-</span>
+<span class="mi">75</span> <span class="o">-</span>
+<span class="mi">76</span> <span class="o">-</span>
+<span class="mi">77</span> <span class="o">-</span>
+<span class="mi">78</span> <span class="o">-</span>
+<span class="mi">79</span> <span class="n">s</span>
+<span class="mi">80</span> <span class="o">-</span>
+<span class="mi">81</span> <span class="o">-</span>
+<span class="mi">82</span> <span class="o">-</span>
+<span class="mi">83</span> <span class="n">i</span>
+<span class="mi">84</span> <span class="o">-</span>
+<span class="mi">85</span> <span class="n">t</span>
+<span class="mi">86</span> <span class="o">-</span>
+<span class="mi">87</span> <span class="o">-</span>
+<span class="mi">88</span> <span class="n">y</span>
+<span class="mi">89</span> <span class="o">-</span>
+<span class="mi">90</span> <span class="o">-</span>
+<span class="mi">91</span> <span class="o">-</span>
+<span class="mi">92</span> <span class="o">-</span>
+<span class="mi">93</span> <span class="n">b</span>
+<span class="mi">94</span> <span class="o">-</span>
+<span class="mi">95</span> <span class="n">e</span>
+<span class="mi">96</span> <span class="o">-</span>
+<span class="mi">97</span> <span class="o">-</span>
+<span class="mi">98</span> <span class="o">-</span>
+<span class="mi">99</span> <span class="o">-</span>
+<span class="mi">100</span> <span class="o">-</span>
+<span class="mi">101</span> <span class="n">s</span>
+<span class="mi">102</span> <span class="o">-</span>
+<span class="mi">103</span> <span class="o">-</span>
+<span class="mi">104</span> <span class="o">-</span>
+<span class="mi">105</span> <span class="o">-</span>
+<span class="mi">106</span> <span class="o">-</span>
+<span class="mi">107</span> <span class="o">-</span>
+<span class="mi">108</span> <span class="o">-</span>
+<span class="mi">109</span> <span class="o">-</span>
+<span class="mi">110</span> <span class="n">i</span>
+<span class="mi">111</span> <span class="o">-</span>
+<span class="mi">112</span> <span class="o">-</span>
+<span class="mi">113</span> <span class="n">d</span>
+<span class="mi">114</span> <span class="n">e</span>
+<span class="mi">115</span> <span class="o">-</span>
+<span class="mi">116</span> <span class="n">m</span>
+<span class="mi">117</span> <span class="o">-</span>
+<span class="mi">118</span> <span class="o">-</span>
+<span class="mi">119</span> <span class="n">e</span>
+<span class="mi">120</span> <span class="o">-</span>
+<span class="mi">121</span> <span class="o">-</span>
+<span class="mi">122</span> <span class="o">-</span>
+<span class="mi">123</span> <span class="o">-</span>
+<span class="mi">124</span> <span class="n">a</span>
+<span class="mi">125</span> <span class="o">-</span>
+<span class="mi">126</span> <span class="o">-</span>
+<span class="mi">127</span> <span class="n">t</span>
+<span class="mi">128</span> <span class="o">-</span>
+<span class="mi">129</span> <span class="n">t</span>
+<span class="mi">130</span> <span class="n">h</span>
+<span class="mi">131</span> <span class="o">-</span>
+<span class="mi">132</span> <span class="n">i</span>
+<span class="mi">133</span> <span class="o">-</span>
+<span class="mi">134</span> <span class="o">-</span>
+<span class="mi">135</span> <span class="o">-</span>
+<span class="mi">136</span> <span class="n">s</span>
+<span class="mi">137</span> <span class="o">-</span>
+<span class="mi">138</span> <span class="o">-</span>
+<span class="mi">139</span> <span class="o">-</span>
+<span class="mi">140</span> <span class="o">-</span>
+<span class="mi">141</span> <span class="n">m</span>
+<span class="mi">142</span> <span class="o">-</span>
+<span class="mi">143</span> <span class="o">-</span>
+<span class="mi">144</span> <span class="n">o</span>
+<span class="mi">145</span> <span class="o">-</span>
+<span class="mi">146</span> <span class="o">-</span>
+<span class="mi">147</span> <span class="o">-</span>
+<span class="mi">148</span> <span class="n">m</span>
+<span class="mi">149</span> <span class="o">-</span>
+<span class="mi">150</span> <span class="o">-</span>
+<span class="mi">151</span> <span class="n">e</span>
+<span class="mi">152</span> <span class="o">-</span>
+<span class="mi">153</span> <span class="n">n</span>
+<span class="mi">154</span> <span class="o">-</span>
+<span class="mi">155</span> <span class="n">t</span>
+<span class="mi">156</span> <span class="o">-</span>
+<span class="mi">157</span> <span class="o">-</span>
+<span class="mi">158</span> <span class="o">-</span>
+<span class="mi">159</span> <span class="o">-</span>
+<span class="mi">160</span> <span class="o">-</span>
+<span class="mi">161</span> <span class="o">-</span>
+<span class="mi">162</span> <span class="o">-</span>
+<span class="mi">163</span> <span class="o">-</span>
+<span class="mi">164</span> <span class="o">-</span>
+<span class="mi">165</span> <span class="o">-</span>
+<span class="mi">166</span> <span class="o">-</span>
+<span class="mi">167</span> <span class="o">-</span>
+<span class="mi">168</span> <span class="o">-</span>
+</pre></div>
+</div>
+<p>To merge tokens, we use:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">icefall.ctc</span> <span class="kn">import</span> <span class="n">merge_tokens</span>
+<span class="n">token_spans</span> <span class="o">=</span> <span class="n">merge_tokens</span><span class="p">(</span><span class="n">alignment</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">span</span> <span class="ow">in</span> <span class="n">token_spans</span><span class="p">:</span>
+  <span class="nb">print</span><span class="p">(</span><span class="n">id2token</span><span class="p">[</span><span class="n">span</span><span class="o">.</span><span class="n">token</span><span class="p">],</span> <span class="n">span</span><span class="o">.</span><span class="n">start</span><span class="p">,</span> <span class="n">span</span><span class="o">.</span><span class="n">end</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The output is given below:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">i</span> <span class="mi">32</span> <span class="mi">33</span>
+<span class="n">h</span> <span class="mi">35</span> <span class="mi">37</span>
+<span class="n">a</span> <span class="mi">37</span> <span class="mi">38</span>
+<span class="n">d</span> <span class="mi">41</span> <span class="mi">42</span>
+<span class="n">t</span> <span class="mi">44</span> <span class="mi">45</span>
+<span class="n">h</span> <span class="mi">45</span> <span class="mi">46</span>
+<span class="n">a</span> <span class="mi">47</span> <span class="mi">48</span>
+<span class="n">t</span> <span class="mi">50</span> <span class="mi">51</span>
+<span class="n">c</span> <span class="mi">54</span> <span class="mi">55</span>
+<span class="n">u</span> <span class="mi">58</span> <span class="mi">60</span>
+<span class="n">r</span> <span class="mi">63</span> <span class="mi">64</span>
+<span class="n">i</span> <span class="mi">65</span> <span class="mi">66</span>
+<span class="n">o</span> <span class="mi">72</span> <span class="mi">73</span>
+<span class="n">s</span> <span class="mi">79</span> <span class="mi">80</span>
+<span class="n">i</span> <span class="mi">83</span> <span class="mi">84</span>
+<span class="n">t</span> <span class="mi">85</span> <span class="mi">86</span>
+<span class="n">y</span> <span class="mi">88</span> <span class="mi">89</span>
+<span class="n">b</span> <span class="mi">93</span> <span class="mi">94</span>
+<span class="n">e</span> <span class="mi">95</span> <span class="mi">96</span>
+<span class="n">s</span> <span class="mi">101</span> <span class="mi">102</span>
+<span class="n">i</span> <span class="mi">110</span> <span class="mi">111</span>
+<span class="n">d</span> <span class="mi">113</span> <span class="mi">114</span>
+<span class="n">e</span> <span class="mi">114</span> <span class="mi">115</span>
+<span class="n">m</span> <span class="mi">116</span> <span class="mi">117</span>
+<span class="n">e</span> <span class="mi">119</span> <span class="mi">120</span>
+<span class="n">a</span> <span class="mi">124</span> <span class="mi">125</span>
+<span class="n">t</span> <span class="mi">127</span> <span class="mi">128</span>
+<span class="n">t</span> <span class="mi">129</span> <span class="mi">130</span>
+<span class="n">h</span> <span class="mi">130</span> <span class="mi">131</span>
+<span class="n">i</span> <span class="mi">132</span> <span class="mi">133</span>
+<span class="n">s</span> <span class="mi">136</span> <span class="mi">137</span>
+<span class="n">m</span> <span class="mi">141</span> <span class="mi">142</span>
+<span class="n">o</span> <span class="mi">144</span> <span class="mi">145</span>
+<span class="n">m</span> <span class="mi">148</span> <span class="mi">149</span>
+<span class="n">e</span> <span class="mi">151</span> <span class="mi">152</span>
+<span class="n">n</span> <span class="mi">153</span> <span class="mi">154</span>
+<span class="n">t</span> <span class="mi">155</span> <span class="mi">156</span>
+</pre></div>
+</div>
+<p>All of the code below is copied and modified
+from <a class="reference external" href="https://pytorch.org/audio/main/tutorials/ctc_forced_alignment_api_tutorial.html">https://pytorch.org/audio/main/tutorials/ctc_forced_alignment_api_tutorial.html</a>.</p>
+</section>
+<section id="segment-each-word-using-the-computed-alignments">
+<h2>Segment each word using the computed alignments<a class="headerlink" href="#segment-each-word-using-the-computed-alignments" title="Permalink to this heading"></a></h2>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">unflatten</span><span class="p">(</span><span class="n">list_</span><span class="p">,</span> <span class="n">lengths</span><span class="p">):</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">list_</span><span class="p">)</span> <span class="o">==</span> <span class="nb">sum</span><span class="p">(</span><span class="n">lengths</span><span class="p">)</span>
+    <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">ret</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">l</span> <span class="ow">in</span> <span class="n">lengths</span><span class="p">:</span>
+        <span class="n">ret</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">list_</span><span class="p">[</span><span class="n">i</span> <span class="p">:</span> <span class="n">i</span> <span class="o">+</span> <span class="n">l</span><span class="p">])</span>
+        <span class="n">i</span> <span class="o">+=</span> <span class="n">l</span>
+    <span class="k">return</span> <span class="n">ret</span>
+
+
+<span class="n">word_spans</span> <span class="o">=</span> <span class="n">unflatten</span><span class="p">(</span><span class="n">token_spans</span><span class="p">,</span> <span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">word</span><span class="p">)</span> <span class="k">for</span> <span class="n">word</span> <span class="ow">in</span> <span class="n">transcript</span><span class="p">])</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">word_spans</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The output is:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">[[</span><span class="n">TokenSpan</span><span class="p">(</span><span class="n">token</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="mi">33</span><span class="p">)],</span>
+ <span class="p">[</span><span class="n">TokenSpan</span><span class="p">(</span><span class="n">token</span><span class="o">=</span><span class="mi">15</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">35</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="mi">37</span><span class="p">),</span> <span class="n">TokenSpan</span><span class="p">(</span><span class="n">token</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">37</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="mi">38</span><span class="p">),</span> <span class="n">TokenSpan</span><span class="p">(</span><span class="n">token</span><span class="o">=</span><span class="mi">13</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">41</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="mi">42</span><span class="p">)],</span>
+ <span class="p">[</span><span class="n">TokenSpan</span><span class="p">(</span><span class="n">token</span><span class="o">=</span><span class="mi">7</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">44</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="mi">45</span><span class="p">),</span> <span class="n">TokenSpan</span><span class="p">(</span><span class="n">token</span><span class="o">=</span><span class="mi">15</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">45</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="mi">46</span><span class="p">),</span> <span class="n">TokenSpan</span><span class="p">(</span><span class="n">token</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">47</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="mi">48</span><span class="p">),</span> <span class="n">TokenSpan</span><span class="p">(</span><span class="n">token</span><span class="o">=</span><span class="mi">7</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="mi">51</span><span class="p">)],</span>
+ <span class="p">[</span><span class="n">TokenSpan</span><span class="p">(</span><span class="n">token</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">54</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="mi">55</span><span class="p">),</span> <span class="n">TokenSpan</span><span class="p">(</span><span class="n">token</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">58</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="mi">60</span><span class="p">),</span> <span class="n">TokenSpan</span><span class="p">(</span><span class="n">token</span><span class="o">=</span><span class="mi">9</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">63</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="mi">64</span><span class="p">),</span> <span class="n">TokenSpan</span><span class="p">(</span><span class="n">token</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">65</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="mi">66</span><span class="p">),</span> <span class="n">TokenSpan</span><span class="p">(</span><span class="n">token</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">72</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="mi">73</span><span class="p">),</span> <span class="n">TokenSpan</span><span class="p">(</span><span class="n">token</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">79</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="mi">80</span><span class="p">),</span> <span class="n">TokenSpan</span><span class="p">(</span><span class="n">token</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">83</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="mi">84</span><span class="p">),</span> <span class="n">TokenSpan</span><span class="p">(</span><span class="n">token</span><span class="o">=</span><span class="mi">7</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">85</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="mi">86</span><span class="p">),</span> <span class="n">TokenSpan</span><span class="p">(</span><span class="n">token</span><span class="o">=</span><span class="mi">16</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">88</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="mi">89</span><span class="p">)],</span>
+ <span class="p">[</span><span class="n">TokenSpan</span><span class="p">(</span><span class="n">token</span><span class="o">=</span><span class="mi">17</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">93</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="mi">94</span><span class="p">),</span> <span class="n">TokenSpan</span><span class="p">(</span><span class="n">token</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">95</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="mi">96</span><span class="p">),</span> <span class="n">TokenSpan</span><span class="p">(</span><span class="n">token</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">101</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="mi">102</span><span class="p">),</span> <span class="n">TokenSpan</span><span class="p">(</span><span class="n">token</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">110</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="mi">111</span><span class="p">),</span> <span class="n">TokenSpan</span><span class="p">(</span><span class="n">token</span><span class="o">=</span><span class="mi">13</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">113</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="mi">114</span><span class="p">),</span> <span class="n">TokenSpan</span><span class="p">(</span><span class="n">token</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">114</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="mi">115</span><span class="p">)],</span>
+ <span class="p">[</span><span class="n">TokenSpan</span><span class="p">(</span><span class="n">token</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">116</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="mi">117</span><span class="p">),</span> <span class="n">TokenSpan</span><span class="p">(</span><span class="n">token</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">119</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="mi">120</span><span class="p">)],</span>
+ <span class="p">[</span><span class="n">TokenSpan</span><span class="p">(</span><span class="n">token</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">124</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="mi">125</span><span class="p">),</span> <span class="n">TokenSpan</span><span class="p">(</span><span class="n">token</span><span class="o">=</span><span class="mi">7</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">127</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="mi">128</span><span class="p">)],</span>
+ <span class="p">[</span><span class="n">TokenSpan</span><span class="p">(</span><span class="n">token</span><span class="o">=</span><span class="mi">7</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">129</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="mi">130</span><span class="p">),</span> <span class="n">TokenSpan</span><span class="p">(</span><span class="n">token</span><span class="o">=</span><span class="mi">15</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">130</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="mi">131</span><span class="p">),</span> <span class="n">TokenSpan</span><span class="p">(</span><span class="n">token</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">132</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="mi">133</span><span class="p">),</span> <span class="n">TokenSpan</span><span class="p">(</span><span class="n">token</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">136</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="mi">137</span><span class="p">)],</span>
+ <span class="p">[</span><span class="n">TokenSpan</span><span class="p">(</span><span class="n">token</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">141</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="mi">142</span><span class="p">),</span> <span class="n">TokenSpan</span><span class="p">(</span><span class="n">token</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">144</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="mi">145</span><span class="p">),</span> <span class="n">TokenSpan</span><span class="p">(</span><span class="n">token</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">148</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="mi">149</span><span class="p">),</span> <span class="n">TokenSpan</span><span class="p">(</span><span class="n">token</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">151</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="mi">152</span><span class="p">),</span> <span class="n">TokenSpan</span><span class="p">(</span><span class="n">token</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">153</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="mi">154</span><span class="p">),</span> <span class="n">TokenSpan</span><span class="p">(</span><span class="n">token</span><span class="o">=</span><span class="mi">7</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">155</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="mi">156</span><span class="p">)]</span>
+<span class="p">]</span>
+</pre></div>
+</div>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">preview_word</span><span class="p">(</span><span class="n">waveform</span><span class="p">,</span> <span class="n">spans</span><span class="p">,</span> <span class="n">num_frames</span><span class="p">,</span> <span class="n">transcript</span><span class="p">,</span> <span class="n">sample_rate</span><span class="o">=</span><span class="n">bundle</span><span class="o">.</span><span class="n">sample_rate</span><span class="p">):</span>
+    <span class="n">ratio</span> <span class="o">=</span> <span class="n">waveform</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="n">num_frames</span>
+    <span class="n">x0</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">ratio</span> <span class="o">*</span> <span class="n">spans</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">start</span><span class="p">)</span>
+    <span class="n">x1</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">ratio</span> <span class="o">*</span> <span class="n">spans</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">end</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">transcript</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">x0</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">sample_rate</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2"> - </span><span class="si">{</span><span class="n">x1</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">sample_rate</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2"> sec&quot;</span><span class="p">)</span>
+    <span class="n">segment</span> <span class="o">=</span> <span class="n">waveform</span><span class="p">[:,</span> <span class="n">x0</span><span class="p">:</span><span class="n">x1</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">IPython</span><span class="o">.</span><span class="n">display</span><span class="o">.</span><span class="n">Audio</span><span class="p">(</span><span class="n">segment</span><span class="o">.</span><span class="n">numpy</span><span class="p">(),</span> <span class="n">rate</span><span class="o">=</span><span class="n">sample_rate</span><span class="p">)</span>
+<span class="n">num_frames</span> <span class="o">=</span> <span class="n">emission</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">preview_word</span><span class="p">(</span><span class="n">waveform</span><span class="p">,</span> <span class="n">word_spans</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">num_frames</span><span class="p">,</span> <span class="n">transcript</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+<span class="n">preview_word</span><span class="p">(</span><span class="n">waveform</span><span class="p">,</span> <span class="n">word_spans</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">num_frames</span><span class="p">,</span> <span class="n">transcript</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+<span class="n">preview_word</span><span class="p">(</span><span class="n">waveform</span><span class="p">,</span> <span class="n">word_spans</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">num_frames</span><span class="p">,</span> <span class="n">transcript</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+<span class="n">preview_word</span><span class="p">(</span><span class="n">waveform</span><span class="p">,</span> <span class="n">word_spans</span><span class="p">[</span><span class="mi">3</span><span class="p">],</span> <span class="n">num_frames</span><span class="p">,</span> <span class="n">transcript</span><span class="p">[</span><span class="mi">3</span><span class="p">])</span>
+<span class="n">preview_word</span><span class="p">(</span><span class="n">waveform</span><span class="p">,</span> <span class="n">word_spans</span><span class="p">[</span><span class="mi">4</span><span class="p">],</span> <span class="n">num_frames</span><span class="p">,</span> <span class="n">transcript</span><span class="p">[</span><span class="mi">4</span><span class="p">])</span>
+<span class="n">preview_word</span><span class="p">(</span><span class="n">waveform</span><span class="p">,</span> <span class="n">word_spans</span><span class="p">[</span><span class="mi">5</span><span class="p">],</span> <span class="n">num_frames</span><span class="p">,</span> <span class="n">transcript</span><span class="p">[</span><span class="mi">5</span><span class="p">])</span>
+<span class="n">preview_word</span><span class="p">(</span><span class="n">waveform</span><span class="p">,</span> <span class="n">word_spans</span><span class="p">[</span><span class="mi">6</span><span class="p">],</span> <span class="n">num_frames</span><span class="p">,</span> <span class="n">transcript</span><span class="p">[</span><span class="mi">6</span><span class="p">])</span>
+<span class="n">preview_word</span><span class="p">(</span><span class="n">waveform</span><span class="p">,</span> <span class="n">word_spans</span><span class="p">[</span><span class="mi">7</span><span class="p">],</span> <span class="n">num_frames</span><span class="p">,</span> <span class="n">transcript</span><span class="p">[</span><span class="mi">7</span><span class="p">])</span>
+<span class="n">preview_word</span><span class="p">(</span><span class="n">waveform</span><span class="p">,</span> <span class="n">word_spans</span><span class="p">[</span><span class="mi">8</span><span class="p">],</span> <span class="n">num_frames</span><span class="p">,</span> <span class="n">transcript</span><span class="p">[</span><span class="mi">8</span><span class="p">])</span>
+</pre></div>
+</div>
+<p>The segmented wave of each word along with its time stamp is given below:</p>
+<table>
+  <tr>
+    <th>Word</th>
+    <th>Time</th>
+    <th>Wave</th>
+  </tr>
+  <tr>
+    <td>i</td>
+    <td>0.644 - 0.664 sec</td>
+    <td>
+     <audio title="i.wav" controls="controls">
+           <source src="/icefall/_static/kaldi-align/i.wav" type="audio/wav">
+           Your browser does not support the <code>audio</code> element.
+     </audio>
+    </td>
+  </tr>
+  <tr>
+    <td>had</td>
+    <td>0.704 - 0.845 sec</td>
+    <td>
+     <audio title="had.wav" controls="controls">
+           <source src="/icefall/_static/kaldi-align/had.wav" type="audio/wav">
+           Your browser does not support the <code>audio</code> element.
+     </audio>
+    </td>
+  </tr>
+  <tr>
+    <td>that</td>
+    <td>0.885 - 1.026 sec</td>
+    <td>
+     <audio title="that.wav" controls="controls">
+           <source src="/icefall/_static/kaldi-align/that.wav" type="audio/wav">
+           Your browser does not support the <code>audio</code> element.
+     </audio>
+    </td>
+  </tr>
+  <tr>
+    <td>curiosity</td>
+    <td>1.086 - 1.790 sec</td>
+    <td>
+     <audio title="curiosity.wav" controls="controls">
+           <source src="/icefall/_static/kaldi-align/curiosity.wav" type="audio/wav">
+           Your browser does not support the <code>audio</code> element.
+     </audio>
+    </td>
+  </tr>
+  <tr>
+    <td>beside</td>
+    <td>1.871 - 2.314 sec</td>
+    <td>
+     <audio title="beside.wav" controls="controls">
+           <source src="/icefall/_static/kaldi-align/beside.wav" type="audio/wav">
+           Your browser does not support the <code>audio</code> element.
+     </audio>
+    </td>
+  </tr>
+  <tr>
+    <td>me</td>
+    <td>2.334 - 2.414 sec</td>
+    <td>
+     <audio title="me.wav" controls="controls">
+           <source src="/icefall/_static/kaldi-align/me.wav" type="audio/wav">
+           Your browser does not support the <code>audio</code> element.
+     </audio>
+    </td>
+  </tr>
+  <tr>
+    <td>at</td>
+    <td>2.495 - 2.575 sec</td>
+    <td>
+     <audio title="at.wav" controls="controls">
+           <source src="/icefall/_static/kaldi-align/at.wav" type="audio/wav">
+           Your browser does not support the <code>audio</code> element.
+     </audio>
+    </td>
+  </tr>
+  <tr>
+    <td>this</td>
+    <td>2.595 - 2.756 sec</td>
+    <td>
+     <audio title="this.wav" controls="controls">
+           <source src="/icefall/_static/kaldi-align/this.wav" type="audio/wav">
+           Your browser does not support the <code>audio</code> element.
+     </audio>
+    </td>
+  </tr>
+  <tr>
+    <td>moment</td>
+    <td>2.837 - 3.138 sec</td>
+    <td>
+     <audio title="moment.wav" controls="controls">
+           <source src="/icefall/_static/kaldi-align/moment.wav" type="audio/wav">
+           Your browser does not support the <code>audio</code> element.
+     </audio>
+    </td>
+  </tr>
+</table><p>We repost the whole wave below for ease of reference:</p>
+<table>
+  <tr>
+    <th>Wave filename</th>
+    <th>Content</th>
+    <th>Text</th>
+  </tr>
+  <tr>
+    <td>Lab41-SRI-VOiCES-src-sp0307-ch127535-sg0042.wav</td>
+    <td>
+     <audio title="Lab41-SRI-VOiCES-src-sp0307-ch127535-sg0042.wav" controls="controls">
+           <source src="/icefall/_static/kaldi-align/Lab41-SRI-VOiCES-src-sp0307-ch127535-sg0042.wav" type="audio/wav">
+           Your browser does not support the <code>audio</code> element.
+     </audio>
+    </td>
+    <td>
+      i had that curiosity beside me at this moment
+    </td>
+  </tr>
+</table></section>
+<section id="summary">
+<h2>Summary<a class="headerlink" href="#summary" title="Permalink to this heading"></a></h2>
+<p>Congratulations! You have succeeded in using the FST-based approach to
+compute alignment of a test wave.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="diff.html" class="btn btn-neutral float-left" title="Two approaches" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="k2-based.html" class="btn btn-neutral float-right" title="k2-based forced alignment" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2021, icefall development team.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

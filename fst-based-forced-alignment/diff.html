@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Two approaches &mdash; icefall 0.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=fa44fd50" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=19f00094" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../_static/jquery.js?v=5d32c60e"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js?v=e031e9a9"></script>
+        <script src="../_static/doctools.js?v=888ff710"></script>
+        <script src="../_static/sphinx_highlight.js?v=4825356b"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Kaldi-based forced alignment" href="kaldi-based.html" />
+    <link rel="prev" title="FST-based forced alignment" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            icefall
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../for-dummies/index.html">Icefall for dummies tutorial</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../installation/index.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../docker/index.html">Docker</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../faqs.html">Frequently Asked Questions (FAQs)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../model-export/index.html">Model export</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">FST-based forced alignment</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Two approaches</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#differences-between-the-two-approaches">Differences between the two approaches</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="kaldi-based.html">Kaldi-based forced alignment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="k2-based.html">k2-based forced alignment</a></li>
+</ul>
+</li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../recipes/index.html">Recipes</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../contributing/index.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../huggingface/index.html">Huggingface</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../decoding-with-langugage-models/index.html">Decoding with language models</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">icefall</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">FST-based forced alignment</a></li>
+      <li class="breadcrumb-item active">Two approaches</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/k2-fsa/icefall/blob/master/docs/source/fst-based-forced-alignment/diff.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="two-approaches">
+<h1>Two approaches<a class="headerlink" href="#two-approaches" title="Permalink to this heading"></a></h1>
+<p>Two approaches for FST-based forced alignment will be described:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><a class="reference external" href="https://github.com/kaldi-asr/kaldi">Kaldi</a>-based</p></li>
+<li><p><a class="reference external" href="https://github.com/k2-fsa/k2">k2</a>-based</p></li>
+</ul>
+</div></blockquote>
+<p>Note that the <a class="reference external" href="https://github.com/kaldi-asr/kaldi">Kaldi</a>-based approach does not depend on <a class="reference external" href="https://github.com/kaldi-asr/kaldi">Kaldi</a> at all.
+That is, you don’t need to install <a class="reference external" href="https://github.com/kaldi-asr/kaldi">Kaldi</a> in order to use it. Instead,
+we use <a class="reference external" href="https://github.com/k2-fsa/kaldi-decoder">kaldi-decoder</a>, which has ported the C++ decoding code from <a class="reference external" href="https://github.com/kaldi-asr/kaldi">Kaldi</a>
+without depending on it.</p>
+<section id="differences-between-the-two-approaches">
+<h2>Differences between the two approaches<a class="headerlink" href="#differences-between-the-two-approaches" title="Permalink to this heading"></a></h2>
+<p>The following table compares the differences between the two approaches.</p>
+<table class="docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p>Features</p></td>
+<td><p><a class="reference external" href="https://github.com/kaldi-asr/kaldi">Kaldi</a>-based</p></td>
+<td><p><a class="reference external" href="https://github.com/k2-fsa/k2">k2</a>-based</p></td>
+</tr>
+<tr class="row-even"><td><p>Support CUDA</p></td>
+<td><p>No</p></td>
+<td><p>Yes</p></td>
+</tr>
+<tr class="row-odd"><td><p>Support CPU</p></td>
+<td><p>Yes</p></td>
+<td><p>Yes</p></td>
+</tr>
+<tr class="row-even"><td><p>Support batch processing</p></td>
+<td><p>No</p></td>
+<td><p>Yes on CUDA; No on CPU</p></td>
+</tr>
+<tr class="row-odd"><td><p>Support streaming models</p></td>
+<td><p>Yes</p></td>
+<td><p>No</p></td>
+</tr>
+<tr class="row-even"><td><p>Support C++ APIs</p></td>
+<td><p>Yes</p></td>
+<td><p>Yes</p></td>
+</tr>
+<tr class="row-odd"><td><p>Support Python APIs</p></td>
+<td><p>Yes</p></td>
+<td><p>Yes</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="FST-based forced alignment" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="kaldi-based.html" class="btn btn-neutral float-right" title="Kaldi-based forced alignment" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2021, icefall development team.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
