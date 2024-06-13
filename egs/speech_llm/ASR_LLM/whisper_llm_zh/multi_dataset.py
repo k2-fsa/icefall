@@ -331,3 +331,25 @@ class MultiDataset:
         return {
             "wenetspeech-meeting_test": wenetspeech_test_meeting_cuts,
         }
+
+    def speechio_test_cuts(self) -> Dict[str, CutSet]:
+        logging.info("About to get multidataset test cuts")
+        start_index = 0
+        end_index = 26
+        dataset_parts = []
+        for i in range(start_index, end_index + 1):
+            idx = f"{i}".zfill(2)
+            dataset_parts.append(f"SPEECHIO_ASR_ZH000{idx}")
+
+        prefix = "speechio"
+        suffix = "jsonl.gz"
+
+        results_dict = {}
+        for partition in dataset_parts:
+            path = f"{prefix}_cuts_{partition}.{suffix}"
+
+            logging.info(f"Loading {path} set in lazy mode")
+            test_cuts = load_manifest_lazy(self.fbank_dir / path)
+            results_dict[partition] = test_cuts
+
+        return results_dict

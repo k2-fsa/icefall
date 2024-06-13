@@ -751,7 +751,6 @@ def run(rank, world_size, args):
     if params.pretrained_model_path:
         checkpoint = torch.load(params.pretrained_model_path, map_location="cpu")
         missing_keys, unexpected_keys = model.load_state_dict(checkpoint, strict=False)
-        assert len(unexpected_keys) == 0, unexpected_keys
 
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")

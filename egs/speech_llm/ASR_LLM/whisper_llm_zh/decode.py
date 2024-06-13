@@ -206,10 +206,11 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--use-aishell",
-        type=str2bool,
-        default=True,
-        help="Whether to only use aishell1 dataset for training.",
+        "--dataset",
+        type=str,
+        default="aishell",
+        choices=["aishell", "speechio", "wenetspeech_test_meeting", "multi_hans_zh"],
+        help="The dataset to decode",
     )
 
     add_model_arguments(parser)
@@ -540,7 +541,7 @@ def main():
 
 
     if params.avg > 1:
-        start = params.epoch - params.avg
+        start = params.epoch - params.avg + 1
         assert start >= 1, start
         checkpoint = torch.load(
             f"{params.exp_dir}/epoch-{params.epoch}.pt", map_location="cpu"
@@ -551,18 +552,17 @@ def main():
             f"{params.exp_dir}/epoch-{epoch}.pt"
             for epoch in range(start, params.epoch + 1)
         ]
-        model.load_state_dict(average_checkpoints(filenames), strict=False)
+        avg_checkpoint = average_checkpoints(filenames)
+        model.load_state_dict(avg_checkpoint, strict=False)
 
         filename = f"{params.exp_dir}/epoch-{params.epoch}-avg-{params.avg}.pt"
-        torch.save(model.state_dict(), filename)
+        torch.save(avg_checkpoint, filename)
     else:
         checkpoint = torch.load(
             f"{params.exp_dir}/epoch-{params.epoch}.pt", map_location="cpu"
         )
-        if "model" not in checkpoint:
-            model.load_state_dict(checkpoint, strict=False)
-        else:
-            load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
+        model.load_state_dict(checkpoint, strict=False)
+
     model.to(device)
     model.eval()
     num_param = sum([p.numel() for p in model.parameters()])
@@ -584,11 +584,14 @@ def main():
             return False
         return True
 
-    if params.use_aishell:
+    if params.dataset == "aishell":
         test_sets_cuts = multi_dataset.aishell_test_cuts()
-    else:
-        # test_sets_cuts = multi_dataset.test_cuts()
+    elif params.dataset == "speechio":
+        test_sets_cuts = multi_dataset.speechio_test_cuts()
+    elif params.dataaset == "wenetspeech_test_meeting":
         test_sets_cuts = multi_dataset.wenetspeech_test_meeting_cuts()
+    else:
+        test_sets_cuts = multi_dataset.test_cuts()
 
     test_sets = test_sets_cuts.keys()
     test_dls = [
