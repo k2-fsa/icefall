@@ -8,6 +8,8 @@ Number of model parameters: 79,022,891, i.e., 79.02 M
 
 ##### Training on KsponSpeech (with MUSAN)
 
+Model: [johnBamma/icefall-asr-ksponspeech-pruned-transducer-stateless7-streaming-2024-06-12](https://huggingface.co/johnBamma/icefall-asr-ksponspeech-pruned-transducer-stateless7-streaming-2024-06-12)
+
 The CERs are:
 
 | decoding method      | chunk size | eval_clean | eval_other | comment             | decoding mode        |
