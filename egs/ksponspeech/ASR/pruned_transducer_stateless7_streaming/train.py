@@ -1031,7 +1031,7 @@ def run(rank, world_size, args):
     ksponspeech = KsponSpeechAsrDataModule(args)
 
     train_cuts = ksponspeech.train_cuts()
-    
+
     def remove_short_and_long_utt(c: Cut):
         # Keep only utterances with duration between 1 second and 20 seconds
         #
@@ -1083,7 +1083,7 @@ def run(rank, world_size, args):
     )
 
     valid_cuts = ksponspeech.dev_cuts()
-    
+
     # valid_cuts = valid_cuts.filter(remove_short_and_long_utt)
     valid_dl = ksponspeech.valid_dataloaders(valid_cuts)
 

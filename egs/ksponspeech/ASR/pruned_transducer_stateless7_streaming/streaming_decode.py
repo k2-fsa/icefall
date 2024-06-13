@@ -321,7 +321,6 @@ def decode_dataset(
         num_mel_bins=80,
         high_freq=-400.0,
     )
-    
 
     log_interval = 50
 
@@ -426,7 +425,11 @@ def save_results(
         errs_filename = params.res_dir / f"errs-{test_set_name}-{params.suffix}.txt"
         with open(errs_filename, "w") as f:
             cer = write_error_stats(
-                f, f"{test_set_name}-{key}", results, enable_log=True, compute_CER=True,
+                f,
+                f"{test_set_name}-{key}",
+                results,
+                enable_log=True,
+                compute_CER=True,
             )
             test_set_cers[key] = cer
 

@@ -399,14 +399,14 @@ class KsponSpeechAsrDataModule:
         return load_manifest_lazy(
             self.args.manifest_dir / "ksponspeech_cuts_dev.jsonl.gz"
         )
-        
+
     @lru_cache()
     def eval_clean_cuts(self) -> CutSet:
         logging.info("About to get eval_clean cuts")
         return load_manifest_lazy(
             self.args.manifest_dir / "ksponspeech_cuts_eval_clean.jsonl.gz"
         )
-        
+
     @lru_cache()
     def eval_other_cuts(self) -> CutSet:
         logging.info("About to get eval_other cuts")

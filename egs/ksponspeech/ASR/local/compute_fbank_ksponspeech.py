@@ -63,7 +63,7 @@ def get_args():
     parser.add_argument(
         "--data-dir",
         type=str,
-        default='data',
+        default="data",
         help="""Path of data directory""",
     )
 
@@ -74,10 +74,10 @@ def compute_fbank_speechtools(
     bpe_model: Optional[str] = None,
     dataset: Optional[str] = None,
     perturb_speed: Optional[bool] = False,
-    data_dir: Optional[str] = 'data',
+    data_dir: Optional[str] = "data",
 ):
     src_dir = Path(data_dir) / "manifests"
-    output_dir = Path(data_dir ) / "fbank"
+    output_dir = Path(data_dir) / "fbank"
     num_jobs = min(4, os.cpu_count())
     num_mel_bins = 80
 
@@ -116,11 +116,11 @@ def compute_fbank_speechtools(
 
     if torch.cuda.is_available():
         # Use cuda for fbank compute
-        device = 'cuda'
+        device = "cuda"
     else:
-        device = 'cpu'
+        device = "cpu"
     logging.info(f"Device: {device}")
-    
+
     extractor = Fbank(FbankConfig(num_mel_bins=num_mel_bins, device=device))
 
     with get_executor() as ex:  # Initialize the executor only once.
@@ -135,9 +135,11 @@ def compute_fbank_speechtools(
                 recordings=m["recordings"],
                 supervisions=m["supervisions"],
             )
-            
+
             # Filter duration
-            cut_set = cut_set.filter(lambda x: x.duration > 1 and x.sampling_rate == 16000)
+            cut_set = cut_set.filter(
+                lambda x: x.duration > 1 and x.sampling_rate == 16000
+            )
 
             if "train" in partition:
                 if bpe_model:
@@ -150,7 +152,7 @@ def compute_fbank_speechtools(
                         + cut_set.perturb_speed(1.1)
                     )
             logging.info(f"Compute & Store features...")
-            if device == 'cuda':
+            if device == "cuda":
                 cut_set = cut_set.compute_and_store_features_batch(
                     extractor=extractor,
                     storage_path=f"{output_dir}/{prefix}_feats_{partition}",
