@@ -11,4 +11,4 @@ librosa
 deepspeed
 transformers>=4.37.0
 flash-attn
-
+peft

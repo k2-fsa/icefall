@@ -64,6 +64,7 @@ from icefall.utils import (
     write_error_stats,
 )
 from train import DEFAULT_SPEECH_TOKEN
+from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 
 def average_checkpoints(
     filenames: List[Path], device: torch.device = torch.device("cpu")
@@ -138,6 +139,20 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         help="Downsample rate for the encoder projector.",
     )
 
+    parser.add_argument(
+        "--use-flash-attn",
+        type=str2bool,
+        default=True,
+        help="Whether to use flash attention.",
+    )
+
+    parser.add_argument(
+        "--use-lora",
+        type=str2bool,
+        default=False,
+        help="Whether to use lora to fine-tune llm.",
+    )
+
 def get_parser():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
@@ -191,10 +206,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--use-flash-attn",
+        "--use-aishell",
         type=str2bool,
         default=True,
-        help="Whether to use flash attention.",
+        help="Whether to only use aishell1 dataset for training.",
     )
 
     add_model_arguments(parser)
@@ -495,6 +510,15 @@ def main():
         attn_implementation=attn_implementation,
         torch_dtype=torch_dtype,
     )
+    if params.use_lora:
+        lora_config = LoraConfig(
+            r=64,
+            lora_alpha=16,
+            target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "up_proj", "gate_proj", "down_proj"],
+            task_type="CAUSAL_LM",
+        )
+        llm = get_peft_model(llm, lora_config)
+        llm.print_trainable_parameters()
 
     special_tokens_dict = {
         "additional_special_tokens": [DEFAULT_SPEECH_TOKEN]
@@ -560,9 +584,11 @@ def main():
             return False
         return True
 
-    # test_sets_cuts = multi_dataset.test_cuts()
-    # test_sets_cuts = multi_dataset.aishell_test_cuts()
-    test_sets_cuts = multi_dataset.wenetspeech_test_meeting_cuts()
+    if params.use_aishell:
+        test_sets_cuts = multi_dataset.aishell_test_cuts()
+    else:
+        # test_sets_cuts = multi_dataset.test_cuts()
+        test_sets_cuts = multi_dataset.wenetspeech_test_meeting_cuts()
 
     test_sets = test_sets_cuts.keys()
     test_dls = [

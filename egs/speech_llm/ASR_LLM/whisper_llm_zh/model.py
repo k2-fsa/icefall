@@ -37,15 +37,8 @@ class SPEECH_LLM(nn.Module):
         encoder_projector: nn.Module,
     ):
         super().__init__()
-
         self.encoder = encoder
-        for name, param in encoder.named_parameters(): 
-            param.requires_grad = False
-        self.encoder.eval()
         self.llm = llm
-        for name, param in llm.named_parameters(): 
-            param.requires_grad = False
-        self.llm.eval()
         self.encoder_projector = encoder_projector
 
     def _merge_input_ids_with_speech_features(self, speech_features, inputs_embeds, input_ids, attention_mask, labels=None):
