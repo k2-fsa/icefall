@@ -191,6 +191,14 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--sampler-state-dict-path",
+        type=str,
+        default=None,
+        help="""The path to the sampler state dict if it is not None. Training will start from this sampler state dict.
+        """,
+    )
+
+    parser.add_argument(
         "--base-lr", type=float, default=1e-5, help="The base learning rate."
     )
 
@@ -813,6 +821,8 @@ def run(rank, world_size, args):
     # else:
     #     sampler_state_dict = None
     sampler_state_dict = None
+    if params.sampler_state_dict_path:
+        sampler_state_dict = torch.load(params.sampler_state_dict_path)
     # TODO: load sampler state dict
     train_dl = data_module.train_dataloaders(
         train_cuts, sampler_state_dict=sampler_state_dict

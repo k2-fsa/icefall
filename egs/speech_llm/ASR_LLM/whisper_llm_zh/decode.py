@@ -588,7 +588,7 @@ def main():
         test_sets_cuts = multi_dataset.aishell_test_cuts()
     elif params.dataset == "speechio":
         test_sets_cuts = multi_dataset.speechio_test_cuts()
-    elif params.dataaset == "wenetspeech_test_meeting":
+    elif params.dataset == "wenetspeech_test_meeting":
         test_sets_cuts = multi_dataset.wenetspeech_test_meeting_cuts()
     else:
         test_sets_cuts = multi_dataset.test_cuts()
