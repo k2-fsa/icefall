@@ -20,21 +20,34 @@
 """
 Usage:
 # Command for decoding using fine-tuned models:
-git lfs install
-git clone https://huggingface.co/yuekai/icefall_asr_aishell_whisper
-ln -s icefall_asr_aishell_whisper/exp_large_v2/epoch-10-avg6.pt whisper/exp_large_v2/epoch-999.pt
 
-python3 ./whisper/decode.py \
-  --exp-dir whisper/exp_large_v2 \
-  --model-name large-v2 \
+pip install huggingface_hub['cli']
+mkdir -p models/whisper models/qwen models/checkpoint
+huggingface-cli download --local-dir models/checkpoint yuekai/icefall_asr_aishell_whisper_qwen2_1.5B
+
+# For aishell fine-tuned whisper model
+huggingface-cli download --local-dir models/whisper    yuekai/icefall_asr_aishell_whisper exp_large_v2/whisper-large-v2-aishell1-epoch-10-avg-6.pt
+# For multi-hans fine-tuned whisper model
+# huggingface-cli download --local-dir models/whisper    yuekai/icefall_asr_multi-hans-zh_whisper v1.1/whisper-large-v2-multi-hans-zh-epoch-3-avg-10.pt
+
+huggingface-clie download  --local-dir models/qwen     Qwen/Qwen2-7B-Instruct
+
+mkdir -p whisper_llm_zh/exp_aishell_whisper_qwen2_1.5B
+ln -s models/checkpoint/epoch-10-avg-5.pt whisper_llm_zh/exp_aishell_whisper_qwen2_1.5B/epoch-999.pt
+
+python3 ./whisper_llm_zh/decode.py \
+  --max-duration 80 \
+  --exp-dir whisper_llm_zh/exp_aishell_whisper_qwen2_1.5B \
+  --speech-encoder-path-or-name models/whisper/exp_large_v2/whisper-large-v2-aishell1-epoch-10-avg-6.pt  \
+  --llm-path-or-name models/qwen \
   --epoch 999 --avg 1 \
-  --beam-size 10 --max-duration 50
-
+  --manifest-dir data/fbank \
+  --use-flash-attn True \
+  --use-lora True --dataset aishell
 """
 
 import argparse
 import logging
-import re
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -42,18 +55,17 @@ from typing import Dict, List, Optional, Tuple
 import k2
 import torch
 import torch.nn as nn
+import transformers
 import whisper
 from asr_datamodule import AsrDataModule
 from lhotse.cut import Cut
+from model import SPEECH_LLM, EncoderProjector
 from multi_dataset import MultiDataset
-#from tn.chinese.normalizer import Normalizer
-#from whisper.normalizers import BasicTextNormalizer
-#from whisper_decoder_forward_monkey_patch import replace_whisper_decoder_forward
-from whisper_encoder_forward_monkey_patch import replace_whisper_encoder_forward
-#from zhconv import convert
-import transformers
+from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
+from train import DEFAULT_SPEECH_TOKEN
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from model import EncoderProjector, SPEECH_LLM
+from whisper_encoder_forward_monkey_patch import replace_whisper_encoder_forward
+
 from icefall.checkpoint import average_checkpoints_with_averaged_model, load_checkpoint
 from icefall.env import get_env_info
 from icefall.utils import (
@@ -63,8 +75,7 @@ from icefall.utils import (
     str2bool,
     write_error_stats,
 )
-from train import DEFAULT_SPEECH_TOKEN
-from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
+
 
 def average_checkpoints(
     filenames: List[Path], device: torch.device = torch.device("cpu")
@@ -117,6 +128,7 @@ def average_checkpoints(
 
     return avg
 
+
 def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--llm-path-or-name",
@@ -135,7 +147,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--encoder-projector-ds-rate",
         type=int,
-        default=1,
+        default=8,
         help="Downsample rate for the encoder projector.",
     )
 
@@ -149,9 +161,10 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--use-lora",
         type=str2bool,
-        default=False,
-        help="Whether to use lora to fine-tune llm.",
+        default=True,
+        help="Whether to use lora fine-tuned llm checkpoint.",
     )
+
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -247,6 +260,7 @@ def decode_one_batch(
     Returns:
         Return a dict, whose key may be "beam-search".
     """
+
     def preprocess(
         messages,
         tokenizer: transformers.PreTrainedTokenizer,
@@ -268,10 +282,16 @@ def decode_one_batch(
                 )
             )
         max_len_texts = max([len(text) for text in texts])
-        if tokenizer.padding_side == 'right':
-            texts = [text + [tokenizer.pad_token_id] * (max_len_texts - len(text)) for text in texts]
+        if tokenizer.padding_side == "right":
+            texts = [
+                text + [tokenizer.pad_token_id] * (max_len_texts - len(text))
+                for text in texts
+            ]
         else:
-            texts = [[tokenizer.pad_token_id] * (max_len_texts - len(text)) + text for text in texts]
+            texts = [
+                [tokenizer.pad_token_id] * (max_len_texts - len(text)) + text
+                for text in texts
+            ]
 
         input_ids = torch.tensor(texts, dtype=torch.int)
 
@@ -302,16 +322,18 @@ def decode_one_batch(
     feature_len = supervisions["num_frames"]
     feature_len = feature_len.to(device, dtype=dtype)
 
-    messages = [[
-    {"role": "user", "content": f"{DEFAULT_SPEECH_TOKEN}请转写音频为文字"},
-    {"role": "assistant", "content": ""},
-    ]] * len(feature)
+    messages = [
+        [
+            {"role": "user", "content": f"{DEFAULT_SPEECH_TOKEN}请转写音频为文字"},
+            {"role": "assistant", "content": ""},
+        ]
+    ] * len(feature)
 
-    input_ids, attention_mask = preprocess(
-        messages, tokenizer, max_len=128
+    input_ids, attention_mask = preprocess(messages, tokenizer, max_len=128)
+
+    generated_ids = model.decode(
+        feature, input_ids.to(device, dtype=torch.long), attention_mask.to(device)
     )
-
-    generated_ids = model.decode(feature, input_ids.to(device, dtype=torch.long), attention_mask.to(device))
     hyps = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
 
     return {"beam-search": hyps}
@@ -497,14 +519,14 @@ def main():
 
     if params.use_flash_attn:
         attn_implementation = "flash_attention_2"
-        # torch_dtype=torch.bfloat16
-        torch_dtype=torch.float16
-        tokenizer.padding_side  = 'left'
+        # torch_dtype=torch.bfloat16 FIX ME
+        torch_dtype = torch.float16
+        tokenizer.padding_side = "left"
 
     else:
         attn_implementation = "eager"
-        torch_dtype=torch.float16
-        tokenizer.padding_side  = 'right'
+        torch_dtype = torch.float16
+        tokenizer.padding_side = "right"
 
     llm = AutoModelForCausalLM.from_pretrained(
         params.llm_path_or_name,
@@ -515,30 +537,39 @@ def main():
         lora_config = LoraConfig(
             r=64,
             lora_alpha=16,
-            target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "up_proj", "gate_proj", "down_proj"],
+            target_modules=[
+                "q_proj",
+                "k_proj",
+                "v_proj",
+                "o_proj",
+                "up_proj",
+                "gate_proj",
+                "down_proj",
+            ],
             task_type="CAUSAL_LM",
         )
         llm = get_peft_model(llm, lora_config)
         llm.print_trainable_parameters()
 
-    special_tokens_dict = {
-        "additional_special_tokens": [DEFAULT_SPEECH_TOKEN]
-    }
+    special_tokens_dict = {"additional_special_tokens": [DEFAULT_SPEECH_TOKEN]}
     tokenizer.add_special_tokens(special_tokens_dict)
     llm.config.pad_token_id = tokenizer.convert_tokens_to_ids("<|endoftext|>")
     llm.config.bos_token_id = tokenizer.convert_tokens_to_ids("<|im_start|>")
     llm.config.eos_token_id = tokenizer.convert_tokens_to_ids("<|im_end|>")
 
-    llm.config.default_speech_token_id = tokenizer.convert_tokens_to_ids(DEFAULT_SPEECH_TOKEN)
+    llm.config.default_speech_token_id = tokenizer.convert_tokens_to_ids(
+        DEFAULT_SPEECH_TOKEN
+    )
 
-    encoder_projector = EncoderProjector(speech_encoder_dim, llm.config.hidden_size, params.encoder_projector_ds_rate)
+    encoder_projector = EncoderProjector(
+        speech_encoder_dim, llm.config.hidden_size, params.encoder_projector_ds_rate
+    )
 
     model = SPEECH_LLM(
         speech_encoder,
         llm,
         encoder_projector,
     )
-
 
     if params.avg > 1:
         start = params.epoch - params.avg + 1
@@ -579,7 +610,7 @@ def main():
         #
         if c.duration > 30.0:
             logging.warning(
-               f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
+                f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
             )
             return False
         return True

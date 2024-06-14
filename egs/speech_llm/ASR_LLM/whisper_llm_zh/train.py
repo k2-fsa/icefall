@@ -17,14 +17,28 @@
 # limitations under the License.
 """
 Usage:
+# fine-tuning with whisper and Qwen2
+pip install huggingface_hub['cli']
+mkdir -p models/whisper models/qwen
 
-#fine-tuning with deepspeed zero stage 1
-torchrun --nproc-per-node 8 ./whisper/train.py \
+# For aishell fine-tuned whisper model
+huggingface-cli download --local-dir models/whisper    yuekai/icefall_asr_aishell_whisper exp_large_v2/whisper-large-v2-aishell1-epoch-10-avg-6.pt
+# For multi-hans fine-tuned whisper model
+# huggingface-cli download --local-dir models/whisper    yuekai/icefall_asr_multi-hans-zh_whisper v1.1/whisper-large-v2-multi-hans-zh-epoch-3-avg-10.pt
+
+# huggingface-clie download  --local-dir models/qwen     Qwen/Qwen2-7B-Instruct
+huggingface-clie download  --local-dir models/qwen     Qwen/Qwen2-1.5B-Instruct
+
+torchrun --nproc_per_node 8 ./whisper_llm_zh/train.py \
   --max-duration 200 \
-  --exp-dir whisper/exp_large_v2 \
-  --model-name large-v2 \
+  --exp-dir ./whisper_llm_zh/exp_test \
+  --speech-encoder-path-or-name models/whisper/exp_large_v2/whisper-large-v2-aishell1-epoch-10-avg-6.pt \
+  --llm-path-or-name Qwen/Qwen2-1.5B-Instruct \
+  --manifest-dir data/fbank \
   --deepspeed \
-  --deepspeed_config ./whisper/ds_config_zero1.json
+  --deepspeed_config ./whisper_llm_zh/ds_config_zero1.json \
+  --use-flash-attn True \
+  --use-lora True --unfreeze-llm True
 """
 
 import argparse
@@ -39,36 +53,29 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import deepspeed
 import k2
-# import optim
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
+import transformers
 import whisper
 from asr_datamodule import AsrDataModule
-from model import SPEECH_LLM, EncoderProjector, IGNORE_TOKEN_ID
 from deepspeed.utils.zero_to_fp32 import convert_zero_checkpoint_to_fp32_state_dict
 from label_smoothing import LabelSmoothingLoss
 from lhotse import CutSet, load_manifest
 from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
+from model import IGNORE_TOKEN_ID, SPEECH_LLM, EncoderProjector
 from multi_dataset import MultiDataset
-# from optim import Eden, ScaledAdam
+from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from torch import Tensor
-from torch.cuda.amp import GradScaler
-from torch.nn.functional import pad as pad_tensor
-# from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
-
+from transformers import AutoModelForCausalLM, AutoTokenizer
 from whisper_encoder_forward_monkey_patch import replace_whisper_encoder_forward
 
 from icefall import diagnostics
-from icefall.checkpoint import load_checkpoint, remove_checkpoints
-from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
-from icefall.checkpoint import update_averaged_model
-from icefall.dist import cleanup_dist, get_rank, get_world_size, setup_dist
+from icefall.dist import get_rank, get_world_size
 from icefall.env import get_env_info
-from icefall.hooks import register_inf_check_hooks
 from icefall.utils import (
     AttributeDict,
     MetricsTracker,
@@ -77,19 +84,14 @@ from icefall.utils import (
     str2bool,
 )
 
-from transformers import AutoModelForCausalLM, AutoTokenizer
-import transformers
-from transformers.trainer_pt_utils import LabelSmoother
-
-from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
-
-#IGNORE_TOKEN_ID = LabelSmoother.ignore_index
 DEFAULT_SPEECH_TOKEN = "<speech>"
+
 
 def set_batch_count(model: nn.Module, batch_count: float) -> None:
     for module in model.modules():
         if hasattr(module, "batch_count"):
             module.batch_count = batch_count
+
 
 def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
@@ -109,7 +111,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--encoder-projector-ds-rate",
         type=int,
-        default=1,
+        default=8,
         help="Downsample rate for the encoder projector.",
     )
     parser.add_argument(
@@ -132,6 +134,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         default=False,
         help="Whether to unfreeze llm during training.",
     )
+
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -163,15 +166,6 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--start-batch",
-        type=int,
-        default=0,
-        help="""If positive, --start-epoch is ignored and
-        it loads the checkpoint from exp-dir/checkpoint-{start_batch}.pt
-        """,
-    )
-
-    parser.add_argument(
         "--exp-dir",
         type=str,
         default="whisper_qwen/exp",
@@ -199,68 +193,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--base-lr", type=float, default=1e-5, help="The base learning rate."
-    )
-
-    parser.add_argument(
-        "--lr-batches",
-        type=float,
-        default=5000,
-        help="""Number of steps that affects how rapidly the learning rate
-        decreases. We suggest not to change this.""",
-    )
-
-    parser.add_argument(
-        "--lr-epochs",
-        type=float,
-        default=6,
-        help="""Number of epochs that affects how rapidly the learning rate decreases.
-        """,
-    )
-
-    parser.add_argument(
         "--seed",
         type=int,
         default=42,
         help="The seed for random generators intended for reproducibility",
-    )
-
-    parser.add_argument(
-        "--print-diagnostics",
-        type=str2bool,
-        default=False,
-        help="Accumulate stats on activations, print them and exit.",
-    )
-
-    parser.add_argument(
-        "--inf-check",
-        type=str2bool,
-        default=False,
-        help="Add hooks to check for infinite module outputs and gradients.",
-    )
-
-    parser.add_argument(
-        "--keep-last-k",
-        type=int,
-        default=30,
-        help="""Only keep this number of checkpoints on disk.
-        For instance, if it is 3, there are only 3 checkpoints
-        in the exp-dir with filenames `checkpoint-xxx.pt`.
-        It does not affect checkpoints with name `epoch-xxx.pt`.
-        """,
-    )
-
-    parser.add_argument(
-        "--average-period",
-        type=int,
-        default=200,
-        help="""Update the averaged model, namely `model_avg`, after processing
-        this number of batches. `model_avg` is a separate version of model,
-        in which each floating-point parameter is the average of all the
-        parameters from the start of training. Each time we take the average,
-        we do: `model_avg = model * (average_period / batch_idx_train) +
-            model_avg * ((batch_idx_train - average_period) / batch_idx_train)`.
-        """,
     )
 
     parser.add_argument(
@@ -325,6 +261,7 @@ def get_params() -> AttributeDict:
 
     return params
 
+
 def compute_loss(
     params: AttributeDict,
     tokenizer: AutoTokenizer,
@@ -372,17 +309,23 @@ def compute_loss(
                     tokenize=True,
                     chat_template=TEMPLATE,
                     add_generation_prompt=False,
-                    padding="longest", # FIX me change padding to longest
+                    padding="longest",  # FIX me change padding to longest
                     max_length=max_len,
                     truncation=True,
                 )
             )
         # padding texts to the same length, texts is a list of list, padding with tokenzier.pad_token_id
         max_len_texts = max([len(text) for text in texts])
-        if tokenizer.padding_side == 'right':
-            texts = [text + [tokenizer.pad_token_id] * (max_len_texts - len(text)) for text in texts]
+        if tokenizer.padding_side == "right":
+            texts = [
+                text + [tokenizer.pad_token_id] * (max_len_texts - len(text))
+                for text in texts
+            ]
         else:
-            texts = [[tokenizer.pad_token_id] * (max_len_texts - len(text)) + text for text in texts]
+            texts = [
+                [tokenizer.pad_token_id] * (max_len_texts - len(text)) + text
+                for text in texts
+            ]
         input_ids = torch.tensor(texts, dtype=torch.int)
         # response = tokenizer.batch_decode(input_ids, skip_special_tokens=True)[0]
         target_ids = input_ids.clone()
@@ -391,13 +334,14 @@ def compute_loss(
         # first get the indices of the tokens
         mask_prompt = True
         if mask_prompt:
-            mask_indices = torch.where(input_ids == tokenizer.convert_tokens_to_ids("assistant"))
-            # then mask all tokens before the first token e.g. 151646 (speech), 151645 <assistant>,    198 \n
+            mask_indices = torch.where(
+                input_ids == tokenizer.convert_tokens_to_ids("assistant")
+            )
             for i in range(mask_indices[0].size(0)):
                 row = mask_indices[0][i]
                 col = mask_indices[1][i]
                 # + 2 to  skip: 'assistant', '\n'
-                target_ids[row, :col+2] = IGNORE_TOKEN_ID
+                target_ids[row, : col + 2] = IGNORE_TOKEN_ID
 
         attention_mask = input_ids.ne(tokenizer.pad_token_id)
 
@@ -458,20 +402,13 @@ def compute_loss(
 
     messages = []
     for i, text in enumerate(texts):
-        # message = [
-        # {"role": "system", "content": "你是一个能处理音频的助手。"},
-        # {"role": "user", "content": f"请转写音频为文字 {DEFAULT_SPEECH_TOKEN}"},
-        # {"role": "assistant", "content": text},
-        # ]
         message = [
-        {"role": "user", "content": f"{DEFAULT_SPEECH_TOKEN}请转写音频为文字"},
-        {"role": "assistant", "content": text},
+            {"role": "user", "content": f"{DEFAULT_SPEECH_TOKEN}请转写音频为文字"},
+            {"role": "assistant", "content": text},
         ]
         messages.append(message)
 
-    input_ids, attention_mask, target_ids = preprocess(
-        messages, tokenizer, max_len=128
-    )
+    input_ids, attention_mask, target_ids = preprocess(messages, tokenizer, max_len=128)
 
     target_ids = target_ids.type(torch.LongTensor)
     input_ids = input_ids.type(torch.LongTensor)
@@ -494,7 +431,9 @@ def compute_loss(
 
     # Note: We use reduction=sum while computing the loss.
     info["loss"] = loss.detach().cpu().item()
-    info["acc"] = acc * info["frames"] # WAR: to avoid normalization by the number of frames
+    info["acc"] = (
+        acc * info["frames"]
+    )  # WAR: to avoid normalization by the number of frames
 
     return loss, info
 
@@ -607,7 +546,7 @@ def train_one_epoch(
                     save_dir=params.exp_dir,
                     tag=f"epoch-{params.cur_epoch}-checkpoint-{batch_idx}",
                     client_state={},
-                    exclude_frozen_parameters=True
+                    exclude_frozen_parameters=True,
                 )
 
                 if rank == 0:
@@ -702,29 +641,26 @@ def run(rank, world_size, args):
     logging.info(params)
 
     logging.info("About to create model")
-    
-    # if 'whisper' in params.speech_encoder_path_or_name:
+
     replace_whisper_encoder_forward()
-    # TODO: directly loading from whisper-ft checkpoint
-    # whisper-large-v2-multi-hans-zh-epoch-3-avg-10.pt
     whisper_model = whisper.load_model(params.speech_encoder_path_or_name, "cpu")
     speech_encoder = whisper_model.encoder
     speech_encoder_dim = whisper_model.dims.n_audio_state
-    for name, param in speech_encoder.named_parameters(): 
+    for name, param in speech_encoder.named_parameters():
         param.requires_grad = False
     speech_encoder.eval()
 
     tokenizer = AutoTokenizer.from_pretrained(params.llm_path_or_name)
     if params.use_flash_attn:
         attn_implementation = "flash_attention_2"
-        # torch_dtype=torch.bfloat16
-        torch_dtype=torch.float16
-        tokenizer.padding_side  = 'left'
+        # torch_dtype=torch.bfloat16 FIX ME
+        torch_dtype = torch.float16
+        tokenizer.padding_side = "left"
 
     else:
         attn_implementation = "eager"
-        torch_dtype=torch.float16
-        tokenizer.padding_side  = 'right'
+        torch_dtype = torch.float16
+        tokenizer.padding_side = "right"
 
     llm = AutoModelForCausalLM.from_pretrained(
         params.llm_path_or_name,
@@ -733,7 +669,7 @@ def run(rank, world_size, args):
     )
 
     if not params.unfreeze_llm:
-        for name, param in llm.named_parameters(): 
+        for name, param in llm.named_parameters():
             param.requires_grad = False
         llm.eval()
     else:
@@ -741,21 +677,31 @@ def run(rank, world_size, args):
             lora_config = LoraConfig(
                 r=64,
                 lora_alpha=16,
-                target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "up_proj", "gate_proj", "down_proj"],
+                target_modules=[
+                    "q_proj",
+                    "k_proj",
+                    "v_proj",
+                    "o_proj",
+                    "up_proj",
+                    "gate_proj",
+                    "down_proj",
+                ],
                 lora_dropout=0.05,
                 task_type="CAUSAL_LM",
             )
             llm = get_peft_model(llm, lora_config)
             llm.print_trainable_parameters()
 
-    special_tokens_dict = {
-        "additional_special_tokens": [DEFAULT_SPEECH_TOKEN]
-    }
+    special_tokens_dict = {"additional_special_tokens": [DEFAULT_SPEECH_TOKEN]}
     tokenizer.add_special_tokens(special_tokens_dict)
     llm.config.pad_token_id = tokenizer.pad_token_id
-    llm.config.default_speech_token_id = tokenizer.convert_tokens_to_ids(DEFAULT_SPEECH_TOKEN)
+    llm.config.default_speech_token_id = tokenizer.convert_tokens_to_ids(
+        DEFAULT_SPEECH_TOKEN
+    )
 
-    encoder_projector = EncoderProjector(speech_encoder_dim, llm.config.hidden_size, params.encoder_projector_ds_rate)
+    encoder_projector = EncoderProjector(
+        speech_encoder_dim, llm.config.hidden_size, params.encoder_projector_ds_rate
+    )
 
     model = SPEECH_LLM(
         speech_encoder,
@@ -806,7 +752,7 @@ def run(rank, world_size, args):
             # )
             return False
         return True
-    
+
     if params.use_aishell:
         train_cuts = multi_dataset.aishell_train_cuts()
     else:
@@ -814,12 +760,6 @@ def run(rank, world_size, args):
 
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
 
-    # if params.start_batch > 0 and checkpoints and "sampler" in checkpoints:
-    #     # We only load the sampler's state dict when it loads a checkpoint
-    #     # saved in the middle of an epoch
-    #     sampler_state_dict = checkpoints["sampler"]
-    # else:
-    #     sampler_state_dict = None
     sampler_state_dict = None
     if params.sampler_state_dict_path:
         sampler_state_dict = torch.load(params.sampler_state_dict_path)
@@ -839,13 +779,6 @@ def run(rank, world_size, args):
         tb_writer = SummaryWriter(log_dir=f"{params.exp_dir}/tensorboard")
     else:
         tb_writer = None
-
-    # if params.pretrained_model_path:
-    #     checkpoint = torch.load(params.pretrained_model_path, map_location="cpu")
-    #     if "model" not in checkpoint:
-    #         model.load_state_dict(checkpoint, strict=True)
-    #     else:
-    #         load_checkpoint(params.pretrained_model_path, model)
 
     logging.info(f"start training from epoch {params.start_epoch}")
     for epoch in range(params.start_epoch, params.num_epochs + 1):
@@ -871,12 +804,11 @@ def run(rank, world_size, args):
             rank=rank,
         )
 
-        
         model.save_checkpoint(
             save_dir=params.exp_dir,
             tag=f"epoch-{params.cur_epoch}",
             client_state={},
-            exclude_frozen_parameters=True
+            exclude_frozen_parameters=True,
         )
         if rank == 0:
             convert_zero_checkpoint_to_fp32_state_dict(
@@ -887,12 +819,15 @@ def run(rank, world_size, args):
             )
             # save sampler state dict into checkpoint
             sampler_state_dict = train_dl.sampler.state_dict()
-            torch.save(sampler_state_dict, f"{params.exp_dir}/epoch-{params.cur_epoch}-sampler.pt")
-    
+            torch.save(
+                sampler_state_dict,
+                f"{params.exp_dir}/epoch-{params.cur_epoch}-sampler.pt",
+            )
+
             os.system(f"rm -rf {params.exp_dir}/epoch-{params.cur_epoch}")
 
-
     logging.info("Done!")
+
 
 def display_and_save_batch(
     batch: dict,
