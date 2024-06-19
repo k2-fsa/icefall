@@ -16,12 +16,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
-This file uses whisper and zipformer decoding results to generate fusion decoding results.
-Since whisper model is more likely to make deletion errors and zipformer model is more likely to make substitution and insertion errors,
-we trust whisper model when it makes substitution and insertion errors and trust zipformer model when it makes deletion errors.
+This file uses speech io offcial pipline to normalize the decoding results.
+https://github.com/SpeechColab/Leaderboard/blob/master/utils/textnorm_zh.py
 
 Usage:
-    python whisper_zipformer_fusion.py --model-log-dir ./whisper_decoding_log_dir --output-log-dir ./results_norm
+    python normalize_results.py --model-log-dir ./whisper_decoding_log_dir --output-log-dir ./results_norm
 """
 
 import argparse
