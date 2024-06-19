@@ -2,12 +2,31 @@
 
 ### whisper_llm_zh finetuning results
 
-|         Training Dataset  | Speech Encoder | LLM |  Projector |Comment                                           | CER |
-| -------------------------| ----------------|------|--------------------------------------------------|-----|--|
-|  Aishell1                | whisper-large-v2-aishell1-ft, freeze| Qwen2-1.5B-Instruct, LoRA | Linear, 8x downsample| [yuekai/icefall_asr_aishell_whisper_qwen2_1.5B](https://huggingface.co/yuekai/icefall_asr_aishell_whisper_qwen2_1.5B) | Aishell1 Test 3.62% |
-<!-- |  Multi-hans-zh                | whisper-large-v2-multi-hans-ft, freeze| Qwen2-1.5B-Instruct, LoRA | Linear, 8x downsample| WIP ||
-|  Multi-hans-zh                | whisper-large-v2-multi-hans-ft, freeze| Qwen2-7B-Instruct, LoRA | Linear, 8x downsample| WIP ||                -->
+|Model|         Training Dataset  | Speech Encoder | LLM |  Projector |
+|-| -------------------------| ----------------|------|---------------|
+|[yuekai/icefall_asr_aishell_whisper_qwen2_1.5B](https://huggingface.co/yuekai/icefall_asr_aishell_whisper_qwen2_1.5B)  | Aishell1                | whisper-large-v2-aishell1-ft, freeze| Qwen2-1.5B-Instruct, LoRA | Linear, 8x downsample|
+| [yuekai/icefall_asr_multi-hans_whisper_qwen2_1.5B](https://huggingface.co/yuekai/icefall_asr_multi-hans_whisper_qwen2_1.5B)  |Multi-hans-zh                | whisper-large-v2-multi-hans-ft, freeze| Qwen2-1.5B-Instruct, LoRA | Linear, 8x downsample||
 
+CER Details:
+| Model | [yuekai/icefall_asr_aishell_whisper_qwen2_1.5B](https://huggingface.co/yuekai/icefall_asr_aishell_whisper_qwen2_1.5B) | [yuekai/icefall_asr_multi-hans_whisper_qwen2_1.5B](https://huggingface.co/yuekai/icefall_asr_multi-hans_whisper_qwen2_1.5B) |
+|-------|------------------------------------------------|----------------------------------------------------|
+| Split | Greedy Search | Greedy Search |
+| aishell-1 dev | - | 0.66 |
+| aishell-1 test | 3.62 | 0.68 |
+| aishell-2 dev | - | 2.67 |
+| aishell-2 test | - | 2.94 |
+| aishell-4 test | - | 16.20 |
+| alimeeting eval | - | 30.86 |
+| alimeeting test | - | 40.50 |
+| magicdata dev | - | 2.50 |
+| magicdata test | - | 1.70 |
+| kespeech-asr dev phase1 | - | 6.22 |
+| kespeech-asr dev phase2 | - | 2.18 |
+| kespeech-asr test | - | 6.59 |
+| WenetSpeech dev | - | 4.59 |
+| WenetSpeech test_meeting | - | 6.41 |
+| WenetSpeech tes_net | - | 6.63 |
+| SPEECHIO Avg 001-026 | - | 4.80 |
 Command for training is:
 ```bash
 pip install -r whisper_llm_zh/requirements.txt
