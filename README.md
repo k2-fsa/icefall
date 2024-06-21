@@ -16,12 +16,12 @@ Please refer to [document](https://k2-fsa.github.io/icefall/huggingface/spaces.h
 
 # Installation
 
-Please refer to [document](https://icefall.readthedocs.io/en/latest/installation/index.html)
+Please refer to [document](https://k2-fsa.github.io/icefall/installation/index.html)
 for installation.
 
 # Recipes
 
-Please refer to [document](https://icefall.readthedocs.io/en/latest/recipes/index.html)
+Please refer to [document](https://k2-fsa.github.io/icefall/recipes/index.html)
 for more details.
 
 ## ASR: Automatic Speech Recognition
@@ -77,7 +77,7 @@ The [LibriSpeech][librispeech] recipe supports the most comprehensive set of mod
 #### Whisper
   - [OpenAi Whisper](https://arxiv.org/abs/2212.04356) (We support fine-tuning on AiShell-1.)
 
-If you are willing to contribute to icefall, please refer to [contributing](https://icefall.readthedocs.io/en/latest/contributing/index.html) for more details.
+If you are willing to contribute to icefall, please refer to [contributing](https://k2-fsa.github.io/icefall/contributing/index.html) for more details.
 
 We would like to highlight the performance of some of the recipes here.
 
@@ -343,7 +343,12 @@ We provide a Colab notebook to test the pre-trained model: [![Open In Colab](htt
 
 Once you have trained a model in icefall, you may want to deploy it with C++ without Python dependencies.
 
-Please refer to the [document](https://icefall.readthedocs.io/en/latest/recipes/Non-streaming-ASR/librispeech/conformer_ctc.html#deployment-with-c)
+Please refer to
+
+  - https://k2-fsa.github.io/icefall/model-export/export-with-torch-jit-script.html
+  - https://k2-fsa.github.io/icefall/model-export/export-onnx.html
+  - https://k2-fsa.github.io/icefall/model-export/export-ncnn.html
+
 for how to do this.
 
 We also provide a Colab notebook, showing you how to run a torch scripted model in [k2][k2] with C++.

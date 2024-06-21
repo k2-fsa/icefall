@@ -1,7 +1,7 @@
 ## Introduction
 
 Please visit
-<https://icefall.readthedocs.io/en/latest/recipes/librispeech/conformer_ctc.html>
+<https://k2-fsa.github.io/icefall/recipes/Non-streaming-ASR/librispeech/conformer_ctc.html>
 for how to run this recipe.
 
 ## How to compute framewise alignment information
@@ -9,7 +9,7 @@ for how to run this recipe.
 ### Step 1: Train a model
 
 Please use `conformer_ctc/train.py` to train a model.
-See <https://icefall.readthedocs.io/en/latest/recipes/librispeech/conformer_ctc.html>
+See <https://k2-fsa.github.io/icefall/recipes/Non-streaming-ASR/librispeech/conformer_ctc.html>
 for how to do it.
 
 ### Step 2: Compute framewise alignment
