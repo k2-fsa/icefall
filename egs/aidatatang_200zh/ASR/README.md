@@ -6,7 +6,7 @@ The main repositories are list below, we will update the training and decoding s
 k2: https://github.com/k2-fsa/k2
 icefall: https://github.com/k2-fsa/icefall
 lhotse: https://github.com/lhotse-speech/lhotse
-* Install k2 and lhotse, k2 installation guide refers to https://k2.readthedocs.io/en/latest/installation/index.html, lhotse refers to https://lhotse.readthedocs.io/en/latest/getting-started.html#installation. I think the latest version would be ok. And please also install the requirements listed in icefall.
+* Install k2 and lhotse, k2 installation guide refers to https://k2-fsa.github.io/k2/installation/index.html, lhotse refers to https://lhotse.readthedocs.io/en/latest/getting-started.html#installation. I think the latest version would be ok. And please also install the requirements listed in icefall.
 * Clone icefall(https://github.com/k2-fsa/icefall) and check to the commit showed above.
 ```
 git clone https://github.com/k2-fsa/icefall
