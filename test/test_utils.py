@@ -28,6 +28,7 @@ from icefall.utils import (
     encode_supervisions,
     get_texts,
     make_pad_mask,
+    text_to_pinyin,
 )
 
 
@@ -163,3 +164,31 @@ def test_add_eos():
         [[1, 2, eos_id], [3, eos_id], [eos_id], [5, 8, 9, eos_id]]
     )
     assert str(ragged_eos) == str(expected)
+
+
+def test_text_to_pinyin():
+    txt = "想吃KFC"
+
+    r = text_to_pinyin(txt, mode="full_with_tone")
+    assert " ".join(r) == "xiǎng chī KFC"
+
+    r = text_to_pinyin(txt, mode="full_with_tone", errors="split")
+    assert " ".join(r) == "xiǎng chī K F C"
+
+    r = text_to_pinyin(txt, mode="full_no_tone", errors="default")
+    assert " ".join(r) == "xiang chi KFC"
+
+    r = text_to_pinyin(txt, mode="full_no_tone", errors="split")
+    assert " ".join(r) == "xiang chi K F C"
+
+    r = text_to_pinyin(txt, mode="partial_with_tone")
+    assert " ".join(r) == "x iǎng ch ī KFC"
+
+    r = text_to_pinyin(txt, mode="partial_with_tone", errors="split")
+    assert " ".join(r) == "x iǎng ch ī K F C"
+
+    r = text_to_pinyin(txt, mode="partial_no_tone", errors="default")
+    assert " ".join(r) == "x iang ch i KFC"
+
+    r = text_to_pinyin(txt, mode="partial_no_tone", errors="split")
+    assert " ".join(r) == "x iang ch i K F C"
