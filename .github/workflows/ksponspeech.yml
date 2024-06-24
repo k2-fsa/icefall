@@ -57,13 +57,19 @@ jobs:
 
           .github/scripts/ksponspeech/ASR/run.sh
 
-      - name: Show model files
+      - name: Show model files (2024-06-24)
         shell: bash
         run: |
-          src=/tmp/model1
+          src=/tmp/model-2024-06-24
           ls -lh $src
 
-      - name: Upload model to huggingface
+      - name: Show model files (2024-06-16)
+        shell: bash
+        run: |
+          src=/tmp/model-2024-06-16
+          ls -lh $src
+
+      - name: Upload model to huggingface (2024-06-24)
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         uses: nick-fields/retry@v3
@@ -72,7 +78,41 @@ jobs:
           timeout_seconds: 200
           shell: bash
           command: |
-            src=/tmp/model1
+            src=/tmp/model-2024-06-24
+            git config --global user.email "csukuangfj@gmail.com"
+            git config --global user.name "Fangjun Kuang"
+
+            rm -rf hf
+            export GIT_LFS_SKIP_SMUDGE=1
+            export GIT_CLONE_PROTECTION_ACTIVE=false
+
+            git clone https://huggingface.co/k2-fsa/sherpa-onnx-zipformer-korean-2024-06-24 hf
+            cd hf
+            git fetch
+            git pull
+            git merge -m "merge remote" --ff origin main
+            cp -av $src/* ./
+            ls -lh
+            git lfs track "bpe.model"
+            git lfs track "*.onnx"
+            git add .
+            git status
+            git commit -m "update models"
+            git status
+
+            git push https://csukuangfj:$HF_TOKEN@huggingface.co/k2-fsa/sherpa-onnx-zipformer-korean-2024-06-24 main || true
+            rm -rf hf
+
+      - name: Upload model to huggingface (2024-06-16)
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        uses: nick-fields/retry@v3
+        with:
+          max_attempts: 20
+          timeout_seconds: 200
+          shell: bash
+          command: |
+            src=/tmp/model-2024-06-16
             git config --global user.email "csukuangfj@gmail.com"
             git config --global user.name "Fangjun Kuang"
 
@@ -98,11 +138,20 @@ jobs:
             git push https://csukuangfj:$HF_TOKEN@huggingface.co/k2-fsa/sherpa-onnx-streaming-zipformer-korean-2024-06-16 main || true
             rm -rf hf
 
-      - name: Prepare for release
+      - name: Prepare for release (2024-06-16)
         shell: bash
         run: |
-          src=/tmp/model1
+          src=/tmp/model-2024-06-16
           d=sherpa-onnx-streaming-zipformer-korean-2024-06-16
+          mv $src ./$d
+          tar cjvf ${d}.tar.bz2 $d
+          ls -lh
+
+      - name: Prepare for release (2024-06-24)
+        shell: bash
+        run: |
+          src=/tmp/model-2024-06-24
+          d=sherpa-onnx-zipformer-korean-2024-06-24
           mv $src ./$d
           tar cjvf ${d}.tar.bz2 $d
           ls -lh
