@@ -27,6 +27,7 @@ There are various folders containing the name `transducer` in this folder. The f
 
 |                                          | Encoder              | Decoder            | Comment                                           |
 | ---------------------------------------- | -------------------- | ------------------ | ------------------------------------------------- |
-| `pruned_transducer_stateless7_streaming`                              | Streaming Zipformer   | Embedding + Conv1d | streaming version of pruned_transducer_stateless7                                 |
+| `pruned_transducer_stateless7_streaming` | Streaming Zipformer  | Embedding + Conv1d | streaming version of pruned_transducer_stateless7 |
+| `zipformer`                              | Upgraded Zipformer   | Embedding + Conv1d | The latest recipe                                 |
 
 The decoder in `transducer_stateless` is modified from the paper [Rnn-Transducer with Stateless Prediction Network](https://ieeexplore.ieee.org/document/9054419/). We place an additional Conv1d layer right after the input embedding layer.
