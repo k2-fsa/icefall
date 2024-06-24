@@ -571,7 +571,9 @@ def save_results(
         # ref/hyp pairs.
         errs_filename = params.res_dir / f"errs-{test_set_name}-{params.suffix}.txt"
         with open(errs_filename, "w") as f:
-            cer = write_error_stats(f, f"{test_set_name}-{key}", results, compute_CER=True)
+            cer = write_error_stats(
+                f, f"{test_set_name}-{key}", results, compute_CER=True
+            )
             test_set_cers[key] = cer
 
         logging.info("Wrote detailed error stats to {}".format(errs_filename))
@@ -807,7 +809,7 @@ def main():
 
     # we need cut ids to display recognition results.
     args.return_cuts = True
-    
+
     ksponspeech = KsponSpeechAsrDataModule(args)
 
     eval_clean_cuts = ksponspeech.eval_clean_cuts()
@@ -815,7 +817,7 @@ def main():
 
     eval_clean_dl = ksponspeech.test_dataloaders(eval_clean_cuts)
     eval_other_dl = ksponspeech.test_dataloaders(eval_other_cuts)
-    
+
     test_sets = ["eval_clean", "eval_other"]
     test_dl = [eval_clean_dl, eval_other_dl]
 
