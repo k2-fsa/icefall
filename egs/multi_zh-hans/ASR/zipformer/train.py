@@ -775,6 +775,42 @@ def compute_loss(
      warmup: a floating point value which increases throughout training;
         values >= 1.0 are fully warmed up and have all modules present.
     """
+    def normalize_text_alimeeting(text: str, normalize: str = "m2met") -> str:
+        """
+        Text normalization similar to M2MeT challenge baseline.
+        See: https://github.com/yufan-aslp/AliMeeting/blob/main/asr/local/text_normalize.pl
+        """
+        if normalize == "none":
+            return text
+        elif normalize == "m2met":
+            import re
+
+            text = text.replace(" ", "")
+            text = text.replace("<sil>", "")
+            text = text.replace("<%>", "")
+            text = text.replace("<->", "")
+            text = text.replace("<$>", "")
+            text = text.replace("<#>", "")
+            text = text.replace("<_>", "")
+            text = text.replace("<space>", "")
+            text = text.replace("`", "")
+            text = text.replace("&", "")
+            text = text.replace(",", "")
+            if re.search("[a-zA-Z]", text):
+                text = text.upper()
+            text = text.replace("Ａ", "A")
+            text = text.replace("ａ", "A")
+            text = text.replace("ｂ", "B")
+            text = text.replace("ｃ", "C")
+            text = text.replace("ｋ", "K")
+            text = text.replace("ｔ", "T")
+            text = text.replace("，", "")
+            text = text.replace("丶", "")
+            text = text.replace("。", "")
+            text = text.replace("、", "")
+            text = text.replace("？", "")
+            return text
+
     device = model.device if isinstance(model, DDP) else next(model.parameters()).device
     feature = batch["inputs"]
     # at entry, feature is (N, T, C)
@@ -788,6 +824,9 @@ def compute_loss(
     warm_step = params.warm_step
 
     texts = batch["supervisions"]["text"]
+    # remove spaces in texts
+    texts = [normalize_text_alimeeting(text) for text in texts]
+
     y = sp.encode(texts, out_type=int)
     y = k2.RaggedTensor(y)
 
