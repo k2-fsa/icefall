@@ -48,8 +48,8 @@ popd
   --joiner-dim 512 \
   --causal False \
   --chunk-size "16,32,64,-1" \
-  --left-context-frames "64,128,256,-1"
-
+  --left-context-frames "64,128,256,-1" \
+  --fp16 True
 It will generate the following 3 files inside $repo/exp:
 
   - encoder-epoch-99-avg-1.onnx
@@ -71,6 +71,7 @@ import torch
 import torch.nn as nn
 from decoder import Decoder
 from onnxruntime.quantization import QuantType, quantize_dynamic
+from onnxconverter_common import float16
 from scaling_converter import convert_scaled_to_non_scaled
 from train import add_model_arguments, get_model, get_params
 from zipformer import Zipformer2
@@ -149,6 +150,13 @@ def get_parser():
         type=int,
         default=2,
         help="The context size in the decoder. 1 means bigram; 2 means tri-gram",
+    )
+
+    parser.add_argument(
+        "--fp16",
+        type=str2bool,
+        default=False,
+        help="Whether to export models in fp16",
     )
 
     add_model_arguments(parser)
@@ -274,6 +282,7 @@ def export_encoder_model_onnx(
     encoder_model: OnnxEncoder,
     encoder_filename: str,
     opset_version: int = 11,
+    fp16:bool = False,
 ) -> None:
     """Export the given encoder model to ONNX format.
     The exported model has two inputs:
@@ -324,6 +333,12 @@ def export_encoder_model_onnx(
     logging.info(f"meta_data: {meta_data}")
 
     add_meta_data(filename=encoder_filename, meta_data=meta_data)
+
+    if(fp16) :
+        logging.info("Exporting Encoder model in fp16")
+        encoder = onnx.load(encoder_filename)
+        encoder_fp16 = float16.convert_float_to_float16(encoder, keep_io_types=True)
+        onnx.save(encoder_fp16,encoder_filename)
 
 
 def export_decoder_model_onnx(
@@ -563,6 +578,7 @@ def main():
         encoder,
         encoder_filename,
         opset_version=opset_version,
+        fp16=params.fp16,
     )
     logging.info(f"Exported encoder to {encoder_filename}")
 
