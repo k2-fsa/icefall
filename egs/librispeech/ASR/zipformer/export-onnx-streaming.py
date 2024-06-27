@@ -755,12 +755,8 @@ def main():
     )
     logging.info(f"Exported joiner to {joiner_filename}")
 
-    # Generate int8 quantization models
-    # See https://onnxruntime.ai/docs/performance/model-optimizations/quantization.html#data-type-selection
-
-
     if(params.fp16) :
-        logging.info("Exporting models in fp16")
+        logging.info("Generate fp16 models")
 
         encoder = onnx.load(encoder_filename)
         encoder_fp16 = float16.convert_float_to_float16(encoder, keep_io_types=True)
@@ -776,6 +772,9 @@ def main():
         joiner_fp16 = float16.convert_float_to_float16(joiner, keep_io_types=True)
         joiner_filename_fp16 = params.exp_dir / f"joiner-{suffix}.fp16.onnx"
         onnx.save(joiner_fp16,joiner_filename_fp16)
+
+    # Generate int8 quantization models
+    # See https://onnxruntime.ai/docs/performance/model-optimizations/quantization.html#data-type-selection
 
     logging.info("Generate int8 quantization models")
     

@@ -282,7 +282,6 @@ def export_encoder_model_onnx(
     encoder_model: OnnxEncoder,
     encoder_filename: str,
     opset_version: int = 11,
-    fp16:bool = False,
 ) -> None:
     """Export the given encoder model to ONNX format.
     The exported model has two inputs:
@@ -333,12 +332,6 @@ def export_encoder_model_onnx(
     logging.info(f"meta_data: {meta_data}")
 
     add_meta_data(filename=encoder_filename, meta_data=meta_data)
-
-    if(fp16) :
-        logging.info("Exporting Encoder model in fp16")
-        encoder = onnx.load(encoder_filename)
-        encoder_fp16 = float16.convert_float_to_float16(encoder, keep_io_types=True)
-        onnx.save(encoder_fp16,encoder_filename)
 
 
 def export_decoder_model_onnx(
@@ -578,7 +571,6 @@ def main():
         encoder,
         encoder_filename,
         opset_version=opset_version,
-        fp16=params.fp16,
     )
     logging.info(f"Exported encoder to {encoder_filename}")
 
@@ -599,6 +591,24 @@ def main():
         opset_version=opset_version,
     )
     logging.info(f"Exported joiner to {joiner_filename}")
+
+    if(params.fp16) :
+        logging.info("Generate fp16 models")
+
+        encoder = onnx.load(encoder_filename)
+        encoder_fp16 = float16.convert_float_to_float16(encoder, keep_io_types=True)
+        encoder_filename_fp16 = params.exp_dir / f"encoder-{suffix}.fp16.onnx"
+        onnx.save(encoder_fp16,encoder_filename_fp16)
+
+        decoder = onnx.load(decoder_filename)
+        decoder_fp16 = float16.convert_float_to_float16(decoder, keep_io_types=True)
+        decoder_filename_fp16 = params.exp_dir / f"decoder-{suffix}.fp16.onnx"
+        onnx.save(decoder_fp16,decoder_filename_fp16)
+
+        joiner = onnx.load(joiner_filename)
+        joiner_fp16 = float16.convert_float_to_float16(joiner, keep_io_types=True)
+        joiner_filename_fp16 = params.exp_dir / f"joiner-{suffix}.fp16.onnx"
+        onnx.save(joiner_fp16,joiner_filename_fp16)
 
     # Generate int8 quantization models
     # See https://onnxruntime.ai/docs/performance/model-optimizations/quantization.html#data-type-selection
