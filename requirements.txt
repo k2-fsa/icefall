@@ -12,6 +12,7 @@ onnx>=1.15.0
 onnxruntime>=1.16.3
 onnxoptimizer
 onnxsim
+onnxconverter_common
 
 # style check session:
 black==22.3.0

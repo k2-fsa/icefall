@@ -48,8 +48,8 @@ popd
   --joiner-dim 512 \
   --causal False \
   --chunk-size "16,32,64,-1" \
-  --left-context-frames "64,128,256,-1"
-
+  --left-context-frames "64,128,256,-1" \
+  --fp16 True
 It will generate the following 3 files inside $repo/exp:
 
   - encoder-epoch-99-avg-1.onnx
@@ -70,6 +70,7 @@ import onnx
 import torch
 import torch.nn as nn
 from decoder import Decoder
+from onnxconverter_common import float16
 from onnxruntime.quantization import QuantType, quantize_dynamic
 from scaling_converter import convert_scaled_to_non_scaled
 from train import add_model_arguments, get_model, get_params
@@ -149,6 +150,13 @@ def get_parser():
         type=int,
         default=2,
         help="The context size in the decoder. 1 means bigram; 2 means tri-gram",
+    )
+
+    parser.add_argument(
+        "--fp16",
+        type=str2bool,
+        default=False,
+        help="Whether to export models in fp16",
     )
 
     add_model_arguments(parser)
@@ -583,6 +591,24 @@ def main():
         opset_version=opset_version,
     )
     logging.info(f"Exported joiner to {joiner_filename}")
+
+    if(params.fp16) :
+        logging.info("Generate fp16 models")
+
+        encoder = onnx.load(encoder_filename)
+        encoder_fp16 = float16.convert_float_to_float16(encoder, keep_io_types=True)
+        encoder_filename_fp16 = params.exp_dir / f"encoder-{suffix}.fp16.onnx"
+        onnx.save(encoder_fp16,encoder_filename_fp16)
+
+        decoder = onnx.load(decoder_filename)
+        decoder_fp16 = float16.convert_float_to_float16(decoder, keep_io_types=True)
+        decoder_filename_fp16 = params.exp_dir / f"decoder-{suffix}.fp16.onnx"
+        onnx.save(decoder_fp16,decoder_filename_fp16)
+
+        joiner = onnx.load(joiner_filename)
+        joiner_fp16 = float16.convert_float_to_float16(joiner, keep_io_types=True)
+        joiner_filename_fp16 = params.exp_dir / f"joiner-{suffix}.fp16.onnx"
+        onnx.save(joiner_fp16,joiner_filename_fp16)
 
     # Generate int8 quantization models
     # See https://onnxruntime.ai/docs/performance/model-optimizations/quantization.html#data-type-selection
