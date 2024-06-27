@@ -17,14 +17,17 @@
 # limitations under the License.
 
 from typing import Optional, Tuple
+import logging
 
 import k2
 import torch
 import torch.nn as nn
 from encoder_interface import EncoderInterface
 from scaling import ScaledLinear
+from biasing import TCPGen
 
 from icefall.utils import add_sos, make_pad_mask
+from icefall import ContextGraph
 
 
 class AsrModel(nn.Module):
@@ -36,9 +39,13 @@ class AsrModel(nn.Module):
         joiner: Optional[nn.Module] = None,
         encoder_dim: int = 384,
         decoder_dim: int = 512,
+        joiner_dim: int = 512,
         vocab_size: int = 500,
+        tcpgen_attn_dim: int = 512,
         use_transducer: bool = True,
         use_ctc: bool = False,
+        use_tcpgen_biasing: bool = False,
+        tcpgen_dropout: float = 0.15,
     ):
         """A joint CTC & Transducer ASR model.
 
@@ -111,6 +118,19 @@ class AsrModel(nn.Module):
                 nn.LogSoftmax(dim=-1),
             )
 
+        self.use_tcpgen_biasing = use_tcpgen_biasing
+        if use_tcpgen_biasing:
+            assert use_transducer, "TCPGen biasing only support on transducer model."
+            self.tcp_gen = TCPGen(
+                encoder_dim=encoder_dim,
+                embed_dim=decoder_dim,
+                attn_dim=tcpgen_attn_dim,
+                joiner_dim=joiner_dim,
+                decoder=decoder,
+                tcpgen_dropout=tcpgen_dropout,
+            )
+            self.hptr_proj = torch.nn.Linear(tcpgen_attn_dim, joiner_dim)
+
     def forward_encoder(
         self, x: torch.Tensor, x_lens: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -180,6 +200,7 @@ class AsrModel(nn.Module):
         prune_range: int = 5,
         am_scale: float = 0.0,
         lm_scale: float = 0.0,
+        context_graph: Optional[ContextGraph] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Compute Transducer loss.
         Args:
@@ -202,6 +223,7 @@ class AsrModel(nn.Module):
         """
         # Now for the decoder, i.e., the prediction network
         blank_id = self.decoder.blank_id
+        assert blank_id == 0, f"Assuming blank_id is 0, given {blank_id}"
         sos_y = add_sos(y, sos_id=blank_id)
 
         # sos_y_padded: [B, S + 1], start with SOS.
@@ -226,11 +248,6 @@ class AsrModel(nn.Module):
         lm = self.simple_lm_proj(decoder_out)
         am = self.simple_am_proj(encoder_out)
 
-        # if self.training and random.random() < 0.25:
-        #    lm = penalize_abs_values_gt(lm, 100.0, 1.0e-04)
-        # if self.training and random.random() < 0.25:
-        #    am = penalize_abs_values_gt(am, 30.0, 1.0e-04)
-
         with torch.cuda.amp.autocast(enabled=False):
             simple_loss, (px_grad, py_grad) = k2.rnnt_loss_smoothed(
                 lm=lm.float(),
@@ -252,19 +269,66 @@ class AsrModel(nn.Module):
             s_range=prune_range,
         )
 
-        # am_pruned : [B, T, prune_range, encoder_dim]
-        # lm_pruned : [B, T, prune_range, decoder_dim]
+        # am_pruned : [B, T, prune_range, joiner_dim]
+        # lm_pruned : [B, T, prune_range, joiner_dim]
         am_pruned, lm_pruned = k2.do_rnnt_pruning(
             am=self.joiner.encoder_proj(encoder_out),
             lm=self.joiner.decoder_proj(decoder_out),
             ranges=ranges,
         )
 
-        # logits : [B, T, prune_range, vocab_size]
+        fused_log_softmax = True
+        if self.use_tcpgen_biasing and context_graph is not None:
+            # logging.info(f"using tcpgen baising")
+            fused_log_softmax = False
+            # hptr : (B, T, s_range, attn_dim)
+            # tcpgen_dist : (B, T, s_range, V + 1)
+            # gen_masks : (B, T, s_range)
+            hptr, tcpgen_dist, gen_masks = self.tcp_gen(
+                targets=sos_y_padded,
+                encoder_embeddings=encoder_out,
+                ranges=ranges,
+                context_graph=context_graph,
+            )
+            # (B, T, s_range, joiner_dim)
+            tcpgen_hptr = self.hptr_proj(hptr)
+            # logits : (B, T, s_range, V)
+            # activations : (B, T, s_range, joiner_dim)
+            logits, activations = self.joiner(
+                encoder_out=am_pruned,
+                decoder_out=lm_pruned,
+                tcpgen_hptr=tcpgen_hptr,
+                project_input=False,
+            )
+            # (B, T, s_range, 1)
+            tcpgen_prob = self.tcp_gen.generator_prob(
+                hptr=hptr, h_joiner=activations, gen_masks=gen_masks
+            )
 
-        # project_input=False since we applied the decoder's input projections
-        # prior to do_rnnt_pruning (this is an optimization for speed).
-        logits = self.joiner(am_pruned, lm_pruned, project_input=False)
+            # Assuming blank_id is 0
+            p_mdl = torch.softmax(logits, dim=-1)
+            p_no_blank = 1.0 - p_mdl[:, :, :, 0:1]
+
+            # blank dist (tcpgen_dist[:,:,:,0]) should be 0
+            scaled_tcpgen_dist = tcpgen_dist[:, :, :, 1:] * p_no_blank
+
+            # ool probability : tcpgen_dist[:, :, :, -1:]
+            scaled_tcpgen_prob = tcpgen_prob * (1 - tcpgen_dist[:, :, :, -1:])
+
+            interpolated_no_blank = scaled_tcpgen_dist[
+                :, :, :, :-1
+            ] * tcpgen_prob + p_mdl[:, :, :, 1:] * (1 - scaled_tcpgen_prob)
+
+            final_dist = torch.cat([p_mdl[:, :, :, 0:1], interpolated_no_blank], dim=-1)
+
+            # actually logprobs
+            logits = torch.log(final_dist + torch.finfo(final_dist.dtype).tiny)
+        else:
+            # logits : [B, T, prune_range, vocab_size]
+
+            # project_input=False since we applied the decoder's input projections
+            # prior to do_rnnt_pruning (this is an optimization for speed).
+            logits = self.joiner(am_pruned, lm_pruned, project_input=False)
 
         with torch.cuda.amp.autocast(enabled=False):
             pruned_loss = k2.rnnt_loss_pruned(
@@ -274,6 +338,7 @@ class AsrModel(nn.Module):
                 termination_symbol=blank_id,
                 boundary=boundary,
                 reduction="sum",
+                fused_log_softmax=fused_log_softmax,
             )
 
         return simple_loss, pruned_loss
@@ -286,6 +351,7 @@ class AsrModel(nn.Module):
         prune_range: int = 5,
         am_scale: float = 0.0,
         lm_scale: float = 0.0,
+        context_graph: Optional[ContextGraph] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Args:
@@ -338,6 +404,7 @@ class AsrModel(nn.Module):
                 prune_range=prune_range,
                 am_scale=am_scale,
                 lm_scale=lm_scale,
+                context_graph=context_graph,
             )
         else:
             simple_loss = torch.empty(0)

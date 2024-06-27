@@ -162,6 +162,7 @@ class ContextGraph:
         phrases: Optional[List[str]] = None,
         scores: Optional[List[float]] = None,
         ac_thresholds: Optional[List[float]] = None,
+        simple_trie: bool = False,
     ):
         """Build the ContextGraph from a list of token list.
         It first build a trie from the given token lists, then fill the fail arc
@@ -189,6 +190,11 @@ class ContextGraph:
             0 means using the default value (i.e. self.ac_threshold). It is
             used only when this graph applied for the keywords spotting system.
             The length of `ac_threshold` MUST be equal to the length of `token_ids`.
+          simple_trie:
+            True for building only trie (i.e. no fail and output arcs). Needed by
+            tcpgen biasing training.
+            False for building a Aho-corasick automata, for hotword / keywords
+            searching.
 
         Note: The phrases would have shared states, the score of the shared states is
               the MAXIMUM value among all the tokens sharing this state.
@@ -211,7 +217,6 @@ class ContextGraph:
             context_score = self.context_score if score == 0.0 else score
             threshold = self.ac_threshold if ac_threshold == 0.0 else ac_threshold
             for i, token in enumerate(tokens):
-                node_next = {}
                 if token not in node.next:
                     self.num_nodes += 1
                     is_end = i == len(tokens) - 1
@@ -240,7 +245,9 @@ class ContextGraph:
                         node.next[token].phrase = phrase
                         node.next[token].ac_threshold = threshold
                 node = node.next[token]
-        self._fill_fail_output()
+
+        if not simple_trie:
+            self._fill_fail_output()
 
     def forward_one_step(
         self, state: ContextState, token: int, strict_mode: bool = True
