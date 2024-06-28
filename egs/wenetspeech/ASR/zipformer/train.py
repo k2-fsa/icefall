@@ -239,12 +239,22 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         chunk left-context frames will be chosen randomly from this list; else not relevant.""",
     )
 
-
-def get_parser():
-    parser = argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    parser.add_argument(
+        "--use-transducer",
+        type=str2bool,
+        default=True,
+        help="If True, use Transducer head.",
     )
 
+    parser.add_argument(
+        "--use-ctc",
+        type=str2bool,
+        default=False,
+        help="If True, use CTC head.",
+    )
+
+
+def add_training_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--world-size",
         type=int,
@@ -299,16 +309,6 @@ def get_parser():
         help="""The experiment dir.
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
-        """,
-    )
-
-    parser.add_argument(
-        "--lang-dir",
-        type=str,
-        default="data/lang_char",
-        help="""The lang dir
-        It contains language related input files such as
-        "lexicon.txt"
         """,
     )
 
@@ -380,6 +380,13 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--ctc-loss-scale",
+        type=float,
+        default=0.2,
+        help="Scale for CTC loss.",
+    )
+
+    parser.add_argument(
         "--seed",
         type=int,
         default=42,
@@ -443,6 +450,24 @@ def get_parser():
         default=False,
         help="Whether to use half precision training.",
     )
+
+
+def get_parser():
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+
+    parser.add_argument(
+        "--lang-dir",
+        type=str,
+        default="data/lang_char",
+        help="""The lang dir
+        It contains language related input files such as
+        "lexicon.txt"
+        """,
+    )
+
+    add_training_arguments(parser)
 
     add_model_arguments(parser)
 
@@ -1152,26 +1177,6 @@ def run(rank, world_size, args):
             # logging.warning(
             #    f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
             # )
-            return False
-
-        # In pruned RNN-T, we require that T >= S
-        # where T is the number of feature frames after subsampling
-        # and S is the number of tokens in the utterance
-
-        # In ./zipformer.py, the conv module uses the following expression
-        # for subsampling
-        T = ((c.num_frames - 7) // 2 + 1) // 2
-        tokens = graph_compiler.texts_to_ids([c.supervisions[0].text])[0]
-
-        if T < len(tokens):
-            logging.warning(
-                f"Exclude cut with ID {c.id} from training. "
-                f"Number of frames (before subsampling): {c.num_frames}. "
-                f"Number of frames (after subsampling): {T}. "
-                f"Text: {c.supervisions[0].text}. "
-                f"Tokens: {tokens}. "
-                f"Number of tokens: {len(tokens)}"
-            )
             return False
 
         return True

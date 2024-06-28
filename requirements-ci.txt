@@ -28,5 +28,6 @@ multi_quantization
 onnx
 onnxmltools
 onnxruntime
+pypinyin
 kaldifst
 kaldi-decoder

@@ -3,6 +3,7 @@ kaldilm
 kaldialign
 num2words
 kaldi-decoder
+pypinyin
 sentencepiece>=0.1.96
 pypinyin==0.50.0
 tensorboard
