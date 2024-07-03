@@ -57,7 +57,7 @@ torchrun --nproc_per_node 8 ./whisper_llm_zh/train.py \
   --use-flash-attn True \
   --use-lora False --unfreeze-llm False
 
-# Then we joinlty train the projector and LLM LoRA modules.
+# Then we jointly train the projector and LLM LoRA modules.
 torchrun --nproc_per_node 8 ./whisper_llm_zh/train.py \
   --max-duration 200 \
   --exp-dir ./whisper_llm_zh/exp_test \
