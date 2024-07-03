@@ -116,6 +116,7 @@ from icefall.utils import (
     setup_logger,
     store_transcripts,
     str2bool,
+    text_to_pinyin,
     write_error_stats,
 )
 
@@ -295,6 +296,28 @@ def get_parser():
         Note: It is a positive value that would be applied to logits like
         this `logits[:, 0] -= blank_penalty` (suppose logits.shape is
         [batch_size, vocab] and blank id is 0).
+        """,
+    )
+
+    parser.add_argument(
+        "--pinyin-type",
+        type=str,
+        default="partial_with_tone",
+        help="""
+            The style of the output pinyin, should be:
+              full_with_tone : zhong1 guo2
+              full_no_tone : zhong guo
+              partial_with_tone : zh ong1 g uo2
+              partial_no_tone : zh ong g uo
+        """,
+    )
+
+    parser.add_argument(
+        "--pinyin-errors",
+        default="split",
+        type=str,
+        help="""How to handle characters that has no pinyin,
+        see `text_to_pinyin` in icefall/utils.py for details
         """,
     )
 
@@ -520,7 +543,7 @@ def decode_dataset(
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
         texts = batch["supervisions"]["text"]
-        texts = [list("".join(text.split())) for text in texts]
+        texts = [text.split("/") for text in texts]
         cut_ids = [cut.id for cut in batch["supervisions"]["cut"]]
 
         hyps_dict = decode_one_batch(
@@ -774,16 +797,31 @@ def main():
             )
         return T > 0
 
+    def encode_text(c: Cut):
+        # Text normalize for each sample
+        text = c.supervisions[0].text
+        text = "/".join(
+            text_to_pinyin(text, mode=params.pinyin_type, errors=params.pinyin_errors)
+        )
+        c.supervisions[0].text = text
+        return c
+
     dev_cuts = wenetspeech.valid_cuts()
     dev_cuts = dev_cuts.filter(remove_short_utt)
-    dev_dl = wenetspeech.valid_dataloaders(dev_cuts)
 
     test_net_cuts = wenetspeech.test_net_cuts()
     test_net_cuts = test_net_cuts.filter(remove_short_utt)
-    test_net_dl = wenetspeech.test_dataloaders(test_net_cuts)
 
     test_meeting_cuts = wenetspeech.test_meeting_cuts()
     test_meeting_cuts = test_meeting_cuts.filter(remove_short_utt)
+
+    if params.decoding_method != "fast_beam_search_LG":
+        dev_cuts = dev_cuts.map(encode_text)
+        test_net_cuts = test_net_cuts.map(encode_text)
+        test_meeting_cuts = test_meeting_cuts.map(encode_text)
+
+    test_net_dl = wenetspeech.test_dataloaders(test_net_cuts)
+    dev_dl = wenetspeech.valid_dataloaders(dev_cuts)
     test_meeting_dl = wenetspeech.test_dataloaders(test_meeting_cuts)
 
     test_sets = ["DEV", "TEST_NET", "TEST_MEETING"]
