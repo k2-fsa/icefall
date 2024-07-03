@@ -9,7 +9,7 @@
 | [yuekai/icefall_asr_multi-hans_whisper_qwen2_7B](https://huggingface.co/yuekai/icefall_asr_multi-hans_whisper_qwen2_7B)  |Multi-hans-zh                | whisper-large-v2-multi-hans-ft, freeze| Qwen2-7B-Instruct, LoRA | Linear, 8x downsample||
 
 CER Details:
-| Model | [yuekai/icefall_asr_aishell_whisper_qwen2_1.5B](https://huggingface.co/yuekai/icefall_asr_aishell_whisper_qwen2_1.5B) | [yuekai/icefall_asr_multi-hans_whisper_qwen2_1.5B](https://huggingface.co/yuekai/icefall_asr_multi-hans_whisper_qwen2_1.5B) | [yuekai/icefall_asr_multi-hans_whisper_qwen2_7B](https://huggingface.co/yuekai/icefall_asr_multi-hans_whisper_qwen2_1.5B) |
+| Model | [yuekai/icefall_asr_aishell_whisper_qwen2_1.5B](https://huggingface.co/yuekai/icefall_asr_aishell_whisper_qwen2_1.5B) | [yuekai/icefall_asr_multi-hans_whisper_qwen2_1.5B](https://huggingface.co/yuekai/icefall_asr_multi-hans_whisper_qwen2_1.5B) | [yuekai/icefall_asr_multi-hans_whisper_qwen2_7B](https://huggingface.co/yuekai/icefall_asr_multi-hans_whisper_qwen2_7B) |
 |-------|------------------------------------------------|----------------------------------------------------|-|
 | Split | Greedy Search | Greedy Search | Greedy Search |
 | aishell-1 dev | - | 0.66 | 0.49|
