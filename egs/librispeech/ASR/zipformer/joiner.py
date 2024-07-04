@@ -17,6 +17,7 @@
 import torch
 import torch.nn as nn
 from scaling import ScaledLinear
+from typing import Optional
 
 
 class Joiner(nn.Module):
@@ -37,6 +38,7 @@ class Joiner(nn.Module):
         self,
         encoder_out: torch.Tensor,
         decoder_out: torch.Tensor,
+        tcpgen_hptr: Optional[torch.Tensor] = None,
         project_input: bool = True,
     ) -> torch.Tensor:
         """
@@ -62,6 +64,11 @@ class Joiner(nn.Module):
         else:
             logit = encoder_out + decoder_out
 
-        logit = self.output_linear(torch.tanh(logit))
+        if tcpgen_hptr is not None:
+            logit += tcpgen_hptr
 
-        return logit
+        activations = torch.tanh(logit)
+
+        logit = self.output_linear(activations)
+
+        return logit if tcpgen_hptr is None else (logit, activations)

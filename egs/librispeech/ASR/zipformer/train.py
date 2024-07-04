@@ -54,10 +54,11 @@ It supports training with:
 import argparse
 import copy
 import logging
+import random
 import warnings
 from pathlib import Path
 from shutil import copyfile
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import k2
 import optim
@@ -81,7 +82,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
 from zipformer import Zipformer2
 
-from icefall import diagnostics
+from icefall import ContextGraph, diagnostics
 from icefall.checkpoint import load_checkpoint, remove_checkpoints
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 from icefall.checkpoint import (
@@ -257,6 +258,13 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         type=str2bool,
         default=False,
         help="If True, use CTC head.",
+    )
+
+    parser.add_argument(
+        "--use-tcpgen-biasing",
+        type=str2bool,
+        default=False,
+        help="If True, use tcpgen context biasing module",
     )
 
 
@@ -522,6 +530,7 @@ def get_params() -> AttributeDict:
             "best_train_epoch": -1,
             "best_valid_epoch": -1,
             "batch_idx_train": 0,
+            "epoch_idx_train": 0,
             "log_interval": 50,
             "reset_interval": 200,
             "valid_interval": 3000,  # For the 100h subset, use 800
@@ -530,6 +539,10 @@ def get_params() -> AttributeDict:
             "subsampling_factor": 4,  # not passed in, this is fixed.
             "warm_step": 2000,
             "env_info": get_env_info(),
+            # parameters for tcpgen
+            "tcpgen_start_epoch": 10,
+            "num_distrators": 500,
+            "distractors_list": [],
         }
     )
 
@@ -624,9 +637,11 @@ def get_model(params: AttributeDict) -> nn.Module:
         joiner=joiner,
         encoder_dim=max(_to_int_tuple(params.encoder_dim)),
         decoder_dim=params.decoder_dim,
+        joiner_dim=params.joiner_dim,
         vocab_size=params.vocab_size,
         use_transducer=params.use_transducer,
         use_ctc=params.use_ctc,
+        use_tcpgen_biasing=params.use_tcpgen_biasing,
     )
     return model
 
@@ -684,6 +699,7 @@ def load_checkpoint_if_available(
         "best_train_epoch",
         "best_valid_epoch",
         "batch_idx_train",
+        "epoch_idx_train",
         "best_train_loss",
         "best_valid_loss",
     ]
@@ -747,6 +763,40 @@ def save_checkpoint(
         copyfile(src=filename, dst=best_valid_filename)
 
 
+def prepare_context_graph(
+    params: AttributeDict,
+    texts: List[str],
+    sp: spm.SentencePieceProcessor,
+) -> ContextGraph:
+    if params.epoch_idx_train == params.start_epoch:
+        params.distractors_list += texts
+        return None
+
+    logging.info(f"distractors_list : {len(params.distractors_list)}")
+    if params.epoch_idx_train >= params.tcpgen_start_epoch:
+        # logging.info("prepare context graph")
+        contexts_list = []
+        selected_texts = []
+        for i, text in enumerate(texts):
+            if random.random() >= 0.5:
+                continue
+            else:
+                selected_texts.append(text)
+        for i in range(params.num_distrators):
+            index = random.randint(0, len(params.distractors_list) - 1)
+            selected_texts.append(params.distractors_list[index])
+        for st in selected_texts:
+            word_list = st.split()
+            start = random.randint(0, len(word_list) - 1)
+            length = random.randint(1, 3)
+            contexts_list.append(" ".join(word_list[start : start + length]))
+        contexts_tokens = sp.encode(contexts_list, out_type=int)
+        # logging.info(f"contexts_list : {contexts_list}, tokens : {contexts_tokens}")
+        context_graph = ContextGraph(0)
+        context_graph.build(contexts_tokens)
+        return context_graph
+
+
 def compute_loss(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
@@ -788,6 +838,11 @@ def compute_loss(
     y = sp.encode(texts, out_type=int)
     y = k2.RaggedTensor(y)
 
+    context_graph = None
+    if params.use_tcpgen_biasing:
+        context_graph = prepare_context_graph(params=params, texts=texts, sp=sp)
+        # assert context_graph is not None
+
     with torch.set_grad_enabled(is_training):
         simple_loss, pruned_loss, ctc_loss = model(
             x=feature,
@@ -796,6 +851,7 @@ def compute_loss(
             prune_range=params.prune_range,
             am_scale=params.am_scale,
             lm_scale=params.lm_scale,
+            context_graph=context_graph,
         )
 
         loss = 0.0
@@ -935,6 +991,8 @@ def train_one_epoch(
             rank=0,
         )
 
+    logging.info(f"epoch_idx_train : {params.epoch_idx_train}")
+    params.epoch_idx_train += 1
     for batch_idx, batch in enumerate(train_dl):
         if batch_idx % 10 == 0:
             set_batch_count(model, get_adjusted_batch_count(params))
@@ -963,9 +1021,7 @@ def train_one_epoch(
             scaler.update()
             optimizer.zero_grad()
         except Exception as e:
-            logging.info(
-                f"Caught exception: {e}."
-            )
+            logging.info(f"Caught exception: {e}.")
             save_bad_model()
             display_and_save_batch(batch, params=params, sp=sp)
             raise
@@ -1173,16 +1229,16 @@ def run(rank, world_size, args):
     librispeech = LibriSpeechAsrDataModule(args)
 
     if params.full_libri:
-        train_cuts = librispeech.train_all_shuf_cuts()
+        # train_cuts = librispeech.train_all_shuf_cuts()
 
         # previously we used the following code to load all training cuts,
         # strictly speaking, shuffled training cuts should be used instead,
         # but we leave the code here to demonstrate that there is an option
         # like this to combine multiple cutsets
 
-        # train_cuts = librispeech.train_clean_100_cuts()
-        # train_cuts += librispeech.train_clean_360_cuts()
-        # train_cuts += librispeech.train_other_500_cuts()
+        train_cuts = librispeech.train_clean_100_cuts()
+        train_cuts += librispeech.train_clean_360_cuts()
+        train_cuts += librispeech.train_other_500_cuts()
     else:
         train_cuts = librispeech.train_clean_100_cuts()
 
@@ -1199,26 +1255,6 @@ def run(rank, world_size, args):
             # logging.warning(
             #     f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
             # )
-            return False
-
-        # In pruned RNN-T, we require that T >= S
-        # where T is the number of feature frames after subsampling
-        # and S is the number of tokens in the utterance
-
-        # In ./zipformer.py, the conv module uses the following expression
-        # for subsampling
-        T = ((c.num_frames - 7) // 2 + 1) // 2
-        tokens = sp.encode(c.supervisions[0].text, out_type=str)
-
-        if T < len(tokens):
-            logging.warning(
-                f"Exclude cut with ID {c.id} from training. "
-                f"Number of frames (before subsampling): {c.num_frames}. "
-                f"Number of frames (after subsampling): {T}. "
-                f"Text: {c.supervisions[0].text}. "
-                f"Tokens: {tokens}. "
-                f"Number of tokens: {len(tokens)}"
-            )
             return False
 
         return True
@@ -1241,13 +1277,14 @@ def run(rank, world_size, args):
     valid_dl = librispeech.valid_dataloaders(valid_cuts)
 
     if not params.print_diagnostics:
-        scan_pessimistic_batches_for_oom(
-            model=model,
-            train_dl=train_dl,
-            optimizer=optimizer,
-            sp=sp,
-            params=params,
-        )
+        pass
+        # scan_pessimistic_batches_for_oom(
+        #    model=model,
+        #    train_dl=train_dl,
+        #    optimizer=optimizer,
+        #    sp=sp,
+        #    params=params,
+        # )
 
     scaler = GradScaler(enabled=params.use_fp16, init_scale=1.0)
     if checkpoints and "grad_scaler" in checkpoints:
@@ -1393,4 +1430,5 @@ torch.set_num_threads(1)
 torch.set_num_interop_threads(1)
 
 if __name__ == "__main__":
+    torch.set_printoptions(profile="full")
     main()
