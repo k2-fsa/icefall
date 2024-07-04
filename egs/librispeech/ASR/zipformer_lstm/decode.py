@@ -416,9 +416,7 @@ def decode_one_batch(
                 beam=params.beam_size,
             )
         else:
-            raise ValueError(
-                f"Unsupported decoding method: {params.decoding_method}"
-            )
+            raise ValueError(f"Unsupported decoding method: {params.decoding_method}")
         hyps.append(sp.decode(hyp).split())
 
     if params.decoding_method == "greedy_search":
