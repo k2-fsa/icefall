@@ -40,15 +40,12 @@ Usage of this script:
 
 import argparse
 import logging
-import math
 from typing import List, Optional
 
 import k2
-import kaldifeat
 import torch
 import torchaudio
 from kaldifeat import FbankOptions, OnlineFbank, OnlineFeature
-from torch.nn.utils.rnn import pad_sequence
 
 
 def get_parser():

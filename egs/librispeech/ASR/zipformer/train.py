@@ -512,10 +512,6 @@ def get_params() -> AttributeDict:
 
         - subsampling_factor:  The subsampling factor for the model.
 
-        - encoder_dim: Hidden dim for multi-head attention model.
-
-        - num_decoder_layers: Number of decoder layer of transformer decoder.
-
         - warm_step: The warmup period that dictates the decay of the
               scale on "simple" (un-pruned) loss.
     """

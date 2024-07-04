@@ -45,7 +45,7 @@ class Joiner(nn.Module):
             Output from the encoder. Its shape is (N, T, s_range, C).
           decoder_out:
             Output from the decoder. Its shape is (N, T, s_range, C).
-           project_input:
+          project_input:
             If true, apply input projections encoder_proj and decoder_proj.
             If this is false, it is the user's responsibility to do this
             manually.
