@@ -126,8 +126,6 @@ from export import num_tokens
 from torch.nn.utils.rnn import pad_sequence
 from train import add_model_arguments, get_model, get_params
 
-from icefall.utils import make_pad_mask
-
 
 def get_parser():
     parser = argparse.ArgumentParser(

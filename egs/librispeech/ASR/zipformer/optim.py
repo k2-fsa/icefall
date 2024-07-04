@@ -1,4 +1,4 @@
-#      Copyright      2022  Xiaomi Corp.        (authors: Daniel Povey)
+# Copyright      2022  Xiaomi Corp.        (authors: Daniel Povey)
 #
 # See ../LICENSE for clarification regarding multiple authors
 #
@@ -22,7 +22,7 @@ from typing import Dict, List, Optional, Tuple, Union
 
 import torch
 from lhotse.utils import fix_random_seed
-from torch import Tensor, nn
+from torch import Tensor
 from torch.optim import Optimizer
 
 

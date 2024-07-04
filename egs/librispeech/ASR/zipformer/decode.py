@@ -133,7 +133,6 @@ from icefall.checkpoint import (
 from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
-    make_pad_mask,
     setup_logger,
     store_transcripts,
     str2bool,

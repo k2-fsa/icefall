@@ -82,8 +82,6 @@ import logging
 import torch
 from onnx_pretrained import OnnxModel
 
-from icefall import is_module_available
-
 
 def get_parser():
     parser = argparse.ArgumentParser(
