@@ -378,7 +378,7 @@ def decode_dataset(
             for cut_id, hyp_words, ref_text in zip(cut_ids, hyps, texts):
                 ref_text = normalize_text_alimeeting(ref_text)
                 ref_words = ref_text.split()
-                hyp_words = list("".join(hyp_words))
+                hyp_words = "".join(hyp_words)
                 this_batch.append((cut_id, ref_words, hyp_words))
 
             results[name].extend(this_batch)
