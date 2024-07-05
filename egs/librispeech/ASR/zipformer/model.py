@@ -72,6 +72,8 @@ class AsrModel(nn.Module):
             Whether use transducer head. Default: True.
           use_ctc:
             Whether use CTC head. Default: False.
+          use_attention_decoder:
+            Whether use attention-decoder head. Default: False.
         """
         super().__init__()
 
