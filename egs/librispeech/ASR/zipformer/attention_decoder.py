@@ -22,10 +22,10 @@ from typing import List, Optional
 import k2
 import torch
 import torch.nn as nn
-
 from label_smoothing import LabelSmoothingLoss
-from icefall.utils import add_eos, add_sos, make_pad_mask
 from scaling import penalize_abs_values_gt
+
+from icefall.utils import add_eos, add_sos, make_pad_mask
 
 
 class AttentionDecoderModel(nn.Module):
