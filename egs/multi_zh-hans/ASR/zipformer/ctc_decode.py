@@ -377,9 +377,8 @@ def decode_dataset(
             assert len(hyps) == len(texts)
             for cut_id, hyp_words, ref_text in zip(cut_ids, hyps, texts):
                 ref_text = normalize_text_alimeeting(ref_text)
-                ref_words = ref_text.split()
-                hyp_words = "".join(hyp_words)
-                this_batch.append((cut_id, ref_words, hyp_words))
+                hyp_text = "".join(hyp_words)
+                this_batch.append((cut_id, ref_text, hyp_text))
 
             results[name].extend(this_batch)
 
