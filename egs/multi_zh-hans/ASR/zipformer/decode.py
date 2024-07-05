@@ -118,7 +118,7 @@ from beam_search import (
 )
 from lhotse.cut import Cut
 from multi_dataset import MultiDataset
-from train import add_model_arguments, get_model, get_params
+from train import add_model_arguments, get_model, get_params, normalize_text_alimeeting
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -548,6 +548,8 @@ def decode_dataset(
             this_batch = []
             assert len(hyps) == len(texts)
             for cut_id, hyp_words, ref_text in zip(cut_ids, hyps, texts):
+                ref_text = normalize_text_alimeeting(ref_text)
+                ref_words = ref_text.split()
                 hyp_text = "".join(hyp_words)
                 this_batch.append((cut_id, ref_text, hyp_text))
 
@@ -795,7 +797,7 @@ def main():
             )
         return T > 0
 
-    test_sets_cuts = multi_dataset.test_cuts()
+    test_sets_cuts = {**multi_dataset.test_cuts(), **multi_dataset.speechio_test_cuts()}
 
     test_sets = test_sets_cuts.keys()
     test_dl = [
