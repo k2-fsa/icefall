@@ -28,5 +28,6 @@ multi_quantization
 onnx
 onnxmltools
 onnxruntime
+onnxconverter_common
 kaldifst
 kaldi-decoder
