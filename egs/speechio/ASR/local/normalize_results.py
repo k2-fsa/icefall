@@ -114,7 +114,8 @@ def extract_hyp_ref_wavname(filename):
         for line in f:
             if "ref" in line:
                 ref = line.split("ref=")[1].strip()
-                ref = ref[2:-2]
+                if ref[0] == "[":
+                    ref = ref[2:-2]
                 list_elements = ref.split("', '")
                 ref = "".join(list_elements)
                 refs.append(ref)

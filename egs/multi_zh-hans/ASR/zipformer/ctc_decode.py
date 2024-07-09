@@ -46,7 +46,7 @@ import torch.nn as nn
 from asr_datamodule import AsrDataModule
 from lhotse.cut import Cut
 from multi_dataset import MultiDataset
-from train import add_model_arguments, get_model, get_params
+from train import add_model_arguments, get_model, get_params, normalize_text_alimeeting
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -367,21 +367,18 @@ def decode_dataset(
         hyps_dict = decode_one_batch(
             params=params,
             model=model,
-            HLG=HLG,
             H=H,
             bpe_model=bpe_model,
             batch=batch,
-            word_table=word_table,
-            G=G,
         )
 
         for name, hyps in hyps_dict.items():
             this_batch = []
             assert len(hyps) == len(texts)
             for cut_id, hyp_words, ref_text in zip(cut_ids, hyps, texts):
-                ref_words = list(ref_text.replace(" ", ""))
-                hyp_words = list("".join(hyp_words))
-                this_batch.append((cut_id, ref_words, hyp_words))
+                ref_text = normalize_text_alimeeting(ref_text)
+                hyp_text = "".join(hyp_words)
+                this_batch.append((cut_id, ref_text, hyp_text))
 
             results[name].extend(this_batch)
 
@@ -583,7 +580,7 @@ def main():
     data_module = AsrDataModule(args)
     multi_dataset = MultiDataset(args.manifest_dir)
 
-    test_sets_cuts = multi_dataset.test_cuts()
+    test_sets_cuts = {**multi_dataset.test_cuts(), **multi_dataset.speechio_test_cuts()}
 
     def remove_short_utt(c: Cut):
         T = ((c.num_frames - 7) // 2 + 1) // 2
