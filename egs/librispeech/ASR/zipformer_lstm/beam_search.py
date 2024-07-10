@@ -36,7 +36,7 @@ def greedy_search(model: nn.Module, encoder_out: torch.Tensor) -> List[int]:
     # support only batch_size == 1 for now
     assert encoder_out.size(0) == 1, encoder_out.size(0)
     blank_id = model.decoder.blank_id
-    device = model.encoder_embed.device
+    device = next(model.parameters()).device
 
     sos = torch.tensor([blank_id], device=device, dtype=torch.int64).reshape(1, 1)
     decoder_out, (h, c) = model.decoder(sos)

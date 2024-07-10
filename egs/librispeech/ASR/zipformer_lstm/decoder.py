@@ -76,7 +76,7 @@ class Decoder(nn.Module):
 
         self.vocab_size = vocab_size
 
-        # self.embedding_dropout = nn.Dropout(embedding_dropout)
+        self.embedding_dropout = nn.Dropout(embedding_dropout)
 
         self.rnn = nn.LSTM(
             input_size=decoder_dim,
@@ -112,6 +112,8 @@ class Decoder(nn.Module):
         # this stuff about clamp() is a temporary fix for a mismatch
         # at utterance start, we use negative ids in beam_search.py
         embedding_out = self.embedding(y.clamp(min=0)) * (y >= 0).unsqueeze(-1)
+
+        embedding_out = self.embedding_dropout(embedding_out)
 
         embedding_out = self.balancer(embedding_out)
 
