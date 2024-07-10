@@ -404,6 +404,7 @@ def main():
 
     token_table = k2.SymbolTable.from_file(params.tokens)
     params.blank_id = token_table["<blk>"]
+    params.sos_id = params.eos_id = token_table["<sos/eos>"]
     params.vocab_size = num_tokens(token_table) + 1
 
     logging.info(params)
@@ -466,8 +467,6 @@ def main():
                     device=device,
                 )
             )
-        elif params.avg == 1:
-            load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
         else:
             assert params.avg > 0, params.avg
             start = params.epoch - params.avg
