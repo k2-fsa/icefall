@@ -636,8 +636,9 @@ class ChunkCausalDepthwiseConv1d(torch.nn.Module):
                 )
 
     def forward(self, x: Tensor, chunk_size: int = -1) -> Tensor:
-        """
-             Forward function.  Args:
+        """Forward function.
+
+        Args:
                x: a Tensor of shape (batch_size, channels, seq_len)
         chunk_size: the chunk size, in frames; does not have to divide seq_len exactly.
         """
