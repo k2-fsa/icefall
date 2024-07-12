@@ -70,8 +70,7 @@ import copy
 import logging
 import warnings
 from pathlib import Path
-from shutil import copyfile
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import k2
 import optim
@@ -80,7 +79,6 @@ import torch.multiprocessing as mp
 import torch.nn as nn
 from asr_datamodule import WenetSpeechAsrDataModule
 from lhotse.cut import Cut, CutSet
-from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from optim import Eden, ScaledAdam
 from torch import Tensor
@@ -103,14 +101,13 @@ from train import (
 
 from icefall import diagnostics
 from icefall.char_graph_compiler import CharCtcTrainingGraphCompiler
-from icefall.checkpoint import load_checkpoint, remove_checkpoints
+from icefall.checkpoint import remove_checkpoints
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 from icefall.checkpoint import (
     save_checkpoint_with_global_batch_idx,
     update_averaged_model,
 )
 from icefall.dist import cleanup_dist, setup_dist
-from icefall.env import get_env_info
 from icefall.err import raise_grad_scale_is_too_small_error
 from icefall.hooks import register_inf_check_hooks
 from icefall.lexicon import Lexicon
@@ -296,7 +293,7 @@ def compute_loss(
     y = k2.RaggedTensor(y)
 
     with torch.set_grad_enabled(is_training):
-        simple_loss, pruned_loss, ctc_loss = model(
+        losses = model(
             x=feature,
             x_lens=feature_lens,
             y=y,
@@ -304,6 +301,7 @@ def compute_loss(
             am_scale=params.am_scale,
             lm_scale=params.lm_scale,
         )
+        simple_loss, pruned_loss, ctc_loss = losses[:3]
 
         loss = 0.0
 
@@ -342,40 +340,6 @@ def compute_loss(
         info["ctc_loss"] = ctc_loss.detach().cpu().item()
 
     return loss, info
-
-
-def compute_validation_loss(
-    params: AttributeDict,
-    model: Union[nn.Module, DDP],
-    graph_compiler: CharCtcTrainingGraphCompiler,
-    valid_dl: torch.utils.data.DataLoader,
-    world_size: int = 1,
-) -> MetricsTracker:
-    """Run the validation process."""
-    model.eval()
-
-    tot_loss = MetricsTracker()
-
-    for batch_idx, batch in enumerate(valid_dl):
-        loss, loss_info = compute_loss(
-            params=params,
-            model=model,
-            graph_compiler=graph_compiler,
-            batch=batch,
-            is_training=False,
-        )
-        assert loss.requires_grad is False
-        tot_loss = tot_loss + loss_info
-
-    if world_size > 1:
-        tot_loss.reduce(loss.device)
-
-    loss_value = tot_loss["loss"] / tot_loss["frames"]
-    if loss_value < params.best_valid_loss:
-        params.best_valid_epoch = params.cur_epoch
-        params.best_valid_loss = loss_value
-
-    return tot_loss
 
 
 def train_one_epoch(

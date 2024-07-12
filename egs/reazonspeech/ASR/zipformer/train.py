@@ -59,7 +59,6 @@ from typing import Any, Dict, Optional, Tuple, Union
 
 import k2
 import optim
-import sentencepiece as spm
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
@@ -791,7 +790,7 @@ def compute_loss(
     y = k2.RaggedTensor(y)
 
     with torch.set_grad_enabled(is_training):
-        simple_loss, pruned_loss, ctc_loss = model(
+        losses = model(
             x=feature,
             x_lens=feature_lens,
             y=y,
@@ -799,6 +798,7 @@ def compute_loss(
             am_scale=params.am_scale,
             lm_scale=params.lm_scale,
         )
+        simple_loss, pruned_loss, ctc_loss = losses[:3]
 
         loss = 0.0
 

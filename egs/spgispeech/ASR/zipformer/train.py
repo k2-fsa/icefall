@@ -67,7 +67,6 @@ import torch.nn as nn
 from asr_datamodule import SPGISpeechAsrDataModule
 from decoder import Decoder
 from joiner import Joiner
-from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import AsrModel
@@ -792,7 +791,7 @@ def compute_loss(
     y = k2.RaggedTensor(y)
 
     with torch.set_grad_enabled(is_training):
-        simple_loss, pruned_loss, ctc_loss = model(
+        losses = model(
             x=feature,
             x_lens=feature_lens,
             y=y,
@@ -800,6 +799,7 @@ def compute_loss(
             am_scale=params.am_scale,
             lm_scale=params.lm_scale,
         )
+        simple_loss, pruned_loss, ctc_loss = losses[:3]
 
         loss = 0.0
 
