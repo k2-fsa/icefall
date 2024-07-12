@@ -91,7 +91,7 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
       --encoder-dim 128,128,128,128,128,128 \
       --encoder-unmasked-dim 128,128,128,128,128,128
 
-  python ./zipformer/export_onnx_streaming.py \
+  python ./zipformer/export-onnx-streaming.py \
     --exp-dir zipformer/exp \
     --tokens data/lang_partial_tone/tokens.txt \
     --epoch 18 \
@@ -187,7 +187,7 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
       --encoder-dim 128,128,128,128,128,128 \
       --encoder-unmasked-dim 128,128,128,128,128,128
 
-  python ./zipformer/export_onnx_streaming.py \
+  python ./zipformer/export-onnx-streaming.py \
     --exp-dir zipformer/exp_finetune \
     --tokens data/lang_partial_tone/tokens.txt \
     --epoch 10 \
