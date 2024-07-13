@@ -758,7 +758,7 @@ def compute_loss(
     y = k2.RaggedTensor(y).to(device)
 
     with torch.set_grad_enabled(is_training):
-        simple_loss, pruned_loss, _ = model(
+        losses = model(
             x=feature,
             x_lens=feature_lens,
             y=y,
@@ -766,6 +766,7 @@ def compute_loss(
             am_scale=params.am_scale,
             lm_scale=params.lm_scale,
         )
+        simple_loss, pruned_loss = losses[:2]
 
         s = params.simple_loss_scale
         # take down the scale on the simple loss from 1.0 at the start
