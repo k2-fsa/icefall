@@ -1473,3 +1473,34 @@ def rescore_with_rnn_lm(
                 key = f"ngram_lm_scale_{n_scale}_attention_scale_{a_scale}_rnn_lm_scale_{r_scale}"  # noqa
                 ans[key] = best_path
     return ans
+
+
+def remove_duplicates_and_blank(hyp: List[int]) -> List[int]:
+    # from https://github.com/wenet-e2e/wenet/blob/main/wenet/utils/common.py
+    new_hyp: List[int] = []
+    cur = 0
+    while cur < len(hyp):
+        if hyp[cur] != 0:
+            new_hyp.append(hyp[cur])
+        prev = cur
+        while cur < len(hyp) and hyp[cur] == hyp[prev]:
+            cur += 1
+    return new_hyp
+
+
+def ctc_greedy_search(
+    ctc_output: torch.Tensor, encoder_out_lens: torch.Tensor
+) -> List[List[int]]:
+    """CTC greedy search.
+
+    Args:
+         ctc_output: (batch, seq_len, vocab_size)
+         encoder_out_lens: (batch,)
+    Returns:
+         List[List[int]]: greedy search result
+    """
+    batch = ctc_output.shape[0]
+    index = ctc_output.argmax(dim=-1)  # (batch, seq_len)
+    hyps = [index[i].tolist()[:encoder_out_lens[i]] for i in range(batch)]
+    hyps = [remove_duplicates_and_blank(hyp) for hyp in hyps]
+    return hyps
