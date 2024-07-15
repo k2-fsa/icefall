@@ -1475,21 +1475,10 @@ def rescore_with_rnn_lm(
     return ans
 
 
-def remove_duplicates_and_blank(hyp: List[int]) -> List[int]:
-    # from https://github.com/wenet-e2e/wenet/blob/main/wenet/utils/common.py
-    new_hyp: List[int] = []
-    cur = 0
-    while cur < len(hyp):
-        if hyp[cur] != 0:
-            new_hyp.append(hyp[cur])
-        prev = cur
-        while cur < len(hyp) and hyp[cur] == hyp[prev]:
-            cur += 1
-    return new_hyp
-
-
 def ctc_greedy_search(
-    ctc_output: torch.Tensor, encoder_out_lens: torch.Tensor
+    ctc_output: torch.Tensor,
+    encoder_out_lens: torch.Tensor,
+    blank_id: int = 0,
 ) -> List[List[int]]:
     """CTC greedy search.
 
@@ -1501,6 +1490,10 @@ def ctc_greedy_search(
     """
     batch = ctc_output.shape[0]
     index = ctc_output.argmax(dim=-1)  # (batch, seq_len)
-    hyps = [index[i].tolist()[:encoder_out_lens[i]] for i in range(batch)]
-    hyps = [remove_duplicates_and_blank(hyp) for hyp in hyps]
+    hyps = [
+        torch.unique_consecutive(index[i, : encoder_out_lens[i]]) for i in range(batch)
+    ]
+
+    hyps = [h[h != blank_id].tolist() for h in hyps]
+
     return hyps
