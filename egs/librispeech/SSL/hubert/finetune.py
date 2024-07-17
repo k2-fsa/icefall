@@ -948,7 +948,7 @@ def train_one_epoch(
                     tb_writer, "train/valid_", params.batch_idx_train
                 )
 
-    if batch_idx % params.accum_grad != params.accum_grad - 1:
+    if sub_batch_idx % params.accum_grad != params.accum_grad - 1:
         optimizer.zero_grad()
     loss_value = tot_loss["loss"] / tot_loss["frames"]
     params.train_loss = loss_value
