@@ -43,6 +43,66 @@ Fine-tuned models, training logs, decoding logs, tensorboard and decoding result
 are available at
 <https://huggingface.co/yuekai/icefall_asr_multi-hans-zh_whisper>
 
+### Multi Chinese datasets char-based training results (streaming) on zipformer-xl model
+
+#### Streaming (with CTC head)
+
+The training command for extra-large model (num of params : ~700M):
+
+Please use the [script](https://github.com/k2-fsa/icefall/blob/master/egs/speech_llm/ASR_LLM/prepare.sh) to prepare fbank features.
+
+```
+./zipformer/train.py \
+  --world-size 8 \
+  --num-epochs 20 \
+  --use-fp16 1 \
+  --max-duration 1200 \
+  --num-workers 8 \
+  --use-ctc 1 \
+  --exp-dir zipformer/exp-xl \
+  --causal 1 \
+  --num-encoder-layers 2,3,5,6,5,3 \
+  --feedforward-dim 1536,2048,3072,4096,3072,1536 \
+  --encoder-dim 512,768,1024,1536,1024,512 \
+  --encoder-unmasked-dim 192,192,256,320,256,192 \
+  --decoder-dim 768 --joiner-dim 768 \
+  --value-head-dim 18 \
+  --query-head-dim 48 \
+  --num-heads 4,4,4,8,4,4
+
+```
+
+The decoding command for transducer greedy search:
+
+```
+./zipformer/decode.py \
+  --epoch 999 \
+  --avg 1 \
+  --causal 1 \
+  --use-averaged-model False \
+  --chunk_size -1
+  --left-context-frames -1 \
+  --use-ctc 1 \
+  --exp-dir zipformer/exp-xl \
+  --max-duration 1200 \
+  --num-encoder-layers 2,3,5,6,5,3 \
+  --feedforward-dim 1536,2048,3072,4096,3072,1536 \
+  --encoder-dim 512,768,1024,1536,1024,512 \
+  --encoder-unmasked-dim 192,192,256,320,256,192 \
+  --decoder-dim 768 --joiner-dim 768 \
+  --value-head-dim 18 \
+  --query-head-dim 48 \
+  --num-heads 4,4,4,8,4,4
+```
+
+Character Error Rates (CERs) listed below are produced by the checkpoint of the 18th epoch using BPE model ( # tokens is 2000, byte fallback enabled).
+
+| Datasets | alimeeting | alimeeting | aishell-1 | aishell-1 | aishell-2 | aishell-2 | aishell-4 | magicdata | magicdata | kespeech-asr | kespeech-asr | kespeech-asr | WenetSpeech | WenetSpeech | WenetSpeech |
+|--------------------------------|-------------------|--------------|----------------|-------------|------------------|-------------|------------------|------------------|-------------|-----------------------|-----------------------|-------------|--------------------|-------------------------|---------------------|
+|  Zipformer  CER   (%) |  eval | test | dev | test | dev | test | test | dev | test | dev phase1 | dev phase2 | test | dev | test meeting | test net |
+| Transducer Greedy Offline   | 21.67  | 23.43 | 1.22 | 1.31 | 3.17 | 3.27 | 14.64 | 2.42 | 1.99 | 5.00 | 2.29 | 5.98 | 5.15 | 6.89 | 5.85 |
+
+Pre-trained model can be found here : https://huggingface.co/yuekai/icefall-asr-multi-zh-hans-zipformer-xl
 ### Multi Chinese datasets char-based training results (streaming) on zipformer large model
 
 #### Streaming (with CTC head)
@@ -64,6 +124,7 @@ Please use the [script](https://github.com/k2-fsa/icefall/blob/master/egs/speech
   --num-encoder-layers 2,2,4,5,4,2 \
   --feedforward-dim 768,1024,1536,2048,1536,768 \
   --encoder-dim 256,384,512,768,512,256 \
+  --blank-penalty 0.7 \
   --encoder-unmasked-dim 192,192,256,320,256,192
 
 ```
