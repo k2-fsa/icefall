@@ -490,7 +490,7 @@ def decode_one_chunk(
     if params.decoding_method == "greedy_search":
         greedy_search(model=model, encoder_out=encoder_out, streams=decode_streams)
     elif params.decoding_method == "fast_beam_search":
-        processed_lens = torch.tensor(processed_lens, device=device)
+        processed_lens = torch.tensor(processed_lens, device=model.device)
         processed_lens = processed_lens + encoder_out_lens
         fast_beam_search_one_best(
             model=model,
