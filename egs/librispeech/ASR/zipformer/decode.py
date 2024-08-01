@@ -103,10 +103,9 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import k2
-import sentencepiece as spm
 import torch
 import torch.nn as nn
-from asr_datamodule import LibriSpeechAsrDataModule
+from asr_datamodule import ReazonSpeechAsrDataModule
 from beam_search import (
     beam_search,
     fast_beam_search_nbest,
@@ -122,6 +121,7 @@ from beam_search import (
     modified_beam_search_LODR,
 )
 from lhotse import set_caching_enabled
+from tokenizer import Tokenizer
 from train import add_model_arguments, get_model, get_params
 
 from icefall import ContextGraph, LmScorer, NgramLm
@@ -134,6 +134,7 @@ from icefall.checkpoint import (
 from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
+    make_pad_mask,
     setup_logger,
     store_transcripts,
     str2bool,
@@ -204,7 +205,7 @@ def get_parser():
     parser.add_argument(
         "--lang-dir",
         type=Path,
-        default="data/lang_bpe_500",
+        default="data/lang_char",
         help="The lang dir containing word table and LG graph",
     )
 
@@ -377,6 +378,17 @@ def get_parser():
         default=False,
         help="""Skip scoring, but still save the ASR output (for eval sets).""",
     )
+    parser.add_argument(
+        "--blank-penalty",
+        type=float,
+        default=0.0,
+        help="""
+        The penalty applied on blank symbol during decoding.
+        Note: It is a positive value that would be applied to logits like
+        this `logits[:, 0] -= blank_penalty` (suppose logits.shape is
+        [batch_size, vocab] and blank id is 0).
+        """,
+    )
 
     add_model_arguments(parser)
 
@@ -386,7 +398,7 @@ def get_parser():
 def decode_one_batch(
     params: AttributeDict,
     model: nn.Module,
-    sp: spm.SentencePieceProcessor,
+    sp: Tokenizer,
     batch: dict,
     word_table: Optional[k2.SymbolTable] = None,
     decoding_graph: Optional[k2.Fsa] = None,
@@ -465,9 +477,10 @@ def decode_one_batch(
             beam=params.beam,
             max_contexts=params.max_contexts,
             max_states=params.max_states,
+            blank_penalty=params.blank_penalty,
         )
         for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
+            hyps.append(sp.text2word(hyp))
     elif params.decoding_method == "fast_beam_search_nbest_LG":
         hyp_tokens = fast_beam_search_nbest_LG(
             model=model,
@@ -479,6 +492,7 @@ def decode_one_batch(
             max_states=params.max_states,
             num_paths=params.num_paths,
             nbest_scale=params.nbest_scale,
+            blank_penalty=params.blank_penalty,
         )
         for hyp in hyp_tokens:
             hyps.append([word_table[i] for i in hyp])
@@ -493,9 +507,10 @@ def decode_one_batch(
             max_states=params.max_states,
             num_paths=params.num_paths,
             nbest_scale=params.nbest_scale,
+            blank_penalty=params.blank_penalty,
         )
         for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
+            hyps.append(sp.text2word(hyp))
     elif params.decoding_method == "fast_beam_search_nbest_oracle":
         hyp_tokens = fast_beam_search_nbest_oracle(
             model=model,
@@ -508,17 +523,19 @@ def decode_one_batch(
             num_paths=params.num_paths,
             ref_texts=sp.encode(supervisions["text"]),
             nbest_scale=params.nbest_scale,
+            blank_penalty=params.blank_penalty,
         )
         for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
+            hyps.append(sp.text2word(hyp))
     elif params.decoding_method == "greedy_search" and params.max_sym_per_frame == 1:
         hyp_tokens = greedy_search_batch(
             model=model,
             encoder_out=encoder_out,
             encoder_out_lens=encoder_out_lens,
+            blank_penalty=params.blank_penalty,
         )
         for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
+            hyps.append(sp.text2word(hyp))
     elif params.decoding_method == "modified_beam_search":
         hyp_tokens = modified_beam_search(
             model=model,
@@ -526,9 +543,10 @@ def decode_one_batch(
             encoder_out_lens=encoder_out_lens,
             beam=params.beam_size,
             context_graph=context_graph,
+            blank_penalty=params.blank_penalty,
         )
         for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
+            hyps.append(sp.text2word(hyp))
     elif params.decoding_method == "modified_beam_search_lm_shallow_fusion":
         hyp_tokens = modified_beam_search_lm_shallow_fusion(
             model=model,
@@ -538,7 +556,7 @@ def decode_one_batch(
             LM=LM,
         )
         for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
+            hyps.append(sp.text2word(hyp))
     elif params.decoding_method == "modified_beam_search_LODR":
         hyp_tokens = modified_beam_search_LODR(
             model=model,
@@ -551,7 +569,7 @@ def decode_one_batch(
             context_graph=context_graph,
         )
         for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
+            hyps.append(sp.text2word(hyp))
     elif params.decoding_method == "modified_beam_search_lm_rescore":
         lm_scale_list = [0.01 * i for i in range(10, 50)]
         ans_dict = modified_beam_search_lm_rescore(
@@ -597,10 +615,11 @@ def decode_one_batch(
                 raise ValueError(
                     f"Unsupported decoding method: {params.decoding_method}"
                 )
-            hyps.append(sp.decode(hyp).split())
+            hyps.append(sp.text2word(sp.decode(hyp)))
 
     # prefix = ( "greedy_search" | "fast_beam_search_nbest" | "modified_beam_search" )
     prefix = f"{params.decoding_method}"
+    key = f"blank_penalty_{params.blank_penalty}"
     if params.decoding_method == "greedy_search":
         return {"greedy_search": hyps}
     elif "fast_beam_search" in params.decoding_method:
@@ -639,7 +658,7 @@ def decode_dataset(
     dl: torch.utils.data.DataLoader,
     params: AttributeDict,
     model: nn.Module,
-    sp: spm.SentencePieceProcessor,
+    sp: Tokenizer,
     word_table: Optional[k2.SymbolTable] = None,
     decoding_graph: Optional[k2.Fsa] = None,
     context_graph: Optional[ContextGraph] = None,
@@ -705,7 +724,7 @@ def decode_dataset(
             this_batch = []
             assert len(hyps) == len(texts)
             for cut_id, hyp_words, ref_text in zip(cut_ids, hyps, texts):
-                ref_words = ref_text.split()
+                ref_words = sp.text2word(ref_text)
                 this_batch.append((cut_id, ref_words, hyp_words))
 
             results[name].extend(this_batch)
@@ -778,8 +797,8 @@ def save_wer_results(
 @torch.no_grad()
 def main():
     parser = get_parser()
-    LibriSpeechAsrDataModule.add_arguments(parser)
-    LmScorer.add_arguments(parser)
+    ReazonSpeechAsrDataModule.add_arguments(parser)
+    Tokenizer.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 
@@ -853,6 +872,8 @@ def main():
                 f"_LODR-{params.tokens_ngram}gram-scale-{params.ngram_lm_scale}"
             )
 
+    params.suffix += f"-blank-penalty-{params.blank_penalty}"
+
     if params.use_averaged_model:
         params.suffix += "_use-averaged-model"
 
@@ -865,10 +886,9 @@ def main():
 
     logging.info(f"Device: {device}")
 
-    sp = spm.SentencePieceProcessor()
-    sp.load(params.bpe_model)
+    sp = Tokenizer.load(params.lang, params.lang_type)
 
-    # <blk> and <unk> are defined in local/train_bpe_model.py
+    # <blk> and <unk> are defined in local/prepare_lang_char.py
     params.blank_id = sp.piece_to_id("<blk>")
     params.unk_id = sp.piece_to_id("<unk>")
     params.vocab_size = sp.get_piece_size()
@@ -1040,20 +1060,13 @@ def main():
 
     # we need cut ids to display recognition results.
     args.return_cuts = True
-    librispeech = LibriSpeechAsrDataModule(args)
+    reazonspeech_corpus = ReazonSpeechAsrDataModule(args)
 
-    test_clean_cuts = librispeech.test_clean_cuts()
-    test_other_cuts = librispeech.test_other_cuts()
-
-    test_clean_dl = librispeech.test_dataloaders(test_clean_cuts)
-    test_other_dl = librispeech.test_dataloaders(test_other_cuts)
-
-    test_sets = ["test-clean", "test-other"]
-    test_dl = [test_clean_dl, test_other_dl]
-
-    for test_set, test_dl in zip(test_sets, test_dl):
+    for subdir in ["valid"]:
         results_dict = decode_dataset(
-            dl=test_dl,
+            dl=reazonspeech_corpus.test_dataloaders(
+                getattr(reazonspeech_corpus, f"{subdir}_cuts")()
+            ),
             params=params,
             model=model,
             sp=sp,
@@ -1067,9 +1080,20 @@ def main():
 
         save_asr_output(
             params=params,
-            test_set_name=test_set,
+            test_set_name=subdir,
             results_dict=results_dict,
         )
+        # with (
+        #     params.res_dir
+        #     / (
+        #         f"{subdir}-{params.decode_chunk_len}_{params.beam_size}"
+        #         f"_{params.avg}_{params.epoch}.cer"
+        #     )
+        # ).open("w") as fout:
+        #     if len(tot_err) == 1:
+        #         fout.write(f"{tot_err[0][1]}")
+        #     else:
+        #         fout.write("\n".join(f"{k}\t{v}") for k, v in tot_err)
 
         if not params.skip_scoring:
             save_wer_results(
