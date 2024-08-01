@@ -1,0 +1,2 @@
+2024-07-29 17:52:11,668 INFO [streaming_decode.py:736] Decoding started
+2024-07-29 17:52:11,669 INFO [streaming_decode.py:742] Device: cuda:0
