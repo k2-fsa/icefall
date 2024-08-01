@@ -18,15 +18,7 @@
 
 """
 Usage:
-./zipformer/streaming_decode.py \
-  --epoch 28 \
-  --avg 15 \
-  --causal 1 \
-  --chunk-size 32 \
-  --left-context-frames 256 \
-  --exp-dir ./zipformer/exp \
-  --decoding-method greedy_search \
-  --num-decode-streams 2000
+./zipformer/streaming_decode.py--epoch 28   --avg 15   --causal 1   --chunk-size 32   --left-context-frames 256   --exp-dir ./zipformer/exp-large --lang data/lang_char --num-encoder-layers 2,2,4,5,4,2 --feedforward-dim 512,768,1536,2048,1536,768 --encoder-dim 192,256,512,768,512,256 --encoder-unmasked-dim 192,192,256,320,256,192
 """
 
 import pdb
