@@ -631,7 +631,8 @@ def write_error_stats(
             results[i] = (cut_id, ref, hyp)
 
     for cut_id, ref, hyp in results:
-        ali = kaldialign.align(ref, hyp, ERR, sclite_mode=sclite_mode)
+        # ali = kaldialign.align(ref, hyp, ERR, sclite_mode=sclite_mode)
+        ali = kaldialign.align(ref, hyp, ERR)
         for ref_word, hyp_word in ali:
             if ref_word == ERR:
                 ins[hyp_word] += 1
