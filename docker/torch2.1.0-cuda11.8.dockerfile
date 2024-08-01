@@ -41,7 +41,7 @@ RUN apt-get update && \
 
 # Install dependencies
 RUN pip install --no-cache-dir \
-      torchaudio==${TORCHAUDIO_VERSION} -f https://download.pytorch.org/whl/torch_stable.html \
+      torchaudio==${TORCHAUDIO_VERSION} -f https://download.pytorch.org/whl/torchaudio/ \
       k2==${K2_VERSION} -f https://k2-fsa.github.io/k2/cuda.html \
       git+https://github.com/lhotse-speech/lhotse \
       kaldifeat==${KALDIFEAT_VERSION} -f https://csukuangfj.github.io/kaldifeat/cuda.html \
