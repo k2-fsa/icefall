@@ -5,7 +5,6 @@
 #                                                             Zengwei Yao,
 #                                                             Yifan Yang,
 #                                                             Daniel Povey)
-# Copyright    2024  Shanghai Jiao Tong University  (authors: Jianheng Zhuo)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -26,19 +25,14 @@ Usage:
 export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
 
 # For HuBERT model finetuning:
-./hubert/finetune.py \
+./zipformer_ctc/finetune_ctc.py \
   --world-size 8 \
-  --num-epochs 200 \
+  --num-epochs 222 \
   --start-epoch 1 \
   --use-fp16 1 \
-  --exp-dir hubert/exp \
+  --exp-dir zipformer_ctc/exp \
   --full-libri 0 \
-  --max-duration 200
-
-It supports finetuning with:
-  - transducer loss (default), with `--use-transducer True --use-ctc False`
-  - ctc loss (not recommended), with `--use-transducer False --use-ctc True`
-  - transducer loss & ctc loss, with `--use-transducer True --use-ctc True`
+  --max-duration 600
 """
 
 
@@ -57,9 +51,7 @@ import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
-from decoder import Decoder
-from hubert import HubertModel, add_hubert_arguments
-from joiner import Joiner
+from hubert_ce import HubertModel
 from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
@@ -71,6 +63,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
 
 from icefall import diagnostics
+from icefall.char_graph_compiler import CharCtcTrainingGraphCompiler
 from icefall.checkpoint import load_checkpoint, remove_checkpoints
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 from icefall.checkpoint import (
@@ -80,6 +73,7 @@ from icefall.checkpoint import (
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
 from icefall.hooks import register_inf_check_hooks
+from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
     MetricsTracker,
@@ -115,34 +109,303 @@ def set_batch_count(model: Union[nn.Module, DDP], batch_count: float) -> None:
 
 def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
-        "--decoder-dim",
+        "--num-encoder-layers",
+        type=str,
+        default="2,2,3,4,3,2",
+        help="Number of zipformer encoder layers per stack, comma separated.",
+    )
+
+    parser.add_argument(
+        "--downsampling-factor",
+        type=str,
+        default="1,2,4,8,4,2",
+        help="Downsampling factor for each stack of encoder layers.",
+    )
+
+    parser.add_argument(
+        "--feedforward-dim",
+        type=str,
+        default="512,768,1024,1536,1024,768",
+        help="Feedforward dimension of the zipformer encoder layers, per stack, comma separated.",
+    )
+
+    parser.add_argument(
+        "--num-heads",
+        type=str,
+        default="4,4,4,8,4,4",
+        help="Number of attention heads in the zipformer encoder layers: a single int or comma-separated list.",
+    )
+
+    parser.add_argument(
+        "--encoder-dim",
+        type=str,
+        default="192,256,384,512,384,256",
+        help="Embedding dimension in encoder stacks: a single int or comma-separated list.",
+    )
+
+    parser.add_argument(
+        "--query-head-dim",
+        type=str,
+        default="32",
+        help="Query/key dimension per head in encoder stacks: a single int or comma-separated list.",
+    )
+
+    parser.add_argument(
+        "--value-head-dim",
+        type=str,
+        default="12",
+        help="Value dimension per head in encoder stacks: a single int or comma-separated list.",
+    )
+
+    parser.add_argument(
+        "--pos-head-dim",
+        type=str,
+        default="4",
+        help="Positional-encoding dimension per head in encoder stacks: a single int or comma-separated list.",
+    )
+
+    parser.add_argument(
+        "--pos-dim",
         type=int,
-        default=512,
-        help="Embedding dimension in the decoder model.",
+        default="48",
+        help="Positional-encoding embedding dimension",
     )
 
     parser.add_argument(
-        "--joiner-dim",
-        type=int,
-        default=512,
-        help="""Dimension used in the joiner model.
-        Outputs from the encoder and decoder model are projected
-        to this dimension before adding.
-        """,
+        "--encoder-unmasked-dim",
+        type=str,
+        default="192,192,256,256,256,192",
+        help="Unmasked dimensions in the encoders, relates to augmentation during training.  "
+        "A single int or comma-separated list.  Must be <= each corresponding encoder_dim.",
     )
 
     parser.add_argument(
-        "--use-transducer",
-        type=str2bool,
-        default=True,
-        help="If True, use Transducer head.",
+        "--cnn-module-kernel",
+        type=str,
+        default="31,31,15,15,15,31",
+        help="Sizes of convolutional kernels in convolution modules in each encoder stack: "
+        "a single int or comma-separated list.",
+    )
+
+    # hubert parameters
+    parser.add_argument(
+        "--label-rate",
+        type=float,
+        default=50,
     )
 
     parser.add_argument(
-        "--use-ctc",
-        type=str2bool,
+        "--sample-rate",
+        type=float,
+        default=16000,
+    )
+
+    parser.add_argument(
+        "--extractor-mode",
+        type=str,
+        default="default",
+        help="""mode for feature extractor, should in EXTRACTOR_MODE_CHOICES. default has a single group 
+            norm with d groups in the first conv block, whereas layer_norm 
+            has layer norms in every block (meant to use with normalize=True)""",
+    )
+
+    parser.add_argument(
+        "--conv-feature-layers",
+        type=str,
+        default="[(512,10,5)] + [(512,3,2)] * 4 + [(512,2,2)] * 2",
+        help="string describing convolutional feature extraction layers in form of a python list that contains [(dim, kernel_size, stride), ...]",
+    )
+
+    parser.add_argument(
+        "--conv-bias", type=bool, default=False, help="include bias in conv encoder"
+    )
+
+    parser.add_argument(
+        "--feature-grad-mult",
+        type=float,
+        default=1.0,
+        help="multiply feature extractor var grads by this",
+    )
+
+    # masking
+    parser.add_argument("--mask-length", type=int, default=10, help="mask_length")
+
+    parser.add_argument(
+        "--mask-prob",
+        type=float,
+        default=0.65,
+        help="probability of replacing a token with mask",
+    )
+
+    parser.add_argument(
+        "--mask-selection",
+        type=str,
+        choices=["static", "uniform", "normal", "poisson"],
+        default="static",
+        help="how to choose mask length",
+    )
+
+    parser.add_argument(
+        "--mask-other",
+        type=float,
+        default=0,
+        help="secondary mask argument (used for more complex distributions),see help in compute_mask_indicesh",
+    )
+
+    parser.add_argument(
+        "--no-mask-overlap",
+        type=bool,
         default=False,
-        help="If True, use CTC head.",
+        help="whether to allow masks to overlap",
+    )
+
+    parser.add_argument(
+        "--mask-min-space",
+        type=int,
+        default=1,
+        help="min space between spans (if no overlap is enabled)",
+    )
+
+    # channel masking
+    parser.add_argument(
+        "--mask-channel-length",
+        type=int,
+        default=10,
+        help="length of the mask for features (channels)",
+    )
+
+    parser.add_argument(
+        "--mask-channel-prob",
+        type=float,
+        default=0.0,
+        help="probability of replacing a feature with 0",
+    )
+
+    parser.add_argument(
+        "--mask-channel-selection",
+        type=str,
+        choices=["static", "uniform", "normal", "poisson"],
+        default="static",
+        help="how to choose mask length for channel masking",
+    )
+
+    parser.add_argument(
+        "--mask-channel-other",
+        type=float,
+        default=0,
+        help="secondary mask argument (used for more complex distributions), see help in compute_mask_indicesh",
+    )
+
+    parser.add_argument(
+        "--no-mask-channel-overlap",
+        type=bool,
+        default=False,
+        help="whether to allow channel masks to overlap",
+    )
+
+    parser.add_argument(
+        "--mask-channel-min-space",
+        type=int,
+        default=1,
+        help="min space between spans (if no overlap is enabled)",
+    )
+
+    # loss computation
+    parser.add_argument(
+        "--skip-masked",
+        type=bool,
+        default=False,
+        help="skip computing losses over masked frames",
+    )
+
+    parser.add_argument(
+        "--skip-nomask",
+        type=bool,
+        default=False,
+        help="skip computing losses over unmasked frames",
+    )
+
+    parser.add_argument(
+        "--checkpoint-activations",
+        type=bool,
+        default=False,
+        help="recompute activations and save memory for extra compute",
+    )
+
+    parser.add_argument(
+        "--pred-masked-weight",
+        type=float,
+        default=1,
+        help="weight for masked part in ssl loss",
+    )
+
+    parser.add_argument(
+        "--pred-nomask-weight",
+        type=float,
+        default=0,
+        help="weight for masked part in ssl loss",
+    )
+
+    parser.add_argument(
+        "--loss-weights",
+        type=float,
+        nargs="*",
+        default=[10],
+        help="weight for masked part in ssl loss",
+    )
+
+    # FP16 optimization
+    parser.add_argument(
+        "--required-seq-len-multiple",
+        type=int,
+        default=2,
+        help="pad the input to encoder such that the sequence length is divisible by multiple",
+    )
+
+    parser.add_argument(
+        "--attn-type", type=str, default="", help="if espnet use ESPNET MHA"
+    )
+
+    parser.add_argument(
+        "--pos-enc-type",
+        type=str,
+        default="abs",
+        help="Positional encoding type to use in conformer",
+    )
+
+    parser.add_argument(
+        "--logit-temp", type=float, default=0.1, help="temperature to divide logits by"
+    )
+
+    parser.add_argument(
+        "--dropout-input",
+        type=float,
+        default=0.0,
+        help="dropout to apply to the input (after feat extr)",
+    )
+
+    parser.add_argument(
+        "--dropout-features",
+        type=float,
+        default=0.0,
+        help="dropout to apply to the features (after feat extr)",
+    )
+
+    parser.add_argument(
+        "--num-classes",
+        type=int,
+        nargs="*",
+        default=[504],
+        help="""num class, a little larger than the number of cluster,
+        the largest is for padding, 
+        and the value should be the multiple of 4, for faster computation""",
+    )
+
+    parser.add_argument(
+        "--untie-final-proj",
+        type=bool,
+        default=False,
+        help="use separate projection for each target",
     )
 
 
@@ -209,17 +472,20 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--lang-dir",
+        type=str,
+        default="data/lang_char",
+        help="""The lang dir
+        It contains language related input files such as
+        "lexicon.txt"
+        """,
+    )
+
+    parser.add_argument(
         "--pretrained-dir",
         type=str,
         help="""The pretrained model dir.
         It specifies the directory where the pretrained checkpoint is saved.""",
-    )
-
-    parser.add_argument(
-        "--bpe-model",
-        type=str,
-        default="data/lang_bpe_500/bpe.model",
-        help="Path to the BPE model",
     )
 
     parser.add_argument(
@@ -248,53 +514,6 @@ def get_parser():
         default=600,
         help="Reference batch duration for purposes of adjusting batch counts for setting various "
         "schedules inside the model",
-    )
-
-    parser.add_argument(
-        "--context-size",
-        type=int,
-        default=2,
-        help="The context size in the decoder. 1 means bigram; " "2 means tri-gram",
-    )
-
-    parser.add_argument(
-        "--prune-range",
-        type=int,
-        default=5,
-        help="The prune range for rnnt loss, it means how many symbols(context)"
-        "we are using to compute the loss",
-    )
-
-    parser.add_argument(
-        "--lm-scale",
-        type=float,
-        default=0.25,
-        help="The scale to smooth the loss with lm "
-        "(output of prediction network) part.",
-    )
-
-    parser.add_argument(
-        "--am-scale",
-        type=float,
-        default=0.0,
-        help="The scale to smooth the loss with am (output of encoder network)" "part.",
-    )
-
-    parser.add_argument(
-        "--simple-loss-scale",
-        type=float,
-        default=0.5,
-        help="To get pruning ranges, we will calculate a simple version"
-        "loss(joiner is just addition), this simple loss also uses for"
-        "training (as a regularization item). We will scale the simple loss"
-        "with this parameter before adding to the final loss.",
-    )
-
-    parser.add_argument(
-        "--ctc-loss-scale",
-        type=float,
-        default=0.2,
-        help="Scale for CTC loss.",
     )
 
     parser.add_argument(
@@ -377,7 +596,6 @@ def get_parser():
         help="Whether to use half precision training.",
     )
 
-    add_hubert_arguments(parser)
     add_model_arguments(parser)
 
     return parser
@@ -420,8 +638,6 @@ def get_params() -> AttributeDict:
 
         - valid_interval:  Run validation if batch_idx % valid_interval is 0
 
-        - warm_step: The warmup period that dictates the decay of the
-              scale on "simple" (un-pruned) loss.
     """
     params = AttributeDict(
         {
@@ -434,8 +650,6 @@ def get_params() -> AttributeDict:
             "log_interval": 50,
             "reset_interval": 200,
             "valid_interval": 3000,  # For the 100h subset, use 800
-            # parameters for pruned RNN-T loss
-            "warm_step": 2000,
             "env_info": get_env_info(),
         }
     )
@@ -458,51 +672,12 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
     return encoder
 
 
-def get_decoder_model(params: AttributeDict) -> nn.Module:
-    decoder = Decoder(
-        vocab_size=params.vocab_size,
-        decoder_dim=params.decoder_dim,
-        blank_id=params.blank_id,
-        context_size=params.context_size,
-    )
-    return decoder
-
-
-def get_joiner_model(params: AttributeDict) -> nn.Module:
-    joiner = Joiner(
-        encoder_dim=params.encoder_embed_dim,
-        decoder_dim=params.decoder_dim,
-        joiner_dim=params.joiner_dim,
-        vocab_size=params.vocab_size,
-    )
-    return joiner
-
-
 def get_model(params: AttributeDict) -> nn.Module:
-    assert params.use_transducer or params.use_ctc, (
-        f"At least one of them should be True, "
-        f"but got params.use_transducer={params.use_transducer}, "
-        f"params.use_ctc={params.use_ctc}"
-    )
-
     encoder = get_encoder_model(params)
-
-    if params.use_transducer:
-        decoder = get_decoder_model(params)
-        joiner = get_joiner_model(params)
-    else:
-        decoder = None
-        joiner = None
-
     model = AsrModel(
         encoder=encoder,
-        decoder=decoder,
-        joiner=joiner,
-        encoder_dim=params.encoder_embed_dim,
-        decoder_dim=params.decoder_dim,
+        encoder_dim=max(_to_int_tuple(params.encoder_dim)),
         vocab_size=params.vocab_size,
-        use_transducer=params.use_transducer,
-        use_ctc=params.use_ctc,
     )
     return model
 
@@ -626,7 +801,7 @@ def save_checkpoint(
 def compute_loss(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
-    sp: spm.SentencePieceProcessor,
+    graph_compiler: CharCtcTrainingGraphCompiler,
     batch: dict,
     is_training: bool,
 ) -> Tuple[Tensor, MetricsTracker]:
@@ -653,44 +828,19 @@ def compute_loss(
     padding_mask = batch["padding_mask"].to(device)
 
     batch_idx_train = params.batch_idx_train
-    warm_step = params.warm_step
 
     texts = batch["supervisions"]["text"]
-    y = sp.encode(texts, out_type=int)
-    y = k2.RaggedTensor(y)
+    y = graph_compiler.texts_to_ids(texts, sep="|")
+    y = k2.RaggedTensor(y).to(device)
 
     with torch.set_grad_enabled(is_training):
-        simple_loss, pruned_loss, ctc_loss, num_frames = model(
+        ctc_loss, num_frames = model(
             x=audio,
             padding_mask=padding_mask,
             y=y,
-            prune_range=params.prune_range,
-            am_scale=params.am_scale,
-            lm_scale=params.lm_scale,
         )
 
-        loss = 0.0
-
-        if params.use_transducer:
-            s = params.simple_loss_scale
-            # take down the scale on the simple loss from 1.0 at the start
-            # to params.simple_loss scale by warm_step.
-            simple_loss_scale = (
-                s
-                if batch_idx_train >= warm_step
-                else 1.0 - (batch_idx_train / warm_step) * (1.0 - s)
-            )
-            pruned_loss_scale = (
-                1.0
-                if batch_idx_train >= warm_step
-                else 0.1 + 0.9 * (batch_idx_train / warm_step)
-            )
-            loss += simple_loss_scale * simple_loss + pruned_loss_scale * pruned_loss
-
-        if params.use_ctc:
-            loss += params.ctc_loss_scale * ctc_loss
-
-    assert loss.requires_grad == is_training
+    assert ctc_loss.requires_grad == is_training
 
     info = MetricsTracker()
     with warnings.catch_warnings():
@@ -698,20 +848,15 @@ def compute_loss(
         info["frames"] = num_frames.sum().item()
 
     # Note: We use reduction=sum while computing the loss.
-    info["loss"] = loss.detach().cpu().item()
-    if params.use_transducer:
-        info["simple_loss"] = simple_loss.detach().cpu().item()
-        info["pruned_loss"] = pruned_loss.detach().cpu().item()
-    if params.use_ctc:
-        info["ctc_loss"] = ctc_loss.detach().cpu().item()
+    info["ctc_loss"] = ctc_loss.detach().cpu().item()
 
-    return loss, info
+    return ctc_loss, info
 
 
 def compute_validation_loss(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
-    sp: spm.SentencePieceProcessor,
+    graph_compiler: CharCtcTrainingGraphCompiler,
     valid_dl: torch.utils.data.DataLoader,
     world_size: int = 1,
 ) -> MetricsTracker:
@@ -724,7 +869,7 @@ def compute_validation_loss(
         loss, loss_info = compute_loss(
             params=params,
             model=model,
-            sp=sp,
+            graph_compiler=graph_compiler,
             batch=batch,
             is_training=False,
         )
@@ -747,7 +892,7 @@ def train_one_epoch(
     model: Union[nn.Module, DDP],
     optimizer: torch.optim.Optimizer,
     scheduler: LRSchedulerType,
-    sp: spm.SentencePieceProcessor,
+    graph_compiler: CharCtcTrainingGraphCompiler,
     train_dl: torch.utils.data.DataLoader,
     valid_dl: torch.utils.data.DataLoader,
     scaler: GradScaler,
@@ -820,7 +965,7 @@ def train_one_epoch(
                 loss, loss_info = compute_loss(
                     params=params,
                     model=model,
-                    sp=sp,
+                    graph_compiler=graph_compiler,
                     batch=batch,
                     is_training=True,
                 )
@@ -843,7 +988,7 @@ def train_one_epoch(
 
         except:  # noqa
             save_bad_model()
-            display_and_save_batch(batch, params=params, sp=sp)
+            display_and_save_batch(batch, params=params, graph_compiler=graph_compiler)
             raise
 
         if params.print_diagnostics and batch_idx == 5:
@@ -924,9 +1069,7 @@ def train_one_epoch(
                 tot_loss.write_summary(tb_writer, "train/tot_", params.batch_idx_train)
                 if params.use_fp16:
                     tb_writer.add_scalar(
-                        "train/grad_scale",
-                        cur_grad_scale,
-                        params.batch_idx_train,
+                        "train/grad_scale", cur_grad_scale, params.batch_idx_train
                     )
 
         if batch_idx % params.valid_interval == 0 and not params.print_diagnostics:
@@ -934,7 +1077,7 @@ def train_one_epoch(
             valid_info = compute_validation_loss(
                 params=params,
                 model=model,
-                sp=sp,
+                graph_compiler=graph_compiler,
                 valid_dl=valid_dl,
                 world_size=world_size,
             )
@@ -989,15 +1132,15 @@ def run(rank, world_size, args):
         device = torch.device("cuda", rank)
     logging.info(f"Device: {device}")
 
-    sp = spm.SentencePieceProcessor()
-    sp.load(params.bpe_model)
+    lexicon = Lexicon(params.lang_dir)
+    graph_compiler = CharCtcTrainingGraphCompiler(
+        lexicon=lexicon,
+        device=device,
+        delimiter="|",
+    )
 
-    # <blk> is defined in local/train_bpe_model.py
-    params.blank_id = sp.piece_to_id("<blk>")
-    params.vocab_size = sp.get_piece_size()
-
-    if not params.use_transducer:
-        params.ctc_loss_scale = 1.0
+    params.blank_id = lexicon.token_table["<blk>"]
+    params.vocab_size = max(lexicon.tokens) + 1
 
     logging.info(params)
 
@@ -1029,7 +1172,7 @@ def run(rank, world_size, args):
         clipping_scale=2.0,
     )
 
-    scheduler = Eden(optimizer, params.lr_batches, params.lr_epochs)
+    scheduler = Eden(optimizer, params.lr_batches, params.lr_epochs, warmup_batches=0)
 
     if checkpoints and "optimizer" in checkpoints:
         logging.info("Loading optimizer state dict")
@@ -1109,7 +1252,7 @@ def run(rank, world_size, args):
             model=model,
             train_dl=train_dl,
             optimizer=optimizer,
-            sp=sp,
+            graph_compiler=graph_compiler,
             params=params,
         )
 
@@ -1134,7 +1277,7 @@ def run(rank, world_size, args):
             model_avg=model_avg,
             optimizer=optimizer,
             scheduler=scheduler,
-            sp=sp,
+            graph_compiler=graph_compiler,
             train_dl=train_dl,
             valid_dl=valid_dl,
             scaler=scaler,
@@ -1168,7 +1311,7 @@ def run(rank, world_size, args):
 def display_and_save_batch(
     batch: dict,
     params: AttributeDict,
-    sp: spm.SentencePieceProcessor,
+    graph_compiler: CharCtcTrainingGraphCompiler,
 ) -> None:
     """Display the batch statistics and save the batch into disk.
 
@@ -1178,8 +1321,6 @@ def display_and_save_batch(
         for the content in it.
       params:
         Parameters for training. See :func:`get_params`.
-      sp:
-        The BPE model.
     """
     from lhotse.utils import uuid4
 
@@ -1190,7 +1331,7 @@ def display_and_save_batch(
     audio = batch["audio"]
     logging.info(f"audio shape: {audio.shape}")
 
-    y = sp.encode(batch["supervisions"]["text"], out_type=int)
+    y = graph_compiler.texts_to_ids(batch["supervisions"]["text"], sep="|")
     num_tokens = sum(len(i) for i in y)
     logging.info(f"num tokens: {num_tokens}")
 
@@ -1199,7 +1340,7 @@ def scan_pessimistic_batches_for_oom(
     model: Union[nn.Module, DDP],
     train_dl: torch.utils.data.DataLoader,
     optimizer: torch.optim.Optimizer,
-    sp: spm.SentencePieceProcessor,
+    graph_compiler: CharCtcTrainingGraphCompiler,
     params: AttributeDict,
 ):
     from lhotse.dataset import find_pessimistic_batches
@@ -1215,7 +1356,7 @@ def scan_pessimistic_batches_for_oom(
                 loss, _ = compute_loss(
                     params=params,
                     model=model,
-                    sp=sp,
+                    graph_compiler=graph_compiler,
                     batch=batch,
                     is_training=True,
                 )
@@ -1230,7 +1371,7 @@ def scan_pessimistic_batches_for_oom(
                     f"Failing criterion: {criterion} "
                     f"(={crit_values[criterion]}) ..."
                 )
-            display_and_save_batch(batch, params=params, sp=sp)
+            display_and_save_batch(batch, params=params, graph_compiler=graph_compiler)
             raise
         logging.info(
             f"Maximum memory allocated so far is {torch.cuda.max_memory_allocated()//1000000}MB"

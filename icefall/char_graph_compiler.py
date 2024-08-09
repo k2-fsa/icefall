@@ -70,12 +70,15 @@ class CharCtcTrainingGraphCompiler(object):
         Returns:
           Return a list-of-list of token IDs.
         """
-        assert sep in ("", "/"), sep
+        assert sep in ("", "/", "|"), sep
         ids: List[List[int]] = []
         whitespace = re.compile(r"([ \t])")
         for text in texts:
             if sep == "":
                 text = re.sub(whitespace, "", text)
+            elif sep == "|":
+                text = re.sub(r"\s+", " ", text)
+                text = re.sub(" ", "|", text)
             else:
                 text = text.split(sep)
             sub_ids = [

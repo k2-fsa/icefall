@@ -1090,6 +1090,8 @@ def run(rank, world_size, args):
         train_cuts,
         do_normalize=params.do_normalize,
         sampler_state_dict=sampler_state_dict,
+        world_size=world_size,
+        rank=rank,
     )
 
     valid_cuts = librispeech.dev_clean_cuts()
@@ -1098,6 +1100,8 @@ def run(rank, world_size, args):
     valid_dl = librispeech.valid_dataloaders(
         valid_cuts,
         do_normalize=params.do_normalize,
+        world_size=world_size,
+        rank=rank,
     )
 
     if params.sanity_check and not params.print_diagnostics:

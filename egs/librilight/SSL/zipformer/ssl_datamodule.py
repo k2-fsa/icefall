@@ -1,5 +1,4 @@
-# Copyright      2021  Piotr Żelasko
-# Copyright      2023  Xiaomi Corporation     (Author: Yifan Yang)
+# Copyright      2024  Xiaomi Corporation     (Author: Yifan Yang)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -25,8 +24,9 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import torch
+import lhotse
 from dataset import HubertDataset
-from lhotse import CutSet, combine, load_manifest_lazy
+from lhotse import CutSet, load_manifest_lazy
 from lhotse.dataset import DynamicBucketingSampler, SimpleCutSampler
 from lhotse.utils import fix_random_seed
 from torch.utils.data import DataLoader
@@ -46,7 +46,7 @@ class LibriLightDataModule:
     """
     DataModule for SSL experiments.
     It assumes there is always one train and valid dataloader,
-    but there can be multiple test dataloaders (e.g. LibriSpeech test-clean
+    but there can be multiple test dataloaders (e.g. LibriLight test-clean
     and test-other).
 
     It contains all the common data pipeline modules used in SSL
@@ -63,7 +63,7 @@ class LibriLightDataModule:
     @classmethod
     def add_arguments(cls, parser: argparse.ArgumentParser):
         group = parser.add_argument_group(
-            title="ASR SSL related options",
+            title="SSL data related options",
             description="These options are used for the preparation of "
             "PyTorch DataLoaders from Lhotse CutSet's -- they control the "
             "effective batch sizes, sampling strategies.",
@@ -92,9 +92,28 @@ class LibriLightDataModule:
         group.add_argument(
             "--num-buckets",
             type=int,
-            default=30,
+            default=1000,
             help="The number of buckets for the DynamicBucketingSampler"
             "(you might want to increase it for larger datasets).",
+        )
+        group.add_argument(
+            "--num-cuts-for-bins-estimate",
+            type=float,
+            default=1000000,
+            help="We will draw this many cuts to estimate the duration"
+            "bins for creating similar-duration buckets. Larger number"
+            "means a better estimate to the data distribution, possibly"
+            "at a longer init cost."
+        )
+        group.add_argument(
+            "--quadratic-duration",
+            type=float,
+            default=None,
+            help="When set, it adds an extra penalty that's quadratic"
+            "in size w.r.t. a cuts duration. This helps get a more"
+            "even GPU utilization across different input lengths when"
+            "models have quadratic input complexity. Set between 15"
+            "and 40 for transformers.",
         )
         group.add_argument(
             "--shuffle",
@@ -112,7 +131,7 @@ class LibriLightDataModule:
         group.add_argument(
             "--num-workers",
             type=int,
-            default=2,
+            default=8,
             help="The number of training dataloader workers that "
             "collect the batches.",
         )
@@ -126,12 +145,13 @@ class LibriLightDataModule:
             "--random-crop",
             type=str2bool,
             default=True,
-            help="audio sample rate",
+            help="always crop from the beginning if false",
         )
 
     def train_dataloaders(
         self,
         cuts_train: CutSet,
+        max_sample_size: Optional[int] = None,
         sample_rate: float = 16000,
         label_rate: float = 50,
         random_crop: bool = True,
@@ -139,6 +159,8 @@ class LibriLightDataModule:
         num_classes: list = [504],
         do_normalize: bool = True,
         sampler_state_dict: Optional[Dict[str, Any]] = None,
+        world_size: Optional[int] = None,
+        rank: Optional[int] = None,
     ) -> DataLoader:
         """
         Args:
@@ -149,6 +171,7 @@ class LibriLightDataModule:
         """
         logging.info("About to create train dataset")
         train = HubertDataset(
+            max_sample_size=max_sample_size,
             sample_rate=sample_rate,
             label_rate=label_rate,
             random_crop=random_crop,
@@ -162,9 +185,14 @@ class LibriLightDataModule:
             train_sampler = DynamicBucketingSampler(
                 cuts_train,
                 max_duration=self.args.max_duration,
+                quadratic_duration=self.args.quadratic_duration,
                 shuffle=self.args.shuffle,
                 num_buckets=self.args.num_buckets,
+                buffer_size=self.args.num_buckets * 2000,
+                num_cuts_for_bins_estimate=self.args.num_cuts_for_bins_estimate,
                 drop_last=self.args.drop_last,
+                world_size=world_size,
+                rank=rank,
             )
         else:
             logging.info("Using SimpleCutSampler.")
@@ -172,6 +200,8 @@ class LibriLightDataModule:
                 cuts_train,
                 max_duration=self.args.max_duration,
                 shuffle=self.args.shuffle,
+                world_size=world_size,
+                rank=rank,
             )
         logging.info("About to create train dataloader")
 
@@ -198,15 +228,19 @@ class LibriLightDataModule:
     def valid_dataloaders(
         self,
         cuts_valid: CutSet,
+        max_sample_size: Optional[int] = None,
         sample_rate: float = 16000,
         label_rate: float = 50,
         random_crop: bool = True,
         pad_audio: bool = False,
         num_classes: list = [504],
         do_normalize: bool = True,
+        world_size: Optional[int] = None,
+        rank: Optional[int] = None,
     ) -> DataLoader:
         logging.info("About to create dev dataset")
         validate = HubertDataset(
+            max_sample_size=max_sample_size,
             sample_rate=sample_rate,
             label_rate=label_rate,
             random_crop=random_crop,
@@ -217,7 +251,10 @@ class LibriLightDataModule:
         valid_sampler = DynamicBucketingSampler(
             cuts_valid,
             max_duration=self.args.max_duration,
+            quadratic_duration=self.args.quadratic_duration,
             shuffle=False,
+            world_size=world_size,
+            rank=rank,
         )
         logging.info("About to create dev dataloader")
         valid_dl = DataLoader(
@@ -230,81 +267,11 @@ class LibriLightDataModule:
 
         return valid_dl
 
-    def test_dataloaders(
-        self,
-        cuts: CutSet,
-        sample_rate: float = 16000,
-        label_rate: float = 50,
-        random_crop: bool = True,
-        pad_audio: bool = False,
-        num_classes: list = [504],
-        do_normalize: bool = True,
-    ) -> DataLoader:
-        logging.debug("About to create test dataset")
-        test = HubertDataset(
-            sample_rate=sample_rate,
-            label_rate=label_rate,
-            random_crop=random_crop,
-            pad_audio=pad_audio,
-            num_classes=num_classes,
-            do_normalize=do_normalize,
-        )
-        sampler = DynamicBucketingSampler(
-            cuts,
-            max_duration=self.args.max_duration,
-            shuffle=False,
-        )
-        logging.debug("About to create test dataloader")
-        test_dl = DataLoader(
-            test,
-            batch_size=None,
-            sampler=sampler,
-            num_workers=self.args.num_workers,
-        )
-        return test_dl
-
     @lru_cache()
-    def small_cuts(self) -> CutSet:
-        logging.info("About to get small cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "librilight_cuts_small.jsonl.gz"
-        )
-
-    @lru_cache()
-    def medium_cuts(self) -> CutSet:
-        logging.info("About to get medium cuts")
-        filenames = glob.glob(
-            f"{self.args.manifest_dir}/medium_splits/librilight_cuts_medium.*.jsonl.gz"
-        )
-        pattern = re.compile(r"librilight_cuts_medium.([0-9]+).jsonl.gz")
-        idx_filenames = ((int(pattern.search(f).group(1)), f) for f in filenames)
-        idx_filenames = sorted(idx_filenames, key=lambda x: x[0])
-        sorted_filenames = [f[1] for f in idx_filenames]
+    def all_shuf_cuts(self) -> CutSet:
         logging.info(
-            f"Loading LibriLight medium {len(sorted_filenames)} splits in lazy mode"
+            "About to get the shuffled librilight small, medium and large cuts"
         )
-
-        return combine(load_manifest_lazy(p) for p in sorted_filenames)
-
-    @lru_cache()
-    def large_cuts(self) -> CutSet:
-        logging.info("About to get large cuts")
-        filenames = glob.glob(
-            f"{self.args.manifest_dir}/large_splits/librilight_cuts_large.*.jsonl.gz"
-        )
-        pattern = re.compile(r"librilight_cuts_large.([0-9]+).jsonl.gz")
-        idx_filenames = ((int(pattern.search(f).group(1)), f) for f in filenames)
-        idx_filenames = sorted(idx_filenames, key=lambda x: x[0])
-        sorted_filenames = [f[1] for f in idx_filenames]
-        logging.info(
-            f"Loading LibriLight large {len(sorted_filenames)} splits in lazy mode"
-        )
-
-        return combine(load_manifest_lazy(p) for p in sorted_filenames)
-
-    @lru_cache()
-    def train_all_shuf_cuts(self) -> CutSet:
-        logging.info("About to get the shuffled small, medium and large cuts")
         small_cuts = self.small_cuts()
         medium_cuts = self.medium_cuts()
         large_cuts = self.large_cuts()
@@ -313,22 +280,52 @@ class LibriLightDataModule:
             medium_cuts,
             large_cuts,
             weights=[
-                122867,  # len(small_cuts)
-                1104071,  # len(medium_cuts)
-                11012085,  # len(large_cuts)
+                229051,  # len(small_cuts)
+                2022949,  # len(medium_cuts)
+                19883414,  # len(large_cuts)
             ],
         )
 
     @lru_cache()
     def dev_clean_cuts(self) -> CutSet:
-        logging.info("About to get dev-clean cuts")
+        logging.info("About to get librispeech dev-clean cuts")
         return load_manifest_lazy(
             self.args.manifest_dir / "librispeech_cuts_dev-clean.jsonl.gz"
         )
 
     @lru_cache()
-    def dev_other_cuts(self) -> CutSet:
-        logging.info("About to get dev-other cuts")
+    def small_cuts(self) -> CutSet:
+        logging.info("About to get librilight small cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_dev-other.jsonl.gz"
+            self.args.manifest_dir / "librilight_cuts_small.jsonl.gz"
+        )
+
+    @lru_cache()
+    def medium_cuts(self) -> CutSet:
+        logging.info("About to get librilight medium cuts")
+        filenames = glob.glob(
+            str(self.args.manifest_dir / "medium_split" / "librilight_cuts_medium.*.jsonl.gz")
+        )
+        pattern = re.compile(r"librilight_cuts_medium.([0-9]+).jsonl.gz")
+        idx_filenames = ((int(pattern.search(f).group(1)), f) for f in filenames)
+        idx_filenames = sorted(idx_filenames, key=lambda x: x[0])
+        sorted_filenames = [f[1] for f in idx_filenames]
+        logging.info(f"Loading Libri-Light medium {len(sorted_filenames)} splits in lazy mode")
+        return lhotse.combine(
+            lhotse.load_manifest_lazy(p) for p in sorted_filenames
+        )
+
+    @lru_cache()
+    def large_cuts(self) -> CutSet:
+        logging.info("About to get librilight large cuts")
+        filenames = glob.glob(
+            str(self.args.manifest_dir / "large_split" / "librilight_cuts_large.*.jsonl.gz")
+        )
+        pattern = re.compile(r"librilight_cuts_large.([0-9]+).jsonl.gz")
+        idx_filenames = ((int(pattern.search(f).group(1)), f) for f in filenames)
+        idx_filenames = sorted(idx_filenames, key=lambda x: x[0])
+        sorted_filenames = [f[1] for f in idx_filenames]
+        logging.info(f"Loading Libri-Light large {len(sorted_filenames)} splits in lazy mode")
+        return lhotse.combine(
+            lhotse.load_manifest_lazy(p) for p in sorted_filenames
         )
