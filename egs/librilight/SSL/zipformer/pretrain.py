@@ -20,23 +20,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""
-Usage:
-
-export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
-
-# For hubert model pretraining:
-./zipformer/pretrain.py \
-  --world-size 8 \
-  --num-epochs 400 \
-  --start-epoch 1 \
-  --use-fp16 1 \
-  --exp-dir hubert/exp \
-  --full-libri 1 \
-  --max-duration 87.5 \
-  --accum-grad 4
-"""
-
 
 import argparse
 import copy
@@ -46,7 +29,6 @@ from pathlib import Path
 from shutil import copyfile
 from typing import Any, Dict, Optional, Tuple, Union
 
-import lhotse
 import optim
 import torch
 import torch.multiprocessing as mp
@@ -69,7 +51,13 @@ from icefall.checkpoint import (
     save_checkpoint_with_global_batch_idx,
     update_averaged_model,
 )
-from icefall.dist import cleanup_dist, setup_dist
+from icefall.dist import (
+    cleanup_dist,
+    get_local_rank,
+    get_rank,
+    get_world_size,
+    setup_dist,
+)
 from icefall.env import get_env_info
 from icefall.hooks import register_inf_check_hooks
 from icefall.utils import (
@@ -406,6 +394,15 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--use-multi-node",
+        type=str2bool,
+        default=False,
+        help="""True if using multi-node multi-GPU.
+        You are not supposed to set it directly.
+        """,
+    )
+
+    parser.add_argument(
         "--world-size",
         type=int,
         default=1,
@@ -572,7 +569,7 @@ def get_parser():
     parser.add_argument(
         "--accum-grad",
         type=int,
-        default=4,
+        default=1,
         help="""update gradient when batch_idx_train % accum_grad == 0.
         """,
     )
@@ -1090,8 +1087,15 @@ def run(rank, world_size, args):
     params.update(vars(args))
 
     fix_random_seed(params.seed)
+
+    if params.use_multi_node:
+        local_rank = get_local_rank()
+    else:
+        local_rank = rank
+    logging.info(f"rank: {rank}, world_size: {world_size}, local_rank: {local_rank}")
+
     if world_size > 1:
-        setup_dist(rank, world_size, params.master_port)
+        setup_dist(rank, world_size, params.master_port, params.use_multi_node)
 
     setup_logger(f"{params.exp_dir}/log/log-train")
     logging.info("Training started")
@@ -1103,8 +1107,8 @@ def run(rank, world_size, args):
 
     device = torch.device("cpu")
     if torch.cuda.is_available():
-        device = torch.device("cuda", rank)
-    logging.info(f"Device: {device}")
+        device = torch.device("cuda", local_rank)
+    logging.info(f"Device: {device}, rank: {rank}, local_rank: {local_rank}")
     logging.info(params)
 
     logging.info("About to create model")
@@ -1127,7 +1131,7 @@ def run(rank, world_size, args):
     model.to(device)
     if world_size > 1:
         logging.info("Using DDP")
-        model = DDP(model, device_ids=[rank], find_unused_parameters=True)
+        model = DDP(model, device_ids=[local_rank], find_unused_parameters=True)
 
     optimizer = ScaledAdam(
         get_parameter_groups_with_lrs(model, lr=params.base_lr, include_names=True),
@@ -1358,12 +1362,18 @@ def main():
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 
-    world_size = args.world_size
-    assert world_size >= 1
-    if world_size > 1:
-        mp.spawn(run, args=(world_size, args), nprocs=world_size, join=True)
+    if args.use_multi_node:
+        rank = get_rank()
+        world_size = get_world_size()
+        args.world_size = world_size
+        run(rank=rank, world_size=world_size, args=args)
     else:
-        run(rank=0, world_size=1, args=args)
+        world_size = args.world_size
+        assert world_size >= 1
+        if world_size > 1:
+            mp.spawn(run, args=(world_size, args), nprocs=world_size, join=True)
+        else:
+            run(rank=0, world_size=1, args=args)
 
 
 torch.set_num_threads(1)

@@ -103,7 +103,7 @@ class LibriLightDataModule:
             help="We will draw this many cuts to estimate the duration"
             "bins for creating similar-duration buckets. Larger number"
             "means a better estimate to the data distribution, possibly"
-            "at a longer init cost."
+            "at a longer init cost.",
         )
         group.add_argument(
             "--quadratic-duration",
@@ -304,28 +304,36 @@ class LibriLightDataModule:
     def medium_cuts(self) -> CutSet:
         logging.info("About to get librilight medium cuts")
         filenames = glob.glob(
-            str(self.args.manifest_dir / "medium_split" / "librilight_cuts_medium.*.jsonl.gz")
+            str(
+                self.args.manifest_dir
+                / "medium_split"
+                / "librilight_cuts_medium.*.jsonl.gz"
+            )
         )
         pattern = re.compile(r"librilight_cuts_medium.([0-9]+).jsonl.gz")
         idx_filenames = ((int(pattern.search(f).group(1)), f) for f in filenames)
         idx_filenames = sorted(idx_filenames, key=lambda x: x[0])
         sorted_filenames = [f[1] for f in idx_filenames]
-        logging.info(f"Loading Libri-Light medium {len(sorted_filenames)} splits in lazy mode")
-        return lhotse.combine(
-            lhotse.load_manifest_lazy(p) for p in sorted_filenames
+        logging.info(
+            f"Loading Libri-Light medium {len(sorted_filenames)} splits in lazy mode"
         )
+        return lhotse.combine(lhotse.load_manifest_lazy(p) for p in sorted_filenames)
 
     @lru_cache()
     def large_cuts(self) -> CutSet:
         logging.info("About to get librilight large cuts")
         filenames = glob.glob(
-            str(self.args.manifest_dir / "large_split" / "librilight_cuts_large.*.jsonl.gz")
+            str(
+                self.args.manifest_dir
+                / "large_split"
+                / "librilight_cuts_large.*.jsonl.gz"
+            )
         )
         pattern = re.compile(r"librilight_cuts_large.([0-9]+).jsonl.gz")
         idx_filenames = ((int(pattern.search(f).group(1)), f) for f in filenames)
         idx_filenames = sorted(idx_filenames, key=lambda x: x[0])
         sorted_filenames = [f[1] for f in idx_filenames]
-        logging.info(f"Loading Libri-Light large {len(sorted_filenames)} splits in lazy mode")
-        return lhotse.combine(
-            lhotse.load_manifest_lazy(p) for p in sorted_filenames
+        logging.info(
+            f"Loading Libri-Light large {len(sorted_filenames)} splits in lazy mode"
         )
+        return lhotse.combine(lhotse.load_manifest_lazy(p) for p in sorted_filenames)
