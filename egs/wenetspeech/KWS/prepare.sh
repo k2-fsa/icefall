@@ -63,8 +63,8 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
     ln -svf $(realpath ./open-commands/CN/small/commands.txt) commands_small.txt
     ln -svf $(realpath ./open-commands/CN/large/commands.txt) commands_large.txt
     pushd open-commands
-    ./script/prepare.sh --stage 1 --stop-stage 1
-    ./script/prepare.sh --stage 3 --stop-stage 5
+    ./scripts/prepare.sh --stage 1 --stop-stage 1
+    ./scripts/prepare.sh --stage 3 --stop-stage 5
     popd
     popd
     pushd data/fbank
