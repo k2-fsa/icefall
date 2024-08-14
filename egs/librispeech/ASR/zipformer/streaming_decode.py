@@ -43,7 +43,7 @@ import torch
 from asr_datamodule import LibriSpeechAsrDataModule
 from decode_stream import DecodeStream
 from kaldifeat import Fbank, FbankOptions
-from lhotse import CutSet
+from lhotse import CutSet, set_caching_enabled
 from streaming_beam_search import (
     fast_beam_search_one_best,
     greedy_search,
@@ -74,6 +74,13 @@ LOG_EPS = math.log(1e-10)
 def get_parser():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+
+    parser.add_argument(
+        "--label",
+        type=str,
+        default="",
+        help="""Extra label of the decoding run.""",
     )
 
     parser.add_argument(
@@ -187,6 +194,14 @@ def get_parser():
         default=2000,
         help="The number of streams that can be decoded parallel.",
     )
+
+    parser.add_argument(
+        "--skip-scoring",
+        type=str2bool,
+        default=False,
+        help="""Skip scoring, but still save the ASR output (for eval sets)."""
+    )
+
 
     add_model_arguments(parser)
 
@@ -640,46 +655,60 @@ def decode_dataset(
     return {key: decode_results}
 
 
-def save_results(
+def save_asr_output(
     params: AttributeDict,
     test_set_name: str,
     results_dict: Dict[str, List[Tuple[List[str], List[str]]]],
 ):
-    test_set_wers = dict()
+    """
+    Save text produced by ASR.
+    """
     for key, results in results_dict.items():
-        recog_path = (
+        recogs_filename = (
             params.res_dir / f"recogs-{test_set_name}-{key}-{params.suffix}.txt"
         )
         results = sorted(results)
-        store_transcripts(filename=recog_path, texts=results)
-        logging.info(f"The transcripts are stored in {recog_path}")
+        store_transcripts(filename=recogs_filename, texts=results)
+        logging.info(f"The transcripts are stored in {recogs_filename}")
+
+def save_wer_results(
+    params: AttributeDict,
+    test_set_name: str,
+    results_dict: Dict[str, List[Tuple[List[str], List[str]]]],
+):
+    """
+    Save WER and per-utterance word alignments.
+    """
+    test_set_wers = dict()
+    for key, results in results_dict.items():
 
         # The following prints out WERs, per-word error statistics and aligned
         # ref/hyp pairs.
         errs_filename = (
             params.res_dir / f"errs-{test_set_name}-{key}-{params.suffix}.txt"
         )
-        with open(errs_filename, "w") as f:
+        with open(errs_filename, "w", encoding="utf8") as fd:
             wer = write_error_stats(
-                f, f"{test_set_name}-{key}", results, enable_log=True
+                fd, f"{test_set_name}-{key}", results, enable_log=True
             )
             test_set_wers[key] = wer
 
-        logging.info("Wrote detailed error stats to {}".format(errs_filename))
+        logging.info(f"Wrote detailed error stats to {errs_filename}")
 
     test_set_wers = sorted(test_set_wers.items(), key=lambda x: x[1])
-    errs_info = (
+
+    wer_filename = (
         params.res_dir / f"wer-summary-{test_set_name}-{key}-{params.suffix}.txt"
     )
-    with open(errs_info, "w") as f:
-        print("settings\tWER", file=f)
+    with open(wer_filename, "w", encoding="utf8") as fd:
+        print("settings\tWER", file=fd)
         for key, val in test_set_wers:
-            print("{}\t{}".format(key, val), file=f)
+            print(f"{key}\t{val}", file=fd)
 
-    s = "\nFor {}, WER of different settings are:\n".format(test_set_name)
-    note = "\tbest for {}".format(test_set_name)
+    s = f"\nFor {test_set_name}, WER of different settings are:\n"
+    note = f"\tbest for {test_set_name}"
     for key, val in test_set_wers:
-        s += "{}\t{}{}\n".format(key, val, note)
+        s += f"{key}\t{val}{note}\n"
         note = ""
     logging.info(s)
 
@@ -694,6 +723,9 @@ def main():
     params = get_params()
     params.update(vars(args))
 
+    # enable AudioCache
+    set_caching_enabled(True) # lhotse
+
     params.res_dir = params.exp_dir / "streaming" / params.decoding_method
 
     if params.iter > 0:
@@ -706,17 +738,20 @@ def main():
     assert (
         "," not in params.left_context_frames
     ), "left_context_frames should be one value in decoding."
-    params.suffix += f"-chunk-{params.chunk_size}"
-    params.suffix += f"-left-context-{params.left_context_frames}"
+    params.suffix += f"_chunk-{params.chunk_size}"
+    params.suffix += f"_left-context-{params.left_context_frames}"
 
     # for fast_beam_search
     if params.decoding_method == "fast_beam_search":
-        params.suffix += f"-beam-{params.beam}"
-        params.suffix += f"-max-contexts-{params.max_contexts}"
-        params.suffix += f"-max-states-{params.max_states}"
+        params.suffix += f"_beam-{params.beam}"
+        params.suffix += f"_max-contexts-{params.max_contexts}"
+        params.suffix += f"_max-states-{params.max_states}"
 
     if params.use_averaged_model:
         params.suffix += "-use-averaged-model"
+
+    if params.label:
+        params.suffix += f"-{params.label}"
 
     setup_logger(f"{params.res_dir}/log-decode-{params.suffix}")
     logging.info("Decoding started")
@@ -845,11 +880,20 @@ def main():
             decoding_graph=decoding_graph,
         )
 
-        save_results(
+
+        save_asr_output(
             params=params,
             test_set_name=test_set,
             results_dict=results_dict,
         )
+
+
+        if not params.skip_scoring:
+            save_wer_results(
+                params=params,
+                test_set_name=test_set,
+                results_dict=results_dict,
+            )
 
     logging.info("Done!")
 
