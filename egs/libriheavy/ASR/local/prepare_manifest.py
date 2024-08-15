@@ -29,7 +29,9 @@ def simple_cleanup(text: str) -> str:
 
 # Assign text of the supervisions and remove unnecessary entries.
 def main():
-    assert len(sys.argv) == 4, "Usage: ./local/prepare_manifest.py INPUT OUTPUT_DIR KEEP_CUSTOM_FIELDS"
+    assert (
+        len(sys.argv) == 4
+    ), "Usage: ./local/prepare_manifest.py INPUT OUTPUT_DIR KEEP_CUSTOM_FIELDS"
     fname = Path(sys.argv[1]).name
     oname = Path(sys.argv[2]) / fname
     keep_custom_fields = bool(sys.argv[3])
