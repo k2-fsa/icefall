@@ -97,20 +97,20 @@ torchrun \
   zipformer/pretrain.py \
     --use-multi-node 1 \
     --master-port $master_port \
-    --num-epochs 30 \
+    --num-epochs 20 \
     --start-epoch 1 \
     --use-fp16 1 \
     --exp-dir zipformer/exp_pretrain \
-    --max-duration 600 \
+    --max-duration 350 \
     --quadratic-duration 1024 \
     --accum-grad 1 \
     --do-normalize 1 \
     --mask-prob 0.8 \
-    --dropout-input 0.0 \
-    --dropout-features 0.0 \
+    --dropout-input 0.1 \
+    --dropout-features 0.1 \
     --feature-grad-mult 1.0 \
-    --num-encoder-layers 2,2,3,4,3,2 \
-    --feedforward-dim 512,768,1024,1536,1024,768 \
-    --encoder-dim 192,256,448,768,448,192 \
-    --encoder-unmasked-dim 192,192,256,256,256,192 \
+    --num-encoder-layers 2,2,4,5,4,2 \
+    --feedforward-dim 768,1536,2048,3072,2048,1536 \
+    --encoder-dim 256,512,768,1024,768,512 \
+    --encoder-unmasked-dim 192,192,256,320,256,192 \
     --base-lr 0.045
