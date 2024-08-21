@@ -106,8 +106,8 @@ torchrun \
     --accum-grad 1 \
     --do-normalize 1 \
     --mask-prob 0.8 \
-    --dropout-input 0.1 \
-    --dropout-features 0.1 \
+    --dropout-input 0.0 \
+    --dropout-features 0.0 \
     --feature-grad-mult 1.0 \
     --num-encoder-layers 2,2,4,5,4,2 \
     --feedforward-dim 768,1536,2048,3072,2048,1536 \
