@@ -307,6 +307,23 @@ done
 
 To decode with external language models, please refer to the documentation [here](https://k2-fsa.github.io/icefall/decoding-with-langugage-models/index.html).
 
+We also support training Zipformer with AMP+bf16 format (requires bf16 support). See [here](https://github.com/k2-fsa/icefall/pull/1700) for more details and pre-trained models. **The same command can be used for decoding and exporting the model.**
+
+The amp+bf16 training command is:
+```bash
+export CUDA_VISIBLE_DEVICES="0,1,2,3"
+./zipformer/train.py \
+  --world-size 4 \
+  --num-epochs 50 \
+  --start-epoch 1 \
+  --use-fp16 0 \
+  --use-bf16 1 \
+  --exp-dir zipformer/exp_amp_bf16 \
+  --causal 0 \
+  --full-libri 1 \
+  --max-duration 1000
+```
+
 ##### small-scaled model, number of model parameters: 23285615, i.e., 23.3 M
 
 The tensorboard log can be found at
