@@ -10,6 +10,7 @@ stage=-1
 stop_stage=4
 
 dl_dir=$PWD/download
+fbank_dir=data/fbank
 
 # we assume that you have your downloaded the AudioSet and placed
 # it under $dl_dir/audioset, the folder structure should look like
@@ -49,7 +50,6 @@ fi
 
 if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   log "Stage 0: Construct the audioset manifest and compute the fbank features for balanced set"
-  fbank_dir=data/fbank
   if [! -e $fbank_dir/.balanced.done]; then
     python local/generate_audioset_manifest.py \
       --dataset-dir $dl_dir/audioset \
@@ -101,4 +101,15 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
     ./local/compute_fbank_musan.py
     touch data/fbank/.musan.done
   fi
+fi
+
+# The following stages are required to do weighted-sampling training
+if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
+  log "Stage 5: Prepare for weighted-sampling training"
+  if [ ! -e $fbank_dir/cuts_audioset_full.jsonl.gz ]; then
+    lhotse combine $fbank_dir/cuts_audioset_balanced.jsonl.gz $fbank_dir/cuts_audioset_unbalanced.jsonl.gz $fbank_dir/cuts_audioset_full.jsonl.gz
+  fi
+  python ./local/compute_weight.py \
+    --input-manifest $fbank_dir/cuts_audioset_full.jsonl.gz \
+    --output $fbank_dir/sampling_weights_full.txt
 fi

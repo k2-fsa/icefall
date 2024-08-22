@@ -31,6 +31,7 @@ from lhotse.dataset import (  # noqa F401 for PrecomputedFeatures
     PrecomputedFeatures,
     SimpleCutSampler,
     SpecAugment,
+    WeightedSimpleCutSampler,
 )
 from lhotse.dataset.input_strategies import (  # noqa F401 For AudioSamples
     AudioSamples,
@@ -98,6 +99,20 @@ class AudioSetATDatamodule:
             default=200.0,
             help="Maximum pooled recordings duration (seconds) in a "
             "single batch. You can reduce it if it causes CUDA OOM.",
+        )
+        group.add_argument(
+            "--weighted-sampler",
+            type=str2bool,
+            default=False,
+            help="When enabled, samples are drawn from by their weights. "
+            "It cannot be used together with bucketing sampler",
+        )
+        group.add_argument(
+            "--num-samples",
+            type=int,
+            default=200000,
+            help="The number of samples to be drawn in each epoch. Only be used"
+            "for weighed sampler",
         )
         group.add_argument(
             "--bucketing-sampler",
@@ -295,6 +310,9 @@ class AudioSetATDatamodule:
             )
 
         if self.args.bucketing_sampler:
+            assert (
+                not self.args.weighted_sampler
+            ), "weighted sampling is not supported in bucket sampler"
             logging.info("Using DynamicBucketingSampler.")
             train_sampler = DynamicBucketingSampler(
                 cuts_train,
@@ -304,13 +322,26 @@ class AudioSetATDatamodule:
                 drop_last=self.args.drop_last,
             )
         else:
-            logging.info("Using SimpleCutSampler.")
-            train_sampler = SimpleCutSampler(
-                cuts_train,
-                max_duration=self.args.max_duration,
-                shuffle=self.args.shuffle,
-                drop_last=self.args.drop_last,
-            )
+            if self.args.weighted_sampler:
+                # assert self.args.audioset_subset == "full", "Only use weighted sampling for full audioset"
+                logging.info("Using weighted SimpleCutSampler")
+                weights = self.audioset_sampling_weights()
+                train_sampler = WeightedSimpleCutSampler(
+                    cuts_train,
+                    weights,
+                    num_samples=self.args.num_samples,
+                    max_duration=self.args.max_duration,
+                    shuffle=False,  # do not support shuffle
+                    drop_last=self.args.drop_last,
+                )
+            else:
+                logging.info("Using SimpleCutSampler.")
+                train_sampler = SimpleCutSampler(
+                    cuts_train,
+                    max_duration=self.args.max_duration,
+                    shuffle=self.args.shuffle,
+                    drop_last=self.args.drop_last,
+                )
         logging.info("About to create train dataloader")
 
         if sampler_state_dict is not None:
@@ -373,11 +404,9 @@ class AudioSetATDatamodule:
     def test_dataloaders(self, cuts: CutSet) -> DataLoader:
         logging.debug("About to create test dataset")
         test = AudioTaggingDataset(
-            input_strategy=(
-                OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80)))
-                if self.args.on_the_fly_feats
-                else eval(self.args.input_strategy)()
-            ),
+            input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80)))
+            if self.args.on_the_fly_feats
+            else eval(self.args.input_strategy)(),
             return_cuts=self.args.return_cuts,
         )
         sampler = DynamicBucketingSampler(
@@ -397,21 +426,30 @@ class AudioSetATDatamodule:
     @lru_cache()
     def audioset_train_cuts(self) -> CutSet:
         logging.info("About to get the audioset training cuts.")
-        balanced_cuts = load_manifest_lazy(
-            self.args.manifest_dir / "cuts_audioset_balanced.jsonl.gz"
-        )
-        if self.args.audioset_subset == "full":
-            unbalanced_cuts = load_manifest_lazy(
-                self.args.manifest_dir / "cuts_audioset_unbalanced.jsonl.gz"
+        if not self.args.weighted_sampler:
+            balanced_cuts = load_manifest_lazy(
+                self.args.manifest_dir / "cuts_audioset_balanced.jsonl.gz"
             )
-            cuts = CutSet.mux(
-                balanced_cuts,
-                unbalanced_cuts,
-                weights=[20000, 2000000],
-                stop_early=True,
-            )
+            if self.args.audioset_subset == "full":
+                unbalanced_cuts = load_manifest_lazy(
+                    self.args.manifest_dir / "cuts_audioset_unbalanced.jsonl.gz"
+                )
+                cuts = CutSet.mux(
+                    balanced_cuts,
+                    unbalanced_cuts,
+                    weights=[20000, 2000000],
+                    stop_early=True,
+                )
+            else:
+                cuts = balanced_cuts
         else:
-            cuts = balanced_cuts
+            # assert self.args.audioset_subset == "full", "Only do weighted sampling for full AudioSet"
+            cuts = load_manifest(
+                self.args.manifest_dir
+                / f"cuts_audioset_{self.args.audioset_subset}.jsonl.gz"
+            )
+            logging.info(f"Get {len(cuts)} cuts in total.")
+
         return cuts
 
     @lru_cache()
@@ -420,3 +458,22 @@ class AudioSetATDatamodule:
         return load_manifest_lazy(
             self.args.manifest_dir / "cuts_audioset_eval.jsonl.gz"
         )
+
+    @lru_cache()
+    def audioset_sampling_weights(self):
+        logging.info(
+            f"About to get the sampling weight for {self.args.audioset_subset} in AudioSet"
+        )
+        weights = []
+        with open(
+            self.args.manifest_dir / f"sample_weights_{self.args.audioset_subset}.txt",
+            "r",
+        ) as f:
+            while True:
+                line = f.readline()
+                if not line:
+                    break
+                weight = float(line.split()[1])
+                weights.append(weight)
+        logging.info(f"Get the sampling weight for {len(weights)} cuts")
+        return weights
