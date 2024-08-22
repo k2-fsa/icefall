@@ -218,7 +218,7 @@ class OnnxEncoder(nn.Module):
             - encoder_out_lens, A 1-D tensor of shape (N,)
         """
         x, x_lens = self.encoder_embed(x, x_lens)
-        src_key_padding_mask = make_pad_mask(x_lens)
+        src_key_padding_mask = make_pad_mask(x_lens, x.shape[1])
         x = x.permute(1, 0, 2)
         encoder_out, encoder_out_lens = self.encoder(x, x_lens, src_key_padding_mask)
         encoder_out = encoder_out.permute(1, 0, 2)
