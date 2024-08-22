@@ -35,15 +35,39 @@ python zipformer/train.py \
     --master-port 13455
 ```
 
+We recommend that you train the model with weighted sampler, as the model converges
+faster with better performance:
+
+| Model | mAP |
+| ------ | ------- |
+| Zipformer-AT, train with weighted sampler | 46.6 |
+
 The evaluation command is:
 
 ```bash
-python zipformer/evaluate.py \
-    --epoch 32 \
-    --avg 8 \
-    --exp-dir zipformer/exp_at_as_full \
-    --max-duration 500
+export CUDA_VISIBLE_DEVICES="4,5,6,7"
+subset=full
+weighted_sampler=1
+bucket_sampler=0
+lr_epochs=15
+
+python zipformer/train.py \
+    --world-size 4 \
+    --audioset-subset $subset \
+    --num-epochs 120 \
+    --start-epoch 1 \
+    --use-fp16 1 \
+    --num-events 527 \
+    --lr-epochs $lr_epochs \
+    --exp-dir zipformer/exp_AS_${subset}_weighted_sampler${weighted_sampler} \
+    --weighted-sampler $weighted_sampler \
+    --bucketing-sampler $bucket_sampler \
+    --max-duration 1000 \
+    --enable-musan True \
+    --master-port 13452
 ```
+
+The command for evaluation is the same. The pre-trained model can be downloaded from https://huggingface.co/marcoyang/icefall-audio-tagging-audioset-zipformer-M-weighted-sampler
 
 
 #### small-scaled model, number of model parameters: 22125218, i.e., 22.13 M
