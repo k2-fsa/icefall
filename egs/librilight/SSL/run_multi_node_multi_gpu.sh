@@ -112,5 +112,5 @@ torchrun \
     --num-encoder-layers 2,2,4,5,4,2 \
     --feedforward-dim 768,1536,2048,3072,2048,1536 \
     --encoder-dim 256,512,768,1024,768,512 \
-    --encoder-unmasked-dim 192,192,256,320,256,192 \
+    --encoder-unmasked-dim 256,256,256,320,256,256 \
     --base-lr 0.045
