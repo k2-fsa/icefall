@@ -474,7 +474,7 @@ def get_parser():
     parser.add_argument(
         "--lr-hours",
         type=float,
-        default=30000,
+        default=10000,
         help="""Number of hours that affects how rapidly the learning rate decreases.
         """,
     )
@@ -482,7 +482,7 @@ def get_parser():
     parser.add_argument(
         "--warmup-batches",
         type=float,
-        default=10000,
+        default=5000,
         help="Eden warmup steps",
     )
 
