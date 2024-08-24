@@ -29,6 +29,11 @@ export CUDA_VISIBLE_DEVICES=""
 #     - speech
 dl_dir=$PWD/download
 
+# If you want to do PromptASR experiments, please set it to True
+# as this will keep the texts and pre_text information required for
+# the training of PromptASR.
+keep_custom_fields=False
+
 . shared/parse_options.sh || exit 1
 
 # vocab size for sentence piece models.
@@ -134,7 +139,7 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   for subset in small medium large dev test_clean test_other; do
     if [ ! -e $manifests_dir/libriheavy_cuts_${subset}.jsonl.gz ]; then
       log "Prepare manifest for subset : ${subset}"
-      ./local/prepare_manifest.py $dl_dir/libriheavy/libriheavy_cuts_${subset}.jsonl.gz $manifests_dir
+      ./local/prepare_manifest.py $dl_dir/libriheavy/libriheavy_cuts_${subset}.jsonl.gz $manifests_dir $keep_custom_fields
     fi
   done
 fi
