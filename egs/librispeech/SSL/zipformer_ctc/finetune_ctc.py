@@ -1136,7 +1136,6 @@ def run(rank, world_size, args):
     graph_compiler = CharCtcTrainingGraphCompiler(
         lexicon=lexicon,
         device=device,
-        delimiter="|",
     )
 
     params.blank_id = lexicon.token_table["<blk>"]
