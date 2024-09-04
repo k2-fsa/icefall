@@ -460,8 +460,22 @@ def get_parser():
     parser.add_argument(
         "--cr-loss-scale",
         type=float,
-        default=0.1,
+        default=0.15,
         help="Scale for consistency-regularization loss.",
+    )
+
+    parser.add_argument(
+        "--time-mask-ratio",
+        type=float,
+        default=2.0,
+        help="When using cr-ctc, we increase the time-masking ratio.",
+    )
+
+    parser.add_argument(
+        "--cr-loss-masked-scale",
+        type=float,
+        default=1.0,
+        help="The value used to scale up the cr_loss at masked positions",
     )
 
     parser.add_argument(
@@ -605,11 +619,6 @@ def get_params() -> AttributeDict:
             # parameters for attention-decoder
             "ignore_id": -1,
             "label_smoothing": 0.1,
-            # parameters used for CR-CTC
-            # When using cr-ctc, we increase the time-masking ratio.
-            "time_mask_ratio": 2.0,
-            # The scale used to scale up the cr_loss at masked positions.
-            "cr_loss_masked_scale": 3.0,
             "warm_step": 2000,
             "env_info": get_env_info(),
         }
