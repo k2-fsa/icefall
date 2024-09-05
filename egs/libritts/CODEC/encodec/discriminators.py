@@ -1,8 +1,8 @@
-from typing import List, Tuple
+from typing import List
 
 import torch
 import torch.nn as nn
-from models.discriminators import DiscriminatorP, DiscriminatorS, DiscriminatorSTFT
+from base_discriminators import DiscriminatorP, DiscriminatorS, DiscriminatorSTFT
 from torch.nn import AvgPool1d
 
 
@@ -81,7 +81,7 @@ class MultiScaleSTFTDiscriminator(nn.Module):
 
     def __init__(
         self,
-        filters: int,
+        n_filters: int,
         in_channels: int = 1,
         out_channels: int = 1,
         n_ffts: List[int] = [1024, 2048, 512, 256, 128],
@@ -94,7 +94,7 @@ class MultiScaleSTFTDiscriminator(nn.Module):
         self.discriminators = nn.ModuleList(
             [
                 DiscriminatorSTFT(
-                    filters,
+                    n_filters,
                     in_channels=in_channels,
                     out_channels=out_channels,
                     n_fft=n_ffts[i],

@@ -81,6 +81,13 @@ class LibriTTSCodecDataModule:
         )
 
         group.add_argument(
+            "--full-libri",
+            type=str2bool,
+            default=True,
+            help="""When enabled, use the entire LibriTTS training set. 
+            Otherwise, use the clean-100 subset.""",
+        )
+        group.add_argument(
             "--manifest-dir",
             type=Path,
             default=Path("data/spectrogram"),
@@ -210,8 +217,8 @@ class LibriTTSCodecDataModule:
 
         validate = SpeechSynthesisDataset(
             return_text=False,
-            return_tokens=True,
-            return_spk_ids=True,
+            return_tokens=False,
+            return_spk_ids=False,
             feature_input_strategy=eval(self.args.input_strategy)(),
             return_cuts=self.args.return_cuts,
         )
@@ -236,8 +243,8 @@ class LibriTTSCodecDataModule:
 
         test = SpeechSynthesisDataset(
             return_text=False,
-            return_tokens=True,
-            return_spk_ids=True,
+            return_tokens=False,
+            return_spk_ids=False,
             feature_input_strategy=eval(self.args.input_strategy)(),
             return_cuts=self.args.return_cuts,
         )
@@ -256,16 +263,60 @@ class LibriTTSCodecDataModule:
         return test_dl
 
     @lru_cache()
-    def train_cuts(self) -> CutSet:
-        logging.info("About to get train cuts")
-        return load_manifest_lazy(self.args.manifest_dir / "vctk_cuts_train.jsonl.gz")
+    def train_clean_100_cuts(self) -> CutSet:
+        logging.info("About to get train-clean-100 cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "libritts_cuts_train-clean-100.jsonl.gz"
+        )
 
     @lru_cache()
-    def valid_cuts(self) -> CutSet:
-        logging.info("About to get validation cuts")
-        return load_manifest_lazy(self.args.manifest_dir / "vctk_cuts_valid.jsonl.gz")
+    def train_clean_360_cuts(self) -> CutSet:
+        logging.info("About to get train-clean-360 cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "libritts_cuts_train-clean-360.jsonl.gz"
+        )
 
     @lru_cache()
-    def test_cuts(self) -> CutSet:
-        logging.info("About to get test cuts")
-        return load_manifest_lazy(self.args.manifest_dir / "vctk_cuts_test.jsonl.gz")
+    def train_other_500_cuts(self) -> CutSet:
+        logging.info("About to get train-other-500 cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "libritts_cuts_train-other-500.jsonl.gz"
+        )
+
+    @lru_cache()
+    def train_all_shuf_cuts(self) -> CutSet:
+        logging.info(
+            "About to get the shuffled train-clean-100, \
+            train-clean-360 and train-other-500 cuts"
+        )
+        return load_manifest_lazy(
+            self.args.manifest_dir / "libritts_cuts_train-all-shuf.jsonl.gz"
+        )
+
+    @lru_cache()
+    def dev_clean_cuts(self) -> CutSet:
+        logging.info("About to get dev-clean cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "libritts_cuts_dev-clean.jsonl.gz"
+        )
+
+    @lru_cache()
+    def dev_other_cuts(self) -> CutSet:
+        logging.info("About to get dev-other cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "libritts_cuts_dev-other.jsonl.gz"
+        )
+
+    @lru_cache()
+    def test_clean_cuts(self) -> CutSet:
+        logging.info("About to get test-clean cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "libritts_cuts_test-clean.jsonl.gz"
+        )
+
+    @lru_cache()
+    def test_other_cuts(self) -> CutSet:
+        logging.info("About to get test-other cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "libritts_cuts_test-other.jsonl.gz"
+        )

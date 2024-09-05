@@ -8,6 +8,7 @@ set -eou pipefail
 stage=0
 stop_stage=100
 sampling_rate=24000
+nj=32
 perturb_speed=true
 
 dl_dir=$PWD/download
@@ -54,7 +55,7 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   # to $dl_dir/LibriTTS
   mkdir -p data/manifests
   if [ ! -e data/manifests/.libritts.done ]; then
-    lhotse prepare libritts $dl_dir/LibriTTS data/manifests
+    lhotse prepare libritts --num-jobs 32 $dl_dir/LibriTTS data/manifests
     touch data/manifests/.libritts.done
   fi
 fi
@@ -84,10 +85,10 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   # Here we shuffle and combine the train-clean-100, train-clean-360 and 
   # train-other-500 together to form the training set.
   if [ ! -f data/fbank/libritts_cuts_train-all-shuf.jsonl.gz ]; then
-    cat <(gunzip -c data/fbank/libritts_cuts_train-clean-100.jsonl.gz) \
-      <(gunzip -c data/fbank/libritts_cuts_train-clean-360.jsonl.gz) \
-      <(gunzip -c data/fbank/libritts_cuts_train-other-500.jsonl.gz) | \
-      shuf | gzip -c > data/fbank/libritts_cuts_train-all-shuf.jsonl.gz
+    cat <(gunzip -c ./libritts_cuts_train-clean-100.jsonl.gz) \
+      <(gunzip -c ./libritts_cuts_train-clean-360.jsonl.gz) \
+      <(gunzip -c ./libritts_cuts_train-other-500.jsonl.gz) | \
+      shuf | gzip -c > ./libritts_cuts_train-all-shuf.jsonl.gz
   fi
 
   if [ ! -e data/fbank/.libritts-validated.done ]; then

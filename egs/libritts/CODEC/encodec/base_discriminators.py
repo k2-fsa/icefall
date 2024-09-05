@@ -5,9 +5,18 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchaudio
 from einops import rearrange
-from utils import get_2d_padding, get_padding
+from modules.conv import NormConv1d, NormConv2d
 
-from ..modules import NormConv1d, NormConv2d
+
+def get_padding(kernel_size, dilation=1) -> int:
+    return int((kernel_size * dilation - dilation) / 2)
+
+
+def get_2d_padding(kernel_size: Tuple[int, int], dilation: Tuple[int, int] = (1, 1)):
+    return (
+        ((kernel_size[0] - 1) * dilation[0]) // 2,
+        ((kernel_size[1] - 1) * dilation[1]) // 2,
+    )
 
 
 class DiscriminatorP(nn.Module):

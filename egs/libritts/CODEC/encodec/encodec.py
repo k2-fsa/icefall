@@ -12,7 +12,7 @@ from torch.cuda.amp import autocast
 class Encodec(nn.Module):
     def __init__(
         self,
-        sample_rate: int,
+        sampling_rate: int,
         target_bandwidths: List[float],
         params: dict,
         encoder: nn.Module,
@@ -21,21 +21,21 @@ class Encodec(nn.Module):
         multi_scale_discriminator: nn.Module,
         multi_period_discriminator: nn.Module,
         multi_scale_stft_discriminator: nn.Module,
-        cache_generator_outputs: bool = True,
+        cache_generator_outputs: bool = False,
     ):
         super(Encodec, self).__init__()
 
         self.params = params
 
         # setup the generator
-        self.sample_rate = sample_rate
+        self.sampling_rate = sampling_rate
         self.encoder = encoder
         self.quantizer = quantizer
         self.decoder = decoder
 
         self.ratios = encoder.ratios
         self.hop_length = np.prod(self.ratios)
-        self.frame_rate = math.ceil(self.sample_rate / np.prod(self.ratios))
+        self.frame_rate = math.ceil(self.sampling_rate / np.prod(self.ratios))
         self.target_bandwidths = target_bandwidths
 
         # discriminators
@@ -133,10 +133,10 @@ class Encodec(nn.Module):
 
         if return_sample:
             stats["returned_sample"] = (
-                speech_hat[0].data.cpu().numpy(),
-                speech[0].data.cpu().numpy(),
-                fmap_hat[0][0].data.cpu().numpy(),
-                fmap[0][0].data.cpu().numpy(),
+                speech_hat.cpu(),
+                speech.cpu(),
+                fmap_hat[0][0].data.cpu(),
+                fmap[0][0].data.cpu(),
             )
 
         # reset cache
@@ -258,4 +258,12 @@ class Encodec(nn.Module):
     def decode(self, codes):
         quantized = self.quantizer.decode(codes)
         o = self.decoder(quantized)
+        return o
+
+    def inference(self, x, target_bw=None, st=None):
+        # setup
+        x = x.unsqueeze(1)
+
+        codes = self.encode(x, target_bw, st)
+        o = self.decode(codes)
         return o

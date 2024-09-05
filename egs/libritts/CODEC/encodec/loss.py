@@ -59,9 +59,9 @@ def sim_loss(y_disc_r, y_disc_gen):
 # return torch.sum(loss) / x.shape[0]
 
 
-def reconstruction_loss(x, G_x, args, eps=1e-7):
+def reconstruction_loss(x, x_hat, args, eps=1e-7):
     # NOTE (lsx): hard-coded now
-    L = args.lambda_wav * F.mse_loss(x, G_x)  # wav L1 loss
+    L = args.lambda_wav * F.mse_loss(x, x_hat)  # wav L1 loss
     # loss_sisnr = sisnr_loss(G_x, x) #
     # L += 0.01*loss_sisnr
     # 2^6=64 -> 2^10=1024
@@ -70,15 +70,15 @@ def reconstruction_loss(x, G_x, args, eps=1e-7):
         # for i in range(5, 12): # Encodec setting
         s = 2**i
         melspec = MelSpectrogram(
-            sample_rate=args.sr,
+            sample_rate=args.sampling_rate,
             n_fft=max(s, 512),
             win_length=s,
             hop_length=s // 4,
             n_mels=64,
-            wkwargs={"device": args.device},
-        ).to(args.device)
+            wkwargs={"device": x_hat.device},
+        ).to(x_hat.device)
         S_x = melspec(x)
-        S_G_x = melspec(G_x)
+        S_G_x = melspec(x_hat)
         l1_loss = (S_x - S_G_x).abs().mean()
         l2_loss = (
             ((torch.log(S_x.abs() + eps) - torch.log(S_G_x.abs() + eps)) ** 2).mean(

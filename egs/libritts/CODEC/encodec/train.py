@@ -2,6 +2,7 @@ import argparse
 import itertools
 import logging
 import math
+import random
 from pathlib import Path
 from shutil import copyfile
 from typing import Any, Dict, Optional, Tuple, Union
@@ -10,6 +11,7 @@ import numpy as np
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
+from codec_datamodule import LibriTTSCodecDataModule
 from encodec import Encodec
 from lhotse.cut import Cut
 from lhotse.utils import fix_random_seed
@@ -76,7 +78,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="vits/exp",
+        default="encodec/exp",
         help="""The experiment dir.
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
@@ -126,6 +128,12 @@ def get_parser():
         type=str2bool,
         default=False,
         help="Whether to use half precision training.",
+    )
+    parser.add_argument(
+        "--chunk-size",
+        type=int,
+        default=1,
+        help="The chunk size for the dataset (in second).",
     )
 
     return parser
@@ -249,23 +257,32 @@ def get_model(params: AttributeDict) -> nn.Module:
     }
     discriminator_params = {
         "stft_discriminator_n_filters": 32,
+        "discriminator_iter_start": 500,
+    }
+    inference_params = {
+        "target_bw": 7.5,
     }
 
     params.update(generator_params)
     params.update(discriminator_params)
+    params.update(inference_params)
 
     hop_length = np.prod(params.ratios)
     n_q = int(
         1000
         * params.target_bandwidths[-1]
-        // (math.ceil(params.sample_rate / hop_length) * 10)
+        // (math.ceil(params.sampling_rate / hop_length) * 10)
     )
 
     encoder = SEANetEncoder(
-        n_filters=params.n_filters, dimension=params.dimension, ratios=params.ratios
+        n_filters=params.generator_n_filters,
+        dimension=params.dimension,
+        ratios=params.ratios,
     )
     decoder = SEANetDecoder(
-        n_filters=params.n_filters, dimension=params.dimension, ratios=params.ratios
+        n_filters=params.generator_n_filters,
+        dimension=params.dimension,
+        ratios=params.ratios,
     )
     quantizer = ResidualVectorQuantizer(
         dimension=params.dimension, n_q=n_q, bins=params.bins
@@ -273,27 +290,43 @@ def get_model(params: AttributeDict) -> nn.Module:
 
     model = Encodec(
         params=params,
-        sample_rate=params.sampling_rate,
+        sampling_rate=params.sampling_rate,
         target_bandwidths=params.target_bandwidths,
         encoder=encoder,
         quantizer=quantizer,
         decoder=decoder,
         multi_scale_discriminator=MultiScaleDiscriminator(),
         multi_period_discriminator=MultiPeriodDiscriminator(),
-        multi_scale_stft_discriminator=MultiScaleSTFTDiscriminator(),
+        multi_scale_stft_discriminator=MultiScaleSTFTDiscriminator(
+            n_filters=params.stft_discriminator_n_filters
+        ),
     )
     return model
 
 
 def prepare_input(
+    params: AttributeDict,
     batch: dict,
     device: torch.device,
+    is_training: bool = True,
 ):
     """Parse batch data"""
     audio = batch["audio"].to(device, memory_format=torch.contiguous_format)
     features = batch["features"].to(device, memory_format=torch.contiguous_format)
     audio_lens = batch["audio_lens"].to(device)
     features_lens = batch["features_lens"].to(device)
+
+    if is_training:
+        audio_dims = audio.size(-1)
+        start_idx = random.randint(
+            0, max(0, audio_dims - params.chunk_size * params.sampling_rate)
+        )
+        audio = audio[:, start_idx : params.sampling_rate + start_idx]
+    else:
+        # NOTE: a very coarse setup
+        audio = audio[
+            :, params.sampling_rate : params.sampling_rate + params.sampling_rate
+        ]
 
     return audio, audio_lens, features, features_lens
 
@@ -371,13 +404,13 @@ def train_one_epoch(
     for batch_idx, batch in enumerate(train_dl):
         params.batch_idx_train += 1
 
-        batch_size = len(batch["tokens"])
+        batch_size = len(batch["audio"])
         (
             audio,
             audio_lens,
             _,
             _,
-        ) = prepare_input(batch, device)
+        ) = prepare_input(params, batch, device)
 
         loss_info = MetricsTracker()
         loss_info["samples"] = batch_size
@@ -476,31 +509,38 @@ def train_one_epoch(
                         "train/grad_scale", cur_grad_scale, params.batch_idx_train
                     )
                 if "returned_sample" in stats_g:
-                    speech_hat_, speech_, mel_hat_, mel_ = stats_g["returned_sample"]
+                    # speech_hat_, speech_, mel_hat_, mel_ = stats_g["returned_sample"]
+                    speech_hat_, speech_, _, _ = stats_g["returned_sample"]
+
+                    speech_hat_i = speech_hat_[0]
+                    speech_i = speech_[0]
+                    if speech_hat_i.dim() > 1:
+                        speech_hat_i = speech_hat_i.squeeze(0)
+                        speech_i = speech_i.squeeze(0)
                     tb_writer.add_audio(
-                        "train/speech_hat_",
-                        speech_hat_,
+                        f"train/speech_hat_",
+                        speech_hat_i,
                         params.batch_idx_train,
                         params.sampling_rate,
                     )
                     tb_writer.add_audio(
-                        "train/speech_",
-                        speech_,
+                        f"train/speech_",
+                        speech_i,
                         params.batch_idx_train,
                         params.sampling_rate,
                     )
-                    tb_writer.add_image(
-                        "train/mel_hat_",
-                        plot_feature(mel_hat_),
-                        params.batch_idx_train,
-                        dataformats="HWC",
-                    )
-                    tb_writer.add_image(
-                        "train/mel_",
-                        plot_feature(mel_),
-                        params.batch_idx_train,
-                        dataformats="HWC",
-                    )
+                    # tb_writer.add_image(
+                    #     "train/mel_hat_",
+                    #     plot_feature(mel_hat_),
+                    #     params.batch_idx_train,
+                    #     dataformats="HWC",
+                    # )
+                    # tb_writer.add_image(
+                    #     "train/mel_",
+                    #     plot_feature(mel_),
+                    #     params.batch_idx_train,
+                    #     dataformats="HWC",
+                    # )
 
         if (
             params.batch_idx_train % params.valid_interval == 0
@@ -522,15 +562,20 @@ def train_one_epoch(
                 valid_info.write_summary(
                     tb_writer, "train/valid_", params.batch_idx_train
                 )
+                speech_hat_i = speech_hat[0]
+                speech_i = speech[0]
+                if speech_hat_i.dim() > 1:
+                    speech_hat_i = speech_hat_i.squeeze(0)
+                    speech_i = speech_i.squeeze(0)
                 tb_writer.add_audio(
                     "train/valdi_speech_hat",
-                    speech_hat,
+                    speech_hat_i,
                     params.batch_idx_train,
                     params.sampling_rate,
                 )
                 tb_writer.add_audio(
                     "train/valdi_speech",
-                    speech,
+                    speech_i,
                     params.batch_idx_train,
                     params.sampling_rate,
                 )
@@ -559,13 +604,13 @@ def compute_validation_loss(
 
     with torch.no_grad():
         for batch_idx, batch in enumerate(valid_dl):
-            batch_size = len(batch["tokens"])
+            batch_size = len(batch["audio"])
             (
                 audio,
                 audio_lens,
                 _,
                 _,
-            ) = prepare_input(batch, device)
+            ) = prepare_input(params, batch, device, is_training=False)
 
             loss_info = MetricsTracker()
             loss_info["samples"] = batch_size
@@ -588,7 +633,7 @@ def compute_validation_loss(
                 speech_lengths=audio_lens,
                 global_step=params.batch_idx_train,
                 forward_generator=True,
-                return_sample=batch_idx == 0,
+                return_sample=False,
             )
             assert loss_g.requires_grad is False
             for k, v in stats_g.items():
@@ -599,9 +644,9 @@ def compute_validation_loss(
 
             # infer for first batch:
             if batch_idx == 0 and rank == 0:
-                speech_hat_, speech_, _, _ = stats_g["returned_sample"]
-
-                returned_sample = (speech_hat_, speech_)
+                inner_model = model.module if isinstance(model, DDP) else model
+                audio_pred = inner_model.inference(x=audio, target_bw=params.target_bw)
+                returned_sample = (audio_pred, audio)
 
     if world_size > 1:
         tot_loss.reduce(device)
@@ -635,7 +680,7 @@ def scan_pessimistic_batches_for_oom(
             audio_lens,
             _,
             _,
-        ) = prepare_input(batch, device)
+        ) = prepare_input(params, batch, device)
         try:
             # for discriminator
             with autocast(enabled=params.use_fp16):
@@ -706,9 +751,12 @@ def run(rank, world_size, args):
         device = torch.device("cuda", rank)
     logging.info(f"Device: {device}")
 
-    vctk = VctkTtsDataModule(args)
+    libritts = LibriTTSCodecDataModule(args)
 
-    train_cuts = vctk.train_cuts()
+    if params.full_libri:
+        train_cuts = libritts.train_all_shuf_cuts()
+    else:
+        train_cuts = libritts.train_clean_100_cuts()
 
     logging.info(params)
 
@@ -798,19 +846,19 @@ def run(rank, world_size, args):
     if params.inf_check:
         register_inf_check_hooks(model)
 
-    train_dl = vctk.train_dataloaders(train_cuts)
+    train_dl = libritts.train_dataloaders(train_cuts)
 
-    valid_cuts = vctk.valid_cuts()
-    valid_dl = vctk.valid_dataloaders(valid_cuts)
+    valid_cuts = libritts.dev_clean_cuts()
+    valid_dl = libritts.valid_dataloaders(valid_cuts)
 
-    if not params.print_diagnostics:
-        scan_pessimistic_batches_for_oom(
-            model=model,
-            train_dl=train_dl,
-            optimizer_g=optimizer_g,
-            optimizer_d=optimizer_d,
-            params=params,
-        )
+    # if not params.print_diagnostics:
+    #     scan_pessimistic_batches_for_oom(
+    #         model=model,
+    #         train_dl=train_dl,
+    #         optimizer_g=optimizer_g,
+    #         optimizer_d=optimizer_d,
+    #         params=params,
+    #     )
 
     scaler = GradScaler(enabled=params.use_fp16, init_scale=1.0)
     if checkpoints and "grad_scaler" in checkpoints:
@@ -883,7 +931,7 @@ def run(rank, world_size, args):
 
 def main():
     parser = get_parser()
-    VctkTtsDataModule.add_arguments(parser)
+    LibriTTSCodecDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 

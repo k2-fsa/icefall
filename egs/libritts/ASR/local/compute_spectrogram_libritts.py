@@ -25,19 +25,16 @@ It looks for manifests in the directory data/manifests.
 The generated fbank features are saved in data/spectrogram.
 """
 
+import argparse
 import logging
 import os
 from pathlib import Path
+from typing import Optional
 
 import torch
-from lhotse import (
-    CutSet,
-    LilcomChunkyWriter,
-    Spectrogram,
-    SpectrogramConfig,
-    load_manifest,
-)
+from lhotse import CutSet, LilcomChunkyWriter, Spectrogram, SpectrogramConfig
 from lhotse.audio import RecordingSet
+from lhotse.recipes.utils import read_manifests_if_cached
 from lhotse.supervision import SupervisionSet
 
 from icefall.utils import get_executor
@@ -49,26 +46,62 @@ from icefall.utils import get_executor
 torch.set_num_threads(1)
 torch.set_num_interop_threads(1)
 
+def get_args():
+    parser = argparse.ArgumentParser()
 
-def compute_spectrogram_libritts():
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        help="""Dataset parts to compute fbank. If None, we will use all""",
+    )
+    parser.add_argument(
+        "--sampling-rate",
+        type=int,
+        default=24000,
+        help="""Sampling rate of the audio for computing fbank, the default value for LibriTTS is 24000, audio files will be resampled if a different sample rate is provided""",
+    )
+
+    return parser.parse_args()
+
+
+def compute_spectrogram_libritts(dataset: Optional[str] = None, sampling_rate: int = 24000,):
     src_dir = Path("data/manifests")
     output_dir = Path("data/spectrogram")
     num_jobs = min(32, os.cpu_count())
 
-    sampling_rate = 24000
+
     frame_length = 1024 / sampling_rate  # (in second)
     frame_shift = 256 / sampling_rate  # (in second)
     use_fft_mag = True
 
     prefix = "libritts"
     suffix = "jsonl.gz"
-    partition = "all"
+    if dataset is None:
+        dataset_parts = (
+            "dev-clean",
+            "dev-other",
+            "test-clean",
+            "test-other",
+            "train-clean-100",
+            "train-clean-360",
+            "train-other-500",
+        )
+    else:
+        dataset_parts = dataset.split(" ", -1)
 
-    recordings = load_manifest(
-        src_dir / f"{prefix}_recordings_{partition}.jsonl.gz", RecordingSet
-    ).resample(sampling_rate=sampling_rate)
-    supervisions = load_manifest(
-        src_dir / f"{prefix}_supervisions_{partition}.jsonl.gz", SupervisionSet
+    manifests = read_manifests_if_cached(
+        dataset_parts=dataset_parts,
+        output_dir=src_dir,
+        prefix=prefix,
+        suffix=suffix,
+    )
+    assert manifests is not None
+
+    assert len(manifests) == len(dataset_parts), (
+        len(manifests),
+        len(dataset_parts),
+        list(manifests.keys()),
+        dataset_parts,
     )
 
     config = SpectrogramConfig(
@@ -80,24 +113,29 @@ def compute_spectrogram_libritts():
     extractor = Spectrogram(config)
 
     with get_executor() as ex:  # Initialize the executor only once.
-        cuts_filename = f"{prefix}_cuts_{partition}.{suffix}"
-        if (output_dir / cuts_filename).is_file():
-            logging.info(f"{partition} already exists - skipping.")
-            return
-        logging.info(f"Processing {partition}")
-        cut_set = CutSet.from_manifests(
-            recordings=recordings, supervisions=supervisions
-        )
+        for partition, m in manifests.items():
+            cuts_filename = f"{prefix}_cuts_{partition}.{suffix}"
+            if (output_dir / cuts_filename).is_file():
+                logging.info(f"{partition} already exists - skipping.")
+                return
+            logging.info(f"Processing {partition}")
+            cut_set = CutSet.from_manifests(
+                recordings=m["recordings"],
+                supervisions=m["supervisions"],
+            )
+            if sampling_rate != 24000:
+                logging.info(f"Resampling audio to {sampling_rate}")
+                cut_set = cut_set.resample(sampling_rate)
 
-        cut_set = cut_set.compute_and_store_features(
-            extractor=extractor,
-            storage_path=f"{output_dir}/{prefix}_feats_{partition}",
-            # when an executor is specified, make more partitions
-            num_jobs=num_jobs if ex is None else 80,
-            executor=ex,
-            storage_type=LilcomChunkyWriter,
-        )
-        cut_set.to_file(output_dir / cuts_filename)
+            cut_set = cut_set.compute_and_store_features(
+                extractor=extractor,
+                storage_path=f"{output_dir}/{prefix}_feats_{partition}",
+                # when an executor is specified, make more partitions
+                num_jobs=num_jobs if ex is None else 80,
+                executor=ex,
+                storage_type=LilcomChunkyWriter,
+            )
+            cut_set.to_file(output_dir / cuts_filename)
 
 
 if __name__ == "__main__":
