@@ -568,13 +568,13 @@ def train_one_epoch(
                     speech_hat_i = speech_hat_i.squeeze(0)
                     speech_i = speech_i.squeeze(0)
                 tb_writer.add_audio(
-                    "train/valdi_speech_hat",
+                    "train/valid_speech_hat",
                     speech_hat_i,
                     params.batch_idx_train,
                     params.sampling_rate,
                 )
                 tb_writer.add_audio(
-                    "train/valdi_speech",
+                    "train/valid_speech",
                     speech_i,
                     params.batch_idx_train,
                     params.sampling_rate,
