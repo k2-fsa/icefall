@@ -803,7 +803,6 @@ def run(rank, world_size, args):
             model,
             device_ids=[rank],
             find_unused_parameters=True,
-            broadcast_buffers=False,
         )
 
     optimizer_g = torch.optim.AdamW(
