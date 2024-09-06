@@ -74,14 +74,18 @@ class Encodec(nn.Module):
         if not self.cache_generator_outputs or self._cache is None:
             reuse_cache = False
             e = self.encoder(speech)
-            bw = random.choice(self.target_bandwidths)
+            index = torch.tensor(
+                random.randint(0, len(self.target_bandwidths) - 1), device=speech.device,
+            )
+            if torch.distributed.is_initialized():
+                torch.distributed.broadcast(index, src=0)
+            bw = self.target_bandwidths[index.item()]
             quantized, codes, bandwidth, commit_loss = self.quantizer(
                 e, self.frame_rate, bw
             )
             speech_hat = self.decoder(quantized)
         else:
             speech_hat = self._cache
-
         # store cache
         if self.training and self.cache_generator_outputs and not reuse_cache:
             self._cache = speech_hat
@@ -169,7 +173,12 @@ class Encodec(nn.Module):
         if not self.cache_generator_outputs or self._cache is None:
             reuse_cache = False
             e = self.encoder(speech)
-            bw = random.choice(self.target_bandwidths)
+            index = torch.tensor(
+                random.randint(0, len(self.target_bandwidths) - 1), device=speech.device,
+            )
+            if torch.distributed.is_initialized():
+                torch.distributed.broadcast(index, src=0)
+            bw = self.target_bandwidths[index.item()]
             quantized, codes, bandwidth, commit_loss = self.quantizer(
                 e, self.frame_rate, bw
             )

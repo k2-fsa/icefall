@@ -139,7 +139,7 @@ class LibriTTSCodecDataModule:
         group.add_argument(
             "--num-workers",
             type=int,
-            default=8,
+            default=2,
             help="The number of training dataloader workers that "
             "collect the batches.",
         )
@@ -155,6 +155,8 @@ class LibriTTSCodecDataModule:
         self,
         cuts_train: CutSet,
         sampler_state_dict: Optional[Dict[str, Any]] = None,
+        world_size: Optional[int] = None,
+        rank: Optional[int] = None,
     ) -> DataLoader:
         """
         Args:
@@ -182,6 +184,8 @@ class LibriTTSCodecDataModule:
                 buffer_size=self.args.num_buckets * 2000,
                 shuffle_buffer_size=self.args.num_buckets * 5000,
                 drop_last=self.args.drop_last,
+                world_size=world_size,
+                rank=rank,
             )
         else:
             logging.info("Using SimpleCutSampler.")
@@ -189,6 +193,8 @@ class LibriTTSCodecDataModule:
                 cuts_train,
                 max_duration=self.args.max_duration,
                 shuffle=self.args.shuffle,
+                world_size=world_size,
+                rank=rank,
             )
         logging.info("About to create train dataloader")
 
@@ -206,13 +212,18 @@ class LibriTTSCodecDataModule:
             sampler=train_sampler,
             batch_size=None,
             num_workers=self.args.num_workers,
-            persistent_workers=False,
+            persistent_workers=True,
             worker_init_fn=worker_init_fn,
         )
 
         return train_dl
 
-    def valid_dataloaders(self, cuts_valid: CutSet) -> DataLoader:
+    def valid_dataloaders(
+        self,
+        cuts_valid: CutSet,
+        world_size: Optional[int] = None,
+        rank: Optional[int] = None,
+    ) -> DataLoader:
         logging.info("About to create dev dataset")
 
         validate = SpeechSynthesisDataset(
@@ -226,14 +237,17 @@ class LibriTTSCodecDataModule:
             cuts_valid,
             max_duration=self.args.max_duration,
             shuffle=False,
+            world_size=world_size,
+            rank=rank,
         )
         logging.info("About to create valid dataloader")
         valid_dl = DataLoader(
             validate,
             sampler=valid_sampler,
             batch_size=None,
-            num_workers=2,
-            persistent_workers=False,
+            num_workers=1,
+            drop_last=False,
+            persistent_workers=True,
         )
 
         return valid_dl

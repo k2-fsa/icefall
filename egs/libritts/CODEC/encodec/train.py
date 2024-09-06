@@ -552,13 +552,14 @@ def train_one_epoch(
                 model=model,
                 valid_dl=valid_dl,
                 world_size=world_size,
+                rank=rank,
             )
             model.train()
             logging.info(f"Epoch {params.cur_epoch}, validation: {valid_info}")
             logging.info(
                 f"Maximum memory allocated so far is {torch.cuda.max_memory_allocated()//1000000}MB"
             )
-            if tb_writer is not None:
+            if tb_writer is not None and rank == 0 and speech_hat is not None:
                 valid_info.write_summary(
                     tb_writer, "train/valid_", params.batch_idx_train
                 )
@@ -647,6 +648,8 @@ def compute_validation_loss(
                 inner_model = model.module if isinstance(model, DDP) else model
                 audio_pred = inner_model.inference(x=audio, target_bw=params.target_bw)
                 returned_sample = (audio_pred, audio)
+            else:
+                returned_sample = (None, None)
 
     if world_size > 1:
         tot_loss.reduce(device)
@@ -796,7 +799,12 @@ def run(rank, world_size, args):
     if world_size > 1:
         logging.info("Using DDP")
         model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
-        model = DDP(model, device_ids=[rank], find_unused_parameters=True)
+        model = DDP(
+            model,
+            device_ids=[rank],
+            find_unused_parameters=True,
+            broadcast_buffers=False,
+        )
 
     optimizer_g = torch.optim.AdamW(
         itertools.chain(
@@ -846,10 +854,18 @@ def run(rank, world_size, args):
     if params.inf_check:
         register_inf_check_hooks(model)
 
-    train_dl = libritts.train_dataloaders(train_cuts)
+    train_dl = libritts.train_dataloaders(
+        train_cuts,
+        world_size=world_size,
+        rank=rank,
+    )
 
     valid_cuts = libritts.dev_clean_cuts()
-    valid_dl = libritts.valid_dataloaders(valid_cuts)
+    valid_dl = libritts.valid_dataloaders(
+        valid_cuts,
+        world_size=world_size,
+        rank=rank,
+    )
 
     # if not params.print_diagnostics:
     #     scan_pessimistic_batches_for_oom(

@@ -78,10 +78,10 @@ def reconstruction_loss(x, x_hat, args, eps=1e-7):
             wkwargs={"device": x_hat.device},
         ).to(x_hat.device)
         S_x = melspec(x)
-        S_G_x = melspec(x_hat)
-        l1_loss = (S_x - S_G_x).abs().mean()
+        S_x_hat = melspec(x_hat)
+        l1_loss = (S_x - S_x_hat).abs().mean()
         l2_loss = (
-            ((torch.log(S_x.abs() + eps) - torch.log(S_G_x.abs() + eps)) ** 2).mean(
+            ((torch.log(S_x.abs() + eps) - torch.log(S_x_hat.abs() + eps)) ** 2).mean(
                 dim=-2
             )
             ** 0.5
