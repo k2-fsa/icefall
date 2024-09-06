@@ -559,7 +559,7 @@ def train_one_epoch(
             logging.info(
                 f"Maximum memory allocated so far is {torch.cuda.max_memory_allocated()//1000000}MB"
             )
-            if tb_writer is not None and rank == 0 and speech_hat is not None:
+            if tb_writer is not None and rank == 0:
                 valid_info.write_summary(
                     tb_writer, "train/valid_", params.batch_idx_train
                 )
@@ -634,11 +634,12 @@ def compute_validation_loss(
                 speech_lengths=audio_lens,
                 global_step=params.batch_idx_train,
                 forward_generator=True,
-                return_sample=False,
+                return_sample=True,
             )
             assert loss_g.requires_grad is False
             for k, v in stats_g.items():
-                loss_info[k] = v * batch_size
+                if "returned_sample" not in k:
+                    loss_info[k] = v * batch_size
 
             # summary stats
             tot_loss = tot_loss + loss_info

@@ -30,35 +30,6 @@ def sim_loss(y_disc_r, y_disc_gen):
     return loss / len(y_disc_r)
 
 
-# def sisnr_loss(x, s, eps=1e-8):
-# """
-# calculate training loss
-# input:
-# x: separated signal, N x S tensor, estimate value
-# s: reference signal, N x S tensor, True value
-# Return:
-# sisnr: N tensor
-# """
-# if x.shape != s.shape:
-# if x.shape[-1] > s.shape[-1]:
-# x = x[:, :s.shape[-1]]
-# else:
-# s = s[:, :x.shape[-1]]
-# def l2norm(mat, keepdim=False):
-# return torch.norm(mat, dim=-1, keepdim=keepdim)
-# if x.shape != s.shape:
-# raise RuntimeError(
-# "Dimention mismatch when calculate si-snr, {} vs {}".format(
-# x.shape, s.shape))
-# x_zm = x - torch.mean(x, dim=-1, keepdim=True)
-# s_zm = s - torch.mean(s, dim=-1, keepdim=True)
-# t = torch.sum(
-# x_zm * s_zm, dim=-1,
-# keepdim=True) * s_zm / (l2norm(s_zm, keepdim=True)**2 + eps)
-# loss = -20. * torch.log10(eps + l2norm(t) / (l2norm(x_zm - t) + eps))
-# return torch.sum(loss) / x.shape[0]
-
-
 def reconstruction_loss(x, x_hat, args, eps=1e-7):
     # NOTE (lsx): hard-coded now
     L = args.lambda_wav * F.mse_loss(x, x_hat)  # wav L1 loss
@@ -169,7 +140,6 @@ def adopt_weight(weight, global_step, threshold=0, value=0.0):
 
 
 def adopt_dis_weight(weight, global_step, threshold=0, value=0.0):
-    # 0,3,6,9,13....这些时间步，不更新dis
     if global_step % 3 == 0:
         weight = value
     return weight

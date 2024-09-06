@@ -146,7 +146,6 @@ class Encodec(nn.Module):
         # reset cache
         if reuse_cache or not self.training:
             self._cache = None
-
         return loss, stats
 
     def _forward_discriminator(
