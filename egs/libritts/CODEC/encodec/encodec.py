@@ -75,7 +75,8 @@ class Encodec(nn.Module):
             reuse_cache = False
             e = self.encoder(speech)
             index = torch.tensor(
-                random.randint(0, len(self.target_bandwidths) - 1), device=speech.device,
+                random.randint(0, len(self.target_bandwidths) - 1),
+                device=speech.device,
             )
             if torch.distributed.is_initialized():
                 torch.distributed.broadcast(index, src=0)
@@ -173,7 +174,8 @@ class Encodec(nn.Module):
             reuse_cache = False
             e = self.encoder(speech)
             index = torch.tensor(
-                random.randint(0, len(self.target_bandwidths) - 1), device=speech.device,
+                random.randint(0, len(self.target_bandwidths) - 1),
+                device=speech.device,
             )
             if torch.distributed.is_initialized():
                 torch.distributed.broadcast(index, src=0)
