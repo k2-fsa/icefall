@@ -23,6 +23,8 @@ on:
   pull_request:
     types: [labeled]
 
+  workflow_dispatch:
+
 concurrency:
   group: run-swbd-conformer_ctc-${{ github.ref }}
   cancel-in-progress: true

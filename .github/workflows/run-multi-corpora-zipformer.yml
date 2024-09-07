@@ -23,6 +23,8 @@ on:
   pull_request:
     types: [labeled]
 
+  workflow_dispatch:
+
 concurrency:
   group: run_multi-corpora_zipformer-${{ github.ref }}
   cancel-in-progress: true
