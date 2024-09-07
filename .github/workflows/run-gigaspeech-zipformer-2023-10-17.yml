@@ -133,7 +133,7 @@ jobs:
           find exp/modified_beam_search -name "log-*" -exec grep -n --color "best for test-other" {} + | sort -n -k2
 
       - name: Upload decoding results for gigaspeech zipformer
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         if: github.event_name == 'schedule' || github.event.label.name == 'run-decode'
         with:
           name: torch-${{ matrix.torch }}-python-${{ matrix.python-version }}-ubuntu-latest-cpu-zipformer-2022-11-11
