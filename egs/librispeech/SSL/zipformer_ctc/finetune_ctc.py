@@ -93,7 +93,7 @@ def get_adjusted_batch_count(params: AttributeDict) -> float:
         * params.accum_grad
         * (params.max_duration * params.world_size)
         / params.ref_duration
-    )
+    ) + 100000
 
 
 def set_batch_count(model: Union[nn.Module, DDP], batch_count: float) -> None:
