@@ -25,6 +25,7 @@ popd
 
 log "Export via torch.jit.script()"
 ./zipformer/export.py \
+  --use-averaged-model 0 \
   --exp-dir $repo/exp \
   --tokens $repo/data/lang_bpe_500/tokens.txt \
   --epoch 99 \
