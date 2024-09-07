@@ -136,12 +136,6 @@ def get_parser():
         default=False,
         help="Whether to use half precision training.",
     )
-    parser.add_argument(
-        "--chunk-size",
-        type=int,
-        default=1,
-        help="The chunk size for the dataset (in second).",
-    )
 
     return parser
 
@@ -191,6 +185,7 @@ def get_params() -> AttributeDict:
             "valid_interval": 200,
             "env_info": get_env_info(),
             "sampling_rate": 24000,
+            "chunk_size": 1.0,  # in seconds
             "lambda_adv": 1.0,  # loss scaling coefficient for adversarial loss
             "lambda_wav": 100.0,  # loss scaling coefficient for waveform loss
             "lambda_feat": 1.0,  # loss scaling coefficient for feat loss
@@ -570,7 +565,7 @@ def train_one_epoch(
                 valid_info.write_summary(
                     tb_writer, "train/valid_", params.batch_idx_train
                 )
-                for index in range(params.num_samples): # 3
+                for index in range(params.num_samples):  # 3
                     speech_hat_i = speech_hat[index]
                     speech_i = speech[index]
                     if speech_hat_i.dim() > 1:
@@ -655,8 +650,10 @@ def compute_validation_loss(
             # infer for first batch:
             if batch_idx == 0 and rank == 0:
                 inner_model = model.module if isinstance(model, DDP) else model
-                audio_pred = inner_model.inference(x=audio, target_bw=params.target_bw)
-                returned_sample = (audio_pred, audio)
+                _, audio_hat = inner_model.inference(
+                    x=audio, target_bw=params.target_bw
+                )
+                returned_sample = (audio_hat, audio)
 
     if world_size > 1:
         tot_loss.reduce(device)

@@ -267,13 +267,13 @@ class Encodec(nn.Module):
 
     def decode(self, codes):
         quantized = self.quantizer.decode(codes)
-        o = self.decoder(quantized)
-        return o
+        x_hat = self.decoder(quantized)
+        return x_hat
 
     def inference(self, x, target_bw=None, st=None):
         # setup
         x = x.unsqueeze(1)
 
         codes = self.encode(x, target_bw, st)
-        o = self.decode(codes)
-        return o
+        x_hat = self.decode(codes)
+        return codes, x_hat
