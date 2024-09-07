@@ -953,7 +953,10 @@ def train_one_epoch(
                 scheduler.step_batch(params.batch_idx_train)
                 # Use the number of hours of speech to adjust the learning rate
                 scheduler.step_epoch(
-                    params.batch_idx_train * params.max_duration * params.world_size / 3600
+                    params.batch_idx_train
+                    * params.max_duration
+                    * params.world_size
+                    / 3600
                 )
 
                 scaler.step(optimizer)

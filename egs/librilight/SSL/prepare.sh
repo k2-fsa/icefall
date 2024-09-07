@@ -6,9 +6,9 @@ export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
 set -eou pipefail
 
 nj=15
-# run step 0 to step 5 by default
+# run step 0 to step 4 by default
 stage=0
-stop_stage=5
+stop_stage=4
 
 # We assume dl_dir (download dir) contains the following
 # directories and files. If not, they will be downloaded
@@ -79,9 +79,16 @@ fi
 
 if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
   log "Stage 4: Extract SSL target for librilight"
-  mkdir -p data/fbank
-  if [ ! -e data/fbank/.librispeech.done ]; then
-    ./local/compute_fbank_librispeech.py
-    touch data/fbank/.librispeech.done
+  if [ ! -e data/kmeans/.extract_small.done ]; then
+    ./local/extract_kmeans_from_hubert_base.py --subset small
+    touch data/kmeans/.extract_small.done
+  fi
+  if [ ! -e data/kmeans/.extract_medium.done ]; then
+    ./local/extract_kmeans_from_hubert_base.py --subset medium
+    touch data/kmeans/.extract_medium.done
+  fi
+  if [ ! -e data/kmeans/.extract_large.done ]; then
+    ./local/extract_kmeans_from_hubert_base.py --subset large
+    touch data/kmeans/.extract_large.done
   fi
 fi
