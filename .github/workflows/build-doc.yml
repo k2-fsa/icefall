@@ -26,6 +26,8 @@ on:
   pull_request:
     types: [labeled]
 
+  workflow_dispatch:
+
 concurrency:
   group: build_doc-${{ github.ref }}
   cancel-in-progress: true
