@@ -48,10 +48,11 @@ def get_matrix():
     version = "20240905"
     python_version = ["3.8", "3.9", "3.10", "3.11", "3.12"]
     torch_version = []
-    torch_version += ["1.13.0", "1.13.1"]
-    torch_version += ["2.0.0", "2.0.1"]
-    torch_version += ["2.1.0", "2.1.1", "2.1.2"]
-    torch_version += ["2.2.0", "2.2.1", "2.2.2"]
+    #  torch_version += ["1.13.0", "1.13.1"]
+    #  torch_version += ["2.0.0", "2.0.1"]
+    #  torch_version += ["2.1.0", "2.1.1", "2.1.2"]
+    #  torch_version += ["2.2.0", "2.2.1", "2.2.2"]
+    # Test only torch >= 2.3.0
     torch_version += ["2.3.0", "2.3.1"]
     torch_version += ["2.4.0"]
     torch_version += ["2.4.1"]
