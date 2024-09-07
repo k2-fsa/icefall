@@ -54,6 +54,7 @@ def get_matrix():
     torch_version += ["2.2.0", "2.2.1", "2.2.2"]
     torch_version += ["2.3.0", "2.3.1"]
     torch_version += ["2.4.0"]
+    torch_version += ["2.4.1"]
 
     matrix = []
     for p in python_version:
@@ -82,6 +83,9 @@ def get_matrix():
             elif t == "2.4.0":
                 k2_version_2 = "1.24.4.dev20240725"
                 kaldifeat_version_2 = "1.25.4.dev20240725"
+            elif t == "2.4.1":
+                k2_version_2 = "1.24.4.dev20240905"
+                kaldifeat_version_2 = "1.25.4.dev20240905"
 
             matrix.append(
                 {
