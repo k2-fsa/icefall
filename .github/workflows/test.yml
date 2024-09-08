@@ -108,4 +108,4 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           path: egs/librispeech/ASR/zipformer/swoosh.pdf
-          name: swoosh.pdf
+          name: swoosh-${{ matrix.python-version }}-${{ matrix.torch-version }}
