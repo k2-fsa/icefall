@@ -46,6 +46,7 @@ from icefall.utils import get_executor
 torch.set_num_threads(1)
 torch.set_num_interop_threads(1)
 
+
 def get_args():
     parser = argparse.ArgumentParser()
 
@@ -64,11 +65,12 @@ def get_args():
     return parser.parse_args()
 
 
-def compute_spectrogram_libritts(dataset: Optional[str] = None, sampling_rate: int = 24000,):
+def compute_spectrogram_libritts(
+    dataset: Optional[str] = None, sampling_rate: int = 24000
+):
     src_dir = Path("data/manifests")
     output_dir = Path("data/spectrogram")
     num_jobs = min(32, os.cpu_count())
-
 
     frame_length = 1024 / sampling_rate  # (in second)
     frame_shift = 256 / sampling_rate  # (in second)

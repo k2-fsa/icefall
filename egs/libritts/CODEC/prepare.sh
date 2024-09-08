@@ -9,7 +9,6 @@ stage=0
 stop_stage=100
 sampling_rate=24000
 nj=32
-perturb_speed=true
 
 dl_dir=$PWD/download
 
@@ -60,50 +59,29 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   fi
 fi
 
-if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
-  log "Stage 2: Prepare musan manifest"
-  # We assume that you have downloaded the musan corpus
-  # to data/musan
-  if [ ! -f data/manifests/.musan_manifests.done ]; then
-    log "It may take 6 minutes"
-    mkdir -p data/manifests
-    lhotse prepare musan $dl_dir/musan data/manifests
-    touch data/manifests/.musan_manifests.done
-  fi
-fi
 
-if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
-  log "Stage 3: Compute Fbank for LibriTTS"
-  mkdir -p data/fbank
-  if [ ! -e data/fbank/.libritts.done ]; then
-    ./local/compute_fbank_libritts.py \
-      --sampling-rate $sampling_rate \
-      --perturb-speed $perturb_speed
-    touch data/fbank/.libritts.done
+if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
+  log "Stage 2: Compute Spectrogram for LibriTTS"
+  mkdir -p data/spectrogram
+  if [ ! -e data/spectrogram/.libritts.done ]; then
+    ./local/compute_spectrogram_libritts.py --sampling-rate $sampling_rate 
+    touch data/spectrogram/.libritts.done
   fi
 
   # Here we shuffle and combine the train-clean-100, train-clean-360 and 
   # train-other-500 together to form the training set.
-  if [ ! -f data/fbank/libritts_cuts_train-all-shuf.jsonl.gz ]; then
-    cat <(gunzip -c data/fbank/libritts_cuts_train-clean-100.jsonl.gz) \
-      <(gunzip -c data/fbank/libritts_cuts_train-clean-360.jsonl.gz) \
-      <(gunzip -c data/fbank/libritts_cuts_train-other-500.jsonl.gz) | \
-      shuf | gzip -c > data/fbank/libritts_cuts_train-all-shuf.jsonl.gz
+  if [ ! -f data/spectrogram/libritts_cuts_train-all-shuf.jsonl.gz ]; then
+    cat <(gunzip -c data/spectrogram/libritts_cuts_train-clean-100.jsonl.gz) \
+      <(gunzip -c data/spectrogram/libritts_cuts_train-clean-360.jsonl.gz) \
+      <(gunzip -c /data/spectrogramlibritts_cuts_train-other-500.jsonl.gz) | \
+      shuf | gzip -c > data/spectrogram/libritts_cuts_train-all-shuf.jsonl.gz
   fi
 
-  if [ ! -e data/fbank/.libritts-validated.done ]; then
-    log "Validating data/fbank for LibriTTS"
+  if [ ! -e data/spectrogram/.libritts-validated.done ]; then
+    log "Validating data/spectrogram for LibriTTS"
     ./local/validate_manifest.py \
-      data/fbank/libritts_cuts_train-all-shuf.jsonl.gz
-    touch data/fbank/.libritts-validated.done
+      data/spectrogram/libritts_cuts_train-all-shuf.jsonl.gz
+    touch data/spectrogram/.libritts-validated.done
   fi
 fi
 
-if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
-  log "Stage 4: Compute fbank for musan"
-  if [ ! -f data/fbank/.msuan.done ]; then
-    mkdir -p data/fbank
-    ./local/compute_fbank_musan.py
-    touch data/fbank/.msuan.done
-  fi
-fi
