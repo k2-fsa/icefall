@@ -87,7 +87,7 @@ fi
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   log "Stage 3: Prepare musan manifest"
   # We assume that you have downloaded the musan corpus
-  # to data/musan
+  # to $dl_dir/musan
   if [ ! -f data/manifests/.musan_manifests.done ]; then
     log "It may take 6 minutes"
     mkdir -p data/manifests
