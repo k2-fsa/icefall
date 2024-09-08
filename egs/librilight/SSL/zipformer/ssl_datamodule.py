@@ -23,8 +23,8 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-import torch
 import lhotse
+import torch
 from dataset import HubertDataset
 from lhotse import CutSet, load_manifest_lazy
 from lhotse.dataset import DynamicBucketingSampler, SimpleCutSampler
