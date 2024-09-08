@@ -4,6 +4,7 @@
 #                                                 Liyong Guo,
 #                                                 Quandong Wang,
 #                                                 Zengwei Yao)
+# Copyright 2024 The Chinese Univ. of HK (Author: Zengrui Jin)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #

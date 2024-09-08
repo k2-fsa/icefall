@@ -3,6 +3,7 @@
 # Copyright 2021-2023 Xiaomi Corporation (Author: Fangjun Kuang,
 #                                                 Zengwei Yao,
 #                                                 Xiaoyu Yang)
+# Copyright 2024 The Chinese Univ. of HK (Author: Zengrui Jin)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #

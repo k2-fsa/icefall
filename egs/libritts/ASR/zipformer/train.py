@@ -4,6 +4,7 @@
 #                                                       Mingshuang Luo,
 #                                                       Zengwei Yao,
 #                                                       Daniel Povey)
+# Copyright    2024 The Chinese Univ. of HK   (author: Zengrui Jin)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
