@@ -747,7 +747,7 @@ def get_model(params: AttributeDict) -> nn.Module:
 
 
 def get_spec_augment(params: AttributeDict) -> SpecAugment:
-    num_frame_masks = 10 * params.time_mask_ratio
+    num_frame_masks = int(10 * params.time_mask_ratio)
     max_frames_mask_fraction = 0.15 * params.time_mask_ratio
     logging.info(
         f"num_frame_masks: {num_frame_masks}, "
