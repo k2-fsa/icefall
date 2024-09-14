@@ -1,0 +1,1 @@
+/root/Github/icefall/egs/wenetspeech/ASR/local/prepare_words.py

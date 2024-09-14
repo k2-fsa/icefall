@@ -1,0 +1,1 @@
+/root/Github/icefall/egs/aidatatang_200zh/ASR/local/prepare_char.py
