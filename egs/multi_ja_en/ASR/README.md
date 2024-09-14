@@ -12,6 +12,6 @@ A bilingual Japanese-English ASR model that utilizes ReazonSpeech, developed by 
 
 |Datset| Number of hours| URL|
 |---|---:|---|
-|**TOTAL**|2,547|---|
+|**TOTAL**|1,960|---|
 |LibriSpeech|960|https://www.openslr.org/12/|
 |ReazonSpeech (medium) |1,000|https://huggingface.co/datasets/reazon-research/reazonspeech|
