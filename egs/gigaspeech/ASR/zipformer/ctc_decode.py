@@ -88,6 +88,8 @@ import sentencepiece as spm
 import torch
 import torch.nn as nn
 from asr_datamodule import GigaSpeechAsrDataModule
+
+from gigaspeech_scoring import asr_text_post_processing
 from train import add_model_arguments, get_model, get_params
 
 from icefall.checkpoint import (
@@ -272,6 +274,17 @@ def get_decoding_params() -> AttributeDict:
         }
     )
     return params
+
+
+def post_processing(
+    results: List[Tuple[str, List[str], List[str]]],
+) -> List[Tuple[str, List[str], List[str]]]:
+    new_results = []
+    for key, ref, hyp in results:
+        new_ref = asr_text_post_processing(" ".join(ref)).split()
+        new_hyp = asr_text_post_processing(" ".join(hyp)).split()
+        new_results.append((key, new_ref, new_hyp))
+    return new_results
 
 
 def decode_one_batch(
@@ -567,6 +580,7 @@ def save_results(
     test_set_wers = dict()
     for key, results in results_dict.items():
         recog_path = params.res_dir / f"recogs-{test_set_name}-{params.suffix}.txt"
+        results = post_processing(results)
         results = sorted(results)
         store_transcripts(filename=recog_path, texts=results)
         logging.info(f"The transcripts are stored in {recog_path}")
@@ -813,14 +827,12 @@ def main():
     args.return_cuts = True
     gigaspeech = GigaSpeechAsrDataModule(args)
 
-    test_clean_cuts = gigaspeech.test_clean_cuts()
-    test_other_cuts = gigaspeech.test_other_cuts()
+    test_cuts = gigaspeech.test_cuts()
 
-    test_clean_dl = gigaspeech.test_dataloaders(test_clean_cuts)
-    test_other_dl = gigaspeech.test_dataloaders(test_other_cuts)
+    test_dl = gigaspeech.test_dataloaders(test_cuts)
 
-    test_sets = ["test-clean", "test-other"]
-    test_dl = [test_clean_dl, test_other_dl]
+    test_sets = ["test"]
+    test_dl = [test_dl]
 
     for test_set, test_dl in zip(test_sets, test_dl):
         results_dict = decode_dataset(
