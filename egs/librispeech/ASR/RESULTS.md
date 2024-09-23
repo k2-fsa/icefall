@@ -1,5 +1,60 @@
 ## Results
 
+### zipformer hybrid autoregresive transducer (HAT)
+see <https://github.com/k2-fsa/icefall/pull/1291> for more details
+[zipformer_hat](./zipformer_hat)
+
+Results with RNNLM shallow fusion and internal language model subtraction on the same data (Librispeech)
+
+Model | Train | Decode | LM scale | ILM scale | test-clean | test-other
+-- | -- | -- | -- | -- | -- | --
+Zipformer-HAT | train-960 | greedy_search | - | - | 2.22 | 5.01
+  |   | modified_beam_search | 0 | 0 | 2.18 | 4.96
+  |   | + RNNLM shallow fusion | 0.29 | 0 | 1.96 | 4.55
+  |   | - ILME  | 0.29 | 0.1 | 1.95 | 4.55
+  |   | - ILME  | 0.29 | 0.3 | 1.97 | 4.5
+
+The training command is:
+
+```bash
+export CUDA_VISIBLE_DEVICES="0,1,2,3"
+./zipformer_hat/train.py \
+  --world-size 4 \
+  --num-epochs 40 \
+  --lr-batches 5000 \
+  --lr-epochs 4 \
+  --exp-dir ./zipformer_hat/exp \
+  --use-fp16 1 \
+  --bpe-model data/lang_bpe_500/bpe.model \
+  --max-duration 800 \
+  --causal 0 \
+  --num-encoder-layers 2,2,2,2,2,2 \
+  --feedforward-dim 512,768,1024,1024,1024,768 \
+  --encoder-dim 192,256,256,256,256,256 \
+  --encoder-unmasked-dim 192,192,192,192,192,192 \
+  --use-transducer 1
+  ```
+
+
+The decoding command is:
+```bash
+export CUDA_VISIBLE_DEVICES="0"
+for m in ctc-decoding 1best nbest nbest-rescoring whole-lattice-rescoring; do
+  ./zipformer/ctc_decode.py \
+      --epoch 40 \
+      --avg 16 \
+      --exp-dir zipformer/exp-ctc-rnnt \
+      --use-transducer 1 \
+      --use-ctc 1 \
+      --max-duration 300 \
+      --causal 0 \
+      --num-paths 100 \
+      --nbest-scale 1.0 \
+      --hlg-scale 0.6 \
+      --decoding-method $m
+done
+```
+
 ### zipformer (zipformer + pruned stateless transducer + CTC)
 
 See <https://github.com/k2-fsa/icefall/pull/1111> for more details.
