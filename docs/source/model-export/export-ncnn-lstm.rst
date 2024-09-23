@@ -15,8 +15,8 @@ We will show you step by step how to export it to `ncnn`_ and run it with `sherp
 
 .. caution::
 
-  Please use a more recent version of PyTorch. For instance, ``torch 1.8``
-  may ``not`` work.
+  ``torch > 2.0`` may not work. If you get errors while building pnnx, please switch
+  to ``torch < 2.0``.
 
 1. Download the pre-trained model
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

@@ -584,7 +584,7 @@ The following shows two examples (for the two types of checkpoints):
 
     - ``beam_search`` :  It implements Algorithm 1 in https://arxiv.org/pdf/1211.3711.pdf and
       `espnet/nets/beam_search_transducer.py <https://github.com/espnet/espnet/blob/master/espnet/nets/beam_search_transducer.py#L247>`_
-      is used as a reference. Basicly, it keeps topk states for each frame, and expands the kept states with their own contexts to
+      is used as a reference. Basically, it keeps topk states for each frame, and expands the kept states with their own contexts to
       next frame.
 
     - ``modified_beam_search`` : It implements the same algorithm as ``beam_search`` above, but it
@@ -648,7 +648,7 @@ command to extract ``model.state_dict()``.
 .. caution::
 
    ``--streaming-model`` and ``--causal-convolution`` require to be True to export
-   a streaming mdoel.
+   a streaming model.
 
 It will generate a file ``./pruned_transducer_stateless4/exp/pretrained.pt``.
 
@@ -697,7 +697,7 @@ Export model using ``torch.jit.script()``
 .. caution::
 
    ``--streaming-model`` and ``--causal-convolution`` require to be True to export
-   a streaming mdoel.
+   a streaming model.
 
 It will generate a file ``cpu_jit.pt`` in the given ``exp_dir``. You can later
 load it by ``torch.jit.load("cpu_jit.pt")``.

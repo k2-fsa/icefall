@@ -771,10 +771,20 @@ def run(rank, world_size, args):
         valid_ali = None
 
     librispeech = LibriSpeechAsrDataModule(args)
-    train_cuts = librispeech.train_clean_100_cuts()
+
     if params.full_libri:
-        train_cuts += librispeech.train_clean_360_cuts()
-        train_cuts += librispeech.train_other_500_cuts()
+        train_cuts = librispeech.train_all_shuf_cuts()
+
+        # previously we used the following code to load all training cuts,
+        # strictly speaking, shuffled training cuts should be used instead,
+        # but we leave the code here to demonstrate that there is an option
+        # like this to combine multiple cutsets
+
+        # train_cuts = librispeech.train_clean_100_cuts()
+        # train_cuts += librispeech.train_clean_360_cuts()
+        # train_cuts += librispeech.train_other_500_cuts()
+    else:
+        train_cuts = librispeech.train_clean_100_cuts()
 
     def remove_short_and_long_utt(c: Cut):
         # Keep only utterances with duration between 1 second and 20 seconds

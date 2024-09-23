@@ -32,7 +32,7 @@ In icefall, we implement the streaming conformer the way just like what `WeNet <
 .. HINT::
    If you want to modify a non-streaming conformer recipe to support both streaming and non-streaming, please refer
    to `this pull request <https://github.com/k2-fsa/icefall/pull/454>`_.  After adding the code needed by streaming training,
-   you have to re-train it with the extra arguments metioned in the docs above to get a streaming model.
+   you have to re-train it with the extra arguments mentioned in the docs above to get a streaming model.
 
 
 Streaming Emformer

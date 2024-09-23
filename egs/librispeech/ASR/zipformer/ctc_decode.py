@@ -21,7 +21,16 @@
 """
 Usage:
 
-(1) ctc-decoding
+(1) ctc-greedy-search
+./zipformer/ctc_decode.py \
+    --epoch 30 \
+    --avg 15 \
+    --exp-dir ./zipformer/exp \
+    --use-ctc 1 \
+    --max-duration 600 \
+    --decoding-method ctc-greedy-search
+
+(2) ctc-decoding
 ./zipformer/ctc_decode.py \
     --epoch 30 \
     --avg 15 \
@@ -30,7 +39,7 @@ Usage:
     --max-duration 600 \
     --decoding-method ctc-decoding
 
-(2) 1best
+(3) 1best
 ./zipformer/ctc_decode.py \
     --epoch 30 \
     --avg 15 \
@@ -40,7 +49,7 @@ Usage:
     --hlg-scale 0.6 \
     --decoding-method 1best
 
-(3) nbest
+(4) nbest
 ./zipformer/ctc_decode.py \
     --epoch 30 \
     --avg 15 \
@@ -50,7 +59,7 @@ Usage:
     --hlg-scale 0.6 \
     --decoding-method nbest
 
-(4) nbest-rescoring
+(5) nbest-rescoring
 ./zipformer/ctc_decode.py \
     --epoch 30 \
     --avg 15 \
@@ -62,7 +71,7 @@ Usage:
     --lm-dir data/lm \
     --decoding-method nbest-rescoring
 
-(5) whole-lattice-rescoring
+(6) whole-lattice-rescoring
 ./zipformer/ctc_decode.py \
     --epoch 30 \
     --avg 15 \
@@ -73,6 +82,29 @@ Usage:
     --nbest-scale 1.0 \
     --lm-dir data/lm \
     --decoding-method whole-lattice-rescoring
+
+(7) attention-decoder-rescoring-no-ngram
+./zipformer/ctc_decode.py \
+    --epoch 30 \
+    --avg 15 \
+    --exp-dir ./zipformer/exp \
+    --use-ctc 1 \
+    --use-attention-decoder 1 \
+    --max-duration 100 \
+    --decoding-method attention-decoder-rescoring-no-ngram
+
+(8) attention-decoder-rescoring-with-ngram
+./zipformer/ctc_decode.py \
+    --epoch 30 \
+    --avg 15 \
+    --exp-dir ./zipformer/exp \
+    --use-ctc 1 \
+    --use-attention-decoder 1 \
+    --max-duration 100 \
+    --hlg-scale 0.6 \
+    --nbest-scale 1.0 \
+    --lm-dir data/lm \
+    --decoding-method attention-decoder-rescoring-with-ngram
 """
 
 
@@ -88,7 +120,8 @@ import sentencepiece as spm
 import torch
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
-from train import add_model_arguments, get_params, get_model
+from lhotse import set_caching_enabled
+from train import add_model_arguments, get_model, get_params
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -97,10 +130,13 @@ from icefall.checkpoint import (
     load_checkpoint,
 )
 from icefall.decode import (
+    ctc_greedy_search,
     get_lattice,
     nbest_decoding,
     nbest_oracle,
     one_best_decoding,
+    rescore_with_attention_decoder_no_ngram,
+    rescore_with_attention_decoder_with_ngram,
     rescore_with_n_best_list,
     rescore_with_whole_lattice,
 )
@@ -195,23 +231,30 @@ def get_parser():
         default="ctc-decoding",
         help="""Decoding method.
         Supported values are:
-        - (1) ctc-decoding. Use CTC decoding. It uses a sentence piece
+        - (1) ctc-greedy-search. Use CTC greedy search. It uses a sentence piece
           model, i.e., lang_dir/bpe.model, to convert word pieces to words.
           It needs neither a lexicon nor an n-gram LM.
-        - (2) 1best. Extract the best path from the decoding lattice as the
+        - (2) ctc-decoding. Use CTC decoding. It uses a sentence piece
+          model, i.e., lang_dir/bpe.model, to convert word pieces to words.
+          It needs neither a lexicon nor an n-gram LM.
+        - (3) 1best. Extract the best path from the decoding lattice as the
           decoding result.
-        - (3) nbest. Extract n paths from the decoding lattice; the path
+        - (4) nbest. Extract n paths from the decoding lattice; the path
           with the highest score is the decoding result.
-        - (4) nbest-rescoring. Extract n paths from the decoding lattice,
+        - (5) nbest-rescoring. Extract n paths from the decoding lattice,
           rescore them with an n-gram LM (e.g., a 4-gram LM), the path with
           the highest score is the decoding result.
-        - (5) whole-lattice-rescoring. Rescore the decoding lattice with an
+        - (6) whole-lattice-rescoring. Rescore the decoding lattice with an
           n-gram LM (e.g., a 4-gram LM), the best path of rescored lattice
           is the decoding result.
           you have trained an RNN LM using ./rnn_lm/train.py
-        - (6) nbest-oracle. Its WER is the lower bound of any n-best
+        - (7) nbest-oracle. Its WER is the lower bound of any n-best
           rescoring method can achieve. Useful for debugging n-best
           rescoring method.
+        - (8) attention-decoder-rescoring-no-ngram. Extract n paths from the decoding
+          lattice, rescore them with the attention decoder.
+        - (9) attention-decoder-rescoring-with-ngram. Extract n paths from the LM
+          rescored lattice, rescore them with the attention decoder.
         """,
     )
 
@@ -252,6 +295,13 @@ def get_parser():
         help="""The n-gram LM dir.
         It should contain either G_4_gram.pt or G_4_gram.fst.txt
         """,
+    )
+
+    parser.add_argument(
+        "--skip-scoring",
+        type=str2bool,
+        default=False,
+        help="""Skip scoring, but still save the ASR output (for eval sets)."""
     )
 
     add_model_arguments(parser)
@@ -352,6 +402,15 @@ def decode_one_batch(
     encoder_out, encoder_out_lens = model.forward_encoder(feature, feature_lens)
     ctc_output = model.ctc_output(encoder_out)  # (N, T, C)
 
+    if params.decoding_method == "ctc-greedy-search":
+        hyps = ctc_greedy_search(ctc_output, encoder_out_lens)
+        # hyps is a list of str, e.g., ['xxx yyy zzz', ...]
+        hyps = bpe_model.decode(hyps)
+        # hyps is a list of list of str, e.g., [['xxx', 'yyy', 'zzz'], ... ]
+        hyps = [s.split() for s in hyps]
+        key = "ctc-greedy-search"
+        return {key: hyps}
+
     supervision_segments = torch.stack(
         (
             supervisions["sequence_idx"],
@@ -404,7 +463,27 @@ def decode_one_batch(
         # hyps is a list of list of str, e.g., [['xxx', 'yyy', 'zzz'], ... ]
         hyps = [s.split() for s in hyps]
         key = "ctc-decoding"
-        return {key: hyps}
+        return {key: hyps}  # note: returns words
+
+    if params.decoding_method == "attention-decoder-rescoring-no-ngram":
+        best_path_dict = rescore_with_attention_decoder_no_ngram(
+            lattice=lattice,
+            num_paths=params.num_paths,
+            attention_decoder=model.attention_decoder,
+            encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
+            nbest_scale=params.nbest_scale,
+        )
+        ans = dict()
+        for a_scale_str, best_path in best_path_dict.items():
+            # token_ids is a lit-of-list of IDs
+            token_ids = get_texts(best_path)
+            # hyps is a list of str, e.g., ['xxx yyy zzz', ...]
+            hyps = bpe_model.decode(token_ids)
+            # hyps is a list of list of str, e.g., [['xxx', 'yyy', 'zzz'], ... ]
+            hyps = [s.split() for s in hyps]
+            ans[a_scale_str] = hyps
+        return ans
 
     if params.decoding_method == "nbest-oracle":
         # Note: You can also pass rescored lattices to it.
@@ -421,7 +500,7 @@ def decode_one_batch(
         )
         hyps = get_texts(best_path)
         hyps = [[word_table[i] for i in ids] for ids in hyps]
-        key = f"oracle_{params.num_paths}_nbest_scale_{params.nbest_scale}"  # noqa
+        key = f"oracle_{params.num_paths}_nbest-scale-{params.nbest_scale}"  # noqa
         return {key: hyps}
 
     if params.decoding_method in ["1best", "nbest"]:
@@ -429,7 +508,7 @@ def decode_one_batch(
             best_path = one_best_decoding(
                 lattice=lattice, use_double_scores=params.use_double_scores
             )
-            key = "no_rescore"
+            key = "no-rescore"
         else:
             best_path = nbest_decoding(
                 lattice=lattice,
@@ -437,15 +516,16 @@ def decode_one_batch(
                 use_double_scores=params.use_double_scores,
                 nbest_scale=params.nbest_scale,
             )
-            key = f"no_rescore-nbest-scale-{params.nbest_scale}-{params.num_paths}"  # noqa
+            key = f"no-rescore_nbest-scale-{params.nbest_scale}-{params.num_paths}"  # noqa
 
         hyps = get_texts(best_path)
         hyps = [[word_table[i] for i in ids] for ids in hyps]
-        return {key: hyps}
+        return {key: hyps}  # note: returns BPE tokens
 
     assert params.decoding_method in [
         "nbest-rescoring",
         "whole-lattice-rescoring",
+        "attention-decoder-rescoring-with-ngram",
     ]
 
     lm_scale_list = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]
@@ -465,6 +545,21 @@ def decode_one_batch(
             lattice=lattice,
             G_with_epsilon_loops=G,
             lm_scale_list=lm_scale_list,
+        )
+    elif params.decoding_method == "attention-decoder-rescoring-with-ngram":
+        # lattice uses a 3-gram Lm. We rescore it with a 4-gram LM.
+        rescored_lattice = rescore_with_whole_lattice(
+            lattice=lattice,
+            G_with_epsilon_loops=G,
+            lm_scale_list=None,
+        )
+        best_path_dict = rescore_with_attention_decoder_with_ngram(
+            lattice=rescored_lattice,
+            num_paths=params.num_paths,
+            attention_decoder=model.attention_decoder,
+            encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
+            nbest_scale=params.nbest_scale,
         )
     else:
         assert False, f"Unsupported decoding method: {params.decoding_method}"
@@ -559,38 +654,65 @@ def decode_dataset(
     return results
 
 
-def save_results(
+def save_asr_output(
     params: AttributeDict,
     test_set_name: str,
     results_dict: Dict[str, List[Tuple[str, List[str], List[str]]]],
 ):
+    """
+    Save text produced by ASR.
+    """
+    for key, results in results_dict.items():
+
+        recogs_filename = (
+            params.res_dir / f"recogs-{test_set_name}-{params.suffix}.txt"
+        )
+
+        results = sorted(results)
+        store_transcripts(filename=recogs_filename, texts=results)
+
+        logging.info(f"The transcripts are stored in {recogs_filename}")
+
+
+def save_wer_results(
+    params: AttributeDict,
+    test_set_name: str,
+    results_dict: Dict[str, List[Tuple[str, List[str], List[str]]]],
+):
+    if params.decoding_method in (
+        "attention-decoder-rescoring-with-ngram", "whole-lattice-rescoring"
+    ):
+        # Set it to False since there are too many logs.
+        enable_log = False
+    else:
+        enable_log = True
+
     test_set_wers = dict()
     for key, results in results_dict.items():
-        recog_path = params.res_dir / f"recogs-{test_set_name}-{params.suffix}.txt"
-        results = sorted(results)
-        store_transcripts(filename=recog_path, texts=results)
-        logging.info(f"The transcripts are stored in {recog_path}")
-
         # The following prints out WERs, per-word error statistics and aligned
         # ref/hyp pairs.
         errs_filename = params.res_dir / f"errs-{test_set_name}-{params.suffix}.txt"
-        with open(errs_filename, "w") as f:
-            wer = write_error_stats(f, f"{test_set_name}-{key}", results)
+        with open(errs_filename, "w", encoding="utf8") as fd:
+            wer = write_error_stats(
+                fd, f"{test_set_name}_{key}", results, enable_log=enable_log
+            )
             test_set_wers[key] = wer
 
-        logging.info("Wrote detailed error stats to {}".format(errs_filename))
+        logging.info(f"Wrote detailed error stats to {errs_filename}")
 
     test_set_wers = sorted(test_set_wers.items(), key=lambda x: x[1])
-    errs_info = params.res_dir / f"wer-summary-{test_set_name}-{params.suffix}.txt"
-    with open(errs_info, "w") as f:
-        print("settings\tWER", file=f)
-        for key, val in test_set_wers:
-            print("{}\t{}".format(key, val), file=f)
 
-    s = "\nFor {}, WER of different settings are:\n".format(test_set_name)
-    note = "\tbest for {}".format(test_set_name)
+    wer_filename = params.res_dir / f"wer-summary-{test_set_name}-{params.suffix}.txt"
+
+    with open(wer_filename, "w", encoding="utf8") as fd:
+        print("settings\tWER", file=fd)
+        for key, val in test_set_wers:
+            print(f"{key}\t{val}", file=fd)
+
+    s = f"\nFor {test_set_name}, WER of different settings are:\n"
+    note = f"\tbest for {test_set_name}"
     for key, val in test_set_wers:
-        s += "{}\t{}{}\n".format(key, val, note)
+        s += f"{key}\t{val}{note}\n"
         note = ""
     logging.info(s)
 
@@ -609,20 +731,26 @@ def main():
     params.update(get_decoding_params())
     params.update(vars(args))
 
+    # enable AudioCache
+    set_caching_enabled(True)  # lhotse
+
     assert params.decoding_method in (
+        "ctc-greedy-search",
         "ctc-decoding",
         "1best",
         "nbest",
         "nbest-rescoring",
         "whole-lattice-rescoring",
         "nbest-oracle",
+        "attention-decoder-rescoring-no-ngram",
+        "attention-decoder-rescoring-with-ngram",
     )
     params.res_dir = params.exp_dir / params.decoding_method
 
     if params.iter > 0:
-        params.suffix = f"iter-{params.iter}-avg-{params.avg}"
+        params.suffix = f"iter-{params.iter}_avg-{params.avg}"
     else:
-        params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
+        params.suffix = f"epoch-{params.epoch}_avg-{params.avg}"
 
     if params.causal:
         assert (
@@ -631,11 +759,11 @@ def main():
         assert (
             "," not in params.left_context_frames
         ), "left_context_frames should be one value in decoding."
-        params.suffix += f"-chunk-{params.chunk_size}"
-        params.suffix += f"-left-context-{params.left_context_frames}"
+        params.suffix += f"_chunk-{params.chunk_size}"
+        params.suffix += f"_left-context-{params.left_context_frames}"
 
     if params.use_averaged_model:
-        params.suffix += "-use-averaged-model"
+        params.suffix += "_use-averaged-model"
 
     setup_logger(f"{params.res_dir}/log-decode-{params.suffix}")
     logging.info("Decoding started")
@@ -654,8 +782,12 @@ def main():
     params.vocab_size = num_classes
     # <blk> and <unk> are defined in local/train_bpe_model.py
     params.blank_id = 0
+    params.eos_id = 1
+    params.sos_id = 1
 
-    if params.decoding_method == "ctc-decoding":
+    if params.decoding_method in [
+        "ctc-greedy-search", "ctc-decoding", "attention-decoder-rescoring-no-ngram"
+    ]:
         HLG = None
         H = k2.ctc_topo(
             max_token=max_token_id,
@@ -679,6 +811,7 @@ def main():
     if params.decoding_method in (
         "nbest-rescoring",
         "whole-lattice-rescoring",
+        "attention-decoder-rescoring-with-ngram",
     ):
         if not (params.lm_dir / "G_4_gram.pt").is_file():
             logging.info("Loading G_4_gram.fst.txt")
@@ -710,7 +843,9 @@ def main():
             d = torch.load(params.lm_dir / "G_4_gram.pt", map_location=device)
             G = k2.Fsa.from_dict(d)
 
-        if params.decoding_method == "whole-lattice-rescoring":
+        if params.decoding_method in [
+            "whole-lattice-rescoring", "attention-decoder-rescoring-with-ngram"
+        ]:
             # Add epsilon self-loops to G as we will compose
             # it with the whole lattice later
             G = k2.add_epsilon_self_loops(G)
@@ -834,11 +969,18 @@ def main():
             G=G,
         )
 
-        save_results(
+        save_asr_output(
             params=params,
             test_set_name=test_set,
             results_dict=results_dict,
         )
+
+        if not params.skip_scoring:
+            save_wer_results(
+                params=params,
+                test_set_name=test_set,
+                results_dict=results_dict,
+            )
 
     logging.info("Done!")
 

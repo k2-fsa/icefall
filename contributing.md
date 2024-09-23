@@ -1,39 +1,37 @@
+# Contributing to Our Project
 
-## Pre-commit hooks
+Thank you for your interest in contributing to our project! We use Git pre-commit hooks to ensure code quality and consistency. Before contributing, please follow these guidelines to enable and use the pre-commit hooks.
 
-We use [git][git] [pre-commit][pre-commit] [hooks][hooks] to check that files
-going to be committed:
+## Pre-Commit Hooks
 
-  - contain no trailing spaces
-  - are formatted with [black][black]
-  - are compatible to [PEP8][PEP8] (checked by [flake8][flake8])
-  - end in a newline and only a newline
-  - contain sorted `imports` (checked by [isort][isort])
+We have set up pre-commit hooks to check that the files you're committing meet our coding and formatting standards. These checks include:
 
-These hooks are disabled by default. Please use the following commands to enable them:
+- Ensuring there are no trailing spaces.
+- Formatting code with [black](https://github.com/psf/black).
+- Checking compliance with PEP8 using [flake8](https://flake8.pycqa.org/).
+- Verifying that files end with a newline character (and only a newline).
+- Sorting imports using [isort](https://pycqa.github.io/isort/).
 
-```bash
-pip install pre-commit  # run it only once
-pre-commit install      # run it only once, it will install all hooks
+Please note that these hooks are disabled by default. To enable them, follow these steps:
 
-# modify some files
-git add <some files>
-git commit              # It runs all hooks automatically.
+### Installation (Run only once)
 
-# If all hooks run successfully, you can write the commit message now. Done!
-#
-# If any hook failed, your commit was not successful.
-# Please read the error messages and make changes accordingly.
-# And rerun
+1. Install the `pre-commit` package using pip:
+   ```bash
+   pip install pre-commit
+   ```
+1. Install the Git hooks using:
+   ```bash
+   pre-commit install
+   ```
+### Making a Commit
+Once you have enabled the pre-commit hooks, follow these steps when making a commit:
+1. Make your changes to the codebase.
+2. Stage your changes by using git add for the files you modified.
+3. Commit your changes using git commit. The pre-commit hooks will run automatically at this point.
+4. If all hooks run successfully, you can write your commit message, and your changes will be successfully committed.
+5. If any hook fails, your commit will not be successful. Please read and follow the error messages provided, make the necessary changes, and then re-run git add and git commit.
 
-git add <some files>
-git commit
-```
+### Your Contribution
+Your contributions are valuable to us, and by following these guidelines, you help maintain code consistency and quality in our project. We appreciate your dedication to ensuring high-quality code. If you have questions or need assistance, feel free to reach out to us. Thank you for being part of our open-source community!
 
-[git]: https://git-scm.com/book/en/v2/Customizing-Git-Git-Hooks
-[flake8]: https://github.com/PyCQA/flake8
-[PEP8]: https://www.python.org/dev/peps/pep-0008/
-[black]: https://github.com/psf/black
-[hooks]: https://github.com/pre-commit/pre-commit-hooks
-[pre-commit]: https://github.com/pre-commit/pre-commit
-[isort]: https://github.com/PyCQA/isort

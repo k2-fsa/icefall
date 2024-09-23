@@ -52,7 +52,7 @@ import onnxruntime as ort
 import sentencepiece as spm
 import torch
 import torchaudio
-from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence
+from torch.nn.utils.rnn import pack_padded_sequence, pad_sequence
 
 from icefall.utils import make_pad_mask
 
@@ -381,6 +381,7 @@ def main():
     opts.frame_opts.snip_edges = False
     opts.frame_opts.samp_freq = args.sample_rate
     opts.mel_opts.num_bins = 80
+    opts.mel_opts.high_freq = -400
 
     fbank = kaldifeat.Fbank(opts)
 

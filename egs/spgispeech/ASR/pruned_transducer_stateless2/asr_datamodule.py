@@ -103,6 +103,20 @@ class SPGISpeechAsrDataModule:
             "relative to the duration of the longest cut in a batch.",
         )
         group.add_argument(
+            "--drop-last",
+            type=str2bool,
+            default=False,
+            help="When enabled, the last batch will be dropped",
+        )
+        group.add_argument(
+            "--return-cuts",
+            type=str2bool,
+            default=True,
+            help="When enabled, each batch will have the "
+            "field: batch['supervisions']['cut'] with the cuts that "
+            "were used to construct it.",
+        )
+        group.add_argument(
             "--gap",
             type=float,
             default=1.0,
@@ -143,7 +157,7 @@ class SPGISpeechAsrDataModule:
         group.add_argument(
             "--num-workers",
             type=int,
-            default=8,
+            default=2,
             help="The number of training dataloader workers that "
             "collect the batches.",
         )
@@ -176,13 +190,13 @@ class SPGISpeechAsrDataModule:
             The state dict for the training sampler.
         """
         logging.info("About to get Musan cuts")
-        cuts_musan = load_manifest(self.args.manifest_dir / "cuts_musan.jsonl.gz")
+        cuts_musan = load_manifest(self.args.manifest_dir / "musan_cuts.jsonl.gz")
 
         transforms = []
         if self.args.enable_musan:
             logging.info("Enable MUSAN")
             transforms.append(
-                CutMix(cuts=cuts_musan, prob=0.5, snr=(10, 20), preserve_id=True)
+                CutMix(cuts=cuts_musan, p=0.5, snr=(10, 20), preserve_id=True)
             )
         else:
             logging.info("Disable MUSAN")
@@ -223,11 +237,13 @@ class SPGISpeechAsrDataModule:
                 cut_transforms=transforms,
                 input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80))),
                 input_transforms=input_transforms,
+                return_cuts=self.args.return_cuts,
             )
         else:
             train = K2SpeechRecognitionDataset(
                 cut_transforms=transforms,
                 input_transforms=input_transforms,
+                return_cuts=self.args.return_cuts,
             )
 
         logging.info("Using DynamicBucketingSampler.")
@@ -236,6 +252,8 @@ class SPGISpeechAsrDataModule:
             max_duration=self.args.max_duration,
             shuffle=False,
             num_buckets=self.args.num_buckets,
+            buffer_size=self.args.num_buckets * 2000,
+            shuffle_buffer_size=self.args.num_buckets * 5000,
             drop_last=True,
         )
         logging.info("About to create train dataloader")
@@ -261,7 +279,6 @@ class SPGISpeechAsrDataModule:
         return train_dl
 
     def valid_dataloaders(self, cuts_valid: CutSet) -> DataLoader:
-
         transforms = []
         if self.args.concatenate_cuts:
             transforms = [
@@ -275,10 +292,12 @@ class SPGISpeechAsrDataModule:
             validate = K2SpeechRecognitionDataset(
                 cut_transforms=transforms,
                 input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80))),
+                return_cuts=self.args.return_cuts,
             )
         else:
             validate = K2SpeechRecognitionDataset(
                 cut_transforms=transforms,
+                return_cuts=self.args.return_cuts,
             )
         valid_sampler = DynamicBucketingSampler(
             cuts_valid,
@@ -302,6 +321,7 @@ class SPGISpeechAsrDataModule:
             input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80)))
             if self.args.on_the_fly_feats
             else PrecomputedFeatures(),
+            return_cuts=self.args.return_cuts,
         )
         sampler = DynamicBucketingSampler(
             cuts, max_duration=self.args.max_duration, shuffle=False

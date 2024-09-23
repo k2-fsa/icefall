@@ -38,6 +38,8 @@ import sentencepiece as spm
 import torch
 import torch.distributed as dist
 import torch.nn as nn
+from pypinyin import lazy_pinyin, pinyin
+from pypinyin.contrib.tone_convert import to_finals, to_finals_tone, to_initials
 from torch.utils.tensorboard import SummaryWriter
 
 from icefall.checkpoint import average_checkpoints
@@ -152,6 +154,7 @@ def setup_logger(
         format=formatter,
         level=level,
         filemode="w",
+        force=True,
     )
     if use_console:
         console = logging.StreamHandler()
@@ -328,6 +331,19 @@ def encode_supervisions_otc(
 
 
 @dataclass
+class KeywordResult:
+    # timestamps[k] contains the frame number on which tokens[k]
+    # is decoded
+    timestamps: List[int]
+
+    # hyps is the keyword, i.e., word IDs or token IDs
+    hyps: List[int]
+
+    # The triggered phrase
+    phrase: str
+
+
+@dataclass
 class DecodingResults:
     # timestamps[i][k] contains the frame number on which tokens[i][k]
     # is decoded
@@ -483,7 +499,7 @@ def load_alignments(filename: str) -> Tuple[int, Dict[str, List[int]]]:
 
 
 def store_transcripts(
-    filename: Pathlike, texts: Iterable[Tuple[str, str, str]]
+    filename: Pathlike, texts: Iterable[Tuple[str, str, str]], char_level: bool = False
 ) -> None:
     """Save predicted results and reference transcripts to a file.
 
@@ -498,8 +514,11 @@ def store_transcripts(
     Returns:
       Return None.
     """
-    with open(filename, "w") as f:
+    with open(filename, "w", encoding="utf8") as f:
         for cut_id, ref, hyp in texts:
+            if char_level:
+                ref = list("".join(ref))
+                hyp = list("".join(hyp))
             print(f"{cut_id}:\tref={ref}", file=f)
             print(f"{cut_id}:\thyp={hyp}", file=f)
 
@@ -520,7 +539,7 @@ def store_transcripts_and_timestamps(
     Returns:
       Return None.
     """
-    with open(filename, "w") as f:
+    with open(filename, "w", encoding="utf8") as f:
         for cut_id, ref, hyp, time_ref, time_hyp in texts:
             print(f"{cut_id}:\tref={ref}", file=f)
             print(f"{cut_id}:\thyp={hyp}", file=f)
@@ -557,6 +576,7 @@ def write_error_stats(
     test_set_name: str,
     results: List[Tuple[str, str]],
     enable_log: bool = True,
+    compute_CER: bool = False,
     sclite_mode: bool = False,
 ) -> float:
     """Write statistics based on predicted results and reference transcripts.
@@ -585,7 +605,7 @@ def write_error_stats(
           The reference word `SIR` is missing in the predicted
           results (a deletion error).
       results:
-        An iterable of tuples. The first element is the cur_id, the second is
+        An iterable of tuples. The first element is the cut_id, the second is
         the reference transcript and the third element is the predicted result.
       enable_log:
         If True, also print detailed WER to the console.
@@ -602,6 +622,14 @@ def write_error_stats(
     words: Dict[str, List[int]] = defaultdict(lambda: [0, 0, 0, 0, 0])
     num_corr = 0
     ERR = "*"
+
+    if compute_CER:
+        for i, res in enumerate(results):
+            cut_id, ref, hyp = res
+            ref = list("".join(ref))
+            hyp = list("".join(hyp))
+            results[i] = (cut_id, ref, hyp)
+
     for cut_id, ref, hyp in results:
         ali = kaldialign.align(ref, hyp, ERR, sclite_mode=sclite_mode)
         for ref_word, hyp_word in ali:
@@ -1054,9 +1082,11 @@ def write_surt_error_stats(
                 f"{cut_id}:\t"
                 + " ".join(
                     (
-                        ref_word
-                        if ref_word == hyp_word
-                        else f"({ref_word}->{hyp_word})"
+                        (
+                            ref_word
+                            if ref_word == hyp_word
+                            else f"({ref_word}->{hyp_word})"
+                        )
                         for ref_word, hyp_word in ali
                     )
                 ),
@@ -1129,7 +1159,8 @@ class MetricsTracker(collections.defaultdict):
         for k, v in self.items():
             ans[k] = v
         for k, v in other.items():
-            ans[k] = ans[k] + v
+            if v - v == 0:
+                ans[k] = ans[k] + v
         return ans
 
     def __mul__(self, alpha: float) -> "MetricsTracker":
@@ -1426,13 +1457,16 @@ def measure_gradient_norms(model: nn.Module, norm: str = "l1") -> Dict[str, floa
 
 
 def get_parameter_groups_with_lrs(
-    model: nn.Module, lr: float, include_names: bool = False
+    model: nn.Module,
+    lr: float,
+    include_names: bool = False,
+    freeze_modules: List[str] = [],
 ) -> List[dict]:
     """
     This is for use with the ScaledAdam optimizers (more recent versions that accept lists of
     named-parameters; we can, if needed, create a version without the names).
 
-    It provides a way to specifiy learning-rate scales inside the module, so that if
+    It provides a way to specify learning-rate scales inside the module, so that if
     any nn.Module in the hierarchy has a floating-point parameter 'lr_scale', it will
     scale the LR of any parameters inside that module or its submodules.  Note: you
     can set module parameters outside the __init__ function, e.g.:
@@ -1450,6 +1484,8 @@ def get_parameter_groups_with_lrs(
          ...   ]
 
     """
+    named_modules = list(model.named_modules())
+
     # flat_lr_scale just contains the lr_scale explicitly specified
     # for each prefix of the name, e.g. 'encoder.layers.3', these need
     # to be multiplied for all prefix of the name of any given parameter.
@@ -1469,6 +1505,15 @@ def get_parameter_groups_with_lrs(
         split_name = name.split(".")
         # caution: as a special case, if the name is '', split_name will be [ '' ].
         prefix = split_name[0]
+        if prefix == "module":  # DDP
+            module_name = split_name[1]
+            if module_name in freeze_modules:
+                logging.info(f"Remove {name} from parameters")
+                continue
+        else:
+            if prefix in freeze_modules:
+                logging.info(f"Remove {name} from parameters")
+                continue
         cur_lr = lr * flat_lr_scale[prefix]
         if prefix != "":
             cur_lr *= flat_lr_scale[""]
@@ -1557,6 +1602,87 @@ def load_averaged_model(
     return model
 
 
+def text_to_pinyin(
+    txt: str, mode: str = "full_with_tone", errors: str = "default"
+) -> List[str]:
+    """
+    Convert a Chinese text (might contain some latin characters) to pinyin sequence.
+
+    Args:
+      txt:
+        The input Chinese text.
+      mode:
+        The style of the output pinyin, should be:
+          full_with_tone : zhōng guó
+          full_no_tone : zhong guo
+          partial_with_tone : zh ōng g uó
+          partial_no_tone : zh ong g uo
+      errors:
+        How to handle the characters (latin) that has no pinyin.
+          default : output the same as input.
+          split : split into single characters (i.e. alphabets)
+
+    Return:
+      Return a list of str.
+
+    Examples:
+      txt: 想吃KFC
+      output: ['xiǎng', 'chī', 'KFC']  # mode=full_with_tone; errors=default
+      output: ['xiǎng', 'chī', 'K', 'F', 'C']  # mode=full_with_tone; errors=split
+      output: ['xiang', 'chi', 'KFC']  # mode=full_no_tone; errors=default
+      output: ['xiang', 'chi', 'K', 'F', 'C']  # mode=full_no_tone; errors=split
+      output: ['x', 'iǎng', 'ch', 'ī', 'KFC']  # mode=partial_with_tone; errors=default
+      output: ['x', 'iang', 'ch', 'i', 'KFC']  # mode=partial_no_tone; errors=default
+    """
+
+    assert mode in (
+        "full_with_tone",
+        "full_no_tone",
+        "partial_no_tone",
+        "partial_with_tone",
+    ), mode
+
+    assert errors in ("default", "split"), errors
+
+    txt = txt.strip()
+    res = []
+    if "full" in mode:
+        if errors == "default":
+            py = pinyin(txt) if mode == "full_with_tone" else lazy_pinyin(txt)
+        else:
+            py = (
+                pinyin(txt, errors=lambda x: list(x))
+                if mode == "full_with_tone"
+                else lazy_pinyin(txt, errors=lambda x: list(x))
+            )
+        res = [x[0] for x in py] if mode == "full_with_tone" else py
+    else:
+        if errors == "default":
+            py = pinyin(txt) if mode == "partial_with_tone" else lazy_pinyin(txt)
+        else:
+            py = (
+                pinyin(txt, errors=lambda x: list(x))
+                if mode == "partial_with_tone"
+                else lazy_pinyin(txt, errors=lambda x: list(x))
+            )
+        py = [x[0] for x in py] if mode == "partial_with_tone" else py
+        for x in py:
+            initial = to_initials(x, strict=False)
+            final = (
+                to_finals(x, strict=False)
+                if mode == "partial_no_tone"
+                else to_finals_tone(x, strict=False)
+            )
+            if initial == "" and final == "":
+                res.append(x)
+            else:
+                if initial != "":
+                    res.append(initial)
+                if final != "":
+                    res.append(final)
+    return res
+
+
 def tokenize_by_bpe_model(
     sp: spm.SentencePieceProcessor,
     txt: str,
@@ -1581,10 +1707,10 @@ def tokenize_by_bpe_model(
     chars = pattern.split(txt.upper())
     mix_chars = [w for w in chars if len(w.strip()) > 0]
     for ch_or_w in mix_chars:
-        # ch_or_w is a single CJK charater(i.e., "你"), do nothing.
+        # ch_or_w is a single CJK character(i.e., "你"), do nothing.
         if pattern.fullmatch(ch_or_w) is not None:
             tokens.append(ch_or_w)
-        # ch_or_w contains non-CJK charaters(i.e., " IT'S OKAY "),
+        # ch_or_w contains non-CJK characters(i.e., " IT'S OKAY "),
         # encode ch_or_w using bpe_model.
         else:
             for p in sp.encode_as_pieces(ch_or_w):
@@ -1598,7 +1724,7 @@ def tokenize_by_CJK_char(line: str) -> str:
     """
     Tokenize a line of text with CJK char.
 
-    Note: All return charaters will be upper case.
+    Note: All return characters will be upper case.
 
     Example:
       input = "你好世界是 hello world 的中文"
@@ -1891,7 +2017,7 @@ def parse_bpe_timestamps_and_texts(
         A k2.Fsa with best_paths.arcs.num_axes() == 3, i.e.
         containing multiple FSAs, which is expected to be the result
         of k2.shortest_path (otherwise the returned values won't
-        be meaningful). Its attribtutes `labels` and `aux_labels`
+        be meaningful). Its attributes `labels` and `aux_labels`
         are both BPE tokens.
       sp:
         The BPE model.
@@ -1951,7 +2077,7 @@ def parse_timestamps_and_texts(
         A k2.Fsa with best_paths.arcs.num_axes() == 3, i.e.
         containing multiple FSAs, which is expected to be the result
         of k2.shortest_path (otherwise the returned values won't
-        be meaningful). Attribtute `labels` is the prediction unit,
+        be meaningful). Attribute `labels` is the prediction unit,
         e.g., phone or BPE tokens. Attribute `aux_labels` is the word index.
       word_table:
         The word symbol table.
@@ -2019,7 +2145,7 @@ def parse_fsa_timestamps_and_texts(
 ) -> Tuple[List[Tuple[float, float]], List[List[str]]]:
     """Parse timestamps (in seconds) and texts for given decoded fsa paths.
     Currently it supports two cases:
-    (1) ctc-decoding, the attribtutes `labels` and `aux_labels`
+    (1) ctc-decoding, the attributes `labels` and `aux_labels`
         are both BPE tokens. In this case, sp should be provided.
     (2) HLG-based 1best, the attribtute `labels` is the prediction unit,
         e.g., phone or BPE tokens; attribute `aux_labels` is the word index.

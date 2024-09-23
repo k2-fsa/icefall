@@ -1,6 +1,6 @@
 # Introduction
 
-Please refer to <https://icefall.readthedocs.io/en/latest/recipes/Non-streaming-ASR/librispeech/index.html> for how to run models in this recipe.
+Please refer to <https://k2-fsa.github.io/icefall/recipes/Non-streaming-ASR/librispeech/index.html> for how to run models in this recipe.
 
 [./RESULTS.md](./RESULTS.md) contains the latest results.
 
@@ -35,6 +35,8 @@ The following table lists the differences among them.
 | `lstm_transducer_stateless2`          | LSTM | Embedding + Conv1d | Using LSTM with mechanisms in reworked model + gigaspeech (multi-dataset setup) |
 | `lstm_transducer_stateless3`          | LSTM | Embedding + Conv1d | Using LSTM with mechanisms in reworked model + gradient filter + delay penalty |
 | `zipformer`                           | Upgraded Zipformer | Embedding + Conv1d | The latest recipe |
+| `zipformer_adapter`                           | Upgraded Zipformer | Embedding + Conv1d | It supports domain adaptation of Zipformer using parameter efficient adapters |
+| `zipformer_adapter`                           | Upgraded Zipformer | Embedding + Conv1d | Finetune Zipformer with LoRA  |
 
 The decoder in `transducer_stateless` is modified from the paper
 [Rnn-Transducer with Stateless Prediction Network](https://ieeexplore.ieee.org/document/9054419/).
@@ -47,7 +49,8 @@ We place an additional Conv1d layer right after the input embedding layer.
 | `conformer-ctc`              | Conformer          | Use auxiliary attention head |
 | `conformer-ctc2`             | Reworked Conformer | Use auxiliary attention head |
 | `conformer-ctc3`             | Reworked Conformer | Streaming version + delay penalty |
-| `zipformer`                  | Upgraded Zipformer | Use auxiliary transducer head | The latest recipe |
+| `zipformer-ctc`              | Zipformer          | Use auxiliary attention head |
+| `zipformer`                  | Upgraded Zipformer | Use auxiliary transducer head / attention-decoder head | The latest recipe |
 
 # MMI
 

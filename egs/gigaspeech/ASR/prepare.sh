@@ -99,7 +99,14 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
       exit 1;
     fi
     # Download XL, DEV and TEST sets by default.
-    lhotse download gigaspeech --subset auto --host tsinghua \
+    lhotse download gigaspeech --subset XL \
+      --subset L \
+      --subset M \
+      --subset S \
+      --subset XS \
+      --subset DEV \
+      --subset TEST \
+      --host tsinghua \
       $dl_dir/password $dl_dir/GigaSpeech
   fi
 
@@ -118,7 +125,14 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   # We assume that you have downloaded the GigaSpeech corpus
   # to $dl_dir/GigaSpeech
   mkdir -p data/manifests
-  lhotse prepare gigaspeech --subset auto -j $nj \
+  lhotse prepare gigaspeech --subset XL \
+    --subset L \
+    --subset M \
+    --subset S \
+    --subset XS \
+    --subset DEV \
+    --subset TEST \
+    -j $nj \
     $dl_dir/GigaSpeech data/manifests
 fi
 
@@ -139,22 +153,22 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
 fi
 
 if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
-  log "Stage 4: Compute features for DEV and TEST subsets of GigaSpeech (may take 2 minutes)"
-  python3 ./local/compute_fbank_gigaspeech_dev_test.py
+  log "Stage 4: Compute features for L, M, S, XS, DEV and TEST subsets of GigaSpeech."
+  python3 ./local/compute_fbank_gigaspeech.py
 fi
 
 if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   log "Stage 5: Split XL subset into pieces (may take 30 minutes)"
   split_dir=data/fbank/XL_split
   if [ ! -f $split_dir/.split_completed ]; then
-    lhotse split-lazy ./data/fbank/cuts_XL_raw.jsonl.gz $split_dir $num_per_split
+    lhotse split-lazy ./data/fbank/gigaspeech_cuts_XL_raw.jsonl.gz $split_dir $num_per_split
     touch $split_dir/.split_completed
   fi
 fi
 
 if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
   log "Stage 6: Compute features for XL"
-  num_splits=$(find data/fbank/XL_split -name "cuts_XL_raw.*.jsonl.gz" | wc -l)
+  num_splits=$(find data/fbank/XL_split -name "gigaspeech_cuts_XL_raw.*.jsonl.gz" | wc -l)
   python3 ./local/compute_fbank_gigaspeech_splits.py \
     --num-workers 20 \
     --batch-duration 600 \
@@ -163,9 +177,9 @@ fi
 
 if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
   log "Stage 7: Combine features for XL (may take 3 hours)"
-  if [ ! -f data/fbank/cuts_XL.jsonl.gz ]; then
-    pieces=$(find data/fbank/XL_split -name "cuts_XL.*.jsonl.gz")
-    lhotse combine $pieces data/fbank/cuts_XL.jsonl.gz
+  if [ ! -f data/fbank/gigaspeech_cuts_XL.jsonl.gz ]; then
+    pieces=$(find data/fbank/XL_split -name "gigaspeech_cuts_XL.*.jsonl.gz")
+    lhotse combine $pieces data/fbank/gigaspeech_cuts_XL.jsonl.gz
   fi
 fi
 
@@ -176,18 +190,9 @@ if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
 fi
 
 if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
-  log "Stage 9: Prepare phone based lang"
+  log "Stage 9: Prepare transcript_words.txt and words.txt"
   lang_dir=data/lang_phone
   mkdir -p $lang_dir
-
-  (echo '!SIL SIL'; echo '<SPOKEN_NOISE> SPN'; echo '<UNK> SPN'; ) |
-    cat - $dl_dir/lm/lexicon.txt |
-    sort | uniq > $lang_dir/lexicon.txt
-
-  if [ ! -f $lang_dir/L_disambig.pt ]; then
-    ./local/prepare_lang.py --lang-dir $lang_dir
-  fi
-
   if [ ! -f $lang_dir/transcript_words.txt ]; then
     gunzip -c "data/manifests/gigaspeech_supervisions_XL.jsonl.gz" \
       | jq '.text' \
@@ -238,7 +243,21 @@ if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
 fi
 
 if [ $stage -le 10 ] && [ $stop_stage -ge 10 ]; then
-  log "Stage 10: Prepare BPE based lang"
+  log "Stage 10: Prepare phone based lang"
+  lang_dir=data/lang_phone
+  mkdir -p $lang_dir
+
+  (echo '!SIL SIL'; echo '<SPOKEN_NOISE> SPN'; echo '<UNK> SPN'; ) |
+    cat - $dl_dir/lm/lexicon.txt |
+    sort | uniq > $lang_dir/lexicon.txt
+
+  if [ ! -f $lang_dir/L_disambig.pt ]; then
+    ./local/prepare_lang.py --lang-dir $lang_dir
+  fi
+fi
+
+if [ $stage -le 11 ] && [ $stop_stage -ge 11 ]; then
+  log "Stage 11: Prepare BPE based lang"
 
   for vocab_size in ${vocab_sizes[@]}; do
     lang_dir=data/lang_bpe_${vocab_size}
@@ -260,8 +279,8 @@ if [ $stage -le 10 ] && [ $stop_stage -ge 10 ]; then
   done
 fi
 
-if [ $stage -le 11 ] && [ $stop_stage -ge 11 ]; then
-  log "Stage 11: Prepare bigram P"
+if [ $stage -le 12 ] && [ $stop_stage -ge 12 ]; then
+  log "Stage 12: Prepare bigram P"
 
   for vocab_size in ${vocab_sizes[@]}; do
     lang_dir=data/lang_bpe_${vocab_size}
@@ -291,9 +310,9 @@ if [ $stage -le 11 ] && [ $stop_stage -ge 11 ]; then
   done
 fi
 
-if [ $stage -le 12 ] && [ $stop_stage -ge 12 ]; then
-  log "Stage 12: Prepare G"
-  # We assume you have install kaldilm, if not, please install
+if [ $stage -le 13 ] && [ $stop_stage -ge 13 ]; then
+  log "Stage 13: Prepare G"
+  # We assume you have installed kaldilm, if not, please install
   # it using: pip install kaldilm
 
   mkdir -p data/lm
@@ -317,8 +336,8 @@ if [ $stage -le 12 ] && [ $stop_stage -ge 12 ]; then
   fi
 fi
 
-if [ $stage -le 13 ] && [ $stop_stage -ge 13 ]; then
-  log "Stage 13: Compile HLG"
+if [ $stage -le 14 ] && [ $stop_stage -ge 14 ]; then
+  log "Stage 14: Compile HLG"
   ./local/compile_hlg.py --lang-dir data/lang_phone
 
   for vocab_size in ${vocab_sizes[@]}; do

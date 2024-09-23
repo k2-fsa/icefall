@@ -1,0 +1,137 @@
+name: audioset
+
+on:
+  push:
+    branches:
+      - master
+
+  pull_request:
+    branches:
+      - master
+
+  workflow_dispatch:
+
+concurrency:
+  group: audioset-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  generate_build_matrix:
+    if: github.repository_owner == 'csukuangfj' || github.repository_owner == 'k2-fsa'
+    # see https://github.com/pytorch/pytorch/pull/50633
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Generating build matrix
+        id: set-matrix
+        run: |
+          # outputting for debugging purposes
+          python ./.github/scripts/docker/generate_build_matrix.py
+          MATRIX=$(python ./.github/scripts/docker/generate_build_matrix.py)
+          echo "::set-output name=matrix::${MATRIX}"
+
+  audioset:
+    needs: generate_build_matrix
+    name: py${{ matrix.python-version }} torch${{ matrix.torch-version }} v${{ matrix.version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ${{ fromJson(needs.generate_build_matrix.outputs.matrix) }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Free space
+        shell: bash
+        run: |
+          ls -lh
+          df -h
+          rm -rf /opt/hostedtoolcache
+          df -h
+          echo "pwd: $PWD"
+          echo "github.workspace ${{ github.workspace }}"
+
+      - name: Run tests
+        uses: addnab/docker-run-action@v3
+        with:
+            image: ghcr.io/${{ github.repository_owner }}/icefall:cpu-py${{ matrix.python-version }}-torch${{ matrix.torch-version }}-v${{ matrix.version }}
+            options: |
+              --volume ${{ github.workspace }}/:/icefall
+            shell: bash
+            run: |
+              export PYTHONPATH=/icefall:$PYTHONPATH
+              cd /icefall
+              git config --global --add safe.directory /icefall
+
+              .github/scripts/audioset/AT/run.sh
+
+      - name: Show model files
+        shell: bash
+        run: |
+          sudo chown -R runner ./model-onnx
+          ls -lh ./model-onnx
+          chmod -x ./model-onnx/class_labels_indices.csv
+
+          echo "----------"
+          ls -lh ./model-onnx/*
+
+      - name: Upload model to huggingface
+        if: matrix.python-version == '3.9' && matrix.torch-version == '2.2.0' && github.event_name == 'push'
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        uses: nick-fields/retry@v3
+        with:
+          max_attempts: 20
+          timeout_seconds: 200
+          shell: bash
+          command: |
+            git config --global user.email "csukuangfj@gmail.com"
+            git config --global user.name "Fangjun Kuang"
+
+            rm -rf huggingface
+            export GIT_LFS_SKIP_SMUDGE=1
+
+            git clone https://huggingface.co/k2-fsa/sherpa-onnx-zipformer-audio-tagging-2024-04-09 huggingface
+            cd huggingface
+            git fetch
+            git pull
+            git merge -m "merge remote" --ff origin main
+            cp ../model-onnx/*.onnx ./
+            cp ../model-onnx/*.csv ./
+            cp -a ../model-onnx/test_wavs ./
+            ls -lh
+            git add .
+            git status
+            git commit -m "update models"
+            git status
+
+            git push https://csukuangfj:$HF_TOKEN@huggingface.co/k2-fsa/sherpa-onnx-zipformer-audio-tagging-2024-04-09 main || true
+            rm -rf huggingface
+
+      - name: Prepare for release
+        if: matrix.python-version == '3.9' && matrix.torch-version == '2.2.0' && github.event_name == 'push'
+        shell: bash
+        run: |
+          d=sherpa-onnx-zipformer-audio-tagging-2024-04-09
+          mv ./model-onnx $d
+          tar cjvf ${d}.tar.bz2 $d
+          ls -lh
+
+      - name: Release exported onnx models
+        if: matrix.python-version == '3.9' && matrix.torch-version == '2.2.0' && github.event_name == 'push'
+        uses: svenstaro/upload-release-action@v2
+        with:
+          file_glob: true
+          overwrite: true
+          file: sherpa-onnx-*.tar.bz2
+          repo_name: k2-fsa/sherpa-onnx
+          repo_token: ${{ secrets.UPLOAD_GH_SHERPA_ONNX_TOKEN }}
+          tag: audio-tagging-models
+

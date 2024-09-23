@@ -7,6 +7,8 @@ set -eou pipefail
 
 stage=-1
 stop_stage=100
+perturb_speed=true
+
 
 # We assume dl_dir (download dir) contains the following
 # directories and files. If not, they will be downloaded
@@ -14,8 +16,8 @@ stop_stage=100
 #
 #  - $dl_dir/aidatatang_200zh
 #      You can find "corpus" and "transcript" inside it.
-#      You can download it at
-#       https://openslr.org/62/
+#      You can download it at https://openslr.org/62/
+#      If you download the data by yourself, DON'T FORGET to extract the *.tar.gz files under corpus.
 
 dl_dir=$PWD/download
 
@@ -77,7 +79,7 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
   log "Stage 4: Compute fbank for aidatatang_200zh"
   if [ ! -f data/fbank/.aidatatang_200zh.done ]; then
     mkdir -p data/fbank
-    ./local/compute_fbank_aidatatang_200zh.py --perturb-speed True
+    ./local/compute_fbank_aidatatang_200zh.py --perturb-speed ${perturb_speed}
     touch data/fbank/.aidatatang_200zh.done
   fi
 fi

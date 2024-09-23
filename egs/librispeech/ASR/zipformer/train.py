@@ -48,6 +48,8 @@ It supports training with:
   - transducer loss (default), with `--use-transducer True --use-ctc False`
   - ctc loss (not recommended), with `--use-transducer False --use-ctc True`
   - transducer loss & ctc loss, with `--use-transducer True --use-ctc True`
+  - ctc loss & attention decoder loss, no transducer loss,
+    with `--use-transducer False --use-ctc True --use-attention-decoder True`
 """
 
 
@@ -66,6 +68,7 @@ import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
+from attention_decoder import AttentionDecoderModel
 from decoder import Decoder
 from joiner import Joiner
 from lhotse.cut import Cut
@@ -90,6 +93,7 @@ from icefall.checkpoint import (
 )
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
+from icefall.err import raise_grad_scale_is_too_small_error
 from icefall.hooks import register_inf_check_hooks
 from icefall.utils import (
     AttributeDict,
@@ -221,6 +225,41 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     )
 
     parser.add_argument(
+        "--attention-decoder-dim",
+        type=int,
+        default=512,
+        help="""Dimension used in the attention decoder""",
+    )
+
+    parser.add_argument(
+        "--attention-decoder-num-layers",
+        type=int,
+        default=6,
+        help="""Number of transformer layers used in attention decoder""",
+    )
+
+    parser.add_argument(
+        "--attention-decoder-attention-dim",
+        type=int,
+        default=512,
+        help="""Attention dimension used in attention decoder""",
+    )
+
+    parser.add_argument(
+        "--attention-decoder-num-heads",
+        type=int,
+        default=8,
+        help="""Number of attention heads used in attention decoder""",
+    )
+
+    parser.add_argument(
+        "--attention-decoder-feedforward-dim",
+        type=int,
+        default=2048,
+        help="""Feedforward dimension used in attention decoder""",
+    )
+
+    parser.add_argument(
         "--causal",
         type=str2bool,
         default=False,
@@ -256,6 +295,13 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         type=str2bool,
         default=False,
         help="If True, use CTC head.",
+    )
+
+    parser.add_argument(
+        "--use-attention-decoder",
+        type=str2bool,
+        default=False,
+        help="If True, use attention-decoder head.",
     )
 
 
@@ -360,7 +406,7 @@ def get_parser():
         "--context-size",
         type=int,
         default=2,
-        help="The context size in the decoder. 1 means bigram; " "2 means tri-gram",
+        help="The context size in the decoder. 1 means bigram; 2 means tri-gram",
     )
 
     parser.add_argument(
@@ -383,7 +429,7 @@ def get_parser():
         "--am-scale",
         type=float,
         default=0.0,
-        help="The scale to smooth the loss with am (output of encoder network)" "part.",
+        help="The scale to smooth the loss with am (output of encoder network) part.",
     )
 
     parser.add_argument(
@@ -401,6 +447,13 @@ def get_parser():
         type=float,
         default=0.2,
         help="Scale for CTC loss.",
+    )
+
+    parser.add_argument(
+        "--attention-decoder-loss-scale",
+        type=float,
+        default=0.8,
+        help="Scale for attention-decoder loss.",
     )
 
     parser.add_argument(
@@ -468,6 +521,13 @@ def get_parser():
         help="Whether to use half precision training.",
     )
 
+    parser.add_argument(
+        "--use-bf16",
+        type=str2bool,
+        default=False,
+        help="Whether to use bf16 in AMP.",
+    )
+
     add_model_arguments(parser)
 
     return parser
@@ -511,10 +571,6 @@ def get_params() -> AttributeDict:
 
         - subsampling_factor:  The subsampling factor for the model.
 
-        - encoder_dim: Hidden dim for multi-head attention model.
-
-        - num_decoder_layers: Number of decoder layer of transformer decoder.
-
         - warm_step: The warmup period that dictates the decay of the
               scale on "simple" (un-pruned) loss.
     """
@@ -531,6 +587,9 @@ def get_params() -> AttributeDict:
             # parameters for zipformer
             "feature_dim": 80,
             "subsampling_factor": 4,  # not passed in, this is fixed.
+            # parameters for attention-decoder
+            "ignore_id": -1,
+            "label_smoothing": 0.1,
             "warm_step": 2000,
             "env_info": get_env_info(),
         }
@@ -603,6 +662,23 @@ def get_joiner_model(params: AttributeDict) -> nn.Module:
     return joiner
 
 
+def get_attention_decoder_model(params: AttributeDict) -> nn.Module:
+    decoder = AttentionDecoderModel(
+        vocab_size=params.vocab_size,
+        decoder_dim=params.attention_decoder_dim,
+        num_decoder_layers=params.attention_decoder_num_layers,
+        attention_dim=params.attention_decoder_attention_dim,
+        num_heads=params.attention_decoder_num_heads,
+        feedforward_dim=params.attention_decoder_feedforward_dim,
+        memory_dim=max(_to_int_tuple(params.encoder_dim)),
+        sos_id=params.sos_id,
+        eos_id=params.eos_id,
+        ignore_id=params.ignore_id,
+        label_smoothing=params.label_smoothing,
+    )
+    return decoder
+
+
 def get_model(params: AttributeDict) -> nn.Module:
     assert params.use_transducer or params.use_ctc, (
         f"At least one of them should be True, "
@@ -620,16 +696,23 @@ def get_model(params: AttributeDict) -> nn.Module:
         decoder = None
         joiner = None
 
+    if params.use_attention_decoder:
+        attention_decoder = get_attention_decoder_model(params)
+    else:
+        attention_decoder = None
+
     model = AsrModel(
         encoder_embed=encoder_embed,
         encoder=encoder,
         decoder=decoder,
         joiner=joiner,
+        attention_decoder=attention_decoder,
         encoder_dim=max(_to_int_tuple(params.encoder_dim)),
         decoder_dim=params.decoder_dim,
         vocab_size=params.vocab_size,
         use_transducer=params.use_transducer,
         use_ctc=params.use_ctc,
+        use_attention_decoder=params.use_attention_decoder,
     )
     return model
 
@@ -772,7 +855,7 @@ def compute_loss(
         True for training. False for validation. When it is True, this
         function enables autograd during computation; when it is False, it
         disables autograd.
-     warmup: a floating point value which increases throughout training;
+      warmup: a floating point value which increases throughout training;
         values >= 1.0 are fully warmed up and have all modules present.
     """
     device = model.device if isinstance(model, DDP) else next(model.parameters()).device
@@ -792,7 +875,7 @@ def compute_loss(
     y = k2.RaggedTensor(y)
 
     with torch.set_grad_enabled(is_training):
-        simple_loss, pruned_loss, ctc_loss = model(
+        simple_loss, pruned_loss, ctc_loss, attention_decoder_loss = model(
             x=feature,
             x_lens=feature_lens,
             y=y,
@@ -822,6 +905,9 @@ def compute_loss(
         if params.use_ctc:
             loss += params.ctc_loss_scale * ctc_loss
 
+        if params.use_attention_decoder:
+            loss += params.attention_decoder_loss_scale * attention_decoder_loss
+
     assert loss.requires_grad == is_training
 
     info = MetricsTracker()
@@ -836,6 +922,8 @@ def compute_loss(
         info["pruned_loss"] = pruned_loss.detach().cpu().item()
     if params.use_ctc:
         info["ctc_loss"] = ctc_loss.detach().cpu().item()
+    if params.use_attention_decoder:
+        info["attn_decoder_loss"] = attention_decoder_loss.detach().cpu().item()
 
     return loss, info
 
@@ -946,7 +1034,9 @@ def train_one_epoch(
         batch_size = len(batch["supervisions"]["text"])
 
         try:
-            with torch.cuda.amp.autocast(enabled=params.use_fp16):
+            with torch.cuda.amp.autocast(
+                enabled=params.use_autocast, dtype=params.dtype
+            ):
                 loss, loss_info = compute_loss(
                     params=params,
                     model=model,
@@ -965,7 +1055,8 @@ def train_one_epoch(
             scaler.step(optimizer)
             scaler.update()
             optimizer.zero_grad()
-        except:  # noqa
+        except Exception as e:
+            logging.info(f"Caught exception: {e}.")
             save_bad_model()
             display_and_save_batch(batch, params=params, sp=sp)
             raise
@@ -1006,7 +1097,7 @@ def train_one_epoch(
                 rank=rank,
             )
 
-        if batch_idx % 100 == 0 and params.use_fp16:
+        if batch_idx % 100 == 0 and params.use_autocast:
             # If the grad scale was less than 1, try increasing it.    The _growth_interval
             # of the grad scaler is configurable, but we can't configure it to have different
             # behavior depending on the current grad scale.
@@ -1021,20 +1112,18 @@ def train_one_epoch(
                 logging.warning(f"Grad scale is small: {cur_grad_scale}")
             if cur_grad_scale < 1.0e-05:
                 save_bad_model()
-                raise RuntimeError(
-                    f"grad_scale is too small, exiting: {cur_grad_scale}"
-                )
+                raise_grad_scale_is_too_small_error(cur_grad_scale)
 
         if batch_idx % params.log_interval == 0:
             cur_lr = max(scheduler.get_last_lr())
-            cur_grad_scale = scaler._scale.item() if params.use_fp16 else 1.0
+            cur_grad_scale = scaler._scale.item() if params.use_autocast else 1.0
 
             logging.info(
                 f"Epoch {params.cur_epoch}, "
                 f"batch {batch_idx}, loss[{loss_info}], "
                 f"tot_loss[{tot_loss}], batch size: {batch_size}, "
                 f"lr: {cur_lr:.2e}, "
-                + (f"grad_scale: {scaler._scale.item()}" if params.use_fp16 else "")
+                + (f"grad_scale: {scaler._scale.item()}" if params.use_autocast else "")
             )
 
             if tb_writer is not None:
@@ -1046,7 +1135,7 @@ def train_one_epoch(
                     tb_writer, "train/current_", params.batch_idx_train
                 )
                 tot_loss.write_summary(tb_writer, "train/tot_", params.batch_idx_train)
-                if params.use_fp16:
+                if params.use_autocast:
                     tb_writer.add_scalar(
                         "train/grad_scale", cur_grad_scale, params.batch_idx_train
                     )
@@ -1114,10 +1203,32 @@ def run(rank, world_size, args):
 
     # <blk> is defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
+    params.sos_id = params.eos_id = sp.piece_to_id("<sos/eos>")
     params.vocab_size = sp.get_piece_size()
 
     if not params.use_transducer:
-        params.ctc_loss_scale = 1.0
+        if not params.use_attention_decoder:
+            params.ctc_loss_scale = 1.0
+        else:
+            assert params.ctc_loss_scale + params.attention_decoder_loss_scale == 1.0, (
+                params.ctc_loss_scale,
+                params.attention_decoder_loss_scale,
+            )
+
+    if params.use_bf16:  # amp + bf16
+        assert torch.cuda.is_bf16_supported(), "Your GPU does not support bf16!"
+        assert not params.use_fp16, "You can only use either fp16 or bf16"
+        params.dtype = torch.bfloat16
+        params.use_autocast = True
+    elif params.use_fp16:  # amp + fp16
+        params.dtype = torch.float16
+        params.use_autocast = True
+    else:  # fp32
+        params.dtype = torch.float32
+        params.use_autocast = False
+
+    logging.info(f"Using dtype={params.dtype}")
+    logging.info(f"Use AMP={params.use_autocast}")
 
     logging.info(params)
 
@@ -1174,10 +1285,19 @@ def run(rank, world_size, args):
 
     librispeech = LibriSpeechAsrDataModule(args)
 
-    train_cuts = librispeech.train_clean_100_cuts()
     if params.full_libri:
-        train_cuts += librispeech.train_clean_360_cuts()
-        train_cuts += librispeech.train_other_500_cuts()
+        train_cuts = librispeech.train_all_shuf_cuts()
+
+        # previously we used the following code to load all training cuts,
+        # strictly speaking, shuffled training cuts should be used instead,
+        # but we leave the code here to demonstrate that there is an option
+        # like this to combine multiple cutsets
+
+        # train_cuts = librispeech.train_clean_100_cuts()
+        # train_cuts += librispeech.train_clean_360_cuts()
+        # train_cuts += librispeech.train_other_500_cuts()
+    else:
+        train_cuts = librispeech.train_clean_100_cuts()
 
     def remove_short_and_long_utt(c: Cut):
         # Keep only utterances with duration between 1 second and 20 seconds
@@ -1242,7 +1362,7 @@ def run(rank, world_size, args):
             params=params,
         )
 
-    scaler = GradScaler(enabled=params.use_fp16, init_scale=1.0)
+    scaler = GradScaler(enabled=params.use_autocast, init_scale=1.0)
     if checkpoints and "grad_scaler" in checkpoints:
         logging.info("Loading grad scaler state dict")
         scaler.load_state_dict(checkpoints["grad_scaler"])
@@ -1342,7 +1462,9 @@ def scan_pessimistic_batches_for_oom(
     for criterion, cuts in batches.items():
         batch = train_dl.dataset[cuts]
         try:
-            with torch.cuda.amp.autocast(enabled=params.use_fp16):
+            with torch.cuda.amp.autocast(
+                enabled=params.use_autocast, dtype=params.dtype
+            ):
                 loss, _ = compute_loss(
                     params=params,
                     model=model,

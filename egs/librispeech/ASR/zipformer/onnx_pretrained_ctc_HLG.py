@@ -27,11 +27,10 @@ https://huggingface.co/csukuangfj/sherpa-onnx-zipformer-ctc-en-2023-10-02
 import argparse
 import logging
 import math
-from typing import List, Tuple
+from typing import Dict, List, Tuple
 
 import k2
 import kaldifeat
-from typing import Dict
 import kaldifst
 import onnxruntime as ort
 import torch
@@ -223,6 +222,7 @@ def main():
     opts.frame_opts.snip_edges = False
     opts.frame_opts.samp_freq = args.sample_rate
     opts.mel_opts.num_bins = 80
+    opts.mel_opts.high_freq = -400
 
     logging.info(f"Loading HLG from {args.HLG}")
     HLG = kaldifst.StdVectorFst.read(args.HLG)

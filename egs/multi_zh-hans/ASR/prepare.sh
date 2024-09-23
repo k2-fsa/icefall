@@ -60,7 +60,7 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
 
   if [ ! -f data/fbank/.thchs30.done ]; then
     mkdir -p data/fbank
-    ./local/compute_fbank_thchs30.py
+    ./local/compute_fbank_thchs30.py --speed-perturb true
     touch data/fbank/.thchs30.done
   fi
 fi
@@ -86,7 +86,7 @@ fi
 log "Dataset: AISHELL-2"
 if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
   log "Stage 4: Prepare AISHELL-2"
-  if [ -e ../../aishell/ASR/data/fbank/.aishell2.done ]; then
+  if [ -e ../../aishell2/ASR/data/fbank/.aishell2.done ]; then
     cd data/fbank
     ln -svf $(realpath ../../../../aishell2/ASR/data/fbank/aishell2_feats_train) .
     ln -svf $(realpath ../../../../aishell2/ASR/data/fbank/aishell2_feats_dev) .
@@ -95,30 +95,30 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
     ln -svf $(realpath ../../../../aishell2/ASR/data/fbank/aishell2_cuts_dev.jsonl.gz) .
     ln -svf $(realpath ../../../../aishell2/ASR/data/fbank/aishell2_cuts_test.jsonl.gz) .
     cd ../..
-  else 
+  else
     log "Abort! Please run ../../aishell2/ASR/prepare.sh --stage 3 --stop-stage 3"
     exit 1
-  fi 
+  fi
 fi
 
 log "Dataset: AISHELL-4"
 if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   log "Stage 5: Prepare AISHELL-4"
-  if [ -e ../../aishell/ASR/data/fbank/.aishell4.done ]; then
+  if [ -e ../../aishell4/ASR/data/fbank/.fbank.done ]; then
     cd data/fbank
-    ln -svf $(realpath ../../../../aishell4/ASR/data/fbank/aishell4_feats_train) .
-    ln -svf $(realpath ../../../../aishell4/ASR/data/fbank/aishell4_feats_dev) .
     ln -svf $(realpath ../../../../aishell4/ASR/data/fbank/aishell4_feats_test) .
+    ln -svf $(realpath ../../../../aishell4/ASR/data/fbank/aishell4_feats_train_L) .
+    ln -svf $(realpath ../../../../aishell4/ASR/data/fbank/aishell4_feats_train_M) .
+    ln -svf $(realpath ../../../../aishell4/ASR/data/fbank/aishell4_feats_train_S) .
     ln -svf $(realpath ../../../../aishell4/ASR/data/fbank/aishell4_cuts_train_L.jsonl.gz) .
     ln -svf $(realpath ../../../../aishell4/ASR/data/fbank/aishell4_cuts_train_M.jsonl.gz) .
     ln -svf $(realpath ../../../../aishell4/ASR/data/fbank/aishell4_cuts_train_S.jsonl.gz) .
-    ln -svf $(realpath ../../../../aishell4/ASR/data/fbank/aishell4_cuts_dev.jsonl.gz) .
     ln -svf $(realpath ../../../../aishell4/ASR/data/fbank/aishell4_cuts_test.jsonl.gz) .
     cd ../..
-  else 
+  else
     log "Abort! Please run ../../aishell4/ASR/prepare.sh --stage 3 --stop-stage 3"
     exit 1
-  fi 
+  fi
 fi
 
 log "Dataset: ST-CMDS"
@@ -137,7 +137,7 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
 
   if [ ! -f data/fbank/.stcmds.done ]; then
     mkdir -p data/fbank
-    ./local/compute_fbank_stcmds.py
+    ./local/compute_fbank_stcmds.py --speed-perturb true
     touch data/fbank/.stcmds.done
   fi
 fi
@@ -151,15 +151,15 @@ if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
     lhotse download primewords $dl_dir/primewords
   fi
 
-  if [ ! -f data/manifests/.stcmds.done ]; then
+  if [ ! -f data/manifests/.primewords.done ]; then
     mkdir -p data/manifests
-    lhotse prepare stcmds $dl_dir/primewords data/manifests/primewords
+    lhotse prepare primewords $dl_dir/primewords data/manifests/primewords
     touch data/manifests/.primewords.done
   fi
 
   if [ ! -f data/fbank/.primewords.done ]; then
     mkdir -p data/fbank
-    ./local/compute_fbank_primewords.py
+    ./local/compute_fbank_primewords.py --speed-perturb true
     touch data/fbank/.primewords.done
   fi
 fi
@@ -180,7 +180,7 @@ if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
 
     if [ ! -f data/fbank/.magicdata.done ]; then
     mkdir -p data/fbank
-    ./local/compute_fbank_magicdata.py
+    ./local/compute_fbank_magicdata.py --speed-perturb true
     touch data/fbank/.magicdata.done
   fi
 fi
@@ -226,12 +226,12 @@ if [ $stage -le 11 ] && [ $stop_stage -ge 11 ]; then
   log "Stage 11: Prepare WenetSpeech"
   if [ -e ../../wenetspeech/ASR/data/fbank/.preprocess_complete ]; then
     cd data/fbank
-    ln -svf $(realpath ../../../../wenetspeech/ASR/data/fbank/cuts_DEV.jsonl.gz) .
-    ln -svf $(realpath ../../../../wenetspeech/ASR/data/fbank/cuts_L.jsonl.gz) .
+    ln -svf $(realpath ../../../../wenetspeech/ASR/data/fbank/cuts_DEV_fixed.jsonl.gz) .
+    ln -svf $(realpath ../../../../wenetspeech/ASR/data/fbank/cuts_L_fixed.jsonl.gz) .
     ln -svf $(realpath ../../../../wenetspeech/ASR/data/fbank/cuts_TEST_MEETING.jsonl.gz) .
     ln -svf $(realpath ../../../../wenetspeech/ASR/data/fbank/cuts_TEST_NET.jsonl.gz) .
 
-    ln -svf $(realpath ../../../../wenetspeech/ASR/data/fbank/L_split_1000) .
+    ln -svf $(realpath ../../../../wenetspeech/ASR/data/fbank/L_split_${num_splits}) .
     ln -svf $(realpath ../../../../wenetspeech/ASR/data/fbank/*.lca) .
     ln -svf $(realpath ../../../../wenetspeech/ASR/data/fbank/) ./wenetspeech
     cd ../..
@@ -261,7 +261,7 @@ if [ $stage -le 12 ] && [ $stop_stage -ge 12 ]; then
 
   if [ ! -f data/manifests/.kespeech.done ]; then
     mkdir -p data/manifests
-    lhotse prepare kespeech -j 16 $dl_dir/KeSpeech data/manifests/kespeech 
+    lhotse prepare kespeech -j 16 $dl_dir/KeSpeech data/manifests/kespeech
     touch data/manifests/.kespeech.done
   fi
 
@@ -272,36 +272,158 @@ if [ $stage -le 12 ] && [ $stop_stage -ge 12 ]; then
     if [ ! -f data/fbank/.kespeech_preprocess_complete ]; then
       python3 ./local/preprocess_kespeech.py
       touch data/fbank/.kespeech_preprocess_complete
-    fi  
-    
-    if [ -f data/fbank/.kespeech.train_phase1.split.${num_splits}.done ]; then
+    fi
+
+    if [ ! -f data/fbank/.kespeech.train_phase1.split.${num_splits}.done ]; then
       log "Spliting KeSpeech train_phase1"
       lhotse split ${num_splits} \
         data/fbank/kespeech/kespeech-asr_cuts_train_phase1_raw.jsonl.gz \
         data/fbank/kespeech/train_phase1_split_${num_splits}
       touch data/fbank/.kespeech.train_phase1.split.${num_splits}.done
     fi
-    
-    if [ -f data/fbank/.kespeech.train_phase2.split.${num_splits}.done ]; then
+
+    if [ ! -f data/fbank/.kespeech.train_phase2.split.${num_splits}.done ]; then
       log "Spliting KeSpeech train_phase2"
       lhotse split ${num_splits} \
         data/fbank/kespeech/kespeech-asr_cuts_train_phase2_raw.jsonl.gz \
         data/fbank/kespeech/train_phase2_split_${num_splits}
       touch data/fbank/.kespeech.train_phase2.split.${num_splits}.done
     fi
-    
+
     log "Compute KeSpeech fbank for train_phase1"
-    ./local/compute_fbank_kespeech_splits.py --num-splits ${num_splits} --training-subset train_phase1
+    ./local/compute_fbank_kespeech_splits.py --speed-perturb true --num-splits ${num_splits} --training-subset train_phase1
 
     log "Compute KeSpeech fbank for train_phase2"
-    ./local/compute_fbank_kespeech_splits.py --num-splits ${num_splits} --training-subset train_phase2
+    ./local/compute_fbank_kespeech_splits.py --speed-perturb true --num-splits ${num_splits} --training-subset train_phase2
 
     log "Compute KeSpeech fbank for test/dev"
     ./local/compute_fbank_kespeech_dev_test.py
 
+    if [ ! -f data/fbank/kespeech/kespeech-asr_cuts_train_phase1.jsonl.gz ]; then
+      pieces=$(find data/fbank/kespeech/train_phase1_split_${num_splits} -name "kespeech-asr_cuts_train_phase1.*.jsonl.gz")
+      lhotse combine $pieces data/fbank/kespeech/kespeech-asr_cuts_train_phase1.jsonl.gz
+    fi
+    if [ ! -f data/fbank/kespeech/kespeech-asr_cuts_train_phase2.jsonl.gz ]; then
+      pieces=$(find data/fbank/kespeech/train_phase2_split_${num_splits} -name "kespeech-asr_cuts_train_phase2.*.jsonl.gz")
+      lhotse combine $pieces data/fbank/kespeech/kespeech-asr_cuts_train_phase2.jsonl.gz
+    fi
+
     touch data/fbank/.kespeech.done
   fi
 fi
+
+whisper_mel_bins=80
+if [ $stage -le 120 ] && [ $stop_stage -ge 120 ]; then
+  log "Stage 120: Prepare KeSpeech for whisper"
+  if [ ! -d $dl_dir/KeSpeech ]; then
+    log "Abort! Please download KeSpeech first."
+    log "KeSpeech download link: https://github.com/KeSpeech/KeSpeech"
+    exit 1
+  fi
+
+  if [ ! -f data/manifests/.kespeech.done ]; then
+    mkdir -p data/manifests
+    lhotse prepare kespeech -j 8 $dl_dir/KeSpeech data/manifests/kespeech
+    touch data/manifests/.kespeech.done
+  fi
+
+  if [ ! -f data/fbank/.kespeech.done ]; then
+    mkdir -p data/fbank
+
+    log "Preprocess KeSpeech manifest"
+    if [ ! -f data/fbank/.kespeech_preprocess_complete ]; then
+      python3 ./local/preprocess_kespeech.py --speed-perturb true
+      touch data/fbank/.kespeech_preprocess_complete
+    fi
+
+    if [ ! -f data/fbank/.kespeech.train_phase1.split.${num_splits}.done ]; then
+      log "Spliting KeSpeech train_phase1"
+      lhotse split ${num_splits} \
+        data/fbank/kespeech/kespeech-asr_cuts_train_phase1_raw.jsonl.gz \
+        data/fbank/kespeech/train_phase1_split_${num_splits}
+      touch data/fbank/.kespeech.train_phase1.split.${num_splits}.done
+    fi
+
+    if [ ! -f data/fbank/.kespeech.train_phase2.split.${num_splits}.done ]; then
+      log "Spliting KeSpeech train_phase2"
+      lhotse split ${num_splits} \
+        data/fbank/kespeech/kespeech-asr_cuts_train_phase2_raw.jsonl.gz \
+        data/fbank/kespeech/train_phase2_split_${num_splits}
+      touch data/fbank/.kespeech.train_phase2.split.${num_splits}.done
+    fi
+
+    log "Compute KeSpeech fbank for train_phase1"
+    ./local/compute_fbank_kespeech_splits.py --num-splits ${num_splits} --training-subset train_phase1 --num-mel-bins ${whisper_mel_bins} --whisper-fbank true
+
+    log "Compute KeSpeech fbank for train_phase2"
+    ./local/compute_fbank_kespeech_splits.py --num-splits ${num_splits} --training-subset train_phase2 --num-mel-bins ${whisper_mel_bins} --whisper-fbank true
+
+    log "Compute KeSpeech fbank for test/dev"
+    # ./local/compute_fbank_kespeech_dev_test.py --num-mel-bins ${whisper_mel_bins} --whisper-fbank true
+
+    if [ ! -f data/fbank/kespeech/kespeech-asr_cuts_train_phase1.jsonl.gz ]; then
+      pieces=$(find data/fbank/kespeech/train_phase1_split_${num_splits} -name "kespeech-asr_cuts_train_phase1.*.jsonl.gz")
+      lhotse combine $pieces data/fbank/kespeech/kespeech-asr_cuts_train_phase1.jsonl.gz
+    fi
+    if [ ! -f data/fbank/kespeech/kespeech-asr_cuts_train_phase2.jsonl.gz ]; then
+      pieces=$(find data/fbank/kespeech/train_phase2_split_${num_splits} -name "kespeech-asr_cuts_train_phase2.*.jsonl.gz")
+      lhotse combine $pieces data/fbank/kespeech/kespeech-asr_cuts_train_phase2.jsonl.gz
+    fi
+    touch data/fbank/.kespeech.done
+  fi
+fi
+
+if [ $stage -le 121 ] && [ $stop_stage -ge 121 ]; then
+  log "Stage 121: Prepare MagicData, Primewords, ST-CMDS, THCHS-30 for whisper"
+
+  if [ ! -f data/manifests/.magicdata.done ]; then
+    mkdir -p data/manifests
+    lhotse prepare magicdata $dl_dir/magicdata data/manifests/magicdata
+    touch data/manifests/.magicdata.done
+  fi
+
+  if [ ! -f data/manifests/.primewords.done ]; then
+    mkdir -p data/manifests
+    lhotse prepare primewords $dl_dir/primewords data/manifests/primewords
+    touch data/manifests/.primewords.done
+  fi
+  if [ ! -f data/manifests/.stcmds.done ]; then
+    mkdir -p data/manifests
+    lhotse prepare stcmds $dl_dir/stcmds data/manifests/stcmds
+    touch data/manifests/.stcmds.done
+  fi
+
+  if [ ! -f data/manifests/.thchs30.done ]; then
+    mkdir -p data/manifests
+    lhotse prepare thchs-30 $dl_dir/thchs30 data/manifests/thchs30
+    touch data/manifests/.thchs30.done
+  fi
+
+  if [ ! -f data/fbank/.thchs30.done ]; then
+    mkdir -p data/fbank
+    ./local/compute_fbank_thchs30.py --speed-perturb true --num-mel-bins ${whisper_mel_bins} --whisper-fbank true
+    touch data/fbank/.thchs30.done
+  fi
+
+  if [ ! -f data/fbank/.stcmds.done ]; then
+    mkdir -p data/fbank
+    ./local/compute_fbank_stcmds.py --speed-perturb true --num-mel-bins ${whisper_mel_bins} --whisper-fbank true
+    touch data/fbank/.stcmds.done
+  fi
+  if [ ! -f data/fbank/.magicdata.done ]; then
+    mkdir -p data/fbank
+    ./local/compute_fbank_magicdata.py --speed-perturb true --num-mel-bins ${whisper_mel_bins} --whisper-fbank true
+    touch data/fbank/.magicdata.done
+  fi
+
+  if [ ! -f data/fbank/.primewords.done ]; then
+    mkdir -p data/fbank
+    ./local/compute_fbank_primewords.py --speed-perturb true --num-mel-bins ${whisper_mel_bins} --whisper-fbank true
+    touch data/fbank/.primewords.done
+  fi
+
+fi
+
 
 if [ $stage -le 13 ] && [ $stop_stage -ge 13 ]; then
   log "Stage 13: BPE model training (note that we use transcripts of wenetspeech only for BPE training)"
@@ -309,7 +431,7 @@ if [ $stage -le 13 ] && [ $stop_stage -ge 13 ]; then
 
   for vocab_size in ${vocab_sizes[@]}; do
     lang_dir=data/lang_bpe_${vocab_size}
-    
+
     mkdir -p $lang_dir
     if [ ! -f $lang_dir/bpe.model ]; then
       ./local/train_bpe_model.py \
@@ -329,7 +451,7 @@ if [ $stage -le 13 ] && [ $stop_stage -ge 13 ]; then
         --lexicon $lang_dir/lexicon.txt \
         --bpe-model $lang_dir/bpe.model
     fi
-    
+
     if [ ! -f $lang_dir/L.fst ]; then
       log "Converting L.pt to L.fst"
       ./shared/convert-k2-to-openfst.py \
@@ -350,7 +472,7 @@ fi
 
 if [ $stage -le 14 ] && [ $stop_stage -ge 14 ]; then
   log "Stage 14: Prepare G (note that we use ngram lm of wenetspeech only for G preparation)"
-  
+
   if [ -d ../../wenetspeech/ASR/data/lang_char/ ]; then
     cd data
     ln -s ../../../../wenetspeech/ASR/data/lm .
@@ -369,5 +491,3 @@ if [ $stage -le 15 ] && [ $stop_stage -ge 15 ]; then
     python ./local/compile_lg.py --lang-dir $lang_dir
   done
 fi
-
-

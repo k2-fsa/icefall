@@ -10,5 +10,5 @@ get the following WER:
 ```
 
 Please refer to
-<https://icefall.readthedocs.io/en/latest/recipes/Non-streaming-ASR/yesno/index.html>
+<https://k2-fsa.github.io/icefall/recipes/Non-streaming-ASR/yesno/index.html>
 for detailed instructions.

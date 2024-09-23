@@ -1,6 +1,7 @@
-# Copyright      2022  Xiaomi Corp.        (authors: Daniel Povey
+# Copyright  2022-2024  Xiaomi Corp.       (authors: Daniel Povey
 #                                                    Zengwei Yao
-#                                                    Mingshuang Luo)
+#                                                    Mingshuang Luo,
+#                                                    Zengrui Jin,)
 #
 # See ../LICENSE for clarification regarding multiple authors
 #
@@ -16,9 +17,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import random
 from dataclasses import dataclass
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple
 
 import torch
 from torch import Tensor, nn
@@ -244,12 +246,20 @@ class TensorDiagnostic(object):
 
                 if stats_type == "eigs":
                     try:
-                        eigs, _ = torch.symeig(stats)
+                        if hasattr(torch, "linalg") and hasattr(torch.linalg, "eigh"):
+                            eigs, _ = torch.linalg.eigh(stats)
+                        else:
+                            eigs, _ = torch.symeig(stats)
                         stats = eigs.abs().sqrt()
                     except:  # noqa
                         print("Error getting eigenvalues, trying another method.")
-                        eigs, _ = torch.eig(stats)
-                        stats = eigs.norm(dim=1).sqrt()
+                        if hasattr(torch, "linalg") and hasattr(torch.linalg, "eig"):
+                            eigs, _ = torch.linalg.eig(stats)
+                            eigs = eigs.abs()
+                        else:
+                            eigs, _ = torch.eig(stats)
+                            eigs = eigs.norm(dim=1)
+                        stats = eigs.sqrt()
                         # sqrt so it reflects data magnitude, like stddev- not variance
 
                 if stats_type in ["rms", "stddev"]:
@@ -569,7 +579,11 @@ def attach_diagnostics(
                 )
             elif isinstance(_output, tuple):
                 for i, o in enumerate(_output):
-                    if o.dtype in (torch.float32, torch.float16, torch.float64):
+                    if isinstance(o, Tensor) and o.dtype in (
+                        torch.float32,
+                        torch.float16,
+                        torch.float64,
+                    ):
                         _model_diagnostic[f"{_name}.output[{i}]"].accumulate(
                             o, class_name=get_class_name(_module)
                         )
@@ -587,7 +601,11 @@ def attach_diagnostics(
                 )
             elif isinstance(_output, tuple):
                 for i, o in enumerate(_output):
-                    if o.dtype in (torch.float32, torch.float16, torch.float64):
+                    if isinstance(o, Tensor) and o.dtype in (
+                        torch.float32,
+                        torch.float16,
+                        torch.float64,
+                    ):
                         _model_diagnostic[f"{_name}.grad[{i}]"].accumulate(
                             o, class_name=get_class_name(_module)
                         )
@@ -637,7 +655,13 @@ def attach_diagnostics(
             _model_diagnostic[f"{_name}.param_value"].accumulate(_parameter)
             _model_diagnostic[f"{_name}.param_grad"].accumulate(grad)
 
-        parameter.register_hook(param_backward_hook)
+        try:
+            parameter.register_hook(param_backward_hook)
+        except:
+            logging.warning(
+                f"Warning: could not register backward hook for parameter {name}, "
+                f"it might not be differentiable."
+            )
 
     return ans
 

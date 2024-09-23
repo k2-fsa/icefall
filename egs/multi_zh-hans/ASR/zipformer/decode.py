@@ -118,7 +118,7 @@ from beam_search import (
 )
 from lhotse.cut import Cut
 from multi_dataset import MultiDataset
-from train import add_model_arguments, get_model, get_params
+from train import add_model_arguments, get_model, get_params, normalize_text_alimeeting
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -303,6 +303,17 @@ def get_parser():
         fast_beam_search_nbest_LG, and fast_beam_search_nbest_oracle""",
     )
 
+    parser.add_argument(
+        "--blank-penalty",
+        type=float,
+        default=0.0,
+        help="""
+        The penalty applied on blank symbol during decoding.
+        Note: It is a positive value that would be applied to logits like
+        this `logits[:, 0] -= blank_penalty` (suppose logits.shape is
+        [batch_size, vocab] and blank id is 0).
+        """,
+    )
     add_model_arguments(parser)
 
     return parser
@@ -431,6 +442,7 @@ def decode_one_batch(
             model=model,
             encoder_out=encoder_out,
             encoder_out_lens=encoder_out_lens,
+            blank_penalty=params.blank_penalty,
         )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
@@ -455,6 +467,7 @@ def decode_one_batch(
                     model=model,
                     encoder_out=encoder_out_i,
                     max_sym_per_frame=params.max_sym_per_frame,
+                    blank_penalty=params.blank_penalty,
                 )
             elif params.decoding_method == "beam_search":
                 hyp = beam_search(
@@ -468,8 +481,9 @@ def decode_one_batch(
                 )
             hyps.append(sp.decode(hyp).split())
 
+    key = f"blank_penalty_{params.blank_penalty}"
     if params.decoding_method == "greedy_search":
-        return {"greedy_search": hyps}
+        return {"greedy_search_" + key: hyps}
     elif "fast_beam_search" in params.decoding_method:
         key = f"beam_{params.beam}_"
         key += f"max_contexts_{params.max_contexts}_"
@@ -532,7 +546,6 @@ def decode_dataset(
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
         texts = batch["supervisions"]["text"]
-        texts = [list(str(text).replace(" ", "")) for text in texts]
         cut_ids = [cut.id for cut in batch["supervisions"]["cut"]]
 
         hyps_dict = decode_one_batch(
@@ -548,6 +561,7 @@ def decode_dataset(
             this_batch = []
             assert len(hyps) == len(texts)
             for cut_id, hyp_words, ref_text in zip(cut_ids, hyps, texts):
+                ref_text = normalize_text_alimeeting(ref_text)
                 hyp_text = "".join(hyp_words)
                 this_batch.append((cut_id, ref_text, hyp_text))
 
@@ -657,6 +671,7 @@ def main():
         params.suffix += f"-context-{params.context_size}"
         params.suffix += f"-max-sym-per-frame-{params.max_sym_per_frame}"
 
+    params.suffix += f"-blank-penalty-{params.blank_penalty}"
     if params.use_averaged_model:
         params.suffix += "-use-averaged-model"
 
@@ -795,7 +810,7 @@ def main():
             )
         return T > 0
 
-    test_sets_cuts = multi_dataset.test_cuts()
+    test_sets_cuts = {**multi_dataset.test_cuts(), **multi_dataset.speechio_test_cuts()}
 
     test_sets = test_sets_cuts.keys()
     test_dl = [
