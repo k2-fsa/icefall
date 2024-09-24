@@ -19,7 +19,7 @@
 """
 Usage:
 (1) greedy search
-./zipformer/decode.py \
+./zipformer_hat/decode.py \
     --epoch 28 \
     --avg 15 \
     --exp-dir ./zipformer/exp \
@@ -27,7 +27,7 @@ Usage:
     --decoding-method greedy_search
 
 (2) beam search (not recommended)
-./zipformer/decode.py \
+./zipformer_hat/decode.py \
     --epoch 28 \
     --avg 15 \
     --exp-dir ./zipformer/exp \
@@ -36,7 +36,7 @@ Usage:
     --beam-size 4
 
 (3) modified beam search
-./zipformer/decode.py \
+./zipformer_hat/decode.py \
     --epoch 28 \
     --avg 15 \
     --exp-dir ./zipformer/exp \
@@ -45,7 +45,7 @@ Usage:
     --beam-size 4
 
 (4) fast beam search (one best)
-./zipformer/decode.py \
+./zipformer_hat/decode.py \
     --epoch 28 \
     --avg 15 \
     --exp-dir ./zipformer/exp \
@@ -56,7 +56,7 @@ Usage:
     --max-states 64
 
 (5) fast beam search (nbest)
-./zipformer/decode.py \
+./zipformer_hat/decode.py \
     --epoch 28 \
     --avg 15 \
     --exp-dir ./zipformer/exp \
@@ -69,7 +69,7 @@ Usage:
     --nbest-scale 0.5
 
 (6) fast beam search (nbest oracle WER)
-./zipformer/decode.py \
+./zipformer_hat/decode.py \
     --epoch 28 \
     --avg 15 \
     --exp-dir ./zipformer/exp \
@@ -82,7 +82,7 @@ Usage:
     --nbest-scale 0.5
 
 (7) fast beam search (with LG)
-./zipformer/decode.py \
+./zipformer_hat/decode.py \
     --epoch 28 \
     --avg 15 \
     --exp-dir ./zipformer/exp \
