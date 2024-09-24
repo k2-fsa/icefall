@@ -22,9 +22,9 @@ import k2
 import torch
 import torch.nn as nn
 from encoder_interface import EncoderInterface
+from scaling import ScaledLinear
 
 from icefall.utils import add_sos, make_pad_mask
-from scaling import ScaledLinear
 
 
 class AsrModel(nn.Module):
@@ -34,11 +34,13 @@ class AsrModel(nn.Module):
         encoder: EncoderInterface,
         decoder: Optional[nn.Module] = None,
         joiner: Optional[nn.Module] = None,
+        attention_decoder: Optional[nn.Module] = None,
         encoder_dim: int = 384,
         decoder_dim: int = 512,
         vocab_size: int = 500,
         use_transducer: bool = True,
         use_ctc: bool = False,
+        use_attention_decoder: bool = False,
     ):
         """A joint CTC & Transducer ASR model.
 
@@ -70,6 +72,8 @@ class AsrModel(nn.Module):
             Whether use transducer head. Default: True.
           use_ctc:
             Whether use CTC head. Default: False.
+          use_attention_decoder:
+            Whether use attention-decoder head. Default: False.
         """
         super().__init__()
 
@@ -110,6 +114,12 @@ class AsrModel(nn.Module):
                 nn.Linear(encoder_dim, vocab_size),
                 nn.LogSoftmax(dim=-1),
             )
+
+        self.use_attention_decoder = use_attention_decoder
+        if use_attention_decoder:
+            self.attention_decoder = attention_decoder
+        else:
+            assert attention_decoder is None
 
     def forward_encoder(
         self, x: torch.Tensor, x_lens: torch.Tensor
@@ -164,9 +174,9 @@ class AsrModel(nn.Module):
 
         ctc_loss = torch.nn.functional.ctc_loss(
             log_probs=ctc_output.permute(1, 0, 2),  # (T, N, C)
-            targets=targets,
-            input_lengths=encoder_out_lens,
-            target_lengths=target_lengths,
+            targets=targets.cpu(),
+            input_lengths=encoder_out_lens.cpu(),
+            target_lengths=target_lengths.cpu(),
             reduction="sum",
         )
         return ctc_loss
@@ -286,7 +296,7 @@ class AsrModel(nn.Module):
         prune_range: int = 5,
         am_scale: float = 0.0,
         lm_scale: float = 0.0,
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Args:
           x:
@@ -308,7 +318,7 @@ class AsrModel(nn.Module):
             part
         Returns:
           Return the transducer losses and CTC loss,
-          in form of (simple_loss, pruned_loss, ctc_loss)
+          in form of (simple_loss, pruned_loss, ctc_loss, attention_decoder_loss)
 
         Note:
            Regarding am_scale & lm_scale, it will make the loss-function one of
@@ -322,6 +332,8 @@ class AsrModel(nn.Module):
 
         assert x.size(0) == x_lens.size(0) == y.dim0, (x.shape, x_lens.shape, y.dim0)
 
+        device = x.device
+
         # Compute encoder outputs
         encoder_out, encoder_out_lens = self.forward_encoder(x, x_lens)
 
@@ -333,7 +345,7 @@ class AsrModel(nn.Module):
             simple_loss, pruned_loss = self.forward_transducer(
                 encoder_out=encoder_out,
                 encoder_out_lens=encoder_out_lens,
-                y=y.to(x.device),
+                y=y.to(device),
                 y_lens=y_lens,
                 prune_range=prune_range,
                 am_scale=am_scale,
@@ -355,4 +367,14 @@ class AsrModel(nn.Module):
         else:
             ctc_loss = torch.empty(0)
 
-        return simple_loss, pruned_loss, ctc_loss
+        if self.use_attention_decoder:
+            attention_decoder_loss = self.attention_decoder.calc_att_loss(
+                encoder_out=encoder_out,
+                encoder_out_lens=encoder_out_lens,
+                ys=y.to(device),
+                ys_lens=y_lens.to(device),
+            )
+        else:
+            attention_decoder_loss = torch.empty(0)
+
+        return simple_loss, pruned_loss, ctc_loss, attention_decoder_loss

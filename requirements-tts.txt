@@ -1,0 +1,7 @@
+# for TTS recipes
+matplotlib==3.8.2
+cython==3.0.6
+numba==0.58.1
+g2p_en==2.1.0
+espnet_tts_frontend==0.0.3
+# piper_phonemize: refer to https://github.com/rhasspy/piper-phonemize, could install the pre-built wheels from https://github.com/csukuangfj/piper-phonemize/releases/tag/2023.12.5

@@ -1,5 +1,6 @@
 ## Results
 
+zipformer_hat
 ### zipformer hybrid autoregresive transducer (HAT)
 see <https://github.com/k2-fsa/icefall/pull/1291> for more details
 [zipformer_hat](./zipformer_hat)
@@ -34,7 +35,6 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --encoder-unmasked-dim 192,192,192,192,192,192 \
   --use-transducer 1
   ```
-
 
 The decoding command is:
 ```bash
@@ -78,6 +78,181 @@ for method in modified_beam_search_auxlm_shallow_fusion; do
   --rnn-lm-num-layers 2
 done
 ```
+for m in ctc-decoding attention-decoder-rescoring-no-ngram; do
+  ./zipformer/ctc_decode.py \
+    --epoch 50 \
+    --avg 29 \
+    --exp-dir zipformer/exp-large \
+    --use-ctc 1 \
+    --use-transducer 0 \
+    --use-attention-decoder 1 \
+    --attention-decoder-loss-scale 0.9 \
+    --num-encoder-layers 2,2,4,5,4,2 \
+    --feedforward-dim 512,768,1536,2048,1536,768 \
+    --encoder-dim 192,256,512,768,512,256 \
+    --encoder-unmasked-dim 192,192,256,320,256,192 \
+    --max-duration 100 \
+    --causal 0 \
+    --num-paths 100 \
+    --decoding-method $m
+done
+```
+
+### zipformer (zipformer + CTC/AED)
+
+See <https://github.com/k2-fsa/icefall/pull/1389> for more details.
+
+[zipformer](./zipformer)
+
+#### Non-streaming
+
+##### small-scale model, number of model parameters: 46282107, i.e., 46.3 M
+
+You can find a pretrained model, training logs, decoding logs, and decoding results at:
+<https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-small-ctc-attention-decoder-2024-07-09>
+
+You can use <https://github.com/k2-fsa/sherpa> to deploy it.
+
+| decoding method                      | test-clean | test-other | comment             |
+|--------------------------------------|------------|------------|---------------------|
+| ctc-decoding                         | 3.04       | 7.04       | --epoch 50 --avg 30 |
+| attention-decoder-rescoring-no-ngram | 2.45       | 6.08       | --epoch 50 --avg 30 |
+
+The training command is:
+```bash
+export CUDA_VISIBLE_DEVICES="0,1"
+# For non-streaming model training:
+./zipformer/train.py \
+  --world-size 2 \
+  --num-epochs 50 \
+  --start-epoch 1 \
+  --use-fp16 1 \
+  --exp-dir zipformer/exp-small \
+  --full-libri 1 \
+  --use-ctc 1 \
+  --use-transducer 0 \
+  --use-attention-decoder 1 \
+  --ctc-loss-scale 0.1 \
+  --attention-decoder-loss-scale 0.9 \
+  --num-encoder-layers 2,2,2,2,2,2 \
+  --feedforward-dim 512,768,768,768,768,768 \
+  --encoder-dim 192,256,256,256,256,256 \
+  --encoder-unmasked-dim 192,192,192,192,192,192 \
+  --base-lr 0.04 \
+  --max-duration 1700 \
+  --master-port 12345
+```
+
+The decoding command is:
+```bash
+export CUDA_VISIBLE_DEVICES="0"
+for m in ctc-decoding attention-decoder-rescoring-no-ngram; do
+  ./zipformer/ctc_decode.py \
+    --epoch 50 \
+    --avg 30 \
+    --exp-dir zipformer/exp-small \
+    --use-ctc 1 \
+    --use-transducer 0 \
+    --use-attention-decoder 1 \
+    --attention-decoder-loss-scale 0.9 \
+    --num-encoder-layers 2,2,2,2,2,2 \
+    --feedforward-dim 512,768,768,768,768,768 \
+    --encoder-dim 192,256,256,256,256,256 \
+    --encoder-unmasked-dim 192,192,192,192,192,192 \
+    --max-duration 100 \
+    --causal 0 \
+    --num-paths 100 \
+    --decoding-method $m
+done
+```
+
+##### medium-scale model, number of model parameters: 89987295, i.e., 90.0 M
+
+You can find a pretrained model, training logs, decoding logs, and decoding results at:
+<https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-ctc-attention-decoder-2024-07-08>
+
+You can use <https://github.com/k2-fsa/sherpa> to deploy it.
+
+| decoding method                      | test-clean | test-other | comment             |
+|--------------------------------------|------------|------------|---------------------|
+| ctc-decoding                         | 2.46       | 5.57       | --epoch 50 --avg 22 |
+| attention-decoder-rescoring-no-ngram | 2.23       | 4.98       | --epoch 50 --avg 22 |
+
+The training command is:
+```bash
+export CUDA_VISIBLE_DEVICES="0,1,2,3"
+# For non-streaming model training:
+./zipformer/train.py \
+  --world-size 4 \
+  --num-epochs 50 \
+  --start-epoch 1 \
+  --use-fp16 1 \
+  --exp-dir zipformer/exp \
+  --full-libri 1 \
+  --use-ctc 1 \
+  --use-transducer 0 \
+  --use-attention-decoder 1 \
+  --ctc-loss-scale 0.1 \
+  --attention-decoder-loss-scale 0.9 \
+  --max-duration 1200 \
+  --master-port 12345
+```
+
+The decoding command is:
+```bash
+export CUDA_VISIBLE_DEVICES="0"
+for m in ctc-decoding attention-decoder-rescoring-no-ngram; do
+  ./zipformer/ctc_decode.py \
+    --epoch 50 \
+    --avg 22 \
+    --exp-dir zipformer/exp \
+    --use-ctc 1 \
+    --use-transducer 0 \
+    --use-attention-decoder 1 \
+    --attention-decoder-loss-scale 0.9 \
+    --max-duration 100 \
+    --causal 0 \
+    --num-paths 100 \
+    --decoding-method $m
+done
+```
+
+##### large-scale model, number of model parameters: 174319650, i.e., 174.3 M
+
+You can find a pretrained model, training logs, decoding logs, and decoding results at:
+<https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-large-ctc-attention-decoder-2024-05-26>
+
+You can use <https://github.com/k2-fsa/sherpa> to deploy it.
+
+| decoding method                      | test-clean | test-other | comment             |
+|--------------------------------------|------------|------------|---------------------|
+| ctc-decoding                         | 2.29       | 5.14       | --epoch 50 --avg 29 |
+| attention-decoder-rescoring-no-ngram | 2.1        | 4.57       | --epoch 50 --avg 29 |
+
+The training command is:
+```bash
+export CUDA_VISIBLE_DEVICES="0,1,2,3"
+# For non-streaming model training:
+./zipformer/train.py \
+  --world-size 4 \
+  --num-epochs 50 \
+  --start-epoch 1 \
+  --use-fp16 1 \
+  --exp-dir zipformer/exp-large \
+  --full-libri 1 \
+  --use-ctc 1 \
+  --use-transducer 0 \
+  --use-attention-decoder 1 \
+  --ctc-loss-scale 0.1 \
+  --attention-decoder-loss-scale 0.9 \
+  --num-encoder-layers 2,2,4,5,4,2 \
+  --feedforward-dim 512,768,1536,2048,1536,768 \
+  --encoder-dim 192,256,512,768,512,256 \
+  --encoder-unmasked-dim 192,192,256,320,256,192 \
+  --max-duration 1200 \
+  --master-port 12345
+```
+
 
 ### zipformer (zipformer + pruned stateless transducer + CTC)
 
@@ -154,7 +329,7 @@ See <https://github.com/k2-fsa/icefall/pull/1058> for more details.
 ##### normal-scaled model, number of model parameters: 65549011, i.e., 65.55 M
 
 The tensorboard log can be found at
-<https://tensorboard.dev/experiment/cBaoIabCQxSDsyZM7FzqZA/>
+<https://tensorboard.dev/experiment/R2DT9Ju4QiadC4e2ioKh5A/>
 
 You can find a pretrained model, training logs, decoding logs, and decoding results at:
 <https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-2023-05-15>
@@ -169,18 +344,20 @@ You can use <https://github.com/k2-fsa/sherpa> to deploy it.
 | greedy_search        | 2.23       | 4.96       | --epoch 40 --avg 16 |
 | modified_beam_search | 2.21       | 4.91       | --epoch 40 --avg 16 |
 | fast_beam_search     | 2.24       | 4.93       | --epoch 40 --avg 16 |
+| greedy_search        | 2.22       | 4.87       | --epoch 50 --avg 25 |
+| modified_beam_search | 2.21       | 4.79       | --epoch 50 --avg 25 |
+| fast_beam_search     | 2.21       | 4.82       | --epoch 50 --avg 25 |
 | modified_beam_search_shallow_fusion | 2.01 | 4.37 | --epoch 40 --avg 16 --beam-size 12 --lm-scale 0.3 |
 | modified_beam_search_LODR | 1.94 | 4.17 | --epoch 40 --avg 16 --beam-size 12 --lm-scale 0.52 --LODR-scale -0.26 |
 | modified_beam_search_rescore | 2.04 | 4.39 | --epoch 40 --avg 16 --beam-size 12 |
 | modified_beam_search_rescore_LODR | 2.01  | 4.33 | --epoch 40 --avg 16 --beam-size 12  |
-
 
 The training command is:
 ```bash
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
 ./zipformer/train.py \
   --world-size 4 \
-  --num-epochs 40 \
+  --num-epochs 50 \
   --start-epoch 1 \
   --use-fp16 1 \
   --exp-dir zipformer/exp \
@@ -194,8 +371,8 @@ The decoding command is:
 export CUDA_VISIBLE_DEVICES="0"
 for m in greedy_search modified_beam_search fast_beam_search; do
   ./zipformer/decode.py \
-    --epoch 30 \
-    --avg 9 \
+    --epoch 50 \
+    --avg 25 \
     --use-averaged-model 1 \
     --exp-dir ./zipformer/exp \
     --max-duration 600 \
@@ -205,10 +382,27 @@ done
 
 To decode with external language models, please refer to the documentation [here](https://k2-fsa.github.io/icefall/decoding-with-langugage-models/index.html).
 
+We also support training Zipformer with AMP+bf16 format (requires bf16 support). See [here](https://github.com/k2-fsa/icefall/pull/1700) for more details and pre-trained models. **The same command can be used for decoding and exporting the model.**
+
+The amp+bf16 training command is:
+```bash
+export CUDA_VISIBLE_DEVICES="0,1,2,3"
+./zipformer/train.py \
+  --world-size 4 \
+  --num-epochs 50 \
+  --start-epoch 1 \
+  --use-fp16 0 \
+  --use-bf16 1 \
+  --exp-dir zipformer/exp_amp_bf16 \
+  --causal 0 \
+  --full-libri 1 \
+  --max-duration 1000
+```
+
 ##### small-scaled model, number of model parameters: 23285615, i.e., 23.3 M
 
 The tensorboard log can be found at
-<https://tensorboard.dev/experiment/53P4tL22TpO0UdiL0kPaLg/>
+<https://tensorboard.dev/experiment/M9C8cYPWSN2MVBYaBIX3EQ/>
 
 You can find a pretrained model, training logs, decoding logs, and decoding results at:
 <https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-small-2023-05-16>
@@ -223,13 +417,16 @@ You can use <https://github.com/k2-fsa/sherpa> to deploy it.
 | greedy_search        | 2.49       | 5.91       | --epoch 40 --avg 13 |
 | modified_beam_search | 2.46       | 5.83       | --epoch 40 --avg 13 |
 | fast_beam_search     | 2.46       | 5.87       | --epoch 40 --avg 13 |
+| greedy_search        | 2.46       | 5.86       | --epoch 50 --avg 23 |
+| modified_beam_search | 2.42       | 5.73       | --epoch 50 --avg 23 |
+| fast_beam_search     | 2.46       | 5.78       | --epoch 50 --avg 23 |
 
 The training command is:
 ```bash
 export CUDA_VISIBLE_DEVICES="0,1"
 ./zipformer/train.py \
   --world-size 2 \
-  --num-epochs 40 \
+  --num-epochs 50 \
   --start-epoch 1 \
   --use-fp16 1 \
   --exp-dir zipformer/exp-small \
@@ -248,8 +445,8 @@ The decoding command is:
 export CUDA_VISIBLE_DEVICES="0"
 for m in greedy_search modified_beam_search fast_beam_search; do
   ./zipformer/decode.py \
-    --epoch 40 \
-    --avg 13 \
+    --epoch 50 \
+    --avg 23 \
     --exp-dir zipformer/exp-small \
     --max-duration 600 \
     --causal 0 \
@@ -264,7 +461,7 @@ done
 ##### large-scaled model, number of model parameters: 148439574, i.e., 148.4 M
 
 The tensorboard log can be found at
-<https://tensorboard.dev/experiment/HJ74wWYpQAGSzETkmQnrmQ/>
+<https://tensorboard.dev/experiment/C5ZPE5u1So2ZwhYLKW0FVg/>
 
 You can find a pretrained model, training logs, decoding logs, and decoding results at:
 <https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-large-2023-05-16>
@@ -279,13 +476,16 @@ You can use <https://github.com/k2-fsa/sherpa> to deploy it.
 | greedy_search        | 2.12       | 4.8        | --epoch 40 --avg 13 |
 | modified_beam_search | 2.11       | 4.7        | --epoch 40 --avg 13 |
 | fast_beam_search     | 2.13       | 4.78       | --epoch 40 --avg 13 |
+| greedy_search        | 2.08       | 4.69       | --epoch 50 --avg 30 |
+| modified_beam_search | 2.06       | 4.63       | --epoch 50 --avg 30 |
+| fast_beam_search     | 2.09       | 4.68       | --epoch 50 --avg 30 |
 
 The training command is:
 ```bash
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
 ./zipformer/train.py \
   --world-size 4 \
-  --num-epochs 40 \
+  --num-epochs 50 \
   --start-epoch 1 \
   --use-fp16 1 \
   --exp-dir zipformer/exp-large \
@@ -303,8 +503,60 @@ The decoding command is:
 export CUDA_VISIBLE_DEVICES="0"
 for m in greedy_search modified_beam_search fast_beam_search; do
   ./zipformer/decode.py \
-    --epoch 40 \
-    --avg 16 \
+    --epoch 50 \
+    --avg 30 \
+    --exp-dir zipformer/exp-large \
+    --max-duration 600 \
+    --causal 0 \
+    --decoding-method $m \
+    --num-encoder-layers 2,2,4,5,4,2 \
+    --feedforward-dim 512,768,1536,2048,1536,768 \
+    --encoder-dim 192,256,512,768,512,256 \
+    --encoder-unmasked-dim 192,192,256,320,256,192
+done
+```
+
+##### large-scaled model, number of model parameters: 148439574, i.e., 148.4 M, trained on 8 80G-A100 GPUs
+
+The tensorboard log can be found at
+<https://tensorboard.dev/experiment/95TdNyEuQXaWK2PzFpD9yg/>
+
+You can find a pretrained model, training logs, decoding logs, and decoding results at:
+<https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-large-2023-10-26-8-a100>
+
+You can use <https://github.com/k2-fsa/sherpa> to deploy it.
+
+| decoding method      | test-clean | test-other | comment               |
+|----------------------|------------|------------|-----------------------|
+| greedy_search        | 2.00       | 4.47       | --epoch 174 --avg 172 |
+| modified_beam_search | 2.00       | 4.38       | --epoch 174 --avg 172 |
+| fast_beam_search     | 2.00       | 4.42       | --epoch 174 --avg 172 |
+
+The training command is:
+```bash
+export CUDA_VISIBLE_DEVICES="0,1,2,3"
+./zipformer/train.py \
+  --world-size 8 \
+  --num-epochs 174 \
+  --start-epoch 1 \
+  --use-fp16 1 \
+  --exp-dir zipformer/exp-large \
+  --causal 0 \
+  --num-encoder-layers 2,2,4,5,4,2 \
+  --feedforward-dim 512,768,1536,2048,1536,768 \
+  --encoder-dim 192,256,512,768,512,256 \
+  --encoder-unmasked-dim 192,192,256,320,256,192 \
+  --full-libri 1 \
+  --max-duration 2200
+```
+
+The decoding command is:
+```bash
+export CUDA_VISIBLE_DEVICES="0"
+for m in greedy_search modified_beam_search fast_beam_search; do
+  ./zipformer/decode.py \
+    --epoch 174 \
+    --avg 172 \
     --exp-dir zipformer/exp-large \
     --max-duration 600 \
     --causal 0 \
@@ -392,6 +644,55 @@ for m in greedy_search modified_beam_search fast_beam_search; do
     --num-decode-streams 2000 \
     --decoding-method $m
 done
+```
+
+### Zipformer CTC
+
+#### [zipformer_ctc](./zipformer_ctc)
+
+See <https://github.com/k2-fsa/icefall/pull/941> for more details.
+
+You can find a pretrained model, training logs, decoding logs, and decoding
+results at:
+<https://huggingface.co/desh2608/icefall-asr-librispeech-zipformer-ctc>
+
+Number of model parameters: 86083707, i.e., 86.08 M
+
+| decoding method         | test-clean | test-other | comment             |
+|-------------------------|------------|------------|---------------------|
+| ctc-decoding            | 2.50       | 5.86       | --epoch 30 --avg 9  |
+| whole-lattice-rescoring | 2.44       | 5.38       | --epoch 30 --avg 9  |
+| attention-rescoring     | 2.35       | 5.16       | --epoch 30 --avg 9  |
+| 1best                   | 2.01       | 4.61       | --epoch 30 --avg 9  |
+
+The training commands are:
+```bash
+
+export CUDA_VISIBLE_DEVICES="0,1,2,3"
+
+./zipformer_ctc/train.py \
+  --world-size 4 \
+  --num-epochs 30 \
+  --start-epoch 1 \
+  --use-fp16 1 \
+  --exp-dir zipformer_ctc/exp \
+  --full-libri 1 \
+  --max-duration 1000 \
+  --master-port 12345
+```
+
+The tensorboard log can be found at:
+<https://tensorboard.dev/experiment/IjPSJjHOQFKPYA5Z0Vf8wg>
+
+The decoding command is:
+
+```bash
+./zipformer_ctc/decode.py \
+  --epoch 30 --avg 9 --use-averaged-model True \
+  --exp-dir zipformer_ctc/exp \
+  --lang-dir data/lang_bpe_500 \
+  --lm-dir data/lm \
+  --method ctc-decoding
 ```
 
 ### pruned_transducer_stateless7 (Fine-tune with mux)
@@ -635,7 +936,6 @@ for m in greedy_search modified_beam_search fast_beam_search; do
 done
 ```
 
-
 #### Smaller model
 
 We also provide a very small version (only 6.1M parameters) of this setup. The training command for the small model is:
@@ -681,6 +981,7 @@ This small model achieves the following WERs on GigaSpeech test and dev sets:
 | modified beam search | 320ms      | 16.98       | 11.98       | --epoch 30 --avg 1  | simulated streaming  |
 
 You can find the tensorboard logs at <https://tensorboard.dev/experiment/tAc5iXxTQrCQxky5O5OLyw/#scalars>.
+
 
 ### Streaming Zipformer-Transducer (Pruned Stateless Transducer + Streaming Zipformer)
 
@@ -1496,7 +1797,7 @@ done
 
 You may also decode using LODR + LM shallow fusion. This decoding method is proposed in <https://arxiv.org/pdf/2203.16776.pdf>.
 It subtracts the internal language model score during shallow fusion, which is approximated by a bi-gram model. The bi-gram can be
-generated by `generate-lm.sh`, or you may download it from <https://huggingface.co/marcoyang/librispeech_bigram>.
+generated by `prepare_lm.sh` at stage 4, or you may download it from <https://huggingface.co/marcoyang/librispeech_bigram>.
 
 The decoding command is as follows:
 

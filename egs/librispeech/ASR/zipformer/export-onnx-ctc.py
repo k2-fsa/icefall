@@ -72,7 +72,6 @@ import k2
 import onnx
 import torch
 import torch.nn as nn
-from decoder import Decoder
 from onnxruntime.quantization import QuantType, quantize_dynamic
 from scaling_converter import convert_scaled_to_non_scaled
 from train import add_model_arguments, get_model, get_params

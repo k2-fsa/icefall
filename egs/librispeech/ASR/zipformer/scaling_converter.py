@@ -1,4 +1,5 @@
-# Copyright    2022-2023  Xiaomi Corp.        (authors: Fangjun Kuang, Zengwei Yao)
+# Copyright    2022-2023  Xiaomi Corp.        (authors: Fangjun Kuang,
+#                                                       Zengwei Yao)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -22,7 +23,7 @@ BasicNorm is replaced by a module with `exp` removed.
 """
 
 import copy
-from typing import List, Tuple
+from typing import List
 
 import torch
 import torch.nn as nn

@@ -18,9 +18,8 @@ you can use ./export.py --jit 1
 
 import argparse
 import logging
-from typing import List
 import math
-
+from typing import List
 
 import k2
 import kaldifeat
@@ -142,6 +141,7 @@ def main():
     opts.frame_opts.snip_edges = False
     opts.frame_opts.samp_freq = params.sample_rate
     opts.mel_opts.num_bins = params.feature_dim
+    opts.mel_opts.high_freq = -400
 
     fbank = kaldifeat.Fbank(opts)
 

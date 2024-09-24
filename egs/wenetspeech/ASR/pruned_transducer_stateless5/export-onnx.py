@@ -28,7 +28,7 @@ popd
 2. Export the model to ONNX
 
 ./pruned_transducer_stateless5/export-onnx.py \
-  --lang-dir $repo/data/lang_char \
+  --tokens $repo/data/lang_char/tokens.txt \
   --epoch 99 \
   --avg 1 \
   --use-averaged-model 0 \
@@ -55,6 +55,7 @@ import logging
 from pathlib import Path
 from typing import Dict, Tuple
 
+import k2
 import onnx
 import torch
 import torch.nn as nn
@@ -70,8 +71,7 @@ from icefall.checkpoint import (
     find_checkpoints,
     load_checkpoint,
 )
-from icefall.lexicon import Lexicon
-from icefall.utils import setup_logger, str2bool
+from icefall.utils import num_tokens, setup_logger, str2bool
 
 
 def get_parser():
@@ -128,10 +128,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--lang-dir",
+        "--tokens",
         type=str,
-        default="data/lang_char",
-        help="The lang dir",
+        default="data/lang_char/tokens.txt",
+        help="Path to the tokens.txt",
     )
 
     parser.add_argument(
@@ -417,9 +417,9 @@ def main():
 
     logging.info(f"device: {device}")
 
-    lexicon = Lexicon(params.lang_dir)
-    params.blank_id = 0
-    params.vocab_size = max(lexicon.tokens) + 1
+    token_table = k2.SymbolTable.from_file(params.tokens)
+    params.blank_id = token_table["<blk>"]
+    params.vocab_size = num_tokens(token_table) + 1
 
     logging.info(params)
 

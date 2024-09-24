@@ -20,7 +20,11 @@ We describe the following items in this section:
 View available tags
 ===================
 
-You can use the following command to view available tags:
+CUDA-enabled docker images
+--------------------------
+
+You can use the following command to view available tags for CUDA-enabled
+docker images:
 
 .. code-block:: bash
 
@@ -30,6 +34,22 @@ which will give you something like below:
 
 .. code-block:: bash
 
+  "torch2.4.1-cuda12.4"
+  "torch2.4.1-cuda12.1"
+  "torch2.4.1-cuda11.8"
+  "torch2.4.0-cuda12.4"
+  "torch2.4.0-cuda12.1"
+  "torch2.4.0-cuda11.8"
+  "torch2.3.1-cuda12.1"
+  "torch2.3.1-cuda11.8"
+  "torch2.2.2-cuda12.1"
+  "torch2.2.2-cuda11.8"
+  "torch2.2.1-cuda12.1"
+  "torch2.2.1-cuda11.8"
+  "torch2.2.0-cuda12.1"
+  "torch2.2.0-cuda11.8"
+  "torch2.1.0-cuda12.1"
+  "torch2.1.0-cuda11.8"
   "torch2.0.0-cuda11.7"
   "torch1.12.1-cuda11.3"
   "torch1.9.0-cuda10.2"
@@ -41,8 +61,25 @@ which will give you something like below:
 
 Please select an appropriate combination of `torch`_ and  CUDA.
 
-Download a docker image
-=======================
+CPU-only docker images
+----------------------
+
+To view CPU-only docker images, please visit `<https://github.com/k2-fsa/icefall/pkgs/container/icefall>`_
+for available tags.
+
+You can select different combinations of ``Python`` and ``torch``. For instance,
+to select ``Python 3.8`` and ``torch 2.1.2``, you can use the following tag
+
+.. code-block:: bash
+
+    cpu-py3.8-torch2.1.2-v1.1
+
+where ``v1.1`` is the current version of the docker image. You may see
+``ghcr.io/k2-fsa/icefall:cpu-py3.8-torch2.1.2-v1.2`` or some other versions.
+We recommend that you always use the latest version.
+
+Download a docker image (CUDA)
+==============================
 
 Suppose that you select the tag ``torch1.13.0-cuda11.6``, you can use
 the following command to download it:
@@ -50,6 +87,16 @@ the following command to download it:
 .. code-block:: bash
 
    sudo docker image pull k2fsa/icefall:torch1.13.0-cuda11.6
+
+Download a docker image (CPU)
+==============================
+
+Suppose that you select the tag ``cpu-py3.8-torch2.1.2-v1.1``, you can use
+the following command to download it:
+
+.. code-block:: bash
+
+  sudo docker pull ghcr.io/k2-fsa/icefall:cpu-py3.8-torch2.1.2-v1.1
 
 Run a docker image with GPU
 ===========================
@@ -63,7 +110,7 @@ Run a docker image with CPU
 
 .. code-block:: bash
 
-  sudo docker run --rm -it k2fsa/icefall:torch1.13.0-cuda11.6 /bin/bash
+  sudo docker run --rm -it ghcr.io/k2-fsa/icefall:cpu-py3.8-torch2.1.2-v1.1 /bin/bash
 
 Run yesno within a docker container
 ===================================
@@ -72,7 +119,12 @@ After starting the container, the following interface is presented:
 
 .. code-block:: bash
 
+  # GPU-enabled docker
   root@60c947eac59c:/workspace/icefall#
+
+  # CPU-only docker
+  root@60c947eac59c:# mkdir /workspace; git clone https://github.com/k2-fsa/icefall
+  root@60c947eac59c:# export PYTHONPATH=/workspace/icefall:$PYTHONPATH
 
 It shows the current user is ``root`` and the current working directory
 is ``/workspace/icefall``.
@@ -105,7 +157,7 @@ to switch to the ``yesno`` recipe and run
 
 .. hint::
 
-   If you are running without GPU, it may report the following error:
+   If you are running without GPU with a GPU-enabled docker, it may report the following error:
 
     .. code-block:: bash
 

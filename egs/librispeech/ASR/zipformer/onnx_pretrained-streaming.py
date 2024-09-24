@@ -326,7 +326,7 @@ class OnnxModel:
             A 3-D tensor of shape (N, T, C)
         Returns:
           Return a 3-D tensor of shape (N, T', joiner_dim) where
-          T' is usually equal to ((T-7)//2+1)//2
+          T' is usually equal to ((T-7)//2-3)//2
         """
         encoder_input, encoder_output_names = self._build_encoder_input_output(x)
 
@@ -413,6 +413,7 @@ def create_streaming_feature_extractor() -> OnlineFeature:
     opts.frame_opts.snip_edges = False
     opts.frame_opts.samp_freq = 16000
     opts.mel_opts.num_bins = 80
+    opts.mel_opts.high_freq = -400
     return OnlineFbank(opts)
 
 

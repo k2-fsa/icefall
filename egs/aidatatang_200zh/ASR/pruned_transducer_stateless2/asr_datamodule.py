@@ -102,7 +102,7 @@ class Aidatatang_200zhAsrDataModule:
         group.add_argument(
             "--bucketing-sampler",
             type=str2bool,
-            default=True,
+            default=False,
             help="When enabled, the batches will come from buckets of "
             "similar duration (saves padding frames).",
         )
@@ -211,7 +211,7 @@ class Aidatatang_200zhAsrDataModule:
         if self.args.enable_musan:
             logging.info("Enable MUSAN")
             transforms.append(
-                CutMix(cuts=cuts_musan, prob=0.5, snr=(10, 20), preserve_id=True)
+                CutMix(cuts=cuts_musan, p=0.5, snr=(10, 20), preserve_id=True)
             )
         else:
             logging.info("Disable MUSAN")
@@ -288,6 +288,8 @@ class Aidatatang_200zhAsrDataModule:
                 max_duration=self.args.max_duration,
                 shuffle=self.args.shuffle,
                 num_buckets=self.args.num_buckets,
+                buffer_size=self.args.num_buckets * 2000,
+                shuffle_buffer_size=self.args.num_buckets * 5000,
                 drop_last=True,
             )
         else:

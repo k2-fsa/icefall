@@ -67,7 +67,7 @@ To run stage 2 to stage 5, use:
 .. HINT::
 
   A 3-gram language model will be downloaded from huggingface, we assume you have
-  intalled and initialized ``git-lfs``. If not, you could install ``git-lfs`` by
+  installed and initialized ``git-lfs``. If not, you could install ``git-lfs`` by
 
   .. code-block:: bash
 

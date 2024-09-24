@@ -23,6 +23,8 @@ on:
   pull_request:
     types: [labeled]
 
+  workflow_dispatch:
+
 concurrency:
   group: run_wenetspeech_pruned_transducer_stateless2-${{ github.ref }}
   cancel-in-progress: true

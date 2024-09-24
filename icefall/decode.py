@@ -1083,6 +1083,238 @@ def rescore_with_attention_decoder(
     return ans
 
 
+def rescore_with_attention_decoder_with_ngram(
+    lattice: k2.Fsa,
+    num_paths: int,
+    attention_decoder: torch.nn.Module,
+    encoder_out: torch.Tensor,
+    encoder_out_lens: torch.Tensor,
+    nbest_scale: float = 1.0,
+    ngram_lm_scale: Optional[float] = None,
+    attention_scale: Optional[float] = None,
+    use_double_scores: bool = True,
+) -> Dict[str, k2.Fsa]:
+    """This function extracts `num_paths` paths from the given lattice and uses
+    an attention decoder to rescore them. The path with the highest score is
+    the decoding output.
+
+    Args:
+      lattice:
+        An FsaVec with axes [utt][state][arc].
+      num_paths:
+        Number of paths to extract from the given lattice for rescoring.
+      attention_decoder:
+        A transformer model. See the class "Transformer" in
+        conformer_ctc/transformer.py for its interface.
+      encoder_out:
+        The encoder memory of the given model. It is the output of
+        the last torch.nn.TransformerEncoder layer in the given model.
+        Its shape is `(N, T, C)`.
+      encoder_out_lens:
+        Length of encoder outputs, with shape of `(N,)`.
+      nbest_scale:
+        It's the scale applied to `lattice.scores`. A smaller value
+        leads to more unique paths at the risk of missing the correct path.
+      ngram_lm_scale:
+        Optional. It specifies the scale for n-gram LM scores.
+      attention_scale:
+        Optional. It specifies the scale for attention decoder scores.
+    Returns:
+      A dict of FsaVec, whose key contains a string
+      ngram_lm_scale_attention_scale and the value is the
+      best decoding path for each utterance in the lattice.
+    """
+    max_loop_count = 10
+    loop_count = 0
+    while loop_count <= max_loop_count:
+        try:
+            nbest = Nbest.from_lattice(
+                lattice=lattice,
+                num_paths=num_paths,
+                use_double_scores=use_double_scores,
+                nbest_scale=nbest_scale,
+            )
+            # nbest.fsa.scores are all 0s at this point
+            nbest = nbest.intersect(lattice)
+            break
+        except RuntimeError as e:
+            logging.info(f"Caught exception:\n{e}\n")
+            logging.info(f"num_paths before decreasing: {num_paths}")
+            num_paths = int(num_paths / 2)
+            if loop_count >= max_loop_count or num_paths <= 0:
+                logging.info("Return None as the resulting lattice is too large.")
+                return None
+            logging.info(
+                "This OOM is not an error. You can ignore it. "
+                "If your model does not converge well, or --max-duration "
+                "is too large, or the input sound file is difficult to "
+                "decode, you will meet this exception."
+            )
+            logging.info(f"num_paths after decreasing: {num_paths}")
+        loop_count += 1
+
+    # Now nbest.fsa has its scores set.
+    # Also, nbest.fsa inherits the attributes from `lattice`.
+    assert hasattr(nbest.fsa, "lm_scores")
+
+    am_scores = nbest.compute_am_scores()
+    ngram_lm_scores = nbest.compute_lm_scores()
+
+    # The `tokens` attribute is set inside `compile_hlg.py`
+    assert hasattr(nbest.fsa, "tokens")
+    assert isinstance(nbest.fsa.tokens, torch.Tensor)
+
+    path_to_utt_map = nbest.shape.row_ids(1).to(torch.long)
+    # the shape of memory is (T, N, C), so we use axis=1 here
+    expanded_encoder_out = encoder_out.index_select(0, path_to_utt_map)
+    expanded_encoder_out_lens = encoder_out_lens.index_select(0, path_to_utt_map)
+
+    # remove axis corresponding to states.
+    tokens_shape = nbest.fsa.arcs.shape().remove_axis(1)
+    tokens = k2.RaggedTensor(tokens_shape, nbest.fsa.tokens)
+    tokens = tokens.remove_values_leq(0)
+    token_ids = tokens.tolist()
+
+    nll = attention_decoder.nll(
+        encoder_out=expanded_encoder_out,
+        encoder_out_lens=expanded_encoder_out_lens,
+        token_ids=token_ids,
+    )
+    assert nll.ndim == 2
+    assert nll.shape[0] == len(token_ids)
+
+    attention_scores = -nll.sum(dim=1)
+
+    if ngram_lm_scale is None:
+        ngram_lm_scale_list = [0.01, 0.05, 0.08]
+        ngram_lm_scale_list += [0.1, 0.3, 0.5, 0.6, 0.7, 0.9, 1.0]
+        ngram_lm_scale_list += [1.1, 1.2, 1.3, 1.5, 1.7, 1.9, 2.0]
+        ngram_lm_scale_list += [2.1, 2.2, 2.3, 2.5, 3.0, 4.0, 5.0]
+    else:
+        ngram_lm_scale_list = [ngram_lm_scale]
+
+    if attention_scale is None:
+        attention_scale_list = [0.01, 0.05, 0.08]
+        attention_scale_list += [0.1, 0.3, 0.5, 0.6, 0.7, 0.9, 1.0]
+        attention_scale_list += [1.1, 1.2, 1.3, 1.5, 1.7, 1.9, 2.0]
+        attention_scale_list += [2.1, 2.2, 2.3, 2.5, 3.0, 4.0, 5.0]
+    else:
+        attention_scale_list = [attention_scale]
+
+    ans = dict()
+    for n_scale in ngram_lm_scale_list:
+        for a_scale in attention_scale_list:
+            tot_scores = (
+                am_scores.values
+                + n_scale * ngram_lm_scores.values
+                + a_scale * attention_scores
+            )
+            ragged_tot_scores = k2.RaggedTensor(nbest.shape, tot_scores)
+            max_indexes = ragged_tot_scores.argmax()
+            best_path = k2.index_fsa(nbest.fsa, max_indexes)
+
+            key = f"ngram_lm_scale_{n_scale}_attention_scale_{a_scale}"
+            ans[key] = best_path
+    return ans
+
+
+def rescore_with_attention_decoder_no_ngram(
+    lattice: k2.Fsa,
+    num_paths: int,
+    attention_decoder: torch.nn.Module,
+    encoder_out: torch.Tensor,
+    encoder_out_lens: torch.Tensor,
+    nbest_scale: float = 1.0,
+    attention_scale: Optional[float] = None,
+    use_double_scores: bool = True,
+) -> Dict[str, k2.Fsa]:
+    """This function extracts `num_paths` paths from the given lattice and uses
+    an attention decoder to rescore them. The path with the highest score is
+    the decoding output.
+
+    Args:
+      lattice:
+        An FsaVec with axes [utt][state][arc].
+      num_paths:
+        Number of paths to extract from the given lattice for rescoring.
+      attention_decoder:
+        A transformer model. See the class "Transformer" in
+        conformer_ctc/transformer.py for its interface.
+      encoder_out:
+        The encoder memory of the given model. It is the output of
+        the last torch.nn.TransformerEncoder layer in the given model.
+        Its shape is `(N, T, C)`.
+      encoder_out_lens:
+        Length of encoder outputs, with shape of `(N,)`.
+      nbest_scale:
+        It's the scale applied to `lattice.scores`. A smaller value
+        leads to more unique paths at the risk of missing the correct path.
+      attention_scale:
+        Optional. It specifies the scale for attention decoder scores.
+
+    Returns:
+      A dict of FsaVec, whose key contains a string
+      ngram_lm_scale_attention_scale and the value is the
+      best decoding path for each utterance in the lattice.
+    """
+    # path is a ragged tensor with dtype torch.int32.
+    # It has three axes [utt][path][arc_pos]
+    path = k2.random_paths(lattice, num_paths=num_paths, use_double_scores=True)
+    # Note that labels, aux_labels and scores contains 0s and -1s.
+    # The last entry in each sublist is -1.
+    # The axes are [path][token_id]
+    labels = k2.ragged.index(lattice.labels.contiguous(), path).remove_axis(0)
+    aux_labels = k2.ragged.index(lattice.aux_labels.contiguous(), path).remove_axis(0)
+    scores = k2.ragged.index(lattice.scores.contiguous(), path).remove_axis(0)
+
+    # Remove -1 from labels as we will use it to construct a linear FSA
+    labels = labels.remove_values_eq(-1)
+    fsa = k2.linear_fsa(labels)
+    fsa.aux_labels = aux_labels.values
+
+    # utt_to_path_shape has axes [utt][path]
+    utt_to_path_shape = path.shape.get_layer(0)
+    scores = k2.RaggedTensor(utt_to_path_shape, scores.sum())
+
+    path_to_utt_map = utt_to_path_shape.row_ids(1).to(torch.long)
+    # the shape of memory is (N, T, C), so we use axis=0 here
+    expanded_encoder_out = encoder_out.index_select(0, path_to_utt_map)
+    expanded_encoder_out_lens = encoder_out_lens.index_select(0, path_to_utt_map)
+
+    token_ids = aux_labels.remove_values_leq(0).tolist()
+
+    nll = attention_decoder.nll(
+        encoder_out=expanded_encoder_out,
+        encoder_out_lens=expanded_encoder_out_lens,
+        token_ids=token_ids,
+    )
+    assert nll.ndim == 2
+    assert nll.shape[0] == len(token_ids)
+
+    attention_scores = -nll.sum(dim=1)
+
+    if attention_scale is None:
+        attention_scale_list = [0.01, 0.05, 0.08]
+        attention_scale_list += [0.1, 0.3, 0.5, 0.6, 0.7, 0.9, 1.0]
+        attention_scale_list += [1.1, 1.2, 1.3, 1.5, 1.7, 1.9, 2.0]
+        attention_scale_list += [2.1, 2.2, 2.3, 2.5, 3.0, 4.0, 5.0]
+        attention_scale_list += [5.0, 6.0, 7.0, 8.0, 9.0]
+    else:
+        attention_scale_list = [attention_scale]
+
+    ans = dict()
+
+    for a_scale in attention_scale_list:
+        tot_scores = scores.values + a_scale * attention_scores
+        ragged_tot_scores = k2.RaggedTensor(utt_to_path_shape, tot_scores)
+        max_indexes = ragged_tot_scores.argmax()
+        best_path = k2.index_fsa(fsa, max_indexes)
+
+        key = f"attention_scale_{a_scale}"
+        ans[key] = best_path
+    return ans
+
+
 def rescore_with_rnn_lm(
     lattice: k2.Fsa,
     num_paths: int,
@@ -1241,3 +1473,27 @@ def rescore_with_rnn_lm(
                 key = f"ngram_lm_scale_{n_scale}_attention_scale_{a_scale}_rnn_lm_scale_{r_scale}"  # noqa
                 ans[key] = best_path
     return ans
+
+
+def ctc_greedy_search(
+    ctc_output: torch.Tensor,
+    encoder_out_lens: torch.Tensor,
+    blank_id: int = 0,
+) -> List[List[int]]:
+    """CTC greedy search.
+
+    Args:
+         ctc_output: (batch, seq_len, vocab_size)
+         encoder_out_lens: (batch,)
+    Returns:
+         List[List[int]]: greedy search result
+    """
+    batch = ctc_output.shape[0]
+    index = ctc_output.argmax(dim=-1)  # (batch, seq_len)
+    hyps = [
+        torch.unique_consecutive(index[i, : encoder_out_lens[i]]) for i in range(batch)
+    ]
+
+    hyps = [h[h != blank_id].tolist() for h in hyps]
+
+    return hyps

@@ -22,16 +22,25 @@ It looks for manifests in the directory data/manifests.
 
 The generated fbank features are saved in data/fbank.
 """
-
+import argparse
 import logging
 import os
 from pathlib import Path
 
 import torch
-from lhotse import CutSet, Fbank, FbankConfig, LilcomChunkyWriter, MonoCut, combine
+from lhotse import (
+    CutSet,
+    Fbank,
+    FbankConfig,
+    LilcomChunkyWriter,
+    MonoCut,
+    WhisperFbank,
+    WhisperFbankConfig,
+    combine,
+)
 from lhotse.recipes.utils import read_manifests_if_cached
 
-from icefall.utils import get_executor
+from icefall.utils import get_executor, str2bool
 
 # Torch's multithreaded behavior needs to be disabled or
 # it wastes a lot of CPU and slow things down.
@@ -45,11 +54,12 @@ def is_cut_long(c: MonoCut) -> bool:
     return c.duration > 5
 
 
-def compute_fbank_musan():
+def compute_fbank_musan(
+    num_mel_bins: int = 80, whisper_fbank: bool = False, output_dir: str = "data/fbank"
+):
     src_dir = Path("data/manifests")
-    output_dir = Path("data/fbank")
+    output_dir = Path(output_dir)
     num_jobs = min(15, os.cpu_count())
-    num_mel_bins = 80
 
     dataset_parts = (
         "music",
@@ -81,7 +91,12 @@ def compute_fbank_musan():
 
     logging.info("Extracting features for Musan")
 
-    extractor = Fbank(FbankConfig(num_mel_bins=num_mel_bins))
+    if whisper_fbank:
+        extractor = WhisperFbank(
+            WhisperFbankConfig(num_filters=num_mel_bins, device="cuda")
+        )
+    else:
+        extractor = Fbank(FbankConfig(num_mel_bins=num_mel_bins))
 
     with get_executor() as ex:  # Initialize the executor only once.
         # create chunks of Musan with duration 5 - 10 seconds
@@ -102,8 +117,36 @@ def compute_fbank_musan():
         musan_cuts.to_file(musan_cuts_path)
 
 
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--num-mel-bins",
+        type=int,
+        default=80,
+        help="""The number of mel bins for Fbank""",
+    )
+    parser.add_argument(
+        "--whisper-fbank",
+        type=str2bool,
+        default=False,
+        help="Use WhisperFbank instead of Fbank. Default: False.",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default="data/fbank",
+        help="Output directory. Default: data/fbank.",
+    )
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
     formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
 
     logging.basicConfig(format=formatter, level=logging.INFO)
-    compute_fbank_musan()
+    args = get_args()
+    compute_fbank_musan(
+        num_mel_bins=args.num_mel_bins,
+        whisper_fbank=args.whisper_fbank,
+        output_dir=args.output_dir,
+    )

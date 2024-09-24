@@ -33,6 +33,8 @@ on:
     # nightly build at 15:50 UTC time every day
     - cron: "50 15 * * *"
 
+  workflow_dispatch:
+
 concurrency:
   group: run_gigaspeech_2022_05_13-${{ github.ref }}
   cancel-in-progress: true
@@ -119,7 +121,7 @@ jobs:
           find exp/greedy_search -name "log-*" -exec grep -n --color "best for test" {} + | sort -n -k2
 
       - name: Upload decoding results for gigaspeech pruned_transducer_stateless2
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         if: github.event_name == 'schedule' || github.event.label.name == 'run-decode'
         with:
           name: torch-${{ matrix.torch }}-python-${{ matrix.python-version }}-ubuntu-latest-cpu-gigaspeech-pruned_transducer_stateless2-2022-05-12

@@ -23,7 +23,7 @@
 Usage:
 ./transducer_stateless/export.py \
   --exp-dir ./transducer_stateless/exp \
-  --lang-dir data/lang_char \
+  --tokens data/lang_char/tokens.txt \
   --epoch 20 \
   --avg 10
 
@@ -47,6 +47,7 @@ import argparse
 import logging
 from pathlib import Path
 
+import k2
 import torch
 import torch.nn as nn
 from conformer import Conformer
@@ -56,8 +57,7 @@ from model import Transducer
 
 from icefall.checkpoint import average_checkpoints, load_checkpoint
 from icefall.env import get_env_info
-from icefall.lexicon import Lexicon
-from icefall.utils import AttributeDict, str2bool
+from icefall.utils import AttributeDict, num_tokens, str2bool
 
 
 def get_parser():
@@ -92,10 +92,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--lang-dir",
+        "--tokens",
         type=str,
-        default="data/lang_char",
-        help="The lang dir",
+        default="data/lang_char/tokens.txt",
+        help="Path to the tokens.txt",
     )
 
     parser.add_argument(
@@ -192,10 +192,9 @@ def main():
 
     logging.info(f"device: {device}")
 
-    lexicon = Lexicon(params.lang_dir)
-
-    params.blank_id = 0
-    params.vocab_size = max(lexicon.tokens) + 1
+    token_table = k2.SymbolTable.from_file(params.tokens)
+    params.blank_id = token_table["<blk>"]
+    params.vocab_size = num_tokens(token_table) + 1
 
     logging.info(params)
 

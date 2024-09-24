@@ -40,15 +40,12 @@ Usage of this script:
 
 import argparse
 import logging
-import math
 from typing import List, Optional
 
 import k2
-import kaldifeat
 import torch
 import torchaudio
 from kaldifeat import FbankOptions, OnlineFbank, OnlineFeature
-from torch.nn.utils.rnn import pad_sequence
 
 
 def get_parser():
@@ -167,6 +164,7 @@ def create_streaming_feature_extractor(sample_rate) -> OnlineFeature:
     opts.frame_opts.snip_edges = False
     opts.frame_opts.samp_freq = sample_rate
     opts.mel_opts.num_bins = 80
+    opts.mel_opts.high_freq = -400
     return OnlineFbank(opts)
 
 

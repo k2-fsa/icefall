@@ -1,0 +1,11 @@
+k2
+kaldialign
+git+https://github.com/lhotse-speech/lhotse
+sentencepiece
+pypinyin
+tensorboard
+librosa
+deepspeed
+transformers>=4.37.0
+flash-attn
+peft

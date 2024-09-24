@@ -215,7 +215,7 @@ class WenetSpeechAsrDataModule:
         if self.args.enable_musan:
             logging.info("Enable MUSAN")
             transforms.append(
-                CutMix(cuts=cuts_musan, prob=0.5, snr=(10, 20), preserve_id=True)
+                CutMix(cuts=cuts_musan, p=0.5, snr=(10, 20), preserve_id=True)
             )
         else:
             logging.info("Disable MUSAN")
@@ -292,7 +292,8 @@ class WenetSpeechAsrDataModule:
                 max_duration=self.args.max_duration,
                 shuffle=self.args.shuffle,
                 num_buckets=self.args.num_buckets,
-                buffer_size=300000,
+                buffer_size=self.args.num_buckets * 2000,
+                shuffle_buffer_size=self.args.num_buckets * 5000,
                 drop_last=True,
             )
         else:
@@ -389,14 +390,14 @@ class WenetSpeechAsrDataModule:
     def train_cuts(self) -> CutSet:
         logging.info("About to get train cuts")
         cuts_train = load_manifest_lazy(
-            self.args.manifest_dir / f"cuts_{self.args.training_subset}.jsonl.gz"
+            self.args.manifest_dir / f"cuts_{self.args.training_subset}_fixed.jsonl.gz"
         )
         return cuts_train
 
     @lru_cache()
     def valid_cuts(self) -> CutSet:
         logging.info("About to get dev cuts")
-        return load_manifest_lazy(self.args.manifest_dir / "cuts_DEV.jsonl.gz")
+        return load_manifest_lazy(self.args.manifest_dir / "cuts_DEV_fixed.jsonl.gz")
 
     @lru_cache()
     def test_net_cuts(self) -> List[CutSet]:

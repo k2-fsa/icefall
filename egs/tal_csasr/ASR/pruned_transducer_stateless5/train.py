@@ -602,11 +602,9 @@ def compute_loss(
     feature_lens = supervisions["num_frames"].to(device)
 
     texts = batch["supervisions"]["text"]
-    y = graph_compiler.texts_to_ids_with_bpe(texts)
-    if type(y) == list:
-        y = k2.RaggedTensor(y).to(device)
-    else:
-        y = y.to(device)
+    y = graph_compiler.texts_to_ids(texts, sep="/")
+    y = k2.RaggedTensor(y).to(device)
+
     with torch.set_grad_enabled(is_training):
         simple_loss, pruned_loss = model(
             x=feature,
