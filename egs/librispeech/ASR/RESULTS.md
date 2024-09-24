@@ -39,19 +39,43 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
 The decoding command is:
 ```bash
 export CUDA_VISIBLE_DEVICES="0"
-for m in ctc-decoding 1best nbest nbest-rescoring whole-lattice-rescoring; do
-  ./zipformer/ctc_decode.py \
-      --epoch 40 \
-      --avg 16 \
-      --exp-dir zipformer/exp-ctc-rnnt \
-      --use-transducer 1 \
-      --use-ctc 1 \
-      --max-duration 300 \
-      --causal 0 \
-      --num-paths 100 \
-      --nbest-scale 1.0 \
-      --hlg-scale 0.6 \
-      --decoding-method $m
+for method in modified_beam_search greedy_search; do
+  ./zipformer_hat/decode.py \
+  --epoch 40 --avg 16 --use-averaged-model True \
+  --beam-size 4 \
+  --exp-dir ./zipformer_hat/exp \
+  --bpe-model data/lang_bpe_500/bpe.model \
+  --max-contexts 4 \
+  --max-states 8 \
+  --max-duration 600 \
+  --decoding-method $method 
+done
+```
+
+The decoding with shallow LM fusion and ILM subtraction:
+```bash
+for method in modified_beam_search_auxlm_shallow_fusion; do
+  ./zipformer_hat/decode.py \
+   --epoch 40 --avg 16 --use-averaged-model True \
+  --beam-size 4 \
+  --exp-dir ./zipformer_hat/exp \
+  --bpe-model data/lang_bpe_500/bpe.model \
+  --max-contexts 4 \
+  --max-states 8 \
+  --max-duration 800 \
+  --decoding-method $method \
+  --subtract-ilm True\
+  --ilm-scale 0.1 \
+  --use-shallow-fusion 1 \
+  --lm-type rnn \
+  --lm-exp-dir rnn_lm/exp \
+  --lm-epoch 25 \
+  --lm-scale 0.45 \
+  --lm-avg 5 \
+  --lm-vocab-size 500 \
+  --rnn-lm-embedding-dim 512 \
+  --rnn-lm-hidden-dim 512 \
+  --rnn-lm-num-layers 2
 done
 ```
 
