@@ -124,7 +124,7 @@ from asr_datamodule import GigaSpeechAsrDataModule
 from gigaspeech_scoring import asr_text_post_processing
 
 from lhotse import set_caching_enabled
-from train import add_model_arguments, get_model, get_params
+from train_cr_aed import add_model_arguments, get_model, get_params
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -134,6 +134,7 @@ from icefall.checkpoint import (
 )
 from icefall.decode import (
     ctc_greedy_search,
+    ctc_prefix_beam_search,
     get_lattice,
     nbest_decoding,
     nbest_oracle,
@@ -327,6 +328,17 @@ def get_decoding_params() -> AttributeDict:
     return params
 
 
+def post_processing(
+    results: List[Tuple[str, List[str], List[str]]],
+) -> List[Tuple[str, List[str], List[str]]]:
+    new_results = []
+    for key, ref, hyp in results:
+        new_ref = asr_text_post_processing(" ".join(ref)).split()
+        new_hyp = asr_text_post_processing(" ".join(hyp)).split()
+        new_results.append((key, new_ref, new_hyp))
+    return new_results
+
+
 def decode_one_batch(
     params: AttributeDict,
     model: nn.Module,
@@ -380,10 +392,7 @@ def decode_one_batch(
       Return the decoding result. See above description for the format of
       the returned dict. Note: If it decodes to nothing, then return None.
     """
-    if HLG is not None:
-        device = HLG.device
-    else:
-        device = H.device
+    device = params.device
     feature = batch["inputs"]
     assert feature.ndim == 3
     feature = feature.to(device)
@@ -412,6 +421,18 @@ def decode_one_batch(
         # hyps is a list of list of str, e.g., [['xxx', 'yyy', 'zzz'], ... ]
         hyps = [s.split() for s in hyps]
         key = "ctc-greedy-search"
+        return {key: hyps}
+
+    if params.decoding_method == "prefix-beam-search":
+        token_ids = ctc_prefix_beam_search(
+            ctc_output=ctc_output, encoder_out_lens=encoder_out_lens, beam=8
+        )
+        # hyps is a list of str, e.g., ['xxx yyy zzz', ...]
+        hyps = bpe_model.decode(token_ids)
+
+        # hyps is a list of list of str, e.g., [['xxx', 'yyy', 'zzz'], ... ]
+        hyps = [s.split() for s in hyps]
+        key = "prefix-beam-search"
         return {key: hyps}
 
     supervision_segments = torch.stack(
@@ -738,6 +759,7 @@ def main():
 
     assert params.decoding_method in (
         "ctc-greedy-search",
+        "prefix-beam-search",
         "ctc-decoding",
         "1best",
         "nbest",
@@ -773,6 +795,7 @@ def main():
     device = torch.device("cpu")
     if torch.cuda.is_available():
         device = torch.device("cuda", 0)
+    params.device = device
 
     logging.info(f"Device: {device}")
     logging.info(params)
@@ -790,14 +813,20 @@ def main():
     if params.decoding_method in [
         "ctc-greedy-search",
         "ctc-decoding",
+        "prefix-beam-search",
         "attention-decoder-rescoring-no-ngram",
     ]:
         HLG = None
-        H = k2.ctc_topo(
-            max_token=max_token_id,
-            modified=False,
-            device=device,
-        )
+        H = None
+        if params.decoding_method in [
+            "ctc-decoding",
+            "attention-decoder-rescoring-no-ngram",
+        ]:
+            H = k2.ctc_topo(
+                max_token=max_token_id,
+                modified=False,
+                device=device,
+            )
         bpe_model = spm.SentencePieceProcessor()
         bpe_model.load(str(params.lang_dir / "bpe.model"))
     else:
