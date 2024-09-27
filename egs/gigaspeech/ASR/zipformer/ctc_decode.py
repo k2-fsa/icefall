@@ -427,7 +427,7 @@ def decode_one_batch(
 
     if params.decoding_method == "prefix-beam-search":
         token_ids = ctc_prefix_beam_search(
-            ctc_output=ctc_output, encoder_out_lens=encoder_out_lens, beam=8
+            ctc_output=ctc_output, encoder_out_lens=encoder_out_lens
         )
         # hyps is a list of str, e.g., ['xxx yyy zzz', ...]
         hyps = bpe_model.decode(token_ids)
