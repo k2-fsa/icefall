@@ -1511,29 +1511,42 @@ def ctc_greedy_search(
 class Hypothesis:
     # The predicted tokens so far.
     # Newly predicted tokens are appended to `ys`.
-    ys: List[int]
+    ys: List[int] = field(default_factory=list)
 
     # The log prob of ys.
     # It contains only one entry.
-    log_prob_blank: torch.Tensor
+    log_prob_blank: torch.Tensor = torch.zeros(1, dtype=torch.float32)
 
-    log_prob_non_blank: torch.Tensor
+    log_prob_non_blank: torch.Tensor = torch.tensor(
+        [float("-inf")], dtype=torch.float32
+    )
 
     # timestamp[i] is the frame index after subsampling
     # on which ys[i] is decoded
     timestamp: List[int] = field(default_factory=list)
 
-    # the lm score for next token given the current ys
-    lm_score: Optional[torch.Tensor] = None
+    # The lm score of ys
+    # It contains only one entry
+    lm_score: torch.Tensor = torch.zeros(1, dtype=torch.float32)
+
+    # the lm log_probs for next token given the history ys
+    lm_log_probs: Optional[torch.Tensor] = None
 
     # the RNNLM states (h and c in LSTM)
     state: Optional[Tuple[torch.Tensor, torch.Tensor]] = None
 
     # N-gram LM state
-    state_cost: Optional[NgramLmStateCost] = None
+    LODR_state: Optional[NgramLmStateCost] = None
+
+    # N-gram LM state
+    Ngram_state: Optional[NgramLmStateCost] = None
 
     # Context graph state
     context_state: Optional[ContextState] = None
+
+    @property
+    def tot_score(self) -> torch.Tensor:
+        return self.log_prob + self.lm_score
 
     @property
     def log_prob(self) -> torch.Tensor:
@@ -1543,6 +1556,20 @@ class Hypothesis:
     def key(self) -> tuple:
         """Return a tuple representation of self.ys"""
         return tuple(self.ys)
+
+    def clone(self) -> "Hypothesis":
+        return Hypothesis(
+            ys=self.ys,
+            log_prob_blank=self.log_prob_blank,
+            log_prob_non_blank=self.log_prob_non_blank,
+            timestamp=self.timestamp,
+            lm_log_probs=self.lm_log_probs,
+            lm_score=self.lm_score,
+            state=self.state,
+            LODR_state=self.LODR_state,
+            Ngram_state=self.Ngram_state,
+            context_state=self.context_state,
+        )
 
 
 class HypothesisList(object):
@@ -1597,9 +1624,9 @@ class HypothesisList(object):
           Return the hypothesis that has the largest `log_prob`.
         """
         if length_norm:
-            return max(self._data.values(), key=lambda hyp: hyp.log_prob / len(hyp.ys))
+            return max(self._data.values(), key=lambda hyp: hyp.tot_score / len(hyp.ys))
         else:
-            return max(self._data.values(), key=lambda hyp: hyp.log_prob)
+            return max(self._data.values(), key=lambda hyp: hyp.tot_score)
 
     def remove(self, hyp: Hypothesis) -> None:
         """Remove a given hypothesis.
@@ -1629,7 +1656,7 @@ class HypothesisList(object):
         """
         ans = HypothesisList()
         for _, hyp in self._data.items():
-            if hyp.log_prob > threshold:
+            if hyp.tot_score > threshold:
                 ans.add(hyp)  # shallow copy
         return ans
 
@@ -1645,16 +1672,19 @@ class HypothesisList(object):
 
         if length_norm:
             hyps = sorted(
-                hyps, key=lambda h: h[1].log_prob / len(h[1].ys), reverse=True
+                hyps, key=lambda h: h[1].tot_score / len(h[1].ys), reverse=True
             )[:k]
         else:
-            hyps = sorted(hyps, key=lambda h: h[1].log_prob, reverse=True)[:k]
+            hyps = sorted(hyps, key=lambda h: h[1].tot_score, reverse=True)[:k]
 
         ans = HypothesisList(dict(hyps))
         return ans
 
-    def __contains__(self, key: str):
+    def __contains__(self, key: tuple):
         return key in self._data
+
+    def __getitem__(self, key: tuple):
+        return self._data[key]
 
     def __iter__(self):
         return iter(self._data.values())
@@ -1694,64 +1724,96 @@ def get_hyps_shape(hyps: List[HypothesisList]) -> k2.RaggedShape:
     return ans
 
 
-def _step_worker(log_probs, indexes, B, beam, blank_id):
+def _step_worker(
+    log_probs,
+    indexes,
+    B,
+    beam,
+    blank_id,
+    lm_scale: float = 0,
+    LODR_lm_scale: float = 0,
+    context_graph: Optional[ContextGraph] = None,
+):
     A = list(B)
     B = HypothesisList()
     for h in range(len(A)):
         hyp = A[h]
         for k in range(log_probs.size(0)):
             log_prob, index = log_probs[k], indexes[k]
-            if index == blank_id:
+            new_token = index.item()
+            update_prefix = False
+            new_hyp = hyp.clone()
+            if new_token == blank_id:
                 # Case 0: *a + ε => *a
                 #         *aε + ε => *a
                 # Prefix does not change, update log_prob of blank
-                new_hyp = Hypothesis(
-                    ys=hyp.ys[:],
-                    log_prob_non_blank=torch.tensor(
-                        [float("-inf")], dtype=torch.float32
-                    ),
-                    log_prob_blank=hyp.log_prob + log_prob,
+                new_hyp.log_prob_non_blank = torch.tensor(
+                    [float("-inf")], dtype=torch.float32
                 )
+                new_hyp.log_prob_blank = hyp.log_prob + log_prob
                 B.add(new_hyp)
-            elif len(hyp.ys) > 0 and hyp.ys[-1] == index:
+            elif len(hyp.ys) > 0 and hyp.ys[-1] == new_token:
                 # Case 1: *a + a => *a
                 # Prefix does not change, update log_prob of non_blank
-                new_hyp = Hypothesis(
-                    ys=hyp.ys[:],
-                    log_prob_non_blank=hyp.log_prob_non_blank + log_prob,
-                    log_prob_blank=torch.tensor([float("-inf")], dtype=torch.float32),
+                new_hyp.log_prob_non_blank = hyp.log_prob_non_blank + log_prob
+                new_hyp.log_prob_blank = torch.tensor(
+                    [float("-inf")], dtype=torch.float32
                 )
                 B.add(new_hyp)
 
                 # Case 2: *aε + a => *aa
                 # Prefix changes, update log_prob of blank
-                new_hyp = Hypothesis(
-                    ys=hyp.ys[:] + [index.item()],
-                    log_prob_non_blank=hyp.log_prob_blank + log_prob,
-                    log_prob_blank=torch.tensor([float("-inf")], dtype=torch.float32),
+                new_hyp = hyp.clone()
+                # Caution: DO NOT use append, as clone is shallow copy
+                new_hyp.ys = hyp.ys + [new_token]
+                new_hyp.log_prob_non_blank = hyp.log_prob_blank + log_prob
+                new_hyp.log_prob_blank = torch.tensor(
+                    [float("-inf")], dtype=torch.float32
                 )
-                B.add(new_hyp)
+                update_prefix = True
             else:
                 # Case 3: *a + b => *ab, *aε + b => *ab
                 # Prefix changes, update log_prob of non_blank
-                new_hyp = Hypothesis(
-                    ys=hyp.ys[:] + [index.item()],
-                    log_prob_non_blank=hyp.log_prob + log_prob,
-                    log_prob_blank=torch.tensor([float("-inf")], dtype=torch.float32),
+                # Caution: DO NOT use append, as clone is shallow copy
+                new_hyp.ys = hyp.ys + [new_token]
+                new_hyp.log_prob_non_blank = hyp.log_prob + log_prob
+                new_hyp.log_prob_blank = torch.tensor(
+                    [float("-inf")], dtype=torch.float32
                 )
+                update_prefix = True
+
+            if update_prefix:
+                lm_score = hyp.lm_score
+                if hyp.lm_log_probs is not None:
+                    lm_score += hyp.lm_log_probs[new_token] * lm_scale
+                    new_hyp.lm_log_probs = None
+
+                if context_graph is not None and hyp.context_state is not None:
+                    context_score, new_context_state = context_graph.forward_one_step(
+                        hyp.context_state, new_token
+                    )
+                    lm_score += context_score
+                    new_hyp.context_state = new_context_state
+
+                if hyp.LODR_state is not None:
+                    state_cost = hyp.LODR_state.forward_one_step(new_token)
+                    # calculate the score of the latest token
+                    current_ngram_score = state_cost.lm_score - hyp.LODR_state.lm_score
+                    assert current_ngram_score <= 0.0, (
+                        state_cost.lm_score,
+                        hyp.LODR_state.lm_score,
+                    )
+                    lm_score += LODR_lm_scale * current_ngram_score
+                    new_hyp.LODR_state = state_cost
+
+                new_hyp.lm_score = lm_score
                 B.add(new_hyp)
     B = B.topk(beam)
     return B
 
 
 def _batch_worker(topk_values, topk_indexes, B, encoder_out_lens, beam, blank_id):
-    B.add(
-        Hypothesis(
-            ys=[],
-            log_prob_non_blank=torch.tensor([float("-inf")], dtype=torch.float32),
-            log_prob_blank=torch.zeros(1, dtype=torch.float32),
-        )
-    )
+    B.add(Hypothesis())
     for j in range(encoder_out_lens):
         log_probs, indexes = topk_values[j], topk_indexes[j]
         B = _step_worker(log_probs, indexes, B, beam, blank_id)
@@ -1763,11 +1825,11 @@ def ctc_prefix_beam_search(
     encoder_out_lens: torch.Tensor,
     beam: int = 4,
     blank_id: int = 0,
-    context_graph: Optional[ContextGraph] = None,
     process_pool: Optional[Pool] = None,
     return_nbest: Optional[bool] = False,
 ) -> Union[List[List[int]], List[HypothesisList]]:
     batch_size, num_frames, vocab_size = ctc_output.shape
+
     # TODO: using a larger beam for first pass pruning
     topk_values, topk_indexes = ctc_output.topk(beam)  # (B, T, beam)
     topk_values = topk_values.cpu()
@@ -1798,6 +1860,136 @@ def ctc_prefix_beam_search(
     else:
         best_hyps = [b.get_most_probable() for b in B]
         return [hyp.ys for hyp in best_hyps]
+
+
+def ctc_prefix_beam_search_shallow_fussion(
+    ctc_output: torch.Tensor,
+    encoder_out_lens: torch.Tensor,
+    beam: int = 4,
+    blank_id: int = 0,
+    LODR_lm: Optional[NgramLm] = None,
+    LODR_lm_scale: Optional[float] = 0,
+    LM: Optional[LmScorer] = None,
+    context_graph: Optional[ContextGraph] = None,
+) -> List[List[int]]:
+    batch_size, num_frames, vocab_size = ctc_output.shape
+    # TODO: using a larger beam for first pass pruning
+    topk_values, topk_indexes = ctc_output.topk(beam)  # (B, T, beam)
+    topk_values = topk_values.cpu()
+    topk_indexes = topk_indexes.cpu()
+    encoder_out_lens = encoder_out_lens.tolist()
+    device = ctc_output.device
+
+    lm_scale = 0
+    init_scores = None
+    init_states = None
+
+    if LM is not None:
+        lm_scale = LM.lm_scale
+        sos_id = getattr(LM, "sos_id", 1)
+        # get initial lm score and lm state by scoring the "sos" token
+        sos_token = torch.tensor([[sos_id]]).to(torch.int64).to(device)
+        lens = torch.tensor([1]).to(device)
+        init_scores, init_states = LM.score_token(sos_token, lens)
+        init_scores, init_states = init_scores.cpu(), (
+            init_states[0].cpu(),
+            init_states[1].cpu(),
+        )
+
+    B = [HypothesisList() for _ in range(batch_size)]
+    for i in range(batch_size):
+        B[i].add(
+            Hypothesis(
+                ys=[],
+                log_prob_non_blank=torch.tensor([float("-inf")], dtype=torch.float32),
+                log_prob_blank=torch.zeros(1, dtype=torch.float32),
+                lm_score=torch.zeros(1, dtype=torch.float32),
+                state=init_states,
+                lm_log_probs=None if init_scores is None else init_scores.reshape(-1),
+                LODR_state=None if LODR_lm is None else NgramLmStateCost(LODR_lm),
+                context_state=None if context_graph is None else context_graph.root,
+            )
+        )
+    for j in range(num_frames):
+        for i in range(batch_size):
+            if j < encoder_out_lens[i]:
+                log_probs, indexes = topk_values[i][j], topk_indexes[i][j]
+                B[i] = _step_worker(
+                    log_probs,
+                    indexes,
+                    B[i],
+                    beam,
+                    blank_id,
+                    lm_scale=lm_scale,
+                    LODR_lm_scale=LODR_lm_scale,
+                    context_graph=context_graph,
+                )
+        if LM is None:
+            continue
+        # update lm_score
+        token_list = []  # a list of list
+        hs = []
+        cs = []
+        indexes = []  # (batch_idx, key)
+        for batch_idx, hyps in enumerate(B):
+            for hyp in hyps:
+                if hyp.lm_log_probs is None:
+                    if LM.lm_type == "rnn":
+                        token_list.append([hyp.ys[-1]])
+                        # store the LSTM states
+                        hs.append(hyp.state[0])
+                        cs.append(hyp.state[1])
+                    else:
+                        # for transformer LM
+                        token_list.append([sos_id] + hyp.ys[:])
+                    indexes.append((batch_idx, hyp.key))
+        if len(token_list) != 0:
+            x_lens = torch.tensor([len(tokens) for tokens in token_list]).to(device)
+            if LM.lm_type == "rnn":
+                tokens_to_score = (
+                    torch.tensor(token_list).to(torch.int64).to(device).reshape(-1, 1)
+                )
+                hs = torch.cat(hs, dim=1).to(device)
+                cs = torch.cat(cs, dim=1).to(device)
+                state = (hs, cs)
+            else:
+                # for transformer LM
+                tokens_list = [torch.tensor(tokens) for tokens in token_list]
+                tokens_to_score = (
+                    torch.nn.utils.rnn.pad_sequence(
+                        tokens_list, batch_first=True, padding_value=0.0
+                    )
+                    .to(device)
+                    .to(torch.int64)
+                )
+                state = None
+
+            scores, lm_states = LM.score_token(tokens_to_score, x_lens, state)
+            scores, lm_states = scores.cpu(), (lm_states[0].cpu(), lm_states[1].cpu())
+            assert scores.size(0) == len(indexes), (scores.size(0), len(indexes))
+            for i in range(scores.size(0)):
+                batch_idx, key = indexes[i]
+                B[batch_idx][key].lm_log_probs = scores[i]
+                if LM.lm_type == "rnn":
+                    state = (
+                        lm_states[0][:, i, :].unsqueeze(1),
+                        lm_states[1][:, i, :].unsqueeze(1),
+                    )
+                    B[batch_idx][key].state = state
+
+    # finalize context_state, if the matched contexts do not reach final state
+    # we need to add the score on the corresponding backoff arc
+    if context_graph is not None:
+        for hyps in B:
+            for hyp in hyps:
+                context_score, new_context_state = context_graph.finalize(
+                    hyp.context_state
+                )
+                hyp.lm_score += context_score
+                hyp.context_state = new_context_state
+
+    best_hyps = [b.get_most_probable() for b in B]
+    return [hyp.ys for hyp in best_hyps]
 
 
 def ctc_prefix_beam_search_attention_decoder_rescoring(

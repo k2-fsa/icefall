@@ -19,8 +19,10 @@
 
 import argparse
 import collections
+import json
 import logging
 import os
+import pathlib
 import re
 import subprocess
 from collections import defaultdict
@@ -177,6 +179,15 @@ class AttributeDict(dict):
             del self[key]
             return
         raise AttributeError(f"No such attribute '{key}'")
+
+    def __str__(self, indent: int = 2):
+        tmp = {}
+        for k, v in self.items():
+            # PosixPath is ont JSON serializable
+            if isinstance(v, pathlib.Path) or isinstance(v, torch.device):
+                v = str(v)
+            tmp[k] = v
+        return json.dumps(tmp, indent=indent, sort_keys=True)
 
 
 def encode_supervisions(

@@ -123,6 +123,10 @@ from asr_datamodule import LibriSpeechAsrDataModule
 from lhotse import set_caching_enabled
 from train import add_model_arguments, get_model, get_params
 
+from icefall.context_graph import ContextGraph, ContextState
+from icefall.ngram_lm import NgramLm, NgramLmStateCost
+from icefall.lm_wrapper import LmScorer
+
 from icefall.checkpoint import (
     average_checkpoints,
     average_checkpoints_with_averaged_model,
@@ -131,6 +135,9 @@ from icefall.checkpoint import (
 )
 from icefall.decode import (
     ctc_greedy_search,
+    ctc_prefix_beam_search,
+    ctc_prefix_beam_search_attention_decoder_rescoring,
+    ctc_prefix_beam_search_shallow_fussion,
     get_lattice,
     nbest_decoding,
     nbest_oracle,
@@ -281,6 +288,23 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--lm-type",
+        type=str,
+        default="rnn",
+        help="Type of NN lm",
+        choices=["rnn", "transformer"],
+    )
+
+    parser.add_argument(
+        "--lm-scale",
+        type=float,
+        default=0.3,
+        help="""The scale of the neural network LM
+        Used only when `--use-shallow-fusion` is set to True.
+        """,
+    )
+
+    parser.add_argument(
         "--hlg-scale",
         type=float,
         default=0.6,
@@ -301,7 +325,7 @@ def get_parser():
         "--skip-scoring",
         type=str2bool,
         default=False,
-        help="""Skip scoring, but still save the ASR output (for eval sets)."""
+        help="""Skip scoring, but still save the ASR output (for eval sets).""",
     )
 
     add_model_arguments(parser)
@@ -314,8 +338,9 @@ def get_decoding_params() -> AttributeDict:
     params = AttributeDict(
         {
             "frame_shift_ms": 10,
-            "search_beam": 20,
-            "output_beam": 8,
+            "search_beam": 20,  # for k2 fsa composition
+            "output_beam": 8,  # for k2 fsa composition
+            "beam": 4,  # for prefix-beam-search
             "min_active_states": 30,
             "max_active_states": 10000,
             "use_double_scores": True,
@@ -333,6 +358,7 @@ def decode_one_batch(
     batch: dict,
     word_table: k2.SymbolTable,
     G: Optional[k2.Fsa] = None,
+    LM: Optional[LmScorer] = None,
 ) -> Dict[str, List[List[str]]]:
     """Decode one batch and return the result in a dict. The dict has the
     following format:
@@ -377,10 +403,7 @@ def decode_one_batch(
       Return the decoding result. See above description for the format of
       the returned dict. Note: If it decodes to nothing, then return None.
     """
-    if HLG is not None:
-        device = HLG.device
-    else:
-        device = H.device
+    device = params.device
     feature = batch["inputs"]
     assert feature.ndim == 3
     feature = feature.to(device)
@@ -409,6 +432,48 @@ def decode_one_batch(
         # hyps is a list of list of str, e.g., [['xxx', 'yyy', 'zzz'], ... ]
         hyps = [s.split() for s in hyps]
         key = "ctc-greedy-search"
+        return {key: hyps}
+
+    if params.decoding_method == "prefix-beam-search":
+        token_ids = ctc_prefix_beam_search(
+            ctc_output=ctc_output, encoder_out_lens=encoder_out_lens
+        )
+        # hyps is a list of str, e.g., ['xxx yyy zzz', ...]
+        hyps = bpe_model.decode(token_ids)
+
+        # hyps is a list of list of str, e.g., [['xxx', 'yyy', 'zzz'], ... ]
+        hyps = [s.split() for s in hyps]
+        key = "prefix-beam-search"
+        return {key: hyps}
+
+    if params.decoding_method == "ctc-prefix-beam-search-attention-decoder-rescoring":
+        best_path_dict = ctc_prefix_beam_search_attention_decoder_rescoring(
+            ctc_output=ctc_output,
+            attention_decoder=model.attention_decoder,
+            encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
+        )
+        ans = dict()
+        for a_scale_str, token_ids in best_path_dict.items():
+            # hyps is a list of str, e.g., ['xxx yyy zzz', ...]
+            hyps = bpe_model.decode(token_ids)
+            # hyps is a list of list of str, e.g., [['xxx', 'yyy', 'zzz'], ... ]
+            hyps = [s.split() for s in hyps]
+            ans[a_scale_str] = hyps
+        return ans
+
+    if params.decoding_method == "ctc-prefix-beam-search-shallow-fussion":
+        token_ids = ctc_prefix_beam_search_shallow_fussion(
+            ctc_output=ctc_output,
+            encoder_out_lens=encoder_out_lens,
+            LM=LM,
+        )
+        # hyps is a list of str, e.g., ['xxx yyy zzz', ...]
+        hyps = bpe_model.decode(token_ids)
+
+        # hyps is a list of list of str, e.g., [['xxx', 'yyy', 'zzz'], ... ]
+        hyps = [s.split() for s in hyps]
+        key = "prefix-beam-search-shallow-fussion"
         return {key: hyps}
 
     supervision_segments = torch.stack(
@@ -584,6 +649,7 @@ def decode_dataset(
     bpe_model: Optional[spm.SentencePieceProcessor],
     word_table: k2.SymbolTable,
     G: Optional[k2.Fsa] = None,
+    LM: Optional[LmScorer] = None,
 ) -> Dict[str, List[Tuple[str, List[str], List[str]]]]:
     """Decode dataset.
 
@@ -634,6 +700,7 @@ def decode_dataset(
             batch=batch,
             word_table=word_table,
             G=G,
+            LM=LM,
         )
 
         for name, hyps in hyps_dict.items():
@@ -664,9 +731,7 @@ def save_asr_output(
     """
     for key, results in results_dict.items():
 
-        recogs_filename = (
-            params.res_dir / f"recogs-{test_set_name}-{params.suffix}.txt"
-        )
+        recogs_filename = params.res_dir / f"recogs-{test_set_name}-{params.suffix}.txt"
 
         results = sorted(results)
         store_transcripts(filename=recogs_filename, texts=results)
@@ -680,7 +745,8 @@ def save_wer_results(
     results_dict: Dict[str, List[Tuple[str, List[str], List[str]]]],
 ):
     if params.decoding_method in (
-        "attention-decoder-rescoring-with-ngram", "whole-lattice-rescoring"
+        "attention-decoder-rescoring-with-ngram",
+        "whole-lattice-rescoring",
     ):
         # Set it to False since there are too many logs.
         enable_log = False
@@ -721,6 +787,7 @@ def save_wer_results(
 def main():
     parser = get_parser()
     LibriSpeechAsrDataModule.add_arguments(parser)
+    LmScorer.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
     args.lang_dir = Path(args.lang_dir)
@@ -735,8 +802,11 @@ def main():
     set_caching_enabled(True)  # lhotse
 
     assert params.decoding_method in (
-        "ctc-greedy-search",
         "ctc-decoding",
+        "ctc-greedy-search",
+        "prefix-beam-search",
+        "ctc-prefix-beam-search-attention-decoder-rescoring",
+        "ctc-prefix-beam-search-shallow-fussion",
         "1best",
         "nbest",
         "nbest-rescoring",
@@ -762,6 +832,11 @@ def main():
         params.suffix += f"_chunk-{params.chunk_size}"
         params.suffix += f"_left-context-{params.left_context_frames}"
 
+    if "prefix-beam-search" in params.decoding_method:
+        params.suffix += f"_beam-{params.beam}"
+        if params.decoding_method == "ctc-prefix-beam-search-shallow-fussion":
+            params.suffix += f"_lm-scale-{params.lm_scale}"
+
     if params.use_averaged_model:
         params.suffix += "_use-averaged-model"
 
@@ -771,6 +846,8 @@ def main():
     device = torch.device("cpu")
     if torch.cuda.is_available():
         device = torch.device("cuda", 0)
+
+    params.device = device
 
     logging.info(f"Device: {device}")
     logging.info(params)
@@ -786,14 +863,24 @@ def main():
     params.sos_id = 1
 
     if params.decoding_method in [
-        "ctc-greedy-search", "ctc-decoding", "attention-decoder-rescoring-no-ngram"
+        "ctc-greedy-search",
+        "ctc-decoding",
+        "attention-decoder-rescoring-no-ngram",
+        "prefix-beam-search",
+        "ctc-prefix-beam-search-attention-decoder-rescoring",
+        "ctc-prefix-beam-search-shallow-fussion",
     ]:
         HLG = None
-        H = k2.ctc_topo(
-            max_token=max_token_id,
-            modified=False,
-            device=device,
-        )
+        H = None
+        if params.decoding_method in [
+            "ctc-decoding",
+            "attention-decoder-rescoring-no-ngram",
+        ]:
+            H = k2.ctc_topo(
+                max_token=max_token_id,
+                modified=False,
+                device=device,
+            )
         bpe_model = spm.SentencePieceProcessor()
         bpe_model.load(str(params.lang_dir / "bpe.model"))
     else:
@@ -844,7 +931,8 @@ def main():
             G = k2.Fsa.from_dict(d)
 
         if params.decoding_method in [
-            "whole-lattice-rescoring", "attention-decoder-rescoring-with-ngram"
+            "whole-lattice-rescoring",
+            "attention-decoder-rescoring-with-ngram",
         ]:
             # Add epsilon self-loops to G as we will compose
             # it with the whole lattice later
@@ -857,6 +945,19 @@ def main():
         G.lm_scores = G.scores.clone()
     else:
         G = None
+
+    # only load the neural network LM if required
+    if params.decoding_method == "ctc-prefix-beam-search-shallow-fussion":
+        LM = LmScorer(
+            lm_type=params.lm_type,
+            params=params,
+            device=device,
+            lm_scale=params.lm_scale,
+        )
+        LM.to(device)
+        LM.eval()
+    else:
+        LM = None
 
     logging.info("About to create model")
     model = get_model(params)
@@ -967,6 +1068,7 @@ def main():
             bpe_model=bpe_model,
             word_table=lexicon.word_table,
             G=G,
+            LM=LM,
         )
 
         save_asr_output(
