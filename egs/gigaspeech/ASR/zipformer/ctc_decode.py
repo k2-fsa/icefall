@@ -1064,11 +1064,13 @@ def main():
     gigaspeech = GigaSpeechAsrDataModule(args)
 
     test_cuts = gigaspeech.test_cuts()
+    dev_cuts = gigaspeech.dev_cuts()
 
     test_dl = gigaspeech.test_dataloaders(test_cuts)
+    dev_dl = gigaspeech.test_dataloaders(dev_cuts)
 
-    test_sets = ["test"]
-    test_dls = [test_dl]
+    test_sets = ["test", "dev"]
+    test_dls = [test_dl, dev_dl]
 
     for test_set, test_dl in zip(test_sets, test_dls):
         results_dict = decode_dataset(
