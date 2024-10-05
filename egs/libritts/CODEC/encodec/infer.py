@@ -71,7 +71,7 @@ def get_parser():
     parser.add_argument(
         "--target-bw",
         type=float,
-        default=7.5,
+        default=24,
         help="The target bandwidth for the generator",
     )
 

@@ -15,12 +15,13 @@ from codec_datamodule import LibriTTSCodecDataModule
 from encodec import Encodec
 from lhotse.cut import Cut
 from lhotse.utils import fix_random_seed
+from loss import adopt_weight
 from torch import nn
 from torch.cuda.amp import GradScaler, autocast
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim import Optimizer
 from torch.utils.tensorboard import SummaryWriter
-from utils import MetricsTracker, plot_feature, save_checkpoint
+from utils import MetricsTracker, save_checkpoint
 
 from icefall import diagnostics
 from icefall.checkpoint import load_checkpoint
@@ -250,11 +251,26 @@ def get_model(params: AttributeDict) -> nn.Module:
     from modules.seanet import SEANetDecoder, SEANetEncoder
     from quantization import ResidualVectorQuantizer
 
+    # generator_params = {
+    #     "generator_n_filters": 32,
+    #     "dimension": 512,
+    #     "ratios": [2, 2, 2, 4],
+    #     "target_bandwidths": [7.5, 15],
+    #     "bins": 1024,
+    # }
+    # discriminator_params = {
+    #     "stft_discriminator_n_filters": 32,
+    #     "discriminator_iter_start": 500,
+    # }
+    # inference_params = {
+    #     "target_bw": 7.5,
+    # }
+
     generator_params = {
         "generator_n_filters": 32,
         "dimension": 512,
-        "ratios": [2, 2, 2, 4],
-        "target_bandwidths": [7.5, 15],
+        "ratios": [8, 5, 4, 2],
+        "target_bandwidths": [1.5, 3, 6, 12, 24],
         "bins": 1024,
     }
     discriminator_params = {
@@ -262,7 +278,7 @@ def get_model(params: AttributeDict) -> nn.Module:
         "discriminator_iter_start": 500,
     }
     inference_params = {
-        "target_bw": 7.5,
+        "target_bw": 12,
     }
 
     params.update(generator_params)
@@ -419,36 +435,93 @@ def train_one_epoch(
 
         try:
             with autocast(enabled=params.use_fp16):
+                d_weight = adopt_weight(
+                    params.lambda_adv,
+                    params.batch_idx_train,
+                    threshold=params.discriminator_iter_start,
+                )
                 # forward discriminator
-                loss_d, stats_d = model(
+                (
+                    disc_stft_real_adv_loss,
+                    disc_stft_fake_adv_loss,
+                    disc_period_real_adv_loss,
+                    disc_period_fake_adv_loss,
+                    disc_scale_real_adv_loss,
+                    disc_scale_fake_adv_loss,
+                    stats_d,
+                ) = model(
                     speech=audio,
                     speech_lengths=audio_lens,
-                    global_step=params.batch_idx_train,
                     return_sample=False,
                     forward_generator=False,
+                )
+                disc_loss = (
+                    (
+                        disc_stft_real_adv_loss
+                        + disc_stft_fake_adv_loss
+                        + disc_period_real_adv_loss
+                        + disc_period_fake_adv_loss
+                        + disc_scale_real_adv_loss
+                        + disc_scale_fake_adv_loss
+                    )
+                    * d_weight
+                    / 3
                 )
             for k, v in stats_d.items():
                 loss_info[k] = v * batch_size
             # update discriminator
             optimizer_d.zero_grad()
-            scaler.scale(loss_d).backward()
+            scaler.scale(disc_loss).backward()
             scaler.step(optimizer_d)
 
             with autocast(enabled=params.use_fp16):
+                g_weight = adopt_weight(
+                    params.lambda_adv,
+                    params.batch_idx_train,
+                    threshold=params.discriminator_iter_start,
+                )
                 # forward generator
-                loss_g, stats_g = model(
+                (
+                    commit_loss,
+                    gen_stft_adv_loss,
+                    gen_period_adv_loss,
+                    gen_scale_adv_loss,
+                    feature_stft_loss,
+                    feature_period_loss,
+                    feature_scale_loss,
+                    wav_reconstruction_loss,
+                    mel_reconstruction_loss,
+                    stats_g,
+                ) = model(
                     speech=audio,
                     speech_lengths=audio_lens,
-                    global_step=params.batch_idx_train,
                     forward_generator=True,
                     return_sample=params.batch_idx_train % params.log_interval == 0,
+                )
+                gen_adv_loss = (
+                    (gen_stft_adv_loss + gen_period_adv_loss + gen_scale_adv_loss)
+                    * g_weight
+                    / 3
+                )
+                feature_loss = (
+                    feature_stft_loss + feature_period_loss + feature_scale_loss
+                ) / 3
+                reconstruction_loss = (
+                    params.lambda_wav * wav_reconstruction_loss
+                    + mel_reconstruction_loss
+                )
+                gen_loss = (
+                    gen_adv_loss
+                    + params.lambda_rec * reconstruction_loss
+                    + (params.lambda_feat if g_weight != 0.0 else 0.0) * feature_loss
+                    + params.lambda_com * commit_loss
                 )
             for k, v in stats_g.items():
                 if "returned_sample" not in k:
                     loss_info[k] = v * batch_size
             # update generator
             optimizer_g.zero_grad()
-            scaler.scale(loss_g).backward()
+            scaler.scale(gen_loss).backward()
             scaler.step(optimizer_g)
             scaler.update()
 
@@ -619,27 +692,84 @@ def compute_validation_loss(
             loss_info = MetricsTracker()
             loss_info["samples"] = batch_size
 
+            d_weight = adopt_weight(
+                params.lambda_adv,
+                params.batch_idx_train,
+                threshold=params.discriminator_iter_start,
+            )
+
             # forward discriminator
-            loss_d, stats_d = model(
+            (
+                disc_stft_real_adv_loss,
+                disc_stft_fake_adv_loss,
+                disc_period_real_adv_loss,
+                disc_period_fake_adv_loss,
+                disc_scale_real_adv_loss,
+                disc_scale_fake_adv_loss,
+                stats_d,
+            ) = model(
                 speech=audio,
                 speech_lengths=audio_lens,
-                global_step=params.batch_idx_train,
                 return_sample=False,
                 forward_generator=False,
             )
-            assert loss_d.requires_grad is False
+            disc_loss = (
+                (
+                    disc_stft_real_adv_loss
+                    + disc_stft_fake_adv_loss
+                    + disc_period_real_adv_loss
+                    + disc_period_fake_adv_loss
+                    + disc_scale_real_adv_loss
+                    + disc_scale_fake_adv_loss
+                )
+                * d_weight
+                / 3
+            )
+            assert disc_loss.requires_grad is False
             for k, v in stats_d.items():
                 loss_info[k] = v * batch_size
 
+            g_weight = adopt_weight(
+                params.lambda_adv,
+                params.batch_idx_train,
+                threshold=params.discriminator_iter_start,
+            )
             # forward generator
-            loss_g, stats_g = model(
+            (
+                commit_loss,
+                gen_stft_adv_loss,
+                gen_period_adv_loss,
+                gen_scale_adv_loss,
+                feature_stft_loss,
+                feature_period_loss,
+                feature_scale_loss,
+                wav_reconstruction_loss,
+                mel_reconstruction_loss,
+                stats_g,
+            ) = model(
                 speech=audio,
                 speech_lengths=audio_lens,
-                global_step=params.batch_idx_train,
                 forward_generator=True,
                 return_sample=False,
             )
-            assert loss_g.requires_grad is False
+            gen_adv_loss = (
+                (gen_stft_adv_loss + gen_period_adv_loss + gen_scale_adv_loss)
+                * g_weight
+                / 3
+            )
+            feature_loss = (
+                feature_stft_loss + feature_period_loss + feature_scale_loss
+            ) / 3
+            reconstruction_loss = (
+                params.lambda_wav * wav_reconstruction_loss + mel_reconstruction_loss
+            )
+            gen_loss = (
+                gen_adv_loss
+                + params.lambda_rec * reconstruction_loss
+                + (params.lambda_feat if g_weight != 0.0 else 0.0) * feature_loss
+                + params.lambda_com * commit_loss
+            )
+            assert gen_loss.requires_grad is False
             for k, v in stats_g.items():
                 if "returned_sample" not in k:
                     loss_info[k] = v * batch_size
@@ -691,24 +821,74 @@ def scan_pessimistic_batches_for_oom(
         try:
             # for discriminator
             with autocast(enabled=params.use_fp16):
-                loss_d, stats_d = model(
+                (
+                    disc_stft_real_adv_loss,
+                    disc_stft_fake_adv_loss,
+                    disc_period_real_adv_loss,
+                    disc_period_fake_adv_loss,
+                    disc_scale_real_adv_loss,
+                    disc_scale_fake_adv_loss,
+                    stats_d,
+                ) = model(
                     speech=audio,
                     speech_lengths=audio_lens,
-                    global_step=params.batch_idx_train,
                     return_sample=False,
                     forward_generator=False,
                 )
+            loss_d = (
+                (
+                    disc_stft_real_adv_loss
+                    + disc_stft_fake_adv_loss
+                    + disc_period_real_adv_loss
+                    + disc_period_fake_adv_loss
+                    + disc_scale_real_adv_loss
+                    + disc_scale_fake_adv_loss
+                )
+                * adopt_weight(
+                    params.lambda_adv,
+                    params.batch_idx_train,
+                    threshold=params.discriminator_iter_start,
+                )
+                / 3
+            )
             optimizer_d.zero_grad()
             loss_d.backward()
             # for generator
             with autocast(enabled=params.use_fp16):
-                loss_g, stats_g = model(
+                (
+                    commit_loss,
+                    gen_stft_adv_loss,
+                    gen_period_adv_loss,
+                    gen_scale_adv_loss,
+                    feature_stft_loss,
+                    feature_period_loss,
+                    feature_scale_loss,
+                    wav_reconstruction_loss,
+                    mel_reconstruction_loss,
+                    stats_g,
+                ) = model(
                     speech=audio,
                     speech_lengths=audio_lens,
                     forward_generator=True,
-                    global_step=params.batch_idx_train,
                     return_sample=False,
                 )
+            loss_g = (
+                (gen_stft_adv_loss + gen_period_adv_loss + gen_scale_adv_loss)
+                * adopt_weight(
+                    params.lambda_adv,
+                    params.batch_idx_train,
+                    threshold=params.discriminator_iter_start,
+                )
+                / 3
+                + params.lambda_rec
+                * (
+                    params.lambda_wav * wav_reconstruction_loss
+                    + mel_reconstruction_loss
+                )
+                + params.lambda_feat
+                * (feature_stft_loss + feature_period_loss + feature_scale_loss)
+                + params.lambda_com * commit_loss
+            )
             optimizer_g.zero_grad()
             loss_g.backward()
         except Exception as e:

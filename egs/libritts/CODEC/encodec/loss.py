@@ -1,6 +1,308 @@
+from typing import List, Tuple, Union
+
 import torch
 import torch.nn.functional as F
+from lhotse.features.kaldi import Wav2LogFilterBank
 from torchaudio.transforms import MelSpectrogram
+
+
+class GeneratorAdversarialLoss(torch.nn.Module):
+    """Generator adversarial loss module."""
+
+    def __init__(
+        self,
+        average_by_discriminators: bool = True,
+        loss_type: str = "hinge",
+    ):
+        """Initialize GeneratorAversarialLoss module.
+
+        Args:
+            average_by_discriminators (bool): Whether to average the loss by
+                the number of discriminators.
+            loss_type (str): Loss type, "mse" or "hinge".
+
+        """
+        super().__init__()
+        self.average_by_discriminators = average_by_discriminators
+        assert loss_type in ["mse", "hinge"], f"{loss_type} is not supported."
+        if loss_type == "mse":
+            self.criterion = self._mse_loss
+        else:
+            self.criterion = self._hinge_loss
+
+    def forward(
+        self,
+        outputs: Union[List[List[torch.Tensor]], List[torch.Tensor], torch.Tensor],
+    ) -> torch.Tensor:
+        """Calcualate generator adversarial loss.
+
+        Args:
+            outputs (Union[List[List[Tensor]], List[Tensor], Tensor]): Discriminator
+                outputs, list of discriminator outputs, or list of list of discriminator
+                outputs..
+
+        Returns:
+            Tensor: Generator adversarial loss value.
+
+        """
+        if isinstance(outputs, (tuple, list)):
+            adv_loss = 0.0
+            for i, outputs_ in enumerate(outputs):
+                if isinstance(outputs_, (tuple, list)):
+                    # NOTE(kan-bayashi): case including feature maps
+                    outputs_ = outputs_[-1]
+                adv_loss += self.criterion(outputs_)
+            if self.average_by_discriminators:
+                adv_loss /= i + 1
+        else:
+            adv_loss = self.criterion(outputs)
+
+        return adv_loss
+
+    def _mse_loss(self, x):
+        return F.mse_loss(x, x.new_ones(x.size()))
+
+    def _hinge_loss(self, x):
+        return F.relu(1 - x).mean()
+
+
+class DiscriminatorAdversarialLoss(torch.nn.Module):
+    """Discriminator adversarial loss module."""
+
+    def __init__(
+        self,
+        average_by_discriminators: bool = True,
+        loss_type: str = "hinge",
+    ):
+        """Initialize DiscriminatorAversarialLoss module.
+
+        Args:
+            average_by_discriminators (bool): Whether to average the loss by
+                the number of discriminators.
+            loss_type (str): Loss type, "mse" or "hinge".
+
+        """
+        super().__init__()
+        self.average_by_discriminators = average_by_discriminators
+        assert loss_type in ["mse", "hinge"], f"{loss_type} is not supported."
+        if loss_type == "mse":
+            self.fake_criterion = self._mse_fake_loss
+            self.real_criterion = self._mse_real_loss
+        else:
+            self.fake_criterion = self._hinge_fake_loss
+            self.real_criterion = self._hinge_real_loss
+
+    def forward(
+        self,
+        outputs_hat: Union[List[List[torch.Tensor]], List[torch.Tensor], torch.Tensor],
+        outputs: Union[List[List[torch.Tensor]], List[torch.Tensor], torch.Tensor],
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Calcualate discriminator adversarial loss.
+
+        Args:
+            outputs_hat (Union[List[List[Tensor]], List[Tensor], Tensor]): Discriminator
+                outputs, list of discriminator outputs, or list of list of discriminator
+                outputs calculated from generator.
+            outputs (Union[List[List[Tensor]], List[Tensor], Tensor]): Discriminator
+                outputs, list of discriminator outputs, or list of list of discriminator
+                outputs calculated from groundtruth.
+
+        Returns:
+            Tensor: Discriminator real loss value.
+            Tensor: Discriminator fake loss value.
+
+        """
+        if isinstance(outputs, (tuple, list)):
+            real_loss = 0.0
+            fake_loss = 0.0
+            for i, (outputs_hat_, outputs_) in enumerate(zip(outputs_hat, outputs)):
+                if isinstance(outputs_hat_, (tuple, list)):
+                    # NOTE(kan-bayashi): case including feature maps
+                    outputs_hat_ = outputs_hat_[-1]
+                    outputs_ = outputs_[-1]
+                real_loss += self.real_criterion(outputs_)
+                fake_loss += self.fake_criterion(outputs_hat_)
+            if self.average_by_discriminators:
+                fake_loss /= i + 1
+                real_loss /= i + 1
+        else:
+            real_loss = self.real_criterion(outputs)
+            fake_loss = self.fake_criterion(outputs_hat)
+
+        return real_loss, fake_loss
+
+    def _mse_real_loss(self, x: torch.Tensor) -> torch.Tensor:
+        return F.mse_loss(x, x.new_ones(x.size()))
+
+    def _mse_fake_loss(self, x: torch.Tensor) -> torch.Tensor:
+        return F.mse_loss(x, x.new_zeros(x.size()))
+
+    def _hinge_real_loss(self, x: torch.Tensor) -> torch.Tensor:
+        return F.relu(x.new_ones(x.size()) - x).mean()
+
+    def _hinge_fake_loss(self, x: torch.Tensor) -> torch.Tensor:
+        return F.relu(x.new_ones(x.size()) + x).mean()
+
+
+class FeatureMatchLoss(torch.nn.Module):
+    """Feature matching loss module."""
+
+    def __init__(
+        self,
+        average_by_layers: bool = True,
+        average_by_discriminators: bool = True,
+        include_final_outputs: bool = False,
+    ):
+        """Initialize FeatureMatchLoss module.
+
+        Args:
+            average_by_layers (bool): Whether to average the loss by the number
+                of layers.
+            average_by_discriminators (bool): Whether to average the loss by
+                the number of discriminators.
+            include_final_outputs (bool): Whether to include the final output of
+                each discriminator for loss calculation.
+
+        """
+        super().__init__()
+        self.average_by_layers = average_by_layers
+        self.average_by_discriminators = average_by_discriminators
+        self.include_final_outputs = include_final_outputs
+
+    def forward(
+        self,
+        feats_hat: Union[List[List[torch.Tensor]], List[torch.Tensor]],
+        feats: Union[List[List[torch.Tensor]], List[torch.Tensor]],
+    ) -> torch.Tensor:
+        """Calculate feature matching loss.
+
+        Args:
+            feats_hat (Union[List[List[Tensor]], List[Tensor]]): List of list of
+                discriminator outputs or list of discriminator outputs calcuated
+                from generator's outputs.
+            feats (Union[List[List[Tensor]], List[Tensor]]): List of list of
+                discriminator outputs or list of discriminator outputs calcuated
+                from groundtruth..
+
+        Returns:
+            Tensor: Feature matching loss value.
+
+        """
+        feat_match_loss = 0.0
+        for i, (feats_hat_, feats_) in enumerate(zip(feats_hat, feats)):
+            feat_match_loss_ = 0.0
+            if not self.include_final_outputs:
+                feats_hat_ = feats_hat_[:-1]
+                feats_ = feats_[:-1]
+            for j, (feat_hat_, feat_) in enumerate(zip(feats_hat_, feats_)):
+                feat_match_loss_ += F.l1_loss(feat_hat_, feat_.detach())
+            if self.average_by_layers:
+                feat_match_loss_ /= j + 1
+            feat_match_loss += feat_match_loss_
+        if self.average_by_discriminators:
+            feat_match_loss /= i + 1
+
+        return feat_match_loss
+
+
+class MelSpectrogramReconstructionLoss(torch.nn.Module):
+    """Mel Spec Reconstruction loss."""
+
+    def __init__(
+        self,
+        sampling_rate: int = 22050,
+        n_mels: int = 64,
+        use_fft_mag: bool = True,
+        return_mel: bool = False,
+    ):
+        super().__init__()
+        self.wav_to_specs = []
+        for i in range(5, 12):
+            s = 2**i
+            # self.wav_to_specs.append(
+            #     Wav2LogFilterBank(
+            #         sampling_rate=sampling_rate,
+            #         frame_length=s,
+            #         frame_shift=s // 4,
+            #         use_fft_mag=use_fft_mag,
+            #         num_filters=n_mels,
+            #     )
+            # )
+            self.wav_to_specs.append(
+                MelSpectrogram(
+                    sample_rate=sampling_rate,
+                    n_fft=max(s, 512),
+                    win_length=s,
+                    hop_length=s // 4,
+                    n_mels=n_mels,
+                )
+            )
+        self.return_mel = return_mel
+
+    def forward(
+        self,
+        x_hat: torch.Tensor,
+        x: torch.Tensor,
+    ) -> Union[torch.Tensor, Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]]:
+        """Calculate Mel-spectrogram loss.
+
+        Args:
+            x_hat (Tensor): Generated waveform tensor (B, 1, T).
+            x (Tensor): Groundtruth waveform tensor (B, 1, T).
+            spec (Optional[Tensor]): Groundtruth linear amplitude spectrum tensor
+                (B, T, n_fft // 2 + 1).  if provided, use it instead of groundtruth
+                waveform.
+
+        Returns:
+            Tensor: Mel-spectrogram loss value.
+
+        """
+        mel_loss = 0.0
+
+        for i, wav_to_spec in enumerate(self.wav_to_specs):
+            s = 2 ** (i + 5)
+            wav_to_spec.to(x.device)
+
+            mel_hat = wav_to_spec(x_hat.squeeze(1))
+            mel = wav_to_spec(x.squeeze(1))
+
+            alpha = (s / 2) ** 0.5
+            mel_loss += F.l1_loss(mel_hat, mel) + alpha * F.mse_loss(mel_hat, mel)
+
+        # mel_hat = self.wav_to_spec(x_hat.squeeze(1))
+        # mel = self.wav_to_spec(x.squeeze(1))
+        # mel_loss = F.l1_loss(mel_hat, mel) + F.mse_loss(mel_hat, mel)
+
+        if self.return_mel:
+            return mel_loss, (mel_hat, mel)
+
+        return mel_loss
+
+
+class WavReconstructionLoss(torch.nn.Module):
+    """Wav Reconstruction loss."""
+
+    def __init__(self):
+        super().__init__()
+
+    def forward(
+        self,
+        x_hat: torch.Tensor,
+        x: torch.Tensor,
+    ) -> torch.Tensor:
+        """Calculate wav loss.
+
+        Args:
+            x_hat (Tensor): Generated waveform tensor (B, 1, T).
+            x (Tensor): Groundtruth waveform tensor (B, 1, T).
+
+        Returns:
+            Tensor: Wav loss value.
+
+        """
+        wav_loss = F.mse_loss(x, x_hat)
+
+        return wav_loss
 
 
 def adversarial_g_loss(y_disc_gen):
@@ -63,84 +365,8 @@ def reconstruction_loss(x, x_hat, args, eps=1e-7):
     return L
 
 
-def criterion_d(
-    y_disc_r,
-    y_disc_gen,
-    fmap_r_det,
-    fmap_gen_det,
-    y_df_hat_r,
-    y_df_hat_g,
-    fmap_f_r,
-    fmap_f_g,
-    y_ds_hat_r,
-    y_ds_hat_g,
-    fmap_s_r,
-    fmap_s_g,
-):
-    """Hinge Loss"""
-    loss = 0.0
-    loss1 = 0.0
-    loss2 = 0.0
-    loss3 = 0.0
-    for i in range(len(y_disc_r)):
-        loss1 += F.relu(1 - y_disc_r[i]).mean() + F.relu(1 + y_disc_gen[i]).mean()
-    for i in range(len(y_df_hat_r)):
-        loss2 += F.relu(1 - y_df_hat_r[i]).mean() + F.relu(1 + y_df_hat_g[i]).mean()
-    for i in range(len(y_ds_hat_r)):
-        loss3 += F.relu(1 - y_ds_hat_r[i]).mean() + F.relu(1 + y_ds_hat_g[i]).mean()
-
-    loss = (
-        loss1 / len(y_disc_gen) + loss2 / len(y_df_hat_r) + loss3 / len(y_ds_hat_r)
-    ) / 3.0
-
-    return loss
-
-
-def criterion_g(
-    commit_loss,
-    x,
-    G_x,
-    fmap_r,
-    fmap_gen,
-    y_disc_r,
-    y_disc_gen,
-    y_df_hat_r,
-    y_df_hat_g,
-    fmap_f_r,
-    fmap_f_g,
-    y_ds_hat_r,
-    y_ds_hat_g,
-    fmap_s_r,
-    fmap_s_g,
-    args,
-):
-    adv_g_loss = adversarial_g_loss(y_disc_gen)
-    feat_loss = (
-        feature_loss(fmap_r, fmap_gen)
-        + sim_loss(y_disc_r, y_disc_gen)
-        + feature_loss(fmap_f_r, fmap_f_g)
-        + sim_loss(y_df_hat_r, y_df_hat_g)
-        + feature_loss(fmap_s_r, fmap_s_g)
-        + sim_loss(y_ds_hat_r, y_ds_hat_g)
-    ) / 3.0
-    rec_loss = reconstruction_loss(x.contiguous(), G_x.contiguous(), args)
-    total_loss = (
-        args.lambda_com * commit_loss
-        + args.lambda_adv * adv_g_loss
-        + args.lambda_feat * feat_loss
-        + args.lambda_rec * rec_loss
-    )
-    return total_loss, adv_g_loss, feat_loss, rec_loss
-
-
 def adopt_weight(weight, global_step, threshold=0, value=0.0):
     if global_step < threshold:
-        weight = value
-    return weight
-
-
-def adopt_dis_weight(weight, global_step, threshold=0, value=0.0):
-    if global_step % 3 == 0:
         weight = value
     return weight
 
@@ -166,7 +392,6 @@ def loss_g(
     fmap_hat,
     y,
     y_hat,
-    global_step,
     y_df,
     y_df_hat,
     y_ds,
@@ -215,9 +440,10 @@ def loss_g(
     feat_loss_tot = (feat_loss + feat_loss_mpd + feat_loss_msd) / 3.0
     d_weight = torch.tensor(1.0)
 
-    disc_factor = adopt_weight(
-        args.lambda_adv, global_step, threshold=args.discriminator_iter_start
-    )
+    # disc_factor = adopt_weight(
+    #     args.lambda_adv, global_step, threshold=args.discriminator_iter_start
+    # )
+    disc_factor = 1
     if disc_factor == 0.0:
         fm_loss_wt = 0
     else:
@@ -232,37 +458,9 @@ def loss_g(
     return loss, rec_loss, adv_loss, feat_loss_tot, d_weight
 
 
-def loss_dis(
-    y,
-    y_hat,
-    fmap,
-    fmap_hat,
-    y_df,
-    y_df_hat,
-    fmap_f,
-    fmap_f_hat,
-    y_ds,
-    y_ds_hat,
-    fmap_s,
-    fmap_s_hat,
-    global_step,
-    args,
-):
-    disc_factor = adopt_weight(
-        args.lambda_adv, global_step, threshold=args.discriminator_iter_start
-    )
-    d_loss = disc_factor * criterion_d(
-        y,
-        y_hat,
-        fmap,
-        fmap_hat,
-        y_df,
-        y_df_hat,
-        fmap_f,
-        fmap_f_hat,
-        y_ds,
-        y_ds_hat,
-        fmap_s,
-        fmap_s_hat,
-    )
-    return d_loss
+if __name__ == "__main__":
+    la = FeatureMatchLoss(average_by_layers=False, average_by_discriminators=False)
+    aa = [torch.rand(192, 192) for _ in range(3)]
+    bb = [torch.rand(192, 192) for _ in range(3)]
+    print(la(bb, aa))
+    print(feature_loss(aa, bb))
