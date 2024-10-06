@@ -45,8 +45,8 @@ class GeneratorAdversarialLoss(torch.nn.Module):
             Tensor: Generator adversarial loss value.
 
         """
+        adv_loss = 0.0
         if isinstance(outputs, (tuple, list)):
-            adv_loss = 0.0
             for i, outputs_ in enumerate(outputs):
                 if isinstance(outputs_, (tuple, list)):
                     # NOTE(kan-bayashi): case including feature maps
@@ -55,9 +55,10 @@ class GeneratorAdversarialLoss(torch.nn.Module):
             if self.average_by_discriminators:
                 adv_loss /= i + 1
         else:
-            adv_loss = self.criterion(outputs)
-
-        return adv_loss / len(outputs)
+            for i, outputs_ in enumerate(outputs):
+                adv_loss += self.criterion(outputs_)
+            adv_loss /= i + 1
+        return adv_loss
 
     def _mse_loss(self, x):
         return F.mse_loss(x, x.new_ones(x.size()))
@@ -112,9 +113,9 @@ class DiscriminatorAdversarialLoss(torch.nn.Module):
             Tensor: Discriminator fake loss value.
 
         """
+        real_loss = 0.0
+        fake_loss = 0.0
         if isinstance(outputs, (tuple, list)):
-            real_loss = 0.0
-            fake_loss = 0.0
             for i, (outputs_hat_, outputs_) in enumerate(zip(outputs_hat, outputs)):
                 if isinstance(outputs_hat_, (tuple, list)):
                     # NOTE(kan-bayashi): case including feature maps
@@ -126,10 +127,13 @@ class DiscriminatorAdversarialLoss(torch.nn.Module):
                 fake_loss /= i + 1
                 real_loss /= i + 1
         else:
-            real_loss = self.real_criterion(outputs)
-            fake_loss = self.fake_criterion(outputs_hat)
+            for i, (outputs_hat_, outputs_) in enumerate(zip(outputs_hat, outputs)):
+                real_loss += self.real_criterion(outputs_)
+                fake_loss += self.fake_criterion(outputs_hat_)
+            fake_loss /= i + 1
+            real_loss /= i + 1
 
-        return real_loss / len(outputs), fake_loss / len(outputs)
+        return real_loss, fake_loss
 
     def _mse_real_loss(self, x: torch.Tensor) -> torch.Tensor:
         return F.mse_loss(x, x.new_ones(x.size()))
@@ -204,7 +208,7 @@ class FeatureLoss(torch.nn.Module):
         if self.average_by_discriminators:
             feat_match_loss /= i + 1
 
-        return feat_match_loss / (len(feats) * len(feats[0]))
+        return feat_match_loss
 
 
 class MelSpectrogramReconstructionLoss(torch.nn.Module):
@@ -233,7 +237,7 @@ class MelSpectrogramReconstructionLoss(torch.nn.Module):
             self.wav_to_specs.append(
                 MelSpectrogram(
                     sample_rate=sampling_rate,
-                    n_fft=s,
+                    n_fft=max(s, 512),
                     win_length=s,
                     hop_length=s // 4,
                     n_mels=n_mels,
@@ -462,8 +466,15 @@ def loss_g(
 
 
 if __name__ == "__main__":
-    la = FeatureLoss(average_by_layers=False, average_by_discriminators=False)
-    aa = [torch.rand(192, 192) for _ in range(3)]
-    bb = [torch.rand(192, 192) for _ in range(3)]
-    print(la(bb, aa))
-    print(feature_loss(aa, bb))
+    # la = FeatureLoss(average_by_layers=True, average_by_discriminators=True)
+    # aa = [torch.rand(192, 192) for _ in range(3)]
+    # bb = [torch.rand(192, 192) for _ in range(3)]
+    # print(la(bb, aa))
+    # print(feature_loss(aa, bb))
+    la = GeneratorAdversarialLoss(average_by_discriminators=True, loss_type="hinge")
+    aa = torch.Tensor([0.1, 0.2, 0.3, 0.4])
+    bb = torch.Tensor([0.4, 0.3, 0.2, 0.1])
+    print(la(aa))
+    print(adversarial_g_loss(aa))
+    print(la(bb))
+    print(adversarial_g_loss(bb))

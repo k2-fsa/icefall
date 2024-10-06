@@ -60,7 +60,7 @@ class Encodec(nn.Module):
         self.discriminator_adversarial_loss = DiscriminatorAdversarialLoss(
             average_by_discriminators=True, loss_type="hinge"
         )
-        self.feature_match_loss = FeatureLoss(average_by_layers=False)
+        self.feature_match_loss = FeatureLoss()
         self.wav_reconstruction_loss = WavReconstructionLoss()
         self.mel_reconstruction_loss = MelSpectrogramReconstructionLoss(
             sampling_rate=self.sampling_rate

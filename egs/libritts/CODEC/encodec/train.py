@@ -16,6 +16,7 @@ from encodec import Encodec
 from lhotse.cut import Cut
 from lhotse.utils import fix_random_seed
 from loss import adopt_weight
+from scheduler import WarmupCosineLrScheduler
 from torch import nn
 from torch.cuda.amp import GradScaler, autocast
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -188,10 +189,10 @@ def get_params() -> AttributeDict:
             "sampling_rate": 24000,
             "chunk_size": 1.0,  # in seconds
             "lambda_adv": 3.0,  # loss scaling coefficient for adversarial loss
-            "lambda_wav": 0.1,  # loss scaling coefficient for waveform loss
+            "lambda_wav": 1.0,  # loss scaling coefficient for waveform loss
             "lambda_feat": 3.0,  # loss scaling coefficient for feat loss
             "lambda_rec": 1.0,  # loss scaling coefficient for reconstruction loss
-            "lambda_com": 1.0,  # loss scaling coefficient for commitment loss
+            "lambda_com": 100.0,  # loss scaling coefficient for commitment loss
         }
     )
 
@@ -260,7 +261,7 @@ def get_model(params: AttributeDict) -> nn.Module:
     # }
     # discriminator_params = {
     #     "stft_discriminator_n_filters": 32,
-    #     "discriminator_iter_start": 500,
+    #     "discriminator_epoch_start": 5,
     # }
     # inference_params = {
     #     "target_bw": 7.5,
@@ -275,7 +276,10 @@ def get_model(params: AttributeDict) -> nn.Module:
     }
     discriminator_params = {
         "stft_discriminator_n_filters": 32,
-        "discriminator_iter_start": 500,
+        "discriminator_epoch_start": 3,
+        "n_ffts": [1024, 2048, 512],
+        "hop_lengths": [256, 512, 128],
+        "win_lengths": [1024, 2048, 512],
     }
     inference_params = {
         "target_bw": 12,
@@ -316,7 +320,10 @@ def get_model(params: AttributeDict) -> nn.Module:
         multi_scale_discriminator=None,
         multi_period_discriminator=None,
         multi_scale_stft_discriminator=MultiScaleSTFTDiscriminator(
-            n_filters=params.stft_discriminator_n_filters
+            n_filters=params.stft_discriminator_n_filters,
+            n_ffts=params.n_ffts,
+            hop_lengths=params.hop_lengths,
+            win_lengths=params.win_lengths,
         ),
     )
     return model
@@ -437,8 +444,8 @@ def train_one_epoch(
             with autocast(enabled=params.use_fp16):
                 d_weight = adopt_weight(
                     params.lambda_adv,
-                    params.batch_idx_train,
-                    threshold=params.discriminator_iter_start,
+                    params.cur_epoch,
+                    threshold=params.discriminator_epoch_start,
                 )
                 # forward discriminator
                 (
@@ -473,8 +480,8 @@ def train_one_epoch(
             with autocast(enabled=params.use_fp16):
                 g_weight = adopt_weight(
                     params.lambda_adv,
-                    params.batch_idx_train,
-                    threshold=params.discriminator_iter_start,
+                    params.cur_epoch,
+                    threshold=params.discriminator_epoch_start,
                 )
                 # forward generator
                 (
@@ -507,7 +514,7 @@ def train_one_epoch(
                 gen_loss = (
                     gen_adv_loss
                     + reconstruction_loss
-                    + (params.lambda_feat if g_weight != 0.0 else 0.0) * feature_loss
+                    + params.lambda_feat * feature_loss
                     + params.lambda_com * commit_loss
                 )
             for k, v in stats_g.items():
@@ -688,8 +695,8 @@ def compute_validation_loss(
 
             d_weight = adopt_weight(
                 params.lambda_adv,
-                params.batch_idx_train,
-                threshold=params.discriminator_iter_start,
+                params.cur_epoch,
+                threshold=params.discriminator_epoch_start,
             )
 
             # forward discriminator
@@ -721,8 +728,8 @@ def compute_validation_loss(
 
             g_weight = adopt_weight(
                 params.lambda_adv,
-                params.batch_idx_train,
-                threshold=params.discriminator_iter_start,
+                params.cur_epoch,
+                threshold=params.discriminator_epoch_start,
             )
             # forward generator
             (
@@ -753,7 +760,7 @@ def compute_validation_loss(
             gen_loss = (
                 gen_adv_loss
                 + reconstruction_loss
-                + (params.lambda_feat if g_weight != 0.0 else 0.0) * feature_loss
+                + params.lambda_feat * feature_loss
                 + params.lambda_com * commit_loss
             )
             assert gen_loss.requires_grad is False
@@ -831,8 +838,8 @@ def scan_pessimistic_batches_for_oom(
                 + disc_scale_fake_adv_loss
             ) * adopt_weight(
                 params.lambda_adv,
-                params.batch_idx_train,
-                threshold=params.discriminator_iter_start,
+                params.cur_epoch,
+                threshold=params.discriminator_train_start,
             )
             optimizer_d.zero_grad()
             loss_d.backward()
@@ -859,8 +866,8 @@ def scan_pessimistic_batches_for_oom(
                 (gen_stft_adv_loss + gen_period_adv_loss + gen_scale_adv_loss)
                 * adopt_weight(
                     params.lambda_adv,
-                    params.batch_idx_train,
-                    threshold=params.discriminator_iter_start,
+                    0,
+                    threshold=params.discriminator_epoch_start,
                 )
                 + (
                     params.lambda_wav * wav_reconstruction_loss
@@ -1000,8 +1007,20 @@ def run(rank, world_size, args):
         betas=(0.5, 0.9),
     )
 
-    scheduler_g = torch.optim.lr_scheduler.ExponentialLR(optimizer_g, gamma=0.999875)
-    scheduler_d = torch.optim.lr_scheduler.ExponentialLR(optimizer_d, gamma=0.999875)
+    scheduler_g = WarmupCosineLrScheduler(
+        optimizer=optimizer_g,
+        max_epoch=params.num_epochs,
+        eta_ratio=0.1,
+        warmup_epoch=params.discriminator_epoch_start,
+        warmup_ratio=1e-4,
+    )
+    scheduler_d = WarmupCosineLrScheduler(
+        optimizer=optimizer_d,
+        max_epoch=params.num_epochs,
+        eta_ratio=0.1,
+        warmup_epoch=params.discriminator_epoch_start,
+        warmup_ratio=1e-4,
+    )
 
     if checkpoints is not None:
         # load state_dict for optimizers
