@@ -1,6 +1,6 @@
 import math
 import random
-from typing import List
+from typing import List, Optional
 
 import numpy as np
 import torch
@@ -25,8 +25,8 @@ class Encodec(nn.Module):
         quantizer: nn.Module,
         decoder: nn.Module,
         multi_scale_discriminator: nn.Module,
-        multi_period_discriminator: nn.Module,
-        multi_scale_stft_discriminator: nn.Module,
+        multi_period_discriminator: Optional[nn.Module] = None,
+        multi_scale_stft_discriminator: Optional[nn.Module] = None,
         cache_generator_outputs: bool = False,
     ):
         super(Encodec, self).__init__()
@@ -113,28 +113,42 @@ class Encodec(nn.Module):
         with torch.no_grad():
             # do not store discriminator gradient in generator turn
             y, fmap = self.multi_scale_stft_discriminator(speech.contiguous())
-            y_p, y_p_hat, fmap_p, fmap_p_hat = self.multi_period_discriminator(
-                speech.contiguous(),
-                speech_hat.contiguous(),
-            )
-            y_s, y_s_hat, fmap_s, fmap_s_hat = self.multi_scale_discriminator(
-                speech.contiguous(),
-                speech_hat.contiguous(),
-            )
+
+            gen_period_adv_loss = torch.tensor(0.0)
+            feature_period_loss = torch.tensor(0.0)
+            if self.multi_period_discriminator is not None:
+                y_p, y_p_hat, fmap_p, fmap_p_hat = self.multi_period_discriminator(
+                    speech.contiguous(),
+                    speech_hat.contiguous(),
+                )
+
+            gen_scale_adv_loss = torch.tensor(0.0)
+            feature_scale_loss = torch.tensor(0.0)
+            if self.multi_scale_discriminator is not None:
+                y_s, y_s_hat, fmap_s, fmap_s_hat = self.multi_scale_discriminator(
+                    speech.contiguous(),
+                    speech_hat.contiguous(),
+                )
 
         # calculate losses
         with autocast(enabled=False):
             gen_stft_adv_loss = self.generator_adversarial_loss(outputs=y_hat)
-            gen_period_adv_loss = self.generator_adversarial_loss(outputs=y_p_hat)
-            gen_scale_adv_loss = self.generator_adversarial_loss(outputs=y_s_hat)
+
+            if self.multi_period_discriminator is not None:
+                gen_period_adv_loss = self.generator_adversarial_loss(outputs=y_p_hat)
+            if self.multi_scale_discriminator is not None:
+                gen_scale_adv_loss = self.generator_adversarial_loss(outputs=y_s_hat)
 
             feature_stft_loss = self.feature_match_loss(feats=fmap, feats_hat=fmap_hat)
-            feature_period_loss = self.feature_match_loss(
-                feats=fmap_p, feats_hat=fmap_p_hat
-            )
-            feature_scale_loss = self.feature_match_loss(
-                feats=fmap_s, feats_hat=fmap_s_hat
-            )
+
+            if self.multi_period_discriminator is not None:
+                feature_period_loss = self.feature_match_loss(
+                    feats=fmap_p, feats_hat=fmap_p_hat
+                )
+            if self.multi_scale_discriminator is not None:
+                feature_scale_loss = self.feature_match_loss(
+                    feats=fmap_s, feats_hat=fmap_s_hat
+                )
 
             wav_reconstruction_loss = self.wav_reconstruction_loss(
                 x=speech, x_hat=speech_hat
@@ -245,28 +259,44 @@ class Encodec(nn.Module):
         y_hat, fmap_hat = self.multi_scale_stft_discriminator(
             speech_hat.contiguous().detach()
         )
-        y_p, y_p_hat, fmap_p, fmap_p_hat = self.multi_period_discriminator(
-            speech.contiguous(),
-            speech_hat.contiguous().detach(),
-        )
-        y_s, y_s_hat, fmap_s, fmap_s_hat = self.multi_scale_discriminator(
-            speech.contiguous(),
-            speech_hat.contiguous().detach(),
-        )
+
+        disc_period_real_adv_loss, disc_period_fake_adv_loss = torch.tensor(
+            0.0
+        ), torch.tensor(0.0)
+        if self.multi_period_discriminator is not None:
+            y_p, y_p_hat, fmap_p, fmap_p_hat = self.multi_period_discriminator(
+                speech.contiguous(),
+                speech_hat.contiguous().detach(),
+            )
+
+        disc_scale_real_adv_loss, disc_scale_fake_adv_loss = torch.tensor(
+            0.0
+        ), torch.tensor(0.0)
+        if self.multi_scale_discriminator is not None:
+            y_s, y_s_hat, fmap_s, fmap_s_hat = self.multi_scale_discriminator(
+                speech.contiguous(),
+                speech_hat.contiguous().detach(),
+            )
         # calculate losses
         with autocast(enabled=False):
             (
                 disc_stft_real_adv_loss,
                 disc_stft_fake_adv_loss,
             ) = self.discriminator_adversarial_loss(outputs=y, outputs_hat=y_hat)
-            (
-                disc_period_real_adv_loss,
-                disc_period_fake_adv_loss,
-            ) = self.discriminator_adversarial_loss(outputs=y_p, outputs_hat=y_p_hat)
-            (
-                disc_scale_real_adv_loss,
-                disc_scale_fake_adv_loss,
-            ) = self.discriminator_adversarial_loss(outputs=y_s, outputs_hat=y_s_hat)
+            if self.multi_period_discriminator is not None:
+                (
+                    disc_period_real_adv_loss,
+                    disc_period_fake_adv_loss,
+                ) = self.discriminator_adversarial_loss(
+                    outputs=y_p, outputs_hat=y_p_hat
+                )
+            if self.multi_scale_discriminator is not None:
+                (
+                    disc_scale_real_adv_loss,
+                    disc_scale_fake_adv_loss,
+                ) = self.discriminator_adversarial_loss(
+                    outputs=y_s, outputs_hat=y_s_hat
+                )
 
         stats = dict(
             discriminator_stft_real_adv_loss=disc_stft_real_adv_loss.item(),
