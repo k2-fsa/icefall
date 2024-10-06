@@ -16,6 +16,48 @@ log "pwd: $PWD"
 
 cd egs/multi_zh-hans/ASR
 
+repo_url=https://huggingface.co/zrjin/icefall-asr-multi-zh-hans-zipformer-2023-9-2
+log "Downloading pre-trained model from $repo_url"
+GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
+repo=$(basename $repo_url)
+pushd $repo
+cd exp
+git lfs pull --include pretrained.pt
+ln -s pretrained.pt epoch-99.pt
+cd ../data/lang_bpe_2000
+ls -lh
+git lfs pull --include L.pt L_disambig.pt Linv.pt bpe.model
+git lfs pull --include "*.model"
+ls -lh
+popd
+
+log "--------------------------------------------"
+log "Export non-streaming ONNX transducer models "
+log "--------------------------------------------"
+./zipformer/export-onnx.py \
+  --tokens $repo/data/lang_bpe_2000/tokens.txt \
+  --use-averaged-model 0 \
+  --epoch 99 \
+  --avg 1 \
+  --exp-dir $repo/exp \
+  --causal False
+
+ls -lh $repo/exp
+
+./zipformer/onnx_pretrained.py \
+  --encoder-model-filename $repo/exp/encoder-epoch-99-avg-1.onnx \
+  --decoder-model-filename $repo/exp/decoder-epoch-99-avg-1.onnx \
+  --joiner-model-filename $repo/exp/joiner-epoch-99-avg-1.onnx \
+  --tokens $repo/data/lang_bpe_2000/tokens.txt \
+  $repo/test_wavs/DEV_T0000000000.wav \
+  $repo/test_wavs/DEV_T0000000001.wav \
+  $repo/test_wavs/DEV_T0000000002.wav \
+  $repo/test_wavs/TEST_MEETING_T0000000113.wav \
+  $repo/test_wavs/TEST_MEETING_T0000000219.wav \
+  $repo/test_wavs/TEST_MEETING_T0000000351.wav
+
+rm -rf $repo
+
 repo_url=https://huggingface.co/zrjin/icefall-asr-multi-zh-hans-zipformer-ctc-streaming-2023-11-05
 log "Downloading pre-trained model from $repo_url"
 GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
