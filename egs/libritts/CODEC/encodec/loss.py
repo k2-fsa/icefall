@@ -142,10 +142,10 @@ class DiscriminatorAdversarialLoss(torch.nn.Module):
         return F.mse_loss(x, x.new_zeros(x.size()))
 
     def _hinge_real_loss(self, x: torch.Tensor) -> torch.Tensor:
-        return F.relu(x.new_ones(x.size()) - x).mean()
+        return F.relu(torch.ones_like(x) - x).mean()
 
     def _hinge_fake_loss(self, x: torch.Tensor) -> torch.Tensor:
-        return F.relu(x.new_ones(x.size()) + x).mean()
+        return F.relu(torch.ones_like(x) + x).mean()
 
 
 class FeatureLoss(torch.nn.Module):
@@ -200,7 +200,7 @@ class FeatureLoss(torch.nn.Module):
                 feats_ = feats_[:-1]
             for j, (feat_hat_, feat_) in enumerate(zip(feats_hat_, feats_)):
                 feat_match_loss_ += (
-                    (feat_hat_ - feat_).abs() / (feat_.abs().mean())
+                    F.l1_loss(feat_hat_, feat_.detach()) / (feat_.detach().abs().mean())
                 ).mean()
             if self.average_by_layers:
                 feat_match_loss_ /= j + 1
@@ -272,9 +272,16 @@ class MelSpectrogramReconstructionLoss(torch.nn.Module):
             mel_hat = wav_to_spec(x_hat.squeeze(1))
             mel = wav_to_spec(x.squeeze(1))
 
-            mel_loss += F.l1_loss(
-                mel_hat, mel, reduce=True, reduction="mean"
-            ) + F.mse_loss(mel_hat, mel, reduce=True, reduction="mean")
+            mel_loss += (
+                F.l1_loss(mel_hat, mel, reduce=True, reduction="mean")
+                + (
+                    (
+                        (torch.log(mel.abs() + 1e-7) - torch.log(mel_hat.abs() + 1e-7))
+                        ** 2
+                    ).mean(dim=-2)
+                    ** 0.5
+                ).mean()
+            )
 
         # mel_hat = self.wav_to_spec(x_hat.squeeze(1))
         # mel = self.wav_to_spec(x.squeeze(1))
@@ -307,7 +314,7 @@ class WavReconstructionLoss(torch.nn.Module):
             Tensor: Wav loss value.
 
         """
-        wav_loss = F.l1_loss(x, x_hat, reduce=True, reduction="mean")
+        wav_loss = F.l1_loss(x, x_hat)
 
         return wav_loss
 

@@ -187,6 +187,7 @@ def get_params() -> AttributeDict:
             "valid_interval": 200,
             "env_info": get_env_info(),
             "sampling_rate": 24000,
+            "audio_normalization": False,
             "chunk_size": 1.0,  # in seconds
             "lambda_adv": 3.0,  # loss scaling coefficient for adversarial loss
             "lambda_wav": 1.0,  # loss scaling coefficient for waveform loss
@@ -276,13 +277,13 @@ def get_model(params: AttributeDict) -> nn.Module:
     }
     discriminator_params = {
         "stft_discriminator_n_filters": 32,
-        "discriminator_epoch_start": 3,
+        "discriminator_epoch_start": 5,
         "n_ffts": [1024, 2048, 512],
         "hop_lengths": [256, 512, 128],
         "win_lengths": [1024, 2048, 512],
     }
     inference_params = {
-        "target_bw": 12,
+        "target_bw": 6,
     }
 
     params.update(generator_params)
@@ -352,6 +353,11 @@ def prepare_input(
         audio = audio[
             :, params.sampling_rate : params.sampling_rate + params.sampling_rate
         ]
+
+    if params.audio_normalization:
+        mean = audio.mean(dim=-1, keepdim=True)
+        std = audio.std(dim=-1, keepdim=True)
+        audio = (audio - mean) / (std + 1e-7)
 
     return audio, audio_lens, features, features_lens
 
@@ -531,6 +537,10 @@ def train_one_epoch(
         except:  # noqa
             save_bad_model()
             raise
+
+        # step per iteration
+        scheduler_g.step()
+        scheduler_d.step()
 
         if params.print_diagnostics and batch_idx == 5:
             return
@@ -1009,16 +1019,16 @@ def run(rank, world_size, args):
 
     scheduler_g = WarmupCosineLrScheduler(
         optimizer=optimizer_g,
-        max_epoch=params.num_epochs,
+        max_iter=params.num_epochs * 1500,
         eta_ratio=0.1,
-        warmup_epoch=params.discriminator_epoch_start,
+        warmup_iter=params.discriminator_epoch_start * 1500,
         warmup_ratio=1e-4,
     )
     scheduler_d = WarmupCosineLrScheduler(
         optimizer=optimizer_d,
-        max_epoch=params.num_epochs,
+        max_iter=params.num_epochs * 1500,
         eta_ratio=0.1,
-        warmup_epoch=params.discriminator_epoch_start,
+        warmup_iter=params.discriminator_epoch_start * 1500,
         warmup_ratio=1e-4,
     )
 
@@ -1127,10 +1137,6 @@ def run(rank, world_size, args):
                 if params.best_valid_epoch == params.cur_epoch:
                     best_valid_filename = params.exp_dir / "best-valid-loss.pt"
                     copyfile(src=filename, dst=best_valid_filename)
-
-        # step per epoch
-        scheduler_g.step()
-        scheduler_d.step()
 
     logging.info("Done!")
 
