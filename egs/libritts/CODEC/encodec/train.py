@@ -187,11 +187,11 @@ def get_params() -> AttributeDict:
             "env_info": get_env_info(),
             "sampling_rate": 24000,
             "chunk_size": 1.0,  # in seconds
-            "lambda_adv": 1.0,  # loss scaling coefficient for adversarial loss
-            "lambda_wav": 100.0,  # loss scaling coefficient for waveform loss
-            "lambda_feat": 1.0,  # loss scaling coefficient for feat loss
+            "lambda_adv": 3.0,  # loss scaling coefficient for adversarial loss
+            "lambda_wav": 0.1,  # loss scaling coefficient for waveform loss
+            "lambda_feat": 3.0,  # loss scaling coefficient for feat loss
             "lambda_rec": 1.0,  # loss scaling coefficient for reconstruction loss
-            "lambda_com": 1000.0,  # loss scaling coefficient for commitment loss
+            "lambda_com": 1.0,  # loss scaling coefficient for commitment loss
         }
     )
 
@@ -502,11 +502,11 @@ def train_one_epoch(
                 )
                 reconstruction_loss = (
                     params.lambda_wav * wav_reconstruction_loss
-                    + mel_reconstruction_loss
+                    + params.lambda_rec * mel_reconstruction_loss
                 )
                 gen_loss = (
                     gen_adv_loss
-                    + params.lambda_rec * reconstruction_loss
+                    + reconstruction_loss
                     + (params.lambda_feat if g_weight != 0.0 else 0.0) * feature_loss
                     + params.lambda_com * commit_loss
                 )
@@ -747,11 +747,12 @@ def compute_validation_loss(
             ) * g_weight
             feature_loss = feature_stft_loss + feature_period_loss + feature_scale_loss
             reconstruction_loss = (
-                params.lambda_wav * wav_reconstruction_loss + mel_reconstruction_loss
+                params.lambda_wav * wav_reconstruction_loss
+                + params.lambda_rec * mel_reconstruction_loss
             )
             gen_loss = (
                 gen_adv_loss
-                + params.lambda_rec * reconstruction_loss
+                + reconstruction_loss
                 + (params.lambda_feat if g_weight != 0.0 else 0.0) * feature_loss
                 + params.lambda_com * commit_loss
             )
@@ -861,10 +862,9 @@ def scan_pessimistic_batches_for_oom(
                     params.batch_idx_train,
                     threshold=params.discriminator_iter_start,
                 )
-                + params.lambda_rec
-                * (
+                + (
                     params.lambda_wav * wav_reconstruction_loss
-                    + mel_reconstruction_loss
+                    + params.lambda_rec * mel_reconstruction_loss
                 )
                 + params.lambda_feat
                 * (feature_stft_loss + feature_period_loss + feature_scale_loss)

@@ -57,7 +57,7 @@ class GeneratorAdversarialLoss(torch.nn.Module):
         else:
             adv_loss = self.criterion(outputs)
 
-        return adv_loss
+        return adv_loss / len(outputs)
 
     def _mse_loss(self, x):
         return F.mse_loss(x, x.new_ones(x.size()))
@@ -129,7 +129,7 @@ class DiscriminatorAdversarialLoss(torch.nn.Module):
             real_loss = self.real_criterion(outputs)
             fake_loss = self.fake_criterion(outputs_hat)
 
-        return real_loss, fake_loss
+        return real_loss / len(outputs), fake_loss / len(outputs)
 
     def _mse_real_loss(self, x: torch.Tensor) -> torch.Tensor:
         return F.mse_loss(x, x.new_ones(x.size()))
@@ -144,14 +144,14 @@ class DiscriminatorAdversarialLoss(torch.nn.Module):
         return F.relu(x.new_ones(x.size()) + x).mean()
 
 
-class FeatureMatchLoss(torch.nn.Module):
-    """Feature matching loss module."""
+class FeatureLoss(torch.nn.Module):
+    """Feature loss module."""
 
     def __init__(
         self,
         average_by_layers: bool = True,
         average_by_discriminators: bool = True,
-        include_final_outputs: bool = False,
+        include_final_outputs: bool = True,
     ):
         """Initialize FeatureMatchLoss module.
 
@@ -195,14 +195,16 @@ class FeatureMatchLoss(torch.nn.Module):
                 feats_hat_ = feats_hat_[:-1]
                 feats_ = feats_[:-1]
             for j, (feat_hat_, feat_) in enumerate(zip(feats_hat_, feats_)):
-                feat_match_loss_ += F.l1_loss(feat_hat_, feat_.detach())
+                feat_match_loss_ += (
+                    (feat_hat_ - feat_).abs() / (feat_.abs().mean())
+                ).mean()
             if self.average_by_layers:
                 feat_match_loss_ /= j + 1
             feat_match_loss += feat_match_loss_
         if self.average_by_discriminators:
             feat_match_loss /= i + 1
 
-        return feat_match_loss
+        return feat_match_loss / (len(feats) * len(feats[0]))
 
 
 class MelSpectrogramReconstructionLoss(torch.nn.Module):
@@ -231,7 +233,7 @@ class MelSpectrogramReconstructionLoss(torch.nn.Module):
             self.wav_to_specs.append(
                 MelSpectrogram(
                     sample_rate=sampling_rate,
-                    n_fft=max(s, 512),
+                    n_fft=s,
                     win_length=s,
                     hop_length=s // 4,
                     n_mels=n_mels,
@@ -266,8 +268,9 @@ class MelSpectrogramReconstructionLoss(torch.nn.Module):
             mel_hat = wav_to_spec(x_hat.squeeze(1))
             mel = wav_to_spec(x.squeeze(1))
 
-            alpha = (s / 2) ** 0.5
-            mel_loss += F.l1_loss(mel_hat, mel) + alpha * F.mse_loss(mel_hat, mel)
+            mel_loss += F.l1_loss(
+                mel_hat, mel, reduce=True, reduction="mean"
+            ) + F.mse_loss(mel_hat, mel, reduce=True, reduction="mean")
 
         # mel_hat = self.wav_to_spec(x_hat.squeeze(1))
         # mel = self.wav_to_spec(x.squeeze(1))
@@ -300,7 +303,7 @@ class WavReconstructionLoss(torch.nn.Module):
             Tensor: Wav loss value.
 
         """
-        wav_loss = F.mse_loss(x, x_hat)
+        wav_loss = F.l1_loss(x, x_hat, reduce=True, reduction="mean")
 
         return wav_loss
 
@@ -459,7 +462,7 @@ def loss_g(
 
 
 if __name__ == "__main__":
-    la = FeatureMatchLoss(average_by_layers=False, average_by_discriminators=False)
+    la = FeatureLoss(average_by_layers=False, average_by_discriminators=False)
     aa = [torch.rand(192, 192) for _ in range(3)]
     bb = [torch.rand(192, 192) for _ in range(3)]
     print(la(bb, aa))
