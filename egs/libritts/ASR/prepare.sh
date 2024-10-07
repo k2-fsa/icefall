@@ -7,9 +7,15 @@ set -eou pipefail
 
 stage=0
 stop_stage=100
-sampling_rate=24000
+sampling_rate=16000
 nj=32
 perturb_speed=true
+vocab_sizes=(
+  # 5000
+  # 2000
+  # 1000
+  500
+)
 
 dl_dir=$PWD/download
 
@@ -26,6 +32,15 @@ log() {
 }
 
 log "dl_dir: $dl_dir"
+
+if [ $stage -le -1 ] && [ $stop_stage -ge -1 ]; then
+  log "Stage -1: Download LM" # we directly use the librispeech lm here
+  mkdir -p $dl_dir/lm
+  if [ ! -e $dl_dir/lm/.done ]; then
+    ./local/download_lm.py --out-dir=$dl_dir/lm
+    touch $dl_dir/lm/.done
+  fi
+fi
 
 if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   log "Stage 0: Download data"
@@ -105,5 +120,75 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
     mkdir -p data/fbank
     ./local/compute_fbank_musan.py
     touch data/fbank/.msuan.done
+  fi
+fi
+
+if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
+  log "Stage 5: Train BPE model for normalized text"
+
+  if [ ! -f data/texts ]; then
+    gunzip -c data/manifests/libritts_supervisions_train-clean-100.jsonl.gz \
+      | jq ".text" | sed 's/"//g' \
+      | ./local/norm_text.py > data/texts
+
+    gunzip -c data/manifests/libritts_supervisions_train-clean-360.jsonl.gz \
+      | jq ".text" | sed 's/"//g' \
+      | ./local/norm_text.py >> data/texts
+
+    gunzip -c data/manifests/libritts_supervisions_train-other-500.jsonl.gz \
+      | jq ".text" | sed 's/"//g' \
+      | ./local/norm_text.py >> data/texts
+  fi
+
+  for vocab_size in ${vocab_sizes[@]}; do
+    lang_dir=data/lang_bpe_${vocab_size}
+    mkdir -p $lang_dir
+
+    cp data/texts $lang_dir/text
+
+    if [ ! -f $lang_dir/bpe.model ]; then
+      ./local/train_bpe_model.py \
+        --lang-dir $lang_dir \
+        --vocab-size $vocab_size \
+        --transcript $lang_dir/text
+    fi
+  done
+fi
+
+if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
+  log "Stage 6: Prepare phone based lang"
+  lang_dir=data/lang_phone
+  mkdir -p $lang_dir
+
+  if [ ! -f $dl_dir/lm/librispeech-lexicon.txt ]; then
+    log "No lexicon file in $dl_dir/lm, please run :"
+    log "prepare.sh --stage -1 --stop-stage -1"
+    exit -1
+  fi
+
+  if [ ! -f $lang_dir/lexicon.txt ]; then
+    (echo '!SIL SIL'; echo '<SPOKEN_NOISE> SPN'; echo '<UNK> SPN'; ) |
+      cat - $dl_dir/lm/librispeech-lexicon.txt |
+      sort | uniq > $lang_dir/lexicon.txt
+  fi
+
+  if [ ! -f $lang_dir/L_disambig.pt ]; then
+    ./local/prepare_lang.py --lang-dir $lang_dir
+  fi
+
+  if [ ! -f $lang_dir/L.fst ]; then
+    log "Converting L.pt to L.fst"
+    ./shared/convert-k2-to-openfst.py \
+      --olabels aux_labels \
+      $lang_dir/L.pt \
+      $lang_dir/L.fst
+  fi
+
+  if [ ! -f $lang_dir/L_disambig.fst ]; then
+    log "Converting L_disambig.pt to L_disambig.fst"
+    ./shared/convert-k2-to-openfst.py \
+      --olabels aux_labels \
+      $lang_dir/L_disambig.pt \
+      $lang_dir/L_disambig.fst
   fi
 fi

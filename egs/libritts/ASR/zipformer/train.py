@@ -603,6 +603,15 @@ def _to_int_tuple(s: str):
     return tuple(map(int, s.split(",")))
 
 
+def remove_punc_to_upper(text: str) -> str:
+    text = text.replace("‘", "'")
+    text = text.replace("’", "'")
+    tokens = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'")
+    s_list = [x.upper() if x in tokens else " " for x in text]
+    s = " ".join("".join(s_list).split()).strip()
+    return s
+
+
 def get_encoder_embed(params: AttributeDict) -> nn.Module:
     # encoder_embed converts the input of shape (N, T, num_features)
     # to the shape (N, (T - 7) // 2, encoder_dims).
@@ -1284,21 +1293,26 @@ def run(rank, world_size, args):
     if params.inf_check:
         register_inf_check_hooks(model)
 
-    librispeech = LibriTTSAsrDataModule(args)
+    libritts = LibriTTSAsrDataModule(args)
 
     if params.full_libri:
-        train_cuts = librispeech.train_all_shuf_cuts()
+        train_cuts = libritts.train_all_shuf_cuts()
 
         # previously we used the following code to load all training cuts,
         # strictly speaking, shuffled training cuts should be used instead,
         # but we leave the code here to demonstrate that there is an option
         # like this to combine multiple cutsets
 
-        # train_cuts = librispeech.train_clean_100_cuts()
-        # train_cuts += librispeech.train_clean_360_cuts()
-        # train_cuts += librispeech.train_other_500_cuts()
+        # train_cuts = libritts.train_clean_100_cuts()
+        # train_cuts += libritts.train_clean_360_cuts()
+        # train_cuts += libritts.train_other_500_cuts()
     else:
-        train_cuts = librispeech.train_clean_100_cuts()
+        train_cuts = libritts.train_clean_100_cuts()
+
+    def normalize_text(c: Cut):
+        text = remove_punc_to_upper(c.supervisions[0].text)
+        c.supervisions[0].text = text
+        return c
 
     def remove_short_and_long_utt(c: Cut):
         # Keep only utterances with duration between 1 second and 20 seconds
@@ -1338,6 +1352,7 @@ def run(rank, world_size, args):
         return True
 
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
+    train_cuts = train_cuts.map(normalize_text)
 
     if params.start_batch > 0 and checkpoints and "sampler" in checkpoints:
         # We only load the sampler's state dict when it loads a checkpoint
@@ -1346,13 +1361,13 @@ def run(rank, world_size, args):
     else:
         sampler_state_dict = None
 
-    train_dl = librispeech.train_dataloaders(
+    train_dl = libritts.train_dataloaders(
         train_cuts, sampler_state_dict=sampler_state_dict
     )
 
-    valid_cuts = librispeech.dev_clean_cuts()
-    valid_cuts += librispeech.dev_other_cuts()
-    valid_dl = librispeech.valid_dataloaders(valid_cuts)
+    valid_cuts = libritts.dev_clean_cuts()
+    valid_cuts += libritts.dev_other_cuts()
+    valid_dl = libritts.valid_dataloaders(valid_cuts)
 
     if not params.print_diagnostics:
         scan_pessimistic_batches_for_oom(

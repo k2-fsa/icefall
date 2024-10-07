@@ -864,10 +864,10 @@ def main():
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
-    librispeech = LibriTTSAsrDataModule(args)
+    libritts = LibriTTSAsrDataModule(args)
 
-    test_clean_cuts = librispeech.test_clean_cuts()
-    test_other_cuts = librispeech.test_other_cuts()
+    test_clean_cuts = libritts.test_clean_cuts()
+    test_other_cuts = libritts.test_other_cuts()
 
     test_sets = ["test-clean", "test-other"]
     test_cuts = [test_clean_cuts, test_other_cuts]

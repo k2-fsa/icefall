@@ -37,15 +37,6 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   if [ ! -d $dl_dir/LibriTTS ]; then
     lhotse download libritts $dl_dir
   fi
-
-  # If you have pre-downloaded it to /path/to/musan,
-  # you can create a symlink
-  #
-  #   ln -sfv /path/to/musan $dl_dir/musan
-  #
-  if [ ! -d $dl_dir/musan ]; then
-    lhotse download musan $dl_dir
-  fi
 fi
 
 if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then

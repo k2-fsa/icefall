@@ -124,7 +124,7 @@ def compute_fbank_libritts(
                 supervisions=m["supervisions"],
             )
             if sampling_rate != 24000:
-                logging.info(f"Resampling audio to {sampling_rate}")
+                logging.info(f"Resampling audio to {sampling_rate}Hz")
                 cut_set = cut_set.resample(sampling_rate)
             if "train" in partition:
                 if perturb_speed:
