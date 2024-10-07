@@ -126,25 +126,25 @@ fi
 if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   log "Stage 5: Train BPE model for normalized text"
 
-  if [ ! -f data/texts ]; then
+  if [ ! -f data/text ]; then
     gunzip -c data/manifests/libritts_supervisions_train-clean-100.jsonl.gz \
       | jq ".text" | sed 's/"//g' \
-      | ./local/norm_text.py > data/texts
+      | ./local/norm_text.py > data/text
 
     gunzip -c data/manifests/libritts_supervisions_train-clean-360.jsonl.gz \
       | jq ".text" | sed 's/"//g' \
-      | ./local/norm_text.py >> data/texts
+      | ./local/norm_text.py >> data/text
 
     gunzip -c data/manifests/libritts_supervisions_train-other-500.jsonl.gz \
       | jq ".text" | sed 's/"//g' \
-      | ./local/norm_text.py >> data/texts
+      | ./local/norm_text.py >> data/text
   fi
 
   for vocab_size in ${vocab_sizes[@]}; do
     lang_dir=data/lang_bpe_${vocab_size}
     mkdir -p $lang_dir
 
-    cp data/texts $lang_dir/text
+    cp data/text $lang_dir/text
 
     if [ ! -f $lang_dir/bpe.model ]; then
       ./local/train_bpe_model.py \
