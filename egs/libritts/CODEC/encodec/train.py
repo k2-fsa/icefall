@@ -13,7 +13,6 @@ import torch.multiprocessing as mp
 import torch.nn as nn
 from codec_datamodule import LibriTTSCodecDataModule
 from encodec import Encodec
-from lhotse.cut import Cut
 from lhotse.utils import fix_random_seed
 from loss import adopt_weight
 from scheduler import WarmupCosineLrScheduler
