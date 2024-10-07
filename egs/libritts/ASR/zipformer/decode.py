@@ -123,7 +123,7 @@ from beam_search import (
     modified_beam_search_LODR,
 )
 from lhotse import set_caching_enabled
-from train import add_model_arguments, get_model, get_params
+from train import add_model_arguments, get_model, get_params, normalize_text
 
 from icefall import ContextGraph, LmScorer, NgramLm
 from icefall.checkpoint import (
@@ -1043,8 +1043,8 @@ def main():
     args.return_cuts = True
     libritts = LibriTTSAsrDataModule(args)
 
-    test_clean_cuts = libritts.test_clean_cuts()
-    test_other_cuts = libritts.test_other_cuts()
+    test_clean_cuts = libritts.test_clean_cuts().map(normalize_text)
+    test_other_cuts = libritts.test_other_cuts().map(normalize_text)
 
     test_clean_dl = libritts.test_dataloaders(test_clean_cuts)
     test_other_dl = libritts.test_dataloaders(test_other_cuts)
