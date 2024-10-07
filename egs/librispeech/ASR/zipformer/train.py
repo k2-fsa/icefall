@@ -72,6 +72,7 @@ from attention_decoder import AttentionDecoderModel
 from decoder import Decoder
 from joiner import Joiner
 from lhotse.cut import Cut
+from lhotse.dataset import SpecAugment
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import AsrModel
@@ -102,7 +103,6 @@ from icefall.utils import (
     setup_logger,
     str2bool,
 )
-from spec_augment import SpecAugment
 
 LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
 
@@ -460,22 +460,15 @@ def get_parser():
     parser.add_argument(
         "--cr-loss-scale",
         type=float,
-        default=0.15,
+        default=0.2,
         help="Scale for consistency-regularization loss.",
     )
 
     parser.add_argument(
         "--time-mask-ratio",
         type=float,
-        default=2.0,
-        help="When using cr-ctc, we increase the time-masking ratio.",
-    )
-
-    parser.add_argument(
-        "--cr-loss-masked-scale",
-        type=float,
-        default=1.0,
-        help="The value used to scale up the cr_loss at masked positions",
+        default=2.5,
+        help="When using cr-ctc, we increase the amount of time-masking in SpecAugment.",
     )
 
     parser.add_argument(
@@ -950,7 +943,6 @@ def compute_loss(
             spec_augment=spec_augment,
             supervision_segments=supervision_segments,
             time_warp_factor=params.spec_aug_time_warp_factor,
-            cr_loss_masked_scale=params.cr_loss_masked_scale,
         )
 
         loss = 0.0
