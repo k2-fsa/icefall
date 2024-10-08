@@ -16,6 +16,8 @@ on:
     # nightly build at 15:50 UTC time every day
     - cron: "50 15 * * *"
 
+  workflow_dispatch:
+
 concurrency:
   group: run_ptb_rnn_lm_training-${{ github.ref }}
   cancel-in-progress: true
@@ -64,7 +66,7 @@ jobs:
           ./train-rnn-lm.sh --world-size 1 --num-epochs 5 --use-epoch 4 --use-avg 2
 
       - name: Upload pretrained models
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         if: github.event.label.name == 'ready' || github.event.label.name == 'rnnlm' || github.event_name == 'push' || github.event_name == 'schedule'
         with:
           name: python-${{ matrix.python-version }}-ubuntu-rnn-lm-ptb

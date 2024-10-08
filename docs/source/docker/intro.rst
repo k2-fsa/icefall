@@ -34,6 +34,12 @@ which will give you something like below:
 
 .. code-block:: bash
 
+  "torch2.4.1-cuda12.4"
+  "torch2.4.1-cuda12.1"
+  "torch2.4.1-cuda11.8"
+  "torch2.4.0-cuda12.4"
+  "torch2.4.0-cuda12.1"
+  "torch2.4.0-cuda11.8"
   "torch2.3.1-cuda12.1"
   "torch2.3.1-cuda11.8"
   "torch2.2.2-cuda12.1"

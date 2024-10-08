@@ -58,7 +58,7 @@ if [ $stage -le 4 ]; then
   # for train, we use smaller context and larger batches to speed-up processing
   for JOB in $(seq $nj); do
     gss enhance cuts $EXP_DIR/cuts_train.jsonl.gz \
-      $EXP_DIR/cuts_per_segment_train_split$nj/cuts_per_segment_train.JOB.jsonl.gz $EXP_DIR/enhanced \
+      $EXP_DIR/cuts_per_segment_train_split$nj/cuts_per_segment_train.$JOB.jsonl.gz $EXP_DIR/enhanced \
       --bss-iterations 10 \
       --context-duration 5.0 \
       --use-garbage-class \
@@ -77,7 +77,7 @@ if [ $stage -le 5 ]; then
   for part in dev test; do
     for JOB in $(seq $nj); do
       gss enhance cuts $EXP_DIR/cuts_${part}.jsonl.gz \
-      $EXP_DIR/cuts_per_segment_${part}_split$nj/cuts_per_segment_${part}.JOB.jsonl.gz \
+      $EXP_DIR/cuts_per_segment_${part}_split$nj/cuts_per_segment_${part}.$JOB.jsonl.gz \
       $EXP_DIR/enhanced \
       --bss-iterations 10 \
       --context-duration 15.0 \

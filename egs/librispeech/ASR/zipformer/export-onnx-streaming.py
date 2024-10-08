@@ -74,7 +74,6 @@ import onnx
 import torch
 import torch.nn as nn
 from decoder import Decoder
-from onnxconverter_common import float16
 from onnxruntime.quantization import QuantType, quantize_dynamic
 from scaling_converter import convert_scaled_to_non_scaled
 from train import add_model_arguments, get_model, get_params
@@ -756,6 +755,7 @@ def main():
     logging.info(f"Exported joiner to {joiner_filename}")
 
     if(params.fp16) :
+        from onnxconverter_common import float16
         logging.info("Generate fp16 models")
 
         encoder = onnx.load(encoder_filename)
