@@ -14,7 +14,6 @@ import torch.nn as nn
 from codec_datamodule import LibriTTSCodecDataModule
 from encodec import Encodec
 from lhotse.utils import fix_random_seed
-from loss import adopt_weight
 from scheduler import WarmupCosineLrScheduler
 from torch import nn
 from torch.cuda.amp import GradScaler, autocast
@@ -189,10 +188,10 @@ def get_params() -> AttributeDict:
             "audio_normalization": False,
             "chunk_size": 1.0,  # in seconds
             "lambda_adv": 3.0,  # loss scaling coefficient for adversarial loss
-            "lambda_wav": 1.0,  # loss scaling coefficient for waveform loss
-            "lambda_feat": 3.0,  # loss scaling coefficient for feat loss
+            "lambda_wav": 0.1,  # loss scaling coefficient for waveform loss
+            "lambda_feat": 4.0,  # loss scaling coefficient for feat loss
             "lambda_rec": 1.0,  # loss scaling coefficient for reconstruction loss
-            "lambda_com": 100.0,  # loss scaling coefficient for commitment loss
+            "lambda_com": 1.0,  # loss scaling coefficient for commitment loss
         }
     )
 
@@ -361,6 +360,12 @@ def prepare_input(
     return audio, audio_lens, features, features_lens
 
 
+def train_discriminator(weight, global_step, threshold=0, value=0.0):
+    if global_step < threshold:
+        weight = value
+    return weight
+
+
 def train_one_epoch(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
@@ -447,7 +452,7 @@ def train_one_epoch(
 
         try:
             with autocast(enabled=params.use_fp16):
-                d_weight = adopt_weight(
+                d_weight = train_discriminator(
                     params.lambda_adv,
                     params.cur_epoch,
                     threshold=params.discriminator_epoch_start,
@@ -483,7 +488,7 @@ def train_one_epoch(
             scaler.step(optimizer_d)
 
             with autocast(enabled=params.use_fp16):
-                g_weight = adopt_weight(
+                g_weight = train_discriminator(
                     params.lambda_adv,
                     params.cur_epoch,
                     threshold=params.discriminator_epoch_start,
@@ -702,7 +707,7 @@ def compute_validation_loss(
             loss_info = MetricsTracker()
             loss_info["samples"] = batch_size
 
-            d_weight = adopt_weight(
+            d_weight = train_discriminator(
                 params.lambda_adv,
                 params.cur_epoch,
                 threshold=params.discriminator_epoch_start,
@@ -735,7 +740,7 @@ def compute_validation_loss(
             for k, v in stats_d.items():
                 loss_info[k] = v * batch_size
 
-            g_weight = adopt_weight(
+            g_weight = train_discriminator(
                 params.lambda_adv,
                 params.cur_epoch,
                 threshold=params.discriminator_epoch_start,
@@ -845,7 +850,7 @@ def scan_pessimistic_batches_for_oom(
                 + disc_period_fake_adv_loss
                 + disc_scale_real_adv_loss
                 + disc_scale_fake_adv_loss
-            ) * adopt_weight(
+            ) * train_discriminator(
                 params.lambda_adv,
                 params.cur_epoch,
                 threshold=params.discriminator_train_start,
@@ -873,7 +878,7 @@ def scan_pessimistic_batches_for_oom(
                 )
             loss_g = (
                 (gen_stft_adv_loss + gen_period_adv_loss + gen_scale_adv_loss)
-                * adopt_weight(
+                * train_discriminator(
                     params.lambda_adv,
                     0,
                     threshold=params.discriminator_epoch_start,

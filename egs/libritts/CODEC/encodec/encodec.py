@@ -157,27 +157,7 @@ class Encodec(nn.Module):
                 x=speech, x_hat=speech_hat
             )
 
-            # loss, rec_loss, adv_loss, feat_loss, d_weight = loss_g(
-            #     commit_loss,
-            #     speech,
-            #     speech_hat,
-            #     fmap,
-            #     fmap_hat,
-            #     y,
-            #     y_hat,
-            #     y_p,
-            #     y_p_hat,
-            #     y_s,
-            #     y_s_hat,
-            #     fmap_p,
-            #     fmap_p_hat,
-            #     fmap_s,
-            #     fmap_s_hat,
-            #     args=self.params,
-            # )
-
         stats = dict(
-            # generator_loss=loss.item(),
             generator_wav_reconstruction_loss=wav_reconstruction_loss.item(),
             generator_mel_reconstruction_loss=mel_reconstruction_loss.item(),
             generator_feature_stft_loss=feature_stft_loss.item(),
@@ -187,7 +167,6 @@ class Encodec(nn.Module):
             generator_period_adv_loss=gen_period_adv_loss.item(),
             generator_scale_adv_loss=gen_scale_adv_loss.item(),
             generator_commit_loss=commit_loss.item(),
-            # d_weight=d_weight.item(),
         )
 
         if return_sample:
@@ -260,18 +239,16 @@ class Encodec(nn.Module):
             speech_hat.contiguous().detach()
         )
 
-        disc_period_real_adv_loss, disc_period_fake_adv_loss = torch.tensor(
-            0.0
-        ), torch.tensor(0.0)
+        disc_period_real_adv_loss = torch.tensor(0.0)
+        disc_period_fake_adv_loss = torch.tensor(0.0)
         if self.multi_period_discriminator is not None:
             y_p, y_p_hat, fmap_p, fmap_p_hat = self.multi_period_discriminator(
                 speech.contiguous(),
                 speech_hat.contiguous().detach(),
             )
 
-        disc_scale_real_adv_loss, disc_scale_fake_adv_loss = torch.tensor(
-            0.0
-        ), torch.tensor(0.0)
+        disc_scale_real_adv_loss = torch.tensor(0.0)
+        disc_scale_fake_adv_loss = torch.tensor(0.0)
         if self.multi_scale_discriminator is not None:
             y_s, y_s_hat, fmap_s, fmap_s_hat = self.multi_scale_discriminator(
                 speech.contiguous(),
