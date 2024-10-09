@@ -61,6 +61,7 @@ import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 from asr_datamodule import AishellAsrDataModule
+from attention_decoder import AttentionDecoderModel
 from decoder import Decoder
 from joiner import Joiner
 from lhotse.cut import Cut
@@ -96,6 +97,7 @@ from icefall.utils import (
     setup_logger,
     str2bool,
 )
+from spec_augment import SpecAugment
 
 LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
 
@@ -217,6 +219,41 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     )
 
     parser.add_argument(
+        "--attention-decoder-dim",
+        type=int,
+        default=512,
+        help="""Dimension used in the attention decoder""",
+    )
+
+    parser.add_argument(
+        "--attention-decoder-num-layers",
+        type=int,
+        default=6,
+        help="""Number of transformer layers used in attention decoder""",
+    )
+
+    parser.add_argument(
+        "--attention-decoder-attention-dim",
+        type=int,
+        default=512,
+        help="""Attention dimension used in attention decoder""",
+    )
+
+    parser.add_argument(
+        "--attention-decoder-num-heads",
+        type=int,
+        default=8,
+        help="""Number of attention heads used in attention decoder""",
+    )
+
+    parser.add_argument(
+        "--attention-decoder-feedforward-dim",
+        type=int,
+        default=2048,
+        help="""Feedforward dimension used in attention decoder""",
+    )
+
+    parser.add_argument(
         "--causal",
         type=str2bool,
         default=False,
@@ -237,6 +274,34 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         help="""Maximum left-contexts for causal training, measured in frames which will
         be converted to a number of chunks.  If splitting into chunks,
         chunk left-context frames will be chosen randomly from this list; else not relevant.""",
+    )
+
+    parser.add_argument(
+        "--use-transducer",
+        type=str2bool,
+        default=True,
+        help="If True, use Transducer head.",
+    )
+
+    parser.add_argument(
+        "--use-ctc",
+        type=str2bool,
+        default=False,
+        help="If True, use CTC head.",
+    )
+
+    parser.add_argument(
+        "--use-attention-decoder",
+        type=str2bool,
+        default=False,
+        help="If True, use attention-decoder head.",
+    )
+
+    parser.add_argument(
+        "--use-cr-ctc",
+        type=str2bool,
+        default=False,
+        help="If True, use consistency-regularized CTC.",
     )
 
 
@@ -380,6 +445,41 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--ctc-loss-scale",
+        type=float,
+        default=0.2,
+        help="Scale for CTC loss.",
+    )
+
+    parser.add_argument(
+        "--cr-loss-scale",
+        type=float,
+        default=0.15,
+        help="Scale for consistency-regularization loss.",
+    )
+
+    parser.add_argument(
+        "--time-mask-ratio",
+        type=float,
+        default=2.0,
+        help="When using cr-ctc, we increase the time-masking ratio.",
+    )
+
+    parser.add_argument(
+        "--cr-loss-masked-scale",
+        type=float,
+        default=1.0,
+        help="The value used to scale up the cr_loss at masked positions",
+    )
+
+    parser.add_argument(
+        "--attention-decoder-loss-scale",
+        type=float,
+        default=0.8,
+        help="Scale for attention-decoder loss.",
+    )
+
+    parser.add_argument(
         "--seed",
         type=int,
         default=42,
@@ -507,6 +607,9 @@ def get_params() -> AttributeDict:
             # parameters for zipformer
             "feature_dim": 80,
             "subsampling_factor": 4,  # not passed in, this is fixed.
+            # parameters for attention-decoder
+            "ignore_id": -1,
+            "label_smoothing": 0.1,
             "warm_step": 2000,
             "env_info": get_env_info(),
         }
@@ -579,22 +682,77 @@ def get_joiner_model(params: AttributeDict) -> nn.Module:
     return joiner
 
 
+def get_attention_decoder_model(params: AttributeDict) -> nn.Module:
+    decoder = AttentionDecoderModel(
+        vocab_size=params.vocab_size,
+        decoder_dim=params.attention_decoder_dim,
+        num_decoder_layers=params.attention_decoder_num_layers,
+        attention_dim=params.attention_decoder_attention_dim,
+        num_heads=params.attention_decoder_num_heads,
+        feedforward_dim=params.attention_decoder_feedforward_dim,
+        memory_dim=max(_to_int_tuple(params.encoder_dim)),
+        sos_id=params.sos_id,
+        eos_id=params.eos_id,
+        ignore_id=params.ignore_id,
+        label_smoothing=params.label_smoothing,
+    )
+    return decoder
+
+
 def get_model(params: AttributeDict) -> nn.Module:
+    assert params.use_transducer or params.use_ctc, (
+        f"At least one of them should be True, "
+        f"but got params.use_transducer={params.use_transducer}, "
+        f"params.use_ctc={params.use_ctc}"
+    )
+
     encoder_embed = get_encoder_embed(params)
     encoder = get_encoder_model(params)
-    decoder = get_decoder_model(params)
-    joiner = get_joiner_model(params)
+
+    if params.use_transducer:
+        decoder = get_decoder_model(params)
+        joiner = get_joiner_model(params)
+    else:
+        decoder = None
+        joiner = None
+
+    if params.use_attention_decoder:
+        attention_decoder = get_attention_decoder_model(params)
+    else:
+        attention_decoder = None
 
     model = AsrModel(
         encoder_embed=encoder_embed,
         encoder=encoder,
         decoder=decoder,
         joiner=joiner,
-        encoder_dim=int(max(params.encoder_dim.split(","))),
+        attention_decoder=attention_decoder,
+        encoder_dim=max(_to_int_tuple(params.encoder_dim)),
         decoder_dim=params.decoder_dim,
         vocab_size=params.vocab_size,
+        use_transducer=params.use_transducer,
+        use_ctc=params.use_ctc,
+        use_attention_decoder=params.use_attention_decoder,
     )
     return model
+
+
+def get_spec_augment(params: AttributeDict) -> SpecAugment:
+    num_frame_masks = int(10 * params.time_mask_ratio)
+    max_frames_mask_fraction = 0.15 * params.time_mask_ratio
+    logging.info(
+        f"num_frame_masks: {num_frame_masks}, "
+        f"max_frames_mask_fraction: {max_frames_mask_fraction}"
+    )
+    spec_augment = SpecAugment(
+        time_warp_factor=0,  # Do time warping in model.py
+        num_frame_masks=num_frame_masks,  # default: 10
+        features_mask_size=27,
+        num_feature_masks=2,
+        frames_mask_size=100,
+        max_frames_mask_fraction=max_frames_mask_fraction,  # default: 0.15
+    )
+    return spec_augment
 
 
 def load_checkpoint_if_available(
@@ -722,6 +880,7 @@ def compute_loss(
     graph_compiler: CharCtcTrainingGraphCompiler,
     batch: dict,
     is_training: bool,
+    spec_augment: Optional[SpecAugment] = None,
 ) -> Tuple[Tensor, MetricsTracker]:
     """
     Compute CTC loss given the model and its inputs.
@@ -738,8 +897,8 @@ def compute_loss(
         True for training. False for validation. When it is True, this
         function enables autograd during computation; when it is False, it
         disables autograd.
-     warmup: a floating point value which increases throughout training;
-        values >= 1.0 are fully warmed up and have all modules present.
+      spec_augment:
+        The SpecAugment instance used only when use_cr_ctc is True.
     """
     device = model.device if isinstance(model, DDP) else next(model.parameters()).device
     feature = batch["inputs"]
@@ -757,32 +916,62 @@ def compute_loss(
     y = graph_compiler.texts_to_ids(texts)
     y = k2.RaggedTensor(y).to(device)
 
+    use_cr_ctc = params.use_cr_ctc
+    use_spec_aug = use_cr_ctc and is_training
+    if use_spec_aug:
+        supervision_intervals = batch["supervisions"]
+        supervision_segments = torch.stack(
+            [
+                supervision_intervals["sequence_idx"],
+                supervision_intervals["start_frame"],
+                supervision_intervals["num_frames"],
+            ],
+            dim=1,
+        )  # shape: (S, 3)
+    else:
+        supervision_segments = None
+
     with torch.set_grad_enabled(is_training):
-        losses = model(
+        simple_loss, pruned_loss, ctc_loss, attention_decoder_loss, cr_loss = model(
             x=feature,
             x_lens=feature_lens,
             y=y,
             prune_range=params.prune_range,
             am_scale=params.am_scale,
             lm_scale=params.lm_scale,
-        )
-        simple_loss, pruned_loss = losses[:2]
-
-        s = params.simple_loss_scale
-        # take down the scale on the simple loss from 1.0 at the start
-        # to params.simple_loss scale by warm_step.
-        simple_loss_scale = (
-            s
-            if batch_idx_train >= warm_step
-            else 1.0 - (batch_idx_train / warm_step) * (1.0 - s)
-        )
-        pruned_loss_scale = (
-            1.0
-            if batch_idx_train >= warm_step
-            else 0.1 + 0.9 * (batch_idx_train / warm_step)
+            use_cr_ctc=use_cr_ctc,
+            use_spec_aug=use_spec_aug,
+            spec_augment=spec_augment,
+            supervision_segments=supervision_segments,
+            time_warp_factor=params.spec_aug_time_warp_factor,
+            cr_loss_masked_scale=params.cr_loss_masked_scale,
         )
 
-        loss = simple_loss_scale * simple_loss + pruned_loss_scale * pruned_loss
+        loss = 0.0
+
+        if params.use_transducer:
+            s = params.simple_loss_scale
+            # take down the scale on the simple loss from 1.0 at the start
+            # to params.simple_loss scale by warm_step.
+            simple_loss_scale = (
+                s
+                if batch_idx_train >= warm_step
+                else 1.0 - (batch_idx_train / warm_step) * (1.0 - s)
+            )
+            pruned_loss_scale = (
+                1.0
+                if batch_idx_train >= warm_step
+                else 0.1 + 0.9 * (batch_idx_train / warm_step)
+            )
+            loss += simple_loss_scale * simple_loss + pruned_loss_scale * pruned_loss
+
+        if params.use_ctc:
+            loss += params.ctc_loss_scale * ctc_loss
+            if use_cr_ctc:
+                loss += params.cr_loss_scale * cr_loss
+
+        if params.use_attention_decoder:
+            loss += params.attention_decoder_loss_scale * attention_decoder_loss
 
     assert loss.requires_grad == is_training
 
@@ -793,8 +982,15 @@ def compute_loss(
 
     # Note: We use reduction=sum while computing the loss.
     info["loss"] = loss.detach().cpu().item()
-    info["simple_loss"] = simple_loss.detach().cpu().item()
-    info["pruned_loss"] = pruned_loss.detach().cpu().item()
+    if params.use_transducer:
+        info["simple_loss"] = simple_loss.detach().cpu().item()
+        info["pruned_loss"] = pruned_loss.detach().cpu().item()
+    if params.use_ctc:
+        info["ctc_loss"] = ctc_loss.detach().cpu().item()
+        if params.use_cr_ctc:
+            info["cr_loss"] = cr_loss.detach().cpu().item()
+    if params.use_attention_decoder:
+        info["attn_decoder_loss"] = attention_decoder_loss.detach().cpu().item()
 
     return loss, info
 
@@ -842,6 +1038,7 @@ def train_one_epoch(
     train_dl: torch.utils.data.DataLoader,
     valid_dl: torch.utils.data.DataLoader,
     scaler: GradScaler,
+    spec_augment: Optional[SpecAugment] = None,
     model_avg: Optional[nn.Module] = None,
     tb_writer: Optional[SummaryWriter] = None,
     world_size: int = 1,
@@ -868,6 +1065,8 @@ def train_one_epoch(
         Dataloader for the validation dataset.
       scaler:
         The scaler used for mix precision training.
+      spec_augment:
+        The SpecAugment instance used only when use_cr_ctc is True.
       model_avg:
         The stored model averaged from the start of training.
       tb_writer:
@@ -917,6 +1116,7 @@ def train_one_epoch(
                     graph_compiler=graph_compiler,
                     batch=batch,
                     is_training=True,
+                    spec_augment=spec_augment,
                 )
             # summary stats
             tot_loss = (tot_loss * (1 - 1 / params.reset_interval)) + loss_info
@@ -1080,7 +1280,17 @@ def run(rank, world_size, args):
     )
 
     params.blank_id = lexicon.token_table["<blk>"]
+    params.sos_id = params.eos_id = lexicon.token_table["<sos/eos>"]
     params.vocab_size = max(lexicon.tokens) + 1
+
+    if not params.use_transducer:
+        if not params.use_attention_decoder:
+            params.ctc_loss_scale = 1.0
+        else:
+            assert params.ctc_loss_scale + params.attention_decoder_loss_scale == 1.0, (
+                params.ctc_loss_scale,
+                params.attention_decoder_loss_scale,
+            )
 
     logging.info(params)
 
@@ -1089,6 +1299,13 @@ def run(rank, world_size, args):
 
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
+
+    if params.use_cr_ctc:
+        assert params.use_ctc
+        assert not params.enable_spec_aug  # we will do spec_augment in model.py
+        spec_augment = get_spec_augment(params)
+    else:
+        spec_augment = None
 
     assert params.save_every_n >= params.average_period
     model_avg: Optional[nn.Module] = None
@@ -1199,6 +1416,7 @@ def run(rank, world_size, args):
             optimizer=optimizer,
             graph_compiler=graph_compiler,
             params=params,
+            spec_augment=spec_augment,
         )
 
     scaler = GradScaler(enabled=params.use_fp16, init_scale=1.0)
@@ -1226,6 +1444,7 @@ def run(rank, world_size, args):
             train_dl=train_dl,
             valid_dl=valid_dl,
             scaler=scaler,
+            spec_augment=spec_augment,
             tb_writer=tb_writer,
             world_size=world_size,
             rank=rank,
@@ -1292,6 +1511,7 @@ def scan_pessimistic_batches_for_oom(
     optimizer: torch.optim.Optimizer,
     graph_compiler: CharCtcTrainingGraphCompiler,
     params: AttributeDict,
+    spec_augment: Optional[SpecAugment] = None,
 ):
     from lhotse.dataset import find_pessimistic_batches
 
@@ -1309,6 +1529,7 @@ def scan_pessimistic_batches_for_oom(
                     graph_compiler=graph_compiler,
                     batch=batch,
                     is_training=True,
+                    spec_augment=spec_augment,
                 )
             loss.backward()
             optimizer.zero_grad()
