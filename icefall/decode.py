@@ -1736,7 +1736,7 @@ def _step_worker(
     B: HypothesisList,
     beam: int = 4,
     blank_id: int = 0,
-    lm_scale: float = 0,
+    nnlm_scale: float = 0,
     LODR_lm_scale: float = 0,
     context_graph: Optional[ContextGraph] = None,
 ) -> HypothesisList:
@@ -1815,14 +1815,16 @@ def _step_worker(
             if update_prefix:
                 lm_score = hyp.lm_score
                 if hyp.lm_log_probs is not None:
-                    lm_score += hyp.lm_log_probs[new_token] * lm_scale
+                    lm_score = lm_score + hyp.lm_log_probs[new_token] * nnlm_scale
                     new_hyp.lm_log_probs = None
 
                 if context_graph is not None and hyp.context_state is not None:
-                    context_score, new_context_state = context_graph.forward_one_step(
-                        hyp.context_state, new_token
-                    )
-                    lm_score += context_score
+                    (
+                        context_score,
+                        new_context_state,
+                        matched_state,
+                    ) = context_graph.forward_one_step(hyp.context_state, new_token)
+                    lm_score = lm_score + context_score
                     new_hyp.context_state = new_context_state
 
                 if hyp.LODR_state is not None:
@@ -1833,7 +1835,7 @@ def _step_worker(
                         state_cost.lm_score,
                         hyp.LODR_state.lm_score,
                     )
-                    lm_score += LODR_lm_scale * current_ngram_score
+                    lm_score = lm_score + LODR_lm_scale * current_ngram_score
                     new_hyp.LODR_state = state_cost
 
                 new_hyp.lm_score = lm_score
@@ -1944,7 +1946,7 @@ def ctc_prefix_beam_search_shallow_fussion(
     blank_id: int = 0,
     LODR_lm: Optional[NgramLm] = None,
     LODR_lm_scale: Optional[float] = 0,
-    LM: Optional[LmScorer] = None,
+    NNLM: Optional[LmScorer] = None,
     context_graph: Optional[ContextGraph] = None,
 ) -> List[List[int]]:
     """Implement prefix search decoding in "Connectionist Temporal Classification:
@@ -1981,17 +1983,16 @@ def ctc_prefix_beam_search_shallow_fussion(
     encoder_out_lens = encoder_out_lens.tolist()
     device = ctc_output.device
 
-    lm_scale = 0
+    nnlm_scale = 0
     init_scores = None
     init_states = None
-
-    if LM is not None:
-        lm_scale = LM.lm_scale
-        sos_id = getattr(LM, "sos_id", 1)
+    if NNLM is not None:
+        nnlm_scale = NNLM.lm_scale
+        sos_id = getattr(NNLM, "sos_id", 1)
         # get initial lm score and lm state by scoring the "sos" token
         sos_token = torch.tensor([[sos_id]]).to(torch.int64).to(device)
         lens = torch.tensor([1]).to(device)
-        init_scores, init_states = LM.score_token(sos_token, lens)
+        init_scores, init_states = NNLM.score_token(sos_token, lens)
         init_scores, init_states = init_scores.cpu(), (
             init_states[0].cpu(),
             init_states[1].cpu(),
@@ -2016,16 +2017,16 @@ def ctc_prefix_beam_search_shallow_fussion(
             if j < encoder_out_lens[i]:
                 log_probs, indexes = topk_values[i][j], topk_indexes[i][j]
                 B[i] = _step_worker(
-                    log_probs,
-                    indexes,
-                    B[i],
-                    beam,
-                    blank_id,
-                    lm_scale=lm_scale,
+                    log_probs=log_probs,
+                    indexes=indexes,
+                    B=B[i],
+                    beam=beam,
+                    blank_id=blank_id,
+                    nnlm_scale=nnlm_scale,
                     LODR_lm_scale=LODR_lm_scale,
                     context_graph=context_graph,
                 )
-        if LM is None:
+        if NNLM is None:
             continue
         # update lm_log_probs
         token_list = []  # a list of list
@@ -2035,7 +2036,7 @@ def ctc_prefix_beam_search_shallow_fussion(
         for batch_idx, hyps in enumerate(B):
             for hyp in hyps:
                 if hyp.lm_log_probs is None:  # those hyps that prefix changes
-                    if LM.lm_type == "rnn":
+                    if NNLM.lm_type == "rnn":
                         token_list.append([hyp.ys[-1]])
                         # store the LSTM states
                         hs.append(hyp.state[0])
@@ -2046,7 +2047,7 @@ def ctc_prefix_beam_search_shallow_fussion(
                     indexes.append((batch_idx, hyp.key))
         if len(token_list) != 0:
             x_lens = torch.tensor([len(tokens) for tokens in token_list]).to(device)
-            if LM.lm_type == "rnn":
+            if NNLM.lm_type == "rnn":
                 tokens_to_score = (
                     torch.tensor(token_list).to(torch.int64).to(device).reshape(-1, 1)
                 )
@@ -2065,13 +2066,13 @@ def ctc_prefix_beam_search_shallow_fussion(
                 )
                 state = None
 
-            scores, lm_states = LM.score_token(tokens_to_score, x_lens, state)
+            scores, lm_states = NNLM.score_token(tokens_to_score, x_lens, state)
             scores, lm_states = scores.cpu(), (lm_states[0].cpu(), lm_states[1].cpu())
             assert scores.size(0) == len(indexes), (scores.size(0), len(indexes))
             for i in range(scores.size(0)):
                 batch_idx, key = indexes[i]
                 B[batch_idx][key].lm_log_probs = scores[i]
-                if LM.lm_type == "rnn":
+                if NNLM.lm_type == "rnn":
                     state = (
                         lm_states[0][:, i, :].unsqueeze(1),
                         lm_states[1][:, i, :].unsqueeze(1),

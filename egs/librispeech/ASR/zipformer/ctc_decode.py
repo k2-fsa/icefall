@@ -111,6 +111,7 @@ Usage:
 import argparse
 import logging
 import math
+import os
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -288,7 +289,7 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--lm-type",
+        "--nnlm-type",
         type=str,
         default="rnn",
         help="Type of NN lm",
@@ -296,10 +297,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--lm-scale",
+        "--nnlm-scale",
         type=float,
-        default=0.3,
-        help="""The scale of the neural network LM
+        default=0,
+        help="""The scale of the neural network LM, 0 means don't use nnlm shallow fussion.
         Used only when `--use-shallow-fusion` is set to True.
         """,
     )
@@ -318,6 +319,47 @@ def get_parser():
         default="data/lm",
         help="""The n-gram LM dir.
         It should contain either G_4_gram.pt or G_4_gram.fst.txt
+        """,
+    )
+
+    parser.add_argument(
+        "--backoff-id",
+        type=int,
+        default=500,
+        help="ID of the backoff symbol in the ngram LM",
+    )
+
+    parser.add_argument(
+        "--lodr-ngram",
+        type=str,
+        help="The path to the lodr ngram",
+    )
+
+    parser.add_argument(
+        "--lodr-lm-scale",
+        type=float,
+        default=0,
+        help="The scale of lodr ngram, should be less than 0. 0 means don't use lodr.",
+    )
+
+    parser.add_argument(
+        "--context-score",
+        type=float,
+        default=0,
+        help="""
+        The bonus score of each token for the context biasing words/phrases.
+        0 means don't use contextual biasing.
+        Used only when --decoding-method is ctc-prefix-beam-search-shallow-fussion.
+        """,
+    )
+
+    parser.add_argument(
+        "--context-file",
+        type=str,
+        default="",
+        help="""
+        The path of the context biasing lists, one word/phrase each line
+        Used only when --decoding-method is ctc-prefix-beam-search-shallow-fussion.
         """,
     )
 
@@ -358,7 +400,9 @@ def decode_one_batch(
     batch: dict,
     word_table: k2.SymbolTable,
     G: Optional[k2.Fsa] = None,
-    LM: Optional[LmScorer] = None,
+    NNLM: Optional[LmScorer] = None,
+    LODR_lm: Optional[NgramLm] = None,
+    context_graph: Optional[ContextGraph] = None,
 ) -> Dict[str, List[List[str]]]:
     """Decode one batch and return the result in a dict. The dict has the
     following format:
@@ -466,7 +510,10 @@ def decode_one_batch(
         token_ids = ctc_prefix_beam_search_shallow_fussion(
             ctc_output=ctc_output,
             encoder_out_lens=encoder_out_lens,
-            LM=LM,
+            NNLM=NNLM,
+            LODR_lm=LODR_lm,
+            LODR_lm_scale=params.lodr_lm_scale,
+            context_graph=context_graph,
         )
         # hyps is a list of str, e.g., ['xxx yyy zzz', ...]
         hyps = bpe_model.decode(token_ids)
@@ -649,7 +696,9 @@ def decode_dataset(
     bpe_model: Optional[spm.SentencePieceProcessor],
     word_table: k2.SymbolTable,
     G: Optional[k2.Fsa] = None,
-    LM: Optional[LmScorer] = None,
+    NNLM: Optional[LmScorer] = None,
+    LODR_lm: Optional[NgramLm] = None,
+    context_graph: Optional[ContextGraph] = None,
 ) -> Dict[str, List[Tuple[str, List[str], List[str]]]]:
     """Decode dataset.
 
@@ -700,7 +749,9 @@ def decode_dataset(
             batch=batch,
             word_table=word_table,
             G=G,
-            LM=LM,
+            NNLM=NNLM,
+            LODR_lm=LODR_lm,
+            context_graph=context_graph,
         )
 
         for name, hyps in hyps_dict.items():
@@ -835,7 +886,12 @@ def main():
     if "prefix-beam-search" in params.decoding_method:
         params.suffix += f"_beam-{params.beam}"
         if params.decoding_method == "ctc-prefix-beam-search-shallow-fussion":
-            params.suffix += f"_lm-scale-{params.lm_scale}"
+            if params.nnlm_scale != 0:
+                params.suffix += f"_nnlm-scale-{params.nnlm_scale}"
+            if params.lodr_lm_scale != 0:
+                params.suffix += f"_lodr-scale-{params.lodr_lm_scale}"
+            if params.context_score != 0:
+                params.suffix += f"_context_score-{params.context_score}"
 
     if params.use_averaged_model:
         params.suffix += "_use-averaged-model"
@@ -947,17 +1003,49 @@ def main():
         G = None
 
     # only load the neural network LM if required
-    if params.decoding_method == "ctc-prefix-beam-search-shallow-fussion":
-        LM = LmScorer(
-            lm_type=params.lm_type,
+    NNLM = None
+    if (
+        params.decoding_method == "ctc-prefix-beam-search-shallow-fussion"
+        and params.nnlm_scale != 0
+    ):
+        NNLM = LmScorer(
+            lm_type=params.nnlm_type,
             params=params,
             device=device,
-            lm_scale=params.lm_scale,
+            lm_scale=params.nnlm_scale,
         )
-        LM.to(device)
-        LM.eval()
-    else:
-        LM = None
+        NNLM.to(device)
+        NNLM.eval()
+
+    LODR_lm = None
+    if (
+        params.decoding_method == "ctc-prefix-beam-search-shallow-fussion"
+        and params.lodr_lm_scale != 0
+    ):
+        assert os.path.exists(
+            params.lodr_ngram
+        ), f"LODR ngram does not exists, given path : {params.lodr_ngram}"
+        logging.info(f"Loading LODR (token level lm): {params.lodr_ngram}")
+        LODR_lm = NgramLm(
+            params.lodr_ngram,
+            backoff_id=params.backoff_id,
+            is_binary=False,
+        )
+        logging.info(f"num states: {LODR_lm.lm.num_states}")
+
+    context_graph = None
+    if (
+        params.decoding_method == "ctc-prefix-beam-search-shallow-fussion"
+        and params.context_score != 0
+    ):
+        assert os.path.exists(
+            params.context_file
+        ), f"context_file does not exists, given path : {params.context_file}"
+        contexts = []
+        for line in open(params.context_file).readlines():
+            contexts.append(bpe_model.encode(line.strip()))
+        context_graph = ContextGraph(params.context_score)
+        context_graph.build(contexts)
 
     logging.info("About to create model")
     model = get_model(params)
@@ -1068,7 +1156,9 @@ def main():
             bpe_model=bpe_model,
             word_table=lexicon.word_table,
             G=G,
-            LM=LM,
+            NNLM=NNLM,
+            LODR_lm=LODR_lm,
+            context_graph=context_graph,
         )
 
         save_asr_output(
