@@ -312,6 +312,13 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         help="If True, use consistency-regularized CTC.",
     )
 
+    parser.add_argument(
+        "--use-sr-ctc",
+        type=str2bool,
+        default=False,
+        help="If True, use smooth-regularized CTC.",
+    )
+
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -462,6 +469,13 @@ def get_parser():
         type=float,
         default=0.2,
         help="Scale for consistency-regularization loss.",
+    )
+
+    parser.add_argument(
+        "--sr-loss-scale",
+        type=float,
+        default=0.2,
+        help="Scale for smooth-regularization loss.",
     )
 
     parser.add_argument(
@@ -916,6 +930,7 @@ def compute_loss(
     y = k2.RaggedTensor(y)
 
     use_cr_ctc = params.use_cr_ctc
+    use_sr_ctc = params.use_sr_ctc
     use_spec_aug = use_cr_ctc and is_training
     if use_spec_aug:
         supervision_intervals = batch["supervisions"]
@@ -931,7 +946,7 @@ def compute_loss(
         supervision_segments = None
 
     with torch.set_grad_enabled(is_training):
-        simple_loss, pruned_loss, ctc_loss, attention_decoder_loss, cr_loss = model(
+        simple_loss, pruned_loss, ctc_loss, attention_decoder_loss, cr_loss, sr_loss = model(
             x=feature,
             x_lens=feature_lens,
             y=y,
@@ -939,6 +954,7 @@ def compute_loss(
             am_scale=params.am_scale,
             lm_scale=params.lm_scale,
             use_cr_ctc=use_cr_ctc,
+            use_sr_ctc=use_sr_ctc,
             use_spec_aug=use_spec_aug,
             spec_augment=spec_augment,
             supervision_segments=supervision_segments,
@@ -967,6 +983,8 @@ def compute_loss(
             loss += params.ctc_loss_scale * ctc_loss
             if use_cr_ctc:
                 loss += params.cr_loss_scale * cr_loss
+            if use_sr_ctc:
+                loss += params.sr_loss_scale * sr_loss
 
         if params.use_attention_decoder:
             loss += params.attention_decoder_loss_scale * attention_decoder_loss
@@ -985,8 +1003,10 @@ def compute_loss(
         info["pruned_loss"] = pruned_loss.detach().cpu().item()
     if params.use_ctc:
         info["ctc_loss"] = ctc_loss.detach().cpu().item()
-        if params.use_cr_ctc:
+        if use_cr_ctc:
             info["cr_loss"] = cr_loss.detach().cpu().item()
+        if use_sr_ctc:
+            info["sr_loss"] = sr_loss.detach().cpu().item()
     if params.use_attention_decoder:
         info["attn_decoder_loss"] = attention_decoder_loss.detach().cpu().item()
 
