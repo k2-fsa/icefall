@@ -186,12 +186,11 @@ def get_params() -> AttributeDict:
             "env_info": get_env_info(),
             "sampling_rate": 24000,
             "audio_normalization": False,
-            "chunk_size": 1.0,  # in seconds
             "lambda_adv": 3.0,  # loss scaling coefficient for adversarial loss
             "lambda_wav": 0.1,  # loss scaling coefficient for waveform loss
             "lambda_feat": 4.0,  # loss scaling coefficient for feat loss
             "lambda_rec": 1.0,  # loss scaling coefficient for reconstruction loss
-            "lambda_com": 1.0,  # loss scaling coefficient for commitment loss
+            "lambda_com": 1000.0,  # loss scaling coefficient for commitment loss
         }
     )
 
@@ -342,12 +341,10 @@ def prepare_input(
 
     if is_training:
         audio_dims = audio.size(-1)
-        start_idx = random.randint(
-            0, max(0, audio_dims - params.chunk_size * params.sampling_rate)
-        )
+        start_idx = random.randint(0, max(0, audio_dims - params.sampling_rate))
         audio = audio[:, start_idx : params.sampling_rate + start_idx]
     else:
-        # NOTE: a very coarse setup
+        # NOTE(zengrui): a very coarse setup
         audio = audio[
             :, params.sampling_rate : params.sampling_rate + params.sampling_rate
         ]

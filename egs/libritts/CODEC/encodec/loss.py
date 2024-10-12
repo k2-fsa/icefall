@@ -1,8 +1,19 @@
+# Modified from egs/ljspeech/TTS/vits/loss.py by: Zengrui JIN (Tsinghua University)
+# original implementation is from https://github.com/espnet/espnet/blob/master/espnet2/gan_tts/hifigan/loss.py
+
+# Copyright 2021 Tomoki Hayashi
+#  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+
+"""Encodec-related loss modules.
+
+This code is modified from https://github.com/kan-bayashi/ParallelWaveGAN.
+
+"""
+
 from typing import List, Tuple, Union
 
 import torch
 import torch.nn.functional as F
-from lhotse.features.kaldi import Wav2LogFilterBank
 from torchaudio.transforms import MelSpectrogram
 
 
@@ -225,15 +236,6 @@ class MelSpectrogramReconstructionLoss(torch.nn.Module):
         self.wav_to_specs = []
         for i in range(5, 12):
             s = 2**i
-            # self.wav_to_specs.append(
-            #     Wav2LogFilterBank(
-            #         sampling_rate=sampling_rate,
-            #         frame_length=s,
-            #         frame_shift=s // 4,
-            #         use_fft_mag=use_fft_mag,
-            #         num_filters=n_mels,
-            #     )
-            # )
             self.wav_to_specs.append(
                 MelSpectrogram(
                     sample_rate=sampling_rate,
