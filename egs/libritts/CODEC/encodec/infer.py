@@ -19,9 +19,9 @@
 This script performs model inference on test set.
 
 Usage:
-./vits/infer.py \
-    --epoch 1000 \
-    --exp-dir ./vits/exp \
+./codec/infer.py \
+    --epoch 300 \
+    --exp-dir ./codec/exp \
     --max-duration 500
 """
 
