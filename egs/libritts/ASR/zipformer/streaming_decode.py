@@ -52,7 +52,7 @@ from streaming_beam_search import (
 )
 from torch import Tensor, nn
 from torch.nn.utils.rnn import pad_sequence
-from train import add_model_arguments, get_model, get_params
+from train import add_model_arguments, get_model, get_params, normalize_text
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -866,8 +866,8 @@ def main():
 
     libritts = LibriTTSAsrDataModule(args)
 
-    test_clean_cuts = libritts.test_clean_cuts()
-    test_other_cuts = libritts.test_other_cuts()
+    test_clean_cuts = libritts.test_clean_cuts().map(normalize_text)
+    test_other_cuts = libritts.test_other_cuts().map(normalize_text)
 
     test_sets = ["test-clean", "test-other"]
     test_cuts = [test_clean_cuts, test_other_cuts]

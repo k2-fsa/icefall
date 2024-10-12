@@ -122,7 +122,7 @@ import torch
 import torch.nn as nn
 from asr_datamodule import LibriTTSAsrDataModule
 from lhotse import set_caching_enabled
-from train import add_model_arguments, get_model, get_params
+from train import add_model_arguments, get_model, get_params, normalize_text
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -949,13 +949,13 @@ def main():
 
     # we need cut ids to display recognition results.
     args.return_cuts = True
-    librispeech = LibriTTSAsrDataModule(args)
+    libritts = LibriTTSAsrDataModule(args)
 
-    test_clean_cuts = librispeech.test_clean_cuts()
-    test_other_cuts = librispeech.test_other_cuts()
+    test_clean_cuts = libritts.test_clean_cuts().map(normalize_text)
+    test_other_cuts = libritts.test_other_cuts().map(normalize_text)
 
-    test_clean_dl = librispeech.test_dataloaders(test_clean_cuts)
-    test_other_dl = librispeech.test_dataloaders(test_other_cuts)
+    test_clean_dl = libritts.test_dataloaders(test_clean_cuts)
+    test_other_dl = libritts.test_dataloaders(test_other_cuts)
 
     test_sets = ["test-clean", "test-other"]
     test_dl = [test_clean_dl, test_other_dl]
