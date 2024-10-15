@@ -12,7 +12,6 @@ class Tokenizer:
     @staticmethod
     def add_arguments(parser: argparse.ArgumentParser):
         group = parser.add_argument_group(title="Lang related options")
-
         group.add_argument("--lang", type=Path, help="Path to lang directory.")
 
         group.add_argument(
