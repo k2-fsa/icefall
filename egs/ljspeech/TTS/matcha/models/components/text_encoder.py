@@ -6,10 +6,10 @@ import torch
 import torch.nn as nn
 from einops import rearrange
 
-import matcha.utils as utils
+#  import matcha.utils as utils
 from matcha.utils.model import sequence_mask
 
-log = utils.get_pylogger(__name__)
+#  log = utils.get_pylogger(__name__)
 
 
 class LayerNorm(nn.Module):
