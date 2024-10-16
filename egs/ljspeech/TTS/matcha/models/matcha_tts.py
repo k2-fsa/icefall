@@ -5,6 +5,7 @@ import random
 import torch
 
 import matcha.utils.monotonic_align as monotonic_align
+
 #  from matcha import utils
 #  from matcha.models.baselightningmodule import BaseLightningClass
 from matcha.models.components.flow_matching import CFM
@@ -30,7 +31,7 @@ class MatchaTTS(torch.nn.Module):  # 🍵
         encoder,
         decoder,
         cfm,
-        #  data_statistics,
+        data_statistics,
         out_size,
         optimizer=None,
         scheduler=None,
@@ -71,9 +72,13 @@ class MatchaTTS(torch.nn.Module):  # 🍵
         )
 
         #  self.update_data_statistics(data_statistics)
+        self.register_buffer("mel_mean", torch.tensor(data_statistics["mel_mean"]))
+        self.register_buffer("mel_std", torch.tensor(data_statistics["mel_std"]))
 
     @torch.inference_mode()
-    def synthesise(self, x, x_lengths, n_timesteps, temperature=1.0, spks=None, length_scale=1.0):
+    def synthesise(
+        self, x, x_lengths, n_timesteps, temperature=1.0, spks=None, length_scale=1.0
+    ):
         """
         Generates mel-spectrogram from text. Returns:
             1. encoder outputs
@@ -149,7 +154,17 @@ class MatchaTTS(torch.nn.Module):  # 🍵
             "rtf": rtf,
         }
 
-    def forward(self, x, x_lengths, y, y_lengths, spks=None, out_size=None, cond=None, durations=None):
+    def forward(
+        self,
+        x,
+        x_lengths,
+        y,
+        y_lengths,
+        spks=None,
+        out_size=None,
+        cond=None,
+        durations=None,
+    ):
         """
         Computes 3 losses:
             1. duration loss: loss between predicted token durations and those extracted by Monotinic Alignment Search (MAS).
@@ -187,7 +202,9 @@ class MatchaTTS(torch.nn.Module):  # 🍵
             # Use MAS to find most likely alignment `attn` between text and mel-spectrogram
             with torch.no_grad():
                 const = -0.5 * math.log(2 * math.pi) * self.n_feats
-                factor = -0.5 * torch.ones(mu_x.shape, dtype=mu_x.dtype, device=mu_x.device)
+                factor = -0.5 * torch.ones(
+                    mu_x.shape, dtype=mu_x.dtype, device=mu_x.device
+                )
                 y_square = torch.matmul(factor.transpose(1, 2), y**2)
                 y_mu_double = torch.matmul(2.0 * (factor * mu_x).transpose(1, 2), y)
                 mu_square = torch.sum(factor * (mu_x**2), 1).unsqueeze(-1)
@@ -206,12 +223,25 @@ class MatchaTTS(torch.nn.Module):  # 🍵
         #   - Do not need this hack for Matcha-TTS, but it works with it as well
         if not isinstance(out_size, type(None)):
             max_offset = (y_lengths - out_size).clamp(0)
-            offset_ranges = list(zip([0] * max_offset.shape[0], max_offset.cpu().numpy()))
+            offset_ranges = list(
+                zip([0] * max_offset.shape[0], max_offset.cpu().numpy())
+            )
             out_offset = torch.LongTensor(
-                [torch.tensor(random.choice(range(start, end)) if end > start else 0) for start, end in offset_ranges]
+                [
+                    torch.tensor(random.choice(range(start, end)) if end > start else 0)
+                    for start, end in offset_ranges
+                ]
             ).to(y_lengths)
-            attn_cut = torch.zeros(attn.shape[0], attn.shape[1], out_size, dtype=attn.dtype, device=attn.device)
-            y_cut = torch.zeros(y.shape[0], self.n_feats, out_size, dtype=y.dtype, device=y.device)
+            attn_cut = torch.zeros(
+                attn.shape[0],
+                attn.shape[1],
+                out_size,
+                dtype=attn.dtype,
+                device=attn.device,
+            )
+            y_cut = torch.zeros(
+                y.shape[0], self.n_feats, out_size, dtype=y.dtype, device=y.device
+            )
 
             y_cut_lengths = []
             for i, (y_, out_offset_) in enumerate(zip(y, out_offset)):
@@ -233,12 +263,36 @@ class MatchaTTS(torch.nn.Module):  # 🍵
         mu_y = mu_y.transpose(1, 2)
 
         # Compute loss of the decoder
-        diff_loss, _ = self.decoder.compute_loss(x1=y, mask=y_mask, mu=mu_y, spks=spks, cond=cond)
+        diff_loss, _ = self.decoder.compute_loss(
+            x1=y, mask=y_mask, mu=mu_y, spks=spks, cond=cond
+        )
 
         if self.prior_loss:
-            prior_loss = torch.sum(0.5 * ((y - mu_y) ** 2 + math.log(2 * math.pi)) * y_mask)
+            prior_loss = torch.sum(
+                0.5 * ((y - mu_y) ** 2 + math.log(2 * math.pi)) * y_mask
+            )
             prior_loss = prior_loss / (torch.sum(y_mask) * self.n_feats)
         else:
             prior_loss = 0
 
         return dur_loss, prior_loss, diff_loss, attn
+
+    def get_losses(self, batch):
+        x, x_lengths = batch["x"], batch["x_lengths"]
+        y, y_lengths = batch["y"], batch["y_lengths"]
+        spks = batch["spks"]
+
+        dur_loss, prior_loss, diff_loss, *_ = self(
+            x=x,
+            x_lengths=x_lengths,
+            y=y,
+            y_lengths=y_lengths,
+            spks=spks,
+            out_size=self.out_size,
+            durations=batch["durations"],
+        )
+        return {
+            "dur_loss": dur_loss,
+            "prior_loss": prior_loss,
+            "diff_loss": diff_loss,
+        }
