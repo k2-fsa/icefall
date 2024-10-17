@@ -19,49 +19,42 @@ import torch.nn as nn
 from scaling import ScaledLinear
 
 
-class Joiner(nn.Module):
-    def __init__(
-        self,
-        encoder_dim: int,
-        decoder_dim: int,
-        joiner_dim: int,
-        vocab_size: int,
-    ):
+class Joiner(torch.nn.Module):
+
+    def __init__(self, joiner_dim: int, vocab_size: int, device: torch.device) -> None:
+        """
+        Joiner initialization.
+
+        Parameters
+        ----------
+        joiner_dim : int
+            Input joiner dimension.
+        vocab_size : int
+            Output joiner dimension, the vocabulary size, the number of BPEs of the model.
+        device : torch.device
+            The device used to store the layer weights. Should be
+            either torch.device("cpu") or torch.device("cuda").
+        """
+
         super().__init__()
 
-        self.encoder_proj = ScaledLinear(encoder_dim, joiner_dim, initial_scale=0.25)
-        self.decoder_proj = ScaledLinear(decoder_dim, joiner_dim, initial_scale=0.25)
-        self.output_linear = nn.Linear(joiner_dim, vocab_size)
+        self.output_linear = torch.nn.Linear(joiner_dim, vocab_size, device=device)
 
-    def forward(
-        self,
-        encoder_out: torch.Tensor,
-        decoder_out: torch.Tensor,
-        project_input: bool = True,
-    ) -> torch.Tensor:
+    def forward(self, encoder_out: torch.Tensor, decoder_out: torch.Tensor) -> torch.Tensor:
         """
-        Args:
-          encoder_out:
-            Output from the encoder. Its shape is (N, T, s_range, C).
-          decoder_out:
-            Output from the decoder. Its shape is (N, T, s_range, C).
-          project_input:
-            If true, apply input projections encoder_proj and decoder_proj.
-            If this is false, it is the user's responsibility to do this
-            manually.
-        Returns:
-          Return a tensor of shape (N, T, s_range, C).
+        Does a forward pass of the Joiner module. Returns an output tensor after a simple joining.
+
+        Parameters
+        ----------
+        encoder_out : torch.Tensor[torch.float32]
+            An output tensor from the encoder after projection of shape (N, joiner_dim).
+        decoder_out : torch.Tensor[torch.float32]
+            An output tensor from the decoder after projection of shape (N, joiner_dim).
+
+        Returns
+        -------
+        torch.Tensor[torch.float32]
+            A float output tensor of log token probabilities of shape (N, vocab_size).
         """
-        assert encoder_out.ndim == decoder_out.ndim, (
-            encoder_out.shape,
-            decoder_out.shape,
-        )
 
-        if project_input:
-            logit = self.encoder_proj(encoder_out) + self.decoder_proj(decoder_out)
-        else:
-            logit = encoder_out + decoder_out
-
-        logit = self.output_linear(torch.tanh(logit))
-
-        return logit
+        return self.output_linear(torch.tanh(encoder_out + decoder_out))
