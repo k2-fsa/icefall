@@ -71,9 +71,12 @@ class MatchaTTS(torch.nn.Module):  # 🍵
             spk_emb_dim=spk_emb_dim,
         )
 
-        #  self.update_data_statistics(data_statistics)
-        self.register_buffer("mel_mean", torch.tensor(data_statistics["mel_mean"]))
-        self.register_buffer("mel_std", torch.tensor(data_statistics["mel_std"]))
+        if data_statistics is not None:
+            self.register_buffer("mel_mean", torch.tensor(data_statistics["mel_mean"]))
+            self.register_buffer("mel_std", torch.tensor(data_statistics["mel_std"]))
+        else:
+            self.register_buffer("mel_mean", torch.tensor(0.0))
+            self.register_buffer("mel_std", torch.tensor(1.0))
 
     @torch.inference_mode()
     def synthesise(
