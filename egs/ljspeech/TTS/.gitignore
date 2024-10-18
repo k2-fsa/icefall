@@ -1,0 +1,4 @@
+build
+core.c
+*.so
+my-output*
