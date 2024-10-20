@@ -45,11 +45,10 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --max-duration 1000
 
 It supports training with:
-  - transducer loss (default), with `--use-transducer True --use-ctc False`
-  - ctc loss (not recommended), with `--use-transducer False --use-ctc True`
-  - transducer loss & ctc loss, with `--use-transducer True --use-ctc True`
-  - ctc loss & attention decoder loss, no transducer loss,
-    with `--use-transducer False --use-ctc True --use-attention-decoder True`
+  - transducer loss (default)
+  - ctc loss
+  - attention decoder loss
+  - cr-ctc loss (should use half the max-duration compared to regular ctc)
 """
 
 

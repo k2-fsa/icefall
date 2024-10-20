@@ -1,5 +1,315 @@
 ## Results
 
+### zipformer (zipformer + pruned-transducer w/ CR-CTC)
+
+See <https://github.com/k2-fsa/icefall/pull/1766> for more details.
+
+[zipformer](./zipformer)
+
+#### Non-streaming
+
+##### large-scale model, number of model parameters: 148824074, i.e., 148.8 M
+
+You can find a pretrained model, training logs, decoding logs, and decoding results at:
+<https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-large-transducer-with-CR-CTC-20241019>
+
+You can use <https://github.com/k2-fsa/sherpa> to deploy it.
+
+| decoding method                      | test-clean | test-other | comment             |
+|--------------------------------------|------------|------------|---------------------|
+| greedy_search                        | 1.9        | 3.96       | --epoch 50 --avg 26 |
+| modified_beam_search                 | 1.88       | 3.95       | --epoch 50 --avg 26 |
+
+The training command using 2 80G-A100 GPUs is:
+```bash
+export CUDA_VISIBLE_DEVICES="0,1"
+# for non-streaming model training:
+./zipformer/train.py \
+  --world-size 2 \
+  --num-epochs 50 \
+  --start-epoch 1 \
+  --use-fp16 1 \
+  --exp-dir zipformer/exp-large-cr-ctc-rnnt \
+  --use-cr-ctc 1 \
+  --use-ctc 1 \
+  --use-transducer 1 \
+  --use-attention-decoder 0 \
+  --num-encoder-layers 2,2,4,5,4,2 \
+  --feedforward-dim 512,768,1536,2048,1536,768 \
+  --encoder-dim 192,256,512,768,512,256 \
+  --encoder-unmasked-dim 192,192,256,320,256,192 \
+  --ctc-loss-scale 0.1 \
+  --enable-spec-aug 0 \
+  --cr-loss-scale 0.02 \
+  --time-mask-ratio 2.5 \
+  --full-libri 1 \
+  --max-duration 1400 \
+  --master-port 12345
+```
+
+The decoding command is:
+```bash
+export CUDA_VISIBLE_DEVICES="0"
+for m in greedy_search modified_beam_search; do
+  ./zipformer/decode.py \
+    --epoch 50 \
+    --avg 26 \
+    --exp-dir zipformer/exp-large-cr-ctc-rnnt \
+    --use-cr-ctc 1 \
+    --use-ctc 1 \
+    --use-transducer 1 \
+    --use-attention-decoder 0 \
+    --num-encoder-layers 2,2,4,5,4,2 \
+    --feedforward-dim 512,768,1536,2048,1536,768 \
+    --encoder-dim 192,256,512,768,512,256 \
+    --encoder-unmasked-dim 192,192,256,320,256,192 \
+    --max-duration 300 \
+    --decoding-method $m
+done
+```
+
+### zipformer (zipformer + CR-CTC-AED)
+
+See <https://github.com/k2-fsa/icefall/pull/1766> for more details.
+
+[zipformer](./zipformer)
+
+#### Non-streaming
+
+##### large-scale model, number of model parameters: 174319650, i.e., 174.3 M
+
+You can find a pretrained model, training logs, decoding logs, and decoding results at:
+<https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-large-cr-ctc-aed-20241020>
+
+You can use <https://github.com/k2-fsa/sherpa> to deploy it.
+
+| decoding method                      | test-clean | test-other | comment             |
+|--------------------------------------|------------|------------|---------------------|
+| attention-decoder-rescoring-no-ngram | 1.96       | 4.08       | --epoch 50 --avg 20 |
+
+The training command using 2 80G-A100 GPUs is:
+```bash
+export CUDA_VISIBLE_DEVICES="0,1"
+# for non-streaming model training:
+./zipformer/train.py \
+  --world-size 2 \
+  --num-epochs 50 \
+  --start-epoch 1 \
+  --use-fp16 1 \
+  --exp-dir zipformer/exp-large-cr-ctc-aed \
+  --use-cr-ctc 1 \
+  --use-ctc 1 \
+  --use-transducer 0 \
+  --use-attention-decoder 1 \
+  --num-encoder-layers 2,2,4,5,4,2 \
+  --feedforward-dim 512,768,1536,2048,1536,768 \
+  --encoder-dim 192,256,512,768,512,256 \
+  --encoder-unmasked-dim 192,192,256,320,256,192 \
+  --ctc-loss-scale 0.1 \
+  --attention-decoder-loss-scale 0.9 \
+  --enable-spec-aug 0 \
+  --cr-loss-scale 0.02 \
+  --time-mask-ratio 2.5 \
+  --full-libri 1 \
+  --max-duration 1200 \
+  --master-port 12345
+```
+
+The decoding command is:
+```bash
+export CUDA_VISIBLE_DEVICES="0"
+./zipformer/ctc_decode.py \
+  --epoch 50 \
+  --avg 20 \
+  --exp-dir zipformer/exp-large-cr-ctc-aed/ \
+  --use-cr-ctc 1 \
+  --use-ctc 1 \
+  --use-transducer 0 \
+  --use-attention-decoder 1 \
+  --num-encoder-layers 2,2,4,5,4,2 \
+  --feedforward-dim 512,768,1536,2048,1536,768 \
+  --encoder-dim 192,256,512,768,512,256 \
+  --encoder-unmasked-dim 192,192,256,320,256,192 \
+  --max-duration 200 \
+  --decoding-method attention-decoder-rescoring-no-ngram
+done
+```
+
+### zipformer (zipformer + CR-CTC)
+
+See <https://github.com/k2-fsa/icefall/pull/1766> for more details.
+
+[zipformer](./zipformer)
+
+#### Non-streaming
+
+##### small-scale model, number of model parameters: 22118279, i.e., 22.1 M
+
+You can find a pretrained model, training logs, decoding logs, and decoding results at:
+<https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-small-cr-ctc-20241018>
+
+You can use <https://github.com/k2-fsa/sherpa> to deploy it.
+
+| decoding method                      | test-clean | test-other | comment             |
+|--------------------------------------|------------|------------|---------------------|
+| ctc-greedy-decoding                  | 2.57       | 5.95       | --epoch 50 --avg 25 |
+
+The training command using 2 32G-V100 GPUs is:
+```bash
+export CUDA_VISIBLE_DEVICES="0,1"
+# for non-streaming model training:
+./zipformer/train.py \
+  --world-size 2 \
+  --num-epochs 50 \
+  --start-epoch 1 \
+  --use-fp16 1 \
+  --exp-dir zipformer/exp-small/ \
+  --use-cr-ctc 1 \
+  --use-ctc 1 \
+  --use-transducer 0 \
+  --use-attention-decoder 0 \
+  --num-encoder-layers 2,2,2,2,2,2 \
+  --feedforward-dim 512,768,768,768,768,768 \
+  --encoder-dim 192,256,256,256,256,256 \
+  --encoder-unmasked-dim 192,192,192,192,192,192 \
+  --base-lr 0.04 \
+  --enable-spec-aug 0 \
+  --cr-loss-scale 0.2 \
+  --time-mask-ratio 2.5 \
+  --full-libri 1 \
+  --max-duration 850 \
+  --master-port 12345
+```
+
+The decoding command is:
+```bash
+export CUDA_VISIBLE_DEVICES="0"
+for m in ctc-greedy-search; do
+  ./zipformer/ctc_decode.py \
+    --epoch 50 \
+    --avg 25 \
+    --exp-dir zipformer/exp-small \
+    --use-cr-ctc 1 \
+    --use-ctc 1 \
+    --use-transducer 0 \
+    --use-attention-decoder 0 \
+    --num-encoder-layers 2,2,2,2,2,2 \
+    --feedforward-dim 512,768,768,768,768,768 \
+    --encoder-dim 192,256,256,256,256,256 \
+    --encoder-unmasked-dim 192,192,192,192,192,192 \
+    --max-duration 600 \
+    --decoding-method $m
+done
+```
+
+##### medium-scale model, number of model parameters: 64250603, i.e., 64.3 M
+
+You can find a pretrained model, training logs, decoding logs, and decoding results at:
+<https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-medium-cr-ctc-20241018>
+
+You can use <https://github.com/k2-fsa/sherpa> to deploy it.
+
+| decoding method                      | test-clean | test-other | comment             |
+|--------------------------------------|------------|------------|---------------------|
+| ctc-greedy-decoding                  | 2.12       | 4.62       | --epoch 50 --avg 24 |
+
+The training command using 4 32G-V100 GPUs is:
+```bash
+export CUDA_VISIBLE_DEVICES="0,1,2,3"
+# For non-streaming model training:
+./zipformer/train.py \
+  --world-size 4 \
+  --num-epochs 50 \
+  --start-epoch 1 \
+  --use-fp16 1 \
+  --exp-dir zipformer/exp \
+  --use-cr-ctc 1 \
+  --use-ctc 1 \
+  --use-transducer 0 \
+  --use-attention-decoder 0 \
+  --enable-spec-aug 0 \
+  --cr-loss-scale 0.2 \
+  --time-mask-ratio 2.5 \
+  --full-libri 1 \
+  --max-duration 700 \
+  --master-port 12345
+```
+
+The decoding command is:
+```bash
+export CUDA_VISIBLE_DEVICES="0"
+for m in ctc-greedy-search; do
+  ./zipformer/ctc_decode.py \
+    --epoch 50 \
+    --avg 24 \
+    --exp-dir zipformer/exp \
+    --use-cr-ctc 1 \
+    --use-ctc 1 \
+    --use-transducer 0 \
+    --use-attention-decoder 0 \
+    --max-duration 600 \
+    --decoding-method $m
+done
+```
+
+##### large-scale model, number of model parameters: 147010094, i.e., 147.0 M
+
+You can find a pretrained model, training logs, decoding logs, and decoding results at:
+<https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-large-cr-ctc-20241018>
+
+You can use <https://github.com/k2-fsa/sherpa> to deploy it.
+
+| decoding method                      | test-clean | test-other | comment             |
+|--------------------------------------|------------|------------|---------------------|
+| ctc-greedy-decoding                  | 2.03       | 4.37       | --epoch 50 --avg 26 |
+
+The training command using 2 80G-A100 GPUs is:
+```bash
+export CUDA_VISIBLE_DEVICES="0,1"
+# For non-streaming model training:
+./zipformer/train.py \
+  --world-size 2 \
+  --num-epochs 50 \
+  --start-epoch 1 \
+  --use-fp16 1 \
+  --exp-dir zipformer/exp-large \
+  --use-cr-ctc 1 \
+  --use-ctc 1 \
+  --use-transducer 0 \
+  --use-attention-decoder 0 \
+  --num-encoder-layers 2,2,4,5,4,2 \
+  --feedforward-dim 512,768,1536,2048,1536,768 \
+  --encoder-dim 192,256,512,768,512,256 \
+  --encoder-unmasked-dim 192,192,256,320,256,192 \
+  --enable-spec-aug 0 \
+  --cr-loss-scale 0.2 \
+  --time-mask-ratio 2.5 \
+  --full-libri 1 \
+  --max-duration 1400 \
+  --master-port 12345
+```
+
+The decoding command is:
+```bash
+export CUDA_VISIBLE_DEVICES="0"
+for m in ctc-greedy-search; do
+  ./zipformer/ctc_decode.py \
+    --epoch 50 \
+    --avg 26 \
+    --exp-dir zipformer/exp-large \
+    --use-cr-ctc 1 \
+    --use-ctc 1 \
+    --use-transducer 0 \
+    --use-attention-decoder 0 \
+    --num-encoder-layers 2,2,4,5,4,2 \
+    --feedforward-dim 512,768,1536,2048,1536,768 \
+    --encoder-dim 192,256,512,768,512,256 \
+    --encoder-unmasked-dim 192,192,256,320,256,192 \
+    --max-duration 600 \
+    --decoding-method $m
+done
+```
+
 ### zipformer (zipformer + CTC/AED)
 
 See <https://github.com/k2-fsa/icefall/pull/1389> for more details.
