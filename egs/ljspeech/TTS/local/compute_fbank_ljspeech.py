@@ -106,6 +106,8 @@ def compute_fbank_ljspeech(num_jobs: int):
         use_fft_mag=True,
         low_freq=0,
         high_freq=8000,
+        remove_dc_offset=False,
+        preemph_coeff=0,
         # should be identical to n_feats in ../matcha/train.py
         num_filters=80,
     )

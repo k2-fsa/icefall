@@ -191,3 +191,10 @@ if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
       touch data/fbank/.ljspeech_split.done
   fi
 fi
+
+if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
+  log "Stage 9: Compute fbank mean and std (used by ./matcha)"
+  if [ ! -f ./data/fbank/cmvn.json ]; then
+    ./local/compute_fbank_statistics.py ./data/fbank/ljspeech_cuts_train.jsonl.gz ./data/fbank/cmvn.json
+  fi
+fi

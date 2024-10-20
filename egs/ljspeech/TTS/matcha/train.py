@@ -13,6 +13,7 @@ import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 from lhotse.utils import fix_random_seed
+from matcha.data.text_mel_datamodule import TextMelDataModule
 from matcha.models.matcha_tts import MatchaTTS
 from matcha.tokenizer import Tokenizer
 from matcha.utils.model import fix_len_compatibility
@@ -122,8 +123,11 @@ def get_parser():
 def get_data_statistics():
     return AttributeDict(
         {
-            "mel_mean": 0.0,
-            "mel_std": 1.0,
+            #  "mel_mean": -5.517028331756592, # matcha-tts
+            #  "mel_std": 2.0643954277038574,
+            # ours
+            "mel_mean": -1.168782114982605,
+            "mel_std": 1.9283572435379028,
         }
     )
 
@@ -134,7 +138,8 @@ def _get_data_params() -> AttributeDict:
             "name": "ljspeech",
             "train_filelist_path": "./filelists/ljs_audio_text_train_filelist.txt",
             "valid_filelist_path": "./filelists/ljs_audio_text_val_filelist.txt",
-            "num_workers": 3,
+            "batch_size": 64,
+            "num_workers": 1,
             "pin_memory": False,
             "cleaners": ["english_cleaners2"],
             "add_blank": True,
@@ -289,8 +294,17 @@ def load_checkpoint_if_available(
     return saved_params
 
 
-def prepare_input(batch: dict, tokenizer: Tokenizer, device: torch.device):
+def prepare_input(batch: dict, tokenizer: Tokenizer, device: torch.device, params):
     """Parse batch data"""
+    mel_mean = params.data_args.data_statistics.mel_mean
+    mel_std_inv = 1 / params.data_args.data_statistics.mel_std
+    for i in range(batch["features"].shape[0]):
+        n = batch["features_lens"][i]
+        batch["features"][i : i + 1, :n, :] = (
+            batch["features"][i : i + 1, :n, :] - mel_mean
+        ) * mel_std_inv
+        batch["features"][i : i + 1, n:, :] = 0
+
     audio = batch["audio"].to(device)
     features = batch["features"].to(device)
     audio_lens = batch["audio_lens"].to(device)
@@ -298,7 +312,7 @@ def prepare_input(batch: dict, tokenizer: Tokenizer, device: torch.device):
     tokens = batch["tokens"]
 
     tokens = tokenizer.tokens_to_token_ids(
-        tokens, intersperse_blank=True, add_sos=True, add_eos=True
+        tokens, intersperse_blank=True, add_sos=False, add_eos=False
     )
     tokens = k2.RaggedTensor(tokens)
     row_splits = tokens.shape.row_splits(1)
@@ -315,7 +329,7 @@ def prepare_input(batch: dict, tokenizer: Tokenizer, device: torch.device):
 
         #  features_lens[features_lens.argmax()] += pad
 
-    return audio, audio_lens, features, features_lens, tokens, tokens_lens
+    return audio, audio_lens, features, features_lens.long(), tokens, tokens_lens.long()
 
 
 def compute_validation_loss(
@@ -336,28 +350,36 @@ def compute_validation_loss(
 
     with torch.no_grad():
         for batch_idx, batch in enumerate(valid_dl):
+            if "tokens" in batch:
 
-            (
-                audio,
-                audio_lens,
-                features,
-                features_lens,
-                tokens,
-                tokens_lens,
-            ) = prepare_input(batch, tokenizer, device)
+                (
+                    audio,
+                    audio_lens,
+                    features,
+                    features_lens,
+                    tokens,
+                    tokens_lens,
+                ) = prepare_input(batch, tokenizer, device, params)
 
-            losses = get_losses(
-                {
-                    "x": tokens,
-                    "x_lengths": tokens_lens,
-                    "y": features.permute(0, 2, 1),
-                    "y_lengths": features_lens,
-                    "spks": None,  # should change it for multi-speakers
-                    "durations": None,
-                }
-            )
+                losses = get_losses(
+                    {
+                        "x": tokens,
+                        "x_lengths": tokens_lens,
+                        "y": features.permute(0, 2, 1),
+                        "y_lengths": features_lens,
+                        "spks": None,  # should change it for multi-speakers
+                        "durations": None,
+                    }
+                )
 
-            batch_size = len(batch["tokens"])
+                batch_size = len(batch["tokens"])
+            else:
+                batch_size = batch["x"].shape[0]
+                batch["x"] = batch["x"].to(device)
+                batch["x_lengths"] = batch["x_lengths"].to(device)
+                batch["y"] = batch["y"].to(device)
+                batch["y_lengths"] = batch["y_lengths"].to(device)
+                losses = get_losses(batch)
 
             loss_info = MetricsTracker()
             loss_info["samples"] = batch_size
@@ -451,24 +473,38 @@ def train_one_epoch(
         # features_lens, (N,), int32
         # tokens: List[List[str]], len(tokens) == N
 
-        batch_size = len(batch["tokens"])
+        if "tokens" in batch:
+            batch_size = len(batch["tokens"])
 
-        audio, audio_lens, features, features_lens, tokens, tokens_lens = prepare_input(
-            batch, tokenizer, device
-        )
-
+            (
+                audio,
+                audio_lens,
+                features,
+                features_lens,
+                tokens,
+                tokens_lens,
+            ) = prepare_input(batch, tokenizer, device, params)
+        else:
+            batch_size = batch["x"].shape[0]
         try:
             with autocast(enabled=params.use_fp16):
-                losses = get_losses(
-                    {
-                        "x": tokens,
-                        "x_lengths": tokens_lens,
-                        "y": features.permute(0, 2, 1),
-                        "y_lengths": features_lens,
-                        "spks": None,  # should change it for multi-speakers
-                        "durations": None,
-                    }
-                )
+                if "tokens" in batch:
+                    losses = get_losses(
+                        {
+                            "x": tokens,
+                            "x_lengths": tokens_lens,
+                            "y": features.permute(0, 2, 1),
+                            "y_lengths": features_lens,
+                            "spks": None,  # should change it for multi-speakers
+                            "durations": None,
+                        }
+                    )
+                else:
+                    batch["x"] = batch["x"].to(device)
+                    batch["x_lengths"] = batch["x_lengths"].to(device)
+                    batch["y"] = batch["y"].to(device)
+                    batch["y_lengths"] = batch["y_lengths"].to(device)
+                    losses = get_losses(batch)
 
                 loss = sum(losses.values())
 
@@ -586,6 +622,7 @@ def run(rank, world_size, args):
     params.blank_id = tokenizer.pad_id
     params.vocab_size = tokenizer.vocab_size
     params.model_args.n_vocab = params.vocab_size
+    params.model_args.n_vocab = 178
 
     logging.info(params)
     print(params)
@@ -595,7 +632,6 @@ def run(rank, world_size, args):
 
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of parameters: {num_param}")
-    print(f"Number of parameters: {num_param}")
 
     assert params.start_epoch > 0, params.start_epoch
     checkpoints = load_checkpoint_if_available(params=params, model=model)
@@ -609,13 +645,21 @@ def run(rank, world_size, args):
     optimizer = torch.optim.Adam(model.parameters(), **params.model_args.optimizer)
 
     logging.info("About to create datamodule")
-    ljspeech = LJSpeechTtsDataModule(args)
 
-    train_cuts = ljspeech.train_cuts()
-    train_dl = ljspeech.train_dataloaders(train_cuts)
+    if False:
+        params.data_args.tokenizer = tokenizer
+        data_module = TextMelDataModule(hparams=params.data_args)
+        del params.data_args.tokenizer
+        train_dl = data_module.train_dataloader()
+        valid_dl = data_module.val_dataloader()
+    else:
+        ljspeech = LJSpeechTtsDataModule(args)
 
-    valid_cuts = ljspeech.valid_cuts()
-    valid_dl = ljspeech.valid_dataloaders(valid_cuts)
+        train_cuts = ljspeech.train_cuts()
+        train_dl = ljspeech.train_dataloaders(train_cuts)
+
+        valid_cuts = ljspeech.valid_cuts()
+        valid_dl = ljspeech.valid_dataloaders(valid_cuts)
 
     scaler = GradScaler(enabled=params.use_fp16, init_scale=1.0)
     if checkpoints and "grad_scaler" in checkpoints:
@@ -625,7 +669,8 @@ def run(rank, world_size, args):
     for epoch in range(params.start_epoch, params.num_epochs + 1):
         logging.info(f"Start epoch {epoch}")
         fix_random_seed(params.seed + epoch - 1)
-        train_dl.sampler.set_epoch(epoch - 1)
+        if "sampler" in train_dl:
+            train_dl.sampler.set_epoch(epoch - 1)
 
         params.cur_epoch = epoch
 

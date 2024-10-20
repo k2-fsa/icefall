@@ -10,6 +10,7 @@ import soundfile as sf
 import torch
 from matcha.hifigan.config import v1
 from matcha.hifigan.denoiser import Denoiser
+from tokenizer import Tokenizer
 from matcha.hifigan.models import Generator as HiFiGAN
 from matcha.text import sequence_to_text, text_to_sequence
 from matcha.utils.utils import intersperse
@@ -28,7 +29,7 @@ def get_parser():
     parser.add_argument(
         "--epoch",
         type=int,
-        default=140,
+        default=1320,
         help="""It specifies the checkpoint to use for decoding.
         Note: Epoch counts from 1.
         """,
@@ -37,11 +38,17 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=Path,
-        default="matcha/exp",
+        default="matcha/exp-fbank",
         help="""The experiment dir.
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
         """,
+    )
+
+    parser.add_argument(
+        "--tokens",
+        type=Path,
+        default="data/tokens.txt",
     )
 
     return parser
@@ -71,19 +78,17 @@ def save_to_folder(filename: str, output: dict, folder: str):
     sf.write(folder / f"{filename}.wav", output["waveform"], 22050, "PCM_24")
 
 
-def process_text(text: str):
-    x = torch.tensor(
-        intersperse(text_to_sequence(text, ["english_cleaners2"])[0], 0),
-        dtype=torch.long,
-        device="cpu",
-    )[None]
+def process_text(text: str, tokenizer):
+    x = tokenizer.texts_to_token_ids([text], add_sos=True, add_eos=True)
+    x = torch.tensor(x, dtype=torch.long)
     x_lengths = torch.tensor([x.shape[-1]], dtype=torch.long, device="cpu")
-    x_phones = sequence_to_text(x.squeeze(0).tolist())
-    return {"x_orig": text, "x": x, "x_lengths": x_lengths, "x_phones": x_phones}
+    return {"x_orig": text, "x": x, "x_lengths": x_lengths}
 
 
-def synthesise(model, n_timesteps, text, length_scale, temperature, spks=None):
-    text_processed = process_text(text)
+def synthesise(
+    model, tokenizer, n_timesteps, text, length_scale, temperature, spks=None
+):
+    text_processed = process_text(text, tokenizer)
     start_t = dt.datetime.now()
     output = model.synthesise(
         text_processed["x"],
@@ -108,6 +113,11 @@ def main():
     params.update(vars(args))
     logging.info(params)
 
+    tokenizer = Tokenizer(params.tokens)
+    params.blank_id = tokenizer.pad_id
+    params.vocab_size = tokenizer.vocab_size
+    params.model_args.n_vocab = params.vocab_size
+
     logging.info("About to create model")
     model = get_model(params)
     load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
@@ -117,12 +127,13 @@ def main():
     denoiser = Denoiser(vocoder, mode="zeros")
 
     texts = [
-        "The Secret Service believed that it was very doubtful that any President would ride regularly in a vehicle with a fixed top, even though transparent.",
-        "Today as always, men fall into two groups: slaves and free men. Whoever does not have two-thirds of his day for himself, is a slave, whatever he may be: a statesman, a businessman, an official, or a scholar.",
+        "How are you doing, my friend",
+        #  "The Secret Service believed that it was very doubtful that any President would ride regularly in a vehicle with a fixed top, even though transparent.",
+        #  "Today as always, men fall into two groups: slaves and free men. Whoever does not have two-thirds of his day for himself, is a slave, whatever he may be: a statesman, a businessman, an official, or a scholar.",
     ]
 
     # Number of ODE Solver steps
-    n_timesteps = 2
+    n_timesteps = 3
 
     # Changes to the speaking rate
     length_scale = 1.0
@@ -135,6 +146,7 @@ def main():
     for i, text in enumerate(tqdm(texts)):
         output = synthesise(
             model=model,
+            tokenizer=tokenizer,
             n_timesteps=n_timesteps,
             text=text,
             length_scale=length_scale,
@@ -154,7 +166,7 @@ def main():
         print(f"{'*' * 53}")
         print(f"Phonetised text - {i}")
         print(f"{'-' * 53}")
-        print(output["x_phones"])
+        print(output["x"])
         print(f"{'*' * 53}")
         print(f"RTF:\t\t{output['rtf']:.6f}")
         print(f"RTF Waveform:\t{rtf_w:.6f}")
@@ -162,7 +174,7 @@ def main():
         rtfs_w.append(rtf_w)
 
         # Save the generated waveform
-        save_to_folder(i, output, folder="./my-output")
+        save_to_folder(i, output, folder="./my-output-1320")
 
     print(f"Number of ODE steps: {n_timesteps}")
     print(f"Mean RTF:\t\t\t\t{np.mean(rtfs):.6f} ± {np.std(rtfs):.6f}")

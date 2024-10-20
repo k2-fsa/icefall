@@ -181,6 +181,8 @@ class LJSpeechTtsDataModule:
                 frame_length=1024 / sampling_rate,  # (in second),
                 frame_shift=256 / sampling_rate,  # (in second)
                 use_fft_mag=True,
+                remove_dc_offset=False,
+                preemph_coeff=0,
                 low_freq=0,
                 high_freq=8000,
                 # should be identical to n_feats in ./train.py
@@ -242,6 +244,8 @@ class LJSpeechTtsDataModule:
                 frame_length=1024 / sampling_rate,  # (in second),
                 frame_shift=256 / sampling_rate,  # (in second)
                 use_fft_mag=True,
+                remove_dc_offset=False,
+                preemph_coeff=0,
                 low_freq=0,
                 high_freq=8000,
                 # should be identical to n_feats in ./train.py
@@ -286,6 +290,8 @@ class LJSpeechTtsDataModule:
                 frame_length=1024 / sampling_rate,  # (in second),
                 frame_shift=256 / sampling_rate,  # (in second)
                 use_fft_mag=True,
+                remove_dc_offset=False,
+                preemph_coeff=0,
                 low_freq=0,
                 high_freq=8000,
                 # should be identical to n_feats in ./train.py
