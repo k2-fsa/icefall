@@ -86,7 +86,7 @@ class LibriTTSAsrDataModule:
             "--full-libri",
             type=str2bool,
             default=True,
-            help="""When enabled, use 960h LibriTTS. 
+            help="""When enabled, use the entire LibriTTS training set.
             Otherwise, use the 100h subset.""",
         )
 
