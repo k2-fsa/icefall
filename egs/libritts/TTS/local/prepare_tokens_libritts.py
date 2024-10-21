@@ -31,6 +31,14 @@ from piper_phonemize import phonemize_espeak
 from tqdm.auto import tqdm
 
 
+def remove_punc_to_upper(text: str) -> str:
+    text = text.replace("‘", "'")
+    text = text.replace("’", "'")
+    tokens = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'")
+    s_list = [x.upper() if x in tokens else " " for x in text]
+    s = " ".join("".join(s_list).split()).strip()
+    return s
+
 def prepare_tokens_libritts():
     output_dir = Path("data/spectrogram")
     prefix = "libritts"
@@ -63,6 +71,8 @@ def prepare_tokens_libritts():
             for t in tokens_list:
                 tokens.extend(t)
             cut.tokens = tokens
+            cut.supervisions[0].normalized_text = remove_punc_to_upper(text)
+            
             new_cuts.append(cut)
 
         new_cut_set = CutSet.from_cuts(new_cuts)
