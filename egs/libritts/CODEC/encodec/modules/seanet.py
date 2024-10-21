@@ -161,7 +161,7 @@ class SEANetEncoder(nn.Module):
                     SEANetResnetBlock(
                         mult * n_filters,
                         kernel_sizes=[residual_kernel_size, 1],
-                        dilations=[dilation_base ** j, 1],
+                        dilations=[dilation_base**j, 1],
                         norm=norm,
                         norm_params=norm_params,
                         activation=activation,
@@ -311,7 +311,7 @@ class SEANetDecoder(nn.Module):
                     SEANetResnetBlock(
                         mult * n_filters // 2,
                         kernel_sizes=[residual_kernel_size, 1],
-                        dilations=[dilation_base ** j, 1],
+                        dilations=[dilation_base**j, 1],
                         activation=activation,
                         activation_params=activation_params,
                         norm=norm,

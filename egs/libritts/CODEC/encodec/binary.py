@@ -132,7 +132,7 @@ def test():
     for rep in range(4):
         length: int = torch.randint(10, 2_000, (1,)).item()
         bits: int = torch.randint(1, 16, (1,)).item()
-        tokens: List[int] = torch.randint(2 ** bits, (length,)).tolist()
+        tokens: List[int] = torch.randint(2**bits, (length,)).tolist()
         rebuilt: List[int] = []
         buf = io.BytesIO()
         packer = BitPacker(bits, buf)
