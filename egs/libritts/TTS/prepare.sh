@@ -53,6 +53,9 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
     log "Downloading x-vector"
 
     git clone https://huggingface.co/datasets/zrjin/xvector_nnet_1a_libritts_clean_460 $dl_dir/xvector_nnet_1a_libritts_clean_460
+
+    mkdir -p exp/xvector_nnet_1a/
+    cp -r $dl_dir/xvector_nnet_1a_libritts_clean_460/* exp/xvector_nnet_1a/
   fi
 
 fi
