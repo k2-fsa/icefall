@@ -50,7 +50,7 @@ We place an additional Conv1d layer right after the input embedding layer.
 | `conformer-ctc2`             | Reworked Conformer | Use auxiliary attention head |
 | `conformer-ctc3`             | Reworked Conformer | Streaming version + delay penalty |
 | `zipformer-ctc`              | Zipformer          | Use auxiliary attention head |
-| `zipformer`                  | Upgraded Zipformer | Use auxiliary transducer head / attention-decoder head | The latest recipe |
+| `zipformer`                  | Upgraded Zipformer | Use auxiliary transducer head / attention-decoder head (the latest recipe) |
 
 # MMI
 
@@ -58,3 +58,9 @@ We place an additional Conv1d layer right after the input embedding layer.
 |------------------------------|-----------|---------------------------------------------------|
 | `conformer-mmi`              | Conformer |                                                   |
 | `zipformer-mmi`              | Zipformer | CTC warmup + use HP as decoding graph for decoding |
+
+# CR-CTC
+
+|                              | Encoder            | Comment                      |
+|------------------------------|--------------------|------------------------------|
+| `zipformer`                  | Upgraded Zipformer | Could also be an auxiliary loss to improve transducer or CTC/AED (the latest recipe) |
