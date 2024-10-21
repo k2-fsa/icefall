@@ -212,7 +212,7 @@ def get_params() -> AttributeDict:
             "log_interval": 50,
             "valid_interval": 200,
             "env_info": get_env_info(),
-            "sampling_rate": 22050,
+            "sampling_rate": 24000,
             "frame_shift": 256,
             "frame_length": 1024,
             "feature_dim": 513,  # 1024 // 2 + 1, 1024 is fft_length
