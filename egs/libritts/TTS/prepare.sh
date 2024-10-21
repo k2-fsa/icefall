@@ -92,7 +92,7 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   # together to form the training set.
   if [ ! -f data/spectrogram/libritts_cuts_train-clean-460.jsonl.gz ]; then
     cat <(gunzip -c data/spectrogram/libritts_cuts_train-clean-100.jsonl.gz) \
-      <(gunzip -c data/spectrogram/libritts_cuts_train-clean-360.jsonl.gz) \
+      <(gunzip -c data/spectrogram/libritts_cuts_train-clean-360.jsonl.gz) | \
       shuf | gzip -c > data/spectrogram/libritts_cuts_train-clean-460.jsonl.gz
   fi
 
