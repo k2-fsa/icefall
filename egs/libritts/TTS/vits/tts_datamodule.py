@@ -272,21 +272,21 @@ class LibrittsTtsDataModule:
                 feature_input_strategy=eval(self.args.input_strategy)(),
                 return_cuts=self.args.return_cuts,
             )
-        valid_sampler = DynamicBucketingSampler(
+        dev_sampler = DynamicBucketingSampler(
             cuts_valid,
             max_duration=self.args.max_duration,
             shuffle=False,
         )
         logging.info("About to create valid dataloader")
-        valid_dl = DataLoader(
+        dev_dl = DataLoader(
             validate,
-            sampler=valid_sampler,
+            sampler=dev_sampler,
             batch_size=None,
             num_workers=2,
             persistent_workers=False,
         )
 
-        return valid_dl
+        return dev_dl
 
     def test_dataloaders(self, cuts: CutSet) -> DataLoader:
         logging.info("About to create test dataset")

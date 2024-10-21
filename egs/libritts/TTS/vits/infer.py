@@ -34,9 +34,11 @@ from pathlib import Path
 from typing import Dict, List
 
 import k2
+import numpy as np
 import torch
 import torch.nn as nn
 import torchaudio
+from lhotse.features.io import KaldiReader
 from tokenizer import Tokenizer
 from train import get_model, get_params
 from tts_datamodule import LibrittsTtsDataModule
@@ -82,7 +84,7 @@ def infer_dataset(
     params: AttributeDict,
     model: nn.Module,
     tokenizer: Tokenizer,
-    speaker_map: Dict[str, int],
+    speaker_map: KaldiReader,
 ) -> None:
     """Decode dataset.
     The ground-truth and generated audio pairs will be saved to `params.save_wav_dir`.
@@ -145,20 +147,21 @@ def infer_dataset(
             tokens_lens = tokens_lens.to(device)
             # tensor of shape (B, T)
             tokens = tokens.pad(mode="constant", padding_value=tokenizer.pad_id)
-            speakers = (
-                torch.Tensor([speaker_map[sid] for sid in batch["speakers"]])
-                .int()
-                .to(device)
-            )
 
             audio = batch["audio"]
             audio_lens = batch["audio_lens"].tolist()
             cut_ids = [cut.id for cut in batch["cut"]]
+            sids = ["_".join(cut_id.split("_")[:2]) for cut_id in cut_ids]
+            speakers = (
+                torch.Tensor(np.array([speaker_map.read(sid) for sid in sids]))
+                .squeeze(1)
+                .to(device)
+            )
 
             audio_pred, _, durations = model.inference_batch(
                 text=tokens,
                 text_lengths=tokens_lens,
-                sids=speakers,
+                spembs=speakers,
             )
             audio_pred = audio_pred.detach().cpu()
             # convert to samples
@@ -222,8 +225,6 @@ def main():
     # we need cut ids to display recognition results.
     args.return_cuts = True
     libritts = LibrittsTtsDataModule(args)
-    speaker_map = libritts.speakers()
-    params.num_spks = len(speaker_map)
 
     logging.info(f"Device: {device}")
     logging.info(params)
@@ -242,17 +243,23 @@ def main():
     logging.info(f"Number of parameters in discriminator: {num_param_d}")
     logging.info(f"Total number of parameters: {num_param_g + num_param_d}")
 
-    test_cuts = libritts.test_cuts()
-    test_dl = libritts.test_dataloaders(test_cuts)
+    test_clean_cuts = libritts.test_clean_cuts()
+    test_clean_speaker_map = libritts.test_clean_xvector()
+    test_clean_dl = libritts.test_dataloaders(test_clean_cuts)
 
-    valid_cuts = libritts.valid_cuts()
-    valid_dl = libritts.valid_dataloaders(valid_cuts)
+    dev_clean_cuts = libritts.dev_clean_cuts()
+    dev_clean_speaker_map = libritts.dev_clean_xvector()
+    dev_clean_dl = libritts.dev_dataloaders(dev_clean_cuts)
 
-    infer_sets = {"test": test_dl, "valid": valid_dl}
+    infer_sets = {
+        "test-clean": (test_clean_dl, test_clean_speaker_map),
+        "dev-clean": (dev_clean_dl, dev_clean_speaker_map),
+    }
 
-    for subset, dl in infer_sets.items():
+    for subset, data in infer_sets.items():
         save_wav_dir = params.res_dir / "wav" / subset
         save_wav_dir.mkdir(parents=True, exist_ok=True)
+        dl, speaker_map = data
 
         logging.info(f"Processing {subset} set, saving to {save_wav_dir}")
 
