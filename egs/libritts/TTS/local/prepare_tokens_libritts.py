@@ -42,6 +42,9 @@ def prepare_tokens_libritts():
         "test-other",
         "train-all-shuf",
         "train-clean-460",
+        # "train-clean-100",
+        # "train-clean-360",
+        # "train-other-500",
     )
 
     for partition in partitions:
