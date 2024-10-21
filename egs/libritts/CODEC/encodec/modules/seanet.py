@@ -2,7 +2,7 @@
 # All rights reserved.
 #
 # This source code is licensed under the license found in the
-# LICENSE file in the root directory of this source tree.
+# LICENSE file at https://github.com/facebookresearch/encodec/blob/main/LICENSE
 """Encodec SEANet-based encoder and decoder implementation."""
 
 from typing import Any, Dict, List, Optional
@@ -161,7 +161,7 @@ class SEANetEncoder(nn.Module):
                     SEANetResnetBlock(
                         mult * n_filters,
                         kernel_sizes=[residual_kernel_size, 1],
-                        dilations=[dilation_base**j, 1],
+                        dilations=[dilation_base ** j, 1],
                         norm=norm,
                         norm_params=norm_params,
                         activation=activation,
@@ -311,7 +311,7 @@ class SEANetDecoder(nn.Module):
                     SEANetResnetBlock(
                         mult * n_filters // 2,
                         kernel_sizes=[residual_kernel_size, 1],
-                        dilations=[dilation_base**j, 1],
+                        dilations=[dilation_base ** j, 1],
                         activation=activation,
                         activation_params=activation_params,
                         norm=norm,

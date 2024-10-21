@@ -2,7 +2,7 @@
 # All rights reserved.
 #
 # This source code is licensed under the license found in the
-# LICENSE file in the root directory of this source tree.
+# LICENSE file at https://github.com/facebookresearch/encodec/blob/main/LICENSE
 """Arithmetic coder."""
 import io
 import math
@@ -41,7 +41,7 @@ def build_stable_quantized_cdf(
     if roundoff:
         pdf = (pdf / roundoff).floor() * roundoff
     # interpolate with uniform distribution to achieve desired minimum probability.
-    total_range = 2**total_range_bits
+    total_range = 2 ** total_range_bits
     cardinality = len(pdf)
     alpha = min_range * cardinality / total_range
     assert alpha <= 1, "you must reduce min_range"
@@ -51,7 +51,7 @@ def build_stable_quantized_cdf(
     if min_range < 2:
         raise ValueError("min_range must be at least 2.")
     if check:
-        assert quantized_cdf[-1] <= 2**total_range_bits, quantized_cdf[-1]
+        assert quantized_cdf[-1] <= 2 ** total_range_bits, quantized_cdf[-1]
         if (
             (quantized_cdf[1:] - quantized_cdf[:-1]) < min_range
         ).any() or quantized_cdf[0] < min_range:
@@ -142,7 +142,7 @@ class ArithmeticCoder:
             quantized_cdf (Tensor): use `build_stable_quantized_cdf`
                 to build this from your pdf estimate.
         """
-        while self.delta < 2**self.total_range_bits:
+        while self.delta < 2 ** self.total_range_bits:
             self.low *= 2
             self.high = self.high * 2 + 1
             self.max_bit += 1
@@ -150,10 +150,10 @@ class ArithmeticCoder:
         range_low = 0 if symbol == 0 else quantized_cdf[symbol - 1].item()
         range_high = quantized_cdf[symbol].item() - 1
         effective_low = int(
-            math.ceil(range_low * (self.delta / (2**self.total_range_bits)))
+            math.ceil(range_low * (self.delta / (2 ** self.total_range_bits)))
         )
         effective_high = int(
-            math.floor(range_high * (self.delta / (2**self.total_range_bits)))
+            math.floor(range_high * (self.delta / (2 ** self.total_range_bits)))
         )
         assert self.low <= self.high
         self.high = self.low + effective_high
@@ -238,7 +238,7 @@ class ArithmeticDecoder:
                 to build this from your pdf estimate. This must be **exatly**
                 the same cdf as the one used at encoding time.
         """
-        while self.delta < 2**self.total_range_bits:
+        while self.delta < 2 ** self.total_range_bits:
             bit = self.unpacker.pull()
             if bit is None:
                 return None
@@ -255,10 +255,10 @@ class ArithmeticDecoder:
             range_low = quantized_cdf[mid - 1].item() if mid > 0 else 0
             range_high = quantized_cdf[mid].item() - 1
             effective_low = int(
-                math.ceil(range_low * (self.delta / (2**self.total_range_bits)))
+                math.ceil(range_low * (self.delta / (2 ** self.total_range_bits)))
             )
             effective_high = int(
-                math.floor(range_high * (self.delta / (2**self.total_range_bits)))
+                math.floor(range_high * (self.delta / (2 ** self.total_range_bits)))
             )
             low = effective_low + self.low
             high = effective_high + self.low

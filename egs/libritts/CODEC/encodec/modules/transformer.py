@@ -2,7 +2,7 @@
 # All rights reserved.
 #
 # This source code is licensed under the license found in the
-# LICENSE file in the root directory of this source tree.
+# LICENSE file at https://github.com/facebookresearch/encodec/blob/main/LICENSE
 """A streamable transformer."""
 import typing as tp
 from typing import Any, List, Optional, Union

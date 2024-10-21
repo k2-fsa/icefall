@@ -76,7 +76,7 @@ def kmeans(samples, num_clusters: int, num_iters: int = 10):
 
     for _ in range(num_iters):
         diffs = rearrange(samples, "n d -> n () d") - rearrange(means, "c d -> () c d")
-        dists = -(diffs**2).sum(dim=-1)
+        dists = -(diffs ** 2).sum(dim=-1)
 
         buckets = dists.max(dim=-1).indices
         bins = torch.bincount(buckets, minlength=num_clusters)

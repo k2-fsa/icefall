@@ -1,3 +1,8 @@
+# original implementation is from https://github.com/ZhikangNiu/encodec-pytorch/blob/main/scheduler.py
+
+# Copyright 2024 Zhi-Kang Niu
+# MIT License
+
 import math
 from bisect import bisect_right
 

@@ -2,7 +2,7 @@
 # All rights reserved.
 #
 # This source code is licensed under the license found in the
-# LICENSE file in the root directory of this source tree.
+# LICENSE file at https://github.com/facebookresearch/encodec/blob/main/LICENSE
 """Raw binary format for Encodec compressed audio. Actual compression API is in `encodec.compress`."""
 
 import io
@@ -132,7 +132,7 @@ def test():
     for rep in range(4):
         length: int = torch.randint(10, 2_000, (1,)).item()
         bits: int = torch.randint(1, 16, (1,)).item()
-        tokens: List[int] = torch.randint(2**bits, (length,)).tolist()
+        tokens: List[int] = torch.randint(2 ** bits, (length,)).tolist()
         rebuilt: List[int] = []
         buf = io.BytesIO()
         packer = BitPacker(bits, buf)

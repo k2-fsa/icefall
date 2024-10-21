@@ -1,3 +1,21 @@
+#!/usr/bin/env python3
+# Copyright         2024   The Chinese University of HK   (Author: Zengrui Jin)
+#
+# See ../../../../LICENSE for clarification regarding multiple authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
 from typing import List, Tuple
 
 import torch
@@ -222,17 +240,12 @@ class DiscriminatorSTFT(nn.Module):
 
     def forward(self, x: torch.Tensor):
         fmap = []
-        # print('x ', x.shape)
         z = self.spec_transform(x)  # [B, 2, Freq, Frames, 2]
-        # print('z ', z.shape)
         z = torch.cat([z.real, z.imag], dim=1)
-        # print('cat_z ', z.shape)
         z = rearrange(z, "b c w t -> b c t w")
         for i, layer in enumerate(self.convs):
             z = layer(z)
             z = self.activation(z)
-            # print('z i', i, z.shape)
             fmap.append(z)
         z = self.conv_post(z)
-        # print('logit ', z.shape)
         return z, fmap
