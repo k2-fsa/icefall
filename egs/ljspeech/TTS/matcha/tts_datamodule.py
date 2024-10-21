@@ -24,7 +24,8 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import torch
-from lhotse import CutSet, Fbank, FbankConfig, load_manifest_lazy
+from lhotse import CutSet, load_manifest_lazy
+from compute_fbank_ljspeech import MyFbank, MyFbankConfig
 from lhotse.dataset import (  # noqa F401 for PrecomputedFeatures
     CutConcatenate,
     CutMix,
@@ -176,22 +177,19 @@ class LJSpeechTtsDataModule:
 
         if self.args.on_the_fly_feats:
             sampling_rate = 22050
-            config = FbankConfig(
+            config = MyFbankConfig(
+                n_fft=1024,
+                n_mels=80,
                 sampling_rate=sampling_rate,
-                frame_length=1024 / sampling_rate,  # (in second),
-                frame_shift=256 / sampling_rate,  # (in second)
-                use_fft_mag=True,
-                remove_dc_offset=False,
-                preemph_coeff=0,
-                low_freq=0,
-                high_freq=8000,
-                # should be identical to n_feats in ./train.py
-                num_filters=80,
+                hop_length=256,
+                win_length=1024,
+                f_min=0,
+                f_max=8000,
             )
             train = SpeechSynthesisDataset(
                 return_text=False,
                 return_tokens=True,
-                feature_input_strategy=OnTheFlyFeatures(Fbank(config)),
+                feature_input_strategy=OnTheFlyFeatures(MyFbank(config)),
                 return_cuts=self.args.return_cuts,
             )
 
@@ -229,7 +227,8 @@ class LJSpeechTtsDataModule:
             sampler=train_sampler,
             batch_size=None,
             num_workers=self.args.num_workers,
-            persistent_workers=False,
+            persistent_workers=True,
+            pin_memory=True,
             worker_init_fn=worker_init_fn,
         )
 
@@ -239,22 +238,19 @@ class LJSpeechTtsDataModule:
         logging.info("About to create dev dataset")
         if self.args.on_the_fly_feats:
             sampling_rate = 22050
-            config = FbankConfig(
+            config = MyFbankConfig(
+                n_fft=1024,
+                n_mels=80,
                 sampling_rate=sampling_rate,
-                frame_length=1024 / sampling_rate,  # (in second),
-                frame_shift=256 / sampling_rate,  # (in second)
-                use_fft_mag=True,
-                remove_dc_offset=False,
-                preemph_coeff=0,
-                low_freq=0,
-                high_freq=8000,
-                # should be identical to n_feats in ./train.py
-                num_filters=80,
+                hop_length=256,
+                win_length=1024,
+                f_min=0,
+                f_max=8000,
             )
             validate = SpeechSynthesisDataset(
                 return_text=False,
                 return_tokens=True,
-                feature_input_strategy=OnTheFlyFeatures(Fbank(config)),
+                feature_input_strategy=OnTheFlyFeatures(MyFbank(config)),
                 return_cuts=self.args.return_cuts,
             )
         else:
@@ -276,7 +272,8 @@ class LJSpeechTtsDataModule:
             sampler=valid_sampler,
             batch_size=None,
             num_workers=2,
-            persistent_workers=False,
+            persistent_workers=True,
+            pin_memory=True,
         )
 
         return valid_dl
@@ -285,22 +282,19 @@ class LJSpeechTtsDataModule:
         logging.info("About to create test dataset")
         if self.args.on_the_fly_feats:
             sampling_rate = 22050
-            config = FbankConfig(
+            config = MyFbankConfig(
+                n_fft=1024,
+                n_mels=80,
                 sampling_rate=sampling_rate,
-                frame_length=1024 / sampling_rate,  # (in second),
-                frame_shift=256 / sampling_rate,  # (in second)
-                use_fft_mag=True,
-                remove_dc_offset=False,
-                preemph_coeff=0,
-                low_freq=0,
-                high_freq=8000,
-                # should be identical to n_feats in ./train.py
-                num_filters=80,
+                hop_length=256,
+                win_length=1024,
+                f_min=0,
+                f_max=8000,
             )
             test = SpeechSynthesisDataset(
                 return_text=False,
                 return_tokens=True,
-                feature_input_strategy=OnTheFlyFeatures(Fbank(config)),
+                feature_input_strategy=OnTheFlyFeatures(MyFbank(config)),
                 return_cuts=self.args.return_cuts,
             )
         else:

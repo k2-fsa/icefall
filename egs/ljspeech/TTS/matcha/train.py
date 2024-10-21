@@ -7,6 +7,7 @@ import logging
 from pathlib import Path
 from shutil import copyfile
 from typing import Any, Dict, Optional, Union
+import json
 
 import k2
 import torch
@@ -91,6 +92,13 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--cmvn",
+        type=str,
+        default="data/fbank/cmvn.json",
+        help="""Path to vocabulary.""",
+    )
+
+    parser.add_argument(
         "--seed",
         type=int,
         default=42,
@@ -123,11 +131,8 @@ def get_parser():
 def get_data_statistics():
     return AttributeDict(
         {
-            #  "mel_mean": -5.517028331756592, # matcha-tts
-            #  "mel_std": 2.0643954277038574,
-            # ours
-            "mel_mean": -1.168782114982605,
-            "mel_std": 1.9283572435379028,
+            "mel_mean": 0,
+            "mel_std": 1,
         }
     )
 
@@ -138,9 +143,9 @@ def _get_data_params() -> AttributeDict:
             "name": "ljspeech",
             "train_filelist_path": "./filelists/ljs_audio_text_train_filelist.txt",
             "valid_filelist_path": "./filelists/ljs_audio_text_val_filelist.txt",
-            "batch_size": 64,
-            "num_workers": 1,
-            "pin_memory": False,
+            #  "batch_size": 64,
+            #  "num_workers": 1,
+            #  "pin_memory": False,
             "cleaners": ["english_cleaners2"],
             "add_blank": True,
             "n_spks": 1,
@@ -312,7 +317,7 @@ def prepare_input(batch: dict, tokenizer: Tokenizer, device: torch.device, param
     tokens = batch["tokens"]
 
     tokens = tokenizer.tokens_to_token_ids(
-        tokens, intersperse_blank=True, add_sos=False, add_eos=False
+        tokens, intersperse_blank=True, add_sos=True, add_eos=True
     )
     tokens = k2.RaggedTensor(tokens)
     row_splits = tokens.shape.row_splits(1)
@@ -619,10 +624,17 @@ def run(rank, world_size, args):
     logging.info(f"Device: {device}")
 
     tokenizer = Tokenizer(params.tokens)
-    params.blank_id = tokenizer.pad_id
+    params.pad_id = tokenizer.pad_id
     params.vocab_size = tokenizer.vocab_size
     params.model_args.n_vocab = params.vocab_size
-    params.model_args.n_vocab = 178
+
+    with open(params.cmvn) as f:
+        stats = json.load(f)
+        params.data_args.data_statistics.mel_mean = stats["fbank_mean"]
+        params.data_args.data_statistics.mel_std = stats["fbank_std"]
+
+        params.model_args.data_statistics.mel_mean = stats["fbank_mean"]
+        params.model_args.data_statistics.mel_std = stats["fbank_std"]
 
     logging.info(params)
     print(params)

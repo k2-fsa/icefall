@@ -5,6 +5,7 @@ import datetime as dt
 import logging
 from pathlib import Path
 
+import json
 import numpy as np
 import soundfile as sf
 import torch
@@ -29,7 +30,7 @@ def get_parser():
     parser.add_argument(
         "--epoch",
         type=int,
-        default=1320,
+        default=2810,
         help="""It specifies the checkpoint to use for decoding.
         Note: Epoch counts from 1.
         """,
@@ -38,7 +39,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=Path,
-        default="matcha/exp-fbank",
+        default="matcha/exp-new-3",
         help="""The experiment dir.
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
@@ -49,6 +50,13 @@ def get_parser():
         "--tokens",
         type=Path,
         default="data/tokens.txt",
+    )
+
+    parser.add_argument(
+        "--cmvn",
+        type=str,
+        default="data/fbank/cmvn.json",
+        help="""Path to vocabulary.""",
     )
 
     return parser
@@ -111,12 +119,20 @@ def main():
     params = get_params()
 
     params.update(vars(args))
-    logging.info(params)
 
     tokenizer = Tokenizer(params.tokens)
     params.blank_id = tokenizer.pad_id
     params.vocab_size = tokenizer.vocab_size
     params.model_args.n_vocab = params.vocab_size
+
+    with open(params.cmvn) as f:
+        stats = json.load(f)
+        params.data_args.data_statistics.mel_mean = stats["fbank_mean"]
+        params.data_args.data_statistics.mel_std = stats["fbank_std"]
+
+        params.model_args.data_statistics.mel_mean = stats["fbank_mean"]
+        params.model_args.data_statistics.mel_std = stats["fbank_std"]
+    logging.info(params)
 
     logging.info("About to create model")
     model = get_model(params)
@@ -127,9 +143,9 @@ def main():
     denoiser = Denoiser(vocoder, mode="zeros")
 
     texts = [
-        "How are you doing, my friend",
-        #  "The Secret Service believed that it was very doubtful that any President would ride regularly in a vehicle with a fixed top, even though transparent.",
-        #  "Today as always, men fall into two groups: slaves and free men. Whoever does not have two-thirds of his day for himself, is a slave, whatever he may be: a statesman, a businessman, an official, or a scholar.",
+        "How are you doing? my friend.",
+        "The Secret Service believed that it was very doubtful that any President would ride regularly in a vehicle with a fixed top, even though transparent.",
+        "Today as always, men fall into two groups: slaves and free men. Whoever does not have two-thirds of his day for himself, is a slave, whatever he may be: a statesman, a businessman, an official, or a scholar.",
     ]
 
     # Number of ODE Solver steps
@@ -174,7 +190,7 @@ def main():
         rtfs_w.append(rtf_w)
 
         # Save the generated waveform
-        save_to_folder(i, output, folder="./my-output-1320")
+        save_to_folder(i, output, folder=f"./my-output-{params.epoch}")
 
     print(f"Number of ODE steps: {n_timesteps}")
     print(f"Mean RTF:\t\t\t\t{np.mean(rtfs):.6f} ± {np.std(rtfs):.6f}")
