@@ -2287,7 +2287,7 @@ def time_warp(
         return features
     assert (
         len(features.shape) == 3
-    ), "SpecAugment only supports batches of single-channel feature matrices."
+    ), f"SpecAugment only supports batches of single-channel feature matrices. {features.shape}"
     features = features.clone()
     if supervision_segments is None:
         # No supervisions - apply spec augment to full feature matrices.
