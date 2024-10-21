@@ -236,7 +236,7 @@ class TransformerDecoder(nn.Module):
         causal_mask = subsequent_mask(x.shape[0], device=x.device)  # (seq_len, seq_len)
         attn_mask = torch.logical_or(
             padding_mask.unsqueeze(1),  # (batch, 1, seq_len)
-            torch.logical_not(causal_mask).unsqueeze(0)  # (1, seq_len, seq_len)
+            torch.logical_not(causal_mask).unsqueeze(0),  # (1, seq_len, seq_len)
         )  # (batch, seq_len, seq_len)
 
         if memory is not None:
@@ -367,7 +367,9 @@ class MultiHeadAttention(nn.Module):
         self.num_heads = num_heads
         self.head_dim = attention_dim // num_heads
         assert self.head_dim * num_heads == attention_dim, (
-            self.head_dim, num_heads, attention_dim
+            self.head_dim,
+            num_heads,
+            attention_dim,
         )
         self.dropout = dropout
         self.name = None  # will be overwritten in training code; for diagnostics.
@@ -437,15 +439,19 @@ class MultiHeadAttention(nn.Module):
         if key_padding_mask is not None:
             assert key_padding_mask.shape == (batch, src_len), key_padding_mask.shape
             attn_weights = attn_weights.masked_fill(
-                key_padding_mask.unsqueeze(1).unsqueeze(2), float("-inf"),
+                key_padding_mask.unsqueeze(1).unsqueeze(2),
+                float("-inf"),
             )
 
         if attn_mask is not None:
-            assert (
-                attn_mask.shape == (batch, 1, src_len)
-                or attn_mask.shape == (batch, tgt_len, src_len)
+            assert attn_mask.shape == (batch, 1, src_len) or attn_mask.shape == (
+                batch,
+                tgt_len,
+                src_len,
             ), attn_mask.shape
-            attn_weights = attn_weights.masked_fill(attn_mask.unsqueeze(1), float("-inf"))
+            attn_weights = attn_weights.masked_fill(
+                attn_mask.unsqueeze(1), float("-inf")
+            )
 
         attn_weights = attn_weights.view(batch * num_heads, tgt_len, src_len)
         attn_weights = nn.functional.softmax(attn_weights, dim=-1)
@@ -456,7 +462,11 @@ class MultiHeadAttention(nn.Module):
 
         # (batch * head, tgt_len, head_dim)
         attn_output = torch.bmm(attn_weights, v)
-        assert attn_output.shape == (batch * num_heads, tgt_len, head_dim), attn_output.shape
+        assert attn_output.shape == (
+            batch * num_heads,
+            tgt_len,
+            head_dim,
+        ), attn_output.shape
 
         attn_output = attn_output.transpose(0, 1).contiguous()
         attn_output = attn_output.view(tgt_len, batch, num_heads * head_dim)
