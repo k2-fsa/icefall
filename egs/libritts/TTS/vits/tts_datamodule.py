@@ -38,6 +38,7 @@ from lhotse.dataset.input_strategies import (  # noqa F401 For AudioSamples
     AudioSamples,
     OnTheFlyFeatures,
 )
+from lhotse.features.io import KaldiReader
 from lhotse.utils import fix_random_seed
 from torch.utils.data import DataLoader
 
@@ -51,7 +52,9 @@ class _SeedWorkers:
     def __call__(self, worker_id: int):
         fix_random_seed(self.seed + worker_id)
 
+
 LIBRITTS_SAMPLING_RATE = 24000
+
 
 class LibrittsTtsDataModule:
     """
@@ -82,7 +85,13 @@ class LibrittsTtsDataModule:
             "effective batch sizes, sampling strategies, applied data "
             "augmentations, etc.",
         )
-
+        group.add_argument(
+            "--full-libri",
+            type=str2bool,
+            default=False,
+            help="""When enabled, use the entire LibriTTS training set.
+            Otherwise, use the 460h clean subset.""",
+        )
         group.add_argument(
             "--manifest-dir",
             type=Path,
@@ -90,10 +99,10 @@ class LibrittsTtsDataModule:
             help="Path to directory with train/valid/test cuts.",
         )
         group.add_argument(
-            "--speakers",
+            "--speaker-embeds",
             type=Path,
-            default=Path("data/speakers.txt"),
-            help="Path to speakers.txt file.",
+            default=Path("exp/xvector_nnet_1a/"),
+            help="Path to directory with speaker embeddings.",
         )
         group.add_argument(
             "--max-duration",
@@ -141,7 +150,7 @@ class LibrittsTtsDataModule:
         group.add_argument(
             "--return-cuts",
             type=str2bool,
-            default=False,
+            default=True,
             help="When enabled, each batch will have the "
             "field: batch['cut'] with the cuts that "
             "were used to construct it.",
@@ -175,7 +184,7 @@ class LibrittsTtsDataModule:
         """
         logging.info("About to create train dataset")
         train = SpeechSynthesisDataset(
-            return_text=False,
+            return_text=True,
             return_tokens=True,
             return_spk_ids=True,
             feature_input_strategy=eval(self.args.input_strategy)(),
@@ -191,7 +200,7 @@ class LibrittsTtsDataModule:
                 use_fft_mag=True,
             )
             train = SpeechSynthesisDataset(
-                return_text=False,
+                return_text=True,
                 return_tokens=True,
                 return_spk_ids=True,
                 feature_input_strategy=OnTheFlyFeatures(Spectrogram(config)),
@@ -238,7 +247,7 @@ class LibrittsTtsDataModule:
 
         return train_dl
 
-    def valid_dataloaders(self, cuts_valid: CutSet) -> DataLoader:
+    def dev_dataloaders(self, cuts_valid: CutSet) -> DataLoader:
         logging.info("About to create dev dataset")
         if self.args.on_the_fly_feats:
             sampling_rate = LIBRITTS_SAMPLING_RATE
@@ -249,7 +258,7 @@ class LibrittsTtsDataModule:
                 use_fft_mag=True,
             )
             validate = SpeechSynthesisDataset(
-                return_text=False,
+                return_text=True,
                 return_tokens=True,
                 return_spk_ids=True,
                 feature_input_strategy=OnTheFlyFeatures(Spectrogram(config)),
@@ -257,7 +266,7 @@ class LibrittsTtsDataModule:
             )
         else:
             validate = SpeechSynthesisDataset(
-                return_text=False,
+                return_text=True,
                 return_tokens=True,
                 return_spk_ids=True,
                 feature_input_strategy=eval(self.args.input_strategy)(),
@@ -290,7 +299,7 @@ class LibrittsTtsDataModule:
                 use_fft_mag=True,
             )
             test = SpeechSynthesisDataset(
-                return_text=False,
+                return_text=True,
                 return_tokens=True,
                 return_spk_ids=True,
                 feature_input_strategy=OnTheFlyFeatures(Spectrogram(config)),
@@ -298,7 +307,7 @@ class LibrittsTtsDataModule:
             )
         else:
             test = SpeechSynthesisDataset(
-                return_text=False,
+                return_text=True,
                 return_tokens=True,
                 return_spk_ids=True,
                 feature_input_strategy=eval(self.args.input_strategy)(),
@@ -319,23 +328,106 @@ class LibrittsTtsDataModule:
         return test_dl
 
     @lru_cache()
-    def train_cuts(self) -> CutSet:
-        logging.info("About to get train cuts")
-        return load_manifest_lazy(self.args.manifest_dir / "vctk_cuts_train.jsonl.gz")
+    def train_all_shuf_cuts(self) -> CutSet:
+        logging.info(
+            "About to get the shuffled train-clean-100, \
+            train-clean-360 and train-other-500 cuts"
+        )
+        return load_manifest_lazy(
+            self.args.manifest_dir / "libritts_cuts_with_tokens_train-all-shuf.jsonl.gz"
+        )
 
     @lru_cache()
-    def valid_cuts(self) -> CutSet:
-        logging.info("About to get validation cuts")
-        return load_manifest_lazy(self.args.manifest_dir / "vctk_cuts_valid.jsonl.gz")
+    def train_clean_460_cuts(self) -> CutSet:
+        logging.info(
+            "About to get the shuffled train-clean-100 and train-clean-360 cuts"
+        )
+        return load_manifest_lazy(
+            self.args.manifest_dir
+            / "libritts_cuts_with_tokens_train-clean-460.jsonl.gz"
+        )
 
     @lru_cache()
-    def test_cuts(self) -> CutSet:
-        logging.info("About to get test cuts")
-        return load_manifest_lazy(self.args.manifest_dir / "vctk_cuts_test.jsonl.gz")
+    def dev_clean_cuts(self) -> CutSet:
+        logging.info("About to get dev-clean cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "libritts_cuts_with_tokens_dev-clean.jsonl.gz"
+        )
 
     @lru_cache()
-    def speakers(self) -> Dict[str, int]:
-        logging.info("About to get speakers")
-        with open(self.args.speakers) as f:
-            speakers = {line.strip(): i for i, line in enumerate(f)}
-        return speakers
+    def dev_other_cuts(self) -> CutSet:
+        logging.info("About to get dev-other cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "libritts_cuts_with_tokens_dev-other.jsonl.gz"
+        )
+
+    @lru_cache()
+    def test_clean_cuts(self) -> CutSet:
+        logging.info("About to get test-clean cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "libritts_cuts_with_tokens_test-clean.jsonl.gz"
+        )
+
+    @lru_cache()
+    def test_other_cuts(self) -> CutSet:
+        logging.info("About to get test-other cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "libritts_cuts_with_tokens_test-other.jsonl.gz"
+        )
+
+    @lru_cache()
+    def train_all_shuf_xvector(self) -> KaldiReader:
+        raise NotImplementedError(
+            "Please implement the method to load speaker embeddings."
+        )
+
+    @lru_cache()
+    def train_clean_460_xvector(self) -> KaldiReader:
+        logging.info("About to get speaker embeddings for train-clean-460")
+        return KaldiReader(
+            str(self.args.speaker_embeds / "xvectors_train_clean_460" / "feats.scp")
+        )
+
+    @lru_cache()
+    def train_clean_100_xvector(self) -> KaldiReader:
+        raise NotImplementedError(
+            "Please implement the method to load speaker embeddings."
+        )
+
+    @lru_cache()
+    def train_clean_360_xvector(self) -> KaldiReader:
+        raise NotImplementedError(
+            "Please implement the method to load speaker embeddings."
+        )
+
+    @lru_cache()
+    def train_other_500_xvector(self) -> KaldiReader:
+        raise NotImplementedError(
+            "Please implement the method to load speaker embeddings."
+        )
+
+    @lru_cache()
+    def dev_clean_xvector(self) -> KaldiReader:
+        logging.info("About to get speaker embeddings for dev-clean")
+        return KaldiReader(
+            str(self.args.speaker_embeds / "xvectors_dev_clean" / "feats.scp")
+        )
+
+    @lru_cache()
+    def dev_other_xvector(self) -> KaldiReader:
+        raise NotImplementedError(
+            "Please implement the method to load speaker embeddings."
+        )
+
+    @lru_cache()
+    def test_clean_xvector(self) -> KaldiReader:
+        logging.info("About to get speaker embeddings for test-clean")
+        return KaldiReader(
+            str(self.args.speaker_embeds / "xvectors_test_clean" / "feats.scp")
+        )
+
+    @lru_cache()
+    def test_other_xvector(self) -> KaldiReader:
+        raise NotImplementedError(
+            "Please implement the method to load speaker embeddings."
+        )
