@@ -32,13 +32,14 @@ import torch.nn as nn
 from codec_datamodule import CodecDataModule
 from encodec import Encodec
 from lhotse.utils import fix_random_seed
+from PIL import Image
 from scheduler import WarmupCosineLrScheduler
 from torch import nn
 from torch.cuda.amp import GradScaler, autocast
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim import Optimizer
 from torch.utils.tensorboard import SummaryWriter
-from utils import MetricsTracker, save_checkpoint
+from utils import MetricsTracker, plot_curve, plot_feature, save_checkpoint
 
 from icefall import diagnostics
 from icefall.checkpoint import load_checkpoint
@@ -155,6 +156,20 @@ def get_parser():
         help="Whether to use half precision training.",
     )
 
+    parser.add_argument(
+        "--sampling-rate",
+        type=int,
+        default=128,
+        help="The sampling rate of the biomarker.",
+    )
+
+    parser.add_argument(
+        "--chunk-size",
+        type=int,
+        default=180,
+        help="The chunk size of the biomarker (in second).",
+    )
+
     return parser
 
 
@@ -202,8 +217,7 @@ def get_params() -> AttributeDict:
             "log_interval": 50,
             "valid_interval": 200,
             "env_info": get_env_info(),
-            "sampling_rate": 24000,
-            "audio_normalization": False,
+            "wave_normalization": False,
             "lambda_adv": 3.0,  # loss scaling coefficient for adversarial loss
             "lambda_wav": 0.1,  # loss scaling coefficient for waveform loss
             "lambda_feat": 4.0,  # loss scaling coefficient for feat loss
@@ -352,27 +366,27 @@ def prepare_input(
     is_training: bool = True,
 ):
     """Parse batch data"""
-    audio = batch["audio"].to(device, memory_format=torch.contiguous_format)
+    wave = batch["audio"].to(device, memory_format=torch.contiguous_format)
     features = batch["features"].to(device, memory_format=torch.contiguous_format)
-    audio_lens = batch["audio_lens"].to(device)
+    wave_lens = batch["audio_lens"].to(device)
     features_lens = batch["features_lens"].to(device)
 
     if is_training:
-        audio_dims = audio.size(-1)
+        audio_dims = wave.size(-1)
         start_idx = random.randint(0, max(0, audio_dims - params.sampling_rate))
-        audio = audio[:, start_idx : params.sampling_rate + start_idx]
+        wave = wave[:, start_idx : params.sampling_rate + start_idx]
     else:
         # NOTE(zengrui): a very coarse setup
-        audio = audio[
+        wave = wave[
             :, params.sampling_rate : params.sampling_rate + params.sampling_rate
         ]
 
-    if params.audio_normalization:
-        mean = audio.mean(dim=-1, keepdim=True)
-        std = audio.std(dim=-1, keepdim=True)
-        audio = (audio - mean) / (std + 1e-7)
+    if params.wave_normalization:
+        mean = wave.mean(dim=-1, keepdim=True)
+        std = wave.std(dim=-1, keepdim=True)
+        wave = (wave - mean) / (std + 1e-7)
 
-    return audio, audio_lens, features, features_lens
+    return wave, wave_lens, features, features_lens
 
 
 def train_discriminator(weight, global_step, threshold=0, value=0.0):
@@ -623,17 +637,29 @@ def train_one_epoch(
                     if speech_hat_i.dim() > 1:
                         speech_hat_i = speech_hat_i.squeeze(0)
                         speech_i = speech_i.squeeze(0)
-                    tb_writer.add_audio(
-                        f"train/speech_hat_",
-                        speech_hat_i,
+                    # tb_writer.add_audio(
+                    #     f"train/speech_hat_",
+                    #     speech_hat_i,
+                    #     params.batch_idx_train,
+                    #     params.sampling_rate,
+                    # )
+                    # tb_writer.add_audio(
+                    #     f"train/speech_",
+                    #     speech_i,
+                    #     params.batch_idx_train,
+                    #     params.sampling_rate,
+                    # )
+                    tb_writer.add_image(
+                        "train/speech_hat_",
+                        np.array(Image.open(plot_curve(speech_hat_i, params.sampling_rate))),
                         params.batch_idx_train,
-                        params.sampling_rate,
+                        dataformats="HWC",
                     )
-                    tb_writer.add_audio(
-                        f"train/speech_",
-                        speech_i,
+                    tb_writer.add_image(
+                        "train/speech_",
+                        np.array(Image.open(plot_curve(speech_i, params.sampling_rate))),
                         params.batch_idx_train,
-                        params.sampling_rate,
+                        dataformats="HWC",
                     )
                     # tb_writer.add_image(
                     #     "train/mel_hat_",
@@ -675,18 +701,31 @@ def train_one_epoch(
                     if speech_hat_i.dim() > 1:
                         speech_hat_i = speech_hat_i.squeeze(0)
                         speech_i = speech_i.squeeze(0)
-                    tb_writer.add_audio(
+                    # tb_writer.add_audio(
+                    #     f"train/valid_speech_hat_{index}",
+                    #     speech_hat_i,
+                    #     params.batch_idx_train,
+                    #     params.sampling_rate,
+                    # )
+                    # tb_writer.add_audio(
+                    #     f"train/valid_speech_{index}",
+                    #     speech_i,
+                    #     params.batch_idx_train,
+                    #     params.sampling_rate,
+                    # )
+                    tb_writer.add_image(
                         f"train/valid_speech_hat_{index}",
-                        speech_hat_i,
+                        np.array(Image.open(plot_curve(speech_hat_i, params.sampling_rate))),
                         params.batch_idx_train,
-                        params.sampling_rate,
+                        dataformats="HWC",
                     )
-                    tb_writer.add_audio(
+                    tb_writer.add_image(
                         f"train/valid_speech_{index}",
-                        speech_i,
+                        np.array(Image.open(plot_curve(speech_i, params.sampling_rate))),
                         params.batch_idx_train,
-                        params.sampling_rate,
+                        dataformats="HWC",
                     )
+                    
 
     loss_value = tot_loss["generator_loss"] / tot_loss["samples"]
     params.train_loss = loss_value
@@ -1164,11 +1203,19 @@ def run(rank, world_size, args):
         cleanup_dist()
 
 
+def override_sampling_rate(args) -> int:
+    logging.info(
+        f"Overriding sampling rate from {args.sampling_rate} to {args.sampling_rate * args.chunk_size}"
+    )
+    return int(args.sampling_rate * args.chunk_size)
+
+
 def main():
     parser = get_parser()
     CodecDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
+    args.sampling_rate = override_sampling_rate(args)
 
     world_size = args.world_size
     assert world_size >= 1

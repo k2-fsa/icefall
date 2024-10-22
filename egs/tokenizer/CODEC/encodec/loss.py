@@ -14,7 +14,7 @@ from typing import List, Tuple, Union
 
 import torch
 import torch.nn.functional as F
-from torchaudio.transforms import MelSpectrogram
+from torchaudio.transforms import MelSpectrogram, Spectrogram
 
 
 class GeneratorAdversarialLoss(torch.nn.Module):
@@ -246,6 +246,80 @@ class MelSpectrogramReconstructionLoss(torch.nn.Module):
                 )
             )
         self.return_mel = return_mel
+
+    def forward(
+        self,
+        x_hat: torch.Tensor,
+        x: torch.Tensor,
+    ) -> Union[torch.Tensor, Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]]:
+        """Calculate Mel-spectrogram loss.
+
+        Args:
+            x_hat (Tensor): Generated waveform tensor (B, 1, T).
+            x (Tensor): Groundtruth waveform tensor (B, 1, T).
+            spec (Optional[Tensor]): Groundtruth linear amplitude spectrum tensor
+                (B, T, n_fft // 2 + 1).  if provided, use it instead of groundtruth
+                waveform.
+
+        Returns:
+            Tensor: Mel-spectrogram loss value.
+
+        """
+        mel_loss = 0.0
+
+        for i, wav_to_spec in enumerate(self.wav_to_specs):
+            s = 2 ** (i + 5)
+            wav_to_spec.to(x.device)
+
+            mel_hat = wav_to_spec(x_hat.squeeze(1))
+            mel = wav_to_spec(x.squeeze(1))
+
+            mel_loss += (
+                F.l1_loss(mel_hat, mel, reduce=True, reduction="mean")
+                + (
+                    (
+                        (torch.log(mel.abs() + 1e-7) - torch.log(mel_hat.abs() + 1e-7))
+                        ** 2
+                    ).mean(dim=-2)
+                    ** 0.5
+                ).mean()
+            )
+
+        # mel_hat = self.wav_to_spec(x_hat.squeeze(1))
+        # mel = self.wav_to_spec(x.squeeze(1))
+        # mel_loss = F.l1_loss(mel_hat, mel) + F.mse_loss(mel_hat, mel)
+
+        if self.return_mel:
+            return mel_loss, (mel_hat, mel)
+
+        return mel_loss
+
+
+class SpectrogramReconstructionLoss(torch.nn.Module):
+    """Spec Reconstruction loss designed for EEG signals."""
+
+    def __init__(
+        self,
+        sampling_rate: int = 22050,
+        return_spec: bool = False,
+    ):
+        super().__init__()
+        self.wav_to_specs = []
+        for i in range(5, 10):
+            s = 2**i // 8
+            self.wav_to_specs.append(
+                Spectrogram(
+                    sample_rate=sampling_rate,
+                    n_fft=s,
+                    win_length=s,
+                    hop_length=s // 4,
+                    normalized=True,
+                    center=False,
+                    pad_mode=None,
+                    power=None,
+                )
+            )
+        self.return_mel = return_spec
 
     def forward(
         self,

@@ -26,6 +26,7 @@ from loss import (
     FeatureLoss,
     GeneratorAdversarialLoss,
     MelSpectrogramReconstructionLoss,
+    SpectrogramReconstructionLoss,
     WavReconstructionLoss,
 )
 from torch import nn
@@ -79,7 +80,7 @@ class Encodec(nn.Module):
         )
         self.feature_match_loss = FeatureLoss()
         self.wav_reconstruction_loss = WavReconstructionLoss()
-        self.mel_reconstruction_loss = MelSpectrogramReconstructionLoss(
+        self.spec_reconstruction_loss = SpectrogramReconstructionLoss(
             sampling_rate=self.sampling_rate
         )
 
@@ -170,7 +171,7 @@ class Encodec(nn.Module):
             wav_reconstruction_loss = self.wav_reconstruction_loss(
                 x=speech, x_hat=speech_hat
             )
-            mel_reconstruction_loss = self.mel_reconstruction_loss(
+            mel_reconstruction_loss = self.spec_reconstruction_loss(
                 x=speech, x_hat=speech_hat
             )
 

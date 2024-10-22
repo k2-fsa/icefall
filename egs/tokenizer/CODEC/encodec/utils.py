@@ -118,6 +118,20 @@ def plot_feature(spectrogram):
     plt.close()
     return data
 
+def plot_curve(speech: torch.Tensor, sampling_rate: int) -> bytes:
+    import io
+
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    plt.figure()
+    plt.plot(np.arange(sampling_rate) / sampling_rate, speech.detach().cpu().numpy().T)
+    buf = io.BytesIO()
+    plt.savefig(buf, format="jpeg")
+    buf.seek(0)
+    plt.close()
+    return buf
+
 
 class MetricsTracker(collections.defaultdict):
     def __init__(self):
