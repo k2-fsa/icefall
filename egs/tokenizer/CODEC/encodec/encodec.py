@@ -80,9 +80,7 @@ class Encodec(nn.Module):
         )
         self.feature_match_loss = FeatureLoss()
         self.wav_reconstruction_loss = WavReconstructionLoss()
-        self.spec_reconstruction_loss = SpectrogramReconstructionLoss(
-            sampling_rate=self.sampling_rate
-        )
+        self.spec_reconstruction_loss = SpectrogramReconstructionLoss()
 
     def _forward_generator(
         self,
