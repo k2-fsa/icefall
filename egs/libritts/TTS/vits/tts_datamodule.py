@@ -28,7 +28,6 @@ import torch
 from lhotse import CutSet, Spectrogram, SpectrogramConfig, load_manifest_lazy
 from lhotse.dataset import (  # noqa F401 for PrecomputedFeatures
     CutConcatenate,
-    CutMix,
     DynamicBucketingSampler,
     PrecomputedFeatures,
     SimpleCutSampler,

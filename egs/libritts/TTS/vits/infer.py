@@ -31,7 +31,7 @@ import argparse
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Dict, List
+from typing import List
 
 import k2
 import numpy as np
