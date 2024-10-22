@@ -309,10 +309,10 @@ class SpectrogramReconstructionLoss(torch.nn.Module):
             s = 2**i // 8
             self.wav_to_specs.append(
                 Spectrogram(
-                    sample_rate=sampling_rate,
                     n_fft=s,
                     win_length=s,
                     hop_length=s // 4,
+                    window_fn=torch.hann_window,
                     normalized=True,
                     center=False,
                     pad_mode=None,
