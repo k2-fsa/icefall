@@ -139,7 +139,7 @@ def get_parser():
     parser.add_argument(
         "--save-every-n",
         type=int,
-        default=1,
+        default=5,
         help="""Save checkpoint after processing this number of epochs"
         periodically. We save checkpoint to exp-dir/ whenever
         params.cur_epoch % save_every_n == 0. The checkpoint filename
