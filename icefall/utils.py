@@ -2282,13 +2282,12 @@ def time_warp(
     time_warp_factor: Optional[int] = 80,
     supervision_segments: Optional[torch.Tensor] = None,
 ):
-    """Apply time warping on a batch of features
-    """
+    """Apply time warping on a batch of features"""
     if time_warp_factor is None or time_warp_factor < 1:
         return features
-    assert len(features.shape) == 3, (
-        "SpecAugment only supports batches of single-channel feature matrices."
-    )
+    assert (
+        len(features.shape) == 3
+    ), f"SpecAugment only supports batches of single-channel feature matrices. {features.shape}"
     features = features.clone()
     if supervision_segments is None:
         # No supervisions - apply spec augment to full feature matrices.
