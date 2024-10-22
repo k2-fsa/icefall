@@ -1,1 +1,0 @@
-../../../librispeech/ASR/zipformer/onnx_pretrained_ctc.py

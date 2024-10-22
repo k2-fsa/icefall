@@ -1,1 +1,0 @@
-../pruned_transducer_stateless7_ctc/model.py

@@ -8,7 +8,7 @@ icefall_dir = Path(__file__).parent
 install_requires = (icefall_dir / "requirements.txt").read_text().splitlines()
 
 setup(
-    name="biofall",
+    name="icefall",
     version="1.0",
     python_requires=">=3.9.0",
     description="Biomarker processing with Lhotse. (Forked from the K2 project)",

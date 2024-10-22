@@ -1,1 +1,0 @@
-../../ASR/zipformer/gigaspeech_scoring.py

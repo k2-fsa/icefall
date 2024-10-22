@@ -1,1 +1,0 @@
-../pruned_transducer_stateless3/scaling_converter.py

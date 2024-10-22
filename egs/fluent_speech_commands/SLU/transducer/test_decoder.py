@@ -1,1 +1,0 @@
-../../../yesno/ASR/transducer/test_decoder.py

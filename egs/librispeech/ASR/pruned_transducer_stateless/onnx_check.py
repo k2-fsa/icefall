@@ -1,1 +1,0 @@
-../pruned_transducer_stateless3/onnx_check.py
