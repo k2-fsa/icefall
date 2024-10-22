@@ -152,7 +152,7 @@ def infer_dataset(
             audio_lens = batch["audio_lens"].tolist()
             cut_ids = [cut.id for cut in batch["cut"]]
             sids = ["_".join(cut_id.split("_")[:2]) for cut_id in cut_ids]
-            speakers = (
+            spembs = (
                 torch.Tensor(np.array([speaker_map.read(sid) for sid in sids]))
                 .squeeze(1)
                 .to(device)
@@ -161,7 +161,7 @@ def infer_dataset(
             audio_pred, _, durations = model.inference_batch(
                 text=tokens,
                 text_lengths=tokens_lens,
-                spembs=speakers,
+                spembs=spembs,
             )
             audio_pred = audio_pred.detach().cpu()
             # convert to samples

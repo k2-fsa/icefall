@@ -344,7 +344,7 @@ def prepare_input(
     audio_lens = batch["audio_lens"].to(device)
     features_lens = batch["features_lens"].to(device)
     tokens = batch["tokens"]
-    speakers = (
+    spembs = (
         torch.Tensor(np.array([speaker_map.read(sid) for sid in parse_sids(batch)]))
         .squeeze(1)
         .to(device)
@@ -361,7 +361,7 @@ def prepare_input(
     # a tensor of shape (B, T)
     tokens = tokens.pad(mode="constant", padding_value=tokenizer.pad_id)
 
-    return audio, audio_lens, features, features_lens, tokens, tokens_lens, speakers
+    return audio, audio_lens, features, features_lens, tokens, tokens_lens, spembs
 
 
 def train_one_epoch(
@@ -449,7 +449,7 @@ def train_one_epoch(
             features_lens,
             tokens,
             tokens_lens,
-            speakers,
+            spembs,
         ) = prepare_input(batch, tokenizer, device, train_speaker_map)
 
         loss_info = MetricsTracker()
@@ -465,7 +465,7 @@ def train_one_epoch(
                     feats_lengths=features_lens,
                     speech=audio,
                     speech_lengths=audio_lens,
-                    spembs=speakers,
+                    spembs=spembs,
                     forward_generator=False,
                 )
             for k, v in stats_d.items():
@@ -484,7 +484,7 @@ def train_one_epoch(
                     feats_lengths=features_lens,
                     speech=audio,
                     speech_lengths=audio_lens,
-                    spembs=speakers,
+                    spembs=spembs,
                     forward_generator=True,
                     return_sample=params.batch_idx_train % params.log_interval == 0,
                 )
@@ -651,7 +651,7 @@ def compute_validation_loss(
                 features_lens,
                 tokens,
                 tokens_lens,
-                speakers,
+                spembs,
             ) = prepare_input(batch, tokenizer, device, dev_speaker_map)
 
             loss_info = MetricsTracker()
@@ -665,7 +665,7 @@ def compute_validation_loss(
                 feats_lengths=features_lens,
                 speech=audio,
                 speech_lengths=audio_lens,
-                spembs=speakers,
+                spembs=spembs,
                 forward_generator=False,
             )
             assert loss_d.requires_grad is False
@@ -680,7 +680,7 @@ def compute_validation_loss(
                 feats_lengths=features_lens,
                 speech=audio,
                 speech_lengths=audio_lens,
-                spembs=speakers,
+                spembs=spembs,
                 forward_generator=True,
             )
             assert loss_g.requires_grad is False
@@ -695,7 +695,7 @@ def compute_validation_loss(
                 inner_model = model.module if isinstance(model, DDP) else model
                 audio_pred, _, duration = inner_model.inference(
                     text=tokens[0, : tokens_lens[0].item()],
-                    spembs=speakers[0],
+                    spembs=spembs[0],
                 )
                 audio_pred = audio_pred.data.cpu().numpy()
                 audio_len_pred = (
@@ -744,7 +744,7 @@ def scan_pessimistic_batches_for_oom(
             features_lens,
             tokens,
             tokens_lens,
-            speakers,
+            spembs,
         ) = prepare_input(batch, tokenizer, device, train_speaker_map)
         try:
             # for discriminator
@@ -756,7 +756,7 @@ def scan_pessimistic_batches_for_oom(
                     feats_lengths=features_lens,
                     speech=audio,
                     speech_lengths=audio_lens,
-                    spembs=speakers,
+                    spembs=spembs,
                     forward_generator=False,
                 )
             optimizer_d.zero_grad()
@@ -770,7 +770,7 @@ def scan_pessimistic_batches_for_oom(
                     feats_lengths=features_lens,
                     speech=audio,
                     speech_lengths=audio_lens,
-                    spembs=speakers,
+                    spembs=spembs,
                     forward_generator=True,
                 )
             optimizer_g.zero_grad()
