@@ -329,11 +329,15 @@ def get_model(params: AttributeDict) -> nn.Module:
     params.update(inference_params)
 
     hop_length = np.prod(params.ratios)
-    n_q = int(
-        1000
-        * params.target_bandwidths[-1]
-        // (math.ceil(params.sampling_rate / hop_length) * 10)
-    ) if params.n_q is None else params.n_q
+    n_q = (
+        int(
+            1000
+            * params.target_bandwidths[-1]
+            // (math.ceil(params.sampling_rate / hop_length) * 10)
+        )
+        if params.n_q is None
+        else params.n_q
+    )
 
     encoder = SEANetEncoder(
         n_filters=params.generator_n_filters,
@@ -660,13 +664,17 @@ def train_one_epoch(
                     # )
                     tb_writer.add_image(
                         "train/speech_hat_",
-                        np.array(Image.open(plot_curve(speech_hat_i, params.sampling_rate))),
+                        np.array(
+                            Image.open(plot_curve(speech_hat_i, params.sampling_rate))
+                        ),
                         params.batch_idx_train,
                         dataformats="HWC",
                     )
                     tb_writer.add_image(
                         "train/speech_",
-                        np.array(Image.open(plot_curve(speech_i, params.sampling_rate))),
+                        np.array(
+                            Image.open(plot_curve(speech_i, params.sampling_rate))
+                        ),
                         params.batch_idx_train,
                         dataformats="HWC",
                     )
@@ -724,17 +732,20 @@ def train_one_epoch(
                     # )
                     tb_writer.add_image(
                         f"train/valid_speech_hat_{index}",
-                        np.array(Image.open(plot_curve(speech_hat_i, params.sampling_rate))),
+                        np.array(
+                            Image.open(plot_curve(speech_hat_i, params.sampling_rate))
+                        ),
                         params.batch_idx_train,
                         dataformats="HWC",
                     )
                     tb_writer.add_image(
                         f"train/valid_speech_{index}",
-                        np.array(Image.open(plot_curve(speech_i, params.sampling_rate))),
+                        np.array(
+                            Image.open(plot_curve(speech_i, params.sampling_rate))
+                        ),
                         params.batch_idx_train,
                         dataformats="HWC",
                     )
-                    
 
     loss_value = tot_loss["generator_loss"] / tot_loss["samples"]
     params.train_loss = loss_value

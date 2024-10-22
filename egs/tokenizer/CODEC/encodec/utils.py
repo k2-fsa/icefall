@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import collections
+import io
 import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -118,14 +119,19 @@ def plot_feature(spectrogram):
     plt.close()
     return data
 
-def plot_curve(speech: torch.Tensor, sampling_rate: int) -> bytes:
-    import io
+
+def plot_curve(
+    speech: torch.Tensor, sampling_rate: int, figsize: List[int] = [10, 22]
+) -> bytes:
 
     import matplotlib.pyplot as plt
     import numpy as np
 
+    assert len(figsize) == 2, "figsize should be a list of two integers"
+
     plt.figure()
     plt.plot(np.arange(sampling_rate) / sampling_rate, speech.detach().cpu().numpy().T)
+    plt.rcParams["figure.figsize"] = figsize
     buf = io.BytesIO()
     plt.savefig(buf, format="jpeg")
     buf.seek(0)
