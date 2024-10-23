@@ -26,7 +26,6 @@ import numpy as np
 import torch
 from lhotse import CutSet, SupervisionSegment
 from lhotse.utils import fastcopy
-from silero_vad import get_speech_timestamps, load_silero_vad
 from tqdm import tqdm
 
 # Torch's multithreaded behavior needs to be disabled or
@@ -82,7 +81,7 @@ def get_args():
     parser.add_argument(
         "--kmeans-model-path",
         type=str,
-        default="download/hubert_base_ls960_L9_km500.model",
+        default="download/hubert_base_ls960_L9_km500.bin",
     )
 
     parser.add_argument(
@@ -103,7 +102,7 @@ def get_args():
 
 
 def extract_and_save_one_cuts(
-    raw_cuts_path, cuts_path, model, vad_model, apply_kmeans, do_normalize, device
+    raw_cuts_path, cuts_path, model, apply_kmeans, do_normalize, device
 ):
     logging.info(f"Loading {raw_cuts_path}")
     cut_set = CutSet.from_file(raw_cuts_path)
@@ -111,20 +110,11 @@ def extract_and_save_one_cuts(
     logging.info("Extracting kmeans")
     cuts = []
     for cut in tqdm(cut_set):
-        assert cut.sampling_rate == 16000, f"{cut.sampling_rate}"
+        assert cut.sampling_rate == 16000, f"Sampling rate: {cut.sampling_rate}"
         audio = cut.load_audio()
 
-        if audio.shape[-1] > 64 * 16000:
-            timestamps = get_speech_timestamps(audio, vad_model)
-            offsets = [i["start"] for i in timestamps]
-            audios = [audio[:, i["start"] : i["end"]] for i in timestamps]
-            logging.info(f"Trim audio {cut.id} into {len(audios)} segments")
-        else:
-            offsets = [0]
-            audios = [audio]
-
-        seq = 0
-        for audio, offset in zip(audios, offsets):
+        offsets = 0
+        if True:
             x = torch.from_numpy(audio).float().to(device)
 
             with torch.no_grad():
@@ -141,23 +131,11 @@ def extract_and_save_one_cuts(
 
             kmeans = " ".join(map(str, apply_kmeans(feature).tolist()))
 
-            supervision_segment = fastcopy(
-                cut.supervisions[0],
-                id=f"{cut.id}-{seq}",
-                start=0.0,
-                duration=audio.shape[-1] / 16000,
-            )
             cut_with_kmeans = fastcopy(
                 cut,
-                id=f"{cut.id}-{seq}",
-                start=cut.start + offset / 16000,
-                duration=audio.shape[-1] / 16000,
-                supervisions=[supervision_segment],
                 custom={"kmeans": kmeans},
             )
             cuts.append(cut_with_kmeans)
-
-            seq += 1
 
     cuts = CutSet(cuts)
 
@@ -181,7 +159,6 @@ def extract_kmeans(args):
 
     prefix = "librilight"
 
-    vad_model = load_silero_vad()
     apply_kmeans = ApplyKmeans(args.kmeans_model_path)
     model, _, task = fairseq.checkpoint_utils.load_model_ensemble_and_task(
         [args.model_path]
@@ -204,7 +181,6 @@ def extract_kmeans(args):
             raw_cuts_path,
             cuts_path,
             model,
-            vad_model,
             apply_kmeans,
             do_normalize,
             device,
@@ -235,7 +211,6 @@ def extract_kmeans(args):
                 raw_cuts_path,
                 cuts_path,
                 model,
-                vad_model,
                 apply_kmeans,
                 do_normalize,
                 device,

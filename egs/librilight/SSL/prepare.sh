@@ -5,7 +5,7 @@ export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
 
 set -eou pipefail
 
-nj=15
+nj=32
 # run step 0 to step 4 by default
 stage=0
 stop_stage=4
@@ -58,13 +58,13 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   mkdir -p data/kmeans
   if [ ! -f data/kmeans/.preprocess_complete ]; then
     python3 ./local/preprocess_librilight.py
-    touch data/fbank/.preprocess_complete
+    touch data/kmeans/.preprocess_complete
   fi
 fi
 
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   log "Stage 3: Split medium and large subset into pieces"
-  num_per_split=200000
+  num_per_split=2500
   split_dir=data/kmeans/medium_split
   if [ ! -f $split_dir/.split_completed ]; then
     lhotse split-lazy ./data/kmeans/librilight_cuts_medium_raw.jsonl.gz $split_dir $num_per_split
@@ -79,6 +79,12 @@ fi
 
 if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
   log "Stage 4: Extract SSL target for librilight"
+  if [ ! -e download/hubert_base_ls960.pt ]; then
+    wget https://dl.fbaipublicfiles.com/hubert/hubert_base_ls960.pt -P download
+  fi
+  if [ ! -e download/hubert_base_ls960_L9_km500.bin ]; then
+    wget https://dl.fbaipublicfiles.com/hubert/hubert_base_ls960_L9_km500.bin -P download
+  fi
   if [ ! -e data/kmeans/.extract_small.done ]; then
     ./local/extract_kmeans_from_hubert_base.py --subset small
     touch data/kmeans/.extract_small.done
