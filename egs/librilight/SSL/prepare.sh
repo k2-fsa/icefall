@@ -86,15 +86,15 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
     wget https://dl.fbaipublicfiles.com/hubert/hubert_base_ls960_L9_km500.bin -P download
   fi
   if [ ! -e data/kmeans/.extract_small.done ]; then
-    ./local/extract_kmeans_from_hubert_base.py --subset small
+    ./local/extract_kmeans.py --subset small
     touch data/kmeans/.extract_small.done
   fi
   if [ ! -e data/kmeans/.extract_medium.done ]; then
-    ./local/extract_kmeans_from_hubert_base.py --subset medium
+    ./local/extract_kmeans.py --subset medium
     touch data/kmeans/.extract_medium.done
   fi
   if [ ! -e data/kmeans/.extract_large.done ]; then
-    ./local/extract_kmeans_from_hubert_base.py --subset large
+    ./local/extract_kmeans.py --subset large
     touch data/kmeans/.extract_large.done
   fi
 fi
