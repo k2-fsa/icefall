@@ -18,6 +18,7 @@
 import argparse
 import logging
 import math
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -35,6 +36,8 @@ from tqdm import tqdm
 # even when we are not invoking the main (e.g. when spawning subprocesses).
 torch.set_num_threads(1)
 torch.set_num_interop_threads(1)
+
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:512"
 
 
 class ApplyKmeans(object):

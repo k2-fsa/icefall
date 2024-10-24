@@ -64,7 +64,7 @@ fi
 
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   log "Stage 3: Split medium and large subset into pieces"
-  num_per_split=2500
+  num_per_split=10000
   split_dir=data/kmeans/medium_split
   if [ ! -f $split_dir/.split_completed ]; then
     lhotse split-lazy ./data/kmeans/librilight_cuts_medium_raw.jsonl.gz $split_dir $num_per_split
