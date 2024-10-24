@@ -787,7 +787,7 @@ class LRScheduler(object):
         is not the optimizer.
         """
         return {
-             # the use might try to override the base_lr, so don't include this in the state.
+             # the user might try to override the base_lr, so don't include this in the state.
              # previously they were included.
              # "base_lrs": self.base_lrs,
             "epoch": self.epoch,
