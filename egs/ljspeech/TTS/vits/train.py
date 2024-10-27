@@ -542,13 +542,13 @@ def train_one_epoch(
                     tb_writer, "train/valid_", params.batch_idx_train
                 )
                 tb_writer.add_audio(
-                    "train/valdi_speech_hat",
+                    "train/valid_speech_hat",
                     speech_hat,
                     params.batch_idx_train,
                     params.sampling_rate,
                 )
                 tb_writer.add_audio(
-                    "train/valdi_speech",
+                    "train/valid_speech",
                     speech,
                     params.batch_idx_train,
                     params.sampling_rate,
