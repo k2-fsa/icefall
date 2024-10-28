@@ -5,7 +5,6 @@ from typing import Any, Dict
 
 import onnx
 import torch
-
 from inference import load_vocoder
 
 

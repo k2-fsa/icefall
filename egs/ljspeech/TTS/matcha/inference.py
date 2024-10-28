@@ -2,17 +2,17 @@
 
 import argparse
 import datetime as dt
+import json
 import logging
 from pathlib import Path
 
-import json
 import numpy as np
 import soundfile as sf
 import torch
 from matcha.hifigan.config import v1, v2, v3
 from matcha.hifigan.denoiser import Denoiser
-from tokenizer import Tokenizer
 from matcha.hifigan.models import Generator as HiFiGAN
+from tokenizer import Tokenizer
 from tqdm.auto import tqdm
 from train import get_model, get_params
 

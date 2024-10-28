@@ -2,23 +2,17 @@ import datetime as dt
 import math
 import random
 
+import matcha.monotonic_align as monotonic_align
 import torch
-
-import matcha.utils.monotonic_align as monotonic_align
-
-#  from matcha import utils
-#  from matcha.models.baselightningmodule import BaseLightningClass
-from matcha.models.components.flow_matching import CFM
-from matcha.models.components.text_encoder import TextEncoder
-from matcha.utils.model import (
+from matcha.model import (
     denormalize,
     duration_loss,
     fix_len_compatibility,
     generate_path,
     sequence_mask,
 )
-
-#  log = utils.get_pylogger(__name__)
+from matcha.models.components.flow_matching import CFM
+from matcha.models.components.text_encoder import TextEncoder
 
 
 class MatchaTTS(torch.nn.Module):  # 🍵

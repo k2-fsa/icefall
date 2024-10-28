@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
+import datetime as dt
 import logging
 
 import onnxruntime as ort
-import torch
-from tokenizer import Tokenizer
-import datetime as dt
-
 import soundfile as sf
+import torch
 from inference import load_vocoder
+from tokenizer import Tokenizer
 
 
 class OnnxHifiGANModel:

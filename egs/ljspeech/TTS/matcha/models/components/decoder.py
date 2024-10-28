@@ -7,7 +7,6 @@ import torch.nn.functional as F
 from conformer import ConformerBlock
 from diffusers.models.activations import get_activation
 from einops import pack, rearrange, repeat
-
 from matcha.models.components.transformer import BasicTransformerBlock
 
 

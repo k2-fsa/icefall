@@ -14,15 +14,15 @@ import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 from lhotse.utils import fix_random_seed
+from matcha.model import fix_len_compatibility
 from matcha.models.matcha_tts import MatchaTTS
 from matcha.tokenizer import Tokenizer
-from matcha.utils.model import fix_len_compatibility
 from torch.cuda.amp import GradScaler, autocast
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim import Optimizer
 from torch.utils.tensorboard import SummaryWriter
 from tts_datamodule import LJSpeechTtsDataModule
-from utils2 import MetricsTracker
+from utils import MetricsTracker
 
 from icefall.checkpoint import load_checkpoint, save_checkpoint
 from icefall.dist import cleanup_dist, setup_dist
