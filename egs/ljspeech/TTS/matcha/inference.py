@@ -28,7 +28,7 @@ def get_parser():
     parser.add_argument(
         "--epoch",
         type=int,
-        default=2810,
+        default=4000,
         help="""It specifies the checkpoint to use for decoding.
         Note: Epoch counts from 1.
         """,
@@ -42,6 +42,13 @@ def get_parser():
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
         """,
+    )
+
+    parser.add_argument(
+        "--vocoder",
+        type=Path,
+        default="./generator_v1",
+        help="Path to the vocoder",
     )
 
     parser.add_argument(
@@ -61,6 +68,7 @@ def get_parser():
 
 
 def load_vocoder(checkpoint_path):
+    checkpoint_path = str(checkpoint_path)
     if checkpoint_path.endswith("v1"):
         h = AttributeDict(v1)
     elif checkpoint_path.endswith("v2"):
@@ -142,10 +150,17 @@ def main():
 
     logging.info("About to create model")
     model = get_model(params)
+
+    if not Path(f"{params.exp_dir}/epoch-{params.epoch}.pt").is_file():
+        raise ValueError("{params.exp_dir}/epoch-{params.epoch}.pt does not exist")
+
     load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
     model.eval()
 
-    vocoder = load_vocoder("/star-fj/fangjun/open-source/Matcha-TTS/generator_v1")
+    if not Path(params.vocoder).is_file():
+        raise ValueError(f"{params.vocoder} does not exist")
+
+    vocoder = load_vocoder(params.vocoder)
     denoiser = Denoiser(vocoder, mode="zeros")
 
     texts = [

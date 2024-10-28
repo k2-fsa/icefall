@@ -73,8 +73,6 @@ class ModelWrapper(torch.nn.Module):
         )["mel"]
         # mel: (batch_size, feat_dim, num_frames)
 
-        #  audio = self.vocoder(mel).clamp(-1, 1).squeeze(1)
-
         return mel
 
 

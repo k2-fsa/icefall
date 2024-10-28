@@ -38,7 +38,7 @@ from lhotse.audio import RecordingSet
 from lhotse.features.base import FeatureExtractor, register_extractor
 from lhotse.supervision import SupervisionSet
 from lhotse.utils import Seconds, compute_num_frames
-from matcha.utils.audio import mel_spectrogram
+from matcha.audio import mel_spectrogram
 
 from icefall.utils import get_executor
 

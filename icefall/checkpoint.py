@@ -90,7 +90,7 @@ def save_checkpoint(
 
     if params:
         for k, v in params.items():
-            assert k not in checkpoint
+            assert k not in checkpoint, k
             checkpoint[k] = v
 
     torch.save(checkpoint, filename)
