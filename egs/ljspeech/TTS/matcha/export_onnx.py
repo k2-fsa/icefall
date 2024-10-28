@@ -1,20 +1,51 @@
 #!/usr/bin/env python3
 
+"""
+This script exports a Matcha-TTS model to ONNX.
+Note that the model outputs fbank. You need to use a vocoder to convert
+it to audio. See also ./export_onnx_hifigan.py
+"""
+
 import json
 import logging
+from typing import Any, Dict
 
+import onnx
 import torch
 from inference import get_parser
 from tokenizer import Tokenizer
 from train import get_model, get_params
+
 from icefall.checkpoint import load_checkpoint
-from onnxruntime.quantization import QuantType, quantize_dynamic
+
+
+def add_meta_data(filename: str, meta_data: Dict[str, Any]):
+    """Add meta data to an ONNX model. It is changed in-place.
+
+    Args:
+      filename:
+        Filename of the ONNX model to be changed.
+      meta_data:
+        Key-value pairs.
+    """
+    model = onnx.load(filename)
+
+    while len(model.metadata_props):
+        model.metadata_props.pop()
+
+    for key, value in meta_data.items():
+        meta = model.metadata_props.add()
+        meta.key = key
+        meta.value = str(value)
+
+    onnx.save(model, filename)
 
 
 class ModelWrapper(torch.nn.Module):
-    def __init__(self, model):
+    def __init__(self, model, num_steps: int = 5):
         super().__init__()
         self.model = model
+        self.num_steps = num_steps
 
     def forward(
         self,
@@ -30,23 +61,24 @@ class ModelWrapper(torch.nn.Module):
           temperature: (1,), torch.float32
           length_scale (1,), torch.float32
         Returns:
-          mel: (batch_size, feat_dim, num_frames)
+          audio: (batch_size, num_samples)
 
         """
         mel = self.model.synthesise(
             x=x,
             x_lengths=x_lengths,
-            n_timesteps=3,
+            n_timesteps=self.num_steps,
             temperature=temperature,
             length_scale=length_scale,
         )["mel"]
-
         # mel: (batch_size, feat_dim, num_frames)
+
+        #  audio = self.vocoder(mel).clamp(-1, 1).squeeze(1)
 
         return mel
 
 
-@torch.inference_mode
+@torch.inference_mode()
 def main():
     parser = get_parser()
     args = parser.parse_args()
@@ -72,44 +104,49 @@ def main():
     model = get_model(params)
     load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
 
-    wrapper = ModelWrapper(model)
-    wrapper.eval()
+    for num_steps in [2, 3, 4, 5, 6]:
+        logging.info(f"num_steps: {num_steps}")
+        wrapper = ModelWrapper(model, num_steps=num_steps)
+        wrapper.eval()
 
-    # Use a large value so the the rotary position embedding in the text
-    # encoder has a large initial length
-    x = torch.ones(1, 2000, dtype=torch.int64)
-    x_lengths = torch.tensor([x.shape[1]], dtype=torch.int64)
-    temperature = torch.tensor([1.0])
-    length_scale = torch.tensor([1.0])
-    mel = wrapper(x, x_lengths, temperature, length_scale)
-    print("mel", mel.shape)
+        # Use a large value so the rotary position embedding in the text
+        # encoder has a large initial length
+        x = torch.ones(1, 1000, dtype=torch.int64)
+        x_lengths = torch.tensor([x.shape[1]], dtype=torch.int64)
+        temperature = torch.tensor([1.0])
+        length_scale = torch.tensor([1.0])
 
-    opset_version = 14
-    filename = "model.onnx"
-    torch.onnx.export(
-        wrapper,
-        (x, x_lengths, temperature, length_scale),
-        filename,
-        opset_version=opset_version,
-        input_names=["x", "x_length", "temperature", "length_scale"],
-        output_names=["mel"],
-        dynamic_axes={
-            "x": {0: "N", 1: "L"},
-            "x_length": {0: "N"},
-            "mel": {0: "N", 2: "L"},
-        },
-    )
+        opset_version = 14
+        filename = f"model-steps-{num_steps}.onnx"
+        torch.onnx.export(
+            wrapper,
+            (x, x_lengths, temperature, length_scale),
+            filename,
+            opset_version=opset_version,
+            input_names=["x", "x_length", "temperature", "length_scale"],
+            output_names=["mel"],
+            dynamic_axes={
+                "x": {0: "N", 1: "L"},
+                "x_length": {0: "N"},
+                "mel": {0: "N", 2: "L"},
+            },
+        )
 
-    print("Generate int8 quantization models")
-
-    filename_int8 = "model.int8.onnx"
-    quantize_dynamic(
-        model_input=filename,
-        model_output=filename_int8,
-        weight_type=QuantType.QInt8,
-    )
-
-    print(f"Saved to {filename} and {filename_int8}")
+        meta_data = {
+            "model_type": "matcha-tts",
+            "language": "English",
+            "voice": "en-us",
+            "has_espeak": 1,
+            "n_speakers": 1,
+            "sample_rate": 22050,
+            "version": 1,
+            "model_author": "icefall",
+            "maintainer": "k2-fsa",
+            "dataset": "LJ Speech",
+            "num_ode_steps": num_steps,
+        }
+        add_meta_data(filename=filename, meta_data=meta_data)
+        print(meta_data)
 
 
 if __name__ == "__main__":

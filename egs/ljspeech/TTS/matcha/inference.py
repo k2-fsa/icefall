@@ -9,7 +9,7 @@ import json
 import numpy as np
 import soundfile as sf
 import torch
-from matcha.hifigan.config import v1
+from matcha.hifigan.config import v1, v2, v3
 from matcha.hifigan.denoiser import Denoiser
 from tokenizer import Tokenizer
 from matcha.hifigan.models import Generator as HiFiGAN
@@ -63,7 +63,15 @@ def get_parser():
 
 
 def load_vocoder(checkpoint_path):
-    h = AttributeDict(v1)
+    if checkpoint_path.endswith("v1"):
+        h = AttributeDict(v1)
+    elif checkpoint_path.endswith("v2"):
+        h = AttributeDict(v2)
+    elif checkpoint_path.endswith("v3"):
+        h = AttributeDict(v3)
+    else:
+        raise ValueError(f"supports only v1, v2, and v3, given {checkpoint_path}")
+
     hifigan = HiFiGAN(h).to("cpu")
     hifigan.load_state_dict(
         torch.load(checkpoint_path, map_location="cpu")["generator"]
@@ -143,13 +151,12 @@ def main():
     denoiser = Denoiser(vocoder, mode="zeros")
 
     texts = [
-        "How are you doing? my friend.",
         "The Secret Service believed that it was very doubtful that any President would ride regularly in a vehicle with a fixed top, even though transparent.",
         "Today as always, men fall into two groups: slaves and free men. Whoever does not have two-thirds of his day for himself, is a slave, whatever he may be: a statesman, a businessman, an official, or a scholar.",
     ]
 
     # Number of ODE Solver steps
-    n_timesteps = 3
+    n_timesteps = 2
 
     # Changes to the speaking rate
     length_scale = 1.0
@@ -203,4 +210,6 @@ if __name__ == "__main__":
     formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
 
     logging.basicConfig(format=formatter, level=logging.INFO)
+    torch.set_num_threads(1)
+    torch.set_num_interop_threads(1)
     main()
