@@ -6,17 +6,58 @@ Note that the model outputs fbank. You need to use a vocoder to convert
 it to audio. See also ./export_onnx_hifigan.py
 """
 
+import argparse
 import json
 import logging
+from pathlib import Path
 from typing import Any, Dict
 
 import onnx
 import torch
-from inference import get_parser
 from tokenizer import Tokenizer
 from train import get_model, get_params
 
 from icefall.checkpoint import load_checkpoint
+
+
+def get_parser():
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+
+    parser.add_argument(
+        "--epoch",
+        type=int,
+        default=4000,
+        help="""It specifies the checkpoint to use for decoding.
+        Note: Epoch counts from 1.
+        """,
+    )
+
+    parser.add_argument(
+        "--exp-dir",
+        type=Path,
+        default="matcha/exp-new-3",
+        help="""The experiment dir.
+        It specifies the directory where all training related
+        files, e.g., checkpoints, log, etc, are saved
+        """,
+    )
+
+    parser.add_argument(
+        "--tokens",
+        type=Path,
+        default="data/tokens.txt",
+    )
+
+    parser.add_argument(
+        "--cmvn",
+        type=str,
+        default="data/fbank/cmvn.json",
+        help="""Path to vocabulary.""",
+    )
+
+    return parser
 
 
 def add_meta_data(filename: str, meta_data: Dict[str, Any]):

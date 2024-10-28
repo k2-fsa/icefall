@@ -2,13 +2,12 @@
 
 set -ex
 
-apt-get install sox
+apt-get update
+apt-get install -y sox
 
 python3 -m pip install piper_phonemize -f https://k2-fsa.github.io/icefall/piper_phonemize.html
 python3 -m pip install espnet_tts_frontend
-python3 -m pip install numba
-
-python3 -m pip install conformer==0.3.2 diffusers librosa
+python3 -m pip install numba conformer==0.3.2 diffusers librosa
 
 log() {
   # This function is from espnet
@@ -26,7 +25,7 @@ git diff
 function prepare_data() {
   # We have created a subset of the data for testing
   #
-  mkdir download
+  mkdir -p download
   pushd download
   wget -q https://huggingface.co/csukuangfj/ljspeech-subset-for-ci-test/resolve/main/LJSpeech-1.1.tar.bz2
   tar xvf LJSpeech-1.1.tar.bz2
@@ -50,8 +49,7 @@ function train() {
     --tokens data/tokens.txt \
     --max-duration 20
 
-    ls -lh match/exp
-  done
+    ls -lh matcha/exp
 }
 
 function infer() {
@@ -63,7 +61,7 @@ function infer() {
     --exp-dir ./matcha/exp \
     --tokens data/tokens.txt \
     --vocoder ./generator_v1 \
-    --input-text "how are you doing?"
+    --input-text "how are you doing?" \
     --output-wav ./generated.wav
 
   ls -lh *.wav
@@ -74,12 +72,7 @@ function infer() {
 
 function export_onnx() {
   pushd matcha/exp
-
   curl -SL -O https://huggingface.co/csukuangfj/icefall-tts-ljspeech-matcha-en-2024-10-28/resolve/main/exp/epoch-4000.pt
-  curl -SL -O https://github.com/csukuangfj/models/raw/refs/heads/master/hifigan/generator_v1
-  curl -SL -O https://github.com/csukuangfj/models/raw/refs/heads/master/hifigan/generator_v2
-  curl -SL -O https://github.com/csukuangfj/models/raw/refs/heads/master/hifigan/generator_v3
-
   popd
 
   pushd data/fbank
@@ -87,24 +80,33 @@ function export_onnx() {
   curl -SL -O https://huggingface.co/csukuangfj/icefall-tts-ljspeech-matcha-en-2024-10-28/resolve/main/data/cmvn.json
   popd
 
+  curl -SL -O https://github.com/csukuangfj/models/raw/refs/heads/master/hifigan/generator_v2
+  curl -SL -O https://github.com/csukuangfj/models/raw/refs/heads/master/hifigan/generator_v3
+
   ./matcha/export_onnx.py \
-    --exp-dir ./matcha/exp-new-3 \
+    --exp-dir ./matcha/exp \
     --epoch 4000 \
     --tokens ./data/tokens.txt \
     --cmvn ./data/fbank/cmvn.json
 
   ls -lh *.onnx
 
-  python3 ./matcha/export_onnx_hifigan.py
+  if false; then
+    # THe CI machine does not have enough memory to run it
+    python3 ./matcha/export_onnx_hifigan.py
+  else
+    curl -SL -O https://huggingface.co/csukuangfj/icefall-tts-ljspeech-matcha-en-2024-10-28/resolve/main/exp/hifigan_v2.onnx
+  fi
 
   ls -lh *.onnx
 
-  python3 ./matcha/onnx_pretrained.py \
-   --acoustic-model ./model-steps-6.onnx \
-   --vocoder ./hifigan_v1.onnx \
-   --tokens ./data/tokens.txt \
-   --input-text "how are you doing?" \
-   --output-wav /icefall/generated-matcha-tts-6.wav
+
+    python3 ./matcha/onnx_pretrained.py \
+     --acoustic-model ./model-steps-6.onnx \
+     --vocoder ./hifigan_v2.onnx \
+     --tokens ./data/tokens.txt \
+     --input-text "how are you doing?" \
+     --output-wav /icefall/generated-matcha-tts-6.wav
 
   ls -lh /icefall/*.wav
   soxi /icefall/generated-matcha-tts-6.wav
@@ -114,3 +116,5 @@ prepare_data
 train
 infer
 export_onnx
+
+rm -rfv generator_v* matcha/exp

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import logging
+from pathlib import Path
 from typing import Any, Dict
 
 import onnx
@@ -58,6 +59,9 @@ def main():
 
     for f in model_filenames:
         logging.info(f)
+        if not Path(f).is_file():
+            logging.info(f"Skipping {f} since {f} does not exist")
+            continue
         model = load_vocoder(f)
         wrapper = ModelWrapper(model)
         wrapper.eval()
