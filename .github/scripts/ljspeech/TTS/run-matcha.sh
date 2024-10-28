@@ -2,13 +2,13 @@
 
 set -ex
 
-sudo apt-get install sox
+apt-get install sox
 
 python3 -m pip install piper_phonemize -f https://k2-fsa.github.io/icefall/piper_phonemize.html
 python3 -m pip install espnet_tts_frontend
 python3 -m pip install numba
 
-pytnon3 -m pip install conformer==0.3.2 diffusers
+python3 -m pip install conformer==0.3.2 diffusers librosa
 
 log() {
   # This function is from espnet
@@ -37,12 +37,12 @@ function prepare_data() {
 }
 
 function train() {
-  pushd ./vits
+  pushd ./matcha
   sed -i.bak s/1500/3/g ./train.py
   git diff .
   popd
 
-  ./vits/train.py \
+  ./matcha/train.py \
     --exp-dir matcha/exp \
     --num-epochs 1 \
     --save-every-n 1 \
