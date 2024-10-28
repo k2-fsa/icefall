@@ -29,7 +29,12 @@ log = pylogger.get_pylogger(__name__)
 
 
 def save_durations_to_folder(
-    attn: torch.Tensor, x_length: int, y_length: int, filepath: str, output_folder: Path, text: str
+    attn: torch.Tensor,
+    x_length: int,
+    y_length: int,
+    filepath: str,
+    output_folder: Path,
+    text: str,
 ):
     durations = attn.squeeze().sum(1)[:x_length].numpy()
     durations_json = get_phoneme_durations(durations, text)
@@ -41,7 +46,12 @@ def save_durations_to_folder(
 
 
 @torch.inference_mode()
-def compute_durations(data_loader: torch.utils.data.DataLoader, model: nn.Module, device: torch.device, output_folder):
+def compute_durations(
+    data_loader: torch.utils.data.DataLoader,
+    model: nn.Module,
+    device: torch.device,
+    output_folder,
+):
     """Generate durations from the model for each datapoint and save it in a folder
 
     Args:
@@ -123,13 +133,17 @@ def main():
     )
 
     parser.add_argument(
-        "--cpu", action="store_true", help="Use CPU for inference, not recommended (default: use GPU if available)"
+        "--cpu",
+        action="store_true",
+        help="Use CPU for inference, not recommended (default: use GPU if available)",
     )
 
     args = parser.parse_args()
 
     with initialize(version_base="1.3", config_path="../../configs/data"):
-        cfg = compose(config_name=args.input_config, return_hydra_config=True, overrides=[])
+        cfg = compose(
+            config_name=args.input_config, return_hydra_config=True, overrides=[]
+        )
 
     root_path = rootutils.find_root(search_from=__file__, indicator=".project-root")
 
@@ -138,8 +152,12 @@ def main():
         del cfg["_target_"]
         cfg["seed"] = 1234
         cfg["batch_size"] = args.batch_size
-        cfg["train_filelist_path"] = str(os.path.join(root_path, cfg["train_filelist_path"]))
-        cfg["valid_filelist_path"] = str(os.path.join(root_path, cfg["valid_filelist_path"]))
+        cfg["train_filelist_path"] = str(
+            os.path.join(root_path, cfg["train_filelist_path"])
+        )
+        cfg["valid_filelist_path"] = str(
+            os.path.join(root_path, cfg["valid_filelist_path"])
+        )
         cfg["load_durations"] = False
 
     if args.output_folder is not None:
@@ -155,7 +173,9 @@ def main():
 
     output_folder.mkdir(parents=True, exist_ok=True)
 
-    print(f"Preprocessing: {cfg['name']} from training filelist: {cfg['train_filelist_path']}")
+    print(
+        f"Preprocessing: {cfg['name']} from training filelist: {cfg['train_filelist_path']}"
+    )
     print("Loading model...")
     device = get_device(args)
     model = MatchaTTS.load_from_checkpoint(args.checkpoint_path, map_location=device)

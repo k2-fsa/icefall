@@ -32,7 +32,10 @@ class BaseLightningClass(LightningModule, ABC):
         if self.hparams.scheduler not in (None, {}):
             scheduler_args = {}
             # Manage last epoch for exponential schedulers
-            if "last_epoch" in inspect.signature(self.hparams.scheduler.scheduler).parameters:
+            if (
+                "last_epoch"
+                in inspect.signature(self.hparams.scheduler.scheduler).parameters
+            ):
                 if hasattr(self, "ckpt_loaded_epoch"):
                     current_epoch = self.ckpt_loaded_epoch - 1
                 else:
@@ -74,7 +77,9 @@ class BaseLightningClass(LightningModule, ABC):
         }
 
     def on_load_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
-        self.ckpt_loaded_epoch = checkpoint["epoch"]  # pylint: disable=attribute-defined-outside-init
+        self.ckpt_loaded_epoch = checkpoint[
+            "epoch"
+        ]  # pylint: disable=attribute-defined-outside-init
 
     def training_step(self, batch: Any, batch_idx: int):
         loss_dict = self.get_losses(batch)
@@ -183,8 +188,14 @@ class BaseLightningClass(LightningModule, ABC):
             for i in range(2):
                 x = one_batch["x"][i].unsqueeze(0).to(self.device)
                 x_lengths = one_batch["x_lengths"][i].unsqueeze(0).to(self.device)
-                spks = one_batch["spks"][i].unsqueeze(0).to(self.device) if one_batch["spks"] is not None else None
-                output = self.synthesise(x[:, :x_lengths], x_lengths, n_timesteps=10, spks=spks)
+                spks = (
+                    one_batch["spks"][i].unsqueeze(0).to(self.device)
+                    if one_batch["spks"] is not None
+                    else None
+                )
+                output = self.synthesise(
+                    x[:, :x_lengths], x_lengths, n_timesteps=10, spks=spks
+                )
                 y_enc, y_dec = output["encoder_outputs"], output["decoder_outputs"]
                 attn = output["attn"]
                 self.logger.experiment.add_image(
@@ -207,4 +218,6 @@ class BaseLightningClass(LightningModule, ABC):
                 )
 
     def on_before_optimizer_step(self, optimizer):
-        self.log_dict({f"grad_norm/{k}": v for k, v in grad_norm(self, norm_type=2).items()})
+        self.log_dict(
+            {f"grad_norm/{k}": v for k, v in grad_norm(self, norm_type=2).items()}
+        )

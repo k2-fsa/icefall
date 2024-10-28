@@ -9,6 +9,7 @@ from typing import Any, Callable, Dict, Tuple
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+
 #  from omegaconf import DictConfig
 
 #  from matcha.utils import pylogger, rich_utils
@@ -16,7 +17,7 @@ import torch
 #  log = pylogger.get_pylogger(__name__)
 
 
-def extras(cfg: 'DictConfig') -> None:
+def extras(cfg: "DictConfig") -> None:
     """Applies optional utilities before the task is started.
 
     Utilities:
@@ -207,6 +208,7 @@ def get_user_data_dir(appname="matcha_tts"):
 def assert_model_downloaded(checkpoint_path, url, use_wget=True):
     import gdown
     import wget
+
     if Path(checkpoint_path).exists():
         log.debug(f"[+] Model already present at {checkpoint_path}!")
         print(f"[+] Model already present at {checkpoint_path}!")

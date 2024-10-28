@@ -4,7 +4,9 @@ from matcha.text.symbols import symbols
 
 # Mappings from symbol to numeric ID and vice versa:
 _symbol_to_id = {s: i for i, s in enumerate(symbols)}
-_id_to_symbol = {i: s for i, s in enumerate(symbols)}  # pylint: disable=unnecessary-comprehension
+_id_to_symbol = {
+    i: s for i, s in enumerate(symbols)
+}  # pylint: disable=unnecessary-comprehension
 
 
 def text_to_sequence(text, cleaner_names):
@@ -20,13 +22,15 @@ def text_to_sequence(text, cleaner_names):
     clean_text = _clean_text(text, cleaner_names)
     for symbol in clean_text:
         try:
-            if symbol in '_()[]# ̃':
+            if symbol in "_()[]# ̃":
                 continue
             symbol_id = _symbol_to_id[symbol]
         except Exception as ex:
             print(text)
             print(clean_text)
-            raise RuntimeError(f'text: {text}, clean_text: {clean_text}, ex: {ex}, symbol: {symbol}')
+            raise RuntimeError(
+                f"text: {text}, clean_text: {clean_text}, ex: {ex}, symbol: {symbol}"
+            )
         sequence += [symbol_id]
     return sequence, clean_text
 

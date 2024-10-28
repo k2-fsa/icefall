@@ -34,7 +34,15 @@ class LayerNorm(nn.Module):
 
 
 class ConvReluNorm(nn.Module):
-    def __init__(self, in_channels, hidden_channels, out_channels, kernel_size, n_layers, p_dropout):
+    def __init__(
+        self,
+        in_channels,
+        hidden_channels,
+        out_channels,
+        kernel_size,
+        n_layers,
+        p_dropout,
+    ):
         super().__init__()
         self.in_channels = in_channels
         self.hidden_channels = hidden_channels
@@ -45,12 +53,23 @@ class ConvReluNorm(nn.Module):
 
         self.conv_layers = torch.nn.ModuleList()
         self.norm_layers = torch.nn.ModuleList()
-        self.conv_layers.append(torch.nn.Conv1d(in_channels, hidden_channels, kernel_size, padding=kernel_size // 2))
+        self.conv_layers.append(
+            torch.nn.Conv1d(
+                in_channels, hidden_channels, kernel_size, padding=kernel_size // 2
+            )
+        )
         self.norm_layers.append(LayerNorm(hidden_channels))
-        self.relu_drop = torch.nn.Sequential(torch.nn.ReLU(), torch.nn.Dropout(p_dropout))
+        self.relu_drop = torch.nn.Sequential(
+            torch.nn.ReLU(), torch.nn.Dropout(p_dropout)
+        )
         for _ in range(n_layers - 1):
             self.conv_layers.append(
-                torch.nn.Conv1d(hidden_channels, hidden_channels, kernel_size, padding=kernel_size // 2)
+                torch.nn.Conv1d(
+                    hidden_channels,
+                    hidden_channels,
+                    kernel_size,
+                    padding=kernel_size // 2,
+                )
             )
             self.norm_layers.append(LayerNorm(hidden_channels))
         self.proj = torch.nn.Conv1d(hidden_channels, out_channels, 1)
@@ -75,9 +94,13 @@ class DurationPredictor(nn.Module):
         self.p_dropout = p_dropout
 
         self.drop = torch.nn.Dropout(p_dropout)
-        self.conv_1 = torch.nn.Conv1d(in_channels, filter_channels, kernel_size, padding=kernel_size // 2)
+        self.conv_1 = torch.nn.Conv1d(
+            in_channels, filter_channels, kernel_size, padding=kernel_size // 2
+        )
         self.norm_1 = LayerNorm(filter_channels)
-        self.conv_2 = torch.nn.Conv1d(filter_channels, filter_channels, kernel_size, padding=kernel_size // 2)
+        self.conv_2 = torch.nn.Conv1d(
+            filter_channels, filter_channels, kernel_size, padding=kernel_size // 2
+        )
         self.norm_2 = LayerNorm(filter_channels)
         self.proj = torch.nn.Conv1d(filter_channels, 1, 1)
 
@@ -128,7 +151,9 @@ class RotaryPositionalEmbeddings(nn.Module):
         seq_len = x.shape[0]
 
         # $\Theta = {\theta_i = 10000^{-\frac{2(i-1)}{d}}, i \in [1, 2, ..., \frac{d}{2}]}$
-        theta = 1.0 / (self.base ** (torch.arange(0, self.d, 2).float() / self.d)).to(x.device)
+        theta = 1.0 / (self.base ** (torch.arange(0, self.d, 2).float() / self.d)).to(
+            x.device
+        )
 
         # Create position indexes `[0, 1, ..., seq_len - 1]`
         seq_idx = torch.arange(seq_len, device=x.device).float().to(x.device)
@@ -167,7 +192,9 @@ class RotaryPositionalEmbeddings(nn.Module):
         # $[-x^{(\frac{d}{2} + 1)}, -x^{(\frac{d}{2} + 2)}, ..., -x^{(d)}, x^{(1)}, x^{(2)}, ..., x^{(\frac{d}{2})}]$
         neg_half_x = self._neg_half(x_rope)
 
-        x_rope = (x_rope * self.cos_cached[: x.shape[0]]) + (neg_half_x * self.sin_cached[: x.shape[0]])
+        x_rope = (x_rope * self.cos_cached[: x.shape[0]]) + (
+            neg_half_x * self.sin_cached[: x.shape[0]]
+        )
 
         return rearrange(torch.cat((x_rope, x_pass), dim=-1), "t b h d -> b h t d")
 
@@ -236,7 +263,9 @@ class MultiHeadAttention(nn.Module):
 
         if self.proximal_bias:
             assert t_s == t_t, "Proximal bias is only available for self-attention."
-            scores = scores + self._attention_bias_proximal(t_s).to(device=scores.device, dtype=scores.dtype)
+            scores = scores + self._attention_bias_proximal(t_s).to(
+                device=scores.device, dtype=scores.dtype
+            )
         if mask is not None:
             scores = scores.masked_fill(mask == 0, -1e4)
         p_attn = torch.nn.functional.softmax(scores, dim=-1)
@@ -253,7 +282,9 @@ class MultiHeadAttention(nn.Module):
 
 
 class FFN(nn.Module):
-    def __init__(self, in_channels, out_channels, filter_channels, kernel_size, p_dropout=0.0):
+    def __init__(
+        self, in_channels, out_channels, filter_channels, kernel_size, p_dropout=0.0
+    ):
         super().__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -261,8 +292,12 @@ class FFN(nn.Module):
         self.kernel_size = kernel_size
         self.p_dropout = p_dropout
 
-        self.conv_1 = torch.nn.Conv1d(in_channels, filter_channels, kernel_size, padding=kernel_size // 2)
-        self.conv_2 = torch.nn.Conv1d(filter_channels, out_channels, kernel_size, padding=kernel_size // 2)
+        self.conv_1 = torch.nn.Conv1d(
+            in_channels, filter_channels, kernel_size, padding=kernel_size // 2
+        )
+        self.conv_2 = torch.nn.Conv1d(
+            filter_channels, out_channels, kernel_size, padding=kernel_size // 2
+        )
         self.drop = torch.nn.Dropout(p_dropout)
 
     def forward(self, x, x_mask):
@@ -298,7 +333,11 @@ class Encoder(nn.Module):
         self.ffn_layers = torch.nn.ModuleList()
         self.norm_layers_2 = torch.nn.ModuleList()
         for _ in range(self.n_layers):
-            self.attn_layers.append(MultiHeadAttention(hidden_channels, hidden_channels, n_heads, p_dropout=p_dropout))
+            self.attn_layers.append(
+                MultiHeadAttention(
+                    hidden_channels, hidden_channels, n_heads, p_dropout=p_dropout
+                )
+            )
             self.norm_layers_1.append(LayerNorm(hidden_channels))
             self.ffn_layers.append(
                 FFN(
@@ -367,7 +406,9 @@ class TextEncoder(nn.Module):
             encoder_params.p_dropout,
         )
 
-        self.proj_m = torch.nn.Conv1d(self.n_channels + (spk_emb_dim if n_spks > 1 else 0), self.n_feats, 1)
+        self.proj_m = torch.nn.Conv1d(
+            self.n_channels + (spk_emb_dim if n_spks > 1 else 0), self.n_feats, 1
+        )
         self.proj_w = DurationPredictor(
             self.n_channels + (spk_emb_dim if n_spks > 1 else 0),
             duration_predictor_params.filter_channels_dp,

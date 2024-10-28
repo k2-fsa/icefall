@@ -75,11 +75,12 @@ def lowercase(text):
 def collapse_whitespace(text):
     return re.sub(_whitespace_re, " ", text)
 
+
 def remove_parentheses(text):
-    text =  text.replace("(", "")
-    text =  text.replace(")", "")
-    text =  text.replace("[", "")
-    text =  text.replace("]", "")
+    text = text.replace("(", "")
+    text = text.replace(")", "")
+    text = text.replace("[", "")
+    text = text.replace("]", "")
     return text
 
 
