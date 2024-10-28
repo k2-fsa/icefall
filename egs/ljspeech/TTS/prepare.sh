@@ -34,10 +34,10 @@ if [ $stage -le -1 ] && [ $stop_stage -ge -1 ]; then
     log "monotonic_align lib for vits already built"
   fi
 
-  if [ ! -f ./matcha/utils/monotonic_align/core.cpython-38-x86_64-linux-gnu.so  ]; then
-    pushd matcha/utils/monotonic_align
+  if [ ! -f ./matcha/monotonic_align/core.cpython-38-x86_64-linux-gnu.so  ]; then
+    pushd matcha/monotonic_align
     python3 setup.py build_ext --inplace
-    mv -v matcha/utils/monotonic_align/core.cpython-38-x86_64-linux-gnu.so ./
+    mv -v matcha/monotonic_align/core.cpython-38-x86_64-linux-gnu.so ./
     rm -rf matcha
     rm -rf build
     rm core.c

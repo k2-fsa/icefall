@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import argparse
 import datetime as dt
 import logging
 
@@ -7,6 +8,49 @@ import soundfile as sf
 import torch
 from inference import load_vocoder
 from tokenizer import Tokenizer
+
+
+def get_parser():
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+
+    parser.add_argument(
+        "--acoustic-model",
+        type=str,
+        required=True,
+        help="Path to the acoustic model",
+    )
+
+    parser.add_argument(
+        "--tokens",
+        type=str,
+        required=True,
+        help="Path to the tokens.txt",
+    )
+
+    parser.add_argument(
+        "--vocoder",
+        type=str,
+        required=True,
+        help="Path to the vocoder",
+    )
+
+    parser.add_argument(
+        "--input-text",
+        type=str,
+        required=True,
+        help="The text to generate speech for",
+    )
+
+    parser.add_argument(
+        "--output-wav",
+        type=str,
+        required=True,
+        help="The filename of the wave to save the generated speech",
+    )
+
+    return parser
 
 
 class OnnxHifiGANModel:
@@ -98,19 +142,18 @@ class OnnxModel:
 
 @torch.no_grad()
 def main():
-    model = OnnxModel("./model-steps-6.onnx")
-    vocoder = OnnxHifiGANModel("./hifigan_v1.onnx")
-    text = "Today as always, men fall into two groups: slaves and free men."
-    text += "hello, how are you doing?"
+    params = get_parser().parse_args()
+    logging.info(vars(params))
+
+    model = OnnxModel(params.acoustic_model)
+    vocoder = OnnxHifiGANModel(params.vocoder)
+    text = params.input_text
     x = model.tokenizer.texts_to_token_ids([text], add_sos=True, add_eos=True)
     x = torch.tensor(x, dtype=torch.int64)
 
     start_t = dt.datetime.now()
     mel = model(x)
     end_t = dt.datetime.now()
-
-    for i in range(3):
-        audio = vocoder(mel)
 
     start_t2 = dt.datetime.now()
     audio = vocoder(mel)
@@ -121,13 +164,14 @@ def main():
 
     t = (end_t - start_t).total_seconds()
     t2 = (end_t2 - start_t2).total_seconds()
-    rtf = t * 22050 / audio.shape[-1]
-    rtf2 = t2 * 22050 / audio.shape[-1]
-    print("RTF", rtf)
-    print("RTF", rtf2)
+    rtf_am = t * 22050 / audio.shape[-1]
+    rtf_vocoder = t2 * 22050 / audio.shape[-1]
+    print("RTF for acoustic model ", rtf_am)
+    print("RTF for vocoder", rtf_vocoder)
 
     # skip denoiser
-    sf.write("onnx2.wav", audio, 22050, "PCM_16")
+    sf.write(params.output_wav, audio, 22050, "PCM_16")
+    logging.info(f"Saved to {params.output_wav}")
 
 
 if __name__ == "__main__":

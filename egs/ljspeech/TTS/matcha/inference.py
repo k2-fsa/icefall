@@ -6,14 +6,12 @@ import json
 import logging
 from pathlib import Path
 
-import numpy as np
 import soundfile as sf
 import torch
 from matcha.hifigan.config import v1, v2, v3
 from matcha.hifigan.denoiser import Denoiser
 from matcha.hifigan.models import Generator as HiFiGAN
 from tokenizer import Tokenizer
-from tqdm.auto import tqdm
 from train import get_model, get_params
 
 from icefall.checkpoint import load_checkpoint
@@ -64,6 +62,20 @@ def get_parser():
         help="""Path to vocabulary.""",
     )
 
+    parser.add_argument(
+        "--input-text",
+        type=str,
+        required=True,
+        help="The text to generate speech for",
+    )
+
+    parser.add_argument(
+        "--output-wav",
+        type=str,
+        required=True,
+        help="The filename of the wave to save the generated speech",
+    )
+
     return parser
 
 
@@ -93,13 +105,6 @@ def to_waveform(mel, vocoder, denoiser):
     return audio.cpu().squeeze()
 
 
-def save_to_folder(filename: str, output: dict, folder: str):
-    folder = Path(folder)
-    folder.mkdir(exist_ok=True, parents=True)
-    np.save(folder / f"{filename}", output["mel"].cpu().numpy())
-    sf.write(folder / f"{filename}.wav", output["waveform"], 22050, "PCM_24")
-
-
 def process_text(text: str, tokenizer):
     x = tokenizer.texts_to_token_ids([text], add_sos=True, add_eos=True)
     x = torch.tensor(x, dtype=torch.long)
@@ -120,7 +125,6 @@ def synthesise(
         spks=spks,
         length_scale=length_scale,
     )
-    print("output.shape", list(output.keys()), output["mel"].shape)
     # merge everything to one dict
     output.update({"start_t": start_t, **text_processed})
     return output
@@ -163,16 +167,6 @@ def main():
     vocoder = load_vocoder(params.vocoder)
     denoiser = Denoiser(vocoder, mode="zeros")
 
-    texts = [
-        "The Secret Service believed that it was very doubtful that any "
-        "President would ride regularly in a vehicle with a fixed top, even "
-        "though transparent.",
-        "Today as always, men fall into two groups: slaves and free men. "
-        "Whoever does not have two-thirds of his day for himself, is a slave, "
-        "whatever he may be: a statesman, a businessman, an official, or a "
-        "scholar.",
-    ]
-
     # Number of ODE Solver steps
     n_timesteps = 2
 
@@ -182,47 +176,17 @@ def main():
     # Sampling temperature
     temperature = 0.667
 
-    rtfs = []
-    rtfs_w = []
-    for i, text in enumerate(tqdm(texts)):
-        output = synthesise(
-            model=model,
-            tokenizer=tokenizer,
-            n_timesteps=n_timesteps,
-            text=text,
-            length_scale=length_scale,
-            temperature=temperature,
-        )  # , torch.tensor([15], device=device, dtype=torch.long).unsqueeze(0))
-        output["waveform"] = to_waveform(output["mel"], vocoder, denoiser)
-
-        # Compute Real Time Factor (RTF) with HiFi-GAN
-        t = (dt.datetime.now() - output["start_t"]).total_seconds()
-        rtf_w = t * 22050 / (output["waveform"].shape[-1])
-
-        # Pretty print
-        print(f"{'*' * 53}")
-        print(f"Input text - {i}")
-        print(f"{'-' * 53}")
-        print(output["x_orig"])
-        print(f"{'*' * 53}")
-        print(f"Phonetised text - {i}")
-        print(f"{'-' * 53}")
-        print(output["x"])
-        print(f"{'*' * 53}")
-        print(f"RTF:\t\t{output['rtf']:.6f}")
-        print(f"RTF Waveform:\t{rtf_w:.6f}")
-        rtfs.append(output["rtf"])
-        rtfs_w.append(rtf_w)
-
-        # Save the generated waveform
-        save_to_folder(i, output, folder=f"./my-output-{params.epoch}")
-
-    print(f"Number of ODE steps: {n_timesteps}")
-    print(f"Mean RTF:\t\t\t\t{np.mean(rtfs):.6f} ± {np.std(rtfs):.6f}")
-    print(
-        "Mean RTF Waveform "
-        f"(incl. vocoder):\t{np.mean(rtfs_w):.6f} ± {np.std(rtfs_w):.6f}"
+    output = synthesise(
+        model=model,
+        tokenizer=tokenizer,
+        n_timesteps=n_timesteps,
+        text=params.input_text,
+        length_scale=length_scale,
+        temperature=temperature,
     )
+    output["waveform"] = to_waveform(output["mel"], vocoder, denoiser)
+
+    sf.write(params.output_wav, output["waveform"], 22050, "PCM_16")
 
 
 if __name__ == "__main__":
