@@ -36,11 +36,11 @@ if [ $stage -le -1 ] && [ $stop_stage -ge -1 ]; then
 
   if [ ! -f ./matcha/monotonic_align/core.cpython-38-x86_64-linux-gnu.so  ]; then
     pushd matcha/monotonic_align
-    python3 setup.py build_ext --inplace
-    mv -v matcha/monotonic_align/core.cpython-38-x86_64-linux-gnu.so ./
-    rm -rf matcha
+    python3 setup.py build
+    mv -v build/lib.*/matcha/monotonic_align/core.*.so .
     rm -rf build
     rm core.c
+    ls -lh
     popd
   else
     log "monotonic_align lib for matcha-tts already built"
