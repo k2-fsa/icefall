@@ -27,28 +27,100 @@ The generated fbank features are saved in data/fbank.
 import argparse
 import logging
 import os
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Union
 
+import numpy as np
 import torch
-from lhotse import (
-    CutSet,
-    Fbank,
-    FbankConfig,
-    LilcomChunkyWriter,
-    load_manifest,
-    load_manifest_lazy,
-)
+from lhotse import CutSet, LilcomChunkyWriter, load_manifest
 from lhotse.audio import RecordingSet
+from lhotse.features.base import FeatureExtractor, register_extractor
 from lhotse.supervision import SupervisionSet
+from lhotse.utils import Seconds, compute_num_frames
+from matcha.utils.audio import mel_spectrogram
 
 from icefall.utils import get_executor
 
-# Torch's multithreaded behavior needs to be disabled or
-# it wastes a lot of CPU and slow things down.
-# Do this outside of main() in case it needs to take effect
-# even when we are not invoking the main (e.g. when spawning subprocesses).
-torch.set_num_threads(1)
-torch.set_num_interop_threads(1)
+
+@dataclass
+class MyFbankConfig:
+    n_fft: int
+    n_mels: int
+    sampling_rate: int
+    hop_length: int
+    win_length: int
+    f_min: float
+    f_max: float
+
+
+@register_extractor
+class MyFbank(FeatureExtractor):
+
+    name = "MyFbank"
+    config_type = MyFbankConfig
+
+    def __init__(self, config):
+        super().__init__(config=config)
+
+    @property
+    def device(self) -> Union[str, torch.device]:
+        return self.config.device
+
+    def feature_dim(self, sampling_rate: int) -> int:
+        return self.config.n_mels
+
+    def extract(
+        self,
+        samples: np.ndarray,
+        sampling_rate: int,
+    ) -> torch.Tensor:
+        # Check for sampling rate compatibility.
+        expected_sr = self.config.sampling_rate
+        assert sampling_rate == expected_sr, (
+            f"Mismatched sampling rate: extractor expects {expected_sr}, "
+            f"got {sampling_rate}"
+        )
+        samples = torch.from_numpy(samples)
+        assert samples.ndim == 2, samples.shape
+        assert samples.shape[0] == 1, samples.shape
+
+        mel = (
+            mel_spectrogram(
+                samples,
+                self.config.n_fft,
+                self.config.n_mels,
+                self.config.sampling_rate,
+                self.config.hop_length,
+                self.config.win_length,
+                self.config.f_min,
+                self.config.f_max,
+                center=False,
+            )
+            .squeeze()
+            .t()
+        )
+
+        assert mel.ndim == 2, mel.shape
+        assert mel.shape[1] == self.config.n_mels, mel.shape
+
+        num_frames = compute_num_frames(
+            samples.shape[1] / sampling_rate, self.frame_shift, sampling_rate
+        )
+
+        if mel.shape[0] > num_frames:
+            mel = mel[:num_frames]
+        elif mel.shape[0] < num_frames:
+            mel = mel.unsqueeze(0)
+            mel = torch.nn.functional.pad(
+                mel, (0, 0, 0, num_frames - mel.shape[1]), mode="replicate"
+            ).squeeze(0)
+
+        return mel.numpy()
+
+    @property
+    def frame_shift(self) -> Seconds:
+        return self.config.hop_length / self.config.sampling_rate
 
 
 def get_parser():
@@ -77,10 +149,15 @@ def compute_fbank_ljspeech(num_jobs: int):
     logging.info(f"num_jobs: {num_jobs}")
     logging.info(f"src_dir: {src_dir}")
     logging.info(f"output_dir: {output_dir}")
-
-    sampling_rate = 22050
-    frame_length = 1024 / sampling_rate  # (in second)
-    frame_shift = 256 / sampling_rate  # (in second)
+    config = MyFbankConfig(
+        n_fft=1024,
+        n_mels=80,
+        sampling_rate=22050,
+        hop_length=256,
+        win_length=1024,
+        f_min=0,
+        f_max=8000,
+    )
 
     prefix = "ljspeech"
     suffix = "jsonl.gz"
@@ -93,25 +170,7 @@ def compute_fbank_ljspeech(num_jobs: int):
         src_dir / f"{prefix}_supervisions_{partition}.{suffix}", SupervisionSet
     )
 
-    # Differences with matcha-tts
-    # 1. we use pre-emphasis
-    # 2. we remove dc offset
-    # 3. we use a different window
-    # 4. we use a different mel filter bank matrix
-    # 5. we don't normalize features
-    config = FbankConfig(
-        sampling_rate=sampling_rate,
-        frame_length=frame_length,
-        frame_shift=frame_shift,
-        use_fft_mag=True,
-        low_freq=0,
-        high_freq=8000,
-        remove_dc_offset=False,
-        preemph_coeff=0,
-        # should be identical to n_feats in ../matcha/train.py
-        num_filters=80,
-    )
-    extractor = Fbank(config)
+    extractor = MyFbank(config)
 
     with get_executor() as ex:  # Initialize the executor only once.
         cuts_filename = f"{prefix}_cuts_{partition}.{suffix}"
@@ -135,6 +194,12 @@ def compute_fbank_ljspeech(num_jobs: int):
 
 
 if __name__ == "__main__":
+    # Torch's multithreaded behavior needs to be disabled or
+    # it wastes a lot of CPU and slow things down.
+    # Do this outside of main() in case it needs to take effect
+    # even when we are not invoking the main (e.g. when spawning subprocesses).
+    torch.set_num_threads(1)
+    torch.set_num_interop_threads(1)
     formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
 
     logging.basicConfig(format=formatter, level=logging.INFO)

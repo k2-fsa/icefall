@@ -3,18 +3,17 @@
 
 
 import argparse
+import json
 import logging
 from pathlib import Path
 from shutil import copyfile
 from typing import Any, Dict, Optional, Union
-import json
 
 import k2
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 from lhotse.utils import fix_random_seed
-from matcha.data.text_mel_datamodule import TextMelDataModule
 from matcha.models.matcha_tts import MatchaTTS
 from matcha.tokenizer import Tokenizer
 from matcha.utils.model import fix_len_compatibility
@@ -355,36 +354,27 @@ def compute_validation_loss(
 
     with torch.no_grad():
         for batch_idx, batch in enumerate(valid_dl):
-            if "tokens" in batch:
+            (
+                audio,
+                audio_lens,
+                features,
+                features_lens,
+                tokens,
+                tokens_lens,
+            ) = prepare_input(batch, tokenizer, device, params)
 
-                (
-                    audio,
-                    audio_lens,
-                    features,
-                    features_lens,
-                    tokens,
-                    tokens_lens,
-                ) = prepare_input(batch, tokenizer, device, params)
+            losses = get_losses(
+                {
+                    "x": tokens,
+                    "x_lengths": tokens_lens,
+                    "y": features.permute(0, 2, 1),
+                    "y_lengths": features_lens,
+                    "spks": None,  # should change it for multi-speakers
+                    "durations": None,
+                }
+            )
 
-                losses = get_losses(
-                    {
-                        "x": tokens,
-                        "x_lengths": tokens_lens,
-                        "y": features.permute(0, 2, 1),
-                        "y_lengths": features_lens,
-                        "spks": None,  # should change it for multi-speakers
-                        "durations": None,
-                    }
-                )
-
-                batch_size = len(batch["tokens"])
-            else:
-                batch_size = batch["x"].shape[0]
-                batch["x"] = batch["x"].to(device)
-                batch["x_lengths"] = batch["x_lengths"].to(device)
-                batch["y"] = batch["y"].to(device)
-                batch["y_lengths"] = batch["y_lengths"].to(device)
-                losses = get_losses(batch)
+            batch_size = len(batch["tokens"])
 
             loss_info = MetricsTracker()
             loss_info["samples"] = batch_size
@@ -478,38 +468,28 @@ def train_one_epoch(
         # features_lens, (N,), int32
         # tokens: List[List[str]], len(tokens) == N
 
-        if "tokens" in batch:
-            batch_size = len(batch["tokens"])
+        batch_size = len(batch["tokens"])
 
-            (
-                audio,
-                audio_lens,
-                features,
-                features_lens,
-                tokens,
-                tokens_lens,
-            ) = prepare_input(batch, tokenizer, device, params)
-        else:
-            batch_size = batch["x"].shape[0]
+        (
+            audio,
+            audio_lens,
+            features,
+            features_lens,
+            tokens,
+            tokens_lens,
+        ) = prepare_input(batch, tokenizer, device, params)
         try:
             with autocast(enabled=params.use_fp16):
-                if "tokens" in batch:
-                    losses = get_losses(
-                        {
-                            "x": tokens,
-                            "x_lengths": tokens_lens,
-                            "y": features.permute(0, 2, 1),
-                            "y_lengths": features_lens,
-                            "spks": None,  # should change it for multi-speakers
-                            "durations": None,
-                        }
-                    )
-                else:
-                    batch["x"] = batch["x"].to(device)
-                    batch["x_lengths"] = batch["x_lengths"].to(device)
-                    batch["y"] = batch["y"].to(device)
-                    batch["y_lengths"] = batch["y_lengths"].to(device)
-                    losses = get_losses(batch)
+                losses = get_losses(
+                    {
+                        "x": tokens,
+                        "x_lengths": tokens_lens,
+                        "y": features.permute(0, 2, 1),
+                        "y_lengths": features_lens,
+                        "spks": None,  # should change it for multi-speakers
+                        "durations": None,
+                    }
+                )
 
                 loss = sum(losses.values())
 
@@ -535,8 +515,9 @@ def train_one_epoch(
             raise
 
         if params.batch_idx_train % 100 == 0 and params.use_fp16:
-            # If the grad scale was less than 1, try increasing it.    The _growth_interval
-            # of the grad scaler is configurable, but we can't configure it to have different
+            # If the grad scale was less than 1, try increasing it.
+            # The _growth_interval of the grad scaler is configurable,
+            # but we can't configure it to have different
             # behavior depending on the current grad scale.
             cur_grad_scale = scaler._scale.item()
 
@@ -560,7 +541,8 @@ def train_one_epoch(
 
             logging.info(
                 f"Epoch {params.cur_epoch}, batch {batch_idx}, "
-                f"global_batch_idx: {params.batch_idx_train}, batch size: {batch_size}, "
+                f"global_batch_idx: {params.batch_idx_train}, "
+                f"batch size: {batch_size}, "
                 f"loss[{loss_info}], tot_loss[{tot_loss}], "
                 + (f"grad_scale: {scaler._scale.item()}" if params.use_fp16 else "")
             )
@@ -588,7 +570,8 @@ def train_one_epoch(
             model.train()
             logging.info(f"Epoch {params.cur_epoch}, validation: {valid_info}")
             logging.info(
-                f"Maximum memory allocated so far is {torch.cuda.max_memory_allocated()//1000000}MB"
+                "Maximum memory allocated so far is "
+                f"{torch.cuda.max_memory_allocated()//1000000}MB"
             )
             if tb_writer is not None:
                 valid_info.write_summary(
@@ -658,20 +641,13 @@ def run(rank, world_size, args):
 
     logging.info("About to create datamodule")
 
-    if False:
-        params.data_args.tokenizer = tokenizer
-        data_module = TextMelDataModule(hparams=params.data_args)
-        del params.data_args.tokenizer
-        train_dl = data_module.train_dataloader()
-        valid_dl = data_module.val_dataloader()
-    else:
-        ljspeech = LJSpeechTtsDataModule(args)
+    ljspeech = LJSpeechTtsDataModule(args)
 
-        train_cuts = ljspeech.train_cuts()
-        train_dl = ljspeech.train_dataloaders(train_cuts)
+    train_cuts = ljspeech.train_cuts()
+    train_dl = ljspeech.train_dataloaders(train_cuts)
 
-        valid_cuts = ljspeech.valid_cuts()
-        valid_dl = ljspeech.valid_dataloaders(valid_cuts)
+    valid_cuts = ljspeech.valid_cuts()
+    valid_dl = ljspeech.valid_dataloaders(valid_cuts)
 
     scaler = GradScaler(enabled=params.use_fp16, init_scale=1.0)
     if checkpoints and "grad_scaler" in checkpoints:
