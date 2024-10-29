@@ -28,17 +28,33 @@ try:
 except ModuleNotFoundError as ex:
     raise RuntimeError(f"{ex}\nPlease run\n  pip install espnet_tts_frontend\n")
 
+import argparse
+
 from lhotse import CutSet, load_manifest
 from piper_phonemize import phonemize_espeak
 
 
-def prepare_tokens_ljspeech():
-    output_dir = Path("data/spectrogram")
+def get_parser():
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+
+    parser.add_argument(
+        "--in-out-dir",
+        type=Path,
+        required=True,
+        help="Input and output directory",
+    )
+
+    return parser
+
+
+def prepare_tokens_ljspeech(in_out_dir):
     prefix = "ljspeech"
     suffix = "jsonl.gz"
     partition = "all"
 
-    cut_set = load_manifest(output_dir / f"{prefix}_cuts_{partition}.{suffix}")
+    cut_set = load_manifest(in_out_dir / f"{prefix}_cuts_{partition}.{suffix}")
 
     new_cuts = []
     for cut in cut_set:
@@ -56,11 +72,13 @@ def prepare_tokens_ljspeech():
         new_cuts.append(cut)
 
     new_cut_set = CutSet.from_cuts(new_cuts)
-    new_cut_set.to_file(output_dir / f"{prefix}_cuts_with_tokens_{partition}.{suffix}")
+    new_cut_set.to_file(in_out_dir / f"{prefix}_cuts_with_tokens_{partition}.{suffix}")
 
 
 if __name__ == "__main__":
     formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
     logging.basicConfig(format=formatter, level=logging.INFO)
 
-    prepare_tokens_ljspeech()
+    args = get_parser().parse_args()
+
+    prepare_tokens_ljspeech(args.in_out_dir)

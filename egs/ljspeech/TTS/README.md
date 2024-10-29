@@ -101,3 +101,121 @@ export CUDA_VISIBLE_DEVICES=4,5,6,7
 
 # (Note it is killed after `epoch-820.pt`)
 ```
+# matcha
+
+[./matcha](./matcha) contains the code for training [Matcha-TTS](https://github.com/shivammehta25/Matcha-TTS)
+
+This recipe provides a Matcha-TTS model trained on the LJSpeech dataset.
+
+Checkpoints and training logs can be found [here](https://huggingface.co/csukuangfj/icefall-tts-ljspeech-matcha-en-2024-10-28).
+The pull-request for this recipe can be found at <https://github.com/k2-fsa/icefall/pull/1773>
+
+The training command is given below:
+```bash
+export CUDA_VISIBLE_DEVICES=0,1,2,3
+
+python3 ./matcha/train.py \
+  --exp-dir ./matcha/exp-new-3/ \
+  --num-workers 4 \
+  --world-size 4 \
+  --num-epochs 4000 \
+  --max-duration 1000 \
+  --bucketing-sampler 1 \
+  --start-epoch 1
+```
+
+To inference, use:
+
+```bash
+# Download Hifigan vocoder. We use Hifigan v1 below. You can select from v1, v2, or v3
+
+wget https://github.com/csukuangfj/models/raw/refs/heads/master/hifigan/generator_v1
+
+./matcha/inference \
+  --exp-dir ./matcha/exp-new-3 \
+  --epoch 4000 \
+  --tokens ./data/tokens.txt \
+  --vocoder ./generator_v1 \
+  --input-text "how are you doing?"
+  --output-wav ./generated.wav
+```
+
+```bash
+soxi ./generated.wav
+```
+prints:
+```
+Input File     : './generated.wav'
+Channels       : 1
+Sample Rate    : 22050
+Precision      : 16-bit
+Duration       : 00:00:01.29 = 28416 samples ~ 96.6531 CDDA sectors
+File Size      : 56.9k
+Bit Rate       : 353k
+Sample Encoding: 16-bit Signed Integer PCM
+```
+
+To export the checkpoint to onnx:
+
+```bash
+# export the acoustic model to onnx
+
+./matcha/export_onnx.py \
+  --exp-dir ./matcha/exp-new-3 \
+  --epoch 4000 \
+  --tokens ./data/tokens.txt
+```
+
+The above command generate the following files:
+
+  - model-steps-2.onnx
+  - model-steps-3.onnx
+  - model-steps-4.onnx
+  - model-steps-5.onnx
+  - model-steps-6.onnx
+
+where the 2 in `model-steps-2.onnx` means it uses 2 steps for the ODE solver.
+
+
+To export the Hifigan vocoder to onnx, please use:
+
+```bash
+wget https://github.com/csukuangfj/models/raw/refs/heads/master/hifigan/generator_v1
+wget https://github.com/csukuangfj/models/raw/refs/heads/master/hifigan/generator_v2
+wget https://github.com/csukuangfj/models/raw/refs/heads/master/hifigan/generator_v3
+
+python3 ./matcha/export_onnx_hifigan.py
+```
+
+The above command generates 3 files:
+
+  - hifigan_v1.onnx
+  - hifigan_v2.onnx
+  - hifigan_v3.onnx
+
+To use the generated onnx files to generate speech from text, please run:
+
+```bash
+python3 ./matcha/onnx_pretrained.py \
+ --acoustic-model ./model-steps-6.onnx \
+ --vocoder ./hifigan_v1.onnx \
+ --tokens ./data/tokens.txt \
+ --input-text "Ask not what your country can do for you; ask what you can do for your country." \
+ --output-wav ./matcha-epoch-4000-step6-hfigian-v1.wav
+```
+
+```bash
+soxi ./matcha-epoch-4000-step6-hfigian-v1.wav
+
+Input File     : './matcha-epoch-4000-step6-hfigian-v1.wav'
+Channels       : 1
+Sample Rate    : 22050
+Precision      : 16-bit
+Duration       : 00:00:05.46 = 120320 samples ~ 409.252 CDDA sectors
+File Size      : 241k
+Bit Rate       : 353k
+Sample Encoding: 16-bit Signed Integer PCM
+```
+
+https://github.com/user-attachments/assets/b7c197a6-3870-49c6-90ca-db4d3776869b
+
