@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Copyright         2024  Xiaomi Corp.        (authors: Fangjun Kuang)
 
 import logging
 from pathlib import Path

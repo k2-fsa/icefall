@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Copyright         2024  Xiaomi Corp.        (authors: Fangjun Kuang)
+
 import argparse
 import datetime as dt
 import logging

@@ -1,3 +1,5 @@
+# This file is copied from
+# https://github.com/shivammehta25/Matcha-TTS/blob/main/matcha/utils/audio.py
 import numpy as np
 import torch
 import torch.utils.data

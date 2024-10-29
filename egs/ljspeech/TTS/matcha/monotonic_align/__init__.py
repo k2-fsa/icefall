@@ -1,3 +1,5 @@
+# Copied from
+# https://github.com/shivammehta25/Matcha-TTS/blob/main/matcha/utils/monotonic_align/__init__.py
 import numpy as np
 import torch
 

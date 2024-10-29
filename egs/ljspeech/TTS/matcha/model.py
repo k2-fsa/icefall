@@ -1,3 +1,5 @@
+# This file is copied from
+# https://github.com/shivammehta25/Matcha-TTS/blob/main/matcha/utils/model.py
 """ from https://github.com/jaywalnut310/glow-tts """
 
 import numpy as np

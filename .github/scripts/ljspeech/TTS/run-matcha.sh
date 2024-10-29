@@ -80,9 +80,6 @@ function export_onnx() {
   curl -SL -O https://huggingface.co/csukuangfj/icefall-tts-ljspeech-matcha-en-2024-10-28/resolve/main/data/cmvn.json
   popd
 
-  curl -SL -O https://github.com/csukuangfj/models/raw/refs/heads/master/hifigan/generator_v2
-  curl -SL -O https://github.com/csukuangfj/models/raw/refs/heads/master/hifigan/generator_v3
-
   ./matcha/export_onnx.py \
     --exp-dir ./matcha/exp \
     --epoch 4000 \
@@ -93,9 +90,13 @@ function export_onnx() {
 
   if false; then
     # THe CI machine does not have enough memory to run it
+    #
+    curl -SL -O https://github.com/csukuangfj/models/raw/refs/heads/master/hifigan/generator_v1
+    curl -SL -O https://github.com/csukuangfj/models/raw/refs/heads/master/hifigan/generator_v2
+    curl -SL -O https://github.com/csukuangfj/models/raw/refs/heads/master/hifigan/generator_v3
     python3 ./matcha/export_onnx_hifigan.py
   else
-    curl -SL -O https://huggingface.co/csukuangfj/icefall-tts-ljspeech-matcha-en-2024-10-28/resolve/main/exp/hifigan_v2.onnx
+    curl -SL -O https://huggingface.co/csukuangfj/icefall-tts-ljspeech-matcha-en-2024-10-28/resolve/main/exp/hifigan_v1.onnx
   fi
 
   ls -lh *.onnx
@@ -103,13 +104,13 @@ function export_onnx() {
 
     python3 ./matcha/onnx_pretrained.py \
      --acoustic-model ./model-steps-6.onnx \
-     --vocoder ./hifigan_v2.onnx \
+     --vocoder ./hifigan_v1.onnx \
      --tokens ./data/tokens.txt \
      --input-text "how are you doing?" \
-     --output-wav /icefall/generated-matcha-tts-6.wav
+     --output-wav /icefall/generated-matcha-tts-steps-6-v1.wav
 
   ls -lh /icefall/*.wav
-  soxi /icefall/generated-matcha-tts-6.wav
+  soxi /icefall/generated-matcha-tts-steps-6-v1.wav
 }
 
 prepare_data
