@@ -153,6 +153,7 @@ You can use <https://github.com/k2-fsa/sherpa> to deploy it.
 | decoding method                      | test-clean | test-other | comment             |
 |--------------------------------------|------------|------------|---------------------|
 | ctc-greedy-decoding                  | 2.57       | 5.95       | --epoch 50 --avg 25 |
+| ctc-prefix-beam-search               | 2.52       | 5.85       | --epoch 50 --avg 25 |
 
 The training command using 2 32G-V100 GPUs is:
 ```bash
@@ -184,7 +185,7 @@ export CUDA_VISIBLE_DEVICES="0,1"
 The decoding command is:
 ```bash
 export CUDA_VISIBLE_DEVICES="0"
-for m in ctc-greedy-search; do
+for m in ctc-greedy-search ctc-prefix-beam-search; do
   ./zipformer/ctc_decode.py \
     --epoch 50 \
     --avg 25 \
@@ -212,6 +213,7 @@ You can use <https://github.com/k2-fsa/sherpa> to deploy it.
 | decoding method                      | test-clean | test-other | comment             |
 |--------------------------------------|------------|------------|---------------------|
 | ctc-greedy-decoding                  | 2.12       | 4.62       | --epoch 50 --avg 24 |
+| ctc-prefix-beam-search               | 2.1        | 4.61       | --epoch 50 --avg 24 |
 
 The training command using 4 32G-V100 GPUs is:
 ```bash
@@ -238,7 +240,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
 The decoding command is:
 ```bash
 export CUDA_VISIBLE_DEVICES="0"
-for m in ctc-greedy-search; do
+for m in ctc-greedy-search ctc-prefix-beam-search; do
   ./zipformer/ctc_decode.py \
     --epoch 50 \
     --avg 24 \
@@ -262,6 +264,7 @@ You can use <https://github.com/k2-fsa/sherpa> to deploy it.
 | decoding method                      | test-clean | test-other | comment             |
 |--------------------------------------|------------|------------|---------------------|
 | ctc-greedy-decoding                  | 2.03       | 4.37       | --epoch 50 --avg 26 |
+| ctc-prefix-beam-search               | 2.02       | 4.35       | --epoch 50 --avg 26 |
 
 The training command using 2 80G-A100 GPUs is:
 ```bash
@@ -292,7 +295,7 @@ export CUDA_VISIBLE_DEVICES="0,1"
 The decoding command is:
 ```bash
 export CUDA_VISIBLE_DEVICES="0"
-for m in ctc-greedy-search; do
+for m in ctc-greedy-search ctc-prefix-beam-search; do
   ./zipformer/ctc_decode.py \
     --epoch 50 \
     --avg 26 \
