@@ -107,7 +107,8 @@ export CUDA_VISIBLE_DEVICES=4,5,6,7
 
 This recipe provides a Matcha-TTS model trained on the LJSpeech dataset.
 
-Pretrained model can be found [here](https://huggingface.co/csukuangfj/icefall-tts-ljspeech-matcha-en-2024-10-28).
+Checkpoints and training logs can be found [here](https://huggingface.co/csukuangfj/icefall-tts-ljspeech-matcha-en-2024-10-28).
+The pull-request for this recipe can be found at <https://github.com/k2-fsa/icefall/pull/1773>
 
 The training command is given below:
 ```bash
@@ -197,21 +198,24 @@ To use the generated onnx files to generate speech from text, please run:
 ```bash
 python3 ./matcha/onnx_pretrained.py \
  --acoustic-model ./model-steps-6.onnx \
- --vocoder ./hifigan_v2.onnx \
+ --vocoder ./hifigan_v1.onnx \
  --tokens ./data/tokens.txt \
- --input-text "how are you doing?" \
- --output-wav ./generated-2.wav
+ --input-text "Ask not what your country can do for you; ask what you can do for your country." \
+ --output-wav ./matcha-epoch-4000-step6-hfigian-v1.wav
 ```
 
 ```bash
-soxi ./generated-2.wav
+soxi ./matcha-epoch-4000-step6-hfigian-v1.wav
 
-Input File     : './generated-2.wav'
+Input File     : './matcha-epoch-4000-step6-hfigian-v1.wav'
 Channels       : 1
 Sample Rate    : 22050
 Precision      : 16-bit
-Duration       : 00:00:01.25 = 27648 samples ~ 94.0408 CDDA sectors
-File Size      : 55.3k
+Duration       : 00:00:05.46 = 120320 samples ~ 409.252 CDDA sectors
+File Size      : 241k
 Bit Rate       : 353k
 Sample Encoding: 16-bit Signed Integer PCM
 ```
+
+https://github.com/user-attachments/assets/b7c197a6-3870-49c6-90ca-db4d3776869b
+
