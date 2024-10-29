@@ -36,7 +36,9 @@ RUN pip install --no-cache-dir \
       \
       git+https://github.com/lhotse-speech/lhotse \
       kaldifeat==${_KALDIFEAT_VERSION} -f https://csukuangfj.github.io/kaldifeat/cpu.html \
+      conformer==0.3.2 \
       cython \
+      diffusers \
       dill \
       espnet_tts_frontend \
       graphviz \
@@ -45,6 +47,7 @@ RUN pip install --no-cache-dir \
       kaldialign \
       kaldifst \
       kaldilm \
+      librosa \
       matplotlib \
       multi_quantization \
       numba \

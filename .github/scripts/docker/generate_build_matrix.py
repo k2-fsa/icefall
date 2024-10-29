@@ -43,10 +43,10 @@ def get_torchaudio_version(torch_version):
 
 
 def get_matrix():
-    k2_version = "1.24.4.dev20240223"
-    kaldifeat_version = "1.25.4.dev20240223"
-    version = "20240905"
-    python_version = ["3.8", "3.9", "3.10", "3.11", "3.12"]
+    k2_version = "1.24.4.dev20241029"
+    kaldifeat_version = "1.25.5.dev20241029"
+    version = "20241029"
+    python_version = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
     torch_version = []
     #  torch_version += ["1.13.0", "1.13.1"]
     #  torch_version += ["2.0.0", "2.0.1"]
@@ -56,6 +56,7 @@ def get_matrix():
     torch_version += ["2.3.0", "2.3.1"]
     torch_version += ["2.4.0"]
     torch_version += ["2.4.1"]
+    torch_version += ["2.5.0"]
 
     matrix = []
     for p in python_version:
@@ -69,24 +70,15 @@ def get_matrix():
             if version_gt(p, "3.11") and not version_gt(t, "2.1"):
                 continue
 
+            if version_gt(p, "3.12") and not version_gt(t, "2.4"):
+                continue
+
+            if version_gt(t, "2.4") and version_gt("3.10", p):
+                # torch>=2.5 requires python 3.10
+                continue
+
             k2_version_2 = k2_version
             kaldifeat_version_2 = kaldifeat_version
-
-            if t == "2.2.2":
-                k2_version_2 = "1.24.4.dev20240328"
-                kaldifeat_version_2 = "1.25.4.dev20240329"
-            elif t == "2.3.0":
-                k2_version_2 = "1.24.4.dev20240425"
-                kaldifeat_version_2 = "1.25.4.dev20240425"
-            elif t == "2.3.1":
-                k2_version_2 = "1.24.4.dev20240606"
-                kaldifeat_version_2 = "1.25.4.dev20240606"
-            elif t == "2.4.0":
-                k2_version_2 = "1.24.4.dev20240725"
-                kaldifeat_version_2 = "1.25.4.dev20240725"
-            elif t == "2.4.1":
-                k2_version_2 = "1.24.4.dev20240905"
-                kaldifeat_version_2 = "1.25.4.dev20240905"
 
             matrix.append(
                 {
