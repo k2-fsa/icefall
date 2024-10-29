@@ -61,5 +61,6 @@ jobs:
 
               python3 -m torch.utils.collect_env
               python3 -m k2.version
+              pip list
 
               .github/scripts/yesno/ASR/run.sh

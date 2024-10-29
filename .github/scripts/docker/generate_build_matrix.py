@@ -46,7 +46,9 @@ def get_matrix():
     k2_version = "1.24.4.dev20241029"
     kaldifeat_version = "1.25.5.dev20241029"
     version = "20241029"
-    python_version = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+
+    # torchaudio 2.5.0 does not support python 3.13
+    python_version = ["3.8", "3.9", "3.10", "3.11", "3.12"]
     torch_version = []
     #  torch_version += ["1.13.0", "1.13.1"]
     #  torch_version += ["2.0.0", "2.0.1"]

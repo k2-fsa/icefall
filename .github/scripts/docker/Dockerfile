@@ -31,7 +31,8 @@ LABEL github_repo="https://github.com/k2-fsa/icefall"
 
 # Install dependencies
 RUN pip install --no-cache-dir \
-      torch==${TORCH_VERSION} torchaudio==${TORCHAUDIO_VERSION} -f https://download.pytorch.org/whl/cpu/torch_stable.html \
+      torch==${TORCH_VERSION}+cpu -f https://download.pytorch.org/whl/torch \
+      torchaudio==${TORCHAUDIO_VERSION}+cpu -f https://download.pytorch.org/whl/torchaudio \
       k2==${_K2_VERSION} -f https://k2-fsa.github.io/k2/cpu.html \
       \
       git+https://github.com/lhotse-speech/lhotse \
@@ -51,7 +52,7 @@ RUN pip install --no-cache-dir \
       matplotlib \
       multi_quantization \
       numba \
-      numpy \
+      "numpy<2.0" \
       onnxoptimizer \
       onnxsim \
       onnx \
