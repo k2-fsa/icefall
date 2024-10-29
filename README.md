@@ -42,7 +42,6 @@ for more details.
   - [LibriSpeech][librispeech]
   - [Libriheavy][libriheavy]
   - [Multi-Dialect Broadcast News Arabic Speech Recognition][mgb2]
-  - [PeopleSpeech][peoplespeech]
   - [SPGISpeech][spgispeech]
   - [Switchboard][swbd]
   - [TIMIT][timit]
@@ -377,7 +376,6 @@ Please see: [![Open In Colab](https://colab.research.google.com/assets/colab-bad
 [libritts_asr]: egs/libritts/ASR
 [libriheavy]: egs/libriheavy/ASR
 [mgb2]: egs/mgb2/ASR
-[peoplespeech]: egs/peoples_speech/ASR
 [spgispeech]: egs/spgispeech/ASR
 [voxpopuli]: egs/voxpopuli/ASR
 [xbmu-amdo31]: egs/xbmu-amdo31/ASR

@@ -787,7 +787,9 @@ class LRScheduler(object):
         is not the optimizer.
         """
         return {
-            "base_lrs": self.base_lrs,
+             # the user might try to override the base_lr, so don't include this in the state.
+             # previously they were included.
+             # "base_lrs": self.base_lrs,
             "epoch": self.epoch,
             "batch": self.batch,
         }
@@ -799,7 +801,12 @@ class LRScheduler(object):
             state_dict (dict): scheduler state. Should be an object returned
                 from a call to :meth:`state_dict`.
         """
+        # the things with base_lrs are a work-around for a previous problem
+        # where base_lrs were written with the state dict.
+        base_lrs = self.base_lrs
         self.__dict__.update(state_dict)
+        self.base_lrs = base_lrs
+
 
     def get_last_lr(self) -> List[float]:
         """Return last computed learning rate by current scheduler.  Will be a list of float."""

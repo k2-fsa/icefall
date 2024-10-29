@@ -22,10 +22,10 @@ import k2
 import torch
 import torch.nn as nn
 from encoder_interface import EncoderInterface
+from lhotse.dataset import SpecAugment
 from scaling import ScaledLinear
 
 from icefall.utils import add_sos, make_pad_mask, time_warp
-from lhotse.dataset import SpecAugment
 
 
 class AsrModel(nn.Module):
