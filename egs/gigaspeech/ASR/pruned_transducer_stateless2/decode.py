@@ -260,7 +260,7 @@ def decode_one_batch(
       Return the decoding result. See above description for the format of
       the returned dict.
     """
-    device = model.device
+    device = next(model.parameters()).device
     feature = batch["inputs"]
     assert feature.ndim == 3
 
