@@ -24,8 +24,8 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import torch
-from lhotse import CutSet, load_manifest_lazy
 from compute_fbank_ljspeech import MyFbank, MyFbankConfig
+from lhotse import CutSet, load_manifest_lazy
 from lhotse.dataset import (  # noqa F401 for PrecomputedFeatures
     CutConcatenate,
     CutMix,

@@ -2,7 +2,6 @@
 # https://github.com/shivammehta25/Matcha-TTS/blob/main/matcha/utils/monotonic_align/__init__.py
 import numpy as np
 import torch
-
 from matcha.monotonic_align.core import maximum_path_c
 
 
