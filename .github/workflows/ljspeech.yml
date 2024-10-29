@@ -70,6 +70,7 @@ jobs:
               cd /icefall
               git config --global --add safe.directory /icefall
 
+              .github/scripts/ljspeech/TTS/run-matcha.sh
               .github/scripts/ljspeech/TTS/run.sh
 
       - name: display files
@@ -78,19 +79,13 @@ jobs:
           ls -lh
 
       - uses: actions/upload-artifact@v4
-        if: matrix.python-version == '3.9' && matrix.torch-version == '2.2.0'
+        if: matrix.python-version == '3.9' && matrix.torch-version == '2.3.0'
         with:
           name: generated-test-files-${{ matrix.python-version }}-${{ matrix.torch-version }}
           path: ./*.wav
 
-      - uses: actions/upload-artifact@v4
-        if: matrix.python-version == '3.9' && matrix.torch-version == '2.2.0'
-        with:
-          name: generated-models-py${{ matrix.python-version }}-torch${{ matrix.torch-version }}
-          path: ./*.wav
-
       - name: Release exported onnx models
-        if: matrix.python-version == '3.9' && matrix.torch-version == '2.2.0' && github.event_name == 'push'
+        if: matrix.python-version == '3.9' && matrix.torch-version == '2.3.0' && github.event_name == 'push'
         uses: svenstaro/upload-release-action@v2
         with:
           file_glob: true
@@ -99,4 +94,3 @@ jobs:
           repo_name: k2-fsa/sherpa-onnx
           repo_token: ${{ secrets.UPLOAD_GH_SHERPA_ONNX_TOKEN }}
           tag: tts-models
-
