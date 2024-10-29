@@ -7,13 +7,18 @@ import torch
 class Denoiser(torch.nn.Module):
     """Removes model bias from audio produced with waveglow"""
 
-    def __init__(self, vocoder, filter_length=1024, n_overlap=4, win_length=1024, mode="zeros"):
+    def __init__(
+        self, vocoder, filter_length=1024, n_overlap=4, win_length=1024, mode="zeros"
+    ):
         super().__init__()
         self.filter_length = filter_length
         self.hop_length = int(filter_length / n_overlap)
         self.win_length = win_length
 
-        dtype, device = next(vocoder.parameters()).dtype, next(vocoder.parameters()).device
+        dtype, device = (
+            next(vocoder.parameters()).dtype,
+            next(vocoder.parameters()).device,
+        )
         self.device = device
         if mode == "zeros":
             mel_input = torch.zeros((1, 80, 88), dtype=dtype, device=device)
@@ -32,7 +37,9 @@ class Denoiser(torch.nn.Module):
                 return_complex=True,
             )
             spec = torch.view_as_real(spec)
-            return torch.sqrt(spec.pow(2).sum(-1)), torch.atan2(spec[..., -1], spec[..., 0])
+            return torch.sqrt(spec.pow(2).sum(-1)), torch.atan2(
+                spec[..., -1], spec[..., 0]
+            )
 
         self.stft = lambda x: stft_fn(
             audio=x,

@@ -101,13 +101,12 @@ function export_onnx() {
 
   ls -lh *.onnx
 
-
-    python3 ./matcha/onnx_pretrained.py \
-     --acoustic-model ./model-steps-6.onnx \
-     --vocoder ./hifigan_v1.onnx \
-     --tokens ./data/tokens.txt \
-     --input-text "how are you doing?" \
-     --output-wav /icefall/generated-matcha-tts-steps-6-v1.wav
+  python3 ./matcha/onnx_pretrained.py \
+   --acoustic-model ./model-steps-6.onnx \
+   --vocoder ./hifigan_v1.onnx \
+   --tokens ./data/tokens.txt \
+   --input-text "how are you doing?" \
+   --output-wav /icefall/generated-matcha-tts-steps-6-v1.wav
 
   ls -lh /icefall/*.wav
   soxi /icefall/generated-matcha-tts-steps-6-v1.wav

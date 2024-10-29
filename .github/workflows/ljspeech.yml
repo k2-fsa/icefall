@@ -84,12 +84,6 @@ jobs:
           name: generated-test-files-${{ matrix.python-version }}-${{ matrix.torch-version }}
           path: ./*.wav
 
-      - uses: actions/upload-artifact@v4
-        if: matrix.python-version == '3.9' && matrix.torch-version == '2.3.0'
-        with:
-          name: generated-models-py${{ matrix.python-version }}-torch${{ matrix.torch-version }}
-          path: ./*.wav
-
       - name: Release exported onnx models
         if: matrix.python-version == '3.9' && matrix.torch-version == '2.3.0' && github.event_name == 'push'
         uses: svenstaro/upload-release-action@v2
