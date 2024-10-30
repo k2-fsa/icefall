@@ -42,7 +42,6 @@ class TextNormlizer:
 
         # Remove extra spaces
         text = re.sub(r"\s+", " ", text).strip()
-        normalized_text = re.sub(r"\s+", " ", normalized_text).strip()
 
         text = self.en_tn_model.normalize(text)
         return text.strip()
