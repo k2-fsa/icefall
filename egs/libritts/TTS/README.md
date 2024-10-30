@@ -28,12 +28,14 @@ For more information, refer to the paper "LibriTTS: A Corpus Derived from LibriS
 
 This recipe provides a VITS model trained on the LibriTTS dataset.
 
+Pretrained model can be found [here](https://huggingface.co/zrjin/icefall-tts-libritts-vits-2024-10-30).
+
 The training command is given below:
 ```
-export CUDA_VISIBLE_DEVICES=0,1,2,3
+export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
 ./vits/train.py \
   --world-size 4 \
-  --num-epochs 1000 \
+  --num-epochs 400 \
   --start-epoch 1 \
   --use-fp16 1 \
   --exp-dir vits/exp \
@@ -44,6 +46,6 @@ To inference, use:
 ```
 ./vits/infer.py \
   --exp-dir vits/exp \
-  --epoch 1000 \
+  --epoch 400 \
   --tokens data/tokens.txt
 ```
