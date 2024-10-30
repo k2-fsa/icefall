@@ -34,8 +34,7 @@ class TextNormlizer:
         # brackets
         # Always text inside brackets with numbers in them. Usually corresponds to "(Sam 23:17)"
         text = re.sub(r"\([^\)]*\d[^\)]*\)", " ", text)
-        if remove_brackets:
-            text = re.sub(r"\([^\)]*\)", " ", text)
+        text = re.sub(r"\([^\)]*\)", " ", text)
 
         # Apply mappings
         table = str.maketrans("’‘，。；？！（）：-《》、“”【】", "'',.;?!(): <>/\"\"[]")
