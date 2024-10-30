@@ -130,9 +130,7 @@ from icefall.checkpoint import (
     find_checkpoints,
     load_checkpoint,
 )
-
 from icefall.context_graph import ContextGraph, ContextState
-
 from icefall.decode import (
     ctc_greedy_search,
     ctc_prefix_beam_search,
@@ -147,11 +145,9 @@ from icefall.decode import (
     rescore_with_n_best_list,
     rescore_with_whole_lattice,
 )
-
-from icefall.ngram_lm import NgramLm, NgramLmStateCost
 from icefall.lexicon import Lexicon
 from icefall.lm_wrapper import LmScorer
-
+from icefall.ngram_lm import NgramLm, NgramLmStateCost
 from icefall.utils import (
     AttributeDict,
     get_texts,
