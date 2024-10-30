@@ -16,6 +16,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import random
 from typing import Optional, Tuple
 
 import k2
@@ -159,6 +160,9 @@ class AsrModel(nn.Module):
         encoder_out_lens: torch.Tensor,
         targets: torch.Tensor,
         target_lengths: torch.Tensor,
+        encoder_out_prev: Optional[torch.Tensor] = None,
+        encoder_out_lens_prev: Optional[torch.Tensor] = None,
+        model_prev=None,
     ) -> torch.Tensor:
         """Compute CTC loss.
         Args:
@@ -170,8 +174,43 @@ class AsrModel(nn.Module):
             Target Tensor of shape (sum(target_lengths)). The targets are assumed
             to be un-padded and concatenated within 1 dimension.
         """
+        device = encoder_out.device
+        if model_prev:
+            cpu_state = torch.get_rng_state()
+            cuda_state = torch.cuda.get_rng_state(device)
+            rng_state = random.getstate()
+
         # Compute CTC log-prob
         ctc_output = self.ctc_output(encoder_out)  # (N, T, C)
+        print(
+            "ctc_output",
+            ctc_output.detach().mean(),
+            ctc_output.detach().sum(),
+            ctc_output.detach().min(),
+            ctc_output.detach().max(),
+        )
+
+        if model_prev:
+            with torch.random.fork_rng(devices=[device]):
+                torch.set_rng_state(cpu_state)
+                torch.cuda.set_rng_state(cuda_state, device)
+
+                rng_state2 = random.getstate()
+                random.setstate(rng_state)
+
+                ctc_output_prev = model_prev.ctc_output(encoder_out)
+                random.setstate(rng_state2)
+                print(
+                    "ctc_output_prev",
+                    ctc_output_prev.detach().mean(),
+                    ctc_output_prev.detach().sum(),
+                    ctc_output_prev.detach().min(),
+                    ctc_output_prev.detach().max(),
+                )
+                print(
+                    "isclose ctc",
+                    (ctc_output - ctc_output).detach().abs().max(),
+                )
 
         ctc_loss = torch.nn.functional.ctc_loss(
             log_probs=ctc_output.permute(1, 0, 2),  # (T, N, C)
@@ -345,6 +384,7 @@ class AsrModel(nn.Module):
         spec_augment: Optional[SpecAugment] = None,
         supervision_segments: Optional[torch.Tensor] = None,
         time_warp_factor: Optional[int] = 80,
+        model_prev=None,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Args:
@@ -418,8 +458,52 @@ class AsrModel(nn.Module):
             x_lens = x_lens.repeat(2)
             y = k2.ragged.cat([y, y], axis=0)
 
+        device = x.device
+        if model_prev:
+            cpu_state = torch.get_rng_state()
+            cuda_state = torch.cuda.get_rng_state(device)
+            rng_state = random.getstate()
+
         # Compute encoder outputs
         encoder_out, encoder_out_lens = self.forward_encoder(x, x_lens)
+
+        print(
+            "encoder_out",
+            encoder_out.detach().mean(),
+            encoder_out.detach().abs().max(),
+            encoder_out.detach().abs().min(),
+            encoder_out.detach().sum(),
+            encoder_out.shape,
+        )
+
+        if model_prev:
+            with torch.random.fork_rng(devices=[device]):
+                torch.set_rng_state(cpu_state)
+                torch.cuda.set_rng_state(cuda_state, device)
+
+                rng_state2 = random.getstate()
+                random.setstate(rng_state)
+
+                encoder_out_prev, encoder_out_lens_prev = model_prev.forward_encoder(
+                    x, x_lens
+                )
+                random.setstate(rng_state2)
+                print(
+                    "encoder_out_prev",
+                    encoder_out_prev.detach().mean(),
+                    encoder_out_prev.detach().abs().max(),
+                    encoder_out_prev.detach().abs().mean(),
+                    encoder_out_prev.detach().sum(),
+                    encoder_out_prev.shape,
+                )
+                print(
+                    "isclose",
+                    (encoder_out - encoder_out_prev).detach().abs().max(),
+                    (encoder_out_lens - encoder_out_lens_prev).detach().abs().max(),
+                )
+        else:
+            encoder_out_prev = None
+            encoder_out_lens_prev = None
 
         row_splits = y.shape.row_splits(1)
         y_lens = row_splits[1:] - row_splits[:-1]
@@ -451,6 +535,9 @@ class AsrModel(nn.Module):
                     encoder_out_lens=encoder_out_lens,
                     targets=targets,
                     target_lengths=y_lens,
+                    encoder_out_prev=encoder_out_prev,
+                    encoder_out_lens_prev=encoder_out_lens_prev,
+                    model_prev=model_prev,
                 )
                 cr_loss = torch.empty(0)
             else:

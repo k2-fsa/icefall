@@ -549,6 +549,14 @@ def get_parser():
         help="Whether to use bf16 in AMP.",
     )
 
+    parser.add_argument(
+        "--limit-grad-start-batch",
+        type=int,
+        #  default=1000,
+        default=2,
+        help="Limit grad starting from this batch.",
+    )
+
     add_model_arguments(parser)
 
     return parser
@@ -879,6 +887,7 @@ def compute_loss(
     batch: dict,
     is_training: bool,
     spec_augment: Optional[SpecAugment] = None,
+    model_prev: Union[nn.Module, DDP] = None,
 ) -> Tuple[Tensor, MetricsTracker]:
     """
     Compute loss given the model and its inputs.
@@ -942,6 +951,7 @@ def compute_loss(
             spec_augment=spec_augment,
             supervision_segments=supervision_segments,
             time_warp_factor=params.spec_aug_time_warp_factor,
+            model_prev=model_prev,
         )
 
         loss = 0.0
@@ -1037,6 +1047,7 @@ def train_one_epoch(
     scaler: GradScaler,
     spec_augment: Optional[SpecAugment] = None,
     model_avg: Optional[nn.Module] = None,
+    model_prev: Optional[nn.Module] = None,
     tb_writer: Optional[SummaryWriter] = None,
     world_size: int = 1,
     rank: int = 0,
@@ -1104,9 +1115,14 @@ def train_one_epoch(
             with torch.cuda.amp.autocast(
                 enabled=params.use_autocast, dtype=params.dtype
             ):
+                if params.batch_idx_train > params.limit_grad_start_batch:
+                    model_prev = copy.deepcopy(model)
                 loss, loss_info = compute_loss(
                     params=params,
                     model=model,
+                    model_prev=model_prev
+                    if params.batch_idx_train > params.limit_grad_start_batch
+                    else None,
                     sp=sp,
                     batch=batch,
                     is_training=True,
@@ -1123,6 +1139,19 @@ def train_one_epoch(
             scaler.step(optimizer)
             scaler.update()
             optimizer.zero_grad()
+
+            if params.batch_idx_train >= params.limit_grad_start_batch:
+                if model_prev is None:
+                    model_prev = copy.deepcopy(model)
+                else:
+                    model_prev = copy.deepcopy(model)
+                print(
+                    "here",
+                    params.batch_idx_train,
+                    params.limit_grad_start_batch,
+                    model_prev is None,
+                )
+
         except Exception as e:
             logging.info(f"Caught exception: {e}.")
             save_bad_model()
@@ -1208,7 +1237,7 @@ def train_one_epoch(
                         "train/grad_scale", cur_grad_scale, params.batch_idx_train
                     )
 
-        if batch_idx % params.valid_interval == 0 and not params.print_diagnostics:
+        if batch_idx % params.valid_interval == 1000 and not params.print_diagnostics:
             logging.info("Computing validation loss")
             valid_info = compute_validation_loss(
                 params=params,
@@ -1232,6 +1261,8 @@ def train_one_epoch(
     if params.train_loss < params.best_train_loss:
         params.best_train_epoch = params.cur_epoch
         params.best_train_loss = params.train_loss
+
+    return model_prev
 
 
 def run(rank, world_size, args):
@@ -1318,6 +1349,9 @@ def run(rank, world_size, args):
     if rank == 0:
         # model_avg is only used with rank 0
         model_avg = copy.deepcopy(model).to(torch.float64)
+
+    model_prev: Optional[nn.Module] = None
+    # TODO(fangjun): load checkpoint for model_prev
 
     assert params.start_epoch > 0, params.start_epoch
     checkpoints = load_checkpoint_if_available(
@@ -1428,7 +1462,7 @@ def run(rank, world_size, args):
     valid_cuts += librispeech.dev_other_cuts()
     valid_dl = librispeech.valid_dataloaders(valid_cuts)
 
-    if not params.print_diagnostics:
+    if False and not params.print_diagnostics:
         scan_pessimistic_batches_for_oom(
             model=model,
             train_dl=train_dl,
@@ -1453,10 +1487,11 @@ def run(rank, world_size, args):
 
         params.cur_epoch = epoch
 
-        train_one_epoch(
+        model_prev = train_one_epoch(
             params=params,
             model=model,
             model_avg=model_avg,
+            model_prev=model_prev,
             optimizer=optimizer,
             scheduler=scheduler,
             sp=sp,
@@ -1587,4 +1622,9 @@ torch.set_num_threads(1)
 torch.set_num_interop_threads(1)
 
 if __name__ == "__main__":
+    #  torch.use_deterministic_algorithms(True, warn_only=True)
+    #  torch.backends.cudnn.deterministic = True
+    #  torch.backends.cudnn.benchmark = False
+    #  torch.backends.cudnn.enabled = False
+
     main()
