@@ -5,7 +5,7 @@ export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
 
 set -eou pipefail
 
-stage=0
+stage=-1
 stop_stage=100
 
 dl_dir=$PWD/download
@@ -31,7 +31,19 @@ if [ $stage -le -1 ] && [ $stop_stage -ge -1 ]; then
     python3 setup.py build_ext --inplace
     cd ../../
   else
-    log "monotonic_align lib already built"
+    log "monotonic_align lib for vits already built"
+  fi
+
+  if [ ! -f ./matcha/monotonic_align/core.cpython-38-x86_64-linux-gnu.so  ]; then
+    pushd matcha/monotonic_align
+    python3 setup.py build
+    mv -v build/lib.*/matcha/monotonic_align/core.*.so .
+    rm -rf build
+    rm core.c
+    ls -lh
+    popd
+  else
+    log "monotonic_align lib for matcha-tts already built"
   fi
 fi
 
@@ -63,7 +75,7 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
 fi
 
 if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
-  log "Stage 2: Compute spectrogram for LJSpeech"
+  log "Stage 2: Compute spectrogram for LJSpeech (used by ./vits)"
   mkdir -p data/spectrogram
   if [ ! -e data/spectrogram/.ljspeech.done ]; then
     ./local/compute_spectrogram_ljspeech.py
@@ -71,7 +83,7 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   fi
 
   if [ ! -e data/spectrogram/.ljspeech-validated.done ]; then
-    log "Validating data/spectrogram for LJSpeech"
+    log "Validating data/spectrogram for LJSpeech (used by ./vits)"
     python3 ./local/validate_manifest.py \
       data/spectrogram/ljspeech_cuts_all.jsonl.gz
     touch data/spectrogram/.ljspeech-validated.done
@@ -79,13 +91,13 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
 fi
 
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
-  log "Stage 3: Prepare phoneme tokens for LJSpeech"
+  log "Stage 3: Prepare phoneme tokens for LJSpeech (used by ./vits)"
   # We assume you have installed piper_phonemize and espnet_tts_frontend.
   # If not, please install them with:
   #   - piper_phonemize: pip install piper_phonemize -f https://k2-fsa.github.io/icefall/piper_phonemize.html,
   #   - espnet_tts_frontend, `pip install espnet_tts_frontend`, refer to https://github.com/espnet/espnet_tts_frontend/
   if [ ! -e data/spectrogram/.ljspeech_with_token.done ]; then
-    ./local/prepare_tokens_ljspeech.py
+    ./local/prepare_tokens_ljspeech.py --in-out-dir ./data/spectrogram
     mv data/spectrogram/ljspeech_cuts_with_tokens_all.jsonl.gz \
       data/spectrogram/ljspeech_cuts_all.jsonl.gz
     touch data/spectrogram/.ljspeech_with_token.done
@@ -93,7 +105,7 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
 fi
 
 if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
-  log "Stage 4: Split the LJSpeech cuts into train, valid and test sets"
+  log "Stage 4: Split the LJSpeech cuts into train, valid and test sets (used by vits)"
   if [ ! -e data/spectrogram/.ljspeech_split.done ]; then
     lhotse subset --last 600 \
       data/spectrogram/ljspeech_cuts_all.jsonl.gz \
@@ -124,5 +136,65 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   #   - espnet_tts_frontend, `pip install espnet_tts_frontend`, refer to https://github.com/espnet/espnet_tts_frontend/
   if [ ! -e data/tokens.txt ]; then
     ./local/prepare_token_file.py --tokens data/tokens.txt
+  fi
+fi
+
+if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
+  log "Stage 6: Generate fbank (used by ./matcha)"
+  mkdir -p data/fbank
+  if [ ! -e data/fbank/.ljspeech.done ]; then
+    ./local/compute_fbank_ljspeech.py
+    touch data/fbank/.ljspeech.done
+  fi
+
+  if [ ! -e data/fbank/.ljspeech-validated.done ]; then
+    log "Validating data/fbank for LJSpeech (used by ./matcha)"
+    python3 ./local/validate_manifest.py \
+      data/fbank/ljspeech_cuts_all.jsonl.gz
+    touch data/fbank/.ljspeech-validated.done
+  fi
+fi
+
+if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
+  log "Stage 7: Prepare phoneme tokens for LJSpeech (used by ./matcha)"
+  # We assume you have installed piper_phonemize and espnet_tts_frontend.
+  # If not, please install them with:
+  #   - piper_phonemize: pip install piper_phonemize -f https://k2-fsa.github.io/icefall/piper_phonemize.html,
+  #   - espnet_tts_frontend, `pip install espnet_tts_frontend`, refer to https://github.com/espnet/espnet_tts_frontend/
+  if [ ! -e data/fbank/.ljspeech_with_token.done ]; then
+    ./local/prepare_tokens_ljspeech.py --in-out-dir ./data/fbank
+    mv data/fbank/ljspeech_cuts_with_tokens_all.jsonl.gz \
+      data/fbank/ljspeech_cuts_all.jsonl.gz
+    touch data/fbank/.ljspeech_with_token.done
+  fi
+fi
+
+if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
+  log "Stage 8: Split the LJSpeech cuts into train, valid and test sets (used by ./matcha)"
+  if [ ! -e data/fbank/.ljspeech_split.done ]; then
+    lhotse subset --last 600 \
+      data/fbank/ljspeech_cuts_all.jsonl.gz \
+      data/fbank/ljspeech_cuts_validtest.jsonl.gz
+    lhotse subset --first 100 \
+      data/fbank/ljspeech_cuts_validtest.jsonl.gz \
+      data/fbank/ljspeech_cuts_valid.jsonl.gz
+    lhotse subset --last 500 \
+      data/fbank/ljspeech_cuts_validtest.jsonl.gz \
+      data/fbank/ljspeech_cuts_test.jsonl.gz
+
+    rm data/fbank/ljspeech_cuts_validtest.jsonl.gz
+
+    n=$(( $(gunzip -c data/fbank/ljspeech_cuts_all.jsonl.gz | wc -l) - 600 ))
+    lhotse subset --first $n  \
+      data/fbank/ljspeech_cuts_all.jsonl.gz \
+      data/fbank/ljspeech_cuts_train.jsonl.gz
+      touch data/fbank/.ljspeech_split.done
+  fi
+fi
+
+if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
+  log "Stage 9: Compute fbank mean and std (used by ./matcha)"
+  if [ ! -f ./data/fbank/cmvn.json ]; then
+    ./local/compute_fbank_statistics.py ./data/fbank/ljspeech_cuts_train.jsonl.gz ./data/fbank/cmvn.json
   fi
 fi

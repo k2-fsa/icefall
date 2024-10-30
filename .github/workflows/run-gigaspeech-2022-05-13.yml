@@ -41,7 +41,7 @@ concurrency:
 
 jobs:
   run_gigaspeech_2022_05_13:
-    if: github.event.label.name == 'ready' || github.event.label.name == 'run-decode' || github.event_name == 'push' || github.event_name == 'schedule'
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'ready' || github.event.label.name == 'run-decode' || github.event_name == 'push' || github.event_name == 'schedule'
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -106,7 +106,7 @@ jobs:
           .github/scripts/run-gigaspeech-pruned-transducer-stateless2-2022-05-12.sh
 
       - name: Display decoding results for gigaspeech pruned_transducer_stateless2
-        if: github.event_name == 'schedule' || github.event.label.name == 'run-decode'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.event.label.name == 'run-decode'
         shell: bash
         run: |
           cd egs/gigaspeech/ASR/
@@ -122,7 +122,7 @@ jobs:
 
       - name: Upload decoding results for gigaspeech pruned_transducer_stateless2
         uses: actions/upload-artifact@v4
-        if: github.event_name == 'schedule' || github.event.label.name == 'run-decode'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.event.label.name == 'run-decode'
         with:
           name: torch-${{ matrix.torch }}-python-${{ matrix.python-version }}-ubuntu-latest-cpu-gigaspeech-pruned_transducer_stateless2-2022-05-12
           path: egs/gigaspeech/ASR/pruned_transducer_stateless2/exp/
