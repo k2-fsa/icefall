@@ -24,8 +24,8 @@ import k2
 import torch
 
 from icefall.context_graph import ContextGraph, ContextState
-from icefall.ngram_lm import NgramLm, NgramLmStateCost
 from icefall.lm_wrapper import LmScorer
+from icefall.ngram_lm import NgramLm, NgramLmStateCost
 from icefall.utils import add_eos, add_sos, get_texts
 
 DEFAULT_LM_SCALE = [
