@@ -1136,16 +1136,24 @@ def with_loss(x, y, name):
 
 class ScaleGradFunction(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, x: Tensor, alpha: float) -> Tensor:
-        ctx.alpha = alpha
+    def forward(ctx, x: Tensor, alpha: Union[float, Tensor]) -> Tensor:
+        if isinstance(alpha, Tensor):
+            ctx.save_for_backward(alpha)
+        else:
+            ctx.alpha = alpha
         return x
 
     @staticmethod
     def backward(ctx, grad: Tensor):
-        return grad * ctx.alpha, None
+        if hasattr(ctx, "alpha"):
+            alpha = ctx.alpha
+        else:
+            (alpha,) = ctx.saved_tensors
+
+        return grad * alpha, None
 
 
-def scale_grad(x: Tensor, alpha: float):
+def scale_grad(x: Tensor, alpha: Union[float, Tensor]):
     return ScaleGradFunction.apply(x, alpha)
 
 

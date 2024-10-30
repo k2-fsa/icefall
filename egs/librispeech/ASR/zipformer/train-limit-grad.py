@@ -552,9 +552,15 @@ def get_parser():
     parser.add_argument(
         "--limit-grad-start-batch",
         type=int,
-        #  default=1000,
-        default=2,
-        help="Limit grad starting from this batch.",
+        default=1000,
+        help="Enable grad limit starting from this batch. Set it to 0 to disable it",
+    )
+
+    parser.add_argument(
+        "--limit-grad-every-n-batch",
+        type=int,
+        default=1,
+        help="Apply grad limit every this number of batch when it is enabled",
     )
 
     add_model_arguments(parser)
@@ -1036,6 +1042,17 @@ def compute_validation_loss(
     return tot_loss
 
 
+@torch.inference_mode()
+def update_model_prev(model_prev, model, beta):
+    # model_prev = beta * model_prev + (1-beta) * model
+    model_prev_dict = model_prev.state_dict()
+    model_dict = model.state_dict()
+    for key in model_prev_dict:
+        model_prev_dict[key].data.copy_(
+            model_prev_dict[key].data * beta + model_dict[key].data * (1 - beta)
+        )
+
+
 def train_one_epoch(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
@@ -1115,13 +1132,11 @@ def train_one_epoch(
             with torch.cuda.amp.autocast(
                 enabled=params.use_autocast, dtype=params.dtype
             ):
-                if params.batch_idx_train > params.limit_grad_start_batch:
-                    model_prev = copy.deepcopy(model)
                 loss, loss_info = compute_loss(
                     params=params,
                     model=model,
                     model_prev=model_prev
-                    if params.batch_idx_train > params.limit_grad_start_batch
+                    if 0 < params.limit_grad_start_batch < params.batch_idx_train
                     else None,
                     sp=sp,
                     batch=batch,
@@ -1140,17 +1155,15 @@ def train_one_epoch(
             scaler.update()
             optimizer.zero_grad()
 
-            if params.batch_idx_train >= params.limit_grad_start_batch:
+            if (
+                0 < params.limit_grad_start_batch <= params.batch_idx_train
+                and params.batch_idx_train % params.limit_grad_every_n_batch == 0
+            ):
                 if model_prev is None:
                     model_prev = copy.deepcopy(model)
                 else:
-                    model_prev = copy.deepcopy(model)
-                print(
-                    "here",
-                    params.batch_idx_train,
-                    params.limit_grad_start_batch,
-                    model_prev is None,
-                )
+                    beta = max(0.5, 1.0 - 1.0 / (0.1 * params.batch_idx_train))
+                    update_model_prev(model_prev=model_prev, model=model, beta=beta)
 
         except Exception as e:
             logging.info(f"Caught exception: {e}.")
@@ -1221,6 +1234,7 @@ def train_one_epoch(
                 f"tot_loss[{tot_loss}], batch size: {batch_size}, "
                 f"lr: {cur_lr:.2e}, "
                 + (f"grad_scale: {scaler._scale.item()}" if params.use_autocast else "")
+                + (f", beta: {beta}" if model_prev is not None else "")
             )
 
             if tb_writer is not None:
@@ -1622,9 +1636,4 @@ torch.set_num_threads(1)
 torch.set_num_interop_threads(1)
 
 if __name__ == "__main__":
-    #  torch.use_deterministic_algorithms(True, warn_only=True)
-    #  torch.backends.cudnn.deterministic = True
-    #  torch.backends.cudnn.benchmark = False
-    #  torch.backends.cudnn.enabled = False
-
     main()

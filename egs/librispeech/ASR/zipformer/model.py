@@ -25,7 +25,7 @@ import torch
 import torch.nn as nn
 from encoder_interface import EncoderInterface
 from lhotse.dataset import SpecAugment
-from scaling import ScaledLinear
+from scaling import ScaledLinear, scale_grad
 
 from icefall.utils import add_sos, make_pad_mask, time_warp
 
@@ -198,13 +198,6 @@ class AsrModel(nn.Module):
 
         # Compute CTC log-prob
         ctc_output = self.ctc_output(encoder_out)  # (N, T, C)
-        print(
-            "ctc_output",
-            ctc_output.detach().mean(),
-            ctc_output.detach().sum(),
-            ctc_output.detach().min(),
-            ctc_output.detach().max(),
-        )
 
         if model_prev:
             with fork_rng(
@@ -213,18 +206,11 @@ class AsrModel(nn.Module):
                 rng_state=rng_state,
                 device=device,
             ):
-                ctc_output_prev = model_prev.ctc_output(encoder_out)
-                print(
-                    "ctc_output_prev",
-                    ctc_output_prev.detach().mean(),
-                    ctc_output_prev.detach().sum(),
-                    ctc_output_prev.detach().min(),
-                    ctc_output_prev.detach().max(),
-                )
-                print(
-                    "isclose ctc",
-                    (ctc_output - ctc_output).detach().abs().max(),
-                )
+                ctc_output_prev = model_prev.ctc_output(encoder_out_prev)
+
+                has_grown = ctc_output > 0.8 * ctc_output_prev
+                grad_scale_tensor = torch.where(has_grown, 0.5, 1.0)
+                ctc_output = scale_grad(ctc_output, grad_scale_tensor)
 
         ctc_loss = torch.nn.functional.ctc_loss(
             log_probs=ctc_output.permute(1, 0, 2),  # (T, N, C)
@@ -481,15 +467,6 @@ class AsrModel(nn.Module):
         # Compute encoder outputs
         encoder_out, encoder_out_lens = self.forward_encoder(x, x_lens)
 
-        print(
-            "encoder_out",
-            encoder_out.detach().mean(),
-            encoder_out.detach().abs().max(),
-            encoder_out.detach().abs().min(),
-            encoder_out.detach().sum(),
-            encoder_out.shape,
-        )
-
         if model_prev:
             with fork_rng(
                 cpu_state=cpu_state,
@@ -499,19 +476,6 @@ class AsrModel(nn.Module):
             ):
                 encoder_out_prev, encoder_out_lens_prev = model_prev.forward_encoder(
                     x, x_lens
-                )
-                print(
-                    "encoder_out_prev",
-                    encoder_out_prev.detach().mean(),
-                    encoder_out_prev.detach().abs().max(),
-                    encoder_out_prev.detach().abs().mean(),
-                    encoder_out_prev.detach().sum(),
-                    encoder_out_prev.shape,
-                )
-                print(
-                    "isclose",
-                    (encoder_out - encoder_out_prev).detach().abs().max(),
-                    (encoder_out_lens - encoder_out_lens_prev).detach().abs().max(),
                 )
         else:
             encoder_out_prev = None
