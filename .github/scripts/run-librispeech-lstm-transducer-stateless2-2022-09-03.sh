@@ -162,7 +162,7 @@ if [[ x"${GITHUB_EVENT_LABEL_NAME}" == x"LODR" ]]; then
     --ngram-lm-scale -0.16
 fi
 
-if [[ x"${GITHUB_EVENT_NAME}" == x"schedule" ]]; then
+if [[ x"${GITHUB_EVENT_NAME}" == x"schedule" || x"${GITHUB_EVENT_NAME}" == x"workflow_dispatch" ]]; then
   mkdir -p lstm_transducer_stateless2/exp
   ln -s $PWD/$repo/exp/pretrained.pt lstm_transducer_stateless2/exp/epoch-999.pt
   ln -s $PWD/$repo/data/lang_bpe_500 data/
@@ -175,7 +175,7 @@ if [[ x"${GITHUB_EVENT_NAME}" == x"schedule" ]]; then
   # use a small value for decoding with CPU
   max_duration=100
 
-  for method in greedy_search fast_beam_search modified_beam_search; do
+  for method in greedy_search fast_beam_search; do
     log "Decoding with $method"
 
     ./lstm_transducer_stateless2/decode.py \

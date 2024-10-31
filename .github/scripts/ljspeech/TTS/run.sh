@@ -22,7 +22,7 @@ git diff
 function prepare_data() {
   # We have created a subset of the data for testing
   #
-  mkdir download
+  mkdir -p download
   pushd download
   wget -q https://huggingface.co/csukuangfj/ljspeech-subset-for-ci-test/resolve/main/LJSpeech-1.1.tar.bz2
   tar xvf LJSpeech-1.1.tar.bz2
