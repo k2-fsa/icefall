@@ -20,6 +20,8 @@ import json
 import sys
 from pathlib import Path
 
+from icefall.utils import str2bool
+
 
 def simple_cleanup(text: str) -> str:
     table = str.maketrans("’‘，。；？！（）：-《》、“”【】", "'',.;?!(): <>/\"\"[]")
@@ -34,7 +36,7 @@ def main():
     ), "Usage: ./local/prepare_manifest.py INPUT OUTPUT_DIR KEEP_CUSTOM_FIELDS"
     fname = Path(sys.argv[1]).name
     oname = Path(sys.argv[2]) / fname
-    keep_custom_fields = bool(sys.argv[3])
+    keep_custom_fields = str2bool(sys.argv[3])
     with gzip.open(sys.argv[1], "r") as fin, gzip.open(oname, "w") as fout:
         for line in fin:
             cut = json.loads(line)

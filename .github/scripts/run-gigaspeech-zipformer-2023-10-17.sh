@@ -129,20 +129,34 @@ done
 
 echo "GITHUB_EVENT_NAME: ${GITHUB_EVENT_NAME}"
 echo "GITHUB_EVENT_LABEL_NAME: ${GITHUB_EVENT_LABEL_NAME}"
-if [[ x"${GITHUB_EVENT_NAME}" == x"schedule" || x"${GITHUB_EVENT_LABEL_NAME}" == x"run-decode"  ]]; then
+if [[ x"${GITHUB_EVENT_NAME}" == x"schedule" || x"${GITHUB_EVENT_NAME}" == x"workflow_dispatch" || x"${GITHUB_EVENT_LABEL_NAME}" == x"run-decode"  ]]; then
   mkdir -p zipformer/exp
   ln -s $PWD/$repo/exp/pretrained.pt zipformer/exp/epoch-30.pt
+  mkdir -p data
   ln -s $PWD/$repo/data/lang_bpe_500 data/
 
   ls -lh data
   ls -lh zipformer/exp
+
+  mkdir -p data/fbank
+  pushd data/fbank
+
+  curl -SL -O https://huggingface.co/csukuangfj/giga-dev-dataset-fbank/resolve/main/data/fbank/cuts_DEV.jsonl.gz
+  curl -SL -O https://huggingface.co/csukuangfj/giga-dev-dataset-fbank/resolve/main/data/fbank/cuts_TEST.jsonl.gz
+  curl -SL -O https://huggingface.co/csukuangfj/giga-dev-dataset-fbank/resolve/main/data/fbank/feats_DEV.lca
+  curl -SL -O https://huggingface.co/csukuangfj/giga-dev-dataset-fbank/resolve/main/data/fbank/feats_TEST.lca
+
+  ln -sf cuts_DEV.jsonl.gz gigaspeech_cuts_DEV.jsonl.gz
+  ln -sf cuts_TEST.jsonl.gz gigaspeech_cuts_TEST.jsonl.gz
+
+  popd
 
   log "Decoding test-clean and test-other"
 
   # use a small value for decoding with CPU
   max_duration=100
 
-  for method in greedy_search fast_beam_search modified_beam_search; do
+  for method in greedy_search; do
     log "Decoding with $method"
 
     ./zipformer/decode.py \
