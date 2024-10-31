@@ -19,20 +19,23 @@ import gzip
 import json
 import re
 import sys
+from concurrent.futures.process import ProcessPoolExecutor
 from pathlib import Path
 
 from tn.english.normalizer import Normalizer as EnNormalizer
+from tqdm import tqdm
 
 from icefall.utils import str2bool
 
 
 class TextNormlizer:
     def __init__(self):
-        self.en_tn_model = EnNormalizer()
+        self.en_tn_model = EnNormalizer(cache_dir="/tmp/tn", overwrite_cache=False)
 
-    def __call__(self, text):
-        # brackets
-        # Always text inside brackets with numbers in them. Usually corresponds to "(Sam 23:17)"
+    def __call__(self, cut):
+        text = cut["supervisions"][0]["custom"]["texts"][0]
+
+        # Process brackets
         text = re.sub(r"\([^\)]*\d[^\)]*\)", " ", text)
         text = re.sub(r"\([^\)]*\)", " ", text)
 
@@ -44,29 +47,31 @@ class TextNormlizer:
         text = re.sub(r"\s+", " ", text).strip()
 
         text = self.en_tn_model.normalize(text)
-        return text.strip()
+
+        cut["supervisions"][0]["text"] = text
+        del cut["supervisions"][0]["custom"]
+        del cut["custom"]
+
+        return cut
 
 
 # Assign text of the supervisions and remove unnecessary entries.
 def main():
-    assert (
-        len(sys.argv) == 4
-    ), "Usage: ./local/prepare_manifest.py INPUT OUTPUT_DIR KEEP_CUSTOM_FIELDS"
+    assert len(sys.argv) == 3, "Usage: ./local/prepare_manifest.py INPUT OUTPUT_DIR"
     fname = Path(sys.argv[1]).name
     oname = Path(sys.argv[2]) / fname
-    keep_custom_fields = str2bool(sys.argv[3])
 
     tn = TextNormlizer()
-
-    with gzip.open(sys.argv[1], "r") as fin, gzip.open(oname, "w") as fout:
-        for line in fin:
+    with gzip.open(sys.argv[1], "r") as fin, ProcessPoolExecutor() as ex:
+        futures = []
+        cuts = []
+        for line in tqdm(fin, desc="Distributing tasks"):
             cut = json.loads(line)
-            cut["supervisions"][0]["text"] = tn(
-                cut["supervisions"][0]["custom"]["texts"][0]
-            )
-            if not keep_custom_fields:
-                del cut["supervisions"][0]["custom"]
-                del cut["custom"]
+            futures.append(ex.submit(tn, cut))
+
+    with gzip.open(oname, "w") as fout:
+        for future in tqdm(futures, desc="Processing"):
+            cut = future.result()
             fout.write((json.dumps(cut) + "\n").encode())
 
 

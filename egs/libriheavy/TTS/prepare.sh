@@ -87,7 +87,7 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   for subset in small medium large dev test_clean test_other; do
     if [ ! -e $manifests_dir/libriheavy_cuts_${subset}.jsonl.gz ]; then
       log "Prepare manifest for subset : ${subset}"
-      ./local/prepare_manifest.py $dl_dir/libriheavy/libriheavy_cuts_${subset}.jsonl.gz $manifests_dir False
+      ./local/prepare_manifest.py $dl_dir/libriheavy/libriheavy_cuts_${subset}.jsonl.gz $manifests_dir
     fi
   done
 fi
