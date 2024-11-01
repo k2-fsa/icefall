@@ -622,6 +622,8 @@ class VITS(nn.Module):
         text: torch.Tensor,
         text_lengths: torch.Tensor,
         sids: Optional[torch.Tensor] = None,
+        spembs: Optional[torch.Tensor] = None,
+        lids: Optional[torch.Tensor] = None,
         durations: Optional[torch.Tensor] = None,
         noise_scale: float = 0.667,
         noise_scale_dur: float = 0.8,
@@ -635,6 +637,8 @@ class VITS(nn.Module):
             text (Tensor): Input text index tensor (B, T_text).
             text_lengths (Tensor): Input text index tensor (B,).
             sids (Tensor): Speaker index tensor (B,).
+            spembs (Optional[Tensor]): Speaker embedding tensor (B, spk_embed_dim).
+            lids (Tensor): Language index tensor (B,).
             noise_scale (float): Noise scale value for flow.
             noise_scale_dur (float): Noise scale value for duration predictor.
             alpha (float): Alpha parameter to control the speed of generated speech.
@@ -650,6 +654,8 @@ class VITS(nn.Module):
             text=text,
             text_lengths=text_lengths,
             sids=sids,
+            spembs=spembs,
+            lids=lids,
             noise_scale=noise_scale,
             noise_scale_dur=noise_scale_dur,
             alpha=alpha,
