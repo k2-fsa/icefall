@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# Copyright         2023  Xiaomi Corp.        (authors: Zengwei Yao)
+# Copyright   2023-2024  Xiaomi Corporation     (Author: Zengwei Yao,
+#                                                        Zengrui Jin,)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -20,7 +21,7 @@ import argparse
 import logging
 from pathlib import Path
 from shutil import copyfile
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import k2
 import numpy as np
@@ -28,13 +29,14 @@ import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 from lhotse.cut import Cut
+from lhotse.features.io import KaldiReader
 from lhotse.utils import fix_random_seed
 from tokenizer import Tokenizer
 from torch.cuda.amp import GradScaler, autocast
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim import Optimizer
 from torch.utils.tensorboard import SummaryWriter
-from tts_datamodule import LJSpeechTtsDataModule
+from tts_datamodule import LibrittsTtsDataModule
 from utils import MetricsTracker, plot_feature, save_checkpoint
 from vits import VITS
 
@@ -153,16 +155,6 @@ def get_parser():
         help="Whether to use half precision training.",
     )
 
-    parser.add_argument(
-        "--model-type",
-        type=str,
-        default="high",
-        choices=["low", "medium", "high"],
-        help="""If not empty, valid values are: low, medium, high.
-        It controls the model size. low -> runs faster.
-        """,
-    )
-
     return parser
 
 
@@ -199,6 +191,15 @@ def get_params() -> AttributeDict:
 
         - feature_dim: The model input dim. It has to match the one used
                        in computing features.
+
+        - subsampling_factor:  The subsampling factor for the model.
+
+        - encoder_dim: Hidden dim for multi-head attention model.
+
+        - num_decoder_layers: Number of decoder layer of transformer decoder.
+
+        - warm_step: The warmup period that dictates the decay of the
+              scale on "simple" (un-pruned) loss.
     """
     params = AttributeDict(
         {
@@ -211,7 +212,7 @@ def get_params() -> AttributeDict:
             "log_interval": 50,
             "valid_interval": 200,
             "env_info": get_env_info(),
-            "sampling_rate": 22050,
+            "sampling_rate": 24000,
             "frame_shift": 256,
             "frame_length": 1024,
             "feature_dim": 513,  # 1024 // 2 + 1, 1024 is fft_length
@@ -275,11 +276,48 @@ def get_model(params: AttributeDict) -> nn.Module:
         "frame_length": params.frame_length,
         "frame_shift": params.frame_shift,
     }
+    generator_params = {
+        "hidden_channels": 192,
+        "spks": None,
+        "langs": None,
+        "spk_embed_dim": 512,
+        "global_channels": 256,
+        "segment_size": 32,
+        "text_encoder_attention_heads": 2,
+        "text_encoder_ffn_expand": 4,
+        "text_encoder_cnn_module_kernel": 5,
+        "text_encoder_blocks": 6,
+        "text_encoder_dropout_rate": 0.1,
+        "decoder_kernel_size": 7,
+        "decoder_channels": 512,
+        "decoder_upsample_scales": [8, 8, 2, 2],
+        "decoder_upsample_kernel_sizes": [16, 16, 4, 4],
+        "decoder_resblock_kernel_sizes": [3, 7, 11],
+        "decoder_resblock_dilations": [[1, 3, 5], [1, 3, 5], [1, 3, 5]],
+        "use_weight_norm_in_decoder": True,
+        "posterior_encoder_kernel_size": 5,
+        "posterior_encoder_layers": 16,
+        "posterior_encoder_stacks": 1,
+        "posterior_encoder_base_dilation": 1,
+        "posterior_encoder_dropout_rate": 0.0,
+        "use_weight_norm_in_posterior_encoder": True,
+        "flow_flows": 4,
+        "flow_kernel_size": 5,
+        "flow_base_dilation": 1,
+        "flow_layers": 4,
+        "flow_dropout_rate": 0.0,
+        "use_weight_norm_in_flow": True,
+        "use_only_mean_in_flow": True,
+        "stochastic_duration_predictor_kernel_size": 3,
+        "stochastic_duration_predictor_dropout_rate": 0.5,
+        "stochastic_duration_predictor_flows": 4,
+        "stochastic_duration_predictor_dds_conv_layers": 3,
+    }
     model = VITS(
         vocab_size=params.vocab_size,
         feature_dim=params.feature_dim,
         sampling_rate=params.sampling_rate,
-        model_type=params.model_type,
+        generator_params=generator_params,
         mel_loss_params=mel_loss_params,
         lambda_adv=params.lambda_adv,
         lambda_mel=params.lambda_mel,
@@ -290,13 +328,27 @@ def get_model(params: AttributeDict) -> nn.Module:
     return model
 
 
-def prepare_input(batch: dict, tokenizer: Tokenizer, device: torch.device):
+def prepare_input(
+    batch: dict,
+    tokenizer: Tokenizer,
+    device: torch.device,
+    speaker_map: KaldiReader,
+):
     """Parse batch data"""
+
+    def parse_sids(batch: dict) -> List[str]:
+        return ["_".join(cut.id.split("_")[:2]) for cut in batch["cut"]]
+
     audio = batch["audio"].to(device)
     features = batch["features"].to(device)
     audio_lens = batch["audio_lens"].to(device)
     features_lens = batch["features_lens"].to(device)
     tokens = batch["tokens"]
+    spembs = (
+        torch.Tensor(np.array([speaker_map.read(sid) for sid in parse_sids(batch)]))
+        .squeeze(1)
+        .to(device)
+    )
 
     tokens = tokenizer.tokens_to_token_ids(
         tokens, intersperse_blank=True, add_sos=True, add_eos=True
@@ -309,7 +361,7 @@ def prepare_input(batch: dict, tokenizer: Tokenizer, device: torch.device):
     # a tensor of shape (B, T)
     tokens = tokens.pad(mode="constant", padding_value=tokenizer.pad_id)
 
-    return audio, audio_lens, features, features_lens, tokens, tokens_lens
+    return audio, audio_lens, features, features_lens, tokens, tokens_lens, spembs
 
 
 def train_one_epoch(
@@ -321,7 +373,9 @@ def train_one_epoch(
     scheduler_g: LRSchedulerType,
     scheduler_d: LRSchedulerType,
     train_dl: torch.utils.data.DataLoader,
-    valid_dl: torch.utils.data.DataLoader,
+    dev_dl: torch.utils.data.DataLoader,
+    train_speaker_map: KaldiReader,
+    dev_speaker_map: KaldiReader,
     scaler: GradScaler,
     tb_writer: Optional[SummaryWriter] = None,
     world_size: int = 1,
@@ -365,7 +419,7 @@ def train_one_epoch(
     model.train()
     device = model.device if isinstance(model, DDP) else next(model.parameters()).device
 
-    # used to track the stats over iterations in one epoch
+    # used to summary the stats over iterations in one epoch
     tot_loss = MetricsTracker()
 
     saved_bad_model = False
@@ -388,9 +442,15 @@ def train_one_epoch(
         params.batch_idx_train += 1
 
         batch_size = len(batch["tokens"])
-        audio, audio_lens, features, features_lens, tokens, tokens_lens = prepare_input(
-            batch, tokenizer, device
-        )
+        (
+            audio,
+            audio_lens,
+            features,
+            features_lens,
+            tokens,
+            tokens_lens,
+            spembs,
+        ) = prepare_input(batch, tokenizer, device, train_speaker_map)
 
         loss_info = MetricsTracker()
         loss_info["samples"] = batch_size
@@ -405,6 +465,7 @@ def train_one_epoch(
                     feats_lengths=features_lens,
                     speech=audio,
                     speech_lengths=audio_lens,
+                    spembs=spembs,
                     forward_generator=False,
                 )
             for k, v in stats_d.items():
@@ -423,6 +484,7 @@ def train_one_epoch(
                     feats_lengths=features_lens,
                     speech=audio,
                     speech_lengths=audio_lens,
+                    spembs=spembs,
                     forward_generator=True,
                     return_sample=params.batch_idx_train % params.log_interval == 0,
                 )
@@ -529,7 +591,8 @@ def train_one_epoch(
                 params=params,
                 model=model,
                 tokenizer=tokenizer,
-                valid_dl=valid_dl,
+                dev_dl=dev_dl,
+                dev_speaker_map=dev_speaker_map,
                 world_size=world_size,
             )
             model.train()
@@ -565,7 +628,8 @@ def compute_validation_loss(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
     tokenizer: Tokenizer,
-    valid_dl: torch.utils.data.DataLoader,
+    dev_dl: torch.utils.data.DataLoader,
+    dev_speaker_map: KaldiReader,
     world_size: int = 1,
     rank: int = 0,
 ) -> Tuple[MetricsTracker, Tuple[np.ndarray, np.ndarray]]:
@@ -578,7 +642,7 @@ def compute_validation_loss(
     returned_sample = None
 
     with torch.no_grad():
-        for batch_idx, batch in enumerate(valid_dl):
+        for batch_idx, batch in enumerate(dev_dl):
             batch_size = len(batch["tokens"])
             (
                 audio,
@@ -587,7 +651,8 @@ def compute_validation_loss(
                 features_lens,
                 tokens,
                 tokens_lens,
-            ) = prepare_input(batch, tokenizer, device)
+                spembs,
+            ) = prepare_input(batch, tokenizer, device, dev_speaker_map)
 
             loss_info = MetricsTracker()
             loss_info["samples"] = batch_size
@@ -600,6 +665,7 @@ def compute_validation_loss(
                 feats_lengths=features_lens,
                 speech=audio,
                 speech_lengths=audio_lens,
+                spembs=spembs,
                 forward_generator=False,
             )
             assert loss_d.requires_grad is False
@@ -614,6 +680,7 @@ def compute_validation_loss(
                 feats_lengths=features_lens,
                 speech=audio,
                 speech_lengths=audio_lens,
+                spembs=spembs,
                 forward_generator=True,
             )
             assert loss_g.requires_grad is False
@@ -627,7 +694,8 @@ def compute_validation_loss(
             if batch_idx == 0 and rank == 0:
                 inner_model = model.module if isinstance(model, DDP) else model
                 audio_pred, _, duration = inner_model.inference(
-                    text=tokens[0, : tokens_lens[0].item()]
+                    text=tokens[0, : tokens_lens[0].item()],
+                    spembs=spembs[0],
                 )
                 audio_pred = audio_pred.data.cpu().numpy()
                 audio_len_pred = (
@@ -657,6 +725,7 @@ def scan_pessimistic_batches_for_oom(
     tokenizer: Tokenizer,
     optimizer_g: torch.optim.Optimizer,
     optimizer_d: torch.optim.Optimizer,
+    train_speaker_map: KaldiReader,
     params: AttributeDict,
 ):
     from lhotse.dataset import find_pessimistic_batches
@@ -668,9 +737,15 @@ def scan_pessimistic_batches_for_oom(
     batches, crit_values = find_pessimistic_batches(train_dl.sampler)
     for criterion, cuts in batches.items():
         batch = train_dl.dataset[cuts]
-        audio, audio_lens, features, features_lens, tokens, tokens_lens = prepare_input(
-            batch, tokenizer, device
-        )
+        (
+            audio,
+            audio_lens,
+            features,
+            features_lens,
+            tokens,
+            tokens_lens,
+            spembs,
+        ) = prepare_input(batch, tokenizer, device, train_speaker_map)
         try:
             # for discriminator
             with autocast(enabled=params.use_fp16):
@@ -681,6 +756,7 @@ def scan_pessimistic_batches_for_oom(
                     feats_lengths=features_lens,
                     speech=audio,
                     speech_lengths=audio_lens,
+                    spembs=spembs,
                     forward_generator=False,
                 )
             optimizer_d.zero_grad()
@@ -694,6 +770,7 @@ def scan_pessimistic_batches_for_oom(
                     feats_lengths=features_lens,
                     speech=audio,
                     speech_lengths=audio_lens,
+                    spembs=spembs,
                     forward_generator=True,
                 )
             optimizer_g.zero_grad()
@@ -748,6 +825,15 @@ def run(rank, world_size, args):
     tokenizer = Tokenizer(params.tokens)
     params.blank_id = tokenizer.pad_id
     params.vocab_size = tokenizer.vocab_size
+
+    libritts = LibrittsTtsDataModule(args)
+
+    if params.full_libri:
+        train_cuts = libritts.train_all_shuf_cuts()
+        train_speaker_map = libritts.train_all_shuf_xvector()
+    else:
+        train_cuts = libritts.train_clean_460_cuts()
+        train_speaker_map = libritts.train_clean_460_xvector()
 
     logging.info(params)
 
@@ -806,10 +892,6 @@ def run(rank, world_size, args):
     if params.inf_check:
         register_inf_check_hooks(model)
 
-    ljspeech = LJSpeechTtsDataModule(args)
-
-    train_cuts = ljspeech.train_cuts()
-
     def remove_short_and_long_utt(c: Cut):
         # Keep only utterances with duration between 1 second and 20 seconds
         # You should use ../local/display_manifest_statistics.py to get
@@ -823,10 +905,11 @@ def run(rank, world_size, args):
         return True
 
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
-    train_dl = ljspeech.train_dataloaders(train_cuts)
+    train_dl = libritts.train_dataloaders(train_cuts)
 
-    valid_cuts = ljspeech.valid_cuts()
-    valid_dl = ljspeech.valid_dataloaders(valid_cuts)
+    dev_clean_cuts = libritts.dev_clean_cuts()
+    dev_speaker_map = libritts.dev_clean_xvector()
+    dev_dl = libritts.dev_dataloaders(dev_clean_cuts)
 
     if not params.print_diagnostics:
         scan_pessimistic_batches_for_oom(
@@ -835,6 +918,7 @@ def run(rank, world_size, args):
             tokenizer=tokenizer,
             optimizer_g=optimizer_g,
             optimizer_d=optimizer_d,
+            train_speaker_map=train_speaker_map,
             params=params,
         )
 
@@ -863,7 +947,9 @@ def run(rank, world_size, args):
             scheduler_g=scheduler_g,
             scheduler_d=scheduler_d,
             train_dl=train_dl,
-            valid_dl=valid_dl,
+            dev_dl=dev_dl,
+            train_speaker_map=train_speaker_map,
+            dev_speaker_map=dev_speaker_map,
             scaler=scaler,
             tb_writer=tb_writer,
             world_size=world_size,
@@ -910,7 +996,7 @@ def run(rank, world_size, args):
 
 def main():
     parser = get_parser()
-    LJSpeechTtsDataModule.add_arguments(parser)
+    LibrittsTtsDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 

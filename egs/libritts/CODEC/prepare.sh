@@ -45,11 +45,10 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   # to $dl_dir/LibriTTS
   mkdir -p data/manifests
   if [ ! -e data/manifests/.libritts.done ]; then
-    lhotse prepare libritts --num-jobs 32 $dl_dir/LibriTTS data/manifests
+    lhotse prepare libritts --num-jobs ${nj} $dl_dir/LibriTTS data/manifests
     touch data/manifests/.libritts.done
   fi
 fi
-
 
 if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   log "Stage 2: Compute Spectrogram for LibriTTS"
@@ -64,7 +63,7 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   if [ ! -f data/spectrogram/libritts_cuts_train-all-shuf.jsonl.gz ]; then
     cat <(gunzip -c data/spectrogram/libritts_cuts_train-clean-100.jsonl.gz) \
       <(gunzip -c data/spectrogram/libritts_cuts_train-clean-360.jsonl.gz) \
-      <(gunzip -c /data/spectrogramlibritts_cuts_train-other-500.jsonl.gz) | \
+      <(gunzip -c data/spectrogramlibritts_cuts_train-other-500.jsonl.gz) | \
       shuf | gzip -c > data/spectrogram/libritts_cuts_train-all-shuf.jsonl.gz
   fi
 
