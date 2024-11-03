@@ -81,8 +81,8 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   done
 fi
 
-if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
-  log "Stage 3: Prepare Libriheavy manifests"
+if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
+  log "Stage 1: Prepare Libriheavy manifests"
   mkdir -p $manifests_dir
   for subset in small medium large dev test_clean test_other; do
     if [ ! -e $manifests_dir/libriheavy_cuts_${subset}.jsonl.gz ]; then
@@ -93,8 +93,8 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
 fi
 
 num_per_split=200000
-if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
-  log "Stage 6: Split medium and large subsets."
+if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
+  log "Stage 2: Split medium and large subsets."
   for subset in medium large; do
     log "Spliting subset : $subset"
     split_dir=$manifests_dir/libriheavy_${subset}_split
@@ -106,25 +106,25 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
   done
 fi
 
-if [ $stage -le 10 ] && [ $stop_stage -ge 10 ]; then
-  log "Stage 10: Train BPE model for unnormalized text"
-  if [ ! -f data/punc_texts ]; then
+if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
+  log "Stage 3: Train BPE model for normalized text"
+
+  if [ ! -f data/texts ]; then
     gunzip -c $manifests_dir/libriheavy_cuts_medium.jsonl.gz \
-      | jq '.supervisions[].text' | sed 's/"//;s/\\//g;s/"$//' > data/punc_texts
+      | jq '.supervisions[].text' | sed 's/"//;s/\\//g;s/"$//' \
+      | ./local/norm_text.py > data/texts
   fi
+
   for vocab_size in ${vocab_sizes[@]}; do
-    lang_dir=data/lang_punc_bpe_${vocab_size}
+    lang_dir=data/lang_bpe_${vocab_size}
     mkdir -p $lang_dir
 
-    cp data/punc_texts $lang_dir/text
+    cp data/texts $lang_dir/text
 
     if [ ! -f $lang_dir/bpe.model ]; then
       ./local/train_bpe_model.py \
         --lang-dir $lang_dir \
-        --byte-fallback \
-        --vocab-size ${vocab_size} \
-        --byte-fallback \
-        --character-coverage 0.99 \
+        --vocab-size $vocab_size \
         --transcript $lang_dir/text
     fi
   done
