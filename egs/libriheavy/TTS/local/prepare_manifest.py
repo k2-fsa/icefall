@@ -31,7 +31,9 @@ from icefall.utils import str2bool
 class TextNormalizer:
     def __init__(self):
         self.en_tn_model = EnNormalizer(cache_dir="/tmp/tn", overwrite_cache=False)
-        self.table = str.maketrans("’‘，。；？！（）：-《》、“”【】", "'',.;?!(): <>/\"\"[]")
+        self.table = str.maketrans(
+            "’‘，。；？！（）：-《》、“”【】", "'',.;?!(): <>/\"\"[]"
+        )
 
     def __call__(self, cut):
         text = cut["supervisions"][0]["custom"]["texts"][0]

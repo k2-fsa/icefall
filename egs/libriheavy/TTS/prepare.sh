@@ -129,3 +129,37 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
     fi
   done
 fi
+
+if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
+  log "Stage 4: Extract speech tokens."
+  for subset in small medium large; do
+    log "Extract speech tokens for subset: $subset"
+    output_dir=$tokens_dir/libriheavy_${subset}
+    mkdir -p $tokens_dir
+    if [ ! -e $tokens_dir/.extract_completed ]; then
+      torchrun --nproc_per_node=8 \
+        --nnodes=1 \
+        --rdzv_id=2024 \
+        --rdzv_backend="c10d" \
+        --rdzv_endpoint="localhost:0" \
+        `which s3tokenizer` \
+          --cuts_path $manifests_dir/libriheavy_cuts_${subset}.jsonl.gz \
+          --device "cuda" \
+          --output_dir $output_dir \
+          --batch_size 32 \
+          --model "speech_tokenizer_v1"
+      cat $output_dir/part* | gzip > $output_dir/libriheavy_${subset}.jsonl.gz && rm -rf $output_dir
+      touch $output_dir/..extract_completed
+    fi
+  done
+fi
+
+if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
+  log "Stage 5: Attach speech tokens."
+  for subset in small medium large; do
+    log "Attach speech tokens for subset: $subset"
+    if [ ! -e $tokens_dir/libriheavy_cuts_${subset}.jsonl.gz ]; then
+      ./local/attach_speech_tokens.py --subset $subset
+    fi
+  done
+fi
