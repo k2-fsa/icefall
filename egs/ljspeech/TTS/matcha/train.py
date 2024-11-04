@@ -15,9 +15,9 @@ import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 from lhotse.utils import fix_random_seed
-from matcha.model import fix_len_compatibility
-from matcha.models.matcha_tts import MatchaTTS
-from matcha.tokenizer import Tokenizer
+from model import fix_len_compatibility
+from models.matcha_tts import MatchaTTS
+from tokenizer import Tokenizer
 from torch.cuda.amp import GradScaler, autocast
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim import Optimizer
