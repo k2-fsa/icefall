@@ -56,7 +56,7 @@ function infer() {
 
   curl -SL -O https://github.com/csukuangfj/models/raw/refs/heads/master/hifigan/generator_v1
 
-  ./matcha/infer.py \
+  ./matcha/synth.py \
     --epoch 1 \
     --exp-dir ./matcha/exp \
     --tokens data/tokens.txt \

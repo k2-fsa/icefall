@@ -150,7 +150,7 @@ def _get_data_params() -> AttributeDict:
             "n_spks": 1,
             "n_fft": 1024,
             "n_feats": 80,
-            "sample_rate": 22050,
+            "sampling_rate": 22050,
             "hop_length": 256,
             "win_length": 1024,
             "f_min": 0,
@@ -439,11 +439,6 @@ def train_one_epoch(
     model.train()
     device = model.device if isinstance(model, DDP) else next(model.parameters()).device
     get_losses = model.module.get_losses if isinstance(model, DDP) else model.get_losses
-
-    # used to track the stats over iterations in one epoch
-    tot_loss = MetricsTracker()
-
-    saved_bad_model = False
 
     # used to track the stats over iterations in one epoch
     tot_loss = MetricsTracker()
