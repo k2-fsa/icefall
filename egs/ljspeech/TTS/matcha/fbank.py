@@ -86,4 +86,3 @@ class MatchaFbank(FeatureExtractor):
     @property
     def frame_shift(self) -> Seconds:
         return self.config.hop_length / self.config.sampling_rate
-
