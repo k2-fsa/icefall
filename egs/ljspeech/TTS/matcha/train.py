@@ -10,7 +10,6 @@ from shutil import copyfile
 from typing import Any, Dict, Optional, Union
 
 import k2
-import numpy as np
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
