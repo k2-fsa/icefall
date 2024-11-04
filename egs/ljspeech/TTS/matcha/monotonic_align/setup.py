@@ -1,4 +1,4 @@
-# Copied from
+# Modified from
 # https://github.com/shivammehta25/Matcha-TTS/blob/main/matcha/utils/monotonic_align/setup.py
 from Cython.Build import cythonize
 from setuptools import Extension, setup
