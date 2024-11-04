@@ -333,6 +333,7 @@ We provide a Colab notebook to test the pre-trained model: [![Open In Colab](htt
 
   - [LJSpeech][ljspeech]
   - [VCTK][vctk]
+  - [LibriTTS][libritts_tts]
 
 ### Supported Models
 
@@ -372,6 +373,7 @@ Please see: [![Open In Colab](https://colab.research.google.com/assets/colab-bad
 [commonvoice]: egs/commonvoice/ASR
 [csj]: egs/csj/ASR
 [libricss]: egs/libricss/SURT
+[libritts_asr]: egs/libritts/ASR
 [libriheavy]: egs/libriheavy/ASR
 [mgb2]: egs/mgb2/ASR
 [spgispeech]: egs/spgispeech/ASR
@@ -380,3 +382,4 @@ Please see: [![Open In Colab](https://colab.research.google.com/assets/colab-bad
 
 [vctk]: egs/vctk/TTS
 [ljspeech]: egs/ljspeech/TTS
+[libritts_tts]: egs/libritts/TTS

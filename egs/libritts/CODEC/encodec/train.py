@@ -138,7 +138,7 @@ def get_parser():
     parser.add_argument(
         "--save-every-n",
         type=int,
-        default=1,
+        default=5,
         help="""Save checkpoint after processing this number of epochs"
         periodically. We save checkpoint to exp-dir/ whenever
         params.cur_epoch % save_every_n == 0. The checkpoint filename
@@ -1093,14 +1093,14 @@ def run(rank, world_size, args):
         rank=rank,
     )
 
-    # if not params.print_diagnostics:
-    #     scan_pessimistic_batches_for_oom(
-    #         model=model,
-    #         train_dl=train_dl,
-    #         optimizer_g=optimizer_g,
-    #         optimizer_d=optimizer_d,
-    #         params=params,
-    #     )
+    if not params.print_diagnostics:
+        scan_pessimistic_batches_for_oom(
+            model=model,
+            train_dl=train_dl,
+            optimizer_g=optimizer_g,
+            optimizer_d=optimizer_d,
+            params=params,
+        )
 
     scaler = GradScaler(enabled=params.use_fp16, init_scale=1.0)
     if checkpoints and "grad_scaler" in checkpoints:
