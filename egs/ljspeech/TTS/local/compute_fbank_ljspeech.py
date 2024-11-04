@@ -33,12 +33,12 @@ from typing import Union
 
 import numpy as np
 import torch
+from audio import mel_spectrogram
 from lhotse import CutSet, LilcomChunkyWriter, load_manifest
 from lhotse.audio import RecordingSet
 from lhotse.features.base import FeatureExtractor, register_extractor
 from lhotse.supervision import SupervisionSet
 from lhotse.utils import Seconds, compute_num_frames
-from matcha.audio import mel_spectrogram
 
 from icefall.utils import get_executor
 
