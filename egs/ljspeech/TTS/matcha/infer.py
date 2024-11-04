@@ -179,16 +179,16 @@ def infer_dataset(
             output["waveform"] = to_waveform(output["mel"], vocoder, denoiser)
 
             sf.write(
-                file=params.save_wave_dir / f"{cut_ids[i]}_pred.wav", 
-                data=output["waveform"], 
-                samplerate=params.sampling_rate, 
-                subtype="PCM_16"
+                file=params.save_wave_dir / f"{cut_ids[i]}_pred.wav",
+                data=output["waveform"],
+                samplerate=params.sampling_rate,
+                subtype="PCM_16",
             )
             sf.write(
-                file=params.save_wave_dir / f"{cut_ids[i]}_gt.wav", 
-                data=audio[i].numpy(), 
-                samplerate=params.sampling_rate, 
-                subtype="PCM_16"
+                file=params.save_wave_dir / f"{cut_ids[i]}_gt.wav",
+                data=audio[i].numpy(),
+                samplerate=params.sampling_rate,
+                subtype="PCM_16",
             )
 
         num_cuts += batch_size
