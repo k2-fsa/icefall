@@ -266,10 +266,10 @@ def main():
         raise ValueError(f"{params.vocoder} does not exist")
 
     vocoder = load_vocoder(params.vocoder)
-    vocoder = vocoder.to(device)
+    vocoder.to(device)
 
     denoiser = Denoiser(vocoder, mode="zeros")
-    denoiser = denoiser.to(device)
+    denoiser.to(device)
 
     infer_dataset(
         dl=test_dl,
