@@ -183,13 +183,13 @@ def infer_dataset(
             sf.write(
                 file=params.save_wav_dir / f"{cut_ids[i]}_pred.wav",
                 data=output["waveform"],
-                samplerate=params.sampling_rate,
+                samplerate=params.data_args.sampling_rate,
                 subtype="PCM_16",
             )
             sf.write(
                 file=params.save_wav_dir / f"{cut_ids[i]}_gt.wav",
                 data=audio[i].numpy(),
-                samplerate=params.sampling_rate,
+                samplerate=params.data_args.sampling_rate,
                 subtype="PCM_16",
             )
 
