@@ -8,8 +8,8 @@ from pathlib import Path
 
 import soundfile as sf
 import torch
+from hifigan.denoiser import Denoiser
 from infer import load_vocoder, synthesise, to_waveform
-from matcha.hifigan.denoiser import Denoiser
 from tokenizer import Tokenizer
 from train import get_model, get_params
 
