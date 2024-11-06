@@ -57,21 +57,34 @@ class TextNormalizer:
         return cut
 
 
-# Assign text of the supervisions and remove unnecessary entries.
 def main():
     assert len(sys.argv) == 3, "Usage: ./local/prepare_manifest.py INPUT OUTPUT_DIR"
     fname = Path(sys.argv[1]).name
     oname = Path(sys.argv[2]) / fname
 
     tn = TextNormalizer()
+
+    cuts = set()
+    if oname.exists():
+        with gzip.open(oname, "r") as fin:
+            for line in tqdm(fin, desc="Loading processed"):
+                cuts.add(json.loads(line)["id"])
+
     with ProcessPoolExecutor() as ex:
         with gzip.open(sys.argv[1], "r") as fin:
-            cuts = (json.loads(line) for line in fin)
-            results = ex.map(tn, cuts)
+            futures = []
+            for line in tqdm(fin, desc="Distributing"):
+                parsed_line = json.loads(line)
+                if parsed_line["id"] not in cuts:
+                    futures.append(ex.submit(tn, parsed_line))
 
-        with gzip.open(oname, "w") as fout:
-            for cut in tqdm(results, desc="Processing"):
-                fout.write((json.dumps(cut) + "\n").encode())
+        with gzip.open(oname, "a") as fout:
+            for future in tqdm(futures, desc="Processing"):
+                try:
+                    result = future.result()
+                    fout.write((json.dumps(result) + "\n").encode())
+                except Exception as e:
+                    print(f"Caught exception:\n{e}\n")
 
 
 if __name__ == "__main__":

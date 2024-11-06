@@ -149,7 +149,7 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
           --batch_size 32 \
           --model "speech_tokenizer_v1"
       cat $output_dir/part* | gzip > $output_dir/libriheavy_${subset}.jsonl.gz && rm -rf $output_dir
-      touch $output_dir/..extract_completed
+      touch $output_dir/.extract_completed
     fi
   done
 fi
