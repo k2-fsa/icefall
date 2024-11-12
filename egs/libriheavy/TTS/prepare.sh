@@ -132,11 +132,12 @@ fi
 
 if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
   log "Stage 4: Extract speech tokens."
+  mkdir -p $tokens_dir
   for subset in small medium large; do
-    log "Extract speech tokens for subset: $subset"
-    output_dir=$tokens_dir/libriheavy_${subset}
-    mkdir -p $tokens_dir
-    if [ ! -e $tokens_dir/.extract_completed ]; then
+    if [ ! -e $tokens_dir/libriheavy_${subset}.jsonl.gz ]; then
+      echo $tokens_dir/libriheavy_${subset}.jsonl.gz
+      log "Extract speech tokens for subset: $subset"
+      output_dir=$tokens_dir/libriheavy_${subset}
       torchrun --nproc_per_node=8 \
         --nnodes=1 \
         --rdzv_id=2024 \
@@ -148,8 +149,8 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
           --output_dir $output_dir \
           --batch_size 32 \
           --model "speech_tokenizer_v1"
+
       cat $output_dir/part* | gzip > $output_dir/libriheavy_${subset}.jsonl.gz && rm -rf $output_dir
-      touch $output_dir/.extract_completed
     fi
   done
 fi
