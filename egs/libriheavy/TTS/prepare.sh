@@ -135,7 +135,6 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
   mkdir -p $tokens_dir
   for subset in small medium large; do
     if [ ! -e $tokens_dir/libriheavy_${subset}.jsonl.gz ]; then
-      echo $tokens_dir/libriheavy_${subset}.jsonl.gz
       log "Extract speech tokens for subset: $subset"
       output_dir=$tokens_dir/libriheavy_${subset}
       torchrun --nproc_per_node=8 \
