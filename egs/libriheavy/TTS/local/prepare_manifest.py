@@ -31,22 +31,25 @@ from icefall.utils import str2bool
 class TextNormalizer:
     def __init__(self):
         self.en_tn_model = EnNormalizer(cache_dir="/tmp/tn", overwrite_cache=False)
-        self.table = str.maketrans(
-            "’‘，。；？！（）：-《》、“”【】", "'',.;?!(): <>/\"\"[]"
-        )
+        self.table = str.maketrans("’‘，。；？！（）：-《》、“”【】", "'',.;?!(): <>/\"\"[]")
 
     def __call__(self, cut):
         text = cut["supervisions"][0]["custom"]["texts"][0]
 
-        # Process brackets
-        text = re.sub(r"\([^\)]*\d[^\)]*\)", " ", text)
-        text = re.sub(r"\([^\)]*\)", " ", text)
-
         # Apply mappings
         text = text.translate(self.table)
 
+        # Process brackets
+        text = re.sub(r"\([^)]*\)|\{[^}]*\}|\[[^\]]*\]|<[^>]*>", " ", text)
+
+        # Process backslash
+        text = re.sub(r"\\.", "", text)
+
         # Remove extra spaces
         text = re.sub(r"\s+", " ", text).strip()
+
+        if len(text) == 0:
+            return None
 
         text = self.en_tn_model.normalize(text)
 
@@ -82,7 +85,8 @@ def main():
             for future in tqdm(futures, desc="Processing"):
                 try:
                     result = future.result()
-                    fout.write((json.dumps(result) + "\n").encode())
+                    if result is not None:
+                        fout.write((json.dumps(result) + "\n").encode())
                 except Exception as e:
                     print(f"Caught exception:\n{e}\n")
 
