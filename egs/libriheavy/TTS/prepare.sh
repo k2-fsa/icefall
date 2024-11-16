@@ -92,22 +92,9 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   done
 fi
 
-num_per_split=200000
-if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
-  log "Stage 2: Split medium and large subsets."
-  for subset in medium large; do
-    log "Spliting subset : $subset"
-    split_dir=$manifests_dir/libriheavy_${subset}_split
-    mkdir -p $split_dir
-    if [ ! -e $split_dir/.split_completed ]; then
-      lhotse split-lazy $manifests_dir/libriheavy_cuts_${subset}.jsonl.gz $split_dir $num_per_split
-      touch $split_dir/.split_completed
-    fi
-  done
-fi
 
-if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
-  log "Stage 3: Train BPE model for normalized text"
+if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
+  log "Stage 2: Train BPE model for normalized text"
 
   if [ ! -f data/texts ]; then
     gunzip -c $manifests_dir/libriheavy_cuts_medium.jsonl.gz \
@@ -130,8 +117,8 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   done
 fi
 
-if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
-  log "Stage 4: Extract speech tokens."
+if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
+  log "Stage 3: Extract speech tokens."
   mkdir -p $tokens_dir
   for subset in small medium large; do
     if [ ! -e $tokens_dir/libriheavy_${subset}.jsonl.gz ]; then
@@ -149,13 +136,13 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
           --batch_size 32 \
           --model "speech_tokenizer_v1"
 
-      cat $output_dir/part* | gzip > $output_dir/libriheavy_${subset}.jsonl.gz && rm -rf $output_dir
+      cat $output_dir/part* | gzip > $tokens_dir/libriheavy_${subset}.jsonl.gz && rm -rf $output_dir
     fi
   done
 fi
 
-if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
-  log "Stage 5: Attach speech tokens."
+if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
+  log "Stage 4: Attach speech tokens."
   for subset in small medium large; do
     log "Attach speech tokens for subset: $subset"
     if [ ! -e $tokens_dir/libriheavy_cuts_${subset}.jsonl.gz ]; then
