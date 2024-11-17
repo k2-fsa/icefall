@@ -279,6 +279,7 @@ class TextNormalizer:
             return None
 
         text = self.en_tn_model.normalize(text)
+        text = re.sub(r"\s+", " ", text).strip()
 
         cut["supervisions"][0]["text"] = text
         del cut["supervisions"][0]["custom"]
