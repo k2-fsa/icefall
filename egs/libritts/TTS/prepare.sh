@@ -32,7 +32,7 @@ if [ $stage -le -1 ] && [ $stop_stage -ge -1 ]; then
     cd vits/monotonic_align
     python setup.py build_ext --inplace
     cd ../../
-  else 
+  else
     log "monotonic_align lib already built"
   fi
 fi
@@ -75,11 +75,11 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   log "Stage 2: Compute Spectrogram for LibriTTS"
   mkdir -p data/spectrogram
   if [ ! -e data/spectrogram/.libritts.done ]; then
-    ./local/compute_spectrogram_libritts.py --sampling-rate $sampling_rate 
+    ./local/compute_spectrogram_libritts.py --sampling-rate $sampling_rate
     touch data/spectrogram/.libritts.done
   fi
 
-  # Here we shuffle and combine the train-clean-100, train-clean-360 and 
+  # Here we shuffle and combine the train-clean-100, train-clean-360 and
   # train-other-500 together to form the training set.
   if [ ! -f data/spectrogram/libritts_cuts_train-all-shuf.jsonl.gz ]; then
     cat <(gunzip -c data/spectrogram/libritts_cuts_train-clean-100.jsonl.gz) \
@@ -88,7 +88,7 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
       shuf | gzip -c > data/spectrogram/libritts_cuts_train-all-shuf.jsonl.gz
   fi
 
-  # Here we shuffle and combine the train-clean-100, train-clean-360 
+  # Here we shuffle and combine the train-clean-100, train-clean-360
   # together to form the training set.
   if [ ! -f data/spectrogram/libritts_cuts_train-clean-460.jsonl.gz ]; then
     cat <(gunzip -c data/spectrogram/libritts_cuts_train-clean-100.jsonl.gz) \
@@ -108,10 +108,10 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   log "Stage 3: Prepare phoneme tokens for LibriTTS"
   # We assume you have installed piper_phonemize and espnet_tts_frontend.
   # If not, please install them with:
-  #   - piper_phonemize: 
+  #   - piper_phonemize:
   #       refer to https://github.com/rhasspy/piper-phonemize,
   #       could install the pre-built wheels from https://github.com/csukuangfj/piper-phonemize/releases/tag/2023.12.5
-  #   - espnet_tts_frontend: 
+  #   - espnet_tts_frontend:
   #       `pip install espnet_tts_frontend`, refer to https://github.com/espnet/espnet_tts_frontend/
   if [ ! -e data/spectrogram/.libritts_with_token.done ]; then
     ./local/prepare_tokens_libritts.py
@@ -123,12 +123,39 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
   log "Stage 4: Generate token file"
   # We assume you have installed piper_phonemize and espnet_tts_frontend.
   # If not, please install them with:
-  #   - piper_phonemize: 
+  #   - piper_phonemize:
   #       refer to https://github.com/rhasspy/piper-phonemize,
   #       could install the pre-built wheels from https://github.com/csukuangfj/piper-phonemize/releases/tag/2023.12.5
-  #   - espnet_tts_frontend: 
+  #   - espnet_tts_frontend:
   #       `pip install espnet_tts_frontend`, refer to https://github.com/espnet/espnet_tts_frontend/
   if [ ! -e data/tokens.txt ]; then
     ./local/prepare_token_file.py --tokens data/tokens.txt
   fi
+fi
+
+audio_feats_dir=data/tokenized
+dataset_parts="--dataset-parts all"  # debug "-p dev-clean -p test-clean"
+if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
+  log "Stage 5: Tokenize/Fbank LibriTTS for valle"
+  mkdir -p ${audio_feats_dir}
+  if [ ! -e ${audio_feats_dir}/.libritts.tokenize.done ]; then
+    python3 ./local/compute_neural_codec_and_prepare_text_tokens.py --dataset-parts "${dataset_parts}" \
+        --audio-extractor "Encodec" \
+        --batch-duration 400 \
+        --src-dir "data/manifests" \
+        --output-dir "${audio_feats_dir}"
+  fi
+  touch ${audio_feats_dir}/.libritts.tokenize.done
+
+  lhotse combine \
+    ${audio_feats_dir}/libritts_cuts_train-clean-100.jsonl.gz \
+    ${audio_feats_dir}/libritts_cuts_train-clean-360.jsonl.gz \
+    ${audio_feats_dir}/libritts_cuts_train-other-500.jsonl.gz \
+    ${audio_feats_dir}/cuts_train.jsonl.gz
+  lhotse copy \
+    ${audio_feats_dir}/libritts_cuts_dev-clean.jsonl.gz \
+    ${audio_feats_dir}/cuts_dev.jsonl.gz
+  lhotse copy \
+    ${audio_feats_dir}/libritts_cuts_test-clean.jsonl.gz \
+    ${audio_feats_dir}/cuts_test.jsonl.gz
 fi

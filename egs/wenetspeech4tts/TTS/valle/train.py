@@ -49,10 +49,9 @@ import argparse
 import copy
 import logging
 import os
-from contextlib import nullcontext
-
 import random
 import warnings
+from contextlib import nullcontext
 from pathlib import Path
 from shutil import copyfile
 from typing import Any, Dict, Optional, Tuple, Union
@@ -60,6 +59,19 @@ from typing import Any, Dict, Optional, Tuple, Union
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
+from lhotse import CutSet
+from lhotse.cut import Cut
+from lhotse.dataset.sampling.base import CutSampler
+from lhotse.utils import fix_random_seed
+from optim import Eden, ScaledAdam
+from tokenizer import TextTokenCollater, get_text_token_collater
+from torch import Tensor
+from torch.cuda.amp import GradScaler
+from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.utils.tensorboard import SummaryWriter
+from tts_datamodule import TtsDataModule
+from valle import VALLE
+
 from icefall.checkpoint import load_checkpoint, remove_checkpoints
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 from icefall.checkpoint import (
@@ -70,21 +82,9 @@ from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
 from icefall.hooks import register_inf_check_hooks
 from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool
-from lhotse import CutSet
-from lhotse.cut import Cut
-from lhotse.dataset.sampling.base import CutSampler
-from lhotse.utils import fix_random_seed
-from torch import Tensor
-from torch.cuda.amp import GradScaler
-from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.utils.tensorboard import SummaryWriter
-
-from tts_datamodule import TtsDataModule
-from optim import Eden, ScaledAdam
-from valle import VALLE
-from tokenizer import TextTokenCollater, get_text_token_collater
 
 LRSchedulerType = torch.optim.lr_scheduler._LRScheduler
+
 
 def set_batch_count(model: Union[nn.Module, DDP], batch_count: float) -> None:
     if isinstance(model, DDP):
@@ -94,6 +94,7 @@ def set_batch_count(model: Union[nn.Module, DDP], batch_count: float) -> None:
     for module in model.modules():
         if hasattr(module, "batch_count"):
             module.batch_count = batch_count
+
 
 def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
@@ -158,6 +159,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         default=8,
         help="Number of Audio/Semantic quantization layers.",
     )
+
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -361,7 +363,6 @@ def get_parser():
     add_model_arguments(parser)
 
     return parser
-
 
 
 def get_params() -> AttributeDict:
@@ -568,9 +569,10 @@ def save_checkpoint(
         best_valid_filename = params.exp_dir / "best-valid-loss.pt"
         copyfile(src=filename, dst=best_valid_filename)
 
-def prepare_input(batch: dict, tokenizer: Tokenizer, device: torch.device):
+
+def prepare_input(batch: dict, tokenizer: TextTokenCollater, device: torch.device):
     """Parse batch data"""
-    
+
     features = batch["features"].to(device)
     features_lens = batch["features_lens"].to(device)
     if "tokens" not in batch:
@@ -589,6 +591,7 @@ def prepare_input(batch: dict, tokenizer: Tokenizer, device: torch.device):
     text_tokens_lens = text_tokens_lens.to(device)
 
     return features, features_lens, text_tokens, text_tokens_lens
+
 
 def compute_loss(
     params: AttributeDict,
@@ -615,11 +618,7 @@ def compute_loss(
      warmup: a floating point value which increases throughout training;
         values >= 1.0 are fully warmed up and have all modules present.
     """
-    device = (
-        model.device
-        if isinstance(model, DDP)
-        else next(model.parameters()).device
-    )
+    device = model.device if isinstance(model, DDP) else next(model.parameters()).device
     (
         audio_features,
         audio_features_lens,
@@ -684,9 +683,7 @@ def compute_validation_loss(
         params.best_valid_loss = loss_value
 
     if params.visualize:
-        output_dir = Path(
-            f"{params.exp_dir}/eval/step-{params.batch_idx_train:06d}"
-        )
+        output_dir = Path(f"{params.exp_dir}/eval/step-{params.batch_idx_train:06d}")
         output_dir.mkdir(parents=True, exist_ok=True)
         if isinstance(model, DDP):
             model.module.visualize(predicts, batch, output_dir=output_dir)
@@ -777,26 +774,21 @@ def train_one_epoch(
                     is_training=True,
                 )
             # summary stats
-            tot_loss = (
-                tot_loss * (1 - 1 / params.reset_interval)
-            ) + loss_info * (1 / params.reset_interval)
+            tot_loss = (tot_loss * (1 - 1 / params.reset_interval)) + loss_info * (
+                1 / params.reset_interval
+            )
 
             # NOTE: We use reduction==sum and loss is computed over utterances
             # in the batch and there is no normalization to it so far.
 
             scaler.scale(loss).backward()
             if params.batch_idx_train >= params.accumulate_grad_steps:
-                if (
-                    params.batch_idx_train % params.accumulate_grad_steps
-                    == 0
-                ):
+                if params.batch_idx_train % params.accumulate_grad_steps == 0:
                     if params.optimizer_name not in ["ScaledAdam", "Eve"]:
                         # Unscales the gradients of optimizer's assigned params in-place
                         scaler.unscale_(optimizer)
                         # Since the gradients of optimizer's assigned params are unscaled, clips as usual:
-                        torch.nn.utils.clip_grad_norm_(
-                            model.parameters(), 1.0
-                        )
+                        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
 
                     scaler.step(optimizer)
                     scaler.update()
@@ -825,7 +817,7 @@ def train_one_epoch(
                         model_cur=model,
                         model_avg=model_avg,
                     )
-             
+
         if (
             params.batch_idx_train > 0
             and params.batch_idx_train % params.save_every_n == 0
@@ -849,15 +841,13 @@ def train_one_epoch(
                     topk=params.keep_last_k,
                     rank=rank,
                 )
-         
+
         if batch_idx % 100 == 0 and params.dtype in ["float16", "fp16"]:
             # If the grad scale was less than 1, try increasing it.    The _growth_interval
             # of the grad scaler is configurable, but we can't configure it to have different
             # behavior depending on the current grad scale.
             cur_grad_scale = scaler._scale.item()
-            if cur_grad_scale < 1.0 or (
-                cur_grad_scale < 8.0 and batch_idx % 400 == 0
-            ):
+            if cur_grad_scale < 1.0 or (cur_grad_scale < 8.0 and batch_idx % 400 == 0):
                 scaler.update(cur_grad_scale * 2.0)
 
             if cur_grad_scale < 0.01:
@@ -870,9 +860,7 @@ def train_one_epoch(
         if batch_idx % params.log_interval == 0:
             cur_lr = scheduler.get_last_lr()[0]
             cur_grad_scale = (
-                scaler._scale.item()
-                if params.dtype in ["float16", "fp16"]
-                else 1.0
+                scaler._scale.item() if params.dtype in ["float16", "fp16"] else 1.0
             )
 
             logging.info(
@@ -897,12 +885,8 @@ def train_one_epoch(
                     "train/current_",
                     params.batch_idx_train,
                 )
-                tot_loss.write_summary(
-                    tb_writer, "train/tot_", params.batch_idx_train
-                )
-                tot_loss.write_summary(
-                    tb_writer, "train/tot_", params.batch_idx_train
-                )
+                tot_loss.write_summary(tb_writer, "train/tot_", params.batch_idx_train)
+                tot_loss.write_summary(tb_writer, "train/tot_", params.batch_idx_train)
                 if params.dtype in ["float16", "fp16"]:
                     tb_writer.add_scalar(
                         "train/grad_scale",
@@ -922,9 +906,7 @@ def train_one_epoch(
                     valid_dl=valid_dl,
                     world_size=world_size,
                 )
-            logging.info(
-                f"Epoch {params.cur_epoch}, validation: {valid_info}"
-            )
+            logging.info(f"Epoch {params.cur_epoch}, validation: {valid_info}")
             logging.info(
                 f"Maximum memory allocated so far is {torch.cuda.max_memory_allocated()//1000000}MB"
             )
@@ -1063,10 +1045,7 @@ def run(rank, world_size, args):
             )
         else:
             parameters_names.append(
-                [
-                    name_param_pair[0]
-                    for name_param_pair in model.named_parameters()
-                ]
+                [name_param_pair[0] for name_param_pair in model.named_parameters()]
             )
 
         optimizer = ScaledAdam(
@@ -1144,9 +1123,7 @@ def run(rank, world_size, args):
             params=params,
         )
 
-    scaler = GradScaler(
-        enabled=(params.dtype in ["fp16", "float16"]), init_scale=1.0
-    )
+    scaler = GradScaler(enabled=(params.dtype in ["fp16", "float16"]), init_scale=1.0)
     if checkpoints and "grad_scaler" in checkpoints:
         logging.info("Loading grad scaler state dict")
         scaler.load_state_dict(checkpoints["grad_scaler"])

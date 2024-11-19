@@ -40,16 +40,17 @@ os.environ["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] = "python"
 
 import torch
 import torchaudio
-from icefall.utils import AttributeDict, str2bool
-
-from valle.data import (
+from compute_neural_codec_and_prepare_text_tokens import (
     AudioTokenizer,
     TextTokenizer,
     tokenize_audio,
     tokenize_text,
 )
-from valle.data.collation import get_text_token_collater
-from valle.models import get_model
+from k2 import symbol_table
+from tokenizer import get_text_token_collater
+from valle import VALLE
+
+from icefall.utils import AttributeDict, str2bool
 
 
 def get_args():
@@ -70,20 +71,11 @@ def get_args():
     )
 
     parser.add_argument(
-        "--text",
+        "--manifest",
         type=str,
-        default="To get up and running quickly just follow the steps below.",
-        help="Text to be synthesized.",
+        default="",
+        help="prompt text\t prompt audio\ttarget text\ttarget audio",
     )
-
-    # model
-    # add_model_arguments(parser)
-    # parser.add_argument(
-    #     "--text-tokens",
-    #     type=str,
-    #     default="data/tokenized/unique_text_tokens.k2symbols",
-    #     help="Path to the unique text tokens file.",
-    # )
 
     parser.add_argument(
         "--text-extractor",
@@ -143,8 +135,19 @@ def load_model(checkpoint, device):
 
     checkpoint = torch.load(checkpoint, map_location=device)
 
-    args = AttributeDict(checkpoint)
-    model = get_model(args)
+    params = AttributeDict(checkpoint)
+    model = VALLE(
+        params.decoder_dim,
+        params.nhead,
+        params.num_decoder_layers,
+        norm_first=params.norm_first,
+        add_prenet=params.add_prenet,
+        prefix_mode=params.prefix_mode,
+        share_embedding=params.share_embedding,
+        nar_scale_factor=params.scale_factor,
+        prepend_bos=params.prepend_bos,
+        num_quantizers=params.num_quantizers,
+    )
 
     missing_keys, unexpected_keys = model.load_state_dict(
         checkpoint["model"], strict=True
@@ -153,9 +156,7 @@ def load_model(checkpoint, device):
     model.to(device)
     model.eval()
 
-    text_tokens = args.text_tokens
-
-    return model, text_tokens
+    return model, params.text_tokens
 
 
 @torch.no_grad()
@@ -181,9 +182,7 @@ def main():
             encoded_frames = tokenize_audio(audio_tokenizer, audio_file)
             if False:
                 samples = audio_tokenizer.decode(encoded_frames)
-                torchaudio.save(
-                    f"{args.output_dir}/p{n}.wav", samples[0], 24000
-                )
+                torchaudio.save(f"{args.output_dir}/p{n}.wav", samples[0], 24000)
 
             audio_prompts.append(encoded_frames[0][0])
 
@@ -195,8 +194,8 @@ def main():
         # https://github.com/lifeiteng/lifeiteng.github.com/blob/main/valle/prepare.py
         with open(args.text) as f:
             for line in f:
-                # fields = line.strip().split("\t")
-                fields = line.strip().split(" ")
+                fields = line.strip().split("\t")
+                # fields = line.strip().split(" ")
                 fields = [item for item in fields if item]
                 assert len(fields) == 4
                 prompt_text, prompt_audio, text, audio_path = fields
@@ -209,11 +208,7 @@ def main():
                     ]
                 )
                 _, enroll_x_lens = text_collater(
-                    [
-                        tokenize_text(
-                            text_tokenizer, text=f"{prompt_text}".strip()
-                        )
-                    ]
+                    [tokenize_text(text_tokenizer, text=f"{prompt_text}".strip())]
                 )
 
                 audio_prompts = tokenize_audio(audio_tokenizer, prompt_audio)
@@ -244,11 +239,7 @@ def main():
     for n, text in enumerate(args.text.split("|")):
         logging.info(f"synthesize text: {text}")
         text_tokens, text_tokens_lens = text_collater(
-            [
-                tokenize_text(
-                    text_tokenizer, text=f"{text_prompts} {text}".strip()
-                )
-            ]
+            [tokenize_text(text_tokenizer, text=f"{text_prompts} {text}".strip())]
         )
 
         # synthesis
@@ -263,11 +254,7 @@ def main():
             enroll_x_lens = None
             if text_prompts:
                 _, enroll_x_lens = text_collater(
-                    [
-                        tokenize_text(
-                            text_tokenizer, text=f"{text_prompts}".strip()
-                        )
-                    ]
+                    [tokenize_text(text_tokenizer, text=f"{text_prompts}".strip())]
                 )
             encoded_frames = model.inference(
                 text_tokens.to(device),
@@ -280,13 +267,9 @@ def main():
             )
 
         if audio_prompts != []:
-            samples = audio_tokenizer.decode(
-                [(encoded_frames.transpose(2, 1), None)]
-            )
+            samples = audio_tokenizer.decode([(encoded_frames.transpose(2, 1), None)])
             # store
-            torchaudio.save(
-                f"{args.output_dir}/{n}.wav", samples[0].cpu(), 24000
-            )
+            torchaudio.save(f"{args.output_dir}/{n}.wav", samples[0].cpu(), 24000)
         else:  # Transformer
             pass
 
@@ -297,8 +280,6 @@ torch._C._jit_set_profiling_executor(False)
 torch._C._jit_set_profiling_mode(False)
 torch._C._set_graph_executor_optimize(False)
 if __name__ == "__main__":
-    formatter = (
-        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-    )
+    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
     logging.basicConfig(format=formatter, level=logging.INFO)
     main()

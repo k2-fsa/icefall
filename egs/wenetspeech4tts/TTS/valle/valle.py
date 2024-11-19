@@ -12,26 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
+import math
+import numbers
 import random
-from typing import Dict, Iterator, List, Tuple, Union
+from functools import partial
+from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from icefall.utils import make_pad_mask
+from torch import Tensor
+from torch.nn import Linear, Module
+from torch.nn import functional as F
+from torch.nn.init import constant_, xavier_normal_, xavier_uniform_
+from torch.nn.modules.linear import NonDynamicallyQuantizableLinear
+from torch.nn.parameter import Parameter
 from torchmetrics.classification import MulticlassAccuracy
 
-# from valle.data.input_strategies import PromptedFeatures
-# from valle.modules.embedding import SinePositionalEmbedding, TokenEmbedding
-# from valle.modules.transformer import (
-#     AdaptiveLayerNorm,
-#     LayerNorm,
-#     TransformerEncoder,
-#     TransformerEncoderLayer,
-# )
+from icefall.utils import make_pad_mask
 
 from .macros import NUM_AUDIO_TOKENS, NUM_TEXT_TOKENS
 from .visualizer import visualize
+
 
 class PromptedFeatures:
     def __init__(self, prompts, features):
@@ -39,9 +41,7 @@ class PromptedFeatures:
         self.features = features
 
     def to(self, device):
-        return PromptedFeatures(
-            self.prompts.to(device), self.features.to(device)
-        )
+        return PromptedFeatures(self.prompts.to(device), self.features.to(device))
 
     def sum(self):
         return self.features.sum()
@@ -53,6 +53,7 @@ class PromptedFeatures:
     @property
     def data(self):
         return (self.prompts, self.features)
+
 
 class TokenEmbedding(nn.Module):
     def __init__(
@@ -114,9 +115,7 @@ class SinePositionalEmbedding(nn.Module):
                 x.size(1) - 1, -1, -1.0, dtype=torch.float32
             ).unsqueeze(1)
         else:
-            position = torch.arange(
-                0, x.size(1), dtype=torch.float32
-            ).unsqueeze(1)
+            position = torch.arange(0, x.size(1), dtype=torch.float32).unsqueeze(1)
         div_term = torch.exp(
             torch.arange(0, self.dim_model, 2, dtype=torch.float32)
             * -(math.log(10000.0) / self.dim_model)
@@ -132,13 +131,16 @@ class SinePositionalEmbedding(nn.Module):
         output = output * self.x_scale + self.alpha * self.pe[:, : x.size(1)]
         return self.dropout(output)
 
+
 class Transpose(nn.Identity):
     """(N, T, D) -> (N, D, T)"""
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         return input.transpose(1, 2)
 
+
 _shape_t = Union[int, List[int], torch.Size]
+
 
 class MultiheadAttention(Module):
     r"""Allows the model to jointly attend to information
@@ -221,9 +223,7 @@ class MultiheadAttention(Module):
         self.embed_dim = embed_dim
         self.kdim = kdim if kdim is not None else embed_dim
         self.vdim = vdim if vdim is not None else embed_dim
-        self._qkv_same_embed_dim = (
-            self.kdim == embed_dim and self.vdim == embed_dim
-        )
+        self._qkv_same_embed_dim = self.kdim == embed_dim and self.vdim == embed_dim
 
         self.num_heads = num_heads
         self.dropout = dropout
@@ -234,12 +234,8 @@ class MultiheadAttention(Module):
         ), "embed_dim must be divisible by num_heads"
 
         if add_bias_kv:
-            self.bias_k = Parameter(
-                torch.empty((1, 1, embed_dim), **factory_kwargs)
-            )
-            self.bias_v = Parameter(
-                torch.empty((1, 1, embed_dim), **factory_kwargs)
-            )
+            self.bias_k = Parameter(torch.empty((1, 1, embed_dim), **factory_kwargs))
+            self.bias_v = Parameter(torch.empty((1, 1, embed_dim), **factory_kwargs))
         else:
             self.bias_k = self.bias_v = None
 
@@ -396,20 +392,18 @@ class MultiheadAttention(Module):
                 )
         why_not_fast_path = ""
         if not is_batched:
-            why_not_fast_path = f"input not batched; expected query.dim() of 3 but got {query.dim()}"
+            why_not_fast_path = (
+                f"input not batched; expected query.dim() of 3 but got {query.dim()}"
+            )
         elif query is not key or key is not value:
             # When lifting this restriction, don't forget to either
             # enforce that the dtypes all match or test cases where
             # they don't!
             why_not_fast_path = "non-self attention was used (query, key, and value are not the same Tensor)"
-        elif (
-            self.in_proj_bias is not None
-            and query.dtype != self.in_proj_bias.dtype
-        ):
+        elif self.in_proj_bias is not None and query.dtype != self.in_proj_bias.dtype:
             why_not_fast_path = f"dtypes of query ({query.dtype}) and self.in_proj_bias ({self.in_proj_bias.dtype}) don't match"
         elif (
-            self.in_proj_weight is not None
-            and query.dtype != self.in_proj_weight.dtype
+            self.in_proj_weight is not None and query.dtype != self.in_proj_weight.dtype
         ):
             # this case will fail anyway, but at least they'll get a useful error message.
             why_not_fast_path = f"dtypes of query ({query.dtype}) and self.in_proj_weight ({self.in_proj_weight.dtype}) don't match"
@@ -458,9 +452,7 @@ class MultiheadAttention(Module):
                     for x in tensor_args
                 ]
             ):
-                why_not_fast_path = (
-                    "some Tensor argument is neither CUDA nor CPU"
-                )
+                why_not_fast_path = "some Tensor argument is neither CUDA nor CPU"
             elif torch.is_grad_enabled() and any(
                 [x is not None and x.requires_grad for x in tensor_args]
             ):
@@ -479,9 +471,7 @@ class MultiheadAttention(Module):
                     self.in_proj_bias,
                     self.out_proj.weight,
                     self.out_proj.bias,
-                    key_padding_mask
-                    if key_padding_mask is not None
-                    else attn_mask,
+                    key_padding_mask if key_padding_mask is not None else attn_mask,
                     need_weights,
                     average_attn_weights,
                     1
@@ -506,9 +496,7 @@ class MultiheadAttention(Module):
                     query, key = [x.transpose(1, 0) for x in (query, key)]
                     value = key
             else:
-                query, key, value = [
-                    x.transpose(1, 0) for x in (query, key, value)
-                ]
+                query, key, value = [x.transpose(1, 0) for x in (query, key, value)]
 
         if not self._qkv_same_embed_dim:
             attn_output, attn_output_weights = F.multi_head_attention_forward(
@@ -722,14 +710,11 @@ class TransformerEncoderLayer(nn.Module):
         self.activation = activation
 
         norm1 = layer_norm_cls(d_model, eps=layer_norm_eps, **factory_kwargs)
-        if layer_norm_cls == IdentityNorm:
-            norm2 = BalancedBasicNorm(
-                d_model, eps=layer_norm_eps, **factory_kwargs
-            )
-        else:
-            norm2 = layer_norm_cls(
-                d_model, eps=layer_norm_eps, **factory_kwargs
-            )
+        # if layer_norm_cls == IdentityNorm:
+        #     norm2 = BalancedBasicNorm(d_model, eps=layer_norm_eps, **factory_kwargs)
+        # else:
+        if True:
+            norm2 = layer_norm_cls(d_model, eps=layer_norm_eps, **factory_kwargs)
 
         if adaptive_layer_norm:
             self.norm1 = AdaptiveLayerNorm(d_model, norm1)
@@ -887,7 +872,6 @@ class TransformerEncoder(nn.Module):
         return output
 
 
-
 def _get_clones(module, N):
     return nn.ModuleList([copy.deepcopy(module) for i in range(N)])
 
@@ -898,9 +882,8 @@ def _get_activation_fn(activation: str) -> Callable[[Tensor], Tensor]:
     elif activation == "gelu":
         return F.gelu
 
-    raise RuntimeError(
-        "activation should be relu/gelu, not {}".format(activation)
-    )
+    raise RuntimeError("activation should be relu/gelu, not {}".format(activation))
+
 
 class VALLE(nn.Module):
     """It implements https://arxiv.org/abs/2301.02111
@@ -1003,9 +986,7 @@ class VALLE(nn.Module):
             num_layers=num_layers,
             norm=LayerNorm(d_model) if norm_first else None,
         )
-        self.ar_predict_layer = nn.Linear(
-            d_model, NUM_AUDIO_TOKENS + 1, bias=False
-        )
+        self.ar_predict_layer = nn.Linear(d_model, NUM_AUDIO_TOKENS + 1, bias=False)
 
         self.ar_accuracy_metric = MulticlassAccuracy(
             NUM_AUDIO_TOKENS + 1,
@@ -1034,21 +1015,15 @@ class VALLE(nn.Module):
             if add_prenet:
                 self.nar_text_prenet = nn.Sequential(
                     Transpose(),
-                    nn.Conv1d(
-                        nar_d_model, nar_d_model, kernel_size=5, padding="same"
-                    ),
+                    nn.Conv1d(nar_d_model, nar_d_model, kernel_size=5, padding="same"),
                     nn.BatchNorm1d(nar_d_model),
                     nn.ReLU(),
                     nn.Dropout(0.5),
-                    nn.Conv1d(
-                        nar_d_model, nar_d_model, kernel_size=5, padding="same"
-                    ),
+                    nn.Conv1d(nar_d_model, nar_d_model, kernel_size=5, padding="same"),
                     nn.BatchNorm1d(nar_d_model),
                     nn.ReLU(),
                     nn.Dropout(0.5),
-                    nn.Conv1d(
-                        nar_d_model, nar_d_model, kernel_size=5, padding="same"
-                    ),
+                    nn.Conv1d(nar_d_model, nar_d_model, kernel_size=5, padding="same"),
                     nn.BatchNorm1d(nar_d_model),
                     nn.ReLU(),
                     nn.Dropout(0.5),
@@ -1092,9 +1067,7 @@ class VALLE(nn.Module):
                     adaptive_layer_norm=True,
                 ),
                 num_layers=int(num_layers * nar_scale_factor),
-                norm=AdaptiveLayerNorm(
-                    nar_d_model, norm=nn.LayerNorm(nar_d_model)
-                )
+                norm=AdaptiveLayerNorm(nar_d_model, norm=nn.LayerNorm(nar_d_model))
                 if norm_first
                 else None,
             )
@@ -1105,10 +1078,7 @@ class VALLE(nn.Module):
                 ]
             )
             self.nar_stage_embeddings = nn.ModuleList(
-                [
-                    TokenEmbedding(nar_d_model, 1)
-                    for i in range(num_quantizers - 1)
-                ]
+                [TokenEmbedding(nar_d_model, 1) for i in range(num_quantizers - 1)]
             )
 
             if share_embedding:
@@ -1119,9 +1089,9 @@ class VALLE(nn.Module):
                 # We also share the parameters of the acoustic embedding layer and the output prediction layer,
                 # which means the weights of the j-th prediction layer are the same as the (j + 1)-th acoustic embedding layer.
                 for j in range(0, num_quantizers - 2):
-                    self.nar_predict_layers[
-                        j
-                    ].weight = self.nar_audio_embeddings[j + 2].weight
+                    self.nar_predict_layers[j].weight = self.nar_audio_embeddings[
+                        j + 2
+                    ].weight
 
             self.nar_accuracy_metric = MulticlassAccuracy(
                 NUM_AUDIO_TOKENS + 1,
@@ -1192,13 +1162,9 @@ class VALLE(nn.Module):
             y_prompts = self.nar_audio_embeddings[0](y[:, :prefix_len])
             y_emb = self.nar_audio_embeddings[0](y[:, prefix_len:])
             for j in range(1, self.num_quantizers):
-                y_prompts += self.nar_audio_embeddings[j](
-                    codes[:, :prefix_len, j]
-                )
+                y_prompts += self.nar_audio_embeddings[j](codes[:, :prefix_len, j])
                 if j < nar_stage:
-                    y_emb += self.nar_audio_embeddings[j](
-                        codes[:, prefix_len:, j]
-                    )
+                    y_emb += self.nar_audio_embeddings[j](codes[:, prefix_len:, j])
             y_emb = torch.concat([y_prompts, y_emb], axis=1)
         elif self.prefix_mode in [2, 4]:
             if self.prefix_mode == 2:
@@ -1211,9 +1177,7 @@ class VALLE(nn.Module):
                     y_prompts_codes.append(
                         torch.clone(codes[b, start : start + prefix_len])
                     )
-                    codes[
-                        b, start : start + prefix_len, nar_stage
-                    ] = NUM_AUDIO_TOKENS
+                    codes[b, start : start + prefix_len, nar_stage] = NUM_AUDIO_TOKENS
                 y_prompts_codes = torch.stack(y_prompts_codes, dim=0)
             else:
                 prefix_len = y_prompts_codes.shape[1]
@@ -1221,9 +1185,7 @@ class VALLE(nn.Module):
             y_prompts = self.nar_audio_embeddings[0](y_prompts_codes[..., 0])
             y_emb = self.nar_audio_embeddings[0](y)
             for j in range(1, self.num_quantizers):
-                y_prompts += self.nar_audio_embeddings[j](
-                    y_prompts_codes[..., j]
-                )
+                y_prompts += self.nar_audio_embeddings[j](y_prompts_codes[..., j])
                 if j < nar_stage:
                     y_emb += self.nar_audio_embeddings[j](codes[..., j])
             y_emb = torch.concat([y_prompts, y_emb], axis=1)
@@ -1290,9 +1252,7 @@ class VALLE(nn.Module):
         text = x
         codes = y.type(torch.int64) * (1 - y_mask_int.unsqueeze(dim=-1))
 
-        y, targets = self.pad_y_eos(
-            codes[..., 0], y_mask_int, eos_id=NUM_AUDIO_TOKENS
-        )
+        y, targets = self.pad_y_eos(codes[..., 0], y_mask_int, eos_id=NUM_AUDIO_TOKENS)
 
         x_len = x_lens.max()
 
@@ -1408,21 +1368,16 @@ class VALLE(nn.Module):
             xy_dec = xy_dec[:, x_lens.max() + prefix_len :]
             if self.prefix_mode == 4:
                 prefix_len = 0  # reset for Top10Accuracy metric
-            logits = self.nar_predict_layers[nar_stage - 1](xy_dec).permute(
-                0, 2, 1
-            )
+            logits = self.nar_predict_layers[nar_stage - 1](xy_dec).permute(0, 2, 1)
 
             # loss
             total_length = (y_lens).sum().type(torch.float32)
-            total_loss += (
-                F.cross_entropy(
-                    logits,
-                    targets,
-                    ignore_index=NUM_AUDIO_TOKENS,
-                    reduction=reduction,
-                )
-                * (total_length / (total_length - prefix_len * x.shape[0]))
-            )
+            total_loss += F.cross_entropy(
+                logits,
+                targets,
+                ignore_index=NUM_AUDIO_TOKENS,
+                reduction=reduction,
+            ) * (total_length / (total_length - prefix_len * x.shape[0]))
             metrics["NarTop10Accuracy"] = (
                 self.nar_accuracy_metric(
                     F.pad(
@@ -1505,24 +1460,27 @@ class VALLE(nn.Module):
                 value=True,
             )
             y_attn_mask = F.pad(
-                torch.triu(
-                    torch.ones(y_len, y_len, dtype=torch.bool), diagonal=1
-                ),
+                torch.triu(torch.ones(y_len, y_len, dtype=torch.bool), diagonal=1),
                 (x_len, 0),
                 value=False,
             )
-            xy_attn_mask = torch.concat(
-                [x_attn_mask_pad, y_attn_mask], dim=0
-            ).to(y.device)
+            xy_attn_mask = torch.concat([x_attn_mask_pad, y_attn_mask], dim=0).to(
+                y.device
+            )
 
             xy_dec, _ = self.ar_decoder(
                 (xy_pos, None),
                 mask=xy_attn_mask,
             )
             logits = self.ar_predict_layer(xy_dec[:, -1])
-            ras=True
+            ras = True
             samples = topk_sampling(
-                logits, top_k=top_k, top_p=top_p, temperature=temperature, repetition_aware_sampling=ras, preceding_tokens=y
+                logits,
+                top_k=top_k,
+                top_p=top_p,
+                temperature=temperature,
+                repetition_aware_sampling=ras,
+                preceding_tokens=y,
             )
 
             if (
@@ -1531,9 +1489,7 @@ class VALLE(nn.Module):
                 or (y.shape[1] - prompts.shape[1]) > x_lens.max() * 16
             ):
                 if prompts.shape[1] == y.shape[1]:
-                    raise SyntaxError(
-                        "well trained model shouldn't reach here."
-                    )
+                    raise SyntaxError("well trained model shouldn't reach here.")
 
                 print(f"VALL-E EOS [{prompts.shape[1]} -> {y.shape[1]}]")
                 break
@@ -1545,9 +1501,7 @@ class VALLE(nn.Module):
             return torch.stack(codes, dim=-1)
 
         # Non-AR Decoders
-        y_emb = self.nar_audio_embeddings[0](
-            y[:, int(self.ar_audio_prepend_bos) :]
-        )
+        y_emb = self.nar_audio_embeddings[0](y[:, int(self.ar_audio_prepend_bos) :])
 
         if self.prefix_mode in [2, 4]:  # Exclude enrolled_phonemes
             enrolled_len = enroll_x_lens.max().item()
@@ -1586,15 +1540,11 @@ class VALLE(nn.Module):
                 codes.append(samples)
 
                 if i < self.num_quantizers - 2:
-                    y_emb[:, :prefix_len] += embedding_layer(
-                        prompts[..., i + 1]
-                    )
+                    y_emb[:, :prefix_len] += embedding_layer(prompts[..., i + 1])
                     y_emb[:, prefix_len:] += embedding_layer(samples)
         else:
             for j in range(1, self.num_quantizers):
-                y_emb[:, :prefix_len] += self.nar_audio_embeddings[j](
-                    prompts[..., j]
-                )
+                y_emb[:, :prefix_len] += self.nar_audio_embeddings[j](prompts[..., j])
 
             for i, (predict_layer, embedding_layer) in enumerate(
                 zip(
@@ -1687,15 +1637,11 @@ class VALLE(nn.Module):
                 codes.append(samples)
 
                 if i < 6:
-                    y_emb[:, :prefix_len] += embedding_layer(
-                        prompts[..., i + 1]
-                    )
+                    y_emb[:, :prefix_len] += embedding_layer(prompts[..., i + 1])
                     y_emb[:, prefix_len:] += embedding_layer(samples)
         else:
             for j in range(1, 8):
-                y_emb[:, :prefix_len] += self.nar_audio_embeddings[j](
-                    prompts[..., j]
-                )
+                y_emb[:, :prefix_len] += self.nar_audio_embeddings[j](prompts[..., j])
 
             for i, (predict_layer, embedding_layer) in enumerate(
                 zip(
@@ -1736,18 +1682,14 @@ def top_k_top_p_filtering(
     From: https://gist.github.com/thomwolf/1a5a29f6962089e871b94cbd09daf317
     """
     if top_k > 0:
-        top_k = min(
-            max(top_k, min_tokens_to_keep), logits.size(-1)
-        )  # Safety check
+        top_k = min(max(top_k, min_tokens_to_keep), logits.size(-1))  # Safety check
         # Remove all tokens with a probability less than the last token of the top-k
         indices_to_remove = logits < torch.topk(logits, top_k)[0][..., -1, None]
         logits[indices_to_remove] = filter_value
 
     if top_p < 1.0:
         sorted_logits, sorted_indices = torch.sort(logits, descending=True)
-        cumulative_probs = torch.cumsum(
-            F.softmax(sorted_logits, dim=-1), dim=-1
-        )
+        cumulative_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1)
 
         # Remove tokens with cumulative probability above the threshold (token with 0 are kept)
         sorted_indices_to_remove = cumulative_probs > top_p
@@ -1755,9 +1697,7 @@ def top_k_top_p_filtering(
             # Keep at least min_tokens_to_keep (set to min_tokens_to_keep-1 because we add the first one below)
             sorted_indices_to_remove[..., :min_tokens_to_keep] = 0
         # Shift the indices to the right to keep also the first token above the threshold
-        sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[
-            ..., :-1
-        ].clone()
+        sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
         sorted_indices_to_remove[..., 0] = 0
 
         # scatter sorted tensors to original indexing
@@ -1768,7 +1708,14 @@ def top_k_top_p_filtering(
     return logits
 
 
-def topk_sampling(logits, top_k=10, top_p=1.0, temperature=1.0, repetition_aware_sampling=False, preceding_tokens=None):
+def topk_sampling(
+    logits,
+    top_k=10,
+    top_p=1.0,
+    temperature=1.0,
+    repetition_aware_sampling=False,
+    preceding_tokens=None,
+):
     # temperature: (`optional`) float
     #     The value used to module the next token probabilities. Must be strictly positive. Default to 1.0.
     # top_k: (`optional`) int
@@ -1780,11 +1727,13 @@ def topk_sampling(logits, top_k=10, top_p=1.0, temperature=1.0, repetition_aware
     if temperature != 1.0:
         logits = logits / temperature
     # Top-p/top-k filtering
-    logits = top_k_top_p_filtering(logits, top_k=top_k, top_p=top_p, min_tokens_to_keep=2)
+    logits = top_k_top_p_filtering(
+        logits, top_k=top_k, top_p=top_p, min_tokens_to_keep=2
+    )
     # Sample
     probs = F.softmax(logits, dim=-1)
     # print top 10 value and index
-    print("top 10 value and index", torch.topk(probs, 10), top_p)    
+    print("top 10 value and index", torch.topk(probs, 10), top_p)
     tokens = torch.multinomial(probs, num_samples=1)
 
     if repetition_aware_sampling:
@@ -1814,7 +1763,9 @@ def topk_sampling(logits, top_k=10, top_p=1.0, temperature=1.0, repetition_aware
                     probs = F.softmax(logits[i], dim=-1)
                     token_new = torch.multinomial(probs, num_samples=1)
 
-                    print(f"Repetition Aware Sampling: {item}, {tokens[i]} -> {token_new}")
+                    print(
+                        f"Repetition Aware Sampling: {item}, {tokens[i]} -> {token_new}"
+                    )
                     print("probs", probs, logits.shape)
                     tokens[i] = token_new
                 else:

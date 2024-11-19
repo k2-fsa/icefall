@@ -52,6 +52,7 @@ class _SeedWorkers:
     def __call__(self, worker_id: int):
         fix_random_seed(self.seed + worker_id)
 
+
 class TtsDataModule:
     """
     DataModule for tts experiments.
@@ -301,9 +302,7 @@ class TtsDataModule:
     @lru_cache()
     def train_cuts(self) -> CutSet:
         logging.info("About to get train cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "cuts_train.jsonl.gz"
-        )
+        return load_manifest_lazy(self.args.manifest_dir / "cuts_train.jsonl.gz")
 
     @lru_cache()
     def dev_cuts(self) -> CutSet:
