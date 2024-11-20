@@ -16,8 +16,12 @@
 Phonemize Text and EnCodec Audio.
 
 Usage example:
-    python3 bin/tokenizer.py \
-        --src_dir ./data/manifests --output_dir ./data/tokenized
+    python3 ./local/compute_neural_codec_and_prepare_text_tokens.py --dataset-parts "${dataset_parts}" \
+        --text-extractor ${text_extractor} \
+        --audio-extractor ${audio_extractor} \
+        --batch-duration 2500 --prefix "wenetspeech4tts" \
+        --src-dir "data/manifests" --split 100 \
+        --output-dir "${audio_feats_dir}/wenetspeech4tts_${dataset_parts}_split_100"
 
 """
 import argparse
@@ -523,7 +527,7 @@ def main():
                         "wenetspeech4tts",
                     ]:
                         part = part.resample(24000)
-                    assert args.prefix_lower() in [
+                    assert args.prefix.lower() in [
                         "ljspeech",
                         "aishell",
                         "baker",
@@ -557,36 +561,26 @@ def main():
                 # TextTokenizer
                 if args.text_extractor:
                     for c in tqdm(part):
-                        if (
-                            args.prefix == "baker"
-                            and args.text_extractor == "labeled_pinyin"
-                        ):
-                            phonemes = c.supervisions[0].custom["tokens"]["text"]
-                            unique_symbols.update(phonemes)
+                        if args.prefix == "ljspeech":
+                            text = c.supervisions[0].custom["normalized_text"]
+                            text = text.replace(""", '"').replace(""", '"')
+                            phonemes = tokenize_text(text_tokenizer, text=text)
+                        elif args.prefix in [
+                            "aishell",
+                            "aishell2",
+                            "wenetspeech4tts",
+                            "libritts",
+                            "libritts-r",
+                        ]:
+                            phonemes = tokenize_text(
+                                text_tokenizer, text=c.supervisions[0].text
+                            )
+                            if c.supervisions[0].custom is None:
+                                c.supervisions[0].custom = {}
+                            c.supervisions[0].normalized_text = c.supervisions[0].text
                         else:
-                            if args.prefix == "ljspeech":
-                                text = c.supervisions[0].custom["normalized_text"]
-                                text = text.replace(""", '"').replace(""", '"')
-                                phonemes = tokenize_text(text_tokenizer, text=text)
-                            elif args.prefix in [
-                                "aishell",
-                                "aishell2",
-                                "wenetspeech4tts",
-                                "libritts",
-                                "libritts-r",
-                            ]:
-                                phonemes = tokenize_text(
-                                    text_tokenizer, text=c.supervisions[0].text
-                                )
-                                if c.supervisions[0].custom is None:
-                                    c.supervisions[0].custom = {}
-                                c.supervisions[0].normalized_text = c.supervisions[
-                                    0
-                                ].text
-                            else:
-                                raise NotImplementedError(f"{args.prefix}")
-                            c.supervisions[0].custom["tokens"] = {"text": phonemes}
-                            unique_symbols.update(phonemes)
+                            raise NotImplementedError(f"{args.prefix}")
+                        unique_symbols.update(phonemes)
                         c.tokens = phonemes
                         assert c.supervisions[
                             0

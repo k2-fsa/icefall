@@ -31,8 +31,8 @@ from torchmetrics.classification import MulticlassAccuracy
 
 from icefall.utils import make_pad_mask
 
-from .macros import NUM_AUDIO_TOKENS, NUM_TEXT_TOKENS
-from .visualizer import visualize
+NUM_TEXT_TOKENS = 5000
+NUM_AUDIO_TOKENS = 1024  # EnCodec RVQ bins
 
 
 class PromptedFeatures:
@@ -1194,15 +1194,6 @@ class VALLE(nn.Module):
 
         return y_emb, prefix_len
 
-    def visualize(
-        self,
-        predicts: Tuple[torch.Tensor],
-        batch: Dict[str, Union[List, torch.Tensor]],
-        output_dir: str,
-        limit: int = 4,
-    ) -> None:
-        visualize(predicts, batch, output_dir, limit=limit)
-
     def forward(
         self,
         x: torch.Tensor,
@@ -1404,6 +1395,7 @@ class VALLE(nn.Module):
         top_k: int = -100,
         temperature: float = 1.0,
         top_p: float = 1.0,
+        ras: bool = False,
     ) -> torch.Tensor:
         """
         Args:
@@ -1418,6 +1410,8 @@ class VALLE(nn.Module):
             The number of highest probability tokens to keep for top-k-filtering. Default to -100.
           temperature: (`optional`) float
             The value used to module the next token probabilities. Must be strictly positive. Default to 1.0.
+          ras: (`optional`) bool
+            Whether to use repetition-aware sampling. Default to False.
         Returns:
           Return the predicted audio code matrix.
         """
@@ -1473,7 +1467,6 @@ class VALLE(nn.Module):
                 mask=xy_attn_mask,
             )
             logits = self.ar_predict_layer(xy_dec[:, -1])
-            ras = True
             samples = topk_sampling(
                 logits,
                 top_k=top_k,
@@ -1490,8 +1483,6 @@ class VALLE(nn.Module):
             ):
                 if prompts.shape[1] == y.shape[1]:
                     raise SyntaxError("well trained model shouldn't reach here.")
-
-                print(f"VALL-E EOS [{prompts.shape[1]} -> {y.shape[1]}]")
                 break
 
             y = torch.concat([y, samples], dim=1)
@@ -1716,24 +1707,14 @@ def topk_sampling(
     repetition_aware_sampling=False,
     preceding_tokens=None,
 ):
-    # temperature: (`optional`) float
-    #     The value used to module the next token probabilities. Must be strictly positive. Default to 1.0.
-    # top_k: (`optional`) int
-    #     The number of highest probability vocabulary tokens to keep for top-k-filtering. Between 1 and infinity. Default to 50.
-    # top_p: (`optional`) float
-    #     The cumulative probability of parameter highest probability vocabulary tokens to keep for nucleus sampling. Must be between 0 and 1. Default to 1.
-
-    # Temperature (higher temperature => more likely to sample low probability tokens)
     if temperature != 1.0:
         logits = logits / temperature
     # Top-p/top-k filtering
-    logits = top_k_top_p_filtering(
-        logits, top_k=top_k, top_p=top_p, min_tokens_to_keep=2
+    logits_filtered = top_k_top_p_filtering(
+        logits.clone(), top_k=top_k, top_p=top_p, min_tokens_to_keep=2
     )
     # Sample
-    probs = F.softmax(logits, dim=-1)
-    # print top 10 value and index
-    print("top 10 value and index", torch.topk(probs, 10), top_p)
+    probs = F.softmax(logits_filtered, dim=-1)
     tokens = torch.multinomial(probs, num_samples=1)
 
     if repetition_aware_sampling:
@@ -1758,16 +1739,7 @@ def topk_sampling(
                 # check if the repeat ratio exceeds the threshold
                 if (item == tokens[i]).sum() / window_size > threshold:
                     # replace the target code ct′ by random sampling
-                    # make sure we don't sample the same token, by setting the probability of the token to 0
-                    # logits[i][tokens[i]] = -float("Inf")
                     probs = F.softmax(logits[i], dim=-1)
                     token_new = torch.multinomial(probs, num_samples=1)
-
-                    print(
-                        f"Repetition Aware Sampling: {item}, {tokens[i]} -> {token_new}"
-                    )
-                    print("probs", probs, logits.shape)
                     tokens[i] = token_new
-                else:
-                    print(f"Not trigger: {i}, {item}, {tokens[i]}")
     return tokens

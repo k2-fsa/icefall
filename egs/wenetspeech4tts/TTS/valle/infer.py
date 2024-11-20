@@ -14,21 +14,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
-Phonemize Text and EnCodec Audio.
-
+This script is used to synthesize speech from text prompts and audio prompts.
 Usage example:
-    python3 bin/infer.py --output-dir demos_epoch_${epoch}_avg_${avg} \
+    python3 valle/infer.py --output-dir demos_epoch_${epoch}_avg_${avg} \
         --checkpoint=${exp_dir}/epoch-${epoch}-avg-${avg}.pt \
         --text-prompts "KNOT one point one five miles per hour." \
         --audio-prompts ./prompts/8463_294825_000043_000000.wav \
         --text "To get up and running quickly just follow the steps below."
 
-    python3 bin/infer.py --output-dir demos_epoch_${epoch}_avg_${avg} \
+    top_p=1.0
+    python3 valle/infer.py --output-dir demos_epoch_${epoch}_avg_${avg}_top_p_${top_p} \
             --top-k -1 --temperature 1.0 \
-            --text-prompts "" \
-            --audio-prompts "" \
-            --text ./libritts.txt \
-            --checkpoint ${exp_dir}/epoch-${epoch}-avg-${avg}.pt
+            --text ./aishell3.txt \
+            --checkpoint ${exp_dir}/epoch-${epoch}-avg-${avg}.pt \
+            --text-extractor pypinyin_initials_finals --top-p ${top_p}
 
 """
 import argparse
@@ -43,9 +42,9 @@ import torchaudio
 from compute_neural_codec_and_prepare_text_tokens import (
     AudioTokenizer,
     TextTokenizer,
-    tokenize_audio,
     tokenize_text,
 )
+from encodec.utils import convert_audio
 from k2 import symbol_table
 from tokenizer import get_text_token_collater
 from valle import VALLE
@@ -71,7 +70,7 @@ def get_args():
     )
 
     parser.add_argument(
-        "--manifest",
+        "--text",
         type=str,
         default="",
         help="prompt text\t prompt audio\ttarget text\ttarget audio",
@@ -126,6 +125,13 @@ def get_args():
         help="Do continual task.",
     )
 
+    parser.add_argument(
+        "--repetition-aware-sampling",
+        type=str2bool,
+        default=False,
+        help="Whether AR Decoder do valle-2 repetition-aware sampling. https://arxiv.org/pdf/2406.05370",
+    )
+
     return parser.parse_args()
 
 
@@ -159,15 +165,28 @@ def load_model(checkpoint, device):
     return model, params.text_tokens
 
 
+def tokenize_audio(tokenizer: AudioTokenizer, audio_path: str):
+    # Load and pre-process the audio waveform
+    wav, sr = torchaudio.load(audio_path)
+    wav = convert_audio(wav, sr, tokenizer.sample_rate, tokenizer.channels)
+    wav = wav.unsqueeze(0)
+
+    # Extract discrete codes from EnCodec
+    with torch.no_grad():
+        encoded_frames = tokenizer.encode(wav)
+    return encoded_frames
+
+
 @torch.no_grad()
 def main():
     args = get_args()
     text_tokenizer = TextTokenizer(backend=args.text_extractor)
-
     device = torch.device("cpu")
     if torch.cuda.is_available():
         device = torch.device("cuda", 0)
+
     model, text_tokens = load_model(args.checkpoint, device)
+
     text_collater = get_text_token_collater(text_tokens)
 
     audio_tokenizer = AudioTokenizer()
@@ -194,8 +213,7 @@ def main():
         # https://github.com/lifeiteng/lifeiteng.github.com/blob/main/valle/prepare.py
         with open(args.text) as f:
             for line in f:
-                fields = line.strip().split("\t")
-                # fields = line.strip().split(" ")
+                fields = line.strip().split("  ")
                 fields = [item for item in fields if item]
                 assert len(fields) == 4
                 prompt_text, prompt_audio, text, audio_path = fields
@@ -223,6 +241,7 @@ def main():
                     top_k=args.top_k,
                     temperature=args.temperature,
                     top_p=args.top_p,
+                    ras=args.repetition_aware_sampling,
                 )
 
                 samples = audio_tokenizer.decode(
@@ -264,6 +283,7 @@ def main():
                 top_k=args.top_k,
                 temperature=args.temperature,
                 top_p=args.top_p,
+                ras=args.repetition_aware_sampling,
             )
 
         if audio_prompts != []:
@@ -274,11 +294,6 @@ def main():
             pass
 
 
-torch.set_num_threads(1)
-torch.set_num_interop_threads(1)
-torch._C._jit_set_profiling_executor(False)
-torch._C._jit_set_profiling_mode(False)
-torch._C._set_graph_executor_optimize(False)
 if __name__ == "__main__":
     formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
     logging.basicConfig(format=formatter, level=logging.INFO)

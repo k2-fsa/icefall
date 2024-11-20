@@ -24,9 +24,9 @@ world_size=8
 exp_dir=exp/valle
 
 ## Train AR model
-python3 train.py --max-duration 320 --filter-min-duration 0.5 --filter-max-duration 14 --train-stage 1 \
+python3 valle/train.py --max-duration 320 --filter-min-duration 0.5 --filter-max-duration 14 --train-stage 1 \
       --num-buckets 6 --dtype "bfloat16" --save-every-n 1000 --valid-interval 2000 \
-      --model-name valle --share-embedding true --norm-first true --add-prenet false \
+      --share-embedding true --norm-first true --add-prenet false \
       --decoder-dim 1024 --nhead 16 --num-decoder-layers 12 --prefix-mode 1 \
       --base-lr 0.03 --warmup-steps 200 --average-period 0 \
       --num-epochs 20 --start-epoch 1 --start-batch 0 --accumulate-grad-steps 1 \
@@ -36,9 +36,9 @@ python3 train.py --max-duration 320 --filter-min-duration 0.5 --filter-max-durat
 # cd ${exp_dir}
 # ln -s ${exp_dir}/best-valid-loss.pt epoch-99.pt  # --start-epoch 100=99+1
 # cd -
-python3 train.py --max-duration 160 --filter-min-duration 0.5 --filter-max-duration 14 --train-stage 2 \
+python3 valle/train.py --max-duration 160 --filter-min-duration 0.5 --filter-max-duration 14 --train-stage 2 \
       --num-buckets 6 --dtype "float32" --save-every-n 1000 --valid-interval 2000 \
-      --model-name valle --share-embedding true --norm-first true --add-prenet false \
+      --share-embedding true --norm-first true --add-prenet false \
       --decoder-dim 1024 --nhead 16 --num-decoder-layers 12 --prefix-mode 1 \
       --base-lr 0.03 --warmup-steps 200 --average-period 0 \
       --num-epochs 40 --start-epoch 100 --start-batch 0 --accumulate-grad-steps 2 \
@@ -1032,30 +1032,10 @@ def run(rank, world_size, args):
         model_parameters = model.parameters()
 
     if params.optimizer_name == "ScaledAdam":
-        parameters_names = []
-        if params.train_stage:  # != 0
-            _model = model.module if isinstance(model, DDP) else model
-            parameters_names.append(
-                [
-                    name_param_pair[0]
-                    for name_param_pair in _model.stage_named_parameters(
-                        params.train_stage
-                    )
-                ]
-            )
-        else:
-            parameters_names.append(
-                [name_param_pair[0] for name_param_pair in model.named_parameters()]
-            )
-
         optimizer = ScaledAdam(
             model_parameters,
             lr=params.base_lr,
-            betas=(0.9, 0.95),
             clipping_scale=2.0,
-            parameters_names=parameters_names,
-            show_dominant_parameters=False,
-            clipping_update_period=1000,
         )
     elif params.optimizer_name == "AdamW":
         optimizer = torch.optim.AdamW(
@@ -1112,7 +1092,7 @@ def run(rank, world_size, args):
     train_dl = dataset.train_dataloaders(
         train_cuts, sampler_state_dict=sampler_state_dict
     )
-    valid_dl = dataset.valid_dataloaders(valid_cuts)
+    valid_dl = dataset.dev_dataloaders(valid_cuts)
 
     if params.oom_check:
         scan_pessimistic_batches_for_oom(

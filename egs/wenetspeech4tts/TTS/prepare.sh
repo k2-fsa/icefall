@@ -5,13 +5,12 @@ set -eou pipefail
 # fix segmentation fault reported in https://github.com/k2-fsa/icefall/issues/674
 export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
 
-j=16
-stage=2
-stop_stage=2
+stage=1
+stop_stage=4
 
 dl_dir=$PWD/download
 
-dataset_parts="-p Basic"  # -p Premium for Premium dataset only
+dataset_parts="Premium" # Basic for all 10k hours data, Premium for about 10% of the data
 
 text_extractor="pypinyin_initials_finals" # default is espeak for English
 audio_extractor="Encodec"  # or Fbank
@@ -62,37 +61,37 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
     python3 ./local/compute_neural_codec_and_prepare_text_tokens.py --dataset-parts "${dataset_parts}" \
         --text-extractor ${text_extractor} \
         --audio-extractor ${audio_extractor} \
-        --batch-duration 2500 \
-        --prefix "wenetspeech4tts" \
+        --batch-duration 2500 --prefix "wenetspeech4tts" \
         --src-dir "data/manifests" \
 	      --split 100 \
-        --output-dir "${audio_feats_dir}/${prefix}_baisc_split_100"
+        --output-dir "${audio_feats_dir}/wenetspeech4tts_${dataset_parts}_split_100"
+    cp ${audio_feats_dir}/wenetspeech4tts_${dataset_parts}_split_100/unique_text_tokens.k2symbols ${audio_feats_dir}
   fi
   touch ${audio_feats_dir}/.wenetspeech4tts.tokenize.done
 fi
 
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
-  log "Stage 13: Combine features for basic"
-  if [ ! -f ${audio_feats_dir}/wenetspeech4tts_cuts_Baisc.jsonl.gz ]; then
-    pieces=$(find ${audio_feats_dir}/wenetspeech4tts_baisc_split_100 -name "*.jsonl.gz")
-    lhotse combine $pieces ${audio_feats_dir}/wenetspeech4tts_cuts_Baisc.jsonl.gz
+  log "Stage 3: Combine features"
+  if [ ! -f ${audio_feats_dir}/wenetspeech4tts_cuts_${dataset_parts}.jsonl.gz ]; then
+    pieces=$(find ${audio_feats_dir}/wenetspeech4tts_${dataset_parts}_split_100 -name "*.jsonl.gz")
+    lhotse combine $pieces ${audio_feats_dir}/wenetspeech4tts_cuts_${dataset_parts}.jsonl.gz
   fi
 fi
 
 if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
-  log "Stage 3: Prepare wenetspeech4tts train/dev/test"
+  log "Stage 4: Prepare wenetspeech4tts train/dev/test"
   if [ ! -e ${audio_feats_dir}/.wenetspeech4tts.train.done ]; then
 
     lhotse subset --first 400 \
-        ${audio_feats_dir}/wenetspeech4tts_cuts_Baisc.jsonl.gz \
+        ${audio_feats_dir}/wenetspeech4tts_cuts_${dataset_parts}.jsonl.gz \
         ${audio_feats_dir}/cuts_dev.jsonl.gz
 
     lhotse subset --last 400 \
-        ${audio_feats_dir}/wenetspeech4tts_cuts_Baisc.jsonl.gz \
+        ${audio_feats_dir}/wenetspeech4tts_cuts_${dataset_parts}.jsonl.gz \
         ${audio_feats_dir}/cuts_test.jsonl.gz
 
     lhotse copy \
-      ${audio_feats_dir}/wenetspeech4tts_cuts_Baisc.jsonl.gz \
+      ${audio_feats_dir}/wenetspeech4tts_cuts_${dataset_parts}.jsonl.gz \
       ${audio_feats_dir}/cuts_train.jsonl.gz
 
     touch ${audio_feats_dir}/.wenetspeech4tts.train.done
