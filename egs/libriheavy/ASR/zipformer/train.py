@@ -472,13 +472,6 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--cr-loss-masked-scale",
-        type=float,
-        default=1.0,
-        help="The value used to scale up the cr_loss at masked positions",
-    )
-
-    parser.add_argument(
         "--attention-decoder-loss-scale",
         type=float,
         default=0.8,
@@ -966,9 +959,8 @@ def compute_loss(
             spec_augment=spec_augment,
             supervision_segments=supervision_segments,
             time_warp_factor=params.spec_aug_time_warp_factor,
-            cr_loss_masked_scale=params.cr_loss_masked_scale,
         )
-        simple_loss, pruned_loss, ctc_loss = losses[:3]
+        simple_loss, pruned_loss, ctc_loss, attention_decoder_loss, cr_loss = losses[:5]
 
         loss = 0.0
 
