@@ -1,14 +1,6 @@
 # Introduction
 
-LibriTTS is a multi-speaker English corpus of approximately 585 hours of read English speech at 24kHz sampling rate, prepared by Heiga Zen with the assistance of Google Speech and Google Brain team members.
-The LibriTTS corpus is designed for TTS research. It is derived from the original materials (mp3 audio files from LibriVox and text files from Project Gutenberg) of the LibriSpeech corpus.
-The main differences from the LibriSpeech corpus are listed below:
-1. The audio files are at 24kHz sampling rate.
-2. The speech is split at sentence breaks.
-3. Both original and normalized texts are included.
-4. Contextual information (e.g., neighbouring sentences) can be extracted.
-5. Utterances with significant background noise are excluded.
-For more information, refer to the paper "LibriTTS: A Corpus Derived from LibriSpeech for Text-to-Speech", Heiga Zen, Viet Dang, Rob Clark, Yu Zhang, Ron J. Weiss, Ye Jia, Zhifeng Chen, and Yonghui Wu, arXiv, 2019. If you use the LibriTTS corpus in your work, please cite this paper where it was introduced.
+[**WenetSpeech4TTS**](https://huggingface.co/datasets/Wenetspeech4TTS/WenetSpeech4TTS) is a multi-domain **Mandarin** corpus derived from the open-sourced [WenetSpeech](https://arxiv.org/abs/2110.03370) dataset.
 
 > [!CAUTION]
 > The next-gen Kaldi framework provides tools and models for generating high-quality, synthetic speech (Text-to-Speech, TTS).
@@ -24,42 +16,16 @@ For more information, refer to the paper "LibriTTS: A Corpus Derived from LibriS
 > 4.	No Warranty: This framework is provided “as-is,” without warranty of any kind, either express or implied. We do not guarantee that the use of this software will comply with legal requirements or that it will not infringe the rights of third parties.
 
 
-# VITS
-
-This recipe provides a VITS model trained on the LibriTTS dataset.
-
-Pretrained model can be found [here](https://huggingface.co/zrjin/icefall-tts-libritts-vits-2024-10-30).
-
-The training command is given below:
-```
-export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
-./vits/train.py \
-  --world-size 4 \
-  --num-epochs 400 \
-  --start-epoch 1 \
-  --use-fp16 1 \
-  --exp-dir vits/exp \
-  --max-duration 500
-```
-
-To inference, use:
-```
-./vits/infer.py \
-  --exp-dir vits/exp \
-  --epoch 400 \
-  --tokens data/tokens.txt
-```
-
 # [VALL-E](https://arxiv.org/abs/2301.02111)
 
 ./valle contains the code for training VALL-E TTS model.
 
-Checkpoints and training logs can be found [here](https://huggingface.co/yuekai/vall-e_libritts). The demo of the model trained with libritts and [libritts-r](https://www.openslr.org/141/) is available [here](https://huggingface.co/spaces/yuekai/valle-libritts-demo).
+Checkpoints and training logs can be found [here](https://huggingface.co/yuekai/vall-e_wenetspeech4tts). The demo of the model trained with Wenetspeech4TTS Premium (945 hours) is available [here](https://huggingface.co/spaces/yuekai/valle_wenetspeech4tts_demo).
 
 Preparation:
 
 ```
-bash prepare.sh --start-stage 4
+bash prepare.sh
 ```
 
 The training command is given below:
@@ -93,10 +59,14 @@ python3 valle/train.py --max-duration 160 --filter-min-duration 0.5 --filter-max
 To inference, use:
 ```
 huggingface-cli login
-huggingface-cli download --local-dir ${exp_dir} yuekai/vall-e_libritts
+huggingface-cli download --local-dir ${exp_dir} yuekai/vall-e_wenetspeech4tts
 top_p=1.0
 python3 valle/infer.py --output-dir demos_epoch_${epoch}_avg_${avg}_top_p_${top_p} \
         --top-k -1 --temperature 1.0 \
-        --text ./libritts.txt \
-        --checkpoint ${exp_dir}/epoch-${epoch}-avg-${avg}.pt --top-p ${top_p}
+        --text ./aishell3.txt \
+        --checkpoint ${exp_dir}/epoch-${epoch}-avg-${avg}.pt \
+        --text-extractor pypinyin_initials_finals --top-p ${top_p}
 ```
+
+# Credits
+- [vall-e](https://github.com/lifeiteng/vall-e)
