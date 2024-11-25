@@ -34,6 +34,7 @@ and generates the following files in the directory `lang_dir`:
 """
 
 import argparse
+import re
 from pathlib import Path
 from typing import Dict, List, Tuple
 

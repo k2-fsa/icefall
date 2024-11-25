@@ -54,6 +54,9 @@ def tokenize_by_ja_char(line: str) -> str:
     """
     pattern = re.compile(r"([\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF])")
     chars = pattern.split(line.strip())
+    return " ".join(
+        [w.strip().upper() if not pattern.match(w) else w for w in chars if w.strip()]
+    )
 
 
 def get_args():

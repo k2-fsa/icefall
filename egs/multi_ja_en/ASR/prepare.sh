@@ -73,7 +73,7 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
     ln -svf $(realpath ../../../../reazonspeech/ASR/data/manifests/feats_test) .
     cd ../..
   else
-    log "Abort! Please run ./prepare.sh --stage 2 --stop-stage 2"
+    log "Abort! Please run ../../reazonspeech/ASR/prepare.sh --stage 0 --stop-stage 2"
     exit 1
   fi
 fi
@@ -184,4 +184,4 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
   done
 fi
 
-log "prepare_einishi.sh: PREPARATION DONE"
+log "prepare.sh: PREPARATION DONE"
