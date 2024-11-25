@@ -44,6 +44,7 @@ from icefall.decode import (
     nbest_oracle,
     one_best_decoding,
     rescore_with_attention_decoder,
+    rescore_with_attention_decoder_no_ngram_old,
     rescore_with_n_best_list,
     rescore_with_rnn_lm,
     rescore_with_whole_lattice,
@@ -459,6 +460,27 @@ def decode_one_batch(
         key = "ctc-greedy-search"
         return {key: hyps}
 
+    if params.method == "attention-decoder-rescoring-no-ngram":
+        best_path_dict = rescore_with_attention_decoder_no_ngram_old(
+            lattice=lattice,
+            num_paths=params.num_paths,
+            model=model,
+            memory=memory,
+            memory_key_padding_mask=memory_key_padding_mask,
+            sos_id=sos_id,
+            eos_id=eos_id,
+        )
+        ans = dict()
+        for a_scale_str, best_path in best_path_dict.items():
+            # token_ids is a lit-of-list of IDs
+            token_ids = get_texts(best_path)
+            # hyps is a list of str, e.g., ['xxx yyy zzz', ...]
+            hyps = bpe_model.decode(token_ids)
+            # hyps is a list of list of str, e.g., [['xxx', 'yyy', 'zzz'], ... ]
+            hyps = [s.split() for s in hyps]
+            ans[a_scale_str] = hyps
+        return ans
+
     if params.method == "nbest-oracle":
         # Note: You can also pass rescored lattices to it.
         # We choose the HLG decoded lattice for speed reasons
@@ -761,7 +783,7 @@ def main():
     params.sos_id = sos_id
     params.eos_id = eos_id
 
-    if params.method == "ctc-decoding" or params.method == "ctc-greedy-search":
+    if params.method == "ctc-decoding" or params.method == "ctc-greedy-search" or params.method == "attention-decoder-rescoring-no-ngram":
         HLG = None
         H = k2.ctc_topo(
             max_token=max_token_id,

@@ -983,7 +983,8 @@ def write_error_stats_with_timestamps(
         hyp_count = corr + hyp_sub + ins
 
         print(f"{word}   {corr} {tot_errs} {ref_count} {hyp_count}", file=f)
-    return float(tot_err_rate), float(mean_delay), float(var_delay)
+    # return float(tot_err_rate), float(mean_delay), float(var_delay)
+    return float(tot_err_rate), mean_delay, var_delay
 
 
 def write_surt_error_stats(

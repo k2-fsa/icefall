@@ -72,7 +72,7 @@ import sentencepiece as spm
 import torch
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
-from train import add_model_arguments, get_ctc_model, get_params
+from train_cr_ctc import add_model_arguments, get_ctc_model, get_params
 
 from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
 from icefall.checkpoint import (
@@ -458,8 +458,9 @@ def decode_one_batch(
     else:
         encoder_out, encoder_out_lens = model.encoder(feature, feature_lens)
 
-    nnet_output = model.get_ctc_output(encoder_out)
+    # nnet_output = model.get_ctc_output(encoder_out)
     # nnet_output is (N, T, C)
+    nnet_output = model.ctc_output(encoder_out)  # (N, T, C)
 
     if params.decoding_method == "ctc-greedy-search":
         timestamps, hyps = ctc_greedy_search(
