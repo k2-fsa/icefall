@@ -25,6 +25,7 @@
 # Please install a version >=0.1.96
 
 import argparse
+import re
 import shutil
 import tempfile
 from pathlib import Path

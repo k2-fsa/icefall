@@ -20,6 +20,7 @@
 # to train the BPE model later.
 
 import argparse
+import re
 from pathlib import Path
 
 from tqdm.auto import tqdm
