@@ -55,7 +55,7 @@ def get_parser():
 
     parser.add_argument(
         "--speed-perturb",
-        type=bool,
+        type=str2bool,
         default=False,
         help="Enable 0.9 and 1.1 speed perturbation for data augmentation. Default: False.",
     )
