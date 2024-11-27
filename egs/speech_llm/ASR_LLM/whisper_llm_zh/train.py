@@ -451,7 +451,7 @@ def compute_validation_loss(
     tot_loss = MetricsTracker()
 
     for batch_idx, batch in enumerate(valid_dl):
-        with torch.cuda.amp.autocast(enabled=params.use_fp16):
+        with torch.amp.autocast("cuda", enabled=params.use_fp16):
             loss, loss_info = compute_loss(
                 params=params,
                 tokenizer=tokenizer,
@@ -566,7 +566,7 @@ def train_one_epoch(
                         f"rm -rf {params.exp_dir}/epoch-{params.cur_epoch}-checkpoint-{batch_idx}"
                     )
         try:
-            with torch.cuda.amp.autocast(enabled=params.use_fp16):
+            with torch.amp.autocast("cuda", enabled=params.use_fp16):
                 loss, loss_info = compute_loss(
                     params=params,
                     tokenizer=tokenizer,

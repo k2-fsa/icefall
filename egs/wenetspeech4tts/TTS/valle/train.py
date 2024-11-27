@@ -66,7 +66,7 @@ from lhotse.utils import fix_random_seed
 from optim import Eden, ScaledAdam
 from tokenizer import TextTokenCollater, get_text_token_collater
 from torch import Tensor
-from torch.cuda.amp import GradScaler
+from torch.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
 from tts_datamodule import TtsDataModule
@@ -765,7 +765,7 @@ def train_one_epoch(
         batch_size = len(batch["text"])
 
         try:
-            with torch.cuda.amp.autocast(dtype=dtype, enabled=enabled):
+            with torch.amp.autocast("cuda", dtype=dtype, enabled=enabled):
                 _, loss, loss_info = compute_loss(
                     params=params,
                     model=model,
@@ -898,7 +898,7 @@ def train_one_epoch(
             # Calculate validation loss in Rank 0
             model.eval()
             logging.info("Computing validation loss")
-            with torch.cuda.amp.autocast(dtype=dtype):
+            with torch.amp.autocast("cuda", dtype=dtype):
                 valid_info = compute_validation_loss(
                     params=params,
                     model=model,
@@ -1103,7 +1103,7 @@ def run(rank, world_size, args):
             params=params,
         )
 
-    scaler = GradScaler(enabled=(params.dtype in ["fp16", "float16"]), init_scale=1.0)
+    scaler = GradScaler("cuda", enabled=(params.dtype in ["fp16", "float16"]), init_scale=1.0)
     if checkpoints and "grad_scaler" in checkpoints:
         logging.info("Loading grad scaler state dict")
         scaler.load_state_dict(checkpoints["grad_scaler"])
@@ -1197,7 +1197,7 @@ def scan_pessimistic_batches_for_oom(
     for criterion, cuts in batches.items():
         batch = train_dl.dataset[cuts]
         try:
-            with torch.cuda.amp.autocast(dtype=dtype):
+            with torch.amp.autocast("cuda", dtype=dtype):
                 _, loss, _ = compute_loss(
                     params=params,
                     model=model,

@@ -17,7 +17,7 @@ from lhotse.utils import fix_random_seed
 from matcha.model import fix_len_compatibility
 from matcha.models.matcha_tts import MatchaTTS
 from matcha.tokenizer import Tokenizer
-from torch.cuda.amp import GradScaler, autocast
+from torch.amp import GradScaler, autocast
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim import Optimizer
 from torch.utils.tensorboard import SummaryWriter
@@ -649,7 +649,7 @@ def run(rank, world_size, args):
     valid_cuts = ljspeech.valid_cuts()
     valid_dl = ljspeech.valid_dataloaders(valid_cuts)
 
-    scaler = GradScaler(enabled=params.use_fp16, init_scale=1.0)
+    scaler = GradScaler("cuda", enabled=params.use_fp16, init_scale=1.0)
     if checkpoints and "grad_scaler" in checkpoints:
         logging.info("Loading grad scaler state dict")
         scaler.load_state_dict(checkpoints["grad_scaler"])

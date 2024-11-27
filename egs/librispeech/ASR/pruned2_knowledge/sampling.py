@@ -10,7 +10,7 @@ from typing import Optional, Tuple
 import torch
 from scaling import ScaledLinear
 from torch import Tensor, nn
-from torch.cuda.amp import GradScaler, custom_bwd, custom_fwd
+from torch.amp import GradScaler, custom_bwd, custom_fwd
 from torch_scheduled_sampling import sample_combined
 
 # The main exports of this file are the module KnowledgeBaseLookup and the
@@ -330,14 +330,14 @@ def _test_knowledge_base_lookup_autocast():
     optimizer = Eve(m.parameters(), lr=0.005, eps=1.0e-04)
     m = m.to(device)
 
-    scaler = GradScaler(enabled=True)
+    scaler = GradScaler("cuda", enabled=True)
 
     start = timeit.default_timer()
 
     for epoch in range(150):
         for n, (x, y) in enumerate(train_pairs):
             y_out = m(x)
-            with torch.cuda.amp.autocast(enabled=True):
+            with torch.amp.autocast("cuda", enabled=True):
                 loss = ((y_out - y) ** 2).mean() * 100.0
             if n % 10 == 0 and epoch % 10 == 0:
                 print(f"Epoch {epoch}, batch {n}, loss {loss.item()}")

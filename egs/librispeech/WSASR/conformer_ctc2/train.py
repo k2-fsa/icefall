@@ -62,7 +62,7 @@ from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from optim import Eden, Eve
 from torch import Tensor
-from torch.cuda.amp import GradScaler
+from torch.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
 
@@ -757,7 +757,7 @@ def train_one_epoch(
         params.batch_idx_train += 1
         batch_size = len(batch["supervisions"]["text"])
 
-        with torch.cuda.amp.autocast(enabled=params.use_fp16):
+        with torch.amp.autocast("cuda", enabled=params.use_fp16):
             loss, loss_info = compute_loss(
                 params=params,
                 model=model,
@@ -1005,7 +1005,7 @@ def run(rank, world_size, args):
             params=params,
         )
 
-    scaler = GradScaler(enabled=params.use_fp16)
+    scaler = GradScaler("cuda", enabled=params.use_fp16)
     if checkpoints and "grad_scaler" in checkpoints:
         logging.info("Loading grad scaler state dict")
         scaler.load_state_dict(checkpoints["grad_scaler"])
@@ -1076,7 +1076,7 @@ def scan_pessimistic_batches_for_oom(
             # warmup = 0.0 is so that the derivs for the pruned loss stay zero
             # (i.e. are not remembered by the decaying-average in adam), because
             # we want to avoid these params being subject to shrinkage in adam.
-            with torch.cuda.amp.autocast(enabled=params.use_fp16):
+            with torch.amp.autocast("cuda", enabled=params.use_fp16):
                 loss, _ = compute_loss(
                     params=params,
                     model=model,
