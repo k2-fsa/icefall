@@ -52,7 +52,12 @@ def get_parser():
         default=80,
         help="""The number of mel bins for Fbank""",
     )
-
+    parser.add_argument(
+        "--whisper-fbank",
+        type=str2bool,
+        default=False,
+        help="Use WhisperFbank instead of Fbank. Default: False.",
+    )
     parser.add_argument(
         "--speed-perturb",
         type=str2bool,
