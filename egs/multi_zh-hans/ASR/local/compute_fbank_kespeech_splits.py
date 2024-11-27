@@ -106,6 +106,19 @@ def get_parser():
         default=False,
         help="Use WhisperFbank instead of Fbank. Default: False.",
     )
+    #修改： 添加 指定参数 speed-perturb
+    parser.add_argument(
+        "--speed-perturb",
+        type=bool,
+        default=False,
+        help="Enable 0.9 and 1.1 speed perturbation for data augmentation. Default: False.",
+    )
+    parser.add_argument(
+        "--whisper-fbank",
+        type=str2bool,
+        default=False,
+        help="Use WhisperFbank instead of Fbank. Default: False.",
+    )
     return parser
 
 
@@ -157,6 +170,11 @@ def compute_fbank_kespeech_splits(args):
         cut_set = cut_set.trim_to_supervisions(
             keep_overlapping=False, min_duration=None
         )
+        # 修改 执行 perturb操作
+        if speed_perturb:
+            cut_set = (
+                    cut_set + cut_set.perturb_speed(0.9) + cut_set.perturb_speed(1.1)
+            )
 
         logging.info("Computing features")
         cut_set = cut_set.compute_and_store_features_batch(
