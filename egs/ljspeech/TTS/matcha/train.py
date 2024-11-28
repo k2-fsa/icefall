@@ -479,7 +479,7 @@ def train_one_epoch(
             tokens_lens,
         ) = prepare_input(batch, tokenizer, device, params)
         try:
-            with autocast(enabled=params.use_fp16):
+            with autocast("cuda", enabled=params.use_fp16):
                 losses = get_losses(
                     {
                         "x": tokens,

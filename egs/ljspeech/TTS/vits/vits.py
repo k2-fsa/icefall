@@ -410,7 +410,7 @@ class VITS(nn.Module):
             p = self.discriminator(speech_)
 
         # calculate losses
-        with autocast(enabled=False):
+        with autocast("cuda", enabled=False):
             if not return_sample:
                 mel_loss = self.mel_loss(speech_hat_, speech_)
             else:
@@ -518,7 +518,7 @@ class VITS(nn.Module):
         p = self.discriminator(speech_)
 
         # calculate losses
-        with autocast(enabled=False):
+        with autocast("cuda", enabled=False):
             real_loss, fake_loss = self.discriminator_adv_loss(p_hat, p)
             loss = real_loss + fake_loss
 

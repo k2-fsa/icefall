@@ -396,7 +396,7 @@ def train_one_epoch(
         loss_info["samples"] = batch_size
 
         try:
-            with autocast(enabled=params.use_fp16):
+            with autocast("cuda", enabled=params.use_fp16):
                 # forward discriminator
                 loss_d, stats_d = model(
                     text=tokens,
@@ -414,7 +414,7 @@ def train_one_epoch(
             scaler.scale(loss_d).backward()
             scaler.step(optimizer_d)
 
-            with autocast(enabled=params.use_fp16):
+            with autocast("cuda", enabled=params.use_fp16):
                 # forward generator
                 loss_g, stats_g = model(
                     text=tokens,
@@ -673,7 +673,7 @@ def scan_pessimistic_batches_for_oom(
         )
         try:
             # for discriminator
-            with autocast(enabled=params.use_fp16):
+            with autocast("cuda", enabled=params.use_fp16):
                 loss_d, stats_d = model(
                     text=tokens,
                     text_lengths=tokens_lens,
@@ -686,7 +686,7 @@ def scan_pessimistic_batches_for_oom(
             optimizer_d.zero_grad()
             loss_d.backward()
             # for generator
-            with autocast(enabled=params.use_fp16):
+            with autocast("cuda", enabled=params.use_fp16):
                 loss_g, stats_g = model(
                     text=tokens,
                     text_lengths=tokens_lens,

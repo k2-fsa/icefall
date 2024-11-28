@@ -466,7 +466,7 @@ def train_one_epoch(
         loss_info["samples"] = batch_size
 
         try:
-            with autocast(enabled=params.use_fp16):
+            with autocast("cuda", enabled=params.use_fp16):
                 d_weight = train_discriminator(
                     params.lambda_adv,
                     params.cur_epoch,
@@ -502,7 +502,7 @@ def train_one_epoch(
             scaler.scale(disc_loss).backward()
             scaler.step(optimizer_d)
 
-            with autocast(enabled=params.use_fp16):
+            with autocast("cuda", enabled=params.use_fp16):
                 g_weight = train_discriminator(
                     params.lambda_adv,
                     params.cur_epoch,
@@ -846,7 +846,7 @@ def scan_pessimistic_batches_for_oom(
         ) = prepare_input(params, batch, device)
         try:
             # for discriminator
-            with autocast(enabled=params.use_fp16):
+            with autocast("cuda", enabled=params.use_fp16):
                 (
                     disc_stft_real_adv_loss,
                     disc_stft_fake_adv_loss,
@@ -876,7 +876,7 @@ def scan_pessimistic_batches_for_oom(
             optimizer_d.zero_grad()
             loss_d.backward()
             # for generator
-            with autocast(enabled=params.use_fp16):
+            with autocast("cuda", enabled=params.use_fp16):
                 (
                     commit_loss,
                     gen_stft_adv_loss,
