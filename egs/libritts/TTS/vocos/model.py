@@ -1,8 +1,7 @@
 import logging
 import torch
-from backbone import VocosBackbone
-from heads import ISTFTHead
 from discriminators import MultiPeriodDiscriminator, MultiResolutionDiscriminator
+from generator import Generator
 from loss import (
     DiscriminatorLoss,
     GeneratorLoss,
@@ -14,26 +13,23 @@ from loss import (
 class Vocos(torch.nn.Module):
     def __init__(
         self,
+        feature_dim: int = 80,
         dim: int = 512,
         n_fft: int = 1024,
         hop_length: int = 256,
-        feature_dim: int = 80,
         intermediate_dim: int = 1536,
         num_layers: int = 8,
         padding: str = "same",
-        sample_rate: int = 22050,
+        sample_rate: int = 24000,
     ):
         super(Vocos, self).__init__()
-        self.backbone = VocosBackbone(
-            input_channels=feature_dim,
-            dim=dim,
-            intermediate_dim=intermediate_dim,
-            num_layers=num_layers,
-        )
-        self.head = ISTFTHead(
+        self.generator = Generator(
+            feature_dim=feature_dim,
             dim=dim,
             n_fft=n_fft,
             hop_length=hop_length,
+            num_layers=num_layers,
+            intermediate_dim=intermediate_dim,
             padding=padding,
         )
 
@@ -46,6 +42,5 @@ class Vocos(torch.nn.Module):
         self.melspec_loss = MelSpecReconstructionLoss(sample_rate=sample_rate)
 
     def forward(self, features: torch.Tensor):
-        x = self.backbone(features)
-        audio_output = self.head(x)
-        return audio_output
+        audio = self.generator(features)
+        return audio

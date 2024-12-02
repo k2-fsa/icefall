@@ -42,7 +42,7 @@ from torch.cuda.amp import GradScaler, autocast
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim import Optimizer
 from torch.utils.tensorboard import SummaryWriter
-from tts_datamodule import LJSpeechTtsDataModule
+from tts_datamodule import LibriTTSDataModule
 
 from torch.optim.lr_scheduler import ExponentialLR, LRScheduler
 from torch.optim import Optimizer
@@ -65,7 +65,7 @@ from icefall.utils import (
     str2bool,
     get_parameter_groups_with_lrs,
 )
-from models import Vocos
+from model import Vocos
 from lhotse import Fbank, FbankConfig
 
 
@@ -313,16 +313,14 @@ def get_model(params: AttributeDict) -> nn.Module:
         sample_rate=params.sampling_rate,
     ).to(device)
 
-    num_param_head = sum([p.numel() for p in model.head.parameters()])
-    logging.info(f"Number of Head parameters : {num_param_head}")
-    num_param_bone = sum([p.numel() for p in model.backbone.parameters()])
-    logging.info(f"Number of Generator parameters : {num_param_bone}")
+    num_param_gen = sum([p.numel() for p in model.generator.parameters()])
+    logging.info(f"Number of Generator parameters : {num_param_gen}")
     num_param_mpd = sum([p.numel() for p in model.mpd.parameters()])
     logging.info(f"Number of MultiPeriodDiscriminator parameters : {num_param_mpd}")
     num_param_mrd = sum([p.numel() for p in model.mrd.parameters()])
     logging.info(f"Number of MultiResolutionDiscriminator parameters : {num_param_mrd}")
     logging.info(
-        f"Number of model parameters : {num_param_head + num_param_bone + num_param_mpd + num_param_mrd}"
+        f"Number of model parameters : {num_param_gen + num_param_mpd + num_param_mrd}"
     )
     return model
 
@@ -566,10 +564,6 @@ def train_one_epoch(
             params.segment_size - params.frame_length
         ) // params.frame_shift + 1
 
-        # segment_frames = (
-        # params.segment_size + params.frame_shift // 2
-        # ) // params.frame_shift
-
         start_p = random.randint(0, features_lens.min() - (segment_frames + 1))
 
         features = features[:, start_p : start_p + segment_frames, :].permute(
@@ -668,11 +662,10 @@ def train_one_epoch(
                         "train/grad_scale", cur_grad_scale, params.batch_idx_train
                     )
 
-        # if (
-        # params.batch_idx_train % params.valid_interval == 0
-        # and not params.print_diagnostics
-        # ):
-        if True:
+        if (
+            params.batch_idx_train % params.valid_interval == 0
+            and not params.print_diagnostics
+        ):
             logging.info("Computing validation loss")
             valid_info = compute_validation_loss(
                 params=params,
@@ -829,8 +822,7 @@ def run(rank, world_size, args):
     checkpoints = load_checkpoint_if_available(params=params, model=model)
 
     model = model.to(device)
-    head = model.head
-    backbone = model.backbone
+    generator = model.generator
     mrd = model.mrd
     mpd = model.mpd
     if world_size > 1:
@@ -838,7 +830,7 @@ def run(rank, world_size, args):
         model = DDP(model, device_ids=[rank], find_unused_parameters=True)
 
     optimizer_g = torch.optim.AdamW(
-        itertools.chain(head.parameters(), backbone.parameters()),
+        generator.parameters(),
         params.learning_rate,
         betas=[params.adam_b1, params.adam_b2],
     )
@@ -885,9 +877,9 @@ def run(rank, world_size, args):
     if params.inf_check:
         register_inf_check_hooks(model)
 
-    ljspeech = LJSpeechTtsDataModule(args)
+    libritts = LibriTTSDataModule(args)
 
-    train_cuts = ljspeech.train_cuts()
+    train_cuts = libritts.train_clean_cuts()
 
     def remove_short_and_long_utt(c: Cut):
         # Keep only utterances with duration between 1 second and 20 seconds
@@ -899,10 +891,10 @@ def run(rank, world_size, args):
         return True
 
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
-    train_dl = ljspeech.train_dataloaders(train_cuts)
+    train_dl = libritts.train_dataloaders(train_cuts)
 
-    valid_cuts = ljspeech.valid_cuts()
-    valid_dl = ljspeech.valid_dataloaders(valid_cuts)
+    valid_cuts = libritts.dev_clean_cuts()
+    valid_dl = libritts.valid_dataloaders(valid_cuts)
 
     scaler = GradScaler(enabled=params.use_fp16, init_scale=1.0)
     if checkpoints and "grad_scaler" in checkpoints:
@@ -985,7 +977,7 @@ def run(rank, world_size, args):
 
 def main():
     parser = get_parser()
-    LJSpeechTtsDataModule.add_arguments(parser)
+    LibriTTSDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 
@@ -997,7 +989,8 @@ def main():
         run(rank=0, world_size=1, args=args)
 
 
+torch.set_num_threads(1)
+torch.set_num_interop_threads(1)
+
 if __name__ == "__main__":
-    torch.set_num_threads(1)
-    torch.set_num_interop_threads(1)
     main()
