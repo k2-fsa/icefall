@@ -25,7 +25,7 @@ from loss import (
     KLDivergenceLoss,
     MelSpectrogramLoss,
 )
-from torch.cuda.amp import autocast
+from torch.amp import autocast
 from utils import get_segments
 
 AVAILABLE_GENERATERS = {

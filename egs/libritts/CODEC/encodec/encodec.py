@@ -29,7 +29,7 @@ from loss import (
     WavReconstructionLoss,
 )
 from torch import nn
-from torch.cuda.amp import autocast
+from torch.amp import autocast
 
 
 class Encodec(nn.Module):
