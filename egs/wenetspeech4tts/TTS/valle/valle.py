@@ -23,6 +23,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn
+from tokenizer import TextTokenCollater
 from torch import Tensor
 from torch.nn import Linear, Module
 from torch.nn import functional as F
@@ -1664,13 +1665,15 @@ class VALLE(nn.Module):
         self,
         predicts: Tuple[torch.Tensor],
         batch: Dict[str, Union[List, torch.Tensor]],
+        tokenizer: TextTokenCollater,
         output_dir: str,
         limit: int = 4,
     ) -> None:
-        text_tokens = batch["text_tokens"].to("cpu").detach().numpy()
-        text_tokens_lens = batch["text_tokens_lens"].to("cpu").detach().numpy()
         audio_features = batch["audio_features"].to("cpu").detach().numpy()
         audio_features_lens = batch["audio_features_lens"].to("cpu").detach().numpy()
+
+        tokens = batch["tokens"]
+        text_tokens, text_tokens_lens = tokenizer(tokens)
         assert text_tokens.ndim == 2
 
         utt_ids, texts = batch["utt_id"], batch["text"]
