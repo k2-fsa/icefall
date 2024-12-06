@@ -519,12 +519,16 @@ def main():
                         if split > 1:
                             storage_path = f"{args.output_dir}/{args.prefix}_encodec_{partition}_{idx}"
                         else:
-                            storage_path = f"{args.output_dir}/{args.prefix}_encodec_{partition}"
+                            storage_path = (
+                                f"{args.output_dir}/{args.prefix}_encodec_{partition}"
+                            )
                     else:
                         if split > 1:
                             storage_path = f"{args.output_dir}/{args.prefix}_fbank_{partition}_{idx}"
                         else:
-                            storage_path = f"{args.output_dir}/{args.prefix}_fbank_{partition}"
+                            storage_path = (
+                                f"{args.output_dir}/{args.prefix}_fbank_{partition}"
+                            )
 
                     if args.prefix.lower() in [
                         "ljspeech",
