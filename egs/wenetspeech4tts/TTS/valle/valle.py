@@ -19,8 +19,11 @@ import random
 from functools import partial
 from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, Union
 
+import matplotlib.pyplot as plt
+import numpy as np
 import torch
 import torch.nn as nn
+from tokenizer import TextTokenCollater
 from torch import Tensor
 from torch.nn import Linear, Module
 from torch.nn import functional as F
@@ -1657,6 +1660,88 @@ class VALLE(nn.Module):
 
         assert len(codes) == 8
         return torch.stack(codes, dim=-1)
+
+    def visualize(
+        self,
+        predicts: Tuple[torch.Tensor],
+        batch: Dict[str, Union[List, torch.Tensor]],
+        tokenizer: TextTokenCollater,
+        output_dir: str,
+        limit: int = 4,
+    ) -> None:
+        audio_features = batch["features"].to("cpu").detach().numpy()
+        audio_features_lens = batch["features_lens"].to("cpu").detach().numpy()
+
+        tokens = batch["tokens"]
+        text_tokens, text_tokens_lens = tokenizer(tokens)
+        assert text_tokens.ndim == 2
+
+        texts = batch["text"]
+        utt_ids = [cut.id for cut in batch["cut"]]
+
+        encoder_outputs = predicts[0].to("cpu").type(torch.float32).detach().numpy()
+        decoder_outputs = predicts[1]
+        if isinstance(decoder_outputs, list):
+            decoder_outputs = decoder_outputs[-1]
+        decoder_outputs = decoder_outputs.to("cpu").type(torch.float32).detach().numpy()
+
+        vmin, vmax = 0, 1024  # Encodec
+        if decoder_outputs.dtype == np.float32:
+            vmin, vmax = -6, 0  # Fbank
+
+        num_figures = 3
+        for b, (utt_id, text) in enumerate(zip(utt_ids[:limit], texts[:limit])):
+            _ = plt.figure(figsize=(14, 8 * num_figures))
+
+            S = text_tokens_lens[b]
+            T = audio_features_lens[b]
+
+            # encoder
+            plt.subplot(num_figures, 1, 1)
+            plt.title(f"Text: {text}")
+            plt.imshow(
+                X=np.transpose(encoder_outputs[b]),
+                cmap=plt.get_cmap("jet"),
+                aspect="auto",
+                interpolation="nearest",
+            )
+            plt.gca().invert_yaxis()
+            plt.axvline(x=S - 0.4, linewidth=2, color="r")
+            plt.xlabel("Encoder Output")
+            plt.colorbar()
+
+            # decoder
+            plt.subplot(num_figures, 1, 2)
+            plt.imshow(
+                X=np.transpose(decoder_outputs[b]),
+                cmap=plt.get_cmap("jet"),
+                aspect="auto",
+                interpolation="nearest",
+                vmin=vmin,
+                vmax=vmax,
+            )
+            plt.gca().invert_yaxis()
+            plt.axvline(x=T - 0.4, linewidth=2, color="r")
+            plt.xlabel("Decoder Output")
+            plt.colorbar()
+
+            # target
+            plt.subplot(num_figures, 1, 3)
+            plt.imshow(
+                X=np.transpose(audio_features[b]),
+                cmap=plt.get_cmap("jet"),
+                aspect="auto",
+                interpolation="nearest",
+                vmin=vmin,
+                vmax=vmax,
+            )
+            plt.gca().invert_yaxis()
+            plt.axvline(x=T - 0.4, linewidth=2, color="r")
+            plt.xlabel("Decoder Target")
+            plt.colorbar()
+
+            plt.savefig(f"{output_dir}/{utt_id}.png")
+            plt.close()
 
 
 # https://github.com/microsoft/unilm/blob/master/xtune/src/transformers/modeling_utils.py
