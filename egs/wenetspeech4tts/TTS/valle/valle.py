@@ -1676,7 +1676,8 @@ class VALLE(nn.Module):
         text_tokens, text_tokens_lens = tokenizer(tokens)
         assert text_tokens.ndim == 2
 
-        utt_ids, texts = batch["utt_id"], batch["text"]
+        texts = batch["text"]
+        utt_ids = [cut.id for cut in batch["cut"]]
 
         encoder_outputs = predicts[0].to("cpu").type(torch.float32).detach().numpy()
         decoder_outputs = predicts[1]
