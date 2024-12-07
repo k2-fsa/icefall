@@ -289,7 +289,7 @@ class SoftmaxFunction(torch.autograd.Function):
     @staticmethod
     def backward(ctx, ans_grad: Tensor):
         (ans,) = ctx.saved_tensors
-        with torch.cuda.amp.autocast(enabled=False):
+        with torch.amp.autocast("cuda", enabled=False):
             ans_grad = ans_grad.to(torch.float32)
             ans = ans.to(torch.float32)
             x_grad = ans_grad * ans
@@ -669,7 +669,7 @@ class WhiteningPenaltyFunction(torch.autograd.Function):
     def backward(ctx, x_grad: Tensor):
         (x_orig,) = ctx.saved_tensors
         with torch.enable_grad():
-            with torch.cuda.amp.autocast(enabled=False):
+            with torch.amp.autocast("cuda", enabled=False):
                 x_detached = x_orig.to(torch.float32).detach()
                 x_detached.requires_grad = True
 
@@ -867,7 +867,7 @@ class MaxEig(torch.nn.Module):
         ):
             return _no_op(x)
 
-        with torch.cuda.amp.autocast(enabled=False):
+        with torch.amp.autocast("cuda", enabled=False):
             eps = 1.0e-20
             orig_x = x
             x = x.to(torch.float32)

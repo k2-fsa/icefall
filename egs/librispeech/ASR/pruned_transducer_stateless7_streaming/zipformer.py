@@ -2408,7 +2408,7 @@ class RelPositionMultiheadAttention(nn.Module):
         bsz = n // num_heads
 
         with torch.no_grad():
-            with torch.cuda.amp.autocast(enabled=False):
+            with torch.amp.autocast("cuda", enabled=False):
                 attn_weights = attn_weights.to(torch.float32)
                 attn_output = attn_output.to(torch.float32)
                 attn_weights_entropy = (
