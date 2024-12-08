@@ -1686,8 +1686,6 @@ class VALLE(nn.Module):
         decoder_outputs = decoder_outputs.to("cpu").type(torch.float32).detach().numpy()
 
         vmin, vmax = 0, 1024  # Encodec
-        if decoder_outputs.dtype == np.float32:
-            vmin, vmax = -6, 0  # Fbank
 
         num_figures = 3
         for b, (utt_id, text) in enumerate(zip(utt_ids[:limit], texts[:limit])):
