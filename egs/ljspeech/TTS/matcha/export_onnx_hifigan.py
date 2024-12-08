@@ -7,7 +7,7 @@ from typing import Any, Dict
 
 import onnx
 import torch
-from inference import load_vocoder
+from infer import load_vocoder
 
 
 def add_meta_data(filename: str, meta_data: Dict[str, Any]):

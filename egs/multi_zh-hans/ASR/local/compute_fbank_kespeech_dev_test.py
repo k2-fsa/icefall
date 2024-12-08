@@ -52,13 +52,19 @@ def get_parser():
         default=80,
         help="""The number of mel bins for Fbank""",
     )
-
     parser.add_argument(
         "--whisper-fbank",
         type=str2bool,
         default=False,
         help="Use WhisperFbank instead of Fbank. Default: False.",
     )
+    parser.add_argument(
+        "--speed-perturb",
+        type=str2bool,
+        default=False,
+        help="Enable 0.9 and 1.1 speed perturbation for data augmentation. Default: False.",
+    )
+
     return parser
 
 
@@ -104,6 +110,10 @@ def compute_fbank_kespeech_dev_test(args):
             keep_overlapping=False, min_duration=None
         )
 
+        if args.speed_perturb:
+            cut_set = (
+                    cut_set + cut_set.perturb_speed(0.9) + cut_set.perturb_speed(1.1)
+            )
         logging.info("Computing features")
         cut_set = cut_set.compute_and_store_features_batch(
             extractor=extractor,
