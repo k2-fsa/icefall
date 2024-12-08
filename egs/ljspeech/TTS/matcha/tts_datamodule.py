@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import torch
-from compute_fbank_ljspeech import MyFbank, MyFbankConfig
+from fbank import MatchaFbank, MatchaFbankConfig
 from lhotse import CutSet, load_manifest_lazy
 from lhotse.dataset import (  # noqa F401 for PrecomputedFeatures
     CutConcatenate,
@@ -32,7 +32,6 @@ from lhotse.dataset import (  # noqa F401 for PrecomputedFeatures
     DynamicBucketingSampler,
     PrecomputedFeatures,
     SimpleCutSampler,
-    SpecAugment,
     SpeechSynthesisDataset,
 )
 from lhotse.dataset.input_strategies import (  # noqa F401 For AudioSamples
@@ -177,7 +176,7 @@ class LJSpeechTtsDataModule:
 
         if self.args.on_the_fly_feats:
             sampling_rate = 22050
-            config = MyFbankConfig(
+            config = MatchaFbankConfig(
                 n_fft=1024,
                 n_mels=80,
                 sampling_rate=sampling_rate,
@@ -189,7 +188,7 @@ class LJSpeechTtsDataModule:
             train = SpeechSynthesisDataset(
                 return_text=False,
                 return_tokens=True,
-                feature_input_strategy=OnTheFlyFeatures(MyFbank(config)),
+                feature_input_strategy=OnTheFlyFeatures(MatchaFbank(config)),
                 return_cuts=self.args.return_cuts,
             )
 
@@ -238,7 +237,7 @@ class LJSpeechTtsDataModule:
         logging.info("About to create dev dataset")
         if self.args.on_the_fly_feats:
             sampling_rate = 22050
-            config = MyFbankConfig(
+            config = MatchaFbankConfig(
                 n_fft=1024,
                 n_mels=80,
                 sampling_rate=sampling_rate,
@@ -250,7 +249,7 @@ class LJSpeechTtsDataModule:
             validate = SpeechSynthesisDataset(
                 return_text=False,
                 return_tokens=True,
-                feature_input_strategy=OnTheFlyFeatures(MyFbank(config)),
+                feature_input_strategy=OnTheFlyFeatures(MatchaFbank(config)),
                 return_cuts=self.args.return_cuts,
             )
         else:
@@ -282,7 +281,7 @@ class LJSpeechTtsDataModule:
         logging.info("About to create test dataset")
         if self.args.on_the_fly_feats:
             sampling_rate = 22050
-            config = MyFbankConfig(
+            config = MatchaFbankConfig(
                 n_fft=1024,
                 n_mels=80,
                 sampling_rate=sampling_rate,
@@ -294,7 +293,7 @@ class LJSpeechTtsDataModule:
             test = SpeechSynthesisDataset(
                 return_text=False,
                 return_tokens=True,
-                feature_input_strategy=OnTheFlyFeatures(MyFbank(config)),
+                feature_input_strategy=OnTheFlyFeatures(MatchaFbank(config)),
                 return_cuts=self.args.return_cuts,
             )
         else:

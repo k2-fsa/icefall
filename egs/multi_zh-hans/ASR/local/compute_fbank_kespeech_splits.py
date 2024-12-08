@@ -106,6 +106,14 @@ def get_parser():
         default=False,
         help="Use WhisperFbank instead of Fbank. Default: False.",
     )
+
+    parser.add_argument(
+        "--speed-perturb",
+        type=str2bool,
+        default=False,
+        help="Enable 0.9 and 1.1 speed perturbation for data augmentation. Default: False.",
+    )
+
     return parser
 
 
