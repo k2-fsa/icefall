@@ -112,7 +112,7 @@ def compute_fbank_kespeech_dev_test(args):
 
         if args.speed_perturb:
             cut_set = cut_set + cut_set.perturb_speed(0.9) + cut_set.perturb_speed(1.1)
-  
+
         logging.info("Computing features")
         cut_set = cut_set.compute_and_store_features_batch(
             extractor=extractor,
