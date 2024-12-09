@@ -488,9 +488,10 @@ def train_one_epoch(
 
                 loss = sum(losses.values())
 
-                optimizer.zero_grad()
                 scaler.scale(loss).backward()
                 scaler.step(optimizer)
+                scaler.update()
+                optimizer.zero_grad()
 
                 loss_info = MetricsTracker()
                 loss_info["samples"] = batch_size
