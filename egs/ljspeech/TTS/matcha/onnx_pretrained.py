@@ -8,7 +8,7 @@ import logging
 import onnxruntime as ort
 import soundfile as sf
 import torch
-from inference import load_vocoder
+from infer import load_vocoder
 from tokenizer import Tokenizer
 
 
