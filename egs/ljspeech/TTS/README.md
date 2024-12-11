@@ -131,7 +131,7 @@ To inference, use:
 
 wget https://github.com/csukuangfj/models/raw/refs/heads/master/hifigan/generator_v1
 
-./matcha/synth.py \
+./matcha/infer.py \
   --exp-dir ./matcha/exp-new-3 \
   --epoch 4000 \
   --tokens ./data/tokens.txt \
