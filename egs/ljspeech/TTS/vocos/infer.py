@@ -20,7 +20,6 @@ import argparse
 import json
 import logging
 import math
-import time
 import os
 from functools import partial
 from pathlib import Path
@@ -30,7 +29,7 @@ import torch.nn as nn
 from lhotse.utils import fix_random_seed
 from scipy.io.wavfile import write
 from train import add_model_arguments, get_model, get_params
-from tts_datamodule import LibriTTSDataModule
+from tts_datamodule import LJSpeechTtsDataModule
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -90,7 +89,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="vocos/exp",
+        default="flow_match/exp",
         help="The experiment dir",
     )
 
@@ -129,31 +128,20 @@ def decode_one_batch(
 
     cut_ids = [cut.id for cut in batch["cut"]]
 
-    infer_time = 0
-    audio_time = 0
-
     features = batch["features"]  # (B, T, F)
     utt_durations = batch["features_lens"]
 
     x = features.permute(0, 2, 1)  # (B, F, T)
 
-    audio_time += torch.sum(utt_durations)
-
-    start = time.time()
-
     audios = model(x.to(device))  # (B, T)
-
-    infer_time += time.time() - start
 
     wav_dir = f"{params.res_dir}/{params.suffix}"
     os.makedirs(wav_dir, exist_ok=True)
 
     for i in range(audios.shape[0]):
-        audio = audios[i][: int(utt_durations[i] * 256)]
+        audio = audios[i][: (utt_durations[i] - 1) * 256 + 1024]
         audio = audio.cpu().squeeze().numpy()
-        write(f"{wav_dir}/{cut_ids[i]}.wav", 24000, audio)
-
-    print(f"RTF : {infer_time / (audio_time * (256/24000))}")
+        write(f"{wav_dir}/{cut_ids[i]}.wav", 22050, audio)
 
 
 def decode_dataset(
@@ -183,7 +171,7 @@ def decode_dataset(
 
     with open(f"{params.res_dir}/{test_set}.scp", "w", encoding="utf8") as f:
         for batch_idx, batch in enumerate(dl):
-            # texts = batch["text"]
+            texts = batch["text"]
             cut_ids = [cut.id for cut in batch["cut"]]
 
             decode_one_batch(
@@ -192,12 +180,12 @@ def decode_dataset(
                 batch=batch,
             )
 
-            # assert len(texts) == len(cut_ids), (len(texts), len(cut_ids))
+            assert len(texts) == len(cut_ids), (len(texts), len(cut_ids))
 
-            # for i in range(len(texts)):
-            # f.write(f"{cut_ids[i]}\t{texts[i]}\n")
+            for i in range(len(texts)):
+                f.write(f"{cut_ids[i]}\t{texts[i]}\n")
 
-            # num_cuts += len(texts)
+            num_cuts += len(texts)
 
             if batch_idx % 50 == 0:
                 batch_str = f"{batch_idx}/{num_batches}"
@@ -210,7 +198,7 @@ def decode_dataset(
 @torch.no_grad()
 def main():
     parser = get_parser()
-    LibriTTSDataModule.add_arguments(parser)
+    LJSpeechTtsDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 
@@ -328,11 +316,11 @@ def main():
 
     # we need cut ids to display recognition results.
     args.return_cuts = True
-    libritts = LibriTTSDataModule(args)
+    ljspeech = LJSpeechTtsDataModule(args)
 
-    test_cuts = libritts.test_clean_cuts()
+    test_cuts = ljspeech.test_cuts()
 
-    test_dl = libritts.test_dataloaders(test_cuts)
+    test_dl = ljspeech.test_dataloaders(test_cuts)
 
     test_sets = ["test"]
     test_dls = [test_dl]

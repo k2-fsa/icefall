@@ -250,18 +250,22 @@ def save_checkpoint_with_global_batch_idx(
     )
 
 
-def find_checkpoints(out_dir: Path, iteration: int = 0) -> List[str]:
+def find_checkpoints(
+    out_dir: Path,
+    iteration: int = 0,
+    prefix: str = "checkpoint",
+) -> List[str]:
     """Find all available checkpoints in a directory.
 
-    The checkpoint filenames have the form: `checkpoint-xxx.pt`
+    The checkpoint filenames have the form: `{prefix}-xxx.pt`
     where xxx is a numerical value.
 
     Assume you have the following checkpoints in the folder `foo`:
 
-        - checkpoint-1.pt
-        - checkpoint-20.pt
-        - checkpoint-300.pt
-        - checkpoint-4000.pt
+        - {prefix}-1.pt
+        - {prefix}-20.pt
+        - {prefix}-300.pt
+        - {prefix}-4000.pt
 
     Case 1 (Return all checkpoints)::
 
@@ -290,8 +294,8 @@ def find_checkpoints(out_dir: Path, iteration: int = 0) -> List[str]:
       Return a list of checkpoint filenames, sorted in descending
       order by the numerical value in the filename.
     """
-    checkpoints = list(glob.glob(f"{out_dir}/checkpoint-[0-9]*.pt"))
-    pattern = re.compile(r"checkpoint-([0-9]+).pt")
+    checkpoints = list(glob.glob(f"{out_dir}/{prefix}-[0-9]*.pt"))
+    pattern = re.compile(rf"{prefix}-([0-9]+).pt")
     iter_checkpoints = []
     for c in checkpoints:
         result = pattern.search(c)
@@ -316,12 +320,13 @@ def find_checkpoints(out_dir: Path, iteration: int = 0) -> List[str]:
 def remove_checkpoints(
     out_dir: Path,
     topk: int,
+    prefix: str = "checkpoint",
     rank: int = 0,
 ):
     """Remove checkpoints from the given directory.
 
-    We assume that checkpoint filename has the form `checkpoint-xxx.pt`
-    where xxx is a number, representing the number of processed batches
+    We assume that checkpoint filename has the form `{prefix}-xxx.pt`
+    where xxx is a number, representing the number of processed batches/epochs
     when saving that checkpoint. We sort checkpoints by filename and keep
     only the `topk` checkpoints with the highest `xxx`.
 
@@ -330,6 +335,8 @@ def remove_checkpoints(
         The directory containing checkpoints to be removed.
       topk:
         Number of checkpoints to keep.
+      prefix:
+        The prefix of the checkpoint filename, normally `epoch`, `checkpoint`.
       rank:
         If using DDP for training, it is the rank of the current node.
         Use 0 if no DDP is used for training.
@@ -337,7 +344,7 @@ def remove_checkpoints(
     assert topk >= 1, topk
     if rank != 0:
         return
-    checkpoints = find_checkpoints(out_dir)
+    checkpoints = find_checkpoints(out_dir, prefix=prefix)
 
     if len(checkpoints) == 0:
         logging.warn(f"No checkpoints found in {out_dir}")

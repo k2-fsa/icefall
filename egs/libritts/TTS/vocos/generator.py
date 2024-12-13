@@ -1,122 +1,154 @@
-import torch
-from torch import nn
-
+import logging
 from typing import Optional
 
+import numpy as np
+import torch
+from torch import nn
+from torch.autograd import Variable
+from torch.nn import functional as F
 
-class AdaLayerNorm(nn.Module):
+
+def window_sumsquare(
+    window: torch.Tensor,
+    n_samples: int,
+    hop_length: int = 256,
+    win_length: int = 1024,
+):
     """
-    Adaptive Layer Normalization module with learnable embeddings per `num_embeddings` classes
-
-    Args:
-        num_embeddings (int): Number of embeddings.
-        embedding_dim (int): Dimension of the embeddings.
+    Compute the sum-square envelope of a window function at a given hop length.
+    This is used to estimate modulation effects induced by windowing
+    observations in short-time fourier transforms.
+    Parameters
+    ----------
+    window : string, tuple, number, callable, or list-like
+        Window specification, as in `get_window`
+    n_samples : int > 0
+        The number of expected samples.
+    hop_length : int > 0
+        The number of samples to advance between frames
+    win_length :
+        The length of the window function.
+    Returns
+    -------
+    wss : torch.Tensor, The sum-squared envelope of the window function.
     """
 
-    def __init__(self, num_embeddings: int, embedding_dim: int, eps: float = 1e-6):
-        super().__init__()
-        self.eps = eps
-        self.dim = embedding_dim
-        self.scale = nn.Embedding(
-            num_embeddings=num_embeddings, embedding_dim=embedding_dim
-        )
-        self.shift = nn.Embedding(
-            num_embeddings=num_embeddings, embedding_dim=embedding_dim
-        )
-        torch.nn.init.ones_(self.scale.weight)
-        torch.nn.init.zeros_(self.shift.weight)
+    n_frames = (n_samples - win_length) // hop_length + 1
+    output_size = (n_frames - 1) * hop_length + win_length
+    device = window.device
 
-    def forward(self, x: torch.Tensor, cond_embedding_id: torch.Tensor) -> torch.Tensor:
-        scale = self.scale(cond_embedding_id)
-        shift = self.shift(cond_embedding_id)
-        x = nn.functional.layer_norm(x, (self.dim,), eps=self.eps)
-        x = x * scale + shift
-        return x
+    # Window envelope
+    window_sq = window.square().expand(1, n_frames, -1).transpose(1, 2)
+    window_envelope = torch.nn.functional.fold(
+        window_sq,
+        output_size=(1, output_size),
+        kernel_size=(1, win_length),
+        stride=(1, hop_length),
+    ).squeeze()
+    window_envelope = torch.nn.functional.pad(
+        window_envelope, (0, n_samples - output_size)
+    )
+    return window_envelope
 
 
-class ISTFT(nn.Module):
-    """
-    Custom implementation of ISTFT since torch.istft doesn't allow custom padding (other than `center=True`) with
-    windowing. This is because the NOLA (Nonzero Overlap Add) check fails at the edges.
-    See issue: https://github.com/pytorch/pytorch/issues/62323
-    Specifically, in the context of neural vocoding we are interested in "same" padding analogous to CNNs.
-
-    Args:
-        n_fft (int): Size of Fourier transform.
-        hop_length (int): The distance between neighboring sliding window frames.
-        win_length (int): The size of window frame and STFT filter.
-        padding (str, optional): Type of padding. Options are "center" or "same". Defaults to "same".
-    """
+class ISTFT(torch.nn.Module):
+    """adapted from Prem Seetharaman's https://github.com/pseeth/pytorch-stft"""
 
     def __init__(
-        self, n_fft: int, hop_length: int, win_length: int, padding: str = "same"
+        self,
+        filter_length: int = 1024,
+        hop_length: int = 256,
+        win_length: int = 1024,
+        padding: str = "none",
+        window_type: str = "povey",
+        max_samples: int = 1440000,  # 1440000 / 24000 = 60s
     ):
-        super().__init__()
-        if padding not in ["center", "same"]:
-            raise ValueError("Padding must be 'center' or 'same'.")
-        self.padding = padding
-        self.n_fft = n_fft
+        super(ISTFT, self).__init__()
+        self.filter_length = filter_length
         self.hop_length = hop_length
         self.win_length = win_length
-        window = torch.hann_window(win_length)
-        self.register_buffer("window", window)
+        self.padding = padding
+        scale = self.filter_length / self.hop_length
+        fourier_basis = np.fft.fft(np.eye(self.filter_length))
 
-    def forward(self, spec: torch.Tensor) -> torch.Tensor:
-        """
-        Compute the Inverse Short Time Fourier Transform (ISTFT) of a complex spectrogram.
+        cutoff = int((self.filter_length / 2 + 1))
+        fourier_basis = np.vstack(
+            [np.real(fourier_basis[:cutoff, :]), np.imag(fourier_basis[:cutoff, :])]
+        )
+        inverse_basis = torch.FloatTensor(
+            np.linalg.pinv(scale * fourier_basis).T[:, None, :]
+        )
 
-        Args:
-            spec (Tensor): Input complex spectrogram of shape (B, N, T), where B is the batch size,
-                            N is the number of frequency bins, and T is the number of time frames.
+        assert filter_length >= win_length
+        # Consistence with lhotse, search "create_frame_window" in https://github.com/lhotse-speech/lhotse
+        assert window_type in [
+            "hanning",
+            "povey",
+        ], f"Only 'hanning' and 'povey' windows are supported, given {window_type}."
+        fft_window = torch.hann_window(win_length, periodic=False)
+        if window_type == "povey":
+            fft_window = fft_window.pow(0.85)
 
-        Returns:
-            Tensor: Reconstructed time-domain signal of shape (B, L), where L is the length of the output signal.
-        """
+        if filter_length > win_length:
+            pad_size = (filter_length - win_length) // 2
+            fft_window = torch.nn.functional.pad(fft_window, (pad_size, pad_size))
+
+        window_sum = window_sumsquare(
+            window=fft_window,
+            n_samples=max_samples,
+            hop_length=hop_length,
+            win_length=filter_length,
+        )
+
+        inverse_basis *= fft_window
+
+        self.register_buffer("inverse_basis", inverse_basis.float())
+        self.register_buffer("fft_window", fft_window)
+        self.register_buffer("window_sum", window_sum)
+        self.tiny = torch.finfo(torch.float16).tiny
+
+    def forward(self, magnitude, phase):
+        magnitude_phase = torch.cat(
+            [magnitude * torch.cos(phase), magnitude * torch.sin(phase)], dim=1
+        )
+        inverse_transform = F.conv_transpose1d(
+            magnitude_phase,
+            Variable(self.inverse_basis, requires_grad=False),
+            stride=self.hop_length,
+            padding=0,
+        )
+        inverse_transform = inverse_transform.squeeze(1)
+
+        window_sum = self.window_sum
+        if not torch.jit.is_scripting() and not torch.jit.is_tracing():
+            if self.window_sum.size(-1) < inverse_transform.size(-1):
+                logging.warning(
+                    f"The precomputed `window_sumsquare` is too small, recomputing, "
+                    f"from {self.window_sum.size(-1)} to {inverse_transform.size(-1)}"
+                )
+                window_sum = window_sumsquare(
+                    window=self.fft_window,
+                    n_samples=inverse_transform.size(-1),
+                    win_length=self.filter_length,
+                    hop_length=self.hop_length,
+                )
+        window_sum = window_sum[: inverse_transform.size(-1)]
+        approx_nonzero_indices = (window_sum > self.tiny).nonzero().squeeze()
+
+        inverse_transform[:, approx_nonzero_indices] /= window_sum[
+            approx_nonzero_indices
+        ]
+
+        # scale by hop ratio
+        inverse_transform *= float(self.filter_length) / self.hop_length
+        assert self.padding in ["none", "same", "center"]
         if self.padding == "center":
-            # Fallback to pytorch native implementation
-            return torch.istft(
-                spec,
-                self.n_fft,
-                self.hop_length,
-                self.win_length,
-                self.window,
-                center=True,
-            )
+            pad_len = self.filter_length // 2
         elif self.padding == "same":
-            pad = (self.win_length - self.hop_length) // 2
+            pad_len = (self.filter_length - self.hop_length) // 2
         else:
-            raise ValueError("Padding must be 'center' or 'same'.")
-
-        assert spec.dim() == 3, "Expected a 3D tensor as input"
-        B, N, T = spec.shape
-
-        # Inverse FFT
-        ifft = torch.fft.irfft(spec, self.n_fft, dim=1, norm="backward")
-        ifft = ifft * self.window[None, :, None]
-
-        # Overlap and Add
-        output_size = (T - 1) * self.hop_length + self.win_length
-        y = torch.nn.functional.fold(
-            ifft,
-            output_size=(1, output_size),
-            kernel_size=(1, self.win_length),
-            stride=(1, self.hop_length),
-        )[:, 0, 0, :]
-
-        # Window envelope
-        window_sq = self.window.square().expand(1, T, -1).transpose(1, 2)
-        window_envelope = torch.nn.functional.fold(
-            window_sq,
-            output_size=(1, output_size),
-            kernel_size=(1, self.win_length),
-            stride=(1, self.hop_length),
-        ).squeeze()
-
-        # Normalize
-        norm_indexes = window_envelope > 1e-11
-        y[:, norm_indexes] = y[:, norm_indexes] / window_envelope[norm_indexes]
-
-        return y
+            return inverse_transform
+        return inverse_transform[:, pad_len:-pad_len]
 
 
 class ConvNeXtBlock(nn.Module):
@@ -127,8 +159,6 @@ class ConvNeXtBlock(nn.Module):
         intermediate_dim (int): Dimensionality of the intermediate layer.
         layer_scale_init_value (float, optional): Initial value for the layer scale. None means no scaling.
             Defaults to None.
-        adanorm_num_embeddings (int, optional): Number of embeddings for AdaLayerNorm.
-            None means non-conditional LayerNorm. Defaults to None.
     """
 
     def __init__(
@@ -136,20 +166,14 @@ class ConvNeXtBlock(nn.Module):
         dim: int,
         intermediate_dim: int,
         layer_scale_init_value: Optional[float] = None,
-        adanorm_num_embeddings: Optional[int] = None,
     ):
         super().__init__()
         self.dwconv = nn.Conv1d(
             dim, dim, kernel_size=7, padding=3, groups=dim
         )  # depthwise conv
-        self.adanorm = adanorm_num_embeddings is not None
-        if adanorm_num_embeddings:
-            self.norm = AdaLayerNorm(adanorm_num_embeddings, dim, eps=1e-6)
-        else:
-            self.norm = nn.LayerNorm(dim, eps=1e-6)
-        self.pwconv1 = nn.Linear(
-            dim, intermediate_dim
-        )  # pointwise/1x1 convs, implemented with linear layers
+        self.norm = nn.LayerNorm(dim, eps=1e-6)
+        # pointwise/1x1 convs, implemented with linear layers
+        self.pwconv1 = nn.Linear(dim, intermediate_dim)
         self.act = nn.GELU()
         self.pwconv2 = nn.Linear(intermediate_dim, dim)
         self.gamma = (
@@ -159,16 +183,13 @@ class ConvNeXtBlock(nn.Module):
         )
 
     def forward(
-        self, x: torch.Tensor, cond_embedding_id: Optional[torch.Tensor] = None
+        self,
+        x: torch.Tensor,
     ) -> torch.Tensor:
         residual = x
         x = self.dwconv(x)
         x = x.transpose(1, 2)  # (B, C, T) -> (B, T, C)
-        if self.adanorm:
-            assert cond_embedding_id is not None
-            x = self.norm(x, cond_embedding_id)
-        else:
-            x = self.norm(x)
+        x = self.norm(x)
         x = self.pwconv1(x)
         x = self.act(x)
         x = self.pwconv2(x)
@@ -189,28 +210,22 @@ class Generator(torch.nn.Module):
         hop_length: int = 256,
         intermediate_dim: int = 1536,
         num_layers: int = 8,
-        padding: str = "same",
-        layer_scale_init_value: Optional[float] = None,
-        adanorm_num_embeddings: Optional[int] = None,
+        padding: str = "none",
+        max_samples: int = 1440000,  # 1440000 / 24000 = 60s
     ):
         super(Generator, self).__init__()
         self.feature_dim = feature_dim
         self.embed = nn.Conv1d(feature_dim, dim, kernel_size=7, padding=3)
 
-        self.adanorm = adanorm_num_embeddings is not None
-        if adanorm_num_embeddings:
-            self.norm = AdaLayerNorm(adanorm_num_embeddings, dim, eps=1e-6)
-        else:
-            self.norm = nn.LayerNorm(dim, eps=1e-6)
+        self.norm = nn.LayerNorm(dim, eps=1e-6)
 
-        layer_scale_init_value = layer_scale_init_value or 1 / num_layers
+        layer_scale_init_value = 1 / num_layers
         self.convnext = nn.ModuleList(
             [
                 ConvNeXtBlock(
                     dim=dim,
                     intermediate_dim=intermediate_dim,
                     layer_scale_init_value=layer_scale_init_value,
-                    adanorm_num_embeddings=adanorm_num_embeddings,
                 )
                 for _ in range(num_layers)
             ]
@@ -221,7 +236,11 @@ class Generator(torch.nn.Module):
 
         self.out_proj = torch.nn.Linear(dim, n_fft + 2)
         self.istft = ISTFT(
-            n_fft=n_fft, hop_length=hop_length, win_length=n_fft, padding=padding
+            filter_length=n_fft,
+            hop_length=hop_length,
+            win_length=n_fft,
+            padding=padding,
+            max_samples=max_samples,
         )
 
     def _init_weights(self, m):
@@ -229,29 +248,17 @@ class Generator(torch.nn.Module):
             nn.init.trunc_normal_(m.weight, std=0.02)
             nn.init.constant_(m.bias, 0)
 
-    def forward(self, x: torch.Tensor, **kwargs) -> torch.Tensor:
-        bandwidth_id = kwargs.get("bandwidth_id", None)
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.embed(x)
-        if self.adanorm:
-            assert bandwidth_id is not None
-            x = self.norm(x.transpose(1, 2), cond_embedding_id=bandwidth_id)
-        else:
-            x = self.norm(x.transpose(1, 2))
-
+        x = self.norm(x.transpose(1, 2))
         x = x.transpose(1, 2)
         for conv_block in self.convnext:
-            x = conv_block(x, cond_embedding_id=bandwidth_id)
-
+            x = conv_block(x)
         x = self.final_layer_norm(x.transpose(1, 2))
-
         x = self.out_proj(x).transpose(1, 2)
-        mag, p = x.chunk(2, dim=1)
+        mag, phase = x.chunk(2, dim=1)
         mag = torch.exp(mag)
-        mag = torch.clip(
-            mag, max=1e2
-        )  # safeguard to prevent excessively large magnitudes
-        x = torch.cos(p)
-        y = torch.sin(p)
-        S = mag * (x + 1j * y)
-        audio = self.istft(S)
+        # safeguard to prevent excessively large magnitudes
+        mag = torch.clip(mag, max=1e2)
+        audio = self.istft(mag, phase)
         return audio

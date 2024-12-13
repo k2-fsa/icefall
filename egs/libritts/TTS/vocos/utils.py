@@ -34,6 +34,69 @@ def plot_spectrogram(spectrogram):
     return fig
 
 
+def save_checkpoint_with_global_batch_idx(
+    out_dir: Path,
+    global_batch_idx: int,
+    model: Union[nn.Module, DDP],
+    model_avg: Optional[nn.Module] = None,
+    params: Optional[Dict[str, Any]] = None,
+    optimizer_g: Optional[Optimizer] = None,
+    optimizer_d: Optional[Optimizer] = None,
+    scheduler_g: Optional[LRScheduler] = None,
+    scheduler_d: Optional[LRScheduler] = None,
+    scaler: Optional[GradScaler] = None,
+    sampler: Optional[CutSampler] = None,
+    rank: int = 0,
+):
+    """Save training info after processing given number of batches.
+
+    Args:
+      out_dir:
+        The directory to save the checkpoint.
+      global_batch_idx:
+        The number of batches processed so far from the very start of the
+        training. The saved checkpoint will have the following filename:
+
+            f'out_dir / checkpoint-{global_batch_idx}.pt'
+      model:
+        The neural network model whose `state_dict` will be saved in the
+        checkpoint.
+      model_avg:
+        The stored model averaged from the start of training.
+      params:
+        A dict of training configurations to be saved.
+      optimizer:
+        The optimizer used in the training. Its `state_dict` will be saved.
+      scheduler:
+        The learning rate scheduler used in the training. Its `state_dict` will
+        be saved.
+      scaler:
+        The scaler used for mix precision training. Its `state_dict` will
+        be saved.
+      sampler:
+        The sampler used in the training dataset.
+      rank:
+        The rank ID used in DDP training of the current node. Set it to 0
+        if DDP is not used.
+    """
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    filename = out_dir / f"checkpoint-{global_batch_idx}.pt"
+    save_checkpoint(
+        filename=filename,
+        model=model,
+        model_avg=model_avg,
+        params=params,
+        optimizer_g=optimizer_g,
+        scheduler_g=scheduler_g,
+        optimizer_d=optimizer_d,
+        scheduler_d=scheduler_d,
+        scaler=scaler,
+        sampler=sampler,
+        rank=rank,
+    )
+
+
 def load_checkpoint(
     filename: Path,
     model: nn.Module,

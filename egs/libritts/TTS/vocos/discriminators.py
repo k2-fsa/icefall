@@ -3,7 +3,7 @@ from typing import List, Optional, Tuple
 import torch
 from torch import nn
 from torch.nn import Conv2d
-from torch.nn.utils import weight_norm
+from torch.nn.utils.parametrizations import weight_norm
 from torchaudio.transforms import Spectrogram
 
 

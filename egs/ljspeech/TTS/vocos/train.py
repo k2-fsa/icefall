@@ -52,9 +52,11 @@ from utils import (
     save_checkpoint,
     plot_spectrogram,
     get_cosine_schedule_with_warmup,
+    save_checkpoint_with_global_batch_idx,
 )
 
 from icefall import diagnostics
+from icefall.checkpoint import remove_checkpoints, update_averaged_model
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
 from icefall.hooks import register_inf_check_hooks
@@ -65,7 +67,7 @@ from icefall.utils import (
     str2bool,
     get_parameter_groups_with_lrs,
 )
-from models import Vocos
+from model import Vocos
 from lhotse import Fbank, FbankConfig
 
 
@@ -89,6 +91,20 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         type=int,
         default=1536,
         help="Intermediate dim of ConvNeXt module.",
+    )
+
+    parser.add_argument(
+        "--max-seconds",
+        type=int,
+        default=60,
+        help="""
+        The length of the precomputed normalization window sum square
+        (required by istft). This argument is only for onnx export, it determines
+        the max length of the audio that be properly normalized.
+        Note, you can generate audios longer than this value with the exported onnx model,
+        the part longer than this value will not be normalized yet.
+        The larger this value is the bigger the exported onnx model will be.
+        """,
     )
 
 
@@ -204,6 +220,16 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--keep-last-epoch-k",
+        type=int,
+        default=50,
+        help="""Only keep this number of checkpoints on disk.
+        For instance, if it is 3, there are only 3 checkpoints
+        in the exp-dir with filenames `epoch-xxx.pt`.
+        """,
+    )
+
+    parser.add_argument(
         "--average-period",
         type=int,
         default=500,
@@ -290,8 +316,8 @@ def get_params() -> AttributeDict:
             "valid_interval": 500,
             "feature_dim": 80,
             "segment_size": 16384,
-            "adam_b1": 0.8,
-            "adam_b2": 0.9,
+            "adam_b1": 0.9,
+            "adam_b2": 0.99,
             "warmup_steps": 0,
             "max_steps": 2000000,
             "env_info": get_env_info(),
@@ -311,18 +337,17 @@ def get_model(params: AttributeDict) -> nn.Module:
         intermediate_dim=params.intermediate_dim,
         num_layers=params.num_layers,
         sample_rate=params.sampling_rate,
+        max_seconds=params.max_seconds,
     ).to(device)
 
-    num_param_head = sum([p.numel() for p in model.head.parameters()])
-    logging.info(f"Number of Head parameters : {num_param_head}")
-    num_param_bone = sum([p.numel() for p in model.backbone.parameters()])
-    logging.info(f"Number of Generator parameters : {num_param_bone}")
+    num_param_gen = sum([p.numel() for p in model.generator.parameters()])
+    logging.info(f"Number of Generator parameters : {num_param_gen}")
     num_param_mpd = sum([p.numel() for p in model.mpd.parameters()])
     logging.info(f"Number of MultiPeriodDiscriminator parameters : {num_param_mpd}")
     num_param_mrd = sum([p.numel() for p in model.mrd.parameters()])
     logging.info(f"Number of MultiResolutionDiscriminator parameters : {num_param_mrd}")
     logging.info(
-        f"Number of model parameters : {num_param_head + num_param_bone + num_param_mpd + num_param_mrd}"
+        f"Number of model parameters : {num_param_gen + num_param_mpd + num_param_mrd}"
     )
     return model
 
@@ -481,11 +506,6 @@ def compute_discriminator_loss(
     info["loss_disc_mrd"] = loss_mrd.detach().cpu().item()
     info["loss_disc_mpd"] = loss_mpd.detach().cpu().item()
 
-    for i in range(len(loss_mpd_real)):
-        info[f"loss_disc_mpd_period_{i+1}"] = loss_mpd_real[i] + loss_mpd_gen[i]
-    for i in range(len(loss_mrd_real)):
-        info[f"loss_disc_mrd_resolution_{i+1}"] = loss_mrd_real[i] + loss_mrd_gen[i]
-
     return loss_disc_all, info
 
 
@@ -499,6 +519,7 @@ def train_one_epoch(
     train_dl: torch.utils.data.DataLoader,
     valid_dl: torch.utils.data.DataLoader,
     scaler: GradScaler,
+    model_avg: Optional[nn.Module] = None,
     tb_writer: Optional[SummaryWriter] = None,
     world_size: int = 1,
     rank: int = 0,
@@ -544,6 +565,7 @@ def train_one_epoch(
         save_checkpoint(
             filename=params.exp_dir / f"bad-model{suffix}-{rank}.pt",
             model=model,
+            model_avg=model_avg,
             params=params,
             optimizer_g=optimizer_g,
             optimizer_d=optimizer_d,
@@ -565,10 +587,6 @@ def train_one_epoch(
         segment_frames = (
             params.segment_size - params.frame_length
         ) // params.frame_shift + 1
-
-        # segment_frames = (
-        # params.segment_size + params.frame_shift // 2
-        # ) // params.frame_shift
 
         start_p = random.randint(0, features_lens.min() - (segment_frames + 1))
 
@@ -594,6 +612,7 @@ def train_one_epoch(
 
             loss_disc.backward()
             optimizer_d.step()
+            scheduler_d.step()
 
             optimizer_g.zero_grad()
             loss_gen, loss_gen_info = compute_generator_loss(
@@ -605,6 +624,7 @@ def train_one_epoch(
 
             loss_gen.backward()
             optimizer_g.step()
+            scheduler_g.step()
 
             loss_info = loss_gen_info + loss_disc_info
             tot_loss = (tot_loss * (1 - 1 / params.reset_interval)) + loss_gen_info
@@ -616,6 +636,39 @@ def train_one_epoch(
 
         if params.print_diagnostics and batch_idx == 5:
             return
+
+        if (
+            rank == 0
+            and params.batch_idx_train > 0
+            and params.batch_idx_train % params.average_period == 0
+        ):
+            update_averaged_model(
+                params=params,
+                model_cur=model,
+                model_avg=model_avg,
+            )
+
+        if (
+            params.batch_idx_train > 0
+            and params.batch_idx_train % params.save_every_n == 0
+        ):
+            save_checkpoint_with_global_batch_idx(
+                out_dir=params.exp_dir,
+                global_batch_idx=params.batch_idx_train,
+                model=model,
+                model_avg=model_avg,
+                params=params,
+                optimizer=optimizer,
+                scheduler=scheduler,
+                sampler=train_dl.sampler,
+                scaler=scaler,
+                rank=rank,
+            )
+            remove_checkpoints(
+                out_dir=params.exp_dir,
+                topk=params.keep_last_k,
+                rank=rank,
+            )
 
         if params.batch_idx_train % 100 == 0 and params.use_fp16:
             # If the grad scale was less than 1, try increasing it.    The _growth_interval
@@ -647,8 +700,8 @@ def train_one_epoch(
                 f"Epoch {params.cur_epoch}, batch {batch_idx}, "
                 f"global_batch_idx: {params.batch_idx_train}, batch size: {batch_size}, "
                 f"loss[{loss_info}], tot_loss[{tot_loss}], "
-                f"cur_lr_g: {cur_lr_g:.2e}, "
-                f"cur_lr_d: {cur_lr_d:.2e}, "
+                f"cur_lr_g: {cur_lr_g:.4e}, "
+                f"cur_lr_d: {cur_lr_d:.4e}, "
                 + (f"grad_scale: {scaler._scale.item()}" if params.use_fp16 else "")
             )
 
@@ -668,11 +721,10 @@ def train_one_epoch(
                         "train/grad_scale", cur_grad_scale, params.batch_idx_train
                     )
 
-        # if (
-        # params.batch_idx_train % params.valid_interval == 0
-        # and not params.print_diagnostics
-        # ):
-        if True:
+        if (
+            params.batch_idx_train % params.valid_interval == 0
+            and not params.print_diagnostics
+        ):
             logging.info("Computing validation loss")
             valid_info = compute_validation_loss(
                 params=params,
@@ -692,8 +744,6 @@ def train_one_epoch(
                     tb_writer, "train/valid_", params.batch_idx_train
                 )
 
-    scheduler_g.step()
-    scheduler_d.step()
     loss_value = tot_loss["loss_gen"]
     params.train_loss = loss_value
     if params.train_loss < params.best_train_loss:
@@ -773,7 +823,7 @@ def compute_validation_loss(
                     params.sampling_rate,
                 )
 
-        logging.info(f"RTF : {infer_time / (audio_time * 10 / 1000)}")
+        logging.info(f"Validation RTF : {infer_time / (audio_time * 10 / 1000)}")
 
         if world_size > 1:
             tot_loss.reduce(device)
@@ -818,19 +868,25 @@ def run(rank, world_size, args):
     device = torch.device("cpu")
     if torch.cuda.is_available():
         device = torch.device("cuda", rank)
-    logging.info(f"Device: {device}")
     params.device = device
     logging.info(params)
-    logging.info("About to create model")
 
+    logging.info("About to create model")
     model = get_model(params)
 
+    assert params.save_every_n >= params.average_period
+    model_avg: Optional[nn.Module] = None
+    if rank == 0:
+        # model_avg is only used with rank 0
+        model_avg = copy.deepcopy(model).to(torch.float64)
+
     assert params.start_epoch > 0, params.start_epoch
-    checkpoints = load_checkpoint_if_available(params=params, model=model)
+    checkpoints = load_checkpoint_if_available(
+        params=params, model=model, model_avg=model_avg
+    )
 
     model = model.to(device)
-    head = model.head
-    backbone = model.backbone
+    generator = model.generator
     mrd = model.mrd
     mpd = model.mpd
     if world_size > 1:
@@ -838,7 +894,7 @@ def run(rank, world_size, args):
         model = DDP(model, device_ids=[rank], find_unused_parameters=True)
 
     optimizer_g = torch.optim.AdamW(
-        itertools.chain(head.parameters(), backbone.parameters()),
+        generator.parameters(),
         params.learning_rate,
         betas=[params.adam_b1, params.adam_b2],
     )
@@ -923,6 +979,7 @@ def run(rank, world_size, args):
         train_one_epoch(
             params=params,
             model=model,
+            model_avg=model_avg,
             optimizer_g=optimizer_g,
             optimizer_d=optimizer_d,
             scheduler_g=scheduler_g,
@@ -944,6 +1001,7 @@ def run(rank, world_size, args):
             filename=filename,
             params=params,
             model=model,
+            model_avg=model_avg,
             optimizer_g=optimizer_g,
             optimizer_d=optimizer_d,
             scheduler_g=scheduler_g,
@@ -953,28 +1011,20 @@ def run(rank, world_size, args):
             rank=rank,
         )
 
-        if params.batch_idx_train % params.save_every_n == 0:
-            filename = params.exp_dir / f"checkpoint-{params.batch_idx_train}.pt"
-            save_checkpoint(
-                filename=filename,
-                params=params,
-                model=model,
-                optimizer_g=optimizer_g,
-                optimizer_d=optimizer_d,
-                scheduler_g=scheduler_g,
-                scheduler_d=scheduler_d,
-                sampler=train_dl.sampler,
-                scaler=scaler,
-                rank=rank,
-            )
-            if rank == 0:
-                if params.best_train_epoch == params.cur_epoch:
-                    best_train_filename = params.exp_dir / "best-train-loss.pt"
-                    copyfile(src=filename, dst=best_train_filename)
+        if params.best_train_epoch == params.cur_epoch:
+            best_train_filename = params.exp_dir / "best-train-loss.pt"
+            copyfile(src=filename, dst=best_train_filename)
 
-                if params.best_valid_epoch == params.cur_epoch:
-                    best_valid_filename = params.exp_dir / "best-valid-loss.pt"
-                    copyfile(src=filename, dst=best_valid_filename)
+        if params.best_valid_epoch == params.cur_epoch:
+            best_valid_filename = params.exp_dir / "best-valid-loss.pt"
+            copyfile(src=filename, dst=best_valid_filename)
+
+        remove_checkpoints(
+            out_dir=params.exp_dir,
+            topk=params.keep_last_epoch_k,
+            prefix="epoch",
+            rank=rank,
+        )
 
     logging.info("Done!")
 
@@ -997,7 +1047,8 @@ def main():
         run(rank=0, world_size=1, args=args)
 
 
+torch.set_num_threads(1)
+torch.set_num_interop_threads(1)
+
 if __name__ == "__main__":
-    torch.set_num_threads(1)
-    torch.set_num_interop_threads(1)
     main()

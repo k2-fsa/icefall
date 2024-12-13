@@ -19,8 +19,9 @@ class Vocos(torch.nn.Module):
         hop_length: int = 256,
         intermediate_dim: int = 1536,
         num_layers: int = 8,
-        padding: str = "same",
+        padding: str = "none",
         sample_rate: int = 24000,
+        max_seconds: int = 60,
     ):
         super(Vocos, self).__init__()
         self.generator = Generator(
@@ -31,6 +32,7 @@ class Vocos(torch.nn.Module):
             num_layers=num_layers,
             intermediate_dim=intermediate_dim,
             padding=padding,
+            max_samples=int(sample_rate * max_seconds),
         )
 
         self.mpd = MultiPeriodDiscriminator()
