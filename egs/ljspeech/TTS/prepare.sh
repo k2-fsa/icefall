@@ -25,26 +25,16 @@ log() {
 log "dl_dir: $dl_dir"
 
 if [ $stage -le -1 ] && [ $stop_stage -ge -1 ]; then
-  log "Stage -1: build monotonic_align lib"
-  if [ ! -d vits/monotonic_align/build ]; then
-    cd vits/monotonic_align
-    python3 setup.py build_ext --inplace
-    cd ../../
-  else
-    log "monotonic_align lib for vits already built"
-  fi
-
-  if [ ! -f ./matcha/monotonic_align/core.cpython-38-x86_64-linux-gnu.so  ]; then
-    pushd matcha/monotonic_align
-    python3 setup.py build
-    mv -v build/lib.*/matcha/monotonic_align/core.*.so .
-    rm -rf build
-    rm core.c
-    ls -lh
-    popd
-  else
-    log "monotonic_align lib for matcha-tts already built"
-  fi
+  log "Stage -1: build monotonic_align lib (used by vits and matcha recipes)"
+  for recipe in vits matcha; do
+    if [ ! -d $recipe/monotonic_align/build ]; then
+      cd $recipe/monotonic_align
+      python3 setup.py build_ext --inplace
+      cd ../../
+    else
+      log "monotonic_align lib for $recipe already built"
+    fi
+  done
 fi
 
 if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
