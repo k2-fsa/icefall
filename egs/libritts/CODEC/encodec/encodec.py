@@ -29,7 +29,7 @@ from loss import (
     WavReconstructionLoss,
 )
 from torch import nn
-from torch.cuda.amp import autocast
+from torch.amp import autocast
 
 
 class Encodec(nn.Module):
@@ -148,7 +148,7 @@ class Encodec(nn.Module):
                 )
 
         # calculate losses
-        with autocast(enabled=False):
+        with autocast("cuda", enabled=False):
             gen_stft_adv_loss = self.generator_adversarial_loss(outputs=y_hat)
 
             if self.multi_period_discriminator is not None:
@@ -272,7 +272,7 @@ class Encodec(nn.Module):
                 speech_hat.contiguous().detach(),
             )
         # calculate losses
-        with autocast(enabled=False):
+        with autocast("cuda", enabled=False):
             (
                 disc_stft_real_adv_loss,
                 disc_stft_fake_adv_loss,

@@ -341,7 +341,7 @@ def compute_validation_loss(
 
     for batch_idx, batch in enumerate(valid_dl):
         x, y, sentence_lengths = batch
-        with torch.cuda.amp.autocast(enabled=params.use_fp16):
+        with torch.amp.autocast("cuda", enabled=params.use_fp16):
             loss, loss_info = compute_loss(
                 model=model,
                 x=x,
@@ -403,7 +403,7 @@ def train_one_epoch(
         params.batch_idx_train += 1
         x, y, sentence_lengths = batch
         batch_size = x.size(0)
-        with torch.cuda.amp.autocast(enabled=params.use_fp16):
+        with torch.amp.autocast("cuda", enabled=params.use_fp16):
             loss, loss_info = compute_loss(
                 model=model,
                 x=x,
