@@ -516,9 +516,19 @@ def main():
             for idx, part in enumerate(cut_sets):
                 if args.audio_extractor:
                     if args.audio_extractor == "Encodec":
-                        storage_path = f"{args.output_dir}/{args.prefix}_encodec_{partition}_{idx if split > 1 else ''}"
+                        if split > 1:
+                            storage_path = f"{args.output_dir}/{args.prefix}_encodec_{partition}_{idx}"
+                        else:
+                            storage_path = (
+                                f"{args.output_dir}/{args.prefix}_encodec_{partition}"
+                            )
                     else:
-                        storage_path = f"{args.output_dir}/{args.prefix}_fbank_{partition}_{idx if split > 1 else ''}"
+                        if split > 1:
+                            storage_path = f"{args.output_dir}/{args.prefix}_fbank_{partition}_{idx}"
+                        else:
+                            storage_path = (
+                                f"{args.output_dir}/{args.prefix}_fbank_{partition}"
+                            )
 
                     if args.prefix.lower() in [
                         "ljspeech",
@@ -587,9 +597,11 @@ def main():
                         ].normalized_text, "normalized_text is None"
 
                 # Save each part with an index if split > 1
-                cuts_filename = (
-                    f"{prefix}cuts_{partition}.{idx if split > 1 else ''}.{args.suffix}"
-                )
+                if split > 1:
+                    cuts_filename = f"{prefix}cuts_{partition}.{idx}.{args.suffix}"
+                else:
+                    cuts_filename = f"{prefix}cuts_{partition}.{args.suffix}"
+
                 part.to_file(f"{args.output_dir}/{cuts_filename}")
                 logging.info(f"Saved {cuts_filename}")
 

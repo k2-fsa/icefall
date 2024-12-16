@@ -86,7 +86,7 @@ def get_args():
     parser.add_argument(
         "--checkpoint",
         type=str,
-        default="exp/vallf_nano_full/checkpoint-100000.pt",
+        default="./valle/exp/checkpoint-100000.pt",
         help="Path to the saved checkpoint.",
     )
 

@@ -4,6 +4,7 @@
 #                                                       Mingshuang Luo)
 # Copyright    2023                           (authors: Feiteng Li)
 # Copyright    2024                           (authors: Yuekai Zhang)
+# Copyright    2024  Tsinghua University      (authors: Zengrui Jin,)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -48,10 +49,8 @@ python3 valle/train.py --max-duration 160 --filter-min-duration 0.5 --filter-max
 import argparse
 import copy
 import logging
-import os
 import random
 import warnings
-from contextlib import nullcontext
 from pathlib import Path
 from shutil import copyfile
 from typing import Any, Dict, Optional, Tuple, Union
@@ -216,7 +215,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="exp/valle_dev",
+        default="./valle/exp",
         help="""The experiment dir.
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
@@ -686,9 +685,9 @@ def compute_validation_loss(
         output_dir = Path(f"{params.exp_dir}/eval/step-{params.batch_idx_train:06d}")
         output_dir.mkdir(parents=True, exist_ok=True)
         if isinstance(model, DDP):
-            model.module.visualize(predicts, batch, output_dir=output_dir)
+            model.module.visualize(predicts, batch, tokenizer, output_dir=output_dir)
         else:
-            model.visualize(predicts, batch, output_dir=output_dir)
+            model.visualize(predicts, batch, tokenizer, output_dir=output_dir)
 
     return tot_loss
 

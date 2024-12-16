@@ -33,7 +33,6 @@ import argparse
 import logging
 from pathlib import Path
 
-from compute_fbank_ljspeech import MyFbank
 from lhotse import CutSet, load_manifest_lazy
 from lhotse.dataset.speech_synthesis import validate_for_tts
 
