@@ -64,3 +64,21 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
     lhotse download baker-zh $dl_dir
   fi
 fi
+
+if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
+  log "Stage 1: Prepare baker-zh manifest"
+  # We assume that you have downloaded the baker corpus
+  # to $dl_dir/BZNSYP
+  mkdir -p data/manifests
+  if [ ! -e data/manifests/.baker-zh.done ]; then
+    lhotse prepare baker-zh $dl_dir/BZNSYP data/manifests
+    touch data/manifests/.baker-zh.done
+  fi
+fi
+
+if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
+  log "Stage 2: Generate tokens.txt"
+  if [ ! -e data/tokens.txt ]; then
+    python3 ./local/generate_tokens.py --tokens data/tokens.txt
+  fi
+fi
