@@ -57,6 +57,7 @@ function infer() {
   curl -SL -O https://github.com/csukuangfj/models/raw/refs/heads/master/hifigan/generator_v1
 
   ./matcha/infer.py \
+    --num-buckets 2 \
     --epoch 1 \
     --exp-dir ./matcha/exp \
     --tokens data/tokens.txt \
@@ -118,3 +119,4 @@ infer
 export_onnx
 
 rm -rfv generator_v* matcha/exp
+git checkout .
