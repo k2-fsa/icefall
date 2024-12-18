@@ -61,7 +61,7 @@ from model import SURT
 from optim import Eden, ScaledAdam
 from scaling import ScaledLinear, ScaledLSTM
 from torch import Tensor
-from torch.amp import GradScaler
+from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
 from zipformer import Zipformer
@@ -1067,7 +1067,7 @@ def train_one_epoch(
         batch_size = batch["inputs"].shape[0]
 
         try:
-            with torch.amp.autocast("cuda", enabled=params.use_fp16):
+            with torch.cuda.amp.autocast(enabled=params.use_fp16):
                 loss, loss_info = compute_loss(
                     params=params,
                     model=model,
@@ -1314,7 +1314,7 @@ def run(rank, world_size, args):
     )
     valid_dl = ami.valid_dataloaders(dev_cuts)
 
-    scaler = GradScaler("cuda", enabled=params.use_fp16, init_scale=1.0)
+    scaler = GradScaler(enabled=params.use_fp16, init_scale=1.0)
     if checkpoints and "grad_scaler" in checkpoints:
         logging.info("Loading grad scaler state dict")
         scaler.load_state_dict(checkpoints["grad_scaler"])

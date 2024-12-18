@@ -17,7 +17,7 @@ from lhotse.utils import fix_random_seed
 from model import fix_len_compatibility
 from models.matcha_tts import MatchaTTS
 from tokenizer import Tokenizer
-from torch.amp import GradScaler, autocast
+from torch.cuda.amp import GradScaler, autocast
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim import Optimizer
 from torch.utils.tensorboard import SummaryWriter
@@ -474,7 +474,7 @@ def train_one_epoch(
             tokens_lens,
         ) = prepare_input(batch, tokenizer, device, params)
         try:
-            with autocast("cuda", enabled=params.use_fp16):
+            with autocast(enabled=params.use_fp16):
                 losses = get_losses(
                     {
                         "x": tokens,
@@ -645,7 +645,7 @@ def run(rank, world_size, args):
     valid_cuts = ljspeech.valid_cuts()
     valid_dl = ljspeech.valid_dataloaders(valid_cuts)
 
-    scaler = GradScaler("cuda", enabled=params.use_fp16, init_scale=1.0)
+    scaler = GradScaler(enabled=params.use_fp16, init_scale=1.0)
     if checkpoints and "grad_scaler" in checkpoints:
         logging.info("Loading grad scaler state dict")
         scaler.load_state_dict(checkpoints["grad_scaler"])
