@@ -31,7 +31,7 @@ import torch.nn as nn
 from lhotse.cut import Cut
 from lhotse.utils import fix_random_seed
 from tokenizer import Tokenizer
-from torch.amp import GradScaler, autocast
+from torch.cuda.amp import GradScaler, autocast
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim import Optimizer
 from torch.utils.tensorboard import SummaryWriter
@@ -448,7 +448,7 @@ def train_one_epoch(
         loss_info["samples"] = batch_size
 
         try:
-            with autocast("cuda", enabled=params.use_fp16):
+            with autocast(enabled=params.use_fp16):
                 # forward discriminator
                 loss_d, stats_d = model(
                     text=tokens,
@@ -467,7 +467,7 @@ def train_one_epoch(
             scaler.scale(loss_d).backward()
             scaler.step(optimizer_d)
 
-            with autocast("cuda", enabled=params.use_fp16):
+            with autocast(enabled=params.use_fp16):
                 # forward generator
                 loss_g, stats_g = model(
                     text=tokens,
@@ -740,7 +740,7 @@ def scan_pessimistic_batches_for_oom(
         ) = prepare_input(batch, tokenizer, device, speaker_map)
         try:
             # for discriminator
-            with autocast("cuda", enabled=params.use_fp16):
+            with autocast(enabled=params.use_fp16):
                 loss_d, stats_d = model(
                     text=tokens,
                     text_lengths=tokens_lens,
@@ -754,7 +754,7 @@ def scan_pessimistic_batches_for_oom(
             optimizer_d.zero_grad()
             loss_d.backward()
             # for generator
-            with autocast("cuda", enabled=params.use_fp16):
+            with autocast(enabled=params.use_fp16):
                 loss_g, stats_g = model(
                     text=tokens,
                     text_lengths=tokens_lens,
@@ -910,7 +910,7 @@ def run(rank, world_size, args):
             params=params,
         )
 
-    scaler = GradScaler("cuda", enabled=params.use_fp16, init_scale=1.0)
+    scaler = GradScaler(enabled=params.use_fp16, init_scale=1.0)
     if checkpoints and "grad_scaler" in checkpoints:
         logging.info("Loading grad scaler state dict")
         scaler.load_state_dict(checkpoints["grad_scaler"])
