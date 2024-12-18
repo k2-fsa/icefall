@@ -154,7 +154,7 @@ def main():
     params = get_parser().parse_args()
     logging.info(vars(params))
 
-    model = OnnxModel(params.acoustic_model, tokens)
+    model = OnnxModel(params.acoustic_model, params.tokens)
     vocoder = OnnxHifiGANModel(params.vocoder)
     text = params.input_text
     x = model.tokenizer.texts_to_token_ids([text], add_sos=True, add_eos=True)
