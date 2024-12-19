@@ -29,17 +29,13 @@ dataset, you should change the argument values according to your dataset.
 
 (1) Export to torchscript model using torch.jit.script()
 
-- For non-streaming model: 
+- For non-streaming model:
 
-./zipformer_hat_seame/export.py \
-  --exp-dir ./zipformer_hat/exp \
-  --tokens data_seame/lang_bpe_4000/tokens.txt \
-  --epoch 20 \
-  --avg 5 \
-  --num-encoder-layers 2,2,2,2,2,2 \
-  --feedforward-dim 512,768,1024,1024,1024,768 \
-  --encoder-dim 192,256,256,256,256,256 \
-  --encoder-unmasked-dim 192,192,192,192,192,192 \
+./zipformer/export.py \
+  --exp-dir ./zipformer/exp \
+  --tokens data/lang_bpe_500/tokens.txt \
+  --epoch 30 \
+  --avg 9 \
   --jit 1
 
 It will generate a file `jit_script.pt` in the given `exp_dir`. You can later
@@ -408,7 +404,6 @@ def main():
 
     token_table = k2.SymbolTable.from_file(params.tokens)
     params.blank_id = token_table["<blk>"]
-    params.sos_id = params.eos_id = token_table["<sos/eos>"]
     params.vocab_size = num_tokens(token_table) + 1
 
     logging.info(params)
@@ -471,6 +466,8 @@ def main():
                     device=device,
                 )
             )
+        elif params.avg == 1:
+            load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
         else:
             assert params.avg > 0, params.avg
             start = params.epoch - params.avg
