@@ -89,6 +89,7 @@ class OnnxHifiGANModel:
                 self.model.get_inputs()[0].name: x.numpy(),
             },
         )[0]
+        # audio: (batch_size, num_samples)
 
         return torch.from_numpy(audio)
 
@@ -97,18 +98,23 @@ class OnnxModel:
     def __init__(
         self,
         filename: str,
+        tokens: str,
     ):
         session_opts = ort.SessionOptions()
         session_opts.inter_op_num_threads = 1
         session_opts.intra_op_num_threads = 2
 
         self.session_opts = session_opts
-        self.tokenizer = Tokenizer("./data/tokens.txt")
+        self.tokenizer = Tokenizer(tokens)
         self.model = ort.InferenceSession(
             filename,
             sess_options=self.session_opts,
             providers=["CPUExecutionProvider"],
         )
+
+        logging.info(f"{self.model.get_modelmeta().custom_metadata_map}")
+        metadata = self.model.get_modelmeta().custom_metadata_map
+        self.sample_rate = int(metadata["sample_rate"])
 
         for i in self.model.get_inputs():
             print(i)
@@ -138,6 +144,7 @@ class OnnxModel:
                 self.model.get_inputs()[3].name: length_scale.numpy(),
             },
         )[0]
+        # mel: (batch_size, feat_dim, num_frames)
 
         return torch.from_numpy(mel)
 
@@ -147,7 +154,7 @@ def main():
     params = get_parser().parse_args()
     logging.info(vars(params))
 
-    model = OnnxModel(params.acoustic_model)
+    model = OnnxModel(params.acoustic_model, params.tokens)
     vocoder = OnnxHifiGANModel(params.vocoder)
     text = params.input_text
     x = model.tokenizer.texts_to_token_ids([text], add_sos=True, add_eos=True)
@@ -164,15 +171,17 @@ def main():
     print("audio", audio.shape)  # (1, 1, num_samples)
     audio = audio.squeeze()
 
+    sample_rate = model.sample_rate
+
     t = (end_t - start_t).total_seconds()
     t2 = (end_t2 - start_t2).total_seconds()
-    rtf_am = t * 22050 / audio.shape[-1]
-    rtf_vocoder = t2 * 22050 / audio.shape[-1]
+    rtf_am = t * sample_rate / audio.shape[-1]
+    rtf_vocoder = t2 * sample_rate / audio.shape[-1]
     print("RTF for acoustic model ", rtf_am)
     print("RTF for vocoder", rtf_vocoder)
 
     # skip denoiser
-    sf.write(params.output_wav, audio, 22050, "PCM_16")
+    sf.write(params.output_wav, audio, sample_rate, "PCM_16")
     logging.info(f"Saved to {params.output_wav}")
 
 
