@@ -24,21 +24,22 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import torch
-from fbank import MatchaFbank, MatchaFbankConfig
+
+# from fbank import MatchaFbank, MatchaFbankConfig
 from lhotse import CutSet, load_manifest_lazy
-from lhotse.dataset import (  # noqa F401 for PrecomputedFeatures
+from lhotse.dataset import (  # noqa F401 for PrecomputedFeatures; SpeechSynthesisDataset,
     CutConcatenate,
     CutMix,
     DynamicBucketingSampler,
     PrecomputedFeatures,
     SimpleCutSampler,
-    SpeechSynthesisDataset,
 )
 from lhotse.dataset.input_strategies import (  # noqa F401 For AudioSamples
     AudioSamples,
     OnTheFlyFeatures,
 )
 from lhotse.utils import fix_random_seed
+from speech_synthesis import SpeechSynthesisDataset  # noqa F401
 from torch.utils.data import DataLoader
 
 from icefall.utils import str2bool
@@ -174,29 +175,32 @@ class TtsDataModule:
         """
         logging.info("About to create train dataset")
         train = SpeechSynthesisDataset(
-            return_text=False,
-            return_tokens=True,
+            return_text=True,
+            return_tokens=False,
             feature_input_strategy=eval(self.args.input_strategy)(),
             return_cuts=self.args.return_cuts,
         )
 
         if self.args.on_the_fly_feats:
-            sampling_rate = 22050
-            config = MatchaFbankConfig(
-                n_fft=1024,
-                n_mels=80,
-                sampling_rate=sampling_rate,
-                hop_length=256,
-                win_length=1024,
-                f_min=0,
-                f_max=8000,
+            raise NotImplementedError(
+                "On-the-fly feature extraction is not implemented yet."
             )
-            train = SpeechSynthesisDataset(
-                return_text=False,
-                return_tokens=True,
-                feature_input_strategy=OnTheFlyFeatures(MatchaFbank(config)),
-                return_cuts=self.args.return_cuts,
-            )
+            # sampling_rate = 22050
+            # config = MatchaFbankConfig(
+            #     n_fft=1024,
+            #     n_mels=80,
+            #     sampling_rate=sampling_rate,
+            #     hop_length=256,
+            #     win_length=1024,
+            #     f_min=0,
+            #     f_max=8000,
+            # )
+            # train = SpeechSynthesisDataset(
+            #     return_text=True,
+            #     return_tokens=False,
+            #     feature_input_strategy=OnTheFlyFeatures(MatchaFbank(config)),
+            #     return_cuts=self.args.return_cuts,
+            # )
 
         if self.args.bucketing_sampler:
             logging.info("Using DynamicBucketingSampler.")
@@ -242,26 +246,29 @@ class TtsDataModule:
     def valid_dataloaders(self, cuts_valid: CutSet) -> DataLoader:
         logging.info("About to create dev dataset")
         if self.args.on_the_fly_feats:
-            sampling_rate = 22050
-            config = MatchaFbankConfig(
-                n_fft=1024,
-                n_mels=80,
-                sampling_rate=sampling_rate,
-                hop_length=256,
-                win_length=1024,
-                f_min=0,
-                f_max=8000,
+            raise NotImplementedError(
+                "On-the-fly feature extraction is not implemented yet."
             )
-            validate = SpeechSynthesisDataset(
-                return_text=False,
-                return_tokens=True,
-                feature_input_strategy=OnTheFlyFeatures(MatchaFbank(config)),
-                return_cuts=self.args.return_cuts,
-            )
+            # sampling_rate = 22050
+            # config = MatchaFbankConfig(
+            #     n_fft=1024,
+            #     n_mels=80,
+            #     sampling_rate=sampling_rate,
+            #     hop_length=256,
+            #     win_length=1024,
+            #     f_min=0,
+            #     f_max=8000,
+            # )
+            # validate = SpeechSynthesisDataset(
+            #     return_text=True,
+            #     return_tokens=False,
+            #     feature_input_strategy=OnTheFlyFeatures(MatchaFbank(config)),
+            #     return_cuts=self.args.return_cuts,
+            # )
         else:
             validate = SpeechSynthesisDataset(
-                return_text=False,
-                return_tokens=True,
+                return_text=True,
+                return_tokens=False,
                 feature_input_strategy=eval(self.args.input_strategy)(),
                 return_cuts=self.args.return_cuts,
             )
@@ -286,26 +293,29 @@ class TtsDataModule:
     def test_dataloaders(self, cuts: CutSet) -> DataLoader:
         logging.info("About to create test dataset")
         if self.args.on_the_fly_feats:
-            sampling_rate = 22050
-            config = MatchaFbankConfig(
-                n_fft=1024,
-                n_mels=80,
-                sampling_rate=sampling_rate,
-                hop_length=256,
-                win_length=1024,
-                f_min=0,
-                f_max=8000,
+            raise NotImplementedError(
+                "On-the-fly feature extraction is not implemented yet."
             )
-            test = SpeechSynthesisDataset(
-                return_text=False,
-                return_tokens=True,
-                feature_input_strategy=OnTheFlyFeatures(MatchaFbank(config)),
-                return_cuts=self.args.return_cuts,
-            )
+            # sampling_rate = 22050
+            # config = MatchaFbankConfig(
+            #     n_fft=1024,
+            #     n_mels=80,
+            #     sampling_rate=sampling_rate,
+            #     hop_length=256,
+            #     win_length=1024,
+            #     f_min=0,
+            #     f_max=8000,
+            # )
+            # test = SpeechSynthesisDataset(
+            #     return_text=True,
+            #     return_tokens=False,
+            #     feature_input_strategy=OnTheFlyFeatures(MatchaFbank(config)),
+            #     return_cuts=self.args.return_cuts,
+            # )
         else:
             test = SpeechSynthesisDataset(
-                return_text=False,
-                return_tokens=True,
+                return_text=True,
+                return_tokens=False,
                 feature_input_strategy=eval(self.args.input_strategy)(),
                 return_cuts=self.args.return_cuts,
             )
