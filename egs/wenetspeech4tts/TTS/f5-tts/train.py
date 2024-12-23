@@ -47,10 +47,13 @@ from model.dit import DiT
 from model.utils import convert_char_to_pinyin
 from optim import Eden, ScaledAdam
 from torch import Tensor
-from torch.cuda.amp import GradScaler
+
+# from torch.cuda.amp import GradScaler
+from torch.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
 from tts_datamodule import TtsDataModule
+from utils import MetricsTracker
 
 from icefall.checkpoint import load_checkpoint, remove_checkpoints
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
@@ -61,7 +64,7 @@ from icefall.checkpoint import (
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
 from icefall.hooks import register_inf_check_hooks
-from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool
+from icefall.utils import AttributeDict, setup_logger, str2bool  # MetricsTracker
 
 LRSchedulerType = torch.optim.lr_scheduler._LRScheduler
 
@@ -340,7 +343,7 @@ def get_params() -> AttributeDict:
             "best_train_epoch": -1,
             "best_valid_epoch": -1,
             "batch_idx_train": 0,
-            "log_interval": 1,
+            "log_interval": 100,
             "reset_interval": 200,
             "valid_interval": 10000,
             "env_info": get_env_info(),
@@ -411,12 +414,12 @@ def load_pretrained_checkpoint(
 ):
     # model = model.to(dtype)
     checkpoint = torch.load(ckpt_path, map_location=device, weights_only=True)
-
-    checkpoint["model_state_dict"] = {
-        k.replace("ema_model.", ""): v
-        for k, v in checkpoint["ema_model_state_dict"].items()
-        if k not in ["initted", "step"]
-    }
+    if "ema_model_state_dict" in checkpoint:
+        checkpoint["model_state_dict"] = {
+            k.replace("ema_model.", ""): v
+            for k, v in checkpoint["ema_model_state_dict"].items()
+            if k not in ["initted", "step"]
+        }
 
     # patch for backward compatibility, 305e3ea
     for key in [
@@ -553,7 +556,7 @@ def prepare_input(batch: dict, device: torch.device):
     text_inputs = batch["text"]
     # texts.extend(convert_char_to_pinyin([text], polyphone=true))
     text_inputs = convert_char_to_pinyin(text_inputs, polyphone=True)
-    print(text_inputs)
+
     mel_spec = batch["features"]
     mel_lengths = batch["features_lens"]
     return text_inputs, mel_spec.to(device), mel_lengths.to(device)
@@ -591,22 +594,13 @@ def compute_loss(
     with torch.set_grad_enabled(is_training):
         loss, cond, pred = model(mel_spec, text=text_inputs, lens=mel_lengths)
     assert loss.requires_grad == is_training
-    print(loss)
-    # from accelerate import Accelerator
-    # from accelerate.utils import DistributedDataParallelKwargs
-    # ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=True)
-    # accelerator = Accelerator(
-    #     kwargs_handlers=[ddp_kwargs],
-    # )
-    # accelerator.backward(loss)
-    # loss.backward()
 
     info = MetricsTracker()
-    # with warnings.catch_warnings():
-    #     warnings.simplefilter("ignore")
-    #     info["samples"] = mel_lengths.size(0)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        info["samples"] = mel_lengths.size(0)
 
-    # info["loss"] = loss.detach().cpu().item() * info["samples"]
+    info["loss"] = loss.detach().cpu().item() * info["samples"]
 
     return loss, info
 
@@ -633,7 +627,7 @@ def compute_validation_loss(
         tot_loss = tot_loss + loss_info
     if world_size > 1:
         tot_loss.reduce(loss.device)
-    loss_value = tot_loss["loss"] / tot_loss["frames"]
+    loss_value = tot_loss["loss"] / tot_loss["samples"]
     if loss_value < params.best_valid_loss:
         params.best_valid_epoch = params.cur_epoch
         params.best_valid_loss = loss_value
@@ -721,7 +715,7 @@ def train_one_epoch(
         batch_size = len(batch["text"])
 
         try:
-            with torch.cuda.amp.autocast(dtype=dtype, enabled=enabled):
+            with torch.amp.autocast("cuda", dtype=dtype, enabled=enabled):
                 loss, loss_info = compute_loss(
                     params=params,
                     model=model,
@@ -749,7 +743,7 @@ def train_one_epoch(
 
                     scaler.step(optimizer)
                     scaler.update()
-                    # optimizer.zero_grad()
+                    optimizer.zero_grad()
                     # loss.backward()
                     # optimizer.step()
 
@@ -856,7 +850,7 @@ def train_one_epoch(
             # Calculate validation loss in Rank 0
             model.eval()
             logging.info("Computing validation loss")
-            with torch.cuda.amp.autocast(dtype=dtype):
+            with torch.amp.autocast("cuda", dtype=dtype):
                 valid_info = compute_validation_loss(
                     params=params,
                     model=model,
@@ -876,7 +870,7 @@ def train_one_epoch(
 
             model.train()
 
-    loss_value = tot_loss["loss"] / tot_loss["frames"]
+    loss_value = tot_loss["loss"] / tot_loss["samples"]
     params.train_loss = loss_value
     if params.train_loss < params.best_train_loss:
         params.best_train_epoch = params.cur_epoch
@@ -944,7 +938,6 @@ def run(rank, world_size, args):
 
     model = get_model(params)
     # model = load_pretrained_checkpoint(model, params.pretrained_model_path)
-
     model = model.to(device)
 
     with open(f"{params.exp_dir}/model.txt", "w") as f:
@@ -969,7 +962,7 @@ def run(rank, world_size, args):
     model.to(device)
     if world_size > 1:
         logging.info("Using DDP")
-        model = DDP(model, device_ids=[rank], find_unused_parameters=True)
+        model = DDP(model, device_ids=[rank], find_unused_parameters=False)
 
     model_parameters = model.parameters()
 
@@ -1046,7 +1039,9 @@ def run(rank, world_size, args):
             params=params,
         )
 
-    scaler = GradScaler(enabled=(params.dtype in ["fp16", "float16"]), init_scale=1.0)
+    scaler = GradScaler(
+        "cuda", enabled=(params.dtype in ["fp16", "float16"]), init_scale=1.0
+    )
     if checkpoints and "grad_scaler" in checkpoints:
         logging.info("Loading grad scaler state dict")
         scaler.load_state_dict(checkpoints["grad_scaler"])
@@ -1141,7 +1136,7 @@ def scan_pessimistic_batches_for_oom(
         batch = train_dl.dataset[cuts]
         print(batch.keys())
         try:
-            with torch.cuda.amp.autocast(dtype=dtype):
+            with torch.amp.autocast("cuda", dtype=dtype):
                 loss, loss_info = compute_loss(
                     params=params,
                     model=model,
