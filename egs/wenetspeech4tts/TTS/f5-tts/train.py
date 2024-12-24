@@ -409,7 +409,7 @@ def get_model(params):
     return model
 
 
-def load_pretrained_checkpoint(
+def load_F5_TTS_pretrained_checkpoint(
     model, ckpt_path, device: str = "cpu", dtype=torch.float32
 ):
     # model = model.to(dtype)
@@ -937,7 +937,7 @@ def run(rank, world_size, args):
     logging.info("About to create model")
 
     model = get_model(params)
-    # model = load_pretrained_checkpoint(model, params.pretrained_model_path)
+    # model = load_F5_TTS_pretrained_checkpoint(model, params.pretrained_model_path)
     model = model.to(device)
 
     with open(f"{params.exp_dir}/model.txt", "w") as f:
