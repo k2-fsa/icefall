@@ -61,7 +61,7 @@ from lhotse.utils import fix_random_seed
 from multi_dataset import MultiDataset
 from optim import Eden, ScaledAdam
 from torch import Tensor
-from torch.amp import GradScaler
+from torch.cuda.amp import GradScaler
 from torch.nn.functional import pad as pad_tensor
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
@@ -566,7 +566,7 @@ def compute_validation_loss(
     tot_loss = MetricsTracker()
 
     for batch_idx, batch in enumerate(valid_dl):
-        with torch.amp.autocast("cuda", enabled=params.use_fp16):
+        with torch.cuda.amp.autocast(enabled=params.use_fp16):
             loss, loss_info = compute_loss(
                 params=params,
                 tokenizer=tokenizer,
@@ -675,7 +675,7 @@ def train_one_epoch(
                     )
 
         try:
-            with torch.amp.autocast("cuda", enabled=params.use_fp16):
+            with torch.cuda.amp.autocast(enabled=params.use_fp16):
                 loss, loss_info = compute_loss(
                     params=params,
                     tokenizer=tokenizer,
@@ -913,7 +913,7 @@ def run(rank, world_size, args):
     valid_cuts = multi_dataset.dev_cuts()
     valid_dl = data_module.valid_dataloaders(valid_cuts)
 
-    scaler = GradScaler("cuda", enabled=params.use_fp16, init_scale=1.0)
+    scaler = GradScaler(enabled=params.use_fp16, init_scale=1.0)
     if checkpoints and "grad_scaler" in checkpoints:
         logging.info("Loading grad scaler state dict")
         scaler.load_state_dict(checkpoints["grad_scaler"])
