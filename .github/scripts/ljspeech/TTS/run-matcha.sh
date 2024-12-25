@@ -57,6 +57,7 @@ function infer() {
   curl -SL -O https://github.com/csukuangfj/models/raw/refs/heads/master/hifigan/generator_v1
 
   ./matcha/infer.py \
+    --num-buckets 2 \
     --epoch 1 \
     --exp-dir ./matcha/exp \
     --tokens data/tokens.txt \
@@ -97,19 +98,23 @@ function export_onnx() {
     python3 ./matcha/export_onnx_hifigan.py
   else
     curl -SL -O https://huggingface.co/csukuangfj/icefall-tts-ljspeech-matcha-en-2024-10-28/resolve/main/exp/hifigan_v1.onnx
+    curl -SL -O https://huggingface.co/csukuangfj/icefall-tts-ljspeech-matcha-en-2024-10-28/resolve/main/exp/hifigan_v2.onnx
+    curl -SL -O https://huggingface.co/csukuangfj/icefall-tts-ljspeech-matcha-en-2024-10-28/resolve/main/exp/hifigan_v3.onnx
   fi
 
   ls -lh *.onnx
 
-  python3 ./matcha/onnx_pretrained.py \
-   --acoustic-model ./model-steps-6.onnx \
-   --vocoder ./hifigan_v1.onnx \
-   --tokens ./data/tokens.txt \
-   --input-text "how are you doing?" \
-   --output-wav /icefall/generated-matcha-tts-steps-6-v1.wav
+  for v in v1 v2 v3; do
+    python3 ./matcha/onnx_pretrained.py \
+     --acoustic-model ./model-steps-6.onnx \
+     --vocoder ./hifigan_$v.onnx \
+     --tokens ./data/tokens.txt \
+     --input-text "how are you doing?" \
+     --output-wav /icefall/generated-matcha-tts-steps-6-$v.wav
+  done
 
   ls -lh /icefall/*.wav
-  soxi /icefall/generated-matcha-tts-steps-6-v1.wav
+  soxi /icefall/generated-matcha-tts-steps-6-*.wav
 }
 
 prepare_data
@@ -118,3 +123,4 @@ infer
 export_onnx
 
 rm -rfv generator_v* matcha/exp
+git checkout .

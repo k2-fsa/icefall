@@ -163,7 +163,7 @@ def main():
             (x, x_lengths, temperature, length_scale),
             filename,
             opset_version=opset_version,
-            input_names=["x", "x_length", "temperature", "length_scale"],
+            input_names=["x", "x_length", "noise_scale", "length_scale"],
             output_names=["mel"],
             dynamic_axes={
                 "x": {0: "N", 1: "L"},

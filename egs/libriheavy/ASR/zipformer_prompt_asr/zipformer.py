@@ -1561,7 +1561,7 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         (num_heads, batch_size, seq_len, seq_len) = attn_weights.shape
 
         with torch.no_grad():
-            with torch.amp.autocast("cuda", enabled=False):
+            with torch.cuda.amp.autocast(enabled=False):
                 attn_weights = attn_weights.to(torch.float32)
                 attn_weights_entropy = (
                     -((attn_weights + 1.0e-20).log() * attn_weights)
@@ -1844,7 +1844,7 @@ class MultiheadAttentionWeights(nn.Module):
         (num_heads, batch_size, seq_len, seq_len) = attn_weights.shape
 
         with torch.no_grad():
-            with torch.amp.autocast("cuda", enabled=False):
+            with torch.cuda.amp.autocast(enabled=False):
                 attn_weights = attn_weights.to(torch.float32)
                 attn_weights_entropy = (
                     -((attn_weights + 1.0e-20).log() * attn_weights)
