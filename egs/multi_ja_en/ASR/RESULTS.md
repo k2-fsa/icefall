@@ -27,6 +27,12 @@ The decoding command is:
     --max-duration 600 \
     --decoding-method greedy_search
 ```
+
+To export the model with onnx:
+
+```shell
+./zipformer/export-onnx.py   --tokens data/lang_bbpe_2000/tokens.txt   --use-averaged-model 0   --epoch 35   --avg 1   --exp-dir zipformer/exp   --num-encoder-layers "2,2,3,4,3,2"   --downsampling-factor "1,2,4,8,4,2"   --feedforward-dim "512,768,1024,1536,1024,768"   --num-heads "4,4,4,8,4,4"   --encoder-dim "192,256,384,512,384,256"   --query-head-dim 32   --value-head-dim 12   --pos-head-dim 4   --pos-dim 48   --encoder-unmasked-dim "192,192,256,256,256,192"   --cnn-module-kernel "31,31,15,15,15,31"   --decoder-dim 512   --joiner-dim 512   --causal False   --chunk-size "16,32,64,-1"   --left-context-frames "64,128,256,-1"   --fp16 True
+```
 Word Error Rates (WERs) listed below:
 
 |       Datasets       | ReazonSpeech |  ReazonSpeech |     LibriSpeech    |    LibriSpeech    |
