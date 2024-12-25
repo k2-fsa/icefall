@@ -41,5 +41,5 @@ Character Error Rates (CERs) for Japanese listed below:
 |   Decoding Method    | In-Distribution CER | JSUT | CommonVoice | TEDx  |
 | :------------------: | :-----------------: | :--: | :---------: | :---: | 
 |    greedy search     |        12.56        | 6.93 |    9.75     | 9.67  | 
-| modified beam search |        11.59        |  |         |  |
+| modified beam search |        11.59        | 6.97 |    9.55     | 9.51  | 
 
