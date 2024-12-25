@@ -1,0 +1,1 @@
+/root/Github/icefall/egs/librispeech/ASR/local/validate_bpe_lexicon.py
