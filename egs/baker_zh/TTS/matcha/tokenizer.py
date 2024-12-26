@@ -80,7 +80,7 @@ class Tokenizer(object):
             token_ids = []
             for t in tokens_list:
                 if t not in self.token2id:
-                    logging.warning(f"Skip OOV {t}")
+                    logging.warning(f"Skip OOV {t} {sentence}")
                     continue
 
                 if t == " " and len(token_ids) > 0 and token_ids[-1] == self.space_id:

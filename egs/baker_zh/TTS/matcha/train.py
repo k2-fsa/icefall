@@ -315,7 +315,7 @@ def prepare_input(batch: dict, tokenizer: Tokenizer, device: torch.device, param
     features_lens = batch["features_lens"].to(device)
     tokens = batch["tokens"]
 
-    tokens = tokenizer.tokens_to_token_ids(tokens, intersperse_blank=True)
+    tokens = tokenizer.texts_to_token_ids(tokens, intersperse_blank=True)
     tokens = k2.RaggedTensor(tokens)
     row_splits = tokens.shape.row_splits(1)
     tokens_lens = row_splits[1:] - row_splits[:-1]

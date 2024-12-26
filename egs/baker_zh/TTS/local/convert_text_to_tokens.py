@@ -30,6 +30,8 @@ punctuations_re = [
         ("’", "'"),
         ("：", ":"),
         ("、", ","),
+        ("Ｂ", "逼"),
+        ("Ｐ", "批"),
     ]
 ]
 
@@ -108,7 +110,7 @@ def main():
         text_list = split_text(text)
         tokens = lazy_pinyin(text_list, style=Style.TONE3, tone_sandhi=True)
 
-        c.supervisions[0].tokens = tokens
+        c.tokens = tokens
 
     cuts.to_file(args.out_file)
 

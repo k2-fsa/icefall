@@ -43,6 +43,22 @@ def generate_token_list() -> List[str]:
         t = lazy_pinyin(w, style=Style.TONE3, tone_sandhi=True)[0]
         token_set.add(t)
 
+    no_digit = set()
+    for t in token_set:
+        if t[-1] not in "1234":
+            no_digit.add(t)
+        else:
+            no_digit.add(t[:-1])
+
+    no_digit.add("dei")
+    no_digit.add("tou")
+    no_digit.add("dia")
+
+    for t in no_digit:
+        token_set.add(t)
+        for i in range(1, 5):
+            token_set.add(f"{t}{i}")
+
     ans = list(token_set)
     ans.sort()
 
