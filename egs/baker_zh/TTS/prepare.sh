@@ -82,3 +82,70 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
     python3 ./local/generate_tokens.py --tokens data/tokens.txt
   fi
 fi
+
+if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
+  log "Stage 3: Generate raw cutset"
+  if [ ! -e data/manifests/baker_zh_cuts_raw.jsonl.gz ]; then
+    lhotse cut simple \
+      -r ./data/manifests/baker_zh_recordings_all.jsonl.gz \
+      -s ./data/manifests/baker_zh_supervisions_all.jsonl.gz \
+      ./data/manifests/baker_zh_cuts_raw.jsonl.gz
+  fi
+fi
+
+if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
+  log "Stage 4: Convert text to tokens"
+  if [ ! -e data/manifests/baker_zh_cuts.jsonl.gz ]; then
+    python3 ./local/convert_text_to_tokens.py \
+      --in-file ./data/manifests/baker_zh_cuts_raw.jsonl.gz \
+      --out-file ./data/manifests/baker_zh_cuts.jsonl.gz
+  fi
+fi
+
+if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
+  log "Stage 5: Generate fbank (used by ./matcha)"
+  mkdir -p data/fbank
+  if [ ! -e data/fbank/.baker-zh.done ]; then
+    ./local/compute_fbank_baker_zh.py
+    touch data/fbank/.baker-zh.done
+  fi
+
+  if [ ! -e data/fbank/.baker-zh-validated.done ]; then
+    log "Validating data/fbank for baker-zh (used by ./matcha)"
+    python3 ./local/validate_manifest.py \
+      data/fbank/baker_zh_cuts.jsonl.gz
+    touch data/fbank/.baker-zh-validated.done
+  fi
+fi
+
+if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
+  log "Stage 6: Split the baker-zh cuts into train, valid and test sets (used by ./matcha)"
+  if [ ! -e data/fbank/.baker_zh_split.done ]; then
+    lhotse subset --last 600 \
+      data/fbank/baker_zh_cuts.jsonl.gz \
+      data/fbank/baker_zh_cuts_validtest.jsonl.gz
+    lhotse subset --first 100 \
+      data/fbank/baker_zh_cuts_validtest.jsonl.gz \
+      data/fbank/baker_zh_cuts_valid.jsonl.gz
+    lhotse subset --last 500 \
+      data/fbank/baker_zh_cuts_validtest.jsonl.gz \
+      data/fbank/baker_zh_cuts_test.jsonl.gz
+
+    rm data/fbank/baker_zh_cuts_validtest.jsonl.gz
+
+    n=$(( $(gunzip -c data/fbank/baker_zh_cuts.jsonl.gz | wc -l) - 600 ))
+
+    lhotse subset --first $n  \
+      data/fbank/baker_zh_cuts.jsonl.gz \
+      data/fbank/baker_zh_cuts_train.jsonl.gz
+
+    touch data/fbank/.baker_zh_split.done
+  fi
+fi
+
+if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
+  log "Stage 6: Compute fbank mean and std (used by ./matcha)"
+  if [ ! -f ./data/fbank/cmvn.json ]; then
+    ./local/compute_fbank_statistics.py ./data/fbank/baker_zh_cuts_train.jsonl.gz ./data/fbank/cmvn.json
+  fi
+fi

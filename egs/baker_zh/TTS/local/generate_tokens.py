@@ -46,9 +46,13 @@ def generate_token_list() -> List[str]:
     ans = list(token_set)
     ans.sort()
 
+    punctuations = list(",.!?:\"'")
+    ans = punctuations + ans
+
     # use ID 0 for blank
-    # We use blank for padding
+    # Use ID 1 of _ for padding
     ans.insert(0, " ")
+    ans.insert(1, "_")  #
 
     return ans
 
