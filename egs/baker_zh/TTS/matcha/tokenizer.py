@@ -98,7 +98,7 @@ class Tokenizer(object):
 
 def test_tokenizer():
     import jieba
-    from pypinyin import lazy_pinyin, Style
+    from pypinyin import Style, lazy_pinyin
 
     tokenizer = Tokenizer("data/tokens.txt")
     text1 = "今天is Monday, tomorrow is 星期二"

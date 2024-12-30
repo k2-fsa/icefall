@@ -6,7 +6,7 @@ from typing import List
 
 import jieba
 from lhotse import load_manifest
-from pypinyin import lazy_pinyin, load_phrases_dict, Style
+from pypinyin import Style, lazy_pinyin, load_phrases_dict
 
 load_phrases_dict(
     {
