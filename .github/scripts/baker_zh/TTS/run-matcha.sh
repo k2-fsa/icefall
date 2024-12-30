@@ -70,7 +70,7 @@ function infer() {
   ls -lh *.wav
   soxi ./generated.wav
   rm -v ./generated.wav
-  rm -v generator_v1
+  rm -v generator_v2
 }
 
 function export_onnx() {
