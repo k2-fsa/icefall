@@ -5,6 +5,13 @@
 This script exports a Matcha-TTS model to ONNX.
 Note that the model outputs fbank. You need to use a vocoder to convert
 it to audio. See also ./export_onnx_hifigan.py
+
+python3 ./matcha/export_onnx.py \
+  --exp-dir ./matcha/exp-1 \
+  --epoch 2000 \
+  --tokens ./data/tokens.txt \
+  --cmvn ./data/fbank/cmvn.json
+
 """
 
 import argparse

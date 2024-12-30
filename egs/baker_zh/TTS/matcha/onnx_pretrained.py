@@ -1,6 +1,16 @@
 #!/usr/bin/env python3
 # Copyright         2024  Xiaomi Corp.        (authors: Fangjun Kuang)
 
+"""
+python3 ./matcha/onnx_pretrained.py \
+  --acoustic-model ./model-steps-4.onnx \
+  --vocoder ./hifigan_v2.onnx \
+  --tokens ./data/tokens.txt \
+  --lexicon ./lexicon.txt \
+  --input-text "当夜幕降临，星光点点，伴随着微风拂面，我在静谧中感受着时光的流转，思念如涟漪荡漾，梦境如画卷展开，我与自然融为一体，沉静在这片宁静的美丽之中，感受着生命的奇迹与温柔。" \
+  --output-wav ./b.wav
+"""
+
 import argparse
 import datetime as dt
 import re
