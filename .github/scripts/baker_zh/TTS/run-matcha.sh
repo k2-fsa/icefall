@@ -6,6 +6,7 @@ apt-get update
 apt-get install -y sox
 
 python3 -m pip install numba conformer==0.3.2 diffusers librosa
+python3 -m pip install jieba
 
 
 log() {
