@@ -31,8 +31,8 @@ jobs:
         id: set-matrix
         run: |
           # outputting for debugging purposes
-          python ./.github/scripts/docker/generate_build_matrix.py
-          MATRIX=$(python ./.github/scripts/docker/generate_build_matrix.py)
+          python ./.github/scripts/docker/generate_build_matrix.py --min-torch-version "2.3"
+          MATRIX=$(python ./.github/scripts/docker/generate_build_matrix.py --min-torch-version "2.3")
           echo "::set-output name=matrix::${MATRIX}"
 
   baker_zh:
