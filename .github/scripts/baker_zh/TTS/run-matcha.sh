@@ -29,7 +29,7 @@ function prepare_data() {
   wget -q https://huggingface.co/csukuangfj/tmp-files/resolve/main/BZNSYP-samples.tar.bz2
   tar xvf BZNSYP-samples.tar.bz2
   mv BZNSYP-samples BZNSYP
-  rmBZNSYP-samples.tar.bz2
+  rm BZNSYP-samples.tar.bz2
   popd
 
   ./prepare.sh
