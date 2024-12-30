@@ -106,11 +106,14 @@ function export_onnx() {
 
   ls -lh *.onnx
 
+  python3 ./matcha/generate_lexicon.py
+
   for v in v1 v2 v3; do
     python3 ./matcha/onnx_pretrained.py \
      --acoustic-model ./model-steps-6.onnx \
      --vocoder ./hifigan_$v.onnx \
      --tokens ./data/tokens.txt \
+     --lexicon ./lexicon.txt \
      --input-text "当夜幕降临，星光点点，伴随着微风拂面，我在静谧中感受着时光的流转，思念如涟漪荡漾，梦境如画卷展开，我与自然融为一体，沉静在这片宁静的美丽之中，感受着生命的奇迹与温柔。" \
      --output-wav /icefall/generated-matcha-tts-steps-6-$v.wav
   done
@@ -122,6 +125,7 @@ function export_onnx() {
   d=matcha-icefall-zh-baker
   mkdir $d
   cp -v data/tokens.txt $d
+  cp -v lexicon.txt $d
   cp model-steps-3.onnx $d
   pushd $d
   curl -SL -O https://github.com/csukuangfj/cppjieba/releases/download/sherpa-onnx-2024-04-19/dict.tar.bz2

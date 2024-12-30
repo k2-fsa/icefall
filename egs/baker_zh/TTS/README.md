@@ -103,6 +103,10 @@ The above command generates 3 files:
 To use the generated onnx files to generate speech from text, please run:
 
 ```bash
+
+# First, generate ./lexicon.txt
+python3 ./matcha/generate_lexicon.py
+
 python3 ./matcha/onnx_pretrained.py \
   --acoustic-model ./model-steps-4.onnx \
   --vocoder ./hifigan_v2.onnx \
