@@ -13,8 +13,8 @@ python3 ./matcha/onnx_pretrained.py \
 
 import argparse
 import datetime as dt
-import re
 import logging
+import re
 from typing import Dict, List
 
 import jieba

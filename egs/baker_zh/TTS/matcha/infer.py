@@ -23,14 +23,14 @@ import torch.nn as nn
 from hifigan.config import v1, v2, v3
 from hifigan.denoiser import Denoiser
 from hifigan.models import Generator as HiFiGAN
+from local.convert_text_to_tokens import split_text
+from pypinyin import Style, lazy_pinyin
 from tokenizer import Tokenizer
 from train import get_model, get_params
 from tts_datamodule import BakerZhTtsDataModule
 
 from icefall.checkpoint import load_checkpoint
 from icefall.utils import AttributeDict, setup_logger
-from local.convert_text_to_tokens import split_text
-from pypinyin import lazy_pinyin, Style
 
 
 def get_parser():
