@@ -132,7 +132,7 @@ class OnnxModel:
         print("x_lengths", x_lengths)
         print("x", x.shape)
 
-        temperature = torch.tensor([1.0], dtype=torch.float32)
+        noise_scale = torch.tensor([1.0], dtype=torch.float32)
         length_scale = torch.tensor([1.0], dtype=torch.float32)
 
         mel = self.model.run(
@@ -140,7 +140,7 @@ class OnnxModel:
             {
                 self.model.get_inputs()[0].name: x.numpy(),
                 self.model.get_inputs()[1].name: x_lengths.numpy(),
-                self.model.get_inputs()[2].name: temperature.numpy(),
+                self.model.get_inputs()[2].name: noise_scale.numpy(),
                 self.model.get_inputs()[3].name: length_scale.numpy(),
             },
         )[0]

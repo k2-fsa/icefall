@@ -93,14 +93,14 @@ class ModelWrapper(torch.nn.Module):
         self,
         x: torch.Tensor,
         x_lengths: torch.Tensor,
-        temperature: torch.Tensor,
+        noise_scale: torch.Tensor,
         length_scale: torch.Tensor,
     ) -> torch.Tensor:
         """
         Args: :
           x: (batch_size, num_tokens), torch.int64
           x_lengths: (batch_size,), torch.int64
-          temperature: (1,), torch.float32
+          noise_scale: (1,), torch.float32
           length_scale (1,), torch.float32
         Returns:
           audio: (batch_size, num_samples)
@@ -110,7 +110,7 @@ class ModelWrapper(torch.nn.Module):
             x=x,
             x_lengths=x_lengths,
             n_timesteps=self.num_steps,
-            temperature=temperature,
+            temperature=noise_scale,
             length_scale=length_scale,
         )["mel"]
         # mel: (batch_size, feat_dim, num_frames)
@@ -127,7 +127,6 @@ def main():
     params.update(vars(args))
 
     tokenizer = Tokenizer(params.tokens)
-    params.blank_id = tokenizer.pad_id
     params.vocab_size = tokenizer.vocab_size
     params.model_args.n_vocab = params.vocab_size
 
@@ -153,14 +152,14 @@ def main():
         # encoder has a large initial length
         x = torch.ones(1, 1000, dtype=torch.int64)
         x_lengths = torch.tensor([x.shape[1]], dtype=torch.int64)
-        temperature = torch.tensor([1.0])
+        noise_scale = torch.tensor([1.0])
         length_scale = torch.tensor([1.0])
 
         opset_version = 14
         filename = f"model-steps-{num_steps}.onnx"
         torch.onnx.export(
             wrapper,
-            (x, x_lengths, temperature, length_scale),
+            (x, x_lengths, noise_scale, length_scale),
             filename,
             opset_version=opset_version,
             input_names=["x", "x_length", "noise_scale", "length_scale"],
