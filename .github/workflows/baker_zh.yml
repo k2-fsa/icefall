@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master
+      - baker-matcha-2
 
   pull_request:
     branches:
