@@ -3,7 +3,11 @@
 It is for the dataset from
 https://en.data-baker.com/datasets/freeDatasets/
 
-The dataset contains 10000 Chinese sentences of a native Chinese female speaker.
+The dataset contains 10000 Chinese sentences of a native Chinese female speaker,
+which is about 12 hours.
+
+
+**Note**: The dataset is for non-commercial use only.
 
 
 # matcha
@@ -28,7 +32,7 @@ python3 ./matcha/train.py \
 To inference, use:
 
 ```bash
-# Download Hifigan vocoder. We use Hifigan v1 below. You can select from v1, v2, or v3
+# Download Hifigan vocoder. We use Hifigan v2 below. You can select from v1, v2, or v3
 
 wget https://github.com/csukuangfj/models/raw/refs/heads/master/hifigan/generator_v2
 
@@ -70,7 +74,7 @@ python3 ./matcha/export_onnx.py \
   --cmvn ./data/fbank/cmvn.json
 ```
 
-The above command generate the following files:
+The above command generates the following files:
 ```
 -rw-r--r-- 1 kuangfangjun root 72M Dec 27 18:53 model-steps-2.onnx
 -rw-r--r-- 1 kuangfangjun root 73M Dec 27 18:54 model-steps-3.onnx

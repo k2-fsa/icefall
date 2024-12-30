@@ -90,7 +90,7 @@ function export_onnx() {
   ls -lh *.onnx
 
   if false; then
-    # THe CI machine does not have enough memory to run it
+    # The CI machine does not have enough memory to run it
     #
     curl -SL -O https://github.com/csukuangfj/models/raw/refs/heads/master/hifigan/generator_v1
     curl -SL -O https://github.com/csukuangfj/models/raw/refs/heads/master/hifigan/generator_v2

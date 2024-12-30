@@ -191,7 +191,7 @@ def main():
             "model_author": "icefall",
             "maintainer": "k2-fsa",
             "dataset": "baker-zh",
-            "use_eos_bos": 1,
+            "use_eos_bos": 0,
             "dataset_url": "https://www.data-baker.com/open_source.html",
             "dataset_comment": "The dataset is for non-commercial use only.",
             "num_ode_steps": num_steps,
