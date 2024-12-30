@@ -69,6 +69,11 @@ jobs:
             run: |
               export PYTHONPATH=/icefall:$PYTHONPATH
               cd /icefall
+
+              pip install onnx==1.17.0
+
+              pip list
+
               git config --global --add safe.directory /icefall
 
               .github/scripts/baker_zh/TTS/run-matcha.sh
