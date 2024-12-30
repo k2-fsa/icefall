@@ -97,6 +97,9 @@ The above command generates 3 files:
   - hifigan_v2.onnx
   - hifigan_v3.onnx
 
+**HINT**: You can download pre-exported hifigan ONNX models from
+<https://github.com/k2-fsa/sherpa-onnx/releases/tag/vocoder-models>
+
 To use the generated onnx files to generate speech from text, please run:
 
 ```bash
