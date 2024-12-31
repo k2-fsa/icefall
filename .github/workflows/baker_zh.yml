@@ -137,7 +137,7 @@ jobs:
           git config --global user.email "csukuangfj@gmail.com"
           git config --global lfs.allowincompletepush true
 
-          git commit -m "upload model" && git push https://csukuangfj:${HF_TOKEN}@huggingface.co/cskuangfj/$d main || true
+          git commit -m "upload model" && git push https://csukuangfj:${HF_TOKEN}@huggingface.co/csukuangfj/$d main || true
           popd
 
       - name: Release exported onnx models
