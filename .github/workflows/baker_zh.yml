@@ -119,6 +119,28 @@ jobs:
           name: step-6
           path: ./model-steps-6.onnx
 
+      - name: Upload models to huggingface
+        if: matrix.python-version == '3.9' && matrix.torch-version == '2.3.0' && github.event_name == 'push'
+        shell: bash
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          d=matcha-icefall-zh-baker
+
+          log "Upload onnx models to huggingface"
+          GIT_LFS_SKIP_SMUDGE=1  git clone https://huggingface.co/csukuangfj/$d hf
+          cp -av $d/* hf/
+
+          pushd hf
+          git add .
+
+          git config --global user.name "csukuangfj"
+          git config --global user.email "csukuangfj@gmail.com"
+          git config --global lfs.allowincompletepush true
+
+          git commit -m "upload model" && git push https://csukuangfj:${HF_TOKEN}@huggingface.co/cskuangfj/$d main || true
+          popd
+
       - name: Release exported onnx models
         if: matrix.python-version == '3.9' && matrix.torch-version == '2.3.0' && github.event_name == 'push'
         uses: svenstaro/upload-release-action@v2

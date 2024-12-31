@@ -156,21 +156,7 @@ EOF
   tar cvjf $d.tar.bz2 $d
   mv $d.tar.bz2 /icefall
 
-  log "Upload onnx models to huggingface"
-  GIT_LFS_SKIP_SMUDGE=1  git clone https://huggingface.co/csukuangfj/$d hf
-  cp -av $d/* hf/
 
-  pushd hf
-  git add .
-
-  git config --global user.name "csukuangfj"
-  git config --global user.email "csukuangfj@gmail.com"
-  git config --global lfs.allowincompletepush true
-
-  git commit -m "upload model" && git push https://csukuangfj:${HF_TOKEN}@huggingface.co/cskuangfj/$d main || true
-  popd
-
-  rm -rf $d
 }
 
 prepare_data
