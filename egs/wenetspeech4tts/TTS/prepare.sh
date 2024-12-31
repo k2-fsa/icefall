@@ -10,9 +10,9 @@ stop_stage=4
 
 dl_dir=$PWD/download
 
-dataset_parts="Premium" # Basic for all 10k hours data, Premium for about 10% of the data
+dataset_parts="Premium"  # Basic for all 7226 hours data, Premium for 945 hours subset.
 
-text_extractor="pypinyin_initials_finals" # default is espeak for English
+text_extractor="pypinyin_initials_finals"  # default is espeak for English
 audio_extractor="Encodec"  # or Fbank
 audio_feats_dir=data/tokenized
 
@@ -63,7 +63,7 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
         --audio-extractor ${audio_extractor} \
         --batch-duration 2500 --prefix "wenetspeech4tts" \
         --src-dir "data/manifests" \
-	      --split 100 \
+	--split 100 \
         --output-dir "${audio_feats_dir}/wenetspeech4tts_${dataset_parts}_split_100"
     cp ${audio_feats_dir}/wenetspeech4tts_${dataset_parts}_split_100/unique_text_tokens.k2symbols ${audio_feats_dir}
   fi
