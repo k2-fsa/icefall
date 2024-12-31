@@ -136,11 +136,41 @@ function export_onnx() {
   curl -SL -O https://huggingface.co/csukuangfj/icefall-tts-aishell3-vits-low-2024-04-06/resolve/main/data/number.fst
   curl -SL -O https://huggingface.co/csukuangfj/icefall-tts-aishell3-vits-low-2024-04-06/resolve/main/data/phone.fst
 
+cat >README.md <<EOF
+# Introduction
+
+This model is trained using the dataset from
+https://en.data-baker.com/datasets/freeDatasets/
+
+The dataset contains 10000 Chinese sentences of a native Chinese female speaker,
+which is about 12 hours.
+
+**Note**: The dataset is for non-commercial use only.
+
+You can find the training code at
+https://github.com/k2-fsa/icefall/tree/master/egs/baker_zh/TTS
+EOF
+
   ls -lh
   popd
   tar cvjf $d.tar.bz2 $d
-  rm -rf $d
   mv $d.tar.bz2 /icefall
+
+  log "Upload onnx models to huggingface"
+  GIT_LFS_SKIP_SMUDGE=1  git clone https://huggingface.co/csukuangfj/$d hf
+  cp -av $d/* hf/
+
+  pushd hf
+  git add .
+
+  git config --global user.name "csukuangfj"
+  git config --global user.email "csukuangfj@gmail.com"
+  git config --global lfs.allowincompletepush true
+
+  git commit -m "upload model" && git push https://csukuangfj:${HF_TOKEN}@huggingface.co/cskuangfj/$d main || true
+  popd
+
+  rm -rf $d
 }
 
 prepare_data
