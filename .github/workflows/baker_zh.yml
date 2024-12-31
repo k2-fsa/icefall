@@ -127,7 +127,6 @@ jobs:
         run: |
           d=matcha-icefall-zh-baker
 
-          log "Upload onnx models to huggingface"
           GIT_LFS_SKIP_SMUDGE=1  git clone https://huggingface.co/csukuangfj/$d hf
           cp -av $d/* hf/
 
