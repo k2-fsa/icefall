@@ -155,8 +155,7 @@ EOF
   popd
   tar cvjf $d.tar.bz2 $d
   mv $d.tar.bz2 /icefall
-
-
+  mv $d /icefall
 }
 
 prepare_data
