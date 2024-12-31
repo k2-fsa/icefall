@@ -166,7 +166,7 @@ To export the checkpoint to onnx:
   --tokens ./data/tokens.txt
 ```
 
-The above command generate the following files:
+The above command generates the following files:
 
   - model-steps-2.onnx
   - model-steps-3.onnx

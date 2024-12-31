@@ -5,6 +5,13 @@
 This script exports a Matcha-TTS model to ONNX.
 Note that the model outputs fbank. You need to use a vocoder to convert
 it to audio. See also ./export_onnx_hifigan.py
+
+python3 ./matcha/export_onnx.py \
+  --exp-dir ./matcha/exp-1 \
+  --epoch 2000 \
+  --tokens ./data/tokens.txt \
+  --cmvn ./data/fbank/cmvn.json
+
 """
 
 import argparse
@@ -29,7 +36,7 @@ def get_parser():
     parser.add_argument(
         "--epoch",
         type=int,
-        default=4000,
+        default=2000,
         help="""It specifies the checkpoint to use for decoding.
         Note: Epoch counts from 1.
         """,
@@ -127,6 +134,7 @@ def main():
     params.update(vars(args))
 
     tokenizer = Tokenizer(params.tokens)
+    params.pad_id = tokenizer.pad_id
     params.vocab_size = tokenizer.vocab_size
     params.model_args.n_vocab = params.vocab_size
 
@@ -173,15 +181,19 @@ def main():
 
         meta_data = {
             "model_type": "matcha-tts",
-            "language": "English",
-            "voice": "en-us",
-            "has_espeak": 1,
+            "language": "Chinese",
+            "has_espeak": 0,
             "n_speakers": 1,
+            "jieba": 1,
             "sample_rate": 22050,
             "version": 1,
+            "pad_id": params.pad_id,
             "model_author": "icefall",
             "maintainer": "k2-fsa",
-            "dataset": "LJ Speech",
+            "dataset": "baker-zh",
+            "use_eos_bos": 0,
+            "dataset_url": "https://www.data-baker.com/open_source.html",
+            "dataset_comment": "The dataset is for non-commercial use only.",
             "num_ode_steps": num_steps,
         }
         add_meta_data(filename=filename, meta_data=meta_data)

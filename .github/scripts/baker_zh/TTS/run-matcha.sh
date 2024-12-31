@@ -5,9 +5,9 @@ set -ex
 apt-get update
 apt-get install -y sox
 
-python3 -m pip install piper_phonemize -f https://k2-fsa.github.io/icefall/piper_phonemize.html
-python3 -m pip install espnet_tts_frontend
 python3 -m pip install numba conformer==0.3.2 diffusers librosa
+python3 -m pip install jieba
+
 
 log() {
   # This function is from espnet
@@ -15,7 +15,7 @@ log() {
   echo -e "$(date '+%Y-%m-%d %H:%M:%S') (${fname}:${BASH_LINENO[0]}:${FUNCNAME[1]}) $*"
 }
 
-cd egs/ljspeech/TTS
+cd egs/baker_zh/TTS
 
 sed -i.bak s/600/8/g ./prepare.sh
 sed -i.bak s/"first 100"/"first 3"/g ./prepare.sh
@@ -27,8 +27,10 @@ function prepare_data() {
   #
   mkdir -p download
   pushd download
-  wget -q https://huggingface.co/csukuangfj/ljspeech-subset-for-ci-test/resolve/main/LJSpeech-1.1.tar.bz2
-  tar xvf LJSpeech-1.1.tar.bz2
+  wget -q https://huggingface.co/csukuangfj/tmp-files/resolve/main/BZNSYP-samples.tar.bz2
+  tar xvf BZNSYP-samples.tar.bz2
+  mv BZNSYP-samples BZNSYP
+  rm BZNSYP-samples.tar.bz2
   popd
 
   ./prepare.sh
@@ -53,37 +55,37 @@ function train() {
 }
 
 function infer() {
-
-  curl -SL -O https://github.com/csukuangfj/models/raw/refs/heads/master/hifigan/generator_v1
+  curl -SL -O https://github.com/csukuangfj/models/raw/refs/heads/master/hifigan/generator_v2
 
   ./matcha/infer.py \
     --num-buckets 2 \
     --epoch 1 \
     --exp-dir ./matcha/exp \
     --tokens data/tokens.txt \
-    --vocoder ./generator_v1 \
-    --input-text "how are you doing?" \
+    --cmvn ./data/fbank/cmvn.json \
+    --vocoder ./generator_v2 \
+    --input-text "当夜幕降临，星光点点，伴随着微风拂面，我在静谧中感受着时光的流转，思念如涟漪荡漾，梦境如画卷展开，我与自然融为一体，沉静在这片宁静的美丽之中，感受着生命的奇迹与温柔。" \
     --output-wav ./generated.wav
 
   ls -lh *.wav
   soxi ./generated.wav
   rm -v ./generated.wav
-  rm -v generator_v1
+  rm -v generator_v2
 }
 
 function export_onnx() {
   pushd matcha/exp
-  curl -SL -O https://huggingface.co/csukuangfj/icefall-tts-ljspeech-matcha-en-2024-10-28/resolve/main/exp/epoch-4000.pt
+  curl -SL -O https://huggingface.co/csukuangfj/icefall-tts-baker-matcha-zh-2024-12-27/resolve/main/epoch-2000.pt
   popd
 
   pushd data/fbank
   rm -v *.json
-  curl -SL -O https://huggingface.co/csukuangfj/icefall-tts-ljspeech-matcha-en-2024-10-28/resolve/main/data/cmvn.json
+  curl -SL -O https://huggingface.co/csukuangfj/icefall-tts-baker-matcha-zh-2024-12-27/resolve/main/cmvn.json
   popd
 
   ./matcha/export_onnx.py \
     --exp-dir ./matcha/exp \
-    --epoch 4000 \
+    --epoch 2000 \
     --tokens ./data/tokens.txt \
     --cmvn ./data/fbank/cmvn.json
 
@@ -104,17 +106,56 @@ function export_onnx() {
 
   ls -lh *.onnx
 
+  python3 ./matcha/generate_lexicon.py
+
   for v in v1 v2 v3; do
     python3 ./matcha/onnx_pretrained.py \
      --acoustic-model ./model-steps-6.onnx \
      --vocoder ./hifigan_$v.onnx \
      --tokens ./data/tokens.txt \
-     --input-text "how are you doing?" \
+     --lexicon ./lexicon.txt \
+     --input-text "当夜幕降临，星光点点，伴随着微风拂面，我在静谧中感受着时光的流转，思念如涟漪荡漾，梦境如画卷展开，我与自然融为一体，沉静在这片宁静的美丽之中，感受着生命的奇迹与温柔。" \
      --output-wav /icefall/generated-matcha-tts-steps-6-$v.wav
   done
 
   ls -lh /icefall/*.wav
   soxi /icefall/generated-matcha-tts-steps-6-*.wav
+  cp ./model-steps-*.onnx /icefall
+
+  d=matcha-icefall-zh-baker
+  mkdir $d
+  cp -v data/tokens.txt $d
+  cp -v lexicon.txt $d
+  cp model-steps-3.onnx $d
+  pushd $d
+  curl -SL -O https://github.com/csukuangfj/cppjieba/releases/download/sherpa-onnx-2024-04-19/dict.tar.bz2
+  tar xvf dict.tar.bz2
+  rm dict.tar.bz2
+
+  curl -SL -O https://huggingface.co/csukuangfj/icefall-tts-aishell3-vits-low-2024-04-06/resolve/main/data/date.fst
+  curl -SL -O https://huggingface.co/csukuangfj/icefall-tts-aishell3-vits-low-2024-04-06/resolve/main/data/number.fst
+  curl -SL -O https://huggingface.co/csukuangfj/icefall-tts-aishell3-vits-low-2024-04-06/resolve/main/data/phone.fst
+
+cat >README.md <<EOF
+# Introduction
+
+This model is trained using the dataset from
+https://en.data-baker.com/datasets/freeDatasets/
+
+The dataset contains 10000 Chinese sentences of a native Chinese female speaker,
+which is about 12 hours.
+
+**Note**: The dataset is for non-commercial use only.
+
+You can find the training code at
+https://github.com/k2-fsa/icefall/tree/master/egs/baker_zh/TTS
+EOF
+
+  ls -lh
+  popd
+  tar cvjf $d.tar.bz2 $d
+  mv $d.tar.bz2 /icefall
+  mv $d /icefall
 }
 
 prepare_data

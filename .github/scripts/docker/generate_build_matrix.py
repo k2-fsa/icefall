@@ -2,7 +2,17 @@
 # Copyright    2023  Xiaomi Corp.        (authors: Fangjun Kuang)
 
 
+import argparse
 import json
+
+
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--min-torch-version",
+        help="Minimu torch version",
+    )
+    return parser.parse_args()
 
 
 def version_gt(a, b):
@@ -42,7 +52,7 @@ def get_torchaudio_version(torch_version):
         return torch_version
 
 
-def get_matrix():
+def get_matrix(min_torch_version):
     k2_version = "1.24.4.dev20241029"
     kaldifeat_version = "1.25.5.dev20241029"
     version = "20241218"
@@ -64,6 +74,9 @@ def get_matrix():
     matrix = []
     for p in python_version:
         for t in torch_version:
+            if min_torch_version and version_gt(min_torch_version, t):
+                continue
+
             # torchaudio <= 1.13.x supports only python <= 3.10
 
             if version_gt(p, "3.10") and not version_gt(t, "2.0"):
@@ -101,7 +114,8 @@ def get_matrix():
 
 
 def main():
-    matrix = get_matrix()
+    args = get_args()
+    matrix = get_matrix(min_torch_version=args.min_torch_version)
     print(json.dumps({"include": matrix}))
 
 
