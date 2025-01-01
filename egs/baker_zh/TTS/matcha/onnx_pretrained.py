@@ -1,15 +1,28 @@
 #!/usr/bin/env python3
 # Copyright         2024  Xiaomi Corp.        (authors: Fangjun Kuang)
 
+"""
+python3 ./matcha/onnx_pretrained.py \
+  --acoustic-model ./model-steps-4.onnx \
+  --vocoder ./hifigan_v2.onnx \
+  --tokens ./data/tokens.txt \
+  --lexicon ./lexicon.txt \
+  --input-text "当夜幕降临，星光点点，伴随着微风拂面，我在静谧中感受着时光的流转，思念如涟漪荡漾，梦境如画卷展开，我与自然融为一体，沉静在这片宁静的美丽之中，感受着生命的奇迹与温柔。" \
+  --output-wav ./b.wav
+"""
+
 import argparse
 import datetime as dt
 import logging
+import re
+from typing import Dict, List
 
+import jieba
 import onnxruntime as ort
 import soundfile as sf
 import torch
 from infer import load_vocoder
-from tokenizer import Tokenizer
+from utils import intersperse
 
 
 def get_parser():
@@ -29,6 +42,13 @@ def get_parser():
         type=str,
         required=True,
         help="Path to the tokens.txt",
+    )
+
+    parser.add_argument(
+        "--lexicon",
+        type=str,
+        required=True,
+        help="Path to the lexicon.txt",
     )
 
     parser.add_argument(
@@ -98,14 +118,12 @@ class OnnxModel:
     def __init__(
         self,
         filename: str,
-        tokens: str,
     ):
         session_opts = ort.SessionOptions()
         session_opts.inter_op_num_threads = 1
         session_opts.intra_op_num_threads = 2
 
         self.session_opts = session_opts
-        self.tokenizer = Tokenizer(tokens)
         self.model = ort.InferenceSession(
             filename,
             sess_options=self.session_opts,
@@ -149,16 +167,101 @@ class OnnxModel:
         return torch.from_numpy(mel)
 
 
+def read_tokens(filename: str) -> Dict[str, int]:
+    token2id = dict()
+    with open(filename, encoding="utf-8") as f:
+        for line in f.readlines():
+            info = line.rstrip().split()
+            if len(info) == 1:
+                # case of space
+                token = " "
+                idx = int(info[0])
+            else:
+                token, idx = info[0], int(info[1])
+            assert token not in token2id, token
+            token2id[token] = idx
+    return token2id
+
+
+def read_lexicon(filename: str) -> Dict[str, List[str]]:
+    word2token = dict()
+    with open(filename, encoding="utf-8") as f:
+        for line in f.readlines():
+            info = line.rstrip().split()
+            w = info[0]
+            tokens = info[1:]
+            word2token[w] = tokens
+    return word2token
+
+
+def convert_word_to_tokens(word2tokens: Dict[str, List[str]], word: str) -> List[str]:
+    if word in word2tokens:
+        return word2tokens[word]
+
+    if len(word) == 1:
+        return []
+
+    ans = []
+    for w in word:
+        t = convert_word_to_tokens(word2tokens, w)
+        ans.extend(t)
+    return ans
+
+
+def normalize_text(text):
+    whiter_space_re = re.compile(r"\s+")
+
+    punctuations_re = [
+        (re.compile(x[0], re.IGNORECASE), x[1])
+        for x in [
+            ("，", ","),
+            ("。", "."),
+            ("！", "!"),
+            ("？", "?"),
+            ("“", '"'),
+            ("”", '"'),
+            ("‘", "'"),
+            ("’", "'"),
+            ("：", ":"),
+            ("、", ","),
+        ]
+    ]
+
+    for regex, replacement in punctuations_re:
+        text = re.sub(regex, replacement, text)
+    return text
+
+
 @torch.no_grad()
 def main():
     params = get_parser().parse_args()
     logging.info(vars(params))
+    token2id = read_tokens(params.tokens)
+    word2tokens = read_lexicon(params.lexicon)
 
-    model = OnnxModel(params.acoustic_model, params.tokens)
+    text = normalize_text(params.input_text)
+    seg = jieba.cut(text)
+    tokens = []
+    for s in seg:
+        if s in token2id:
+            tokens.append(s)
+            continue
+
+        t = convert_word_to_tokens(word2tokens, s)
+        if t:
+            tokens.extend(t)
+
+    model = OnnxModel(params.acoustic_model)
     vocoder = OnnxHifiGANModel(params.vocoder)
-    text = params.input_text
-    x = model.tokenizer.texts_to_token_ids([text], add_sos=True, add_eos=True)
-    x = torch.tensor(x, dtype=torch.int64)
+
+    x = []
+    for t in tokens:
+        if t in token2id:
+            x.append(token2id[t])
+
+    x = intersperse(x, item=token2id["_"])
+
+    x = torch.tensor(x, dtype=torch.int64).unsqueeze(0)
 
     start_t = dt.datetime.now()
     mel = model(x)

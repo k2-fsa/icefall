@@ -1,0 +1,152 @@
+name: baker_zh
+
+on:
+  push:
+    branches:
+      - master
+      - baker-matcha-2
+
+  pull_request:
+    branches:
+      - master
+
+  workflow_dispatch:
+
+concurrency:
+  group: baker-zh-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  generate_build_matrix:
+    if: github.repository_owner == 'csukuangfj' || github.repository_owner == 'k2-fsa'
+    # see https://github.com/pytorch/pytorch/pull/50633
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Generating build matrix
+        id: set-matrix
+        run: |
+          # outputting for debugging purposes
+          python ./.github/scripts/docker/generate_build_matrix.py --min-torch-version "2.3"
+          MATRIX=$(python ./.github/scripts/docker/generate_build_matrix.py --min-torch-version "2.3")
+          echo "::set-output name=matrix::${MATRIX}"
+
+  baker_zh:
+    needs: generate_build_matrix
+    name: py${{ matrix.python-version }} torch${{ matrix.torch-version }} v${{ matrix.version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ${{ fromJson(needs.generate_build_matrix.outputs.matrix) }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Free space
+        shell: bash
+        run: |
+          ls -lh
+          df -h
+          rm -rf /opt/hostedtoolcache
+          df -h
+          echo "pwd: $PWD"
+          echo "github.workspace ${{ github.workspace }}"
+
+      - name: Run tests
+        uses: addnab/docker-run-action@v3
+        with:
+            image: ghcr.io/${{ github.repository_owner }}/icefall:cpu-py${{ matrix.python-version }}-torch${{ matrix.torch-version }}-v${{ matrix.version }}
+            options: |
+              --volume ${{ github.workspace }}/:/icefall
+            shell: bash
+            run: |
+              export PYTHONPATH=/icefall:$PYTHONPATH
+              cd /icefall
+
+              pip install onnx==1.17.0
+
+              pip list
+
+              git config --global --add safe.directory /icefall
+
+              .github/scripts/baker_zh/TTS/run-matcha.sh
+
+      - name: display files
+        shell: bash
+        run: |
+          ls -lh
+
+      - uses: actions/upload-artifact@v4
+        if: matrix.python-version == '3.9' && matrix.torch-version == '2.3.0'
+        with:
+          name: generated-test-files-${{ matrix.python-version }}-${{ matrix.torch-version }}
+          path: ./*.wav
+
+      - uses: actions/upload-artifact@v4
+        if: matrix.python-version == '3.9' && matrix.torch-version == '2.3.0'
+        with:
+          name: step-2
+          path: ./model-steps-2.onnx
+
+      - uses: actions/upload-artifact@v4
+        if: matrix.python-version == '3.9' && matrix.torch-version == '2.3.0'
+        with:
+          name: step-3
+          path: ./model-steps-3.onnx
+
+      - uses: actions/upload-artifact@v4
+        if: matrix.python-version == '3.9' && matrix.torch-version == '2.3.0'
+        with:
+          name: step-4
+          path: ./model-steps-4.onnx
+
+      - uses: actions/upload-artifact@v4
+        if: matrix.python-version == '3.9' && matrix.torch-version == '2.3.0'
+        with:
+          name: step-5
+          path: ./model-steps-5.onnx
+
+      - uses: actions/upload-artifact@v4
+        if: matrix.python-version == '3.9' && matrix.torch-version == '2.3.0'
+        with:
+          name: step-6
+          path: ./model-steps-6.onnx
+
+      - name: Upload models to huggingface
+        if: matrix.python-version == '3.9' && matrix.torch-version == '2.3.0' && github.event_name == 'push'
+        shell: bash
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          d=matcha-icefall-zh-baker
+
+          GIT_LFS_SKIP_SMUDGE=1  git clone https://huggingface.co/csukuangfj/$d hf
+          cp -av $d/* hf/
+
+          pushd hf
+          git add .
+
+          git config --global user.name "csukuangfj"
+          git config --global user.email "csukuangfj@gmail.com"
+          git config --global lfs.allowincompletepush true
+
+          git commit -m "upload model" && git push https://csukuangfj:${HF_TOKEN}@huggingface.co/csukuangfj/$d main || true
+          popd
+
+      - name: Release exported onnx models
+        if: matrix.python-version == '3.9' && matrix.torch-version == '2.3.0' && github.event_name == 'push'
+        uses: svenstaro/upload-release-action@v2
+        with:
+          file_glob: true
+          overwrite: true
+          file: matcha-icefall-*.tar.bz2
+          repo_name: k2-fsa/sherpa-onnx
+          repo_token: ${{ secrets.UPLOAD_GH_SHERPA_ONNX_TOKEN }}
+          tag: tts-models
