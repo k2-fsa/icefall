@@ -180,7 +180,7 @@ def main():
             "n_speakers": 1,
             "sample_rate": 22050,
             "version": 1,
-            "pad_id": params.pad_id,
+            "pad_id": tokenizer.pad_id,
             "model_author": "icefall",
             "maintainer": "k2-fsa",
             "use_eos_bos": 0,
