@@ -183,7 +183,7 @@ def main():
             "pad_id": tokenizer.pad_id,
             "model_author": "icefall",
             "maintainer": "k2-fsa",
-            "use_eos_bos": 0,
+            "use_eos_bos": 1,
             "dataset": "LJ Speech",
             "dataset_url": "https://keithito.com/LJ-Speech-Dataset/",
             "num_ode_steps": num_steps,

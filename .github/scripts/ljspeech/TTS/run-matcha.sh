@@ -77,7 +77,7 @@ function export_onnx() {
   popd
 
   pushd data/fbank
-  rm -v *.json
+  rm -fv *.json
   curl -SL -O https://huggingface.co/csukuangfj/icefall-tts-ljspeech-matcha-en-2024-10-28/resolve/main/data/cmvn.json
   popd
 
