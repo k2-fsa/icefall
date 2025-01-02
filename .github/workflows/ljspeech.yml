@@ -141,6 +141,10 @@ jobs:
           cp -av $d/* hf/
 
           pushd hf
+
+          git lfs track "cmn_dict"
+          git lfs track "ru_dict"
+
           git add .
 
           git config --global user.name "csukuangfj"
