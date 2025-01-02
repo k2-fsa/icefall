@@ -75,7 +75,7 @@ jobs:
               pip list
 
               .github/scripts/ljspeech/TTS/run-matcha.sh
-              # .github/scripts/ljspeech/TTS/run.sh
+              .github/scripts/ljspeech/TTS/run.sh
 
       - name: display files
         shell: bash
@@ -83,15 +83,13 @@ jobs:
           ls -lh
 
       - uses: actions/upload-artifact@v4
-        # if: matrix.python-version == '3.9' && matrix.torch-version == '2.3.0'
-        if: false
+        if: matrix.python-version == '3.9' && matrix.torch-version == '2.3.0'
         with:
           name: generated-test-files-${{ matrix.python-version }}-${{ matrix.torch-version }}
           path: ./*.wav
 
       - name: Release exported onnx models
-        # if: matrix.python-version == '3.9' && matrix.torch-version == '2.3.0' && github.event_name == 'push'
-        if: false
+        if: matrix.python-version == '3.9' && matrix.torch-version == '2.3.0' && github.event_name == 'push'
         uses: svenstaro/upload-release-action@v2
         with:
           file_glob: true
@@ -100,7 +98,6 @@ jobs:
           repo_name: k2-fsa/sherpa-onnx
           repo_token: ${{ secrets.UPLOAD_GH_SHERPA_ONNX_TOKEN }}
           tag: tts-models
-
 
       - uses: actions/upload-artifact@v4
         if: matrix.python-version == '3.9' && matrix.torch-version == '2.3.0'
@@ -133,8 +130,7 @@ jobs:
           path: ./model-steps-6.onnx
 
       - name: Upload models to huggingface
-        # if: matrix.python-version == '3.9' && matrix.torch-version == '2.3.0' && github.event_name == 'push'
-        if: matrix.python-version == '3.9' && matrix.torch-version == '2.3.0' 
+        if: matrix.python-version == '3.9' && matrix.torch-version == '2.3.0' && github.event_name == 'push'
         shell: bash
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
@@ -155,8 +151,7 @@ jobs:
           popd
 
       - name: Release exported onnx models
-        # if: matrix.python-version == '3.9' && matrix.torch-version == '2.3.0' && github.event_name == 'push'
-        if: matrix.python-version == '3.9' && matrix.torch-version == '2.3.0'
+        if: matrix.python-version == '3.9' && matrix.torch-version == '2.3.0' && github.event_name == 'push'
         uses: svenstaro/upload-release-action@v2
         with:
           file_glob: true
