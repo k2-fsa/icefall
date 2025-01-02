@@ -77,7 +77,7 @@ function export_onnx() {
   popd
 
   pushd data/fbank
-  rm -v *.json
+  rm -fv *.json
   curl -SL -O https://huggingface.co/csukuangfj/icefall-tts-ljspeech-matcha-en-2024-10-28/resolve/main/data/cmvn.json
   popd
 
@@ -115,6 +115,37 @@ function export_onnx() {
 
   ls -lh /icefall/*.wav
   soxi /icefall/generated-matcha-tts-steps-6-*.wav
+
+  cp ./model-steps-*.onnx /icefall
+
+  d=matcha-icefall-en_US-ljspeech
+  mkdir $d
+  cp -v data/tokens.txt $d
+  cp model-steps-3.onnx $d
+  pushd $d
+  curl -SL -O https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/espeak-ng-data.tar.bz2
+  tar xf espeak-ng-data.tar.bz2
+  rm espeak-ng-data.tar.bz2
+
+cat >README.md <<EOF
+# Introduction
+
+This model is trained using the dataset from
+https://keithito.com/LJ-Speech-Dataset/
+
+The dataset contains only 1 female speaker.
+
+You can find the training code at
+https://github.com/k2-fsa/icefall/tree/master/egs/ljspeech/TTS#matcha
+EOF
+
+  ls -lh
+
+  popd
+
+  tar cvjf $d.tar.bz2 $d
+  mv $d.tar.bz2 /icefall
+  mv $d /icefall
 }
 
 prepare_data
