@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
-
+export PYTHONPATH=$PYTHONPATH:/home/yuekaiz/icefall_matcha
 set -eou pipefail
+
+
 
 # fix segmentation fault reported in https://github.com/k2-fsa/icefall/issues/674
 export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
 
-stage=1
-stop_stage=4
+stage=7
+stop_stage=7
 
 dl_dir=$PWD/download
 
@@ -97,4 +99,58 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
     touch ${audio_feats_dir}/.wenetspeech4tts.train.done
   fi
   python3 ./local/display_manifest_statistics.py --manifest-dir ${audio_feats_dir}
+fi
+
+if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
+  log "Stage 5: build monotonic_align lib (used by matcha recipes)"
+  for recipe in matcha; do
+    if [ ! -d $recipe/monotonic_align/build ]; then
+      cd $recipe/monotonic_align
+      python3 setup.py build_ext --inplace
+      cd ../../
+    else
+      log "monotonic_align lib for $recipe already built"
+    fi
+  done
+fi
+
+subset="Basic"
+prefix="wenetspeech4tts"
+if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
+  log "Stage 6: Generate fbank (used by ./matcha)"
+  mkdir -p data/fbank
+  if [ ! -e data/fbank/.${prefix}.done ]; then
+    ./local/compute_mel_feat.py --dataset-parts $subset --split 100
+    touch data/fbank/.${prefix}.done
+  fi
+fi
+
+if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
+  log "Stage 7: Split the ${prefix} cuts into train, valid and test sets (used by ./matcha)"
+  if [ ! -f data/fbank/${prefix}_cuts_${subset}.jsonl.gz ]; then
+    echo "Combining ${prefix} cuts"
+    pieces=$(find data/fbank/ -name "${prefix}_cuts_${subset}.*.jsonl.gz")
+    # lhotse combine $pieces data/fbank/${prefix}_cuts_${subset}.jsonl.gz
+  fi
+  if [ ! -e data/fbank/.${prefix}_split.done ]; then
+    echo "Splitting ${prefix} cuts into train, valid and test sets"
+
+    # lhotse subset --last 800 \
+    #   data/fbank/${prefix}_cuts_${subset}.jsonl.gz \
+    #   data/fbank/${prefix}_cuts_validtest.jsonl.gz
+    # lhotse subset --first 400 \
+    #   data/fbank/${prefix}_cuts_validtest.jsonl.gz \
+    #   data/fbank/${prefix}_cuts_valid.jsonl.gz
+    # lhotse subset --last 400 \
+    #   data/fbank/${prefix}_cuts_validtest.jsonl.gz \
+    #   data/fbank/${prefix}_cuts_test.jsonl.gz
+
+    # rm data/fbank/${prefix}_cuts_validtest.jsonl.gz
+
+    n=$(( $(gunzip -c data/fbank/${prefix}_cuts_${subset}.jsonl.gz | wc -l) - 800 ))
+    lhotse subset --first $n  \
+      data/fbank/${prefix}_cuts_${subset}.jsonl.gz \
+      data/fbank/${prefix}_cuts_train.jsonl.gz
+      touch data/fbank/.${prefix}_split.done
+  fi
 fi
