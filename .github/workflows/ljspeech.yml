@@ -95,11 +95,6 @@ jobs:
           repo_token: ${{ secrets.UPLOAD_GH_SHERPA_ONNX_TOKEN }}
           tag: tts-models
 
-      - uses: actions/upload-artifact@v4
-        if: matrix.python-version == '3.9' && matrix.torch-version == '2.3.0'
-        with:
-          name: generated-test-files-${{ matrix.python-version }}-${{ matrix.torch-version }}
-          path: ./*.wav
 
       - uses: actions/upload-artifact@v4
         if: matrix.python-version == '3.9' && matrix.torch-version == '2.3.0'
