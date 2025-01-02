@@ -90,7 +90,7 @@ def intersperse(sequence, item=0):
 
 
 # from https://github.com/jaywalnut310/vits/blob/main/utils.py
-MATPLOTLIB_FLAG = False
+MATPLOTLIB_FLAG = True
 
 
 def plot_feature(spectrogram):
