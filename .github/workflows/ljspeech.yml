@@ -70,6 +70,8 @@ jobs:
               cd /icefall
               git config --global --add safe.directory /icefall
 
+              pip install "matplotlib<=3.9.4"
+
               pip list
 
               .github/scripts/ljspeech/TTS/run-matcha.sh
