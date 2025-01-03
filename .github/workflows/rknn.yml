@@ -1,0 +1,30 @@
+name: rknn
+
+on:
+  push:
+    branches:
+      - master
+      - ci-rknn
+
+  pull_request:
+    branches:
+      - master
+
+  workflow_dispatch:
+
+concurrency:
+  group: rknn-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rknn:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install rknn
+        shell: bash
+        run: |
+          ls
+
