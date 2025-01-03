@@ -42,8 +42,31 @@ jobs:
           pip install ./*.whl
           pip list | grep rknn
 
-      - name: Run python
+      - name: Run
         shell: bash
         run: |
           ls
           python3 -c "import sys; from rknn.api import RKNN; print(dir(RKNN))"
+
+          git clone --depth 1 https://github.com/airockchip/rknn_model_zoo/
+          cd rknn_model_zoo/examples/zipformer
+          cd model
+          ls -lh
+          ./download_model.sh
+          ls -lh
+          cd ..
+
+          cd python
+          python3 ./convert.py ../model/encoder-epoch-99-avg-1.onnx rk3588
+
+          ls -lh
+
+          python3 convert.py ../model/decoder-epoch-99-avg-1.onnx rk3588
+
+          ls -lh
+
+          python3 convert.py ../model/joiner-epoch-99-avg-1.onnx rk3588
+
+          ls -lh
+
+
