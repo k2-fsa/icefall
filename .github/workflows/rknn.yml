@@ -39,8 +39,11 @@ jobs:
         run: |
           ls
           curl -SL -O https://huggingface.co/csukuangfj/rknn-toolkit2/resolve/main/rknn_toolkit2-1.6.2b6%2B2a4e0d97-cp310-cp310-linux_x86_64.whl
-          pip install ./*.whl
+          pip install ./*.whl "numpy<=1.26.4"
           pip list | grep rknn
+          echo "---"
+          pip list
+          echo "---"
 
       - name: Run
         shell: bash
