@@ -52,6 +52,7 @@ jobs:
           cd rknn_model_zoo/examples/zipformer
           cd model
           ls -lh
+          chmod +x ./download_model.sh
           ./download_model.sh
           ls -lh
           cd ..
