@@ -63,14 +63,14 @@ jobs:
           cd python
           python3 ./convert.py ../model/encoder-epoch-99-avg-1.onnx rk3588
 
-          ls -lh
+          ls -lh ../model
 
           python3 convert.py ../model/decoder-epoch-99-avg-1.onnx rk3588
 
-          ls -lh
+          ls -lh ../model
 
           python3 convert.py ../model/joiner-epoch-99-avg-1.onnx rk3588
 
-          ls -lh
+          ls -lh ../model
 
 
