@@ -40,7 +40,7 @@ jobs:
           ls
           curl -SL -O https://huggingface.co/csukuangfj/rknn-toolkit2/resolve/main/rknn_toolkit2-1.6.2b6%2B2a4e0d97-cp310-cp310-linux_x86_64.whl
           pip install ./*.whl
-          pip list | grep
+          pip list | grep rknn
 
       - name: Run python
         shell: bash
