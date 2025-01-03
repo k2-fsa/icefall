@@ -73,4 +73,12 @@ jobs:
 
           ls -lh ../model
 
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rknn-files
+          path: ./rknn_model_zoo/examples/zipformer/model/*.rknn
 
+      - uses: actions/upload-artifact@v4
+        with:
+          name: onnx-files
+          path: ./rknn_model_zoo/examples/zipformer/model/*.onnx
