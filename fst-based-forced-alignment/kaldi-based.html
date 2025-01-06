@@ -7,7 +7,7 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Kaldi-based forced alignment &mdash; icefall 0.1 documentation</title>
-      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=fa44fd50" />
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=03e43079" />
       <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
 
   
@@ -125,7 +125,7 @@ for <strong>FST-based</strong> <code class="docutils literal notranslate"><span 
 <h2>Get the test data<a class="headerlink" href="#get-the-test-data" title="Permalink to this heading"></a></h2>
 <p>We use the test wave
 from <a class="reference external" href="https://pytorch.org/audio/main/tutorials/ctc_forced_alignment_api_tutorial.html">CTC FORCED ALIGNMENT API TUTORIAL</a></p>
-<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">torchaudio</span>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">torchaudio</span>
 
 <span class="c1"># Download test wave</span>
 <span class="n">speech_file</span> <span class="o">=</span> <span class="n">torchaudio</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">download_asset</span><span class="p">(</span><span class="s2">&quot;tutorial-assets/Lab41-SRI-VOiCES-src-sp0307-ch127535-sg0042.wav&quot;</span><span class="p">)</span>
@@ -163,7 +163,7 @@ from <a class="reference external" href="https://pytorch.org/audio/main/tutorial
   </tr>
 </table><p>We use the test model
 from <a class="reference external" href="https://pytorch.org/audio/main/tutorials/ctc_forced_alignment_api_tutorial.html">CTC FORCED ALIGNMENT API TUTORIAL</a></p>
-<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">torch</span>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 
 <span class="n">bundle</span> <span class="o">=</span> <span class="n">torchaudio</span><span class="o">.</span><span class="n">pipelines</span><span class="o">.</span><span class="n">MMS_FA</span>
 
@@ -225,7 +225,7 @@ from <a class="reference external" href="https://pytorch.org/audio/main/tutorial
 <p class="admonition-title">Caution</p>
 <p><code class="docutils literal notranslate"><span class="pre">words.txt</span></code> contains only words from the transcript of the test wave.</p>
 </div>
-<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">prepare_lang</span> <span class="kn">import</span> <span class="n">add_disambig_symbols</span>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">prepare_lang</span><span class="w"> </span><span class="kn">import</span> <span class="n">add_disambig_symbols</span>
 
 <span class="n">lexicon</span> <span class="o">=</span> <span class="p">[(</span><span class="n">w</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">w</span><span class="p">))</span> <span class="k">for</span> <span class="n">w</span> <span class="ow">in</span> <span class="n">word2id</span> <span class="k">if</span> <span class="n">w</span> <span class="o">!=</span> <span class="s2">&quot;eps&quot;</span><span class="p">]</span>
 <span class="n">lexicon_disambig</span><span class="p">,</span> <span class="n">max_disambig_id</span> <span class="o">=</span> <span class="n">add_disambig_symbols</span><span class="p">(</span><span class="n">lexicon</span><span class="p">)</span>
@@ -347,10 +347,10 @@ use <code class="docutils literal notranslate"><span class="pre">HL.fst</span></
 <section id="force-aligner">
 <h2>Force aligner<a class="headerlink" href="#force-aligner" title="Permalink to this heading"></a></h2>
 <p>Now, everything is ready. We can use the following code to get forced alignments.</p>
-<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">kaldi_decoder</span> <span class="kn">import</span> <span class="n">DecodableCtc</span><span class="p">,</span> <span class="n">FasterDecoder</span><span class="p">,</span> <span class="n">FasterDecoderOptions</span>
-<span class="kn">import</span> <span class="nn">kaldifst</span>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">kaldi_decoder</span><span class="w"> </span><span class="kn">import</span> <span class="n">DecodableCtc</span><span class="p">,</span> <span class="n">FasterDecoder</span><span class="p">,</span> <span class="n">FasterDecoderOptions</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">kaldifst</span>
 
-<span class="k">def</span> <span class="nf">force_align</span><span class="p">():</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">force_align</span><span class="p">():</span>
     <span class="n">HL</span> <span class="o">=</span> <span class="n">kaldifst</span><span class="o">.</span><span class="n">StdVectorFst</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">&quot;./HL.fst&quot;</span><span class="p">)</span>
     <span class="n">decodable</span> <span class="o">=</span> <span class="n">DecodableCtc</span><span class="p">(</span><span class="n">emission</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">contiguous</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">())</span>
     <span class="n">decoder_opts</span> <span class="o">=</span> <span class="n">FasterDecoderOptions</span><span class="p">(</span><span class="n">max_active</span><span class="o">=</span><span class="mi">3000</span><span class="p">)</span>
@@ -557,7 +557,7 @@ use <code class="docutils literal notranslate"><span class="pre">HL.fst</span></
 </pre></div>
 </div>
 <p>To merge tokens, we use:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">icefall.ctc</span> <span class="kn">import</span> <span class="n">merge_tokens</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">icefall.ctc</span><span class="w"> </span><span class="kn">import</span> <span class="n">merge_tokens</span>
 <span class="n">token_spans</span> <span class="o">=</span> <span class="n">merge_tokens</span><span class="p">(</span><span class="n">alignment</span><span class="p">)</span>
 <span class="k">for</span> <span class="n">span</span> <span class="ow">in</span> <span class="n">token_spans</span><span class="p">:</span>
   <span class="nb">print</span><span class="p">(</span><span class="n">id2token</span><span class="p">[</span><span class="n">span</span><span class="o">.</span><span class="n">token</span><span class="p">],</span> <span class="n">span</span><span class="o">.</span><span class="n">start</span><span class="p">,</span> <span class="n">span</span><span class="o">.</span><span class="n">end</span><span class="p">)</span>
@@ -608,7 +608,7 @@ from <a class="reference external" href="https://pytorch.org/audio/main/tutorial
 </section>
 <section id="segment-each-word-using-the-computed-alignments">
 <h2>Segment each word using the computed alignments<a class="headerlink" href="#segment-each-word-using-the-computed-alignments" title="Permalink to this heading"></a></h2>
-<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">unflatten</span><span class="p">(</span><span class="n">list_</span><span class="p">,</span> <span class="n">lengths</span><span class="p">):</span>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">unflatten</span><span class="p">(</span><span class="n">list_</span><span class="p">,</span> <span class="n">lengths</span><span class="p">):</span>
     <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">list_</span><span class="p">)</span> <span class="o">==</span> <span class="nb">sum</span><span class="p">(</span><span class="n">lengths</span><span class="p">)</span>
     <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span>
     <span class="n">ret</span> <span class="o">=</span> <span class="p">[]</span>
@@ -635,7 +635,7 @@ from <a class="reference external" href="https://pytorch.org/audio/main/tutorial
 <span class="p">]</span>
 </pre></div>
 </div>
-<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">preview_word</span><span class="p">(</span><span class="n">waveform</span><span class="p">,</span> <span class="n">spans</span><span class="p">,</span> <span class="n">num_frames</span><span class="p">,</span> <span class="n">transcript</span><span class="p">,</span> <span class="n">sample_rate</span><span class="o">=</span><span class="n">bundle</span><span class="o">.</span><span class="n">sample_rate</span><span class="p">):</span>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">preview_word</span><span class="p">(</span><span class="n">waveform</span><span class="p">,</span> <span class="n">spans</span><span class="p">,</span> <span class="n">num_frames</span><span class="p">,</span> <span class="n">transcript</span><span class="p">,</span> <span class="n">sample_rate</span><span class="o">=</span><span class="n">bundle</span><span class="o">.</span><span class="n">sample_rate</span><span class="p">):</span>
     <span class="n">ratio</span> <span class="o">=</span> <span class="n">waveform</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="n">num_frames</span>
     <span class="n">x0</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">ratio</span> <span class="o">*</span> <span class="n">spans</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">start</span><span class="p">)</span>
     <span class="n">x1</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">ratio</span> <span class="o">*</span> <span class="n">spans</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">end</span><span class="p">)</span>
