@@ -902,7 +902,7 @@ class Swish(torch.nn.Module):
     """Construct an Swish object."""
 
     def forward(self, x: Tensor) -> Tensor:
-        """Return Swich activation function."""
+        """Return Swish activation function."""
         return x * torch.sigmoid(x)
 
 
