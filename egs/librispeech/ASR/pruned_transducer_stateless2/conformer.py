@@ -42,7 +42,7 @@ class Conformer(EncoderInterface):
         subsampling_factor (int): subsampling factor of encoder (the convolution layers before transformers)
         d_model (int): attention dimension, also the output dimension
         nhead (int): number of head
-        dim_feedforward (int): feedforward dimention
+        dim_feedforward (int): feedforward dimension
         num_encoder_layers (int): number of encoder layers
         dropout (float): dropout rate
         layer_dropout (float): layer-dropout rate.

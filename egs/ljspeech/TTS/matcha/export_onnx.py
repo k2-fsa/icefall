@@ -176,12 +176,16 @@ def main():
             "language": "English",
             "voice": "en-us",
             "has_espeak": 1,
+            "jieba": 0,
             "n_speakers": 1,
             "sample_rate": 22050,
             "version": 1,
+            "pad_id": tokenizer.pad_id,
             "model_author": "icefall",
             "maintainer": "k2-fsa",
+            "use_eos_bos": 1,
             "dataset": "LJ Speech",
+            "dataset_url": "https://keithito.com/LJ-Speech-Dataset/",
             "num_ode_steps": num_steps,
         }
         add_meta_data(filename=filename, meta_data=meta_data)

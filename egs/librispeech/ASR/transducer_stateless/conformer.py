@@ -35,7 +35,7 @@ class Conformer(Transformer):
         subsampling_factor (int): subsampling factor of encoder (the convolution layers before transformers)
         d_model (int): attention dimension
         nhead (int): number of head
-        dim_feedforward (int): feedforward dimention
+        dim_feedforward (int): feedforward dimension
         num_encoder_layers (int): number of encoder layers
         dropout (float): dropout rate
         cnn_module_kernel (int): Kernel size of convolution module

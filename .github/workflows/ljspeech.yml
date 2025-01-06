@@ -30,8 +30,8 @@ jobs:
         id: set-matrix
         run: |
           # outputting for debugging purposes
-          python ./.github/scripts/docker/generate_build_matrix.py
-          MATRIX=$(python ./.github/scripts/docker/generate_build_matrix.py)
+          python ./.github/scripts/docker/generate_build_matrix.py --min-torch-version "2.3"
+          MATRIX=$(python ./.github/scripts/docker/generate_build_matrix.py --min-torch-version "2.3")
           echo "::set-output name=matrix::${MATRIX}"
 
   ljspeech:
@@ -70,6 +70,10 @@ jobs:
               cd /icefall
               git config --global --add safe.directory /icefall
 
+              pip install "matplotlib<=3.9.4"
+
+              pip list
+
               .github/scripts/ljspeech/TTS/run-matcha.sh
               .github/scripts/ljspeech/TTS/run.sh
 
@@ -91,6 +95,72 @@ jobs:
           file_glob: true
           overwrite: true
           file: vits-icefall-*.tar.bz2
+          repo_name: k2-fsa/sherpa-onnx
+          repo_token: ${{ secrets.UPLOAD_GH_SHERPA_ONNX_TOKEN }}
+          tag: tts-models
+
+      - uses: actions/upload-artifact@v4
+        if: matrix.python-version == '3.9' && matrix.torch-version == '2.3.0'
+        with:
+          name: step-2
+          path: ./model-steps-2.onnx
+
+      - uses: actions/upload-artifact@v4
+        if: matrix.python-version == '3.9' && matrix.torch-version == '2.3.0'
+        with:
+          name: step-3
+          path: ./model-steps-3.onnx
+
+      - uses: actions/upload-artifact@v4
+        if: matrix.python-version == '3.9' && matrix.torch-version == '2.3.0'
+        with:
+          name: step-4
+          path: ./model-steps-4.onnx
+
+      - uses: actions/upload-artifact@v4
+        if: matrix.python-version == '3.9' && matrix.torch-version == '2.3.0'
+        with:
+          name: step-5
+          path: ./model-steps-5.onnx
+
+      - uses: actions/upload-artifact@v4
+        if: matrix.python-version == '3.9' && matrix.torch-version == '2.3.0'
+        with:
+          name: step-6
+          path: ./model-steps-6.onnx
+
+      - name: Upload models to huggingface
+        if: matrix.python-version == '3.9' && matrix.torch-version == '2.3.0'
+        shell: bash
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          d=matcha-icefall-en_US-ljspeech
+
+          GIT_LFS_SKIP_SMUDGE=1  git clone https://huggingface.co/csukuangfj/$d hf
+          cp -av $d/* hf/
+
+          pushd hf
+
+          git lfs track "cmn_dict"
+          git lfs track "ru_dict"
+
+          git add .
+
+          git config --global user.name "csukuangfj"
+          git config --global user.email "csukuangfj@gmail.com"
+          git config --global lfs.allowincompletepush true
+
+          git commit -m "upload model" && git push https://csukuangfj:${HF_TOKEN}@huggingface.co/csukuangfj/$d main || true
+          popd
+
+      - name: Release exported onnx models
+        if: matrix.python-version == '3.9' && matrix.torch-version == '2.3.0'
+        uses: svenstaro/upload-release-action@v2
+        with:
+          file_glob: true
+          overwrite: true
+          file: matcha-icefall-*.tar.bz2
           repo_name: k2-fsa/sherpa-onnx
           repo_token: ${{ secrets.UPLOAD_GH_SHERPA_ONNX_TOKEN }}
           tag: tts-models

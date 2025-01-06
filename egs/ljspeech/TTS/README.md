@@ -176,6 +176,15 @@ The above command generates the following files:
 
 where the 2 in `model-steps-2.onnx` means it uses 2 steps for the ODE solver.
 
+**HINT**: If you get the following error while running `export_onnx.py`:
+
+```
+torch.onnx.errors.UnsupportedOperatorError: Exporting the operator
+'aten::scaled_dot_product_attention' to ONNX opset version 14 is not supported.
+```
+
+please use `torch>=2.2.0`.
+
 
 To export the Hifigan vocoder to onnx, please use:
 
