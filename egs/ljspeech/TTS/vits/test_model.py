@@ -18,7 +18,6 @@
 
 from tokenizer import Tokenizer
 from train import get_model, get_params
-from vits import VITS
 
 
 def test_model_type(model_type):

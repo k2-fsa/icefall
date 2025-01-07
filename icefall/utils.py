@@ -19,8 +19,11 @@
 
 import argparse
 import collections
+import json
 import logging
 import os
+import pathlib
+import random
 import re
 import subprocess
 from collections import defaultdict
@@ -38,6 +41,7 @@ import sentencepiece as spm
 import torch
 import torch.distributed as dist
 import torch.nn as nn
+from lhotse.dataset.signal_transforms import time_warp as time_warp_impl
 from pypinyin import lazy_pinyin, pinyin
 from pypinyin.contrib.tone_convert import to_finals, to_finals_tone, to_initials
 from torch.utils.tensorboard import SummaryWriter
@@ -177,6 +181,15 @@ class AttributeDict(dict):
             del self[key]
             return
         raise AttributeError(f"No such attribute '{key}'")
+
+    def __str__(self, indent: int = 2):
+        tmp = {}
+        for k, v in self.items():
+            # PosixPath is ont JSON serializable
+            if isinstance(v, pathlib.Path) or isinstance(v, torch.device):
+                v = str(v)
+            tmp[k] = v
+        return json.dumps(tmp, indent=indent, sort_keys=True)
 
 
 def encode_supervisions(
@@ -2296,3 +2309,40 @@ def num_tokens(
     if 0 in ans:
         num_tokens -= 1
     return num_tokens
+
+
+# Based on https://github.com/lhotse-speech/lhotse/blob/master/lhotse/dataset/signal_transforms.py
+def time_warp(
+    features: torch.Tensor,
+    p: float = 0.9,
+    time_warp_factor: Optional[int] = 80,
+    supervision_segments: Optional[torch.Tensor] = None,
+):
+    """Apply time warping on a batch of features"""
+    if time_warp_factor is None or time_warp_factor < 1:
+        return features
+    assert (
+        len(features.shape) == 3
+    ), f"SpecAugment only supports batches of single-channel feature matrices. {features.shape}"
+    features = features.clone()
+    if supervision_segments is None:
+        # No supervisions - apply spec augment to full feature matrices.
+        for sequence_idx in range(features.size(0)):
+            if random.random() > p:
+                # Randomly choose whether this transform is applied
+                continue
+            features[sequence_idx] = time_warp_impl(
+                features[sequence_idx], factor=time_warp_factor
+            )
+    else:
+        # Supervisions provided - we will apply time warping only on the supervised areas.
+        for sequence_idx, start_frame, num_frames in supervision_segments:
+            if random.random() > p:
+                # Randomly choose whether this transform is applied
+                continue
+            end_frame = start_frame + num_frames
+            features[sequence_idx, start_frame:end_frame] = time_warp_impl(
+                features[sequence_idx, start_frame:end_frame], factor=time_warp_factor
+            )
+
+    return features

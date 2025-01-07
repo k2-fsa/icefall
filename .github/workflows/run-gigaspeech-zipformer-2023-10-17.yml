@@ -42,7 +42,7 @@ concurrency:
 
 jobs:
   run_gigaspeech_2023_10_17_zipformer:
-    if: github.event.label.name == 'zipformer' ||github.event.label.name == 'ready' || github.event.label.name == 'run-decode' || github.event_name == 'push' || github.event_name == 'schedule'
+    if: github.event.label.name == 'zipformer' ||github.event.label.name == 'ready' || github.event.label.name == 'run-decode' || github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -90,10 +90,6 @@ jobs:
           GITHUB_EVENT_LABEL_NAME: ${{ github.event.label.name }}
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          mkdir -p egs/gigaspeech/ASR/data
-          ln -sfv ~/tmp/fbank-libri egs/gigaspeech/ASR/data/fbank
-          ls -lh egs/gigaspeech/ASR/data/*
-
           sudo apt-get -qq install git-lfs tree
           export PYTHONPATH=$PWD:$PYTHONPATH
           export PYTHONPATH=~/tmp/kaldifeat/kaldifeat/python:$PYTHONPATH
@@ -112,7 +108,7 @@ jobs:
           tag: asr-models
 
       - name: Display decoding results for gigaspeech zipformer
-        if: github.event_name == 'schedule' || github.event.label.name == 'run-decode'
+        if: github.event_name == 'schedule' || github.event.label.name == 'run-decode' || github.event_name == 'workflow_dispatch'
         shell: bash
         run: |
           cd egs/gigaspeech/ASR/
@@ -124,17 +120,17 @@ jobs:
           find exp/greedy_search -name "log-*" -exec grep -n --color "best for test-clean" {} + | sort -n -k2
           find exp/greedy_search -name "log-*" -exec grep -n --color "best for test-other" {} + | sort -n -k2
 
-          echo "===fast_beam_search==="
-          find exp/fast_beam_search -name "log-*" -exec grep -n --color "best for test-clean" {} + | sort -n -k2
-          find exp/fast_beam_search -name "log-*" -exec grep -n --color "best for test-other" {} + | sort -n -k2
-
-          echo "===modified beam search==="
-          find exp/modified_beam_search -name "log-*" -exec grep -n --color "best for test-clean" {} + | sort -n -k2
-          find exp/modified_beam_search -name "log-*" -exec grep -n --color "best for test-other" {} + | sort -n -k2
+          # echo "===fast_beam_search==="
+          # find exp/fast_beam_search -name "log-*" -exec grep -n --color "best for test-clean" {} + | sort -n -k2
+          # find exp/fast_beam_search -name "log-*" -exec grep -n --color "best for test-other" {} + | sort -n -k2
+          #
+          # echo "===modified beam search==="
+          # find exp/modified_beam_search -name "log-*" -exec grep -n --color "best for test-clean" {} + | sort -n -k2
+          # find exp/modified_beam_search -name "log-*" -exec grep -n --color "best for test-other" {} + | sort -n -k2
 
       - name: Upload decoding results for gigaspeech zipformer
-        uses: actions/upload-artifact@v2
-        if: github.event_name == 'schedule' || github.event.label.name == 'run-decode'
+        uses: actions/upload-artifact@v4
+        if: github.event_name == 'schedule' || github.event.label.name == 'run-decode' || github.event_name == 'workflow_dispatch'
         with:
           name: torch-${{ matrix.torch }}-python-${{ matrix.python-version }}-ubuntu-latest-cpu-zipformer-2022-11-11
           path: egs/gigaspeech/ASR/zipformer/exp/

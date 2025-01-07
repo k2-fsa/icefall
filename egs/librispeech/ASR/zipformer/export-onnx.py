@@ -218,7 +218,7 @@ class OnnxEncoder(nn.Module):
             - encoder_out_lens, A 1-D tensor of shape (N,)
         """
         x, x_lens = self.encoder_embed(x, x_lens)
-        src_key_padding_mask = make_pad_mask(x_lens)
+        src_key_padding_mask = make_pad_mask(x_lens, x.shape[1])
         x = x.permute(1, 0, 2)
         encoder_out, encoder_out_lens = self.encoder(x, x_lens, src_key_padding_mask)
         encoder_out = encoder_out.permute(1, 0, 2)
@@ -592,23 +592,23 @@ def main():
     )
     logging.info(f"Exported joiner to {joiner_filename}")
 
-    if(params.fp16) :
+    if params.fp16:
         logging.info("Generate fp16 models")
 
         encoder = onnx.load(encoder_filename)
         encoder_fp16 = float16.convert_float_to_float16(encoder, keep_io_types=True)
         encoder_filename_fp16 = params.exp_dir / f"encoder-{suffix}.fp16.onnx"
-        onnx.save(encoder_fp16,encoder_filename_fp16)
+        onnx.save(encoder_fp16, encoder_filename_fp16)
 
         decoder = onnx.load(decoder_filename)
         decoder_fp16 = float16.convert_float_to_float16(decoder, keep_io_types=True)
         decoder_filename_fp16 = params.exp_dir / f"decoder-{suffix}.fp16.onnx"
-        onnx.save(decoder_fp16,decoder_filename_fp16)
+        onnx.save(decoder_fp16, decoder_filename_fp16)
 
         joiner = onnx.load(joiner_filename)
         joiner_fp16 = float16.convert_float_to_float16(joiner, keep_io_types=True)
         joiner_filename_fp16 = params.exp_dir / f"joiner-{suffix}.fp16.onnx"
-        onnx.save(joiner_fp16,joiner_filename_fp16)
+        onnx.save(joiner_fp16, joiner_filename_fp16)
 
     # Generate int8 quantization models
     # See https://onnxruntime.ai/docs/performance/model-optimizations/quantization.html#data-type-selection

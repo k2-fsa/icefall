@@ -90,7 +90,7 @@ def save_checkpoint(
 
     if params:
         for k, v in params.items():
-            assert k not in checkpoint
+            assert k not in checkpoint, k
             checkpoint[k] = v
 
     torch.save(checkpoint, filename)
@@ -424,8 +424,12 @@ def average_checkpoints_with_averaged_model(
     state_dict_start = torch.load(filename_start, map_location=device)
     state_dict_end = torch.load(filename_end, map_location=device)
 
+    average_period = state_dict_start["average_period"]
+
     batch_idx_train_start = state_dict_start["batch_idx_train"]
+    batch_idx_train_start = (batch_idx_train_start // average_period) * average_period
     batch_idx_train_end = state_dict_end["batch_idx_train"]
+    batch_idx_train_end = (batch_idx_train_end // average_period) * average_period
     interval = batch_idx_train_end - batch_idx_train_start
     assert interval > 0, interval
     weight_end = batch_idx_train_end / interval

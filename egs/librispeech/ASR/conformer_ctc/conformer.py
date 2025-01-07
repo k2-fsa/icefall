@@ -32,7 +32,7 @@ class Conformer(Transformer):
         subsampling_factor (int): subsampling factor of encoder (the convolution layers before transformers)
         d_model (int): attention dimension
         nhead (int): number of head
-        dim_feedforward (int): feedforward dimention
+        dim_feedforward (int): feedforward dimension
         num_encoder_layers (int): number of encoder layers
         num_decoder_layers (int): number of decoder layers
         dropout (float): dropout rate
@@ -902,7 +902,7 @@ class Swish(torch.nn.Module):
     """Construct an Swish object."""
 
     def forward(self, x: Tensor) -> Tensor:
-        """Return Swich activation function."""
+        """Return Swish activation function."""
         return x * torch.sigmoid(x)
 
 

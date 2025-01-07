@@ -42,7 +42,6 @@ for more details.
   - [LibriSpeech][librispeech]
   - [Libriheavy][libriheavy]
   - [Multi-Dialect Broadcast News Arabic Speech Recognition][mgb2]
-  - [PeopleSpeech][peoplespeech]
   - [SPGISpeech][spgispeech]
   - [Switchboard][swbd]
   - [TIMIT][timit]
@@ -334,6 +333,7 @@ We provide a Colab notebook to test the pre-trained model: [![Open In Colab](htt
 
   - [LJSpeech][ljspeech]
   - [VCTK][vctk]
+  - [LibriTTS][libritts_tts]
 
 ### Supported Models
 
@@ -373,12 +373,13 @@ Please see: [![Open In Colab](https://colab.research.google.com/assets/colab-bad
 [commonvoice]: egs/commonvoice/ASR
 [csj]: egs/csj/ASR
 [libricss]: egs/libricss/SURT
+[libritts_asr]: egs/libritts/ASR
 [libriheavy]: egs/libriheavy/ASR
 [mgb2]: egs/mgb2/ASR
-[peoplespeech]: egs/peoplespeech/ASR
 [spgispeech]: egs/spgispeech/ASR
 [voxpopuli]: egs/voxpopuli/ASR
 [xbmu-amdo31]: egs/xbmu-amdo31/ASR
 
 [vctk]: egs/vctk/TTS
 [ljspeech]: egs/ljspeech/TTS
+[libritts_tts]: egs/libritts/TTS

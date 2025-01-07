@@ -40,9 +40,7 @@ def register_inf_check_hooks(model: nn.Module) -> None:
         def forward_hook(_module, _input, _output, _name=name):
             if isinstance(_output, Tensor):
                 if not torch.isfinite(_output.to(torch.float32).sum()):
-                    raise ValueError(
-                        f"The sum of {_name}.output is not finite: {_output}"
-                    )
+                    logging.warning(f"The sum of {_name}.output is not finite")
             elif isinstance(_output, tuple):
                 for i, o in enumerate(_output):
                     if isinstance(o, tuple):
@@ -50,9 +48,7 @@ def register_inf_check_hooks(model: nn.Module) -> None:
                     if not isinstance(o, Tensor):
                         continue
                     if not torch.isfinite(o.to(torch.float32).sum()):
-                        raise ValueError(
-                            f"The sum of {_name}.output[{i}] is not finite: {_output}"
-                        )
+                        logging.warning(f"The sum of {_name}.output[{i}] is not finite")
 
         # default param _name is a way to capture the current value of the variable "name".
         def backward_hook(_module, _input, _output, _name=name):

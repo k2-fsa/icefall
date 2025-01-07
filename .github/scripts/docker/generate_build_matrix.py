@@ -2,7 +2,17 @@
 # Copyright    2023  Xiaomi Corp.        (authors: Fangjun Kuang)
 
 
+import argparse
 import json
+
+
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--min-torch-version",
+        help="Minimu torch version",
+    )
+    return parser.parse_args()
 
 
 def version_gt(a, b):
@@ -42,22 +52,34 @@ def get_torchaudio_version(torch_version):
         return torch_version
 
 
-def get_matrix():
-    k2_version = "1.24.4.dev20240223"
-    kaldifeat_version = "1.25.4.dev20240223"
-    version = "20240725"
+
+def get_matrix(min_torch_version):
+    k2_version = "1.24.4.dev20241029"
+    kaldifeat_version = "1.25.5.dev20241029"
+    version = "20241218"
+
+    # torchaudio 2.5.0 does not support python 3.13
+
     python_version = ["3.8", "3.9", "3.10", "3.11", "3.12"]
     torch_version = []
     torch_version += ["1.13.0", "1.13.1"]
     torch_version += ["2.0.0", "2.0.1"]
-    torch_version += ["2.1.0", "2.1.1", "2.1.2"]
-    torch_version += ["2.2.0", "2.2.1", "2.2.2"]
+    #  torch_version += ["2.1.0", "2.1.1", "2.1.2"]
+    #  torch_version += ["2.2.0", "2.2.1", "2.2.2"]
+    # Test only torch >= 2.3.0
     torch_version += ["2.3.0", "2.3.1"]
     torch_version += ["2.4.0"]
+
+    torch_version += ["2.4.1"]
+    torch_version += ["2.5.0"]
+    torch_version += ["2.5.1"]
 
     matrix = []
     for p in python_version:
         for t in torch_version:
+            if min_torch_version and version_gt(min_torch_version, t):
+                continue
+
             # torchaudio <= 1.13.x supports only python <= 3.10
 
             if version_gt(p, "3.10") and not version_gt(t, "2.0"):
@@ -67,21 +89,20 @@ def get_matrix():
             if version_gt(p, "3.11") and not version_gt(t, "2.1"):
                 continue
 
-            k2_version_2 = k2_version
-            kaldifeat_version_2 = kaldifeat_version
+            if version_gt(p, "3.12") and not version_gt(t, "2.4"):
+                continue
 
-            if t == "2.2.2":
-                k2_version_2 = "1.24.4.dev20240328"
-                kaldifeat_version_2 = "1.25.4.dev20240329"
-            elif t == "2.3.0":
-                k2_version_2 = "1.24.4.dev20240425"
-                kaldifeat_version_2 = "1.25.4.dev20240425"
-            elif t == "2.3.1":
-                k2_version_2 = "1.24.4.dev20240606"
-                kaldifeat_version_2 = "1.25.4.dev20240606"
-            elif t == "2.4.0":
-                k2_version_2 = "1.24.4.dev20240725"
-                kaldifeat_version_2 = "1.25.4.dev20240725"
+            if version_gt(t, "2.4") and version_gt("3.10", p):
+                # torch>=2.5 requires python 3.10
+                continue
+
+
+            if t == "2.5.1":
+                k2_version_2 = "1.24.4.dev20241122"
+                kaldifeat_version_2 = "1.25.5.dev20241126"
+            else:
+                k2_version_2 = k2_version
+                kaldifeat_version_2 = kaldifeat_version
 
             matrix.append(
                 {
@@ -97,7 +118,8 @@ def get_matrix():
 
 
 def main():
-    matrix = get_matrix()
+    args = get_args()
+    matrix = get_matrix(min_torch_version=args.min_torch_version)
     print(json.dumps({"include": matrix}))
 
 

@@ -297,7 +297,7 @@ class SoftmaxFunction(torch.autograd.Function):
         # (presumably) that op does not support float16, and autocast
         # is enabled.
         if torch.is_autocast_enabled():
-            ans = ans.to(torch.float16)
+            ans = ans.to(torch.get_autocast_gpu_dtype())
         ctx.save_for_backward(ans)
         ctx.x_dtype = x.dtype
         ctx.dim = dim
@@ -1234,7 +1234,7 @@ class DoubleSwishFunction(torch.autograd.Function):
     @staticmethod
     def forward(ctx, x: Tensor) -> Tensor:
         requires_grad = x.requires_grad
-        if x.dtype == torch.float16:
+        if x.dtype == torch.float16 or x.dtype == torch.bfloat16:
             x = x.to(torch.float32)
 
         s = torch.sigmoid(x - 1.0)
@@ -1346,7 +1346,7 @@ class SwooshLFunction(torch.autograd.Function):
     @staticmethod
     def forward(ctx, x: Tensor) -> Tensor:
         requires_grad = x.requires_grad
-        if x.dtype == torch.float16:
+        if x.dtype == torch.float16 or x.dtype == torch.bfloat16:
             x = x.to(torch.float32)
 
         zero = torch.tensor(0.0, dtype=x.dtype, device=x.device)
@@ -1379,7 +1379,7 @@ class SwooshLFunction(torch.autograd.Function):
                 d_int = d_scaled.to(torch.uint8)
                 ctx.save_for_backward(d_int)
                 if x.dtype == torch.float16 or torch.is_autocast_enabled():
-                    y = y.to(torch.float16)
+                    y = y.to(torch.get_autocast_gpu_dtype())
                 return y
 
     @staticmethod
@@ -1425,7 +1425,7 @@ class SwooshRFunction(torch.autograd.Function):
     def forward(ctx, x: Tensor) -> Tensor:
         requires_grad = x.requires_grad
 
-        if x.dtype == torch.float16:
+        if x.dtype == torch.float16 or x.dtype == torch.bfloat16:
             x = x.to(torch.float32)
 
         zero = torch.tensor(0.0, dtype=x.dtype, device=x.device)
@@ -1455,7 +1455,7 @@ class SwooshRFunction(torch.autograd.Function):
                 d_int = d_scaled.to(torch.uint8)
                 ctx.save_for_backward(d_int)
                 if x.dtype == torch.float16 or torch.is_autocast_enabled():
-                    y = y.to(torch.float16)
+                    y = y.to(torch.get_autocast_gpu_dtype())
                 return y
 
     @staticmethod
@@ -1635,7 +1635,7 @@ class ActivationDropoutAndLinear(torch.nn.Module):
         self.dropout_shared_dim = dropout_shared_dim
 
     def forward(self, x: Tensor):
-        if torch.jit.is_scripting() or torch.jit.is_tracing():
+        if not self.training or torch.jit.is_scripting() or torch.jit.is_tracing():
             if self.activation == "SwooshL":
                 x = SwooshLForward(x)
             elif self.activation == "SwooshR":

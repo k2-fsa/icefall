@@ -20,6 +20,8 @@ import json
 import sys
 from pathlib import Path
 
+from icefall.utils import str2bool
+
 
 def simple_cleanup(text: str) -> str:
     table = str.maketrans("’‘，。；？！（）：-《》、“”【】", "'',.;?!(): <>/\"\"[]")
@@ -29,17 +31,21 @@ def simple_cleanup(text: str) -> str:
 
 # Assign text of the supervisions and remove unnecessary entries.
 def main():
-    assert len(sys.argv) == 3, "Usage: ./local/prepare_manifest.py INPUT OUTPUT_DIR"
+    assert (
+        len(sys.argv) == 4
+    ), "Usage: ./local/prepare_manifest.py INPUT OUTPUT_DIR KEEP_CUSTOM_FIELDS"
     fname = Path(sys.argv[1]).name
     oname = Path(sys.argv[2]) / fname
+    keep_custom_fields = str2bool(sys.argv[3])
     with gzip.open(sys.argv[1], "r") as fin, gzip.open(oname, "w") as fout:
         for line in fin:
             cut = json.loads(line)
             cut["supervisions"][0]["text"] = simple_cleanup(
                 cut["supervisions"][0]["custom"]["texts"][0]
             )
-            del cut["supervisions"][0]["custom"]
-            del cut["custom"]
+            if not keep_custom_fields:
+                del cut["supervisions"][0]["custom"]
+                del cut["custom"]
             fout.write((json.dumps(cut) + "\n").encode())
 
 

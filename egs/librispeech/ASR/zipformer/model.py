@@ -22,9 +22,10 @@ import k2
 import torch
 import torch.nn as nn
 from encoder_interface import EncoderInterface
+from lhotse.dataset import SpecAugment
 from scaling import ScaledLinear
 
-from icefall.utils import add_sos, make_pad_mask
+from icefall.utils import add_sos, make_pad_mask, time_warp
 
 
 class AsrModel(nn.Module):
@@ -181,6 +182,49 @@ class AsrModel(nn.Module):
         )
         return ctc_loss
 
+    def forward_cr_ctc(
+        self,
+        encoder_out: torch.Tensor,
+        encoder_out_lens: torch.Tensor,
+        targets: torch.Tensor,
+        target_lengths: torch.Tensor,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Compute CTC loss with consistency regularization loss.
+        Args:
+          encoder_out:
+            Encoder output, of shape (2 * N, T, C).
+          encoder_out_lens:
+            Encoder output lengths, of shape (2 * N,).
+          targets:
+            Target Tensor of shape (2 * sum(target_lengths)). The targets are assumed
+            to be un-padded and concatenated within 1 dimension.
+        """
+        # Compute CTC loss
+        ctc_output = self.ctc_output(encoder_out)  # (2 * N, T, C)
+        ctc_loss = torch.nn.functional.ctc_loss(
+            log_probs=ctc_output.permute(1, 0, 2),  # (T, 2 * N, C)
+            targets=targets.cpu(),
+            input_lengths=encoder_out_lens.cpu(),
+            target_lengths=target_lengths.cpu(),
+            reduction="sum",
+        )
+
+        # Compute consistency regularization loss
+        exchanged_targets = ctc_output.detach().chunk(2, dim=0)
+        exchanged_targets = torch.cat(
+            [exchanged_targets[1], exchanged_targets[0]], dim=0
+        )  # exchange: [x1, x2] -> [x2, x1]
+        cr_loss = nn.functional.kl_div(
+            input=ctc_output,
+            target=exchanged_targets,
+            reduction="none",
+            log_target=True,
+        )  # (2 * N, T, C)
+        length_mask = make_pad_mask(encoder_out_lens).unsqueeze(-1)
+        cr_loss = cr_loss.masked_fill(length_mask, 0.0).sum()
+
+        return ctc_loss, cr_loss
+
     def forward_transducer(
         self,
         encoder_out: torch.Tensor,
@@ -296,7 +340,12 @@ class AsrModel(nn.Module):
         prune_range: int = 5,
         am_scale: float = 0.0,
         lm_scale: float = 0.0,
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        use_cr_ctc: bool = False,
+        use_spec_aug: bool = False,
+        spec_augment: Optional[SpecAugment] = None,
+        supervision_segments: Optional[torch.Tensor] = None,
+        time_warp_factor: Optional[int] = 80,
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Args:
           x:
@@ -316,9 +365,26 @@ class AsrModel(nn.Module):
           lm_scale:
             The scale to smooth the loss with lm (output of predictor network)
             part
+          use_cr_ctc:
+            Whether use consistency-regularized CTC.
+          use_spec_aug:
+            Whether apply spec-augment manually, used only if use_cr_ctc is True.
+          spec_augment:
+            The SpecAugment instance that returns time masks,
+            used only if use_cr_ctc is True.
+          supervision_segments:
+            An int tensor of shape ``(S, 3)``. ``S`` is the number of
+            supervision segments that exist in ``features``.
+            Used only if use_cr_ctc is True.
+          time_warp_factor:
+            Parameter for the time warping; larger values mean more warping.
+            Set to ``None``, or less than ``1``, to disable.
+            Used only if use_cr_ctc is True.
+
         Returns:
-          Return the transducer losses and CTC loss,
-          in form of (simple_loss, pruned_loss, ctc_loss, attention_decoder_loss)
+          Return the transducer losses, CTC loss, AED loss,
+          and consistency-regularization loss in form of
+          (simple_loss, pruned_loss, ctc_loss, attention_decoder_loss, cr_loss)
 
         Note:
            Regarding am_scale & lm_scale, it will make the loss-function one of
@@ -333,6 +399,24 @@ class AsrModel(nn.Module):
         assert x.size(0) == x_lens.size(0) == y.dim0, (x.shape, x_lens.shape, y.dim0)
 
         device = x.device
+
+        if use_cr_ctc:
+            assert self.use_ctc
+            if use_spec_aug:
+                assert spec_augment is not None and spec_augment.time_warp_factor < 1
+                # Apply time warping before input duplicating
+                assert supervision_segments is not None
+                x = time_warp(
+                    x,
+                    time_warp_factor=time_warp_factor,
+                    supervision_segments=supervision_segments,
+                )
+                # Independently apply frequency masking and time masking to the two copies
+                x = spec_augment(x.repeat(2, 1, 1))
+            else:
+                x = x.repeat(2, 1, 1)
+            x_lens = x_lens.repeat(2)
+            y = k2.ragged.cat([y, y], axis=0)
 
         # Compute encoder outputs
         encoder_out, encoder_out_lens = self.forward_encoder(x, x_lens)
@@ -351,6 +435,9 @@ class AsrModel(nn.Module):
                 am_scale=am_scale,
                 lm_scale=lm_scale,
             )
+            if use_cr_ctc:
+                simple_loss = simple_loss * 0.5
+                pruned_loss = pruned_loss * 0.5
         else:
             simple_loss = torch.empty(0)
             pruned_loss = torch.empty(0)
@@ -358,14 +445,26 @@ class AsrModel(nn.Module):
         if self.use_ctc:
             # Compute CTC loss
             targets = y.values
-            ctc_loss = self.forward_ctc(
-                encoder_out=encoder_out,
-                encoder_out_lens=encoder_out_lens,
-                targets=targets,
-                target_lengths=y_lens,
-            )
+            if not use_cr_ctc:
+                ctc_loss = self.forward_ctc(
+                    encoder_out=encoder_out,
+                    encoder_out_lens=encoder_out_lens,
+                    targets=targets,
+                    target_lengths=y_lens,
+                )
+                cr_loss = torch.empty(0)
+            else:
+                ctc_loss, cr_loss = self.forward_cr_ctc(
+                    encoder_out=encoder_out,
+                    encoder_out_lens=encoder_out_lens,
+                    targets=targets,
+                    target_lengths=y_lens,
+                )
+                ctc_loss = ctc_loss * 0.5
+                cr_loss = cr_loss * 0.5
         else:
             ctc_loss = torch.empty(0)
+            cr_loss = torch.empty(0)
 
         if self.use_attention_decoder:
             attention_decoder_loss = self.attention_decoder.calc_att_loss(
@@ -374,7 +473,9 @@ class AsrModel(nn.Module):
                 ys=y.to(device),
                 ys_lens=y_lens.to(device),
             )
+            if use_cr_ctc:
+                attention_decoder_loss = attention_decoder_loss * 0.5
         else:
             attention_decoder_loss = torch.empty(0)
 
-        return simple_loss, pruned_loss, ctc_loss, attention_decoder_loss
+        return simple_loss, pruned_loss, ctc_loss, attention_decoder_loss, cr_loss

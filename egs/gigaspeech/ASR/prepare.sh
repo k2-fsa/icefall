@@ -161,14 +161,14 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   log "Stage 5: Split XL subset into pieces (may take 30 minutes)"
   split_dir=data/fbank/XL_split
   if [ ! -f $split_dir/.split_completed ]; then
-    lhotse split-lazy ./data/fbank/cuts_XL_raw.jsonl.gz $split_dir $num_per_split
+    lhotse split-lazy ./data/fbank/gigaspeech_cuts_XL_raw.jsonl.gz $split_dir $num_per_split
     touch $split_dir/.split_completed
   fi
 fi
 
 if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
   log "Stage 6: Compute features for XL"
-  num_splits=$(find data/fbank/XL_split -name "cuts_XL_raw.*.jsonl.gz" | wc -l)
+  num_splits=$(find data/fbank/XL_split -name "gigaspeech_cuts_XL_raw.*.jsonl.gz" | wc -l)
   python3 ./local/compute_fbank_gigaspeech_splits.py \
     --num-workers 20 \
     --batch-duration 600 \
@@ -177,9 +177,9 @@ fi
 
 if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
   log "Stage 7: Combine features for XL (may take 3 hours)"
-  if [ ! -f data/fbank/cuts_XL.jsonl.gz ]; then
-    pieces=$(find data/fbank/XL_split -name "cuts_XL.*.jsonl.gz")
-    lhotse combine $pieces data/fbank/cuts_XL.jsonl.gz
+  if [ ! -f data/fbank/gigaspeech_cuts_XL.jsonl.gz ]; then
+    pieces=$(find data/fbank/XL_split -name "gigaspeech_cuts_XL.*.jsonl.gz")
+    lhotse combine $pieces data/fbank/gigaspeech_cuts_XL.jsonl.gz
   fi
 fi
 
