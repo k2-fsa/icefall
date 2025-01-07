@@ -101,33 +101,10 @@ from icefall.utils import (
     get_parameter_groups_with_lrs,
     setup_logger,
     str2bool,
+    tokenize_by_ja_char,
 )
 
 LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
-
-
-def tokenize_by_ja_char(line: str) -> str:
-    """
-    Tokenize a line of text with Japanese characters.
-
-    Note: All non-Japanese characters will be upper case.
-
-    Example:
-      input = "こんにちは世界は hello world の日本語"
-      output = "こ ん に ち は 世 界 は HELLO WORLD の 日 本 語"
-
-    Args:
-      line:
-        The input text.
-
-    Return:
-      A new string tokenized by Japanese characters.
-    """
-    pattern = re.compile(r"([\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF])")
-    chars = pattern.split(line.strip())
-    return " ".join(
-        [w.strip().upper() if not pattern.match(w) else w for w in chars if w.strip()]
-    )
 
 
 def get_adjusted_batch_count(params: AttributeDict) -> float:
