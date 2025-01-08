@@ -1,1 +1,0 @@
-/root/Github/icefall/egs/multi_zh_en/ASR/local/prepare_bbpe_model.py
