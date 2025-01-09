@@ -1007,13 +1007,15 @@ def run(rank, world_size, args):
         )
     else:
         raise NotImplementedError()
-
-    # scheduler = Eden(optimizer, 5000, 4, warmup_batches=params.warmup_steps)
-    warmup_scheduler = LinearLR(optimizer, start_factor=1e-8, end_factor=1.0, total_iters=params.warmup_steps)
-    decay_scheduler = LinearLR(optimizer, start_factor=1.0, end_factor=1e-8, total_iters=params.decay_steps)
-    scheduler = SequentialLR(
-        optimizer, schedulers=[warmup_scheduler, decay_scheduler], milestones=[params.warmup_steps]
-    )
+    if params.decay_steps:
+        warmup_scheduler = LinearLR(optimizer, start_factor=1e-8, end_factor=1.0, total_iters=params.warmup_steps)
+        decay_scheduler = LinearLR(optimizer, start_factor=1.0, end_factor=1e-8, total_iters=params.decay_steps)
+        scheduler = SequentialLR(
+            optimizer, schedulers=[warmup_scheduler, decay_scheduler], milestones=[params.warmup_steps]
+        )
+        assert 1==2
+    else:
+        scheduler = Eden(optimizer, 50000, 10, warmup_batches=params.warmup_steps)
 
     optimizer.zero_grad()
 
