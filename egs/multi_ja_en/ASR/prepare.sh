@@ -68,9 +68,7 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
     cd ..
     mkdir -p manifests
     cd manifests
-    ln -svf $(realpath ../../../../reazonspeech/ASR/data/manifests/feats_train) .
-    ln -svf $(realpath ../../../../reazonspeech/ASR/data/manifests/feats_dev) .
-    ln -svf $(realpath ../../../../reazonspeech/ASR/data/manifests/feats_test) .
+    ln -svf $(realpath ../../../../reazonspeech/ASR/data/manifests/feats_*) .
     cd ../..
   else
     log "Abort! Please run ../../reazonspeech/ASR/prepare.sh --stage 0 --stop-stage 2"
@@ -108,7 +106,7 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   fi
 
   if [ ! -f $lang_char_dir/L_disambig.pt ]; then
-    python3 ./local/prepare_char.py
+    python3 ./local/prepare_char.py --lang-dir data/lang_char
   fi
 fi
 

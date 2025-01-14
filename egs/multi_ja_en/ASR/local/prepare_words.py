@@ -1,1 +1,1 @@
-/root/Github/icefall/egs/wenetspeech/ASR/local/prepare_words.py
+../../../aishell2/ASR/local/prepare_words.py
