@@ -8,9 +8,9 @@ Switchboard is a collection of about 2,400 two-sided telephone conversations amo
 
 
 ## Performance Record
-|                                |  eval2000  |  rt03  |
-|--------------------------------|------------|--------|
-|         `conformer_ctc`        |    33.37   |  35.06 |
+|                                |  eval2000-swbd  |  eval2000-callhome  | eval2000-avg |
+|--------------------------------|-----------------|---------------------|--------------|
+|         `conformer_ctc`        |      9.48       |         17.73       |    13.67     | 
 
 See [RESULTS](/egs/swbd/ASR/RESULTS.md) for details.
 
