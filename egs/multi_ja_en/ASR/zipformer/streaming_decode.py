@@ -18,7 +18,35 @@
 
 """
 Usage:
-./zipformer/streaming_decode.py--epoch 28   --avg 15   --causal 1   --chunk-size 32   --left-context-frames 256   --exp-dir ./zipformer/exp-large --lang data/lang_char --num-encoder-layers 2,2,4,5,4,2 --feedforward-dim 512,768,1536,2048,1536,768 --encoder-dim 192,256,512,768,512,256 --encoder-unmasked-dim 192,192,256,320,256,192
+
+Monolingual:
+./zipformer/streaming_decode.py \
+    --epoch 28 \
+     --avg 15 \
+    --causal 1 \
+    --chunk-size 32 \
+    --left-context-frames 256 \
+    --exp-dir ./zipformer/exp-large \
+    --lang data/lang_char \
+    --num-encoder-layers 2,2,4,5,4,2 \
+    --feedforward-dim 512,768,1536,2048,1536,768 \
+    --encoder-dim 192,256,512,768,512,256 \
+    --encoder-unmasked-dim 192,192,256,320,256,192
+
+Bilingual:
+./zipformer/streaming_decode.py \
+    --bilingual 1 \
+    --epoch 28 \
+     --avg 15 \
+    --causal 1 \
+    --chunk-size 32 \
+    --left-context-frames 256 \
+    --exp-dir ./zipformer/exp-large \
+    --lang data/lang_char \
+    --num-encoder-layers 2,2,4,5,4,2 \
+    --feedforward-dim 512,768,1536,2048,1536,768 \
+    --encoder-dim 192,256,512,768,512,256 \
+    --encoder-unmasked-dim 192,192,256,320,256,192 \
 
 """
 
@@ -33,11 +61,14 @@ from typing import Dict, List, Optional, Tuple
 
 import k2
 import numpy as np
+import sentencepiece as spm
 import torch
 from asr_datamodule import ReazonSpeechAsrDataModule
 from decode_stream import DecodeStream
 from kaldifeat import Fbank, FbankOptions
 from lhotse import CutSet
+from lhotse.cut import Cut
+from multi_dataset import MultiDataset
 from streaming_beam_search import (
     fast_beam_search_one_best,
     greedy_search,
@@ -69,6 +100,13 @@ LOG_EPS = math.log(1e-10)
 def get_parser():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+
+    parser.add_argument(
+        "--bilingual",
+        type=str2bool,
+        default=False,
+        help="Whether the model is bilingual or not. 1 = bilingual.",
     )
 
     parser.add_argument(
@@ -437,10 +475,6 @@ def decode_one_chunk(
     Returns:
       Return a List containing which DecodeStreams are finished.
     """
-    # pdb.set_trace()
-    # print(model)
-    # print(model.device)
-    # device = model.device
     chunk_size = int(params.chunk_size)
     left_context_len = int(params.left_context_frames)
 
@@ -516,9 +550,9 @@ def decode_one_chunk(
     for i in range(len(decode_streams)):
         decode_streams[i].states = states[i]
         decode_streams[i].done_frames += encoder_out_lens[i]
-        # if decode_streams[i].done:
+        if decode_streams[i].done:
+            finished_streams.append(i)
         # finished_streams.append(i)
-        finished_streams.append(i)
 
     return finished_streams
 
@@ -527,7 +561,7 @@ def decode_dataset(
     cuts: CutSet,
     params: AttributeDict,
     model: nn.Module,
-    tokenizer: Tokenizer,
+    sp: Tokenizer,
     decoding_graph: Optional[k2.Fsa] = None,
 ) -> Dict[str, List[Tuple[List[str], List[str]]]]:
     """Decode dataset.
@@ -539,7 +573,7 @@ def decode_dataset(
         It is returned by :func:`get_params`.
       model:
         The neural model.
-      tokenizer:
+      sp:
         The BPE model.
       decoding_graph:
         The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
@@ -596,6 +630,7 @@ def decode_dataset(
         feature = fbank(samples.to(device))
         decode_stream.set_features(feature, tail_pad_len=30)
         decode_stream.ground_truth = cut.supervisions[0].text
+
         decode_streams.append(decode_stream)
 
         while len(decode_streams) >= params.num_decode_streams:
@@ -607,7 +642,7 @@ def decode_dataset(
                     (
                         decode_streams[i].id,
                         decode_streams[i].ground_truth.split(),
-                        tokenizer.decode(decode_streams[i].decoding_result()).split(),
+                        sp.decode(decode_streams[i].decoding_result()).split(),
                     )
                 )
                 del decode_streams[i]
@@ -617,16 +652,9 @@ def decode_dataset(
 
     # decode final chunks of last sequences
     while len(decode_streams):
-        # print("INSIDE LEN DECODE STREAMS")
-        # pdb.set_trace()
-        # print(model.device)
-        # test_device = model.device
-        # print("done")
         finished_streams = decode_one_chunk(
             params=params, model=model, decode_streams=decode_streams
         )
-        # print('INSIDE FOR LOOP ')
-        # print(finished_streams)
 
         if not finished_streams:
             print("No finished streams, breaking the loop")
@@ -638,7 +666,7 @@ def decode_dataset(
                     (
                         decode_streams[i].id,
                         decode_streams[i].ground_truth.split(),
-                        tokenizer.decode(decode_streams[i].decoding_result()).split(),
+                        sp.decode(decode_streams[i].decoding_result()).split(),
                     )
                 )
                 del decode_streams[i]
@@ -753,12 +781,16 @@ def main():
 
     logging.info(f"Device: {device}")
 
-    sp_token = Tokenizer.load(params.lang, params.lang_type)
+    if not params.bilingual:
+        sp = Tokenizer.load(params.lang, params.lang_type)
+    else:
+        sp = spm.SentencePieceProcessor()
+        sp.load(params.bpe_model)
 
     # <blk> and <unk> is defined in local/train_bpe_model.py
-    params.blank_id = sp_token.piece_to_id("<blk>")
-    params.unk_id = sp_token.piece_to_id("<unk>")
-    params.vocab_size = sp_token.get_piece_size()
+    params.blank_id = sp.piece_to_id("<blk>")
+    params.unk_id = sp.piece_to_id("<unk>")
+    params.vocab_size = sp.get_piece_size()
 
     logging.info(params)
 
@@ -857,6 +889,21 @@ def main():
     args.return_cuts = True
     reazonspeech_corpus = ReazonSpeechAsrDataModule(args)
 
+    if params.bilingual:
+        multi_dataset = MultiDataset(args)
+
+        def remove_short_utt(c: Cut):
+            T = ((c.num_frames - 7) // 2 + 1) // 2
+            if T <= 0:
+                logging.warning(
+                    f"Excluding cut with ID: {c.id} from decoding, num_frames: {c.num_frames}"
+                )
+            return T > 0
+
+        test_sets_cuts = multi_dataset.test_cuts()
+        test_sets = test_sets_cuts.keys()
+        test_cuts = [test_sets_cuts[k] for k in test_sets]
+
     valid_cuts = reazonspeech_corpus.valid_cuts()
     test_cuts = reazonspeech_corpus.test_cuts()
 
@@ -864,34 +911,22 @@ def main():
     test_cuts = [valid_cuts, test_cuts]
 
     for test_set, test_cut in zip(test_sets, test_cuts):
+        logging.info(f"Decoding {test_set}")
+        if params.bilingual:
+            test_cut = test_cut.filter(remove_short_utt)
         results_dict = decode_dataset(
             cuts=test_cut,
             params=params,
             model=model,
-            tokenizer=sp_token,
+            sp=sp,
             decoding_graph=decoding_graph,
         )
+
         save_results(
             params=params,
             test_set_name=test_set,
             results_dict=results_dict,
         )
-
-    # valid_cuts = reazonspeech_corpus.valid_cuts()
-
-    # for valid_cut in valid_cuts:
-    #     results_dict = decode_dataset(
-    #         cuts=valid_cut,
-    #         params=params,
-    #         model=model,
-    #         sp=sp,
-    #         decoding_graph=decoding_graph,
-    #     )
-    #     save_results(
-    #         params=params,
-    #         test_set_name="valid",
-    #         results_dict=results_dict,
-    #     )
 
     logging.info("Done!")
 
