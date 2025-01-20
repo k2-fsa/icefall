@@ -24,8 +24,6 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import torch
-
-# from fbank import MatchaFbank, MatchaFbankConfig
 from lhotse import CutSet, load_manifest_lazy
 from lhotse.dataset import (  # noqa F401 for PrecomputedFeatures; SpeechSynthesisDataset,
     CutConcatenate,
@@ -185,22 +183,6 @@ class TtsDataModule:
             raise NotImplementedError(
                 "On-the-fly feature extraction is not implemented yet."
             )
-            # sampling_rate = 22050
-            # config = MatchaFbankConfig(
-            #     n_fft=1024,
-            #     n_mels=80,
-            #     sampling_rate=sampling_rate,
-            #     hop_length=256,
-            #     win_length=1024,
-            #     f_min=0,
-            #     f_max=8000,
-            # )
-            # train = SpeechSynthesisDataset(
-            #     return_text=True,
-            #     return_tokens=False,
-            #     feature_input_strategy=OnTheFlyFeatures(MatchaFbank(config)),
-            #     return_cuts=self.args.return_cuts,
-            # )
 
         if self.args.bucketing_sampler:
             logging.info("Using DynamicBucketingSampler.")
@@ -249,22 +231,6 @@ class TtsDataModule:
             raise NotImplementedError(
                 "On-the-fly feature extraction is not implemented yet."
             )
-            # sampling_rate = 22050
-            # config = MatchaFbankConfig(
-            #     n_fft=1024,
-            #     n_mels=80,
-            #     sampling_rate=sampling_rate,
-            #     hop_length=256,
-            #     win_length=1024,
-            #     f_min=0,
-            #     f_max=8000,
-            # )
-            # validate = SpeechSynthesisDataset(
-            #     return_text=True,
-            #     return_tokens=False,
-            #     feature_input_strategy=OnTheFlyFeatures(MatchaFbank(config)),
-            #     return_cuts=self.args.return_cuts,
-            # )
         else:
             validate = SpeechSynthesisDataset(
                 return_text=True,
@@ -296,22 +262,6 @@ class TtsDataModule:
             raise NotImplementedError(
                 "On-the-fly feature extraction is not implemented yet."
             )
-            # sampling_rate = 22050
-            # config = MatchaFbankConfig(
-            #     n_fft=1024,
-            #     n_mels=80,
-            #     sampling_rate=sampling_rate,
-            #     hop_length=256,
-            #     win_length=1024,
-            #     f_min=0,
-            #     f_max=8000,
-            # )
-            # test = SpeechSynthesisDataset(
-            #     return_text=True,
-            #     return_tokens=False,
-            #     feature_input_strategy=OnTheFlyFeatures(MatchaFbank(config)),
-            #     return_cuts=self.args.return_cuts,
-            # )
         else:
             test = SpeechSynthesisDataset(
                 return_text=True,

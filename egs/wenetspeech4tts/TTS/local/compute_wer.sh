@@ -1,6 +1,5 @@
 wav_dir=$1
 wav_files=$(ls $wav_dir/*.wav)
-# wav_files=$(echo $wav_files | cut -d " " -f 1)
 # if wav_files is empty, then exit
 if [ -z "$wav_files" ]; then
     exit 1

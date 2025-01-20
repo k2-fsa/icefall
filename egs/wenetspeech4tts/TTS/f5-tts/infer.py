@@ -1,3 +1,19 @@
+#!/usr/bin/env python3
+# Modified from https://github.com/SWivid/F5-TTS/blob/main/src/f5_tts/eval/eval_infer_batch.py
+"""
+Usage:
+# docker: ghcr.io/swivid/f5-tts:main
+# pip install k2==1.24.4.dev20241030+cuda12.4.torch2.4.0 -f https://k2-fsa.github.io/k2/cuda.html
+# pip install kaldialign lhotse tensorboard bigvganinference sentencepiece sherpa-onnx
+# huggingface-cli download nvidia/bigvgan_v2_24khz_100band_256x --local-dir bigvgan_v2_24khz_100band_256x
+manifest=/path/seed_tts_eval/seedtts_testset/zh/meta.lst
+python3 f5-tts/generate_averaged_model.py \
+    --epoch 56 \
+    --avg 14 --decoder-dim 768 --nhead 12 --num-decoder-layers 18 \
+    --exp-dir exp/f5_small
+accelerate launch f5-tts/infer.py --nfe 16 --model-path $model_path --manifest-file $manifest --output-dir $output_dir --decoder-dim 768 --nhead 12 --num-decoder-layers 18
+bash local/compute_wer.sh $output_dir $manifest
+"""
 import argparse
 import logging
 import math
@@ -62,7 +78,7 @@ def get_parser():
     parser.add_argument(
         "--manifest-file",
         type=str,
-        default="/home/yuekaiz/seed_tts_eval/seedtts_testset/zh/meta_head.lst",
+        default="/path/seed_tts_eval/seedtts_testset/zh/meta.lst",
         help="The manifest file in seed_tts_eval format",
     )
 
@@ -180,7 +196,6 @@ def get_inference_prompt(
         batch_accum[bucket_i] += total_mel_len
 
         if batch_accum[bucket_i] >= infer_batch_size:
-            # print(f"\n{len(ref_mels[bucket_i][0][0])}\n{ref_mel_lens[bucket_i]}\n{total_mel_lens[bucket_i]}")
             prompts_all.append(
                 (
                     utts[bucket_i],
@@ -282,7 +297,7 @@ def main():
 
     model = get_model(args).eval().to(device)
     checkpoint = torch.load(args.model_path, map_location="cpu")
-    if "ema_model_state_dict" in checkpoint or 'model_state_dict' in checkpoint:
+    if "ema_model_state_dict" in checkpoint or "model_state_dict" in checkpoint:
         model = load_F5_TTS_pretrained_checkpoint(model, args.model_path)
     else:
         _ = load_checkpoint(

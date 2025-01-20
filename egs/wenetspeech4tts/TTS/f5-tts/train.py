@@ -20,8 +20,17 @@
 # limitations under the License.
 """
 Usage:
+# docker: ghcr.io/swivid/f5-tts:main
+# pip install k2==1.24.4.dev20241030+cuda12.4.torch2.4.0 -f https://k2-fsa.github.io/k2/cuda.html
+# pip install kaldialign lhotse tensorboard bigvganinference sentencepiece
+# huggingface-cli download nvidia/bigvgan_v2_24khz_100band_256x --local-dir bigvgan_v2_24khz_100band_256x
 world_size=8
-exp_dir=exp/ft-tts
+exp_dir=exp/f5-tts-small
+python3 f5-tts/train.py --max-duration 700 --filter-min-duration 0.5 --filter-max-duration 20  \
+      --num-buckets 6 --dtype "bfloat16" --save-every-n 5000 --valid-interval 10000 \
+      --base-lr 7.5e-5 --warmup-steps 20000 --num-epochs 60  \
+      --num-decoder-layers 18 --nhead 12 --decoder-dim 768 \
+      --exp-dir ${exp_dir} --world-size ${world_size}
 """
 
 import argparse
@@ -45,13 +54,10 @@ from lhotse.utils import fix_random_seed
 from model.cfm import CFM
 from model.dit import DiT
 from model.utils import convert_char_to_pinyin
-from optim import Eden, ScaledAdam
-from torch.optim.lr_scheduler import LinearLR, SequentialLR
 from torch import Tensor
-
-# from torch.cuda.amp import GradScaler
 from torch.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.optim.lr_scheduler import LinearLR, SequentialLR
 from torch.utils.tensorboard import SummaryWriter
 from tts_datamodule import TtsDataModule
 from utils import MetricsTracker
@@ -87,12 +93,14 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         default=1024,
         help="Embedding dimension in the decoder model.",
     )
+
     parser.add_argument(
         "--nhead",
         type=int,
         default=16,
         help="Number of attention heads in the Decoder layers.",
     )
+
     parser.add_argument(
         "--num-decoder-layers",
         type=int,
@@ -156,7 +164,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=Path,
-        default="exp/valle_dev",
+        default="exp/f5",
         help="""The experiment dir.
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
@@ -169,7 +177,7 @@ def get_parser():
         default="f5-tts/vocab.txt",
         help="Path to the unique text tokens file",
     )
-    # /home/yuekaiz//HF/F5-TTS/F5TTS_Base_bigvgan/model_1250000.pt
+
     parser.add_argument(
         "--pretrained-model-path",
         type=str,
@@ -180,14 +188,8 @@ def get_parser():
     parser.add_argument(
         "--optimizer-name",
         type=str,
-        default="ScaledAdam",
+        default="AdamW",
         help="The optimizer.",
-    )
-    parser.add_argument(
-        "--scheduler-name",
-        type=str,
-        default="Eden",
-        help="The scheduler.",
     )
     parser.add_argument(
         "--base-lr", type=float, default=0.05, help="The base learning rate."
@@ -203,7 +205,7 @@ def get_parser():
     parser.add_argument(
         "--decay-steps",
         type=int,
-        default=None,
+        default=1000000,
         help="""Number of steps that affects how rapidly the learning rate
         decreases. We suggest not to change this.""",
     )
@@ -286,18 +288,12 @@ def get_parser():
         default=0.0,
         help="Keep only utterances with duration > this.",
     )
+
     parser.add_argument(
         "--filter-max-duration",
         type=float,
         default=20.0,
         help="Keep only utterances with duration < this.",
-    )
-
-    parser.add_argument(
-        "--visualize",
-        type=str2bool,
-        default=False,
-        help="visualize model results in eval step.",
     )
 
     parser.add_argument(
@@ -383,6 +379,7 @@ def get_tokenizer(vocab_file_path: str):
 
 def get_model(params):
     vocab_char_map, vocab_size = get_tokenizer(params.tokens)
+    # bigvgan 100 dim features
     n_mel_channels = 100
     n_fft = 1024
     sampling_rate = 24_000
@@ -421,7 +418,6 @@ def get_model(params):
 def load_F5_TTS_pretrained_checkpoint(
     model, ckpt_path, device: str = "cpu", dtype=torch.float32
 ):
-    # model = model.to(dtype)
     checkpoint = torch.load(ckpt_path, map_location=device, weights_only=True)
     if "ema_model_state_dict" in checkpoint:
         checkpoint["model_state_dict"] = {
@@ -641,14 +637,6 @@ def compute_validation_loss(
         params.best_valid_epoch = params.cur_epoch
         params.best_valid_loss = loss_value
 
-    # if params.visualize:
-    #     output_dir = Path(f"{params.exp_dir}/eval/step-{params.batch_idx_train:06d}")
-    #     output_dir.mkdir(parents=True, exist_ok=True)
-    #     if isinstance(model, DDP):
-    #         model.module.visualize(predicts, batch, output_dir=output_dir)
-    #     else:
-    #         model.visualize(predicts, batch, output_dir=output_dir)
-
     return tot_loss
 
 
@@ -744,11 +732,11 @@ def train_one_epoch(
             scaler.scale(loss).backward()
             if params.batch_idx_train >= params.accumulate_grad_steps:
                 if params.batch_idx_train % params.accumulate_grad_steps == 0:
-                    if params.optimizer_name not in ["ScaledAdam", "Eve"]:
-                        # Unscales the gradients of optimizer's assigned params in-place
-                        scaler.unscale_(optimizer)
-                        # Since the gradients of optimizer's assigned params are unscaled, clips as usual:
-                        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+
+                    # Unscales the gradients of optimizer's assigned params in-place
+                    scaler.unscale_(optimizer)
+                    # Since the gradients of optimizer's assigned params are unscaled, clips as usual:
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
 
                     scaler.step(optimizer)
                     scaler.update()
@@ -757,10 +745,7 @@ def train_one_epoch(
                     # optimizer.step()
 
                     for k in range(params.accumulate_grad_steps):
-                        if isinstance(scheduler, Eden):
-                            scheduler.step_batch(params.batch_idx_train)
-                        else:
-                            scheduler.step()
+                        scheduler.step()
 
             set_batch_count(model, params.batch_idx_train)
         except:  # noqa
@@ -940,16 +925,18 @@ def run(rank, world_size, args):
 
     logging.info(f"Device: {device}")
     tokenizer = get_tokenizer(params.tokens)
-    print("the class type of tokenizer is: ", type(tokenizer))
     logging.info(params)
 
     logging.info("About to create model")
 
     model = get_model(params)
+
     if params.pretrained_model_path:
         checkpoint = torch.load(params.pretrained_model_path, map_location="cpu")
-        if "ema_model_state_dict" in checkpoint or 'model_state_dict' in checkpoint:
-            model = load_F5_TTS_pretrained_checkpoint(model, params.pretrained_model_path)
+        if "ema_model_state_dict" in checkpoint or "model_state_dict" in checkpoint:
+            model = load_F5_TTS_pretrained_checkpoint(
+                model, params.pretrained_model_path
+            )
         else:
             _ = load_checkpoint(
                 params.pretrained_model_path,
@@ -984,27 +971,24 @@ def run(rank, world_size, args):
 
     model_parameters = model.parameters()
 
-    if params.optimizer_name == "ScaledAdam":
-        optimizer = ScaledAdam(
-            model_parameters,
-            lr=params.base_lr,
-            clipping_scale=2.0,
-        )
-    elif params.optimizer_name == "AdamW":
-        optimizer = torch.optim.AdamW(
-            model_parameters,
-            lr=params.base_lr,
-            betas=(0.9, 0.95),
-            weight_decay=1e-2,
-            eps=1e-8,
-        )
-    else:
-        raise NotImplementedError()
+    optimizer = torch.optim.AdamW(
+        model_parameters,
+        lr=params.base_lr,
+        betas=(0.9, 0.95),
+        weight_decay=1e-2,
+        eps=1e-8,
+    )
 
-    warmup_scheduler = LinearLR(optimizer, start_factor=1e-8, end_factor=1.0, total_iters=params.warmup_steps)
-    decay_scheduler = LinearLR(optimizer, start_factor=1.0, end_factor=1e-8, total_iters=params.decay_steps)
+    warmup_scheduler = LinearLR(
+        optimizer, start_factor=1e-8, end_factor=1.0, total_iters=params.warmup_steps
+    )
+    decay_scheduler = LinearLR(
+        optimizer, start_factor=1.0, end_factor=1e-8, total_iters=params.decay_steps
+    )
     scheduler = SequentialLR(
-        optimizer, schedulers=[warmup_scheduler, decay_scheduler], milestones=[params.warmup_steps]
+        optimizer,
+        schedulers=[warmup_scheduler, decay_scheduler],
+        milestones=[params.warmup_steps],
     )
 
     optimizer.zero_grad()
@@ -1062,8 +1046,6 @@ def run(rank, world_size, args):
         scaler.load_state_dict(checkpoints["grad_scaler"])
 
     for epoch in range(params.start_epoch, params.num_epochs + 1):
-        if isinstance(scheduler, Eden):
-            scheduler.step_epoch(epoch - 1)
 
         fix_random_seed(params.seed + epoch - 1)
         train_dl.sampler.set_epoch(epoch - 1)
@@ -1140,7 +1122,6 @@ def scan_pessimistic_batches_for_oom(
         "Sanity check -- see if any of the batches in epoch 1 would cause OOM."
     )
     batches, crit_values = find_pessimistic_batches(train_dl.sampler)
-    print(23333)
     dtype = torch.float32
     if params.dtype in ["bfloat16", "bf16"]:
         dtype = torch.bfloat16
