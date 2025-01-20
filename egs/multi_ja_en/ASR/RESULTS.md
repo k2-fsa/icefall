@@ -49,3 +49,5 @@ Character Error Rates (CERs) for Japanese listed below:
 |    greedy search     |        12.56        | 6.93 |    9.75     | 9.67  | 
 | modified beam search |        11.59        | 6.97 |    9.55     | 9.51  | 
 
+Pre-trained model can be found here: https://huggingface.co/reazon-research/reazonspeech-k2-v2-ja-en/tree/main
+
