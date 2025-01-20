@@ -290,8 +290,6 @@ class CFM(nn.Module):
 
         # time step
         time = torch.rand((batch,), dtype=dtype, device=self.device)
-        # add cosyvoice cosine scheduler
-        time = 1 - torch.cos(time * 0.5 * torch.pi)
         # TODO. noise_scheduler
 
         # sample xt (φ_t(x) in the paper)
