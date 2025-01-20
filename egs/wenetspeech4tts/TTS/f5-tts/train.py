@@ -23,7 +23,7 @@ Usage:
 # docker: ghcr.io/swivid/f5-tts:main
 # pip install k2==1.24.4.dev20241030+cuda12.4.torch2.4.0 -f https://k2-fsa.github.io/k2/cuda.html
 # pip install kaldialign lhotse tensorboard bigvganinference sentencepiece
-# huggingface-cli download nvidia/bigvgan_v2_24khz_100band_256x --local-dir bigvgan_v2_24khz_100band_256x
+
 world_size=8
 exp_dir=exp/f5-tts-small
 python3 f5-tts/train.py --max-duration 700 --filter-min-duration 0.5 --filter-max-duration 20  \

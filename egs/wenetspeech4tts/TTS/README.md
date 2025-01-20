@@ -68,5 +68,54 @@ python3 valle/infer.py --output-dir demos_epoch_${epoch}_avg_${avg}_top_p_${top_
         --text-extractor pypinyin_initials_finals --top-p ${top_p}
 ```
 
+# [F5-TTS](https://arxiv.org/abs/2410.06885)
+
+./f5-tts contains the code for training F5-TTS model.
+
+Generated samples and training logs of wenetspeech basic 7k hours data can be found [here](https://huggingface.co/yuekai/f5-tts-small-wenetspeech4tts-basic/tensorboard).
+
+Preparation:
+
+```
+bash prepare.sh --stage 5 --stop_stage 6
+```
+
+The training command is given below:
+
+```
+# docker: ghcr.io/swivid/f5-tts:main
+# pip install k2==1.24.4.dev20241030+cuda12.4.torch2.4.0 -f https://k2-fsa.github.io/k2/cuda.html
+# pip install kaldialign lhotse tensorboard bigvganinference sentencepiece
+
+world_size=8
+exp_dir=exp/f5-tts-small
+python3 f5-tts/train.py --max-duration 700 --filter-min-duration 0.5 --filter-max-duration 20  \
+      --num-buckets 6 --dtype "bfloat16" --save-every-n 5000 --valid-interval 10000 \
+      --base-lr 7.5e-5 --warmup-steps 20000 --num-epochs 60  \
+      --num-decoder-layers 18 --nhead 12 --decoder-dim 768 \
+      --exp-dir ${exp_dir} --world-size ${world_size}
+```
+
+To inference, use:
+```
+huggingface-cli login
+huggingface-cli download --local-dir seed_tts_eval yuekai/seed_tts_eval --repo-type dataset
+huggingface-cli download --local-dir ${exp_dir} yuekai/f5-tts-small-wenetspeech4tts-basic
+huggingface-cli download nvidia/bigvgan_v2_24khz_100band_256x --local-dir bigvgan_v2_24khz_100band_256x
+
+manifest=./seed_tts_eval/seedtts_testset/zh/meta.lst
+model_path=f5-tts-small-wenetspeech4tts-basic/epoch-56-avg-14.pt
+# skip
+python3 f5-tts/generate_averaged_model.py \
+    --epoch 56 \
+    --avg 14 --decoder-dim 768 --nhead 12 --num-decoder-layers 18 \
+    --exp-dir exp/f5_small
+
+
+accelerate launch f5-tts/infer.py --nfe 16 --model-path $model_path --manifest-file $manifest --output-dir $output_dir --decoder-dim 768 --nhead 12 --num-decoder-layers 18
+bash local/compute_wer.sh $output_dir $manifest
+```
+
 # Credits
-- [vall-e](https://github.com/lifeiteng/vall-e)
+- [VALL-E](https://github.com/lifeiteng/vall-e)
+- [F5-TTS](https://github.com/SWivid/F5-TTS)
