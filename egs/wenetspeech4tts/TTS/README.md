@@ -79,6 +79,7 @@ Preparation:
 ```
 bash prepare.sh --stage 5 --stop_stage 6
 ```
+(Note: To compatiable with F5-TTS official checkpoint, we direclty use `vocab.txt` from [here.](https://github.com/SWivid/F5-TTS/blob/129014c5b43f135b0100d49a0c6804dd4cf673e1/data/Emilia_ZH_EN_pinyin/vocab.txt) To generate your own `vocab.txt`, you may refer to [the script](https://github.com/SWivid/F5-TTS/blob/main/src/f5_tts/train/datasets/prepare_emilia.py).)
 
 The training command is given below:
 
@@ -96,7 +97,7 @@ python3 f5-tts/train.py --max-duration 700 --filter-min-duration 0.5 --filter-ma
       --exp-dir ${exp_dir} --world-size ${world_size}
 ```
 
-To inference, use:
+To inference with Icefall Wenetspeech4TTS trained F5-Small, use:
 ```
 huggingface-cli login
 huggingface-cli download --local-dir seed_tts_eval yuekai/seed_tts_eval --repo-type dataset
@@ -113,6 +114,20 @@ python3 f5-tts/generate_averaged_model.py \
 
 
 accelerate launch f5-tts/infer.py --nfe 16 --model-path $model_path --manifest-file $manifest --output-dir $output_dir --decoder-dim 768 --nhead 12 --num-decoder-layers 18
+bash local/compute_wer.sh $output_dir $manifest
+```
+
+To inference with official Emilia trained F5-Base, use:
+```
+huggingface-cli login
+huggingface-cli download --local-dir seed_tts_eval yuekai/seed_tts_eval --repo-type dataset
+huggingface-cli download --local-dir F5-TTS SWivid/F5-TTS
+huggingface-cli download nvidia/bigvgan_v2_24khz_100band_256x --local-dir bigvgan_v2_24khz_100band_256x
+
+manifest=./seed_tts_eval/seedtts_testset/zh/meta.lst
+model_path=./F5-TTS/F5TTS_Base_bigvgan/model_1250000.pt
+
+accelerate launch f5-tts/infer.py --nfe 16 --model-path $model_path --manifest-file $manifest --output-dir $output_dir
 bash local/compute_wer.sh $output_dir $manifest
 ```
 
