@@ -92,9 +92,9 @@ class InputEmbedding(nn.Module):
 
     def forward(
         self,
-        x: float["b n d"], # noqa: F722
-        cond: float["b n d"], # noqa: F722
-        text_embed: float["b n d"], # noqa: F722
+        x: float["b n d"],  # noqa: F722
+        cond: float["b n d"],  # noqa: F722
+        text_embed: float["b n d"],  # noqa: F722
         drop_audio_cond=False,
     ):
         if drop_audio_cond:  # cfg for cond audio
