@@ -119,13 +119,6 @@ def get_args():
     )
 
     parser.add_argument(
-        "--continual",
-        type=str2bool,
-        default=False,
-        help="Do continual task.",
-    )
-
-    parser.add_argument(
         "--repetition-aware-sampling",
         type=str2bool,
         default=False,
@@ -262,29 +255,21 @@ def main():
         )
 
         # synthesis
-        if args.continual:
-            assert text == ""
-            encoded_frames = model.continual(
-                text_tokens.to(device),
-                text_tokens_lens.to(device),
-                audio_prompts,
+        enroll_x_lens = None
+        if text_prompts:
+            _, enroll_x_lens = text_collater(
+                [tokenize_text(text_tokenizer, text=f"{text_prompts}".strip())]
             )
-        else:
-            enroll_x_lens = None
-            if text_prompts:
-                _, enroll_x_lens = text_collater(
-                    [tokenize_text(text_tokenizer, text=f"{text_prompts}".strip())]
-                )
-            encoded_frames = model.inference(
-                text_tokens.to(device),
-                text_tokens_lens.to(device),
-                audio_prompts,
-                enroll_x_lens=enroll_x_lens,
-                top_k=args.top_k,
-                temperature=args.temperature,
-                top_p=args.top_p,
-                ras=args.repetition_aware_sampling,
-            )
+        encoded_frames = model.inference(
+            text_tokens.to(device),
+            text_tokens_lens.to(device),
+            audio_prompts,
+            enroll_x_lens=enroll_x_lens,
+            top_k=args.top_k,
+            temperature=args.temperature,
+            top_p=args.top_p,
+            ras=args.repetition_aware_sampling,
+        )
 
         if audio_prompts != []:
             samples = audio_tokenizer.decode([(encoded_frames.transpose(2, 1), None)])
