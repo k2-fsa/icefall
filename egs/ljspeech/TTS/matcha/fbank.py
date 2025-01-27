@@ -17,6 +17,7 @@ class MatchaFbankConfig:
     win_length: int
     f_min: float
     f_max: float
+    device: str = "cuda"
 
 
 @register_extractor
@@ -46,7 +47,7 @@ class MatchaFbank(FeatureExtractor):
             f"Mismatched sampling rate: extractor expects {expected_sr}, "
             f"got {sampling_rate}"
         )
-        samples = torch.from_numpy(samples)
+        samples = torch.from_numpy(samples).to(self.device)
         assert samples.ndim == 2, samples.shape
         assert samples.shape[0] == 1, samples.shape
 
@@ -81,7 +82,7 @@ class MatchaFbank(FeatureExtractor):
                 mel, (0, 0, 0, num_frames - mel.shape[1]), mode="replicate"
             ).squeeze(0)
 
-        return mel.numpy()
+        return mel.cpu().numpy()
 
     @property
     def frame_shift(self) -> Seconds:
