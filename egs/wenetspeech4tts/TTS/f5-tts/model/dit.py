@@ -92,11 +92,11 @@ class InputEmbedding(nn.Module):
 
     def forward(
         self,
-        x: float["b n d"],
-        cond: float["b n d"],
-        text_embed: float["b n d"],
+        x: float["b n d"], # noqa: F722
+        cond: float["b n d"], # noqa: F722
+        text_embed: float["b n d"], # noqa: F722
         drop_audio_cond=False,
-    ):  # noqa: F722
+    ):
         if drop_audio_cond:  # cfg for cond audio
             cond = torch.zeros_like(cond)
 
