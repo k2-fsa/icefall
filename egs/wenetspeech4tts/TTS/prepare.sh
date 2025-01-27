@@ -115,7 +115,7 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
   if [ ! -f data/fbank/${prefix}_cuts_${subset}.jsonl.gz ]; then
     echo "Combining ${prefix} cuts"
     pieces=$(find data/fbank/ -name "${prefix}_cuts_${subset}.*.jsonl.gz")
-    # lhotse combine $pieces data/fbank/${prefix}_cuts_${subset}.jsonl.gz
+    lhotse combine $pieces data/fbank/${prefix}_cuts_${subset}.jsonl.gz
   fi
   if [ ! -e data/fbank/.${prefix}_split.done ]; then
     echo "Splitting ${prefix} cuts into train, valid and test sets"
