@@ -39,7 +39,7 @@ def default(v, d):
 
 def lens_to_mask(
     t: int["b"], length: int | None = None # noqa: F722 F821
-) -> bool["b n"]:
+) -> bool["b n"]:  # noqa: F722 F821
     if not exists(length):
         length = t.amax()
 
@@ -72,7 +72,7 @@ def mask_from_frac_lengths(
 
 def maybe_masked_mean(
     t: float["b n d"], mask: bool["b n"] = None # noqa: F722 F821
-) -> float["b d"]:
+) -> float["b d"]:  # noqa: F722 F821
     if not exists(mask):
         return t.mean(dim=1)
 
