@@ -2460,4 +2460,3 @@ if __name__ == "__main__":
     torch.set_num_interop_threads(1)
     _test_zipformer_main(False)
     _test_zipformer_main(True)
-    
