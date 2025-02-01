@@ -98,3 +98,44 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
   fi
   python3 ./local/display_manifest_statistics.py --manifest-dir ${audio_feats_dir}
 fi
+
+subset="Basic"
+prefix="wenetspeech4tts"
+if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
+  log "Stage 5: Generate fbank (used by ./f5-tts)"
+  mkdir -p data/fbank
+  if [ ! -e data/fbank/.${prefix}.done ]; then
+    ./local/compute_mel_feat.py --dataset-parts $subset --split 100
+    touch data/fbank/.${prefix}.done
+  fi
+fi
+
+if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
+  log "Stage 7: Split the ${prefix} cuts into train, valid and test sets (used by ./f5-tts)"
+  if [ ! -f data/fbank/${prefix}_cuts_${subset}.jsonl.gz ]; then
+    echo "Combining ${prefix} cuts"
+    pieces=$(find data/fbank/ -name "${prefix}_cuts_${subset}.*.jsonl.gz")
+    lhotse combine $pieces data/fbank/${prefix}_cuts_${subset}.jsonl.gz
+  fi
+  if [ ! -e data/fbank/.${prefix}_split.done ]; then
+    echo "Splitting ${prefix} cuts into train, valid and test sets"
+
+    lhotse subset --last 800 \
+      data/fbank/${prefix}_cuts_${subset}.jsonl.gz \
+      data/fbank/${prefix}_cuts_validtest.jsonl.gz
+    lhotse subset --first 400 \
+      data/fbank/${prefix}_cuts_validtest.jsonl.gz \
+      data/fbank/${prefix}_cuts_valid.jsonl.gz
+    lhotse subset --last 400 \
+      data/fbank/${prefix}_cuts_validtest.jsonl.gz \
+      data/fbank/${prefix}_cuts_test.jsonl.gz
+
+    rm data/fbank/${prefix}_cuts_validtest.jsonl.gz
+
+    n=$(( $(gunzip -c data/fbank/${prefix}_cuts_${subset}.jsonl.gz | wc -l) - 800 ))
+    lhotse subset --first $n  \
+      data/fbank/${prefix}_cuts_${subset}.jsonl.gz \
+      data/fbank/${prefix}_cuts_train.jsonl.gz
+      touch data/fbank/.${prefix}_split.done
+  fi
+fi
