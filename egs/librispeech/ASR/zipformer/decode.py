@@ -122,6 +122,7 @@ from beam_search import (
     modified_beam_search_LODR,
 )
 from lhotse import set_caching_enabled
+from tokenizer import Tokenizer
 from train import add_model_arguments, get_model, get_params
 
 from icefall import ContextGraph, LmScorer, NgramLm
@@ -377,6 +378,17 @@ def get_parser():
         default=False,
         help="""Skip scoring, but still save the ASR output (for eval sets).""",
     )
+    parser.add_argument(
+        "--blank-penalty",
+        type=float,
+        default=0.0,
+        help="""
+        The penalty applied on blank symbol during decoding.
+        Note: It is a positive value that would be applied to logits like
+        this `logits[:, 0] -= blank_penalty` (suppose logits.shape is
+        [batch_size, vocab] and blank id is 0).
+        """,
+    )
 
     add_model_arguments(parser)
 
@@ -601,6 +613,7 @@ def decode_one_batch(
 
     # prefix = ( "greedy_search" | "fast_beam_search_nbest" | "modified_beam_search" )
     prefix = f"{params.decoding_method}"
+    key = f"blank_penalty_{params.blank_penalty}"
     if params.decoding_method == "greedy_search":
         return {"greedy_search": hyps}
     elif "fast_beam_search" in params.decoding_method:
