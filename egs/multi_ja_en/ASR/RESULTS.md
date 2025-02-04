@@ -40,7 +40,6 @@ Word Error Rates (WERs) listed below:
 |   Zipformer WER (%)  |     dev      |     test      |     test-clean     |    test-other     |
 |     greedy_search    |     5.9      |     4.07      |        3.46        |       8.35        |
 | modified_beam_search |    4.87      |     3.61      |        3.28        |       8.07        |
-|   fast_beam_search   |    41.04     |    36.59      |        16.14       |       22.0        |
 
 
 Character Error Rates (CERs) for Japanese listed below:
