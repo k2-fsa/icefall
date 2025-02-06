@@ -379,6 +379,8 @@ def get_tokenizer(vocab_file_path: str):
 
 def get_model(params):
     vocab_char_map, vocab_size = get_tokenizer(params.tokens)
+    vocab_char_map, vocab_size = None, 6561
+    # https://www.modelscope.cn/models/iic/CosyVoice2-0.5B/file/view/master?fileName=cosyvoice.yaml&status=1#L36
     # bigvgan 100 dim features
     n_mel_channels = 100
     n_fft = 1024
@@ -556,14 +558,38 @@ def save_checkpoint(
         copyfile(src=filename, dst=best_valid_filename)
 
 
+def insert_zeros_optimized(arr):
+    # cosyvoice, 25 tokens/sec
+    # bigvgan    sample_rate/hop_length   24000/256 frames/sec
+    # For every 4 cosyvoice tokens, insert pad tokens to extend it to 15 tokens to match bigvgan frames length
+    # We choose 4,4,4,3 to match 15 frames
+    three, two = [-1] * 3, [-1] * 2
+    return [
+        x for i, e in enumerate(arr) for x in ([e] + three if i % 4 < 3 else [e] + two)
+    ]
+
+
 def prepare_input(batch: dict, device: torch.device):
     """Parse batch data"""
-    text_inputs = batch["text"]
-    # texts.extend(convert_char_to_pinyin([text], polyphone=true))
-    text_inputs = convert_char_to_pinyin(text_inputs, polyphone=True)
+    # text_inputs = batch["text"]
+    # text_inputs = convert_char_to_pinyin(text_inputs, polyphone=True)
 
     mel_spec = batch["features"]
     mel_lengths = batch["features_lens"]
+
+    semantic_tokens = []
+    for i in range(len(batch["tokens"])):
+        tokens = batch["tokens"][i]
+        tokens = insert_zeros_optimized(tokens)
+        semantic_tokens.append(tokens)
+    # pad to the same length, B,T, with pad value -1
+    max_len = max([len(tokens) for tokens in semantic_tokens])
+    text_inputs = torch.full((len(semantic_tokens), max_len), -1, dtype=torch.long).to(
+        device
+    )
+    for i, tokens in enumerate(semantic_tokens):
+        text_inputs[i, : len(tokens)] = torch.tensor(tokens, dtype=torch.long)
+
     return text_inputs, mel_spec.to(device), mel_lengths.to(device)
 
 
