@@ -1,3 +1,10 @@
+# Results
+|        Model                               | Seed-TTS test_zh CER  | Comment                                           |
+|---------------------------------------|---------------------|--------|
+| [vall-e](./valle)            | 4.33%    | ~150M |
+| [f5-tts](./f5-tts)            | 3.02% (16 steps) / 2.42% (32 steps)    | F5-TTS-Small Config, ~155M |
+| [f5-tts-semantic-token](./f5-tts) |  1.79% (16 steps)   | Using pretrained cosyvoice2 semantic tokens as inputs rather than text tokens, ~155M  |
+
 # Introduction
 
 [**WenetSpeech4TTS**](https://huggingface.co/datasets/Wenetspeech4TTS/WenetSpeech4TTS) is a multi-domain **Mandarin** corpus derived from the open-sourced [WenetSpeech](https://arxiv.org/abs/2110.03370) dataset.
@@ -131,6 +138,53 @@ accelerate launch f5-tts/infer.py --nfe 16 --model-path $model_path --manifest-f
 bash local/compute_wer.sh $output_dir $manifest
 ```
 
+# F5-TTS-Semantic-Token
+
+./f5-tts contains the code for training F5-TTS-Semantic-Token. We replaced the text tokens in F5-TTS with pretrained cosyvoice2 semantic tokens.
+
+We observed faster convergence and better prosody modeling results by doing this.
+
+Generated samples and training logs of wenetspeech basic 7k hours data can be found [here](https://huggingface.co/yuekai/f5-tts-semantic-token-small-wenetspeech4tts-basic/tree/main).
+
+Preparation:
+
+```
+# extract cosyvoice2 semantic tokens
+bash prepare.sh --stage 5 --stop_stage 7
+```
+
+The training command is given below:
+
+```
+# docker: ghcr.io/swivid/f5-tts:main
+# pip install k2==1.24.4.dev20241030+cuda12.4.torch2.4.0 -f https://k2-fsa.github.io/k2/cuda.html
+# pip install kaldialign lhotse tensorboard bigvganinference sentencepiece
+
+world_size=8
+exp_dir=exp/f5-tts-semantic-token-small
+python3 f5-tts/train.py --max-duration 700 --filter-min-duration 0.5 --filter-max-duration 20  \
+      --num-buckets 6 --dtype "bfloat16" --save-every-n 5000 --valid-interval 10000 \
+      --base-lr 1e-4 --warmup-steps 20000 --average-period 0 \
+      --num-epochs 10 --start-epoch 1 --start-batch 0 \
+      --num-decoder-layers 18 --nhead 12 --decoder-dim 768 \
+      --exp-dir ${exp_dir} --world-size ${world_size} \
+      --decay-steps 600000 --prefix wenetspeech4tts_cosy_token --use-cosyvoice-semantic-token True
+```
+
+To inference with Icefall Wenetspeech4TTS trained F5-Small-Semantic-Token, use:
+```
+huggingface-cli login
+huggingface-cli download --local-dir ${exp_dir} yuekai/f5-tts-semantic-token-small-wenetspeech4tts-basic
+huggingface-cli download nvidia/bigvgan_v2_24khz_100band_256x --local-dir bigvgan_v2_24khz_100band_256x
+
+split=test_zh
+model_path=f5-tts-small-wenetspeech4tts-basic/epoch-10-avg-5.pt
+
+accelerate launch f5-tts/infer.py --nfe 16 --model-path $model_path --split-name $split --output-dir $output_dir --decoder-dim 768 --nhead 12 --num-decoder-layers 18 --use-cosyvoice-semantic-token True
+bash local/compute_wer.sh $output_dir $manifest
+```
+
 # Credits
 - [VALL-E](https://github.com/lifeiteng/vall-e)
 - [F5-TTS](https://github.com/SWivid/F5-TTS)
+- [CosyVoice](https://github.com/FunAudioLLM/CosyVoice)

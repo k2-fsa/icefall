@@ -11,7 +11,14 @@ python3 f5-tts/generate_averaged_model.py \
     --epoch 56 \
     --avg 14 --decoder-dim 768 --nhead 12 --num-decoder-layers 18 \
     --exp-dir exp/f5_small
+
+# command for text token input
 accelerate launch f5-tts/infer.py --nfe 16 --model-path $model_path --manifest-file $manifest --output-dir $output_dir --decoder-dim 768 --nhead 12 --num-decoder-layers 18
+
+# command for cosyvoice semantic token input
+split=test_zh # seed_tts_eval test_zh
+accelerate launch f5-tts/infer.py --nfe 16 --model-path $model_path --split-name $split --output-dir $output_dir --decoder-dim 768 --nhead 12 --num-decoder-layers 18 --use-cosyvoice-semantic-token True
+
 bash local/compute_wer.sh $output_dir $manifest
 """
 import argparse
@@ -37,11 +44,12 @@ from train import (
     add_model_arguments,
     get_model,
     get_tokenizer,
-    insert_zeros_optimized,
+    interpolate_tokens,
     load_F5_TTS_pretrained_checkpoint,
 )
 
 from icefall.checkpoint import load_checkpoint
+from icefall.utils import str2bool
 
 
 def get_parser():
@@ -94,9 +102,17 @@ def get_parser():
     parser.add_argument("-ss", "--swaysampling", default=-1, type=float)
 
     parser.add_argument(
-        "--insert-zero",
-        action="store_true",
-        help="Insert zeros for CosyVoice",
+        "--interpolate-token",
+        type=str2bool,
+        default=True,
+        help="Interpolate semantic token to match mel frames for CosyVoice",
+    )
+
+    parser.add_argument(
+        "--use-cosyvoice-semantic-token",
+        type=str2bool,
+        default=False,
+        help="Whether to use cosyvoice semantic token to replace text token.",
     )
 
     parser.add_argument(
@@ -277,7 +293,7 @@ def get_inference_prompt_cosy_voice_huggingface(
     num_buckets=200,
     min_secs=3,
     max_secs=40,
-    insert_zero=False,
+    interpolate_token=False,
 ):
     prompts_all = []
 
@@ -319,15 +335,15 @@ def get_inference_prompt_cosy_voice_huggingface(
             ref_audio = ref_audio_org
         input_tokens = prompt_audio_tokens + audio_tokens
 
-        if insert_zero:
-            input_tokens = insert_zeros_optimized(input_tokens)
+        if interpolate_token:
+            input_tokens = interpolate_tokens(input_tokens)
         text_list = input_tokens
 
         # Duration, mel frame length
         ref_mel_len = ref_audio.shape[-1] // hop_length
 
         total_mel_len = len(input_tokens)
-        if not insert_zero:
+        if not interpolate_token:
             total_mel_len = int(total_mel_len / 4 * 15)
 
         # to mel spectrogram
@@ -406,6 +422,51 @@ def get_inference_prompt_cosy_voice_huggingface(
     return prompts_all
 
 
+def inference_speech_token(
+    cosyvoice,
+    tts_text,
+    prompt_text,
+    prompt_speech_16k,
+    stream=False,
+    speed=1.0,
+    text_frontend=True,
+):
+    tokens = []
+    prompt_text = cosyvoice.frontend.text_normalize(
+        prompt_text, split=False, text_frontend=text_frontend
+    )
+    for i in cosyvoice.frontend.text_normalize(
+        tts_text, split=True, text_frontend=text_frontend
+    ):
+
+        tts_text_token, tts_text_token_len = cosyvoice.frontend._extract_text_token(i)
+        (
+            prompt_text_token,
+            prompt_text_token_len,
+        ) = cosyvoice.frontend._extract_text_token(prompt_text)
+        speech_token, speech_token_len = cosyvoice.frontend._extract_speech_token(
+            prompt_speech_16k
+        )
+
+        for i in cosyvoice.model.llm.inference(
+            text=tts_text_token.to(cosyvoice.model.device),
+            text_len=torch.tensor([tts_text_token.shape[1]], dtype=torch.int32).to(
+                cosyvoice.model.device
+            ),
+            prompt_text=prompt_text_token.to(cosyvoice.model.device),
+            prompt_text_len=torch.tensor(
+                [prompt_text_token.shape[1]], dtype=torch.int32
+            ).to(cosyvoice.model.device),
+            prompt_speech_token=speech_token.to(cosyvoice.model.device),
+            prompt_speech_token_len=torch.tensor(
+                [speech_token.shape[1]], dtype=torch.int32
+            ).to(cosyvoice.model.device),
+            embedding=None,
+        ):
+            tokens.append(i)
+    return tokens, speech_token
+
+
 def get_inference_prompt_cosy_voice(
     metainfo,
     speed=1.0,
@@ -423,18 +484,21 @@ def get_inference_prompt_cosy_voice(
     num_buckets=200,
     min_secs=3,
     max_secs=40,
-    insert_zero=False,
+    interpolate_token=False,
 ):
 
     import sys
 
+    # please change the path to the cosyvoice accordingly
     sys.path.append("/workspace/CosyVoice/third_party/Matcha-TTS")
     sys.path.append("/workspace/CosyVoice")
     from cosyvoice.cli.cosyvoice import CosyVoice2
 
+    # please download the cosyvoice model first
     cosyvoice = CosyVoice2(
         "/workspace/CosyVoice2-0.5B", load_jit=False, load_trt=False, fp16=False
     )
+
     prompts_all = []
 
     min_tokens = min_secs * target_sample_rate // hop_length
@@ -466,8 +530,8 @@ def get_inference_prompt_cosy_voice(
             ref_audio_16k = resampler(ref_audio_org)
         else:
             ref_audio_16k = ref_audio_org
-        audio_tokens, prompt_audio_tokens = cosyvoice.inference_speech_token(
-            gt_text, prompt_text, ref_audio_16k, stream=False
+        audio_tokens, prompt_audio_tokens = inference_speech_token(
+            cosyvoice, gt_text, prompt_text, ref_audio_16k, stream=False
         )
 
         ref_rms = torch.sqrt(torch.mean(torch.square(ref_audio_org)))
@@ -499,8 +563,8 @@ def get_inference_prompt_cosy_voice(
 
         # convert it into a list
         # input_tokens_list = input_tokens.squeeze().cpu().tolist()
-        if insert_zero:
-            input_tokens = insert_zeros_optimized(input_tokens)
+        if interpolate_token:
+            input_tokens = interpolate_tokens(input_tokens)
         text_list = input_tokens
 
         # Duration, mel frame length
@@ -521,7 +585,7 @@ def get_inference_prompt_cosy_voice(
                 ref_mel_len / ref_text_len * gen_text_len / speed
             )
             total_mel_len = len(input_tokens)
-            if not insert_zero:
+            if not interpolate_token:
                 total_mel_len = int(total_mel_len / 4 * 15)
             print(
                 f"total_mel_len_compute: {total_mel_len_compute}, total_mel_len: {total_mel_len}"
@@ -632,33 +696,35 @@ def main():
     device = f"cuda:{accelerator.process_index}"
     if args.manifest_file:
         metainfo = get_seedtts_testset_metainfo(args.manifest_file)
-        # prompts_all = get_inference_prompt(
-        #     metainfo,
-        #     speed=1.0,
-        #     tokenizer="pinyin",
-        #     target_sample_rate=24_000,
-        #     n_mel_channels=100,
-        #     hop_length=256,
-        #     mel_spec_type="bigvgan",
-        #     target_rms=0.1,
-        #     use_truth_duration=False,
-        #     infer_batch_size=1,
-        # )
-
-        prompts_all = get_inference_prompt_cosy_voice(
-            metainfo,
-            speed=1.0,
-            tokenizer="pinyin",
-            target_sample_rate=24_000,
-            n_mel_channels=100,
-            hop_length=256,
-            mel_spec_type="bigvgan",
-            target_rms=0.1,
-            use_truth_duration=False,
-            infer_batch_size=1,
-            insert_zero=args.insert_zero,
-        )
+        if not args.use_cosyvoice_semantic_token:
+            prompts_all = get_inference_prompt(
+                metainfo,
+                speed=1.0,
+                tokenizer="pinyin",
+                target_sample_rate=24_000,
+                n_mel_channels=100,
+                hop_length=256,
+                mel_spec_type="bigvgan",
+                target_rms=0.1,
+                use_truth_duration=False,
+                infer_batch_size=1,
+            )
+        else:
+            prompts_all = get_inference_prompt_cosy_voice(
+                metainfo,
+                speed=1.0,
+                tokenizer="pinyin",
+                target_sample_rate=24_000,
+                n_mel_channels=100,
+                hop_length=256,
+                mel_spec_type="bigvgan",
+                target_rms=0.1,
+                use_truth_duration=False,
+                infer_batch_size=1,
+                interpolate_token=args.interpolate_token,
+            )
     else:
+        assert args.use_cosyvoice_semantic_token
         dataset = datasets.load_dataset(
             "yuekai/seed_tts_cosy2",
             split=args.split_name,
@@ -675,7 +741,7 @@ def main():
             target_rms=0.1,
             use_truth_duration=False,
             infer_batch_size=1,
-            insert_zero=args.insert_zero,
+            interpolate_token=args.interpolate_token,
         )
 
     vocoder = BigVGANInference.from_pretrained(
@@ -712,14 +778,15 @@ def main():
             ref_mel_lens = torch.tensor(ref_mel_lens, dtype=torch.long).to(device)
             total_mel_lens = torch.tensor(total_mel_lens, dtype=torch.long).to(device)
 
-            # concat final_text_list
-            max_len = max([len(tokens) for tokens in final_text_list])
-            # pad tokens to the same length
-            for i, tokens in enumerate(final_text_list):
-                final_text_list[i] = torch.tensor(
-                    tokens + [-1] * (max_len - len(tokens)), dtype=torch.long
-                )
-            final_text_list = torch.stack(final_text_list).to(device)
+            if args.use_cosyvoice_semantic_token:
+                # concat final_text_list
+                max_len = max([len(tokens) for tokens in final_text_list])
+                # pad tokens to the same length
+                for i, tokens in enumerate(final_text_list):
+                    final_text_list[i] = torch.tensor(
+                        tokens + [-1] * (max_len - len(tokens)), dtype=torch.long
+                    )
+                final_text_list = torch.stack(final_text_list).to(device)
 
             # Inference
             with torch.inference_mode():
