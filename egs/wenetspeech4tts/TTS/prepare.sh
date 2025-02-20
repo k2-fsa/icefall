@@ -130,9 +130,6 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
       data/fbank/${prefix}_cuts_validtest.jsonl.gz \
       data/fbank/${prefix}_cuts_test.jsonl.gz
 
-
-    # zcat "data/fbank/${prefix}_cuts_${subset}.jsonl.gz" | head -n 100 | gzip > "data/fbank/${prefix}_cuts_${subset}_top100.jsonl.gz"
-
     rm data/fbank/${prefix}_cuts_validtest.jsonl.gz
 
     n=$(( $(gunzip -c data/fbank/${prefix}_cuts_${subset}.jsonl.gz | wc -l) - 800 ))

@@ -580,7 +580,7 @@ def prepare_input(batch: dict, device: torch.device):
     semantic_tokens = []
     for i in range(len(batch["tokens"])):
         tokens = batch["tokens"][i]
-        tokens = insert_zeros_optimized(tokens)
+        # tokens = insert_zeros_optimized(tokens)
         semantic_tokens.append(tokens)
     # pad to the same length, B,T, with pad value -1
     max_len = max([len(tokens) for tokens in semantic_tokens])
