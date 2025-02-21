@@ -142,7 +142,6 @@ fi
 
 if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
   log "Stage 7: Extract cosyvoice2 FSQ token (used by ./f5-tts semantic token experiment)"
-  pip install s3tokenizer
   split_name=("valid" "test" "train")
   for split in "${split_name[@]}"; do
       echo "Processing $split"
