@@ -174,7 +174,7 @@ class TtsDataModule:
         logging.info("About to create train dataset")
         train = SpeechSynthesisDataset(
             return_text=True,
-            return_tokens=False,
+            return_tokens=True,
             feature_input_strategy=eval(self.args.input_strategy)(),
             return_cuts=self.args.return_cuts,
         )
@@ -234,7 +234,7 @@ class TtsDataModule:
         else:
             validate = SpeechSynthesisDataset(
                 return_text=True,
-                return_tokens=False,
+                return_tokens=True,
                 feature_input_strategy=eval(self.args.input_strategy)(),
                 return_cuts=self.args.return_cuts,
             )
@@ -265,7 +265,7 @@ class TtsDataModule:
         else:
             test = SpeechSynthesisDataset(
                 return_text=True,
-                return_tokens=False,
+                return_tokens=True,
                 feature_input_strategy=eval(self.args.input_strategy)(),
                 return_cuts=self.args.return_cuts,
             )

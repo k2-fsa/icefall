@@ -111,7 +111,7 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
 fi
 
 if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
-  log "Stage 7: Split the ${prefix} cuts into train, valid and test sets (used by ./f5-tts)"
+  log "Stage 6: Split the ${prefix} cuts into train, valid and test sets (used by ./f5-tts)"
   if [ ! -f data/fbank/${prefix}_cuts_${subset}.jsonl.gz ]; then
     echo "Combining ${prefix} cuts"
     pieces=$(find data/fbank/ -name "${prefix}_cuts_${subset}.*.jsonl.gz")
@@ -138,4 +138,28 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
       data/fbank/${prefix}_cuts_train.jsonl.gz
       touch data/fbank/.${prefix}_split.done
   fi
+fi
+
+if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
+  log "Stage 7: Extract cosyvoice2 FSQ token (used by ./f5-tts semantic token experiment)"
+  split_name=("valid" "test" "train")
+  for split in "${split_name[@]}"; do
+      echo "Processing $split"
+      wav_scp_file=wav_${split}.scp
+      output_dir="./cosy_v2_tokens_${split}"
+      oringinal_jsonl_file=data/fbank/${prefix}_cuts_${split}.jsonl.gz
+      mkdir -p $output_dir
+      zcat $oringinal_jsonl_file | jq -r '.recording.id + " " + .recording.sources[0].source' > $wav_scp_file
+      torchrun --nproc_per_node=8 --nnodes=1 \
+          --rdzv_id=2024 --rdzv_backend="c10d" --rdzv_endpoint="localhost:0" \
+          `which s3tokenizer` --wav_scp $wav_scp_file \
+                      --device "cuda" \
+                      --output_dir $output_dir \
+                      --batch_size 32 \
+                      --num_workers 4 \
+                      --model "speech_tokenizer_v2_25hz"  # or "speech_tokenizer_v1_25hz
+
+      cat $output_dir/* > $output_dir/${prefix}_${split}_cosy_v2_tokens.json
+      python3 local/attach_speech_tokens.py --jsonl-prefix ${prefix}_cuts_${split} --tokens-path $output_dir/${prefix}_${split}_cosy_v2_tokens.json --manifest-dir data/fbank
+  done
 fi

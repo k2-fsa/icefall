@@ -31,6 +31,16 @@ python3 f5-tts/train.py --max-duration 700 --filter-min-duration 0.5 --filter-ma
       --base-lr 7.5e-5 --warmup-steps 20000 --num-epochs 60  \
       --num-decoder-layers 18 --nhead 12 --decoder-dim 768 \
       --exp-dir ${exp_dir} --world-size ${world_size}
+
+# command for training with cosyvoice semantic token
+exp_dir=exp/f5-tts-cosyvoice
+python3 f5-tts/train.py --max-duration 700 --filter-min-duration 0.5 --filter-max-duration 20  \
+      --num-buckets 6 --dtype "bfloat16" --save-every-n 5000 --valid-interval 10000 \
+      --base-lr 1e-4 --warmup-steps 20000 --average-period 0 \
+      --num-epochs 10 --start-epoch 1 --start-batch 0 \
+      --num-decoder-layers 18 --nhead 12 --decoder-dim 768 \
+      --exp-dir ${exp_dir} --world-size ${world_size} \
+      --decay-steps 600000 --prefix wenetspeech4tts_cosy_token --use-cosyvoice-semantic-token True
 """
 
 import argparse
@@ -303,6 +313,13 @@ def get_parser():
         help="perform OOM check on dataloader batches before starting training.",
     )
 
+    parser.add_argument(
+        "--use-cosyvoice-semantic-token",
+        type=str2bool,
+        default=False,
+        help="Whether to use cosyvoice semantic token to replace text token.",
+    )
+
     add_model_arguments(parser)
 
     return parser
@@ -378,7 +395,11 @@ def get_tokenizer(vocab_file_path: str):
 
 
 def get_model(params):
-    vocab_char_map, vocab_size = get_tokenizer(params.tokens)
+    if params.use_cosyvoice_semantic_token:
+        # https://www.modelscope.cn/models/iic/CosyVoice2-0.5B/file/view/master?fileName=cosyvoice.yaml&status=1#L36
+        vocab_char_map, vocab_size = None, 6561
+    else:
+        vocab_char_map, vocab_size = get_tokenizer(params.tokens)
     # bigvgan 100 dim features
     n_mel_channels = 100
     n_fft = 1024
@@ -556,14 +577,44 @@ def save_checkpoint(
         copyfile(src=filename, dst=best_valid_filename)
 
 
-def prepare_input(batch: dict, device: torch.device):
-    """Parse batch data"""
-    text_inputs = batch["text"]
-    # texts.extend(convert_char_to_pinyin([text], polyphone=true))
-    text_inputs = convert_char_to_pinyin(text_inputs, polyphone=True)
+def interpolate_tokens(cosy_tokens, pad_token=-1):
+    """Interpolate cosyvoice tokens to match bigvgan frames length"""
+    # cosyvoice, 25 tokens/sec
+    # bigvgan    sample_rate/hop_length   24000/256 frames/sec
+    # For every 4 cosyvoice tokens, insert pad tokens to extend it to 15 tokens to match bigvgan frames length
+    # We choose 4,4,4,3 to match 15 frames
+    three, two = [pad_token] * 3, [pad_token] * 2
+    return [
+        x
+        for i, e in enumerate(cosy_tokens)
+        for x in ([e] + three if i % 4 < 3 else [e] + two)
+    ]
 
+
+def prepare_input(
+    batch: dict, device: torch.device, use_cosyvoice_semantic_token: bool
+):
+    """Parse batch data"""
     mel_spec = batch["features"]
     mel_lengths = batch["features_lens"]
+
+    if use_cosyvoice_semantic_token:
+        semantic_tokens = []
+        for i in range(len(batch["tokens"])):
+            tokens = batch["tokens"][i]
+            tokens = interpolate_tokens(tokens)
+            semantic_tokens.append(tokens)
+        # pad to the same length, B,T, with pad value -1
+        max_len = max([len(tokens) for tokens in semantic_tokens])
+        text_inputs = torch.full(
+            (len(semantic_tokens), max_len), -1, dtype=torch.long
+        ).to(device)
+        for i, tokens in enumerate(semantic_tokens):
+            text_inputs[i, : len(tokens)] = torch.tensor(tokens, dtype=torch.long)
+    else:
+        text_inputs = batch["text"]
+        text_inputs = convert_char_to_pinyin(text_inputs, polyphone=True)
+
     return text_inputs, mel_spec.to(device), mel_lengths.to(device)
 
 
@@ -593,7 +644,11 @@ def compute_loss(
         values >= 1.0 are fully warmed up and have all modules present.
     """
     device = model.device if isinstance(model, DDP) else next(model.parameters()).device
-    (text_inputs, mel_spec, mel_lengths) = prepare_input(batch, device=device)
+    (text_inputs, mel_spec, mel_lengths) = prepare_input(
+        batch,
+        device=device,
+        use_cosyvoice_semantic_token=params.use_cosyvoice_semantic_token,
+    )
     # at entry, TextTokens is (N, P)
 
     with torch.set_grad_enabled(is_training):
