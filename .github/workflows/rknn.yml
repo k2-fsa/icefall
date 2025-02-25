@@ -17,24 +17,75 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  generate_build_matrix:
+    if: github.repository_owner == 'csukuangfj' || github.repository_owner == 'k2-fsa'
+    # see https://github.com/pytorch/pytorch/pull/50633
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Generating build matrix
+        id: set-matrix
+        run: |
+          # outputting for debugging purposes
+          python ./.github/scripts/docker/generate_build_matrix.py --torch-version=2.4.0 --python-version=3.10
+          MATRIX=$(python ./.github/scripts/docker/generate_build_matrix.py --torch-version=2.4.0 --python-version=3.10)
+          echo "::set-output name=matrix::${MATRIX}"
   rknn:
+    needs: generate_build_matrix
+    name: py${{ matrix.python-version }} torch${{ matrix.torch-version }} v${{ matrix.version }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest]
-        python-version: ["3.10"]
+        ${{ fromJson(needs.generate_build_matrix.outputs.matrix) }}
+
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: Setup Python
+        if: false
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Export ONNX model
+        uses: addnab/docker-run-action@v3
+        with:
+            image: ghcr.io/${{ github.repository_owner }}/icefall:cpu-py${{ matrix.python-version }}-torch${{ matrix.torch-version }}-v${{ matrix.version }}
+            options: |
+              --volume ${{ github.workspace }}/:/icefall
+            shell: bash
+            run: |
+              cat /etc/*release
+              lsb_release -a
+              uname -a
+              python3 --version
+              export PYTHONPATH=/icefall:$PYTHONPATH
+              cd /icefall
+              git config --global --add safe.directory /icefall
+
+              python3 -m torch.utils.collect_env
+              python3 -m k2.version
+              pip list
+
+              .github/scripts/librispeech/ASR/run_rknn.sh
+
+              # Install rknn
+              curl -SL -O https://huggingface.co/csukuangfj/rknn-toolkit2/resolve/main/rknn_toolkit2-2.3.0-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+              pip install ./*.whl "numpy<=1.26.4"
+              pip list | grep rknn
+              echo "---"
+              pip list
+              echo "---"
+
       - name: Install rknn
+        if: false
         shell: bash
         run: |
           ls
@@ -46,6 +97,7 @@ jobs:
           echo "---"
 
       - name: Run
+        if: false
         shell: bash
         run: |
           ls
@@ -74,11 +126,13 @@ jobs:
           ls -lh ../model
 
       - uses: actions/upload-artifact@v4
+        if: false
         with:
           name: rknn-files
           path: ./rknn_model_zoo/examples/zipformer/model/*.rknn
 
       - uses: actions/upload-artifact@v4
+        if: false
         with:
           name: onnx-files
           path: ./rknn_model_zoo/examples/zipformer/model/*.onnx
