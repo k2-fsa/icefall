@@ -2,6 +2,8 @@
 
 set -ex
 
+python3 -m pip install kaldi-native-fbank soundfile librosa
+
 log() {
   # This function is from espnet
   local fname=${BASH_SOURCE[1]##*/}
@@ -12,6 +14,7 @@ cd egs/librispeech/ASR
 
 
 # https://huggingface.co/csukuangfj/k2fsa-zipformer-chinese-english-mixed
+# sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20
 function export_bilingual_zh_en() {
   d=exp_zh_en
 
@@ -25,7 +28,10 @@ function export_bilingual_zh_en() {
   curl -SL -O https://huggingface.co/csukuangfj/k2fsa-zipformer-chinese-english-mixed/resolve/main/data/lang_char_bpe/bpe.model
 
   curl -SL -O https://huggingface.co/csukuangfj/k2fsa-zipformer-chinese-english-mixed/resolve/main/test_wavs/0.wav
-  curl -SL -O https://huggingface.co/csukuangfj/k2fsa-zipformer-chinese-english-mixed/resolve/main/test_wavs/BAC009S0764W0164.wav
+  curl -SL -O https://huggingface.co/csukuangfj/k2fsa-zipformer-chinese-english-mixed/resolve/main/test_wavs/1.wav
+  curl -SL -O https://huggingface.co/csukuangfj/k2fsa-zipformer-chinese-english-mixed/resolve/main/test_wavs/2.wav
+  curl -SL -O https://huggingface.co/csukuangfj/k2fsa-zipformer-chinese-english-mixed/resolve/main/test_wavs/3.wav
+  curl -SL -O https://huggingface.co/csukuangfj/k2fsa-zipformer-chinese-english-mixed/resolve/main/test_wavs/4.wav
   ls -lh
   popd
 
@@ -37,7 +43,7 @@ function export_bilingual_zh_en() {
     --epoch 99 \
     --avg 1 \
     --exp-dir $d/ \
-    --decode-chunk-len 32 \
+    --decode-chunk-len 64 \
     --num-encoder-layers "2,4,3,2,4" \
     --feedforward-dims "1024,1024,1536,1536,1024" \
     --nhead "8,8,8,8,8" \
@@ -63,8 +69,7 @@ function export_bilingual_zh_en() {
     --decoder-model-filename $d/decoder-epoch-99-avg-1.onnx \
     --joiner-model-filename $d/joiner-epoch-99-avg-1.onnx \
     --tokens $d/tokens.txt \
-    $d/BAC009S0764W0164.wav
-
+    $d/1.wav
 
   mkdir -p /icefall/rknn-models
 
@@ -78,9 +83,19 @@ function export_bilingual_zh_en() {
       --out-encoder $platform/encoder.rknn \
       --out-decoder $platform/decoder.rknn \
       --out-joiner $platform/joiner.rknn \
-      --target-platform $platform
+      --target-platform $platform  2>/dev/null
+
+    ls -lh $platform/
+
+    ./pruned_transducer_stateless7_streaming/test_rknn_on_cpu_simulator.py \
+      --encoder $d/encoder-epoch-99-avg-1.onnx \
+      --decoder $d/decoder-epoch-99-avg-1.onnx \
+      --joiner $d/joiner-epoch-99-avg-1.onnx \
+      --tokens $d/tokens.txt \
+      --wav $d/0.wav
 
     cp $d/tokens.txt $platform
+    cp $d/*.wav $platform
 
     cp -av $platform /icefall/rknn-models
   done

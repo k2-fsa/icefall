@@ -90,27 +90,70 @@ jobs:
         run: |
           ls -lh rknn-models/*
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: rk3562
-          path: ./rknn-models/rk3562/*
+      - name: Collect results
+        shell: bash
+        run: |
+          for platform in rk3562 rk3566 rk3568 rk3576 rk3588; do
+            dst=sherpa-onnx-$platform-streaming-zipformer-bilingual-zh-en-2023-02-20
+            mkdir $dst
+            mkdir $dst/test_wavs
+            src=rknn-models/$platform
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: rk3566
-          path: ./rknn-models/rk3566/*
+            cp -v $src/*.rknn $dst/
+            cp -v $src/tokens.txt $dst/
+            cp -v $src/*.wav $dst/test_wavs/
+            ls -lh $dst
+            tar cjfv $dst.tar.bz2 $dst
+            rm -rf $dst
+          done
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: rk3568
-          path: ./rknn-models/rk3568/*
+      - name: Display results
+        shell: bash
+        run: |
+          ls -lh *rk*.tar.bz2
 
-      - uses: actions/upload-artifact@v4
+      - name: Release to GitHub
+        uses: svenstaro/upload-release-action@v2
         with:
-          name: rk3576
-          path: ./rknn-models/rk3576/*
+          file_glob: true
+          overwrite: true
+          file: sherpa-onnx-*.tar.bz2
+          repo_name: k2-fsa/sherpa-onnx
+          repo_token: ${{ secrets.UPLOAD_GH_SHERPA_ONNX_TOKEN }}
+          tag: asr-models
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload model to huggingface
+        if: github.event_name == 'push'
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        uses: nick-fields/retry@v3
         with:
-          name: rk3588
-          path: ./rknn-models/rk3588/*
+          max_attempts: 20
+          timeout_seconds: 200
+          shell: bash
+          command: |
+            git config --global user.email "csukuangfj@gmail.com"
+            git config --global user.name "Fangjun Kuang"
+
+            rm -rf huggingface
+            export GIT_LFS_SKIP_SMUDGE=1
+
+            git clone https://huggingface.co/csukuangfj/sherpa-onnx-rknn-models huggingface
+            cd huggingface
+
+            git fetch
+            git pull
+            git merge -m "merge remote" --ff origin main
+            dst=streaming-asr
+            mkdir -p $dst
+            rm -fv $dst/*
+            cp ../*rk*.tar.bz2 $dst/
+
+            ls -lh $dst
+            git add .
+            git status
+            git commit -m "update models"
+            git status
+
+            git push https://csukuangfj:$HF_TOKEN@huggingface.co/csukuangfj/sherpa-onnx-rknn-models main || true
+            rm -rf huggingface

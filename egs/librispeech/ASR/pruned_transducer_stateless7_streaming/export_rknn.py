@@ -2,10 +2,13 @@
 # Copyright (c)  2025  Xiaomi Corporation (authors: Fangjun Kuang)
 
 import argparse
+import logging
 from pathlib import Path
 from typing import List
 
 from rknn.api import RKNN
+
+logging.basicConfig(level=logging.WARNING)
 
 g_platforms = [
     #  "rv1103",
@@ -18,33 +21,6 @@ g_platforms = [
     "rk3576",
     "rk3588",
 ]
-
-
-def export_rknn(rknn, filename):
-    ret = rknn.export_rknn(filename)
-    if ret != 0:
-        exit("Export rknn model to {filename} failed!")
-
-
-def init_model(filename: str, target_platform: str, custom_string=None):
-    rknn = RKNN(verbose=False)
-
-    rknn.config(target_platform=target_platform, custom_string=custom_string)
-    if not Path(filename).is_file():
-        exit(f"{filename} does not exist")
-
-    ret = rknn.load_onnx(model=filename)
-    if ret != 0:
-        exit(f"Load model {filename} failed!")
-
-    ret = rknn.build(do_quantization=False)
-    if ret != 0:
-        exit("Build model {filename} failed!")
-
-    ret = rknn.init_runtime()
-    if ret != 0:
-        exit(f"Failed to init rknn runtime for {filename}")
-    return rknn
 
 
 def get_parser():
@@ -102,6 +78,30 @@ def get_parser():
     )
 
     return parser
+
+
+def export_rknn(rknn, filename):
+    ret = rknn.export_rknn(filename)
+    if ret != 0:
+        exit("Export rknn model to {filename} failed!")
+
+
+def init_model(filename: str, target_platform: str, custom_string=None):
+    rknn = RKNN(verbose=False)
+
+    rknn.config(target_platform=target_platform, custom_string=custom_string)
+    if not Path(filename).is_file():
+        exit(f"{filename} does not exist")
+
+    ret = rknn.load_onnx(model=filename)
+    if ret != 0:
+        exit(f"Load model {filename} failed!")
+
+    ret = rknn.build(do_quantization=False)
+    if ret != 0:
+        exit("Build model {filename} failed!")
+
+    return rknn
 
 
 class MetaData:
@@ -193,7 +193,7 @@ def get_meta_data(encoder: str, decoder: str):
     decode_chunk_len = int(encoder_meta["decode_chunk_len"])
     cnn_module_kernels = to_int_list(encoder_meta["cnn_module_kernels"])
     num_encoder_layers = to_int_list(encoder_meta["num_encoder_layers"])
-    context_size = to_int_list(decoder_meta["context_size"])
+    context_size = int(decoder_meta["context_size"])
 
     return MetaData(
         model_type=model_type,
