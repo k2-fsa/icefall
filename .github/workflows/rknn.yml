@@ -74,7 +74,6 @@ jobs:
               python3 -m k2.version
               pip list
 
-              .github/scripts/librispeech/ASR/run_rknn.sh
 
               # Install rknn
               curl -SL -O https://huggingface.co/csukuangfj/rknn-toolkit2/resolve/main/rknn_toolkit2-2.3.0-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
@@ -83,6 +82,13 @@ jobs:
               echo "---"
               pip list
               echo "---"
+
+              .github/scripts/librispeech/ASR/run_rknn.sh
+
+      - name: Display rknn models
+        shell: bash
+        run: |
+          ls -lh rknn-models/*
 
       - name: Install rknn
         if: false

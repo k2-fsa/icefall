@@ -49,6 +49,8 @@ function export_bilingual_zh_en() {
     --decoder-dim 512 \
     --joiner-dim 512
 
+  ls -lh $d/
+
   ./pruned_transducer_stateless7_streaming/onnx_pretrained.py \
     --encoder-model-filename $d/encoder-epoch-99-avg-1.onnx \
     --decoder-model-filename $d/decoder-epoch-99-avg-1.onnx \
@@ -63,7 +65,27 @@ function export_bilingual_zh_en() {
     --tokens $d/tokens.txt \
     $d/BAC009S0764W0164.wav
 
-  ls -lh $d/
+
+  mkdir -p /icefall/rknn-models
+
+  for platform in rk3562 rk3566 rk3568 rk3576 rk3588; do
+    mkdir -p $platform
+
+    ./pruned_transducer_stateless7_streaming/export_rknn.py \
+      --in-encoder $d/encoder-epoch-99-avg-1.onnx \
+      --in-decoder $d/decoder-epoch-99-avg-1.onnx \
+      --in-joiner $d/joiner-epoch-99-avg-1.onnx \
+      --out-encoder $platform/encoder.rknn \
+      --out-decoder $platform/decoder.rknn \
+      --out-joiner $platform/joiner.rknn \
+      --target-platform $platform
+
+    cp $d/tokens.txt $platform
+
+    cp -av $platform /icefall/rknn-models
+  done
+
+  ls -lh /icefall/rknn-models
 }
 
 export_bilingual_zh_en
