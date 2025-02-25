@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - master
-      - ci-rknn
+      - ci-rknn-2
 
   pull_request:
     branches:
@@ -90,55 +90,27 @@ jobs:
         run: |
           ls -lh rknn-models/*
 
-      - name: Install rknn
-        if: false
-        shell: bash
-        run: |
-          ls
-          curl -SL -O https://huggingface.co/csukuangfj/rknn-toolkit2/resolve/main/rknn_toolkit2-2.3.0-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
-          pip install ./*.whl "numpy<=1.26.4"
-          pip list | grep rknn
-          echo "---"
-          pip list
-          echo "---"
-
-      - name: Run
-        if: false
-        shell: bash
-        run: |
-          ls
-          python3 -c "import sys; from rknn.api import RKNN; print(dir(RKNN))"
-
-          git clone --depth 1 https://github.com/airockchip/rknn_model_zoo/
-          cd rknn_model_zoo/examples/zipformer
-          cd model
-          ls -lh
-          chmod +x ./download_model.sh
-          ./download_model.sh
-          ls -lh
-          cd ..
-
-          cd python
-          python3 ./convert.py ../model/encoder-epoch-99-avg-1.onnx rk3588
-
-          ls -lh ../model
-
-          python3 convert.py ../model/decoder-epoch-99-avg-1.onnx rk3588
-
-          ls -lh ../model
-
-          python3 convert.py ../model/joiner-epoch-99-avg-1.onnx rk3588
-
-          ls -lh ../model
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rk3562
+          path: ./rknn-models/rk3562/*
 
       - uses: actions/upload-artifact@v4
-        if: false
         with:
-          name: rknn-files
-          path: ./rknn_model_zoo/examples/zipformer/model/*.rknn
+          name: rk3566
+          path: ./rknn-models/rk3566/*
 
       - uses: actions/upload-artifact@v4
-        if: false
         with:
-          name: onnx-files
-          path: ./rknn_model_zoo/examples/zipformer/model/*.onnx
+          name: rk3568
+          path: ./rknn-models/rk3568/*
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rk3576
+          path: ./rknn-models/rk3576/*
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rk3588
+          path: ./rknn-models/rk3588/*
