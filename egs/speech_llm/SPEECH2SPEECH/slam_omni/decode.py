@@ -318,9 +318,9 @@ def decode_one_batch(
                 2,
             )
 
-    supervisions = batch["supervisions"]
-    feature_len = supervisions["num_frames"]
-    feature_len = feature_len.to(device, dtype=dtype)
+    # supervisions = batch["supervisions"]
+    # feature_len = supervisions["num_frames"]
+    # feature_len = feature_len.to(device, dtype=dtype)
 
     messages = [
         [
@@ -335,9 +335,6 @@ def decode_one_batch(
         feature, input_ids.to(device, dtype=torch.long), attention_mask.to(device)
     )
     hyps = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
-
-    print(hyps)
-    print(supervisions)
 
     return {"beam-search": hyps}
 
@@ -408,7 +405,10 @@ def decode_dataset(
 
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
-        texts = batch["supervisions"]["text"]
+        answers = batch["supervisions"]["text"]
+        questions_with_history = [cut.custom["question"] for cut in batch["supervisions"]["cut"]]
+        answer_cosyvoice_speech_token = [cut.custom["answer_cosyvoice_speech_token"] for cut in batch["supervisions"]["cut"]]
+        texts = [question.split('<USER>: ')[-1].strip() for question in questions_with_history]
         cut_ids = [cut.id for cut in batch["supervisions"]["cut"]]
 
         hyps_dict = decode_one_batch(

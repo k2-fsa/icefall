@@ -66,7 +66,7 @@ from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import IGNORE_TOKEN_ID, SPEECH_LLM, EncoderProjector
-from multi_dataset import MultiDataset
+# from multi_dataset import MultiDataset
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from torch import Tensor
 from torch.utils.tensorboard import SummaryWriter

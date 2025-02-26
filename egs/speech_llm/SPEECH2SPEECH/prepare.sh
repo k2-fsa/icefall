@@ -40,6 +40,6 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
     --epoch 999 --avg 1 \
     --manifest-dir data/fbank \
     --use-flash-attn True \
-    --use-lora True
+    --use-lora False # --on-the-fly-feats True
 
 fi
