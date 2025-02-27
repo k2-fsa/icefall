@@ -89,6 +89,25 @@ jobs:
         shell: bash
         run: |
           ls -lh rknn-models/*
+          echo "----"
+          ls -lh rknn-models-small/*
+
+      - name: Collect results (small)
+        shell: bash
+        run: |
+          for platform in rk3562 rk3566 rk3568 rk3576 rk3588; do
+            dst=sherpa-onnx-$platform-streaming-zipformer-small-bilingual-zh-en-2023-02-16
+            mkdir $dst
+            mkdir $dst/test_wavs
+            src=rknn-models-small/$platform
+
+            cp -v $src/*.rknn $dst/
+            cp -v $src/tokens.txt $dst/
+            cp -v $src/*.wav $dst/test_wavs/
+            ls -lh $dst
+            tar cjfv $dst.tar.bz2 $dst
+            rm -rf $dst
+          done
 
       - name: Collect results
         shell: bash
