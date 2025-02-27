@@ -88,6 +88,8 @@ jobs:
       - name: Display rknn models
         shell: bash
         run: |
+          ls -lh
+
           ls -lh rknn-models/*
           echo "----"
           ls -lh rknn-models-small/*
