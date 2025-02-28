@@ -10,7 +10,17 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--min-torch-version",
-        help="Minimu torch version",
+        help="torch version",
+    )
+
+    parser.add_argument(
+        "--torch-version",
+        help="torch version",
+    )
+
+    parser.add_argument(
+        "--python-version",
+        help="python version",
     )
     return parser.parse_args()
 
@@ -52,7 +62,7 @@ def get_torchaudio_version(torch_version):
         return torch_version
 
 
-def get_matrix(min_torch_version):
+def get_matrix(min_torch_version, specified_torch_version, specified_python_version):
     k2_version = "1.24.4.dev20241029"
     kaldifeat_version = "1.25.5.dev20241029"
     version = "20241218"
@@ -70,6 +80,12 @@ def get_matrix(min_torch_version):
     torch_version += ["2.4.1"]
     torch_version += ["2.5.0"]
     torch_version += ["2.5.1"]
+
+    if specified_torch_version:
+        torch_version = [specified_torch_version]
+
+    if specified_python_version:
+        python_version = [specified_python_version]
 
     matrix = []
     for p in python_version:
@@ -115,7 +131,11 @@ def get_matrix(min_torch_version):
 
 def main():
     args = get_args()
-    matrix = get_matrix(min_torch_version=args.min_torch_version)
+    matrix = get_matrix(
+        min_torch_version=args.min_torch_version,
+        specified_torch_version=args.torch_version,
+        specified_python_version=args.python_version,
+    )
     print(json.dumps({"include": matrix}))
 
 
