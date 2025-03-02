@@ -75,6 +75,20 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--dynamic-batch",
+        type=int,
+        default=1,
+        help="1 to support dynamic batch size. 0 to support only batch size == 1",
+    )
+
+    parser.add_argument(
+        "--enable-int8-quantization",
+        type=int,
+        default=1,
+        help="1 to also export int8 onnx models.",
+    )
+
+    parser.add_argument(
         "--epoch",
         type=int,
         default=28,
@@ -270,6 +284,7 @@ def export_streaming_ctc_model_onnx(
     model: OnnxModel,
     encoder_filename: str,
     opset_version: int = 11,
+    dynamic_batch: bool = True,
 ) -> None:
     model.encoder.__class__.forward = model.encoder.__class__.streaming_forward
 
@@ -408,7 +423,9 @@ def export_streaming_ctc_model_onnx(
             "log_probs": {0: "N"},
             **inputs,
             **outputs,
-        },
+        }
+        if dynamic_batch
+        else {},
     )
 
     add_meta_data(filename=encoder_filename, meta_data=meta_data)
@@ -547,21 +564,23 @@ def main():
         model,
         model_filename,
         opset_version=opset_version,
+        dynamic_batch=params.dynamic_batch == 1,
     )
     logging.info(f"Exported model to {model_filename}")
 
-    # Generate int8 quantization models
-    # See https://onnxruntime.ai/docs/performance/model-optimizations/quantization.html#data-type-selection
+    if params.enable_int8_quantization:
+        # Generate int8 quantization models
+        # See https://onnxruntime.ai/docs/performance/model-optimizations/quantization.html#data-type-selection
 
-    logging.info("Generate int8 quantization models")
+        logging.info("Generate int8 quantization models")
 
-    model_filename_int8 = params.exp_dir / f"ctc-{suffix}.int8.onnx"
-    quantize_dynamic(
-        model_input=model_filename,
-        model_output=model_filename_int8,
-        op_types_to_quantize=["MatMul"],
-        weight_type=QuantType.QInt8,
-    )
+        model_filename_int8 = params.exp_dir / f"ctc-{suffix}.int8.onnx"
+        quantize_dynamic(
+            model_input=model_filename,
+            model_output=model_filename_int8,
+            op_types_to_quantize=["MatMul"],
+            weight_type=QuantType.QInt8,
+        )
 
 
 if __name__ == "__main__":

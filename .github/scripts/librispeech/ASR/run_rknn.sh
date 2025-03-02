@@ -12,7 +12,6 @@ log() {
 
 cd egs/librispeech/ASR
 
-
 # https://huggingface.co/csukuangfj/k2fsa-zipformer-chinese-english-mixed
 # sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20
 function export_bilingual_zh_en() {
@@ -123,7 +122,6 @@ function export_bilingual_zh_en_small() {
   ls -lh
 
   popd
-
 
   ./pruned_transducer_stateless7_streaming/export-onnx-zh.py \
     --dynamic-batch 0 \

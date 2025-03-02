@@ -72,7 +72,7 @@ def compute_features(filename: str, dim: int = 80) -> np.ndarray:
       filename:
         Path to an audio file.
     Returns:
-      Return a 1-D float32 tensor of shape (1, 80, 3000) containing the features.
+      Return a 2-D float32 tensor of shape (T, dim) containing the features.
     """
     wave, sample_rate = load_audio(filename)
     if sample_rate != 16000:
