@@ -13,8 +13,8 @@ log() {
 cd egs/wenetspeech/ASR
 
 #https://k2-fsa.github.io/sherpa/onnx/pretrained_models/online-transducer/zipformer-transducer-models.html#k2-fsa-icefall-asr-zipformer-wenetspeech-streaming-small-chinese
-function export_zh_small() {
-  d=exp_zh_small
+function export_2025_03_02() {
+  d=exp_2025_03_02
   mkdir $d
   pushd $d
   curl -SL -O https://huggingface.co/k2-fsa/icefall-asr-zipformer-wenetspeech-streaming-small/resolve/main/data/lang_char/tokens.txt
@@ -47,28 +47,150 @@ function export_zh_small() {
     --left-context-frames 128 \
     --causal 1
 
-  out=/icefall/rknn-models-small-wenetspeech
-  mkdir -p $out
-
   for platform in rk3562 rk3566 rk3568 rk3576 rk3588; do
-    mkdir -p $out/$platform
+    dst=sherpa-onnx-$platform-streaming-zipformer-small-zh-2025-03-02
+    mkdir -p $dst
 
     ./zipformer/export_rknn_transducer_streaming.py \
       --in-encoder $d/encoder-epoch-99-avg-1-chunk-32-left-128.onnx \
       --in-decoder $d/decoder-epoch-99-avg-1-chunk-32-left-128.onnx \
       --in-joiner $d/joiner-epoch-99-avg-1-chunk-32-left-128.onnx \
-      --out-encoder $out/$platform/encoder.rknn \
-      --out-decoder $out/$platform/decoder.rknn \
-      --out-joiner $out/$platform/joiner.rknn \
+      --out-encoder $dst/encoder.rknn \
+      --out-decoder $dst/decoder.rknn \
+      --out-joiner $dst/joiner.rknn \
       --target-platform $platform
 
-    cp $d/tokens.txt $out/$platform
-    cp $d/*.wav $out/$platform
-    ls -lh $out/$platform/
+    cp $d/tokens.txt $dst
+    mkdir $dst/test_wavs
+    cp $d/*.wav $dst/test_wavs
+
+    tar cjvf $dst.tar.bz2 $dst
+    ls -lh $dst.tar.bz2
+    mv $dst.tar.bz2 /icefall/
+    ls -lh $dst/
+    echo "---"
+
+    rm -rf $dst
   done
-  ls -h $out
-  echo "---"
-  ls -h $out/*
+  rm -rf $d
 }
 
-export_zh_small
+# https://k2-fsa.github.io/sherpa/onnx/pretrained_models/online-transducer/zipformer-transducer-models.html#k2-fsa-icefall-asr-zipformer-wenetspeech-streaming-large-chinese
+function export_2025_03_03() {
+  d=exp_2025_03_03
+  mkdir $d
+  pushd $d
+  curl -SL -O https://huggingface.co/pkufool/icefall-asr-zipformer-streaming-wenetspeech-20230615/resolve/main/data/lang_char/tokens.txt
+  curl -SL -O https://huggingface.co/pkufool/icefall-asr-zipformer-streaming-wenetspeech-20230615/resolve/main/exp/pretrained.pt
+  mv pretrained.pt epoch-99.pt
+
+  curl -SL -o 0.wav https://huggingface.co/pkufool/icefall-asr-zipformer-streaming-wenetspeech-20230615/resolve/main/test_wavs/DEV_T0000000000.wav
+  curl -SL -o 1.wav https://huggingface.co/pkufool/icefall-asr-zipformer-streaming-wenetspeech-20230615/resolve/main/test_wavs/DEV_T0000000001.wav
+  curl -SL -o 2.wav https://huggingface.co/pkufool/icefall-asr-zipformer-streaming-wenetspeech-20230615/resolve/main/test_wavs/DEV_T0000000002.wav
+  ls -lh
+  popd
+
+  ./zipformer/export-onnx-streaming.py \
+    --dynamic-batch 0 \
+    --enable-int8-quantization 0 \
+    --tokens $d/tokens.txt \
+    --use-averaged-model 0 \
+    --epoch 99 \
+    --avg 1 \
+    --exp-dir $d \
+    --use-ctc 0 \
+    --use-transducer 1 \
+    \
+    --chunk-size 32 \
+    --left-context-frames 128 \
+    --causal 1
+
+  for platform in rk3562 rk3566 rk3568 rk3576 rk3588; do
+    dst=sherpa-onnx-$platform-streaming-zipformer-zh-2025-03-03
+    mkdir -p $dst
+
+    ./zipformer/export_rknn_transducer_streaming.py \
+      --in-encoder $d/encoder-epoch-99-avg-1-chunk-32-left-128.onnx \
+      --in-decoder $d/decoder-epoch-99-avg-1-chunk-32-left-128.onnx \
+      --in-joiner $d/joiner-epoch-99-avg-1-chunk-32-left-128.onnx \
+      --out-encoder $dst/encoder.rknn \
+      --out-decoder $dst/decoder.rknn \
+      --out-joiner $dst/joiner.rknn \
+      --target-platform $platform
+
+    cp $d/tokens.txt $dst
+    mkdir $dst/test_wavs
+    cp $d/*.wav $dst/test_wavs
+
+    tar cjvf $dst.tar.bz2 $dst
+    ls -lh $dst.tar.bz2
+    mv $dst.tar.bz2 /icefall/
+    ls -lh $dst/
+    echo "---"
+    ls -lh $dst.tar.bz2
+
+    rm -rf $dst
+  done
+  rm -rf $d
+}
+
+function export_2023_06_15() {
+  d=exp_2023_06_15
+  mkdir $d
+  pushd $d
+  curl -SL -O https://huggingface.co/pkufool/icefall-asr-zipformer-streaming-wenetspeech-20230615/resolve/main/data/lang_char/tokens.txt
+  curl -SL -O https://huggingface.co/pkufool/icefall-asr-zipformer-streaming-wenetspeech-20230615/resolve/main/exp/pretrained.pt
+  mv pretrained.pt epoch-99.pt
+
+  curl -SL -o 0.wav https://huggingface.co/pkufool/icefall-asr-zipformer-streaming-wenetspeech-20230615/resolve/main/test_wavs/DEV_T0000000000.wav
+  curl -SL -o 1.wav https://huggingface.co/pkufool/icefall-asr-zipformer-streaming-wenetspeech-20230615/resolve/main/test_wavs/DEV_T0000000001.wav
+  curl -SL -o 2.wav https://huggingface.co/pkufool/icefall-asr-zipformer-streaming-wenetspeech-20230615/resolve/main/test_wavs/DEV_T0000000002.wav
+  ls -lh
+  popd
+
+  ./zipformer/export-onnx-streaming.py \
+    --dynamic-batch 0 \
+    --enable-int8-quantization 0 \
+    --tokens $d/tokens.txt \
+    --use-averaged-model 0 \
+    --epoch 99 \
+    --avg 1 \
+    --exp-dir $d \
+    --use-ctc 0 \
+    --use-transducer 1 \
+    \
+    --chunk-size 32 \
+    --left-context-frames 128 \
+    --causal 1
+
+  for platform in rk3562 rk3566 rk3568 rk3576 rk3588; do
+    dst=sherpa-onnx-$platform-streaming-zipformer-zh-2023-06-15
+    mkdir -p $dst
+
+    ./zipformer/export_rknn_transducer_streaming.py \
+      --in-encoder $d/encoder-epoch-99-avg-1-chunk-32-left-128.onnx \
+      --in-decoder $d/decoder-epoch-99-avg-1-chunk-32-left-128.onnx \
+      --in-joiner $d/joiner-epoch-99-avg-1-chunk-32-left-128.onnx \
+      --out-encoder $dst/encoder.rknn \
+      --out-decoder $dst/decoder.rknn \
+      --out-joiner $dst/joiner.rknn \
+      --target-platform $platform
+
+    cp $d/tokens.txt $dst
+    mkdir $dst/test_wavs
+    cp $d/*.wav $dst/test_wavs
+
+    tar cjvf $dst.tar.bz2 $dst
+    ls -lh $dst.tar.bz2
+    mv $dst.tar.bz2 /icefall/
+    ls -lh $dst/
+    echo "---"
+    ls -lh $dst.tar.bz2
+
+    rm -rf $dst
+  done
+}
+
+export_2025_03_02
+export_2025_03_03
+export_2023_06_15
