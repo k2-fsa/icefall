@@ -1,6 +1,6 @@
 {
-  "llm_model_name_or_path": "/workspace/slam/icefall_omni/egs/speech_llm/SPEECH2SPEECH/models/Qwen2.5-0.5B-Instruct",
-  "data_path": ["../emilia_cosyvoice_v2_token/cosy_v2_tokens_ZH.jsonl"],
+  "llm_model_name_or_path": "./Qwen2.5-0.5B-Instruct",
+  "data_path": ["./emilia_cosyvoice_v2_token/cosy_v2_tokens_ZH.jsonl"],
   "bf16": false,
   "output_dir": "./exp_zh",
   "num_train_epochs": 3,

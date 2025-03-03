@@ -1,3 +1,11 @@
+# Modified from https://github.com/zhenye234/LLaSA_training/blob/main/train_tts.py
+""" Example Usage
+WANDB_KEY=$your_wandb_key
+wandb login ${WANDB_KEY}
+huggingface-cli download yuekai/emilia_cosyvoice_v2_token --local-dir emilia_cosyvoice_v2_token
+huggingface-cli download Qwen/Qwen2.5-0.5B-Instruct --local-dir Qwen2.5-0.5B-Instruct
+torchrun --nproc_per_node=8 train.py config.json
+"""
 import json
 import os
 import random
@@ -11,8 +19,7 @@ import torch
 import torch.nn as nn
 import transformers
 import wandb
-from datasets import load_dataset, load_from_disk
-from torch.utils.data import DataLoader, Dataset
+from datasets import load_dataset
 from transformers import (
     AutoConfig,
     AutoModelForCausalLM,
@@ -65,7 +72,7 @@ class CustomTrainingArguments(TrainingArguments):
     remove_unused_columns: bool = field(default=False)
 
 
-def data_collator(batch, tokenizer):
+def data_collator(batch, tokenizer, original_tokenizer_vocab_size, cut_off_len=2048):
     speech_generation_start_index = tokenizer.convert_tokens_to_ids(
         "<|SPEECH_GENERATION_START|>"
     )
@@ -84,11 +91,11 @@ def data_collator(batch, tokenizer):
             chat_template=TEMPLATE,
         )
 
-        code = [c + 151665 for c in code]
+        code = [c + original_tokenizer_vocab_size for c in code]
 
         idx = input_ids.index(speech_generation_start_index)
         input_ids = input_ids[:idx] + code + input_ids[idx + 1 :]
-        if len(input_ids) < 2048:
+        if len(input_ids) < cut_off_len:
             input_ids_list.append(input_ids)
 
     max_len = max([len(input_ids) for input_ids in input_ids_list])
@@ -140,7 +147,11 @@ def main():
     )
 
     tokenizer = AutoTokenizer.from_pretrained(model_args.llm_model_name_or_path)
-    new_tokens = [f"<|s_{i}|>" for i in range(6561)] + ["<|SPEECH_GENERATION_START|>"]
+    original_tokenizer_vocab_size = len(tokenizer)
+    cosyvoice2_token_size = 6561
+    new_tokens = [f"<|s_{i}|>" for i in range(cosyvoice2_token_size)] + [
+        "<|SPEECH_GENERATION_START|>"
+    ]
     num_added_tokens = tokenizer.add_tokens(new_tokens)
 
     model.resize_token_embeddings(len(tokenizer))
@@ -157,7 +168,9 @@ def main():
         args=training_args,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
-        data_collator=lambda features: data_collator(features, tokenizer),
+        data_collator=lambda features: data_collator(
+            features, tokenizer, original_tokenizer_vocab_size
+        ),
     )
 
     if is_main_process:

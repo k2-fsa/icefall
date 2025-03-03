@@ -1,4 +1,5 @@
 # Copyright (c) 2024 Tsinghua Univ. (authors: Xingchen Song)
+#               2025               （authors: Yuekai Zhang）
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,23 +12,26 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+# Modified from https://github.com/xingchensong/S3Tokenizer/blob/main/s3tokenizer/cli.py
 """ Example Usage
-cpu:
-
-s3tokenizer --data_dir xxx.scp \
-            --device "cpu" \
-            --output_dir "./" \
-            --batch_size 32
-
-gpu:
-
-torchrun --nproc_per_node=8 --nnodes=1 \
-     --rdzv_id=2024 --rdzv_backend="c10d" --rdzv_endpoint="localhost:0" \
-    `which s3tokenizer` --data_dir xxx.scp \
-                --device "cuda" \
-                --output_dir "./" \
-                --batch_size 32
-
+split=test_zh
+llm_path=f5-tts/exp_zh/checkpoint-805000
+huggingface-cli download --local-dir f5-tts-small-wenetspeech4tts-basic yuekai/f5-tts-semantic-token-small-wenetspeech4tts-basic
+model_path=f5-tts-small-wenetspeech4tts-basic/epoch-10-avg-5.pt
+huggingface-cli download nvidia/bigvgan_v2_24khz_100band_256x --local-dir ./bigvgan_v2_24khz_100band_256x
+vocoder=./bigvgan_v2_24khz_100band_256x
+torchrun --nproc_per_node=2 \
+    f5-tts/infer_dist.py \
+                --output_dir $output_dir \
+                --batch_size 1 \
+                --num_workers 2 \
+                --llm-model-name-or-path $llm_path \
+                --flow-matching-model-path $model_path \
+                --decoder-dim 768 --nhead 12 --num-decoder-layers 18 \
+                --use-cosyvoice-semantic-token True \
+                --vocoder-dir $vocoder \
+                --split-name $split -top-k 50 -top-p 0.95 -temperature 0.8 \
+                --tokenizer-dir Qwen/Qwen2.5-0.5B-Instruct
 """
 
 import argparse
@@ -81,16 +85,16 @@ def get_args():
         help="huggingface dataset split name",
     )
     parser.add_argument(
-        "--output_dir", required=True, type=str, help="dir to save result"
+        "--output-dir", required=True, type=str, help="dir to save result"
     )
     parser.add_argument(
-        "--batch_size",
+        "--batch-size",
         required=True,
         type=int,
         help="batch size (per-device) for inference",
     )
     parser.add_argument(
-        "--num_workers", type=int, default=4, help="workers for dataloader"
+        "--num-workers", type=int, default=4, help="workers for dataloader"
     )
     parser.add_argument(
         "--prefetch", type=int, default=5, help="prefetch for dataloader"
@@ -118,6 +122,24 @@ def get_args():
         required=True,
         type=str,
         help="flow matching model path",
+    )
+    parser.add_argument(
+        "--top-k",
+        type=int,
+        default=50,
+        help="top k for sampling",
+    )
+    parser.add_argument(
+        "--top-p",
+        type=float,
+        default=0.95,
+        help="top p for sampling",
+    )
+    parser.add_argument(
+        "--temperature",
+        type=float,
+        default=0.8,
+        help="temperature for sampling",
     )
     add_model_arguments(parser)
     args = parser.parse_args()
@@ -285,7 +307,11 @@ def main():
 
     for batch in dataloader:
         generate_codes = model.inference_batch(
-            batch["input_ids"], batch["attention_mask"]
+            batch["input_ids"],
+            batch["attention_mask"],
+            top_k=args.top_k,
+            top_p=args.top_p,
+            temperature=args.temperature,
         )
         flow_matching_input_tokens, total_mel_lens = [], []
         for i, code in enumerate(generate_codes):

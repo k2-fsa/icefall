@@ -1,4 +1,5 @@
 # Copyright (c) 2024 Tsinghua Univ. (authors: Xingchen Song)
+#               2025                (authors: Yuekai Zhang)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,21 +13,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """ Example Usage
-cpu:
-
-s3tokenizer --data_dir xxx.scp \
-            --device "cpu" \
-            --output_dir "./" \
-            --batch_size 32
-
-gpu:
-
 torchrun --nproc_per_node=8 --nnodes=1 \
-     --rdzv_id=2024 --rdzv_backend="c10d" --rdzv_endpoint="localhost:0" \
-    `which s3tokenizer` --data_dir xxx.scp \
+    --rdzv_id=2024 --rdzv_backend="c10d" --rdzv_endpoint="localhost:0" \
+    local/extract_cosyvoice2_token.py --data_dir $data_dir \
+                --jsonl_file $jsonl_file_basename \
                 --device "cuda" \
-                --output_dir "./" \
-                --batch_size 32
+                --output_dir $output_dir \
+                --batch_size 32 \
+                --num_workers 2 \
+                --model "speech_tokenizer_v2_25hz"
 
 """
 

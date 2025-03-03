@@ -186,3 +186,5 @@ bash local/compute_wer.sh $output_dir $manifest
 - [VALL-E](https://github.com/lifeiteng/vall-e)
 - [F5-TTS](https://github.com/SWivid/F5-TTS)
 - [CosyVoice](https://github.com/FunAudioLLM/CosyVoice)
+- [S3Tokenizer](https://github.com/xingchensong/S3Tokenizer/tree/main)
+- [Spark-TTS](https://github.com/SparkAudio/Spark-TTS)

@@ -109,13 +109,6 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--use-cosyvoice-semantic-token",
-        type=str2bool,
-        default=False,
-        help="Whether to use cosyvoice semantic token to replace text token.",
-    )
-
-    parser.add_argument(
         "--split-name",
         type=str,
         default="wenetspeech4tts",
