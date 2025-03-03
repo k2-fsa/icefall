@@ -3,7 +3,7 @@
 |---------------------------------------|----------|-----------|--------|
 | pretrained cosyvoice2 llm | pretrained cosyvoice2 unet |  1.45%   | See [paper](https://arxiv.org/abs/2412.10117)|
 | pretrained cosyvoice2 llm | f5-tts-small (wenetspeech4tts) |  1.79% (16 steps)   | See [PR](https://github.com/k2-fsa/icefall/pull/1880)|
-| llasa_cosyvoice2_token llm (Emilia 50k hours ZH) | f5-tts-small (wenetspeech4tts) |  1.89% (16 steps)   | |
+| llasa_cosyvoice2_token llm (Emilia 50k hours ZH) | f5-tts-small (wenetspeech4tts) |  1.81% (16 steps)   | |
 
 # Introduction
 
