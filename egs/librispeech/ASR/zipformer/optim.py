@@ -152,7 +152,7 @@ def basic_step(group, p, state, grad):
     factor_min = 0.8
     factor = ((denom / denom.mean()) ** power).clamp_(min=factor_min, max=factor_max)
 
-    return -lr * grad / (denom * factor)
+    return -lr * grad * factor / denom
 
 
 def scaling_step(group, p, state, grad):
