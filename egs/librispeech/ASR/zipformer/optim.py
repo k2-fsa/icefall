@@ -147,9 +147,9 @@ def basic_step(group, p, state, grad):
     denom = exp_avg_sq.sqrt().add_(eps)
 
     ## following three are tunable.
-    power = 0.2
-    factor_max = 1.2
-    factor_min = 0.8
+    power = 0.3
+    factor_max = 1.3
+    factor_min = 0.7
     factor = ((denom / denom.mean()) ** power).clamp_(min=factor_min, max=factor_max)
 
     return -lr * grad * factor / denom
