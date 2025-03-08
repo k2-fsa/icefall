@@ -68,6 +68,13 @@ def get_args():
         help="""Perturb speed with factor 0.9 and 1.1 on train subset.""",
     )
 
+    parser.add_argument(
+    "--num-workers",
+    type=int,
+    default=15,
+    help="Number of worker processes for feature extraction.",
+    )
+
     return parser.parse_args()
 
 
@@ -75,10 +82,11 @@ def compute_fbank_librispeech(
     bpe_model: Optional[str] = None,
     dataset: Optional[str] = None,
     perturb_speed: Optional[bool] = True,
+    num_workers: int = 15,
 ):
     src_dir = Path("data/manifests")
     output_dir = Path("data/fbank")
-    num_jobs = min(15, os.cpu_count())
+    num_jobs = min(num_workers, os.cpu_count())
     num_mel_bins = 80
 
     if bpe_model:
@@ -144,7 +152,7 @@ def compute_fbank_librispeech(
                 extractor=extractor,
                 storage_path=f"{output_dir}/{prefix}_feats_{partition}",
                 # when an executor is specified, make more partitions
-                num_jobs=num_jobs if ex is None else 80,
+                num_jobs=num_jobs if ex is None else min(num_jobs * 2, 20),
                 executor=ex,
                 storage_type=LilcomChunkyWriter,
             )
@@ -161,4 +169,5 @@ if __name__ == "__main__":
         bpe_model=args.bpe_model,
         dataset=args.dataset,
         perturb_speed=args.perturb_speed,
+        num_workers=args.num_workers,  
     )

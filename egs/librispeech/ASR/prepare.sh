@@ -99,9 +99,9 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   #
   #   ln -sfv /path/to/LibriSpeech $dl_dir/LibriSpeech
   #
-  if [ ! -d $dl_dir/LibriSpeech/train-other-500 ]; then
-    lhotse download librispeech --full $dl_dir
-  fi
+  #if [ ! -d $dl_dir/LibriSpeech/train-other-500 ]; then
+  #  lhotse download librispeech --full $dl_dir
+  #fi
 
   # If you have pre-downloaded it to /path/to/musan,
   # you can create a symlink
@@ -139,7 +139,7 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   log "Stage 3: Compute fbank for librispeech"
   mkdir -p data/fbank
   if [ ! -e data/fbank/.librispeech.done ]; then
-    ./local/compute_fbank_librispeech.py
+    ./local/compute_fbank_librispeech.py --num-workers 4
     touch data/fbank/.librispeech.done
   fi
 
