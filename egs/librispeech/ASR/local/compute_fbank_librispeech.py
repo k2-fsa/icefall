@@ -149,18 +149,18 @@ def compute_fbank_librispeech(
                         + cut_set.perturb_speed(0.9)
                         + cut_set.perturb_speed(1.1)
                     )
-            # 修改這部分代碼
+
             if ex is None:
-                # 為 None 的情況（本地執行）創建自定義進程池上下文
+                # Create a custom process pool context for None (local execution)
                 import multiprocessing as mp
                 from concurrent.futures import ProcessPoolExecutor
 
-                # 計算工作數
+                # Calculate the number of jobs
                 actual_jobs = (
                     min(num_jobs * 2, 20) if "train" in partition else num_jobs
                 )
 
-                # 使用 forkserver 方法
+                # Use the forkserver method
                 ctx = mp.get_context("forkserver")
                 with ProcessPoolExecutor(
                     max_workers=actual_jobs, mp_context=ctx
@@ -172,7 +172,7 @@ def compute_fbank_librispeech(
                         storage_type=LilcomChunkyWriter,
                     )
             else:
-                # 分佈式環境，使用提供的執行器
+                # Distributed environment, use the provided executor
                 cut_set = cut_set.compute_and_store_features(
                     extractor=extractor,
                     storage_path=f"{output_dir}/{prefix}_feats_{partition}",
