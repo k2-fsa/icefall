@@ -146,7 +146,13 @@ def basic_step(group, p, state, grad):
         exp_avg_sq = exp_avg_sq * (1.0 / bias_correction2)
     denom = exp_avg_sq.sqrt().add_(eps)
 
-    return -lr * grad / denom
+    ## following three are tunable.
+    power = 0.3
+    factor_max = 1.3
+    factor_min = 0.7
+    factor = ((denom / denom.mean()) ** power).clamp_(min=factor_min, max=factor_max)
+
+    return -lr * grad * factor / denom
 
 
 def scaling_step(group, p, state, grad):
