@@ -150,7 +150,8 @@ def basic_step(group, p, state, grad):
     power = 0.3
     factor_max = 1.3
     factor_min = 0.7
-    factor = ((denom / denom.mean()) ** power).clamp_(min=factor_min, max=factor_max)
+    dims = tuple(range(1, denom.ndim))
+    factor = ((denom / denom.mean(dim=dims, keepdim=True)) ** power).clamp_(min=factor_min, max=factor_max)
 
     return -lr * grad * factor / denom
 
