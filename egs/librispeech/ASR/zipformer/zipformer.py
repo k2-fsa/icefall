@@ -735,7 +735,7 @@ class Zipformer2Encoder(nn.Module):
         self.whiten = Whiten(
             num_groups=1,
             whitening_limit=_whitening_schedule(3.0),
-            prob=(0.025, 0.25),
+            prob=(1, 1),
             grad_scale=0.025,
         )
 
