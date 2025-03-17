@@ -261,18 +261,41 @@ def scaling_step(group, p, state, grad):
 
 def momentum_step(group, p, state, grad):
     delta = scaling_step(group, p, state, grad)
-    beta1 = group["betas"][0]
+    #beta1 = group["betas"][0]
+
+    # hardcode betas.
+    # see simulate_params.py on my laptop for how I got these settings.
+
     try:
-        stored_delta = state["delta"]
+        stored_delta1 = state["delta1"]
+        stored_delta2 = state["delta2"]
     except KeyError:
-        stored_delta = torch.zeros(*p.shape, device=p.device, dtype=torch.float)
-        state["delta"] = stored_delta
-    stored_delta.mul_(beta1)
-    stored_delta.add_(delta, alpha=(1-beta1))
+        stored_delta1 = torch.zeros(*p.shape, device=p.device, dtype=torch.float)
+        stored_delta2 = torch.zeros(*p.shape, device=p.device, dtype=torch.float)
+        state["delta1"] = stored_delta1
+        state["delta2"] = stored_delta2
+
+    #scales=(0.9, -0.075, 0.175): alpha=0.1, lr=0.04, beta=(0.9999, 0.999, 0), data_var=0.05122422448145114
+
+    # caution, these are not the same as the beta1,beta2 in adam, they are betas for decay of
+    # different time periods.
+    step = state["step"]
+    beta2 = min(0.999, 1. / (step + 10))
+    beta1 = 1. - 0.1 * (1. - beta2)
+
+
+    scale1 = 0.9
+    scale2 = -0.075
+    scale_direct = 1. - scale1 - scale2
+
+    stored_delta1.mul_(beta1)
+    stored_delta1.add_(delta, alpha=(1-beta1))
+    stored_delta2.mul_(beta2)
+    stored_delta2.add_(delta, alpha=(1-beta2))
     # we don't bother doing the "bias correction" part of Adam for beta1 because this is just
     # an edge effect that affects the first 10 or so batches; and the effect of not doing it
     # is just to do a slower update for the first few batches, which will help stability.
-    return stored_delta
+    return scale_direct * delta + scale1 * stored_delta1 + scale2 * stored_delta2
 
 
 
