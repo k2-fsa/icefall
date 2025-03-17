@@ -280,8 +280,9 @@ def momentum_step(group, p, state, grad):
     # caution, these are not the same as the beta1,beta2 in adam, they are betas for decay of
     # different time periods.
     step = state["step"]
-    beta2 = min(0.999, 1. / (step + 10))
-    beta1 = 1. - 0.1 * (1. - beta2)
+    beta1 = 0.9999 # min(0.9999, 1. - 1. / (2 * step + 100))
+    beta2 = 0.999 #1. - 10.0 * (1. - beta1)
+    assert beta2 > 0, (beta2, beta1)
 
 
     scale1 = 0.9
@@ -1310,7 +1311,7 @@ def _test_scaled_adam(hidden_dim: int):
         if iter == 0:
             optim = Eve(m.parameters(), lr=0.003)
         elif iter == 1:
-            optim = ScaledAdam(m.named_parameters(), lr=0.03, clipping_scale=2.0)
+            optim = ScaledAdam(m.named_parameters(), lr=0.1, clipping_scale=2.0)
         scheduler = Eden(optim, lr_batches=200, lr_epochs=5, verbose=False)
 
         start = timeit.default_timer()
