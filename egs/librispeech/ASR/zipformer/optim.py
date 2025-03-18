@@ -309,8 +309,8 @@ def momentum_step(group, p, state, grad):
                       (eps + torch.mean(delta ** 2, dim=tuple(range(1, p.ndim)), keepdim=True)))
 
 
-        factor = 0.2
-        target_grad_scale = factor / (momentum_rate ** 0.8)
+        factor = 0.25
+        target_grad_scale = factor / momentum_rate
         grad_too_large = (grad_scale > target_grad_scale)
         # if grad is too large we may have to decrease epsilon.  but very slowly.
 
@@ -321,7 +321,7 @@ def momentum_step(group, p, state, grad):
         momentum_rate.clamp_(max=0.1)
 
 
-        if random.random() < 0.001:
+        if random.random() < 0.0002:
             logging.info(f"step={step}, shape={list(p.shape)}, lr={lr}, grad_scale={grad_scale.flatten().to('cpu')}, target_grad_scale={target_grad_scale.flatten().to('cpu')}, inv_momentum_rate={1/momentum_rate}")
 
     return delta + momentum_rate * stored_delta
