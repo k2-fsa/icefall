@@ -261,43 +261,66 @@ def scaling_step(group, p, state, grad):
 
 def momentum_step(group, p, state, grad):
     delta = scaling_step(group, p, state, grad)
+
     #beta1 = group["betas"][0]
 
     # hardcode betas.
     # see simulate_params.py on my laptop for how I got these settings.
 
     try:
-        stored_delta1 = state["delta1"]
-        stored_delta2 = state["delta2"]
+        stored_delta = state["delta"]
+        momentum_rate = state["momentum_rate"]
     except KeyError:
-        stored_delta1 = torch.zeros(*p.shape, device=p.device, dtype=torch.float)
-        stored_delta2 = torch.zeros(*p.shape, device=p.device, dtype=torch.float)
-        state["delta1"] = stored_delta1
-        state["delta2"] = stored_delta2
+        stored_delta = torch.zeros(*p.shape, device=p.device, dtype=torch.float)
+        momentum_rate = 0.01 * torch.ones(p.shape[0], *([1] * (p.ndim-1)), device=p.device, dtype=torch.float)
+        state["delta"] = stored_delta
+        state["momentum_rate"] = momentum_rate
 
-    #scales=(0.9, -0.075, 0.175): alpha=0.1, lr=0.04, beta=(0.9999, 0.999, 0), data_var=0.05122422448145114
 
-    # caution, these are not the same as the beta1,beta2 in adam, they are betas for decay of
-    # different time periods.
+    if p.numel() == p.shape[0]:
+        # scalar.  use conventional momentum.
+        beta = 0.9
+        stored_delta.mul_(beta).add(delta, alpha=(1-beta))
+        return stored_delta
+
+
+
+
+
+
+
+    lr = group["lr"]
     step = state["step"]
-    beta1 = 0.9999 # min(0.9999, 1. - 1. / (2 * step + 100))
-    beta2 = 0.999 #1. - 10.0 * (1. - beta1)
-    assert beta2 > 0, (beta2, beta1)
+
+    # decay near beginning as early grads may change fast.
+    stored_delta.mul_(1. - 1 / (10 + step))
+    stored_delta += delta
 
 
-    scale1 = 0.9
-    scale2 = -0.075
-    scale_direct = 1. - scale1 - scale2
+    if step > 200:
+        # 200 is twice the inverse of the initial/default momentum_rate.
 
-    stored_delta1.mul_(beta1)
-    stored_delta1.add_(delta, alpha=(1-beta1))
-    stored_delta2.mul_(beta2)
-    stored_delta2.add_(delta, alpha=(1-beta2))
-    # we don't bother doing the "bias correction" part of Adam for beta1 because this is just
-    # an edge effect that affects the first 10 or so batches; and the effect of not doing it
-    # is just to do a slower update for the first few batches, which will help stability.
-    return scale_direct * delta + scale1 * stored_delta1 + scale2 * stored_delta2
+        # grad_scale tells us how large the grad is relative to a single frame's worth of grad (of expected
+        # magnitude)
+        grad_scale = torch.mean(stored_delta ** 2, dim=tuple(range(1, p.ndim)), keepdim=True) / (lr ** 2)
 
+
+        factor = 0.2
+        target_grad_scale = factor / (momentum_rate ** 0.8)
+        grad_too_large = (grad_scale > target_grad_scale)
+        # if grad is too large we may have to decrease epsilon.  but very slowly.
+
+        adapt_momentum_eps = 0.2 / (100 + step ** 0.8)
+        momentum_rate *= torch.where(grad_too_large,
+                                     1. - adapt_momentum_eps,
+                                     1. + adapt_momentum_eps)
+        momentum_rate.clamp_(max=0.1)
+
+
+        if random.random() < 0.001:
+            logging.info(f"step={step}, shape={list(p.shape)}, lr={lr}, grad_scale={grad_scale.flatten().to('cpu')}, inv_momentum_rate={1/momentum_rate}")
+
+    return delta + momentum_rate * stored_delta
 
 
 def debug_step(group, p, state, grad):
@@ -1311,7 +1334,7 @@ def _test_scaled_adam(hidden_dim: int):
         if iter == 0:
             optim = Eve(m.parameters(), lr=0.003)
         elif iter == 1:
-            optim = ScaledAdam(m.named_parameters(), lr=0.1, clipping_scale=2.0)
+            optim = ScaledAdam(m.named_parameters(), lr=0.015, clipping_scale=2.0)
         scheduler = Eden(optim, lr_batches=200, lr_epochs=5, verbose=False)
 
         start = timeit.default_timer()
