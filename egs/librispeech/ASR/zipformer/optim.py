@@ -325,7 +325,7 @@ def momentum_step(group, p, state, grad):
 
 
         if random.random() < 0.0002:
-            logging.info(f"step={step}, shape={list(p.shape)}, lr={lr}, grad_scale={grad_scale.flatten().to('cpu')}, target_grad_scale={target_grad_scale.flatten().to('cpu')}, inv_momentum_rate={1/momentum_rate}")
+            logging.info(f"step={step}, shape={list(p.shape)}, lr={lr}, grad_scale={grad_scale.flatten().to('cpu')}, target_grad_scale={target_grad_scale.flatten().to('cpu')}, inv_momentum_rate={1/momentum_rate.flatten()}")
 
     return delta + momentum_rate * stored_delta
 
