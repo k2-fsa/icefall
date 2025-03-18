@@ -321,7 +321,7 @@ def momentum_step(group, p, state, grad):
         rate_target = factor * delta_corr
         momentum_rate.mul_(1. - adapt_momentum_eps)
         momentum_rate.add_(rate_target, alpha=adapt_momentum_eps)
-        momentum_rate.clamp_(min=0.0001, max=0.01)
+        momentum_rate.clamp_(min=0.0001, max=1.0)
 
         if random.random() < 0.0002:
             logging.info(f"step={step}, shape={list(p.shape)}, lr={lr}, delta_corr={delta_corr.flatten().to('cpu')}, rate_target={rate_target.flatten().to('cpu')}, rate={momentum_rate.flatten().to('cpu')}, eps={eps}")
@@ -340,10 +340,12 @@ def momentum_step(group, p, state, grad):
         #                             1. + adapt_momentum_eps)
         #momentum_rate.clamp_(max=0.1)
 
+    # the 0.5 * (prev_delta + delta) is a very basic, dumb momentum that is to stop
+    # divergence.
 
     prev_delta.copy_(delta)
-
-    return delta + momentum_rate * stored_delta
+    ans = delta + momentum_rate * stored_delta
+    return ans
 
 
 def debug_step(group, p, state, grad):
