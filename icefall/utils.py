@@ -136,10 +136,10 @@ def setup_logger(
         world_size = dist.get_world_size()
         rank = dist.get_rank()
         formatter = f"%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] ({rank}/{world_size}) %(message)s"  # noqa
-        log_filename = f"{log_filename}-{date_time}-{rank}"
+        log_filename = f"{log_filename}-{date_time}-{rank}.log"
     else:
         formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-        log_filename = f"{log_filename}-{date_time}"
+        log_filename = f"{log_filename}-{date_time}.log"
 
     os.makedirs(os.path.dirname(log_filename), exist_ok=True)
 
