@@ -272,6 +272,7 @@ def momentum_step(group, p, state, grad):
         momentum_rate = state["momentum_rate"]
     except KeyError:
         stored_delta = torch.zeros(*p.shape, device=p.device, dtype=torch.float)
+        stored_delta_sq = torch.zeros(*p.shape, device=p.device, dtype=torch.float)
         momentum_rate = 0.01 * torch.ones(p.shape[0], *([1] * (p.ndim-1)), device=p.device, dtype=torch.float)
         state["delta"] = stored_delta
         state["momentum_rate"] = momentum_rate
@@ -293,7 +294,8 @@ def momentum_step(group, p, state, grad):
     step = state["step"]
 
     # decay near beginning as early grads may change fast.
-    stored_delta.mul_(1. - 1 / (10 + step))
+    beta = 1. - 1 / (10 + step)
+    stored_delta.mul_(beta)
     stored_delta += delta
 
 
@@ -302,7 +304,9 @@ def momentum_step(group, p, state, grad):
 
         # grad_scale tells us how large the grad is relative to a single frame's worth of grad (of expected
         # magnitude)
-        grad_scale = torch.mean(stored_delta ** 2, dim=tuple(range(1, p.ndim)), keepdim=True) / (lr ** 2)
+        eps = 1.0e-20
+        grad_scale = (torch.mean(stored_delta ** 2, dim=tuple(range(1, p.ndim)), keepdim=True) /
+                      (eps + torch.mean(delta ** 2, dim=tuple(range(1, p.ndim)), keepdim=True)))
 
 
         factor = 0.2
@@ -318,7 +322,7 @@ def momentum_step(group, p, state, grad):
 
 
         if random.random() < 0.001:
-            logging.info(f"step={step}, shape={list(p.shape)}, lr={lr}, grad_scale={grad_scale.flatten().to('cpu')}, inv_momentum_rate={1/momentum_rate}")
+            logging.info(f"step={step}, shape={list(p.shape)}, lr={lr}, grad_scale={grad_scale.flatten().to('cpu')}, target_grad_scale={target_grad_scale.flatten().to('cpu')}, inv_momentum_rate={1/momentum_rate}")
 
     return delta + momentum_rate * stored_delta
 
@@ -1334,7 +1338,7 @@ def _test_scaled_adam(hidden_dim: int):
         if iter == 0:
             optim = Eve(m.parameters(), lr=0.003)
         elif iter == 1:
-            optim = ScaledAdam(m.named_parameters(), lr=0.015, clipping_scale=2.0)
+            optim = ScaledAdam(m.named_parameters(), lr=0.015, clipping_scale=2.0, eps=1.0e-20)
         scheduler = Eden(optim, lr_batches=200, lr_epochs=5, verbose=False)
 
         start = timeit.default_timer()
