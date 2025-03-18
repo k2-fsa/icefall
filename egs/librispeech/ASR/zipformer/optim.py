@@ -268,25 +268,26 @@ def momentum_step(group, p, state, grad):
     # see simulate_params.py on my laptop for how I got these settings.
 
     try:
+        summed_grad = state["summed_grad"]
         stored_delta = state["delta"]
         prev_delta = state["prev_delta"]
     except KeyError:
+        summed_grad = torch.zeros(*p.shape, device=p.device, dtype=torch.float)
         stored_delta = torch.zeros(*p.shape, device=p.device, dtype=torch.float)
         prev_delta = torch.zeros(*p.shape, device=p.device, dtype=torch.float)
+        state["summed_grad"] = summed_grad
         state["delta"] = stored_delta
         state["prev_delta"] = prev_delta
-
 
 
     if p.numel() == p.shape[0]:
         # scalar.  use conventional momentum.
         beta = 0.9
-        stored_delta.mul_(beta).add(delta, alpha=(1-beta))
+        stored_delta.mul_(beta).add_(delta, alpha=(1-beta))
         # mul by 5 because this optimizer expects about 5 times smaller
         # learning rates, the user-provided LR being just the non-momentum part of the LR.
         # we will clean this up later.
         return 5.0 * stored_delta
-
 
 
 
@@ -296,8 +297,8 @@ def momentum_step(group, p, state, grad):
 
     # decay near beginning as early grads may change fast.
     beta = 1. - 1 / (10 + step)
-    stored_delta.mul_(beta)
-    stored_delta += delta
+    summed_grad.mul_(beta)
+    summed_grad += delta
 
 
     momentum_rate = 3.0 / (100 + step ** 0.8)
@@ -317,8 +318,13 @@ def momentum_step(group, p, state, grad):
     # divergence.
 
     prev_delta.copy_(delta)
-    ans = delta + momentum_rate * stored_delta
-    return ans
+
+
+    momentum_beta = 0.8  # this is an additional short-time momentum, just to prevent divergence early on.
+    stored_delta.mul_(momentum_beta)
+    stored_delta.add_(delta + momentum_rate * summed_grad, alpha=(1-momentum_beta))
+
+    return stored_delta
 
 
 def debug_step(group, p, state, grad):
