@@ -270,14 +270,12 @@ def momentum_step(group, p, state, grad):
     try:
         stored_delta = state["delta"]
         prev_delta = state["prev_delta"]
-        momentum_rate = state["momentum_rate"]
     except KeyError:
         stored_delta = torch.zeros(*p.shape, device=p.device, dtype=torch.float)
         prev_delta = torch.zeros(*p.shape, device=p.device, dtype=torch.float)
-        momentum_rate = 0.01 * torch.ones(p.shape[0], *([1] * (p.ndim-1)), device=p.device, dtype=torch.float)
         state["delta"] = stored_delta
         state["prev_delta"] = prev_delta
-        state["momentum_rate"] = momentum_rate
+
 
 
     if p.numel() == p.shape[0]:
@@ -301,44 +299,19 @@ def momentum_step(group, p, state, grad):
     stored_delta.mul_(beta)
     stored_delta += delta
 
-    if step > 200:
 
-        # 200 is twice the inverse of the initial/default momentum_rate.
+    momentum_rate = 3.0 / (100 + step ** 0.8)
 
-        # grad_scale tells us how large the grad is relative to a single frame's worth of grad (of expected
-        # magnitude)
+    if random.random() < 0.0002:
+
         eps = 1.0e-20
-        # gives us an idea of lr * alpha, where alpha is the mean-of-diagonal of 2nd deriv of loss function
-
-        delta_corr = -(torch.mean(delta * prev_delta, dim=tuple(range(1, p.ndim)), keepdim=True) /
-                       (eps + torch.mean(delta ** 2, dim=tuple(range(1, p.ndim)), keepdim=True)))
+        delta_corr = (torch.mean(delta * prev_delta, dim=tuple(range(1, p.ndim)), keepdim=True) /
+                      (eps + torch.mean(delta ** 2, dim=tuple(range(1, p.ndim)), keepdim=True)))
 
 
-        # target for eps will be factor * delta_corr.  we can try tuning this, it will
-        # likely be important.
-        factor = 0.25
-        adapt_momentum_eps = 1.0 / (100 + step ** 0.8)
-        rate_target = factor * delta_corr
-        momentum_rate.mul_(1. - adapt_momentum_eps)
-        momentum_rate.add_(rate_target, alpha=adapt_momentum_eps)
-        momentum_rate.clamp_(min=0.0001, max=1.0)
-
-        if random.random() < 0.0002:
-            logging.info(f"step={step}, shape={list(p.shape)}, lr={lr}, delta_corr={delta_corr.flatten().to('cpu')}, rate_target={rate_target.flatten().to('cpu')}, rate={momentum_rate.flatten().to('cpu')}, eps={eps}")
-
-            #grad_scale={grad_scale.flatten().to('cpu')}, target_grad_scale={target_grad_scale.flatten().to('cpu')}, inv_momentum_rate={1/momentum_rate.flatten()}")
+        logging.info(f"step={step}, shape={list(p.shape)}, lr={lr}, momentum_rate={momentum_rate}, delta_corr={delta_corr.flatten().to('cpu')}")
 
 
-
-        #factor = 0.25
-        #target_grad_scale = factor / momentum_rate
-        #grad_too_large = (grad_scale > target_grad_scale)
-        # if grad is too large we may have to decrease epsilon.  but very slowly.
-
-        #momentum_rate *= torch.where(grad_too_large,
-        #                             1. - adapt_momentum_eps,
-        #                             1. + adapt_momentum_eps)
-        #momentum_rate.clamp_(max=0.1)
 
     # the 0.5 * (prev_delta + delta) is a very basic, dumb momentum that is to stop
     # divergence.
