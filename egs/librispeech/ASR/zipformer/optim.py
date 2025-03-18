@@ -321,7 +321,7 @@ def momentum_step(group, p, state, grad):
         rate_target = factor * delta_corr
         momentum_rate.mul_(1. - adapt_momentum_eps)
         momentum_rate.add_(rate_target, alpha=adapt_momentum_eps)
-        momentum_rate.clamp_(min=0.0001, max=0.1)
+        momentum_rate.clamp_(min=0.0001, max=0.01)
 
         if random.random() < 0.0002:
             logging.info(f"step={step}, shape={list(p.shape)}, lr={lr}, delta_corr={delta_corr.flatten().to('cpu')}, rate_target={rate_target.flatten().to('cpu')}, rate={momentum_rate.flatten().to('cpu')}, eps={eps}")
