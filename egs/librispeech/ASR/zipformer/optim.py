@@ -282,7 +282,10 @@ def momentum_step(group, p, state, grad):
         # scalar.  use conventional momentum.
         beta = 0.9
         stored_delta.mul_(beta).add(delta, alpha=(1-beta))
-        return stored_delta
+        # mul by 5 because this optimizer expects about 5 times smaller
+        # learning rates, the user-provided LR being just the non-momentum part of the LR.
+        # we will clean this up later.
+        return 5.0 * stored_delta
 
 
 
