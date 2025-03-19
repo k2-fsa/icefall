@@ -262,12 +262,7 @@ def momentum_step(group, p, state, grad):
         # scalar.  use conventional momentum.
         beta = 0.9
         stored_delta.mul_(beta).add_(delta, alpha=(1-beta))
-        # mul by 5 because this optimizer expects about 5 times smaller
-        # learning rates, the user-provided LR being just the non-momentum part of the LR.
-        # we will try to find a way to clean this up later.
-        return 5.0 * stored_delta
-
-
+        return stored_delta
 
 
     lr = group["lr"]
@@ -439,7 +434,8 @@ class ScaledAdam(BatchedOptimizer):
         lr=3e-02,
         clipping_scale=None,
         betas=(0.9, 0.98),
-        scalar_lr_scale=0.05,
+        scalar_lr_scale=0.25,
+        scaling_lr_scale=0.05,
         eps=1.0e-08,
         weight_min_rms=0.005,
         weight_penalty_rms=0.05,
@@ -457,6 +453,7 @@ class ScaledAdam(BatchedOptimizer):
             clipping_scale=clipping_scale,
             betas=betas,
             scalar_lr_scale=scalar_lr_scale,
+            scaling_lr_scale=scaling_lr_scale,
             eps=eps,
             weight_min_rms=weight_min_rms,
             weight_penalty_rms=weight_penalty_rms,
