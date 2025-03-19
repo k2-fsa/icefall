@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   rknn:
-    name: RKNN ${{ matrix.recipe }}
+    name: RKNN ${{ matrix.recipe }} ${{ matrix.rknn_toolkit2_version }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -29,7 +29,10 @@ jobs:
         torch-version: ["2.0.0"]
         torchaudio-version: ["2.0.1"]
         version: ["20241218"]
-        recipe: ["librispeech", "wenetspeech", "multi_zh-hans"]
+        # recipe: ["librispeech", "wenetspeech", "multi_zh-hans"]
+        recipe: ["librispeech"]
+        rknn_toolkit2_version: ["2.2.0", "2.1.0"]
+
 
     steps:
       - uses: actions/checkout@v4
@@ -55,9 +58,17 @@ jobs:
               python3 -m torch.utils.collect_env
               python3 -m k2.version
               pip list
+              export rknn_toolkit2_version=${{ matrix.rknn_toolkit2_version }}
+
+              if [[ $rknn_toolkit2_version == "2.1.0" ]]; then
+                # for the folder pruned_transducer_stateless7_streaming
+                curl -SL -O https://huggingface.co/csukuangfj/rknn-toolkit2/resolve/main/rknn_toolkit2-2.1.0%2B708089d1-cp310-cp310-linux_x86_64.whl
+              else
+                # for the folder zipformer/
+                curl -SL -O https://huggingface.co/csukuangfj/rknn-toolkit2/resolve/main/rknn_toolkit2-2.2.0-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+              fi
 
               # Install rknn
-              curl -SL -O https://huggingface.co/csukuangfj/rknn-toolkit2/resolve/main/rknn_toolkit2-2.2.0-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
               pip install ./*.whl "numpy<=1.26.4"
               pip list | grep rknn
               echo "---"
@@ -69,13 +80,13 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: log-${{ matrix.recipe }}
+          name: log-${{ matrix.recipe }}-${{ matrix.rknn_toolkit2_version }}
           path: ./log-*.txt
 
       - name: Display results
         shell: bash
         run: |
-          ls -lh *rk*.tar.bz2
+          ls -lh *rk*.tar.bz2 || true
 
       - name: Release to GitHub
         uses: svenstaro/upload-release-action@v2
@@ -111,7 +122,7 @@ jobs:
             git merge -m "merge remote" --ff origin main
             dst=streaming-asr
             mkdir -p $dst
-            cp ../*rk*.tar.bz2 $dst/
+            cp ../*rk*.tar.bz2 $dst/ || true
 
             ls -lh $dst
             git add .
