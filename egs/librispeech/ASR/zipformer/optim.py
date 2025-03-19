@@ -273,7 +273,7 @@ def momentum_step(group, p, state, grad):
     summed_grad += delta
 
     # This formula may be important to tune!
-    momentum_rate = 2.5 / (100 + step ** 0.666)
+    momentum_rate = 2.0 / (100 + step ** 0.5)
 
     if random.random() < 0.0002:
 
