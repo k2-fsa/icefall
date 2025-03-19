@@ -122,6 +122,7 @@ class BatchedOptimizer(Optimizer):
 
 
 
+
 def basic_step(group, p, state, grad):
     # computes basic Adam update using beta2 (dividing by gradient stddev) only.  no momentum yet.
     lr = group["lr"]
@@ -147,6 +148,7 @@ def basic_step(group, p, state, grad):
     denom = exp_avg_sq.sqrt().add_(eps)
 
     return -lr * grad / denom
+
 
 
 def scaling_step(group, p, state, grad):
@@ -197,11 +199,16 @@ def scaling_step(group, p, state, grad):
 
     if step % size_update_period == size_update_period - 1 and step > 0:
         # This block updates the size of parameter by adding a step ("delta") value in
-        # the direction of either shrinking or growing it.
+        # the direction of either shrinking or growing it.  it also includes a modified
+        # form of adamw-like shrinkage, which we modify a bit to ensure there is a unique
+        # optimum for the scales (since thanks to the "delta *= param_rms.clamp(min=min_rms)",
+        # there is no longer the size-stabilizing phenomenon as in Adam whereby parameters with smaller
+        # rms will tend to grow faster thanks to parameter noise).
         beta2 = group["betas"][1]
         size_lr = group["lr"] * group["scalar_lr_scale"]
-        max_rms = group["weight_max_rms"] if p.ndim > 2 else group["bias_max_rms"]
+        penalty_rms = group["weight_penalty_rms"] if p.ndim > 2 else group["bias_penalty_rms"]
         eps = group["eps"]
+        decay_scale = group["decay_scale"]
         batch_size = p.shape[0]
         # correct beta2 for the size update period: we will have
         # faster decay at this level.
@@ -217,44 +224,15 @@ def scaling_step(group, p, state, grad):
 
         denom = scale_exp_avg_sq.sqrt() + eps
 
-        scale_step = (
-            -size_lr * (bias_correction2**0.5) * scale_grads.sum(dim=0) / denom
+        scale_norm_grad = (
+            (bias_correction2**0.5) * scale_grads.sum(dim=0) / denom
         )
+        # add AdamW-like decay, if we are above "penalty_rms" which is not a hard
+        # maximum but a cutoff for introducing decay.
+        scale_norm_grad = scale_norm_grad + decay_scale * (param_rms / penalty_rms).log().clamp_(min=0.0)
+        scale_step = -size_lr * scale_norm_grad
 
-        # turn off the scale-step once param_rms is below min_rms, scale becomes
-        # 1.0 once we are twice param_min_rms.
-        scale_step_factor = ((param_rms / min_rms) - 1.).clamp_(min=0.0, max=1.0)
-
-        # The following may help prevent instability: don't allow the scale step to be too large in
-        # either direction.
-        # TODO: remove this.
-        scale_step.clamp_(min=-0.1, max=0.1)
-
-        # and ensure the parameter rms after update never exceeds max_rms.
-        # We have to look at the trained model for parameters at or around the
-        # max_rms, because sometimes they can indicate a problem with the
-        # topology or settings.
-        scale_step = torch.minimum(scale_step, (max_rms - param_rms) / param_rms)
-
-
-        # (1 + lr**2) ** 0.5 ~ 1 + (0.5 lr**2) would be the factor by which the parameter rms
-        # increases on each step, assuming the gradient is orthogonal to the current
-        # parameter value.  we cancel this out by subtracting (0.5 * lr**2); we
-        # need to do this times size_update_period.
-
-        CORRECTION_FACTOR = 0.35 if is_weight else 0.5
-        # mathematically this should be 0.5.   0.25 gives less-aggressive shrinkage.  give the more-aggressive shrinkage
-        # of 0.5 for biases, as the biases getting relatively smaller will tend to prevent failure of the grad to propagate.
-        scale_step = scale_step - (CORRECTION_FACTOR * (group["lr"] ** 2) * size_update_period)
-
-        scale_step = scale_step_factor * scale_step
-
-        # the "+ 0.5 * scale_step ** 2" can be thought of as taking the second
-        # term in the Taylor expansion of exp(s) - 1, which is s + s^2 / 2!.
-        # this is so that in effect we are learning the scale in log space,
-        # so to represent it in p we have to exponentiate it.  it's to avoid
-        # a downward bias in the scale that might otherwise happen.
-        delta.add_(p * (scale_step + 0.5 * scale_step ** 2))
+        delta.add_(p * scale_step)
 
     return delta
 
@@ -286,7 +264,7 @@ def momentum_step(group, p, state, grad):
         stored_delta.mul_(beta).add_(delta, alpha=(1-beta))
         # mul by 5 because this optimizer expects about 5 times smaller
         # learning rates, the user-provided LR being just the non-momentum part of the LR.
-        # we will clean this up later.
+        # we will try to find a way to clean this up later.
         return 5.0 * stored_delta
 
 
@@ -440,13 +418,12 @@ class ScaledAdam(BatchedOptimizer):
     weight_min_rms: Minimum root-mean-square value of weight tensors, for purposes of
                    learning the scale on the parameters. Weight tensors are defined
                    as anything with more than one element and ndim > 1.
-    weight_max_rms: Maximum root-mean-square value of weight tensor, for purposes of
-                   learning the scale on the parameters (we'll constrain the rms of each weight
-                   parameter tensor to be <= this value).
+    weight_penalty_rms: Value of root-mean-square value of weight tensor, above which we
+                   do adamw-style decay.
      bias_min_rms: Minimum root-mean-square value of bias tensors, defined as anything with
                    more than one element and exactly one tensor dimension i.e. ndim == 1.
-     bias_max_rms: Maximum root-mean-square value of bias tensors, defined as anything with
-                   more than one element and exactly one tensor dimension i.e. ndim == 1.
+    bias_penalty_rms: Value of root-mean-square value of bias tensor, above which we
+                   do adamw-style decay.
        scalar_max: Maximum absolute value for scalar parameters (applicable if your
                    model has any parameters with numel() == 1).
     size_update_period: The periodicity, in steps, with which we update the size (scale)
@@ -465,9 +442,10 @@ class ScaledAdam(BatchedOptimizer):
         scalar_lr_scale=0.05,
         eps=1.0e-08,
         weight_min_rms=0.005,
-        weight_max_rms=1.0,
+        weight_penalty_rms=0.05,
         bias_min_rms=1.0e-05,
-        bias_max_rms=3.0,
+        bias_penalty_rms=0.2,
+        decay_scale=0.02,
         scalar_max=10.0,
         size_update_period=4,
         clipping_update_period=100,
@@ -481,9 +459,10 @@ class ScaledAdam(BatchedOptimizer):
             scalar_lr_scale=scalar_lr_scale,
             eps=eps,
             weight_min_rms=weight_min_rms,
-            weight_max_rms=weight_max_rms,
+            weight_penalty_rms=weight_penalty_rms,
             bias_min_rms=bias_min_rms,
-            bias_max_rms=bias_max_rms,
+            bias_penalty_rms=bias_penalty_rms,
+            decay_scale=decay_scale,
             scalar_max=scalar_max,
             size_update_period=size_update_period,
             clipping_update_period=clipping_update_period,
@@ -1362,18 +1341,19 @@ def _test_scaled_adam(hidden_dim: int):
                 else:
                     avg_loss = 0.98 * avg_loss + 0.02 * loss.item()
                 if n == 0 and epoch % 5 == 0:
-                    # norm1 = '%.2e' % (m[0].weight**2).mean().sqrt().item()
-                    # norm1b = '%.2e' % (m[0].bias**2).mean().sqrt().item()
-                    # norm2 = '%.2e' % (m[2].weight**2).mean().sqrt().item()
-                    # norm2b = '%.2e' % (m[2].bias**2).mean().sqrt().item()
-                    # scale1 = '%.2e' % (m[0].weight_scale.exp().item())
-                    # scale1b = '%.2e' % (m[0].bias_scale.exp().item())
-                    # scale2 = '%.2e' % (m[2].weight_scale.exp().item())
-                    # scale2b = '%.2e' % (m[2].bias_scale.exp().item())
+                    norm1 = '%.2e' % (m[0].weight**2).mean().sqrt().item()
+                    norm2 = '%.2e' % (m[1].weight**2).mean().sqrt().item()
+                    norm3 = '%.2e' % (m[3].weight**2).mean().sqrt().item()
+                    norm4 = '%.2e' % (m[5].weight**2).mean().sqrt().item()
+
+                    bias_norm1 = '%.2e' % (m[0].bias**2).mean().sqrt().item()
+                    bias_norm2 = '%.2e' % (m[3].bias**2).mean().sqrt().item()
+                    bias_norm3 = '%.2e' % (m[5].bias**2).mean().sqrt().item()
+
                     lr = scheduler.get_last_lr()[0]
                     logging.info(
-                        f"Iter {iter}, epoch {epoch}, batch {n}, avg_loss {avg_loss:.4g}, lr={lr:.4e}"
-                    )  # , norms={norm1,norm1b,norm2,norm2b}") # scales={scale1,scale1b,scale2,scale2b}
+                        f"Iter {iter}, epoch {epoch}, batch {n}, avg_loss {avg_loss:.4g}, lr={lr:.4e}, norms={norm1,norm2,norm3,norm4}, bias_norms={bias_norm1,bias_norm2,bias_norm3}"
+                    )
                 loss.log().backward()
                 optim.step()
                 optim.zero_grad()
