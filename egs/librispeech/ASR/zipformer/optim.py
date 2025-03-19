@@ -294,9 +294,9 @@ def momentum_step(group, p, state, grad):
 
     momentum_beta = 0.8  # this is an additional short-time momentum, just to prevent divergence early on.
     stored_delta.mul_(momentum_beta)
-    stored_delta.add_(delta + momentum_rate * summed_grad, alpha=(1-momentum_beta))
+    stored_delta.add_(delta, alpha=(1-momentum_beta))
 
-    return stored_delta
+    return stored_delta + momentum_rate * summed_grad
 
 
 def debug_step(group, p, state, grad):
