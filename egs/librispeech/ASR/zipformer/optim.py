@@ -206,7 +206,6 @@ def scaling_step(group, p, state, grad):
         # rms will tend to grow faster thanks to parameter noise).
         beta2 = group["betas"][1]
         size_lr = group["lr"] * group["scaling_lr_scale"]
-        penalty_rms = group["weight_penalty_rms"] if p.ndim > 2 else group["bias_penalty_rms"]
         eps = group["eps"]
         decay_scale = group["decay_scale"]
         batch_size = p.shape[0]
@@ -229,7 +228,7 @@ def scaling_step(group, p, state, grad):
         )
         # add AdamW-like decay, if we are above "penalty_rms" which is not a hard
         # maximum but a cutoff for introducing decay.
-        scale_norm_grad = scale_norm_grad + decay_scale * (param_rms / penalty_rms).log().clamp_(min=0.0)
+        scale_norm_grad = scale_norm_grad + (decay_scale * size_update_period) * param_rms
         scale_step = -size_lr * scale_norm_grad
 
         delta.add_(p * scale_step)
@@ -414,12 +413,12 @@ class ScaledAdam(BatchedOptimizer):
     weight_min_rms: Minimum root-mean-square value of weight tensors, for purposes of
                    learning the scale on the parameters. Weight tensors are defined
                    as anything with more than one element and ndim > 1.
-    weight_penalty_rms: Value of root-mean-square value of weight tensor, above which we
-                   do adamw-style decay.
+    weight_penalty_rms: Value of root-mean-square value of weight tensor, that provides
+                   a reference point for when we start to do adamw-style decay.
      bias_min_rms: Minimum root-mean-square value of bias tensors, defined as anything with
                    more than one element and exactly one tensor dimension i.e. ndim == 1.
-    bias_penalty_rms: Value of root-mean-square value of bias tensor, above which we
-                   do adamw-style decay.
+    bias_penalty_rms: Value of root-mean-square value of bias tensor, that provides
+                   a reference point for when we start to do adamw-style decay.
        scalar_max: Maximum absolute value for scalar parameters (applicable if your
                    model has any parameters with numel() == 1).
     size_update_period: The periodicity, in steps, with which we update the size (scale)
@@ -439,10 +438,8 @@ class ScaledAdam(BatchedOptimizer):
         scaling_lr_scale=0.1,
         eps=1.0e-08,
         weight_min_rms=0.005,
-        weight_penalty_rms=0.05,
         bias_min_rms=1.0e-05,
-        bias_penalty_rms=0.2,
-        decay_scale=0.02,
+        decay_scale=0.1,
         scalar_max=10.0,
         size_update_period=4,
         clipping_update_period=100,
@@ -457,9 +454,7 @@ class ScaledAdam(BatchedOptimizer):
             scaling_lr_scale=scaling_lr_scale,
             eps=eps,
             weight_min_rms=weight_min_rms,
-            weight_penalty_rms=weight_penalty_rms,
             bias_min_rms=bias_min_rms,
-            bias_penalty_rms=bias_penalty_rms,
             decay_scale=decay_scale,
             scalar_max=scalar_max,
             size_update_period=size_update_period,
