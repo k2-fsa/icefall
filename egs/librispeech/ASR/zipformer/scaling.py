@@ -633,7 +633,8 @@ class OrthogonalLinearFunction(torch.autograd.Function):
                     # we print a normalized version of the loss, by dividing by the
                     # number of rows.
                     loss = (prod ** 2).mean(dim=(1,2)) * prod.shape[1]
-                    logging.info(f"OrthogonalLinear: name={ctx.name}, scale={(1. / alpha).sqrt().cpu().flatten()}, loss={loss.detach().cpu().flatten()}, penalty_scale={penalty_scale}")
+                    logging.info(f"OrthogonalLinear: name={ctx.name}, scale={(1. / alpha).sqrt().cpu().flatten()}, loss={loss.detach().cpu().flatten()}, penalty_scale={penalty_scale}, grad_abs_mean={weight_grad.abs().mean()}, weight_grad_abs_mean={weight_grad.abs().mean()}")
+
 
                 # add the extra gradient term from the orthogonality loss.
                 weight_grad += weight.grad
@@ -710,28 +711,6 @@ class OrthogonalLinear(nn.Linear):
             ans = ans + self.bias
         return ans
 
-
-def OrthogonalLinearSpecial(num_channels: int,
-                            penalty_scale: float = 1000.0,
-                            transpose: bool = False):
-    # returns a parameterized nn.Linear that stays orthogonal, with a special initialization
-    # that is suitable to use when downsampling; we reshape then multiply by this matrix.
-    assert num_channels % 2 == 0
-    ans = OrthogonalLinear(num_channels, penalty_scale=penalty_scale)
-    # want to initialize weight as:
-    #  1/sqrt(2) * M, where M is a block-diagonal matrix with 2x2 blocks [ 1 1; 1 -1 ]
-    with torch.no_grad():
-        inv_sqrt2 = 2 ** -0.5
-        ans.weight[:] = 0.0
-        ans.weight[0::2, 0::2] = inv_sqrt2
-        ans.weight[0::2, 1::2] = inv_sqrt2
-        ans.weight[1::2, 0::2] = -inv_sqrt2 if transpose else inv_sqrt2
-        ans.weight[1::2, 1::2] = inv_sqrt2 if transpose else -inv_sqrt2
-        N = ans.weight.shape[0]
-        ans.weight *= (torch.arange(N)[:, None] // 2 ==
-                       torch.arange(N)[None, :] // 2)
-
-    return ans
 
 
 class ChunkCausalDepthwiseConv1d(torch.nn.Module):
@@ -2041,9 +2020,9 @@ def _test_activation_dropout_and_linear():
                 assert isclose(x1.grad, x2.grad)
 
 def _test_orthogonal_linear():
-    for t in (OrthogonalLinear, OrthogonalLinearSpecial):
-        m = t(128)
-        m(torch.randn(30, 2, 128))
+    t = OrthogonalLinear(128, 128)
+    m = t(128, 128)
+    m(torch.randn(30, 2, 128))
 
 
 if __name__ == "__main__":

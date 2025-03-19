@@ -281,8 +281,12 @@ def momentum_step(group, p, state, grad):
         delta_corr = (torch.mean(delta * prev_delta, dim=tuple(range(1, p.ndim)), keepdim=True) /
                       (eps + torch.mean(delta ** 2, dim=tuple(range(1, p.ndim)), keepdim=True)))
 
+        # ratio of var of summed_grad to delta.
+        var_ratio = (torch.mean(summed_grad ** 2, dim=tuple(range(1, p.ndim)), keepdim=True) /
+                      (eps + torch.mean(delta ** 2, dim=tuple(range(1, p.ndim)), keepdim=True)))
 
-        logging.info(f"step={step}, shape={list(p.shape)}, lr={lr}, momentum_rate={momentum_rate}, delta_corr={delta_corr.flatten().to('cpu')}")
+
+        logging.info(f"step={step}, shape={list(p.shape)}, lr={lr}, momentum_rate={momentum_rate}, delta_corr={delta_corr.flatten().to('cpu')}, var_ratio={var_ratio.flatten().to('cpu')}")
 
 
 
