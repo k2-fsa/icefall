@@ -205,7 +205,7 @@ def scaling_step(group, p, state, grad):
         # there is no longer the size-stabilizing phenomenon as in Adam whereby parameters with smaller
         # rms will tend to grow faster thanks to parameter noise).
         beta2 = group["betas"][1]
-        size_lr = group["lr"] * group["scalar_lr_scale"]
+        size_lr = group["lr"] * group["scaling_lr_scale"]
         penalty_rms = group["weight_penalty_rms"] if p.ndim > 2 else group["bias_penalty_rms"]
         eps = group["eps"]
         decay_scale = group["decay_scale"]
@@ -405,10 +405,11 @@ class ScaledAdam(BatchedOptimizer):
                    by this quantity.
             betas: beta1,beta2 are momentum constants for regular momentum, and moving sum-sq grad.
                    Must satisfy 0 < beta <= beta2 < 1.
-     scalar_lr_scale: A scaling factor on the learning rate, that we use to update the                   scale of each parameter tensor and scalar parameters of the mode..
-                   If each parameter were decomposed
+     scaling_lr_scale: A scaling factor on the learning rate, that we use to update the
+                   scale of each non-scalar parameter tensor.  If each parameter were decomposed
                    as p * p_scale.exp(), where (p**2).mean().sqrt() == 1.0, scalar_lr_scale
                    would be a the scaling factor on the learning rate of p_scale.
+     scalar_lr_scale: A scaling factor on the learning rate, that we use to update scalar tensors.
               eps:  A general-purpose epsilon to prevent division by zero
     weight_min_rms: Minimum root-mean-square value of weight tensors, for purposes of
                    learning the scale on the parameters. Weight tensors are defined
@@ -435,7 +436,7 @@ class ScaledAdam(BatchedOptimizer):
         clipping_scale=None,
         betas=(0.9, 0.98),
         scalar_lr_scale=0.25,
-        scaling_lr_scale=0.05,
+        scaling_lr_scale=0.25,
         eps=1.0e-08,
         weight_min_rms=0.005,
         weight_penalty_rms=0.05,
