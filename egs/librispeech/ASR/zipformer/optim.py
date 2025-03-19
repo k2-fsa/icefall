@@ -267,8 +267,8 @@ def momentum_step(group, p, state, grad):
     lr = group["lr"]
     step = state["step"]
 
-    # decay near beginning as early grads may change fast.
-    beta = 1. - 1 / (10 + step)
+    # decay near the beginning of training, as early grads may change fast.
+    beta = 1. - 2.5 / (25 + step)
     summed_grad.mul_(beta)
     summed_grad += delta
 
