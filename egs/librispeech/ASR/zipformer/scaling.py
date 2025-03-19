@@ -2020,8 +2020,7 @@ def _test_activation_dropout_and_linear():
                 assert isclose(x1.grad, x2.grad)
 
 def _test_orthogonal_linear():
-    t = OrthogonalLinear(128, 128)
-    m = t(128, 128)
+    m = OrthogonalLinear(128, 128)
     m(torch.randn(30, 2, 128))
 
 
