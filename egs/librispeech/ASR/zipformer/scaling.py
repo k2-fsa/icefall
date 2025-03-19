@@ -574,7 +574,7 @@ class OrthogonalLinearFunction(torch.autograd.Function):
             weight_grad = torch.matmul(y_grad.reshape(-1, y_grad.shape[-1]).t(),
                                        x.reshape(-1, x.shape[-1]))
 
-            penalty_scale = 1000.0 * weight_grad.abs().mean()
+            penalty_scale = 20.0 * weight_grad.abs().mean()
 
             with torch.enable_grad():
                 weight = weight.detach()
