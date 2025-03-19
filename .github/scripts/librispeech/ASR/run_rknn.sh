@@ -265,6 +265,9 @@ function export_2023_06_26() {
   done
 }
 
-export_2023_02_16
-export_2023_02_20
-export_2023_06_26
+if [[ $rknn_toolkit2_version == "2.1.0" ]]; then
+  export_2023_02_16
+  export_2023_02_20
+else
+  export_2023_06_26
+fi
