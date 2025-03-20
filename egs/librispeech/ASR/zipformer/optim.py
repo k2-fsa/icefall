@@ -275,18 +275,21 @@ def momentum_step(group, p, state, grad):
     # This formula may be important to tune!
     momentum_rate = 2.5 / (100 + step ** 0.666)
 
-    if random.random() < 0.0002:
+    if random.random() < 0.001:
 
         eps = 1.0e-20
-        delta_corr = (torch.mean(delta * prev_delta, dim=tuple(range(1, p.ndim)), keepdim=True) /
-                      (eps + torch.mean(delta ** 2, dim=tuple(range(1, p.ndim)), keepdim=True)))
+        den = eps + torch.mean(delta ** 2, dim=tuple(range(1, p.ndim)), keepdim=True)
+        delta_corr = torch.mean(delta * prev_delta, dim=tuple(range(1, p.ndim)), keepdim=True) / den
+
+
+        summed_grad_corr = torch.mean(delta * summed_grad, dim=tuple(range(1, p.ndim)), keepdim=True) / den
 
         # ratio of var of summed_grad to delta.
-        var_ratio = (torch.mean(summed_grad ** 2, dim=tuple(range(1, p.ndim)), keepdim=True) /
-                      (eps + torch.mean(delta ** 2, dim=tuple(range(1, p.ndim)), keepdim=True)))
+        var_ratio = torch.mean(summed_grad ** 2, dim=tuple(range(1, p.ndim)), keepdim=True) / den
 
-
-        logging.info(f"step={step}, shape={list(p.shape)}, lr={lr}, momentum_rate={momentum_rate}, delta_corr={delta_corr.flatten().to('cpu')}, var_ratio={var_ratio.flatten().to('cpu')}")
+        def f(x):
+            return x.flatten().to('cpu')
+        logging.info(f"step={step}, shape={list(p.shape)}, lr={lr}, momentum_rate={momentum_rate}, delta_corr={f(delta_corr)}, summed_grad_corr={f(summed_grad_corr)}, summed_grad_corr_scaled={f(summed_grad_corr*momentum_rate)}, var_ratio={f(var_ratio)}")
 
 
 
