@@ -124,10 +124,7 @@ class BatchedOptimizer(Optimizer):
 
 
 def basic_step(group, p, state, grad):
-    # computes basic Adam update using beta2 (dividing by gradient stddev) only.  no momentum yet.
-    lr = group["lr"]
-    if p.numel() == p.shape[0]:
-        lr = lr * group["scalar_lr_scale"]
+    # computes basic Adam normalized-grad using beta2 (dividing by gradient stddev) only.  no momentum yet.
     beta2 = group["betas"][1]
     eps = group["eps"]
     # p shape: (batch_size,) or (batch_size, 1, [1,..])
@@ -147,12 +144,82 @@ def basic_step(group, p, state, grad):
         exp_avg_sq = exp_avg_sq * (1.0 / bias_correction2)
     denom = exp_avg_sq.sqrt().add_(eps)
 
-    return -lr * grad / denom
+    return grad / denom
+
+
+
+def momentum_step(group, p, state, grad):
+    delta = basic_step(group, p, state, grad)
+
+    #beta1 = group["betas"][0]
+
+    lr = group["lr"]
+    step = state["step"]
+
+    try:
+        summed_grad = state["summed_grad"]
+        stored_delta = state["delta"]
+        prev_delta = state["prev_delta"]
+    except KeyError:
+        summed_grad = torch.zeros(*p.shape, device=p.device, dtype=torch.float)
+        stored_delta = torch.zeros(*p.shape, device=p.device, dtype=torch.float)
+        prev_delta = torch.zeros(*p.shape, device=p.device, dtype=torch.float)
+        state["summed_grad"] = summed_grad
+        state["delta"] = stored_delta
+        state["prev_delta"] = prev_delta
+
+
+    if p.numel() == p.shape[0]:
+        # scalar.  use conventional momentum.
+        beta = 0.9
+        stored_delta.mul_(beta).add_(delta, alpha=(1-beta))
+        lr = lr * group["scalar_lr_scale"]
+        return -lr * stored_delta
+
+
+
+    # decay near the beginning of training, as early grads may change fast.
+    beta = 1. - 1.5 / (15 + step)
+    summed_grad.mul_(beta)
+    summed_grad += delta
+
+    # This formula may be important to tune!
+    momentum_rate = 2.5 / (100 + step ** 0.666)
+
+    momentum_beta = 0.8  # this is an additional short-time momentum, just to prevent divergence early on.
+    stored_delta.mul_(momentum_beta)
+    stored_delta.add_(delta, alpha=(1-momentum_beta))
+
+    if random.random() < 0.001:
+
+        eps = 1.0e-20
+        den = eps + torch.mean(delta ** 2, dim=tuple(range(1, p.ndim)), keepdim=True)
+        delta_corr = torch.mean(delta * prev_delta, dim=tuple(range(1, p.ndim)), keepdim=True) / den
+
+
+        summed_grad_corr = torch.mean(delta * summed_grad, dim=tuple(range(1, p.ndim)), keepdim=True) / den
+        summed_grad_corr_slow = torch.mean(stored_delta * summed_grad, dim=tuple(range(1, p.ndim)), keepdim=True) / den
+
+        # ratio of var of summed_grad to delta.
+        var_ratio = torch.mean(summed_grad ** 2, dim=tuple(range(1, p.ndim)), keepdim=True) / den
+
+        def f(x):
+            return x.flatten().to('cpu')
+        logging.info(f"step={step}, shape={list(p.shape)}, lr={lr}, momentum_rate={momentum_rate}, delta_corr={f(delta_corr)}, summed_grad_corr={f(summed_grad_corr)}, summed_grad_corr_slow={f(summed_grad_corr_slow)}, summed_grad_corr_scaled={f(summed_grad_corr*momentum_rate)}, var_ratio={f(var_ratio)}")
+
+
+
+
+    prev_delta.copy_(delta)
+
+    return -lr * (stored_delta + momentum_rate * summed_grad)
+
+
 
 
 
 def scaling_step(group, p, state, grad):
-    delta = basic_step(group, p, state, grad)
+    delta = momentum_step(group, p, state, grad)
     if p.numel() == p.shape[0]:
         return delta  # there is no scaling for scalar parameters.  (p.shape[0] is the batch of parameters.)
 
@@ -236,83 +303,12 @@ def scaling_step(group, p, state, grad):
     return delta
 
 
-def momentum_step(group, p, state, grad):
-    delta = scaling_step(group, p, state, grad)
-
-    #beta1 = group["betas"][0]
-
-    # hardcode betas.
-    # see simulate_params.py on my laptop for how I got these settings.
-
-    try:
-        summed_grad = state["summed_grad"]
-        stored_delta = state["delta"]
-        prev_delta = state["prev_delta"]
-    except KeyError:
-        summed_grad = torch.zeros(*p.shape, device=p.device, dtype=torch.float)
-        stored_delta = torch.zeros(*p.shape, device=p.device, dtype=torch.float)
-        prev_delta = torch.zeros(*p.shape, device=p.device, dtype=torch.float)
-        state["summed_grad"] = summed_grad
-        state["delta"] = stored_delta
-        state["prev_delta"] = prev_delta
-
-
-    if p.numel() == p.shape[0]:
-        # scalar.  use conventional momentum.
-        beta = 0.9
-        stored_delta.mul_(beta).add_(delta, alpha=(1-beta))
-        return stored_delta
-
-
-    lr = group["lr"]
-    step = state["step"]
-
-    # decay near the beginning of training, as early grads may change fast.
-    beta = 1. - 2.5 / (25 + step)
-    summed_grad.mul_(beta)
-    summed_grad += delta
-
-    # This formula may be important to tune!
-    momentum_rate = 2.5 / (100 + step ** 0.666)
-
-    momentum_beta = 0.8  # this is an additional short-time momentum, just to prevent divergence early on.
-    stored_delta.mul_(momentum_beta)
-    stored_delta.add_(delta, alpha=(1-momentum_beta))
-
-    if random.random() < 0.001:
-
-        eps = 1.0e-20
-        den = eps + torch.mean(delta ** 2, dim=tuple(range(1, p.ndim)), keepdim=True)
-        delta_corr = torch.mean(delta * prev_delta, dim=tuple(range(1, p.ndim)), keepdim=True) / den
-
-
-        summed_grad_corr = torch.mean(delta * summed_grad, dim=tuple(range(1, p.ndim)), keepdim=True) / den
-        summed_grad_corr_slow = torch.mean(stored_delta * summed_grad, dim=tuple(range(1, p.ndim)), keepdim=True) / den
-
-        # ratio of var of summed_grad to delta.
-        var_ratio = torch.mean(summed_grad ** 2, dim=tuple(range(1, p.ndim)), keepdim=True) / den
-
-        def f(x):
-            return x.flatten().to('cpu')
-        logging.info(f"step={step}, shape={list(p.shape)}, lr={lr}, momentum_rate={momentum_rate}, delta_corr={f(delta_corr)}, summed_grad_corr={f(summed_grad_corr)}, summed_grad_corr_slow={f(summed_grad_corr_slow)}, summed_grad_corr_scaled={f(summed_grad_corr*momentum_rate)}, var_ratio={f(var_ratio)}")
-
-
-
-    # the 0.5 * (prev_delta + delta) is a very basic, dumb momentum that is to stop
-    # divergence.
-
-    prev_delta.copy_(delta)
-
-
-    return stored_delta + momentum_rate * summed_grad
-
-
 def debug_step(group, p, state, grad):
     debug_interval = group["debug_interval"]
     debug_buffer_size = 256
     step = state["step"]
 
-    delta = momentum_step(group, p, state, grad)
+    delta = scaling_step(group, p, state, grad)
 
     if debug_interval == 0 or step % debug_interval != 0:
         return delta
@@ -1318,7 +1314,7 @@ def _test_scaled_adam(hidden_dim: int):
         if iter == 0:
             optim = Eve(m.parameters(), lr=0.003)
         elif iter == 1:
-            optim = ScaledAdam(m.named_parameters(), lr=0.015, clipping_scale=2.0, eps=1.0e-20)
+            optim = ScaledAdam(m.named_parameters(), lr=0.01, clipping_scale=2.0, eps=1.0e-20)
         scheduler = Eden(optim, lr_batches=200, lr_epochs=5, verbose=False)
 
         start = timeit.default_timer()
