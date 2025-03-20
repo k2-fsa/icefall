@@ -275,6 +275,10 @@ def momentum_step(group, p, state, grad):
     # This formula may be important to tune!
     momentum_rate = 2.5 / (100 + step ** 0.666)
 
+    momentum_beta = 0.8  # this is an additional short-time momentum, just to prevent divergence early on.
+    stored_delta.mul_(momentum_beta)
+    stored_delta.add_(delta, alpha=(1-momentum_beta))
+
     if random.random() < 0.001:
 
         eps = 1.0e-20
@@ -283,13 +287,14 @@ def momentum_step(group, p, state, grad):
 
 
         summed_grad_corr = torch.mean(delta * summed_grad, dim=tuple(range(1, p.ndim)), keepdim=True) / den
+        summed_grad_corr_slow = torch.mean(stored_delta * summed_grad, dim=tuple(range(1, p.ndim)), keepdim=True) / den
 
         # ratio of var of summed_grad to delta.
         var_ratio = torch.mean(summed_grad ** 2, dim=tuple(range(1, p.ndim)), keepdim=True) / den
 
         def f(x):
             return x.flatten().to('cpu')
-        logging.info(f"step={step}, shape={list(p.shape)}, lr={lr}, momentum_rate={momentum_rate}, delta_corr={f(delta_corr)}, summed_grad_corr={f(summed_grad_corr)}, summed_grad_corr_scaled={f(summed_grad_corr*momentum_rate)}, var_ratio={f(var_ratio)}")
+        logging.info(f"step={step}, shape={list(p.shape)}, lr={lr}, momentum_rate={momentum_rate}, delta_corr={f(delta_corr)}, summed_grad_corr={f(summed_grad_corr)}, summed_grad_corr_slow={f(summed_grad_corr_slow)}, summed_grad_corr_scaled={f(summed_grad_corr*momentum_rate)}, var_ratio={f(var_ratio)}")
 
 
 
@@ -298,10 +303,6 @@ def momentum_step(group, p, state, grad):
 
     prev_delta.copy_(delta)
 
-
-    momentum_beta = 0.8  # this is an additional short-time momentum, just to prevent divergence early on.
-    stored_delta.mul_(momentum_beta)
-    stored_delta.add_(delta, alpha=(1-momentum_beta))
 
     return stored_delta + momentum_rate * summed_grad
 
