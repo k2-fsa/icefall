@@ -371,6 +371,8 @@ def get_parser():
         default=0,
         help="""If positive, and if debug-interval > 0 the interval at which we dump debug statistics; they
         are accumulated at batches with period debug_interval.  Should be at least 256 times --debug-interval.
+        Caution: on remotely mounted file systems this is extremely slow due to quirks of tensorboard (the file
+        opened, seeked-in and closed for each scalar that is written).
         """
     )
 
@@ -1291,14 +1293,7 @@ def run(rank, world_size, args):
     logging.info("Training started")
 
     if args.tensorboard and rank == 0:
-        # the reason for the very large max_queue is this: if --dump-debug-interval is set,
-        # e.g. to 2560, every that-many batches we will dump a very large number of events
-        # to the writer.  These are added to a queue that is drained raather slowly.
-        # If we make the max_queue large enough to include all the events from calling
-        # "optimizer.write_debug_info(), we can continue with training and let the
-        # background thread take care of dumping those events at its own speed.
-        tb_writer = SummaryWriter(log_dir=f"{params.exp_dir}/tensorboard",
-                                  max_queue=100)
+        tb_writer = SummaryWriter(log_dir=f"{params.exp_dir}/tensorboard")
     else:
         tb_writer = None
 

@@ -299,7 +299,7 @@ def debug_step(group, p, state, grad):
     try:
         debug_info = state["debug_info"]
     except KeyError:
-        debug_info = torch.zeros(debug_buffer_size, p.shape[0], 2,
+        debug_info = torch.zeros(debug_buffer_size, p.shape[0], 3,
                                  device=p.device, dtype=torch.float)
         state["debug_info"] = debug_info
 
@@ -318,6 +318,7 @@ def debug_step(group, p, state, grad):
 
     debug_info[:, 0] = maybe_rms(p)
     debug_info[:, 1] = maybe_rms(grad)
+    debug_info[:, 2] = maybe_rms(delta)
 
     return delta
 
@@ -347,7 +348,7 @@ def _write_debug_info(group, state, param_names, summary_writer):
     arange = torch.arange(debug_buffer_size)
     steps = debug_interval * (arange - debug_buffer_size) + cur_step
 
-    for i, legend in enumerate(['param_rms', 'grad_rms']):
+    for i, legend in enumerate(['param_rms', 'grad_rms', 'delta_rms']):
         for name, info in zip(param_names, debug_info[..., i].unbind(dim=1)):
             debug_str = f"debug/{legend}/{name}"
             for step, value in zip(steps.tolist(), info.tolist()):
@@ -426,7 +427,7 @@ class ScaledAdam(BatchedOptimizer):
         eps=1.0e-08,
         weight_min_rms=0.005,
         bias_min_rms=1.0e-05,
-        decay_scale=0.1,
+        decay_scale=0.5,
         scalar_max=10.0,
         size_update_period=4,
         clipping_update_period=100,
