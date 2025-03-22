@@ -364,9 +364,12 @@ class MaxEigLimiterFunction(torch.autograd.Function):
 
 
 
-def _exp_norm(x: Tensor, scale: Tensor, channel_dim: int):
+def _exp_norm(x: Tensor, scale: Tensor, channel_dim: int, floor: Optional[Tensor]):
     x_norm = torch.mean(x ** 2, dim=channel_dim, keepdim=True).sqrt()
-    scales = (1. - (-x_norm).exp()) / x_norm
+    num = (1. - (-x_norm).exp())
+    if floor is not None:
+        num = torch.maximum(num, floor)
+    scales = num / x_norm
     scales = scale * scales
     return (x * scales)
 
@@ -383,14 +386,24 @@ class ExpNormFunction(torch.autograd.Function):
         x: Tensor,
         scale: Tensor,
         channel_dim: int,
+        rand_floor: float,
     ) -> Tensor:
         if channel_dim < 0:
             channel_dim = channel_dim + x.ndim
         ctx.channel_dim = channel_dim
-        ctx.save_for_backward(x, scale)
-        return _exp_norm(x, scale, channel_dim)
+        ctx.rand_floor = rand_floor
+        if rand_floor != 0.0:
+            shape = list(x.shape)
+            shape[channel_dim] = 1
+            floor = torch.where(torch.rand(*shape, device=x.device) < 0.1, rand_floor, 0.0)
+        else:
+            floor = None
+        ctx.floor = floor
 
-        return ans
+        ctx.save_for_backward(x, scale)
+
+        return _exp_norm(x, scale, channel_dim, floor)
+
 
     @staticmethod
     def backward(ctx, ans_grad: Tensor) -> Tensor:
@@ -399,11 +412,12 @@ class ExpNormFunction(torch.autograd.Function):
         with torch.cuda.amp.autocast(enabled=False):
             x, scale = x.to(torch.float32), scale.to(torch.float32)
             x, scale = x.detach(), scale.detach()
+
             x.requires_grad = True
             scale.requires_grad = True
 
             with torch.enable_grad():
-                ans = _exp_norm(x, scale, ctx.channel_dim)
+                ans = _exp_norm(x, scale, ctx.channel_dim, ctx.floor)
                 ans.backward(gradient=ans_grad.to(torch.float32))
 
         def c(x):
@@ -411,7 +425,7 @@ class ExpNormFunction(torch.autograd.Function):
             # in autocast mode.
             return x.clamp_(min=-30000.0, max=30000.0)
 
-        return x.grad, c(scale.grad), None
+        return x.grad, c(scale.grad), None, None
 
 
 
@@ -441,16 +455,22 @@ class ExpNorm(torch.nn.Module):
          interpreted as an offset from the input's ndim if negative.
          This is NOT the num_channels; it should typically be one of
          {-2, -1, 0, 1, 2, 3}.
+       rand_floor: if not 0.0: during training, for 10% of the vectors
+           we will randomly floor the numerator of the expression for the
+           scales (1. - (-x_norm).exp()), to this value.  This is intended
+           to discourage the network to make the inputs smaller than this.
     """
     def __init__(
         self,
         num_channels: int,
         channel_dim: int = -1,  # CAUTION: see documentation.
+        rand_floor: FloatLike = 0.0,
     ) -> None:
         super(ExpNorm, self).__init__()
         self.num_channels = num_channels
         self.channel_dim = channel_dim
         self.scale = nn.Parameter(torch.tensor(1.7))
+        self.rand_floor = rand_floor
 
         self.name = None
 
@@ -465,7 +485,7 @@ class ExpNorm(torch.nn.Module):
             self.scale, min=0.5, max=2.5, training=self.training)
 
         ans = ExpNormFunction.apply(
-            x, scale, self.channel_dim,
+            x, scale, self.channel_dim, float(self.rand_floor) if self.training else 0.0,
         )
 
         if random.random() < 0.002:
