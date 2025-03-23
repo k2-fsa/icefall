@@ -169,8 +169,8 @@ def momentum_step(group, p, state, grad):
             state["delta"] = stored_delta
         else:
             betas = torch.tensor([ 0.96, 0.9984, 0.999936]).to(device=p.device)
-            # caution: the scales include the 1-beta factor.
-            scales = torch.tensor([ 2, 4, 8 ]).to(device=p.device) * (1-betas)
+            # caution: the scales will include the 1-beta factor.
+            scales = torch.tensor([ 4, 8, 16 ]).to(device=p.device) * (1-betas)
             for _ in range(p.ndim):
                 betas, scales = betas.unsqueeze(-1), scales.unsqueeze(-1)
 
@@ -422,8 +422,8 @@ class ScaledAdam(BatchedOptimizer):
         lr=3e-02,
         clipping_scale=None,
         betas=(0.9, 0.98),
-        scalar_lr_scale=0.25,
-        scaling_lr_scale=0.2,
+        scalar_lr_scale=0.5,
+        scaling_lr_scale=0.5,
         eps=1.0e-08,
         weight_min_rms=0.005,
         bias_min_rms=1.0e-05,
@@ -1298,7 +1298,7 @@ def _test_scaled_adam(hidden_dim: int):
         if iter == 0:
             optim = Eve(m.parameters(), lr=0.003)
         elif iter == 1:
-            optim = ScaledAdam(m.named_parameters(), lr=0.008, clipping_scale=2.0, eps=1.0e-20)
+            optim = ScaledAdam(m.named_parameters(), lr=0.005, clipping_scale=2.0, eps=1.0e-20)
         scheduler = Eden(optim, lr_batches=200, lr_epochs=5, verbose=False)
 
         start = timeit.default_timer()
