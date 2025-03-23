@@ -125,12 +125,13 @@ class BatchedOptimizer(Optimizer):
 
 def basic_step(group, p, state, grad):
     # computes basic Adam normalized-grad using beta2 (dividing by gradient stddev) only.  no momentum yet.
-    beta2 = group["betas"][1]
+    beta2 = group["beta2"]
     eps = group["eps"]
     # p shape: (batch_size,) or (batch_size, 1, [1,..])
     try:
         exp_avg_sq = state["exp_avg_sq"]  # shape: (batch_size,) or (batch_size, 1, [1,..])
     except KeyError:
+        assert state["step"] < 2
         exp_avg_sq = torch.zeros(*p.shape, device=p.device, dtype=torch.float)
         state["exp_avg_sq"] = exp_avg_sq
 
@@ -160,24 +161,26 @@ def momentum_step(group, p, state, grad):
     try:
         stored_delta = state["delta"]
         if p.numel() != p.shape[0]:
-            scales = state["scales"]
+            alphas = state["alphas"]
             betas = state["betas"]
-    except KeyError:
+    except KeyError as e:
+        assert step < 2
         if p.numel() == p.shape[0]:
             # scalar.  use conventional momentum.
             stored_delta = torch.zeros(*p.shape, device=p.device, dtype=torch.float)
             state["delta"] = stored_delta
         else:
-            betas = torch.tensor([ 0.96, 0.9984, 0.999936]).to(device=p.device)
-            # caution: the scales will include the 1-beta factor.
-            scales = torch.tensor([ 4, 8, 16 ]).to(device=p.device) * (1-betas)
+            # e.g. group["betas"] = (.96, .9984, .99936),
+            # group["scales"] = (4., 8., 16.),
+            betas = torch.tensor(group["betas"]).to(device=p.device)
+            alphas = torch.tensor(group["scales"]).to(device=p.device) * (1-betas)
             for _ in range(p.ndim):
-                betas, scales = betas.unsqueeze(-1), scales.unsqueeze(-1)
+                betas, alphas = betas.unsqueeze(-1), alphas.unsqueeze(-1)
 
             stored_delta = torch.zeros(len(betas), *p.shape, device=p.device, dtype=torch.float)
             state["delta"] = stored_delta
             state["betas"] = betas
-            state["scales"] = scales
+            state["alphas"] = alphas
 
 
     if p.numel() == p.shape[0]:
@@ -195,95 +198,69 @@ def momentum_step(group, p, state, grad):
     stored_delta *= betas
     stored_delta += delta
 
-    return -lr * (delta + (stored_delta * scales).sum(dim=0))
+    return -lr * (delta + (stored_delta * alphas).sum(dim=0))
 
 
+def forward_transform_param(group, p):
+    """
+    Returns a transformed version of the batch of parameters (dimension 0 of p is the batch
+    of same-shaped parameters).
+    The transformation is from a parameter to a (parameter-direction, log-weight), where
+    parameter-direction has unit RMS value and log-weight
+    """
+    batch_size = p.shape[0]
+    numel = p.numel() // batch_size
+    if numel == 1:
+        # scalar parameters are treated specially.  scalar_lr_scale is to control
+        # the learning-rate of scalars.
+        return p.reshape(batch_size, 1) / group["scalar_lr_scale"]
 
+    is_weight = (p.ndim > 2)
+    min_rms = group["weight_min_rms"] if is_weight else group["bias_min_rms"]
+    p = p.reshape(batch_size, numel)
+    sumsq = (p ** 2).sum(dim=1, keepdim=True)
+    min_sumsq = (min_rms ** 2) * numel  # if sumsq is less than this we pad with an extra element.
+    sumsq_clamped = sumsq.clamp(min=min_sumsq)
+    pad = (sumsq_clamped - sumsq).sqrt()
+    scale = (sumsq_clamped / numel).sqrt()  # must be nonzero thanks to min_rms
+
+    # scaling_lr_scale is to control the learning-rate of scaling factors.
+    log_scale = (1 / group["scaling_lr_scale"]) * scale.log()
+    return torch.cat((p / scale, pad / scale, log_scale), dim=1)
+
+def reverse_transform_param(group, p, orig_shape):
+    batch_size = p.shape[0]
+    if p.numel() == batch_size:
+        return (p * group["scalar_lr_scale"]).reshape(*orig_shape)
+    numel = p.shape[1] - 2  # numel of original shape
+
+    p_padded = p[:, :-1]
+    p_padded = p_padded / ((p_padded ** 2).sum(dim=1, keepdim=True) / numel).sqrt()  # normalize rms to 1.
+    scale = (p[:, -1:] * group["scaling_lr_scale"]).exp()
+    p = p_padded[:, :-1] * scale  # the :-1 is to remove the padding element.
+    return p.reshape(*orig_shape)
+
+
+def forward_transform_param_and_grad(group, p, grad):
+    # returns new parameter.
+    p_shape = p.shape
+    p_flat = forward_transform_param(group, p).detach()
+    with torch.enable_grad():
+        p_flat.requires_grad = True
+        p_reconstruct = reverse_transform_param(group, p_flat, p.shape)
+        p_reconstruct.backward(gradient=grad)
+    return p_flat.detach(), p_flat.grad
 
 
 def scaling_step(group, p, state, grad):
-    delta = momentum_step(group, p, state, grad)
-    if p.numel() == p.shape[0]:
-        return delta  # there is no scaling for scalar parameters.  (p.shape[0] is the batch of parameters.)
+    # returns new parameter.
+    p_shape = p.shape
+    p_flat, grad_flat = forward_transform_param_and_grad(group, p, grad)
 
-    step = state["step"]
-    size_update_period = group["size_update_period"]
+    p_flat += momentum_step(group, p_flat, state, grad_flat)
 
-    try:
-        param_rms = state["param_rms"]
-        scale_grads = state["scale_grads"]
-        scale_exp_avg_sq = state["scale_exp_avg_sq"]
-    except KeyError:
-        # we know p.ndim > 1 because we'd have returned above if not, so don't worry
-        # about the speial case of dim=[] that pytorch treats inconsistently.
-        param_rms = (p**2).mean(dim=list(range(1, p.ndim)), keepdim=True).sqrt()
-        param_rms = param_rms.to(torch.float)
-        scale_exp_avg_sq = torch.zeros_like(param_rms)
-        scale_grads = torch.zeros(size_update_period, *param_rms.shape,
-                                  dtype=torch.float, device=p.device)
-        state["param_rms"] = param_rms
-        state["scale_grads"] = scale_grads
-        state["scale_exp_avg_sq"] = scale_exp_avg_sq
-
-
-    # on every step, update the gradient w.r.t. the scale of the parameter, we
-    # store these as a batch and periodically update the size (for speed only, to
-    # avoid too many operations).
-    scale_grads[step % size_update_period] = (p * grad).sum(
-        dim=list(range(1, p.ndim)), keepdim=True
-    )
-
-    # periodically recompute the value of param_rms.
-    if step % size_update_period == size_update_period - 1:
-        param_rms.copy_(
-            (p**2).mean(dim=list(range(1, p.ndim)), keepdim=True).sqrt()
-        )
-
-    # would be p.ndim > 1 not p.ndim > 2 but one dim is for batch of tensors.
-    is_weight = (p.ndim > 2)
-    min_rms = group["weight_min_rms"] if is_weight else group["bias_min_rms"]
-
-    # scale the step size by param_rms.  This is the most important "scaling" part of
-    # ScaledAdam
-    delta *= param_rms.clamp(min=min_rms)
-
-    if step % size_update_period == size_update_period - 1 and step > 0:
-        # This block updates the size of parameter by adding a step ("delta") value in
-        # the direction of either shrinking or growing it.  it also includes a modified
-        # form of adamw-like shrinkage, which we modify a bit to ensure there is a unique
-        # optimum for the scales (since thanks to the "delta *= param_rms.clamp(min=min_rms)",
-        # there is no longer the size-stabilizing phenomenon as in Adam whereby parameters with smaller
-        # rms will tend to grow faster thanks to parameter noise).
-        beta2 = group["betas"][1]
-        size_lr = group["lr"] * group["scaling_lr_scale"]
-        eps = group["eps"]
-        decay_scale = group["decay_scale"]
-        batch_size = p.shape[0]
-        # correct beta2 for the size update period: we will have
-        # faster decay at this level.
-        beta2_corr = beta2**size_update_period
-        scale_exp_avg_sq.mul_(beta2_corr).add_(
-            (scale_grads**2).mean(dim=0),  # mean over dim `size_update_period`
-            alpha=1 - beta2_corr,
-        )  # shape is (batch_size, 1, 1, ...)
-
-        # The 1st time we reach here is when size_step == 1.
-        size_step = (step + 1) // size_update_period
-        bias_correction2 = 1 - beta2_corr**size_step
-
-        denom = scale_exp_avg_sq.sqrt() + eps
-
-        scale_norm_grad = (
-            (bias_correction2**0.5) * scale_grads.sum(dim=0) / denom
-        )
-        # add AdamW-like decay, if we are above "penalty_rms" which is not a hard
-        # maximum but a cutoff for introducing decay.
-        scale_norm_grad = scale_norm_grad + (decay_scale * size_update_period) * param_rms
-        scale_step = -size_lr * scale_norm_grad
-
-        delta.add_(p * scale_step)
-
-    return delta
+    p = reverse_transform_param(group, p_flat, p.shape)
+    return p
 
 
 def debug_step(group, p, state, grad):
@@ -291,15 +268,15 @@ def debug_step(group, p, state, grad):
     debug_buffer_size = 256
     step = state["step"]
 
-    delta = scaling_step(group, p, state, grad)
+    p = scaling_step(group, p, state, grad)
 
     if debug_interval == 0 or step % debug_interval != 0:
-        return delta
+        return p
 
     try:
         debug_info = state["debug_info"]
     except KeyError:
-        debug_info = torch.zeros(debug_buffer_size, p.shape[0], 3,
+        debug_info = torch.zeros(debug_buffer_size, p.shape[0], 2,
                                  device=p.device, dtype=torch.float)
         state["debug_info"] = debug_info
 
@@ -318,9 +295,8 @@ def debug_step(group, p, state, grad):
 
     debug_info[:, 0] = maybe_rms(p)
     debug_info[:, 1] = maybe_rms(grad)
-    debug_info[:, 2] = maybe_rms(delta)
 
-    return delta
+    return p
 
 
 def _write_debug_info(group, state, param_names, summary_writer):
@@ -348,7 +324,7 @@ def _write_debug_info(group, state, param_names, summary_writer):
     arange = torch.arange(debug_buffer_size)
     steps = debug_interval * (arange - debug_buffer_size) + cur_step
 
-    for i, legend in enumerate(['param_rms', 'grad_rms', 'delta_rms']):
+    for i, legend in enumerate(['param_rms', 'grad_rms']):
         for name, info in zip(param_names, debug_info[..., i].unbind(dim=1)):
             debug_str = f"debug/{legend}/{name}"
             for step, value in zip(steps.tolist(), info.tolist()):
@@ -390,8 +366,12 @@ class ScaledAdam(BatchedOptimizer):
                    we mean after multiplying by the rms parameter value for this tensor
                    [for non-scalars]; this is appropriate because our update is scaled
                    by this quantity.
-            betas: beta1,beta2 are momentum constants for regular momentum, and moving sum-sq grad.
+            beta2: beta2 is the momentum constant for moving-grad-squared as in Adam.
                    Must satisfy 0 < beta <= beta2 < 1.
+             betas: a list of decay constants for momentum on the parameter-change
+            scales: a list of scales corresponding to each of the betas, that we multiply
+                   each momentum-update by.  Implicitly there is also a beta=0, scale=1,
+                   i.e. a non-decayed update.
      scaling_lr_scale: A scaling factor on the learning rate, that we use to update the
                    scale of each non-scalar parameter tensor.  If each parameter were decomposed
                    as p * p_scale.exp(), where (p**2).mean().sqrt() == 1.0, scalar_lr_scale
@@ -421,8 +401,10 @@ class ScaledAdam(BatchedOptimizer):
         params,
         lr=3e-02,
         clipping_scale=None,
-        betas=(0.9, 0.98),
-        scalar_lr_scale=0.5,
+        beta2=0.98,
+        betas=(.96, .9984, .99936),
+        scales=(4., 8., 16.),
+        scalar_lr_scale=0.2,
         scaling_lr_scale=0.5,
         eps=1.0e-08,
         weight_min_rms=0.005,
@@ -437,7 +419,9 @@ class ScaledAdam(BatchedOptimizer):
         defaults = dict(
             lr=lr,
             clipping_scale=clipping_scale,
+            beta2=beta2,
             betas=betas,
+            scales=scales,
             scalar_lr_scale=scalar_lr_scale,
             scaling_lr_scale=scaling_lr_scale,
             eps=eps,
@@ -621,7 +605,7 @@ class ScaledAdam(BatchedOptimizer):
                         cur_step = 0
 
                     grad = (p.grad if clipping_scale == 1.0 else p.grad.mul_(clipping_scale))
-                    p += debug_step(group, p.detach(), state, grad)
+                    p[:] = debug_step(group, p.detach(), state, grad)
 
                     if p.numel() == p.shape[0]:  # scalar parameter
                         scalar_max = group["scalar_max"]
@@ -694,7 +678,8 @@ class ScaledAdam(BatchedOptimizer):
                     scalar_lr_scale**2
                 )  # sum() to change shape [1] to []
             else:
-                tot_sumsq += ((grad * state["param_rms"]) ** 2).sum()
+                param_meansq = (p ** 2).mean(dim=tuple(range(1, p.ndim)), keepdim=True)
+                tot_sumsq += ((grad ** 2) * param_meansq).sum()
 
         tot_norm = tot_sumsq.sqrt()
         if "model_norms" not in first_state:
@@ -759,7 +744,7 @@ class ScaledAdam(BatchedOptimizer):
                 self._show_gradient_dominating_parameter(
                     tuples, tot_sumsq, group["scalar_lr_scale"]
                 )
-                self._show_param_with_unusual_grad(tuples)
+                self._show_param_with_unusual_grad(group, tuples)
 
         if ans == 0.0:
             for (p, state, param_names) in tuples:
@@ -768,8 +753,9 @@ class ScaledAdam(BatchedOptimizer):
         return ans
 
     def _show_param_with_unusual_grad(
-        self,
-        tuples: List[Tuple[Tensor, dict, List[str]]],
+            self,
+            group,
+            tuples: List[Tuple[Tensor, dict, List[str]]],
     ):
         """
         Print information about parameter which has the largest ratio of grad-on-this-batch
@@ -786,13 +772,10 @@ class ScaledAdam(BatchedOptimizer):
         ratios_names = [ ]
         for (p, state, batch_param_names) in tuples:
             dims = list(range(1, p.ndim))
-            def mean(x):
-                # workaround for bad interface of torch's "mean" for when dims is the empty list.
-                if len(dims) > 0:
-                    return x.mean(dim=dims)
-                else:
-                    return x
-            grad_ratio = (mean(p.grad ** 2) / state["exp_avg_sq"].mean(dim=dims)).sqrt()
+
+            p_flat, grad_flat = forward_transform_param_and_grad(group, p, p.grad)
+
+            grad_ratio = ((grad_flat ** 2).mean(dim=1) / state["exp_avg_sq"].mean(dim=1)).sqrt()
             ratios_names +=  zip(grad_ratio.to('cpu').tolist(), batch_param_names)
 
         ratios_names = sorted(ratios_names, reverse=True)
@@ -828,22 +811,24 @@ class ScaledAdam(BatchedOptimizer):
             batch_grad = p.grad
             if p.numel() == p.shape[0]:  # a batch of scalars
                 # Dummy values used by following `zip` statement.
-                batch_rms_orig = torch.full(
-                    p.shape, scalar_lr_scale, device=batch_grad.device
+                batch_meansq = torch.full(
+                    p.shape, scalar_lr_scale ** 2, device=batch_grad.device
                 )
             else:
-                batch_rms_orig = state["param_rms"]
-            batch_sumsq_orig = (batch_grad * batch_rms_orig) ** 2
+                batch_meansq = (p ** 2).mean(dim=tuple(range(1, p.ndim)), keepdim=True)
+
+            batch_rms = batch_meansq.sqrt()  # rms of each parameter.
+            batch_sumsq = (batch_grad * batch_rms) ** 2 # sum-square of grad times param rms
+
             if batch_grad.ndim > 1:
                 # need to guard it with if-statement because sum() sums over
                 # all dims if dim == ().
-                batch_sumsq_orig = batch_sumsq_orig.sum(
+                batch_sumsq = batch_sumsq.sum(
                     dim=list(range(1, batch_grad.ndim))
                 )
             for name, sumsq_orig, rms, grad in zip(
-                batch_param_names, batch_sumsq_orig, batch_rms_orig, batch_grad
+                batch_param_names, batch_sumsq, batch_rms, batch_grad
             ):
-
                 proportion_orig = sumsq_orig / tot_sumsq
                 all_sumsq_orig[name] = (proportion_orig, sumsq_orig, rms, grad)
 
@@ -1351,6 +1336,15 @@ def _test_scaled_adam(hidden_dim: int):
         logging.info(f"input_magnitudes = {input_magnitudes}")
         logging.info(f"output_magnitudes = {output_magnitudes}")
 
+def _test_transform_params():
+    group = { "bias_min_rms": 0.001, "weight_min_rms": 0.01, "scalar_lr_scale": 0.1, "scaling_lr_scale": 0.5 }
+    for scale in [ 0.0, 1.0e-05, 0.001, 0.01, 1.0, 10.0 ]:
+        for shape in [ (1, 1),  (2, 1), (2, 2), (2, 3, 4), (3, 10, 20), (4,) ]:
+            p = scale * torch.randn(*shape)
+            q = forward_transform_param(group, p)
+            r = reverse_transform_param(group, q, p.shape)
+            assert torch.allclose(p, r), (p, q, r)
+
 
 if __name__ == "__main__":
     torch.set_num_threads(1)
@@ -1369,5 +1363,6 @@ if __name__ == "__main__":
     else:
         hidden_dim = 200
 
+    _test_transform_params()
     _test_scaled_adam(hidden_dim)
     _test_eden()
