@@ -1621,6 +1621,9 @@ class FeedforwardModule(nn.Module):
         super(FeedforwardModule, self).__init__()
         # try to get in the useful range of the activation function, i.e. not too small.
         self.in_proj = ScaledLinear(embed_dim, feedforward_dim)
+        # weight_min_rms will be interpreted by get_parameter_groups_with_lrs() and passed
+        # to the TransformedAdam optimizer.
+        self.in_proj.weight_min_rms = 0.02
 
         # shared_dim=0 means we share the dropout mask along the time axis
         self.out_proj = ActivationDropoutAndLinear(

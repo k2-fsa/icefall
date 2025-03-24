@@ -275,7 +275,8 @@ def reverse_transform_param(group, p, orig_shape):
 
     is_weight = (len(orig_shape) > 2)
     max_rms = group["weight_max_rms"] if is_weight else group["bias_max_rms"]
-    scale = (p[:, numel+1:numel+2] * group["scaling_lr_scale"]).exp().clamp(max=max_rms)
+    min_rms = group["weight_min_rms"] if is_weight else group["bias_min_rms"]
+    scale = (p[:, numel+1:numel+2] * group["scaling_lr_scale"]).exp().clamp(min=min_rms, max=max_rms)
 
     q = p_padded[:, :-1] * scale  # the :-1 is to remove the padding element.
     q = q.reshape(*orig_shape)
@@ -397,7 +398,7 @@ def _load_state_dict_pre_hook(optim: Optimizer, state_dict: dict):
             except KeyError:
                 logging.info(f"Could not copy key {key} from optim state-dict.")
 
-class ScaledAdam(BatchedOptimizer):
+class TransformedAdam(BatchedOptimizer):
     """
      Implements 'Scaled Adam', a variant of Adam where we scale each parameter's update
      proportional to the norm of that parameter; and also learn the scale of the parameter,
@@ -458,9 +459,9 @@ class ScaledAdam(BatchedOptimizer):
         clipping_scale=None,
         beta2=0.98,
         betas=(.96, .9984, .99936),
-        scales=(4., 8., 16.),
+        scales=(4., 8., 10.),
         scalar_lr_scale=0.2,
-        scaling_lr_scale=0.5,
+        scaling_lr_scale=0.1,
         eps=1.0e-08,
         weight_min_rms=0.005,
         weight_max_rms=1.0,
@@ -498,7 +499,7 @@ class ScaledAdam(BatchedOptimizer):
         # this flag will be set to False in funciton _get_names_of_parameters.
         self.show_dominant_parameters = True
         param_groups, parameters_names = self._get_names_of_parameters(params)
-        super(ScaledAdam, self).__init__(param_groups, defaults)
+        super(TransformedAdam, self).__init__(param_groups, defaults)
         assert len(self.param_groups) == len(parameters_names)
         self.parameters_names = parameters_names
 
@@ -512,10 +513,10 @@ class ScaledAdam(BatchedOptimizer):
     ) -> Tuple[List[Dict], List[List[str]]]:
         """
         Args:
-          params_or_named_params: according to the way ScaledAdam is initialized in train.py,
+          params_or_named_params: according to the way TransformedAdam is initialized in train.py,
             this argument could be one of following 4 cases,
             case 1, a generator of parameter, e.g.:
-              optimizer = ScaledAdam(model.parameters(), lr=params.base_lr, clipping_scale=3.0)
+              optimizer = TransformedAdam(model.parameters(), lr=params.base_lr, clipping_scale=3.0)
 
             case 2, a list of parameter groups with different config, e.g.:
               model_param_groups = [
@@ -523,10 +524,10 @@ class ScaledAdam(BatchedOptimizer):
                       {'params': model.decoder.parameters(), 'lr': 0.01},
                       {'params': model.joiner.parameters(), 'lr': 0.03},
                       ]
-              optimizer = ScaledAdam(model_param_groups, lr=params.base_lr, clipping_scale=3.0)
+              optimizer = TransformedAdam(model_param_groups, lr=params.base_lr, clipping_scale=3.0)
 
             case 3, a generator of named_parameter, e.g.:
-              optimizer = ScaledAdam(model.named_parameters(), lr=params.base_lr, clipping_scale=3.0)
+              optimizer = TransformedAdam(model.named_parameters(), lr=params.base_lr, clipping_scale=3.0)
 
             case 4, a list of named_parameter groups with different config, e.g.:
               model_named_param_groups = [
@@ -534,7 +535,7 @@ class ScaledAdam(BatchedOptimizer):
                       {'named_params': model.decoder.named_parameters(), 'lr': 0.01},
                       {'named_params': model.joiner.named_parameters(), 'lr': 0.03},
                       ]
-              optimizer = ScaledAdam(model_named_param_groups, lr=params.base_lr, clipping_scale=3.0)
+              optimizer = TransformedAdam(model_named_param_groups, lr=params.base_lr, clipping_scale=3.0)
 
           For case 1 and case 2, input params is used to initialize the underlying torch.optimizer.
           For case 3 and case 4, firstly, names and params are extracted from input named_params,
@@ -615,7 +616,7 @@ class ScaledAdam(BatchedOptimizer):
         return param_groups, param_groups_names
 
     def __setstate__(self, state):
-        super(ScaledAdam, self).__setstate__(state)
+        super(TransformedAdam, self).__setstate__(state)
 
     @torch.no_grad()
     def step(self, closure=None):
@@ -653,7 +654,7 @@ class ScaledAdam(BatchedOptimizer):
                     grad = p.grad
                     if grad.is_sparse:
                         raise RuntimeError(
-                            "ScaledAdam optimizer does not support sparse gradients"
+                            "TransformedAdam optimizer does not support sparse gradients"
                         )
 
 
@@ -730,7 +731,7 @@ class ScaledAdam(BatchedOptimizer):
             grad = p.grad
             if grad.is_sparse:
                 raise RuntimeError(
-                    "ScaledAdam optimizer does not support sparse gradients"
+                    "TransformedAdam optimizer does not support sparse gradients"
                 )
             if p.numel() == p.shape[0]:  # a batch of scalars
                 tot_sumsq += (grad**2).sum() * (
@@ -1031,7 +1032,7 @@ class Eden(LRScheduler):
     of an entire training run, but it doesn't matter much.  You could also use
     Eden2 which has only the notion of batches.
 
-    We suggest base_lr = 0.04 (passed to optimizer) if used with ScaledAdam
+    We suggest base_lr = 0.04 (passed to optimizer) if used with TransformedAdam
 
     Args:
         optimizer: the optimizer to change the learning rates on
@@ -1089,7 +1090,7 @@ class Eden2(LRScheduler):
     and then stays constant at 1.
 
 
-     E.g. suggest base_lr = 0.04 (passed to optimizer) if used with ScaledAdam
+     E.g. suggest base_lr = 0.04 (passed to optimizer) if used with TransformedAdam
 
     Args:
         optimizer: the optimizer to change the learning rates on
@@ -1129,7 +1130,7 @@ class Eden2(LRScheduler):
 
 def _test_eden():
     m = torch.nn.Linear(100, 100)
-    optim = ScaledAdam(m.parameters(), lr=0.03)
+    optim = TransformedAdam(m.parameters(), lr=0.03)
 
     scheduler = Eden(optim, lr_batches=100, lr_epochs=2, verbose=True)
 
@@ -1152,7 +1153,7 @@ def _test_eden():
     logging.info(f"state dict = {scheduler.state_dict()}")
 
 
-# This is included mostly as a baseline for ScaledAdam.
+# This is included mostly as a baseline for TransformedAdam.
 class Eve(Optimizer):
     """
     Implements Eve algorithm.  This is a modified version of AdamW with a special
@@ -1342,7 +1343,7 @@ def _test_scaled_adam(hidden_dim: int):
         if iter == 0:
             optim = Eve(m.parameters(), lr=0.003)
         elif iter == 1:
-            optim = ScaledAdam(m.named_parameters(), lr=0.005, clipping_scale=2.0, eps=1.0e-20)
+            optim = TransformedAdam(m.named_parameters(), lr=0.005, clipping_scale=2.0, eps=1.0e-20)
         scheduler = Eden(optim, lr_batches=200, lr_epochs=5, verbose=False)
 
         start = timeit.default_timer()

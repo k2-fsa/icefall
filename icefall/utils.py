@@ -1499,20 +1499,27 @@ def get_parameter_groups_with_lrs(
     """
     named_modules = list(model.named_modules())
 
-    # flat_lr_scale just contains the lr_scale explicitly specified
-    # for each prefix of the name, e.g. 'encoder.layers.3', these need
-    # to be multiplied for all prefix of the name of any given parameter.
-    flat_lr_scale = defaultdict(lambda: 1.0)
+    # flat_lr_scale[prefix] for a prefix like 'encoder.layers.3' contains
+    # a dict with all the optimizer configuration settings specified at this level.
+    # these need to be combined for all prefixes of the name of any given parameter.
+    flat_config = defaultdict(dict)
     names = []
     for name, m in model.named_modules():
         names.append(name)
-        if hasattr(m, "lr_scale"):
-            flat_lr_scale[name] = m.lr_scale
+        for attr in ['lr_scale', 'weight_min_rms', 'bias_min_rms', 'weight_max_rms', 'bias_max_rms']:  # we can add more here as needed
+            try:
+                # getattr(m, attr) if attr == 'lr_scale' is equivalent to m.lr_scale
+                flat_config[name][attr] = getattr(m, attr)
+            except AttributeError:
+                pass
 
-    # lr_to_parames is a dict from learning rate (floating point) to: if
+
+    # lr_to_parames is a dict from config-string to:
     # include_names == true, a list of (name, parameter) for that learning rate;
     # otherwise a list of parameters for that learning rate.
-    lr_to_params = defaultdict(list)
+    # The config-string is the repr(dict) for the dictionary of attributes combined
+    # over all prefixes of that parameter name.
+    config_to_params = defaultdict(list)
 
     for name, parameter in model.named_parameters():
         split_name = name.split(".")
@@ -1527,18 +1534,30 @@ def get_parameter_groups_with_lrs(
             if prefix in freeze_modules:
                 logging.info(f"Remove {name} from parameters")
                 continue
-        cur_lr = lr * flat_lr_scale[prefix]
+
+        cur_config = dict()
+        cur_config.update(flat_config[prefix]) # include dict items from here.
         if prefix != "":
-            cur_lr *= flat_lr_scale[""]
+            cur_config.update(flat_config[""])
         for part in split_name[1:]:
             prefix = ".".join([prefix, part])
-            cur_lr *= flat_lr_scale[prefix]
-        lr_to_params[cur_lr].append((name, parameter) if include_names else parameter)
+            cur_config.update(flat_config[prefix])
 
-    if include_names:
-        return [{"named_params": pairs, "lr": lr} for lr, pairs in lr_to_params.items()]
-    else:
-        return [{"params": params, "lr": lr} for lr, params in lr_to_params.items()]
+
+        config_to_params[repr(cur_config)].append((name, parameter) if include_names else parameter)
+
+
+    ans = [ ]
+    for config, params in config_to_params.items():
+        config = eval(config) # turn from string back into dict.
+        try: # turn "lr_scale" into "lr"
+            config["lr"] = lr * config["lr_scale"]
+            del config["lr_scale"]
+        except KeyError:
+            pass
+        config["named_params" if include_names else "params"] = params
+        ans.append(config)
+    return ans
 
 
 def optim_step_and_measure_param_change(
