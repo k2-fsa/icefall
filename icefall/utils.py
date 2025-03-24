@@ -1474,12 +1474,16 @@ def get_parameter_groups_with_lrs(
     lr: float,
     include_names: bool = False,
     freeze_modules: List[str] = [],
+    attrs: List[str] = ['lr_scale', 'weight_min_rms', 'bias_min_rms', 'weight_max_rms', 'bias_max_rms'],
 ) -> List[dict]:
     """
-    This is for use with the ScaledAdam optimizers (more recent versions that accept lists of
-    named-parameters; we can, if needed, create a version without the names).
+    This is to automatically create parameter-groups with overrides of parameter optimizer
+    settings, especially the learning rate which can be scaled using the "lr_scale" attribut
+    in modules, but also other possible configuration values that you may specify.
 
-    It provides a way to specify learning-rate scales inside the module, so that if
+
+    It provides a way to specify learning-rate scales and other optimizer configuration
+    settings inside the module, so that if
     any nn.Module in the hierarchy has a floating-point parameter 'lr_scale', it will
     scale the LR of any parameters inside that module or its submodules.  Note: you
     can set module parameters outside the __init__ function, e.g.:
@@ -1506,7 +1510,7 @@ def get_parameter_groups_with_lrs(
     names = []
     for name, m in model.named_modules():
         names.append(name)
-        for attr in ['lr_scale', 'weight_min_rms', 'bias_min_rms', 'weight_max_rms', 'bias_max_rms']:  # we can add more here as needed
+        for attr in attrs:  # we can add more here as needed
             try:
                 # getattr(m, attr) if attr == 'lr_scale' is equivalent to m.lr_scale
                 flat_config[name][attr] = getattr(m, attr)
