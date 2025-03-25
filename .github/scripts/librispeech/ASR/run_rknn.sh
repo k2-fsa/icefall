@@ -208,10 +208,10 @@ function export_2023_06_26() {
   mkdir $d
   pushd $d
 
-  curl -SL -O https://huggingface.co/Zengwei/icefall-asr-librispeech-streaming-zipformer-2023-05-17 /resolve/main/exp/pretrained.pt
+  curl -SL -O https://huggingface.co/Zengwei/icefall-asr-librispeech-streaming-zipformer-2023-05-17/resolve/main/exp/pretrained.pt
   mv pretrained.pt epoch-99.pt
 
-  cur -SL -O https://huggingface.co/Zengwei/icefall-asr-librispeech-streaming-zipformer-2023-05-17/resolve/main/data/lang_bpe_500/tokens.txt
+  curl -SL -O https://huggingface.co/Zengwei/icefall-asr-librispeech-streaming-zipformer-2023-05-17/resolve/main/data/lang_bpe_500/tokens.txt
 
   curl -SL -o 0.wav https://huggingface.co/Zengwei/icefall-asr-librispeech-streaming-zipformer-2023-05-17/resolve/main/data/lang_bpe_500/tokens.txt
   curl -SL -o 1.wav https://huggingface.co/Zengwei/icefall-asr-librispeech-streaming-zipformer-2023-05-17/resolve/main/test_wavs/1221-135766-0001.wav
@@ -242,14 +242,14 @@ function export_2023_06_26() {
     dst=sherpa-onnx-$platform-streaming-zipformer-en-2023-06-26
     mkdir -p $dst
 
-    ./pruned_transducer_stateless7_streaming/export_rknn.py \
-      --in-encoder $d/encoder-epoch-99-avg-1.onnx \
-      --in-decoder $d/decoder-epoch-99-avg-1.onnx \
-      --in-joiner $d/joiner-epoch-99-avg-1.onnx \
+    ./zipformer/export_rknn_transducer_streaming.py \
+      --in-encoder $d/encoder-epoch-99-avg-1-chunk-32-left-128.onnx \
+      --in-decoder $d/decoder-epoch-99-avg-1-chunk-32-left-128.onnx \
+      --in-joiner $d/joiner-epoch-99-avg-1-chunk-32-left-128.onnx \
       --out-encoder $dst/encoder.rknn \
       --out-decoder $dst/decoder.rknn \
       --out-joiner $dst/joiner.rknn \
-      --target-platform $platform  2>/dev/null
+      --target-platform $platform
 
     ls -lh $dst/
 
