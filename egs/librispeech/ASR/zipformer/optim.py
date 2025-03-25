@@ -201,32 +201,6 @@ def momentum_step(group, p, state, grad):
     return -lr * (delta + (stored_delta * alphas).sum(dim=0))
 
 
-def get_scaling_shapes(shape):
-    """ shape is a list representing a shape of a batch of tensors,
-    interpreted as (batch_size, a, b, ..).  We return a list of
-    shapes of tensors to add to the "expanded representation" of the
-    tensor, that will be interpreted as (offsets to) scales on
-    various dimensions.
-    """
-    num_nontrivial = sum ([ 1 if x > 1 else 0 for x in shape[1:] ])
-    ans = [ ]
-    if num_nontrivial <= 1:
-        # there are no 'scaling shapes' as the tensor has less than two
-        # nontrivial dims.
-        return ans
-    for i in range(1, len(shape)):
-        if shape[i] != 1:
-            l = list(shape)
-            l[i] = 1
-            ans.append(l)
-    return ans
-
-def prod_of_list(seq):
-    prod = 1
-    for i in seq:
-        prod = prod * i
-    return prod
-
 
 def forward_transform_param(group, p):
     """
@@ -255,13 +229,7 @@ def forward_transform_param(group, p):
     # log_scale controls the overall scale of this tensor
     log_scale = (1 / group["scaling_lr_scale"]) * scale.log()
 
-    # We also include scaling factors that will scale individual rows and columns of the
-    # weights.  These are initially all zero, we'll scale by (1 + coeff * this_scaling_factor)
-
-    scaling_dim = sum([ prod_of_list(l[1:]) for l in get_scaling_shapes(p.shape) ])
-    scaling_factors = torch.zeros(batch_size, scaling_dim, device=p.device, dtype=p.dtype)
-
-    ans = torch.cat((p_flat / scale, pad / scale, log_scale, scaling_factors), dim=1)
+    ans = torch.cat((p_flat / scale, pad / scale, log_scale), dim=1)
     return ans
 
 def reverse_transform_param(group, p, orig_shape):
@@ -269,7 +237,7 @@ def reverse_transform_param(group, p, orig_shape):
     if p.numel() == batch_size:
         return (p * group["scalar_lr_scale"]).reshape(*orig_shape)
     # numel is num elements of each parameter tensor in the batch.
-    numel = prod_of_list(orig_shape[1:])
+    numel = p.shape[1] - 2
     p_padded = p[:, :numel+1]  # orig tensor plus one padding element
     p_padded = p_padded / ((p_padded ** 2).sum(dim=1, keepdim=True) / numel).sqrt()  # normalize rms to 1.
 
@@ -284,16 +252,6 @@ def reverse_transform_param(group, p, orig_shape):
     # forward_transform_param.
     offset = numel + 2  # + 1 for the padding element and the log-scale.
 
-    S = group["scaling_lr_scale"]
-    shapes = get_scaling_shapes(orig_shape)
-    num_shapes = len(shapes)
-    for scaling_shape in shapes:
-        this_numel = prod_of_list(scaling_shape[1:])
-        assert offset + this_numel <= p.shape[1]
-        scales = p[:, offset:offset+this_numel].reshape(*scaling_shape)
-        offset = offset + this_numel
-        scales = 1.0 + (S / num_shapes) * scales
-        q = q * scales
     return q
 
 
