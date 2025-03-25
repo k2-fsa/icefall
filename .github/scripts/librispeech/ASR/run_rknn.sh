@@ -208,8 +208,10 @@ function export_2023_06_26() {
   mkdir $d
   pushd $d
 
-  curl -SL -O https://huggingface.co/Zengwei/icefall-asr-librispeech-streaming-zipformer-2023-05-17/resolve/main/exp/pretrained.pt
+  curl -SL -O https://huggingface.co/Zengwei/icefall-asr-librispeech-streaming-zipformer-2023-05-17 /resolve/main/exp/pretrained.pt
   mv pretrained.pt epoch-99.pt
+
+  cur -SL -O https://huggingface.co/Zengwei/icefall-asr-librispeech-streaming-zipformer-2023-05-17/resolve/main/data/lang_bpe_500/tokens.txt
 
   curl -SL -o 0.wav https://huggingface.co/Zengwei/icefall-asr-librispeech-streaming-zipformer-2023-05-17/resolve/main/data/lang_bpe_500/tokens.txt
   curl -SL -o 1.wav https://huggingface.co/Zengwei/icefall-asr-librispeech-streaming-zipformer-2023-05-17/resolve/main/test_wavs/1221-135766-0001.wav
