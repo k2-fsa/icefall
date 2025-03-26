@@ -157,7 +157,7 @@ def momentum_step(group, p, state, grad):
     lr = group["lr"]
     step = state["step"]
 
-    debug = True
+    debug = False
 
     try:
         stored_delta = state["delta"]
