@@ -244,6 +244,8 @@ def momentum_step(group, p, state, grad):
         decayed_params += (1-betas) * p
         if random.random() < 0.001:
             dims = tuple(range(1, decayed_params.ndim))
+            p = p[:, :-2]  # get rid of the padding element and the log-scale parameter (which may be too large)
+            decayed_params = decayed_params[:, :, :-2]
             cosine = ((p * decayed_params).sum(dim=dims) /
                       ((p*p).sum() * (decayed_params*decayed_params).sum(dim=dims)).sqrt())
             param_change = 1 - cosine
