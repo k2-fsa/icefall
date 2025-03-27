@@ -483,13 +483,12 @@ class TransformedAdam(BatchedOptimizer):
         weight_max_rms=1.0,
         bias_min_rms=1.0e-05,
         bias_max_rms=5.0,
-        decay_scale=0.5,
-        scalar_max=10.0,
         size_update_period=4,
         clipping_update_period=100,
         debug_interval=0,
     ):
 
+        assert len(betas) == len(scales)
         defaults = dict(
             lr=lr,
             clipping_scale=clipping_scale,
@@ -503,8 +502,6 @@ class TransformedAdam(BatchedOptimizer):
             bias_max_rms=bias_max_rms,
             bias_min_rms=bias_min_rms,
             weight_max_rms=weight_max_rms,
-            decay_scale=decay_scale,
-            scalar_max=scalar_max,
             size_update_period=size_update_period,
             clipping_update_period=clipping_update_period,
             debug_interval=debug_interval,
@@ -682,10 +679,6 @@ class TransformedAdam(BatchedOptimizer):
 
                     grad = (p.grad if clipping_scale == 1.0 else p.grad.mul_(clipping_scale))
                     p[:] = debug_step(group, p.detach(), state, grad)
-
-                    if p.numel() == p.shape[0]:  # scalar parameter
-                        scalar_max = group["scalar_max"]
-                        p.clamp_(min=-scalar_max, max=scalar_max)
 
                     state["step"] = cur_step + 1
 
