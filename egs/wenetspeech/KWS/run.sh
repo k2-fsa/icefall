@@ -108,7 +108,7 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
 fi
 
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
-  log "Stage 2: Finetune the model"
+  log "Stage 3: Finetune the model"
 
   # The following configuration of lr schedule should work well
   # You may also tune the following parameters to adjust learning rate schedule
@@ -143,7 +143,7 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
 fi
 
 if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
-  log "Stage 1: Decode the finetuned model."
+  log "Stage 4: Decode the finetuned model."
   export CUDA_VISIBLE_DEVICES="0"
   for t in small large; do
     python ./zipformer/decode.py \
@@ -170,7 +170,7 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
 fi
 
 if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
-  log "Stage 2: Export the finetuned model."
+  log "Stage 5: Export the finetuned model."
 
   python ./zipformer/export.py \
       --epoch 10 \
