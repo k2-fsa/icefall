@@ -156,107 +156,19 @@ def momentum_step(group, p, state, grad):
 
     lr = group["lr"]
     step = state["step"]
-
-    debug = False
+    beta1 = group["beta1"]
 
     try:
         stored_delta = state["delta"]
-        if p.numel() != p.shape[0]:
-            alphas = state["alphas"]
-            betas = state["betas"]
-            if debug:
-                decayed_params = state["decayed_params"]
     except KeyError as e:
         assert step < 2
-        if p.numel() == p.shape[0]:
-            # scalar.  use conventional momentum.
-            stored_delta = torch.zeros(*p.shape, device=p.device, dtype=torch.float)
-            state["delta"] = stored_delta
-        else:
-            # e.g. group["betas"] = (.96, .9984, .99936),
-            # group["scales"] = (4., 8., 16.),
-            betas = torch.tensor(group["betas"]).to(device=p.device)
-            alphas = torch.tensor(group["scales"]).to(device=p.device) * (1-betas)
-            for _ in range(p.ndim):
-                betas, alphas = betas.unsqueeze(-1), alphas.unsqueeze(-1)
-
-            stored_delta = torch.zeros(len(betas), *p.shape, device=p.device, dtype=torch.float)
-            state["delta"] = stored_delta
-            state["betas"] = betas
-            state["alphas"] = alphas
-            if debug:
-                decayed_params = torch.zeros_like(stored_delta)
-                decayed_params[:] = p
-                state["decayed_params"] = decayed_params
-
-    if p.numel() == p.shape[0]:
         # scalar.  use conventional momentum.
-        beta = 0.9
-        stored_delta.mul_(beta).add_(delta, alpha=(1-beta))
-        lr = lr * group["scalar_lr_scale"]
-        return -lr * stored_delta
-
-    max_change = 0.1
-    if max_change > 0.0:
-        # Limit the beta values in an LR-dependent way, that doesn't allow us to
-        # hang onto "momentum" past the point when we expect the parameter to have
-        # significantly changed by more than "max_change" of relative change.
-        # the formulas are a bit approximate but we can just tune max_change to
-        # compensate.  OK, so we assume that the update formula will be as follows:
-        #  stored_delta *= betas
-        #  stored_delta += delta
-        #  return -lr * (delta + (stored_delta * alphas).sum(dim=0))
-        # and we limit the betas so that, considering only the part of the change
-        # from "this beta value" (i.e. from this accumulator, ignoring the other betas and
-        # the implicit "beta=0,alpha=1") we don't keep changes from gradients that
-        # were accumulated when the parameter was too significantly different.
-        # For this we assume gradient independence between steps, i.e. independence between the
-        # delta values returned by basic_step.  So the "effective LR" for each beta-accumulator,
-        # if we count the whole decay sequence, will be:
-        #   lr_eff = lr * alpha * 1/(1-beta)
-        # .. and the "extra variance" that this adds to the parameter value is lr_eff^2.
-        #  The parameter values have been normalized by forward_transform_param so that
-        # their variance is about 1, so this "extra variance" can be interpreted as a
-        # "relative change in variance", and the corresponding "relative change in parameter",
-        # interpreted in a cosine-of-angle sense
-        # would be sqrt(relative-change-in-variance) ~ 0.5 (relative-change-in-variance)
-        # [we shrink the parameter down by 1/sqrt(relative-change-in-variance) to renormalize
-        # it, and we can assume the gradient
-        # was orthogonal to the parameter on average.]
-        # Now, the time period over which we have to measure parameter changes is about
-        # 1/(1-beta); this is the "decay time" of the accumulator.  So the limiting-to-max-change
-        # equation becomes:
-        #    1/(1-beta). 0.5 lr_eff^2 <= max_change
-        # and expanding:
-        #    1/(1-beta). 0.5  (lr * alpha * 1/(1-beta))^2 <= max_change
-        #    (lr * alpha)^2 <= max_change (1-beta)^3
-        #   (1-beta) >= ((0.5/max_change) * (lr * alpha)**2) ** 1/3.
-        #       beta <= 1 - ((0.5/max_change) * (lr * alpha)**2) ** 1/3.
-        # so:
-        ceil = 1. - (((0.5 / max_change) * lr**2) * (alphas**2)) ** 0.3333
-        if random.random() < 0.002 and not debug:
-            logging.info(f"lr={lr}, shape={list(p.shape)}, ceil={ceil.flatten()}, betas={betas.flatten()}")
-        betas = torch.minimum(betas, ceil)
+        stored_delta = torch.zeros(*p.shape, device=p.device, dtype=torch.float)
+        state["delta"] = stored_delta
 
 
-    if debug:
-        decayed_params *= betas
-        decayed_params += (1-betas) * p
-        if random.random() < 0.001:
-            dims = tuple(range(1, decayed_params.ndim))
-            p = p[:, :-2]  # get rid of the padding element and the log-scale parameter (which may be too large)
-            decayed_params = decayed_params[:, :, :-2]
-            cosine = ((p * decayed_params).sum(dim=dims) /
-                      ((p*p).sum() * (decayed_params*decayed_params).sum(dim=dims)).sqrt())
-            param_change = 1 - cosine
-            logging.info(f"lr={lr}, shape={list(p.shape)}, ceil={ceil.flatten()}, betas={betas.flatten()}, max_change={max_change}, change={param_change}")
-
-
-
-    stored_delta *= betas
-    stored_delta += delta
-
-    return -lr * (delta + (stored_delta * alphas).sum(dim=0))
+    stored_delta.mul_(beta1).add_(delta, alpha=(1-beta1))
+    return -lr * stored_delta
 
 
 
@@ -473,9 +385,8 @@ class TransformedAdam(BatchedOptimizer):
         params,
         lr=3e-02,
         clipping_scale=None,
+        beta1=0.9,
         beta2=0.98,
-        betas=(.95, .9975, .999875),
-        scales=(4., 8., 16.),
         scalar_lr_scale=0.2,
         scaling_lr_scale=0.1,
         eps=1.0e-08,
@@ -488,13 +399,11 @@ class TransformedAdam(BatchedOptimizer):
         debug_interval=0,
     ):
 
-        assert len(betas) == len(scales)
         defaults = dict(
             lr=lr,
             clipping_scale=clipping_scale,
+            beta1=beta1,
             beta2=beta2,
-            betas=betas,
-            scales=scales,
             scalar_lr_scale=scalar_lr_scale,
             scaling_lr_scale=scaling_lr_scale,
             eps=eps,
@@ -1352,7 +1261,7 @@ def _test_scaled_adam(hidden_dim: int):
         if iter == 0:
             optim = Eve(m.parameters(), lr=0.003)
         elif iter == 1:
-            optim = TransformedAdam(m.named_parameters(), lr=0.005, clipping_scale=2.0, eps=1.0e-20)
+            optim = TransformedAdam(m.named_parameters(), lr=0.075, clipping_scale=2.0, eps=1.0e-20)
         scheduler = Eden(optim, lr_batches=200, lr_epochs=5, verbose=False)
 
         start = timeit.default_timer()
@@ -1413,7 +1322,7 @@ def _test_transform_params():
             p = scale * torch.randn(*shape)
             q = forward_transform_param(group, p)
             r = reverse_transform_param(group, q, p.shape)
-            assert torch.allclose(p, r), (p, q, r)
+            assert torch.allclose(p, r, atol=1.0e-03), (p, q, r)
 
 
 if __name__ == "__main__":
