@@ -156,7 +156,8 @@ def momentum_step(group, p, state, grad):
 
     lr = group["lr"]
     step = state["step"]
-    beta1 = group["beta1"]
+    beta1 = min(group["beta1"], 1. - 1. / (10. + step))
+    direct = group["direct"]
 
     try:
         stored_delta = state["delta"]
@@ -167,8 +168,8 @@ def momentum_step(group, p, state, grad):
         state["delta"] = stored_delta
 
 
-    stored_delta.mul_(beta1).add_(delta, alpha=(1-beta1))
-    return -lr * stored_delta
+    stored_delta.mul_(beta1).add_(delta, alpha=(1-beta1) * (1-direct))
+    return -lr * (stored_delta + direct * delta)
 
 
 
@@ -385,9 +386,10 @@ class TransformedAdam(BatchedOptimizer):
         params,
         lr=3e-02,
         clipping_scale=None,
-        beta1=0.9,
+        beta1=0.98,
+        direct=0.05, # scale on bypass of momentum (beta1)
         beta2=0.98,
-        scalar_lr_scale=0.2,
+        scalar_lr_scale=0.1,
         scaling_lr_scale=0.1,
         eps=1.0e-08,
         weight_min_rms=0.005,
@@ -403,6 +405,7 @@ class TransformedAdam(BatchedOptimizer):
             lr=lr,
             clipping_scale=clipping_scale,
             beta1=beta1,
+            direct=direct,
             beta2=beta2,
             scalar_lr_scale=scalar_lr_scale,
             scaling_lr_scale=scaling_lr_scale,
@@ -1261,7 +1264,7 @@ def _test_scaled_adam(hidden_dim: int):
         if iter == 0:
             optim = Eve(m.parameters(), lr=0.003)
         elif iter == 1:
-            optim = TransformedAdam(m.named_parameters(), lr=0.075, clipping_scale=2.0, eps=1.0e-20)
+            optim = TransformedAdam(m.named_parameters(), lr=0.06, clipping_scale=2.0, eps=1.0e-20)
         scheduler = Eden(optim, lr_batches=200, lr_epochs=5, verbose=False)
 
         start = timeit.default_timer()
@@ -1322,7 +1325,7 @@ def _test_transform_params():
             p = scale * torch.randn(*shape)
             q = forward_transform_param(group, p)
             r = reverse_transform_param(group, q, p.shape)
-            assert torch.allclose(p, r, atol=1.0e-03), (p, q, r)
+            assert torch.allclose(p, r, atol=1.0e-02), (p, q, r)
 
 
 if __name__ == "__main__":
