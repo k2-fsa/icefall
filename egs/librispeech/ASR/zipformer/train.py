@@ -75,7 +75,7 @@ from lhotse.dataset import SpecAugment
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import AsrModel
-from optim import Eden, TransformedAdam
+from optim import EdenBounce, TransformedAdam
 from scaling import ScheduledFloat
 from subsampling import Conv2dSubsampling
 from torch import Tensor
@@ -400,17 +400,9 @@ def get_parser():
     parser.add_argument(
         "--lr-batches",
         type=float,
-        default=7500,
+        default=10000,
         help="""Number of steps that affects how rapidly the learning rate
         decreases. We suggest not to change this.""",
-    )
-
-    parser.add_argument(
-        "--lr-epochs",
-        type=float,
-        default=3.5,
-        help="""Number of epochs that affects how rapidly the learning rate decreases.
-        """,
     )
 
     parser.add_argument(
@@ -1372,7 +1364,7 @@ def run(rank, world_size, args):
         debug_interval=params.debug_interval,
     )
 
-    scheduler = Eden(optimizer, params.lr_batches, params.lr_epochs)
+    scheduler = EdenBounce(optimizer, params.lr_batches)
 
     if checkpoints and "optimizer" in checkpoints:
         logging.info("Loading optimizer state dict")
@@ -1481,7 +1473,6 @@ def run(rank, world_size, args):
         scaler.load_state_dict(checkpoints["grad_scaler"])
 
     for epoch in range(params.start_epoch, params.num_epochs + 1):
-        scheduler.step_epoch(epoch - 1)
         fix_random_seed(params.seed + epoch - 1)
         train_dl.sampler.set_epoch(epoch - 1)
 

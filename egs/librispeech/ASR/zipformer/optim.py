@@ -1049,11 +1049,103 @@ class Eden2(LRScheduler):
         return [x * factor * warmup_factor for x in self.base_lrs]
 
 
+
+class EdenBounce(LRScheduler):
+    """
+    Somewhat the Eden scheduler, but simpler than Eden because it does not use the notion of epoch,
+    only batches.
+
+    The "bounce" refers to a cosine-schedule-like feature, which we implement as a kind of
+    extension of the notion of the "warmup period".  This means that if we are within
+    "bounce_period" batches of one of the "bounce times", we slow down the learning rate
+    by multiplying in a sawtooth "bounce factor" which is 1.0 if we are far from any
+    bounce period and goes down to a value of "bounce_bottom", e.g. 0.25, if we are at exactly
+    at the "bounce tim".
+
+    The basic formula (before bounce-factor) is:
+      lr = base_lr * ((batch**2 + lr_batches**2) / lr_batches**2) ** -0.5) * warmup
+
+     E.g. suggest base_lr = 0.04 (passed to optimizer) if used with TransformedAdam
+
+    Args:
+        optimizer: the optimizer to change the learning rates on
+        lr_batches: the number of batches after which we start significantly
+              decreasing the learning rate, suggest 5000.
+      bounce_radius: the distance from the center to the edge of each sawtooth
+             cutout.
+     bounce_period: the distance from one sawtooth to the next.
+     bounce_bottom: a factor betwedn 0 and 1, which defines the bottom of each
+             sawtooth in the bounce-factor.
+    """
+
+    def __init__(
+        self,
+        optimizer: Optimizer,
+        lr_batches: Union[int, float],
+        bounce_radius: Union[int, float] = 500.0,
+        bounce_period: float = 4000.0,
+        bounce_bottom: float = 0.333,
+        verbose: bool = False,
+    ):
+        super().__init__(optimizer, verbose)
+        self.lr_batches = lr_batches
+        self.bounce_radius = bounce_radius
+        self.bounce_period = bounce_period
+        self.bounce_bottom = bounce_bottom
+        self.verbose = verbose
+
+    def get_lr(self):
+        factor = (
+            (self.batch**2 + self.lr_batches**2) / self.lr_batches**2
+        ) ** -0.5
+
+        closest_bounce_center = self.bounce_period * int(0.5 +self.batch / self.bounce_period)
+        bounce_distance = abs(self.batch - closest_bounce_center)
+
+        bounce_factor = (
+             1.0 if bounce_distance > self.bounce_radius
+            else self.bounce_bottom
+            + (1.0 - self.bounce_bottom) * (bounce_distance / self.bounce_radius)
+        )
+
+        return [x * factor * bounce_factor for x in self.base_lrs]
+
+
+
+
+
 def _test_eden():
     m = torch.nn.Linear(100, 100)
     optim = TransformedAdam(m.parameters(), lr=0.03)
 
     scheduler = Eden(optim, lr_batches=100, lr_epochs=2, verbose=True)
+
+    for epoch in range(10):
+        scheduler.step_epoch(epoch)  # sets epoch to `epoch`
+
+        for step in range(20):
+            x = torch.randn(200, 100).detach()
+            x.requires_grad = True
+            y = m(x)
+            dy = torch.randn(200, 100).detach()
+            f = (y * dy).sum()
+            f.backward()
+
+            optim.step()
+            scheduler.step_batch()
+            optim.zero_grad()
+
+    logging.info(f"last lr = {scheduler.get_last_lr()}")
+    logging.info(f"state dict = {scheduler.state_dict()}")
+
+def _test_eden_bounce():
+    m = torch.nn.Linear(100, 100)
+    optim = TransformedAdam(m.parameters(), lr=0.01)
+
+    scheduler = EdenBounce(optim, lr_batches=10000,
+                           verbose=True,
+                           bounce_period=100,
+                           bounce_radius=10)
 
     for epoch in range(10):
         scheduler.step_epoch(epoch)  # sets epoch to `epoch`
@@ -1345,6 +1437,7 @@ if __name__ == "__main__":
     else:
         hidden_dim = 200
 
+    _test_eden_bounce()
     _test_transform_params()
     _test_scaled_adam(hidden_dim)
     _test_eden()
