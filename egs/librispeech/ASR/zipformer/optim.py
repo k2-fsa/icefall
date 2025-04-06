@@ -168,8 +168,9 @@ def momentum_step(group, p, state, grad):
         state["delta"] = stored_delta
 
 
-    stored_delta.mul_(beta1).add_(delta, alpha=(1-beta1) * (1-direct))
-    return -lr * (stored_delta + direct * delta)
+    sqrt_scale=(1-beta1) ** 0.5
+    stored_delta.mul_(beta1).add_(delta, alpha=sqrt_scale)
+    return ((-lr * (1-direct) * sqrt_scale) * stored_delta) + ((-lr * direct) * delta)
 
 
 
