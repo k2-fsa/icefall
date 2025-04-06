@@ -167,10 +167,8 @@ def momentum_step(group, p, state, grad):
         stored_delta = torch.zeros(*p.shape, device=p.device, dtype=torch.float)
         state["delta"] = stored_delta
 
-
-    sqrt_scale=(1-beta1) ** 0.5
-    stored_delta.mul_(beta1).add_(delta, alpha=sqrt_scale)
-    return ((-lr * (1-direct) * sqrt_scale) * stored_delta) + ((-lr * direct) * delta)
+    stored_delta.mul_(beta1).add_(delta)
+    return ((-lr * (1-direct) * (1-beta1)) * stored_delta) + ((-lr * direct) * delta)
 
 
 
