@@ -156,7 +156,7 @@ def momentum_step(group, p, state, grad):
 
     lr = group["lr"]
     step = state["step"]
-    beta1 = min(group["beta1"], 1. - 1. / (10. + step))
+    beta1 = min(group["beta1"], 1. - 1. / (10. + 0.5 * step))
     direct = group["direct"]
 
     try:
@@ -390,7 +390,7 @@ class TransformedAdam(BatchedOptimizer):
         beta1=0.98,
         direct=0.05, # scale on bypass of momentum (beta1)
         beta2=0.98,
-        scalar_lr_scale=0.05,
+        scalar_lr_scale=0.1,
         scaling_lr_scale=0.1,
         eps=1.0e-08,
         weight_min_rms=0.005,
