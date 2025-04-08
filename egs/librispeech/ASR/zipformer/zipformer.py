@@ -92,6 +92,7 @@ class Zipformer2(EncoderInterface):
     """
     def __init__(
         self,
+        input_dim: int,
         output_downsampling_factor: int = 2,
         downsampling_factor: Tuple[int] = (2, 4),
         encoder_dim: Union[int, Tuple[int]] = 384,
@@ -147,7 +148,6 @@ class Zipformer2(EncoderInterface):
 
         num_encoders = len(downsampling_factor)
         cur_downsample = 1
-        input_dim = max(encoder_dim) // output_downsampling_factor
 
         # caution: some changes we made for this break the streaming, later we'll try to fix this.
         encoders_downsampling_factors = [ ]
@@ -188,8 +188,8 @@ class Zipformer2(EncoderInterface):
             encoder = Zipformer2Encoder(
                 encoder_layer,
                 num_encoder_layers[i],
+                dim=cur_downsample*input_dim,
                 pos_dim=pos_dim,
-                dropout=dropout,
             )
             encoder.encoder_index = i  # <-- will be used in streaming_forward
             encoders.append(encoder)
@@ -705,21 +705,25 @@ class Zipformer2Encoder(nn.Module):
     Args:
         encoder_layer: an instance of the Zipformer2EncoderLayer() class (required).
         num_layers: the number of sub-encoder-layers in the encoder (required).
+         dim:  the dimension of the input and output (layer dim may be less than this).
        pos_dim: the dimension for the relative positional encoding
+dropout:
 
     Examples::
         >>> encoder_layer = Zipformer2EncoderLayer(embed_dim=512, nhead=8)
         >>> zipformer_encoder = Zipformer2Encoder(encoder_layer, num_layers=6)
         >>> src = torch.rand(10, 32, 512)
         >>> out = zipformer_encoder(src)
+
+
     """
 
     def __init__(
         self,
         encoder_layer: nn.Module,
         num_layers: int,
+        dim: int,
         pos_dim: int,
-        dropout: float,
     ) -> None:
         super().__init__()
         self.encoder_pos = CompactRelPositionalEncoding(
@@ -730,7 +734,11 @@ class Zipformer2Encoder(nn.Module):
             [copy.deepcopy(encoder_layer) for i in range(num_layers)]
         )
         self.num_layers = num_layers
-        self.copy_bypass = nn.Identity()  # in case we are dumping diagnostics.
+
+        bypass_dim = dim - encoder_layer.embed_dim
+        assert bypass_dim >= 0
+        if bypass_dim > 0:
+            self.norm_bypass = ExpNorm(bypass_dim)
 
         self.whiten = Whiten(
             num_groups=1,
@@ -784,7 +792,9 @@ class Zipformer2Encoder(nn.Module):
         src = self.whiten(src)
 
         if num_channels > layer_dim:
-            bypass = self.copy_bypass(bypass)
+            # we pass the bypass through the norm layer mainly to prevent the model from having an incentive
+            # to pass the more informative feature dimensions through the bypass.
+            bypass = self.norm_bypass(bypass)
             src = torch.cat((src, bypass), dim=-1)
 
         return src
@@ -1980,14 +1990,16 @@ def _test_zipformer_main(causal: bool = False):
     seq_len = 20
     # Just make sure the forward pass runs.
 
+    input_dim = 50
+
     c = Zipformer2(
+        input_dim=input_dim,
         encoder_dim=(64, 96),
         num_heads=(4, 4),
         causal=causal,
         chunk_size=(4,) if causal else (-1,),
         left_context_frames=(64,),
     )
-    input_dim = 96 // 2  # this makes little sense, it relates to how the code used to work.
 
     batch_size = 5
     seq_len = 21
