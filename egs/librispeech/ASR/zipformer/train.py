@@ -143,6 +143,13 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     )
 
     parser.add_argument(
+        "--embed-dim",
+        type=int,
+        default=192,
+        help="Output dimension of frontend, also determines bypass dimensions in zipformer layers.",
+    )
+
+    parser.add_argument(
         "--feedforward-dim",
         type=str,
         default="512,768,1024,1536,1024,768",
@@ -643,23 +650,18 @@ def get_encoder_embed(params: AttributeDict) -> nn.Module:
     # In the normal configuration, we will downsample once more at the end
     # by a factor of 2, and most of the encoder stacks will run at a lower
     # sampling rate.
-    output_downsampling_factor = 2
-    encoder_embed_dim = max(_to_int_tuple(params.encoder_dim)) // output_downsampling_factor
     encoder_embed = Conv2dSubsampling(
         in_channels=params.feature_dim,
-        out_channels=encoder_embed_dim,
+        out_channels=params.embed_dim,
         dropout=ScheduledFloat((0.0, 0.3), (20000.0, 0.1)),
     )
     return encoder_embed
 
 
 def get_encoder_model(params: AttributeDict) -> nn.Module:
-    output_downsampling_factor = 2
-    # the formula below is just for historical reasons, could be anything >= min(params.encoder_dim).
-    encoder_embed_dim = max(_to_int_tuple(params.encoder_dim)) // output_downsampling_factor
     encoder = Zipformer2(
-        input_dim=encoder_embed_dim,
-        output_downsampling_factor=output_downsampling_factor,
+        input_dim=params.embed_dim,
+        output_downsampling_factor=2,
         downsampling_factor=_to_int_tuple(params.downsampling_factor),
         num_encoder_layers=_to_int_tuple(params.num_encoder_layers),
         encoder_dim=_to_int_tuple(params.encoder_dim),
