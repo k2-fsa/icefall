@@ -692,8 +692,9 @@ def get_decoder_model(params: AttributeDict) -> nn.Module:
 
 
 def get_joiner_model(params: AttributeDict) -> nn.Module:
+    output_downsampling_factor = 2
     joiner = Joiner(
-        encoder_dim=max(_to_int_tuple(params.encoder_dim)),
+        encoder_dim=params.embed_dim * output_downsampling_factor,
         decoder_dim=params.decoder_dim,
         joiner_dim=params.joiner_dim,
         vocab_size=params.vocab_size,
@@ -709,7 +710,7 @@ def get_attention_decoder_model(params: AttributeDict) -> nn.Module:
         attention_dim=params.attention_decoder_attention_dim,
         num_heads=params.attention_decoder_num_heads,
         feedforward_dim=params.attention_decoder_feedforward_dim,
-        memory_dim=max(_to_int_tuple(params.encoder_dim)),
+        memory_dim=params.embed_dim * output_downsampling_factor,
         sos_id=params.sos_id,
         eos_id=params.eos_id,
         ignore_id=params.ignore_id,
@@ -740,13 +741,14 @@ def get_model(params: AttributeDict) -> nn.Module:
     else:
         attention_decoder = None
 
+    output_downsampling_factor = 2
     model = AsrModel(
         encoder_embed=encoder_embed,
         encoder=encoder,
         decoder=decoder,
         joiner=joiner,
         attention_decoder=attention_decoder,
-        encoder_dim=max(_to_int_tuple(params.encoder_dim)),
+        encoder_dim=output_downsampling_factor * params.embed_dim,
         decoder_dim=params.decoder_dim,
         vocab_size=params.vocab_size,
         use_transducer=params.use_transducer,
