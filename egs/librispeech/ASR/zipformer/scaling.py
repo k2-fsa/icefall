@@ -593,7 +593,7 @@ class PredictFunction(torch.autograd.Function):
         top1_indexes = torch.roll(top1_indexes, batch_size // 2, ctx.batch_dim)
 
         # take loss_scale from other copy of this utterance/item.
-        loss_scale = ctx.loss_scale * x_grad.norm(dim=-1, keepdim=True)
+        loss_scale = ctx.loss_scale * x_grad.norm(dim=-1, keepdim=True) * x.norm(dim=-1, keepdim=True)
         loss_scale = torch.roll(loss_scale, batch_size // 2, ctx.batch_dim)
 
         x = x.detach()
