@@ -40,6 +40,7 @@ from scaling import (
     convert_num_channels,
     limit_param_value,
     penalize_abs_values_gt,
+    PredictLoss,
     softmax,
 )
 from torch import Tensor, nn
@@ -522,6 +523,8 @@ class Zipformer2EncoderLayer(nn.Module):
 
         self.norm = ExpNorm(embed_dim)
 
+        self.predict_loss = PredictLoss(embed_dim, 256, loss_scale=0.01, batch_dim=1)
+
 
     def forward(
         self,
@@ -572,7 +575,11 @@ class Zipformer2EncoderLayer(nn.Module):
 
         src = self.bypass(src_orig, src)
 
-        return self.norm(src)
+        src = self.norm(src)
+
+        src = self.predict_loss(src)
+
+        return src
 
     def streaming_forward(
         self,
@@ -1997,7 +2004,7 @@ def _test_zipformer_main(causal: bool = False):
         left_context_frames=(64,),
     )
 
-    batch_size = 5
+    batch_size = 6  # make it even, as PredictLoss requires even batch size.
     seq_len = 21
     # Just make sure the forward pass runs.
     f = c(

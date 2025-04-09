@@ -565,6 +565,82 @@ def ScaledConv2d(*args, initial_scale: float = 1.0, **kwargs) -> nn.Conv2d:
     return ans
 
 
+class PredictFunction(torch.autograd.Function):
+    # cross-prediction thing to be used in conjunction with CR-CTC or anything else
+    # where the batch is repeated twice but with different spec-augment.
+    # assume channel dim is dim -1, batch_dim is specified by user.
+    @staticmethod
+    @custom_fwd
+    def forward(ctx, x, pred_weight, proj_weight, loss_scale, batch_dim, name):
+        ctx.save_for_backward(x, pred_weight, proj_weight)
+        ctx.loss_scale = loss_scale  # loss_scale is relative to existing grad.
+        ctx.name = name
+        ctx.batch_dim = batch_dim
+        return x
+
+    @staticmethod
+    @custom_bwd
+    def backward(ctx, x_grad):
+        x, pred_weight, proj_weight = ctx.saved_tensors
+
+        batch_size = x.shape[ctx.batch_dim]
+        assert batch_size % 2 == 0, "PredictLoss must be used with CR-CTC or similar thing that repeats batch with different augmentation."
+
+
+        # is_top1 true if this is the highest dot-product with x_proj.
+        x_proj = torch.matmul(x, proj_weight.t())
+        top1_indexes = torch.max(x_proj, dim=-1, keepdim=True)[1]
+        top1_indexes = torch.roll(top1_indexes, batch_size // 2, ctx.batch_dim)
+
+        # take loss_scale from other copy of this utterance/item.
+        loss_scale = ctx.loss_scale * x_grad.norm(dim=-1, keepdim=True)
+        loss_scale = torch.roll(loss_scale, batch_size // 2, ctx.batch_dim)
+
+        x = x.detach()
+        pred_weight = pred_weight.detach()
+        x.requires_grad = True
+        pred_weight.requires_grad = True
+
+        with torch.enable_grad():
+            x_pred = torch.matmul(x, pred_weight.t())
+            logprobs = x_pred.log_softmax(dim=-1)
+            loss = -torch.gather(logprobs, dim=-1, index=top1_indexes)
+            loss_scaled = loss * loss_scale
+            loss_scaled.backward(gradient=torch.ones_like(loss_scaled))
+        if random.random() < 0.002:
+            logging.info(f"name={ctx.name}, mean loss before scale = {loss.mean()}")
+
+        return x_grad + x.grad, pred_weight.grad, None, None, None, None
+
+class PredictLoss(nn.Module):
+    """
+    Adds an auxiliary loss based on predicting the top-1 of inner-products with
+    a random set of vectors, of the "other copy" of each utterance (it assumes
+    you are doing something like CR-CTC so
+    """
+    def __init__(self,
+                 num_channels: int,
+                 num_centers: int,
+                 loss_scale: FloatLike = 0.01,
+                 batch_dim: int = 0):
+        super().__init__()
+        self.register_buffer('proj_weight',
+                             torch.randn(num_centers, num_channels),
+                             persistent=True)
+        self.pred_weight = nn.Parameter(torch.zeros(num_centers, num_channels))
+        self.loss_scale = loss_scale
+        self.batch_dim = batch_dim
+        self.name = None # will be set from training code
+
+
+    def forward(self,
+                x: Tensor) -> Tensor:
+        return PredictFunction.apply(x, self.pred_weight, self.proj_weight,
+                                     self.loss_scale, self.batch_dim,
+                                     self.name)
+
+
+
 class OrthogonalLinearFunction(torch.autograd.Function):
     @staticmethod
     @custom_fwd
@@ -1755,7 +1831,6 @@ class ActivationDropoutAndLinear(torch.nn.Module):
              efficient if there are modules before this one that cache the input
              for their backprop (e.g. Balancer or Whiten).
     """
-
     def __init__(
         self,
         in_channels: int,
