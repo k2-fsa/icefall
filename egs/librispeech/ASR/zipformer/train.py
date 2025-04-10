@@ -75,7 +75,7 @@ from lhotse.dataset import SpecAugment
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import AsrModel
-from optim import EdenBounce, TransformedAdam
+from optim import Eden2, TransformedAdam
 from scaling import ScheduledFloat
 from subsampling import Conv2dSubsampling
 from torch import Tensor
@@ -114,6 +114,17 @@ def get_adjusted_batch_count(params: AttributeDict) -> float:
         * (params.max_duration * params.world_size)
         / params.ref_duration
     )
+
+
+def get_adjusted_lr_batches(params: AttributeDict) -> float:
+    # returns an adjusted form of the "lr_batches" parameter used to set the learning
+    # rate in the Eden2 scheduler.  If we have larger batch-sizes and/or world size,
+    # we want to decrease the learning rate faster because the grads will be less
+    # noisy, so we want a smallar lr_batches.
+    duration_ratio = (params.max_duration * params.world_size) / params.ref_duration
+    lr_batches = params.lr_batches * (duration_ratio ** -0.5)
+    logging.info(f"Adjusting lr-batches {params.lr_batches} for duration_ratio={duration_ratio} to {lr_batches}")
+    return lr_batches
 
 
 def set_batch_count(model: Union[nn.Module, DDP], batch_count: float) -> None:
@@ -407,7 +418,7 @@ def get_parser():
     parser.add_argument(
         "--lr-batches",
         type=float,
-        default=10000,
+        default=17500,
         help="""Number of steps that affects how rapidly the learning rate
         decreases. We suggest not to change this.""",
     )
@@ -1373,7 +1384,7 @@ def run(rank, world_size, args):
         debug_interval=params.debug_interval,
     )
 
-    scheduler = EdenBounce(optimizer, params.lr_batches)
+    scheduler = Eden2(optimizer, get_adjusted_lr_batches(params.lr_batches))
 
     if checkpoints and "optimizer" in checkpoints:
         logging.info("Loading optimizer state dict")
