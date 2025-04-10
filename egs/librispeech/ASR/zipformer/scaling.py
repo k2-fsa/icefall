@@ -596,6 +596,7 @@ class PredictFunction(torch.autograd.Function):
         with torch.cuda.amp.autocast(enabled=False):
             loss_scale = ctx.loss_scale * x_grad.to(torch.float).norm(dim=-1, keepdim=True) * x.to(torch.float).norm(dim=-1, keepdim=True)
             loss_scale = torch.roll(loss_scale, batch_size // 2, ctx.batch_dim)
+            loss_scale = loss_scale.clamp(max=0.1)  # TEMP
 
         x = x.detach()
         pred_weight = pred_weight.detach()
@@ -611,7 +612,9 @@ class PredictFunction(torch.autograd.Function):
         if random.random() < 0.002:
             logging.info(f"name={ctx.name}, mean loss before scale = {loss.mean()}")
 
-        return x_grad + x.grad, pred_weight.grad, None, None, None, None
+
+        extra_grad = torch.nan_to_num(x.grad, nan=0.0).clamp(min=-0.1, max=0.1)
+        return x_grad + extra_grad, pred_weight.grad, None, None, None, None
 
 class PredictLoss(nn.Module):
     """
@@ -622,14 +625,15 @@ class PredictLoss(nn.Module):
     def __init__(self,
                  num_channels: int,
                  num_centers: int,
-                 loss_scale: FloatLike = 0.01,
+                 loss_scale: FloatLike = ScheduledFloat((0.0, 1.0e-06), (1000.0, 1.0e-05), (2000.0, 0.01)),
                  batch_dim: int = 0):
         super().__init__()
+        scale = num_channels ** -0.5
         self.register_buffer('proj_weight',
-                             torch.randn(num_centers, num_channels),
+                             scale * torch.randn(num_centers, num_channels),
                              persistent=True)
-        self.pred_weight = nn.Parameter(torch.zeros(num_centers, num_channels))
-        self.loss_scale = loss_scale
+        self.pred_weight = nn.Parameter(scale * torch.randn(num_centers, num_channels))
+        self.loss_scale = copy.deepcopy(loss_scale)
         self.batch_dim = batch_dim
         self.name = None # will be set from training code
 
@@ -637,7 +641,7 @@ class PredictLoss(nn.Module):
     def forward(self,
                 x: Tensor) -> Tensor:
         return PredictFunction.apply(x, self.pred_weight, self.proj_weight,
-                                     self.loss_scale, self.batch_dim,
+                                     float(self.loss_scale), self.batch_dim,
                                      self.name)
 
 
