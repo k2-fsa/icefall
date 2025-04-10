@@ -494,8 +494,8 @@ class Zipformer2EncoderLayer(nn.Module):
         self.name = None  # will be set from training loop
 
         self.randomize_scale = copy.deepcopy(randomize_scale)
-        # self.bypass implements layer skipping as well as bypass; see its default values.
-        self.bypass = BypassModule(
+        # self.bypass implements layer skipping as well as learnable scale on a residual term; see its default values.
+        self.residual = ResidualModule(
             embed_dim,
         )
 
@@ -572,7 +572,7 @@ class Zipformer2EncoderLayer(nn.Module):
 
         src = src + self.feed_forward3(src)
 
-        src = self.bypass(src_orig, src)
+        src = self.residual(src_orig, src)
 
         src = self.scale_limiter(src)
 
@@ -662,8 +662,6 @@ class Zipformer2EncoderLayer(nn.Module):
 
         src = src + self.feed_forward2(src)
 
-        # bypass in the middle of the layer.
-        src = self.bypass_mid(src_orig, src)
 
         self_attn, cached_val2 = self.self_attn2.streaming_forward(
             src,
@@ -684,7 +682,7 @@ class Zipformer2EncoderLayer(nn.Module):
 
         src = self.norm(src)
 
-        src = self.bypass(src_orig, src)
+        src = self.residual(src_orig, src)
 
         src = self.norm(src)
 
@@ -735,10 +733,11 @@ dropout:
         )
         self.num_layers = num_layers
 
-        bypass_dim = dim - encoder_layer.embed_dim
-        assert bypass_dim >= 0
-        if bypass_dim > 0:
-            self.norm_bypass = ExpNorm(bypass_dim)
+
+        self.residual = ResidualModule(encoder_layer.embed_dim)
+
+        #bypass_dim = dim - encoder_layer.embed_dim
+        self.copy_bypass = Identity()
 
         self.whiten = Whiten(
             num_groups=1,
@@ -778,6 +777,7 @@ dropout:
             src, bypass = src[..., :layer_dim], src[..., layer_dim:]
 
 
+        src_orig = src
         for i, mod in enumerate(self.layers):
             src = mod(
                 src,
@@ -789,12 +789,11 @@ dropout:
             # randomize_factor can be viewed as a simple version of an
             # importance-sampling factor.
 
+        src = self.residual(src_orig, src)
         src = self.whiten(src)
 
         if num_channels > layer_dim:
-            # we pass the bypass through the norm layer mainly to prevent the model from having an incentive
-            # to pass the more informative feature dimensions through the bypass.
-            bypass = self.norm_bypass(bypass)
+            bypass = self.copy_bypass(bypass)
             src = torch.cat((src, bypass), dim=-1)
 
         return src
@@ -872,9 +871,9 @@ dropout:
         return src, new_states
 
 
-class BypassModule(nn.Module):
+class ResidualModule(nn.Module):
     """
-    An nn.Module that implements a learnable bypass scale, and also randomized per-sequence
+    An nn.Module that implements a learnable residual scale, and also randomized per-sequence
     layer-skipping.  The bypass is limited during early stages of training to be close to
     "straight-through", i.e. to not do the bypass operation much initially, in order to
     force all the modules to learn something.
@@ -889,22 +888,22 @@ class BypassModule(nn.Module):
         scale_max: FloatLike = 1.0,
     ):
         super().__init__()
-        self.bypass_scale = nn.Parameter(torch.full((embed_dim,), 0.5))
+        self.direct_scale = nn.Parameter(torch.full((embed_dim,), 0.5))
         self.skip_rate = copy.deepcopy(skip_rate)
         self.straight_through_rate = copy.deepcopy(straight_through_rate)
         self.scale_min = copy.deepcopy(scale_min)
         self.scale_max = copy.deepcopy(scale_max)
 
-    def _get_bypass_scale(self, batch_size: int):
-        # returns bypass-scale of shape (num_channels,),
-        # or (batch_size, num_channels,).  This is actually the
-        # scale on the non-residual term, so 0 corresponds to bypassing
-        # this module.
+    def _get_direct_scale(self, batch_size: int):
+        # returns scale of shape (num_channels,),
+        # or (batch_size, num_channels,).  This is the
+        # scale on the non-residual term, and 1-direct_scale is the
+        # scale on the residual.
         if torch.jit.is_scripting() or torch.jit.is_tracing() or not self.training:
-            return self.bypass_scale
+            return self.direct_scale
         else:
             ans = limit_param_value(
-                self.bypass_scale, min=float(self.scale_min), max=float(self.scale_max)
+                self.direct_scale, min=float(self.scale_min), max=float(self.scale_max)
             )
             skip_rate = float(self.skip_rate)
             if skip_rate != 0.0:
@@ -927,8 +926,8 @@ class BypassModule(nn.Module):
         Args: src_orig and src are both of shape (seq_len, batch_size, num_channels)
         Returns: something with the same shape as src and src_orig
         """
-        bypass_scale = self._get_bypass_scale(src.shape[1])
-        return src_orig + (src - src_orig) * bypass_scale
+        direct_scale = self._get_direct_scale(src.shape[1])
+        return src_orig + (src - src_orig) * direct_scale
 
 
 
