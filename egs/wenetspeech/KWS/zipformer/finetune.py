@@ -593,6 +593,9 @@ def run(rank, world_size, args):
 
     if params.continue_finetune:
         assert params.start_epoch > 0, params.start_epoch
+        if rank == 0:
+            # model_avg is only used with rank 0
+            model_avg = copy.deepcopy(model).to(torch.float64)
         checkpoints = load_checkpoint_if_available(
             params=params, model=model, model_avg=model_avg
         )
