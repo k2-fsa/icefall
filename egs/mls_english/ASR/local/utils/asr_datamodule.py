@@ -120,7 +120,7 @@ class MLSEnglishHFAsrDataModule:
         group.add_argument(
             "--on-the-fly-feats",
             type=str2bool,
-            default=True, # Must be True for Lazy HF dataset (?)
+            default=True, # must be true without lhotse feature prep
             help="When enabled, use on-the-fly cut mixing and feature "
             "extraction. Will drop existing precomputed feature manifests "
             "if available.",
@@ -190,7 +190,7 @@ class MLSEnglishHFAsrDataModule:
         Intended usage inside a training script:
         ```
         mls_english_corpus = MLSEnglishHFAsrDataModule(args)
-        mls_english_corpus.load_hf_dataset("fr")
+        mls_english_corpus.load_hf_dataset("parler-tts/mls_eng")
         train_cuts = mls_english_corpus.train_cuts()
         train_dataloader = mls_english_corpus.train_dataloaders(
             train_cuts, sampler_state_dict=sampler_state_dict
