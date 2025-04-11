@@ -37,10 +37,10 @@ def get_args():
     parser.add_argument(
         "--lang-dir",
         type=Path,
-        default=Path("data/lang_char"),
+        default=Path("data/lang"),
         help=(
             "Name of lang dir. "
-            "If not set, this will default to lang_char_{trans-mode}"
+            "If not set, this will default to data/lang"
         ),
     )
 
