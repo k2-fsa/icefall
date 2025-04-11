@@ -9,6 +9,10 @@ nj=15
 stage=-1
 stop_stage=100
 
+# vocab_sizes=(500 1000 2000)
+vocab_sizes=(2000)
+
+
 # We assume dl_dir (download dir) contains the following
 # directories and files. If not, they will be downloaded
 # by this script automatically.
@@ -41,74 +45,87 @@ log "dl_dir: $dl_dir"
 if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   log "Stage 0: Download data"
 
-  # If you have pre-downloaded it to /path/to/ReazonSpeech,
+  # If you have pre-downloaded it to /path/to/mls_eng,
   # you can create a symlink
   #
-  #   ln -sfv /path/to/ReazonSpeech $dl_dir/ReazonSpeech
+  #   ln -sfv /path/to/mls_eng $dl_dir/mls_eng
   #
-  if [ ! -d $dl_dir/ReazonSpeech/downloads ]; then
-    # Download small-v1 by default.
-    lhotse download reazonspeech --subset small-v1 $dl_dir
+  if [ ! -d $dl_dir/mls_english ]; then
+    git clone https://huggingface.co/datasets/parler-tts/mls_eng $dl_dir/mls_eng
   fi
 fi
 
+## Not necessary to create manifest or pre-compute fbank for on-the-fly feature computation ##
+
+# if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
+#     log "Stage 1: Prepare MLS English manifest"
+#     # We assume that you have downloaded the ReazonSpeech corpus
+#     # to $dl_dir/ReazonSpeech
+#     mkdir -p data/manifests
+#     if [ ! -e data/manifests/.reazonspeech.done ]; then
+#         lhotse prepare reazonspeech -j $nj $dl_dir/ReazonSpeech data/manifests
+#         touch data/manifests/.reazonspeech.done
+#     fi
+# fi
+
+# if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
+#     log "Stage 2: Compute ReazonSpeech fbank"
+#     if [ ! -e data/manifests/.reazonspeech-validated.done ]; then
+#         python local/compute_fbank_reazonspeech.py --manifest-dir data/manifests
+#         python local/validate_manifest.py --manifest data/manifests/reazonspeech_cuts_train.jsonl.gz
+#         python local/validate_manifest.py --manifest data/manifests/reazonspeech_cuts_dev.jsonl.gz
+#         python local/validate_manifest.py --manifest data/manifests/reazonspeech_cuts_test.jsonl.gz
+#         touch data/manifests/.reazonspeech-validated.done
+#     fi
+# fi
+
+###############################################################################################
+
+# if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
+#     log "Stage 3: Prepare ReazonSpeech lang_char"
+#     python local/prepare_lang_char.py data/manifests/reazonspeech_cuts_train.jsonl.gz
+# fi
+
+# if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
+#     log "Stage 4: Show manifest statistics"
+#     python local/display_manifest_statistics.py --manifest-dir data/manifests > data/manifests/manifest_statistics.txt
+#     cat data/manifests/manifest_statistics.txt
+# fi
+
+mkdir -p data/lang
+
+lang_dir=data/lang
+
+log "lang_dir: $lang_dir"
+
 if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
-    log "Stage 1: Prepare ReazonSpeech manifest"
-    # We assume that you have downloaded the ReazonSpeech corpus
-    # to $dl_dir/ReazonSpeech
-    mkdir -p data/manifests
-    if [ ! -e data/manifests/.reazonspeech.done ]; then
-        lhotse prepare reazonspeech -j $nj $dl_dir/ReazonSpeech data/manifests
-        touch data/manifests/.reazonspeech.done
-    fi
-fi
+  log "Stage 1: Prepare BPE based lang"
 
-if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
-    log "Stage 2: Compute ReazonSpeech fbank"
-    if [ ! -e data/manifests/.reazonspeech-validated.done ]; then
-        python local/compute_fbank_reazonspeech.py --manifest-dir data/manifests
-        python local/validate_manifest.py --manifest data/manifests/reazonspeech_cuts_train.jsonl.gz
-        python local/validate_manifest.py --manifest data/manifests/reazonspeech_cuts_dev.jsonl.gz
-        python local/validate_manifest.py --manifest data/manifests/reazonspeech_cuts_test.jsonl.gz
-        touch data/manifests/.reazonspeech-validated.done
-    fi
-fi
+  if [ ! -f $lang_dir/transcript.txt ]; then
+    log "Generate transcript for BPE training"
 
-if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
-    log "Stage 3: Prepare ReazonSpeech lang_char"
-    python local/prepare_lang_char.py data/manifests/reazonspeech_cuts_train.jsonl.gz
-fi
-
-if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
-    log "Stage 4: Show manifest statistics"
-    python local/display_manifest_statistics.py --manifest-dir data/manifests > data/manifests/manifest_statistics.txt
-    cat data/manifests/manifest_statistics.txt
-fi
-
-if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
-  log "Stage 5: Prepare BPE based lang"
+    ./local/utils/generate_transcript.py --lang-dir $lang_dir
+    # files=$(
+    #   find "$dl_dir/LibriSpeech/train-clean-100" -name "*.trans.txt"
+    #   find "$dl_dir/LibriSpeech/train-clean-360" -name "*.trans.txt"
+    #   find "$dl_dir/LibriSpeech/train-other-500" -name "*.trans.txt"
+    # )
+    # for f in ${files[@]}; do
+    #   cat $f | cut -d " " -f 2-
+    # done > $lang_dir/transcript_words.txt
+  fi
 
   for vocab_size in ${vocab_sizes[@]}; do
-    lang_dir=data/lang_bpe_${vocab_size}
-    mkdir -p $lang_dir
+    log "Train BPE model with vocab_size: $vocab_size"
+    bpe_dir=data/lang/bpe_${vocab_size}
+    mkdir -p $bpe_dir
 
-    if [ ! -f $lang_dir/transcript_words.txt ]; then
-      log "Generate data for BPE training"
-      files=$(
-        find "$dl_dir/LibriSpeech/train-clean-100" -name "*.trans.txt"
-        find "$dl_dir/LibriSpeech/train-clean-360" -name "*.trans.txt"
-        find "$dl_dir/LibriSpeech/train-other-500" -name "*.trans.txt"
-      )
-      for f in ${files[@]}; do
-        cat $f | cut -d " " -f 2-
-      done > $lang_dir/transcript_words.txt
-    fi
 
-    if [ ! -f $lang_dir/bpe.model ]; then
+    if [ ! -f $bpe_dir/bpe.model ]; then
       ./local/train_bpe_model.py \
-        --lang-dir $lang_dir \
+        --lang-dir $bpe_dir \
         --vocab-size $vocab_size \
-        --transcript $lang_dir/transcript_words.txt
+        --transcript $lang_dir/transcript.txt
     fi
   done
 fi
