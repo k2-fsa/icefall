@@ -395,7 +395,12 @@ def compute_loss(
     feature = feature.transpose(1, 2)  # (N, C, T)
 
     batch_idx_train = params.batch_idx_train
-    supervisions = batch["supervisions"]
+
+    answers = batch["supervisions"]["text"]
+    questions_with_history = [cut.custom["question"] for cut in batch["supervisions"]["cut"]]
+    answer_cosyvoice_speech_token = [cut.custom["answer_cosyvoice_speech_token"] for cut in batch["supervisions"]["cut"]]
+    last_questions = [question.split('<USER>: ')[-1].strip() for question in questions_with_history]
+
     texts = batch["supervisions"]["text"]
     # remove spaces in texts
     texts = [normalize_text_alimeeting(text) for text in texts]
@@ -426,7 +431,7 @@ def compute_loss(
     info = MetricsTracker()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        feature_lens = supervisions["num_frames"]
+        feature_lens = batch["supervisions"]["num_frames"]
         info["frames"] = (feature_lens // params.subsampling_factor).sum().item()
 
     # Note: We use reduction=sum while computing the loss.
@@ -848,7 +853,6 @@ def display_and_save_batch(
     logging.info(f"Saving batch to {filename}")
     torch.save(batch, filename)
 
-    supervisions = batch["supervisions"]
     features = batch["inputs"]
 
     logging.info(f"features shape: {features.shape}")
