@@ -565,56 +565,24 @@ def ScaledConv2d(*args, initial_scale: float = 1.0, **kwargs) -> nn.Conv2d:
     return ans
 
 
-class PredictFunction(torch.autograd.Function):
-    # cross-prediction thing to be used in conjunction with CR-CTC or anything else
-    # where the batch is repeated twice but with different spec-augment.
-    # assume channel dim is dim -1, batch_dim is specified by user.
-    @staticmethod
-    @custom_fwd
-    def forward(ctx, x, pred_weight, proj_weight, loss_scale, batch_dim, name):
-        ctx.save_for_backward(x, pred_weight, proj_weight)
-        ctx.loss_scale = loss_scale  # loss_scale is relative to existing grad.
-        ctx.name = name
-        ctx.batch_dim = batch_dim
-        return x
+def predict_loss(x: Tensor, pred_weight: Tensor, proj_weight: Tensor, batch_dim: int, name: str) -> Tensor:
+    batch_size = x.shape[batch_dim]
+    assert batch_size % 2 == 0, "PredictLoss must be used with CR-CTC or similar thing that repeats batch with different augmentation."
 
-    @staticmethod
-    @custom_bwd
-    def backward(ctx, x_grad):
-        x, pred_weight, proj_weight = ctx.saved_tensors
-
-        batch_size = x.shape[ctx.batch_dim]
-        assert batch_size % 2 == 0, "PredictLoss must be used with CR-CTC or similar thing that repeats batch with different augmentation."
+    # is_top1 true if this is the highest dot-product with x_proj.
+    x_proj = torch.matmul(x, proj_weight.t())
+    top1_indexes = torch.max(x_proj, dim=-1, keepdim=True)[1]
+    top1_indexes = torch.roll(top1_indexes, batch_size // 2, batch_dim)
 
 
-        # is_top1 true if this is the highest dot-product with x_proj.
-        x_proj = torch.matmul(x, proj_weight.t())
-        top1_indexes = torch.max(x_proj, dim=-1, keepdim=True)[1]
-        top1_indexes = torch.roll(top1_indexes, batch_size // 2, ctx.batch_dim)
+    x_pred = torch.matmul(x, pred_weight.t())
+    logprobs = x_pred.log_softmax(dim=-1)
+    loss = -torch.gather(logprobs, dim=-1, index=top1_indexes)
 
-        # take loss_scale from other copy of this utterance/item.
-        with torch.cuda.amp.autocast(enabled=False):
-            loss_scale = ctx.loss_scale * x_grad.to(torch.float).norm(dim=-1, keepdim=True) * x.to(torch.float).norm(dim=-1, keepdim=True)
-            loss_scale = torch.roll(loss_scale, batch_size // 2, ctx.batch_dim)
-            loss_scale = loss_scale.clamp(max=0.1)  # TEMP
+    if random.random() < 0.002:
+        logging.info(f"name={name}, mean loss before scale = {loss.mean()}")
 
-        x = x.detach()
-        pred_weight = pred_weight.detach()
-        x.requires_grad = True
-        pred_weight.requires_grad = True
-
-        with torch.enable_grad():
-            x_pred = torch.matmul(x, pred_weight.t())
-            logprobs = x_pred.log_softmax(dim=-1)
-            loss = -torch.gather(logprobs, dim=-1, index=top1_indexes)
-            loss_scaled = loss * loss_scale
-            loss_scaled.backward(gradient=torch.ones_like(loss_scaled))
-        if random.random() < 0.002:
-            logging.info(f"name={ctx.name}, mean loss before scale = {loss.mean()}")
-
-
-        extra_grad = torch.nan_to_num(x.grad, nan=0.0).clamp(min=-0.1, max=0.1)
-        return x_grad + extra_grad, pred_weight.grad, None, None, None, None
+    return loss
 
 class PredictLoss(nn.Module):
     """
@@ -625,7 +593,6 @@ class PredictLoss(nn.Module):
     def __init__(self,
                  num_channels: int,
                  num_centers: int,
-                 loss_scale: FloatLike = ScheduledFloat((0.0, 1.0e-06), (1000.0, 1.0e-05), (2000.0, 0.01)),
                  batch_dim: int = 0):
         super().__init__()
         scale = num_channels ** -0.5
@@ -633,16 +600,14 @@ class PredictLoss(nn.Module):
                              scale * torch.randn(num_centers, num_channels),
                              persistent=True)
         self.pred_weight = nn.Parameter(scale * torch.randn(num_centers, num_channels))
-        self.loss_scale = copy.deepcopy(loss_scale)
         self.batch_dim = batch_dim
         self.name = None # will be set from training code
 
 
     def forward(self,
                 x: Tensor) -> Tensor:
-        return PredictFunction.apply(x, self.pred_weight, self.proj_weight,
-                                     float(self.loss_scale), self.batch_dim,
-                                     self.name)
+        return predict_loss(x, self.pred_weight, self.proj_weight,
+                            self.batch_dim, self.name)
 
 
 

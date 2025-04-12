@@ -482,6 +482,13 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--predict-loss-scale",
+        type=float,
+        default=0.01,
+        help="Prediction of random k-means after widest zipformer layer"
+    )
+
+    parser.add_argument(
         "--time-mask-ratio",
         type=float,
         default=2.5,
@@ -950,7 +957,7 @@ def compute_loss(
         supervision_segments = None
 
     with torch.set_grad_enabled(is_training):
-        simple_loss, pruned_loss, ctc_loss, attention_decoder_loss, cr_loss, reconstruction_loss = model(
+        simple_loss, pruned_loss, ctc_loss, attention_decoder_loss, cr_loss, reconstruction_loss, predict_loss = model(
             x=feature,
             x_lens=feature_lens,
             y=y,
@@ -992,6 +999,8 @@ def compute_loss(
 
         loss += reconstruction_loss_scale * reconstruction_loss
 
+        loss += params.predict_loss_scale * predict_loss
+
         if params.use_attention_decoder:
             loss += params.attention_decoder_loss_scale * attention_decoder_loss
 
@@ -1011,6 +1020,7 @@ def compute_loss(
         info["ctc_loss"] = ctc_loss.detach().cpu().item()
         if params.use_cr_ctc:
             info["cr_loss"] = cr_loss.detach().cpu().item()
+    info["predict_loss"] = predict_loss.detach().cpu().item()
     info["recon_loss"] = reconstruction_loss.detach().cpu().item()
     if params.use_attention_decoder:
         info["attn_decoder_loss"] = attention_decoder_loss.detach().cpu().item()

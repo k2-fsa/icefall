@@ -195,6 +195,10 @@ class Zipformer2(EncoderInterface):
             encoder.encoder_index = i  # <-- will be used in streaming_forward
             encoders.append(encoder)
 
+            if downsampling_factor[i] == max(downsampling_factor):
+                self.predict_loss = PredictLoss(cur_downsample*input_dim, 256, batch_dim=1)
+
+
         cur_downsample = set_downsample_factor(cur_downsample, output_downsampling_factor)
 
         self.encoders = nn.ModuleList(encoders)
@@ -265,6 +269,8 @@ class Zipformer2(EncoderInterface):
             max_len = (orig_seq_len + downsampling_factor - 1) // downsampling_factor
             return x[:max_len] if x.shape[0] > max_len else x
 
+        max_ds = max(self.downsampling_factor)
+
         for module in self.encoders:
             if isinstance(module, Zipformer2Encoder):
                 i = module.encoder_index  # was set in this class's __init__ function.
@@ -283,6 +289,9 @@ class Zipformer2(EncoderInterface):
                                else attn_mask[::ds, ::ds]
                     ),
                 )
+                if ds == max_ds:
+                    predict_loss = self.predict_loss(x)
+
             else:
                 x = module(x)
 
@@ -296,7 +305,7 @@ class Zipformer2(EncoderInterface):
                 warnings.simplefilter("ignore")
                 lengths = (x_lens + 1) // 2
 
-        return x, lengths
+        return x, lengths, predict_loss
 
     def _get_attn_mask(
         self, x: Tensor, chunk_size: int, left_context_chunks: int
@@ -525,8 +534,6 @@ class Zipformer2EncoderLayer(nn.Module):
 
         self.norm = ExpNorm(embed_dim)
 
-        self.predict_loss = PredictLoss(embed_dim, 256, loss_scale=0.01, batch_dim=1)
-
 
     def forward(
         self,
@@ -580,8 +587,6 @@ class Zipformer2EncoderLayer(nn.Module):
         src = self.scale_limiter(src)
 
         src = self.norm(src)
-
-        src = self.predict_loss(src)
 
         return src
 
@@ -2011,11 +2016,11 @@ def _test_zipformer_main(causal: bool = False):
     batch_size = 6  # make it even, as PredictLoss requires even batch size.
     seq_len = 21
     # Just make sure the forward pass runs.
-    f = c(
+    f, lengths, predict_loss = c(
         torch.randn(seq_len, batch_size, input_dim),
         torch.full((batch_size,), seq_len, dtype=torch.int64),
     )
-    f[0].sum().backward()
+    f.sum().backward()
     c.eval()
     f = c(
         torch.randn(seq_len, batch_size, input_dim),

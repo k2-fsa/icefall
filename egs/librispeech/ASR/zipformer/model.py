@@ -155,12 +155,12 @@ class AsrModel(nn.Module):
         src_key_padding_mask = make_pad_mask(x_lens)
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
 
-        encoder_out, encoder_out_lens = self.encoder(x, x_lens, src_key_padding_mask)
+        encoder_out, encoder_out_lens, predict_loss = self.encoder(x, x_lens, src_key_padding_mask)
 
         encoder_out = encoder_out.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
         assert torch.all(encoder_out_lens > 0), (x_lens, encoder_out_lens)
 
-        return encoder_out, encoder_out_lens
+        return encoder_out, encoder_out_lens, predict_loss
 
     def forward_ctc(
         self,
@@ -428,7 +428,7 @@ class AsrModel(nn.Module):
             y = k2.ragged.cat([y, y], axis=0)
 
         # Compute encoder outputs
-        encoder_out, encoder_out_lens = self.forward_encoder(x, x_lens)
+        encoder_out, encoder_out_lens, predict_loss = self.forward_encoder(x, x_lens)
 
         row_splits = y.shape.row_splits(1)
         y_lens = row_splits[1:] - row_splits[:-1]
@@ -493,7 +493,7 @@ class AsrModel(nn.Module):
         if use_cr_ctc:
             reconstruction_loss = reconstruction_loss * 0.5
 
-        return simple_loss, pruned_loss, ctc_loss, attention_decoder_loss, cr_loss, reconstruction_loss
+        return simple_loss, pruned_loss, ctc_loss, attention_decoder_loss, cr_loss, reconstruction_loss, predict_loss
 
 
     def forward_reconstruction_loss(self,
