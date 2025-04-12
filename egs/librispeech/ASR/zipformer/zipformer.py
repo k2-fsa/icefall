@@ -196,7 +196,7 @@ class Zipformer2(EncoderInterface):
             encoders.append(encoder)
 
             if downsampling_factor[i] == max(downsampling_factor):
-                self.predict_loss = PredictLoss(cur_downsample*input_dim, 256, batch_dim=1)
+                self.predict_loss = PredictLoss(cur_downsample*input_dim, batch_dim=1)
 
 
         cur_downsample = set_downsample_factor(cur_downsample, output_downsampling_factor)

@@ -565,19 +565,25 @@ def ScaledConv2d(*args, initial_scale: float = 1.0, **kwargs) -> nn.Conv2d:
     return ans
 
 
-def predict_loss(x: Tensor, pred_weight: Tensor, proj_weight: Tensor, batch_dim: int, name: str) -> Tensor:
+def predict_loss(x: Tensor, predictor: nn.Module, proj_weight: Tensor, batch_dim: int, name: str) -> Tensor:
     batch_size = x.shape[batch_dim]
     assert batch_size % 2 == 0, "PredictLoss must be used with CR-CTC or similar thing that repeats batch with different augmentation."
 
-    # is_top1 true if this is the highest dot-product with x_proj.
-    x_proj = torch.matmul(x, proj_weight.t())
-    top1_indexes = torch.max(x_proj, dim=-1, keepdim=True)[1]
-    top1_indexes = torch.roll(top1_indexes, batch_size // 2, batch_dim)
+    with torch.no_grad():
+        x_proj = torch.matmul(x, proj_weight.t())
+        # subtract mean.
+        x_proj = x_proj - x_proj.mean(dim=tuple(range(0, x.ndim - 1)))
+        codes = (x_proj > 0).to(torch.int64)  # codes:  (..., 8), all between 0 and 1
+        codes = codes * (2 ** torch.arange(8, device=x.device))  # multiply codes by (1, 2, 4, 8, ..)
+        indexes = codes.sum(dim=-1, keepdim=True)
 
 
-    x_pred = torch.matmul(x, pred_weight.t())
+    indexes = torch.roll(indexes, batch_size // 2, batch_dim)
+
+
+    x_pred = predictor(x)
     logprobs = x_pred.log_softmax(dim=-1)
-    loss = -torch.gather(logprobs, dim=-1, index=top1_indexes)
+    loss = -torch.gather(logprobs, dim=-1, index=indexes)
 
     if random.random() < 0.002:
         logging.info(f"name={name}, mean loss before scale = {loss.mean()}")
@@ -586,27 +592,28 @@ def predict_loss(x: Tensor, pred_weight: Tensor, proj_weight: Tensor, batch_dim:
 
 class PredictLoss(nn.Module):
     """
-    Adds an auxiliary loss based on predicting the top-1 of inner-products with
-    a random set of vectors, of the "other copy" of each utterance (it assumes
-    you are doing something like CR-CTC so
+    Adds an auxiliary loss based on predicting the top-1 of 256 randomized codebook
+    entries.
     """
     def __init__(self,
                  num_channels: int,
-                 num_centers: int,
                  batch_dim: int = 0):
         super().__init__()
         scale = num_channels ** -0.5
         self.register_buffer('proj_weight',
-                             scale * torch.randn(num_centers, num_channels),
+                             scale * torch.randn(8, num_channels),
                              persistent=True)
-        self.pred_weight = nn.Parameter(scale * torch.randn(num_centers, num_channels))
+        num_hidden = max(1024, num_channels)
+        self.predictor = nn.Sequential(nn.Linear(num_channels, num_hidden),
+                                       nn.ReLU(),
+                                       nn.Linear(num_hidden, 256))
         self.batch_dim = batch_dim
         self.name = None # will be set from training code
 
 
     def forward(self,
                 x: Tensor) -> Tensor:
-        return predict_loss(x, self.pred_weight, self.proj_weight,
+        return predict_loss(x, self.predictor, self.proj_weight,
                             self.batch_dim, self.name)
 
 
