@@ -582,7 +582,7 @@ def predict_loss(x: Tensor, pred_weight: Tensor, proj_weight: Tensor, batch_dim:
     if random.random() < 0.002:
         logging.info(f"name={name}, mean loss before scale = {loss.mean()}")
 
-    return loss
+    return loss.sum()  # we reduce with sum in what we return.
 
 class PredictLoss(nn.Module):
     """
