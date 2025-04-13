@@ -565,7 +565,9 @@ def ScaledConv2d(*args, initial_scale: float = 1.0, **kwargs) -> nn.Conv2d:
     return ans
 
 
-def predict_loss(x: Tensor, predictor: nn.Module, proj_weight: Tensor, batch_dim: int, name: str) -> Tensor:
+def predict_loss(x: Tensor, predictor: nn.Module, proj_weight: Tensor,
+                 batch_dim: int, name: str,
+                 mask: Optional[Tensor]) -> Tensor:
     batch_size = x.shape[batch_dim]
     if batch_size % 2 != 0:
         assert (not x.requires_grad), "PredictLoss must be used with CR-CTC or similar thing that repeats batch with different augmentation."
@@ -573,22 +575,26 @@ def predict_loss(x: Tensor, predictor: nn.Module, proj_weight: Tensor, batch_dim
 
     with torch.no_grad():
         x_proj = torch.matmul(x, proj_weight.t())
+        if mask is not None:
+            x_proj = x_proj - (x_proj * mask).sum(dim=tuple(range(0, x.ndim - 1))) / mask.sum(dim=tuple(range(0, x.ndim - 1)))
+        else:
+            x_proj = x_proj - x_proj.mean(dim=tuple(range(0, x.ndim - 1)))
+
         # subtract mean.
-        x_proj = x_proj - x_proj.mean(dim=tuple(range(0, x.ndim - 1)))
         codes = (x_proj > 0).to(torch.int64)  # codes:  (..., 8), all between 0 and 1
         codes = codes * (2 ** torch.arange(8, device=x.device))  # multiply codes by (1, 2, 4, 8, ..)
         indexes = codes.sum(dim=-1, keepdim=True)
 
-
     indexes = torch.roll(indexes, batch_size // 2, batch_dim)
-
-
     x_pred = predictor(x)
     logprobs = x_pred.log_softmax(dim=-1)
     loss = -torch.gather(logprobs, dim=-1, index=indexes)
 
     if random.random() < 0.002:
-        logging.info(f"name={name}, mean loss before scale = {loss.mean()}")
+        logging.info(f"predict_loss: name={name}, mean loss before scale = {loss.mean()}")
+
+    if mask is not None:
+        loss = loss * mask.to(loss.dtype)
 
     return loss.sum()  # we reduce with sum in what we return.
 
@@ -614,9 +620,9 @@ class PredictLoss(nn.Module):
 
 
     def forward(self,
-                x: Tensor) -> Tensor:
+                x: Tensor, mask: Optional[Tensor] = None) -> Tensor:
         return predict_loss(x, self.predictor, self.proj_weight,
-                            self.batch_dim, self.name)
+                            self.batch_dim, self.name, mask)
 
 
 

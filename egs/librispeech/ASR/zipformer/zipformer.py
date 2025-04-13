@@ -806,7 +806,8 @@ dropout:
             bypass = self.norm_bypass(bypass)
             src = torch.cat((src, bypass), dim=-1)
 
-        return src, self.predict_loss(src)
+        return src, self.predict_loss(src, (src_key_padding_mask.t().unsqueeze(-1).logical_not()
+                                            if src_key_padding_mask is not None else None))
 
     def streaming_forward(
         self,
