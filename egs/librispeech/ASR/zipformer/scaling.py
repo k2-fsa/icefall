@@ -567,7 +567,9 @@ def ScaledConv2d(*args, initial_scale: float = 1.0, **kwargs) -> nn.Conv2d:
 
 def predict_loss(x: Tensor, predictor: nn.Module, proj_weight: Tensor, batch_dim: int, name: str) -> Tensor:
     batch_size = x.shape[batch_dim]
-    assert batch_size % 2 == 0, "PredictLoss must be used with CR-CTC or similar thing that repeats batch with different augmentation."
+    if batch_size % 2 != 0:
+        assert (not x.requires_grad), "PredictLoss must be used with CR-CTC or similar thing that repeats batch with different augmentation."
+        return torch.tensor(0.0, device=x.device)
 
     with torch.no_grad():
         x_proj = torch.matmul(x, proj_weight.t())
