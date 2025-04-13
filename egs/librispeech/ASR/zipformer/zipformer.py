@@ -195,9 +195,6 @@ class Zipformer2(EncoderInterface):
             encoder.encoder_index = i  # <-- will be used in streaming_forward
             encoders.append(encoder)
 
-            if downsampling_factor[i] == max(downsampling_factor):
-                self.predict_loss = PredictLoss(cur_downsample*input_dim, batch_dim=1)
-
 
         cur_downsample = set_downsample_factor(cur_downsample, output_downsampling_factor)
 
@@ -269,14 +266,15 @@ class Zipformer2(EncoderInterface):
             max_len = (orig_seq_len + downsampling_factor - 1) // downsampling_factor
             return x[:max_len] if x.shape[0] > max_len else x
 
-        max_ds = max(self.downsampling_factor)
+
+        predict_loss = 0.0
 
         for module in self.encoders:
             if isinstance(module, Zipformer2Encoder):
                 i = module.encoder_index  # was set in this class's __init__ function.
                 ds = self.downsampling_factor[i]
                 x = truncate(x, ds)
-                x = module(
+                x, this_pred_loss = module(
                     x,
                     chunk_size=chunk_size,
                     src_key_padding_mask=(
@@ -289,8 +287,7 @@ class Zipformer2(EncoderInterface):
                                else attn_mask[::ds, ::ds]
                     ),
                 )
-                if ds == max_ds:
-                    predict_loss = self.predict_loss(x)
+                predict_loss += this_pred_loss * ds
 
             else:
                 x = module(x)
@@ -305,7 +302,7 @@ class Zipformer2(EncoderInterface):
                 warnings.simplefilter("ignore")
                 lengths = (x_lens + 1) // 2
 
-        return x, lengths, predict_loss
+        return x, lengths, predict_loss / len(self.downsampling_factor)
 
     def _get_attn_mask(
         self, x: Tensor, chunk_size: int, left_context_chunks: int
@@ -759,6 +756,8 @@ dropout:
             grad_scale=0.025,
         )
 
+        self.predict_loss = PredictLoss(dim, batch_dim=1)
+
 
     def forward(
         self,
@@ -809,7 +808,7 @@ dropout:
             bypass = self.norm_bypass(bypass)
             src = torch.cat((src, bypass), dim=-1)
 
-        return src
+        return src, self.predict_loss(src)
 
     def streaming_forward(
         self,
