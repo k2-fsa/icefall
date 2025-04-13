@@ -573,6 +573,8 @@ def predict_loss(x: Tensor, predictor: nn.Module, proj_weight: Tensor,
         assert (not x.requires_grad), "PredictLoss must be used with CR-CTC or similar thing that repeats batch with different augmentation."
         return torch.tensor(0.0, device=x.device)
 
+    mask = mask.to(x.dtype)
+
     with torch.no_grad():
         x_proj = torch.matmul(x, proj_weight.t())
         if mask is not None:
@@ -594,7 +596,7 @@ def predict_loss(x: Tensor, predictor: nn.Module, proj_weight: Tensor,
         logging.info(f"predict_loss: name={name}, mean loss before scale = {loss.mean()}")
 
     if mask is not None:
-        loss = loss * mask.to(loss.dtype)
+        loss = loss * mask
 
     return loss.sum()  # we reduce with sum in what we return.
 
