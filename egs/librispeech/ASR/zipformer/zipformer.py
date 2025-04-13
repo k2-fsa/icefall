@@ -287,12 +287,10 @@ class Zipformer2(EncoderInterface):
                                else attn_mask[::ds, ::ds]
                     ),
                 )
-                predict_loss += this_pred_loss * ds
+                predict_loss += this_pred_loss * (ds / self.output_downsampling_factor)
 
             else:
                 x = module(x)
-
-        x = x[..., :max(self.encoder_dim)]  # for historical reasons.  can change this.
 
         assert self.output_downsampling_factor == 2, self.output_downsampling_factor
         if torch.jit.is_scripting() or torch.jit.is_tracing():
