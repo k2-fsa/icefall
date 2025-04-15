@@ -357,26 +357,20 @@ class AsrDataModule:
         return train_dl
 
     def valid_dataloaders(self, cuts_valid: CutSet) -> DataLoader:
-        transforms = []
-        # if self.args.concatenate_cuts:
-        #     transforms = [
-        #         CutConcatenate(
-        #             duration_factor=self.args.duration_factor, gap=self.args.gap
-        #         )
-        #     ] + transforms
-
+        """
+        Args:
+            cuts_valid:
+                CutSet for validation.
+        """
         logging.info("About to create dev dataset")
-        if self.args.on_the_fly_feats:
-            validate = K2SpeechRecognitionDataset(
-                cut_transforms=transforms,
-                input_strategy=OnTheFlyFeatures(WhisperFbank(WhisperFbankConfig(num_filters=80, device='cuda'))),
-                return_cuts=self.args.return_cuts,
-            )
-        else:
-            validate = K2SpeechRecognitionDataset(
-                cut_transforms=transforms,
-                return_cuts=self.args.return_cuts,
-            )
+
+        validate = K2SpeechRecognitionDataset(
+            input_strategy=OnTheFlyFeatures(WhisperFbank(WhisperFbankConfig(num_filters=80, device='cuda')))
+            if self.args.on_the_fly_feats
+            else eval(self.args.input_strategy)(),
+            return_cuts=self.args.return_cuts,
+        )
+
         valid_sampler = DynamicBucketingSampler(
             cuts_valid,
             max_duration=self.args.max_duration,
@@ -435,3 +429,17 @@ class AsrDataModule:
             return {'test':cut_set}
         else:
             return {'test':load_manifest_lazy(self.args.manifest_dir / "cuts_belle.00000.jsonl.gz")}
+
+    @lru_cache()
+    def dev_cuts(self) -> CutSet:
+        logging.info("About to get test cuts")
+        if self.args.on_the_fly_feats:
+            pass
+        else:
+            return load_manifest_lazy(self.args.manifest_dir / "cuts_belle.00000.jsonl.gz")
+
+
+    @lru_cache()
+    def train_cuts(self) -> CutSet:
+        logging.info("About to get train cuts")
+        return load_manifest_lazy(self.args.manifest_dir / "cuts_belle_train.jsonl.gz")
