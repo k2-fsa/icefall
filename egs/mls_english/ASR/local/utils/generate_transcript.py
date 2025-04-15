@@ -19,59 +19,71 @@
 import argparse
 import logging
 from pathlib import Path
+from typing import Optional
 
 from lhotse import CutSet
-from asr_datamodule import MLSEnglishHFAsrDataModule
-
 from tqdm import tqdm
 
 def get_args():
     parser = argparse.ArgumentParser(
+        description="Generate transcripts for BPE training from MLS English dataset",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
-    # parser.add_argument(
-    #     "train_cut", metavar="train-cut", type=Path, help="Path to the train cut"
-    # )
-
+    parser.add_argument(
+        "--dataset-path",
+        type=str,
+        default="parler-tts/mls_eng",
+        help="Path to HuggingFace MLS English dataset (name or local path)",
+    )
+    
     parser.add_argument(
         "--lang-dir",
         type=Path,
         default=Path("data/lang"),
-        help=(
-            "Name of lang dir. "
-            "If not set, this will default to data/lang"
-        ),
+        help="Directory to store output transcripts",
+    )
+    
+    parser.add_argument(
+        "--split",
+        type=str,
+        default="train",
+        help="Dataset split to use for generating transcripts (train/dev/test)",
     )
 
     return parser.parse_args()
 
+def generate_transcript_from_cuts(cuts: CutSet, output_file: Path) -> None:
+    """Generate transcript text file from Lhotse CutSet."""
+    with open(output_file, "w") as f:
+        for cut in tqdm(cuts, desc="Processing cuts"):
+            for sup in cut.supervisions:
+                f.write(f"{sup.text}\n")
 
 def main():
     args = get_args()
     logging.basicConfig(
-        format=("%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"),
+        format="%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s",
         level=logging.INFO,
     )
 
+    args.lang_dir.mkdir(parents=True, exist_ok=True)
+    output_file = args.lang_dir / "transcript.txt"
 
-    mls_english_corpus = MLSEnglishHFAsrDataModule(args)
-    mls_english_corpus.load_hf_dataset("/root/datasets/parler-tts--mls_eng")
+    logging.info(f"Loading {args.split} split from dataset: {args.dataset_path}")
+    try:
+        cuts = CutSet.from_huggingface_dataset(
+            args.dataset_path,
+            split=args.split,
+            text_key="transcript"
+        )
+    except Exception as e:
+        logging.error(f"Failed to load dataset: {e}")
+        raise
 
-    train_cuts = mls_english_corpus.train_cuts()
-
-    logging.info(f"Creating transcript from MLS English train cut.")
-
-    def generate_text(train_cuts):
-        for cut in tqdm(train_cuts):
-            for sup in cut.supervisions:
-                yield sup.text + "\n"
-
-    with open(args.lang_dir / "transcript.txt", "w") as file:
-        file.writelines(generate_text(train_cuts))
-
-    logging.info("Done.")
-
+    logging.info(f"Generating transcript to {output_file}")
+    generate_transcript_from_cuts(cuts, output_file)
+    logging.info("Transcript generation completed")
 
 if __name__ == "__main__":
     main()

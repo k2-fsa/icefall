@@ -1215,9 +1215,9 @@ def run(rank, world_size, args):
         return True
 
     mls_english_corpus = MLSEnglishHFAsrDataModule(args)
-    mls_english_corpus.load_hf_dataset("/root/datasets/parler-tts--mls_eng")
+    mls_english_corpus.load_dataset(args.dataset_path)
 
-    train_cuts = mls_english_corpus.train_cuts()
+    # train_cuts = mls_english_corpus.train_cuts()
 
     # train_cuts = train_cuts.filter(remove_short_and_long_utt)
 
@@ -1228,12 +1228,17 @@ def run(rank, world_size, args):
     else:
         sampler_state_dict = None
 
-    train_dl = mls_english_corpus.train_dataloaders(
-        train_cuts, sampler_state_dict=sampler_state_dict
+    # train_dl = mls_english_corpus.train_dataloaders(
+    #     train_cuts, sampler_state_dict=sampler_state_dict
+    # )
+    train_dl = mls_english_corpus.train_dataloader(
+        sampler_state_dict=sampler_state_dict
     )
 
-    valid_cuts = mls_english_corpus.valid_cuts()
-    valid_dl = mls_english_corpus.valid_dataloaders(valid_cuts)
+    # valid_cuts = mls_english_corpus.valid_cuts()
+    # valid_dl = mls_english_corpus.valid_dataloader(valid_cuts)
+    valid_dl = mls_english_corpus.valid_dataloader()
+
 
     if not params.print_diagnostics:
         scan_pessimistic_batches_for_oom(
