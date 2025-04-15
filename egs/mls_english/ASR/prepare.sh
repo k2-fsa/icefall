@@ -45,12 +45,15 @@ mkdir -p data/lang
 lang_dir=data/lang
 
 if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
-  log "Stage 1: Prepare BPE tokenizer"
-  
+  log "Stage 1: Prepare transcript for BPE training"
   if [ ! -f $lang_dir/transcript.txt ]; then
     log "Generating transcripts for BPE training"
     ./local/utils/generate_transcript.py --lang-dir $lang_dir
   fi
+fi
+
+if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
+  log "Stage 2: Prepare BPE tokenizer"
 
   for vocab_size in ${vocab_sizes[@]}; do
     log "Training BPE model with vocab_size=${vocab_size}"
