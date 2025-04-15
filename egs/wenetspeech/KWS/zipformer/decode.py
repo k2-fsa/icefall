@@ -35,7 +35,6 @@ from lhotse.cut import Cut
 from train import add_model_arguments, get_model, get_params
 
 from icefall import ContextGraph
-from icefall.char_graph_compiler import CharCtcTrainingGraphCompiler
 from icefall.checkpoint import (
     average_checkpoints,
     average_checkpoints_with_averaged_model,
