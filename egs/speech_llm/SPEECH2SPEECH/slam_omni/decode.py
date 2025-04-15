@@ -342,6 +342,7 @@ def decode_one_batch(
             # {"role": "user", "content": f"{last_questions[i]}"},
             {"role": "assistant", "content": ""}
         ]
+        print(f"message: {message}, batch_size {len(chat_rounds)}")
         messages.append(message)
 
     input_ids, attention_mask = preprocess(messages, tokenizer)

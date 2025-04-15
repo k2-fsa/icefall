@@ -241,7 +241,7 @@ class SPEECH_LLM(nn.Module):
         inputs_embeds = self.llm.get_input_embeddings()(input_ids)
         (
             inputs_embeds,
-            _,
+            attention_mask,
             _,
             _,
         ) = self._merge_input_ids_with_speech_features(
@@ -249,6 +249,7 @@ class SPEECH_LLM(nn.Module):
         )
         generated_ids = self.llm.generate(
             inputs_embeds=inputs_embeds,
+            attention_mask=attention_mask,
             max_new_tokens=kwargs.get("max_new_tokens", 1024),
             num_beams=kwargs.get("num_beams", 1),
             do_sample=kwargs.get("do_sample", True),
