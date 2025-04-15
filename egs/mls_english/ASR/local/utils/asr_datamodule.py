@@ -36,6 +36,7 @@ from torch.utils.data import DataLoader
 
 from icefall.utils import str2bool
 
+
 class MLSEnglishHFAsrDataModule:
     """
     DataModule for MLS English ASR experiments using HuggingFace dataset.
@@ -46,6 +47,7 @@ class MLSEnglishHFAsrDataModule:
     def __init__(self, args: argparse.Namespace):
         self.args = args
         self.dataset = None
+
     #     self._validate_args()
 
     # def _validate_args(self) -> None:
@@ -59,7 +61,7 @@ class MLSEnglishHFAsrDataModule:
             title="ASR data related options",
             description="Options for data loading and processing",
         )
-        
+
         # Dataset configuration
         group.add_argument(
             "--dataset-path",
@@ -67,7 +69,7 @@ class MLSEnglishHFAsrDataModule:
             default="parler-tts/mls_eng",
             help="Path to HuggingFace MLS English dataset (name or local path)",
         )
-        
+
         # Sampling and batching
         group.add_argument(
             "--max-duration",
@@ -87,7 +89,7 @@ class MLSEnglishHFAsrDataModule:
             default=30,
             help="Number of buckets for DynamicBucketingSampler",
         )
-        
+
         # Data augmentation
         group.add_argument(
             "--enable-spec-aug",
@@ -101,7 +103,7 @@ class MLSEnglishHFAsrDataModule:
             default=80,
             help="Time warp factor for SpecAugment",
         )
-        
+
         # Dataloader configuration
         group.add_argument(
             "--num-workers",
@@ -122,7 +124,6 @@ class MLSEnglishHFAsrDataModule:
             default=True,
             help="Whether to drop last incomplete batch",
         )
-    
 
         return parser
 
@@ -133,16 +134,17 @@ class MLSEnglishHFAsrDataModule:
 
         try:
             from datasets import load_dataset
+
             self.dataset = load_dataset(dataset_path)
             logging.info("Dataset loaded successfully")
         except ImportError:
-            raise ImportError(
-                "Please install datasets package: pip install datasets"
-            )
+            raise ImportError("Please install datasets package: pip install datasets")
         except Exception as e:
             raise RuntimeError(f"Failed to load dataset: {e}")
 
-    def _create_dataset(self, cuts: CutSet, is_train: bool = False) -> K2SpeechRecognitionDataset:
+    def _create_dataset(
+        self, cuts: CutSet, is_train: bool = False
+    ) -> K2SpeechRecognitionDataset:
         """Create appropriate dataset with transforms."""
         transforms = []
         input_transforms = []
@@ -160,9 +162,9 @@ class MLSEnglishHFAsrDataModule:
     def _create_spec_augment(self) -> SpecAugment:
         """Create SpecAugment transform based on config."""
         num_frame_masks = 10
-        num_frame_masks_parameter = inspect.signature(
-            SpecAugment.__init__
-        ).parameters["num_frame_masks"]
+        num_frame_masks_parameter = inspect.signature(SpecAugment.__init__).parameters[
+            "num_frame_masks"
+        ]
         if num_frame_masks_parameter.default == 1:
             num_frame_masks = 2
 
@@ -174,7 +176,9 @@ class MLSEnglishHFAsrDataModule:
             frames_mask_size=100,
         )
 
-    def _create_sampler(self, cuts: CutSet, shuffle: bool) -> Union[DynamicBucketingSampler, SimpleCutSampler]:
+    def _create_sampler(
+        self, cuts: CutSet, shuffle: bool
+    ) -> Union[DynamicBucketingSampler, SimpleCutSampler]:
         """Create appropriate sampler based on config."""
         if self.args.bucketing_sampler:
             return DynamicBucketingSampler(
@@ -190,7 +194,9 @@ class MLSEnglishHFAsrDataModule:
             shuffle=shuffle,
         )
 
-    def train_dataloader(self, sampler_state_dict: Optional[Dict[str, Any]] = None) -> DataLoader:
+    def train_dataloader(
+        self, sampler_state_dict: Optional[Dict[str, Any]] = None
+    ) -> DataLoader:
         """Create train dataloader."""
         cuts = self.train_cuts()
         dataset = self._create_dataset(cuts, is_train=True)
@@ -231,20 +237,17 @@ class MLSEnglishHFAsrDataModule:
     @lru_cache()
     def train_cuts(self) -> CutSet:
         return CutSet.from_huggingface_dataset(
-            self.dataset["train"], 
-            text_key="transcript"
+            self.dataset["train"], text_key="transcript"
         )
 
     @lru_cache()
     def valid_cuts(self) -> CutSet:
         return CutSet.from_huggingface_dataset(
-            self.dataset["dev"], 
-            text_key="transcript"
+            self.dataset["dev"], text_key="transcript"
         )
 
     @lru_cache()
     def test_cuts(self) -> CutSet:
         return CutSet.from_huggingface_dataset(
-            self.dataset["test"], 
-            text_key="transcript"
+            self.dataset["test"], text_key="transcript"
         )

@@ -103,9 +103,6 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import k2
-# import sentencepiece as spm
-from tokenizer import Tokenizer
-
 import torch
 import torch.nn as nn
 from asr_datamodule import MLSEnglishHFAsrDataModule
@@ -123,6 +120,10 @@ from beam_search import (
     modified_beam_search_lm_shallow_fusion,
     modified_beam_search_LODR,
 )
+
+# import sentencepiece as spm
+from tokenizer import Tokenizer
+
 # from gigaspeech_scoring import asr_text_post_processing
 from train import add_model_arguments, get_model, get_params
 
@@ -383,6 +384,7 @@ def get_parser():
     add_model_arguments(parser)
 
     return parser
+
 
 def asr_text_post_processing(inp):
     return inp
@@ -867,8 +869,7 @@ def main():
     # sp = spm.SentencePieceProcessor()
     # sp.load(params.bpe_model)
 
-    sp = Tokenizer.load(Path(args.lang_dir), "bpe") # force bpe model
-
+    sp = Tokenizer.load(Path(args.lang_dir), "bpe")  # force bpe model
 
     # <blk> and <unk> are defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")

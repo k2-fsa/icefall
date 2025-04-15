@@ -24,6 +24,7 @@ from typing import Optional
 from lhotse import CutSet
 from tqdm import tqdm
 
+
 def get_args():
     parser = argparse.ArgumentParser(
         description="Generate transcripts for BPE training from MLS English dataset",
@@ -36,14 +37,14 @@ def get_args():
         default="parler-tts/mls_eng",
         help="Path to HuggingFace MLS English dataset (name or local path)",
     )
-    
+
     parser.add_argument(
         "--lang-dir",
         type=Path,
         default=Path("data/lang"),
         help="Directory to store output transcripts",
     )
-    
+
     parser.add_argument(
         "--split",
         type=str,
@@ -53,12 +54,14 @@ def get_args():
 
     return parser.parse_args()
 
+
 def generate_transcript_from_cuts(cuts: CutSet, output_file: Path) -> None:
     """Generate transcript text file from Lhotse CutSet."""
     with open(output_file, "w") as f:
         for cut in tqdm(cuts, desc="Processing cuts"):
             for sup in cut.supervisions:
                 f.write(f"{sup.text}\n")
+
 
 def main():
     args = get_args()
@@ -73,9 +76,7 @@ def main():
     logging.info(f"Loading {args.split} split from dataset: {args.dataset_path}")
     try:
         cuts = CutSet.from_huggingface_dataset(
-            args.dataset_path,
-            split=args.split,
-            text_key="transcript"
+            args.dataset_path, split=args.split, text_key="transcript"
         )
     except Exception as e:
         logging.error(f"Failed to load dataset: {e}")
@@ -84,6 +85,7 @@ def main():
     logging.info(f"Generating transcript to {output_file}")
     generate_transcript_from_cuts(cuts, output_file)
     logging.info("Transcript generation completed")
+
 
 if __name__ == "__main__":
     main()
