@@ -241,27 +241,41 @@ class SPEECH_LLM(nn.Module):
         inputs_embeds = self.llm.get_input_embeddings()(input_ids)
         (
             inputs_embeds,
-            attention_mask,
             _,
-            position_ids,
+            _,
+            _,
         ) = self._merge_input_ids_with_speech_features(
             speech_features, inputs_embeds, input_ids, attention_mask
         )
         generated_ids = self.llm.generate(
             inputs_embeds=inputs_embeds,
-            max_new_tokens=kwargs.get("max_new_tokens", 200),
+            max_new_tokens=kwargs.get("max_new_tokens", 1024),
             num_beams=kwargs.get("num_beams", 1),
-            do_sample=kwargs.get("do_sample", False),
+            do_sample=kwargs.get("do_sample", True),
             min_length=kwargs.get("min_length", 1),
-            top_p=kwargs.get("top_p", 1.0),
-            repetition_penalty=kwargs.get("repetition_penalty", 1.0),
-            length_penalty=kwargs.get("length_penalty", 1.0),
-            temperature=kwargs.get("temperature", 1.0),
+            top_p=kwargs.get("top_p", 0.5),
+            top_k=kwargs.get("top_k", 20),
+            repetition_penalty=kwargs.get("repetition_penalty", 1.1),
+            temperature=kwargs.get("temperature", 0.7),
             bos_token_id=self.llm.config.bos_token_id,
             eos_token_id=self.llm.config.eos_token_id,
             pad_token_id=self.llm.config.pad_token_id,
         )
 
+        # generated_ids = self.llm.generate(
+        #     inputs_embeds=inputs_embeds,
+        #     max_new_tokens=kwargs.get("max_new_tokens", 200),
+        #     num_beams=kwargs.get("num_beams", 1),
+        #     do_sample=kwargs.get("do_sample", False),
+        #     min_length=kwargs.get("min_length", 1),
+        #     top_p=kwargs.get("top_p", 1.0),
+        #     repetition_penalty=kwargs.get("repetition_penalty", 1.0),
+        #     temperature=kwargs.get("temperature", 1.0),
+        #     length_penalty=kwargs.get("length_penalty", 1.0),
+        #     bos_token_id=self.llm.config.bos_token_id,
+        #     eos_token_id=self.llm.config.eos_token_id,
+        #     pad_token_id=self.llm.config.pad_token_id,
+        # )
         return generated_ids
 
 

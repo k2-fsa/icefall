@@ -52,12 +52,28 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   log "stage 2: "
   python3 ./slam_omni/decode.py \
     --max-duration 80 \
-    --exp-dir slam_omni/exp_test_whisper_qwen2_1.5B \
+    --exp-dir slam_omni/exp_speech2text \
     --speech-encoder-path-or-name models/whisper/v1.1/whisper-large-v2-multi-hans-zh-epoch-3-avg-10.pt  \
-    --llm-path-or-name models/qwen \
+    --llm-path-or-name models/Qwen2.5-0.5B-Instruct \
     --epoch 999 --avg 1 \
     --manifest-dir data/fbank \
     --use-flash-attn True \
+    --method pure_text_sampling \
+    --use-lora True # --on-the-fly-feats True
+
+fi
+
+if [ $stage -le 20 ] && [ $stop_stage -ge 20 ]; then
+  log "stage 2: "
+  python3 ./slam_omni/decode.py \
+    --max-duration 80 \
+    --exp-dir slam_omni/exp_speech2text \
+    --speech-encoder-path-or-name models/whisper/v1.1/whisper-large-v2-multi-hans-zh-epoch-3-avg-10.pt  \
+    --llm-path-or-name models/Qwen2.5-0.5B-Instruct \
+    --epoch 999 --avg 1 \
+    --manifest-dir data/fbank \
+    --use-flash-attn True \
+    --method pure_text_sampling_original_0.5B \
     --use-lora False # --on-the-fly-feats True
 
 fi
