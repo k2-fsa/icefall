@@ -49,7 +49,7 @@ concat_params = {"gap": 1.0, "maxlen": 10.0}
 
 
 def make_cutset_blueprints(
-    mls_eng_hf_dataset_path: str = "parler-tts/mls_eng"
+    mls_eng_hf_dataset_path: str = "parler-tts/mls_eng",
 ) -> List[Tuple[str, CutSet]]:
     cut_sets = []
 
@@ -57,7 +57,7 @@ def make_cutset_blueprints(
         raise ImportError(
             "To process the MLS English HF corpus, please install optional dependency: pip install datasets"
         )
-    
+
     from datasets import load_dataset
 
     dataset = load_dataset(mls_eng_hf_dataset_path)
@@ -67,17 +67,14 @@ def make_cutset_blueprints(
     cut_sets.append(
         (
             "test",
-            CutSet.from_huggingface_dataset(dataset["test"], text_key="transcript")
+            CutSet.from_huggingface_dataset(dataset["test"], text_key="transcript"),
         )
     )
 
     # Create dev dataset
     logging.info("Creating dev cuts.")
     cut_sets.append(
-        (
-            "dev",
-            CutSet.from_huggingface_dataset(dataset["dev"], text_key="transcript")
-        )
+        ("dev", CutSet.from_huggingface_dataset(dataset["dev"], text_key="transcript"))
     )
 
     # Create train dataset
@@ -85,7 +82,7 @@ def make_cutset_blueprints(
     cut_sets.append(
         (
             "train",
-            CutSet.from_huggingface_dataset(dataset["train"], text_key="transcript")
+            CutSet.from_huggingface_dataset(dataset["train"], text_key="transcript"),
         )
     )
     return cut_sets
@@ -127,7 +124,7 @@ def main():
                 storage_path=(args.manifest_dir / f"feats_{part}").as_posix(),
                 storage_type=LilcomChunkyWriter,
             )
-            
+
             # cut_set.save_audios(args.audio_dir)
             # cut_set.to_file(args.manifest_dir / f"mls_eng_cuts_{part}.jsonl.gz")
 
