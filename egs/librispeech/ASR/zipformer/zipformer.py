@@ -890,54 +890,37 @@ class ResidualModule(nn.Module):
     """
 
     def __init__(
-        self,
-        embed_dim: int,
-        skip_rate: FloatLike = 0.0,
-        straight_through_rate: FloatLike = 0.0,
-        scale_min: FloatLike = ScheduledFloat((0.0, 0.9), (20000.0, 0.2), default=0),
-        scale_max: FloatLike = 1.0,
+            self,
+            embed_dim: int,
+            function_scale_min: FloatLike = ScheduledFloat((0.0, 0.9), (20000.0, 0.2), default=0),
     ):
         super().__init__()
-        self.direct_scale = nn.Parameter(torch.full((embed_dim,), 0.5))
-        self.skip_rate = copy.deepcopy(skip_rate)
-        self.straight_through_rate = copy.deepcopy(straight_through_rate)
-        self.scale_min = copy.deepcopy(scale_min)
-        self.scale_max = copy.deepcopy(scale_max)
+        self.function_scale = nn.Parameter(torch.full((embed_dim,), 0.5))
+        self.subtract_scale = nn.Parameter(torch.full((embed_dim,), 0.5))
+        self.function_scale_min = copy.deepcopy(function_scale_min)
 
-    def _get_direct_scale(self, batch_size: int):
-        # returns scale of shape (num_channels,),
-        # or (batch_size, num_channels,).  This is the
-        # scale on the non-residual term, and 1-direct_scale is the
-        # scale on the residual.
+
+    def _get_scales(self, batch_size: int):
         if torch.jit.is_scripting() or torch.jit.is_tracing() or not self.training:
-            return self.direct_scale
+            return 1.0 - (self.subtract_scale * self.function_scale), self.function_scale
         else:
-            ans = limit_param_value(
-                self.direct_scale, min=float(self.scale_min), max=float(self.scale_max)
+            function_scale = limit_param_value(
+                self.function_scale, min=float(self.function_scale_min), max=1.0,
             )
-            skip_rate = float(self.skip_rate)
-            if skip_rate != 0.0:
-                mask = torch.rand((batch_size, 1), device=ans.device) > skip_rate
-                ans = ans * mask
-                # now ans is of shape (batch_size, num_channels), and is zero for sequences
-                # on which we have randomly chosen to do layer-skipping.
-            straight_through_rate = float(self.straight_through_rate)
-            if straight_through_rate != 0.0:
-                mask = (
-                    torch.rand((batch_size, 1), device=ans.device)
-                    < straight_through_rate
-                )
-                ans = torch.maximum(ans, mask.to(ans.dtype))
-            return ans
+            subtract_scale = limit_param_value(
+                self.subtract_scale, min=0.0, max=1.0,
+            )
+            residual_scale = 1.0 - (subtract_scale * function_scale)
 
+            return residual_scale, function_scale
 
     def forward(self, src_orig: Tensor, src: Tensor):
         """
         Args: src_orig and src are both of shape (seq_len, batch_size, num_channels)
         Returns: something with the same shape as src and src_orig
         """
-        direct_scale = self._get_direct_scale(src.shape[1])
-        return src_orig + (src - src_orig) * direct_scale
+        residual_scale, function_scale = self._get_scales(src.shape[1])
+        return residual_scale * src_orig + function_scale * src
 
 
 
