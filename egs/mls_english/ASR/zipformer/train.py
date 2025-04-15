@@ -1115,7 +1115,7 @@ def run(rank, world_size, args):
         device = torch.device("cuda", rank)
     logging.info(f"Device: {device}")
 
-    sp = Tokenizer.load(Path(args.lang_dir), "bpe") # force bpe model
+    sp = Tokenizer.load(Path(args.lang_dir), "bpe")  # force bpe model
 
     # <blk> is defined in local/prepare_lang_char.py
     params.blank_id = sp.piece_to_id("<blk>")
@@ -1238,7 +1238,6 @@ def run(rank, world_size, args):
     # valid_cuts = mls_english_corpus.valid_cuts()
     # valid_dl = mls_english_corpus.valid_dataloader(valid_cuts)
     valid_dl = mls_english_corpus.valid_dataloader()
-
 
     if not params.print_diagnostics:
         scan_pessimistic_batches_for_oom(
