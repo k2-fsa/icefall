@@ -577,21 +577,27 @@ def predict_loss(x: Tensor, predictor: nn.Module, proj_weight: Tensor,
         mask = mask.to(x.dtype)
 
     with torch.no_grad():
+        # get the indexes.  project, then mean-and-variance-norm, then
+        # take mx.
         x_proj = torch.matmul(x, proj_weight.t())
-        if mask is not None:
-            x_proj = x_proj - (x_proj * mask).sum(dim=tuple(range(0, x.ndim - 1))) / mask.sum(dim=tuple(range(0, x.ndim - 1)))
-        else:
-            x_proj = x_proj - x_proj.mean(dim=tuple(range(0, x.ndim - 1)))
+        with torch.cuda.amp.autocast(enabled=False):
+            x_proj = x_proj.to(torch.float)
+            # Mean subtraction and variance normalization.
+            dims = tuple(range(0, x.ndim - 1))
+            if mask is not None:
+                x_masked = x_proj * mask
+                x_proj = x_proj - x_masked.sum(dim=dims) / mask.sum(dim=dims)
+                x_proj = x_proj * (mask.sum(dim=dims) / ((x_masked ** 2).sum(dim=dims) + 1.0e-10)).sqrt()
+            else:
+                x_proj = x_proj - x_proj.mean(dim=dims)
+                x_proj = x_proj / (x_proj ** 2).mean(dim=dims).sqrt()
 
-        # subtract mean.
-        codes = (x_proj > 0).to(torch.int64)  # codes:  (..., 8), all between 0 and 1
-        codes = codes * (2 ** torch.arange(8, device=x.device))  # multiply codes by (1, 2, 4, 8, ..)
-        indexes = codes.sum(dim=-1, keepdim=True)
+        indexes = torch.max(x_proj, dim=-1)[1]
 
     indexes = torch.roll(indexes, batch_size // 2, batch_dim)
     x_pred = predictor(x)
     logprobs = x_pred.log_softmax(dim=-1)
-    loss = -torch.gather(logprobs, dim=-1, index=indexes)
+    loss = -torch.gather(logprobs, dim=-1, index=indexes.unsqueeze(-1))
 
     if random.random() < 0.002:
         logging.info(f"predict_loss: name={name}, mean loss before scale = {loss.mean()}")
@@ -612,7 +618,7 @@ class PredictLoss(nn.Module):
         super().__init__()
         scale = num_channels ** -0.5
         self.register_buffer('proj_weight',
-                             scale * torch.randn(8, num_channels),
+                             scale * torch.randn(256, num_channels),
                              persistent=True)
         num_hidden = max(1024, num_channels)
         self.predictor = nn.Sequential(nn.Linear(num_channels, num_hidden),
