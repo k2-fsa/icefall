@@ -622,7 +622,7 @@ class PredictLoss(nn.Module):
                              persistent=True)
         num_hidden = max(1024, num_channels)
         self.predictor = nn.Sequential(nn.Linear(num_channels, num_hidden),
-                                       nn.ReLU(),
+                                       nn.LeakyReLU(),
                                        nn.Linear(num_hidden, 256))
         self.batch_dim = batch_dim
         self.name = None # will be set from training code
