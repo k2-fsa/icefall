@@ -664,7 +664,10 @@ class OrthogonalLinearFunction(torch.autograd.Function):
         if weight.requires_grad:
             weight_grad = torch.matmul(y_grad.reshape(-1, y_grad.shape[-1]).t(),
                                        x.reshape(-1, x.shape[-1]))
+        else:
+            weight_grad = None
 
+        if weight.requires_grad and ctx.penalty_scale != 0.0:
             penalty_scale = ctx.penalty_scale * weight_grad.abs().mean()
 
             with torch.enable_grad():
@@ -729,8 +732,6 @@ class OrthogonalLinearFunction(torch.autograd.Function):
 
                 # add the extra gradient term from the orthogonality loss.
                 weight_grad += weight.grad
-        else:
-            weight_grad = None
         return x_grad, weight_grad, None, None, None, None, None
 
 

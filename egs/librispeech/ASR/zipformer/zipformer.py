@@ -981,7 +981,9 @@ class OrthogonalUpsample(torch.nn.Module):
     def __init__(self, channels: int, proj_dim: int):
         super().__init__()
         assert proj_dim <= channels
-        self.proj = OrthogonalLinear(proj_dim, proj_dim, bias=False)
+        # gradually make smaller and then turn off the non-orthognality penalty.
+        self.proj = OrthogonalLinear(proj_dim, proj_dim, bias=False,
+                                     penalty_scale=ScheduledFloat((0.0, 20.0), (5000.0, 1.0), (10000.0, 0.1), (20000.0, 0.0)))
         # lr_scale is a learning-rate factor to slow down how fast self.proj is learned.
         # it will be interpreted by get_parameter_groups_with_lrs()
         self.proj.lr_scale = 0.75
