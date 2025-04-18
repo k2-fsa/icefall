@@ -1191,9 +1191,9 @@ class Balancer(torch.nn.Module):
 
 class ScaleLimiterFunction(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, x: Tensor, max_scale: float):
+    def forward(ctx, x: Tensor, max_var: float):
         ctx.save_for_backward(x)
-        ctx.max_scale = max_scale
+        ctx.max_var = max_var
         return x
 
     @staticmethod
@@ -1203,26 +1203,27 @@ class ScaleLimiterFunction(torch.autograd.Function):
         # (x**2).mean() > 1.0, but it starts of small if we are close to 1.0
         # so we don't suddenly add large gradients that could be destabilizing.
         eps = 0.01
-        loss_scale = eps * ((x ** 2).mean() - ctx.max_scale).relu()  # caution: this is a bug, there is no sqrt().
-        y_grad_rms = (y_grad ** 2).mean().sqrt()
-        # y_grad_rms is a scaling factor for the gradient contribution, since we
+        loss_scale = eps * ((x.to(torch.float) ** 2).mean() - ctx.max_var).relu()
+        y_grad_abs_mean = y_grad.abs().mean()
+        # y_grad_abs_mean is a scaling factor for the gradient contribution, since we
         # don't know at this point the total scale of the main loss.
 
         # the grad of (x ** 2).mean() would be 2 * x.  we absorb the factor of 2
         # into eps, which is just an arbitrary smallish value.
-        return y_grad + (loss_scale * y_grad_rms) * x, None
+        return y_grad + (loss_scale * y_grad_abs_mean) * x, None
 
 
 class ScaleLimiter(torch.nn.Module):
     """
-    Tries to make the rms value of the features no greater than self.max_scale, by
+    Tries to make the average square value of the features no greater than self.max_var, by
     adding a penalty.  This is not per dimension, but globally.
     Assumes channel dim is -1 and the input shape has >1 dimension.
+    Caution: max_var is actually a maximum variance.
     """
-    def __init__(self, max_scale: FloatLike = 1.0, prob: FloatLike = 1.0):
+    def __init__(self, max_var: FloatLike = 1.0, prob: FloatLike = 1.0):
         super().__init__()
         self.name = None
-        self.max_scale = max_scale
+        self.max_var = max_var
         self.prob = prob
 
     def forward(self, x: Tensor) -> Tensor:
@@ -1233,10 +1234,10 @@ class ScaleLimiter(torch.nn.Module):
             # (x ** 2).mean() > 1.0, the penalty will tend to reduce the value
             # of (x ** 2).
             if random.random() < 0.001:
-                logging.info(f"name={self.name}, max_scale={float(self.max_scale)}, prob={float(self.prob)}, x_rms={(x**2).mean().sqrt().item()}")
+                logging.info(f"name={self.name}, max_var={float(self.max_var)}, prob={float(self.prob)}, x_rms={(x**2).mean().sqrt().item()}")
             prob = float(self.prob)
             if prob > 0 and random.random() < prob:
-                return ScaleLimiterFunction.apply(x, float(self.max_scale))
+                return ScaleLimiterFunction.apply(x, float(self.max_var))
             else:
                 return x
 
