@@ -525,7 +525,7 @@ class Zipformer2EncoderLayer(nn.Module):
         self.conv_module1, self.conv_module2 = [ ConvolutionModule(embed_dim, cnn_module_kernel, causal=causal)
                                                  for _ in range(2) ]
 
-        self.scale_limiter = ScaleLimiter(max_scale=2.0)
+        self.scale_limiter = ScaleLimiter(max_var=2.0)
 
         self.norm = ExpNorm(embed_dim)
 
@@ -1176,7 +1176,7 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         # it would be necessary to apply the scaling factor in the forward function.
         self.in_proj = ScaledLinear(
             embed_dim, in_proj_dim,
-            bias=True, initial_scale=query_head_dim**-0.25
+            bias=True, initial_scale=0.5 * query_head_dim**-0.25
         )
 
         self.whiten_keys = Whiten(
