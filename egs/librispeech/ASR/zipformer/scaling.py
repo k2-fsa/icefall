@@ -638,12 +638,14 @@ class PredictLoss(nn.Module):
 class OrthogonalLinearFunction(torch.autograd.Function):
     @staticmethod
     @custom_fwd
-    def forward(ctx, x, weight, name, in_groups, out_groups, group_size):
+    def forward(ctx, x: Tensor, weight: Tensor, name: str, in_groups: int,
+                out_groups: int, group_size: int, penalty_scale: float):
         ctx.save_for_backward(x, weight)
         ctx.name = name
         ctx.out_groups = out_groups
         ctx.in_groups = in_groups
         ctx.group_size = group_size
+        ctx.penalty_scale = penalty_scale
         assert not (in_groups > 0 and out_groups > 0)
         return torch.matmul(x, weight.t())
 
@@ -657,14 +659,13 @@ class OrthogonalLinearFunction(torch.autograd.Function):
         else:
             x_grad = None
 
-
         out_groups, in_groups, group_size = ctx.out_groups, ctx.in_groups, ctx.group_size
 
         if weight.requires_grad:
             weight_grad = torch.matmul(y_grad.reshape(-1, y_grad.shape[-1]).t(),
                                        x.reshape(-1, x.shape[-1]))
 
-            penalty_scale = 20.0 * weight_grad.abs().mean()
+            penalty_scale = ctx.penalty_scale * weight_grad.abs().mean()
 
             with torch.enable_grad():
                 weight = weight.detach()
@@ -718,7 +719,7 @@ class OrthogonalLinearFunction(torch.autograd.Function):
                 prod.backward(gradient=prod * penalty_scale)
 
 
-                do_print = random.random() < 0.005
+                do_print = random.random() < 0.002
                 if do_print:
                     # we print a normalized version of the loss, by dividing by the
                     # number of rows.
@@ -730,7 +731,7 @@ class OrthogonalLinearFunction(torch.autograd.Function):
                 weight_grad += weight.grad
         else:
             weight_grad = None
-        return x_grad, weight_grad, None, None, None, None
+        return x_grad, weight_grad, None, None, None, None, None
 
 
 
@@ -760,7 +761,9 @@ class OrthogonalLinear(nn.Linear):
              bias: if True, include a bias term.
      initial_scale: a factor that allows you to increase or decrease the
                    initial scale of the weight (and bias, if present)
-
+     penalty_scale: a scale on the penalty on non-orthogonality (this will
+                   be multiplied by the average-absolute-value of the
+                   backpropagated gradient).
     """
     # if in_groups or out_groups are set to >1, the orthogonal constraint
     # will be set per group.  both of them cannot be >1.
@@ -772,6 +775,7 @@ class OrthogonalLinear(nn.Linear):
                  group_size: int = -1,
                  bias: bool = True,
                  initial_scale: float = 1.0,
+                 penalty_scale: FloatLike = 20.0,
     ):
         super().__init__(in_channels, out_channels, bias=bias)
         self.name = None
@@ -782,6 +786,7 @@ class OrthogonalLinear(nn.Linear):
         elif out_groups > 0 and group_size == -1:
             group_size = out_channels // out_groups
         self.group_size = group_size
+        self.penalty_scale = copy.deepcopy(penalty_scale)
 
         # the same scaling as for ScaledLinear.
         with torch.no_grad():
@@ -796,7 +801,7 @@ class OrthogonalLinear(nn.Linear):
 
         ans = OrthogonalLinearFunction.apply(x, self.weight, self.name,
                                              self.in_groups, self.out_groups,
-                                             self.group_size)
+                                             self.group_size, float(self.penalty_scale))
         if self.bias is not None:
             ans = ans + self.bias
         return ans
@@ -1197,7 +1202,7 @@ class ScaleLimiterFunction(torch.autograd.Function):
         # (x**2).mean() > 1.0, but it starts of small if we are close to 1.0
         # so we don't suddenly add large gradients that could be destabilizing.
         eps = 0.01
-        loss_scale = eps * ((x ** 2).mean() - ctx.max_scale).relu()
+        loss_scale = eps * ((x ** 2).mean() - ctx.max_scale).relu()  # caution: this is a bug, there is no sqrt().
         y_grad_rms = (y_grad ** 2).mean().sqrt()
         # y_grad_rms is a scaling factor for the gradient contribution, since we
         # don't know at this point the total scale of the main loss.

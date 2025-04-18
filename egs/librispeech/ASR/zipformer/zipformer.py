@@ -896,30 +896,24 @@ class ResidualModule(nn.Module):
     ):
         super().__init__()
         self.function_scale = nn.Parameter(torch.full((embed_dim,), 0.5))
-        self.subtract_scale = nn.Parameter(torch.full((embed_dim,), 0.5))
         self.function_scale_min = copy.deepcopy(function_scale_min)
 
 
-    def _get_scales(self, batch_size: int):
-        if torch.jit.is_scripting() or torch.jit.is_tracing() or not self.training:
-            return 1.0 - (self.subtract_scale * self.function_scale), self.function_scale
-        else:
+    def _get_scales(self):
+        function_scale = self.function_scale
+        if not torch.jit.is_scripting() and not torch.jit.is_tracing() and self.training:
             function_scale = limit_param_value(
-                self.function_scale, min=float(self.function_scale_min), max=1.0,
+                function_scale, min=float(self.function_scale_min), max=1.0,
             )
-            subtract_scale = limit_param_value(
-                self.subtract_scale, min=0.0, max=1.0,
-            )
-            residual_scale = 1.0 - (subtract_scale * function_scale)
-
-            return residual_scale, function_scale
+        residual_scale = 1.0 - function_scale
+        return residual_scale, function_scale
 
     def forward(self, src_orig: Tensor, src: Tensor):
         """
         Args: src_orig and src are both of shape (seq_len, batch_size, num_channels)
         Returns: something with the same shape as src and src_orig
         """
-        residual_scale, function_scale = self._get_scales(src.shape[1])
+        residual_scale, function_scale = self._get_scales()
         return residual_scale * src_orig + function_scale * src
 
 
