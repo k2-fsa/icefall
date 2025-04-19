@@ -892,7 +892,7 @@ class ResidualModule(nn.Module):
     def __init__(
             self,
             embed_dim: int,
-            function_scale_min: FloatLike = ScheduledFloat((0.0, 0.9), (4000.0, 0.2), default=0),
+            function_scale_min: FloatLike = 0.1,
     ):
         super().__init__()
         self.function_scale = nn.Parameter(torch.full((embed_dim,), 0.5))
