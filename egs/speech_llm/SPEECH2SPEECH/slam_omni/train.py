@@ -134,20 +134,6 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     )
 
     parser.add_argument(
-        "--unfreeze-llm",
-        type=str2bool,
-        default=False,
-        help="Whether to unfreeze llm during training.",
-    )
-
-    parser.add_argument(
-        "--unfreeze-speech-projector",
-        type=str2bool,
-        default=False,
-        help="Whether to unfreeze speech adaptor during training.",
-    )
-
-    parser.add_argument(
         "--enable-speech-output",
         type=str2bool,
         default=False,
@@ -224,6 +210,19 @@ def get_parser():
         help="Whether to use half precision training.",
     )
 
+    parser.add_argument(
+        "--unfreeze-llm",
+        type=str2bool,
+        default=False,
+        help="Whether to unfreeze llm during training.",
+    )
+
+    parser.add_argument(
+        "--unfreeze-speech-projector",
+        type=str2bool,
+        default=False,
+        help="Whether to unfreeze speech adaptor during training.",
+    )
     parser = deepspeed.add_config_arguments(parser)
     add_model_arguments(parser)
 

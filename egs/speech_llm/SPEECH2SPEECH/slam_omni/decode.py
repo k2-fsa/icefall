@@ -346,10 +346,19 @@ def decode_one_batch(
         messages.append(message)
 
     input_ids, attention_mask = preprocess(messages, tokenizer)
-
-    generated_ids = model.decode(
-        feature, input_ids.to(device, dtype=torch.long), attention_mask.to(device)
-    )
+    if params.enable_speech_output:
+        generated_ids, generated_speech_output = model.decode_with_speech_output(
+            feature, input_ids.to(device, dtype=torch.long), attention_mask.to(device)
+        )
+        cut_ids = [cut.id for cut in batch["supervisions"]["cut"]]
+        for cut_id, speech_output in zip(cut_ids, generated_speech_output):
+            # save_path = params.exp_dir / f"speech_output/{cut_id}.wav"
+            #torchaudio.save(save_path, speech_output.cpu(), 16000)
+            print(f"speech_output: {speech_output}, cut_id: {cut_id}")
+    else:
+        generated_ids = model.decode(
+            feature, input_ids.to(device, dtype=torch.long), attention_mask.to(device)
+        )
     hyps = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
 
     return {"beam-search": hyps}
@@ -586,10 +595,71 @@ def main():
         speech_encoder_dim, llm.config.hidden_size, params.encoder_projector_ds_rate
     )
 
+    if params.enable_speech_output:
+        # Determine attn_implementation and torch_dtype based on use_flash_attn
+        if params.use_flash_attn:
+            attn_implementation = "flash_attention_2"
+            torch_dtype = torch.float16 # Or torch.bfloat16 if needed/supported
+        else:
+            attn_implementation = "eager"
+            torch_dtype = torch.float16
+
+        # codec_lm = AutoModelForCausalLM.from_pretrained(
+        #     params.llm_path_or_name,
+        #     attn_implementation=attn_implementation,
+        #     torch_dtype=torch_dtype,
+        # )
+        codec_vocab_size = 8192
+        config = Qwen2Config(
+            vocab_size=codec_vocab_size,
+            hidden_size=1024,
+            num_hidden_layers=12,
+            num_attention_heads=16,
+            num_key_value_heads=16,
+            intermediate_size=2048,
+            max_position_embeddings=4096,
+        )
+        # codec_lm = Qwen2ForCausalLM(config=config)
+        # Pass attn_implementation and torch_dtype to the constructor
+        # Use AutoModelForCausalLM.from_config for more generality
+        codec_lm = AutoModelForCausalLM.from_config(
+            config=config, 
+            attn_implementation=attn_implementation, 
+            torch_dtype=torch_dtype
+        )
+        # cosyvoice2_token_size = 6561
+        codec_lm.resize_token_embeddings(codec_vocab_size)
+        codec_lm.vocab_size = codec_vocab_size
+        codec_lm.config.pad_token_id = codec_vocab_size - 1
+        codec_lm.config.eos_token_id = codec_vocab_size - 2
+        codec_lm.config.bos_token_id = codec_vocab_size - 3
+        if params.use_lora:
+            lora_config = LoraConfig(
+                r=64,
+                lora_alpha=16,
+                target_modules=[
+                    "q_proj",
+                    "k_proj",
+                    "v_proj",
+                    "o_proj",
+                    "up_proj",
+                    "gate_proj",
+                    "down_proj",
+                ],
+                lora_dropout=0.05,
+                task_type="CAUSAL_LM",
+            )
+            codec_lm = get_peft_model(codec_lm, lora_config)
+            codec_lm.print_trainable_parameters()
+    else:
+        codec_lm = None
+
     model = SPEECH_LLM(
         speech_encoder,
         llm,
         encoder_projector,
+        codec_lm,
+        codec_lm_padding_side= "left" if params.use_flash_attn else "right",
     )
 
     if params.avg > 1:
