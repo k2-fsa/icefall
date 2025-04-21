@@ -70,7 +70,12 @@ from model import IGNORE_TOKEN_ID, SPEECH_LLM, EncoderProjector
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from torch import Tensor
 from torch.utils.tensorboard import SummaryWriter
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import (
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    Qwen2Config,
+    Qwen2ForCausalLM,
+)
 from whisper_encoder_forward_monkey_patch import replace_whisper_encoder_forward
 
 from icefall import diagnostics
@@ -135,6 +140,19 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         help="Whether to unfreeze llm during training.",
     )
 
+    parser.add_argument(
+        "--unfreeze-speech-projector",
+        type=str2bool,
+        default=False,
+        help="Whether to unfreeze speech adaptor during training.",
+    )
+
+    parser.add_argument(
+        "--enable-speech-output",
+        type=str2bool,
+        default=False,
+        help="Whether to enable speech codec output.",
+    )
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -307,7 +325,7 @@ def compute_loss(
             )
         # padding texts to the same length, texts is a list of list, padding with tokenzier.pad_token_id
         # remove too long text
-        texts = [ text for text in texts if len(text) < 1024 ]
+        # texts = [ text for text in texts if len(text) < 1024 ]
         if len(texts) != len(messages):
             logging.warning(
                 f"Remove too long text, {messages} "
@@ -392,13 +410,22 @@ def compute_loss(
     input_ids = input_ids.type(torch.LongTensor)
 
     with torch.set_grad_enabled(is_training):
-        model_outputs, acc = model(
-            fbank=feature,
-            input_ids=input_ids.to(device),
-            attention_mask=attention_mask.to(device),
-            labels=target_ids.to(device),
-        )
-        loss = model_outputs.loss
+        if not params.enable_speech_output:
+            loss, acc = model(
+                fbank=feature,
+                input_ids=input_ids.to(device),
+                attention_mask=attention_mask.to(device),
+                labels=target_ids.to(device),
+            )
+        else:
+            text_loss, acc, codec_loss, codec_acc = model.forward_with_speech_output(
+                fbank=feature,
+                input_ids=input_ids.to(device),
+                attention_mask=attention_mask.to(device),
+                labels=target_ids.to(device),
+                speech_codec_ids=answer_cosyvoice_speech_token,
+            )
+            loss = text_loss + codec_loss
     assert loss.requires_grad == is_training
 
     info = MetricsTracker()
@@ -412,7 +439,12 @@ def compute_loss(
     info["acc"] = (
         acc * info["frames"]
     )  # WAR: to avoid normalization by the number of frames
-
+    if params.enable_speech_output:
+        info["codec_acc"] = (
+            codec_acc * info["frames"]
+        )
+        info["codec_loss"] = codec_loss.detach().cpu().item()
+        info["text_loss"] = text_loss.detach().cpu().item()
     return loss, info
 
 
@@ -429,7 +461,7 @@ def compute_validation_loss(
     tot_loss = MetricsTracker()
 
     for batch_idx, batch in enumerate(valid_dl):
-        with torch.cuda.amp.autocast(enabled=params.use_fp16):
+        with torch.amp.autocast('cuda', enabled=params.use_fp16):
             loss, loss_info = compute_loss(
                 params=params,
                 tokenizer=tokenizer,
@@ -544,7 +576,7 @@ def train_one_epoch(
                         f"rm -rf {params.exp_dir}/epoch-{params.cur_epoch}-checkpoint-{batch_idx}"
                     )
         try:
-            with torch.cuda.amp.autocast(enabled=params.use_fp16):
+            with torch.amp.autocast('cuda', enabled=params.use_fp16):
                 loss, loss_info = compute_loss(
                     params=params,
                     tokenizer=tokenizer,
@@ -629,6 +661,7 @@ def run(rank, world_size, args):
     speech_encoder.eval()
 
     tokenizer = AutoTokenizer.from_pretrained(params.llm_path_or_name)
+
     if params.use_flash_attn:
         attn_implementation = "flash_attention_2"
         # torch_dtype=torch.bfloat16 FIX ME
@@ -672,6 +705,16 @@ def run(rank, world_size, args):
 
     special_tokens_dict = {"additional_special_tokens": [DEFAULT_SPEECH_TOKEN]}
     tokenizer.add_special_tokens(special_tokens_dict)
+    # original_tokenizer_vocab_size = len(tokenizer)
+    # cosyvoice2_token_size = 6561
+    # new_tokens = [f"<|s_{i}|>" for i in range(cosyvoice2_token_size)] + [
+    #     "<|SPEECH_GENERATION_START|>"
+    # ]
+    # num_added_tokens = tokenizer.add_tokens(new_tokens)
+    # model.resize_token_embeddings(len(tokenizer))
+    # model.vocab_size = len(tokenizer)
+
+
     llm.config.pad_token_id = tokenizer.pad_token_id
     llm.config.default_speech_token_id = tokenizer.convert_tokens_to_ids(
         DEFAULT_SPEECH_TOKEN
@@ -680,11 +723,66 @@ def run(rank, world_size, args):
     encoder_projector = EncoderProjector(
         speech_encoder_dim, llm.config.hidden_size, params.encoder_projector_ds_rate
     )
+    if not params.unfreeze_speech_projector:
+        for name, param in encoder_projector.named_parameters():
+            param.requires_grad = False
+        encoder_projector.eval()
+
+
+    if params.enable_speech_output:
+        if params.use_flash_attn:
+            attn_implementation = "flash_attention_2"
+        else:
+            attn_implementation = "eager"
+        torch_dtype = torch.float16
+        # codec_lm = AutoModelForCausalLM.from_pretrained(
+        #     params.llm_path_or_name,
+        #     attn_implementation=attn_implementation,
+        #     torch_dtype=torch_dtype,
+        # )
+        codec_vocab_size = 8192
+        config = Qwen2Config(
+            vocab_size=codec_vocab_size,
+            hidden_size=1024,
+            num_hidden_layers=12,
+            num_attention_heads=16,
+            num_key_value_heads=16,
+            intermediate_size=2048,
+            max_position_embeddings=4096,
+        )
+        codec_lm = Qwen2ForCausalLM(config=config)
+        # cosyvoice2_token_size = 6561
+        codec_lm.resize_token_embeddings(codec_vocab_size)
+        codec_lm.vocab_size = codec_vocab_size
+        codec_lm.config.pad_token_id = codec_vocab_size - 1
+        codec_lm.config.eos_token_id = codec_vocab_size - 2
+        codec_lm.config.bos_token_id = codec_vocab_size - 3
+        if params.use_lora:
+            lora_config = LoraConfig(
+                r=64,
+                lora_alpha=16,
+                target_modules=[
+                    "q_proj",
+                    "k_proj",
+                    "v_proj",
+                    "o_proj",
+                    "up_proj",
+                    "gate_proj",
+                    "down_proj",
+                ],
+                lora_dropout=0.05,
+                task_type="CAUSAL_LM",
+            )
+            codec_lm = get_peft_model(codec_lm, lora_config)
+            codec_lm.print_trainable_parameters()
+    else:
+        codec_lm = None
 
     model = SPEECH_LLM(
         speech_encoder,
         llm,
         encoder_projector,
+        codec_lm,
     )
 
     if params.pretrained_model_path:
@@ -727,6 +825,13 @@ def run(rank, world_size, args):
             # logging.warning(
             #    f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
             # )
+            return False
+        # cut.custom["answer_cosyvoice_speech_token"] for cut in batch["supervisions"]["cut"]
+        codec_len = len(c.custom["answer_cosyvoice_speech_token"])
+        if codec_len > 2048:
+            logging.warning(
+               f"Exclude cut with ID {c.id} from training. Duration: {c.duration}, lenth: {codec_len}"
+            )
             return False
         return True
 

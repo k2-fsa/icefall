@@ -96,3 +96,22 @@ torchrun --nproc_per_node $ngpu ./slam_omni/train.py \
   --use-lora True --unfreeze-llm True
 fi
 
+
+if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
+  log "stage 4: "
+  ngpu=2
+torchrun --nproc_per_node $ngpu ./slam_omni/train.py \
+  --max-duration 40 \
+  --enable-musan False \
+  --exp-dir ./slam_omni/exp_speech2text \
+  --speech-encoder-path-or-name models/whisper/v1.1/whisper-large-v2-multi-hans-zh-epoch-3-avg-10.pt \
+  --llm-path-or-name models/Qwen2.5-0.5B-Instruct \
+  --manifest-dir data/fbank \
+  --deepspeed \
+  --deepspeed_config ./slam_omni/ds_config_zero1.json \
+  --use-flash-attn False \
+  --use-lora True --unfreeze-llm False --enable-speech-output True
+  # --pretrained-model-path slam_omni/exp_speech2text/epoch-1-checkpoint-5000.pt/pytorch_model.bin \
+  # --sampler-state-dict-path slam_omni/exp_speech2text/epoch-1-checkpoint-5000-sampler.pt \
+
+fi
