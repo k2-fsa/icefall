@@ -287,19 +287,50 @@ class SPEECH_LLM(nn.Module):
             device=input_ids.device
         )
         audio_labels = audio_codes.clone()
+        total_len = audio_codes.shape[1]
 
         for i, speech_codec in enumerate(speech_codec_ids):
             text_label_start_index = text_label_start_index_list[i]
             speech_codec = torch.tensor(
                 speech_codec, dtype=torch.int64, device=input_ids.device
             )
-            audio_codes[i, :text_label_start_index + delay_step + 1] = self.codec_lm.config.bos_token_id # mask token_id
-            audio_codes[i, text_label_start_index + delay_step + 1 : text_label_start_index + delay_step + 1 + len(speech_codec)] = speech_codec
-            audio_labels[i, text_label_start_index + delay_step : text_label_start_index + delay_step + len(speech_codec)] = speech_codec
-            audio_labels[i, text_label_start_index + delay_step + len(speech_codec)] = self.codec_lm.config.eos_token_id
+            speech_codec_len = len(speech_codec)
 
-        if self.codec_lm_padding_side == "left":
-            pass        
+            # Calculate lengths of non-padding content
+            codes_len = text_label_start_index + delay_step + 1 + speech_codec_len
+            # Actual label content length (speech codec tokens + eos token)
+            labels_actual_content_len = speech_codec_len + 1
+
+            if self.codec_lm_padding_side == "right":
+                # Fill audio_codes (right padding)
+                codes_end_idx = text_label_start_index + delay_step + 1 + speech_codec_len
+                audio_codes[i, :text_label_start_index + delay_step + 1] = self.codec_lm.config.bos_token_id # mask token_id
+                audio_codes[i, text_label_start_index + delay_step + 1 : codes_end_idx] = speech_codec
+
+                # Fill audio_labels (right padding)
+                labels_start_idx = text_label_start_index + delay_step
+                labels_speech_end_idx = labels_start_idx + speech_codec_len
+                audio_labels[i, labels_start_idx : labels_speech_end_idx] = speech_codec
+                audio_labels[i, labels_speech_end_idx] = self.codec_lm.config.eos_token_id
+
+            elif self.codec_lm_padding_side == "left":
+                # Calculate start indices for left padding (shifting content to the right)
+                codes_start_idx = total_len - codes_len
+                labels_start_idx = total_len - labels_actual_content_len # Start index for the actual label content
+
+                # Fill audio_codes (left padding)
+                codes_speech_start_idx = codes_start_idx + text_label_start_index + delay_step + 1
+                audio_codes[i, codes_start_idx : codes_speech_start_idx] = self.codec_lm.config.bos_token_id # mask token_id
+                audio_codes[i, codes_speech_start_idx : total_len] = speech_codec
+
+                # Fill audio_labels (left padding)
+                labels_speech_end_idx = labels_start_idx + speech_codec_len
+                # Note: The beginning part remains pad_token_id
+                audio_labels[i, labels_start_idx : labels_speech_end_idx] = speech_codec
+                audio_labels[i, labels_speech_end_idx] = self.codec_lm.config.eos_token_id
+            else:
+                 raise ValueError(f"Unsupported padding side: {self.codec_lm_padding_side}")
+
         audio_attention_mask = audio_codes.ne(self.codec_lm.config.pad_token_id)
         audio_embeddings = self.codec_lm.get_input_embeddings()(audio_codes)
        
@@ -308,7 +339,24 @@ class SPEECH_LLM(nn.Module):
         text_input_embeds = inputs_embeds + text_last_hidden_outputs
         text_input_embeds = self.speech_token_projector(text_input_embeds)
 
-        audio_embeddings[:, : text_input_embeds.shape[1]] += text_input_embeds
+        T_merged = text_input_embeds.shape[1]
+        T_audio = audio_embeddings.shape[1]
+
+        if self.codec_lm_padding_side == "right":
+            # Add to the beginning for right padding
+            audio_embeddings[:, :T_merged] += text_input_embeds
+        elif self.codec_lm_padding_side == "left":
+            # Need to add to the shifted position for left padding
+            # Calculate the length of the non-padded sequence for each item
+            seq_lens = audio_attention_mask.sum(dim=1) # Shape (B)
+            for i in range(audio_embeddings.shape[0]):
+                item_len = seq_lens[i].item() # Get the non-padded length for item i
+                start_idx_content = T_audio - item_len # Start index of the content for item i
+                end_idx_target = start_idx_content + T_merged # End index of the target slice within the content
+                # Add the text_input_embeds to the calculated slice
+                audio_embeddings[i, start_idx_content:end_idx_target] += text_input_embeds[i]
+        else:
+             raise ValueError(f"Unsupported padding side: {self.codec_lm_padding_side}")
 
         speech_outputs = self.codec_lm(
             attention_mask=audio_attention_mask,

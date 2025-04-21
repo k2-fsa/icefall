@@ -383,7 +383,7 @@ def compute_loss(
     last_questions = [question.split('<USER>: ')[-1].strip() for question in questions_with_history]
     history_contexts = [question.rsplit('<USER>:', 1)[0].strip() for question in questions_with_history]
     # USER: 生成一个关于夏天的诗歌。 ASSISTANT: 夏日炎炎，万物生长，阳光明媚，享受着夏日的美好时光。 USER: 给我列举一些新闻头条。 ASSISTANT: 当今社会的新闻永远不会停。<USER>: 告诉我如何烹饪鸡肉 
-    #  <USER>: 对以下句子进行鉴赏：他心地善良。输出结果为“他是一个有善心的人。
+    #  <USER>: 对以下句子进行鉴赏：他心地善良。输出结果为"他是一个有善心的人。
 
     messages = []
     for i, total_round in enumerate(chat_rounds):
@@ -730,11 +730,14 @@ def run(rank, world_size, args):
 
 
     if params.enable_speech_output:
+        # Determine attn_implementation and torch_dtype based on use_flash_attn
         if params.use_flash_attn:
             attn_implementation = "flash_attention_2"
+            torch_dtype = torch.float16 # Or torch.bfloat16 if needed/supported
         else:
             attn_implementation = "eager"
-        torch_dtype = torch.float16
+            torch_dtype = torch.float16
+
         # codec_lm = AutoModelForCausalLM.from_pretrained(
         #     params.llm_path_or_name,
         #     attn_implementation=attn_implementation,
@@ -750,7 +753,14 @@ def run(rank, world_size, args):
             intermediate_size=2048,
             max_position_embeddings=4096,
         )
-        codec_lm = Qwen2ForCausalLM(config=config)
+        # codec_lm = Qwen2ForCausalLM(config=config)
+        # Pass attn_implementation and torch_dtype to the constructor
+        # Use AutoModelForCausalLM.from_config for more generality
+        codec_lm = AutoModelForCausalLM.from_config(
+            config=config, 
+            attn_implementation=attn_implementation, 
+            torch_dtype=torch_dtype
+        )
         # cosyvoice2_token_size = 6561
         codec_lm.resize_token_embeddings(codec_vocab_size)
         codec_lm.vocab_size = codec_vocab_size
@@ -829,7 +839,7 @@ def run(rank, world_size, args):
             return False
         # cut.custom["answer_cosyvoice_speech_token"] for cut in batch["supervisions"]["cut"]
         codec_len = len(c.custom["answer_cosyvoice_speech_token"])
-        if codec_len > 2048:
+        if codec_len > 2200:
             logging.warning(
                f"Exclude cut with ID {c.id} from training. Duration: {c.duration}, lenth: {codec_len}"
             )
