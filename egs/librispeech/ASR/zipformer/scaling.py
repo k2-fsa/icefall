@@ -614,16 +614,17 @@ class PredictLoss(nn.Module):
     """
     def __init__(self,
                  num_channels: int,
-                 batch_dim: int = 0):
+                 batch_dim: int = 0,
+                 codebook_size: int = 64):
         super().__init__()
         scale = num_channels ** -0.5
         self.register_buffer('proj_weight',
-                             scale * torch.randn(256, num_channels),
+                             scale * torch.randn(codebook_size, num_channels),
                              persistent=True)
         num_hidden = max(1024, num_channels)
         self.predictor = nn.Sequential(nn.Linear(num_channels, num_hidden),
                                        nn.LeakyReLU(),
-                                       nn.Linear(num_hidden, 256))
+                                       nn.Linear(num_hidden, codebook_size))
         self.batch_dim = batch_dim
         self.name = None # will be set from training code
 
