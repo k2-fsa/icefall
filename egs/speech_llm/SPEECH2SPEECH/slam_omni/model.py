@@ -59,7 +59,7 @@ class SPEECH_LLM(nn.Module):
         llm: nn.Module,
         encoder_projector: nn.Module,
         codec_lm: nn.Module = None,
-        use_flash_attention: bool = False,
+        codec_lm_padding_side: str = "left",
     ):
         super().__init__()
         self.encoder = encoder
@@ -74,7 +74,7 @@ class SPEECH_LLM(nn.Module):
                 self.codec_lm.config.hidden_size, self.codec_lm.config.vocab_size
             )
             self.loss_fct = torch.nn.CrossEntropyLoss()
-            self.codec_lm_padding_side = "left" if use_flash_attention else "right"
+            self.codec_lm_padding_side = codec_lm_padding_side
 
     def _merge_input_ids_with_speech_features(
         self, speech_features, inputs_embeds, input_ids, attention_mask, labels=None

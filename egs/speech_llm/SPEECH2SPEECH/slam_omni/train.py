@@ -793,7 +793,7 @@ def run(rank, world_size, args):
         llm,
         encoder_projector,
         codec_lm,
-        params.use_flash_attn,
+        codec_lm_padding_side= "left" if params.use_flash_attn else "right",
     )
 
     if params.pretrained_model_path:
