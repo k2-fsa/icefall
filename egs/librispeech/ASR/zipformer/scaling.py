@@ -615,7 +615,7 @@ class PredictLoss(nn.Module):
     def __init__(self,
                  num_channels: int,
                  batch_dim: int = 0,
-                 codebook_size: int = 64):
+                 codebook_size: int = 63):
         super().__init__()
         scale = num_channels ** -0.5
         self.register_buffer('proj_weight',
