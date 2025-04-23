@@ -35,8 +35,8 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
 fi
 
 
-if [ $stage -le 10 ] && [ $stop_stage -ge 10 ]; then
-  log "Stage 3: Combine features"
+if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
+  log "Stage 2: Combine features"
   manifest_dir=data/fbank
   if [ ! -f $manifest_dir/cuts_belle_00001-01600.jsonl.gz ]; then
     pieces=$(find $manifest_dir -name "cuts_belle.*.jsonl.gz" | sort)
@@ -48,39 +48,27 @@ if [ $stage -le 10 ] && [ $stop_stage -ge 10 ]; then
   fi
 fi
 
-if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
-  log "stage 2: "
+
+if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
+  log "stage 3: "
   python3 ./slam_omni/decode.py \
-    --max-duration 80 \
-    --exp-dir slam_omni/exp_speech2text \
+    --max-duration 1 \
+    --exp-dir slam_omni/exp_speech2speech_test_flash_attn \
     --speech-encoder-path-or-name models/whisper/v1.1/whisper-large-v2-multi-hans-zh-epoch-3-avg-10.pt  \
     --llm-path-or-name models/Qwen2.5-0.5B-Instruct \
-    --epoch 999 --avg 1 \
+    --epoch 997 --avg 1 \
     --manifest-dir data/fbank \
     --use-flash-attn True \
-    --method pure_text_sampling \
+    --method small_test_speech2speech \
+    --enable-speech-output True \
     --use-lora True # --on-the-fly-feats True
 
 fi
 
-if [ $stage -le 20 ] && [ $stop_stage -ge 20 ]; then
-  log "stage 2: "
-  python3 ./slam_omni/decode.py \
-    --max-duration 80 \
-    --exp-dir slam_omni/exp_speech2text \
-    --speech-encoder-path-or-name models/whisper/v1.1/whisper-large-v2-multi-hans-zh-epoch-3-avg-10.pt  \
-    --llm-path-or-name models/Qwen2.5-0.5B-Instruct \
-    --epoch 999 --avg 1 \
-    --manifest-dir data/fbank \
-    --use-flash-attn True \
-    --method pure_text_sampling_original_0.5B \
-    --use-lora False # --on-the-fly-feats True
 
-fi
-
-ngpu=8
-if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
-  log "stage 3: "
+if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
+  log "stage 4: "
+  ngpu=8
 torchrun --nproc_per_node $ngpu ./slam_omni/train.py \
   --max-duration 80 \
   --enable-musan False \
@@ -97,21 +85,23 @@ torchrun --nproc_per_node $ngpu ./slam_omni/train.py \
 fi
 
 
-if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
-  log "stage 4: "
+if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
+  log "stage 5: "
   ngpu=2
+  exp_dir=./slam_omni/exp_speech2speech_test_flash_attn
 torchrun --nproc_per_node $ngpu ./slam_omni/train.py \
   --max-duration 40 \
   --enable-musan False \
-  --exp-dir ./slam_omni/exp_speech2text \
+  --exp-dir $exp_dir \
   --speech-encoder-path-or-name models/whisper/v1.1/whisper-large-v2-multi-hans-zh-epoch-3-avg-10.pt \
   --llm-path-or-name models/Qwen2.5-0.5B-Instruct \
   --manifest-dir data/fbank \
   --deepspeed \
   --deepspeed_config ./slam_omni/ds_config_zero1.json \
-  --use-flash-attn False \
-  --use-lora True --unfreeze-llm False --enable-speech-output True
+  --use-flash-attn True \
+  --pretrained-model-path $exp_dir/epoch-1-checkpoint-35000.pt/pytorch_model.bin \
+  --use-lora True --unfreeze-llm True --unfreeze-speech-projector True --enable-speech-output True
   # --pretrained-model-path slam_omni/exp_speech2text/epoch-1-checkpoint-5000.pt/pytorch_model.bin \
-  # --sampler-state-dict-path slam_omni/exp_speech2text/epoch-1-checkpoint-5000-sampler.pt \
+  #   --sampler-state-dict-path $exp_dir/epoch-1-checkpoint-35000-sampler.pt \
 
 fi

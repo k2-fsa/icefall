@@ -62,9 +62,9 @@ from model import SPEECH_LLM, EncoderProjector
 
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from train import DEFAULT_SPEECH_TOKEN
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, Qwen2Config
 from whisper_encoder_forward_monkey_patch import replace_whisper_encoder_forward
-
+from train import add_model_arguments
 from icefall.env import get_env_info
 from icefall.utils import (
     AttributeDict,
@@ -124,43 +124,6 @@ def average_checkpoints(
             avg[k] //= n
 
     return avg
-
-
-def add_model_arguments(parser: argparse.ArgumentParser):
-    parser.add_argument(
-        "--llm-path-or-name",
-        type=str,
-        default="",
-        help="Path or name of the large language model.",
-    )
-
-    parser.add_argument(
-        "--speech-encoder-path-or-name",
-        type=str,
-        default="whisper-large-v2",
-        help="Path or name of the speech encoder.",
-    )
-
-    parser.add_argument(
-        "--encoder-projector-ds-rate",
-        type=int,
-        default=8,
-        help="Downsample rate for the encoder projector.",
-    )
-
-    parser.add_argument(
-        "--use-flash-attn",
-        type=str2bool,
-        default=True,
-        help="Whether to use flash attention.",
-    )
-
-    parser.add_argument(
-        "--use-lora",
-        type=str2bool,
-        default=True,
-        help="Whether to use lora fine-tuned llm checkpoint.",
-    )
 
 
 def get_parser():
@@ -351,16 +314,21 @@ def decode_one_batch(
             feature, input_ids.to(device, dtype=torch.long), attention_mask.to(device)
         )
         cut_ids = [cut.id for cut in batch["supervisions"]["cut"]]
-        for cut_id, speech_output in zip(cut_ids, generated_speech_output):
-            # save_path = params.exp_dir / f"speech_output/{cut_id}.wav"
-            #torchaudio.save(save_path, speech_output.cpu(), 16000)
-            print(f"speech_output: {speech_output}, cut_id: {cut_id}")
+        with open("test.txt", 'w') as f:
+            for cut_id in cut_ids:
+                # save_path = params.exp_dir / f"speech_output/{cut_id}.wav"
+                #torchaudio.save(save_path, speech_output.cpu(), 16000)
+                print(f"speech_output: {generated_speech_output}, cut_id: {cut_id}")
+                save_str = " ".join([str(i) for i in generated_speech_output])
+                f.write(f"{cut_id}|{save_str}\n")
+
     else:
         generated_ids = model.decode(
             feature, input_ids.to(device, dtype=torch.long), attention_mask.to(device)
         )
-    hyps = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
-
+    hyps = tokenizer.batch_decode(generated_ids, skip_special_tokens=False)
+    print(f"hyps: {hyps}")
+    exit(0)
     return {"beam-search": hyps}
 
 

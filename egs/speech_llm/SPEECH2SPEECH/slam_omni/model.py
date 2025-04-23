@@ -2,7 +2,7 @@ import torch
 from torch import nn
 from transformers.trainer_pt_utils import LabelSmoother
 from typing import List, Tuple # Added for type hints
-
+from torchmetrics.classification import MulticlassAccuracy
 IGNORE_TOKEN_ID = LabelSmoother.ignore_index
 
 
@@ -74,9 +74,21 @@ class SPEECH_LLM(nn.Module):
             self.codec_lm_head = nn.Linear(
                 self.codec_lm.config.hidden_size, self.codec_lm.config.vocab_size
             )
+            # to torch.float16
+            self.speech_token_projector = self.speech_token_projector.to(
+                dtype=torch.float16
+            )
+            self.codec_lm_head = self.codec_lm_head.to(dtype=torch.float16)
             self.loss_fct = torch.nn.CrossEntropyLoss()
             self.codec_lm_padding_side = codec_lm_padding_side
 
+            self.audio_accuracy_metric = MulticlassAccuracy(
+                self.codec_lm.vocab_size,
+                top_k=10,
+                average="micro",
+                multidim_average="global",
+                ignore_index=IGNORE_TOKEN_ID,
+            )
     def _merge_input_ids_with_speech_features(
         self, speech_features, inputs_embeds, input_ids, attention_mask, labels=None
     ):
@@ -332,7 +344,7 @@ class SPEECH_LLM(nn.Module):
             else:
                  raise ValueError(f"Unsupported padding side: {self.codec_lm_padding_side}")
 
-        audio_attention_mask = audio_codes.ne(self.codec_lm.config.pad_token_id)
+        audio_attention_mask = audio_codes.ne(self.codec_lm.config.pad_token_id) # TODO: do we need to change bos tokens to pad token or mask token?
         audio_embeddings = self.codec_lm.get_input_embeddings()(audio_codes)
        
         # input_ids: seq_len T1, audio_codec seq_len T2
@@ -355,7 +367,12 @@ class SPEECH_LLM(nn.Module):
                 start_idx_content = T_audio - item_len # Start index of the content for item i
                 end_idx_target = start_idx_content + T_merged # End index of the target slice within the content
                 # Add the text_input_embeds to the calculated slice
-                audio_embeddings[i, start_idx_content:end_idx_target] += text_input_embeds[i]
+                if end_idx_target > T_audio:
+                    # If the text input is longer than the audio input, we need to pad the audio input
+                    cut_off_len = T_audio - start_idx_content
+                    audio_embeddings[i, start_idx_content:end_idx_target] = text_input_embeds[i, :cut_off_len]
+                else:
+                    audio_embeddings[i, start_idx_content:end_idx_target] += text_input_embeds[i]
         else:
              raise ValueError(f"Unsupported padding side: {self.codec_lm_padding_side}")
 
@@ -389,9 +406,12 @@ class SPEECH_LLM(nn.Module):
                 audio_labels.detach(),
                 ignore_label=IGNORE_TOKEN_ID,
             )
+            audio_topk_acc = self.audio_accuracy_metric(
+                audio_logits.detach(),
+                audio_labels.detach()).item()
 
 
-        return text_loss, acc, codec_loss, audio_acc
+        return text_loss, acc, codec_loss, audio_acc, audio_topk_acc
     
     def decode(
         self,
@@ -473,6 +493,7 @@ class SPEECH_LLM(nn.Module):
                 - generated_speech_tokens: List of lists, where each inner list contains
                                            the generated speech codec tokens for a batch item.
         """
+        assert fbank.shape[0] == 1, "Batch size must be 1 for speech generation."
         if not self.codec_lm or not self.speech_token_projector or not self.codec_lm_head:
             raise ValueError("codec_lm and associated layers must be initialized to generate speech output.")
 
@@ -518,93 +539,88 @@ class SPEECH_LLM(nn.Module):
             attention_mask=merged_prompt_attention_mask,
             max_new_tokens=max_text_new_tokens,
             return_dict_in_generate=True,
+            output_hidden_states=True,
             **final_llm_kwargs
         )
-        for key in text_outputs:
-            print(key, text_outputs[key].shape)
-        # Assume text_outputs is the tensor of generated IDs [B, S_full]
-        generated_text_ids = text_outputs
-        exit(0)
 
-        # --- 3. Get LLM Hidden States for the *Full* Generated Text Sequence ---
-        # Run a separate forward pass to reliably get hidden states for the complete sequence.
-        # This is simpler than parsing the complex output of generate with output_hidden_states=True.
-        full_text_embeds = self.llm.get_input_embeddings()(generated_text_ids) # [B, S_full, D_llm]
-        full_text_attention_mask = (generated_text_ids != self.llm.config.pad_token_id).long() # [B, S_full]
+        generated_text_ids = text_outputs.sequences # [B, S_full]
+        thinker_token_embeds = [
+            token_hidden_states[0].to(self.llm.device) for token_hidden_states in text_outputs.hidden_states
+        ]
+        thinker_hidden_states = [
+            token_hidden_states[-1].to(self.llm.device) for token_hidden_states in text_outputs.hidden_states
+        ]
+        thinker_reply_part = torch.cat(thinker_hidden_states[1:], dim=1) + torch.cat(thinker_token_embeds[1:], dim=1)
+        thinker_prompt_part = thinker_hidden_states[0] + thinker_token_embeds[0]
 
-        # --- 4. Project Hidden States ---
-        projected_text_embeds = self.speech_token_projector(full_text_embeds) # Shape [B, S_full, D_codec]
-
-        # --- 5. Generate Speech Tokens (Autoregressive Loop with Text Context) ---
-        self.codec_lm.to(device)
-        self.codec_lm_head.to(device)
-
-        # Initial input for the codec LM is the BOS token
-        current_speech_input_ids = torch.full(
-            (batch_size, 1), self.codec_lm.config.bos_token_id, dtype=torch.long, device=device
+        thinker_prompt_part = self.speech_token_projector(thinker_prompt_part) # [B, S_full, D_codec]
+        thinker_reply_part = self.speech_token_projector(thinker_reply_part) # [B, S_full, D_codec]
+        
+        
+        delay_step = 2
+        thinker_prompt_part_seq_len = thinker_prompt_part.shape[1]
+        talker_input_ids = torch.full(
+            (batch_size, thinker_prompt_part_seq_len + delay_step), self.codec_lm.config.bos_token_id, dtype=torch.long, device=self.llm.device
         )
+        talker_inputs_embeds = self.codec_lm.get_input_embeddings()(talker_input_ids) # [B, S_full, D_codec]
+        thinker_input_embeds = torch.cat(
+            [
+                thinker_prompt_part,
+                thinker_reply_part[:, :delay_step, :],
+            ],
+            dim=1,
+        )
+        talker_inputs_embeds += thinker_input_embeds
+        thinker_reply_part = thinker_reply_part[:, delay_step:, :] # [B, S_full, D_codec]
+
 
         past_key_values = None
-        generated_speech_tokens_list = [[] for _ in range(batch_size)]
-        unfinished_sequences = torch.ones(batch_size, dtype=torch.long, device=device)
-        
-        text_context_len = projected_text_embeds.shape[1] # S_full
-
+        # generated_speech_tokens_list = [[] for _ in range(batch_size)]
+        # unfinished_sequences = torch.ones(batch_size, dtype=torch.long, device=device)
+        generated_speech_tokens_list = []
+        next_token_ids = None
+        # text_context_len = projected_text_embeds.shape[1] # S_full
         for t in range(max_speech_new_tokens):
             # Get embedding for the *current* input token ID (initially BOS, then generated tokens)
-            current_speech_embeds = self.codec_lm.get_input_embeddings()(current_speech_input_ids) # [B, 1, D_codec]
-
-            # Add the projected text embedding corresponding to the current timestep `t`
-            if t < text_context_len:
-                # Text context from the full generated text sequence
-                current_text_context_embed = projected_text_embeds[:, t:t+1, :] # [B, 1, D_codec]
-                inputs_embeds = current_speech_embeds + current_text_context_embed
-            else:
-                # No more text context to add
-                inputs_embeds = current_speech_embeds
+            # current_speech_embeds = self.codec_lm.get_input_embeddings()(current_speech_input_ids) # [B, 1, D_codec]
+            if next_token_ids is not None:
+                talker_inputs_embeds = self.codec_lm.get_input_embeddings()(next_token_ids) # [B, 1, D_codec]
+                if thinker_reply_part.shape[1] > 0:
+                    talker_inputs_embeds += thinker_reply_part[:, :1, :]
+                    thinker_reply_part = thinker_reply_part[:, 1:, :] # Remove the first token for next step
+            # # Add the projected text embedding corresponding to the current timestep `t`
+            # if t < text_context_len:
+            #     # Text context from the full generated text sequence
+            #     current_text_context_embed = projected_text_embeds[:, t:t+1, :] # [B, 1, D_codec]
+            #     inputs_embeds = current_speech_embeds + current_text_context_embed
+            # else:
+            #     # No more text context to add
+            #     inputs_embeds = current_speech_embeds
                 
-            # Ensure inputs_embeds has the correct dtype for the codec_lm
-            inputs_embeds = inputs_embeds.to(next(self.codec_lm.parameters()).dtype)
-
             # Forward pass through codec LM for one step
             # We provide inputs_embeds directly, bypassing prepare_inputs_for_generation
             codec_outputs = self.codec_lm(
-                inputs_embeds=inputs_embeds, # Combined embedding for this step
+                inputs_embeds=talker_inputs_embeds, # Combined embedding for this step
                 past_key_values=past_key_values,
                 use_cache=True,
                 return_dict=True,
+                output_hidden_states=True,
                 # No attention mask needed here when using past_key_values and single token input
             )
-
+            last_token_hidden_state = codec_outputs.hidden_states[-1][:, -1, :] # [B, D_codec]
             # Get logits for the *last* token generated in this step
-            next_token_logits = self.codec_lm_head(codec_outputs.last_hidden_state[:, -1:, :]) # Use -1 index
-
-            # --- Process Output & Update State ---
-            # Greedy decoding (can be replaced with sampling based on codec_lm_kwargs)
-            # TODO: Implement sampling/beam search for codec LM if needed
-            next_token_ids = torch.argmax(next_token_logits, dim=-1) # Greedy [B, 1]
-
-            # Mask out finished sequences
-            next_token_ids = next_token_ids * unfinished_sequences.unsqueeze(-1) + \
-                             self.codec_lm.config.pad_token_id * (1 - unfinished_sequences.unsqueeze(-1))
-
-            # Store generated tokens for unfinished sequences
-            for i in range(batch_size):
-                if unfinished_sequences[i]:
-                    token_id = next_token_ids[i].item()
-                    if token_id == self.codec_lm.config.eos_token_id:
-                        unfinished_sequences[i] = 0 # Mark as finished
-                    elif token_id != self.codec_lm.config.pad_token_id:
-                        generated_speech_tokens_list[i].append(token_id)
-
-            # Prepare for next iteration
-            current_speech_input_ids = next_token_ids # Use the newly generated token ID as input for next step
-            past_key_values = codec_outputs.past_key_values # Update KV cache
-
-            # Stop if all sequences are finished
-            if unfinished_sequences.max() == 0:
+            next_token_logits = self.codec_lm_head(last_token_hidden_state) # Use -1 index
+            # suppress tokens between 4096:len(vocab)-3
+            next_token_logits[:, 4096:-3] = -float("Inf")
+            next_token_ids = topk_sampling(
+                next_token_logits,
+            )
+            print(next_token_ids, "next_token_ids", t, next_token_ids.shape)
+            if next_token_ids[0, 0] == self.codec_lm.config.eos_token_id:
                 break
-
+            # current_speech_input_ids = next_token_ids # Use the newly generated token ID as input for next step
+            past_key_values = codec_outputs.past_key_values # Update KV cache
+            generated_speech_tokens_list.append(next_token_ids.squeeze(1).cpu().tolist()[0])
         # --- 6. Return Results ---
         return generated_text_ids, generated_speech_tokens_list
 
@@ -626,3 +642,64 @@ def compute_accuracy(pad_outputs, pad_targets, ignore_label):
     )
     denominator = torch.sum(mask)
     return numerator.float() / denominator.float()
+
+
+def topk_sampling(
+    logits,
+    top_k=50,
+    top_p=0.95,
+    temperature=0.8,
+):
+    if temperature != 1.0:
+        logits = logits / temperature
+    # Top-p/top-k filtering
+    logits_filtered = top_k_top_p_filtering(
+        logits.clone(), top_k=top_k, top_p=top_p, min_tokens_to_keep=2
+    )
+    # Sample
+    probs = torch.nn.functional.softmax(logits_filtered, dim=-1)
+    tokens = torch.multinomial(probs, num_samples=1)
+
+    return tokens
+
+
+# https://github.com/microsoft/unilm/blob/master/xtune/src/transformers/modeling_utils.py
+def top_k_top_p_filtering(
+    logits, top_k=20, top_p=0.5, filter_value=-float("Inf"), min_tokens_to_keep=1
+):
+    """Filter a distribution of logits using top-k and/or nucleus (top-p) filtering
+    Args:
+        logits: logits distribution shape (batch size, vocabulary size)
+        if top_k > 0: keep only top k tokens with highest probability (top-k filtering).
+        if top_p < 1.0: keep the top tokens with cumulative probability >= top_p (nucleus filtering).
+            Nucleus filtering is described in Holtzman et al. (http://arxiv.org/abs/1904.09751)
+        Make sure we keep at least min_tokens_to_keep per batch example in the output
+    From: https://gist.github.com/thomwolf/1a5a29f6962089e871b94cbd09daf317
+    """
+    if top_k > 0:
+        top_k = min(max(top_k, min_tokens_to_keep), logits.size(-1))  # Safety check
+        # Remove all tokens with a probability less than the last token of the top-k
+        indices_to_remove = logits < torch.topk(logits, top_k)[0][..., -1, None]
+        logits[indices_to_remove] = filter_value
+
+    if top_p < 1.0:
+        sorted_logits, sorted_indices = torch.sort(logits, descending=True)
+        cumulative_probs = torch.cumsum(
+            torch.nn.functional.softmax(sorted_logits, dim=-1), dim=-1
+        )
+
+        # Remove tokens with cumulative probability above the threshold (token with 0 are kept)
+        sorted_indices_to_remove = cumulative_probs > top_p
+        if min_tokens_to_keep > 1:
+            # Keep at least min_tokens_to_keep (set to min_tokens_to_keep-1 because we add the first one below)
+            sorted_indices_to_remove[..., :min_tokens_to_keep] = 0
+        # Shift the indices to the right to keep also the first token above the threshold
+        sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
+        sorted_indices_to_remove[..., 0] = 0
+
+        # scatter sorted tensors to original indexing
+        indices_to_remove = sorted_indices_to_remove.scatter(
+            1, sorted_indices, sorted_indices_to_remove
+        )
+        logits[indices_to_remove] = filter_value
+    return logits

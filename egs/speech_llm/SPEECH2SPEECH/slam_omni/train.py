@@ -417,7 +417,7 @@ def compute_loss(
                 labels=target_ids.to(device),
             )
         else:
-            text_loss, acc, codec_loss, codec_acc = model.forward_with_speech_output(
+            text_loss, acc, codec_loss, codec_acc, codec_topk_acc = model.forward_with_speech_output(
                 fbank=feature,
                 input_ids=input_ids.to(device),
                 attention_mask=attention_mask.to(device),
@@ -441,6 +441,9 @@ def compute_loss(
     if params.enable_speech_output:
         info["codec_acc"] = (
             codec_acc * info["frames"]
+        )
+        info["codec_topk_acc"] = (
+            codec_topk_acc * info["frames"]
         )
         info["codec_loss"] = codec_loss.detach().cpu().item()
         info["text_loss"] = text_loss.detach().cpu().item()
@@ -743,6 +746,7 @@ def run(rank, world_size, args):
         #     torch_dtype=torch_dtype,
         # )
         codec_vocab_size = 8192
+        # TODO: modify above vocab size or supress_tokens when decoding
         config = Qwen2Config(
             vocab_size=codec_vocab_size,
             hidden_size=1024,
