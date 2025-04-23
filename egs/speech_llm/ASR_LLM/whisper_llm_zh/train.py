@@ -523,7 +523,7 @@ def train_one_epoch(
     for batch_idx, batch in enumerate(train_dl):
         params.batch_idx_train += 1
         batch_size = len(batch["supervisions"]["text"])
-        if batch_idx % params.valid_interval == 0 and not params.print_diagnostics:
+        if batch_idx % params.valid_interval == 0:
             logging.info("Computing validation loss")
             valid_info = compute_validation_loss(
                 params=params,
@@ -764,7 +764,7 @@ def run(rank, world_size, args):
     if params.sampler_state_dict_path:
         sampler_state_dict = torch.load(params.sampler_state_dict_path)
         sampler_state_dict["max_duration"] = params.max_duration
-    # TODO: load sampler state dict
+
     train_dl = data_module.train_dataloaders(
         train_cuts, sampler_state_dict=sampler_state_dict
     )
@@ -806,15 +806,15 @@ def run(rank, world_size, args):
 
         model.save_checkpoint(
             save_dir=params.exp_dir,
-            tag=f"epoch-{params.cur_epoch}",
+            tag=f"zero-epoch-{params.cur_epoch}",
             client_state={},
             exclude_frozen_parameters=True,
         )
         if rank == 0:
             convert_zero_checkpoint_to_fp32_state_dict(
                 params.exp_dir,
-                f"{params.exp_dir}/epoch-{params.cur_epoch}.pt",
-                tag=f"epoch-{params.cur_epoch}",
+                f"{params.exp_dir}/epoch-{params.cur_epoch}",
+                tag=f"zero-epoch-{params.cur_epoch}",
                 exclude_frozen_parameters=True,
             )
             # save sampler state dict into checkpoint
@@ -824,7 +824,7 @@ def run(rank, world_size, args):
                 f"{params.exp_dir}/epoch-{params.cur_epoch}-sampler.pt",
             )
 
-            os.system(f"rm -rf {params.exp_dir}/epoch-{params.cur_epoch}")
+            os.system(f"rm -rf {params.exp_dir}/zero-epoch-{params.cur_epoch}")
 
     logging.info("Done!")
 
