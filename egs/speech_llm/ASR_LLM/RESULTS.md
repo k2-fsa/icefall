@@ -42,8 +42,8 @@ huggingface-cli download --local-dir models/whisper    yuekai/icefall_asr_aishel
 # For multi-hans fine-tuned whisper model
 # huggingface-cli download --local-dir models/whisper    yuekai/icefall_asr_multi-hans-zh_whisper v1.1/whisper-large-v2-multi-hans-zh-epoch-3-avg-10.pt
 
-# huggingface-clie download  --local-dir models/qwen     Qwen/Qwen2-7B-Instruct
-huggingface-clie download  --local-dir models/qwen     Qwen/Qwen2-1.5B-Instruct
+# huggingface-cli download  --local-dir models/qwen     Qwen/Qwen2-7B-Instruct
+huggingface-cli download  --local-dir models/qwen     Qwen/Qwen2-1.5B-Instruct
 
 # First, we only train the projector and freeze other modules.
 torchrun --nproc_per_node 8 ./whisper_llm_zh/train.py \
@@ -57,7 +57,7 @@ torchrun --nproc_per_node 8 ./whisper_llm_zh/train.py \
   --use-flash-attn True \
   --use-lora False --unfreeze-llm False
 
-# Then we jointly train the projector and LLM LoRA modules.
+# Then, we jointly train the projector and LLM LoRA modules.
 torchrun --nproc_per_node 8 ./whisper_llm_zh/train.py \
   --max-duration 200 \
   --exp-dir ./whisper_llm_zh/exp_test \
@@ -81,7 +81,7 @@ huggingface-cli download --local-dir models/whisper    yuekai/icefall_asr_aishel
 # For multi-hans fine-tuned whisper model
 # huggingface-cli download --local-dir models/whisper    yuekai/icefall_asr_multi-hans-zh_whisper v1.1/whisper-large-v2-multi-hans-zh-epoch-3-avg-10.pt
 
-huggingface-clie download  --local-dir models/qwen     Qwen/Qwen2-7B-Instruct
+huggingface-cli download  --local-dir models/qwen     Qwen/Qwen2-7B-Instruct
 
 mkdir -p whisper_llm_zh/exp_aishell_whisper_qwen2_1.5B
 ln -s models/checkpoint/epoch-10-avg-5.pt whisper_llm_zh/exp_aishell_whisper_qwen2_1.5B/epoch-999.pt
