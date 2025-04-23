@@ -41,19 +41,42 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   fi
 fi
 
+if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
+    log "Stage 1: Prepare MLS English manifests and compute fbank"
+    # We assume that you have downloaded the MLS English corpus
+    # to $dl_dir/mls_english
+    mkdir -p data/manifests
+    if [ ! -e data/mls_english.done ]; then
+        # lhotse prepare mls_english -j $nj $dl_dir/mls_english data/manifests
+        python local/compute_fbank_mls_english.py --manifest-dir data/manifests --audio-dir data/audio --dl-dir $dl_dir/mls_english
+        touch data/manifests/.mls_english.done
+    fi
+fi
+
+if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
+    log "Stage 2: Validate MLS English manifests"
+    if [ ! -e data/manifests/.mls_english-validated.done ]; then
+        python local/validate_manifest.py --manifest data/manifests/mls_english_cuts_train.jsonl.gz
+        python local/validate_manifest.py --manifest data/manifests/mls_english_cuts_dev.jsonl.gz
+        python local/validate_manifest.py --manifest data/manifests/mls_english_cuts_test.jsonl.gz
+        touch data/manifests/.mls_english-validated.done
+    fi
+fi
+
+
 mkdir -p data/lang
 lang_dir=data/lang
 
-if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
-  log "Stage 1: Prepare transcript for BPE training"
+if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
+  log "Stage 3: Prepare transcript for BPE training"
   if [ ! -f $lang_dir/transcript.txt ]; then
     log "Generating transcripts for BPE training"
     ./local/utils/generate_transcript.py --lang-dir $lang_dir
   fi
 fi
 
-if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
-  log "Stage 2: Prepare BPE tokenizer"
+if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
+  log "Stage 4: Prepare BPE tokenizer"
 
   for vocab_size in ${vocab_sizes[@]}; do
     log "Training BPE model with vocab_size=${vocab_size}"

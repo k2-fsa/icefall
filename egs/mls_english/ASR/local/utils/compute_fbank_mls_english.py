@@ -94,6 +94,7 @@ def get_args():
     )
     parser.add_argument("-m", "--manifest-dir", type=Path)
     parser.add_argument("-a", "--audio-dir", type=Path)
+    parser.add_argument("-d", "--dl-dir", type=Path)
     return parser.parse_args()
 
 
@@ -114,7 +115,7 @@ def main():
         )
         return
     else:
-        mls_eng_hf_dataset_path = "/root/datasets/parler-tts--mls_eng"
+        mls_eng_hf_dataset_path = args.dl_dir # "/root/datasets/parler-tts--mls_eng"
         cut_sets = make_cutset_blueprints(mls_eng_hf_dataset_path)
         for part, cut_set in cut_sets:
             logging.info(f"Processing {part}")
@@ -125,8 +126,8 @@ def main():
                 storage_type=LilcomChunkyWriter,
             )
 
-            # cut_set.save_audios(args.audio_dir)
-            # cut_set.to_file(args.manifest_dir / f"mls_eng_cuts_{part}.jsonl.gz")
+            cut_set = cut_set.save_audios(args.audio_dir / part) # makes new cutset that uses paths to actual audio files
+            cut_set.to_file(args.manifest_dir / f"mls_eng_cuts_{part}.jsonl.gz")
 
         logging.info("All fbank computed for MLS English.")
         (args.manifest_dir / ".mls-eng-fbank.done").touch()
