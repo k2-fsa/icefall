@@ -397,7 +397,7 @@ def compute_loss(
 
     texts = batch["supervisions"]["text"]
     unk_id = params.unk_id
-    y = convert_texts_into_ids(texts, unk_id, sp=sp)
+    y = convert_texts_into_ids(texts, sp=sp)
     y = k2.RaggedTensor(y).to(device)
 
     with torch.set_grad_enabled(is_training):
