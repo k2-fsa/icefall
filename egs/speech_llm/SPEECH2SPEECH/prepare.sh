@@ -59,7 +59,7 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
     --epoch 997 --avg 1 \
     --manifest-dir data/fbank \
     --use-flash-attn True \
-    --method small_test_speech2speech \
+    --method small_test_speech2speech_rerun \
     --enable-speech-output True \
     --use-lora True # --on-the-fly-feats True
 

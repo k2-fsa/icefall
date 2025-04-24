@@ -355,7 +355,7 @@ def compute_loss(
             for i in range(mask_indices[0].size(0)):
                 row = mask_indices[0][i]
                 col = mask_indices[1][i]
-                # + 2 to  skip: 'assistant', '\n' 151665, 151645,    198, 151644,  77091, 198
+                # + 6 to  skip: 'assistant', '\n' 151665, 151645,    198, 151644,  77091, 198
                 target_ids[row, : col + 6] = IGNORE_TOKEN_ID
 
         attention_mask = input_ids.ne(tokenizer.pad_token_id)

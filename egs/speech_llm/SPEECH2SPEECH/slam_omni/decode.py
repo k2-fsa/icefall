@@ -314,10 +314,13 @@ def decode_one_batch(
             feature, input_ids.to(device, dtype=torch.long), attention_mask.to(device)
         )
         cut_ids = [cut.id for cut in batch["supervisions"]["cut"]]
-        with open("test.txt", 'w') as f:
-            for cut_id in cut_ids:
-                # save_path = params.exp_dir / f"speech_output/{cut_id}.wav"
-                #torchaudio.save(save_path, speech_output.cpu(), 16000)
+        for cut_id in cut_ids:
+            speech_token_file_name = (
+            params.log_dir / f"{cut_id}.txt"
+            )
+            with open(speech_token_file_name, 'w') as f:
+            # save_path = params.exp_dir / f"speech_output/{cut_id}.wav"
+            #torchaudio.save(save_path, speech_output.cpu(), 16000)
                 print(f"speech_output: {generated_speech_output}, cut_id: {cut_id}")
                 save_str = " ".join([str(i) for i in generated_speech_output])
                 f.write(f"{cut_id}|{save_str}\n")
@@ -328,7 +331,6 @@ def decode_one_batch(
         )
     hyps = tokenizer.batch_decode(generated_ids, skip_special_tokens=False)
     print(f"hyps: {hyps}")
-    exit(0)
     return {"beam-search": hyps}
 
 
