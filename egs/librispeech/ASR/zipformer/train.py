@@ -82,7 +82,7 @@ from torch import Tensor
 from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
-from zipformer import Zipformer2
+from zipformer2 import Zipformer2
 
 from icefall import diagnostics
 from icefall.checkpoint import load_checkpoint, remove_checkpoints
@@ -144,47 +144,91 @@ def set_batch_count(model: Union[nn.Module, DDP], batch_count: float) -> None:
             module.name = name
 
 
+def lookup(params: AttributeDict, name: str):
+    """
+    Interprets numerical arguments in `params` by taking into account base-dim;
+    also parses comma-separated lists of integers, turning them into tuples.
+    If a particular attribute ending in "dim" is not present we look up
+    the same name but ending in "factor", and multiply the elements by base_dim.
+    """
+    try:
+        attr = getattr(params, name)
+        try:
+            attr = tuple(map(int, attr.split(",")))  # tuple of comma-separated ints
+            if len(attr) == 1:
+                attr = attr[0]
+        except:
+            pass  # leave attr as it is, e.g. a string.
+        return attr
+    except AttributeError as e:
+        if name[-3:] != "dim":
+            raise e
+        try:
+            attr = getattr(params,  name[:-3] + "multiple")
+            if isinstance(attr, str):
+                attr = tuple(map(int, attr.split(",")))  # tuple of ints
+                base_dim = params.base_dim
+                attr = tuple([i * base_dim for i in attr])
+                if len(attr) == 1:
+                    attr = attr[0]
+            else:  # assume int.
+                assert isinstance(attr, (int, float)), (name, attr)
+                attr = attr * params.base_dim
+            return attr
+        except AttributeError as e:
+            raise RuntimeError(f"cannot find or infer attribute {name} in params: {e}")
+
+
+
+
 def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--num-encoder-layers",
         type=str,
-        default="2,2,3,4,3,2",
+        default="3,4,4,4,4,4,4,4,4",
         help="Number of zipformer encoder layers per stack, comma separated.",
     )
 
     parser.add_argument(
         "--downsampling-factor",
         type=str,
-        default="1,2,4,8,4,2",
+        default="1,2,4,4,8,8,4,4,2",
         help="Downsampling factor for each stack of encoder layers.",
     )
 
     parser.add_argument(
-        "--embed-dim",
+        "--base-dim",
         type=int,
-        default=192,
-        help="Output dimension of frontend, also determines bypass dimensions in zipformer layers.",
+        default=64,
+        help="Dimension that, via multiples, defines the dimensions of the model."
     )
 
     parser.add_argument(
-        "--feedforward-dim",
+        "--embed-multiple",
+        type=int,
+        default=4,
+        help="Output dimension of frontend, as multiple of base-dim; bypass dimensions in zipformer layers.",
+    )
+
+    parser.add_argument(
+        "--feedforward-multiple",
         type=str,
-        default="512,768,1024,1536,1024,768",
-        help="Feedforward dimension of the zipformer encoder layers, per stack, comma separated.",
+        default="4,4,4,4,4,4,4,4,4",
+        help="Factor by which the feedforward hidden dim is greater than the encoder-dim, per stack: a single int or comma-separated list.",
     )
 
     parser.add_argument(
         "--num-heads",
         type=str,
-        default="4,4,4,8,4,4",
-        help="Number of attention heads in the zipformer encoder layers: a single int or comma-separated list.",
+        default="4,4,4,4,8,8,4,4,4",
+        help="Number of attention heads in the zipformer encoder layers, per stack: a single int or comma-separated list.",
     )
 
     parser.add_argument(
-        "--encoder-dim",
+        "--encoder-multiple",
         type=str,
-        default="192,256,384,512,384,256",
-        help="Embedding dimension in encoder stacks: a single int or comma-separated list.",
+        default="3,4,6,6,8,8,6,6,4",
+        help="Factor by which encoder-dim is larger then base-dim, per encoder stack.",
     )
 
     parser.add_argument(
@@ -218,22 +262,22 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--cnn-module-kernel",
         type=str,
-        default="31,31,15,15,15,31",
+        default="31,31,15,15,15,15,15,15,31",
         help="Sizes of convolutional kernels in convolution modules in each encoder stack: "
         "a single int or comma-separated list.",
     )
 
     parser.add_argument(
-        "--decoder-dim",
+        "--decoder-multiple",
         type=int,
-        default=512,
-        help="Embedding dimension in the decoder model.",
+        default=8,
+        help="Factor by which embedding dimension in the decoder model is larger than base-dim.",
     )
 
     parser.add_argument(
-        "--joiner-dim",
+        "--joiner-multiple",
         type=int,
-        default=512,
+        default=4,
         help="""Dimension used in the joiner model.
         Outputs from the encoder and decoder model are projected
         to this dimension before adding.
@@ -241,10 +285,10 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     )
 
     parser.add_argument(
-        "--attention-decoder-dim",
+        "--attention-decoder-multiple",
         type=int,
-        default=512,
-        help="""Dimension used in the attention decoder""",
+        default=8,
+        help="""Factor by which attention decoder dim is larger than base-dim""",
     )
 
     parser.add_argument(
@@ -255,10 +299,10 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     )
 
     parser.add_argument(
-        "--attention-decoder-attention-dim",
+        "--attention-decoder-attention-multiple",
         type=int,
-        default=512,
-        help="""Attention dimension used in attention decoder""",
+        default=8,
+        help="""Determines attention dimension used in attention decoder""",
     )
 
     parser.add_argument(
@@ -269,10 +313,10 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     )
 
     parser.add_argument(
-        "--attention-decoder-feedforward-dim",
+        "--attention-decoder-feedforward-multiple",
         type=int,
-        default=2048,
-        help="""Feedforward dimension used in attention decoder""",
+        default=4,
+        help="""Factor by which feedforward hidden dim in attention decoder is larger than attention-decoder-dim"""
     )
 
     parser.add_argument(
@@ -676,7 +720,7 @@ def get_encoder_embed(params: AttributeDict) -> nn.Module:
     # sampling rate.
     encoder_embed = Conv2dSubsampling(
         in_channels=params.feature_dim,
-        out_channels=params.embed_dim,
+        out_channels=lookup(params, "embed_dim"),
         dropout=0.0,
     )
     return encoder_embed
@@ -684,23 +728,22 @@ def get_encoder_embed(params: AttributeDict) -> nn.Module:
 
 def get_encoder_model(params: AttributeDict) -> nn.Module:
     encoder = Zipformer2(
-        input_dim=params.embed_dim,
+        input_dim=lookup(params, "embed_dim"),
         output_downsampling_factor=2,
-        downsampling_factor=_to_int_tuple(params.downsampling_factor),
-        num_encoder_layers=_to_int_tuple(params.num_encoder_layers),
-        encoder_dim=_to_int_tuple(params.encoder_dim),
-        query_head_dim=_to_int_tuple(params.query_head_dim),
-        pos_head_dim=_to_int_tuple(params.pos_head_dim),
-        value_head_dim=_to_int_tuple(params.value_head_dim),
+        downsampling_factor=lookup(params, "downsampling_factor"),
+        num_encoder_layers=lookup(params, "num_encoder_layers"),
+        encoder_dim=lookup(params, "encoder_dim"),
+        query_head_dim=lookup(params, "query_head_dim"),
+        pos_head_dim=lookup(params, "pos_head_dim"),
+        value_head_dim=lookup(params, "value_head_dim"),
         pos_dim=params.pos_dim,
-        num_heads=_to_int_tuple(params.num_heads),
-        feedforward_dim=_to_int_tuple(params.feedforward_dim),
-        cnn_module_kernel=_to_int_tuple(params.cnn_module_kernel),
-        dropout=ScheduledFloat((0.0, 0.4), (3000.0, 0.0)),
-        warmup_batches=4000.0,
+        num_heads=lookup(params, "num_heads"),
+        feedforward_multiple=lookup(params, "feedforward_multiple"),
+        cnn_module_kernel=lookup(params, "cnn_module_kernel"),
+        dropout=ScheduledFloat((0.0, 0.4), (3000.0, 0.0)), # todo: set to zero
         causal=params.causal,
-        chunk_size=_to_int_tuple(params.chunk_size),
-        left_context_frames=_to_int_tuple(params.left_context_frames),
+        chunk_size=lookup(params, "chunk_size"),
+        left_context_frames=lookup(params, "left_context_frames"),
     )
     return encoder
 
@@ -708,7 +751,7 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
 def get_decoder_model(params: AttributeDict) -> nn.Module:
     decoder = Decoder(
         vocab_size=params.vocab_size,
-        decoder_dim=params.decoder_dim,
+        decoder_dim=lookup(params, "decoder_dim"),
         blank_id=params.blank_id,
         context_size=params.context_size,
     )
@@ -718,9 +761,9 @@ def get_decoder_model(params: AttributeDict) -> nn.Module:
 def get_joiner_model(params: AttributeDict) -> nn.Module:
     output_downsampling_factor = 2
     joiner = Joiner(
-        encoder_dim=params.embed_dim * output_downsampling_factor,
-        decoder_dim=params.decoder_dim,
-        joiner_dim=params.joiner_dim,
+        encoder_dim=lookup(params, "embed_dim") * output_downsampling_factor,
+        decoder_dim=lookup(params, "decoder_dim"),
+        joiner_dim=lookup(params, "joiner_dim"),
         vocab_size=params.vocab_size,
     )
     return joiner
@@ -729,12 +772,12 @@ def get_joiner_model(params: AttributeDict) -> nn.Module:
 def get_attention_decoder_model(params: AttributeDict) -> nn.Module:
     decoder = AttentionDecoderModel(
         vocab_size=params.vocab_size,
-        decoder_dim=params.attention_decoder_dim,
+        decoder_dim=lookup(params, "attention_decoder_dim"),
         num_decoder_layers=params.attention_decoder_num_layers,
-        attention_dim=params.attention_decoder_attention_dim,
+        attention_dim=lookup(params, "attention_decoder_attention_dim"),
         num_heads=params.attention_decoder_num_heads,
-        feedforward_dim=params.attention_decoder_feedforward_dim,
-        memory_dim=params.embed_dim * output_downsampling_factor,
+        feedforward_dim=lookup(params, "attention_decoder_feedforward_dim"),
+        memory_dim=lookup(params, "embed_dim") * output_downsampling_factor,
         sos_id=params.sos_id,
         eos_id=params.eos_id,
         ignore_id=params.ignore_id,
@@ -772,8 +815,8 @@ def get_model(params: AttributeDict) -> nn.Module:
         decoder=decoder,
         joiner=joiner,
         attention_decoder=attention_decoder,
-        encoder_dim=output_downsampling_factor * params.embed_dim,
-        decoder_dim=params.decoder_dim,
+        encoder_dim=output_downsampling_factor * lookup(params, "embed_dim"),
+        decoder_dim=lookup(params, "decoder_dim"),
         vocab_size=params.vocab_size,
         use_transducer=params.use_transducer,
         use_ctc=params.use_ctc,

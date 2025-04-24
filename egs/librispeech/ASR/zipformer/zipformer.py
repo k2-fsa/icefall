@@ -70,15 +70,13 @@ class Zipformer2(EncoderInterface):
         value_head_dim (int or Tuple[int]): dimension of value in each attention head
         num_heads: (int or Tuple[int]): number of heads in the self-attention mechanism.
               Must be at least 4.
-        feedforward_dim (int or Tuple[int]): hidden dimension in feedforward modules
+        feedforward_multiple (int or Tuple[int]): determines hidden dimension in feedforward modules
         cnn_module_kernel (int or Tuple[int])): Kernel size of convolution module
 
         pos_dim (int): the dimension of each positional-encoding vector prior to projection,
             e.g. 128.
 
         dropout (float): dropout rate
-        warmup_batches (float): number of batches to warm up over; this controls
-          dropout of encoder layers.
         causal (bool): if True, support chunkwise causal convolution.  This should
           not hurt WER as no modeling power is lost, but the convolution modules will be
           slightly slower and use more memory.  Enables use of the chunk_size and
@@ -102,11 +100,10 @@ class Zipformer2(EncoderInterface):
         pos_head_dim: Union[int, Tuple[int]] = 4,
         value_head_dim: Union[int, Tuple[int]] = 12,
         num_heads: Union[int, Tuple[int]] = 8,
-        feedforward_dim: Union[int, Tuple[int]] = 1536,
+        feedforward_multiple: Union[int, Tuple[int]] = 4,
         cnn_module_kernel: Union[int, Tuple[int]] = 31,
         pos_dim: int = 192,
         dropout: FloatLike = None,  # see code below for default
-        warmup_batches: float = 4000.0,
         causal: bool = False,
         chunk_size: Tuple[int] = [-1],
         left_context_frames: Tuple[int] = [-1],
@@ -137,7 +134,7 @@ class Zipformer2(EncoderInterface):
         self.value_head_dim = value_head_dim = _to_tuple(value_head_dim)
         pos_head_dim = _to_tuple(pos_head_dim)
         self.num_heads = num_heads = _to_tuple(num_heads)
-        feedforward_dim = _to_tuple(feedforward_dim)
+        feedforward_multiple = _to_tuple(feedforward_multiple)
         self.cnn_module_kernel = cnn_module_kernel = _to_tuple(cnn_module_kernel)
 
         self.causal = causal
@@ -178,7 +175,7 @@ class Zipformer2(EncoderInterface):
                 query_head_dim=query_head_dim[i],
                 pos_head_dim=pos_head_dim[i],
                 value_head_dim=value_head_dim[i],
-                feedforward_dim=feedforward_dim[i],
+                feedforward_multiple=feedforward_multiple[i],
                 dropout=dropout,
                 cnn_module_kernel=cnn_module_kernel[i],
                 causal=causal,
@@ -470,7 +467,7 @@ class Zipformer2EncoderLayer(nn.Module):
     Args:
         embed_dim: the number of expected features in the input (required).
         nhead: the number of heads in the multiheadattention models (required).
-        feedforward_dim: the dimension of the feedforward network model (required).
+        feedforward_multiple: determines the hidden dimension of the feedforward module
         dropout: the dropout value (default=0.1).
         cnn_module_kernel (int): Kernel size of convolution module (default=31).
 
@@ -488,7 +485,7 @@ class Zipformer2EncoderLayer(nn.Module):
         query_head_dim: int,
         pos_head_dim: int,
         value_head_dim: int,
-        feedforward_dim: int,
+        feedforward_multiple: int,
         dropout: FloatLike = 0.1,
         cnn_module_kernel: int = 31,
         causal: bool = False,
@@ -515,8 +512,8 @@ class Zipformer2EncoderLayer(nn.Module):
 
         self.self_attn1, self.self_attn2 = [ SelfAttention(embed_dim, num_heads, value_head_dim) for _ in range(2) ]
 
+        feedforward_dim = embed_dim * feedforward_multiple
         self.feed_forward1 = FeedforwardModule(embed_dim, (feedforward_dim * 3) // 4, dropout)
-
 
         self.feed_forward2 = FeedforwardModule(embed_dim, feedforward_dim, dropout)
 

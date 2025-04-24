@@ -509,10 +509,10 @@ class AsrModel(nn.Module):
           log_mels: log-mel features of shape (batch_size, T, num_mels)
          encoder_out: embeddings of shape (batch_size, T_embed, encoder_dim)
         """
-        if use_cr_ctc:
-            batch_size = log_mels.shape[0]
-            log_mels = torch.roll(log_mels, batch_size // 2, dims=0)
+        batch_size = log_mels.shape[0]
         num_mels = log_mels.shape[2]
+        if use_cr_ctc:
+            log_mels = torch.roll(log_mels, batch_size // 2, dims=0)
 
         pred_mels = self.reconstruction_proj(encoder_out) # (batch_size, T_embed, 4 * num_mels)
         T_embed = pred_mels.shape[1]
