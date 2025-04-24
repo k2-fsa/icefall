@@ -677,7 +677,7 @@ def get_encoder_embed(params: AttributeDict) -> nn.Module:
     encoder_embed = Conv2dSubsampling(
         in_channels=params.feature_dim,
         out_channels=params.embed_dim,
-        dropout=ScheduledFloat((0.0, 0.3), (20000.0, 0.1)),
+        dropout=0.0,
     )
     return encoder_embed
 
