@@ -186,7 +186,7 @@ class AttributeDict(dict):
         tmp = {}
         for k, v in self.items():
             # PosixPath is ont JSON serializable
-            if isinstance(v, pathlib.Path) or isinstance(v, torch.device):
+            if isinstance(v, (pathlib.Path, torch.device, torch.dtype)):
                 v = str(v)
             tmp[k] = v
         return json.dumps(tmp, indent=indent, sort_keys=True)
