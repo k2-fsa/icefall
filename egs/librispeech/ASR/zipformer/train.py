@@ -82,7 +82,7 @@ from torch import Tensor
 from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
-from zipformer2 import Zipformer2
+from zipformer import Zipformer2
 
 from icefall import diagnostics
 from icefall.checkpoint import load_checkpoint, remove_checkpoints
@@ -277,7 +277,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--joiner-multiple",
         type=int,
-        default=4,
+        default=8,
         help="""Dimension used in the joiner model.
         Outputs from the encoder and decoder model are projected
         to this dimension before adding.
@@ -776,7 +776,7 @@ def get_attention_decoder_model(params: AttributeDict) -> nn.Module:
         num_decoder_layers=params.attention_decoder_num_layers,
         attention_dim=lookup(params, "attention_decoder_attention_dim"),
         num_heads=params.attention_decoder_num_heads,
-        feedforward_dim=lookup(params, "attention_decoder_feedforward_dim"),
+        feedforward_dim=params.attention_decoder_feedforward_multiple * lookup(params, "attention_decoder_attention_dim"),
         memory_dim=lookup(params, "embed_dim") * output_downsampling_factor,
         sos_id=params.sos_id,
         eos_id=params.eos_id,
