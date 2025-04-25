@@ -206,8 +206,8 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--embed-multiple",
         type=int,
-        default=4,
-        help="Output dimension of frontend, as multiple of base-dim; bypass dimensions in zipformer layers.",
+        default=6,
+        help="Output dimension of frontend, as multiple of base-dim; determines bypass dimensions in zipformer stacks and zipformer output dim.",
     )
 
     parser.add_argument(
