@@ -579,7 +579,7 @@ def main():
         #     attn_implementation=attn_implementation,
         #     torch_dtype=torch_dtype,
         # )
-        codec_vocab_size = 8192
+        codec_vocab_size = 4096 + 4
         config = Qwen2Config(
             vocab_size=codec_vocab_size,
             hidden_size=1024,
@@ -603,24 +603,25 @@ def main():
         codec_lm.config.pad_token_id = codec_vocab_size - 1
         codec_lm.config.eos_token_id = codec_vocab_size - 2
         codec_lm.config.bos_token_id = codec_vocab_size - 3
-        if params.use_lora:
-            lora_config = LoraConfig(
-                r=64,
-                lora_alpha=16,
-                target_modules=[
-                    "q_proj",
-                    "k_proj",
-                    "v_proj",
-                    "o_proj",
-                    "up_proj",
-                    "gate_proj",
-                    "down_proj",
-                ],
-                lora_dropout=0.05,
-                task_type="CAUSAL_LM",
-            )
-            codec_lm = get_peft_model(codec_lm, lora_config)
-            codec_lm.print_trainable_parameters()
+        codec_lm.config.mask_token_id = codec_vocab_size - 4
+        # if params.use_lora:
+        #     lora_config = LoraConfig(
+        #         r=64,
+        #         lora_alpha=16,
+        #         target_modules=[
+        #             "q_proj",
+        #             "k_proj",
+        #             "v_proj",
+        #             "o_proj",
+        #             "up_proj",
+        #             "gate_proj",
+        #             "down_proj",
+        #         ],
+        #         lora_dropout=0.05,
+        #         task_type="CAUSAL_LM",
+        #     )
+        #     codec_lm = get_peft_model(codec_lm, lora_config)
+        #     codec_lm.print_trainable_parameters()
     else:
         codec_lm = None
 

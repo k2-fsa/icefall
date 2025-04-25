@@ -51,9 +51,10 @@ fi
 
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   log "stage 3: "
+  exp_dir=./slam_omni/exp_speech2speech_rerun
   python3 ./slam_omni/decode.py \
     --max-duration 1 \
-    --exp-dir slam_omni/exp_speech2speech_test_flash_attn \
+    --exp-dir $exp_dir \
     --speech-encoder-path-or-name models/whisper/v1.1/whisper-large-v2-multi-hans-zh-epoch-3-avg-10.pt  \
     --llm-path-or-name models/Qwen2.5-0.5B-Instruct \
     --epoch 997 --avg 1 \
@@ -87,21 +88,23 @@ fi
 
 if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   log "stage 5: "
-  ngpu=2
-  exp_dir=./slam_omni/exp_speech2speech_test_flash_attn
-torchrun --nproc_per_node $ngpu ./slam_omni/train.py \
-  --max-duration 40 \
-  --enable-musan False \
-  --exp-dir $exp_dir \
-  --speech-encoder-path-or-name models/whisper/v1.1/whisper-large-v2-multi-hans-zh-epoch-3-avg-10.pt \
-  --llm-path-or-name models/Qwen2.5-0.5B-Instruct \
-  --manifest-dir data/fbank \
-  --deepspeed \
-  --deepspeed_config ./slam_omni/ds_config_zero1.json \
-  --use-flash-attn True \
-  --pretrained-model-path $exp_dir/epoch-1-checkpoint-35000.pt/pytorch_model.bin \
-  --use-lora True --unfreeze-llm True --unfreeze-speech-projector True --enable-speech-output True
-  # --pretrained-model-path slam_omni/exp_speech2text/epoch-1-checkpoint-5000.pt/pytorch_model.bin \
-  #   --sampler-state-dict-path $exp_dir/epoch-1-checkpoint-35000-sampler.pt \
+  ngpu=8
+  exp_dir=./slam_omni/exp_speech2speech_rerun
+  # exp_dir_new=./slam_omni/exp_s2s
+  torchrun --nproc_per_node $ngpu ./slam_omni/train.py \
+    --max-duration 50 \
+    --enable-musan False \
+    --exp-dir $exp_dir \
+    --speech-encoder-path-or-name models/whisper/v1.1/whisper-large-v2-multi-hans-zh-epoch-3-avg-10.pt \
+    --llm-path-or-name models/Qwen2.5-0.5B-Instruct \
+    --manifest-dir data/fbank \
+    --deepspeed \
+    --deepspeed_config ./slam_omni/ds_config_zero1.json \
+    --use-flash-attn True \
+    --pretrained-model-path $exp_dir/epoch-1-checkpoint-15000.pt/pytorch_model.bin \
+    --sampler-state-dict-path $exp_dir/epoch-1-checkpoint-15000-sampler.pt \
+    --use-lora True --unfreeze-llm True --unfreeze-speech-projector True --enable-speech-output True
+    # --pretrained-model-path slam_omni/exp_speech2text/epoch-1-checkpoint-5000.pt/pytorch_model.bin \
+    #   --sampler-state-dict-path $exp_dir/epoch-1-checkpoint-35000-sampler.pt \
 
 fi
