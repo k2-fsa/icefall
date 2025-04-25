@@ -178,41 +178,6 @@ def _launch_demo(args, model, processor):
             gr.update(visible=False),  # stop_btn
         )
 
-    def chat_predict(text, audio, image, video, history, system_prompt, voice_choice):
-        # Process text input
-        if text:
-            history.append({"role": "user", "content": text})
-
-        # Process audio input
-        if audio:
-            history.append({"role": "user", "content": (audio, )})
-
-        # Process image input
-        if image:
-            history.append({"role": "user", "content": (image, )})
-
-        # Process video input
-        if video:
-            history.append({"role": "user", "content": (video, )})
-
-        formatted_history = format_history(history=history,
-                                        system_prompt=system_prompt)
-
-        yield None, None, None, None, history
-
-        history.append({"role": "assistant", "content": ""})
-        for chunk in predict(formatted_history, voice_choice):
-            if chunk["type"] == "text":
-                history[-1]["content"] = chunk["data"]
-                yield gr.skip(), gr.skip(), gr.skip(), gr.skip(
-                ), history
-            if chunk["type"] == "audio":
-                history.append({
-                    "role": "assistant",
-                    "content": gr.Audio(chunk["data"])
-                })
-        yield gr.skip(), gr.skip(), gr.skip(), gr.skip(), history
-
     with gr.Blocks() as demo, ms.Application(), antd.ConfigProvider():
         with gr.Sidebar(open=False):
             system_prompt_textbox = gr.Textbox(label="System Prompt",
@@ -280,94 +245,6 @@ def _launch_demo(args, model, processor):
                     clear_btn.click(fn=clear_history,
                                     inputs=None,
                                     outputs=[media_chatbot, microphone, webcam])
-
-            with gr.Tab("Offline"):
-                chatbot = gr.Chatbot(type="messages", height=650)
-
-                # Media upload section in one row
-                with gr.Row(equal_height=True):
-                    audio_input = gr.Audio(sources=["upload"],
-                                        type="filepath",
-                                        label="Upload Audio",
-                                        elem_classes="media-upload",
-                                        scale=1)
-                    image_input = gr.Image(sources=["upload"],
-                                        type="filepath",
-                                        label="Upload Image",
-                                        elem_classes="media-upload",
-                                        scale=1)
-                    video_input = gr.Video(sources=["upload"],
-                                        label="Upload Video",
-                                        elem_classes="media-upload",
-                                        scale=1)
-
-                # Text input section
-                text_input = gr.Textbox(show_label=False,
-                                        placeholder="Enter text here...")
-
-                # Control buttons
-                with gr.Row():
-                    submit_btn = gr.Button(get_text("Submit", "提交"),
-                                        variant="primary",
-                                        size="lg")
-                    stop_btn = gr.Button(get_text("Stop", "停止"),
-                                        visible=False,
-                                        size="lg")
-                    clear_btn = gr.Button(get_text("Clear History", "清除历史"),
-                                        size="lg")
-
-                def clear_chat_history():
-                    return [], gr.update(value=None), gr.update(
-                        value=None), gr.update(value=None), gr.update(value=None)
-
-                submit_event = gr.on(
-                    triggers=[submit_btn.click, text_input.submit],
-                    fn=chat_predict,
-                    inputs=[
-                        text_input, audio_input, image_input, video_input, chatbot,
-                        system_prompt_textbox, voice_choice
-                    ],
-                    outputs=[
-                        text_input, audio_input, image_input, video_input, chatbot
-                    ])
-
-                stop_btn.click(fn=lambda:
-                            (gr.update(visible=True), gr.update(visible=False)),
-                            inputs=None,
-                            outputs=[submit_btn, stop_btn],
-                            cancels=[submit_event],
-                            queue=False)
-
-                clear_btn.click(fn=clear_chat_history,
-                                inputs=None,
-                                outputs=[
-                                    chatbot, text_input, audio_input, image_input,
-                                    video_input
-                                ])
-
-                # Add some custom CSS to improve the layout
-                gr.HTML("""
-                    <style>
-                        .media-upload {
-                            margin: 10px;
-                            min-height: 160px;
-                        }
-                        .media-upload > .wrap {
-                            border: 2px dashed #ccc;
-                            border-radius: 8px;
-                            padding: 10px;
-                            height: 100%;
-                        }
-                        .media-upload:hover > .wrap {
-                            border-color: #666;
-                        }
-                        /* Make upload areas equal width */
-                        .media-upload {
-                            flex: 1;
-                            min-width: 0;
-                        }
-                    </style>
-                """)
 
     demo.queue(default_concurrency_limit=100, max_size=100).launch(max_threads=100,
                                                                 ssr_mode=False,
