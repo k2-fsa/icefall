@@ -100,6 +100,12 @@ def set_batch_count(model: nn.Module, batch_count: float) -> None:
 
 def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
+        "--remove-whisper-encoder-input-length-restriction",
+        type=str2bool,
+        default=True,
+        help="replace whisper encoder forward method to remove input length restriction",
+    )
+    parser.add_argument(
         "--llm-path-or-name",
         type=str,
         default="/workspace/asr/Qwen1.5-0.5B-Chat",
