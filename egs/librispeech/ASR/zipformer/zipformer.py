@@ -1175,7 +1175,7 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         # it would be necessary to apply the scaling factor in the forward function.
         self.in_proj = ScaledLinear(
             embed_dim, in_proj_dim,
-            bias=True, initial_scale=0.5 * query_head_dim**-0.25
+            bias=True, initial_scale=0.25 * query_head_dim**-0.25
         )
 
         self.whiten_keys = Whiten(
