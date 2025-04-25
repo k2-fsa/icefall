@@ -630,7 +630,7 @@ class SPEECH_LLM(nn.Module):
             next_token_ids = topk_sampling(
                 next_token_logits,
             )
-            print(next_token_ids, "next_token_ids", t, next_token_ids.shape)
+            # print(next_token_ids, "next_token_ids", t, next_token_ids.shape)
             if next_token_ids[0, 0] == self.codec_lm.config.eos_token_id:
                 break
             # current_speech_input_ids = next_token_ids # Use the newly generated token ID as input for next step

@@ -108,3 +108,29 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
     #   --sampler-state-dict-path $exp_dir/epoch-1-checkpoint-35000-sampler.pt \
 
 fi
+
+if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
+  log "stage 6: "
+  export PYTHONPATH=$PYTHONPATH:/workspace/CosyVoice
+  exp_dir=./slam_omni/exp_speech2speech_rerun
+  python3 ./slam_omni/web_demo.py \
+    --speech-encoder-path-or-name models/whisper/v1.1/whisper-large-v2-multi-hans-zh-epoch-3-avg-10.pt  \
+    --llm-path-or-name models/Qwen2.5-0.5B-Instruct \
+    --checkpoint-path $exp_dir/epoch-998.pt \
+    --use-flash-attn True \
+    --enable-speech-output True \
+    --asr-model-dir local/sherpa-onnx-paraformer-zh-2023-09-14 \
+    --use-lora True --token2wav-path /workspace/CosyVoice-300M-SFT --share 
+
+fi
+
+if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
+  log "stage 7: "
+  model_path=local/sherpa-onnx-paraformer-zh-2023-09-14
+
+  if [ ! -d $model_path ]; then
+      pip install sherpa-onnx
+      wget -nc https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-paraformer-zh-2023-09-14.tar.bz2
+      tar xvf sherpa-onnx-paraformer-zh-2023-09-14.tar.bz2 -C local
+  fi
+fi
