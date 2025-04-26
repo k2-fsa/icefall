@@ -750,7 +750,7 @@ dropout:
             grad_scale=0.025,
         )
 
-        self.predict_loss = PredictLoss(dim, batch_dim=1)
+        self.predict_loss = PredictLoss(encoder_layer.embed_dim, dim, batch_dim=1)
 
 
     def forward(
@@ -795,6 +795,9 @@ dropout:
             # randomize_factor can be viewed as a simple version of an
             # importance-sampling factor.
 
+
+        encoder_output = src
+
         src = self.residual(src_orig, src)
         src = self.whiten(src)
 
@@ -802,8 +805,9 @@ dropout:
             bypass = self.copy_bypass(bypass)
             src = torch.cat((src, bypass), dim=-1)
 
-        return src, self.predict_loss(src, (src_key_padding_mask.t().unsqueeze(-1).logical_not()
-                                            if src_key_padding_mask is not None else None))
+        return src, self.predict_loss(encoder_output, src,
+                                      (src_key_padding_mask.t().unsqueeze(-1).logical_not()
+                                       if src_key_padding_mask is not None else None))
 
     def streaming_forward(
         self,

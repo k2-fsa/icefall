@@ -565,7 +565,8 @@ def ScaledConv2d(*args, initial_scale: float = 1.0, **kwargs) -> nn.Conv2d:
     return ans
 
 
-def predict_loss(x: Tensor, predictor: nn.Module, proj_weight: Tensor,
+def predict_loss(x: Tensor, y: Tensor,
+                 predictor: nn.Module, proj_weight: Tensor,
                  batch_dim: int, name: str,
                  mask: Optional[Tensor]) -> Tensor:
     batch_size = x.shape[batch_dim]
@@ -579,20 +580,20 @@ def predict_loss(x: Tensor, predictor: nn.Module, proj_weight: Tensor,
     with torch.no_grad():
         # get the indexes.  project, then mean-and-variance-norm, then
         # take mx.
-        x_proj = torch.matmul(x, proj_weight.t())
+        y_proj = torch.matmul(y, proj_weight.t())
         with torch.cuda.amp.autocast(enabled=False):
-            x_proj = x_proj.to(torch.float)
+            y_proj = y_proj.to(torch.float)
             # Mean subtraction and variance normalization.
             dims = tuple(range(0, x.ndim - 1))
             if mask is not None:
-                x_masked = x_proj * mask
-                x_proj = x_proj - x_masked.sum(dim=dims) / mask.sum(dim=dims)
-                x_proj = x_proj * (mask.sum(dim=dims) / ((x_masked ** 2).sum(dim=dims) + 1.0e-10)).sqrt()
+                y_masked = y_proj * mask
+                y_proj = y_proj - y_masked.sum(dim=dims) / mask.sum(dim=dims)
+                y_proj = y_proj * (mask.sum(dim=dims) / ((y_masked ** 2).sum(dim=dims) + 1.0e-10)).sqrt()
             else:
-                x_proj = x_proj - x_proj.mean(dim=dims)
-                x_proj = x_proj / (x_proj ** 2).mean(dim=dims).sqrt()
+                y_proj = y_proj - y_proj.mean(dim=dims)
+                y_proj = y_proj / (y_proj ** 2).mean(dim=dims).sqrt()
 
-        indexes = torch.max(x_proj, dim=-1)[1]
+        indexes = torch.max(y_proj, dim=-1)[1]
 
     indexes = torch.roll(indexes, batch_size // 2, batch_dim)
     x_pred = predictor(x)
@@ -611,18 +612,22 @@ class PredictLoss(nn.Module):
     """
     Adds an auxiliary loss based on predicting the top-1 of 256 randomized codebook
     entries.
+      x_channels:  the number of channels of the thing we want to learn
+      y_channels:  the number of channels of the thing that generates the codebook
+              indexes to learn.  No grad will be backpropagated to this.
     """
     def __init__(self,
-                 num_channels: int,
+                 x_channels: int,
+                 y_channels: int,
                  batch_dim: int = 0,
                  codebook_size: int = 63):
         super().__init__()
-        scale = num_channels ** -0.5
+        scale = y_channels ** -0.5
         self.register_buffer('proj_weight',
-                             scale * torch.randn(codebook_size, num_channels),
+                             scale * torch.randn(codebook_size, y_channels),
                              persistent=True)
-        num_hidden = max(1024, num_channels)
-        self.predictor = nn.Sequential(nn.Linear(num_channels, num_hidden),
+        num_hidden = max(1024, x_channels)
+        self.predictor = nn.Sequential(nn.Linear(x_channels, num_hidden),
                                        nn.LeakyReLU(),
                                        nn.Linear(num_hidden, codebook_size))
         self.batch_dim = batch_dim
@@ -630,8 +635,10 @@ class PredictLoss(nn.Module):
 
 
     def forward(self,
-                x: Tensor, mask: Optional[Tensor] = None) -> Tensor:
-        return predict_loss(x, self.predictor, self.proj_weight,
+                x: Tensor,
+                y: Tensor,
+                mask: Optional[Tensor] = None) -> Tensor:
+        return predict_loss(x, y, self.predictor, self.proj_weight,
                             self.batch_dim, self.name, mask)
 
 
