@@ -156,7 +156,7 @@ def momentum_step(group, p, state, grad):
 
     lr = group["lr"]
     step = state["step"]
-    beta1 = min(group["beta1"], 1. - 1. / (10. + 0.5 * step))
+    beta1 = min(group["beta1"], 1. - 1. / (10. + 0.25 * step))
     direct = group["direct"]
 
     try:
