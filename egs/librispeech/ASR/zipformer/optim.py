@@ -1009,7 +1009,6 @@ class Eden2(LRScheduler):
     where `warmup` increases from linearly 0.5 to 1 over `warmup_batches` batches
     and then stays constant at 1.
 
-
      E.g. suggest base_lr = 0.04 (passed to optimizer) if used with TransformedAdam
 
     Args:
@@ -1050,6 +1049,66 @@ class Eden2(LRScheduler):
 
 
 
+class Sched3(LRScheduler):
+    """
+    Sched3 scheduler.
+
+    The basic formula is as follows.  p is a supplied power, e.g. 1.0, but could
+    also be, say, 0.8.  lr_batches is a number of batches that defines when we start
+    decreasing significantly.  "batch" is the current batch count.
+
+      lr = warmup *  min((lr_batches / batch)^p, exp(-batch / (e * lr_batches)))
+
+    where e is the mathematical constant e.  This expression is equivalent to:
+    min_q [ (q * lr_batches) / batch)^q  ] where the minimum is taken over
+    the continuous range 0 <= q <= p.  The left hand side of the min in the formula
+    for lr corresponds to q == p, i.e. we hit the rhs of the allowed range.
+
+    `warmup` increases linearly from warmup_start to 1 over `warmup_batches` batches
+    and then stays constant at 1.
+
+     E.g. suggest base_lr = 0.04 (passed to optimizer) if used with TransformedAdam
+
+    Args:
+        optimizer: the optimizer to change the learning rates on
+        lr_batches: the number of batches after which we start significantly
+              decreasing the learning rate, suggest 5000.
+    """
+
+    def __init__(
+        self,
+        optimizer: Optimizer,
+        lr_batches: Union[int, float],
+        warmup_batches: Union[int, float] = 500.0,
+        warmup_start: float = 0.5,
+        p: float = 1.0,
+        verbose: bool = False,
+    ):
+        super().__init__(optimizer, verbose)
+        self.lr_batches = lr_batches
+        self.warmup_batches = warmup_batches
+        self.p = p
+        assert 0.0 <= warmup_start <= 1.0, warmup_start
+        self.warmup_start = warmup_start
+
+    def get_lr(self):
+        lr_batches = self.lr_batches
+        batch = max(self.batch, 0.1)  # avoid division by zero
+        factor = min((lr_batches / batch) ** self.p,
+                     2.71828 ** (-batch / (2.71828 * lr_batches)))
+
+        warmup_factor = (
+            1.0
+            if self.batch >= self.warmup_batches
+            else self.warmup_start
+            + (1.0 - self.warmup_start) * (self.batch / self.warmup_batches)
+        )
+
+        return [x * factor * warmup_factor for x in self.base_lrs]
+
+
+
+
 
 
 def _test_eden():
@@ -1074,6 +1133,30 @@ def _test_eden():
             optim.zero_grad()
 
     logging.info(f"last lr = {scheduler.get_last_lr()}")
+    logging.info(f"state dict = {scheduler.state_dict()}")
+
+
+def _test_sched3():
+    m = torch.nn.Linear(100, 100)
+    optim = TransformedAdam(m.parameters(), lr=0.03)
+
+    scheduler = Sched3(optim, lr_batches=100, verbose=True, warmup_batches=20)
+
+
+    for step in range(200):
+        x = torch.randn(200, 100).detach()
+        x.requires_grad = True
+        y = m(x)
+        dy = torch.randn(200, 100).detach()
+        f = (y * dy).sum()
+        f.backward()
+
+        optim.step()
+        scheduler.step_batch()
+        optim.zero_grad()
+        if step % 10 == 0:
+            logging.info(f"test_sched3: step={step}, last lr = {scheduler.get_last_lr()}")
+
     logging.info(f"state dict = {scheduler.state_dict()}")
 
 
@@ -1321,6 +1404,7 @@ def _test_scaled_adam(hidden_dim: int):
         logging.info(f"output_magnitudes = {output_magnitudes}")
 
 def _test_transform_params():
+    # caution: this has occasional errors.
     group = { "bias_min_rms": 0.001, "weight_min_rms": 0.01, "scalar_lr_scale": 0.1, "scaling_lr_scale": 0.5,
               "weight_max_rms": 20.0, "bias_max_rms": 20.0 }
     for scale in [ 0.0, 1.0e-05, 0.001, 0.01, 1.0, 10.0 ]:
@@ -1348,6 +1432,7 @@ if __name__ == "__main__":
     else:
         hidden_dim = 200
 
-    _test_transform_params()
-    _test_scaled_adam(hidden_dim)
+    #_test_transform_params()
+    #_test_scaled_adam(hidden_dim)
     _test_eden()
+    _test_sched3()

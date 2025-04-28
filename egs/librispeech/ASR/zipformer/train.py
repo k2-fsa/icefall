@@ -75,7 +75,7 @@ from lhotse.dataset import SpecAugment
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import AsrModel
-from optim import Eden2, TransformedAdam
+from optim import Sched3, TransformedAdam
 from scaling import ScheduledFloat
 from subsampling import Conv2dSubsampling
 from torch import Tensor
@@ -118,7 +118,7 @@ def get_adjusted_batch_count(params: AttributeDict) -> float:
 
 def get_adjusted_lr_batches(params: AttributeDict) -> float:
     # returns an adjusted form of the "lr_batches" parameter used to set the learning
-    # rate in the Eden2 scheduler.
+    # rate in the Sched3 scheduler.
     # We want the final LR to be based on the geometric mean of "how much data we
     # have seen" and "how many batches we have seen".
     # an easier way to look at it is this: the formula for learning rate depends
@@ -1442,7 +1442,7 @@ def run(rank, world_size, args):
         debug_interval=params.debug_interval,
     )
 
-    scheduler = Eden2(optimizer, get_adjusted_lr_batches(params))
+    scheduler = Sched3(optimizer, get_adjusted_lr_batches(params))
 
     if checkpoints and "optimizer" in checkpoints:
         logging.info("Loading optimizer state dict")
