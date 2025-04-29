@@ -20,30 +20,27 @@
 """
 Usage:
 # Command for decoding using fine-tuned models:
+huggingface-cli download --local-dir models/whisper yuekai/icefall_asr_multi-hans-zh_whisper
+# Cosyvoice pretrained model for speech token2wav module
+huggingface-cli download --local-dir models/CosyVoice-300M-SFT FunAudioLLM/CosyVoice-300M-SFT
+# Qwen Pretrained model
+huggingface-cli download --local-dir models/Qwen2.5-0.5B-Instruct Qwen/Qwen2.5-0.5B-Instruct
+# Qwen-Omni like speech2speech model trained on worstchan/Belle_1.4M-SLAM-Omni
+huggingface-cli download --local-dir models/qwen-omni-like-speech2speech-belle-1.4M yuekai/qwen-omni-like-speech2speech-belle-1.4M
 
-pip install huggingface_hub['cli']
-mkdir -p models/whisper models/qwen models/checkpoint
-huggingface-cli download --local-dir models/checkpoint yuekai/icefall_asr_aishell_whisper_qwen2_1.5B
-
-# For aishell fine-tuned whisper model
-huggingface-cli download --local-dir models/whisper    yuekai/icefall_asr_aishell_whisper exp_large_v2/whisper-large-v2-aishell1-epoch-10-avg-6.pt
-# For multi-hans fine-tuned whisper model
-# huggingface-cli download --local-dir models/whisper    yuekai/icefall_asr_multi-hans-zh_whisper v1.1/whisper-large-v2-multi-hans-zh-epoch-3-avg-10.pt
-
-huggingface-cli download  --local-dir models/qwen     Qwen/Qwen2-7B-Instruct
-
-mkdir -p whisper_llm_zh/exp_aishell_whisper_qwen2_1.5B
-ln -s models/checkpoint/epoch-10-avg-5.pt whisper_llm_zh/exp_aishell_whisper_qwen2_1.5B/epoch-999.pt
-
-python3 ./whisper_llm_zh/decode.py \
-  --max-duration 80 \
-  --exp-dir whisper_llm_zh/exp_aishell_whisper_qwen2_1.5B \
-  --speech-encoder-path-or-name models/whisper/exp_large_v2/whisper-large-v2-aishell1-epoch-10-avg-6.pt  \
-  --llm-path-or-name models/qwen \
-  --epoch 999 --avg 1 \
-  --manifest-dir data/fbank \
-  --use-flash-attn True \
-  --use-lora True --dataset aishell
+cd $exp_dir && ln -s ../../models/qwen-omni-like-speech2speech-belle-1.4M/pytorch_model.bin epoch-999.pt && cd -
+python3 ./qwen_omni/decode.py \
+--max-duration 1 \
+--exp-dir $exp_dir \
+--speech-encoder-path-or-name models/whisper/v1.1/whisper-large-v2-multi-hans-zh-epoch-3-avg-10.pt  \
+--llm-path-or-name models/Qwen2.5-0.5B-Instruct \
+--epoch 999 --avg 1 \
+--manifest-dir data/fbank \
+--use-flash-attn True \
+--method e2e-epoch10_speech2speech \
+--enable-speech-output True \
+--token2wav-path models/CosyVoice-300M-SFT \
+--use-lora True
 """
 
 import argparse
@@ -183,11 +180,6 @@ def get_model(params, device):
             attn_implementation = "eager"
             torch_dtype = torch.float16
 
-        # codec_lm = AutoModelForCausalLM.from_pretrained(
-        #     params.llm_path_or_name,
-        #     attn_implementation=attn_implementation,
-        #     torch_dtype=torch_dtype,
-        # )
         codec_vocab_size = 4096 + 4
         config = Qwen2Config(
             vocab_size=codec_vocab_size,
@@ -198,39 +190,19 @@ def get_model(params, device):
             intermediate_size=2048,
             max_position_embeddings=4096,
         )
-        # codec_lm = Qwen2ForCausalLM(config=config)
-        # Pass attn_implementation and torch_dtype to the constructor
-        # Use AutoModelForCausalLM.from_config for more generality
+
         codec_lm = AutoModelForCausalLM.from_config(
             config=config,
             attn_implementation=attn_implementation,
             torch_dtype=torch_dtype,
         )
-        # cosyvoice2_token_size = 6561
+
         codec_lm.resize_token_embeddings(codec_vocab_size)
         codec_lm.vocab_size = codec_vocab_size
         codec_lm.config.pad_token_id = codec_vocab_size - 1
         codec_lm.config.eos_token_id = codec_vocab_size - 2
         codec_lm.config.bos_token_id = codec_vocab_size - 3
         codec_lm.config.mask_token_id = codec_vocab_size - 4
-        # if params.use_lora:
-        #     lora_config = LoraConfig(
-        #         r=64,
-        #         lora_alpha=16,
-        #         target_modules=[
-        #             "q_proj",
-        #             "k_proj",
-        #             "v_proj",
-        #             "o_proj",
-        #             "up_proj",
-        #             "gate_proj",
-        #             "down_proj",
-        #         ],
-        #         lora_dropout=0.05,
-        #         task_type="CAUSAL_LM",
-        #     )
-        #     codec_lm = get_peft_model(codec_lm, lora_config)
-        #     codec_lm.print_trainable_parameters()
     else:
         codec_lm = None
 
@@ -373,13 +345,6 @@ def get_parser():
         default="/workspace/CosyVoice-300M-SFT",
         help="The path to the token2wav model",
     )
-    # parser.add_argument(
-    #     "--dataset",
-    #     type=str,
-    #     default="aishell",
-    #     choices=["aishell", "speechio", "wenetspeech_test_meeting", "multi_hans_zh"],
-    #     help="The dataset to decode",
-    # )
 
     add_model_arguments(parser)
     return parser
@@ -474,12 +439,6 @@ def decode_one_batch(
 
     chat_rounds = [cut.custom["round"] for cut in batch["supervisions"]["cut"]]
 
-    # messages = [
-    #     [
-    #         {"role": "user", "content": f"{DEFAULT_SPEECH_TOKEN}请转写音频为文字"},
-    #         {"role": "assistant", "content": ""},
-    #     ]
-    # ] * len(feature)
     questions_with_history = [
         cut.custom["question"] for cut in batch["supervisions"]["cut"]
     ]
@@ -496,7 +455,6 @@ def decode_one_batch(
             history_question_answer = history_contexts[i].split("USER:")
             history_question_answer = [item for item in history_question_answer if item]
         for j in range(total_round - 1):
-            # USER: 生成一个关于夏天的诗歌。 ASSISTANT: 夏日炎炎，万物生长，阳光明媚，享受着夏日的美好时光。 USER: 给我列举一些新闻头条。 ASSISTANT: 当今社会的新闻永远不会停。
             question_answer = history_question_answer[j].split("ASSISTANT:")
             message += [
                 {"role": "user", "content": question_answer[0].strip()},
@@ -504,7 +462,6 @@ def decode_one_batch(
             ]
         message += [
             {"role": "user", "content": f"{DEFAULT_SPEECH_TOKEN}"},
-            # {"role": "user", "content": f"{last_questions[i]}"},
             {"role": "assistant", "content": ""},
         ]
         print(f"message: {message}, batch_size {len(chat_rounds)}")
@@ -525,13 +482,6 @@ def decode_one_batch(
             audio_tokens = torch.tensor(audio_tokens, dtype=torch.int32).unsqueeze(0)
             audio_hat = audio_decode_cosyvoice(audio_tokens, token2wav_model)
             sf.write(speech_file_name, audio_hat.squeeze(0).cpu().numpy(), 22050)
-            # with open(speech_token_file_name, 'w') as f:
-            # # save_path = params.exp_dir / f"speech_output/{cut_id}.wav"
-            # #torchaudio.save(save_path, speech_output.cpu(), 16000)
-            #     # print(f"speech_output: {generated_speech_output}, cut_id: {cut_id}")
-            #     save_str = " ".join([str(i) for i in generated_speech_output])
-            #     f.write(f"{cut_id}|{save_str}\n")
-
     else:
         generated_ids = model.decode(
             feature, input_ids.to(device, dtype=torch.long), attention_mask.to(device)
@@ -560,43 +510,6 @@ def decode_dataset(
     Returns:
         Return a dict, whose key may be "beam-search".
     """
-
-    def normalize_text_alimeeting(text: str, normalize: str = "m2met") -> str:
-        """
-        Text normalization similar to M2MeT challenge baseline.
-        See: https://github.com/yufan-aslp/AliMeeting/blob/main/asr/local/text_normalize.pl
-        """
-        if normalize == "none":
-            return text
-        elif normalize == "m2met":
-            import re
-
-            text = text.replace(" ", "")
-            text = text.replace("<sil>", "")
-            text = text.replace("<%>", "")
-            text = text.replace("<->", "")
-            text = text.replace("<$>", "")
-            text = text.replace("<#>", "")
-            text = text.replace("<_>", "")
-            text = text.replace("<space>", "")
-            text = text.replace("`", "")
-            text = text.replace("&", "")
-            text = text.replace(",", "")
-            if re.search("[a-zA-Z]", text):
-                text = text.upper()
-            text = text.replace("Ａ", "A")
-            text = text.replace("ａ", "A")
-            text = text.replace("ｂ", "B")
-            text = text.replace("ｃ", "C")
-            text = text.replace("ｋ", "K")
-            text = text.replace("ｔ", "T")
-            text = text.replace("，", "")
-            text = text.replace("丶", "")
-            text = text.replace("。", "")
-            text = text.replace("、", "")
-            text = text.replace("？", "")
-            return text
-
     results = []
 
     num_cuts = 0
@@ -634,7 +547,6 @@ def decode_dataset(
             this_batch = []
             assert len(hyps) == len(texts)
             for cut_id, hyp_words, ref_text in zip(cut_ids, hyps, texts):
-                # ref_text = normalize_text_alimeeting(ref_text)
                 ref_words = ref_text.split()
                 print(f"ref: {ref_text}")
                 print(f"hyp: {''.join(hyp_words)}")
@@ -673,7 +585,6 @@ def save_results(
         errs_filename = (
             params.log_dir / f"errs-{test_set_name}-{key}-{params.suffix}.txt"
         )
-        # we compute CER for aishell dataset.
         results_char = []
         for res in results:
             results_char.append((res[0], list("".join(res[1])), list("".join(res[2]))))
@@ -732,11 +643,8 @@ def main():
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
-    # we need cut ids to display recognition results.
     args.return_cuts = True
-
     data_module = AsrDataModule(args)
-    # data_module = MultiDataset(args.manifest_dir)
 
     def remove_long_utt(c: Cut):
         # Keep only utterances with duration in 30 seconds
@@ -748,13 +656,6 @@ def main():
             return False
         return True
 
-    # if params.dataset == "aishell":
-    #     test_sets_cuts = data_module.aishell_test_cuts()
-    # elif params.dataset == "speechio":
-    #     test_sets_cuts = data_module.speechio_test_cuts()
-    # elif params.dataset == "wenetspeech_test_meeting":
-    #     test_sets_cuts = data_module.wenetspeech_test_meeting_cuts()
-    # else:
     test_sets_cuts = data_module.test_cuts()
 
     test_sets = test_sets_cuts.keys()

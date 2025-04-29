@@ -1,4 +1,4 @@
-from typing import List, Tuple  # Added for type hints
+from typing import List, Tuple
 
 import torch
 from torch import nn
@@ -78,7 +78,6 @@ class SPEECH_LLM(nn.Module):
             self.codec_lm_head = nn.Linear(
                 self.codec_lm.config.hidden_size, self.codec_lm.config.vocab_size
             )
-            # to torch.float16
             self.speech_token_projector = self.speech_token_projector.to(
                 dtype=torch.float16
             )
@@ -498,20 +497,6 @@ class SPEECH_LLM(nn.Module):
             pad_token_id=self.llm.config.pad_token_id,
         )
 
-        # generated_ids = self.llm.generate(
-        #     inputs_embeds=inputs_embeds,
-        #     max_new_tokens=kwargs.get("max_new_tokens", 200),
-        #     num_beams=kwargs.get("num_beams", 1),
-        #     do_sample=kwargs.get("do_sample", False),
-        #     min_length=kwargs.get("min_length", 1),
-        #     top_p=kwargs.get("top_p", 1.0),
-        #     repetition_penalty=kwargs.get("repetition_penalty", 1.0),
-        #     temperature=kwargs.get("temperature", 1.0),
-        #     length_penalty=kwargs.get("length_penalty", 1.0),
-        #     bos_token_id=self.llm.config.bos_token_id,
-        #     eos_token_id=self.llm.config.eos_token_id,
-        #     pad_token_id=self.llm.config.pad_token_id,
-        # )
         return generated_ids
 
     def decode_with_speech_output(
@@ -520,7 +505,7 @@ class SPEECH_LLM(nn.Module):
         input_ids: torch.LongTensor = None,  # Prompt input_ids
         attention_mask: torch.Tensor = None,  # Prompt attention_mask
         max_text_new_tokens: int = 1024,
-        max_speech_new_tokens: int = 1024,  # Max length for speech tokens
+        max_speech_new_tokens: int = 2048,  # Max length for speech tokens
         llm_kwargs: dict = None,  # Kwargs for text LLM generate
         codec_lm_kwargs: dict = None,  # Kwargs for codec LM (e.g., temperature for sampling) - NOT IMPLEMENTED YET
     ) -> Tuple[torch.LongTensor, List[List[int]]]:
@@ -602,7 +587,7 @@ class SPEECH_LLM(nn.Module):
         eos_token_id = self.llm.config.eos_token_id
         eos_token_embedding = self.llm.get_input_embeddings()(
             torch.tensor([[eos_token_id]], device=device)
-        )  # 1,D
+        )
         assert (
             generated_text_ids[0, -1] == eos_token_id
         ), f"Last token is not EOS: {generated_text_ids[0, -1]} != {eos_token_id}"
@@ -610,7 +595,7 @@ class SPEECH_LLM(nn.Module):
             token_hidden_states[0].to(self.llm.device)
             for token_hidden_states in text_outputs.hidden_states
         ]
-        # shift one for thinker token_embeds, drop the first embeds, and add the eos token
+
         first_thinker_token_embed = torch.cat(
             [
                 thinker_token_embeds_org[0][:, 1:],
@@ -628,7 +613,7 @@ class SPEECH_LLM(nn.Module):
             token_hidden_states[-1].to(self.llm.device)
             for token_hidden_states in text_outputs.hidden_states
         ]
-        # thinker_reply_part = torch.cat(thinker_hidden_states[1:], dim=1) + torch.cat(thinker_token_embeds[1:], dim=1)
+
         thinker_reply_part = [
             torch.cat(
                 [
@@ -651,12 +636,8 @@ class SPEECH_LLM(nn.Module):
             dim=-1,
         )
 
-        thinker_prompt_part = self.speech_token_projector(
-            thinker_prompt_part
-        )  # [B, S_full, D_codec]
-        thinker_reply_part = self.speech_token_projector(
-            thinker_reply_part
-        )  # [B, S_full, D_codec]
+        thinker_prompt_part = self.speech_token_projector(thinker_prompt_part)
+        thinker_reply_part = self.speech_token_projector(thinker_reply_part)
 
         thinker_prompt_part_seq_len = thinker_prompt_part.shape[1]
         talker_input_ids = torch.full(
@@ -666,9 +647,7 @@ class SPEECH_LLM(nn.Module):
             device=self.llm.device,
         )
         talker_input_ids[:, -1] = self.codec_lm.config.bos_token_id
-        talker_inputs_embeds = self.codec_lm.get_input_embeddings()(
-            talker_input_ids
-        )  # [B, S_full, D_codec]
+        talker_inputs_embeds = self.codec_lm.get_input_embeddings()(talker_input_ids)
         thinker_input_embeds = torch.cat(
             [
                 thinker_prompt_part,
@@ -677,68 +656,43 @@ class SPEECH_LLM(nn.Module):
             dim=1,
         )
         talker_inputs_embeds += thinker_input_embeds
-        thinker_reply_part = thinker_reply_part[
-            :, delay_step + 1 :, :
-        ]  # [B, S_full, D_codec]
+        thinker_reply_part = thinker_reply_part[:, delay_step + 1 :, :]
 
         past_key_values = None
-        # generated_speech_tokens_list = [[] for _ in range(batch_size)]
-        # unfinished_sequences = torch.ones(batch_size, dtype=torch.long, device=device)
+
         generated_speech_tokens_list = []
         next_token_ids = None
-        # text_context_len = projected_text_embeds.shape[1] # S_full
+
         for t in range(max_speech_new_tokens):
-            # Get embedding for the *current* input token ID (initially BOS, then generated tokens)
-            # current_speech_embeds = self.codec_lm.get_input_embeddings()(current_speech_input_ids) # [B, 1, D_codec]
             if t > 0:
                 talker_inputs_embeds = self.codec_lm.get_input_embeddings()(
                     next_token_ids
-                )  # [B, 1, D_codec]
+                )
                 if thinker_reply_part.shape[1] > 0:
                     talker_inputs_embeds += thinker_reply_part[:, :1, :]
-                    thinker_reply_part = thinker_reply_part[
-                        :, 1:, :
-                    ]  # Remove the first token for next step
-            # # Add the projected text embedding corresponding to the current timestep `t`
-            # if t < text_context_len:
-            #     # Text context from the full generated text sequence
-            #     current_text_context_embed = projected_text_embeds[:, t:t+1, :] # [B, 1, D_codec]
-            #     inputs_embeds = current_speech_embeds + current_text_context_embed
-            # else:
-            #     # No more text context to add
-            #     inputs_embeds = current_speech_embeds
+                    thinker_reply_part = thinker_reply_part[:, 1:, :]
 
-            # Forward pass through codec LM for one step
-            # We provide inputs_embeds directly, bypassing prepare_inputs_for_generation
             codec_outputs = self.codec_lm(
-                inputs_embeds=talker_inputs_embeds,  # Combined embedding for this step
+                inputs_embeds=talker_inputs_embeds,
                 past_key_values=past_key_values,
                 use_cache=True,
                 return_dict=True,
                 output_hidden_states=True,
-                # No attention mask needed here when using past_key_values and single token input
             )
-            last_token_hidden_state = codec_outputs.hidden_states[-1][
-                :, -1, :
-            ]  # [B, D_codec] #TODO: check shape here
-            # Get logits for the *last* token generated in this step
-            next_token_logits = self.codec_lm_head(
-                last_token_hidden_state
-            )  # Use -1 index
-            # suppress tokens between 4096:len(vocab)-3
-            # next_token_logits[:, 4096:-3] = -float("Inf") # TODO: where we should supress tokens?
+            last_token_hidden_state = codec_outputs.hidden_states[-1][:, -1, :]
+            next_token_logits = self.codec_lm_head(last_token_hidden_state)
+
             next_token_ids = topk_sampling(
                 next_token_logits,
             )
-            # print(next_token_ids, "next_token_ids", t, next_token_ids.shape)
             if next_token_ids[0, 0] == self.codec_lm.config.eos_token_id:
                 break
-            # current_speech_input_ids = next_token_ids # Use the newly generated token ID as input for next step
+
             past_key_values = codec_outputs.past_key_values  # Update KV cache
             generated_speech_tokens_list.append(
                 next_token_ids.squeeze(1).cpu().tolist()[0]
             )
-        # --- 6. Return Results ---
+
         return generated_text_ids, generated_speech_tokens_list
 
 

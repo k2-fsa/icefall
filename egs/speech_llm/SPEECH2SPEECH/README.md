@@ -23,67 +23,33 @@ The following table lists the folders for different tasks.
 
 Command for training is:
 ```bash
-pip install -r whisper_llm_zh/requirements.txt
-
-pip install huggingface_hub['cli']
-mkdir -p models/whisper models/qwen
-
-# For aishell fine-tuned whisper model
-huggingface-cli download --local-dir models/whisper    yuekai/icefall_asr_aishell_whisper exp_large_v2/whisper-large-v2-aishell1-epoch-10-avg-6.pt
-# For multi-hans fine-tuned whisper model
-# huggingface-cli download --local-dir models/whisper    yuekai/icefall_asr_multi-hans-zh_whisper v1.1/whisper-large-v2-multi-hans-zh-epoch-3-avg-10.pt
-
-# huggingface-clie download  --local-dir models/qwen     Qwen/Qwen2-7B-Instruct
-huggingface-clie download  --local-dir models/qwen     Qwen/Qwen2-1.5B-Instruct
-
-# First, we only train the projector and freeze other modules.
-torchrun --nproc_per_node 8 ./whisper_llm_zh/train.py \
-  --max-duration 200 \
-  --exp-dir ./whisper_llm_zh/exp_test \
-  --speech-encoder-path-or-name models/whisper/exp_large_v2/whisper-large-v2-aishell1-epoch-10-avg-6.pt \
-  --llm-path-or-name Qwen/Qwen2-1.5B-Instruct \
-  --manifest-dir data/fbank \
-  --deepspeed \
-  --deepspeed_config ./whisper_llm_zh/ds_config_zero1.json \
-  --use-flash-attn True \
-  --use-lora False --unfreeze-llm False
-
-# Then we jointly train the projector and LLM LoRA modules.
-torchrun --nproc_per_node 8 ./whisper_llm_zh/train.py \
-  --max-duration 200 \
-  --exp-dir ./whisper_llm_zh/exp_test \
-  --speech-encoder-path-or-name models/whisper/exp_large_v2/whisper-large-v2-aishell1-epoch-10-avg-6.pt \
-  --llm-path-or-name Qwen/Qwen2-1.5B-Instruct \
-  --manifest-dir data/fbank \
-  --deepspeed \
-  --deepspeed_config ./whisper_llm_zh/ds_config_zero1.json \
-  --use-flash-attn True \
-  --use-lora True --unfreeze-llm True
-  --pretrained-model-path ./whisper_llm_zh/exp_test/epoch-3.pt
+torchrun --nproc_per_node $ngpu ./qwen_omni/train.py \
+    --max-duration 50 \
+    --enable-musan False \
+    --exp-dir $exp_dir \
+    --speech-encoder-path-or-name models/whisper/v1.1/whisper-large-v2-multi-hans-zh-epoch-3-avg-10.pt \
+    --llm-path-or-name Qwen/Qwen2.5-0.5B-Instruct \
+    --manifest-dir data/fbank \
+    --deepspeed \
+    --deepspeed_config ./qwen_omni/ds_config_zero1.json \
+    --use-flash-attn True \
+    --use-lora True --unfreeze-llm True --unfreeze-speech-projector True --enable-speech-output True
 ```
 
-Command for decoding:
+Command for decoding is:
 ```bash
-mkdir -p models/whisper models/qwen models/checkpoint
-huggingface-cli download --local-dir models/checkpoint yuekai/icefall_asr_aishell_whisper_qwen2_1.5B
-
-# For aishell fine-tuned whisper model
-huggingface-cli download --local-dir models/whisper    yuekai/icefall_asr_aishell_whisper exp_large_v2/whisper-large-v2-aishell1-epoch-10-avg-6.pt
-# For multi-hans fine-tuned whisper model
-# huggingface-cli download --local-dir models/whisper    yuekai/icefall_asr_multi-hans-zh_whisper v1.1/whisper-large-v2-multi-hans-zh-epoch-3-avg-10.pt
-
-huggingface-clie download  --local-dir models/qwen     Qwen/Qwen2-7B-Instruct
-
-mkdir -p whisper_llm_zh/exp_aishell_whisper_qwen2_1.5B
-ln -s models/checkpoint/epoch-10-avg-5.pt whisper_llm_zh/exp_aishell_whisper_qwen2_1.5B/epoch-999.pt
-
-python3 ./whisper_llm_zh/decode.py \
-  --max-duration 80 \
-  --exp-dir whisper_llm_zh/exp_aishell_whisper_qwen2_1.5B \
-  --speech-encoder-path-or-name models/whisper/exp_large_v2/whisper-large-v2-aishell1-epoch-10-avg-6.pt  \
-  --llm-path-or-name models/qwen \
-  --epoch 999 --avg 1 \
-  --manifest-dir data/fbank \
-  --use-flash-attn True \
-  --use-lora True --dataset aishell
+python3 ./qwen_omni/decode.py \
+    --max-duration 1 \
+    --exp-dir $exp_dir \
+    --speech-encoder-path-or-name models/whisper/v1.1/whisper-large-v2-multi-hans-zh-epoch-3-avg-10.pt  \
+    --llm-path-or-name models/Qwen2.5-0.5B-Instruct \
+    --epoch 999 --avg 1 \
+    --manifest-dir data/fbank \
+    --use-flash-attn True \
+    --method e2e-epoch10_speech2speech \
+    --enable-speech-output True \
+    --token2wav-path models/CosyVoice-300M-SFT \
+    --use-lora True
 ```
+
+Please see [`prepare.sh`](./prepare.sh) for more details.

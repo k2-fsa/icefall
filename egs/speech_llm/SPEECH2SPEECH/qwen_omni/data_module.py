@@ -116,28 +116,6 @@ class AsrDataModule:
             help="The number of buckets for the DynamicBucketingSampler"
             "(you might want to increase it for larger datasets).",
         )
-        # group.add_argument(
-        #     "--concatenate-cuts",
-        #     type=str2bool,
-        #     default=False,
-        #     help="When enabled, utterances (cuts) will be concatenated "
-        #     "to minimize the amount of padding.",
-        # )
-        # group.add_argument(
-        #     "--duration-factor",
-        #     type=float,
-        #     default=1.0,
-        #     help="Determines the maximum duration of a concatenated cut "
-        #     "relative to the duration of the longest cut in a batch.",
-        # )
-        # group.add_argument(
-        #     "--gap",
-        #     type=float,
-        #     default=1.0,
-        #     help="The amount of padding (in seconds) inserted between "
-        #     "concatenated cuts. This padding is filled with noise when "
-        #     "noise augmentation is used.",
-        # )
         group.add_argument(
             "--on-the-fly-feats",
             type=str2bool,
@@ -255,20 +233,6 @@ class AsrDataModule:
             )
         else:
             logging.info("Disable MUSAN")
-
-        # if self.args.concatenate_cuts:
-        #     logging.info(
-        #         f"Using cut concatenation with duration factor "
-        #         f"{self.args.duration_factor} and gap {self.args.gap}."
-        #     )
-        #     # Cut concatenation should be the first transform in the list,
-        #     # so that if we e.g. mix noise in, it will fill the gaps between
-        #     # different utterances.
-        #     transforms = [
-        #         CutConcatenate(
-        #             duration_factor=self.args.duration_factor, gap=self.args.gap
-        #         )
-        #     ] + transforms
 
         input_transforms = []
         if self.args.enable_spec_aug:
@@ -426,32 +390,12 @@ class AsrDataModule:
     def test_cuts(self) -> CutSet:
         logging.info("About to get test cuts")
         if self.args.on_the_fly_feats:
-            # dataset = load_dataset(self.args.huggingface_dataset_path_or_name, streaming=True, split=partition)
-            i, num_digits = 0, 5
-            idx = f"{i}".zfill(num_digits)
-            parquet_files = [
-                f"data/train-{idx}-of-01601.parquet",
-            ]
-            parquet_files = [
-                f"{self.args.huggingface_dataset_path_or_name}/{f}"
-                for f in parquet_files
-            ]
-            file_name = parquet_files[0]
-            logging.info(f"Loading dataset from {file_name}")
-            dataset = load_dataset(
-                "parquet", data_files=parquet_files, streaming=True, split="train"
-            )
-            cut_set = CutSet.from_huggingface_dataset(
-                dataset, audio_key=self.args.audio_key, text_key=self.args.text_key
-            )
-            if self.args.resample_to_16kHz:
-                cut_set = cut_set.resample(16000)
-            return {"test": cut_set}
+            pass
         else:
-            # return {'test':load_manifest_lazy(self.args.manifest_dir / "cuts_belle.00000.jsonl.gz")}
-            # return {'test':load_manifest_lazy(self.args.manifest_dir / "cuts_test_small.jsonl.gz")}
             return {
-                "test": load_manifest_lazy("data/fbank_test/belle_cuts.00000.jsonl.gz")
+                "test": load_manifest_lazy(
+                    self.args.manifest_dir / "cuts_belle_test.jsonl.gz"
+                )
             }
 
     @lru_cache()
@@ -461,7 +405,7 @@ class AsrDataModule:
             pass
         else:
             return load_manifest_lazy(
-                self.args.manifest_dir / "cuts_belle.00000.jsonl.gz"
+                self.args.manifest_dir / "cuts_belle_test.jsonl.gz"
             )
 
     @lru_cache()

@@ -17,28 +17,22 @@
 # limitations under the License.
 """
 Usage:
-# fine-tuning with whisper and Qwen2
-pip install huggingface_hub['cli']
-mkdir -p models/whisper models/qwen
+# For Chinese dataset, you can use the following command to download the Chinese fine-tuned whisper model.
+huggingface-cli download --local-dir models/whisper yuekai/icefall_asr_multi-hans-zh_whisper
+# Qwen Pretrained model
+huggingface-cli download --local-dir models/Qwen2.5-0.5B-Instruct Qwen/Qwen2.5-0.5B-Instruct
 
-# For aishell fine-tuned whisper model
-huggingface-cli download --local-dir models/whisper    yuekai/icefall_asr_aishell_whisper exp_large_v2/whisper-large-v2-aishell1-epoch-10-avg-6.pt
-# For multi-hans fine-tuned whisper model
-# huggingface-cli download --local-dir models/whisper    yuekai/icefall_asr_multi-hans-zh_whisper v1.1/whisper-large-v2-multi-hans-zh-epoch-3-avg-10.pt
-
-# huggingface-clie download  --local-dir models/qwen     Qwen/Qwen2-7B-Instruct
-huggingface-clie download  --local-dir models/qwen     Qwen/Qwen2-1.5B-Instruct
-
-torchrun --nproc_per_node 8 ./whisper_llm_zh/train.py \
-  --max-duration 200 \
-  --exp-dir ./whisper_llm_zh/exp_test \
-  --speech-encoder-path-or-name models/whisper/exp_large_v2/whisper-large-v2-aishell1-epoch-10-avg-6.pt \
-  --llm-path-or-name Qwen/Qwen2-1.5B-Instruct \
-  --manifest-dir data/fbank \
-  --deepspeed \
-  --deepspeed_config ./whisper_llm_zh/ds_config_zero1.json \
-  --use-flash-attn True \
-  --use-lora True --unfreeze-llm True
+torchrun --nproc_per_node $ngpu ./qwen_omni/train.py \
+    --max-duration 50 \
+    --enable-musan False \
+    --exp-dir $exp_dir \
+    --speech-encoder-path-or-name models/whisper/v1.1/whisper-large-v2-multi-hans-zh-epoch-3-avg-10.pt \
+    --llm-path-or-name Qwen/Qwen2.5-0.5B-Instruct \
+    --manifest-dir data/fbank \
+    --deepspeed \
+    --deepspeed_config ./qwen_omni/ds_config_zero1.json \
+    --use-flash-attn True \
+    --use-lora True --unfreeze-llm True --unfreeze-speech-projector True --enable-speech-output True
 """
 
 import argparse
@@ -52,7 +46,6 @@ from shutil import copyfile
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import deepspeed
-import k2
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
@@ -66,8 +59,6 @@ from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import IGNORE_TOKEN_ID, SPEECH_LLM, EncoderProjector
-
-# from multi_dataset import MultiDataset
 from peft import LoraConfig, get_peft_model
 from torch import Tensor
 from torch.utils.tensorboard import SummaryWriter
@@ -330,9 +321,6 @@ def compute_loss(
                     truncation=False,
                 )
             )
-        # padding texts to the same length, texts is a list of list, padding with tokenzier.pad_token_id
-        # remove too long text
-        # texts = [ text for text in texts if len(text) < 1024 ]
         if len(texts) != len(messages):
             logging.warning(f"Remove too long text, {messages} ")
         max_len_texts = max([len(text) for text in texts])
@@ -347,7 +335,7 @@ def compute_loss(
                 for text in texts
             ]
         input_ids = torch.tensor(texts, dtype=torch.int)
-        # response = tokenizer.batch_decode(input_ids, skip_special_tokens=True)[0]
+
         target_ids = input_ids.clone()
         target_ids[target_ids == tokenizer.pad_token_id] = IGNORE_TOKEN_ID
         # mask all tokens before token_id 151646 with IGNORE_TOKEN_ID
@@ -396,8 +384,6 @@ def compute_loss(
     history_contexts = [
         question.rsplit("<USER>:", 1)[0].strip() for question in questions_with_history
     ]
-    # USER: 生成一个关于夏天的诗歌。 ASSISTANT: 夏日炎炎，万物生长，阳光明媚，享受着夏日的美好时光。 USER: 给我列举一些新闻头条。 ASSISTANT: 当今社会的新闻永远不会停。<USER>: 告诉我如何烹饪鸡肉
-    #  <USER>: 对以下句子进行鉴赏：他心地善良。输出结果为"他是一个有善心的人。
 
     messages = []
     for i, total_round in enumerate(chat_rounds):
@@ -406,7 +392,6 @@ def compute_loss(
             history_question_answer = history_contexts[i].split("USER:")
             history_question_answer = [item for item in history_question_answer if item]
         for j in range(total_round - 1):
-            # USER: 生成一个关于夏天的诗歌。 ASSISTANT: 夏日炎炎，万物生长，阳光明媚，享受着夏日的美好时光。 USER: 给我列举一些新闻头条。 ASSISTANT: 当今社会的新闻永远不会停。
             question_answer = history_question_answer[j].split("ASSISTANT:")
             message += [
                 {"role": "user", "content": question_answer[0].strip()},
@@ -683,7 +668,6 @@ def run(rank, world_size, args):
 
     if params.use_flash_attn:
         attn_implementation = "flash_attention_2"
-        # torch_dtype=torch.bfloat16 FIX ME
         torch_dtype = torch.float16
         tokenizer.padding_side = "left"
 
@@ -724,14 +708,6 @@ def run(rank, world_size, args):
 
     special_tokens_dict = {"additional_special_tokens": [DEFAULT_SPEECH_TOKEN]}
     tokenizer.add_special_tokens(special_tokens_dict)
-    # original_tokenizer_vocab_size = len(tokenizer)
-    # cosyvoice2_token_size = 6561
-    # new_tokens = [f"<|s_{i}|>" for i in range(cosyvoice2_token_size)] + [
-    #     "<|SPEECH_GENERATION_START|>"
-    # ]
-    # num_added_tokens = tokenizer.add_tokens(new_tokens)
-    # model.resize_token_embeddings(len(tokenizer))
-    # model.vocab_size = len(tokenizer)
 
     llm.config.pad_token_id = tokenizer.pad_token_id
     llm.config.default_speech_token_id = tokenizer.convert_tokens_to_ids(
@@ -755,11 +731,6 @@ def run(rank, world_size, args):
             attn_implementation = "eager"
             torch_dtype = torch.float16
 
-        # codec_lm = AutoModelForCausalLM.from_pretrained(
-        #     params.llm_path_or_name,
-        #     attn_implementation=attn_implementation,
-        #     torch_dtype=torch_dtype,
-        # )
         codec_vocab_size = 4096 + 4
         # TODO: modify above vocab size or supress_tokens when decoding
         config = Qwen2Config(
@@ -771,39 +742,19 @@ def run(rank, world_size, args):
             intermediate_size=2048,
             max_position_embeddings=4096,
         )
-        # codec_lm = Qwen2ForCausalLM(config=config)
-        # Pass attn_implementation and torch_dtype to the constructor
-        # Use AutoModelForCausalLM.from_config for more generality
+
         codec_lm = AutoModelForCausalLM.from_config(
             config=config,
             attn_implementation=attn_implementation,
             torch_dtype=torch_dtype,
         )
-        # cosyvoice2_token_size = 6561
+
         codec_lm.resize_token_embeddings(codec_vocab_size)
         codec_lm.vocab_size = codec_vocab_size
         codec_lm.config.pad_token_id = codec_vocab_size - 1
         codec_lm.config.eos_token_id = codec_vocab_size - 2
         codec_lm.config.bos_token_id = codec_vocab_size - 3
         codec_lm.config.mask_token_id = codec_vocab_size - 4
-        # if params.use_lora:
-        #     lora_config = LoraConfig(
-        #         r=64,
-        #         lora_alpha=16,
-        #         target_modules=[
-        #             "q_proj",
-        #             "k_proj",
-        #             "v_proj",
-        #             "o_proj",
-        #             "up_proj",
-        #             "gate_proj",
-        #             "down_proj",
-        #         ],
-        #         lora_dropout=0.05,
-        #         task_type="CAUSAL_LM",
-        #     )
-        #     codec_lm = get_peft_model(codec_lm, lora_config)
-        #     codec_lm.print_trainable_parameters()
     else:
         codec_lm = None
 
@@ -856,7 +807,6 @@ def run(rank, world_size, args):
             #    f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
             # )
             return False
-        # cut.custom["answer_cosyvoice_speech_token"] for cut in batch["supervisions"]["cut"]
         codec_len = len(c.custom["answer_cosyvoice_speech_token"])
         if codec_len > 2200:
             logging.warning(
@@ -873,7 +823,7 @@ def run(rank, world_size, args):
     if params.sampler_state_dict_path:
         sampler_state_dict = torch.load(params.sampler_state_dict_path)
         sampler_state_dict["max_duration"] = params.max_duration
-    # TODO: load sampler state dict
+
     train_dl = data_module.train_dataloaders(
         train_cuts, sampler_state_dict=sampler_state_dict
     )

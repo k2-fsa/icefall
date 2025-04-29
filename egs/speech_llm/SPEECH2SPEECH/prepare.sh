@@ -2,7 +2,9 @@
 
 # fix segmentation fault reported in https://github.com/k2-fsa/icefall/issues/674
 export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
-export PYTHONPATH=$PYTHONPATH:/workspace/slam/icefall_omni
+
+export PYTHONPATH=$PYTHONPATH:/workspace/icefall
+
 set -eou pipefail
 
 stage=$1
@@ -19,18 +21,37 @@ log() {
 
 
 if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
-  log "stage 0: "
-  #pip uninstall lhotse
-  #cd /workspace/slam/lhotse
-  #git config --global --add safe.directory /workspace/slam/lhotse
-  #pip install -e '.[dev]'
-  cd -
-  pip install -r slam_omni/requirements.txt
+  log "stage 0: Clone CosyVoice repo and install requirements inside the container"
+  # docker: ghcr.io/swivid/f5-tts:main
+  pip install k2==1.24.4.dev20241030+cuda12.4.torch2.4.0 -f https://k2-fsa.github.io/k2/cuda.html
+  git clone --recursive https://github.com/FunAudioLLM/CosyVoice.git /workspace/CosyVoice
+  cd /workspace/CosyVoice
+  # If you failed to clone submodule due to network failures, please run following command until success
+  git submodule update --init --recursive
+  pip install -r qwen_omni/requirements.txt
+  pip install -r qwen_omni/requirements-cosyvoice.txt
+
+  # For Chinese only dataset, you can use the following command to download the Chinese fine-tuned whisper model.
+  huggingface-cli download --local-dir models/whisper yuekai/icefall_asr_multi-hans-zh_whisper
+  # Cosyvoice pretrained model for speech token2wav module
+  huggingface-cli download --local-dir models/CosyVoice-300M-SFT FunAudioLLM/CosyVoice-300M-SFT
+  # Qwen Pretrained model
+  huggingface-cli download --local-dir models/Qwen2.5-0.5B-Instruct Qwen/Qwen2.5-0.5B-Instruct
+  # Qwen-Omni like speech2speech model trained on worstchan/Belle_1.4M-SLAM-Omni
+  huggingface-cli download --local-dir models/qwen-omni-like-speech2speech-belle-1.4M yuekai/qwen-omni-like-speech2speech-belle-1.4M
+
+  # For Gradio demo, we follow https://arxiv.org/abs/2412.15649 to use ASR model to decode the history speech as context.
+  pip install sherpa-onnx
+  model_path=local/sherpa-onnx-paraformer-zh-2023-09-14
+  if [ ! -d $model_path ]; then
+    wget -nc https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-paraformer-zh-2023-09-14.tar.bz2
+    tar xvf sherpa-onnx-paraformer-zh-2023-09-14.tar.bz2 -C local
+  fi
 fi
+export PYTHONPATH=$PYTHONPATH:/workspace/CosyVoice
 
 if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
-  log "stage 1: Download whisper-large-v2 multi-hans-zh fbank feature from huggingface"
-
+  log "stage 1: Compute fbank feature from huggingface"
   python3 local/compute_whisper_fbank.py \
    --num-mel-bins 80 --whisper-fbank True --resample-to-16kHz True --speed-perturb False \
    --out-dir data/fbank_test \
@@ -39,26 +60,42 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
    --prefix belle
 fi
 
-
 if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   log "Stage 2: Combine features"
   manifest_dir=data/fbank
   if [ ! -f $manifest_dir/cuts_belle_00001-01600.jsonl.gz ]; then
+    mv $manifest_dir/cuts_belle.00000.jsonl.gz ./
+    # exclude cust_belle_00000.jsonl.gz for valid and test set
     pieces=$(find $manifest_dir -name "cuts_belle.*.jsonl.gz" | sort)
-    # # remove cust_belle_00000.jsonl.gz from pieces
-    # pieces=$(echo $pieces | sed 's/cuts_belle.00000.jsonl.gz//g')
     echo $pieces | wc
     lhotse combine $pieces data/fbank/cuts_belle_00001-01600.jsonl.gz
-    cd $manifest_dir && ln -s cuts_belle_00001-01600.jsonl.gz cuts_belle_train.jsonl.gz && cd -
+    mv ./cuts_belle.00000.jsonl.gz $manifest_dir # put it back
+    cd $manifest_dir && ln -s cuts_belle_00001-01600.jsonl.gz cuts_belle_train.jsonl.gz
+    ln -s cuts_belle.00000.jsonl.gz cuts_belle_test.jsonl.gz && cd -
   fi
 fi
 
-
+ngpu=8
+exp_dir=./qwen_omni/exp_speech2speech
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
-  log "stage 3: "
-  exp_dir=./slam_omni/exp_speech2speech_rerun
-  export PYTHONPATH=$PYTHONPATH:/workspace/CosyVoice
-  python3 ./slam_omni/decode.py \
+  log "stage 3: Training Speech2Speech Model"
+  torchrun --nproc_per_node $ngpu ./qwen_omni/train.py \
+    --max-duration 50 \
+    --enable-musan False \
+    --exp-dir $exp_dir \
+    --speech-encoder-path-or-name models/whisper/v1.1/whisper-large-v2-multi-hans-zh-epoch-3-avg-10.pt \
+    --llm-path-or-name Qwen/Qwen2.5-0.5B-Instruct \
+    --manifest-dir data/fbank \
+    --deepspeed \
+    --deepspeed_config ./qwen_omni/ds_config_zero1.json \
+    --use-flash-attn True \
+    --use-lora True --unfreeze-llm True --unfreeze-speech-projector True --enable-speech-output True
+fi
+
+if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
+  log "stage 4: Decoding, only support batch_size=1 for now."
+  cd $exp_dir && ln -s ../../models/qwen-omni-like-speech2speech-belle-1.4M/pytorch_model.bin epoch-999.pt && cd -
+  python3 ./qwen_omni/decode.py \
     --max-duration 1 \
     --exp-dir $exp_dir \
     --speech-encoder-path-or-name models/whisper/v1.1/whisper-large-v2-multi-hans-zh-epoch-3-avg-10.pt  \
@@ -66,78 +103,20 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
     --epoch 999 --avg 1 \
     --manifest-dir data/fbank \
     --use-flash-attn True \
-    --method e2e-epoch10_speech2speech_rerun \
+    --method e2e-epoch10_speech2speech \
     --enable-speech-output True \
-    --token2wav-path /workspace/CosyVoice-300M-SFT \
-    --use-lora True # --on-the-fly-feats True
-
+    --token2wav-path models/CosyVoice-300M-SFT \
+    --use-lora True
 fi
-
-
-if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
-  log "stage 4: "
-  ngpu=8
-torchrun --nproc_per_node $ngpu ./slam_omni/train.py \
-  --max-duration 80 \
-  --enable-musan False \
-  --exp-dir ./slam_omni/exp_speech2text \
-  --speech-encoder-path-or-name models/whisper/v1.1/whisper-large-v2-multi-hans-zh-epoch-3-avg-10.pt \
-  --llm-path-or-name models/Qwen2.5-0.5B-Instruct \
-  --manifest-dir data/fbank \
-  --deepspeed \
-  --deepspeed_config ./slam_omni/ds_config_zero1.json \
-  --use-flash-attn True \
-  --pretrained-model-path slam_omni/exp_speech2text/epoch-1-checkpoint-5000.pt/pytorch_model.bin \
-  --sampler-state-dict-path slam_omni/exp_speech2text/epoch-1-checkpoint-5000-sampler.pt \
-  --use-lora True --unfreeze-llm True
-fi
-
 
 if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
-  log "stage 5: "
-  ngpu=8
-  exp_dir=./slam_omni/exp_speech2speech_rerun
-  # exp_dir_new=./slam_omni/exp_s2s
-  torchrun --nproc_per_node $ngpu ./slam_omni/train.py \
-    --max-duration 50 \
-    --enable-musan False \
-    --exp-dir $exp_dir \
-    --speech-encoder-path-or-name models/whisper/v1.1/whisper-large-v2-multi-hans-zh-epoch-3-avg-10.pt \
-    --llm-path-or-name models/Qwen2.5-0.5B-Instruct \
-    --manifest-dir data/fbank \
-    --deepspeed \
-    --deepspeed_config ./slam_omni/ds_config_zero1.json \
-    --use-flash-attn True \
-    --pretrained-model-path $exp_dir/epoch-1-checkpoint-15000.pt/pytorch_model.bin \
-    --sampler-state-dict-path $exp_dir/epoch-1-checkpoint-15000-sampler.pt \
-    --use-lora True --unfreeze-llm True --unfreeze-speech-projector True --enable-speech-output True
-    # --pretrained-model-path slam_omni/exp_speech2text/epoch-1-checkpoint-5000.pt/pytorch_model.bin \
-    #   --sampler-state-dict-path $exp_dir/epoch-1-checkpoint-35000-sampler.pt \
-
-fi
-
-if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
-  log "stage 6: "
-  export PYTHONPATH=$PYTHONPATH:/workspace/CosyVoice
-  exp_dir=./slam_omni/exp_speech2speech_rerun
-  python3 ./slam_omni/web_demo.py \
+  log "stage 5: Gradio Demo"
+  python3 ./qwen_omni/web_demo.py \
     --speech-encoder-path-or-name models/whisper/v1.1/whisper-large-v2-multi-hans-zh-epoch-3-avg-10.pt  \
     --llm-path-or-name models/Qwen2.5-0.5B-Instruct \
-    --checkpoint-path $exp_dir/epoch-998.pt \
+    --checkpoint-path $exp_dir/epoch-999.pt \
     --use-flash-attn True \
     --enable-speech-output True \
     --asr-model-dir local/sherpa-onnx-paraformer-zh-2023-09-14 \
     --use-lora True --token2wav-path /workspace/CosyVoice-300M-SFT --share
-
-fi
-
-if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
-  log "stage 7: "
-  model_path=local/sherpa-onnx-paraformer-zh-2023-09-14
-
-  if [ ! -d $model_path ]; then
-      pip install sherpa-onnx
-      wget -nc https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-paraformer-zh-2023-09-14.tar.bz2
-      tar xvf sherpa-onnx-paraformer-zh-2023-09-14.tar.bz2 -C local
-  fi
 fi

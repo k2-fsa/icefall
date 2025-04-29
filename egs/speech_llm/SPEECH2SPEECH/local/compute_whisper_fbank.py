@@ -165,7 +165,7 @@ def compute_fbank(args):
             storage_type=LilcomChunkyWriter,
             overwrite=True,
         )
-        cuts_path = f"{in_out_dir}/{args.prefix}_cuts.{idx}.jsonl.gz"
+        cuts_path = f"{in_out_dir}/cuts_{args.prefix}.{idx}.jsonl.gz"
         logging.info(f"Saving to {cuts_path}")
         # see https://github.com/lhotse-speech/lhotse/issues/1125
         cut_set.drop_recordings().to_file(cuts_path)
