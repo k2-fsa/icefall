@@ -1,10 +1,13 @@
+from typing import List, Tuple  # Added for type hints
+
 import torch
 from torch import nn
-from transformers.trainer_pt_utils import LabelSmoother
-from typing import List, Tuple # Added for type hints
 from torchmetrics.classification import MulticlassAccuracy
+from transformers.trainer_pt_utils import LabelSmoother
+
 IGNORE_TOKEN_ID = LabelSmoother.ignore_index
 import logging
+
 
 class EncoderProjector(nn.Module):
     """
@@ -69,7 +72,8 @@ class SPEECH_LLM(nn.Module):
         self.codec_lm = codec_lm
         if self.codec_lm:
             self.speech_token_projector = nn.Linear(
-                self.llm.config.hidden_size + self.llm.config.hidden_size, self.codec_lm.config.hidden_size
+                self.llm.config.hidden_size + self.llm.config.hidden_size,
+                self.codec_lm.config.hidden_size,
             )
             self.codec_lm_head = nn.Linear(
                 self.codec_lm.config.hidden_size, self.codec_lm.config.vocab_size
@@ -89,6 +93,7 @@ class SPEECH_LLM(nn.Module):
                 multidim_average="global",
                 ignore_index=IGNORE_TOKEN_ID,
             )
+
     def _merge_input_ids_with_speech_features(
         self, speech_features, inputs_embeds, input_ids, attention_mask, labels=None
     ):
@@ -274,68 +279,115 @@ class SPEECH_LLM(nn.Module):
         ) = self._merge_input_ids_with_speech_features(
             speech_features, inputs_embeds, input_ids, attention_mask, labels
         )
-        input_seq_len = attention_mask.sum(dim=1) # shape, B
-        text_label_start_index_list, text_input_start_index_list, input_question_len_list = [], [], []
+        input_seq_len = attention_mask.sum(dim=1)  # shape, B
+        (
+            text_label_start_index_list,
+            text_input_start_index_list,
+            input_question_len_list,
+        ) = ([], [], [])
         for i in range(labels.shape[0]):
             input_embeds_valid_index = torch.where(attention_mask[i] != 0)[0]
             input_embeds_start_index = input_embeds_valid_index[0]
             text_labels_valid_index = torch.where(labels[i] != IGNORE_TOKEN_ID)[0]
             text_labels_start_index = text_labels_valid_index[0]
 
-            assert input_seq_len[i] == input_embeds_valid_index[-1] - input_embeds_start_index + 1, f"input_seq_len: {input_seq_len[i]}, input_embeds_valid_index: {input_embeds_valid_index}, input_embeds_start_index: {input_embeds_start_index}"
-            assert input_embeds_valid_index[-1] == text_labels_valid_index[-1], f"input_embeds_valid_index: {input_embeds_valid_index}, text_labels_valid_index: {text_labels_valid_index}"
+            assert (
+                input_seq_len[i]
+                == input_embeds_valid_index[-1] - input_embeds_start_index + 1
+            ), f"input_seq_len: {input_seq_len[i]}, input_embeds_valid_index: {input_embeds_valid_index}, input_embeds_start_index: {input_embeds_start_index}"
+            assert (
+                input_embeds_valid_index[-1] == text_labels_valid_index[-1]
+            ), f"input_embeds_valid_index: {input_embeds_valid_index}, text_labels_valid_index: {text_labels_valid_index}"
             input_question_len = text_labels_start_index - input_embeds_start_index
-            assert input_question_len + text_labels_valid_index[-1] - text_labels_start_index + 1 == input_seq_len[i]
+            assert (
+                input_question_len
+                + text_labels_valid_index[-1]
+                - text_labels_start_index
+                + 1
+                == input_seq_len[i]
+            )
             text_label_start_index_list.append(text_labels_start_index)
             text_input_start_index_list.append(input_embeds_start_index)
             input_question_len_list.append(input_question_len)
 
         model_outputs = self.llm(
-            inputs_embeds=inputs_embeds, attention_mask=attention_mask, labels=labels, output_hidden_states=True
+            inputs_embeds=inputs_embeds,
+            attention_mask=attention_mask,
+            labels=labels,
+            output_hidden_states=True,
         )
         text_loss = model_outputs.loss
         delay_step = 1
         # prepare codec lm inputs
-        audio_codes_lens = [len(x) + input_question_len_list[i] + delay_step + 1 for i, x in enumerate(speech_codec_ids)]
+        audio_codes_lens = [
+            len(x) + input_question_len_list[i] + delay_step + 1
+            for i, x in enumerate(speech_codec_ids)
+        ]
         max_len_speech_codec = max(audio_codes_lens)
 
         if self.codec_lm_padding_side == "right":
             audio_codes = [
-                [self.codec_lm.config.mask_token_id] * (input_question_len_list[i] + delay_step) + [self.codec_lm.config.bos_token_id] + x + [self.codec_lm.config.pad_token_id] * (max_len_speech_codec - audio_codes_lens[i])
+                [self.codec_lm.config.mask_token_id]
+                * (input_question_len_list[i] + delay_step)
+                + [self.codec_lm.config.bos_token_id]
+                + x
+                + [self.codec_lm.config.pad_token_id]
+                * (max_len_speech_codec - audio_codes_lens[i])
                 for i, x in enumerate(speech_codec_ids)
             ]
             audio_labels = [
-                [self.codec_lm.config.pad_token_id] * (input_question_len_list[i] + delay_step) + x + [self.codec_lm.config.eos_token_id] + [self.codec_lm.config.pad_token_id] * (max_len_speech_codec - audio_codes_lens[i])
+                [self.codec_lm.config.pad_token_id]
+                * (input_question_len_list[i] + delay_step)
+                + x
+                + [self.codec_lm.config.eos_token_id]
+                + [self.codec_lm.config.pad_token_id]
+                * (max_len_speech_codec - audio_codes_lens[i])
                 for i, x in enumerate(speech_codec_ids)
             ]
         elif self.codec_lm_padding_side == "left":
             audio_codes = [
-                [self.codec_lm.config.pad_token_id] * (max_len_speech_codec - audio_codes_lens[i]) + [self.codec_lm.config.mask_token_id] * (input_question_len_list[i] + delay_step) + [self.codec_lm.config.bos_token_id] + x
+                [self.codec_lm.config.pad_token_id]
+                * (max_len_speech_codec - audio_codes_lens[i])
+                + [self.codec_lm.config.mask_token_id]
+                * (input_question_len_list[i] + delay_step)
+                + [self.codec_lm.config.bos_token_id]
+                + x
                 for i, x in enumerate(speech_codec_ids)
             ]
             audio_labels = [
-                [self.codec_lm.config.pad_token_id] * (max_len_speech_codec - audio_codes_lens[i]) + [self.codec_lm.config.pad_token_id] * (input_question_len_list[i] + delay_step) + x + [self.codec_lm.config.eos_token_id]
+                [self.codec_lm.config.pad_token_id]
+                * (max_len_speech_codec - audio_codes_lens[i])
+                + [self.codec_lm.config.pad_token_id]
+                * (input_question_len_list[i] + delay_step)
+                + x
+                + [self.codec_lm.config.eos_token_id]
                 for i, x in enumerate(speech_codec_ids)
             ]
         audio_codes = torch.tensor(
-            audio_codes,
-            dtype=torch.int64,
-            device=input_ids.device
+            audio_codes, dtype=torch.int64, device=input_ids.device
         )
         audio_labels = torch.tensor(
-            audio_labels,
-            dtype=torch.int64,
-            device=input_ids.device
+            audio_labels, dtype=torch.int64, device=input_ids.device
         )
 
         audio_attention_mask = audio_codes.ne(self.codec_lm.config.pad_token_id)
         audio_embeddings = self.codec_lm.get_input_embeddings()(audio_codes)
-       
+
         text_last_hidden_lists, text_embeds_list, text_input_embeds_list = [], [], []
         for i in range(len(text_label_start_index_list)):
-            text_last_hidden = model_outputs.hidden_states[-1][i, text_input_start_index_list[i]:text_input_start_index_list[i] + input_seq_len[i] - 1]
+            text_last_hidden = model_outputs.hidden_states[-1][
+                i,
+                text_input_start_index_list[i] : text_input_start_index_list[i]
+                + input_seq_len[i]
+                - 1,
+            ]
             text_last_hidden_lists.append(text_last_hidden)
-            text_embed = inputs_embeds[i, text_input_start_index_list[i] + 1:text_input_start_index_list[i] + input_seq_len[i]] # exclude bos
+            text_embed = inputs_embeds[
+                i,
+                text_input_start_index_list[i]
+                + 1 : text_input_start_index_list[i]
+                + input_seq_len[i],
+            ]  # exclude bos
             text_embeds_list.append(text_embed)
 
             text_input_embeds = torch.cat(
@@ -344,22 +396,34 @@ class SPEECH_LLM(nn.Module):
                     text_embed,
                 ],
                 dim=-1,
-            )# shape, T, D1 + D2
-            text_input_embeds = self.speech_token_projector(text_input_embeds) # shape, T, D_codec
+            )  # shape, T, D1 + D2
+            text_input_embeds = self.speech_token_projector(
+                text_input_embeds
+            )  # shape, T, D_codec
             text_input_embeds_list.append(text_input_embeds)
-    
+
         for i in range(audio_embeddings.shape[0]):
             text_input_embeds = text_input_embeds_list[i]
             if self.codec_lm_padding_side == "right":
-                audio_embeddings[i, :text_input_embeds.shape[0]] += text_input_embeds
+                audio_embeddings[i, : text_input_embeds.shape[0]] += text_input_embeds
             elif self.codec_lm_padding_side == "left":
-                start_idx = torch.where(audio_codes[i] == self.codec_lm.config.mask_token_id)[0][0]
+                start_idx = torch.where(
+                    audio_codes[i] == self.codec_lm.config.mask_token_id
+                )[0][0]
                 start_idx_re_compute = torch.where(audio_attention_mask[i] != 0)[0][0]
-                assert start_idx == start_idx_re_compute, f"start_idx: {start_idx}, start_idx_re_compute: {start_idx_re_compute}"
+                assert (
+                    start_idx == start_idx_re_compute
+                ), f"start_idx: {start_idx}, start_idx_re_compute: {start_idx_re_compute}"
                 if text_input_embeds.shape[0] > audio_embeddings.shape[1] - start_idx:
-                    text_input_embeds = text_input_embeds[:audio_embeddings.shape[1] - start_idx]
-                    logging.warning(f"Truncate text_input_embeds: {text_input_embeds.shape} to {audio_embeddings.shape[1] - start_idx}")
-                audio_embeddings[i, start_idx:start_idx + text_input_embeds.shape[0]] += text_input_embeds
+                    text_input_embeds = text_input_embeds[
+                        : audio_embeddings.shape[1] - start_idx
+                    ]
+                    logging.warning(
+                        f"Truncate text_input_embeds: {text_input_embeds.shape} to {audio_embeddings.shape[1] - start_idx}"
+                    )
+                audio_embeddings[
+                    i, start_idx : start_idx + text_input_embeds.shape[0]
+                ] += text_input_embeds
 
         speech_outputs = self.codec_lm(
             attention_mask=audio_attention_mask,
@@ -369,8 +433,10 @@ class SPEECH_LLM(nn.Module):
         )
         last_hidden_state = speech_outputs.hidden_states[-1].clone()
 
-        audio_logits = self.codec_lm_head(last_hidden_state) # shape, B, T, vocab_size
-        audio_logits = audio_logits.contiguous().view(-1, self.codec_lm.config.vocab_size)
+        audio_logits = self.codec_lm_head(last_hidden_state)  # shape, B, T, vocab_size
+        audio_logits = audio_logits.contiguous().view(
+            -1, self.codec_lm.config.vocab_size
+        )
         audio_labels = audio_labels.contiguous().view(-1)
         audio_labels = audio_labels.masked_fill(
             audio_labels == self.codec_lm.config.pad_token_id, IGNORE_TOKEN_ID
@@ -378,7 +444,6 @@ class SPEECH_LLM(nn.Module):
         codec_loss = self.loss_fct(audio_logits, audio_labels)
         audio_preds = torch.argmax(audio_logits, -1)
 
-        
         with torch.no_grad():
             preds = torch.argmax(model_outputs.logits, -1)
             acc = compute_accuracy(
@@ -392,12 +457,11 @@ class SPEECH_LLM(nn.Module):
                 ignore_label=IGNORE_TOKEN_ID,
             )
             audio_topk_acc = self.audio_accuracy_metric(
-                audio_logits.detach(),
-                audio_labels.detach()).item()
-
+                audio_logits.detach(), audio_labels.detach()
+            ).item()
 
         return text_loss, acc, codec_loss, audio_acc, audio_topk_acc
-    
+
     def decode(
         self,
         fbank: torch.Tensor = None,
@@ -453,12 +517,12 @@ class SPEECH_LLM(nn.Module):
     def decode_with_speech_output(
         self,
         fbank: torch.Tensor = None,
-        input_ids: torch.LongTensor = None, # Prompt input_ids
-        attention_mask: torch.Tensor = None, # Prompt attention_mask
+        input_ids: torch.LongTensor = None,  # Prompt input_ids
+        attention_mask: torch.Tensor = None,  # Prompt attention_mask
         max_text_new_tokens: int = 1024,
-        max_speech_new_tokens: int = 1024, # Max length for speech tokens
-        llm_kwargs: dict = None, # Kwargs for text LLM generate
-        codec_lm_kwargs: dict = None # Kwargs for codec LM (e.g., temperature for sampling) - NOT IMPLEMENTED YET
+        max_speech_new_tokens: int = 1024,  # Max length for speech tokens
+        llm_kwargs: dict = None,  # Kwargs for text LLM generate
+        codec_lm_kwargs: dict = None,  # Kwargs for codec LM (e.g., temperature for sampling) - NOT IMPLEMENTED YET
     ) -> Tuple[torch.LongTensor, List[List[int]]]:
         """
         Generates text and corresponding speech tokens using the revised logic.
@@ -479,16 +543,22 @@ class SPEECH_LLM(nn.Module):
                                            the generated speech codec tokens for a batch item.
         """
         assert fbank.shape[0] == 1, "Batch size must be 1 for speech generation."
-        if not self.codec_lm or not self.speech_token_projector or not self.codec_lm_head:
-            raise ValueError("codec_lm and associated layers must be initialized to generate speech output.")
+        if (
+            not self.codec_lm
+            or not self.speech_token_projector
+            or not self.codec_lm_head
+        ):
+            raise ValueError(
+                "codec_lm and associated layers must be initialized to generate speech output."
+            )
 
-        device = next(self.parameters()).device # Use model's device
+        device = next(self.parameters()).device  # Use model's device
         batch_size = fbank.shape[0]
 
         # --- 1. Prepare Prompt Embeddings ---
         encoder_outs = self.encoder(fbank)
         speech_features = self.encoder_projector(encoder_outs)
-        speech_features = speech_features.to(self.llm.dtype) # Ensure matching dtype
+        speech_features = speech_features.to(self.llm.dtype)  # Ensure matching dtype
 
         prompt_embeds = self.llm.get_input_embeddings()(input_ids)
 
@@ -511,12 +581,12 @@ class SPEECH_LLM(nn.Module):
             "eos_token_id": self.llm.config.eos_token_id,
             "pad_token_id": self.llm.config.pad_token_id,
             "num_beams": 1,
-            "do_sample": True, # Typically false for S2ST/S2TT tasks unless exploration needed
+            "do_sample": True,  # Typically false for S2ST/S2TT tasks unless exploration needed
             "top_p": 0.5,
             "top_k": 20,
             "repetition_penalty": 1.1,
             "temperature": 0.7,
-            **(llm_kwargs or {}) # User-provided kwargs override defaults
+            **(llm_kwargs or {}),  # User-provided kwargs override defaults
         }
 
         text_outputs = self.llm.generate(
@@ -525,17 +595,22 @@ class SPEECH_LLM(nn.Module):
             max_new_tokens=max_text_new_tokens,
             return_dict_in_generate=True,
             output_hidden_states=True,
-            **final_llm_kwargs
+            **final_llm_kwargs,
         )
         delay_step = 1
-        generated_text_ids = text_outputs.sequences # [B, S_full]
+        generated_text_ids = text_outputs.sequences  # [B, S_full]
         eos_token_id = self.llm.config.eos_token_id
-        eos_token_embedding = self.llm.get_input_embeddings()(torch.tensor([[eos_token_id]], device=device)) # 1,D
-        assert generated_text_ids[0, -1] == eos_token_id, f"Last token is not EOS: {generated_text_ids[0, -1]} != {eos_token_id}"
+        eos_token_embedding = self.llm.get_input_embeddings()(
+            torch.tensor([[eos_token_id]], device=device)
+        )  # 1,D
+        assert (
+            generated_text_ids[0, -1] == eos_token_id
+        ), f"Last token is not EOS: {generated_text_ids[0, -1]} != {eos_token_id}"
         thinker_token_embeds_org = [
-            token_hidden_states[0].to(self.llm.device) for token_hidden_states in text_outputs.hidden_states
+            token_hidden_states[0].to(self.llm.device)
+            for token_hidden_states in text_outputs.hidden_states
         ]
-        # shift one for thinker token_embeds, drop the first embeds, and add the eos token 
+        # shift one for thinker token_embeds, drop the first embeds, and add the eos token
         first_thinker_token_embed = torch.cat(
             [
                 thinker_token_embeds_org[0][:, 1:],
@@ -544,19 +619,27 @@ class SPEECH_LLM(nn.Module):
             dim=1,
         )
 
-        thinker_token_embeds = [first_thinker_token_embed] + thinker_token_embeds_org[2:] + [eos_token_embedding]
+        thinker_token_embeds = (
+            [first_thinker_token_embed]
+            + thinker_token_embeds_org[2:]
+            + [eos_token_embedding]
+        )
         thinker_hidden_states = [
-            token_hidden_states[-1].to(self.llm.device) for token_hidden_states in text_outputs.hidden_states
+            token_hidden_states[-1].to(self.llm.device)
+            for token_hidden_states in text_outputs.hidden_states
         ]
         # thinker_reply_part = torch.cat(thinker_hidden_states[1:], dim=1) + torch.cat(thinker_token_embeds[1:], dim=1)
-        thinker_reply_part = [torch.cat(
-            [
-                thinker_hidden_state,
-                thinker_token_embed,
-            ],
-            dim=-1,
-        )
-            for thinker_hidden_state, thinker_token_embed in zip(thinker_hidden_states[1:], thinker_token_embeds[1:])
+        thinker_reply_part = [
+            torch.cat(
+                [
+                    thinker_hidden_state,
+                    thinker_token_embed,
+                ],
+                dim=-1,
+            )
+            for thinker_hidden_state, thinker_token_embed in zip(
+                thinker_hidden_states[1:], thinker_token_embeds[1:]
+            )
         ]
         thinker_reply_part = torch.cat(thinker_reply_part, dim=1)
         # thinker_prompt_part = thinker_hidden_states[0] + thinker_token_embeds[0]
@@ -568,26 +651,35 @@ class SPEECH_LLM(nn.Module):
             dim=-1,
         )
 
-        thinker_prompt_part = self.speech_token_projector(thinker_prompt_part) # [B, S_full, D_codec]
-        thinker_reply_part = self.speech_token_projector(thinker_reply_part) # [B, S_full, D_codec]
-        
+        thinker_prompt_part = self.speech_token_projector(
+            thinker_prompt_part
+        )  # [B, S_full, D_codec]
+        thinker_reply_part = self.speech_token_projector(
+            thinker_reply_part
+        )  # [B, S_full, D_codec]
 
         thinker_prompt_part_seq_len = thinker_prompt_part.shape[1]
         talker_input_ids = torch.full(
-            (batch_size, thinker_prompt_part_seq_len + delay_step + 1), self.codec_lm.config.mask_token_id, dtype=torch.long, device=self.llm.device
+            (batch_size, thinker_prompt_part_seq_len + delay_step + 1),
+            self.codec_lm.config.mask_token_id,
+            dtype=torch.long,
+            device=self.llm.device,
         )
-        talker_input_ids[:,-1] = self.codec_lm.config.bos_token_id
-        talker_inputs_embeds = self.codec_lm.get_input_embeddings()(talker_input_ids) # [B, S_full, D_codec]
+        talker_input_ids[:, -1] = self.codec_lm.config.bos_token_id
+        talker_inputs_embeds = self.codec_lm.get_input_embeddings()(
+            talker_input_ids
+        )  # [B, S_full, D_codec]
         thinker_input_embeds = torch.cat(
             [
                 thinker_prompt_part,
-                thinker_reply_part[:, :delay_step + 1, :],
+                thinker_reply_part[:, : delay_step + 1, :],
             ],
             dim=1,
         )
         talker_inputs_embeds += thinker_input_embeds
-        thinker_reply_part = thinker_reply_part[:, delay_step + 1:, :] # [B, S_full, D_codec]
-
+        thinker_reply_part = thinker_reply_part[
+            :, delay_step + 1 :, :
+        ]  # [B, S_full, D_codec]
 
         past_key_values = None
         # generated_speech_tokens_list = [[] for _ in range(batch_size)]
@@ -599,10 +691,14 @@ class SPEECH_LLM(nn.Module):
             # Get embedding for the *current* input token ID (initially BOS, then generated tokens)
             # current_speech_embeds = self.codec_lm.get_input_embeddings()(current_speech_input_ids) # [B, 1, D_codec]
             if t > 0:
-                talker_inputs_embeds = self.codec_lm.get_input_embeddings()(next_token_ids) # [B, 1, D_codec]
+                talker_inputs_embeds = self.codec_lm.get_input_embeddings()(
+                    next_token_ids
+                )  # [B, 1, D_codec]
                 if thinker_reply_part.shape[1] > 0:
                     talker_inputs_embeds += thinker_reply_part[:, :1, :]
-                    thinker_reply_part = thinker_reply_part[:, 1:, :] # Remove the first token for next step
+                    thinker_reply_part = thinker_reply_part[
+                        :, 1:, :
+                    ]  # Remove the first token for next step
             # # Add the projected text embedding corresponding to the current timestep `t`
             # if t < text_context_len:
             #     # Text context from the full generated text sequence
@@ -611,20 +707,24 @@ class SPEECH_LLM(nn.Module):
             # else:
             #     # No more text context to add
             #     inputs_embeds = current_speech_embeds
-                
+
             # Forward pass through codec LM for one step
             # We provide inputs_embeds directly, bypassing prepare_inputs_for_generation
             codec_outputs = self.codec_lm(
-                inputs_embeds=talker_inputs_embeds, # Combined embedding for this step
+                inputs_embeds=talker_inputs_embeds,  # Combined embedding for this step
                 past_key_values=past_key_values,
                 use_cache=True,
                 return_dict=True,
                 output_hidden_states=True,
                 # No attention mask needed here when using past_key_values and single token input
             )
-            last_token_hidden_state = codec_outputs.hidden_states[-1][:, -1, :] # [B, D_codec] #TODO: check shape here
+            last_token_hidden_state = codec_outputs.hidden_states[-1][
+                :, -1, :
+            ]  # [B, D_codec] #TODO: check shape here
             # Get logits for the *last* token generated in this step
-            next_token_logits = self.codec_lm_head(last_token_hidden_state) # Use -1 index
+            next_token_logits = self.codec_lm_head(
+                last_token_hidden_state
+            )  # Use -1 index
             # suppress tokens between 4096:len(vocab)-3
             # next_token_logits[:, 4096:-3] = -float("Inf") # TODO: where we should supress tokens?
             next_token_ids = topk_sampling(
@@ -634,10 +734,13 @@ class SPEECH_LLM(nn.Module):
             if next_token_ids[0, 0] == self.codec_lm.config.eos_token_id:
                 break
             # current_speech_input_ids = next_token_ids # Use the newly generated token ID as input for next step
-            past_key_values = codec_outputs.past_key_values # Update KV cache
-            generated_speech_tokens_list.append(next_token_ids.squeeze(1).cpu().tolist()[0])
+            past_key_values = codec_outputs.past_key_values  # Update KV cache
+            generated_speech_tokens_list.append(
+                next_token_ids.squeeze(1).cpu().tolist()[0]
+            )
         # --- 6. Return Results ---
         return generated_text_ids, generated_speech_tokens_list
+
 
 def compute_accuracy(pad_outputs, pad_targets, ignore_label):
     """Calculate accuracy.

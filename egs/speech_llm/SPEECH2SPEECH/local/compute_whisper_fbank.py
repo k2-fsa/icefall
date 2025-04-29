@@ -17,6 +17,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""
+Usage:
+  python3 local/compute_whisper_fbank.py \
+   --num-mel-bins 80 --whisper-fbank True --resample-to-16kHz True --speed-perturb False \
+   --out-dir data/fbank \
+   --huggingface-dataset-path-or-name worstchan/UltraChat-300K-SLAM-Omni \
+   --audio-key question_audio --text-key answer \
+   --prefix ultrachat
+"""
+
 
 import argparse
 import logging
@@ -126,7 +136,7 @@ def compute_fbank(args):
     num_digits = 5
     for i in range(num_shards):
         shard = dataset.shard(num_shards, i)
-        shard = shard.take(10)  # for testing
+        # shard = shard.take(10)  # for testing
         logging.info(
             f"Loading dataset shard {i} from {args.huggingface_dataset_path_or_name}"
         )
@@ -159,8 +169,6 @@ def compute_fbank(args):
         logging.info(f"Saving to {cuts_path}")
         # see https://github.com/lhotse-speech/lhotse/issues/1125
         cut_set.drop_recordings().to_file(cuts_path)
-        if i > 1:
-            break
 
 
 def main():

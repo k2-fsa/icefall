@@ -1,13 +1,12 @@
 from typing import Callable, Dict, List, Union
 
 import torch
-from torch.utils.data.dataloader import DataLoader, default_collate
-
 from lhotse import validate
 from lhotse.cut import CutSet
 from lhotse.dataset.input_strategies import BatchIO, PrecomputedFeatures
 from lhotse.utils import compute_num_frames, ifnone
 from lhotse.workarounds import Hdf5MemoryIssueFix
+from torch.utils.data.dataloader import DataLoader, default_collate
 
 
 class K2SpeechRecognitionDataset(torch.utils.data.Dataset):

@@ -1,26 +1,25 @@
 # Modified from https://github.com/QwenLM/Qwen2.5-Omni/blob/main/web_demo.py
 import io
-
-import numpy as np
-import gradio as gr
-import soundfile as sf 
-
-import gradio.processing_utils as processing_utils
-import tempfile
-from transformers import AutoModelForCausalLM, AutoTokenizer, Qwen2Config
-from gradio_client import utils as client_utils
-
-from argparse import ArgumentParser
-import whisper
-import torch
-from peft import LoraConfig, get_peft_model
-from whisper_encoder_forward_monkey_patch import replace_whisper_encoder_forward
-from model import SPEECH_LLM, EncoderProjector
-from train import DEFAULT_SPEECH_TOKEN, add_model_arguments
-import sherpa_onnx
-from cosyvoice.cli.cosyvoice import CosyVoice
 import sys
-sys.path.append('/workspace/CosyVoice/third_party/Matcha-TTS')
+from argparse import ArgumentParser
+
+import gradio as gr
+import gradio.processing_utils as processing_utils
+import numpy as np
+import sherpa_onnx
+import soundfile as sf
+import torch
+import whisper
+from cosyvoice.cli.cosyvoice import CosyVoice
+from gradio_client import utils as client_utils
+from model import SPEECH_LLM, EncoderProjector
+from peft import LoraConfig, get_peft_model
+from train import DEFAULT_SPEECH_TOKEN, add_model_arguments
+from transformers import AutoModelForCausalLM, AutoTokenizer, Qwen2Config
+from whisper_encoder_forward_monkey_patch import replace_whisper_encoder_forward
+
+# https://github.com/FunAudioLLM/CosyVoice/tree/main/third_party
+sys.path.append("/workspace/CosyVoice/third_party/Matcha-TTS")
 
 
 def get_model(params, device="cuda"):
@@ -88,7 +87,7 @@ def get_model(params, device="cuda"):
     codec_lm = AutoModelForCausalLM.from_config(
         config=config,
         attn_implementation=attn_implementation,
-        torch_dtype=torch.float16
+        torch_dtype=torch.float16,
     )
     codec_lm.resize_token_embeddings(codec_vocab_size)
     codec_lm.vocab_size = codec_vocab_size
@@ -102,12 +101,10 @@ def get_model(params, device="cuda"):
         llm,
         encoder_projector,
         codec_lm,
-        codec_lm_padding_side= "left" if params.use_flash_attn else "right",
+        codec_lm_padding_side="left" if params.use_flash_attn else "right",
     )
 
-    checkpoint = torch.load(
-        f"{params.checkpoint_path}", map_location="cpu"
-    )
+    checkpoint = torch.load(f"{params.checkpoint_path}", map_location="cpu")
     model.load_state_dict(checkpoint, strict=False)
 
     model.to(device)
@@ -122,26 +119,36 @@ def audio_decode_cosyvoice(audio_tokens, codec_decoder):
     Args:
         audio_tokens (list): List of audio tokens to be processed.
         codec_decoder: Codec decoder for generating audio.
-    
+
     Returns:
         torch.Tensor: Generated audio waveform.
     """
-    flow_embedding = codec_decoder.frontend.spk2info['中文女']['embedding']
+    flow_embedding = codec_decoder.frontend.spk2info["中文女"]["embedding"]
     flow_prompt_speech_token = torch.zeros(1, 0, dtype=torch.int32)
     prompt_speech_feat = torch.zeros(1, 0, 80)
-    tts_mel, _ = codec_decoder.model.flow.inference(token=audio_tokens.to(codec_decoder.model.device),
-                                                token_len=torch.tensor([audio_tokens.shape[1]], dtype=torch.int32).to(codec_decoder.model.device),
-                                                prompt_token=flow_prompt_speech_token.to(codec_decoder.model.device),
-                                                prompt_token_len=torch.tensor([flow_prompt_speech_token.shape[1]], dtype=torch.int32).to(codec_decoder.model.device),
-                                                prompt_feat=prompt_speech_feat.to(codec_decoder.model.device),
-                                                prompt_feat_len=torch.tensor([prompt_speech_feat.shape[1]], dtype=torch.int32).to(codec_decoder.model.device),
-                                                embedding=flow_embedding.to(codec_decoder.model.device),
-                                                flow_cache=torch.zeros(1, 80, 0, 2).to(codec_decoder.model.device),)
+    tts_mel, _ = codec_decoder.model.flow.inference(
+        token=audio_tokens.to(codec_decoder.model.device),
+        token_len=torch.tensor([audio_tokens.shape[1]], dtype=torch.int32).to(
+            codec_decoder.model.device
+        ),
+        prompt_token=flow_prompt_speech_token.to(codec_decoder.model.device),
+        prompt_token_len=torch.tensor(
+            [flow_prompt_speech_token.shape[1]], dtype=torch.int32
+        ).to(codec_decoder.model.device),
+        prompt_feat=prompt_speech_feat.to(codec_decoder.model.device),
+        prompt_feat_len=torch.tensor(
+            [prompt_speech_feat.shape[1]], dtype=torch.int32
+        ).to(codec_decoder.model.device),
+        embedding=flow_embedding.to(codec_decoder.model.device),
+        flow_cache=torch.zeros(1, 80, 0, 2).to(codec_decoder.model.device),
+    )
 
-
-    audio_hat, _ = codec_decoder.model.hift.inference(speech_feat=tts_mel, cache_source=torch.zeros(1, 1, 0))
+    audio_hat, _ = codec_decoder.model.hift.inference(
+        speech_feat=tts_mel, cache_source=torch.zeros(1, 1, 0)
+    )
 
     return audio_hat
+
 
 def preprocess(
     messages,
@@ -178,28 +185,14 @@ def preprocess(
     attention_mask = input_ids.ne(tokenizer.pad_token_id)
 
     return input_ids, attention_mask
-    
-    
-def _launch_demo(args, model, tokenizer, token2wav_model, asr_model):
 
+
+def _launch_demo(args, model, tokenizer, token2wav_model, asr_model):
     def format_history(history: list):
         messages = []
         for item in history:
             if isinstance(item["content"], str):
-                messages.append({"role": item['role'], "content": item['content']})
-            # elif item["role"] == "user" and (isinstance(item["content"], list) or
-            #                                 isinstance(item["content"], tuple)):
-            #     file_path = item["content"][0]
-            #     # TODO: check if the file_path's transcript is already in the history
-            #     mime_type = client_utils.get_mimetype(file_path)
-            #     if mime_type.startswith("audio"):
-            #         messages.append({
-            #             "role":
-            #             item['role'],
-            #             "content": item["content"][1] # append audio transcript here
-            #         })
-        print('predict history: ', messages) 
-        # messages = messages[-2:] # TODO: WAR: add history later
+                messages.append({"role": item["role"], "content": item["content"]})
         return messages
 
     def decode(
@@ -217,9 +210,8 @@ def _launch_demo(args, model, tokenizer, token2wav_model, asr_model):
         dtype = torch.float32
         device = model.llm.device
 
-        feature = feature.to(device, dtype=dtype)#.transpose(1, 2)
-        # assert feature.shape[2] == 80
-        
+        feature = feature.to(device, dtype=dtype)
+
         input_ids, attention_mask = preprocess([messages], tokenizer)
 
         generated_ids, audio_tokens = model.decode_with_speech_output(
@@ -227,26 +219,21 @@ def _launch_demo(args, model, tokenizer, token2wav_model, asr_model):
         )
 
         hyps = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
-        # print('hyps: ', hyps, 23333333333333333333333333)
+
         yield {"type": "text", "data": hyps[0]}
-        # yield {"type": "text", "data": hyps}
 
         audio_tokens = [token for token in audio_tokens if token < 4096]
         audio_tokens = torch.tensor(audio_tokens, dtype=torch.int32).unsqueeze(0)
         audio_hat = audio_decode_cosyvoice(audio_tokens, token2wav_model)
-        audio = audio_hat.squeeze(0).cpu().numpy()        
-        # sf.write(f'{wav_name}.wav', audio_hat.squeeze(0).cpu().numpy(), 22050)
+        audio = audio_hat.squeeze(0).cpu().numpy()
         audio = np.array(audio * 32767).astype(np.int16)
-        # yield {"type": "audio", "data": (22050, audio)}
-        # with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmpfile:
-        #     sf.write(tmpfile.name, audio, 22050, format="WAV")
-        #     audio_path = tmpfile.name 
         wav_io = io.BytesIO()
         sf.write(wav_io, audio, samplerate=22050, format="WAV")
         wav_io.seek(0)
         wav_bytes = wav_io.getvalue()
         audio_path = processing_utils.save_bytes_to_cache(
-            wav_bytes, "audio.wav", cache_dir=demo.GRADIO_CACHE)
+            wav_bytes, "audio.wav", cache_dir=demo.GRADIO_CACHE
+        )
 
         yield {"type": "audio", "data": audio_path}
 
@@ -259,25 +246,27 @@ def _launch_demo(args, model, tokenizer, token2wav_model, asr_model):
             gr.update(visible=True),  # stop_btn
         )
         print(2333, history, audio)
-        history.append({"role": "user", "content":  (audio,)})
-        history.append({"role": "user", "content":  f"{DEFAULT_SPEECH_TOKEN}"})
+        history.append({"role": "user", "content": (audio,)})
+        history.append({"role": "user", "content": f"{DEFAULT_SPEECH_TOKEN}"})
         history.append({"role": "assistant", "content": ""})
-        formatted_history = format_history(history=history) # only keep string text format
+        formatted_history = format_history(
+            history=history
+        )  # only keep string text format
 
         assert audio is not None
         audio_transcript = get_transcript(
             audio,
             asr_model,
         )
-        print('audio_transcript: ', audio_transcript)
         history[-2]["content"] = audio_transcript
 
         fbank = whisper.log_mel_spectrogram(audio, device=model.llm.device)
         fbank = fbank.unsqueeze(0)
         assert fbank.ndim == 3
 
-        # history.append({"role": "assistant", "content": ""})
-        for chunk in decode(model, token2wav_model, tokenizer, fbank, formatted_history):
+        for chunk in decode(
+            model, token2wav_model, tokenizer, fbank, formatted_history
+        ):
             if chunk["type"] == "text":
                 history[-1]["content"] = chunk["data"]
                 yield (
@@ -287,10 +276,9 @@ def _launch_demo(args, model, tokenizer, token2wav_model, asr_model):
                     gr.update(visible=True),  # stop_btn
                 )
             if chunk["type"] == "audio":
-                history.append({
-                    "role": "assistant",
-                    "content": gr.Audio(chunk["data"])
-                })
+                history.append(
+                    {"role": "assistant", "content": gr.Audio(chunk["data"])}
+                )
 
         # Final yield
         yield (
@@ -304,8 +292,7 @@ def _launch_demo(args, model, tokenizer, token2wav_model, asr_model):
         with gr.Tab("Online"):
             with gr.Row():
                 with gr.Column(scale=1):
-                    microphone = gr.Audio(sources=['microphone'],
-                                        type="filepath")
+                    microphone = gr.Audio(sources=["microphone"], type="filepath")
                     submit_btn = gr.Button("Submit", variant="primary")
                     stop_btn = gr.Button("Stop", visible=False)
                     clear_btn = gr.Button("Clear History")
@@ -315,64 +302,80 @@ def _launch_demo(args, model, tokenizer, token2wav_model, asr_model):
                 def clear_history():
                     return [], gr.update(value=None)
 
-                submit_event = submit_btn.click(fn=media_predict,
-                                                inputs=[
-                                                    microphone,
-                                                    media_chatbot,
-                                                ],
-                                                outputs=[
-                                                    microphone,
-                                                    media_chatbot, submit_btn,
-                                                    stop_btn
-                                                ])
+                submit_event = submit_btn.click(
+                    fn=media_predict,
+                    inputs=[
+                        microphone,
+                        media_chatbot,
+                    ],
+                    outputs=[microphone, media_chatbot, submit_btn, stop_btn],
+                )
                 stop_btn.click(
-                    fn=lambda:
-                    (gr.update(visible=True), gr.update(visible=False)),
+                    fn=lambda: (gr.update(visible=True), gr.update(visible=False)),
                     inputs=None,
                     outputs=[submit_btn, stop_btn],
                     cancels=[submit_event],
-                    queue=False)
-                clear_btn.click(fn=clear_history,
-                                inputs=None,
-                                outputs=[media_chatbot, microphone])
+                    queue=False,
+                )
+                clear_btn.click(
+                    fn=clear_history, inputs=None, outputs=[media_chatbot, microphone]
+                )
 
-    demo.queue(default_concurrency_limit=100, max_size=100).launch(max_threads=100,
-                                                                ssr_mode=False,
-                                                                share=args.share,
-                                                                inbrowser=args.inbrowser,
-                                                                server_port=args.server_port,
-                                                                server_name=args.server_name,)
+    demo.queue(default_concurrency_limit=100, max_size=100).launch(
+        max_threads=100,
+        ssr_mode=False,
+        share=args.share,
+        inbrowser=args.inbrowser,
+        server_port=args.server_port,
+        server_name=args.server_name,
+    )
 
 
 def _get_args():
     parser = ArgumentParser()
 
-    parser.add_argument('--checkpoint-path',
-                        type=str,
-                        default=None,
-                        help='Checkpoint name or path, default to %(default)r')
-    parser.add_argument('--token2wav-path',
-                        type=str,
-                        default=None,
-                        help='Token2Wav path, default to %(default)r')
-    parser.add_argument('--asr-model-dir',
-                        type=str,
-                        default=None,
-                        help='ASR model dir, default to %(default)r')
-    parser.add_argument('--flash-attn2',
-                        action='store_true',
-                        default=False,
-                        help='Enable flash_attention_2 when loading the model.')
-    parser.add_argument('--share',
-                        action='store_true',
-                        default=False,
-                        help='Create a publicly shareable link for the interface.')
-    parser.add_argument('--inbrowser',
-                        action='store_true',
-                        default=False,
-                        help='Automatically launch the interface in a new tab on the default browser.')
-    parser.add_argument('--server-port', type=int, default=8001, help='Demo server port.')
-    parser.add_argument('--server-name', type=str, default='127.0.0.1', help='Demo server name.')
+    parser.add_argument(
+        "--checkpoint-path",
+        type=str,
+        default=None,
+        help="Checkpoint name or path, default to %(default)r",
+    )
+    parser.add_argument(
+        "--token2wav-path",
+        type=str,
+        default=None,
+        help="Token2Wav path, default to %(default)r",
+    )
+    parser.add_argument(
+        "--asr-model-dir",
+        type=str,
+        default=None,
+        help="ASR model dir, default to %(default)r",
+    )
+    parser.add_argument(
+        "--flash-attn2",
+        action="store_true",
+        default=False,
+        help="Enable flash_attention_2 when loading the model.",
+    )
+    parser.add_argument(
+        "--share",
+        action="store_true",
+        default=False,
+        help="Create a publicly shareable link for the interface.",
+    )
+    parser.add_argument(
+        "--inbrowser",
+        action="store_true",
+        default=False,
+        help="Automatically launch the interface in a new tab on the default browser.",
+    )
+    parser.add_argument(
+        "--server-port", type=int, default=8001, help="Demo server port."
+    )
+    parser.add_argument(
+        "--server-name", type=str, default="127.0.0.1", help="Demo server name."
+    )
     add_model_arguments(parser)
     args = parser.parse_args()
     return args
@@ -401,6 +404,7 @@ def read_wave(wave_filename: str):
 
     return samples_float32, sample_rate
 
+
 def get_transcript(audio_path, recognizer):
     samples, sample_rate = read_wave(audio_path)
     s = recognizer.create_stream()
@@ -408,10 +412,13 @@ def get_transcript(audio_path, recognizer):
     recognizer.decode_streams([s])
     return s.result.text
 
+
 if __name__ == "__main__":
     args = _get_args()
     model, tokenizer = get_model(args)
-    token2wav = CosyVoice(args.token2wav_path, load_jit=False, load_trt=False, fp16=False)
+    token2wav = CosyVoice(
+        args.token2wav_path, load_jit=False, load_trt=False, fp16=False
+    )
 
     asr_model = sherpa_onnx.OfflineRecognizer.from_paraformer(
         paraformer=f"{args.asr_model_dir}/model.int8.onnx",
