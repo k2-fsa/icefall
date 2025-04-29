@@ -68,12 +68,7 @@ from whisper_encoder_forward_monkey_patch import replace_whisper_encoder_forward
 
 from icefall.dist import get_rank, get_world_size
 from icefall.env import get_env_info
-from icefall.utils import (
-    AttributeDict,
-    MetricsTracker,
-    setup_logger,
-    str2bool,
-)
+from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool
 
 DEFAULT_SPEECH_TOKEN = "<speech>"
 
@@ -331,42 +326,6 @@ def compute_loss(
 
         return input_ids, attention_mask, target_ids
 
-    def normalize_text_alimeeting(text: str, normalize: str = "m2met") -> str:
-        """
-        Text normalization similar to M2MeT challenge baseline.
-        See: https://github.com/yufan-aslp/AliMeeting/blob/main/asr/local/text_normalize.pl
-        """
-        if normalize == "none":
-            return text
-        elif normalize == "m2met":
-            import re
-
-            text = text.replace(" ", "")
-            text = text.replace("<sil>", "")
-            text = text.replace("<%>", "")
-            text = text.replace("<->", "")
-            text = text.replace("<$>", "")
-            text = text.replace("<#>", "")
-            text = text.replace("<_>", "")
-            text = text.replace("<space>", "")
-            text = text.replace("`", "")
-            text = text.replace("&", "")
-            text = text.replace(",", "")
-            if re.search("[a-zA-Z]", text):
-                text = text.upper()
-            text = text.replace("Ａ", "A")
-            text = text.replace("ａ", "A")
-            text = text.replace("ｂ", "B")
-            text = text.replace("ｃ", "C")
-            text = text.replace("ｋ", "K")
-            text = text.replace("ｔ", "T")
-            text = text.replace("，", "")
-            text = text.replace("丶", "")
-            text = text.replace("。", "")
-            text = text.replace("、", "")
-            text = text.replace("？", "")
-            return text
-
     device = next(model.parameters()).device
     feature = batch["inputs"]
 
@@ -377,8 +336,6 @@ def compute_loss(
     batch_idx_train = params.batch_idx_train
     supervisions = batch["supervisions"]
     texts = batch["supervisions"]["text"]
-    # remove spaces in texts
-    texts = [normalize_text_alimeeting(text) for text in texts]
 
     messages = []
     for i, text in enumerate(texts):
