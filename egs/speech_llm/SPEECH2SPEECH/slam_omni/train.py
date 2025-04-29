@@ -66,8 +66,9 @@ from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import IGNORE_TOKEN_ID, SPEECH_LLM, EncoderProjector
+
 # from multi_dataset import MultiDataset
-from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
+from peft import LoraConfig, get_peft_model
 from torch import Tensor
 from torch.utils.tensorboard import SummaryWriter
 from transformers import (
@@ -145,6 +146,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         default=False,
         help="Whether to enable speech codec output.",
     )
+
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -332,9 +334,7 @@ def compute_loss(
         # remove too long text
         # texts = [ text for text in texts if len(text) < 1024 ]
         if len(texts) != len(messages):
-            logging.warning(
-                f"Remove too long text, {messages} "
-            )
+            logging.warning(f"Remove too long text, {messages} ")
         max_len_texts = max([len(text) for text in texts])
         if tokenizer.padding_side == "right":
             texts = [
@@ -354,10 +354,10 @@ def compute_loss(
         # first get the indices of the tokens
         mask_prompt = True
         if mask_prompt:
-            default_speech_token_id = tokenizer.convert_tokens_to_ids(DEFAULT_SPEECH_TOKEN)
-            mask_indices = torch.where(
-                input_ids == default_speech_token_id
+            default_speech_token_id = tokenizer.convert_tokens_to_ids(
+                DEFAULT_SPEECH_TOKEN
             )
+            mask_indices = torch.where(input_ids == default_speech_token_id)
             for i in range(mask_indices[0].size(0)):
                 row = mask_indices[0][i]
                 col = mask_indices[1][i]
@@ -382,30 +382,39 @@ def compute_loss(
     batch_idx_train = params.batch_idx_train
 
     answers = batch["supervisions"]["text"]
-    questions_with_history = [cut.custom["question"] for cut in batch["supervisions"]["cut"]]
+    questions_with_history = [
+        cut.custom["question"] for cut in batch["supervisions"]["cut"]
+    ]
     chat_rounds = [cut.custom["round"] for cut in batch["supervisions"]["cut"]]
-    answer_cosyvoice_speech_token = [cut.custom["answer_cosyvoice_speech_token"] for cut in batch["supervisions"]["cut"]]
-    last_questions = [question.split('<USER>: ')[-1].strip() for question in questions_with_history]
-    history_contexts = [question.rsplit('<USER>:', 1)[0].strip() for question in questions_with_history]
-    # USER: 生成一个关于夏天的诗歌。 ASSISTANT: 夏日炎炎，万物生长，阳光明媚，享受着夏日的美好时光。 USER: 给我列举一些新闻头条。 ASSISTANT: 当今社会的新闻永远不会停。<USER>: 告诉我如何烹饪鸡肉 
+    answer_cosyvoice_speech_token = [
+        cut.custom["answer_cosyvoice_speech_token"]
+        for cut in batch["supervisions"]["cut"]
+    ]
+    last_questions = [
+        question.split("<USER>: ")[-1].strip() for question in questions_with_history
+    ]
+    history_contexts = [
+        question.rsplit("<USER>:", 1)[0].strip() for question in questions_with_history
+    ]
+    # USER: 生成一个关于夏天的诗歌。 ASSISTANT: 夏日炎炎，万物生长，阳光明媚，享受着夏日的美好时光。 USER: 给我列举一些新闻头条。 ASSISTANT: 当今社会的新闻永远不会停。<USER>: 告诉我如何烹饪鸡肉
     #  <USER>: 对以下句子进行鉴赏：他心地善良。输出结果为"他是一个有善心的人。
 
     messages = []
     for i, total_round in enumerate(chat_rounds):
         message = []
         if total_round > 1:
-            history_question_answer = history_contexts[i].split('USER:')
+            history_question_answer = history_contexts[i].split("USER:")
             history_question_answer = [item for item in history_question_answer if item]
         for j in range(total_round - 1):
             # USER: 生成一个关于夏天的诗歌。 ASSISTANT: 夏日炎炎，万物生长，阳光明媚，享受着夏日的美好时光。 USER: 给我列举一些新闻头条。 ASSISTANT: 当今社会的新闻永远不会停。
-            question_answer = history_question_answer[j].split('ASSISTANT:')
+            question_answer = history_question_answer[j].split("ASSISTANT:")
             message += [
                 {"role": "user", "content": question_answer[0].strip()},
-                {"role": "assistant", "content": question_answer[1].strip()}
+                {"role": "assistant", "content": question_answer[1].strip()},
             ]
         message += [
             {"role": "user", "content": f"{DEFAULT_SPEECH_TOKEN}"},
-            {"role": "assistant", "content": answers[i]}
+            {"role": "assistant", "content": answers[i]},
         ]
         messages.append(message)
 
@@ -423,7 +432,13 @@ def compute_loss(
                 labels=target_ids.to(device),
             )
         else:
-            text_loss, acc, codec_loss, codec_acc, codec_topk_acc = model.forward_with_speech_output(
+            (
+                text_loss,
+                acc,
+                codec_loss,
+                codec_acc,
+                codec_topk_acc,
+            ) = model.forward_with_speech_output(
                 fbank=feature,
                 input_ids=input_ids.to(device),
                 attention_mask=attention_mask.to(device),
@@ -445,12 +460,8 @@ def compute_loss(
         acc * info["frames"]
     )  # WAR: to avoid normalization by the number of frames
     if params.enable_speech_output:
-        info["codec_acc"] = (
-            codec_acc * info["frames"]
-        )
-        info["codec_topk_acc"] = (
-            codec_topk_acc * info["frames"]
-        )
+        info["codec_acc"] = codec_acc * info["frames"]
+        info["codec_topk_acc"] = codec_topk_acc * info["frames"]
         info["codec_loss"] = codec_loss.detach().cpu().item()
         info["text_loss"] = text_loss.detach().cpu().item()
     return loss, info
@@ -469,7 +480,7 @@ def compute_validation_loss(
     tot_loss = MetricsTracker()
 
     for batch_idx, batch in enumerate(valid_dl):
-        with torch.amp.autocast('cuda', enabled=params.use_fp16):
+        with torch.amp.autocast("cuda", enabled=params.use_fp16):
             loss, loss_info = compute_loss(
                 params=params,
                 tokenizer=tokenizer,
@@ -584,7 +595,7 @@ def train_one_epoch(
                         f"rm -rf {params.exp_dir}/epoch-{params.cur_epoch}-checkpoint-{batch_idx}"
                     )
         try:
-            with torch.amp.autocast('cuda', enabled=params.use_fp16):
+            with torch.amp.autocast("cuda", enabled=params.use_fp16):
                 loss, loss_info = compute_loss(
                     params=params,
                     tokenizer=tokenizer,
@@ -722,7 +733,6 @@ def run(rank, world_size, args):
     # model.resize_token_embeddings(len(tokenizer))
     # model.vocab_size = len(tokenizer)
 
-
     llm.config.pad_token_id = tokenizer.pad_token_id
     llm.config.default_speech_token_id = tokenizer.convert_tokens_to_ids(
         DEFAULT_SPEECH_TOKEN
@@ -736,12 +746,11 @@ def run(rank, world_size, args):
             param.requires_grad = False
         encoder_projector.eval()
 
-
     if params.enable_speech_output:
         # Determine attn_implementation and torch_dtype based on use_flash_attn
         if params.use_flash_attn:
             attn_implementation = "flash_attention_2"
-            torch_dtype = torch.float16 # Or torch.bfloat16 if needed/supported
+            torch_dtype = torch.float16  # Or torch.bfloat16 if needed/supported
         else:
             attn_implementation = "eager"
             torch_dtype = torch.float16
@@ -766,9 +775,9 @@ def run(rank, world_size, args):
         # Pass attn_implementation and torch_dtype to the constructor
         # Use AutoModelForCausalLM.from_config for more generality
         codec_lm = AutoModelForCausalLM.from_config(
-            config=config, 
-            attn_implementation=attn_implementation, 
-            torch_dtype=torch_dtype
+            config=config,
+            attn_implementation=attn_implementation,
+            torch_dtype=torch_dtype,
         )
         # cosyvoice2_token_size = 6561
         codec_lm.resize_token_embeddings(codec_vocab_size)
@@ -803,7 +812,7 @@ def run(rank, world_size, args):
         llm,
         encoder_projector,
         codec_lm,
-        codec_lm_padding_side= "left" if params.use_flash_attn else "right",
+        codec_lm_padding_side="left" if params.use_flash_attn else "right",
     )
 
     if params.pretrained_model_path:
@@ -851,11 +860,10 @@ def run(rank, world_size, args):
         codec_len = len(c.custom["answer_cosyvoice_speech_token"])
         if codec_len > 2200:
             logging.warning(
-               f"Exclude cut with ID {c.id} from training. Duration: {c.duration}, lenth: {codec_len}"
+                f"Exclude cut with ID {c.id} from training. Duration: {c.duration}, lenth: {codec_len}"
             )
             return False
         return True
-
 
     train_cuts = data_module.train_cuts()
 

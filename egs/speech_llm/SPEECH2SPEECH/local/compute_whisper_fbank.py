@@ -2,6 +2,7 @@
 # Copyright    2021  Johns Hopkins University (Piotr Żelasko)
 # Copyright    2021  Xiaomi Corp.             (Fangjun Kuang)
 # Copyright    2023  Xiaomi Corp.             (Zengrui Jin)
+# Copyright    2025  Nvidia                   (Yuekai Zhang)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -23,12 +24,7 @@ from pathlib import Path
 
 import torch
 from datasets import load_dataset
-from lhotse import (
-    CutSet,
-    LilcomChunkyWriter,
-    WhisperFbank,
-    WhisperFbankConfig,
-)
+from lhotse import CutSet, LilcomChunkyWriter, WhisperFbank, WhisperFbankConfig
 
 from icefall.utils import str2bool
 
@@ -93,7 +89,12 @@ def get_parser():
         default="answer",
         help="The key in the Huggingface dataset containing the text data",
     )
-    
+    parser.add_argument(
+        "--prefix",
+        type=str,
+        default="belle",
+        help="""The dataset prefix to use when saving the features""",
+    )
     return parser
 
 
@@ -114,27 +115,28 @@ def compute_fbank(args):
             WhisperFbankConfig(num_filters=args.num_mel_bins, device=device)
         )
     else:
-        extractor = KaldifeatFbank(KaldifeatFbankConfig(device=device))
+        raise NotImplementedError("Only WhisperFbank is implemented.")
 
     logging.info(f"device: {device}")
 
-    start = 0
-    stop = 1601 
+    dataset = load_dataset(
+        args.huggingface_dataset_path_or_name, streaming=True, split="train"
+    )
+    num_shards = dataset.num_shards
     num_digits = 5
-    for i in range(start, stop):
+    for i in range(num_shards):
+        shard = dataset.shard(num_shards, i)
+        shard = shard.take(10)  # for testing
+        logging.info(
+            f"Loading dataset shard {i} from {args.huggingface_dataset_path_or_name}"
+        )
+
         idx = f"{i}".zfill(num_digits)
-        # dataset = load_dataset(args.huggingface_dataset_path_or_name, streaming=True, split=partition)
-        parquet_files = [
-            f"data/train-{idx}-of-01601.parquet",
-        ]
-        parquet_files = [f"{args.huggingface_dataset_path_or_name}/{f}" for f in parquet_files]
-        file_name = parquet_files[0]
-        logging.info(f"Loading dataset from {file_name}")
-        dataset = load_dataset('parquet', data_files=parquet_files, streaming=True, split='train')
 
-        cut_set = CutSet.from_huggingface_dataset(dataset, audio_key=args.audio_key, text_key=args.text_key)
+        cut_set = CutSet.from_huggingface_dataset(
+            shard, audio_key=args.audio_key, text_key=args.text_key
+        )
 
-        logging.info("Splitting cuts into smaller chunks")
         cut_set = cut_set.trim_to_supervisions(
             keep_overlapping=False, min_duration=None
         )
@@ -153,22 +155,13 @@ def compute_fbank(args):
             storage_type=LilcomChunkyWriter,
             overwrite=True,
         )
-        cuts_path = f"{in_out_dir}/cuts_belle.{idx}.jsonl.gz"
+        cuts_path = f"{in_out_dir}/{args.prefix}_cuts.{idx}.jsonl.gz"
         logging.info(f"Saving to {cuts_path}")
-        # cut_set.to_file(cuts_path)
-        remove_recording_item(cut_set, cuts_path)
+        # see https://github.com/lhotse-speech/lhotse/issues/1125
+        cut_set.drop_recordings().to_file(cuts_path)
+        if i > 1:
+            break
 
-def remove_recording_item(
-    cuts,
-    output_cuts,
-):
-    """
-    don't store recording item
-    """
-    with CutSet.open_writer(output_cuts) as writer:
-        for cut in cuts:
-            cut.recording.sources = None
-            writer.write(cut)
 
 def main():
     formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"

@@ -20,10 +20,10 @@ log() {
 
 if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   log "stage 0: "
-  pip uninstall lhotse
-  cd /workspace/slam/lhotse
-  git config --global --add safe.directory /workspace/slam/lhotse
-  pip install -e '.[dev]'
+  #pip uninstall lhotse
+  #cd /workspace/slam/lhotse
+  #git config --global --add safe.directory /workspace/slam/lhotse
+  #pip install -e '.[dev]'
   cd -
   pip install -r slam_omni/requirements.txt
 fi
@@ -31,7 +31,12 @@ fi
 if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   log "stage 1: Download whisper-large-v2 multi-hans-zh fbank feature from huggingface"
 
-  python3 local/compute_whisper_fbank.py
+  python3 local/compute_whisper_fbank.py \
+   --num-mel-bins 80 --whisper-fbank True --resample-to-16kHz True --speed-perturb False \
+   --out-dir data/fbank_test \
+   --huggingface-dataset-path-or-name /workspace/Belle_1.4M-SLAM-Omni \
+   --audio-key question_audio --text-key answer \
+   --prefix belle
 fi
 
 
@@ -42,7 +47,7 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
     pieces=$(find $manifest_dir -name "cuts_belle.*.jsonl.gz" | sort)
     # # remove cust_belle_00000.jsonl.gz from pieces
     # pieces=$(echo $pieces | sed 's/cuts_belle.00000.jsonl.gz//g')
-    echo $pieces | wc 
+    echo $pieces | wc
     lhotse combine $pieces data/fbank/cuts_belle_00001-01600.jsonl.gz
     cd $manifest_dir && ln -s cuts_belle_00001-01600.jsonl.gz cuts_belle_train.jsonl.gz && cd -
   fi
@@ -52,16 +57,18 @@ fi
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   log "stage 3: "
   exp_dir=./slam_omni/exp_speech2speech_rerun
+  export PYTHONPATH=$PYTHONPATH:/workspace/CosyVoice
   python3 ./slam_omni/decode.py \
     --max-duration 1 \
     --exp-dir $exp_dir \
     --speech-encoder-path-or-name models/whisper/v1.1/whisper-large-v2-multi-hans-zh-epoch-3-avg-10.pt  \
     --llm-path-or-name models/Qwen2.5-0.5B-Instruct \
-    --epoch 997 --avg 1 \
+    --epoch 999 --avg 1 \
     --manifest-dir data/fbank \
     --use-flash-attn True \
-    --method small_test_speech2speech_rerun \
+    --method e2e-epoch10_speech2speech_rerun \
     --enable-speech-output True \
+    --token2wav-path /workspace/CosyVoice-300M-SFT \
     --use-lora True # --on-the-fly-feats True
 
 fi
@@ -120,7 +127,7 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
     --use-flash-attn True \
     --enable-speech-output True \
     --asr-model-dir local/sherpa-onnx-paraformer-zh-2023-09-14 \
-    --use-lora True --token2wav-path /workspace/CosyVoice-300M-SFT --share 
+    --use-lora True --token2wav-path /workspace/CosyVoice-300M-SFT --share
 
 fi
 

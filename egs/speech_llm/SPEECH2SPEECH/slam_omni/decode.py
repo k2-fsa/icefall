@@ -23,7 +23,7 @@ Usage:
 
 pip install huggingface_hub['cli']
 mkdir -p models/whisper models/qwen models/checkpoint
-huggingface-cli download --local-dir models/checkpoint yuekai/icefall_asr_aishell_whisper_qwen2_1.5B 
+huggingface-cli download --local-dir models/checkpoint yuekai/icefall_asr_aishell_whisper_qwen2_1.5B
 
 # For aishell fine-tuned whisper model
 huggingface-cli download --local-dir models/whisper    yuekai/icefall_asr_aishell_whisper exp_large_v2/whisper-large-v2-aishell1-epoch-10-avg-6.pt
@@ -48,31 +48,73 @@ python3 ./whisper_llm_zh/decode.py \
 
 import argparse
 import logging
+import sys
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+import soundfile as sf
 import torch
 import torch.nn as nn
 import transformers
 import whisper
+from cosyvoice.cli.cosyvoice import CosyVoice
 from data_module import AsrDataModule
 from lhotse.cut import Cut
 from model import SPEECH_LLM, EncoderProjector
-
 from peft import LoraConfig, get_peft_model
-from train import DEFAULT_SPEECH_TOKEN
+from train import DEFAULT_SPEECH_TOKEN, add_model_arguments
 from transformers import AutoModelForCausalLM, AutoTokenizer, Qwen2Config
 from whisper_encoder_forward_monkey_patch import replace_whisper_encoder_forward
-from train import add_model_arguments
+
 from icefall.env import get_env_info
 from icefall.utils import (
     AttributeDict,
     setup_logger,
     store_transcripts,
     write_error_stats,
-    average_checkpoints,
 )
+
+sys.path.append("/workspace/CosyVoice/third_party/Matcha-TTS")
+
+
+def audio_decode_cosyvoice(audio_tokens, codec_decoder):
+    """
+    Generate audio from tokens with optional tone and prompt embedding.
+
+    Args:
+        audio_tokens (list): List of audio tokens to be processed.
+        codec_decoder: Codec decoder for generating audio.
+
+    Returns:
+        torch.Tensor: Generated audio waveform.
+    """
+    flow_embedding = codec_decoder.frontend.spk2info["中文女"]["embedding"]
+    flow_prompt_speech_token = torch.zeros(1, 0, dtype=torch.int32)
+    prompt_speech_feat = torch.zeros(1, 0, 80)
+    tts_mel, _ = codec_decoder.model.flow.inference(
+        token=audio_tokens.to(codec_decoder.model.device),
+        token_len=torch.tensor([audio_tokens.shape[1]], dtype=torch.int32).to(
+            codec_decoder.model.device
+        ),
+        prompt_token=flow_prompt_speech_token.to(codec_decoder.model.device),
+        prompt_token_len=torch.tensor(
+            [flow_prompt_speech_token.shape[1]], dtype=torch.int32
+        ).to(codec_decoder.model.device),
+        prompt_feat=prompt_speech_feat.to(codec_decoder.model.device),
+        prompt_feat_len=torch.tensor(
+            [prompt_speech_feat.shape[1]], dtype=torch.int32
+        ).to(codec_decoder.model.device),
+        embedding=flow_embedding.to(codec_decoder.model.device),
+        flow_cache=torch.zeros(1, 80, 0, 2).to(codec_decoder.model.device),
+    )
+
+    audio_hat, _ = codec_decoder.model.hift.inference(
+        speech_feat=tts_mel, cache_source=torch.zeros(1, 1, 0)
+    )
+
+    return audio_hat
+
 
 def get_model(params, device):
     """Load and prepare the speech-to-speech model."""
@@ -136,7 +178,7 @@ def get_model(params, device):
         # Determine attn_implementation and torch_dtype based on use_flash_attn
         if params.use_flash_attn:
             attn_implementation = "flash_attention_2"
-            torch_dtype = torch.float16 # Or torch.bfloat16 if needed/supported
+            torch_dtype = torch.float16  # Or torch.bfloat16 if needed/supported
         else:
             attn_implementation = "eager"
             torch_dtype = torch.float16
@@ -162,7 +204,7 @@ def get_model(params, device):
         codec_lm = AutoModelForCausalLM.from_config(
             config=config,
             attn_implementation=attn_implementation,
-            torch_dtype=torch_dtype
+            torch_dtype=torch_dtype,
         )
         # cosyvoice2_token_size = 6561
         codec_lm.resize_token_embeddings(codec_vocab_size)
@@ -197,7 +239,7 @@ def get_model(params, device):
         llm,
         encoder_projector,
         codec_lm,
-        codec_lm_padding_side= "left" if params.use_flash_attn else "right",
+        codec_lm_padding_side="left" if params.use_flash_attn else "right",
     )
 
     if params.avg > 1:
@@ -325,6 +367,12 @@ def get_parser():
         help="The experiment dir",
     )
 
+    parser.add_argument(
+        "--token2wav-path",
+        type=str,
+        default="/workspace/CosyVoice-300M-SFT",
+        help="The path to the token2wav model",
+    )
     # parser.add_argument(
     #     "--dataset",
     #     type=str,
@@ -350,6 +398,7 @@ def decode_one_batch(
     params: AttributeDict,
     model: nn.Module,
     tokenizer: AutoTokenizer,
+    token2wav_model: nn.Module,
     batch: dict,
 ) -> Dict[str, List[List[int]]]:
     """Decode one batch and return the result in a dict. The dict has the
@@ -431,26 +480,32 @@ def decode_one_batch(
     #         {"role": "assistant", "content": ""},
     #     ]
     # ] * len(feature)
-    questions_with_history = [cut.custom["question"] for cut in batch["supervisions"]["cut"]]
-    history_contexts = [question.rsplit('<USER>:', 1)[0].strip() for question in questions_with_history]
-    last_questions = [question.split('<USER>: ')[-1].strip() for question in questions_with_history]
+    questions_with_history = [
+        cut.custom["question"] for cut in batch["supervisions"]["cut"]
+    ]
+    history_contexts = [
+        question.rsplit("<USER>:", 1)[0].strip() for question in questions_with_history
+    ]
+    last_questions = [
+        question.split("<USER>: ")[-1].strip() for question in questions_with_history
+    ]
     messages = []
     for i, total_round in enumerate(chat_rounds):
         message = []
         if total_round > 1:
-            history_question_answer = history_contexts[i].split('USER:')
+            history_question_answer = history_contexts[i].split("USER:")
             history_question_answer = [item for item in history_question_answer if item]
         for j in range(total_round - 1):
             # USER: 生成一个关于夏天的诗歌。 ASSISTANT: 夏日炎炎，万物生长，阳光明媚，享受着夏日的美好时光。 USER: 给我列举一些新闻头条。 ASSISTANT: 当今社会的新闻永远不会停。
-            question_answer = history_question_answer[j].split('ASSISTANT:')
+            question_answer = history_question_answer[j].split("ASSISTANT:")
             message += [
                 {"role": "user", "content": question_answer[0].strip()},
-                {"role": "assistant", "content": question_answer[1].strip()}
+                {"role": "assistant", "content": question_answer[1].strip()},
             ]
         message += [
             {"role": "user", "content": f"{DEFAULT_SPEECH_TOKEN}"},
             # {"role": "user", "content": f"{last_questions[i]}"},
-            {"role": "assistant", "content": ""}
+            {"role": "assistant", "content": ""},
         ]
         print(f"message: {message}, batch_size {len(chat_rounds)}")
         messages.append(message)
@@ -461,16 +516,21 @@ def decode_one_batch(
             feature, input_ids.to(device, dtype=torch.long), attention_mask.to(device)
         )
         cut_ids = [cut.id for cut in batch["supervisions"]["cut"]]
-        for cut_id in cut_ids:
-            speech_token_file_name = (
-            params.log_dir / f"{cut_id}.txt"
-            )
-            with open(speech_token_file_name, 'w') as f:
-            # save_path = params.exp_dir / f"speech_output/{cut_id}.wav"
-            #torchaudio.save(save_path, speech_output.cpu(), 16000)
-                # print(f"speech_output: {generated_speech_output}, cut_id: {cut_id}")
-                save_str = " ".join([str(i) for i in generated_speech_output])
-                f.write(f"{cut_id}|{save_str}\n")
+        generated_speech_output = [
+            generated_speech_output
+        ]  # WAR: only support batch = 1 for now
+        for cut_id, audio_tokens in zip(cut_ids, generated_speech_output):
+            speech_file_name = params.log_dir / f"{cut_id}.wav"
+            audio_tokens = [token for token in audio_tokens if token < 4096]
+            audio_tokens = torch.tensor(audio_tokens, dtype=torch.int32).unsqueeze(0)
+            audio_hat = audio_decode_cosyvoice(audio_tokens, token2wav_model)
+            sf.write(speech_file_name, audio_hat.squeeze(0).cpu().numpy(), 22050)
+            # with open(speech_token_file_name, 'w') as f:
+            # # save_path = params.exp_dir / f"speech_output/{cut_id}.wav"
+            # #torchaudio.save(save_path, speech_output.cpu(), 16000)
+            #     # print(f"speech_output: {generated_speech_output}, cut_id: {cut_id}")
+            #     save_str = " ".join([str(i) for i in generated_speech_output])
+            #     f.write(f"{cut_id}|{save_str}\n")
 
     else:
         generated_ids = model.decode(
@@ -486,6 +546,7 @@ def decode_dataset(
     params: AttributeDict,
     model: nn.Module,
     tokenizer: AutoTokenizer,
+    token2wav_model: nn.Module,
 ) -> Dict[str, List[Tuple[str, List[str], List[str]]]]:
     """Decode dataset.
 
@@ -548,14 +609,23 @@ def decode_dataset(
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
         answers = batch["supervisions"]["text"]
-        questions_with_history = [cut.custom["question"] for cut in batch["supervisions"]["cut"]]
-        answer_cosyvoice_speech_token = [cut.custom["answer_cosyvoice_speech_token"] for cut in batch["supervisions"]["cut"]]
-        texts = [question.split('<USER>: ')[-1].strip() for question in questions_with_history]
+        questions_with_history = [
+            cut.custom["question"] for cut in batch["supervisions"]["cut"]
+        ]
+        answer_cosyvoice_speech_token = [
+            cut.custom["answer_cosyvoice_speech_token"]
+            for cut in batch["supervisions"]["cut"]
+        ]
+        texts = [
+            question.split("<USER>: ")[-1].strip()
+            for question in questions_with_history
+        ]
         cut_ids = [cut.id for cut in batch["supervisions"]["cut"]]
 
         hyps_dict = decode_one_batch(
             params=params,
             model=model,
+            token2wav_model=token2wav_model,
             batch=batch,
             tokenizer=tokenizer,
         )
@@ -643,9 +713,7 @@ def main():
     params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
     params.log_dir = Path(params.exp_dir) / f"log-{params.method}"
     params.log_dir.mkdir(parents=True, exist_ok=True)
-    setup_logger(
-        f"{params.exp_dir}/log-{params.method}/log-decode-{params.suffix}"
-    )
+    setup_logger(f"{params.exp_dir}/log-{params.method}/log-decode-{params.suffix}")
 
     logging.info("Decoding started")
     logging.info(params)
@@ -657,6 +725,9 @@ def main():
     logging.info(f"device: {device}")
 
     model, tokenizer = get_model(params, device)
+    token2wav_model = CosyVoice(
+        params.token2wav_path, load_jit=False, load_trt=False, fp16=False
+    )
 
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
@@ -697,6 +768,7 @@ def main():
             dl=test_dl,
             params=params,
             model=model,
+            token2wav_model=token2wav_model,
             tokenizer=tokenizer,
         )
 

@@ -24,7 +24,14 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import torch
-from lhotse import CutSet, WhisperFbank, WhisperFbankConfig, load_manifest, load_manifest_lazy
+from datasets import load_dataset
+from lhotse import (
+    CutSet,
+    WhisperFbank,
+    WhisperFbankConfig,
+    load_manifest,
+    load_manifest_lazy,
+)
 from lhotse.dataset import (  # noqa F401 for PrecomputedFeatures
     CutConcatenate,
     CutMix,
@@ -38,11 +45,11 @@ from lhotse.dataset.input_strategies import (  # noqa F401 For AudioSamples
     OnTheFlyFeatures,
 )
 from lhotse.utils import fix_random_seed
+from speech_dataset import K2SpeechRecognitionDataset
 from torch.utils.data import DataLoader
-from datasets import load_dataset
 
 from icefall.utils import str2bool
-from speech_dataset import K2SpeechRecognitionDataset
+
 
 class _SeedWorkers:
     def __init__(self, seed: int):
@@ -310,7 +317,9 @@ class AsrDataModule:
             # Drop feats to be on the safe side.
             train = K2SpeechRecognitionDataset(
                 cut_transforms=transforms,
-                input_strategy=OnTheFlyFeatures(WhisperFbank(WhisperFbankConfig(num_filters=80, device='cuda'))),
+                input_strategy=OnTheFlyFeatures(
+                    WhisperFbank(WhisperFbankConfig(num_filters=80, device="cuda"))
+                ),
                 input_transforms=input_transforms,
                 return_cuts=self.args.return_cuts,
             )
@@ -365,7 +374,9 @@ class AsrDataModule:
         logging.info("About to create dev dataset")
 
         validate = K2SpeechRecognitionDataset(
-            input_strategy=OnTheFlyFeatures(WhisperFbank(WhisperFbankConfig(num_filters=80, device='cuda')))
+            input_strategy=OnTheFlyFeatures(
+                WhisperFbank(WhisperFbankConfig(num_filters=80, device="cuda"))
+            )
             if self.args.on_the_fly_feats
             else eval(self.args.input_strategy)(),
             return_cuts=self.args.return_cuts,
@@ -390,7 +401,9 @@ class AsrDataModule:
     def test_dataloaders(self, cuts: CutSet) -> DataLoader:
         logging.debug("About to create test dataset")
         test = K2SpeechRecognitionDataset(
-            input_strategy=OnTheFlyFeatures(WhisperFbank(WhisperFbankConfig(num_filters=80, device='cpu')))
+            input_strategy=OnTheFlyFeatures(
+                WhisperFbank(WhisperFbankConfig(num_filters=80, device="cpu"))
+            )
             if self.args.on_the_fly_feats
             else eval(self.args.input_strategy)(),
             return_cuts=self.args.return_cuts,
@@ -419,16 +432,27 @@ class AsrDataModule:
             parquet_files = [
                 f"data/train-{idx}-of-01601.parquet",
             ]
-            parquet_files = [f"{self.args.huggingface_dataset_path_or_name}/{f}" for f in parquet_files]
+            parquet_files = [
+                f"{self.args.huggingface_dataset_path_or_name}/{f}"
+                for f in parquet_files
+            ]
             file_name = parquet_files[0]
             logging.info(f"Loading dataset from {file_name}")
-            dataset = load_dataset('parquet', data_files=parquet_files, streaming=True, split='train')
-            cut_set = CutSet.from_huggingface_dataset(dataset, audio_key=self.args.audio_key, text_key=self.args.text_key)
+            dataset = load_dataset(
+                "parquet", data_files=parquet_files, streaming=True, split="train"
+            )
+            cut_set = CutSet.from_huggingface_dataset(
+                dataset, audio_key=self.args.audio_key, text_key=self.args.text_key
+            )
             if self.args.resample_to_16kHz:
                 cut_set = cut_set.resample(16000)
-            return {'test':cut_set}
+            return {"test": cut_set}
         else:
-            return {'test':load_manifest_lazy(self.args.manifest_dir / "cuts_belle.00000.jsonl.gz")}
+            # return {'test':load_manifest_lazy(self.args.manifest_dir / "cuts_belle.00000.jsonl.gz")}
+            # return {'test':load_manifest_lazy(self.args.manifest_dir / "cuts_test_small.jsonl.gz")}
+            return {
+                "test": load_manifest_lazy("data/fbank_test/belle_cuts.00000.jsonl.gz")
+            }
 
     @lru_cache()
     def dev_cuts(self) -> CutSet:
@@ -436,8 +460,9 @@ class AsrDataModule:
         if self.args.on_the_fly_feats:
             pass
         else:
-            return load_manifest_lazy(self.args.manifest_dir / "cuts_belle.00000.jsonl.gz")
-
+            return load_manifest_lazy(
+                self.args.manifest_dir / "cuts_belle.00000.jsonl.gz"
+            )
 
     @lru_cache()
     def train_cuts(self) -> CutSet:
