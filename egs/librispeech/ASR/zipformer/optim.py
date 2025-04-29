@@ -1057,12 +1057,30 @@ class Sched3(LRScheduler):
     also be, say, 0.8.  lr_batches is a number of batches that defines when we start
     decreasing significantly.  "batch" is the current batch count.
 
-      lr = warmup *  min((lr_batches / batch)^p, exp(-batch / (e * lr_batches)))
+      lr = warmup * [   (p * lr_batches / batch)^p if batch > p*e*lr_batches, else
+                           exp(-batch / (e * lr_batches)))
 
     where e is the mathematical constant e.  This expression is equivalent to:
-    min_q [ (q * lr_batches) / batch)^q  ] where the minimum is taken over
+   factor = min_q [ (q * lr_batches) / batch)^q  ] where the minimum is taken over
     the continuous range 0 <= q <= p.  The left hand side of the min in the formula
     for lr corresponds to q == p, i.e. we hit the rhs of the allowed range.
+
+       * notes for derivation: define x == lr_batches/batch, and let factor=min_q [(q*x)
+.  In wolframalpha.com, note that:
+           d/dp (q * x)^q  has a root at (q = 1/(ex)). If 1/ex > p, then q is fixed to the limit,
+        q==p,  so factor == (p * x)^p.  Else, i.e. when 1/ex <= p,
+         when p > 1 / ex, factor == (q * x)^1 = (1/(ex)*x)^(1/ex) = (1/e)^(1/ex = e^{-1/ex}.
+
+     So the rule is:
+          if batch/(e*lr_batches) > p,   i.e. if batch > p*e*lr_batches,
+             factor = (p * lr_batches/batch)^p.
+              else, factor = exp(-batch/(lr_batches*e))
+        Plot[ If [ x > 0.8 * Exp[1] * 10, 0.8*10/x, Exp[-x/(10*Exp[1])] ], {x, 0, 50}]
+
+
+
+
+
 
     `warmup` increases linearly from warmup_start to 1 over `warmup_batches` batches
     and then stays constant at 1.
@@ -1093,9 +1111,11 @@ class Sched3(LRScheduler):
 
     def get_lr(self):
         lr_batches = self.lr_batches
-        batch = max(self.batch, 0.1)  # avoid division by zero
-        factor = min((lr_batches / batch) ** self.p,
-                     2.71828 ** (-batch / (2.71828 * lr_batches)))
+        e = 2.71828
+        batch = self.batch
+        p = self.p
+        factor = ((p * lr_batches / batch) ** p if batch > p * e * lr_batches else
+                  e ** (-batch / (e * lr_batches)))
 
         warmup_factor = (
             1.0
@@ -1140,10 +1160,10 @@ def _test_sched3():
     m = torch.nn.Linear(100, 100)
     optim = TransformedAdam(m.parameters(), lr=0.03)
 
-    scheduler = Sched3(optim, lr_batches=100, verbose=True, warmup_batches=20)
+    scheduler = Sched3(optim, lr_batches=100, p=0.8, verbose=True, warmup_batches=20)
 
 
-    for step in range(200):
+    for step in range(300):
         x = torch.randn(200, 100).detach()
         x.requires_grad = True
         y = m(x)
