@@ -365,21 +365,10 @@ class TransformedAdam(BatchedOptimizer):
     weight_min_rms: Minimum root-mean-square value of weight tensors, for purposes of
                    learning the scale on the parameters. Weight tensors are defined
                    as anything with more than one element and ndim > 1.
-    weight_penalty_rms: Value of root-mean-square value of weight tensor, that provides
-                   a reference point for when we start to do adamw-style decay.
      bias_min_rms: Minimum root-mean-square value of bias tensors, defined as anything with
                    more than one element and exactly one tensor dimension i.e. ndim == 1.
-    bias_penalty_rms: Value of root-mean-square value of bias tensor, that provides
-                   a reference point for when we start to do adamw-style decay.
-       scalar_max: Maximum absolute value for scalar parameters (applicable if your
-                   model has any parameters with numel() == 1).
-    size_update_period: The periodicity, in steps, with which we update the size (scale)
-                   of the parameter tensor.  This is provided to save a little time
-                   in the update.
-     clipping_update_period: if clipping_scale is specified, this is the period
       debug_interval: if >0, write some statistics to tensorboard every this-many steps.
     """
-
     def __init__(
         self,
         params,
@@ -413,7 +402,6 @@ class TransformedAdam(BatchedOptimizer):
             bias_max_rms=bias_max_rms,
             bias_min_rms=bias_min_rms,
             weight_max_rms=weight_max_rms,
-            size_update_period=size_update_period,
             clipping_update_period=clipping_update_period,
             debug_interval=debug_interval,
         )
@@ -834,6 +822,111 @@ class TransformedAdam(BatchedOptimizer):
             f" orig_rms_sq={(dominant_rms**2).item():.3e}"
         )
 
+class SimpleTransformedAdam(Optimizer):
+    """
+    Version of TransformedAdam that doesn't do the batching or gradient clipping (may be easier to integrate
+    into other frameworks).
+
+
+     Args:
+          params:  The parameters or param_groups to optimize (like other Optimizer subclasses).
+              lr:  The learning rate.  We will typically use a learning rate schedule that starts
+                   at 0.03 and decreases over time, i.e. much higher than other common
+                   optimizers.
+            beta2: beta2 is the momentum constant for moving-grad-squared as in Adam.
+                   Must satisfy 0 < beta <= beta2 < 1.
+             betas: a list of decay constants for momentum on the parameter-change
+            scales: a list of scales corresponding to each of the betas, that we multiply
+                   each momentum-update by.  Implicitly there is also a beta=0, scale=1,
+                   i.e. a non-decayed update.
+     scaling_lr_scale: A scaling factor on the learning rate, that we use to update the
+                   scale of each non-scalar parameter tensor.  If each parameter were decomposed
+                   as p * p_scale.exp(), where (p**2).mean().sqrt() == 1.0, scalar_lr_scale
+                   would be a the scaling factor on the learning rate of p_scale.
+     scalar_lr_scale: A scaling factor on the learning rate, that we use to update scalar tensors.
+              eps:  A general-purpose epsilon to prevent division by zero
+    weight_min_rms: Minimum root-mean-square value of weight tensors, for purposes of
+                   learning the scale on the parameters. Weight tensors are defined
+                   as anything with more than one element and ndim > 1.
+     bias_min_rms: Minimum root-mean-square value of bias tensors, defined as anything with
+                   more than one element and exactly one tensor dimension i.e. ndim == 1.
+    """
+
+    def __init__(
+        self,
+        params,
+        lr=3e-02,
+        clipping_scale=None,
+        beta1=0.995,
+        direct=0.05, # scale on bypass of momentum (beta1)
+        beta2=0.98,
+        scalar_lr_scale=0.1,
+        scaling_lr_scale=0.1,
+        eps=1.0e-08,
+        weight_min_rms=0.005,
+        weight_max_rms=1.0,
+        bias_min_rms=1.0e-05,
+        bias_max_rms=5.0,
+        debug_interval=0,
+    ):
+
+        defaults = dict(
+            lr=lr,
+            clipping_scale=clipping_scale,
+            beta1=beta1,
+            direct=direct,
+            beta2=beta2,
+            scalar_lr_scale=scalar_lr_scale,
+            scaling_lr_scale=scaling_lr_scale,
+            eps=eps,
+            weight_min_rms=weight_min_rms,
+            bias_max_rms=bias_max_rms,
+            bias_min_rms=bias_min_rms,
+            weight_max_rms=weight_max_rms,
+            debug_interval=debug_interval,
+        )
+        super().__init__(params, defaults)
+
+        self.register_load_state_dict_pre_hook(_load_state_dict_pre_hook)
+
+
+
+    def __setstate__(self, state):
+        super(TransformedAdam, self).__setstate__(state)
+
+    @torch.no_grad()
+    def step(self, closure=None):
+        """Performs a single optimization step.
+
+        Arguments:
+            closure (callable, optional): A closure that reevaluates the model
+                and returns the loss.
+        """
+        loss = None
+        if closure is not None:
+            with torch.enable_grad():
+                loss = closure()
+
+        batch = True
+
+        for group in self.param_groups:
+
+            for p in group['params']:
+                state = self.state[p]
+                grad = p.grad
+
+
+                try:
+                    cur_step = state["step"]
+                except KeyError:
+                    state["step"] = 0
+                    cur_step = 0
+
+                p[:] = debug_step(group, p.detach(), state, grad)
+
+                state["step"] = cur_step + 1
+
+        return loss
 
 
 class LRScheduler(object):
@@ -1323,7 +1416,7 @@ class Eve(Optimizer):
         return loss
 
 
-def _test_scaled_adam(hidden_dim: int):
+def _test_transformed_adam(hidden_dim: int):
     import timeit
 
     from scaling import ScaledLinear, OrthogonalLinear
@@ -1331,7 +1424,7 @@ def _test_scaled_adam(hidden_dim: int):
     E = 100
     B = 4
     T = 2
-    logging.info("in test_eve_cain")
+    logging.info("in test_transformed_adam")
     # device = torch.device('cuda')
     device = torch.device("cpu")
     dtype = torch.float32
@@ -1343,7 +1436,7 @@ def _test_scaled_adam(hidden_dim: int):
     input_magnitudes = (1.0 * torch.randn(E, dtype=dtype, device=device)).exp()
     output_magnitudes = (1.0 * torch.randn(E, dtype=dtype, device=device)).exp()
 
-    for iter in [1, 0]:
+    for iter in [0, 1, 2]:
         fix_random_seed(42)
         Linear = torch.nn.Linear if iter == 0 else ScaledLinear
 
@@ -1368,9 +1461,14 @@ def _test_scaled_adam(hidden_dim: int):
         ]
 
         if iter == 0:
-            optim = Eve(m.parameters(), lr=0.003)
+            optim = SimpleTransformedAdam(m.parameters(), lr=0.06, eps=1.0e-20)
         elif iter == 1:
             optim = TransformedAdam(m.named_parameters(), lr=0.06, clipping_scale=2.0, eps=1.0e-20)
+        elif iter == 2:
+            optim = Eve(m.parameters(), lr=0.003)
+        else:
+            assert "unknown iter", iter
+
         scheduler = Eden(optim, lr_batches=200, lr_epochs=5, verbose=False)
 
         start = timeit.default_timer()
@@ -1452,7 +1550,7 @@ if __name__ == "__main__":
     else:
         hidden_dim = 200
 
-    #_test_transform_params()
-    #_test_scaled_adam(hidden_dim)
+    _test_transform_params()
+    _test_transformed_adam(hidden_dim)
     _test_eden()
     _test_sched3()
