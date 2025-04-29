@@ -17,7 +17,7 @@ The following table lists the folders for different tasks.
 
 <br>
 <p align="center">
-    <img src="assets/framework.jpg" width="800"/>
+    <img src="assets/framework.png" width="800"/>
 <p>
 <br>
 
