@@ -357,43 +357,6 @@ def decode_dataset(
     Returns:
         Return a dict, whose key may be "beam-search".
     """
-
-    def normalize_text_alimeeting(text: str, normalize: str = "m2met") -> str:
-        """
-        Text normalization similar to M2MeT challenge baseline.
-        See: https://github.com/yufan-aslp/AliMeeting/blob/main/asr/local/text_normalize.pl
-        """
-        if normalize == "none":
-            return text
-        elif normalize == "m2met":
-            import re
-
-            text = text.replace(" ", "")
-            text = text.replace("<sil>", "")
-            text = text.replace("<%>", "")
-            text = text.replace("<->", "")
-            text = text.replace("<$>", "")
-            text = text.replace("<#>", "")
-            text = text.replace("<_>", "")
-            text = text.replace("<space>", "")
-            text = text.replace("`", "")
-            text = text.replace("&", "")
-            text = text.replace(",", "")
-            if re.search("[a-zA-Z]", text):
-                text = text.upper()
-            text = text.replace("Ａ", "A")
-            text = text.replace("ａ", "A")
-            text = text.replace("ｂ", "B")
-            text = text.replace("ｃ", "C")
-            text = text.replace("ｋ", "K")
-            text = text.replace("ｔ", "T")
-            text = text.replace("，", "")
-            text = text.replace("丶", "")
-            text = text.replace("。", "")
-            text = text.replace("、", "")
-            text = text.replace("？", "")
-            return text
-
     results = []
 
     num_cuts = 0
@@ -406,6 +369,7 @@ def decode_dataset(
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
         texts = batch["supervisions"]["text"]
+        texts = [list("".join(text.split())) for text in texts]
         cut_ids = [cut.id for cut in batch["supervisions"]["cut"]]
 
         hyps_dict = decode_one_batch(
@@ -419,11 +383,9 @@ def decode_dataset(
             this_batch = []
             assert len(hyps) == len(texts)
             for cut_id, hyp_words, ref_text in zip(cut_ids, hyps, texts):
-                ref_text = normalize_text_alimeeting(ref_text)
-                ref_words = ref_text.split()
-                print(f"ref: {ref_text}")
+                print(f"ref: {''.join(ref_text)}")
                 print(f"hyp: {''.join(hyp_words)}")
-                this_batch.append((cut_id, ref_words, hyp_words))
+                this_batch.append((cut_id, ref_text, hyp_words))
 
             results[lm_scale].extend(this_batch)
 
