@@ -339,6 +339,7 @@ def compute_loss(
 
     messages = []
     for i, text in enumerate(texts):
+        text = text.replace(" ", "")
         message = [
             {"role": "user", "content": f"{DEFAULT_SPEECH_TOKEN}请转写音频为文字"},
             {"role": "assistant", "content": text},
