@@ -922,7 +922,9 @@ class SimpleTransformedAdam(Optimizer):
                     state["step"] = 0
                     cur_step = 0
 
-                p[:] = debug_step(group, p.detach(), state, grad)
+                def u(x):
+                    return x.unsqueeze(0)
+                p[:] = debug_step(group, u(p.detach()), state, u(grad))[0]
 
                 state["step"] = cur_step + 1
 
