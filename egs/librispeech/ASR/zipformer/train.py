@@ -1196,7 +1196,7 @@ def train_one_epoch(
         batch_size = len(batch["supervisions"]["text"])
 
         try:
-            with torch.cuda.amp.autocast(
+            with torch.amp.autocast('cuda',
                 enabled=params.use_autocast, dtype=params.dtype
             ):
                 loss, loss_info = compute_loss(
@@ -1644,7 +1644,7 @@ def scan_pessimistic_batches_for_oom(
     for criterion, cuts in batches.items():
         batch = train_dl.dataset[cuts]
         try:
-            with torch.cuda.amp.autocast(
+            with torch.amp.autocast('cuda',
                 enabled=params.use_autocast, dtype=params.dtype
             ):
                 loss, _ = compute_loss(

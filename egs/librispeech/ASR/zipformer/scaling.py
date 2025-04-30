@@ -307,7 +307,7 @@ class SoftmaxFunction(torch.autograd.Function):
     @staticmethod
     def backward(ctx, ans_grad: Tensor):
         (ans,) = ctx.saved_tensors
-        with torch.cuda.amp.autocast(enabled=False):
+        with torch.amp.autocast('cuda', enabled=False):
             ans_grad = ans_grad.to(torch.float32)
             ans = ans.to(torch.float32)
             x_grad = ans_grad * ans
@@ -409,7 +409,7 @@ class ExpNormFunction(torch.autograd.Function):
     def backward(ctx, ans_grad: Tensor) -> Tensor:
         x, scale = ctx.saved_tensors
 
-        with torch.cuda.amp.autocast(enabled=False):
+        with torch.amp.autocast('cuda', enabled=False):
             x, scale = x.to(torch.float32), scale.to(torch.float32)
             x, scale = x.detach(), scale.detach()
 
@@ -580,7 +580,7 @@ def predict_loss(x: Tensor, predictor: nn.Module, proj_weight: Tensor,
         # get the indexes.  project, then mean-and-variance-norm, then
         # take mx.
         x_proj = torch.matmul(x, proj_weight.t())
-        with torch.cuda.amp.autocast(enabled=False):
+        with torch.amp.autocast('cuda', enabled=False):
             x_proj = x_proj.to(torch.float)
             # Mean subtraction and variance normalization.
             dims = tuple(range(0, x.ndim - 1))
@@ -981,7 +981,7 @@ def balancer_backward_func(x, x_grad, min_mean, max_mean, min_rms, max_rms, grad
     # this was taken out of the Balancer backward function.
     # returns modified version of x_grad.
     with torch.enable_grad():
-        with torch.cuda.amp.autocast(enabled=False):
+        with torch.amp.autocast('cuda', enabled=False):
             x = x.to(torch.float32)
             x = x.detach()
             x.requires_grad = True
@@ -1336,7 +1336,7 @@ class WhiteningPenaltyFunction(torch.autograd.Function):
 
         try:
             with torch.enable_grad():
-                with torch.cuda.amp.autocast(enabled=False):
+                with torch.amp.autocast('cuda', enabled=False):
                     x_detached = x_orig.to(torch.float32).detach()
                     x_detached.requires_grad = True
 
