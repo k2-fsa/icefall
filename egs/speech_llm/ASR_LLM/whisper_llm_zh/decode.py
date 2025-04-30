@@ -383,7 +383,7 @@ def decode_dataset(
             this_batch = []
             assert len(hyps) == len(texts)
             for cut_id, hyp_text, ref_text in zip(cut_ids, hyps, texts):
-                this_batch.append((cut_id, ref_text, hyp_words))
+                this_batch.append((cut_id, ref_text, hyp_text))
 
             results[lm_scale].extend(this_batch)
 
