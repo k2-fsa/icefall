@@ -17,9 +17,7 @@
 
 """
 This file replaces various modules in a model.
-Specifically, ActivationBalancer is replaced with an identity operator;
-Whiten is also replaced with an identity operator;
-BasicNorm is replaced by a module with `exp` removed.
+Specifically, Whiten is replaced with an identity operator.
 """
 
 import copy
@@ -28,7 +26,6 @@ from typing import List
 import torch
 import torch.nn as nn
 from scaling import (
-    Balancer,
     Dropout3,
     ScaleGrad,
     SwooshL,
@@ -83,7 +80,7 @@ def convert_scaled_to_non_scaled(
 
     d = {}
     for name, m in model.named_modules():
-        if isinstance(m, (Balancer, Dropout3, ScaleGrad, Whiten)):
+        if isinstance(m, (Dropout3, ScaleGrad, Whiten)):
             d[name] = nn.Identity()
         elif is_onnx and isinstance(m, SwooshR):
             d[name] = SwooshROnnx()
