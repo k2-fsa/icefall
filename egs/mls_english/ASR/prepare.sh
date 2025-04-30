@@ -60,9 +60,9 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
           --audio-dir data/audio \
           --dl-dir $dl_dir/mls_english
           # --dl-dir /root/datasets/parler-tts--mls_eng
-        python local/validate_manifest.py --manifest data/manifests/mls_english_cuts_train.jsonl.gz
-        python local/validate_manifest.py --manifest data/manifests/mls_english_cuts_dev.jsonl.gz
-        python local/validate_manifest.py --manifest data/manifests/mls_english_cuts_test.jsonl.gz
+        python local/validate_manifest.py --manifest data/manifests/mls_eng_cuts_train.jsonl.gz
+        python local/validate_manifest.py --manifest data/manifests/mls_eng_cuts_dev.jsonl.gz
+        python local/validate_manifest.py --manifest data/manifests/mls_eng_cuts_test.jsonl.gz
         touch data/manifests/.mls_english-validated.done
     fi
 fi
