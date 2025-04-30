@@ -60,7 +60,8 @@ def make_cutset_blueprints(
 
     from datasets import load_dataset
 
-    dataset = load_dataset(mls_eng_hf_dataset_path)
+    print(f"{mls_eng_hf_dataset_path=}")
+    dataset = load_dataset(str(mls_eng_hf_dataset_path))
 
     # Create test dataset
     logging.info("Creating test cuts.")
