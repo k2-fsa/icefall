@@ -71,7 +71,10 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   log "Stage 2: Prepare transcript for BPE training"
   if [ ! -f data/lang/transcript.txt ]; then
     log "Generating transcripts for BPE training"
-    ./local/utils/generate_transcript.py --lang-dir data/lang
+    python local/utils/generate_transcript.py \
+      --dataset-path $dl_dir/mls_english \
+      --lang-dir data/lang \
+      --split train 
   fi
 fi
 
@@ -83,7 +86,7 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
     mkdir -p $bpe_dir
 
     if [ ! -f $bpe_dir/bpe.model ]; then
-      ./local/train_bpe_model.py \
+      python local/train_bpe_model.py \
         --lang-dir $bpe_dir \
         --vocab-size $vocab_size \
         --transcript data/lang/transcript.txt
