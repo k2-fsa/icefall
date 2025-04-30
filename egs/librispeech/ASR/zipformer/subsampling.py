@@ -17,17 +17,15 @@
 # limitations under the License.
 
 import warnings
-from typing import Tuple
+from typing import Tuple, Optional
 
 import torch
 from scaling import (
-    Balancer,
     ScaleLimiter,
     ScaledLinear,
     ExpNorm,
     Dropout3,
     FloatLike,
-    Optional,
     ScaledConv2d,
     ScaleGrad,
     ScheduledFloat,
