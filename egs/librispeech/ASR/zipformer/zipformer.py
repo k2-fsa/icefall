@@ -1624,7 +1624,7 @@ class FeedforwardModule(nn.Module):
         self.out_proj = ActivationDropoutAndLinear(
             feedforward_dim,
             embed_dim,
-            activation="SwooshL",
+            activation="SwashL",
             dropout_p=dropout,
             dropout_shared_dim=0,
             bias=True,
@@ -1860,7 +1860,7 @@ class ConvolutionModule(nn.Module):
         self.out_proj = ActivationDropoutAndLinear(
             bottleneck_dim,
             channels,
-            activation="SwooshR",
+            activation="SwashR",
             dropout_p=0.0,
             initial_scale=0.05,
         )

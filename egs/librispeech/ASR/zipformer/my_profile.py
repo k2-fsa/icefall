@@ -66,7 +66,7 @@ def _bias_norm_flops_compute(module, input, output):
 
 
 def _swoosh_module_flops_compute(module, input, output):
-    # For SwooshL and SwooshR modules
+    # For SwashL and SwashR modules
     assert len(input) == 1, len(input)
     # estimate as swish/silu, see icefall/profiler.py
     flops = input[0].numel()

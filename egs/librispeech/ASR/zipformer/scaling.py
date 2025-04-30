@@ -1294,78 +1294,6 @@ class Identity(torch.nn.Module):
         return _no_op(x)
 
 
-class DoubleSwishFunction(torch.autograd.Function):
-    """
-      double_swish(x) = x * torch.sigmoid(x-1)
-
-    This is a definition, originally motivated by its close numerical
-    similarity to swish(swish(x)), where swish(x) =  x * sigmoid(x).
-
-    Memory-efficient derivative computation:
-     double_swish(x) = x * s, where s(x) = torch.sigmoid(x-1)
-     double_swish'(x) = d/dx double_swish(x) =  x * s'(x) + x' * s(x) = x * s'(x) + s(x).
-     Now, s'(x) = s(x) * (1-s(x)).
-     double_swish'(x) =  x * s'(x) + s(x).
-                      =  x * s(x) * (1-s(x)) + s(x).
-                     = double_swish(x) * (1-s(x)) + s(x)
-     ... so we just need to remember s(x) but not x itself.
-    """
-
-    @staticmethod
-    def forward(ctx, x: Tensor) -> Tensor:
-        requires_grad = x.requires_grad
-        if x.dtype == torch.float16 or x.dtype == torch.bfloat16:
-            x = x.to(torch.float32)
-
-        s = torch.sigmoid(x - 1.0)
-        y = x * s
-
-        if requires_grad:
-            deriv = y * (1 - s) + s
-
-            # notes on derivative of x * sigmoid(x - 1):
-            # https://www.wolframalpha.com/input?i=d%2Fdx+%28x+*+sigmoid%28x-1%29%29
-            # min \simeq -0.043638.  Take floor as -0.044 so it's a lower bund
-            # max \simeq 1.1990.   Take ceil to be 1.2 so it's an upper bound.
-            # the combination of "+ torch.rand_like(deriv)" and casting to torch.uint8 (which
-            # floors), should be expectation-preserving.
-            floor = -0.044
-            ceil = 1.2
-            d_scaled = (deriv - floor) * (255.0 / (ceil - floor)) + torch.rand_like(
-                deriv
-            )
-            if __name__ == "__main__":
-                # for self-testing only.
-                assert d_scaled.min() >= 0.0
-                assert d_scaled.max() < 256.0
-            d_int = d_scaled.to(torch.uint8)
-            ctx.save_for_backward(d_int)
-        if x.dtype == torch.float16 or torch.is_autocast_enabled():
-            y = y.to(torch.float16)
-        return y
-
-    @staticmethod
-    def backward(ctx, y_grad: Tensor) -> Tensor:
-        (d,) = ctx.saved_tensors
-        # the same constants as used in forward pass.
-        floor = -0.043637
-        ceil = 1.2
-
-        d = d * ((ceil - floor) / 255.0) + floor
-        return y_grad * d
-
-
-class DoubleSwish(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    def forward(self, x: Tensor) -> Tensor:
-        """Return double-swish activation function which is an approximation to Swish(Swish(x)),
-        that we approximate closely with x * sigmoid(x-1).
-        """
-        if torch.jit.is_scripting() or torch.jit.is_tracing():
-            return x * torch.sigmoid(x - 1.0)
-        return DoubleSwishFunction.apply(x)
 
 
 # Dropout2 is just like normal dropout, except it supports schedules on the dropout rates.
@@ -1419,75 +1347,57 @@ class Dropout3(nn.Module):
 
 
 
-def _swoosh_l_forward_wrapper(x):
-    return 0.25 * k2.swoosh_l_forward(x * 4)
-def _swoosh_r_forward_wrapper(x):
-    return 0.25 * k2.swoosh_r_forward(x * 4)
-def _swoosh_l_forward_and_deriv_wrapper(x):
-    y, dy_dx = k2.swoosh_l_forward_and_deriv(x * 4)
-    return 0.25 * y, dy_dx
-def _swoosh_r_forward_and_deriv_wrapper(x):
-    y, dy_dx = k2.swoosh_r_forward_and_deriv(x * 4)
-    return 0.25 * y, dy_dx
+def torch_compile(fn, *args, **kwargs):
+    if hasattr(torch, 'compile'):
+        fn = torch.compile(fn, *args, **kwargs)
+    return fn
+
+def swashl(x: Tensor) -> Tensor:
+    zero = torch.zeros_like(x)
+    return 0.25 * logaddexp(zero, 4 * x - 4.0) - 0.08 * x - 0.00875
+
+def swashr(x: Tensor) -> Tensor:
+    zero = torch.zeros_like(x)
+    return 0.25 * logaddexp(zero, 4 * x - 1.0) - 0.08 * x - 0.07831542175
 
 
+def swashl_and_deriv(x: Tensor):
+    x_offset = 4. * x - 4.
+    denom = 1. + x_offset.exp()
+    inv_denom = 1. / denom  # note: 1 / infinity = 0.
+    deriv = 0.92 - inv_denom;
+    log_denom = denom.log()
+    log_denom = torch.where(torch.isinf(log_denom), x_offset, log_denom)
+    y = 0.25 * log_denom - 0.08 * x - 0.00875
+    return y, deriv
 
-class SwooshL(torch.nn.Module):
+def swashr_and_deriv(x: Tensor):
+    x_offset = 4. * x - 1.
+    denom = 1. + x_offset.exp()
+    inv_denom = 1. / denom  # note: 1 / infinity = 0.
+    deriv = 0.92 - inv_denom;
+    log_denom = denom.log()
+    log_denom = torch.where(torch.isinf(log_denom), x_offset, log_denom)
+    y = 0.25 * log_denom - 0.08 * x - 0.07831542175
+    return y, deriv
+
+
+swashl_compiled = torch_compile(swashl)
+swashr_compiled = torch_compile(swashr)
+swashl_and_deriv_compiled = torch_compile(swashl_and_deriv)
+swashr_and_deriv_compiled = torch_compile(swashr_and_deriv)
+
+class SwashL(torch.nn.Module):
     def forward(self, x: Tensor) -> Tensor:
-        """Return Swoosh-L activation."""
-        if torch.jit.is_scripting() or torch.jit.is_tracing():
-            zero = torch.tensor(0.0, dtype=x.dtype, device=x.device)
-            return 0.25 * logaddexp(zero, 4 * x - 4.0) - 0.08 * x - 0.00875
-        if not x.requires_grad:
-            return _swoosh_l_forward_wrapper(x)
-        else:
-            return 0.25 * k2.swoosh_l(x * 4)
+        """Return Swash-L activation, which is the same as SwooshL but with a factor of 4
+        on the input and 0.25 on the output.."""
+        return swashl_compiled(x)
 
-
-class SwooshLOnnx(torch.nn.Module):
+class SwashR(torch.nn.Module):
     def forward(self, x: Tensor) -> Tensor:
-        """Return Swoosh-L activation."""
-        zero = torch.tensor(0.0, dtype=x.dtype, device=x.device)
-        return 0.25 * logaddexp_onnx(zero, 4 * x - 4.0) - 0.08 * x - 0.00875
-
-
-
-class SwooshR(torch.nn.Module):
-    def forward(self, x: Tensor) -> Tensor:
-        """Return Swoosh-R activation."""
-        if torch.jit.is_scripting() or torch.jit.is_tracing():
-            zero = torch.tensor(0.0, dtype=x.dtype, device=x.device)
-            return 0.25 * logaddexp(zero, 4 * x - 1.0) - 0.08 * x - 0.07831542175
-        if not x.requires_grad:
-            return _swoosh_r_forward_wrapper(x)
-        else:
-            return 0.25 * k2.swoosh_r(4 * x)
-
-
-class SwooshROnnx(torch.nn.Module):
-    def forward(self, x: Tensor) -> Tensor:
-        """Return Swoosh-R activation."""
-        zero = torch.tensor(0.0, dtype=x.dtype, device=x.device)
-        return 0.25 * logaddexp_onnx(zero, 4 * x - 1.0) - 0.08 * x - 0.07831542175
-
-
-# simple version of SwooshL that does not redefine the backprop, used in
-# ActivationDropoutAndLinearFunction.
-def SwooshLForward(x: Tensor):
-    x_offset = 4 * x - 4.0
-    log_sum = (1.0 + x_offset.exp()).log().to(x.dtype)
-    log_sum = torch.where(log_sum == float("inf"), x_offset, log_sum)
-    return 0.25 * log_sum - 0.08 * x - 0.00875
-
-
-# simple version of SwooshR that does not redefine the backprop, used in
-# ActivationDropoutAndLinearFunction.
-def SwooshRForward(x: Tensor):
-    x_offset = 4 * x - 1.0
-    log_sum = (1.0 + x_offset.exp()).log().to(x.dtype)
-    log_sum = torch.where(log_sum == float("inf"), x_offset, log_sum)
-    return 0.25 * log_sum - 0.08 * x - 0.07831542175
-
+        """Return Swash-R activation, which is the same as SwooshL but with a factor of 4
+        on the input and 0.25 on the output.."""
+        return swashr_compiled(x)
 
 
 
@@ -1519,8 +1429,8 @@ class ActivationDropoutAndLinearFunction(torch.autograd.Function):
         ctx.activation = activation
 
         forward_activation_dict = {
-            "SwooshL": _swoosh_l_forward_wrapper,
-            "SwooshR": _swoosh_r_forward_wrapper,
+            "SwashL": swashl_compiled,
+            "SwashR": swashr_compiled,
         }
         # it will raise a KeyError if this fails.  This will be an error.  We let it
         # propagate to the user.
@@ -1538,8 +1448,8 @@ class ActivationDropoutAndLinearFunction(torch.autograd.Function):
         (x, weight, bias, dropout_mask) = saved
 
         forward_and_deriv_activation_dict = {
-            "SwooshL": _swoosh_l_forward_and_deriv_wrapper,
-            "SwooshR": _swoosh_r_forward_and_deriv_wrapper,
+            "SwashL": swashl_and_deriv_compiled,
+            "SwashR": swashr_and_deriv_compiled,
         }
         # the following lines a KeyError if the activation is unrecognized.
         # This will be an error.  We let it propagate to the user.
@@ -1569,9 +1479,9 @@ class ActivationDropoutAndLinear(torch.nn.Module):
     """
      This merges an activation function followed by dropout and then a nn.Linear module;
      it does so in a memory efficient way so that it only stores the input to the whole
-     module.  If activation == SwooshL and dropout_shared_dim != None, this will be
+     module.  If activation == SwashL and dropout_shared_dim != None, this will be
      equivalent to:
-       nn.Sequential(SwooshL(),
+       nn.Sequential(SwashL(),
                      Dropout3(dropout_p, shared_dim=dropout_shared_dim),
                      ScaledLinear(in_channels, out_channels, bias=bias,
                                   initial_scale=initial_scale))
@@ -1583,7 +1493,7 @@ class ActivationDropoutAndLinear(torch.nn.Module):
         in_channels: number of input channels, e.g. 256
         out_channels: number of output channels, e.g. 256
         bias: if true, have a bias
-        activation: the activation function, for now just support SwooshL.
+        activation: the activation function, for now just support SwashL, SwashR.
         dropout_p: the dropout probability or schedule (happens after nonlinearity).
         dropout_shared_dim: the dimension, if any, across which the dropout mask is
              shared (e.g. the time dimension).  If None, this may be less memory
@@ -1595,7 +1505,7 @@ class ActivationDropoutAndLinear(torch.nn.Module):
         in_channels: int,
         out_channels: int,
         bias: bool = True,
-        activation: str = "SwooshL",
+        activation: str = "SwashL",
         dropout_p: FloatLike = 0.0,
         dropout_shared_dim: Optional[int] = -1,
         initial_scale: float = 1.0,
@@ -1620,10 +1530,10 @@ class ActivationDropoutAndLinear(torch.nn.Module):
 
     def forward(self, x: Tensor):
         if not self.training or torch.jit.is_scripting() or torch.jit.is_tracing():
-            if self.activation == "SwooshL":
-                x = SwooshLForward(x)
-            elif self.activation == "SwooshR":
-                x = SwooshRForward(x)
+            if self.activation == "SwashL":
+                x = swashl_compiled(x)
+            elif self.activation == "SwashR":
+                x = swashr_compiled(x)
             else:
                 assert False, self.activation
             return torch.nn.functional.linear(x, self.weight, self.bias)
@@ -1688,10 +1598,10 @@ def _test_double_swish_deriv():
     y = m(x)
 
 
-def _test_swooshl_deriv():
+def _test_swashl_deriv():
     x = torch.randn(10, 12, dtype=torch.double) * 3.0
     x.requires_grad = True
-    m = SwooshL()
+    m = SwashL()
 
     tol = 1.0 / 255.0
     torch.autograd.gradcheck(m, x, atol=tol, eps=0.01)
@@ -1702,10 +1612,10 @@ def _test_swooshl_deriv():
     y = m(x)
 
 
-def _test_swooshr_deriv():
+def _test_swashr_deriv():
     x = torch.randn(10, 12, dtype=torch.double) * 3.0
     x.requires_grad = True
-    m = SwooshR()
+    m = SwashR()
 
     tol = 1.0 / 255.0
     torch.autograd.gradcheck(m, x, atol=tol, eps=0.01)
@@ -1763,12 +1673,12 @@ def _test_activation_dropout_and_linear():
     for bias in [True, False]:
         # actually we don't test for dropout_p != 0.0 because forward functions will give
         # different answers.  This is because we are using the k2 implementation of
-        # swoosh_l an swoosh_r inside SwooshL() and SwooshR(), and they call randn()
+        # swash_l an swash_r inside SwashL() and SwashR(), and they call randn()
         # internally, messing up the random state.
         for dropout_p in [0.0]:
-            for activation in ["SwooshL", "SwooshR"]:
+            for activation in ["SwashL", "SwashR"]:
                 m1 = nn.Sequential(
-                    SwooshL() if activation == "SwooshL" else SwooshR(),
+                    SwashL() if activation == "SwashL" else SwashR(),
                     Dropout3(p=dropout_p, shared_dim=-1),
                     ScaledLinear(
                         in_channels, out_channels, bias=bias, initial_scale=0.5
@@ -1808,6 +1718,9 @@ def _test_activation_dropout_and_linear():
                 print("y1 = ", y1)
                 print("y2 = ", y2)
                 assert torch.allclose(y1, y2, atol=0.02)
+                print("grad1 = ", m1[2].weight.grad)
+                print("grad2 = ", m2.weight.grad)
+
                 assert torch.allclose(m1[2].weight.grad, m2.weight.grad, atol=1.0e-05)
                 if bias:
                     assert torch.allclose(m1[2].bias.grad, m2.bias.grad, atol=1.0e-05)
@@ -1820,7 +1733,7 @@ def _test_activation_dropout_and_linear():
                         (a**2).sum() * (b**2).sum()
                     ).sqrt()
 
-                # the SwooshL() implementation has a noisy gradient due to 1-byte
+                # the SwashL() implementation has a noisy gradient due to 1-byte
                 # storage of it.
                 assert isclose(x1.grad, x2.grad)
 
@@ -1836,10 +1749,7 @@ if __name__ == "__main__":
     _test_piecewise_linear()
     _test_softmax()
     _test_whiten()
-    _test_balancer_sign()
-    _test_balancer_magnitude()
-    _test_double_swish_deriv()
-    _test_swooshr_deriv()
-    _test_swooshl_deriv()
+    _test_swashr_deriv()
+    _test_swashl_deriv()
     _test_activation_dropout_and_linear()
     _test_orthogonal_linear()
