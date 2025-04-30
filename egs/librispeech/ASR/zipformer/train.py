@@ -75,7 +75,7 @@ from lhotse.dataset import SpecAugment
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import AsrModel
-from optim import Eden2, TransformedAdam
+from optim import Sched3, TransformedAdam
 from scaling import ScheduledFloat
 from subsampling import Conv2dSubsampling
 from torch import Tensor
@@ -118,7 +118,7 @@ def get_adjusted_batch_count(params: AttributeDict) -> float:
 
 def get_adjusted_lr_batches(params: AttributeDict) -> float:
     # returns an adjusted form of the "lr_batches" parameter used to set the learning
-    # rate in the Eden2 scheduler.
+    # rate in the Sched3 scheduler.
     # We want the final LR to be based on the geometric mean of "how much data we
     # have seen" and "how many batches we have seen".
     # an easier way to look at it is this: the formula for learning rate depends
@@ -679,7 +679,9 @@ def get_params() -> AttributeDict:
         - subsampling_factor:  The subsampling factor for the model.
 
         - warm_step: The warmup period that dictates the decay of the
-              scale on "simple" (un-pruned) loss.
+              scale on pruned loss (for transducer) and the reconstruction and prediction
+              losses.  Expressed in terms of the "adjusted batch count", i.e. the
+              normalized batch count after adjusting for changes in batch size.
     """
     params = AttributeDict(
         {
@@ -995,7 +997,6 @@ def compute_loss(
     feature_lens = supervisions["num_frames"].to(device)
 
     batch_idx_train = params.batch_idx_train
-    warm_step = params.warm_step
 
     texts = batch["supervisions"]["text"]
     y = sp.encode(texts, out_type=int)
@@ -1033,20 +1034,17 @@ def compute_loss(
 
         loss = 0.0
 
+        adjusted_batch_count = params.batch_idx_train
+        warm_step = params.warm_step
+        def warmup_schedule(scale, initial_factor):
+            # geometric warmup schedules.
+            warmup_factor = (1. if adjusted_batch_count >= warm_step else
+                             initial_factor + (adjusted_batch_count / warm_step) * (1 - initial_factor))
+            return scale * warmup_factor
+
         if params.use_transducer:
-            s = params.simple_loss_scale
-            # take down the scale on the simple loss from 1.0 at the start
-            # to params.simple_loss scale by warm_step.
-            simple_loss_scale = (
-                s
-                if batch_idx_train >= warm_step
-                else 1.0 - (batch_idx_train / warm_step) * (1.0 - s)
-            )
-            pruned_loss_scale = (
-                1.0
-                if batch_idx_train >= warm_step
-                else 0.1 + 0.9 * (batch_idx_train / warm_step)
-            )
+            simple_loss_scale = params.simple_loss_scale
+            pruned_loss_scale = warmup_schedule(1.0, 0.05)
             loss += simple_loss_scale * simple_loss + pruned_loss_scale * pruned_loss
 
         if params.use_ctc:
@@ -1054,8 +1052,7 @@ def compute_loss(
             if use_cr_ctc:
                 loss += params.cr_loss_scale * cr_loss
 
-        reconstruction_loss_scale = (params.reconstruction_loss_scale *
-                                     max(1.0, 2.0 - 1.0 * (batch_idx_train / warm_step)))
+        reconstruction_loss_scale = params.reconstruction_loss_scale
 
         loss += reconstruction_loss_scale * reconstruction_loss
 
@@ -1443,7 +1440,7 @@ def run(rank, world_size, args):
         debug_interval=params.debug_interval,
     )
 
-    scheduler = Eden2(optimizer, get_adjusted_lr_batches(params))
+    scheduler = Sched3(optimizer, get_adjusted_lr_batches(params))
 
     if checkpoints and "optimizer" in checkpoints:
         logging.info("Loading optimizer state dict")

@@ -365,21 +365,10 @@ class TransformedAdam(BatchedOptimizer):
     weight_min_rms: Minimum root-mean-square value of weight tensors, for purposes of
                    learning the scale on the parameters. Weight tensors are defined
                    as anything with more than one element and ndim > 1.
-    weight_penalty_rms: Value of root-mean-square value of weight tensor, that provides
-                   a reference point for when we start to do adamw-style decay.
      bias_min_rms: Minimum root-mean-square value of bias tensors, defined as anything with
                    more than one element and exactly one tensor dimension i.e. ndim == 1.
-    bias_penalty_rms: Value of root-mean-square value of bias tensor, that provides
-                   a reference point for when we start to do adamw-style decay.
-       scalar_max: Maximum absolute value for scalar parameters (applicable if your
-                   model has any parameters with numel() == 1).
-    size_update_period: The periodicity, in steps, with which we update the size (scale)
-                   of the parameter tensor.  This is provided to save a little time
-                   in the update.
-     clipping_update_period: if clipping_scale is specified, this is the period
       debug_interval: if >0, write some statistics to tensorboard every this-many steps.
     """
-
     def __init__(
         self,
         params,
@@ -413,7 +402,6 @@ class TransformedAdam(BatchedOptimizer):
             bias_max_rms=bias_max_rms,
             bias_min_rms=bias_min_rms,
             weight_max_rms=weight_max_rms,
-            size_update_period=size_update_period,
             clipping_update_period=clipping_update_period,
             debug_interval=debug_interval,
         )
@@ -834,6 +822,113 @@ class TransformedAdam(BatchedOptimizer):
             f" orig_rms_sq={(dominant_rms**2).item():.3e}"
         )
 
+class SimpleTransformedAdam(Optimizer):
+    """
+    Version of TransformedAdam that doesn't do the batching or gradient clipping (may be easier to integrate
+    into other frameworks).
+
+
+     Args:
+          params:  The parameters or param_groups to optimize (like other Optimizer subclasses).
+              lr:  The learning rate.  We will typically use a learning rate schedule that starts
+                   at 0.03 and decreases over time, i.e. much higher than other common
+                   optimizers.
+            beta2: beta2 is the momentum constant for moving-grad-squared as in Adam.
+                   Must satisfy 0 < beta <= beta2 < 1.
+             betas: a list of decay constants for momentum on the parameter-change
+            scales: a list of scales corresponding to each of the betas, that we multiply
+                   each momentum-update by.  Implicitly there is also a beta=0, scale=1,
+                   i.e. a non-decayed update.
+     scaling_lr_scale: A scaling factor on the learning rate, that we use to update the
+                   scale of each non-scalar parameter tensor.  If each parameter were decomposed
+                   as p * p_scale.exp(), where (p**2).mean().sqrt() == 1.0, scalar_lr_scale
+                   would be a the scaling factor on the learning rate of p_scale.
+     scalar_lr_scale: A scaling factor on the learning rate, that we use to update scalar tensors.
+              eps:  A general-purpose epsilon to prevent division by zero
+    weight_min_rms: Minimum root-mean-square value of weight tensors, for purposes of
+                   learning the scale on the parameters. Weight tensors are defined
+                   as anything with more than one element and ndim > 1.
+     bias_min_rms: Minimum root-mean-square value of bias tensors, defined as anything with
+                   more than one element and exactly one tensor dimension i.e. ndim == 1.
+    """
+
+    def __init__(
+        self,
+        params,
+        lr=3e-02,
+        clipping_scale=None,
+        beta1=0.995,
+        direct=0.05, # scale on bypass of momentum (beta1)
+        beta2=0.98,
+        scalar_lr_scale=0.1,
+        scaling_lr_scale=0.1,
+        eps=1.0e-08,
+        weight_min_rms=0.005,
+        weight_max_rms=1.0,
+        bias_min_rms=1.0e-05,
+        bias_max_rms=5.0,
+        debug_interval=0,
+    ):
+
+        defaults = dict(
+            lr=lr,
+            clipping_scale=clipping_scale,
+            beta1=beta1,
+            direct=direct,
+            beta2=beta2,
+            scalar_lr_scale=scalar_lr_scale,
+            scaling_lr_scale=scaling_lr_scale,
+            eps=eps,
+            weight_min_rms=weight_min_rms,
+            bias_max_rms=bias_max_rms,
+            bias_min_rms=bias_min_rms,
+            weight_max_rms=weight_max_rms,
+            debug_interval=debug_interval,
+        )
+        super().__init__(params, defaults)
+
+        self.register_load_state_dict_pre_hook(_load_state_dict_pre_hook)
+
+
+
+    def __setstate__(self, state):
+        super(TransformedAdam, self).__setstate__(state)
+
+    @torch.no_grad()
+    def step(self, closure=None):
+        """Performs a single optimization step.
+
+        Arguments:
+            closure (callable, optional): A closure that reevaluates the model
+                and returns the loss.
+        """
+        loss = None
+        if closure is not None:
+            with torch.enable_grad():
+                loss = closure()
+
+        batch = True
+
+        for group in self.param_groups:
+
+            for p in group['params']:
+                state = self.state[p]
+                grad = p.grad
+
+
+                try:
+                    cur_step = state["step"]
+                except KeyError:
+                    state["step"] = 0
+                    cur_step = 0
+
+                def u(x):
+                    return x.unsqueeze(0)
+                p[:] = debug_step(group, u(p.detach()), state, u(grad))[0]
+
+                state["step"] = cur_step + 1
+
+        return loss
 
 
 class LRScheduler(object):
@@ -1009,7 +1104,6 @@ class Eden2(LRScheduler):
     where `warmup` increases from linearly 0.5 to 1 over `warmup_batches` batches
     and then stays constant at 1.
 
-
      E.g. suggest base_lr = 0.04 (passed to optimizer) if used with TransformedAdam
 
     Args:
@@ -1050,6 +1144,86 @@ class Eden2(LRScheduler):
 
 
 
+class Sched3(LRScheduler):
+    """
+    Sched3 scheduler.
+
+    The basic formula is as follows.  p is a supplied power, e.g. 1.0, but could
+    also be, say, 0.8.  lr_batches is a number of batches that defines when we start
+    decreasing significantly.  "batch" is the current batch count.
+
+      lr = warmup * [   (p * lr_batches / batch)^p if batch > p*e*lr_batches, else
+                           exp(-batch / (e * lr_batches)))
+
+    where e is the mathematical constant e.  This expression is equivalent to:
+   factor = min_q [ (q * lr_batches) / batch)^q  ] where the minimum is taken over
+    the continuous range 0 <= q <= p.  The left hand side of the min in the formula
+    for lr corresponds to q == p, i.e. we hit the rhs of the allowed range.
+
+       * notes for derivation: define x == lr_batches/batch, and let factor=min_q [(q*x)
+.  In wolframalpha.com, note that:
+           d/dp (q * x)^q  has a root at (q = 1/(ex)). If 1/ex > p, then q is fixed to the limit,
+        q==p,  so factor == (p * x)^p.  Else, i.e. when 1/ex <= p,
+         when p > 1 / ex, factor == (q * x)^1 = (1/(ex)*x)^(1/ex) = (1/e)^(1/ex = e^{-1/ex}.
+
+     So the rule is:
+          if batch/(e*lr_batches) > p,   i.e. if batch > p*e*lr_batches,
+             factor = (p * lr_batches/batch)^p.
+              else, factor = exp(-batch/(lr_batches*e))
+        Plot[ If [ x > 0.8 * Exp[1] * 10, 0.8*10/x, Exp[-x/(10*Exp[1])] ], {x, 0, 50}]
+
+
+
+
+
+
+    `warmup` increases linearly from warmup_start to 1 over `warmup_batches` batches
+    and then stays constant at 1.
+
+     E.g. suggest base_lr = 0.04 (passed to optimizer) if used with TransformedAdam
+
+    Args:
+        optimizer: the optimizer to change the learning rates on
+        lr_batches: the number of batches after which we start significantly
+              decreasing the learning rate, suggest 5000.
+    """
+
+    def __init__(
+        self,
+        optimizer: Optimizer,
+        lr_batches: Union[int, float],
+        warmup_batches: Union[int, float] = 500.0,
+        warmup_start: float = 0.5,
+        p: float = 1.0,
+        verbose: bool = False,
+    ):
+        super().__init__(optimizer, verbose)
+        self.lr_batches = lr_batches
+        self.warmup_batches = warmup_batches
+        self.p = p
+        assert 0.0 <= warmup_start <= 1.0, warmup_start
+        self.warmup_start = warmup_start
+
+    def get_lr(self):
+        lr_batches = self.lr_batches
+        e = 2.71828
+        batch = self.batch
+        p = self.p
+        factor = ((p * lr_batches / batch) ** p if batch > p * e * lr_batches else
+                  e ** (-batch / (e * lr_batches)))
+
+        warmup_factor = (
+            1.0
+            if self.batch >= self.warmup_batches
+            else self.warmup_start
+            + (1.0 - self.warmup_start) * (self.batch / self.warmup_batches)
+        )
+
+        return [x * factor * warmup_factor for x in self.base_lrs]
+
+
+
+
 
 
 def _test_eden():
@@ -1074,6 +1248,30 @@ def _test_eden():
             optim.zero_grad()
 
     logging.info(f"last lr = {scheduler.get_last_lr()}")
+    logging.info(f"state dict = {scheduler.state_dict()}")
+
+
+def _test_sched3():
+    m = torch.nn.Linear(100, 100)
+    optim = TransformedAdam(m.parameters(), lr=0.03)
+
+    scheduler = Sched3(optim, lr_batches=100, p=0.8, verbose=True, warmup_batches=20)
+
+
+    for step in range(300):
+        x = torch.randn(200, 100).detach()
+        x.requires_grad = True
+        y = m(x)
+        dy = torch.randn(200, 100).detach()
+        f = (y * dy).sum()
+        f.backward()
+
+        optim.step()
+        scheduler.step_batch()
+        optim.zero_grad()
+        if step % 10 == 0:
+            logging.info(f"test_sched3: step={step}, last lr = {scheduler.get_last_lr()}")
+
     logging.info(f"state dict = {scheduler.state_dict()}")
 
 
@@ -1220,7 +1418,7 @@ class Eve(Optimizer):
         return loss
 
 
-def _test_scaled_adam(hidden_dim: int):
+def _test_transformed_adam(hidden_dim: int):
     import timeit
 
     from scaling import ScaledLinear, OrthogonalLinear
@@ -1228,7 +1426,7 @@ def _test_scaled_adam(hidden_dim: int):
     E = 100
     B = 4
     T = 2
-    logging.info("in test_eve_cain")
+    logging.info("in test_transformed_adam")
     # device = torch.device('cuda')
     device = torch.device("cpu")
     dtype = torch.float32
@@ -1240,7 +1438,7 @@ def _test_scaled_adam(hidden_dim: int):
     input_magnitudes = (1.0 * torch.randn(E, dtype=dtype, device=device)).exp()
     output_magnitudes = (1.0 * torch.randn(E, dtype=dtype, device=device)).exp()
 
-    for iter in [1, 0]:
+    for iter in [0, 1, 2]:
         fix_random_seed(42)
         Linear = torch.nn.Linear if iter == 0 else ScaledLinear
 
@@ -1265,9 +1463,14 @@ def _test_scaled_adam(hidden_dim: int):
         ]
 
         if iter == 0:
-            optim = Eve(m.parameters(), lr=0.003)
+            optim = SimpleTransformedAdam(m.parameters(), lr=0.06, eps=1.0e-20)
         elif iter == 1:
             optim = TransformedAdam(m.named_parameters(), lr=0.06, clipping_scale=2.0, eps=1.0e-20)
+        elif iter == 2:
+            optim = Eve(m.parameters(), lr=0.003)
+        else:
+            assert "unknown iter", iter
+
         scheduler = Eden(optim, lr_batches=200, lr_epochs=5, verbose=False)
 
         start = timeit.default_timer()
@@ -1321,6 +1524,7 @@ def _test_scaled_adam(hidden_dim: int):
         logging.info(f"output_magnitudes = {output_magnitudes}")
 
 def _test_transform_params():
+    # caution: this has occasional errors.
     group = { "bias_min_rms": 0.001, "weight_min_rms": 0.01, "scalar_lr_scale": 0.1, "scaling_lr_scale": 0.5,
               "weight_max_rms": 20.0, "bias_max_rms": 20.0 }
     for scale in [ 0.0, 1.0e-05, 0.001, 0.01, 1.0, 10.0 ]:
@@ -1349,5 +1553,6 @@ if __name__ == "__main__":
         hidden_dim = 200
 
     _test_transform_params()
-    _test_scaled_adam(hidden_dim)
+    _test_transformed_adam(hidden_dim)
     _test_eden()
+    _test_sched3()
