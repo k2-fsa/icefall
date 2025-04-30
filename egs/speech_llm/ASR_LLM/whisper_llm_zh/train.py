@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # Copyright    2023  Xiaomi Corp.        (authors: Xiaoyu Yang)
 #              2024  Yuekai Zhang
+#              2025  Yifan  Yang
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -42,47 +43,32 @@ torchrun --nproc_per_node 8 ./whisper_llm_zh/train.py \
 """
 
 import argparse
-import copy
 import logging
 import os
-import random
 import warnings
 from pathlib import Path
-from shutil import copyfile
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Dict, Optional, Tuple
 
 import deepspeed
-import k2
 import torch
-import torch.multiprocessing as mp
 import torch.nn as nn
 import transformers
 import whisper
 from asr_datamodule import AsrDataModule
 from deepspeed.utils.zero_to_fp32 import convert_zero_checkpoint_to_fp32_state_dict
-from label_smoothing import LabelSmoothingLoss
-from lhotse import CutSet, load_manifest
 from lhotse.cut import Cut
-from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import IGNORE_TOKEN_ID, SPEECH_LLM, EncoderProjector
 from multi_dataset import MultiDataset
-from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
+from peft import LoraConfig, get_peft_model
 from torch import Tensor
 from torch.utils.tensorboard import SummaryWriter
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from whisper_encoder_forward_monkey_patch import replace_whisper_encoder_forward
 
-from icefall import diagnostics
 from icefall.dist import get_rank, get_world_size
 from icefall.env import get_env_info
-from icefall.utils import (
-    AttributeDict,
-    MetricsTracker,
-    filter_uneven_sized_batch,
-    setup_logger,
-    str2bool,
-)
+from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool
 
 DEFAULT_SPEECH_TOKEN = "<speech>"
 
@@ -286,13 +272,6 @@ def compute_loss(
     Returns:
         Return a tuple of two elements. The first element is the loss tensor.
     """
-    # For the uneven-sized batch, the total duration after padding would possibly
-    # cause OOM. Hence, for each batch, which is sorted descendingly by length,
-    # we simply drop the last few shortest samples, so that the retained total frames
-    # (after padding) would not exceed `allowed_max_frames`:
-    # `allowed_max_frames = int(max_frames * (1.0 + allowed_excess_duration_ratio))`,
-    # where `max_frames = max_duration * 1000 // frame_shift_ms`.
-    # We set allowed_excess_duration_ratio=0.1.
 
     def preprocess(
         messages,
@@ -347,46 +326,6 @@ def compute_loss(
 
         return input_ids, attention_mask, target_ids
 
-    def normalize_text_alimeeting(text: str, normalize: str = "m2met") -> str:
-        """
-        Text normalization similar to M2MeT challenge baseline.
-        See: https://github.com/yufan-aslp/AliMeeting/blob/main/asr/local/text_normalize.pl
-        """
-        if normalize == "none":
-            return text
-        elif normalize == "m2met":
-            import re
-
-            text = text.replace(" ", "")
-            text = text.replace("<sil>", "")
-            text = text.replace("<%>", "")
-            text = text.replace("<->", "")
-            text = text.replace("<$>", "")
-            text = text.replace("<#>", "")
-            text = text.replace("<_>", "")
-            text = text.replace("<space>", "")
-            text = text.replace("`", "")
-            text = text.replace("&", "")
-            text = text.replace(",", "")
-            if re.search("[a-zA-Z]", text):
-                text = text.upper()
-            text = text.replace("Ａ", "A")
-            text = text.replace("ａ", "A")
-            text = text.replace("ｂ", "B")
-            text = text.replace("ｃ", "C")
-            text = text.replace("ｋ", "K")
-            text = text.replace("ｔ", "T")
-            text = text.replace("，", "")
-            text = text.replace("丶", "")
-            text = text.replace("。", "")
-            text = text.replace("、", "")
-            text = text.replace("？", "")
-            return text
-
-    max_frames = params.max_duration * 1000 // params.frame_shift_ms
-    allowed_max_frames = int(max_frames * (1.0 + params.allowed_excess_duration_ratio))
-    batch = filter_uneven_sized_batch(batch, allowed_max_frames)
-
     device = next(model.parameters()).device
     feature = batch["inputs"]
 
@@ -397,11 +336,10 @@ def compute_loss(
     batch_idx_train = params.batch_idx_train
     supervisions = batch["supervisions"]
     texts = batch["supervisions"]["text"]
-    # remove spaces in texts
-    texts = [normalize_text_alimeeting(text) for text in texts]
 
     messages = []
     for i, text in enumerate(texts):
+        text = text.replace(" ", "")
         message = [
             {"role": "user", "content": f"{DEFAULT_SPEECH_TOKEN}请转写音频为文字"},
             {"role": "assistant", "content": text},
@@ -516,14 +454,17 @@ def train_one_epoch(
         The rank of the node in DDP training. If no DDP is used, it should
         be set to 0.
     """
-    model.encoder_projector.train()
+    model.train()
+    model.encoder.eval()
+    if not params.unfreeze_llm:
+        model.llm.eval()
 
     tot_loss = MetricsTracker()
 
     for batch_idx, batch in enumerate(train_dl):
         params.batch_idx_train += 1
         batch_size = len(batch["supervisions"]["text"])
-        if batch_idx % params.valid_interval == 0 and not params.print_diagnostics:
+        if batch_idx % params.valid_interval == 0:
             logging.info("Computing validation loss")
             valid_info = compute_validation_loss(
                 params=params,
@@ -533,6 +474,9 @@ def train_one_epoch(
                 world_size=world_size,
             )
             model.train()
+            model.encoder.eval()
+            if not params.unfreeze_llm:
+                model.llm.eval()
             logging.info(f"Epoch {params.cur_epoch}, validation: {valid_info}")
             logging.info(
                 f"Maximum memory allocated so far is {torch.cuda.max_memory_allocated()//1000000}MB"
@@ -648,7 +592,6 @@ def run(rank, world_size, args):
     speech_encoder_dim = whisper_model.dims.n_audio_state
     for name, param in speech_encoder.named_parameters():
         param.requires_grad = False
-    speech_encoder.eval()
 
     tokenizer = AutoTokenizer.from_pretrained(params.llm_path_or_name)
     if params.use_flash_attn:
@@ -671,7 +614,6 @@ def run(rank, world_size, args):
     if not params.unfreeze_llm:
         for name, param in llm.named_parameters():
             param.requires_grad = False
-        llm.eval()
     else:
         if params.use_lora:
             lora_config = LoraConfig(
@@ -728,7 +670,7 @@ def run(rank, world_size, args):
     logging.info(f"Device: {device}")
     model.to(device)
 
-    assert params.deepspeed and world_size > 1
+    assert params.deepspeed
     logging.info("Using DeepSpeed")
     model, optimizer, _, scheduler = deepspeed.initialize(
         args=params, model=model, model_parameters=model.parameters()
@@ -764,7 +706,7 @@ def run(rank, world_size, args):
     if params.sampler_state_dict_path:
         sampler_state_dict = torch.load(params.sampler_state_dict_path)
         sampler_state_dict["max_duration"] = params.max_duration
-    # TODO: load sampler state dict
+
     train_dl = data_module.train_dataloaders(
         train_cuts, sampler_state_dict=sampler_state_dict
     )
@@ -806,15 +748,15 @@ def run(rank, world_size, args):
 
         model.save_checkpoint(
             save_dir=params.exp_dir,
-            tag=f"epoch-{params.cur_epoch}",
+            tag=f"zero-epoch-{params.cur_epoch}",
             client_state={},
             exclude_frozen_parameters=True,
         )
         if rank == 0:
             convert_zero_checkpoint_to_fp32_state_dict(
                 params.exp_dir,
-                f"{params.exp_dir}/epoch-{params.cur_epoch}.pt",
-                tag=f"epoch-{params.cur_epoch}",
+                f"{params.exp_dir}/epoch-{params.cur_epoch}",
+                tag=f"zero-epoch-{params.cur_epoch}",
                 exclude_frozen_parameters=True,
             )
             # save sampler state dict into checkpoint
@@ -824,7 +766,7 @@ def run(rank, world_size, args):
                 f"{params.exp_dir}/epoch-{params.cur_epoch}-sampler.pt",
             )
 
-            os.system(f"rm -rf {params.exp_dir}/epoch-{params.cur_epoch}")
+            os.system(f"rm -rf {params.exp_dir}/zero-epoch-{params.cur_epoch}")
 
     logging.info("Done!")
 
@@ -865,6 +807,7 @@ def main():
 
     torch.set_num_threads(1)
     torch.set_num_interop_threads(1)
+    warnings.filterwarnings("ignore", category=FutureWarning)
     run(rank=rank, world_size=world_size, args=args)
 
 
