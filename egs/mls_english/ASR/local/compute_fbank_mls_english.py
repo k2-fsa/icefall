@@ -120,6 +120,11 @@ def main():
         cut_sets = make_cutset_blueprints(mls_eng_hf_dataset_path)
         for part, cut_set in cut_sets:
             logging.info(f"Processing {part}")
+            cut_set = cut_set.save_audios(
+                num_jobs=num_jobs,
+                storage_path=(args.audio_dir / part).as_posix(),
+            ) # makes new cutset that loads audio from paths to actual audio files
+            
             cut_set = cut_set.compute_and_store_features(
                 extractor=extractor,
                 num_jobs=num_jobs,
@@ -127,7 +132,6 @@ def main():
                 storage_type=LilcomChunkyWriter,
             )
 
-            cut_set = cut_set.save_audios(args.audio_dir / part) # makes new cutset that uses paths to actual audio files
             cut_set.to_file(args.manifest_dir / f"mls_eng_cuts_{part}.jsonl.gz")
 
         logging.info("All fbank computed for MLS English.")
