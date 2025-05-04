@@ -227,7 +227,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--encoder-multiple",
         type=str,
-        default="3,4,8,12,12,8,4",
+        default="4,6,9,12,12,9,6",
         help="Factor by which encoder-dim is larger then base-dim, per encoder stack.",
     )
 
