@@ -802,7 +802,7 @@ dropout:
             bypass = self.copy_bypass(bypass)
             src = torch.cat((src, bypass), dim=-1)
 
-        return src, self.predict_loss(src, (src_key_padding_mask.t().unsqueeze(-1).logical_not()
+        return src, self.predict_loss(src, (src_key_padding_mask.t().logical_not()
                                             if src_key_padding_mask is not None else None))
 
     def streaming_forward(
@@ -1971,7 +1971,6 @@ class ScalarMultiply(nn.Module):
 
 
 def _test_zipformer_main(causal: bool = False):
-    batch_size = 5
     seq_len = 20
     # Just make sure the forward pass runs.
 

@@ -534,39 +534,37 @@ def ScaledConv2d(*args, initial_scale: float = 1.0, **kwargs) -> nn.Conv2d:
     return ans
 
 
-def predict_loss(x: Tensor, predictor: nn.Module, proj_weight: Tensor,
+def predict_loss(x: Tensor, predictor: nn.Module, t: float,
                  batch_dim: int, name: str,
                  mask: Optional[Tensor]) -> Tensor:
     batch_size = x.shape[batch_dim]
+
     if batch_size % 2 != 0:
         assert (not x.requires_grad), "PredictLoss must be used with CR-CTC or similar thing that repeats batch with different augmentation."
         return torch.tensor(0.0, device=x.device)
+
+    def mean_and_variance_norm(x):
+        mean = x.mean(dim=list(range(x.ndim-1)))
+        x = x - mean
+        eps = 1.0e-08
+        stddev = ((x ** 2).mean(dim=list(range(x.ndim-1))) + eps).sqrt()
+        x = x / stddev
+        return x
+
 
     if mask is not None:
         mask = mask.to(x.dtype)
 
     with torch.no_grad():
-        # get the indexes.  project, then mean-and-variance-norm, then
-        # take mx.
-        x_proj = torch.matmul(x, proj_weight.t())
-        with torch.amp.autocast('cuda', enabled=False):
-            x_proj = x_proj.to(torch.float)
-            # Mean subtraction and variance normalization.
-            dims = tuple(range(0, x.ndim - 1))
-            if mask is not None:
-                x_masked = x_proj * mask
-                x_proj = x_proj - x_masked.sum(dim=dims) / mask.sum(dim=dims)
-                x_proj = x_proj * (mask.sum(dim=dims) / ((x_masked ** 2).sum(dim=dims) + 1.0e-10)).sqrt()
-            else:
-                x_proj = x_proj - x_proj.mean(dim=dims)
-                x_proj = x_proj / (x_proj ** 2).mean(dim=dims).sqrt()
+        x_swapped = torch.roll(x, batch_size // 2, batch_dim)
+        x_swapped = mean_and_variance_norm(x_swapped)
+        rand = torch.randn_like(x_swapped)
+        x_interp = (t * x_swapped) + (1 - t) * rand
+        u_t = x_swapped - rand  # reference "velocity"
 
-        indexes = torch.max(x_proj, dim=-1)[1]
+    v_t = predictor(torch.cat((x_interp, x), dim=-1))  # predicted "velocity"
 
-    indexes = torch.roll(indexes, batch_size // 2, batch_dim)
-    x_pred = predictor(x)
-    logprobs = x_pred.log_softmax(dim=-1)
-    loss = -torch.gather(logprobs, dim=-1, index=indexes.unsqueeze(-1))
+    loss = ((u_t - v_t) ** 2).mean(dim=-1)
 
     if random.random() < 0.002:
         logging.info(f"predict_loss: name={name}, mean loss before scale = {loss.mean()}")
@@ -578,29 +576,29 @@ def predict_loss(x: Tensor, predictor: nn.Module, proj_weight: Tensor,
 
 class PredictLoss(nn.Module):
     """
-    Adds an auxiliary loss based on predicting the top-1 of 256 randomized codebook
-    entries.
+    Adds an auxiliary loss based on predicting the (noise - x) direction given two inputs:
+    the "x" value from the "other copy of the data", and the input ((1-t) * noise + t * x),
+    aas in flow matching.  So a pretext task based on flow matching.
+    The "t" value is specified by the user, strictly between 0 and 1; smaller "t" means more noise,
+    larger "t" means closer to x.  Smaller "t" will concentrate on the broader contours
+    of the distrbution.
     """
     def __init__(self,
                  num_channels: int,
                  batch_dim: int = 0,
-                 codebook_size: int = 63):
+                 t: float = 0.2):
         super().__init__()
-        scale = num_channels ** -0.5
-        self.register_buffer('proj_weight',
-                             scale * torch.randn(codebook_size, num_channels),
-                             persistent=True)
-        num_hidden = max(1024, num_channels)
-        self.predictor = nn.Sequential(nn.Linear(num_channels, num_hidden),
+        num_hidden = max(1024, 2 * num_channels)
+        self.predictor = nn.Sequential(nn.Linear(2 * num_channels, num_hidden),
                                        nn.LeakyReLU(),
-                                       nn.Linear(num_hidden, codebook_size))
+                                       nn.Linear(num_hidden, num_channels))
         self.batch_dim = batch_dim
         self.name = None # will be set from training code
-
+        self.t = t
 
     def forward(self,
                 x: Tensor, mask: Optional[Tensor] = None) -> Tensor:
-        return predict_loss(x, self.predictor, self.proj_weight,
+        return predict_loss(x, self.predictor, self.t,
                             self.batch_dim, self.name, mask)
 
 
