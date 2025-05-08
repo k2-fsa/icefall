@@ -1,0 +1,12 @@
+openai-whisper
+kaldialign
+lhotse
+sentencepiece
+pypinyin
+tensorboard
+librosa
+deepspeed
+transformers>=4.37.0
+flash-attn
+peft
+torchmetrics
