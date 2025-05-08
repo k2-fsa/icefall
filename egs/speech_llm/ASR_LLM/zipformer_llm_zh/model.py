@@ -1,6 +1,11 @@
+from typing import Tuple
+
 import torch
+from encoder_interface import EncoderInterface
 from torch import nn
 from transformers.trainer_pt_utils import LabelSmoother
+
+from icefall.utils import make_pad_mask
 
 IGNORE_TOKEN_ID = LabelSmoother.ignore_index
 
@@ -55,11 +60,13 @@ class SPEECH_LLM(nn.Module):
 
     def __init__(
         self,
-        encoder: nn.Module,
+        encoder_embed: nn.Module,
+        encoder: EncoderInterface,
         llm: nn.Module,
         encoder_projector: nn.Module,
     ):
         super().__init__()
+        self.encoder_embed = encoder_embed
         self.encoder = encoder
         self.llm = llm
         self.encoder_projector = encoder_projector
@@ -192,14 +199,46 @@ class SPEECH_LLM(nn.Module):
 
         return final_embedding, final_attention_mask, final_labels, position_ids
 
+    def forward_encoder(
+        self, x: torch.Tensor, x_lens: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Compute encoder outputs.
+        Args:
+          x:
+            A 3-D tensor of shape (N, T, C).
+          x_lens:
+            A 1-D tensor of shape (N,). It contains the number of frames in `x`
+            before padding.
+
+        Returns:
+          encoder_out:
+            Encoder output, of shape (N, T, C).
+          encoder_out_lens:
+            Encoder output lengths, of shape (N,).
+        """
+        # logging.info(f"Memory allocated at entry: {torch.cuda.memory_allocated() // 1000000}M")
+        x, x_lens = self.encoder_embed(x, x_lens)
+        # logging.info(f"Memory allocated after encoder_embed: {torch.cuda.memory_allocated() // 1000000}M")
+
+        src_key_padding_mask = make_pad_mask(x_lens)
+        x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
+
+        encoder_out, encoder_out_lens = self.encoder(x, x_lens, src_key_padding_mask)
+
+        encoder_out = encoder_out.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
+        assert torch.all(encoder_out_lens > 0), (x_lens, encoder_out_lens)
+
+        return encoder_out, encoder_out_lens
+
     def forward(
         self,
-        fbank: torch.Tensor = None,
-        input_ids: torch.LongTensor = None,
-        attention_mask: torch.Tensor = None,
-        labels: torch.LongTensor = None,
+        fbank: torch.Tensor,
+        fbank_lens: torch.Tensor,
+        input_ids: torch.LongTensor,
+        attention_mask: torch.Tensor,
+        labels: torch.LongTensor,
     ):
-        encoder_outs = self.encoder(fbank)
+        encoder_outs, _ = self.forward_encoder(fbank, fbank_lens)
 
         speech_features = self.encoder_projector(encoder_outs)
 
@@ -229,15 +268,17 @@ class SPEECH_LLM(nn.Module):
 
     def decode(
         self,
-        fbank: torch.Tensor = None,
-        input_ids: torch.LongTensor = None,
-        attention_mask: torch.Tensor = None,
+        fbank: torch.Tensor,
+        fbank_lens: torch.Tensor,
+        input_ids: torch.LongTensor,
+        attention_mask: torch.Tensor,
         **kwargs,
     ):
+        encoder_outs, _ = self.forward_encoder(fbank, fbank_lens)
 
-        encoder_outs = self.encoder(fbank)
         speech_features = self.encoder_projector(encoder_outs)
         speech_features = speech_features.to(torch.float16)
+
         inputs_embeds = self.llm.get_input_embeddings()(input_ids)
         (
             inputs_embeds,

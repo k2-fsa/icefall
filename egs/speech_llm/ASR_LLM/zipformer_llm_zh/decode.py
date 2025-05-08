@@ -3,6 +3,7 @@
 #                                            Fangjun Kuang,
 #                                            Wei Kang)
 #           2024 Yuekai Zhang
+#           2025 Yifan  Yang
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -19,31 +20,17 @@
 # limitations under the License.
 """
 Usage:
-# Command for decoding using fine-tuned models:
-
-pip install huggingface_hub['cli']
-mkdir -p models/whisper models/qwen models/checkpoint
-huggingface-cli download --local-dir models/checkpoint yuekai/icefall_asr_aishell_whisper_qwen2_1.5B
-
-# For aishell fine-tuned whisper model
-huggingface-cli download --local-dir models/whisper    yuekai/icefall_asr_aishell_whisper exp_large_v2/whisper-large-v2-aishell1-epoch-10-avg-6.pt
-# For multi-hans fine-tuned whisper model
-# huggingface-cli download --local-dir models/whisper    yuekai/icefall_asr_multi-hans-zh_whisper v1.1/whisper-large-v2-multi-hans-zh-epoch-3-avg-10.pt
-
-huggingface-clie download  --local-dir models/qwen     Qwen/Qwen2-7B-Instruct
-
-mkdir -p whisper_llm_zh/exp_aishell_whisper_qwen2_1.5B
-ln -s models/checkpoint/epoch-10-avg-5.pt whisper_llm_zh/exp_aishell_whisper_qwen2_1.5B/epoch-999.pt
-
-python3 ./whisper_llm_zh/decode.py \
+python3 ./zipformer_llm_zh/decode.py \
   --max-duration 80 \
-  --exp-dir whisper_llm_zh/exp_aishell_whisper_qwen2_1.5B \
-  --speech-encoder-path-or-name models/whisper/exp_large_v2/whisper-large-v2-aishell1-epoch-10-avg-6.pt  \
+  --exp-dir zipformer_llm_zh/exp \
+  --speech-encoder-path-or-name models/zipformer/epoch-999.pt  \
   --llm-path-or-name models/qwen \
-  --epoch 999 --avg 1 \
+  --epoch 999 \
+  --avg 1 \
   --manifest-dir data/fbank \
   --use-flash-attn True \
-  --use-lora True --dataset aishell
+  --use-lora True \
+  --dataset aishell
 """
 
 import argparse
@@ -56,15 +43,22 @@ import k2
 import torch
 import torch.nn as nn
 import transformers
-import whisper
 from asr_datamodule import AsrDataModule
 from lhotse.cut import Cut
 from model import SPEECH_LLM, EncoderProjector
 from multi_dataset import MultiDataset
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
-from train import DEFAULT_SPEECH_TOKEN
+from train import (
+    DEFAULT_SPEECH_TOKEN,
+    _to_int_tuple,
+    add_model_arguments,
+    get_encoder_embed,
+    get_encoder_model,
+    get_params,
+    load_model_params,
+)
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from whisper_encoder_forward_monkey_patch import replace_whisper_encoder_forward
+from zipformer import Zipformer2
 
 from icefall.checkpoint import load_checkpoint
 from icefall.env import get_env_info
@@ -129,43 +123,6 @@ def average_checkpoints(
     return avg
 
 
-def add_model_arguments(parser: argparse.ArgumentParser):
-    parser.add_argument(
-        "--llm-path-or-name",
-        type=str,
-        default="/workspace/asr/Qwen1.5-0.5B-Chat",
-        help="Path or name of the large language model.",
-    )
-
-    parser.add_argument(
-        "--speech-encoder-path-or-name",
-        type=str,
-        default="whisper-large-v2",
-        help="Path or name of the speech encoder.",
-    )
-
-    parser.add_argument(
-        "--encoder-projector-ds-rate",
-        type=int,
-        default=8,
-        help="Downsample rate for the encoder projector.",
-    )
-
-    parser.add_argument(
-        "--use-flash-attn",
-        type=str2bool,
-        default=True,
-        help="Whether to use flash attention.",
-    )
-
-    parser.add_argument(
-        "--use-lora",
-        type=str2bool,
-        default=True,
-        help="Whether to use lora fine-tuned llm checkpoint.",
-    )
-
-
 def get_parser():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
@@ -207,15 +164,8 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="whisper/exp",
+        default="zipformer/exp",
         help="The experiment dir",
-    )
-
-    parser.add_argument(
-        "--remove-whisper-encoder-input-length-restriction",
-        type=str2bool,
-        default=True,
-        help="replace whisper encoder forward method to remove input length restriction",
     )
 
     parser.add_argument(
@@ -228,15 +178,6 @@ def get_parser():
 
     add_model_arguments(parser)
     return parser
-
-
-def get_params() -> AttributeDict:
-    params = AttributeDict(
-        {
-            "env_info": get_env_info(),
-        }
-    )
-    return params
 
 
 def decode_one_batch(
@@ -299,28 +240,13 @@ def decode_one_batch(
 
         return input_ids, attention_mask
 
-    dtype = torch.float32
     device = model.llm.device
 
     feature = batch["inputs"]
     assert feature.ndim == 3
-    feature = feature.to(device, dtype=dtype).transpose(1, 2)
-    if not params.remove_whisper_encoder_input_length_restriction:
-        T = 3000
-        if feature.shape[2] < T:
-            feature = torch.cat(
-                [
-                    feature,
-                    torch.zeros(
-                        feature.shape[0], feature.shape[1], T - feature.shape[2]
-                    ).to(device, dtype=dtype),
-                ],
-                2,
-            )
 
     supervisions = batch["supervisions"]
-    feature_len = supervisions["num_frames"]
-    feature_len = feature_len.to(device, dtype=dtype)
+    feature_lens = supervisions["num_frames"]
 
     messages = [
         [
@@ -332,7 +258,10 @@ def decode_one_batch(
     input_ids, attention_mask = preprocess(messages, tokenizer, max_len=128)
 
     generated_ids = model.decode(
-        feature, input_ids.to(device, dtype=torch.long), attention_mask.to(device)
+        feature.to(device),
+        feature_lens.to(device),
+        input_ids.to(device, dtype=torch.long),
+        attention_mask.to(device),
     )
     hyps = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
 
@@ -471,12 +400,15 @@ def main():
 
     logging.info(f"device: {device}")
 
-    if params.remove_whisper_encoder_input_length_restriction:
-        replace_whisper_encoder_forward()
+    speech_encoder_embed = get_encoder_embed(params)
+    speech_encoder = get_encoder_model(params)
+    load_model_params(
+        params.speech_encoder_path_or_name, speech_encoder_embed, "encoder_embed"
+    )
+    load_model_params(params.speech_encoder_path_or_name, speech_encoder, "encoder")
 
-    whisper_model = whisper.load_model(params.speech_encoder_path_or_name, "cpu")
-    speech_encoder = whisper_model.encoder
-    speech_encoder_dim = whisper_model.dims.n_audio_state
+    speech_encoder_dim = max(_to_int_tuple(params.encoder_dim))
+
     tokenizer = AutoTokenizer.from_pretrained(params.llm_path_or_name)
 
     if params.use_flash_attn:
@@ -528,6 +460,7 @@ def main():
     )
 
     model = SPEECH_LLM(
+        speech_encoder_embed,
         speech_encoder,
         llm,
         encoder_projector,
