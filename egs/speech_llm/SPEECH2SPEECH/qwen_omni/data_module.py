@@ -411,4 +411,42 @@ class AsrDataModule:
     @lru_cache()
     def train_cuts(self) -> CutSet:
         logging.info("About to get train cuts")
-        return load_manifest_lazy(self.args.manifest_dir / "cuts_belle_train.jsonl.gz")
+        slam_omni_zh_cuts = load_manifest_lazy(
+            self.args.manifest_dir / "cuts_belle_train.jsonl.gz"
+        )
+        return slam_omni_zh_cuts
+
+    @lru_cache()
+    def train_cuts_en_vocalnet(self) -> CutSet:
+        logging.info("About to get train cuts")
+        VoiceAssistant_cuts = load_manifest_lazy(
+            self.args.manifest_dir / "cuts_voice_assistant_00001-00049.jsonl.gz"
+        )
+        ultrachat_cuts = load_manifest_lazy(
+            self.args.manifest_dir / "cuts_ultrachat_train.jsonl.gz"
+        )
+        return CutSet.mux(
+            VoiceAssistant_cuts,
+            ultrachat_cuts,
+            weights=[
+                len(VoiceAssistant_cuts),
+                len(ultrachat_cuts),
+            ],
+        )
+
+    # valid cuts_voice_assistant.00000.jsonl.gz
+    @lru_cache()
+    def valid_cuts_en_vocalnet(self) -> CutSet:
+        logging.info("About to get valid cuts")
+        VoiceAssistant_cuts = load_manifest_lazy(
+            self.args.manifest_dir / "cuts_voice_assistant.00000.jsonl.gz"
+        )
+        return VoiceAssistant_cuts
+
+    @lru_cache()
+    def test_cuts_en_vocalnet(self) -> CutSet:
+        logging.info("About to get test cuts")
+        VoiceAssistant_cuts = load_manifest_lazy(
+            self.args.manifest_dir / "cuts_voice_assistant.00000.jsonl.gz"
+        )
+        return VoiceAssistant_cuts

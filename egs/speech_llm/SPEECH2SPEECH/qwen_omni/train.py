@@ -73,10 +73,9 @@ from whisper_encoder_forward_monkey_patch import replace_whisper_encoder_forward
 from icefall import diagnostics
 from icefall.dist import get_rank, get_world_size
 from icefall.env import get_env_info
-from icefall.utils import (
+from icefall.utils import (  # filter_uneven_sized_batch,
     AttributeDict,
     MetricsTracker,
-    filter_uneven_sized_batch,
     setup_logger,
     str2bool,
 )
@@ -222,6 +221,13 @@ def get_parser():
         default=False,
         help="Whether to unfreeze speech adaptor during training.",
     )
+
+    parser.add_argument(
+        "--dataset-format",
+        type=str,
+        default="slam_omni",
+        help="The format of the dataset.",
+    )
     parser = deepspeed.add_config_arguments(parser)
     add_model_arguments(parser)
 
@@ -269,6 +275,58 @@ def get_params() -> AttributeDict:
     )
 
     return params
+
+
+def process_batch_slam_omni(batch: dict):
+    answers = batch["supervisions"]["text"]
+    questions_with_history = [
+        cut.custom["question"] for cut in batch["supervisions"]["cut"]
+    ]
+    chat_rounds = [cut.custom["round"] for cut in batch["supervisions"]["cut"]]
+    answer_cosyvoice_speech_token = [
+        cut.custom["answer_cosyvoice_speech_token"]
+        for cut in batch["supervisions"]["cut"]
+    ]
+    last_questions = [
+        question.split("<USER>: ")[-1].strip() for question in questions_with_history
+    ]
+    history_contexts = [
+        question.rsplit("<USER>:", 1)[0].strip() for question in questions_with_history
+    ]
+
+    messages = []
+    for i, total_round in enumerate(chat_rounds):
+        message = []
+        if total_round > 1:
+            history_question_answer = history_contexts[i].split("USER:")
+            history_question_answer = [item for item in history_question_answer if item]
+            for j in range(total_round - 1):
+                question_answer = history_question_answer[j].split("ASSISTANT:")
+                message += [
+                    {"role": "user", "content": question_answer[0].strip()},
+                    {"role": "assistant", "content": question_answer[1].strip()},
+                ]
+        message += [
+            {"role": "user", "content": f"{DEFAULT_SPEECH_TOKEN}"},
+            {"role": "assistant", "content": answers[i]},
+        ]
+        messages.append(message)
+    return messages, answer_cosyvoice_speech_token
+
+
+def process_batch_vocalnet(batch: dict):
+    answers = batch["supervisions"]["text"]
+    answer_cosyvoice_speech_token = [
+        cut.custom["speech_token"] for cut in batch["supervisions"]["cut"]
+    ]
+    messages = []
+    for i in range(len(answers)):
+        message = [
+            {"role": "user", "content": f"{DEFAULT_SPEECH_TOKEN}"},
+            {"role": "assistant", "content": answers[i]},
+        ]
+        messages.append(message)
+    return messages, answer_cosyvoice_speech_token
 
 
 def compute_loss(
@@ -350,15 +408,16 @@ def compute_loss(
                 row = mask_indices[0][i]
                 col = mask_indices[1][i]
                 # + 6 to  skip: 'assistant', '\n' 151665, 151645,    198, 151644,  77091, 198
+                # WAR: TODO FIXME check qwen3
                 target_ids[row, : col + 6] = IGNORE_TOKEN_ID
 
         attention_mask = input_ids.ne(tokenizer.pad_token_id)
 
         return input_ids, attention_mask, target_ids
 
-    max_frames = params.max_duration * 1000 // params.frame_shift_ms
-    allowed_max_frames = int(max_frames * (1.0 + params.allowed_excess_duration_ratio))
-    batch = filter_uneven_sized_batch(batch, allowed_max_frames)
+    # max_frames = params.max_duration * 1000 // params.frame_shift_ms
+    # allowed_max_frames = int(max_frames * (1.0 + params.allowed_excess_duration_ratio))
+    # batch = filter_uneven_sized_batch(batch, allowed_max_frames)
 
     device = next(model.parameters()).device
     feature = batch["inputs"]
@@ -369,39 +428,13 @@ def compute_loss(
 
     batch_idx_train = params.batch_idx_train
 
-    answers = batch["supervisions"]["text"]
-    questions_with_history = [
-        cut.custom["question"] for cut in batch["supervisions"]["cut"]
-    ]
-    chat_rounds = [cut.custom["round"] for cut in batch["supervisions"]["cut"]]
-    answer_cosyvoice_speech_token = [
-        cut.custom["answer_cosyvoice_speech_token"]
-        for cut in batch["supervisions"]["cut"]
-    ]
-    last_questions = [
-        question.split("<USER>: ")[-1].strip() for question in questions_with_history
-    ]
-    history_contexts = [
-        question.rsplit("<USER>:", 1)[0].strip() for question in questions_with_history
-    ]
-
-    messages = []
-    for i, total_round in enumerate(chat_rounds):
-        message = []
-        if total_round > 1:
-            history_question_answer = history_contexts[i].split("USER:")
-            history_question_answer = [item for item in history_question_answer if item]
-        for j in range(total_round - 1):
-            question_answer = history_question_answer[j].split("ASSISTANT:")
-            message += [
-                {"role": "user", "content": question_answer[0].strip()},
-                {"role": "assistant", "content": question_answer[1].strip()},
-            ]
-        message += [
-            {"role": "user", "content": f"{DEFAULT_SPEECH_TOKEN}"},
-            {"role": "assistant", "content": answers[i]},
-        ]
-        messages.append(message)
+    # WAR: TODO FIXME merge process_batch_slam_omni and process_batch_vocalnet
+    if params.dataset_format == "slam_omni":
+        messages, answer_cosyvoice_speech_token = process_batch_slam_omni(batch)
+    elif params.dataset_format == "vocalnet":
+        messages, answer_cosyvoice_speech_token = process_batch_vocalnet(batch)
+    else:
+        raise ValueError(f"Unknown dataset format: {params.dataset_format}")
 
     input_ids, attention_mask, target_ids = preprocess(messages, tokenizer)
 
@@ -730,8 +763,12 @@ def run(rank, world_size, args):
         else:
             attn_implementation = "eager"
             torch_dtype = torch.float16
-
-        codec_vocab_size = 4096 + 4
+        if params.dataset_format == "slam_omni":
+            codec_vocab_size = 4096 + 4
+        elif params.dataset_format == "vocalnet":
+            codec_vocab_size = 6561 + 4
+        else:
+            raise ValueError(f"Unknown dataset format: {params.dataset_format}")
         # TODO: modify above vocab size or supress_tokens when decoding
         config = Qwen2Config(
             vocab_size=codec_vocab_size,
@@ -802,12 +839,16 @@ def run(rank, world_size, args):
         # You should use ../local/display_manifest_statistics.py to get
         # an utterance duration distribution for your dataset to select
         # the threshold
-        if c.duration < 1.0 or c.duration > 20.0:
+        if c.duration < 1.0 or c.duration > 30.0:
             # logging.warning(
             #    f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
             # )
             return False
-        codec_len = len(c.custom["answer_cosyvoice_speech_token"])
+        codec_len = (
+            len(c.custom["answer_cosyvoice_speech_token"])
+            if "answer_cosyvoice_speech_token" in c.custom
+            else len(c.custom["speech_token"])
+        )
         if codec_len > 2200:
             logging.warning(
                 f"Exclude cut with ID {c.id} from training. Duration: {c.duration}, lenth: {codec_len}"
@@ -815,9 +856,17 @@ def run(rank, world_size, args):
             return False
         return True
 
-    train_cuts = data_module.train_cuts()
+    if params.dataset_format == "slam_omni":
+        train_cuts = data_module.train_cuts()
+        valid_cuts = data_module.dev_cuts()
+    elif params.dataset_format == "vocalnet":
+        train_cuts = data_module.train_cuts_en_vocalnet()
+        valid_cuts = data_module.valid_cuts_en_vocalnet()
+    else:
+        raise ValueError(f"Unknown dataset format: {params.dataset_format}")
 
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
+    valid_cuts = valid_cuts.filter(remove_short_and_long_utt)
 
     sampler_state_dict = None
     if params.sampler_state_dict_path:
@@ -828,7 +877,6 @@ def run(rank, world_size, args):
         train_cuts, sampler_state_dict=sampler_state_dict
     )
 
-    valid_cuts = data_module.dev_cuts()
     valid_dl = data_module.valid_dataloaders(valid_cuts)
 
     if args.tensorboard and rank == 0:

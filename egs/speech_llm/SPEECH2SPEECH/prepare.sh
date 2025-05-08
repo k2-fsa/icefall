@@ -173,3 +173,22 @@ if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
    --audio-key audio --text-key text \
    --prefix gigaspeech
 fi
+
+
+ngpu=2
+exp_dir=./qwen_omni/exp_speech2speech_en
+if [ $stage -le 10 ] && [ $stop_stage -ge 10 ]; then
+  log "stage 10: Training Speech2Speech Model"
+  torchrun --nproc_per_node $ngpu ./qwen_omni/train.py \
+    --max-duration 50 \
+    --enable-musan False \
+    --exp-dir $exp_dir \
+    --speech-encoder-path-or-name models/large-v2.pt \
+    --llm-path-or-name Qwen/Qwen2.5-0.5B-Instruct \
+    --dataset-format vocalnet \
+    --manifest-dir data/fbank \
+    --deepspeed \
+    --deepspeed_config ./qwen_omni/ds_config_zero1.json \
+    --use-flash-attn True \
+    --use-lora True --unfreeze-llm True --unfreeze-speech-projector True --enable-speech-output True
+fi
