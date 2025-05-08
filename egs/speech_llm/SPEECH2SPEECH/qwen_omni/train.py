@@ -70,10 +70,10 @@ from transformers import (
 )
 from whisper_encoder_forward_monkey_patch import replace_whisper_encoder_forward
 
-from icefall import diagnostics
-from icefall.dist import get_rank, get_world_size
-from icefall.env import get_env_info
-from icefall.utils import (  # filter_uneven_sized_batch,
+# from icefall import diagnostics
+from utils import get_rank, get_world_size
+# from icefall.env import get_env_info
+from utils import (  # filter_uneven_sized_batch,
     AttributeDict,
     MetricsTracker,
     setup_logger,
@@ -270,7 +270,7 @@ def get_params() -> AttributeDict:
             "log_interval": 50,
             "reset_interval": 200,
             "valid_interval": 5000,
-            "env_info": get_env_info(),
+            # "env_info": get_env_info(),
         }
     )
 

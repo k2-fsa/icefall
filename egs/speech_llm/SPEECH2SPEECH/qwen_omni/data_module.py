@@ -48,7 +48,7 @@ from lhotse.utils import fix_random_seed
 from speech_dataset import K2SpeechRecognitionDataset
 from torch.utils.data import DataLoader
 
-from icefall.utils import str2bool
+from utils import str2bool
 
 
 class _SeedWorkers:
