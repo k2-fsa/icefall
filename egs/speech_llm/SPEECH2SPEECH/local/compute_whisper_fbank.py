@@ -35,6 +35,7 @@ from pathlib import Path
 import torch
 from datasets import load_dataset
 from lhotse import CutSet, LilcomChunkyWriter, WhisperFbank, WhisperFbankConfig
+from vocalnet_lhotse_cutset import LazyCustomDatasetIterator
 
 from icefall.utils import str2bool
 
@@ -105,7 +106,48 @@ def get_parser():
         default="belle",
         help="""The dataset prefix to use when saving the features""",
     )
+    parser.add_argument(
+        "--json-file-path",
+        type=str,
+        default=None,
+        help="The path to the json file containing the vocalnet data",
+    )
+    parser.add_argument(
+        "--drop-recordings",
+        type=str2bool,
+        default=True,
+        help="Drop recordings. Default: False.",
+    )
+    parser.add_argument(
+        "--subset",
+        type=str,
+        default=None,
+        help="The subset to use from the Huggingface dataset",
+    )
+    parser.add_argument(
+        "--split",
+        type=str,
+        default="train",
+        help="The split to use from the Huggingface dataset",
+    )
     return parser
+
+
+def remove_short_and_long_utt(c):
+    # Keep only utterances with duration between 1 second and 20 seconds
+    #
+    # Caution: There is a reason to select 20.0 here. Please see
+    # ../local/display_manifest_statistics.py
+    #
+    # You should use ../local/display_manifest_statistics.py to get
+    # an utterance duration distribution for your dataset to select
+    # the threshold
+    if c.duration < 1.0 or c.duration > 50.0:
+        # logging.warning(
+        #    f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
+        # )
+        return False
+    return True
 
 
 def compute_fbank(args):
@@ -130,11 +172,14 @@ def compute_fbank(args):
     logging.info(f"device: {device}")
 
     dataset = load_dataset(
-        args.huggingface_dataset_path_or_name, streaming=True, split="train"
+        args.huggingface_dataset_path_or_name,
+        args.subset,
+        streaming=True,
+        split=args.split,
     )
     num_shards = dataset.num_shards
     num_digits = 5
-    for i in range(num_shards):
+    for i in range(252, num_shards):
         shard = dataset.shard(num_shards, i)
         # shard = shard.take(10)  # for testing
         logging.info(
@@ -147,6 +192,64 @@ def compute_fbank(args):
             shard, audio_key=args.audio_key, text_key=args.text_key
         )
 
+        cut_set = cut_set.filter(remove_short_and_long_utt)
+        if args.resample_to_16kHz:
+            cut_set = cut_set.resample(16000)
+        if args.speed_perturb:
+            cut_set = cut_set + cut_set.perturb_speed(0.9) + cut_set.perturb_speed(1.1)
+
+        logging.info("Computing features")
+        cut_set = cut_set.compute_and_store_features_batch(
+            extractor=extractor,
+            storage_path=f"{in_out_dir}/feats_{idx}_{args.subset}",
+            num_workers=num_workers,
+            batch_duration=batch_duration,
+            storage_type=LilcomChunkyWriter,
+            overwrite=True,
+        )
+        # cut_set = cut_set.trim_to_supervisions(
+        #     keep_overlapping=False, min_duration=None
+        # )
+        cuts_path = f"{in_out_dir}/cuts_{args.prefix}.{idx}.{args.subset}.jsonl.gz"
+        logging.info(f"Saving to {cuts_path}")
+        # see https://github.com/lhotse-speech/lhotse/issues/1125
+        if args.drop_recordings:
+            cut_set.drop_recordings().to_file(cuts_path)
+        else:
+            cut_set.to_file(cuts_path)
+
+
+def compute_fbank_vocalnet(args):
+    in_out_dir = Path(args.out_dir)
+    in_out_dir.mkdir(parents=True, exist_ok=True)
+    # number of workers in dataloader
+    num_workers = 4
+
+    # number of seconds in a batch
+    batch_duration = 10
+
+    device = torch.device("cpu")
+    if torch.cuda.is_available():
+        device = torch.device("cuda", 0)
+    if args.whisper_fbank:
+        extractor = WhisperFbank(
+            WhisperFbankConfig(num_filters=args.num_mel_bins, device=device)
+        )
+    else:
+        raise NotImplementedError("Only WhisperFbank is implemented.")
+
+    logging.info(f"device: {device}")
+
+    num_shards = 50
+    num_digits = 5
+    for i in range(num_shards):
+        logging.info(f"Processing shard {i}")
+        idx = f"{i}".zfill(num_digits)
+        cut_set = CutSet(
+            LazyCustomDatasetIterator(
+                json_file_path=args.json_file_path, shard_id=i, num_shards=num_shards
+            )
+        )
         cut_set = cut_set.trim_to_supervisions(
             keep_overlapping=False, min_duration=None
         )
@@ -168,7 +271,7 @@ def compute_fbank(args):
         cuts_path = f"{in_out_dir}/cuts_{args.prefix}.{idx}.jsonl.gz"
         logging.info(f"Saving to {cuts_path}")
         # see https://github.com/lhotse-speech/lhotse/issues/1125
-        cut_set.drop_recordings().to_file(cuts_path)
+        cut_set.to_file(cuts_path)
 
 
 def main():
@@ -178,8 +281,10 @@ def main():
     parser = get_parser()
     args = parser.parse_args()
     logging.info(vars(args))
-
-    compute_fbank(args)
+    if args.json_file_path is not None:
+        compute_fbank_vocalnet(args)
+    else:
+        compute_fbank(args)
 
 
 if __name__ == "__main__":

@@ -120,3 +120,56 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
     --asr-model-dir local/sherpa-onnx-paraformer-zh-2023-09-14 \
     --use-lora True --token2wav-path /workspace/CosyVoice-300M-SFT --share
 fi
+
+if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
+  log "stage 1: Compute fbank feature from huggingface"
+  # CUDA_VISIBLE_DEVICES=0 python3 local/compute_whisper_fbank.py \
+  #  --num-mel-bins 80 --whisper-fbank True --resample-to-16kHz True --speed-perturb False \
+  #  --out-dir data/fbank_voice_assistant \
+  #  --huggingface-dataset-path-or-name worstchan/VoiceAssistant-400K-SLAM-Omni \
+  #  --audio-key question_audio --text-key answer \
+  #  --prefix voice_assistant
+  CUDA_VISIBLE_DEVICES=0 python3 local/compute_whisper_fbank.py \
+   --num-mel-bins 80 --whisper-fbank True --resample-to-16kHz True --speed-perturb False \
+   --out-dir data/fbank_voice_assistant_cosy2 \
+   --json-file-path /workspace/slam/VoiceAssistant-430K-vocalnet/VoiceAssistant-430K.json \
+   --prefix voice_assistant
+fi
+
+if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
+  log "stage 7: Compute fbank feature from huggingface"
+  # CUDA_VISIBLE_DEVICES=1 python3 local/compute_whisper_fbank.py \
+  #  --num-mel-bins 80 --whisper-fbank True --resample-to-16kHz True --speed-perturb False \
+  #  --out-dir data/fbank_ultrachat \
+  #  --huggingface-dataset-path-or-name worstchan/UltraChat-300K-SLAM-Omni \
+  #  --audio-key question_audio --text-key answer \
+  #  --prefix ultrachat
+  CUDA_VISIBLE_DEVICES=1 python3 local/compute_whisper_fbank.py \
+   --num-mel-bins 80 --whisper-fbank True --resample-to-16kHz True --speed-perturb False \
+   --out-dir data/fbank_ultrachat_cosy2 \
+   --json-file-path /workspace/slam/UltraChat-vocalnet/UltraChat.json \
+   --prefix ultrachat
+fi
+
+if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
+  log "stage 8: Compute fbank feature from huggingface"
+
+  CUDA_VISIBLE_DEVICES=1 python3 local/compute_whisper_fbank.py \
+   --num-mel-bins 80 --whisper-fbank True --resample-to-16kHz True --speed-perturb False \
+   --out-dir data/fbank_gigaspeech \
+   --huggingface-dataset-path-or-name speechcolab/gigaspeech \
+   --subset test --split test \
+   --audio-key audio --text-key text \
+   --prefix gigaspeech
+fi
+
+if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
+  log "stage 9: Compute fbank feature from huggingface"
+  CUDA_VISIBLE_DEVICES=0 python3 local/compute_whisper_fbank.py \
+   --num-mel-bins 80 --whisper-fbank True --resample-to-16kHz True --speed-perturb True \
+   --out-dir data/fbank_gigaspeech \
+   --huggingface-dataset-path-or-name speechcolab/gigaspeech \
+   --subset xl --split train \
+   --audio-key audio --text-key text \
+   --prefix gigaspeech
+fi
