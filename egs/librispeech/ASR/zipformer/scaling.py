@@ -587,7 +587,7 @@ class PredictLoss(nn.Module):
                  num_channels: int,
                  batch_dim: int = 0,
                  t: float = 0.2,
-                 num_repeats: int = 4):
+                 num_repeats: int = 2):
         super().__init__()
         num_hidden = max(1024, 2 * num_channels)
         self.predictor = nn.Sequential(nn.Linear(2 * num_channels, num_hidden),
