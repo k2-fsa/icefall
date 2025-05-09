@@ -575,7 +575,7 @@ def predict_loss(x: Tensor, predictor: nn.Module, proj_weight: Tensor,
         # is predicted, not the thing we predict it from.. the idea being that we don't want to ask
         # the model to predict masked portions of the time sequence.
         mask = torch.roll(mask, batch_size // 2, batch_dim)
-        loss = loss * mask
+        loss = loss * mask.unsqueeze(-1)
 
     return loss.sum()  # we reduce with sum in what we return.
 
