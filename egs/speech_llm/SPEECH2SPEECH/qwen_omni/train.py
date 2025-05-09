@@ -81,7 +81,10 @@ from utils import (  # filter_uneven_sized_batch,
 )
 
 DEFAULT_SPEECH_TOKEN = "<speech>"
-
+try:
+    torch.multiprocessing.set_start_method('spawn')
+except RuntimeError:
+    pass
 
 def set_batch_count(model: nn.Module, batch_count: float) -> None:
     for module in model.modules():

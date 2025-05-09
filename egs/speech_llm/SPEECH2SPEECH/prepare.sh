@@ -174,13 +174,13 @@ if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
    --prefix gigaspeech
 fi
 
-
-ngpu=2
+# cd /workspace && ln -s /lustre/fsw/general_sa/yuekaiz/s2s slam && cd -
+ngpu=4
 exp_dir=./qwen_omni/exp_speech2speech_en
 if [ $stage -le 10 ] && [ $stop_stage -ge 10 ]; then
   log "stage 10: Training Speech2Speech Model"
   torchrun --nproc_per_node $ngpu ./qwen_omni/train.py \
-    --max-duration 50 \
+    --max-duration 150 \
     --enable-musan False \
     --exp-dir $exp_dir \
     --speech-encoder-path-or-name models/large-v2.pt \
@@ -189,6 +189,6 @@ if [ $stage -le 10 ] && [ $stop_stage -ge 10 ]; then
     --manifest-dir data/fbank \
     --deepspeed \
     --deepspeed_config ./qwen_omni/ds_config_zero1.json \
-    --use-flash-attn True \
+    --use-flash-attn True --on-the-fly-feats True \
     --use-lora True --unfreeze-llm True --unfreeze-speech-projector True --enable-speech-output True
 fi
