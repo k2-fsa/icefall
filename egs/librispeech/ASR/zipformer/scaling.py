@@ -608,7 +608,7 @@ class PredictLoss(nn.Module):
         r = self.num_repeats
         return predict_loss(x.repeat(r, 1, 1), self.predictor, self.t,
                             self.batch_dim, self.name,
-                            mask.repeat(r, 1) if mask is not None else None)
+                            mask.repeat(r, 1) if mask is not None else None) / r
 
 
 
