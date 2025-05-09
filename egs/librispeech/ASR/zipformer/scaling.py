@@ -586,7 +586,8 @@ class PredictLoss(nn.Module):
     def __init__(self,
                  num_channels: int,
                  batch_dim: int = 0,
-                 t: float = 0.2):
+                 t: float = 0.2,
+                 num_repeats: int = 4):
         super().__init__()
         num_hidden = max(1024, 2 * num_channels)
         self.predictor = nn.Sequential(nn.Linear(2 * num_channels, num_hidden),
@@ -595,11 +596,19 @@ class PredictLoss(nn.Module):
         self.batch_dim = batch_dim
         self.name = None # will be set from training code
         self.t = t
+        self.num_repeats = num_repeats  # to reduce variance of gradient (since this module draws random values).
 
     def forward(self,
                 x: Tensor, mask: Optional[Tensor] = None) -> Tensor:
-        return predict_loss(x, self.predictor, self.t,
-                            self.batch_dim, self.name, mask)
+        # x is of shape (..., num_channels); mask is of shape (...), i.e.
+        # it matches x except is missing the last dim.
+        # CAUTION: the part with "repeats" actually assumes that the time dim
+        # is dim zero and batch dim is dim 1.
+        assert self.batch_dim == 1
+        r = self.num_repeats
+        return predict_loss(x.repeat(r, 1, 1), self.predictor, self.t,
+                            self.batch_dim, self.name,
+                            mask.repeat(r, 1) if mask is not None else None)
 
 
 
