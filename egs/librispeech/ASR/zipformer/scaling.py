@@ -534,7 +534,7 @@ def ScaledConv2d(*args, initial_scale: float = 1.0, **kwargs) -> nn.Conv2d:
     return ans
 
 
-def predict_loss(x: Tensor, predictor: nn.Module, t: float,
+def predict_loss(x: Tensor, predictor: nn.Module, proj_weight: Tensor,
                  batch_dim: int, name: str,
                  mask: Optional[Tensor]) -> Tensor:
     batch_size = x.shape[batch_dim]
@@ -553,21 +553,27 @@ def predict_loss(x: Tensor, predictor: nn.Module, t: float,
 
 
     with torch.no_grad():
-        x_swapped = torch.roll(x, batch_size // 2, batch_dim)
-        x_swapped = mean_and_variance_norm(x_swapped)
-        rand = torch.randn_like(x_swapped)
-        x_interp = (t * x_swapped) + (1 - t) * rand
-        u_t = x_swapped - rand  # reference "velocity"
+        # get the indexes.  project, then mean-and-variance-norm, then
+        # take mx.
+        x_proj = torch.matmul(x, proj_weight.t())
+        with torch.amp.autocast('cuda', enabled=False):
+            x_proj = mean_and_variance_norm(x_proj.to(torch.float))
+        indexes = torch.max(x_proj, dim=-1)[1]
 
-    v_t = predictor(torch.cat((x_interp, x), dim=-1))  # predicted "velocity"
 
-    loss = ((u_t - v_t) ** 2).mean(dim=-1)
+    indexes = torch.roll(indexes, batch_size // 2, batch_dim)  # predict index of the other masked copy.
+    x_pred = predictor(x)
+    logprobs = x_pred.log_softmax(dim=-1)
+    loss = -torch.gather(logprobs, dim=-1, index=indexes.unsqueeze(-1))
 
     if random.random() < 0.002:
         logging.info(f"predict_loss: name={name}, mean loss before scale = {loss.mean()}")
 
     if mask is not None:
         mask = mask.to(x.dtype)
+        # we also swap the mask over the two copies of the data; the mask goes with the thing that
+        # is predicted, not the thing we predict it from.. the idea being that we don't want to ask
+        # the model to predict masked portions of the time sequence.
         mask = torch.roll(mask, batch_size // 2, batch_dim)
         loss = loss * mask
 
@@ -575,39 +581,33 @@ def predict_loss(x: Tensor, predictor: nn.Module, t: float,
 
 class PredictLoss(nn.Module):
     """
-    Adds an auxiliary loss based on predicting the (noise - x) direction given two inputs:
-    the "x" value from the "other copy of the data", and the input ((1-t) * noise + t * x),
-    aas in flow matching.  So a pretext task based on flow matching.
-    The "t" value is specified by the user, strictly between 0 and 1; smaller "t" means more noise,
-    larger "t" means closer to x.  Smaller "t" will concentrate on the broader contours
-    of the distrbution.
+    Adds an auxiliary loss based on predicting the top-1 of randomized codebook
+    entries.    (This relies on the CR-CTC structure of having two differently-masked
+    copies of the same utterance).  Mean and variance normalization is applied prior to getting
+    the codebook indexes to keep this stable.
     """
     def __init__(self,
                  num_channels: int,
                  batch_dim: int = 0,
-                 t: float = 0.2,
-                 num_repeats: int = 2):
+                 codebook_size: int = 64):
         super().__init__()
-        num_hidden = max(1024, 2 * num_channels)
-        self.predictor = nn.Sequential(nn.Linear(2 * num_channels, num_hidden),
-                                       nn.LeakyReLU(),
-                                       nn.Linear(num_hidden, num_channels))
+        scale = num_channels ** -0.5
+        self.register_buffer('proj_weight',
+                             scale * torch.randn(codebook_size, num_channels),
+                             persistent=True)
+        num_hidden = max(1024, num_channels)
+        self.predictor = nn.Sequential(nn.Linear(num_channels, num_hidden),
+                                       SwashR(),
+                                       nn.Linear(num_hidden, codebook_size))
         self.batch_dim = batch_dim
         self.name = None # will be set from training code
-        self.t = t
-        self.num_repeats = num_repeats  # to reduce variance of gradient (since this module draws random values).
 
     def forward(self,
                 x: Tensor, mask: Optional[Tensor] = None) -> Tensor:
         # x is of shape (..., num_channels); mask is of shape (...), i.e.
         # it matches x except is missing the last dim.
-        # CAUTION: the part with "repeats" actually assumes that the time dim
-        # is dim zero and batch dim is dim 1.
-        assert self.batch_dim == 1
-        r = self.num_repeats
-        return predict_loss(x.repeat(r, 1, 1), self.predictor, self.t,
-                            self.batch_dim, self.name,
-                            mask.repeat(r, 1) if mask is not None else None) / r
+        return predict_loss(x, self.predictor, self.proj_weight,
+                            self.batch_dim, self.name, mask)
 
 
 
