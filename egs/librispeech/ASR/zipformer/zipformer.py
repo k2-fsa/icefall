@@ -231,6 +231,7 @@ class Zipformer2(EncoderInterface):
         x: Tensor,
         x_lens: Tensor,
         src_key_padding_mask: Optional[Tensor] = None,
+        specaug_mask: Optional[Tensor] = None,
     ) -> Tuple[Tensor, Tensor]:
         """
         Args:
@@ -278,6 +279,11 @@ class Zipformer2(EncoderInterface):
                         None
                         if src_key_padding_mask is None
                         else src_key_padding_mask[..., ::ds]
+                    ),
+                    specaug_mask=(
+                        None
+                        if specaug_mask is None
+                        else specaug_mask[..., ::ds]
                     ),
                     attn_mask=(None
                                if attn_mask is None
@@ -759,6 +765,7 @@ dropout:
         chunk_size: int = -1,
         attn_mask: Optional[Tensor] = None,
         src_key_padding_mask: Optional[Tensor] = None,
+        specaug_mask: Optional[Tensor] = None,
     ) -> Tensor:
         r"""Pass the input through the encoder layers in turn.
 
@@ -802,8 +809,16 @@ dropout:
             bypass = self.copy_bypass(bypass)
             src = torch.cat((src, bypass), dim=-1)
 
-        return src, self.predict_loss(src, (src_key_padding_mask.t().logical_not()
-                                            if src_key_padding_mask is not None else None))
+        if src_key_padding_mask is not None and specaug_mask is not None:
+            mask = torch.logical_and(src_key_padding_mask.t().logical_not(), specaug_mask.t().logical_not())
+        elif src_key_padding_mask is not None:
+            mask = src_key_padding_mask.t().logical_not()
+        elif specaug_mask is not None:
+            mask = specaug_mask.t().logical_not()
+        else:
+            mask = None
+
+        return src, self.predict_loss(src, mask)
 
     def streaming_forward(
         self,

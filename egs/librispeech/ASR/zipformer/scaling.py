@@ -552,9 +552,6 @@ def predict_loss(x: Tensor, predictor: nn.Module, t: float,
         return x
 
 
-    if mask is not None:
-        mask = mask.to(x.dtype)
-
     with torch.no_grad():
         x_swapped = torch.roll(x, batch_size // 2, batch_dim)
         x_swapped = mean_and_variance_norm(x_swapped)
@@ -570,6 +567,8 @@ def predict_loss(x: Tensor, predictor: nn.Module, t: float,
         logging.info(f"predict_loss: name={name}, mean loss before scale = {loss.mean()}")
 
     if mask is not None:
+        mask = mask.to(x.dtype)
+        mask = torch.roll(mask, batch_size // 2, batch_dim)
         loss = loss * mask
 
     return loss.sum()  # we reduce with sum in what we return.

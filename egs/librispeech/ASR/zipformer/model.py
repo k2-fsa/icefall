@@ -24,7 +24,7 @@ import torch.nn as nn
 from torch import Tensor
 from encoder_interface import EncoderInterface
 from lhotse.dataset import SpecAugment
-from scaling import ScaledLinear
+from scaling import ScaledLinear, convert_num_channels
 
 from icefall.utils import add_sos, make_pad_mask, time_warp
 
@@ -149,13 +149,20 @@ class AsrModel(nn.Module):
             Encoder output lengths, of shape (N,).
         """
         # logging.info(f"Memory allocated at entry: {torch.cuda.memory_allocated() // 1000000}M")
+        specaug_mask = (x[..., 0] == x[..., 1]) # (N, T)
+
         x, x_lens = self.encoder_embed(x, x_lens)
         # logging.info(f"Memory allocated after encoder_embed: {torch.cuda.memory_allocated() // 1000000}M")
 
-        src_key_padding_mask = make_pad_mask(x_lens)
+
+        src_key_padding_mask = make_pad_mask(x_lens)   # (N, T)
+        specaug_mask = specaug_mask[:, ::2]
+        assert abs(specaug_mask.shape[1] - src_key_padding_mask.shape[1]) < 10
+        specaug_mask = convert_num_channels(specaug_mask, src_key_padding_mask.shape[1])  # pad or truncate.  (N, T)
+
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
 
-        encoder_out, encoder_out_lens, predict_loss = self.encoder(x, x_lens, src_key_padding_mask)
+        encoder_out, encoder_out_lens, predict_loss = self.encoder(x, x_lens, src_key_padding_mask, specaug_mask=specaug_mask)
 
         encoder_out = encoder_out.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
         assert torch.all(encoder_out_lens > 0), (x_lens, encoder_out_lens)
@@ -547,5 +554,13 @@ class AsrModel(nn.Module):
         # helps to down-weight the effect of very silent silences.
         loss = torch.nn.functional.smooth_l1_loss(log_mels * pad_mask, pred_mels * pad_mask,
                                                   reduction='none', beta=1.0)
+
+        # masking.  if it's different from the next item on both the frequency dim
+        # and the time dim, it means we are in neither a time masked nor a frequency masked
+        # position.
+        mask = torch.logical_and(log_mels != torch.roll(log_mels, 1, dims=2),
+                                 log_mels != torch.roll(log_mels, 1, dims=1))
+        loss = loss * mask.to(loss.dtype)
+
         loss = loss.mean(dim=-1).sum()  # sum over all frames, but mean over mel bins.
         return loss
