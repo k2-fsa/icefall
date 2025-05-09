@@ -364,7 +364,7 @@ def get_parser():
     parser.add_argument(
         "--use-aishell",
         type=str2bool,
-        default=True,
+        default=False,
         help="Whether to only use aishell1 dataset for training.",
     )
 
