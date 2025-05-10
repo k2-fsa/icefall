@@ -98,7 +98,7 @@ class LibriLightDataModule:
         )
         group.add_argument(
             "--num-cuts-for-bins-estimate",
-            type=float,
+            type=int,
             default=1000000,
             help="We will draw this many cuts to estimate the duration"
             "bins for creating similar-duration buckets. Larger number"
