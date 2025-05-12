@@ -55,7 +55,8 @@ import torch
 import torch.nn as nn
 import transformers
 import whisper
-from cosyvoice.cli.cosyvoice import CosyVoice
+from cosyvoice.cli.cosyvoice import CosyVoice, CosyVoice2
+from cosyvoice.utils.file_utils import load_wav
 from data_module import AsrDataModule
 from lhotse.cut import Cut
 from model import SPEECH_LLM, EncoderProjector
@@ -73,6 +74,57 @@ from icefall.utils import (
 )
 
 sys.path.append("/workspace/CosyVoice/third_party/Matcha-TTS")
+
+
+def audio_decode_cosyvoice2(
+    audio_tokens, prompt_text, prompt_speech_path, codec_decoder
+):
+    """
+    Generate audio from tokens with optional tone and prompt embedding.
+
+    Args:
+        audio_tokens (list): List of audio tokens to be processed.
+        model_config: Configuration object containing vocab settings.
+        codec_decoder: Codec decoder for generating audio.
+        tone_dir (str): The tone directory or setting.
+        audio_prompt_path (str, optional): Path to the audio prompt file. Required when tone_dir is not "default_tone".
+        code_layer (int, optional): Number of code layers. Defaults to 1.
+        num_latency_tokens (int, optional): Number of latency tokens to ignore. Defaults to 0.
+        speed (float, optional): Speed factor for audio generation. Defaults to 1.0.
+
+    Returns:
+        torch.Tensor: Generated audio waveform.
+    """
+    prompt_speech_16k = load_wav(prompt_speech_path, 16000)
+    model_inputs_dict = codec_decoder.frontend.frontend_zero_shot(
+        "empty", prompt_text, prompt_speech_16k, 24000
+    )
+    tts_mel, _ = codec_decoder.model.flow.inference(
+        token=audio_tokens.to(codec_decoder.model.device),
+        token_len=torch.tensor([audio_tokens.shape[1]], dtype=torch.int32).to(
+            codec_decoder.model.device
+        ),
+        prompt_token=model_inputs_dict["flow_prompt_speech_token"].to(
+            codec_decoder.model.device
+        ),
+        prompt_token_len=torch.tensor(
+            [model_inputs_dict["flow_prompt_speech_token_len"]], dtype=torch.int32
+        ).to(codec_decoder.model.device),
+        prompt_feat=model_inputs_dict["prompt_speech_feat"].to(
+            codec_decoder.model.device
+        ),
+        prompt_feat_len=model_inputs_dict["prompt_speech_feat_len"].to(
+            codec_decoder.model.device
+        ),
+        embedding=model_inputs_dict["flow_embedding"].to(codec_decoder.model.device),
+        finalize=True,
+    )
+
+    audio_hat, _ = codec_decoder.model.hift.inference(
+        speech_feat=tts_mel, cache_source=torch.zeros(1, 1, 0)
+    )
+
+    return audio_hat
 
 
 def audio_decode_cosyvoice(audio_tokens, codec_decoder):
@@ -180,7 +232,9 @@ def get_model(params, device):
             attn_implementation = "eager"
             torch_dtype = torch.float16
 
-        codec_vocab_size = 4096 + 4
+        # TODO: FIX ME
+        # codec_vocab_size = 4096 + 4
+        codec_vocab_size = 6561 + 4
         config = Qwen2Config(
             vocab_size=codec_vocab_size,
             hidden_size=1024,
@@ -346,6 +400,20 @@ def get_parser():
         help="The path to the token2wav model",
     )
 
+    parser.add_argument(
+        "--prompt_text",
+        type=str,
+        default="Romeo and Juliet might be the most famous act of William Shakespeare.",
+        help="The prompt text",
+    )
+
+    parser.add_argument(
+        "--prompt_speech_path",
+        type=str,
+        default="./assets/common_voice_en_2586258.wav",
+        help="The path to the prompt speech",
+    )
+
     add_model_arguments(parser)
     return parser
 
@@ -437,36 +505,42 @@ def decode_one_batch(
                 2,
             )
 
-    chat_rounds = [cut.custom["round"] for cut in batch["supervisions"]["cut"]]
+    # chat_rounds = [cut.custom["round"] for cut in batch["supervisions"]["cut"]]
 
-    questions_with_history = [
-        cut.custom["question"] for cut in batch["supervisions"]["cut"]
-    ]
-    history_contexts = [
-        question.rsplit("<USER>:", 1)[0].strip() for question in questions_with_history
-    ]
-    last_questions = [
-        question.split("<USER>: ")[-1].strip() for question in questions_with_history
-    ]
+    # questions_with_history = [
+    #     cut.custom["question"] for cut in batch["supervisions"]["cut"]
+    # ]
+    # history_contexts = [
+    #     question.rsplit("<USER>:", 1)[0].strip() for question in questions_with_history
+    # ]
+    # last_questions = [
+    #     question.split("<USER>: ")[-1].strip() for question in questions_with_history
+    # ]
+    # messages = []
+    # for i, total_round in enumerate(chat_rounds):
+    #     message = []
+    #     if total_round > 1:
+    #         history_question_answer = history_contexts[i].split("USER:")
+    #         history_question_answer = [item for item in history_question_answer if item]
+    #     for j in range(total_round - 1):
+    #         question_answer = history_question_answer[j].split("ASSISTANT:")
+    #         message += [
+    #             {"role": "user", "content": question_answer[0].strip()},
+    #             {"role": "assistant", "content": question_answer[1].strip()},
+    #         ]
+    #     message += [
+    #         {"role": "user", "content": f"{DEFAULT_SPEECH_TOKEN}"},
+    #         {"role": "assistant", "content": ""},
+    #     ]
+    #     print(f"message: {message}, batch_size {len(chat_rounds)}")
+    #     messages.append(message)
     messages = []
-    for i, total_round in enumerate(chat_rounds):
-        message = []
-        if total_round > 1:
-            history_question_answer = history_contexts[i].split("USER:")
-            history_question_answer = [item for item in history_question_answer if item]
-        for j in range(total_round - 1):
-            question_answer = history_question_answer[j].split("ASSISTANT:")
-            message += [
-                {"role": "user", "content": question_answer[0].strip()},
-                {"role": "assistant", "content": question_answer[1].strip()},
-            ]
-        message += [
+    for i in range(len(batch["supervisions"]["cut"])):
+        message = [
             {"role": "user", "content": f"{DEFAULT_SPEECH_TOKEN}"},
             {"role": "assistant", "content": ""},
         ]
-        print(f"message: {message}, batch_size {len(chat_rounds)}")
         messages.append(message)
-
     input_ids, attention_mask = preprocess(messages, tokenizer)
     if params.enable_speech_output:
         generated_ids, generated_speech_output = model.decode_with_speech_output(
@@ -478,10 +552,19 @@ def decode_one_batch(
         ]  # WAR: only support batch = 1 for now
         for cut_id, audio_tokens in zip(cut_ids, generated_speech_output):
             speech_file_name = params.log_dir / f"{cut_id}.wav"
-            audio_tokens = [token for token in audio_tokens if token < 4096]
+            # audio_tokens = [token for token in audio_tokens if token < 4096]
             audio_tokens = torch.tensor(audio_tokens, dtype=torch.int32).unsqueeze(0)
-            audio_hat = audio_decode_cosyvoice(audio_tokens, token2wav_model)
-            sf.write(speech_file_name, audio_hat.squeeze(0).cpu().numpy(), 22050)
+            if "CosyVoice2" in params.token2wav_path:
+                audio_hat = audio_decode_cosyvoice2(
+                    audio_tokens,
+                    params.prompt_text,
+                    params.prompt_speech_path,
+                    token2wav_model,
+                )
+                sf.write(speech_file_name, audio_hat.squeeze(0).cpu().numpy(), 24000)
+            else:
+                audio_hat = audio_decode_cosyvoice(audio_tokens, token2wav_model)
+                sf.write(speech_file_name, audio_hat.squeeze(0).cpu().numpy(), 22050)
     else:
         generated_ids = model.decode(
             feature, input_ids.to(device, dtype=torch.long), attention_mask.to(device)
@@ -521,18 +604,14 @@ def decode_dataset(
 
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
-        answers = batch["supervisions"]["text"]
-        questions_with_history = [
-            cut.custom["question"] for cut in batch["supervisions"]["cut"]
-        ]
-        answer_cosyvoice_speech_token = [
-            cut.custom["answer_cosyvoice_speech_token"]
-            for cut in batch["supervisions"]["cut"]
-        ]
-        texts = [
-            question.split("<USER>: ")[-1].strip()
-            for question in questions_with_history
-        ]
+        texts = batch["supervisions"]["text"]
+        # questions_with_history = [
+        #     cut.custom["question"] for cut in batch["supervisions"]["cut"]
+        # ]
+        # texts = [
+        #     question.split("<USER>: ")[-1].strip()
+        #     for question in questions_with_history
+        # ]
         cut_ids = [cut.id for cut in batch["supervisions"]["cut"]]
 
         hyps_dict = decode_one_batch(
@@ -636,9 +715,14 @@ def main():
     logging.info(f"device: {device}")
 
     model, tokenizer = get_model(params, device)
-    token2wav_model = CosyVoice(
-        params.token2wav_path, load_jit=False, load_trt=False, fp16=False
-    )
+    if "CosyVoice2" in params.token2wav_path:
+        token2wav_model = CosyVoice2(
+            params.token2wav_path, load_jit=False, load_trt=False, fp16=False
+        )
+    else:
+        token2wav_model = CosyVoice(
+            params.token2wav_path, load_jit=False, load_trt=False, fp16=False
+        )
 
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
@@ -656,8 +740,9 @@ def main():
             return False
         return True
 
-    test_sets_cuts = data_module.test_cuts()
-
+    # TODO: FIX ME
+    # test_sets_cuts = data_module.test_cuts()
+    test_sets_cuts = data_module.test_cuts_en_vocalnet()
     test_sets = test_sets_cuts.keys()
     test_dls = [
         data_module.test_dataloaders(test_sets_cuts[cuts_name].filter(remove_long_utt))

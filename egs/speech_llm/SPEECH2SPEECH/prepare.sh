@@ -192,3 +192,22 @@ if [ $stage -le 10 ] && [ $stop_stage -ge 10 ]; then
     --use-flash-attn True --on-the-fly-feats True \
     --use-lora True --unfreeze-llm True --unfreeze-speech-projector True --enable-speech-output True
 fi
+
+
+if [ $stage -le 11 ] && [ $stop_stage -ge 11 ]; then
+  log "stage 11: Decoding EN, only support batch_size=1 for now."
+  exp_dir=./qwen_omni/exp_speech2speech_en_continue
+  # cd $exp_dir && ln -s ../../models/qwen-omni-like-speech2speech-belle-1.4M/pytorch_model.bin epoch-999.pt && cd -
+  python3 ./qwen_omni/decode.py \
+    --max-duration 1 \
+    --exp-dir $exp_dir \
+    --speech-encoder-path-or-name models/large-v2.pt  \
+    --llm-path-or-name models/Qwen2.5-0.5B-Instruct \
+    --epoch 997 --avg 1 \
+    --manifest-dir data/fbank \
+    --use-flash-attn True \
+    --method e2e-epoch4_speech2speech \
+    --enable-speech-output True \
+    --token2wav-path /workspace/CosyVoice2-0.5B \
+    --use-lora True
+fi

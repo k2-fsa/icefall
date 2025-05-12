@@ -47,8 +47,8 @@ from lhotse.dataset.input_strategies import (  # noqa F401 For AudioSamples
 from lhotse.utils import fix_random_seed
 from speech_dataset import K2SpeechRecognitionDataset
 from torch.utils.data import DataLoader
-
 from utils import str2bool
+
 
 class _SeedWorkers:
     def __init__(self, seed: int):
@@ -457,9 +457,10 @@ class AsrDataModule:
     def test_cuts_en_vocalnet(self) -> CutSet:
         logging.info("About to get test cuts")
         VoiceAssistant_cuts = load_manifest_lazy(
-            self.args.manifest_dir / "cuts_voice_assistant.00000.jsonl.gz"
+            self.args.manifest_dir / "cuts_voice_assistant_small.00000.jsonl.gz"
         )
-        return VoiceAssistant_cuts
+        return {"test": VoiceAssistant_cuts}
+
     # def train_cuts_en_vocalnet(self) -> CutSet:
     #     logging.info("About to get train cuts")
     #     VoiceAssistant_cuts = load_manifest_lazy(
