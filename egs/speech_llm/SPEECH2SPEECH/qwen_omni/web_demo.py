@@ -74,7 +74,8 @@ def get_model(params, device="cuda"):
         speech_encoder_dim, llm.config.hidden_size, params.encoder_projector_ds_rate
     )
 
-    codec_vocab_size = 4096 + 4
+    # codec_vocab_size = 4096 + 4
+    codec_vocab_size = 6561 + 4
     config = Qwen2Config(
         vocab_size=codec_vocab_size,
         hidden_size=1024,

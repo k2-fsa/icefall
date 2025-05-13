@@ -461,6 +461,15 @@ class AsrDataModule:
         )
         return {"test": VoiceAssistant_cuts}
 
+    def test_cuts_voicebench(
+        self,
+    ) -> CutSet:
+        logging.info("About to get test cuts")
+        VoiceAssistant_cuts = load_manifest_lazy(
+            self.args.manifest_dir / "cuts_voice_assistant_small.00000.jsonl.gz"
+        )
+        return {"test": VoiceAssistant_cuts}
+
     # def train_cuts_en_vocalnet(self) -> CutSet:
     #     logging.info("About to get train cuts")
     #     VoiceAssistant_cuts = load_manifest_lazy(

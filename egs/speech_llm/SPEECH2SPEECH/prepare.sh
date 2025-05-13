@@ -211,3 +211,49 @@ if [ $stage -le 11 ] && [ $stop_stage -ge 11 ]; then
     --token2wav-path /workspace/CosyVoice2-0.5B \
     --use-lora True
 fi
+
+
+if [ $stage -le 12 ] && [ $stop_stage -ge 12 ]; then
+  log "stage 12: Decoding EN voicebench"
+  exp_dir=./qwen_omni/exp_speech2speech_en_continue
+  torchrun --nproc_per_node=2 \
+   ./qwen_omni/decode_dist.py \
+    --output-dir $exp_dir/log_voicebench \
+    --speech-encoder-path-or-name models/large-v2.pt  \
+    --llm-path-or-name models/Qwen2.5-0.5B-Instruct \
+    --use-flash-attn True \
+    --enable-speech-output True \
+    --checkpoint-path $exp_dir/epoch-10-checkpoint-40000.pt/pytorch_model.bin \
+    --use-lora True --subset-name openbookqa --split-name test
+fi
+
+
+if [ $stage -le 13 ] && [ $stop_stage -ge 13 ]; then
+  log "stage 13: Server"
+  exp_dir=./qwen_omni/exp_speech2speech_en_continue
+  python3 ./qwen_omni/server.py \
+    --speech-encoder-path-or-name models/large-v2.pt  \
+    --llm-path-or-name models/Qwen2.5-0.5B-Instruct \
+    --checkpoint-path $exp_dir/epoch-10-checkpoint-40000.pt/pytorch_model.bin \
+    --use-flash-attn True \
+    --enable-speech-output True \
+    --use-lora True
+fi
+
+if [ $stage -le 14 ] && [ $stop_stage -ge 14 ]; then
+  log "stage 14: Client"
+  # datasets=(alpacaeval wildvoice mmsu advbench bbh ifeval commoneval obqa sd-qa)
+  datasets=(alpacaeval_full wildvoice mmsu advbench bbh ifeval sd-qa)
+  for dataset in ${datasets[@]}; do
+    # sd-qa should use usa split
+    if [ $dataset == "sd-qa" ]; then
+      split_name="usa"
+    else
+      split_name="test"
+    fi
+    echo $dataset $split_name
+    python3 ./qwen_omni/client.py \
+      --subset-name $dataset --split-name $split_name \
+      --output-dir test_result
+  done
+fi
