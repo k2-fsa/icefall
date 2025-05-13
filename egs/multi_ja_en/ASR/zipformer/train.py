@@ -791,7 +791,7 @@ def compute_loss(
     warm_step = params.warm_step
 
     texts = batch["supervisions"]["text"]
-        y = sentencepiece_processor.encode(texts, out_type=int)
+    y = sentencepiece_processor.encode(texts, out_type=int)
     y = k2.RaggedTensor(y)
 
     with torch.set_grad_enabled(is_training):
@@ -1120,7 +1120,7 @@ def run(rank, world_size, args):
 
     # <blk> is defined in local/prepare_lang_char.py
     params.blank_id = sentencepiece_processor.piece_to_id("<blk>")
-    params.vocab_size = sentencepiece_processor.get_piece_size()
+    arams.vocab_size = sentencepiece_processor.get_piece_size()
 
     if not params.use_transducer:
         params.ctc_loss_scale = 1.0
@@ -1185,12 +1185,15 @@ def run(rank, world_size, args):
     train_cuts = multi_dataset.train_cuts()
 
     def remove_short_and_long_utt(c: Cut):
-        # Keep only utterances greater than 1 second
+        # Keep only utterances with duration between 1 second and 30 seconds
+        #
+        # Caution: There is a reason to select 30.0 here. Please see
+        # ../local/display_manifest_statistics.py
         #
         # You should use ../local/display_manifest_statistics.py to get
         # an utterance duration distribution for your dataset to select
-        # the threshold as this is dependent on which datasets you choose
-        if c.duration < 1.0:
+        # the threshold
+        if c.duration < 1.0 or c.duration > 30.0:
             logging.warning(
                 f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
             )
