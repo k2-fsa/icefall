@@ -39,7 +39,7 @@ from torch.utils.data import DataLoader
 from icefall.utils import str2bool
 
 
-class ReazonSpeechAsrDataModule:
+class MultiDatasetAsrDataModule:
     """
     DataModule for k2 ASR experiments.
     It assumes there is always one train and valid dataloader,
@@ -333,23 +333,23 @@ class ReazonSpeechAsrDataModule:
         )
         return test_dl
 
-    @lru_cache()
-    def train_cuts(self) -> CutSet:
-        logging.info("About to get train cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "reazonspeech_cuts_train.jsonl.gz"
-        )
+    # @lru_cache()
+    # def train_cuts(self) -> CutSet:
+    #     logging.info("About to get train cuts")
+    #     return load_manifest_lazy(
+    #         self.args.manifest_dir / "reazonspeech_cuts_train.jsonl.gz"
+    #     )
 
-    @lru_cache()
-    def valid_cuts(self) -> CutSet:
-        logging.info("About to get dev cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "reazonspeech_cuts_dev.jsonl.gz"
-        )
+    # @lru_cache()
+    # def valid_cuts(self) -> CutSet:
+    #     logging.info("About to get dev cuts")
+    #     return load_manifest_lazy(
+    #         self.args.manifest_dir / "reazonspeech_cuts_dev.jsonl.gz"
+    #     )
 
-    @lru_cache()
-    def test_cuts(self) -> List[CutSet]:
-        logging.info("About to get test cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "reazonspeech_cuts_test.jsonl.gz"
-        )
+    # @lru_cache()
+    # def test_cuts(self) -> List[CutSet]:
+    #     logging.info("About to get test cuts")
+    #     return load_manifest_lazy(
+    #         self.args.manifest_dir / "reazonspeech_cuts_test.jsonl.gz"
+    #     )
