@@ -791,7 +791,7 @@ def compute_loss(
     warm_step = params.warm_step
 
     texts = batch["supervisions"]["text"]
-    y = sentencepiece_processor.encode(texts, out_type=int)
+        y = sentencepiece_processor.encode(texts, out_type=int)
     y = k2.RaggedTensor(y)
 
     with torch.set_grad_enabled(is_training):
@@ -1178,7 +1178,7 @@ def run(rank, world_size, args):
     if params.inf_check:
         register_inf_check_hooks(model)
 
-    multidataset_datamodule = MultiDatasetAsrDataModule(args)
+    reazonspeech_corpus = ReazonSpeechAsrDataModule(args)
 
     multi_dataset = MultiDataset(args)
 
@@ -1244,7 +1244,7 @@ def run(rank, world_size, args):
     )
 
     valid_cuts = multi_dataset.dev_cuts()
-    valid_dl = multidataset_datamodule.valid_dataloaders(valid_cuts)
+    valid_dl = reazonspeech_corpus.valid_dataloaders(valid_cuts)
 
     if not params.print_diagnostics:
         scan_pessimistic_batches_for_oom(
@@ -1386,7 +1386,7 @@ def scan_pessimistic_batches_for_oom(
 
 def main():
     parser = get_parser()
-    MultiDatasetAsrDataModule.add_arguments(parser)
+    ReazonSpeechAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 
