@@ -4,7 +4,7 @@ import json
 import os
 
 import requests
-from datasets import load_dataset
+from datasets import concatenate_datasets, load_dataset
 from tqdm import tqdm
 
 
@@ -31,7 +31,7 @@ def get_args():
     parser.add_argument(
         "--split-name",
         type=str,
-        default="test",  # Adjust as needed
+        default=None,  # Adjust as needed
         help="Dataset split name",
     )
     parser.add_argument(
@@ -51,13 +51,21 @@ def main():
     server_decode_url = f"{args.server_url}/decode"
 
     print("Loading dataset...")
-
-    dataset = load_dataset(
-        args.dataset_name,
-        args.subset_name,
-        split=args.split_name,
-        trust_remote_code=True,
-    )
+    if args.subset_name != "mmsu":
+        dataset = load_dataset(
+            args.dataset_name,
+            args.subset_name,
+            split=args.split_name,
+            trust_remote_code=True,
+        )
+    else:
+        # load all splits and concatenate them
+        dataset = load_dataset(
+            args.dataset_name,
+            args.subset_name,
+            trust_remote_code=True,
+        )
+        dataset = concatenate_datasets([dataset[subset] for subset in dataset])
 
     print(f"Dataset loaded with {len(dataset)} samples.")
     print(f"Sending requests to {server_decode_url}...")

@@ -242,8 +242,7 @@ fi
 
 if [ $stage -le 14 ] && [ $stop_stage -ge 14 ]; then
   log "stage 14: Client"
-  # datasets=(alpacaeval wildvoice mmsu advbench bbh ifeval commoneval obqa sd-qa)
-  datasets=(alpacaeval_full wildvoice mmsu advbench bbh ifeval sd-qa)
+  datasets=(alpacaeval wildvoice mmsu advbench bbh ifeval commoneval obqa sd-qa)
   for dataset in ${datasets[@]}; do
     # sd-qa should use usa split
     if [ $dataset == "sd-qa" ]; then
