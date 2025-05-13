@@ -66,7 +66,7 @@ import sentencepiece as spm
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
-from asr_datamodule import ReazonSpeechAsrDataModule
+from asr_datamodule import MultiDatasetAsrDataModule
 from decoder import Decoder
 from joiner import Joiner
 from lhotse.cut import Cut
@@ -272,7 +272,7 @@ def get_parser():
     parser.add_argument(
         "--bilingual",
         type=str2bool,
-        default=False,
+        default=True,
         help="Whether the model is bilingual or not. 1 = bilingual.",
     )
 
@@ -804,7 +804,8 @@ def compute_loss(
 
     texts = batch["supervisions"]["text"]
     if not params.bilingual:
-        y = tokenizer.encode(texts, out_type=int)
+        assert NotImplementedError("only bilingual training has been implemented")
+        # y = tokenizer.encode(texts, out_type=int)
     else:
         y = sentencepiece_processor.encode(texts, out_type=int)
     y = k2.RaggedTensor(y)
@@ -1147,9 +1148,10 @@ def run(rank, world_size, args):
     # <blk> is defined in local/prepare_lang_char.py
 
     if not params.bilingual:
-        tokenizer = Tokenizer.load(args.lang, args.lang_type)
-        params.blank_id = tokenizer.piece_to_id("<blk>")
-        params.vocab_size = tokenizer.get_piece_size()
+        assert NotImplementedError("only bilingual training has been implemented")
+        # tokenizer = Tokenizer.load(args.lang, args.lang_type)
+        # params.blank_id = tokenizer.piece_to_id("<blk>")
+        # params.vocab_size = tokenizer.get_piece_size()
     else:
         sentencepiece_processor = spm.SentencePieceProcessor()
         sentencepiece_processor.load(params.bpe_model)
@@ -1212,12 +1214,13 @@ def run(rank, world_size, args):
     if params.inf_check:
         register_inf_check_hooks(model)
 
-    reazonspeech_corpus = ReazonSpeechAsrDataModule(args)
+    multidataset_datamodule = MultiDatasetAsrDataModule(args)
     if params.bilingual:
         multi_dataset = MultiDataset(args)
         train_cuts = multi_dataset.train_cuts()
     else:
-        train_cuts = reazonspeech_corpus.train_cuts()
+        assert NotImplementedError("only bilingual training has been implemented")
+        # train_cuts = reazonspeech_corpus.train_cuts()
 
     def remove_short_and_long_utt(c: Cut):
         # Keep only utterances with duration between 1 second and 20 seconds
@@ -1242,6 +1245,7 @@ def run(rank, world_size, args):
         # for subsampling
         T = ((c.num_samples - 7) // 2 + 1) // 2
         if not params.bilingual:
+            assert NotImplementedError("only bilingual training has been implemented")
             tokens = tokenizer.encode(c.supervisions[0].text, out_type=str)
         else:
             tokens = sentencepiece_processor.encode(
@@ -1272,6 +1276,8 @@ def run(rank, world_size, args):
 
     if params.bilingual:
         train_cuts = train_cuts.map(tokenize_and_encode_text)
+    else:
+        assert NotImplementedError("only bilingual training has been implemented")
 
     if params.start_batch > 0 and checkpoints and "sampler" in checkpoints:
         # We only load the sampler's state dict when it loads a checkpoint
@@ -1280,15 +1286,20 @@ def run(rank, world_size, args):
     else:
         sampler_state_dict = None
 
-    train_dl = reazonspeech_corpus.train_dataloaders(
+    # train_dl = reazonspeech_corpus.train_dataloaders(
+    #     train_cuts, sampler_state_dict=sampler_state_dict
+    # )
+    train_dl = multidataset_datamodule.train_dataloaders(
         train_cuts, sampler_state_dict=sampler_state_dict
     )
 
     if params.bilingual:
-        valid_cuts = reazonspeech_corpus.valid_cuts()
-    else:
         valid_cuts = multi_dataset.dev_cuts()
-    valid_dl = reazonspeech_corpus.valid_dataloaders(valid_cuts)
+    else:
+        assert NotImplementedError("only bilingual training has been implemented")
+        # valid_cuts = multi_dataset.dev_cuts()
+        
+    valid_dl = multidataset_datamodule.valid_dataloaders(valid_cuts)
 
     if not params.print_diagnostics:
         scan_pessimistic_batches_for_oom(
@@ -1386,7 +1397,8 @@ def display_and_save_batch(
     if params.bilingual:
         y = sentencepiece_processor.encode(supervisions["text"], out_type=int)
     else:
-        y = tokenizer.encode(supervisions["text"], out_type=int)
+        assert NotImplementedError("only bilingual training has been implemented")
+        # y = tokenizer.encode(supervisions["text"], out_type=int)
     num_tokens = sum(len(i) for i in y)
     logging.info(f"num tokens: {num_tokens}")
 
@@ -1442,7 +1454,7 @@ def scan_pessimistic_batches_for_oom(
 
 def main():
     parser = get_parser()
-    ReazonSpeechAsrDataModule.add_arguments(parser)
+    MultiDatasetAsrDataModule.add_arguments(parser)
     Tokenizer.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
