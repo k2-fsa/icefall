@@ -112,9 +112,9 @@ if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
 fi
 
 
-
 if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
-  log "Stage 5: Prepare Byte BPE based lang"
+  log "Stage 5: Prepare Byte BPE based lang in data/lang"
+  lang_dir=data/lang
 
   # Check if required char-based lang data exists
   if [ ! -d ../../reazonspeech/ASR/data/lang_char ] && [ ! -d ./data/lang_char ]; then
@@ -123,25 +123,22 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   fi
 
   # Check if BPE data from MLS English exists
-  if [ ! -d ../../mls_english/ASR/data/lang ] ; then
-    log "Abort! Please run ../../mls_english/ASR/prepare.sh --stage 3 --stop-stage 3"
+  if [ ! -d ../../mls_english/ASR/data/lang/bpe_2000 ] || [ ! -f ../../mls_english/ASR/data/lang/transcript.txt ]; then
+    log "Abort! Please ensure ../../mls_english/ASR/data/lang/bpe_2000 and ../../mls_english/ASR/data/lang/transcript.txt exist."
+    log "Please run ../../mls_english/ASR/prepare.sh --stage 3 --stop-stage 3 if you haven't already."
     exit 1
   fi
 
-  cd data/
-  # Symlink the full lang directory from MLS English (which includes bpe_2000/ and transcript.txt)
-  if [ ! -d ./lang_bpe_2000 ]; then
-    ln -svf $(realpath ../../../mls_english/ASR/data/lang) lang_bpe_2000
-  fi
-  cd ../
+  # Create the target lang directory if it doesn't exist
+  mkdir -p $lang_dir
+
+  # Combine Japanese char-level text and English BPE transcript
+  cat data/lang_char/text ../../mls_english/ASR/data/lang/transcript.txt \
+    > $lang_dir/text
 
   for vocab_size in ${vocab_sizes[@]}; do
-    lang_dir=data/lang_bbpe_${vocab_size}
-    mkdir -p $lang_dir
-
-    # Combine Japanese char-level text and English BPE transcript
-    cat data/lang_char/text data/lang_bpe_2000/transcript.txt \
-      > $lang_dir/text
+    bbpe_dir=$lang_dir/bbpe_${vocab_size}
+    mkdir -p $bbpe_dir
 
     if [ ! -f $lang_dir/transcript_chars.txt ]; then
       ./local/prepare_for_bpe_model.py \
@@ -154,7 +151,7 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
         --input-file ./data/lang_char/text \
         --output-file $lang_dir/text_words_segmentation
 
-      cat ./data/lang_bpe_2000/transcript.txt \
+      cat ../../mls_english/ASR/data/lang/transcript.txt \
         >> $lang_dir/text_words_segmentation
     fi
 
@@ -167,11 +164,12 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
         --output-file $lang_dir/words.txt
     fi
 
-    if [ ! -f $lang_dir/bbpe.model ]; then
+    if [ ! -f $bbpe_dir/bbpe.model ]; then
       ./local/train_bbpe_model.py \
         --lang-dir $lang_dir \
         --vocab-size $vocab_size \
-        --transcript $lang_dir/text
+        --transcript $lang_dir/text \
+        --output-model $bbpe_dir/bbpe.model # Specify output path
     fi
 
     if [ ! -f $lang_dir/L_disambig.pt ]; then
@@ -181,9 +179,16 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
       ln -svf $(realpath ../../multi_zh_en/ASR/local/validate_bpe_lexicon.py) local/
       ./local/validate_bpe_lexicon.py \
         --lexicon $lang_dir/lexicon.txt \
-        --bpe-model $lang_dir/bbpe.model
+        --bpe-model $bbpe_dir/bbpe.model # Use the model in the bbpe subdir
     fi
+
+    rm -f $lang_dir/lexicon.txt $lang_dir/L_disambig.pt
   done
+
+  # Optionally, create a symlink for consistency if other parts of the recipe expect data/lang/bpe_2000
+  # if [ -d $lang_dir/bbpe_2000 ] && [ ! -e $lang_dir/bpe_2000 ]; then
+  #   ln -s bbpe_2000 $lang_dir/bpe_2000
+  # fi
 fi
 
 log "prepare.sh: PREPARATION DONE"
