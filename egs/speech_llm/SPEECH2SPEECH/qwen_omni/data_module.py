@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import torch
-from datasets import load_dataset
+from datasets import interleave_datasets, load_dataset
 from lhotse import (
     CutSet,
     WhisperFbank,
@@ -36,6 +36,7 @@ from lhotse.dataset import (  # noqa F401 for PrecomputedFeatures
     CutConcatenate,
     CutMix,
     DynamicBucketingSampler,
+    PerturbSpeed,
     PrecomputedFeatures,
     SimpleCutSampler,
     SpecAugment,
@@ -47,7 +48,7 @@ from lhotse.dataset.input_strategies import (  # noqa F401 For AudioSamples
 from lhotse.utils import fix_random_seed
 from speech_dataset import K2SpeechRecognitionDataset
 from torch.utils.data import DataLoader
-from utils import str2bool
+from utils import get_rank, str2bool
 
 
 class _SeedWorkers:
@@ -124,6 +125,14 @@ class AsrDataModule:
             "if available.",
         )
         group.add_argument(
+            "--on-the-fly-speed-perturb",
+            type=str2bool,
+            default=True,
+            help="When enabled, use on-the-fly speed perturbation. "
+            "Will drop existing precomputed feature manifests "
+            "if available.",
+        )
+        group.add_argument(
             "--shuffle",
             type=str2bool,
             default=True,
@@ -188,27 +197,27 @@ class AsrDataModule:
         group.add_argument(
             "--huggingface-dataset-path-or-name",
             type=str,
-            default="/workspace/Belle_1.4M-SLAM-Omni",
+            default=None,
             help="The path or name of the Huggingface dataset",
         )
         group.add_argument(
             "--audio-key",
             type=str,
-            default="question_audio",
+            default="audio",
             help="The key in the Huggingface dataset containing the audio data",
         )
         group.add_argument(
             "--text-key",
             type=str,
-            default="answer",
+            default="text",
             help="The key in the Huggingface dataset containing the text data",
         )
-        group.add_argument(
-            "--resample-to-16kHz",
-            type=str2bool,
-            default=True,
-            help="Resample audio to 16kHz. Default: False.",
-        )
+        # group.add_argument(
+        #     "--resample-to-16kHz",
+        #     type=str2bool,
+        #     default=True,
+        #     help="Resample audio to 16kHz. Default: False.",
+        # )
 
     def train_dataloaders(
         self,
@@ -232,6 +241,8 @@ class AsrDataModule:
             )
         else:
             logging.info("Disable MUSAN")
+        if self.args.on_the_fly_speed_perturb and self.args.on_the_fly_feats:
+            transforms = [PerturbSpeed(factors=[0.9, 1.1], p=2 / 3)] + transforms
 
         input_transforms = []
         if self.args.enable_spec_aug:
@@ -260,9 +271,11 @@ class AsrDataModule:
             logging.info("Disable SpecAugment")
 
         logging.info("About to create train dataset")
+        rank = get_rank()
+
         train = K2SpeechRecognitionDataset(
             input_strategy=OnTheFlyFeatures(
-                WhisperFbank(WhisperFbankConfig(num_filters=80, device="cuda"))
+                WhisperFbank(WhisperFbankConfig(num_filters=80, device=f"cuda:{rank}"))
             )
             if self.args.on_the_fly_feats
             else eval(self.args.input_strategy)(),
@@ -271,26 +284,6 @@ class AsrDataModule:
             return_cuts=self.args.return_cuts,
         )
 
-        # if self.args.on_the_fly_feats:
-        #     # NOTE: the PerturbSpeed transform should be added only if we
-        #     # remove it from data prep stage.
-        #     # Add on-the-fly speed perturbation; since originally it would
-        #     # have increased epoch size by 3, we will apply prob 2/3 and use
-        #     # 3x more epochs.
-        #     # Speed perturbation probably should come first before
-        #     # concatenation, but in principle the transforms order doesn't have
-        #     # to be strict (e.g. could be randomized)
-        #     # transforms = [PerturbSpeed(factors=[0.9, 1.1], p=2/3)] + transforms   # noqa
-        #     # Drop feats to be on the safe side.
-        #     train = K2SpeechRecognitionDataset(
-        #         cut_transforms=transforms,
-        #         input_strategy=OnTheFlyFeatures(
-        #             WhisperFbank(WhisperFbankConfig(num_filters=80, device="cuda"))
-        #         ),
-        #         input_transforms=input_transforms,
-        #         return_cuts=self.args.return_cuts,
-        #     )
-
         if self.args.bucketing_sampler:
             logging.info("Using DynamicBucketingSampler.")
             train_sampler = DynamicBucketingSampler(
@@ -298,8 +291,7 @@ class AsrDataModule:
                 max_duration=self.args.max_duration,
                 shuffle=self.args.shuffle,
                 num_buckets=self.args.num_buckets,
-                buffer_size=self.args.num_buckets * 2000,
-                shuffle_buffer_size=self.args.num_buckets * 5000,
+                buffer_size=self.args.num_buckets * 1000,
                 drop_last=self.args.drop_last,
             )
         else:
@@ -339,10 +331,10 @@ class AsrDataModule:
                 CutSet for validation.
         """
         logging.info("About to create dev dataset")
-
+        rank = get_rank()
         validate = K2SpeechRecognitionDataset(
             input_strategy=OnTheFlyFeatures(
-                WhisperFbank(WhisperFbankConfig(num_filters=80, device="cuda"))
+                WhisperFbank(WhisperFbankConfig(num_filters=80, device=f"cuda:{rank}"))
             )
             if self.args.on_the_fly_feats
             else eval(self.args.input_strategy)(),
@@ -470,25 +462,231 @@ class AsrDataModule:
         )
         return {"test": VoiceAssistant_cuts}
 
-    # def train_cuts_en_vocalnet(self) -> CutSet:
+    @lru_cache()
+    def train_cuts_ultravox(self) -> CutSet:
+        logging.info("About to get train cuts")
+        if self.args.huggingface_dataset_path_or_name is not None:
+            librispeech_path = (
+                self.args.huggingface_dataset_path_or_name + "/librispeech_asr"
+            )
+            people_speech_path = (
+                self.args.huggingface_dataset_path_or_name + "/peoples_speech"
+            )
+            gigaspeech_path = self.args.huggingface_dataset_path_or_name + "/gigaspeech"
+        else:
+            librispeech_path = "fixie-ai/librispeech_asr"
+            people_speech_path = "fixie-ai/peoples_speech"
+            gigaspeech_path = "fixie-ai/gigaspeech"
+        # 148_688
+        librispeech_other = load_dataset(
+            librispeech_path, "other", split="train.500", streaming=True
+        )
+        # 104_014
+        librispeech_clean_360 = load_dataset(
+            librispeech_path, "clean", split="train.360", streaming=True
+        )
+        # 28_539
+        librispeech_clean_100 = load_dataset(
+            librispeech_path, "clean", split="train.100", streaming=True
+        )
+
+        # 1_501_271
+        people_speech_clean = load_dataset(
+            people_speech_path, "clean", split="train", streaming=True
+        )
+        # 548_000
+        people_speech_dirty_sa = load_dataset(
+            people_speech_path, "dirty_sa", split="train", streaming=True
+        )
+
+        # 8_266_422
+
+        gigaspeech = load_dataset(
+            gigaspeech_path, "xl-empty-audio-removed", split="train", streaming=True
+        )
+
+        librispeech_clean_100_cuts = CutSet.from_huggingface_dataset(
+            librispeech_clean_100,
+            audio_key=self.args.audio_key,
+            text_key=self.args.text_key,
+        )
+
+        librispeech_other_cuts = CutSet.from_huggingface_dataset(
+            librispeech_other,
+            audio_key=self.args.audio_key,
+            text_key=self.args.text_key,
+        )
+
+        librispeech_clean_360_cuts = CutSet.from_huggingface_dataset(
+            librispeech_clean_360,
+            audio_key=self.args.audio_key,
+            text_key=self.args.text_key,
+        )
+
+        gigaspeech_cuts = CutSet.from_huggingface_dataset(
+            gigaspeech, audio_key=self.args.audio_key, text_key=self.args.text_key
+        )
+
+        people_speech_clean_cuts = CutSet.from_huggingface_dataset(
+            people_speech_clean,
+            audio_key=self.args.audio_key,
+            text_key=self.args.text_key,
+        )
+
+        people_speech_dirty_sa_cuts = CutSet.from_huggingface_dataset(
+            people_speech_dirty_sa,
+            audio_key=self.args.audio_key,
+            text_key=self.args.text_key,
+        )
+
+        return CutSet.mux(
+            librispeech_clean_100_cuts,
+            librispeech_clean_360_cuts,
+            librispeech_other_cuts,
+            gigaspeech_cuts,
+            people_speech_clean_cuts,
+            people_speech_dirty_sa_cuts,
+            weights=[
+                28539,
+                104014,
+                148688,
+                8266422,
+                1501271,
+                548000,
+            ],
+        )
+
+    # @lru_cache()
+    # def train_cuts_ultravox(self) -> CutSet:
     #     logging.info("About to get train cuts")
-    #     VoiceAssistant_cuts = load_manifest_lazy(
-    #         self.args.manifest_dir / "cuts_debug.jsonl.gz"
-    #     )
-    #     return VoiceAssistant_cuts
+    #     keep_columns = ["audio", "text", "continuation", "id"]
+    #     librispeech_path="fixie-ai/librispeech_asr"
+    #     # 148_688
+    #     librispeech_other = load_dataset(librispeech_path, 'other', split='train.500', streaming=True)
+    #     # 104_014
+    #     librispeech_clean_360 = load_dataset(librispeech_path, 'clean', split='train.360', streaming=True)
+    #     # 28_539
+    #     librispeech_clean_100 = load_dataset(librispeech_path, 'clean', split='train.100', streaming=True)
 
-    # @lru_cache()
-    # def valid_cuts_en_vocalnet(self) -> CutSet:
-    #     logging.info("About to get valid cuts")
-    #     VoiceAssistant_cuts = load_manifest_lazy(
-    #         self.args.manifest_dir / "cuts_debug.jsonl.gz"
-    #     )
-    #     return VoiceAssistant_cuts
+    #     cols_to_remove = librispeech_clean_100.column_names
+    #     cols_to_remove = [col for col in cols_to_remove if col not in keep_columns]
+    #     librispeech_clean_100 = librispeech_clean_100.remove_columns(cols_to_remove)
+    #     librispeech_clean_360 = librispeech_clean_360.remove_columns(cols_to_remove)
+    #     librispeech_other = librispeech_other.remove_columns(cols_to_remove)
+    #     people_speech_path="fixie-ai/peoples_speech"
+    #     # 1_501_271
+    #     people_speech_clean = load_dataset(people_speech_path, 'clean', split='train', streaming=True)
+    #     # 548_000
+    #     people_speech_dirty_sa = load_dataset(people_speech_path, 'dirty_sa', split='train', streaming=True)
+    #     cols_to_remove = people_speech_clean.column_names
+    #     cols_to_remove = [col for col in cols_to_remove if col not in keep_columns]
+    #     people_speech_clean = people_speech_clean.remove_columns(cols_to_remove)
+    #     people_speech_dirty_sa = people_speech_dirty_sa.remove_columns(cols_to_remove)
 
-    # @lru_cache()
-    # def test_cuts_en_vocalnet(self) -> CutSet:
-    #     logging.info("About to get test cuts")
-    #     VoiceAssistant_cuts = load_manifest_lazy(
-    #         self.args.manifest_dir / "cuts_debug.jsonl.gz"
+    #     # 8_266_422
+    #     gigaspeech_path="fixie-ai/gigaspeech"
+    #     gigaspeech = load_dataset(gigaspeech_path, 'xl-empty-audio-removed', split='train', streaming=True)
+    #     # first rename segment_id to id
+    #     gigaspeech = gigaspeech.rename_column("segment_id", "id")
+    #     cols_to_remove = gigaspeech.column_names
+    #     cols_to_remove = [col for col in cols_to_remove if col not in keep_columns]
+    #     gigaspeech = gigaspeech.remove_columns(cols_to_remove)
+
+    #     total_item = 104014 + 28539 + 8266422 + 1501271 + 548000 + 148688
+    #     final_datasets = interleave_datasets([
+    #         librispeech_clean_100,
+    #         librispeech_clean_360,
+    #         gigaspeech,
+    #         people_speech_clean,
+    #         people_speech_dirty_sa,
+    #         librispeech_other,
+    #     ], probabilities=[
+    #         28539 / total_item,
+    #         104014 / total_item,
+    #         8266422 / total_item,
+    #         1501271 / total_item,
+    #         548000 / total_item,
+    #         148688 / total_item,
+    #     ])
+
+    #     train_cuts = CutSet.from_huggingface_dataset(
+    #         final_datasets, audio_key=self.args.audio_key, text_key=self.args.text_key
     #     )
-    #     return VoiceAssistant_cuts
+
+    #     return train_cuts
+
+    @lru_cache()
+    def valid_cuts_ultravox(self) -> CutSet:
+        logging.info("About to get valid cuts")
+        librispeech_path = "fixie-ai/librispeech_asr"
+        librispeech_clean_valid = load_dataset(
+            librispeech_path, "clean", split="validation", streaming=True
+        )
+        librispeech_clean_valid_cuts = CutSet.from_huggingface_dataset(
+            librispeech_clean_valid,
+            audio_key=self.args.audio_key,
+            text_key=self.args.text_key,
+        )
+        return librispeech_clean_valid_cuts
+
+    @lru_cache()
+    def train_cuts_librispeech(self) -> CutSet:
+        logging.info("About to get train cuts")
+
+        # librispeech_path="fixie-ai/librispeech_asr"
+        librispeech_path = "/workspace/slam/librispeech_asr"
+        # 148_688
+        librispeech_other = load_dataset(
+            librispeech_path, "other", split="train.500", streaming=True
+        )
+        # 104_014
+        librispeech_clean_360 = load_dataset(
+            librispeech_path, "clean", split="train.360", streaming=True
+        )
+        # 28_539
+        librispeech_clean_100 = load_dataset(
+            librispeech_path, "clean", split="train.100", streaming=True
+        )
+
+        librispeech_clean_100_cuts = CutSet.from_huggingface_dataset(
+            librispeech_clean_100,
+            audio_key=self.args.audio_key,
+            text_key=self.args.text_key,
+        )
+
+        librispeech_other_cuts = CutSet.from_huggingface_dataset(
+            librispeech_other,
+            audio_key=self.args.audio_key,
+            text_key=self.args.text_key,
+        )
+
+        librispeech_clean_360_cuts = CutSet.from_huggingface_dataset(
+            librispeech_clean_360,
+            audio_key=self.args.audio_key,
+            text_key=self.args.text_key,
+        )
+
+        return CutSet.mux(
+            librispeech_clean_100_cuts,
+            librispeech_clean_360_cuts,
+            librispeech_other_cuts,
+            weights=[
+                28539,
+                104014,
+                148688,
+            ],
+        )
+
+    @lru_cache()
+    def train_cuts_gigaspeech(self) -> CutSet:
+        logging.info("About to get train cuts")
+        gigaspeech_path = "fixie-ai/gigaspeech"
+        gigaspeech = load_dataset(
+            gigaspeech_path, "xl-empty-audio-removed", split="train", streaming=True
+        )
+
+        gigaspeech_cuts = CutSet.from_huggingface_dataset(
+            gigaspeech, audio_key=self.args.audio_key, text_key=self.args.text_key
+        )
+
+        return gigaspeech_cuts

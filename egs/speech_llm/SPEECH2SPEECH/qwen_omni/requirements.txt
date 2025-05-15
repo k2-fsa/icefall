@@ -10,3 +10,4 @@ transformers>=4.37.0
 flash-attn
 peft
 torchmetrics
+triton==3.3.0 # may be violate with openai-whisper

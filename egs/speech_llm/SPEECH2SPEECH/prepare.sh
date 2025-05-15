@@ -122,7 +122,7 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
 fi
 
 if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
-  log "stage 1: Compute fbank feature from huggingface"
+  log "stage 6: Compute fbank feature from huggingface"
   # CUDA_VISIBLE_DEVICES=0 python3 local/compute_whisper_fbank.py \
   #  --num-mel-bins 80 --whisper-fbank True --resample-to-16kHz True --speed-perturb False \
   #  --out-dir data/fbank_voice_assistant \
@@ -161,10 +161,7 @@ if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then
    --subset test --split test \
    --audio-key audio --text-key text \
    --prefix gigaspeech
-fi
 
-if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
-  log "stage 9: Compute fbank feature from huggingface"
   CUDA_VISIBLE_DEVICES=0 python3 local/compute_whisper_fbank.py \
    --num-mel-bins 80 --whisper-fbank True --resample-to-16kHz True --speed-perturb True \
    --out-dir data/fbank_gigaspeech \
@@ -195,7 +192,7 @@ fi
 
 
 if [ $stage -le 11 ] && [ $stop_stage -ge 11 ]; then
-  log "stage 11: Decoding EN, only support batch_size=1 for now."
+  log "stage 11: Decoding EN, val set only support batch_size=1 for now."
   exp_dir=./qwen_omni/exp_speech2speech_en_continue
   # cd $exp_dir && ln -s ../../models/qwen-omni-like-speech2speech-belle-1.4M/pytorch_model.bin epoch-999.pt && cd -
   python3 ./qwen_omni/decode.py \
@@ -255,4 +252,72 @@ if [ $stage -le 14 ] && [ $stop_stage -ge 14 ]; then
       --subset-name $dataset --split-name $split_name \
       --output-dir test_result
   done
+fi
+
+
+if [ $stage -le 15 ] && [ $stop_stage -ge 15 ]; then
+  log "stage 15: Training Speech2Speech Model, adaptor only"
+  exp_dir=./qwen_omni/exp_speech2text
+  ngpu=2
+  torchrun --nproc_per_node $ngpu ./qwen_omni/train.py \
+    --max-duration 600 \
+    --enable-musan False \
+    --audio-key audio --text-key continuation \
+    --exp-dir $exp_dir \
+    --speech-encoder-path-or-name models/large-v2.pt \
+    --llm-path-or-name Qwen/Qwen2.5-0.5B-Instruct \
+    --on-the-fly-feats True \
+    --deepspeed \
+    --deepspeed_config ./qwen_omni/ds_config_zero1.json \
+    --use-flash-attn True \
+    --dataset-format speech_continuation \
+    --start-epoch 2 --pretrained-model-path $exp_dir/epoch-1/pytorch_model.bin \
+    --use-lora False --unfreeze-llm False --unfreeze-speech-projector True --enable-speech-output False
+fi
+
+if [ $stage -le 16 ] && [ $stop_stage -ge 16 ]; then
+  log "stage 16: Training Speech2Speech Model, adaptor only"
+  exp_dir=./qwen_omni/exp_speech2text
+  ngpu=4
+
+  latest_checkpoint_step=-1
+  # Check if exp_dir exists and is a directory
+  if [ -d "$exp_dir" ]; then
+    # List directories matching checkpoint-* and find the one with the largest step number
+    for checkpoint_dir in $(ls -d $exp_dir/checkpoint-*/ 2>/dev/null | sort -V); do
+      checkpoint_name=$(basename "$checkpoint_dir") # e.g., checkpoint-1000
+      # Extract step number using parameter expansion
+      current_step=${checkpoint_name#checkpoint-}
+      # Ensure current_step is a number
+      if [[ "$current_step" =~ ^[0-9]+$ ]] && [ "$current_step" -gt "$latest_checkpoint_step" ]; then
+        latest_checkpoint_step=$current_step
+      fi
+    done
+  fi
+
+  train_cmd_args="--max-duration 1200 \
+    --enable-musan False \
+    --audio-key audio --text-key continuation \
+    --exp-dir $exp_dir \
+    --speech-encoder-path-or-name models/large-v2.pt \
+    --llm-path-or-name Qwen/Qwen2.5-0.5B-Instruct \
+    --on-the-fly-feats True \
+    --deepspeed \
+    --huggingface-dataset-path-or-name /lustre/fsw/general_sa/yuekaiz/s2s \
+    --deepspeed_config ./qwen_omni/ds_config_zero1.json \
+    --use-flash-attn True \
+    --dataset-format speech_continuation \
+    --use-lora False --unfreeze-llm False --unfreeze-speech-projector True --enable-speech-output False"
+
+  if [ "$latest_checkpoint_step" -ge 0 ]; then
+    log "Continuing training from checkpoint-$latest_checkpoint_step"
+    step=$latest_checkpoint_step
+    train_cmd_args="$train_cmd_args --pretrained-model-path $exp_dir/checkpoint-${step}/pytorch_model.bin --sampler-state-dict-path $exp_dir/checkpoint-${step}/sampler.pt"
+  else
+    log "Starting training from scratch as no checkpoint was found in $exp_dir"
+    # No pretrained model or sampler state dict needed for the first run
+  fi
+
+  torchrun --nproc_per_node $ngpu ./qwen_omni/train.py \
+    $train_cmd_args
 fi

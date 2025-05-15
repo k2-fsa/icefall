@@ -68,23 +68,25 @@ from transformers import (
     Qwen2Config,
     Qwen2ForCausalLM,
 )
-from whisper_encoder_forward_monkey_patch import replace_whisper_encoder_forward
 
-# from icefall import diagnostics
-from utils import get_rank, get_world_size
 # from icefall.env import get_env_info
+# from icefall import diagnostics
 from utils import (  # filter_uneven_sized_batch,
     AttributeDict,
     MetricsTracker,
+    get_rank,
+    get_world_size,
     setup_logger,
     str2bool,
 )
+from whisper_encoder_forward_monkey_patch import replace_whisper_encoder_forward
 
 DEFAULT_SPEECH_TOKEN = "<speech>"
 try:
-    torch.multiprocessing.set_start_method('spawn')
+    torch.multiprocessing.set_start_method("spawn")
 except RuntimeError:
     pass
+
 
 def set_batch_count(model: nn.Module, batch_count: float) -> None:
     for module in model.modules():
@@ -272,7 +274,7 @@ def get_params() -> AttributeDict:
             "batch_idx_train": 0,
             "log_interval": 50,
             "reset_interval": 200,
-            "valid_interval": 5000,
+            "valid_interval": 3000,
             # "env_info": get_env_info(),
         }
     )
@@ -330,6 +332,21 @@ def process_batch_vocalnet(batch: dict):
         ]
         messages.append(message)
     return messages, answer_cosyvoice_speech_token
+
+
+def process_batch_speech_continuation(batch: dict):
+    messages = []
+    for i in range(len(batch["supervisions"]["text"])):
+        message = [
+            {
+                "role": "user",
+                "content": f"Continue the following text using less than 50 words:\n\n{DEFAULT_SPEECH_TOKEN}",
+            },
+            {"role": "assistant", "content": batch["supervisions"]["text"][i]},
+        ]
+        # transcript = batch["supervisions"]["cut"][i].custom["text"]
+        messages.append(message)
+    return messages
 
 
 def compute_loss(
@@ -429,13 +446,13 @@ def compute_loss(
     feature = feature.to(device)
     feature = feature.transpose(1, 2)  # (N, C, T)
 
-    batch_idx_train = params.batch_idx_train
-
     # WAR: TODO FIXME merge process_batch_slam_omni and process_batch_vocalnet
     if params.dataset_format == "slam_omni":
         messages, answer_cosyvoice_speech_token = process_batch_slam_omni(batch)
     elif params.dataset_format == "vocalnet":
         messages, answer_cosyvoice_speech_token = process_batch_vocalnet(batch)
+    elif params.dataset_format == "speech_continuation":
+        messages = process_batch_speech_continuation(batch)
     else:
         raise ValueError(f"Unknown dataset format: {params.dataset_format}")
 
@@ -566,8 +583,11 @@ def train_one_epoch(
         The rank of the node in DDP training. If no DDP is used, it should
         be set to 0.
     """
-    model.encoder_projector.train()
-
+    # model.encoder_projector.train()
+    model.train()
+    model.encoder.eval()
+    if not params.unfreeze_llm:
+        model.llm.eval()
     tot_loss = MetricsTracker()
 
     for batch_idx, batch in enumerate(train_dl):
@@ -583,6 +603,9 @@ def train_one_epoch(
                 world_size=world_size,
             )
             model.train()
+            model.encoder.eval()
+            if not params.unfreeze_llm:
+                model.llm.eval()
             logging.info(f"Epoch {params.cur_epoch}, validation: {valid_info}")
             logging.info(
                 f"Maximum memory allocated so far is {torch.cuda.max_memory_allocated()//1000000}MB"
@@ -594,7 +617,7 @@ def train_one_epoch(
             if batch_idx != 0:
                 model.save_checkpoint(
                     save_dir=params.exp_dir,
-                    tag=f"epoch-{params.cur_epoch}-checkpoint-{batch_idx}",
+                    tag=f"zero-checkpoint-{params.batch_idx_train}",
                     client_state={},
                     exclude_frozen_parameters=True,
                 )
@@ -602,18 +625,18 @@ def train_one_epoch(
                 if rank == 0:
                     convert_zero_checkpoint_to_fp32_state_dict(
                         params.exp_dir,
-                        f"{params.exp_dir}/epoch-{params.cur_epoch}-checkpoint-{batch_idx}.pt",
-                        tag=f"epoch-{params.cur_epoch}-checkpoint-{batch_idx}",
+                        f"{params.exp_dir}/checkpoint-{params.batch_idx_train}",
+                        tag=f"zero-checkpoint-{params.batch_idx_train}",
                         exclude_frozen_parameters=True,
                     )
                     # save sampler state dict into checkpoint
                     sampler_state_dict = train_dl.sampler.state_dict()
                     torch.save(
                         sampler_state_dict,
-                        f"{params.exp_dir}/epoch-{params.cur_epoch}-checkpoint-{batch_idx}-sampler.pt",
+                        f"{params.exp_dir}/checkpoint-{params.batch_idx_train}/sampler.pt",
                     )
                     os.system(
-                        f"rm -rf {params.exp_dir}/epoch-{params.cur_epoch}-checkpoint-{batch_idx}"
+                        f"rm -rf {params.exp_dir}/zero-checkpoint-{params.batch_idx_train}"
                     )
         try:
             with torch.amp.autocast("cuda", enabled=params.use_fp16):
@@ -687,9 +710,9 @@ def run(rank, world_size, args):
 
     fix_random_seed(params.seed)
 
-    setup_logger(f"{params.exp_dir}/log/log-train")
+    if rank == 0:
+        setup_logger(f"{params.exp_dir}/log/log-train")
     logging.info(params)
-
     logging.info("About to create model")
 
     replace_whisper_encoder_forward()
@@ -698,7 +721,6 @@ def run(rank, world_size, args):
     speech_encoder_dim = whisper_model.dims.n_audio_state
     for name, param in speech_encoder.named_parameters():
         param.requires_grad = False
-    speech_encoder.eval()
 
     tokenizer = AutoTokenizer.from_pretrained(params.llm_path_or_name)
 
@@ -721,7 +743,7 @@ def run(rank, world_size, args):
     if not params.unfreeze_llm:
         for name, param in llm.named_parameters():
             param.requires_grad = False
-        llm.eval()
+
     else:
         if params.use_lora:
             lora_config = LoraConfig(
@@ -809,6 +831,9 @@ def run(rank, world_size, args):
     if params.pretrained_model_path:
         checkpoint = torch.load(params.pretrained_model_path, map_location="cpu")
         missing_keys, unexpected_keys = model.load_state_dict(checkpoint, strict=False)
+        # set params.batch_idx_train according to the checkpoint name
+        if "checkpoint-" in params.pretrained_model_path:
+            params.batch_idx_train = int(params.pretrained_model_path.split("-")[-1])
 
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
@@ -842,21 +867,22 @@ def run(rank, world_size, args):
         # You should use ../local/display_manifest_statistics.py to get
         # an utterance duration distribution for your dataset to select
         # the threshold
-        if c.duration < 1.0 or c.duration > 30.0:
-            # logging.warning(
-            #    f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
-            # )
-            return False
-        codec_len = (
-            len(c.custom["answer_cosyvoice_speech_token"])
-            if "answer_cosyvoice_speech_token" in c.custom
-            else len(c.custom["speech_token"])
-        )
-        if codec_len > 2200:
+        if c.duration < 1.0 or c.duration > 29.5:
             logging.warning(
-                f"Exclude cut with ID {c.id} from training. Duration: {c.duration}, lenth: {codec_len}"
+                f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
             )
             return False
+        if "speech_token" in c.custom or "answer_cosyvoice_speech_token" in c.custom:
+            codec_len = (
+                len(c.custom["answer_cosyvoice_speech_token"])
+                if "answer_cosyvoice_speech_token" in c.custom
+                else len(c.custom["speech_token"])
+            )
+            if codec_len > 2200:
+                logging.warning(
+                    f"Exclude cut with ID {c.id} from training. Duration: {c.duration}, lenth: {codec_len}"
+                )
+                return False
         return True
 
     if params.dataset_format == "slam_omni":
@@ -865,6 +891,11 @@ def run(rank, world_size, args):
     elif params.dataset_format == "vocalnet":
         train_cuts = data_module.train_cuts_en_vocalnet()
         valid_cuts = data_module.valid_cuts_en_vocalnet()
+    elif params.dataset_format == "speech_continuation":
+        # train_cuts = data_module.train_cuts_ultravox()
+        # train_cuts = data_module.train_cuts_gigaspeech()
+        train_cuts = data_module.train_cuts_librispeech()
+        valid_cuts = data_module.valid_cuts_ultravox()
     else:
         raise ValueError(f"Unknown dataset format: {params.dataset_format}")
 
@@ -879,7 +910,7 @@ def run(rank, world_size, args):
     train_dl = data_module.train_dataloaders(
         train_cuts, sampler_state_dict=sampler_state_dict
     )
-
+    # train_dl = data_module.valid_dataloaders(train_cuts)
     valid_dl = data_module.valid_dataloaders(valid_cuts)
 
     if args.tensorboard and rank == 0:
@@ -913,25 +944,25 @@ def run(rank, world_size, args):
 
         model.save_checkpoint(
             save_dir=params.exp_dir,
-            tag=f"epoch-{params.cur_epoch}",
+            tag=f"zero-epoch-{params.cur_epoch}",
             client_state={},
             exclude_frozen_parameters=True,
         )
         if rank == 0:
             convert_zero_checkpoint_to_fp32_state_dict(
                 params.exp_dir,
-                f"{params.exp_dir}/epoch-{params.cur_epoch}.pt",
-                tag=f"epoch-{params.cur_epoch}",
+                f"{params.exp_dir}/epoch-{params.cur_epoch}",
+                tag=f"zero-epoch-{params.cur_epoch}",
                 exclude_frozen_parameters=True,
             )
             # save sampler state dict into checkpoint
             sampler_state_dict = train_dl.sampler.state_dict()
             torch.save(
                 sampler_state_dict,
-                f"{params.exp_dir}/epoch-{params.cur_epoch}-sampler.pt",
+                f"{params.exp_dir}/epoch-{params.cur_epoch}/sampler.pt",
             )
 
-            os.system(f"rm -rf {params.exp_dir}/epoch-{params.cur_epoch}")
+            os.system(f"rm -rf {params.exp_dir}/zero-epoch-{params.cur_epoch}")
 
     logging.info("Done!")
 
@@ -971,6 +1002,7 @@ def main():
 
     torch.set_num_threads(1)
     torch.set_num_interop_threads(1)
+    warnings.filterwarnings("ignore", category=FutureWarning)
     run(rank=rank, world_size=world_size, args=args)
 
 
