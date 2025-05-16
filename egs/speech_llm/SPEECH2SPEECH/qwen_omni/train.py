@@ -75,6 +75,7 @@ from utils import (  # filter_uneven_sized_batch,
     AttributeDict,
     MetricsTracker,
     get_rank,
+    get_local_rank,
     get_world_size,
     setup_logger,
     str2bool,
@@ -274,7 +275,7 @@ def get_params() -> AttributeDict:
             "batch_idx_train": 0,
             "log_interval": 50,
             "reset_interval": 200,
-            "valid_interval": 3000,
+            "valid_interval": 1000,
             # "env_info": get_env_info(),
         }
     )
@@ -844,7 +845,7 @@ def run(rank, world_size, args):
             logging.info(f"{name}: {param.shape}")
 
     if torch.cuda.is_available():
-        device = torch.device("cuda", rank)
+        device = torch.device("cuda", get_local_rank())
     else:
         device = torch.device("cpu")
     logging.info(f"Device: {device}")
@@ -867,10 +868,10 @@ def run(rank, world_size, args):
         # You should use ../local/display_manifest_statistics.py to get
         # an utterance duration distribution for your dataset to select
         # the threshold
-        if c.duration < 1.0 or c.duration > 25.0:
-            logging.warning(
-                f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
-            )
+        if c.duration < 0.8 or c.duration > 20.0:
+            # logging.warning(
+            #     f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
+            # )
             return False
         if "speech_token" in c.custom or "answer_cosyvoice_speech_token" in c.custom:
             codec_len = (

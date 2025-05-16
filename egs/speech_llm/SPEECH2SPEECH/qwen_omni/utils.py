@@ -38,6 +38,14 @@ def get_rank():
     else:
         return 0
 
+def get_local_rank():
+    if "LOCAL_RANK" in os.environ:
+        return int(os.environ["LOCAL_RANK"])
+    elif dist.is_available() and dist.is_initialized():
+        return dist.get_local_rank()
+    else:
+        return 0
+
 def str2bool(v):
     """Used in argparse.ArgumentParser.add_argument to indicate
     that a type is a bool type and user can enter

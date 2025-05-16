@@ -48,7 +48,7 @@ from lhotse.dataset.input_strategies import (  # noqa F401 For AudioSamples
 from lhotse.utils import fix_random_seed
 from speech_dataset import K2SpeechRecognitionDataset
 from torch.utils.data import DataLoader
-from utils import get_rank, str2bool
+from utils import get_local_rank, str2bool
 
 
 class _SeedWorkers:
@@ -271,7 +271,7 @@ class AsrDataModule:
             logging.info("Disable SpecAugment")
 
         logging.info("About to create train dataset")
-        rank = get_rank()
+        rank = get_local_rank()
 
         train = K2SpeechRecognitionDataset(
             input_strategy=OnTheFlyFeatures(
@@ -331,7 +331,7 @@ class AsrDataModule:
                 CutSet for validation.
         """
         logging.info("About to create dev dataset")
-        rank = get_rank()
+        rank = get_local_rank()
         validate = K2SpeechRecognitionDataset(
             input_strategy=OnTheFlyFeatures(
                 WhisperFbank(WhisperFbankConfig(num_filters=80, device=f"cuda:{rank}"))
