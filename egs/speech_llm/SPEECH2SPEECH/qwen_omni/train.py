@@ -867,7 +867,7 @@ def run(rank, world_size, args):
         # You should use ../local/display_manifest_statistics.py to get
         # an utterance duration distribution for your dataset to select
         # the threshold
-        if c.duration < 1.0 or c.duration > 29.0:
+        if c.duration < 1.0 or c.duration > 25.0:
             logging.warning(
                 f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
             )
@@ -892,9 +892,9 @@ def run(rank, world_size, args):
         train_cuts = data_module.train_cuts_en_vocalnet()
         valid_cuts = data_module.valid_cuts_en_vocalnet()
     elif params.dataset_format == "speech_continuation":
-        # train_cuts = data_module.train_cuts_ultravox()
+        train_cuts = data_module.train_cuts_ultravox()
         # train_cuts = data_module.train_cuts_gigaspeech()
-        train_cuts = data_module.train_cuts_librispeech()
+        # train_cuts = data_module.train_cuts_librispeech()
         valid_cuts = data_module.valid_cuts_ultravox()
     else:
         raise ValueError(f"Unknown dataset format: {params.dataset_format}")

@@ -632,9 +632,10 @@ class AsrDataModule:
     @lru_cache()
     def train_cuts_librispeech(self) -> CutSet:
         logging.info("About to get train cuts")
-
-        # librispeech_path="fixie-ai/librispeech_asr"
-        librispeech_path = "/workspace/slam/librispeech_asr"
+        if self.args.huggingface_dataset_path_or_name is not None:
+            librispeech_path = self.args.huggingface_dataset_path_or_name + "/librispeech_asr"
+        else:
+            librispeech_path = "fixie-ai/librispeech_asr"
         # 148_688
         librispeech_other = load_dataset(
             librispeech_path, "other", split="train.500", streaming=True
