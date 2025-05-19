@@ -295,7 +295,7 @@ if [ $stage -le 16 ] && [ $stop_stage -ge 16 ]; then
     done
   fi
 
-  train_cmd_args="--max-duration 1200 \
+  train_cmd_args="--max-duration 800 \
     --enable-musan False \
     --audio-key audio --text-key continuation \
     --exp-dir $exp_dir \
@@ -318,7 +318,7 @@ if [ $stage -le 16 ] && [ $stop_stage -ge 16 ]; then
     # No pretrained model or sampler state dict needed for the first run
   fi
 
-  torchrun --nproc_per_node $ngpu ./qwen_omni/train.py \
+  torchrun --nproc_per_node $ngpu --nnodes $SLURM_JOB_NUM_NODES --rdzv_endpoint $MASTER_ADDR:$MASTER_PORT --rdzv_backend c10d --rdzv_id $SLURM_JOBID ./qwen_omni/train.py \
     $train_cmd_args
 fi
 
