@@ -64,6 +64,8 @@ class SPEECH_LLM(nn.Module):
         encoder_projector: nn.Module,
         codec_lm: nn.Module = None,
         codec_lm_padding_side: str = "left",
+        teacher_llm: nn.Module = None,
+        kl_temperature: float = 2.0,
     ):
         super().__init__()
         self.encoder = encoder
@@ -92,6 +94,9 @@ class SPEECH_LLM(nn.Module):
                 multidim_average="global",
                 ignore_index=IGNORE_TOKEN_ID,
             )
+        if teacher_llm is not None:
+            self.teacher_llm = teacher_llm
+            self.kl_temperature = kl_temperature
 
     def _merge_input_ids_with_speech_features(
         self, speech_features, inputs_embeds, input_ids, attention_mask, labels=None
@@ -255,6 +260,67 @@ class SPEECH_LLM(nn.Module):
                 ignore_label=IGNORE_TOKEN_ID,
             )
         return model_outputs.loss, acc
+
+    def forward_kl_div(
+        self,
+        fbank: torch.Tensor = None,
+        input_ids: torch.LongTensor = None,
+        attention_mask: torch.Tensor = None,
+        labels: torch.LongTensor = None,
+        teacher_input_ids: torch.LongTensor = None,
+        teacher_attention_mask: torch.Tensor = None,
+        teacher_labels: torch.LongTensor = None,
+    ):
+        encoder_outs = self.encoder(fbank)
+
+        speech_features = self.encoder_projector(encoder_outs)
+
+        inputs_embeds = self.llm.get_input_embeddings()(input_ids)
+
+        (
+            inputs_embeds,
+            attention_mask,
+            labels,
+            _,
+        ) = self._merge_input_ids_with_speech_features(
+            speech_features, inputs_embeds, input_ids, attention_mask, labels
+        )
+
+        model_outputs = self.llm(
+            inputs_embeds=inputs_embeds, attention_mask=attention_mask, labels=labels
+        )
+
+        teacher_outputs = self.teacher_llm(
+            input_ids=teacher_input_ids,
+            attention_mask=teacher_attention_mask,
+        )
+
+        kl_loss = torch.nn.functional.kl_div(
+            torch.nn.functional.log_softmax(
+                model_outputs.logits[labels != -100] / self.kl_temperature,
+                dim=-1,
+            ),
+            torch.nn.functional.softmax(
+                teacher_outputs.logits[teacher_labels != -100] / self.kl_temperature,
+                dim=-1,
+            ),
+            reduction="batchmean",
+        )
+
+        with torch.no_grad():
+            preds = torch.argmax(model_outputs.logits, -1)
+            teacher_preds = torch.argmax(teacher_outputs.logits, -1)
+            acc = compute_accuracy(
+                preds.detach()[:, :-1],
+                labels.detach()[:, 1:],
+                ignore_label=IGNORE_TOKEN_ID,
+            )
+            acc_teacher = compute_accuracy(
+                teacher_preds.detach()[:, :-1],
+                teacher_labels.detach()[:, 1:],
+                ignore_label=IGNORE_TOKEN_ID,
+            )
+        return kl_loss, acc, acc_teacher
 
     def forward_with_speech_output(
         self,

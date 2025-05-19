@@ -239,7 +239,8 @@ fi
 
 if [ $stage -le 14 ] && [ $stop_stage -ge 14 ]; then
   log "stage 14: Client"
-  datasets=(alpacaeval wildvoice mmsu advbench bbh ifeval commoneval obqa sd-qa)
+  datasets=(alpacaeval_full wildvoice mmsu advbench bbh ifeval commoneval openbookqa sd-qa)
+  datasets=(openbookqa commoneval)
   for dataset in ${datasets[@]}; do
     # sd-qa should use usa split
     if [ $dataset == "sd-qa" ]; then
@@ -250,17 +251,16 @@ if [ $stage -le 14 ] && [ $stop_stage -ge 14 ]; then
     echo $dataset $split_name
     python3 ./qwen_omni/client.py \
       --subset-name $dataset --split-name $split_name \
-      --output-dir test_result
+      --output-dir result_adapter_librispeech_kl_div_qa_template
   done
 fi
-
 
 if [ $stage -le 15 ] && [ $stop_stage -ge 15 ]; then
   log "stage 15: Training Speech2Speech Model, adaptor only"
   exp_dir=./qwen_omni/exp_speech2text
   ngpu=2
   torchrun --nproc_per_node $ngpu ./qwen_omni/train.py \
-    --max-duration 600 \
+    --max-duration 700 \
     --enable-musan False \
     --audio-key audio --text-key continuation \
     --exp-dir $exp_dir \
@@ -271,7 +271,7 @@ if [ $stage -le 15 ] && [ $stop_stage -ge 15 ]; then
     --deepspeed_config ./qwen_omni/ds_config_zero1.json \
     --use-flash-attn True \
     --dataset-format speech_continuation \
-    --start-epoch 2 --pretrained-model-path $exp_dir/epoch-1/pytorch_model.bin \
+    --start-epoch 4 --pretrained-model-path $exp_dir/epoch-3/pytorch_model.bin \
     --use-lora False --unfreeze-llm False --unfreeze-speech-projector True --enable-speech-output False
 fi
 
@@ -320,4 +320,68 @@ if [ $stage -le 16 ] && [ $stop_stage -ge 16 ]; then
 
   torchrun --nproc_per_node $ngpu ./qwen_omni/train.py \
     $train_cmd_args
+fi
+
+
+if [ $stage -le 17 ] && [ $stop_stage -ge 17 ]; then
+  log "stage 17: Server for adapter only speech continuation"
+  exp_dir=./qwen_omni/exp_speech2text
+  python3 ./qwen_omni/server.py \
+    --speech-encoder-path-or-name models/large-v2.pt  \
+    --llm-path-or-name models/Qwen2.5-0.5B-Instruct \
+    --checkpoint-path $exp_dir/epoch-6/pytorch_model.bin \
+    --use-flash-attn True \
+    --enable-speech-output False \
+    --use-lora False --prompt-template continuation
+fi
+
+if [ $stage -le 18 ] && [ $stop_stage -ge 18 ]; then
+  log "stage 18: Training kl-div Speech2Speech Model, adaptor only"
+  exp_dir=./qwen_omni/exp_speech2text_kl
+  ngpu=2
+  torchrun --nproc_per_node $ngpu ./qwen_omni/train.py \
+    --max-duration 700 \
+    --enable-musan False \
+    --audio-key audio --text-key continuation \
+    --exp-dir $exp_dir \
+    --speech-encoder-path-or-name models/large-v2.pt \
+    --llm-path-or-name Qwen/Qwen2.5-0.5B-Instruct \
+    --on-the-fly-feats True \
+    --deepspeed \
+    --deepspeed_config ./qwen_omni/ds_config_zero1.json \
+    --use-flash-attn True \
+    --dataset-format speech_continuation \
+    --loss-type kl_div --dataset librispeech \
+    --pretrained-model-path $exp_dir/checkpoint-1001/pytorch_model.bin --sampler-state-dict-path $exp_dir/checkpoint-1001/sampler.pt \
+    --use-lora False --unfreeze-llm False --unfreeze-speech-projector True --enable-speech-output False
+fi
+
+if [ $stage -le 19 ] && [ $stop_stage -ge 19 ]; then
+  log "stage 19: Server for kl loss"
+  exp_dir=./qwen_omni/exp_speech2text_kl
+  python3 ./qwen_omni/server.py \
+    --speech-encoder-path-or-name models/large-v2.pt  \
+    --llm-path-or-name models/Qwen2.5-0.5B-Instruct \
+    --checkpoint-path $exp_dir/epoch-10/pytorch_model.bin \
+    --use-flash-attn True \
+    --enable-speech-output False \
+    --use-lora False --prompt-template qa
+fi
+
+if [ $stage -le 20 ] && [ $stop_stage -ge 20 ]; then
+  log "stage 20: Training Speech2Speech Model, adaptor + lora, second stage"
+  exp_dir=./qwen_omni/exp_speech2text_kl_llm
+  pretrained_dir=./qwen_omni/exp_speech2text_kl
+  ngpu=2
+  torchrun --nproc_per_node $ngpu ./qwen_omni/train.py \
+    --max-duration 200 \
+    --enable-musan False \
+    --exp-dir $exp_dir \
+    --speech-encoder-path-or-name models/large-v2.pt \
+    --llm-path-or-name Qwen/Qwen2.5-0.5B-Instruct \
+    --deepspeed \
+    --deepspeed_config ./qwen_omni/ds_config_zero1.json \
+    --use-flash-attn True \
+    --pretrained-model-path $pretrained_dir/epoch-10/pytorch_model.bin \
+    --use-lora True --unfreeze-llm True --unfreeze-speech-projector True --enable-speech-output False --dataset-format vocalnet
 fi

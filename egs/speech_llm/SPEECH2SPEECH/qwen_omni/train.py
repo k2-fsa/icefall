@@ -74,8 +74,8 @@ from transformers import (
 from utils import (  # filter_uneven_sized_batch,
     AttributeDict,
     MetricsTracker,
-    get_rank,
     get_local_rank,
+    get_rank,
     get_world_size,
     setup_logger,
     str2bool,
@@ -234,6 +234,21 @@ def get_parser():
         default="slam_omni",
         help="The format of the dataset.",
     )
+
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        default="multi_en",
+        help="The name of the dataset.",
+    )
+
+    parser.add_argument(
+        "--loss-type",
+        type=str,
+        default="ce",
+        help="The type of loss to use.",
+    )
+
     parser = deepspeed.add_config_arguments(parser)
     add_model_arguments(parser)
 
@@ -335,6 +350,22 @@ def process_batch_vocalnet(batch: dict):
     return messages, answer_cosyvoice_speech_token
 
 
+def process_batch_text_vocalnet(batch: dict):
+    pass
+    answers = batch["supervisions"]["text"]
+    answer_cosyvoice_speech_token = [
+        cut.custom["speech_token"] for cut in batch["supervisions"]["cut"]
+    ]
+    messages = []
+    for i in range(len(answers)):
+        message = [
+            {"role": "user", "content": f"{DEFAULT_SPEECH_TOKEN}"},
+            {"role": "assistant", "content": answers[i]},
+        ]
+        messages.append(message)
+    return messages, answer_cosyvoice_speech_token
+
+
 def process_batch_speech_continuation(batch: dict):
     messages = []
     for i in range(len(batch["supervisions"]["text"])):
@@ -348,6 +379,131 @@ def process_batch_speech_continuation(batch: dict):
         # transcript = batch["supervisions"]["cut"][i].custom["text"]
         messages.append(message)
     return messages
+
+
+def process_batch_text_continuation(batch: dict):
+    messages = []
+    for i in range(len(batch["supervisions"]["text"])):
+        transcript = batch["supervisions"]["cut"][i].custom["text"]
+        message = [
+            {
+                "role": "user",
+                "content": f"Continue the following text using less than 50 words:\n\n{transcript}{DEFAULT_SPEECH_TOKEN}",
+            },
+            {"role": "assistant", "content": batch["supervisions"]["text"][i]},
+        ]
+        messages.append(message)
+    return messages
+
+
+def preprocess(
+    messages,
+    tokenizer: transformers.PreTrainedTokenizer,
+) -> Dict:
+    """Preprocesses the data for supervised fine-tuning."""
+    texts = []
+    TEMPLATE = "{% for message in messages %}{{'<|im_start|>' + message['role'] + '\n' + message['content']}}{% if loop.last %}{{ '<|im_end|>'}}{% else %}{{ '<|im_end|>\n' }}{% endif %}{% endfor %}"
+    for i, msg in enumerate(messages):
+        texts.append(
+            tokenizer.apply_chat_template(
+                msg,
+                tokenize=True,
+                chat_template=TEMPLATE,
+                add_generation_prompt=False,
+                padding="longest",  # FIX me change padding to longest
+                truncation=False,
+            )
+        )
+    if len(texts) != len(messages):
+        logging.warning(f"Remove too long text, {messages} ")
+    max_len_texts = max([len(text) for text in texts])
+    if tokenizer.padding_side == "right":
+        texts = [
+            text + [tokenizer.pad_token_id] * (max_len_texts - len(text))
+            for text in texts
+        ]
+    else:
+        texts = [
+            [tokenizer.pad_token_id] * (max_len_texts - len(text)) + text
+            for text in texts
+        ]
+    input_ids = torch.tensor(texts, dtype=torch.int)
+
+    target_ids = input_ids.clone()
+    target_ids[target_ids == tokenizer.pad_token_id] = IGNORE_TOKEN_ID
+    # mask all tokens before token_id 151646 with IGNORE_TOKEN_ID
+    # first get the indices of the tokens
+    mask_prompt = True
+    if mask_prompt:
+        default_speech_token_id = tokenizer.convert_tokens_to_ids(DEFAULT_SPEECH_TOKEN)
+        mask_indices = torch.where(input_ids == default_speech_token_id)
+        for i in range(mask_indices[0].size(0)):
+            row = mask_indices[0][i]
+            col = mask_indices[1][i]
+            # + 6 to  skip: 'assistant', '\n' 151665, 151645,    198, 151644,  77091, 198
+            # WAR: TODO FIXME check qwen3
+            target_ids[row, : col + 6] = IGNORE_TOKEN_ID
+    attention_mask = input_ids.ne(tokenizer.pad_token_id)
+    return input_ids, attention_mask, target_ids
+
+
+def preprocess_teacher(
+    messages,
+    tokenizer: transformers.PreTrainedTokenizer,
+) -> Dict:
+    """Preprocesses the data for supervised fine-tuning."""
+    texts = []
+    TEMPLATE = "{% for message in messages %}{{'<|im_start|>' + message['role'] + '\n' + message['content']}}{% if loop.last %}{{ '<|im_end|>'}}{% else %}{{ '<|im_end|>\n' }}{% endif %}{% endfor %}"
+    for i, msg in enumerate(messages):
+        texts.append(
+            tokenizer.apply_chat_template(
+                msg,
+                tokenize=True,
+                chat_template=TEMPLATE,
+                add_generation_prompt=False,
+                padding="longest",  # FIX me change padding to longest
+                truncation=False,
+            )
+        )
+    if len(texts) != len(messages):
+        logging.warning(f"Remove too long text, {messages} ")
+    max_len_texts = max([len(text) for text in texts])
+    if tokenizer.padding_side == "right":
+        texts = [
+            text + [tokenizer.pad_token_id] * (max_len_texts - len(text))
+            for text in texts
+        ]
+    else:
+        texts = [
+            [tokenizer.pad_token_id] * (max_len_texts - len(text)) + text
+            for text in texts
+        ]
+    input_ids = torch.tensor(texts, dtype=torch.int)
+
+    target_ids = input_ids.clone()
+    target_ids[target_ids == tokenizer.pad_token_id] = IGNORE_TOKEN_ID
+    # mask all tokens before token_id <speech> with IGNORE_TOKEN_ID
+    # first get the indices of the tokens
+    mask_prompt = True
+    if mask_prompt:
+        default_speech_token_id = tokenizer.convert_tokens_to_ids(DEFAULT_SPEECH_TOKEN)
+        mask_indices = torch.where(input_ids == default_speech_token_id)
+        for i in range(mask_indices[0].size(0)):
+            row = mask_indices[0][i]
+            col = mask_indices[1][i]
+            # + 2 to  skip: 'assistant', '\n'
+            # WAR: TODO FIXME check qwen3
+            # THIS IS THE ONLY DIFFERENCE FROM preprocess
+            target_ids[row, : col + 6] = IGNORE_TOKEN_ID
+            target_ids[row, col] = default_speech_token_id
+    # remove default_speech_token_id from target_ids and input_ids
+    batch_size = target_ids.size(0)
+
+    target_ids = target_ids[target_ids != default_speech_token_id].view(batch_size, -1)
+    input_ids = input_ids[input_ids != default_speech_token_id].view(batch_size, -1)
+
+    attention_mask = input_ids.ne(tokenizer.pad_token_id)
+    return input_ids, attention_mask, target_ids
 
 
 def compute_loss(
@@ -374,72 +530,6 @@ def compute_loss(
     Returns:
         Return a tuple of two elements. The first element is the loss tensor.
     """
-    # For the uneven-sized batch, the total duration after padding would possibly
-    # cause OOM. Hence, for each batch, which is sorted descendingly by length,
-    # we simply drop the last few shortest samples, so that the retained total frames
-    # (after padding) would not exceed `allowed_max_frames`:
-    # `allowed_max_frames = int(max_frames * (1.0 + allowed_excess_duration_ratio))`,
-    # where `max_frames = max_duration * 1000 // frame_shift_ms`.
-    # We set allowed_excess_duration_ratio=0.1.
-
-    def preprocess(
-        messages,
-        tokenizer: transformers.PreTrainedTokenizer,
-    ) -> Dict:
-        """Preprocesses the data for supervised fine-tuning."""
-        texts = []
-        TEMPLATE = "{% for message in messages %}{{'<|im_start|>' + message['role'] + '\n' + message['content']}}{% if loop.last %}{{ '<|im_end|>'}}{% else %}{{ '<|im_end|>\n' }}{% endif %}{% endfor %}"
-        for i, msg in enumerate(messages):
-            texts.append(
-                tokenizer.apply_chat_template(
-                    msg,
-                    tokenize=True,
-                    chat_template=TEMPLATE,
-                    add_generation_prompt=False,
-                    padding="longest",  # FIX me change padding to longest
-                    truncation=False,
-                )
-            )
-        if len(texts) != len(messages):
-            logging.warning(f"Remove too long text, {messages} ")
-        max_len_texts = max([len(text) for text in texts])
-        if tokenizer.padding_side == "right":
-            texts = [
-                text + [tokenizer.pad_token_id] * (max_len_texts - len(text))
-                for text in texts
-            ]
-        else:
-            texts = [
-                [tokenizer.pad_token_id] * (max_len_texts - len(text)) + text
-                for text in texts
-            ]
-        input_ids = torch.tensor(texts, dtype=torch.int)
-
-        target_ids = input_ids.clone()
-        target_ids[target_ids == tokenizer.pad_token_id] = IGNORE_TOKEN_ID
-        # mask all tokens before token_id 151646 with IGNORE_TOKEN_ID
-        # first get the indices of the tokens
-        mask_prompt = True
-        if mask_prompt:
-            default_speech_token_id = tokenizer.convert_tokens_to_ids(
-                DEFAULT_SPEECH_TOKEN
-            )
-            mask_indices = torch.where(input_ids == default_speech_token_id)
-            for i in range(mask_indices[0].size(0)):
-                row = mask_indices[0][i]
-                col = mask_indices[1][i]
-                # + 6 to  skip: 'assistant', '\n' 151665, 151645,    198, 151644,  77091, 198
-                # WAR: TODO FIXME check qwen3
-                target_ids[row, : col + 6] = IGNORE_TOKEN_ID
-
-        attention_mask = input_ids.ne(tokenizer.pad_token_id)
-
-        return input_ids, attention_mask, target_ids
-
-    # max_frames = params.max_duration * 1000 // params.frame_shift_ms
-    # allowed_max_frames = int(max_frames * (1.0 + params.allowed_excess_duration_ratio))
-    # batch = filter_uneven_sized_batch(batch, allowed_max_frames)
-
     device = next(model.parameters()).device
     feature = batch["inputs"]
 
@@ -452,8 +542,12 @@ def compute_loss(
         messages, answer_cosyvoice_speech_token = process_batch_slam_omni(batch)
     elif params.dataset_format == "vocalnet":
         messages, answer_cosyvoice_speech_token = process_batch_vocalnet(batch)
+        if params.loss_type == "kl_div":
+            messages_text = process_batch_text_vocalnet(batch)
     elif params.dataset_format == "speech_continuation":
         messages = process_batch_speech_continuation(batch)
+        if params.loss_type == "kl_div":
+            messages_text = process_batch_text_continuation(batch)
     else:
         raise ValueError(f"Unknown dataset format: {params.dataset_format}")
 
@@ -464,12 +558,30 @@ def compute_loss(
 
     with torch.set_grad_enabled(is_training):
         if not params.enable_speech_output:
-            loss, acc = model(
-                fbank=feature,
-                input_ids=input_ids.to(device),
-                attention_mask=attention_mask.to(device),
-                labels=target_ids.to(device),
-            )
+            if params.loss_type == "ce":
+                loss, acc = model(
+                    fbank=feature,
+                    input_ids=input_ids.to(device),
+                    attention_mask=attention_mask.to(device),
+                    labels=target_ids.to(device),
+                )
+            elif params.loss_type == "kl_div":
+                (
+                    teacher_input_ids,
+                    teacher_attention_mask,
+                    teacher_target_ids,
+                ) = preprocess_teacher(messages_text, tokenizer)
+                loss, acc, acc_teacher = model.forward_kl_div(
+                    fbank=feature,
+                    input_ids=input_ids.to(device),
+                    attention_mask=attention_mask.to(device),
+                    labels=target_ids.to(device),
+                    teacher_input_ids=teacher_input_ids.to(device),
+                    teacher_attention_mask=teacher_attention_mask.to(device),
+                    teacher_labels=teacher_target_ids.to(device),
+                )
+            else:
+                raise ValueError(f"Unknown loss type: {params.loss_type}")
         else:
             (
                 text_loss,
@@ -498,6 +610,8 @@ def compute_loss(
     info["acc"] = (
         acc * info["frames"]
     )  # WAR: to avoid normalization by the number of frames
+    if params.loss_type == "kl_div":
+        info["acc_teacher"] = acc_teacher * info["frames"]
     if params.enable_speech_output:
         info["codec_acc"] = codec_acc * info["frames"]
         info["codec_topk_acc"] = codec_topk_acc * info["frames"]
@@ -820,6 +934,17 @@ def run(rank, world_size, args):
         codec_lm.config.mask_token_id = codec_vocab_size - 4
     else:
         codec_lm = None
+    if params.loss_type == "kl_div":
+        teacher_llm = AutoModelForCausalLM.from_pretrained(
+            params.llm_path_or_name,
+            attn_implementation=attn_implementation,
+            torch_dtype=torch_dtype,
+        )
+        for name, param in teacher_llm.named_parameters():
+            param.requires_grad = False
+        teacher_llm.eval()
+    else:
+        teacher_llm = None
 
     model = SPEECH_LLM(
         speech_encoder,
@@ -827,6 +952,7 @@ def run(rank, world_size, args):
         encoder_projector,
         codec_lm,
         codec_lm_padding_side="left" if params.use_flash_attn else "right",
+        teacher_llm=teacher_llm,
     )
 
     if params.pretrained_model_path:
@@ -834,7 +960,9 @@ def run(rank, world_size, args):
         missing_keys, unexpected_keys = model.load_state_dict(checkpoint, strict=False)
         # set params.batch_idx_train according to the checkpoint name
         if "checkpoint-" in params.pretrained_model_path:
-            params.batch_idx_train = int(params.pretrained_model_path.split("-")[-1])
+            params.batch_idx_train = int(
+                params.pretrained_model_path.split("-")[-1].split("/")[0]
+            )
 
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
@@ -893,9 +1021,14 @@ def run(rank, world_size, args):
         train_cuts = data_module.train_cuts_en_vocalnet()
         valid_cuts = data_module.valid_cuts_en_vocalnet()
     elif params.dataset_format == "speech_continuation":
-        train_cuts = data_module.train_cuts_ultravox()
-        # train_cuts = data_module.train_cuts_gigaspeech()
-        # train_cuts = data_module.train_cuts_librispeech()
+        if params.dataset == "multi_en":
+            train_cuts = data_module.train_cuts_ultravox()
+        elif params.dataset == "librispeech":
+            train_cuts = data_module.train_cuts_librispeech()
+        elif params.dataset == "gigaspeech":
+            train_cuts = data_module.train_cuts_gigaspeech()
+        else:
+            raise ValueError(f"Unknown dataset: {params.dataset}")
         valid_cuts = data_module.valid_cuts_ultravox()
     else:
         raise ValueError(f"Unknown dataset format: {params.dataset_format}")

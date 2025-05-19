@@ -21,6 +21,12 @@ def get_args():
         default=None,
         help="Checkpoint name or path, default to %(default)r",
     )
+    parser.add_argument(
+        "--prompt-template",
+        type=str,
+        default=None,
+        help="Prompt template",
+    )
     add_model_arguments(parser)
     args = parser.parse_args()
     return args
@@ -59,8 +65,23 @@ model, tokenizer = get_model(args)
 app = FastAPI()
 
 device = torch.device("cuda")
+if args.prompt_template is None:
+    template = f"{DEFAULT_SPEECH_TOKEN}"
+elif args.prompt_template == "qa":
+    template = f"Answer the following question:\n\n{DEFAULT_SPEECH_TOKEN}"
+elif args.prompt_template == "continuation":
+    template = f"Continue the following text using less than 50 words:\n\n{DEFAULT_SPEECH_TOKEN}"
+elif args.prompt_template == "asr":
+    template = (
+        f"Repeat the following text, without any explanation: {DEFAULT_SPEECH_TOKEN}"
+    )
+elif args.prompt_template == "mt":
+    template = f"Please translate the text to Chinese. Your response should only include the Chinese translation, without any additional words:\n\n{DEFAULT_SPEECH_TOKEN}"
+else:
+    raise ValueError(f"Invalid prompt template: {args.prompt_template}")
+print("Using template:", template)
 message = [
-    {"role": "user", "content": f"{DEFAULT_SPEECH_TOKEN}"},
+    {"role": "user", "content": template},
     {"role": "assistant", "content": ""},
 ]
 TEMPLATE = "{% for message in messages %}{{'<|im_start|>' + message['role'] + '\n' + message['content']}}{% if loop.last %}{{''}}{% else %}{{ '<|im_end|>\n' }}{% endif %}{% endfor %}"
