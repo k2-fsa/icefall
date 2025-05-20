@@ -27,6 +27,12 @@ def get_args():
         default=None,
         help="Prompt template",
     )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8001,
+        help="Port number",
+    )
     add_model_arguments(parser)
     args = parser.parse_args()
     return args
@@ -61,6 +67,7 @@ def preprocess_prompt(tokenizer):
 
 
 args = get_args()
+print(f"Using port: {args.port}")
 model, tokenizer = get_model(args)
 app = FastAPI()
 
@@ -121,4 +128,4 @@ async def decode_speech(request: SpeechRequest):
 
 if __name__ == "__main__":
     print("Starting server...")
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=args.port)
