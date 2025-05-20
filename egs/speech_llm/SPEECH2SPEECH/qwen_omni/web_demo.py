@@ -10,7 +10,7 @@ import sherpa_onnx
 import soundfile as sf
 import torch
 import whisper
-from cosyvoice.cli.cosyvoice import CosyVoice
+#from cosyvoice.cli.cosyvoice import CosyVoice
 from gradio_client import utils as client_utils
 from model import SPEECH_LLM, EncoderProjector
 from peft import LoraConfig, get_peft_model
