@@ -34,7 +34,7 @@ log "Starting MLS English data preparation"
 if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   log "Stage 0: Download MLS English dataset"
   if [ ! -d $dl_dir/mls_english ]; then
-    if ! git clone https://huggingface.co/datasets/parler-tts/mls_eng $dl_dir/mls_english; then
+    if ! git clone git@hf.co:datasets/parler-tts/mls_eng $dl_dir/mls_english; then
       log "Failed to download MLS English dataset"
       exit 1
     fi
