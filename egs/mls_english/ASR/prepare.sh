@@ -33,11 +33,27 @@ log "Starting MLS English data preparation"
 
 if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   log "Stage 0: Download MLS English dataset"
-  if [ ! -d $dl_dir/mls_english ]; then
-    if ! git clone git@hf.co:datasets/parler-tts/mls_eng $dl_dir/mls_english; then
-      log "Failed to download MLS English dataset"
+  # Check if huggingface_hub is installed
+  if ! python -c "import huggingface_hub" &> /dev/null; then
+    log "huggingface_hub Python library not found. Installing it now..."
+    # Using --break-system-packages for Debian/Ubuntu environments where pip install might fail without it
+    python -m pip install huggingface_hub || \
+    python -m pip install huggingface_hub --break-system-packages || { \
+        log "Failed to install huggingface_hub. Please install it manually: pip install huggingface_hub"; \
+        exit 1; \
+    }
+    log "huggingface_hub installed successfully."
+  fi
+
+  # Check if the dataset already exists to avoid re-downloading
+  if [ ! -d "$dl_dir/mls_english" ]; then
+    log "Dataset not found at $dl_dir/mls_english. Starting download..."
+    if ! python ./local/utils/download_mls_english.py --dl-dir "$dl_dir"; then
+      log "Failed to download MLS English dataset via download_mls_english.py"
       exit 1
     fi
+  else
+    log "Dataset already exists at $dl_dir/mls_english. Skipping download."
   fi
 fi
 
