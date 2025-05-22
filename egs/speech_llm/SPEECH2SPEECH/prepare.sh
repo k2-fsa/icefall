@@ -239,20 +239,57 @@ fi
 
 if [ $stage -le 14 ] && [ $stop_stage -ge 14 ]; then
   log "stage 14: Client"
-  datasets=(alpacaeval_full wildvoice mmsu advbench bbh ifeval commoneval openbookqa sd-qa)
-  datasets=(openbookqa commoneval)
-  for dataset in ${datasets[@]}; do
-    # sd-qa should use usa split
-    if [ $dataset == "sd-qa" ]; then
-      split_name="usa"
-    else
-      split_name="test"
-    fi
-    echo $dataset $split_name
-    python3 ./qwen_omni/client.py \
-      --subset-name $dataset --split-name $split_name \
-      --output-dir result_adapter_librispeech_kl_div_qa_template
+  exp_dir=./qwen_omni/exp_speech2text_first_libri_continuation_second_ce
+  # The final assignment of datasets in the original script is used here:
+  # (alpacaeval_full wildvoice mmsu advbench bbh ifeval commoneval openbookqa sd-qa)
+  declare -a target_datasets=("alpacaeval_full" "wildvoice" "ifeval" "commoneval" "openbookqa" "sd-qa" "advbench" "bbh" "mmsu")
+  declare -a target_datasets=("openbookqa" "ifeval" "sd-qa" "commoneval" "alpacaeval_full")
+
+  NUM_CLIENT_JOBS=4 # Number of parallel client jobs
+  BASE_PORT=8000    # Base port for servers
+
+  log "Starting $NUM_CLIENT_JOBS parallel client jobs to process ${#target_datasets[@]} datasets."
+
+  for job_id in $(seq 0 $(($NUM_CLIENT_JOBS - 1)))
+  do
+    ( # Start a subshell for backgrounding this client job's tasks
+      current_port=$(expr $BASE_PORT + $job_id)
+      log "Client Job $job_id: Initializing. Will connect to port $current_port."
+      
+      processed_count_for_this_job=0
+      # Iterate over all datasets using their indices
+      for i in "${!target_datasets[@]}"; do
+        # Assign dataset to job_id in a round-robin fashion
+        if [ $(($i % $NUM_CLIENT_JOBS)) -eq $job_id ]; then
+          dataset="${target_datasets[$i]}"
+          
+          # local split_name # Determine split_name based on dataset
+          if [ "$dataset" == "sd-qa" ]; then
+            split_name="usa"
+          else
+            split_name="test"
+          fi
+          
+          log "Client Job $job_id (Port $current_port): Processing dataset '$dataset' (split '$split_name')"
+          python3 ./qwen_omni/client.py \
+            --subset-name "$dataset" \
+            --split-name "$split_name" \
+            --output-dir "$exp_dir/results" \
+            --port "$current_port" # Assuming client.py accepts --port
+          
+          if [ $? -ne 0 ]; then
+            log "Client Job $job_id (Port $current_port): ERROR processing dataset '$dataset'."
+          fi
+          processed_count_for_this_job=$(($processed_count_for_this_job + 1))
+        fi
+      done
+      log "Client Job $job_id (Port $current_port): Finished. Processed $processed_count_for_this_job datasets."
+    ) & # Run this client job's subshell in the background
   done
+
+  log "All client jobs launched. Waiting for completion..."
+  wait # Wait for all backgrounded client jobs to complete
+  log "All client jobs have completed."
 fi
 
 if [ $stage -le 15 ] && [ $stop_stage -ge 15 ]; then
@@ -324,15 +361,26 @@ fi
 
 
 if [ $stage -le 17 ] && [ $stop_stage -ge 17 ]; then
+  # pip install gradio sherpa-onnx
   log "stage 17: Server for adapter only speech continuation"
-  exp_dir=./qwen_omni/exp_speech2text
-  python3 ./qwen_omni/server.py \
-    --speech-encoder-path-or-name models/large-v2.pt  \
-    --llm-path-or-name models/Qwen2.5-0.5B-Instruct \
-    --checkpoint-path $exp_dir/epoch-6/pytorch_model.bin \
-    --use-flash-attn True \
-    --enable-speech-output False \
-    --use-lora False --prompt-template continuation
+  exp_dir=./qwen_omni/exp_speech2text_first_libri_continuation_second_ce
+
+  N_GPUS=4 # Define the number of GPUs/processes you want to launch
+
+  for id in $(seq 0 $(($N_GPUS - 1)))
+  do
+    log "Launching server on GPU $id with port $(expr 8000 + $id)"
+    CUDA_VISIBLE_DEVICES=$id python3 ./qwen_omni/server.py \
+      --speech-encoder-path-or-name models/large-v2.pt  \
+      --llm-path-or-name models/Qwen2.5-0.5B-Instruct \
+      --checkpoint-path $exp_dir/epoch-10/pytorch_model.bin \
+      --use-flash-attn True \
+      --enable-speech-output False \
+      --port $(expr 8000 + $id) \
+      --use-lora True &
+  done
+
+  wait # Wait for all background processes to complete
 fi
 
 if [ $stage -le 18 ] && [ $stop_stage -ge 18 ]; then

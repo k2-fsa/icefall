@@ -13,8 +13,14 @@ def get_args():
     parser.add_argument(
         "--server-url",
         type=str,
-        default="http://localhost:8000",
+        default="http://localhost",
         help="URL of the FastAPI server",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8000,
+        help="Port of the FastAPI server",
     )
     parser.add_argument(
         "--dataset-name",
@@ -48,7 +54,7 @@ def main():
         args.output_dir,
         f"{args.subset_name}-{args.split_name}.jsonl",
     )
-    server_decode_url = f"{args.server_url}/decode"
+    server_decode_url = f"{args.server_url}:{args.port}/decode"
 
     print("Loading dataset...")
     if args.subset_name != "mmsu":

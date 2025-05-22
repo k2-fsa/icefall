@@ -380,6 +380,19 @@ def process_batch_speech_continuation(batch: dict):
         messages.append(message)
     return messages
 
+def process_batch_asr(batch: dict):
+    messages = []
+    for i in range(len(batch["supervisions"]["text"])):
+        transcript = batch["supervisions"]["cut"][i].custom["text"]
+        message = [
+            {
+                "role": "user",
+                "content": f"Transcribe the following audio into text:\n\n{DEFAULT_SPEECH_TOKEN}",
+            },
+            {"role": "assistant", "content": transcript},
+        ]
+        messages.append(message)
+    return messages
 
 def process_batch_text_continuation(batch: dict):
     messages = []
@@ -548,6 +561,8 @@ def compute_loss(
         messages = process_batch_speech_continuation(batch)
         if params.loss_type == "kl_div":
             messages_text = process_batch_text_continuation(batch)
+    elif params.dataset_format == "asr":
+        messages = process_batch_asr(batch)
     else:
         raise ValueError(f"Unknown dataset format: {params.dataset_format}")
 
@@ -1020,7 +1035,7 @@ def run(rank, world_size, args):
     elif params.dataset_format == "vocalnet":
         train_cuts = data_module.train_cuts_en_vocalnet()
         valid_cuts = data_module.valid_cuts_en_vocalnet()
-    elif params.dataset_format == "speech_continuation":
+    elif params.dataset_format == "speech_continuation" or params.dataset_format == "asr":
         if params.dataset == "multi_en":
             train_cuts = data_module.train_cuts_ultravox()
         elif params.dataset == "librispeech":
