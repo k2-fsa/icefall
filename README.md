@@ -383,3 +383,7 @@ Please see: [![Open In Colab](https://colab.research.google.com/assets/colab-bad
 [vctk]: egs/vctk/TTS
 [ljspeech]: egs/ljspeech/TTS
 [libritts_tts]: egs/libritts/TTS
+
+## Acknowledgements
+
+Some contributors to this project were supported by Xiaomi Corporation. Others were supported by National Science Foundation CCRI award 2120435.  This is not an exhaustive list of sources of support.
