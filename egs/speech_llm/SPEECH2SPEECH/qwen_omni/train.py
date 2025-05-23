@@ -1032,6 +1032,9 @@ def run(rank, world_size, args):
     elif params.dataset == "gigaspeech":
         train_cuts = data_module.train_cuts_gigaspeech()
         valid_cuts = data_module.valid_cuts_ultravox()
+    elif params.dataset == "emilia_en":
+        train_cuts = data_module.train_cuts_emilia_en()
+        valid_cuts = data_module.valid_cuts_emilia_en()
     else:
         raise ValueError(f"Unknown dataset: {params.dataset}")
 
