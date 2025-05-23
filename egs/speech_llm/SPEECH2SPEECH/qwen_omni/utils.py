@@ -8,11 +8,10 @@ import random
 import re
 import subprocess
 from collections import defaultdict
-# from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-# from shutil import copyfile
+
 from typing import Dict, Iterable, List, Optional, TextIO, Tuple, Union
 
 import torch

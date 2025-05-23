@@ -11,3 +11,5 @@ flash-attn
 peft
 torchmetrics
 # triton==3.3.0 # may be violate with openai-whisper
+gradio
+sherpa-onnx

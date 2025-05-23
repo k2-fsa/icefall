@@ -36,6 +36,7 @@ from lhotse.dataset import (  # noqa F401 for PrecomputedFeatures
     CutConcatenate,
     CutMix,
     DynamicBucketingSampler,
+    K2SpeechRecognitionDataset,
     PerturbSpeed,
     PrecomputedFeatures,
     SimpleCutSampler,
@@ -46,7 +47,6 @@ from lhotse.dataset.input_strategies import (  # noqa F401 For AudioSamples
     OnTheFlyFeatures,
 )
 from lhotse.utils import fix_random_seed
-from speech_dataset import K2SpeechRecognitionDataset
 from torch.utils.data import DataLoader
 from utils import get_local_rank, str2bool
 
@@ -203,21 +203,15 @@ class AsrDataModule:
         group.add_argument(
             "--audio-key",
             type=str,
-            default="audio",
+            default=None,
             help="The key in the Huggingface dataset containing the audio data",
         )
         group.add_argument(
             "--text-key",
             type=str,
-            default="text",
+            default=None,
             help="The key in the Huggingface dataset containing the text data",
         )
-        # group.add_argument(
-        #     "--resample-to-16kHz",
-        #     type=str2bool,
-        #     default=True,
-        #     help="Resample audio to 16kHz. Default: False.",
-        # )
 
     def train_dataloaders(
         self,
@@ -389,29 +383,21 @@ class AsrDataModule:
         return test_dl
 
     @lru_cache()
-    def test_cuts(self) -> CutSet:
+    def test_cuts_belle(self) -> CutSet:
         logging.info("About to get test cuts")
-        if self.args.on_the_fly_feats:
-            pass
-        else:
-            return {
-                "test": load_manifest_lazy(
-                    self.args.manifest_dir / "cuts_belle_test.jsonl.gz"
-                )
-            }
-
-    @lru_cache()
-    def dev_cuts(self) -> CutSet:
-        logging.info("About to get test cuts")
-        if self.args.on_the_fly_feats:
-            pass
-        else:
-            return load_manifest_lazy(
+        return {
+            "test": load_manifest_lazy(
                 self.args.manifest_dir / "cuts_belle_test.jsonl.gz"
             )
-
+        }
     @lru_cache()
-    def train_cuts(self) -> CutSet:
+    def dev_cuts_belle(self) -> CutSet:
+        logging.info("About to get test cuts")
+        return load_manifest_lazy(
+            self.args.manifest_dir / "cuts_belle_test.jsonl.gz"
+        )
+    @lru_cache()
+    def train_cuts_belle(self) -> CutSet:
         logging.info("About to get train cuts")
         slam_omni_zh_cuts = load_manifest_lazy(
             self.args.manifest_dir / "cuts_belle_train.jsonl.gz"
@@ -435,8 +421,6 @@ class AsrDataModule:
                 len(ultrachat_cuts),
             ],
         )
-
-    # valid cuts_voice_assistant.00000.jsonl.gz
     @lru_cache()
     def valid_cuts_en_vocalnet(self) -> CutSet:
         logging.info("About to get valid cuts")
@@ -447,15 +431,6 @@ class AsrDataModule:
 
     @lru_cache()
     def test_cuts_en_vocalnet(self) -> CutSet:
-        logging.info("About to get test cuts")
-        VoiceAssistant_cuts = load_manifest_lazy(
-            self.args.manifest_dir / "cuts_voice_assistant_small.00000.jsonl.gz"
-        )
-        return {"test": VoiceAssistant_cuts}
-
-    def test_cuts_voicebench(
-        self,
-    ) -> CutSet:
         logging.info("About to get test cuts")
         VoiceAssistant_cuts = load_manifest_lazy(
             self.args.manifest_dir / "cuts_voice_assistant_small.00000.jsonl.gz"
@@ -555,65 +530,6 @@ class AsrDataModule:
                 548000,
             ],
         )
-
-    # @lru_cache()
-    # def train_cuts_ultravox(self) -> CutSet:
-    #     logging.info("About to get train cuts")
-    #     keep_columns = ["audio", "text", "continuation", "id"]
-    #     librispeech_path="fixie-ai/librispeech_asr"
-    #     # 148_688
-    #     librispeech_other = load_dataset(librispeech_path, 'other', split='train.500', streaming=True)
-    #     # 104_014
-    #     librispeech_clean_360 = load_dataset(librispeech_path, 'clean', split='train.360', streaming=True)
-    #     # 28_539
-    #     librispeech_clean_100 = load_dataset(librispeech_path, 'clean', split='train.100', streaming=True)
-
-    #     cols_to_remove = librispeech_clean_100.column_names
-    #     cols_to_remove = [col for col in cols_to_remove if col not in keep_columns]
-    #     librispeech_clean_100 = librispeech_clean_100.remove_columns(cols_to_remove)
-    #     librispeech_clean_360 = librispeech_clean_360.remove_columns(cols_to_remove)
-    #     librispeech_other = librispeech_other.remove_columns(cols_to_remove)
-    #     people_speech_path="fixie-ai/peoples_speech"
-    #     # 1_501_271
-    #     people_speech_clean = load_dataset(people_speech_path, 'clean', split='train', streaming=True)
-    #     # 548_000
-    #     people_speech_dirty_sa = load_dataset(people_speech_path, 'dirty_sa', split='train', streaming=True)
-    #     cols_to_remove = people_speech_clean.column_names
-    #     cols_to_remove = [col for col in cols_to_remove if col not in keep_columns]
-    #     people_speech_clean = people_speech_clean.remove_columns(cols_to_remove)
-    #     people_speech_dirty_sa = people_speech_dirty_sa.remove_columns(cols_to_remove)
-
-    #     # 8_266_422
-    #     gigaspeech_path="fixie-ai/gigaspeech"
-    #     gigaspeech = load_dataset(gigaspeech_path, 'xl-empty-audio-removed', split='train', streaming=True)
-    #     # first rename segment_id to id
-    #     gigaspeech = gigaspeech.rename_column("segment_id", "id")
-    #     cols_to_remove = gigaspeech.column_names
-    #     cols_to_remove = [col for col in cols_to_remove if col not in keep_columns]
-    #     gigaspeech = gigaspeech.remove_columns(cols_to_remove)
-
-    #     total_item = 104014 + 28539 + 8266422 + 1501271 + 548000 + 148688
-    #     final_datasets = interleave_datasets([
-    #         librispeech_clean_100,
-    #         librispeech_clean_360,
-    #         gigaspeech,
-    #         people_speech_clean,
-    #         people_speech_dirty_sa,
-    #         librispeech_other,
-    #     ], probabilities=[
-    #         28539 / total_item,
-    #         104014 / total_item,
-    #         8266422 / total_item,
-    #         1501271 / total_item,
-    #         548000 / total_item,
-    #         148688 / total_item,
-    #     ])
-
-    #     train_cuts = CutSet.from_huggingface_dataset(
-    #         final_datasets, audio_key=self.args.audio_key, text_key=self.args.text_key
-    #     )
-
-    #     return train_cuts
 
     @lru_cache()
     def valid_cuts_ultravox(self) -> CutSet:

@@ -741,7 +741,7 @@ def main():
         return True
 
     # TODO: FIX ME
-    # test_sets_cuts = data_module.test_cuts()
+    # test_sets_cuts = data_module.test_cuts_belle()
     test_sets_cuts = data_module.test_cuts_en_vocalnet()
     test_sets = test_sets_cuts.keys()
     test_dls = [

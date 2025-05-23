@@ -89,12 +89,6 @@ except RuntimeError:
     pass
 
 
-def set_batch_count(model: nn.Module, batch_count: float) -> None:
-    for module in model.modules():
-        if hasattr(module, "batch_count"):
-            module.batch_count = batch_count
-
-
 def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--remove-whisper-encoder-input-length-restriction",
@@ -141,6 +135,13 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         type=str2bool,
         default=False,
         help="Whether to enable speech codec output.",
+    )
+
+    parser.add_argument(
+        "--speech-tokenizer-type",
+        type=str,
+        default="cosyvoice2",
+        help="The type of the speech tokenizer. cosyvoice2: 6561, cosyvoice1: 4096",
     )
 
 
@@ -229,10 +230,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--dataset-format",
+        "--prompt-template",
         type=str,
-        default="slam_omni",
-        help="The format of the dataset.",
+        default="speech_qa",
+        help="The prompt template to use.",
     )
 
     parser.add_argument(
@@ -291,123 +292,89 @@ def get_params() -> AttributeDict:
             "log_interval": 50,
             "reset_interval": 200,
             "valid_interval": 1000,
-            # "env_info": get_env_info(),
         }
     )
 
     return params
 
 
-def process_batch_slam_omni(batch: dict):
+def extract_text_and_speech_token(
+    batch: dict, 
+    prompt_template: str, 
+    enable_speech_output: bool
+) -> Tuple[List[Dict[str, str]], Optional[List[Any]]]:
+    """
+    Extracts messages and speech tokens from a batch based on the dataset format.
+    Uses the global DEFAULT_SPEECH_TOKEN.
+    """
+    messages = []
+    speech_tokens = None  # Initialize as None
+    if enable_speech_output:
+        if "answer_cosyvoice_speech_token" in batch["supervisions"]["cut"][0].custom:
+            assert "speech_token" not in batch["supervisions"]["cut"][0].custom
+            speech_tokens = [
+                cut.custom["answer_cosyvoice_speech_token"]
+                for cut in batch["supervisions"]["cut"]
+            ]
+        elif "speech_token" in batch["supervisions"]["cut"][0].custom:
+            speech_tokens = [
+                cut.custom["speech_token"] for cut in batch["supervisions"]["cut"]
+            ]
+        else:
+            raise ValueError("Unknown speech token type")
     answers = batch["supervisions"]["text"]
-    questions_with_history = [
-        cut.custom["question"] for cut in batch["supervisions"]["cut"]
-    ]
-    chat_rounds = [cut.custom["round"] for cut in batch["supervisions"]["cut"]]
-    answer_cosyvoice_speech_token = [
-        cut.custom["answer_cosyvoice_speech_token"]
-        for cut in batch["supervisions"]["cut"]
-    ]
-    last_questions = [
-        question.split("<USER>: ")[-1].strip() for question in questions_with_history
-    ]
-    history_contexts = [
-        question.rsplit("<USER>:", 1)[0].strip() for question in questions_with_history
-    ]
+    batch_size = len(answers)
 
-    messages = []
-    for i, total_round in enumerate(chat_rounds):
-        message = []
-        if total_round > 1:
-            history_question_answer = history_contexts[i].split("USER:")
-            history_question_answer = [item for item in history_question_answer if item]
-            for j in range(total_round - 1):
-                question_answer = history_question_answer[j].split("ASSISTANT:")
-                message += [
-                    {"role": "user", "content": question_answer[0].strip()},
-                    {"role": "assistant", "content": question_answer[1].strip()},
-                ]
-        message += [
-            {"role": "user", "content": f"{DEFAULT_SPEECH_TOKEN}"},
-            {"role": "assistant", "content": answers[i]},
-        ]
-        messages.append(message)
-    return messages, answer_cosyvoice_speech_token
+    if prompt_template == "speech_qa":
+        for i in range(batch_size):
+            message_list_item = [] 
+            if 'round' in batch["supervisions"]["cut"][i].custom:
+                # slam_omni format dataset
+                current_question_with_history = batch["supervisions"]["cut"][i].custom["question"]
+                total_round = batch["supervisions"]["cut"][i].custom["round"]
+                history_context = current_question_with_history.rsplit("<USER>:", 1)[0].strip()
+                if total_round > 1:
+                    history_question_answer = history_context.split("USER:")
+                    history_question_answer = [item for item in history_question_answer if item]
+                    for j in range(total_round - 1):
+                        question_answer = history_question_answer[j].split("ASSISTANT:")
+                        message_list_item += [
+                            {"role": "user", "content": question_answer[0].strip()},
+                            {"role": "assistant", "content": question_answer[1].strip()},
+                        ]
+            message_list_item += [
+                {"role": "user", "content": f"{DEFAULT_SPEECH_TOKEN}"},
+                {"role": "assistant", "content": answers[i]},
+            ]
+            messages.append(message_list_item)
 
+    elif prompt_template == "speech_continuation":
+        # speech_tokens remains None
+        for i in range(batch_size):
+            message_list_item = [
+                {
+                    "role": "user",
+                    "content": f"Continue the following text using less than 50 words:\\n\\n{DEFAULT_SPEECH_TOKEN}",
+                },
+                {"role": "assistant", "content": answers[i]},
+            ]
+            messages.append(message_list_item)
 
-def process_batch_vocalnet(batch: dict):
-    answers = batch["supervisions"]["text"]
-    answer_cosyvoice_speech_token = [
-        cut.custom["speech_token"] for cut in batch["supervisions"]["cut"]
-    ]
-    messages = []
-    for i in range(len(answers)):
-        message = [
-            {"role": "user", "content": f"{DEFAULT_SPEECH_TOKEN}"},
-            {"role": "assistant", "content": answers[i]},
-        ]
-        messages.append(message)
-    return messages, answer_cosyvoice_speech_token
+    elif prompt_template == "asr":
+        # speech_tokens remains None
+        for i in range(batch_size):
+            message_list_item = [
+                {
+                    "role": "user",
+                    "content": f"Transcribe the following audio into text:\\n\\n{DEFAULT_SPEECH_TOKEN}",
+                },
+                {"role": "assistant", "content": answers[i]},
+            ]
+            messages.append(message_list_item)
+    else:
+        raise ValueError(f"Unknown prompt template: {prompt_template}")
 
-
-def process_batch_text_vocalnet(batch: dict):
-    pass
-    answers = batch["supervisions"]["text"]
-    answer_cosyvoice_speech_token = [
-        cut.custom["speech_token"] for cut in batch["supervisions"]["cut"]
-    ]
-    messages = []
-    for i in range(len(answers)):
-        message = [
-            {"role": "user", "content": f"{DEFAULT_SPEECH_TOKEN}"},
-            {"role": "assistant", "content": answers[i]},
-        ]
-        messages.append(message)
-    return messages, answer_cosyvoice_speech_token
-
-
-def process_batch_speech_continuation(batch: dict):
-    messages = []
-    for i in range(len(batch["supervisions"]["text"])):
-        message = [
-            {
-                "role": "user",
-                "content": f"Continue the following text using less than 50 words:\n\n{DEFAULT_SPEECH_TOKEN}",
-            },
-            {"role": "assistant", "content": batch["supervisions"]["text"][i]},
-        ]
-        # transcript = batch["supervisions"]["cut"][i].custom["text"]
-        messages.append(message)
-    return messages
-
-def process_batch_asr(batch: dict):
-    messages = []
-    for i in range(len(batch["supervisions"]["text"])):
-        transcript = batch["supervisions"]["cut"][i].custom["text"]
-        message = [
-            {
-                "role": "user",
-                "content": f"Transcribe the following audio into text:\n\n{DEFAULT_SPEECH_TOKEN}",
-            },
-            {"role": "assistant", "content": transcript},
-        ]
-        messages.append(message)
-    return messages
-
-def process_batch_text_continuation(batch: dict):
-    messages = []
-    for i in range(len(batch["supervisions"]["text"])):
-        transcript = batch["supervisions"]["cut"][i].custom["text"]
-        message = [
-            {
-                "role": "user",
-                "content": f"Continue the following text using less than 50 words:\n\n{transcript}{DEFAULT_SPEECH_TOKEN}",
-            },
-            {"role": "assistant", "content": batch["supervisions"]["text"][i]},
-        ]
-        messages.append(message)
-    return messages
-
+    return messages, speech_tokens
 
 def preprocess(
     messages,
@@ -459,6 +426,19 @@ def preprocess(
     attention_mask = input_ids.ne(tokenizer.pad_token_id)
     return input_ids, attention_mask, target_ids
 
+def process_batch_text_continuation(batch: dict):
+    messages = []
+    for i in range(len(batch["supervisions"]["text"])):
+        transcript = batch["supervisions"]["cut"][i].custom["text"]
+        message = [
+            {
+                "role": "user",
+                "content": f"Continue the following text using less than 50 words:\n\n{transcript}{DEFAULT_SPEECH_TOKEN}",
+            },
+            {"role": "assistant", "content": batch["supervisions"]["text"][i]},
+        ]
+        messages.append(message)
+    return messages
 
 def preprocess_teacher(
     messages,
@@ -551,20 +531,9 @@ def compute_loss(
     feature = feature.transpose(1, 2)  # (N, C, T)
 
     # WAR: TODO FIXME merge process_batch_slam_omni and process_batch_vocalnet
-    if params.dataset_format == "slam_omni":
-        messages, answer_cosyvoice_speech_token = process_batch_slam_omni(batch)
-    elif params.dataset_format == "vocalnet":
-        messages, answer_cosyvoice_speech_token = process_batch_vocalnet(batch)
-        if params.loss_type == "kl_div":
-            messages_text = process_batch_text_vocalnet(batch)
-    elif params.dataset_format == "speech_continuation":
-        messages = process_batch_speech_continuation(batch)
-        if params.loss_type == "kl_div":
-            messages_text = process_batch_text_continuation(batch)
-    elif params.dataset_format == "asr":
-        messages = process_batch_asr(batch)
-    else:
-        raise ValueError(f"Unknown dataset format: {params.dataset_format}")
+    messages, answer_cosyvoice_speech_token = extract_text_and_speech_token(
+        batch, params.prompt_template, params.enable_speech_output
+    )
 
     input_ids, attention_mask, target_ids = preprocess(messages, tokenizer)
 
@@ -581,6 +550,8 @@ def compute_loss(
                     labels=target_ids.to(device),
                 )
             elif params.loss_type == "kl_div":
+                assert params.prompt_template == "speech_continuation"
+                messages_text = process_batch_text_continuation(batch)
                 (
                     teacher_input_ids,
                     teacher_attention_mask,
@@ -598,6 +569,7 @@ def compute_loss(
             else:
                 raise ValueError(f"Unknown loss type: {params.loss_type}")
         else:
+            assert params.loss_type == "ce"
             (
                 text_loss,
                 acc,
@@ -918,13 +890,13 @@ def run(rank, world_size, args):
         else:
             attn_implementation = "eager"
             torch_dtype = torch.float16
-        if params.dataset_format == "slam_omni":
-            codec_vocab_size = 4096 + 4
-        elif params.dataset_format == "vocalnet":
+        if params.speech_tokenizer_type == "cosyvoice2":
             codec_vocab_size = 6561 + 4
+        elif params.speech_tokenizer_type == "cosyvoice1":
+            codec_vocab_size = 4096 + 4
         else:
-            raise ValueError(f"Unknown dataset format: {params.dataset_format}")
-        # TODO: modify above vocab size or supress_tokens when decoding
+            raise ValueError(f"Unknown speech tokenizer type: {params.speech_tokenizer_type}")
+
         config = Qwen2Config(
             vocab_size=codec_vocab_size,
             hidden_size=1024,
@@ -1029,24 +1001,23 @@ def run(rank, world_size, args):
                 return False
         return True
 
-    if params.dataset_format == "slam_omni":
-        train_cuts = data_module.train_cuts()
-        valid_cuts = data_module.dev_cuts()
-    elif params.dataset_format == "vocalnet":
+    if params.dataset == "slam_omni_belle":
+        train_cuts = data_module.train_cuts_belle()
+        valid_cuts = data_module.dev_cuts_belle()
+    elif params.dataset == "vocalnet_ultrachat_voiceassistant":
         train_cuts = data_module.train_cuts_en_vocalnet()
         valid_cuts = data_module.valid_cuts_en_vocalnet()
-    elif params.dataset_format == "speech_continuation" or params.dataset_format == "asr":
-        if params.dataset == "multi_en":
-            train_cuts = data_module.train_cuts_ultravox()
-        elif params.dataset == "librispeech":
-            train_cuts = data_module.train_cuts_librispeech()
-        elif params.dataset == "gigaspeech":
-            train_cuts = data_module.train_cuts_gigaspeech()
-        else:
-            raise ValueError(f"Unknown dataset: {params.dataset}")
+    elif params.dataset == "ultravox_multi_en":
+        train_cuts = data_module.train_cuts_ultravox()
+        valid_cuts = data_module.valid_cuts_ultravox()
+    elif params.dataset == "librispeech":
+        train_cuts = data_module.train_cuts_librispeech()
+        valid_cuts = data_module.valid_cuts_ultravox()
+    elif params.dataset == "gigaspeech":
+        train_cuts = data_module.train_cuts_gigaspeech()
         valid_cuts = data_module.valid_cuts_ultravox()
     else:
-        raise ValueError(f"Unknown dataset format: {params.dataset_format}")
+        raise ValueError(f"Unknown dataset: {params.dataset}")
 
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
     valid_cuts = valid_cuts.filter(remove_short_and_long_utt)

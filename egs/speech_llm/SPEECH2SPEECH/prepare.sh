@@ -240,11 +240,11 @@ fi
 if [ $stage -le 14 ] && [ $stop_stage -ge 14 ]; then
   log "stage 14: Client"
   exp_dir=./qwen_omni/exp_speech2text_first_libri_continuation_second_ce
+  exp_dir=./qwen_omni/exp_speech2text_first_asr_second_ce
+  exp_dir=./qwen_omni/exp_speech2text_first_multi_en_continuation_second_qa
   # The final assignment of datasets in the original script is used here:
   # (alpacaeval_full wildvoice mmsu advbench bbh ifeval commoneval openbookqa sd-qa)
   declare -a target_datasets=("alpacaeval_full" "wildvoice" "ifeval" "commoneval" "openbookqa" "sd-qa" "advbench" "bbh" "mmsu")
-  declare -a target_datasets=("openbookqa" "ifeval" "sd-qa" "commoneval" "alpacaeval_full")
-  declare -a target_datasets=("alpacaeval_full" "wildvoice" "advbench" "bbh" "mmsu")
 
   NUM_CLIENT_JOBS=4 # Number of parallel client jobs
   BASE_PORT=8000    # Base port for servers
@@ -365,7 +365,8 @@ if [ $stage -le 17 ] && [ $stop_stage -ge 17 ]; then
   # pip install gradio sherpa-onnx
   log "stage 17: Server for adapter only speech continuation"
   exp_dir=./qwen_omni/exp_speech2text_first_libri_continuation_second_ce
-  # exp_dir=./qwen_omni/exp_speech2text_first_asr_second_ce
+  exp_dir=./qwen_omni/exp_speech2text_first_asr_second_ce
+  exp_dir=./qwen_omni/exp_speech2text_first_multi_en_continuation_second_qa
 
   N_GPUS=4 # Define the number of GPUs/processes you want to launch
 
