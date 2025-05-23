@@ -413,6 +413,8 @@ class AsrDataModule:
         ultrachat_cuts = load_manifest_lazy(
             self.args.manifest_dir / "cuts_ultrachat_train.jsonl.gz"
         )
+        VoiceAssistant_cuts = VoiceAssistant_cuts.resample(16000)
+        ultrachat_cuts = ultrachat_cuts.resample(16000)
         return CutSet.mux(
             VoiceAssistant_cuts,
             ultrachat_cuts,
@@ -427,6 +429,7 @@ class AsrDataModule:
         VoiceAssistant_cuts = load_manifest_lazy(
             self.args.manifest_dir / "cuts_voice_assistant.00000.jsonl.gz"
         )
+        VoiceAssistant_cuts = VoiceAssistant_cuts.resample(16000)
         return VoiceAssistant_cuts
 
     @lru_cache()
@@ -435,6 +438,7 @@ class AsrDataModule:
         VoiceAssistant_cuts = load_manifest_lazy(
             self.args.manifest_dir / "cuts_voice_assistant_small.00000.jsonl.gz"
         )
+        VoiceAssistant_cuts = VoiceAssistant_cuts.resample(16000)
         return {"test": VoiceAssistant_cuts}
 
     @lru_cache()
@@ -482,36 +486,36 @@ class AsrDataModule:
 
         librispeech_clean_100_cuts = CutSet.from_huggingface_dataset(
             librispeech_clean_100,
-            audio_key=self.args.audio_key,
-            text_key=self.args.text_key,
+            audio_key="audio",
+            text_key="text",
         )
 
         librispeech_other_cuts = CutSet.from_huggingface_dataset(
             librispeech_other,
-            audio_key=self.args.audio_key,
-            text_key=self.args.text_key,
+            audio_key="audio",
+            text_key="text",
         )
 
         librispeech_clean_360_cuts = CutSet.from_huggingface_dataset(
             librispeech_clean_360,
-            audio_key=self.args.audio_key,
-            text_key=self.args.text_key,
+            audio_key="audio",
+            text_key="text",
         )
 
         gigaspeech_cuts = CutSet.from_huggingface_dataset(
-            gigaspeech, audio_key=self.args.audio_key, text_key=self.args.text_key
+            gigaspeech, audio_key="audio", text_key="text"
         )
 
         people_speech_clean_cuts = CutSet.from_huggingface_dataset(
             people_speech_clean,
-            audio_key=self.args.audio_key,
-            text_key=self.args.text_key,
+            audio_key="audio",
+            text_key="text",
         )
 
         people_speech_dirty_sa_cuts = CutSet.from_huggingface_dataset(
             people_speech_dirty_sa,
-            audio_key=self.args.audio_key,
-            text_key=self.args.text_key,
+            audio_key="audio",
+            text_key="text",
         )
 
         return CutSet.mux(
@@ -540,8 +544,8 @@ class AsrDataModule:
         )
         librispeech_clean_valid_cuts = CutSet.from_huggingface_dataset(
             librispeech_clean_valid,
-            audio_key=self.args.audio_key,
-            text_key=self.args.text_key,
+            audio_key="audio",
+            text_key="text",
         )
         return librispeech_clean_valid_cuts
 
@@ -567,20 +571,20 @@ class AsrDataModule:
 
         librispeech_clean_100_cuts = CutSet.from_huggingface_dataset(
             librispeech_clean_100,
-            audio_key=self.args.audio_key,
-            text_key=self.args.text_key,
+            audio_key="audio",
+            text_key="text",
         )
 
         librispeech_other_cuts = CutSet.from_huggingface_dataset(
             librispeech_other,
-            audio_key=self.args.audio_key,
-            text_key=self.args.text_key,
+            audio_key="audio",
+            text_key="text",
         )
 
         librispeech_clean_360_cuts = CutSet.from_huggingface_dataset(
             librispeech_clean_360,
-            audio_key=self.args.audio_key,
-            text_key=self.args.text_key,
+            audio_key="audio",
+            text_key="text",
         )
 
         return CutSet.mux(
@@ -603,7 +607,148 @@ class AsrDataModule:
         )
 
         gigaspeech_cuts = CutSet.from_huggingface_dataset(
-            gigaspeech, audio_key=self.args.audio_key, text_key=self.args.text_key
+            gigaspeech, audio_key="audio", text_key="text"
         )
 
         return gigaspeech_cuts
+
+    @lru_cache()
+    def train_cuts_instruct_s2s(self) -> CutSet:
+        logging.info("About to get train cuts")
+        if self.args.huggingface_dataset_path_or_name is not None:
+            data_path = self.args.huggingface_dataset_path_or_name + "/InstructS2S-200K"
+        else:
+            data_path = "yuekai/InstructS2S-200K"
+        # 148_688
+        instruct_s2s_train = load_dataset(
+            data_path, split="train", streaming=True
+        )
+
+        instruct_s2s_train_cuts = CutSet.from_huggingface_dataset(
+            instruct_s2s_train,
+            audio_key="question_audio",
+            text_key="answer",
+        )
+
+        instruct_s2s_train_cuts = instruct_s2s_train_cuts.resample(16000)
+
+        return instruct_s2s_train_cuts
+
+    @lru_cache()
+    def train_cuts_en_speech2speech(self) -> CutSet:
+        logging.info("About to get train cuts")
+        VoiceAssistant_cuts = load_manifest_lazy(
+            self.args.manifest_dir / "cuts_voice_assistant_00001-00049.jsonl.gz"
+        )
+        ultrachat_cuts = load_manifest_lazy(
+            self.args.manifest_dir / "cuts_ultrachat_train.jsonl.gz"
+        )
+
+        if self.args.huggingface_dataset_path_or_name is not None:
+            data_path = self.args.huggingface_dataset_path_or_name + "/InstructS2S-200K"
+        else:
+            data_path = "yuekai/InstructS2S-200K"
+        # 148_688
+        instruct_s2s_train = load_dataset(
+            data_path, split="train", streaming=True
+        )
+
+        instruct_s2s_train_cuts = CutSet.from_huggingface_dataset(
+            instruct_s2s_train,
+            audio_key="question_audio",
+            text_key="answer",
+        )
+
+        instruct_s2s_train_cuts = instruct_s2s_train_cuts.resample(16000)
+
+
+        return CutSet.mux(
+            VoiceAssistant_cuts,
+            ultrachat_cuts,
+            instruct_s2s_train_cuts,
+            weights=[
+                len(VoiceAssistant_cuts),
+                len(ultrachat_cuts),
+                423_000,
+            ],
+        )
+
+    @lru_cache()
+    def train_cuts_en_speech2speech_librispeech(self) -> CutSet:
+        logging.info("About to get train cuts")
+        VoiceAssistant_cuts = load_manifest_lazy(
+            self.args.manifest_dir / "cuts_voice_assistant_00001-00049.jsonl.gz"
+        )
+        ultrachat_cuts = load_manifest_lazy(
+            self.args.manifest_dir / "cuts_ultrachat_train.jsonl.gz"
+        )
+
+        if self.args.huggingface_dataset_path_or_name is not None:
+            data_path = self.args.huggingface_dataset_path_or_name + "/InstructS2S-200K"
+        else:
+            data_path = "yuekai/InstructS2S-200K"
+        # 148_688
+        instruct_s2s_train = load_dataset(
+            data_path, split="train", streaming=True
+        )
+
+        instruct_s2s_train_cuts = CutSet.from_huggingface_dataset(
+            instruct_s2s_train,
+            audio_key="question_audio",
+            text_key="answer",
+        )
+
+        instruct_s2s_train_cuts = instruct_s2s_train_cuts.resample(16000)
+
+        if self.args.huggingface_dataset_path_or_name is not None:
+            librispeech_path = self.args.huggingface_dataset_path_or_name + "/librispeech_asr"
+        else:
+            librispeech_path = "fixie-ai/librispeech_asr"
+        # 148_688
+        librispeech_other = load_dataset(
+            librispeech_path, "other", split="train.500", streaming=True
+        )
+        # 104_014
+        librispeech_clean_360 = load_dataset(
+            librispeech_path, "clean", split="train.360", streaming=True
+        )
+        # 28_539
+        librispeech_clean_100 = load_dataset(
+            librispeech_path, "clean", split="train.100", streaming=True
+        )
+
+        librispeech_clean_100_cuts = CutSet.from_huggingface_dataset(
+            librispeech_clean_100,
+            audio_key="audio",
+            text_key="text",
+        )
+
+        librispeech_other_cuts = CutSet.from_huggingface_dataset(
+            librispeech_other,
+            audio_key="audio",
+            text_key="text",
+        )
+
+        librispeech_clean_360_cuts = CutSet.from_huggingface_dataset(
+            librispeech_clean_360,
+            audio_key="audio",
+            text_key="text",
+        )
+
+
+        return CutSet.mux(
+            librispeech_other_cuts,
+            VoiceAssistant_cuts,
+            ultrachat_cuts,
+            librispeech_clean_360_cuts,
+            instruct_s2s_train_cuts,
+            librispeech_clean_100_cuts,
+            weights=[
+                148688,
+                len(VoiceAssistant_cuts),
+                len(ultrachat_cuts),
+                104014,
+                423_000,
+                28539,
+            ],
+        )
