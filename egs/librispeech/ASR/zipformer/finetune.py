@@ -140,8 +140,8 @@ def add_finetune_arguments(parser: argparse.ArgumentParser):
         type=str2bool,
         default=False,
         help="""
-        Whether to adapt. If true, we will mix 5% of the new data
-        with 95% of the original data to fine-tune. This is useful
+        Whether to adapt. If true, we will mix 5%% of the new data
+        with 95%% of the original data to fine-tune. This is useful
         if you want to maintain the performance on the original domain
         """,
     )
@@ -1134,7 +1134,7 @@ def train_one_epoch(
                 f"Epoch {params.cur_epoch}, "
                 f"batch {batch_idx}, loss[{loss_info}], "
                 f"tot_loss[{tot_loss}], batch size: {batch_size}, "
-                f"lr: {cur_lr:.2e}, "
+                f"lr: {cur_lr: .2e}, "
                 + (f"grad_scale: {scaler._scale.item()}" if params.use_fp16 else "")
             )
 
