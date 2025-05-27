@@ -1347,7 +1347,10 @@ def modified_beam_search(
                         (
                             context_score,
                             new_context_state,
-                        ) = context_graph.forward_one_step(hyp.context_state, new_token)
+                            _,
+                        ) = context_graph.forward_one_step(
+                            hyp.context_state, new_token, strict_mode=False
+                        )
 
                 new_log_prob = topk_log_probs[k] + context_score
 
@@ -2853,7 +2856,10 @@ def modified_beam_search_LODR(
                         (
                             context_score,
                             new_context_state,
-                        ) = context_graph.forward_one_step(hyp.context_state, new_token)
+                            _,
+                        ) = context_graph.forward_one_step(
+                            hyp.context_state, new_token, strict_mode=False
+                        )
 
                     ys.append(new_token)
                     state_cost = hyp.state_cost.forward_one_step(new_token)
