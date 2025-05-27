@@ -77,7 +77,7 @@ sys.path.append("/workspace/CosyVoice/third_party/Matcha-TTS")
 
 
 def audio_decode_cosyvoice2(
-    audio_tokens, prompt_text, prompt_speech_path, codec_decoder
+    audio_tokens, prompt_text, prompt_speech_16k, codec_decoder
 ):
     """
     Generate audio from tokens with optional tone and prompt embedding.
@@ -95,7 +95,6 @@ def audio_decode_cosyvoice2(
     Returns:
         torch.Tensor: Generated audio waveform.
     """
-    prompt_speech_16k = load_wav(prompt_speech_path, 16000)
     model_inputs_dict = codec_decoder.frontend.frontend_zero_shot(
         "empty", prompt_text, prompt_speech_16k, 24000
     )
@@ -555,10 +554,11 @@ def decode_one_batch(
             # audio_tokens = [token for token in audio_tokens if token < 4096]
             audio_tokens = torch.tensor(audio_tokens, dtype=torch.int32).unsqueeze(0)
             if "CosyVoice2" in params.token2wav_path:
+                prompt_speech_16k = load_wav(params.prompt_speech_path, 16000)
                 audio_hat = audio_decode_cosyvoice2(
                     audio_tokens,
                     params.prompt_text,
-                    params.prompt_speech_path,
+                    prompt_speech_16k,
                     token2wav_model,
                 )
                 sf.write(speech_file_name, audio_hat.squeeze(0).cpu().numpy(), 24000)

@@ -242,9 +242,13 @@ if [ $stage -le 14 ] && [ $stop_stage -ge 14 ]; then
   exp_dir=./qwen_omni/exp_speech2text_first_libri_continuation_second_ce
   exp_dir=./qwen_omni/exp_speech2text_first_asr_second_ce
   exp_dir=./qwen_omni/exp_speech2text_first_multi_en_continuation_second_qa
+  exp_dir=./qwen_omni/exp_speech2text_first_multi_en_continuation_second_three_s2s_librispeech
+  # exp_dir=./qwen_omni/exp_speech2text_first_multi_en_continuation_second_three_s2s
   # The final assignment of datasets in the original script is used here:
   # (alpacaeval_full wildvoice mmsu advbench bbh ifeval commoneval openbookqa sd-qa)
   declare -a target_datasets=("alpacaeval_full" "wildvoice" "ifeval" "commoneval" "openbookqa" "sd-qa" "advbench" "bbh" "mmsu")
+  declare -a target_datasets=("alpacaeval_full" "wildvoice" "ifeval" "commoneval" "openbookqa" "sd-qa" "advbench" "bbh")
+  declare -a target_datasets=("mmsu")
 
   NUM_CLIENT_JOBS=4 # Number of parallel client jobs
   BASE_PORT=8000    # Base port for servers
@@ -367,6 +371,8 @@ if [ $stage -le 17 ] && [ $stop_stage -ge 17 ]; then
   exp_dir=./qwen_omni/exp_speech2text_first_libri_continuation_second_ce
   exp_dir=./qwen_omni/exp_speech2text_first_asr_second_ce
   exp_dir=./qwen_omni/exp_speech2text_first_multi_en_continuation_second_qa
+  exp_dir=./qwen_omni/exp_speech2text_first_multi_en_continuation_second_three_s2s_librispeech
+  exp_dir=./qwen_omni/exp_speech2text_first_multi_en_continuation_second_three_s2s
 
   N_GPUS=4 # Define the number of GPUs/processes you want to launch
 
@@ -376,10 +382,10 @@ if [ $stage -le 17 ] && [ $stop_stage -ge 17 ]; then
     CUDA_VISIBLE_DEVICES=$id python3 ./qwen_omni/server.py \
       --speech-encoder-path-or-name models/large-v2.pt  \
       --llm-path-or-name models/Qwen2.5-0.5B-Instruct \
-      --checkpoint-path $exp_dir/epoch-10/pytorch_model.bin \
+      --checkpoint-path $exp_dir/checkpoint-55276/pytorch_model.bin \
       --use-flash-attn True \
       --enable-speech-output False \
-      --port $(expr 8000 + $id) \
+      --port $(expr 18000 + $id) \
       --use-lora True &
   done
 

@@ -479,12 +479,12 @@ class SPEECH_LLM(nn.Module):
                     start_idx == start_idx_re_compute
                 ), f"start_idx: {start_idx}, start_idx_re_compute: {start_idx_re_compute}"
                 if text_input_embeds.shape[0] > audio_embeddings.shape[1] - start_idx:
-                    text_input_embeds = text_input_embeds[
-                        : audio_embeddings.shape[1] - start_idx
-                    ]
                     logging.warning(
                         f"Truncate text_input_embeds: {text_input_embeds.shape} to {audio_embeddings.shape[1] - start_idx}"
                     )
+                    text_input_embeds = text_input_embeds[
+                        : audio_embeddings.shape[1] - start_idx
+                    ]
                 audio_embeddings[
                     i, start_idx : start_idx + text_input_embeds.shape[0]
                 ] += text_input_embeds
@@ -592,35 +592,29 @@ class SPEECH_LLM(nn.Module):
                 - generated_speech_tokens: List of lists, where each inner list contains
                                            the generated speech codec tokens for a batch item.
         """
-        assert fbank.shape[0] == 1, "Batch size must be 1 for speech generation."
-        if (
-            not self.codec_lm
-            or not self.speech_token_projector
-            or not self.codec_lm_head
-        ):
-            raise ValueError(
-                "codec_lm and associated layers must be initialized to generate speech output."
-            )
+        batch_size = input_ids.shape[0]
+        assert batch_size == 1, "Batch size must be 1 for speech generation."
 
         device = next(self.parameters()).device  # Use model's device
-        batch_size = fbank.shape[0]
-
-        # --- 1. Prepare Prompt Embeddings ---
-        encoder_outs = self.encoder(fbank)
-        speech_features = self.encoder_projector(encoder_outs)
-        speech_features = speech_features.to(self.llm.dtype)  # Ensure matching dtype
 
         prompt_embeds = self.llm.get_input_embeddings()(input_ids)
 
         # Merge speech features with prompt embeddings
-        (
-            merged_prompt_inputs_embeds,
-            merged_prompt_attention_mask,
-            _,
-            _,
-        ) = self._merge_input_ids_with_speech_features(
-            speech_features, prompt_embeds, input_ids, attention_mask
-        )
+        if fbank is not None:
+            encoder_outs = self.encoder(fbank)
+            speech_features = self.encoder_projector(encoder_outs)
+            speech_features = speech_features.to(self.llm.dtype)  # Ensure matching dtype
+            (
+                merged_prompt_inputs_embeds,
+                merged_prompt_attention_mask,
+                _,
+                _,
+            ) = self._merge_input_ids_with_speech_features(
+                speech_features, prompt_embeds, input_ids, attention_mask
+            )
+        else:
+            merged_prompt_inputs_embeds = prompt_embeds
+            merged_prompt_attention_mask = attention_mask
 
         # --- 2. Generate Text using LLM ---
         # Use merged embeds/mask as input to generate
