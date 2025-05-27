@@ -69,8 +69,6 @@ from transformers import (
     Qwen2ForCausalLM,
 )
 
-# from icefall.env import get_env_info
-# from icefall import diagnostics
 from utils import (  # filter_uneven_sized_batch,
     AttributeDict,
     MetricsTracker,
@@ -138,6 +136,13 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     )
 
     parser.add_argument(
+        "--enable-speech-input",
+        type=str2bool,
+        default=True,
+        help="Whether to enable speech fbank input.",
+    )
+
+    parser.add_argument(
         "--speech-tokenizer-type",
         type=str,
         default="cosyvoice2",
@@ -145,11 +150,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     )
 
 
-def get_parser():
-    parser = argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter
-    )
-
+def add_training_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--tensorboard",
         type=str2bool,
@@ -243,6 +244,12 @@ def get_parser():
         help="The name of the dataset.",
     )
 
+
+def get_parser():
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+
     parser.add_argument(
         "--loss-type",
         type=str,
@@ -252,7 +259,7 @@ def get_parser():
 
     parser = deepspeed.add_config_arguments(parser)
     add_model_arguments(parser)
-
+    add_training_arguments(parser)
     return parser
 
 
@@ -532,7 +539,6 @@ def compute_loss(
     feature = feature.to(device)
     feature = feature.transpose(1, 2)  # (N, C, T)
 
-    # WAR: TODO FIXME merge process_batch_slam_omni and process_batch_vocalnet
     messages, answer_cosyvoice_speech_token = extract_text_and_speech_token(
         batch, params.enable_speech_output
     )
@@ -686,9 +692,9 @@ def train_one_epoch(
         The rank of the node in DDP training. If no DDP is used, it should
         be set to 0.
     """
-    # model.encoder_projector.train()
     model.train()
-    model.encoder.eval()
+    if params.enable_speech_input:
+        model.encoder.eval()
     if not params.unfreeze_llm:
         model.llm.eval()
     tot_loss = MetricsTracker()
@@ -706,7 +712,8 @@ def train_one_epoch(
                 world_size=world_size,
             )
             model.train()
-            model.encoder.eval()
+            if params.enable_speech_input:
+                model.encoder.eval()
             if not params.unfreeze_llm:
                 model.llm.eval()
             logging.info(f"Epoch {params.cur_epoch}, validation: {valid_info}")
@@ -796,36 +803,11 @@ def train_one_epoch(
         params.best_train_loss = params.train_loss
 
 
-def run(rank, world_size, args):
-    """
-    Args:
-      rank:
-        It is a value between 0 and `world_size-1`, which is
-        passed automatically by `mp.spawn()` in :func:`main`.
-        The node with rank 0 is responsible for saving checkpoint.
-      world_size:
-        Number of GPUs for DDP training.
-      args:
-        The return value of get_parser().parse_args()
-    """
-    params = get_params()
-    params.update(vars(args))
-
-    fix_random_seed(params.seed)
-
-    if rank == 0:
-        setup_logger(f"{params.exp_dir}/log/log-train")
-    logging.info(params)
-    logging.info("About to create model")
-
-    replace_whisper_encoder_forward()
-    whisper_model = whisper.load_model(params.speech_encoder_path_or_name, "cpu")
-    speech_encoder = whisper_model.encoder
-    speech_encoder_dim = whisper_model.dims.n_audio_state
-    for name, param in speech_encoder.named_parameters():
-        param.requires_grad = False
-
+def get_model(params):
+    """Load and prepare the speech-to-speech model."""
     tokenizer = AutoTokenizer.from_pretrained(params.llm_path_or_name)
+    special_tokens_dict = {"additional_special_tokens": [DEFAULT_SPEECH_TOKEN]}
+    tokenizer.add_special_tokens(special_tokens_dict)
 
     if params.use_flash_attn:
         attn_implementation = "flash_attention_2"
@@ -842,11 +824,9 @@ def run(rank, world_size, args):
         attn_implementation=attn_implementation,
         torch_dtype=torch_dtype,
     )
-
     if not params.unfreeze_llm:
         for name, param in llm.named_parameters():
             param.requires_grad = False
-
     else:
         if params.use_lora:
             lora_config = LoraConfig(
@@ -867,21 +847,29 @@ def run(rank, world_size, args):
             llm = get_peft_model(llm, lora_config)
             llm.print_trainable_parameters()
 
-    special_tokens_dict = {"additional_special_tokens": [DEFAULT_SPEECH_TOKEN]}
-    tokenizer.add_special_tokens(special_tokens_dict)
-
     llm.config.pad_token_id = tokenizer.pad_token_id
     llm.config.default_speech_token_id = tokenizer.convert_tokens_to_ids(
         DEFAULT_SPEECH_TOKEN
     )
 
-    encoder_projector = EncoderProjector(
-        speech_encoder_dim, llm.config.hidden_size, params.encoder_projector_ds_rate
-    )
-    if not params.unfreeze_speech_projector:
-        for name, param in encoder_projector.named_parameters():
+    if params.enable_speech_input:
+        if params.remove_whisper_encoder_input_length_restriction:
+            replace_whisper_encoder_forward()
+        whisper_model = whisper.load_model(params.speech_encoder_path_or_name, "cpu")
+        speech_encoder = whisper_model.encoder
+        speech_encoder_dim = whisper_model.dims.n_audio_state
+        for name, param in speech_encoder.named_parameters():
             param.requires_grad = False
-        encoder_projector.eval()
+        encoder_projector = EncoderProjector(
+            speech_encoder_dim, llm.config.hidden_size, params.encoder_projector_ds_rate
+        )
+        if not params.unfreeze_speech_projector:
+            for name, param in encoder_projector.named_parameters():
+                param.requires_grad = False
+            encoder_projector.eval()
+    else:
+        speech_encoder = None
+        encoder_projector = None
 
     if params.enable_speech_output:
         # Determine attn_implementation and torch_dtype based on use_flash_attn
@@ -922,17 +910,6 @@ def run(rank, world_size, args):
         codec_lm.config.mask_token_id = codec_vocab_size - 4
     else:
         codec_lm = None
-    if params.loss_type == "kl_div":
-        teacher_llm = AutoModelForCausalLM.from_pretrained(
-            params.llm_path_or_name,
-            attn_implementation=attn_implementation,
-            torch_dtype=torch_dtype,
-        )
-        for name, param in teacher_llm.named_parameters():
-            param.requires_grad = False
-        teacher_llm.eval()
-    else:
-        teacher_llm = None
 
     model = SPEECH_LLM(
         speech_encoder,
@@ -940,9 +917,7 @@ def run(rank, world_size, args):
         encoder_projector,
         codec_lm,
         codec_lm_padding_side="left" if params.use_flash_attn else "right",
-        teacher_llm=teacher_llm,
     )
-
     if params.pretrained_model_path or params.last_stage_model_path:
         if params.pretrained_model_path is None:
             checkpoint = torch.load(params.last_stage_model_path, map_location="cpu")
@@ -962,6 +937,32 @@ def run(rank, world_size, args):
     for name, param in model.named_parameters():
         if param.requires_grad:
             logging.info(f"{name}: {param.shape}")
+
+    return model, tokenizer
+
+def run(rank, world_size, args):
+    """
+    Args:
+      rank:
+        It is a value between 0 and `world_size-1`, which is
+        passed automatically by `mp.spawn()` in :func:`main`.
+        The node with rank 0 is responsible for saving checkpoint.
+      world_size:
+        Number of GPUs for DDP training.
+      args:
+        The return value of get_parser().parse_args()
+    """
+    params = get_params()
+    params.update(vars(args))
+
+    fix_random_seed(params.seed)
+
+    if rank == 0:
+        setup_logger(f"{params.exp_dir}/log/log-train")
+    logging.info(params)
+    logging.info("About to create model")
+
+    model, tokenizer = get_model(params)
 
     if torch.cuda.is_available():
         device = torch.device("cuda", get_local_rank())
@@ -1032,9 +1033,6 @@ def run(rank, world_size, args):
     elif params.dataset == "gigaspeech":
         train_cuts = data_module.train_cuts_gigaspeech()
         valid_cuts = data_module.valid_cuts_ultravox()
-    elif params.dataset == "emilia_en":
-        train_cuts = data_module.train_cuts_emilia_en()
-        valid_cuts = data_module.valid_cuts_emilia_en()
     else:
         raise ValueError(f"Unknown dataset: {params.dataset}")
 
@@ -1049,7 +1047,6 @@ def run(rank, world_size, args):
     train_dl = data_module.train_dataloaders(
         train_cuts, sampler_state_dict=sampler_state_dict
     )
-    # train_dl = data_module.valid_dataloaders(train_cuts)
     valid_dl = data_module.valid_dataloaders(valid_cuts)
 
     if args.tensorboard and rank == 0:

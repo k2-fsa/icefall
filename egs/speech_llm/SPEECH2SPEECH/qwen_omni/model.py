@@ -59,9 +59,9 @@ class SPEECH_LLM(nn.Module):
 
     def __init__(
         self,
-        encoder: nn.Module,
-        llm: nn.Module,
-        encoder_projector: nn.Module,
+        encoder: nn.Module = None,
+        llm: nn.Module = None,
+        encoder_projector: nn.Module = None,
         codec_lm: nn.Module = None,
         codec_lm_padding_side: str = "left",
         teacher_llm: nn.Module = None,
@@ -330,20 +330,19 @@ class SPEECH_LLM(nn.Module):
         labels: torch.LongTensor = None,
         speech_codec_ids: torch.LongTensor = None,
     ):
-        encoder_outs = self.encoder(fbank)
-
-        speech_features = self.encoder_projector(encoder_outs)
-
         inputs_embeds = self.llm.get_input_embeddings()(input_ids)
+        if fbank is not None:
+            encoder_outs = self.encoder(fbank)
+            speech_features = self.encoder_projector(encoder_outs)
+            (
+                inputs_embeds,
+                attention_mask,
+                labels,
+                _,
+            ) = self._merge_input_ids_with_speech_features(
+                speech_features, inputs_embeds, input_ids, attention_mask, labels
+            )
 
-        (
-            inputs_embeds,
-            attention_mask,
-            labels,
-            _,
-        ) = self._merge_input_ids_with_speech_features(
-            speech_features, inputs_embeds, input_ids, attention_mask, labels
-        )
         input_seq_len = attention_mask.sum(dim=1)  # shape, B
         (
             text_label_start_index_list,
