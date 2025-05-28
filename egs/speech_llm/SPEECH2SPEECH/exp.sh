@@ -2,8 +2,8 @@
 
 # fix segmentation fault reported in https://github.com/k2-fsa/icefall/issues/674
 export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
-
-
+export PYTHONPATH=$PYTHONPATH:/workspace/CosyVoice
+export HF_HOME="/lustre/fsw/general_sa/yuekaiz/.cache/huggingface"
 set -eou pipefail
 
 stage=$1
@@ -121,7 +121,6 @@ if [ $stage -le 18 ] && [ $stop_stage -ge 18 ]; then
     $train_cmd_args
 fi
 
-export HF_HOME="/lustre/fsw/general_sa/yuekaiz/.cache/huggingface"
 if [ $stage -le 19 ] && [ $stop_stage -ge 19 ]; then
   log "stage 19: Training TTS Model"
   exp_dir=./qwen_omni/exp_tts
@@ -218,16 +217,17 @@ if [ $stage -le 20 ] && [ $stop_stage -ge 20 ]; then
     $train_cmd_args
 fi
 
+
 if [ $stage -le 21 ] && [ $stop_stage -ge 21 ]; then
   log "stage 21: TTS Decoding Test Set"
   exp_dir=./qwen_omni/exp_tts
-  torchrun --nproc_per_node=4 python3 ./qwen_omni/decode_tts.py \
+  torchrun --nproc_per_node=2 ./qwen_omni/decode_tts.py \
     --exp-dir $exp_dir \
     --speech-encoder-path-or-name models/large-v2.pt  \
     --llm-path-or-name models/Qwen2.5-0.5B-Instruct \
     --pretrained-model-path $exp_dir/checkpoint-32001/pytorch_model.bin \
     --use-flash-attn True \
     --enable-speech-output True \
-    --token2wav-path /lustre/fsw/general_sa/yuekaiz/s2s/CosyVoice2-0.5B \
+    --token2wav-path /workspace/CosyVoice2-0.5B \
     --use-lora True
 fi

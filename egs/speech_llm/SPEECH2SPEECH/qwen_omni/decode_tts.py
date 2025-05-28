@@ -40,36 +40,34 @@ import copy
 import logging
 import os
 import random
+import sys
 import warnings
 from pathlib import Path
 from shutil import copyfile
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+import soundfile as sf
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 import transformers
-from datasets import load_dataset
-
-from deepspeed.utils.zero_to_fp32 import convert_zero_checkpoint_to_fp32_state_dict
+from cosyvoice.cli.cosyvoice import CosyVoice2
+from datasets import Audio, load_dataset
+from decode import audio_decode_cosyvoice2
 from label_smoothing import LabelSmoothingLoss
-
 from lhotse.utils import fix_random_seed
 from model import IGNORE_TOKEN_ID, SPEECH_LLM
 from peft import LoraConfig, get_peft_model
 from torch import Tensor
+from torch.utils.data import DataLoader, DistributedSampler
 from torch.utils.tensorboard import SummaryWriter
+from train import add_model_arguments, add_training_arguments, get_model, get_params
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
     Qwen2Config,
     Qwen2ForCausalLM,
 )
-from torchdata.stateful_dataloader import StatefulDataLoader
-from torch.utils.data import DistributedSampler, DataLoader
-
-from train import add_model_arguments, add_training_arguments, get_params, get_model
-from decode import audio_decode_cosyvoice2
 from utils import (  # filter_uneven_sized_batch,
     AttributeDict,
     MetricsTracker,
@@ -79,9 +77,9 @@ from utils import (  # filter_uneven_sized_batch,
     setup_logger,
     str2bool,
 )
-from cosyvoice.cli.cosyvoice import CosyVoice2
-sys.path.append("/lustre/fsw/general_sa/yuekaiz/s2s/CosyVoice/third_party/Matcha-TTS")
 
+# sys.path.append("/lustre/fsw/general_sa/yuekaiz/s2s/CosyVoice/third_party/Matcha-TTS")
+sys.path.append("/workspace/CosyVoice/third_party/Matcha-TTS")
 DEFAULT_SPEECH_TOKEN = "<speech>"
 try:
     torch.multiprocessing.set_start_method("spawn")
@@ -116,9 +114,11 @@ def get_parser():
     )
 
     add_model_arguments(parser)
+    add_training_arguments(parser)
 
     return parser
-    
+
+
 def preprocess(
     messages,
     tokenizer: transformers.PreTrainedTokenizer,
@@ -177,29 +177,40 @@ def preprocess(
     attention_mask = input_ids.ne(tokenizer.pad_token_id)
     return input_ids, attention_mask, target_ids
 
+
 def data_collator(batch):
-    prompt_texts, prompt_speech_16k, messages, ids = [], [], [], []
+    prompt_texts, prompt_speech_16k, messages, ids, target_texts = [], [], [], [], []
     for i, item in enumerate(batch):
         # speech_tokens.append(item["prompt_audio_cosy2_tokens"])
         message_list_item = []
         message_list_item += [
-            {"role": "user", "content": f"Generate a speech from the following text:\n\n{item['target_text']}{DEFAULT_SPEECH_TOKEN}"},
+            {
+                "role": "user",
+                "content": f"Generate a speech from the following text:\n\n{item['target_text']}{DEFAULT_SPEECH_TOKEN}",
+            },
             {"role": "assistant", "content": ""},
         ]
         messages.append(message_list_item)
+        target_texts.append(item["target_text"])
 
         ids.append(item["id"])
         prompt_texts.append(item["prompt_text"])
-        prompt_speech_16k.append(item["prompt_audio"])
-        print(item["prompt_audio"], 233333333333333333)
+        speech_org = item["prompt_audio"]
 
+        speech_org = torch.tensor(speech_org["array"], dtype=torch.float32).unsqueeze(0)
+        speech_org = speech_org.mean(dim=0, keepdim=True)
+        prompt_speech_16k.append(speech_org)
+
+        # resample to 16k
 
     return {
         "prompt_texts": prompt_texts,
+        "target_texts": target_texts,
         "prompt_speech_16k": prompt_speech_16k,
         "messages": messages,
         "ids": ids,
     }
+
 
 def run(rank, world_size, args):
     """
@@ -215,7 +226,7 @@ def run(rank, world_size, args):
     """
     params = get_params()
     params.update(vars(args))
-    params.log_dir = Path(params.exp_dir) / f"log-results-wav"
+    params.log_dir = Path(params.exp_dir) / "log-results-wav"
     params.log_dir.mkdir(parents=True, exist_ok=True)
 
     fix_random_seed(params.seed)
@@ -232,11 +243,9 @@ def run(rank, world_size, args):
     logging.info(f"Device: {device}")
     model.to(device)
 
-    assert params.deepspeed and world_size > 1
-    logging.info("Using DeepSpeed")
-
     dataset = load_dataset("yuekai/seed_tts_cosy2", split=params.split_name)
-    
+    dataset = dataset.cast_column("prompt_audio", Audio(sampling_rate=16000))
+
     sampler = DistributedSampler(dataset, num_replicas=world_size, rank=rank)
     data_loader = DataLoader(
         dataset,
@@ -245,7 +254,7 @@ def run(rank, world_size, args):
         shuffle=False,
         num_workers=1,
         prefetch_factor=1,
-        collate_fn=data_collator
+        collate_fn=data_collator,
     )
     token2wav_model = CosyVoice2(
         params.token2wav_path, load_jit=False, load_trt=False, fp16=False
@@ -254,6 +263,7 @@ def run(rank, world_size, args):
         messages = batch["messages"]
         prompt_texts = batch["prompt_texts"]
         prompt_speech_16k = batch["prompt_speech_16k"]
+        target_texts = batch["target_texts"]
         ids = batch["ids"]
         input_ids, attention_mask, _ = preprocess(messages, tokenizer)
         generated_ids, generated_speech_output = model.decode_with_speech_output(
@@ -262,8 +272,13 @@ def run(rank, world_size, args):
         generated_speech_output = [
             generated_speech_output
         ]  # WAR: only support batch = 1 for now
-        for cut_id, audio_tokens, prompt_text, prompt_speech in zip(ids, generated_speech_output, prompt_texts, prompt_speech_16k):
+        for cut_id, audio_tokens, prompt_text, prompt_speech, target_text in zip(
+            ids, generated_speech_output, prompt_texts, prompt_speech_16k, target_texts
+        ):
             speech_file_name = params.log_dir / f"{cut_id}.wav"
+            # save target_text to file
+            with open(params.log_dir / f"{cut_id}.txt", "w") as f:
+                f.write(f"{target_text}\n")
             audio_tokens = torch.tensor(audio_tokens, dtype=torch.int32).unsqueeze(0)
             if "CosyVoice2" in params.token2wav_path:
                 audio_hat = audio_decode_cosyvoice2(
@@ -276,6 +291,7 @@ def run(rank, world_size, args):
 
     logging.info("Done!")
 
+
 def main():
     parser = get_parser()
     args = parser.parse_args()
@@ -285,7 +301,7 @@ def main():
     rank = get_rank()
 
     torch.set_num_threads(1)
-    torch.set_num_interop_threads(1)
+    # torch.set_num_interop_threads(1)
     warnings.filterwarnings("ignore", category=FutureWarning)
     run(rank=rank, world_size=world_size, args=args)
 

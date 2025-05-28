@@ -63,15 +63,8 @@ from model import SPEECH_LLM, EncoderProjector
 from peft import LoraConfig, get_peft_model
 from train import DEFAULT_SPEECH_TOKEN, add_model_arguments
 from transformers import AutoModelForCausalLM, AutoTokenizer, Qwen2Config
+from utils import AttributeDict, setup_logger, store_transcripts, write_error_stats
 from whisper_encoder_forward_monkey_patch import replace_whisper_encoder_forward
-
-from icefall.env import get_env_info
-from icefall.utils import (
-    AttributeDict,
-    setup_logger,
-    store_transcripts,
-    write_error_stats,
-)
 
 sys.path.append("/workspace/CosyVoice/third_party/Matcha-TTS")
 
@@ -418,11 +411,7 @@ def get_parser():
 
 
 def get_params() -> AttributeDict:
-    params = AttributeDict(
-        {
-            "env_info": get_env_info(),
-        }
-    )
+    params = AttributeDict({})
     return params
 
 
