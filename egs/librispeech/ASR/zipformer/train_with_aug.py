@@ -24,7 +24,7 @@ Usage:
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
 # For non-streaming model training:
-./zipformer/train.py \
+./zipformer/train_with_aug.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 1 \
@@ -34,7 +34,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --max-duration 1000
 
 # For streaming model training:
-./zipformer/train.py \
+./zipformer/train_with_aug.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 1 \
@@ -70,7 +70,6 @@ from attention_decoder import AttentionDecoderModel
 from decoder import Decoder
 from joiner import Joiner
 from lhotse.cut import Cut
-from lhotse.dataset import SpecAugment
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import AsrModel
