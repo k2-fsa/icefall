@@ -28,7 +28,6 @@ import torch
 from lhotse import CutSet, Fbank, FbankConfig, load_manifest_lazy
 from lhotse.cut import Cut
 from lhotse.dataset import (  # noqa F401 for PrecomputedFeatures
-    CutConcatenate,
     CutMix,
     DynamicBucketingSampler,
     K2SpeechRecognitionDataset,
@@ -57,21 +56,33 @@ class _SeedWorkers:
         fix_random_seed(self.seed + worker_id)
 
 
+"""
+We use c.features = None below to suppress the following warnings
+
+2025-05-29 16:49:55,253 WARNING [data.py:801] Attempting to perturb speed on a
+DataCut that references pre-computed features. The feature manifest will be
+detached, as we do not support feature-domain speed perturbation.
+"""
+
+
 def perturb_speed(c: Cut):
-    factor = random.uniform(0.9, 1.1)
-    print("perturb_speed factor", factor)
+    factor = random.choice([0.9, 1.1])
+    c.features = None
+
     return lhotse.MonoCut.perturb_speed(c, factor)
 
 
 def perturb_volume(c: Cut):
-    factor = random.uniform(0.9, 1.1)
-    print("perturb_volume factor", factor)
+    factor = random.choice([0.9, 1.1])
+    c.features = None
+
     return lhotse.MonoCut.perturb_volume(c, factor)
 
 
 def perturb_tempo(c: Cut):
-    factor = random.uniform(0.9, 1.1)
-    print("perturb_tempo factor", factor)
+    factor = random.choice([0.9, 1.1])
+
+    c.features = None
     return lhotse.MonoCut.perturb_tempo(c, factor)
 
 
@@ -86,7 +97,6 @@ class LibriSpeechAsrDataModuleWithParallelAug:
     experiments, e.g.:
     - dynamic batch size,
     - bucketing samplers,
-    - cut concatenation,
     - augmentation,
     - on-the-fly feature extraction
 
@@ -111,6 +121,12 @@ class LibriSpeechAsrDataModuleWithParallelAug:
             default=True,
             help="""Used only when --mini-libri is False.When enabled,
             use 960h LibriSpeech. Otherwise, use 100h subset.""",
+        )
+        group.add_argument(
+            "--enable-augmentation",
+            type=str2bool,
+            default=True,
+            help="True to enable augmentation for training set",
         )
         group.add_argument(
             "--mini-libri",
@@ -204,7 +220,12 @@ class LibriSpeechAsrDataModuleWithParallelAug:
           sampler_state_dict:
             The state dict for the training sampler.
         """
-        transforms = [perturb_speed, perturb_volume, perturb_tempo]
+        if self.args.enable_augmentation:
+            logging.info("Augmentation is enabled")
+            transforms = [perturb_speed, perturb_volume, perturb_tempo]
+        else:
+            logging.info("Augmentation is disabled")
+            transforms = []
 
         logging.info("About to create train dataset")
         train = ConsistencyRegularizationSpeechRecognitionDataset(
@@ -254,12 +275,6 @@ class LibriSpeechAsrDataModuleWithParallelAug:
 
     def valid_dataloaders(self, cuts_valid: CutSet) -> DataLoader:
         transforms = []
-        if self.args.concatenate_cuts:
-            transforms = [
-                CutConcatenate(
-                    duration_factor=self.args.duration_factor, gap=self.args.gap
-                )
-            ] + transforms
 
         logging.info("About to create dev dataset")
         if self.args.on_the_fly_feats:

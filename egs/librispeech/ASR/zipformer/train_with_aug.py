@@ -855,19 +855,38 @@ def compute_loss(
         disables autograd.
     """
     device = model.device if isinstance(model, DDP) else next(model.parameters()).device
-    feature = batch["inputs"]
+
+    feature_len_seq = [batch["supervisions"]["num_frames"]]
+    text_seq = list(batch["supervisions"]["text"])
+    feature_seq = torch.nn.utils.rnn.unpad_sequence(
+        batch["inputs"],
+        batch["supervisions"]["num_frames"],
+        batch_first=True,
+    )
+
+    if "aug" in batch:
+        for aug in batch["aug"]:
+            feature_len_seq.append(aug["supervisions"]["num_frames"])
+            text_seq.extend(aug["supervisions"]["text"])
+
+            feature_seq.extend(
+                torch.nn.utils.rnn.unpad_sequence(
+                    aug["inputs"],
+                    aug["supervisions"]["num_frames"],
+                    batch_first=True,
+                )
+            )
+
+    feature_lens = torch.cat(feature_len_seq).to(device)
+    feature = torch.nn.utils.rnn.pad_sequence(feature_seq, batch_first=True).to(device)
+
     # at entry, feature is (N, T, C)
     assert feature.ndim == 3
-    feature = feature.to(device)
-
-    supervisions = batch["supervisions"]
-    feature_lens = supervisions["num_frames"].to(device)
 
     batch_idx_train = params.batch_idx_train
     warm_step = params.warm_step
 
-    texts = batch["supervisions"]["text"]
-    y = sp.encode(texts, out_type=int)
+    y = sp.encode(text_seq, out_type=int)
     y = k2.RaggedTensor(y)
 
     with torch.set_grad_enabled(is_training):
@@ -1028,6 +1047,9 @@ def train_one_epoch(
 
         params.batch_idx_train += 1
         batch_size = len(batch["supervisions"]["text"])
+
+        if "aug" in batch:
+            batch_size *= len(batch["aug"]) + 1
 
         try:
             with torch.cuda.amp.autocast(
@@ -1360,7 +1382,7 @@ def run(rank, world_size, args):
     valid_cuts += librispeech.dev_other_cuts()
     valid_dl = librispeech.valid_dataloaders(valid_cuts)
 
-    if not params.print_diagnostics:
+    if False and not params.print_diagnostics:
         scan_pessimistic_batches_for_oom(
             model=model,
             train_dl=train_dl,
@@ -1443,12 +1465,32 @@ def display_and_save_batch(
     logging.info(f"Saving batch to {filename}")
     torch.save(batch, filename)
 
-    supervisions = batch["supervisions"]
-    features = batch["inputs"]
+    feature_len_seq = [batch["supervisions"]["num_frames"]]
+    text_seq = list(batch["supervisions"]["text"])
+    feature_seq = torch.nn.utils.rnn.unpad_sequence(
+        batch["inputs"],
+        batch["supervisions"]["num_frames"],
+        batch_first=True,
+    )
+
+    if "aug" in batch:
+        for aug in batch["aug"]:
+            feature_len_seq.append(aug["supervisions"]["num_frames"])
+            text_seq.extend(aug["supervisions"]["text"])
+
+            feature_seq.extend(
+                torch.nn.utils.rnn.unpad_sequence(
+                    aug["inputs"],
+                    aug["supervisions"]["num_frames"],
+                    batch_first=True,
+                )
+            )
+
+    features = torch.nn.utils.rnn.pad_sequence(feature_seq, batch_first=True)
 
     logging.info(f"features shape: {features.shape}")
 
-    y = sp.encode(supervisions["text"], out_type=int)
+    y = sp.encode(text_seq, out_type=int)
     num_tokens = sum(len(i) for i in y)
     logging.info(f"num tokens: {num_tokens}")
 
