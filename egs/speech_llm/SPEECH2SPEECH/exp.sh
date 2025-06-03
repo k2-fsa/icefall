@@ -3,7 +3,7 @@
 # fix segmentation fault reported in https://github.com/k2-fsa/icefall/issues/674
 export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
 export PYTHONPATH=$PYTHONPATH:/workspace/CosyVoice
-export HF_HOME="/lustre/fsw/general_sa/yuekaiz/.cache/huggingface"
+# export HF_HOME="/lustre/fsw/general_sa/yuekaiz/.cache/huggingface"
 set -eou pipefail
 
 stage=$1
@@ -123,7 +123,9 @@ fi
 
 if [ $stage -le 19 ] && [ $stop_stage -ge 19 ]; then
   log "stage 19: Training TTS Model"
-  exp_dir=./qwen_omni/exp_tts
+  exp_dir=./qwen_omni/exp_tts_ultra_chat_voice_assistant
+  exp_dir=./qwen_omni/exp_tts_emilia_en_tts_only_template
+  exp_dir=./qwen_omni/exp_tts_emilia_en_tts_three_concat
   pretrained_dir=./qwen_omni/exp_speech2text
   ngpu=4
 
@@ -141,17 +143,16 @@ if [ $stage -le 19 ] && [ $stop_stage -ge 19 ]; then
       fi
     done
   fi
-
-  train_cmd_args="--batch-size 64 \
+  # --dataset ultra_chat_voice_assistant
+  train_cmd_args="--batch-size 30 \
     --exp-dir $exp_dir \
-    --last-stage-model-path $pretrained_dir/checkpoint-58548/pytorch_model.bin \
     --llm-path-or-name models/Qwen2.5-0.5B-Instruct \
     --enable-speech-input False \
     --deepspeed \
-    --dataset /lustre/fsw/general_sa/yuekaiz/s2s/emilia_en \
+    --dataset  /lustre/fsw/general_sa/yuekaiz/s2s/VoxBox/manifests_emilia_en \
     --deepspeed_config ./qwen_omni/ds_config_zero1.json \
     --use-flash-attn True  \
-    --num-epochs 2 \
+    --num-epochs 3 \
     --use-lora False --unfreeze-llm False --enable-speech-output True"
 
   if [ "$latest_checkpoint_step" -ge 0 ]; then
@@ -168,66 +169,66 @@ if [ $stage -le 19 ] && [ $stop_stage -ge 19 ]; then
 fi
 
 
-if [ $stage -le 20 ] && [ $stop_stage -ge 20 ]; then
-  log "stage 20: Training TTS Model"
-  echo "cd /workspace && ln -s /lustre/fsw/general_sa/yuekaiz/s2s slam && cd -"
-  if [ ! -L "/workspace/slam" ]; then
-    cd /workspace && ln -s /lustre/fsw/general_sa/yuekaiz/s2s slam && cd -
-  fi
-  exp_dir=./qwen_omni/exp_test
-  ngpu=4
+# if [ $stage -le 20 ] && [ $stop_stage -ge 20 ]; then
+#   log "stage 20: Training TTS Model"
+#   echo "cd /workspace && ln -s /lustre/fsw/general_sa/yuekaiz/s2s slam && cd -"
+#   if [ ! -L "/workspace/slam" ]; then
+#     cd /workspace && ln -s /lustre/fsw/general_sa/yuekaiz/s2s slam && cd -
+#   fi
+#   exp_dir=./qwen_omni/exp_test
+#   ngpu=4
 
-  latest_checkpoint_step=-1
-  # Check if exp_dir exists and is a directory
-  if [ -d "$exp_dir" ]; then
-    # List directories matching checkpoint-* and find the one with the largest step number
-    for checkpoint_dir in $(ls -d $exp_dir/checkpoint-*/ 2>/dev/null | sort -V); do
-      checkpoint_name=$(basename "$checkpoint_dir") # e.g., checkpoint-1000
-      # Extract step number using parameter expansion
-      current_step=${checkpoint_name#checkpoint-}
-      # Ensure current_step is a number
-      if [[ "$current_step" =~ ^[0-9]+$ ]] && [ "$current_step" -gt "$latest_checkpoint_step" ]; then
-        latest_checkpoint_step=$current_step
-      fi
-    done
-  fi
+#   latest_checkpoint_step=-1
+#   # Check if exp_dir exists and is a directory
+#   if [ -d "$exp_dir" ]; then
+#     # List directories matching checkpoint-* and find the one with the largest step number
+#     for checkpoint_dir in $(ls -d $exp_dir/checkpoint-*/ 2>/dev/null | sort -V); do
+#       checkpoint_name=$(basename "$checkpoint_dir") # e.g., checkpoint-1000
+#       # Extract step number using parameter expansion
+#       current_step=${checkpoint_name#checkpoint-}
+#       # Ensure current_step is a number
+#       if [[ "$current_step" =~ ^[0-9]+$ ]] && [ "$current_step" -gt "$latest_checkpoint_step" ]; then
+#         latest_checkpoint_step=$current_step
+#       fi
+#     done
+#   fi
 
-  train_cmd_args="--max-duration 150 \
-    --enable-musan False \
-    --exp-dir $exp_dir \
-    --speech-encoder-path-or-name models/large-v2.pt \
-    --llm-path-or-name Qwen/Qwen2.5-0.5B-Instruct \
-    --dataset vocalnet_ultrachat_voiceassistant \
-    --manifest-dir data/fbank \
-    --deepspeed \
-    --deepspeed_config ./qwen_omni/ds_config_zero1.json \
-    --use-flash-attn True --on-the-fly-feats True \
-    --use-lora True --unfreeze-llm True --unfreeze-speech-projector True --enable-speech-output True"
+#   train_cmd_args="--max-duration 150 \
+#     --enable-musan False \
+#     --exp-dir $exp_dir \
+#     --speech-encoder-path-or-name models/large-v2.pt \
+#     --llm-path-or-name Qwen/Qwen2.5-0.5B-Instruct \
+#     --dataset vocalnet_ultrachat_voiceassistant \
+#     --manifest-dir data/fbank \
+#     --deepspeed \
+#     --deepspeed_config ./qwen_omni/ds_config_zero1.json \
+#     --use-flash-attn True --on-the-fly-feats True \
+#     --use-lora True --unfreeze-llm True --unfreeze-speech-projector True --enable-speech-output True"
 
-  if [ "$latest_checkpoint_step" -ge 0 ]; then
-    log "Continuing training from checkpoint-$latest_checkpoint_step"
-    step=$latest_checkpoint_step
-    train_cmd_args="$train_cmd_args --pretrained-model-path $exp_dir/checkpoint-${step}/pytorch_model.bin --sampler-state-dict-path $exp_dir/checkpoint-${step}/sampler.pt"
-  else
-    log "Starting training from scratch as no checkpoint was found in $exp_dir"
-    # No pretrained model or sampler state dict needed for the first run
-  fi
+#   if [ "$latest_checkpoint_step" -ge 0 ]; then
+#     log "Continuing training from checkpoint-$latest_checkpoint_step"
+#     step=$latest_checkpoint_step
+#     train_cmd_args="$train_cmd_args --pretrained-model-path $exp_dir/checkpoint-${step}/pytorch_model.bin --sampler-state-dict-path $exp_dir/checkpoint-${step}/sampler.pt"
+#   else
+#     log "Starting training from scratch as no checkpoint was found in $exp_dir"
+#     # No pretrained model or sampler state dict needed for the first run
+#   fi
 
-  torchrun --nproc_per_node $ngpu --nnodes $SLURM_JOB_NUM_NODES --rdzv_endpoint $MASTER_ADDR:$MASTER_PORT --rdzv_backend c10d --rdzv_id $SLURM_JOBID ./qwen_omni/train.py \
-    $train_cmd_args
-fi
+#   torchrun --nproc_per_node $ngpu --nnodes $SLURM_JOB_NUM_NODES --rdzv_endpoint $MASTER_ADDR:$MASTER_PORT --rdzv_backend c10d --rdzv_id $SLURM_JOBID ./qwen_omni/train.py \
+#     $train_cmd_args
+# fi
 
 
-if [ $stage -le 21 ] && [ $stop_stage -ge 21 ]; then
-  log "stage 21: TTS Decoding Test Set"
-  exp_dir=./qwen_omni/exp_tts
-  torchrun --nproc_per_node=2 ./qwen_omni/decode_tts.py \
-    --exp-dir $exp_dir \
-    --speech-encoder-path-or-name models/large-v2.pt  \
-    --llm-path-or-name models/Qwen2.5-0.5B-Instruct \
-    --pretrained-model-path $exp_dir/checkpoint-32001/pytorch_model.bin \
-    --use-flash-attn True \
-    --enable-speech-output True \
-    --token2wav-path /workspace/CosyVoice2-0.5B \
-    --use-lora True
-fi
+# if [ $stage -le 21 ] && [ $stop_stage -ge 21 ]; then
+#   log "stage 21: TTS Decoding Test Set"
+#   exp_dir=./qwen_omni/exp_tts
+#   torchrun --nproc_per_node=2 ./qwen_omni/decode_tts.py \
+#     --exp-dir $exp_dir \
+#     --speech-encoder-path-or-name models/large-v2.pt  \
+#     --llm-path-or-name models/Qwen2.5-0.5B-Instruct \
+#     --pretrained-model-path $exp_dir/checkpoint-32001/pytorch_model.bin \
+#     --use-flash-attn True \
+#     --enable-speech-output True \
+#     --token2wav-path /workspace/CosyVoice2-0.5B \
+#     --use-lora True
+# fi

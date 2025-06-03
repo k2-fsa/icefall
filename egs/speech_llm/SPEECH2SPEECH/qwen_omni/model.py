@@ -437,7 +437,8 @@ class SPEECH_LLM(nn.Module):
         audio_attention_mask = audio_codes.ne(self.codec_lm.config.pad_token_id)
         audio_embeddings = self.codec_lm.get_input_embeddings()(audio_codes)
 
-        text_last_hidden_lists, text_embeds_list, text_input_embeds_list = [], [], []
+        # text_last_hidden_lists, text_embeds_list, text_input_embeds_list = [], [], []
+        text_input_embeds_list = []
         for i in range(len(text_label_start_index_list)):
             text_last_hidden = model_outputs.hidden_states[-1][
                 i,
@@ -445,14 +446,14 @@ class SPEECH_LLM(nn.Module):
                 + input_seq_len[i]
                 - 1,
             ]
-            text_last_hidden_lists.append(text_last_hidden)
+            # text_last_hidden_lists.append(text_last_hidden)
             text_embed = inputs_embeds[
                 i,
                 text_input_start_index_list[i]
                 + 1 : text_input_start_index_list[i]
                 + input_seq_len[i],
             ]  # exclude bos
-            text_embeds_list.append(text_embed)
+            # text_embeds_list.append(text_embed)
 
             text_input_embeds = torch.cat(
                 [
@@ -480,8 +481,9 @@ class SPEECH_LLM(nn.Module):
                 ), f"start_idx: {start_idx}, start_idx_re_compute: {start_idx_re_compute}"
                 if text_input_embeds.shape[0] > audio_embeddings.shape[1] - start_idx:
                     logging.warning(
-                        f"Truncate text_input_embeds: {text_input_embeds.shape} to {audio_embeddings.shape[1] - start_idx}"
+                        f"Truncate text_input_embeds: {text_input_embeds.shape} to {audio_embeddings.shape[1] - start_idx}\naudio_codes_lens: {audio_codes_lens[i]}\ninput_question_len_list: {input_question_len_list[i]}\ninput_seq_len: {input_seq_len[i]}\n"
                     )
+                    # breakpoint()
                     text_input_embeds = text_input_embeds[
                         : audio_embeddings.shape[1] - start_idx
                     ]
