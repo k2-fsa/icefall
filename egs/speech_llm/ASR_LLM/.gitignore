@@ -1,1 +1,4 @@
 models
+train*.sh
+decode*.sh
+sync*.sh

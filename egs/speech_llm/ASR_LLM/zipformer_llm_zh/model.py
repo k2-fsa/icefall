@@ -30,9 +30,11 @@ class EncoderProjector(nn.Module):
     def forward(self, x):
 
         batch_size, seq_len, feat_dim = x.size()
-        num_frames_to_discard = seq_len % self.downsample_rate
-        if num_frames_to_discard > 0:
-            x = x[:, :-num_frames_to_discard, :]
+        num_padding_frames = (
+            self.downsample_rate - seq_len % self.downsample_rate
+        ) % self.downsample_rate
+        if num_padding_frames > 0:
+            x = torch.nn.functional.pad(x, (0, 0, 0, num_padding_frames))
         seq_len = x.size(1)
 
         x = x.contiguous()
@@ -62,6 +64,7 @@ class SPEECH_LLM(nn.Module):
         self,
         encoder_embed: nn.Module,
         encoder: EncoderInterface,
+        ctc_output: nn.Module,
         llm: nn.Module,
         encoder_projector: nn.Module,
     ):
@@ -230,6 +233,57 @@ class SPEECH_LLM(nn.Module):
 
         return encoder_out, encoder_out_lens
 
+    def ctc_compress(
+        self,
+        encoder_out: torch.Tensor,
+        encoder_out_lens: torch.Tensor,
+        blank_id: int = 0,
+    ) -> torch.Tensor:
+        """
+        Remove frames from encoder_out where CTC argmax predicts blank.
+        Args:
+          encoder_out: Tensor of shape (N, T, C), encoder output.
+          encoder_out_lens: Tensor of shape (N,), lengths before padding.
+          blank_id: CTC blank token ID (default: 0).
+
+        Returns:
+          Compressed CTC output of shape (N, T', C).
+        """
+        # 1. Compute CTC argmax predictions
+        ctc_output = self.ctc_output(encoder_out)
+        ctc_preds = ctc_output.argmax(dim=-1)
+
+        # 2. Create non-blank, non-pad mask
+        padding_mask = make_pad_mask(encoder_out_lens)
+        non_blank_mask = (ctc_preds != blank_id) & (~padding_mask)
+
+        # 3. Compute lengths after compress
+        compressed_lens = non_blank_mask.sum(dim=1)
+        max_len = compressed_lens.max().item()
+
+        # 4. Pre-pad output
+        pad_lens_list = (
+            torch.full_like(
+                compressed_lens,
+                max_len,
+                device=ctc_output.device,
+            )
+            - compressed_lens
+        )
+        max_pad_len = int(pad_lens_list.max())
+        padded_ctc_output = torch.nn.functional.pad(ctc_output, [0, 0, 0, max_pad_len])
+
+        # 5. Create final mask
+        padding_mask = ~make_pad_mask(pad_lens_list)
+        total_mask = torch.concat([non_blank_mask, padding_mask], dim=1)
+
+        # 6. Apply mask and reshape
+        compressed_output = padded_ctc_output[total_mask].reshape(
+            ctc_output.shape[0], -1, ctc_output.shape[2]
+        )
+
+        return compressed_output
+
     def forward(
         self,
         fbank: torch.Tensor,
@@ -238,7 +292,7 @@ class SPEECH_LLM(nn.Module):
         attention_mask: torch.Tensor,
         labels: torch.LongTensor,
     ):
-        encoder_outs, _ = self.forward_encoder(fbank, fbank_lens)
+        encoder_outs, encoder_out_lens = self.forward_encoder(fbank, fbank_lens)
 
         speech_features = self.encoder_projector(encoder_outs)
 
