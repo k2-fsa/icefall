@@ -30,9 +30,9 @@ class EncoderProjector(nn.Module):
     def forward(self, x):
 
         batch_size, seq_len, feat_dim = x.size()
-        num_frames_to_discard = seq_len % self.downsample_rate
-        if num_frames_to_discard > 0:
-            x = x[:, :-num_frames_to_discard, :]
+        num_padding_frames = (self.downsample_rate - seq_len % self.downsample_rate) % self.downsample_rate
+        if num_padding_frames > 0:
+            x = torch.nn.functional.pad(x, (0, 0, 0, num_padding_frames)) 
         seq_len = x.size(1)
 
         x = x.contiguous()
