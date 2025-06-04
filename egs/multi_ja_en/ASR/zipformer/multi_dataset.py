@@ -29,12 +29,12 @@ class MultiDataset:
 
         logging.info("Loading Reazonspeech TRAIN set in lazy mode")
         reazonspeech_train_cuts = load_manifest_lazy(
-            self.manifest_dir / "reazonspeech_cuts_train.jsonl.gz"
+            self.manifest_dir / "reazonspeech/reazonspeech_cuts_train.jsonl.gz"
         )
 
         logging.info("Loading MLS English TRAIN set in lazy mode")
         mls_eng_train_cuts = load_manifest_lazy(
-            self.manifest_dir / "mls_eng_cuts_train.jsonl.gz"
+            self.manifest_dir / "mls_english/mls_eng_cuts_train.jsonl.gz"
         )
 
         return CutSet.mux(
@@ -51,12 +51,12 @@ class MultiDataset:
 
         logging.info("Loading Reazonspeech DEV set in lazy mode")
         reazonspeech_dev_cuts = load_manifest_lazy(
-            self.manifest_dir / "reazonspeech_cuts_dev.jsonl.gz"
+            self.manifest_dir / "reazonspeech/reazonspeech_cuts_dev.jsonl.gz"
         )
 
         logging.info("Loading MLS English DEV set in lazy mode")
         mls_eng_dev_cuts = load_manifest_lazy(
-            self.manifest_dir / "mls_eng_cuts_dev.jsonl.gz"
+            self.manifest_dir / "mls_english/mls_eng_cuts_dev.jsonl.gz"
         )
 
         return CutSet.mux(
@@ -73,12 +73,12 @@ class MultiDataset:
 
         logging.info("Loading Reazonspeech TEST set in lazy mode")
         reazonspeech_test_cuts = load_manifest_lazy(
-            self.manifest_dir / "reazonspeech_cuts_test.jsonl.gz"
+            self.manifest_dir / "reazonspeech/reazonspeech_cuts_test.jsonl.gz"
         )
 
         logging.info("Loading MLS English TEST set in lazy mode")
         mls_eng_test_cuts = load_manifest_lazy(
-            self.manifest_dir / "mls_eng_cuts_test.jsonl.gz"
+            self.manifest_dir / "mls_english/mls_eng_cuts_test.jsonl.gz"
         )
 
         return CutSet.mux(

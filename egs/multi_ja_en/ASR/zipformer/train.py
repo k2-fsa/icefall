@@ -327,7 +327,7 @@ def get_parser():
     parser.add_argument(
         "--bpe-model",
         type=str,
-        default="data/lang_bbpe_2000/bbpe.model",
+        default="data/lang/bbpe_2000/bbpe.model",
         help="Path to the BPE model",
     )
 
@@ -1120,7 +1120,7 @@ def run(rank, world_size, args):
 
     # <blk> is defined in local/prepare_lang_char.py
     params.blank_id = sentencepiece_processor.piece_to_id("<blk>")
-    arams.vocab_size = sentencepiece_processor.get_piece_size()
+    params.vocab_size = sentencepiece_processor.get_piece_size()
 
     if not params.use_transducer:
         params.ctc_loss_scale = 1.0
@@ -1392,6 +1392,7 @@ def main():
     ReazonSpeechAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
+    print(args)
 
     world_size = args.world_size
     assert world_size >= 1
