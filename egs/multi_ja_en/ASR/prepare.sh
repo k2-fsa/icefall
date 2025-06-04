@@ -140,28 +140,29 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
     bbpe_dir=$lang_dir/bbpe_${vocab_size}
     mkdir -p $bbpe_dir
 
-    if [ ! -f $lang_dir/transcript_chars.txt ]; then
+    if [ ! -f $bbpe_dir/transcript_chars.txt ]; then
       ./local/prepare_for_bpe_model.py \
-        --lang-dir ./$lang_dir \
+        --lang-dir $bbpe_dir \
         --text $lang_dir/text
     fi
 
-    if [ ! -f $lang_dir/text_words_segmentation ]; then
+    if [ ! -f $bbpe_dir/text_words_segmentation ]; then
       python3 ./local/text2segments.py \
         --input-file ./data/lang_char/text \
-        --output-file $lang_dir/text_words_segmentation
-
+        --output-file $bbpe_dir/text_words_segmentation
       cat ../../mls_english/ASR/data/lang/transcript.txt \
-        >> $lang_dir/text_words_segmentation
+        >> $bbpe_dir/text_words_segmentation
     fi
 
-    cat $lang_dir/text_words_segmentation | sed 's/ /\n/g' \
-      | sort -u | sed '/^$/d' | uniq > $lang_dir/words_no_ids.txt
+    if [ ! -f $bbpe_dir/words_no_ids.txt ]; then
+      cat $bbpe_dir/text_words_segmentation | sed 's/ /\n/g' \
+        | sort -u | sed '/^$/d' | uniq > $bbpe_dir/words_no_ids.txt
+    fi
 
-    if [ ! -f $lang_dir/words.txt ]; then
+    if [ ! -f $bbpe_dir/words.txt ]; then
       python3 ./local/prepare_words.py \
-        --input-file $lang_dir/words_no_ids.txt \
-        --output-file $lang_dir/words.txt
+        --input-file $bbpe_dir/words_no_ids.txt \
+        --output-file $bbpe_dir/words.txt
     fi
 
     if [ ! -f $bbpe_dir/bbpe.model ]; then
@@ -169,26 +170,28 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
         --lang-dir $lang_dir \
         --vocab-size $vocab_size \
         --transcript $lang_dir/text \
-        --output-model $bbpe_dir/bbpe.model # Specify output path
+        --output-model $bbpe_dir/bbpe.model \
+        --input-sentence-size 2000000 # Example: limit to 2 million sentences
     fi
 
-    if [ ! -f $lang_dir/L_disambig.pt ]; then
-      ./local/prepare_lang_bbpe.py --lang-dir $lang_dir
+    if [ ! -f $bbpe_dir/L_disambig.pt ]; then
+      ./local/prepare_lang_bbpe.py --lang-dir $bbpe_dir --vocab-size $vocab_size
 
-      log "Validating $lang_dir/lexicon.txt"
+      log "Validating $bbpe_dir/lexicon.txt"
       ln -svf $(realpath ../../multi_zh_en/ASR/local/validate_bpe_lexicon.py) local/
       ./local/validate_bpe_lexicon.py \
-        --lexicon $lang_dir/lexicon.txt \
-        --bpe-model $bbpe_dir/bbpe.model # Use the model in the bbpe subdir
+        --lexicon $bbpe_dir/lexicon.txt \
+        --bpe-model $bbpe_dir/bbpe.model
     fi
 
+    # Remove top-level files (if they were created)
     rm -f $lang_dir/lexicon.txt $lang_dir/L_disambig.pt
   done
 
-  # Optionally, create a symlink for consistency if other parts of the recipe expect data/lang/bpe_2000
-  # if [ -d $lang_dir/bbpe_2000 ] && [ ! -e $lang_dir/bpe_2000 ]; then
-  #   ln -s bbpe_2000 $lang_dir/bpe_2000
-  # fi
+  # Optional symlink
+  if [ -d $lang_dir/bbpe_2000 ] && [ ! -e $lang_dir/bpe_2000 ]; then
+    ln -s bbpe_2000 $lang_dir/bpe_2000
+  fi
 fi
 
 log "prepare.sh: PREPARATION DONE"
