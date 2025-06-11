@@ -41,7 +41,6 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
 import argparse
 import copy
 import logging
-import sys
 import warnings
 from pathlib import Path
 from shutil import copyfile
@@ -594,7 +593,7 @@ def get_parser():
     parser.add_argument(
         "--max-keep-size",
         type=int,
-        default=sys.maxsize,
+        default=320000,
         help="exclude sample longer than this.",
     )
 
@@ -1218,6 +1217,8 @@ def run(rank, world_size, args):
         num_classes=params.num_classes,
         do_normalize=params.do_normalize,
         sampler_state_dict=sampler_state_dict,
+        world_size=world_size,
+        rank=rank,
     )
 
     valid_cuts = librispeech.dev_clean_cuts()
@@ -1233,6 +1234,8 @@ def run(rank, world_size, args):
         pad_audio=False,
         num_classes=params.num_classes,
         do_normalize=params.do_normalize,
+        world_size=world_size,
+        rank=rank,
     )
 
     if params.sanity_check and not params.print_diagnostics:
