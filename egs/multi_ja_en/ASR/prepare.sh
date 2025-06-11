@@ -194,4 +194,9 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   fi
 fi
 
+if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
+	log "Stage 6: Update cutset paths"
+	python local/utils/update_cutset_paths.py
+fi
+
 log "prepare.sh: PREPARATION DONE"
