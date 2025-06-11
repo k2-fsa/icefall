@@ -74,9 +74,14 @@ def make_cutset_blueprints(
 
     # Create dev dataset
     logging.info("Creating dev cuts.")
-    cut_sets.append(
-        ("dev", CutSet.from_huggingface_dataset(dataset["dev"], text_key="transcript"))
-    )
+    try:
+        cut_sets.append(
+            ("dev", CutSet.from_huggingface_dataset(dataset["dev"], text_key="transcript"))
+        )
+    except KeyError:
+        cut_sets.append(
+            ("dev", CutSet.from_huggingface_dataset(dataset["validation"], text_key="transcript"))
+        )
 
     # Create train dataset
     logging.info("Creating train cuts.")
