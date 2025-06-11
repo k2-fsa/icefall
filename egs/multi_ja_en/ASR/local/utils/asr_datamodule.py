@@ -70,7 +70,7 @@ class MultiDatasetAsrDataModule:
         group.add_argument(
             "--manifest-dir",
             type=Path,
-            default=Path("data/fbank"),
+            default=Path("data/manifests"),
             help="Path to directory with train/dev/test cuts.",
         )
         group.add_argument(
