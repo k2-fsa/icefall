@@ -57,17 +57,6 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   fi
 fi
 
-# if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
-#     log "Stage 1: Prepare MLS English manifest"
-#     # We assume that you have downloaded the MLS English corpus
-#     # to $dl_dir/mls_english
-#     if [ ! -e data/manifests/.mls_english.done ]; then
-#         # lhotse prepare mls_english -j $nj $dl_dir/mls_english data/manifests
-#         python local/utils/save_audios.py --num-jobs 8 --dataset-dir $dl_dir/mls_english --audio-dir ./data/audio --manifest-dir ./data/manifests 
-#         touch data/manifests/.mls_english.done
-#     fi
-# fi
-
 if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
 	log "Stage 1: Compute MLS English fbank"
 	if [ ! -e data/manifests/.mls_english-validated.done ]; then
