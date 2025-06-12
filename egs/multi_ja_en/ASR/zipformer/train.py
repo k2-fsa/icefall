@@ -1185,15 +1185,12 @@ def run(rank, world_size, args):
     train_cuts = multi_dataset.train_cuts()
 
     def remove_short_and_long_utt(c: Cut):
-        # Keep only utterances with duration between 1 second and 30 seconds
-        #
-        # Caution: There is a reason to select 30.0 here. Please see
-        # ../local/display_manifest_statistics.py
+        # Keep only utterances greater than 1 second
         #
         # You should use ../local/display_manifest_statistics.py to get
         # an utterance duration distribution for your dataset to select
-        # the threshold
-        if c.duration < 1.0 or c.duration > 30.0:
+        # the threshold as this is dependent on which datasets you choose
+        if c.duration < 1.0:
             logging.warning(
                 f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
             )
@@ -1239,9 +1236,6 @@ def run(rank, world_size, args):
     else:
         sampler_state_dict = None
 
-    # train_dl = reazonspeech_corpus.train_dataloaders(
-    #     train_cuts, sampler_state_dict=sampler_state_dict
-    # )
     train_dl = multidataset_datamodule.train_dataloaders(
         train_cuts, sampler_state_dict=sampler_state_dict
     )
@@ -1392,7 +1386,6 @@ def main():
     ReazonSpeechAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
-    print(args)
 
     world_size = args.world_size
     assert world_size >= 1
