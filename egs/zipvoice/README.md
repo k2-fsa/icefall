@@ -1,7 +1,7 @@
 ## ZipVoice: Fast and High-Quality Zero-Shot Text-to-Speech with Flow Matching
 
 
-[![arXiv](https://img.shields.io/badge/arXiv-Paper-COLOR.svg)](https://arxiv.org/abs/)
+[![arXiv](https://img.shields.io/badge/arXiv-Paper-COLOR.svg)](http://arxiv.org/abs/2506.13053)
 [![demo](https://img.shields.io/badge/GitHub-Demo%20page-orange.svg)](https://zipvoice.github.io/)
 
 
@@ -354,7 +354,7 @@ on three test sets, i.e., LibriSpeech-PC test-clean, Seed-TTS test-en and Seed-T
 @article{zhu-2025-zipvoice,
       title={ZipVoice: Fast and High-Quality Zero-Shot Text-to-Speech with Flow Matching}, 
       author={Han Zhu and Wei Kang and Zengwei Yao and Liyong Guo and Fangjun Kuang and Zhaoqing Li and Weiji Zhuang and Long Lin and Daniel Povey}
-      journal={arXiv preprint},
+      journal={arXiv preprint arXiv:2506.13053},
       year={2025},
 }
 ```
