@@ -23,7 +23,7 @@ This script generates speech with our pre-trained ZipVoice or
 Usage:
 
 Note: If you having trouble connecting to HuggingFace,
-    you try switch endpoint to mirror site:
+    try switching endpoint to mirror site:
 
 export HF_ENDPOINT=https://hf-mirror.com
 
@@ -55,7 +55,6 @@ import os
 
 import numpy as np
 import safetensors.torch
-import soundfile as sf
 import torch
 import torch.nn as nn
 import torchaudio
@@ -115,15 +114,20 @@ def get_parser():
         "--res-dir",
         type=str,
         default="results",
-        help="Path name of the generated wavs dir, "
-        "used when decdode-list is not None",
+        help="""
+        Path name of the generated wavs dir,
+        used when test-list is not None
+        """,
     )
 
     parser.add_argument(
         "--res-wav-path",
         type=str,
         default="result.wav",
-        help="Path name of the generated wav path, " "used when decdode-list is None",
+        help="""
+        Path name of the generated wav path,
+        used when test-list is None
+        """,
     )
 
     parser.add_argument(
@@ -456,8 +460,7 @@ def generate_sentence(
     # Adjust wav volume if necessary
     if prompt_rms < target_rms:
         wav = wav * prompt_rms / target_rms
-    wav = wav[0].cpu().numpy()
-    sf.write(save_path, wav, sampling_rate)
+    torchaudio.save(save_path, wav.cpu(), sample_rate=sampling_rate)
 
     return metrics
 
