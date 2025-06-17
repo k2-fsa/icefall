@@ -105,7 +105,7 @@ pip install -r ../../requirements.txt
 #### 1.1. Prepare the Emilia dataset
 
 ```bash
-bash scripts/prepare_emilia.sh --stage 0 --stop-stage 4
+bash scripts/prepare_emilia.sh
 ```
 
 See [scripts/prepare_emilia.sh](scripts/prepare_emilia.sh) for step by step instructions.
@@ -113,7 +113,7 @@ See [scripts/prepare_emilia.sh](scripts/prepare_emilia.sh) for step by step inst
 #### 1.2 Prepare the LibriTTS dataset
 
 ```bash
-bash scripts/prepare_libritts.sh --stage 0 --stop-stage 3
+bash scripts/prepare_libritts.sh
 ```
 
 See [scripts/prepare_libritts.sh](scripts/prepare_libritts.sh) for step by step instructions.
@@ -139,7 +139,7 @@ python3 zipvoice/train_flow.py \
         --lr-hours 30000 \
         --lr-batches 7500 \
         --token-file "data/tokens_emilia.txt" \
-        --manifest-dir "data/fbank_emilia" \
+        --manifest-dir "data/fbank" \
         --num-epochs 11 \
         --exp-dir zipvoice/exp_zipvoice
 ```
@@ -172,7 +172,7 @@ python3 zipvoice/train_distill.py \
         --base-lr 0.0005 \
         --max-duration 500 \
         --token-file "data/tokens_emilia.txt" \
-        --manifest-dir "data/fbank_emilia" \
+        --manifest-dir "data/fbank" \
         --teacher-model zipvoice/exp_zipvoice/epoch-11-avg-4.pt \
         --num-updates 60000 \
         --distill-stage "first" \
@@ -205,7 +205,7 @@ python3 zipvoice/train_distill.py \
         --base-lr 0.0001 \
         --max-duration 200 \
         --token-file "data/tokens_emilia.txt" \
-        --manifest-dir "data/fbank_emilia" \
+        --manifest-dir "data/fbank" \
         --teacher-model zipvoice/exp_zipvoice_distill_1stage/iter-60000-avg-7.pt \
         --num-updates 2000 \
         --distill-stage "second" \
@@ -233,7 +233,7 @@ python3 zipvoice/train_flow.py \
         --lr-epochs 10 \
         --lr-batches 7500 \
         --token-file "data/tokens_libritts.txt" \
-        --manifest-dir "data/fbank_libritts" \
+        --manifest-dir "data/fbank" \
         --num-epochs 60 \
         --exp-dir zipvoice/exp_zipvoice_libritts
 ```
@@ -266,7 +266,7 @@ python3 zipvoice/train_distill.py \
         --base-lr 0.001 \
         --max-duration 250 \
         --token-file "data/tokens_libritts.txt" \
-        --manifest-dir "data/fbank_libritts" \
+        --manifest-dir "data/fbank" \
         --teacher-model zipvoice/exp_zipvoice_libritts/epoch-60-avg-10.pt \
         --num-epochs 6 \
         --distill-stage "first" \
@@ -299,7 +299,7 @@ python3 zipvoice/train_distill.py \
         --base-lr 0.001 \
         --max-duration 250 \
         --token-file "data/tokens_libritts.txt" \
-        --manifest-dir "data/fbank_libritts" \
+        --manifest-dir "data/fbank" \
         --teacher-model zipvoice/exp_zipvoice_distill_1stage_libritts/epoch-6-avg-3.pt \
         --num-epochs 6 \
         --distill-stage "second" \
