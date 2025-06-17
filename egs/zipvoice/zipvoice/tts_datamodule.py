@@ -347,14 +347,14 @@ class TtsDataModule:
             train-clean-360 and train-other-500 cuts"
         )
         return load_manifest_lazy(
-            self.args.manifest_dir / "libritts_cuts_with_tokens_train-all-shuf.jsonl.gz"
+            self.args.manifest_dir / "libritts_cuts_train-all-shuf.jsonl.gz"
         )
 
     @lru_cache()
     def dev_libritts_cuts(self) -> CutSet:
         logging.info("About to get dev-clean cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "libritts_cuts_with_tokens_dev-clean.jsonl.gz"
+            self.args.manifest_dir / "libritts_cuts_dev-clean.jsonl.gz"
         )
 
 

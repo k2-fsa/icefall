@@ -57,21 +57,20 @@ To generate speech with our pre-trained ZipVoice or ZipVoice-Distill models, use
 
 ### 1. Inference of a single sentence:
 ```bash
-# Chinese example
 python3 zipvoice/zipvoice_infer.py \
     --model-name "zipvoice_distill" \
-    --prompt-wav assets/prompt-zh.wav \
-    --prompt-text "对，这就是我，万人敬仰的太乙真人，虽然有点婴儿肥，但也掩不住我逼人的帅气。" \
-    --text "欢迎使用我们的语音合成模型，希望它能给你带来惊喜！" \
-    --res-wav-path result-zh.wav
+    --prompt-wav prompt.wav \
+    --prompt-text "I am the transcription of the prompt wav." \
+    --text "I am the text to be synthesized." \
+    --res-wav-path result.wav
 
-# English example
+# Example with a pre-defined prompt wav and text
 python3 zipvoice/zipvoice_infer.py \
     --model-name "zipvoice_distill" \
     --prompt-wav assets/prompt-en.wav \
     --prompt-text "Some call me nature, others call me mother nature. I've been here for over four point five billion years, twenty two thousand five hundred times longer than you." \
     --text "Welcome to use our tts model, have fun!" \
-    --res-wav-path result-en.wav
+    --res-wav-path result.wav
 ```
 
 ### 2. Inference of a list of sentences:
@@ -95,13 +94,29 @@ export HF_ENDPOINT=https://hf-mirror.com
 
 The following steps show how to train a model from scratch on Emilia and LibriTTS datasets, respectively.
 
+### 0. Install dependencies for training
+
+```bash
+pip install -r ../../requirements.txt
+```
+
 ### 1. Data Preparation
 
 #### 1.1. Prepare the Emilia dataset
 
+```bash
+bash scripts/prepare_emilia.sh --stage 0 --stop-stage 4
+```
+
+See [scripts/prepare_emilia.sh](scripts/prepare_emilia.sh) for step by step instructions.
+
 #### 1.2 Prepare the LibriTTS dataset
 
-See [local/prepare_libritts.sh](local/prepare_libritts.sh)
+```bash
+bash scripts/prepare_libritts.sh --stage 0 --stop-stage 3
+```
+
+See [scripts/prepare_libritts.sh](scripts/prepare_libritts.sh) for step by step instructions.
 
 ### 2. Training
 

@@ -8,7 +8,7 @@ set -eou pipefail
 stage=0
 stop_stage=5
 sampling_rate=24000
-nj=32
+nj=20
 
 dl_dir=$PWD/download
 
@@ -44,44 +44,53 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   # to $dl_dir/LibriTTS
   mkdir -p data/manifests_libritts
   if [ ! -e data/manifests_libritts/.libritts.done ]; then
-    lhotse prepare libritts --num-jobs ${nj} $dl_dir/LibriTTS data/manifests_libritts
-    touch data/manifests_libritts/.libritts.done
+    lhotse prepare libritts --num-jobs ${nj} $dl_dir/LibriTTS data/manifests
+    touch data/manifests/.libritts.done
   fi
 fi
 
 if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   log "Stage 2: Compute Fbank for LibriTTS"
   mkdir -p data/fbank
-  if [ ! -e data/fbank_libritts/.libritts.done ]; then
-    ./local/compute_fbank_libritts.py --sampling-rate $sampling_rate
-    touch data/fbank_libritts/.libritts.done
+
+  if [ ! -e data/fbank/.libritts.done ]; then
+    for subset in train-clean-100 train-clean-360 train-other-500 dev-clean test-clean; do
+      python local/compute_fbank.py \
+        --source-dir data/manifests \
+        --dest-dir data/fbank \
+        --dataset libritts \
+        --subset ${subset} \
+        --sampling-rate $sampling_rate \
+        --num-jobs ${nj}
+    done
+    touch data/fbank/.libritts.done
   fi
 
   # Here we shuffle and combine the train-clean-100, train-clean-360 and
   # train-other-500 together to form the training set.
-  if [ ! -f data/fbank_libritts/libritts_cuts_train-all-shuf.jsonl.gz ]; then
-    cat <(gunzip -c data/fbank_libritts/libritts_cuts_train-clean-100.jsonl.gz) \
-      <(gunzip -c data/fbank_libritts/libritts_cuts_train-clean-360.jsonl.gz) \
-      <(gunzip -c data/fbank_libritts/libritts_cuts_train-other-500.jsonl.gz) | \
-      shuf | gzip -c > data/fbank_libritts/libritts_cuts_train-all-shuf.jsonl.gz
+  if [ ! -f data/fbank/libritts_cuts_train-all-shuf.jsonl.gz ]; then
+    cat <(gunzip -c data/fbank/libritts_cuts_train-clean-100.jsonl.gz) \
+      <(gunzip -c data/fbank/libritts_cuts_train-clean-360.jsonl.gz) \
+      <(gunzip -c data/fbank/libritts_cuts_train-other-500.jsonl.gz) | \
+      shuf | gzip -c > data/fbank/libritts_cuts_train-all-shuf.jsonl.gz
   fi
 
-  if [ ! -f data/fbank_libritts/libritts_cuts_train-clean-460.jsonl.gz ]; then
-    cat <(gunzip -c data/fbank_libritts/libritts_cuts_train-clean-100.jsonl.gz) \
-      <(gunzip -c data/fbank_libritts/libritts_cuts_train-clean-360.jsonl.gz) | \
-      shuf | gzip -c > data/fbank_libritts/libritts_cuts_train-clean-460.jsonl.gz
+  if [ ! -f data/fbank/libritts_cuts_train-clean-460.jsonl.gz ]; then
+    cat <(gunzip -c data/fbank/libritts_cuts_train-clean-100.jsonl.gz) \
+      <(gunzip -c data/fbank/libritts_cuts_train-clean-360.jsonl.gz) | \
+      shuf | gzip -c > data/fbank/libritts_cuts_train-clean-460.jsonl.gz
   fi
 
-  if [ ! -e data/fbank_libritts/.libritts-validated.done ]; then
+  if [ ! -e data/fbank/.libritts-validated.done ]; then
     log "Validating data/fbank for LibriTTS"
     ./local/validate_manifest.py \
-      data/fbank_libritts/libritts_cuts_train-all-shuf.jsonl.gz
-    touch data/fbank_libritts/.libritts-validated.done
+      data/fbank/libritts_cuts_train-all-shuf.jsonl.gz
+    touch data/fbank/.libritts-validated.done
   fi
 fi
 
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
-  log "Stage 4: Generate token file"
+  log "Stage 3: Generate token file"
   if [ ! -e data/tokens_libritts.txt ]; then
     ./local/prepare_token_file_libritts.py --tokens data/tokens_libritts.txt
   fi

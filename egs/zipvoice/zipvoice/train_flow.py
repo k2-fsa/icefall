@@ -29,7 +29,7 @@ python3 zipvoice/train_flow.py \
         --lr-hours 30000 \
         --lr-batches 7500 \
         --token-file "data/tokens_emilia.txt" \
-        --manifest-dir "data/fbank_emilia" \
+        --manifest-dir "data/fbank" \
         --num-epochs 11 \
         --exp-dir zipvoice/exp_zipvoice
 """

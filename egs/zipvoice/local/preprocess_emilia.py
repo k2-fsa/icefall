@@ -20,20 +20,26 @@
 
 
 """
-This file reads the texts in given manifest and save the new cuts with phoneme tokens.
+This file reads the texts in given manifest and save the cleaned new cuts.
 """
 
 import argparse
-import glob
 import logging
-import re
-from concurrent.futures import ProcessPoolExecutor as Pool
+import glob
+import os
 from pathlib import Path
 from typing import List
 
-import jieba
-from lhotse import load_manifest_lazy
-from tokenizer import Tokenizer, is_alphabet, is_chinese, is_hangul, is_japanese
+from lhotse import CutSet, load_manifest_lazy
+from concurrent.futures import ProcessPoolExecutor as Pool
+
+from tokenizer import (
+    is_alphabet,
+    is_chinese,
+    is_hangul,
+    is_japanese,
+    tokenize_by_CJK_char,
+)
 
 
 def get_args():
@@ -48,71 +54,32 @@ def get_args():
     parser.add_argument(
         "--jobs",
         type=int,
-        default=50,
+        default=20,
         help="Number of jobs to processing.",
     )
 
     parser.add_argument(
         "--source-dir",
         type=str,
-        default="data/manifests_emilia/splits",
+        default="data/manifests/splits_raw",
         help="The source directory of manifest files.",
     )
 
     parser.add_argument(
         "--dest-dir",
         type=str,
+        default="data/manifests/splits",
         help="The destination directory of manifest files.",
     )
 
     return parser.parse_args()
 
 
-def tokenize_by_CJK_char(line: str) -> List[str]:
-    """
-    Tokenize a line of text with CJK char.
-
-    Note: All return characters will be upper case.
-
-    Example:
-      input = "你好世界是 hello world 的中文"
-      output = [你, 好, 世, 界, 是, HELLO, WORLD, 的, 中, 文]
-
-    Args:
-      line:
-        The input text.
-
-    Return:
-      A new string tokenize by CJK char.
-    """
-    # The CJK ranges is from https://github.com/alvations/nltk/blob/79eed6ddea0d0a2c212c1060b477fc268fec4d4b/nltk/tokenize/util.py
-    pattern = re.compile(
-        r"([\u1100-\u11ff\u2e80-\ua4cf\ua840-\uD7AF\uF900-\uFAFF\uFE30-\uFE4F\uFF65-\uFFDC\U00020000-\U0002FFFF])"
-    )
-    chars = pattern.split(line.strip().upper())
-    char_list = []
-    for w in chars:
-        if w.strip():
-            char_list += w.strip().split()
-    return char_list
-
-
-def prepare_tokens_emilia(file_name: str, input_dir: Path, output_dir: Path):
+def preprocess_emilia(file_name: str, input_dir: Path, output_dir: Path):
     logging.info(f"Processing {file_name}")
     if (output_dir / file_name).is_file():
         logging.info(f"{file_name} exists, skipping.")
         return
-    jieba.setLogLevel(logging.INFO)
-    tokenizer = Tokenizer()
-
-    def _prepare_cut(cut):
-        # Each cut only contains one supervision
-        assert len(cut.supervisions) == 1, (len(cut.supervisions), cut)
-        text = cut.supervisions[0].text
-        cut.supervisions[0].normalized_text = text
-        tokens = tokenizer.texts_to_tokens([text])[0]
-        cut.tokens = tokens
-        return cut
 
     def _filter_cut(cut):
         text = cut.supervisions[0].text
@@ -124,10 +91,10 @@ def prepare_tokens_emilia(file_name: str, input_dir: Path, output_dir: Path):
         clean_chars = []
         for x in text:
             if is_hangul(x):
-                logging.info(f"Delete cut with text containing Korean : {text}")
+                logging.warning(f"Delete cut with text containing Korean : {text}")
                 return False
             if is_japanese(x):
-                logging.info(f"Delete cut with text containing Japanese : {text}")
+                logging.warning(f"Delete cut with text containing Japanese : {text}")
                 return False
             if is_chinese(x):
                 chinese.append(x)
@@ -138,18 +105,19 @@ def prepare_tokens_emilia(file_name: str, input_dir: Path, output_dir: Path):
             if x == " ":
                 clean_chars.append(x)
         if len(english) + len(chinese) == 0:
-            logging.info(f"Delete cut with text has no valid chars : {text}")
+            logging.warning(f"Delete cut with text has no valid chars : {text}")
             return False
 
         words = tokenize_by_CJK_char("".join(clean_chars))
         for i in range(len(words) - 10):
             if words[i : i + 10].count(words[i]) == 10:
-                logging.info(f"Delete cut with text with too much repeats : {text}")
+                logging.warning(f"Delete cut with text with too much repeats : {text}")
                 return False
         # word speed, 20 - 600 / minute
         if duration < len(words) / 600 * 60 or duration > len(words) / 20 * 60:
-            logging.info(
-                f"Delete cut with audio text mismatch, duration : {duration}s, words : {len(words)}, text : {text}"
+            logging.warning(
+                f"Delete cut with audio text mismatch, duration : {duration}s, "
+                f"words : {len(words)}, text : {text}"
             )
             return False
         return True
@@ -157,11 +125,10 @@ def prepare_tokens_emilia(file_name: str, input_dir: Path, output_dir: Path):
     try:
         cut_set = load_manifest_lazy(input_dir / file_name)
         cut_set = cut_set.filter(_filter_cut)
-        cut_set = cut_set.map(_prepare_cut)
         cut_set.to_file(output_dir / file_name)
     except Exception as e:
         logging.error(f"Manifest {file_name} failed with error: {e}")
-        raise
+        os.remove(str(output_dir / file_name))
 
 
 if __name__ == "__main__":
@@ -179,14 +146,11 @@ if __name__ == "__main__":
     with Pool(max_workers=args.jobs) as pool:
         futures = [
             pool.submit(
-                prepare_tokens_emilia, filename.split("/")[-1], input_dir, output_dir
+                preprocess_emilia, filename.split("/")[-1], input_dir, output_dir
             )
             for filename in cut_files
         ]
         for f in futures:
-            try:
-                f.result()
-                f.done()
-            except Exception as e:
-                logging.error(f"Future failed with error: {e}")
+            f.result()
+            f.done()
     logging.info("Processing done.")

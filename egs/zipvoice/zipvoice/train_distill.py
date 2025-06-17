@@ -31,7 +31,7 @@ python3 zipvoice/train_distill.py \
         --base-lr 0.0005 \
         --max-duration 500 \
         --token-file "data/tokens_emilia.txt" \
-        --manifest-dir "data/fbank_emilia" \
+        --manifest-dir "data/fbank" \
         --teacher-model zipvoice/exp_zipvoice/epoch-11-avg-4.pt \
         --num-updates 60000 \
         --distill-stage "first" \
@@ -46,7 +46,7 @@ python3 zipvoice/train_distill.py \
         --base-lr 0.0001 \
         --max-duration 500 \
         --token-file "data/tokens_emilia.txt" \
-        --manifest-dir "data/fbank_emilia" \
+        --manifest-dir "data/fbank" \
         --teacher-model zipvoice/exp_zipvoice_distill_1stage/iter-60000-avg-7.pt \
         --num-updates 2000 \
         --distill-stage "second" \
