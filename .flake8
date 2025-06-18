@@ -25,7 +25,6 @@ exclude =
   icefall/shared/make_kn_lm.py,
   icefall/__init__.py
   icefall/ctc/__init__.py
-  egs/zipvoice/zipvoice/scaling.py
 
 ignore =
   # E203 white space before ":"
