@@ -1,0 +1,12 @@
+huggingface_hub
+lhotse
+safetensors
+vocos
+
+# Normalization
+cn2an
+inflect
+
+# Tokenization
+jieba
+pypinyin
