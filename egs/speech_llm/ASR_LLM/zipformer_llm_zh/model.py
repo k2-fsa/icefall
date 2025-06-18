@@ -64,7 +64,6 @@ class SPEECH_LLM(nn.Module):
         self,
         encoder_embed: nn.Module,
         encoder: EncoderInterface,
-        ctc_output: nn.Module,
         llm: nn.Module,
         encoder_projector: nn.Module,
     ):
