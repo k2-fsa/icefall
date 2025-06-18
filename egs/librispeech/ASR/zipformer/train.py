@@ -1574,7 +1574,10 @@ def run(rank, world_size, args):
         )
 
         if params.print_diagnostics:
-            diagnostic.print_diagnostics()
+            d = diagnostic.print_diagnostics()
+            filename = params.exp_dir / f"diagnostics-epoch-{params.cur_epoch}.pt"
+            torch.save(d, filename)
+            logging.info(f"Saved detailed diagnostics to {filename}")
             break
 
         save_checkpoint(
