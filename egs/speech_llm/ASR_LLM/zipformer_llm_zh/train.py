@@ -693,6 +693,9 @@ def train_one_epoch(
                     exclude_frozen_parameters=True,
                 )
 
+                if world_size > 1:
+                    torch.distributed.barrier()
+
                 if rank == 0:
                     convert_zero_checkpoint_to_fp32_state_dict(
                         params.exp_dir,
@@ -709,6 +712,9 @@ def train_one_epoch(
                     os.system(
                         f"rm -rf {params.exp_dir}/epoch-{params.cur_epoch}-checkpoint-{batch_idx}"
                     )
+
+                if world_size > 1:
+                    torch.distributed.barrier()
 
         shave_rate = params.shave_rate
         while True:
@@ -991,6 +997,10 @@ def run(rank, world_size, args):
             client_state={},
             exclude_frozen_parameters=True,
         )
+
+        if world_size > 1:
+            torch.distributed.barrier()
+
         if rank == 0:
             convert_zero_checkpoint_to_fp32_state_dict(
                 params.exp_dir,
