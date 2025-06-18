@@ -1,3 +1,7 @@
+--find-links https://k2-fsa.github.io/icefall/piper_phonemize.html
+
+torch
+torchaudio
 huggingface_hub
 lhotse
 safetensors
@@ -9,4 +13,5 @@ inflect
 
 # Tokenization
 jieba
+piper_phonemize
 pypinyin
