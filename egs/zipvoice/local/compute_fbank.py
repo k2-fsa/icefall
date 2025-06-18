@@ -19,20 +19,19 @@
 import argparse
 import logging
 import os
+from concurrent.futures import ProcessPoolExecutor as Pool
 from pathlib import Path
 from typing import Optional
-from concurrent.futures import ProcessPoolExecutor as Pool
 
+import lhotse
 import torch
+from feature import TorchAudioFbank, TorchAudioFbankConfig
 from lhotse import (
     CutSet,
     LilcomChunkyWriter,
     load_manifest_lazy,
     set_audio_duration_mismatch_tolerance,
 )
-
-from feature import TorchAudioFbank, TorchAudioFbankConfig
-import lhotse
 
 # Torch's multithreaded behavior needs to be disabled or
 # it wastes a lot of CPU and slow things down.

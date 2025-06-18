@@ -39,15 +39,6 @@ source venv/bin/activate
 * Install the required packages:
 
 ```bash
-# Install pytorch and k2.
-# If you want to use different versions, please refer to https://k2-fsa.org/get-started/k2/ for details.
-# For users in China mainland, please refer to https://k2-fsa.org/zh-CN/get-started/k2/
-
-pip install torch==2.5.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cu121
-pip install k2==1.24.4.dev20250208+cuda12.1.torch2.5.1 -f https://k2-fsa.github.io/k2/cuda.html
-
-# Install other dependencies.
-pip install piper_phonemize -f https://k2-fsa.github.io/icefall/piper_phonemize.html
 pip install -r requirements.txt
 ```
 
@@ -97,6 +88,16 @@ The following steps show how to train a model from scratch on Emilia and LibriTT
 ### 0. Install dependencies for training
 
 ```bash
+# Install pytorch and k2.
+# If you want to use different versions, please refer to https://k2-fsa.org/get-started/k2/ for details.
+# For users in China mainland, please refer to https://k2-fsa.org/zh-CN/get-started/k2/
+
+# Note: Make sure you have installed the correct version of PyTorch and k2 that matches your CUDA version.
+# For example, if want to use pytorch 2.5.1 and you are using CUDA 12.1, you can install PyTorch and k2 as follows:
+
+pip install torch==2.5.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cu121
+pip install k2==1.24.4.dev20250208+cuda12.1.torch2.5.1 -f https://k2-fsa.github.io/k2/cuda.html
+
 pip install -r ../../requirements.txt
 ```
 
@@ -403,7 +404,7 @@ on three test sets, i.e., LibriSpeech-PC test-clean, Seed-TTS test-en and Seed-T
 
 ```bibtex
 @article{zhu-2025-zipvoice,
-      title={ZipVoice: Fast and High-Quality Zero-Shot Text-to-Speech with Flow Matching}, 
+      title={ZipVoice: Fast and High-Quality Zero-Shot Text-to-Speech with Flow Matching},
       author={Han Zhu and Wei Kang and Zengwei Yao and Liyong Guo and Fangjun Kuang and Zhaoqing Li and Weiji Zhuang and Long Lin and Daniel Povey}
       journal={arXiv preprint arXiv:2506.13053},
       year={2025},

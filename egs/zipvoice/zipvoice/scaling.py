@@ -18,9 +18,17 @@
 import logging
 import math
 import random
+import sys
 from typing import Optional, Tuple, Union
 
-import k2
+try:
+    import k2
+except Exception as ex:
+    logging.warning(
+        "k2 is not installed correctly. Swoosh functions will fallback to "
+        "pytorch implementation."
+    )
+
 import torch
 import torch.nn as nn
 from torch import Tensor
@@ -1398,7 +1406,11 @@ class SwooshLFunction(torch.autograd.Function):
 class SwooshL(torch.nn.Module):
     def forward(self, x: Tensor) -> Tensor:
         """Return Swoosh-L activation."""
-        if torch.jit.is_scripting() or torch.jit.is_tracing():
+        if (
+            torch.jit.is_scripting()
+            or torch.jit.is_tracing()
+            or "k2" not in sys.modules
+        ):
             zero = torch.tensor(0.0, dtype=x.dtype, device=x.device)
             return logaddexp(zero, x - 4.0) - 0.08 * x - 0.035
         if not x.requires_grad:
@@ -1472,7 +1484,11 @@ class SwooshRFunction(torch.autograd.Function):
 class SwooshR(torch.nn.Module):
     def forward(self, x: Tensor) -> Tensor:
         """Return Swoosh-R activation."""
-        if torch.jit.is_scripting() or torch.jit.is_tracing():
+        if (
+            torch.jit.is_scripting()
+            or torch.jit.is_tracing()
+            or "k2" not in sys.modules
+        ):
             zero = torch.tensor(0.0, dtype=x.dtype, device=x.device)
             return logaddexp(zero, x - 1.0) - 0.08 * x - 0.313261687
         if not x.requires_grad:
@@ -1636,7 +1652,11 @@ class ActivationDropoutAndLinear(torch.nn.Module):
         self.dropout_shared_dim = dropout_shared_dim
 
     def forward(self, x: Tensor):
-        if torch.jit.is_scripting() or torch.jit.is_tracing():
+        if (
+            torch.jit.is_scripting()
+            or torch.jit.is_tracing()
+            or "k2" not in sys.modules
+        ):
             if self.activation == "SwooshL":
                 x = SwooshLForward(x)
             elif self.activation == "SwooshR":

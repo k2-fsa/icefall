@@ -24,15 +24,14 @@ This file reads the texts in given manifest and save the cleaned new cuts.
 """
 
 import argparse
-import logging
 import glob
+import logging
 import os
+from concurrent.futures import ProcessPoolExecutor as Pool
 from pathlib import Path
 from typing import List
 
 from lhotse import CutSet, load_manifest_lazy
-from concurrent.futures import ProcessPoolExecutor as Pool
-
 from tokenizer import (
     is_alphabet,
     is_chinese,

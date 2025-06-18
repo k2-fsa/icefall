@@ -321,7 +321,8 @@ def tokenize_ZH(text: str) -> List[str]:
             if final != "":
                 phones.append(final)
         return phones
-    except:
+    except Exception as ex:
+        logging.warning(f"Tokenize ZH failed: {ex}")
         return []
 
 
@@ -332,7 +333,8 @@ def tokenize_EN(text: str) -> List[str]:
         tokens = phonemize_espeak(text, "en-us")
         tokens = reduce(lambda x, y: x + y, tokens)
         return tokens
-    except:
+    except Exception as ex:
+        logging.warning(f"Tokenize EN failed: {ex}")
         return []
 
 
@@ -561,7 +563,7 @@ class TokenizerLibriTTS(object):
 
 if __name__ == "__main__":
     text = "我们是5年小米人,是吗? Yes I think so! mr king, 5 years, from 2019 to 2024. 霍...啦啦啦超过90%的人咯...?!9204"
-    tokenizer = Tokenizer()
+    tokenizer = TokenizerEmilia()
     tokens = tokenizer.texts_to_tokens([text])
     print(f"tokens : {tokens}")
     tokens2 = "|".join(tokens[0])
