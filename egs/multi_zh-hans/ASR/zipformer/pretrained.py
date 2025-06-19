@@ -332,7 +332,7 @@ def main():
         for i in token_ids:
             token = token_table[i]
             if token.startswith("<0x") and token.endswith(">"):
-                byte_list.append(int(x[3:-1], 16))
+                byte_list.append(int(token[3:-1], 16))
             else:
                 byte_list += list(token.encode("utf-8"))
         text = bytes(byte_list).decode("utf-8")
