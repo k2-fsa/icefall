@@ -335,7 +335,7 @@ def main():
                 byte_list.append(int(token[3:-1], 16))
             else:
                 byte_list += list(token.encode("utf-8"))
-        text = bytes(byte_list).decode("utf-8")
+        text = bytes(byte_list).decode("utf-8", errors='ignore')
         return text.replace("▁", " ").strip()
 
     if params.method == "fast_beam_search":
