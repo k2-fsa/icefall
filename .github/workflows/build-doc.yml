@@ -34,7 +34,7 @@ concurrency:
 
 jobs:
   build-doc:
-    if: github.event.label.name == 'doc' || github.event_name == 'push'
+    # if: github.event.label.name == 'doc' || github.event_name == 'push'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -43,7 +43,7 @@ jobs:
         python-version: ["3.8"]
     steps:
       # refer to https://github.com/actions/checkout
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
