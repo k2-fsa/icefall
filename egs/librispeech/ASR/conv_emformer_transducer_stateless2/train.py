@@ -74,7 +74,8 @@ from asr_datamodule import LibriSpeechAsrDataModule
 from decoder import Decoder
 from emformer import Emformer
 from joiner import Joiner
-from lhotse.cut import Cut
+from lhotse.cut import Cut, MonoCut
+from lhotse.dataset.collation import collate_custom_field
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import Transducer
@@ -165,6 +166,41 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         help="Number of entries in the memory for the Emformer",
     )
 
+    parser.add_argument(
+        "--enable-distillation",
+        type=str2bool,
+        default=True,
+        help="Whether to eanble distillation.",
+    )
+
+    parser.add_argument(
+        "--distillation-layer",
+        type=int,
+        default=8,
+        help="On which encoder layer to perform KD"
+    )
+    
+    parser.add_argument(
+        "--num-codebooks",
+        type=int,
+        default=16,
+        help="Number of codebooks"
+    )
+
+    # distillation related args
+    parser.add_argument(
+        "--distil-delta",
+        type=int,
+        default=None,
+        help="Offset when doing KD"
+    )
+
+    parser.add_argument(
+        "--codebook-loss-scale",
+        type=float,
+        default=0.1,
+        help="The scale of codebook loss.",
+    )
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -408,6 +444,7 @@ def get_params() -> AttributeDict:
     """
     params = AttributeDict(
         {
+            "frame_shift_ms": 10.0,
             "best_train_loss": float("inf"),
             "best_valid_loss": float("inf"),
             "best_train_epoch": -1,
@@ -446,6 +483,9 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         left_context_length=params.left_context_length,
         right_context_length=params.right_context_length,
         memory_size=params.memory_size,
+        middle_output_layer=params.distillation_layer
+        if params.enable_distillation
+        else None,
     )
     return encoder
 
@@ -483,6 +523,8 @@ def get_transducer_model(params: AttributeDict) -> nn.Module:
         decoder_dim=params.decoder_dim,
         joiner_dim=params.joiner_dim,
         vocab_size=params.vocab_size,
+        num_codebooks=params.num_codebooks if params.enable_distillation else 0,
+        distil_delta=params.distil_delta if params.enable_distillation else 0,
     )
     return model
 
@@ -602,6 +644,19 @@ def save_checkpoint(
         best_valid_filename = params.exp_dir / "best-valid-loss.pt"
         copyfile(src=filename, dst=best_valid_filename)
 
+def extract_codebook_indexes(batch):
+    cuts = batch["supervisions"]["cut"]
+    # -100 is identical to ignore_value in CE loss computation.
+    cuts_pre_mixed = [
+        c if isinstance(c, MonoCut) else c.tracks[0].cut for c in cuts
+    ]
+    for cut in cuts_pre_mixed:
+        cb = cut.codebook_indexes
+    print(f"All cuts have codebook indexes")
+    codebook_indexes, codebook_indexes_lens = collate_custom_field(
+        cuts_pre_mixed, "codebook_indexes", pad_value=-100
+    )
+    return codebook_indexes, codebook_indexes_lens
 
 def compute_loss(
     params: AttributeDict,
@@ -642,8 +697,14 @@ def compute_loss(
     y = sp.encode(texts, out_type=int)
     y = k2.RaggedTensor(y).to(device)
 
+    if is_training and params.enable_distillation:
+        codebook_indexes, _ = extract_codebook_indexes(batch)
+        codebook_indexes = codebook_indexes.to(device)
+    else:
+        codebook_indexes = None
+
     with torch.set_grad_enabled(is_training):
-        simple_loss, pruned_loss = model(
+        simple_loss, pruned_loss, codebook_loss = model(
             x=feature,
             x_lens=feature_lens,
             y=y,
@@ -651,6 +712,7 @@ def compute_loss(
             am_scale=params.am_scale,
             lm_scale=params.lm_scale,
             warmup=warmup,
+            codebook_indexes=codebook_indexes,
         )
         # after the main warmup step, we keep pruned_loss_scale small
         # for the same amount of time (model_warm_step), to avoid
@@ -660,6 +722,10 @@ def compute_loss(
             0.0 if warmup < 1.0 else (0.1 if warmup > 1.0 and warmup < 2.0 else 1.0)
         )
         loss = params.simple_loss_scale * simple_loss + pruned_loss_scale * pruned_loss
+
+        if is_training and params.enable_distillation:
+            assert codebook_loss is not None
+            loss += params.codebook_loss_scale * codebook_loss
 
     assert loss.requires_grad == is_training
 
@@ -681,6 +747,8 @@ def compute_loss(
     info["loss"] = loss.detach().cpu().item()
     info["simple_loss"] = simple_loss.detach().cpu().item()
     info["pruned_loss"] = pruned_loss.detach().cpu().item()
+    if is_training and params.enable_distillation:
+        info["codebook_loss"] = codebook_loss.detach().cpu().item()
 
     return loss, info
 
@@ -894,6 +962,11 @@ def run(rank, world_size, args):
     setup_logger(f"{params.exp_dir}/log/log-train")
     logging.info("Training started")
 
+    # Note: it's better to set --spec-aug-time-warpi-factor=-1
+    # when doing distillation with vq.
+    if params.enable_distillation:
+        assert args.spec_aug_time_warp_factor < 1, "You need to disable time warp in MVQ KD"
+
     if args.tensorboard and rank == 0:
         tb_writer = SummaryWriter(log_dir=f"{params.exp_dir}/tensorboard")
     else:
@@ -959,10 +1032,10 @@ def run(rank, world_size, args):
 
     librispeech = LibriSpeechAsrDataModule(args)
 
+    train_cuts = librispeech.train_clean_100_cuts()
     if params.full_libri:
-        train_cuts = librispeech.train_all_shuf_cuts()
-    else:
-        train_cuts = librispeech.train_clean_100_cuts()
+        train_cuts += librispeech.train_clean_360_cuts()
+        train_cuts += librispeech.train_other_500_cuts()
 
     def remove_short_and_long_utt(c: Cut):
         # Keep only utterances with duration between 1 second and 20 seconds
@@ -992,14 +1065,14 @@ def run(rank, world_size, args):
     valid_cuts += librispeech.dev_other_cuts()
     valid_dl = librispeech.valid_dataloaders(valid_cuts)
 
-    if not params.print_diagnostics:
-        scan_pessimistic_batches_for_oom(
-            model=model,
-            train_dl=train_dl,
-            optimizer=optimizer,
-            sp=sp,
-            params=params,
-        )
+    # if not params.print_diagnostics:
+    #     scan_pessimistic_batches_for_oom(
+    #         model=model,
+    #         train_dl=train_dl,
+    #         optimizer=optimizer,
+    #         sp=sp,
+    #         params=params,
+    #     )
 
     scaler = GradScaler(enabled=params.use_fp16)
     if checkpoints and "grad_scaler" in checkpoints:
