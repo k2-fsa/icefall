@@ -79,7 +79,6 @@ from optim import Eden, ScaledAdam
 from scaling import ScheduledFloat
 from subsampling import Conv2dSubsampling
 from torch import Tensor
-from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
 from zipformer import Zipformer2
@@ -96,12 +95,13 @@ from icefall.env import get_env_info
 from icefall.err import raise_grad_scale_is_too_small_error
 from icefall.hooks import register_inf_check_hooks
 from icefall.utils import (
-    torch_autocast,
     AttributeDict,
     MetricsTracker,
+    create_grad_scaler,
     get_parameter_groups_with_lrs,
     setup_logger,
     str2bool,
+    torch_autocast,
 )
 
 LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
@@ -830,7 +830,7 @@ def save_checkpoint(
     optimizer: Optional[torch.optim.Optimizer] = None,
     scheduler: Optional[LRSchedulerType] = None,
     sampler: Optional[CutSampler] = None,
-    scaler: Optional[GradScaler] = None,
+    scaler: Optional["GradScaler"] = None,
     rank: int = 0,
 ) -> None:
     """Save model, optimizer, scheduler and training stats to file.
@@ -1035,7 +1035,7 @@ def train_one_epoch(
     sp: spm.SentencePieceProcessor,
     train_dl: torch.utils.data.DataLoader,
     valid_dl: torch.utils.data.DataLoader,
-    scaler: GradScaler,
+    scaler: "GradScaler",
     spec_augment: Optional[SpecAugment] = None,
     model_avg: Optional[nn.Module] = None,
     tb_writer: Optional[SummaryWriter] = None,
@@ -1448,7 +1448,7 @@ def run(rank, world_size, args):
             spec_augment=spec_augment,
         )
 
-    scaler = GradScaler(enabled=params.use_autocast, init_scale=1.0)
+    scaler = create_grad_scaler(enabled=params.use_autocast, init_scale=1.0)
     if checkpoints and "grad_scaler" in checkpoints:
         logging.info("Loading grad scaler state dict")
         scaler.load_state_dict(checkpoints["grad_scaler"])

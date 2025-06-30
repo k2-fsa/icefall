@@ -76,7 +76,6 @@ from lhotse.utils import fix_random_seed
 from model import CTCModel
 from optim import Eden, Eve
 from torch import Tensor
-from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
 
@@ -93,6 +92,7 @@ from icefall.env import get_env_info
 from icefall.graph_compiler import CtcTrainingGraphCompiler
 from icefall.lexicon import Lexicon
 from icefall.utils import (
+    create_grad_scaler,
     torch_autocast,
     AttributeDict,
     MetricsTracker,
@@ -494,7 +494,7 @@ def save_checkpoint(
     optimizer: Optional[torch.optim.Optimizer] = None,
     scheduler: Optional[LRSchedulerType] = None,
     sampler: Optional[CutSampler] = None,
-    scaler: Optional[GradScaler] = None,
+    scaler: Optional["GradScaler"] = None,
     rank: int = 0,
 ) -> None:
     """Save model, optimizer, scheduler and training stats to file.
@@ -695,7 +695,7 @@ def train_one_epoch(
     graph_compiler: Union[BpeCtcTrainingGraphCompiler, CtcTrainingGraphCompiler],
     train_dl: torch.utils.data.DataLoader,
     valid_dl: torch.utils.data.DataLoader,
-    scaler: GradScaler,
+    scaler: "GradScaler",
     model_avg: Optional[nn.Module] = None,
     tb_writer: Optional[SummaryWriter] = None,
     world_size: int = 1,
@@ -1005,7 +1005,7 @@ def run(rank, world_size, args):
             warmup=0.0 if params.start_epoch == 1 else 1.0,
         )
 
-    scaler = GradScaler(enabled=params.use_fp16)
+    scaler = create_grad_scaler(enabled=params.use_fp16)
     if checkpoints and "grad_scaler" in checkpoints:
         logging.info("Loading grad scaler state dict")
         scaler.load_state_dict(checkpoints["grad_scaler"])

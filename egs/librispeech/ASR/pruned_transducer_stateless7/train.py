@@ -67,7 +67,6 @@ from lhotse.utils import fix_random_seed
 from model import Transducer
 from optim import Eden, ScaledAdam
 from torch import Tensor
-from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
 from zipformer import Zipformer
@@ -84,13 +83,14 @@ from icefall.env import get_env_info
 from icefall.err import raise_grad_scale_is_too_small_error
 from icefall.hooks import register_inf_check_hooks
 from icefall.utils import (
-    torch_autocast,
     AttributeDict,
     MetricsTracker,
+    create_grad_scaler,
     filter_uneven_sized_batch,
     setup_logger,
     str2bool,
     symlink_or_copy,
+    torch_autocast,
 )
 
 LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
@@ -582,7 +582,7 @@ def save_checkpoint(
     optimizer: Optional[torch.optim.Optimizer] = None,
     scheduler: Optional[LRSchedulerType] = None,
     sampler: Optional[CutSampler] = None,
-    scaler: Optional[GradScaler] = None,
+    scaler: Optional["GradScaler"] = None,
     rank: int = 0,
 ) -> None:
     """Save model, optimizer, scheduler and training stats to file.
@@ -764,7 +764,7 @@ def train_one_epoch(
     sp: spm.SentencePieceProcessor,
     train_dl: torch.utils.data.DataLoader,
     valid_dl: torch.utils.data.DataLoader,
-    scaler: GradScaler,
+    scaler: "GradScaler",
     model_avg: Optional[nn.Module] = None,
     tb_writer: Optional[SummaryWriter] = None,
     world_size: int = 1,
@@ -1107,7 +1107,7 @@ def run(rank, world_size, args):
             params=params,
         )
 
-    scaler = GradScaler(enabled=params.use_fp16, init_scale=1.0)
+    scaler = create_grad_scaler(enabled=params.use_fp16, init_scale=1.0)
     if checkpoints and "grad_scaler" in checkpoints:
         logging.info("Loading grad scaler state dict")
         scaler.load_state_dict(checkpoints["grad_scaler"])

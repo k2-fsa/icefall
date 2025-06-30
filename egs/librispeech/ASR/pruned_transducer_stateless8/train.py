@@ -75,7 +75,6 @@ from librispeech import LibriSpeech
 from model import Transducer
 from optim import Eden, ScaledAdam
 from torch import Tensor
-from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
 from zipformer import Zipformer
@@ -94,6 +93,7 @@ from icefall.hooks import register_inf_check_hooks
 from icefall.utils import (
     AttributeDict,
     MetricsTracker,
+    create_grad_scaler,
     setup_logger,
     str2bool,
     torch_autocast,
@@ -614,7 +614,7 @@ def save_checkpoint(
     optimizer: Optional[torch.optim.Optimizer] = None,
     scheduler: Optional[LRSchedulerType] = None,
     sampler: Optional[CutSampler] = None,
-    scaler: Optional[GradScaler] = None,
+    scaler: Optional["GradScaler"] = None,
     rank: int = 0,
 ) -> None:
     """Save model, optimizer, scheduler and training stats to file.
@@ -796,7 +796,7 @@ def train_one_epoch(
     giga_train_dl: torch.utils.data.DataLoader,
     valid_dl: torch.utils.data.DataLoader,
     rng: random.Random,
-    scaler: GradScaler,
+    scaler: "GradScaler",
     model_avg: Optional[nn.Module] = None,
     tb_writer: Optional[SummaryWriter] = None,
     world_size: int = 1,
@@ -1225,7 +1225,7 @@ def run(rank, world_size, args):
             params=params,
         )
 
-    scaler = GradScaler(enabled=params.use_fp16, init_scale=1.0)
+    scaler = create_grad_scaler(enabled=params.use_fp16, init_scale=1.0)
     if checkpoints and "grad_scaler" in checkpoints:
         logging.info("Loading grad scaler state dict")
         scaler.load_state_dict(checkpoints["grad_scaler"])

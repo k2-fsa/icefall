@@ -27,7 +27,6 @@ import torch
 import torch.nn as nn
 from lhotse.dataset.sampling.base import CutSampler
 from torch import Tensor
-from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim import Optimizer
 
@@ -43,7 +42,7 @@ def save_checkpoint(
     params: Optional[Dict[str, Any]] = None,
     optimizer: Optional[Optimizer] = None,
     scheduler: Optional[LRSchedulerType] = None,
-    scaler: Optional[GradScaler] = None,
+    scaler: Optional["GradScaler"] = None,
     sampler: Optional[CutSampler] = None,
     rank: int = 0,
 ) -> None:
@@ -102,7 +101,7 @@ def load_checkpoint(
     model_avg: Optional[nn.Module] = None,
     optimizer: Optional[Optimizer] = None,
     scheduler: Optional[LRSchedulerType] = None,
-    scaler: Optional[GradScaler] = None,
+    scaler: Optional["GradScaler"] = None,
     sampler: Optional[CutSampler] = None,
     strict: bool = False,
 ) -> Dict[str, Any]:
@@ -201,7 +200,7 @@ def save_checkpoint_with_global_batch_idx(
     params: Optional[Dict[str, Any]] = None,
     optimizer: Optional[Optimizer] = None,
     scheduler: Optional[LRSchedulerType] = None,
-    scaler: Optional[GradScaler] = None,
+    scaler: Optional["GradScaler"] = None,
     sampler: Optional[CutSampler] = None,
     rank: int = 0,
 ):
