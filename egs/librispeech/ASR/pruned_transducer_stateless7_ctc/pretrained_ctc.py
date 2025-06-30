@@ -365,7 +365,9 @@ def main():
         "whole-lattice-rescoring",
     ]:
         logging.info(f"Loading HLG from {params.HLG}")
-        HLG = k2.Fsa.from_dict(torch.load(params.HLG, map_location="cpu"))
+        HLG = k2.Fsa.from_dict(
+            torch.load(params.HLG, map_location="cpu", weights_only=False)
+        )
         HLG = HLG.to(device)
         if not hasattr(HLG, "lm_scores"):
             # For whole-lattice-rescoring and attention-decoder
@@ -376,7 +378,9 @@ def main():
             "whole-lattice-rescoring",
         ]:
             logging.info(f"Loading G from {params.G}")
-            G = k2.Fsa.from_dict(torch.load(params.G, map_location="cpu"))
+            G = k2.Fsa.from_dict(
+                torch.load(params.G, map_location="cpu", weights_only=False)
+            )
             G = G.to(device)
             if params.method == "whole-lattice-rescoring":
                 # Add epsilon self-loops to G as we will compose

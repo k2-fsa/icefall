@@ -50,7 +50,13 @@ from icefall.checkpoint import load_checkpoint
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
-from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool
+from icefall.utils import (
+    AttributeDict,
+    MetricsTracker,
+    setup_logger,
+    str2bool,
+    torch_autocast,
+)
 
 
 def get_parser():
@@ -341,7 +347,7 @@ def compute_validation_loss(
 
     for batch_idx, batch in enumerate(valid_dl):
         x, y, sentence_lengths = batch
-        with torch.cuda.amp.autocast(enabled=params.use_fp16):
+        with torch_autocast(enabled=params.use_fp16):
             loss, loss_info = compute_loss(
                 model=model,
                 x=x,
@@ -403,7 +409,7 @@ def train_one_epoch(
         params.batch_idx_train += 1
         x, y, sentence_lengths = batch
         batch_size = x.size(0)
-        with torch.cuda.amp.autocast(enabled=params.use_fp16):
+        with torch_autocast(enabled=params.use_fp16):
             loss, loss_info = compute_loss(
                 model=model,
                 x=x,

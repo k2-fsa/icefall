@@ -91,7 +91,7 @@ def get_matrix(min_torch_version, specified_torch_version, specified_python_vers
     matrix = []
     for p in python_version:
         for t in torch_version:
-            if min_torch_version and version_ge(min_torch_version, t):
+            if min_torch_version and version_gt(min_torch_version, t):
                 continue
 
             # torchaudio <= 1.13.x supports only python <= 3.10

@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   generate_build_matrix:
-    if: (github.repository_owner == 'csukuangfj' || github.repository_owner == 'k2-fsa') && (github.event.label.name == 'ready' || github.event_name == 'push' || github.event_name == 'aishell')
+    if: github.repository_owner == 'csukuangfj' || github.repository_owner == 'k2-fsa'
 
     # see https://github.com/pytorch/pytorch/pull/50633
     runs-on: ubuntu-latest
