@@ -10,10 +10,10 @@ from typing import Optional, Tuple
 import torch
 from scaling import ScaledLinear
 from torch import Tensor, nn
-from torch.cuda.amp import GradScaler, custom_bwd, custom_fwd
+from torch.cuda.amp import custom_bwd, custom_fwd
 from torch_scheduled_sampling import sample_combined
 
-from icefall.utils import torch_autocast
+from icefall.utils import create_grad_scaler, torch_autocast
 
 # The main exports of this file are the module KnowledgeBaseLookup and the
 # function create_knowledge_base.
@@ -332,7 +332,7 @@ def _test_knowledge_base_lookup_autocast():
     optimizer = Eve(m.parameters(), lr=0.005, eps=1.0e-04)
     m = m.to(device)
 
-    scaler = GradScaler(enabled=True)
+    scaler = create_grad_scaler(enabled=True)
 
     start = timeit.default_timer()
 
