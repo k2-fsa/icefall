@@ -13,6 +13,8 @@ from torch import Tensor, nn
 from torch.cuda.amp import GradScaler, custom_bwd, custom_fwd
 from torch_scheduled_sampling import sample_combined
 
+from icefall.utils import torch_autocast
+
 # The main exports of this file are the module KnowledgeBaseLookup and the
 # function create_knowledge_base.
 
@@ -337,7 +339,7 @@ def _test_knowledge_base_lookup_autocast():
     for epoch in range(150):
         for n, (x, y) in enumerate(train_pairs):
             y_out = m(x)
-            with torch.cuda.amp.autocast(enabled=True):
+            with torch_autocast(enabled=True):
                 loss = ((y_out - y) ** 2).mean() * 100.0
             if n % 10 == 0 and epoch % 10 == 0:
                 print(f"Epoch {epoch}, batch {n}, loss {loss.item()}")
