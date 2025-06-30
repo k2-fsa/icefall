@@ -162,6 +162,13 @@ def get_parser():
         help="Whether to export models in fp16",
     )
 
+    parser.add_argument(
+        "--use-whisper-features",
+        type=str2bool,
+        default=False,
+        help="True to use whisper features. Must match the one used in training",
+    )
+
     add_model_arguments(parser)
 
     return parser
@@ -342,6 +349,7 @@ def export_encoder_model_onnx(
     encoder_filename: str,
     opset_version: int = 11,
     feature_dim: int = 80,
+    use_whisper_features: bool = False,
 ) -> None:
     encoder_model.encoder.__class__.forward = (
         encoder_model.encoder.__class__.streaming_forward
@@ -441,6 +449,9 @@ def export_encoder_model_onnx(
         "value_head_dims": value_head_dims,
         "num_heads": num_heads,
     }
+    if use_whisper_features:
+        meta_data["feature"] = "whisper"
+
     logging.info(f"meta_data: {meta_data}")
 
     for i in range(len(init_state[:-2]) // 6):
@@ -734,6 +745,7 @@ def main():
         encoder_filename,
         opset_version=opset_version,
         feature_dim=params.feature_dim,
+        use_whisper_features=params.use_whisper_features,
     )
     logging.info(f"Exported encoder to {encoder_filename}")
 

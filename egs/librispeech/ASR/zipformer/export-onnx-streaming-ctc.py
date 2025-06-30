@@ -136,6 +136,13 @@ def get_parser():
         help="The context size in the decoder. 1 means bigram; 2 means tri-gram",
     )
 
+    parser.add_argument(
+        "--use-whisper-features",
+        type=str2bool,
+        default=False,
+        help="True to use whisper features. Must match the one used in training",
+    )
+
     add_model_arguments(parser)
 
     return parser
@@ -270,6 +277,7 @@ def export_streaming_ctc_model_onnx(
     model: OnnxModel,
     encoder_filename: str,
     opset_version: int = 11,
+    use_whisper_features: bool = False,
 ) -> None:
     model.encoder.__class__.forward = model.encoder.__class__.streaming_forward
 
@@ -367,6 +375,10 @@ def export_streaming_ctc_model_onnx(
         "value_head_dims": value_head_dims,
         "num_heads": num_heads,
     }
+
+    if use_whisper_features:
+        meta_data["feature"] = "whisper"
+
     logging.info(f"meta_data: {meta_data}")
 
     for i in range(len(init_state[:-2]) // 6):
@@ -547,6 +559,7 @@ def main():
         model,
         model_filename,
         opset_version=opset_version,
+        use_whisper_features=params.use_whisper_features,
     )
     logging.info(f"Exported model to {model_filename}")
 
