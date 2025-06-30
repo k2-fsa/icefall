@@ -1,4 +1,4 @@
-name: run-multi-zh-hans
+name: multi-zh-hans
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: run-multi-zh-hans-${{ github.ref }}
+  group: multi-zh-hans-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -29,8 +29,8 @@ jobs:
         id: set-matrix
         run: |
           # outputting for debugging purposes
-          python ./.github/scripts/docker/generate_build_matrix.py --torch-version "2.0.0" --python-version "3.10"
-          MATRIX=$(python ./.github/scripts/docker/generate_build_matrix.py --torch-version "2.0.0" --python-version "3.10")
+          python ./.github/scripts/docker/generate_build_matrix.py --torch-version "2.7.0" --python-version "3.11"
+          MATRIX=$(python ./.github/scripts/docker/generate_build_matrix.py --torch-version "2.7.0" --python-version "3.11")
           echo "::set-output name=matrix::${MATRIX}"
   multi-zh-hans:
     needs: generate_build_matrix
@@ -74,20 +74,6 @@ jobs:
         shell: bash
         run: |
           ls -lh *.tar.bz2
-
-      - name: export-model
-        if: false
-        shell: bash
-        env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: |
-          sudo apt-get -qq install git-lfs tree
-          export PYTHONPATH=$PWD:$PYTHONPATH
-          export PYTHONPATH=~/tmp/kaldifeat/kaldifeat/python:$PYTHONPATH
-          export PYTHONPATH=~/tmp/kaldifeat/build/lib:$PYTHONPATH
-
-          .github/scripts/multi-zh-hans.sh
-          ls -lh
 
       - name: upload model to https://github.com/k2-fsa/sherpa-onnx
         uses: svenstaro/upload-release-action@v2
