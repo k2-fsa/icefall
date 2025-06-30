@@ -305,7 +305,7 @@ def main():
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
-    checkpoint = torch.load(args.checkpoint, map_location="cpu")
+    checkpoint = torch.load(args.checkpoint, map_location="cpu", weights_only=False)
     model.load_state_dict(checkpoint["model"], strict=False)
     model.to(device)
     model.eval()
@@ -389,7 +389,9 @@ def main():
         "whole-lattice-rescoring",
     ]:
         logging.info(f"Loading HLG from {params.HLG}")
-        HLG = k2.Fsa.from_dict(torch.load(params.HLG, map_location="cpu"))
+        HLG = k2.Fsa.from_dict(
+            torch.load(params.HLG, map_location="cpu", weights_only=False)
+        )
         HLG = HLG.to(device)
         if not hasattr(HLG, "lm_scores"):
             # For whole-lattice-rescoring and attention-decoder
@@ -400,7 +402,9 @@ def main():
             "whole-lattice-rescoring",
         ]:
             logging.info(f"Loading G from {params.G}")
-            G = k2.Fsa.from_dict(torch.load(params.G, map_location="cpu"))
+            G = k2.Fsa.from_dict(
+                torch.load(params.G, map_location="cpu", weights_only=False)
+            )
             G = G.to(device)
             if params.method == "whole-lattice-rescoring":
                 # Add epsilon self-loops to G as we will compose
