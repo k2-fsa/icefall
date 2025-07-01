@@ -161,7 +161,7 @@ class ExpAugment(torch.nn.Module):
             feature_mask_fraction=self.feature_mask_fraction,
             num_feature_masks=self.num_feature_masks,
             frame_mask_fraction=self.frame_mask_fraction,
-            frame_masks_size=self.frame_mask_size,
+            frame_mask_size=self.frame_mask_size,
             p=self.p)
 
 
