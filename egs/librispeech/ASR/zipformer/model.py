@@ -438,9 +438,12 @@ class AsrModel(nn.Module):
                     supervision_segments=supervision_segments,
                 )
                 # Independently apply frequency masking and time masking to the two copies
-                x = spec_augment(x.repeat(2, 1, 1), x_lens.repeat(2).to(x.device))
+
+                x_no_specaug = x.repeat(2, 1, 1)
+                x = spec_augment(x_no_spcaug, x_lens.repeat(2).to(x.device))
             else:
-                x = x.repeat(2, 1, 1)
+                x_no_specaug = x.repeat(2, 1, 1)
+                x = x_no_specaug
             x_lens = x_lens.repeat(2)
             y = k2.ragged.cat([y, y], axis=0)
 
@@ -504,9 +507,9 @@ class AsrModel(nn.Module):
         else:
             attention_decoder_loss = torch.empty(0)
 
-        reconstruction_loss = self.forward_reconstruction_loss(x, encoder_out,
-                                                               encoder_out_lens,
-                                                               use_cr_ctc)
+        reconstruction_loss = self.forward_reconstruction_loss(x_no_specaug, encoder_out,
+                                                               encoder_out_lens)
+
         if use_cr_ctc:
             reconstruction_loss = reconstruction_loss * 0.5
 
@@ -516,11 +519,9 @@ class AsrModel(nn.Module):
     def forward_reconstruction_loss(self,
                                     log_mels: Tensor,
                                     encoder_out: Tensor,
-                                    encoder_out_lens: Tensor,
-                                    use_cr_ctc: bool):
+                                    encoder_out_lens: Tensor):
         """
-        Compute and return reconstruction loss, a mixed l1/l2 loss on the input features.  If
-        use_cr_ctc then we swap the first and second halves of the batch.
+        Compute and return reconstruction loss, a mixed l1/l2 loss on the input features.
 
         Args:
           log_mels: log-mel features of shape (batch_size, T, num_mels)
@@ -528,8 +529,6 @@ class AsrModel(nn.Module):
         """
         batch_size = log_mels.shape[0]
         num_mels = log_mels.shape[2]
-        if use_cr_ctc:
-            log_mels = torch.roll(log_mels, batch_size // 2, dims=0)
 
         pred_mels = self.reconstruction_proj(encoder_out) # (batch_size, T_embed, 4 * num_mels)
         T_embed = pred_mels.shape[1]
