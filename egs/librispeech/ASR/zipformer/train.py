@@ -72,7 +72,6 @@ from decoder import Decoder
 from joiner import Joiner
 from lhotse.cut import Cut
 # from lhotse.dataset import SpecAugment
-from exp_augment import ExpAugment
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import AsrModel
@@ -95,6 +94,7 @@ from icefall.checkpoint import (
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
 from icefall.err import raise_grad_scale_is_too_small_error
+from icefall.exp_augment import ExpAugment
 from icefall.hooks import register_inf_check_hooks
 from icefall.utils import (
     AttributeDict,

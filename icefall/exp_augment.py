@@ -1,15 +1,7 @@
-import bisect
-import math
 import random
 from typing import Any, Dict, Optional, Sequence, Tuple, TypeVar, Union
 
-import numpy as np
 import torch
-from torch import Tensor
-
-from lhotse import CutSet, FeatureExtractor
-from lhotse.augmentation import dereverb_wpe_torch
-from lhotse.utils import Pathlike
 
 
 
@@ -62,8 +54,6 @@ class ExpAugment(torch.nn.Module):
         B, T, F = features.shape
         features = features.clone()
 
-        if random.random() >= self.p:
-            return features
 
         # get feature means.
         kwargs = {'device': features.device}
