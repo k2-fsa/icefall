@@ -206,6 +206,10 @@ class MultiDatasetAsrDataModule:
         else:
             logging.info("Disable MUSAN")
 
+        # Cut concatenation should be the first transform in the list,
+        # so that if we e.g. mix noise in, it will fill the gaps between
+        # different utterances.
+        
         if self.args.concatenate_cuts:
             logging.info(
                 f"Using cut concatenation with duration factor "
@@ -298,7 +302,7 @@ class MultiDatasetAsrDataModule:
             batch_size=None,
             num_workers=self.args.num_workers,
             persistent_workers=True,
-            worker_init_fn=worker_init_fn, #changed bottom 2 params
+            worker_init_fn=worker_init_fn,
         )
 
         return train_dl
