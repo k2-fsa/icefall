@@ -438,7 +438,7 @@ class AsrModel(nn.Module):
                     supervision_segments=supervision_segments,
                 )
                 # Independently apply frequency masking and time masking to the two copies
-                x = spec_augment(x.repeat(2, 1, 1), x_lens.repeat(2).to(x.device))
+                x = spec_augment(x.repeat(2, 1, 1))
             else:
                 x = x.repeat(2, 1, 1)
             x_lens = x_lens.repeat(2)

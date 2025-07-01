@@ -33,7 +33,6 @@ class ExpAugment(torch.nn.Module):
     def forward(
         self,
         features: torch.Tensor,
-        lengths: torch.Tensor,  # can just set this to [ seq_len ] * batch_size
     ) -> torch.Tensor:
         """
         Computes ExpAugment for a batch of feature matrices.
@@ -43,9 +42,7 @@ class ExpAugment(torch.nn.Module):
         only to selected areas of the input. The format of this input is described below.
 
         :param features: a batch of feature matrices with shape ``(B, T, F)``.
-        :param lengths: an int tensor of shape ``(B,)``, giving the number
-            of frames 0 < f <= T for each sequence.  Only used for masking when
-            computing the feature means.
+
         :return: an augmented tensor of shape ``(B, T, F)``.
         """
         assert len(features.shape) == 3, (
@@ -57,16 +54,13 @@ class ExpAugment(torch.nn.Module):
 
         # get feature means.
         kwargs = {'device': features.device}
-        length_mask = (torch.arange(T, **kwargs)[:, None] < lengths[:, None, None]).to(features.dtype)
-        # length_mask: (B, T, 1), 1.0 for "kept" frames.
-        means = (features * length_mask).mean(dim=(1, 2), keepdim=True)
-        means = means * (B / lengths[:, None, None])  # compensate means for lengths less than B.
-        # means: (B, 1, 1)
+
+        mean = features.mean()
 
 
         features_unmasked = features
 
-        features = self._mask_on_axis(features, means, axis=2,
+        features = self._mask_on_axis(features, mean, axis=2,
                                       num_regions=round(self.num_feature_masks/self.feature_mask_fraction),
                                       num_masked_regions=self.num_feature_masks)
 
@@ -74,7 +68,7 @@ class ExpAugment(torch.nn.Module):
         num_regions=max(3, round(T / self.frame_mask_size))  # at least 3 regions
         num_masked_regions=max(1, round(num_regions * self.frame_mask_fraction))
 
-        features = self._mask_on_axis(features, means, axis=1,
+        features = self._mask_on_axis(features, mean, axis=1,
                                       num_regions=num_regions,
                                       num_masked_regions=num_masked_regions)
 
@@ -85,16 +79,16 @@ class ExpAugment(torch.nn.Module):
 
     def _mask_on_axis(self,
                       features: torch.Tensor,
-                      means: torch.Tensor,
+                      mean: torch.Tensor,
                       axis: int,
                       num_regions: int,
                       num_masked_regions: int):
         """
         Mask ``features`` on a particular axis by replacing masked segments of that sequence with
-        ``means``.
+        ``mean``.
 
         :param features: a batch of feature matrices with shape ``(B, T, F)``.
-        :param means: a batch of means of feature matrices with shape ``(B, 1, 1)``
+        :param mean: a batch of means of feature matrices with shape ``(B, 1, 1)``
         :param axis: the axis to mask on, i.e. 1 for time, 2 for frequency/feature.
         :param num_regions: the number of regions to divide up the sequence-length, i.e. T or F,
                  on this axis
@@ -153,7 +147,7 @@ class ExpAugment(torch.nn.Module):
         else:
             is_masked = is_masked.unsqueeze(1)
 
-        return torch.where(is_masked.expand_as(features), means.expand_as(features), features)
+        return torch.where(is_masked.expand_as(features), mean[None, None, None].expand_as(features), features)
 
 
     def state_dict(self, **kwargs) -> Dict[str, Any]:
@@ -179,9 +173,8 @@ def _test_exp_augment():
     #device = 'cuda'
     device = 'cpu'
     features = torch.randn(B, T, F, device=device)
-    lengths = torch.tensor([ features.shape[1] ] * B, dtype=torch.long).to(device=device)
     #print("features=", features)
-    features = exp_augment(features, lengths)
+    features = exp_augment(features)
 
     frame_is_masked = features[:, :, 0] == features[:, :, -1]
     print("mean frame_is_masked = ", frame_is_masked.to(torch.float).mean())
