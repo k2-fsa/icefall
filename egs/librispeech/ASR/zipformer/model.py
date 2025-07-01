@@ -440,7 +440,7 @@ class AsrModel(nn.Module):
                 # Independently apply frequency masking and time masking to the two copies
 
                 x_no_specaug = x.repeat(2, 1, 1)
-                x = spec_augment(x_no_spcaug, x_lens.repeat(2).to(x.device))
+                x = spec_augment(x_no_spcaug)
             else:
                 x_no_specaug = x.repeat(2, 1, 1)
                 x = x_no_specaug
