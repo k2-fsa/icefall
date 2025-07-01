@@ -23,7 +23,6 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 from encoder_interface import EncoderInterface
-from lhotse.dataset import SpecAugment
 from scaling import ScaledLinear, convert_num_channels
 
 from icefall.utils import add_sos, make_pad_mask, time_warp
@@ -369,7 +368,7 @@ class AsrModel(nn.Module):
         lm_scale: float = 0.0,
         use_cr_ctc: bool = False,
         use_spec_aug: bool = False,
-        spec_augment: Optional[SpecAugment] = None,
+        spec_augment: Optional[nn.Module] = None,
         supervision_segments: Optional[torch.Tensor] = None,
         time_warp_factor: Optional[int] = 80,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:

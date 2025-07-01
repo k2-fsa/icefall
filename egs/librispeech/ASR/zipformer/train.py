@@ -71,7 +71,8 @@ from attention_decoder import AttentionDecoderModel
 from decoder import Decoder
 from joiner import Joiner
 from lhotse.cut import Cut
-from lhotse.dataset import SpecAugment
+# from lhotse.dataset import SpecAugment
+from exp_augment import ExpAugment
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import AsrModel
@@ -550,13 +551,6 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--time-mask-ratio",
-        type=float,
-        default=2.5,
-        help="When using cr-ctc, we increase the amount of time-masking in SpecAugment.",
-    )
-
-    parser.add_argument(
         "--attention-decoder-loss-scale",
         type=float,
         default=0.8,
@@ -825,24 +819,6 @@ def get_model(params: AttributeDict) -> nn.Module:
         use_attention_decoder=params.use_attention_decoder,
     )
     return model
-
-
-def get_spec_augment(params: AttributeDict) -> SpecAugment:
-    num_frame_masks = int(10 * params.time_mask_ratio)
-    max_frames_mask_fraction = 0.15 * params.time_mask_ratio
-    logging.info(
-        f"num_frame_masks: {num_frame_masks}, "
-        f"max_frames_mask_fraction: {max_frames_mask_fraction}"
-    )
-    spec_augment = SpecAugment(
-        time_warp_factor=0,  # Do time warping in model.py
-        num_frame_masks=num_frame_masks,  # default: 10
-        features_mask_size=27,
-        num_feature_masks=2,
-        frames_mask_size=100,
-        max_frames_mask_fraction=max_frames_mask_fraction,  # default: 0.15
-    )
-    return spec_augment
 
 
 def load_checkpoint_if_available(
@@ -1413,7 +1389,7 @@ def run(rank, world_size, args):
     if params.use_cr_ctc:
         assert params.use_ctc
         assert not params.enable_spec_aug  # we will do spec_augment in model.py
-        spec_augment = get_spec_augment(params)
+        spec_augment = ExpAugment()
     else:
         spec_augment = None
 
