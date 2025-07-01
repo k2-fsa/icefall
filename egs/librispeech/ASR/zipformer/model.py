@@ -429,7 +429,7 @@ class AsrModel(nn.Module):
         if use_cr_ctc:
             assert self.use_ctc
             if use_spec_aug:
-                assert spec_augment is not None and spec_augment.time_warp_factor < 1
+                assert spec_augment is not None
                 # Apply time warping before input duplicating
                 assert supervision_segments is not None
                 x = time_warp(
@@ -438,7 +438,7 @@ class AsrModel(nn.Module):
                     supervision_segments=supervision_segments,
                 )
                 # Independently apply frequency masking and time masking to the two copies
-                x = spec_augment(x.repeat(2, 1, 1))
+                x = spec_augment(x.repeat(2, 1, 1), x_lens.to(x.device))
             else:
                 x = x.repeat(2, 1, 1)
             x_lens = x_lens.repeat(2)
