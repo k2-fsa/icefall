@@ -47,8 +47,6 @@ from packaging import version
 from pypinyin import lazy_pinyin, pinyin
 from pypinyin.contrib.tone_convert import to_finals, to_finals_tone, to_initials
 from torch.utils.tensorboard import SummaryWriter
-from contextlib import contextmanager
-
 
 from icefall.checkpoint import average_checkpoints
 
