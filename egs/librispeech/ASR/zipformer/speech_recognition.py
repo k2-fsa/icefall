@@ -103,13 +103,15 @@ class K2SpeechRecognitionDataset(torch.utils.data.Dataset):
         # Sort the cuts by duration so that the first one determines the batch time dimensions.
         cuts = cuts.sort_by_duration(ascending=False)
 
-        # Optional CutSet transforms - e.g. padding, or speed perturbation that adjusts
-        # the supervision boundaries.
-        for tnfm in self.cut_transforms:
-            cuts = tnfm(cuts)
+        if self.cut_transforms:
+            orig_cuts = cuts
 
-        # Sort the cuts again after transforms
-        cuts = cuts.sort_by_duration(ascending=False)
+            cuts = cuts.repeat(times=2)
+
+            for tnfm in self.cut_transforms:
+                cuts = tnfm(cuts)
+
+            cuts = orig_cuts + cuts
 
         # Get a tensor with batched feature matrices, shape (B, T, F)
         # Collation performs auto-padding, if necessary.
@@ -117,7 +119,7 @@ class K2SpeechRecognitionDataset(torch.utils.data.Dataset):
         if len(input_tpl) == 3:
             # An input strategy with fault tolerant audio reading mode.
             # "cuts" may be a subset of the original "cuts" variable,
-            # that only has cuts for which we succesfully read the audio.
+            # that only has cuts for which we successfully read the audio.
             inputs, _, cuts = input_tpl
         else:
             inputs, _ = input_tpl
