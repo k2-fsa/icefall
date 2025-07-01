@@ -92,13 +92,13 @@ from icefall.env import get_env_info
 from icefall.graph_compiler import CtcTrainingGraphCompiler
 from icefall.lexicon import Lexicon
 from icefall.utils import (
-    create_grad_scaler,
-    torch_autocast,
     AttributeDict,
     MetricsTracker,
+    create_grad_scaler,
     encode_supervisions,
     setup_logger,
     str2bool,
+    torch_autocast,
 )
 
 LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]

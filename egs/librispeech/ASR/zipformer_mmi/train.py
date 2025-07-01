@@ -86,11 +86,11 @@ from icefall.mmi_graph_compiler import MmiTrainingGraphCompiler
 from icefall.utils import (
     AttributeDict,
     MetricsTracker,
+    create_grad_scaler,
     encode_supervisions,
     setup_logger,
     str2bool,
     torch_autocast,
-    create_grad_scaler,
 )
 
 LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]

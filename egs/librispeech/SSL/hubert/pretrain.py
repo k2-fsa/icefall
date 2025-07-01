@@ -75,12 +75,12 @@ from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
 from icefall.hooks import register_inf_check_hooks
 from icefall.utils import (
-    torch_autocast,
     AttributeDict,
     MetricsTracker,
     get_parameter_groups_with_lrs,
     setup_logger,
     str2bool,
+    torch_autocast,
 )
 
 LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]

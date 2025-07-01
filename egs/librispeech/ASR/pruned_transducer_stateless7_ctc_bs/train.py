@@ -81,6 +81,7 @@ from icefall.hooks import register_inf_check_hooks
 from icefall.utils import (
     AttributeDict,
     MetricsTracker,
+    create_grad_scaler,
     encode_supervisions,
     setup_logger,
     str2bool,
