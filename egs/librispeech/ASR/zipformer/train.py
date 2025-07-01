@@ -943,7 +943,7 @@ def compute_loss(
     sp: spm.SentencePieceProcessor,
     batch: dict,
     is_training: bool,
-    spec_augment: Optional[SpecAugment] = None,
+    spec_augment: Optional[nn.Module] = None,
 ) -> Tuple[Tensor, MetricsTracker]:
     """
     Compute loss given the model and its inputs.
@@ -1104,7 +1104,7 @@ def train_one_epoch(
     train_dl: torch.utils.data.DataLoader,
     valid_dl: torch.utils.data.DataLoader,
     scaler: GradScaler,
-    spec_augment: Optional[SpecAugment] = None,
+    spec_augment: Optional[nn.Module] = None,
     model_avg: Optional[nn.Module] = None,
     tb_writer: Optional[SummaryWriter] = None,
     world_size: int = 1,
@@ -1132,7 +1132,7 @@ def train_one_epoch(
       scaler:
         The scaler used for mix precision training.
       spec_augment:
-        The SpecAugment instance used only when use_cr_ctc is True.
+        The SpecAugment (or similar) instance used only when use_cr_ctc is True.
       model_avg:
         The stored model averaged from the start of training.
       tb_writer:
@@ -1612,7 +1612,7 @@ def scan_pessimistic_batches_for_oom(
     optimizer: torch.optim.Optimizer,
     sp: spm.SentencePieceProcessor,
     params: AttributeDict,
-    spec_augment: Optional[SpecAugment] = None,
+    spec_augment: Optional[nn.Module] = None,
 ):
     from lhotse.dataset import find_pessimistic_batches
 
