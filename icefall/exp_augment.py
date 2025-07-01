@@ -12,9 +12,9 @@ class ExpAugment(torch.nn.Module):
     """
     def __init__(
         self,
-        feature_mask_fraction: float = 0.16,  # mean fraction masked, not max.
+        feature_mask_fraction: float = 0.26,  # mean fraction masked, not max.
         num_feature_masks: int = 2,
-        frame_mask_fraction: float = 0.23,  # the mean, not max.
+        frame_mask_fraction: float = 0.21,  # the mean, not max.
         frame_mask_size: float = 50.0,  # interpret as mean size of masked region, in frames.
         p=0.9,  # probability of doing augmentation, and if we do augmentation, of doing each type of augmentation
     ):
@@ -63,20 +63,17 @@ class ExpAugment(torch.nn.Module):
         means = means * (B / lengths[:, None, None])  # compensate means for lengths less than B.
         # means: (B, 1, 1)
 
-
         features_unmasked = features
 
         features = self._mask_on_axis(features, means, axis=2,
-                                      num_regions=round(self.num_feature_masks/self.feature_mask_fraction),
-                                      num_masked_regions=self.num_feature_masks)
+                                      masked_fraction=self.feature_mask_fraction,
+                                      num_masks=self.num_feature_masks)
 
 
-        num_regions=max(3, round(T / self.frame_mask_size))  # at least 3 regions
-        num_masked_regions=max(1, round(num_regions * self.frame_mask_fraction))
-
+        num_masks = max(1, round((T * self.frame_mask_fraction) / self.frame_mask_size))
         features = self._mask_on_axis(features, means, axis=1,
-                                      num_regions=num_regions,
-                                      num_masked_regions=num_masked_regions)
+                                      masked_fraction=self.frame_mask_fraction,
+                                      num_masks=num_masks)
 
         features = torch.where(torch.rand(B, 1, 1, **kwargs).expand_as(features) < self.p,
                                features, features_unmasked)
@@ -87,8 +84,8 @@ class ExpAugment(torch.nn.Module):
                       features: torch.Tensor,
                       means: torch.Tensor,
                       axis: int,
-                      num_regions: int,
-                      num_masked_regions: int):
+                      masked_fraction: float,
+                      num_masks: int) -> torch.Tensor:
         """
         Mask ``features`` on a particular axis by replacing masked segments of that sequence with
         ``means``.
@@ -96,56 +93,38 @@ class ExpAugment(torch.nn.Module):
         :param features: a batch of feature matrices with shape ``(B, T, F)``.
         :param means: a batch of means of feature matrices with shape ``(B, 1, 1)``
         :param axis: the axis to mask on, i.e. 1 for time, 2 for frequency/feature.
-        :param num_regions: the number of regions to divide up the sequence-length, i.e. T or F,
-                 on this axis
-        :param num_masked_regions: the number of those regions to mask.
+        :param masked_fraction: the fraction of the data to mask, in expectation.
+        :param num_masks: the number of masked regions.
         """
         assert axis in [1,2]
         # num_regions refers to regions including 'exterior' regions
-        num_regions = max(num_regions, (2 * num_masked_regions) + 1)
         device = features.device
         shape = list(features.shape)
         B = shape[0]
         N = shape[axis]  # T or F
 
-        # subtract num_regions; we'll later add torch.arange(num_regions + 1) to the rounded and sorted
-        # boundary edges to ensure all interior region boundaries are distinct and do not include 0 or N.
-        #
-        N_reduced = N - num_regions
-
-        # 'boundaries' are the interior boundaries, i.e. the region edges except the beginning and
-        # end respectively of the first and last region.
-        boundaries = N_reduced * torch.rand(B, num_regions - 1, device=device)
-        boundaries = boundaries.round().to(torch.long)
-        boundaries = boundaries.sort(dim=1)[0] # make them consecutive.
-        # make sure the boundaries are all distinct from each other and
-        # also from N.
-        boundaries = boundaries + torch.arange(1, num_regions, device=device)
-
-        # won't keep first or last region. and the numbering is in  a numbering
-        # where the 1st region (bounded by start of sequence) is not counted,
-        # so the random numbers from the sort() will be between 0, 1, ... num_regions - 3.
-        kept_regions = torch.rand(B, num_regions - 2, device=device).sort(dim=1)[1]
-        region_numbers = kept_regions[:, :(2*num_masked_regions - 1)].sort(dim=1)[0]
-
-        # example:
-        #torch.rand(3, 10).sort(dim=1)[1][:, :5].sort(dim=1)[0]
-        #tensor([[0, 1, 2, 5, 7],
-        #        [1, 3, 6, 7, 8],
-        #        [0, 1, 5, 8, 9]])
-
-        # of the not-discarded regions, take alternate regions.
-        region_numbers = region_numbers[:, ::2]
-        region_starts = torch.gather(boundaries, index=region_numbers, dim=1)
-        region_ends = torch.gather(boundaries[:, 1:], index=region_numbers, dim=1)
-        assert region_ends.shape == (B, num_masked_regions)
+        def sample_from_exponential(*shape):
+            eps=1.0e-20
+            return -(torch.rand(*shape, device=device) + eps).log()
 
 
+        mask_lengths = sample_from_exponential(B, num_masks) * masked_fraction
+        unmasked_lengths = sample_from_exponential(B, num_masks + 1) * ((1. - masked_fraction) * num_masks / (num_masks + 1))
+
+        lengths = torch.empty(B, 2 * num_masks + 1, device=device)
+        lengths[:, 1::2] = mask_lengths
+        lengths[:, 0::2] = unmasked_lengths
+        for _ in range(2):
+            lengths = lengths * (N / lengths.sum(1, keepdim=True))
+            lengths = lengths.round().clamp_(min=1).to(torch.long)
+
+
+        positions = lengths.cumsum(dim=1)
+        positions = positions[:-1].clamp_(max=N-1)  # don't need the last position, which should be close to N.
+
+        ones = torch.ones(*positions.shape, device=device, dtype=torch.long)
         markers = torch.zeros(B, N, device=device, dtype=torch.long)
-        ones = torch.ones(*region_starts.shape, device=device, dtype=torch.long)
-        markers.scatter_(index=region_starts, dim=1, src=ones)
-        markers.scatter_(index=region_ends, dim=1, src=ones)
-
+        markers.scatter_(index=positions, dim=1, src=ones)
         cumsum = torch.cumsum(markers, dim=1)
         is_masked = ((cumsum % 2) == 1)  # (B, N), is True at spots to mask.
         if axis == 1:
@@ -174,20 +153,50 @@ class ExpAugment(torch.nn.Module):
 
 
 def _test_exp_augment():
-    exp_augment = ExpAugment(p=1.0, frame_mask_size=10)
-    B, T, F = 15, 100, 20
-    #device = 'cuda'
-    device = 'cpu'
-    features = torch.randn(B, T, F, device=device)
-    lengths = torch.tensor([ features.shape[1] ] * B, dtype=torch.long).to(device=device)
-    #print("features=", features)
-    features = exp_augment(features, lengths)
+    for n in [ 0, 1 ]:
+        #device = 'cuda'
+        B, T, F = 300, 600, 80
+        device = 'cpu'
 
-    frame_is_masked = features[:, :, 0] == features[:, :, -1]
-    print("mean frame_is_masked = ", frame_is_masked.to(torch.float).mean())
-    feature_is_masked = features[:, 0] == features[:, -1]
-    print("mean feature_is_masked = ", feature_is_masked.to(torch.float).mean())
+        if n == 0:
+            exp_augment = ExpAugment(p=1.0, frame_mask_size=10)
+        else:
+            from lhotse.dataset import SpecAugment
+            time_mask_ratio = 3.5
+            num_frame_masks = int(10 * time_mask_ratio)
+            max_frames_mask_fraction = 0.15 * time_mask_ratio
+            print(
+                f"num_frame_masks: {num_frame_masks}, "
+                f"max_frames_mask_fraction: {max_frames_mask_fraction}"
+            )
+            spec_augment = SpecAugment(
+                        time_warp_factor=0,  # Do time warping in model.py
+                num_frame_masks=num_frame_masks,  # default: 10
+                features_mask_size=27,
+                num_feature_masks=2,
+                frames_mask_size=100,
+                max_frames_mask_fraction=max_frames_mask_fraction,  # default: 0.15
+            )
+            supervision_segments = torch.stack((
+                torch.arange(B, device=device), # sequence_idx
+                torch.zeros(B, device=device, dtype=torch.long),  # start_frame
+                T * torch.ones(B, device=device, dtype=torch.long)  # num_frames
+            ), dim=-1)
+            exp_augment = lambda x, lengths: spec_augment(x, supervision_segments)
 
+        features = torch.randn(B, T, F, device=device)
+        lengths = torch.tensor([ features.shape[1] ] * B, dtype=torch.long).to(device=device)
+        #print("features=", features)
+        features = exp_augment(features, lengths)
+
+        frame_is_masked = features[:, :, 0] == features[:, :, -1]
+        print("mean frame_is_masked = ", frame_is_masked.to(torch.float).mean())
+        feature_is_masked = features[:, 0] == features[:, -1]
+        print("mean feature_is_masked = ", feature_is_masked.to(torch.float).mean())
+
+
+
+# from lhotse.dataset import SpecAugment
 
 if __name__ == '__main__':
     _test_exp_augment()
