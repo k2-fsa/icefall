@@ -73,6 +73,8 @@ def compute_fbank_ljspeech(num_jobs: int):
         f_min=0,
         f_max=8000,
     )
+    if not torch.cuda.is_available():
+        config.device = "cpu"
 
     prefix = "ljspeech"
     suffix = "jsonl.gz"

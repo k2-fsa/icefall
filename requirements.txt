@@ -21,3 +21,4 @@ flake8==5.0.4
 
 # cantonese word segment support
 pycantonese==3.4.0
+packaging

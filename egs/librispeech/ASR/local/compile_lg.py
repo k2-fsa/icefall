@@ -66,11 +66,11 @@ def compile_LG(lang_dir: str, lm: str = "G_3_gram") -> k2.Fsa:
       An FSA representing LG.
     """
     lexicon = Lexicon(lang_dir)
-    L = k2.Fsa.from_dict(torch.load(f"{lang_dir}/L_disambig.pt"))
+    L = k2.Fsa.from_dict(torch.load(f"{lang_dir}/L_disambig.pt", weights_only=False))
 
     if Path(f"data/lm/{lm}.pt").is_file():
         logging.info(f"Loading pre-compiled {lm}")
-        d = torch.load(f"data/lm/{lm}.pt")
+        d = torch.load(f"data/lm/{lm}.pt", weights_only=False)
         G = k2.Fsa.from_dict(d)
     else:
         logging.info(f"Loading {lm}.fst.txt")

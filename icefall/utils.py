@@ -26,6 +26,7 @@ import pathlib
 import random
 import re
 import subprocess
+import warnings
 from collections import defaultdict
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -42,6 +43,7 @@ import torch
 import torch.distributed as dist
 import torch.nn as nn
 from lhotse.dataset.signal_transforms import time_warp as time_warp_impl
+from packaging import version
 from pypinyin import lazy_pinyin, pinyin
 from pypinyin.contrib.tone_convert import to_finals, to_finals_tone, to_initials
 from torch.utils.tensorboard import SummaryWriter
@@ -49,6 +51,48 @@ from torch.utils.tensorboard import SummaryWriter
 from icefall.checkpoint import average_checkpoints
 
 Pathlike = Union[str, Path]
+
+TORCH_VERSION = version.parse(torch.__version__)
+
+
+def create_grad_scaler(device="cuda", **kwargs):
+    """
+    Creates a GradScaler compatible with both torch < 2.3.0 and >= 2.3.0.
+    Accepts all kwargs like: enabled, init_scale, growth_factor, etc.
+
+    /icefall/egs/librispeech/ASR/./zipformer/train.py:1451: FutureWarning:
+    `torch.cuda.amp.GradScaler(args...)` is deprecated. Please use
+    `torch.amp.GradScaler('cuda', args...)` instead.
+    """
+    if TORCH_VERSION >= version.parse("2.3.0"):
+        from torch.amp import GradScaler
+
+        return GradScaler(device=device, **kwargs)
+    else:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=FutureWarning)
+            return torch.cuda.amp.GradScaler(**kwargs)
+
+
+@contextmanager
+def torch_autocast(device_type="cuda", **kwargs):
+    """
+    To fix the following warnings:
+    /icefall/egs/librispeech/ASR/zipformer/model.py:323:
+    FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated.
+    Please use `torch.amp.autocast('cuda', args...)` instead.
+      with torch.cuda.amp.autocast(enabled=False):
+    """
+    if TORCH_VERSION >= version.parse("2.3.0"):
+        # Use new unified API
+        with torch.amp.autocast(device_type=device_type, **kwargs):
+            yield
+    else:
+        # Suppress deprecation warning and use old CUDA-specific autocast
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=FutureWarning)
+            with torch.cuda.amp.autocast(**kwargs):
+                yield
 
 
 # Pytorch issue: https://github.com/pytorch/pytorch/issues/47379
@@ -1551,6 +1595,7 @@ def optim_step_and_measure_param_change(
     and the L2 norm of the original parameter. It is given by the formula:
 
         .. math::
+
             \begin{aligned}
                 \delta = \frac{\Vert\theta - \theta_{new}\Vert^2}{\Vert\theta\Vert^2}
             \end{aligned}
