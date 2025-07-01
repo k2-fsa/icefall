@@ -33,7 +33,7 @@ class ExpAugment(torch.nn.Module):
     def forward(
         self,
         features: torch.Tensor,
-        lengths: Tensor,  # can just set this to [ seq_len ] * batch_size
+        lengths: torch.Tensor,  # can just set this to [ seq_len ] * batch_size
     ) -> torch.Tensor:
         """
         Computes ExpAugment for a batch of feature matrices.
