@@ -941,3 +941,56 @@ The best decoding results (CER) are listed below, we got this results by averagi
 ||test|
 |--|--|
 |CER| 10.16% |
+
+### Aishell training results (zipformer + CR-CTC)
+
+See <https://github.com/k2-fsa/icefall/pull/1976> for more details.
+
+[zipformer](./zipformer)
+
+#### Non-streaming
+
+##### medium-scale model, number of model parameters: 66218471, i.e., 66.2 M
+
+| decoding method                      | test       | dev        | comment             |
+|--------------------------------------|------------|------------|---------------------|
+| ctc-greedy-search                    | 3.96       | 3.74       | --epoch 50 --avg 24 |
+
+The training command using 4 32G-V100 GPUs is:
+```bash
+export CUDA_VISIBLE_DEVICES="0,1"
+./zipformer/train.py \
+  --world-size 2 \
+  --num-epochs 60 \
+  --start-epoch 1 \
+  --use-fp16 1 \
+  --context-size 1 \
+  --enable-musan 0 \
+  --exp-dir zipformer/exp \
+  --max-duration 500 \
+  --base-lr 0.045 \
+  --lr-batches 7500 \
+  --lr-epochs 18 \
+  --spec-aug-time-warp-factor 20 \
+  --use-ctc 1 \
+  --use-cr-ctc 1 \
+  --use-transducer 0 \
+  --enable-spec-aug 0 \
+  --cr-loss-scale 0.2
+```
+
+The decoding command is:
+```bash
+export CUDA_VISIBLE_DEVICES="0"
+for m in ctc-greedy-search; do
+  ./zipformer/ctc_decode.py \
+    --epoch 50 \
+    --avg 24 \
+    --exp-dir zipformer/exp \
+    --use-cr-ctc 1 \
+    --use-ctc 1 \
+    --use-transducer 0 \
+    --max-duration 600 \
+    --decoding-method $m
+done
+```
