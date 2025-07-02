@@ -99,7 +99,9 @@ class ExpAugment(torch.nn.Module):
 
         def sample_from_exponential(*shape):
             eps=1.0e-20
-            return -(torch.rand(*shape, device=device) + eps).log()
+            # Modify to sample from mean of two exponential distributions.
+            a = -(torch.rand(2, *shape, device=device) + eps).log()
+            return a.mean(dim=0)
 
 
         mask_lengths = sample_from_exponential(B, num_masks) * masked_fraction
