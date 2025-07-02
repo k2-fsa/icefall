@@ -956,7 +956,7 @@ See <https://github.com/k2-fsa/icefall/pull/1976> for more details.
 |--------------------------------------|------------|------------|---------------------|
 | ctc-greedy-search                    | 3.96       | 3.74       | --epoch 50 --avg 24 |
 
-The training command using 4 32G-V100 GPUs is:
+The training command using 2 32G-V100 GPUs is:
 ```bash
 export CUDA_VISIBLE_DEVICES="0,1"
 ./zipformer/train.py \
