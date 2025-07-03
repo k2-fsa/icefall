@@ -24,8 +24,8 @@ function export_2023_11_05() {
   mv pretrained.pt epoch-99.pt
 
   curl -SL -o 0.wav https://huggingface.co/zrjin/icefall-asr-multi-zh-hans-zipformer-ctc-streaming-2023-11-05/resolve/main/test_wavs/DEV_T0000000000.wav
-  curl -SL -o 1.wav https://huggingface.co/zrjin/icefall-asr-multi-zh-hans-zipformer-ctc-streaming-2023-11-05/resolve/main/test_wavs/DEV_T0000000000.wav
-  curl -SL -o 2.wav https://huggingface.co/zrjin/icefall-asr-multi-zh-hans-zipformer-ctc-streaming-2023-11-05/resolve/main/test_wavs/DEV_T0000000000.wav
+  curl -SL -o 1.wav https://huggingface.co/zrjin/icefall-asr-multi-zh-hans-zipformer-ctc-streaming-2023-11-05/resolve/main/test_wavs/DEV_T0000000001.wav
+  curl -SL -o 2.wav https://huggingface.co/zrjin/icefall-asr-multi-zh-hans-zipformer-ctc-streaming-2023-11-05/resolve/main/test_wavs/DEV_T0000000002.wav
   ls -lh
   popd
 
