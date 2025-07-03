@@ -69,6 +69,7 @@ import argparse
 import copy
 import logging
 import warnings
+from functools import partial
 from pathlib import Path
 from typing import List, Optional, Tuple, Union
 
@@ -90,6 +91,7 @@ from train import (
     add_training_arguments,
     compute_validation_loss,
     display_and_save_batch,
+    encode_text,
     get_adjusted_batch_count,
     get_model,
     get_params,
@@ -100,7 +102,6 @@ from train import (
 )
 
 from icefall import diagnostics
-from icefall.char_graph_compiler import CharCtcTrainingGraphCompiler
 from icefall.checkpoint import remove_checkpoints
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 from icefall.checkpoint import (
@@ -110,11 +111,11 @@ from icefall.checkpoint import (
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.err import raise_grad_scale_is_too_small_error
 from icefall.hooks import register_inf_check_hooks
-from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
     MetricsTracker,
     get_parameter_groups_with_lrs,
+    num_tokens,
     setup_logger,
     str2bool,
     text_to_pinyin,
@@ -254,7 +255,6 @@ def load_model_params(
 def compute_loss(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
-    graph_compiler: CharCtcTrainingGraphCompiler,
     batch: dict,
     is_training: bool,
 ) -> Tuple[Tensor, MetricsTracker]:
@@ -289,7 +289,7 @@ def compute_loss(
     warm_step = params.warm_step
 
     texts = batch["supervisions"]["text"]
-    y = graph_compiler.texts_to_ids(texts, sep="/")
+    y = [c.supervisions[0].tokens for c in supervisions["cut"]]
     y = k2.RaggedTensor(y)
 
     with torch.set_grad_enabled(is_training):
@@ -347,7 +347,6 @@ def train_one_epoch(
     model: Union[nn.Module, DDP],
     optimizer: torch.optim.Optimizer,
     scheduler: LRSchedulerType,
-    graph_compiler: CharCtcTrainingGraphCompiler,
     train_dl: torch.utils.data.DataLoader,
     valid_dl: torch.utils.data.DataLoader,
     scaler: GradScaler,
@@ -418,7 +417,6 @@ def train_one_epoch(
                 loss, loss_info = compute_loss(
                     params=params,
                     model=model,
-                    graph_compiler=graph_compiler,
                     batch=batch,
                     is_training=True,
                 )
@@ -436,7 +434,7 @@ def train_one_epoch(
             optimizer.zero_grad()
         except:  # noqa
             save_bad_model()
-            display_and_save_batch(batch, params=params, graph_compiler=graph_compiler)
+            display_and_save_batch(batch, params=params)
             raise
 
         if params.print_diagnostics and batch_idx == 5:
@@ -523,7 +521,6 @@ def train_one_epoch(
             valid_info = compute_validation_loss(
                 params=params,
                 model=model,
-                graph_compiler=graph_compiler,
                 valid_dl=valid_dl,
                 world_size=world_size,
             )
@@ -576,14 +573,10 @@ def run(rank, world_size, args):
         device = torch.device("cuda", rank)
     logging.info(f"Device: {device}")
 
-    lexicon = Lexicon(params.lang_dir)
-    graph_compiler = CharCtcTrainingGraphCompiler(
-        lexicon=lexicon,
-        device=device,
-    )
+    token_table = k2.SymbolTable.from_file(params.lang_dir / "tokens.txt")
 
-    params.blank_id = lexicon.token_table["<blk>"]
-    params.vocab_size = max(lexicon.tokens) + 1
+    params.blank_id = token_table["<blk>"]
+    params.vocab_size = num_tokens(token_table) + 1
 
     if not params.use_transducer:
         params.ctc_loss_scale = 1.0
@@ -601,6 +594,9 @@ def run(rank, world_size, args):
 
     if params.continue_finetune:
         assert params.start_epoch > 0, params.start_epoch
+        if rank == 0:
+            # model_avg is only used with rank 0
+            model_avg = copy.deepcopy(model).to(torch.float64)
         checkpoints = load_checkpoint_if_available(
             params=params, model=model, model_avg=model_avg
         )
@@ -666,17 +662,10 @@ def run(rank, world_size, args):
     else:
         train_cuts = wenetspeech.nihaowenwen_train_cuts()
 
-    def encode_text(c: Cut):
-        # Text normalize for each sample
-        text = c.supervisions[0].text
-        text = "/".join(
-            text_to_pinyin(text, mode=params.pinyin_type, errors=params.pinyin_errors)
-        )
-        c.supervisions[0].text = text
-        return c
+    _encode_text = partial(encode_text, token_table=token_table, params=params)
 
     train_cuts = train_cuts.filter(remove_short_utt)
-    train_cuts = train_cuts.map(encode_text)
+    train_cuts = train_cuts.map(_encode_text)
 
     if params.start_batch > 0 and checkpoints and "sampler" in checkpoints:
         # We only load the sampler's state dict when it loads a checkpoint
@@ -691,7 +680,7 @@ def run(rank, world_size, args):
 
     valid_cuts = wenetspeech.nihaowenwen_dev_cuts()
     valid_cuts = valid_cuts.filter(remove_short_utt)
-    valid_cuts = valid_cuts.map(encode_text)
+    valid_cuts = valid_cuts.map(_encode_text)
     valid_dl = wenetspeech.valid_dataloaders(valid_cuts)
 
     if not params.print_diagnostics and params.scan_for_oom_batches:
@@ -699,7 +688,6 @@ def run(rank, world_size, args):
             model=model,
             train_dl=train_dl,
             optimizer=optimizer,
-            graph_compiler=graph_compiler,
             params=params,
         )
 
@@ -724,7 +712,6 @@ def run(rank, world_size, args):
             model_avg=model_avg,
             optimizer=optimizer,
             scheduler=scheduler,
-            graph_compiler=graph_compiler,
             train_dl=train_dl,
             valid_dl=valid_dl,
             scaler=scaler,
@@ -760,6 +747,8 @@ def main():
     WenetSpeechAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
+    args.lang_dir = Path(args.lang_dir)
+    args.return_cuts = True
 
     world_size = args.world_size
     assert world_size >= 1

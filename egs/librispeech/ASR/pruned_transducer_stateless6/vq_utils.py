@@ -348,7 +348,9 @@ class CodebookIndexExtractor:
             num_codebooks=self.params.num_codebooks,
             codebook_size=256,
         )
-        quantizer.load_state_dict(torch.load(self.quantizer_file_path))
+        quantizer.load_state_dict(
+            torch.load(self.quantizer_file_path, weights_only=False)
+        )
         quantizer.to(self.params.device)
         return quantizer
 

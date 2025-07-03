@@ -176,7 +176,9 @@ def main():
     model = OnnxModel(params.nn_model)
 
     logging.info(f"Loading HLG from {args.HLG}")
-    HLG = k2.Fsa.from_dict(torch.load(params.HLG, map_location="cpu"))
+    HLG = k2.Fsa.from_dict(
+        torch.load(params.HLG, map_location="cpu", weights_only=False)
+    )
     HLG = HLG.to(device)
 
     logging.info("Constructing Fbank computer")

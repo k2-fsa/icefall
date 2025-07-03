@@ -1,4 +1,4 @@
-name: run-multi-zh-hans
+name: multi-zh-hans
 
 on:
   push:
@@ -8,65 +8,72 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: run-multi-zh-hans-${{ github.ref }}
+  group: multi-zh-hans-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: write
 
 jobs:
+  generate_build_matrix:
+    if: github.repository_owner == 'csukuangfj' || github.repository_owner == 'k2-fsa'
+    # see https://github.com/pytorch/pytorch/pull/50633
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Generating build matrix
+        id: set-matrix
+        run: |
+          # outputting for debugging purposes
+          python ./.github/scripts/docker/generate_build_matrix.py --torch-version "2.7.0" --python-version "3.11"
+          MATRIX=$(python ./.github/scripts/docker/generate_build_matrix.py --torch-version "2.7.0" --python-version "3.11")
+          echo "::set-output name=matrix::${MATRIX}"
   multi-zh-hans:
-    runs-on: ${{ matrix.os }}
+    needs: generate_build_matrix
+    name: py${{ matrix.python-version }} torch${{ matrix.torch-version }} v${{ matrix.version }}
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest]
-        python-version: [3.8]
+        ${{ fromJson(needs.generate_build_matrix.outputs.matrix) }}
 
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Setup Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v2
-        with:
-          python-version: ${{ matrix.python-version }}
-          cache: 'pip'
-          cache-dependency-path: '**/requirements-ci.txt'
-
-      - name: Install Python dependencies
-        run: |
-          grep -v '^#' ./requirements-ci.txt  | xargs -n 1 -L 1 pip install
-          pip uninstall -y protobuf
-          pip install --no-binary protobuf protobuf==3.20.*
-
-      - name: Cache kaldifeat
-        id: my-cache
-        uses: actions/cache@v2
-        with:
-          path: |
-            ~/tmp/kaldifeat
-          key: cache-tmp-${{ matrix.python-version }}-2023-05-22
-
-      - name: Install kaldifeat
-        if: steps.my-cache.outputs.cache-hit != 'true'
+      - name: Free space
         shell: bash
         run: |
-          .github/scripts/install-kaldifeat.sh
+          df -h
+          rm -rf /opt/hostedtoolcache
+          df -h
+          echo "pwd: $PWD"
+          echo "github.workspace ${{ github.workspace }}"
 
-      - name: export-model
+      - name: Test with multi_zh-hans
+        uses: addnab/docker-run-action@v3
+        with:
+            image: ghcr.io/${{ github.repository_owner }}/icefall:cpu-py${{ matrix.python-version }}-torch${{ matrix.torch-version }}-v${{ matrix.version }}
+            options: |
+              --volume ${{ github.workspace }}/:/icefall
+            shell: bash
+            run: |
+              export PYTHONPATH=/icefall:$PYTHONPATH
+              export HF_TOKEN=${{ secrets.HF_TOKEN }}
+              cd /icefall
+              git config --global --add safe.directory /icefall
+
+              .github/scripts/multi_zh-hans/ASR/run.sh
+
+      - name: Show models
         shell: bash
-        env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          sudo apt-get -qq install git-lfs tree
-          export PYTHONPATH=$PWD:$PYTHONPATH
-          export PYTHONPATH=~/tmp/kaldifeat/kaldifeat/python:$PYTHONPATH
-          export PYTHONPATH=~/tmp/kaldifeat/build/lib:$PYTHONPATH
-
-          .github/scripts/multi-zh-hans.sh
-          ls -lh
+          ls -lh *.tar.bz2
 
       - name: upload model to https://github.com/k2-fsa/sherpa-onnx
         uses: svenstaro/upload-release-action@v2

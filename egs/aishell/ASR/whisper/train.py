@@ -81,6 +81,7 @@ from icefall.utils import (
     filter_uneven_sized_batch,
     setup_logger,
     str2bool,
+    torch_autocast,
 )
 
 LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
@@ -514,7 +515,7 @@ def compute_validation_loss(
     tot_loss = MetricsTracker()
 
     for batch_idx, batch in enumerate(valid_dl):
-        with torch.cuda.amp.autocast(enabled=params.use_fp16):
+        with torch_autocast(enabled=params.use_fp16):
             loss, loss_info = compute_loss(
                 params=params,
                 tokenizer=tokenizer,
@@ -608,7 +609,7 @@ def train_one_epoch(
                 )
 
         try:
-            with torch.cuda.amp.autocast(enabled=params.use_fp16):
+            with torch_autocast(enabled=params.use_fp16):
                 loss, loss_info = compute_loss(
                     params=params,
                     tokenizer=tokenizer,
