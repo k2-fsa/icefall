@@ -116,8 +116,8 @@ class ExpAugment(torch.nn.Module):
 
 
         # _masks: (B, M, N)
-        _masks = torch.logical_and(torch.arange(N) >= mask_starts[..., None],
-                                  torch.arange(N) <= mask_ends[..., None]).to(torch.float)
+        _masks = torch.logical_and(torch.arange(N, device=device) >= mask_starts[..., None],
+                                  torch.arange(N, device=device) <= mask_ends[..., None]).to(torch.float)
         _masks = torch.sum(_masks, dim=1).clamp(max=1)
 
         is_mask_start = torch.cat((torch.ones(B, M, dtype=torch.bool, device=device),
