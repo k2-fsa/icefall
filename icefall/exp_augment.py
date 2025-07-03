@@ -12,22 +12,23 @@ class ExpAugment(torch.nn.Module):
     """
     def __init__(
         self,
-        feature_mask_fraction: float = 0.26,  # mean fraction masked, not max.
+        max_feature_mask_fraction: float = 0.675,  # max fraction that can possibly be masked
         num_feature_masks: int = 2,
-        frame_mask_fraction: float = 0.21,  # the mean, not max.
-        frame_mask_size: float = 50.0,  # interpret as mean size of masked region, in frames.
-        p=0.9,  # probability of doing augmentation, and if we do augmentation, of doing each type of augmentation
+        max_frame_mask_fraction: float = 0.525,
+        max_frame_mask_size: float = 100,  # max size in frames of temporal masks.
+        p=0.9,  # probability of doing augmentation
     ):
         super().__init__()
         assert 0 <= p <= 1
-        assert 0 <= feature_mask_fraction <= 1
-        assert 0 <= frame_mask_fraction <= 1
-        assert 0 < frame_mask_size
+        assert 0 <= max_feature_mask_fraction <= 1
+        assert 0 <= max_frame_mask_fraction <= 1
+        assert 0 <= max_frame_mask_size
+        assert 0 <= num_feature_masks
 
-        self.feature_mask_fraction = feature_mask_fraction
+        self.max_feature_mask_fraction = max_feature_mask_fraction
         self.num_feature_masks = num_feature_masks
-        self.frame_mask_fraction = frame_mask_fraction
-        self.frame_mask_size = frame_mask_size
+        self.max_frame_mask_fraction = max_frame_mask_fraction
+        self.max_frame_mask_size = max_frame_mask_size
         self.p = p
 
     def forward(
@@ -59,15 +60,20 @@ class ExpAugment(torch.nn.Module):
 
         features_unmasked = features
 
-        features = self._mask_on_axis(features, mean, axis=2,
-                                      masked_fraction=self.feature_mask_fraction,
-                                      num_masks=self.num_feature_masks)
+        if self.num_feature_masks > 0:
+            num_masks = self.num_feature_masks
+            max_mask_size = F * self.max_feature_mask_fraction / num_masks
+            features = self._mask_on_axis(features, mean, axis=2,
+                                          max_mask_size=max_mask_size,
+                                          num_masks=num_masks)
 
 
-        num_masks = max(1, round((T * self.frame_mask_fraction) / self.frame_mask_size))
-        features = self._mask_on_axis(features, mean, axis=1,
-                                      masked_fraction=self.frame_mask_fraction,
-                                      num_masks=num_masks)
+        if self.max_frame_mask_fraction > 0:
+            num_masks = max(1, round((T * self.max_frame_mask_fraction) / self.max_frame_mask_size))
+            max_mask_size = T * self.max_frame_mask_fraction / num_masks
+            features = self._mask_on_axis(features, mean, axis=1,
+                                          max_mask_size=max_mask_size,
+                                          num_masks=num_masks)
 
         features = torch.where(torch.rand(B, 1, 1, **kwargs).expand_as(features) < self.p,
                                features, features_unmasked)
@@ -78,7 +84,7 @@ class ExpAugment(torch.nn.Module):
                       features: torch.Tensor,
                       mean: torch.Tensor,
                       axis: int,
-                      masked_fraction: float,
+                      max_mask_size: float,
                       num_masks: int) -> torch.Tensor:
         """
         Mask ``features`` on a particular axis by replacing masked segments of that sequence with
@@ -95,34 +101,52 @@ class ExpAugment(torch.nn.Module):
         device = features.device
         shape = list(features.shape)
         B = shape[0]
+        M = num_masks
         N = shape[axis]  # T or F
 
-        def sample_from_exponential(*shape):
-            eps=1.0e-20
-            # Modify to sample from mean of two exponential distributions.
-            a = -(torch.rand(2, *shape, device=device) + eps).log()
-            return a.mean(dim=0)
+        mask_lengths = torch.rand(B, num_masks, device=device) * max_mask_size
+
+        mask_starts = torch.rand(B, num_masks, device=device) * (N - mask_lengths)
+        mask_ends = mask_starts + mask_lengths
+
+        mask_boundaries = torch.cat((mask_starts, mask_ends), dim=1)
+
+        # round down to next integer.
+        mask_boundaries = mask_boundaries.to(torch.long).clamp(min=0, max=N-1)
 
 
-        mask_lengths = sample_from_exponential(B, num_masks) * masked_fraction
-        unmasked_lengths = sample_from_exponential(B, num_masks + 1) * ((1. - masked_fraction) * num_masks / (num_masks + 1))
+        # _masks: (B, M, N)
+        _masks = torch.logical_and(torch.arange(N) >= mask_starts[..., None],
+                                  torch.arange(N) <= mask_ends[..., None]).to(torch.float)
+        _masks = torch.sum(_masks, dim=1).clamp(max=1)
 
-        lengths = torch.empty(B, 2 * num_masks + 1, device=device)
-        lengths[:, 1::2] = mask_lengths
-        lengths[:, 0::2] = unmasked_lengths
-        for _ in range(2):
-            lengths = lengths * (N / lengths.sum(1, keepdim=True))
-            lengths = lengths.round().clamp_(min=1).to(torch.long)
+        is_mask_start = torch.cat((torch.ones(B, M, dtype=torch.bool, device=device),
+                                   torch.zeros(B, M, dtype=torch.bool, device=device)),
+                                  dim=1)
+
+        mask_boundaries, indexes = mask_boundaries.sort(dim=1)
+        is_mask_start = torch.gather(is_mask_start, dim=1, index=indexes)
+        not_mask_start = torch.logical_not(is_mask_start)
+
+        # is_not_repeat is 1 if this element of mask_boundaries is not a repeat of the same boundary
+        # type as the previous boundary, i.e. mask start or mask end.
+
+        keep_boundary = torch.ones(B, 2 * M, device=device, dtype=torch.bool)
+        # the following says: set to False all elements of keep_boundary where both this and the previous
+        # element is a mask start.  I.e. remove redundant mask-starts corresponding to overlapping masks.
+        keep_boundary[:, 1:][torch.logical_and(is_mask_start[:, :-1], is_mask_start[:, 1:])] = False
+        # the following says: set to False all elements of keep_boundary where both this and the next
+        # element are mask ends.  I.e. remove redundant mask-ends corresponding to overlapping masks.
+        keep_boundary[:, :-1][torch.logical_and(not_mask_start[:, :-1], not_mask_start[:, 1:])] = False
+
+        keep_boundary = keep_boundary.to(dtype=torch.long)
+        cumsum = torch.zeros(B, N, device=device, dtype=torch.long)
+        cumsum.scatter_add_(index=mask_boundaries, dim=1, src=keep_boundary)
 
 
-        positions = lengths.cumsum(dim=1)
-        positions = positions[:-1].clamp_(max=N-1)  # don't need the last position, which should be close to N.
+        cumsum = torch.cumsum(cumsum, dim=1)
 
-        ones = torch.ones(*positions.shape, device=device, dtype=torch.long)
-        markers = torch.zeros(B, N, device=device, dtype=torch.long)
-        markers.scatter_(index=positions, dim=1, src=ones)
-        cumsum = torch.cumsum(markers, dim=1)
-        is_masked = ((cumsum % 2) == 1)  # (B, N), is True at spots to mask.
+        is_masked = (cumsum % 2) == 1  # (B, N), is True at spots to mask.
         if axis == 1:
             is_masked = is_masked.unsqueeze(-1)
         else:
@@ -132,17 +156,16 @@ class ExpAugment(torch.nn.Module):
 
 
     def state_dict(self, **kwargs) -> Dict[str, Any]:
-        return dict(
-            feature_mask_fraction=self.feature_mask_fraction,
-            num_feature_masks=self.num_feature_masks,
-            frame_mask_fraction=self.frame_mask_fraction,
-            frame_mask_size=self.frame_mask_size,
-            p=self.p)
+
+        dict = { }
+        for name in ["max_feature_mask_fraction", "num_feature_masks",
+                     "max_frame_mask_fraction", "max_frame_mask_size", "p"]:
+            dict[name] = getattr(self, name)
 
 
     def load_state_dict(self, state_dict: Dict[str, Any]):
-        for name in ["feature_mask_fraction", "num_feature_masks",
-                     "frame_mask_fraction", "frame_mask_size", "p"]:
+        for name in ["max_feature_mask_fraction", "num_feature_masks",
+                     "max_frame_mask_fraction", "max_frame_mask_size", "p"]:
             if name in state_dict:
                 setattr(self, name, state_dict["name"])
 
@@ -155,7 +178,7 @@ def _test_exp_augment():
         device = 'cpu'
 
         if n == 0:
-            exp_augment = ExpAugment(p=1.0, frame_mask_size=10)
+            exp_augment = ExpAugment(p=1.0) #, max_frame_mask_size=2.0, max_frame_mask_fraction=0.02)
         else:
             from lhotse.dataset import SpecAugment
             time_mask_ratio = 3.5
@@ -172,6 +195,7 @@ def _test_exp_augment():
                 num_feature_masks=2,
                 frames_mask_size=100,
                 max_frames_mask_fraction=max_frames_mask_fraction,  # default: 0.15
+                p=1.0,
             )
             supervision_segments = torch.stack((
                 torch.arange(B, device=device), # sequence_idx
