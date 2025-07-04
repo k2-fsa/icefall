@@ -631,7 +631,10 @@ def attach_diagnostics(
                         )
 
         module.register_forward_hook(forward_hook)
-        module.register_backward_hook(backward_hook)
+        if hasattr(module, "register_full_backward_hook"):
+            module.register_full_backward_hook(backward_hook)
+        else:
+            module.register_backward_hook(backward_hook)
 
         if type(module).__name__ in [
             "Sigmoid",
@@ -665,7 +668,10 @@ def attach_diagnostics(
                 _model_diagnostic[f"{_name}.scalar"].accumulate_output_grad(_output)
 
             module.register_forward_hook(scalar_forward_hook)
-            module.register_backward_hook(scalar_backward_hook)
+            if hasattr(module, "register_full_backward_hook"):
+                module.register_full_backward_hook(scalar_backward_hook)
+            else:
+                module.register_backward_hook(scalar_backward_hook)
 
     for name, parameter in model.named_parameters():
 

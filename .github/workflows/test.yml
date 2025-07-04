@@ -30,8 +30,8 @@ jobs:
         id: set-matrix
         run: |
           # outputting for debugging purposes
-          python ./.github/scripts/docker/generate_build_matrix.py
-          MATRIX=$(python ./.github/scripts/docker/generate_build_matrix.py)
+          python ./.github/scripts/docker/generate_build_matrix.py --python-version "3.10"
+          MATRIX=$(python ./.github/scripts/docker/generate_build_matrix.py --python-version "3.10")
           echo "::set-output name=matrix::${MATRIX}"
   test:
     needs: generate_build_matrix
