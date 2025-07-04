@@ -104,10 +104,7 @@ class ExpAugment(torch.nn.Module):
         M = num_masks
         N = shape[axis]  # T or F
 
-        mask_lengths = torch.rand(B, num_masks, device=device) * max_mask_size
-
-        mask_starts = torch.rand(B, num_masks, device=device) * (N - mask_lengths)
-        mask_ends = mask_starts + mask_lengths
+        mask_starts, mask_ends = self._sample_mask_starts_and_ends(B, N, num_masks, max_mask_size, device)
 
         mask_boundaries = torch.cat((mask_starts, mask_ends), dim=1)
 
@@ -154,6 +151,40 @@ class ExpAugment(torch.nn.Module):
 
         return torch.where(is_masked.expand_as(features), mean[None, None, None].expand_as(features), features)
 
+
+    def _sample_mask_starts_and_ends(self, batch_size, seq_len, num_masks, max_mask_size, device) -> Tuple[Tuple,Tuple]:
+        # compute the start and end positions of masked regions.  this will select mask positions
+        # that do not overlap.  Return: (mask_starts, mask_ends)
+
+        mask_lengths = torch.rand(batch_size, num_masks, device=device) * max_mask_size
+        mask_tot_len = mask_lengths.sum(dim=1, keepdim=True)  # (batch_size, 1)
+        padding_tot_len = seq_len - mask_tot_len  # (batch_size, 1)
+        eps = 1.0e-20
+
+        # get padding lengths by randomly placing dividers on the line of length "padding_tot_len"
+        # these "padding_positions" are not absolute position on the line from 0 to seq_len,
+        # but positions on the line from 0 to "padding_tot_len" which divides up the length
+        # we need to pad.
+        num_pads = num_masks + 1
+        padding_positions = torch.rand(batch_size, num_pads - 1, device=device) * padding_tot_len
+        padding_positions = padding_positions.sort(dim=1)[0]
+        zero = torch.zeros(batch_size, 1, device=device)
+        padding_positions = torch.cat((zero, padding_positions, padding_tot_len), dim=1)
+        padding_lengths = padding_positions[:, 1:] - padding_positions[:, :-1]
+
+        lengths = torch.empty(batch_size, num_masks * 2 + 1, device=device)
+        lengths[:, 1::2] = mask_lengths
+        lengths[:, 0::2] = padding_lengths
+
+        positions = torch.cumsum(lengths, dim=1)
+        # last element of 'positions' should be seq_len
+        assert torch.all((positions[:, -1] - seq_len).abs() < 0.0001 * seq_len)
+
+        # positions does not have a leading zero, cumsum is inclusive; but do not treat final `seq_len` as a mask start position.
+        mask_starts = positions[:, 0:-1:2]
+        mask_ends = positions[:, 1::2]
+        assert mask_starts.shape == (batch_size, num_masks) and mask_ends.shape == (batch_size, num_masks)
+        return mask_starts, mask_ends
 
     def state_dict(self, **kwargs) -> Dict[str, Any]:
 
