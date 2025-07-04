@@ -944,7 +944,7 @@ The best decoding results (CER) are listed below, we got this results by averagi
 
 ### Aishell training results (zipformer + CR-CTC)
 
-See <https://github.com/k2-fsa/icefall/pull/1976> for more details.
+See <https://github.com/k2-fsa/icefall/pull/1979> for more details.
 
 [zipformer](./zipformer)
 
