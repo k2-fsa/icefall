@@ -954,7 +954,7 @@ See <https://github.com/k2-fsa/icefall/pull/1976> for more details.
 
 | decoding method                      | test       | dev        | comment             |
 |--------------------------------------|------------|------------|---------------------|
-| ctc-greedy-search                    | 3.96       | 3.74       | --epoch 50 --avg 24 |
+| ctc-greedy-search                    | 3.98       | 3.69       | --epoch 60 --avg 28 |
 
 The training command using 2 32G-V100 GPUs is:
 ```bash
@@ -984,8 +984,8 @@ The decoding command is:
 export CUDA_VISIBLE_DEVICES="0"
 for m in ctc-greedy-search; do
   ./zipformer/ctc_decode.py \
-    --epoch 50 \
-    --avg 24 \
+    --epoch 60 \
+    --avg 28 \
     --exp-dir zipformer/exp \
     --use-cr-ctc 1 \
     --use-ctc 1 \
@@ -994,3 +994,7 @@ for m in ctc-greedy-search; do
     --decoding-method $m
 done
 ```
+
+Pretrained models, training logs, decoding logs, tensorboard and decoding results
+are available at
+<https://huggingface.co/MistMoon/icefall-asr-aishell-zipformer-medium-cr-ctc-20250702>
