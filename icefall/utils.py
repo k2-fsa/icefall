@@ -360,7 +360,7 @@ class KeywordResult:
 class DecodingResults:
     # timestamps[i][k] contains the frame number on which tokens[i][k]
     # is decoded
-    timestamps: List[List[Union[int, Tuple[int, int]]]]
+    timestamps: List[List[int]]
 
     # hyps[i] is the recognition results, i.e., word IDs or token IDs
     # for the i-th utterance with fast_beam_search_nbest_LG.
@@ -569,40 +569,6 @@ def store_transcripts_and_timestamps(
                     # each element is a float number
                     s = "[" + ", ".join(["%0.3f" % i for i in time_ref]) + "]"
                 print(f"{cut_id}:\ttimestamp_ref={s}", file=f)
-
-            if len(time_hyp) > 0:
-                if isinstance(time_hyp[0], tuple):
-                    # each element is <start, end> pair
-                    s = (
-                        "["
-                        + ", ".join(["(%0.3f, %.03f)" % (i, j) for (i, j) in time_hyp])
-                        + "]"
-                    )
-                else:
-                    # each element is a float number
-                    s = "[" + ", ".join(["%0.3f" % i for i in time_hyp]) + "]"
-                print(f"{cut_id}:\ttimestamp_hyp={s}", file=f)
-
-def store_transcripts_and_timestamps_withoutref(
-    filename: Pathlike,
-    texts: Iterable[Tuple[str, List[str], List[str], List[Tuple[float]]]],
-) -> None:
-    """Save predicted results and reference transcripts as well as their timestamps
-    to a file.
-
-    Args:
-      filename:
-        File to save the results to.
-      texts:
-        An iterable of tuples. The first element is the cur_id, the second is
-        the reference transcript and the third element is the predicted result.
-    Returns:
-      Return None.
-    """
-    with open(filename, "w", encoding="utf8") as f:
-        for cut_id, ref, hyp, time_hyp in texts:
-            print(f"{cut_id}:\tref={ref}", file=f)
-            print(f"{cut_id}:\thyp={hyp}", file=f)
 
             if len(time_hyp) > 0:
                 if isinstance(time_hyp[0], tuple):
@@ -1873,30 +1839,6 @@ def convert_timestamp(
 
     return time
 
-def convert_timestamp_duration(
-    frames: List[Tuple[int, int]],
-    subsampling_factor: int,
-    frame_shift_ms: float = 10,
-) -> List[Tuple[float, float]]:
-    """Convert frame numbers to time (in seconds) given subsampling factor
-    and frame shift (in milliseconds).
-
-    Args:
-      frames:
-        A list of frame numbers after subsampling.
-      subsampling_factor:
-        The subsampling factor of the model.
-      frame_shift_ms:
-        Frame shift in milliseconds between two contiguous frames.
-    Return:
-      Return the time in seconds corresponding to each given frame.
-    """
-    frame_shift = frame_shift_ms / 1000.0
-    time = []
-    for f_start, f_end in frames:
-        time.append((round(f_start * subsampling_factor * frame_shift, ndigits=3), round(f_end * subsampling_factor * frame_shift, ndigits=3)))
-
-    return time
 
 def parse_timestamp(tokens: List[str], timestamp: List[float]) -> List[float]:
     """
@@ -1979,43 +1921,6 @@ def parse_hyp_and_timestamp(
 
         hyps.append(words)
         timestamps.append(time)
-
-    return hyps, timestamps
-
-def parse_hyp_and_timestamp_ch(
-    res: DecodingResults,
-    subsampling_factor: int,
-    word_table: k2.SymbolTable,
-    frame_shift_ms: float = 10,
-) -> Tuple[List[List[str]], List[List[float]]]:
-    """Parse hypothesis and timestamps of Chinese characters.
-
-    Args:
-      res:
-        A DecodingResults object.
-      subsampling_factor:
-        The integer subsampling factor.
-      word_table:
-        The word symbol table.
-      frame_shift_ms:
-        The float frame shift used for feature extraction.
-
-    Returns:
-       Return a list of hypothesis and timestamp.
-    """
-    hyps = []
-    timestamps = []
-
-    N = len(res.hyps)
-    assert len(res.timestamps) == N, (len(res.timestamps), N)
-    assert word_table is not None
-
-    for i in range(N):
-        time = convert_timestamp_duration(res.timestamps[i], subsampling_factor, frame_shift_ms)
-        words_decoded = [word_table[idx] for idx in res.hyps[i]]
-        hyps.append(words_decoded)
-        timestamps.append(time)
-        assert len(time) == len(words_decoded), (len(time), len(words_decoded))
 
     return hyps, timestamps
 

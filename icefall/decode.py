@@ -26,7 +26,7 @@ import torch
 from icefall.context_graph import ContextGraph, ContextState
 from icefall.lm_wrapper import LmScorer
 from icefall.ngram_lm import NgramLm, NgramLmStateCost
-from icefall.utils import DecodingResults, add_eos, add_sos, get_texts
+from icefall.utils import add_eos, add_sos, get_texts
 
 DEFAULT_LM_SCALE = [
     0.01,
@@ -1485,52 +1485,25 @@ def ctc_greedy_search(
     ctc_output: torch.Tensor,
     encoder_out_lens: torch.Tensor,
     blank_id: int = 0,
-    return_timestamps: bool = False,
-) -> Union[List[List[int]], DecodingResults]:
+) -> List[List[int]]:
     """CTC greedy search.
 
     Args:
          ctc_output: (batch, seq_len, vocab_size)
          encoder_out_lens: (batch,)
     Returns:
-         Union[List[List[int]], DecodingResults]: greedy search result
+         List[List[int]]: greedy search result
     """
     batch = ctc_output.shape[0]
     index = ctc_output.argmax(dim=-1)  # (batch, seq_len)
-    
-    hyps = [[] for _ in range(batch)]
-    # timestamps[n][i] is the frame index after subsampling
-    # on which hyp[n][i] is decoded
-    timestamps = [[] for _ in range(batch)]
-    # scores[n][i] is the logits on which hyp[n][i] is decoded
-    scores = [[] for _ in range(batch)]
-    
-    for i in range(batch):
-      cur_pos = -1
-      last = -1
-      next_other = torch.where(index[i,0 : encoder_out_lens[i]] != last)[0]
-      flag = False # whether decoding words
-      while next_other.size(0) > 0:
-        cur_pos = cur_pos + 1 + next_other[0].item()
-        last = index[i,cur_pos].item()
-        if flag: # last word decoding finished
-          timestamps[i][-1] = timestamps[i][-1] + (cur_pos - 1, )
-        if last != blank_id:
-          hyps[i].append(last)
-          timestamps[i].append((cur_pos,))
-          scores[i].append(ctc_output[i, cur_pos, last].item())
-          flag = True # Decoding words
-        else:
-          flag = False
-        
-        next_other = torch.where(index[i,cur_pos + 1 : encoder_out_lens[i]] != last)[0]
-      if flag:
-        timestamps[i][-1] = timestamps[i][-1] + (encoder_out_lens[i].item() - 1, )
-        
-    if not return_timestamps:
-      return hyps
-    else:
-      return DecodingResults(hyps = hyps, timestamps = timestamps, scores = scores)
+    hyps = [
+        torch.unique_consecutive(index[i, : encoder_out_lens[i]]) for i in range(batch)
+    ]
+
+    hyps = [h[h != blank_id].tolist() for h in hyps]
+
+    return hyps
+
 
 @dataclass
 class Hypothesis:
