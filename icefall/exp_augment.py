@@ -106,6 +106,13 @@ class ExpAugment(torch.nn.Module):
 
         mask_starts, mask_ends = self._sample_mask_starts_and_ends(B, N, num_masks, max_mask_size, device)
 
+        # roll half or the mask_starts and mask_ends between the first and second
+        # halves of the batch.  this is intended to help CR-CTC, by making the
+        # masked regions of the two augmented versions of the same data anti-correlated.
+        mask_starts[:, ::2] = mask_starts[:, ::2].roll(batch_size // 2, dim=0)
+        mask_ends[:, ::2] = mask_ends[:, ::2].roll(batch_size // 2, dim=0)
+
+
         mask_boundaries = torch.cat((mask_starts, mask_ends), dim=1)
 
         # round down to next integer.
@@ -184,6 +191,7 @@ class ExpAugment(torch.nn.Module):
         mask_starts = positions[:, 0:-1:2]
         mask_ends = positions[:, 1::2]
         assert mask_starts.shape == (batch_size, num_masks) and mask_ends.shape == (batch_size, num_masks)
+
         return mask_starts, mask_ends
 
     def state_dict(self, **kwargs) -> Dict[str, Any]:
