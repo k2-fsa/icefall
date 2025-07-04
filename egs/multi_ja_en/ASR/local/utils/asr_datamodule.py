@@ -271,7 +271,7 @@ class MultiDatasetAsrDataModule:
 
         if self.args.bucketing_sampler:
             logging.info("Using DynamicBucketingSampler.")
-            train_sampler = DynamicBucketingSampler( #added several new params here
+            train_sampler = DynamicBucketingSampler(
                 cuts_train,
                 max_duration=self.args.max_duration,
                 shuffle=self.args.shuffle,
