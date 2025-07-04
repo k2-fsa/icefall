@@ -109,8 +109,8 @@ class ExpAugment(torch.nn.Module):
         # roll half or the mask_starts and mask_ends between the first and second
         # halves of the batch.  this is intended to help CR-CTC, by making the
         # masked regions of the two augmented versions of the same data anti-correlated.
-        mask_starts[:, ::2] = mask_starts[:, ::2].roll(B // 2, dim=0)
-        mask_ends[:, ::2] = mask_ends[:, ::2].roll(B // 2, dim=0)
+        mask_starts[:, ::2] = mask_starts[:, ::2].roll(B // 2, 0)
+        mask_ends[:, ::2] = mask_ends[:, ::2].roll(B // 2, 0)
 
 
         mask_boundaries = torch.cat((mask_starts, mask_ends), dim=1)
