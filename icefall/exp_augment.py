@@ -62,17 +62,15 @@ class ExpAugment(torch.nn.Module):
 
         if self.num_feature_masks > 0:
             num_masks = self.num_feature_masks
-            max_mask_size = F * self.max_feature_mask_fraction / num_masks
             features = self._mask_on_axis(features, mean, axis=2,
-                                          max_mask_size=max_mask_size,
+                                          max_mask_fraction=self.max_feature_mask_fraction,
                                           num_masks=num_masks)
 
 
         if self.max_frame_mask_fraction > 0:
             num_masks = max(1, round((T * self.max_frame_mask_fraction) / self.max_frame_mask_size))
-            max_mask_size = T * self.max_frame_mask_fraction / num_masks
             features = self._mask_on_axis(features, mean, axis=1,
-                                          max_mask_size=max_mask_size,
+                                          max_mask_fraction=self.max_frame_mask_fraction,
                                           num_masks=num_masks)
 
         features = torch.where(torch.rand(B, 1, 1, **kwargs).expand_as(features) < self.p,
@@ -84,7 +82,7 @@ class ExpAugment(torch.nn.Module):
                       features: torch.Tensor,
                       mean: torch.Tensor,
                       axis: int,
-                      max_mask_size: float,
+                      max_mask_fraction: float,
                       num_masks: int) -> torch.Tensor:
         """
         Mask ``features`` on a particular axis by replacing masked segments of that sequence with
@@ -93,7 +91,8 @@ class ExpAugment(torch.nn.Module):
         :param features: a batch of feature matrices with shape ``(B, T, F)``.
         :param mean: the overall feature-matrix mean, a scalar.
         :param axis: the axis to mask on, i.e. 1 for time, 2 for frequency/feature.
-        :param masked_fraction: the fraction of the data to mask, in expectation.
+        :param max_mask_fraction: the maximum fraction of the data to mask (expected value will be
+                   close to half of this.)
         :param num_masks: the number of masked regions.
         """
         assert axis in [1,2]
@@ -104,14 +103,7 @@ class ExpAugment(torch.nn.Module):
         M = num_masks
         N = shape[axis]  # T or F
 
-        mask_starts, mask_ends = self._sample_mask_starts_and_ends(B, N, num_masks, max_mask_size, device)
-
-        # roll half or the mask_starts and mask_ends between the first and second
-        # halves of the batch.  this is intended to help CR-CTC, by making the
-        # masked regions of the two augmented versions of the same data anti-correlated.
-        mask_starts[:, ::2] = mask_starts[:, ::2].roll(B // 2, 0)
-        mask_ends[:, ::2] = mask_ends[:, ::2].roll(B // 2, 0)
-
+        mask_starts, mask_ends = self._sample_mask_starts_and_ends(B, N, num_masks, max_mask_fraction, device)
 
         mask_boundaries = torch.cat((mask_starts, mask_ends), dim=1)
 
@@ -159,29 +151,50 @@ class ExpAugment(torch.nn.Module):
         return torch.where(is_masked.expand_as(features), mean[None, None, None].expand_as(features), features)
 
 
-    def _sample_mask_starts_and_ends(self, batch_size, seq_len, num_masks, max_mask_size, device) -> Tuple[Tuple,Tuple]:
+    def _sample_mask_starts_and_ends(self, batch_size, seq_len, num_masks, max_mask_fraction, device) -> Tuple[Tuple,Tuple]:
         # compute the start and end positions of masked regions.  this will select mask positions
-        # that do not overlap.  Return: (mask_starts, mask_ends)
+        # that do not overlap.  Return: (mask_starts, mask_ends).
 
-        mask_lengths = torch.rand(batch_size, num_masks, device=device) * max_mask_size
-        mask_tot_len = mask_lengths.sum(dim=1, keepdim=True)  # (batch_size, 1)
-        padding_tot_len = seq_len - mask_tot_len  # (batch_size, 1)
+        # we sample the masks for pairs of sequences.
+        B = (batch_size + 1) // 2
+        # M is the number of masks we sample for each pair of sequences.
+        M = 2 * num_masks
+
+        # "rlength" means relative length of each mask, i.e. relative to seq_len.  the
+        # lengths in mask_lengths are normalized lengths.
+        mask_rlengths = torch.rand(B, M, device=device) * (max_mask_fraction / num_masks)
+        mask_tot_rlen = mask_rlengths.sum(dim=1, keepdim=True)  # (batch_size, 1)
+
+        # padding_tot_rlen is the total relative length of the padding segmnts.  We clamp to min=0.25
+        # so there is some randomness in the positions even if the selected masks are unusually large.
+        # (note: we expect the max_fraction values to be between about .5 to .7, so the expected-masked-fraction
+        # values would be about .25 to 0.35 (since we sample between 0 and maximum); and if we double
+        # it because we do the selection for pairs of masked regions, that gives us about .5 to .7.
+        # so definitely this clamping will happen for less than half of the pairs of sequences.
+
+        padding_tot_rlen = (1. - mask_tot_rlen).clamp(min=0.2)  # (batch_size, 1)
         eps = 1.0e-20
 
-        # get padding lengths by randomly placing dividers on the line of length "padding_tot_len"
-        # these "padding_positions" are not absolute position on the line from 0 to seq_len,
-        # but positions on the line from 0 to "padding_tot_len" which divides up the length
-        # we need to pad.
-        num_pads = num_masks + 1
-        padding_positions = torch.rand(batch_size, num_pads - 1, device=device) * padding_tot_len
-        padding_positions = padding_positions.sort(dim=1)[0]
-        zero = torch.zeros(batch_size, 1, device=device)
-        padding_positions = torch.cat((zero, padding_positions, padding_tot_len), dim=1)
-        padding_lengths = padding_positions[:, 1:] - padding_positions[:, :-1]
+        # get padding lengths by randomly placing dividers on the line of length "padding_tot_rlen"
+        # P is the number of padding regions for each pair of sequences.
+        P = M + 1
+        # rpositions means positions expressed in relative length, i.e. normalized so that
+        # seq_len is 1.
+        padding_rpositions = torch.rand(B, P - 1, device=device) * padding_tot_rlen
+        padding_rpositions = padding_rpositions.sort(dim=1)[0]
+        zero = torch.zeros(B, 1, device=device)
+        padding_rpositions = torch.cat((zero, padding_rpositions, padding_tot_rlen), dim=1)
+        padding_rlengths = padding_rpositions[:, 1:] - padding_rpositions[:, :-1]
 
-        lengths = torch.empty(batch_size, num_masks * 2 + 1, device=device)
-        lengths[:, 1::2] = mask_lengths
-        lengths[:, 0::2] = padding_lengths
+        # 'rlengths' are the normalized lengths of the padding regions and the masks.
+        rlengths = torch.empty(B, 2 * M + 1, device=device)
+        rlengths[:, 1::2] = mask_rlengths
+        rlengths[:, 0::2] = padding_rlengths
+
+        # lengths is the lengths of the masks and padding regions, converted to absolute
+        # length.  We have to normalize before multiplying by seq_len because of the .clamp()
+        # operation above-- not all sequences will sum to one.
+        lengths = (rlengths / rlengths.sum(dim=1, keepdim=True)) * seq_len
 
         positions = torch.cumsum(lengths, dim=1)
         # last element of 'positions' should be seq_len
@@ -190,7 +203,20 @@ class ExpAugment(torch.nn.Module):
         # positions does not have a leading zero, cumsum is inclusive; but do not treat final `seq_len` as a mask start position.
         mask_starts = positions[:, 0:-1:2]
         mask_ends = positions[:, 1::2]
-        assert mask_starts.shape == (batch_size, num_masks) and mask_ends.shape == (batch_size, num_masks)
+        assert mask_starts.shape == (B, M) and mask_ends.shape == (B, M)
+
+
+        # letting A,B be randomly 0 or 1 avoids any overall bias towards the start or end of the
+        # sequence in case the batch size is odd.
+        A = random.randint(0, 1)
+        B = (A + 1) % 2
+        mask_starts1 = mask_starts[:, A::2]
+        mask_ends1 = mask_ends[:, A::2]
+        mask_starts2 = mask_starts[:, B::2]
+        mask_ends2 = mask_ends[:, B::2]
+
+        mask_starts = torch.cat((mask_starts1, mask_starts2), dim=0)[:batch_size]
+        mask_ends = torch.cat((mask_ends1, mask_ends2), dim=0)[:batch_size]
 
         return mask_starts, mask_ends
 
@@ -213,11 +239,11 @@ class ExpAugment(torch.nn.Module):
 def _test_exp_augment():
     for n in [ 0, 1 ]:
         #device = 'cuda'
-        B, T, F = 300, 600, 80
+        B, T, F = 301, 600, 80
         device = 'cpu'
 
         if n == 0:
-            exp_augment = ExpAugment(p=1.0) #, max_frame_mask_size=2.0, max_frame_mask_fraction=0.02)
+            exp_augment = ExpAugment() #, max_frame_mask_size=2.0, max_frame_mask_fraction=0.02)
         else:
             from lhotse.dataset import SpecAugment
             time_mask_ratio = 3.5
@@ -234,7 +260,7 @@ def _test_exp_augment():
                 num_feature_masks=2,
                 frames_mask_size=100,
                 max_frames_mask_fraction=max_frames_mask_fraction,  # default: 0.15
-                p=1.0,
+                p=0.9,
             )
             supervision_segments = torch.stack((
                 torch.arange(B, device=device), # sequence_idx
