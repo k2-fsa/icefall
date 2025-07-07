@@ -22,6 +22,7 @@ import math
 import random
 import warnings
 from typing import List, Optional, Tuple, Union
+from icefall.utils import torch_autocast
 
 import torch
 from encoder_interface import EncoderInterface
@@ -1849,7 +1850,7 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         (num_heads, batch_size, seq_len, seq_len) = attn_weights.shape
 
         with torch.no_grad():
-            with torch.cuda.amp.autocast(enabled=False):
+            with torch_autocast(enabled=False):
                 attn_weights = attn_weights.to(torch.float32)
                 attn_weights_entropy = (
                     -((attn_weights + 1.0e-20).log() * attn_weights)

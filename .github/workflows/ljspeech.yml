@@ -30,8 +30,8 @@ jobs:
         id: set-matrix
         run: |
           # outputting for debugging purposes
-          python ./.github/scripts/docker/generate_build_matrix.py --min-torch-version "2.3"
-          MATRIX=$(python ./.github/scripts/docker/generate_build_matrix.py --min-torch-version "2.3")
+          python ./.github/scripts/docker/generate_build_matrix.py --python-version "3.10"
+          MATRIX=$(python ./.github/scripts/docker/generate_build_matrix.py --python-version "3.10")
           echo "::set-output name=matrix::${MATRIX}"
 
   ljspeech:
@@ -83,13 +83,13 @@ jobs:
           ls -lh
 
       - uses: actions/upload-artifact@v4
-        if: matrix.python-version == '3.9' && matrix.torch-version == '2.3.0'
+        if: matrix.python-version == '3.10' && matrix.torch-version == '2.3.0'
         with:
           name: generated-test-files-${{ matrix.python-version }}-${{ matrix.torch-version }}
           path: ./*.wav
 
       - name: Release exported onnx models
-        if: matrix.python-version == '3.9' && matrix.torch-version == '2.3.0' && github.event_name == 'push'
+        if: matrix.python-version == '3.10' && matrix.torch-version == '2.3.0' && github.event_name == 'push'
         uses: svenstaro/upload-release-action@v2
         with:
           file_glob: true
@@ -100,37 +100,37 @@ jobs:
           tag: tts-models
 
       - uses: actions/upload-artifact@v4
-        if: matrix.python-version == '3.9' && matrix.torch-version == '2.3.0'
+        if: matrix.python-version == '3.10' && matrix.torch-version == '2.3.0'
         with:
           name: step-2
           path: ./model-steps-2.onnx
 
       - uses: actions/upload-artifact@v4
-        if: matrix.python-version == '3.9' && matrix.torch-version == '2.3.0'
+        if: matrix.python-version == '3.10' && matrix.torch-version == '2.3.0'
         with:
           name: step-3
           path: ./model-steps-3.onnx
 
       - uses: actions/upload-artifact@v4
-        if: matrix.python-version == '3.9' && matrix.torch-version == '2.3.0'
+        if: matrix.python-version == '3.10' && matrix.torch-version == '2.3.0'
         with:
           name: step-4
           path: ./model-steps-4.onnx
 
       - uses: actions/upload-artifact@v4
-        if: matrix.python-version == '3.9' && matrix.torch-version == '2.3.0'
+        if: matrix.python-version == '3.10' && matrix.torch-version == '2.3.0'
         with:
           name: step-5
           path: ./model-steps-5.onnx
 
       - uses: actions/upload-artifact@v4
-        if: matrix.python-version == '3.9' && matrix.torch-version == '2.3.0'
+        if: matrix.python-version == '3.10' && matrix.torch-version == '2.3.0'
         with:
           name: step-6
           path: ./model-steps-6.onnx
 
       - name: Upload models to huggingface
-        if: matrix.python-version == '3.9' && matrix.torch-version == '2.3.0'
+        if: matrix.python-version == '3.10' && matrix.torch-version == '2.3.0'
         shell: bash
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
@@ -155,7 +155,7 @@ jobs:
           popd
 
       - name: Release exported onnx models
-        if: matrix.python-version == '3.9' && matrix.torch-version == '2.3.0'
+        if: matrix.python-version == '3.10' && matrix.torch-version == '2.3.0'
         uses: svenstaro/upload-release-action@v2
         with:
           file_glob: true

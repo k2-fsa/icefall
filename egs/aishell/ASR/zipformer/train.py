@@ -96,6 +96,7 @@ from icefall.utils import (
     get_parameter_groups_with_lrs,
     setup_logger,
     str2bool,
+    torch_autocast,
 )
 
 LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
@@ -855,7 +856,10 @@ def compute_loss(
             supervision_segments=supervision_segments,
             time_warp_factor=params.spec_aug_time_warp_factor,
         )
-        simple_loss, pruned_loss, ctc_loss, _, cr_loss = losses[:5]
+        if params.use_ctc:
+            simple_loss, pruned_loss, ctc_loss, _, cr_loss = losses[:5]
+        else:
+            simple_loss, pruned_loss = losses[:2]
 
         loss = 0.0
 
@@ -1014,7 +1018,7 @@ def train_one_epoch(
         batch_size = len(batch["supervisions"]["text"])
 
         try:
-            with torch.cuda.amp.autocast(enabled=params.use_fp16):
+            with torch_autocast(enabled=params.use_fp16):
                 loss, loss_info = compute_loss(
                     params=params,
                     model=model,
@@ -1419,7 +1423,7 @@ def scan_pessimistic_batches_for_oom(
     for criterion, cuts in batches.items():
         batch = train_dl.dataset[cuts]
         try:
-            with torch.cuda.amp.autocast(enabled=params.use_fp16):
+            with torch_autocast(enabled=params.use_fp16):
                 loss, _ = compute_loss(
                     params=params,
                     model=model,
