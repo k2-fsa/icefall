@@ -77,7 +77,11 @@ def register_inf_check_hooks(model: nn.Module) -> None:
                         logging.warning(f"The sum of {_name}.grad[{i}] is not finite")
 
         module.register_forward_hook(forward_hook)
-        module.register_backward_hook(backward_hook)
+
+        if hasattr(module, "register_full_backward_hook"):
+            module.register_full_backward_hook(backward_hook)
+        else:
+            module.register_backward_hook(backward_hook)
 
     for name, parameter in model.named_parameters():
 

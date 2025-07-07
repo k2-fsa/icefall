@@ -73,6 +73,8 @@ def compute_fbank_baker_zh(num_jobs: int):
         f_min=0,
         f_max=8000,
     )
+    if not torch.cuda.is_available():
+        config.device = "cpu"
 
     prefix = "baker_zh"
     suffix = "jsonl.gz"
