@@ -93,7 +93,7 @@ from icefall.checkpoint import (
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
 from icefall.err import raise_grad_scale_is_too_small_error
-from icefall.exp_augment import ExpAugment   # using this, not lhotse's version of SpecAugment
+from icefall.exp_augment import ExpAugment   # using this, not lhotse's version of nn.Module
 from icefall.hooks import register_inf_check_hooks
 from icefall.utils import (
     AttributeDict,
@@ -953,7 +953,7 @@ def compute_loss(
         function enables autograd during computation; when it is False, it
         disables autograd.
       spec_augment:
-        The SpecAugment instance (or similar object), used for training
+        The nn.Module instance (or similar object), used for training
     """
     device = model.device if isinstance(model, DDP) else next(model.parameters()).device
     feature = batch["inputs"]
@@ -973,7 +973,7 @@ def compute_loss(
 
     if num_copies > 1:
         assert model.training
-        # will need the following for time-warping in SpecAugment.
+        # will need the following for time-warping in nn.Module.
         supervision_intervals = batch["supervisions"]
         supervision_segments = torch.stack(
             [
@@ -1102,7 +1102,7 @@ def train_one_epoch(
     train_dl: torch.utils.data.DataLoader,
     valid_dl: torch.utils.data.DataLoader,
     scaler: GradScaler,
-    spec_augment: Optional[SpecAugment] = None,
+    spec_augment: Optional[nn.Module] = None,
     model_avg: Optional[nn.Module] = None,
     tb_writer: Optional[SummaryWriter] = None,
     world_size: int = 1,
@@ -1130,7 +1130,7 @@ def train_one_epoch(
       scaler:
         The scaler used for mix precision training.
       spec_augment:
-        The SpecAugment instance used for CR-CTC.
+        The SpecAugment or similar instance used for CR-CTC.
       model_avg:
         The stored model averaged from the start of training.
       tb_writer:
@@ -1608,7 +1608,7 @@ def scan_pessimistic_batches_for_oom(
     optimizer: torch.optim.Optimizer,
     sp: spm.SentencePieceProcessor,
     params: AttributeDict,
-    spec_augment: Optional[SpecAugment] = None,
+    spec_augment: Optional[nn.Module] = None,
 ):
     from lhotse.dataset import find_pessimistic_batches
 
