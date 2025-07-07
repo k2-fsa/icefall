@@ -856,7 +856,10 @@ def compute_loss(
             supervision_segments=supervision_segments,
             time_warp_factor=params.spec_aug_time_warp_factor,
         )
-        simple_loss, pruned_loss, ctc_loss, _, cr_loss = losses[:5]
+        if params.use_ctc:
+            simple_loss, pruned_loss, ctc_loss, _, cr_loss = losses[:5]
+        else:
+            simple_loss, pruned_loss = losses[:2]
 
         loss = 0.0
 
