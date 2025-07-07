@@ -71,10 +71,9 @@ from attention_decoder import AttentionDecoderModel
 from decoder import Decoder
 from joiner import Joiner
 from lhotse.cut import Cut
-from lhotse.dataset import SpecAugment
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
-from model import AsrModel  # TODO: change to model
+from model import AsrModel
 from optim import Sched3, TransformedAdam
 from scaling import ScheduledFloat
 from subsampling import Conv2dSubsampling
@@ -94,6 +93,7 @@ from icefall.checkpoint import (
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
 from icefall.err import raise_grad_scale_is_too_small_error
+from icefall.exp_augment import ExpAugment   # using this, not lhotse's version of SpecAugment
 from icefall.hooks import register_inf_check_hooks
 from icefall.utils import (
     AttributeDict,
@@ -543,13 +543,6 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--time-mask-ratio",
-        type=float,
-        default=2.5,
-        help="When using cr-ctc, we increase the amount of time-masking in SpecAugment.",
-    )
-
-    parser.add_argument(
         "--attention-decoder-loss-scale",
         type=float,
         default=0.8,
@@ -820,24 +813,6 @@ def get_model(params: AttributeDict) -> nn.Module:
     return model
 
 
-def get_spec_augment(params: AttributeDict) -> SpecAugment:
-    num_frame_masks = int(10 * params.time_mask_ratio)
-    max_frames_mask_fraction = 0.15 * params.time_mask_ratio
-    logging.info(
-        f"num_frame_masks: {num_frame_masks}, "
-        f"max_frames_mask_fraction: {max_frames_mask_fraction}"
-    )
-    spec_augment = SpecAugment(
-        time_warp_factor=0,  # Do time warping in model.py
-        num_frame_masks=num_frame_masks,  # default: 10
-        features_mask_size=27,
-        num_feature_masks=2,
-        frames_mask_size=100,
-        max_frames_mask_fraction=max_frames_mask_fraction,  # default: 0.15
-    )
-    return spec_augment
-
-
 def load_checkpoint_if_available(
     params: AttributeDict,
     model: nn.Module,
@@ -960,7 +935,7 @@ def compute_loss(
     sp: spm.SentencePieceProcessor,
     batch: dict,
     is_training: bool,
-    spec_augment: Optional[SpecAugment] = None,
+    spec_augment: Optional[nn.Module] = None,
 ) -> Tuple[Tensor, MetricsTracker]:
     """
     Compute loss given the model and its inputs.
@@ -978,7 +953,7 @@ def compute_loss(
         function enables autograd during computation; when it is False, it
         disables autograd.
       spec_augment:
-        The SpecAugment instance, used for training
+        The SpecAugment instance (or similar object), used for training
     """
     device = model.device if isinstance(model, DDP) else next(model.parameters()).device
     feature = batch["inputs"]
@@ -1043,13 +1018,15 @@ def compute_loss(
 
         if params.use_ctc:
             loss += params.ctc_loss_scale * ctc_loss
-            loss += params.cr_loss_scale * cr_loss
+            if num_copies > 1:
+                loss += params.cr_loss_scale * cr_loss
 
         reconstruction_loss_scale = params.reconstruction_loss_scale
 
         loss += reconstruction_loss_scale * reconstruction_loss
 
-        loss += params.predict_loss_scale * predict_loss
+        if num_copies > 1:
+            loss += params.predict_loss_scale * predict_loss
 
         if params.use_attention_decoder:
             loss += params.attention_decoder_loss_scale * attention_decoder_loss
@@ -1071,8 +1048,10 @@ def compute_loss(
         info["pruned_loss"] = pruned_loss.detach().cpu().item()
     if params.use_ctc:
         info["ctc_loss"] = ctc_loss.detach().cpu().item()
-        info["cr_loss"] = cr_loss.detach().cpu().item()
-    info["predict_loss"] = predict_loss.detach().cpu().item()
+        if num_copies > 1:
+            info["cr_loss"] = cr_loss.detach().cpu().item()
+    if num_copies > 1:
+        info["predict_loss"] = predict_loss.detach().cpu().item()
     info["recon_loss"] = reconstruction_loss.detach().cpu().item()
     if params.use_attention_decoder:
         info["attn_decoder_loss"] = attention_decoder_loss.detach().cpu().item()
@@ -1408,7 +1387,7 @@ def run(rank, world_size, args):
 
     assert params.use_ctc  # for now, require CTC, we may remove this requirement later.
 
-    spec_augment = get_spec_augment(params)
+    spec_augment = ExpAugment()
 
     assert params.save_every_n >= params.average_period
     model_avg: Optional[nn.Module] = None

@@ -23,7 +23,6 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 from encoder_interface import EncoderInterface
-from lhotse.dataset import SpecAugment
 from scaling import ScaledLinear, convert_num_channels
 
 from icefall.utils import add_sos, make_pad_mask, time_warp
@@ -367,7 +366,7 @@ class AsrModel(nn.Module):
         prune_range: int = 5,
         am_scale: float = 0.0,
         lm_scale: float = 0.0,
-        spec_augment: Optional[SpecAugment] = None,
+        spec_augment: Optional[nn.Module] = None,
         supervision_segments: Optional[torch.Tensor] = None,
         time_warp_factor: Optional[int] = 80,
         num_copies: int = 1,
@@ -392,16 +391,16 @@ class AsrModel(nn.Module):
             The scale to smooth the loss with lm (output of predictor network)
             part
           spec_augment:
-            The SpecAugment instance that returns time masks,
-            used only if use_cr_ctc is True.
+            The SpecAugment instance, or similar/compatible object, that masks
+            log-mel features.
           supervision_segments:
             An int tensor of shape ``(S, 3)``. ``S`` is the number of
-            supervision segments that exist in ``features``.
-            Used only if use_cr_ctc is True.
+            supervision segments that exist in ``features``.  Used only for
+            time-warping, if num_copies > 1.
           time_warp_factor:
             Parameter for the time warping; larger values mean more warping.
             Set to ``None``, or less than ``1``, to disable.
-            Used only if use_cr_ctc is True.
+            Used only if num_copies > 1, corresponds to training mode.
           num_copies:
              the number of copies of the same data that are in the batch, e.g. 1, 2
              or 3; affects CRCTC, spec-augment, etc.
@@ -427,8 +426,8 @@ class AsrModel(nn.Module):
 
         if num_copies > 1:
             assert num_copies == 3  # for now.
-            # will do SpecAugment.
-            assert spec_augment is not None and spec_augment.time_warp_factor < 1
+            # will do SpecAugment or similar.
+            assert spec_augment is not None and getattr(spec_augment, 'time_warp_factor', -1) < 0
 
             (batch_size, seq_len, num_channels) = x.shape
             B = batch_size // num_copies
