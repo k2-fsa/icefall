@@ -32,6 +32,16 @@ Usage:
     --use-transducer 0 \
     --max-duration 600 \
     --decoding-method ctc-greedy-search
+(2) ctc-prefix-beam-search (with cr-ctc)
+./zipformer/ctc_decode.py \
+    --epoch 60 \
+    --avg 21 \
+    --exp-dir zipformer/exp \
+    --use-cr-ctc 1 \
+    --use-ctc 1 \
+    --use-transducer 0 \
+    --max-duration 600 \
+    --decoding-method ctc-prefix-beam-search
 """
 
 
@@ -156,6 +166,22 @@ def get_parser():
 
     return parser
 
+
+def get_decoding_params() -> AttributeDict:
+    """Parameters for decoding."""
+    params = AttributeDict(
+        {
+            "frame_shift_ms": 10,
+            "search_beam": 20,  # for k2 fsa composition
+            "output_beam": 8,  # for k2 fsa composition
+            "min_active_states": 30,
+            "max_active_states": 10000,
+            "use_double_scores": True,
+            "beam": 4,  # for prefix-beam-search
+        }
+    )
+    return params
+
 def decode_one_batch(
     params: AttributeDict,
     model: nn.Module,
@@ -236,11 +262,10 @@ def decode_one_batch(
     for i in range(encoder_out.size(0)):
         hyps.append([lexicon.token_table[idx] for idx in hyp_tokens[i]])
 
-    key = f"blank_penalty_{params.blank_penalty}"
     if params.decoding_method == "ctc-greedy-search":
-        return {"ctc-greedy-search_" + key: hyps}
+        return {"ctc-greedy-search" : hyps}
     elif params.decoding_method == "ctc-prefix-beam-search":
-        return {"ctc-prefix-beam-search_" + key: hyps}
+        return {"ctc-prefix-beam-search" : hyps}
     else:
         assert False, f"Unsupported decoding method: {params.decoding_method}"
 
@@ -361,7 +386,7 @@ def main():
 
     params = get_params()
     # add decoding params
-    # params.update(get_decoding_params())
+    params.update(get_decoding_params())
     params.update(vars(args))
 
     assert params.decoding_method in (

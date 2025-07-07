@@ -955,6 +955,7 @@ See <https://github.com/k2-fsa/icefall/pull/1979> for more details.
 | decoding method                      | test       | dev        | comment             |
 |--------------------------------------|------------|------------|---------------------|
 | ctc-greedy-search                    | 3.98       | 3.69       | --epoch 60 --avg 28 |
+| ctc-prefix-beam-search               | 3.98       | 3.70       | --epoch 60 --avg 21 |
 
 The training command using 2 32G-V100 GPUs is:
 ```bash
@@ -982,7 +983,7 @@ export CUDA_VISIBLE_DEVICES="0,1"
 The decoding command is:
 ```bash
 export CUDA_VISIBLE_DEVICES="0"
-for m in ctc-greedy-search; do
+for m in ctc-greedy-search ctc-prefix-beam-search; do
   ./zipformer/ctc_decode.py \
     --epoch 60 \
     --avg 28 \
