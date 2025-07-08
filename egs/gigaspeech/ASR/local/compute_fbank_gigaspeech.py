@@ -32,13 +32,21 @@ torch.set_num_interop_threads(1)
 
 def compute_fbank_gigaspeech():
     in_out_dir = Path("data/fbank")
+
     # number of workers in dataloader
     num_workers = 20
 
     # number of seconds in a batch
     batch_duration = 1000
 
-    subsets = ("L", "M", "S", "XS", "DEV", "TEST")
+    subsets = (
+        "DEV",
+        "TEST",
+        # "L",
+        # "M",
+        # "S",
+        # "XS",
+    )
 
     device = torch.device("cpu")
     if torch.cuda.is_available():

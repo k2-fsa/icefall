@@ -1202,12 +1202,19 @@ def run(rank, world_size, args):
         sampler_state_dict = None
 
     train_dl = gigaspeech.train_dataloaders(
-        train_cuts, sampler_state_dict=sampler_state_dict
+        train_cuts,
+        sampler_state_dict=sampler_state_dict,
+        world_size=world_size,
+        rank=rank,
     )
 
     valid_cuts = gigaspeech.dev_cuts()
     valid_cuts = valid_cuts.filter(remove_short_utt)
-    valid_dl = gigaspeech.valid_dataloaders(valid_cuts)
+    valid_dl = gigaspeech.valid_dataloaders(
+        valid_cuts,
+        world_size=world_size,
+        rank=rank,
+    )
 
     if not params.print_diagnostics and params.scan_for_oom_batches:
         scan_pessimistic_batches_for_oom(

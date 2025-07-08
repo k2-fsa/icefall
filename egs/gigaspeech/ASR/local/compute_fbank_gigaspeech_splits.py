@@ -18,7 +18,6 @@
 
 import argparse
 import logging
-from datetime import datetime
 from pathlib import Path
 
 import torch
@@ -32,7 +31,7 @@ torch.set_num_threads(1)
 torch.set_num_interop_threads(1)
 
 
-def get_parser():
+def get_args():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
@@ -71,16 +70,14 @@ def get_parser():
         default=-1,
         help="Stop processing pieces until this number (exclusive).",
     )
-    return parser
+    return parser.parse_args()
 
 
 def compute_fbank_gigaspeech_splits(args):
     num_splits = args.num_splits
-    output_dir = f"data/fbank/XL_split"
+    output_dir = "data/fbank/gigaspeech_XL_split"
     output_dir = Path(output_dir)
     assert output_dir.exists(), f"{output_dir} does not exist!"
-
-    num_digits = 8  # num_digits is fixed by lhotse split-lazy
 
     start = args.start
     stop = args.stop
@@ -95,6 +92,7 @@ def compute_fbank_gigaspeech_splits(args):
     extractor = KaldifeatFbank(KaldifeatFbankConfig(device=device))
     logging.info(f"device: {device}")
 
+    num_digits = 8  # num_digits is fixed by lhotse split-lazy
     for i in range(start, stop):
         idx = f"{i}".zfill(num_digits)
         logging.info(f"Processing {idx}/{num_splits}")
@@ -105,15 +103,21 @@ def compute_fbank_gigaspeech_splits(args):
             continue
 
         raw_cuts_path = output_dir / f"gigaspeech_cuts_XL_raw.{idx}.jsonl.gz"
+        if not raw_cuts_path.is_file():
+            logging.info(f"{raw_cuts_path} does not exist - skipping it")
+            continue
 
         logging.info(f"Loading {raw_cuts_path}")
         cut_set = CutSet.from_file(raw_cuts_path)
 
         logging.info("Computing features")
+        if (output_dir / f"gigaspeech_feats_XL_{idx}.lca").exists():
+            logging.info(f"Removing {output_dir}/gigaspeech_feats_XL_{idx}.lca")
+            os.remove(output_dir / f"gigaspeech_feats_XL_{idx}.lca")
 
         cut_set = cut_set.compute_and_store_features_batch(
             extractor=extractor,
-            storage_path=f"{output_dir}/gigaspeech_feats_{idx}",
+            storage_path=f"{output_dir}/gigaspeech_feats_XL_{idx}",
             num_workers=args.num_workers,
             batch_duration=args.batch_duration,
             overwrite=True,
@@ -130,29 +134,10 @@ def compute_fbank_gigaspeech_splits(args):
 
 
 def main():
-    now = datetime.now()
-    date_time = now.strftime("%Y-%m-%d-%H-%M-%S")
-
-    log_filename = "log-compute_fbank_gigaspeech_splits"
     formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-    log_filename = f"{log_filename}-{date_time}"
+    logging.basicConfig(format=formatter, level=logging.INFO)
 
-    logging.basicConfig(
-        filename=log_filename,
-        format=formatter,
-        level=logging.INFO,
-        filemode="w",
-    )
-
-    console = logging.StreamHandler()
-    console.setLevel(logging.INFO)
-    console.setFormatter(logging.Formatter(formatter))
-    logging.getLogger("").addHandler(console)
-
-    parser = get_parser()
-    args = parser.parse_args()
-    logging.info(vars(args))
-
+    args = get_args()
     compute_fbank_gigaspeech_splits(args)
 
 
