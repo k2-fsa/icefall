@@ -155,13 +155,6 @@ def get_parser():
         """,
     )
 
-    parser.add_argument(
-        "--context-size",
-        type=int,
-        default=2,
-        help="The context size in the decoder. 1 means bigram; 2 means tri-gram",
-    )
-
     add_model_arguments(parser)
 
     return parser
@@ -171,12 +164,6 @@ def get_decoding_params() -> AttributeDict:
     """Parameters for decoding."""
     params = AttributeDict(
         {
-            "frame_shift_ms": 10,
-            "search_beam": 20,  # for k2 fsa composition
-            "output_beam": 8,  # for k2 fsa composition
-            "min_active_states": 30,
-            "max_active_states": 10000,
-            "use_double_scores": True,
             "beam": 4,  # for prefix-beam-search
         }
     )
@@ -412,7 +399,6 @@ def main():
 
     if "prefix-beam-search" in params.decoding_method:
         params.suffix += f"_beam-{params.beam}"
-    params.suffix += f"-context-{params.context_size}"
 
     if params.use_averaged_model:
         params.suffix += "-use-averaged-model"
@@ -524,20 +510,10 @@ def main():
     args.return_cuts = True
     aishell = AishellAsrDataModule(args)
 
-    def remove_short_utt(c: Cut):
-        T = ((c.num_frames - 7) // 2 + 1) // 2
-        if T <= 0:
-            logging.warning(
-                f"Exclude cut with ID {c.id} from decoding, num_frames : {c.num_frames}."
-            )
-        return T > 0
-
     dev_cuts = aishell.valid_cuts()
-    dev_cuts = dev_cuts.filter(remove_short_utt)
     dev_dl = aishell.valid_dataloaders(dev_cuts)
 
     test_cuts = aishell.test_cuts()
-    test_cuts = test_cuts.filter(remove_short_utt)
     test_dl = aishell.test_dataloaders(test_cuts)
 
     test_sets = ["dev", "test"]
