@@ -296,7 +296,6 @@ class HubertModel(nn.Module):
 
         self.layer_norm = LayerNorm(self.embed)
 
-        self.untie_final_proj = cfg.untie_final_proj
         self.final_proj = nn.Linear(encoder_output_dim, sum(cfg.num_classes))
 
         # modules below are not needed during fine-tuning

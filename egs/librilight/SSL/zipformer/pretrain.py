@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-# Copyright    2021-2024  Xiaomi Corp.        (authors: Fangjun Kuang,
-#                                                       Wei Kang,
-#                                                       Mingshuang Luo,
-#                                                       Zengwei Yao,
-#                                                       Yifan Yang,
-#                                                       Daniel Povey)
-#
+# Copyright    2021-2024  Xiaomi Corp.              (authors: Fangjun Kuang,
+#                                                             Wei Kang,
+#                                                             Mingshuang Luo,
+#                                                             Zengwei Yao,
+#                                                             Yifan Yang,
+#                                                             Daniel Povey)
 # Copyright    2024  Shanghai Jiao Tong University  (authors: Jianheng Zhuo)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
@@ -21,22 +20,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""
-Usage:
-
-export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
-
-# For hubert model pretraining:
-./zipformer/pretrain.py \
-  --world-size 8 \
-  --num-epochs 400 \
-  --start-epoch 1 \
-  --use-fp16 1 \
-  --exp-dir zipformer/exp \
-  --max-duration 87.5 \
-  --accum-grad 4
-"""
-
 
 import argparse
 import copy
@@ -68,7 +51,13 @@ from icefall.checkpoint import (
     save_checkpoint_with_global_batch_idx,
     update_averaged_model,
 )
-from icefall.dist import cleanup_dist, setup_dist
+from icefall.dist import (
+    cleanup_dist,
+    get_local_rank,
+    get_rank,
+    get_world_size,
+    setup_dist,
+)
 from icefall.env import get_env_info
 from icefall.hooks import register_inf_check_hooks
 from icefall.utils import (
@@ -398,17 +387,19 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         and the value should be the multiple of 4, for faster computation""",
     )
 
-    parser.add_argument(
-        "--untie-final-proj",
-        type=bool,
-        default=False,
-        help="use separate projection for each target",
-    )
-
 
 def get_parser():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+
+    parser.add_argument(
+        "--use-multi-node",
+        type=str2bool,
+        default=False,
+        help="""True if using multi-node multi-GPU.
+        You are not supposed to set it directly.
+        """,
     )
 
     parser.add_argument(
@@ -481,17 +472,17 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--lr-epochs",
+        "--lr-hours",
         type=float,
-        default=10.5,
-        help="""Number of epochs that affects how rapidly the learning rate decreases.
+        default=10000,
+        help="""Number of hours that affects how rapidly the learning rate decreases.
         """,
     )
 
     parser.add_argument(
         "--warmup-batches",
         type=float,
-        default=5000,
+        default=1000,
         help="Eden warmup steps",
     )
 
@@ -541,7 +532,7 @@ def get_parser():
     parser.add_argument(
         "--save-every-n",
         type=int,
-        default=100000,
+        default=10000,
         help="""Save checkpoint after processing this number of batches"
         periodically. We save checkpoint to exp-dir/ whenever
         params.batch_idx_train % save_every_n == 0. The checkpoint filename
@@ -554,7 +545,7 @@ def get_parser():
     parser.add_argument(
         "--keep-last-k",
         type=int,
-        default=30,
+        default=100000,
         help="""Only keep this number of checkpoints on disk.
         For instance, if it is 3, there are only 3 checkpoints
         in the exp-dir with filenames `checkpoint-xxx.pt`.
@@ -578,7 +569,7 @@ def get_parser():
     parser.add_argument(
         "--accum-grad",
         type=int,
-        default=4,
+        default=1,
         help="""update gradient when batch_idx_train % accum_grad == 0.
         """,
     )
@@ -591,17 +582,24 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--max-sample-size",
-        type=float,
-        default=250000,
-        help="max sample size",
+        "--max-keep-size",
+        type=int,
+        default=1024000,
+        help="exclude sample longer than this.",
     )
 
     parser.add_argument(
-        "--min-sample-size",
+        "--min-keep-size",
         type=float,
         default=32000,
-        help="min sample size",
+        help="exclude sample longer less than this.",
+    )
+
+    parser.add_argument(
+        "--max-sample-size",
+        type=float,
+        default=1024000,
+        help="max sample size to crop to for batching.",
     )
 
     add_model_arguments(parser)
@@ -953,6 +951,13 @@ def train_one_epoch(
             if sub_batch_idx % params.accum_grad == params.accum_grad - 1:
                 params.batch_idx_train += 1
                 scheduler.step_batch(params.batch_idx_train)
+                # Use the number of hours of speech to adjust the learning rate
+                scheduler.step_epoch(
+                    params.batch_idx_train
+                    * params.max_duration
+                    * params.world_size
+                    / 3600
+                )
 
                 scaler.step(optimizer)
                 scaler.update()
@@ -960,10 +965,10 @@ def train_one_epoch(
             else:
                 continue
 
-        except:  # noqa
+        except Exception as e:  # noqa
             save_bad_model()
             display_and_save_batch(batch, params=params)
-            raise
+            raise e
 
         if params.print_diagnostics and batch_idx == 5:
             return
@@ -1064,7 +1069,7 @@ def train_one_epoch(
                     tb_writer, "train/valid_", params.batch_idx_train
                 )
 
-    if batch_idx % params.accum_grad != params.accum_grad - 1:
+    if sub_batch_idx % params.accum_grad != params.accum_grad - 1:
         optimizer.zero_grad()
     loss_value = tot_loss["loss"] / tot_loss["frames"]
     params.train_loss = loss_value
@@ -1089,8 +1094,15 @@ def run(rank, world_size, args):
     params.update(vars(args))
 
     fix_random_seed(params.seed)
+
+    if params.use_multi_node:
+        local_rank = get_local_rank()
+    else:
+        local_rank = rank
+    logging.info(f"rank: {rank}, world_size: {world_size}, local_rank: {local_rank}")
+
     if world_size > 1:
-        setup_dist(rank, world_size, params.master_port)
+        setup_dist(rank, world_size, params.master_port, params.use_multi_node)
 
     setup_logger(f"{params.exp_dir}/log/log-train")
     logging.info("Training started")
@@ -1102,8 +1114,8 @@ def run(rank, world_size, args):
 
     device = torch.device("cpu")
     if torch.cuda.is_available():
-        device = torch.device("cuda", rank)
-    logging.info(f"Device: {device}")
+        device = torch.device("cuda", local_rank)
+    logging.info(f"Device: {device}, rank: {rank}, local_rank: {local_rank}")
     logging.info(params)
 
     logging.info("About to create model")
@@ -1126,7 +1138,7 @@ def run(rank, world_size, args):
     model.to(device)
     if world_size > 1:
         logging.info("Using DDP")
-        model = DDP(model, device_ids=[rank], find_unused_parameters=True)
+        model = DDP(model, device_ids=[local_rank], find_unused_parameters=True)
 
     optimizer = ScaledAdam(
         get_parameter_groups_with_lrs(model, lr=params.base_lr, include_names=True),
@@ -1137,7 +1149,7 @@ def run(rank, world_size, args):
     scheduler = Eden(
         optimizer,
         params.lr_batches,
-        params.lr_epochs,
+        params.lr_hours,
         params.warmup_batches,
         params.warmup_start,
     )
@@ -1165,7 +1177,7 @@ def run(rank, world_size, args):
 
     librilight = LibriLightDataModule(args)
 
-    train_cuts = librilight.train_all_shuf_cuts()
+    train_cuts = librilight.all_shuf_cuts()
 
     def remove_short_and_long_utt(c: Cut):
         # Keep only utterances with duration between 1 second and 20 seconds
@@ -1177,11 +1189,11 @@ def run(rank, world_size, args):
         # an utterance duration distribution for your dataset to select
         # the threshold
         if (
-            c.duration < params.min_sample_size / params.sample_rate
-            or c.duration > params.max_sample_size / params.sample_rate
+            c.duration < params.min_keep_size / params.sample_rate
+            or c.duration > params.max_keep_size / params.sample_rate
         ):
             # logging.warning(
-            #     f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
+            #    f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
             # )
             return False
 
@@ -1198,6 +1210,7 @@ def run(rank, world_size, args):
 
     train_dl = librilight.train_dataloaders(
         train_cuts,
+        max_sample_size=params.max_sample_size,
         sample_rate=params.sample_rate,
         label_rate=params.label_rate,
         random_crop=params.random_crop,
@@ -1205,6 +1218,8 @@ def run(rank, world_size, args):
         num_classes=params.num_classes,
         do_normalize=params.do_normalize,
         sampler_state_dict=sampler_state_dict,
+        world_size=world_size,
+        rank=rank,
     )
 
     valid_cuts = librilight.dev_clean_cuts()
@@ -1213,12 +1228,15 @@ def run(rank, world_size, args):
 
     valid_dl = librilight.valid_dataloaders(
         valid_cuts,
+        max_sample_size=params.max_sample_size,
         sample_rate=params.sample_rate,
         label_rate=params.label_rate,
         random_crop=params.random_crop,
         pad_audio=False,
         num_classes=params.num_classes,
         do_normalize=params.do_normalize,
+        world_size=world_size,
+        rank=rank,
     )
 
     if params.sanity_check and not params.print_diagnostics:
@@ -1235,7 +1253,6 @@ def run(rank, world_size, args):
         scaler.load_state_dict(checkpoints["grad_scaler"])
 
     for epoch in range(params.start_epoch, params.num_epochs + 1):
-        scheduler.step_epoch(epoch - 1)
         fix_random_seed(params.seed + epoch - 1)
         train_dl.sampler.set_epoch(epoch - 1)
 
@@ -1339,7 +1356,7 @@ def scan_pessimistic_batches_for_oom(
                     f"(={crit_values[criterion]}) ..."
                 )
             display_and_save_batch(batch, params=params)
-            raise
+            raise e
         logging.info(
             f"Maximum memory allocated so far is {torch.cuda.max_memory_allocated()//1000000}MB"
         )
@@ -1351,12 +1368,18 @@ def main():
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 
-    world_size = args.world_size
-    assert world_size >= 1
-    if world_size > 1:
-        mp.spawn(run, args=(world_size, args), nprocs=world_size, join=True)
+    if args.use_multi_node:
+        rank = get_rank()
+        world_size = get_world_size()
+        args.world_size = world_size
+        run(rank=rank, world_size=world_size, args=args)
     else:
-        run(rank=0, world_size=1, args=args)
+        world_size = args.world_size
+        assert world_size >= 1
+        if world_size > 1:
+            mp.spawn(run, args=(world_size, args), nprocs=world_size, join=True)
+        else:
+            run(rank=0, world_size=1, args=args)
 
 
 torch.set_num_threads(1)
