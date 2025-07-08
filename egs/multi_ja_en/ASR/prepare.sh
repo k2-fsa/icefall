@@ -37,8 +37,8 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
     cd data/manifests
     mkdir -p musan
     cd musan
-    ln -svf $(realpath ../../../../../librispeech/ASR/data/fbank/musan_feats) .
-    ln -svf $(realpath ../../../../../librispeech/ASR/data/fbank/musan_cuts.jsonl.gz) .
+    ln -svfr $(realpath ../../../../../librispeech/ASR/data/fbank/musan_feats) .
+    ln -svfr $(realpath ../../../../../librispeech/ASR/data/fbank/musan_cuts.jsonl.gz) .
     cd ../../..
   else
     log "Abort! Please run ../../librispeech/ASR/prepare.sh --stage 4 --stop-stage 4"
@@ -53,8 +53,8 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
     cd data/manifests
     mkdir -p mls_english
     cd mls_english
-    ln -svf $(realpath ../../../../../mls_english/ASR/data/manifests/mls_eng_cuts*) .
-    ln -svf $(realpath ../../../../../mls_english/ASR/data/manifests/feats*) .
+    ln -svfr $(realpath ../../../../../mls_english/ASR/data/manifests/mls_eng_cuts*) .
+    ln -svfr $(realpath ../../../../../mls_english/ASR/data/manifests/feats*) .
     cd ../../..
   else
     log "Abort! Please run ../../mls_english/ASR/prepare.sh --stage 1 --stop-stage 1"
@@ -69,8 +69,8 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
     cd data/manifests
     mkdir -p reazonspeech
     cd reazonspeech
-    ln -svf $(realpath ../../../../../reazonspeech/ASR/data/manifests/reazonspeech_cuts*) .
-    ln -svf $(realpath ../../../../../reazonspeech/ASR/data/manifests/feats*) .
+    ln -svfr $(realpath ../../../../../reazonspeech/ASR/data/manifests/reazonspeech_cuts*) .
+    ln -svfr $(realpath ../../../../../reazonspeech/ASR/data/manifests/feats*) .
     cd ../../..
   else
     log "Abort! Please run ../../reazonspeech/ASR/prepare.sh --stage 0 --stop-stage 2"
@@ -178,7 +178,7 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
       ./local/prepare_lang_bbpe.py --lang-dir $bbpe_dir --vocab-size $vocab_size
 
       log "Validating $bbpe_dir/lexicon.txt"
-      ln -svf $(realpath ../../multi_zh_en/ASR/local/validate_bpe_lexicon.py) local/
+      ln -svfr $(realpath ../../multi_zh_en/ASR/local/validate_bpe_lexicon.py) local/
       ./local/validate_bpe_lexicon.py \
         --lexicon $bbpe_dir/lexicon.txt \
         --bpe-model $bbpe_dir/bbpe.model
@@ -190,7 +190,7 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
 
   # Optional symlink
   if [ -d $lang_dir/bbpe_2000 ] && [ ! -e $lang_dir/bpe_2000 ]; then
-    ln -s bbpe_2000 $lang_dir/bpe_2000
+    ln -sr bbpe_2000 $lang_dir/bpe_2000
   fi
 fi
 
