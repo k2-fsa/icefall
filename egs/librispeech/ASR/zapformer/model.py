@@ -612,7 +612,7 @@ def smooth_l1_loss_mod(diffs: Tensor, beta: float = 1.0,
 
 
 def _test_smooth_l1_loss_mod():
-    a = torch.randn(2, 50)
+    a = torch.randn(4, 50)
     b = torch.randn(4, 50) + 10. * torch.randn(4, 1)
 
     beta = 2.0
