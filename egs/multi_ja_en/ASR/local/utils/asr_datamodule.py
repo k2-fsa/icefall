@@ -15,7 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+import torch
 import argparse
 import inspect
 import logging
@@ -34,6 +34,7 @@ from lhotse.dataset import (
     SpecAugment,
 )
 from lhotse.dataset.input_strategies import OnTheFlyFeatures
+from lhotse.utils import fix_random_seed
 from torch.utils.data import DataLoader
 
 from icefall.utils import str2bool
@@ -202,7 +203,7 @@ class MultiDatasetAsrDataModule:
             logging.info("Enable MUSAN")
             logging.info("About to get Musan cuts")
             cuts_musan = load_manifest(self.args.manifest_dir / "musan_cuts.jsonl.gz")
-            transforms.append(CutMix(cuts=cuts_musan, p=0.5, snr=(10,20), preserve_id=True)
+            transforms.append(CutMix(cuts=cuts_musan, p=0.5, snr=(10,20), preserve_id=True))
         else:
             logging.info("Disable MUSAN")
 
@@ -214,6 +215,7 @@ class MultiDatasetAsrDataModule:
             logging.info(
                 f"Using cut concatenation with duration factor "
                 f"{self.args.duration_factor} and gap {self.args.gap}."
+            )
             transforms = [
                 CutConcatenate(
                     duration_factor=self.args.duration_factor, gap=self.args.gap)
