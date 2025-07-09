@@ -544,8 +544,12 @@ def predict_loss(x: Tensor, predictor: nn.Module, proj_weight: Tensor,
         return torch.tensor(0.0, device=x.device)
 
     def mean_and_variance_norm(x):
-        mean = x.mean(dim=list(range(x.ndim-1)))
+        mean_dims = list([ i for i in range(x.ndim-1) if i != batch_dim ])
+        mean = x.mean(dim=mean_dims, keepdim=True)
         x = x - mean
+        # go halfway towards also normalizing across sequences, so
+        # it will keep half of the within-sequence normalization.
+        x = x - (0.5 * mean.mean(dim=batch_dim, keepdim=True))
         eps = 1.0e-08
         stddev = ((x ** 2).mean(dim=list(range(x.ndim-1))) + eps).sqrt()
         x = x / stddev
