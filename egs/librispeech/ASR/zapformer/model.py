@@ -561,6 +561,9 @@ class AsrModel(nn.Module):
         # it will cause us to under-normalize a bit.
         diff = log_mels * pad_mask - pred_mels * pad_mask
         # mean over sequence and mel-bin dims but not batch.
+        # this smooth_l1_loss_mod is intended to accomplish volume normalization at the
+        # sequence level, i.e. in case the differently-augmented signals have a difference in volume,
+        # which could happen due to musan augmentation.
         loss = smooth_l1_loss_mod(diff, beta=1.0, norm_dims=(1, 2))
 
         # removing the masking logic since we now use the no-specaug reference sequence.
