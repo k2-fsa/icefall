@@ -127,7 +127,6 @@ class AsrModel(nn.Module):
 
         self.reconstruction_proj = ScaledLinear(
             encoder_dim, 4 * encoder_embed.in_channels, initial_scale=0.1)
-        self.reconstruction_loss = torch.nn.SmoothL1Loss(reduction='none', beta=1.0)
 
 
     def forward_encoder(
@@ -556,15 +555,71 @@ class AsrModel(nn.Module):
 
         # use 1.0 for the beta; note, log-mels have a fairly large dynamic range so this mostly
         # helps to down-weight the effect of very silent silences.
-        loss = torch.nn.functional.smooth_l1_loss(log_mels * pad_mask, pred_mels * pad_mask,
-                                                  reduction='none', beta=1.0)
+        #loss = torch.nn.functional.smooth_l1_loss(log_mels * pad_mask, pred_mels * pad_mask,
+        #                                          reduction='none', beta=1.0)
+        # this way of applying the padding mask is not really ideal in terms of normalization,
+        # it will cause us to under-normalize a bit.
+        diff = log_mels * pad_mask - pred_mels * pad_mask
+        # mean over sequence and mel-bin dims but not batch.
+        loss = smooth_l1_loss_mod(diff, beta=1.0, norm_dims=(1, 2))
 
-        # masking.  if it's different from the next item on both the frequency dim
-        # and the time dim, it means we are in neither a time masked nor a frequency masked
-        # position.
-        mask = torch.logical_and(log_mels != torch.roll(log_mels, 1, dims=2),
-                                 log_mels != torch.roll(log_mels, 1, dims=1))
-        loss = loss * mask.to(loss.dtype)
+        # removing the masking logic since we now use the no-specaug reference sequence.
+        ## masking.  if it's different from the next item on both the frequency dim
+        ## and the time dim, it means we are in neither a time masked nor a frequency masked
+        ## position.
+        #mask = torch.logical_and(log_mels != torch.roll(log_mels, 1, dims=2),
+        #                         log_mels != torch.roll(log_mels, 1, dims=1))
+        #loss = loss * mask.to(loss.dtype)
 
         loss = loss.mean(dim=-1).sum()  # sum over all frames, but mean over mel bins.
         return loss
+
+
+
+def smooth_l1_loss_mod(diffs: Tensor, beta: float = 1.0,
+                       norm_dims: Optional[Tuple[int]] = None):
+    """
+    This is similar to :
+       loss = torch.nn.SmoothL1Loss(reduction='none', beta=beta)
+        loss(a, b)  is similar to smooth_l1_loss_mod(a - b),
+    except that it does an optional normalization step that involves
+    subtracting a mean computed over 'norm_dims'.
+    """
+    assert beta > 0
+    #  torch.nn.SmoothL1Loss(reduction='none', beta=beta) is:
+    # l_n = 0.5 * (diff^2 / beta) if |diff| < beta
+    # else: |diff| - 0.5 / beta
+    diffs_abs = diffs.abs()
+    l2_loss = (0.5 / beta) * (diffs ** 2)
+    l1_loss = diffs.abs() - (0.5 * beta)
+    # 'scale' is a loss scale such that if we multiply l2_loss by it,
+    # we get the final loss.
+    scale = l1_loss.clamp(min=0.5 * beta) / l2_loss.clamp(min=0.5 * beta)
+    diffs_scaled = scale.sqrt() * diffs
+    # ok, now we can treat the loss as (0.5 / beta) * diffs_scaled ** 2
+    if norm_dims:
+        diffs_scaled = diffs_scaled - diffs_scaled.mean(dim=norm_dims, keepdim=True)
+
+    loss = (0.5 / beta) * (diffs_scaled ** 2)
+    return loss
+
+
+
+def _test_smooth_l1_loss_mod():
+    a = torch.randn(2, 50)
+    b = torch.randn(2, 50)
+
+    beta = 2.0
+    loss = torch.nn.SmoothL1Loss(reduction='none', beta=beta)
+    loss1 = loss(a, b)
+    loss2 = smooth_l1_loss_mod(a - b, beta=beta)
+    #print(f"loss1={loss1}, loss2={loss2}")
+    assert torch.allclose(loss1, loss2, atol=0.001)
+
+    loss2_norm = smooth_l1_loss_mod(a - b, beta=beta, norm_dims=(1,))
+    print(f"loss2-mean={loss2.mean()}, loss2_norm-mean={loss2_norm.mean()}")
+    assert loss2_norm.mean() <= loss2.mean()
+
+
+if __name__ == '__main__':
+    _test_smooth_l1_loss_mod()
