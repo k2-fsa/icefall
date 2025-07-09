@@ -589,28 +589,31 @@ def smooth_l1_loss_mod(diffs: Tensor, beta: float = 1.0,
     subtracting a mean computed over 'norm_dims'.
     """
     assert beta > 0
-    #  torch.nn.SmoothL1Loss(reduction='none', beta=beta) is:
-    # l_n = 0.5 * (diff^2 / beta) if |diff| < beta
-    # else: |diff| - 0.5 / beta
-    diffs_abs = diffs.abs()
-    l2_loss = (0.5 / beta) * (diffs ** 2)
-    l1_loss = diffs.abs() - (0.5 * beta)
-    # 'scale' is a loss scale such that if we multiply l2_loss by it,
-    # we get the final loss.
-    scale = l1_loss.clamp(min=0.5 * beta) / l2_loss.clamp(min=0.5 * beta)
-    diffs_scaled = scale.sqrt() * diffs
+    def get_scale(diffs):
+        #  torch.nn.SmoothL1Loss(reduction='none', beta=beta) is:
+        # l_n = 0.5 * (diff^2 / beta) if |diff| < beta
+        # else: |diff| - 0.5 / beta
+        diffs_abs = diffs.abs()
+        l2_loss = (0.5 / beta) * (diffs ** 2)
+        l1_loss = diffs.abs() - (0.5 * beta)
+        # 'scale' is a loss scale such that if we multiply l2_loss by it,
+        # we get the final loss.
+        scale = l1_loss.clamp(min=0.5 * beta) / l2_loss.clamp(min=0.5 * beta)
+        return scale.sqrt()
     # ok, now we can treat the loss as (0.5 / beta) * diffs_scaled ** 2
     if norm_dims:
-        diffs_scaled = diffs_scaled - diffs_scaled.mean(dim=norm_dims, keepdim=True)
+        scale = get_scale(diffs)
+        offset = (scale * diffs).mean(dim=norm_dims, keepdim=True) / scale.mean(dim=norm_dims, keepdim=True)
+        diffs = diffs - offset
 
-    loss = (0.5 / beta) * (diffs_scaled ** 2)
+    loss = (0.5 / beta) * ((diffs * get_scale(diffs)) ** 2)
     return loss
 
 
 
 def _test_smooth_l1_loss_mod():
     a = torch.randn(2, 50)
-    b = torch.randn(2, 50)
+    b = torch.randn(4, 50) + 10. * torch.randn(4, 1)
 
     beta = 2.0
     loss = torch.nn.SmoothL1Loss(reduction='none', beta=beta)
