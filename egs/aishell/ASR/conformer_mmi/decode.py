@@ -516,7 +516,7 @@ def main():
     else:
         H = None
         HLG = k2.Fsa.from_dict(
-            torch.load(f"{params.lang_dir}/HLG.pt", map_location=device)
+            torch.load(f"{params.lang_dir}/HLG.pt", map_location=device, weights_only=False)
         )
         assert HLG.requires_grad is False
 

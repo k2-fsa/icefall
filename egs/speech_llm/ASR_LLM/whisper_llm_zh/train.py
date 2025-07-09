@@ -652,7 +652,7 @@ def run(rank, world_size, args):
     )
 
     if params.pretrained_model_path:
-        checkpoint = torch.load(params.pretrained_model_path, map_location="cpu")
+        checkpoint = torch.load(params.pretrained_model_path, map_location="cpu", weights_only=False)
         missing_keys, unexpected_keys = model.load_state_dict(checkpoint, strict=False)
 
     num_param = sum([p.numel() for p in model.parameters()])
@@ -704,7 +704,7 @@ def run(rank, world_size, args):
 
     sampler_state_dict = None
     if params.sampler_state_dict_path:
-        sampler_state_dict = torch.load(params.sampler_state_dict_path)
+        sampler_state_dict = torch.load(params.sampler_state_dict_path, weights_only=False)
         sampler_state_dict["max_duration"] = params.max_duration
 
     train_dl = data_module.train_dataloaders(

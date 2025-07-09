@@ -180,7 +180,7 @@ def get_dataloader(
     Returns:
       Return a dataloader containing the LM data.
     """
-    lm_data = torch.load(filename)
+    lm_data = torch.load(filename, weights_only=False)
 
     words = lm_data["words"]
     sentences = lm_data["sentences"]

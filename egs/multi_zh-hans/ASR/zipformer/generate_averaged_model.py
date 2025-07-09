@@ -24,7 +24,7 @@ Usage:
     --exp-dir ./zipformer/exp
 
 It will generate a file `epoch-28-avg-15.pt` in the given `exp_dir`.
-You can later load it by `torch.load("epoch-28-avg-15.pt")`.
+You can later load it by `torch.load("epoch-28-avg-15.pt", weights_only=False)`.
 
 (2) use the checkpoint exp_dir/checkpoint-iter.pt
 ./zipformer/generate_averaged_model.py \
@@ -33,7 +33,7 @@ You can later load it by `torch.load("epoch-28-avg-15.pt")`.
     --exp-dir ./zipformer/exp
 
 It will generate a file `iter-22000-avg-5.pt` in the given `exp_dir`.
-You can later load it by `torch.load("iter-22000-avg-5.pt")`.
+You can later load it by `torch.load("iter-22000-avg-5.pt", weights_only=False)`.
 """
 
 

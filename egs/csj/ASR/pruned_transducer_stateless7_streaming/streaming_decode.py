@@ -561,7 +561,7 @@ def main():
     decoding_graph = None
     if params.decoding_graph:
         decoding_graph = k2.Fsa.from_dict(
-            torch.load(params.decoding_graph, map_location=device)
+            torch.load(params.decoding_graph, map_location=device, weights_only=False)
         )
     elif params.decoding_method == "fast_beam_search":
         decoding_graph = k2.trivial_graph(params.vocab_size - 1, device=device)
