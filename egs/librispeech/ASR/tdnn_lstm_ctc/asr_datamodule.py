@@ -29,7 +29,6 @@ from lhotse.dataset import (  # noqa F401 for PrecomputedFeatures
     CutConcatenate,
     CutMix,
     DynamicBucketingSampler,
-    K2SpeechRecognitionDataset,
     PrecomputedFeatures,
     SimpleCutSampler,
     SpecAugment,
@@ -39,6 +38,7 @@ from lhotse.dataset.input_strategies import (  # noqa F401 For AudioSamples
     OnTheFlyFeatures,
 )
 from lhotse.utils import fix_random_seed
+from speech_recognition import K2SpeechRecognitionDataset
 from torch.utils.data import DataLoader
 
 from icefall.utils import str2bool
@@ -232,8 +232,11 @@ class LibriSpeechAsrDataModule:
             logging.info("Enable MUSAN")
             logging.info("About to get Musan cuts")
             cuts_musan = load_manifest(self.args.manifest_dir / "musan_cuts.jsonl.gz")
+
+            # We use probability 1.0 here so that musan augmentation is
+            # always performed
             transforms.append(
-                CutMix(cuts=cuts_musan, p=0.5, snr=(10, 20), preserve_id=True)
+                CutMix(cuts=cuts_musan, p=1.0, snr=(10, 20), preserve_id=True)
             )
         else:
             logging.info("Disable MUSAN")
