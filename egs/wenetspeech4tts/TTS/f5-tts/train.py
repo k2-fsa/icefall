@@ -118,6 +118,13 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         help="Number of Decoder layers.",
     )
 
+    parser.add_argument(
+        "--use-cosyvoice-semantic-token",
+        type=str2bool,
+        default=False,
+        help="Whether to use cosyvoice semantic token to replace text token.",
+    )
+
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -311,13 +318,6 @@ def get_parser():
         type=str2bool,
         default=False,
         help="perform OOM check on dataloader batches before starting training.",
-    )
-
-    parser.add_argument(
-        "--use-cosyvoice-semantic-token",
-        type=str2bool,
-        default=False,
-        help="Whether to use cosyvoice semantic token to replace text token.",
     )
 
     add_model_arguments(parser)
