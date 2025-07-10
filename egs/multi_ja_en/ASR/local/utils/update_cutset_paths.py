@@ -30,15 +30,15 @@ def update_paths(cuts: CutSet, dataset_name: str, old_feature_prefix: str = "dat
             # We assume old_feature_prefix is 'data/manifests'
             # and original_storage_path looks like 'data/manifests/feats_train/feats-12.lca'
             # We want to change it to 'data/manifests/<dataset_name>/feats_train/feats-12.lca'
-            
+
             # The check `original_storage_path.parts[1]` ensures it's indeed under 'manifests' and not already processed.
             # And `not original_storage_path.parts[2].startswith(dataset_name)` ensures we don't re-process.
             if len(original_storage_path.parts) >= 3 and \
-               original_storage_path.parts[0] == old_feature_prefix.split(os.sep)[0] and \
-               original_storage_path.parts[1] == old_feature_prefix.split(os.sep)[1] and \
-               not original_storage_path.parts[2].startswith(dataset_name): # Assumes dataset_name does not start with feats_
+                    original_storage_path.parts[0] == old_feature_prefix.split(os.sep)[0] and \
+                    original_storage_path.parts[1] == old_feature_prefix.split(os.sep)[1] and \
+                    not original_storage_path.parts[2].startswith(dataset_name): # Assumes dataset_name does not start with feats_
 
-                # This gives us 'feats_train/feats-12.lca'
+                        # This gives us 'feats_train/feats-12.lca'
                 # It's important to be robust to potentially different original prefixes
                 # So we take the part of the path *after* the `old_feature_prefix`
                 try:
@@ -65,9 +65,10 @@ if __name__ == "__main__":
 
     # Define the datasets and their *specific* manifest file prefixes
     dataset_manifest_prefixes = {
-        "reazonspeech": "reazonspeech_cuts",
-        "mls_english": "mls_eng_cuts",
-    }
+            "reazonspeech": "reazonspeech_cuts",
+            "mls_english": "mls_eng_cuts",
+            "musan": "musan_cuts",
+            }
 
     splits = ["train", "dev", "test"]
 
@@ -77,6 +78,22 @@ if __name__ == "__main__":
     # then this is 'data/manifests'
     original_feature_base_path = "data/manifests"
 
+    musan_manifest_path = multi_recipe_manifests_root / "musan" / "musan_cuts.jsonl.gz"
+    if musan_manifest_path.exists():
+       logger.info(f"Processing musan manifest: {musan_manifest_path}")
+       try:
+           musan_cuts = load_manifest(musan_manifest_path)
+           updated_musan_cuts = update_paths(
+                   musan_cuts,
+                   "musan",
+                   old_feature_prefix=original_feature_base_path
+                   )
+           updated_musan_cuts.to_file(musan_manifest_path)
+           logger.info(f"Updated musan cuts saved to: {musan_manifest_path}")
+       except Exception as e:
+           logger.error(f"Error processing musan manifest {musan_manifest_path}: {e}", exc_info=True)
+    else:
+        logger.warning(f"Musan manifest not found at {musan_manifest_path}, skipping.")
 
     for dataset_name, manifest_prefix in dataset_manifest_prefixes.items():
         dataset_symlink_dir = multi_recipe_manifests_root / dataset_name
