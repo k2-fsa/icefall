@@ -64,7 +64,7 @@ def main():
     if out_lm_data.is_file():
         logging.warning(f"{out_lm_data} exists - skipping")
         return
-    data = torch.load(in_lm_data)
+    data = torch.load(in_lm_data, weights_only=False)
     words2bpe = data["words"]
     sentences = data["sentences"]
     sentence_lengths = data["sentence_lengths"]

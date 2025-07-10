@@ -750,7 +750,7 @@ def main():
     vocoder = vocoder.eval().to(device)
 
     model = get_model(args).eval().to(device)
-    checkpoint = torch.load(args.model_path, map_location="cpu")
+    checkpoint = torch.load(args.model_path, map_location="cpu", weights_only=False)
     if "ema_model_state_dict" in checkpoint or "model_state_dict" in checkpoint:
         model = load_F5_TTS_pretrained_checkpoint(model, args.model_path)
     else:

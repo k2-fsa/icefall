@@ -115,7 +115,7 @@ def load_vocoder(checkpoint_path: Path) -> nn.Module:
 
     hifigan = HiFiGAN(h).to("cpu")
     hifigan.load_state_dict(
-        torch.load(checkpoint_path, map_location="cpu")["generator"]
+        torch.load(checkpoint_path, map_location="cpu", weights_only=False)["generator"]
     )
     _ = hifigan.eval()
     hifigan.remove_weight_norm()

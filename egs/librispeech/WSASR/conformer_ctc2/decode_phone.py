@@ -457,7 +457,7 @@ def main():
 
     params.num_classes = num_classes
 
-    HLG = k2.Fsa.from_dict(torch.load(f"{params.lang_dir}/HLG.pt", map_location="cpu"))
+    HLG = k2.Fsa.from_dict(torch.load(f"{params.lang_dir}/HLG.pt", map_location="cpu", weights_only=False))
     HLG = HLG.to(device)
     assert HLG.requires_grad is False
 

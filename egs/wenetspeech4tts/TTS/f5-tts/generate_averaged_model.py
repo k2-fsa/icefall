@@ -25,7 +25,7 @@ python3 bin/generate_averaged_model.py \
     --exp-dir ${exp_dir}
 
 It will generate a file `epoch-28-avg-15.pt` in the given `exp_dir`.
-You can later load it by `torch.load("epoch-28-avg-15.pt")`.
+You can later load it by `torch.load("epoch-28-avg-15.pt", weights_only=False)`.
 """
 
 
@@ -109,7 +109,7 @@ def main():
 
     print("About to create model")
     filename = f"{params.exp_dir}/epoch-{params.epoch}.pt"
-    checkpoint = torch.load(filename, map_location=device)
+    checkpoint = torch.load(filename, map_location=device, weights_only=False)
     args = AttributeDict(checkpoint)
     model = get_model(args)
 

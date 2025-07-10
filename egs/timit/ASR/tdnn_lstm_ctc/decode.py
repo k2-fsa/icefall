@@ -397,7 +397,7 @@ def main():
 
     logging.info(f"device: {device}")
 
-    HLG = k2.Fsa.from_dict(torch.load(f"{params.lang_dir}/HLG.pt", map_location="cpu"))
+    HLG = k2.Fsa.from_dict(torch.load(f"{params.lang_dir}/HLG.pt", map_location="cpu", weights_only=False))
     HLG = HLG.to(device)
     assert HLG.requires_grad is False
 
@@ -423,7 +423,7 @@ def main():
                 torch.save(G.as_dict(), params.lm_dir / "G_4_gram.pt")
         else:
             logging.info("Loading pre-compiled G_4_gram.pt")
-            d = torch.load(params.lm_dir / "G_4_gram.pt", map_location="cpu")
+            d = torch.load(params.lm_dir / "G_4_gram.pt", map_location="cpu", weights_only=False)
             G = k2.Fsa.from_dict(d).to(device)
 
         if params.method == "whole-lattice-rescoring":
