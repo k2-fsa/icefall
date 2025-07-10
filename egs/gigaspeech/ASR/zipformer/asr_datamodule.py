@@ -219,6 +219,8 @@ class GigaSpeechAsrDataModule:
         self,
         cuts_train: CutSet,
         sampler_state_dict: Optional[Dict[str, Any]] = None,
+        world_size: Optional[int] = None,
+        rank: Optional[int] = None,
     ) -> DataLoader:
         """
         Args:
@@ -313,6 +315,8 @@ class GigaSpeechAsrDataModule:
                 num_buckets=self.args.num_buckets,
                 buffer_size=self.args.num_buckets * 5000,
                 drop_last=self.args.drop_last,
+                world_size=world_size,
+                rank=rank,
             )
         else:
             logging.info("Using SimpleCutSampler.")
@@ -320,6 +324,8 @@ class GigaSpeechAsrDataModule:
                 cuts_train,
                 max_duration=self.args.max_duration,
                 shuffle=self.args.shuffle,
+                world_size=world_size,
+                rank=rank,
             )
         logging.info("About to create train dataloader")
 
@@ -343,7 +349,12 @@ class GigaSpeechAsrDataModule:
 
         return train_dl
 
-    def valid_dataloaders(self, cuts_valid: CutSet) -> DataLoader:
+    def valid_dataloaders(
+        self,
+        cuts_valid: CutSet,
+        world_size: Optional[int] = None,
+        rank: Optional[int] = None,
+    ) -> DataLoader:
         transforms = []
         if self.args.concatenate_cuts:
             transforms = [
@@ -370,6 +381,8 @@ class GigaSpeechAsrDataModule:
             num_buckets=self.args.num_buckets,
             buffer_size=self.args.num_buckets * 5000,
             shuffle=False,
+            world_size=world_size,
+            rank=rank,
         )
         logging.info("About to create dev dataloader")
         valid_dl = DataLoader(
@@ -409,7 +422,7 @@ class GigaSpeechAsrDataModule:
         logging.info(f"About to get train {self.args.subset} cuts")
         if self.args.subset == "XL":
             filenames = glob.glob(
-                f"{self.args.manifest_dir}/XL_split/gigaspeech_cuts_XL.*.jsonl.gz"
+                f"{self.args.manifest_dir}/gigaspeech_XL_split/gigaspeech_cuts_XL.*.jsonl.gz"
             )
             pattern = re.compile(r"gigaspeech_cuts_XL.([0-9]+).jsonl.gz")
             idx_filenames = ((int(pattern.search(f).group(1)), f) for f in filenames)
