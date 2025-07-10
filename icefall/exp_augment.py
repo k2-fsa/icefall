@@ -14,8 +14,8 @@ class ExpAugment(torch.nn.Module):
         self,
         max_feature_mask_fraction: float = 0.675,  # max fraction that can possibly be masked
         num_feature_masks: int = 2,
-        max_frame_mask_fraction: float = 0.675,
-        max_frame_mask_size: float = 100,  # max size in frames of temporal masks.
+        max_frame_mask_fraction: float = 0.725,
+        max_frame_mask_size: float = 70,  # max size in frames of temporal masks.
         p=0.9,  # probability of doing augmentation
     ):
         super().__init__()
