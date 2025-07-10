@@ -13,13 +13,13 @@ stop_stage=8
 
 # Compute fbank features for a subset of splits from `start` (inclusive) to `stop` (exclusive)
 start=0
-stop=-1
+stop=-1  # -1 means until the end
 
-# Note: This script just prepare the minimal requirements that needed by a
+# Note: This script just prepares the minimal requirements needed by a
 # transducer training with bpe units.
 #
 # If you want to use ngram, please continue running prepare_lm.sh after
-# you succeed running this script.
+# you succeed in running this script.
 #
 # This script also contains the steps to generate phone based units, but they
 # will not run automatically, you can generate the phone based units by

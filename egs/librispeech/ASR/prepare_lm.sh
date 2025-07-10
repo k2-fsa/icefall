@@ -5,7 +5,7 @@ export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
 
 set -eou pipefail
 
-# This script generate Ngram LM / NNLM and related files that needed by decoding.
+# This script generates Ngram LM / NNLM and related files needed by decoding.
 
 # We assume dl_dir (download dir) contains the following
 # directories and files. If not, they will be downloaded

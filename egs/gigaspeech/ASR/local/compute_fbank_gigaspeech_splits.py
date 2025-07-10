@@ -112,9 +112,10 @@ def compute_fbank_gigaspeech_splits(args):
         cut_set = CutSet.from_file(raw_cuts_path)
 
         logging.info("Computing features")
-        if (output_dir / f"gigaspeech_feats_XL_{idx}.lca").exists():
-            logging.info(f"Removing {output_dir}/gigaspeech_feats_XL_{idx}.lca")
-            os.remove(output_dir / f"gigaspeech_feats_XL_{idx}.lca")
+        filename = output_dir / f"gigaspeech_feats_XL_{idx}.lca"
+        if filename.exists():
+            logging.info(f"Removing {filename}")
+            os.remove(str(filename))
 
         cut_set = cut_set.compute_and_store_features_batch(
             extractor=extractor,
