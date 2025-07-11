@@ -546,10 +546,10 @@ def predict_loss(x: Tensor, predictor: nn.Module, proj_weight: Tensor,
     def mean_and_variance_norm(x):
         mean_dims = list([ i for i in range(x.ndim-1) if i != batch_dim ])
         mean = x.mean(dim=mean_dims, keepdim=True)
-        x = x - mean
-        # go halfway towards also normalizing across sequences, so
-        # it will keep half of the within-sequence normalization.
-        x = x - (0.5 * mean.mean(dim=batch_dim, keepdim=True))
+        # over-normalization, by, totally a factor of 1.5, of which 0.5 is at
+        # sequence level and 1.0 is at batch level.
+        x = x - 0.5 * mean
+        x = x - mean.mean(dim=batch_dim, keepdim=True)
         eps = 1.0e-08
         stddev = ((x ** 2).mean(dim=list(range(x.ndim-1))) + eps).sqrt()
         x = x / stddev
