@@ -94,6 +94,20 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--dynamic-batch",
+        type=int,
+        default=1,
+        help="1 to support dynamic batch size. 0 to support only batch size == 1",
+    )
+
+    parser.add_argument(
+        "--enable-int8-quantization",
+        type=int,
+        default=1,
+        help="1 to also export int8 onnx models.",
+    )
+
+    parser.add_argument(
         "--epoch",
         type=int,
         default=28,
@@ -389,6 +403,7 @@ def export_encoder_model_onnx(
     encoder_filename: str,
     opset_version: int = 11,
     feature_dim: int = 80,
+    dynamic_batch: bool = True,
     use_whisper_features: bool = False,
     use_external_data: bool = False,
 ) -> None:
@@ -534,7 +549,9 @@ def export_encoder_model_onnx(
             "encoder_out": {0: "N"},
             **inputs,
             **outputs,
-        },
+        }
+        if dynamic_batch
+        else {},
     )
 
     add_meta_data(
@@ -548,6 +565,7 @@ def export_decoder_model_onnx(
     decoder_model: OnnxDecoder,
     decoder_filename: str,
     opset_version: int = 11,
+    dynamic_batch: bool = True,
 ) -> None:
     """Export the decoder model to ONNX format.
 
@@ -570,7 +588,7 @@ def export_decoder_model_onnx(
     context_size = decoder_model.decoder.context_size
     vocab_size = decoder_model.decoder.vocab_size
 
-    y = torch.zeros(10, context_size, dtype=torch.int64)
+    y = torch.zeros(1, context_size, dtype=torch.int64)
     decoder_model = torch.jit.script(decoder_model)
     torch.onnx.export(
         decoder_model,
@@ -583,7 +601,9 @@ def export_decoder_model_onnx(
         dynamic_axes={
             "y": {0: "N"},
             "decoder_out": {0: "N"},
-        },
+        }
+        if dynamic_batch
+        else {},
     )
 
     meta_data = {
@@ -597,6 +617,7 @@ def export_joiner_model_onnx(
     joiner_model: nn.Module,
     joiner_filename: str,
     opset_version: int = 11,
+    dynamic_batch: bool = True,
 ) -> None:
     """Export the joiner model to ONNX format.
     The exported joiner model has two inputs:
@@ -611,8 +632,8 @@ def export_joiner_model_onnx(
     joiner_dim = joiner_model.output_linear.weight.shape[1]
     logging.info(f"joiner dim: {joiner_dim}")
 
-    projected_encoder_out = torch.rand(11, joiner_dim, dtype=torch.float32)
-    projected_decoder_out = torch.rand(11, joiner_dim, dtype=torch.float32)
+    projected_encoder_out = torch.rand(1, joiner_dim, dtype=torch.float32)
+    projected_decoder_out = torch.rand(1, joiner_dim, dtype=torch.float32)
 
     torch.onnx.export(
         joiner_model,
@@ -629,7 +650,9 @@ def export_joiner_model_onnx(
             "encoder_out": {0: "N"},
             "decoder_out": {0: "N"},
             "logit": {0: "N"},
-        },
+        }
+        if dynamic_batch
+        else {},
     )
     meta_data = {
         "joiner_dim": str(joiner_dim),
@@ -793,6 +816,7 @@ def main():
         str(encoder_filename),
         opset_version=opset_version,
         feature_dim=params.feature_dim,
+        dynamic_batch=params.dynamic_batch == 1,
         use_whisper_features=params.use_whisper_features,
         use_external_data=params.use_external_data,
     )
@@ -804,6 +828,7 @@ def main():
         decoder,
         decoder_filename,
         opset_version=opset_version,
+        dynamic_batch=params.dynamic_batch == 1,
     )
     logging.info(f"Exported decoder to {decoder_filename}")
 
@@ -813,6 +838,7 @@ def main():
         joiner,
         joiner_filename,
         opset_version=opset_version,
+        dynamic_batch=params.dynamic_batch == 1,
     )
     logging.info(f"Exported joiner to {joiner_filename}")
 
@@ -835,35 +861,36 @@ def main():
     # Generate int8 quantization models
     # See https://onnxruntime.ai/docs/performance/model-optimizations/quantization.html#data-type-selection
 
-    logging.info("Generate int8 quantization models")
+    if params.enable_int8_quantization:
+        logging.info("Generate int8 quantization models")
 
-    if params.use_external_data:
-        encoder_filename_int8 = f"encoder-{suffix}.int8.onnx"
-    else:
-        encoder_filename_int8 = params.exp_dir / f"encoder-{suffix}.int8.onnx"
+        if params.use_external_data:
+            encoder_filename_int8 = f"encoder-{suffix}.int8.onnx"
+        else:
+            encoder_filename_int8 = params.exp_dir / f"encoder-{suffix}.int8.onnx"
 
-    quantize_dynamic(
-        model_input=encoder_filename,
-        model_output=encoder_filename_int8,
-        op_types_to_quantize=["MatMul"],
-        weight_type=QuantType.QInt8,
-    )
+        quantize_dynamic(
+            model_input=encoder_filename,
+            model_output=encoder_filename_int8,
+            op_types_to_quantize=["MatMul"],
+            weight_type=QuantType.QInt8,
+        )
 
-    decoder_filename_int8 = params.exp_dir / f"decoder-{suffix}.int8.onnx"
-    quantize_dynamic(
-        model_input=decoder_filename,
-        model_output=decoder_filename_int8,
-        op_types_to_quantize=["MatMul", "Gather"],
-        weight_type=QuantType.QInt8,
-    )
+        decoder_filename_int8 = params.exp_dir / f"decoder-{suffix}.int8.onnx"
+        quantize_dynamic(
+            model_input=decoder_filename,
+            model_output=decoder_filename_int8,
+            op_types_to_quantize=["MatMul", "Gather"],
+            weight_type=QuantType.QInt8,
+        )
 
-    joiner_filename_int8 = params.exp_dir / f"joiner-{suffix}.int8.onnx"
-    quantize_dynamic(
-        model_input=joiner_filename,
-        model_output=joiner_filename_int8,
-        op_types_to_quantize=["MatMul"],
-        weight_type=QuantType.QInt8,
-    )
+        joiner_filename_int8 = params.exp_dir / f"joiner-{suffix}.int8.onnx"
+        quantize_dynamic(
+            model_input=joiner_filename,
+            model_output=joiner_filename_int8,
+            op_types_to_quantize=["MatMul"],
+            weight_type=QuantType.QInt8,
+        )
 
 
 if __name__ == "__main__":

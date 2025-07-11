@@ -75,6 +75,20 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--dynamic-batch",
+        type=int,
+        default=1,
+        help="1 to support dynamic batch size. 0 to support only batch size == 1",
+    )
+
+    parser.add_argument(
+        "--enable-int8-quantization",
+        type=int,
+        default=1,
+        help="1 to also export int8 onnx models.",
+    )
+
+    parser.add_argument(
         "--epoch",
         type=int,
         default=28,
@@ -326,6 +340,7 @@ def export_streaming_ctc_model_onnx(
     model: OnnxModel,
     encoder_filename: str,
     opset_version: int = 11,
+    dynamic_batch: bool = True,
     use_whisper_features: bool = False,
     use_external_data: bool = False,
 ) -> None:
@@ -470,7 +485,9 @@ def export_streaming_ctc_model_onnx(
             "log_probs": {0: "N"},
             **inputs,
             **outputs,
-        },
+        }
+        if dynamic_batch
+        else {},
     )
 
     add_meta_data(
@@ -618,15 +635,17 @@ def main():
         model,
         str(model_filename),
         opset_version=opset_version,
+        dynamic_batch=params.dynamic_batch == 1,
         use_whisper_features=params.use_whisper_features,
         use_external_data=params.use_external_data,
     )
     logging.info(f"Exported model to {model_filename}")
 
-    # Generate int8 quantization models
-    # See https://onnxruntime.ai/docs/performance/model-optimizations/quantization.html#data-type-selection
+    if params.enable_int8_quantization:
+        # Generate int8 quantization models
+        # See https://onnxruntime.ai/docs/performance/model-optimizations/quantization.html#data-type-selection
 
-    logging.info("Generate int8 quantization models")
+        logging.info("Generate int8 quantization models")
 
     if params.use_external_data:
         model_filename_int8 = f"ctc-{suffix}.int8.onnx"

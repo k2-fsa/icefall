@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - master
-      - ci-rknn-2
+      - rknn-zipformer2
 
   pull_request:
     branches:
@@ -17,44 +17,29 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  generate_build_matrix:
-    if: github.repository_owner == 'csukuangfj' || github.repository_owner == 'k2-fsa'
-    # see https://github.com/pytorch/pytorch/pull/50633
-    runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Generating build matrix
-        id: set-matrix
-        run: |
-          # outputting for debugging purposes
-          python ./.github/scripts/docker/generate_build_matrix.py --torch-version=2.4.0 --python-version=3.10
-          MATRIX=$(python ./.github/scripts/docker/generate_build_matrix.py --torch-version=2.4.0 --python-version=3.10)
-          echo "::set-output name=matrix::${MATRIX}"
   rknn:
-    needs: generate_build_matrix
-    name: py${{ matrix.python-version }} torch${{ matrix.torch-version }} v${{ matrix.version }}
+    name: RKNN ${{ matrix.recipe }} ${{ matrix.rknn_toolkit2_version }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        ${{ fromJson(needs.generate_build_matrix.outputs.matrix) }}
+        python-version: ["3.10"]
+        k2-version: ["1.24.4.dev20241029"]
+        kaldifeat-version: ["1.25.5.dev20241029"]
+        torch-version: ["2.0.0"]
+        torchaudio-version: ["2.0.1"]
+        version: ["20241218"]
+        # recipe: ["librispeech", "wenetspeech", "multi_zh-hans"]
+        recipe: ["librispeech"]
+        rknn_toolkit2_version: ["2.2.0", "2.1.0"]
+
 
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Setup Python
-        if: false
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Export ONNX model
+      - name: Export RKNN model
         uses: addnab/docker-run-action@v3
         with:
             image: ghcr.io/${{ github.repository_owner }}/icefall:cpu-py${{ matrix.python-version }}-torch${{ matrix.torch-version }}-v${{ matrix.version }}
@@ -73,65 +58,35 @@ jobs:
               python3 -m torch.utils.collect_env
               python3 -m k2.version
               pip list
+              export rknn_toolkit2_version=${{ matrix.rknn_toolkit2_version }}
 
+              if [[ $rknn_toolkit2_version == "2.1.0" ]]; then
+                # for the folder pruned_transducer_stateless7_streaming
+                curl -SL -O https://huggingface.co/csukuangfj/rknn-toolkit2/resolve/main/rknn_toolkit2-2.1.0%2B708089d1-cp310-cp310-linux_x86_64.whl
+              else
+                # for the folder zipformer/
+                curl -SL -O https://huggingface.co/csukuangfj/rknn-toolkit2/resolve/main/rknn_toolkit2-2.2.0-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+              fi
 
               # Install rknn
-              curl -SL -O https://huggingface.co/csukuangfj/rknn-toolkit2/resolve/main/rknn_toolkit2-2.3.0-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
               pip install ./*.whl "numpy<=1.26.4"
               pip list | grep rknn
               echo "---"
               pip list
               echo "---"
 
-              .github/scripts/librispeech/ASR/run_rknn.sh
+              recipe=${{ matrix.recipe }}
+              .github/scripts/$recipe/ASR/run_rknn.sh > log-$recipe.txt 2>&1 || true
 
-      - name: Display rknn models
-        shell: bash
-        run: |
-          ls -lh
-
-          ls -lh rknn-models/*
-          echo "----"
-          ls -lh rknn-models-small/*
-
-      - name: Collect results (small)
-        shell: bash
-        run: |
-          for platform in rk3562 rk3566 rk3568 rk3576 rk3588; do
-            dst=sherpa-onnx-$platform-streaming-zipformer-small-bilingual-zh-en-2023-02-16
-            mkdir $dst
-            mkdir $dst/test_wavs
-            src=rknn-models-small/$platform
-
-            cp -v $src/*.rknn $dst/
-            cp -v $src/tokens.txt $dst/
-            cp -v $src/*.wav $dst/test_wavs/
-            ls -lh $dst
-            tar cjfv $dst.tar.bz2 $dst
-            rm -rf $dst
-          done
-
-      - name: Collect results
-        shell: bash
-        run: |
-          for platform in rk3562 rk3566 rk3568 rk3576 rk3588; do
-            dst=sherpa-onnx-$platform-streaming-zipformer-bilingual-zh-en-2023-02-20
-            mkdir $dst
-            mkdir $dst/test_wavs
-            src=rknn-models/$platform
-
-            cp -v $src/*.rknn $dst/
-            cp -v $src/tokens.txt $dst/
-            cp -v $src/*.wav $dst/test_wavs/
-            ls -lh $dst
-            tar cjfv $dst.tar.bz2 $dst
-            rm -rf $dst
-          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: log-${{ matrix.recipe }}-${{ matrix.rknn_toolkit2_version }}
+          path: ./log-*.txt
 
       - name: Display results
         shell: bash
         run: |
-          ls -lh *rk*.tar.bz2
+          ls -lh *rk*.tar.bz2 || true
 
       - name: Release to GitHub
         uses: svenstaro/upload-release-action@v2
@@ -144,7 +99,7 @@ jobs:
           tag: asr-models
 
       - name: Upload model to huggingface
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         uses: nick-fields/retry@v3
@@ -167,8 +122,7 @@ jobs:
             git merge -m "merge remote" --ff origin main
             dst=streaming-asr
             mkdir -p $dst
-            rm -fv $dst/*
-            cp ../*rk*.tar.bz2 $dst/
+            cp ../*rk*.tar.bz2 $dst/ || true
 
             ls -lh $dst
             git add .
