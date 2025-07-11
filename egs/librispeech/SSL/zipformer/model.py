@@ -24,7 +24,7 @@ import torch
 import torch.nn as nn
 from scaling import ScaledLinear
 
-from icefall.utils import add_sos
+from icefall.utils import add_sos, torch_autocast
 
 
 class AsrModel(nn.Module):
@@ -221,7 +221,7 @@ class AsrModel(nn.Module):
         # if self.training and random.random() < 0.25:
         #    am = penalize_abs_values_gt(am, 30.0, 1.0e-04)
 
-        with torch.cuda.amp.autocast(enabled=False):
+        with torch_autocast(enabled=False):
             simple_loss, (px_grad, py_grad) = k2.rnnt_loss_smoothed(
                 lm=lm.float(),
                 am=am.float(),
@@ -256,7 +256,7 @@ class AsrModel(nn.Module):
         # prior to do_rnnt_pruning (this is an optimization for speed).
         logits = self.joiner(am_pruned, lm_pruned, project_input=False)
 
-        with torch.cuda.amp.autocast(enabled=False):
+        with torch_autocast(enabled=False):
             pruned_loss = k2.rnnt_loss_pruned(
                 logits=logits.float(),
                 symbols=y_padded,

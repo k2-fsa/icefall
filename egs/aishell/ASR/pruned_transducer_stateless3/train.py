@@ -94,7 +94,13 @@ from icefall.checkpoint import (
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
 from icefall.lexicon import Lexicon
-from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool
+from icefall.utils import (
+    AttributeDict,
+    MetricsTracker,
+    setup_logger,
+    str2bool,
+    torch_autocast,
+)
 
 LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
 
@@ -797,7 +803,7 @@ def train_one_epoch(
         aishell = is_aishell(batch["supervisions"]["cut"][0])
 
         try:
-            with torch.cuda.amp.autocast(enabled=params.use_fp16):
+            with torch_autocast(enabled=params.use_fp16):
                 loss, loss_info = compute_loss(
                     params=params,
                     model=model,
@@ -1202,7 +1208,7 @@ def scan_pessimistic_batches_for_oom(
             # warmup = 0.0 is so that the derivs for the pruned loss stay zero
             # (i.e. are not remembered by the decaying-average in adam), because
             # we want to avoid these params being subject to shrinkage in adam.
-            with torch.cuda.amp.autocast(enabled=params.use_fp16):
+            with torch_autocast(enabled=params.use_fp16):
                 loss, _ = compute_loss(
                     params=params,
                     model=model,

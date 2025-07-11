@@ -14,9 +14,9 @@ import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 from lhotse.utils import fix_random_seed
-from matcha.model import fix_len_compatibility
-from matcha.models.matcha_tts import MatchaTTS
-from matcha.tokenizer import Tokenizer
+from model import fix_len_compatibility
+from models.matcha_tts import MatchaTTS
+from tokenizer import Tokenizer
 from torch.cuda.amp import GradScaler, autocast
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim import Optimizer
@@ -150,7 +150,7 @@ def _get_data_params() -> AttributeDict:
             "n_spks": 1,
             "n_fft": 1024,
             "n_feats": 80,
-            "sample_rate": 22050,
+            "sampling_rate": 22050,
             "hop_length": 256,
             "win_length": 1024,
             "f_min": 0,
@@ -445,11 +445,6 @@ def train_one_epoch(
 
     saved_bad_model = False
 
-    # used to track the stats over iterations in one epoch
-    tot_loss = MetricsTracker()
-
-    saved_bad_model = False
-
     def save_bad_model(suffix: str = ""):
         save_checkpoint(
             filename=params.exp_dir / f"bad-model{suffix}-{rank}.pt",
@@ -493,9 +488,10 @@ def train_one_epoch(
 
                 loss = sum(losses.values())
 
-                optimizer.zero_grad()
                 scaler.scale(loss).backward()
                 scaler.step(optimizer)
+                scaler.update()
+                optimizer.zero_grad()
 
                 loss_info = MetricsTracker()
                 loss_info["samples"] = batch_size

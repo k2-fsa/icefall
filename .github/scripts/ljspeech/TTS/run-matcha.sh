@@ -56,7 +56,8 @@ function infer() {
 
   curl -SL -O https://github.com/csukuangfj/models/raw/refs/heads/master/hifigan/generator_v1
 
-  ./matcha/inference.py \
+  ./matcha/infer.py \
+    --num-buckets 2 \
     --epoch 1 \
     --exp-dir ./matcha/exp \
     --tokens data/tokens.txt \
@@ -76,7 +77,7 @@ function export_onnx() {
   popd
 
   pushd data/fbank
-  rm -v *.json
+  rm -fv *.json
   curl -SL -O https://huggingface.co/csukuangfj/icefall-tts-ljspeech-matcha-en-2024-10-28/resolve/main/data/cmvn.json
   popd
 
@@ -89,7 +90,7 @@ function export_onnx() {
   ls -lh *.onnx
 
   if false; then
-    # THe CI machine does not have enough memory to run it
+    # The CI machine does not have enough memory to run it
     #
     curl -SL -O https://github.com/csukuangfj/models/raw/refs/heads/master/hifigan/generator_v1
     curl -SL -O https://github.com/csukuangfj/models/raw/refs/heads/master/hifigan/generator_v2
@@ -97,19 +98,54 @@ function export_onnx() {
     python3 ./matcha/export_onnx_hifigan.py
   else
     curl -SL -O https://huggingface.co/csukuangfj/icefall-tts-ljspeech-matcha-en-2024-10-28/resolve/main/exp/hifigan_v1.onnx
+    curl -SL -O https://huggingface.co/csukuangfj/icefall-tts-ljspeech-matcha-en-2024-10-28/resolve/main/exp/hifigan_v2.onnx
+    curl -SL -O https://huggingface.co/csukuangfj/icefall-tts-ljspeech-matcha-en-2024-10-28/resolve/main/exp/hifigan_v3.onnx
   fi
 
   ls -lh *.onnx
 
-  python3 ./matcha/onnx_pretrained.py \
-   --acoustic-model ./model-steps-6.onnx \
-   --vocoder ./hifigan_v1.onnx \
-   --tokens ./data/tokens.txt \
-   --input-text "how are you doing?" \
-   --output-wav /icefall/generated-matcha-tts-steps-6-v1.wav
+  for v in v1 v2 v3; do
+    python3 ./matcha/onnx_pretrained.py \
+     --acoustic-model ./model-steps-6.onnx \
+     --vocoder ./hifigan_$v.onnx \
+     --tokens ./data/tokens.txt \
+     --input-text "how are you doing?" \
+     --output-wav /icefall/generated-matcha-tts-steps-6-$v.wav
+  done
 
   ls -lh /icefall/*.wav
-  soxi /icefall/generated-matcha-tts-steps-6-v1.wav
+  soxi /icefall/generated-matcha-tts-steps-6-*.wav
+
+  cp ./model-steps-*.onnx /icefall
+
+  d=matcha-icefall-en_US-ljspeech
+  mkdir $d
+  cp -v data/tokens.txt $d
+  cp model-steps-3.onnx $d
+  pushd $d
+  curl -SL -O https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/espeak-ng-data.tar.bz2
+  tar xf espeak-ng-data.tar.bz2
+  rm espeak-ng-data.tar.bz2
+
+cat >README.md <<EOF
+# Introduction
+
+This model is trained using the dataset from
+https://keithito.com/LJ-Speech-Dataset/
+
+The dataset contains only 1 female speaker.
+
+You can find the training code at
+https://github.com/k2-fsa/icefall/tree/master/egs/ljspeech/TTS#matcha
+EOF
+
+  ls -lh
+
+  popd
+
+  tar cvjf $d.tar.bz2 $d
+  mv $d.tar.bz2 /icefall
+  mv $d /icefall
 }
 
 prepare_data
@@ -118,3 +154,4 @@ infer
 export_onnx
 
 rm -rfv generator_v* matcha/exp
+git checkout .

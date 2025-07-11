@@ -2,17 +2,17 @@ import datetime as dt
 import math
 import random
 
-import matcha.monotonic_align as monotonic_align
+import monotonic_align as monotonic_align
 import torch
-from matcha.model import (
+from model import (
     denormalize,
     duration_loss,
     fix_len_compatibility,
     generate_path,
     sequence_mask,
 )
-from matcha.models.components.flow_matching import CFM
-from matcha.models.components.text_encoder import TextEncoder
+from models.components.flow_matching import CFM
+from models.components.text_encoder import TextEncoder
 
 
 class MatchaTTS(torch.nn.Module):  # 🍵

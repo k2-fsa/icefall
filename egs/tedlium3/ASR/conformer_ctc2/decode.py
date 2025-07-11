@@ -675,7 +675,7 @@ def main() -> None:
         H = None
         bpe_model = None
         HLG = k2.Fsa.from_dict(
-            torch.load(f"{params.lang_dir}/HLG.pt", map_location=device)
+            torch.load(f"{params.lang_dir}/HLG.pt", map_location=device, weights_only=False)
         )
         assert HLG.requires_grad is False
 
@@ -687,7 +687,7 @@ def main() -> None:
 
         if params.lm_path.is_file() and params.lm_path.suffix == ".pt":
             logging.info(f"Loading pre-compiled {params.lm_path.name}")
-            d = torch.load(params.lm_path, map_location=device)
+            d = torch.load(params.lm_path, map_location=device, weights_only=False)
             G = k2.Fsa.from_dict(d)
         elif not params.lm_path.is_file() and params.lm_path.suffix == ".txt":
             raise FileNotFoundError(f"No such language model file: '{params.lm_path}'")

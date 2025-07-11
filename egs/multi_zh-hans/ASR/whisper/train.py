@@ -809,7 +809,7 @@ def run(rank, world_size, args):
     del model.alignment_heads
 
     if params.pretrained_model_path:
-        checkpoint = torch.load(params.pretrained_model_path, map_location="cpu")
+        checkpoint = torch.load(params.pretrained_model_path, map_location="cpu", weights_only=False)
         if "model" not in checkpoint:
             model.load_state_dict(checkpoint, strict=True)
         else:

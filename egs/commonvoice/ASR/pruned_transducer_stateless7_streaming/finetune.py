@@ -90,6 +90,7 @@ from icefall.utils import (
     filter_uneven_sized_batch,
     setup_logger,
     str2bool,
+    torch_autocast,
 )
 
 LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
@@ -626,7 +627,7 @@ def load_model_params(
 
     """
     logging.info(f"Loading checkpoint from {ckpt}")
-    checkpoint = torch.load(ckpt, map_location="cpu")
+    checkpoint = torch.load(ckpt, map_location="cpu", weights_only=False)
 
     # if module list is empty, load the whole model from ckpt
     if not init_modules:
@@ -895,7 +896,7 @@ def train_one_epoch(
         batch_size = len(batch["supervisions"]["text"])
 
         try:
-            with torch.cuda.amp.autocast(enabled=params.use_fp16):
+            with torch_autocast(enabled=params.use_fp16):
                 loss, loss_info = compute_loss(
                     params=params,
                     model=model,
@@ -1293,7 +1294,7 @@ def scan_pessimistic_batches_for_oom(
     for criterion, cuts in batches.items():
         batch = train_dl.dataset[cuts]
         try:
-            with torch.cuda.amp.autocast(enabled=params.use_fp16):
+            with torch_autocast(enabled=params.use_fp16):
                 loss, _ = compute_loss(
                     params=params,
                     model=model,

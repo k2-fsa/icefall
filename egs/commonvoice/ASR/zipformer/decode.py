@@ -987,7 +987,7 @@ def main():
             lg_filename = params.lang_dir / "LG.pt"
             logging.info(f"Loading {lg_filename}")
             decoding_graph = k2.Fsa.from_dict(
-                torch.load(lg_filename, map_location=device)
+                torch.load(lg_filename, map_location=device, weights_only=False)
             )
             decoding_graph.scores *= params.ngram_lm_scale
         else:

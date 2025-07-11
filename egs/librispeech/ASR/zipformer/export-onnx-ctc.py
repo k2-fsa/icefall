@@ -153,6 +153,13 @@ def get_parser():
         help="The context size in the decoder. 1 means bigram; 2 means tri-gram",
     )
 
+    parser.add_argument(
+        "--fp16",
+        type=str2bool,
+        default=False,
+        help="Whether to export models in fp16",
+    )
+
     add_model_arguments(parser)
 
     return parser
@@ -174,6 +181,15 @@ def add_meta_data(filename: str, meta_data: Dict[str, str]):
         meta.value = value
 
     onnx.save(model, filename)
+
+
+def export_onnx_fp16(onnx_fp32_path, onnx_fp16_path):
+    import onnxmltools
+    from onnxmltools.utils.float16_converter import convert_float_to_float16
+
+    onnx_fp32_model = onnxmltools.utils.load_model(onnx_fp32_path)
+    onnx_fp16_model = convert_float_to_float16(onnx_fp32_model, keep_io_types=True)
+    onnxmltools.utils.save_model(onnx_fp16_model, onnx_fp16_path)
 
 
 class OnnxModel(nn.Module):
@@ -407,7 +423,7 @@ def main():
     opset_version = 13
 
     logging.info("Exporting ctc model")
-    filename = params.exp_dir / f"model.onnx"
+    filename = params.exp_dir / "model.onnx"
     export_ctc_model_onnx(
         model,
         filename,
@@ -420,13 +436,17 @@ def main():
 
     logging.info("Generate int8 quantization models")
 
-    filename_int8 = params.exp_dir / f"model.int8.onnx"
+    filename_int8 = params.exp_dir / "model.int8.onnx"
     quantize_dynamic(
         model_input=filename,
         model_output=filename_int8,
         op_types_to_quantize=["MatMul"],
         weight_type=QuantType.QInt8,
     )
+
+    if params.fp16:
+        filename_fp16 = params.exp_dir / "model.fp16.onnx"
+        export_onnx_fp16(filename, filename_fp16)
 
 
 if __name__ == "__main__":

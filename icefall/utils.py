@@ -26,6 +26,7 @@ import pathlib
 import random
 import re
 import subprocess
+import warnings
 from collections import defaultdict
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -42,6 +43,7 @@ import torch
 import torch.distributed as dist
 import torch.nn as nn
 from lhotse.dataset.signal_transforms import time_warp as time_warp_impl
+from packaging import version
 from pypinyin import lazy_pinyin, pinyin
 from pypinyin.contrib.tone_convert import to_finals, to_finals_tone, to_initials
 from torch.utils.tensorboard import SummaryWriter
@@ -49,6 +51,48 @@ from torch.utils.tensorboard import SummaryWriter
 from icefall.checkpoint import average_checkpoints
 
 Pathlike = Union[str, Path]
+
+TORCH_VERSION = version.parse(torch.__version__)
+
+
+def create_grad_scaler(device="cuda", **kwargs):
+    """
+    Creates a GradScaler compatible with both torch < 2.3.0 and >= 2.3.0.
+    Accepts all kwargs like: enabled, init_scale, growth_factor, etc.
+
+    /icefall/egs/librispeech/ASR/./zipformer/train.py:1451: FutureWarning:
+    `torch.cuda.amp.GradScaler(args...)` is deprecated. Please use
+    `torch.amp.GradScaler('cuda', args...)` instead.
+    """
+    if TORCH_VERSION >= version.parse("2.3.0"):
+        from torch.amp import GradScaler
+
+        return GradScaler(device=device, **kwargs)
+    else:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=FutureWarning)
+            return torch.cuda.amp.GradScaler(**kwargs)
+
+
+@contextmanager
+def torch_autocast(device_type="cuda", **kwargs):
+    """
+    To fix the following warnings:
+    /icefall/egs/librispeech/ASR/zipformer/model.py:323:
+    FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated.
+    Please use `torch.amp.autocast('cuda', args...)` instead.
+      with torch.cuda.amp.autocast(enabled=False):
+    """
+    if TORCH_VERSION >= version.parse("2.3.0"):
+        # Use new unified API
+        with torch.amp.autocast(device_type=device_type, **kwargs):
+            yield
+    else:
+        # Suppress deprecation warning and use old CUDA-specific autocast
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=FutureWarning)
+            with torch.cuda.amp.autocast(**kwargs):
+                yield
 
 
 # Pytorch issue: https://github.com/pytorch/pytorch/issues/47379
@@ -186,7 +230,7 @@ class AttributeDict(dict):
         tmp = {}
         for k, v in self.items():
             # PosixPath is ont JSON serializable
-            if isinstance(v, pathlib.Path) or isinstance(v, torch.device):
+            if isinstance(v, (pathlib.Path, torch.device, torch.dtype)):
                 v = str(v)
             tmp[k] = v
         return json.dumps(tmp, indent=indent, sort_keys=True)
@@ -505,7 +549,7 @@ def load_alignments(filename: str) -> Tuple[int, Dict[str, List[int]]]:
         - alignments: A dict containing utterances and their corresponding
           framewise alignment, after subsampling.
     """
-    ali_dict = torch.load(filename)
+    ali_dict = torch.load(filename, weights_only=False)
     subsampling_factor = ali_dict["subsampling_factor"]
     alignments = ali_dict["alignments"]
     return subsampling_factor, alignments
@@ -1551,6 +1595,7 @@ def optim_step_and_measure_param_change(
     and the L2 norm of the original parameter. It is given by the formula:
 
         .. math::
+
             \begin{aligned}
                 \delta = \frac{\Vert\theta - \theta_{new}\Vert^2}{\Vert\theta\Vert^2}
             \end{aligned}
@@ -1756,6 +1801,30 @@ def tokenize_by_CJK_char(line: str) -> str:
     )
     chars = pattern.split(line.strip().upper())
     return " ".join([w.strip() for w in chars if w.strip()])
+
+
+def tokenize_by_ja_char(line: str) -> str:
+    """
+    Tokenize a line of text with Japanese characters.
+
+    Note: All non-Japanese characters will be upper case.
+
+    Example:
+      input = "こんにちは世界は hello world の日本語"
+      output = "こ ん に ち は 世 界 は HELLO WORLD の 日 本 語"
+
+    Args:
+      line:
+        The input text.
+
+    Return:
+      A new string tokenized by Japanese characters.
+    """
+    pattern = re.compile(r"([\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF])")
+    chars = pattern.split(line.strip())
+    return " ".join(
+        [w.strip().upper() if not pattern.match(w) else w for w in chars if w.strip()]
+    )
 
 
 def display_and_save_batch(

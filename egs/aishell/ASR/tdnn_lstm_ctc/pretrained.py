@@ -139,13 +139,13 @@ def main():
         subsampling_factor=params.subsampling_factor,
     )
 
-    checkpoint = torch.load(args.checkpoint, map_location="cpu")
+    checkpoint = torch.load(args.checkpoint, map_location="cpu", weights_only=False)
     model.load_state_dict(checkpoint["model"])
     model.to(device)
     model.eval()
 
     logging.info(f"Loading HLG from {params.HLG}")
-    HLG = k2.Fsa.from_dict(torch.load(params.HLG, map_location="cpu"))
+    HLG = k2.Fsa.from_dict(torch.load(params.HLG, map_location="cpu", weights_only=False))
     HLG = HLG.to(device)
     if not hasattr(HLG, "lm_scores"):
         # For whole-lattice-rescoring and attention-decoder

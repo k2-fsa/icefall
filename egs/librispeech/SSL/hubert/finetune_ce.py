@@ -81,6 +81,7 @@ from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
 from icefall.hooks import register_inf_check_hooks
 from icefall.utils import (
+    torch_autocast,
     AttributeDict,
     MetricsTracker,
     get_parameter_groups_with_lrs,
@@ -450,7 +451,7 @@ def _to_int_tuple(s: str):
 def get_encoder_model(params: AttributeDict) -> nn.Module:
     if hasattr(params, "pretrained_dir"):
         logging.info(f"Loading {params.pretrained_dir}")
-        pretrained = torch.load(params.pretrained_dir)
+        pretrained = torch.load(params.pretrained_dir, weights_only=False)
         encoder = HubertModel(params)
         encoder.load_state_dict(pretrained["model"])
     else:
@@ -816,7 +817,7 @@ def train_one_epoch(
         batch_size = len(batch["supervisions"]["text"])
 
         try:
-            with torch.cuda.amp.autocast(enabled=params.use_fp16):
+            with torch_autocast(enabled=params.use_fp16):
                 loss, loss_info = compute_loss(
                     params=params,
                     model=model,
@@ -1207,7 +1208,7 @@ def scan_pessimistic_batches_for_oom(
     for criterion, cuts in batches.items():
         batch = train_dl.dataset[cuts]
         try:
-            with torch.cuda.amp.autocast(enabled=params.use_fp16):
+            with torch_autocast(enabled=params.use_fp16):
                 loss, _ = compute_loss(
                     params=params,
                     model=model,

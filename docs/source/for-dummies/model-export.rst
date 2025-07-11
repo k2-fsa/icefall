@@ -41,7 +41,7 @@ To give you an idea of what ``tdnn/exp/pretrained.pt`` contains, we can use the 
 .. code-block:: python3
 
     >>> import torch
-    >>> m = torch.load("tdnn/exp/pretrained.pt")
+    >>> m = torch.load("tdnn/exp/pretrained.pt", weights_only=False)
     >>> list(m.keys())
     ['model']
     >>> list(m["model"].keys())
