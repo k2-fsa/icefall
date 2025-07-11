@@ -80,17 +80,23 @@ if __name__ == "__main__":
 
     musan_manifest_path = multi_recipe_manifests_root / "musan" / "musan_cuts.jsonl.gz"
     if musan_manifest_path.exists():
-       logger.info(f"Processing musan manifest: {musan_manifest_path}")
-       try:
+        logger.info(f"Processing musan manifest: {musan_manifest_path}")
+        try:
            musan_cuts = load_manifest(musan_manifest_path)
            updated_musan_cuts = update_paths(
                    musan_cuts,
                    "musan",
                    old_feature_prefix=original_feature_base_path
                    )
+           # Make sure we're overwriting the correct path even if it's a symlink
+           if musan_manifest_path.is_symlink() or musan_manifest_path.exists():
+               logger.info(f"Overwriting existing musan manifest at: {musan_manifest_path}")
+               os.unlink(musan_manifest_path)
+
            updated_musan_cuts.to_file(musan_manifest_path)
-           logger.info(f"Updated musan cuts saved to: {musan_manifest_path}")
-       except Exception as e:
+           logger.info(f"Updated musan cuts written to: {musan_manifest_path}")
+
+        except Exception as e:
            logger.error(f"Error processing musan manifest {musan_manifest_path}: {e}", exc_info=True)
     else:
         logger.warning(f"Musan manifest not found at {musan_manifest_path}, skipping.")
