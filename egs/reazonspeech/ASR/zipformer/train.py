@@ -1221,9 +1221,12 @@ def run(rank, world_size, args):
         sampler_state_dict = None
 
     if args.enable_musan:
-        cuts_musan = load_manifest(Path(args.manifest_dir) / "musan_cuts.jsonl.gz")
-    else:
-        cuts_musan = None
+        musan_path = Path(args.manifest_dir) / "musan_cuts.jsonl.gz"
+        if musan_path.exists():
+            cuts_musan = load_manifest(musan_path)
+            logging.info(f"Loaded MUSAN manifest from {musan_path}")
+        else:
+            cuts_musan = None
 
     train_dl = reazonspeech_corpus.train_dataloaders(
         train_cuts, 
