@@ -1227,6 +1227,8 @@ def run(rank, world_size, args):
             logging.info(f"Loaded MUSAN manifest from {musan_path}")
         else:
             cuts_musan = None
+    else:
+        cuts_musan = None
 
     train_dl = reazonspeech_corpus.train_dataloaders(
         train_cuts, 
