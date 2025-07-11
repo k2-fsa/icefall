@@ -1226,6 +1226,7 @@ def run(rank, world_size, args):
             cuts_musan = load_manifest(musan_path)
             logging.info(f"Loaded MUSAN manifest from {musan_path}")
         else:
+            logging.warning(f"MUSAN manifest not found at {musan_path}, disabling MUSAN augmentation")
             cuts_musan = None
     else:
         cuts_musan = None
