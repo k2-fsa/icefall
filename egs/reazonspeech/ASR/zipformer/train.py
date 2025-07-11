@@ -68,6 +68,7 @@ from joiner import Joiner
 from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
+from lhotse import load_manifest
 from model import AsrModel
 from optim import Eden, ScaledAdam
 from scaling import ScheduledFloat
@@ -1219,8 +1220,20 @@ def run(rank, world_size, args):
     else:
         sampler_state_dict = None
 
+    if args.enable_musan:
+        musan_path = Path(args.manifest_dir) / "musan_cuts.jsonl.gz"
+        if musan_path.exists():
+            cuts_musan = load_manifest(musan_path)
+            logging.info(f"Loaded MUSAN manifest from {musan_path}")
+        else:
+            cuts_musan = None
+    else:
+        cuts_musan = None
+
     train_dl = reazonspeech_corpus.train_dataloaders(
-        train_cuts, sampler_state_dict=sampler_state_dict
+        train_cuts, 
+        sampler_state_dict=sampler_state_dict, 
+        cuts_musan=cuts_musan,
     )
 
     valid_cuts = reazonspeech_corpus.valid_cuts()
