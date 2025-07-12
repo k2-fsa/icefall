@@ -534,19 +534,21 @@ def ScaledConv2d(*args, initial_scale: float = 1.0, **kwargs) -> nn.Conv2d:
     return ans
 
 
-def predict_loss(x: Tensor, predictor: nn.Module, proj_weight: Tensor, name: str,
+def predict_loss(x: Tensor, predictor: nn.Module, proj_weight: Tensor,
+                 batch_dim: int, name: str,
                  mask: Optional[Tensor]) -> Tensor:
-    batch_size = x.shape[1]
+    # caution: now require input to be either (batch, seq, channel) or (seq, batch, channel)
+    batch_size = x.shape[batch_dim]
 
     if batch_size % 2 != 0:
         assert (not x.requires_grad), "PredictLoss must be used with CR-CTC or similar thing that repeats batch with different augmentation."
         return torch.tensor(0.0, device=x.device)
 
     def mean_and_variance_norm(x):
-        mean = x.mean(dim=(0, 1), keepdim=True)   # mean on sequence and batch dim
-        x = x - 1.5 * mean
+        mean = x.mean(dim=(0,1), keepdim=True)
+        x = x - 1.5 * mean  # over-normalization.
         eps = 1.0e-08
-        stddev = ((x ** 2).mean(dim=(0,1)) + eps).sqrt()
+        stddev = ((x ** 2).mean(dim=(0, 1)) + eps).sqrt()
         x = x / stddev
         return x
 
@@ -560,8 +562,9 @@ def predict_loss(x: Tensor, predictor: nn.Module, proj_weight: Tensor, name: str
         indexes = torch.max(x_proj, dim=-1)[1]
 
 
-    indexes = torch.roll(indexes, batch_size // 2, 1)  # predict index of the other masked copy.
-    logprobs = predictor(x)
+    indexes = torch.roll(indexes, batch_size // 2, batch_dim)  # predict index of the other masked copy.
+    x_pred = predictor(x)
+    logprobs = x_pred.log_softmax(dim=-1)
     loss = -torch.gather(logprobs, dim=-1, index=indexes.unsqueeze(-1))
 
     if random.random() < 0.002:
@@ -572,45 +575,10 @@ def predict_loss(x: Tensor, predictor: nn.Module, proj_weight: Tensor, name: str
         # we also swap the mask over the two copies of the data; the mask goes with the thing that
         # is predicted, not the thing we predict it from.. the idea being that we don't want to ask
         # the model to predict masked portions of the time sequence.
-        mask = torch.roll(mask, batch_size // 2, 1)
+        mask = torch.roll(mask, batch_size // 2, batch_dim)
         loss = loss * mask.unsqueeze(-1)
 
     return loss.sum()  # we reduce with sum in what we return.
-
-class Predictor(nn.Module):
-    """
-    A simple feedforward module used in PredictLoss to predict codebook entries derived from the other copy of the data's
-    embeddings.
-    """
-    def __init__(self,
-                 num_channels: int,
-                 num_hidden: int,
-                 codebook_size: int):
-        super().__init__()
-        self.in_proj = nn.Linear(num_channels, num_hidden)
-        self.self_mean_proj = nn.Linear(num_channels, num_hidden)
-        self.other_mean_proj = nn.Linear(num_channels, num_hidden)
-        self.activation = SwashR()
-        self.out_proj = nn.Linear(num_hidden, codebook_size)
-
-    def forward(self,
-                x: Tensor):
-        """
-        Args:
-            x: (seq_len, batch_size, num_channels), batch_size must be even.
-        Returns:
-            normalized codebook logprobs, dim: (seq_len, batch_size, codebook_size)
-        """
-        (seq_len, batch_size, num_channels) = x.shape
-        assert batch_size % 2 == 0
-        x_mean = x.mean(dim=0, keepdim=True)
-        # I am cautious about providing the other mean non-detached..
-        x_mean_swapped = x_mean.detach().roll(batch_size // 2, 1)
-        x = self.in_proj(x) + self.self_mean_proj(x_mean) + self.other_mean_proj(x_mean_swapped)
-        x = self.activation(x)
-        x = self.out_proj(x)
-        x = x.log_softmax(dim=-1)
-        return x
 
 class PredictLoss(nn.Module):
     """
@@ -621,6 +589,7 @@ class PredictLoss(nn.Module):
     """
     def __init__(self,
                  num_channels: int,
+                 batch_dim: int = 0,
                  codebook_size: int = 64):
         super().__init__()
         scale = num_channels ** -0.5
@@ -628,18 +597,18 @@ class PredictLoss(nn.Module):
                              scale * torch.randn(codebook_size, num_channels),
                              persistent=True)
         num_hidden = max(1024, num_channels)
-        # num_channels * 2 because we also provide the sequence-level difference
-        # in means between the two copies, detached, to help it normalize
-        # for things like differences in frequency masks and volume.
-        self.predictor = Predictor(num_channels, num_hidden, codebook_size)
+        self.predictor = nn.Sequential(nn.Linear(num_channels, num_hidden),
+                                       SwashR(),
+                                       nn.Linear(num_hidden, codebook_size))
+        self.batch_dim = batch_dim
         self.name = None # will be set from training code
 
     def forward(self,
                 x: Tensor, mask: Optional[Tensor] = None) -> Tensor:
-        # x is of shape (seq_len, batch_size, num_channels); mask is of shape (seq_len, batch_size), i.e.
+        # x is of shape (..., num_channels); mask is of shape (...), i.e.
         # it matches x except is missing the last dim.
         return predict_loss(x, self.predictor, self.proj_weight,
-                            self.name, mask)
+                            self.batch_dim, self.name, mask)
 
 
 
