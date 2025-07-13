@@ -610,6 +610,11 @@ class PredictorConvModule(nn.Module):
             hidden_channels,
         )
 
+        self.bypass_proj = nn.Linear(
+            channels,
+            out_channels,
+        )
+
         self.depthwise_conv = nn.Conv1d(
             in_channels=hidden_channels,
             out_channels=hidden_channels,
@@ -630,11 +635,12 @@ class PredictorConvModule(nn.Module):
         self,
         x: Tensor,
     ) -> Tensor:
+        bypass = self.bypass_proj(x)
         x = self.in_proj(x)  # (time, batch, 2*channels)
         x = x.permute(1, 2, 0)  # (#batch, channels, time).
         x = self.depthwise_conv(x)
         x = x.permute(2, 0, 1)  # (time, batch, channels)
-        x = self.out_proj(x) # includes activation.
+        x = bypass + self.out_proj(x) # includes activation.
         return x
 
 
@@ -654,7 +660,7 @@ class PredictLoss(nn.Module):
         self.register_buffer('proj_weight',
                              scale * torch.randn(codebook_size, num_channels),
                              persistent=True)
-        num_hidden = max(512, num_channels)
+        num_hidden = max(1024, num_channels)
         kernel_size = 7
         self.predictor = PredictorConvModule(num_channels, num_hidden, kernel_size, codebook_size)
 
