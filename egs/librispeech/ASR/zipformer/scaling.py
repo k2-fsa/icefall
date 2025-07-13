@@ -662,8 +662,8 @@ class PredictLoss(nn.Module):
 
     def forward(self,
                 x: Tensor, mask: Optional[Tensor] = None) -> Tensor:
-        # x is of shape (..., num_channels); mask is of shape (...), i.e.
-        # it matches x except is missing the last dim.
+        # x is of shape (seq_len, batch_size, num_channels); mask is of shape
+        # (seq_len, batch_size), with True for *non*-masked positions.
         return predict_loss(x, self.predictor, self.proj_weight,
                             self.name, mask)
 
