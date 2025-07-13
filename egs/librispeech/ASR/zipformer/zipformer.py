@@ -756,7 +756,7 @@ dropout:
             grad_scale=0.025,
         )
 
-        self.predict_loss = PredictLoss(dim, batch_dim=1)
+        self.predict_loss = PredictLoss(dim)
 
 
     def forward(

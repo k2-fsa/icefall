@@ -535,10 +535,10 @@ def ScaledConv2d(*args, initial_scale: float = 1.0, **kwargs) -> nn.Conv2d:
 
 
 def predict_loss(x: Tensor, predictor: nn.Module, proj_weight: Tensor,
-                 batch_dim: int, name: str,
+                 name: str,
                  mask: Optional[Tensor]) -> Tensor:
-    # caution: now require input to be either (batch, seq, channel) or (seq, batch, channel)
-    batch_size = x.shape[batch_dim]
+    # caution: now require input to be (seq, batch, channel)
+    batch_size = x.shape[1]
 
     if batch_size % 2 != 0:
         assert (not x.requires_grad), "PredictLoss must be used with CR-CTC or similar thing that repeats batch with different augmentation."
@@ -562,7 +562,7 @@ def predict_loss(x: Tensor, predictor: nn.Module, proj_weight: Tensor,
         indexes = torch.max(x_proj, dim=-1)[1]
 
 
-    indexes = torch.roll(indexes, batch_size // 2, batch_dim)  # predict index of the other masked copy.
+    indexes = torch.roll(indexes, batch_size // 2, 1)
     x_pred = predictor(x)
     logprobs = x_pred.log_softmax(dim=-1)
     loss = -torch.gather(logprobs, dim=-1, index=indexes.unsqueeze(-1))
@@ -575,10 +575,69 @@ def predict_loss(x: Tensor, predictor: nn.Module, proj_weight: Tensor,
         # we also swap the mask over the two copies of the data; the mask goes with the thing that
         # is predicted, not the thing we predict it from.. the idea being that we don't want to ask
         # the model to predict masked portions of the time sequence.
-        mask = torch.roll(mask, batch_size // 2, batch_dim)
+        mask = torch.roll(mask, batch_size // 2, 1)
         loss = loss * mask.unsqueeze(-1)
 
     return loss.sum()  # we reduce with sum in what we return.
+
+
+class PredictorConvModule(nn.Module):
+    """A convolution module with a residual connecction, modified from ConvolutionModule in Zipformer2, that is used as
+    the predictor network in class Predictor.  The input format is (seq, batch, channels).
+
+    Modified from https://github.com/espnet/espnet/blob/master/espnet/nets/pytorch_backend/zipformer/convolution.py
+
+    Args:
+        channels (int): The number of channels of conv layers.
+        kernel_size (int): Kernerl size of conv layers.
+        bias (bool): Whether to use bias in conv layers (default=True).
+
+    """
+
+    def __init__(
+        self,
+        channels: int,
+        hidden_channels: int,
+        kernel_size: int,
+        out_channels: int,
+    ) -> None:
+        """Construct a ConvolutionModule object."""
+        super().__init__()
+        assert (kernel_size - 1) % 2 == 0
+
+        self.in_proj = nn.Linear(
+            channels,
+            hidden_channels,
+        )
+
+        self.depthwise_conv = nn.Conv1d(
+            in_channels=hidden_channels,
+            out_channels=hidden_channels,
+            groups=hidden_channels,
+            kernel_size=kernel_size,
+            padding=kernel_size // 2,
+        )
+
+        self.out_proj = ActivationDropoutAndLinear(
+            hidden_channels,
+            out_channels,
+            activation="SwashR",
+            dropout_p=0.0,
+            initial_scale=0.05,
+        )
+
+    def forward(
+        self,
+        x: Tensor,
+    ) -> Tensor:
+        x = self.in_proj(x)  # (time, batch, 2*channels)
+        x = x.permute(1, 2, 0)  # (#batch, channels, time).
+        x = self.depthwise_conv(x)
+        x = x.permute(2, 0, 1)  # (time, batch, channels)
+        x = self.out_proj(x) # includes activation.
+        return x
+
+
 
 class PredictLoss(nn.Module):
     """
@@ -589,18 +648,16 @@ class PredictLoss(nn.Module):
     """
     def __init__(self,
                  num_channels: int,
-                 batch_dim: int = 0,
                  codebook_size: int = 64):
         super().__init__()
         scale = num_channels ** -0.5
         self.register_buffer('proj_weight',
                              scale * torch.randn(codebook_size, num_channels),
                              persistent=True)
-        num_hidden = max(1024, num_channels)
-        self.predictor = nn.Sequential(nn.Linear(num_channels, num_hidden),
-                                       SwashR(),
-                                       nn.Linear(num_hidden, codebook_size))
-        self.batch_dim = batch_dim
+        num_hidden = max(512, num_channels)
+        kernel_size = 7
+        self.predictor = PredictorConvModule(num_channels, num_hidden, kernel_size, codebook_size)
+
         self.name = None # will be set from training code
 
     def forward(self,
@@ -608,7 +665,7 @@ class PredictLoss(nn.Module):
         # x is of shape (..., num_channels); mask is of shape (...), i.e.
         # it matches x except is missing the last dim.
         return predict_loss(x, self.predictor, self.proj_weight,
-                            self.batch_dim, self.name, mask)
+                            self.name, mask)
 
 
 
