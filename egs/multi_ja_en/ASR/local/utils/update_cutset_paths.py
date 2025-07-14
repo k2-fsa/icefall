@@ -37,7 +37,6 @@ def update_paths(cuts: CutSet, dataset_name: str, old_feature_prefix: str = "dat
                     original_storage_path.parts[0] == old_feature_prefix.split(os.sep)[0] and \
                     original_storage_path.parts[1] == old_feature_prefix.split(os.sep)[1] and \
                     not original_storage_path.parts[2].startswith(dataset_name): # Assumes dataset_name does not start with feats_
-
                         # This gives us 'feats_train/feats-12.lca'
                 # It's important to be robust to potentially different original prefixes
                 # So we take the part of the path *after* the `old_feature_prefix`
@@ -51,12 +50,14 @@ def update_paths(cuts: CutSet, dataset_name: str, old_feature_prefix: str = "dat
                     continue
 
                 # Construct the new path: data/manifests/<dataset_name>/feats_train/feats-12.lca
-                new_storage_path = Path(old_feature_prefix) / dataset_name / relative_path_from_old_prefix
-                # cut = cut.with_features(cut.features.with_path(str(new_storage_path)))
-                cut.features.storage_path = str(new_storage_path)
+                new_storage_path = Path("data/manifests") / dataset_name / relative_path_from_old_prefix
+                cut = cut.with_features(cut.features.with_path(str(new_storage_path)))
+                # cut.features.storage_path = str(new_storage_path)
             updated_cuts.append(cut)
         else:
             updated_cuts.append(cut) # No features, or not a path we need to modify
+            logger.warning(f"Skipping update for: {original_storage_path}")
+
     return CutSet.from_cuts(updated_cuts)
 
 if __name__ == "__main__":
@@ -67,7 +68,6 @@ if __name__ == "__main__":
     dataset_manifest_prefixes = {
             "reazonspeech": "reazonspeech_cuts",
             "mls_english": "mls_eng_cuts",
-            "musan": "musan_cuts",
             }
 
     splits = ["train", "dev", "test"]
@@ -86,7 +86,7 @@ if __name__ == "__main__":
            updated_musan_cuts = update_paths(
                    musan_cuts,
                    "musan",
-                   old_feature_prefix=original_feature_base_path
+                   old_feature_prefix="data/fbank"
                    )
            # Make sure we're overwriting the correct path even if it's a symlink
            if musan_manifest_path.is_symlink() or musan_manifest_path.exists():
