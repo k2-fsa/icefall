@@ -7,8 +7,8 @@ from lhotse import CutSet, load_manifest
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def update_paths(cuts: CutSet, dataset_name: str, old_feature_prefix: str = "data/manifests"):
-    """
+def update_paths(cuts: CutSet, dataset_name: str, old_feature_prefix: str) -> CutSet:
+"""
     Updates the storage_path in a CutSet's features to reflect the new dataset-specific
     feature directory structure.
 
@@ -19,44 +19,33 @@ def update_paths(cuts: CutSet, dataset_name: str, old_feature_prefix: str = "dat
         old_feature_prefix: The prefix that the original feature paths were relative to.
                             This typically corresponds to the root of the manifests dir
                             in the original recipe.
-    """
+"""
     updated_cuts = []
     for cut in cuts:
         if cut.features is not None:
             original_storage_path = Path(cut.features.storage_path)
+            try:
+                relative_path = original_storage_path.relative_to(old_feature_prefix)
+            except ValueError:
+				# If for some reason the path doesn't start with old_feature_prefix,
+				# keep it as is. This can happen if some paths are already absolute or different.
+				logger.warning(f"Feature path '{original_storage_path}' does not start with '{old_feature_prefix}'. Skipping update for this cut.")                
+                updated_cuts.append(cut)
+                continue
 
-            # Check if the path needs updating, i.e., if it's still pointing to the old flat structure
-            # and isn't already pointing to the new dataset-specific structure.
-            # We assume old_feature_prefix is 'data/manifests'
-            # and original_storage_path looks like 'data/manifests/feats_train/feats-12.lca'
-            # We want to change it to 'data/manifests/<dataset_name>/feats_train/feats-12.lca'
-
-            # The check `original_storage_path.parts[1]` ensures it's indeed under 'manifests' and not already processed.
-            # And `not original_storage_path.parts[2].startswith(dataset_name)` ensures we don't re-process.
-            if len(original_storage_path.parts) >= 3 and \
-                    original_storage_path.parts[0] == old_feature_prefix.split(os.sep)[0] and \
-                    original_storage_path.parts[1] == old_feature_prefix.split(os.sep)[1] and \
-                    not original_storage_path.parts[2].startswith(dataset_name): # Assumes dataset_name does not start with feats_
-                        # This gives us 'feats_train/feats-12.lca'
-                # It's important to be robust to potentially different original prefixes
-                # So we take the part of the path *after* the `old_feature_prefix`
-                try:
-                    relative_path_from_old_prefix = original_storage_path.relative_to(old_feature_prefix)
-                except ValueError:
-                    # If for some reason the path doesn't start with old_feature_prefix,
-                    # keep it as is. This can happen if some paths are already absolute or different.
-                    logger.warning(f"Feature path '{original_storage_path}' does not start with '{old_feature_prefix}'. Skipping update for this cut.")
-                    updated_cuts.append(cut)
-                    continue
-
-                # Construct the new path: data/manifests/<dataset_name>/feats_train/feats-12.lca
-                new_storage_path = Path("data/manifests") / dataset_name / relative_path_from_old_prefix
-                cut = cut.with_features(cut.features.with_path(str(new_storage_path)))
-                # cut.features.storage_path = str(new_storage_path)
+            # Avoid double-nesting (e.g., reazonspeech/reazonspeech/...)
+            # Construct the new path: data/manifests/<dataset_name>/feats_train/feats-12.lca
+			if relative_path.parts[0] == dataset_name:
+                    new_storage_path = Path("data/manifests") / relative_path
+            else:
+                    new_storage_path = Path("data/manifests") / dataset_name / relative_path
+            
+            logger.info(f"Updating cut {cut.id}: {original_storage_path} → {new_storage_path}")
+            cut.features.storage_path = str(new_storage_path)
             updated_cuts.append(cut)
         else:
+            logger.warning(f"Skipping update for cut {cut.id}: has no features.")
             updated_cuts.append(cut) # No features, or not a path we need to modify
-            logger.warning(f"Skipping update for: {original_storage_path}")
 
     return CutSet.from_cuts(updated_cuts)
 
