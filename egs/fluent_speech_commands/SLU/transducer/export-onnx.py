@@ -276,20 +276,20 @@ def main():
 
     logging.info("Exporting encoder")
     encoder_filename = params.exp_dir / "encoder.onnx"
-    #  export_encoder_model_onnx(
-    #      encoder,
-    #      encoder_filename,
-    #      opset_version=opset_version,
-    #  )
+    export_encoder_model_onnx(
+        encoder,
+        encoder_filename,
+        opset_version=opset_version,
+    )
     logging.info(f"Exported encoder to {encoder_filename}")
 
     logging.info("Exporting decoder")
     decoder_filename = params.exp_dir / "decoder.onnx"
-    #  export_decoder_model_onnx(
-    #      model.decoder,
-    #      decoder_filename,
-    #      opset_version=opset_version,
-    #  )
+    export_decoder_model_onnx(
+        model.decoder,
+        decoder_filename,
+        opset_version=opset_version,
+    )
     logging.info(f"Exported decoder to {decoder_filename}")
 
     logging.info("Exporting joiner")
