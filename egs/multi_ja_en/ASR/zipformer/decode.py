@@ -779,7 +779,7 @@ def main():
     # ]
 
     # for test_set, test_dl in zip(test_sets, test_dl):
-    logging.info("Start decoding test set")#: {test_set}")
+    logging.info("Start decoding test set")  #: {test_set}")
 
     results_dict = decode_dataset(
         dl=test_dl,
