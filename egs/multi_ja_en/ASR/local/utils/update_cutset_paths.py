@@ -8,7 +8,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 def update_paths(cuts: CutSet, dataset_name: str, old_feature_prefix: str) -> CutSet:
-"""
+    """
     Updates the storage_path in a CutSet's features to reflect the new dataset-specific
     feature directory structure.
 
