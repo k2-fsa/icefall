@@ -19,7 +19,7 @@ def update_paths(cuts: CutSet, dataset_name: str, old_feature_prefix: str) -> Cu
         old_feature_prefix: The prefix that the original feature paths were relative to.
                             This typically corresponds to the root of the manifests dir
                             in the original recipe.
-"""
+    """
     updated_cuts = []
     for cut in cuts:
         if cut.features is not None:
