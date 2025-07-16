@@ -302,13 +302,14 @@ class MultiDatasetAsrDataModule:
             logging.info("Loading sampler state dict")
             train_sampler.load_state_dict(sampler_state_dict)
 
-        seed = torch.randint(0, 100000, ()).item()
+        seed = 42
         worker_init_fn = _SeedWorkers(seed)
 
         train_dl = DataLoader(
             train,
             sampler=train_sampler,
             batch_size=None,
+            pin_memory=True,
             num_workers=self.args.num_workers,
             persistent_workers=True,
             worker_init_fn=worker_init_fn,
