@@ -46,7 +46,7 @@ def update_paths(cuts: CutSet, dataset_name: str, old_feature_prefix: str) -> Cu
             logger.info(
                 f"Updating cut {cut.id}: {original_storage_path} → {new_storage_path}"
             )
-            cut.features.storage_path = str(new_storage_path)
+            new_storage_path.as_posix()
             updated_cuts.append(cut)
         else:
             logger.warning(f"Skipping update for cut {cut.id}: has no features.")
