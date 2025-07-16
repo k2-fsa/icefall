@@ -15,7 +15,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
 import argparse
 import inspect
 import logging
@@ -23,6 +22,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import torch
 from lhotse import CutSet, Fbank, FbankConfig, load_manifest, load_manifest_lazy
 from lhotse.dataset import (
     CutConcatenate,
@@ -39,12 +39,14 @@ from torch.utils.data import DataLoader
 
 from icefall.utils import str2bool
 
+
 class _SeedWorkers:
     def __init__(self, seed: int):
         self.seed = seed
 
     def __call__(self, worker_id: int):
         fix_random_seed(self.seed + worker_id)
+
 
 class MultiDatasetAsrDataModule:
     """
@@ -202,15 +204,19 @@ class MultiDatasetAsrDataModule:
         if self.args.enable_musan:
             logging.info("Enable MUSAN")
             logging.info("About to get Musan cuts")
-            cuts_musan = load_manifest(self.args.manifest_dir / "musan/musan_cuts.jsonl.gz")
-            transforms.append(CutMix(cuts=cuts_musan, p=0.5, snr=(10,20), preserve_id=True))
+            cuts_musan = load_manifest(
+                self.args.manifest_dir / "musan/musan_cuts.jsonl.gz"
+            )
+            transforms.append(
+                CutMix(cuts=cuts_musan, p=0.5, snr=(10, 20), preserve_id=True)
+            )
         else:
             logging.info("Disable MUSAN")
 
         # Cut concatenation should be the first transform in the list,
         # so that if we e.g. mix noise in, it will fill the gaps between
         # different utterances.
-        
+
         if self.args.concatenate_cuts:
             logging.info(
                 f"Using cut concatenation with duration factor "
@@ -218,9 +224,10 @@ class MultiDatasetAsrDataModule:
             )
             transforms = [
                 CutConcatenate(
-                    duration_factor=self.args.duration_factor, gap=self.args.gap)
+                    duration_factor=self.args.duration_factor, gap=self.args.gap
+                )
             ] + transforms
-        
+
         if self.args.enable_spec_aug:
             logging.info("Enable SpecAugment")
             logging.info(f"Time warp factor: {self.args.spec_aug_time_warp_factor}")

@@ -213,7 +213,7 @@ def main():
     args = get_args()
     lang_dir = Path(args.lang_dir)
     model_file = lang_dir / "bbpe.model"
-    
+
     if not model_file.is_file():
         raise FileNotFoundError(f"BPE model not found at: {model_file}")
 
