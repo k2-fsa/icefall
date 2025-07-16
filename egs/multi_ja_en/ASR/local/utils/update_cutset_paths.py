@@ -55,9 +55,9 @@ if __name__ == "__main__":
 
     # Define the datasets and their *specific* manifest file prefixes
     dataset_manifest_prefixes = {
-            "reazonspeech": "reazonspeech_cuts",
-            "mls_english": "mls_eng_cuts",
-            }
+        "reazonspeech": "reazonspeech_cuts",
+        "mls_english": "mls_eng_cuts",
+    }
 
     splits = ["train", "dev", "test"]
 
