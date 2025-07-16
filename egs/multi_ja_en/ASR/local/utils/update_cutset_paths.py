@@ -73,10 +73,10 @@ if __name__ == "__main__":
         try:
            musan_cuts = load_manifest(musan_manifest_path)
            updated_musan_cuts = update_paths(
-                   musan_cuts,
-                   "musan",
-                   old_feature_prefix="data/fbank"
-                   )
+               musan_cuts,
+               "musan",
+               old_feature_prefix="data/fbank"
+           )
            # Make sure we're overwriting the correct path even if it's a symlink
            if musan_manifest_path.is_symlink() or musan_manifest_path.exists():
                logger.info(f"Overwriting existing musan manifest at: {musan_manifest_path}")
