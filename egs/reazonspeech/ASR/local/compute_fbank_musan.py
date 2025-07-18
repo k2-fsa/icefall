@@ -55,7 +55,9 @@ def is_cut_long(c: MonoCut) -> bool:
 
 
 def compute_fbank_musan(
-    num_mel_bins: int = 80, whisper_fbank: bool = False, output_dir: str = "data/manifests"
+    num_mel_bins: int = 80,
+    whisper_fbank: bool = False,
+    output_dir: str = "data/manifests",
 ):
     src_dir = Path("data/manifests")
     output_dir = Path(output_dir)
