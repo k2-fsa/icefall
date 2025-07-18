@@ -17,8 +17,16 @@ stop_stage=100
 #      You can find FLAC files in this directory.
 #      You can download them from https://huggingface.co/datasets/reazon-research/reazonspeech
 #
-#  - $dl_dir/dataset.json
+#  - $dl_dir/ReazonSpeech/dataset.json
 #      The metadata of the ReazonSpeech dataset.
+#
+#  - $dl_dir/musan
+#      This directory contains the following directories downloaded from
+#       http://www.openslr.org/17/
+#
+#     - music
+#     - noise
+#     - speech
 
 dl_dir=$PWD/download
 
@@ -48,7 +56,15 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   #
   if [ ! -d $dl_dir/ReazonSpeech/downloads ]; then
     # Download small-v1 by default.
-    lhotse download reazonspeech --subset small-v1 $dl_dir
+    lhotse download reazonspeech --subset medium $dl_dir
+  fi
+  # If you have pre-downloaded it to /path/to/musan,
+  # you can create a symlink
+  #
+  #   ln -sfv /path/to/musan $dl_dir/
+  #
+  if [ ! -d $dl_dir/musan ]; then
+    lhotse download musan $dl_dir
   fi
 fi
 
@@ -64,7 +80,18 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
 fi
 
 if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
-    log "Stage 2: Compute ReazonSpeech fbank"
+  log "Stage 2: Prepare musan manifest"
+  # We assume that you have downloaded the musan corpus
+  # to $dl_dir/musan
+  mkdir -p data/manifests
+  if [ ! -e data/manifests/.musan_prep.done ]; then
+    lhotse prepare musan $dl_dir/musan data/manifests
+    touch data/manifests/.musan_prep.done
+  fi
+fi
+
+if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
+    log "Stage 3: Compute ReazonSpeech fbank"
     if [ ! -e data/manifests/.reazonspeech-validated.done ]; then
         python local/compute_fbank_reazonspeech.py --manifest-dir data/manifests
         python local/validate_manifest.py --manifest data/manifests/reazonspeech_cuts_train.jsonl.gz
@@ -74,13 +101,22 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
     fi
 fi
 
-if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
-    log "Stage 3: Prepare ReazonSpeech lang_char"
+if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
+  log "Stage 4: Compute fbank for musan"
+  mkdir -p data/manifests
+  if [ ! -e data/manifests/.musan_fbank.done ]; then
+    ./local/compute_fbank_musan.py
+    touch data/manifests/.musan_fbank.done
+  fi
+fi
+
+if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
+    log "Stage 5: Prepare ReazonSpeech lang_char"
     python local/prepare_lang_char.py data/manifests/reazonspeech_cuts_train.jsonl.gz
 fi
 
-if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
-    log "Stage 4: Show manifest statistics"
+if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
+    log "Stage 6: Show manifest statistics"
     python local/display_manifest_statistics.py --manifest-dir data/manifests > data/manifests/manifest_statistics.txt
     cat data/manifests/manifest_statistics.txt
 fi
