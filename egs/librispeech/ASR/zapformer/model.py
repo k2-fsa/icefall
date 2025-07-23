@@ -26,6 +26,7 @@ from encoder_interface import EncoderInterface
 from scaling import ScaledLinear, convert_num_channels
 
 from icefall.utils import add_sos, make_pad_mask, time_warp
+from icefall.exp_augment import MelWarp
 
 
 class AsrModel(nn.Module):
