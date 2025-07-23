@@ -364,7 +364,7 @@ class MelWarp(torch.nn.Module):
 
         w = torch.linspace(-1, 1, T)[None, None, :].expand(B, C, T).to(device)
 
-        grid = torch.stack([w, h], axis=-1)
+        grid = torch.stack([w, h_positions], axis=-1)
 
         features = torch.nn.functional.grid_sample(
             features.unsqueeze(1),
