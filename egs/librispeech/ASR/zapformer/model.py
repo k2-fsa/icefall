@@ -116,7 +116,7 @@ class AsrModel(nn.Module):
             self.ctc_output = nn.Sequential(
                 nn.Dropout(p=0.1),
                 ScaledLinear(encoder_dim, vocab_size, initial_scale=0.1),
-                nn.LogSoftmax(dim=-1),
+                SquareLogSoftmax(dim=-1),
             )
 
         self.use_attention_decoder = use_attention_decoder
@@ -576,6 +576,24 @@ class AsrModel(nn.Module):
 
         loss = loss.mean(dim=-1).sum()  # sum over all frames, but mean over mel bins.
         return loss
+
+
+class SquareLogSoftmax(nn.Module):
+    def __init__(self, dim: int = -1, eps: float = 1.0e-05):
+        super().__init__()
+        self.dim = dim
+        self.eps = eps
+
+
+    def forward(self, x: Tensor):
+        dim = self.dim
+        eps = self.eps
+        norm = (x ** 2).sum(dim=dim, keepdim=True).clamp(min=eps) ** -0.5
+        x = x.clamp(min=eps) * norm
+        # x**2 is the probability, we return the log of that which is 2 * log(x).   The probs x**2 cannot
+        # sum up to more than 1, because of the normalization above.  (The sum may be less than 1, if some
+        # x values are negative.)  This ignores clamping to eps though.
+        return 2 * x.log()
 
 
 
