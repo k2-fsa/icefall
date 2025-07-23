@@ -1482,8 +1482,9 @@ class SquareLogSoftmax(nn.Module):
         eps = self.eps
         with torch.amp.autocast('cuda', enabled=False):
             x = x.to(torch.float)
-            dim = x.shape[-1]
-            x = ((x ** 2) + eps/dim) / (x_sum + eps)
+            channels = x.shape[dim]
+            x_sq = x ** 2
+            x = (x_sq + eps/channels) / (x_sq.sum(dim=dim, keepdim=True) + eps)
             return x.log()
 
 
