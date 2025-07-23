@@ -16,7 +16,7 @@
 
 import torch
 import torch.nn as nn
-from scaling import ScaledLinear, SquareLogSoftmax
+from scaling import ScaledLinear
 
 
 class Joiner(nn.Module):
@@ -32,7 +32,6 @@ class Joiner(nn.Module):
         self.encoder_proj = ScaledLinear(encoder_dim, joiner_dim, initial_scale=0.25)
         self.decoder_proj = ScaledLinear(decoder_dim, joiner_dim, initial_scale=0.25)
         self.output_linear = nn.Linear(joiner_dim, vocab_size)
-        self.output_log_softmax = SquareLogSoftmax(dim=-1)
 
     def forward(
         self,
@@ -63,6 +62,6 @@ class Joiner(nn.Module):
         else:
             logit = encoder_out + decoder_out
 
-        logit = self.output_log_softmax(self.output_linear(torch.tanh(logit)))
+        logit = self.output_linear(torch.tanh(logit))
 
         return logit
