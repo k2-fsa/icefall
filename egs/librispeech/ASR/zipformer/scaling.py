@@ -1480,12 +1480,11 @@ class SquareLogSoftmax(nn.Module):
     def forward(self, x: Tensor):
         dim = self.dim
         eps = self.eps
-        norm = (x ** 2).sum(dim=dim, keepdim=True).clamp(min=eps) ** -0.5
-        x = x.clamp(min=eps) * norm
-        # x**2 is the probability, we return the log of that which is 2 * log(x).   The probs x**2 cannot
-        # sum up to more than 1, because of the normalization above.  (The sum may be less than 1, if some
-        # x values are negative.)  This ignores clamping to eps though.
-        return 2 * x.log()
+        with torch.amp.autocast('cuda', enabled=False):
+            x = x.to(torch.float)
+            x_sum = (x ** 2).sum(dim=dim, keepdim=True).clamp(min=eps)
+            x = (x ** 2).clamp(min=eps*eps) / x_sum
+            return x.log()
 
 
 
