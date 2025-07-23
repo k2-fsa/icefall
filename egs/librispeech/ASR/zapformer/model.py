@@ -442,9 +442,9 @@ class AsrModel(nn.Module):
             B = batch_size // num_copies
             x = x.reshape(num_copies, B, seq_len, num_channels)
 
-            time_warp = True
-            mel_warp = True
-            if time_warp:
+            do_time_warp = True
+            do_mel_warp = True
+            if do_time_warp:
                 # Apply time warping.  First append the copies on the channel
                 # dimension so all copies get the exact same time-warping.
                 x = x.permute(1, 2, 0, 3).reshape(B, seq_len, num_copies * num_channels)
@@ -458,7 +458,7 @@ class AsrModel(nn.Module):
                 x = x.reshape(B, seq_len, num_copies, num_channels)
                 x = x.permute(2, 0, 1, 3)  # x: (num_copies, B, seq_len, num_channels)
 
-            if mel_warp:
+            if do_mel_warp:
                 # Apply mel warping.  First append the copies on the sequence
                 # dimension so all copies of the data get the exact same
                 # mel-warping.  (this is done mostly for purposes of the reconstruction
