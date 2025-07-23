@@ -100,11 +100,11 @@ class AsrModel(nn.Module):
             self.joiner = joiner
 
             self.simple_am_proj = nn.Sequential(
-                ScaledLinear(encoder_dim, vocab_size, initial_scale=0.1),
+                ScaledLinear(encoder_dim, vocab_size),
                 SquareLogSoftmax(dim=-1),
             )
             self.simple_lm_proj = nn.Sequential(
-                ScaledLinear(decoder_dim, vocab_size, initial_scale=0.1),
+                ScaledLinear(decoder_dim, vocab_size),
                 SquareLogSoftmax(dim=-1),
             )
 
@@ -117,7 +117,7 @@ class AsrModel(nn.Module):
             # Modules for CTC head
             self.ctc_output = nn.Sequential(
                 nn.Dropout(p=0.1),
-                ScaledLinear(encoder_dim, vocab_size, initial_scale=0.1),
+                ScaledLinear(encoder_dim, vocab_size),
                 SquareLogSoftmax(dim=-1),
             )
 

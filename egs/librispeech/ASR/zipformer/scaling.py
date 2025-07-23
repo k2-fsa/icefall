@@ -1471,7 +1471,7 @@ class SwashR(torch.nn.Module):
 
 
 class SquareLogSoftmax(nn.Module):
-    def __init__(self, dim: int = -1, eps: float = 1.0e-05):
+    def __init__(self, dim: int = -1, eps: float = 1.0e-03):
         super().__init__()
         self.dim = dim
         self.eps = eps
@@ -1482,8 +1482,8 @@ class SquareLogSoftmax(nn.Module):
         eps = self.eps
         with torch.amp.autocast('cuda', enabled=False):
             x = x.to(torch.float)
-            x_sum = (x ** 2).sum(dim=dim, keepdim=True).clamp(min=eps)
-            x = (x ** 2).clamp(min=eps*eps) / x_sum
+            dim = x.shape[-1]
+            x = ((x ** 2) + eps/dim) / (x_sum + eps)
             return x.log()
 
 
