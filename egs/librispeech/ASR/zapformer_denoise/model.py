@@ -44,7 +44,7 @@ class DenoisingAsrModel(nn.Module):
         """
         super().__init__()
 
-        self.speech_scale = 0.5
+        self.speech_scale = 0.1
         self.encoder = encoder
         self.encoder_dim = encoder_dim
 
@@ -101,7 +101,7 @@ class DenoisingAsrModel(nn.Module):
         batch_size = x.shape[0]
         assert x.shape[0] == x_lens.shape[0] == y.shape[0], (x.shape, x_lens.shape, y.shape)
 
-        s = torch.rand(batch_size, device=x.device)  # time-value for speech.
+        s = torch.empty(batch_size, device=x.device).uniform_(0.5, 1.0)  # time-value for speech.  only have >= 0.5
         t = torch.rand(batch_size, device=x.device)  # time-value for text.
 
 
