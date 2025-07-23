@@ -1470,6 +1470,24 @@ class SwashR(torch.nn.Module):
         return swashr_compiled(x)
 
 
+class SquareLogSoftmax(nn.Module):
+    def __init__(self, dim: int = -1, eps: float = 1.0e-05):
+        super().__init__()
+        self.dim = dim
+        self.eps = eps
+
+
+    def forward(self, x: Tensor):
+        dim = self.dim
+        eps = self.eps
+        norm = (x ** 2).sum(dim=dim, keepdim=True).clamp(min=eps) ** -0.5
+        x = x.clamp(min=eps) * norm
+        # x**2 is the probability, we return the log of that which is 2 * log(x).   The probs x**2 cannot
+        # sum up to more than 1, because of the normalization above.  (The sum may be less than 1, if some
+        # x values are negative.)  This ignores clamping to eps though.
+        return 2 * x.log()
+
+
 
 class ActivationDropoutAndLinearFunction(torch.autograd.Function):
     @staticmethod
@@ -1543,6 +1561,7 @@ class ActivationDropoutAndLinearFunction(torch.autograd.Function):
             x_deriv = x_deriv * dropout_mask
 
         return x_deriv, weight_deriv, bias_deriv, None, None, None
+
 
 
 class ActivationDropoutAndLinear(torch.nn.Module):
