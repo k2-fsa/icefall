@@ -236,6 +236,191 @@ class ExpAugment(torch.nn.Module):
 
 
 
+def hz_to_mel(hz: torch.Tensor):
+    return 1127.0 * torch.log(1 + hz / 700)
+
+
+def mel_to_hz(mel: torch.Tensor):
+    return 700 * ((mel / 1127).exp() - 1)
+
+
+def compute_mel_normalized_indexes(
+    low_freq_hz: float,
+    high_freq_hz: float,
+    sample_rate_hz: float,
+    num_mel_bins: float,
+    shift: int,
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """
+    Return a tuple containing normalized indexes.
+
+        - The first tensor is for expansion, i.e., map the second-to-last
+          bin to the last bin
+
+        - The second tensor is for contraction, i.e., map the last bin to
+          the second-to-last bin
+    """
+    nyquist = sample_rate_hz * 0.5
+    if high_freq_hz <= 0:
+        high_freq_hz = nyquist + high_freq_hz
+
+    assert 0 <= low_freq_hz < high_freq_hz <= nyquist, (
+        low_freq_hz,
+        high_freq_hz,
+        nyquist,
+        sample_rate_hz,
+    )
+    assert num_mel_bins > 1, num_mel_bins
+
+    low_high_mel = hz_to_mel(
+        torch.tensor([low_freq_hz, high_freq_hz], dtype=torch.float32)
+    )
+
+    # divided by num_mel_bins + 1 to match the one used in Kaldi
+    mel_freq_delta = (low_high_mel[1] - low_high_mel[0]) / (num_mel_bins + 1)
+
+    # the formulate to compute the mel tensor below is from Kaldi
+    mel = low_high_mel[0] + mel_freq_delta * torch.arange(num_mel_bins)
+
+    hz = mel_to_hz(mel)
+
+    expansion_scale = hz[-1] / hz[-1 - shift]  # e.g. 1.0338
+    contraction_scale = 1 / expansion_scale  # e.g., 0.9673
+
+    mel_expanded = hz_to_mel(hz * expansion_scale)
+    mel_contracted = hz_to_mel(hz * contraction_scale)
+
+    mel_expanded_indexes = (mel_expanded - low_high_mel[0]) / mel_freq_delta
+    mel_contracted_indexes = (mel_contracted - low_high_mel[0]) / mel_freq_delta
+
+    mel_expanded_normalized_indexes = mel_expanded_indexes * 2 / (num_mel_bins - 1) - 1
+
+    mel_contracted_normalized_indexes = (
+        mel_contracted_indexes * 2 / (num_mel_bins - 1) - 1
+    )
+
+    return mel_expanded_normalized_indexes, mel_contracted_normalized_indexes
+
+
+class MelWarp(torch.nn.Module):
+    def __init__(
+        self,
+        low_freq_hz: float,
+        high_freq_hz: float,
+        sample_rate_hz: float,
+        num_mel_bins: int,
+        p: float,
+        max_shift: int = 1,
+    ):
+        super().__init__()
+
+        assert 0 <= p <= 1, p
+        assert 1 <= max_shift < num_mel_bins - 1
+
+        indexes = []
+        for i in range(1, max_shift + 1):
+            expansion_indexes, contraction_indexes = compute_mel_normalized_indexes(
+                low_freq_hz=low_freq_hz,
+                high_freq_hz=high_freq_hz,
+                sample_rate_hz=sample_rate_hz,
+                num_mel_bins=num_mel_bins,
+                shift=i,
+            )
+            indexes.append(expansion_indexes)
+            indexes.append(contraction_indexes)
+
+        self.indexes = torch.stack(indexes, dim=0)
+
+        self.num_mel_bins = num_mel_bins
+        self.p = p
+
+    def forward(self, features: torch.Tensor) -> torch.Tensor:
+        B, T, C = features.shape
+        assert C == self.num_mel_bins, (C, self.num_mel_bins)
+
+        device = features.device
+
+        features = features.permute(0, 2, 1)
+
+        # grid sample requires (N,C,H,W) input
+        # we treat the feature axis as h, the time axis as w
+        # and use 1 for the channel in NCHW
+
+        h = torch.linspace(-1, 1, C)[None, :, None].expand(B, C, T).to(device)
+
+        # select a different index for each audio in the batch
+        # where each index corresponds to a shift
+        index = torch.randint(
+            low=0, high=self.indexes.shape[0], size=(B,), dtype=torch.int64
+        )
+
+        warped_indexes = self.indexes[index][:, :, None].expand(B, C, T).to(device)
+
+        h_positions = torch.where(
+            torch.rand(B, 1, 1).expand_as(features) < self.p,
+            warped_indexes,
+            h,
+        )
+
+        w = torch.linspace(-1, 1, T)[None, None, :].expand(B, C, T).to(device)
+
+        grid = torch.stack([w, h], axis=-1)
+
+        features = torch.nn.functional.grid_sample(
+            features.unsqueeze(1),
+            grid,
+            mode="bicubic",
+            padding_mode="border",
+            align_corners=True,
+        )
+        return features.squeeze(1).permute(0, 2, 1)
+
+
+def _test_grid_sample():
+    f = torch.rand(50, 20, 80)  # (batch, time, features)
+    B, T, C = f.shape
+
+    h = torch.linspace(-1, 1, C)[None, :, None].expand(B, C, T)
+    w = torch.linspace(-1, 1, T)[None, None, :].expand(B, C, T)
+    # w is x
+    # h is y
+    grid = torch.stack([w, h], axis=-1)
+    f2 = []
+    for aligned in [True, False]:
+        f2.append(
+            torch.nn.functional.grid_sample(
+                f.permute(0, 2, 1).unsqueeze(1),
+                grid,
+                mode="bicubic",
+                padding_mode="border",
+                align_corners=aligned,
+            )
+            .squeeze(1)
+            .permute(0, 2, 1)
+        )
+    print("align_corners=true", (f - f2[0]).abs().max())  # aligned true
+    print("align_corners=false", (f - f2[1]).abs().max())  # aligned false
+
+
+def _test_mel_warp():
+    # The parameters used in testing are default values in lhotse
+    mel_warp = MelWarp(
+        low_freq_hz=20,
+        high_freq_hz=-400,
+        sample_rate_hz=16000,
+        num_mel_bins=80,
+        p=1,
+        max_shift=4,
+    )
+
+    f0 = torch.rand(2, 20, 80) * 10
+    f1 = mel_warp(f0)
+
+    assert f0.shape == f1.shape
+    print((f0 - f1).abs().max())
+
+
+
 def _test_exp_augment():
     for n in [ 0, 1 ]:
         #device = 'cuda'
@@ -285,3 +470,4 @@ def _test_exp_augment():
 
 if __name__ == '__main__':
     _test_exp_augment()
+    _test_mel_warp()
