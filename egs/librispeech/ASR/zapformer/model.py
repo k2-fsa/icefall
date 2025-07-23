@@ -23,7 +23,7 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 from encoder_interface import EncoderInterface
-from scaling import ScaledLinear, convert_num_channels, SquareLogSoftmax
+from scaling import ScaledLinear, convert_num_channels
 
 from icefall.utils import add_sos, make_pad_mask, time_warp
 
@@ -99,13 +99,11 @@ class AsrModel(nn.Module):
             self.decoder = decoder
             self.joiner = joiner
 
-            self.simple_am_proj = nn.Sequential(
-                ScaledLinear(encoder_dim, vocab_size),
-                SquareLogSoftmax(dim=-1),
+            self.simple_am_proj = ScaledLinear(
+                encoder_dim, vocab_size, initial_scale=0.1,
             )
-            self.simple_lm_proj = nn.Sequential(
-                ScaledLinear(decoder_dim, vocab_size),
-                SquareLogSoftmax(dim=-1),
+            self.simple_lm_proj = ScaledLinear(
+                decoder_dim, vocab_size, initial_scale=0.1,
             )
 
         else:
@@ -117,8 +115,8 @@ class AsrModel(nn.Module):
             # Modules for CTC head
             self.ctc_output = nn.Sequential(
                 nn.Dropout(p=0.1),
-                ScaledLinear(encoder_dim, vocab_size),
-                SquareLogSoftmax(dim=-1),
+                ScaledLinear(encoder_dim, vocab_size, initial_scale=0.1),
+                nn.LogSoftmax(dim=-1),
             )
 
         self.use_attention_decoder = use_attention_decoder
