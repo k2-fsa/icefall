@@ -329,7 +329,7 @@ class MelWarp(torch.nn.Module):
             indexes.append(expansion_indexes)
             indexes.append(contraction_indexes)
 
-        self.indexes = torch.stack(indexes, dim=0)
+        self.register_buffer('indexes', torch.stack(indexes, dim=0))
 
         self.num_mel_bins = num_mel_bins
         self.p = p
@@ -346,23 +346,23 @@ class MelWarp(torch.nn.Module):
         # we treat the feature axis as h, the time axis as w
         # and use 1 for the channel in NCHW
 
-        h = torch.linspace(-1, 1, C)[None, :, None].expand(B, C, T).to(device)
+        h = torch.linspace(-1, 1, C, device=device)[None, :, None].expand(B, C, T).to(device)
 
         # select a different index for each audio in the batch
         # where each index corresponds to a shift
         index = torch.randint(
-            low=0, high=self.indexes.shape[0], size=(B,), dtype=torch.int64
+            low=0, high=self.indexes.shape[0], size=(B,), dtype=torch.int64, device=device,
         )
 
         warped_indexes = self.indexes[index][:, :, None].expand(B, C, T).to(device)
 
         h_positions = torch.where(
-            torch.rand(B, 1, 1).expand_as(features) < self.p,
+            torch.rand(B, 1, 1, device=device).expand_as(features) < self.p,
             warped_indexes,
             h,
         )
 
-        w = torch.linspace(-1, 1, T)[None, None, :].expand(B, C, T).to(device)
+        w = torch.linspace(-1, 1, T, device=device)[None, None, :].expand(B, C, T)
 
         grid = torch.stack([w, h_positions], axis=-1)
 
