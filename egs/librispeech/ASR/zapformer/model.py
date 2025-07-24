@@ -450,11 +450,12 @@ class AsrModel(nn.Module):
                 x = x.permute(1, 2, 0, 3).reshape(B, seq_len, num_copies * num_channels)
 
                 assert supervision_segments is not None
-                x = time_warp(
-                    x,
-                    time_warp_factor=time_warp_factor,
-                    supervision_segments=supervision_segments[:B],
-                )
+                with torch.amp.autocast('cuda', enabled=False):
+                    x = time_warp(
+                        x.to(torch.float),
+                        time_warp_factor=time_warp_factor,
+                        supervision_segments=supervision_segments[:B],
+                    )
                 x = x.reshape(B, seq_len, num_copies, num_channels)
                 x = x.permute(2, 0, 1, 3)  # x: (num_copies, B, seq_len, num_channels)
 
@@ -466,7 +467,8 @@ class AsrModel(nn.Module):
                 x = x.permute(1, 0, 2, 3) # (B, num_copies, seq_len, num_channels)
                 x = x.reshape(B, num_copies * seq_len, num_channels)
 
-                x = self.mel_warp(x)
+                with torch.amp.autocast('cuda', enabled=False):
+                    x = self.mel_warp(x.to(torch.float))
                 x = x.reshape(B, num_copies, seq_len, num_channels)
                 x = x.permute(1, 0, 2, 3) # (num_copies, B, seq_len, num_channels)
 
