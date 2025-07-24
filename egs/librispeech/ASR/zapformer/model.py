@@ -93,8 +93,8 @@ class AsrModel(nn.Module):
             high_freq_hz=-400,
             sample_rate_hz=16000,
             num_mel_bins=80,
-            p=0.9,
-            max_shift=4)
+            p=0.666,
+            max_shift=1)
 
 
         self.use_transducer = use_transducer
