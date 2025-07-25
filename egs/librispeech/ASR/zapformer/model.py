@@ -26,7 +26,6 @@ from encoder_interface import EncoderInterface
 from scaling import ScaledLinear, convert_num_channels
 
 from icefall.utils import add_sos, make_pad_mask, time_warp
-from icefall.exp_augment import MelWarp
 
 
 class AsrModel(nn.Module):
@@ -87,15 +86,6 @@ class AsrModel(nn.Module):
 
         self.encoder_embed = encoder_embed
         self.encoder = encoder
-
-        self.mel_warp = MelWarp(
-            low_freq_hz=20,
-            high_freq_hz=-400,
-            sample_rate_hz=16000,
-            num_mel_bins=80,
-            p=0.666,
-            max_shift=1)
-
 
         self.use_transducer = use_transducer
         if use_transducer:
@@ -443,7 +433,6 @@ class AsrModel(nn.Module):
             x = x.reshape(num_copies, B, seq_len, num_channels)
 
             do_time_warp = True
-            do_mel_warp = True
             if do_time_warp:
                 # Apply time warping.  First append the copies on the channel
                 # dimension so all copies get the exact same time-warping.
@@ -458,19 +447,6 @@ class AsrModel(nn.Module):
                     )
                 x = x.reshape(B, seq_len, num_copies, num_channels)
                 x = x.permute(2, 0, 1, 3)  # x: (num_copies, B, seq_len, num_channels)
-
-            if do_mel_warp:
-                # Apply mel warping.  First append the copies on the sequence
-                # dimension so all copies of the data get the exact same
-                # mel-warping.  (this is done mostly for purposes of the reconstruction
-                # loss).
-                x = x.permute(1, 0, 2, 3) # (B, num_copies, seq_len, num_channels)
-                x = x.reshape(B, num_copies * seq_len, num_channels)
-
-                with torch.amp.autocast('cuda', enabled=False):
-                    x = self.mel_warp(x.to(torch.float))
-                x = x.reshape(B, num_copies, seq_len, num_channels)
-                x = x.permute(1, 0, 2, 3) # (num_copies, B, seq_len, num_channels)
 
             # x_no_specaug is several repeats of the 1st copy of the data, which
             # is the one not augmented with Musan.  But it does have time
