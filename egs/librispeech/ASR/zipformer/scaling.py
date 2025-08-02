@@ -19,7 +19,7 @@ import logging
 import math
 import copy
 import random
-from typing import Optional, Tuple, Union
+from typing import Optional, Tuple, Union, Any
 
 import k2
 import torch
@@ -1452,22 +1452,23 @@ def swashr_and_deriv(x: Tensor):
     return y, deriv
 
 
-swashl_compiled = torch_compile(swashl)
-swashr_compiled = torch_compile(swashr)
-swashl_and_deriv_compiled = torch_compile(swashl_and_deriv)
-swashr_and_deriv_compiled = torch_compile(swashr_and_deriv)
-
 class SwashL(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.func = torch_compile(swashl)
     def forward(self, x: Tensor) -> Tensor:
         """Return Swash-L activation, which is the same as SwooshL but with a factor of 4
         on the input and 0.25 on the output.."""
-        return swashl_compiled(x)
+        return self.func(x)
 
 class SwashR(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.func = torch_compile(swashr)
     def forward(self, x: Tensor) -> Tensor:
         """Return Swash-R activation, which is the same as SwooshL but with a factor of 4
         on the input and 0.25 on the output.."""
-        return swashr_compiled(x)
+        return self.func(x)
 
 
 class SquareLogSoftmax(nn.Module):
@@ -1497,7 +1498,8 @@ class ActivationDropoutAndLinearFunction(torch.autograd.Function):
         x: Tensor,
         weight: Tensor,
         bias: Optional[Tensor],
-        activation: str,
+        forward_func: Any,
+        backward_func: Any,
         dropout_p: float,
         dropout_shared_dim: Optional[int],
     ):
@@ -1514,16 +1516,9 @@ class ActivationDropoutAndLinearFunction(torch.autograd.Function):
 
         ctx.save_for_backward(x, weight, bias, dropout_mask)
 
-        ctx.activation = activation
+        ctx.backward_func = backward_func
 
-        forward_activation_dict = {
-            "SwashL": swashl_compiled,
-            "SwashR": swashr_compiled,
-        }
-        # it will raise a KeyError if this fails.  This will be an error.  We let it
-        # propagate to the user.
-        activation_func = forward_activation_dict[activation]
-        x = activation_func(x)
+        x = forward_func(x)
         if dropout_mask is not None:
             x = x * dropout_mask
         x = torch.nn.functional.linear(x, weight, bias)
@@ -1535,15 +1530,7 @@ class ActivationDropoutAndLinearFunction(torch.autograd.Function):
         saved = ctx.saved_tensors
         (x, weight, bias, dropout_mask) = saved
 
-        forward_and_deriv_activation_dict = {
-            "SwashL": swashl_and_deriv_compiled,
-            "SwashR": swashr_and_deriv_compiled,
-        }
-        # the following lines a KeyError if the activation is unrecognized.
-        # This will be an error.  We let it propagate to the user.
-        func = forward_and_deriv_activation_dict[ctx.activation]
-
-        y, func_deriv = func(x)
+        y, func_deriv = ctx.backward_func(x)
         if dropout_mask is not None:
             y = y * dropout_mask
         # now compute derivative of y w.r.t. weight and bias..
@@ -1560,7 +1547,7 @@ class ActivationDropoutAndLinearFunction(torch.autograd.Function):
             # order versus func_deriv does not matter
             x_deriv = x_deriv * dropout_mask
 
-        return x_deriv, weight_deriv, bias_deriv, None, None, None
+        return x_deriv, weight_deriv, bias_deriv, None, None, None, None
 
 
 
@@ -1617,21 +1604,26 @@ class ActivationDropoutAndLinear(torch.nn.Module):
         self.dropout_p = dropout_p
         self.dropout_shared_dim = dropout_shared_dim
 
+        assert activation in ["SwashL", "SwashR"]
+        if activation == "SwashL":
+            self.forward_func = torch_compile(swashl)
+            self.backward_func = torch_compile(swashl_and_deriv)
+        else:
+            self.forward_func = torch_compile(swashr)
+            self.backward_func = torch_compile(swashr_and_deriv)
+
+
     def forward(self, x: Tensor):
         if not self.training or torch.jit.is_scripting() or torch.jit.is_tracing():
-            if self.activation == "SwashL":
-                x = swashl_compiled(x)
-            elif self.activation == "SwashR":
-                x = swashr_compiled(x)
-            else:
-                assert False, self.activation
+            x = self.forward_func(x)
             return torch.nn.functional.linear(x, self.weight, self.bias)
 
         return ActivationDropoutAndLinearFunction.apply(
             x,
             self.weight,
             self.bias,
-            self.activation,
+            self.forward_func,
+            self.backward_func,
             float(self.dropout_p),
             self.dropout_shared_dim,
         )
