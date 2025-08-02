@@ -52,6 +52,11 @@ def normalize_text(utt: str, language: str) -> str:
         return re.sub(r"[^A-ZÀÂÆÇÉÈÊËÎÏÔŒÙÛÜ' ]", "", utt).upper()
     elif language == "pl":
         return re.sub(r"[^a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ' ]", "", utt).upper()
+    elif language == "fa":
+        utt = utt.replace("ي", "ی").replace("ك", "ک")
+        utt = re.sub(r"[^\u0600-\u06FF0-9\u06F0-\u06F9\s]|[.,?!\-]", "", utt)
+        utt = re.sub(r"\s+", " ", utt).strip()
+        return utt
     elif language in ["yue", "zh-HK"]:
         # Mozilla Common Voice uses both "yue" and "zh-HK" for Cantonese
         # Not sure why they decided to do this...
