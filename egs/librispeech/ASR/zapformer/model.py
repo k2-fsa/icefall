@@ -252,7 +252,7 @@ class AsrModel(nn.Module):
         targets: torch.Tensor,
         target_lengths: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Compute CTC loss with consistency regularization loss.
+        """Compute CTC loss, with consistency regularization loss if we are in training mode.
         Args:
           encoder_out:
             Encoder output, of shape (2 * N, T, C).
@@ -526,21 +526,21 @@ class AsrModel(nn.Module):
 
         if self.use_ctc:
             targets = y.values
-            #if not use_cr_ctc:
-            #ctc_loss = self.forward_ctc(
-            #encoder_out=encoder_out,
-            #encoder_out_lens=encoder_out_lens,
-            #targets=targets,
-            #target_lengths=y_lens,
-            #)
-            #cr_loss = torch.empty(0)
-
-            ctc_loss, cr_loss = self.forward_cr_ctc(
-                encoder_out=encoder_out,
-                encoder_out_lens=encoder_out_lens,
-                targets=targets,
-                target_lengths=y_lens,
-            )
+            if not self.training:
+                ctc_loss = self.forward_ctc(
+                    encoder_out=encoder_out,
+                    encoder_out_lens=encoder_out_lens,
+                    targets=targets,
+                    target_lengths=y_lens,
+                )
+                cr_loss = torch.empty(0)
+            else:
+                ctc_loss, cr_loss = self.forward_cr_ctc(
+                    encoder_out=encoder_out,
+                    encoder_out_lens=encoder_out_lens,
+                    targets=targets,
+                    target_lengths=y_lens,
+                )
         else:
             ctc_loss = torch.empty(0)
             cr_loss = torch.empty(0)
