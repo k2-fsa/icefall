@@ -1216,7 +1216,8 @@ def run(rank, world_size, args):
         return True
 
     mls_english_corpus = MLSEnglishHFAsrDataModule(args)
-    mls_english_corpus.load_dataset(args.dataset_path)
+    train_cuts = mls_english_corpus.train_cuts()
+    # mls_english_corpus.load_dataset(args.dataset_path)
 
 
     if params.start_batch > 0 and checkpoints and "sampler" in checkpoints:
@@ -1237,10 +1238,8 @@ def run(rank, world_size, args):
     else:
         cuts_musan = None
 
-    
-    train_dl = mls_english_corpus.train_dataloader(
-        sampler_state_dict=sampler_state_dict,
-        cuts_musan=cuts_musan,
+    train_dl = mls_english_corpus.train_dataloaders(
+            train_cuts, sampler_state_dict=sampler_state_dict
     )
 
     valid_dl = mls_english_corpus.valid_dataloader()
