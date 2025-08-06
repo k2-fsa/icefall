@@ -1219,7 +1219,6 @@ def run(rank, world_size, args):
     train_cuts = mls_english_corpus.train_cuts()
     # mls_english_corpus.load_dataset(args.dataset_path)
 
-
     if params.start_batch > 0 and checkpoints and "sampler" in checkpoints:
         # We only load the sampler's state dict when it loads a checkpoint
         # saved in the middle of an epoch
@@ -1241,7 +1240,6 @@ def run(rank, world_size, args):
     train_dl = mls_english_corpus.train_dataloaders(
             train_cuts, sampler_state_dict=sampler_state_dict
     )
-
     valid_dl = mls_english_corpus.valid_dataloader()
 
     if not params.print_diagnostics:

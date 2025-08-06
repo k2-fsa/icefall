@@ -40,7 +40,7 @@ log() {
 log "Starting MLS English data preparation"
 
 if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
-	log "Stage 0: Download data"
+log "Stage 0: Download data"
 	# Check if huggingface_hub is installed
 	if ! python -c "import huggingface_hub" &> /dev/null; then
 		log "huggingface_hub Python library not found. Installing it now..."
