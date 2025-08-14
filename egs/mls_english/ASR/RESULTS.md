@@ -34,6 +34,8 @@ The decoding command:
 ```
 
 
-The pre-trained model is available here : 
+The pre-trained model is available here : [reazon-research/mls-english
+](https://huggingface.co/reazon-research/mls-english)
+
 
 Please note that this recipe was developed primarily as the source of English input in the bilingual Japanese-English recipe `multi_ja_en`, which uses ReazonSpeech and MLS English. 
