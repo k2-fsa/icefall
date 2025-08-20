@@ -988,7 +988,7 @@ def compute_loss(
         spec_augment = None  # disable spec-aug
 
     with torch.set_grad_enabled(is_training):
-        simple_loss, pruned_loss, ctc_loss, attention_decoder_loss, cr_loss, reconstruction_loss, predict_loss = model(
+        simple_loss, pruned_loss, ctc_loss, attention_decoder_loss, cr_loss, reconstruction_loss, predict_loss, cosine_similarity_loss = model(
             x=feature,
             x_lens=feature_lens,
             y=y,
@@ -1025,6 +1025,8 @@ def compute_loss(
 
         loss += reconstruction_loss_scale * reconstruction_loss
 
+        loss += cosine_similarity_loss
+
         if num_copies > 1:
             loss += params.predict_loss_scale * predict_loss
 
@@ -1053,6 +1055,7 @@ def compute_loss(
     if num_copies > 1:
         info["predict_loss"] = predict_loss.detach().cpu().item()
     info["recon_loss"] = reconstruction_loss.detach().cpu().item()
+    info["cosine_similarity_loss"] = cosine_similarity_loss.detach().cpu().item()
     if params.use_attention_decoder:
         info["attn_decoder_loss"] = attention_decoder_loss.detach().cpu().item()
 

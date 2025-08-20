@@ -28,6 +28,44 @@ from scaling import ScaledLinear, convert_num_channels
 from icefall.utils import add_sos, make_pad_mask, time_warp
 
 
+class CosineSimilarityLoss(nn.Module):
+    def __init__(self,
+                 max_similarity: float = 0.1):
+        super().__init__()
+        self.max_similarity = max_similarity
+
+    def forward(self,
+                x: Tensor,
+                mask: Optional[Tensor] = None) -> Tensor:
+        """
+        Compute cosine-similarity loss that tries to keep distinct output vectors distinct.
+
+          x: Tensor of shape (..., num_channels)
+        mask: if supplied, any mask that broadcasts with x[.., 0].
+              True means masked positions.
+
+        Returns excess similarity as a sum over frames.
+        """
+        eps = 1.0e-10
+        x_norm = ((x ** 2).sum(dim=-1, keepdim=True) + eps).sqrt()
+        x = x / x_norm
+        if mask is not None:
+            x = x * (~mask).unsqueeze(-1).to(x.dtype)
+        num_channels =  x.shape[-1]
+        x = x.reshape(-1, num_channels)
+        n = x.shape[0]
+        perm = torch.randperm(n, device=x.device)
+        arange = torch.arange(n, device=x.device)
+        perm = torch.where(perm != arange, perm, (arange + 1) % n)
+        #assert torch.all(perm != arange)
+
+        x_permuted = torch.index_select(x, 0, perm)
+
+        similarity = (x * x_permuted).sum(dim=-1)
+        excess_similarity = (similarity - self.max_similarity).relu()
+        return excess_similarity
+
+
 class AsrModel(nn.Module):
     def __init__(
         self,
@@ -520,7 +558,10 @@ class AsrModel(nn.Module):
         reconstruction_loss = self.forward_reconstruction_loss(x_no_specaug, encoder_out,
                                                                encoder_out_lens)
 
-        return simple_loss, pruned_loss, ctc_loss, attention_decoder_loss, cr_loss, reconstruction_loss, predict_loss
+        cosine_similarity_loss = CosineSimilarityLoss(max_similarity=0.1)(
+            encoder_out, mask=make_pad_mask(encoder_out_lens)).sum()
+
+        return simple_loss, pruned_loss, ctc_loss, attention_decoder_loss, cr_loss, reconstruction_loss, predict_loss, cosine_similarity_loss
 
 
     def forward_reconstruction_loss(self,
