@@ -948,7 +948,8 @@ class OrthogonalDownsample(torch.nn.Module):
     ):
         super().__init__()
         assert proj_dim <= channels * 2
-        self.proj = OrthogonalLinear(proj_dim, proj_dim, bias=False)
+        self.proj = OrthogonalLinear(proj_dim, proj_dim, bias=False,
+                                     penalty_scale=ScheduledFloat((0.0, 20.0), (5000.0, 1.0), (10000.0, 0.1), (20000.0, 0.0)))
         # lr_scale is a learning-rate factor to slow down how fast self.proj is learned.
         # it will be interpreted by get_parameter_groups_with_lrs()
         self.proj.lr_scale = 0.75
