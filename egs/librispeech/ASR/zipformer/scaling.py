@@ -848,6 +848,45 @@ class OrthogonalLinear(nn.Linear):
         return ans
 
 
+class CosineSimilarityLoss(nn.Module):
+    def __init__(self,
+                 max_similarity: float):  # e.g. 0.1 for max_similarity
+        super().__init__()
+        self.max_similarity = max_similarity
+
+    def forward(self,
+                x: Tensor,
+                mask: Optional[Tensor] = None) -> Tensor:
+        """
+        Compute cosine-similarity loss that tries to keep distinct output vectors distinct.
+
+          x: Tensor of shape (batch_size, seq_len, num_channels)
+        mask: if supplied, mask of shape (batch_size, seq_len);
+              True means masked positions.
+
+        Returns excess similarity as a sum over frames.
+        """
+        eps = 1.0e-10
+        x_norm = ((x ** 2).sum(dim=-1, keepdim=True) + eps).sqrt()
+        x = x / x_norm
+        (batch_size, seq_len, num_channels) =  x.shape
+        _, permutation = torch.rand(batch_size, seq_len, device=x.device).sort(dim=1)
+        # permutation: (batch_size, seq_len)
+        arange = torch.arange(seq_len, device=x.device)
+        mask2 = (permutation == arange)
+        if mask is not None:
+            mask = torch.logical_or(mask, mask2)
+        else:
+            mask = mask2
+        x = x * (~mask).unsqueeze(-1).to(x.dtype)
+
+        x_permuted = torch.gather(x, 1, permutation.unsqueeze(-1).expand(*x.shape))
+
+        similarity = (x * x_permuted).sum(dim=-1).abs() # use absolute value so we penalize negative correlations also
+        excess_similarity = (similarity - self.max_similarity).relu()
+        return excess_similarity
+
+
 
 class ChunkCausalDepthwiseConv1d(torch.nn.Module):
     """

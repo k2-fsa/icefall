@@ -24,47 +24,7 @@ import torch.nn as nn
 from torch import Tensor
 from encoder_interface import EncoderInterface
 from scaling import ScaledLinear, convert_num_channels
-
 from icefall.utils import add_sos, make_pad_mask, time_warp
-
-
-class CosineSimilarityLoss(nn.Module):
-    def __init__(self,
-                 max_similarity: float):  # e.g. 0.1 for max_similarity
-        super().__init__()
-        self.max_similarity = max_similarity
-
-    def forward(self,
-                x: Tensor,
-                mask: Optional[Tensor] = None) -> Tensor:
-        """
-        Compute cosine-similarity loss that tries to keep distinct output vectors distinct.
-
-          x: Tensor of shape (batch_size, seq_len, num_channels)
-        mask: if supplied, mask of shape (batch_size, seq_len);
-              True means masked positions.
-
-        Returns excess similarity as a sum over frames.
-        """
-        eps = 1.0e-10
-        x_norm = ((x ** 2).sum(dim=-1, keepdim=True) + eps).sqrt()
-        x = x / x_norm
-        (batch_size, seq_len, num_channels) =  x.shape
-        _, permutation = torch.rand(batch_size, seq_len, device=x.device).sort(dim=1)
-        # permutation: (batch_size, seq_len)
-        arange = torch.arange(seq_len, device=x.device)
-        mask2 = (permutation == arange)
-        if mask is not None:
-            mask = torch.logical_or(mask, mask2)
-        else:
-            mask = mask2
-        x = x * (~mask).unsqueeze(-1).to(x.dtype)
-
-        x_permuted = torch.gather(x, 1, permutation.unsqueeze(-1).expand(*x.shape))
-
-        similarity = (x * x_permuted).sum(dim=-1).abs() # use absolute value so we penalize negative correlations also
-        excess_similarity = (similarity - self.max_similarity).relu()
-        return excess_similarity
 
 
 class AsrModel(nn.Module):
@@ -199,12 +159,12 @@ class AsrModel(nn.Module):
 
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
 
-        encoder_out, encoder_out_lens, predict_loss = self.encoder(x, x_lens, src_key_padding_mask, specaug_mask=specaug_mask)
+        encoder_out, encoder_out_lens, predict_loss, cosine_similarity_loss = self.encoder(x, x_lens, src_key_padding_mask, specaug_mask=specaug_mask)
 
         encoder_out = encoder_out.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
         assert torch.all(encoder_out_lens > 0), (x_lens, encoder_out_lens)
 
-        return encoder_out, encoder_out_lens, predict_loss
+        return encoder_out, encoder_out_lens, predict_loss, cosine_similarity_loss
 
     def forward_ctc(
         self,
@@ -408,7 +368,7 @@ class AsrModel(nn.Module):
         supervision_segments: Optional[torch.Tensor] = None,
         time_warp_factor: Optional[int] = 80,
         num_copies: int = 1,
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Args:
           x:
@@ -505,7 +465,7 @@ class AsrModel(nn.Module):
 
 
         # Compute encoder outputs
-        encoder_out, encoder_out_lens, predict_loss = self.forward_encoder(x, x_lens)
+        encoder_out, encoder_out_lens, predict_loss, cosine_similarity_loss = self.forward_encoder(x, x_lens)
 
         row_splits = y.shape.row_splits(1)
         y_lens = row_splits[1:] - row_splits[:-1]
@@ -558,9 +518,6 @@ class AsrModel(nn.Module):
 
         reconstruction_loss = self.forward_reconstruction_loss(x_no_specaug, encoder_out,
                                                                encoder_out_lens)
-
-        cosine_similarity_loss = CosineSimilarityLoss(max_similarity=0.05)(
-            encoder_out, mask=make_pad_mask(encoder_out_lens)).sum()
 
         return simple_loss, pruned_loss, ctc_loss, attention_decoder_loss, cr_loss, reconstruction_loss, predict_loss, cosine_similarity_loss
 

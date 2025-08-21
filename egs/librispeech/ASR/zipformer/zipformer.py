@@ -33,6 +33,7 @@ from scaling import (
     ActivationDropoutAndLinear,
     ExpNorm,
     ChunkCausalDepthwiseConv1d,
+    CosineSimilarityLoss,
     Dropout2,
     FloatLike,
     ScheduledFloat,
@@ -232,7 +233,7 @@ class Zipformer2(EncoderInterface):
         x_lens: Tensor,
         src_key_padding_mask: Optional[Tensor] = None,
         specaug_mask: Optional[Tensor] = None,
-    ) -> Tuple[Tensor, Tensor]:
+    ) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
         """
         Args:
           x:
@@ -244,12 +245,14 @@ class Zipformer2(EncoderInterface):
             The mask for padding, of shape (batch_size, seq_len); True means
             masked position. May be None.
         Returns:
-          Return a tuple containing 2 tensors:
+          Return a tuple containing 4 tensors:
             - embeddings: its shape is (output_seq_len, batch_size, max(encoder_dim))
             - lengths, a tensor of shape (batch_size,) containing the number
               of frames in `embeddings` before padding.
+            - predict_loss, a cross-prediction loss of randomized codebooks, relying on the CR-CTC
+              structure of the batch.
+            - cosine_similarity_loss,  a loss that encourages embedding vectors to be independent.
         """
-
         chunk_size, left_context_chunks = self.get_chunk_info()
 
         if torch.jit.is_scripting() or torch.jit.is_tracing():
@@ -266,13 +269,14 @@ class Zipformer2(EncoderInterface):
 
 
         predict_loss = 0.0
+        cosine_similarity_loss = 0.0
 
         for module in self.encoders:
             if isinstance(module, Zipformer2Encoder):
                 i = module.encoder_index  # was set in this class's __init__ function.
                 ds = self.downsampling_factor[i]
                 x = truncate(x, ds)
-                x, this_pred_loss = module(
+                x, this_pred_loss, this_cosine_similarity_loss = module(
                     x,
                     chunk_size=chunk_size,
                     src_key_padding_mask=(
@@ -291,6 +295,7 @@ class Zipformer2(EncoderInterface):
                     ),
                 )
                 predict_loss += this_pred_loss * (ds / self.output_downsampling_factor)
+                cosine_similarity_loss += this_cosine_similarity_loss * (ds / self.output_downsampling_factor)
 
             else:
                 x = module(x)
@@ -303,7 +308,8 @@ class Zipformer2(EncoderInterface):
                 warnings.simplefilter("ignore")
                 lengths = (x_lens + 1) // 2
 
-        return x, lengths, predict_loss / len(self.downsampling_factor)
+        L = len(self.downsampling_factor)
+        return x, lengths, predict_loss / L, cosine_similarity_loss / L
 
     def _get_attn_mask(
         self, x: Tensor, chunk_size: int, left_context_chunks: int
@@ -757,7 +763,7 @@ dropout:
         )
 
         self.predict_loss = PredictLoss(dim)
-
+        self.cosine_similarity_loss = CosineSimilarityLoss(max_similarity=0.05)
 
     def forward(
         self,
@@ -818,7 +824,7 @@ dropout:
         else:
             mask = None
 
-        return src, self.predict_loss(src, mask)
+        return src, self.predict_loss(src, mask), self.cosine_similarity_loss(src.permute(1, 0, 2), src_key_padding_mask).sum()
 
     def streaming_forward(
         self,
