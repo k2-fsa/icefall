@@ -30,7 +30,7 @@ from icefall.utils import add_sos, make_pad_mask, time_warp
 
 class CosineSimilarityLoss(nn.Module):
     def __init__(self,
-                 max_similarity: float = 0.1):
+                 max_similarity: float):  # e.g. 0.1 for max_similarity
         super().__init__()
         self.max_similarity = max_similarity
 
@@ -62,7 +62,7 @@ class CosineSimilarityLoss(nn.Module):
 
         x_permuted = torch.gather(x, 1, permutation.unsqueeze(-1).expand(*x.shape))
 
-        similarity = (x * x_permuted).sum(dim=-1)
+        similarity = (x * x_permuted).sum(dim=-1).abs() # use absolute value so we penalize negative correlations also
         excess_similarity = (similarity - self.max_similarity).relu()
         return excess_similarity
 
