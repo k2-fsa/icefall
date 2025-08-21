@@ -1025,7 +1025,8 @@ def compute_loss(
 
         loss += reconstruction_loss_scale * reconstruction_loss
 
-        loss += cosine_similarity_loss
+        cosine_similarity_loss_scale = 0.25
+        loss += cosine_similarity_loss * cosine_similarity_loss_scale
 
         if num_copies > 1:
             loss += params.predict_loss_scale * predict_loss
