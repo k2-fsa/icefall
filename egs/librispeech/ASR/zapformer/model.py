@@ -40,8 +40,8 @@ class CosineSimilarityLoss(nn.Module):
         """
         Compute cosine-similarity loss that tries to keep distinct output vectors distinct.
 
-          x: Tensor of shape (..., num_channels)
-        mask: if supplied, any mask that broadcasts with x[.., 0].
+          x: Tensor of shape (batch_size, seq_len, num_channels)
+        mask: if supplied, mask of shape (batch_size, seq_len);
               True means masked positions.
 
         Returns excess similarity as a sum over frames.
@@ -49,17 +49,18 @@ class CosineSimilarityLoss(nn.Module):
         eps = 1.0e-10
         x_norm = ((x ** 2).sum(dim=-1, keepdim=True) + eps).sqrt()
         x = x / x_norm
+        (batch_size, seq_len, num_channels) =  x.shape
+        _, permutation = torch.rand(batch_size, seq_len, device=x.device).sort(dim=1)
+        # permutation: (batch_size, seq_len)
+        arange = torch.arange(seq_len, device=x.device)
+        mask2 = (permutation == arange)
         if mask is not None:
-            x = x * (~mask).unsqueeze(-1).to(x.dtype)
-        num_channels =  x.shape[-1]
-        x = x.reshape(-1, num_channels)
-        n = x.shape[0]
-        perm = torch.randperm(n, device=x.device)
-        arange = torch.arange(n, device=x.device)
-        perm = torch.where(perm != arange, perm, (arange + 1) % n)
-        #assert torch.all(perm != arange)
+            mask = torch.logical_or(mask, mask2)
+        else:
+            mask = mask2
+        x = x * (~mask).unsqueeze(-1).to(x.dtype)
 
-        x_permuted = torch.index_select(x, 0, perm)
+        x_permuted = torch.gather(x, 1, permutation.unsqueeze(-1).expand(*x.shape))
 
         similarity = (x * x_permuted).sum(dim=-1)
         excess_similarity = (similarity - self.max_similarity).relu()
