@@ -1044,13 +1044,13 @@ def main():
     # we need cut ids to display recognition results.
     args.return_cuts = True
     mls_english_corpus = MLSEnglishHFAsrDataModule(args)
-    mls_english_corpus.load_dataset(args.dataset_path)
 
     # # dev_cuts = mls_english_corpus.dev_cuts()
     # test_cuts = mls_english_corpus.test_cuts()
 
     # dev_dl = mls_english_corpus.test_dataloader()
-    test_dl = mls_english_corpus.test_dataloader()
+    test_cuts = mls_english_corpus.test_cuts()
+    test_dl = mls_english_corpus.test_dataloaders(test_cuts)
 
     test_sets = ["test"]
     test_dls = [test_dl]

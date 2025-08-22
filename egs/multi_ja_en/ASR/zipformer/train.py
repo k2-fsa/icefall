@@ -1185,6 +1185,7 @@ def run(rank, world_size, args):
     train_cuts = multi_dataset.train_cuts()
 
     def remove_short_and_long_utt(c: Cut):
+
         # Keep only utterances greater than 1 second
         #
         # You should use ../local/display_manifest_statistics.py to get
@@ -1241,6 +1242,7 @@ def run(rank, world_size, args):
     )
 
     valid_cuts = multi_dataset.dev_cuts()
+
     valid_dl = multidataset_datamodule.valid_dataloaders(valid_cuts)
 
     if not params.print_diagnostics:

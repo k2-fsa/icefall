@@ -68,6 +68,7 @@ from joiner import Joiner
 from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
+from lhotse import load_manifest
 from model import AsrModel
 from optim import Eden, ScaledAdam
 from scaling import ScheduledFloat
@@ -1215,11 +1216,8 @@ def run(rank, world_size, args):
         return True
 
     mls_english_corpus = MLSEnglishHFAsrDataModule(args)
-    mls_english_corpus.load_dataset(args.dataset_path)
-
-    # train_cuts = mls_english_corpus.train_cuts()
-
-    # train_cuts = train_cuts.filter(remove_short_and_long_utt)
+    train_cuts = mls_english_corpus.train_cuts()
+    # mls_english_corpus.load_dataset(args.dataset_path)
 
     if params.start_batch > 0 and checkpoints and "sampler" in checkpoints:
         # We only load the sampler's state dict when it loads a checkpoint
@@ -1227,17 +1225,23 @@ def run(rank, world_size, args):
         sampler_state_dict = checkpoints["sampler"]
     else:
         sampler_state_dict = None
+    
+    if args.enable_musan:
+        musan_path = Path(args.manifest_dir) / "musan_cuts.jsonl.gz"
+        if musan_path.exists():
+            cuts_musan = load_manifest(musan_path)
+            logging.info(f"Loaded MUSAN manifest from {musan_path}")
+        else:
+            logging.warning(f"MUSAN manifest not found at {musan_path}, disabling MUSAN augmentation")
+            cuts_musan = None
+    else:
+        cuts_musan = None
 
-    # train_dl = mls_english_corpus.train_dataloaders(
-    #     train_cuts, sampler_state_dict=sampler_state_dict
-    # )
-    train_dl = mls_english_corpus.train_dataloader(
-        sampler_state_dict=sampler_state_dict
+    train_dl = mls_english_corpus.train_dataloaders(
+            train_cuts, sampler_state_dict=sampler_state_dict
     )
-
-    # valid_cuts = mls_english_corpus.valid_cuts()
-    # valid_dl = mls_english_corpus.valid_dataloader(valid_cuts)
-    valid_dl = mls_english_corpus.valid_dataloader()
+    valid_cuts = mls_english_corpus.valid_cuts()
+    valid_dl = mls_english_corpus.valid_dataloaders(valid_cuts)
 
     if not params.print_diagnostics:
         scan_pessimistic_batches_for_oom(

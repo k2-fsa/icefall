@@ -180,7 +180,10 @@ class MLSEnglishHFAsrDataModule:
         )
 
     def train_dataloaders(
-        self, cuts_train: CutSet, sampler_state_dict: Optional[Dict[str, Any]] = None
+        self, 
+        cuts_train: CutSet, 
+        sampler_state_dict: Optional[Dict[str, Any]] = None,
+        cuts_musan: Optional[CutSet] = None,
     ) -> DataLoader:
         """
         Args:
@@ -191,6 +194,13 @@ class MLSEnglishHFAsrDataModule:
         """
 
         transforms = []
+        if cuts_musan is not None:
+            logging.info("Enable MUSAN")
+            transforms.append(
+                    CutMix(cuts=cuts_musan, p=0.5, snr=(10,20), preserve_id=True)
+            )
+        else:
+            logging.info("Disable MUSAN")
         input_transforms = []
 
         if self.args.enable_spec_aug:
@@ -337,19 +347,19 @@ class MLSEnglishHFAsrDataModule:
     def train_cuts(self) -> CutSet:
         logging.info("About to get train cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "mls_english_cuts_train.jsonl.gz"
+            self.args.manifest_dir / "mls_eng_cuts_train.jsonl.gz"
         )
 
     @lru_cache()
     def valid_cuts(self) -> CutSet:
         logging.info("About to get dev cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "mls_english_cuts_dev.jsonl.gz"
+            self.args.manifest_dir / "mls_eng_cuts_dev.jsonl.gz"
         )
 
     @lru_cache()
     def test_cuts(self) -> List[CutSet]:
         logging.info("About to get test cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "mls_english_cuts_test.jsonl.gz"
+            self.args.manifest_dir / "mls_eng_cuts_test.jsonl.gz"
         )
