@@ -757,6 +757,7 @@ dropout:
 
         # self.downsample will also reverse the downsampling operation for us afterward.
         self.proj = SimpleOrthogonalLinear(dim, encoder_layer.embed_dim, bias=False)
+        self.proj.lr_scale = 0.75
 
         self.encoder_pos = CompactRelPositionalEncoding(
             pos_dim, dropout_rate=0.0, length_factor=1.0
