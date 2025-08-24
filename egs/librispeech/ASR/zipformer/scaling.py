@@ -848,6 +848,123 @@ class OrthogonalLinear(nn.Linear):
         return ans
 
 
+class SimpleOrthogonalPenaltyFunction(torch.autograd.Function):
+    @staticmethod
+    @custom_fwd
+    def forward(ctx, weight: Tensor, penalty_scale: float, name: str):
+        ctx.save_for_backward(weight)
+        ctx.name = name
+        ctx.penalty_scale = penalty_scale
+        return weight
+
+    @staticmethod
+    @custom_bwd
+    def backward(ctx, weight_grad):
+        weight, = ctx.saved_tensors
+
+        if weight.requires_grad and ctx.penalty_scale != 0.0:
+            penalty_scale = ctx.penalty_scale * weight_grad.abs().mean()
+
+            with torch.enable_grad():
+                weight = weight.detach()
+                weight.requires_grad = True
+
+                # Compute symmetric matrix-product prod with the smallest
+                # dimension possible given the shape of w.  This is not just for
+                # efficiency; if we computed it the wrong way round, the product
+                # would have deficient rank and could never be the identity.
+                if (weight.shape[0] > weight.shape[1]):
+                    prod = torch.matmul(weight.t(), weight)
+                else:
+                    prod = torch.matmul(weight, weight.t())
+
+                # we'll try to enforce that for any i, prod[i] is any constant times the identity.
+
+                # in the loss-function:
+                #  orthogonality_loss = ((prod - I) ** 2).sum(),
+
+                # note, prod_diag shares memory with prod, this will matter later on.
+                (r, c) = prod.shape
+                (r_stride, c_stride) = prod.stride()
+
+                def diag_inplace(z):
+                    return torch.as_strided(z, size=(r,), stride=(r_stride+c_stride,))
+
+                diag_inplace(prod)[:] -= 1.
+
+                # that loss that we want to backprop would be 0.5 * (prod **
+                # 2).sum() * penalty_scale.  we can backprop this without doing
+                # any reductions as follows:
+                prod.backward(gradient=prod * penalty_scale)
+
+
+                do_print = random.random() < 0.002
+                if do_print:
+                    # we print a normalized version of the loss, by dividing by the
+                    # number of rows.
+                    loss = (prod ** 2).mean(dim=(1,2)) * prod.shape[1]
+                    logging.info(f"OrthogonalLinear: name={ctx.name}, loss={loss.detach().cpu().flatten()}, penalty_scale={penalty_scale}, grad_abs_mean={weight_grad.abs().mean()}")
+
+
+                # add the extra gradient term from the orthogonality loss.
+                weight_grad = weight_grad + weight.grad
+        return weight_grad, None, None
+
+class SimpleOrthogonalLinear(nn.Linear):
+    """
+    Like nn.Linear but can enforce that the weight matrix is orthogonal; in the non-square
+    case this is interpreted as either M^T M == I or M M^T == I, whichever would give a smaller
+    dimension.
+    (If M is square, these definitions are equivalent and is equivalent to the normal
+    definition of orthogonal).
+
+    Args:
+      in_channels: number of input channels
+     out_channels: number of output channels
+             bias: if True, include a bias term.
+     penalty_scale: a scale on the penalty on non-orthogonality (this will
+                   be multiplied by the average-absolute-value of the
+                   backpropagated gradient).
+    """
+    # if in_groups or out_groups are set to >1, the orthogonal constraint
+    # will be set per group.  both of them cannot be >1.
+    def __init__(self,
+                 in_channels: int,
+                 out_channels: int,
+                 in_groups: int = -1,
+                 out_groups: int = -1,
+                 group_size: int = -1,
+                 bias: bool = True,
+                 penalty_scale: FloatLike = 20.0,
+    ):
+        super().__init__(in_channels, out_channels, bias=bias)
+        self.name = None
+        self.in_groups = in_groups
+        self.out_groups = out_groups
+        if in_groups > 0 and group_size == -1:
+            group_size = in_channels // in_groups
+        elif out_groups > 0 and group_size == -1:
+            group_size = out_channels // out_groups
+        self.group_size = group_size
+        self.penalty_scale = copy.deepcopy(penalty_scale)
+
+        with torch.no_grad():
+            self.weight[:] = torch.randn(out_channels, in_channels) * (in_channels ** -0.5)
+        if self.bias is not None:
+            torch.nn.init.uniform_(self.bias, -0.01, 0.01)
+
+
+    def forward(self, x: Tensor, transpose: bool = False):
+        # you can only use transpose=True if you used bias=False in initialization
+        weight = self.weight
+        if self.training and not torch.jit.is_scripting() and not torch.jit.is_tracing():
+            weight = SimpleOrthogonalPenaltyFunction.apply(weight, float(self.penalty_scale), self.name)
+
+        if transpose:
+            weight = weight.t()
+        return torch.nn.functional.linear(x, weight, self.bias)
+
+
 
 class ChunkCausalDepthwiseConv1d(torch.nn.Module):
     """
@@ -1216,8 +1333,7 @@ class Whiten(nn.Module):
          prob: the probability with which we apply the gradient modification
            (also affects the grad scale).  May be supplied as a float,
            or as a pair (min_prob, max_prob)
-
-          grad_scale: determines the scale on the gradient term from this object,
+         grad_scale: determines the scale on the gradient term from this object,
             relative to the rest of the gradient on the attention weights.
             E.g. 0.02 (you may want to use smaller values than this if prob is large)
         """
@@ -1822,6 +1938,10 @@ def _test_orthogonal_linear():
     m = OrthogonalLinear(128, 128)
     m(torch.randn(30, 2, 128))
 
+def _test_simple_orthogonal_linear():
+    m = SimpleOrthogonalLinear(128, 128)
+    m(torch.randn(30, 2, 128))
+
 
 if __name__ == "__main__":
     logging.getLogger().setLevel(logging.INFO)
@@ -1834,3 +1954,4 @@ if __name__ == "__main__":
     _test_swashl_deriv()
     _test_activation_dropout_and_linear()
     _test_orthogonal_linear()
+    _test_simple_orthogonal_linear()
