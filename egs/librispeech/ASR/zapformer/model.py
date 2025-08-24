@@ -559,7 +559,7 @@ class AsrModel(nn.Module):
         reconstruction_loss = self.forward_reconstruction_loss(x_no_specaug, encoder_out,
                                                                encoder_out_lens)
 
-        cosine_similarity_loss = CosineSimilarityLoss(max_similarity=0.1)(
+        cosine_similarity_loss = CosineSimilarityLoss(max_similarity=0.05)(
             encoder_out, mask=make_pad_mask(encoder_out_lens)).sum()
 
         return simple_loss, pruned_loss, ctc_loss, attention_decoder_loss, cr_loss, reconstruction_loss, predict_loss, cosine_similarity_loss

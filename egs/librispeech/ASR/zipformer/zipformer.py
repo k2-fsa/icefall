@@ -239,7 +239,7 @@ class Zipformer2(EncoderInterface):
 
         pad = (-orig_seq_len) % max(self.downsampling_factor)
         # pad sequence length to be multiple of max(self.downsampling_factor)
-        x = torch.cat((x, torch.zeros(pad, x.shape[1], x.shape[2], dtype=x.dtype, device=x.device)),
+        x = torch.cat((x, x[-1:].repeat(pad, 1, 1)),
                       dim=0)
 
         if torch.jit.is_scripting() or torch.jit.is_tracing():
