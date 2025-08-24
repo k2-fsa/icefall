@@ -756,7 +756,6 @@ dropout:
 
         # self.downsample will also reverse the downsampling operation for us afterward.
         self.proj = SimpleOrthogonalLinear(dim, encoder_layer.embed_dim, bias=False)
-        self.proj.lr_scale = 0.75
 
         self.encoder_pos = CompactRelPositionalEncoding(
             pos_dim, dropout_rate=0.0, length_factor=1.0
@@ -829,6 +828,8 @@ dropout:
 
         # the following takes care of passing through the "rejected" dimension.
         src = src_orig_fulldim + self.proj(src - src_orig, transpose=True)
+
+        src = 0.65 * src
 
         if src_key_padding_mask is not None and specaug_mask is not None:
             mask = torch.logical_and(src_key_padding_mask.t().logical_not(), specaug_mask.t().logical_not())
