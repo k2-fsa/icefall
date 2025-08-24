@@ -902,8 +902,8 @@ class SimpleOrthogonalPenaltyFunction(torch.autograd.Function):
                 if do_print:
                     # we print a normalized version of the loss, by dividing by the
                     # number of rows.
-                    loss = (prod ** 2).mean(dim=(1,2)) * prod.shape[1]
-                    logging.info(f"OrthogonalLinear: name={ctx.name}, loss={loss.detach().cpu().flatten()}, penalty_scale={penalty_scale}, grad_abs_mean={weight_grad.abs().mean()}")
+                    loss = (prod ** 2).mean()
+                    logging.info(f"OrthogonalLinear: name={ctx.name}, loss={loss.detach().cpu()}, penalty_scale={penalty_scale}, grad_abs_mean={weight_grad.abs().mean()}")
 
 
                 # add the extra gradient term from the orthogonality loss.
