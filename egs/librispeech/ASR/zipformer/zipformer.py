@@ -367,8 +367,7 @@ class Zipformer2(EncoderInterface):
         new_states = []
         layer_offset = 0
 
-        for module in enumerate(self.encoders):
-            i = module.encoder_index  # was set in this class's __init__ function.
+        for i, module in enumerate(self.encoders):
             num_layers = module.num_layers
             ds = self.downsampling_factor[i]
 
