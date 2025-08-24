@@ -829,8 +829,6 @@ dropout:
         # the following takes care of passing through the "rejected" dimension.
         src = src_orig_fulldim + self.proj(src - src_orig, transpose=True)
 
-        src = 0.65 * src
-
         if src_key_padding_mask is not None and specaug_mask is not None:
             mask = torch.logical_and(src_key_padding_mask.t().logical_not(), specaug_mask.t().logical_not())
         elif src_key_padding_mask is not None:
