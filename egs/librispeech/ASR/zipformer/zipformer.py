@@ -465,7 +465,7 @@ def pad_mask(mask: Optional[Tensor], seq_len: int):
     if pad == 0:
         return mask
     else:
-        return torch.cat((mask, torch.ones(bath_size, pad, device=mask.device, dtype=torch.bool)),
+        return torch.cat((mask, torch.ones(batch_size, pad, device=mask.device, dtype=torch.bool)),
                          dim=1)
 
 
