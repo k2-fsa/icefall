@@ -176,6 +176,9 @@ class Zipformer2(EncoderInterface):
                 dim=downsampling_factor[i]*input_dim,
                 pos_dim=pos_dim,
             )
+
+            init_proj_special(input_dim, downsampling_factor[i], encoder.proj.weight)
+
             encoders.append(encoder)
 
         self.encoders = nn.ModuleList(encoders)
@@ -485,6 +488,40 @@ def upsample_by(x: Tensor, upsampling_factor: int) -> Tensor:
     x = x.permute(0, 2, 1, 3)
     x = x.reshape(seq_len * upsampling_factor, batch_size, num_channels // upsampling_factor)
     return x
+
+
+def get_dct_matrix(N):
+    """
+    Generates an orthonormal DCT-II matrix for a given size N.
+    Args:
+        N (int): The size of the square matrix.
+    Returns:
+        torch.Tensor: The N x N orthonormal DCT-II matrix.
+    """
+    # Create the base matrix with dimensions (N, N)
+    mat = torch.zeros(N, N)
+    # Create a tensor for the indices k (rows) and n (columns)
+    k = torch.arange(N).unsqueeze(1)
+    n = torch.arange(N).unsqueeze(0)
+    # Fill the matrix using the DCT-II formula
+    mat = math.sqrt(2 / N) * torch.cos(math.pi / (2 * N) * (2 * n + 1) * k)
+    # Adjust the first row (k=0) with a special normalization factor
+    mat[0] *= (2 ** -0.5)
+    return mat
+
+def init_proj_special(input_dim: int, downsampling_factor: int, weight_out: Tensor):
+    # special initialization of projection weight with orthonormal rows, so that low-freq
+    (num_rows, num_cols) = weight_out.shape
+    assert num_cols == input_dim * downsampling_factor and num_rows <= num_cols
+    weight = torch.eye(num_cols)
+    d = downsampling_factor
+    n = input_dim
+    weight = weight.reshape(d, n, d, n)
+    dct = get_dct_matrix(d)
+    weight = torch.matmul(dct, weight.reshape(d, -1))
+    weight = weight.reshape(d * n, d * n)
+    with torch.no_grad():
+        weight_out[:] = weight[:num_rows, :]
 
 
 class Zipformer2EncoderLayer(nn.Module):
