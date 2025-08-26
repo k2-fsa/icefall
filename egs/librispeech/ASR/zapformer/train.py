@@ -936,6 +936,7 @@ def compute_loss(
     batch: dict,
     is_training: bool,
     spec_augment: Optional[nn.Module] = None,
+    aux_loss_scale: float = 0.0,
 ) -> Tuple[Tensor, MetricsTracker]:
     """
     Compute loss given the model and its inputs.
@@ -988,7 +989,7 @@ def compute_loss(
         spec_augment = None  # disable spec-aug
 
     with torch.set_grad_enabled(is_training):
-        simple_loss, pruned_loss, ctc_loss, attention_decoder_loss, cr_loss, reconstruction_loss, predict_loss, cosine_similarity_loss = model(
+        simple_loss, pruned_loss, ctc_loss, attention_decoder_loss, cr_loss, reconstruction_loss, predict_loss = model(
             x=feature,
             x_lens=feature_lens,
             y=y,
@@ -999,6 +1000,7 @@ def compute_loss(
             supervision_segments=supervision_segments,
             time_warp_factor=80, # for specaug
             num_copies=num_copies,
+            aux_loss_scale=aux_loss_scale,
         )
 
         loss = 0.0
@@ -1024,8 +1026,6 @@ def compute_loss(
         reconstruction_loss_scale = params.reconstruction_loss_scale
 
         loss += reconstruction_loss_scale * reconstruction_loss
-
-        loss += cosine_similarity_loss
 
         if num_copies > 1:
             loss += params.predict_loss_scale * predict_loss
@@ -1055,7 +1055,6 @@ def compute_loss(
     if num_copies > 1:
         info["predict_loss"] = predict_loss.detach().cpu().item()
     info["recon_loss"] = reconstruction_loss.detach().cpu().item()
-    info["cosine_similarity_loss"] = cosine_similarity_loss.detach().cpu().item()
     if params.use_attention_decoder:
         info["attn_decoder_loss"] = attention_decoder_loss.detach().cpu().item()
 
@@ -1150,6 +1149,12 @@ def train_one_epoch(
 
     saved_bad_model = False
 
+    def get_scaler_scale():
+        if params.use_autocast and scaler._scale is not None:
+            return scaler._scale.item()
+        else:
+            return 1.0
+
     def save_bad_model(suffix: str = ""):
         if params.debug_interval > 0:
             optimizer.write_debug_info(summary_writer=tb_writer)
@@ -1183,6 +1188,7 @@ def train_one_epoch(
                     batch=batch,
                     is_training=True,
                     spec_augment=spec_augment,
+                    aux_loss_scale=get_scaler_scale(),
                 )
             # summary stats
             tot_loss = (tot_loss * (1 - 1 / params.reset_interval)) + loss_info
@@ -1238,7 +1244,7 @@ def train_one_epoch(
             )
 
         if params.use_autocast:
-            cur_grad_scale = scaler._scale.item()
+            cur_grad_scale = get_scaler_scale()
 
             if cur_grad_scale < 0.01:
                 if not saved_bad_model:
@@ -1262,7 +1268,7 @@ def train_one_epoch(
 
         if batch_idx % params.log_interval == 0:
             cur_lr = max(scheduler.get_last_lr())
-            cur_grad_scale = scaler._scale.item() if params.use_autocast else 1.0
+            cur_grad_scale = get_scaler_scale()
 
             logging.info(
                 f"Epoch {params.cur_epoch}, "

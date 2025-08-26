@@ -966,9 +966,10 @@ class SimpleOrthogonalLinear(nn.Linear):
 
 class CosineSimilarityLoss(nn.Module):
     def __init__(self,
-                 max_similarity: float):  # e.g. 0.1 for max_similarity
+                 max_similarity: FloatLike):  # e.g. 0.1 for max_similarity
         super().__init__()
         self.max_similarity = max_similarity
+        self.name = None
 
     def forward(self,
                 x: Tensor,
@@ -980,7 +981,7 @@ class CosineSimilarityLoss(nn.Module):
         mask: if supplied, mask of shape (batch_size, seq_len);
               True means masked positions.
 
-        Returns excess similarity as a sum over frames.
+        Returns excess similarity as a sum over frames, this should be treated as a loss.
         """
         eps = 1.0e-10
         x_norm = ((x ** 2).sum(dim=-1, keepdim=True) + eps).sqrt()
@@ -999,8 +1000,12 @@ class CosineSimilarityLoss(nn.Module):
         x_permuted = torch.gather(x, 1, permutation.unsqueeze(-1).expand(*x.shape))
 
         similarity = (x * x_permuted).sum(dim=-1).abs() # use absolute value so we penalize negative correlations also
-        excess_similarity = (similarity - self.max_similarity).relu()
-        return excess_similarity
+        excess_similarity = (similarity.sum(dim=1) - seq_len * float(self.max_similarity)).relu()
+
+        if random.random() < 0.001:
+            logging.info("CosineSimilarityLoss: {self.name}, limit={float(self.max_similarity}, excess-similarity={excess_similarity.mean() / seq_len}")
+
+        return excess_similarity.sum()  # sum over batch dim.
 
 
 class ChunkCausalDepthwiseConv1d(torch.nn.Module):
