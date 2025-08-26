@@ -584,13 +584,13 @@ class Zipformer2EncoderLayer(nn.Module):
 
         src = src + self.feed_forward1(src)
 
-        src = src + self.self_attn1(src, attn_weights, aux_loss_scale=aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
+        src = src + self.self_attn1(src, attn_weights, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
 
         src = src + self.conv_module1(src, chunk_size=chunk_size, src_key_padding_mask=src_key_padding_mask)
 
         src = src + self.feed_forward2(src)
 
-        src = src + self.self_attn2(src, attn_weights, aux_loss_scale=aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
+        src = src + self.self_attn2(src, attn_weights, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
 
         src = src + self.conv_module2(src, chunk_size=chunk_size, src_key_padding_mask=src_key_padding_mask)
 
