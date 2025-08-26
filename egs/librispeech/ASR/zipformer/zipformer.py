@@ -1574,7 +1574,7 @@ class SelfAttention(nn.Module):
         if aux_loss_scale:
             x = with_loss(x, self.cosine_loss(x.reshape(num_heads * batch_size, seq_len, value_head_dim),
                                               src_key_padding_mask.repeat(num_heads, 1) if src_key_padding_mask is not None else None
-            ) * aux_loss_scale * 0.25,
+            ) * aux_loss_scale * 0.25 * (1. / num_heads),
                           name=None)
 
         x = (
