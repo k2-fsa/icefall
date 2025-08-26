@@ -1537,7 +1537,7 @@ class SelfAttention(nn.Module):
 
         f = max(1.0, embed_dim / (num_heads * value_head_dim))
 
-        self.cosine_loss = CosineSimilarityLoss(max_similarity=ScheduledFloat((0.0, 0.5), (20000.0, 0.75), default=0.5))
+        self.cosine_loss = CosineSimilarityLoss(max_similarity=ScheduledFloat((0.0, 0.75), (20000.0, 0.9), default=0.5))
 
 
     def forward(
@@ -1569,7 +1569,13 @@ class SelfAttention(nn.Module):
 
         # todo: see whether there is benefit in overriding matmul
         x = torch.matmul(attn_weights, x)
-        # v: (num_heads, batch_size, seq_len, value_head_dim)
+        # x: (num_heads, batch_size, seq_len, value_head_dim)
+
+        if aux_loss_scale:
+            x = with_loss(x, self.cosine_loss(x.reshape(num_heads * batch_size, seq_len, value_head_dim),
+                                              src_key_padding_mask.repeat(num_heads, 1) if src_key_padding_mask is not None else None
+            ) * aux_loss_scale * 0.25,
+                          name=None)
 
         x = (
             x.permute(2, 1, 0, 3)
@@ -1580,10 +1586,6 @@ class SelfAttention(nn.Module):
         # returned value is of shape (seq_len, batch_size, embed_dim), like the input.
         x = self.out_proj(x)
 
-        if aux_loss_scale:
-            x = with_loss(x, self.cosine_loss(x.permute(1, 0, 2),
-                                              src_key_padding_mask) * aux_loss_scale * 0.25,
-                          name=None)
         return x
 
     def streaming_forward(
