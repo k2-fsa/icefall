@@ -1149,6 +1149,12 @@ def train_one_epoch(
 
     saved_bad_model = False
 
+    def get_scaler_scale():
+        if params.use_autocast and scaler._scale is not None:
+            return scaler._scale.item()
+        else:
+            return 1.0
+
     def save_bad_model(suffix: str = ""):
         if params.debug_interval > 0:
             optimizer.write_debug_info(summary_writer=tb_writer)
@@ -1182,7 +1188,7 @@ def train_one_epoch(
                     batch=batch,
                     is_training=True,
                     spec_augment=spec_augment,
-                    aux_loss_scale=scaler._scale.item() if params.use_autocast else 1.0,
+                    aux_loss_scale=get_scaler_scale(),
                 )
             # summary stats
             tot_loss = (tot_loss * (1 - 1 / params.reset_interval)) + loss_info
@@ -1238,7 +1244,7 @@ def train_one_epoch(
             )
 
         if params.use_autocast:
-            cur_grad_scale = scaler._scale.item()
+            cur_grad_scale = get_scaler_scale()
 
             if cur_grad_scale < 0.01:
                 if not saved_bad_model:
@@ -1262,7 +1268,7 @@ def train_one_epoch(
 
         if batch_idx % params.log_interval == 0:
             cur_lr = max(scheduler.get_last_lr())
-            cur_grad_scale = scaler._scale.item() if params.use_autocast else 1.0
+            cur_grad_scale = get_scaler_scale()
 
             logging.info(
                 f"Epoch {params.cur_epoch}, "
