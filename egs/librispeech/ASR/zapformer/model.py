@@ -129,7 +129,7 @@ class AsrModel(nn.Module):
 
 
     def forward_encoder(
-        self, x: torch.Tensor, x_lens: torch.Tensor
+            self, x: torch.Tensor, x_lens: torch.Tensor, aux_loss_scale: float = 0.0,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Compute encoder outputs.
         Args:
@@ -159,12 +159,13 @@ class AsrModel(nn.Module):
 
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
 
-        encoder_out, encoder_out_lens, predict_loss, cosine_similarity_loss = self.encoder(x, x_lens, src_key_padding_mask, specaug_mask=specaug_mask)
+        encoder_out, encoder_out_lens, predict_loss = self.encoder(x, x_lens, src_key_padding_mask, specaug_mask=specaug_mask,
+                                                                   aux_loss_scale=aux_loss_scale)
 
         encoder_out = encoder_out.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
         assert torch.all(encoder_out_lens > 0), (x_lens, encoder_out_lens)
 
-        return encoder_out, encoder_out_lens, predict_loss, cosine_similarity_loss
+        return encoder_out, encoder_out_lens, predict_loss
 
     def forward_ctc(
         self,
@@ -368,6 +369,7 @@ class AsrModel(nn.Module):
         supervision_segments: Optional[torch.Tensor] = None,
         time_warp_factor: Optional[int] = 80,
         num_copies: int = 1,
+        aux_loss_scale: float = 0.0,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Args:
@@ -465,7 +467,8 @@ class AsrModel(nn.Module):
 
 
         # Compute encoder outputs
-        encoder_out, encoder_out_lens, predict_loss, cosine_similarity_loss = self.forward_encoder(x, x_lens)
+        encoder_out, encoder_out_lens, predict_loss = self.forward_encoder(x, x_lens,
+                                                                           aux_loss_scale=aux_loss_scale)
 
         row_splits = y.shape.row_splits(1)
         y_lens = row_splits[1:] - row_splits[:-1]
@@ -519,7 +522,7 @@ class AsrModel(nn.Module):
         reconstruction_loss = self.forward_reconstruction_loss(x_no_specaug, encoder_out,
                                                                encoder_out_lens)
 
-        return simple_loss, pruned_loss, ctc_loss, attention_decoder_loss, cr_loss, reconstruction_loss, predict_loss, cosine_similarity_loss
+        return simple_loss, pruned_loss, ctc_loss, attention_decoder_loss, cr_loss, reconstruction_loss, predict_loss
 
 
     def forward_reconstruction_loss(self,

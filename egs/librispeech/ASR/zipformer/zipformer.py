@@ -43,6 +43,7 @@ from scaling import (
     penalize_abs_values_gt,
     PredictLoss,
     softmax,
+    with_loss,
 )
 from torch import Tensor, nn
 
@@ -233,6 +234,7 @@ class Zipformer2(EncoderInterface):
         x_lens: Tensor,
         src_key_padding_mask: Optional[Tensor] = None,
         specaug_mask: Optional[Tensor] = None,
+        aux_loss_scale: float = 0.0,
     ) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
         """
         Args:
@@ -244,6 +246,10 @@ class Zipformer2(EncoderInterface):
           src_key_padding_mask:
             The mask for padding, of shape (batch_size, seq_len); True means
             masked position. May be None.
+          aux_loss_scale:
+            If supplied, auxiliary losses such as CosineSimilarityLoss will be
+            applied with this scale on the loss (note, these aux losses are
+            reduced via summation over frames.)
         Returns:
           Return a tuple containing 4 tensors:
             - embeddings: its shape is (output_seq_len, batch_size, max(encoder_dim))
@@ -251,7 +257,6 @@ class Zipformer2(EncoderInterface):
               of frames in `embeddings` before padding.
             - predict_loss, a cross-prediction loss of randomized codebooks, relying on the CR-CTC
               structure of the batch.
-            - cosine_similarity_loss,  a loss that encourages embedding vectors to be independent.
         """
         chunk_size, left_context_chunks = self.get_chunk_info()
 
@@ -268,15 +273,16 @@ class Zipformer2(EncoderInterface):
             return x[:max_len] if x.shape[0] > max_len else x
 
 
+        num_stacks = len(self.downsampling_factor)
+
         predict_loss = 0.0
-        cosine_similarity_loss = 0.0
 
         for module in self.encoders:
             if isinstance(module, Zipformer2Encoder):
                 i = module.encoder_index  # was set in this class's __init__ function.
                 ds = self.downsampling_factor[i]
                 x = truncate(x, ds)
-                x, this_pred_loss, this_cosine_similarity_loss = module(
+                x, this_pred_loss = module(
                     x,
                     chunk_size=chunk_size,
                     src_key_padding_mask=(
@@ -293,9 +299,9 @@ class Zipformer2(EncoderInterface):
                                if attn_mask is None
                                else attn_mask[::ds, ::ds]
                     ),
+                    aux_loss_scale=aux_loss_scale * ds / (self.output_downsampling_factor * num_stacks)
                 )
-                predict_loss += this_pred_loss * (ds / self.output_downsampling_factor)
-                cosine_similarity_loss += this_cosine_similarity_loss * (ds / self.output_downsampling_factor)
+                predict_loss += this_pred_loss * (ds / (self.output_downsampling_factor * num_stacks))
 
             else:
                 x = module(x)
@@ -308,8 +314,7 @@ class Zipformer2(EncoderInterface):
                 warnings.simplefilter("ignore")
                 lengths = (x_lens + 1) // 2
 
-        L = len(self.downsampling_factor)
-        return x, lengths, predict_loss / L, cosine_similarity_loss / L
+        return x, lengths, predict_loss
 
     def _get_attn_mask(
         self, x: Tensor, chunk_size: int, left_context_chunks: int
@@ -546,6 +551,7 @@ class Zipformer2EncoderLayer(nn.Module):
         chunk_size: int = -1,
         attn_mask: Optional[Tensor] = None,
         src_key_padding_mask: Optional[Tensor] = None,
+        aux_loss_scale: float = 0.0,
     ) -> Tensor:
         """
             Pass the input through the encoder layer.
@@ -558,6 +564,10 @@ class Zipformer2EncoderLayer(nn.Module):
                    True means masked position. May be None.
         src_key_padding_mask:  the mask for padding, of shape (batch_size, seq_len); True means
                  masked position.  May be None.
+          aux_loss_scale:
+            If supplied, auxiliary losses such as CosineSimilarityLoss will be
+            applied with this scale on the loss (note, these aux losses are
+            reduced via summation over frames.)
 
             Returns:
                A tensor which has the same shape as src
@@ -772,6 +782,7 @@ dropout:
         attn_mask: Optional[Tensor] = None,
         src_key_padding_mask: Optional[Tensor] = None,
         specaug_mask: Optional[Tensor] = None,
+        aux_loss_scale: float = 0.0,
     ) -> Tensor:
         r"""Pass the input through the encoder layers in turn.
 
@@ -795,7 +806,7 @@ dropout:
         if num_channels > layer_dim:
             src, bypass = src[..., :layer_dim], src[..., layer_dim:]
 
-
+        num_layers = len(self.layers)
         src_orig = src
         for i, mod in enumerate(self.layers):
             src = mod(
@@ -804,6 +815,7 @@ dropout:
                 chunk_size=chunk_size,
                 attn_mask=attn_mask,
                 src_key_padding_mask=src_key_padding_mask,
+                aux_loss_scale=aux_loss_scale/num_layers,
             )
             # randomize_factor can be viewed as a simple version of an
             # importance-sampling factor.
@@ -824,7 +836,15 @@ dropout:
         else:
             mask = None
 
-        return src, self.predict_loss(src, mask), self.cosine_similarity_loss(src.permute(1, 0, 2), src_key_padding_mask)
+
+        # we will apply cosine_similarity_loss during backprop without printing it
+        # the 0.25 is a heuristic factor specific to cosine similarity loss.
+        if aux_loss_scale:  # if not None and not zero..
+            src = with_loss(src,
+                            self.cosine_similarity_loss(src.permute(1, 0, 2), src_key_padding_mask) * aux_loss_scale * 0.25,
+                            name=self.name)
+
+        return src, self.predict_loss(src, mask)
 
     def streaming_forward(
         self,
