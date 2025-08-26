@@ -584,13 +584,13 @@ class Zipformer2EncoderLayer(nn.Module):
 
         src = src + self.feed_forward1(src)
 
-        src = src + self.self_attn1(src, attn_weights)
+        src = src + self.self_attn1(src, attn_weights, aux_loss_scale=aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
 
         src = src + self.conv_module1(src, chunk_size=chunk_size, src_key_padding_mask=src_key_padding_mask)
 
         src = src + self.feed_forward2(src)
 
-        src = src + self.self_attn2(src, attn_weights)
+        src = src + self.self_attn2(src, attn_weights, aux_loss_scale=aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
 
         src = src + self.conv_module2(src, chunk_size=chunk_size, src_key_padding_mask=src_key_padding_mask)
 
@@ -766,7 +766,7 @@ dropout:
         self.copy_bypass = Identity()
 
         self.predict_loss = PredictLoss(dim)
-        self.cosine_similarity_loss = CosineSimilarityLoss(max_similarity=0.05)
+        self.cosine_loss = CosineSimilarityLoss(max_similarity=0.05)
 
     def forward(
         self,
@@ -829,11 +829,11 @@ dropout:
             mask = None
 
 
-        # we will apply cosine_similarity_loss during backprop without printing it
+        # we will apply cosine_loss during backprop without printing it
         # the 0.25 is a heuristic factor specific to cosine similarity loss.
         if aux_loss_scale:  # if not None and not zero..
             src = with_loss(src,
-                            self.cosine_similarity_loss(src.permute(1, 0, 2), src_key_padding_mask) * aux_loss_scale * 0.25,
+                            self.cosine_loss(src.permute(1, 0, 2), src_key_padding_mask) * aux_loss_scale * 0.25,
                             name=None)
 
         return src, self.predict_loss(src, mask)
@@ -1536,20 +1536,17 @@ class SelfAttention(nn.Module):
         )
 
         f = max(1.0, embed_dim / (num_heads * value_head_dim))
-        # the whitening metric cannot be less than f because of the rank imposed
-        # by the bottleneck.  the final whitening limit will be (2.0*3.0) times f,
-        # i.e. 6 times greater than the mathematical smallest value it can have.
-        self.whiten = Whiten(
-            num_groups=1,
-            whitening_limit=_whitening_schedule(f * 2.0, ratio=3.0),
-            prob=(0.025, 0.25),
-            grad_scale=0.01,
-        )
+
+
+        self.cosine_loss = CosineSimilarityLoss(max_similarity=0.25)
+
 
     def forward(
         self,
         x: Tensor,
         attn_weights: Tensor,
+        aux_loss_scale: float = 0.0,
+        src_key_padding_mask: Optional[Tensor] = None,
     ) -> Tensor:
         """
         Args:
@@ -1557,6 +1554,8 @@ class SelfAttention(nn.Module):
          attn_weights: a tensor of shape (num_heads, batch_size, seq_len, seq_len),
           with seq_len being interpreted as (tgt_seq_len, src_seq_len).  Expect
           attn_weights.sum(dim=-1) == 1.
+         src_key_padding_mask: optional Tensor of shape (batch_size, src_seq_len); only
+          used for the cosine similarity loss, during training.
         Returns:
            a tensor with the same shape as x.
         """
@@ -1581,8 +1580,11 @@ class SelfAttention(nn.Module):
 
         # returned value is of shape (seq_len, batch_size, embed_dim), like the input.
         x = self.out_proj(x)
-        x = self.whiten(x)
 
+        if aux_loss_scale:
+            x = with_loss(x, self.cosine_loss(x.permute(1, 0, 2),
+                                              src_key_padding_mask) * aux_loss_scale * 0.25,
+                          name=None)
         return x
 
     def streaming_forward(

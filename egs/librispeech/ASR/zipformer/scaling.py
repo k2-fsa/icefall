@@ -887,7 +887,7 @@ class CosineSimilarityLoss(nn.Module):
         excess_similarity = (similarity.sum(dim=1) - seq_len * float(self.max_similarity)).relu()
 
         if random.random() < 0.001:
-            logging.info("CosineSimilarityLoss: {self.name}, limit={float(self.max_similarity}, excess-similarity={excess_similarity.mean() / seq_len}")
+            logging.info(f"CosineSimilarityLoss: {self.name}, limit={float(self.max_similarity)}, excess-similarity={excess_similarity.mean() / seq_len}")
 
         return excess_similarity.sum()  # sum over batch dim.
 
