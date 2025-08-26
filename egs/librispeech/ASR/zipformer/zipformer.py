@@ -824,7 +824,7 @@ dropout:
         else:
             mask = None
 
-        return src, self.predict_loss(src, mask), self.cosine_similarity_loss(src.permute(1, 0, 2), src_key_padding_mask).sum()
+        return src, self.predict_loss(src, mask), self.cosine_similarity_loss(src.permute(1, 0, 2), src_key_padding_mask)
 
     def streaming_forward(
         self,

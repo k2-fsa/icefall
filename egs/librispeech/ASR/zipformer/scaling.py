@@ -883,8 +883,8 @@ class CosineSimilarityLoss(nn.Module):
         x_permuted = torch.gather(x, 1, permutation.unsqueeze(-1).expand(*x.shape))
 
         similarity = (x * x_permuted).sum(dim=-1).abs() # use absolute value so we penalize negative correlations also
-        excess_similarity = (similarity - self.max_similarity).relu()
-        return excess_similarity
+        excess_similarity = (similarity.sum(dim=1) - seq_len * self.max_similarity).relu()
+        return excess_similarity.sum()  # sum over batch dim.
 
 
 
