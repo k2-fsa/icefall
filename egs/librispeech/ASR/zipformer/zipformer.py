@@ -765,13 +765,6 @@ dropout:
         #bypass_dim = dim - encoder_layer.embed_dim
         self.copy_bypass = Identity()
 
-        self.whiten = Whiten(
-            num_groups=1,
-            whitening_limit=_whitening_schedule(3.0),
-            prob=(1, 1),
-            grad_scale=0.025,
-        )
-
         self.predict_loss = PredictLoss(dim)
         self.cosine_similarity_loss = CosineSimilarityLoss(max_similarity=0.05)
 
@@ -821,7 +814,6 @@ dropout:
             # importance-sampling factor.
 
         src = self.residual(src_orig, src)
-        src = self.whiten(src)
 
         if num_channels > layer_dim:
             bypass = self.copy_bypass(bypass)
@@ -842,7 +834,7 @@ dropout:
         if aux_loss_scale:  # if not None and not zero..
             src = with_loss(src,
                             self.cosine_similarity_loss(src.permute(1, 0, 2), src_key_padding_mask) * aux_loss_scale * 0.25,
-                            name=self.name)
+                            name=None)
 
         return src, self.predict_loss(src, mask)
 
