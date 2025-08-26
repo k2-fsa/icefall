@@ -179,8 +179,6 @@ class Zipformer2(EncoderInterface):
                 pos_dim=pos_dim,
             )
 
-            init_proj_special(input_dim, downsampling_factor[i], encoder.proj.weight)
-
             encoders.append(encoder)
 
         self.encoders = nn.ModuleList(encoders)
@@ -520,20 +518,6 @@ def get_dct_matrix(N):
     # Adjust the first row (k=0) with a special normalization factor
     mat[0] *= (2 ** -0.5)
     return mat
-
-def init_proj_special(input_dim: int, downsampling_factor: int, weight_out: Tensor):
-    # special initialization of projection weight with orthonormal rows, so that low-freq
-    (num_rows, num_cols) = weight_out.shape
-    assert num_cols == input_dim * downsampling_factor and num_rows <= num_cols
-    weight = torch.eye(num_cols)
-    d = downsampling_factor
-    n = input_dim
-    weight = weight.reshape(d, n, d, n)
-    dct = get_dct_matrix(d)
-    weight = torch.matmul(dct, weight.reshape(d, -1))
-    weight = weight.reshape(d * n, d * n)
-    with torch.no_grad():
-        weight_out[:] = weight[:num_rows, :]
 
 
 class Zipformer2EncoderLayer(nn.Module):
