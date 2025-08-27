@@ -1195,7 +1195,7 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         self.dropout = dropout
         self.name = None  # will be overwritten in training code; for diagnostics.
 
-        self.attn_score_limit = ScheduledFloat((0.0, 10.0), (5000.0, 40.0))
+        self.attn_score_limit = ScheduledFloat((0.0, 5.0), (5000.0, 20.0))
         self.attn_score_penalty_prob = ScheduledFloat((0.0, 1.0), (5000.0, 1.0), (5001.0, 0.1))
 
         key_head_dim = query_head_dim
