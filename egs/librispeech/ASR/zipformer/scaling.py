@@ -848,6 +848,58 @@ class OrthogonalLinear(nn.Linear):
         return ans
 
 
+class CosineSimilarityLossFunction(torch.autograd.Function):
+    @staticmethod
+    @custom_fwd
+    def forward(ctx, x: Tensor, mask: Optional[Tensor], max_similarity: float, weight: float, name: str):
+        ctx.save_for_backward(x)
+        ctx.mask = mask  # mask will have no grad so it should be OK to store this way
+        ctx.name = name
+        ctx.weight = weight
+        ctx.max_similarity = max_similarity
+        return torch.tensor(0.0, device=x.device, dtype=x.dtype)
+
+    @staticmethod
+    @custom_bwd
+    def backward(ctx, ans_grad):
+        x, = ctx.saved_tensors
+        mask = ctx.mask     # optional Tensor
+        name = ctx.name     # str
+        weight = ctx.weight # float
+        max_similarity = ctx.max_similarity # float
+
+
+        with torch.enable_grad():
+            x = x.detach()
+            x.requires_grad = True
+
+            eps = 3.0e-08  # won't be zero in float16
+            x_norm = x / ((x ** 2).sum(dim=-1, keepdim=True) + eps).sqrt()
+            (batch_size, seq_len, num_channels) =  x.shape
+            _, permutation = torch.rand(batch_size, seq_len, device=x.device).sort(dim=1)
+            # permutation: (batch_size, seq_len)
+            arange = torch.arange(seq_len, device=x.device)
+            mask2 = (permutation == arange)
+            if mask is not None:
+                mask = torch.logical_or(mask, mask2)
+            else:
+                mask = mask2
+            x_norm = x_norm * (~mask).unsqueeze(-1).to(x.dtype)
+
+            x_permuted = torch.gather(x_norm, 1, permutation.unsqueeze(-1).expand(*x.shape))
+
+            similarity = (x_norm * x_permuted).sum(dim=-1).abs() # use absolute value so we penalize negative correlations also
+            excess_similarity = (similarity.sum(dim=1) - seq_len * max_similarity).relu()
+
+            if random.random() < 0.001:
+                logging.info(f"CosineSimilarityLoss: {name}, limit={max_similarity}, excess-similarity={excess_similarity.mean() / seq_len}")
+
+            grad = (weight * ans_grad).expand(excess_similarity.numel())
+            excess_similarity.backward(grad)
+
+        return x.grad, None, None, None, None
+
+
 class CosineSimilarityLoss(nn.Module):
     def __init__(self,
                  max_similarity: FloatLike):  # e.g. 0.1 for max_similarity
@@ -857,39 +909,30 @@ class CosineSimilarityLoss(nn.Module):
 
     def forward(self,
                 x: Tensor,
+                loss_scale: float,
                 mask: Optional[Tensor] = None) -> Tensor:
         """
         Compute cosine-similarity loss that tries to keep distinct output vectors distinct.
 
-          x: Tensor of shape (batch_size, seq_len, num_channels)
-        mask: if supplied, mask of shape (batch_size, seq_len);
+           x: Tensor of shape (batch_size, seq_len, num_channels)
+  loss_scale: the scale with which the loss should be incorporated into the graph.
+             This should contain a factor of the grad_scale, if you are using GradScaler for
+             automatic mixed precision training (amp).
+             The loss will be summed over frames, and multiplied by this value.
+         mask: if supplied, mask of shape (batch_size, seq_len);
               True means masked positions.
 
-        Returns excess similarity as a sum over frames, this should be treated as a loss.
+      Returns:
+           returns a scaled scalar loss value "ret" which should be incorporated
+           into the backprop graph by doing:
+             z = with_loss(z, ret, None)
+          where z is any quantity that will be used in calculating the main loss.
+          Ret will always be numerically equal to zero in the forward pass but
+          may behave as if it were nonzero for backprop purposes.
         """
-        eps = 1.0e-10
-        x_norm = ((x ** 2).sum(dim=-1, keepdim=True) + eps).sqrt()
-        x = x / x_norm
-        (batch_size, seq_len, num_channels) =  x.shape
-        _, permutation = torch.rand(batch_size, seq_len, device=x.device).sort(dim=1)
-        # permutation: (batch_size, seq_len)
-        arange = torch.arange(seq_len, device=x.device)
-        mask2 = (permutation == arange)
-        if mask is not None:
-            mask = torch.logical_or(mask, mask2)
-        else:
-            mask = mask2
-        x = x * (~mask).unsqueeze(-1).to(x.dtype)
-
-        x_permuted = torch.gather(x, 1, permutation.unsqueeze(-1).expand(*x.shape))
-
-        similarity = (x * x_permuted).sum(dim=-1).abs() # use absolute value so we penalize negative correlations also
-        excess_similarity = (similarity.sum(dim=1) - seq_len * float(self.max_similarity)).relu()
-
-        if random.random() < 0.001:
-            logging.info(f"CosineSimilarityLoss: {self.name}, limit={float(self.max_similarity)}, excess-similarity={excess_similarity.mean() / seq_len}")
-
-        return excess_similarity.sum()  # sum over batch dim.
+        return CosineSimilarityLossFunction.apply(x, mask,
+                                                  float(self.max_similarity),
+                                                  loss_scale, self.name)
 
 
 

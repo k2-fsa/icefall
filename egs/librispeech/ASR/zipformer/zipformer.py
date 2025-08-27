@@ -833,7 +833,7 @@ dropout:
         # the 0.25 is a heuristic factor specific to cosine similarity loss.
         if aux_loss_scale:  # if not None and not zero..
             src = with_loss(src,
-                            self.cosine_loss(src.permute(1, 0, 2), src_key_padding_mask) * aux_loss_scale * 0.25,
+                            self.cosine_loss(src.permute(1, 0, 2), aux_loss_scale * 0.25, src_key_padding_mask),
                             name=None)
 
         return src, self.predict_loss(src, mask)
@@ -1582,8 +1582,8 @@ class SelfAttention(nn.Module):
 
         if aux_loss_scale:
             x = with_loss(x, self.cosine_loss(x.permute(1, 0, 2),
-                                              src_key_padding_mask) * aux_loss_scale * 0.25,
-                          name=None)
+                                              aux_loss_scale * 0.25,
+                                              mask=src_key_padding_mask), None)
 
         return x
 
