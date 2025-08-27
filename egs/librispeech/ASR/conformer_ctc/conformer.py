@@ -49,12 +49,12 @@ class Conformer(Transformer):
         d_model: int = 256,
         nhead: int = 4,
         dim_feedforward: int = 2048,
-        num_encoder_layers: int = 12,
+        num_encoder_layers: int = 16,
         num_decoder_layers: int = 6,
         dropout: float = 0.1,
         cnn_module_kernel: int = 31,
         normalize_before: bool = True,
-        vgg_frontend: bool = False,
+        vgg_frontend: bool = True,
         use_feat_batchnorm: Union[float, bool] = 0.1,
     ) -> None:
         super(Conformer, self).__init__(

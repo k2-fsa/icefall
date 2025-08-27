@@ -42,7 +42,6 @@ from icefall.decode import (
     rescore_with_whole_lattice,
 )
 from icefall.env import get_env_info
-from icefall.lexicon import Lexicon
 from icefall.rnn_lm.model import RnnLmModel
 from icefall.utils import (
     AttributeDict,
@@ -130,21 +129,21 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="conformer_ctc/exp",
+        default="conformer_ctc/exp/models",
         help="The experiment dir",
     )
 
     parser.add_argument(
         "--lang-dir",
         type=str,
-        default="data/lang_bpe_500",
-        help="The lang dir",
+        default="data/lang_bpe_5000",
+        help="The lang dir (using BPE)",
     )
 
     parser.add_argument(
         "--lm-dir",
         type=str,
-        default="data/lm",
+        default="/home/hdd1/jenny/lm",
         help="""The n-gram LM dir.
         It should contain either G_4_gram.pt or G_4_gram.fst.txt
         """,
@@ -217,14 +216,14 @@ def get_params() -> AttributeDict:
             "vgg_frontend": False,
             "use_feat_batchnorm": True,
             "feature_dim": 80,
-            "nhead": 8,
-            "attention_dim": 512,
-            "num_decoder_layers": 6,
+            "nhead": 4,
+            "attention_dim": 256,
+            "num_decoder_layers": 0,
             # parameters for decoding
             "search_beam": 20,
             "output_beam": 8,
             "min_active_states": 30,
-            "max_active_states": 10000,
+            "max_active_states": 1000,
             "use_double_scores": True,
             "env_info": get_env_info(),
         }
@@ -294,6 +293,7 @@ def decode_one_batch(
       Return the decoding result. See above description for the format of
       the returned dict. Note: If it decodes to nothing, then return None.
     """
+
     if HLG is not None:
         device = HLG.device
     else:
@@ -304,10 +304,12 @@ def decode_one_batch(
     # at entry, feature is (N, T, C)
 
     supervisions = batch["supervisions"]
-
+    
+    # Step 1: Model forward pass
     nnet_output, memory, memory_key_padding_mask = model(feature, supervisions)
     # nnet_output is (N, T, C)
-
+    
+    # Step 2: Supervision segments preparation
     supervision_segments = torch.stack(
         (
             supervisions["sequence_idx"],
@@ -317,6 +319,14 @@ def decode_one_batch(
         1,
     ).to(torch.int32)
 
+    
+    # Ensure supervision segments don't exceed nnet_output length
+    max_allowed_frames = nnet_output.size(1)
+    supervision_segments[:, 2] = torch.clamp(supervision_segments[:, 2], max=max_allowed_frames)
+    
+    # CRITICAL FIX: k2.DenseFsaVec requires supervision_segments to be on CPU
+    supervision_segments = supervision_segments.cpu()
+    
     if H is None:
         assert HLG is not None
         decoding_graph = HLG
@@ -324,7 +334,8 @@ def decode_one_batch(
         assert HLG is None
         assert bpe_model is not None
         decoding_graph = H
-
+    
+    # Step 3: Lattice generation
     lattice = get_lattice(
         nnet_output=nnet_output,
         decoding_graph=decoding_graph,
@@ -337,9 +348,11 @@ def decode_one_batch(
     )
 
     if params.method == "ctc-decoding":
+        # Step 4: CTC decoding
         best_path = one_best_decoding(
             lattice=lattice, use_double_scores=params.use_double_scores
         )
+        
         # Note: `best_path.aux_labels` contains token IDs, not word IDs
         # since we are using H, not HLG here.
         #
@@ -351,6 +364,7 @@ def decode_one_batch(
 
         # hyps is a list of list of str, e.g., [['xxx', 'yyy', 'zzz'], ... ]
         hyps = [s.split() for s in hyps]
+        
         key = "ctc-decoding"
         return {key: hyps}
 
@@ -523,9 +537,17 @@ def decode_dataset(
         num_batches = "?"
 
     results = defaultdict(list)
+    
+    logging.info(f"Starting decode with {num_batches} batches")
+    
     for batch_idx, batch in enumerate(dl):
+        
+        logging.info(f"Processing batch {batch_idx}/{num_batches}")
+        
         texts = batch["supervisions"]["text"]
         cut_ids = [cut.id for cut in batch["supervisions"]["cut"]]
+        
+        logging.info(f"Batch {batch_idx}: {len(texts)} cuts, cut_ids: {cut_ids[:3]}...")
 
         hyps_dict = decode_one_batch(
             params=params,
@@ -536,11 +558,11 @@ def decode_dataset(
             bpe_model=bpe_model,
             batch=batch,
             word_table=word_table,
-            G=G,
             sos_id=sos_id,
             eos_id=eos_id,
+            G=G,
         )
-
+        
         if hyps_dict is not None:
             for lm_scale, hyps in hyps_dict.items():
                 this_batch = []
@@ -550,6 +572,35 @@ def decode_dataset(
                     this_batch.append((cut_id, ref_words, hyp_words))
 
                 results[lm_scale].extend(this_batch)
+                
+                # Log ground truth vs predicted examples for the first method only
+                if lm_scale == list(hyps_dict.keys())[0]:  # Only log for the first decoding method
+                    # Log a few examples from this batch
+                    num_examples = min(3, len(texts))  # Show up to 3 examples per batch
+                    if num_examples > 0:
+                        logging.info(f"=== DECODE EXAMPLES - Batch {batch_idx} ===")
+                        for i in range(num_examples):
+                            cut_id = cut_ids[i]
+                            ref_text = texts[i]
+                            hyp_text = " ".join(hyps[i])
+                            
+                            logging.info(f"Example {i+1} (ID: {cut_id}):")
+                            logging.info(f"  REF: {ref_text}")
+                            logging.info(f"  HYP: {hyp_text}")
+                            
+                            # Simple accuracy check
+                            ref_words = ref_text.split()
+                            hyp_words = hyps[i]
+                            if ref_words == hyp_words:
+                                logging.info(f"  --> ✅ PERFECT MATCH ({len(ref_words)} words)")
+                            else:
+                                # Calculate simple word error rate for this utterance
+                                import difflib
+                                matcher = difflib.SequenceMatcher(None, ref_words, hyp_words)
+                                word_errors = len(ref_words) + len(hyp_words) - 2 * sum(triple.size for triple in matcher.get_matching_blocks())
+                                utt_wer = (word_errors / len(ref_words) * 100) if len(ref_words) > 0 else 0
+                                logging.info(f"  --> ❌ WER: {utt_wer:.1f}% (REF: {len(ref_words)} words, HYP: {len(hyp_words)} words)")
+                        logging.info("=" * 50)
         else:
             assert len(results) > 0, "It should not decode to empty in the first batch!"
             this_batch = []
@@ -563,10 +614,12 @@ def decode_dataset(
 
         num_cuts += len(texts)
 
-        if batch_idx % 100 == 0:
+        if batch_idx % 10 == 0:  # Log more frequently for validation
             batch_str = f"{batch_idx}/{num_batches}"
-
-            logging.info(f"batch {batch_str}, cuts processed until now is {num_cuts}")
+            logging.info(f"[VALIDATION] batch {batch_str}, cuts processed: {num_cuts}, "
+                        f"cuts in this batch: {len(texts)}")
+            
+    logging.info(f"Completed decode_dataset with {num_cuts} total cuts processed")
     return results
 
 
@@ -580,17 +633,23 @@ def save_results(
         enable_log = False
     else:
         enable_log = True
+    
+    # Create results directory if it doesn't exist
+    results_dir = params.exp_dir / "results"
+    results_dir.mkdir(exist_ok=True)
+    
     test_set_wers = dict()
     for key, results in results_dict.items():
-        recog_path = params.exp_dir / f"recogs-{test_set_name}-{key}.txt"
+        # Save transcripts in results folder
+        recog_path = results_dir / f"recogs-{test_set_name}-{key}.txt"
         results = sorted(results)
         store_transcripts(filename=recog_path, texts=results)
         if enable_log:
             logging.info(f"The transcripts are stored in {recog_path}")
 
         # The following prints out WERs, per-word error statistics and aligned
-        # ref/hyp pairs.
-        errs_filename = params.exp_dir / f"errs-{test_set_name}-{key}.txt"
+        # ref/hyp pairs - also save in results folder
+        errs_filename = results_dir / f"errs-{test_set_name}-{key}.txt"
         with open(errs_filename, "w") as f:
             wer = write_error_stats(
                 f, f"{test_set_name}-{key}", results, enable_log=enable_log
@@ -601,7 +660,8 @@ def save_results(
             logging.info("Wrote detailed error stats to {}".format(errs_filename))
 
     test_set_wers = sorted(test_set_wers.items(), key=lambda x: x[1])
-    errs_info = params.exp_dir / f"wer-summary-{test_set_name}.txt"
+    # Save WER summary in results folder
+    errs_info = results_dir / f"wer-summary-{test_set_name}.txt"
     with open(errs_info, "w") as f:
         print("settings\tWER", file=f)
         for key, val in test_set_wers:
@@ -613,6 +673,9 @@ def save_results(
         s += "{}\t{}{}\n".format(key, val, note)
         note = ""
     logging.info(s)
+    
+    # Return WER results for external use
+    return dict(test_set_wers)
 
 
 @torch.no_grad()
@@ -631,9 +694,11 @@ def main():
     logging.info("Decoding started")
     logging.info(params)
 
-    lexicon = Lexicon(params.lang_dir)
-    max_token_id = max(lexicon.tokens)
-    num_classes = max_token_id + 1  # +1 for the blank
+    # For BPE mode: read vocab size from tokens.txt
+    tokens_file = params.lang_dir / "tokens.txt"
+    with open(tokens_file, 'r', encoding='utf-8') as f:
+        num_classes = len(f.readlines())
+    max_token_id = num_classes - 1
 
     device = torch.device("cpu")
     if torch.cuda.is_available():
@@ -653,6 +718,16 @@ def main():
     params.num_classes = num_classes
     params.sos_id = sos_id
     params.eos_id = eos_id
+
+    # Create BPE word table from tokens.txt
+    word_table = {}
+    with open(tokens_file, 'r', encoding='utf-8') as f:
+        for line in f:
+            if line.strip():
+                parts = line.strip().split()
+                if len(parts) >= 2:
+                    token, idx = parts[0], parts[1]
+                    word_table[int(idx)] = token
 
     if params.method == "ctc-decoding":
         HLG = None
@@ -684,7 +759,8 @@ def main():
             logging.info("Loading G_4_gram.fst.txt")
             logging.warning("It may take 8 minutes.")
             with open(params.lm_dir / "G_4_gram.fst.txt") as f:
-                first_word_disambig_id = lexicon.word_table["#0"]
+                # For BPE mode: use a default disambig ID (assuming #0 maps to ID 0)
+                first_word_disambig_id = 0  # This should be adjusted based on your BPE vocab
 
                 G = k2.Fsa.from_openfst(f.read(), acceptor=False)
                 # G.aux_labels is not needed in later computations, so
@@ -779,16 +855,10 @@ def main():
     args.return_cuts = True
     librispeech = LibriSpeechAsrDataModule(args)
 
-    test_clean_cuts = librispeech.test_clean_cuts()
-    test_other_cuts = librispeech.test_other_cuts()
+    # Get all test dataloaders (LibriSpeech + CHiME-4)
+    all_test_dls = librispeech.all_test_dataloaders()
 
-    test_clean_dl = librispeech.test_dataloaders(test_clean_cuts)
-    test_other_dl = librispeech.test_dataloaders(test_other_cuts)
-
-    test_sets = ["test-clean", "test-other"]
-    test_dl = [test_clean_dl, test_other_dl]
-
-    for test_set, test_dl in zip(test_sets, test_dl):
+    for test_set_name, test_dl in all_test_dls.items():
         results_dict = decode_dataset(
             dl=test_dl,
             params=params,
@@ -797,13 +867,13 @@ def main():
             HLG=HLG,
             H=H,
             bpe_model=bpe_model,
-            word_table=lexicon.word_table,
+            word_table=word_table,
             G=G,
             sos_id=sos_id,
             eos_id=eos_id,
         )
 
-        save_results(params=params, test_set_name=test_set, results_dict=results_dict)
+        save_results(params=params, test_set_name=test_set_name, results_dict=results_dict)
 
     logging.info("Done!")
 

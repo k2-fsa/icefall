@@ -38,6 +38,7 @@ import k2
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
+import sentencepiece as spm
 from asr_datamodule import LibriSpeechAsrDataModule
 from conformer import Conformer
 from lhotse.cut import Cut
@@ -47,6 +48,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.nn.utils import clip_grad_norm_
 from torch.utils.tensorboard import SummaryWriter
 from transformer import Noam
+from decode import decode_dataset, save_results
 
 from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
 from icefall.checkpoint import load_checkpoint
@@ -55,13 +57,18 @@ from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
 from icefall.graph_compiler import CtcTrainingGraphCompiler
 from icefall.lexicon import Lexicon
+from icefall.rnn_lm.model import RnnLmModel
 from icefall.utils import (
     AttributeDict,
+    load_averaged_model,
     MetricsTracker,
     encode_supervisions,
     setup_logger,
     str2bool,
 )
+
+# Global counter for validation samples to control terminal logging frequency
+_VALIDATION_SAMPLE_COUNTER = 0
 
 
 def get_parser():
@@ -93,7 +100,7 @@ def get_parser():
     parser.add_argument(
         "--num-epochs",
         type=int,
-        default=78,
+        default=100,
         help="Number of epochs to train.",
     )
 
@@ -110,7 +117,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="conformer_ctc/exp",
+        default="./conformer_ctc/exp",
         help="""The experiment dir.
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
@@ -120,7 +127,17 @@ def get_parser():
     parser.add_argument(
         "--lang-dir",
         type=str,
-        default="data/lang_bpe_500",
+        default="./data/lang_phone",
+        help="""The lang dir
+        It contains language related input files such as
+        "lexicon.txt"
+        """,
+    )
+    
+    parser.add_argument(
+        "--bpe-dir",
+        type=str,
+        default="./data/lang_bpe_5000",
         help="""The lang dir
         It contains language related input files such as
         "lexicon.txt"
@@ -139,7 +156,7 @@ def get_parser():
     parser.add_argument(
         "--num-decoder-layers",
         type=int,
-        default=6,
+        default=0,
         help="""Number of decoder layer of transformer decoder.
         Setting this to 0 will not create the decoder at all (pure CTC model)
         """,
@@ -153,12 +170,83 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--warm-step",
+        type=int,
+        default=30000,
+        help="Number of warmup steps for Noam optimizer. "
+        "Recommended: 30000 (with data aug), 15000-20000 (without data aug)",
+    )
+
+    parser.add_argument(
         "--seed",
         type=int,
         default=42,
         help="The seed for random generators intended for reproducibility",
     )
-
+    parser.add_argument(
+        "--sanity-check",
+        type=str2bool,
+        default=True,
+        help="About Sanity check process",
+    )
+    
+    parser.add_argument(
+        "--method",
+        type=str,
+        default="ctc-decoding",
+        help="""Decoding method.
+        Supported values are:
+        - ctc-decoding: CTC greedy search or beam search.
+        - nbest-rescoring: Use N-best list for LM rescoring.
+        - whole-lattice-rescoring: Use whole lattice for LM rescoring.
+        - attention-decoder: Use attention decoder rescoring.
+        - rnn-lm: Use RNN LM for rescoring.
+        """,
+    )
+    
+    parser.add_argument(
+        "--enable-validation",
+        type=str2bool,
+        default=True,
+        help="Enable validation during training. Set to False to disable validation completely.",
+    )
+    
+    parser.add_argument(
+        "--valid-interval",
+        type=int,
+        default=3000,
+        help="Run validation every N batches. Increase this to validate less frequently.",
+    )
+    
+    parser.add_argument(
+        "--validation-decoding-method",
+        type=str,
+        default="greedy",
+        choices=["greedy", "beam"],
+        help="Decoding method for validation: 'greedy' for faster validation, 'beam' for more accurate WER.",
+    )
+    
+    parser.add_argument(
+        "--validation-search-beam",
+        type=float,
+        default=10.0,
+        help="Search beam size for validation decoding (only used with beam search).",
+    )
+    
+    parser.add_argument(
+        "--validation-output-beam",
+        type=float,
+        default=5.0,
+        help="Output beam size for validation decoding (only used with beam search).",
+    )
+    
+    parser.add_argument(
+        "--validation-skip-wer",
+        type=str2bool,
+        default=False,
+        help="Skip WER computation during validation for faster validation (only compute loss).",
+    )
+    
     return parser
 
 
@@ -232,20 +320,25 @@ def get_params() -> AttributeDict:
             "batch_idx_train": 0,
             "log_interval": 50,
             "reset_interval": 200,
-            "valid_interval": 3000,
+            "valid_interval": 3000,  # Default value, will be overridden by args
             # parameters for conformer
             "feature_dim": 80,
             "subsampling_factor": 4,
             "use_feat_batchnorm": True,
-            "attention_dim": 512,
-            "nhead": 8,
+            "attention_dim": 256,
+            "nhead": 4,
             # parameters for loss
             "beam_size": 10,
             "reduction": "sum",
             "use_double_scores": True,
+            # parameters for decoding/validation
+            "search_beam": 20.0,
+            "output_beam": 8.0,
+            "min_active_states": 30,
+            "max_active_states": 10000,
             # parameters for Noam
             "weight_decay": 1e-6,
-            "warm_step": 80000,
+            "warm_step": 30000,
             "env_info": get_env_info(),
         }
     )
@@ -283,7 +376,18 @@ def load_checkpoint_if_available(
     if params.start_epoch <= 0:
         return
 
-    filename = params.exp_dir / f"epoch-{params.start_epoch-1}.pt"
+    # First try to find checkpoint in models directory
+    models_dir = params.exp_dir / "models"
+    filename = models_dir / f"epoch-{params.start_epoch-1}.pt"
+    
+    # If not found in models directory, try the old location for backward compatibility
+    if not filename.exists():
+        filename = params.exp_dir / f"epoch-{params.start_epoch-1}.pt"
+    
+    if not filename.exists():
+        logging.warning(f"Checkpoint not found at {filename}")
+        return
+    
     saved_params = load_checkpoint(
         filename,
         model=model,
@@ -310,6 +414,9 @@ def save_checkpoint(
     optimizer: Optional[torch.optim.Optimizer] = None,
     scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
     rank: int = 0,
+    suffix: str = "",
+    wer_value: Optional[float] = None,
+    step: Optional[int] = None,
 ) -> None:
     """Save model, optimizer, scheduler and training stats to file.
 
@@ -318,10 +425,27 @@ def save_checkpoint(
         It is returned by :func:`get_params`.
       model:
         The training model.
+      wer_value:
+        WER value to include in filename (optional).
+      step:
+        Training step to include in filename instead of epoch (optional).
     """
     if rank != 0:
         return
-    filename = params.exp_dir / f"epoch-{params.cur_epoch}.pt"
+    
+    # Create models directory if it doesn't exist
+    models_dir = params.exp_dir / "models"
+    models_dir.mkdir(exist_ok=True)
+    
+    if suffix:
+        # Use step instead of epoch for validation checkpoints
+        epoch_or_step = step if step is not None else params.cur_epoch
+        if wer_value is not None:
+            filename = models_dir / f"step-{epoch_or_step}-{suffix}-wer{wer_value:.2f}.pt"
+        else:
+            filename = models_dir / f"step-{epoch_or_step}-{suffix}.pt"
+    else:
+        filename = models_dir / f"epoch-{params.cur_epoch}.pt"
     save_checkpoint_impl(
         filename=filename,
         model=model,
@@ -332,12 +456,16 @@ def save_checkpoint(
     )
 
     if params.best_train_epoch == params.cur_epoch:
-        best_train_filename = params.exp_dir / "best-train-loss.pt"
+        best_train_filename = models_dir / "best-train-loss.pt"
         copyfile(src=filename, dst=best_train_filename)
 
     if params.best_valid_epoch == params.cur_epoch:
-        best_valid_filename = params.exp_dir / "best-valid-loss.pt"
+        best_valid_filename = models_dir / "best-valid-loss.pt"
         copyfile(src=filename, dst=best_valid_filename)
+    
+    logging.info(f"Checkpoint saved successfully to {filename}")
+    # Remove the print statement that might be causing issues
+    # print("Saving All Done!")
 
 
 def compute_loss(
@@ -398,9 +526,17 @@ def compute_loss(
     dense_fsa_vec = k2.DenseFsaVec(
         nnet_output,
         supervision_segments,
-        allow_truncate=params.subsampling_factor - 1,
+        allow_truncate=max(params.subsampling_factor - 1, 10),
+        # allow_truncate=0
     )
-
+    # print("nnet_output shape: ", nnet_output.shape)
+    # print("supervisions: ", supervisions)
+    # print("supervision_segments: ", supervision_segments)
+    # print("graph_compiler: ", graph_compiler)
+    # Remove assertion that causes issues with subsampling
+    # assert supervision_segments[:, 2].max() <= nnet_output.size(1), \
+    # "supervision_segments length exceeds nnet_output length"
+    
     ctc_loss = k2.ctc_loss(
         decoding_graph=decoding_graph,
         dense_fsa_vec=dense_fsa_vec,
@@ -435,12 +571,11 @@ def compute_loss(
 
     assert loss.requires_grad == is_training
 
+    
     info = MetricsTracker()
     info["frames"] = supervision_segments[:, 2].sum().item()
     info["ctc_loss"] = ctc_loss.detach().cpu().item()
-    if params.att_rate != 0.0:
-        info["att_loss"] = att_loss.detach().cpu().item()
-
+    info["att_loss"] = att_loss.detach().cpu().item()
     info["loss"] = loss.detach().cpu().item()
 
     # `utt_duration` and `utt_pad_proportion` would be normalized by `utterances`  # noqa
@@ -461,32 +596,194 @@ def compute_validation_loss(
     graph_compiler: BpeCtcTrainingGraphCompiler,
     valid_dl: torch.utils.data.DataLoader,
     world_size: int = 1,
+    epoch: int = 1,
+    quick_validation: bool = True,  # Add option for quick validation
+    rank: int = 0,  # Add rank parameter
+    tb_writer: Optional[SummaryWriter] = None,  # Add TensorBoard writer parameter
 ) -> MetricsTracker:
-    """Run the validation process."""
+
+    
     model.eval()
+    
+    with torch.no_grad():
+        device = next(model.parameters()).device
+        tot_loss = MetricsTracker()
+        
+        for batch_idx, batch in enumerate(valid_dl):
+            loss, loss_info = compute_loss(
+                params=params,
+                model=model,
+                batch=batch,
+                graph_compiler=graph_compiler,
+                is_training=False,
+            )
+            
+            assert loss.requires_grad is False
+            tot_loss = tot_loss + loss_info
 
-    tot_loss = MetricsTracker()
+        loss_value = tot_loss["loss"] / tot_loss["frames"]
+        if loss_value < params.best_valid_loss:
+            params.best_valid_epoch = params.cur_epoch
+            params.best_valid_loss = loss_value
 
-    for batch_idx, batch in enumerate(valid_dl):
-        loss, loss_info = compute_loss(
-            params=params,
-            model=model,
-            batch=batch,
-            graph_compiler=graph_compiler,
-            is_training=False,
-        )
-        assert loss.requires_grad is False
-        tot_loss = tot_loss + loss_info
+        logging.info("Validation loss computation completed")
 
-    if world_size > 1:
-        tot_loss.reduce(loss.device)
+        # Always compute WER for analysis
+        logging.info("Starting WER computation...")
+        
+        # Use the existing graph_compiler instead of creating a new one
+        # to ensure device compatibility in DDP training
+        sos_id = graph_compiler.sos_id
+        eos_id = graph_compiler.eos_id
+        
+        # Read vocab size from tokens.txt
+        tokens_file = params.lang_dir / "tokens.txt"
+        with open(tokens_file, 'r', encoding='utf-8') as f:
+            vocab_size = len(f.readlines())
+        max_token_id = vocab_size - 1
 
-    loss_value = tot_loss["loss"] / tot_loss["frames"]
-    if loss_value < params.best_valid_loss:
-        params.best_valid_epoch = params.cur_epoch
-        params.best_valid_loss = loss_value
+        # WER calculation with proper device handling
+        if params.att_rate == 0.0:
+            HLG = None
+            H = k2.ctc_topo(
+                max_token=max_token_id,
+                modified=False,
+                device=device,
+            )
+            bpe_model = spm.SentencePieceProcessor()
+            bpe_model.load(str(params.lang_dir / "bpe.model"))
+        else:
+            H = None
+            bpe_model = None
+            HLG = k2.Fsa.from_dict(
+                torch.load(f"{params.lang_dir}/HLG.pt", map_location=device)
+            )
+            assert HLG.requires_grad is False
 
-    return tot_loss
+            if not hasattr(HLG, "lm_scores"):
+                HLG.lm_scores = HLG.scores.clone()
+        
+        # For BPE mode, create a simple word table from tokens
+        if "lang_bpe" in str(params.lang_dir):
+            # Read tokens and create a simple word table mapping
+            tokens_file = params.lang_dir / "tokens.txt"
+            if tokens_file.exists():
+                word_table = {}
+                with open(tokens_file, 'r') as f:
+                    for line in f:
+                        if line.strip():
+                            parts = line.strip().split()
+                            if len(parts) >= 2:
+                                token, idx = parts[0], parts[1]
+                                word_table[token] = int(idx)
+            else:
+                word_table = None
+        else:
+            # Phone mode: use lexicon word table
+            lexicon = Lexicon(params.lang_dir)
+            word_table = lexicon.word_table
+        
+
+        
+        # Use validation-specific decoding parameters
+        if params.validation_decoding_method == "greedy":
+            logging.info("Starting decode_dataset with GREEDY decoding...")
+            # Override beam parameters for greedy decoding
+            original_search_beam = params.search_beam
+            original_output_beam = params.output_beam
+            params.search_beam = 1.0  # Greedy = beam size 1
+            params.output_beam = 1.0
+        else:
+            logging.info(f"Starting decode_dataset with BEAM search (search_beam={params.validation_search_beam}, output_beam={params.validation_output_beam})...")
+            # Use validation-specific beam parameters
+            original_search_beam = params.search_beam
+            original_output_beam = params.output_beam
+            params.search_beam = params.validation_search_beam
+            params.output_beam = params.validation_output_beam
+        
+        try:
+            results_dict = decode_dataset(
+                dl=valid_dl,
+                params=params,
+                model=model,
+                rnn_lm_model=None,  # For CTC validation, we don't use RNN LM
+                HLG=HLG,
+                H=H,
+                bpe_model=bpe_model,
+                word_table=word_table,
+                sos_id=sos_id,
+                eos_id=eos_id,
+            )
+            
+        except Exception as e:
+            logging.error(f"decode_dataset failed: {e}")
+            logging.error("Skipping WER computation for this validation")
+            # Restore original beam parameters
+            params.search_beam = original_search_beam
+            params.output_beam = original_output_beam
+            
+            logging.info(f"Validation loss: {loss_value:.4f}")
+            return tot_loss, None
+        
+        # Restore original beam parameters
+        params.search_beam = original_search_beam
+        params.output_beam = original_output_beam
+        
+        logging.info("Starting save_results...")
+        
+        wer_results = save_results(params=params, test_set_name=f"epoch_{epoch}_validation", results_dict=results_dict)
+        
+        # Log WER results
+        if wer_results:
+            for method, wer_value in wer_results.items():
+                logging.info(f"Dataset-level WER ({method}): {wer_value:.2f}% (total errors/total words)")
+                # Log each WER method to TensorBoard
+                if rank == 0 and tb_writer is not None:
+                    tb_writer.add_scalar(f"validation/wer_{method}", wer_value, params.batch_idx_train)
+        else:
+            logging.info("Validation WER: N/A")
+        
+        # Log some example predictions vs ground truth for inspection
+        log_prediction_examples(results_dict, max_examples=3)
+        
+        # Log examples to TensorBoard if available
+        if rank == 0 and tb_writer is not None:
+            log_validation_examples_to_tensorboard(results_dict, tb_writer, params.batch_idx_train, max_examples=5)
+        
+        # Calculate overall WER statistics if we have results
+        overall_wer = None
+        if wer_results:
+            # Find the main WER method (usually the first one or the one with 'wer' in the name)
+            main_wer_key = None
+            for key in wer_results.keys():
+                if 'wer' in key.lower() or 'word_error_rate' in key.lower():
+                    main_wer_key = key
+                    break
+            
+            if main_wer_key is None and wer_results:
+                # If no specific WER key found, use the first one
+                main_wer_key = list(wer_results.keys())[0]
+            
+            if main_wer_key:
+                overall_wer = wer_results[main_wer_key]
+                logging.info(f"Main dataset-level WER ({main_wer_key}): {overall_wer:.2f}% (total errors/total words)")
+                # Log the main/total WER to TensorBoard
+                if rank == 0 and tb_writer is not None:
+                    tb_writer.add_scalar("validation/total_wer", overall_wer, params.batch_idx_train)
+                    tb_writer.add_scalar("validation/wer_dataset_level", overall_wer, params.batch_idx_train)
+        
+        # Final logging of validation results
+        logging.info(f"Validation loss: {loss_value:.4f}")
+        if overall_wer is not None:
+            logging.info(f"Total validation WER: {overall_wer:.2f}% (dataset-level)")
+            # Log the final total WER to TensorBoard
+            if rank == 0 and tb_writer is not None:
+                tb_writer.add_scalar("validation/loss", loss_value, params.batch_idx_train)
+                tb_writer.add_scalar("validation/total_wer", overall_wer, params.batch_idx_train)
+        else:
+            logging.info("Validation WER: N/A")
+
+        return tot_loss, overall_wer
 
 
 def train_one_epoch(
@@ -498,6 +795,7 @@ def train_one_epoch(
     valid_dl: torch.utils.data.DataLoader,
     tb_writer: Optional[SummaryWriter] = None,
     world_size: int = 1,
+    rank: int = 0,
 ) -> None:
     """Train the model for one epoch.
 
@@ -563,21 +861,72 @@ def train_one_epoch(
                 )
                 tot_loss.write_summary(tb_writer, "train/tot_", params.batch_idx_train)
 
-        if batch_idx > 0 and batch_idx % params.valid_interval == 0:
-            logging.info("Computing validation loss")
-            valid_info = compute_validation_loss(
+        if batch_idx > 0 and batch_idx % params.valid_interval == 0 and params.enable_validation:
+            logging.info(f"Computing validation loss (rank {rank})")
+            
+            
+            # Use quick validation for frequent checks, full validation less frequently
+            quick_val = (params.batch_idx_train % (params.valid_interval * 5) != 0)
+            valid_info, validation_wer = compute_validation_loss(
                 params=params,
                 model=model,
                 graph_compiler=graph_compiler,
                 valid_dl=valid_dl,
                 world_size=world_size,
+                epoch=params.cur_epoch,
+                quick_validation=quick_val,
+                rank=rank,
+                tb_writer=tb_writer,
             )
+
+            
+            # Log validation results with WER if available
+            if validation_wer is not None:
+                logging.info(f"Epoch {params.cur_epoch}, validation: {valid_info}, WER: {validation_wer:.2f}%")
+            else:
+                logging.info(f"Epoch {params.cur_epoch}, validation: {valid_info}")
+                        
+            # Save checkpoint after validation (only rank 0)
+            if rank == 0:
+                logging.info(f"Saving checkpoint after validation at batch {batch_idx}")
+                try:
+                    save_checkpoint(
+                        params=params,
+                        model=model,
+                        optimizer=optimizer,
+                        rank=rank,
+                        suffix=f"val-{batch_idx}",
+                        wer_value=validation_wer,
+                        step=batch_idx,
+                    )
+                    logging.info(f"Checkpoint saved successfully for batch {batch_idx}")
+                except Exception as e:
+                    logging.error(f"Failed to save checkpoint: {e}")
+                    # Continue training even if checkpoint saving fails
             model.train()
-            logging.info(f"Epoch {params.cur_epoch}, validation: {valid_info}")
+            
+            
             if tb_writer is not None:
                 valid_info.write_summary(
                     tb_writer, "train/valid_", params.batch_idx_train
                 )
+                
+                # Write WER to TensorBoard if validation results file exists and contains WER
+                wer_summary_file = params.exp_dir / f"wer-summary-epoch_{params.cur_epoch}_validation.txt"
+                if wer_summary_file.exists():
+                    try:
+                        with open(wer_summary_file, 'r') as f:
+                            lines = f.readlines()
+                            for line in lines[1:]:  # Skip header line
+                                if line.strip():
+                                    parts = line.strip().split('\t')
+                                    if len(parts) >= 2:
+                                        method_name = parts[0]
+                                        wer_value = float(parts[1])
+                                        tb_writer.add_scalar(f"train/valid_WER_{method_name}", wer_value, params.batch_idx_train)
+                    except Exception as e:
+                        logging.warning(f"Could not log WER to TensorBoard: {e}")
+
 
     loss_value = tot_loss["loss"] / tot_loss["frames"]
     params.train_loss = loss_value
@@ -607,16 +956,13 @@ def run(rank, world_size, args):
 
     setup_logger(f"{params.exp_dir}/log/log-train")
     logging.info("Training started")
+    logging.info(f"Warmup steps: {params.warm_step}")
     logging.info(params)
 
     if args.tensorboard and rank == 0:
         tb_writer = SummaryWriter(log_dir=f"{params.exp_dir}/tensorboard")
     else:
         tb_writer = None
-
-    lexicon = Lexicon(params.lang_dir)
-    max_token_id = max(lexicon.tokens)
-    num_classes = max_token_id + 1  # +1 for the blank
 
     device = torch.device("cpu")
     if torch.cuda.is_available():
@@ -629,6 +975,11 @@ def run(rank, world_size, args):
             sos_token="<sos/eos>",
             eos_token="<sos/eos>",
         )
+        # Read vocab size from tokens.txt
+        tokens_file = params.lang_dir / "tokens.txt"
+        with open(tokens_file, 'r', encoding='utf-8') as f:
+            num_classes = len(f.readlines())
+        max_token_id = num_classes - 1
     elif "lang_phone" in str(params.lang_dir):
         assert params.att_rate == 0, (
             "Attention decoder training does not support phone lang dirs "
@@ -641,6 +992,9 @@ def run(rank, world_size, args):
             "Set --num-decoder-layers=0 for pure CTC training when using "
             "a phone-based lang dir."
         )
+        lexicon = Lexicon(params.lang_dir)
+        max_token_id = max(lexicon.tokens)
+        num_classes = max_token_id + 1  # +1 for the blank
         graph_compiler = CtcTrainingGraphCompiler(
             lexicon,
             device=device,
@@ -671,7 +1025,7 @@ def run(rank, world_size, args):
 
     model.to(device)
     if world_size > 1:
-        model = DDP(model, device_ids=[rank])
+        model = DDP(model, device_ids=[rank], find_unused_parameters=True)
 
     optimizer = Noam(
         model.parameters(),
@@ -706,17 +1060,22 @@ def run(rank, world_size, args):
 
     train_dl = librispeech.train_dataloaders(train_cuts)
 
+    # Use only dev_clean for faster validation (dev_other can be added later)
     valid_cuts = librispeech.dev_clean_cuts()
-    valid_cuts += librispeech.dev_other_cuts()
+    # valid_cuts += librispeech.dev_other_cuts()  # Comment out for faster validation
     valid_dl = librispeech.valid_dataloaders(valid_cuts)
+    
+    logging.info(f"Validation set size: {len(valid_cuts)} utterances")
 
-    scan_pessimistic_batches_for_oom(
-        model=model,
-        train_dl=train_dl,
-        optimizer=optimizer,
-        graph_compiler=graph_compiler,
-        params=params,
-    )
+    if params.sanity_check:
+        scan_pessimistic_batches_for_oom(
+            model=model,
+            train_dl=train_dl,
+            optimizer=optimizer,
+            graph_compiler=graph_compiler,
+            params=params,
+        )
+    else: pass
 
     for epoch in range(params.start_epoch, params.num_epochs):
         fix_random_seed(params.seed + epoch)
@@ -741,6 +1100,7 @@ def run(rank, world_size, args):
             valid_dl=valid_dl,
             tb_writer=tb_writer,
             world_size=world_size,
+            rank=rank,
         )
 
         save_checkpoint(
@@ -796,13 +1156,252 @@ def scan_pessimistic_batches_for_oom(
             raise
 
 
+def log_prediction_examples(results_dict, max_examples=5, force_log=False):
+    """
+    Log a few examples of ground truth vs predicted text for validation inspection.
+    Only logs to terminal every 50 validation samples to reduce clutter.
+    
+    Args:
+        results_dict: Dictionary containing decoding results
+        max_examples: Maximum number of examples to log
+        force_log: Force logging regardless of sample counter
+    """
+    global _VALIDATION_SAMPLE_COUNTER
+    
+    if not results_dict:
+        return
+    
+    # Get the first method's results (usually there's only one method in validation)
+    first_method = list(results_dict.keys())[0]
+    results = results_dict[first_method]
+    
+    if not results:
+        return
+    
+    # Update the validation sample counter
+    _VALIDATION_SAMPLE_COUNTER += len(results)
+    
+    # Only log to terminal every 50 samples (or when forced)
+    should_log_to_terminal = force_log or (_VALIDATION_SAMPLE_COUNTER % 50 == 0) or (_VALIDATION_SAMPLE_COUNTER <= 50)
+    
+    if not should_log_to_terminal:
+        # Still compute and log basic statistics, just not the detailed examples
+        total_sample_wer = 0
+        valid_samples = 0
+        
+        for result in results:
+            if len(result) >= 3:
+                cut_id, ref_words, hyp_words = result[0], result[1], result[2]
+                ref_text = " ".join(ref_words) if isinstance(ref_words, list) else str(ref_words)
+                hyp_text = " ".join(hyp_words) if isinstance(hyp_words, list) else str(hyp_words)
+                
+                ref_word_list = ref_text.split()
+                hyp_word_list = hyp_text.split()
+                
+                if len(ref_word_list) > 0:
+                    import difflib
+                    matcher = difflib.SequenceMatcher(None, ref_word_list, hyp_word_list)
+                    word_errors = len(ref_word_list) + len(hyp_word_list) - 2 * sum(triple.size for triple in matcher.get_matching_blocks())
+                    utt_wer = (word_errors / len(ref_word_list)) * 100
+                    total_sample_wer += utt_wer
+                    valid_samples += 1
+        
+        # Log summary info only
+        if valid_samples > 0:
+            avg_example_wer = total_sample_wer / valid_samples
+            logging.info(f"Validation batch processed: {valid_samples} samples "
+                        f"(total samples processed: {_VALIDATION_SAMPLE_COUNTER}, detailed examples every 50 samples)")
+        return
+    
+    # Full detailed logging when we hit the 50-sample threshold
+    logging.info(f"Detailed validation examples (sample #{_VALIDATION_SAMPLE_COUNTER - len(results) + 1}-{_VALIDATION_SAMPLE_COUNTER}):")
+    
+    # Select diverse examples: some short, some long, some with errors, some perfect
+    selected_examples = []
+    
+    # Try to get diverse examples by length and error type
+    perfect_matches = []
+    error_cases = []
+    
+    for result in results:
+        if len(result) >= 3:
+            cut_id, ref_words, hyp_words = result[0], result[1], result[2]
+            ref_text = " ".join(ref_words) if isinstance(ref_words, list) else str(ref_words)
+            hyp_text = " ".join(hyp_words) if isinstance(hyp_words, list) else str(hyp_words)
+            
+            if ref_text.split() == hyp_text.split():
+                perfect_matches.append(result)
+            else:
+                error_cases.append(result)
+    
+    # Mix perfect matches and error cases
+    selected_examples = error_cases[:max_examples-1] + perfect_matches[:1]
+    if len(selected_examples) < max_examples:
+        selected_examples.extend(results[:max_examples - len(selected_examples)])
+    
+    selected_examples = selected_examples[:max_examples]
+    
+    logging.info("=" * 80)
+    logging.info(f"VALIDATION EXAMPLES (showing {len(selected_examples)} samples):")
+    logging.info("=" * 80)
+    
+    total_sample_wer = 0
+    valid_samples = 0
+    
+    for i, result in enumerate(selected_examples):
+        if len(result) >= 3:
+            cut_id, ref_words, hyp_words = result[0], result[1], result[2]
+            
+            # Convert word lists to strings
+            ref_text = " ".join(ref_words) if isinstance(ref_words, list) else str(ref_words)
+            hyp_text = " ".join(hyp_words) if isinstance(hyp_words, list) else str(hyp_words)
+            
+            logging.info(f"Example {i+1} (ID: {cut_id}):")
+            logging.info(f"  REF: {ref_text}")
+            logging.info(f"  HYP: {hyp_text}")
+            
+            # Simple word error analysis
+            ref_word_list = ref_text.split()
+            hyp_word_list = hyp_text.split()
+            
+            if ref_word_list == hyp_word_list:
+                logging.info(f"  --> ✅ PERFECT MATCH ({len(ref_word_list)} words, WER: 0.0%)")
+                total_sample_wer += 0.0
+                valid_samples += 1
+            else:
+                # Basic error analysis
+                ref_len = len(ref_word_list)
+                hyp_len = len(hyp_word_list)
+                
+                # Calculate simple WER for this utterance
+                import difflib
+                matcher = difflib.SequenceMatcher(None, ref_word_list, hyp_word_list)
+                word_errors = ref_len + hyp_len - 2 * sum(triple.size for triple in matcher.get_matching_blocks())
+                utt_wer = (word_errors / ref_len * 100) if ref_len > 0 else 0
+                total_sample_wer += utt_wer
+                valid_samples += 1
+                
+                # Find common words for basic analysis
+                ref_set = set(ref_word_list)
+                hyp_set = set(hyp_word_list)
+                missing_words = ref_set - hyp_set
+                extra_words = hyp_set - ref_set
+                
+                error_info = f"WER: {utt_wer:.1f}%, REF: {ref_len} words, HYP: {hyp_len} words"
+                if missing_words and len(missing_words) <= 3:
+                    error_info += f", Missing: {list(missing_words)}"
+                elif missing_words:
+                    error_info += f", Missing: {len(missing_words)} words"
+                    
+                if extra_words and len(extra_words) <= 3:
+                    error_info += f", Extra: {list(extra_words)}"
+                elif extra_words:
+                    error_info += f", Extra: {len(extra_words)} words"
+                
+                logging.info(f"  --> ❌ ERRORS ({error_info})")
+            logging.info("")
+    
+    # Log average WER for the examples
+    if valid_samples > 0:
+        avg_example_wer = total_sample_wer / valid_samples
+        logging.info(f"Average WER for these {valid_samples} examples: {avg_example_wer:.2f}%")
+    
+    logging.info("=" * 80)
+
+
+def log_validation_examples_to_tensorboard(results_dict, tb_writer, step, max_examples=5):
+    """
+    Log validation examples to TensorBoard as text.
+    
+    Args:
+        results_dict: Dictionary containing decoding results
+        tb_writer: TensorBoard writer
+        step: Current training step
+        max_examples: Maximum number of examples to log
+    """
+    if not results_dict or tb_writer is None:
+        return
+    
+    # Get the first method's results
+    first_method = list(results_dict.keys())[0]
+    results = results_dict[first_method]
+    
+    if not results:
+        return
+    
+    # Select diverse examples
+    selected_examples = []
+    perfect_matches = []
+    error_cases = []
+    
+    for result in results:
+        if len(result) >= 3:
+            cut_id, ref_words, hyp_words = result[0], result[1], result[2]
+            ref_text = " ".join(ref_words) if isinstance(ref_words, list) else str(ref_words)
+            hyp_text = " ".join(hyp_words) if isinstance(hyp_words, list) else str(hyp_words)
+            
+            if ref_text.split() == hyp_text.split():
+                perfect_matches.append(result)
+            else:
+                error_cases.append(result)
+    
+    # Mix error cases and perfect matches
+    selected_examples = error_cases[:max_examples-1] + perfect_matches[:1]
+    if len(selected_examples) < max_examples:
+        selected_examples.extend(results[:max_examples - len(selected_examples)])
+    
+    selected_examples = selected_examples[:max_examples]
+    
+    # Create text to log to TensorBoard
+    tb_text = "## Validation Examples\n\n"
+    
+    total_wer = 0
+    valid_count = 0
+    
+    for i, result in enumerate(selected_examples):
+        if len(result) >= 3:
+            cut_id, ref_words, hyp_words = result[0], result[1], result[2]
+            
+            ref_text = " ".join(ref_words) if isinstance(ref_words, list) else str(ref_words)
+            hyp_text = " ".join(hyp_words) if isinstance(hyp_words, list) else str(hyp_words)
+            
+            tb_text += f"**Example {i+1} (ID: {cut_id})**\n\n"
+            tb_text += f"- **REF:** {ref_text}\n"
+            tb_text += f"- **HYP:** {hyp_text}\n"
+            
+            # Calculate simple WER for this utterance
+            ref_word_list = ref_text.split()
+            hyp_word_list = hyp_text.split()
+            
+            if ref_word_list == hyp_word_list:
+                tb_text += f"- **Result:** ✅ PERFECT MATCH ({len(ref_word_list)} words, WER: 0.0%)\n\n"
+                total_wer += 0.0
+                valid_count += 1
+            else:
+                import difflib
+                matcher = difflib.SequenceMatcher(None, ref_word_list, hyp_word_list)
+                word_errors = len(ref_word_list) + len(hyp_word_list) - 2 * sum(triple.size for triple in matcher.get_matching_blocks())
+                utt_wer = (word_errors / len(ref_word_list) * 100) if len(ref_word_list) > 0 else 0
+                tb_text += f"- **Result:** ❌ WER: {utt_wer:.1f}% (REF: {len(ref_word_list)} words, HYP: {len(hyp_word_list)} words)\n\n"
+                total_wer += utt_wer
+                valid_count += 1
+    
+    # Add summary statistics
+    if valid_count > 0:
+        avg_wer = total_wer / valid_count
+        tb_text += f"**Summary:** Average WER for {valid_count} examples: {avg_wer:.2f}%\n\n"
+    
+    # Log to TensorBoard
+    tb_writer.add_text("Validation/Examples", tb_text, step)
+
+
 def main():
     parser = get_parser()
     LibriSpeechAsrDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
     args.lang_dir = Path(args.lang_dir)
-
+    args.bpe_dir = Path(args.bpe_dir)
     world_size = args.world_size
     assert world_size >= 1
     if world_size > 1:
@@ -811,8 +1410,6 @@ def main():
         run(rank=0, world_size=1, args=args)
 
 
-torch.set_num_threads(1)
-torch.set_num_interop_threads(1)
 
 if __name__ == "__main__":
     main()

@@ -1,0 +1,386 @@
+nohup: ignoring input
+  - RIR Path: data/manifests/rir.scp
+  - RIR Probability: 0.5
+fatal: detected dubious ownership in repository at '/home/hdd2/jenny/ASRToolkit/icefall'
+To add an exception for this directory, call:
+
+	git config --global --add safe.directory /home/hdd2/jenny/ASRToolkit/icefall
+fatal: detected dubious ownership in repository at '/home/hdd2/jenny/ASRToolkit/icefall'
+To add an exception for this directory, call:
+
+	git config --global --add safe.directory /home/hdd2/jenny/ASRToolkit/icefall
+fatal: detected dubious ownership in repository at '/home/hdd2/jenny/ASRToolkit/icefall'
+To add an exception for this directory, call:
+
+	git config --global --add safe.directory /home/hdd2/jenny/ASRToolkit/icefall
+fatal: detected dubious ownership in repository at '/home/hdd2/jenny/ASRToolkit/icefall'
+To add an exception for this directory, call:
+
+	git config --global --add safe.directory /home/hdd2/jenny/ASRToolkit/icefall
+fatal: detected dubious ownership in repository at '/home/hdd2/jenny/ASRToolkit/icefall'
+To add an exception for this directory, call:
+
+	git config --global --add safe.directory /home/hdd2/jenny/ASRToolkit/icefall
+fatal: detected dubious ownership in repository at '/home/hdd2/jenny/ASRToolkit/icefall'
+To add an exception for this directory, call:
+
+	git config --global --add safe.directory /home/hdd2/jenny/ASRToolkit/icefall
+fatal: detected dubious ownership in repository at '/home/hdd2/jenny/ASRToolkit/icefall'
+To add an exception for this directory, call:
+
+	git config --global --add safe.directory /home/hdd2/jenny/ASRToolkit/icefall
+fatal: detected dubious ownership in repository at '/home/hdd2/jenny/ASRToolkit/icefall'
+To add an exception for this directory, call:
+
+	git config --global --add safe.directory /home/hdd2/jenny/ASRToolkit/icefall
+fatal: detected dubious ownership in repository at '/home/hdd2/jenny/ASRToolkit/icefall'
+To add an exception for this directory, call:
+
+	git config --global --add safe.directory /home/hdd2/jenny/ASRToolkit/icefall
+2025-08-27 10:02:23,634 INFO [train.py:958] (0/3) Training started
+2025-08-27 10:02:23,635 INFO [train.py:959] (0/3) Warmup steps: 30000
+2025-08-27 10:02:23,635 INFO [train.py:960] (0/3) {
+  "att_rate": 0.0,
+  "attention_dim": 256,
+  "batch_idx_train": 0,
+  "beam_size": 10,
+  "best_train_epoch": -1,
+  "best_train_loss": Infinity,
+  "best_valid_epoch": -1,
+  "best_valid_loss": Infinity,
+  "bpe_dir": "data/lang_bpe_5000",
+  "bucketing_sampler": true,
+  "concatenate_cuts": true,
+  "drop_last": true,
+  "duration_factor": 1.0,
+  "enable_musan": true,
+  "enable_rir": true,
+  "enable_spec_aug": true,
+  "enable_validation": true,
+  "env_info": {
+    "IP address": "127.0.1.1",
+    "hostname": "Attention",
+    "icefall-git-branch": null,
+    "icefall-git-date": null,
+    "icefall-git-sha1": null,
+    "icefall-path": "/tmp/icefall",
+    "k2-build-type": "Release",
+    "k2-git-date": "Mon Jul 14 07:51:57 2025",
+    "k2-git-sha1": "9399d1b01a6309e54b62d885e93209bcd66c1e7d",
+    "k2-path": "/home/jenny/miniconda3/envs/jenny/lib/python3.8/site-packages/k2/__init__.py",
+    "k2-version": "1.24.4",
+    "k2-with-cuda": true,
+    "lhotse-path": "/home/jenny/miniconda3/envs/jenny/lib/python3.8/site-packages/lhotse/__init__.py",
+    "lhotse-version": "1.31.0.dev+git.273e312.clean",
+    "python-version": "3.8",
+    "torch-cuda-available": true,
+    "torch-cuda-version": "12.1",
+    "torch-version": "2.4.0+cu121"
+  },
+  "exp_dir": "conformer_ctc/exp",
+  "feature_dim": 80,
+  "full_libri": true,
+  "gap": 1.0,
+  "input_strategy": "PrecomputedFeatures",
+  "lang_dir": "data/lang_bpe_5000",
+  "log_interval": 50,
+  "lr_factor": 5.0,
+  "manifest_dir": "data/fbank",
+  "master_port": 12345,
+  "max_active_states": 10000,
+  "max_duration": 300,
+  "method": "ctc-decoding",
+  "min_active_states": 30,
+  "mini_libri": false,
+  "nhead": 4,
+  "num_buckets": 200,
+  "num_decoder_layers": 0,
+  "num_epochs": 100,
+  "num_workers": 24,
+  "on_the_fly_feats": false,
+  "output_beam": 8.0,
+  "reduction": "sum",
+  "reset_interval": 200,
+  "return_cuts": true,
+  "rir_cuts_path": "data/manifests/rir.scp",
+  "rir_prob": 0.5,
+  "sanity_check": true,
+  "search_beam": 20.0,
+  "seed": 42,
+  "shuffle": true,
+  "spec_aug_time_warp_factor": 80,
+  "start_epoch": 0,
+  "subsampling_factor": 4,
+  "tensorboard": true,
+  "use_double_scores": true,
+  "use_feat_batchnorm": true,
+  "valid_interval": 5000,
+  "valid_max_duration": 15,
+  "validation_decoding_method": "greedy",
+  "validation_output_beam": 5.0,
+  "validation_search_beam": 10.0,
+  "validation_skip_wer": false,
+  "warm_step": 30000,
+  "weight_decay": 1e-06,
+  "world_size": 3
+}
+2025-08-27 10:02:23,656 INFO [train.py:958] (2/3) Training started
+2025-08-27 10:02:23,656 INFO [train.py:959] (2/3) Warmup steps: 30000
+2025-08-27 10:02:23,656 INFO [train.py:960] (2/3) {
+  "att_rate": 0.0,
+  "attention_dim": 256,
+  "batch_idx_train": 0,
+  "beam_size": 10,
+  "best_train_epoch": -1,
+  "best_train_loss": Infinity,
+  "best_valid_epoch": -1,
+  "best_valid_loss": Infinity,
+  "bpe_dir": "data/lang_bpe_5000",
+  "bucketing_sampler": true,
+  "concatenate_cuts": true,
+  "drop_last": true,
+  "duration_factor": 1.0,
+  "enable_musan": true,
+  "enable_rir": true,
+  "enable_spec_aug": true,
+  "enable_validation": true,
+  "env_info": {
+    "IP address": "127.0.1.1",
+    "hostname": "Attention",
+    "icefall-git-branch": null,
+    "icefall-git-date": null,
+    "icefall-git-sha1": null,
+    "icefall-path": "/tmp/icefall",
+    "k2-build-type": "Release",
+    "k2-git-date": "Mon Jul 14 07:51:57 2025",
+    "k2-git-sha1": "9399d1b01a6309e54b62d885e93209bcd66c1e7d",
+    "k2-path": "/home/jenny/miniconda3/envs/jenny/lib/python3.8/site-packages/k2/__init__.py",
+    "k2-version": "1.24.4",
+    "k2-with-cuda": true,
+    "lhotse-path": "/home/jenny/miniconda3/envs/jenny/lib/python3.8/site-packages/lhotse/__init__.py",
+    "lhotse-version": "1.31.0.dev+git.273e312.clean",
+    "python-version": "3.8",
+    "torch-cuda-available": true,
+    "torch-cuda-version": "12.1",
+    "torch-version": "2.4.0+cu121"
+  },
+  "exp_dir": "conformer_ctc/exp",
+  "feature_dim": 80,
+  "full_libri": true,
+  "gap": 1.0,
+  "input_strategy": "PrecomputedFeatures",
+  "lang_dir": "data/lang_bpe_5000",
+  "log_interval": 50,
+  "lr_factor": 5.0,
+  "manifest_dir": "data/fbank",
+  "master_port": 12345,
+  "max_active_states": 10000,
+  "max_duration": 300,
+  "method": "ctc-decoding",
+  "min_active_states": 30,
+  "mini_libri": false,
+  "nhead": 4,
+  "num_buckets": 200,
+  "num_decoder_layers": 0,
+  "num_epochs": 100,
+  "num_workers": 24,
+  "on_the_fly_feats": false,
+  "output_beam": 8.0,
+  "reduction": "sum",
+  "reset_interval": 200,
+  "return_cuts": true,
+  "rir_cuts_path": "data/manifests/rir.scp",
+  "rir_prob": 0.5,
+  "sanity_check": true,
+  "search_beam": 20.0,
+  "seed": 42,
+  "shuffle": true,
+  "spec_aug_time_warp_factor": 80,
+  "start_epoch": 0,
+  "subsampling_factor": 4,
+  "tensorboard": true,
+  "use_double_scores": true,
+  "use_feat_batchnorm": true,
+  "valid_interval": 5000,
+  "valid_max_duration": 15,
+  "validation_decoding_method": "greedy",
+  "validation_output_beam": 5.0,
+  "validation_search_beam": 10.0,
+  "validation_skip_wer": false,
+  "warm_step": 30000,
+  "weight_decay": 1e-06,
+  "world_size": 3
+}
+2025-08-27 10:02:23,770 INFO [train.py:958] (1/3) Training started
+2025-08-27 10:02:23,770 INFO [train.py:959] (1/3) Warmup steps: 30000
+2025-08-27 10:02:23,770 INFO [train.py:960] (1/3) {
+  "att_rate": 0.0,
+  "attention_dim": 256,
+  "batch_idx_train": 0,
+  "beam_size": 10,
+  "best_train_epoch": -1,
+  "best_train_loss": Infinity,
+  "best_valid_epoch": -1,
+  "best_valid_loss": Infinity,
+  "bpe_dir": "data/lang_bpe_5000",
+  "bucketing_sampler": true,
+  "concatenate_cuts": true,
+  "drop_last": true,
+  "duration_factor": 1.0,
+  "enable_musan": true,
+  "enable_rir": true,
+  "enable_spec_aug": true,
+  "enable_validation": true,
+  "env_info": {
+    "IP address": "127.0.1.1",
+    "hostname": "Attention",
+    "icefall-git-branch": null,
+    "icefall-git-date": null,
+    "icefall-git-sha1": null,
+    "icefall-path": "/tmp/icefall",
+    "k2-build-type": "Release",
+    "k2-git-date": "Mon Jul 14 07:51:57 2025",
+    "k2-git-sha1": "9399d1b01a6309e54b62d885e93209bcd66c1e7d",
+    "k2-path": "/home/jenny/miniconda3/envs/jenny/lib/python3.8/site-packages/k2/__init__.py",
+    "k2-version": "1.24.4",
+    "k2-with-cuda": true,
+    "lhotse-path": "/home/jenny/miniconda3/envs/jenny/lib/python3.8/site-packages/lhotse/__init__.py",
+    "lhotse-version": "1.31.0.dev+git.273e312.clean",
+    "python-version": "3.8",
+    "torch-cuda-available": true,
+    "torch-cuda-version": "12.1",
+    "torch-version": "2.4.0+cu121"
+  },
+  "exp_dir": "conformer_ctc/exp",
+  "feature_dim": 80,
+  "full_libri": true,
+  "gap": 1.0,
+  "input_strategy": "PrecomputedFeatures",
+  "lang_dir": "data/lang_bpe_5000",
+  "log_interval": 50,
+  "lr_factor": 5.0,
+  "manifest_dir": "data/fbank",
+  "master_port": 12345,
+  "max_active_states": 10000,
+  "max_duration": 300,
+  "method": "ctc-decoding",
+  "min_active_states": 30,
+  "mini_libri": false,
+  "nhead": 4,
+  "num_buckets": 200,
+  "num_decoder_layers": 0,
+  "num_epochs": 100,
+  "num_workers": 24,
+  "on_the_fly_feats": false,
+  "output_beam": 8.0,
+  "reduction": "sum",
+  "reset_interval": 200,
+  "return_cuts": true,
+  "rir_cuts_path": "data/manifests/rir.scp",
+  "rir_prob": 0.5,
+  "sanity_check": true,
+  "search_beam": 20.0,
+  "seed": 42,
+  "shuffle": true,
+  "spec_aug_time_warp_factor": 80,
+  "start_epoch": 0,
+  "subsampling_factor": 4,
+  "tensorboard": true,
+  "use_double_scores": true,
+  "use_feat_batchnorm": true,
+  "valid_interval": 5000,
+  "valid_max_duration": 15,
+  "validation_decoding_method": "greedy",
+  "validation_output_beam": 5.0,
+  "validation_search_beam": 10.0,
+  "validation_skip_wer": false,
+  "warm_step": 30000,
+  "weight_decay": 1e-06,
+  "world_size": 3
+}
+2025-08-27 10:02:24,048 INFO [train.py:1012] (0/3) About to create model
+2025-08-27 10:02:24,072 INFO [train.py:1012] (2/3) About to create model
+2025-08-27 10:02:24,123 INFO [train.py:1012] (1/3) About to create model
+/home/jenny/miniconda3/envs/jenny/lib/python3.8/site-packages/torch/nn/modules/transformer.py:307: UserWarning: enable_nested_tensor is True, but self.use_nested_tensor is False because encoder_layer was not TransformerEncoderLayer
+  warnings.warn(f"enable_nested_tensor is True, but self.use_nested_tensor is False because {why_not_sparsity_fast_path}")
+2025-08-27 10:02:26,096 INFO [asr_datamodule.py:537] (0/3) About to get the shuffled train-clean-100,             train-clean-360 and train-other-500 cuts
+2025-08-27 10:02:26,112 INFO [asr_datamodule.py:301] (0/3) Enable MUSAN
+2025-08-27 10:02:26,112 INFO [asr_datamodule.py:302] (0/3) About to get Musan cuts
+/home/jenny/miniconda3/envs/jenny/lib/python3.8/site-packages/torch/nn/modules/transformer.py:307: UserWarning: enable_nested_tensor is True, but self.use_nested_tensor is False because encoder_layer was not TransformerEncoderLayer
+  warnings.warn(f"enable_nested_tensor is True, but self.use_nested_tensor is False because {why_not_sparsity_fast_path}")
+2025-08-27 10:02:26,234 INFO [asr_datamodule.py:537] (2/3) About to get the shuffled train-clean-100,             train-clean-360 and train-other-500 cuts
+2025-08-27 10:02:26,235 INFO [asr_datamodule.py:301] (2/3) Enable MUSAN
+2025-08-27 10:02:26,236 INFO [asr_datamodule.py:302] (2/3) About to get Musan cuts
+/home/jenny/miniconda3/envs/jenny/lib/python3.8/site-packages/torch/nn/modules/transformer.py:307: UserWarning: enable_nested_tensor is True, but self.use_nested_tensor is False because encoder_layer was not TransformerEncoderLayer
+  warnings.warn(f"enable_nested_tensor is True, but self.use_nested_tensor is False because {why_not_sparsity_fast_path}")
+2025-08-27 10:02:26,238 INFO [asr_datamodule.py:537] (1/3) About to get the shuffled train-clean-100,             train-clean-360 and train-other-500 cuts
+2025-08-27 10:02:26,239 INFO [asr_datamodule.py:301] (1/3) Enable MUSAN
+2025-08-27 10:02:26,239 INFO [asr_datamodule.py:302] (1/3) About to get Musan cuts
+2025-08-27 10:02:28,823 INFO [asr_datamodule.py:311] (0/3) Enable RIR (Room Impulse Response) augmentation
+2025-08-27 10:02:28,823 INFO [asr_datamodule.py:312] (0/3) Loading RIR paths from data/manifests/rir.scp
+2025-08-27 10:02:28,829 INFO [asr_datamodule.py:311] (1/3) Enable RIR (Room Impulse Response) augmentation
+2025-08-27 10:02:28,829 INFO [asr_datamodule.py:312] (1/3) Loading RIR paths from data/manifests/rir.scp
+2025-08-27 10:02:28,845 INFO [asr_datamodule.py:319] (0/3) Found 60536 RIR files
+2025-08-27 10:02:28,851 INFO [asr_datamodule.py:319] (1/3) Found 60536 RIR files
+2025-08-27 10:02:29,081 INFO [asr_datamodule.py:333] (0/3) Using cut concatenation with duration factor 1.0 and gap 1.0.
+2025-08-27 10:02:29,081 INFO [asr_datamodule.py:333] (1/3) Using cut concatenation with duration factor 1.0 and gap 1.0.
+2025-08-27 10:02:29,082 INFO [asr_datamodule.py:348] (0/3) Enable SpecAugment
+2025-08-27 10:02:29,082 INFO [asr_datamodule.py:348] (1/3) Enable SpecAugment
+2025-08-27 10:02:29,082 INFO [asr_datamodule.py:349] (0/3) Time warp factor: 80
+2025-08-27 10:02:29,082 INFO [asr_datamodule.py:349] (1/3) Time warp factor: 80
+2025-08-27 10:02:29,082 INFO [asr_datamodule.py:359] (0/3) Num frame mask: 10
+2025-08-27 10:02:29,082 INFO [asr_datamodule.py:359] (1/3) Num frame mask: 10
+2025-08-27 10:02:29,082 INFO [asr_datamodule.py:379] (0/3) About to create train dataset
+2025-08-27 10:02:29,082 INFO [asr_datamodule.py:379] (1/3) About to create train dataset
+2025-08-27 10:02:29,082 INFO [asr_datamodule.py:389] (0/3) Train dataset augmentations: Cut transforms: ['CutConcatenate', 'CutMix', 'RandomRIRTransform']; Input transforms: ['SpecAugment']
+2025-08-27 10:02:29,082 INFO [asr_datamodule.py:389] (1/3) Train dataset augmentations: Cut transforms: ['CutConcatenate', 'CutMix', 'RandomRIRTransform']; Input transforms: ['SpecAugment']
+2025-08-27 10:02:29,082 INFO [asr_datamodule.py:393] (0/3) Train dataset: 3 cut transforms, 1 input transforms
+2025-08-27 10:02:29,082 INFO [asr_datamodule.py:393] (1/3) Train dataset: 3 cut transforms, 1 input transforms
+2025-08-27 10:02:29,082 INFO [asr_datamodule.py:404] (0/3) Using DynamicBucketingSampler.
+2025-08-27 10:02:29,082 INFO [asr_datamodule.py:404] (1/3) Using DynamicBucketingSampler.
+2025-08-27 10:02:29,203 INFO [asr_datamodule.py:311] (2/3) Enable RIR (Room Impulse Response) augmentation
+2025-08-27 10:02:29,204 INFO [asr_datamodule.py:312] (2/3) Loading RIR paths from data/manifests/rir.scp
+2025-08-27 10:02:29,228 INFO [asr_datamodule.py:319] (2/3) Found 60536 RIR files
+2025-08-27 10:02:29,236 INFO [asr_datamodule.py:333] (2/3) Using cut concatenation with duration factor 1.0 and gap 1.0.
+2025-08-27 10:02:29,237 INFO [asr_datamodule.py:348] (2/3) Enable SpecAugment
+2025-08-27 10:02:29,237 INFO [asr_datamodule.py:349] (2/3) Time warp factor: 80
+2025-08-27 10:02:29,237 INFO [asr_datamodule.py:359] (2/3) Num frame mask: 10
+2025-08-27 10:02:29,237 INFO [asr_datamodule.py:379] (2/3) About to create train dataset
+2025-08-27 10:02:29,237 INFO [asr_datamodule.py:389] (2/3) Train dataset augmentations: Cut transforms: ['CutConcatenate', 'CutMix', 'RandomRIRTransform']; Input transforms: ['SpecAugment']
+2025-08-27 10:02:29,237 INFO [asr_datamodule.py:393] (2/3) Train dataset: 3 cut transforms, 1 input transforms
+2025-08-27 10:02:29,237 INFO [asr_datamodule.py:404] (2/3) Using DynamicBucketingSampler.
+2025-08-27 10:02:29,771 INFO [asr_datamodule.py:422] (0/3) About to create train dataloader
+2025-08-27 10:02:29,772 INFO [asr_datamodule.py:422] (1/3) About to create train dataloader
+2025-08-27 10:02:29,774 INFO [asr_datamodule.py:554] (0/3) About to get dev-clean cuts
+2025-08-27 10:02:29,775 INFO [asr_datamodule.py:554] (1/3) About to get dev-clean cuts
+2025-08-27 10:02:29,788 INFO [asr_datamodule.py:455] (0/3) Validation max_duration: 15 seconds
+2025-08-27 10:02:29,788 INFO [asr_datamodule.py:455] (1/3) Validation max_duration: 15 seconds
+2025-08-27 10:02:29,788 INFO [asr_datamodule.py:457] (0/3) About to create dev dataset
+2025-08-27 10:02:29,788 INFO [asr_datamodule.py:457] (1/3) About to create dev dataset
+2025-08-27 10:02:29,920 INFO [asr_datamodule.py:422] (2/3) About to create train dataloader
+2025-08-27 10:02:29,923 INFO [asr_datamodule.py:554] (2/3) About to get dev-clean cuts
+2025-08-27 10:02:29,924 INFO [asr_datamodule.py:455] (2/3) Validation max_duration: 15 seconds
+2025-08-27 10:02:29,924 INFO [asr_datamodule.py:457] (2/3) About to create dev dataset
+2025-08-27 10:02:29,958 INFO [asr_datamodule.py:474] (0/3) About to create dev dataloader
+2025-08-27 10:02:29,958 INFO [train.py:1068] (0/3) Validation set size: 2703 utterances
+2025-08-27 10:02:29,958 INFO [train.py:1129] (0/3) Sanity check -- see if any of the batches in epoch 0 would cause OOM.
+2025-08-27 10:02:29,961 INFO [asr_datamodule.py:474] (1/3) About to create dev dataloader
+2025-08-27 10:02:29,961 INFO [train.py:1068] (1/3) Validation set size: 2703 utterances
+2025-08-27 10:02:29,961 INFO [train.py:1129] (1/3) Sanity check -- see if any of the batches in epoch 0 would cause OOM.
+2025-08-27 10:02:30,094 INFO [asr_datamodule.py:474] (2/3) About to create dev dataloader
+2025-08-27 10:02:30,094 INFO [train.py:1068] (2/3) Validation set size: 2703 utterances
+2025-08-27 10:02:30,094 INFO [train.py:1129] (2/3) Sanity check -- see if any of the batches in epoch 0 would cause OOM.
+W0827 10:02:58.158139 127413766444864 torch/multiprocessing/spawn.py:146] Terminating process 1291938 via signal SIGTERM
+W0827 10:02:58.158930 127413766444864 torch/multiprocessing/spawn.py:146] Terminating process 1291939 via signal SIGTERM
+Traceback (most recent call last):
+  File "./conformer_ctc/train.py", line 1415, in <module>
+    main()
+  File "./conformer_ctc/train.py", line 1408, in main
+    mp.spawn(run, args=(world_size, args), nprocs=world_size, join=True)
+  File "/home/jenny/miniconda3/envs/jenny/lib/python3.8/site-packages/torch/multiprocessing/spawn.py", line 282, in spawn
+    return start_processes(fn, args, nprocs, join, daemon, start_method="spawn")
+  File "/home/jenny/miniconda3/envs/jenny/lib/python3.8/site-packages/torch/multiprocessing/spawn.py", line 238, in start_processes
+    while not context.join():
+  File "/home/jenny/miniconda3/envs/jenny/lib/python3.8/site-packages/torch/multiprocessing/spawn.py", line 170, in join
+    raise ProcessExitedException(
+torch.multiprocessing.spawn.ProcessExitedException: process 0 terminated with signal SIGKILL

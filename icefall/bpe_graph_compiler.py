@@ -50,7 +50,7 @@ class BpeCtcTrainingGraphCompiler(object):
         sp = spm.SentencePieceProcessor()
         sp.load(str(model_file))
         self.sp = sp
-        self.word_table = k2.SymbolTable.from_file(lang_dir / "words.txt")
+        # self.word_table = k2.SymbolTable.from_file(lang_dir / "words.txt")
         self.device = device
 
         self.sos_id = self.sp.piece_to_id(sos_token)

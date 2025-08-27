@@ -1,1 +1,0 @@
-../../../aidatatang_200zh/ASR/local/prepare_char.py

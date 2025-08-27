@@ -1,0 +1,246 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "Debug Training (Quick Test)",
+        "type": "debugpy",
+        "request": "launch",
+        "program": "${workspaceFolder}/conformer_ctc/train.py",
+        "console": "integratedTerminal",
+        "justMyCode": false,
+        "args": [
+          "--exp-dir", "./conformer_ctc/exp",
+          "--lang-dir", "./data/lang_bpe_5000",
+          "--world-size", "1",
+          "--num-epochs", "1",
+          "--att-rate", "0.0",
+          "--max-duration", "20",
+          "--start-epoch", "1",
+          "--num-epochs", "1",
+          "--valid-interval", "1",
+          "--validation-decoding-method", "greedy"
+        ],
+        "env": {
+          "CUDA_VISIBLE_DEVICES": "0",
+          "PYTHONFAULTHANDLER": "1",
+          "PYTHONPATH": "/home/hdd2/jenny/ASRToolkit/icefall"
+        },
+        "stopOnEntry": false
+      },
+      {
+        "name": "Debug Training (Full Config)",
+        "type": "debugpy",
+        "request": "launch",
+        "program": "${workspaceFolder}/conformer_ctc/train.py",
+        "console": "integratedTerminal",
+        "justMyCode": false,
+        "args": [
+          "--sanity-check", "false",
+          "--exp-dir", "./conformer_ctc/exp",
+          "--lang-dir", "./data/lang_bpe_5000",
+          "--world-size", "1",
+          "--num-epochs", "50",
+          "--start-epoch", "0",
+          "--att-rate", "0.0",
+          "--num-buckets", "30",
+          "--seed", "42",
+          "--valid-interval", "10",
+          "--validation-decoding-method", "greedy",
+          "--validation-search-beam", "20",
+          "--validation-output-beam", "8"
+        ],
+        "env": {
+          "CUDA_VISIBLE_DEVICES": "3",
+          "PYTHONFAULTHANDLER": "1",
+          "PYTHONPATH": "/home/hdd2/jenny/ASRToolkit/icefall"
+        },
+        "stopOnEntry": false
+      },
+      {
+        "name": "Debug Validation Only",
+        "type": "debugpy",
+        "request": "launch",
+        "program": "${workspaceFolder}/conformer_ctc/decode.py",
+        "console": "integratedTerminal",
+        "justMyCode": false,
+        "args": [
+          "--exp-dir", "./conformer_ctc/exp",
+          "--lang-dir", "./data/lang_bpe_5000",
+          "--max-duration", "100",
+          "--method", "ctc-decoding",
+          "--epoch", "1",
+          "--avg", "1"
+        ],
+        "env": {
+          "CUDA_VISIBLE_DEVICES": "0",
+          "PYTHONFAULTHANDLER": "1",
+          "PYTHONPATH": "/home/hdd2/jenny/ASRToolkit/icefall"
+        },
+        "stopOnEntry": false
+      },
+      {
+        "name": "Debug Data Loading",
+        "type": "debugpy",
+        "request": "launch",
+        "program": "${workspaceFolder}/conformer_ctc/asr_datamodule.py",
+        "console": "integratedTerminal",
+        "justMyCode": false,
+        "args": [],
+        "env": {
+          "CUDA_VISIBLE_DEVICES": "0",
+          "PYTHONFAULTHANDLER": "1",
+          "PYTHONPATH": "/home/hdd2/jenny/ASRToolkit/icefall"
+        },
+        "stopOnEntry": false
+      },
+      {
+        "name": "Debug Training with Augmentation",
+        "type": "debugpy",
+        "request": "launch",
+        "program": "${workspaceFolder}/conformer_ctc/train.py",
+        "console": "integratedTerminal",
+        "justMyCode": false,
+        "args": [
+          "--exp-dir", "./conformer_ctc/exp",
+          "--lang-dir", "./data/lang_bpe_5000",
+          "--world-size", "1",
+          "--num-epochs", "5",
+          "--att-rate", "0.0",
+          "--max-duration", "100",
+          "--enable-spec-aug", "True",
+          "--enable-musan", "True",
+          "--enable-rir", "True",
+          "--enable-cutmix", "True",
+          "--enable-concatenate", "True",
+          "--spec-aug-time-warp-factor", "80",
+          "--spec-aug-num-frame-masks", "2",
+          "--spec-aug-frame-mask-max-length", "10",
+          "--musan-cuts-path", "./data/musan_cuts.jsonl.gz",
+          "--rir-cuts-path", "./data/rir_cuts.jsonl.gz",
+          "--valid-interval", "1",
+          "--validation-decoding-method", "greedy"
+        ],
+        "env": {
+          "CUDA_VISIBLE_DEVICES": "0",
+          "PYTHONFAULTHANDLER": "1",
+          "PYTHONPATH": "/home/hdd2/jenny/ASRToolkit/icefall"
+        },
+        "stopOnEntry": false
+      },
+      {
+        "name": "Debug Phone-based Training",
+        "type": "debugpy",
+        "request": "launch",
+        "program": "${workspaceFolder}/conformer_ctc/train.py",
+        "console": "integratedTerminal",
+        "justMyCode": false,
+        "args": [
+          "--exp-dir", "./conformer_ctc/exp_phone",
+          "--lang-dir", "./data/lang_phone",
+          "--world-size", "1",
+          "--num-epochs", "5",
+          "--att-rate", "0.0",
+          "--max-duration", "100",
+          "--valid-interval", "1",
+          "--validation-decoding-method", "greedy"
+        ],
+        "env": {
+          "CUDA_VISIBLE_DEVICES": "0",
+          "PYTHONFAULTHANDLER": "1",
+          "PYTHONPATH": "/home/hdd2/jenny/ASRToolkit/icefall"
+        },
+        "stopOnEntry": false
+      },
+      {
+        "name": "Debug CTC Decoding (from decode.sh)",
+        "type": "debugpy",
+        "request": "launch",
+        "program": "${workspaceFolder}/conformer_ctc/decode.py",
+        "console": "integratedTerminal",
+        "justMyCode": false,
+        "args": [
+          "--method", "ctc-decoding",
+          "--max-duration", "20",
+          "--epoch", "12",
+          "--avg", "3",
+          "--exp-dir", "./conformer_ctc/exp/models",
+          "--lang-dir", "./data/lang_bpe_5000"
+        ],
+        "env": {
+          "CUDA_VISIBLE_DEVICES": "2",
+          "PYTHONFAULTHANDLER": "1",
+          "PYTHONPATH": "/home/hdd2/jenny/ASRToolkit/icefall"
+        },
+        "stopOnEntry": false
+      },
+      {
+        "name": "Debug CTC Decoding (Quick Test)",
+        "type": "debugpy",
+        "request": "launch",
+        "program": "${workspaceFolder}/conformer_ctc/decode.py",
+        "console": "integratedTerminal",
+        "justMyCode": false,
+        "args": [
+          "--method", "ctc-decoding",
+          "--max-duration", "5",
+          "--epoch", "12",
+          "--avg", "1",
+          "--exp-dir", "./conformer_ctc/exp",
+          "--lang-dir", "./data/lang_bpe_5000"
+        ],
+        "env": {
+          "CUDA_VISIBLE_DEVICES": "2",
+          "PYTHONFAULTHANDLER": "1",
+          "PYTHONPATH": "/home/hdd2/jenny/ASRToolkit/icefall"
+        },
+        "stopOnEntry": false
+      },
+      {
+        "name": "Debug Attention Decoder",
+        "type": "debugpy",
+        "request": "launch",
+        "program": "${workspaceFolder}/conformer_ctc/decode.py",
+        "console": "integratedTerminal",
+        "justMyCode": false,
+        "args": [
+          "--method", "attention-decoder",
+          "--max-duration", "10",
+          "--epoch", "12",
+          "--avg", "3",
+          "--num-paths", "100",
+          "--exp-dir", "./conformer_ctc/exp",
+          "--lang-dir", "./data/lang_bpe_5000",
+          "--lm-dir", "./data/lm"
+        ],
+        "env": {
+          "CUDA_VISIBLE_DEVICES": "2",
+          "PYTHONFAULTHANDLER": "1",
+          "PYTHONPATH": "/home/hdd2/jenny/ASRToolkit/icefall"
+        },
+        "stopOnEntry": false
+      },
+      {
+        "name": "Debug Whole Lattice Rescoring",
+        "type": "debugpy",
+        "request": "launch",
+        "program": "${workspaceFolder}/conformer_ctc/decode.py",
+        "console": "integratedTerminal",
+        "justMyCode": false,
+        "args": [
+          "--method", "whole-lattice-rescoring",
+          "--max-duration", "10",
+          "--epoch", "12",
+          "--avg", "3",
+          "--exp-dir", "./conformer_ctc/exp",
+          "--lang-dir", "./data/lang_bpe_5000",
+          "--lm-dir", "./data/lm"
+        ],
+        "env": {
+          "CUDA_VISIBLE_DEVICES": "2",
+          "PYTHONFAULTHANDLER": "1",
+          "PYTHONPATH": "/home/hdd2/jenny/ASRToolkit/icefall"
+        },
+        "stopOnEntry": false
+      }
+    ]
+  }

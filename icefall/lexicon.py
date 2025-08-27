@@ -162,20 +162,20 @@ class Lexicon(object):
         """
         lang_dir = Path(lang_dir)
         self.token_table = k2.SymbolTable.from_file(lang_dir / "tokens.txt")
-        self.word_table = k2.SymbolTable.from_file(lang_dir / "words.txt")
+        # self.word_table = k2.SymbolTable.from_file(lang_dir / "words.txt")
 
-        if (lang_dir / "Linv.pt").exists():
-            logging.info(f"Loading pre-compiled {lang_dir}/Linv.pt")
-            L_inv = k2.Fsa.from_dict(torch.load(lang_dir / "Linv.pt"))
-        else:
-            logging.info("Converting L.pt to Linv.pt")
-            L = k2.Fsa.from_dict(torch.load(lang_dir / "L.pt"))
-            L_inv = k2.arc_sort(L.invert())
-            torch.save(L_inv.as_dict(), lang_dir / "Linv.pt")
+        # if (lang_dir / "Linv.pt").exists():
+        #     logging.info(f"Loading pre-compiled {lang_dir}/Linv.pt")
+        #     L_inv = k2.Fsa.from_dict(torch.load(lang_dir / "Linv.pt"))
+        # else:
+        #     logging.info("Converting L.pt to Linv.pt")
+        #     L = k2.Fsa.from_dict(torch.load(lang_dir / "L.pt"))
+        #     L_inv = k2.arc_sort(L.invert())
+        #     torch.save(L_inv.as_dict(), lang_dir / "Linv.pt")
 
-        # We save L_inv instead of L because it will be used to intersect with
-        # transcript FSAs, both of whose labels are word IDs.
-        self.L_inv = L_inv
+        # # We save L_inv instead of L because it will be used to intersect with
+        # # transcript FSAs, both of whose labels are word IDs.
+        # self.L_inv = L_inv
         self.disambig_pattern = disambig_pattern
 
     @property
