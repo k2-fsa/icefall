@@ -1537,7 +1537,7 @@ class SelfAttention(nn.Module):
 
         f = max(1.0, embed_dim / (num_heads * value_head_dim))
 
-        self.cosine_loss = CosineSimilarityLoss(max_similarity=ScheduledFloat((0.0, 0.25), (20000.0, 0.5), default=0.5))
+        self.cosine_loss = CosineSimilarityLoss(max_similarity=ScheduledFloat((0.0, 0.5), (20000.0, 0.75), default=0.5))
 
 
     def forward(
