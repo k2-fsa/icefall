@@ -586,13 +586,13 @@ class Zipformer2EncoderLayer(nn.Module):
 
         src = src + self.self_attn1(src, attn_weights, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
 
-        src = src + self.conv_module1(src, chunk_size=chunk_size, src_key_padding_mask=src_key_padding_mask)
+        src = src + self.conv_module1(src, chunk_size=chunk_size, src_key_padding_mask=src_key_padding_mask, aux_loss_scale=0.1 * aux_loss_scale)
 
         src = src + self.feed_forward2(src, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
 
         src = src + self.self_attn2(src, attn_weights, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
 
-        src = src + self.conv_module2(src, chunk_size=chunk_size, src_key_padding_mask=src_key_padding_mask)
+        src = src + self.conv_module2(src, chunk_size=chunk_size, src_key_padding_mask=src_key_padding_mask, aux_loss_scale=0.1 * aux_loss_scale)
 
         src = src + self.feed_forward3(src, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
 
@@ -1888,12 +1888,15 @@ class ConvolutionModule(nn.Module):
             dropout_p=0.0,
             initial_scale=0.05,
         )
+        self.cosine_loss = CosineSimilarityLoss(max_similarity=0.2)
+
 
     def forward(
         self,
         x: Tensor,
         src_key_padding_mask: Optional[Tensor] = None,
         chunk_size: int = -1,
+        aux_loss_scale: float = 0.0,
     ) -> Tensor:
         """Compute convolution module.
 
@@ -1939,6 +1942,9 @@ class ConvolutionModule(nn.Module):
         x = x.permute(2, 0, 1)  # (time, batch, channels)
 
         x = self.out_proj(x)  # (time, batch, channels)
+
+        x = with_loss(x, self.cosine_loss(x.permute(1, 0, 2), aux_loss_scale, src_key_padding_mask),
+                      None)
 
         return x
 
