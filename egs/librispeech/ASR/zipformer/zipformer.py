@@ -582,19 +582,19 @@ class Zipformer2EncoderLayer(nn.Module):
             key_padding_mask=src_key_padding_mask,
         )
 
-        src = src + self.feed_forward1(src)
+        src = src + self.feed_forward1(src, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
 
         src = src + self.self_attn1(src, attn_weights, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
 
         src = src + self.conv_module1(src, chunk_size=chunk_size, src_key_padding_mask=src_key_padding_mask)
 
-        src = src + self.feed_forward2(src)
+        src = src + self.feed_forward2(src, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
 
         src = src + self.self_attn2(src, attn_weights, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
 
         src = src + self.conv_module2(src, chunk_size=chunk_size, src_key_padding_mask=src_key_padding_mask)
 
-        src = src + self.feed_forward3(src)
+        src = src + self.feed_forward3(src, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
 
         src = self.residual(src_orig, src)
 
@@ -1666,10 +1666,13 @@ class FeedforwardModule(nn.Module):
             initial_scale=0.5,
         )
 
+        self.cosine_loss = CosineSimilarityLoss(max_similarity=0.2)
 
-    def forward(self, x: Tensor):
+
+    def forward(self, x: Tensor, aux_loss_scale: float = 0.0, src_key_padding_mask: Optional[Tensor] = None) -> Tensor:
         x = self.in_proj(x)
         x = self.out_proj(x)
+        x = with_loss(x, self.cosine_loss(x.permute(1, 0, 2), aux_loss_scale * 0.25, src_key_padding_mask), None)
         return x
 
 
