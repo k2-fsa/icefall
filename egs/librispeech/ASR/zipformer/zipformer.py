@@ -1878,13 +1878,6 @@ class ConvolutionModule(nn.Module):
             )
         )
 
-        self.whiten = Whiten(
-            num_groups=1,
-            whitening_limit=_whitening_schedule(7.5),
-            prob=(0.025, 0.25),
-            grad_scale=0.01,
-        )
-
         self.out_proj = ActivationDropoutAndLinear(
             bottleneck_dim,
             channels,
@@ -1942,7 +1935,6 @@ class ConvolutionModule(nn.Module):
 
         x = x.permute(2, 0, 1)  # (time, batch, channels)
 
-        x = self.whiten(x)  # (time, batch, channels)
         x = self.out_proj(x)  # (time, batch, channels)
 
         return x
