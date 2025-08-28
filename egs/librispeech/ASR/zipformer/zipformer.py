@@ -1666,17 +1666,10 @@ class FeedforwardModule(nn.Module):
             initial_scale=0.5,
         )
 
-        self.out_whiten = Whiten(
-            num_groups=1,
-            whitening_limit=_whitening_schedule(7.5),
-            prob=(0.025, 0.25),
-            grad_scale=0.01,
-        )
 
     def forward(self, x: Tensor):
         x = self.in_proj(x)
         x = self.out_proj(x)
-        x = self.out_whiten(x)
         return x
 
 
