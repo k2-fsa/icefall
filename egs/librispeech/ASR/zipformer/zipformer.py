@@ -28,6 +28,7 @@ from encoder_interface import EncoderInterface
 from scaling import (
     Identity,  # more friendly to backward hooks than nn.Identity(), for diagnostic reasons.
     OrthogonalLinear,
+    SimpleOrthogonalLinear,
     ScaledLinear,  # not as in other dirs.. just scales down initial parameter values.
     ScaleLimiter,
     ActivationDropoutAndLinear,
@@ -147,7 +148,6 @@ class Zipformer2(EncoderInterface):
         encoders = []
 
         num_encoders = len(downsampling_factor)
-        cur_downsample = 1
 
         # caution: some changes we made for this break the streaming, later we'll try to fix this.
         encoders_downsampling_factors = [ ]
@@ -155,21 +155,8 @@ class Zipformer2(EncoderInterface):
         # make it so large the limit is never reached.
         max_proj_dim = max(downsampling_factor) * max(encoder_dim)
 
-        def set_downsample_factor(cur_downsample, ds):
-            while cur_downsample < ds:
-                # need to downsample
-                encoders.append(OrthogonalDownsample(channels=input_dim * cur_downsample,
-                                                     proj_dim=min(2 * input_dim * cur_downsample, max_proj_dim)))
-                cur_downsample *= 2
-            while cur_downsample > ds:
-                encoders.append(OrthogonalUpsample(channels=input_dim * cur_downsample,
-                                                   proj_dim=min(input_dim * cur_downsample, max_proj_dim)))
-                cur_downsample //= 2
-            return cur_downsample
 
         for i in range(num_encoders):
-            cur_downsample = set_downsample_factor(cur_downsample, downsampling_factor[i])
-
             encoder_layer = Zipformer2EncoderLayer(
                 embed_dim=encoder_dim[i],
                 pos_dim=pos_dim,
@@ -188,22 +175,18 @@ class Zipformer2(EncoderInterface):
             encoder = Zipformer2Encoder(
                 encoder_layer,
                 num_encoder_layers[i],
-                dim=cur_downsample*input_dim,
+                dim=downsampling_factor[i]*input_dim,
                 pos_dim=pos_dim,
             )
-            encoder.encoder_index = i  # <-- will be used in streaming_forward
+
             encoders.append(encoder)
-
-
-        cur_downsample = set_downsample_factor(cur_downsample, output_downsampling_factor)
 
         self.encoders = nn.ModuleList(encoders)
 
-
     def get_chunk_info(self) -> Tuple[int, int]:
         """
-        Returns chunk_size and left_context_chunks.
-        """
+         Returns chunk_size and left_context_chunks.
+         """
         if not self.causal:
             return -1, -1
 
@@ -246,6 +229,9 @@ class Zipformer2(EncoderInterface):
           src_key_padding_mask:
             The mask for padding, of shape (batch_size, seq_len); True means
             masked position. May be None.
+          specaug_mask:
+            The mask that shows which frames were masked with specaug, of shape (batch_size, seq_len);
+            True means masked position. May be None.
           aux_loss_scale:
             If supplied, auxiliary losses such as CosineSimilarityLoss will be
             applied with this scale on the loss (note, these aux losses are
@@ -259,6 +245,12 @@ class Zipformer2(EncoderInterface):
               structure of the batch.
         """
         chunk_size, left_context_chunks = self.get_chunk_info()
+        orig_seq_len = x.shape[0]
+
+        pad = (-orig_seq_len) % max(self.downsampling_factor)
+        # pad sequence length to be multiple of max(self.downsampling_factor)
+        x = torch.cat((x, x[-1:].repeat(pad, 1, 1)),
+                      dim=0)
 
         if torch.jit.is_scripting() or torch.jit.is_tracing():
             # Not support exporting a model for simulating streaming decoding
@@ -266,47 +258,47 @@ class Zipformer2(EncoderInterface):
         else:
             attn_mask = self._get_attn_mask(x, chunk_size, left_context_chunks)
 
-        orig_seq_len = x.shape[0]
+        src_key_padding_mask = pad_mask(src_key_padding_mask, x.shape[0])
+        specaug_mask = pad_mask(specaug_mask, x.shape[0])
 
-        def truncate(x, downsampling_factor):
-            max_len = (orig_seq_len + downsampling_factor - 1) // downsampling_factor
-            return x[:max_len] if x.shape[0] > max_len else x
-
+        num_stacks = len(self.downsampling_factor)
 
         num_stacks = len(self.downsampling_factor)
 
         predict_loss = 0.0
 
-        for module in self.encoders:
-            if isinstance(module, Zipformer2Encoder):
-                i = module.encoder_index  # was set in this class's __init__ function.
-                ds = self.downsampling_factor[i]
-                x = truncate(x, ds)
-                x, this_pred_loss = module(
-                    x,
-                    chunk_size=chunk_size,
-                    src_key_padding_mask=(
-                        None
-                        if src_key_padding_mask is None
-                        else src_key_padding_mask[..., ::ds]
-                    ),
-                    specaug_mask=(
-                        None
-                        if specaug_mask is None
-                        else specaug_mask[..., ::ds]
-                    ),
-                    attn_mask=(None
-                               if attn_mask is None
-                               else attn_mask[::ds, ::ds]
-                    ),
-                    aux_loss_scale=aux_loss_scale * ds / (self.output_downsampling_factor * num_stacks)
-                )
-                predict_loss += this_pred_loss * (ds / (self.output_downsampling_factor * num_stacks))
+        for i, module in enumerate(self.encoders):
+            ds = self.downsampling_factor[i]
+            x = downsample_by(x, ds)
+            T = x.shape[0]
+            x, this_pred_loss = module(
+                x,
+                chunk_size=chunk_size,
+                src_key_padding_mask=(
+                    None
+                    if src_key_padding_mask is None
+                    else src_key_padding_mask[..., ::ds]
+                ),
+                specaug_mask=(
+                    None
+                    if specaug_mask is None
+                    else specaug_mask[..., ::ds]
+                ),
+                attn_mask=(None
+                           if attn_mask is None
+                           else attn_mask[::ds, ::ds]
+                ),
+                aux_loss_scale=aux_loss_scale * ds / (self.output_downsampling_factor * num_stacks)
+            )
+            x = upsample_by(x, ds)
+            predict_loss += this_pred_loss * (ds / (self.output_downsampling_factor * num_stacks))
 
-            else:
-                x = module(x)
 
         assert self.output_downsampling_factor == 2, self.output_downsampling_factor
+        od = self.output_downsampling_factor
+        x = downsample_by(x, od)
+        x = x[:(orig_seq_len + od - 1) // od]  # truncate so seq len not affected by padding
+
         if torch.jit.is_scripting() or torch.jit.is_tracing():
             lengths = (x_lens + 1) // 2
         else:
@@ -359,6 +351,7 @@ class Zipformer2(EncoderInterface):
             logging.info(f"attn_mask = {attn_mask}")
         return attn_mask
 
+
     def streaming_forward(
         self,
         x: Tensor,
@@ -389,22 +382,18 @@ class Zipformer2(EncoderInterface):
         new_states = []
         layer_offset = 0
 
-        for module in enumerate(self.encoders):
-            if not isinstance(module, Zipformer2Encoder):
-                x = module(x)
-            else:
-                i = module.encoder_index  # was set in this class's __init__ function.
-                num_layers = module.num_layers
-                ds = self.downsampling_factor[i]
+        for i, module in enumerate(self.encoders):
+            num_layers = module.num_layers
+            ds = self.downsampling_factor[i]
 
-                x, new_layer_states = module.streaming_forward(
-                    x,
-                    states=states[layer_offset * 6 : (layer_offset + num_layers) * 6],
-                    left_context_len=self.left_context_frames[0] // ds,
-                    src_key_padding_mask=src_key_padding_mask[..., ::ds],
-                )
-                layer_offset += num_layers
-                new_states += new_layer_states
+            x, new_layer_states = module.streaming_forward(
+                x,
+                states=states[layer_offset * 6 : (layer_offset + num_layers) * 6],
+                left_context_len=self.left_context_frames[0] // ds,
+                src_key_padding_mask=src_key_padding_mask[..., ::ds],
+            )
+            layer_offset += num_layers
+            new_states += new_layer_states
 
         x = x[..., :max(self.encoder_dim)]  # for historical reasons.  can change this.
 
@@ -503,6 +492,60 @@ def _whitening_schedule(x: float, ratio: float = 2.0) -> ScheduledFloat:
 
 def _balancer_schedule(min_prob: float):
     return ScheduledFloat((0.0, 0.4), (8000.0, min_prob))
+
+
+def pad_mask(mask: Optional[Tensor], seq_len: int):
+    # mask: (batch_size, old_seq_len)
+    # if mask is not None, returns mask: (batch_size, seq_len); pads with True (i.e., masked).
+    if mask is None:
+        return None
+    (batch_size, old_seq_len) = mask.shape
+    pad = seq_len - old_seq_len
+    if pad == 0:
+        return mask
+    else:
+        return torch.cat((mask, torch.ones(batch_size, pad, device=mask.device, dtype=torch.bool)),
+                         dim=1)
+
+
+def downsample_by(x: Tensor, downsampling_factor: int) -> Tensor:
+    # x: (seq_len, batch_size, num_channels)
+    # Returns: (seq_len // downsampling_factor, batch_size, num_channels * downsampling_factor)
+    (seq_len, batch_size, num_channels) = x.shape
+    x = x.reshape(seq_len // downsampling_factor, downsampling_factor, batch_size, num_channels)
+    x = x.permute(0, 2, 1, 3)
+    x = x.reshape(seq_len // downsampling_factor, batch_size, downsampling_factor * num_channels)
+    return x
+
+def upsample_by(x: Tensor, upsampling_factor: int) -> Tensor:
+    # x: (seq_len, batch_size, num_channels)
+    # Returns: (seq_len * upsampling_factor, batch_size, num_channels // upsampling_factor)
+    (seq_len, batch_size, num_channels) = x.shape
+    x = x.reshape(seq_len, batch_size, upsampling_factor, num_channels // upsampling_factor)
+    x = x.permute(0, 2, 1, 3)
+    x = x.reshape(seq_len * upsampling_factor, batch_size, num_channels // upsampling_factor)
+    return x
+
+
+def get_dct_matrix(N):
+    """
+    Generates an orthonormal DCT-II matrix for a given size N.
+    Args:
+        N (int): The size of the square matrix.
+    Returns:
+        torch.Tensor: The N x N orthonormal DCT-II matrix.
+    """
+    # Create the base matrix with dimensions (N, N)
+    mat = torch.zeros(N, N)
+    # Create a tensor for the indices k (rows) and n (columns)
+    k = torch.arange(N).unsqueeze(1)
+    n = torch.arange(N).unsqueeze(0)
+    # Fill the matrix using the DCT-II formula
+    mat = math.sqrt(2 / N) * torch.cos(math.pi / (2 * N) * (2 * n + 1) * k)
+    # Adjust the first row (k=0) with a special normalization factor
+    mat[0] *= (2 ** -0.5)
+    return mat
+
 
 class Zipformer2EncoderLayer(nn.Module):
     """
@@ -774,6 +817,11 @@ dropout:
         pos_dim: int,
     ) -> None:
         super().__init__()
+
+        # self.downsample will also reverse the downsampling operation for us afterward.
+        self.proj = SimpleOrthogonalLinear(dim, encoder_layer.embed_dim, bias=False)
+        self.proj.lr_scale = 0.75
+
         self.encoder_pos = CompactRelPositionalEncoding(
             pos_dim, dropout_rate=0.0, length_factor=1.0
         )
@@ -782,7 +830,6 @@ dropout:
             [copy.deepcopy(encoder_layer) for i in range(num_layers)]
         )
         self.num_layers = num_layers
-
 
         self.residual = ResidualModule(encoder_layer.embed_dim)
 
@@ -818,13 +865,13 @@ dropout:
         """
         pos_emb = self.encoder_pos(src)
 
-        num_channels = src.shape[-1]
-        layer_dim = self.layers[0].embed_dim
-        if num_channels > layer_dim:
-            src, bypass = src[..., :layer_dim], src[..., layer_dim:]
+        src_orig_fulldim = src
+
+        src = self.proj(src)  # project to layer dim.
 
         num_layers = len(self.layers)
         src_orig = src
+
         for i, mod in enumerate(self.layers):
             src = mod(
                 src,
@@ -839,9 +886,8 @@ dropout:
 
         src = self.residual(src_orig, src)
 
-        if num_channels > layer_dim:
-            bypass = self.copy_bypass(bypass)
-            src = torch.cat((src, bypass), dim=-1)
+        # the following takes care of passing through the "rejected" dimension.
+        src = src_orig_fulldim + self.proj(src - src_orig, transpose=True)
 
         if src_key_padding_mask is not None and specaug_mask is not None:
             mask = torch.logical_and(src_key_padding_mask.t().logical_not(), specaug_mask.t().logical_not())
@@ -971,10 +1017,14 @@ class ResidualModule(nn.Module):
         return residual_scale * src_orig + function_scale * src
 
 
-
 class OrthogonalDownsample(torch.nn.Module):
     """
-    Does downsampling with an orthogonal matrix, by a factor of two.  Projection is initialized
+    Downsamples on sequence axis by appending sequence-positions together,
+    and then optionally projects by an orthogonal matrix
+
+
+
+.  Projection is initialized
     in a special way and enforced to be orthogonal.
 
     Args:
