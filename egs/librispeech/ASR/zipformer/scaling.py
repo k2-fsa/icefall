@@ -1709,9 +1709,10 @@ class Dropout3(nn.Module):
 
 
 
+
 def torch_compile(fn, *args, **kwargs):
     if hasattr(torch, 'compile'):
-        fn = torch.compile(fn, *args, **kwargs)
+        fn = torch.compile(fn, *args, **kwargs, dynamic=True, options={"shape_padding": True, "force_shape_pad": True})
     return fn
 
 def swashl(x: Tensor) -> Tensor:
