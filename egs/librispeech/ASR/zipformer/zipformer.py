@@ -178,6 +178,7 @@ class Zipformer2(EncoderInterface):
                 num_encoder_layers[i],
                 dim=downsampling_factor[i]*input_dim,
                 pos_dim=pos_dim,
+                out_proj=(downsampling_factor + (output_downsampling_factor,))[i+1] < downsampling_factor[i],
             )
 
             encoders.append(encoder)
@@ -816,6 +817,7 @@ dropout:
         num_layers: int,
         dim: int,
         pos_dim: int,
+        out_proj: bool,
     ) -> None:
         super().__init__()
 
@@ -842,6 +844,13 @@ dropout:
         self.min_product_loss = MinProductLoss(0.5)
 
         self.cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=dim, power=0.85))
+
+        # make penalty_scale disappear after 20k batches; later we can try making this just a normal linear
+        # module.
+        if out_proj:
+            self.out_proj = SimpleOrthogonalLinear(dim, dim, bias=False,
+                                                   penalty_scale=ScheduledFloat((0.0, 20.0), (5000.0, 1.0), (10000.0, 0.1), (20000.0, 0.0)))
+            self.out_proj.lr_scale = 0.75
 
     def forward(
         self,
@@ -901,6 +910,9 @@ dropout:
             mask = specaug_mask.t().logical_not()
         else:
             mask = None
+
+        if hasattr(self, 'out_proj'):
+            src = self.out_proj(src)
 
         return src, self.predict_loss(src, mask)
 
