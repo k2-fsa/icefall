@@ -841,10 +841,9 @@ dropout:
 
         self.predict_loss = PredictLoss(dim)
 
-        ratio = 1.2 # require the "passed-through" dims be larger by a factor of 1.2 tyan the bypassed dims.
         d_yes = encoder_layer.embed_dim
         d_no = dim - encoder_layer.embed_dim
-        min_product = (d_yes * ratio) / (d_yes * ratio + d_no)
+        min_product = (d_yes * 0.75) / (d_yes + d_no)
         self.min_product_loss = MinProductLoss(min_product)
 
         self.cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=dim, power=0.85))
