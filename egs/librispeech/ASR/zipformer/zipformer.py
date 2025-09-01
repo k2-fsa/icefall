@@ -937,9 +937,9 @@ dropout:
             tot_permuted = tot.permute(1, 0, 2)
             tot = with_loss(tot,
                             self.cosine_loss(tot_permuted,
-                                             aux_loss_scale * 0.25, src_key_padding_mask) +
+                                             aux_loss_scale, src_key_padding_mask) +
                             self.min_product_loss(tot_permuted, offset.permute(1, 0, 2),
-                                                  aux_loss_scale * 0.0025, src_key_padding_mask),
+                                                  aux_loss_scale * 0.05, src_key_padding_mask),
                             None)
 
         return tot
@@ -1693,7 +1693,7 @@ class SelfAttention(nn.Module):
 
         if aux_loss_scale:
             x = with_loss(x, self.cosine_loss(x.permute(1, 0, 2),
-                                              aux_loss_scale * 0.25,
+                                              aux_loss_scale,
                                               mask=src_key_padding_mask), None)
 
         return x
@@ -1783,7 +1783,7 @@ class FeedforwardModule(nn.Module):
     def forward(self, x: Tensor, aux_loss_scale: float = 0.0, src_key_padding_mask: Optional[Tensor] = None) -> Tensor:
         x = self.in_proj(x)
         x = self.out_proj(x)
-        x = with_loss(x, self.cosine_loss(x.permute(1, 0, 2), aux_loss_scale * 0.25, src_key_padding_mask), None)
+        x = with_loss(x, self.cosine_loss(x.permute(1, 0, 2), aux_loss_scale, src_key_padding_mask), None)
         return x
 
 

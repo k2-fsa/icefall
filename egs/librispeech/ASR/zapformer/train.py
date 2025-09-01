@@ -515,6 +515,14 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--aux-loss-scale",
+        type=float,
+        default=0.05,
+        help="Scale on auxiliary losses that are defined in the model, such "
+        "as cosine loss.",
+    )
+
+    parser.add_argument(
         "--ctc-loss-scale",
         type=float,
         default=0.2,
@@ -1188,7 +1196,7 @@ def train_one_epoch(
                     batch=batch,
                     is_training=True,
                     spec_augment=spec_augment,
-                    aux_loss_scale=get_scaler_scale(),
+                    aux_loss_scale=get_scaler_scale() * params.aux_loss_scale,
                 )
             # summary stats
             tot_loss = (tot_loss * (1 - 1 / params.reset_interval)) + loss_info
