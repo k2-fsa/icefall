@@ -839,7 +839,6 @@ dropout:
 
         self.predict_loss = PredictLoss(dim)
 
-        self.offset_cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=encoder_layer.embed_dim, power=0.85))
         self.min_product_loss = MinProductLoss(0.25)
 
         self.cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=dim, power=0.85))
@@ -915,10 +914,6 @@ dropout:
             src_key_padding_mask: Optional[Tensor]):
         residual_scale = limit_param_value(self.residual_scale, min=0.1, max=1.0, training=self.training)
         offset = (src - src_orig) * residual_scale
-        if aux_loss_scale:
-            offset = with_loss(offset,
-                               self.offset_cosine_loss(offset.permute(1, 0, 2), aux_loss_scale * 0.25, src_key_padding_mask),
-                               None)
 
         offset = self.proj(offset, transpose=True)
         tot = src_orig_fulldim + offset
