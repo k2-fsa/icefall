@@ -924,7 +924,7 @@ dropout:
                             self.cosine_loss(tot_permuted,
                                              aux_loss_scale * 0.25, src_key_padding_mask) +
                             self.min_product_loss(tot_permuted, offset.permute(1, 0, 2),
-                                                  aux_loss_scale * 0.25, src_key_padding_mask),
+                                                  aux_loss_scale * 0.025, src_key_padding_mask),
                             None)
 
         return tot
