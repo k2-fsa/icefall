@@ -35,6 +35,7 @@ from scaling import (
     ExpNorm,
     ChunkCausalDepthwiseConv1d,
     CosineSimilarityLoss,
+    MinProductLoss,
     Dropout2,
     FloatLike,
     ScheduledFloat,
@@ -831,12 +832,16 @@ dropout:
         )
         self.num_layers = num_layers
 
-        self.residual = ResidualModule(encoder_layer.embed_dim)
+        self.residual_scale = nn.Parameter(0.5 * torch.zeros(encoder_layer.embed_dim))
 
         #bypass_dim = dim - encoder_layer.embed_dim
         self.copy_bypass = Identity()
 
         self.predict_loss = PredictLoss(dim)
+
+        self.offset_cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=encoder_layer.embed_dim, power=0.85))
+        self.min_product_loss = MinProductLoss(0.5)
+
         self.cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=dim, power=0.85))
 
     def forward(
@@ -884,10 +889,10 @@ dropout:
             # randomize_factor can be viewed as a simple version of an
             # importance-sampling factor.
 
-        src = self.residual(src_orig, src)
-
-        # the following takes care of passing through the "rejected" dimension.
-        src = src_orig_fulldim + self.proj(src - src_orig, transpose=True)
+        src = self.add_residual(src_orig_fulldim, src_orig, src, aux_loss_scale, src_key_padding_mask)
+        # The above is equivalent to:
+        #  src = src_orig_fulldim + self.proj((src - src_orig) * self.residual_scale, transpose=True)
+        # .. but with extra losses.
 
         if src_key_padding_mask is not None and specaug_mask is not None:
             mask = torch.logical_and(src_key_padding_mask.t().logical_not(), specaug_mask.t().logical_not())
@@ -898,15 +903,37 @@ dropout:
         else:
             mask = None
 
-
-        # we will apply cosine_loss during backprop without printing it
-        # the 0.25 is a heuristic factor specific to cosine similarity loss.
-        if aux_loss_scale:  # if not None and not zero..
-            src = with_loss(src,
-                            self.cosine_loss(src.permute(1, 0, 2), aux_loss_scale * 0.25, src_key_padding_mask),
-                            name=None)
-
         return src, self.predict_loss(src, mask)
+
+
+    def add_residual(
+            self,
+            src_orig_fulldim,
+            src_orig,
+            src,
+            aux_loss_scale: float,
+            src_key_padding_mask: Optional[Tensor]):
+        residual_scale = limit_param_value(self.residual_scale, min=0.1, max=1.0, training=self.training)
+        offset = (src - src_orig) * residual_scale
+        if aux_loss_scale:
+            offset = with_loss(offset,
+                               self.offset_cosine_loss(offset.permute(1, 0, 2), aux_loss_scale * 0.25, src_key_padding_mask),
+                               None)
+
+        offset = self.proj(offset, transpose=True)
+        tot = src_orig_fulldim + offset
+
+        if aux_loss_scale:
+            tot_permuted = tot.permute(1, 0, 2)
+            tot = with_loss(tot,
+                            self.cosine_loss(tot_permuted,
+                                             aux_loss_scale * 0.25, src_key_padding_mask) +
+                            self.min_product_loss(tot_permuted, offset.permute(1, 0, 2),
+                                                  aux_loss_scale, src_key_padding_mask),
+                            None)
+
+        return tot
+
 
     def streaming_forward(
         self,

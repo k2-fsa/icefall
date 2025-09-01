@@ -1051,6 +1051,97 @@ class CosineSimilarityLoss(nn.Module):
                                                   loss_scale, self.name)
 
 
+class MinProductLossFunction(torch.autograd.Function):
+    @staticmethod
+    @custom_fwd
+    def forward(ctx, x: Tensor, y: Tensor, mask: Optional[Tensor], min_product: float, weight: float, name: str):
+        ctx.save_for_backward(x, y)
+        ctx.mask = mask  # mask will have no grad so it should be OK to store this way
+        ctx.name = name
+        ctx.weight = weight
+        ctx.min_product = min_product
+        return torch.tensor(0.0, device=x.device, dtype=x.dtype)
+
+    @staticmethod
+    @custom_bwd
+    def backward(ctx, ans_grad):
+        x, y = ctx.saved_tensors
+        mask = ctx.mask     # optional Tensor
+        name = ctx.name     # str
+        weight = ctx.weight # float
+        min_product = ctx.min_product # float
+
+
+        with torch.enable_grad():
+            x, y = x.detach(), y.detach()
+            x.requires_grad = True
+            y.requires_grad = True
+
+            eps = 3.0e-08  # won't be zero in float16
+            x_norm = x / ((x ** 2).sum(dim=-1, keepdim=True) + eps).sqrt()
+            y_norm = y / ((y ** 2).sum(dim=-1, keepdim=True) + eps).sqrt()
+            (batch_size, seq_len, num_channels) =  x.shape
+
+
+
+            product = x_norm * y_norm
+            product = product.sum(dim=-1)
+            if mask is not None:
+                inv_mask = (~mask).to(x.dtype)
+                product = product * inv_mask
+
+            if mask is not None:
+                product_deficit = (inv_mask.sum(dim=1) * min_product - product.sum(dim=1)).relu()
+            else:
+                product_deficit = (seq_len * min_product - product.sum(dim=1)).relu()
+
+            if random.random() < 0.0005:
+                logging.info(f"MinProductLoss: {name}, limit={min_product}, product-deficit={product_deficit.mean() / seq_len}")
+
+            grad = (weight * ans_grad).expand(product_deficit.numel())
+            product_deficit.backward(grad)
+
+        return x.grad, y.grad, None, None, None, None
+
+class MinProductLoss(nn.Module):
+    def __init__(self,
+                 min_product: FloatLike):  # e.g. 0.5 for min_product
+        super().__init__()
+        self.min_product = min_product
+        self.name = None
+
+    def forward(self,
+                x: Tensor,
+                y: Tensor,
+                loss_scale: float,
+                mask: Optional[Tensor] = None) -> Tensor:
+        """
+        Compute loss that tries to keep two embeddings in similar directions, used to
+        make sure that the bulk of the embedding goes through one branch.
+
+           x: Tensor of shape (batch_size, seq_len, num_channels)
+           y: Tensor of shape (batch_size, seq_len, num_channels)
+  loss_scale: the scale with which the loss should be incorporated into the graph.
+             This should contain a factor of the grad_scale, if you are using GradScaler for
+             automatic mixed precision training (amp).
+             The loss will be summed over frames, and multiplied by this value.
+         mask: if supplied, mask of shape (batch_size, seq_len);
+              True means masked positions that will be ignored.
+
+      Returns:
+           returns a scaled scalar loss value "ret" which should be incorporated
+           into the backprop graph by doing:
+             z = with_loss(z, ret, None)
+          where z is any quantity that will be used in calculating the main loss.
+          Ret will always be numerically equal to zero in the forward pass but
+          may behave as if it were nonzero for backprop purposes.
+        """
+        return MinProductLossFunction.apply(x, y, mask,
+                                            float(self.min_product),
+                                            loss_scale, self.name)
+
+
+
 class ChunkCausalDepthwiseConv1d(torch.nn.Module):
     """
     Behaves like a depthwise 1d convolution, except that it is causal in
