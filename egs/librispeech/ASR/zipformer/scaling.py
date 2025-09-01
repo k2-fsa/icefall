@@ -1095,7 +1095,7 @@ class MinProductLossFunction(torch.autograd.Function):
             else:
                 product_deficit = (seq_len * min_product - product.sum(dim=1)).relu()
 
-            if random.random() < 0.0005:
+            if random.random() < 0.002:
                 logging.info(f"MinProductLoss: {name}, limit={min_product}, product-deficit={product_deficit.mean() / seq_len}")
 
             grad = (weight * ans_grad).expand(product_deficit.numel())
