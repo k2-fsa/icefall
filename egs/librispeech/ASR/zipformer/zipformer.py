@@ -832,7 +832,7 @@ dropout:
         )
         self.num_layers = num_layers
 
-        self.residual_scale = nn.Parameter(0.5 * torch.zeros(encoder_layer.embed_dim))
+        self.residual_scale = nn.Parameter(0.5 * torch.ones(encoder_layer.embed_dim))
 
         #bypass_dim = dim - encoder_layer.embed_dim
         self.copy_bypass = Identity()
