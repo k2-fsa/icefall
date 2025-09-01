@@ -839,7 +839,7 @@ dropout:
 
         self.predict_loss = PredictLoss(dim)
 
-        self.min_product_loss = MinProductLoss(0.25)
+        self.min_product_loss = MinProductLoss(0.5)
 
         self.cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=dim, power=0.85))
 
