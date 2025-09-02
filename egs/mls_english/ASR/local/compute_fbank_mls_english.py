@@ -76,11 +76,19 @@ def make_cutset_blueprints(
     logging.info("Creating dev cuts.")
     try:
         cut_sets.append(
-            ("dev", CutSet.from_huggingface_dataset(dataset["dev"], text_key="transcript"))
+            (
+                "dev",
+                CutSet.from_huggingface_dataset(dataset["dev"], text_key="transcript"),
+            )
         )
     except KeyError:
         cut_sets.append(
-            ("dev", CutSet.from_huggingface_dataset(dataset["validation"], text_key="transcript"))
+            (
+                "dev",
+                CutSet.from_huggingface_dataset(
+                    dataset["validation"], text_key="transcript"
+                ),
+            )
         )
 
     # Create train dataset
@@ -121,15 +129,15 @@ def main():
         )
         return
     else:
-        mls_eng_hf_dataset_path = args.dl_dir # "/root/datasets/parler-tts--mls_eng"
+        mls_eng_hf_dataset_path = args.dl_dir  # "/root/datasets/parler-tts--mls_eng"
         cut_sets = make_cutset_blueprints(mls_eng_hf_dataset_path)
         for part, cut_set in cut_sets:
             logging.info(f"Processing {part}")
             cut_set = cut_set.save_audios(
                 num_jobs=num_jobs,
                 storage_path=(args.audio_dir / part).as_posix(),
-            ) # makes new cutset that loads audio from paths to actual audio files
-            
+            )  # makes new cutset that loads audio from paths to actual audio files
+
             cut_set = cut_set.compute_and_store_features(
                 extractor=extractor,
                 num_jobs=num_jobs,

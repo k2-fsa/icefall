@@ -1,14 +1,16 @@
 import argparse
 import os
 import sys
+
 from huggingface_hub import snapshot_download
+
 
 def download_dataset(dl_dir):
     """
     Downloads the MLS English dataset from Hugging Face to `$dl_dir/mls_english`.
     """
-    repo_id = 'parler-tts/mls_eng'
-    local_dataset_dir = os.path.join(dl_dir, 'mls_english')
+    repo_id = "parler-tts/mls_eng"
+    local_dataset_dir = os.path.join(dl_dir, "mls_english")
 
     print(f"Attempting to download '{repo_id}' to '{local_dataset_dir}'...")
 
@@ -29,6 +31,7 @@ def download_dataset(dl_dir):
     except Exception as e:
         print(f"Error downloading dataset '{repo_id}': {e}", file=sys.stderr)
         sys.exit(1)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
