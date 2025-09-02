@@ -52,20 +52,18 @@ We also include WER% for common English ASR datasets:
 
 | Corpus                       | WER (%) |
 |-----------------------------|---------|
-| LibriSpeech (test-clean)    | 3.49    |
-| LibriSpeech (test-other)    | 7.64    |
-| CommonVoice                 | 39.87   |
-| TED                         | 23.92   |
-| MLS English (test-clean)    | 10.16   |
+| CommonVoice                 | 29.03   |
+| TED                         | 16.78   |
+| MLS English (test-clean)    | 8.64   |
 
 
 And CER% for common Japanese datasets:
 
 | Corpus        | CER (%) |
 |---------------|---------|
-| JSUT          | 10.04   |
-| CommonVoice   | 10.39   |
-| TEDx          | 12.22   |
+| JSUT          | 8.13   |
+| CommonVoice   | 9.82   |
+| TEDx          | 11.64   |
 
 
 Pre-trained model can be found here: https://huggingface.co/reazon-research/reazonspeech-k2-v2-ja-en/tree/main
