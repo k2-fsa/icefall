@@ -1208,9 +1208,9 @@ class MaxProductLossFunction(torch.autograd.Function):
             seq_len2 = y.shape[1]
             indexes = torch.randint(0, seq_len2, (batch_size, seq_len, 1), device=x.device)
 
-            y = torch.gather(y, 1, indexes.expand(*x.shape))
+            y_rand = torch.gather(y, 1, indexes.expand(*x.shape))
 
-            product = (x * y).sum(dim=-1).abs()
+            product = (x * y_rand).sum(dim=-1).abs()
 
             excess_product = (product.sum(dim=1) - seq_len * max_product).relu()
 
