@@ -1390,7 +1390,7 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
             k = with_loss(k,
                           self.key_cosine_loss(k.permute(1, 2, 0, 3).reshape(batch_size * num_heads, seq_len, query_head_dim),
                                                aux_loss_scale / num_heads,
-                                               key_padding_mask.repeat_interleave(num_heads, 1) if key_padding_mask is not None else None),
+                                               key_padding_mask.repeat_interleave(num_heads, dim=0) if key_padding_mask is not None else None),
                           None)
 
 
