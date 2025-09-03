@@ -36,6 +36,7 @@ from scaling import (
     ChunkCausalDepthwiseConv1d,
     CosineSimilarityLoss,
     MinProductLoss,
+    MaxProductLoss,
     Dropout2,
     FloatLike,
     ScheduledFloat,
@@ -650,6 +651,7 @@ class Zipformer2EncoderLayer(nn.Module):
             pos_emb=pos_emb,
             attn_mask=attn_mask,
             key_padding_mask=src_key_padding_mask,
+            aux_loss_scale=0.1 * aux_loss_scale,
         )
 
         src = src + self.feed_forward1(src, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
@@ -1306,9 +1308,6 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         self.dropout = dropout
         self.name = None  # will be overwritten in training code; for diagnostics.
 
-        self.attn_score_limit = ScheduledFloat((0.0, 10.0), (5000.0, 20.0))
-        self.attn_score_penalty_prob = ScheduledFloat((0.0, 1.0), (5000.0, 1.0), (5001.0, 0.1))
-
         key_head_dim = query_head_dim
         in_proj_dim = (query_head_dim + key_head_dim + pos_head_dim) * num_heads
 
@@ -1338,12 +1337,17 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         self.copy_pos_query = Identity()
         self.copy_query = Identity()
 
+        self.qk_max_product = MaxProductLoss(max_product=ScheduledFloat((0.0, 2.5), (5000.0, 10.0), default=10.0))
+        self.pos_max_product = MaxProductLoss(max_product=ScheduledFloat((0.0, 0.5), (5000.0, 2.0), default=2.0))
+
+
     def forward(
         self,
         x: Tensor,
         pos_emb: Tensor,
         key_padding_mask: Optional[Tensor] = None,
         attn_mask: Optional[Tensor] = None,
+        aux_loss_scale: float = 0.0,
     ) -> Tensor:
         r"""
         Args:
@@ -1391,6 +1395,14 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         p = p.permute(2, 1, 0, 3)  # (head, batch, time1, pos_head_dim)
         k = k.permute(2, 1, 3, 0)  # (head, batch, d_k, time2)
 
+        if self.training:
+            k = with_loss(k,
+                          self.qk_max_product(q.reshape(num_heads * batch_size, seq_len, query_head_dim),
+                                              q.permute(0, 1, 3, 2).reshape(num_heads * batch_size, seq_len, query_head_dim),
+                                              aux_loss_scale / num_heads),
+                          None)
+
+
         attn_scores = torch.matmul(q, k)
 
         if True:
@@ -1400,7 +1412,15 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
             pos_emb = pos_emb.reshape(-1, seq_len2, num_heads, pos_head_dim).permute(
                 2, 0, 3, 1
             )
-            # pos shape now: (head, {1 or batch_size}, pos_dim, seq_len2)
+            # pos shape now: (head, {1 or batch_size}, pos_head_dim, seq_len2)
+
+            if self.training:
+                pe = pos_emb.expand(num_heads, batch_size, pos_head_dim, seq_len2)
+                pe = pe.reshape(num_heads * batch_size, pos_head_dim, seq_len2).permute(0, 2, 1)
+                p = with_loss(p,
+                              self.pos_max_product(p.reshape(num_heads * batch_size, seq_len, pos_head_dim), pe,
+                                                   aux_loss_scale / num_heads),
+                              None)
 
             # (head, batch, time1, pos_dim) x (head, 1, pos_dim, seq_len2) -> (head, batch, time1, seq_len2)
             #  [where seq_len2 represents relative position.]
@@ -1429,26 +1449,8 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
                     storage_offset=pos_scores.stride(3) * (seq_len - 1),
                 )
 
-            attn_scores = attn_scores + pos_scores
 
-        if torch.jit.is_scripting() or torch.jit.is_tracing():
-            pass
-        elif self.training and random.random() < float(self.attn_score_penalty_prob):
-            # This is a harder way of limiting the attention scores to not be
-            # too large.  It incurs a penalty if any of them has an absolute
-            # value greater than 50.0.  this should be outside the normal range
-            # of the attention scores.  We use this mechanism instead of, say,
-            # something added to the loss function involving the entropy,
-            # because once the entropy gets very small gradients through the
-            # softmax can become very small, and we'd get zero derivatives.  The
-            # choices of 1.0e-04 as the scale on the penalty makes this
-            # mechanism vulnerable to the absolute scale of the loss function,
-            # but we view this as a failsafe to avoid "implausible" parameter
-            # values rather than a regularization method that should be active
-            # under normal circumstances.
-            attn_scores = penalize_abs_values_gt(
-                attn_scores, limit=float(self.attn_score_limit), penalty=1.0e-04, name=self.name
-            )
+            attn_scores = attn_scores + pos_scores
 
         assert attn_scores.shape == (num_heads, batch_size, seq_len, seq_len)
 

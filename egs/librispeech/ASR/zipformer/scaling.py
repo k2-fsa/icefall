@@ -1028,7 +1028,9 @@ class CosineSimilarityLoss(nn.Module):
                 loss_scale: float,
                 mask: Optional[Tensor] = None) -> Tensor:
         """
-        Compute cosine-similarity loss that tries to keep distinct output vectors distinct.
+        Compute cosine-similarity loss that tries to make sure distinct output vectors
+        have inner products with small magnitude (after normalization), i.e. the cosine
+        of the angle between should be close to zero.
 
            x: Tensor of shape (batch_size, seq_len, num_channels)
   loss_scale: the scale with which the loss should be incorporated into the graph.
@@ -1140,6 +1142,123 @@ class MinProductLoss(nn.Module):
                                             float(self.min_product),
                                             loss_scale, self.name)
 
+
+class MinProductLoss(nn.Module):
+    def __init__(self,
+                 min_product: FloatLike):  # e.g. 0.5 for min_product
+        super().__init__()
+        self.min_product = min_product
+        self.name = None
+
+    def forward(self,
+                x: Tensor,
+                y: Tensor,
+                loss_scale: float,
+                mask: Optional[Tensor] = None) -> Tensor:
+        """
+        Compute loss that tries to keep two embeddings in similar directions, used to
+        make sure that the bulk of the embedding goes through one branch.
+
+           x: Tensor of shape (batch_size, seq_len, num_channels)
+           y: Tensor of shape (batch_size, seq_len, num_channels)
+  loss_scale: the scale with which the loss should be incorporated into the graph.
+             This should contain a factor of the grad_scale, if you are using GradScaler for
+             automatic mixed precision training (amp).
+             The loss will be summed over frames, and multiplied by this value.
+         mask: if supplied, mask of shape (batch_size, seq_len);
+              True means masked positions that will be ignored.
+
+      Returns:
+           returns a scaled scalar loss value "ret" which should be incorporated
+           into the backprop graph by doing:
+             z = with_loss(z, ret, None)
+          where z is any quantity that will be used in calculating the main loss.
+          Ret will always be numerically equal to zero in the forward pass but
+          may behave as if it were nonzero for backprop purposes.
+        """
+        return MinProductLossFunction.apply(x, y, mask,
+                                            float(self.min_product),
+                                            loss_scale, self.name)
+
+
+class MaxProductLossFunction(torch.autograd.Function):
+    @staticmethod
+    @custom_fwd
+    def forward(ctx, x: Tensor, y: Tensor, max_product: float, weight: float, name: str):
+        ctx.save_for_backward(x, y)
+        ctx.name = name
+        ctx.weight = weight
+        ctx.max_product = max_product
+        return torch.tensor(0.0, device=x.device, dtype=x.dtype)
+
+    @staticmethod
+    @custom_bwd
+    def backward(ctx, ans_grad):
+        x, y = ctx.saved_tensors
+        name = ctx.name     # str
+        weight = ctx.weight # float
+        max_product = ctx.max_product # float
+
+        with torch.enable_grad():
+            x, y = x.detach(), y.detach()
+            x.requires_grad = True
+            y.requires_grad = True
+
+            (batch_size, seq_len, num_channels) =  x.shape
+            seq_len2 = y.shape[1]
+            indexes = torch.randint(0, seq_len2, (batch_size, seq_len, 1), device=x.device)
+
+            y = torch.gather(y, 1, indexes.expand(*x.shape))
+
+            product = (x * y).sum(dim=-1).abs()
+
+            excess_product = (product.sum(dim=1) - seq_len * max_product).relu()
+
+            if random.random() < 0.001:
+                logging.info(f"MaxProduct: {name}, limit={max_product}, excess-product={excess_product.mean() / seq_len}")
+
+            grad = (weight * ans_grad).expand(excess_product.numel())
+            excess_product.backward(grad)
+
+        return x.grad, y.grad, None, None, None
+
+class MaxProductLoss(nn.Module):
+    def __init__(self,
+                 max_product: FloatLike):  # e.g. 20.0 for max_product
+        super().__init__()
+        self.max_product = max_product
+        self.name = None
+
+    def forward(self,
+                x: Tensor,
+                y: Tensor,
+                loss_scale: float) -> Tensor:
+        """
+        Compute loss that limits the average dot product (without normalization)
+       between x, and (y, but randomly permuted on the sequence dimension).  It is
+       intended for limiting dot-products of queries and keys.
+
+           x: Tensor of shape (batch_size, seq_len, num_channels)
+           y: Tensor of shape (batch_size, seq_len2, num_channels)  [seq_len2 does not have to equal seq_len].
+  loss_scale: the scale with which the loss should be incorporated into the graph.
+             This should contain a factor of the grad_scale, if you are using GradScaler for
+             automatic mixed precision training (amp).  We divide this by max_product,
+             so that it penalizes relative, not absolute, violations of the max-product
+             rule.
+             The loss will be summed over frames of x, and multiplied by this value.
+
+      Returns:
+           returns a scaled scalar loss value "ret" which should be incorporated
+           into the backprop graph by doing:
+             z = with_loss(z, ret, None)
+          where z is any quantity that will be used in calculating the main loss.
+          Ret will always be numerically equal to zero in the forward pass but
+          may behave as if it were nonzero for backprop purposes.
+        """
+        max_product = float(self.max_product)
+        return MaxProductLossFunction.apply(x, y, max_product,
+                                            loss_scale / max_product,
+                                            self.name)
 
 
 class ChunkCausalDepthwiseConv1d(torch.nn.Module):
