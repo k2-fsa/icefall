@@ -1324,7 +1324,7 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         )
 
 
-        self.key_cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=key_head_dim, power=0.7))
+        self.key_cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=key_head_dim, power=0.5))
 
 
         # linear transformation for positional encoding.
