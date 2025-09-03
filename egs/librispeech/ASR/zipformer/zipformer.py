@@ -1337,8 +1337,8 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         self.copy_pos_query = Identity()
         self.copy_query = Identity()
 
-        self.qk_max_product = MaxProductLoss(max_product=ScheduledFloat((0.0, 2.5), (5000.0, 10.0), default=10.0))
-        self.pos_max_product = MaxProductLoss(max_product=ScheduledFloat((0.0, 0.5), (5000.0, 2.0), default=2.0))
+        self.qk_max_product = MaxProductLoss(max_product=ScheduledFloat((0.0, 1.0), (20000.0, 4.0), default=10.0))
+        self.pos_max_product = MaxProductLoss(max_product=ScheduledFloat((0.0, 0.2), (20000.0, 1.0), default=2.0))
 
 
     def forward(
