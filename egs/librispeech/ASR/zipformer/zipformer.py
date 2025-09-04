@@ -1398,7 +1398,7 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         if self.training:
             k = with_loss(k,
                           self.qk_max_product(q.reshape(num_heads * batch_size, seq_len, query_head_dim),
-                                              q.permute(0, 1, 3, 2).reshape(num_heads * batch_size, seq_len, query_head_dim),
+                                              k.permute(0, 1, 3, 2).reshape(num_heads * batch_size, seq_len, query_head_dim),
                                               aux_loss_scale / num_heads),
                           None)
 
