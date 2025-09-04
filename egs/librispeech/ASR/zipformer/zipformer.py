@@ -43,7 +43,6 @@ from scaling import (
     convert_num_channels,
     limit_param_value,
     penalize_abs_values_gt,
-    PredictLoss,
     softmax,
     with_loss,
 )
@@ -218,7 +217,6 @@ class Zipformer2(EncoderInterface):
         x: Tensor,
         x_lens: Tensor,
         src_key_padding_mask: Optional[Tensor] = None,
-        specaug_mask: Optional[Tensor] = None,
         aux_loss_scale: float = 0.0,
     ) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
         """
@@ -231,9 +229,6 @@ class Zipformer2(EncoderInterface):
           src_key_padding_mask:
             The mask for padding, of shape (batch_size, seq_len); True means
             masked position. May be None.
-          specaug_mask:
-            The mask that shows which frames were masked with specaug, of shape (batch_size, seq_len);
-            True means masked position. May be None.
           aux_loss_scale:
             If supplied, auxiliary losses such as CosineSimilarityLoss will be
             applied with this scale on the loss (note, these aux losses are
@@ -261,30 +256,20 @@ class Zipformer2(EncoderInterface):
             attn_mask = self._get_attn_mask(x, chunk_size, left_context_chunks)
 
         src_key_padding_mask = pad_mask(src_key_padding_mask, x.shape[0])
-        specaug_mask = pad_mask(specaug_mask, x.shape[0])
 
         num_stacks = len(self.downsampling_factor)
-
-        num_stacks = len(self.downsampling_factor)
-
-        predict_loss = 0.0
 
         for i, module in enumerate(self.encoders):
             ds = self.downsampling_factor[i]
             x = downsample_by(x, ds)
             T = x.shape[0]
-            x, this_pred_loss = module(
+            x = module(
                 x,
                 chunk_size=chunk_size,
                 src_key_padding_mask=(
                     None
                     if src_key_padding_mask is None
                     else src_key_padding_mask[..., ::ds]
-                ),
-                specaug_mask=(
-                    None
-                    if specaug_mask is None
-                    else specaug_mask[..., ::ds]
                 ),
                 attn_mask=(None
                            if attn_mask is None
@@ -293,7 +278,6 @@ class Zipformer2(EncoderInterface):
                 aux_loss_scale=aux_loss_scale * ds / (self.output_downsampling_factor * num_stacks)
             )
             x = upsample_by(x, ds)
-            predict_loss += this_pred_loss * (ds / (self.output_downsampling_factor * num_stacks))
 
 
         assert self.output_downsampling_factor == 2, self.output_downsampling_factor
@@ -308,7 +292,7 @@ class Zipformer2(EncoderInterface):
                 warnings.simplefilter("ignore")
                 lengths = (x_lens + 1) // 2
 
-        return x, lengths, predict_loss
+        return x, lengths
 
     def _get_attn_mask(
         self, x: Tensor, chunk_size: int, left_context_chunks: int
@@ -839,8 +823,6 @@ dropout:
         #bypass_dim = dim - encoder_layer.embed_dim
         self.copy_bypass = Identity()
 
-        self.predict_loss = PredictLoss(dim)
-
         d_yes = encoder_layer.embed_dim
         d_no = dim - encoder_layer.embed_dim
         min_product = (d_yes * 0.5) / (d_yes + d_no)
@@ -861,7 +843,6 @@ dropout:
         chunk_size: int = -1,
         attn_mask: Optional[Tensor] = None,
         src_key_padding_mask: Optional[Tensor] = None,
-        specaug_mask: Optional[Tensor] = None,
         aux_loss_scale: float = 0.0,
     ) -> Tensor:
         r"""Pass the input through the encoder layers in turn.
@@ -905,19 +886,10 @@ dropout:
         #  src = src_orig_fulldim + self.proj((src - src_orig) * self.residual_scale, transpose=True)
         # .. but with extra losses.
 
-        if src_key_padding_mask is not None and specaug_mask is not None:
-            mask = torch.logical_and(src_key_padding_mask.t().logical_not(), specaug_mask.t().logical_not())
-        elif src_key_padding_mask is not None:
-            mask = src_key_padding_mask.t().logical_not()
-        elif specaug_mask is not None:
-            mask = specaug_mask.t().logical_not()
-        else:
-            mask = None
-
         if hasattr(self, 'out_proj'):
             src = self.out_proj(src)
 
-        return src, self.predict_loss(src, mask)
+        return src
 
 
     def add_residual(
@@ -2125,20 +2097,20 @@ def _test_zipformer_main(causal: bool = False):
         left_context_frames=(64,),
     )
 
-    batch_size = 6  # make it even, as PredictLoss requires even batch size.
+    batch_size = 6
     seq_len = 21
     # Just make sure the forward pass runs.
-    f, lengths, predict_loss = c(
+    f, lengths = c(
         torch.randn(seq_len, batch_size, input_dim),
         torch.full((batch_size,), seq_len, dtype=torch.int64),
     )
     f.sum().backward()
     c.eval()
-    f = c(
+    x_ = c(
         torch.randn(seq_len, batch_size, input_dim),
         torch.full((batch_size,), seq_len, dtype=torch.int64),
     )
-    f  # to remove flake8 warnings
+    x_  # to remove flake8 warnings
 
 
 if __name__ == "__main__":

@@ -23,7 +23,7 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 from encoder_interface import EncoderInterface
-from scaling import ScaledLinear, convert_num_channels
+from scaling import ScaledLinear, convert_num_channels, PredictLoss
 from icefall.utils import add_sos, make_pad_mask, time_warp
 
 
@@ -85,6 +85,8 @@ class AsrModel(nn.Module):
 
         self.encoder_embed = encoder_embed
         self.encoder = encoder
+
+        self.predict_loss = PredictLoss(encoder_dim)
 
         self.use_transducer = use_transducer
         if use_transducer:
@@ -159,13 +161,32 @@ class AsrModel(nn.Module):
 
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
 
-        encoder_out, encoder_out_lens, predict_loss = self.encoder(x, x_lens, src_key_padding_mask, specaug_mask=specaug_mask,
-                                                                   aux_loss_scale=aux_loss_scale)
+        encoder_out, encoder_out_lens = self.encoder(x, x_lens, src_key_padding_mask,
+                                                     aux_loss_scale=aux_loss_scale)
+
+        predict_loss = self.compute_predict_loss(encoder_out, src_key_padding_mask, specaug_mask)
 
         encoder_out = encoder_out.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
         assert torch.all(encoder_out_lens > 0), (x_lens, encoder_out_lens)
 
+
         return encoder_out, encoder_out_lens, predict_loss
+
+
+    def compute_predict_loss(self,
+                             encoder_out: Tensor,
+                             src_key_padding_mask: Optional[Tensor],
+                             specaug_mask: Optional[Tensor]) -> Tensor:
+        if src_key_padding_mask is not None and specaug_mask is not None:
+            mask = torch.logical_and(src_key_padding_mask.t().logical_not(), specaug_mask.t().logical_not())
+        elif src_key_padding_mask is not None:
+            mask = src_key_padding_mask.t().logical_not()
+        elif specaug_mask is not None:
+            mask = specaug_mask.t().logical_not()
+        else:
+            mask = None
+        return self.predict_loss(encoder_out, mask)
+
 
     def forward_ctc(
         self,
