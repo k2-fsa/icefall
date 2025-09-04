@@ -164,7 +164,7 @@ class AsrModel(nn.Module):
         encoder_out, encoder_out_lens = self.encoder(x, x_lens, src_key_padding_mask,
                                                      aux_loss_scale=aux_loss_scale)
 
-        predict_loss = self.compute_predict_loss(encoder_out, src_key_padding_mask, specaug_mask)
+        predict_loss = self.compute_predict_loss(encoder_out, src_key_padding_mask[:, ::2], specaug_mask[:, ::2])
 
         encoder_out = encoder_out.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
         assert torch.all(encoder_out_lens > 0), (x_lens, encoder_out_lens)
