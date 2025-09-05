@@ -591,7 +591,7 @@ class Zipformer2EncoderLayer(nn.Module):
         self.self_attn_weights = RelPositionMultiheadAttentionWeights(
             embed_dim,
             pos_dim=pos_dim,
-            num_heads=3 * num_heads,
+            num_heads=2 * num_heads,
             query_head_dim=query_head_dim,
             pos_head_dim=pos_head_dim,
             dropout=0.0,
@@ -645,13 +645,16 @@ class Zipformer2EncoderLayer(nn.Module):
         src_orig = src
 
         # attn_weights: (num_heads, batch_size, seq_len, seq_len)
-        attn_weights1, attn_weights2, attn_weights3 = self.self_attn_weights(
+        attn_weights = self.self_attn_weights(
             src,
             pos_emb=pos_emb,
             attn_mask=attn_mask,
             key_padding_mask=src_key_padding_mask,
-        ).chunk(3, dim=0)
-
+        )
+        num_heads = attn_weights.shape[0] // 2  # num heads per self_attn module
+        attn_weights1 = attn_weights[:num_heads]
+        attn_weights2 = attn_weights[num_heads//2:-num_heads//2]
+        attn_weights3 = attn_weights[num_heads:]
 
         src = src + self.self_attn1(src, attn_weights1, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
 
