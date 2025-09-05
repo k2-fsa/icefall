@@ -855,7 +855,7 @@ dropout:
 
         d_yes = encoder_layer.embed_dim
         d_no = dim - encoder_layer.embed_dim
-        min_product = (d_yes * 0.5) / (d_yes + d_no)
+        min_product = (d_yes * 0.75) / (d_yes + d_no)
         self.min_product_loss = MinProductLoss(min_product)
 
         self.cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=dim, power=0.85))
