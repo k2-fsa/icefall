@@ -1321,12 +1321,9 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
             bias=True, initial_scale=0.125 * query_head_dim**-0.25
         )
 
-        self.whiten_keys = Whiten(
-            num_groups=num_heads,
-            whitening_limit=_whitening_schedule(3.0),
-            prob=(0.025, 0.25),
-            grad_scale=0.025,
-        )
+
+        self.key_cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=key_head_dim, power=0.5))
+
 
         # linear transformation for positional encoding.
         self.linear_pos = ScaledLinear(
@@ -1336,6 +1333,7 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         # the following are for diagnostics only, see --print-diagnostics option
         self.copy_pos_query = Identity()
         self.copy_query = Identity()
+        self.copy_key = Identity()
 
         self.qk_max_product = MaxProductLoss(max_product=ScheduledFloat((0.0, 0.6), (20000.0, 6.0), default=5.0))
         self.pos_max_product = MaxProductLoss(max_product=ScheduledFloat((0.0, 0.4), (20000.0, 4.0), default=5.0))
@@ -1383,12 +1381,20 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         )
 
         q = self.copy_query(q)  # for diagnostics only, does nothing.
-        k = self.whiten_keys(k) # does nothing in the forward pass.   [this may not really be needed due to the orthogonality constraint.]
-        p = self.copy_pos_query(p)  # for diagnostics only, does nothing.
+        k = self.copy_key(k)
+        p = self.copy_pos_query(p)
 
         q = q.reshape(seq_len, batch_size, num_heads, query_head_dim)
         p = p.reshape(seq_len, batch_size, num_heads, pos_head_dim)
         k = k.reshape(seq_len, batch_size, num_heads, query_head_dim)
+
+        if aux_loss_scale:
+            k = with_loss(k,
+                          self.key_cosine_loss(k.permute(1, 2, 0, 3).reshape(batch_size * num_heads, seq_len, query_head_dim),
+                                               aux_loss_scale / num_heads,
+                                               key_padding_mask.repeat_interleave(num_heads, dim=0) if key_padding_mask is not None else None),
+                          None)
+
 
         # time1 refers to target, time2 refers to source.
         q = q.permute(2, 1, 0, 3)  # (head, batch, time1, query_head_dim)
@@ -2133,12 +2139,14 @@ def _test_zipformer_main(causal: bool = False):
     f, lengths, predict_loss = c(
         torch.randn(seq_len, batch_size, input_dim),
         torch.full((batch_size,), seq_len, dtype=torch.int64),
+        aux_loss_scale=1.0,
     )
     f.sum().backward()
     c.eval()
     f = c(
         torch.randn(seq_len, batch_size, input_dim),
         torch.full((batch_size,), seq_len, dtype=torch.int64),
+        aux_loss_scale=1.0,
     )
     f  # to remove flake8 warnings
 
