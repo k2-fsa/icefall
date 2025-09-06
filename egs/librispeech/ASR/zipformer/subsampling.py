@@ -24,16 +24,43 @@ from scaling import (
     ScaleLimiter,
     ScaledLinear,
     ExpNorm,
-    Dropout3,
     FloatLike,
     ScaledConv2d,
     ScaleGrad,
     ScheduledFloat,
     SwashL,
     SwashR,
-    Whiten,
+    CosineSimilarityLoss,
+    with_loss,
 )
 from torch import Tensor, nn
+
+# TEMP: put this here, eventually we should import from scaling.py
+def get_max_similarity(rank: int, power: float):
+    """
+    For use when initializing CosineSimilarityLoss, this returns a value for
+    the "max_similarity" argument.
+    max_similarity is an upper limit we impose on the mean value of (x_i . x_j),
+    where i != j are two different sequence-position indexes and x_i and x_j are
+    activation vectors normalized to have unit length.
+
+      rank: the dimension of the space, usually this is the num_channels, but if
+          we have just up-projected from a bottleneck, it would be the bottleneck
+          dimension.
+      power: a user-tunable value strictly between 0 and 1.   If we set power=1.0 it would mean
+          we enforce the vector dimensions to be completely independent like Gaussian noise
+          (don't do this); if we set power=0.0 it would be equivalent to not having
+          the CosineSimilarityLoss at all.
+
+    The factor of 0.797 is sqrt(2/pi) which is the expected absolute value of a normal
+    variable.   If x consists of independent Gaussian noise of dimension D, with
+    variance 1/D so that the expected 2-norm of x is 1 (so the "normalization to unit length"
+    would be close to a no-op for large D), then (x_i . x_j) would be distributed as
+    a Gaussian with variance (D / D^2 = 1/D).  So the expected absolute value of (x_i . x_j)
+    would be sqrt(2/pi * (1/D)).  By taking it to the power "power" we just get a value
+    between this and 1, as a kind of heuristic limit on this max_similarity.
+    """
+    return (0.7978845608 / (rank ** 0.5)) ** power
 
 
 class ConvNeXt(nn.Module):
@@ -154,7 +181,6 @@ class Conv2dSubsampling(nn.Module):
         layer1_channels: int = 8,
         layer2_channels: int = 32,
         layer3_channels: int = 128,
-        dropout: FloatLike = 0.1,
     ) -> None:
         """
         Args:
@@ -219,23 +245,12 @@ class Conv2dSubsampling(nn.Module):
         self.out = ScaledLinear(self.out_width * layer3_channels, out_channels,
                                 initial_scale=4.0)
 
-        # use a larger than normal grad_scale on this whitening module; there is
-        # only one such module, so there is not a concern about adding together
-        # many copies of this extra gradient term.
-        self.out_whiten = Whiten(
-            num_groups=1,
-            whitening_limit=ScheduledFloat((0.0, 4.0), (20000.0, 8.0), default=4.0),
-            prob=(0.025, 0.25),
-            grad_scale=0.02,
-        )
+        self.cosine_loss = CosineSimilarityLoss(get_max_similarity(out_channels, power=0.85))
 
-        # max_log_eps=0.0 is to prevent both eps and the output of self.out from
-        # getting large, there is an unnecessary degree of freedom.
         self.out_norm = ExpNorm(out_channels)
-        self.dropout = Dropout3(dropout, shared_dim=1)
 
     def forward(
-        self, x: torch.Tensor, x_lens: torch.Tensor
+        self, x: torch.Tensor, x_lens: torch.Tensor, aux_loss_scale: float = 0.0,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Subsample x.
 
@@ -262,16 +277,18 @@ class Conv2dSubsampling(nn.Module):
 
         x = self.out(x)
         # Now x is of shape (N, (T-7)//2, odim)
-        x = self.out_whiten(x)
-        x = self.out_norm(x)
-        x = self.dropout(x)
-
         if torch.jit.is_scripting() or torch.jit.is_tracing():
             x_lens = (x_lens - 7) // 2
         else:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 x_lens = (x_lens - 7) // 2
+
+        key_padding_mask = torch.arange(0, x.shape[0], device=x.device) >= x_lens.unsqueeze(-1)
+        # key_padding_mask: (N, (T-7)//2)
+        x = with_loss(x, self.cosine_loss(x, aux_loss_scale, key_padding_mask), None)
+        x = self.out_norm(x)
+
         assert x.size(1) == x_lens.max().item(), (x.size(1), x_lens.max())
 
         return x, x_lens

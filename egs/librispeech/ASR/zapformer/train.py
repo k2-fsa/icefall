@@ -353,7 +353,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--use-ctc",
         type=str2bool,
-        default=False,
+        default=True,
         help="If True, use CTC head.",
     )
 
@@ -717,7 +717,6 @@ def get_encoder_embed(params: AttributeDict) -> nn.Module:
     encoder_embed = Conv2dSubsampling(
         in_channels=params.feature_dim,
         out_channels=lookup(params, "embed_dim"),
-        dropout=0.0,
     )
     return encoder_embed
 

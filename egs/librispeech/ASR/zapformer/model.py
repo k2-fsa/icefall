@@ -150,7 +150,7 @@ class AsrModel(nn.Module):
         # logging.info(f"Memory allocated at entry: {torch.cuda.memory_allocated() // 1000000}M")
         specaug_mask = (x[..., 0] == x[..., 1]) # (N, T)
 
-        x, x_lens = self.encoder_embed(x, x_lens)
+        x, x_lens = self.encoder_embed(x, x_lens, aux_loss_scale=aux_loss_scale)
         # logging.info(f"Memory allocated after encoder_embed: {torch.cuda.memory_allocated() // 1000000}M")
 
 

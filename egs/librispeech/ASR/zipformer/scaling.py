@@ -1016,6 +1016,32 @@ class SimpleOrthogonalLinear(nn.Linear):
             weight = weight.t()
         return torch.nn.functional.linear(x, weight, self.bias)
 
+def get_max_similarity(rank: int, power: float):
+    """
+    For use when initializing CosineSimilarityLoss, this returns a value for
+    the "max_similarity" argument.
+    max_similarity is an upper limit we impose on the mean value of (x_i . x_j),
+    where i != j are two different sequence-position indexes and x_i and x_j are
+    activation vectors normalized to have unit length.
+
+      rank: the dimension of the space, usually this is the num_channels, but if
+          we have just up-projected from a bottleneck, it would be the bottleneck
+          dimension.
+      power: a user-tunable value strictly between 0 and 1.   If we set power=1.0 it would mean
+          we enforce the vector dimensions to be completely independent like Gaussian noise
+          (don't do this); if we set power=0.0 it would be equivalent to not having
+          the CosineSimilarityLoss at all.
+
+    The factor of 0.797 is sqrt(2/pi) which is the expected absolute value of a normal
+    variable.   If x consists of independent Gaussian noise of dimension D, with
+    variance 1/D so that the expected 2-norm of x is 1 (so the "normalization to unit length"
+    would be close to a no-op for large D), then (x_i . x_j) would be distributed as
+    a Gaussian with variance (D / D^2 = 1/D).  So the expected absolute value of (x_i . x_j)
+    would be sqrt(2/pi * (1/D)).  By taking it to the power "power" we just get a value
+    between this and 1, as a kind of heuristic limit on this max_similarity.
+    """
+    return (0.7978845608 / (rank ** 0.5)) ** power
+
 class CosineSimilarityLoss(nn.Module):
     def __init__(self,
                  max_similarity: FloatLike):  # e.g. 0.1 for max_similarity
