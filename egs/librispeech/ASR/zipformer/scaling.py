@@ -853,6 +853,8 @@ class CosineSimilarityLossFunction(torch.autograd.Function):
     @custom_fwd
     def forward(ctx, x: Tensor, mask: Optional[Tensor], max_similarity: float, weight: float, name: str):
         ctx.save_for_backward(x)
+        if mask is not None:
+            assert mask.shape == x.shape[:2], (list(mask.shape), list(x.shape))
         ctx.mask = mask  # mask will have no grad so it should be OK to store this way
         ctx.name = name
         ctx.weight = weight

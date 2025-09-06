@@ -284,7 +284,7 @@ class Conv2dSubsampling(nn.Module):
                 warnings.simplefilter("ignore")
                 x_lens = (x_lens - 7) // 2
 
-        key_padding_mask = torch.arange(0, x.shape[0], device=x.device) >= x_lens.unsqueeze(-1)
+        key_padding_mask = torch.arange(0, x.shape[1], device=x.device) >= x_lens.unsqueeze(-1)
         # key_padding_mask: (N, (T-7)//2)
         x = with_loss(x, self.cosine_loss(x, aux_loss_scale, key_padding_mask), None)
         x = self.out_norm(x)
