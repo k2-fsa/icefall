@@ -560,24 +560,24 @@ def predict_loss(x: Tensor, predictor: nn.Module, proj_weight: Tensor,
         x_proj = torch.matmul(x, proj_weight.t())
         with torch.amp.autocast('cuda', enabled=False):
             x_proj = rank_norm(x_proj.to(torch.float))
-        indexes = torch.max(x_proj, dim=-1)[1]
 
 
-    indexes = torch.roll(indexes, batch_size // 2, 1)
+    x_proj = torch.roll(x_proj, batch_size // 2, 1)
     x_pred = predictor(x)
-    logprobs = x_pred.log_softmax(dim=-1)
-    loss = -torch.gather(logprobs, dim=-1, index=indexes.unsqueeze(-1))
+
+    loss = ((x_pred - x_proj) ** 2).mean(dim=-1)
 
     if random.random() < 0.002:
         logging.info(f"predict_loss: name={name}, mean loss before scale = {loss.mean()}")
 
     if mask is not None:
         mask = mask.to(x.dtype)
-        # we also swap the mask over the two copies of the data; the mask goes with the thing that
+        # note, this mask is True for *non*-masked positions.
+        # we swap the mask over the two copies of the data; the mask goes with the thing that
         # is predicted, not the thing we predict it from.. the idea being that we don't want to ask
         # the model to predict masked portions of the time sequence.
         mask = torch.roll(mask, batch_size // 2, 1)
-        loss = loss * mask.unsqueeze(-1)
+        loss = loss * mask
 
     return loss.sum()  # we reduce with sum in what we return.
 
