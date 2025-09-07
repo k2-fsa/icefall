@@ -537,28 +537,29 @@ def ScaledConv2d(*args, initial_scale: float = 1.0, **kwargs) -> nn.Conv2d:
 def predict_loss(x: Tensor, predictor: nn.Module, proj_weight: Tensor,
                  name: str,
                  mask: Optional[Tensor]) -> Tensor:
-    # caution: now require input to be (seq, batch, channel)
+    # caution: require input to be (seq, batch, channel)
     batch_size = x.shape[1]
 
     if batch_size % 2 != 0:
         assert (not x.requires_grad), "PredictLoss must be used with CR-CTC or similar thing that repeats batch with different augmentation."
         return torch.tensor(0.0, device=x.device)
 
-    def mean_and_variance_norm(x):
-        mean = x.mean(dim=(0,1), keepdim=True)
-        x = x - 1.5 * mean  # over-normalization.
-        eps = 1.0e-08
-        stddev = ((x ** 2).mean(dim=(0, 1)) + eps).sqrt()
-        x = x / stddev
-        return x
-
+    def rank_norm(x):
+        values, indexes = x.sort(dim=0)  # sort on seq dim
+        # norm_rank: same shape as x
+        norm_rank = torch.linspace(-1., 1., x.shape[0], device=x.device, dtype=x.dtype)
+        norm_rank = norm_rank.reshape(-1, 1, 1)
+        norm_rank = norm_rank.repeat(1, x.shape[1], x.shape[2])
+        x_norm = torch.empty_like(x)
+        x_norm.scatter_(dim=0, index=indexes, src=norm_rank)
+        return x_norm
 
     with torch.no_grad():
         # get the indexes.  project, then mean-and-variance-norm, then
         # take mx.
         x_proj = torch.matmul(x, proj_weight.t())
         with torch.amp.autocast('cuda', enabled=False):
-            x_proj = mean_and_variance_norm(x_proj.to(torch.float))
+            x_proj = rank_norm(x_proj.to(torch.float))
         indexes = torch.max(x_proj, dim=-1)[1]
 
 
