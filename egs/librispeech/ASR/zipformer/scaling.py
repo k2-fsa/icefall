@@ -544,10 +544,13 @@ def predict_loss(x: Tensor, predictor: nn.Module, proj_weight: Tensor,
         assert (not x.requires_grad), "PredictLoss must be used with CR-CTC or similar thing that repeats batch with different augmentation."
         return torch.tensor(0.0, device=x.device)
 
-    def rank_norm(x):
+    def gauss_norm(x):
+        # normalize by gaussianizing on each dimension
         values, indexes = x.sort(dim=0)  # sort on seq dim
         # norm_rank: same shape as x
-        norm_rank = torch.linspace(-1., 1., x.shape[0], device=x.device, dtype=x.dtype)
+        N = max(2, x.shape[0])
+        norm_rank = torch.linspace(-1 + 1. / N, 1. - 1. / N, x.shape[0], device=x.device, dtype=torch.float)
+        norm_rank = torch.special.erfinv(norm_rank)  # maps to Gaussian-distributed data
         norm_rank = norm_rank.reshape(-1, 1, 1)
         norm_rank = norm_rank.repeat(1, x.shape[1], x.shape[2])
         x_norm = torch.empty_like(x)
@@ -559,7 +562,7 @@ def predict_loss(x: Tensor, predictor: nn.Module, proj_weight: Tensor,
         # take mx.
         x_proj = torch.matmul(x, proj_weight.t())
         with torch.amp.autocast('cuda', enabled=False):
-            x_proj = rank_norm(x_proj.to(torch.float))
+            x_proj = gauss_norm(x_proj.to(torch.float))
 
 
     x_proj = torch.roll(x_proj, batch_size // 2, 1)
