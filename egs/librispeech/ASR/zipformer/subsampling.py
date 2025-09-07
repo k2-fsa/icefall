@@ -245,7 +245,7 @@ class Conv2dSubsampling(nn.Module):
         self.out = ScaledLinear(self.out_width * layer3_channels, out_channels,
                                 initial_scale=4.0)
 
-        self.cosine_loss = CosineSimilarityLoss(get_max_similarity(out_channels, power=0.85))
+        self.cosine_loss = CosineSimilarityLoss(get_max_similarity(out_channels, power=0.75))
 
         self.out_norm = ExpNorm(out_channels)
 
