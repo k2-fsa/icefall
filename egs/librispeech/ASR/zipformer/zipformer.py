@@ -841,8 +841,7 @@ dropout:
         # make penalty_scale disappear after 20k batches; later we can try making this just a normal linear
         # module.
         if out_proj:
-            self.out_proj = SimpleOrthogonalLinear(dim, dim, bias=False,
-                                                   penalty_scale=ScheduledFloat((0.0, 20.0), (5000.0, 1.0), (10000.0, 0.1), (20000.0, 0.0)))
+            self.out_proj = SimpleOrthogonalLinear(dim, dim, bias=False)
             self.out_proj.lr_scale = 0.75
 
     def forward(
