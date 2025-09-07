@@ -573,24 +573,16 @@ class Zipformer2EncoderLayer(nn.Module):
             embed_dim,
         )
 
-        self.self_attn_weights1 = RelPositionMultiheadAttentionWeights(
+        self.self_attn_weights = RelPositionMultiheadAttentionWeights(
             embed_dim,
             pos_dim=pos_dim,
-            num_heads=num_heads,
-            query_head_dim=query_head_dim,
-            pos_head_dim=pos_head_dim,
-            dropout=0.0,
-        )
-        self.self_attn_weights2 = RelPositionMultiheadAttentionWeights(
-            embed_dim,
-            pos_dim=pos_dim,
-            num_heads=num_heads,
+            num_heads=2 * num_heads,
             query_head_dim=query_head_dim,
             pos_head_dim=pos_head_dim,
             dropout=0.0,
         )
 
-        self.self_attn1, self.self_attn2 = [ SelfAttention(embed_dim, num_heads, value_head_dim) for _ in range(2) ]
+        self.self_attn1, self.self_attn2, self.self_attn3 = [ SelfAttention(embed_dim, num_heads, value_head_dim) for _ in range(3) ]
 
         feedforward_dim = embed_dim * feedforward_multiple
         self.feed_forward1 = FeedforwardModule(embed_dim, (feedforward_dim * 3) // 4, dropout)
@@ -638,29 +630,29 @@ class Zipformer2EncoderLayer(nn.Module):
         src_orig = src
 
         # attn_weights: (num_heads, batch_size, seq_len, seq_len)
-        attn_weights1 = self.self_attn_weights1(
-            src,
-            pos_emb=pos_emb,
-            attn_mask=attn_mask,
-            key_padding_mask=src_key_padding_mask,
-        )
-        attn_weights2 = self.self_attn_weights2(
+        attn_weights = self.self_attn_weights(
             src,
             pos_emb=pos_emb,
             attn_mask=attn_mask,
             key_padding_mask=src_key_padding_mask,
             aux_loss_scale=0.1 * aux_loss_scale,
         )
+        num_heads = attn_weights.shape[0] // 2  # num heads per self_attn module
+        attn_weights1 = attn_weights[:num_heads]
+        attn_weights2 = attn_weights[num_heads//2:-num_heads//2]
+        attn_weights3 = attn_weights[num_heads:]
+
+        src = src + self.self_attn1(src, attn_weights1, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
 
         src = src + self.feed_forward1(src, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
 
-        src = src + self.self_attn1(src, attn_weights1, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
+        src = src + self.self_attn2(src, attn_weights2, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
 
         src = src + self.conv_module1(src, chunk_size=chunk_size, src_key_padding_mask=src_key_padding_mask, aux_loss_scale=0.1 * aux_loss_scale)
 
         src = src + self.feed_forward2(src, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
 
-        src = src + self.self_attn2(src, attn_weights2, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
+        src = src + self.self_attn3(src, attn_weights3, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
 
         src = src + self.conv_module2(src, chunk_size=chunk_size, src_key_padding_mask=src_key_padding_mask, aux_loss_scale=0.1 * aux_loss_scale)
 
