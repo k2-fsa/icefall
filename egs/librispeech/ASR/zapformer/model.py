@@ -561,6 +561,21 @@ class AsrModel(nn.Module):
         batch_size = log_mels.shape[0]
         num_mels = log_mels.shape[2]
 
+
+        def gauss_norm(x):
+            # normalize by gaussianizing on each dimension
+            values, indexes = x.sort(dim=1)  # sort on seq dim
+            N = max(2, x.shape[1])
+            norm_rank = torch.linspace(-1 + 1. / N, 1. - 1. / N, x.shape[0], device=x.device, dtype=torch.float)
+            norm_rank = torch.special.erfinv(norm_rank)  # maps to Gaussian-distributed data
+            norm_rank = norm_rank.reshape(1, -1, 1)
+            norm_rank = norm_rank.repeat(x.shape[0], 1, x.shape[2])
+            x_norm = torch.empty_like(x)
+            x_norm.scatter_(dim=0, index=indexes, src=norm_rank)
+            return x_norm
+
+        log_mels = gauss_norm(log_mels)
+
         pred_mels = self.reconstruction_proj(encoder_out) # (batch_size, T_embed, 4 * num_mels)
         T_embed = pred_mels.shape[1]
         pred_mels = pred_mels.reshape(batch_size, T_embed * 4, num_mels)
@@ -586,11 +601,8 @@ class AsrModel(nn.Module):
         # this way of applying the padding mask is not really ideal in terms of normalization,
         # it will cause us to under-normalize a bit.
         diff = log_mels * pad_mask - pred_mels * pad_mask
-        # mean over sequence and mel-bin dims but not batch.
-        # this smooth_l1_loss_mod is intended to accomplish volume normalization at the
-        # sequence level, i.e. in case the differently-augmented signals have a difference in volume,
-        # which could happen due to musan augmentation.
-        loss = smooth_l1_loss_mod(diff, beta=1.0, norm_dims=(1, 2))
+
+        loss = (diff ** 2)
 
         # removing the masking logic since we now use the no-specaug reference sequence.
         ## masking.  if it's different from the next item on both the frequency dim
@@ -602,56 +614,3 @@ class AsrModel(nn.Module):
 
         loss = loss.mean(dim=-1).sum()  # sum over all frames, but mean over mel bins.
         return loss
-
-
-
-def smooth_l1_loss_mod(diffs: Tensor, beta: float = 1.0,
-                       norm_dims: Optional[Tuple[int]] = None):
-    """
-    This is similar to :
-       loss = torch.nn.SmoothL1Loss(reduction='none', beta=beta)
-        loss(a, b)  is similar to smooth_l1_loss_mod(a - b),
-    except that it does an optional normalization step that involves
-    subtracting a mean computed over 'norm_dims'.
-    """
-    assert beta > 0
-    def get_scale(diffs):
-        #  torch.nn.SmoothL1Loss(reduction='none', beta=beta) is:
-        # l_n = 0.5 * (diff^2 / beta) if |diff| < beta
-        # else: |diff| - 0.5 / beta
-        diffs_abs = diffs.abs()
-        l2_loss = (0.5 / beta) * (diffs ** 2)
-        l1_loss = diffs.abs() - (0.5 * beta)
-        # 'scale' is a loss scale such that if we multiply l2_loss by it,
-        # we get the final loss.
-        scale = l1_loss.clamp(min=0.5 * beta) / l2_loss.clamp(min=0.5 * beta)
-        return scale.sqrt()
-    # ok, now we can treat the loss as (0.5 / beta) * diffs_scaled ** 2
-    if norm_dims:
-        scale = get_scale(diffs)
-        offset = (scale * diffs).mean(dim=norm_dims, keepdim=True) / scale.mean(dim=norm_dims, keepdim=True)
-        diffs = diffs - offset
-
-    loss = (0.5 / beta) * ((diffs * get_scale(diffs)) ** 2)
-    return loss
-
-
-
-def _test_smooth_l1_loss_mod():
-    a = torch.randn(4, 50)
-    b = torch.randn(4, 50) + 10. * torch.randn(4, 1)
-
-    beta = 2.0
-    loss = torch.nn.SmoothL1Loss(reduction='none', beta=beta)
-    loss1 = loss(a, b)
-    loss2 = smooth_l1_loss_mod(a - b, beta=beta)
-    #print(f"loss1={loss1}, loss2={loss2}")
-    assert torch.allclose(loss1, loss2, atol=0.001)
-
-    loss2_norm = smooth_l1_loss_mod(a - b, beta=beta, norm_dims=(1,))
-    print(f"loss2-mean={loss2.mean()}, loss2_norm-mean={loss2_norm.mean()}")
-    assert loss2_norm.mean() <= loss2.mean()
-
-
-if __name__ == '__main__':
-    _test_smooth_l1_loss_mod()
