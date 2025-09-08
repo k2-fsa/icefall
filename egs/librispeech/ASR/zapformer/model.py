@@ -176,7 +176,7 @@ class AsrModel(nn.Module):
         assert torch.all(encoder_out_lens > 0), (x_lens, encoder_out_lens)
 
 
-        return encoder_out, encoder_out_lens, x_sd, predict_loss
+        return encoder_out, encoder_out_lens, encoder_out_sd, predict_loss
 
 
     def compute_predict_loss(self,
