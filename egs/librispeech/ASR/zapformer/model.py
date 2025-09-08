@@ -566,12 +566,12 @@ class AsrModel(nn.Module):
             # normalize by gaussianizing on each dimension
             values, indexes = x.sort(dim=1)  # sort on seq dim
             N = max(2, x.shape[1])
-            norm_rank = torch.linspace(-1 + 1. / N, 1. - 1. / N, x.shape[0], device=x.device, dtype=torch.float)
+            norm_rank = torch.linspace(-1 + 1. / N, 1. - 1. / N, x.shape[1], device=x.device, dtype=torch.float)
             norm_rank = torch.special.erfinv(norm_rank)  # maps to Gaussian-distributed data
             norm_rank = norm_rank.reshape(1, -1, 1)
             norm_rank = norm_rank.repeat(x.shape[0], 1, x.shape[2])
             x_norm = torch.empty_like(x)
-            x_norm.scatter_(dim=0, index=indexes, src=norm_rank)
+            x_norm.scatter_(dim=1, index=indexes, src=norm_rank)
             return x_norm
 
         log_mels = gauss_norm(log_mels)
