@@ -168,6 +168,7 @@ class Zipformer2(EncoderInterface):
                 feedforward_multiple=feedforward_multiple[i],
                 dropout=dropout,
                 cnn_module_kernel=cnn_module_kernel[i],
+                num_conv_modules=(2 if downsampling_factor[i] <= 2 else (1 if downsampling_factor[i] <= 4 else 0)),
                 causal=causal,
             )
 
@@ -560,6 +561,7 @@ class Zipformer2EncoderLayer(nn.Module):
         feedforward_multiple: int,
         dropout: FloatLike = 0.1,
         cnn_module_kernel: int = 31,
+        num_conv_modules: int = 2,
         causal: bool = False,
         randomize_scale: FloatLike = ScheduledFloat((0.0, 1.0), (20000.0, 0.75)),
     ) -> None:
@@ -594,8 +596,10 @@ class Zipformer2EncoderLayer(nn.Module):
 
         self.feed_forward3 = FeedforwardModule(embed_dim, (feedforward_dim * 5) // 4, dropout)
 
-        self.conv_module1, self.conv_module2 = [ ConvolutionModule(embed_dim, cnn_module_kernel, causal=causal)
-                                                 for _ in range(2) ]
+        if num_conv_modules >= 2:
+            self.conv_module2 = ConvolutionModule(embed_dim, cnn_module_kernel, causal=causal)
+        if num_conv_modules >= 1:
+            self.conv_module1 = ConvolutionModule(embed_dim, cnn_module_kernel, causal=causal)
 
         self.scale_limiter = ScaleLimiter(max_var=2.0)
 
@@ -651,13 +655,15 @@ class Zipformer2EncoderLayer(nn.Module):
 
         src = src + self.self_attn2(src, attn_weights2, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
 
-        src = src + self.conv_module1(src, chunk_size=chunk_size, src_key_padding_mask=src_key_padding_mask, aux_loss_scale=0.1 * aux_loss_scale)
+        if hasattr(self, 'conv_module1'):
+            src = src + self.conv_module1(src, chunk_size=chunk_size, src_key_padding_mask=src_key_padding_mask, aux_loss_scale=0.1 * aux_loss_scale)
 
         src = src + self.feed_forward2(src, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
 
         src = src + self.self_attn3(src, attn_weights3, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
 
-        src = src + self.conv_module2(src, chunk_size=chunk_size, src_key_padding_mask=src_key_padding_mask, aux_loss_scale=0.1 * aux_loss_scale)
+        if hasattr(self, 'conv_module2'):
+            src = src + self.conv_module2(src, chunk_size=chunk_size, src_key_padding_mask=src_key_padding_mask, aux_loss_scale=0.1 * aux_loss_scale)
 
         src = src + self.feed_forward3(src, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
 
