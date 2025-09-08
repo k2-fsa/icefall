@@ -568,6 +568,9 @@ class Zipformer2EncoderLayer(nn.Module):
         self.name = None  # will be set from training loop
 
         self.randomize_scale = copy.deepcopy(randomize_scale)
+
+        self.cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=embed_dim, power=0.75))
+
         # self.bypass implements layer skipping as well as learnable scale on a residual term; see its default values.
         self.residual = ResidualModule(
             embed_dim,
@@ -657,6 +660,10 @@ class Zipformer2EncoderLayer(nn.Module):
         src = src + self.conv_module2(src, chunk_size=chunk_size, src_key_padding_mask=src_key_padding_mask, aux_loss_scale=0.1 * aux_loss_scale)
 
         src = src + self.feed_forward3(src, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
+
+        src = with_loss(src,
+                        self.cosine_loss(src.permute(1, 0, 2), aux_loss_scale, mask=src_key_padding_mask),
+                        None)
 
         src = self.residual(src_orig, src)
 
