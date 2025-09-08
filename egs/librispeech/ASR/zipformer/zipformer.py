@@ -220,7 +220,7 @@ class Zipformer2(EncoderInterface):
         x_lens: Tensor,
         src_key_padding_mask: Optional[Tensor] = None,
         aux_loss_scale: float = 0.0,
-    ) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
+    ) -> Tuple[Tensor, Tensor, Tensor]:
         """
         Args:
           x:
@@ -240,8 +240,9 @@ class Zipformer2(EncoderInterface):
             - embeddings: its shape is (output_seq_len, batch_size, max(encoder_dim))
             - lengths, a tensor of shape (batch_size,) containing the number
               of frames in `embeddings` before padding.
-            - predict_loss, a cross-prediction loss of randomized codebooks, relying on the CR-CTC
-              structure of the batch.
+            - embeddings_sd, a "stochastic-depth"  version of embeddings that
+              is projected using a separate projection from random stacks,
+              differnently chosen per sequence.
         """
         chunk_size, left_context_chunks = self.get_chunk_info()
         orig_seq_len = x.shape[0]
@@ -261,11 +262,20 @@ class Zipformer2(EncoderInterface):
 
         num_stacks = len(self.downsampling_factor)
 
+        x_sd = x
+
+        def combine_sd(i, x_sd, this_x_sd):
+            replace_prob = 1 / (i + 2)
+            batch_size = x_sd.shape[1]
+            do_replace = (torch.rand(1, batch_size, 1, device=x_sd.device) < replace_prob).expand_as(x_sd)
+            return torch.where(do_replace, this_x_sd, x_sd)
+
         for i, module in enumerate(self.encoders):
             ds = self.downsampling_factor[i]
             x = downsample_by(x, ds)
+            x_sd = downsample_by(x_sd, ds)
             T = x.shape[0]
-            x = module(
+            x, this_x_sd = module(
                 x,
                 chunk_size=chunk_size,
                 src_key_padding_mask=(
@@ -279,13 +289,16 @@ class Zipformer2(EncoderInterface):
                 ),
                 aux_loss_scale=aux_loss_scale * ds / (self.output_downsampling_factor * num_stacks)
             )
+            x_sd = combine_sd(i, x_sd, this_x_sd)
             x = upsample_by(x, ds)
-
+            x_sd = upsample_by(x_sd, ds)
 
         assert self.output_downsampling_factor == 2, self.output_downsampling_factor
         od = self.output_downsampling_factor
         x = downsample_by(x, od)
         x = x[:(orig_seq_len + od - 1) // od]  # truncate so seq len not affected by padding
+        x_sd = downsample_by(x_sd, od)
+        x_sd = x_sd[:(orig_seq_len + od - 1) // od]  # truncate so seq len not affected by padding
 
         if torch.jit.is_scripting() or torch.jit.is_tracing():
             lengths = (x_lens + 1) // 2
@@ -294,7 +307,7 @@ class Zipformer2(EncoderInterface):
                 warnings.simplefilter("ignore")
                 lengths = (x_lens + 1) // 2
 
-        return x, lengths
+        return x, lengths, x_sd
 
     def _get_attn_mask(
         self, x: Tensor, chunk_size: int, left_context_chunks: int
@@ -852,6 +865,10 @@ dropout:
             self.out_proj = SimpleOrthogonalLinear(dim, dim, bias=False)
             self.out_proj.lr_scale = 0.75
 
+        # stochastic-depth proj.
+        self.sd_proj = nn.Linear(encoder_layer.embed_dim, dim)
+
+
     def forward(
         self,
         src: Tensor,
@@ -859,7 +876,7 @@ dropout:
         attn_mask: Optional[Tensor] = None,
         src_key_padding_mask: Optional[Tensor] = None,
         aux_loss_scale: float = 0.0,
-    ) -> Tensor:
+    ) -> Tuple[Tensor, Tensor]:
         r"""Pass the input through the encoder layers in turn.
 
         Args:
@@ -873,7 +890,9 @@ dropout:
             src_key_padding_mask:  the mask for padding, of shape (batch_size, seq_len); True means
                  masked position.  May be None.
 
-        Returns: a Tensor with the same shape as src.
+        Returns:
+             (src, src_sd)
+           where src_sd is an alternative version of src for stochastic-depth, that does not see the bypass.
         """
         pos_emb = self.encoder_pos(src)
 
@@ -896,7 +915,7 @@ dropout:
             # randomize_factor can be viewed as a simple version of an
             # importance-sampling factor.
 
-        src = self.add_residual(src_orig_fulldim, src_orig, src, aux_loss_scale, src_key_padding_mask)
+        src, src_sd = self.add_residual(src_orig_fulldim, src_orig, src, aux_loss_scale, src_key_padding_mask)
         # The above is equivalent to:
         #  src = src_orig_fulldim + self.proj((src - src_orig) * self.residual_scale, transpose=True)
         # .. but with extra losses.
@@ -904,7 +923,7 @@ dropout:
         if hasattr(self, 'out_proj'):
             src = self.out_proj(src)
 
-        return src
+        return src, src_sd
 
 
     def add_residual(
@@ -913,10 +932,11 @@ dropout:
             src_orig,
             src,
             aux_loss_scale: float,
-            src_key_padding_mask: Optional[Tensor]):
+            src_key_padding_mask: Optional[Tensor]) -> Tuple[Tensor, Tensor]:
+        # return: (tot, src_sd)
         residual_scale = limit_param_value(self.residual_scale, min=0.1, max=1.0, training=self.training)
         offset = (src - src_orig) * residual_scale
-
+        src_sd = self.sd_proj(offset)
         offset = self.proj(offset, transpose=True)
         tot = src_orig_fulldim + offset
 
@@ -931,7 +951,7 @@ dropout:
                                                   aux_loss_scale * 0.05, src_key_padding_mask),
                             None)
 
-        return tot
+        return tot, src_sd
 
 
     def streaming_forward(
@@ -2123,11 +2143,12 @@ def _test_zipformer_main(causal: bool = False):
     batch_size = 6
     seq_len = 21
     # Just make sure the forward pass runs.
-    f, lengths = c(
+    f, lengths, f_sd = c(
         torch.randn(seq_len, batch_size, input_dim),
         torch.full((batch_size,), seq_len, dtype=torch.int64),
         aux_loss_scale=1.0,
     )
+    assert f.shape == f_sd.shape
     f.sum().backward()
     c.eval()
     x_ = c(
