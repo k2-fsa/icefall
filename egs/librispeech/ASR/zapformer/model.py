@@ -173,6 +173,7 @@ class AsrModel(nn.Module):
                         0.1 * self.compute_predict_loss(encoder_out_sd, src_key_padding_mask[:, ::2], specaug_mask[:, ::2]))
 
         encoder_out = encoder_out.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
+        encoder_out_sd = encoder_out_sd.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
         assert torch.all(encoder_out_lens > 0), (x_lens, encoder_out_lens)
 
 
