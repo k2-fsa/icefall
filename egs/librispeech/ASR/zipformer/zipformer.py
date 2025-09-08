@@ -571,8 +571,6 @@ class Zipformer2EncoderLayer(nn.Module):
 
         self.randomize_scale = copy.deepcopy(randomize_scale)
 
-        self.cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=embed_dim, power=0.75))
-
         # self.bypass implements layer skipping as well as learnable scale on a residual term; see its default values.
         self.residual = ResidualModule(
             embed_dim,
@@ -666,10 +664,6 @@ class Zipformer2EncoderLayer(nn.Module):
             src = src + self.conv_module2(src, chunk_size=chunk_size, src_key_padding_mask=src_key_padding_mask, aux_loss_scale=0.1 * aux_loss_scale)
 
         src = src + self.feed_forward3(src, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
-
-        src = with_loss(src,
-                        self.cosine_loss(src.permute(1, 0, 2), aux_loss_scale, mask=src_key_padding_mask),
-                        None)
 
         src = self.residual(src_orig, src)
 
@@ -849,6 +843,7 @@ dropout:
         min_product = (d_yes * 0.75) / (d_yes + 0.75 * d_no)
         self.min_product_loss = MinProductLoss(min_product)
 
+        self.encoder_cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=encoder_layer.embed_dim, power=0.85))
         self.cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=dim, power=0.85))
 
         # make penalty_scale disappear after 20k batches; later we can try making this just a normal linear
@@ -930,6 +925,8 @@ dropout:
             tot = with_loss(tot,
                             self.cosine_loss(tot_permuted,
                                              aux_loss_scale, src_key_padding_mask) +
+                            self.encoder_cosine_loss(src,
+                                                     aux_loss_scale, src_key_padding_mask) +
                             self.min_product_loss(tot_permuted, offset.permute(1, 0, 2),
                                                   aux_loss_scale * 0.05, src_key_padding_mask),
                             None)
