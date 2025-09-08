@@ -945,10 +945,10 @@ dropout:
             tot = with_loss(tot,
                             self.cosine_loss(tot_permuted,
                                              aux_loss_scale, src_key_padding_mask) +
-                            self.encoder_cosine_loss(src,
-                                                     aux_loss_scale, src_key_padding_mask) +
                             self.min_product_loss(tot_permuted, offset.permute(1, 0, 2),
-                                                  aux_loss_scale * 0.05, src_key_padding_mask),
+                                                  aux_loss_scale * 0.05, src_key_padding_mask) +
+                            self.encoder_cosine_loss(src.permute(1, 0, 2),
+                                                     aux_loss_scale, src_key_padding_mask),
                             None)
 
         return tot, src_sd
