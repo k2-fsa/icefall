@@ -2005,7 +2005,7 @@ class ConvolutionModule(nn.Module):
             dropout_p=0.0,
             initial_scale=0.05,
         )
-        self.cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=min(channels, bottleneck_dim), power=0.7))
+        self.cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=min(channels, bottleneck_dim), power=0.6))
 
 
     def forward(
