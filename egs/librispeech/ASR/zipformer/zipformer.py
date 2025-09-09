@@ -851,12 +851,6 @@ dropout:
         #bypass_dim = dim - encoder_layer.embed_dim
         self.copy_bypass = Identity()
 
-        d_yes = encoder_layer.embed_dim
-        d_no = dim - encoder_layer.embed_dim
-        min_product = (d_yes * 0.75) / (d_yes + 0.75 * d_no)
-        self.min_product_loss = MinProductLoss(min_product)
-
-        self.encoder_cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=encoder_layer.embed_dim, power=0.85))
         self.cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=dim, power=0.85))
 
         # make penalty_scale disappear after 20k batches; later we can try making this just a normal linear
@@ -944,11 +938,7 @@ dropout:
             tot_permuted = tot.permute(1, 0, 2)
             tot = with_loss(tot,
                             self.cosine_loss(tot_permuted,
-                                             aux_loss_scale, src_key_padding_mask) +
-                            self.min_product_loss(tot_permuted, offset.permute(1, 0, 2),
-                                                  aux_loss_scale * 0.05, src_key_padding_mask) +
-                            self.encoder_cosine_loss(src.permute(1, 0, 2),
-                                                     aux_loss_scale, src_key_padding_mask),
+                                             aux_loss_scale, src_key_padding_mask),
                             None)
 
         return tot, src_sd
