@@ -576,18 +576,14 @@ class Zipformer2EncoderLayer(nn.Module):
         cnn_module_kernel: int = 31,
         num_conv_modules: int = 2,
         causal: bool = False,
-        randomize_scale: FloatLike = ScheduledFloat((0.0, 1.0), (20000.0, 0.75)),
     ) -> None:
         super(Zipformer2EncoderLayer, self).__init__()
         self.embed_dim = embed_dim
         self.name = None  # will be set from training loop
 
-        self.randomize_scale = copy.deepcopy(randomize_scale)
+        self.residual_scale = nn.Parameter(0.5 * torch.ones(embed_dim))
 
-        # self.bypass implements layer skipping as well as learnable scale on a residual term; see its default values.
-        self.residual = ResidualModule(
-            embed_dim,
-        )
+        self.cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=embed_dim, power=0.8))
 
         self.self_attn_weights = RelPositionMultiheadAttentionWeights(
             embed_dim,
@@ -678,7 +674,13 @@ class Zipformer2EncoderLayer(nn.Module):
 
         src = src + self.feed_forward3(src, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
 
-        src = self.residual(src_orig, src)
+        residual_scale = limit_param_value(self.residual_scale, min=0.1, max=1.0)
+        offset = (src_orig - src) * residual_scale
+        src = src + offset
+
+        src = with_loss(src,
+                        self.cosine_loss(offset.permute(1, 0, 2), aux_loss_scale, mask=src_key_padding_mask),
+                        None)
 
         src = self.scale_limiter(src)
 
@@ -906,8 +908,6 @@ dropout:
                 src_key_padding_mask=src_key_padding_mask,
                 aux_loss_scale=aux_loss_scale/num_layers,
             )
-            # randomize_factor can be viewed as a simple version of an
-            # importance-sampling factor.
 
         src, src_sd = self.add_residual(src_orig_fulldim, src_orig, src, aux_loss_scale, src_key_padding_mask)
         # The above is equivalent to:
