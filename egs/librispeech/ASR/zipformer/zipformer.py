@@ -852,8 +852,8 @@ dropout:
 
         self.copy_bypass = Identity()
 
-        self.cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=encoder_layer.embed_dim, power=0.85))
-        self.offset_cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=dim, power=0.85))
+        self.cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=dim, power=0.85))
+        self.offset_cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=encoder_layer.embed_dim, power=0.85))
 
         # make penalty_scale disappear after 20k batches; later we can try making this just a normal linear
         # module.
