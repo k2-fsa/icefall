@@ -853,7 +853,7 @@ dropout:
         #bypass_dim = dim - encoder_layer.embed_dim
         self.copy_bypass = Identity()
 
-        self.cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=dim, power=0.85))
+        self.cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=encoder_layer.embed_dim, power=0.85))
 
         # make penalty_scale disappear after 20k batches; later we can try making this just a normal linear
         # module.
@@ -930,17 +930,15 @@ dropout:
         # return: (tot, src_sd)
         residual_scale = limit_param_value(self.residual_scale, min=0.1, max=1.0, training=self.training)
         offset = (src - src_orig) * residual_scale
-        src_sd = self.sd_proj(offset)
-        offset = self.proj(offset, transpose=True)
-        tot = src_orig_fulldim + offset
 
         if aux_loss_scale:
-            tot_permuted = tot.permute(1, 0, 2)
-            tot = with_loss(tot,
-                            self.cosine_loss(tot_permuted,
-                                             aux_loss_scale, src_key_padding_mask),
-                            None)
+            offset = with_loss(offset,
+                               self.cosine_loss(offset.permute(1, 0, 2),
+                                                aux_loss_scale, src_key_padding_mask),
+                               None)
 
+        src_sd = self.sd_proj(offset)
+        tot = src_orig_fulldim + self.proj(offset, transpose=True)
         return tot, src_sd
 
 
