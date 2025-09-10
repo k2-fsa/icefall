@@ -1195,7 +1195,7 @@ def train_one_epoch(
                     batch=batch,
                     is_training=True,
                     spec_augment=spec_augment,
-                    aux_loss_scale=get_scaler_scale() * params.aux_loss_scale,
+                    aux_loss_scale=get_scaler_scale() * params.aux_loss_scale * (0.25 if params.batch_idx_train > 2000 else 1.0),
                 )
             # summary stats
             tot_loss = (tot_loss * (1 - 1 / params.reset_interval)) + loss_info
