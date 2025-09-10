@@ -1783,7 +1783,7 @@ class FeedforwardModule(nn.Module):
             initial_scale=0.5,
         )
 
-        self.cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=min(embed_dim, feedforward_dim), power=0.8))
+        self.cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=min(embed_dim, feedforward_dim), power=0.7))
 
 
     def forward(self, x: Tensor, aux_loss_scale: float = 0.0, src_key_padding_mask: Optional[Tensor] = None) -> Tensor:
