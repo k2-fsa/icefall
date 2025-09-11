@@ -551,6 +551,14 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--stochastic-depth-prob",
+        type=float,
+        default=0.1,
+        help="Probability of using a randomly chosen stack output during training, instead of "
+        "final output."
+    )
+
+    parser.add_argument(
         "--attention-decoder-loss-scale",
         type=float,
         default=0.8,
@@ -1008,6 +1016,7 @@ def compute_loss(
             time_warp_factor=80, # for specaug
             num_copies=num_copies,
             aux_loss_scale=aux_loss_scale,
+            sd_prob=(params.stochastic_depth_prob if is_training else 0.0),
         )
 
         loss = 0.0

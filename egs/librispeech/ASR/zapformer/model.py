@@ -131,8 +131,8 @@ class AsrModel(nn.Module):
 
 
     def forward_encoder(
-            self, x: torch.Tensor, x_lens: torch.Tensor, aux_loss_scale: float = 0.0,
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+            self, x: torch.Tensor, x_lens: torch.Tensor, aux_loss_scale: float = 0.0, sd_prob: float = 0.0,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Compute encoder outputs.
         Args:
           x:
@@ -140,22 +140,23 @@ class AsrModel(nn.Module):
           x_lens:
             A 1-D tensor of shape (N,). It contains the number of frames in `x`
             before padding.
+          aux_loss_scale:
+             auxiliary-loss scale, for scaling cosine losses in the encoders.
+          sc_prob:
+             stochastic-depth probability: not a layer skipping probabilty but the probabibilty
+             of taking the output of a randomly chosen layer,  instead of the last layer.
+
 
         Returns:
           encoder_out:
             Encoder output, of shape (N, T, C).
           encoder_out_lens:
             Encoder output lengths, of shape (N,).
-          encoder_out_sd:
-            Stochastic-depth version of encoder output
-          predict_loss:
-            Cross-sequence prediction loss value
         """
         # logging.info(f"Memory allocated at entry: {torch.cuda.memory_allocated() // 1000000}M")
         specaug_mask = (x[..., 0] == x[..., 1]) # (N, T)
 
         x, x_lens = self.encoder_embed(x, x_lens, aux_loss_scale=aux_loss_scale)
-        # x_sd is stochastic-depth version of x.
         # logging.info(f"Memory allocated after encoder_embed: {torch.cuda.memory_allocated() // 1000000}M")
 
 
@@ -166,18 +167,17 @@ class AsrModel(nn.Module):
 
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
 
-        encoder_out, encoder_out_lens, encoder_out_sd = self.encoder(x, x_lens, src_key_padding_mask,
-                                                                     aux_loss_scale=aux_loss_scale)
+        encoder_out, encoder_out_lens = self.encoder(x, x_lens, src_key_padding_mask,
+                                                     aux_loss_scale=aux_loss_scale,
+                                                     sd_prob=(0.1 if self.training else 0.0))
 
-        predict_loss = (0.9 * self.compute_predict_loss(encoder_out, src_key_padding_mask[:, ::2], specaug_mask[:, ::2]) +
-                        0.1 * self.compute_predict_loss(encoder_out_sd, src_key_padding_mask[:, ::2], specaug_mask[:, ::2]))
+        predict_loss = self.compute_predict_loss(encoder_out, src_key_padding_mask[:, ::2], specaug_mask[:, ::2])
 
         encoder_out = encoder_out.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
-        encoder_out_sd = encoder_out_sd.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
         assert torch.all(encoder_out_lens > 0), (x_lens, encoder_out_lens)
 
 
-        return encoder_out, encoder_out_lens, encoder_out_sd, predict_loss
+        return encoder_out, encoder_out_lens, predict_loss
 
 
     def compute_predict_loss(self,
@@ -398,6 +398,7 @@ class AsrModel(nn.Module):
         time_warp_factor: Optional[int] = 80,
         num_copies: int = 1,
         aux_loss_scale: float = 0.0,
+        sd_prob: float = 0.0,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Args:
@@ -432,6 +433,11 @@ class AsrModel(nn.Module):
           num_copies:
              the number of copies of the same data that are in the batch, e.g. 1, 2
              or 3; affects CRCTC, spec-augment, etc.
+          aux_loss_scale:
+             auxiliary-loss scale, for scaling cosine losses in the encoders.
+          sc_prob:
+             stochastic-depth probability: not a layer skipping probabilty but the probabibilty
+             of taking the output of a randomly chosen layer,  instead of the last layer.
 
         Returns:
           Return the transducer losses, CTC loss, AED loss,
@@ -495,8 +501,9 @@ class AsrModel(nn.Module):
 
 
         # Compute encoder outputs
-        encoder_out, encoder_out_lens, encoder_out_sd, predict_loss = self.forward_encoder(x, x_lens,
-                                                                                           aux_loss_scale=aux_loss_scale)
+        encoder_out, encoder_out_lens, predict_loss = self.forward_encoder(x, x_lens,
+                                                                           aux_loss_scale=aux_loss_scale,
+                                                                           sd_prob=sd_prob)
 
         row_splits = y.shape.row_splits(1)
         y_lens = row_splits[1:] - row_splits[:-1]
@@ -519,23 +526,20 @@ class AsrModel(nn.Module):
         if self.use_ctc:
             targets = y.values
             if not self.training:
-                ctc_loss, ctc_loss_sd = [ self.forward_ctc(
-                    encoder_out=e,
+                ctc_loss = self.forward_ctc(
+                    encoder_out=encoder_out,
                     encoder_out_lens=encoder_out_lens,
                     targets=targets,
                     target_lengths=y_lens,
-                ) for e in [encoder_out, encoder_out_sd] ]
-                ctc_loss = 0.9 * ctc_loss + 0.1 * ctc_loss_sd
+                )
                 cr_loss = torch.empty(0)
             else:
-                ret, ret_sd = [ self.forward_cr_ctc(
-                    encoder_out=e,
+                ctc_loss, cr_loss = self.forward_cr_ctc(
+                    encoder_out=encoder_out,
                     encoder_out_lens=encoder_out_lens,
                     targets=targets,
                     target_lengths=y_lens,
-                ) for e in [encoder_out, encoder_out_sd] ]
-                ctc_loss = 0.9 * ret[0] + 0.1 * ret_sd[0]
-                cr_loss = 0.9 * ret[1] + 0.1 * ret_sd[1]
+                )
         else:
             ctc_loss = torch.empty(0)
             cr_loss = torch.empty(0)
@@ -550,10 +554,8 @@ class AsrModel(nn.Module):
         else:
             attention_decoder_loss = torch.empty(0)
 
-        reconstruction_loss = (0.9 * self.forward_reconstruction_loss(x_no_specaug, encoder_out,
-                                                                     encoder_out_lens) +
-                               0.1 * self.forward_reconstruction_loss(x_no_specaug, encoder_out_sd,
-                                                                     encoder_out_lens))
+        reconstruction_loss = self.forward_reconstruction_loss(x_no_specaug, encoder_out,
+                                                               encoder_out_lens)
 
         return simple_loss, pruned_loss, ctc_loss, attention_decoder_loss, cr_loss, reconstruction_loss, predict_loss
 
