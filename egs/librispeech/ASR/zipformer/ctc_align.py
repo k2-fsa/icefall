@@ -395,9 +395,9 @@ def align_dataset(
         for name, alignments in hyps_dict.items():
             this_batch = []
             assert len(alignments) == len(texts)
-            for cut_id, alignments, ref_text in zip(cut_ids, alignments, texts):
+            for cut_id, alignment, ref_text in zip(cut_ids, alignments, texts):
                 ref_words = ref_text.split()
-                this_batch.append((cut_id, ref_words, alignments))
+                this_batch.append((cut_id, ref_words, alignment))
 
             results[name].extend(this_batch)
 
