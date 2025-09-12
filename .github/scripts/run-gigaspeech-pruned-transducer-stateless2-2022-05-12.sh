@@ -19,7 +19,7 @@ repo=$(basename $repo_url)
 
 echo "GITHUB_EVENT_NAME: ${GITHUB_EVENT_NAME}"
 echo "GITHUB_EVENT_LABEL_NAME: ${GITHUB_EVENT_LABEL_NAME}"
-if [[ x"${GITHUB_EVENT_NAME}" == x"schedule" || x"${GITHUB_EVENT_LABEL_NAME}" == x"run-decode"  ]]; then
+if [[ x"${GITHUB_EVENT_NAME}" == x"schedule" || x"${GITHUB_EVENT_NAME}" == x"workflow_dispatch" || x"${GITHUB_EVENT_LABEL_NAME}" == x"run-decode"  ]]; then
   mkdir -p pruned_transducer_stateless2/exp
   ln -s $PWD/$repo/exp/pretrained-iter-3488000-avg-20.pt pruned_transducer_stateless2/exp/epoch-999.pt
   ln -s $PWD/$repo/data/lang_bpe_500 data/
@@ -29,8 +29,16 @@ if [[ x"${GITHUB_EVENT_NAME}" == x"schedule" || x"${GITHUB_EVENT_LABEL_NAME}" ==
   ls -lh data/fbank
   ls -lh pruned_transducer_stateless2/exp
 
-  ln -s data/fbank/cuts_DEV.jsonl.gz data/fbank/gigaspeech_cuts_DEV.jsonl.gz
-  ln -s data/fbank/cuts_TEST.jsonl.gz data/fbank/gigaspeech_cuts_TEST.jsonl.gz
+  pushd data/fbank
+  curl -SL -O https://huggingface.co/csukuangfj/giga-dev-dataset-fbank/resolve/main/data/fbank/cuts_DEV.jsonl.gz
+  curl -SL -O https://huggingface.co/csukuangfj/giga-dev-dataset-fbank/resolve/main/data/fbank/cuts_TEST.jsonl.gz
+  curl -SL -O https://huggingface.co/csukuangfj/giga-dev-dataset-fbank/resolve/main/data/fbank/feats_DEV.lca
+  curl -SL -O https://huggingface.co/csukuangfj/giga-dev-dataset-fbank/resolve/main/data/fbank/feats_TEST.lca
+
+  ln -sf cuts_DEV.jsonl.gz gigaspeech_cuts_DEV.jsonl.gz
+  ln -sf cuts_TEST.jsonl.gz gigaspeech_cuts_TEST.jsonl.gz
+  popd
+
 
   log "Decoding dev and test"
 

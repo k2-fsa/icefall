@@ -28,7 +28,7 @@ import kaldifeat
 import kaldifst
 import torch
 import torchaudio
-from kaldi_hmm_gmm import DecodableCtc, FasterDecoder, FasterDecoderOptions
+from kaldi_decoder import DecodableCtc, FasterDecoder, FasterDecoderOptions
 from torch.nn.utils.rnn import pad_sequence
 
 
@@ -164,6 +164,7 @@ def main():
     opts.frame_opts.snip_edges = False
     opts.frame_opts.samp_freq = sample_rate
     opts.mel_opts.num_bins = 23
+    opts.mel_opts.high_freq = -400
 
     fbank = kaldifeat.Fbank(opts)
 

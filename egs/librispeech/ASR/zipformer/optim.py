@@ -1,4 +1,4 @@
-#      Copyright      2022  Xiaomi Corp.        (authors: Daniel Povey)
+# Copyright      2022  Xiaomi Corp.        (authors: Daniel Povey)
 #
 # See ../LICENSE for clarification regarding multiple authors
 #
@@ -116,9 +116,142 @@ class BatchedOptimizer(Optimizer):
 
         yield tuples  # <-- calling code will do the actual optimization here!
 
-        for (stacked_params, _state, _names), batch in zip(tuples, batches):
+        for ((stacked_params, _state, _names), batch) in zip(tuples, batches):
             for i, p in enumerate(batch):  # batch is list of Parameter
                 p.copy_(stacked_params[i])
+
+
+def basic_step(group, p, state, grad):
+    # computes basic Adam update using beta2 (dividing by gradient stddev) only.  no momentum yet.
+    lr = group["lr"]
+    if p.numel() == p.shape[0]:
+        lr = lr * group["scalar_lr_scale"]
+    beta2 = group["betas"][1]
+    eps = group["eps"]
+    # p shape: (batch_size,) or (batch_size, 1, [1,..])
+    try:
+        exp_avg_sq = state[
+            "exp_avg_sq"
+        ]  # shape: (batch_size,) or (batch_size, 1, [1,..])
+    except KeyError:
+        exp_avg_sq = torch.zeros(*p.shape, device=p.device, dtype=torch.float)
+        state["exp_avg_sq"] = exp_avg_sq
+
+    exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
+
+    # bias_correction2 is like in Adam.
+    # slower update at the start will help stability anyway.
+    bias_correction2 = 1 - beta2 ** (state["step"] + 1)
+    if bias_correction2 < 0.99:
+        # note: not in-place.
+        exp_avg_sq = exp_avg_sq * (1.0 / bias_correction2)
+    denom = exp_avg_sq.sqrt().add_(eps)
+
+    return -lr * grad / denom
+
+
+def scaling_step(group, p, state, grad):
+    delta = basic_step(group, p, state, grad)
+    if p.numel() == p.shape[0]:
+        return delta  # there is no scaling for scalar parameters.  (p.shape[0] is the batch of parameters.)
+
+    step = state["step"]
+    size_update_period = group["size_update_period"]
+
+    try:
+        param_rms = state["param_rms"]
+        scale_grads = state["scale_grads"]
+        scale_exp_avg_sq = state["scale_exp_avg_sq"]
+    except KeyError:
+        # we know p.ndim > 1 because we'd have returned above if not, so don't worry
+        # about the speial case of dim=[] that pytorch treats inconsistently.
+        param_rms = (p**2).mean(dim=list(range(1, p.ndim)), keepdim=True).sqrt()
+        param_rms = param_rms.to(torch.float)
+        scale_exp_avg_sq = torch.zeros_like(param_rms)
+        scale_grads = torch.zeros(
+            size_update_period, *param_rms.shape, dtype=torch.float, device=p.device
+        )
+        state["param_rms"] = param_rms
+        state["scale_grads"] = scale_grads
+        state["scale_exp_avg_sq"] = scale_exp_avg_sq
+
+    # on every step, update the gradient w.r.t. the scale of the parameter, we
+    # store these as a batch and periodically update the size (for speed only, to
+    # avoid too many operations).
+    scale_grads[step % size_update_period] = (p * grad).sum(
+        dim=list(range(1, p.ndim)), keepdim=True
+    )
+
+    # periodically recompute the value of param_rms.
+    if step % size_update_period == size_update_period - 1:
+        param_rms.copy_((p**2).mean(dim=list(range(1, p.ndim)), keepdim=True).sqrt())
+
+    param_min_rms = group["param_min_rms"]
+
+    # scale the step size by param_rms.  This is the most important "scaling" part of
+    # ScaledAdam
+    delta *= param_rms.clamp(min=param_min_rms)
+
+    if step % size_update_period == size_update_period - 1 and step > 0:
+        # This block updates the size of parameter by adding a step ("delta") value in
+        # the direction of either shrinking or growing it.
+        beta2 = group["betas"][1]
+        size_lr = group["lr"] * group["scalar_lr_scale"]
+        param_max_rms = group["param_max_rms"]
+        eps = group["eps"]
+        batch_size = p.shape[0]
+        # correct beta2 for the size update period: we will have
+        # faster decay at this level.
+        beta2_corr = beta2**size_update_period
+        scale_exp_avg_sq.mul_(beta2_corr).add_(
+            (scale_grads**2).mean(dim=0),  # mean over dim `size_update_period`
+            alpha=1 - beta2_corr,
+        )  # shape is (batch_size, 1, 1, ...)
+
+        # The 1st time we reach here is when size_step == 1.
+        size_step = (step + 1) // size_update_period
+        bias_correction2 = 1 - beta2_corr**size_step
+
+        denom = scale_exp_avg_sq.sqrt() + eps
+
+        scale_step = (
+            -size_lr * (bias_correction2**0.5) * scale_grads.sum(dim=0) / denom
+        )
+
+        is_too_small = param_rms < param_min_rms
+
+        # when the param gets too small, just don't shrink it any further.
+        scale_step.masked_fill_(is_too_small, 0.0)
+
+        # The following may help prevent instability: don't allow the scale step to be too large in
+        # either direction.
+        scale_step.clamp_(min=-0.1, max=0.1)
+
+        # and ensure the parameter rms after update never exceeds param_max_rms.
+        # We have to look at the trained model for parameters at or around the
+        # param_max_rms, because sometimes they can indicate a problem with the
+        # topology or settings.
+        scale_step = torch.minimum(scale_step, (param_max_rms - param_rms) / param_rms)
+
+        delta.add_(p * scale_step)
+
+    return delta
+
+
+def momentum_step(group, p, state, grad):
+    delta = scaling_step(group, p, state, grad)
+    beta1 = group["betas"][0]
+    try:
+        stored_delta = state["delta"]
+    except KeyError:
+        stored_delta = torch.zeros(*p.shape, device=p.device, dtype=torch.float)
+        state["delta"] = stored_delta
+    stored_delta.mul_(beta1)
+    stored_delta.add_(delta, alpha=(1 - beta1))
+    # we don't bother doing the "bias correction" part of Adam for beta1 because this is just
+    # an edge effect that affects the first 10 or so batches; and the effect of not doing it
+    # is just to do a slower update for the first few batches, which will help stability.
+    return stored_delta
 
 
 class ScaledAdam(BatchedOptimizer):
@@ -181,6 +314,7 @@ class ScaledAdam(BatchedOptimizer):
         size_update_period=4,
         clipping_update_period=100,
     ):
+
         defaults = dict(
             lr=lr,
             clipping_scale=clipping_scale,
@@ -297,11 +431,14 @@ class ScaledAdam(BatchedOptimizer):
             # case 2 or case 4
             # the input is groups of parameter or named parameter.
             for cur_group in iterable_or_groups:
-                assert "named_params" in cur_group
-                name_list = [x[0] for x in cur_group["named_params"]]
-                p_list = [x[1] for x in cur_group["named_params"]]
-                del cur_group["named_params"]
-                cur_group["params"] = p_list
+                if "named_params" in cur_group:
+                    name_list = [x[0] for x in cur_group["named_params"]]
+                    p_list = [x[1] for x in cur_group["named_params"]]
+                    del cur_group["named_params"]
+                    cur_group["params"] = p_list
+                else:
+                    assert "params" in cur_group
+                    name_list = ["foo" for _ in cur_group["params"]]
                 param_groups.append(cur_group)
                 param_groups_names.append(name_list)
 
@@ -326,7 +463,9 @@ class ScaledAdam(BatchedOptimizer):
         batch = True
 
         for group, group_params_names in zip(self.param_groups, self.parameters_names):
+
             with self.batched_params(group["params"], group_params_names) as batches:
+
                 # batches is list of pairs (stacked_param, state).  stacked_param is like
                 # a regular parameter, and will have a .grad, but the 1st dim corresponds to
                 # a stacking dim, it is not a real dim.
@@ -346,57 +485,25 @@ class ScaledAdam(BatchedOptimizer):
                         raise RuntimeError(
                             "ScaledAdam optimizer does not support sparse gradients"
                         )
-                    # State initialization
-                    if len(state) == 0:
-                        self._init_state(group, p, state)
 
-                    self._step_one_batch(group, p, state, clipping_scale)
+                    try:
+                        cur_step = state["step"]
+                    except KeyError:
+                        state["step"] = 0
+                        cur_step = 0
+
+                    grad = (
+                        p.grad if clipping_scale == 1.0 else p.grad.mul_(clipping_scale)
+                    )
+                    p += momentum_step(group, p.detach(), state, grad)
+
+                    if p.numel() == p.shape[0]:  # scalar parameter
+                        scalar_max = group["scalar_max"]
+                        p.clamp_(min=-scalar_max, max=scalar_max)
+
+                    state["step"] = cur_step + 1
 
         return loss
-
-    def _init_state(self, group: dict, p: Tensor, state: dict):
-        """
-        Initializes state dict for parameter 'p'.  Assumes that dim 0 of tensor p
-        is actually the batch dimension, corresponding to batched-together
-        parameters of a given shape.
-
-
-        Args:
-           group:   Dict to look up configuration values.
-               p: The parameter that we are initializing the state for
-           state: Dict from string to whatever state we are initializing
-        """
-        size_update_period = group["size_update_period"]
-
-        state["step"] = 0
-
-        kwargs = {"device": p.device, "dtype": p.dtype}
-
-        # 'delta' implements conventional momentum.  There are
-        # several different kinds of update going on, so rather than
-        # compute "exp_avg" like in Adam, we store and decay a
-        # parameter-change "delta", which combines all forms of
-        # update.  this is equivalent to how it's done in Adam,
-        # except for the first few steps.
-        state["delta"] = torch.zeros_like(p, memory_format=torch.preserve_format)
-
-        batch_size = p.shape[0]
-        numel = p.numel() // batch_size
-
-        if numel > 1:
-            # "param_rms" just periodically records the scalar root-mean-square value of
-            # the parameter tensor.
-            # it has a shape like (batch_size, 1, 1, 1, 1)
-            param_rms = (p**2).mean(dim=list(range(1, p.ndim)), keepdim=True).sqrt()
-            state["param_rms"] = param_rms
-
-            state["scale_exp_avg_sq"] = torch.zeros_like(param_rms)
-            state["scale_grads"] = torch.zeros(
-                size_update_period, *param_rms.shape, **kwargs
-            )
-
-        # exp_avg_sq is the weighted sum of scaled gradients. as in Adam.
-        state["exp_avg_sq"] = torch.zeros_like(p, memory_format=torch.preserve_format)
 
     def _get_clipping_scale(
         self, group: dict, tuples: List[Tuple[Tensor, dict, List[str]]]
@@ -423,16 +530,19 @@ class ScaledAdam(BatchedOptimizer):
             # parameters' state won't have been initialized yet.
             return 1.0
         clipping_update_period = group["clipping_update_period"]
+        scalar_lr_scale = group["scalar_lr_scale"]
 
         tot_sumsq = torch.tensor(0.0, device=first_p.device)
-        for p, state, param_names in tuples:
+        for (p, state, param_names) in tuples:
             grad = p.grad
             if grad.is_sparse:
                 raise RuntimeError(
                     "ScaledAdam optimizer does not support sparse gradients"
                 )
             if p.numel() == p.shape[0]:  # a batch of scalars
-                tot_sumsq += (grad**2).sum()  # sum() to change shape [1] to []
+                tot_sumsq += (grad**2).sum() * (
+                    scalar_lr_scale**2
+                )  # sum() to change shape [1] to []
             else:
                 tot_sumsq += ((grad * state["param_rms"]) ** 2).sum()
 
@@ -443,58 +553,124 @@ class ScaledAdam(BatchedOptimizer):
             )
         first_state["model_norms"][step % clipping_update_period] = tot_norm
 
-        if step % clipping_update_period == 0:
+        irregular_estimate_steps = [
+            i for i in [10, 20, 40] if i < clipping_update_period
+        ]
+        if step % clipping_update_period == 0 or step in irregular_estimate_steps:
             # Print some stats.
             # We don't reach here if step == 0 because we would have returned
             # above.
             sorted_norms = first_state["model_norms"].sort()[0].to("cpu")
+            if step in irregular_estimate_steps:
+                sorted_norms = sorted_norms[-step:]
+            num_norms = sorted_norms.numel()
             quartiles = []
             for n in range(0, 5):
-                index = min(
-                    clipping_update_period - 1, (clipping_update_period // 4) * n
-                )
+                index = min(num_norms - 1, (num_norms // 4) * n)
                 quartiles.append(sorted_norms[index].item())
 
             median = quartiles[2]
+            if median - median != 0:
+                raise RuntimeError("Too many grads were not finite")
             threshold = clipping_scale * median
+            if step in irregular_estimate_steps:
+                # use larger thresholds on first few steps of estimating threshold,
+                # as norm may be changing rapidly.
+                threshold = threshold * 2.0
             first_state["model_norm_threshold"] = threshold
             percent_clipped = (
-                first_state["num_clipped"] * 100.0 / clipping_update_period
+                first_state["num_clipped"] * 100.0 / num_norms
                 if "num_clipped" in first_state
                 else 0.0
             )
             first_state["num_clipped"] = 0
             quartiles = " ".join(["%.3e" % x for x in quartiles])
-            logging.info(
+            logging.warning(
                 f"Clipping_scale={clipping_scale}, grad-norm quartiles {quartiles}, "
                 f"threshold={threshold:.3e}, percent-clipped={percent_clipped:.1f}"
             )
 
-        if step < clipping_update_period:
-            return 1.0  # We have not yet estimated a norm to clip to.
-        else:
-            try:
-                model_norm_threshold = first_state["model_norm_threshold"]
-            except KeyError:
-                logging.info(
-                    "Warning: model_norm_threshold not in state: possibly "
-                    "you changed config when restarting, adding clipping_scale option?"
+        try:
+            model_norm_threshold = first_state["model_norm_threshold"]
+        except KeyError:
+            return 1.0  # threshold has not yet been set.
+
+        ans = min(1.0, (model_norm_threshold / (tot_norm + 1.0e-20)).item())
+        if ans != ans:  # e.g. ans is nan
+            ans = 0.0
+        if ans < 1.0:
+            first_state["num_clipped"] += 1
+        if ans < 0.5:
+            logging.warning(
+                f"Scaling gradients by {ans}, model_norm_threshold={model_norm_threshold}"
+            )
+            if self.show_dominant_parameters:
+                assert p.shape[0] == len(param_names)
+                self._show_gradient_dominating_parameter(
+                    tuples, tot_sumsq, group["scalar_lr_scale"]
                 )
-                return 1.0
-            ans = min(1.0, (model_norm_threshold / (tot_norm + 1.0e-20)).item())
-            if ans < 1.0:
-                first_state["num_clipped"] += 1
-            if ans < 0.1:
-                logging.warn(
-                    f"Scaling gradients by {ans}, model_norm_threshold={model_norm_threshold}"
-                )
-                if self.show_dominant_parameters:
-                    assert p.shape[0] == len(param_names)
-                    self._show_gradient_dominating_parameter(tuples, tot_sumsq)
-            return ans
+                self._show_param_with_unusual_grad(tuples)
+
+        if ans == 0.0:
+            for (p, state, param_names) in tuples:
+                p.grad.zero_()  # get rid of infinity()
+
+        return ans
+
+    def _show_param_with_unusual_grad(
+        self,
+        tuples: List[Tuple[Tensor, dict, List[str]]],
+    ):
+        """
+        Print information about parameter which has the largest ratio of grad-on-this-batch
+        divided by normal grad size.
+           tuples: a list of tuples of (param, state, param_names)
+                where param is a batched set of parameters,
+                with a .grad (1st dim is batch dim)
+                and state is the state-dict where optimization parameters are kept.
+                param_names is a List[str] while each str is name for a parameter
+                in batched set of parameters "param".
+        """
+        largest_ratio = 0.0
+        largest_name = ""
+        # ratios_names is a list of 3-tuples: (grad_ratio, param_name, tensor)
+        ratios_names = []
+        for (p, state, batch_param_names) in tuples:
+            dims = list(range(1, p.ndim))
+
+            def mean(x):
+                # workaround for bad interface of torch's "mean" for when dims is the empty list.
+                if len(dims) > 0:
+                    return x.mean(dim=dims)
+                else:
+                    return x
+
+            grad_ratio = (
+                (mean(p.grad**2) / state["exp_avg_sq"].mean(dim=dims))
+                .sqrt()
+                .to("cpu")
+            )
+
+            ratios_names += zip(
+                grad_ratio.tolist(), batch_param_names, p.grad.unbind(dim=0)
+            )
+
+        ratios_names = sorted(ratios_names, reverse=True)
+        ratios_names = ratios_names[:10]
+        ratios_names = [
+            (ratio, name, largest_index(tensor))
+            for (ratio, name, tensor) in ratios_names
+        ]
+
+        logging.warning(
+            f"Parameters with most larger-than-usual grads, with ratios, are: {ratios_names}"
+        )
 
     def _show_gradient_dominating_parameter(
-        self, tuples: List[Tuple[Tensor, dict, List[str]]], tot_sumsq: Tensor
+        self,
+        tuples: List[Tuple[Tensor, dict, List[str]]],
+        tot_sumsq: Tensor,
+        scalar_lr_scale: float,
     ):
         """
         Show information of parameter which dominates tot_sumsq.
@@ -510,29 +686,30 @@ class ScaledAdam(BatchedOptimizer):
                 from tuples, we still pass it to save some time.
         """
         all_sumsq_orig = {}
-        for p, state, batch_param_names in tuples:
+        for (p, state, batch_param_names) in tuples:
             # p is a stacked batch parameters.
             batch_grad = p.grad
             if p.numel() == p.shape[0]:  # a batch of scalars
-                batch_sumsq_orig = batch_grad**2
                 # Dummy values used by following `zip` statement.
-                batch_rms_orig = torch.ones(p.shape[0])
+                batch_rms_orig = torch.full(
+                    p.shape, scalar_lr_scale, device=batch_grad.device
+                )
             else:
                 batch_rms_orig = state["param_rms"]
-                batch_sumsq_orig = ((batch_grad * batch_rms_orig) ** 2).sum(
+            batch_sumsq_orig = (batch_grad * batch_rms_orig) ** 2
+            if batch_grad.ndim > 1:
+                # need to guard it with if-statement because sum() sums over
+                # all dims if dim == ().
+                batch_sumsq_orig = batch_sumsq_orig.sum(
                     dim=list(range(1, batch_grad.ndim))
                 )
-
             for name, sumsq_orig, rms, grad in zip(
                 batch_param_names, batch_sumsq_orig, batch_rms_orig, batch_grad
             ):
+
                 proportion_orig = sumsq_orig / tot_sumsq
                 all_sumsq_orig[name] = (proportion_orig, sumsq_orig, rms, grad)
 
-        assert torch.isclose(
-            sum([value[0] for value in all_sumsq_orig.values()]).cpu(),
-            torch.tensor(1.0),
-        )
         sorted_by_proportion = {
             k: v
             for k, v in sorted(
@@ -546,7 +723,7 @@ class ScaledAdam(BatchedOptimizer):
             dominant_rms,
             dominant_grad,
         ) = sorted_by_proportion[dominant_param_name]
-        logging.info(
+        logging.warning(
             f"Parameter dominating tot_sumsq {dominant_param_name}"
             f" with proportion {dominant_proportion:.2f},"
             f" where dominant_sumsq=(grad_sumsq*orig_rms_sq)"
@@ -555,182 +732,11 @@ class ScaledAdam(BatchedOptimizer):
             f" orig_rms_sq={(dominant_rms**2).item():.3e}"
         )
 
-    def _step_one_batch(
-        self, group: dict, p: Tensor, state: dict, clipping_scale: float
-    ):
-        """
-        Do the step for one parameter, which is actually going to be a batch of
-        `real` parameters, with dim 0 as the batch dim.
-        Args:
-                  group:  dict to look up configuration values
-                    p: parameter to update (actually multiple parameters stacked together
-                       as a batch)
-                  state: state-dict for p, to look up the optimizer state
-        """
-        lr = group["lr"]
-        size_update_period = group["size_update_period"]
-        beta1 = group["betas"][0]
 
-        grad = p.grad
-        if clipping_scale != 1.0:
-            grad = grad * clipping_scale
-        step = state["step"]
-        delta = state["delta"]
-
-        delta.mul_(beta1)
-        batch_size = p.shape[0]
-        numel = p.numel() // batch_size
-        if numel > 1:
-            # Update the size/scale of p, and set param_rms
-            scale_grads = state["scale_grads"]
-            scale_grads[step % size_update_period] = (p * grad).sum(
-                dim=list(range(1, p.ndim)), keepdim=True
-            )
-            if step % size_update_period == size_update_period - 1:
-                param_rms = state["param_rms"]  # shape: (batch_size, 1, 1, ..)
-                param_rms.copy_(
-                    (p**2).mean(dim=list(range(1, p.ndim)), keepdim=True).sqrt()
-                )
-                if step > 0:
-                    # self._size_update() learns the overall scale on the
-                    # parameter, by shrinking or expanding it.
-                    self._size_update(group, scale_grads, p, state)
-
-        if numel == 1:
-            # For parameters with 1 element we just use regular Adam.
-            # Updates delta.
-            self._step_scalar(group, p, state)
-        else:
-            self._step(group, p, state)
-
-        state["step"] = step + 1
-
-    def _size_update(
-        self, group: dict, scale_grads: Tensor, p: Tensor, state: dict
-    ) -> None:
-        """
-               Called only where p.numel() > 1, this updates the scale of the parameter.
-               If we imagine: p =  underlying_param * scale.exp(), and we are doing
-               gradient descent on underlying param and on scale, this function does the update
-               on `scale`.
-
-               Args:
-              group: dict to look up configuration values
-        scale_grads: a tensor of shape (size_update_period, batch_size, 1, 1,...) containing
-                      grads w.r.t. the scales.
-                  p:  The parameter to update
-               state: The state-dict of p
-        """
-
-        param_rms = state["param_rms"]
-        beta1, beta2 = group["betas"]
-        size_lr = group["lr"] * group["scalar_lr_scale"]
-        param_min_rms = group["param_min_rms"]
-        param_max_rms = group["param_max_rms"]
-        eps = group["eps"]
-        step = state["step"]
-        batch_size = p.shape[0]
-
-        size_update_period = scale_grads.shape[0]
-        # correct beta2 for the size update period: we will have
-        # faster decay at this level.
-        beta2_corr = beta2**size_update_period
-
-        scale_exp_avg_sq = state["scale_exp_avg_sq"]  # shape: (batch_size, 1, 1, ..)
-        scale_exp_avg_sq.mul_(beta2_corr).add_(
-            (scale_grads**2).mean(dim=0),  # mean over dim `size_update_period`
-            alpha=1 - beta2_corr,
-        )  # shape is (batch_size, 1, 1, ...)
-
-        # The 1st time we reach here is when size_step == 1.
-        size_step = (step + 1) // size_update_period
-        bias_correction2 = 1 - beta2_corr**size_step
-        # we don't bother with bias_correction1; this will help prevent divergence
-        # at the start of training.
-
-        denom = scale_exp_avg_sq.sqrt() + eps
-
-        scale_step = (
-            -size_lr * (bias_correction2**0.5) * scale_grads.sum(dim=0) / denom
-        )
-
-        is_too_small = param_rms < param_min_rms
-
-        # when the param gets too small, just don't shrink it any further.
-        scale_step.masked_fill_(is_too_small, 0.0)
-
-        # and ensure the parameter rms after update never exceeds param_max_rms.
-        # We have to look at the trained model for parameters at or around the
-        # param_max_rms, because sometimes they can indicate a problem with the
-        # topology or settings.
-        scale_step = torch.minimum(scale_step, (param_max_rms - param_rms) / param_rms)
-
-        delta = state["delta"]
-        # the factor of (1-beta1) relates to momentum.
-        delta.add_(p * scale_step, alpha=(1 - beta1))
-
-    def _step(self, group: dict, p: Tensor, state: dict):
-        """
-        This function does the core update of self.step(), in the case where the members of
-        the batch have more than 1 element.
-
-        Args:
-            group: A dict which will be used to look up configuration values
-                p: The parameter to be updated
-             grad: The grad of p
-            state: The state-dict corresponding to parameter p
-
-        This function modifies p.
-        """
-        grad = p.grad
-        lr = group["lr"]
-        beta1, beta2 = group["betas"]
-        eps = group["eps"]
-        param_min_rms = group["param_min_rms"]
-        step = state["step"]
-
-        exp_avg_sq = state["exp_avg_sq"]
-        exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=(1 - beta2))
-
-        this_step = state["step"] - (state["zero_step"] if "zero_step" in state else 0)
-        bias_correction2 = 1 - beta2 ** (this_step + 1)
-        if bias_correction2 < 0.99:
-            # note: not in-place.
-            exp_avg_sq = exp_avg_sq * (1.0 / bias_correction2)
-
-        denom = exp_avg_sq.sqrt()
-        denom += eps
-        grad = grad / denom
-
-        alpha = -lr * (1 - beta1) * state["param_rms"].clamp(min=param_min_rms)
-
-        delta = state["delta"]
-        delta.add_(grad * alpha)
-        p.add_(delta)
-
-    def _step_scalar(self, group: dict, p: Tensor, state: dict):
-        """
-        A simplified form of the core update for scalar tensors, where we cannot get a good
-        estimate of the parameter rms.
-        """
-        beta1, beta2 = group["betas"]
-        scalar_max = group["scalar_max"]
-        eps = group["eps"]
-        lr = group["lr"] * group["scalar_lr_scale"]
-        grad = p.grad
-
-        exp_avg_sq = state["exp_avg_sq"]  # shape: (batch_size,)
-        exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
-
-        # bias_correction2 is like in Adam.  Don't bother with bias_correction1;
-        # slower update at the start will help stability anyway.
-        bias_correction2 = 1 - beta2 ** (state["step"] + 1)
-        denom = (exp_avg_sq / bias_correction2).sqrt() + eps
-
-        delta = state["delta"]
-        delta.add_(grad / denom, alpha=-lr * (1 - beta1))
-        p.clamp_(min=-scalar_max, max=scalar_max)
-        p.add_(delta)
+def largest_index(x: Tensor):
+    x = x.contiguous()
+    argmax = x.abs().argmax().item()
+    return [(argmax // x.stride(i)) % x.size(i) for i in range(x.ndim)]
 
 
 class LRScheduler(object):
@@ -761,7 +767,9 @@ class LRScheduler(object):
         is not the optimizer.
         """
         return {
-            "base_lrs": self.base_lrs,
+            # the user might try to override the base_lr, so don't include this in the state.
+            # previously they were included.
+            # "base_lrs": self.base_lrs,
             "epoch": self.epoch,
             "batch": self.batch,
         }
@@ -773,7 +781,11 @@ class LRScheduler(object):
             state_dict (dict): scheduler state. Should be an object returned
                 from a call to :meth:`state_dict`.
         """
+        # the things with base_lrs are a work-around for a previous problem
+        # where base_lrs were written with the state dict.
+        base_lrs = self.base_lrs
         self.__dict__.update(state_dict)
+        self.base_lrs = base_lrs
 
     def get_last_lr(self) -> List[float]:
         """Return last computed learning rate by current scheduler.  Will be a list of float."""
@@ -820,7 +832,7 @@ class LRScheduler(object):
     def print_lr(self, is_verbose, group, lr):
         """Display the current learning rate."""
         if is_verbose:
-            logging.info(
+            logging.warning(
                 f"Epoch={self.epoch}, batch={self.batch}: adjusting learning rate"
                 f" of group {group} to {lr:.4e}."
             )
@@ -835,8 +847,14 @@ class Eden(LRScheduler):
     where `warmup` increases from linearly 0.5 to 1 over `warmup_batches` batches
     and then stays constant at 1.
 
+    If you don't have the concept of epochs, or one epoch takes a very long time,
+    you can replace the notion of 'epoch' with some measure of the amount of data
+    processed, e.g. hours of data or frames of data, with 'lr_epochs' being set to
+    some measure representing "quite a lot of data": say, one fifth or one third
+    of an entire training run, but it doesn't matter much.  You could also use
+    Eden2 which has only the notion of batches.
 
-     E.g. suggest base_lr = 0.04 (passed to optimizer) if used with ScaledAdam
+    We suggest base_lr = 0.04 (passed to optimizer) if used with ScaledAdam
 
     Args:
         optimizer: the optimizer to change the learning rates on
@@ -871,6 +889,56 @@ class Eden(LRScheduler):
         ) ** -0.25 * (
             ((self.epoch**2 + self.lr_epochs**2) / self.lr_epochs**2) ** -0.25
         )
+        warmup_factor = (
+            1.0
+            if self.batch >= self.warmup_batches
+            else self.warmup_start
+            + (1.0 - self.warmup_start) * (self.batch / self.warmup_batches)
+            # else 0.5 + 0.5 * (self.batch / self.warmup_batches)
+        )
+
+        return [x * factor * warmup_factor for x in self.base_lrs]
+
+
+class Eden2(LRScheduler):
+    """
+    Eden2 scheduler, simpler than Eden because it does not use the notion of epoch,
+    only batches.
+
+    The basic formula (before warmup) is:
+      lr = base_lr * ((batch**2 + lr_batches**2) / lr_batches**2) ** -0.5) * warmup
+
+    where `warmup` increases from linearly 0.5 to 1 over `warmup_batches` batches
+    and then stays constant at 1.
+
+
+     E.g. suggest base_lr = 0.04 (passed to optimizer) if used with ScaledAdam
+
+    Args:
+        optimizer: the optimizer to change the learning rates on
+        lr_batches: the number of batches after which we start significantly
+              decreasing the learning rate, suggest 5000.
+    """
+
+    def __init__(
+        self,
+        optimizer: Optimizer,
+        lr_batches: Union[int, float],
+        warmup_batches: Union[int, float] = 500.0,
+        warmup_start: float = 0.5,
+        verbose: bool = False,
+    ):
+        super().__init__(optimizer, verbose)
+        self.lr_batches = lr_batches
+        self.warmup_batches = warmup_batches
+
+        assert 0.0 <= warmup_start <= 1.0, warmup_start
+        self.warmup_start = warmup_start
+
+    def get_lr(self):
+        factor = (
+            (self.batch**2 + self.lr_batches**2) / self.lr_batches**2
+        ) ** -0.5
         warmup_factor = (
             1.0
             if self.batch >= self.warmup_batches
@@ -1095,7 +1163,7 @@ def _test_scaled_adam(hidden_dim: int):
         if iter == 0:
             optim = Eve(m.parameters(), lr=0.003)
         elif iter == 1:
-            optim = ScaledAdam(m.parameters(), lr=0.03, clipping_scale=2.0)
+            optim = ScaledAdam(m.named_parameters(), lr=0.03, clipping_scale=2.0)
         scheduler = Eden(optim, lr_batches=200, lr_epochs=5, verbose=False)
 
         start = timeit.default_timer()

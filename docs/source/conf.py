@@ -98,4 +98,6 @@ rst_epilog = """
 .. _Next-gen Kaldi: https://github.com/k2-fsa
 .. _Kaldi: https://github.com/kaldi-asr/kaldi
 .. _lilcom: https://github.com/danpovey/lilcom
+.. _CTC: https://www.cs.toronto.edu/~graves/icml_2006.pdf
+.. _kaldi-decoder: https://github.com/k2-fsa/kaldi-decoder
 """

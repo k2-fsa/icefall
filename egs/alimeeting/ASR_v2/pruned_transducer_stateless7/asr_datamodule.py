@@ -82,7 +82,7 @@ class AlimeetingAsrDataModule:
         group.add_argument(
             "--manifest-dir",
             type=Path,
-            default=Path("data/manifests"),
+            default=Path("data/fbank"),
             help="Path to directory with train/valid/test cuts.",
         )
         group.add_argument(
@@ -208,7 +208,7 @@ class AlimeetingAsrDataModule:
             logging.info("Enable MUSAN")
             cuts_musan = load_manifest(self.args.manifest_dir / "musan_cuts.jsonl.gz")
             transforms.append(
-                CutMix(cuts=cuts_musan, prob=0.5, snr=(10, 20), preserve_id=True)
+                CutMix(cuts=cuts_musan, p=0.5, snr=(10, 20), preserve_id=True)
             )
         else:
             logging.info("Disable MUSAN")
@@ -263,6 +263,8 @@ class AlimeetingAsrDataModule:
             max_cuts=self.args.max_cuts,
             shuffle=False,
             num_buckets=self.args.num_buckets,
+            buffer_size=self.args.num_buckets * 2000,
+            shuffle_buffer_size=self.args.num_buckets * 5000,
             drop_last=True,
         )
         logging.info("About to create train dataloader")
@@ -288,7 +290,6 @@ class AlimeetingAsrDataModule:
         return train_dl
 
     def valid_dataloaders(self, cuts_valid: CutSet) -> DataLoader:
-
         transforms = []
         if self.args.concatenate_cuts:
             transforms = [
@@ -326,9 +327,11 @@ class AlimeetingAsrDataModule:
     def test_dataloaders(self, cuts: CutSet) -> DataLoader:
         logging.debug("About to create test dataset")
         test = K2SpeechRecognitionDataset(
-            input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80)))
-            if self.args.on_the_fly_feats
-            else PrecomputedFeatures(),
+            input_strategy=(
+                OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80)))
+                if self.args.on_the_fly_feats
+                else PrecomputedFeatures()
+            ),
             return_cuts=True,
         )
         sampler = DynamicBucketingSampler(

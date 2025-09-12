@@ -75,7 +75,14 @@ from icefall.checkpoint import (
 )
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
-from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool
+from icefall.err import raise_grad_scale_is_too_small_error
+from icefall.utils import (
+    AttributeDict,
+    MetricsTracker,
+    setup_logger,
+    str2bool,
+    torch_autocast,
+)
 
 LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
 
@@ -1057,7 +1064,7 @@ def train_one_epoch(
         batch_size = batch["inputs"].shape[0]
 
         try:
-            with torch.cuda.amp.autocast(enabled=params.use_fp16):
+            with torch_autocast(enabled=params.use_fp16):
                 loss, loss_info = compute_loss(
                     params=params,
                     model=model,
@@ -1129,9 +1136,7 @@ def train_one_epoch(
             if cur_grad_scale < 0.01:
                 logging.warning(f"Grad scale is small: {cur_grad_scale}")
             if cur_grad_scale < 1.0e-05:
-                raise RuntimeError(
-                    f"grad_scale is too small, exiting: {cur_grad_scale}"
-                )
+                raise_grad_scale_is_too_small_error(cur_grad_scale)
 
         if batch_idx % params.log_interval == 0:
             cur_lr = scheduler.get_last_lr()[0]
@@ -1249,7 +1254,7 @@ def run(rank, world_size, args):
         logging.info(
             f"Initializing model with checkpoint from {params.model_init_ckpt}"
         )
-        init_ckpt = torch.load(params.model_init_ckpt, map_location=device)
+        init_ckpt = torch.load(params.model_init_ckpt, map_location=device, weights_only=False)
         model.load_state_dict(init_ckpt["model"], strict=False)
 
     if world_size > 1:

@@ -101,7 +101,7 @@ class GigaSpeechAsrDataModule:
         group.add_argument(
             "--num-buckets",
             type=int,
-            default=30,
+            default=15,
             help="The number of buckets for the DynamicBucketingSampler"
             "(you might want to increase it for larger datasets).",
         )
@@ -217,7 +217,7 @@ class GigaSpeechAsrDataModule:
             logging.info("About to get Musan cuts")
             cuts_musan = load_manifest(self.args.manifest_dir / "musan_cuts.jsonl.gz")
             transforms.append(
-                CutMix(cuts=cuts_musan, prob=0.5, snr=(10, 20), preserve_id=True)
+                CutMix(cuts=cuts_musan, p=0.5, snr=(10, 20), preserve_id=True)
             )
         else:
             logging.info("Disable MUSAN")
@@ -294,6 +294,7 @@ class GigaSpeechAsrDataModule:
                 max_duration=self.args.max_duration,
                 shuffle=self.args.shuffle,
                 num_buckets=self.args.num_buckets,
+                buffer_size=self.args.num_buckets * 5000,
                 drop_last=True,
             )
         else:

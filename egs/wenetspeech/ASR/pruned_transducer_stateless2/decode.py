@@ -203,7 +203,7 @@ def get_parser():
         "--beam-size",
         type=int,
         default=4,
-        help="""An interger indicating how many candidates we will keep for each
+        help="""An integer indicating how many candidates we will keep for each
         frame. Used only when --decoding-method is beam_search or
         modified_beam_search.""",
     )
@@ -640,7 +640,7 @@ def main():
             lg_filename = params.lang_dir + "/LG.pt"
             logging.info(f"Loading {lg_filename}")
             decoding_graph = k2.Fsa.from_dict(
-                torch.load(lg_filename, map_location=device)
+                torch.load(lg_filename, map_location=device, weights_only=False)
             )
             decoding_graph.scores *= params.ngram_lm_scale
         else:

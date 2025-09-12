@@ -913,7 +913,7 @@ def main():
             lg_filename = params.lang_dir / "LG.pt"
             logging.info(f"Loading {lg_filename}")
             decoding_graph = k2.Fsa.from_dict(
-                torch.load(lg_filename, map_location=device)
+                torch.load(lg_filename, map_location=device, weights_only=False)
             )
             decoding_graph.scores *= params.ngram_lm_scale
         else:
@@ -927,9 +927,9 @@ def main():
         if os.path.exists(params.context_file):
             contexts = []
             for line in open(params.context_file).readlines():
-                contexts.append(line.strip())
+                contexts.append((sp.encode(line.strip()), 0.0))
             context_graph = ContextGraph(params.context_score)
-            context_graph.build(sp.encode(contexts))
+            context_graph.build(contexts)
         else:
             context_graph = None
     else:

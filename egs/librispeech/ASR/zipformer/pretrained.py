@@ -126,8 +126,6 @@ from export import num_tokens
 from torch.nn.utils.rnn import pad_sequence
 from train import add_model_arguments, get_model, get_params
 
-from icefall.utils import make_pad_mask
-
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -291,7 +289,7 @@ def main():
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
-    checkpoint = torch.load(args.checkpoint, map_location="cpu")
+    checkpoint = torch.load(args.checkpoint, map_location="cpu", weights_only=False)
     model.load_state_dict(checkpoint["model"], strict=False)
     model.to(device)
     model.eval()
@@ -303,6 +301,7 @@ def main():
     opts.frame_opts.snip_edges = False
     opts.frame_opts.samp_freq = params.sample_rate
     opts.mel_opts.num_bins = params.feature_dim
+    opts.mel_opts.high_freq = -400
 
     fbank = kaldifeat.Fbank(opts)
 

@@ -176,7 +176,9 @@ def main():
     model = OnnxModel(params.nn_model)
 
     logging.info(f"Loading HLG from {args.HLG}")
-    HLG = k2.Fsa.from_dict(torch.load(params.HLG, map_location="cpu"))
+    HLG = k2.Fsa.from_dict(
+        torch.load(params.HLG, map_location="cpu", weights_only=False)
+    )
     HLG = HLG.to(device)
 
     logging.info("Constructing Fbank computer")
@@ -186,6 +188,7 @@ def main():
     opts.frame_opts.snip_edges = False
     opts.frame_opts.samp_freq = params.sample_rate
     opts.mel_opts.num_bins = params.feature_dim
+    opts.mel_opts.high_freq = -400
 
     fbank = kaldifeat.Fbank(opts)
 

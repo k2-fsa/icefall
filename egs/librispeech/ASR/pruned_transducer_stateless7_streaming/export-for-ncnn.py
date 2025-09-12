@@ -66,8 +66,8 @@ from pathlib import Path
 
 import k2
 import torch
+from do_not_use_it_directly import add_model_arguments, get_params, get_transducer_model
 from scaling_converter import convert_scaled_to_non_scaled
-from train2 import add_model_arguments, get_params, get_transducer_model
 
 from icefall.checkpoint import (
     average_checkpoints,

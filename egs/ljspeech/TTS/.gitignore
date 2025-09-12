@@ -1,0 +1,7 @@
+build
+core.c
+*.so
+my-output*
+*.wav
+*.onnx
+generator_v*

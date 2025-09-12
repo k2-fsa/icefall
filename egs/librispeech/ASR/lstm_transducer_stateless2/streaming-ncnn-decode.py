@@ -217,6 +217,7 @@ def create_streaming_feature_extractor() -> OnlineFeature:
     opts.frame_opts.snip_edges = False
     opts.frame_opts.samp_freq = 16000
     opts.mel_opts.num_bins = 80
+    opts.mel_opts.high_freq = -400
     return OnlineFbank(opts)
 
 

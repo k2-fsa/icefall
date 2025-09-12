@@ -132,10 +132,18 @@ class OnnxModel:
             sess_options=self.session_opts,
             providers=["CPUExecutionProvider"],
         )
+        print("==========Encoder input==========")
+        for i in self.encoder.get_inputs():
+            print(i)
+        print("==========Encoder output==========")
+        for i in self.encoder.get_outputs():
+            print(i)
+
         self.init_encoder_states()
 
     def init_encoder_states(self, batch_size: int = 1):
         encoder_meta = self.encoder.get_modelmeta().custom_metadata_map
+        print(encoder_meta)
 
         model_type = encoder_meta["model_type"]
         assert model_type == "zipformer", model_type
@@ -232,6 +240,12 @@ class OnnxModel:
             sess_options=self.session_opts,
             providers=["CPUExecutionProvider"],
         )
+        print("==========Decoder input==========")
+        for i in self.decoder.get_inputs():
+            print(i)
+        print("==========Decoder output==========")
+        for i in self.decoder.get_outputs():
+            print(i)
 
         decoder_meta = self.decoder.get_modelmeta().custom_metadata_map
         self.context_size = int(decoder_meta["context_size"])
@@ -246,6 +260,13 @@ class OnnxModel:
             sess_options=self.session_opts,
             providers=["CPUExecutionProvider"],
         )
+
+        print("==========Joiner input==========")
+        for i in self.joiner.get_inputs():
+            print(i)
+        print("==========Joiner output==========")
+        for i in self.joiner.get_outputs():
+            print(i)
 
         joiner_meta = self.joiner.get_modelmeta().custom_metadata_map
         self.joiner_dim = int(joiner_meta["joiner_dim"])
@@ -382,6 +403,7 @@ def create_streaming_feature_extractor() -> OnlineFeature:
     opts.frame_opts.snip_edges = False
     opts.frame_opts.samp_freq = 16000
     opts.mel_opts.num_bins = 80
+    opts.mel_opts.high_freq = -400
     return OnlineFbank(opts)
 
 

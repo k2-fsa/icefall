@@ -1,7 +1,11 @@
 
 # Introduction
 
-This recipe includes some different ASR models trained with Aishell2.
+This recipe contains various different ASR models trained with Aishell2.
+
+In AISHELL-2, 1000 hours of clean read-speech data from iOS is published, which is free for academic usage. On top of AISHELL-2 corpus, an improved recipe is developed and released, containing key components for industrial applications, such as Chinese word segmentation, flexible vocabulary expension and phone set transformation etc. Pipelines support various state-of-the-art techniques, such as time-delayed neural networks and Lattic-Free MMI objective funciton. In addition, we also release dev and test data from other channels (Android and Mic).
+
+(From [AISHELL-2: Transforming Mandarin ASR Research Into Industrial Scale](https://arxiv.org/abs/1808.10583))
 
 [./RESULTS.md](./RESULTS.md) contains the latest results.
 

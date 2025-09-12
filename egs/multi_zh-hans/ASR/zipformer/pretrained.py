@@ -291,7 +291,7 @@ def main():
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
-    checkpoint = torch.load(args.checkpoint, map_location="cpu")
+    checkpoint = torch.load(args.checkpoint, map_location="cpu", weights_only=False)
     model.load_state_dict(checkpoint["model"], strict=False)
     model.to(device)
     model.eval()
@@ -303,6 +303,7 @@ def main():
     opts.frame_opts.snip_edges = False
     opts.frame_opts.samp_freq = params.sample_rate
     opts.mel_opts.num_bins = params.feature_dim
+    opts.mel_opts.high_freq = -400
 
     fbank = kaldifeat.Fbank(opts)
 
@@ -327,9 +328,14 @@ def main():
     logging.info(msg)
 
     def token_ids_to_words(token_ids: List[int]) -> str:
-        text = ""
+        byte_list = []
         for i in token_ids:
-            text += token_table[i]
+            token = token_table[i]
+            if token.startswith("<0x") and token.endswith(">"):
+                byte_list.append(int(token[3:-1], 16))
+            else:
+                byte_list += list(token.encode("utf-8"))
+        text = bytes(byte_list).decode("utf-8", errors='ignore')
         return text.replace("▁", " ").strip()
 
     if params.method == "fast_beam_search":

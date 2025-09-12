@@ -15,15 +15,18 @@
 # limitations under the License.
 
 
-from typing import Optional, Tuple, Union
 import logging
-import k2
-from torch.cuda.amp import custom_fwd, custom_bwd
-import random
-import torch
 import math
+import random
+from typing import Optional, Tuple, Union
+
+import k2
+import torch
 import torch.nn as nn
 from torch import Tensor
+from torch.cuda.amp import custom_bwd, custom_fwd
+
+from icefall.utils import torch_autocast
 
 
 def logaddexp_onnx(x: Tensor, y: Tensor) -> Tensor:
@@ -136,7 +139,7 @@ class PiecewiseLinear(object):
 
           p: the other piecewise linear function
           include_crossings: if true, include in the x values positions
-              where the functions indicate by this and p crosss.
+              where the functions indicate by this and p cross.
         """
         assert isinstance(p, PiecewiseLinear), type(p)
 
@@ -159,8 +162,10 @@ class PiecewiseLinear(object):
                     extra_x_vals.append(extra_x_val)
             if len(extra_x_vals) > 0:
                 x_vals = sorted(set(x_vals + extra_x_vals))
-        y_vals1 = [self(x) for x in x_vals]
-        y_vals2 = [p(x) for x in x_vals]
+
+            y_vals1 = [self(x) for x in x_vals]
+            y_vals2 = [p(x) for x in x_vals]
+
         return (
             PiecewiseLinear(*zip(x_vals, y_vals1)),
             PiecewiseLinear(*zip(x_vals, y_vals2)),
@@ -296,7 +301,7 @@ class SoftmaxFunction(torch.autograd.Function):
         # (presumably) that op does not support float16, and autocast
         # is enabled.
         if torch.is_autocast_enabled():
-            ans = ans.to(torch.float16)
+            ans = ans.to(torch.get_autocast_gpu_dtype())
         ctx.save_for_backward(ans)
         ctx.x_dtype = x.dtype
         ctx.dim = dim
@@ -305,7 +310,7 @@ class SoftmaxFunction(torch.autograd.Function):
     @staticmethod
     def backward(ctx, ans_grad: Tensor):
         (ans,) = ctx.saved_tensors
-        with torch.cuda.amp.autocast(enabled=False):
+        with torch_autocast(enabled=False):
             ans_grad = ans_grad.to(torch.float32)
             ans = ans.to(torch.float32)
             x_grad = ans_grad * ans
@@ -461,7 +466,7 @@ class BiasNorm(torch.nn.Module):
         self.num_channels = num_channels
         self.channel_dim = channel_dim
         self.log_scale = nn.Parameter(torch.tensor(log_scale))
-        self.bias = nn.Parameter(torch.zeros(num_channels))
+        self.bias = nn.Parameter(torch.empty(num_channels).normal_(mean=0, std=1e-4))
 
         self.log_scale_min = log_scale_min
         self.log_scale_max = log_scale_max
@@ -635,8 +640,9 @@ class ChunkCausalDepthwiseConv1d(torch.nn.Module):
                 )
 
     def forward(self, x: Tensor, chunk_size: int = -1) -> Tensor:
-        """
-             Forward function.  Args:
+        """Forward function.
+
+        Args:
                x: a Tensor of shape (batch_size, channels, seq_len)
         chunk_size: the chunk size, in frames; does not have to divide seq_len exactly.
         """
@@ -757,7 +763,7 @@ class BalancerFunction(torch.autograd.Function):
 
         try:
             with torch.enable_grad():
-                with torch.cuda.amp.autocast(enabled=False):
+                with torch_autocast(enabled=False):
                     x = x.to(torch.float32)
                     x = x.detach()
                     x.requires_grad = True
@@ -1012,7 +1018,7 @@ class WhiteningPenaltyFunction(torch.autograd.Function):
 
         try:
             with torch.enable_grad():
-                with torch.cuda.amp.autocast(enabled=False):
+                with torch_autocast(enabled=False):
                     x_detached = x_orig.to(torch.float32).detach()
                     x_detached.requires_grad = True
 
@@ -1031,7 +1037,7 @@ class WhiteningPenaltyFunction(torch.autograd.Function):
                         w.prob = w.max_prob
                         metric.backward()
                         penalty_grad = x_detached.grad
-                        scale = w.grad_scale * (
+                        scale = float(w.grad_scale) * (
                             x_grad.to(torch.float32).norm()
                             / (penalty_grad.norm() + 1.0e-20)
                         )
@@ -1073,7 +1079,7 @@ class Whiten(nn.Module):
         super(Whiten, self).__init__()
         assert num_groups >= 1
         assert float(whitening_limit) >= 1
-        assert grad_scale >= 0
+        assert float(grad_scale) >= 0
         self.num_groups = num_groups
         self.whitening_limit = whitening_limit
         self.grad_scale = grad_scale
@@ -1232,7 +1238,7 @@ class DoubleSwishFunction(torch.autograd.Function):
     @staticmethod
     def forward(ctx, x: Tensor) -> Tensor:
         requires_grad = x.requires_grad
-        if x.dtype == torch.float16:
+        if x.dtype == torch.float16 or x.dtype == torch.bfloat16:
             x = x.to(torch.float32)
 
         s = torch.sigmoid(x - 1.0)
@@ -1344,14 +1350,14 @@ class SwooshLFunction(torch.autograd.Function):
     @staticmethod
     def forward(ctx, x: Tensor) -> Tensor:
         requires_grad = x.requires_grad
-        if x.dtype == torch.float16:
+        if x.dtype == torch.float16 or x.dtype == torch.bfloat16:
             x = x.to(torch.float32)
 
         zero = torch.tensor(0.0, dtype=x.dtype, device=x.device)
 
         coeff = -0.08
 
-        with torch.cuda.amp.autocast(enabled=False):
+        with torch_autocast(enabled=False):
             with torch.enable_grad():
                 x = x.detach()
                 x.requires_grad = True
@@ -1377,7 +1383,7 @@ class SwooshLFunction(torch.autograd.Function):
                 d_int = d_scaled.to(torch.uint8)
                 ctx.save_for_backward(d_int)
                 if x.dtype == torch.float16 or torch.is_autocast_enabled():
-                    y = y.to(torch.float16)
+                    y = y.to(torch.get_autocast_gpu_dtype())
                 return y
 
     @staticmethod
@@ -1399,9 +1405,9 @@ class SwooshL(torch.nn.Module):
             zero = torch.tensor(0.0, dtype=x.dtype, device=x.device)
             return logaddexp(zero, x - 4.0) - 0.08 * x - 0.035
         if not x.requires_grad:
-            return k2.swoosh_l_forward(x)
+            return k2.swoosh_l_forward(x).to(x.dtype)
         else:
-            return k2.swoosh_l(x)
+            return k2.swoosh_l(x).to(x.dtype)
         # return SwooshLFunction.apply(x)
 
 
@@ -1423,12 +1429,12 @@ class SwooshRFunction(torch.autograd.Function):
     def forward(ctx, x: Tensor) -> Tensor:
         requires_grad = x.requires_grad
 
-        if x.dtype == torch.float16:
+        if x.dtype == torch.float16 or x.dtype == torch.bfloat16:
             x = x.to(torch.float32)
 
         zero = torch.tensor(0.0, dtype=x.dtype, device=x.device)
 
-        with torch.cuda.amp.autocast(enabled=False):
+        with torch_autocast(enabled=False):
             with torch.enable_grad():
                 x = x.detach()
                 x.requires_grad = True
@@ -1453,7 +1459,7 @@ class SwooshRFunction(torch.autograd.Function):
                 d_int = d_scaled.to(torch.uint8)
                 ctx.save_for_backward(d_int)
                 if x.dtype == torch.float16 or torch.is_autocast_enabled():
-                    y = y.to(torch.float16)
+                    y = y.to(torch.get_autocast_gpu_dtype())
                 return y
 
     @staticmethod
@@ -1473,9 +1479,9 @@ class SwooshR(torch.nn.Module):
             zero = torch.tensor(0.0, dtype=x.dtype, device=x.device)
             return logaddexp(zero, x - 1.0) - 0.08 * x - 0.313261687
         if not x.requires_grad:
-            return k2.swoosh_r_forward(x)
+            return k2.swoosh_r_forward(x).to(x.dtype)
         else:
-            return k2.swoosh_r(x)
+            return k2.swoosh_r(x).to(x.dtype)
         # return SwooshRFunction.apply(x)
 
 
@@ -1633,7 +1639,7 @@ class ActivationDropoutAndLinear(torch.nn.Module):
         self.dropout_shared_dim = dropout_shared_dim
 
     def forward(self, x: Tensor):
-        if torch.jit.is_scripting() or torch.jit.is_tracing():
+        if not self.training or torch.jit.is_scripting() or torch.jit.is_tracing():
             if self.activation == "SwooshL":
                 x = SwooshLForward(x)
             elif self.activation == "SwooshR":

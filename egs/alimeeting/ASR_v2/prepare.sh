@@ -12,7 +12,7 @@ use_gss=true  # Use GSS-based enhancement with MDM setting
 #
 #  - $dl_dir/alimeeting
 #     This directory contains the following files downloaded from
-#       https://openslr.org/62/
+#       https://openslr.org/119/
 #
 #     - Train_Ali_far.tar.gz
 #     - Train_Ali_near.tar.gz
@@ -65,7 +65,7 @@ fi
 if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   log "Stage 2: Prepare musan manifest"
   # We assume that you have downloaded the musan corpus
-  # to data/musan
+  # to $dl_dir/musan
   mkdir -p data/manifests
   lhotse prepare musan $dl_dir/musan data/manifests
 fi

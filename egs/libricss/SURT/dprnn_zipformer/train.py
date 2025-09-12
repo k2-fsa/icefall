@@ -62,9 +62,7 @@ from asr_datamodule import LibriCssAsrDataModule
 from decoder import Decoder
 from dprnn import DPRNN
 from einops.layers.torch import Rearrange
-from graph_pit.loss.optimized import optimized_graph_pit_mse_loss as gpit_mse
 from joiner import Joiner
-from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import LOG_EPSILON, fix_random_seed
 from model import SURT
@@ -85,6 +83,7 @@ from icefall.checkpoint import (
 )
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
+from icefall.err import raise_grad_scale_is_too_small_error
 from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool
 
 LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
@@ -1169,9 +1168,7 @@ def train_one_epoch(
             if cur_grad_scale < 0.01:
                 logging.warning(f"Grad scale is small: {cur_grad_scale}")
             if cur_grad_scale < 1.0e-05:
-                raise RuntimeError(
-                    f"grad_scale is too small, exiting: {cur_grad_scale}"
-                )
+                raise_grad_scale_is_too_small_error(cur_grad_scale)
 
         if batch_idx % params.log_interval == 0:
             cur_lr = scheduler.get_last_lr()[0]
@@ -1289,7 +1286,7 @@ def run(rank, world_size, args):
         logging.info(
             f"Initializing model with checkpoint from {params.model_init_ckpt}"
         )
-        init_ckpt = torch.load(params.model_init_ckpt, map_location=device)
+        init_ckpt = torch.load(params.model_init_ckpt, map_location=device, weights_only=False)
         model.load_state_dict(init_ckpt["model"], strict=False)
 
     if world_size > 1:

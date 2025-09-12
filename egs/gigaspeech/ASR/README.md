@@ -15,6 +15,7 @@ ln -sfv /path/to/GigaSpeech download/GigaSpeech
 ## Performance Record
 |                                |  Dev  | Test  |
 |--------------------------------|-------|-------|
+|           `zipformer`          | 10.25 | 10.38 |
 |         `conformer_ctc`        | 10.47 | 10.58 |
 | `pruned_transducer_stateless2` | 10.40 | 10.51 |
 

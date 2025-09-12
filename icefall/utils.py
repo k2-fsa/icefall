@@ -20,10 +20,14 @@
 
 import argparse
 import collections
+import json
 import logging
 import os
+import pathlib
+import random
 import re
 import subprocess
+import warnings
 from collections import defaultdict
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -39,11 +43,57 @@ import sentencepiece as spm
 import torch
 import torch.distributed as dist
 import torch.nn as nn
+from lhotse.dataset.signal_transforms import time_warp as time_warp_impl
+from packaging import version
+from pypinyin import lazy_pinyin, pinyin
+from pypinyin.contrib.tone_convert import to_finals, to_finals_tone, to_initials
 from torch.utils.tensorboard import SummaryWriter
 
 from icefall.checkpoint import average_checkpoints
 
 Pathlike = Union[str, Path]
+
+TORCH_VERSION = version.parse(torch.__version__)
+
+
+def create_grad_scaler(device="cuda", **kwargs):
+    """
+    Creates a GradScaler compatible with both torch < 2.3.0 and >= 2.3.0.
+    Accepts all kwargs like: enabled, init_scale, growth_factor, etc.
+
+    /icefall/egs/librispeech/ASR/./zipformer/train.py:1451: FutureWarning:
+    `torch.cuda.amp.GradScaler(args...)` is deprecated. Please use
+    `torch.amp.GradScaler('cuda', args...)` instead.
+    """
+    if TORCH_VERSION >= version.parse("2.3.0"):
+        from torch.amp import GradScaler
+
+        return GradScaler(device=device, **kwargs)
+    else:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=FutureWarning)
+            return torch.cuda.amp.GradScaler(**kwargs)
+
+
+@contextmanager
+def torch_autocast(device_type="cuda", **kwargs):
+    """
+    To fix the following warnings:
+    /icefall/egs/librispeech/ASR/zipformer/model.py:323:
+    FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated.
+    Please use `torch.amp.autocast('cuda', args...)` instead.
+      with torch.cuda.amp.autocast(enabled=False):
+    """
+    if TORCH_VERSION >= version.parse("2.3.0"):
+        # Use new unified API
+        with torch.amp.autocast(device_type=device_type, **kwargs):
+            yield
+    else:
+        # Suppress deprecation warning and use old CUDA-specific autocast
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=FutureWarning)
+            with torch.cuda.amp.autocast(**kwargs):
+                yield
 
 
 # Pytorch issue: https://github.com/pytorch/pytorch/issues/47379
@@ -153,6 +203,7 @@ def setup_logger(
         format=formatter,
         level=level,
         filemode="w",
+        force=True,
     )
     if use_console:
         console = logging.StreamHandler()
@@ -175,6 +226,15 @@ class AttributeDict(dict):
             del self[key]
             return
         raise AttributeError(f"No such attribute '{key}'")
+
+    def __str__(self, indent: int = 2):
+        tmp = {}
+        for k, v in self.items():
+            # PosixPath is ont JSON serializable
+            if isinstance(v, (pathlib.Path, torch.device, torch.dtype)):
+                v = str(v)
+            tmp[k] = v
+        return json.dumps(tmp, indent=indent, sort_keys=True)
 
 
 def encode_supervisions(
@@ -262,6 +322,83 @@ def get_texts(
         return aux_labels
     else:
         return aux_labels.tolist()
+
+
+def encode_supervisions_otc(
+    supervisions: dict,
+    subsampling_factor: int,
+    token_ids: Optional[List[List[int]]] = None,
+) -> Tuple[torch.Tensor, Union[List[str], List[List[int]]]]:
+    """
+    Encodes Lhotse's ``batch["supervisions"]`` dict into
+    a pair of torch Tensor, and a list of transcription strings or token indexes
+
+    The supervision tensor has shape ``(batch_size, 3)``.
+    Its second dimension contains information about sequence index [0],
+    start frames [1] and num frames [2].
+
+    The batch items might become re-ordered during this operation -- the
+    returned tensor and list of strings are guaranteed to be consistent with
+    each other.
+    """
+    supervision_segments = torch.stack(
+        (
+            supervisions["sequence_idx"],
+            torch.div(
+                supervisions["start_frame"],
+                subsampling_factor,
+                rounding_mode="floor",
+            ),
+            torch.div(
+                supervisions["num_frames"],
+                subsampling_factor,
+                rounding_mode="floor",
+            ),
+        ),
+        1,
+    ).to(torch.int32)
+
+    indices = torch.argsort(supervision_segments[:, 2], descending=True)
+    supervision_segments = supervision_segments[indices]
+
+    ids = []
+    verbatim_texts = []
+    sorted_ids = []
+    sorted_verbatim_texts = []
+
+    for cut in supervisions["cut"]:
+        id = cut.id
+        if hasattr(cut.supervisions[0], "verbatim_text"):
+            verbatim_text = cut.supervisions[0].verbatim_text
+        else:
+            verbatim_text = ""
+        ids.append(id)
+        verbatim_texts.append(verbatim_text)
+
+    for index in indices.tolist():
+        sorted_ids.append(ids[index])
+        sorted_verbatim_texts.append(verbatim_texts[index])
+
+    if token_ids is None:
+        texts = supervisions["text"]
+        res = [texts[idx] for idx in indices]
+    else:
+        res = [token_ids[idx] for idx in indices]
+
+    return supervision_segments, res, sorted_ids, sorted_verbatim_texts
+
+
+@dataclass
+class KeywordResult:
+    # timestamps[k] contains the frame number on which tokens[k]
+    # is decoded
+    timestamps: List[int]
+
+    # hyps is the keyword, i.e., word IDs or token IDs
+    hyps: List[int]
+
+    # The triggered phrase
+    phrase: str
 
 
 @dataclass
@@ -413,14 +550,14 @@ def load_alignments(filename: str) -> Tuple[int, Dict[str, List[int]]]:
         - alignments: A dict containing utterances and their corresponding
           framewise alignment, after subsampling.
     """
-    ali_dict = torch.load(filename)
+    ali_dict = torch.load(filename, weights_only=False)
     subsampling_factor = ali_dict["subsampling_factor"]
     alignments = ali_dict["alignments"]
     return subsampling_factor, alignments
 
 
 def store_transcripts(
-    filename: Pathlike, texts: Iterable[Tuple[str, str, str]]
+    filename: Pathlike, texts: Iterable[Tuple[str, str, str]], char_level: bool = False
 ) -> None:
     """Save predicted results and reference transcripts to a file.
 
@@ -435,8 +572,11 @@ def store_transcripts(
     Returns:
       Return None.
     """
-    with open(filename, "w") as f:
+    with open(filename, "w", encoding="utf8") as f:
         for cut_id, ref, hyp in texts:
+            if char_level:
+                ref = list("".join(ref))
+                hyp = list("".join(hyp))
             print(f"{cut_id}:\tref={ref}", file=f)
             print(f"{cut_id}:\thyp={hyp}", file=f)
 
@@ -457,7 +597,7 @@ def store_transcripts_and_timestamps(
     Returns:
       Return None.
     """
-    with open(filename, "w") as f:
+    with open(filename, "w", encoding="utf8") as f:
         for cut_id, ref, hyp, time_ref, time_hyp in texts:
             print(f"{cut_id}:\tref={ref}", file=f)
             print(f"{cut_id}:\thyp={hyp}", file=f)
@@ -545,6 +685,7 @@ def write_error_stats(
     test_set_name: str,
     results: List[Tuple[str, str]],
     enable_log: bool = True,
+    compute_CER: bool = False,
     sclite_mode: bool = False,
 ) -> float:
     """Write statistics based on predicted results and reference transcripts.
@@ -573,7 +714,7 @@ def write_error_stats(
           The reference word `SIR` is missing in the predicted
           results (a deletion error).
       results:
-        An iterable of tuples. The first element is the cur_id, the second is
+        An iterable of tuples. The first element is the cut_id, the second is
         the reference transcript and the third element is the predicted result.
       enable_log:
         If True, also print detailed WER to the console.
@@ -590,6 +731,14 @@ def write_error_stats(
     words: Dict[str, List[int]] = defaultdict(lambda: [0, 0, 0, 0, 0])
     num_corr = 0
     ERR = "*"
+
+    if compute_CER:
+        for i, res in enumerate(results):
+            cut_id, ref, hyp = res
+            ref = list("".join(ref))
+            hyp = list("".join(hyp))
+            results[i] = (cut_id, ref, hyp)
+
     for cut_id, ref, hyp in results:
         ali = kaldialign.align(ref, hyp, ERR, sclite_mode=sclite_mode)
         for ref_word, hyp_word in ali:
@@ -1042,9 +1191,11 @@ def write_surt_error_stats(
                 f"{cut_id}:\t"
                 + " ".join(
                     (
-                        ref_word
-                        if ref_word == hyp_word
-                        else f"({ref_word}->{hyp_word})"
+                        (
+                            ref_word
+                            if ref_word == hyp_word
+                            else f"({ref_word}->{hyp_word})"
+                        )
                         for ref_word, hyp_word in ali
                     )
                 ),
@@ -1117,7 +1268,8 @@ class MetricsTracker(collections.defaultdict):
         for k, v in self.items():
             ans[k] = v
         for k, v in other.items():
-            ans[k] = ans[k] + v
+            if v - v == 0:
+                ans[k] = ans[k] + v
         return ans
 
     def __mul__(self, alpha: float) -> "MetricsTracker":
@@ -1291,13 +1443,20 @@ def add_eos(ragged: k2.RaggedTensor, eos_id: int) -> k2.RaggedTensor:
     return concat(ragged, eos_id, direction="right")
 
 
-def make_pad_mask(lengths: torch.Tensor, max_len: int = 0) -> torch.Tensor:
+def make_pad_mask(
+    lengths: torch.Tensor,
+    max_len: int = 0,
+    pad_left: bool = False,
+) -> torch.Tensor:
     """
     Args:
       lengths:
         A 1-D tensor containing sentence lengths.
       max_len:
         The length of masks.
+      pad_left:
+        If ``False`` (default), padding is on the right.
+        If ``True``, padding is on the left.
     Returns:
       Return a 2-D bool tensor, where masked positions
       are filled with `True` and non-masked positions are
@@ -1314,9 +1473,14 @@ def make_pad_mask(lengths: torch.Tensor, max_len: int = 0) -> torch.Tensor:
     max_len = max(max_len, lengths.max())
     n = lengths.size(0)
     seq_range = torch.arange(0, max_len, device=lengths.device)
-    expaned_lengths = seq_range.unsqueeze(0).expand(n, max_len)
+    expanded_lengths = seq_range.unsqueeze(0).expand(n, max_len)
 
-    return expaned_lengths >= lengths.unsqueeze(-1)
+    if pad_left:
+        mask = expanded_lengths < (max_len - lengths).unsqueeze(1)
+    else:
+        mask = expanded_lengths >= lengths.unsqueeze(-1)
+
+    return mask
 
 
 # Copied and modified from https://github.com/wenet-e2e/wenet/blob/main/wenet/utils/mask.py
@@ -1414,13 +1578,16 @@ def measure_gradient_norms(model: nn.Module, norm: str = "l1") -> Dict[str, floa
 
 
 def get_parameter_groups_with_lrs(
-    model: nn.Module, lr: float, include_names: bool = False
+    model: nn.Module,
+    lr: float,
+    include_names: bool = False,
+    freeze_modules: List[str] = [],
 ) -> List[dict]:
     """
     This is for use with the ScaledAdam optimizers (more recent versions that accept lists of
     named-parameters; we can, if needed, create a version without the names).
 
-    It provides a way to specifiy learning-rate scales inside the module, so that if
+    It provides a way to specify learning-rate scales inside the module, so that if
     any nn.Module in the hierarchy has a floating-point parameter 'lr_scale', it will
     scale the LR of any parameters inside that module or its submodules.  Note: you
     can set module parameters outside the __init__ function, e.g.:
@@ -1438,6 +1605,8 @@ def get_parameter_groups_with_lrs(
          ...   ]
 
     """
+    named_modules = list(model.named_modules())
+
     # flat_lr_scale just contains the lr_scale explicitly specified
     # for each prefix of the name, e.g. 'encoder.layers.3', these need
     # to be multiplied for all prefix of the name of any given parameter.
@@ -1457,6 +1626,15 @@ def get_parameter_groups_with_lrs(
         split_name = name.split(".")
         # caution: as a special case, if the name is '', split_name will be [ '' ].
         prefix = split_name[0]
+        if prefix == "module":  # DDP
+            module_name = split_name[1]
+            if module_name in freeze_modules:
+                logging.info(f"Remove {name} from parameters")
+                continue
+        else:
+            if prefix in freeze_modules:
+                logging.info(f"Remove {name} from parameters")
+                continue
         cur_lr = lr * flat_lr_scale[prefix]
         if prefix != "":
             cur_lr *= flat_lr_scale[""]
@@ -1481,6 +1659,7 @@ def optim_step_and_measure_param_change(
     and the L2 norm of the original parameter. It is given by the formula:
 
         .. math::
+
             \begin{aligned}
                 \delta = \frac{\Vert\theta - \theta_{new}\Vert^2}{\Vert\theta\Vert^2}
             \end{aligned}
@@ -1545,6 +1724,87 @@ def load_averaged_model(
     return model
 
 
+def text_to_pinyin(
+    txt: str, mode: str = "full_with_tone", errors: str = "default"
+) -> List[str]:
+    """
+    Convert a Chinese text (might contain some latin characters) to pinyin sequence.
+
+    Args:
+      txt:
+        The input Chinese text.
+      mode:
+        The style of the output pinyin, should be:
+          full_with_tone : zhōng guó
+          full_no_tone : zhong guo
+          partial_with_tone : zh ōng g uó
+          partial_no_tone : zh ong g uo
+      errors:
+        How to handle the characters (latin) that has no pinyin.
+          default : output the same as input.
+          split : split into single characters (i.e. alphabets)
+
+    Return:
+      Return a list of str.
+
+    Examples:
+      txt: 想吃KFC
+      output: ['xiǎng', 'chī', 'KFC']  # mode=full_with_tone; errors=default
+      output: ['xiǎng', 'chī', 'K', 'F', 'C']  # mode=full_with_tone; errors=split
+      output: ['xiang', 'chi', 'KFC']  # mode=full_no_tone; errors=default
+      output: ['xiang', 'chi', 'K', 'F', 'C']  # mode=full_no_tone; errors=split
+      output: ['x', 'iǎng', 'ch', 'ī', 'KFC']  # mode=partial_with_tone; errors=default
+      output: ['x', 'iang', 'ch', 'i', 'KFC']  # mode=partial_no_tone; errors=default
+    """
+
+    assert mode in (
+        "full_with_tone",
+        "full_no_tone",
+        "partial_no_tone",
+        "partial_with_tone",
+    ), mode
+
+    assert errors in ("default", "split"), errors
+
+    txt = txt.strip()
+    res = []
+    if "full" in mode:
+        if errors == "default":
+            py = pinyin(txt) if mode == "full_with_tone" else lazy_pinyin(txt)
+        else:
+            py = (
+                pinyin(txt, errors=lambda x: list(x))
+                if mode == "full_with_tone"
+                else lazy_pinyin(txt, errors=lambda x: list(x))
+            )
+        res = [x[0] for x in py] if mode == "full_with_tone" else py
+    else:
+        if errors == "default":
+            py = pinyin(txt) if mode == "partial_with_tone" else lazy_pinyin(txt)
+        else:
+            py = (
+                pinyin(txt, errors=lambda x: list(x))
+                if mode == "partial_with_tone"
+                else lazy_pinyin(txt, errors=lambda x: list(x))
+            )
+        py = [x[0] for x in py] if mode == "partial_with_tone" else py
+        for x in py:
+            initial = to_initials(x, strict=False)
+            final = (
+                to_finals(x, strict=False)
+                if mode == "partial_no_tone"
+                else to_finals_tone(x, strict=False)
+            )
+            if initial == "" and final == "":
+                res.append(x)
+            else:
+                if initial != "":
+                    res.append(initial)
+                if final != "":
+                    res.append(final)
+    return res
+
+
 def tokenize_by_bpe_model(
     sp: spm.SentencePieceProcessor,
     txt: str,
@@ -1569,10 +1829,10 @@ def tokenize_by_bpe_model(
     chars = pattern.split(txt.upper())
     mix_chars = [w for w in chars if len(w.strip()) > 0]
     for ch_or_w in mix_chars:
-        # ch_or_w is a single CJK charater(i.e., "你"), do nothing.
+        # ch_or_w is a single CJK character(i.e., "你"), do nothing.
         if pattern.fullmatch(ch_or_w) is not None:
             tokens.append(ch_or_w)
-        # ch_or_w contains non-CJK charaters(i.e., " IT'S OKAY "),
+        # ch_or_w contains non-CJK characters(i.e., " IT'S OKAY "),
         # encode ch_or_w using bpe_model.
         else:
             for p in sp.encode_as_pieces(ch_or_w):
@@ -1586,7 +1846,7 @@ def tokenize_by_CJK_char(line: str) -> str:
     """
     Tokenize a line of text with CJK char.
 
-    Note: All return charaters will be upper case.
+    Note: All return characters will be upper case.
 
     Example:
       input = "你好世界是 hello world 的中文"
@@ -1605,6 +1865,30 @@ def tokenize_by_CJK_char(line: str) -> str:
     )
     chars = pattern.split(line.strip().upper())
     return " ".join([w.strip() for w in chars if w.strip()])
+
+
+def tokenize_by_ja_char(line: str) -> str:
+    """
+    Tokenize a line of text with Japanese characters.
+
+    Note: All non-Japanese characters will be upper case.
+
+    Example:
+      input = "こんにちは世界は hello world の日本語"
+      output = "こ ん に ち は 世 界 は HELLO WORLD の 日 本 語"
+
+    Args:
+      line:
+        The input text.
+
+    Return:
+      A new string tokenized by Japanese characters.
+    """
+    pattern = re.compile(r"([\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF])")
+    chars = pattern.split(line.strip())
+    return " ".join(
+        [w.strip().upper() if not pattern.match(w) else w for w in chars if w.strip()]
+    )
 
 
 def display_and_save_batch(
@@ -1879,7 +2163,7 @@ def parse_bpe_timestamps_and_texts(
         A k2.Fsa with best_paths.arcs.num_axes() == 3, i.e.
         containing multiple FSAs, which is expected to be the result
         of k2.shortest_path (otherwise the returned values won't
-        be meaningful). Its attribtutes `labels` and `aux_labels`
+        be meaningful). Its attributes `labels` and `aux_labels`
         are both BPE tokens.
       sp:
         The BPE model.
@@ -1939,7 +2223,7 @@ def parse_timestamps_and_texts(
         A k2.Fsa with best_paths.arcs.num_axes() == 3, i.e.
         containing multiple FSAs, which is expected to be the result
         of k2.shortest_path (otherwise the returned values won't
-        be meaningful). Attribtute `labels` is the prediction unit,
+        be meaningful). Attribute `labels` is the prediction unit,
         e.g., phone or BPE tokens. Attribute `aux_labels` is the word index.
       word_table:
         The word symbol table.
@@ -2007,7 +2291,7 @@ def parse_fsa_timestamps_and_texts(
 ) -> Tuple[List[Tuple[float, float]], List[List[str]]]:
     """Parse timestamps (in seconds) and texts for given decoded fsa paths.
     Currently it supports two cases:
-    (1) ctc-decoding, the attribtutes `labels` and `aux_labels`
+    (1) ctc-decoding, the attributes `labels` and `aux_labels`
         are both BPE tokens. In this case, sp should be provided.
     (2) HLG-based 1best, the attribtute `labels` is the prediction unit,
         e.g., phone or BPE tokens; attribute `aux_labels` is the word index.
@@ -2133,3 +2417,40 @@ def num_tokens(
     if 0 in ans:
         num_tokens -= 1
     return num_tokens
+
+
+# Based on https://github.com/lhotse-speech/lhotse/blob/master/lhotse/dataset/signal_transforms.py
+def time_warp(
+    features: torch.Tensor,
+    p: float = 0.9,
+    time_warp_factor: Optional[int] = 80,
+    supervision_segments: Optional[torch.Tensor] = None,
+):
+    """Apply time warping on a batch of features"""
+    if time_warp_factor is None or time_warp_factor < 1:
+        return features
+    assert (
+        len(features.shape) == 3
+    ), f"SpecAugment only supports batches of single-channel feature matrices. {features.shape}"
+    features = features.clone()
+    if supervision_segments is None:
+        # No supervisions - apply spec augment to full feature matrices.
+        for sequence_idx in range(features.size(0)):
+            if random.random() > p:
+                # Randomly choose whether this transform is applied
+                continue
+            features[sequence_idx] = time_warp_impl(
+                features[sequence_idx], factor=time_warp_factor
+            )
+    else:
+        # Supervisions provided - we will apply time warping only on the supervised areas.
+        for sequence_idx, start_frame, num_frames in supervision_segments:
+            if random.random() > p:
+                # Randomly choose whether this transform is applied
+                continue
+            end_frame = start_frame + num_frames
+            features[sequence_idx, start_frame:end_frame] = time_warp_impl(
+                features[sequence_idx, start_frame:end_frame], factor=time_warp_factor
+            )
+
+    return features

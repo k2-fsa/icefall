@@ -275,7 +275,7 @@ def main():
         use_feat_batchnorm=params.use_feat_batchnorm,
     )
 
-    checkpoint = torch.load(args.checkpoint, map_location="cpu")
+    checkpoint = torch.load(args.checkpoint, map_location="cpu", weights_only=False)
     model.load_state_dict(checkpoint["model"], strict=False)
     model.to(device)
     model.eval()
@@ -287,6 +287,7 @@ def main():
     opts.frame_opts.snip_edges = False
     opts.frame_opts.samp_freq = params.sample_rate
     opts.mel_opts.num_bins = params.feature_dim
+    opts.mel_opts.high_freq = -400
 
     fbank = kaldifeat.Fbank(opts)
 
@@ -346,7 +347,7 @@ def main():
         "attention-decoder",
     ]:
         logging.info(f"Loading HLG from {params.HLG}")
-        HLG = k2.Fsa.from_dict(torch.load(params.HLG, map_location="cpu"))
+        HLG = k2.Fsa.from_dict(torch.load(params.HLG, map_location="cpu", weights_only=False))
         HLG = HLG.to(device)
         if not hasattr(HLG, "lm_scores"):
             # For whole-lattice-rescoring and attention-decoder
@@ -357,7 +358,7 @@ def main():
             "attention-decoder",
         ]:
             logging.info(f"Loading G from {params.G}")
-            G = k2.Fsa.from_dict(torch.load(params.G, map_location="cpu"))
+            G = k2.Fsa.from_dict(torch.load(params.G, map_location="cpu", weights_only=False))
             # Add epsilon self-loops to G as we will compose
             # it with the whole lattice later
             G = G.to(device)

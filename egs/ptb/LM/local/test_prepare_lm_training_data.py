@@ -37,7 +37,7 @@ def main():
     sp = spm.SentencePieceProcessor()
     sp.load(str(bpe_model))
 
-    data = torch.load(lm_training_data)
+    data = torch.load(lm_training_data, weights_only=False)
     words2bpe = data["words"]
     sentences = data["sentences"]
 
