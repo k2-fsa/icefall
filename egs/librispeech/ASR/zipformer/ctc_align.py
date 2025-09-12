@@ -144,7 +144,8 @@ def get_parser():
         type=str,
         nargs="+",
         default=[],
-        help="",
+        help="List of tokens to ignore when computing confidence scores "
+             "(e.g., punctuation marks)",
     )
 
     parser.add_argument(
@@ -154,21 +155,21 @@ def get_parser():
         choices=[
             "ctc_align",
         ],
-        help=""" Decoding method for doing the forced alignment.""",
+        help="Decoding method for doing the forced alignment.",
     )
 
     parser.add_argument(
         "--context-size",
         type=int,
         default=2,
-        help="The context size in the decoder. 1 means bigram; " "2 means tri-gram",
+        help="The context size in the decoder. 1 means bigram; 2 means tri-gram",
     )
 
     parser.add_argument(
         "dataset_manifests",
         type=str,
         nargs="+",
-        help="""Manifests of test-sets to be evaluated""",
+        help="CutSet manifests to be aligned (CurSet with features and transcripts)",
     )
 
     add_model_arguments(parser)
