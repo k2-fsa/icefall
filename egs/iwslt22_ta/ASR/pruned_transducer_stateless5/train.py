@@ -227,8 +227,14 @@ def get_parser():
     parser.add_argument(
         "--bpe-model",
         type=str,
-        default="data/lang_bpe_1000/bpe.model",
+        default="data/lang_bpe_ta_1000/bpe.model",
         help="Path to source data BPE model",
+    )
+    parser.add_argument(
+        "--bpe-tgt-model",
+        type=str,
+        default="data/lang_bpe_en_1000/bpe.model",
+        help="Path to target data BPE model",
     )
     parser.add_argument(
         "--initial-lr",
@@ -611,6 +617,7 @@ def compute_loss(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
     sp: spm.SentencePieceProcessor,
+    sp_tgt: spm.SentencePieceProcessor,
     batch: dict,
     is_training: bool,
     warmup: float = 1.0,
@@ -648,8 +655,11 @@ def compute_loss(
     feature_lens = supervisions["num_frames"].to(device)
     #pdb.set_trace()
     texts = batch["supervisions"]["text"]
+    tgt_texts = batch["supervisions"]["tgt_text"]
     y = sp.encode(texts, out_type=int)
+    y_tgt = sp_tgt.encode(tgt_texts, out_type=int)
     y = k2.RaggedTensor(y).to(device)
+    y_tgt = k2.RaggedTensor(y_tgt).to(device)
 
     with torch.set_grad_enabled(is_training):
         simple_loss, pruned_loss = model(
@@ -726,6 +736,7 @@ def compute_validation_loss(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
     sp: spm.SentencePieceProcessor,
+    sp_tgt: spm.SentencePieceProcessor,
     valid_dl: torch.utils.data.DataLoader,
     world_size: int = 1,
 ) -> MetricsTracker:
@@ -739,6 +750,7 @@ def compute_validation_loss(
                 params=params,
                 model=model,
                 sp=sp,
+                sp_tgt=sp_tgt,
                 batch=batch,
                 is_training=False,
             )
@@ -762,6 +774,7 @@ def train_one_epoch(
     optimizer: torch.optim.Optimizer,
     scheduler: LRSchedulerType,
     sp: spm.SentencePieceProcessor,
+    sp_tgt: spm.SentencePieceProcessor,
     train_dl: torch.utils.data.DataLoader,
     valid_dl: torch.utils.data.DataLoader,
     scaler: GradScaler,
@@ -821,6 +834,7 @@ def train_one_epoch(
                         params=params,
                         model=model,
                         sp=sp,
+                        sp_tgt=sp_tgt,
                         batch=batch,
                         is_training=True,
                         warmup=(
@@ -913,6 +927,7 @@ def train_one_epoch(
                     params=params,
                     model=model,
                     sp=sp,
+                    sp_tgt=sp_tgt, 
                     valid_dl=valid_dl,
                     world_size=world_size,
                 )
@@ -992,7 +1007,9 @@ def run(rank, world_size, args):
     logging.info(f"Device: {device}")
 
     sp = spm.SentencePieceProcessor()
+    sp_tgt = spm.SentencePieceProcessor()
     sp.load(params.bpe_model)
+    sp_tgt.load(params.bpe_tgt_model)
     # pdb.set_trace()
     # <blk> is defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
@@ -1122,6 +1139,7 @@ def run(rank, world_size, args):
             train_dl=train_dl,
             optimizer=optimizer,
             sp=sp,
+            sp_tgt=sp_tgt,
             params=params,
             warmup=0.0 if params.start_epoch == 1 else 1.0,
         )
@@ -1149,6 +1167,7 @@ def run(rank, world_size, args):
             optimizer=optimizer,
             scheduler=scheduler,
             sp=sp,
+            sp_tgt=sp_tgt,
             train_dl=train_dl,
             valid_dl=valid_dl,
             scaler=scaler,
@@ -1217,6 +1236,7 @@ def scan_pessimistic_batches_for_oom(
     train_dl: torch.utils.data.DataLoader,
     optimizer: torch.optim.Optimizer,
     sp: spm.SentencePieceProcessor,
+    sp_tgt: spm.SentencePieceProcessor,
     params: AttributeDict,
     warmup: float,
 ):
@@ -1238,6 +1258,7 @@ def scan_pessimistic_batches_for_oom(
                     params=params,
                     model=model,
                     sp=sp,
+                    sp_tgt=sp_tgt,
                     batch=batch,
                     is_training=True,
                     warmup=warmup,

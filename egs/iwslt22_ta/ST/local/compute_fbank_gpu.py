@@ -45,8 +45,6 @@ from lhotse.features.kaldifeat import (
 # it wastes a lot of CPU and slow things down.
 # Do this outside of main() in case it needs to take effect
 # even when we are not invoking the main (e.g. when spawning subprocesses).
-torch.set_num_threads(1)
-torch.set_num_interop_threads(1)
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -91,7 +89,7 @@ def compute_fbank_gpu(args):
         "dev",
     )
     manifests = read_manifests_if_cached(
-        prefix="iwslt", dataset_parts=dataset_parts, output_dir=src_dir
+        prefix="iwslt-ta", dataset_parts=dataset_parts, output_dir=src_dir
     )
     assert manifests is not None
 

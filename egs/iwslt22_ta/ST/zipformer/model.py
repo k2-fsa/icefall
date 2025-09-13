@@ -39,6 +39,7 @@ class Transducer(nn.Module):
         decoder_dim: int,
         joiner_dim: int,
         vocab_size: int,
+        use_hat: bool = False,
     ):
         """
         Args:
@@ -68,6 +69,7 @@ class Transducer(nn.Module):
         self.encoder = encoder
         self.decoder = decoder
         self.joiner = joiner
+        self.use_hat = use_hat
 
         self.simple_am_proj = ScaledLinear(
             encoder_dim,
@@ -213,7 +215,7 @@ class Transducer(nn.Module):
                 termination_symbol=blank_id,
                 boundary=boundary,
                 reduction="sum",
-                use_hat_loss=True,
+                use_hat_loss=self.use_hat,
             )
 
         return (simple_loss, pruned_loss)

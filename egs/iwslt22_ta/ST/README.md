@@ -14,15 +14,15 @@ https://aclanthology.org/2022.iwslt-1.10/.
 
 |    Decoding method                 |     dev Bleu     |    test Bleu    | comment                                  |
 |------------------------------------|------------|------------|------------------------------------------|
-| modified beam search               | 11.1	    | 9.2    | --epoch 20, --avg 10, beam(10), pruned range 5 |
+| modified beam search               | 11.1	    | 9.2    | --epoch 20, --avg 13, beam(10), pruned range 5 |
 
 ## Zipformer Performance Record (after 20 epochs)
 
 |    Decoding method                 |     dev Bleu     |    test Bleu    | comment                                  |
 |------------------------------------|------------|------------|------------------------------------------|
-| modified beam search               | 14.7	    | 12.4       | --epoch 20, --avg 10, beam(10),pruned range 5 |
-| modified beam search               | 15.5	    | 13      | --epoch 20, --avg 10, beam(20),pruned range 5 |
-| modified beam search               | 17.6	   | 14.8        | --epoch 20, --avg 10, beam(10), pruned range 10 |
+| modified beam search               | 14.7	    | 12.4       | --epoch 20, --avg 13, beam(10),pruned range 5 |
+| modified beam search               | 15.5	    | 13      | --epoch 20, --avg 13, beam(20),pruned range 5 |
+| modified beam search               | 17.9	   | 14.9        | --epoch 20, --avg 13, beam(20), pruned range 10 |
 
 
 See [RESULTS](/egs/iwslt_ta/ST/RESULTS.md) for details.

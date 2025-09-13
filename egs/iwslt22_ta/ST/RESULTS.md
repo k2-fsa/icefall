@@ -17,7 +17,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
 
   
-./pruned_transducer_stateless5/train_st.py \
+./pruned_transducer_stateless5/train.py \
   --world-size 4 \
   --num-epochs 20 \
   --start-epoch 1 \
@@ -34,11 +34,11 @@ The decoding command is:
 ```
 for method in modified_beam_search; do
   for epoch in 15 20; do
-    ./pruned_transducer_stateless5/decode_st.py \
+    ./pruned_transducer_stateless5/decode.py \
       --epoch $epoch \
       --beam-size 20 \
       --avg 10 \
-      --exp-dir ./pruned_transducer_stateless5/exp_st_single_task2 \
+      --exp-dir ./pruned_transducer_stateless5/exp_st \
       --max-duration 300 \
       --decoding-method $method \
       --max-sym-per-frame 1 \
@@ -75,21 +75,23 @@ To reproduce the above result, use the following commands for training:
 # ST medium model 42.5M prune-range 10
 ```
 
-  ./zipformer/train_st.py \
-  --world-size 4 \
-  --num-epochs 20 \
-  --start-epoch 1 \
-  --use-fp16 1 \
-  --exp-dir zipformer/exp-st-medium-prun10 \
-  --causal 0 \
-  --num-encoder-layers 2,2,2,2,2,2 \
-  --feedforward-dim 512,768,1024,1536,1024,768 \
-  --encoder-dim 192,256,384,512,384,256 \
-  --encoder-unmasked-dim 192,192,256,256,256,192 \
-  --max-duration 300 \
-  --context-size 2 \
-  --prune-range 10
-  --prune-range 10
+  ./zipformer/train.py \
+    --world-size 4 \
+    --num-epochs 30 \
+    --start-epoch 1 \
+    --use-fp16 1 \
+    --exp-dir zipformer/exp-st-medium-nohat800s-warmstep8k_baselr05_lrbatch5k_lrepoch6 \
+    --causal 0 \
+    --num-encoder-layers 2,2,2,2,2,2 \
+    --feedforward-dim 512,768,1024,1536,1024,768 \
+    --encoder-dim 192,256,384,512,384,256 \
+    --encoder-unmasked-dim 192,192,256,256,256,192 \
+    --max-duration 800 \
+    --prune-range 10 \
+    --warm-step 8000 \
+    --lr-epochs 6 \
+    --base-lr 0.055 \
+    --use-hat False
   
 ```
 
@@ -101,19 +103,19 @@ The decoding command is:
 ```
 for method in modified_beam_search; do
   for epoch in 15 20; do
-    ./zipformer/decode_st.py \
+    ./zipformer/decode.py \
     --epoch $epoch \
     --beam-size 20 \
-    --avg 10 \
+    --avg 13 \
     --exp-dir ./zipformer/exp-st-medium-prun10 \
     --max-duration 800 \
     --decoding-method $method \
-	--num-encoder-layers 2,2,2,2,2,2 \
-  --feedforward-dim 512,768,1024,1536,1024,768 \
-  --encoder-dim 192,256,384,512,384,256 \
-  --encoder-unmasked-dim 192,192,256,256,256,192 \
-  --context-size 2 \
-    --use-averaged-model true
+    --num-encoder-layers 2,2,2,2,2,2 \
+    --feedforward-dim 512,768,1024,1536,1024,768 \
+    --encoder-dim 192,256,384,512,384,256 \
+    --encoder-unmasked-dim 192,192,256,256,256,192 \
+    --context-size 2 \
+      --use-averaged-model true
 done
 done
 ```

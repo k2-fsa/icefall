@@ -29,9 +29,9 @@ from lhotse.dataset import (
     CutConcatenate,
     CutMix,
     DynamicBucketingSampler,
-    K2Speech2textTranslationDataset,
+    K2Speech2TextTranslationDataset,
     PrecomputedFeatures,
-    SingleCutSampler,
+    SimpleCutSampler,
     SpecAugment,
 )
 from lhotse.dataset.input_strategies import OnTheFlyFeatures
@@ -206,9 +206,7 @@ class IWSLTDialectSTDataModule:
             )
 
             transforms.append(
-                CutMix(
-                    cuts=cuts_musan, prob=0.5, snr=(10, 20), preserve_id=True
-                )
+                CutMix(cuts=cuts_musan, p=0.5, snr=(10, 20), preserve_id=True)
             )
         else:
             logging.info("Disable MUSAN")
@@ -256,7 +254,7 @@ class IWSLTDialectSTDataModule:
             logging.info("Disable SpecAugment")
 
         logging.info("About to create train dataset")
-        train = K2Speech2textTranslationDataset(
+        train = K2Speech2TextTranslationDataset(
             cut_transforms=transforms,
             input_transforms=input_transforms,
             return_cuts=self.args.return_cuts,
@@ -273,7 +271,7 @@ class IWSLTDialectSTDataModule:
             # to be strict (e.g. could be randomized)
             # transforms = [PerturbSpeed(factors=[0.9, 1.1], p=2/3)] + transforms   # noqa
             # Drop feats to be on the safe side.
-            train = K2Speech2textTranslationDataset(
+            train = K2Speech2TextTranslationDataset(
                 cut_transforms=transforms,
                 input_strategy=OnTheFlyFeatures(
                     Fbank(FbankConfig(num_mel_bins=80))
@@ -292,8 +290,8 @@ class IWSLTDialectSTDataModule:
                 drop_last=self.args.drop_last,
             )
         else:
-            logging.info("Using SingleCutSampler.")
-            train_sampler = SingleCutSampler(
+            logging.info("Using SimpleCutSampler.")
+            train_sampler = SimpleCutSampler(
                 cuts_train,
                 max_duration=self.args.max_duration,
                 shuffle=self.args.shuffle,
@@ -330,14 +328,14 @@ class IWSLTDialectSTDataModule:
 
         logging.info("About to create dev dataset")
         if self.args.on_the_fly_feats:
-            validate = K2Speech2textTranslationDataset(
+            validate = K2Speech2TextTranslationDataset(
                 cut_transforms=transforms,
                 input_strategy=OnTheFlyFeatures(
                     Fbank(FbankConfig(num_mel_bins=80))),
                 return_cuts=self.args.return_cuts,
             )
         else:
-            validate = K2Speech2textTranslationDataset(
+            validate = K2Speech2TextTranslationDataset(
                 cut_transforms=transforms,
                 return_cuts=self.args.return_cuts,
             )
@@ -359,7 +357,7 @@ class IWSLTDialectSTDataModule:
 
     def test_dataloaders(self, cuts: CutSet) -> DataLoader:
         logging.debug("About to create test dataset")
-        test = K2Speech2textTranslationDataset(
+        test = K2Speech2TextTranslationDataset(
             input_strategy=OnTheFlyFeatures(
                 Fbank(FbankConfig(num_mel_bins=80)))
             if self.args.on_the_fly_feats

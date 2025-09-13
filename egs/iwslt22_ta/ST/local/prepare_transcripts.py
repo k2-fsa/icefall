@@ -57,9 +57,8 @@ def main():
 
     with open(langdirs[0] / "transcript_words.txt", 'w') as src, open(langdirs[1] / "transcript_words.txt", 'w') as tgt:
         for c in cuts:
-            #breakpoint()
             src_txt = c.supervisions[0].text
-            tgt_txt = c.supervisions[0].custom['tgt_text']
+            tgt_txt = c.supervisions[0].custom['translated_text']['eng']
             src.write(src_txt + '\n')
             tgt.write(tgt_txt + '\n')
 

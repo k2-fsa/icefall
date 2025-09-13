@@ -17,26 +17,14 @@
 """
 Usage:
 
-export CUDA_VISIBLE_DEVICES="0,1,2,3"
-
-./pruned_transducer_stateless5/train.py \
-  --world-size 4 \
-  --num-epochs 30 \
-  --start-epoch 1 \
-  --exp-dir pruned_transducer_stateless5/exp \
-  --full-libri 1 \
-  --max-duration 300
-
-# For mix precision training:
-
-./pruned_transducer_stateless5/train.py \
-  --world-size 4 \
-  --num-epochs 30 \
-  --start-epoch 1 \
-  --use-fp16 1 \
-  --exp-dir pruned_transducer_stateless5/exp \
-  --full-libri 1 \
-  --max-duration 550
+# ./pruned_transducer_stateless5/train.py \
+#   --world-size 4 \
+#   --num-epochs 20 \
+#   --start-epoch 1 \
+#   --exp-dir pruned_transducer_stateless5/exp_st \
+#   --max-duration 300 \
+#   --bucketing-sampler 1\
+#   --num-buckets 50
 
 """
 
@@ -57,7 +45,7 @@ import sentencepiece as spm
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
-from asr_datamodule import MGB2AsrDataModule
+from asr_datamodule import IWSLTDialectSTDataModule
 from conformer import Conformer
 from decoder import Decoder
 from joiner import Joiner
@@ -81,7 +69,13 @@ from icefall.checkpoint import (
 )
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
-from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool
+from icefall.utils import (
+    AttributeDict,
+    MetricsTracker,
+    display_and_save_batch,
+    setup_logger,
+    str2bool,
+)
 
 LRSchedulerType = Union[
     torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler
@@ -99,7 +93,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--dim-feedforward",
         type=int,
-        default=2048,
+        default=1024,
         help="Feedforward dimension of the conformer encoder layer.",
     )
 
@@ -113,25 +107,59 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--encoder-dim",
         type=int,
-        default=512,
+        default=256,
         help="Attention dimension in the conformer encoder layer.",
     )
 
     parser.add_argument(
         "--decoder-dim",
         type=int,
-        default=512,
+        default=256,
         help="Embedding dimension in the decoder model.",
     )
 
     parser.add_argument(
         "--joiner-dim",
         type=int,
-        default=512,
+        default=256,
         help="""Dimension used in the joiner model.
         Outputs from the encoder and decoder model are projected
         to this dimension before adding.
         """,
+    )
+
+    parser.add_argument(
+        "--dynamic-chunk-training",
+        type=str2bool,
+        default=False,
+        help="""Whether to use dynamic_chunk_training, if you want a streaming
+        model, this requires to be True.
+        """,
+    )
+
+    parser.add_argument(
+        "--causal-convolution",
+        type=str2bool,
+        default=False,
+        help="""Whether to use causal convolution, this requires to be True when
+        using dynamic_chunk_training.
+        """,
+    )
+
+    parser.add_argument(
+        "--short-chunk-size",
+        type=int,
+        default=25,
+        help="""Chunk length of dynamic training, the chunk size would be either
+        max sequence length of current batch or uniformly sampled from (1, short_chunk_size).
+        """,
+    )
+
+    parser.add_argument(
+        "--num-left-chunks",
+        type=int,
+        default=4,
+        help="How many left context can be seen in chunks when calculating attention.",
     )
 
 
@@ -198,16 +226,15 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--bpe-model",
+        "--bpe-tgt-model",
         type=str,
-        default="data/lang_bpe_2000/bpe.model",
-        help="Path to the BPE model",
+        default="data/lang_bpe_en_1000/bpe.model",
+        help="Path to target data BPE model",
     )
-
     parser.add_argument(
         "--initial-lr",
         type=float,
-        default=0.003,
+        default=0.001,
         help="The initial learning rate.  This value should not need "
         "to be changed.",
     )
@@ -287,7 +314,7 @@ def get_parser():
     parser.add_argument(
         "--save-every-n",
         type=int,
-        default=8000,
+        default=16000,
         help="""Save checkpoint after processing this number of batches"
         periodically. We save checkpoint to exp-dir/ whenever
         params.batch_idx_train % save_every_n == 0. The checkpoint filename
@@ -328,6 +355,15 @@ def get_parser():
         help="Whether to use half precision training.",
     )
 
+    parser.add_argument(
+        "--delay-penalty",
+        type=float,
+        default=0.0,
+        help="""A constant value used to penalize symbol delay,
+        to encourage streaming models to emit symbols earlier.
+        See https://github.com/k2-fsa/k2/issues/955 and
+        https://arxiv.org/pdf/2211.00490.pdf for more details.""",
+    )
     add_model_arguments(parser)
 
     return parser
@@ -386,12 +422,12 @@ def get_params() -> AttributeDict:
             "batch_idx_train": 0,
             "log_interval": 50,
             "reset_interval": 200,
-            "valid_interval": 3000,  # For the 100h subset, use 800
+            "valid_interval": 1000,  # For the 100h subset, use 800
             # parameters for conformer
             "feature_dim": 80,
             "subsampling_factor": 4,
             # parameters for Noam
-            "model_warm_step": 80000,  # arg given to model, not for lrate
+            "model_warm_step": 15000,  # arg given to model, not for lrate
             "env_info": get_env_info(),
         }
     )
@@ -408,6 +444,10 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         nhead=params.nhead,
         dim_feedforward=params.dim_feedforward,
         num_encoder_layers=params.num_encoder_layers,
+        dynamic_chunk_training=params.dynamic_chunk_training,
+        short_chunk_size=params.short_chunk_size,
+        num_left_chunks=params.num_left_chunks,
+        causal=params.causal_convolution,
     )
     return encoder
 
@@ -572,6 +612,7 @@ def compute_loss(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
     sp: spm.SentencePieceProcessor,
+    sp_tgt: spm.SentencePieceProcessor,
     batch: dict,
     is_training: bool,
     warmup: float = 1.0,
@@ -607,21 +648,25 @@ def compute_loss(
 
     supervisions = batch["supervisions"]
     feature_lens = supervisions["num_frames"].to(device)
-
+    #pdb.set_trace()
     texts = batch["supervisions"]["text"]
+    tgt_texts = batch["supervisions"]["tgt_text"]['eng']
     y = sp.encode(texts, out_type=int)
+    y_tgt = sp_tgt.encode(tgt_texts, out_type=int)
     y = k2.RaggedTensor(y).to(device)
+    y_tgt = k2.RaggedTensor(y_tgt).to(device)
 
     with torch.set_grad_enabled(is_training):
         simple_loss, pruned_loss = model(
             x=feature,
             x_lens=feature_lens,
-            y=y,
+            y=y_tgt,
             prune_range=params.prune_range,
             am_scale=params.am_scale,
             lm_scale=params.lm_scale,
             warmup=warmup,
             reduction="none",
+            delay_penalty=params.delay_penalty if warmup >= 2.0 else 0,
         )
         simple_loss_is_finite = torch.isfinite(simple_loss)
         pruned_loss_is_finite = torch.isfinite(pruned_loss)
@@ -686,6 +731,7 @@ def compute_validation_loss(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
     sp: spm.SentencePieceProcessor,
+    sp_tgt: spm.SentencePieceProcessor,
     valid_dl: torch.utils.data.DataLoader,
     world_size: int = 1,
 ) -> MetricsTracker:
@@ -699,6 +745,7 @@ def compute_validation_loss(
                 params=params,
                 model=model,
                 sp=sp,
+                sp_tgt=sp_tgt,
                 batch=batch,
                 is_training=False,
             )
@@ -721,7 +768,7 @@ def train_one_epoch(
     model: Union[nn.Module, DDP],
     optimizer: torch.optim.Optimizer,
     scheduler: LRSchedulerType,
-    sp: spm.SentencePieceProcessor,
+    sp_tgt: spm.SentencePieceProcessor,
     train_dl: torch.utils.data.DataLoader,
     valid_dl: torch.utils.data.DataLoader,
     scaler: GradScaler,
@@ -768,13 +815,11 @@ def train_one_epoch(
     cur_batch_idx = params.get("cur_batch_idx", 0)
 
     for batch_idx, batch in enumerate(train_dl):
-
+        params.batch_idx_train += 1
         if batch["inputs"].shape[0] == len(batch["supervisions"]["text"]):
             if batch_idx < cur_batch_idx:
                 continue
             cur_batch_idx = batch_idx
-
-            params.batch_idx_train += 1
             batch_size = len(batch["supervisions"]["text"])
 
             try:
@@ -782,7 +827,7 @@ def train_one_epoch(
                     loss, loss_info, inf_flag = compute_loss(
                         params=params,
                         model=model,
-                        sp=sp,
+                        sp_tgt=sp_tgt,
                         batch=batch,
                         is_training=True,
                         warmup=(
@@ -849,7 +894,7 @@ def train_one_epoch(
             if batch_idx % params.log_interval == 0:
                 cur_lr = scheduler.get_last_lr()[0]
                 # https://silpara.medium.com/check-gpu-memory-usage-from-python-ccca503322ea
-                memory_debugging()
+                #memory_debugging()
                 logging.info(
                     f"Epoch {params.cur_epoch}, "
                     f"batch {batch_idx}, loss[{loss_info}], "
@@ -874,7 +919,7 @@ def train_one_epoch(
                 valid_info = compute_validation_loss(
                     params=params,
                     model=model,
-                    sp=sp,
+                    sp_tgt=sp_tgt, 
                     valid_dl=valid_dl,
                     world_size=world_size,
                 )
@@ -953,12 +998,12 @@ def run(rank, world_size, args):
         device = torch.device("cuda", rank)
     logging.info(f"Device: {device}")
 
-    sp = spm.SentencePieceProcessor()
-    sp.load(params.bpe_model)
-    pdb.set_trace()
+    sp_tgt = spm.SentencePieceProcessor()
+    sp_tgt.load(params.bpe_tgt_model)
+    # pdb.set_trace()
     # <blk> is defined in local/train_bpe_model.py
-    params.blank_id = sp.piece_to_id("<blk>")
-    params.vocab_size = sp.get_piece_size()
+    params.blank_id = sp_tgt.piece_to_id("<blk>")
+    params.vocab_size = sp_tgt.get_piece_size()
 
     logging.info(params)
 
@@ -1005,11 +1050,20 @@ def run(rank, world_size, args):
         )  # allow 4 megabytes per sub-module
         diagnostic = diagnostics.attach_diagnostics(model, opts)
 
-    MGB2 = MGB2AsrDataModule(args)
-    train_cuts = MGB2.train_cuts()
-
+    iwslt_ta = IWSLTDialectSTDataModule(args)
+    train_cuts = iwslt_ta.train_cuts()
+    # def remove_short_and_long_utt(c: Cut):
+    # Keep only utterances with duration between 1 second and 30 seconds
+    #
+    # Caution: There is a reason to select 20.0 here. Please see
+    # ../local/display_manifest_statistics.py
+    #
+    # You should use ../local/display_manifest_statistics.py to get
+    # an utterance duration distribution for your dataset to select
+    # the threshold
+    #    return 1 <= c.duration <= 28.0
     def remove_short_and_long_utt(c: Cut):
-        # Keep only utterances with duration between 1 second and 30 seconds
+        # Keep only utterances with duration between 1 second and 20 seconds
         #
         # Caution: There is a reason to select 20.0 here. Please see
         # ../local/display_manifest_statistics.py
@@ -1017,15 +1071,43 @@ def run(rank, world_size, args):
         # You should use ../local/display_manifest_statistics.py to get
         # an utterance duration distribution for your dataset to select
         # the threshold
-        return 0.5 <= c.duration <= 30.0
+        if c.duration < 0.1 or c.duration > 30.0:
+            #logging.warning(
+            #    f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
+            #)
+            return False
+        if c.supervisions == []:
+            return False
+        # In pruned RNN-T, we require that T >= S
+        # where T is the number of feature frames after subsampling
+        # and S is the number of tokens in the utterance
+
+        # In ./conformer.py, the conv module uses the following expression
+        # for subsampling
+        T = ((c.num_frames - 1) // 2 - 1) // 2
+        tokens = sp_tgt.encode(c.supervisions[0].custom['tgt_text'], out_type=str)
+
+        if T < len(tokens):
+            # logging.warning(
+            #     f"Exclude cut with ID {c.id} from training. "
+            #     f"Number of frames (before subsampling): {c.num_frames}. "
+            #     f"Number of frames (after subsampling): {T}. "
+            #     f"Text: {c.supervisions[0].text}. "
+            #     f"Tokens: {tokens}. "
+            #     f"Number of tokens: {len(tokens)}"
+            # )
+            return False
+
+        return True
 
     def remove_short_and_long_text(c: Cut):
-        # Keep only text with charachters between 20 and 450
+        # Keep only text with charachters between 20 and 400
 
-        return 20 <= len(c.supervisions[0].text) <= 450
-
+        return 3 <= len(c.supervisions[0].custom['tgt_text']) <= 400
+    #logging.info(f"Total duration before filtering {train_cuts.describe()}")
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
     train_cuts = train_cuts.filter(remove_short_and_long_text)
+    #logging.info(f"Total duration after filtering {train_cuts.describe()}")
 
     if params.start_batch > 0 and checkpoints and "sampler" in checkpoints:
         # We only load the sampler's state dict when it loads a checkpoint
@@ -1034,20 +1116,21 @@ def run(rank, world_size, args):
     else:
         sampler_state_dict = None
 
-    train_dl = MGB2.train_dataloaders(
+    train_dl = iwslt_ta.train_dataloaders(
         train_cuts, sampler_state_dict=sampler_state_dict
     )
 
-    valid_cuts = MGB2.dev_cuts()
-    valid_dl = MGB2.test_dataloaders(valid_cuts)
+    valid_cuts = iwslt_ta.dev_cuts()
+    valid_dl = iwslt_ta.test_dataloaders(valid_cuts)
 
     if not params.print_diagnostics:
         scan_pessimistic_batches_for_oom(
             model=model,
             train_dl=train_dl,
             optimizer=optimizer,
-            sp=sp,
+            sp_tgt=sp_tgt,
             params=params,
+            warmup=0.0 if params.start_epoch == 1 else 1.0,
         )
 
     scaler = GradScaler(enabled=params.use_fp16)
@@ -1072,7 +1155,7 @@ def run(rank, world_size, args):
             model_avg=model_avg,
             optimizer=optimizer,
             scheduler=scheduler,
-            sp=sp,
+            sp_tgt=sp_tgt,
             train_dl=train_dl,
             valid_dl=valid_dl,
             scaler=scaler,
@@ -1107,6 +1190,7 @@ def display_and_save_batch(
     batch: dict,
     params: AttributeDict,
     sp: spm.SentencePieceProcessor,
+    sp_tgt: spm.SentencePieceProcessor,
 ) -> None:
     """Display the batch statistics and save the batch into disk.
 
@@ -1131,6 +1215,7 @@ def display_and_save_batch(
     logging.info(f"features shape: {features.shape}")
 
     y = sp.encode(supervisions["text"], out_type=int)
+    y_tgt = sp_tgt.encode(supervisions["tgt_text"], out_type=int)
     num_tokens = sum(len(i) for i in y)
     logging.info(f"num tokens: {num_tokens}")
 
@@ -1140,7 +1225,9 @@ def scan_pessimistic_batches_for_oom(
     train_dl: torch.utils.data.DataLoader,
     optimizer: torch.optim.Optimizer,
     sp: spm.SentencePieceProcessor,
+    sp_tgt: spm.SentencePieceProcessor,
     params: AttributeDict,
+    warmup: float,
 ):
     from lhotse.dataset import find_pessimistic_batches
 
@@ -1160,9 +1247,10 @@ def scan_pessimistic_batches_for_oom(
                     params=params,
                     model=model,
                     sp=sp,
+                    sp_tgt=sp_tgt,
                     batch=batch,
                     is_training=True,
-                    warmup=0.0,
+                    warmup=warmup,
                 )
             loss.backward()
             # clip_grad_norm_(model.parameters(), 5.0, 2.0)
@@ -1177,13 +1265,13 @@ def scan_pessimistic_batches_for_oom(
                     f"Failing criterion: {criterion} "
                     f"(={crit_values[criterion]}) ..."
                 )
-            display_and_save_batch(batch, params=params, sp=sp)
+            display_and_save_batch(batch, params=params, sp=sp, sp_tgt=sp_tgt)
             raise
 
 
 def main():
     parser = get_parser()
-    MGB2AsrDataModule.add_arguments(parser)
+    IWSLTDialectSTDataModule.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 
