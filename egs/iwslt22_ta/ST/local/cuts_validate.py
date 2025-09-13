@@ -11,7 +11,6 @@ from lhotse import RecordingSet, SupervisionSet, CutSet
 import argparse
 import logging
 from lhotse.qa import fix_manifests, validate_recordings_and_supervisions
-import pdb
 
 
 
@@ -98,7 +97,6 @@ def main():
     cuts = cuts.trim_to_supervisions(keep_overlapping=False, keep_all_channels=False)
     logging.info("Example from cut:")
     print(cuts[100])
-    breakpoint()
     cuts.describe()
     logging.info("Validating manifests for ASR")
     valid_asr(cuts)
