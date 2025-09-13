@@ -78,16 +78,13 @@ def get_args():
 def compute_fbank_gpu(args):
     src_dir = Path("data/manifests")
     output_dir = Path("data/fbank")
+    output_dir.mkdir(parents=True, exist_ok=True)
     num_jobs = os.cpu_count()
     num_mel_bins = 80
     sampling_rate = 16000
     sr = 16000
 
-    dataset_parts = (
-        "train",
-        "test1",
-        "dev",
-    )
+    dataset_parts = ("dev", "test1") if args.test else ("train", "test1", "dev")
     manifests = read_manifests_if_cached(
         prefix="iwslt-ta", dataset_parts=dataset_parts, output_dir=src_dir
     )

@@ -61,9 +61,7 @@ https://tensorboard.dev/experiment/yLE399ZPTzePG8B39jRyOw/
 
 |    Decoding method                 |     dev WER     |    test WER    | comment                                  |
 |------------------------------------|------------|------------|------------------------------------------|
-| modified beam search               | 47.6      | 51.2       | --epoch 20, --avg 10  |
-
-
+| modified beam search               | 40.8      | 44.4       | --epoch 20, --avg 10  |
 
 To reproduce the above result, use the following commands for training:
 
