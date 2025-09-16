@@ -27,11 +27,16 @@ Usage:
 - For non-streaming model:
 
 ./zipformer/export.py \
-  --exp-dir ./zipformer/exp \
-  --bpe-model data/lang_bpe_500/bpe.model \
-  --epoch 30 \
-  --avg 9 \
-  --jit 1
+  --exp-dir ./zipformer/exp-st-medium6 \
+  --bpe-model data/lang_bpe_en_1000/bpe.model \
+  --epoch 20 \
+  --avg 10 \
+    --use-averaged-model True \
+  --jit 1 \
+      --num-encoder-layers 2,2,2,2,2,2 \
+  --feedforward-dim 512,768,1024,1536,1024,768 \
+  --encoder-dim 192,256,384,512,384,256 \
+  --encoder-unmasked-dim 192,192,256,256,256,192 
 
 It will generate a file `jit_script.pt` in the given `exp_dir`. You can later
 load it by `torch.jit.load("jit_script.pt")`.
@@ -44,14 +49,19 @@ for how to use the exported models outside of icefall.
 - For streaming model:
 
 ./zipformer/export.py \
-  --exp-dir ./zipformer/exp \
+  --exp-dir ./zipformer/exp-st-medium6 \
   --causal 1 \
-  --chunk-size 16 \
+  --chunk-size 32 \
   --left-context-frames 128 \
-  --bpe-model data/lang_bpe_500/bpe.model \
-  --epoch 30 \
-  --avg 9 \
-  --jit 1
+  --bpe-model data/lang_bpe_en_1000/bpe.model \
+  --epoch 20 \
+  --avg 10 \
+--use-averaged-model True \
+  --jit 1 \
+  --num-encoder-layers 2,2,2,2,2,2 \
+  --feedforward-dim 512,768,1024,1536,1024,768 \
+  --encoder-dim 192,256,384,512,384,256 \
+  --encoder-unmasked-dim 192,192,256,256,256,192 
 
 It will generate a file `jit_script_chunk_16_left_128.pt` in the given `exp_dir`.
 You can later load it by `torch.jit.load("jit_script_chunk_16_left_128.pt")`.
@@ -65,40 +75,69 @@ for how to use the exported models outside of icefall.
 
 - For non-streaming model:
 
+
 ./zipformer/export.py \
-  --exp-dir ./zipformer/exp \
-  --bpe-model data/lang_bpe_500/bpe.model \
-  --epoch 30 \
-  --avg 9
+  --exp-dir ./zipformer/exp-st-medium6 \
+  --causal 0 \
+  --bpe-model data/lang_bpe_en_1000/bpe.model \
+  --epoch 20 \
+  --avg 10 \
+  --use-averaged-model True \
+  --num-encoder-layers 2,2,2,2,2,2 \
+  --feedforward-dim 512,768,1024,1536,1024,768 \
+  --encoder-dim 192,256,384,512,384,256 \
+  --encoder-unmasked-dim 192,192,256,256,256,192 
+
 
 - For streaming model:
 
 ./zipformer/export.py \
-  --exp-dir ./zipformer/exp \
+  --exp-dir ./zipformer/exp-st-medium6 \
   --causal 1 \
-  --bpe-model data/lang_bpe_500/bpe.model \
-  --epoch 30 \
-  --avg 9
+  --bpe-model data/lang_bpe_en_1000/bpe.model \
+  --epoch 20 \
+  --avg 10 \
+  --use-averaged-model True \
+  --num-encoder-layers 2,2,2,2,2,2 \
+  --feedforward-dim 512,768,1024,1536,1024,768 \
+  --encoder-dim 192,256,384,512,384,256 \
+  --encoder-unmasked-dim 192,192,256,256,256,192 
 
 It will generate a file `pretrained.pt` in the given `exp_dir`. You can later
 load it by `icefall.checkpoint.load_checkpoint()`.
 
 - For non-streaming model:
 
-To use the generated file with `zipformer/decode.py`,
+To use the generated file with `zipformer/decode_st.py`,
 you can do:
 
     cd /path/to/exp_dir
     ln -s pretrained.pt epoch-9999.pt
 
-    cd /path/to/egs/librispeech/ASR
+    cd /path/to/egs/iwslt_ta/ST
     ./zipformer/decode.py \
-        --exp-dir ./zipformer/exp \
+        --exp-dir ./zipformer/exp-st-medium6 \
         --epoch 9999 \
         --avg 1 \
-        --max-duration 600 \
+        --max-duration 800 \
         --decoding-method greedy_search \
-        --bpe-model data/lang_bpe_500/bpe.model
+        --bpe-model data/lang_bpe_en_1000/bpe.model \
+        --use-hat false
+        
+    ./zipformer/decode.py \
+        --exp-dir ./zipformer/exp-st-medium6 \
+        --epoch 9999 \
+        --avg 1 \
+        --beam-size 20 \
+        --max-duration 800 \
+        --decoding-method modified_beam_search \
+        --bpe-model data/lang_bpe_en_1000/bpe.model \
+        --use-hat false \
+        --use-averaged-model false \
+            --num-encoder-layers 2,2,2,2,2,2 \
+        --feedforward-dim 512,768,1024,1536,1024,768 \
+        --encoder-dim 192,256,384,512,384,256 \
+        --encoder-unmasked-dim 192,192,256,256,256,192 
 
 - For streaming model:
 
@@ -107,11 +146,11 @@ To use the generated file with `zipformer/decode.py` and `zipformer/streaming_de
     cd /path/to/exp_dir
     ln -s pretrained.pt epoch-9999.pt
 
-    cd /path/to/egs/librispeech/ASR
+    cd /path/to/egs/iwslt_ta/ST
 
     # simulated streaming decoding
     ./zipformer/decode.py \
-        --exp-dir ./zipformer/exp \
+        --exp-dir ./zipformer/exp-st-medium6 \
         --epoch 9999 \
         --avg 1 \
         --max-duration 600 \
@@ -119,11 +158,17 @@ To use the generated file with `zipformer/decode.py` and `zipformer/streaming_de
         --chunk-size 16 \
         --left-context-frames 128 \
         --decoding-method greedy_search \
-        --bpe-model data/lang_bpe_500/bpe.model
+        --bpe-model data/lang_bpe_en_1000/bpe.model \
+        --use-hat false \
+        --use-averaged-model false \
+        --num-encoder-layers 2,2,2,2,2,2 \
+        --feedforward-dim 512,768,1024,1536,1024,768 \
+        --encoder-dim 192,256,384,512,384,256 \
+        --encoder-unmasked-dim 192,192,256,256,256,192
 
     # chunk-wise streaming decoding
     ./zipformer/streaming_decode.py \
-        --exp-dir ./zipformer/exp \
+        --exp-dir ./zipformer/exp-st-medium6 \
         --epoch 9999 \
         --avg 1 \
         --max-duration 600 \
@@ -131,7 +176,13 @@ To use the generated file with `zipformer/decode.py` and `zipformer/streaming_de
         --chunk-size 16 \
         --left-context-frames 128 \
         --decoding-method greedy_search \
-        --bpe-model data/lang_bpe_500/bpe.model
+        --bpe-model data/lang_bpe_en_1000/bpe.model \
+        --use-hat false \
+        --use-averaged-model false \
+        --num-encoder-layers 2,2,2,2,2,2 \
+        --feedforward-dim 512,768,1024,1536,1024,768 \
+        --encoder-dim 192,256,384,512,384,256 \
+        --encoder-unmasked-dim 192,192,256,256,256,192
 
 Check ./pretrained.py for its usage.
 
@@ -139,17 +190,14 @@ Note: If you don't want to train a model from scratch, we have
 provided one for you. You can get it at
 
 - non-streaming model:
-https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-2023-05-15
+https://huggingface.co/AmirHussein/zipformer-iwslt22-Ta
 
-- streaming model:
-https://huggingface.co/Zengwei/icefall-asr-librispeech-streaming-zipformer-2023-05-17
 
 with the following commands:
 
     sudo apt-get install git-lfs
     git lfs install
-    git clone https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-2023-05-15
-    git clone https://huggingface.co/Zengwei/icefall-asr-librispeech-streaming-zipformer-2023-05-17
+    git clone https://huggingface.co/AmirHussein/zipformer-iwslt22-Ta
     # You will find the pre-trained models in exp dir
 """
 

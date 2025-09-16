@@ -65,7 +65,7 @@ You can find a pretrained model, training logs, decoding logs, and decoding resu
 |------------------------------------|------------|------------|------------------------------------------|
 | modified beam search               | 14.7	    | 12.4       | --epoch 20, --avg 10, beam(10),pruned range 5 |
 | modified beam search               | 15.5	    | 13      | --epoch 20, --avg 10, beam(20),pruned range 5 |
-| modified beam search               | 17.6	   | 14.8        | --epoch 20, --avg 10, beam(10), pruned range 10 |
+| modified beam search               | 18.2	   | 14.8        | --epoch 20, --avg 10, beam(20), pruned range 10 |
 
 
 
@@ -77,10 +77,10 @@ To reproduce the above result, use the following commands for training:
 
   ./zipformer/train.py \
     --world-size 4 \
-    --num-epochs 30 \
+    --num-epochs 25 \
     --start-epoch 1 \
     --use-fp16 1 \
-    --exp-dir zipformer/exp-st-medium-nohat800s-warmstep8k_baselr05_lrbatch5k_lrepoch6 \
+    --exp-dir zipformer/exp-st-medium \
     --causal 0 \
     --num-encoder-layers 2,2,2,2,2,2 \
     --feedforward-dim 512,768,1024,1536,1024,768 \
@@ -88,8 +88,8 @@ To reproduce the above result, use the following commands for training:
     --encoder-unmasked-dim 192,192,256,256,256,192 \
     --max-duration 800 \
     --prune-range 10 \
-    --warm-step 8000 \
-    --lr-epochs 6 \
+    --warm-step 5000 \
+    --lr-epochs 8 \
     --base-lr 0.055 \
     --use-hat False
   
@@ -106,7 +106,7 @@ for method in modified_beam_search; do
     ./zipformer/decode.py \
     --epoch $epoch \
     --beam-size 20 \
-    --avg 13 \
+    --avg 10 \
     --exp-dir ./zipformer/exp-st-medium-prun10 \
     --max-duration 800 \
     --decoding-method $method \
@@ -115,7 +115,8 @@ for method in modified_beam_search; do
     --encoder-dim 192,256,384,512,384,256 \
     --encoder-unmasked-dim 192,192,256,256,256,192 \
     --context-size 2 \
-      --use-averaged-model true
+    --use-averaged-model true \
+    --use-hat False
 done
 done
 ```
