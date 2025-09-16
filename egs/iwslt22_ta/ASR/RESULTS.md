@@ -1,6 +1,7 @@
 # Results
 
 
+
 ### IWSLT Tunisian training results (Stateless Pruned Transducer)
 
 #### 2023-06-01
@@ -8,7 +9,7 @@
 
 |    Decoding method                 |     dev WER     |    test WER    | comment                                  |
 |------------------------------------|------------|------------|------------------------------------------|
-| modified beam search               | 47.6      | 51.2       | --epoch 20, --avg 10  |
+| modified beam search               | 47.6      | 51.2       | --epoch 20, --avg 13  |
 
 The training command for reproducing is given below:
 
@@ -54,14 +55,14 @@ done
 
 #### 2023-06-01
 
-You can find a pretrained model, training logs, decoding logs, and decoding results at:
-https://tensorboard.dev/experiment/yLE399ZPTzePG8B39jRyOw/
+You can find a pretrained model, training logs, decoding logs, and decoding results at: 
+<https://huggingface.co/AmirHussein/zipformer-iwslt22-Ta>
 
 
 
 |    Decoding method                 |     dev WER     |    test WER    | comment                                  |
 |------------------------------------|------------|------------|------------------------------------------|
-| modified beam search               | 40.8      | 44.4       | --epoch 20, --avg 10  |
+| modified beam search               | 40.8      | 44.1       | --epoch 20, --avg 13  |
 
 To reproduce the above result, use the following commands for training:
 
@@ -70,7 +71,7 @@ To reproduce the above result, use the following commands for training:
 ```
 export CUDA_VISIBLE_DEVICES="0,1"
 ./zipformer/train.py \
-  --world-size 2 \
+  --world-size 4 \
   --num-epochs 20 \
   --start-epoch 1 \
   --use-fp16 1 \
@@ -82,7 +83,7 @@ export CUDA_VISIBLE_DEVICES="0,1"
   --encoder-unmasked-dim 192,192,256,256,256,192 \
   --max-duration 800 \
   --prune-range 10
-  
+
 ```
 
 The decoding command is:
@@ -99,7 +100,7 @@ for method in modified_beam_search; do
  	--num-encoder-layers 2,2,2,2,2,2 \
  	--feedforward-dim 512,768,1024,1536,1024,768 \
  	--encoder-dim 192,256,384,512,384,256 \
- 	--encoder-unmasked-dim 192,192,256,256,256,192
+ 	--encoder-unmasked-dim 192,192,256,256,256,192 \
   --use-averaged-model true
  done
 ```

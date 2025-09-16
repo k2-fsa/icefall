@@ -57,7 +57,8 @@ done
 
 #### 2023-06-01
 
-You can find a pretrained model, training logs, decoding logs, and decoding results at:
+You can find a pretrained model, training logs, decoding logs, and decoding results at: 
+<https://huggingface.co/AmirHussein/zipformer-iwslt22-Ta>
 
 
 
@@ -95,8 +96,6 @@ To reproduce the above result, use the following commands for training:
   
 ```
 
-The tensorboard training log can be found at
-https://tensorboard.dev/experiment/4sa4M1mRQyKjOE4o95mWUw/
 
 The decoding command is:
 
