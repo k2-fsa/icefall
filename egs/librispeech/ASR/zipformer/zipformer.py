@@ -854,7 +854,10 @@ dropout:
         )
         self.num_layers = num_layers
 
-        self.residual_scale = nn.Parameter(0.5 * torch.ones(encoder_layer.embed_dim))
+        self.residual_scales = nn.Parameter(
+            torch.cat([ 0.25 * torch.ones(1, encoder_layer.embed_dim),
+                        (0.25 / (num_layers - 1) ) * torch.ones(num_layers - 1, encoder_layer.embed_dim)],
+                      dim=0))
 
         self.copy_bypass = Identity()
 
@@ -904,8 +907,13 @@ dropout:
 
         num_layers = len(self.layers)
         src_orig = src
+        src_with_bypass = 0.0
 
         for i, mod in enumerate(self.layers):
+            residual_scale = limit_param_value(self.residual_scales[i], min=0.0,
+                                               max=0.9 if i == 0 else  1. / num_layers)
+
+            src_with_bypass = src_with_bypass + self.residual_scales[i] * src
             src = mod(
                 src,
                 pos_emb,
@@ -915,40 +923,30 @@ dropout:
                 aux_loss_scale=aux_loss_scale/num_layers,
             )
 
-        src, src_sd = self.add_residual(src_orig_fulldim, src_orig, src, aux_loss_scale, src_key_padding_mask)
-        # The above is equivalent to:
-        #  src = src_orig_fulldim + self.proj((src - src_orig) * self.residual_scale, transpose=True)
-        # .. but with extra losses.
+        residual_scale = limit_param_value(1. - self.residual_scales.sum(dim=0),
+                                           min=0.1, max=1.0)
+        src_with_bypass = src_with_bypass + self.residual_scales[i] * src
+
+        offset = src_with_bypass - src_orig
+
+        src = src_orig_fulldim + self.proj(offset, transpose=True)
+        # in effect src_orig_fulldim already contains src_orig with a scale of 1 for the missing dims,
+        # because of some identities involving orthogonal matrices.
+
+        if aux_loss_scale:
+            src = with_loss(src,
+                            self.offset_cosine_loss(offset.permute(1, 0, 2),
+                                                    aux_loss_scale, src_key_padding_mask) +
+                            self.cosine_loss(src.permute(1, 0, 2),
+                                             aux_loss_scale, src_key_padding_mask),
+                            None)
+
+        src_sd = self.sd_proj(offset)
 
         if hasattr(self, 'out_proj'):
             src = self.out_proj(src)
 
         return src, src_sd
-
-
-    def add_residual(
-            self,
-            src_orig_fulldim,
-            src_orig,
-            src,
-            aux_loss_scale: float,
-            src_key_padding_mask: Optional[Tensor]) -> Tuple[Tensor, Tensor]:
-        # return: (tot, src_sd)
-        residual_scale = limit_param_value(self.residual_scale, min=0.1, max=1.0, training=self.training)
-        offset = (src - src_orig) * residual_scale
-
-        tot = src_orig_fulldim + self.proj(offset, transpose=True)
-
-        if aux_loss_scale:
-            tot = with_loss(tot,
-                            self.offset_cosine_loss(offset.permute(1, 0, 2),
-                                                    aux_loss_scale, src_key_padding_mask) +
-                            self.cosine_loss(tot.permute(1, 0, 2),
-                                             aux_loss_scale, src_key_padding_mask),
-                            None)
-
-        src_sd = self.sd_proj(offset)
-        return tot, src_sd
 
 
     def streaming_forward(
