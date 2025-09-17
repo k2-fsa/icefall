@@ -911,9 +911,8 @@ dropout:
 
         for i, mod in enumerate(self.layers):
             residual_scale = limit_param_value(self.residual_scales[i], min=0.0,
-                                               max=0.9 if i == 0 else  1. / num_layers)
-
-            src_with_bypass = src_with_bypass + self.residual_scales[i] * src
+                                               max=1.0)
+            src_with_bypass = src_with_bypass + residual_scale * src
             src = mod(
                 src,
                 pos_emb,
@@ -925,7 +924,7 @@ dropout:
 
         residual_scale = limit_param_value(1. - self.residual_scales.sum(dim=0),
                                            min=0.1, max=1.0)
-        src_with_bypass = src_with_bypass + self.residual_scales[i] * src
+        src_with_bypass = src_with_bypass + residual_scale * src
 
         offset = src_with_bypass - src_orig
 
