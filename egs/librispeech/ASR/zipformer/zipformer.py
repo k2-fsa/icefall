@@ -855,8 +855,9 @@ dropout:
         self.num_layers = num_layers
 
         self.residual_scales = nn.Parameter(
-            torch.cat([ 0.25 * torch.ones(1, encoder_layer.embed_dim),
-                        (0.25 / (num_layers - 1) ) * torch.ones(num_layers - 1, encoder_layer.embed_dim)],
+            torch.cat([ -1.0 * torch.ones(1, encoder_layer.embed_dim),
+                        (0.25 / (num_layers - 1) ) * torch.ones(num_layers - 1, encoder_layer.embed_dim),
+                        0.75 * torch.ones(1, encoder_layer.embed_dim) ],
                       dim=0))
 
         self.copy_bypass = Identity()
@@ -907,11 +908,12 @@ dropout:
 
         num_layers = len(self.layers)
         src_orig = src
-        src_with_bypass = 0.0
+
+        residual_scale = limit_param_value(self.residual_scales[0],
+                                           min=-1.0, max=0.0)
+        src_with_bypass = residual_scale * src
 
         for i, mod in enumerate(self.layers):
-            residual_scale = limit_param_value(self.residual_scales[i], min=0.0,
-                                               max=1.0)
             src_with_bypass = src_with_bypass + residual_scale * src
             src = mod(
                 src,
@@ -921,12 +923,13 @@ dropout:
                 src_key_padding_mask=src_key_padding_mask,
                 aux_loss_scale=aux_loss_scale/num_layers,
             )
+            residual_scale = limit_param_value(self.residual_scales[i + 1],
+                                               min=0.0 if i + 1 < num_layers else 0.1,
+                                               max=1.0)
+            src_with_bypass = src_with_bypass + residual_scale * src
 
-        residual_scale = limit_param_value(1. - self.residual_scales.sum(dim=0),
-                                           min=0.1, max=1.0)
-        src_with_bypass = src_with_bypass + residual_scale * src
 
-        offset = src_with_bypass - src_orig
+        offset = src_with_bypass
 
         src = src_orig_fulldim + self.proj(offset, transpose=True)
         # in effect src_orig_fulldim already contains src_orig with a scale of 1 for the missing dims,
