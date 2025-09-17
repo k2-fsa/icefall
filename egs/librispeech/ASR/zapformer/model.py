@@ -169,7 +169,7 @@ class AsrModel(nn.Module):
 
         encoder_out, encoder_out_lens = self.encoder(x, x_lens, src_key_padding_mask,
                                                      aux_loss_scale=aux_loss_scale,
-                                                     sd_prob=(0.1 if self.training else 0.0))
+                                                     sd_prob=0.0)
 
         predict_loss = self.compute_predict_loss(encoder_out, src_key_padding_mask[:, ::2], specaug_mask[:, ::2])
 

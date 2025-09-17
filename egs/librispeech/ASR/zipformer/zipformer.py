@@ -168,7 +168,7 @@ class Zipformer2(EncoderInterface):
                 feedforward_multiple=feedforward_multiple[i],
                 dropout=dropout,
                 cnn_module_kernel=cnn_module_kernel[i],
-                num_conv_modules=(2 if downsampling_factor[i] <= 2 else (1 if downsampling_factor[i] <= 4 else 0)),
+                num_conv_modules=(2 if downsampling_factor[i] <= 2 else 1),
                 causal=causal,
             )
 
@@ -179,7 +179,7 @@ class Zipformer2(EncoderInterface):
                 num_encoder_layers[i],
                 dim=downsampling_factor[i]*input_dim,
                 pos_dim=pos_dim,
-                out_proj=(downsampling_factor + (output_downsampling_factor,))[i+1] < downsampling_factor[i],
+                out_proj=False, #  (downsampling_factor + (output_downsampling_factor,))[i+1] < downsampling_factor[i],
             )
 
             encoders.append(encoder)
