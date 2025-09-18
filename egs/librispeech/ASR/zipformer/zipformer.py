@@ -910,7 +910,7 @@ dropout:
         src_orig = src
 
         residual_scale = limit_param_value(self.residual_scales[0],
-                                           min=-1.0, max=0.0)
+                                           min=-1.0, max=-0.5)
         src_with_bypass = residual_scale * src
 
         for i, mod in enumerate(self.layers):
