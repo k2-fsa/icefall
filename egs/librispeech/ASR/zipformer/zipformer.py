@@ -913,7 +913,6 @@ dropout:
         src_with_bypass = residual_scale * src
 
         for i, mod in enumerate(self.layers):
-            src_with_bypass = src_with_bypass + residual_scale * src
             src = mod(
                 src,
                 pos_emb,
