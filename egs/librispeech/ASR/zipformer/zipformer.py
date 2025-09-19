@@ -856,8 +856,7 @@ dropout:
 
         self.residual_scales = nn.Parameter(
             torch.cat([ -1.0 * torch.ones(1, encoder_layer.embed_dim),
-                        (0.25 / (num_layers - 1) ) * torch.ones(num_layers - 1, encoder_layer.embed_dim),
-                        0.75 * torch.ones(1, encoder_layer.embed_dim) ],
+                        (1. / num_layers) * torch.ones(num_layers, encoder_layer.embed_dim)],
                       dim=0))
 
         self.copy_bypass = Identity()
@@ -924,7 +923,7 @@ dropout:
                 aux_loss_scale=aux_loss_scale/num_layers,
             )
             residual_scale = limit_param_value(self.residual_scales[i + 1],
-                                               min=0.0 if i + 1 < num_layers else 0.1,
+                                               min=0.05 if i + 1 < num_layers else 0.1,
                                                max=1.0)
             src_with_bypass = src_with_bypass + residual_scale * src
 
