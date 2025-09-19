@@ -881,7 +881,7 @@ def get_transducer_model(params: AttributeDict) -> nn.Module:
         text_encoder=text_encoder,
         decoder=decoder,
         joiner=joiner,
-        encoder_dim=int(max(params.encoder_dim.split(","))),
+        encoder_dim=max(_to_int_tuple(params.encoder_dim)),
         decoder_dim=params.decoder_dim,
         joiner_dim=params.joiner_dim,
         vocab_size=params.vocab_size,
