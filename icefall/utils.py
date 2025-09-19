@@ -1,6 +1,7 @@
 # Copyright      2021  Xiaomi Corp.        (authors: Fangjun Kuang,
 #                                                    Mingshuang Luo,
 #                                                    Zengwei Yao)
+#               2023 Johns Hopkins University (authors: Amir Hussein)
 #
 # See ../../LICENSE for clarification regarding multiple authors
 #
@@ -626,6 +627,57 @@ def store_transcripts_and_timestamps(
                     # each element is a float number
                     s = "[" + ", ".join(["%0.3f" % i for i in time_hyp]) + "]"
                 print(f"{cut_id}:\ttimestamp_hyp={s}", file=f)
+
+
+def store_translations(
+    filename: Pathlike, texts: Iterable[Tuple[str, str, str]],
+    lowercase: bool = True) -> None:
+    """Save predicted results and reference transcripts to a file.
+
+    Args:
+      filename:
+        File to save the results to.
+      texts:
+        An iterable of tuples. The first element is the cur_id, the second is
+        the reference transcript and the third element is the reference translation
+        and the fourth element is the predicted result.
+    Returns:
+      Return None.
+    """
+    bleu = BLEU(lowercase=lowercase)
+    hyp_list = []
+    ref_list = []
+    dir_ = os.path.dirname(filename)
+    reftgt = os.path.join(dir_, "reftgt-" + str(os.path.basename(filename))) 
+    refsrc = os.path.join(dir_, "refsrc-"+str(os.path.basename(filename)))
+    hyp = os.path.join(dir_, "hyp-"+str( os.path.basename(filename)))
+    bleu_file = os.path.join(dir_, "bleu-"+str( os.path.basename(filename)))
+    with open(filename, "w") as f, open(reftgt, "w") as f_tgt, open(hyp, "w") as f_hyp, open(refsrc, "w") as f_src:
+        for cut_id, ref, ref_tgt, hyp in texts:
+            ref = " ".join(ref)
+            ref_tgt = " ".join(ref_tgt)
+            hyp = " ".join(hyp)
+            print(f"{cut_id}: ref {ref}", file=f)
+            print(f"{cut_id}: ref_tgt {ref_tgt}", file=f)
+            print(f"{cut_id}: hyp {hyp}", file=f)
+            print("\n", file=f)
+    
+
+            print(f"{ref}", file=f_src)
+            print(f"{ref_tgt}", file=f_tgt)
+            print(f"{hyp}", file=f_hyp)
+
+            hyp_list.append(hyp)
+            ref_list.append(ref_tgt)
+
+    with open(bleu_file, 'w') as b:
+        print(str(bleu.corpus_score(hyp_list, [ref_list])), file=b)
+        print(f"BLEU signiture: {str(bleu.get_signature())}", file=b)
+        
+    logging.info(
+            f"[{bleu.corpus_score(hyp_list, [ref_list])}] "
+            f"BLEU signiture: {str(bleu.get_signature())}"
+        )
 
 
 def write_error_stats(

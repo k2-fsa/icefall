@@ -1,0 +1,1 @@
+../../ST/zipformer/jit_pretrained.py

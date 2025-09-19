@@ -1,0 +1,1 @@
+../../ST/zipformer/generate_averaged_model.py
