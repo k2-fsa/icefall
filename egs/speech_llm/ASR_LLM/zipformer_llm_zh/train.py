@@ -18,20 +18,21 @@
 # limitations under the License.
 """
 Usage:
-torchrun --nproc_per_node 8 ./whisper_llm_zh/train.py \
+torchrun --nproc_per_node 8 ./zipformer_llm_zh/train.py \
   --max-duration 200 \
-  --exp-dir ./whisper_llm_zh/exp_test \
-  --speech-encoder-path-or-name models/whisper/exp_large_v2/whisper-large-v2-aishell1-epoch-10-avg-6.pt \
+  --exp-dir ./zipformer_llm_zh/exp_test \
+  --speech-encoder-path-or-name models/zipformer/exp/epoch-999.pt \
   --llm-path-or-name Qwen/Qwen2-1.5B-Instruct \
   --manifest-dir data/fbank \
   --deepspeed \
-  --deepspeed_config ./whisper_llm_zh/ds_config_zero1.json \
+  --deepspeed_config ./zipformer_llm_zh/ds_config_zero1.json \
   --use-flash-attn True \
   --use-lora True \
   --unfreeze-llm True
 """
 
 import argparse
+import gc
 import logging
 import os
 import warnings
@@ -42,7 +43,6 @@ import deepspeed
 import torch
 import torch.nn as nn
 import transformers
-import whisper
 from asr_datamodule import AsrDataModule
 from deepspeed.utils.zero_to_fp32 import convert_zero_checkpoint_to_fp32_state_dict
 from lhotse.cut import Cut
@@ -50,10 +50,12 @@ from lhotse.utils import fix_random_seed
 from model import IGNORE_TOKEN_ID, SPEECH_LLM, EncoderProjector
 from multi_dataset import MultiDataset
 from peft import LoraConfig, get_peft_model
+from scaling import ScheduledFloat
+from subsampling import Conv2dSubsampling
 from torch import Tensor
 from torch.utils.tensorboard import SummaryWriter
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from whisper_encoder_forward_monkey_patch import replace_whisper_encoder_forward
+from zipformer import Zipformer2
 
 from icefall.dist import get_rank, get_world_size
 from icefall.env import get_env_info
@@ -79,14 +81,14 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--speech-encoder-path-or-name",
         type=str,
-        default="whisper-large-v2",
+        default="zipformer",
         help="Path or name of the speech encoder.",
     )
 
     parser.add_argument(
         "--encoder-projector-ds-rate",
         type=int,
-        default=8,
+        default=4,
         help="Downsample rate for the encoder projector.",
     )
     parser.add_argument(
@@ -109,6 +111,185 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         default=False,
         help="Whether to unfreeze llm during training.",
     )
+
+    # Zipformer
+    parser.add_argument(
+        "--num-encoder-layers",
+        type=str,
+        default="2,2,3,4,3,2",
+        help="Number of zipformer encoder layers per stack, comma separated.",
+    )
+
+    parser.add_argument(
+        "--downsampling-factor",
+        type=str,
+        default="1,2,4,8,4,2",
+        help="Downsampling factor for each stack of encoder layers.",
+    )
+
+    parser.add_argument(
+        "--feedforward-dim",
+        type=str,
+        default="512,768,1024,1536,1024,768",
+        help="Feedforward dimension of the zipformer encoder layers, per stack, comma separated.",
+    )
+
+    parser.add_argument(
+        "--num-heads",
+        type=str,
+        default="4,4,4,8,4,4",
+        help="Number of attention heads in the zipformer encoder layers: a single int or comma-separated list.",
+    )
+
+    parser.add_argument(
+        "--encoder-dim",
+        type=str,
+        default="192,256,384,512,384,256",
+        help="Embedding dimension in encoder stacks: a single int or comma-separated list.",
+    )
+
+    parser.add_argument(
+        "--query-head-dim",
+        type=str,
+        default="32",
+        help="Query/key dimension per head in encoder stacks: a single int or comma-separated list.",
+    )
+
+    parser.add_argument(
+        "--value-head-dim",
+        type=str,
+        default="12",
+        help="Value dimension per head in encoder stacks: a single int or comma-separated list.",
+    )
+
+    parser.add_argument(
+        "--pos-head-dim",
+        type=str,
+        default="4",
+        help="Positional-encoding dimension per head in encoder stacks: a single int or comma-separated list.",
+    )
+
+    parser.add_argument(
+        "--pos-dim",
+        type=int,
+        default="48",
+        help="Positional-encoding embedding dimension",
+    )
+
+    parser.add_argument(
+        "--encoder-unmasked-dim",
+        type=str,
+        default="192,192,256,256,256,192",
+        help="Unmasked dimensions in the encoders, relates to augmentation during training.  "
+        "A single int or comma-separated list.  Must be <= each corresponding encoder_dim.",
+    )
+
+    parser.add_argument(
+        "--cnn-module-kernel",
+        type=str,
+        default="31,31,15,15,15,31",
+        help="Sizes of convolutional kernels in convolution modules in each encoder stack: "
+        "a single int or comma-separated list.",
+    )
+
+    parser.add_argument(
+        "--causal",
+        type=str2bool,
+        default=False,
+        help="If True, use causal version of model.",
+    )
+
+    parser.add_argument(
+        "--chunk-size",
+        type=str,
+        default="16,32,64,-1",
+        help="Chunk sizes (at 50Hz frame rate) will be chosen randomly from this list during training. "
+        " Must be just -1 if --causal=False",
+    )
+
+    parser.add_argument(
+        "--left-context-frames",
+        type=str,
+        default="64,128,256,-1",
+        help="Maximum left-contexts for causal training, measured in frames which will "
+        "be converted to a number of chunks.  If splitting into chunks, "
+        "chunk left-context frames will be chosen randomly from this list; else not relevant.",
+    )
+
+
+def load_model_params(ckpt: str, model: nn.Module, module: str, strict: bool = True):
+    """Load model params from checkpoint
+
+    Args:
+        ckpt (str): Path to the checkpoint
+        model (nn.Module): model to be loaded
+        module (str): Module to be initialized
+
+    """
+    logging.info(f"Loading checkpoint from {ckpt}")
+    checkpoint = torch.load(ckpt, map_location="cpu")
+
+    src_state_dict = checkpoint["model"]
+    dst_state_dict = model.state_dict()
+    logging.info(f"Loading parameters starting with prefix {module}")
+    module_prefix = module.strip() + "."
+    src_keys = [
+        k[len(module_prefix) :]
+        for k in src_state_dict.keys()
+        if k.startswith(module_prefix)
+    ]
+    dst_keys = [k for k in dst_state_dict.keys()]
+    assert set(src_keys) == set(dst_keys)  # two sets should match exactly
+    for key in src_keys:
+        dst_state_dict[key] = src_state_dict.pop(module_prefix + key)
+
+    model.load_state_dict(dst_state_dict, strict=strict)
+
+    return None
+
+
+def _to_int_tuple(s: str):
+    return tuple(map(int, s.split(",")))
+
+
+def get_encoder_embed(params: AttributeDict) -> nn.Module:
+    # encoder_embed converts the input of shape (N, T, num_features)
+    # to the shape (N, (T - 7) // 2, encoder_dims).
+    # That is, it does two things simultaneously:
+    #   (1) subsampling: T -> (T - 7) // 2
+    #   (2) embedding: num_features -> encoder_dims
+    # In the normal configuration, we will downsample once more at the end
+    # by a factor of 2, and most of the encoder stacks will run at a lower
+    # sampling rate.
+    encoder_embed = Conv2dSubsampling(
+        in_channels=params.feature_dim,
+        out_channels=_to_int_tuple(params.encoder_dim)[0],
+        dropout=ScheduledFloat((0.0, 0.3), (20000.0, 0.1)),
+    )
+    return encoder_embed
+
+
+def get_encoder_model(params: AttributeDict) -> nn.Module:
+    encoder = Zipformer2(
+        output_downsampling_factor=2,
+        downsampling_factor=_to_int_tuple(params.downsampling_factor),
+        num_encoder_layers=_to_int_tuple(params.num_encoder_layers),
+        encoder_dim=_to_int_tuple(params.encoder_dim),
+        encoder_unmasked_dim=_to_int_tuple(params.encoder_unmasked_dim),
+        query_head_dim=_to_int_tuple(params.query_head_dim),
+        pos_head_dim=_to_int_tuple(params.pos_head_dim),
+        value_head_dim=_to_int_tuple(params.value_head_dim),
+        pos_dim=params.pos_dim,
+        num_heads=_to_int_tuple(params.num_heads),
+        feedforward_dim=_to_int_tuple(params.feedforward_dim),
+        cnn_module_kernel=_to_int_tuple(params.cnn_module_kernel),
+        dropout=ScheduledFloat((0.0, 0.3), (20000.0, 0.1)),
+        warmup_batches=4000.0,
+        causal=params.causal,
+        chunk_size=_to_int_tuple(params.chunk_size),
+        left_context_frames=_to_int_tuple(params.left_context_frames),
+    )
+    return encoder
 
 
 def get_parser():
@@ -143,7 +324,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="whisper_qwen/exp",
+        default="zipformer_llm_zh/exp",
         help="""The experiment dir.
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
@@ -155,7 +336,7 @@ def get_parser():
         type=str,
         default=None,
         help="""The path to the pretrained model if it is not None. Training will
-        start from this model. e.g. ./wenetspeech/ASR/whisper/exp_large_v2/epoch-4-avg-3.pt
+        start from this model. e.g. ./wenetspeech/ASR/zipformer/exp/epoch-999.pt
         """,
     )
 
@@ -182,9 +363,19 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--shave-rate",
+        type=float,
+        default=0.1,
+        help="""The factor to reduce the batch when an OOM occurs.
+        If OOM persists for the same batch, this factor will be
+        progressively multiplied by 1.5. Set to 0 to disable.
+        """,
+    )
+
+    parser.add_argument(
         "--use-aishell",
         type=str2bool,
-        default=True,
+        default=False,
         help="Whether to only use aishell1 dataset for training.",
     )
 
@@ -220,7 +411,6 @@ def get_params() -> AttributeDict:
     params = AttributeDict(
         {
             "allowed_excess_duration_ratio": 0.1,
-            "subsampling_factor": 2,
             "frame_shift_ms": 10,
             "best_train_loss": float("inf"),
             "best_valid_loss": float("inf"),
@@ -230,6 +420,9 @@ def get_params() -> AttributeDict:
             "log_interval": 50,
             "reset_interval": 200,
             "valid_interval": 5000,
+            # parameters for zipformer
+            "feature_dim": 80,
+            "subsampling_factor": 4,  # not passed in, this is fixed.
             "env_info": get_env_info(),
         }
     )
@@ -316,13 +509,15 @@ def compute_loss(
         return input_ids, attention_mask, target_ids
 
     device = next(model.parameters()).device
-    feature = batch["inputs"]
 
-    assert feature.ndim == 3
-    feature = feature.to(device)
-    feature = feature.transpose(1, 2)  # (N, C, T)
+    features = batch["inputs"]
+    assert features.ndim == 3
+    if params.use_fp16:
+        features = features.half()
 
     supervisions = batch["supervisions"]
+    feature_lens = supervisions["num_frames"]
+
     texts = batch["supervisions"]["text"]
 
     messages = []
@@ -341,7 +536,8 @@ def compute_loss(
 
     with torch.set_grad_enabled(is_training):
         model_outputs, acc = model(
-            fbank=feature,
+            fbank=features.to(device),
+            fbank_lens=feature_lens.to(device),
             input_ids=input_ids.to(device),
             attention_mask=attention_mask.to(device),
             labels=target_ids.to(device),
@@ -352,7 +548,6 @@ def compute_loss(
     info = MetricsTracker()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        feature_lens = supervisions["num_frames"]
         info["frames"] = (feature_lens // params.subsampling_factor).sum().item()
 
     # Note: We use reduction=sum while computing the loss.
@@ -377,14 +572,13 @@ def compute_validation_loss(
     tot_loss = MetricsTracker()
 
     for batch_idx, batch in enumerate(valid_dl):
-        with torch.cuda.amp.autocast(enabled=params.use_fp16):
-            loss, loss_info = compute_loss(
-                params=params,
-                tokenizer=tokenizer,
-                model=model,
-                batch=batch,
-                is_training=False,
-            )
+        loss, loss_info = compute_loss(
+            params=params,
+            tokenizer=tokenizer,
+            model=model,
+            batch=batch,
+            is_training=False,
+        )
         assert loss.requires_grad is False
         tot_loss = tot_loss + loss_info
 
@@ -442,6 +636,23 @@ def train_one_epoch(
         The rank of the node in DDP training. If no DDP is used, it should
         be set to 0.
     """
+
+    def shave_batch(batch: dict, factor: float):
+        n_utt = len(batch["supervisions"]["text"])
+        skip_point = max(1, int(factor * n_utt))
+        if n_utt - skip_point <= 0:
+            return False
+        for key in batch["supervisions"].keys():
+            batch["supervisions"][key] = batch["supervisions"][key][skip_point:]
+        max_len = max(batch["supervisions"]["num_frames"]).item()
+        batch["inputs"] = batch["inputs"][skip_point:, :max_len]
+        return True
+
+    def free_gpu_cache():
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
     model.train()
     model.encoder.eval()
     if not params.unfreeze_llm:
@@ -452,6 +663,7 @@ def train_one_epoch(
     for batch_idx, batch in enumerate(train_dl):
         params.batch_idx_train += 1
         batch_size = len(batch["supervisions"]["text"])
+
         if batch_idx % params.valid_interval == 0:
             logging.info("Computing validation loss")
             valid_info = compute_validation_loss(
@@ -481,6 +693,9 @@ def train_one_epoch(
                     exclude_frozen_parameters=True,
                 )
 
+                if world_size > 1:
+                    torch.distributed.barrier()
+
                 if rank == 0:
                     convert_zero_checkpoint_to_fp32_state_dict(
                         params.exp_dir,
@@ -497,8 +712,13 @@ def train_one_epoch(
                     os.system(
                         f"rm -rf {params.exp_dir}/epoch-{params.cur_epoch}-checkpoint-{batch_idx}"
                     )
-        try:
-            with torch.cuda.amp.autocast(enabled=params.use_fp16):
+
+                if world_size > 1:
+                    torch.distributed.barrier()
+
+        shave_rate = params.shave_rate
+        while True:
+            try:
                 loss, loss_info = compute_loss(
                     params=params,
                     tokenizer=tokenizer,
@@ -506,21 +726,44 @@ def train_one_epoch(
                     batch=batch,
                     is_training=True,
                 )
-            # summary stats
-            tot_loss = (tot_loss * (1 - 1 / params.reset_interval)) + loss_info
 
-            # NOTE: We use reduction==sum and loss is computed over utterances
-            # in the batch and there is no normalization to it so far.
+                # NOTE: we use reduction==sum and loss is computed over utterances
+                # in the batch and there is no normalization to it so far.
+                # deepspeed's backward() is different from torch's backward()
+                model.backward(loss)
+                model.step()
 
-            # deepspeed's backward() is different from torch's backward()
-            # in that it does not accept a loss tensor as input.
-            # It computes the loss internally.
-            model.backward(loss)
-            model.step()
+                # summary stats
+                tot_loss = (tot_loss * (1 - 1 / params.reset_interval)) + loss_info
 
-        except:  # noqa
-            display_and_save_batch(batch, params=params)
-            raise
+                # finish this step
+                break
+            except Exception as e:
+                logging.warning(f"Caught exception: {e}")
+                if shave_rate <= 0 or (
+                    "CUDA" not in str(e)
+                    and "cuDNN error" not in str(e)
+                    and "NCCL error" not in str(e)
+                ):
+                    display_and_save_batch(batch, params=params)
+                    raise e
+
+            loss = None
+            loss_info = None
+
+            free_gpu_cache()
+
+            if shave_batch(batch, shave_rate):
+                logging.warning(
+                    f"Epoch {params.cur_epoch}, "
+                    f"batch {batch_idx}: {shave_rate * 100:.2f}% batch reduced",
+                )
+                shave_rate = min(shave_rate * 1.5, 0.5)
+            else:
+                raise RuntimeError(
+                    f"Epoch {params.cur_epoch}, "
+                    f"batch {batch_idx}: batch reduced to empty in retry"
+                )
 
         if batch_idx % params.log_interval == 0:
             try:
@@ -574,10 +817,16 @@ def run(rank, world_size, args):
 
     logging.info("About to create model")
 
-    replace_whisper_encoder_forward()
-    whisper_model = whisper.load_model(params.speech_encoder_path_or_name, "cpu")
-    speech_encoder = whisper_model.encoder
-    speech_encoder_dim = whisper_model.dims.n_audio_state
+    speech_encoder_embed = get_encoder_embed(params)
+    speech_encoder = get_encoder_model(params)
+    load_model_params(
+        params.speech_encoder_path_or_name, speech_encoder_embed, "encoder_embed"
+    )
+    load_model_params(params.speech_encoder_path_or_name, speech_encoder, "encoder")
+
+    speech_encoder_dim = max(_to_int_tuple(params.encoder_dim))
+    for name, param in speech_encoder_embed.named_parameters():
+        param.requires_grad = False
     for name, param in speech_encoder.named_parameters():
         param.requires_grad = False
 
@@ -634,13 +883,14 @@ def run(rank, world_size, args):
     )
 
     model = SPEECH_LLM(
+        speech_encoder_embed,
         speech_encoder,
         llm,
         encoder_projector,
     )
 
     if params.pretrained_model_path:
-        checkpoint = torch.load(params.pretrained_model_path, map_location="cpu", weights_only=False)
+        checkpoint = torch.load(params.pretrained_model_path, map_location="cpu")
         missing_keys, unexpected_keys = model.load_state_dict(checkpoint, strict=False)
 
     num_param = sum([p.numel() for p in model.parameters()])
@@ -692,18 +942,25 @@ def run(rank, world_size, args):
 
     sampler_state_dict = None
     if params.sampler_state_dict_path:
-        sampler_state_dict = torch.load(params.sampler_state_dict_path, weights_only=False)
+        sampler_state_dict = torch.load(params.sampler_state_dict_path)
         sampler_state_dict["max_duration"] = params.max_duration
 
     train_dl = data_module.train_dataloaders(
-        train_cuts, sampler_state_dict=sampler_state_dict
+        train_cuts,
+        sampler_state_dict=sampler_state_dict,
+        world_size=world_size,
+        rank=rank,
     )
 
     if params.use_aishell:
         valid_cuts = multi_dataset.aishell_dev_cuts()
     else:
         valid_cuts = multi_dataset.dev_cuts()
-    valid_dl = data_module.valid_dataloaders(valid_cuts)
+    valid_dl = data_module.valid_dataloaders(
+        valid_cuts,
+        world_size=world_size,
+        rank=rank,
+    )
 
     if args.tensorboard and rank == 0:
         tb_writer = SummaryWriter(log_dir=f"{params.exp_dir}/tensorboard")
@@ -740,6 +997,10 @@ def run(rank, world_size, args):
             client_state={},
             exclude_frozen_parameters=True,
         )
+
+        if world_size > 1:
+            torch.distributed.barrier()
+
         if rank == 0:
             convert_zero_checkpoint_to_fp32_state_dict(
                 params.exp_dir,
@@ -778,7 +1039,6 @@ def display_and_save_batch(
     logging.info(f"Saving batch to {filename}")
     torch.save(batch, filename)
 
-    supervisions = batch["supervisions"]
     features = batch["inputs"]
 
     logging.info(f"features shape: {features.shape}")
