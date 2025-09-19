@@ -641,15 +641,15 @@ def decode_dataset(
             del decode_streams[i]
 
     if params.decoding_method == "greedy_search":
-        key = "greedy_search"
+        key = "greedy-search"
     elif params.decoding_method == "fast_beam_search":
         key = (
-            f"beam_{params.beam}_"
-            f"max_contexts_{params.max_contexts}_"
-            f"max_states_{params.max_states}"
+            f"beam-{params.beam}_"
+            f"max-contexts-{params.max_contexts}_"
+            f"max-states-{params.max_states}"
         )
     elif params.decoding_method == "modified_beam_search":
-        key = f"num_active_paths_{params.num_active_paths}"
+        key = f"num-active-paths-{params.num_active_paths}"
     else:
         raise ValueError(f"Unsupported decoding method: {params.decoding_method}")
     return {key: decode_results}
@@ -665,7 +665,7 @@ def save_asr_output(
     """
     for key, results in results_dict.items():
         recogs_filename = (
-            params.res_dir / f"recogs-{test_set_name}-{key}-{params.suffix}.txt"
+            params.res_dir / f"recogs-{test_set_name}_{key}_{params.suffix}.txt"
         )
         results = sorted(results)
         store_transcripts(filename=recogs_filename, texts=results)
@@ -685,11 +685,11 @@ def save_wer_results(
         # The following prints out WERs, per-word error statistics and aligned
         # ref/hyp pairs.
         errs_filename = (
-            params.res_dir / f"errs-{test_set_name}-{key}-{params.suffix}.txt"
+            params.res_dir / f"errs-{test_set_name}_{key}_{params.suffix}.txt"
         )
         with open(errs_filename, "w", encoding="utf8") as fd:
             wer = write_error_stats(
-                fd, f"{test_set_name}-{key}", results, enable_log=True
+                fd, f"{test_set_name}_{key}", results, enable_log=True
             )
             test_set_wers[key] = wer
 
@@ -698,7 +698,7 @@ def save_wer_results(
     test_set_wers = sorted(test_set_wers.items(), key=lambda x: x[1])
 
     wer_filename = (
-        params.res_dir / f"wer-summary-{test_set_name}-{key}-{params.suffix}.txt"
+        params.res_dir / f"wer-summary_{test_set_name}_{key}_{params.suffix}.txt"
     )
     with open(wer_filename, "w", encoding="utf8") as fd:
         print("settings\tWER", file=fd)
@@ -729,9 +729,9 @@ def main():
     params.res_dir = params.exp_dir / "streaming" / params.decoding_method
 
     if params.iter > 0:
-        params.suffix = f"iter-{params.iter}-avg-{params.avg}"
+        params.suffix = f"iter-{params.iter}_avg-{params.avg}"
     else:
-        params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
+        params.suffix = f"epoch-{params.epoch}_avg-{params.avg}"
 
     assert params.causal, params.causal
     assert "," not in params.chunk_size, "chunk_size should be one value in decoding."
