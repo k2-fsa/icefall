@@ -167,6 +167,19 @@ def momentum_step(group, p, state, grad):
         stored_delta = torch.zeros(*p.shape, device=p.device, dtype=torch.float)
         state["delta"] = stored_delta
 
+    # 1.2533141373155001 is sqrt(pi/2) which is a correction factor for the
+    # ratio of (rms value / abs value) of a normal distribution, made when we
+    # switched from using rms values to abs value for purposes of scaling.  This
+    # does not apply to scalar parameters (p.numel() == p.shape[0], dimension 0
+    # is the same-sized-parameter-tensor batch dimension), which are not subject
+    # to scaling by inverse-absolute-values.  The update is going to get
+    # multiplied by the mean-absolute-value, i.e. the scaling factor, which is
+    # equal to sqrt(2/pi) times the rms value for normally distributed data, and
+    # we want the step size to be the same as before for normally distributed
+    # data, which means we need to multiply by sqrt(pi/2).
+    lr = (1.2533141373155001 * lr if p.numel() > p.shape[0] else lr)
+
+
     stored_delta.mul_(beta1).add_(delta)
     return ((-lr * (1-direct) * (1-beta1)) * stored_delta) + ((-lr * direct) * delta)
 
@@ -187,13 +200,16 @@ def forward_transform_param(group, p):
         return p.reshape(batch_size, 1) / group["scalar_lr_scale"]
 
     is_weight = (p.ndim > 2)
-    min_rms = group["weight_min_rms"] if is_weight else group["bias_min_rms"]
+    # 0.7978845608028654 is sqrt(2/pi) which is a correction factor for the ratio of (abs value / rms value)
+    # of a normal distribution, made when we switched from using rms values to abs value for purposes
+    # of scaling.
+    min_scale = 0.7978845608028654 * (group["weight_min_scale"] if is_weight else group["bias_min_scale"])
     p_flat = p.reshape(batch_size, numel)
-    sumsq = (p_flat ** 2).sum(dim=1, keepdim=True)
-    min_sumsq = (min_rms ** 2) * numel  # if sumsq is less than this we pad with an extra element.
-    sumsq_clamped = sumsq.clamp(min=min_sumsq)
-    pad = (sumsq_clamped - sumsq).sqrt()
-    scale = (sumsq_clamped / numel).sqrt()  # must be nonzero thanks to min_rms
+    abs_sum = p_flat.abs().sum(dim=1, keepdim=True)
+    min_abs_sum = min_scale * numel    # if sumsq is less than this we pad with an extra element.
+    abs_sum_clamped = abs_sum.clamp(min=min_abs_sum)
+    pad = (abs_sum_clamped - abs_sum)
+    scale = (abs_sum_clamped / numel)   # must be nonzero thanks to min_abs_sum
 
     # scaling_lr_scale is to control the learning-rate of scaling factors.
     # log_scale controls the overall scale of this tensor
@@ -209,12 +225,21 @@ def reverse_transform_param(group, p, orig_shape):
     # numel is num elements of each parameter tensor in the batch.
     numel = p.shape[1] - 2
     p_padded = p[:, :numel+1]  # orig tensor plus one padding element
-    p_padded = p_padded / ((p_padded ** 2).sum(dim=1, keepdim=True) / numel).sqrt()  # normalize rms to 1.
+    # the next line normalizes the scale to 1, because the update step will have
+    # changed it slightly versus the normalized state that forward_transform_param
+    # put it into.   The correction factor (numel + 1) / numel is to account
+    # for the fact that it's actuallty the sum() / numel that should equal 1,
+    # but we prefer to use mean to avoid out-of-range numerical errors for large tensors
+    # if this code gets used in fp16 in the future.
+    p_padded = p_padded / (p_padded.abs().mean(dim=1, keepdim=True) * ((numel + 1) / numel))
 
     is_weight = (len(orig_shape) > 2)
-    max_rms = group["weight_max_rms"] if is_weight else group["bias_max_rms"]
-    min_rms = group["weight_min_rms"] if is_weight else group["bias_min_rms"]
-    scale = (p[:, numel+1:numel+2] * group["scaling_lr_scale"]).exp().clamp(min=min_rms, max=max_rms)
+    # 0.7978845608028654 is sqrt(2/pi) which is a correction factor for the ratio of (abs value / rms value)
+    # of a normal distribution, made when we switched from using rms values to abs value for purposes
+    # of scaling.
+    max_scale = 0.7978845608028654 * (group["weight_max_scale"] if is_weight else group["bias_max_scale"])
+    min_scale = 0.7978845608028654 * (group["weight_min_scale"] if is_weight else group["bias_min_scale"])
+    scale = (p[:, numel+1:numel+2] * group["scaling_lr_scale"]).exp().clamp(min=min_scale, max=max_scale)
 
     q = p_padded[:, :-1] * scale  # the :-1 is to remove the padding element.
     q = q.reshape(*orig_shape)
@@ -362,11 +387,13 @@ class TransformedAdam(BatchedOptimizer):
                    would be a the scaling factor on the learning rate of p_scale.
      scalar_lr_scale: A scaling factor on the learning rate, that we use to update scalar tensors.
               eps:  A general-purpose epsilon to prevent division by zero
-    weight_min_rms: Minimum root-mean-square value of weight tensors, for purposes of
-                   learning the scale on the parameters. Weight tensors are defined
-                   as anything with more than one element and ndim > 1.
-     bias_min_rms: Minimum root-mean-square value of bias tensors, defined as anything with
-                   more than one element and exactly one tensor dimension i.e. ndim == 1.
+    weight_min_scale, weight_max_scale: Minimum and maximum respectively of weight tensor
+                   scales (mean-absolute-value), for purposes of
+                   learning the scale on the parameters. Weight tensors, as distinct from bias
+                   tensors and scalars, are defined as anything with more than one element and ndim > 1.
+     bias_min_scale, bias_max_scale: Minimum and maximum respetively of bias tensor scales,
+                defined as anything with more than one element and exactly one tensor dimension i.e.
+                ndim == 1.
       debug_interval: if >0, write some statistics to tensorboard every this-many steps.
     """
     def __init__(
@@ -380,10 +407,10 @@ class TransformedAdam(BatchedOptimizer):
         scalar_lr_scale=0.1,
         scaling_lr_scale=0.1,
         eps=1.0e-08,
-        weight_min_rms=0.005,
-        weight_max_rms=1.0,
-        bias_min_rms=1.0e-05,
-        bias_max_rms=5.0,
+        weight_min_scale=0.005,
+        weight_max_scale=1.0,
+        bias_min_scale=1.0e-05,
+        bias_max_scale=5.0,
         size_update_period=4,
         clipping_update_period=100,
         debug_interval=0,
@@ -398,10 +425,10 @@ class TransformedAdam(BatchedOptimizer):
             scalar_lr_scale=scalar_lr_scale,
             scaling_lr_scale=scaling_lr_scale,
             eps=eps,
-            weight_min_rms=weight_min_rms,
-            bias_max_rms=bias_max_rms,
-            bias_min_rms=bias_min_rms,
-            weight_max_rms=weight_max_rms,
+            weight_min_scale=weight_min_scale,
+            bias_max_scale=bias_max_scale,
+            bias_min_scale=bias_min_scale,
+            weight_max_scale=weight_max_scale,
             clipping_update_period=clipping_update_period,
             debug_interval=debug_interval,
         )
@@ -863,10 +890,10 @@ class SimpleTransformedAdam(Optimizer):
         scalar_lr_scale=0.1,
         scaling_lr_scale=0.1,
         eps=1.0e-08,
-        weight_min_rms=0.005,
-        weight_max_rms=1.0,
-        bias_min_rms=1.0e-05,
-        bias_max_rms=5.0,
+        weight_min_scale=0.005,
+        weight_max_scale=1.0,
+        bias_min_scale=1.0e-05,
+        bias_max_scale=5.0,
         debug_interval=0,
     ):
 
@@ -879,10 +906,10 @@ class SimpleTransformedAdam(Optimizer):
             scalar_lr_scale=scalar_lr_scale,
             scaling_lr_scale=scaling_lr_scale,
             eps=eps,
-            weight_min_rms=weight_min_rms,
-            bias_max_rms=bias_max_rms,
-            bias_min_rms=bias_min_rms,
-            weight_max_rms=weight_max_rms,
+            weight_min_scale=weight_min_scale,
+            bias_max_scale=bias_max_scale,
+            bias_min_scale=bias_min_scale,
+            weight_max_scale=weight_max_scale,
             debug_interval=debug_interval,
         )
         super().__init__(params, defaults)
@@ -1421,7 +1448,7 @@ class Eve(Optimizer):
 def _test_transformed_adam(hidden_dim: int):
     import timeit
 
-    from scaling import ScaledLinear, OrthogonalLinear
+    from scaling import OrthogonalLinear
 
     E = 100
     B = 4
@@ -1438,9 +1465,9 @@ def _test_transformed_adam(hidden_dim: int):
     input_magnitudes = (1.0 * torch.randn(E, dtype=dtype, device=device)).exp()
     output_magnitudes = (1.0 * torch.randn(E, dtype=dtype, device=device)).exp()
 
-    for iter in [0, 1, 2]:
+    for test in [0, 1, 2]:
         fix_random_seed(42)
-        Linear = torch.nn.Linear if iter == 0 else ScaledLinear
+        Linear = torch.nn.Linear
 
         m = torch.nn.Sequential(
             Linear(E, hidden_dim),
@@ -1462,14 +1489,14 @@ def _test_transformed_adam(hidden_dim: int):
             for _ in range(20)
         ]
 
-        if iter == 0:
+        if test == 0:
             optim = SimpleTransformedAdam(m.parameters(), lr=0.06, eps=1.0e-20)
-        elif iter == 1:
+        elif test == 1:
             optim = TransformedAdam(m.named_parameters(), lr=0.06, clipping_scale=2.0, eps=1.0e-20)
-        elif iter == 2:
+        elif test == 2:
             optim = Eve(m.parameters(), lr=0.003)
         else:
-            assert "unknown iter", iter
+            assert "unknown test", test
 
         scheduler = Eden(optim, lr_batches=200, lr_epochs=5, verbose=False)
 
@@ -1477,7 +1504,7 @@ def _test_transformed_adam(hidden_dim: int):
         avg_loss = 0.0
         for epoch in range(180):
             scheduler.step_epoch()
-            # if epoch == 100 and iter in [2,3]:
+            # if epoch == 100 and test in [2,3]:
             #    optim.reset_speedup()  # check it doesn't crash.
 
             # if epoch == 130:
@@ -1505,7 +1532,7 @@ def _test_transformed_adam(hidden_dim: int):
 
                     lr = scheduler.get_last_lr()[0]
                     logging.info(
-                        f"Iter {iter}, epoch {epoch}, batch {n}, avg_loss {avg_loss:.4g}, lr={lr:.4e}, norms={norm1,norm2,norm3,norm4}, bias_norms={bias_norm1,bias_norm2,bias_norm3}"
+                        f"Test {test}, epoch {epoch}, batch {n}, avg_loss {avg_loss:.4g}, lr={lr:.4e}, norms={norm1,norm2,norm3,norm4}, bias_norms={bias_norm1,bias_norm2,bias_norm3}"
                     )
                 loss.log().backward()
                 optim.step()
@@ -1515,7 +1542,7 @@ def _test_transformed_adam(hidden_dim: int):
         # diagnostic.print_diagnostics()
 
         stop = timeit.default_timer()
-        logging.info(f"Iter={iter}, Time taken: {stop - start}")
+        logging.info(f"Test={test}, Time taken: {stop - start}")
 
         logging.info(f"last lr = {scheduler.get_last_lr()}")
         # logging.info("state dict = ", scheduler.state_dict())
@@ -1525,8 +1552,8 @@ def _test_transformed_adam(hidden_dim: int):
 
 def _test_transform_params():
     # caution: this has occasional errors.
-    group = { "bias_min_rms": 0.001, "weight_min_rms": 0.01, "scalar_lr_scale": 0.1, "scaling_lr_scale": 0.5,
-              "weight_max_rms": 20.0, "bias_max_rms": 20.0 }
+    group = { "bias_min_scale": 0.001, "weight_min_scale": 0.01, "scalar_lr_scale": 0.1, "scaling_lr_scale": 0.5,
+              "weight_max_scale": 20.0, "bias_max_scale": 20.0 }
     for scale in [ 0.0, 1.0e-05, 0.001, 0.01, 1.0, 10.0 ]:
         for shape in [ (1, 1),  (2, 1), (2, 2), (2, 3, 4), (3, 10, 20), (4,) ]:
             p = scale * torch.randn(*shape)
