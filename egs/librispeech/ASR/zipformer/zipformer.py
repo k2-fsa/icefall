@@ -168,7 +168,7 @@ class Zipformer2(EncoderInterface):
                 feedforward_multiple=feedforward_multiple[i],
                 dropout=dropout,
                 cnn_module_kernel=cnn_module_kernel[i],
-                num_conv_modules=(2 if downsampling_factor[i] <= 2 else 1),
+                num_conv_modules=(2 if downsampling_factor[i] == 1 else 1),
                 causal=causal,
             )
 
