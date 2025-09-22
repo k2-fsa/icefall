@@ -15,11 +15,12 @@
 # limitations under the License.
 
 import contextlib
+import math
 import logging
 import random
 from collections import defaultdict
-from typing import Dict, List, Optional, Tuple, Union
 
+from typing import Dict, List, Optional, Tuple, Union
 import torch
 from lhotse.utils import fix_random_seed
 from torch import Tensor
@@ -239,14 +240,20 @@ def reverse_transform_param(group, p, orig_shape):
     # of scaling.
     max_scale = 0.7978845608028654 * (group["weight_max_scale"] if is_weight else group["bias_max_scale"])
     min_scale = 0.7978845608028654 * (group["weight_min_scale"] if is_weight else group["bias_min_scale"])
-    scale = (p[:, numel+1:numel+2] * group["scaling_lr_scale"]).exp().clamp(min=min_scale, max=max_scale)
+    log_scale = (p[:, numel+1:numel+2] * group["scaling_lr_scale"])
+
+    # the factor of 1.2533141373155001 is a factor we include in lr, to correct for a change to rms to mean-abs
+    # value.
+    scaling_lr = 1.2533141373155001 * group["scaling_lr_scale"] * group["lr"]
+
+    # Apply weight-decay of log_scale, similar to weight decay of AdamW, except it regresses the
+    # log-scale to a default value instead of regressing the scale towards zero.
+    log_scale_default = group["log_scale_default"]
+    log_scale = ((log_scale - log_scale_default) * (1. - group["scale_decay"] * scaling_lr)) + log_scale_default
+    scale = log_scale.exp().clamp(min=min_scale, max=max_scale)
 
     q = p_padded[:, :-1] * scale  # the :-1 is to remove the padding element.
     q = q.reshape(*orig_shape)
-    # Now include the scaling factors.  these were originally all zero as returned from
-    # forward_transform_param.
-    offset = numel + 2  # + 1 for the padding element and the log-scale.
-
     return q
 
 
@@ -385,6 +392,9 @@ class TransformedAdam(BatchedOptimizer):
                    scale of each non-scalar parameter tensor.  If each parameter were decomposed
                    as p * p_scale.exp(), where (p**2).mean().sqrt() == 1.0, scalar_lr_scale
                    would be a the scaling factor on the learning rate of p_scale.
+        scale_decay: A constant similar to the weight_decay of AdamW, that applies on the scaling
+                 factors, decaying them in log-space to scale_default.
+        scale_default: A constant that dictates the RMS value to which weight magnitudes decay.
      scalar_lr_scale: A scaling factor on the learning rate, that we use to update scalar tensors.
               eps:  A general-purpose epsilon to prevent division by zero
     weight_min_scale, weight_max_scale: Minimum and maximum respectively of weight tensor
@@ -404,6 +414,8 @@ class TransformedAdam(BatchedOptimizer):
         beta1=0.995,
         direct=0.05, # scale on bypass of momentum (beta1)
         beta2=0.98,
+        scale_decay=0.01,
+        scale_default=0.05,
         scalar_lr_scale=0.1,
         scaling_lr_scale=0.05,
         eps=1.0e-08,
@@ -422,6 +434,8 @@ class TransformedAdam(BatchedOptimizer):
             beta1=beta1,
             direct=direct,
             beta2=beta2,
+            scale_decay=scale_decay,
+            log_scale_default=math.log(scale_default),
             scalar_lr_scale=scalar_lr_scale,
             scaling_lr_scale=scaling_lr_scale,
             eps=eps,
@@ -887,6 +901,8 @@ class SimpleTransformedAdam(Optimizer):
         beta1=0.995,
         direct=0.05, # scale on bypass of momentum (beta1)
         beta2=0.98,
+        scale_decay=0.01,
+        scale_default=0.05,
         scalar_lr_scale=0.1,
         scaling_lr_scale=0.1,
         eps=1.0e-08,
@@ -903,6 +919,8 @@ class SimpleTransformedAdam(Optimizer):
             beta1=beta1,
             direct=direct,
             beta2=beta2,
+            scale_decay=scale_decay,
+            log_scale_default=math.log(scale_default),
             scalar_lr_scale=scalar_lr_scale,
             scaling_lr_scale=scaling_lr_scale,
             eps=eps,
@@ -1553,7 +1571,8 @@ def _test_transformed_adam(hidden_dim: int):
 def _test_transform_params():
     # caution: this has occasional errors.
     group = { "bias_min_scale": 0.001, "weight_min_scale": 0.01, "scalar_lr_scale": 0.1, "scaling_lr_scale": 0.5,
-              "weight_max_scale": 20.0, "bias_max_scale": 20.0 }
+              "log_scale_default": 0.05, "scale_decay": 0.01,
+              "weight_max_scale": 20.0, "bias_max_scale": 20.0, "lr": 0.0}   # lr set to 0.0 so weight-scale decay does not happen.
     for scale in [ 0.0, 1.0e-05, 0.001, 0.01, 1.0, 10.0 ]:
         for shape in [ (1, 1),  (2, 1), (2, 2), (2, 3, 4), (3, 10, 20), (4,) ]:
             p = scale * torch.randn(*shape)
