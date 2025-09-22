@@ -1,0 +1,1 @@
+../zipformer/decode_gigaspeech.py
