@@ -403,6 +403,14 @@ class LibriSpeechAsrDataModule:
         return test_dl
 
     @lru_cache()
+    def load_manifest(self, manifest_filename: str) -> CutSet:
+        """
+        Load the 'manifest' specified by an argument.
+        """
+        logging.info(f"About to get '{manifest_filename}' cuts")
+        return load_manifest_lazy(manifest_filename)
+
+    @lru_cache()
     def train_clean_5_cuts(self) -> CutSet:
         logging.info("mini_librispeech: About to get train-clean-5 cuts")
         return load_manifest_lazy(
