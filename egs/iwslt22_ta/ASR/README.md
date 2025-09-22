@@ -23,4 +23,4 @@ https://aclanthology.org/2022.iwslt-1.10/.
 | modified beam search               | 40.8      | 44.4        | --epoch 20, --avg 10  |
 
 
-See [RESULTS](/egs/iwslt_ta/ASR/RESULTS.md) for details.
+See [RESULTS](RESULTS.md) for details.
