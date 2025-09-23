@@ -207,7 +207,7 @@ def forward_transform_param(group, p):
     min_scale = 0.7978845608028654 * (group["weight_min_scale"] if is_weight else group["bias_min_scale"])
     p_flat = p.reshape(batch_size, numel)
     abs_sum = p_flat.abs().sum(dim=1, keepdim=True)
-    min_abs_sum = min_scale * numel    # if sumsq is less than this we pad with an extra element.
+    min_abs_sum = min_scale * numel    # if abs_sum is less than this we pad with an extra element.
     abs_sum_clamped = abs_sum.clamp(min=min_abs_sum)
     pad = (abs_sum_clamped - abs_sum)
     scale = (abs_sum_clamped / numel)   # must be nonzero thanks to min_abs_sum
@@ -226,13 +226,6 @@ def reverse_transform_param(group, p, orig_shape):
     # numel is num elements of each parameter tensor in the batch.
     numel = p.shape[1] - 2
     p_padded = p[:, :numel+1]  # orig tensor plus one padding element
-    # the next line normalizes the scale to 1, because the update step will have
-    # changed it slightly versus the normalized state that forward_transform_param
-    # put it into.   The correction factor (numel + 1) / numel is to account
-    # for the fact that it's actuallty the sum() / numel that should equal 1,
-    # but we prefer to use mean to avoid out-of-range numerical errors for large tensors
-    # if this code gets used in fp16 in the future.
-    p_padded = p_padded / (p_padded.abs().mean(dim=1, keepdim=True) * ((numel + 1) / numel))
 
     is_weight = (len(orig_shape) > 2)
     # 0.7978845608028654 is sqrt(2/pi) which is a correction factor for the ratio of (abs value / rms value)
