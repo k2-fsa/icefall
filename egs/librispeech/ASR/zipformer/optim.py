@@ -417,7 +417,7 @@ class TransformedAdam(BatchedOptimizer):
         scale_decay=0.01,
         scale_default=0.05,
         scalar_lr_scale=0.1,
-        scaling_lr_scale=0.05,
+        scaling_lr_scale=0.1,
         eps=1.0e-08,
         weight_min_scale=0.005,
         weight_max_scale=1.0,
