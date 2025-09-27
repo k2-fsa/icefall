@@ -743,7 +743,6 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         num_heads=lookup(params, "num_heads"),
         feedforward_multiple=lookup(params, "feedforward_multiple"),
         cnn_module_kernel=lookup(params, "cnn_module_kernel"),
-        dropout=ScheduledFloat((0.0, 0.4), (3000.0, 0.0)), # todo: set to zero
         causal=params.causal,
         chunk_size=lookup(params, "chunk_size"),
         left_context_frames=lookup(params, "left_context_frames"),

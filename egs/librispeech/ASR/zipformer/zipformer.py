@@ -37,10 +37,7 @@ from scaling import (
     CosineSimilarityLoss,
     MinProductLoss,
     MaxProductLoss,
-    Dropout2,
     FloatLike,
-    ScheduledFloat,
-    Whiten,
     convert_num_channels,
     limit_param_value,
     penalize_abs_values_gt,
@@ -80,7 +77,6 @@ class Zipformer2(EncoderInterface):
         pos_dim (int): the dimension of each positional-encoding vector prior to projection,
             e.g. 128.
 
-        dropout (float): dropout rate
         causal (bool): if True, support chunkwise causal convolution.  This should
           not hurt WER as no modeling power is lost, but the convolution modules will be
           slightly slower and use more memory.  Enables use of the chunk_size and
@@ -107,15 +103,11 @@ class Zipformer2(EncoderInterface):
         feedforward_multiple: Union[int, Tuple[int]] = 4,
         cnn_module_kernel: Union[int, Tuple[int]] = 31,
         pos_dim: int = 192,
-        dropout: FloatLike = None,  # see code below for default
         causal: bool = False,
         chunk_size: Tuple[int] = [-1],
         left_context_frames: Tuple[int] = [-1],
     ) -> None:
         super(Zipformer2, self).__init__()
-
-        if dropout is None:
-            dropout = ScheduledFloat((0.0, 0.3), (20000.0, 0.1))
 
         def _to_tuple(x):
             """Converts a single int or a 1-tuple of an int to a tuple with the same length
@@ -166,7 +158,6 @@ class Zipformer2(EncoderInterface):
                 pos_head_dim=pos_head_dim[i],
                 value_head_dim=value_head_dim[i],
                 feedforward_multiple=feedforward_multiple[i],
-                dropout=dropout,
                 cnn_module_kernel=cnn_module_kernel[i],
                 num_conv_modules=1,
                 causal=causal,
@@ -493,14 +484,6 @@ def get_max_similarity(rank: int, power: float):
     """
     return (0.7978845608 / (rank ** 0.5)) ** power
 
-def _whitening_schedule(x: float, ratio: float = 2.0) -> ScheduledFloat:
-    return ScheduledFloat((0.0, x), (20000.0, ratio * x), default=x)
-
-
-def _balancer_schedule(min_prob: float):
-    return ScheduledFloat((0.0, 0.4), (8000.0, min_prob))
-
-
 def pad_mask(mask: Optional[Tensor], seq_len: int):
     # mask: (batch_size, old_seq_len)
     # if mask is not None, returns mask: (batch_size, seq_len); pads with True (i.e., masked).
@@ -560,7 +543,7 @@ class Zipformer2EncoderLayer(nn.Module):
         embed_dim: the number of expected features in the input (required).
         nhead: the number of heads in the multiheadattention models (required).
         feedforward_multiple: determines the hidden dimension of the feedforward module
-        dropout: the dropout value (default=0.1).
+
         cnn_module_kernel (int): Kernel size of convolution module (default=31).
 
     Examples::
@@ -578,7 +561,6 @@ class Zipformer2EncoderLayer(nn.Module):
         pos_head_dim: int,
         value_head_dim: int,
         feedforward_multiple: int,
-        dropout: FloatLike = 0.1,
         cnn_module_kernel: int = 31,
         num_conv_modules: int = 2,
         causal: bool = False,
@@ -597,17 +579,16 @@ class Zipformer2EncoderLayer(nn.Module):
             num_heads=2 * num_heads,
             query_head_dim=query_head_dim,
             pos_head_dim=pos_head_dim,
-            dropout=0.0,
         )
 
         self.self_attn1, self.self_attn2, self.self_attn3 = [ SelfAttention(embed_dim, num_heads, value_head_dim) for _ in range(3) ]
 
         feedforward_dim = embed_dim * feedforward_multiple
-        self.feed_forward1 = FeedforwardModule(embed_dim, (feedforward_dim * 3) // 4, dropout)
+        self.feed_forward1 = FeedforwardModule(embed_dim, (feedforward_dim * 3) // 4)
 
-        self.feed_forward2 = FeedforwardModule(embed_dim, feedforward_dim, dropout)
+        self.feed_forward2 = FeedforwardModule(embed_dim, feedforward_dim)
 
-        self.feed_forward3 = FeedforwardModule(embed_dim, (feedforward_dim * 5) // 4, dropout)
+        self.feed_forward3 = FeedforwardModule(embed_dim, (feedforward_dim * 5) // 4)
 
         if num_conv_modules >= 2:
             self.conv_module2 = ConvolutionModule(embed_dim, cnn_module_kernel, causal=causal)
@@ -821,7 +802,6 @@ class Zipformer2Encoder(nn.Module):
         num_layers: the number of sub-encoder-layers in the encoder (required).
          dim:  the dimension of the input and output (layer dim may be less than this).
        pos_dim: the dimension for the relative positional encoding
-dropout:
 
     Examples::
         >>> encoder_layer = Zipformer2EncoderLayer(embed_dim=512, nhead=8)
@@ -846,7 +826,7 @@ dropout:
         self.proj.lr_scale = 0.75
 
         self.encoder_pos = CompactRelPositionalEncoding(
-            pos_dim, dropout_rate=0.0, length_factor=1.0
+            pos_dim, length_factor=1.0
         )
         self.name = None
         self.layers = nn.ModuleList(
@@ -1058,102 +1038,6 @@ class ResidualModule(nn.Module):
         return residual_scale * src_orig + function_scale * src
 
 
-class OrthogonalDownsample(torch.nn.Module):
-    """
-    Downsamples on sequence axis by appending sequence-positions together,
-    and then optionally projects by an orthogonal matrix
-
-
-
-.  Projection is initialized
-    in a special way and enforced to be orthogonal.
-
-    Args:
-       channels: the number of input channels; the num output channels will be twice this
-       proj_dim: the number of channels, after combining 2 frames by interpolating their channels
-                  as [ a b a b, .. ] that will actually be projected; the rest are just copied.
-                  proj_dim=2 * channels would mean all channels are projected in a learned way
-         causal: True for causal systems, only affects error messages as requires even
-                 input num frames.
-    """
-    def __init__(
-            self, channels: int, proj_dim: int, causal: bool = False,
-    ):
-        super().__init__()
-        assert proj_dim <= channels * 2
-        self.proj = OrthogonalLinear(proj_dim, proj_dim, bias=False)
-        # lr_scale is a learning-rate factor to slow down how fast self.proj is learned.
-        # it will be interpreted by get_parameter_groups_with_lrs()
-        self.proj.lr_scale = 0.75
-        self.causal = causal
-
-    def forward(self, src: Tensor) -> Tensor:
-        """
-        x: (seq_len, batch_size, in_channels)
-        Returns a tensor of shape
-           ( (seq_len+downsample-1)//downsample, batch_size, channels)
-        """
-        (seq_len, batch_size, in_channels) = src.shape
-
-        if seq_len % 2 == 1:
-            if torch.jit.is_tracing():
-                assert (
-                    not self.causal
-                ), f"pad should be zero for exporting streaming models. Given {pad}"
-            src = torch.cat((src, src[-1:]), dim=0)
-            seq_len += 1
-
-        # the following will place each 2 frames of a particular channel right after
-        # each other as if they were two different channels.
-        src = torch.stack((src[0::2], src[1::2]), dim=-1)
-        src = src.reshape(seq_len // 2, batch_size, in_channels * 2)
-        proj_channels = self.proj.weight.shape[0]
-        if proj_channels < in_channels * 2:
-            src = torch.cat((self.proj(src[..., :proj_channels]), src[..., proj_channels:]),
-                            dim=-1)
-        else:
-            src = self.proj(src)
-        return src
-
-class OrthogonalUpsample(torch.nn.Module):
-    """
-    A very simple form of upsampling with an orthogonal matrix.
-
-       proj_dim: the number of channels that will actually be projected; the rest are just copied.
-                  proj_dim=channels would mean all channels are projected in a learned way
-
-    """
-    def __init__(self, channels: int, proj_dim: int):
-        super().__init__()
-        assert proj_dim <= channels
-        # gradually make smaller and then turn off the non-orthognality penalty.
-        self.proj = OrthogonalLinear(proj_dim, proj_dim, bias=False,
-                                     penalty_scale=ScheduledFloat((0.0, 20.0), (5000.0, 1.0), (10000.0, 0.1), (20000.0, 0.0)))
-        # lr_scale is a learning-rate factor to slow down how fast self.proj is learned.
-        # it will be interpreted by get_parameter_groups_with_lrs()
-        self.proj.lr_scale = 0.75
-
-
-    def forward(self, src: Tensor) -> Tensor:
-        """
-        x: (seq_len, batch_size, num_channels)
-        Returns a tensor of shape
-           ( (seq_len*2), batch_size, num_channels // 2)
-        """
-        proj_channels = self.proj.weight.shape[0]
-        (seq_len, batch_size, in_channels) = src.shape
-
-        if proj_channels < in_channels:
-            src = torch.cat((self.proj(src[..., :proj_channels]), src[..., proj_channels:]),
-                            dim=-1)
-        else:
-            src = self.proj(src)
-
-        src = torch.stack((src[..., 0::2], src[..., 1::2]),
-                          dim=1)  # (seq_len, 2, batch_size, in_channels // 2)
-        src = src.reshape(seq_len * 2, batch_size, in_channels // 2)
-        return src
-
 
 class CompactRelPositionalEncoding(torch.nn.Module):
     """
@@ -1175,7 +1059,6 @@ class CompactRelPositionalEncoding(torch.nn.Module):
 
     Args:
         embed_dim: Embedding dimension.
-        dropout_rate: Dropout rate.
         max_len: Maximum input length: just a heuristic for initialization.
         length_factor: a heuristic scale (should be >= 1.0) which, if larger, gives
            less weight to small differences of offset near the origin.
@@ -1184,7 +1067,6 @@ class CompactRelPositionalEncoding(torch.nn.Module):
     def __init__(
         self,
         embed_dim: int,
-        dropout_rate: FloatLike,
         max_len: int = 1000,
         length_factor: float = 1.0,
     ) -> None:
@@ -1192,7 +1074,6 @@ class CompactRelPositionalEncoding(torch.nn.Module):
         super(CompactRelPositionalEncoding, self).__init__()
         self.embed_dim = embed_dim
         assert embed_dim % 2 == 0, embed_dim
-        self.dropout = Dropout2(dropout_rate)
         self.pe = None
         assert length_factor >= 1.0, length_factor
         self.length_factor = length_factor
@@ -1270,7 +1151,7 @@ class CompactRelPositionalEncoding(torch.nn.Module):
             :,
         ]
         pos_emb = pos_emb.unsqueeze(0)
-        return self.dropout(pos_emb)
+        return pos_emb
 
 
 class RelPositionMultiheadAttentionWeights(nn.Module):
@@ -1288,7 +1169,6 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
            num_heads:  number of heads to compute weights for, e.g. 8
      query_head_dim: dimension of the query (and key), per head.  e.g. 24.
        pos_head_dim: dimension of the projected positional encoding per head, e.g. 4.
-            dropout: dropout probability for attn_output_weights. Default: 0.0.
        pos_emb_skip_rate: probability for skipping the pos_emb part of the scores on
                      any given call to forward(), in training time.
     """
@@ -1300,14 +1180,12 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         num_heads: int,
         query_head_dim: int,
         pos_head_dim: int,
-        dropout: float = 0.0,
     ) -> None:
         super().__init__()
         self.embed_dim = embed_dim
         self.num_heads = num_heads
         self.query_head_dim = query_head_dim
         self.pos_head_dim = pos_head_dim
-        self.dropout = dropout
         self.name = None  # will be overwritten in training code; for diagnostics.
 
         key_head_dim = query_head_dim
@@ -1337,8 +1215,8 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         self.copy_query = Identity()
         self.copy_key = Identity()
 
-        self.qk_max_product = MaxProductLoss(max_product=ScheduledFloat((0.0, 0.6), (20000.0, 6.0), default=5.0))
-        self.pos_max_product = MaxProductLoss(max_product=ScheduledFloat((0.0, 0.4), (20000.0, 4.0), default=5.0))
+        self.qk_max_product = MaxProductLoss(max_product=6.0)
+        self.pos_max_product = MaxProductLoss(max_product=4.0)
 
 
     def forward(
@@ -1490,10 +1368,6 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
             pass
         elif random.random() < 0.001:
             self._print_attn_entropy(attn_weights)
-
-        attn_weights = nn.functional.dropout(
-            attn_weights, p=self.dropout, training=self.training
-        )
 
         return attn_weights
 
@@ -1658,7 +1532,7 @@ class SelfAttention(nn.Module):
 
         f = max(1.0, embed_dim / (num_heads * value_head_dim))
 
-        self.cosine_loss = CosineSimilarityLoss(max_similarity=ScheduledFloat((0.0, 0.5), (20000.0, 0.75), default=0.5))
+        self.cosine_loss = CosineSimilarityLoss(max_similarity=0.75)
 
 
     def forward(
@@ -1768,7 +1642,7 @@ class SelfAttention(nn.Module):
 class FeedforwardModule(nn.Module):
     """Feedforward module in Zipformer2 model."""
 
-    def __init__(self, embed_dim: int, feedforward_dim: int, dropout: FloatLike):
+    def __init__(self, embed_dim: int, feedforward_dim: int):
         super(FeedforwardModule, self).__init__()
         # try to get in the useful range of the activation function, i.e. not too small.
         self.in_proj = ScaledLinear(embed_dim, feedforward_dim)
@@ -1781,8 +1655,7 @@ class FeedforwardModule(nn.Module):
             feedforward_dim,
             embed_dim,
             activation="SwashL",
-            dropout_p=dropout,
-            dropout_shared_dim=0,
+            dropout_p=0.0,
             bias=True,
             initial_scale=0.5,
         )
@@ -1796,157 +1669,6 @@ class FeedforwardModule(nn.Module):
         x = with_loss(x, self.cosine_loss(x.permute(1, 0, 2), aux_loss_scale, src_key_padding_mask), None)
         return x
 
-
-class NonlinAttention(nn.Module):
-    """This is like the ConvolutionModule, but refactored so that we use multiplication by attention weights (borrowed
-       from the attention module) in place of actual convolution.  We also took out the second nonlinearity, the
-       one after the attention mechanism.
-
-    Args:
-        channels (int): The number of channels of conv layers.
-    """
-
-    def __init__(
-        self,
-        channels: int,
-        hidden_channels: int,
-    ) -> None:
-        super().__init__()
-
-        self.hidden_channels = hidden_channels
-
-        self.in_proj = nn.Linear(channels, hidden_channels * 3, bias=True)
-
-        self.tanh = nn.Tanh()
-
-        self.identity1 = Identity()  # for diagnostics.
-        self.identity2 = Identity()  # for diagnostics.
-        self.identity3 = Identity()  # for diagnostics.
-
-        self.out_proj = ScaledLinear(
-            hidden_channels, channels, bias=True, initial_scale=0.05
-        )
-
-        self.whiten1 = Whiten(
-            num_groups=1,
-            whitening_limit=_whitening_schedule(5.0),
-            prob=(0.025, 0.25),
-            grad_scale=0.01,
-        )
-
-        self.whiten2 = Whiten(
-            num_groups=1,
-            whitening_limit=_whitening_schedule(5.0, ratio=3.0),
-            prob=(0.025, 0.25),
-            grad_scale=0.01,
-        )
-
-    def forward(
-        self,
-        x: Tensor,
-        attn_weights: Tensor,
-    ) -> Tensor:
-        """.
-                Args:
-                   x: a Tensor of shape (seq_len, batch_size, num_channels)
-        attn_weights: a Tensor of shape (num_heads, batch_size, seq_len, seq_len)
-                Returns:
-                   a Tensor with the same shape as x
-        """
-        x = self.in_proj(x)
-
-        (seq_len, batch_size, _) = x.shape
-        hidden_channels = self.hidden_channels
-
-        s, x, y = x.chunk(3, dim=2)
-
-        # s will go through tanh.
-
-        s = self.tanh(s)
-
-        s = s.unsqueeze(-1).reshape(seq_len, batch_size, hidden_channels)
-        x = self.whiten1(x)
-        x = x * s
-        x = self.identity1(x)  # diagnostics only, it's the identity.
-
-        (seq_len, batch_size, embed_dim) = x.shape
-        num_heads = attn_weights.shape[0]
-        assert attn_weights.shape == (num_heads, batch_size, seq_len, seq_len)
-
-        x = x.reshape(seq_len, batch_size, num_heads, -1).permute(2, 1, 0, 3)
-        # now x: (num_heads, batch_size, seq_len, head_dim)
-        x = torch.matmul(attn_weights, x)
-        # now x: (num_heads, batch_size, seq_len, head_dim)
-        x = x.permute(2, 1, 0, 3).reshape(seq_len, batch_size, -1)
-
-        y = self.identity2(y)
-        x = x * y
-        x = self.identity3(x)
-
-        x = self.out_proj(x)
-        x = self.whiten2(x)
-        return x
-
-    def streaming_forward(
-        self,
-        x: Tensor,
-        attn_weights: Tensor,
-        cached_x: Tensor,
-        left_context_len: int,
-    ) -> Tuple[Tensor, Tensor]:
-        """.
-        Args:
-            x: a Tensor of shape (seq_len, batch_size, num_channels)
-            attn_weights: a Tensor of shape (num_heads, batch_size, seq_len, seq_len)
-            cached_x: left context, a Tensor of shape
-              (num_heads, batch_size, left_context_len, head_dim)
-            left_context_len: number of left context frames.
-        Returns:
-            - a Tensor with the same shape as x
-            - updated left context with same shape as cached_x
-        """
-        x = self.in_proj(x)
-
-        (seq_len, batch_size, _) = x.shape
-        hidden_channels = self.hidden_channels
-
-        s, x, y = x.chunk(3, dim=2)
-
-        # s will go through tanh.
-        s = self.tanh(s)
-
-        s = s.unsqueeze(-1).reshape(seq_len, batch_size, hidden_channels)
-        x = x * s
-
-        (seq_len, batch_size, embed_dim) = x.shape
-        num_heads = attn_weights.shape[0]
-        assert attn_weights.shape == (
-            num_heads,
-            batch_size,
-            seq_len,
-            left_context_len + seq_len,
-        )
-
-        x = x.reshape(seq_len, batch_size, num_heads, -1).permute(2, 1, 0, 3)
-        # now x: (num_heads, batch_size, seq_len, head_dim)
-
-        # Pad cached tensor
-        assert cached_x.shape[2] == left_context_len, (
-            cached_x.shape[2],
-            left_context_len,
-        )
-        x_pad = torch.cat([cached_x, x], dim=2)
-        # Update cached tensor
-        cached_x = x_pad[:, :, -left_context_len:, :]
-
-        x = torch.matmul(attn_weights, x_pad)
-        # now x: (num_heads, batch_size, seq_len, head_dim)
-        x = x.permute(2, 1, 0, 3).reshape(seq_len, batch_size, -1)
-
-        x = x * y
-
-        x = self.out_proj(x)
-        return x, cached_x
 
 
 class ConvolutionModule(nn.Module):
