@@ -139,7 +139,7 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   log "Stage 3: Compute fbank for librispeech"
   mkdir -p data/fbank
   if [ ! -e data/fbank/.librispeech.done ]; then
-    ./local/compute_fbank_librispeech.py
+    ./local/compute_fbank_librispeech.py --num-workers $nj
     touch data/fbank/.librispeech.done
   fi
 
