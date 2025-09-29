@@ -395,7 +395,6 @@ class TransformedAdam(BatchedOptimizer):
         weight_max_scale=1.0,
         bias_min_scale=1.0e-05,
         bias_max_scale=5.0,
-        size_update_period=4,
         clipping_update_period=100,
         debug_interval=0,
     ):
