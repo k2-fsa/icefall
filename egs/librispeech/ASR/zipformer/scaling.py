@@ -1468,55 +1468,56 @@ class ChunkCausalDepthwiseConv1d(torch.nn.Module):
 
 class ScaleLimiterFunction(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, x: Tensor, max_var: float):
+    def forward(ctx, x: Tensor, min_rms: float, max_rms: float, aux_loss_scale: float, name: str):
         ctx.save_for_backward(x)
-        ctx.max_var = max_var
+        ctx.min_rms = min_rms
+        ctx.max_rms = max_rms
+        ctx.aux_loss_scale = aux_loss_scale
+        ctx.name = name
         return x
 
     @staticmethod
-    def backward(ctx, y_grad: Tensor):
+    def backward(ctx, x_grad: Tensor):
         x, = ctx.saved_tensors
-        # you could think of loss_scale as like a mask, it's nonzero if
-        # (x**2).mean() > 1.0, but it starts of small if we are close to 1.0
-        # so we don't suddenly add large gradients that could be destabilizing.
-        eps = 0.01
-        loss_scale = eps * ((x.to(torch.float) ** 2).mean() - ctx.max_var).relu()
-        y_grad_abs_mean = y_grad.abs().mean()
-        # y_grad_abs_mean is a scaling factor for the gradient contribution, since we
-        # don't know at this point the total scale of the main loss.
+        with torch.enable_grad():
+            with torch.amp.autocast('cuda', enabled=False):
+                x = x.to(torch.float)
+                x = x.detach()
+                x.requires_grad = True
+                rms = (x ** 2).mean(dim=-1).sqrt()
+                max_deviation = (rms / ctx.max_rms - 1.).relu()
+                min_deviation = (1. - rms / ctx.min_rms).relu()
 
-        # the grad of (x ** 2).mean() would be 2 * x.  we absorb the factor of 2
-        # into eps, which is just an arbitrary smallish value.
-        return y_grad + (loss_scale * y_grad_abs_mean) * x, None
+                if random.random() < 0.002:
+                    logging.info(
+                        f"ScaleLimiter: name={ctx.name}, min_rms={ctx.min_rms}, max_rms={ctx.max_rms}, "
+                        f"min_deviation={min_deviation.mean()}, max_deviation={max_deviation.mean()}, "
+                        f"loss_scale={ctx.aux_loss_scale}"
+                    )
+                (min_deviation + max_deviation).backward(gradient=torch.full_like(min_deviation, ctx.aux_loss_scale))
+        return x_grad + x.grad, None, None, None, None
 
 
 class ScaleLimiter(torch.nn.Module):
     """
-    Tries to make the average square value of the features no greater than self.max_var, by
-    adding a penalty.  This is not per dimension, but globally.
+    Adds a penalty in backprop if the norm of any activation vector is less than min_rms
+    or more than  max_rms.
+
     Assumes channel dim is -1 and the input shape has >1 dimension.
-    Caution: max_var is actually a maximum variance.
     """
-    def __init__(self, max_var: FloatLike = 1.0, prob: FloatLike = 1.0):
+    def __init__(self, min_rms: FloatLike, max_rms: FloatLike):
         super().__init__()
         self.name = None
-        self.max_var = max_var
-        self.prob = prob
+        self.min_rms = min_rms
+        self.max_rms = max_rms
 
-    def forward(self, x: Tensor) -> Tensor:
+
+    def forward(self, x: Tensor, aux_loss_scale: float) -> Tensor:
         if torch.jit.is_scripting() or torch.jit.is_tracing() or not self.training:
             return _no_op(x)
         else:
-            # this in effect adds a penalty to the loss function if
-            # (x ** 2).mean() > 1.0, the penalty will tend to reduce the value
-            # of (x ** 2).
-            if random.random() < 0.001:
-                logging.info(f"name={self.name}, max_var={float(self.max_var)}, prob={float(self.prob)}, x_rms={(x**2).mean().sqrt().item()}")
-            prob = float(self.prob)
-            if prob > 0 and random.random() < prob:
-                return ScaleLimiterFunction.apply(x, float(self.max_var))
-            else:
-                return x
+            return ScaleLimiterFunction.apply(x, float(self.min_rms), float(self.max_rms),
+                                              aux_loss_scale, self.name)
 
 
 def penalize_abs_values_gt(

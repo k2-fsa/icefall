@@ -571,6 +571,7 @@ class Zipformer2EncoderLayer(nn.Module):
 
         self.residual_scale = nn.Parameter(0.5 * torch.ones(embed_dim))
 
+        self.offset_cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=embed_dim, power=0.8))
         self.cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=embed_dim, power=0.8))
 
         self.self_attn_weights = RelPositionMultiheadAttentionWeights(
@@ -595,9 +596,9 @@ class Zipformer2EncoderLayer(nn.Module):
         if num_conv_modules >= 1:
             self.conv_module1 = ConvolutionModule(embed_dim, cnn_module_kernel, causal=causal)
 
-        self.scale_limiter = ScaleLimiter(max_var=2.0)
+        self.scale_limiter = ScaleLimiter(min_rms=0.15, max_rms=2.0)
 
-        self.norm = ExpNorm(embed_dim)
+        self.norm = ExpNorm(embed_dim, rand_floor=0.0)  # rely on scale_limiter for floor on norm.
 
 
     def forward(
@@ -663,10 +664,16 @@ class Zipformer2EncoderLayer(nn.Module):
         src = src_orig + offset
 
         src = with_loss(src,
-                        self.cosine_loss(offset.permute(1, 0, 2), aux_loss_scale, mask=src_key_padding_mask),
+                        self.offset_cosine_loss(offset.permute(1, 0, 2), aux_loss_scale, mask=src_key_padding_mask),
                         None)
 
-        src = self.scale_limiter(src)
+        # also put cosine_loss on src, mostly because it will be used in scale_limiter and we don't want the
+        # network to get around the scale limitation by using an offset.
+        src = with_loss(src,
+                        self.cosine_loss(src.permute(1, 0, 2), aux_loss_scale, mask=src_key_padding_mask),
+                        None)
+
+        src = self.scale_limiter(src, aux_loss_scale)
 
         src = self.norm(src)
 
