@@ -335,7 +335,7 @@ class MaxEigLimiterFunction(torch.autograd.Function):
 
 def _exp_norm(x: Tensor, scale: Tensor, channel_dim: int, floor: Optional[Tensor]):
     x_norm = torch.mean(x ** 2, dim=channel_dim, keepdim=True).sqrt()
-    num = (1. - (-x_norm).exp())
+    num = torch.nn.functional.tanh(x_norm)
     if floor is not None:
         num = torch.maximum(num, floor)
     scales = num / x_norm
@@ -344,11 +344,16 @@ def _exp_norm(x: Tensor, scale: Tensor, channel_dim: int, floor: Optional[Tensor
 
 class ExpNormFunction(torch.autograd.Function):
     # This computes:
-    #   scales = (torch.mean(x ** 2 + eps, keepdim=True)) ** -0.5 * log_scale.exp()
+    # Equivalent to:
+    #   x_norm = x.norm(dim=-1, keepdim=True)
+    #   scales = x_norm.tanh() / x_norm * scale
+    # (scale is a user-provided scaling factor that is learnable)..
     #   return x * scales
-    # (after unsqueezing the bias), but it does it in a memory-efficient way so that
-    # it can just store the returned value (chances are, this will also be needed for
-    # some other reason, related to the next operation, so we can save memory).
+    #
+    # .. if rand_floor != 0.0, it does a randomized method that sometimes modifies
+    # (increases) the scale if x_norm is less than rand_floor; this is intended
+    # to penalize too-small x values, which can otherwise occur after a lot of training
+    # and could destabilize the network's training.
     @staticmethod
     def forward(
         ctx,
@@ -433,7 +438,7 @@ class ExpNorm(torch.nn.Module):
         self,
         num_channels: int,
         channel_dim: int = -1,  # CAUTION: see documentation.
-        rand_floor: FloatLike = 0.25,
+        rand_floor: FloatLike = 0.15,
     ) -> None:
         super(ExpNorm, self).__init__()
         self.num_channels = num_channels
