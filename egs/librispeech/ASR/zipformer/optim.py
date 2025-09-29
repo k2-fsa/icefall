@@ -168,19 +168,6 @@ def momentum_step(group, p, state, grad):
         stored_delta = torch.zeros(*p.shape, device=p.device, dtype=torch.float)
         state["delta"] = stored_delta
 
-    # 1.2533141373155001 is sqrt(pi/2) which is a correction factor for the
-    # ratio of (rms value / abs value) of a normal distribution, made when we
-    # switched from using rms values to abs value for purposes of scaling.  This
-    # does not apply to scalar parameters (p.numel() == p.shape[0], dimension 0
-    # is the same-sized-parameter-tensor batch dimension), which are not subject
-    # to scaling by inverse-absolute-values.  The update is going to get
-    # multiplied by the mean-absolute-value, i.e. the scaling factor, which is
-    # equal to sqrt(2/pi) times the rms value for normally distributed data, and
-    # we want the step size to be the same as before for normally distributed
-    # data, which means we need to multiply by sqrt(pi/2).
-    lr = (1.2533141373155001 * lr if p.numel() > p.shape[0] else lr)
-
-
     stored_delta.mul_(beta1).add_(delta)
     return ((-lr * (1-direct) * (1-beta1)) * stored_delta) + ((-lr * direct) * delta)
 
@@ -201,10 +188,7 @@ def forward_transform_param(group, p):
         return p.reshape(batch_size, 1) / group["scalar_lr_scale"]
 
     is_weight = (p.ndim > 2)
-    # 0.7978845608028654 is sqrt(2/pi) which is a correction factor for the ratio of (abs value / rms value)
-    # of a normal distribution, made when we switched from using rms values to abs value for purposes
-    # of scaling.
-    min_scale = 0.7978845608028654 * (group["weight_min_scale"] if is_weight else group["bias_min_scale"])
+    min_scale = group["weight_min_scale"] if is_weight else group["bias_min_scale"]
     p_flat = p.reshape(batch_size, numel)
     abs_sum = p_flat.abs().sum(dim=1, keepdim=True)
     min_abs_sum = min_scale * numel    # if abs_sum is less than this we pad with an extra element.
@@ -228,16 +212,11 @@ def reverse_transform_param(group, p, orig_shape):
     p_padded = p[:, :numel+1]  # orig tensor plus one padding element
 
     is_weight = (len(orig_shape) > 2)
-    # 0.7978845608028654 is sqrt(2/pi) which is a correction factor for the ratio of (abs value / rms value)
-    # of a normal distribution, made when we switched from using rms values to abs value for purposes
-    # of scaling.
-    max_scale = 0.7978845608028654 * (group["weight_max_scale"] if is_weight else group["bias_max_scale"])
-    min_scale = 0.7978845608028654 * (group["weight_min_scale"] if is_weight else group["bias_min_scale"])
+    max_scale = group["weight_max_scale"] if is_weight else group["bias_max_scale"]
+    min_scale = group["weight_min_scale"] if is_weight else group["bias_min_scale"]
     log_scale = (p[:, numel+1:numel+2] * group["scaling_lr_scale"])
 
-    # the factor of 1.2533141373155001 is a factor we include in lr, to correct for a change to rms to mean-abs
-    # value.
-    scaling_lr = 1.2533141373155001 * group["scaling_lr_scale"] * group["lr"]
+    scaling_lr = group["scaling_lr_scale"] * group["lr"]
 
     # Apply weight-decay of log_scale, similar to weight decay of AdamW, except it regresses the
     # log-scale to a default value instead of regressing the scale towards zero.
@@ -1501,9 +1480,9 @@ def _test_transformed_adam(hidden_dim: int):
         ]
 
         if test == 0:
-            optim = SimpleTransformedAdam(m.parameters(), lr=0.06, eps=1.0e-20)
+            optim = SimpleTransformedAdam(m.parameters(), lr=0.075, eps=1.0e-20)
         elif test == 1:
-            optim = TransformedAdam(m.named_parameters(), lr=0.06, clipping_scale=2.0, eps=1.0e-20)
+            optim = TransformedAdam(m.named_parameters(), lr=0.075, clipping_scale=2.0, eps=1.0e-20)
         elif test == 2:
             optim = Eve(m.parameters(), lr=0.003)
         else:
