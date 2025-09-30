@@ -86,8 +86,6 @@ class AsrModel(nn.Module):
         self.encoder_embed = encoder_embed
         self.encoder = encoder
 
-        self.predict_loss = PredictLoss(encoder_dim)
-
         self.use_transducer = use_transducer
         if use_transducer:
             # Modules for Transducer head
@@ -169,28 +167,11 @@ class AsrModel(nn.Module):
         encoder_out, encoder_out_lens = self.encoder(x, x_lens, src_key_padding_mask,
                                                      aux_loss_scale=aux_loss_scale)
 
-        predict_loss = self.compute_predict_loss(encoder_out, src_key_padding_mask[:, ::2], specaug_mask[:, ::2])
-
         encoder_out = encoder_out.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
         assert torch.all(encoder_out_lens > 0), (x_lens, encoder_out_lens)
 
 
-        return encoder_out, encoder_out_lens, predict_loss
-
-
-    def compute_predict_loss(self,
-                             encoder_out: Tensor,
-                             src_key_padding_mask: Optional[Tensor],
-                             specaug_mask: Optional[Tensor]) -> Tensor:
-        if src_key_padding_mask is not None and specaug_mask is not None:
-            mask = torch.logical_and(src_key_padding_mask.t().logical_not(), specaug_mask.t().logical_not())
-        elif src_key_padding_mask is not None:
-            mask = src_key_padding_mask.t().logical_not()
-        elif specaug_mask is not None:
-            mask = specaug_mask.t().logical_not()
-        else:
-            mask = None
-        return self.predict_loss(encoder_out, mask)
+        return encoder_out, encoder_out_lens
 
 
     def forward_ctc(
@@ -498,8 +479,8 @@ class AsrModel(nn.Module):
 
 
         # Compute encoder outputs
-        encoder_out, encoder_out_lens, predict_loss = self.forward_encoder(x, x_lens,
-                                                                           aux_loss_scale=aux_loss_scale)
+        encoder_out, encoder_out_lens = self.forward_encoder(x, x_lens,
+                                                             aux_loss_scale=aux_loss_scale)
 
         row_splits = y.shape.row_splits(1)
         y_lens = row_splits[1:] - row_splits[:-1]
@@ -553,7 +534,7 @@ class AsrModel(nn.Module):
         reconstruction_loss = self.forward_reconstruction_loss(self.gauss_norm(x_no_specaug, x_lens),
                                                                encoder_out, encoder_out_lens)
 
-        return simple_loss, pruned_loss, ctc_loss, attention_decoder_loss, cr_loss, reconstruction_loss, predict_loss
+        return simple_loss, pruned_loss, ctc_loss, attention_decoder_loss, cr_loss, reconstruction_loss
 
 
 
@@ -562,28 +543,25 @@ class AsrModel(nn.Module):
                    log_mel_lens: Tensor) -> Tensor:
         (batch_size, seq_len, num_channels) = log_mels.shape
 
-        randpos = torch.randint(seq_len, (batch_size, seq_len, num_channels), device=log_mels.device)
-
+        rand_pos = torch.randint(seq_len, (batch_size, seq_len, num_channels), device=log_mels.device)
         rand_pos = rand_pos % log_mel_lens.unsqueeze(-1).unsqueeze(-1)
+        arange = torch.arange(seq_len, device=log_mels.device)[None, :, None].expand_as(rand_pos)
+        length_mask = make_pad_mask(log_mel_lens)  # True in masked positions
 
-
-        log_mels_rand = torch.gather(log_mels, dim=1, index=rand_pos)
-        length_mask = make_pad_mask(encoder_out_lens)  # True in masked positions
+        # select the "self" position if we are in the non-masked region; select random
+        # non-masked positions when in padding regions.
         length_mask = length_mask.unsqueeze(-1).expand_as(log_mels)
-
-        log_mels = torch.where(length_mask, log_mels_rand, log_mels)
-        # OK, now for out-of-bounds positions we have selected randomly chosen within-bounds positions.
+        log_mels = torch.gather(log_mels, dim=1, index=torch.where(length_mask, rand_pos, arange))
 
         values, indexes = log_mels.sort(dim=1)  # sort on seq dim
         N = max(2, log_mels.shape[1])
-        norm_rank = torch.linspace(-1 + 1. / N, 1. - 1. / N, log_mels.shape[1], device=x.device, dtype=torch.float)
+        norm_rank = torch.linspace(-1 + 1. / N, 1. - 1. / N, log_mels.shape[1], device=log_mels.device, dtype=torch.float)
         norm_rank = torch.special.erfinv(norm_rank)  # maps to Gaussian-distributed data
         norm_rank = norm_rank.reshape(1, -1, 1)
-        norm_rank = norm_rank.repeat(log_mels.shape[0], 1, x.shape[2])
+        norm_rank = norm_rank.repeat(log_mels.shape[0], 1, log_mels.shape[2])
         log_mels_norm = torch.empty_like(log_mels)
         log_mels_norm.scatter_(dim=1, index=indexes, src=norm_rank)
         return log_mels_norm
-
 
 
     def forward_reconstruction_loss(self,
