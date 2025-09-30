@@ -553,10 +553,40 @@ class AsrModel(nn.Module):
         else:
             attention_decoder_loss = torch.empty(0)
 
-        reconstruction_loss = self.forward_reconstruction_loss(x_no_specaug, encoder_out,
-                                                               encoder_out_lens)
+        reconstruction_loss = self.forward_reconstruction_loss(self.gauss_norm(x_no_specaug, x_lens),
+                                                               encoder_out, encoder_out_lens)
 
         return simple_loss, pruned_loss, ctc_loss, attention_decoder_loss, cr_loss, reconstruction_loss, predict_loss
+
+
+
+    def gauss_norm(self,
+                   log_mels: Tensor,
+                   log_mel_lens: Tensor) -> Tensor:
+        (batch_size, seq_len, num_channels) = log_mels.shape
+
+        randpos = torch.randint(seq_len, (batch_size, seq_len, num_channels), device=log_mels.device)
+
+        rand_pos = rand_pos % log_mel_lens.unsqueeze(-1).unsqueeze(-1)
+
+
+        log_mels_rand = torch.gather(log_mels, dim=1, index=rand_pos)
+        length_mask = make_pad_mask(encoder_out_lens)  # True in masked positions
+        length_mask = length_mask.unsqueeze(-1).expand_as(log_mels)
+
+        log_mels = torch.where(length_mask, log_mels_rand, log_mels)
+        # OK, now for out-of-bounds positions we have selected randomly chosen within-bounds positions.
+
+        values, indexes = log_mels.sort(dim=1)  # sort on seq dim
+        N = max(2, log_mels.shape[1])
+        norm_rank = torch.linspace(-1 + 1. / N, 1. - 1. / N, log_mels.shape[1], device=x.device, dtype=torch.float)
+        norm_rank = torch.special.erfinv(norm_rank)  # maps to Gaussian-distributed data
+        norm_rank = norm_rank.reshape(1, -1, 1)
+        norm_rank = norm_rank.repeat(log_mels.shape[0], 1, x.shape[2])
+        log_mels_norm = torch.empty_like(log_mels)
+        log_mels_norm.scatter_(dim=1, index=indexes, src=norm_rank)
+        return log_mels_norm
+
 
 
     def forward_reconstruction_loss(self,
@@ -573,21 +603,6 @@ class AsrModel(nn.Module):
         """
         batch_size = log_mels.shape[0]
         num_mels = log_mels.shape[2]
-
-
-        def gauss_norm(x):
-            # normalize by gaussianizing on each dimension
-            values, indexes = x.sort(dim=1)  # sort on seq dim
-            N = max(2, x.shape[1])
-            norm_rank = torch.linspace(-1 + 1. / N, 1. - 1. / N, x.shape[1], device=x.device, dtype=torch.float)
-            norm_rank = torch.special.erfinv(norm_rank)  # maps to Gaussian-distributed data
-            norm_rank = norm_rank.reshape(1, -1, 1)
-            norm_rank = norm_rank.repeat(x.shape[0], 1, x.shape[2])
-            x_norm = torch.empty_like(x)
-            x_norm.scatter_(dim=1, index=indexes, src=norm_rank)
-            return x_norm
-
-        log_mels = gauss_norm(log_mels)
 
         pred_mels = self.reconstruction_proj(encoder_out) # (batch_size, T_embed, 4 * num_mels)
         T_embed = pred_mels.shape[1]
@@ -613,7 +628,7 @@ class AsrModel(nn.Module):
         #                                          reduction='none', beta=1.0)
         # this way of applying the padding mask is not really ideal in terms of normalization,
         # it will cause us to under-normalize a bit.
-        diff = log_mels * pad_mask - pred_mels * pad_mask
+        diff = (log_mels - pred_mels) * pad_mask
 
         loss = (diff ** 2)
 

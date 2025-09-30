@@ -320,16 +320,6 @@ def _write_debug_info(group, state, param_names, summary_writer):
                     summary_writer.add_scalar(debug_str, value, step)
 
 
-
-def _load_state_dict_pre_hook(optim: Optimizer, state_dict: dict):
-    for optim_group, load_group in zip(optim.param_groups, state_dict['param_groups']):
-        for key in ['debug_interval']:
-            try:
-                optim_group[key] = load_group[key]
-                logging.info(f"Copied key {key}")
-            except KeyError:
-                logging.info(f"Could not copy key {key} from optim state-dict.")
-
 class TransformedAdam(BatchedOptimizer):
     """
      Implements 'Scaled Adam', a variant of Adam where we scale each parameter's update
@@ -426,9 +416,6 @@ class TransformedAdam(BatchedOptimizer):
         super(TransformedAdam, self).__init__(param_groups, defaults)
         assert len(self.param_groups) == len(parameters_names)
         self.parameters_names = parameters_names
-
-
-        self.register_load_state_dict_pre_hook(_load_state_dict_pre_hook)
 
 
 
