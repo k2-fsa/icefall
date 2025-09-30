@@ -115,7 +115,6 @@ class AsrModel(nn.Module):
         if use_ctc:
             # Modules for CTC head
             self.ctc_output = nn.Sequential(
-                nn.Dropout(p=0.1),
                 ScaledLinear(encoder_dim, vocab_size, initial_scale=0.1),
                 nn.LogSoftmax(dim=-1),
             )
