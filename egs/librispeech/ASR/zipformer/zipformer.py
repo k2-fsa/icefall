@@ -211,7 +211,6 @@ class Zipformer2(EncoderInterface):
         x_lens: Tensor,
         src_key_padding_mask: Optional[Tensor] = None,
         aux_loss_scale: float = 0.0,
-        sd_prob: float = 0.0,
     ) -> Tuple[Tensor, Tensor]:
         """
         Args:
@@ -227,12 +226,6 @@ class Zipformer2(EncoderInterface):
             If supplied, auxiliary losses such as CosineSimilarityLoss will be
             applied with this scale on the loss (note, these aux losses are
             reduced via summation over frames.)
-          sd_prob:
-            Stochastic-depth prob: with this probability we replace the final output
-            with the output of a randomly chosen stack (including the 'zero stack' which
-            means the original input x).  Each stack except the 'zero stack' has a
-            separate output projection for stochastic depth, that only sees the
-            "non-bypass part", i.e. its encoder stack without the residual.
         Returns:
           Return (embeddings_lengths), where:
             - embeddings: its shape is (output_seq_len, batch_size, max(encoder_dim))
@@ -257,18 +250,12 @@ class Zipformer2(EncoderInterface):
 
         num_stacks = len(self.downsampling_factor)
 
-        x_sd = x
-
-        def randomly_choose_seqs(x, this_x, prob: float):
-            batch_size = x.shape[1]
-            do_replace = (torch.rand(1, batch_size, 1, device=x.device) < prob).expand_as(x)
-            return torch.where(do_replace, this_x, x)
 
         for i, module in enumerate(self.encoders):
             ds = self.downsampling_factor[i]
             x = downsample_by(x, ds)
             T = x.shape[0]
-            x, this_x_sd = module(
+            x = module(
                 x,
                 chunk_size=chunk_size,
                 src_key_padding_mask=(
@@ -283,8 +270,6 @@ class Zipformer2(EncoderInterface):
                 aux_loss_scale=aux_loss_scale * ds / (self.output_downsampling_factor * num_stacks)
             )
             x = upsample_by(x, ds)
-            if sd_prob:
-                x_sd = randomly_choose_seqs(x_sd, upsample_by(this_x_sd, ds), 1. / (2. + i))
 
 
         assert self.output_downsampling_factor == 2, self.output_downsampling_factor
@@ -298,11 +283,6 @@ class Zipformer2(EncoderInterface):
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 lengths = (x_lens + 1) // 2
-
-        if sd_prob:
-            x_sd = downsample_by(x_sd, od)
-            x_sd = x_sd[:(orig_seq_len + od - 1) // od]  # truncate so seq len not affected by padding
-            x = randomly_choose_seqs(x, x_sd, sd_prob)
 
         return x, lengths
 
@@ -854,9 +834,6 @@ class Zipformer2Encoder(nn.Module):
             self.out_proj = SimpleOrthogonalLinear(dim, dim, bias=False)
             self.out_proj.lr_scale = 0.75
 
-        # stochastic-depth proj.
-        self.sd_proj = nn.Linear(encoder_layer.embed_dim, dim)
-
 
     def forward(
         self,
@@ -925,12 +902,10 @@ class Zipformer2Encoder(nn.Module):
                                              aux_loss_scale, src_key_padding_mask),
                             None)
 
-        src_sd = self.sd_proj(offset)
-
         if hasattr(self, 'out_proj'):
             src = self.out_proj(src)
 
-        return src, src_sd
+        return src
 
 
     def streaming_forward(
@@ -1868,7 +1843,6 @@ def _test_zipformer_main(causal: bool = False):
         torch.randn(seq_len, batch_size, input_dim),
         torch.full((batch_size,), seq_len, dtype=torch.int64),
         aux_loss_scale=1.0,
-        sd_prob=0.1,
     )
     f.sum().backward()
     c.eval()
@@ -1876,7 +1850,6 @@ def _test_zipformer_main(causal: bool = False):
         torch.randn(seq_len, batch_size, input_dim),
         torch.full((batch_size,), seq_len, dtype=torch.int64),
         aux_loss_scale=1.0,
-        sd_prob=0.1,
     )
     x_  # to remove flake8 warnings
 

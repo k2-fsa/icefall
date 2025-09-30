@@ -544,21 +544,6 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--predict-loss-scale",
-        type=float,
-        default=0.01,
-        help="Prediction of random k-means after widest zipformer layer"
-    )
-
-    parser.add_argument(
-        "--stochastic-depth-prob",
-        type=float,
-        default=0.1,
-        help="Probability of using a randomly chosen stack output during training, instead of "
-        "final output."
-    )
-
-    parser.add_argument(
         "--attention-decoder-loss-scale",
         type=float,
         default=0.8,
@@ -1003,7 +988,7 @@ def compute_loss(
         spec_augment = None  # disable spec-aug
 
     with torch.set_grad_enabled(is_training):
-        simple_loss, pruned_loss, ctc_loss, attention_decoder_loss, cr_loss, reconstruction_loss, predict_loss = model(
+        simple_loss, pruned_loss, ctc_loss, attention_decoder_loss, cr_loss, reconstruction_loss = model(
             x=feature,
             x_lens=feature_lens,
             y=y,
@@ -1015,7 +1000,6 @@ def compute_loss(
             time_warp_factor=80, # for specaug
             num_copies=num_copies,
             aux_loss_scale=aux_loss_scale,
-            sd_prob=(params.stochastic_depth_prob if is_training else 0.0),
         )
 
         loss = 0.0
@@ -1042,9 +1026,6 @@ def compute_loss(
 
         loss += reconstruction_loss_scale * reconstruction_loss
 
-        if num_copies > 1:
-            loss += params.predict_loss_scale * predict_loss
-
         if params.use_attention_decoder:
             loss += params.attention_decoder_loss_scale * attention_decoder_loss
 
@@ -1067,8 +1048,6 @@ def compute_loss(
         info["ctc_loss"] = ctc_loss.detach().cpu().item()
         if num_copies > 1:
             info["cr_loss"] = cr_loss.detach().cpu().item()
-    if num_copies > 1:
-        info["predict_loss"] = predict_loss.detach().cpu().item()
     info["recon_loss"] = reconstruction_loss.detach().cpu().item()
     if params.use_attention_decoder:
         info["attn_decoder_loss"] = attention_decoder_loss.detach().cpu().item()
