@@ -1732,7 +1732,7 @@ class ConvolutionModule(nn.Module):
 
         """
 
-        rms = (x ** 2).mean(dim=-1, keepdim=True).sqrt()
+        rms = ((x ** 2).mean(dim=-1, keepdim=True) + 0.2).sqrt()
 
         x = self.in_proj(x)  # (time, batch, 2*channels)
 
