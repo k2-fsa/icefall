@@ -1732,10 +1732,13 @@ class ConvolutionModule(nn.Module):
 
         """
 
+        rms = (x ** 2).mean(dim=-1, keepdim=True).sqrt()
+
         x = self.in_proj(x)  # (time, batch, 2*channels)
 
+
         x, s = x.chunk(2, dim=2)
-        s = self.sigmoid(s)
+        s = self.sigmoid(s / rms)
         x = self.activation1(x)  # identity.
         x = x * s
         x = self.activation2(x)  # identity
