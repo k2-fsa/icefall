@@ -543,7 +543,7 @@ class AsrModel(nn.Module):
                    log_mel_lens: Tensor) -> Tensor:
         (batch_size, seq_len, num_channels) = log_mels.shape
 
-        rand_pos = torch.randint(seq_len, (batch_size, seq_len, num_channels), device=log_mels.device)
+        rand_pos = torch.randint(100000000, (batch_size, seq_len, num_channels), device=log_mels.device)
         rand_pos = rand_pos % log_mel_lens.unsqueeze(-1).unsqueeze(-1)
         arange = torch.arange(seq_len, device=log_mels.device)[None, :, None].expand_as(rand_pos)
         length_mask = make_pad_mask(log_mel_lens)  # True in masked positions
