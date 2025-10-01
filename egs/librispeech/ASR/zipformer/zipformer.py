@@ -1163,11 +1163,11 @@ class PenalizeLargeAttentionScores(torch.autograd.Function):
                 # avg_scores: (num_heads,), we want these to not exceed limit.
                 penalty = (avg_scores - ctx.limit).relu()
                 if random.random() < 0.001:
-                    logging.info(f"PenalizeLargeAttentionScores: {ctx.name}, penalty={penalty}")
+                    logging.info(f"PenalizeLargeAttentionScores: {ctx.name}, limit={ctx.limit}, penalty={penalty}")
                 # all these losses have a "per-frame" scaling, i.e. scaled proportional to the total number
                 # of frames which is batch_size * seq_len.  normalize by dividing by num heads.
                 penalty.backward(gradient=torch.full_like(penalty, ctx.aux_loss_scale * batch_size * seq_len / num_heads))
-        return attn_scores_grad + attn_scores.grad
+        return attn_scores_grad + attn_scores.grad, None, None, None
 
 
 
