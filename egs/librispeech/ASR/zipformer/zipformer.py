@@ -35,8 +35,6 @@ from scaling import (
     ExpNorm,
     ChunkCausalDepthwiseConv1d,
     CosineSimilarityLoss,
-    MinProductLoss,
-    MaxProductLoss,
     FloatLike,
     convert_num_channels,
     limit_param_value,
@@ -1133,6 +1131,47 @@ class CompactRelPositionalEncoding(torch.nn.Module):
         return pos_emb
 
 
+class PenalizeLargeAttentionScores(torch.autograd.Function):
+    @staticmethod
+    def forward(
+            ctx,
+            attn_scores: Tensor,
+            limit: float,
+            aux_loss_scale: float,
+            name: str):
+        # attn_scores: (head, batch, query_time, key_time)
+        ctx.save_for_backward(attn_scores)
+        ctx.limit = limit
+        ctx.aux_loss_scale = aux_loss_scale
+        ctx.name = name
+        return attn_scores
+
+    @staticmethod
+    def backward(
+            ctx,
+            attn_scores_grad):
+        attn_scores, = ctx.saved_tensors
+        (num_heads, batch_size, seq_len, _) = attn_scores.shape
+        with torch.amp.autocast('cuda', enabled=False):
+            attn_scores = attn_scores.to(torch.float)
+            attn_scores = attn_scores.detach()
+            attn_scores.requires_grad = True
+            with torch.enable_grad():
+                probs = attn_scores.softmax(dim=-1)
+                # attn_scores: (head, batch, query_time, key_time)
+                avg_scores = (attn_scores.abs() * probs).sum(dim=-1).mean(dim=(-2,-1))
+                # avg_scores: (num_heads,), we want these to not exceed limit.
+                penalty = (avg_scores - ctx.limit).relu()
+                if random.random() < 0.001:
+                    logging.info(f"PenalizeLargeAttentionScores: {ctx.name}, penalty={penalty}")
+                # all these losses have a "per-frame" scaling, i.e. scaled proportional to the total number
+                # of frames which is batch_size * seq_len.  normalize by dividing by num heads.
+                penalty.backward(gradient=torch.full_like(penalty, ctx.aux_loss_scale * batch_size * seq_len / num_heads))
+        return attn_scores_grad + attn_scores.grad
+
+
+
+
 class RelPositionMultiheadAttentionWeights(nn.Module):
     r"""Module that computes multi-head attention weights with relative position encoding.
     Various other modules consume the resulting attention weights: see, for example, the
@@ -1193,9 +1232,6 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         self.copy_pos_query = Identity()
         self.copy_query = Identity()
         self.copy_key = Identity()
-
-        self.qk_max_product = MaxProductLoss(max_product=6.0)
-        self.pos_max_product = MaxProductLoss(max_product=4.0)
 
 
     def forward(
@@ -1260,15 +1296,8 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         p = p.permute(2, 1, 0, 3)  # (head, batch, time1, pos_head_dim)
         k = k.permute(2, 1, 3, 0)  # (head, batch, d_k, time2)
 
-        if self.training:
-            k = with_loss(k,
-                          self.qk_max_product(q.reshape(num_heads * batch_size, seq_len, query_head_dim),
-                                              k.permute(0, 1, 3, 2).reshape(num_heads * batch_size, seq_len, query_head_dim),
-                                              aux_loss_scale / num_heads),
-                          None)
-
-
         attn_scores = torch.matmul(q, k)
+        # attn_scores: (head, batch, query_time, key_time)
 
         if True:
             # position scores.
@@ -1282,10 +1311,6 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
             if self.training:
                 pe = pos_emb.expand(num_heads, batch_size, pos_head_dim, seq_len2)
                 pe = pe.reshape(num_heads * batch_size, pos_head_dim, seq_len2).permute(0, 2, 1)
-                p = with_loss(p,
-                              self.pos_max_product(p.reshape(num_heads * batch_size, seq_len, pos_head_dim), pe,
-                                                   aux_loss_scale / num_heads),
-                              None)
 
             # (head, batch, time1, pos_dim) x (head, 1, pos_dim, seq_len2) -> (head, batch, time1, seq_len2)
             #  [where seq_len2 represents relative position.]
@@ -1336,6 +1361,12 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
                 key_padding_mask.unsqueeze(1),
                 -1000,
             )
+
+
+        if not torch.jit.is_scripting() and not torch.jit.is_tracing() and self.training:
+            attn_scores_limit = 4.0  # limit on our metric that reflects how much grad we are likely to backpropagate.
+            attn_scores = PenalizeLargeAttentionScores.apply(attn_scores, attn_scores_limit, aux_loss_scale, self.name)
+
 
         # We use our own version of softmax, defined in scaling.py, which should
         # save a little of the memory used in backprop by, if we are in
