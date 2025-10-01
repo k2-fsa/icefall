@@ -335,7 +335,7 @@ class MaxEigLimiterFunction(torch.autograd.Function):
 
 def _exp_norm(x: Tensor, scale: Tensor, channel_dim: int, floor: Optional[Tensor]):
     x_norm = torch.mean(x ** 2, dim=channel_dim, keepdim=True).sqrt()
-    num = torch.nn.functional.tanh(x_norm)
+    num = num.clamp(max=1.0)
     if floor is not None:
         num = torch.maximum(num, floor)
     scales = num / x_norm
