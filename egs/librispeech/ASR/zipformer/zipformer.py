@@ -1367,7 +1367,7 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
 
 
         if not torch.jit.is_scripting() and not torch.jit.is_tracing() and self.training:
-            attn_scores_limit = 5.0  # limit on our metric that reflects how much grad we are likely to backpropagate.
+            attn_scores_limit = 8.0  # limit on our metric that affects how much grad we are likely to backpropagate.
             attn_scores = PenalizeLargeAttentionScores.apply(attn_scores, attn_scores_limit, aux_loss_scale, self.name)
 
 
