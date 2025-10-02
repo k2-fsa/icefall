@@ -1159,14 +1159,18 @@ class PenalizeLargeAttentionScores(torch.autograd.Function):
             with torch.enable_grad():
                 probs = attn_scores.softmax(dim=-1)
                 # attn_scores: (head, batch, query_time, key_time)
-                avg_scores = (attn_scores.abs() * probs).sum(dim=-1).mean(dim=(-2,-1))
-                # avg_scores: (num_heads,), we want these to not exceed limit.
-                penalty = (avg_scores - ctx.limit).relu()
+                scaled_scores = attn_scores.abs() * probs
+                query_scores = (scaled_scores.sum(dim=-1) - ctx.limit).relu()
+                key_scores = (scaled_scores.sum(dim=-2) - ctx.limit).relu()
+
                 if random.random() < 0.001:
-                    logging.info(f"PenalizeLargeAttentionScores: {ctx.name}, limit={ctx.limit}, penalty={penalty}")
+                    query_excess = query_scores.mean(dim=(1,2))
+                    key_excess = key_scores.mean(dim=(1,2))
+                    logging.info(f"PenalizeLargeAttentionScores: {ctx.name}, limit={ctx.limit}, query_excess={query_excess}, key_excess={key_excess}")
                 # all these losses have a "per-frame" scaling, i.e. scaled proportional to the total number
                 # of frames which is batch_size * seq_len.  normalize by dividing by num heads.
-                penalty.backward(gradient=torch.full_like(penalty, ctx.aux_loss_scale * batch_size * seq_len / num_heads))
+                (query_scores + key_scores).backward(gradient=torch.full_like(query_scores, ctx.aux_loss_scale / num_heads))
+
         return attn_scores_grad + attn_scores.grad, None, None, None
 
 
