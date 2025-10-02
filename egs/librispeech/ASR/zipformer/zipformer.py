@@ -549,7 +549,7 @@ class Zipformer2EncoderLayer(nn.Module):
 
         self.residual_scale = nn.Parameter(0.5 * torch.ones(embed_dim))
 
-        self.offset_cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=embed_dim, power=0.8))
+        self.offset_cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=embed_dim, power=0.7))
         self.cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=embed_dim, power=0.8))
 
         self.self_attn_weights = RelPositionMultiheadAttentionWeights(
@@ -1673,7 +1673,7 @@ class FeedforwardModule(nn.Module):
             initial_scale=0.5,
         )
 
-        self.cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=min(embed_dim, feedforward_dim), power=0.7))
+        self.cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=min(embed_dim, feedforward_dim), power=0.65))
 
 
     def forward(self, x: Tensor, aux_loss_scale: float = 0.0, src_key_padding_mask: Optional[Tensor] = None) -> Tensor:
