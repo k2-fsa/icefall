@@ -1161,16 +1161,14 @@ class PenalizeLargeAttentionScores(torch.autograd.Function):
                 # attn_scores: (head, batch, query_time, key_time)
                 scaled_scores = attn_scores.abs() * probs
                 query_scores = (scaled_scores.sum(dim=-1) - ctx.limit).relu()
-                key_scores = (scaled_scores.sum(dim=-2) - ctx.limit).relu()
 
                 if random.random() < 0.001:
                     query_excess = query_scores.mean(dim=(1,2))
-                    key_excess = key_scores.mean(dim=(1,2))
-                    logging.info(f"PenalizeLargeAttentionScores: {ctx.name}, limit={ctx.limit}, query_excess={query_excess}, key_excess={key_excess}")
+                    logging.info(f"PenalizeLargeAttentionScores: {ctx.name}, limit={ctx.limit}, query_excess={query_excess}")
                 # all these losses have a "per-frame" scaling, i.e. scaled proportional to the total number
                 # of frames which is batch_size * seq_len.  normalize by dividing by num heads.
                 # also divide by ctx.limit so it's like penalizing a relative excess.
-                (query_scores + key_scores).backward(gradient=torch.full_like(query_scores, ctx.aux_loss_scale / (num_heads * ctx.limit)))
+                query_scores.backward(gradient=torch.full_like(query_scores, ctx.aux_loss_scale / (num_heads * ctx.limit)))
 
         return attn_scores_grad + attn_scores.grad, None, None, None
 
@@ -1369,7 +1367,7 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
 
 
         if not torch.jit.is_scripting() and not torch.jit.is_tracing() and self.training:
-            attn_scores_limit = 4.0  # limit on our metric that reflects how much grad we are likely to backpropagate.
+            attn_scores_limit = 5.0  # limit on our metric that reflects how much grad we are likely to backpropagate.
             attn_scores = PenalizeLargeAttentionScores.apply(attn_scores, attn_scores_limit, aux_loss_scale, self.name)
 
 
