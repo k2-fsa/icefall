@@ -1169,7 +1169,8 @@ class PenalizeLargeAttentionScores(torch.autograd.Function):
                     logging.info(f"PenalizeLargeAttentionScores: {ctx.name}, limit={ctx.limit}, query_excess={query_excess}, key_excess={key_excess}")
                 # all these losses have a "per-frame" scaling, i.e. scaled proportional to the total number
                 # of frames which is batch_size * seq_len.  normalize by dividing by num heads.
-                (query_scores + key_scores).backward(gradient=torch.full_like(query_scores, ctx.aux_loss_scale / num_heads))
+                # also divide by ctx.limit so it's like penalizing a relative excess.
+                (query_scores + key_scores).backward(gradient=torch.full_like(query_scores, ctx.aux_loss_scale / (num_heads * ctx.limit)))
 
         return attn_scores_grad + attn_scores.grad, None, None, None
 
