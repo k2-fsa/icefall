@@ -249,7 +249,7 @@ class Conv2dSubsampling(nn.Module):
 
 
         self.scale_limiter = ScaleLimiter(min_rms=0.15, max_rms=2.0)
-        self.out_norm = ExpNorm(out_channels, rand_floor=0.0)
+        self.out_norm = ExpNorm(out_channels)
 
     def forward(
         self, x: torch.Tensor, x_lens: torch.Tensor, aux_loss_scale: float = 0.0,

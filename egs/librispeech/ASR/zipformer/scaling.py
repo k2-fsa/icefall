@@ -333,11 +333,10 @@ class MaxEigLimiterFunction(torch.autograd.Function):
 
 
 
-def _exp_norm(x: Tensor, scale: Tensor, channel_dim: int, floor: Optional[Tensor]):
-    x_norm = torch.mean(x ** 2, dim=channel_dim, keepdim=True).sqrt()
-    num = x_norm.tanh()
-    if floor is not None:
-        num = torch.maximum(num, floor)
+def _exp_norm(x: Tensor, scale: Tensor, channel_dim: int, eps: float):
+    var = torch.mean(x ** 2, dim=channel_dim, keepdim=True)
+    x_norm, x_norm_witheps = var.sqrt(), (v + eps**2).sqrt()
+    num = x_norm_witheps.tanh()
     scales = num / x_norm
     scales = scale * scales
     return (x * scales)
@@ -350,33 +349,22 @@ class ExpNormFunction(torch.autograd.Function):
     # (scale is a user-provided scaling factor that is learnable)..
     #   return x * scales
     #
-    # .. if rand_floor != 0.0, it does a randomized method that sometimes modifies
-    # (increases) the scale if x_norm is less than rand_floor; this is intended
-    # to penalize too-small x values, which can otherwise occur after a lot of training
-    # and could destabilize the network's training.
     @staticmethod
     def forward(
         ctx,
         x: Tensor,
         scale: Tensor,
         channel_dim: int,
-        rand_floor: float,
+        eps: float,
     ) -> Tensor:
         if channel_dim < 0:
             channel_dim = channel_dim + x.ndim
         ctx.channel_dim = channel_dim
-        ctx.rand_floor = rand_floor
-        if rand_floor != 0.0:
-            shape = list(x.shape)
-            shape[channel_dim] = 1
-            floor = torch.where(torch.rand(*shape, device=x.device) < 0.1, rand_floor, 0.0)
-        else:
-            floor = None
-        ctx.floor = floor
+        ctx.eps = eps
 
         ctx.save_for_backward(x, scale)
 
-        return _exp_norm(x, scale, channel_dim, floor)
+        return _exp_norm(x, scale, channel_dim, eps)
 
 
     @staticmethod
@@ -391,7 +379,7 @@ class ExpNormFunction(torch.autograd.Function):
             scale.requires_grad = True
 
             with torch.enable_grad():
-                ans = _exp_norm(x, scale, ctx.channel_dim, ctx.floor)
+                ans = _exp_norm(x, scale, ctx.channel_dim, ctx.eps)
                 ans.backward(gradient=ans_grad.to(torch.float32))
 
         def c(x):
@@ -429,22 +417,20 @@ class ExpNorm(torch.nn.Module):
          interpreted as an offset from the input's ndim if negative.
          This is NOT the num_channels; it should typically be one of
          {-2, -1, 0, 1, 2, 3}.
-       rand_floor: if not 0.0: during training, for 10% of the vectors
-           we will randomly floor the numerator of the expression for the
-           scales (1. - (-x_norm).exp()), to this value.  This is intended
-           to discourage the network to make the inputs smaller than this.
+    eps: a mechanism to discourage too-small inputs by making the function
+          nonlinear below approximately this value.
     """
     def __init__(
         self,
         num_channels: int,
         channel_dim: int = -1,  # CAUTION: see documentation.
-        rand_floor: FloatLike = 0.15,
+        eps: float = 0.1,
     ) -> None:
         super(ExpNorm, self).__init__()
         self.num_channels = num_channels
         self.channel_dim = channel_dim
         self.scale = nn.Parameter(torch.tensor(1.7))
-        self.rand_floor = rand_floor
+        self.eps = eps
 
         self.name = None
 
@@ -459,7 +445,7 @@ class ExpNorm(torch.nn.Module):
             self.scale, min=0.5, max=2.5, training=self.training)
 
         ans = ExpNormFunction.apply(
-            x, scale, self.channel_dim, float(self.rand_floor) if self.training else 0.0,
+            x, scale, self.channel_dim, self.eps,
         )
 
         if random.random() < 0.002:

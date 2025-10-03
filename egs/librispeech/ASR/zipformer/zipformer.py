@@ -576,7 +576,7 @@ class Zipformer2EncoderLayer(nn.Module):
 
         self.scale_limiter = ScaleLimiter(min_rms=0.15, max_rms=2.0)
 
-        self.norm = ExpNorm(embed_dim, rand_floor=0.0)  # rely on scale_limiter for floor on norm.
+        self.norm = ExpNorm(embed_dim)
 
 
     def forward(
