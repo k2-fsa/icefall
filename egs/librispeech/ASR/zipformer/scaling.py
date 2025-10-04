@@ -333,37 +333,32 @@ class MaxEigLimiterFunction(torch.autograd.Function):
 
 
 
-def _exp_norm(x: Tensor, scale: Tensor, channel_dim: int, eps: float):
+def _exp_norm(x: Tensor, scale: Tensor, channel_dim: int, eps1: float, eps2: float):
     x_norm = torch.mean(x ** 2, dim=channel_dim, keepdim=True).sqrt()
-    num = (x_norm + eps).tanh()
+    num = (x_norm + eps1).tanh() - eps2 * x_norm
     scales = num / x_norm
     scales = scale * scales
     return (x * scales)
 
 class ExpNormFunction(torch.autograd.Function):
-    # This computes:
-    # Equivalent to:
-    #   x_norm = x.norm(dim=-1, keepdim=True)
-    #   scales = x_norm.tanh() / x_norm * scale
-    # (scale is a user-provided scaling factor that is learnable)..
-    #   return x * scales
-    #
     @staticmethod
     def forward(
         ctx,
         x: Tensor,
         scale: Tensor,
         channel_dim: int,
-        eps: float,
+        eps1: float,
+        eps2: float,
     ) -> Tensor:
         if channel_dim < 0:
             channel_dim = channel_dim + x.ndim
         ctx.channel_dim = channel_dim
-        ctx.eps = eps
+        ctx.eps1 = eps1
+        ctx.eps2 = eps2
 
         ctx.save_for_backward(x, scale)
 
-        return _exp_norm(x, scale, channel_dim, eps)
+        return _exp_norm(x, scale, channel_dim, eps1, eps2)
 
 
     @staticmethod
@@ -378,7 +373,7 @@ class ExpNormFunction(torch.autograd.Function):
             scale.requires_grad = True
 
             with torch.enable_grad():
-                ans = _exp_norm(x, scale, ctx.channel_dim, ctx.eps)
+                ans = _exp_norm(x, scale, ctx.channel_dim, ctx.eps1, ctx.eps2)
                 ans.backward(gradient=ans_grad.to(torch.float32))
 
         def c(x):
@@ -386,7 +381,7 @@ class ExpNormFunction(torch.autograd.Function):
             # in autocast mode.
             return x.clamp_(min=-30000.0, max=30000.0)
 
-        return x.grad, c(scale.grad), None, None
+        return x.grad, c(scale.grad), None, None, None
 
 
 
@@ -423,13 +418,15 @@ class ExpNorm(torch.nn.Module):
         self,
         num_channels: int,
         channel_dim: int = -1,  # CAUTION: see documentation.
-        eps: float = 0.1,
+        eps1: float = 0.05,
+        eps2: float = 0.01,
     ) -> None:
         super(ExpNorm, self).__init__()
         self.num_channels = num_channels
         self.channel_dim = channel_dim
         self.scale = nn.Parameter(torch.tensor(1.7))
-        self.eps = eps
+        self.eps1 = eps1
+        self.eps2 = eps2
 
         self.name = None
 
@@ -438,13 +435,13 @@ class ExpNorm(torch.nn.Module):
         assert x.shape[self.channel_dim] == self.num_channels
 
         if torch.jit.is_scripting() or torch.jit.is_tracing():
-            return _exp_norm(x, self.scale, self.channel_dim)
+            return _exp_norm(x, self.scale, self.channel_dim, self.eps1, self.eps2)
 
         scale = limit_param_value(
             self.scale, min=0.5, max=2.5, training=self.training)
 
         ans = ExpNormFunction.apply(
-            x, scale, self.channel_dim, self.eps,
+            x, scale, self.channel_dim, self.eps1, self.eps2
         )
 
         if random.random() < 0.002:
