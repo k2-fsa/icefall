@@ -441,7 +441,7 @@ class ExpNorm(torch.nn.Module):
             return _exp_norm(x, self.scale, self.channel_dim)
 
         scale = limit_param_value(
-            self.scale, min=0.5, max=2.5, training=self.training)
+            self.scale, min=0.5, max=1.0, training=self.training)
 
         ans = ExpNormFunction.apply(
             x, scale, self.channel_dim, self.eps,
