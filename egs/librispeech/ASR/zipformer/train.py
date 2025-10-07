@@ -1409,9 +1409,11 @@ def run(rank, world_size, args):
         T = ((c.num_frames - 7) // 2 + 1) // 2
         tokens = sp.encode(c.supervisions[0].text, out_type=str)
 
-        if T < len(tokens):
+        # For CTC `(T - 2)  < len(tokens)` is needed. otherwise inf. in loss appears.
+        # For Transducer `T < len(tokens)` was okay.
+        if (T - 2) < len(tokens):
             logging.warning(
-                f"Exclude cut with ID {c.id} from training. "
+                f"Exclude cut with ID {c.id} from training (too many supervision tokens). "
                 f"Number of frames (before subsampling): {c.num_frames}. "
                 f"Number of frames (after subsampling): {T}. "
                 f"Text: {c.supervisions[0].text}. "
