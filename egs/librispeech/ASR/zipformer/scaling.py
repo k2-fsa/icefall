@@ -416,7 +416,7 @@ class ExpNorm(torch.nn.Module):
         self,
         num_channels: int,
         channel_dim: int = -1,  # CAUTION: see documentation.
-        eps1: float = 0.1,
+        eps1: float = 0.05,
     ) -> None:
         super(ExpNorm, self).__init__()
         self.num_channels = num_channels
@@ -434,7 +434,7 @@ class ExpNorm(torch.nn.Module):
             return _exp_norm(x, self.scale, self.channel_dim, self.eps1)
 
         scale = limit_param_value(
-            self.scale, min=0.5, max=2.5, training=self.training)
+            self.scale, min=0.4, max=2.5, training=self.training)
 
         ans = ExpNormFunction.apply(
             x, scale, self.channel_dim, self.eps1

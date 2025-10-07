@@ -248,7 +248,7 @@ class Conv2dSubsampling(nn.Module):
         self.cosine_loss = CosineSimilarityLoss(get_max_similarity(out_channels, power=0.75))
 
 
-        self.scale_limiter = ScaleLimiter(min_rms=0.1, max_rms=2.0)
+        self.scale_limiter = ScaleLimiter(min_rms=0.05, max_rms=2.0)
         self.out_norm = ExpNorm(out_channels)
 
     def forward(
