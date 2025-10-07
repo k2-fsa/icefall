@@ -333,9 +333,9 @@ class MaxEigLimiterFunction(torch.autograd.Function):
 
 
 
-def _exp_norm(x: Tensor, scale: Tensor, channel_dim: int, eps1: float, eps2: float):
+def _exp_norm(x: Tensor, scale: Tensor, channel_dim: int, eps1: float):
     x_norm = torch.mean(x ** 2, dim=channel_dim, keepdim=True).sqrt()
-    num = ((x_norm + eps1).tanh() - eps2 * x_norm).clamp(min=0.0)
+    num = (x_norm + eps1).tanh()
     scales = num / x_norm
     scales = scale * scales
     return (x * scales)
@@ -348,17 +348,15 @@ class ExpNormFunction(torch.autograd.Function):
         scale: Tensor,
         channel_dim: int,
         eps1: float,
-        eps2: float,
     ) -> Tensor:
         if channel_dim < 0:
             channel_dim = channel_dim + x.ndim
         ctx.channel_dim = channel_dim
         ctx.eps1 = eps1
-        ctx.eps2 = eps2
 
         ctx.save_for_backward(x, scale)
 
-        return _exp_norm(x, scale, channel_dim, eps1, eps2)
+        return _exp_norm(x, scale, channel_dim, eps1)
 
 
     @staticmethod
@@ -373,7 +371,7 @@ class ExpNormFunction(torch.autograd.Function):
             scale.requires_grad = True
 
             with torch.enable_grad():
-                ans = _exp_norm(x, scale, ctx.channel_dim, ctx.eps1, ctx.eps2)
+                ans = _exp_norm(x, scale, ctx.channel_dim, ctx.eps1)
                 ans.backward(gradient=ans_grad.to(torch.float32))
 
         def c(x):
@@ -381,7 +379,7 @@ class ExpNormFunction(torch.autograd.Function):
             # in autocast mode.
             return x.clamp_(min=-30000.0, max=30000.0)
 
-        return x.grad, c(scale.grad), None, None, None
+        return x.grad, c(scale.grad), None, None
 
 
 
@@ -411,22 +409,20 @@ class ExpNorm(torch.nn.Module):
          interpreted as an offset from the input's ndim if negative.
          This is NOT the num_channels; it should typically be one of
          {-2, -1, 0, 1, 2, 3}.
-    eps: a mechanism to discourage too-small inputs by making the function
+    eps1: a mechanism to discourage too-small inputs by making the function
           nonlinear below approximately this value.
     """
     def __init__(
         self,
         num_channels: int,
         channel_dim: int = -1,  # CAUTION: see documentation.
-        eps1: float = 0.05,
-        eps2: float = 0.01,
+        eps1: float = 0.1,
     ) -> None:
         super(ExpNorm, self).__init__()
         self.num_channels = num_channels
         self.channel_dim = channel_dim
         self.scale = nn.Parameter(torch.tensor(1.7))
         self.eps1 = eps1
-        self.eps2 = eps2
 
         self.name = None
 
@@ -435,13 +431,13 @@ class ExpNorm(torch.nn.Module):
         assert x.shape[self.channel_dim] == self.num_channels
 
         if torch.jit.is_scripting() or torch.jit.is_tracing():
-            return _exp_norm(x, self.scale, self.channel_dim, self.eps1, self.eps2)
+            return _exp_norm(x, self.scale, self.channel_dim, self.eps1)
 
         scale = limit_param_value(
             self.scale, min=0.5, max=2.5, training=self.training)
 
         ans = ExpNormFunction.apply(
-            x, scale, self.channel_dim, self.eps1, self.eps2
+            x, scale, self.channel_dim, self.eps1
         )
 
         if random.random() < 0.002:

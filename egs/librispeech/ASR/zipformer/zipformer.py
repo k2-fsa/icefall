@@ -574,7 +574,7 @@ class Zipformer2EncoderLayer(nn.Module):
         if num_conv_modules >= 1:
             self.conv_module1 = ConvolutionModule(embed_dim, cnn_module_kernel, causal=causal)
 
-        self.scale_limiter = ScaleLimiter(min_rms=0.05, max_rms=2.0)
+        self.scale_limiter = ScaleLimiter(min_rms=0.1, max_rms=2.0)
 
         self.norm = ExpNorm(embed_dim)
 
