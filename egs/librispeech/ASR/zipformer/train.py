@@ -501,6 +501,17 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--scan-for-oom-batches",
+        type=str2bool,
+        default=False,
+        help="""
+        Whether to scan for oom batches before training, this is helpful for
+        finding the suitable max_duration, you only need to run it once.
+        Caution: a little time consuming.
+        """,
+    )
+
+    parser.add_argument(
         "--save-every-n",
         type=int,
         default=4000,
@@ -1399,27 +1410,6 @@ def run(rank, world_size, args):
             #     f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
             # )
             return False
-
-        # In pruned RNN-T, we require that T >= S
-        # where T is the number of feature frames after subsampling
-        # and S is the number of tokens in the utterance
-
-        # In ./zipformer.py, the conv module uses the following expression
-        # for subsampling
-        T = ((c.num_frames - 7) // 2 + 1) // 2
-        tokens = sp.encode(c.supervisions[0].text, out_type=str)
-
-        if T < len(tokens):
-            logging.warning(
-                f"Exclude cut with ID {c.id} from training. "
-                f"Number of frames (before subsampling): {c.num_frames}. "
-                f"Number of frames (after subsampling): {T}. "
-                f"Text: {c.supervisions[0].text}. "
-                f"Tokens: {tokens}. "
-                f"Number of tokens: {len(tokens)}"
-            )
-            return False
-
         return True
 
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
@@ -1439,7 +1429,7 @@ def run(rank, world_size, args):
     valid_cuts += librispeech.dev_other_cuts()
     valid_dl = librispeech.valid_dataloaders(valid_cuts)
 
-    if not params.print_diagnostics:
+    if not params.print_diagnostics and params.scan_for_oom_batches:
         scan_pessimistic_batches_for_oom(
             model=model,
             train_dl=train_dl,

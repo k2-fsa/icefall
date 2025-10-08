@@ -121,9 +121,10 @@ import k2
 import sentencepiece as spm
 import torch
 import torch.nn as nn
-from asr_datamodule import LibriSpeechAsrDataModule
+from asr_datamodule import LibriHeavyAsrDataModule
 from lhotse import set_caching_enabled
 from train import add_model_arguments, get_model, get_params
+from text_normalization import remove_punc_to_upper
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -374,6 +375,22 @@ def get_parser():
         type=str2bool,
         default=False,
         help="""Skip scoring, but still save the ASR output (for eval sets).""",
+    )
+
+    parser.add_argument(
+        "--train-with-punctuation",
+        type=str2bool,
+        default=False,
+        help="""Set to True, if the model was trained on texts with casing
+        and punctuation.""",
+    )
+
+    parser.add_argument(
+        "--post-normalization",
+        type=str2bool,
+        default=False,
+        help="""Upper case and remove all chars except ' and -
+        """,
     )
 
     add_model_arguments(parser)
@@ -769,6 +786,15 @@ def decode_dataset(
 
             results[name].extend(this_batch)
 
+            this_batch = []
+            if params.post_normalization and params.train_with_punctuation:
+                for cut_id, hyp_words, ref_text in zip(cut_ids, hyps, texts):
+                    ref_words = remove_punc_to_upper(ref_text).split()
+                    hyp_words = remove_punc_to_upper(" ".join(hyp_words)).split()
+                    this_batch.append((cut_id, ref_words, hyp_words))
+
+                results[f"{name}_norm"].extend(this_batch)
+
         num_cuts += len(texts)
 
         if batch_idx % 100 == 0:
@@ -843,7 +869,7 @@ def save_wer_results(
 @torch.no_grad()
 def main():
     parser = get_parser()
-    LibriSpeechAsrDataModule.add_arguments(parser)
+    LibriHeavyAsrDataModule.add_arguments(parser)
     LmScorer.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
@@ -948,9 +974,7 @@ def main():
         H = None
         bpe_model = None
         HLG = k2.Fsa.from_dict(
-            torch.load(
-                f"{params.lang_dir}/HLG.pt", map_location=device, weights_only=False
-            )
+            torch.load(f"{params.lang_dir}/HLG.pt", map_location=device)
         )
         assert HLG.requires_grad is False
 
@@ -990,9 +1014,7 @@ def main():
                 torch.save(G.as_dict(), params.lm_dir / "G_4_gram.pt")
         else:
             logging.info("Loading pre-compiled G_4_gram.pt")
-            d = torch.load(
-                params.lm_dir / "G_4_gram.pt", map_location=device, weights_only=False
-            )
+            d = torch.load(params.lm_dir / "G_4_gram.pt", map_location=device)
             G = k2.Fsa.from_dict(d)
 
         if params.decoding_method in [
@@ -1144,13 +1166,22 @@ def main():
 
     # we need cut ids to display recognition results.
     args.return_cuts = True
-    librispeech = LibriSpeechAsrDataModule(args)
+    libriheavy = LibriHeavyAsrDataModule(args)
 
-    test_clean_cuts = librispeech.test_clean_cuts()
-    test_other_cuts = librispeech.test_other_cuts()
+    def normalize_text(c: Cut):
+        text = remove_punc_to_upper(c.supervisions[0].text)
+        c.supervisions[0].text = text
+        return c
 
-    test_clean_dl = librispeech.test_dataloaders(test_clean_cuts)
-    test_other_dl = librispeech.test_dataloaders(test_other_cuts)
+    test_clean_cuts = libriheavy.test_clean_cuts()
+    test_other_cuts = libriheavy.test_other_cuts()
+
+    if not params.train_with_punctuation:
+        test_clean_cuts = test_clean_cuts.map(normalize_text)
+        test_other_cuts = test_other_cuts.map(normalize_text)
+
+    test_clean_dl = libriheavy.test_dataloaders(test_clean_cuts)
+    test_other_dl = libriheavy.test_dataloaders(test_other_cuts)
 
     test_sets = ["test-clean", "test-other"]
     test_dl = [test_clean_dl, test_other_dl]
