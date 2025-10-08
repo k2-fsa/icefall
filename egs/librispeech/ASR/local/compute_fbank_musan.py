@@ -34,6 +34,7 @@ from lhotse import (
     FbankConfig,
     LilcomChunkyWriter,
     MonoCut,
+    NumpyHdf5Writer,
     WhisperFbank,
     WhisperFbankConfig,
     combine,
@@ -55,7 +56,10 @@ def is_cut_long(c: MonoCut) -> bool:
 
 
 def compute_fbank_musan(
-    num_mel_bins: int = 80, whisper_fbank: bool = False, output_dir: str = "data/fbank"
+    num_mel_bins: int = 80,
+    whisper_fbank: bool = False,
+    output_dir: str = "data/fbank",
+    use_hdf5: bool = False,
 ):
     src_dir = Path("data/manifests")
     output_dir = Path(output_dir)
@@ -111,7 +115,7 @@ def compute_fbank_musan(
                 storage_path=f"{output_dir}/musan_feats",
                 num_jobs=num_jobs if ex is None else 80,
                 executor=ex,
-                storage_type=LilcomChunkyWriter,
+                storage_type=LilcomChunkyWriter if not use_hdf5 else NumpyHdf5Writer,
             )
         )
         musan_cuts.to_file(musan_cuts_path)
@@ -137,6 +141,12 @@ def get_args():
         default="data/fbank",
         help="Output directory. Default: data/fbank.",
     )
+    parser.add_argument(
+        "--use-hdf5",
+        type=str2bool,
+        default=False,
+        help="If use hdf5 to store un-compressed features. Otherwise, use Lilcom"
+    )
     return parser.parse_args()
 
 
@@ -149,4 +159,5 @@ if __name__ == "__main__":
         num_mel_bins=args.num_mel_bins,
         whisper_fbank=args.whisper_fbank,
         output_dir=args.output_dir,
+        use_hdf5=args.use_hdf5,
     )
