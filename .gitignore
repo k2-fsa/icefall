@@ -36,3 +36,7 @@ node_modules
 .DS_Store
 *.fst
 *.arpa
+core.c
+*.so
+build
+*.wav
