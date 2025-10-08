@@ -30,7 +30,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --start-epoch 1 \
   --use-fp16 1 \
   --exp-dir zipformer/exp \
-  --max-duration 600
+  --max-duration 1000
 
 # For streaming model training:
 ./zipformer/train.py \
@@ -40,7 +40,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --use-fp16 1 \
   --exp-dir zipformer/exp \
   --causal 1 \
-  --max-duration 600
+  --max-duration 1000
 
 It supports training with:
   - transducer loss (default), with `--use-transducer True --use-ctc False`
@@ -52,8 +52,6 @@ It supports training with:
 import argparse
 import copy
 import logging
-import os
-import re
 import warnings
 from pathlib import Path
 from shutil import copyfile
@@ -61,28 +59,28 @@ from typing import Any, Dict, Optional, Tuple, Union
 
 import k2
 import optim
-import sentencepiece as spm
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
-from asr_datamodule import MultiDatasetAsrDataModule
+from asr_datamodule import MLSEnglishHFAsrDataModule
 from decoder import Decoder
 from joiner import Joiner
 from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
+from lhotse import load_manifest
 from model import AsrModel
-from multi_dataset import MultiDataset
 from optim import Eden, ScaledAdam
 from scaling import ScheduledFloat
 from subsampling import Conv2dSubsampling
+from tokenizer import Tokenizer
 from torch import Tensor
 from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
 from zipformer import Zipformer2
 
-from icefall import byte_encode, diagnostics
+from icefall import diagnostics
 from icefall.checkpoint import load_checkpoint, remove_checkpoints
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 from icefall.checkpoint import (
@@ -91,7 +89,6 @@ from icefall.checkpoint import (
 )
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
-from icefall.err import raise_grad_scale_is_too_small_error
 from icefall.hooks import register_inf_check_hooks
 from icefall.utils import (
     AttributeDict,
@@ -99,7 +96,6 @@ from icefall.utils import (
     get_parameter_groups_with_lrs,
     setup_logger,
     str2bool,
-    tokenize_by_ja_char,
 )
 
 LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
@@ -324,11 +320,18 @@ def get_parser():
         """,
     )
 
+    # parser.add_argument(
+    #     "--bpe-model",
+    #     type=str,
+    #     default="data/lang_bpe_500/bpe.model",
+    #     help="Path to the BPE model",
+    # )
+
     parser.add_argument(
-        "--bpe-model",
+        "--lang-dir",
         type=str,
-        default="data/lang/bbpe_2000/bbpe.model",
-        help="Path to the BPE model",
+        default="data/lang_char",
+        help="Path to the lang dir with the BPE model (`bpe.model`)",
     )
 
     parser.add_argument(
@@ -756,7 +759,7 @@ def save_checkpoint(
 def compute_loss(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
-    sentencepiece_processor: spm.SentencePieceProcessor,
+    sp: Tokenizer,
     batch: dict,
     is_training: bool,
 ) -> Tuple[Tensor, MetricsTracker]:
@@ -791,7 +794,7 @@ def compute_loss(
     warm_step = params.warm_step
 
     texts = batch["supervisions"]["text"]
-    y = sentencepiece_processor.encode(texts, out_type=int)
+    y = sp.encode(texts, out_type=int)
     y = k2.RaggedTensor(y)
 
     with torch.set_grad_enabled(is_training):
@@ -847,7 +850,7 @@ def compute_loss(
 def compute_validation_loss(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
-    sentencepiece_processor: spm.SentencePieceProcessor,
+    sp: Tokenizer,
     valid_dl: torch.utils.data.DataLoader,
     world_size: int = 1,
 ) -> MetricsTracker:
@@ -860,7 +863,7 @@ def compute_validation_loss(
         loss, loss_info = compute_loss(
             params=params,
             model=model,
-            sentencepiece_processor=sentencepiece_processor,
+            sp=sp,
             batch=batch,
             is_training=False,
         )
@@ -883,7 +886,7 @@ def train_one_epoch(
     model: Union[nn.Module, DDP],
     optimizer: torch.optim.Optimizer,
     scheduler: LRSchedulerType,
-    sentencepiece_processor: spm.SentencePieceProcessor,
+    sp: Tokenizer,
     train_dl: torch.utils.data.DataLoader,
     valid_dl: torch.utils.data.DataLoader,
     scaler: GradScaler,
@@ -954,7 +957,7 @@ def train_one_epoch(
                 loss, loss_info = compute_loss(
                     params=params,
                     model=model,
-                    sentencepiece_processor=sentencepiece_processor,
+                    sp=sp,
                     batch=batch,
                     is_training=True,
                 )
@@ -971,11 +974,7 @@ def train_one_epoch(
             optimizer.zero_grad()
         except:  # noqa
             save_bad_model()
-            display_and_save_batch(
-                batch,
-                params=params,
-                sentencepiece_processor=sentencepiece_processor,
-            )
+            display_and_save_batch(batch, params=params, sp=sp)
             raise
 
         if params.print_diagnostics and batch_idx == 5:
@@ -1029,7 +1028,9 @@ def train_one_epoch(
                 logging.warning(f"Grad scale is small: {cur_grad_scale}")
             if cur_grad_scale < 1.0e-05:
                 save_bad_model()
-                raise_grad_scale_is_too_small_error(cur_grad_scale)
+                raise RuntimeError(
+                    f"grad_scale is too small, exiting: {cur_grad_scale}"
+                )
 
         if batch_idx % params.log_interval == 0:
             cur_lr = max(scheduler.get_last_lr())
@@ -1062,7 +1063,7 @@ def train_one_epoch(
             valid_info = compute_validation_loss(
                 params=params,
                 model=model,
-                sentencepiece_processor=sentencepiece_processor,
+                sp=sp,
                 valid_dl=valid_dl,
                 world_size=world_size,
             )
@@ -1115,12 +1116,11 @@ def run(rank, world_size, args):
         device = torch.device("cuda", rank)
     logging.info(f"Device: {device}")
 
-    sentencepiece_processor = spm.SentencePieceProcessor()
-    sentencepiece_processor.load(params.bpe_model)
+    sp = Tokenizer.load(Path(args.lang_dir), "bpe")  # force bpe model
 
     # <blk> is defined in local/prepare_lang_char.py
-    params.blank_id = sentencepiece_processor.piece_to_id("<blk>")
-    params.vocab_size = sentencepiece_processor.get_piece_size()
+    params.blank_id = sp.piece_to_id("<blk>")
+    params.vocab_size = sp.get_piece_size()
 
     if not params.use_transducer:
         params.ctc_loss_scale = 1.0
@@ -1178,23 +1178,19 @@ def run(rank, world_size, args):
     if params.inf_check:
         register_inf_check_hooks(model)
 
-    multidataset_datamodule = MultiDatasetAsrDataModule(args)
-
-    multi_dataset = MultiDataset(args)
-
-    train_cuts = multi_dataset.train_cuts()
-
     def remove_short_and_long_utt(c: Cut):
-
-        # Keep only utterances greater than 1 second
+        # Keep only utterances with duration between 1 second and 20 seconds
+        #
+        # Caution: There is a reason to select 20.0 here. Please see
+        # ../local/display_manifest_statistics.py
         #
         # You should use ../local/display_manifest_statistics.py to get
         # an utterance duration distribution for your dataset to select
-        # the threshold as this is dependent on which datasets you choose
-        if c.duration < 1.0:
-            logging.warning(
-                f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
-            )
+        # the threshold
+        if c.duration < 1.0 or c.duration > 30.0:
+            # logging.warning(
+            #     f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
+            # )
             return False
 
         # In pruned RNN-T, we require that T >= S
@@ -1204,7 +1200,7 @@ def run(rank, world_size, args):
         # In ./zipformer.py, the conv module uses the following expression
         # for subsampling
         T = ((c.num_frames - 7) // 2 + 1) // 2
-        tokens = sentencepiece_processor.encode(c.supervisions[0].text, out_type=str)
+        tokens = sp.encode(c.supervisions[0].text, out_type=str)
 
         if T < len(tokens):
             logging.warning(
@@ -1219,16 +1215,9 @@ def run(rank, world_size, args):
 
         return True
 
-    def tokenize_and_encode_text(c: Cut):
-        # Text normalize for each sample
-        text = c.supervisions[0].text
-        text = byte_encode(tokenize_by_ja_char(text))
-        c.supervisions[0].text = text
-        return c
-
-    train_cuts = train_cuts.filter(remove_short_and_long_utt)
-
-    train_cuts = train_cuts.map(tokenize_and_encode_text)
+    mls_english_corpus = MLSEnglishHFAsrDataModule(args)
+    train_cuts = mls_english_corpus.train_cuts()
+    # mls_english_corpus.load_dataset(args.dataset_path)
 
     if params.start_batch > 0 and checkpoints and "sampler" in checkpoints:
         # We only load the sampler's state dict when it loads a checkpoint
@@ -1236,21 +1225,30 @@ def run(rank, world_size, args):
         sampler_state_dict = checkpoints["sampler"]
     else:
         sampler_state_dict = None
+    
+    if args.enable_musan:
+        musan_path = Path(args.manifest_dir) / "musan_cuts.jsonl.gz"
+        if musan_path.exists():
+            cuts_musan = load_manifest(musan_path)
+            logging.info(f"Loaded MUSAN manifest from {musan_path}")
+        else:
+            logging.warning(f"MUSAN manifest not found at {musan_path}, disabling MUSAN augmentation")
+            cuts_musan = None
+    else:
+        cuts_musan = None
 
-    train_dl = multidataset_datamodule.train_dataloaders(
-        train_cuts, sampler_state_dict=sampler_state_dict
+    train_dl = mls_english_corpus.train_dataloaders(
+            train_cuts, sampler_state_dict=sampler_state_dict
     )
-
-    valid_cuts = multi_dataset.dev_cuts()
-
-    valid_dl = multidataset_datamodule.valid_dataloaders(valid_cuts)
+    valid_cuts = mls_english_corpus.valid_cuts()
+    valid_dl = mls_english_corpus.valid_dataloaders(valid_cuts)
 
     if not params.print_diagnostics:
         scan_pessimistic_batches_for_oom(
             model=model,
             train_dl=train_dl,
             optimizer=optimizer,
-            sentencepiece_processor=sentencepiece_processor,
+            sp=sp,
             params=params,
         )
 
@@ -1275,7 +1273,7 @@ def run(rank, world_size, args):
             model_avg=model_avg,
             optimizer=optimizer,
             scheduler=scheduler,
-            sentencepiece_processor=sentencepiece_processor,
+            sp=sp,
             train_dl=train_dl,
             valid_dl=valid_dl,
             scaler=scaler,
@@ -1309,7 +1307,7 @@ def run(rank, world_size, args):
 def display_and_save_batch(
     batch: dict,
     params: AttributeDict,
-    sentencepiece_processor: spm.SentencePieceProcessor,
+    sp: Tokenizer,
 ) -> None:
     """Display the batch statistics and save the batch into disk.
 
@@ -1319,7 +1317,7 @@ def display_and_save_batch(
         for the content in it.
       params:
         Parameters for training. See :func:`get_params`.
-      sentencepiece_processor:
+      sp:
         The BPE model.
     """
     from lhotse.utils import uuid4
@@ -1332,7 +1330,8 @@ def display_and_save_batch(
     features = batch["inputs"]
 
     logging.info(f"features shape: {features.shape}")
-    y = sentencepiece_processor.encode(supervisions["text"], out_type=int)
+
+    y = sp.encode(supervisions["text"], out_type=int)
     num_tokens = sum(len(i) for i in y)
     logging.info(f"num tokens: {num_tokens}")
 
@@ -1341,7 +1340,7 @@ def scan_pessimistic_batches_for_oom(
     model: Union[nn.Module, DDP],
     train_dl: torch.utils.data.DataLoader,
     optimizer: torch.optim.Optimizer,
-    sentencepiece_processor: spm.SentencePieceProcessor,
+    sp: Tokenizer,
     params: AttributeDict,
 ):
     from lhotse.dataset import find_pessimistic_batches
@@ -1357,7 +1356,7 @@ def scan_pessimistic_batches_for_oom(
                 loss, _ = compute_loss(
                     params=params,
                     model=model,
-                    sentencepiece_processor=sentencepiece_processor,
+                    sp=sp,
                     batch=batch,
                     is_training=True,
                 )
@@ -1372,11 +1371,7 @@ def scan_pessimistic_batches_for_oom(
                     f"Failing criterion: {criterion} "
                     f"(={crit_values[criterion]}) ..."
                 )
-            display_and_save_batch(
-                batch,
-                params=params,
-                sentencepiece_processor=sentencepiece_processor,
-            )
+            display_and_save_batch(batch, params=params, sp=sp)
             raise
         logging.info(
             f"Maximum memory allocated so far is {torch.cuda.max_memory_allocated()//1000000}MB"
@@ -1385,7 +1380,8 @@ def scan_pessimistic_batches_for_oom(
 
 def main():
     parser = get_parser()
-    MultiDatasetAsrDataModule.add_arguments(parser)
+    MLSEnglishHFAsrDataModule.add_arguments(parser)
+    Tokenizer.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 
