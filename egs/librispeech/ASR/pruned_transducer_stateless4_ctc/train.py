@@ -22,65 +22,69 @@ Usage:
 
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
-./conformer_ctc3/train.py \
+./pruned_transducer_stateless4_ctc/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 1 \
-  --exp-dir conformer_ctc3/exp \
+  --exp-dir pruned_transducer_stateless4_ctc/exp \
   --full-libri 1 \
   --max-duration 300
 
 # For mix precision training:
 
-./conformer_ctc3/train.py \
+./pruned_transducer_stateless4_ctc/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 1 \
   --use-fp16 1 \
-  --exp-dir conformer_ctc3/exp \
+  --exp-dir pruned_transducer_stateless4_ctc/exp \
   --full-libri 1 \
   --max-duration 550
 
 # train a streaming model
-./conformer_ctc3/train.py \
+./pruned_transducer_stateless4_ctc/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 1 \
-  --exp-dir conformer_ctc3/exp \
+  --exp-dir pruned_transducer_stateless4_ctc/exp \
   --full-libri 1 \
   --dynamic-chunk-training 1 \
   --causal-convolution 1 \
   --short-chunk-size 25 \
   --num-left-chunks 4 \
-  --max-duration 300 \
-  --delay-penalty 0.0
+  --max-duration 300
+
 """
 
 import argparse
 import copy
 import logging
+import warnings
 from pathlib import Path
 from shutil import copyfile
 from typing import Any, Dict, Optional, Tuple, Union
 
 import k2
 import optim
+import sentencepiece as spm
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
 from conformer import Conformer
+from decoder import Decoder
+from joiner import Joiner
 from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
-from model import CTCModel
+from model import Transducer
 from optim import Eden, Eve
 from torch import Tensor
+from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
 
 from icefall import diagnostics
-from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
 from icefall.checkpoint import load_checkpoint, remove_checkpoints
 from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 from icefall.checkpoint import (
@@ -89,16 +93,13 @@ from icefall.checkpoint import (
 )
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
-from icefall.graph_compiler import CtcTrainingGraphCompiler
-from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
     MetricsTracker,
-    create_grad_scaler,
+    display_and_save_batch,
     encode_supervisions,
     setup_logger,
     str2bool,
-    torch_autocast,
 )
 
 LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
@@ -195,7 +196,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="conformer_ctc3/exp",
+        default="pruned_transducer_stateless4_ctc/exp",
         help="""The experiment dir.
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
@@ -203,13 +204,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--lang-dir",
+        "--bpe-model",
         type=str,
-        default="data/lang_bpe_500",
-        help="""The lang dir
-        It contains language related input files such as
-        "lexicon.txt"
-        """,
+        default="data/lang_bpe_500/bpe.model",
+        help="Path to the BPE model",
     )
 
     parser.add_argument(
@@ -234,6 +232,53 @@ def get_parser():
         default=6,
         help="""Number of epochs that affects how rapidly the learning rate decreases.
         """,
+    )
+
+    parser.add_argument(
+        "--context-size",
+        type=int,
+        default=2,
+        help="The context size in the decoder. 1 means bigram; 2 means tri-gram",
+    )
+
+    parser.add_argument(
+        "--prune-range",
+        type=int,
+        default=5,
+        help="The prune range for rnnt loss, it means how many symbols(context)"
+        "we are using to compute the loss",
+    )
+
+    parser.add_argument(
+        "--lm-scale",
+        type=float,
+        default=0.25,
+        help="The scale to smooth the loss with lm "
+        "(output of prediction network) part.",
+    )
+
+    parser.add_argument(
+        "--am-scale",
+        type=float,
+        default=0.0,
+        help="The scale to smooth the loss with am (output of encoder network) part.",
+    )
+
+    parser.add_argument(
+        "--simple-loss-scale",
+        type=float,
+        default=0.5,
+        help="To get pruning ranges, we will calculate a simple version"
+        "loss(joiner is just addition), this simple loss also uses for"
+        "training (as a regularization item). We will scale the simple loss"
+        "with this parameter before adding to the final loss.",
+    )
+
+    parser.add_argument(
+        "--ctc-loss-scale",
+        type=float,
+        default=0.2,
+        help="Scale for CTC loss.",
     )
 
     parser.add_argument(
@@ -298,21 +343,20 @@ def get_parser():
         "--delay-penalty",
         type=float,
         default=0.0,
-        help="""A constant used to scale the symbol delay penalty,
-        to encourage symbol emit earlier for streaming models.
-        It is almost the same as the `delay_penalty` in our `rnnt_loss`, See
-        https://github.com/k2-fsa/k2/issues/955 and
+        help="""A constant value used to penalize symbol delay,
+        to encourage streaming models to emit symbols earlier.
+        See https://github.com/k2-fsa/k2/issues/955 and
         https://arxiv.org/pdf/2211.00490.pdf for more details.""",
     )
 
     parser.add_argument(
-        "--nnet-delay-penalty",
+        "--ctc-delay-penalty",
         type=float,
         default=0.0,
-        help="""A constant to penalize symbol delay, which is applied on
-        the nnet_output after log-softmax.
-        We recommend using --delay-penalty instead.
-        See https://github.com/k2-fsa/icefall/pull/669 for details.""",
+        help="""A constant value used to penalize symbol delay for CTC loss,
+        to encourage streaming models to emit symbols earlier.
+        See https://github.com/k2-fsa/k2/issues/955 and
+        https://arxiv.org/pdf/2211.00490.pdf for more details.""",
     )
 
     add_model_arguments(parser)
@@ -366,6 +410,7 @@ def get_params() -> AttributeDict:
     """
     params = AttributeDict(
         {
+            "frame_shift_ms": 10.0,
             "best_train_loss": float("inf"),
             "best_valid_loss": float("inf"),
             "best_train_epoch": -1,
@@ -381,9 +426,12 @@ def get_params() -> AttributeDict:
             "nhead": 8,
             "dim_feedforward": 2048,
             "num_encoder_layers": 12,
-            # parameters for loss
+            # parameters for decoder
+            "decoder_dim": 512,
+            # parameters for joiner
+            "joiner_dim": 512,
+            # parameters for ctc loss
             "beam_size": 10,
-            "reduction": "none",
             "use_double_scores": True,
             # parameters for Noam
             "model_warm_step": 3000,  # arg given to model, not for lrate
@@ -411,11 +459,38 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
     return encoder
 
 
-def get_ctc_model(params: AttributeDict) -> nn.Module:
-    encoder = get_encoder_model(params)
-    model = CTCModel(
-        encoder=encoder,
+def get_decoder_model(params: AttributeDict) -> nn.Module:
+    decoder = Decoder(
+        vocab_size=params.vocab_size,
+        decoder_dim=params.decoder_dim,
+        blank_id=params.blank_id,
+        context_size=params.context_size,
+    )
+    return decoder
+
+
+def get_joiner_model(params: AttributeDict) -> nn.Module:
+    joiner = Joiner(
         encoder_dim=params.encoder_dim,
+        decoder_dim=params.decoder_dim,
+        joiner_dim=params.joiner_dim,
+        vocab_size=params.vocab_size,
+    )
+    return joiner
+
+
+def get_transducer_model(params: AttributeDict) -> nn.Module:
+    encoder = get_encoder_model(params)
+    decoder = get_decoder_model(params)
+    joiner = get_joiner_model(params)
+
+    model = Transducer(
+        encoder=encoder,
+        decoder=decoder,
+        joiner=joiner,
+        encoder_dim=params.encoder_dim,
+        decoder_dim=params.decoder_dim,
+        joiner_dim=params.joiner_dim,
         vocab_size=params.vocab_size,
     )
     return model
@@ -494,7 +569,7 @@ def save_checkpoint(
     optimizer: Optional[torch.optim.Optimizer] = None,
     scheduler: Optional[LRSchedulerType] = None,
     sampler: Optional[CutSampler] = None,
-    scaler: Optional["GradScaler"] = None,
+    scaler: Optional[GradScaler] = None,
     rank: int = 0,
 ) -> None:
     """Save model, optimizer, scheduler and training stats to file.
@@ -540,7 +615,7 @@ def save_checkpoint(
 def compute_loss(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
-    graph_compiler: Union[BpeCtcTrainingGraphCompiler, CtcTrainingGraphCompiler],
+    sp: spm.SentencePieceProcessor,
     batch: dict,
     is_training: bool,
     warmup: float = 1.0,
@@ -553,10 +628,6 @@ def compute_loss(
         Parameters for training. See :func:`get_params`.
       model:
         The model for training. It is an instance of Conformer in our case.
-      graph_compiler:
-        It is used to build a decoding graph from a ctc topo and training
-        transcript. The training transcript is contained in the given `batch`,
-        while the ctc topo is built when this compiler is instantiated.
       batch:
         A batch of data. See `lhotse.dataset.K2SpeechRecognitionDataset()`
         for the content in it.
@@ -576,35 +647,72 @@ def compute_loss(
     supervisions = batch["supervisions"]
     feature_lens = supervisions["num_frames"].to(device)
 
+    texts = batch["supervisions"]["text"]
+    token_ids = sp.encode(texts, out_type=int)
+    y = k2.RaggedTensor(token_ids).to(device)
+
     with torch.set_grad_enabled(is_training):
-        nnet_output, encoder_out_lens = model(
-            feature,
-            feature_lens,
+        simple_loss, pruned_loss, ctc_output = model(
+            x=feature,
+            x_lens=feature_lens,
+            y=y,
+            prune_range=params.prune_range,
+            am_scale=params.am_scale,
+            lm_scale=params.lm_scale,
             warmup=warmup,
-            delay_penalty=params.nnet_delay_penalty if warmup >= 1.0 else 0,
+            reduction="none",
+            delay_penalty=params.delay_penalty if warmup >= 1.0 else 0,
         )
-        assert torch.all(encoder_out_lens > 0)
+        simple_loss_is_finite = torch.isfinite(simple_loss)
+        pruned_loss_is_finite = torch.isfinite(pruned_loss)
+        is_finite = simple_loss_is_finite & pruned_loss_is_finite
+        if not torch.all(is_finite):
+            logging.info(
+                "Not all losses are finite!\n"
+                f"simple_loss: {simple_loss}\n"
+                f"pruned_loss: {pruned_loss}"
+            )
+            display_and_save_batch(batch, params=params, sp=sp)
+            simple_loss = simple_loss[simple_loss_is_finite]
+            pruned_loss = pruned_loss[pruned_loss_is_finite]
+
+            # If either all simple_loss or pruned_loss is inf or nan,
+            # we stop the training process by raising an exception
+            if torch.all(~simple_loss_is_finite) or torch.all(~pruned_loss_is_finite):
+                raise ValueError(
+                    "There are too many utterances in this batch "
+                    "leading to inf or nan losses."
+                )
+
+        simple_loss = simple_loss.sum()
+        pruned_loss = pruned_loss.sum()
+        # after the main warmup step, we keep pruned_loss_scale small
+        # for the same amount of time (model_warm_step), to avoid
+        # overwhelming the simple_loss and causing it to diverge,
+        # in case it had not fully learned the alignment yet.
+        pruned_loss_scale = (
+            0.0 if warmup < 1.0 else (0.1 if warmup > 1.0 and warmup < 2.0 else 1.0)
+        )
+        loss = params.simple_loss_scale * simple_loss + pruned_loss_scale * pruned_loss
+
+    # Compute ctc loss
 
     # NOTE: We need `encode_supervisions` to sort sequences with
     # different duration in decreasing order, required by
     # `k2.intersect_dense` called in `k2.ctc_loss`
-    supervision_segments, texts = encode_supervisions(
-        supervisions, subsampling_factor=params.subsampling_factor
-    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        supervision_segments, token_ids = encode_supervisions(
+            supervisions,
+            subsampling_factor=params.subsampling_factor,
+            token_ids=token_ids,
+        )
 
-    if isinstance(graph_compiler, BpeCtcTrainingGraphCompiler):
-        # Works with a BPE model
-        token_ids = graph_compiler.texts_to_ids(texts)
-        decoding_graph = graph_compiler.compile(token_ids)
-    elif isinstance(graph_compiler, CtcTrainingGraphCompiler):
-        # Works with a phone lexicon
-        decoding_graph = graph_compiler.compile(texts)
-    else:
-        raise ValueError(f"Unsupported type of graph compiler: {type(graph_compiler)}")
-
+    # Works with a BPE model
+    decoding_graph = k2.ctc_graph(token_ids, modified=False, device=device)
     with torch.cuda.amp.autocast(enabled=False):
         dense_fsa_vec = k2.DenseFsaVec(
-            nnet_output.float(),
+            ctc_output.float(),
             supervision_segments,
             allow_truncate=params.subsampling_factor - 1,
         )
@@ -612,8 +720,8 @@ def compute_loss(
             decoding_graph=decoding_graph,
             dense_fsa_vec=dense_fsa_vec,
             output_beam=params.beam_size,
-            delay_penalty=params.delay_penalty if warmup >= 1.0 else 0.0,
-            reduction=params.reduction,
+            delay_penalty=params.ctc_delay_penalty if warmup >= 1.0 else 0.0,
+            reduction="none",
             use_double_scores=params.use_double_scores,
         )
 
@@ -629,16 +737,21 @@ def compute_loss(
                 "There are too many utterances in this batch "
                 "leading to inf or nan losses."
             )
-    loss = ctc_loss.sum()
+    ctc_loss = ctc_loss.sum()
+    assert ctc_loss.requires_grad == is_training
 
+    loss += params.ctc_loss_scale * ctc_loss
     assert loss.requires_grad == is_training
 
     info = MetricsTracker()
-    # info["frames"] is an approximate number for two reasons:
-    # (1) The acutal subsampling factor is ((lens - 1) // 2 - 1) // 2
-    # (2) If some utterances in the batch lead to inf/nan loss, they
-    #     are filtered out.
-    info["frames"] = supervision_segments[:, 2].sum().item()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        # info["frames"] is an approximate number for two reasons:
+        # (1) The acutal subsampling factor is ((lens - 1) // 2 - 1) // 2
+        # (2) If some utterances in the batch lead to inf/nan loss, they
+        #     are filtered out.
+        info["frames"] = (feature_lens // params.subsampling_factor).sum().item()
+
     # `utt_duration` and `utt_pad_proportion` would be normalized by `utterances`  # noqa
     info["utterances"] = feature.size(0)
     # averaged input duration in frames over utterances
@@ -650,6 +763,9 @@ def compute_loss(
 
     # Note: We use reduction=sum while computing the loss.
     info["loss"] = loss.detach().cpu().item()
+    info["simple_loss"] = simple_loss.detach().cpu().item()
+    info["pruned_loss"] = pruned_loss.detach().cpu().item()
+    info["ctc_loss"] = ctc_loss.detach().cpu().item()
 
     return loss, info
 
@@ -657,7 +773,7 @@ def compute_loss(
 def compute_validation_loss(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
-    graph_compiler: Union[BpeCtcTrainingGraphCompiler, CtcTrainingGraphCompiler],
+    sp: spm.SentencePieceProcessor,
     valid_dl: torch.utils.data.DataLoader,
     world_size: int = 1,
 ) -> MetricsTracker:
@@ -670,7 +786,7 @@ def compute_validation_loss(
         loss, loss_info = compute_loss(
             params=params,
             model=model,
-            graph_compiler=graph_compiler,
+            sp=sp,
             batch=batch,
             is_training=False,
         )
@@ -693,10 +809,10 @@ def train_one_epoch(
     model: Union[nn.Module, DDP],
     optimizer: torch.optim.Optimizer,
     scheduler: LRSchedulerType,
-    graph_compiler: Union[BpeCtcTrainingGraphCompiler, CtcTrainingGraphCompiler],
+    sp: spm.SentencePieceProcessor,
     train_dl: torch.utils.data.DataLoader,
     valid_dl: torch.utils.data.DataLoader,
-    scaler: "GradScaler",
+    scaler: GradScaler,
     model_avg: Optional[nn.Module] = None,
     tb_writer: Optional[SummaryWriter] = None,
     world_size: int = 1,
@@ -717,10 +833,6 @@ def train_one_epoch(
         The optimizer we are using.
       scheduler:
         The learning rate scheduler, we call step() every step.
-      graph_compiler:
-        It is used to build a decoding graph from a ctc topo and training
-        transcript. The training transcript is contained in the given `batch`,
-        while the ctc topo is built when this compiler is instantiated.
       train_dl:
         Dataloader for the training dataset.
       valid_dl:
@@ -745,11 +857,11 @@ def train_one_epoch(
         params.batch_idx_train += 1
         batch_size = len(batch["supervisions"]["text"])
 
-        with torch_autocast(enabled=params.use_fp16):
+        with torch.cuda.amp.autocast(enabled=params.use_fp16):
             loss, loss_info = compute_loss(
                 params=params,
                 model=model,
-                graph_compiler=graph_compiler,
+                sp=sp,
                 batch=batch,
                 is_training=True,
                 warmup=(params.batch_idx_train / params.model_warm_step),
@@ -825,7 +937,7 @@ def train_one_epoch(
             valid_info = compute_validation_loss(
                 params=params,
                 model=model,
-                graph_compiler=graph_compiler,
+                sp=sp,
                 valid_dl=valid_dl,
                 world_size=world_size,
             )
@@ -872,37 +984,17 @@ def run(rank, world_size, args):
     else:
         tb_writer = None
 
-    lexicon = Lexicon(params.lang_dir)
-    max_token_id = max(lexicon.tokens)
-    params.vocab_size = max_token_id + 1  # +1 for the blank
-
     device = torch.device("cpu")
     if torch.cuda.is_available():
         device = torch.device("cuda", rank)
     logging.info(f"Device: {device}")
 
-    if "lang_bpe" in str(params.lang_dir):
-        graph_compiler = BpeCtcTrainingGraphCompiler(
-            params.lang_dir,
-            device=device,
-            sos_token="<sos/eos>",
-            eos_token="<sos/eos>",
-        )
-    elif "lang_phone" in str(params.lang_dir):
-        graph_compiler = CtcTrainingGraphCompiler(
-            lexicon,
-            device=device,
-            need_repeat_flag=params.delay_penalty > 0,
-        )
-        # Manually add the sos/eos ID with their default values
-        # from the BPE recipe which we're adapting here.
-        graph_compiler.sos_id = 1
-        graph_compiler.eos_id = 1
-    else:
-        raise ValueError(
-            f"Unsupported type of lang dir (we expected it to have "
-            f"'lang_bpe' or 'lang_phone' in its name): {params.lang_dir}"
-        )
+    sp = spm.SentencePieceProcessor()
+    sp.load(params.bpe_model)
+
+    # <blk> is defined in local/train_bpe_model.py
+    params.blank_id = sp.piece_to_id("<blk>")
+    params.vocab_size = sp.get_piece_size()
 
     if params.dynamic_chunk_training:
         assert (
@@ -912,7 +1004,7 @@ def run(rank, world_size, args):
     logging.info(params)
 
     logging.info("About to create model")
-    model = get_ctc_model(params)
+    model = get_transducer_model(params)
 
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
@@ -956,15 +1048,6 @@ def run(rank, world_size, args):
 
     if params.full_libri:
         train_cuts = librispeech.train_all_shuf_cuts()
-
-        # previously we used the following code to load all training cuts
-        # strictly speaking, shuffled training cuts should be used instead
-        # but we leave the code here to demonstrate that there is an option
-        # like this to combine multiple cutsets
-
-        # train_cuts = librispeech.train_clean_100_cuts()
-        # train_cuts += librispeech.train_clean_360_cuts()
-        # train_cuts += librispeech.train_other_500_cuts()
     else:
         train_cuts = librispeech.train_clean_100_cuts()
 
@@ -977,7 +1060,33 @@ def run(rank, world_size, args):
         # You should use ../local/display_manifest_statistics.py to get
         # an utterance duration distribution for your dataset to select
         # the threshold
-        return 1.0 <= c.duration <= 20.0
+        if c.duration < 1.0 or c.duration > 20.0:
+            logging.warning(
+                f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
+            )
+            return False
+
+        # In pruned RNN-T, we require that T >= S
+        # where T is the number of feature frames after subsampling
+        # and S is the number of tokens in the utterance
+
+        # In ./conformer.py, the conv module uses the following expression
+        # for subsampling
+        T = ((c.num_frames - 1) // 2 - 1) // 2
+        tokens = sp.encode(c.supervisions[0].text, out_type=str)
+
+        if T < len(tokens):
+            logging.warning(
+                f"Exclude cut with ID {c.id} from training. "
+                f"Number of frames (before subsampling): {c.num_frames}. "
+                f"Number of frames (after subsampling): {T}. "
+                f"Text: {c.supervisions[0].text}. "
+                f"Tokens: {tokens}. "
+                f"Number of tokens: {len(tokens)}"
+            )
+            return False
+
+        return True
 
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
 
@@ -1001,12 +1110,12 @@ def run(rank, world_size, args):
             model=model,
             train_dl=train_dl,
             optimizer=optimizer,
-            graph_compiler=graph_compiler,
+            sp=sp,
             params=params,
             warmup=0.0 if params.start_epoch == 1 else 1.0,
         )
 
-    scaler = create_grad_scaler(enabled=params.use_fp16)
+    scaler = GradScaler(enabled=params.use_fp16)
     if checkpoints and "grad_scaler" in checkpoints:
         logging.info("Loading grad scaler state dict")
         scaler.load_state_dict(checkpoints["grad_scaler"])
@@ -1027,7 +1136,7 @@ def run(rank, world_size, args):
             model_avg=model_avg,
             optimizer=optimizer,
             scheduler=scheduler,
-            graph_compiler=graph_compiler,
+            sp=sp,
             train_dl=train_dl,
             valid_dl=valid_dl,
             scaler=scaler,
@@ -1062,7 +1171,7 @@ def scan_pessimistic_batches_for_oom(
     model: Union[nn.Module, DDP],
     train_dl: torch.utils.data.DataLoader,
     optimizer: torch.optim.Optimizer,
-    graph_compiler: Union[BpeCtcTrainingGraphCompiler, CtcTrainingGraphCompiler],
+    sp: spm.SentencePieceProcessor,
     params: AttributeDict,
     warmup: float,
 ):
@@ -1075,11 +1184,11 @@ def scan_pessimistic_batches_for_oom(
     for criterion, cuts in batches.items():
         batch = train_dl.dataset[cuts]
         try:
-            with torch_autocast(enabled=params.use_fp16):
+            with torch.cuda.amp.autocast(enabled=params.use_fp16):
                 loss, _ = compute_loss(
                     params=params,
                     model=model,
-                    graph_compiler=graph_compiler,
+                    sp=sp,
                     batch=batch,
                     is_training=True,
                     warmup=warmup,
