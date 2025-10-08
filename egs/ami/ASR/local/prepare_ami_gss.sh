@@ -47,7 +47,7 @@ fi
 
 if [ $stage -le 3 ]; then
   log "Stage 3: Split manifests for multi-GPU processing (optional)"
-  for part in train; do
+  for part in train dev test; do
     gss utils split $nj $EXP_DIR/cuts_per_segment_${part}.jsonl.gz \
       $EXP_DIR/cuts_per_segment_${part}_split$nj
   done

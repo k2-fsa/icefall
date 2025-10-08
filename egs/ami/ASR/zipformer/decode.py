@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 #
-# Copyright 2021 Xiaomi Corporation (Author: Fangjun Kuang)
+# Copyright 2021-2023 Xiaomi Corporation (Author: Fangjun Kuang,
+#                                                 Zengwei Yao)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -18,46 +19,85 @@
 """
 Usage:
 (1) greedy search
-./pruned_transducer_stateless7/decode.py \
-        --iter 105000 \
-        --avg 10 \
-        --exp-dir ./pruned_transducer_stateless7/exp \
-        --max-duration 100 \
-        --decoding-method greedy_search
+./zipformer/decode.py \
+    --epoch 28 \
+    --avg 15 \
+    --exp-dir ./zipformer/exp \
+    --max-duration 600 \
+    --decoding-method greedy_search
 
-(2) beam search
-./pruned_transducer_stateless7/decode.py \
-        --iter 105000 \
-        --avg 10 \
-        --exp-dir ./pruned_transducer_stateless7/exp \
-        --max-duration 500 \
-        --decoding-method beam_search \
-        --beam-size 4
+(2) beam search (not recommended)
+./zipformer/decode.py \
+    --epoch 28 \
+    --avg 15 \
+    --exp-dir ./zipformer/exp \
+    --max-duration 600 \
+    --decoding-method beam_search \
+    --beam-size 4
 
 (3) modified beam search
-./pruned_transducer_stateless7/decode.py \
-        --iter 105000 \
-        --avg 10 \
-        --exp-dir ./pruned_transducer_stateless7/exp \
-        --max-duration 500 \
-        --decoding-method modified_beam_search \
-        --beam-size 4
+./zipformer/decode.py \
+    --epoch 28 \
+    --avg 15 \
+    --exp-dir ./zipformer/exp \
+    --max-duration 600 \
+    --decoding-method modified_beam_search \
+    --beam-size 4
 
-(4) fast beam search
-./pruned_transducer_stateless7/decode.py \
-        --iter 105000 \
-        --avg 10 \
-        --exp-dir ./pruned_transducer_stateless5/exp \
-        --max-duration 500 \
-        --decoding-method fast_beam_search \
-        --beam 4 \
-        --max-contexts 4 \
-        --max-states 8
+(4) fast beam search (one best)
+./zipformer/decode.py \
+    --epoch 28 \
+    --avg 15 \
+    --exp-dir ./zipformer/exp \
+    --max-duration 600 \
+    --decoding-method fast_beam_search \
+    --beam 20.0 \
+    --max-contexts 8 \
+    --max-states 64
+
+(5) fast beam search (nbest)
+./zipformer/decode.py \
+    --epoch 28 \
+    --avg 15 \
+    --exp-dir ./zipformer/exp \
+    --max-duration 600 \
+    --decoding-method fast_beam_search_nbest \
+    --beam 20.0 \
+    --max-contexts 8 \
+    --max-states 64 \
+    --num-paths 200 \
+    --nbest-scale 0.5
+
+(6) fast beam search (nbest oracle WER)
+./zipformer/decode.py \
+    --epoch 28 \
+    --avg 15 \
+    --exp-dir ./zipformer/exp \
+    --max-duration 600 \
+    --decoding-method fast_beam_search_nbest_oracle \
+    --beam 20.0 \
+    --max-contexts 8 \
+    --max-states 64 \
+    --num-paths 200 \
+    --nbest-scale 0.5
+
+(7) fast beam search (with LG)
+./zipformer/decode.py \
+    --epoch 28 \
+    --avg 15 \
+    --exp-dir ./zipformer/exp \
+    --max-duration 600 \
+    --decoding-method fast_beam_search_nbest_LG \
+    --beam 20.0 \
+    --max-contexts 8 \
+    --max-states 64
 """
 
 
 import argparse
 import logging
+import math
+import os
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -75,9 +115,9 @@ from beam_search import (
     greedy_search_batch,
     modified_beam_search,
 )
-from train import add_model_arguments, get_params, get_transducer_model
+from train import add_model_arguments, get_model, get_params
 
-from icefall import NgramLm
+from icefall import LmScorer
 from icefall.checkpoint import (
     average_checkpoints,
     average_checkpoints_with_averaged_model,
@@ -93,6 +133,8 @@ from icefall.utils import (
     write_error_stats,
 )
 
+LOG_EPS = math.log(1e-10)
+
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -104,7 +146,7 @@ def get_parser():
         type=int,
         default=30,
         help="""It specifies the checkpoint to use for decoding.
-        Note: Epoch counts from 0.
+        Note: Epoch counts from 1.
         You can specify --avg to use more checkpoints for model averaging.""",
     )
 
@@ -121,7 +163,7 @@ def get_parser():
     parser.add_argument(
         "--avg",
         type=int,
-        default=10,
+        default=15,
         help="Number of checkpoints to average. Automatically select "
         "consecutive checkpoints before the checkpoint specified by "
         "'--epoch' and '--iter'",
@@ -141,8 +183,15 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless2/exp",
+        default="zipformer/exp",
         help="The experiment dir",
+    )
+
+    parser.add_argument(
+        "--bpe-model",
+        type=str,
+        default="data/lang_bpe_500/bpe.model",
+        help="Path to the BPE model",
     )
 
     parser.add_argument(
@@ -160,6 +209,7 @@ def get_parser():
           - greedy_search
           - beam_search
           - modified_beam_search
+          - modified_beam_search_LODR
           - fast_beam_search
           - fast_beam_search_nbest
           - fast_beam_search_nbest_oracle
@@ -173,7 +223,7 @@ def get_parser():
         "--beam-size",
         type=int,
         default=4,
-        help="""An interger indicating how many candidates we will keep for each
+        help="""An integer indicating how many candidates we will keep for each
         frame. Used only when --decoding-method is beam_search or
         modified_beam_search.""",
     )
@@ -181,11 +231,14 @@ def get_parser():
     parser.add_argument(
         "--beam",
         type=float,
-        default=4,
+        default=20.0,
         help="""A floating point value to calculate the cutoff score during beam
         search (i.e., `cutoff = max-score - beam`), which is the same as the
         `beam` in Kaldi.
-        Used only when --decoding-method is fast_beam_search""",
+        Used only when --decoding-method is fast_beam_search,
+        fast_beam_search_nbest, fast_beam_search_nbest_LG,
+        and fast_beam_search_nbest_oracle
+        """,
     )
 
     parser.add_argument(
@@ -193,7 +246,7 @@ def get_parser():
         type=float,
         default=0.01,
         help="""
-        Used only when --decoding_method is fast_beam_search_nbest_LG.
+        Used only when --decoding-method is fast_beam_search_nbest_LG.
         It specifies the scale for n-gram LM scores.
         """,
     )
@@ -227,7 +280,7 @@ def get_parser():
         type=int,
         default=1,
         help="""Maximum number of symbols per frame.
-        Used only when --decoding_method is greedy_search""",
+        Used only when --decoding-method is greedy_search""",
     )
 
     parser.add_argument(
@@ -282,16 +335,23 @@ def decode_one_batch(
         It is the return value from iterating
         `lhotse.dataset.K2SpeechRecognitionDataset`. See its documentation
         for the format of the `batch`.
-      decoding_graph:
-        The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
-        only when --decoding_method is fast_beam_search.
       word_table:
         The word symbol table.
+      decoding_graph:
+        The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
+        only when --decoding-method is fast_beam_search, fast_beam_search_nbest,
+        fast_beam_search_nbest_oracle, and fast_beam_search_nbest_LG.
+      LM:
+        A neural network language model.
+      ngram_lm:
+        A ngram language model
+      ngram_lm_scale:
+        The scale for the ngram language model.
     Returns:
       Return the decoding result. See above description for the format of
       the returned dict.
     """
-    device = model.device
+    device = next(model.parameters()).device
     feature = batch["inputs"]
     assert feature.ndim == 3
 
@@ -301,7 +361,18 @@ def decode_one_batch(
     supervisions = batch["supervisions"]
     feature_lens = supervisions["num_frames"].to(device)
 
-    encoder_out, encoder_out_lens = model.encoder(x=feature, x_lens=feature_lens)
+    if params.causal:
+        # this seems to cause insertions at the end of the utterance if used with zipformer.
+        pad_len = 30
+        feature_lens += pad_len
+        feature = torch.nn.functional.pad(
+            feature,
+            pad=(0, 0, 0, pad_len),
+            value=LOG_EPS,
+        )
+
+    encoder_out, encoder_out_lens = model.forward_encoder(feature, feature_lens)
+
     hyps = []
 
     if params.decoding_method == "fast_beam_search":
@@ -404,7 +475,7 @@ def decode_dataset(
     sp: spm.SentencePieceProcessor,
     decoding_graph: Optional[k2.Fsa] = None,
     word_table: Optional[k2.SymbolTable] = None,
-) -> Dict[str, List[Tuple[List[str], List[str]]]]:
+) -> Dict[str, List[Tuple[str, List[str], List[str]]]]:
     """Decode dataset.
 
     Args:
@@ -416,9 +487,12 @@ def decode_dataset(
         The neural model.
       sp:
         The BPE model.
+      word_table:
+        The word symbol table.
       decoding_graph:
         The decoding graph. Can be either a `k2.trivial_graph` or HLG, Used
-        only when --decoding_method is fast_beam_search.
+        only when --decoding-method is fast_beam_search, fast_beam_search_nbest,
+        fast_beam_search_nbest_oracle, and fast_beam_search_nbest_LG.
     Returns:
       Return a dict, whose key may be "greedy_search" if greedy search
       is used, or it may be "beam_7" if beam size of 7 is used.
@@ -434,9 +508,9 @@ def decode_dataset(
         num_batches = "?"
 
     if params.decoding_method == "greedy_search":
-        log_interval = 100
+        log_interval = 50
     else:
-        log_interval = 2
+        log_interval = 20
 
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
@@ -473,52 +547,43 @@ def decode_dataset(
 def save_results(
     params: AttributeDict,
     test_set_name: str,
-    results_dict: Dict[str, List[Tuple[List[int], List[int]]]],
+    results_dict: Dict[str, List[Tuple[str, List[str], List[str]]]],
 ):
     test_set_wers = dict()
-    test_set_cers = dict()
     for key, results in results_dict.items():
-        recog_path = params.res_dir / f"recogs-{test_set_name}-{params.suffix}.txt"
+        recog_path = (
+            params.res_dir / f"recogs-{test_set_name}-{key}-{params.suffix}.txt"
+        )
+        results = sorted(results)
         store_transcripts(filename=recog_path, texts=results)
         logging.info(f"The transcripts are stored in {recog_path}")
 
         # The following prints out WERs, per-word error statistics and aligned
         # ref/hyp pairs.
-        wers_filename = params.res_dir / f"wers-{test_set_name}-{params.suffix}.txt"
-        with open(wers_filename, "w") as f:
+        errs_filename = (
+            params.res_dir / f"errs-{test_set_name}-{key}-{params.suffix}.txt"
+        )
+        with open(errs_filename, "w") as f:
             wer = write_error_stats(
                 f, f"{test_set_name}-{key}", results, enable_log=True
             )
             test_set_wers[key] = wer
 
-        # we also compute CER for AMI dataset.
-        results_char = []
-        for res in results:
-            results_char.append((res[0], list("".join(res[1])), list("".join(res[2]))))
-        cers_filename = params.res_dir / f"cers-{test_set_name}-{params.suffix}.txt"
-        with open(cers_filename, "w") as f:
-            cer = write_error_stats(
-                f, f"{test_set_name}-{key}", results_char, enable_log=True
-            )
-            test_set_cers[key] = cer
+        logging.info("Wrote detailed error stats to {}".format(errs_filename))
 
-        logging.info("Wrote detailed error stats to {}".format(wers_filename))
-
-    test_set_wers = {k: v for k, v in sorted(test_set_wers.items(), key=lambda x: x[1])}
-    test_set_cers = {k: v for k, v in sorted(test_set_cers.items(), key=lambda x: x[1])}
-    errs_info = params.res_dir / f"wer-summary-{test_set_name}-{params.suffix}.txt"
+    test_set_wers = sorted(test_set_wers.items(), key=lambda x: x[1])
+    errs_info = (
+        params.res_dir / f"wer-summary-{test_set_name}-{key}-{params.suffix}.txt"
+    )
     with open(errs_info, "w") as f:
-        print("settings\tWER\tCER", file=f)
-        for key in test_set_wers:
-            print(
-                "{}\t{}\t{}".format(key, test_set_wers[key], test_set_cers[key]),
-                file=f,
-            )
+        print("settings\tWER", file=f)
+        for key, val in test_set_wers:
+            print("{}\t{}".format(key, val), file=f)
 
-    s = "\nFor {}, WER/CER of different settings are:\n".format(test_set_name)
+    s = "\nFor {}, WER of different settings are:\n".format(test_set_name)
     note = "\tbest for {}".format(test_set_name)
-    for key in test_set_wers:
-        s += "{}\t{}\t{}{}\n".format(key, test_set_wers[key], test_set_cers[key], note)
+    for key, val in test_set_wers:
+        s += "{}\t{}{}\n".format(key, val, note)
         note = ""
     logging.info(s)
 
@@ -527,6 +592,7 @@ def save_results(
 def main():
     parser = get_parser()
     AmiAsrDataModule.add_arguments(parser)
+    LmScorer.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 
@@ -572,9 +638,9 @@ def main():
     logging.info(f"Device: {device}")
 
     sp = spm.SentencePieceProcessor()
-    sp.load(f"{params.lang_dir}/bpe.model")
+    sp.load(params.bpe_model)
 
-    # <blk> is defined in local/train_bpe_model.py
+    # <blk> and <unk> are defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
     params.unk_id = sp.piece_to_id("<unk>")
     params.vocab_size = sp.get_piece_size()
@@ -582,7 +648,7 @@ def main():
     logging.info(params)
 
     logging.info("About to create model")
-    model = get_transducer_model(params)
+    model = get_model(params)
 
     if not params.use_averaged_model:
         if params.iter > 0:
@@ -663,7 +729,6 @@ def main():
 
     model.to(device)
     model.eval()
-    model.device = device
 
     if "fast_beam_search" in params.decoding_method:
         if params.decoding_method == "fast_beam_search_nbest_LG":
@@ -672,7 +737,7 @@ def main():
             lg_filename = params.lang_dir / "LG.pt"
             logging.info(f"Loading {lg_filename}")
             decoding_graph = k2.Fsa.from_dict(
-                torch.load(lg_filename, map_location=device, weights_only=False)
+                torch.load(lg_filename, map_location=device)
             )
             decoding_graph.scores *= params.ngram_lm_scale
         else:
@@ -684,6 +749,9 @@ def main():
 
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
+
+    # we need cut ids to display recognition results.
+    args.return_cuts = True
 
     ami = AmiAsrDataModule(args)
 
