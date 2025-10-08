@@ -3,7 +3,7 @@
 
 This recipe includes scripts for training Zipformer model using multiple Chinese datasets.
 
-# Included Training Sets
+# Included Training Dataset
 1. THCHS-30
 2. AiShell-{1,2,4}
 3. ST-CMDS
@@ -14,7 +14,7 @@ This recipe includes scripts for training Zipformer model using multiple Chinese
 8. WeNetSpeech
 9. KeSpeech-ASR
 
-|Datset| Number of hours| URL|
+|Dataset| Number of hours| URL|
 |---|---:|---|
 |**TOTAL**|14,106|---|
 |THCHS-30|35|https://www.openslr.org/18/|
