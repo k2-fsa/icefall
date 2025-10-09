@@ -416,7 +416,7 @@ class ExpNorm(torch.nn.Module):
         self,
         num_channels: int,
         channel_dim: int = -1,  # CAUTION: see documentation.
-        eps1: float = 0.05,
+        eps1: float = 0.075,
     ) -> None:
         super(ExpNorm, self).__init__()
         self.num_channels = num_channels
