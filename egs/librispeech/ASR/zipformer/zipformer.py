@@ -42,6 +42,12 @@ from scaling import (
     ScaleLimiter,
     with_loss,
 )
+try:
+    from scaling import CrossCosineLoss
+except:
+    pass
+
+
 from torch import Tensor, nn
 
 
@@ -552,6 +558,8 @@ class Zipformer2EncoderLayer(nn.Module):
         self.offset_cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=embed_dim, power=0.7))
         self.cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=embed_dim, power=0.8))
 
+        self.cross_cosine_loss = CrossCosineLoss(max_product=0.2)
+
         self.self_attn_weights = RelPositionMultiheadAttentionWeights(
             embed_dim,
             pos_dim=pos_dim,
@@ -649,6 +657,11 @@ class Zipformer2EncoderLayer(nn.Module):
         # network to get around the scale limitation by using an offset.
         src = with_loss(src,
                         self.cosine_loss(src.permute(1, 0, 2), aux_loss_scale, mask=src_key_padding_mask),
+                        None)
+
+        src = with_loss(src,
+                        self.cross_cosine_loss(src.permute(1, 0, 2), offset.permute(1, 0, 2),
+                                               aux_loss_scale, mask=src_key_padding_mask),
                         None)
 
 

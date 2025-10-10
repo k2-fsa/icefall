@@ -1183,78 +1183,88 @@ class MinProductLoss(nn.Module):
              z = with_loss(z, ret, None)
           where z is any quantity that will be used in calculating the main loss.
           Ret will always be numerically equal to zero in the forward pass but
-          may behave as if it were nonzero for backprop purposes.
+          will behave as if it were nonzero for backprop purposes.
         """
         return MinProductLossFunction.apply(x, y, mask,
                                             float(self.min_product),
                                             loss_scale, self.name)
 
 
-class MaxProductLossFunction(torch.autograd.Function):
+# cross cosine loss is for when you have a situation like:
+#  x = x + delta
+#  x = with_loss(x, cross_cosine_loss(x, delta))
+# and we want to make sure that delta only represents, on average,
+# a small fraction of the total x.  That is,  mean(abs((delta . x) / (x . x))) < max_product
+# you could also probably supply the original x and it would have a somewhat similar effect.
+class CrossCosineLossFunction(torch.autograd.Function):
     @staticmethod
     @custom_fwd
-    def forward(ctx, x: Tensor, y: Tensor, max_product: float, weight: float, name: str):
-        ctx.save_for_backward(x, y)
+    def forward(ctx, x: Tensor, delta: Tensor, mask: Optional[Tensor],
+                max_product: float, weight: float, name: str):
+        ctx.save_for_backward(x, delta)
         ctx.name = name
+        ctx.mask = mask # mask will have no grad so it should be OK to store this way
         ctx.weight = weight
         ctx.max_product = max_product
+        # return fake loss that is always zero but behaves in backprop as if it were a real loss.
         return torch.tensor(0.0, device=x.device, dtype=x.dtype)
 
     @staticmethod
     @custom_bwd
     def backward(ctx, ans_grad):
-        x, y = ctx.saved_tensors
+        x, delta = ctx.saved_tensors
         name = ctx.name     # str
+        mask = ctx.mask    # Tensor or None, shape: (batch_size, seq_len)
         weight = ctx.weight # float
         max_product = ctx.max_product # float
+        (batch_size, seq_len, num_channels) = x.shape
 
         with torch.enable_grad():
-            x, y = x.detach(), y.detach()
+            x, delta = x.detach(), delta.detach()
             x.requires_grad = True
-            y.requires_grad = True
+            delta.requires_grad = True
 
-            (batch_size, seq_len, num_channels) =  x.shape
-            seq_len2 = y.shape[1]
-            indexes = torch.randint(0, seq_len2, (batch_size, seq_len, 1), device=x.device)
+            eps = 3.0e-08  # won't be zero in float16
 
-            y_rand = torch.gather(y, 1, indexes.expand(*x.shape))
+            product = (x * delta).sum(dim=-1).abs() / ((x * x).sum(dim=-1) + eps)
 
-            product = (x * y_rand).sum(dim=-1).abs()
+            if mask is not None:
+                product = product * (~mask).to(product.dtype)
 
+            product = product.abs()
             excess_product = (product.sum(dim=1) - seq_len * max_product).relu()
 
             if random.random() < 0.001:
-                logging.info(f"MaxProduct: {name}, limit={max_product}, excess-product={excess_product.mean() / seq_len}")
+                logging.info(f"CrossCosineLoss: {name}, limit={max_product}, excess-product={excess_product.mean() / seq_len}")
 
             grad = (weight * ans_grad).expand(excess_product.numel())
             excess_product.backward(grad)
 
-        return x.grad, y.grad, None, None, None
+        return x.grad, delta.grad, None, None, None, None
 
-class MaxProductLoss(nn.Module):
+class CrossCosineLoss(nn.Module):
     def __init__(self,
-                 max_product: FloatLike):  # e.g. 20.0 for max_product
+                 max_product: FloatLike):  # e.g. 0.2.
         super().__init__()
         self.max_product = max_product
         self.name = None
 
     def forward(self,
                 x: Tensor,
-                y: Tensor,
-                loss_scale: float) -> Tensor:
+                delta: Tensor,
+                loss_scale: float,
+                mask: Optional[Tensor]) -> Tensor:
         """
-        Compute loss that limits the average dot product (without normalization)
-       between x, and (y, but randomly permuted on the sequence dimension).  It is
-       intended for limiting dot-products of queries and keys.
+       Compute loss that limits the average value over the sequence of abs((delta . x) / (x . x))
+
 
            x: Tensor of shape (batch_size, seq_len, num_channels)
-           y: Tensor of shape (batch_size, seq_len2, num_channels)  [seq_len2 does not have to equal seq_len].
+           delta: Tensor of shape (batch_size, seq_len, num_channels)
   loss_scale: the scale with which the loss should be incorporated into the graph.
              This should contain a factor of the grad_scale, if you are using GradScaler for
-             automatic mixed precision training (amp).  We divide this by max_product,
-             so that it penalizes relative, not absolute, violations of the max-product
-             rule.
-             The loss will be summed over frames of x, and multiplied by this value.
+             automatic mixed precision training (amp).
+             The loss will be summed over frames of x, i.e. scaled like
+             batch_size * seq_len * loss_scale * [average excess product]
 
       Returns:
            returns a scaled scalar loss value "ret" which should be incorporated
@@ -1262,12 +1272,11 @@ class MaxProductLoss(nn.Module):
              z = with_loss(z, ret, None)
           where z is any quantity that will be used in calculating the main loss.
           Ret will always be numerically equal to zero in the forward pass but
-          may behave as if it were nonzero for backprop purposes.
+          will behave as if it were nonzero for backprop purposes.
         """
         max_product = float(self.max_product)
-        return MaxProductLossFunction.apply(x, y, max_product,
-                                            loss_scale / max_product,
-                                            self.name)
+        return CrossCosineLossFunction.apply(x, delta, mask, max_product,
+                                             loss_scale, self.name)
 
 
 class ChunkCausalDepthwiseConv1d(torch.nn.Module):
