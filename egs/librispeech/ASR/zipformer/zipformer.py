@@ -43,7 +43,7 @@ from scaling import (
     with_loss,
 )
 try:
-    from scaling import CrossCosineLoss
+    from scaling import NormChangeLoss
 except:
     pass
 
@@ -558,7 +558,7 @@ class Zipformer2EncoderLayer(nn.Module):
         self.offset_cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=embed_dim, power=0.7))
         self.cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=embed_dim, power=0.8))
 
-        self.cross_cosine_loss = CrossCosineLoss(max_product=0.1)
+        self.norm_change_loss = NormChangeLoss(limit=0.2)
 
         self.self_attn_weights = RelPositionMultiheadAttentionWeights(
             embed_dim,
@@ -647,7 +647,16 @@ class Zipformer2EncoderLayer(nn.Module):
 
         residual_scale = limit_param_value(self.residual_scale, min=0.1, max=1.0)
         offset = (src - src_orig) * residual_scale
+
         src = src_orig + offset
+
+        src = with_loss(src,
+                        self.norm_change_loss(src_orig.permute(1, 0, 2), src.permute(1, 0, 2),
+                                              aux_loss_scale, mask=src_key_padding_mask),
+                        None)
+
+
+
 
         src = with_loss(src,
                         self.offset_cosine_loss(offset.permute(1, 0, 2), aux_loss_scale, mask=src_key_padding_mask),
@@ -658,12 +667,6 @@ class Zipformer2EncoderLayer(nn.Module):
         src = with_loss(src,
                         self.cosine_loss(src.permute(1, 0, 2), aux_loss_scale, mask=src_key_padding_mask),
                         None)
-
-        src = with_loss(src,
-                        self.cross_cosine_loss(src.permute(1, 0, 2), offset.permute(1, 0, 2),
-                                               aux_loss_scale, mask=src_key_padding_mask),
-                        None)
-
 
         src = self.scale_limiter(src, aux_loss_scale)
 

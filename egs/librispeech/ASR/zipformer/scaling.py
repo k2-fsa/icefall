@@ -334,9 +334,8 @@ class MaxEigLimiterFunction(torch.autograd.Function):
 
 
 def _exp_norm(x: Tensor, scale: Tensor, channel_dim: int):
-    # plot (0.15 + 0.87*x**0.5)^(1/0.5), x+0.075 for 0 <= x <= 1
     x_norm = torch.mean(x ** 2, dim=channel_dim, keepdim=True).sqrt()
-    num = ((0.15 + x_norm ** 0.5) ** 2).tanh()
+    num = (1 - (-x_norm).exp())
     scales = num / x_norm
     scales = scale * scales
     return (x * scales)
@@ -1191,70 +1190,68 @@ class MinProductLoss(nn.Module):
 
 
 # cross cosine loss is for when you have a situation like:
-#  x = x + delta
-#  x = with_loss(x, cross_cosine_loss(x, delta))
+#  y = y + delta
+#  y = with_loss(y, cross_cosine_loss(x, y, delta))
 # and we want to make sure that adding delta does not change the magnitude
-# of x very much, as a proportion of the total magnitude of x.
-#  we do this by making sure that delta . (x - delta/2) is close to zero, and
-# normalize this by dividing by x's squared magnitude (x . x), i.e.
-# we ensure that mean(abs((delta . (x - delta/2) / (x . x))) < max_product
-# you could also probably supply the original x and it would have a somewhat similar effect.
-class CrossCosineLossFunction(torch.autograd.Function):
+# of individual embedding vectors very much.
+#  we do this by making sure that mean(abs(log(|x_i|)  - log(|y_i|))) <= limit.
+class NormChangeLossFunction(torch.autograd.Function):
     @staticmethod
     @custom_fwd
-    def forward(ctx, x: Tensor, delta: Tensor, mask: Optional[Tensor],
-                max_product: float, weight: float, name: str):
-        ctx.save_for_backward(x, delta)
+    def forward(ctx, x: Tensor, y: Tensor, mask: Optional[Tensor],
+                limit: float, weight: float, name: str):
+        ctx.save_for_backward(x, y)
         ctx.name = name
         ctx.mask = mask # mask will have no grad so it should be OK to store this way
         ctx.weight = weight
-        ctx.max_product = max_product
+        ctx.limit = limit
         # return fake loss that is always zero but behaves in backprop as if it were a real loss.
         return torch.tensor(0.0, device=x.device, dtype=x.dtype)
 
     @staticmethod
     @custom_bwd
     def backward(ctx, ans_grad):
-        x, delta = ctx.saved_tensors
+        x, y = ctx.saved_tensors
         name = ctx.name     # str
         mask = ctx.mask    # Tensor or None, shape: (batch_size, seq_len)
         weight = ctx.weight # float
-        max_product = ctx.max_product # float
+        limit = ctx.limit # float
         (batch_size, seq_len, num_channels) = x.shape
 
         with torch.enable_grad():
-            x, delta = x.detach(), delta.detach()
-            x.requires_grad = True
-            delta.requires_grad = True
+            with torch.amp.autocast('cuda', enabled=False):
+                x, y = x.to(torch.float), y.to(torch.float)
+                x, y = x.detach(), y.detach()
+                x.requires_grad = True
+                y.requires_grad = True
+                eps = 1.0e-10
+                x_sqnorm = (x * x).sum(dim=-1) + eps
+                y_sqnorm = (y * y).sum(dim=-1) + eps
+                norm_diff = 0.5 * (x_sqnorm.log() - y_sqnorm.log()).abs()
 
-            eps = 3.0e-08  # won't be zero in float16
+                if mask is not None:
+                    norm_diff = norm_diff * (~mask).to(norm_diff.dtype)
 
-            product = ((x - 0.5 * delta) * delta).sum(dim=-1).abs() / ((x * x).sum(dim=-1) + eps)
+                excess_norm_diff = (norm_diff.sum(dim=1) - seq_len * limit).relu()
 
-            if mask is not None:
-                product = product * (~mask).to(product.dtype)
+                if random.random() < 0.001:
+                    logging.info(f"NormChangeLoss: {name}, limit={limit}, excess-norm-diff={excess_norm_diff.mean() / seq_len}")
 
-            product = product.abs()
-            excess_product = (product.sum(dim=1) - seq_len * max_product).relu()
+                grad = (weight * ans_grad).expand(excess_norm_diff.numel())
+                excess_norm_diff.backward(grad)
 
-            if random.random() < 0.001:
-                logging.info(f"CrossCosineLoss: {name}, limit={max_product}, excess-product={excess_product.mean() / seq_len}")
+        return x.grad, y.grad, None, None, None, None
 
-            grad = (weight * ans_grad).expand(excess_product.numel())
-            excess_product.backward(grad)
-
-        return x.grad, delta.grad, None, None, None, None
-
-class CrossCosineLoss(nn.Module):
+class NormChangeLoss(nn.Module):
     def __init__(self,
-                 max_product: FloatLike):  # e.g. 0.2.
+                 limit: FloatLike):  # e.g. 0.2.
         super().__init__()
-        self.max_product = max_product
+        self.limit = limit
         self.name = None
 
     def forward(self,
                 x: Tensor,
-                delta: Tensor,
+                y: Tensor,
                 loss_scale: float,
                 mask: Optional[Tensor]) -> Tensor:
         """
@@ -1262,7 +1259,7 @@ class CrossCosineLoss(nn.Module):
 
 
            x: Tensor of shape (batch_size, seq_len, num_channels)
-           delta: Tensor of shape (batch_size, seq_len, num_channels)
+           y: Tensor of shape (batch_size, seq_len, num_channels)
   loss_scale: the scale with which the loss should be incorporated into the graph.
              This should contain a factor of the grad_scale, if you are using GradScaler for
              automatic mixed precision training (amp).
@@ -1277,9 +1274,9 @@ class CrossCosineLoss(nn.Module):
           Ret will always be numerically equal to zero in the forward pass but
           will behave as if it were nonzero for backprop purposes.
         """
-        max_product = float(self.max_product)
-        return CrossCosineLossFunction.apply(x, delta, mask, max_product,
-                                             loss_scale, self.name)
+        limit = float(self.limit)
+        return NormChangeLossFunction.apply(x, y, mask, limit,
+                                            loss_scale, self.name)
 
 
 class ChunkCausalDepthwiseConv1d(torch.nn.Module):
