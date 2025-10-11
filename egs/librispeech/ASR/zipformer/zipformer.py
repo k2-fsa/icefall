@@ -558,7 +558,7 @@ class Zipformer2EncoderLayer(nn.Module):
         self.offset_cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=embed_dim, power=0.7))
         self.cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=embed_dim, power=0.8))
 
-        self.cross_cosine_loss = CrossCosineLoss(max_product=0.2)
+        self.cross_cosine_loss = CrossCosineLoss(max_product=0.1)
 
         self.self_attn_weights = RelPositionMultiheadAttentionWeights(
             embed_dim,
