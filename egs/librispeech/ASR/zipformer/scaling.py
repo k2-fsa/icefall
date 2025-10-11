@@ -1193,8 +1193,11 @@ class MinProductLoss(nn.Module):
 # cross cosine loss is for when you have a situation like:
 #  x = x + delta
 #  x = with_loss(x, cross_cosine_loss(x, delta))
-# and we want to make sure that delta only represents, on average,
-# a small fraction of the total x.  That is,  mean(abs((delta . x) / (x . x))) < max_product
+# and we want to make sure that adding delta does not change the magnitude
+# of x very much, as a proportion of the total magnitude of x.
+#  we do this by making sure that delta . (x - delta/2) is close to zero, and
+# normalize this by dividing by x's squared magnitude (x . x), i.e.
+# we ensure that mean(abs((delta . (x - delta/2) / (x . x))) < max_product
 # you could also probably supply the original x and it would have a somewhat similar effect.
 class CrossCosineLossFunction(torch.autograd.Function):
     @staticmethod
@@ -1226,7 +1229,7 @@ class CrossCosineLossFunction(torch.autograd.Function):
 
             eps = 3.0e-08  # won't be zero in float16
 
-            product = (x * delta).sum(dim=-1).abs() / ((x * x).sum(dim=-1) + eps)
+            product = ((x - 0.5 * delta) * delta).sum(dim=-1).abs() / ((x * x).sum(dim=-1) + eps)
 
             if mask is not None:
                 product = product * (~mask).to(product.dtype)
