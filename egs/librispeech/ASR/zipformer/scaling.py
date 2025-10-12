@@ -1466,16 +1466,18 @@ class ScaleLimiterFunction(torch.autograd.Function):
                 x = x.detach()
                 x.requires_grad = True
                 rms = (x ** 2).mean(dim=-1).sqrt()
-                max_deviation = (rms / ctx.max_rms - 1.).relu()
-                min_deviation = (1. - rms / ctx.min_rms).relu()
+                numel = rms.numel()
 
+                max_deviation = (rms / ctx.max_rms - 1.).relu().mean()
+                min_deviation = (1. - rms / ctx.min_rms).relu().mean()
                 if random.random() < 0.002:
                     logging.info(
                         f"ScaleLimiter: name={ctx.name}, min_rms={ctx.min_rms}, max_rms={ctx.max_rms}, "
-                        f"min_deviation={min_deviation.mean()}, max_deviation={max_deviation.mean()}, "
+                        f"min_deviation={min_deviation.item()}, max_deviation={max_deviation.item()}, "
                         f"loss_scale={ctx.aux_loss_scale}"
                     )
-                (min_deviation + max_deviation).backward(gradient=torch.full_like(min_deviation, ctx.aux_loss_scale))
+                min_deviation = min_deviation ** 3  # strongly de-emphasize small violations of the minimum.
+                (min_deviation + max_deviation).backward(gradient=torch.full_like(min_deviation, ctx.aux_loss_scale * numel))
         return x_grad + x.grad, None, None, None, None
 
 
