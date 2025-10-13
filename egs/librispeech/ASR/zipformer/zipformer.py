@@ -163,7 +163,6 @@ class Zipformer2(EncoderInterface):
                 value_head_dim=value_head_dim[i],
                 feedforward_multiple=feedforward_multiple[i],
                 cnn_module_kernel=cnn_module_kernel[i],
-                num_conv_modules=1,
                 causal=causal,
             )
 
@@ -349,8 +348,8 @@ class Zipformer2(EncoderInterface):
             A tensor of shape (batch_size,) containing the number of frames in
             `x` before padding.
           states: list of cached tensors of all encoder layers. For layer-i,
-            states[i*6:(i+1)*6] is (cached_key, cached_nonlin_attn, cached_val1, cached_val2,
-            cached_conv1, cached_conv2).
+            states[i*5:(i+1)*5] is (cached_key, cached_nonlin_attn, cached_val1, cached_val2,
+            cached_conv)
           src_key_padding_mask:
             The mask for padding, of shape (batch_size, seq_len); True means
             masked position. May be None.
@@ -370,7 +369,7 @@ class Zipformer2(EncoderInterface):
 
             x, new_layer_states = module.streaming_forward(
                 x,
-                states=states[layer_offset * 6 : (layer_offset + num_layers) * 6],
+                states=states[layer_offset * 6 : (layer_offset + num_layers) * 5],
                 left_context_len=self.left_context_frames[0] // ds,
                 src_key_padding_mask=src_key_padding_mask[..., ::ds],
             )
@@ -398,7 +397,7 @@ class Zipformer2(EncoderInterface):
     ) -> List[Tensor]:
         """Get initial states.
 
-        A list of cached tensors of all encoder layers. For layer-i, states[i*6:(i+1)*6]
+        A list of cached tensors of all encoder layers. For layer-i, states[i*5:(i+1)*5]
         is (cached_key, cached_nonlin_attn, cached_val1, cached_val2, cached_conv1, cached_conv2).
         """
         states = []
@@ -546,7 +545,6 @@ class Zipformer2EncoderLayer(nn.Module):
         value_head_dim: int,
         feedforward_multiple: int,
         cnn_module_kernel: int = 31,
-        num_conv_modules: int = 2,
         causal: bool = False,
     ) -> None:
         super(Zipformer2EncoderLayer, self).__init__()
@@ -563,24 +561,20 @@ class Zipformer2EncoderLayer(nn.Module):
         self.self_attn_weights = RelPositionMultiheadAttentionWeights(
             embed_dim,
             pos_dim=pos_dim,
-            num_heads=3 * num_heads,
+            num_heads=num_heads,
             query_head_dim=query_head_dim,
             pos_head_dim=pos_head_dim,
         )
 
-        self.self_attn1, self.self_attn2, self.self_attn3 = [ SelfAttention(embed_dim, num_heads, value_head_dim) for _ in range(3) ]
+        self.self_attn1, self.self_attn2 = [ SelfAttention(embed_dim, num_heads, value_head_dim) for _ in range(2) ]
 
         feedforward_dim = embed_dim * feedforward_multiple
         self.feed_forward1 = FeedforwardModule(embed_dim, (feedforward_dim * 3) // 4)
 
         self.feed_forward2 = FeedforwardModule(embed_dim, feedforward_dim)
 
-        self.feed_forward3 = FeedforwardModule(embed_dim, (feedforward_dim * 5) // 4)
 
-        if num_conv_modules >= 2:
-            self.conv_module2 = ConvolutionModule(embed_dim, cnn_module_kernel, causal=causal)
-        if num_conv_modules >= 1:
-            self.conv_module1 = ConvolutionModule(embed_dim, cnn_module_kernel, causal=causal)
+        self.conv_module = ConvolutionModule(embed_dim, cnn_module_kernel, causal=causal)
 
         self.scale_limiter = ScaleLimiter(min_rms=0.1, max_rms=2.0)
 
@@ -625,7 +619,7 @@ class Zipformer2EncoderLayer(nn.Module):
             key_padding_mask=src_key_padding_mask,
             aux_loss_scale=0.1 * aux_loss_scale,
         )
-        attn_weights1, attn_weights2, attn_weights3 = attn_weights.chunk(3, dim=0)
+        attn_weights1, attn_weights2 = attn_weights.chunk(2, dim=0)
 
         src = src + self.self_attn1(src, attn_weights1, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
 
@@ -633,17 +627,9 @@ class Zipformer2EncoderLayer(nn.Module):
 
         src = src + self.self_attn2(src, attn_weights2, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
 
-        if hasattr(self, 'conv_module1'):
-            src = src + self.conv_module1(src, chunk_size=chunk_size, src_key_padding_mask=src_key_padding_mask, aux_loss_scale=0.1 * aux_loss_scale)
+        src = src + self.conv_module(src, chunk_size=chunk_size, src_key_padding_mask=src_key_padding_mask, aux_loss_scale=0.1 * aux_loss_scale)
 
         src = src + self.feed_forward2(src, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
-
-        src = src + self.self_attn3(src, attn_weights3, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
-
-        if hasattr(self, 'conv_module2'):
-            src = src + self.conv_module2(src, chunk_size=chunk_size, src_key_padding_mask=src_key_padding_mask, aux_loss_scale=0.1 * aux_loss_scale)
-
-        src = src + self.feed_forward3(src, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
 
         residual_scale = limit_param_value(self.residual_scale, min=0.1, max=1.0)
         offset = (src - src_orig) * residual_scale
@@ -682,8 +668,7 @@ class Zipformer2EncoderLayer(nn.Module):
         cached_nonlin_attn: Tensor,
         cached_val1: Tensor,
         cached_val2: Tensor,
-        cached_conv1: Tensor,
-        cached_conv2: Tensor,
+        cached_conv: Tensor,
         left_context_len: int,
         src_key_padding_mask: Tensor,
     ) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]:
@@ -701,9 +686,7 @@ class Zipformer2EncoderLayer(nn.Module):
               of shape (left_context_len, batch_size, value_dim)
             cached_val2: cached left context for the second attention module,
               of shape (left_context_len, batch_size, value_dim)
-            cached_conv1: cached left context for the first convolution module,
-              of shape (batch_size, channels, left_pad)
-            cached_conv2: cached left context for the second convolution module,
+            cached_conv: cached left context for the first convolution module,
               of shape (batch_size, channels, left_pad)
             left_context_len: number of left context frames.
             src_key_padding_mask:  the mask for padding, of shape
@@ -716,8 +699,7 @@ class Zipformer2EncoderLayer(nn.Module):
             - updated cached_nonlin_attn
             - updated cached_val1
             - updated cached_val2
-            - updated cached_conv1
-            - updated cached_conv2
+            - updated cached_conv
         """
         src_orig = src
 
@@ -749,9 +731,9 @@ class Zipformer2EncoderLayer(nn.Module):
         )
         src = src + self_attn
 
-        src_conv, cached_conv1 = self.conv_module1.streaming_forward(
+        src_conv, cached_conv = self.conv_module.streaming_forward(
             src,
-            cache=cached_conv1,
+            cache=cached_conv,
             src_key_padding_mask=src_key_padding_mask[:, left_context_len:],
         )
         src = src + src_conv
@@ -767,18 +749,9 @@ class Zipformer2EncoderLayer(nn.Module):
         )
         src = src + self_attn
 
-        src_conv, cached_conv2 = self.conv_module2.streaming_forward(
-            src,
-            cache=cached_conv2,
-            src_key_padding_mask=src_key_padding_mask[:, left_context_len:],
-        )
-        src = src + src_conv
+        offset = (src - src_orig) * self.residual_scale
 
-        src = src + self.feed_forward3(src)
-
-        src = self.norm(src)
-
-        src = self.residual(src_orig, src)
+        src = src_orig + offset
 
         src = self.norm(src)
 
@@ -788,8 +761,7 @@ class Zipformer2EncoderLayer(nn.Module):
             cached_nonlin_attn,
             cached_val1,
             cached_val2,
-            cached_conv1,
-            cached_conv2,
+            cached_conv,
         )
 
 
@@ -807,8 +779,6 @@ class Zipformer2Encoder(nn.Module):
         >>> zipformer_encoder = Zipformer2Encoder(encoder_layer, num_layers=6)
         >>> src = torch.rand(10, 32, 512)
         >>> out = zipformer_encoder(src)
-
-
     """
     def __init__(
         self,
@@ -934,8 +904,8 @@ class Zipformer2Encoder(nn.Module):
 
         Args:
             src: the sequence to the encoder (required): shape (seq_len, batch_size, embed_dim).
-            states: list of cached tensors of N encoder layers. For layer-i, states[i*6:(i+1)*6] is
-              (cached_key, cached_nonlin_attn, cached_val1, cached_val2, cached_conv1, cached_conv2).
+            states: list of cached tensors of N encoder layers. For layer-i, states[i*5:(i+1)*5] is
+              (cached_key, cached_nonlin_attn, cached_val1, cached_val2, cached_conv).
             left_context_len: Number of left context frames.
             src_key_padding_mask:  the mask for padding, of shape
               (batch_size, left_context_len + seq_len); True means masked position.
@@ -958,17 +928,15 @@ class Zipformer2Encoder(nn.Module):
                 cached_nonlin_attn,
                 cached_val1,
                 cached_val2,
-                cached_conv1,
-                cached_conv2,
-            ) = states[i * 6 : (i + 1) * 6]
+                cached_conv,
+            ) = states[i * 5 : (i + 1) * 5]
             (
                 src,
                 new_cached_key,
                 new_cached_nonlin_attn,
                 new_cached_val1,
                 new_cached_val2,
-                new_cached_conv1,
-                new_cached_conv2,
+                new_cached_conv,
             ) = mod.streaming_forward(
                 src,
                 pos_emb,
@@ -976,8 +944,7 @@ class Zipformer2Encoder(nn.Module):
                 cached_nonlin_attn=cached_nonlin_attn,
                 cached_val1=cached_val1,
                 cached_val2=cached_val2,
-                cached_conv1=cached_conv1,
-                cached_conv2=cached_conv2,
+                cached_conv=cached_conv,
                 left_context_len=left_context_len,
                 src_key_padding_mask=src_key_padding_mask,
             )
@@ -986,8 +953,7 @@ class Zipformer2Encoder(nn.Module):
                 new_cached_nonlin_attn,
                 new_cached_val1,
                 new_cached_val2,
-                new_cached_conv1,
-                new_cached_conv2,
+                new_cached_conv,
             ]
 
         if num_channels > layer_dim:
