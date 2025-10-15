@@ -639,8 +639,6 @@ class Zipformer2EncoderLayer(nn.Module):
         src = with_loss(src,
                         self.max_var_loss((src - src_orig).permute(1, 0, 2), aux_loss_scale, mask=src_key_padding_mask))
 
-        src = self.norm(src)
-
         residual_scale = limit_param_value(self.residual_scale, min=0.1, max=1.0)
         offset = (src - src_orig) * residual_scale
 
@@ -658,6 +656,8 @@ class Zipformer2EncoderLayer(nn.Module):
         # network to get around the scale limitation by using an offset.
         src = with_loss(src,
                         self.cosine_loss(src.permute(1, 0, 2), aux_loss_scale, mask=src_key_padding_mask))
+
+        src = self.norm(src)
 
         return src
 
