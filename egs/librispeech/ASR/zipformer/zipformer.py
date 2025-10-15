@@ -795,8 +795,16 @@ class Zipformer2Encoder(nn.Module):
         self.proj = SimpleOrthogonalLinear(dim, encoder_layer.embed_dim, bias=False)
         self.proj.lr_scale = 0.75
 
+        # scale up the position weights, this is to fix an issue with the
+        # linear_pos projections otherwise needing to have too-large scale, larger
+        # than the "default scale" used in AdamW-like
+        # log-weight decay in TransformedAdam.  The issue we are trying
+        # to solve is that between different runs, the linear_pos projections of
+        # different self_attn_weights modules get very different scales.. the
+        # thinking is that sometimes if one of these linear_pos projections has
+        # a too-small scale, it never "learns something useful".
         self.encoder_pos = CompactRelPositionalEncoding(
-            pos_dim, length_factor=1.0
+            pos_dim, length_factor=1.0, feat_scale=4,
         )
         self.name = None
         self.layers = nn.ModuleList(
@@ -1030,6 +1038,7 @@ class CompactRelPositionalEncoding(torch.nn.Module):
         embed_dim: int,
         max_len: int = 1000,
         length_factor: float = 1.0,
+        feat_scale: float = 1.0,
     ) -> None:
         """Construct a CompactRelPositionalEncoding object."""
         super(CompactRelPositionalEncoding, self).__init__()
@@ -1038,6 +1047,7 @@ class CompactRelPositionalEncoding(torch.nn.Module):
         self.pe = None
         assert length_factor >= 1.0, length_factor
         self.length_factor = length_factor
+        self.feat_scale = feat_scale
         self.extend_pe(torch.tensor(0.0).expand(max_len))
 
     def extend_pe(self, x: Tensor, left_context_len: int = 0) -> None:
@@ -1088,7 +1098,7 @@ class CompactRelPositionalEncoding(torch.nn.Module):
         pe[:, 1::2] = sines
         pe[:, -1] = 1.0  # for bias.
 
-        self.pe = pe.to(dtype=x.dtype)
+        self.pe = pe.to(dtype=x.dtype) * self.feat_scale
 
     def forward(self, x: Tensor, left_context_len: int = 0) -> Tensor:
         """Create positional encoding.
@@ -1209,8 +1219,6 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
 
         self.key_cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=key_head_dim, power=0.5))
 
-
-        # linear transformation for positional encoding.
         self.linear_pos = ScaledLinear(
             pos_dim, num_heads * pos_head_dim, bias=False, initial_scale=0.05
         )
