@@ -34,6 +34,7 @@ from scaling import (
     ExpNorm,
     ChunkCausalDepthwiseConv1d,
     CosineSimilarityLoss,
+    ScheduledFloat,
     FloatLike,
     convert_num_channels,
     limit_param_value,
@@ -44,6 +45,7 @@ from scaling import (
 )
 try:
     from scaling import NormChangeLoss
+    from scaling import MaxVarLoss
 except:
     pass
 
@@ -555,8 +557,9 @@ class Zipformer2EncoderLayer(nn.Module):
 
         self.offset_cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=embed_dim, power=0.7))
         self.cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=embed_dim, power=0.8))
-
         self.norm_change_loss = NormChangeLoss(limit=0.3)
+        self.max_var_loss = MaxVarLoss(max_rms=ScheduledFloat((0.0, 1.2), (30000.0, 0.25), default=1.0))
+
 
         self.self_attn_weights = RelPositionMultiheadAttentionWeights(
             embed_dim,
@@ -633,6 +636,9 @@ class Zipformer2EncoderLayer(nn.Module):
 
         src = self.scale_limiter(src, aux_loss_scale)
 
+        src = with_loss(src,
+                        self.max_var_loss(src.permute(1, 0, 2), aux_loss_scale, mask=src_key_padding_mask))
+
         src = self.norm(src)
 
         residual_scale = limit_param_value(self.residual_scale, min=0.1, max=1.0)
@@ -645,18 +651,13 @@ class Zipformer2EncoderLayer(nn.Module):
                                               aux_loss_scale, mask=src_key_padding_mask),
                         None)
 
-
-
-
         src = with_loss(src,
-                        self.offset_cosine_loss(offset.permute(1, 0, 2), aux_loss_scale, mask=src_key_padding_mask),
-                        None)
+                        self.offset_cosine_loss(offset.permute(1, 0, 2), aux_loss_scale, mask=src_key_padding_mask))
 
         # also put cosine_loss on src, mostly because it will be used in scale_limiter and we don't want the
         # network to get around the scale limitation by using an offset.
         src = with_loss(src,
-                        self.cosine_loss(src.permute(1, 0, 2), aux_loss_scale, mask=src_key_padding_mask),
-                        None)
+                        self.cosine_loss(src.permute(1, 0, 2), aux_loss_scale, mask=src_key_padding_mask))
 
         return src
 
@@ -884,8 +885,7 @@ class Zipformer2Encoder(nn.Module):
                             self.offset_cosine_loss(offset.permute(1, 0, 2),
                                                     aux_loss_scale, src_key_padding_mask) +
                             self.cosine_loss(src.permute(1, 0, 2),
-                                             aux_loss_scale, src_key_padding_mask),
-                            None)
+                                             aux_loss_scale, src_key_padding_mask))
 
         if hasattr(self, 'out_proj'):
             src = self.out_proj(src)
@@ -1273,8 +1273,7 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
             k = with_loss(k,
                           self.key_cosine_loss(k.permute(1, 2, 0, 3).reshape(batch_size * num_heads, seq_len, query_head_dim),
                                                aux_loss_scale / num_heads,
-                                               key_padding_mask.repeat_interleave(num_heads, dim=0) if key_padding_mask is not None else None),
-                          None)
+                                               key_padding_mask.repeat_interleave(num_heads, dim=0) if key_padding_mask is not None else None))
 
 
         # time1 refers to target, time2 refers to source.
@@ -1574,7 +1573,7 @@ class SelfAttention(nn.Module):
         if aux_loss_scale:
             x = with_loss(x, self.cosine_loss(x.permute(1, 0, 2),
                                               aux_loss_scale,
-                                              mask=src_key_padding_mask), None)
+                                              mask=src_key_padding_mask))
 
         return x
 
@@ -1662,7 +1661,7 @@ class FeedforwardModule(nn.Module):
     def forward(self, x: Tensor, aux_loss_scale: float = 0.0, src_key_padding_mask: Optional[Tensor] = None) -> Tensor:
         x = self.in_proj(x)
         x = self.out_proj(x)
-        x = with_loss(x, self.cosine_loss(x.permute(1, 0, 2), aux_loss_scale, src_key_padding_mask), None)
+        x = with_loss(x, self.cosine_loss(x.permute(1, 0, 2), aux_loss_scale, src_key_padding_mask))
         return x
 
 
@@ -1782,8 +1781,7 @@ class ConvolutionModule(nn.Module):
 
         x = self.out_proj(x)  # (time, batch, channels)
 
-        x = with_loss(x, self.cosine_loss(x.permute(1, 0, 2), aux_loss_scale, src_key_padding_mask),
-                      None)
+        x = with_loss(x, self.cosine_loss(x.permute(1, 0, 2), aux_loss_scale, src_key_padding_mask))
 
         return x
 

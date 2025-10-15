@@ -334,7 +334,6 @@ class MaxEigLimiterFunction(torch.autograd.Function):
 
 
 def _exp_norm(x: Tensor, scale: Tensor, channel_dim: int):
-    eps = 0.1
     x_norm = torch.mean(x ** 2, dim=channel_dim, keepdim=True).sqrt()
     num = (x_norm + 0.025).tanh()
     scales = num / x_norm
@@ -829,6 +828,95 @@ class OrthogonalLinear(nn.Linear):
         return ans
 
 
+class MaxVarLossFunction(torch.autograd.Function):
+    @staticmethod
+    @custom_fwd
+    def forward(ctx, x: Tensor, mask: Optional[Tensor], max_var: float, weight: float, name: str):
+        ctx.save_for_backward(x)
+        if mask is not None:
+            assert mask.shape == x.shape[:2], (list(mask.shape), list(x.shape))
+        ctx.mask = mask  # mask will have no grad so it should be OK to store this way
+        ctx.name = name
+        ctx.weight = weight
+        ctx.max_var = max_var
+        return torch.tensor(0.0, device=x.device, dtype=x.dtype)
+
+    @staticmethod
+    @custom_bwd
+    def backward(ctx, ans_grad):
+        x, = ctx.saved_tensors
+        mask = ctx.mask     # optional Tensor
+        name = ctx.name     # str
+        weight = ctx.weight # float
+        max_var = ctx.max_var # float
+
+
+        with torch.enable_grad():
+            x = x.detach()
+            x.requires_grad = True
+
+            eps = 3.0e-08  # won't be zero in float16
+            x_var = (x ** 2).mean(dim=-1)
+            if mask is not None:
+                mask = (~mask).to(x.dtype)
+                x_var = x_var * mask
+
+            with torch.amp.autocast('cuda', enabled=False):
+                x_var = x_var.to(torch.float)
+                if mask is not None:
+                    numel = mask.sum()
+                else:
+                    numel = x_var.numel()
+                excess_var = (x_var.sum() - max_var * numel).relu()
+
+                if random.random() < 0.001:
+                    logging.info(f"MaxVarLoss: {name}, limit={max_var}, excess-var={excess_var.mean() / numel}")
+
+                # scale the loss by less than one, if we are close to the limit.
+                excess_var = excess_var * (excess_var / (numel * max_var)).clamp(max=1.0)
+
+                # also add a factor of 1. / max_var into the loss scale.
+                excess_var.backward(gradient=torch.full_like(excess_var, weight * (1. / max_var)))
+
+        return x.grad, None, None, None, None
+
+
+class MaxVarLoss(nn.Module):
+    def __init__(self,
+                 max_rms: FloatLike):
+        super().__init__()
+        self.max_rms = max_rms
+        self.name = None
+
+    def forward(self,
+                x: Tensor,
+                loss_scale: float,
+                mask: Optional[Tensor] = None) -> Tensor:
+        """
+        Compute loss that acts like a penalty if the mean-square value of x
+        exceeds self.max_rms**2
+
+           x: Tensor of shape (batch_size, seq_len, num_channels)
+  loss_scale: the scale with which the loss should be incorporated into the graph.
+             This should contain a factor of the grad_scale, if you are using GradScaler for
+             automatic mixed precision training (amp).
+             The loss will be summed over frames, and multiplied by this value.
+         mask: if supplied, mask of shape (batch_size, seq_len);
+              True means masked positions.
+
+      Returns:
+           returns a scaled scalar loss value "ret" which should be incorporated
+           into the backprop graph by doing:
+             z = with_loss(z, ret, None)
+          where z is any quantity that will be used in calculating the main loss.
+          Ret will always be numerically equal to zero in the forward pass but
+          may behave as if it were nonzero for backprop purposes.
+        """
+        return MaxVarLossFunction.apply(x, mask,
+                                        float(self.max_rms) ** 2,
+                                        loss_scale, self.name)
+
+
 class CosineSimilarityLossFunction(torch.autograd.Function):
     @staticmethod
     @custom_fwd
@@ -881,6 +969,44 @@ class CosineSimilarityLossFunction(torch.autograd.Function):
             excess_similarity.backward(grad)
 
         return x.grad, None, None, None, None
+
+
+class CosineSimilarityLoss(nn.Module):
+    def __init__(self,
+                 max_similarity: FloatLike):  # e.g. 0.1 for max_similarity
+        super().__init__()
+        self.max_similarity = max_similarity
+        self.name = None
+
+    def forward(self,
+                x: Tensor,
+                loss_scale: float,
+                mask: Optional[Tensor] = None) -> Tensor:
+        """
+        Compute cosine-similarity loss that tries to make sure distinct output vectors
+        have inner products with small magnitude (after normalization), i.e. the cosine
+        of the angle between should be close to zero.
+
+           x: Tensor of shape (batch_size, seq_len, num_channels)
+  loss_scale: the scale with which the loss should be incorporated into the graph.
+             This should contain a factor of the grad_scale, if you are using GradScaler for
+             automatic mixed precision training (amp).
+             The loss will be summed over frames, and multiplied by this value.
+         mask: if supplied, mask of shape (batch_size, seq_len);
+              True means masked positions.
+
+      Returns:
+           returns a scaled scalar loss value "ret" which should be incorporated
+           into the backprop graph by doing:
+             z = with_loss(z, ret, None)
+          where z is any quantity that will be used in calculating the main loss.
+          Ret will always be numerically equal to zero in the forward pass but
+          may behave as if it were nonzero for backprop purposes.
+        """
+        return CosineSimilarityLossFunction.apply(x, mask,
+                                                  float(self.max_similarity),
+                                                  loss_scale, self.name)
+
 
 
 class SimpleOrthogonalPenaltyFunction(torch.autograd.Function):
@@ -1024,42 +1150,6 @@ def get_max_similarity(rank: int, power: float):
     between this and 1, as a kind of heuristic limit on this max_similarity.
     """
     return (0.7978845608 / (rank ** 0.5)) ** power
-
-class CosineSimilarityLoss(nn.Module):
-    def __init__(self,
-                 max_similarity: FloatLike):  # e.g. 0.1 for max_similarity
-        super().__init__()
-        self.max_similarity = max_similarity
-        self.name = None
-
-    def forward(self,
-                x: Tensor,
-                loss_scale: float,
-                mask: Optional[Tensor] = None) -> Tensor:
-        """
-        Compute cosine-similarity loss that tries to make sure distinct output vectors
-        have inner products with small magnitude (after normalization), i.e. the cosine
-        of the angle between should be close to zero.
-
-           x: Tensor of shape (batch_size, seq_len, num_channels)
-  loss_scale: the scale with which the loss should be incorporated into the graph.
-             This should contain a factor of the grad_scale, if you are using GradScaler for
-             automatic mixed precision training (amp).
-             The loss will be summed over frames, and multiplied by this value.
-         mask: if supplied, mask of shape (batch_size, seq_len);
-              True means masked positions.
-
-      Returns:
-           returns a scaled scalar loss value "ret" which should be incorporated
-           into the backprop graph by doing:
-             z = with_loss(z, ret, None)
-          where z is any quantity that will be used in calculating the main loss.
-          Ret will always be numerically equal to zero in the forward pass but
-          may behave as if it were nonzero for backprop purposes.
-        """
-        return CosineSimilarityLossFunction.apply(x, mask,
-                                                  float(self.max_similarity),
-                                                  loss_scale, self.name)
 
 
 class MinProductLossFunction(torch.autograd.Function):
@@ -1712,7 +1802,7 @@ class WithLoss(torch.autograd.Function):
         )
 
 
-def with_loss(x, y, name):
+def with_loss(x, y, name=None):
     # returns x but adds y.sum() to the loss function.
     return WithLoss.apply(x, y, name)
 
