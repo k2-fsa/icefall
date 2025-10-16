@@ -1200,11 +1200,12 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         self.embed_dim = embed_dim
         self.num_heads = num_heads
         self.query_head_dim = query_head_dim
+        assert pos_head_dim <= query_head_dim
         self.pos_head_dim = pos_head_dim
         self.name = None  # will be overwritten in training code; for diagnostics.
 
         key_head_dim = query_head_dim
-        in_proj_dim = (query_head_dim + key_head_dim + pos_head_dim) * num_heads
+        in_proj_dim = (query_head_dim + key_head_dim) * num_heads
 
         # the initial_scale is supposed to take over the "scaling" factor of
         # head_dim ** -0.5 that has been used in previous forms of attention,
@@ -1262,21 +1263,15 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         # self-attention
         q = x[..., 0:query_dim]
         k = x[..., query_dim : 2 * query_dim]
-        # p is the position-encoding query
-        p = x[..., 2 * query_dim :]
-        assert p.shape[-1] == num_heads * pos_head_dim, (
-            p.shape[-1],
-            num_heads,
-            pos_head_dim,
-        )
 
         q = self.copy_query(q)  # for diagnostics only, does nothing.
         k = self.copy_key(k)
-        p = self.copy_pos_query(p)
+
 
         q = q.reshape(seq_len, batch_size, num_heads, query_head_dim)
-        p = p.reshape(seq_len, batch_size, num_heads, pos_head_dim)
         k = k.reshape(seq_len, batch_size, num_heads, query_head_dim)
+        p = q[..., :pos_head_dim]
+        p = self.copy_pos_query(p)  # diagnostics only
 
         if aux_loss_scale:
             k = with_loss(k,
