@@ -150,17 +150,15 @@ class AsrModel(nn.Module):
           encoder_out_lens:
             Encoder output lengths, of shape (N,).
         """
-        # logging.info(f"Memory allocated at entry: {torch.cuda.memory_allocated() // 1000000}M")
-        specaug_mask = (x[..., 0] == x[..., 1]) # (N, T)
+
+        if self.training:
+            noise_scale = 1.0e-02
+            x = x + noise_scale * torch.rand_like(x)
 
         x, x_lens = self.encoder_embed(x, x_lens, aux_loss_scale=aux_loss_scale)
         # logging.info(f"Memory allocated after encoder_embed: {torch.cuda.memory_allocated() // 1000000}M")
 
-
         src_key_padding_mask = make_pad_mask(x_lens)   # (N, T)
-        specaug_mask = specaug_mask[:, ::2]
-        assert abs(specaug_mask.shape[1] - src_key_padding_mask.shape[1]) < 10
-        specaug_mask = convert_num_channels(specaug_mask, src_key_padding_mask.shape[1])  # pad or truncate.  (N, T)
 
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
 
