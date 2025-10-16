@@ -1474,7 +1474,7 @@ def get_parameter_groups_with_lrs(
     lr: float,
     include_names: bool = False,
     freeze_modules: List[str] = [],
-    attrs: List[str] = ['lr_scale', 'weight_min_rms', 'bias_min_rms', 'weight_max_rms', 'bias_max_rms'],
+    attrs: List[str] = ['lr_scale', 'weight_min_rms', 'bias_min_rms', 'weight_max_rms', 'bias_max_rms', 'scale_default'],
 ) -> List[dict]:
     """
     This is to automatically create parameter-groups with overrides of parameter optimizer

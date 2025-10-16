@@ -377,7 +377,7 @@ class TransformedAdam(BatchedOptimizer):
         direct=0.05, # scale on bypass of momentum (beta1)
         beta2=0.98,
         scale_decay=0.01,
-        scale_default=0.2,
+        scale_default=0.05,
         scalar_lr_scale=0.1,
         scaling_lr_scale=0.1,
         eps=1.0e-08,
