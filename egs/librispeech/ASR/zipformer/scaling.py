@@ -1540,9 +1540,8 @@ class ChunkCausalDepthwiseConv1d(torch.nn.Module):
 
 class ScaleLimiterFunction(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, x: Tensor, min_rms: float, max_rms: float, aux_loss_scale: float, name: str):
+    def forward(ctx, x: Tensor, max_rms: float, aux_loss_scale: float, name: str):
         ctx.save_for_backward(x)
-        ctx.min_rms = min_rms
         ctx.max_rms = max_rms
         ctx.aux_loss_scale = aux_loss_scale
         ctx.name = name
@@ -1559,17 +1558,16 @@ class ScaleLimiterFunction(torch.autograd.Function):
                 rms = (x ** 2).mean(dim=-1).sqrt()
                 numel = rms.numel()
 
-                max_deviation = (rms / ctx.max_rms - 1.).relu().mean()
-                min_deviation = (1. - rms / ctx.min_rms).relu().mean()
+                excess = (rms / ctx.max_rms - 1.).relu().mean()
+
                 if random.random() < 0.002:
                     logging.info(
-                        f"ScaleLimiter: name={ctx.name}, min_rms={ctx.min_rms}, max_rms={ctx.max_rms}, "
-                        f"min_deviation={min_deviation.item()}, max_deviation={max_deviation.item()}, "
+                        f"ScaleLimiter: name={ctx.name}, max_rms={ctx.max_rms}, "
+                        f"excess={excess.item()}, "
                         f"loss_scale={ctx.aux_loss_scale}"
                     )
-                min_deviation = min_deviation ** 3  # strongly de-emphasize small violations of the minimum.
-                (min_deviation + max_deviation).backward(gradient=torch.full_like(min_deviation, ctx.aux_loss_scale * numel))
-        return x_grad + x.grad, None, None, None, None
+                excess.backward(gradient=torch.full_like(excess, ctx.aux_loss_scale * numel))
+        return x_grad + x.grad, None, None, None
 
 
 class ScaleLimiter(torch.nn.Module):
@@ -1579,10 +1577,9 @@ class ScaleLimiter(torch.nn.Module):
 
     Assumes channel dim is -1 and the input shape has >1 dimension.
     """
-    def __init__(self, min_rms: FloatLike, max_rms: FloatLike):
+    def __init__(self, max_rms: FloatLike):
         super().__init__()
         self.name = None
-        self.min_rms = min_rms
         self.max_rms = max_rms
 
 
@@ -1590,7 +1587,7 @@ class ScaleLimiter(torch.nn.Module):
         if torch.jit.is_scripting() or torch.jit.is_tracing() or not self.training:
             return _no_op(x)
         else:
-            return ScaleLimiterFunction.apply(x, float(self.min_rms), float(self.max_rms),
+            return ScaleLimiterFunction.apply(x, float(self.max_rms),
                                               aux_loss_scale, self.name)
 
 
