@@ -579,7 +579,7 @@ class Zipformer2EncoderLayer(nn.Module):
 
         self.conv_module = ConvolutionModule(embed_dim, cnn_module_kernel, causal=causal)
 
-        self.scale_limiter = ScaleLimiter(min_rms=0.1, max_rms=2.0)
+        self.offset_scale_limiter = ScaleLimiter(max_rms=0.25)
 
         self.norm = ExpNorm(embed_dim)
 
@@ -634,13 +634,13 @@ class Zipformer2EncoderLayer(nn.Module):
 
         src = src + self.feed_forward2(src, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
 
-        src = self.scale_limiter(src, aux_loss_scale)
-
         src = with_loss(src,
                         self.max_var_loss((src - src_orig).permute(1, 0, 2), aux_loss_scale, mask=src_key_padding_mask))
 
         residual_scale = limit_param_value(self.residual_scale, min=0.1, max=1.0)
         offset = (src - src_orig) * residual_scale
+
+        offset = self.offset_scale_limiter(offset, 0.1 * aux_loss_scale)
 
         src = src_orig + offset
 
