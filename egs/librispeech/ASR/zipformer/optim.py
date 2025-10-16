@@ -220,7 +220,7 @@ def reverse_transform_param(group, p, orig_shape):
 
     # Apply weight-decay of log_scale, similar to weight decay of AdamW, except it regresses the
     # log-scale to a default value instead of regressing the scale towards zero.
-    log_scale_default = group["log_scale_default"]
+    log_scale_default = math.log(group["scale_default"])
     log_scale = ((log_scale - log_scale_default) * (1. - group["scale_decay"] * scaling_lr)) + log_scale_default
     scale = log_scale.exp().clamp(min=min_scale, max=max_scale)
 
@@ -396,7 +396,7 @@ class TransformedAdam(BatchedOptimizer):
             direct=direct,
             beta2=beta2,
             scale_decay=scale_decay,
-            log_scale_default=math.log(scale_default),
+            scale_default=scale_default,
             scalar_lr_scale=scalar_lr_scale,
             scaling_lr_scale=scaling_lr_scale,
             eps=eps,
@@ -878,7 +878,7 @@ class SimpleTransformedAdam(Optimizer):
             direct=direct,
             beta2=beta2,
             scale_decay=scale_decay,
-            log_scale_default=math.log(scale_default),
+            scale_default=scale_default,
             scalar_lr_scale=scalar_lr_scale,
             scaling_lr_scale=scaling_lr_scale,
             eps=eps,
@@ -1529,7 +1529,7 @@ def _test_transformed_adam(hidden_dim: int):
 def _test_transform_params():
     # caution: this has occasional errors.
     group = { "bias_min_scale": 0.001, "weight_min_scale": 0.01, "scalar_lr_scale": 0.1, "scaling_lr_scale": 0.5,
-              "log_scale_default": 0.05, "scale_decay": 0.01,
+              "scale_default": 0.05, "scale_decay": 0.01,
               "weight_max_scale": 20.0, "bias_max_scale": 20.0, "lr": 0.0}   # lr set to 0.0 so weight-scale decay does not happen.
     for scale in [ 0.0, 1.0e-05, 0.001, 0.01, 1.0, 10.0 ]:
         for shape in [ (1, 1),  (2, 1), (2, 2), (2, 3, 4), (3, 10, 20), (4,) ]:
