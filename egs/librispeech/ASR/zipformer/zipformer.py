@@ -804,7 +804,7 @@ class Zipformer2Encoder(nn.Module):
         # thinking is that sometimes if one of these linear_pos projections has
         # a too-small scale, it never "learns something useful".
         self.encoder_pos = CompactRelPositionalEncoding(
-            pos_dim, length_factor=1.0, feat_scale=4,
+            pos_dim, length_factor=1.0,
         )
         self.name = None
         self.layers = nn.ModuleList(
@@ -1038,7 +1038,6 @@ class CompactRelPositionalEncoding(torch.nn.Module):
         embed_dim: int,
         max_len: int = 1000,
         length_factor: float = 1.0,
-        feat_scale: float = 1.0,
     ) -> None:
         """Construct a CompactRelPositionalEncoding object."""
         super(CompactRelPositionalEncoding, self).__init__()
@@ -1047,7 +1046,6 @@ class CompactRelPositionalEncoding(torch.nn.Module):
         self.pe = None
         assert length_factor >= 1.0, length_factor
         self.length_factor = length_factor
-        self.feat_scale = feat_scale
         self.extend_pe(torch.tensor(0.0).expand(max_len))
 
     def extend_pe(self, x: Tensor, left_context_len: int = 0) -> None:
@@ -1098,7 +1096,7 @@ class CompactRelPositionalEncoding(torch.nn.Module):
         pe[:, 1::2] = sines
         pe[:, -1] = 1.0  # for bias.
 
-        self.pe = pe.to(dtype=x.dtype) * self.feat_scale
+        self.pe = pe.to(dtype=x.dtype)
 
     def forward(self, x: Tensor, left_context_len: int = 0) -> Tensor:
         """Create positional encoding.
@@ -1223,6 +1221,9 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         self.linear_pos = ScaledLinear(
             pos_dim, num_heads * pos_head_dim, bias=False, initial_scale=0.05
         )
+        # the next line will give an upward bias to the scale of linear_pos, nudging it towards
+        # a state where it gives a meaningful contribution to the stores.
+        self.linear_pos.scale_default = 10.0
 
         # the following are for diagnostics only, see --print-diagnostics option
         self.copy_pos_query = Identity()
