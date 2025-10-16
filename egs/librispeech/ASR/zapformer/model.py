@@ -150,11 +150,6 @@ class AsrModel(nn.Module):
           encoder_out_lens:
             Encoder output lengths, of shape (N,).
         """
-
-        if self.training:
-            noise_scale = 1.0e-02
-            x = x + noise_scale * torch.rand_like(x)
-
         x, x_lens = self.encoder_embed(x, x_lens, aux_loss_scale=aux_loss_scale)
         # logging.info(f"Memory allocated after encoder_embed: {torch.cuda.memory_allocated() // 1000000}M")
 

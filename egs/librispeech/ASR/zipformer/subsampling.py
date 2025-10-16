@@ -25,6 +25,7 @@ from scaling import (
     ScaledLinear,
     ExpNorm,
     FloatLike,
+    get_max_similarity,
     ScaledConv2d,
     ScaleGrad,
     ScheduledFloat,
@@ -35,32 +36,20 @@ from scaling import (
 )
 from torch import Tensor, nn
 
-# TEMP: put this here, eventually we should import from scaling.py
-def get_max_similarity(rank: int, power: float):
-    """
-    For use when initializing CosineSimilarityLoss, this returns a value for
-    the "max_similarity" argument.
-    max_similarity is an upper limit we impose on the mean value of (x_i . x_j),
-    where i != j are two different sequence-position indexes and x_i and x_j are
-    activation vectors normalized to have unit length.
 
-      rank: the dimension of the space, usually this is the num_channels, but if
-          we have just up-projected from a bottleneck, it would be the bottleneck
-          dimension.
-      power: a user-tunable value strictly between 0 and 1.   If we set power=1.0 it would mean
-          we enforce the vector dimensions to be completely independent like Gaussian noise
-          (don't do this); if we set power=0.0 it would be equivalent to not having
-          the CosineSimilarityLoss at all.
+class AddNoise(nn.Module):
+    # assume Conv2d-style input: (N, C, H, W)
+    def __init__(self, rel_noise_scale: float):
+        super().__init__()
+        self.rel_noise_scale = rel_noise_scale
 
-    The factor of 0.797 is sqrt(2/pi) which is the expected absolute value of a normal
-    variable.   If x consists of independent Gaussian noise of dimension D, with
-    variance 1/D so that the expected 2-norm of x is 1 (so the "normalization to unit length"
-    would be close to a no-op for large D), then (x_i . x_j) would be distributed as
-    a Gaussian with variance (D / D^2 = 1/D).  So the expected absolute value of (x_i . x_j)
-    would be sqrt(2/pi * (1/D)).  By taking it to the power "power" we just get a value
-    between this and 1, as a kind of heuristic limit on this max_similarity.
-    """
-    return (0.7978845608 / (rank ** 0.5)) ** power
+    def forward(self, x: Tensor) -> Tensor:
+        if not self.training:
+            return x
+        eps = 3.0e-08
+        noise_scale = ((x ** 2).mean(dim=(1,2,3), keepdim=True) + eps).sqrt() * self.rel_noise_scale
+        return x + noise_scale * torch.randn_like(x)
+
 
 
 class ConvNeXt(nn.Module):
@@ -178,8 +167,8 @@ class Conv2dSubsampling(nn.Module):
         self,
         in_channels: int,
         out_channels: int,
-        layer1_channels: int = 8,
-        layer2_channels: int = 32,
+        layer1_channels: int = 16,
+        layer2_channels: int = 64,
         layer3_channels: int = 128,
     ) -> None:
         """
@@ -213,7 +202,7 @@ class Conv2dSubsampling(nn.Module):
                 kernel_size=3,
                 padding=(0, 1),  # (time, freq)
             ),
-            ScaleGrad(0.2),
+            AddNoise(rel_noise_scale=5.0e-03),
             SwashR(),
             nn.Conv2d(
                 in_channels=layer1_channels,
