@@ -557,7 +557,6 @@ class Zipformer2EncoderLayer(nn.Module):
 
         self.offset_cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=embed_dim, power=0.7))
         self.cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=embed_dim, power=0.8))
-        self.norm_change_loss = NormChangeLoss(limit=0.3)
         self.max_var_loss = MaxVarLoss(max_rms=ScheduledFloat((0.0, 0.5), (10000.0, 0.15), default=1.0))
 
 
@@ -643,11 +642,6 @@ class Zipformer2EncoderLayer(nn.Module):
         offset = self.offset_scale_limiter(offset, 0.05 * aux_loss_scale)
 
         src = src_orig + offset
-
-        src = with_loss(src,
-                        self.norm_change_loss(src_orig.permute(1, 0, 2), src.permute(1, 0, 2),
-                                              aux_loss_scale, mask=src_key_padding_mask),
-                        None)
 
         src = with_loss(src,
                         self.offset_cosine_loss(offset.permute(1, 0, 2), aux_loss_scale, mask=src_key_padding_mask))
