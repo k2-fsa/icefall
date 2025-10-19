@@ -1218,9 +1218,6 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         self.linear_pos = ScaledLinear(
             pos_dim, num_heads * pos_head_dim, bias=False, initial_scale=0.05
         )
-        # the next line will give an upward bias to the scale of linear_pos, nudging it towards
-        # a state where it gives a meaningful contribution to the stores.
-        self.linear_pos.scale_default = 10.0
 
         # the following are for diagnostics only, see --print-diagnostics option
         self.copy_pos_query = Identity()
