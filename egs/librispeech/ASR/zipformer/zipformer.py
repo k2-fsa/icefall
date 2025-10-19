@@ -175,7 +175,6 @@ class Zipformer2(EncoderInterface):
                 num_encoder_layers[i],
                 dim=downsampling_factor[i]*input_dim,
                 pos_dim=pos_dim,
-                out_proj=False, #  (downsampling_factor + (output_downsampling_factor,))[i+1] < downsampling_factor[i],
             )
 
             encoders.append(encoder)
@@ -784,7 +783,6 @@ class Zipformer2Encoder(nn.Module):
         num_layers: int,
         dim: int,
         pos_dim: int,
-        out_proj: bool,
     ) -> None:
         super().__init__()
 
@@ -819,11 +817,6 @@ class Zipformer2Encoder(nn.Module):
         self.cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=dim, power=0.85))
         self.offset_cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=encoder_layer.embed_dim, power=0.85))
 
-        # make penalty_scale disappear after 20k batches; later we can try making this just a normal linear
-        # module.
-        if out_proj:
-            self.out_proj = SimpleOrthogonalLinear(dim, dim, bias=False)
-            self.out_proj.lr_scale = 0.75
 
 
     def forward(
@@ -892,9 +885,6 @@ class Zipformer2Encoder(nn.Module):
                                                     aux_loss_scale, src_key_padding_mask) +
                             self.cosine_loss(src.permute(1, 0, 2),
                                              aux_loss_scale, src_key_padding_mask))
-
-        if hasattr(self, 'out_proj'):
-            src = self.out_proj(src)
 
         return src
 
