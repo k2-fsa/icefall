@@ -123,9 +123,6 @@ class AsrModel(nn.Module):
         else:
             assert attention_decoder is None
 
-        self.reconstruction_proj = ScaledLinear(
-            encoder_dim, 4 * encoder_embed.in_channels, initial_scale=0.1)
-
 
     def forward_encoder(
             self, x: torch.Tensor, x_lens: torch.Tensor, aux_loss_scale: float = 0.0,
@@ -524,89 +521,4 @@ class AsrModel(nn.Module):
         else:
             attention_decoder_loss = torch.empty(0)
 
-        reconstruction_loss = self.forward_reconstruction_loss(self.gauss_norm(x_no_specaug, x_lens),
-                                                               encoder_out, encoder_out_lens)
-
-        return simple_loss, pruned_loss, ctc_loss, attention_decoder_loss, cr_loss, reconstruction_loss
-
-
-
-    def gauss_norm(self,
-                   log_mels: Tensor,
-                   log_mel_lens: Tensor) -> Tensor:
-        (batch_size, seq_len, num_channels) = log_mels.shape
-
-        rand_pos = torch.randint(100000000, (batch_size, seq_len, num_channels), device=log_mels.device)
-        rand_pos = rand_pos % log_mel_lens.unsqueeze(-1).unsqueeze(-1)
-        arange = torch.arange(seq_len, device=log_mels.device)[None, :, None].expand_as(rand_pos)
-        length_mask = make_pad_mask(log_mel_lens)  # True in masked positions
-
-        # select the "self" position if we are in the non-masked region; select random
-        # non-masked positions when in padding regions.
-        length_mask = length_mask.unsqueeze(-1).expand_as(log_mels)
-        log_mels = torch.gather(log_mels, dim=1, index=torch.where(length_mask, rand_pos, arange))
-
-        values, indexes = log_mels.sort(dim=1)  # sort on seq dim
-        N = max(2, log_mels.shape[1])
-        norm_rank = torch.linspace(-1 + 1. / N, 1. - 1. / N, log_mels.shape[1], device=log_mels.device, dtype=torch.float)
-        norm_rank = torch.special.erfinv(norm_rank)  # maps to Gaussian-distributed data
-        norm_rank = norm_rank.reshape(1, -1, 1)
-        norm_rank = norm_rank.repeat(log_mels.shape[0], 1, log_mels.shape[2])
-        log_mels_norm = torch.empty_like(log_mels)
-        log_mels_norm.scatter_(dim=1, index=indexes, src=norm_rank)
-        return log_mels_norm
-
-
-    def forward_reconstruction_loss(self,
-                                    log_mels: Tensor,
-                                    encoder_out: Tensor,
-                                    encoder_out_lens: Tensor):
-        """
-        Compute and return reconstruction loss, a mixed l1/l2 loss on the input features.  If
-        use_cr_ctc then we swap the first and second halves of the batch.
-
-        Args:
-          log_mels: log-mel features of shape (batch_size, T, num_mels)
-         encoder_out: embeddings of shape (batch_size, T_embed, encoder_dim)
-        """
-        batch_size = log_mels.shape[0]
-        num_mels = log_mels.shape[2]
-
-        pred_mels = self.reconstruction_proj(encoder_out) # (batch_size, T_embed, 4 * num_mels)
-        T_embed = pred_mels.shape[1]
-        pred_mels = pred_mels.reshape(batch_size, T_embed * 4, num_mels)
-
-        excess_frames = log_mels.shape[1] - pred_mels.shape[1]
-        assert 4 < excess_frames < 10  # should be around 7 or 8 I believe.
-
-        T = pred_mels.shape[1]
-        offset = 3 # i found excess_frames = 5 one time.
-        log_mels = log_mels[:, offset:offset+T]
-
-        lens = encoder_out_lens * 4
-        pad_mask = make_pad_mask(lens)  # boolean Tensor with True for masked positions
-        assert pad_mask.shape == (batch_size, T)
-        pad_mask = (~pad_mask).to(torch.float).unsqueeze(-1) # 0.0 for masked position
-        # padd_mask: (batch_size, T, 1)
-
-
-        # use 1.0 for the beta; note, log-mels have a fairly large dynamic range so this mostly
-        # helps to down-weight the effect of very silent silences.
-        #loss = torch.nn.functional.smooth_l1_loss(log_mels * pad_mask, pred_mels * pad_mask,
-        #                                          reduction='none', beta=1.0)
-        # this way of applying the padding mask is not really ideal in terms of normalization,
-        # it will cause us to under-normalize a bit.
-        diff = (log_mels - pred_mels) * pad_mask
-
-        loss = (diff ** 2)
-
-        # removing the masking logic since we now use the no-specaug reference sequence.
-        ## masking.  if it's different from the next item on both the frequency dim
-        ## and the time dim, it means we are in neither a time masked nor a frequency masked
-        ## position.
-        #mask = torch.logical_and(log_mels != torch.roll(log_mels, 1, dims=2),
-        #                         log_mels != torch.roll(log_mels, 1, dims=1))
-        #loss = loss * mask.to(loss.dtype)
-
-        loss = loss.mean(dim=-1).sum()  # sum over all frames, but mean over mel bins.
-        return loss
+        return simple_loss, pruned_loss, ctc_loss, attention_decoder_loss, cr_loss

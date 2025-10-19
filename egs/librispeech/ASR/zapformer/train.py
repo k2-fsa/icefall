@@ -537,13 +537,6 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--reconstruction-loss-scale",
-        type=float,
-        default=0.005,
-        help="Final scale for log-mel reconstruction loss (during warmup, use twice this scale).",
-    )
-
-    parser.add_argument(
         "--attention-decoder-loss-scale",
         type=float,
         default=0.8,
@@ -666,8 +659,8 @@ def get_params() -> AttributeDict:
         - subsampling_factor:  The subsampling factor for the model.
 
         - warm_step: The warmup period that dictates the decay of the
-              scale on pruned loss (for transducer) and the reconstruction and prediction
-              losses.  Expressed in terms of the "adjusted batch count", i.e. the
+              scale on pruned loss (for transducer).
+              Expressed in terms of the "adjusted batch count", i.e. the
               normalized batch count after adjusting for changes in batch size.
     """
     params = AttributeDict(
@@ -988,7 +981,7 @@ def compute_loss(
         spec_augment = None  # disable spec-aug
 
     with torch.set_grad_enabled(is_training):
-        simple_loss, pruned_loss, ctc_loss, attention_decoder_loss, cr_loss, reconstruction_loss = model(
+        simple_loss, pruned_loss, ctc_loss, attention_decoder_loss, cr_loss = model(
             x=feature,
             x_lens=feature_lens,
             y=y,
@@ -1022,10 +1015,6 @@ def compute_loss(
             if num_copies > 1:
                 loss += params.cr_loss_scale * cr_loss
 
-        reconstruction_loss_scale = params.reconstruction_loss_scale
-
-        loss += reconstruction_loss_scale * reconstruction_loss
-
         if params.use_attention_decoder:
             loss += params.attention_decoder_loss_scale * attention_decoder_loss
 
@@ -1048,7 +1037,6 @@ def compute_loss(
         info["ctc_loss"] = ctc_loss.detach().cpu().item()
         if num_copies > 1:
             info["cr_loss"] = cr_loss.detach().cpu().item()
-    info["recon_loss"] = reconstruction_loss.detach().cpu().item()
     if params.use_attention_decoder:
         info["attn_decoder_loss"] = attention_decoder_loss.detach().cpu().item()
 
