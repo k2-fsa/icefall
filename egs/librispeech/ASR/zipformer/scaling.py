@@ -1610,7 +1610,7 @@ class CorrelationLimiterFunction(torch.autograd.Function):
         aux_loss_scale =  ctx.aux_loss_scale
         with torch.enable_grad():
             with torch.amp.autocast('cuda', enabled=False):
-                if mask:
+                if mask is not None:
                     mask = (~mask).to(x.dtype).unsqueeze(-1)
                     x = x * mask
                 x, y = x.to(torch.float), y.to(torch.float)
