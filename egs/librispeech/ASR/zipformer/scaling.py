@@ -1626,17 +1626,11 @@ class CorrelationLimiterFunction(torch.autograd.Function):
                 r = torch.matmul(r, X.t())   # (M, N)
                 r = torch.matmul(r, Y)      # (M, dim)
                 r = r * (1. / N)
-                r = torch.matmul(r, Y.t())  # (M, N)
-                r = torch.matmul(r, X)      # (M, dim)
-                r = r * (1. / N)
 
-                metric = (r ** 2).mean()
+                metric = (r ** 2).mean().sqrt()
                 # now, with reference to the comment for class CorrelationLimiter,
-                # metric should equal an estimate of tr(M^T M M^T M) / dim.
-
-                metric = metric ** (1/4)
-                # now we have a metric that's proportional in scale to the eigenvalues of
-                # M, where M is E[x y^T]
+                # metric should, I believe, equal an estimate of sqrt(tr(M^T M) / dim),
+                # which should be an rms of the singular values of M.
 
                 loss = (metric - limit).relu()
 
