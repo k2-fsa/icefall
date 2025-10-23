@@ -1622,7 +1622,7 @@ class CorrelationLimiterFunction(torch.autograd.Function):
                 Y.requires_grad = True
                 N = X.shape[0]
                 M = 32  # number of random vectors, this should be more than enough.
-                r = torch.randn(M, dim)     # (M, dim)
+                r = torch.randn(M, dim, device=x.device)     # (M, dim)
                 r = torch.matmul(r, X.t())   # (M, N)
                 r = torch.matmul(r, Y)      # (M, dim)
                 r = r * (1. / N)
