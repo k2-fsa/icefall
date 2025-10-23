@@ -46,6 +46,7 @@ from scaling import (
 try:
     from scaling import NormChangeLoss
     from scaling import MaxVarLoss
+    from scaling import CorrelationLimiter
 except:
     pass
 
@@ -559,6 +560,7 @@ class Zipformer2EncoderLayer(nn.Module):
         self.max_var_loss1 = MaxVarLoss(max_rms=ScheduledFloat((0.0, 0.5), (10000.0, 0.2), default=1.0))
         self.max_var_loss2 = MaxVarLoss(max_rms=ScheduledFloat((0.0, 0.5), (10000.0, 0.1), default=1.0))
         self.offset_scale_limiter = ScaleLimiter(max_rms=0.25)
+        self.offset_correlation_limiter = CorrelationLimiter(limit=0.25 * 0.1 * 0.1)
 
 
         self.self_attn_weights = RelPositionMultiheadAttentionWeights(
@@ -642,6 +644,10 @@ class Zipformer2EncoderLayer(nn.Module):
                            self.max_var_loss2(offset.permute(1, 0, 2), aux_loss_scale, mask=src_key_padding_mask))
 
         offset = self.offset_scale_limiter(offset, 0.05 * aux_loss_scale)
+
+        offset = with_loss(offset,
+                           self.offset_correlation_limiter(offset.permute(1, 0, 2), src_orig.permute(1, 0, 2),
+                                                           aux_loss_scale, mask=src_key_padding_mask))
 
         src = src_orig + offset
 
