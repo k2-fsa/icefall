@@ -1563,7 +1563,7 @@ class ScaleLimiterFunction(torch.autograd.Function):
                 if random.random() < 0.002:
                     logging.info(
                         f"ScaleLimiter: name={ctx.name}, max_rms={ctx.max_rms}, "
-                        f"excess={excess.item()}, "
+                        f"rms={rms.mean().item()}, excess={excess.item()}, "
                         f"loss_scale={ctx.aux_loss_scale}"
                     )
                 excess.backward(gradient=torch.full_like(excess, ctx.aux_loss_scale * numel))
