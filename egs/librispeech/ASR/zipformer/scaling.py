@@ -1615,11 +1615,11 @@ class CorrelationLimiterFunction(torch.autograd.Function):
                     x = x * mask
                 x, y = x.to(torch.float), y.to(torch.float)
                 x, y = x.detach(), y.detach()
+                x.requires_grad = True
+                y.requires_grad = True
 
                 X, Y = x.reshape(-1, dim), y.reshape(-1, dim)
 
-                X.requires_grad = True
-                Y.requires_grad = True
                 N = X.shape[0]
                 M = 32  # number of random vectors, this should be more than enough.
                 r = torch.randn(M, dim, device=x.device)     # (M, dim)
