@@ -1117,9 +1117,11 @@ class PenalizeLargeAttentionScores(torch.autograd.Function):
             attn_scores: Tensor,
             limit: float,
             aux_loss_scale: float,
+            key_padding_mask: Optional[Tensor],
             name: str):
         # attn_scores: (head, batch, query_time, key_time)
         ctx.save_for_backward(attn_scores)
+        ctx.mask = key_padding_mask    # has no grad
         ctx.limit = limit
         ctx.aux_loss_scale = aux_loss_scale
         ctx.name = name
@@ -1130,26 +1132,31 @@ class PenalizeLargeAttentionScores(torch.autograd.Function):
             ctx,
             attn_scores_grad):
         attn_scores, = ctx.saved_tensors
+        mask = ctx.mask
         (num_heads, batch_size, seq_len, _) = attn_scores.shape
         with torch.amp.autocast('cuda', enabled=False):
             attn_scores = attn_scores.to(torch.float)
             attn_scores = attn_scores.detach()
+            # attn_scores: (head, batch, query_time, key_time)
             attn_scores.requires_grad = True
             with torch.enable_grad():
                 probs = attn_scores.softmax(dim=-1)
-                # attn_scores: (head, batch, query_time, key_time)
                 scaled_scores = attn_scores.abs() * probs
-                query_scores = (scaled_scores.sum(dim=-1) - ctx.limit).relu()
+                avg_scores = scaled_scores.sum(dim=-1) # (head, batch, query_time)
+                if mask is not None:
+                    avg_scores = avg_scores * (~mask) # mask: (batch, time)
+                query_scores = (avg_scores - ctx.limit).relu()
 
-                if random.random() < 0.001:
-                    query_excess = query_scores.mean(dim=(1,2))
-                    logging.info(f"PenalizeLargeAttentionScores: {ctx.name}, limit={ctx.limit}, query_excess={query_excess}")
+                if random.random() < 0.0005:
+                    query_excess = query_scores.mean(dim=(1,2)).to('cpu')
+                    avg_scores_mean = avg_scores.mean(dim=(1,2)).to('cpu')
+                    logging.info(f"PenalizeLargeAttentionScores: {ctx.name}, limit={ctx.limit}, avg_scores={avg_scores_mean}, query_excess={query_excess}")
                 # all these losses have a "per-frame" scaling, i.e. scaled proportional to the total number
                 # of frames which is batch_size * seq_len.  normalize by dividing by num heads.
                 # also divide by ctx.limit so it's like penalizing a relative excess.
                 query_scores.backward(gradient=torch.full_like(query_scores, ctx.aux_loss_scale / (num_heads * ctx.limit)))
 
-        return attn_scores_grad + attn_scores.grad, None, None, None
+        return attn_scores_grad + attn_scores.grad, None, None, None, None
 
 
 
@@ -1338,8 +1345,9 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
 
 
         if not torch.jit.is_scripting() and not torch.jit.is_tracing() and self.training:
-            attn_scores_limit = 12.0  # limit on our metric that affects how much grad we are likely to backpropagate.
-            attn_scores = PenalizeLargeAttentionScores.apply(attn_scores, attn_scores_limit, aux_loss_scale, self.name)
+            attn_scores_limit = 8.0  # limit on our metric that affects how much grad we are likely to backpropagate.
+            attn_scores = PenalizeLargeAttentionScores.apply(attn_scores, attn_scores_limit, 0.1 * aux_loss_scale,
+                                                             key_padding_mask, self.name)
 
 
         # We use our own version of softmax, defined in scaling.py, which should
