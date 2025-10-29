@@ -811,8 +811,9 @@ class Zipformer2Encoder(nn.Module):
 
         self.copy_bypass = Identity()
 
-        self.cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=dim, power=0.85))
-        self.offset_cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=encoder_layer.embed_dim, power=0.85))
+        #self.cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=dim, power=0.85))
+        #self.offset_cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=encoder_layer.embed_dim, power=0.85))
+        self.offset_max_var_loss = MaxVarLoss(max_rms=ScheduledFloat((0.0, 0.5), (5000.0, 0.25), default=1.0))
 
 
 
@@ -876,12 +877,6 @@ class Zipformer2Encoder(nn.Module):
         # in effect src_orig_fulldim already contains src_orig with a scale of 1 for the missing dims,
         # because of some identities involving orthogonal matrices.
 
-        if aux_loss_scale:
-            src = with_loss(src,
-                            self.offset_cosine_loss(offset.permute(1, 0, 2),
-                                                    aux_loss_scale, src_key_padding_mask) +
-                            self.cosine_loss(src.permute(1, 0, 2),
-                                             aux_loss_scale, src_key_padding_mask))
 
         return src
 
