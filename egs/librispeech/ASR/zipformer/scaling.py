@@ -1631,6 +1631,7 @@ class CorrelationLimiterFunction(torch.autograd.Function):
                 # r: (batch_size, M, dim)
                 r = torch.matmul(x, r.transpose(1, 2))  # (batch_size, seq_len, m)
                 r = torch.matmul(r.transpose(1, 2), y) # (batch_size, m, dim)
+                r = r * (1. / seq_len)
 
                 # correlation between tr(M) estimates between elements of the batch.
                 correlation = r[0::2] * r[1::2]
