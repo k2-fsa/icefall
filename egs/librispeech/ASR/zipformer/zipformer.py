@@ -555,8 +555,6 @@ class Zipformer2EncoderLayer(nn.Module):
 
         self.residual_scale = nn.Parameter(0.5 * torch.ones(embed_dim))
 
-        self.offset_cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=embed_dim, power=0.7))
-        self.cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=embed_dim, power=0.8))
         self.max_var_loss1 = MaxVarLoss(max_rms=ScheduledFloat((0.0, 0.5), (10000.0, 0.2), default=1.0))
         self.max_var_loss2 = MaxVarLoss(max_rms=ScheduledFloat((0.0, 0.5), (10000.0, 0.1), default=1.0))
         self.offset_scale_limiter = ScaleLimiter(max_rms=0.25)
@@ -651,14 +649,6 @@ class Zipformer2EncoderLayer(nn.Module):
                                0.1 * aux_loss_scale, mask=src_key_padding_mask))
 
         src = src_orig + offset
-
-        src = with_loss(src,
-                        self.offset_cosine_loss(offset.permute(1, 0, 2), aux_loss_scale, mask=src_key_padding_mask))
-
-        # also put cosine_loss on src, mostly because it will be used in scale_limiter and we don't want the
-        # network to get around the scale limitation by using an offset.
-        src = with_loss(src,
-                        self.cosine_loss(src.permute(1, 0, 2), aux_loss_scale, mask=src_key_padding_mask))
 
         src = self.norm(src)
 
