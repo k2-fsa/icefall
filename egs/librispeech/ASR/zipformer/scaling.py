@@ -1593,9 +1593,8 @@ class ScaleLimiter(torch.nn.Module):
 
 class CorrelationLimiterFunction(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, x: Tensor, y: Tensor, limit: float, aux_loss_scale: float, mask: Optional[Tensor], name: str):
+    def forward(ctx, x: Tensor, y: Tensor, aux_loss_scale: float, mask: Optional[Tensor], name: str):
         ctx.save_for_backward(x, y)
-        ctx.limit = limit
         ctx.mask = mask
         ctx.aux_loss_scale = aux_loss_scale
         ctx.name = name
@@ -1606,8 +1605,8 @@ class CorrelationLimiterFunction(torch.autograd.Function):
         x, y = ctx.saved_tensors
         dim = x.shape[-1]
         mask = ctx.mask
-        limit = ctx.limit
         aux_loss_scale =  ctx.aux_loss_scale
+        (batch_size, seq_len, num_channels) = x.shape
         with torch.enable_grad():
             with torch.amp.autocast('cuda', enabled=False):
                 if mask is not None:
@@ -1615,72 +1614,56 @@ class CorrelationLimiterFunction(torch.autograd.Function):
                     x = x * mask
                 x, y = x.to(torch.float), y.to(torch.float)
                 x, y = x.detach(), y.detach()
+                x_orig, y_orig = x, y
                 x.requires_grad = True
                 y.requires_grad = True
+                half_batch = batch_size // 2
+                if half_batch <= 1:
+                    # the reason we also return None if half_batch==1 is because of CR-CTC
+                    # where they may really be duplicates
+                    return None, None, None, None, None
 
-                X, Y = x.reshape(-1, dim), y.reshape(-1, dim)
+                x = x[:2*half_batch]
+                y = y[:2*half_batch]
 
-                N = X.shape[0]
-                M = 32  # number of random vectors, this should be more than enough.
-                r = torch.randn(M, dim, device=x.device)     # (M, dim)
-                r = torch.matmul(r, X.t())   # (M, N)
-                r = torch.matmul(r, Y)      # (M, dim)
-                r = r * (1. / N)
+                M = 64  # number of random vectors, this should be more than enough.
+                r = torch.randn(half_batch, M, dim, device=x.device).repeat_interleave(2, dim=0)
+                # r: (batch_size, M, dim)
+                r = torch.matmul(x, r.transpose(1, 2))  # (batch_size, seq_len, m)
+                r = torch.matmul(r.transpose(1, 2), y) # (batch_size, m, dim)
 
-                metric = (r ** 2).mean().sqrt()
-                # now, with reference to the comment for class CorrelationLimiter,
-                # metric should, I believe, equal an estimate of sqrt(tr(M^T M) / dim),
-                # which should be an rms of the singular values of M.
-
-                loss = (metric - limit).relu()
+                # correlation between tr(M) estimates between elements of the batch.
+                correlation = r[0::2] * r[1::2]
 
                 if random.random() < 0.001:
                     logging.info(
-                        f"CorrelationLimiter: name={ctx.name}, limit={limit}, "
-                        f"metric={metric.item()}, loss={loss.item()}, "
-                        f"loss_scale={aux_loss_scale}"
+                        f"CorrelationLimiter: name={ctx.name}, loss_scale={aux_loss_scale}, correlation={correlation.mean()}"
                     )
 
-                loss.backward(gradient=torch.full_like(loss, aux_loss_scale * N))
+                correlation.backward(gradient=torch.full_like(correlation, aux_loss_scale / num_channels))
 
-        return x.grad, y.grad, None, None, None, None
+        return x_orig.grad, y_orig.grad, None, None, None
 
 
 class CorrelationLimiter(torch.nn.Module):
     """
-    Adds a penalty in backprop if feature x and feature y are too correlated,
-    based on a randomized algorithm.  The correlation limit is specified based
-    on a limit on tr(M^T M M^T M) / dim, where:
-        M = E [x y^t],
-    and this is the same as the mean of the [singular values of M taken to the
-    fourth power.]  We can measure this, concretely, as:
-            E[ ||M^T M n||_2^2 ]
-    where n is Gaussian noise, we do this for several vectors x.  We can
-    compute M^T M n as mean[  x_i y_i^T y_i x_i^T n ] =  (X^T (Y (Y^T (X n)))).
-
-    Now, the eigenvalues of M should be related to the [magnitude of x] * [magnitude of y]
-    * [some factor that expresses their correlation.], and the magnitudes of x and y
-    are assumed to be fixed by the SoftNorm.  So the user can express a limit in terms
-    of a [expected magnitude of x] * [expected magnitude of y] * [max correlation],
-    and we can take E[ ||M^T M n||_2^2 ] to the power 1/4 before comparing to the limit.
-
-    Assumes channel dim is -1 and the input shape has >1 dimension.
+    Adds a penalty in backprop if feature x and feature y are correlated.
+    Assumes input is (batch, seq, channel)
     """
-    def __init__(self, limit: FloatLike):
-        # dimensionally, limit is [expected magnitude of x] * [expected magnitude of y] * [max correlation coefficient]
+    def __init__(self):
         super().__init__()
         self.name = None
-        self.limit = limit
 
 
     def forward(self, x: Tensor, y: Tensor, aux_loss_scale: float, mask: Optional[Tensor]) -> Tensor:
+        # x and y should both be: (batch, seq, channel)
         # returns a scalar tensor that should be included in the loss function with:
         #  z = with_loss(z, ret, None)
         # where z is any quantity that will be used in calculating the main loss.
         if torch.jit.is_scripting() or torch.jit.is_tracing() or not self.training:
             return torch.tensor(0.0, device=x.device)
         else:
-            return CorrelationLimiterFunction.apply(x, y, float(self.limit),
+            return CorrelationLimiterFunction.apply(x, y,
                                                     aux_loss_scale, mask,
                                                     self.name)
 
