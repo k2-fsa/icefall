@@ -234,7 +234,6 @@ class Conv2dSubsampling(nn.Module):
         self.out = ScaledLinear(self.out_width * layer3_channels, out_channels,
                                 initial_scale=4.0)
 
-        self.cosine_loss = CosineSimilarityLoss(get_max_similarity(out_channels, power=0.75))
 
         self.scale_limiter = ScaleLimiter(max_rms=2.0)
 
@@ -277,7 +276,6 @@ class Conv2dSubsampling(nn.Module):
 
         key_padding_mask = torch.arange(0, x.shape[1], device=x.device) >= x_lens.unsqueeze(-1)
         # key_padding_mask: (N, (T-7)//2)
-        x = with_loss(x, self.cosine_loss(x, aux_loss_scale, key_padding_mask), None)
         x = self.scale_limiter(x, aux_loss_scale)
         x = self.out_norm(x)
 

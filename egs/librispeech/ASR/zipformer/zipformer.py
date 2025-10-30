@@ -444,31 +444,6 @@ class Zipformer2(EncoderInterface):
         return states
 
 
-def get_max_similarity(rank: int, power: float):
-    """
-    This returns a value for the "max_similarity" argument of CosineSimilarityLoss.
-    the max_similarity is an upper limit we impose on the mean value of (x_i . x_j)
-    if i != j are two different sequence-position indexes and x_i and x_j are
-    activation vectors normalized to have unit length.
-
-      rank: the dimension of the space, usually this is the num_channels, but if
-          we have just up-projected from a bottleneck, it would be the bottleneck
-          dimension.
-      power: a user-tunable value strictly between 0 and 1.   If we set power=1.0 it would mean
-          we enforce the vector dimensions to be completely independent like Gaussian noise
-          (don't do this); if we set power=0.0 it would be equivalent to not having
-          the CosineSimilarityLoss at all.
-
-    The factor of 0.797 is sqrt(2/pi) which is the expected absolute value of a normal
-    variable.   If x consists of independent Gaussian noise of dimension D, with
-    variance 1/D so that the expected 2-norm of x is 1 (so the "normalization to unit length"
-    would be close to a no-op for large D), then (x_i . x_j) would be distributed as
-    a Gaussian with variance (D / D^2 = 1/D).  So the expected absolute value of (x_i . x_j)
-    would be sqrt(2/pi * (1/D)).  By taking it to the power "power" we just get a value
-    between this and 1, as a kind of heuristic limit on this max_similarity.
-    """
-    return (0.7978845608 / (rank ** 0.5)) ** power
-
 def pad_mask(mask: Optional[Tensor], seq_len: int):
     # mask: (batch_size, old_seq_len)
     # if mask is not None, returns mask: (batch_size, seq_len); pads with True (i.e., masked).
@@ -811,8 +786,6 @@ class Zipformer2Encoder(nn.Module):
 
         self.copy_bypass = Identity()
 
-        #self.cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=dim, power=0.85))
-        #self.offset_cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=encoder_layer.embed_dim, power=0.85))
         self.offset_max_var_loss = MaxVarLoss(max_rms=ScheduledFloat((0.0, 0.5), (5000.0, 0.25), default=1.0))
 
 
@@ -1202,8 +1175,6 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         )
 
 
-        self.key_cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=key_head_dim, power=0.5))
-
         self.linear_pos = ScaledLinear(
             pos_dim, num_heads * pos_head_dim, bias=False, initial_scale=0.05
         )
@@ -1256,13 +1227,6 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         k = k.reshape(seq_len, batch_size, num_heads, query_head_dim)
         p = q[..., :pos_head_dim]
         p = self.copy_pos_query(p)  # diagnostics only
-
-        if aux_loss_scale:
-            k = with_loss(k,
-                          self.key_cosine_loss(k.permute(1, 2, 0, 3).reshape(batch_size * num_heads, seq_len, query_head_dim),
-                                               aux_loss_scale / num_heads,
-                                               key_padding_mask.repeat_interleave(num_heads, dim=0) if key_padding_mask is not None else None))
-
 
         # time1 refers to target, time2 refers to source.
         q = q.permute(2, 1, 0, 3)  # (head, batch, time1, query_head_dim)
@@ -1516,7 +1480,6 @@ class SelfAttention(nn.Module):
 
         f = max(1.0, embed_dim / (num_heads * value_head_dim))
 
-        self.cosine_loss = CosineSimilarityLoss(max_similarity=0.75)
 
 
     def forward(
@@ -1558,11 +1521,6 @@ class SelfAttention(nn.Module):
 
         # returned value is of shape (seq_len, batch_size, embed_dim), like the input.
         x = self.out_proj(x)
-
-        if aux_loss_scale:
-            x = with_loss(x, self.cosine_loss(x.permute(1, 0, 2),
-                                              aux_loss_scale,
-                                              mask=src_key_padding_mask))
 
         return x
 
@@ -1644,13 +1602,10 @@ class FeedforwardModule(nn.Module):
             initial_scale=0.5,
         )
 
-        self.cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=min(embed_dim, feedforward_dim), power=0.65))
-
 
     def forward(self, x: Tensor, aux_loss_scale: float = 0.0, src_key_padding_mask: Optional[Tensor] = None) -> Tensor:
         x = self.in_proj(x)
         x = self.out_proj(x)
-        x = with_loss(x, self.cosine_loss(x.permute(1, 0, 2), aux_loss_scale, src_key_padding_mask))
         return x
 
 
@@ -1715,8 +1670,6 @@ class ConvolutionModule(nn.Module):
             dropout_p=0.0,
             initial_scale=0.05,
         )
-        self.cosine_loss = CosineSimilarityLoss(get_max_similarity(rank=min(channels, bottleneck_dim), power=0.6))
-
 
     def forward(
         self,
@@ -1769,8 +1722,6 @@ class ConvolutionModule(nn.Module):
         x = x.permute(2, 0, 1)  # (time, batch, channels)
 
         x = self.out_proj(x)  # (time, batch, channels)
-
-        x = with_loss(x, self.cosine_loss(x.permute(1, 0, 2), aux_loss_scale, src_key_padding_mask))
 
         return x
 
