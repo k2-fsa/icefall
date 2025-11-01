@@ -185,14 +185,14 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--num-encoder-layers",
         type=str,
-        default="6,9,12,16,12,9",
+        default="6,9,30,9",
         help="Number of zipformer encoder layers per stack, comma separated.",
     )
 
     parser.add_argument(
         "--downsampling-factor",
         type=str,
-        default="1,2,4,8,4,2",
+        default="1,2,4,2",
         help="Downsampling factor for each stack of encoder layers.",
     )
 
@@ -213,21 +213,21 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--feedforward-multiple",
         type=str,
-        default="3,3,3,3,3,3",
+        default="3,3,3,3",
         help="Factor by which the feedforward hidden dim is greater than the encoder-dim, per stack: a single int or comma-separated list.",
     )
 
     parser.add_argument(
         "--num-heads",
         type=str,
-        default="4,4,4,8,4,4",
+        default="4,4,4,4",
         help="Number of attention heads in the zipformer encoder layers, per stack: a single int or comma-separated list.",
     )
 
     parser.add_argument(
         "--encoder-multiple",
         type=str,
-        default="4,6,9,12,9,6",
+        default="4,6,10,6",
         help="Factor by which encoder-dim is larger then base-dim, per encoder stack.",
     )
 
@@ -262,7 +262,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--cnn-module-kernel",
         type=str,
-        default="31,31,15,15,15,31",
+        default="31,31,15,31",
         help="Sizes of convolutional kernels in convolution modules in each encoder stack: "
         "a single int or comma-separated list.",
     )
