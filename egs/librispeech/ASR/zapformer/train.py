@@ -213,7 +213,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--feedforward-multiple",
         type=str,
-        default="3,3,3,3",
+        default="4",
         help="Factor by which the feedforward hidden dim is greater than the encoder-dim, per stack: a single int or comma-separated list.",
     )
 
