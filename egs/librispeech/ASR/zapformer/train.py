@@ -185,7 +185,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--num-encoder-layers",
         type=str,
-        default="6,9,20,9",
+        default="6,9,24,9",
         help="Number of zipformer encoder layers per stack, comma separated.",
     )
 
