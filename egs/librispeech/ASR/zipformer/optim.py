@@ -1102,7 +1102,7 @@ class Eden2(LRScheduler):
     only batches.
 
     The basic formula (before warmup) is:
-      lr = base_lr * ((batch**2 + lr_batches**2) / lr_batches**2) ** -0.33) * warmup
+      lr = base_lr * ((batch**2 + lr_batches**2) / lr_batches**2) ** -0.5) * warmup
 
     where `warmup` increases from linearly 0.5 to 1 over `warmup_batches` batches
     and then stays constant at 1.
@@ -1133,7 +1133,7 @@ class Eden2(LRScheduler):
     def get_lr(self):
         factor = (
             (self.batch**2 + self.lr_batches**2) / self.lr_batches**2
-        ) ** -0.33
+        ) ** -0.5
         warmup_factor = (
             1.0
             if self.batch >= self.warmup_batches
@@ -1197,13 +1197,13 @@ class Sched3(LRScheduler):
         lr_batches: Union[int, float],
         warmup_batches: Union[int, float] = 500.0,
         warmup_start: float = 0.5,
-        p: float = 1.0,
+        power: float = 1.0,
         verbose: bool = False,
     ):
         super().__init__(optimizer, verbose)
         self.lr_batches = lr_batches
         self.warmup_batches = warmup_batches
-        self.p = p
+        self.power = power
         assert 0.0 <= warmup_start <= 1.0, warmup_start
         self.warmup_start = warmup_start
 
@@ -1211,7 +1211,7 @@ class Sched3(LRScheduler):
         lr_batches = self.lr_batches
         e = 2.71828
         batch = self.batch
-        p = self.p
+        p = self.power
         factor = ((p * lr_batches / batch) ** p if batch > p * e * lr_batches else
                   e ** (-batch / (e * lr_batches)))
 
