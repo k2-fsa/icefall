@@ -220,7 +220,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--num-heads",
         type=str,
-        default="4,4,4,4",
+        default="4,4,6,4",
         help="Number of attention heads in the zipformer encoder layers, per stack: a single int or comma-separated list.",
     )
 
