@@ -544,13 +544,12 @@ class Zipformer2EncoderLayer(nn.Module):
             pos_head_dim=pos_head_dim,
         )
 
-        self.self_attn1, self.self_attn2 = [ SelfAttention(embed_dim, num_heads, value_head_dim) for _ in range(2) ]
+        self.self_attn = SelfAttention(embed_dim, num_heads, value_head_dim)
 
         feedforward_dim = embed_dim * feedforward_multiple
-        self.feed_forward1 = FeedforwardModule(embed_dim, (feedforward_dim * 3) // 4)
+        self.feed_forward1 = FeedforwardModule(embed_dim, feedforward_dim)
 
         self.feed_forward2 = FeedforwardModule(embed_dim, feedforward_dim)
-
 
         self.conv_module = ConvolutionModule(embed_dim, cnn_module_kernel, causal=causal)
 
@@ -595,13 +594,10 @@ class Zipformer2EncoderLayer(nn.Module):
             key_padding_mask=src_key_padding_mask,
             aux_loss_scale=0.1 * aux_loss_scale,
         )
-        attn_weights1, attn_weights2 = attn_weights.chunk(2, dim=0)
-
-        src = src + self.self_attn1(src, attn_weights1, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
 
         src = src + self.feed_forward1(src, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
 
-        src = src + self.self_attn2(src, attn_weights2, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
+        src = src + self.self_attn(src, attn_weights, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
 
         src = src + self.conv_module(src, chunk_size=chunk_size, src_key_padding_mask=src_key_padding_mask, aux_loss_scale=0.1 * aux_loss_scale)
 
