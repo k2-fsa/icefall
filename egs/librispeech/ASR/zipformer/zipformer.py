@@ -1588,6 +1588,65 @@ class FeedforwardModule(nn.Module):
         x = self.out_proj(x)
         return x
 
+def round_up_to_power_of_two(x):
+    x = x - 1
+    x = x | x >> 1
+    x = x | x >> 2
+    x = x | x >> 4
+    x = x | x >> 8
+    x = x | x >> 16
+    x = x + 1
+    return x
+
+
+class FftModule(nn.Module):
+    def __init__(self,
+                 num_channels: int,
+                 params_per_channel: int,
+                 min_pad: int = 32):
+        super().__init__()
+        # initialize to identity function.
+        self.weight = nn.Parameter( torch.stack((torch.ones(num_channels, params_per_channel),
+                                                 torch.zeros(num_channels, params_per_channel)),
+                                                dim=0))
+        # self.weight: (2, num_channels, params_per_channel)(
+        self.min_pad = min_pad
+
+
+    def forward(self,
+                x: Tensor) -> Tensor:
+        (seq_len, batch_size, num_channels) = x.shape
+
+        n = round_up_to_power_of_two(seq_len + self.min_pad)
+        x = torch.fft.rfft(x, n=n, dim=0, norm="ortho")
+
+        N = x.shape[0]  # N == n/2 + 1, the number of fourier components.
+        # x: (N, batch_size, num_channels)
+
+        weight = self.upsample_weight(N)
+        # weight: (num_channels, N)
+
+        x = x * weight.t().unsqueeze(1)
+
+        x = torch.fft.irfft(x, dim=0, norm="ortho")
+
+        return x[:seq_len]
+
+
+    def upsample_weight(self, N: int) -> Tensor:
+        # N is the desired number of frequencies of weight, so we return
+        # a complex weight of shape (num_channels, N).
+
+        weight = self.weight
+        num_channels = weight.shape[0] // 2
+        # the following may not be ideal, we'll see.
+        weight = torch.nn.functional.upsample(weight, N, mode='linear', align_corners=True)
+
+        weight = torch.view_as_complex(weight.permute(1, 2, 0).contiguous())
+        # weight: (num_channels, N)
+        return weight
+
+
 
 
 class ConvolutionModule(nn.Module):
@@ -1630,17 +1689,10 @@ class ConvolutionModule(nn.Module):
 
         assert kernel_size % 2 == 1
 
-        self.depthwise_conv = (
-            ChunkCausalDepthwiseConv1d(channels=bottleneck_dim, kernel_size=kernel_size)
-            if causal
-            else nn.Conv1d(
-                in_channels=bottleneck_dim,
-                out_channels=bottleneck_dim,
-                groups=bottleneck_dim,
-                kernel_size=kernel_size,
-                padding=kernel_size // 2,
-            )
-        )
+        self.fft_conv = FftModule(num_channels=bottleneck_dim,
+                                  params_per_channel=kernel_size,
+                                  min_pad=32)
+
 
         self.out_proj = ActivationDropoutAndLinear(
             bottleneck_dim,
@@ -1677,28 +1729,12 @@ class ConvolutionModule(nn.Module):
         x = x * s
         x = self.activation2(x)  # identity
 
-        # (time, batch, channels)
-
-        # exchange the temporal dimension and the feature dimension
-        x = x.permute(1, 2, 0)  # (#batch, channels, time).
+        #x: (time, batch, channels)
 
         if src_key_padding_mask is not None:
-            x = x.masked_fill(src_key_padding_mask.unsqueeze(1).expand_as(x), 0.0)
+            x = x.masked_fill(src_key_padding_mask.t().unsqueeze(-1).expand_as(x), 0.0)
 
-        if (
-            not torch.jit.is_scripting()
-            and not torch.jit.is_tracing()
-            and chunk_size >= 0
-        ):
-            # Not support exporting a model for simulated streaming decoding
-            assert (
-                self.causal
-            ), "Must initialize model with causal=True if you use chunk_size"
-            x = self.depthwise_conv(x, chunk_size=chunk_size)
-        else:
-            x = self.depthwise_conv(x)
-
-        x = x.permute(2, 0, 1)  # (time, batch, channels)
+        x = self.fft_conv(x)
 
         x = self.out_proj(x)  # (time, batch, channels)
 
@@ -1787,6 +1823,25 @@ def _test_zipformer_main(causal: bool = False):
     )
     x_  # to remove flake8 warnings
 
+def _test_fft_module():
+    num_channels = 110
+    f = FftModule(num_channels=num_channels,
+                  params_per_channel=10,
+                  min_pad=4)
+
+    batch_size = 5
+    seq_len = 50
+    x = torch.randn(seq_len, batch_size, num_channels)
+
+    y = f(x)
+
+    def rms(a):
+        return (a**2).mean().item()
+
+    print(f"rms(y)={rms(y)}, rms(x-y)={rms(x-y)}")
+
+
+
 
 if __name__ == "__main__":
     logging.getLogger().setLevel(logging.INFO)
@@ -1794,3 +1849,4 @@ if __name__ == "__main__":
     torch.set_num_interop_threads(1)
     _test_zipformer_main(False)
     _test_zipformer_main(True)
+    _test_fft_module()
