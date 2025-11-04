@@ -21,6 +21,7 @@ from typing import Tuple, Optional
 
 import torch
 from scaling import (
+    ScaleLimiter,
     ScaledLinear,
     ExpNorm,
     FloatLike,
@@ -234,6 +235,8 @@ class Conv2dSubsampling(nn.Module):
                                 initial_scale=4.0)
 
 
+        self.scale_limiter = ScaleLimiter(max_rms=2.0)
+
         self.out_norm = ExpNorm(out_channels)
 
     def forward(
@@ -273,6 +276,7 @@ class Conv2dSubsampling(nn.Module):
 
         key_padding_mask = torch.arange(0, x.shape[1], device=x.device) >= x_lens.unsqueeze(-1)
         # key_padding_mask: (N, (T-7)//2)
+        x = self.scale_limiter(x, aux_loss_scale)
         x = self.out_norm(x)
 
         assert x.size(1) == x_lens.max().item(), (x.size(1), x_lens.max())
