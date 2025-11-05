@@ -36,6 +36,7 @@ from scaling import (
     CosineSimilarityLoss,
     ScheduledFloat,
     FloatLike,
+    SwashR,
     convert_num_channels,
     limit_param_value,
     penalize_abs_values_gt,
@@ -1618,7 +1619,8 @@ class FftModule(nn.Module):
 
 
     def forward(self,
-                x: Tensor) -> Tensor:
+                x: Tensor,
+                transpose: bool = False) -> Tensor:
         (seq_len, batch_size, num_channels) = x.shape
 
         n = round_up_to_power_of_two(seq_len + self.min_pad)
@@ -1628,6 +1630,12 @@ class FftModule(nn.Module):
         # x: (N, batch_size, num_channels)
 
         weight = self.upsample_weight(N)
+        eps = 1.0e-05
+        # half-normalize the weight.
+        weight = weight / (weight.abs() + eps).sqrt()
+        if transpose:
+            # reverse the time direction of the kernel.
+            weight = weight.conj()
         # weight: (num_channels, N)
 
         x = x * weight.t().unsqueeze(1)
@@ -1697,12 +1705,11 @@ class ConvolutionModule(nn.Module):
                                   params_per_channel=kernel_size,
                                   min_pad=32)
 
+        self.activation3 = SwashR()
 
-        self.out_proj = ActivationDropoutAndLinear(
+        self.out_proj = ScaledLinear(
             bottleneck_dim,
             channels,
-            activation="SwashR",
-            dropout_p=0.0,
             initial_scale=0.05,
         )
 
@@ -1739,6 +1746,10 @@ class ConvolutionModule(nn.Module):
             x = x.masked_fill(src_key_padding_mask.t().unsqueeze(-1).expand_as(x), 0.0)
 
         x = self.fft_conv(x)
+
+        x = self.activation3(x)
+
+        x = self.fft_conv(x, transpose=True)
 
         x = self.out_proj(x)  # (time, batch, channels)
 
