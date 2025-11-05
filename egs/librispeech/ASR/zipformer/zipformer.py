@@ -1711,6 +1711,8 @@ class ConvolutionModule(nn.Module):
 
         self.activation3 = SwashR()
 
+        self.out_bias = nn.Parameter(0.01 * torch.randn(bottleneck_dim))
+
         self.out_proj = ActivationDropoutAndLinear(
             bottleneck_dim,
             channels,
@@ -1756,6 +1758,8 @@ class ConvolutionModule(nn.Module):
         x = self.activation3(x)
 
         x = self.fft_conv2(x)
+
+        x = x + self.out_bias
 
         x = self.out_proj(x)  # (time, batch, channels)
 
