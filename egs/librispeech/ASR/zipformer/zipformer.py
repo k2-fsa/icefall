@@ -1711,9 +1711,11 @@ class ConvolutionModule(nn.Module):
 
         self.activation3 = SwashR()
 
-        self.out_proj = ScaledLinear(
+        self.out_proj = ActivationDropoutAndLinear(
             bottleneck_dim,
             channels,
+            activation="SwashR",
+            dropout_p=0.0,
             initial_scale=0.05,
         )
 
