@@ -1701,7 +1701,11 @@ class ConvolutionModule(nn.Module):
 
         assert kernel_size % 2 == 1
 
-        self.fft_conv = FftModule(num_channels=bottleneck_dim,
+        self.fft_conv1 = FftModule(num_channels=bottleneck_dim,
+                                  params_per_channel=kernel_size,
+                                  min_pad=32)
+
+        self.fft_conv2 = FftModule(num_channels=bottleneck_dim,
                                   params_per_channel=kernel_size,
                                   min_pad=32)
 
@@ -1745,11 +1749,11 @@ class ConvolutionModule(nn.Module):
         if src_key_padding_mask is not None:
             x = x.masked_fill(src_key_padding_mask.t().unsqueeze(-1).expand_as(x), 0.0)
 
-        x = self.fft_conv(x)
+        x = self.fft_conv1(x)
 
         x = self.activation3(x)
 
-        x = self.fft_conv(x, transpose=True)
+        x = self.fft_conv2(x)
 
         x = self.out_proj(x)  # (time, batch, channels)
 
