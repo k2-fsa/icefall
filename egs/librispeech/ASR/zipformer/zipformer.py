@@ -1614,6 +1614,7 @@ class FftModule(nn.Module):
         self.weight = nn.Parameter( torch.stack((torch.ones(num_channels, params_per_channel),
                                                  torch.zeros(num_channels, params_per_channel)),
                                                 dim=0))
+        self.bias = nn.Parameter(0.01 * torch.randn(num_channels))
         # self.weight: (2, num_channels, params_per_channel)(
         self.min_pad = min_pad
 
@@ -1642,7 +1643,7 @@ class FftModule(nn.Module):
 
         x = torch.fft.irfft(x, dim=0, norm="ortho")
 
-        return x[:seq_len]
+        return x[:seq_len] + self.bias
 
 
     def upsample_weight(self, N: int) -> Tensor:
@@ -1711,6 +1712,7 @@ class ConvolutionModule(nn.Module):
 
         self.activation3 = SwashR()
 
+        self.middle_bias = nn.Parameter(0.01 * torch.randn(bottleneck_dim))
         self.out_bias = nn.Parameter(0.01 * torch.randn(bottleneck_dim))
 
         self.out_proj = ActivationDropoutAndLinear(
@@ -1739,8 +1741,12 @@ class ConvolutionModule(nn.Module):
             Tensor: Output tensor (#time, batch, channels).
 
         """
-        x = self.in_proj(x)  # (time, batch, 2*channels)
 
+
+        if src_key_padding_mask is not None:
+            x = x.masked_fill(src_key_padding_mask.t().unsqueeze(-1).expand_as(x), 0.0)
+
+        x = self.in_proj(x)  # (time, batch, 2*channels)
 
         x, s = x.chunk(2, dim=2)
         s = self.sigmoid(s)
@@ -1749,17 +1755,11 @@ class ConvolutionModule(nn.Module):
         x = self.activation2(x)  # identity
 
         #x: (time, batch, channels)
-
-        if src_key_padding_mask is not None:
-            x = x.masked_fill(src_key_padding_mask.t().unsqueeze(-1).expand_as(x), 0.0)
-
         x = self.fft_conv1(x)
 
         x = self.activation3(x)
 
         x = self.fft_conv2(x)
-
-        x = x + self.out_bias
 
         x = self.out_proj(x)  # (time, batch, channels)
 
