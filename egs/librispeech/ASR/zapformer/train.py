@@ -262,7 +262,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--cnn-module-kernel",
         type=str,
-        default="31,31,31,31",
+        default="63,63,63,63",
         help="Sizes of convolutional kernels in convolution modules in each encoder stack: "
         "a single int or comma-separated list.",
     )
