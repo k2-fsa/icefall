@@ -1614,6 +1614,7 @@ class FftModule(nn.Module):
         self.weight = nn.Parameter( torch.stack((torch.ones(num_channels, params_per_channel),
                                                  torch.zeros(num_channels, params_per_channel)),
                                                 dim=0))
+        self.weight_proj = nn.Linear(params_per_channel, params_per_channel)
         self.bias = nn.Parameter(0.01 * torch.randn(num_channels))
         # self.weight: (2, num_channels, params_per_channel)(
         self.min_pad = min_pad
@@ -1650,7 +1651,7 @@ class FftModule(nn.Module):
         # N is the desired number of frequencies of weight, so we return
         # a complex weight of shape (num_channels, N).
 
-        weight = self.weight
+        weight = self.weight_proj(self.weight)
         num_channels = weight.shape[0] // 2
         # the following may not be ideal, we'll see.
         weight = torch.nn.functional.upsample(weight, N, mode='linear', align_corners=True)
