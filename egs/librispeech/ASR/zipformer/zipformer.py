@@ -1611,10 +1611,10 @@ class FftModule(nn.Module):
                  min_pad: int = 32):
         super().__init__()
         # initialize to identity function.
-        self.weight = nn.Parameter( torch.stack((torch.ones(num_channels, params_per_channel),
-                                                 torch.zeros(num_channels, params_per_channel)),
-                                                dim=0))
-        self.weight_proj = nn.Linear(params_per_channel, params_per_channel)
+        self.weight = nn.Parameter(torch.ones(num_channels, params_per_channel))
+
+        # the factor of 2 is for (sin, cos)a.
+        self.weight_proj = nn.Linear(params_per_channel, 2 * params_per_channel)
         self.bias = nn.Parameter(0.01 * torch.randn(num_channels))
         # self.weight: (2, num_channels, params_per_channel)(
         self.min_pad = min_pad
@@ -1652,11 +1652,17 @@ class FftModule(nn.Module):
         # a complex weight of shape (num_channels, N).
 
         weight = self.weight_proj(self.weight)
-        num_channels = weight.shape[0] // 2
+        # weight: (num_channels, 2 * params_per_channel)
+        num_channels = weight.shape[0]
+        params_per_channel = weight.shape[1] // 2
+        weight = weight.reshape(num_channels, 2, params_per_channel)
+
         # the following may not be ideal, we'll see.
+        # in the following, num_channels is interpreted by upsample() as batch and 2 as channels but this
+        # does not matter as they are treated the same by upsample()
         weight = torch.nn.functional.upsample(weight, N, mode='linear', align_corners=True)
 
-        weight = torch.view_as_complex(weight.permute(1, 2, 0).contiguous())
+        weight = torch.view_as_complex(weight.permute(0, 2, 1).contiguous())
         # weight: (num_channels, N)
         return weight
 
