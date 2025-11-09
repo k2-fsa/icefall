@@ -1687,8 +1687,6 @@ class ConvolutionModule(nn.Module):
     ) -> None:
         """Construct a ConvolutionModule object."""
         super(ConvolutionModule, self).__init__()
-        # kernerl_size should be a odd number for 'SAME' padding
-        assert (kernel_size - 1) % 2 == 0
 
         bottleneck_dim = channels
         self.causal = causal
@@ -1707,7 +1705,6 @@ class ConvolutionModule(nn.Module):
 
         self.activation2 = Identity()  # for diagnostics
 
-        assert kernel_size % 2 == 1
 
         self.fft_conv1 = FftModule(num_channels=bottleneck_dim,
                                   params_per_channel=kernel_size,
