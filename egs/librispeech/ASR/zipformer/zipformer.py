@@ -1611,7 +1611,7 @@ class FftModule(nn.Module):
                  min_pad: int = 32):
         super().__init__()
         # initialize to identity function.
-        self.weight = nn.Parameter(torch.ones(num_channels, params_per_channel))
+        self.weight = nn.Parameter(torch.randn(num_channels, params_per_channel))
 
         # the factor of 2 is for (sin, cos)a.
         self.weight_proj = nn.Linear(params_per_channel, 2 * params_per_channel)
