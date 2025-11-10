@@ -220,7 +220,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--num-heads",
         type=str,
-        default="4,4,4,4",
+        default="3",
         help="Number of attention heads in the zipformer encoder layers, per stack: a single int or comma-separated list.",
     )
 
@@ -241,7 +241,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--value-head-dim",
         type=str,
-        default="20",
+        default="32",
         help="Value dimension per head in encoder stacks: a single int or comma-separated list.",
     )
 
