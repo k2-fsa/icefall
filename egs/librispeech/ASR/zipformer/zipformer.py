@@ -1621,8 +1621,7 @@ class FftModule(nn.Module):
 
 
     def forward(self,
-                x: Tensor,
-                transpose: bool = False) -> Tensor:
+                x: Tensor) -> Tensor:
         (seq_len, batch_size, num_channels) = x.shape
 
         n = round_up_to_power_of_two(seq_len + self.min_pad)
@@ -1633,11 +1632,6 @@ class FftModule(nn.Module):
 
         weight = self.upsample_weight(N)
         eps = 1.0e-05
-        # half-normalize the weight.
-        weight = weight / (weight.abs() + eps).sqrt()
-        if transpose:
-            # reverse the time direction of the kernel.
-            weight = weight.conj()
         # weight: (num_channels, N)
 
         x = x * weight.t().unsqueeze(1)
