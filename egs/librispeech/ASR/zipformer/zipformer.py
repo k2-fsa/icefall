@@ -1460,7 +1460,7 @@ class SelfAttention(nn.Module):
                                         bias=True, out_groups=num_heads)
 
         self.out_proj = ScaledLinear(
-            num_heads * value_head_dim, embed_dim, bias=True, initial_scale=0.05
+             num_heads * value_head_dim, embed_dim, bias=True, initial_scale=0.05
         )
 
         f = max(1.0, embed_dim / (num_heads * value_head_dim))
@@ -1700,18 +1700,9 @@ class ConvolutionModule(nn.Module):
         self.activation2 = Identity()  # for diagnostics
 
 
-        self.fft_conv1 = FftModule(num_channels=bottleneck_dim,
+        self.fft_conv = FftModule(num_channels=bottleneck_dim,
                                   params_per_channel=kernel_size,
                                   min_pad=32)
-
-        self.fft_conv2 = FftModule(num_channels=bottleneck_dim,
-                                  params_per_channel=kernel_size,
-                                  min_pad=32)
-
-        self.activation3 = SwashR()
-
-        self.middle_bias = nn.Parameter(0.01 * torch.randn(bottleneck_dim))
-        self.out_bias = nn.Parameter(0.01 * torch.randn(bottleneck_dim))
 
         self.out_proj = ActivationDropoutAndLinear(
             bottleneck_dim,
@@ -1753,11 +1744,7 @@ class ConvolutionModule(nn.Module):
         x = self.activation2(x)  # identity
 
         #x: (time, batch, channels)
-        x = self.fft_conv1(x)
-
-        x = self.activation3(x)
-
-        x = self.fft_conv2(x)
+        x = self.fft_conv(x)
 
         x = self.out_proj(x)  # (time, batch, channels)
 
