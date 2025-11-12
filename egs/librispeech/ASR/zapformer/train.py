@@ -260,11 +260,10 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     )
 
     parser.add_argument(
-        "--cnn-module-kernel",
+        "--conv-params",
         type=str,
         default="32",
-        help="Sizes of convolutional kernels in convolution modules in each encoder stack: "
-        "a single int or comma-separated list.",
+        help="Parameters per channel of convolution kernels",
     )
 
     parser.add_argument(
@@ -720,7 +719,7 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         pos_dim=params.pos_dim,
         num_heads=lookup(params, "num_heads"),
         feedforward_multiple=lookup(params, "feedforward_multiple"),
-        cnn_module_kernel=lookup(params, "cnn_module_kernel"),
+        conv_params=lookup(params, "conv_params"),
         causal=params.causal,
         chunk_size=lookup(params, "chunk_size"),
         left_context_frames=lookup(params, "left_context_frames"),

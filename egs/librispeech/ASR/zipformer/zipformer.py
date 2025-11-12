@@ -78,7 +78,7 @@ class Zipformer2(EncoderInterface):
         num_heads: (int or Tuple[int]): number of heads in the self-attention mechanism.
               Must be at least 4.
         feedforward_multiple (int or Tuple[int]): determines hidden dimension in feedforward modules
-        cnn_module_kernel (int or Tuple[int])): Kernel size of convolution module
+        conv_params (int or Tuple[int])): Kernel size of convolution module
 
         pos_dim (int): the dimension of each positional-encoding vector prior to projection,
             e.g. 128.
@@ -92,8 +92,7 @@ class Zipformer2(EncoderInterface):
            the chunk size will be randomly chosen from this list.  -1 means no chunking.
         left_context_frames: (list of int): determines the number of left-
            context chunks for causal training; will be rounded to a number of
-           chunks.  Must not be less than cnn_module_kernel (after factoring in
-           rounding and downsampling); an error will be thrown if this is violated.
+           chunks.
     """
     def __init__(
         self,
@@ -107,7 +106,7 @@ class Zipformer2(EncoderInterface):
         value_head_dim: Union[int, Tuple[int]] = 12,
         num_heads: Union[int, Tuple[int]] = 8,
         feedforward_multiple: Union[int, Tuple[int]] = 4,
-        cnn_module_kernel: Union[int, Tuple[int]] = 31,
+        conv_params: Union[int, Tuple[int]] = 31,
         pos_dim: int = 192,
         causal: bool = False,
         chunk_size: Tuple[int] = [-1],
@@ -137,7 +136,7 @@ class Zipformer2(EncoderInterface):
         pos_head_dim = _to_tuple(pos_head_dim)
         self.num_heads = num_heads = _to_tuple(num_heads)
         feedforward_multiple = _to_tuple(feedforward_multiple)
-        self.cnn_module_kernel = cnn_module_kernel = _to_tuple(cnn_module_kernel)
+        self.conv_params = conv_params = _to_tuple(conv_params)
 
         self.causal = causal
         self.chunk_size = chunk_size
@@ -164,7 +163,7 @@ class Zipformer2(EncoderInterface):
                 pos_head_dim=pos_head_dim[i],
                 value_head_dim=value_head_dim[i],
                 feedforward_multiple=feedforward_multiple[i],
-                cnn_module_kernel=cnn_module_kernel[i],
+                conv_params=conv_params[i],
                 causal=causal,
             )
 
@@ -308,7 +307,7 @@ class Zipformer2(EncoderInterface):
             num_encoders = len(self.encoder_dim)
             assert all(
                 chunk_size * left_context_chunks
-                >= (self.cnn_module_kernel[i] // 2) * self.downsampling_factor[i]
+                >= (self.conv_params[i] // 2) * self.downsampling_factor[i]
                 for i in range(num_encoders)
             )
         else:
@@ -411,7 +410,7 @@ class Zipformer2(EncoderInterface):
             value_dim = self.value_head_dim[i] * num_heads
             downsample_left = self.left_context_frames[0] // ds
             nonlin_attn_head_dim = 3 * embed_dim // 4
-            conv_left_pad = self.cnn_module_kernel[i] // 2
+            conv_left_pad = self.cnn_module_kernel[i] // 2  # will be error. have to figure this out.
             for layer in range(num_layers):
                 cached_key = torch.zeros(downsample_left, batch_size, key_dim).to(
                     device
@@ -503,7 +502,7 @@ class Zipformer2EncoderLayer(nn.Module):
         nhead: the number of heads in the multiheadattention models (required).
         feedforward_multiple: determines the hidden dimension of the feedforward module
 
-        cnn_module_kernel (int): Kernel size of convolution module (default=31).
+        conv_params (int): params per channel of convolution module
 
     Examples::
         >>> encoder_layer = Zipformer2EncoderLayer(embed_dim=512, nhead=8)
@@ -520,7 +519,7 @@ class Zipformer2EncoderLayer(nn.Module):
         pos_head_dim: int,
         value_head_dim: int,
         feedforward_multiple: int,
-        cnn_module_kernel: int = 31,
+        conv_params: int,
         causal: bool = False,
     ) -> None:
         super(Zipformer2EncoderLayer, self).__init__()
@@ -548,7 +547,7 @@ class Zipformer2EncoderLayer(nn.Module):
 
         self.feed_forward2 = FeedforwardModule(embed_dim, feedforward_dim)
 
-        self.conv_module = ConvolutionModule(embed_dim, cnn_module_kernel, causal=causal)
+        self.conv_module = ConvolutionModule(embed_dim, conv_params, causal=causal)
 
         self.norm = ExpNorm(embed_dim)
 
@@ -556,6 +555,7 @@ class Zipformer2EncoderLayer(nn.Module):
     def forward(
         self,
         src: Tensor,
+        weight_proj: Tensor,
         pos_emb: Tensor,
         chunk_size: int = -1,
         attn_mask: Optional[Tensor] = None,
@@ -566,6 +566,7 @@ class Zipformer2EncoderLayer(nn.Module):
             Pass the input through the encoder layer.
             Args:
                 src: the sequence to the encoder (required): shape (seq_len, batch_size, embedding_dim).
+         weight_proj: to be passed to the convolution modules, of shape (max_conv_length, conv_params)
              pos_emb: (1, 2*seq_len-1, pos_emb_dim) or (batch_size, 2*seq_len-1, pos_emb_dim)
              chunk_size: the number of frames per chunk, of >= 0; if -1, no chunking.
              attn_mask: the attention mask, of shape (batch_size, seq_len, seq_len) or (seq_len, seq_len),
@@ -596,7 +597,7 @@ class Zipformer2EncoderLayer(nn.Module):
 
         src = src + self.self_attn(src, attn_weights, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
 
-        src = src + self.conv_module(src, chunk_size=chunk_size, src_key_padding_mask=src_key_padding_mask, aux_loss_scale=0.1 * aux_loss_scale)
+        src = src + self.conv_module(src, weight_proj, chunk_size=chunk_size, src_key_padding_mask=src_key_padding_mask, aux_loss_scale=0.1 * aux_loss_scale)
 
         src = src + self.feed_forward2(src, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
 
@@ -771,6 +772,11 @@ class Zipformer2Encoder(nn.Module):
                         (1. / num_layers) * torch.ones(num_layers, encoder_layer.embed_dim) ],
                       dim=0))
 
+
+        conv_params = encoder_layer.conv_module.depthwise_conv.weight.shape[1]
+        max_conv_length = 255
+        self.weight_proj = nn.Parameter((max_conv_length ** -0.5) * torch.randn(max_conv_length, conv_params))
+
         self.copy_bypass = Identity()
 
 
@@ -813,10 +819,12 @@ class Zipformer2Encoder(nn.Module):
                                            min=-1.0, max=-0.5)
 
         src_with_bypass = residual_scale * src
+        weight_proj = self.weight_proj
 
         for i, mod in enumerate(self.layers):
             src = mod(
                 src,
+                weight_proj,
                 pos_emb,
                 chunk_size=chunk_size,
                 attn_mask=attn_mask,
@@ -1604,63 +1612,42 @@ def round_up_to_power_of_two(x):
     return x
 
 
-class FftModule(nn.Module):
+class ProjDepthwiseConv(nn.Module):
     def __init__(self,
                  num_channels: int,
                  params_per_channel: int,
-                 min_pad: int = 32):
+                 bias: bool = True):
         super().__init__()
         # initialize to identity function.
-        self.weight = nn.Parameter(torch.randn(num_channels, params_per_channel))
-
-        # the factor of 2 is for (sin, cos)a.
-        self.weight_proj = nn.Linear(params_per_channel, 2 * params_per_channel)
-        self.bias = nn.Parameter(0.01 * torch.randn(num_channels))
-        # self.weight: (2, num_channels, params_per_channel)(
-        self.min_pad = min_pad
+        self.weight = nn.Parameter((params_per_channel ** -0.5) * torch.randn(num_channels, params_per_channel))
+        if bias:
+            self.bias = nn.Parameter(0.01 * torch.randn(num_channels))
+        else:
+            self.bias = None
 
 
     def forward(self,
-                x: Tensor) -> Tensor:
+                x: Tensor,
+                weight_proj: Tensor) -> Tensor:
         (seq_len, batch_size, num_channels) = x.shape
+        (_num_channels, params_per_channel) = self.weight.shape
+        assert weight_proj.shape[1] == params_per_channel
+        max_conv_length = weight_proj.shape[0]
+        assert max_conv_length % 2 == 1
 
-        n = round_up_to_power_of_two(seq_len + self.min_pad)
-        x = torch.fft.rfft(x, n=n, dim=0, norm="ortho")
+        # if convolution length is longer than seq_len, we can truncate the convolution.
+        truncate = max(max_conv_length - (seq_len - 1), 0) // 2
+        if truncate > 0:
+            weight_proj = weight_proj[truncate:-truncate]
 
-        N = x.shape[0]  # N == n/2 + 1, the number of fourier components.
-        # x: (N, batch_size, num_channels)
+        weight = torch.matmul(self.weight, weight_proj.t())
+        # weight: (num_channels, conv_width); conv_width is odd.
 
-        weight = self.upsample_weight(N)
-        eps = 1.0e-05
-        # weight: (num_channels, N)
-
-        x = x * weight.t().unsqueeze(1)
-
-        x = torch.fft.irfft(x, dim=0, norm="ortho")
-
-        return x[:seq_len] + self.bias
-
-
-    def upsample_weight(self, N: int) -> Tensor:
-        # N is the desired number of frequencies of weight, so we return
-        # a complex weight of shape (num_channels, N).
-
-        weight = self.weight_proj(self.weight)
-        # weight: (num_channels, 2 * params_per_channel)
-        num_channels = weight.shape[0]
-        params_per_channel = weight.shape[1] // 2
-        weight = weight.reshape(num_channels, 2, params_per_channel)
-
-        # the following may not be ideal, we'll see.
-        # in the following, num_channels is interpreted by upsample() as batch and 2 as channels but this
-        # does not matter as they are treated the same by upsample()
-        weight = torch.nn.functional.upsample(weight, N, mode='linear', align_corners=True)
-
-        weight = torch.view_as_complex(weight.permute(0, 2, 1).contiguous())
-        # weight: (num_channels, N)
-        return weight
-
-
+        x = x.permute(1, 2, 0)  # (batch, channels, width)
+        weight = weight.unsqueeze(1)  # (num_channels, 1, conv_width)
+        x = torch.nn.functional.conv1d(x, weight, self.bias, groups=num_channels, padding='same')
+        x = x.permute(2, 0, 1) # (seq, batch, channels)
+        return x
 
 
 class ConvolutionModule(nn.Module):
@@ -1700,9 +1687,8 @@ class ConvolutionModule(nn.Module):
         self.activation2 = Identity()  # for diagnostics
 
 
-        self.fft_conv = FftModule(num_channels=bottleneck_dim,
-                                  params_per_channel=kernel_size,
-                                  min_pad=32)
+        self.depthwise_conv = ProjDepthwiseConv(bottleneck_dim,
+                                                kernel_size)
 
         self.out_proj = ActivationDropoutAndLinear(
             bottleneck_dim,
@@ -1715,6 +1701,7 @@ class ConvolutionModule(nn.Module):
     def forward(
         self,
         x: Tensor,
+        weight_proj: Tensor,
         src_key_padding_mask: Optional[Tensor] = None,
         chunk_size: int = -1,
         aux_loss_scale: float = 0.0,
@@ -1723,6 +1710,7 @@ class ConvolutionModule(nn.Module):
 
         Args:
             x: Input tensor (#time, batch, channels).
+  weight_proj: tensor of shape (max_conv_length, kernel_size), with max_conv_length > kernel_size; expands the size of the convolution.
            src_key_padding_mask: the mask for the src keys per batch (optional):
                (batch, #time), contains True in masked positions.
 
@@ -1730,8 +1718,6 @@ class ConvolutionModule(nn.Module):
             Tensor: Output tensor (#time, batch, channels).
 
         """
-
-
         if src_key_padding_mask is not None:
             x = x.masked_fill(src_key_padding_mask.t().unsqueeze(-1).expand_as(x), 0.0)
 
@@ -1744,7 +1730,7 @@ class ConvolutionModule(nn.Module):
         x = self.activation2(x)  # identity
 
         #x: (time, batch, channels)
-        x = self.fft_conv(x)
+        x = self.depthwise_conv(x, weight_proj)
 
         x = self.out_proj(x)  # (time, batch, channels)
 
@@ -1833,24 +1819,6 @@ def _test_zipformer_main(causal: bool = False):
     )
     x_  # to remove flake8 warnings
 
-def _test_fft_module():
-    num_channels = 110
-    f = FftModule(num_channels=num_channels,
-                  params_per_channel=10,
-                  min_pad=4)
-
-    batch_size = 5
-    seq_len = 50
-    x = torch.randn(seq_len, batch_size, num_channels)
-
-    y = f(x)
-
-    def rms(a):
-        return (a**2).mean().item()
-
-    print(f"rms(y)={rms(y)}, rms(x-y)={rms(x-y)}")
-
-
 
 
 if __name__ == "__main__":
@@ -1859,4 +1827,3 @@ if __name__ == "__main__":
     torch.set_num_interop_threads(1)
     _test_zipformer_main(False)
     _test_zipformer_main(True)
-    _test_fft_module()
