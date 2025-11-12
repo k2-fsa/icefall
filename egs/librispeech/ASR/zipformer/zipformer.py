@@ -1636,7 +1636,7 @@ class ProjDepthwiseConv(nn.Module):
         assert max_conv_length % 2 == 1
 
         # if convolution length is longer than seq_len, we can truncate the convolution.
-        truncate = max(max_conv_length - (seq_len - 1), 0) // 2
+        truncate = max(max_conv_length // 2 - (seq_len - 1), 0)
         if truncate > 0:
             weight_proj = weight_proj[truncate:-truncate]
 
