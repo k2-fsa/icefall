@@ -601,7 +601,7 @@ class Zipformer2EncoderLayer(nn.Module):
 
         src = src + self.feed_forward2(src, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
 
-        residual_scale = limit_param_value(self.residual_scale, min=0.1, max=1.0)
+        residual_scale = limit_param_value(self.residual_scale, min=0.25, max=0.75)
         offset = (src - src_orig) * residual_scale
 
         offset = self.offset_scale_limiter(offset, aux_loss_scale)
@@ -768,8 +768,8 @@ class Zipformer2Encoder(nn.Module):
         self.num_layers = num_layers
 
         self.residual_scales = nn.Parameter(
-            torch.cat([ -1.0 * torch.ones(1, encoder_layer.embed_dim),
-                        (1. / num_layers) * torch.ones(num_layers, encoder_layer.embed_dim) ],
+            torch.cat([ -1.0 * torch.ones(1),
+                        (1. / num_layers) * torch.ones(num_layers) ],
                       dim=0))
 
 
