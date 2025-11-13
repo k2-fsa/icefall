@@ -1631,21 +1631,54 @@ class ProjDepthwiseConv(nn.Module):
                 weight_proj: Tensor) -> Tensor:
         (seq_len, batch_size, num_channels) = x.shape
         (_num_channels, params_per_channel) = self.weight.shape
-        assert weight_proj.shape[1] == params_per_channel
-        max_conv_length = weight_proj.shape[0]
-        assert max_conv_length % 2 == 1
 
-        # if convolution length is longer than seq_len, we can truncate the convolution.
-        truncate = max(max_conv_length // 2 - (seq_len - 1), 0)
-        if truncate > 0:
-            weight_proj = weight_proj[truncate:-truncate]
+        weight_proj = weight_proj.t()
+        # weight_proj: (params_per_channel, conv_length)
+        assert weight_proj.shape[0] == params_per_channel
+        conv_length = weight_proj.shape[1]
+        assert conv_length % 2 == 1
 
-        weight = torch.matmul(self.weight, weight_proj.t())
+        # if convolution length is longer than seq_len, we can truncate the convolution by
+        # wrapping it around (so it will be the same as if we did the full convolution
+        # with circular padding)
+
+        if conv_length > seq_len:
+            wrapped_conv_length = seq_len
+
+            # 'multiple' is the number of 'wraps' we sum over.  this must be odd so
+            # that the original middle ends up in the middle after wrapping.
+            multiple = (conv_length + seq_len - 1) // seq_len
+            if multiple % 2 == 0:
+                multiple = multiple + 1  # need multiple to be odd.
+            padding = (seq_len * multiple) - conv_length
+            left_pad = padding // 2
+            right_pad = padding - left_pad
+            weight_proj = torch.nn.functional.pad(weight_proj, (left_pad, right_pad))
+
+            weight_proj = weight_proj.reshape(params_per_channel, multiple, seq_len).sum(dim=1)
+            # weight_proj: (num_channels, seq_len)
+            if seq_len % 2 == 0:
+                # even-length convolution will cause efficiency problems for conv1d, so we pad
+                # the convolution with a zero on the left (which would have been the side that
+                # was made shorter by the uneven padding).  The fact that it's zero won't matter
+                # because we'll just get the value from the wrapped around other side, due to
+                # circular padding.
+                weight_proj = torch.cat((torch.zeros(params_per_channel, 1, device=weight_proj.device, dtype=weight_proj.dtype),
+                                         weight_proj), dim=1)
+            conv_length = weight_proj.shape[1]
+
+
+        weight = torch.matmul(self.weight, weight_proj)
+        # weight: (num_channels, conv_length) ; note, conv_length may have been reduced to seq_len + 1 already.
+        padding = conv_length // 2  # note, conv_length will be odd.
+
         # weight: (num_channels, conv_width); conv_width is odd.
 
         x = x.permute(1, 2, 0)  # (batch, channels, width)
         weight = weight.unsqueeze(1)  # (num_channels, 1, conv_width)
-        x = torch.nn.functional.conv1d(x, weight, self.bias, groups=num_channels, padding='same')
+
+        x = torch.nn.functional.pad(x, (padding, padding), mode='circular')
+        x = torch.nn.functional.conv1d(x, weight, self.bias, groups=num_channels)
         x = x.permute(2, 0, 1) # (seq, batch, channels)
         return x
 
