@@ -1745,9 +1745,6 @@ class ConvolutionModule(nn.Module):
             Tensor: Output tensor (#time, batch, channels).
 
         """
-        if src_key_padding_mask is not None:
-            x = x.masked_fill(src_key_padding_mask.t().unsqueeze(-1).expand_as(x), 0.0)
-
         x = self.in_proj(x)  # (time, batch, 2*channels)
 
         x, s = x.chunk(2, dim=2)
@@ -1757,11 +1754,41 @@ class ConvolutionModule(nn.Module):
         x = self.activation2(x)  # identity
 
         #x: (time, batch, channels)
+        if src_key_padding_mask is not None:
+            x = self.repeat_in_padding(x, src_key_padding_mask)
+
         x = self.depthwise_conv(x, weight_proj)
 
         x = self.out_proj(x)  # (time, batch, channels)
 
         return x
+
+
+    def repeat_in_padding(self, x, mask):
+        # repeats elements of x in the padding region, circularly as much as possible;
+        # the discontinuity between the ones that circularly repeat from the end and
+        # those that circularly repeat from the beginning is in the middle of the padding
+        # region.
+
+        # x: (seq_len, batch_size, num_channels)
+        (batch_size, seq_len) = mask.shape
+
+        seq_lengths = (~mask).to(torch.int64).sum(dim=1, keepdim=True)  # (batch_size, 1)
+        pad_len = seq_len - seq_lengths
+        arange = torch.arange(seq_len, device=mask.device)
+
+        # "mid" gives the index of the midpoint of the padding region after each sequence.
+        mid = (seq_lengths + seq_len) // 2  # mid: (batch_size, 1)
+
+        src_index = torch.where(arange >= mid, arange - pad_len, arange) % seq_lengths
+        # src_index: (batch_size, seq_len)
+
+        src_index = src_index.t().unsqueeze(-1).expand_as(x)
+        # src_index: (seq_len, batch_size, num_channels)
+        x = torch.gather(x, dim=0, index=src_index)
+        return x
+
+
 
     def streaming_forward(
         self,
