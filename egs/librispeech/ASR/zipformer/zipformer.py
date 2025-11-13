@@ -1671,7 +1671,7 @@ class ProjDepthwiseConv(nn.Module):
             # multiplication in fourier space is the same as (circular) convolution.
             x = both[:-1] * both[-1]
 
-            x = torch.fft.irfft(x, norm="ortho")
+            x = torch.fft.irfft(x, n=seq_len, norm="ortho")
 
         x = x.permute(2, 0, 1) # (seq, batch, channels)
         return x
