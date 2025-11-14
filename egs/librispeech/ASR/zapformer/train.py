@@ -1402,7 +1402,7 @@ def run(rank, world_size, args):
         debug_interval=params.debug_interval,
     )
 
-    scheduler = Sched3(optimizer, get_adjusted_lr_batches(params), power=0.5)
+    scheduler = Sched3(optimizer, get_adjusted_lr_batches(params), warmup_start=0.25, power=0.5)
 
     if checkpoints and "optimizer" in checkpoints:
         logging.info("Loading optimizer state dict")
