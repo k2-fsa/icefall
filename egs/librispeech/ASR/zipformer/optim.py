@@ -207,7 +207,7 @@ def scale_tensor_by(x, beta1):
 
     # interpolate with the basic form of decay as a compromise.
     # a negative interpolation coefficient was more promising in a test, trying that first.
-    baseline_coeff = -0.5
+    baseline_coeff = 0.25
     x3_coeff = 1. - baseline_coeff
     x.mul_(baseline_coeff * beta1 + x3_coeff)
     x.add_(x_scaled, alpha=x3_coeff * (beta1-1)) # note: negative alpha.
