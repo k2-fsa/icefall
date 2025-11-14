@@ -204,7 +204,13 @@ def scale_tensor_by(x, beta1):
     #    dot_prod1 = (x * x).sum(dim=(1, 2))
     #    dot_prod2 = (x * x_scaled).sum(dim=(1, 2))
     #    print(f"dot_prod1={dot_prod1}, dot_prod2={dot_prod2}")
-    x.add_(x_scaled, alpha=(beta1-1)) # note: negative alpha.
+
+    # interpolate with the basic form of decay as a compromise.
+    # a negative interpolation coefficient was more promising in a test, trying that first.
+    baseline_coeff = -0.5
+    x3_coeff = 1. - baseline_coeff
+    x.mul_(baseline_coeff * beta1 + x3_coeff)
+    x.add_(x_scaled, alpha=x3_coeff * (beta1-1)) # note: negative alpha.
 
 
 def scale_by(x, beta1, shape):
