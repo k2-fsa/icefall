@@ -150,7 +150,62 @@ def basic_step(group, p, state, grad):
 
 
 
-def momentum_step(group, p, state, grad):
+def scale_tensor_by(x, beta1):
+    # internal function called by scale_by; works on "properly shaped" x.  is similar in efffect
+    # to x.mul_(beta1) but decays the larger singular values of the matrices in x more than the smaller
+    # ones.
+    if x.ndim > 3:
+        # each tensor in the batch has more than two dimensions.
+        # reshape to be like a batch of matrices.
+        # note: x.shape[0] is batch dimension.
+        if x.shape[1] > x.shape[-1]:
+            xr = x.reshape(x.shape[0], x.shape[1], -1)
+        else:
+            xr = x.reshape(x.shape[0], -1, x.shape[-1])
+        scale_tensor_by(xr, beta1)
+        x[:] = xr.reshape(*x.shape)
+        return
+    if x.shape[1] > x.shape[2]:
+        xr = x.permute(0, 2, 1)
+        scale_tensor_by(xr, beta1)
+        x[:] = xr.permute(0, 2, 1)
+        return
+    (batch_size, rows, cols) = x.shape  # and rows <= cols
+
+    x2 = torch.matmul(x, x.permute(0, 2, 1))
+    # x2: (batch_size, rows, rows)
+    eps = 1.0e-10
+    (batch_stride, stride1, stride2) = x2.stride()
+    x2_diag_sum = torch.as_strided(x2, (batch_size, rows), (batch_stride, stride1 + stride2)).sum()  # (batch_size,)
+    x2_sq_sum = (x2 ** 2).sum(dim=(1, 2))  # (batch_size,)
+    scale = x2_diag_sum / x2_sq_sum
+
+    x_scaled = torch.matmul(x2, x) * scale[:, None, None]
+    #if True:
+    #    dot_prod1 = (x * x).sum(dim=(1, 2))
+    #    dot_prod2 = (x * x_scaled).sum(dim=(1, 2))
+    # these dot products are the same when printed, as intended.
+    #    print(f"dot_prod1={dot_prod1}, dot_prod2={dot_prod2}")
+
+    x.add_(x_scaled, alpha=(beta1-1)) # note: negative alpha.
+
+
+
+def scale_by(x, beta1, shape):
+    # x is a tensor of shape (batch_size, per_tensor_numel + 1),
+    # where the + 1 is for the log scale.
+    # 'shape' is the shape of x before we flattened it.
+    # if x represents a bias or a scalar, just do x.mul_(beta1).
+    # note: the first dim of x is a "batch dim" which is a batch of same-shaped tensors.
+    if len(shape) <= 2:
+        x.mul_(beta1)
+        return
+
+    scale_tensor_by(x[:, :-1].reshape(*shape), beta1)
+    x[:, -1].mul_(beta1)
+
+
+def momentum_step(group, p, state, grad, shape):
     delta = basic_step(group, p, state, grad)
 
     #beta1 = group["betas"][0]
@@ -168,7 +223,9 @@ def momentum_step(group, p, state, grad):
         stored_delta = torch.zeros(*p.shape, device=p.device, dtype=torch.float)
         state["delta"] = stored_delta
 
-    stored_delta.mul_(beta1).add_(delta)
+
+    stored_delta.add_(delta)
+    scale_by(stored_delta, beta1, shape)
     return ((-lr * (1-direct) * (1-beta1)) * stored_delta) + ((-lr * direct) * delta)
 
 
@@ -193,14 +250,13 @@ def forward_transform_param(group, p):
     abs_sum = p_flat.abs().sum(dim=1, keepdim=True)
     min_abs_sum = min_scale * numel    # if abs_sum is less than this we pad with an extra element.
     abs_sum_clamped = abs_sum.clamp(min=min_abs_sum)
-    pad = (abs_sum_clamped - abs_sum)
     scale = (abs_sum_clamped / numel)   # must be nonzero thanks to min_abs_sum
 
     # scaling_lr_scale is to control the learning-rate of scaling factors.
     # log_scale controls the overall scale of this tensor
     log_scale = (1 / group["scaling_lr_scale"]) * scale.log()
 
-    ans = torch.cat((p_flat / scale, pad / scale, log_scale), dim=1)
+    ans = torch.cat((p_flat / scale, log_scale), dim=1)
     return ans
 
 def reverse_transform_param(group, p, orig_shape):
@@ -208,13 +264,12 @@ def reverse_transform_param(group, p, orig_shape):
     if p.numel() == batch_size:
         return (p * group["scalar_lr_scale"]).reshape(*orig_shape)
     # numel is num elements of each parameter tensor in the batch.
-    numel = p.shape[1] - 2
-    p_padded = p[:, :numel+1]  # orig tensor plus one padding element
+    numel = p.shape[1] - 1
 
     is_weight = (len(orig_shape) > 2)
     max_scale = group["weight_max_scale"] if is_weight else group["bias_max_scale"]
     min_scale = group["weight_min_scale"] if is_weight else group["bias_min_scale"]
-    log_scale = (p[:, numel+1:numel+2] * group["scaling_lr_scale"])
+    log_scale = (p[:, numel:] * group["scaling_lr_scale"])
 
     scaling_lr = group["scaling_lr_scale"] * group["lr"]
 
@@ -224,7 +279,7 @@ def reverse_transform_param(group, p, orig_shape):
     log_scale = ((log_scale - log_scale_default) * (1. - group["scale_decay"] * scaling_lr)) + log_scale_default
     scale = log_scale.exp().clamp(min=min_scale, max=max_scale)
 
-    q = p_padded[:, :-1] * scale  # the :-1 is to remove the padding element.
+    q = p[:, :-1] * scale
     q = q.reshape(*orig_shape)
     return q
 
@@ -245,7 +300,7 @@ def scaling_step(group, p, state, grad):
     p_shape = p.shape
     p_flat, grad_flat = forward_transform_param_and_grad(group, p, grad)
 
-    p_flat += momentum_step(group, p_flat, state, grad_flat)
+    p_flat += momentum_step(group, p_flat, state, grad_flat, p_shape)
 
     p = reverse_transform_param(group, p_flat, p.shape)
     return p
@@ -890,9 +945,6 @@ class SimpleTransformedAdam(Optimizer):
         )
         super().__init__(params, defaults)
 
-        self.register_load_state_dict_pre_hook(_load_state_dict_pre_hook)
-
-
 
     def __setstate__(self, state):
         super(TransformedAdam, self).__setstate__(state)
@@ -1258,8 +1310,7 @@ def _test_sched3():
     m = torch.nn.Linear(100, 100)
     optim = TransformedAdam(m.parameters(), lr=0.03)
 
-    scheduler = Sched3(optim, lr_batches=100, p=0.8, verbose=True, warmup_batches=20)
-
+    scheduler = Sched3(optim, lr_batches=100, power=0.5, verbose=True, warmup_batches=20)
 
     for step in range(300):
         x = torch.randn(200, 100).detach()
