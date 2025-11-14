@@ -176,15 +176,19 @@ def scale_tensor_by(x, beta1):
     # x2: (batch_size, rows, rows)
     eps = 1.0e-10
     (batch_stride, stride1, stride2) = x2.stride()
-    x2_diag_sum = torch.as_strided(x2, (batch_size, rows), (batch_stride, stride1 + stride2)).sum()  # (batch_size,)
+    # x_squared_sum, equivalent to (x**2).sum(dim=(1, 2)), but faster to compute.
+    x2_diag_sum = torch.as_strided(x2, (batch_size, rows), (batch_stride, stride1 + stride2)).sum(dim=1)  # (batch_size,)
+
     x2_sq_sum = (x2 ** 2).sum(dim=(1, 2))  # (batch_size,)
     scale = x2_diag_sum / x2_sq_sum
 
     x_scaled = torch.matmul(x2, x) * scale[:, None, None]
+
+    #x_scaled_squared_sum = (x ** 2).sum(dim=(1, 2
+
     #if True:
     #    dot_prod1 = (x * x).sum(dim=(1, 2))
     #    dot_prod2 = (x * x_scaled).sum(dim=(1, 2))
-    # these dot products are the same when printed, as intended.
     #    print(f"dot_prod1={dot_prod1}, dot_prod2={dot_prod2}")
 
     x.add_(x_scaled, alpha=(beta1-1)) # note: negative alpha.
