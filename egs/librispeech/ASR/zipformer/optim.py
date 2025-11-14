@@ -170,6 +170,20 @@ def scale_tensor_by(x, beta1):
         scale_tensor_by(xr, beta1)
         x[:] = xr.permute(0, 2, 1)
         return
+
+    # avoid matrix multiplies by any dimensions that are too large.
+    max_dim = 1024
+    if x.shape[1] > max_dim:
+        n = x.shape[1]
+        for divisor in range(2, 100):
+            if n % divisor == 0 and n // divisor <= max_dim:
+                xr = x.reshape(x.shape[0], n // divisor, divisor * x.shape[2])
+                scale_tensor_by(xr, beta1)
+                x[:] = xr.reshape(*x.shape)
+                return
+        # if no divisor worked, just continue.
+
+
     (batch_size, rows, cols) = x.shape  # and rows <= cols
 
     x2 = torch.matmul(x, x.permute(0, 2, 1))
@@ -190,9 +204,7 @@ def scale_tensor_by(x, beta1):
     #    dot_prod1 = (x * x).sum(dim=(1, 2))
     #    dot_prod2 = (x * x_scaled).sum(dim=(1, 2))
     #    print(f"dot_prod1={dot_prod1}, dot_prod2={dot_prod2}")
-
     x.add_(x_scaled, alpha=(beta1-1)) # note: negative alpha.
-
 
 
 def scale_by(x, beta1, shape):
