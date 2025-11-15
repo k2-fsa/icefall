@@ -163,12 +163,14 @@ def scale_tensor_by(x, beta1):
         else:
             xr = x.reshape(x.shape[0], -1, x.shape[-1])
         scale_tensor_by(xr, beta1)
-        x[:] = xr.reshape(*x.shape)
+        if not xr.storage() is x.storage():
+            x[:] = xr.reshape(*x.shape)
         return
     if x.shape[1] > x.shape[2]:
         xr = x.permute(0, 2, 1)
         scale_tensor_by(xr, beta1)
-        x[:] = xr.permute(0, 2, 1)
+        if not xr.storage() is x.storage():
+            x[:] = xr.permute(0, 2, 1)
         return
 
     # avoid matrix multiplies by any dimensions that are too large.
@@ -177,9 +179,10 @@ def scale_tensor_by(x, beta1):
         n = x.shape[1]
         for divisor in range(2, 100):
             if n % divisor == 0 and n // divisor <= max_dim:
-                xr = x.reshape(x.shape[0], n // divisor, divisor * x.shape[2])
+                xr = x.reshape(x.shape[0] * divisor, n // divisor, x.shape[2])
                 scale_tensor_by(xr, beta1)
-                x[:] = xr.reshape(*x.shape)
+                if not xr.storage() is x.storage():
+                    x[:] = xr.reshape(*x.shape)
                 return
         # if no divisor worked, just continue.
 
@@ -205,12 +208,7 @@ def scale_tensor_by(x, beta1):
     #    dot_prod2 = (x * x_scaled).sum(dim=(1, 2))
     #    print(f"dot_prod1={dot_prod1}, dot_prod2={dot_prod2}")
 
-    # interpolate with the basic form of decay as a compromise.
-    # a negative interpolation coefficient was more promising in a test, trying that first.
-    baseline_coeff = 0.25
-    x3_coeff = 1. - baseline_coeff
-    x.mul_(baseline_coeff * beta1 + x3_coeff)
-    x.add_(x_scaled, alpha=x3_coeff * (beta1-1)) # note: negative alpha.
+    x.add_(x_scaled, alpha=(beta1-1)) # note: negative alpha.
 
 
 def scale_by(x, beta1, shape):
@@ -247,7 +245,12 @@ def momentum_step(group, p, state, grad, shape):
 
 
     stored_delta.add_(delta)
-    scale_by(stored_delta, beta1, shape)
+    if step % 3 == 0:
+        # every third step, just do a normal decay, this is an efficient way of
+        # doing a kind of interpolation with the fourth-power regularization.
+        stored_delta.mul_(beta1)
+    else:
+        scale_by(stored_delta, beta1, shape)
     return ((-lr * (1-direct) * (1-beta1)) * stored_delta) + ((-lr * direct) * delta)
 
 
