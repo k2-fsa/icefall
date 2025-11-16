@@ -778,7 +778,7 @@ class Zipformer2Encoder(nn.Module):
         self.weight_proj = nn.Parameter(torch.randn(max_conv_length, conv_params))
         # scale weight_proj with a scale that's smaller for 'further-away-from-the-center' positions, since these positions
         # will tend to have smaller weights.
-        self.register_buffer('weight_proj_scale', 1. / (2. + (torch.arange(conv_params) - (conv_params // 2)).abs()))
+        self.register_buffer('weight_proj_scale', (1. / (2. + (torch.arange(max_conv_length) - (max_conv_length // 2)).abs())).unsqueeze(-1))
 
         self.copy_bypass = Identity()
 
