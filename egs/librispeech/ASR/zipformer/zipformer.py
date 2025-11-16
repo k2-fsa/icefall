@@ -775,7 +775,10 @@ class Zipformer2Encoder(nn.Module):
 
         conv_params = encoder_layer.conv_module.depthwise_conv.weight.shape[1]
         max_conv_length = 255
-        self.weight_proj = nn.Parameter((max_conv_length ** -0.5) * torch.randn(max_conv_length, conv_params))
+        self.weight_proj = nn.Parameter(torch.randn(max_conv_length, conv_params))
+        # scale weight_proj with a scale that's smaller for 'further-away-from-the-center' positions, since these positions
+        # will tend to have smaller weights.
+        self.register_buffer('weight_proj_scale', 1. / (2. + (torch.arange(conv_params) - (conv_params // 2)).abs()))
 
         self.copy_bypass = Identity()
 
@@ -819,7 +822,7 @@ class Zipformer2Encoder(nn.Module):
                                            min=-1.0, max=-0.5)
 
         src_with_bypass = residual_scale * src
-        weight_proj = self.weight_proj
+        weight_proj = self.weight_proj * self.weight_proj_scale
 
         for i, mod in enumerate(self.layers):
             src = mod(
