@@ -196,15 +196,50 @@ def scale_by(x, beta1):
     x2 = torch.matmul(x, x.permute(0, 2, 1))
     x3 = torch.matmul(x2, x)
 
-    eps = 1.0e-10
-    (batch_stride, stride1, stride2) = x2.stride()
-    # x_squared_sum, equivalent to (x**2).sum(dim=(1, 2)), but faster to compute.
-    x2_diag_sum = torch.as_strided(x2, (batch_size, rows), (batch_stride, stride1 + stride2)).sum(dim=1)  # (batch_size,)
-    x2_sq_sum = (x2 ** 2).sum(dim=(1, 2))  # (batch_size,)
-    scale = x2_diag_sum / x2_sq_sum
+    # Suppose we set: x' = x - alpha x3
+    # what is the alpha that minimizes the variance of the resulting x?  (This is relevant
+    # because even this alpha may not be enough to decrease the variance by a factor of beta1^2.)
+    # (x - alpha x3)^2 = x^2 - 2 alpha x^4 + alpha^2 x6.
+    # alpha that minimizes this is x^2 / x^4
 
-    alpha = (1. / 6) * (1 - beta1 ** 2) ** 2
-    alpha = min(0.01, alpha)
+    x6_sum = (x3 ** 2).sum(dim=(1, 2))  # equals numel * mean[x^6]
+    x4_sum = (x2 ** 2).sum(dim=(1, 2))  # equals numel * E[x^4]
+    (batch_stride, stride1, stride2) = x2.stride()
+    x2_sum = torch.as_strided(x2, (batch_size, rows), (batch_stride, stride1 + stride2)).sum(dim=1)  # (batch_size,)
+
+
+
+    eps = 1.0e-30
+
+    # we want the orig var (x^2) to be scaled by beta1^2 after the update.  x2,x4,x6 below are all sums or
+    # means: x2_sum, x4_sum, x6_sum in the code.
+    #   beta1^2 x2 = x^2 - 2 alpha x^4 + alpha^2 x^6
+    #  0 = (1 - beta1^2) x^2 - 2 alpha x^4 + alpha^2 x^6.
+    # this is a quadratic equation in alpha:  a alpha^2 + b alpha + c = 0,  with:
+    #    a = x^6
+    #    b = -2 x^4
+    #    c = (1 - beta1^2) x^2
+    # and we want the smaller of the two solutions in alpha, which is a more minimal change to the params, less overshoot, so:
+    #  alpha = (-b - sqrt(b^2 - 4ac)) /  2 a
+    #        =  (2 x^4 - sqrt( (4 * x^4)^2 - 4 * ((1-beta^2) x^2 x^6)) / (2 x^6.)
+    #        =  (x^4 - sqrt(  (x^4)^2 - ((1-beta^2) x^2 x^6)) / x^6.
+    # below, clamping the term before the sqrt means that if the equation is not solvable we'll just
+    # take the maximum variance reduction we can, given by x4 / x6, and we'll later do conventional
+    # shrinkage (scaling by a number less than one) to get the required variance reduction.
+
+    beta1_2 = beta1 ** 2
+
+    alpha = (x4_sum - (x4_sum**2 - (1 - beta1_2) * x2_sum * x6_sum).clamp(min=0).sqrt())  / (x6_sum + eps)
+
+    # target_ratio is the ratio between the variance we want, to the variance we got
+    # with this alpha value.  it
+    target_ratio =  (beta1_2 * x2_sum) /  (x2_sum - 2 * alpha * x4_sum + alpha**2 * x6_sum)
+
+    post_scale = target_ratio ** 0.5  # post-scaling on x, after applying alpha.
+
+    x.add_(x3 * alpha[:, None, None], alpha=-1)
+
+    x *= post_scale[:, None, None]
 
     if False:
         print(f"alpha={alpha}, scale={scale * (1-beta1)}")
@@ -212,7 +247,6 @@ def scale_by(x, beta1):
         dot_prod2 = (x * x3).sum() * alpha
         print(f"dot_prod1={dot_prod1}, dot_prod2={dot_prod2}")
 
-    x.add_(x3 * (scale * (1-beta1)).clamp(max=alpha)[:, None, None],  alpha=-1)
 
 
 
@@ -235,12 +269,12 @@ def momentum_step(group, state, grad):
 
 
     stored_delta.add_(delta)
-    if step % 3 == 0:
-        # every third step, just do a normal decay, this is an efficient way of
-        # doing a kind of interpolation with the fourth-power regularization.
-        stored_delta.mul_(beta1)
-    else:
-        scale_by(stored_delta, beta1)
+    #if step % 3 == 0:
+    #    # every third step, just do a normal decay, this is an efficient way of
+    #    # doing a kind of interpolation with the fourth-power regularization.
+    #    stored_delta.mul_(beta1)
+    #else:
+    scale_by(stored_delta, beta1)
     return ((-lr * (1-direct) * (1-beta1)) * stored_delta) + ((-lr * direct) * delta)
 
 
