@@ -124,7 +124,7 @@ class BatchedOptimizer(Optimizer):
 
 
 
-def basic_step(group, state, grad):
+def base_step(group, state, grad):
     # computes basic Adam normalized-grad using beta2 (dividing by gradient stddev) only.  no momentum yet.
     beta2 = group["beta2"]
     eps = group["eps"]
@@ -194,29 +194,31 @@ def scale_by(x, beta1):
     (batch_size, rows, cols) = x.shape  # and rows <= cols
 
     x2 = torch.matmul(x, x.permute(0, 2, 1))
-    # x2: (batch_size, rows, rows)
+    x3 = torch.matmul(x2, x)
+
     eps = 1.0e-10
     (batch_stride, stride1, stride2) = x2.stride()
     # x_squared_sum, equivalent to (x**2).sum(dim=(1, 2)), but faster to compute.
     x2_diag_sum = torch.as_strided(x2, (batch_size, rows), (batch_stride, stride1 + stride2)).sum(dim=1)  # (batch_size,)
-
     x2_sq_sum = (x2 ** 2).sum(dim=(1, 2))  # (batch_size,)
     scale = x2_diag_sum / x2_sq_sum
 
-    x_scaled = torch.matmul(x2, x) * scale[:, None, None]
+    alpha = (1. / 6) * (1 - beta1 ** 2) ** 2
+    alpha = min(0.01, alpha)
 
-    #x_scaled_squared_sum = (x ** 2).sum(dim=(1, 2
+    if False:
+        print(f"alpha={alpha}, scale={scale * (1-beta1)}")
+        dot_prod1 = (x * x).sum()
+        dot_prod2 = (x * x3).sum() * alpha
+        print(f"dot_prod1={dot_prod1}, dot_prod2={dot_prod2}")
 
-    #if True:
-    #    dot_prod1 = (x * x).sum(dim=(1, 2))
-    #    dot_prod2 = (x * x_scaled).sum(dim=(1, 2))
-    #    print(f"dot_prod1={dot_prod1}, dot_prod2={dot_prod2}")
+    x.add_(x3 * (scale * (1-beta1)).clamp(max=alpha)[:, None, None],  alpha=-1)
 
-    x.add_(x_scaled, alpha=(beta1-1)) # note: negative alpha.
 
 
 def momentum_step(group, state, grad):
-    delta = basic_step(group, state, grad)
+    delta = base_step(group, state, grad)
+    # delta is the normalized gradient; the rms of delta should be around 1.
 
     lr = group["lr"]
     step = state["step"]
@@ -243,7 +245,7 @@ def momentum_step(group, state, grad):
 
 
 def basic_momentum_step(group, state, grad, lr, beta):
-    delta = basic_step(group, state, grad)
+    delta = base_step(group, state, grad)
 
     step = state["step"]
     try:
