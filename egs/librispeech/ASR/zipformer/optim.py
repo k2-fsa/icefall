@@ -269,11 +269,6 @@ def momentum_step(group, state, grad):
 
 
     stored_delta.add_(delta)
-    #if step % 3 == 0:
-    #    # every third step, just do a normal decay, this is an efficient way of
-    #    # doing a kind of interpolation with the fourth-power regularization.
-    #    stored_delta.mul_(beta1)
-    #else:
     scale_by(stored_delta, beta1)
     return ((-lr * (1-direct) * (1-beta1)) * stored_delta) + ((-lr * direct) * delta)
 
