@@ -124,7 +124,7 @@ class BatchedOptimizer(Optimizer):
 
 
 
-def basic_step(group, p, state, grad):
+def basic_step(group, state, grad):
     # computes basic Adam normalized-grad using beta2 (dividing by gradient stddev) only.  no momentum yet.
     beta2 = group["beta2"]
     eps = group["eps"]
@@ -133,7 +133,7 @@ def basic_step(group, p, state, grad):
         exp_avg_sq = state["exp_avg_sq"]  # shape: (batch_size,) or (batch_size, 1, [1,..])
     except KeyError:
         assert state["step"] < 2
-        exp_avg_sq = torch.zeros(*p.shape, device=p.device, dtype=torch.float)
+        exp_avg_sq = torch.zeros(*grad.shape, device=grad.device, dtype=torch.float)
         state["exp_avg_sq"] = exp_avg_sq
 
     exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
@@ -150,10 +150,14 @@ def basic_step(group, p, state, grad):
 
 
 
-def scale_tensor_by(x, beta1):
-    # internal function called by scale_by; works on "properly shaped" x.  is similar in efffect
+def scale_by(x, beta1):
+    # This is similar in efffect
     # to x.mul_(beta1) but decays the larger singular values of the matrices in x more than the smaller
     # ones.
+    if x.ndim <= 2:
+        x.mul_(beta1)
+        return
+
     if x.ndim > 3:
         # each tensor in the batch has more than two dimensions.
         # reshape to be like a batch of matrices.
@@ -162,13 +166,13 @@ def scale_tensor_by(x, beta1):
             xr = x.reshape(x.shape[0], x.shape[1], -1)
         else:
             xr = x.reshape(x.shape[0], -1, x.shape[-1])
-        scale_tensor_by(xr, beta1)
+        scale_by(xr, beta1)
         if not xr.storage() is x.storage():
             x[:] = xr.reshape(*x.shape)
         return
     if x.shape[1] > x.shape[2]:
         xr = x.permute(0, 2, 1)
-        scale_tensor_by(xr, beta1)
+        scale_by(xr, beta1)
         if not xr.storage() is x.storage():
             x[:] = xr.permute(0, 2, 1)
         return
@@ -180,7 +184,7 @@ def scale_tensor_by(x, beta1):
         for divisor in range(2, 100):
             if n % divisor == 0 and n // divisor <= max_dim:
                 xr = x.reshape(x.shape[0] * divisor, n // divisor, x.shape[2])
-                scale_tensor_by(xr, beta1)
+                scale_by(xr, beta1)
                 if not xr.storage() is x.storage():
                     x[:] = xr.reshape(*x.shape)
                 return
@@ -211,24 +215,8 @@ def scale_tensor_by(x, beta1):
     x.add_(x_scaled, alpha=(beta1-1)) # note: negative alpha.
 
 
-def scale_by(x, beta1, shape):
-    # x is a tensor of shape (batch_size, per_tensor_numel + 1),
-    # where the + 1 is for the log scale.
-    # 'shape' is the shape of x before we flattened it.
-    # if x represents a bias or a scalar, just do x.mul_(beta1).
-    # note: the first dim of x is a "batch dim" which is a batch of same-shaped tensors.
-    if len(shape) <= 2:
-        x.mul_(beta1)
-        return
-
-    scale_tensor_by(x[:, :-1].reshape(*shape), beta1)
-    x[:, -1].mul_(beta1)
-
-
-def momentum_step(group, p, state, grad, shape):
-    delta = basic_step(group, p, state, grad)
-
-    #beta1 = group["betas"][0]
+def momentum_step(group, state, grad):
+    delta = basic_step(group, state, grad)
 
     lr = group["lr"]
     step = state["step"]
@@ -240,7 +228,7 @@ def momentum_step(group, p, state, grad, shape):
     except KeyError as e:
         assert step < 2
         # scalar.  use conventional momentum.
-        stored_delta = torch.zeros(*p.shape, device=p.device, dtype=torch.float)
+        stored_delta = torch.zeros(*grad.shape, device=grad.device, dtype=torch.float)
         state["delta"] = stored_delta
 
 
@@ -250,85 +238,74 @@ def momentum_step(group, p, state, grad, shape):
         # doing a kind of interpolation with the fourth-power regularization.
         stored_delta.mul_(beta1)
     else:
-        scale_by(stored_delta, beta1, shape)
+        scale_by(stored_delta, beta1)
     return ((-lr * (1-direct) * (1-beta1)) * stored_delta) + ((-lr * direct) * delta)
 
 
+def basic_momentum_step(group, state, grad, lr, beta):
+    delta = basic_step(group, state, grad)
 
-def forward_transform_param(group, p):
-    """
-    Returns a transformed version of the batch of parameters (dimension 0 of p is the batch
-    of same-shaped parameters).
-    The transformation is from a parameter to a (parameter-direction, log-weight), where
-    parameter-direction has unit RMS value and log-weight
-    """
-    batch_size = p.shape[0]
-    numel = p.numel() // batch_size
-    if numel == 1:
-        # scalar parameters are treated specially.  scalar_lr_scale is to control
-        # the learning-rate of scalars.
-        return p.reshape(batch_size, 1) / group["scalar_lr_scale"]
+    step = state["step"]
+    try:
+        stored_delta = state["delta"]
+    except KeyError as e:
+        assert step < 2
+        # scalar.  use conventional momentum.
+        stored_delta = torch.zeros(*grad.shape, device=grad.device, dtype=torch.float)
+        state["delta"] = stored_delta
 
-    is_weight = (p.ndim > 2)
+    stored_delta.add_(delta)
+    stored_delta.mul_(beta)
+
+    delta = (-lr * (1 - beta)) * stored_delta
+    return delta
+
+def get_scale(group, p, grad):
+    is_weight = (p.ndim > 2)  # is weight, not bias.  for scalars, we do not
+                              # reach here.  1st dim is batch-of-params dim.
     min_scale = group["weight_min_scale"] if is_weight else group["bias_min_scale"]
-    p_flat = p.reshape(batch_size, numel)
-    abs_sum = p_flat.abs().sum(dim=1, keepdim=True)
-    min_abs_sum = min_scale * numel    # if abs_sum is less than this we pad with an extra element.
-    abs_sum_clamped = abs_sum.clamp(min=min_abs_sum)
-    scale = (abs_sum_clamped / numel)   # must be nonzero thanks to min_abs_sum
 
-    # scaling_lr_scale is to control the learning-rate of scaling factors.
-    # log_scale controls the overall scale of this tensor
-    log_scale = (1 / group["scaling_lr_scale"]) * scale.log()
+    dims = tuple(range(1, p.ndim))
+    abs_mean = p.abs().mean(dim=dims, keepdim=True)
+    abs_mean = abs_mean.clamp(min=min_scale)
 
-    ans = torch.cat((p_flat / scale, log_scale), dim=1)
-    return ans
+    scale = abs_mean
 
-def reverse_transform_param(group, p, orig_shape):
-    batch_size = p.shape[0]
-    if p.numel() == batch_size:
-        return (p * group["scalar_lr_scale"]).reshape(*orig_shape)
-    # numel is num elements of each parameter tensor in the batch.
-    numel = p.shape[1] - 1
+    log_scale_grad = (p * grad).sum(dim=dims, keepdim=True)
 
-    is_weight = (len(orig_shape) > 2)
-    max_scale = group["weight_max_scale"] if is_weight else group["bias_max_scale"]
-    min_scale = group["weight_min_scale"] if is_weight else group["bias_min_scale"]
-    log_scale = (p[:, numel:] * group["scaling_lr_scale"])
+    return scale, log_scale_grad
 
-    scaling_lr = group["scaling_lr_scale"] * group["lr"]
-
-    # Apply weight-decay of log_scale, similar to weight decay of AdamW, except it regresses the
-    # log-scale to a default value instead of regressing the scale towards zero.
-    log_scale_default = math.log(group["scale_default"])
-    log_scale = ((log_scale - log_scale_default) * (1. - group["scale_decay"] * scaling_lr)) + log_scale_default
-    scale = log_scale.exp().clamp(min=min_scale, max=max_scale)
-
-    q = p[:, :-1] * scale
-    q = q.reshape(*orig_shape)
-    return q
-
-
-def forward_transform_param_and_grad(group, p, grad):
-    # returns new parameter.
-    p_shape = p.shape
-    p_flat = forward_transform_param(group, p).detach()
-    with torch.enable_grad():
-        p_flat.requires_grad = True
-        p_reconstruct = reverse_transform_param(group, p_flat, p.shape)
-        p_reconstruct.backward(gradient=grad)
-    return p_flat.detach(), p_flat.grad
 
 
 def scaling_step(group, p, state, grad):
     # returns new parameter.
     p_shape = p.shape
-    p_flat, grad_flat = forward_transform_param_and_grad(group, p, grad)
 
-    p_flat += momentum_step(group, p_flat, state, grad_flat, p_shape)
+    scale, log_scale_grad = get_scale(group, p, grad)
 
-    p = reverse_transform_param(group, p_flat, p.shape)
-    return p
+    try:
+        scale_state = state["scale"]
+    except:
+        scale_state = dict()
+        state["scale"] = scale_state
+    scale_state["step"] = state["step"]
+
+    scale_lr = group["lr"] * group["scalar_lr_scale"]
+    delta_log_scale = basic_momentum_step(group, scale_state, log_scale_grad,
+                                          lr=scale_lr, beta=0.9)
+    # the following is decay of the log scale towards a user-specified default value, like
+    # AdamW but on the log of the scale.
+    delta_log_scale = delta_log_scale - scale_lr * (scale.log() - math.log(group["scale_default"])) * group["scale_decay"]
+
+    is_weight = (p.ndim > 2)
+    max_scale = group["weight_max_scale"] if is_weight else group["bias_max_scale"]
+    min_scale = group["weight_min_scale"] if is_weight else group["bias_min_scale"]
+    new_scale = (scale * (1. + delta_log_scale)).clamp(min=min_scale, max=max_scale)
+
+    delta = momentum_step(group, state, grad)
+
+    return p * (new_scale / scale) + delta * scale
+
 
 
 def debug_step(group, p, state, grad):
@@ -336,7 +313,10 @@ def debug_step(group, p, state, grad):
     debug_buffer_size = 256
     step = state["step"]
 
-    p = scaling_step(group, p, state, grad)
+    if p.shape[0] == p.numel():
+        p = p + basic_momentum_step(group, state, grad, lr=group["lr"]*group["scalar_lr_scale"], beta=0.9)
+    else:
+        p = scaling_step(group, p, state, grad)
 
     if debug_interval == 0 or step % debug_interval != 0:
         return p
@@ -1602,19 +1582,6 @@ def _test_transformed_adam(hidden_dim: int):
         logging.info(f"input_magnitudes = {input_magnitudes}")
         logging.info(f"output_magnitudes = {output_magnitudes}")
 
-def _test_transform_params():
-    # caution: this has occasional errors.
-    group = { "bias_min_scale": 0.001, "weight_min_scale": 0.01, "scalar_lr_scale": 0.1, "scaling_lr_scale": 0.5,
-              "scale_default": 0.05, "scale_decay": 0.01,
-              "weight_max_scale": 20.0, "bias_max_scale": 20.0, "lr": 0.0}   # lr set to 0.0 so weight-scale decay does not happen.
-    for scale in [ 0.0, 1.0e-05, 0.001, 0.01, 1.0, 10.0 ]:
-        for shape in [ (1, 1),  (2, 1), (2, 2), (2, 3, 4), (3, 10, 20), (4,) ]:
-            p = scale * torch.randn(*shape)
-            q = forward_transform_param(group, p)
-            r = reverse_transform_param(group, q, p.shape)
-            assert torch.allclose(p, r, atol=1.0e-02), (p, q, r)
-
-
 if __name__ == "__main__":
     torch.set_num_threads(1)
     torch.set_num_interop_threads(1)
@@ -1632,7 +1599,6 @@ if __name__ == "__main__":
     else:
         hidden_dim = 200
 
-    _test_transform_params()
     _test_transformed_adam(hidden_dim)
     _test_eden()
     _test_sched3()
