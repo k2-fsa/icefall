@@ -167,13 +167,13 @@ def scale_by(x, beta1):
         else:
             xr = x.reshape(x.shape[0], -1, x.shape[-1])
         scale_by(xr, beta1)
-        if not xr.storage() is x.storage():
+        if not xr.untyped_storage() is x.untyped_storage():
             x[:] = xr.reshape(*x.shape)
         return
     if x.shape[1] > x.shape[2]:
         xr = x.permute(0, 2, 1)
         scale_by(xr, beta1)
-        if not xr.storage() is x.storage():
+        if not xr.untyped_storage() is x.untyped_storage():
             x[:] = xr.permute(0, 2, 1)
         return
 
@@ -185,7 +185,7 @@ def scale_by(x, beta1):
             if n % divisor == 0 and n // divisor <= max_dim:
                 xr = x.reshape(x.shape[0] * divisor, n // divisor, x.shape[2])
                 scale_by(xr, beta1)
-                if not xr.storage() is x.storage():
+                if not xr.untyped_storage() is x.untyped_storage():
                     x[:] = xr.reshape(*x.shape)
                 return
         # if no divisor worked, just continue.
@@ -290,12 +290,12 @@ def scaling_step(group, p, state, grad):
         state["scale"] = scale_state
     scale_state["step"] = state["step"]
 
-    scale_lr = group["lr"] * group["scalar_lr_scale"]
+    scale_lr = group["lr"] * group["scaling_lr_scale"]
     delta_log_scale = basic_momentum_step(group, scale_state, log_scale_grad,
                                           lr=scale_lr, beta=0.9)
     # the following is decay of the log scale towards a user-specified default value, like
     # AdamW but on the log of the scale.
-    delta_log_scale = delta_log_scale - scale_lr * (scale.log() - math.log(group["scale_default"])) * group["scale_decay"]
+    delta_log_scale = delta_log_scale - (scale_lr * group["scale_decay"]) * (scale.log() - math.log(group["scale_default"]))
 
     is_weight = (p.ndim > 2)
     max_scale = group["weight_max_scale"] if is_weight else group["bias_max_scale"]
@@ -438,8 +438,8 @@ class TransformedAdam(BatchedOptimizer):
         beta2=0.98,
         scale_decay=0.01,
         scale_default=0.05,
-        scalar_lr_scale=0.1,
-        scaling_lr_scale=0.1,
+        scalar_lr_scale=0.2,
+        scaling_lr_scale=0.2,
         eps=1.0e-08,
         weight_min_scale=0.005,
         weight_max_scale=1.0,
@@ -800,9 +800,7 @@ class TransformedAdam(BatchedOptimizer):
         for (p, state, batch_param_names) in tuples:
             dims = list(range(1, p.ndim))
 
-            p_flat, grad_flat = forward_transform_param_and_grad(group, p, p.grad)
-
-            grad_ratio = ((grad_flat ** 2).mean(dim=1) / state["exp_avg_sq"].mean(dim=1)).sqrt()
+            grad_ratio = ((p.grad ** 2).mean(dim=dims) / state["exp_avg_sq"].mean(dim=dims)).sqrt()
             ratios_names +=  zip(grad_ratio.to('cpu').tolist(), batch_param_names)
 
         ratios_names = sorted(ratios_names, reverse=True)
@@ -922,7 +920,7 @@ class SimpleTransformedAdam(Optimizer):
         scale_decay=0.01,
         scale_default=0.05,
         scalar_lr_scale=0.1,
-        scaling_lr_scale=0.1,
+        scaling_lr_scale=0.2,
         eps=1.0e-08,
         weight_min_scale=0.005,
         weight_max_scale=1.0,
