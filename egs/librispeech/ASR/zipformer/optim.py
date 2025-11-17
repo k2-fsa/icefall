@@ -249,7 +249,6 @@ def scale_by(x, beta1):
 
 
 
-
 def momentum_step(group, state, grad):
     delta = base_step(group, state, grad)
     # delta is the normalized gradient; the rms of delta should be around 1.
@@ -1559,12 +1558,11 @@ def _test_transformed_adam(hidden_dim: int):
         else:
             assert "unknown test", test
 
-        scheduler = Eden(optim, lr_batches=200, lr_epochs=5, verbose=False)
+        scheduler = Sched3(optim, lr_batches=120, power=0.9, verbose=False)
 
         start = timeit.default_timer()
         avg_loss = 0.0
         for epoch in range(180):
-            scheduler.step_epoch()
             # if epoch == 100 and test in [2,3]:
             #    optim.reset_speedup()  # check it doesn't crash.
 
@@ -1575,6 +1573,7 @@ def _test_transformed_adam(hidden_dim: int):
             #    diagnostic = diagnostics.attach_diagnostics(m, opts)
 
             for n, (x, y) in enumerate(train_pairs):
+                scheduler.step_batch()
                 y_out = m(x)
                 loss = ((y_out - y) ** 2).mean() * 100.0
                 if epoch == 0 and n == 0:
@@ -1598,7 +1597,6 @@ def _test_transformed_adam(hidden_dim: int):
                 loss.log().backward()
                 optim.step()
                 optim.zero_grad()
-                scheduler.step_batch()
 
         # diagnostic.print_diagnostics()
 
