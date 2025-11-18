@@ -1737,7 +1737,10 @@ class ConvolutionModule(nn.Module):
 
         x = self.phase_shift(x)   # x (complex): (time, batch, bottleneck_dim)
 
-        x = torch.utils.checkpoint.checkpoint(compute_complex_nonlin, x, centers, center_weights,
+        centers = torch.view_as_complex(self.centers)  # (num_centers, bottleneck_dim)
+        center_weights = self.center_weights  # (num_centers, bottleneck_dim)
+        x = torch.utils.checkpoint.checkpoint(compute_complex_nonlin, x,
+                                              centers, center_weights,
                                               use_reentrant=False)
 
         x = self.out_proj(x)  # (time, batch, channels)
