@@ -1604,37 +1604,39 @@ def round_up_to_power_of_two(x):
     return x
 
 
-class ProjDepthwiseConv(nn.Module):
+
+
+class PhaseShift(nn.Module):
     def __init__(self,
                  num_channels: int,
-                 params_per_channel: int,
-                 bias: bool = True):
+                 params_per_channel: int):
         super().__init__()
-        # initialize to identity function.
-        self.weight = nn.Parameter((params_per_channel ** -0.5) * torch.randn(num_channels, params_per_channel))
-        if bias:
-            self.bias = nn.Parameter(0.01 * torch.randn(num_channels))
-        else:
-            self.bias = None
-
-
-
-class Hilbert(nn.Module):
-    def __init__(self):
-        super().__init__()
-
+        self.phase_shift = nn.Parameter(torch.randn(num_channels, params_per_channel))
 
     def forward(self,
                 x: Tensor) -> Tensor:
         (seq_len, batch_size, num_channels) = x.shape
 
+
+        phase_shift = self.phase_shift.unsqueeze(0)  # (1, num_channels, params_per_channel)
+
         with torch.amp.autocast('cuda', enabled=False):
             # do it in float32 because non power of two seq_len is not supported in half precision.
             x = torch.fft.rfft(x.to(torch.float32), dim=0)
 
-            x = x * 1j
+            # x: (seq_len, batch_size, num_channels)
 
-            x = torch.fft.irfft(x, n=seq_len, dim=0)
+            N = x.shape[0]   # num freqs
+            phase_shift = torch.nn.functional.interpolate(phase_shift, N, mode='linear', align_corners=True)
+            # phase_shift: (1, num_channels, num_freq)
+            phase_shift = phase_shift.permute(2, 0, 1)   # (num_freq, 1, num_channels)
+
+            x = x * torch.polar(torch.ones_like(phase_shift), phase_shift)
+
+            x_real = torch.fft.irfft(x, n=seq_len, dim=0)
+            x_im = torch.fft.irfft(x * 1j, n=seq_len, dim=0)
+
+            x = torch.complex(x_real, x_im)
 
         return x
 
@@ -1675,11 +1677,7 @@ class ConvolutionModule(nn.Module):
 
         self.activation2 = Identity()  # for diagnostics
 
-
-        self.hilbert = Hilbert()  # hilbert transform
-
-        # phase change
-        self.phase_shift = nn.Parameter(torch.randn(bottleneck_dim))
+        self.phase_shift = PhaseShift(bottleneck_dim, kernel_size)   # computes analytic signal with frequency specific phase shift
 
         # bias that determines gain.
         self.bias = nn.Parameter(0.01 * torch.randn(bottleneck_dim))
@@ -1721,16 +1719,8 @@ class ConvolutionModule(nn.Module):
         if src_key_padding_mask is not None:
             x = self.repeat_in_padding(x, src_key_padding_mask)
 
-
-        x = torch.complex(x, self.hilbert(x).to(x.dtype))
-
-
+        x = self.phase_shift(x)
         x_abs = x.abs()
-
-        # change the phase of x by multiplying by a phase shift.
-        phase_shift = self.phase_shift
-        x = x * torch.polar(torch.ones_like(phase_shift), phase_shift)
-
         eps = 1.0e-05
         x_scale = (x_abs + self.bias) / (x_abs + eps)
         x_scale = x_scale.clamp(max=4.0)  # this is to limit gain which should lead to gradient blowup.
