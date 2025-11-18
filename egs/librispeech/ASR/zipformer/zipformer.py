@@ -1611,14 +1611,15 @@ class PhaseShift(nn.Module):
                  num_channels: int,
                  params_per_channel: int):
         super().__init__()
-        self.phase_shift = nn.Parameter(torch.randn(num_channels, params_per_channel))
+        self.weight = nn.Parameter(torch.randn(num_channels, params_per_channel))
+        # the factor of 2 is for (sin, cos)
+        self.weight_proj = nn.Linear(params_per_channel, 2 * params_per_channel)
+
 
     def forward(self,
                 x: Tensor) -> Tensor:
         (seq_len, batch_size, num_channels) = x.shape
 
-
-        phase_shift = self.phase_shift.unsqueeze(0)  # (1, num_channels, params_per_channel)
 
         with torch.amp.autocast('cuda', enabled=False):
             # do it in float32 because non power of two seq_len is not supported in half precision.
@@ -1627,11 +1628,18 @@ class PhaseShift(nn.Module):
             # x: (seq_len, batch_size, num_channels)
 
             N = x.shape[0]   # num freqs
-            phase_shift = torch.nn.functional.interpolate(phase_shift, N, mode='linear', align_corners=True)
-            # phase_shift: (1, num_channels, num_freq)
-            phase_shift = phase_shift.permute(2, 0, 1)   # (num_freq, 1, num_channels)
 
-            x = x * torch.polar(torch.ones_like(phase_shift), phase_shift)
+
+            weight = self.weight_proj(self.weight).reshape(num_channels, 2, -1)
+            weight = torch.nn.functional.interpolate(weight, N, mode='linear', align_corners=True)
+            weight = torch.view_as_complex(weight.permute(2, 0, 1).contiguous())
+            # weight: (N, num_channels)
+            weight = weight.unsqueeze(1)  # (N, 1, num_channels)
+            # the following should be tested.  it's to make the magnitudes of the weights closer to 1.
+            eps = 1.0e-05
+            weight = weight / (weight.abs() + eps).sqrt()
+
+            x = x * weight
 
             x_real = torch.fft.irfft(x, n=seq_len, dim=0)
             x_im = torch.fft.irfft(x * 1j, n=seq_len, dim=0)
