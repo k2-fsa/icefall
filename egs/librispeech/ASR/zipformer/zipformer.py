@@ -1647,6 +1647,13 @@ class PhaseShift(nn.Module):
         return x
 
 
+def compute_complex_nonlin(x: Tensor, centers: Tensor, center_weights: Tensor):
+    # x: complex, (time, batch, bottleneck_dim)
+    # centers: complex, (num_centers, bottleneck_dim)
+    # centers: comlex, (num_centers, bottleneck_dim)
+    return x.real +  (center_weights * (x.unsqueeze(2) - centers).abs()).sum(dim=2)
+
+
 class ConvolutionModule(nn.Module):
     """ConvolutionModule in Zipformer2 model.
     Modified from https://github.com/espnet/espnet/blob/master/espnet/nets/pytorch_backend/zipformer/convolution.py
@@ -1686,7 +1693,7 @@ class ConvolutionModule(nn.Module):
         self.phase_shift = PhaseShift(bottleneck_dim, kernel_size)   # computes analytic signal with frequency specific phase shift
 
         # have a small num centers due to concerns over memory.
-        num_centers = 2
+        num_centers = 6
         self.centers = nn.Parameter(torch.randn(num_centers, bottleneck_dim, 2))  # real, im.
         self.center_weights = nn.Parameter(0.1 * torch.randn(num_centers, bottleneck_dim))
 
@@ -1730,10 +1737,8 @@ class ConvolutionModule(nn.Module):
 
         x = self.phase_shift(x)   # x (complex): (time, batch, bottleneck_dim)
 
-        centers = torch.view_as_complex(self.centers)  # (num_centers, bottleneck_dim)
-        center_weights = self.center_weights  # (num_centers, bottleneck_dim)
-
-        x = x.real +  (center_weights * (x.unsqueeze(2) - centers).abs()).sum(dim=2)
+        x = torch.utils.checkpoint.checkpoint(compute_complex_nonlin, x, centers, center_weights,
+                                              use_reentrant=False)
 
         x = self.out_proj(x)  # (time, batch, channels)
 
