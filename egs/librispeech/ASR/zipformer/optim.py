@@ -828,9 +828,10 @@ class TransformedAdam(BatchedOptimizer):
         largest_name = ""
         ratios_names = [ ]
         for (p, state, batch_param_names) in tuples:
-            dims = list(range(1, p.ndim))
+            def mean(x):
+                return x.mean(dim=tuple(range(1, x.ndim))) if x.ndim > 1 else x
 
-            grad_ratio = ((p.grad ** 2).mean(dim=dims) / state["exp_avg_sq"].mean(dim=dims)).sqrt()
+            grad_ratio = (mean(p.grad ** 2) / mean(state["exp_avg_sq"])).sqrt()
             ratios_names +=  zip(grad_ratio.to('cpu').tolist(), batch_param_names)
 
         ratios_names = sorted(ratios_names, reverse=True)
