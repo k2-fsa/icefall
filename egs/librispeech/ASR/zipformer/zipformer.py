@@ -1578,9 +1578,11 @@ class FeedforwardModule(nn.Module):
         self.in_proj.weight_min_rms = 0.02
 
         # shared_dim=0 means we share the dropout mask along the time axis
-        self.out_proj = ScaledLinear(
+        self.out_proj = ActivationDropoutAndLinear(
             feedforward_dim,
             embed_dim,
+            dropout_p=0.0,
+            activation="SwashR",
             initial_scale=0.5,
             bias=True,
         )
