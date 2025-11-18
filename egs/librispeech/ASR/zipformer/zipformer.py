@@ -1578,13 +1578,11 @@ class FeedforwardModule(nn.Module):
         self.in_proj.weight_min_rms = 0.02
 
         # shared_dim=0 means we share the dropout mask along the time axis
-        self.out_proj = ActivationDropoutAndLinear(
+        self.out_proj = ScaledLinear(
             feedforward_dim,
             embed_dim,
-            activation="SwashL",
-            dropout_p=0.0,
-            bias=True,
             initial_scale=0.5,
+            bias=True,
         )
 
 
@@ -1687,8 +1685,10 @@ class ConvolutionModule(nn.Module):
 
         self.phase_shift = PhaseShift(bottleneck_dim, kernel_size)   # computes analytic signal with frequency specific phase shift
 
-        # bias that determines gain.
-        self.bias = nn.Parameter(0.01 * torch.randn(bottleneck_dim))
+        # have a small num centers due to concerns over memory.
+        num_centers = 2
+        self.centers = nn.Parameter(torch.randn(num_centers, bottleneck_dim, 2))  # real, im.
+        self.center_weights = nn.Parameter(0.1 * torch.randn(num_centers, bottleneck_dim))
 
         self.out_proj = ActivationDropoutAndLinear(
             bottleneck_dim,
@@ -1728,16 +1728,12 @@ class ConvolutionModule(nn.Module):
         if src_key_padding_mask is not None:
             x = self.repeat_in_padding(x, src_key_padding_mask)
 
-        x = self.phase_shift(x)
-        x_abs = x.abs()
-        eps = 1.0e-05
-        x_scale = (x_abs + self.bias) / (x_abs + eps)
-        scale_max = 2.0
-        # make this strictly more than 1.0, but not too large, as it is the maximum amount by which this
-        # operation can blow up the gradient.
-        x_scale = x_scale.clamp(max=scale_max)
+        x = self.phase_shift(x)   # x (complex): (time, batch, bottleneck_dim)
 
-        x = x_scale * torch.real(x)
+        centers = torch.view_as_complex(self.centers)  # (num_centers, bottleneck_dim)
+        center_weights = self.center_weights  # (num_centers, bottleneck_dim)
+
+        x = x.real +  (center_weights * (x.unsqueeze(2) - centers).abs()).sum(dim=2)
 
         x = self.out_proj(x)  # (time, batch, channels)
 
