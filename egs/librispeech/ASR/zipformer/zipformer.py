@@ -1649,11 +1649,24 @@ class PhaseShift(nn.Module):
         return x
 
 
-def compute_complex_nonlin(x: Tensor, centers: Tensor, center_weights: Tensor):
+def compute_complex_nonlin(x: Tensor, centers: Tensor, biases: Tensor):
     # x: complex, (time, batch, bottleneck_dim)
     # centers: complex, (num_centers, bottleneck_dim)
-    # centers: comlex, (num_centers, bottleneck_dim)
-    return x.real +  (center_weights * (x.unsqueeze(2) - centers).abs()).sum(dim=2)
+    # biases: comlex, (num_centers, bottleneck_dim)
+    num_centers = centers.shape[0]
+    biases = - biases.abs()  # make all the biases negative
+    for i in range(num_centers):
+        c = centers[i]
+        b = biases[i]
+        x = x - c
+        eps = 1.0e-05
+        x_abs = x.abs()
+        # shrink towards this central point.
+        scale = (x_abs + b).relu() / (x_abs + eps)
+        x = x * scale
+        x = x + c
+    return x.real
+
 
 
 class ConvolutionModule(nn.Module):
@@ -1694,10 +1707,9 @@ class ConvolutionModule(nn.Module):
 
         self.phase_shift = PhaseShift(bottleneck_dim, kernel_size)   # computes analytic signal with frequency specific phase shift
 
-        # have a small num centers due to concerns over memory.
-        num_centers = 6
+        num_centers = 2
         self.centers = nn.Parameter(torch.randn(num_centers, bottleneck_dim, 2))  # real, im.
-        self.center_weights = nn.Parameter(0.1 * torch.randn(num_centers, bottleneck_dim))
+        self.biases = nn.Parameter(0.1 * torch.randn(num_centers, bottleneck_dim))
 
         self.out_proj = ActivationDropoutAndLinear(
             bottleneck_dim,
@@ -1740,9 +1752,8 @@ class ConvolutionModule(nn.Module):
         x = self.phase_shift(x)   # x (complex): (time, batch, bottleneck_dim)
 
         centers = torch.view_as_complex(self.centers)  # (num_centers, bottleneck_dim)
-        center_weights = self.center_weights  # (num_centers, bottleneck_dim)
         x = torch.utils.checkpoint.checkpoint(compute_complex_nonlin, x,
-                                              centers, center_weights,
+                                              centers, self.biases,
                                               use_reentrant=False)
 
         x = self.out_proj(x)  # (time, batch, channels)
