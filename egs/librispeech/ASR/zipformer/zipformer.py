@@ -1682,10 +1682,11 @@ class ConvolutionModule(nn.Module):
         # bias that determines gain.
         self.bias = nn.Parameter(0.01 * torch.randn(bottleneck_dim))
 
-
-        self.out_proj = ScaledLinear(
+        self.out_proj = ActivationDropoutAndLinear(
             bottleneck_dim,
             channels,
+            activation="SwashR",
+            dropout_p=0.0,
             initial_scale=0.05,
         )
 
