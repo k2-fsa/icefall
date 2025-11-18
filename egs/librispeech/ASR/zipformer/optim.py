@@ -268,7 +268,10 @@ def momentum_step(group, state, grad):
 
 
     stored_delta.add_(delta)
-    scale_by(stored_delta, beta1)
+    if step % 4 == 0:
+        stored_delta.mul_(beta1)
+    else:
+        scale_by(stored_delta, beta1)
     return ((-lr * (1-direct) * (1-beta1)) * stored_delta) + ((-lr * direct) * delta)
 
 
