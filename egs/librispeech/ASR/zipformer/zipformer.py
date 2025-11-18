@@ -1723,7 +1723,10 @@ class ConvolutionModule(nn.Module):
         x_abs = x.abs()
         eps = 1.0e-05
         x_scale = (x_abs + self.bias) / (x_abs + eps)
-        x_scale = x_scale.clamp(max=4.0)  # this is to limit gain which should lead to gradient blowup.
+        scale_max = 2.0
+        # make this strictly more than 1.0, but not too large, as it is the maximum amount by which this
+        # operation can blow up the gradient.
+        x_scale = x_scale.clamp(max=scale_max)
 
         x = x_scale * torch.real(x)
 
