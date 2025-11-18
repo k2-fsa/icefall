@@ -241,7 +241,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--value-head-dim",
         type=str,
-        default="32",
+        default="48",
         help="Value dimension per head in encoder stacks: a single int or comma-separated list.",
     )
 
