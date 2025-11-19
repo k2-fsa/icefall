@@ -1606,14 +1606,18 @@ def round_up_to_power_of_two(x):
 
 
 
-class PhaseShift(nn.Module):
+class FftConv(nn.Module):
     def __init__(self,
                  num_channels: int,
-                 params_per_channel: int):
+                 params_per_channel: int,
+                 bias: bool = True):
         super().__init__()
         self.weight = nn.Parameter(torch.randn(num_channels, params_per_channel))
         # the factor of 2 is for (sin, cos)
         self.weight_proj = nn.Linear(params_per_channel, 2 * params_per_channel)
+
+        if bias:
+            self.bias = nn.Parameter(0.01 * torch.randn(num_channels))
 
 
     def forward(self,
@@ -1624,48 +1628,23 @@ class PhaseShift(nn.Module):
         with torch.amp.autocast('cuda', enabled=False):
             # do it in float32 because non power of two seq_len is not supported in half precision.
             x = torch.fft.rfft(x.to(torch.float32), dim=0)
-
-            # x: (seq_len, batch_size, num_channels)
-
+            # x: (num_freqs, batch_size, num_channels)
             N = x.shape[0]   # num freqs
-
-
             weight = self.weight_proj(self.weight).reshape(num_channels, 2, -1)
             weight = torch.nn.functional.interpolate(weight, N, mode='linear', align_corners=True)
             weight = torch.view_as_complex(weight.permute(2, 0, 1).contiguous())
             # weight: (N, num_channels)
             weight = weight.unsqueeze(1)  # (N, 1, num_channels)
-            # the following should be tested.  it's to make the magnitudes of the weights closer to 1.
-            eps = 1.0e-05
-            weight = weight / (weight.abs() + eps).sqrt()
-
             x = x * weight
+            x = torch.fft.irfft(x, n=seq_len, dim=0)
 
-            x_real = torch.fft.irfft(x, n=seq_len, dim=0)
-            x_im = torch.fft.irfft(x * 1j, n=seq_len, dim=0)
-
-            x = torch.complex(x_real, x_im)
+        try:
+            x = x + self.bias
+        except AttributeError:
+            pass
 
         return x
 
-
-def compute_complex_nonlin(x: Tensor, centers: Tensor, biases: Tensor):
-    # x: complex, (time, batch, bottleneck_dim)
-    # centers: complex, (num_centers, bottleneck_dim)
-    # biases: comlex, (num_centers, bottleneck_dim)
-    num_centers = centers.shape[0]
-    biases = - biases.abs()  # make all the biases negative
-    for i in range(num_centers):
-        c = centers[i]
-        b = biases[i]
-        x = x - c
-        eps = 1.0e-05
-        x_abs = x.abs()
-        # shrink towards this central point.
-        scale = (x_abs + b).relu() / (x_abs + eps)
-        x = x * scale
-        x = x + c
-    return x.real
 
 
 
@@ -1705,11 +1684,7 @@ class ConvolutionModule(nn.Module):
 
         self.activation2 = Identity()  # for diagnostics
 
-        self.phase_shift = PhaseShift(bottleneck_dim, kernel_size)   # computes analytic signal with frequency specific phase shift
-
-        num_centers = 2
-        self.centers = nn.Parameter(torch.randn(num_centers, bottleneck_dim, 2))  # real, im.
-        self.biases = nn.Parameter(0.1 * torch.randn(num_centers, bottleneck_dim))
+        self.depthwise_conv = FftConv(bottleneck_dim, kernel_size)
 
         self.out_proj = ActivationDropoutAndLinear(
             bottleneck_dim,
@@ -1737,6 +1712,14 @@ class ConvolutionModule(nn.Module):
             Tensor: Output tensor (#time, batch, channels).
 
         """
+
+        # x: (time, batch, channels)
+        # Caution: this module is not completely
+        # invariant to the number of frames each sequence is padded with, since
+        # the FFT-based convolution treats the signal as repeating.
+        if src_key_padding_mask is not None:
+            x = x.masked_fill(src_key_padding_mask.t().unsqueeze(-1).expand_as(x), 0.0)
+
         x = self.in_proj(x)  # (time, batch, 2*channels)
 
         x, s = x.chunk(2, dim=2)
@@ -1745,16 +1728,7 @@ class ConvolutionModule(nn.Module):
         x = x * s
         x = self.activation2(x)  # identity
 
-        #x: (time, batch, channels)
-        if src_key_padding_mask is not None:
-            x = self.repeat_in_padding(x, src_key_padding_mask)
-
-        x = self.phase_shift(x)   # x (complex): (time, batch, bottleneck_dim)
-
-        centers = torch.view_as_complex(self.centers)  # (num_centers, bottleneck_dim)
-        x = torch.utils.checkpoint.checkpoint(compute_complex_nonlin, x,
-                                              centers, self.biases,
-                                              use_reentrant=False)
+        x = self.depthwise_conv(x)   # x: (time, batch, bottleneck_dim)
 
         x = self.out_proj(x)  # (time, batch, channels)
 
