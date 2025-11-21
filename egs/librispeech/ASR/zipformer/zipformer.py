@@ -1680,7 +1680,9 @@ class ConvolutionModule(nn.Module):
 
         self.activation1 = Identity()  # for diagnostics
 
-        self.sigmoid = nn.Sigmoid()
+        self.sigmoid1 = nn.Sigmoid()
+
+        self.sigmoid2 = nn.Sigmoid()
 
         self.activation2 = Identity()  # for diagnostics
 
@@ -1723,14 +1725,16 @@ class ConvolutionModule(nn.Module):
         x = self.in_proj(x)  # (time, batch, 2*channels)
 
         x, s, y = x.chunk(3, dim=2)
-        s = self.sigmoid(s)
+        s = self.sigmoid1(s)
+        y = self.sigmoid2(y)
         x = self.activation1(x)  # identity.
         x = x * s
         x = self.activation2(x)  # identity
 
         x = self.depthwise_conv(x)   # x: (time, batch, bottleneck_dim)
 
-        x = self.out_proj(x + y)  # (time, batch, channels)
+        x = x * y
+        x = self.out_proj(x)  # (time, batch, channels)
 
         return x
 
