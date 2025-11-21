@@ -1672,7 +1672,7 @@ class ConvolutionModule(nn.Module):
 
         self.in_proj = nn.Linear(
             channels,
-            2 * bottleneck_dim,
+            3 * bottleneck_dim,
         )
         # the gradients on in_proj are a little noisy, likely to do with the
         # sigmoid in glu.
@@ -1722,7 +1722,7 @@ class ConvolutionModule(nn.Module):
 
         x = self.in_proj(x)  # (time, batch, 2*channels)
 
-        x, s = x.chunk(2, dim=2)
+        x, s, y = x.chunk(3, dim=2)
         s = self.sigmoid(s)
         x = self.activation1(x)  # identity.
         x = x * s
@@ -1730,7 +1730,7 @@ class ConvolutionModule(nn.Module):
 
         x = self.depthwise_conv(x)   # x: (time, batch, bottleneck_dim)
 
-        x = self.out_proj(x)  # (time, batch, channels)
+        x = self.out_proj(x + y)  # (time, batch, channels)
 
         return x
 
