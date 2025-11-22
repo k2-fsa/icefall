@@ -454,13 +454,13 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--base-lr", type=float, default=0.045, help="The base learning rate."
+        "--base-lr", type=float, default=0.05, help="The base learning rate."
     )
 
     parser.add_argument(
         "--lr-batches",
         type=float,
-        default=17500,
+        default=15000,
         help="""Number of steps that affects how rapidly the learning rate
         decreases. We suggest not to change this.""",
     )
