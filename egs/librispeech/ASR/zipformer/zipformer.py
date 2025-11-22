@@ -532,7 +532,7 @@ class Zipformer2EncoderLayer(nn.Module):
             query_head_dim=query_head_dim,
         )
 
-        self.self_attn = SelfAttention(embed_dim, num_heads, value_head_dim)
+        self.self_attn = GatedSelfAttention(embed_dim, num_heads, value_head_dim)
 
         feedforward_dim = embed_dim * feedforward_multiple
         self.feed_forward1 = FeedforwardModule(embed_dim, feedforward_dim)
@@ -1597,9 +1597,9 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
                 )
 
 
-class SelfAttention(nn.Module):
+class GatedSelfAttention(nn.Module):
     """
-    The simplest possible attention module.  This one works with already-computed attention
+    Self-attention module with sigmoid gating.  This one works with already-computed attention
     weights, e.g. as computed by MultiheadAttentionWeights.
 
     Args:
@@ -1607,7 +1607,6 @@ class SelfAttention(nn.Module):
           num_heads: the number of attention heads
           value_head_dim: the value dimension per head
     """
-
     def __init__(
         self,
         embed_dim: int,
@@ -1615,8 +1614,10 @@ class SelfAttention(nn.Module):
         value_head_dim: int,
     ) -> None:
         super().__init__()
-        self.in_proj = OrthogonalLinear(embed_dim, num_heads * value_head_dim,
-                                        bias=True, out_groups=num_heads)
+        self.in_proj = ScaledLinear(embed_dim, 2 *num_heads * value_head_dim,
+                                    bias=True)
+
+        self.sigmoid = nn.Sigmoid()
 
         self.out_proj = ScaledLinear(
              num_heads * value_head_dim, embed_dim, bias=True, initial_scale=0.05
@@ -1648,7 +1649,8 @@ class SelfAttention(nn.Module):
         num_heads = attn_weights.shape[0]
         assert attn_weights.shape == (num_heads, batch_size, seq_len, seq_len)
 
-        x = self.in_proj(x)  # (seq_len, batch_size, num_heads * value_head_dim)
+        x = self.in_proj(x)  # (seq_len, batch_size, 2 * num_heads * value_head_dim)
+        x, s = x.chunk(2, dim=-1)
         x = x.reshape(seq_len, batch_size, num_heads, -1).permute(2, 1, 0, 3)
         # now x: (num_heads, batch_size, seq_len, value_head_dim)
         value_head_dim = x.shape[-1]
@@ -1664,6 +1666,7 @@ class SelfAttention(nn.Module):
         )
 
         # returned value is of shape (seq_len, batch_size, embed_dim), like the input.
+        x = x * self.sigmoid(s)
         x = self.out_proj(x)
 
         return x
