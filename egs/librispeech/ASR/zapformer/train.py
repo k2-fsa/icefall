@@ -234,14 +234,14 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--query-head-dim",
         type=str,
-        default="64",
+        default="32",
         help="Query/key dimension per head in encoder stacks: a single int or comma-separated list.",
     )
 
     parser.add_argument(
         "--value-head-dim",
         type=str,
-        default="64",
+        default="32",
         help="Value dimension per head in encoder stacks: a single int or comma-separated list.",
     )
 
