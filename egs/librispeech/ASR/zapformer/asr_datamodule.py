@@ -32,13 +32,17 @@ from lhotse.dataset import (  # noqa F401 for PrecomputedFeatures
     PrecomputedFeatures,
     SimpleCutSampler,
 )
-# This K2SpeechRecognitionDataset is a modified version of one from
+# MulticopyDataset is a modified version of one from
 # lhotse.dataset, modified to, in training mode, to return a batch that has 3
 # different copies of the same data with the last two having different Musan
 # augmentations and the first having none; and also include the key "num_copies"
 # in the batch which would be 1 for the validation data (no Musan) and 3 for the
 # training data with musan.
-from speech_recognition import K2SpeechRecognitionDataset
+try:
+    from multicopy_dataset import MulticopyDataset # interface like K2SpeechRecognitionDataset
+except:
+    pass
+
 from lhotse.dataset.input_strategies import (  # noqa F401 For AudioSamples
     AudioSamples,
     OnTheFlyFeatures,
@@ -58,6 +62,9 @@ class _SeedWorkers:
 
 
 class LibriSpeechAsrDataModule:
+    pass  # only left here so other branches can run in the same directory. TODO: remove.
+
+class AsrDataModule:
     """
     DataModule for k2 ASR experiments.
     It assumes there is always one train and valid dataloader,
@@ -241,7 +248,7 @@ class LibriSpeechAsrDataModule:
             ] + transforms
 
         logging.info("About to create train dataset")
-        train = K2SpeechRecognitionDataset(
+        train = MulticopyDataset(
             input_strategy=eval(self.args.input_strategy)(),
             cut_transforms=transforms,
             input_transforms=[],
@@ -259,7 +266,7 @@ class LibriSpeechAsrDataModule:
             # to be strict (e.g. could be randomized)
             # transforms = [PerturbSpeed(factors=[0.9, 1.1], p=2/3)] + transforms   # noqa
             # Drop feats to be on the safe side.
-            train = K2SpeechRecognitionDataset(
+            train = MulticopyDataset(
                 cut_transforms=transforms,
                 input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80))),
                 input_transforms=input_transforms,
@@ -317,13 +324,13 @@ class LibriSpeechAsrDataModule:
 
         logging.info("About to create dev dataset")
         if self.args.on_the_fly_feats:
-            validate = K2SpeechRecognitionDataset(
+            validate = MulticopyDataset(
                 cut_transforms=transforms,
                 input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80))),
                 return_cuts=self.args.return_cuts,
             )
         else:
-            validate = K2SpeechRecognitionDataset(
+            validate = MulticopyDataset(
                 cut_transforms=transforms,
                 return_cuts=self.args.return_cuts,
             )
@@ -345,7 +352,7 @@ class LibriSpeechAsrDataModule:
 
     def test_dataloaders(self, cuts: CutSet) -> DataLoader:
         logging.debug("About to create test dataset")
-        test = K2SpeechRecognitionDataset(
+        test = MulticopyDataset(
             input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80)))
             if self.args.on_the_fly_feats
             else eval(self.args.input_strategy)(),
@@ -365,90 +372,150 @@ class LibriSpeechAsrDataModule:
         )
         return test_dl
 
-    @lru_cache()
+
+class LibriSpeech:
+    def __init__(self, manifest_dir: str):
+        """
+        Args:
+          manifest_dir:
+            It is expected to contain the following files::
+
+                - librispeech_cuts_dev-clean.jsonl.gz
+                - librispeech_cuts_dev-other.jsonl.gz
+                - librispeech_cuts_test-clean.jsonl.gz
+                - librispeech_cuts_test-other.jsonl.gz
+                - librispeech_cuts_train-clean-100.jsonl.gz
+                - librispeech_cuts_train-clean-360.jsonl.gz
+                - librispeech_cuts_train-other-500.jsonl.gz
+        """
+        self.manifest_dir = Path(manifest_dir)
+
     def train_clean_5_cuts(self) -> CutSet:
         logging.info("mini_librispeech: About to get train-clean-5 cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_train-clean-5.jsonl.gz"
+            self.manifest_dir / "librispeech_cuts_train-clean-5.jsonl.gz"
         )
 
-    @lru_cache()
     def train_clean_100_cuts(self) -> CutSet:
         logging.info("About to get train-clean-100 cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_train-clean-100.jsonl.gz"
+            self.manifest_dir / "librispeech_cuts_train-clean-100.jsonl.gz"
         )
 
-    @lru_cache()
     def train_clean_360_cuts(self) -> CutSet:
         logging.info("About to get train-clean-360 cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_train-clean-360.jsonl.gz"
+            self.manifest_dir / "librispeech_cuts_train-clean-360.jsonl.gz"
         )
 
-    @lru_cache()
     def train_other_500_cuts(self) -> CutSet:
         logging.info("About to get train-other-500 cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_train-other-500.jsonl.gz"
+            self.manifest_dir / "librispeech_cuts_train-other-500.jsonl.gz"
         )
 
-    @lru_cache()
     def train_all_shuf_cuts(self) -> CutSet:
         logging.info(
             "About to get the shuffled train-clean-100, \
             train-clean-360 and train-other-500 cuts"
         )
         return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_train-all-shuf.jsonl.gz"
+            self.manifest_dir / "librispeech_cuts_train-all-shuf.jsonl.gz"
         )
 
-    @lru_cache()
     def dev_clean_2_cuts(self) -> CutSet:
         logging.info("mini_librispeech: About to get dev-clean-2 cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_dev-clean-2.jsonl.gz"
+            self.manifest_dir / "librispeech_cuts_dev-clean-2.jsonl.gz"
         )
 
-    @lru_cache()
     def dev_clean_cuts(self) -> CutSet:
         logging.info("About to get dev-clean cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_dev-clean.jsonl.gz"
+            self.manifest_dir / "librispeech_cuts_dev-clean.jsonl.gz"
         )
 
-    @lru_cache()
     def dev_other_cuts(self) -> CutSet:
         logging.info("About to get dev-other cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_dev-other.jsonl.gz"
+            self.manifest_dir / "librispeech_cuts_dev-other.jsonl.gz"
         )
 
-    @lru_cache()
     def test_clean_cuts(self) -> CutSet:
         logging.info("About to get test-clean cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_test-clean.jsonl.gz"
+            self.manifest_dir / "librispeech_cuts_test-clean.jsonl.gz"
         )
 
-    @lru_cache()
     def test_other_cuts(self) -> CutSet:
         logging.info("About to get test-other cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_test-other.jsonl.gz"
+            self.manifest_dir / "librispeech_cuts_test-other.jsonl.gz"
         )
 
-    @lru_cache()
-    def gigaspeech_subset_small_cuts(self) -> CutSet:
-        logging.info("About to get Gigaspeech subset-S cuts")
-        return load_manifest_lazy(self.args.manifest_dir / "cuts_S.jsonl.gz")
 
-    @lru_cache()
-    def gigaspeech_dev_cuts(self) -> CutSet:
-        logging.info("About to get Gigaspeech dev cuts")
-        return load_manifest_lazy(self.args.manifest_dir / "cuts_DEV.jsonl.gz")
+class GigaSpeech:
+    def __init__(self, manifest_dir: str):
+        """
+        Args:
+          manifest_dir:
+            It is expected to contain the following files:
 
-    @lru_cache()
-    def gigaspeech_test_cuts(self) -> CutSet:
-        logging.info("About to get Gigaspeech test cuts")
-        return load_manifest_lazy(self.args.manifest_dir / "cuts_TEST.jsonl.gz")
+                - gigaspeech_XL_split_2000/gigaspeech_cuts_XL.*.jsonl.gz
+                - gigaspeech_cuts_L_raw.jsonl.gz
+                - gigaspeech_cuts_M_raw.jsonl.gz
+                - gigaspeech_cuts_S_raw.jsonl.gz
+                - gigaspeech_cuts_XS_raw.jsonl.gz
+                - gigaspeech_cuts_DEV_raw.jsonl.gz
+                - gigaspeech_cuts_TEST_raw.jsonl.gz
+        """
+        self.manifest_dir = Path(manifest_dir)
+
+    def train_XL_cuts(self) -> CutSet:
+        logging.info("About to get train-XL cuts")
+
+        filenames = list(
+            glob.glob(
+                f"{self.manifest_dir}/gigaspeech_XL_split_2000/gigaspeech_cuts_XL.*.jsonl.gz"  # noqa
+            )
+        )
+
+        pattern = re.compile(r"gigaspeech_cuts_XL.([0-9]+).jsonl.gz")
+        idx_filenames = [(int(pattern.search(f).group(1)), f) for f in filenames]
+        idx_filenames = sorted(idx_filenames, key=lambda x: x[0])
+
+        sorted_filenames = [f[1] for f in idx_filenames]
+
+        logging.info(f"Loading {len(sorted_filenames)} splits")
+
+        return lhotse.combine(lhotse.load_manifest_lazy(p) for p in sorted_filenames)
+
+    def train_L_cuts(self) -> CutSet:
+        f = self.manifest_dir / "gigaspeech_cuts_L_raw.jsonl.gz"
+        logging.info(f"About to get train-L cuts from {f}")
+        return CutSet.from_jsonl_lazy(f)
+
+    def train_M_cuts(self) -> CutSet:
+        f = self.manifest_dir / "gigaspeech_cuts_M_raw.jsonl.gz"
+        logging.info(f"About to get train-M cuts from {f}")
+        return CutSet.from_jsonl_lazy(f)
+
+    def train_S_cuts(self) -> CutSet:
+        f = self.manifest_dir / "gigaspeech_cuts_S_raw.jsonl.gz"
+        logging.info(f"About to get train-S cuts from {f}")
+        return CutSet.from_jsonl_lazy(f)
+
+    def train_XS_cuts(self) -> CutSet:
+        f = self.manifest_dir / "gigaspeech_cuts_XS_raw.jsonl.gz"
+        logging.info(f"About to get train-XS cuts from {f}")
+        return CutSet.from_jsonl_lazy(f)
+
+    def test_cuts(self) -> CutSet:
+        f = self.manifest_dir / "gigaspeech_cuts_TEST.jsonl.gz"
+        logging.info(f"About to get TEST cuts from {f}")
+        return load_manifest_lazy(f)
+
+    def dev_cuts(self) -> CutSet:
+        f = self.manifest_dir / "gigaspeech_cuts_DEV.jsonl.gz"
+        logging.info(f"About to get DEV cuts from {f}")
+        return load_manifest_lazy(f)
