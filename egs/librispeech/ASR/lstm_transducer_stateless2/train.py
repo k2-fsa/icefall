@@ -53,7 +53,7 @@ import random
 import warnings
 from pathlib import Path
 from shutil import copyfile
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Dict, Iterator, Optional, Tuple, Union
 
 import k2
 import optim
@@ -770,7 +770,7 @@ def train_one_epoch(
     scheduler: LRSchedulerType,
     sp: spm.SentencePieceProcessor,
     train_dl: torch.utils.data.DataLoader,
-    giga_train_dl: torch.utils.data.DataLoader,
+    iter_giga: Iterator,
     valid_dl: torch.utils.data.DataLoader,
     rng: random.Random,
     scaler: "GradScaler",
@@ -826,7 +826,6 @@ def train_one_epoch(
     dl_weights = [1 - params.giga_prob, params.giga_prob]
 
     iter_libri = iter(train_dl)
-    iter_giga = iter(giga_train_dl)
 
     batch_idx = 0
 
@@ -1177,6 +1176,8 @@ def run(rank, world_size, args):
         else:
             logging.info("Skip scan_pessimistic_batches_for_oom")
 
+    iter_giga = iter(giga_train_dl)
+
     scaler = create_grad_scaler(enabled=params.use_fp16)
     if checkpoints and "grad_scaler" in checkpoints:
         logging.info("Loading grad scaler state dict")
@@ -1200,7 +1201,7 @@ def run(rank, world_size, args):
             scheduler=scheduler,
             sp=sp,
             train_dl=train_dl,
-            giga_train_dl=giga_train_dl,
+            iter_giga=iter_giga,
             valid_dl=valid_dl,
             rng=rng,
             scaler=scaler,
