@@ -32,7 +32,7 @@ from lhotse.dataset import (  # noqa F401 for PrecomputedFeatures
     PrecomputedFeatures,
     SimpleCutSampler,
 )
-# MulticopyDataset is a modified version of one from
+# MulticopyDataset is a modified version of K2SpeechRecognitionDataset from
 # lhotse.dataset, modified to, in training mode, to return a batch that has 3
 # different copies of the same data with the last two having different Musan
 # augmentations and the first having none; and also include the key "num_copies"
@@ -98,8 +98,7 @@ class AsrDataModule:
             "--full-libri",
             type=str2bool,
             default=True,
-            help="""Used only when --mini-libri is False.When enabled,
-            use 960h LibriSpeech. Otherwise, use 100h subset.""",
+            help="""When enabled, use 960h LibriSpeech; and 10000 hour GigaSpeech if --use-gigs. Otherwise, use 100h and if applicable 250h subsets.""",
         )
         group.add_argument(
             "--mini-libri",
@@ -209,6 +208,24 @@ class AsrDataModule:
             default="PrecomputedFeatures",
             help="AudioSamples or PrecomputedFeatures",
         )
+
+        parser.add_argument(
+            "--libri-copies",
+            type=int,
+            default=1,
+            help="If set to <= 0, we use only librispeech (CAUTION: this may be surprising).  If set to > 0, every epoch means one epoch "
+            "of gigaspeech and libri_copies epochs of librispeech (although it is really libri_copies times 3, because of Librispeech "
+            "using speed augmentation."
+        )
+
+        parser.add_argument(
+            "--use-giga",
+            type=str2bool,
+            default=False,
+            help="If set to True, use gigaspeech in addition to librispeech.  See also --libri-copies."
+        )
+
+
 
     def train_dataloaders(
         self,
