@@ -479,16 +479,16 @@ class GigaSpeech:
             It is expected to contain the following files:
 
                 - gigaspeech_XL_split_2000/gigaspeech_cuts_XL.*.jsonl.gz
-                - gigaspeech_cuts_L_raw.jsonl.gz
-                - gigaspeech_cuts_M_raw.jsonl.gz
-                - gigaspeech_cuts_S_raw.jsonl.gz
-                - gigaspeech_cuts_XS_raw.jsonl.gz
-                - gigaspeech_cuts_DEV_raw.jsonl.gz
-                - gigaspeech_cuts_TEST_raw.jsonl.gz
+                - gigaspeech_cuts_L.jsonl.gz
+                - gigaspeech_cuts_M.jsonl.gz
+                - gigaspeech_cuts_S.jsonl.gz
+                - gigaspeech_cuts_XS.jsonl.gz
+                - gigaspeech_cuts_DEV.jsonl.gz
+                - gigaspeech_cuts_TEST.jsonl.gz
         """
         self.manifest_dir = Path(manifest_dir)
 
-    def train_XL_cuts(self) -> CutSet:
+    def train_XL_cuts_split(self) -> CutSet:
         logging.info("About to get train-XL cuts")
 
         filenames = list(
@@ -507,23 +507,28 @@ class GigaSpeech:
 
         return lhotse.combine(lhotse.load_manifest_lazy(p) for p in sorted_filenames)
 
+    def train_XL_cuts(self) -> CutSet:
+        f = self.manifest_dir / "gigaspeech_cuts_XL.jsonl.gz"
+        logging.info(f"About to get train-XL cuts from {f}")
+        return CutSet.from_jsonl_lazy(f)
+
     def train_L_cuts(self) -> CutSet:
-        f = self.manifest_dir / "gigaspeech_cuts_L_raw.jsonl.gz"
+        f = self.manifest_dir / "gigaspeech_cuts_L.jsonl.gz"
         logging.info(f"About to get train-L cuts from {f}")
         return CutSet.from_jsonl_lazy(f)
 
     def train_M_cuts(self) -> CutSet:
-        f = self.manifest_dir / "gigaspeech_cuts_M_raw.jsonl.gz"
+        f = self.manifest_dir / "gigaspeech_cuts_M.jsonl.gz"
         logging.info(f"About to get train-M cuts from {f}")
         return CutSet.from_jsonl_lazy(f)
 
     def train_S_cuts(self) -> CutSet:
-        f = self.manifest_dir / "gigaspeech_cuts_S_raw.jsonl.gz"
+        f = self.manifest_dir / "gigaspeech_cuts_S.jsonl.gz"
         logging.info(f"About to get train-S cuts from {f}")
         return CutSet.from_jsonl_lazy(f)
 
     def train_XS_cuts(self) -> CutSet:
-        f = self.manifest_dir / "gigaspeech_cuts_XS_raw.jsonl.gz"
+        f = self.manifest_dir / "gigaspeech_cuts_XS.jsonl.gz"
         logging.info(f"About to get train-XS cuts from {f}")
         return CutSet.from_jsonl_lazy(f)
 

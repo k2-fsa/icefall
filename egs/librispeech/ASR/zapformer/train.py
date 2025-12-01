@@ -70,7 +70,7 @@ from asr_datamodule import AsrDataModule, LibriSpeech, GigaSpeech
 from attention_decoder import AttentionDecoderModel
 from decoder import Decoder
 from joiner import Joiner
-from lhotse.cut import Cut
+from lhotse.cut import Cut, CutSet
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import AsrModel
@@ -1455,9 +1455,9 @@ def run(rank, world_size, args):
             if params.libri_copies > 1:
                 train_cuts = train_cuts.repeat(params.libri_copies)
                 train_cuts_len = train_cuts_len * params.libri_copies
-            datsets_and_weights = [ (train_cuts, train_cuts_len),
+            datasets_and_weights = [ (train_cuts, train_cuts_len),
                                     (gigaspeech_cuts, gigaspeech_cuts_len) ]
-            cuts, weights = zip(datasets_and_weights)
+            cuts, weights = zip(*datasets_and_weights)
             train_cuts = CutSet.mux(*cuts, weights=weights)
 
     def remove_short_and_long_utt(c: Cut):
