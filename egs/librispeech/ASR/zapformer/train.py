@@ -1452,13 +1452,14 @@ def run(rank, world_size, args):
         else:
             gigaspeech_cuts = gigaspeech.train_S_cuts()  # e.g. for debugging
             gigaspeech_cuts_len = 250.0
-            if params.libri_copies > 1:
-                train_cuts = train_cuts.repeat(params.libri_copies)
-                train_cuts_len = train_cuts_len * params.libri_copies
-            datasets_and_weights = [ (train_cuts, train_cuts_len),
-                                    (gigaspeech_cuts, gigaspeech_cuts_len) ]
-            cuts, weights = zip(*datasets_and_weights)
-            train_cuts = CutSet.mux(*cuts, weights=weights)
+
+        if params.libri_copies > 1:
+            train_cuts = train_cuts.repeat(params.libri_copies)
+            train_cuts_len = train_cuts_len * params.libri_copies
+        datasets_and_weights = [ (train_cuts, train_cuts_len),
+                                 (gigaspeech_cuts, gigaspeech_cuts_len) ]
+        cuts, weights = zip(*datasets_and_weights)
+        train_cuts = CutSet.mux(*cuts, weights=weights)
 
     def remove_short_and_long_utt(c: Cut):
         # Keep only utterances with duration between 1 second and 20 seconds
