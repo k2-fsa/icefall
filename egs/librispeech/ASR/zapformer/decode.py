@@ -106,7 +106,7 @@ import k2
 import sentencepiece as spm
 import torch
 import torch.nn as nn
-from asr_datamodule import LibriSpeechAsrDataModule
+from asr_datamodule import LibriSpeech, AsrDataModule
 from beam_search import (
     beam_search,
     fast_beam_search_nbest,
@@ -778,7 +778,7 @@ def save_wer_results(
 @torch.no_grad()
 def main():
     parser = get_parser()
-    LibriSpeechAsrDataModule.add_arguments(parser)
+    AsrDataModule.add_arguments(parser)
     LmScorer.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
@@ -1040,17 +1040,18 @@ def main():
 
     # we need cut ids to display recognition results.
     args.return_cuts = True
-    librispeech = LibriSpeechAsrDataModule(args)
+    librispeech = LibriSpeech(args.manifest_dir)
+    asr_datamodule = AsrDataModule(args)
 
     test_clean_cuts = librispeech.test_clean_cuts()
     test_other_cuts = librispeech.test_other_cuts()
     dev_clean_cuts = librispeech.dev_clean_cuts()
     dev_other_cuts = librispeech.dev_other_cuts()
 
-    test_clean_dl = librispeech.test_dataloaders(test_clean_cuts)
-    test_other_dl = librispeech.test_dataloaders(test_other_cuts)
-    dev_clean_dl = librispeech.test_dataloaders(dev_clean_cuts)
-    dev_other_dl = librispeech.test_dataloaders(dev_other_cuts)
+    test_clean_dl = asr_datamodule.test_dataloaders(test_clean_cuts)
+    test_other_dl = asr_datamodule.test_dataloaders(test_other_cuts)
+    dev_clean_dl = asr_datamodule.test_dataloaders(dev_clean_cuts)
+    dev_other_dl = asr_datamodule.test_dataloaders(dev_other_cuts)
 
     test_sets = ["dev-clean", "dev-other", "test-clean", "test-other"]
     test_dl = [dev_clean_dl, dev_other_dl, test_clean_dl, test_other_dl]
