@@ -949,10 +949,14 @@ class RotaryPositionalEmbeddings(nn.Module):
         self.rope_init()
 
     def rope_init(self):
-        theta = 1.0 / (
-            self.base
-            ** (torch.arange(0, self.dim, 2)[: (self.dim // 2)].float() / self.dim)
-        )
+        multiple = 4  # have multiples 1,2,3,4 of each frequency
+        # theta is inverse angular frequencies
+        assert self.dim % (2 * multiple) == 0
+        D = self.dim // (2 * multiple)
+        freqs = (self.base // multiple) ** torch.linspace(0., 1., D)
+        freqs = freqs * torch.arange(1, multiple + 1).unsqueeze(1)
+        freqs = freqs.flatten()
+        theta = 1.0 / freqs
         self.register_buffer("theta", theta, persistent=False)
         self.build_rope_cache(self.max_seq_len)
 
