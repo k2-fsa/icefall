@@ -246,20 +246,6 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     )
 
     parser.add_argument(
-        "--pos-head-dim",
-        type=str,
-        default="4",
-        help="Positional-encoding dimension per head in encoder stacks: a single int or comma-separated list.",
-    )
-
-    parser.add_argument(
-        "--pos-dim",
-        type=int,
-        default="48",
-        help="Positional-encoding embedding dimension",
-    )
-
-    parser.add_argument(
         "--conv-params",
         type=str,
         default="32",
@@ -714,9 +700,7 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         num_encoder_layers=lookup(params, "num_encoder_layers"),
         encoder_dim=lookup(params, "encoder_dim"),
         query_head_dim=lookup(params, "query_head_dim"),
-        pos_head_dim=lookup(params, "pos_head_dim"),
         value_head_dim=lookup(params, "value_head_dim"),
-        pos_dim=params.pos_dim,
         num_heads=lookup(params, "num_heads"),
         feedforward_multiple=lookup(params, "feedforward_multiple"),
         conv_params=lookup(params, "conv_params"),
@@ -1373,7 +1357,6 @@ def run(rank, world_size, args):
 
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
-
 
     assert params.use_ctc  # for now, require CTC, we may remove this requirement later.
 

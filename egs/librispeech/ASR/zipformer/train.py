@@ -235,7 +235,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--query-head-dim",
         type=str,
-        default="32",
+        default="48",
         help="Query/key dimension per head in encoder stacks: a single int or comma-separated list.",
     )
 
@@ -244,20 +244,6 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         type=str,
         default="12",
         help="Value dimension per head in encoder stacks: a single int or comma-separated list.",
-    )
-
-    parser.add_argument(
-        "--pos-head-dim",
-        type=str,
-        default="4",
-        help="Positional-encoding dimension per head in encoder stacks: a single int or comma-separated list.",
-    )
-
-    parser.add_argument(
-        "--pos-dim",
-        type=int,
-        default="48",
-        help="Positional-encoding embedding dimension",
     )
 
     parser.add_argument(
@@ -730,9 +716,7 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         num_encoder_layers=lookup(params, "num_encoder_layers"),
         encoder_dim=lookup(params, "encoder_dim"),
         query_head_dim=lookup(params, "query_head_dim"),
-        pos_head_dim=lookup(params, "pos_head_dim"),
         value_head_dim=lookup(params, "value_head_dim"),
-        pos_dim=params.pos_dim,
         num_heads=lookup(params, "num_heads"),
         feedforward_multiple=lookup(params, "feedforward_multiple"),
         cnn_module_kernel=lookup(params, "cnn_module_kernel"),
