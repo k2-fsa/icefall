@@ -945,8 +945,9 @@ class RotaryPositionalEmbeddings(nn.Module):
         self.rope_init()
 
     def rope_init(self):
-        multiples = [ 1, 4. / 3. ] # for each frequency have f and 4 / 3 * f
-        assert self.dim % (2 * len(multiples)) == 0   # e.g. self.dim == 64.  head dim.
+        # these multiples are on the inverse frequences, so on frequencies the multiples would be the inverses of these.
+        multiples = [ 1., 4. / 3., 8. / 5., 8. / 7. ]
+        assert self.dim % (2 * len(multiples)) == 0   # e.g. self.dim == 128.  head dim.
         D = self.dim // (2 * len(multiples))          # e.g. D == 16.
 
 
