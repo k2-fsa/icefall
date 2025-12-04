@@ -949,15 +949,18 @@ class RotaryPositionalEmbeddings(nn.Module):
         self.rope_init()
 
     def rope_init(self):
-        multiple = 4  # have multiples 1,2,3,4 of each frequency
-        # theta is inverse angular frequencies
-        assert self.dim % (2 * multiple) == 0
-        D = self.dim // (2 * multiple)
-        freqs = (self.base // multiple) ** torch.linspace(0., 1., D)
-        freqs = freqs * torch.arange(1, multiple + 1).unsqueeze(1)
-        freqs = freqs.flatten()
-        theta = 1.0 / freqs
-        self.register_buffer("theta", theta, persistent=False)
+        multiples = [ 1, 4. / 3. ] # for each frequency have f and 4 / 3 * f
+        assert self.dim % (2 * len(multiples)) == 0   # e.g. self.dim == 64.  head dim.
+        D = self.dim // (2 * len(multiples))          # e.g. D == 16.
+
+
+        inv_freqs = (2. ** torch.arange(D))  # [ 1, 2, 4, ... ]
+        inv_freqs = torch.cat([ m * inv_freqs for m in multiples ], dim=0)
+
+        angular_freqs = math.pi / inv_freqs
+        # so highest angular_freq is pi, which means flipping between -1 and 1 on alternate tokens.  this is
+        # the nyquist.
+        self.register_buffer("theta", angular_freqs, persistent=False)
         self.build_rope_cache(self.max_seq_len)
 
     def build_rope_cache(self, max_seq_len: int = 4096) -> None:
