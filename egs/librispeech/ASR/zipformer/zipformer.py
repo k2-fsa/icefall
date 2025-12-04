@@ -930,18 +930,14 @@ class RotaryPositionalEmbeddings(nn.Module):
             head in the attention module computed as ``embed_dim // num_heads``
         max_seq_len (int): Maximum expected sequence length for the
             model, if exceeded the cached freqs will be recomputed
-        base (int): The base for the geometric progression used to compute
-            the rotation angles
      """
     def __init__(
             self,
             dim: int,
             max_seq_len: int = 4096,
-            base: int = 10_000,
     ) -> None:
         super().__init__()
         self.dim = dim
-        self.base = base
         self.max_seq_len = max_seq_len
         self.rope_init()
 
@@ -1080,7 +1076,7 @@ class MultiheadAttentionWeights(nn.Module):
             bias=True, initial_scale=0.125 * query_head_dim**-0.25
         )
 
-        self.rope = RotaryPositionalEmbeddings(query_head_dim) # use default max_seq_len=4096, base=10000
+        self.rope = RotaryPositionalEmbeddings(query_head_dim) # use default max_seq_len=4096
 
         self.copy_query = Identity()
 
