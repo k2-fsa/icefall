@@ -101,7 +101,7 @@ class Zipformer2(EncoderInterface):
         downsampling_factor: Tuple[int] = (2, 4),
         encoder_dim: Union[int, Tuple[int]] = 384,
         num_encoder_layers: Union[int, Tuple[int]] = 4,
-        query_head_dim: Union[int, Tuple[int]] = 24,
+        query_head_dim: Union[int, Tuple[int]] = 64,
         pos_head_dim: Union[int, Tuple[int]] = 4,
         value_head_dim: Union[int, Tuple[int]] = 12,
         num_heads: Union[int, Tuple[int]] = 8,
@@ -937,6 +937,7 @@ class RotaryPositionalEmbeddings(nn.Module):
             max_seq_len: int = 4096,
     ) -> None:
         super().__init__()
+        assert dim in [64, 128]
         self.dim = dim
         self.max_seq_len = max_seq_len
         self.rope_init()
@@ -946,10 +947,14 @@ class RotaryPositionalEmbeddings(nn.Module):
 
     def rope_init(self):
         # these multiples are on the inverse frequences, so on frequencies the multiples would be the inverses of these.
-        multiples = [ 1., 4. / 3., 8. / 5., 8. / 7. ]
+        # it's the frequencies we want to be exact multiples of each other.
+        if self.dim == 64:
+            multiples = [ 1., 4. / 3. ]
+        else:
+            assert self.dim == 128
+            multiples = [ 1., 4. / 3., 8. / 5., 8. / 7. ]
         assert self.dim % (2 * len(multiples)) == 0   # e.g. self.dim == 128.  head dim.
         D = self.dim // (2 * len(multiples))          # e.g. D == 16.
-
 
         inv_freqs = (2. ** torch.arange(D))  # [ 1, 2, 4, ... ]
         inv_freqs = torch.cat([ m * inv_freqs for m in multiples ], dim=0)
