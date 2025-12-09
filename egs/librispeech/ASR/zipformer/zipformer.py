@@ -1775,8 +1775,8 @@ class FftConv(nn.Module):
                  bias: bool = True):
         super().__init__()
         self.weight = nn.Parameter(torch.randn(num_channels, params_per_channel))
-        # the factor of 2 is for (sin, cos)
-        self.weight_proj = nn.Linear(params_per_channel, 2 * params_per_channel)
+        # one factor of 2 is for (sin, cos); the other is to double the num representable freqs
+        self.weight_proj = nn.Linear(params_per_channel, 4 * params_per_channel)
 
         if bias:
             self.bias = nn.Parameter(0.01 * torch.randn(num_channels))
