@@ -248,7 +248,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--conv-params",
         type=str,
-        default="32",
+        default="32,32,16,32",
         help="Parameters per channel of convolution kernels",
     )
 
