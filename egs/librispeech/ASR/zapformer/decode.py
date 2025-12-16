@@ -106,7 +106,7 @@ import k2
 import sentencepiece as spm
 import torch
 import torch.nn as nn
-from asr_datamodule import LibriSpeech, AsrDataModule
+from asr_datamodule import LibriSpeech, GigaSpeech, AsrDataModule
 from beam_search import (
     beam_search,
     fast_beam_search_nbest,
@@ -141,6 +141,66 @@ from icefall.utils import (
 )
 
 LOG_EPS = math.log(1e-10)
+
+conversational_filler = [
+    "UH",
+    "UHH",
+    "UM",
+    "EH",
+    "MM",
+    "HM",
+    "AH",
+    "HUH",
+    "HA",
+    "ER",
+    "OOF",
+    "HEE",
+    "ACH",
+    "EEE",
+    "EW",
+]
+unk_tags = ["<UNK>", "<unk>"]
+gigaspeech_punctuations = [
+    "<COMMA>",
+    "<PERIOD>",
+    "<QUESTIONMARK>",
+    "<EXCLAMATIONPOINT>",
+]
+gigaspeech_garbage_utterance_tags = ["<SIL>", "<NOISE>", "<MUSIC>", "<OTHER>"]
+non_scoring_words = (
+    conversational_filler
+    + unk_tags
+    + gigaspeech_punctuations
+    + gigaspeech_garbage_utterance_tags
+)
+
+
+def asr_text_post_processing(text: str) -> str:   # only used for gigaspeech
+    # 1. convert to uppercase
+    text = text.upper()
+
+    # 2. remove hyphen
+    #   "E-COMMERCE" -> "E COMMERCE", "STATE-OF-THE-ART" -> "STATE OF THE ART"
+    text = text.replace("-", " ")
+
+    # 3. remove non-scoring words from evaluation
+    remaining_words = []
+    for word in text.split():
+        if word in non_scoring_words:
+            continue
+        remaining_words.append(word)
+
+    return " ".join(remaining_words)
+
+def post_processing(
+    results: List[Tuple[str, List[str], List[str]]],
+) -> List[Tuple[str, List[str], List[str]]]:
+    new_results = []
+    for key, ref, hyp in results:
+        new_ref = asr_text_post_processing(" ".join(ref)).split()
+        new_hyp = asr_text_post_processing(" ".join(hyp)).split()
+        new_results.append((key, new_ref, new_hyp))
+    return new_results
 
 
 def get_parser():
@@ -376,6 +436,13 @@ def get_parser():
         type=str2bool,
         default=False,
         help="""Skip scoring, but still save the ASR output (for eval sets).""",
+    )
+
+    parser.add_argument(
+        "--giga",
+        type=str2bool,
+        default=False,
+        help="""If True, decode gigaspeech in addition to librispeech test sets.""",
     )
 
     add_model_arguments(parser)
@@ -716,6 +783,7 @@ def decode_dataset(
             batch_str = f"{batch_idx}/{num_batches}"
 
             logging.info(f"batch {batch_str}, cuts processed until now is {num_cuts}")
+
     return results
 
 
@@ -730,8 +798,10 @@ def save_asr_output(
     for key, results in results_dict.items():
 
         recogs_filename = params.res_dir / f"recogs-{test_set_name}-{params.suffix}.txt"
-
         results = sorted(results)
+        if params.giga:
+            results = post_processing(results)
+
         store_transcripts(filename=recogs_filename, texts=results)
 
         logging.info(f"The transcripts are stored in {recogs_filename}")
@@ -747,6 +817,9 @@ def save_wer_results(
     """
     test_set_wers = dict()
     for key, results in results_dict.items():
+        if params.giga:
+            results = post_processing(results)
+
         # The following prints out WERs, per-word error statistics and aligned
         # ref/hyp pairs.
         errs_filename = params.res_dir / f"errs-{test_set_name}-{params.suffix}.txt"
@@ -1040,21 +1113,33 @@ def main():
 
     # we need cut ids to display recognition results.
     args.return_cuts = True
-    librispeech = LibriSpeech(args.manifest_dir)
     asr_datamodule = AsrDataModule(args)
+    test_sets = []
+    test_dl = []
+    if True:  # if not args.giga:
+        librispeech = LibriSpeech(args.manifest_dir)
 
-    test_clean_cuts = librispeech.test_clean_cuts()
-    test_other_cuts = librispeech.test_other_cuts()
-    dev_clean_cuts = librispeech.dev_clean_cuts()
-    dev_other_cuts = librispeech.dev_other_cuts()
+        test_clean_cuts = librispeech.test_clean_cuts()
+        test_other_cuts = librispeech.test_other_cuts()
+        dev_clean_cuts = librispeech.dev_clean_cuts()
+        dev_other_cuts = librispeech.dev_other_cuts()
 
-    test_clean_dl = asr_datamodule.test_dataloaders(test_clean_cuts)
-    test_other_dl = asr_datamodule.test_dataloaders(test_other_cuts)
-    dev_clean_dl = asr_datamodule.test_dataloaders(dev_clean_cuts)
-    dev_other_dl = asr_datamodule.test_dataloaders(dev_other_cuts)
+        test_clean_dl = asr_datamodule.test_dataloaders(test_clean_cuts)
+        test_other_dl = asr_datamodule.test_dataloaders(test_other_cuts)
+        dev_clean_dl = asr_datamodule.test_dataloaders(dev_clean_cuts)
+        dev_other_dl = asr_datamodule.test_dataloaders(dev_other_cuts)
 
-    test_sets = ["dev-clean", "dev-other", "test-clean", "test-other"]
-    test_dl = [dev_clean_dl, dev_other_dl, test_clean_dl, test_other_dl]
+        test_sets += ["dev-clean", "dev-other", "test-clean", "test-other"]
+        test_dl += [dev_clean_dl, dev_other_dl, test_clean_dl, test_other_dl]
+
+    if args.giga:
+        gigaspeech = GigaSpeech(args.manifest_dir)
+        test_cuts = gigaspeech.test_cuts()
+        dev_cuts = gigaspeech.dev_cuts()
+        giga_test_dl = asr_datamodule.test_dataloaders(test_cuts)
+        giga_dev_dl = asr_datamodule.test_dataloaders(dev_cuts)
+        test_sets += ["dev", "test"]
+        test_dl += [giga_test_dl, giga_dev_dl]
 
     for test_set, test_dl in zip(test_sets, test_dl):
         results_dict = decode_dataset(
