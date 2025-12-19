@@ -1652,7 +1652,7 @@ class CorrelationLimiterFunction(torch.autograd.Function):
                         f"CorrelationLimiter: name={ctx.name}, loss_scale={aux_loss_scale}, correlation={correlation.mean()}"
                     )
 
-                correlation.backward(gradient=torch.full_like(correlation, aux_loss_scale / correlation.numel()))
+                correlation.backward(gradient=torch.full_like(correlation, aux_loss_scale * batch_size * seq_len / correlation.numel()))
 
 
         return x_orig.grad, y_orig.grad, None, None, None
