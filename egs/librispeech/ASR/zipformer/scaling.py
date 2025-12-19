@@ -1647,22 +1647,12 @@ class CorrelationLimiterFunction(torch.autograd.Function):
                 # correlation between tr(M) estimates between elements of the batch.
                 correlation = r[0::2] * r[1::2]
 
-                correlation = correlation.mean()
-
-
-
-                corr_plus = (1 + correlation.abs())
-                scale = (1 + corr_plus.log()) / corr_plus
-
                 if random.random() < 0.0001:
                     logging.info(
-                        f"CorrelationLimiter: name={ctx.name}, loss_scale={aux_loss_scale}, correlation={correlation}, scaled_correlation={correlation*scale}"
+                        f"CorrelationLimiter: name={ctx.name}, loss_scale={aux_loss_scale}, correlation={correlation.mean()}"
                     )
 
-
-                correlation = correlation * scale
-
-                correlation.backward(gradient=torch.tensor(aux_loss_scale * half_batch * seq_len, device=correlation.device))
+                correlation.backward(gradient=torch.full_like(correlation, aux_loss_scale))
 
 
         return x_orig.grad, y_orig.grad, None, None, None
