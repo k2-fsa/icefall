@@ -585,7 +585,7 @@ class Zipformer2EncoderLayer(nn.Module):
         offset = with_loss(offset,
                            self.offset_correlation_limiter(
                                src_orig.permute(1, 0, 2), offset.permute(1, 0, 2),
-                               0.1 * aux_loss_scale, mask=src_key_padding_mask))
+                               aux_loss_scale, mask=src_key_padding_mask))
 
         src = src_orig + offset
 
