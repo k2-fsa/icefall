@@ -1650,7 +1650,7 @@ class CorrelationLimiterFunction(torch.autograd.Function):
                         f"CorrelationLimiter: name={ctx.name}, loss_scale={aux_loss_scale}, correlation={correlation}"
                     )
 
-                correlation = correlation.clamp(min=-1., max=1.) + (0.1 * correlation.clamp(min=-10., max=10.)) + (0.01 * correlation.clamp(min=-100., max=100.))
+                correlation = correlation.clamp(min=-1., max=1.) + (0.1 * correlation.clamp(min=-10., max=10.)) + (0.01 * correlation)
 
                 correlation.backward(gradient=torch.tensor(aux_loss_scale * half_batch * seq_len, device=correlation.device))
 
