@@ -1638,19 +1638,27 @@ class CorrelationLimiterFunction(torch.autograd.Function):
                 # r: (batch_size, M, dim)
                 r = torch.matmul(x, r.transpose(1, 2))  # (batch_size, seq_len, m)
                 r = torch.matmul(r.transpose(1, 2), y) # (batch_size, m, dim)
-                r = r * (1. / seq_len)
+                r = r * 1. / (seq_len * (num_channels ** 0.5))
+                # the summed-over dims in matmuls were num_channels and seq_len but the channel dims can be
+                # treated as independent not correlated so power of 0.5
 
                 # correlation between tr(M) estimates between elements of the batch.
                 correlation = r[0::2] * r[1::2]
 
                 correlation = correlation.mean()
 
+
+
+                corr_plus = (1 + correlation.abs())
+                scale = (1 + corr_plus.log()) / corr_plus
+
                 if random.random() < 0.0001:
                     logging.info(
-                        f"CorrelationLimiter: name={ctx.name}, loss_scale={aux_loss_scale}, correlation={correlation}"
+                        f"CorrelationLimiter: name={ctx.name}, loss_scale={aux_loss_scale}, correlation={correlation}, scaled_correlation={correlation*scale}"
                     )
 
-                correlation = correlation.clamp(min=-1., max=1.) + (0.1 * correlation.clamp(min=-10., max=10.)) + (0.01 * correlation)
+
+                correlation = correlation * scale
 
                 correlation.backward(gradient=torch.tensor(aux_loss_scale * half_batch * seq_len, device=correlation.device))
 
