@@ -1614,9 +1614,16 @@ class CorrelationLimiterFunction(torch.autograd.Function):
                     x = x * mask
                 x, y = x.to(torch.float), y.to(torch.float)
                 x, y = x.detach(), y.detach()
-                x_orig, y_orig = x, y
                 x.requires_grad = True
                 y.requires_grad = True
+                x_orig, y_orig = x, y
+
+                def norm(x: Tensor):
+                    eps = 1.0e-20
+                    return x / ((x ** 2).mean(dim=-1, keepdim=True) + eps).sqrt()
+
+                x = norm(x)
+                y = norm(y)
                 half_batch = batch_size // 2
                 if half_batch <= 1:
                     # the reason we also return None if half_batch==1 is because of CR-CTC
