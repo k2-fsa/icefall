@@ -435,7 +435,7 @@ class AsrModel(nn.Module):
             B = batch_size // num_copies
             x = x.reshape(num_copies, B, seq_len, num_channels)
 
-            do_time_warp = True
+            do_time_warp = False
             if do_time_warp:
                 # Apply time warping.  First append the copies on the channel
                 # dimension so all copies get the exact same time-warping.
