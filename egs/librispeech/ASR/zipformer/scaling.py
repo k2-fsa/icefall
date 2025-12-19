@@ -1609,9 +1609,6 @@ class CorrelationLimiterFunction(torch.autograd.Function):
         (batch_size, seq_len, num_channels) = x.shape
         with torch.enable_grad():
             with torch.amp.autocast('cuda', enabled=False):
-                if mask is not None:
-                    mask = (~mask).to(x.dtype).unsqueeze(-1)
-                    x = x * mask
                 x, y = x.to(torch.float), y.to(torch.float)
                 x, y = x.detach(), y.detach()
                 x.requires_grad = True
@@ -1621,9 +1618,14 @@ class CorrelationLimiterFunction(torch.autograd.Function):
                 def norm(x: Tensor):
                     eps = 1.0e-20
                     return x / ((x ** 2).mean(dim=-1, keepdim=True) + eps).sqrt()
-
                 x = norm(x)
                 y = norm(y)
+
+                if mask is not None:
+                    mask = (~mask).to(x.dtype).unsqueeze(-1)
+                    x = x * mask
+                    y = y * mask
+
                 half_batch = batch_size // 2
                 if half_batch <= 1:
                     # the reason we also return None if half_batch==1 is because of CR-CTC
