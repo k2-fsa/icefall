@@ -450,7 +450,7 @@ class AsrModel(nn.Module):
                     x = time_warp(
                         x.to(torch.float),
                         time_warp_factor=time_warp_factor,
-                        supervision_segments=supervision_segments[:B],
+                        supervision_segments=supervision_segments[:x.shape[0]],
                     )
                 if shared_time_warp:
                     x = x.reshape(B, seq_len, num_copies, num_channels)
