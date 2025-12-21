@@ -437,9 +437,13 @@ class AsrModel(nn.Module):
 
             do_time_warp = True
             if do_time_warp:
-                # Apply time warping.  First append the copies on the channel
-                # dimension so all copies get the exact same time-warping.
-                x = x.permute(1, 2, 0, 3).reshape(B, seq_len, num_copies * num_channels)
+                shared_time_warp = False
+                if shared_time_warp:
+                    # Apply time warping.  First append the copies on the channel
+                    # dimension so all copies get the exact same time-warping.
+                    x = x.permute(1, 2, 0, 3).reshape(B, seq_len, num_copies * num_channels)
+                else:
+                    x = x.reshape(num_copies * B, seq_len, num_channels)
 
                 assert supervision_segments is not None
                 with torch.amp.autocast('cuda', enabled=False):
@@ -448,8 +452,12 @@ class AsrModel(nn.Module):
                         time_warp_factor=time_warp_factor,
                         supervision_segments=supervision_segments[:B],
                     )
-                x = x.reshape(B, seq_len, num_copies, num_channels)
-                x = x.permute(2, 0, 1, 3)  # x: (num_copies, B, seq_len, num_channels)
+                if shared_time_warp:
+                    x = x.reshape(B, seq_len, num_copies, num_channels)
+                    x = x.permute(2, 0, 1, 3)  # x: (num_copies, B, seq_len, num_channels)
+                else:
+                    x = x.reshape(num_copies, B, seq_len, num_channels)
+
 
             # x_no_specaug is several repeats of the 1st copy of the data, which
             # is the one not augmented with Musan.  But it does have time
