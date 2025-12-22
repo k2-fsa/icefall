@@ -262,7 +262,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--joiner-multiple",
         type=int,
-        default=8,
+        default=12,
         help="""Dimension used in the joiner model.
         Outputs from the encoder and decoder model are projected
         to this dimension before adding.
