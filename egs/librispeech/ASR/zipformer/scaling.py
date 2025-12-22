@@ -1609,14 +1609,23 @@ class CorrelationLimiterFunction(torch.autograd.Function):
         (batch_size, seq_len, num_channels) = x.shape
         with torch.enable_grad():
             with torch.amp.autocast('cuda', enabled=False):
+                x, y = x.to(torch.float), y.to(torch.float)
+                x, y = x.detach(), y.detach()
+                x.requires_grad = True
+                y.requires_grad = True
+                x_orig, y_orig = x, y
+
+                def norm(x: Tensor):
+                    eps = 1.0e-20
+                    return x / ((x ** 2).mean(dim=-1, keepdim=True) + eps).sqrt()
+                x = norm(x)
+                y = norm(y)
+
                 if mask is not None:
                     mask = (~mask).to(x.dtype).unsqueeze(-1)
                     x = x * mask
-                x, y = x.to(torch.float), y.to(torch.float)
-                x, y = x.detach(), y.detach()
-                x_orig, y_orig = x, y
-                x.requires_grad = True
-                y.requires_grad = True
+                    y = y * mask
+
                 half_batch = batch_size // 2
                 if half_batch <= 1:
                     # the reason we also return None if half_batch==1 is because of CR-CTC
@@ -1631,17 +1640,20 @@ class CorrelationLimiterFunction(torch.autograd.Function):
                 # r: (batch_size, M, dim)
                 r = torch.matmul(x, r.transpose(1, 2))  # (batch_size, seq_len, m)
                 r = torch.matmul(r.transpose(1, 2), y) # (batch_size, m, dim)
-                r = r * (1. / seq_len)
+                r = r * 1. / (seq_len * (num_channels ** 0.5))
+                # the summed-over dims in matmuls were num_channels and seq_len but the channel dims can be
+                # treated as independent not correlated so power of 0.5
 
                 # correlation between tr(M) estimates between elements of the batch.
                 correlation = r[0::2] * r[1::2]
 
-                if random.random() < 0.001:
+                if random.random() < 0.0001:
                     logging.info(
                         f"CorrelationLimiter: name={ctx.name}, loss_scale={aux_loss_scale}, correlation={correlation.mean()}"
                     )
 
-                correlation.backward(gradient=torch.full_like(correlation, aux_loss_scale / num_channels))
+                correlation.backward(gradient=torch.full_like(correlation, aux_loss_scale * batch_size * seq_len / correlation.numel()))
+
 
         return x_orig.grad, y_orig.grad, None, None, None
 
