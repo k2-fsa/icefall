@@ -1635,9 +1635,8 @@ class CorrelationLimiterFunction(torch.autograd.Function):
                 x = x[:2*half_batch]
                 y = y[:2*half_batch]
 
-
                 x1, x2 = x[0::2], x[1::2]
-                y1, y2 = x[0::2], x[1::2]
+                y1, y2 = y[0::2], y[1::2]
 
                 S1 = torch.matmul(x1.reshape(-1, num_channels).t(), y1.reshape(-1, num_channels)) * (1. / (half_batch * seq_len))
                 S2 = torch.matmul(x2.reshape(-1, num_channels).t(), y2.reshape(-1, num_channels)) * (1. / (half_batch * seq_len))
@@ -1662,7 +1661,7 @@ class CorrelationLimiter(torch.nn.Module):
     Adds a penalty in backprop if feature x and feature y are correlated.
     Assumes input is (batch, seq, channel)
     """
-    def __init__(self, limit: FloatLike = 0.03):
+    def __init__(self, limit: FloatLike = 0.0):
         super().__init__()
         self.name = None
         self.limit = limit
