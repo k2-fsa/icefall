@@ -1593,9 +1593,10 @@ class ScaleLimiter(torch.nn.Module):
 
 class CorrelationLimiterFunction(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, x: Tensor, y: Tensor, aux_loss_scale: float, mask: Optional[Tensor], name: str):
+    def forward(ctx, x: Tensor, y: Tensor, aux_loss_scale: float, limit: float, mask: Optional[Tensor], name: str):
         ctx.save_for_backward(x, y)
         ctx.mask = mask
+        ctx.limit = limit
         ctx.aux_loss_scale = aux_loss_scale
         ctx.name = name
         return x
@@ -1642,14 +1643,15 @@ class CorrelationLimiterFunction(torch.autograd.Function):
                 S2 = torch.matmul(x2.reshape(-1, num_channels).t(), y2.reshape(-1, num_channels)) * (1. / (half_batch * seq_len))
 
                 # S1, S2: (num_channels, num_channels)
-                correlation = S1 * S2
+                correlation = (S1 * S2).mean()
+                loss = (correlation - ctx.limit).relu()
 
                 if random.random() < 0.0001:
                     logging.info(
-                        f"CorrelationLimiter: name={ctx.name}, loss_scale={aux_loss_scale}, correlation={correlation.mean()}"
+                        f"CorrelationLimiter: name={ctx.name}, loss_scale={aux_loss_scale}, correlation={correlation}, loss={loss}"
                     )
 
-                correlation.backward(gradient=torch.full_like(correlation, aux_loss_scale * batch_size * seq_len / correlation.numel()))
+                loss.backward(gradient=torch.tensor(aux_loss_scale * batch_size * seq_len, device=loss.device))
 
 
         return x_orig.grad, y_orig.grad, None, None, None
@@ -1660,9 +1662,10 @@ class CorrelationLimiter(torch.nn.Module):
     Adds a penalty in backprop if feature x and feature y are correlated.
     Assumes input is (batch, seq, channel)
     """
-    def __init__(self):
+    def __init__(self, limit: FloatLike = 0.03):
         super().__init__()
         self.name = None
+        self.limit = limit
 
 
     def forward(self, x: Tensor, y: Tensor, aux_loss_scale: float, mask: Optional[Tensor]) -> Tensor:
@@ -1674,7 +1677,7 @@ class CorrelationLimiter(torch.nn.Module):
             return torch.tensor(0.0, device=x.device)
         else:
             return CorrelationLimiterFunction.apply(x, y,
-                                                    aux_loss_scale, mask,
+                                                    aux_loss_scale, limit, mask,
                                                     self.name)
 
 
