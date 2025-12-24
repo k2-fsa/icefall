@@ -1603,7 +1603,6 @@ class CorrelationLimiterFunction(torch.autograd.Function):
     @staticmethod
     def backward(ctx, ans_grad: Tensor):  # assume ans_grad is 1.0
         x, y = ctx.saved_tensors
-        dim = x.shape[-1]
         mask = ctx.mask
         aux_loss_scale =  ctx.aux_loss_scale
         (batch_size, seq_len, num_channels) = x.shape
@@ -1635,17 +1634,15 @@ class CorrelationLimiterFunction(torch.autograd.Function):
                 x = x[:2*half_batch]
                 y = y[:2*half_batch]
 
-                M = 64  # number of random vectors, this should be more than enough.
-                r = torch.randn(half_batch, M, dim, device=x.device).repeat_interleave(2, dim=0)
-                # r: (batch_size, M, dim)
-                r = torch.matmul(x, r.transpose(1, 2))  # (batch_size, seq_len, m)
-                r = torch.matmul(r.transpose(1, 2), y) # (batch_size, m, dim)
-                r = r * 1. / (seq_len * (num_channels ** 0.5))
-                # the summed-over dims in matmuls were num_channels and seq_len but the channel dims can be
-                # treated as independent not correlated so power of 0.5
 
-                # correlation between tr(M) estimates between elements of the batch.
-                correlation = r[0::2] * r[1::2]
+                x1, x2 = x[0::2], x[1::2]
+                y1, y2 = x[0::2], x[1::2]
+
+                S1 = torch.matmul(x1.reshape(-1, num_channels).t(), y1.reshape(-1, num_channels)) * (1. / (half_batch * seq_len))
+                S2 = torch.matmul(x2.reshape(-1, num_channels).t(), y2.reshape(-1, num_channels)) * (1. / (half_batch * seq_len))
+
+                # S1, S2: (num_channels, num_channels)
+                correlation = S1 * S2
 
                 if random.random() < 0.0001:
                     logging.info(
