@@ -1661,7 +1661,7 @@ class CorrelationLimiter(torch.nn.Module):
     Adds a penalty in backprop if feature x and feature y are correlated.
     Assumes input is (batch, seq, channel)
     """
-    def __init__(self, limit: FloatLike = 0.0):
+    def __init__(self, limit: FloatLike = 0.005):
         super().__init__()
         self.name = None
         self.limit = limit
