@@ -1654,7 +1654,7 @@ class CorrelationLimiterFunction(torch.autograd.Function):
                 loss.backward(gradient=torch.tensor(aux_loss_scale * batch_size * seq_len, device=loss.device))
 
 
-        return x_orig.grad, y_orig.grad, None, None, None
+        return x_orig.grad, y_orig.grad, None, None, None, None
 
 
 class CorrelationLimiter(torch.nn.Module):
@@ -1677,7 +1677,9 @@ class CorrelationLimiter(torch.nn.Module):
             return torch.tensor(0.0, device=x.device)
         else:
             return CorrelationLimiterFunction.apply(x, y,
-                                                    aux_loss_scale, limit, mask,
+                                                    aux_loss_scale,
+                                                    float(self.limit),
+                                                    mask,
                                                     self.name)
 
 
