@@ -1635,16 +1635,18 @@ class CorrelationLimiterFunction(torch.autograd.Function):
 
                 x = torch.cat((x, y), dim=-1)
                 x1, x2 = x[0::2], x[1::2]
+                x1 = x1.reshape(-1, num_channels)
+                x2 = x2.reshape(-1, num_channels)
 
                 if mask is not None:
                     numel1 = mask[0::2].sum()
                     numel2 = mask[1::2].sum()
                 else:
-                    numel1 = x1.shape[0] * x1.shape[1]
-                    numel2 = x2.shape[0] * x2.shape[1]
+                    numel1 = x1.shape[0]
+                    numel2 = x2.shape[0]
 
-                S1 = torch.matmul(x1.reshape(-1, num_channels).t(), x1.reshape(-1, num_channels)) * (1. / numel1)
-                S2 = torch.matmul(x2.reshape(-1, num_channels).t(), x2.reshape(-1, num_channels)) * (1. / numel2)
+                S1 = torch.matmul(x1.t(), x1) * (1. / numel1)
+                S2 = torch.matmul(x2.t(), x2) * (1. / numel2)
 
                 # S1, S2: (num_channels, num_channels)
                 correlation = (S1 * S2).mean()
