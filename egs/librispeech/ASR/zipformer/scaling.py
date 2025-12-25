@@ -1632,21 +1632,19 @@ class CorrelationLimiterFunction(torch.autograd.Function):
                     # where they may really be duplicates
                     return None, None, None, None, None
 
-                x = x[:2*half_batch]
-                y = y[:2*half_batch]
 
+                x = torch.cat((x, y), dim=-1)
+                x1, x2 = x[0::2], x[1::2]
 
-                r = torch.rand(2, device=x.device) < 0.5
+                if mask is not None:
+                    numel1 = mask[0::2].sum()
+                    numel2 = mask[1::2].sum()
+                else:
+                    numel1 = x1.shape[0] * x1.shape[1]
+                    numel2 = x2.shape[0] * x2.shape[1]
 
-                # a is x or y; b is (independently) x or y.
-                a = torch.where(r[0], x, y)
-                b = torch.where(r[1], x, y)
-
-                a1, a2 = a[0::2], a[1::2]
-                b1, b2 = b[0::2], b[1::2]
-
-                S1 = torch.matmul(a1.reshape(-1, num_channels).t(), b1.reshape(-1, num_channels)) * (1. / (half_batch * seq_len))
-                S2 = torch.matmul(a2.reshape(-1, num_channels).t(), b2.reshape(-1, num_channels)) * (1. / (half_batch * seq_len))
+                S1 = torch.matmul(x1.reshape(-1, num_channels).t(), x1.reshape(-1, num_channels)) * (1. / numel1)
+                S2 = torch.matmul(x2.reshape(-1, num_channels).t(), x2.reshape(-1, num_channels)) * (1. / numel2)
 
                 # S1, S2: (num_channels, num_channels)
                 correlation = (S1 * S2).mean()
