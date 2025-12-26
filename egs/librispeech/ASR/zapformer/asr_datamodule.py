@@ -213,9 +213,8 @@ class AsrDataModule:
             "--libri-copies",
             type=int,
             default=1,
-            help="If set to <= 0, we use only librispeech (CAUTION: this may be surprising).  If set to > 0, every epoch means one epoch "
-            "of gigaspeech and libri_copies epochs of librispeech (although it is really libri_copies times 3, because of Librispeech "
-            "using speed augmentation."
+            help="The number of copies of librispeech data used per epoch, i.e. per epoch of gigaspeech, if --use-giga=True."
+            "(it is really libri_copies times 3, because of Librispeech using speed augmentation)."
         )
 
         parser.add_argument(
