@@ -923,10 +923,12 @@ class RotaryPositionalEmbeddings(nn.Module):
             self,
             dim: int,
             max_seq_len: int = 4096,
+            base: int = 10_000,
     ) -> None:
         super().__init__()
         assert dim in [64, 128]
         self.dim = dim
+        self.base = base
         self.max_seq_len = max_seq_len
         self.rope_init()
 
@@ -934,23 +936,11 @@ class RotaryPositionalEmbeddings(nn.Module):
         self.rope_init()
 
     def rope_init(self):
-        # these multiples are on the inverse frequences, so on frequencies the multiples would be the inverses of these.
-        # it's the frequencies we want to be exact multiples of each other.
-        if self.dim == 64:
-            multiples = [ 1., 4. / 3. ]
-        else:
-            assert self.dim == 128
-            multiples = [ 1., 4. / 3., 8. / 5., 8. / 7. ]
-        assert self.dim % (2 * len(multiples)) == 0   # e.g. self.dim == 128.  head dim.
-        D = self.dim // (2 * len(multiples))          # e.g. D == 16.
-
-        inv_freqs = (2. ** torch.arange(D))  # [ 1, 2, 4, ... ]
-        inv_freqs = torch.cat([ m * inv_freqs for m in multiples ], dim=0)
-
-        angular_freqs = math.pi / inv_freqs
-        # so highest angular_freq is pi, which means flipping between -1 and 1 on alternate tokens.  this is
-        # the nyquist.
-        self.register_buffer("theta", angular_freqs, persistent=False)
+        theta = 1.0 / (
+            self.base
+            ** (torch.arange(0, self.dim, 2)[: (self.dim // 2)].float() / self.dim)
+        )
+        self.register_buffer("theta", theta, persistent=False)
         self.build_rope_cache(self.max_seq_len)
 
     def build_rope_cache(self, max_seq_len: int = 4096) -> None:
@@ -1070,7 +1060,7 @@ class MultiheadAttentionWeights(nn.Module):
             bias=True, initial_scale=0.125 * query_head_dim**-0.25
         )
 
-        self.rope = RotaryPositionalEmbeddings(query_head_dim) # use default max_seq_len=4096
+        self.rope = RotaryPositionalEmbeddings(query_head_dim) # use default max_seq_len=4096, base=10000
 
         self.copy_query = Identity()
 
