@@ -1655,11 +1655,16 @@ class CorrelationLimiterFunction(torch.autograd.Function):
                 if C > max_channels:
                     indexes = torch.rand(2, C, device=x.device).sort(dim=1)[1]  # indexes: (2, C), type int64
                     indexes = indexes[:, :max_channels]  # (2, max_channels)
-                    x1 = x1.index_select(dim=2, index=indexes[0])
-                    x2 = x2.index_select(dim=2, index=indexes[1])
+                    x1a = x1.index_select(dim=1, index=indexes[0])
+                    x1b = x1.index_select(dim=1, index=indexes[1])
+                    x2a = x2.index_select(dim=1, index=indexes[0])
+                    x2b = x2.index_select(dim=1, index=indexes[1])
+                else:
+                    x1a, x1b = x1, x1
+                    x2a, x2b = x2, x2
 
-                S1 = torch.matmul(x1.t(), x1) * (1. / numel1)
-                S2 = torch.matmul(x2.t(), x2) * (1. / numel2)
+                S1 = torch.matmul(x1a.t(), x1b) * (1. / numel1)
+                S2 = torch.matmul(x2a.t(), x2b) * (1. / numel2)
 
                 # S1, S2: (num_channels, num_channels)
                 correlation = (S1 * S2).mean()
