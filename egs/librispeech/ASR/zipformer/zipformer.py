@@ -513,7 +513,7 @@ class Zipformer2EncoderLayer(nn.Module):
         self.residual_scale = nn.Parameter(0.5 * torch.ones(embed_dim))
 
         self.offset_scale_limiter = ScaleLimiter(max_rms=0.5)
-        power = 0.45  # power should be between 0 and 1.  1 would mean cov == I (unattainable)
+        power = 0.4  # power should be between 0 and 1.  1 would mean cov == I (unattainable)
         self.offset_correlation_limiter = CorrelationLimiter(limit=(1. / ((2 * embed_dim)  ** power)))
 
         self.self_attn_weights = MultiheadAttentionWeights(
@@ -583,12 +583,13 @@ class Zipformer2EncoderLayer(nn.Module):
 
         offset = self.offset_scale_limiter(offset, aux_loss_scale)
 
-        offset = with_loss(offset,
-                           self.offset_correlation_limiter(
-                               src_orig.permute(1, 0, 2), offset.permute(1, 0, 2),
-                               2. * aux_loss_scale, mask=src_key_padding_mask))
-
         src = src_orig + offset
+
+        src = with_loss(src,
+                        self.offset_correlation_limiter(
+                            src_orig.permute(1, 0, 2), src.permute(1, 0, 2),
+                            2. * aux_loss_scale, mask=src_key_padding_mask))
+
 
         src = self.norm(src)
 

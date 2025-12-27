@@ -1607,6 +1607,7 @@ class CorrelationLimiterFunction(torch.autograd.Function):
         mask = ctx.mask
         aux_loss_scale =  ctx.aux_loss_scale
         (batch_size, seq_len, num_channels) = x.shape
+
         with torch.enable_grad():
             with torch.amp.autocast('cuda', enabled=False):
                 x, y = x.to(torch.float), y.to(torch.float)
@@ -1614,6 +1615,10 @@ class CorrelationLimiterFunction(torch.autograd.Function):
                 x.requires_grad = True
                 y.requires_grad = True
                 x_orig, y_orig = x, y
+
+
+                y = y - x
+                # make y be the offset of the new src from the old src; do this in here to save memory and to slightly simplify the interface.
 
                 def norm(x: Tensor):
                     eps = 1.0e-20
@@ -1634,9 +1639,10 @@ class CorrelationLimiterFunction(torch.autograd.Function):
 
 
                 x = torch.cat((x, y), dim=-1)
+                C = x.shape[-1]  # 2 * num_channels
                 x1, x2 = x[0::2], x[1::2]
-                x1 = x1.reshape(-1, num_channels)
-                x2 = x2.reshape(-1, num_channels)
+                x1 = x1.reshape(-1, C)
+                x2 = x2.reshape(-1, C)
 
                 if mask is not None:
                     numel1 = mask[0::2].sum()
@@ -1644,6 +1650,13 @@ class CorrelationLimiterFunction(torch.autograd.Function):
                 else:
                     numel1 = x1.shape[0]
                     numel2 = x2.shape[0]
+
+                max_channels = 512  # randomly select a subset of dims if C is more than this, for efficiency
+                if C > max_channels:
+                    indexes = torch.rand(2, C, device=x.device).sort(dim=1)[1]  # indexes: (2, C), type int64
+                    indexes = indexes[:, :max_channels]  # (2, max_channels)
+                    x1 = x1.index_select(dim=2, index=indexes[0])
+                    x2 = x2.index_select(dim=2, index=indexes[1])
 
                 S1 = torch.matmul(x1.t(), x1) * (1. / numel1)
                 S2 = torch.matmul(x2.t(), x2) * (1. / numel2)
@@ -1679,6 +1692,15 @@ class CorrelationLimiter(torch.nn.Module):
         # returns a scalar tensor that should be included in the loss function with:
         #  z = with_loss(z, ret, None)
         # where z is any quantity that will be used in calculating the main loss.
+        # expected to be called as something like:
+        #  src_orig = src
+        #  src = src + f(src)
+        #  src = src + g(src)
+        #  ..
+        #  src = with_loss(src, self.correlation_limiter(src_orig.permute(1, 0, 2), src.permute(1, 0, 2),
+        #                                                aux_loss_scale, src_key_padding_mask),
+        #                  None)
+        #  (assuming a (seq, batch, channel) layout; this class expects (batch, seq, channel).
         if torch.jit.is_scripting() or torch.jit.is_tracing() or not self.training:
             return torch.tensor(0.0, device=x.device)
         else:
