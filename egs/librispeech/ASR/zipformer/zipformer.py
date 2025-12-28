@@ -514,7 +514,7 @@ class Zipformer2EncoderLayer(nn.Module):
 
         self.offset_scale_limiter = ScaleLimiter(max_rms=0.5)
         power = 0.45  # power should be between 0 and 1.  1 would mean cov == I (unattainable)
-        self.offset_correlation_limiter = CorrelationLimiter(limit=(1. / ((2 * embed_dim)  ** power)))
+        self.offset_correlation_limiter = CorrelationLimiter(limit=(1. / (embed_dim  ** power)))
 
         self.self_attn_weights = MultiheadAttentionWeights(
             embed_dim,

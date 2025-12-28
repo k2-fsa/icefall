@@ -1638,8 +1638,8 @@ class CorrelationLimiterFunction(torch.autograd.Function):
                     return None, None, None, None, None
 
 
-                x = torch.cat((x, y), dim=-1)
-                C = x.shape[-1]  # 2 * num_channels
+                #x = torch.cat((x, y), dim=-1)
+                C = x.shape[-1]  # num_channels
                 x1, x2 = x[0::2], x[1::2]
                 x1 = x1.reshape(-1, C)
                 x2 = x2.reshape(-1, C)
@@ -1666,7 +1666,7 @@ class CorrelationLimiterFunction(torch.autograd.Function):
                 S1 = torch.matmul(x1a.t(), x1b) * (1. / numel1)
                 S2 = torch.matmul(x2a.t(), x2b) * (1. / numel2)
 
-                # S1, S2: (num_channels, num_channels)
+                # S1, S2: (N, N) where N = min(num_channels, max_channels)
                 correlation = (S1 * S2).mean()
                 loss = (correlation - ctx.limit).relu()
 
