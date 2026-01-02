@@ -1593,8 +1593,8 @@ class ScaleLimiter(torch.nn.Module):
 
 class CorrelationLimiterFunction(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, x: Tensor, y: Tensor, aux_loss_scale: float, limit: float, mask: Optional[Tensor], name: str):
-        ctx.save_for_backward(x, y)
+    def forward(ctx, x: Tensor, aux_loss_scale: float, limit: float, mask: Optional[Tensor], name: str):
+        ctx.save_for_backward(x)
         ctx.mask = mask
         ctx.limit = limit
         ctx.aux_loss_scale = aux_loss_scale
@@ -1603,33 +1603,26 @@ class CorrelationLimiterFunction(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, ans_grad: Tensor):  # assume ans_grad is 1.0
-        x, y = ctx.saved_tensors
+        x, = ctx.saved_tensors
         mask = ctx.mask
         aux_loss_scale =  ctx.aux_loss_scale
         (batch_size, seq_len, num_channels) = x.shape
 
         with torch.enable_grad():
             with torch.amp.autocast('cuda', enabled=False):
-                x, y = x.to(torch.float), y.to(torch.float)
-                x, y = x.detach(), y.detach()
+                x = x.to(torch.float)
+                x = x.detach()
                 x.requires_grad = True
-                y.requires_grad = True
-                x_orig, y_orig = x, y
-
-
-                y = y - x
-                # make y be the offset of the new src from the old src; do this in here to save memory and to slightly simplify the interface.
+                x_orig = x
 
                 def norm(x: Tensor):
                     eps = 1.0e-20
                     return x / ((x ** 2).mean(dim=-1, keepdim=True) + eps).sqrt()
                 x = norm(x)
-                y = norm(y)
 
                 if mask is not None:
                     mask = (~mask).to(x.dtype).unsqueeze(-1)
                     x = x * mask
-                    y = y * mask
 
                 half_batch = batch_size // 2
                 if half_batch <= 1:
@@ -1651,20 +1644,8 @@ class CorrelationLimiterFunction(torch.autograd.Function):
                     numel1 = x1.shape[0]
                     numel2 = x2.shape[0]
 
-                max_channels = 512  # randomly select a subset of dims if C is more than this, for efficiency
-                if C > max_channels:
-                    indexes = torch.rand(2, C, device=x.device).sort(dim=1)[1]  # indexes: (2, C), type int64
-                    indexes = indexes[:, :max_channels]  # (2, max_channels)
-                    x1a = x1.index_select(dim=1, index=indexes[0])
-                    x1b = x1.index_select(dim=1, index=indexes[1])
-                    x2a = x2.index_select(dim=1, index=indexes[0])
-                    x2b = x2.index_select(dim=1, index=indexes[1])
-                else:
-                    x1a, x1b = x1, x1
-                    x2a, x2b = x2, x2
-
-                S1 = torch.matmul(x1a.t(), x1b) * (1. / numel1)
-                S2 = torch.matmul(x2a.t(), x2b) * (1. / numel2)
+                S1 = torch.matmul(x1.t(), x1) * (1. / numel1)
+                S2 = torch.matmul(x2.t(), x2) * (1. / numel2)
 
                 # S1, S2: (N, N) where N = min(num_channels, max_channels)
                 correlation = (S1 * S2).mean()
@@ -1678,13 +1659,17 @@ class CorrelationLimiterFunction(torch.autograd.Function):
                 loss.backward(gradient=torch.tensor(aux_loss_scale * batch_size * seq_len, device=loss.device))
 
 
-        return x_orig.grad, y_orig.grad, None, None, None, None
+        return x_orig.grad, None, None, None, None
 
 
 class CorrelationLimiter(torch.nn.Module):
     """
-    Adds a penalty in backprop if feature x and feature y are correlated.
-    Assumes input is (batch, seq, channel)
+    Adds a penalty in backprop if the input feature has a covariance matrix that is
+    too different from the identity matrix.  limit=1/num_channels is the
+    smallest limit you can provide but the limit should be much larger than
+    this, like 1/sqrt(num_channels).
+
+      Assumes input is (batch, seq, channel)
     """
     def __init__(self, limit: FloatLike = 0.03):
         super().__init__()
@@ -1692,24 +1677,15 @@ class CorrelationLimiter(torch.nn.Module):
         self.limit = limit
 
 
-    def forward(self, x: Tensor, y: Tensor, aux_loss_scale: float, mask: Optional[Tensor]) -> Tensor:
-        # x and y should both be: (batch, seq, channel)
+    def forward(self, x: Tensor, aux_loss_scale: float, mask: Optional[Tensor]) -> Tensor:
+        # x should be: (batch, seq, channel)
         # returns a scalar tensor that should be included in the loss function with:
         #  z = with_loss(z, ret, None)
         # where z is any quantity that will be used in calculating the main loss.
-        # expected to be called as something like:
-        #  src_orig = src
-        #  src = src + f(src)
-        #  src = src + g(src)
-        #  ..
-        #  src = with_loss(src, self.correlation_limiter(src_orig.permute(1, 0, 2), src.permute(1, 0, 2),
-        #                                                aux_loss_scale, src_key_padding_mask),
-        #                  None)
-        #  (assuming a (seq, batch, channel) layout; this class expects (batch, seq, channel).
         if torch.jit.is_scripting() or torch.jit.is_tracing() or not self.training:
             return torch.tensor(0.0, device=x.device)
         else:
-            return CorrelationLimiterFunction.apply(x, y,
+            return CorrelationLimiterFunction.apply(x,
                                                     aux_loss_scale,
                                                     float(self.limit),
                                                     mask,

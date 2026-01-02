@@ -514,7 +514,7 @@ class Zipformer2EncoderLayer(nn.Module):
 
         self.offset_scale_limiter = ScaleLimiter(max_rms=0.5)
         power = 0.45  # power should be between 0 and 1.  1 would mean cov == I (unattainable)
-        self.offset_correlation_limiter = CorrelationLimiter(limit=(1. / (embed_dim  ** power)))
+        self.correlation_limiter = CorrelationLimiter(limit=(1. / (embed_dim  ** power)))
 
         self.self_attn_weights = MultiheadAttentionWeights(
             embed_dim,
@@ -562,6 +562,11 @@ class Zipformer2EncoderLayer(nn.Module):
         """
         src_orig = src
 
+        src = with_loss(src, self.correlation_limiter(src.permute(1, 0, 2),
+                                                      2. * aux_loss_scale, mask=src_key_padding_mask),
+                        None)
+
+
         # attn_weights: (num_heads, batch_size, seq_len, seq_len)
         attn_weights = self.self_attn_weights(
             src,
@@ -584,12 +589,6 @@ class Zipformer2EncoderLayer(nn.Module):
         offset = self.offset_scale_limiter(offset, aux_loss_scale)
 
         src = src_orig + offset
-
-        src = with_loss(src,
-                        self.offset_correlation_limiter(
-                            src_orig.permute(1, 0, 2), src.permute(1, 0, 2),
-                            2. * aux_loss_scale, mask=src_key_padding_mask))
-
 
         src = self.norm(src)
 
