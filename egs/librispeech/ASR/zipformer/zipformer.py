@@ -1044,9 +1044,6 @@ class MultiheadAttentionWeights(nn.Module):
         self.dropout = dropout
         self.name = None  # will be overwritten in training code; for diagnostics.
 
-        self.attn_score_limit = ScheduledFloat((0.0, 5.0), (5000.0, 20.0))
-        self.attn_score_penalty_prob = ScheduledFloat((0.0, 1.0), (5000.0, 1.0), (5001.0, 0.1))
-
         key_head_dim = query_head_dim
         in_proj_dim = (query_head_dim + key_head_dim) * num_heads
 
@@ -1319,13 +1316,15 @@ class GatedSelfAttention(nn.Module):
         value_head_dim: int,
     ) -> None:
         super().__init__()
-        self.in_proj = ScaledLinear(embed_dim, 2 *num_heads * value_head_dim,
-                                    bias=True)
+        self.in_proj = ScaledLinear(embed_dim, 2 * num_heads * value_head_dim,
+                                    initial_scale=0.1, bias=True)
 
+
+        self.copy_x = nn.Identity()  # diagnostics.
         self.sigmoid = nn.Sigmoid()
 
         self.out_proj = ScaledLinear(
-             num_heads * value_head_dim, embed_dim, bias=True, initial_scale=0.05
+            num_heads * value_head_dim, embed_dim, bias=True, initial_scale=0.5
         )
 
         f = max(1.0, embed_dim / (num_heads * value_head_dim))
@@ -1357,6 +1356,7 @@ class GatedSelfAttention(nn.Module):
         x = self.in_proj(x)  # (seq_len, batch_size, 2 * num_heads * value_head_dim)
         x, s = x.chunk(2, dim=-1)
         x = x.reshape(seq_len, batch_size, num_heads, -1).permute(2, 1, 0, 3)
+        x = self.copy_x(x)
         # now x: (num_heads, batch_size, seq_len, value_head_dim)
         value_head_dim = x.shape[-1]
 
@@ -1370,8 +1370,13 @@ class GatedSelfAttention(nn.Module):
             .view(seq_len, batch_size, num_heads * value_head_dim)
         )
 
+
+        if self.training:
+            # don't let the sigmoid values get too extreme, limit to -2..2.
+            s = penalize_abs_values_gt(s, 2, penalty=0.02*aux_loss_scale)
+
         # returned value is of shape (seq_len, batch_size, embed_dim), like the input.
-        x = x * self.sigmoid(s)
+        x = self.sigmoid(s)
         x = self.out_proj(x)
 
         return x
