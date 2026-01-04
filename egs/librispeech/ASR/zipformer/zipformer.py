@@ -1376,7 +1376,7 @@ class GatedSelfAttention(nn.Module):
             s = penalize_abs_values_gt(s, 2, penalty=0.02*aux_loss_scale)
 
         # returned value is of shape (seq_len, batch_size, embed_dim), like the input.
-        x = self.sigmoid(s)
+        x = x * self.sigmoid(s)
         x = self.out_proj(x)
 
         return x
