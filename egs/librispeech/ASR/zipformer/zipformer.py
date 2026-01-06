@@ -1486,54 +1486,6 @@ def round_up_to_power_of_two(x):
     x = x + 1
     return x
 
-
-
-def interpolate_warped(x: Tensor,
-                       freqs_out: int,
-                       low_freq_factor: float,
-                       dim: int):
-    """
-      Interpolates between the elements of x, similar to x.index_select(dim, ...), but with interpolation.
-     Args:
-       x: arbitrary shaped Tensor except that its dimension "dim" will be interpreted as representing
-           warped frequencies, with the lowest index correponding to frequency 0 and the highest index
-           corresponding to the nyquist frequency pi, but the frequencies near 0 closer together according
-           to low_freq_factor.
-      freqs_out: an integer giving the number of frequencies which we want to interpolate x, with the
-          0 and freqs_out-1 representing 0 and respectively.
-      low_freq_factor: a float 0 < low_freq_factor < 1, e.g. if it is 0.1 then low-numbered frequency
-	  indexes in x will be about 10 times closer together.
-
-
-    Returns:
-          a Tensor with the same shape as x, except dimension "dim" will be of size equal to freqs_out.
-          Its elements will be interpolated between elements of x.
-    """
-    num_freqs_in = x.shape[dim]
-
-    # note: the factor of math.pi should in principle appear in both freqs_in
-    # and freqs_out but we omit it from both; this will have no effect on the
-    # result.
-
-    log_freqs_in = torch.linspace(math.log(low_freq_factor), math.log(1 + low_freq_factor), num_freqs_in, device=x.device)
-    freqs_in = log_freqs_in.exp() - low_freq_factor  # these range from 0 to 1.
-    freqs_out = torch.linspace(0.0, 1.0, freqs_out, device=x.device)  # the frequencies of the discrete fourier basis.
-
-    indexes = torch.searchsorted(freqs_in, freqs_out)
-    indexes = indexes.clamp(min=1, max=num_freqs_in - 1)
-    indexes1 = indexes - 1
-    lower_freq = freqs_in[indexes1]
-    upper_freq = freqs_in[indexes]
-    upper_weight = (freqs_out - lower_freq) / (upper_freq - lower_freq)
-    lower_weight = 1. - upper_weight
-
-    if dim < 0:
-        dim += x.ndim
-    for _ in range(dim, x.ndim - 1):
-        lower_weight = lower_weight.unsqueeze(-1)
-        upper_weight = upper_weight.unsqueeze(-1)
-    return  lower_weight * x.index_select(dim, indexes1) + upper_weight * x.index_select(dim, indexes)
-
 class RelPosScores(nn.Module):
     def __init__(self,
                  num_heads: int,
@@ -1586,8 +1538,6 @@ class RelPosScores(nn.Module):
 
         t = torch.arange(-(seq_len - 1), seq_len, device=p.device)
 
-        print("freqs = ", freqs)
-
         angles = t.unsqueeze(-1) * freqs   # (2*seq_len - 1, num_freqs)
 
         def sinc2(x):
@@ -1637,13 +1587,11 @@ class FftConv(nn.Module):
     def __init__(self,
                  num_channels: int,
                  params_per_channel: int,
-                 low_freq_factor: float = 0.25,  # factor of how far apart specified freqs are on the low end vs the high end
                  bias: bool = True):
         super().__init__()
         self.weight = nn.Parameter(torch.randn(num_channels, params_per_channel))
         # one factor of 2 is for (sin, cos); the other is to double the num representable freqs
         self.weight_proj = nn.Linear(params_per_channel, 4 * params_per_channel)
-        self.low_freq_factor = low_freq_factor
         if bias:
             self.bias = nn.Parameter(0.01 * torch.randn(num_channels))
 
@@ -1659,8 +1607,7 @@ class FftConv(nn.Module):
             # x: (num_freqs, batch_size, num_channels)
             N = x.shape[0]   # num freqs
             weight = self.weight_proj(self.weight).reshape(num_channels, 2, -1)  # (num_channels, 2, 2 * params_per_channel)
-            weight = interpolate_warped(weight, N, self.low_freq_factor, dim=2)
-            #weight = torch.nn.functional.interpolate(weight, N, mode='linear', align_corners=True)
+            weight = torch.nn.functional.interpolate(weight, N, mode='linear', align_corners=True)
             weight = torch.view_as_complex(weight.permute(2, 0, 1).contiguous())
             # weight: (N, num_channels)
             weight = weight.unsqueeze(1)  # (N, 1, num_channels)
