@@ -1035,6 +1035,7 @@ class MultiheadAttentionWeights(nn.Module):
         embed_dim: int,
         num_heads: int,
         query_head_dim: int,
+        pos_dim: int = 4,
         dropout: float = 0.0,
     ) -> None:
         super().__init__()
@@ -1045,7 +1046,7 @@ class MultiheadAttentionWeights(nn.Module):
         self.name = None  # will be overwritten in training code; for diagnostics.
 
         key_head_dim = query_head_dim
-        in_proj_dim = (query_head_dim + key_head_dim) * num_heads
+        in_proj_dim = (query_head_dim + key_head_dim + pos_dim) * num_heads
 
         # the initial_scale is supposed to take over the "scaling" factor of
         # head_dim ** -0.5 that has been used in previous forms of attention,
@@ -1059,7 +1060,10 @@ class MultiheadAttentionWeights(nn.Module):
 
         self.rope = RotaryPositionalEmbeddings(query_head_dim) # use default max_seq_len=4096, base=10000
 
+        self.rel_pos = RelPosScores(num_heads, pos_dim, num_freqs=64, low_freq_factor=0.2)
+
         self.copy_query = Identity()
+        self.copy_pos_query = Identity()
 
     def forward(
         self,
@@ -1091,11 +1095,14 @@ class MultiheadAttentionWeights(nn.Module):
         # self-attention
         q = x[..., 0:query_dim]
         k = x[..., query_dim : 2 * query_dim]
+        p = x[..., 2 * query_dim:]
 
         q = self.copy_query(q)  # for diagnostics only, does nothing.
+        p = self.copy_pos_query(p)  # for diagnostics only, does nothing.
 
         q = q.reshape(seq_len, batch_size, num_heads, query_head_dim)
         k = k.reshape(seq_len, batch_size, num_heads, query_head_dim)
+        p = p.reshape(seq_len, batch_size, num_heads, -1)
 
         q = self.rope(q.permute(1, 0, 2, 3))  # (batch, seq, head, channel)
         k = self.rope(k.permute(1, 0, 2, 3))  # (batch, seq, head, channel)
@@ -1104,7 +1111,11 @@ class MultiheadAttentionWeights(nn.Module):
         q = q.permute(2, 0, 1, 3)  # (head, batch, time1, query_head_dim)
         k = k.permute(2, 0, 3, 1)  # (head, batch, d_k, time2)
 
-        attn_scores = torch.matmul(q, k)
+        attn_scores = torch.matmul(q, k)  # (head, batch, time1, time2)
+
+        p = p.permute(1, 2, 0, 3)
+        pos_scores = self.rel_pos(p)  # (batch, head, time1, time2)
+        attn_scores = attn_scores + pos_scores.permute(1, 0, 2, 3)
 
 
         assert attn_scores.shape == (num_heads, batch_size, seq_len, seq_len)
@@ -1481,7 +1492,6 @@ def interpolate_warped(x: Tensor,
                        freqs_out: int,
                        low_freq_factor: float,
                        dim: int):
-
     """
       Interpolates between the elements of x, similar to x.index_select(dim, ...), but with interpolation.
      Args:
@@ -1523,6 +1533,93 @@ def interpolate_warped(x: Tensor,
         lower_weight = lower_weight.unsqueeze(-1)
         upper_weight = upper_weight.unsqueeze(-1)
     return  lower_weight * x.index_select(dim, indexes1) + upper_weight * x.index_select(dim, indexes)
+
+class RelPosScores(nn.Module):
+    def __init__(self,
+                 num_heads: int,
+                 pos_dim: int,
+                 num_freqs: int,
+                 low_freq_factor: float):
+        super().__init__()
+        self.params = nn.Parameter(0.2 * torch.randn(num_heads, pos_dim * 2, num_freqs))
+        self.num_freqs = num_freqs
+        self.low_freq_factor = low_freq_factor
+
+    def forward(self, p: Tensor) -> Tensor:
+        """
+        Compute and return unnormalized log scores for relative position.
+        Args:
+           p: these are the position-queries, of shape (batch_size, num_heads, seq_len, pos_dim)
+              (they are obtained via projection, just like the queries).
+        Returns:
+           scores: (batch_size, num_heads, dest_seq_len, src_seq_len),
+
+         where dest_seq_len and src_seq_len are numerically equal to seq_len but dest_seq_len relates to the
+         query and src_seq_len to the key.
+        """
+
+        (batch_size, num_heads, seq_len, pos_dim) = p.shape
+
+
+        # making "factor" more than 1 is to ensure there is plenty of "extra"
+        # room in this sequence length past seq_len so it's similar to what we'd
+        # get with infinite sequence length.  there will be another factor of 2
+        # because S is half the sequence length we use for the FFT
+        factor = 4
+        S = round_up_to_power_of_two(factor * seq_len)
+        F = S + 1  # the number of frequencies in the FFT, including the nyquist.
+
+        # self.params: (num_heads, pos_dim * 2, num_freqs)
+        X = interpolate_warped(self.params, F, self.low_freq_factor, dim=2)
+
+        ones = torch.cat([torch.ones(S, device=p.device), torch.zeros(S, device=p.device)])
+
+        # X: (num_heads, pos_dim * 2, F)
+        X = torch.view_as_complex(X.reshape(num_heads, pos_dim, 2, F).permute(0, 1, 3, 2).contiguous())
+
+        Ones = torch.fft.rfft(ones, dim=0)
+        X = X * Ones
+
+        # X: (num_heads, pos_dim, F); complex.
+        x = torch.fft.irfft(X, n=2*S, dim=2)
+        # x: (num_heads, pos_dim * 2, 2 * S)
+
+        x = x.roll(S, dims=2)
+        # x: (num_heads, pos_dim * 2, 2 * S); now the position of offset=0 is at position S rather than position
+        # zero.
+
+        x = x[:, :, S - (seq_len - 1) : S + seq_len]
+        assert x.shape == (num_heads, pos_dim, 2 * seq_len - 1)
+
+
+        # with seq_len2 = 2 * seq_len - 1,
+        # (batch, head, time1, pos_dim) x (1, head, pos_dim, seq_len2) -> (batch, head, time1, seq_len2)
+        pos_weights = torch.matmul(p, x)
+
+        # the following .as_strided() expression converts the last axis of pos_weights from relative
+        # to absolute position.  This is all copied from our old conformer/zipformer code.
+        if torch.jit.is_tracing():
+            (batch_size, num_heads, time1, n) = pos_weights.shape
+            rows = torch.arange(start=time1 - 1, end=-1, step=-1)
+            cols = torch.arange(seq_len)
+            rows = rows.repeat(batch_size * num_heads).unsqueeze(-1)
+            indexes = rows + cols
+            pos_weights = pos_weights.reshape(-1, n)
+            pos_weights = torch.gather(pos_weights, dim=1, index=indexes)
+            pos_weights = pos_weights.reshape(batch_size, num_heads, time1, seq_len)
+        else:
+            pos_weights = pos_weights.as_strided(
+                (batch_size, num_heads, seq_len, seq_len),
+                (
+                    pos_weights.stride(0),
+                    pos_weights.stride(1),
+                    pos_weights.stride(2) - pos_weights.stride(3),
+                    pos_weights.stride(3),
+                ),
+                storage_offset=pos_weights.stride(3) * (seq_len - 1),
+            )
+
+        return pos_weights
 
 
 
