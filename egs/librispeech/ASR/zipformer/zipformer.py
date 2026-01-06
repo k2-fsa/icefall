@@ -1060,7 +1060,7 @@ class MultiheadAttentionWeights(nn.Module):
 
         self.rope = RotaryPositionalEmbeddings(query_head_dim) # use default max_seq_len=4096, base=10000
 
-        self.rel_pos = RelPosScores(num_heads, pos_dim, num_freqs=64, low_freq_factor=0.2)
+        self.rel_pos = RelPosScores(num_heads, pos_dim, num_freqs=128, base=10_000)
 
         self.copy_query = Identity()
         self.copy_pos_query = Identity()
@@ -1539,11 +1539,19 @@ class RelPosScores(nn.Module):
                  num_heads: int,
                  pos_dim: int,
                  num_freqs: int,
-                 low_freq_factor: float):
+                 base: float = 10_000):
+        """
+        Implementation of relative position scores with mathematically sensible sinc envelope.
+        """
         super().__init__()
-        self.params = nn.Parameter(0.2 * torch.randn(num_heads, pos_dim * 2, num_freqs))
+        self.base = base
+        self.weight = nn.Parameter(0.2 * torch.randn(num_heads, pos_dim, 2 * num_freqs))
+        #n = (num_freqs//8)
+        #with torch.no_grad():
+        #    self.weight[..., :n] = 0.
+        #    self.weight[..., n+1:] = 0.
+
         self.num_freqs = num_freqs
-        self.low_freq_factor = low_freq_factor
 
     def forward(self, p: Tensor) -> Tensor:
         """
@@ -1560,37 +1568,39 @@ class RelPosScores(nn.Module):
 
         (batch_size, num_heads, seq_len, pos_dim) = p.shape
 
+        num_freqs = self.num_freqs
 
-        # making "factor" more than 1 is to ensure there is plenty of "extra"
-        # room in this sequence length past seq_len so it's similar to what we'd
-        # get with infinite sequence length.  there will be another factor of 2
-        # because S is half the sequence length we use for the FFT
-        factor = 4
-        S = round_up_to_power_of_two(factor * seq_len)
-        F = S + 1  # the number of frequencies in the FFT, including the nyquist.
+        freqs = math.pi * torch.linspace(0., -math.log(self.base), num_freqs + 1, device=p.device).exp()[1:]  # base freqs.
 
-        # self.params: (num_heads, pos_dim * 2, num_freqs)
-        X = interpolate_warped(self.params, F, self.low_freq_factor, dim=2)
+        triangle_size = (self.base ** (1. /  (num_freqs + 1)))  - 1
+        # e.g. 0.15.  triangle_size is the relative separation between frequencies.
 
-        ones = torch.cat([torch.ones(S, device=p.device), torch.zeros(S, device=p.device)])
+        # e.g. if base ** (1/(num_freqs+1)) == 1.15, then triangle_size == 0.15.
+        # see
+        # https://www.physicsforums.com/threads/fourier-transform-triangular-pulse.850993/,
+        # it corresponds to b.  we want sinc(\omega b / 2) where b ==
+        # freqs[i] * triangle_size, with the version of sinc without 2pi; and omega here was
+        # frequency, but actually it's really time as the triangle was the envelope in
+        # fourier space and our FFT is actually the inverse FFT.
 
-        # X: (num_heads, pos_dim * 2, F)
-        X = torch.view_as_complex(X.reshape(num_heads, pos_dim, 2, F).permute(0, 1, 3, 2).contiguous())
 
-        Ones = torch.fft.rfft(ones, dim=0)
-        X = X * Ones
+        t = torch.arange(-(seq_len - 1), seq_len, device=p.device)
 
-        # X: (num_heads, pos_dim, F); complex.
-        x = torch.fft.irfft(X, n=2*S, dim=2)
-        # x: (num_heads, pos_dim * 2, 2 * S)
+        print("freqs = ", freqs)
 
-        x = x.roll(S, dims=2)
-        # x: (num_heads, pos_dim * 2, 2 * S); now the position of offset=0 is at position S rather than position
-        # zero.
+        angles = t.unsqueeze(-1) * freqs   # (2*seq_len - 1, num_freqs)
 
-        x = x[:, :, S - (seq_len - 1) : S + seq_len]
+        def sinc2(x):
+            return torch.where(x == 0.0, torch.ones_like(x), x.sin() / x) ** 2
+
+        envelope = sinc2(angles * (0.5 * triangle_size))
+        cos = angles.cos() * envelope
+        sin = angles.sin() * envelope
+
+        basis = torch.cat((cos, sin), dim=1)  # (2 * seq_len - 1, 2 * num_freqs)
+
+        x = torch.matmul(self.weight, basis.t())
         assert x.shape == (num_heads, pos_dim, 2 * seq_len - 1)
-
 
         # with seq_len2 = 2 * seq_len - 1,
         # (batch, head, time1, pos_dim) x (1, head, pos_dim, seq_len2) -> (batch, head, time1, seq_len2)
@@ -1620,7 +1630,6 @@ class RelPosScores(nn.Module):
             )
 
         return pos_weights
-
 
 
 
