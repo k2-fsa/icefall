@@ -1498,10 +1498,11 @@ class RelPosScores(nn.Module):
         super().__init__()
         self.base = base
         self.weight = nn.Parameter(0.2 * torch.randn(num_heads, pos_dim, 2 * num_freqs))
-        #n = (num_freqs//8)
-        #with torch.no_grad():
-        #    self.weight[..., :n] = 0.
-        #    self.weight[..., n+1:] = 0.
+
+        with torch.no_grad():
+            # initialize the weight in a low-pass way.
+            for _ in range(10):
+                self.weight[:] = (2 ** -0.5) * (self.weight + self.weight.roll(1, dims=2))
 
         self.num_freqs = num_freqs
 
