@@ -1058,7 +1058,7 @@ class MultiheadAttentionWeights(nn.Module):
             bias=True, initial_scale=0.125 * query_head_dim**-0.25
         )
 
-        self.rope = RotaryPositionalEmbeddings(query_head_dim) # use default max_seq_len=4096, base=10000
+        #self.rope = RotaryPositionalEmbeddings(query_head_dim) # use default max_seq_len=4096, base=10000
 
         self.rel_pos = RelPosScores(num_heads, pos_dim, num_freqs=128, base=10_000)
 
@@ -1104,12 +1104,12 @@ class MultiheadAttentionWeights(nn.Module):
         k = k.reshape(seq_len, batch_size, num_heads, query_head_dim)
         p = p.reshape(seq_len, batch_size, num_heads, -1)
 
-        q = self.rope(q.permute(1, 0, 2, 3))  # (batch, seq, head, channel)
-        k = self.rope(k.permute(1, 0, 2, 3))  # (batch, seq, head, channel)
+        #q = self.rope(q.permute(1, 0, 2, 3))  # (batch, seq, head, channel)
+        #k = self.rope(k.permute(1, 0, 2, 3))  # (batch, seq, head, channel)
 
         # time1 refers to target, time2 refers to source.
-        q = q.permute(2, 0, 1, 3)  # (head, batch, time1, query_head_dim)
-        k = k.permute(2, 0, 3, 1)  # (head, batch, d_k, time2)
+        q = q.permute(2, 1, 0, 3)  # (head, batch, time1, query_head_dim)
+        k = k.permute(2, 1, 3, 0)  # (head, batch, d_k, time2)
 
         attn_scores = torch.matmul(q, k)  # (head, batch, time1, time2)
 
