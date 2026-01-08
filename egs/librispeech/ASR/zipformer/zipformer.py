@@ -1060,7 +1060,7 @@ class MultiheadAttentionWeights(nn.Module):
 
         #self.rope = RotaryPositionalEmbeddings(query_head_dim) # use default max_seq_len=4096, base=10000
 
-        self.rel_pos = RelPosScores(num_heads, pos_dim, num_freqs=128, base=10_000)
+        self.rel_pos = RelPosScores(num_heads, pos_dim, num_freqs=64)
 
         self.copy_query = Identity()
         self.copy_pos_query = Identity()
@@ -1486,25 +1486,128 @@ def round_up_to_power_of_two(x):
     x = x + 1
     return x
 
+
+# wolfram alpha:
+# the right part of the triangular bin, from 0 to +W.
+# definite integral from omega = 0 to W of (1 - omega/W) exp(-i x \omega) d\omega
+# = -(i W x + e^(-i W x) - 1)/(W x^2)
+# Re[definite integral from omega = 0 to W of (1 - omega/W) exp(-i x \omega) d\omega]
+# = (1 - cos(W x))/(W x^2)
+# Im[definite integral from omega = 0 to W of (1 - omega/W) exp(-i x \omega) d\omega]
+# = (sin(W x) - W x)/(W x^2)
+
+# the left part of the triangular bin, from -W to 0.
+# definite integral from omega = -W to 0 of (omega/W + 1) exp(-i x \omega) d\omega
+# (i W x - e^(i W x) + 1)/(W x^2)
+#
+# Let the center frequency be C.
+# right side:
+# =   e^(i C x) * -(i W x + e^(-i W x) - 1)/(W x^2)
+# "alternate form including W, C and x are real":  [note, this is left hand width, W_l]
+# (W x sin(C x) - cos(x (C - W)) + cos(C x))/(W x^2) - (i (sin(x (C - W)) + W x cos(C x) - sin(C x)))/(W x^2)
+#
+# left side:
+# e^(i C x) *  (i W x - e^(i W x) + 1)/(W x^2)
+# "alternate form including W, C and x are real": [note, this is right hand width, W_r]
+# -(W x sin(C x) + cos(x (C + W)) - cos(C x))/(W x^2) + (i (-sin(x (C + W)) + W x cos(C x) + sin(C x)))/(W x^2)
+#
+# summing the left and right sides:
+# Real part:
+#
+#   (W_r x sin(C x) - cos(x (C - W_r)) + cos(C x))/(W_r x^2)
+#   -(W_l x sin(C x) + cos(x (C + W_l)) - cos(C x))/(W_l x^2)
+# =   (cos(C x) - cos((C - W_r)x))   / W_r x^2
+#   + (cos(C x) - cos((C + W_l)x))   / W_l x^2
+
+# Imaginary part:
+#  -(sin(x (C - W_r)) + W_r x cos(C x) - sin(C x))) / (W_r x^2)
+#  +(-sin(x (C + W_l)) + W_l x cos(C x) + sin(C x)) / (W_l x^2)
+#  =  ( sin(C x) - sin((C - W_r)x) ) / (W_r x^2)
+#   + ( sin(C x) - sin((C + W_l)x) ) / (W_l x^2)
+
+def compute_angular_freq_basis_triangular(freqs: Tensor,
+                                          t: Tensor,
+                                          scale: bool) -> Tensor:
+    """
+    This function computes a set of windowed sinusoidal functions
+    corresponding to the real and imaginary parts  of possibly-asymmetrical
+    triangular angular-frequency bins in frequency space.  This basis
+    allows you to approximate functions whose fourier spectrum is
+    a piecewise linear function of frequency, with the x-axis values of
+    the inflection points of the piecewise linear function corresponding
+    to the supplied "freqs".
+
+  Args:
+     freqs: the frequencies of the triangular-bin centers; the left and
+         right parts of the widths of the triangular bins correspond to the
+         distances to the two adjacent bins; for the "edge" bins, the
+         "edge" distances are duplicated.
+      t: the "t" (or x) values for which we want to evaluate the basis; this
+        will normally be some kind of arange expression e.g. arange(100).
+   scale: if True, the returned basis will contain the "natural" scaling
+        factors that arise from the bin widths; if False, it will be
+        normalized so that the maximum absolute value of the real
+        functions (attained at t==0) is 1.
+
+
+   Returns:
+        Returns the real and imaginary parts of the basis functions, with
+        shape (t.size(), freqs.size(), 2)
+    """
+    dtype = freqs.dtype
+    freqs = freqs.to(torch.double)
+    t = t.to(torch.double)
+
+    t = t.unsqueeze(-1)
+
+
+    C = freqs  # Center frequencies of bins.
+    W = freqs[1:] - freqs[:-1]   # the differences between the frequencies
+    W_l = torch.cat((W[:1], W))  # the difference between each center freq and the freq to the left
+    W_r = torch.cat((W, W[-1:])) # the difference between each center freq and the freq to the right
+
+    angles = C * t
+    angles_r = (C - W_r) * t
+    angles_l = (C + W_l) * t
+    t2 = t**2
+    scale_factor = 0.5 * (W_r + W_l)
+
+    re = torch.where(t == 0., scale_factor,
+                     (angles.cos() - angles_r.cos()) / (W_r * t2) + (angles.cos() - angles_l.cos()) / (W_l * t2))
+    im = torch.where(t == 0., 0.0,
+                     (angles.sin() - angles_r.sin()) / (W_r * t2) + (angles.sin() - angles_l.sin()) / (W_l * t2))
+
+
+    if not scale:
+        re = re / scale_factor
+        im = im / scale_factor
+
+    return torch.stack((re, im), dim=-1).to(dtype)
+
+
+
 class RelPosScores(nn.Module):
     def __init__(self,
                  num_heads: int,
                  pos_dim: int,
                  num_freqs: int,
-                 base: float = 10_000):
+                 low_freq_factor: float = 0.001):
         """
         Implementation of relative position scores with mathematically sensible sinc envelope.
         """
         super().__init__()
-        self.base = base
         self.weight = nn.Parameter(0.2 * torch.randn(num_heads, pos_dim, 2 * num_freqs))
-
         with torch.no_grad():
             # initialize the weight in a low-pass way.
             for _ in range(10):
                 self.weight[:] = (2 ** -0.5) * (self.weight + self.weight.roll(1, dims=2))
 
-        self.num_freqs = num_freqs
+
+        log_freqs = torch.linspace(math.log(low_freq_factor), math.log(1 + low_freq_factor), num_freqs)
+        freqs = math.pi * (log_freqs.exp() - low_freq_factor)  # these range from 0 to pi.
+        freqs[0] = 0.0  # in case of roundoff (it should be 0, mathematically)
+        self.register_buffer('freqs', freqs, persistent=False)
+
 
     def forward(self, p: Tensor) -> Tensor:
         """
@@ -1521,34 +1624,16 @@ class RelPosScores(nn.Module):
 
         (batch_size, num_heads, seq_len, pos_dim) = p.shape
 
-        num_freqs = self.num_freqs
-
-        freqs = math.pi * torch.linspace(0., -math.log(self.base), num_freqs + 1, device=p.device).exp()[1:]  # base freqs.
-
-        triangle_size = (self.base ** (1. /  (num_freqs + 1)))  - 1
-        # e.g. 0.15.  triangle_size is the relative separation between frequencies.
-
-        # e.g. if base ** (1/(num_freqs+1)) == 1.15, then triangle_size == 0.15.
-        # see
-        # https://www.physicsforums.com/threads/fourier-transform-triangular-pulse.850993/,
-        # it corresponds to b.  we want sinc(\omega b / 2) where b ==
-        # freqs[i] * triangle_size, with the version of sinc without 2pi; and omega here was
-        # frequency, but actually it's really time as the triangle was the envelope in
-        # fourier space and our FFT is actually the inverse FFT.
 
 
+        freqs = self.freqs # base freqs
         t = torch.arange(-(seq_len - 1), seq_len, device=p.device)
-
-        angles = t.unsqueeze(-1) * freqs   # (2*seq_len - 1, num_freqs)
-
-        def sinc2(x):
-            return torch.where(x == 0.0, torch.ones_like(x), x.sin() / x) ** 2
-
-        envelope = sinc2(angles * (0.5 * triangle_size))
-        cos = angles.cos() * envelope
-        sin = angles.sin() * envelope
-
-        basis = torch.cat((cos, sin), dim=1)  # (2 * seq_len - 1, 2 * num_freqs)
+        basis = compute_angular_freq_basis_triangular(freqs, t, scale=False)
+        # basis: (2 * seq_len - 1, num_freqs, 2)
+        basis = basis.permute(0, 2, 1)
+        # permute it because of how we did the low-pass initialization of weight, we want
+        # the cos and sin parts to each be continuous ranges, not interleaved.
+        basis = basis.reshape(basis.shape[0], -1) # (2 * seq_len - 1, 2 * num_freqs)
 
         x = torch.matmul(self.weight, basis.t())
         assert x.shape == (num_heads, pos_dim, 2 * seq_len - 1)
