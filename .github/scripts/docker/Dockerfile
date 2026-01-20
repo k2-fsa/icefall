@@ -44,6 +44,7 @@ RUN pip install --no-cache-dir \
       espnet_tts_frontend \
       graphviz \
       kaldi-decoder \
+      kaldi_native_fbank \
       kaldi_native_io \
       kaldialign \
       kaldifst \
