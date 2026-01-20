@@ -36,7 +36,7 @@ def get_parser():
         help="name of the target lang-dir",
     )
     return parser
-     
+
 
 def main():
 
@@ -50,7 +50,7 @@ def main():
         langdirs = [Path(args.src_langdir), Path(args.tgt_langdir)]
     else:
         langdirs = [Path(args.src_langdir)]
-    
+
     for langdir in langdirs:
         if not os.path.exists(langdir):
             os.makedirs(langdir)
