@@ -1033,7 +1033,7 @@ def modified_beam_search(
           nb_shift = logp_b - logits[..., 0]
           nb_shift = nb_shift.unsqueeze(-1)
           log_probs1 = (logits[..., 1:] / temperature).log_softmax(dim=-1) + nb_shift # (num_hyps, vocab_size-1)
-          log_probs = torch.cat((logp_b.unsqueeze(-1), log_probs1), dim=-1) 
+          log_probs = torch.cat((logp_b.unsqueeze(-1), log_probs1), dim=-1)
           log_probs.add_(ys_log_probs)
         else:
           log_probs = (logits / temperature).log_softmax(dim=-1)  # (num_hyps, vocab_size)
@@ -1203,7 +1203,7 @@ def modified_beam_search_hat(
 
         logits = logits.squeeze(1).squeeze(1)  # (num_hyps, vocab_size)
 
-       
+
         # For blank symbol, log-prob is log-sigmoid of the score
         logp_b = torch.nn.functional.logsigmoid(logits[..., 0])
         # Additionally, to ensure the the probs of blank and non-blank sum to 1, we
@@ -1211,9 +1211,9 @@ def modified_beam_search_hat(
         # is equivalent to log(1 - sigmoid(logits[..., 0])).
         breakpoint()
         nb_shift = logp_b - logits[..., 0]
-
+        nb_shift = nb_shift.unsqueeze(-1)
         log_probs1 = (logits[..., 1:] / temperature).log_softmax(dim=-1) + nb_shift # (num_hyps, vocab_size-1)
-        log_probs = torch.cat((logp_b, log_probs), dim=-1) 
+        log_probs = torch.cat((logp_b.unsqueeze(-1), log_probs1), dim=-1)
         log_probs.add_(ys_log_probs)
 
         vocab_size = log_probs.size(-1)

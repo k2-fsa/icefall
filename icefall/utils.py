@@ -648,7 +648,7 @@ def store_translations(
     hyp_list = []
     ref_list = []
     dir_ = os.path.dirname(filename)
-    reftgt = os.path.join(dir_, "reftgt-" + str(os.path.basename(filename))) 
+    reftgt = os.path.join(dir_, "reftgt-" + str(os.path.basename(filename)))
     refsrc = os.path.join(dir_, "refsrc-"+str(os.path.basename(filename)))
     hyp = os.path.join(dir_, "hyp-"+str( os.path.basename(filename)))
     bleu_file = os.path.join(dir_, "bleu-"+str( os.path.basename(filename)))
@@ -661,7 +661,7 @@ def store_translations(
             print(f"{cut_id}: ref_tgt {ref_tgt}", file=f)
             print(f"{cut_id}: hyp {hyp}", file=f)
             print("\n", file=f)
-    
+
 
             print(f"{ref}", file=f_src)
             print(f"{ref_tgt}", file=f_tgt)
@@ -673,7 +673,7 @@ def store_translations(
     with open(bleu_file, 'w') as b:
         print(str(bleu.corpus_score(hyp_list, [ref_list])), file=b)
         print(f"BLEU signiture: {str(bleu.get_signature())}", file=b)
-        
+
     logging.info(
             f"[{bleu.corpus_score(hyp_list, [ref_list])}] "
             f"BLEU signiture: {str(bleu.get_signature())}"
