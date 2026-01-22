@@ -1122,8 +1122,8 @@ def train_one_epoch(
             return 1.0
 
     def save_bad_model(suffix: str = ""):
-        if params.debug_interval > 0:
-            optimizer.write_debug_info(summary_writer=tb_writer)
+        #if params.debug_interval > 0:
+        #    optimizer.write_debug_info(summary_writer=tb_writer)
         save_checkpoint_impl(
             filename=params.exp_dir / f"bad-model{suffix}-{rank}.pt",
             model=model,
@@ -1277,8 +1277,8 @@ def train_one_epoch(
                     tb_writer, "train/valid_", params.batch_idx_train
                 )
 
-        if params.batch_idx_train > 0 and params.dump_debug_interval > 0 and params.batch_idx_train % params.dump_debug_interval == 0:
-            optimizer.write_debug_info(summary_writer=tb_writer)
+        #if params.batch_idx_train > 0 and params.dump_debug_interval > 0 and params.batch_idx_train % params.dump_debug_interval == 0:
+        #optimizer.write_debug_info(summary_writer=tb_writer)
 
     loss_value = tot_loss["loss"] / tot_loss["frames"]
     params.train_loss = loss_value
