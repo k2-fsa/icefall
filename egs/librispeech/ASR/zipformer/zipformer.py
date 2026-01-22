@@ -1084,9 +1084,9 @@ class MultiheadAttentionWeights(nn.Module):
            a tensor of attention weights, of shape (hum_heads, batch_size, seq_len, seq_len)
            interpreted as (hum_heads, batch_size, tgt_seq_len, src_seq_len).
         """
-        x = self.in_proj(x)
         query_head_dim = self.query_head_dim
         num_heads = self.num_heads
+        x = self.in_proj(x) * (query_head_dim ** -0.25)
 
         seq_len, batch_size, _ = x.shape
 
