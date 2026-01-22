@@ -1613,6 +1613,107 @@ def _test_transformed_adam(hidden_dim: int):
         logging.info(f"input_magnitudes = {input_magnitudes}")
         logging.info(f"output_magnitudes = {output_magnitudes}")
 
+
+def _test_muon(hidden_dim: int):
+    import timeit
+
+    from muon import Muon
+    from scaling import OrthogonalLinear
+
+    E = 100
+    B = 4
+    T = 2
+    logging.info("in test_muon")
+    # device = torch.device('cuda')
+    device = torch.device("cpu")
+    dtype = torch.float32
+
+    fix_random_seed(42)
+    # these input_magnitudes and output_magnitudes are to test that
+    # Abel is working as we expect and is able to adjust scales of
+    # different dims differently.
+    input_magnitudes = (1.0 * torch.randn(E, dtype=dtype, device=device)).exp()
+    output_magnitudes = (1.0 * torch.randn(E, dtype=dtype, device=device)).exp()
+
+    if True:
+        fix_random_seed(42)
+        Linear = torch.nn.Linear
+
+        m = torch.nn.Sequential(
+            Linear(E, hidden_dim),
+            OrthogonalLinear(hidden_dim, hidden_dim, bias=True,
+                             in_groups=2, group_size=hidden_dim//4),
+            torch.nn.PReLU(),
+            Linear(hidden_dim, hidden_dim),
+            torch.nn.PReLU(),
+            Linear(hidden_dim, E),
+        ).to(device)
+
+        train_pairs = [
+            (
+                100.0
+                * torch.randn(B, T, E, device=device, dtype=dtype)
+                * input_magnitudes,
+                torch.randn(B, T, E, device=device, dtype=dtype) * output_magnitudes,
+            )
+            for _ in range(20)
+        ]
+
+        optim = Muon(muon_params=[m for m in m.parameters() if m.ndim == 2],
+                     adamw_params=[m for m in m.parameters() if m.ndim != 2],
+                     lr=1e-03)
+
+        scheduler = Sched3(optim, lr_batches=100, power=0.9, verbose=False)
+
+        start = timeit.default_timer()
+        avg_loss = 0.0
+        for epoch in range(180):
+            # if epoch == 100 and test in [2,3]:
+            #    optim.reset_speedup()  # check it doesn't crash.
+
+            # if epoch == 130:
+            #    opts = diagnostics.TensorDiagnosticOptions(
+            #        512
+            #    )  # allow 4 megabytes per sub-module
+            #    diagnostic = diagnostics.attach_diagnostics(m, opts)
+
+            for n, (x, y) in enumerate(train_pairs):
+                scheduler.step_batch()
+                y_out = m(x)
+                loss = ((y_out - y) ** 2).mean() * 100.0
+                if epoch == 0 and n == 0:
+                    avg_loss = loss.item()
+                else:
+                    avg_loss = 0.98 * avg_loss + 0.02 * loss.item()
+                if n == 0 and epoch % 5 == 0:
+                    norm1 = '%.2e' % (m[0].weight**2).mean().sqrt().item()
+                    norm2 = '%.2e' % (m[1].weight**2).mean().sqrt().item()
+                    norm3 = '%.2e' % (m[3].weight**2).mean().sqrt().item()
+                    norm4 = '%.2e' % (m[5].weight**2).mean().sqrt().item()
+
+                    bias_norm1 = '%.2e' % (m[0].bias**2).mean().sqrt().item()
+                    bias_norm2 = '%.2e' % (m[3].bias**2).mean().sqrt().item()
+                    bias_norm3 = '%.2e' % (m[5].bias**2).mean().sqrt().item()
+
+                    lr = scheduler.get_last_lr()[0]
+                    logging.info(
+                        f"Test muon, epoch {epoch}, batch {n}, avg_loss {avg_loss:.4g}, lr={lr:.4e}, norms={norm1,norm2,norm3,norm4}, bias_norms={bias_norm1,bias_norm2,bias_norm3}"
+                    )
+                loss.log().backward()
+                optim.step()
+                optim.zero_grad()
+
+        # diagnostic.print_diagnostics()
+
+        stop = timeit.default_timer()
+        logging.info(f"Muon: time taken: {stop - start}")
+
+        logging.info(f"last lr = {scheduler.get_last_lr()}")
+        # logging.info("state dict = ", scheduler.state_dict())
+        # logging.info("optim state_dict = ", optim.state_dict())
+        logging.info(f"input_magnitudes = {input_magnitudes}")
+        logging.info(f"output_magnitudes = {output_magnitudes}")
+
 if __name__ == "__main__":
     torch.set_num_threads(1)
     torch.set_num_interop_threads(1)
@@ -1630,6 +1731,7 @@ if __name__ == "__main__":
     else:
         hidden_dim = 200
 
+    _test_muon(hidden_dim)
     _test_transformed_adam(hidden_dim)
     _test_eden()
     _test_sched3()
