@@ -75,6 +75,7 @@ from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import AsrModel
 from optim import Sched3, TransformedAdam
+from muon import Muon
 from scaling import ScheduledFloat
 from subsampling import Conv2dSubsampling
 from torch import Tensor
@@ -440,7 +441,7 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--base-lr", type=float, default=0.05, help="The base learning rate."
+        "--base-lr", type=float, default=0.001, help="The base learning rate."
     )
 
     parser.add_argument(
@@ -1378,11 +1379,10 @@ def run(rank, world_size, args):
         logging.info("Using DDP")
         model = DDP(model, device_ids=[rank], find_unused_parameters=True)
 
-    optimizer = TransformedAdam(
-        get_parameter_groups_with_lrs(model, lr=params.base_lr, include_names=True),
-        lr=params.base_lr,  # should have no effect
-        clipping_scale=2.0,
-        debug_interval=params.debug_interval,
+    optimizer = Muon(
+        muon_params=[ m for m in model.parameters() if m.ndim==2],
+        adamw_params=[ m for m in model.parameters() if m.ndim!=2],
+        lr=params.base_lr,
     )
 
     scheduler = Sched3(optimizer, get_adjusted_lr_batches(params), power=0.5)
