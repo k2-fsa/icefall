@@ -1086,7 +1086,7 @@ class MultiheadAttentionWeights(nn.Module):
         """
         query_head_dim = self.query_head_dim
         num_heads = self.num_heads
-        x = self.in_proj(x) * (query_head_dim ** -0.25)
+        x = self.in_proj(x) * (0.2 * (query_head_dim ** -0.25))
 
         seq_len, batch_size, _ = x.shape
 
