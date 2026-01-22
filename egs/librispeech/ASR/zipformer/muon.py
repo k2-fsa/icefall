@@ -41,9 +41,18 @@
 # SOFTWARE.
 
 import math
-
 import torch
+import logging
 
+
+def norm4(X):
+    XX = X @ X.T
+    import random
+    if random.random() < 0.0001:
+        norm2 = X.norm()
+        norm4 = XX.norm().sqrt()
+        logging.info(f"shape={X.shape}, norm2={norm2} vs norm4={norm4}")
+    return XX.norm().sqrt()
 
 def zeropower_via_newtonschulz5(G: "torch.Tensor", steps: int) -> "torch.Tensor":
     """Newton-Schulz iteration to compute the zeroth power / orthogonalization of G.
@@ -60,8 +69,8 @@ def zeropower_via_newtonschulz5(G: "torch.Tensor", steps: int) -> "torch.Tensor"
     X = G.bfloat16()
     if G.size(0) > G.size(1):
         X = X.T
-    # Ensure spectral norm is at most 1
-    X = X / (X.norm() + 1e-7)
+    # Ensure spectral 4-norm is at most 1
+    X = X / (norm4(X) + 1e-7)
     # Perform the NS iterations
     for _ in range(steps):
         A = X @ X.T
