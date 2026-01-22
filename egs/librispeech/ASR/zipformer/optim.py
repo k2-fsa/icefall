@@ -1663,7 +1663,7 @@ def _test_muon(hidden_dim: int):
                      adamw_params=[m for m in m.parameters() if m.ndim != 2],
                      lr=1e-03)
 
-        scheduler = Sched3(optim, lr_batches=100, power=0.9, verbose=False)
+        scheduler = Sched3(optim, lr_batches=100, power=0.9, warmup_start=0.1, verbose=False)
 
         start = timeit.default_timer()
         avg_loss = 0.0
