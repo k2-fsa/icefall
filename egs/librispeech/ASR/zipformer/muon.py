@@ -43,11 +43,13 @@
 import math
 import torch
 import logging
+import random
+
+
 
 
 def norm4(X):
     XX = X @ X.T
-    import random
     if random.random() < 0.0001:
         norm2 = X.norm()
         norm4 = XX.norm().sqrt()
@@ -83,6 +85,10 @@ def zeropower_via_newtonschulz5(G: "torch.Tensor", steps: int) -> "torch.Tensor"
 
     if G.size(0) > G.size(1):
         X = X.T
+
+    if random.random() < 0.01:
+        logging.info(f"zeropower_via_newtonschulz5: shape={X.shape}, singular-value-rms={X.norm()/(min(X.shape[0],X.shape[1])**0.5)}")
+
     return X
 
 
