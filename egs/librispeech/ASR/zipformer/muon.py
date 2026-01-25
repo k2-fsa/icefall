@@ -69,8 +69,12 @@ def zeropower_via_newtonschulz5(G: "torch.Tensor", steps: int) -> "torch.Tensor"
     X = G.bfloat16()
     if G.size(0) > G.size(1):
         X = X.T
+    # now x: (rows, cols) with rows <= cols
     # Ensure spectral 4-norm is at most 1
-    X = X / (norm4(X) + 1e-7)
+    eps = 1e-7
+    X = X / ((X ** 2).sum(dim=1, keepdim=True) + eps**2).sqrt()
+    X = X / ((X ** 2).sum(dim=0) + eps**2).sqrt()
+    X = X / (norm4(X) + eps)
     # Perform the NS iterations
     for _ in range(steps):
         A = X @ X.T
@@ -115,7 +119,7 @@ class Muon(torch.optim.Optimizer):
         muon_params=None,
         momentum=0.95,
         nesterov=True,
-        ns_steps=5,
+        ns_steps=3,
         adamw_params=None,
         adamw_betas=(0.9, 0.95),
         adamw_eps=1e-8,
