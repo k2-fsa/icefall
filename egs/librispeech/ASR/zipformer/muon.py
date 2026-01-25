@@ -119,7 +119,7 @@ class Muon(torch.optim.Optimizer):
         muon_params=None,
         momentum=0.95,
         nesterov=True,
-        ns_steps=3,
+        ns_steps=5,
         adamw_params=None,
         adamw_betas=(0.9, 0.95),
         adamw_eps=1e-8,
