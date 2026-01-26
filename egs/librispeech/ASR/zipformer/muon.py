@@ -56,6 +56,25 @@ def norm4(X):
         logging.info(f"shape={X.shape}, norm2={norm2} vs norm4={norm4}")
     return XX.norm().sqrt()
 
+def get_muon_shape(shape):
+    shape = list(shape)
+    def prod(l):
+        ans = l[0]
+        for n in l[1:]:
+            ans = ans * n
+        return ans
+    n = len(shape)
+    diffs = [ ]
+    for i in range(1, n):
+        prod1 = prod(shape[:i])
+        prod2 = prod(shape[i:])
+        diff = abs(prod1 - prod2)
+        diffs.append(diff)
+    min_diff = min(diffs)
+    for i in range(1, n):
+        if diffs[i-1] == min_diff:
+            return prod(shape[:i]), prod(shape[i:])
+
 def zeropower_via_newtonschulz5(G: "torch.Tensor", steps: int) -> "torch.Tensor":
     """Newton-Schulz iteration to compute the zeroth power / orthogonalization of G.
 
@@ -66,6 +85,8 @@ def zeropower_via_newtonschulz5(G: "torch.Tensor", steps: int) -> "torch.Tensor"
     like US'V^T where S' is diagonal with S_{ii}' ~ Uniform(0.5, 1.5), which turns out not to hurt model
     performance at all relative to UV^T, where USV^T = G is the SVD.
     """
+    orig_shape = G.shape
+    G = G.reshape(get_muon_shape(orig_shape))
     assert len(G.shape) == 2
     a, b, c = (3.4445, -4.7750, 2.0315)
     X = G.bfloat16()
@@ -89,7 +110,7 @@ def zeropower_via_newtonschulz5(G: "torch.Tensor", steps: int) -> "torch.Tensor"
     if random.random() < 0.01:
         logging.info(f"zeropower_via_newtonschulz5: shape={X.shape}, singular-value-rms={X.norm()/(min(X.shape[0],X.shape[1])**0.5)}")
 
-    return X
+    return X.reshape(orig_shape)
 
 
 class Muon(torch.optim.Optimizer):
@@ -147,7 +168,7 @@ class Muon(torch.optim.Optimizer):
         # Sort parameters into those for which we will use Muon, and those for which we will not
         for p in muon_params:
             # Use Muon for every parameter in muon_params which is >= 2D and doesn't look like an embedding or head layer
-            assert p.ndim == 2, p.ndim
+            assert p.ndim > 1, p.ndim
             self.state[p]["use_muon"] = True
         for p in adamw_params:
             # Do not use Muon for parameters in adamw_params
@@ -186,8 +207,6 @@ class Muon(torch.optim.Optimizer):
                 g = p.grad
                 if g is None:
                     continue
-                if g.ndim > 2:
-                    g = g.view(g.size(0), -1)
                 assert g is not None
 
                 # calc update

@@ -1380,8 +1380,8 @@ def run(rank, world_size, args):
         model = DDP(model, device_ids=[rank], find_unused_parameters=True)
 
     optimizer = Muon(
-        muon_params=[ m for m in model.parameters() if m.ndim==2],
-        adamw_params=[ m for m in model.parameters() if m.ndim!=2],
+        muon_params=[ m for m in model.parameters() if m.numel() != max(m.shape, default=1) ],
+        adamw_params=[ m for m in model.parameters() if m.numel() == max(m.shape, default=1) ],
         lr=params.base_lr,
     )
 
