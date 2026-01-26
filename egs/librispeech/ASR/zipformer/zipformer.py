@@ -1675,7 +1675,7 @@ class FftConv(nn.Module):
                  params_per_channel: int,
                  bias: bool = True):
         super().__init__()
-        self.weight = nn.Parameter(torch.randn(num_channels, params_per_channel))
+        self.weight = nn.Parameter(0.1 * torch.randn(num_channels, params_per_channel))
         # one factor of 2 is for (sin, cos); the other is to double the num representable freqs
         self.weight_proj = nn.Linear(params_per_channel, 4 * params_per_channel)
         if bias:
@@ -1693,6 +1693,10 @@ class FftConv(nn.Module):
             # x: (num_freqs, batch_size, num_channels)
             N = x.shape[0]   # num freqs
             weight = self.weight_proj(self.weight).reshape(num_channels, 2, -1)  # (num_channels, 2, 2 * params_per_channel)
+            weight = 10. * weight
+            # this scale of 10 times is because of interactions with commonly
+            # used optimizers, it's to help this module learn faster than it
+            # otherwise would.
             weight = torch.nn.functional.interpolate(weight, N, mode='linear', align_corners=True)
             weight = torch.view_as_complex(weight.permute(2, 0, 1).contiguous())
             # weight: (N, num_channels)
