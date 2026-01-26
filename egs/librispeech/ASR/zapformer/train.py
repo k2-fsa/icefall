@@ -1383,6 +1383,7 @@ def run(rank, world_size, args):
         muon_params=[ m for m in model.parameters() if m.numel() != max(m.shape, default=1) ],
         adamw_params=[ m for m in model.parameters() if m.numel() == max(m.shape, default=1) ],
         lr=params.base_lr,
+        wd=0.15,
     )
 
     scheduler = Sched3(optimizer, get_adjusted_lr_batches(params), power=0.33)
