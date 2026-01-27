@@ -95,7 +95,6 @@ def zeropower_via_newtonschulz5(G: "torch.Tensor", steps: int) -> "torch.Tensor"
     # now x: (rows, cols) with rows <= cols
     # Ensure spectral 4-norm is at most 1
     eps = 1e-7
-    X = X / ((X ** 2).sum(dim=1, keepdim=True) + eps**2).sqrt()
     X = X / ((X ** 2).sum(dim=0) + eps**2).sqrt()
     X = X / (norm4(X) + eps)
     # Perform the NS iterations
