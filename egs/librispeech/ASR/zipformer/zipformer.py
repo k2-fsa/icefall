@@ -732,6 +732,7 @@ class Zipformer2Encoder(nn.Module):
                         (1. / num_layers) * torch.ones(num_layers) ],
                       dim=0))
 
+        self.input_scale = nn.Parameter(torch.tensor([1.0]))
 
         self.copy_bypass = Identity()
 
@@ -771,10 +772,14 @@ class Zipformer2Encoder(nn.Module):
 
         residual_scale = limit_param_value(self.residual_scales[0],
                                            min=-1.0, max=-0.5)
+        input_scale = limit_param_value(self.input_scale,
+                                        min=0.5, max=2.0)
 
         src_with_bypass = residual_scale * src
+        src = input_scale * src
 
         for i, mod in enumerate(self.layers):
+
             src = mod(
                 src,
                 chunk_size=chunk_size,
