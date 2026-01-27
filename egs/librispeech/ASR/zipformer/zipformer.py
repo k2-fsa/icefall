@@ -581,7 +581,12 @@ class Zipformer2EncoderLayer(nn.Module):
 
         src = src + self.conv_module(src, chunk_size=chunk_size, src_key_padding_mask=src_key_padding_mask, aux_loss_scale=0.1 * aux_loss_scale)
 
-        src = src + self.feed_forward2(src, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
+        # ff2_scale is to keep the inputs to the activations in feed_forward2
+        # module at about the same magnitude as in the feed_forward1 module
+        # without requiring the weights to learn different magnitudes (the
+        # activation is not scale-invariant, it is not relu).
+        ff2_scale = 1.5
+        src = src + ff2_scale * self.feed_forward2(src * (1. / ff2_scale), aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
 
         residual_scale = limit_param_value(self.residual_scale, min=0.25, max=0.75)
         offset = (src - src_orig) * residual_scale
