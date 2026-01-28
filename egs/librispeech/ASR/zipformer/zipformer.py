@@ -723,8 +723,8 @@ class Zipformer2Encoder(nn.Module):
         super().__init__()
 
         # self.downsample will also reverse the downsampling operation for us afterward.
-        self.proj = SimpleOrthogonalLinear(dim, encoder_layer.embed_dim, bias=False)
-        self.proj.lr_scale = 0.75
+        self.proj = SimpleOrthogonalLinear(dim, encoder_layer.embed_dim,
+                                           lr_scale=0.66, bias=False)
 
         self.name = None
         self.layers = nn.ModuleList(

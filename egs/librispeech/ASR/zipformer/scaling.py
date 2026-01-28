@@ -1082,6 +1082,10 @@ class SimpleOrthogonalLinear(nn.Linear):
     Args:
       in_channels: number of input channels
      out_channels: number of output channels
+         lr_scale: we will scale the weight by this value before applying the orthogonal
+                   constraint and using it; with most optimizers
+                   this will have the effect of slowing down the learning by this factor because
+                   the parameter value will be larger.
              bias: if True, include a bias term.
      penalty_scale: a scale on the penalty on non-orthogonality (this will
                    be multiplied by the average-absolute-value of the
@@ -1092,25 +1096,17 @@ class SimpleOrthogonalLinear(nn.Linear):
     def __init__(self,
                  in_channels: int,
                  out_channels: int,
-                 in_groups: int = -1,
-                 out_groups: int = -1,
-                 group_size: int = -1,
+                 lr_scale: float,
                  bias: bool = True,
                  penalty_scale: FloatLike = 20.0,
     ):
         super().__init__(in_channels, out_channels, bias=bias)
         self.name = None
-        self.in_groups = in_groups
-        self.out_groups = out_groups
-        if in_groups > 0 and group_size == -1:
-            group_size = in_channels // in_groups
-        elif out_groups > 0 and group_size == -1:
-            group_size = out_channels // out_groups
-        self.group_size = group_size
         self.penalty_scale = copy.deepcopy(penalty_scale)
+        self.weight_scale = lr_scale
 
         with torch.no_grad():
-            self.weight[:] = torch.randn(out_channels, in_channels) * (in_channels ** -0.5)
+            self.weight[:] = torch.randn(out_channels, in_channels) * (in_channels ** -0.5) * (1. / lr_scale)
         if self.bias is not None:
             torch.nn.init.uniform_(self.bias, -0.01, 0.01)
 
@@ -1118,6 +1114,9 @@ class SimpleOrthogonalLinear(nn.Linear):
     def forward(self, x: Tensor, transpose: bool = False):
         # you can only use transpose=True if you used bias=False in initialization
         weight = self.weight
+        weight_scale = self.weight_scale
+        if weight_scale != 1.0:
+            weight = weight * weight_scale
         if self.training and not torch.jit.is_scripting() and not torch.jit.is_tracing():
             weight = SimpleOrthogonalPenaltyFunction.apply(weight, float(self.penalty_scale), self.name)
 
