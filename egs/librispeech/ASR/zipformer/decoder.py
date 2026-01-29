@@ -57,6 +57,10 @@ class Decoder(nn.Module):
             num_embeddings=vocab_size,
             embedding_dim=decoder_dim,
         )
+        with torch.no_grad():
+            # and we will scale by 10 in forward.  this is because with an optimizer that has weight decay,
+            # it's best if all the parameters have fairly similar dynamic range.
+            self.embedding.weight[:] *= 0.1
 
         self.blank_id = blank_id
 
@@ -92,7 +96,7 @@ class Decoder(nn.Module):
         y = y.to(torch.int64)
         # this stuff about clamp() is a temporary fix for a mismatch
         # at utterance start, we use negative ids in beam_search.py
-        embedding_out = self.embedding(y.clamp(min=0)) * (y >= 0).unsqueeze(-1)
+        embedding_out = self.embedding(y.clamp(min=0)) * (y >= 0).unsqueeze(-1) * 10.0
 
         if self.context_size > 1:
             embedding_out = embedding_out.permute(0, 2, 1)

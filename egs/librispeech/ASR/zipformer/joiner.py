@@ -62,6 +62,8 @@ class Joiner(nn.Module):
         else:
             logit = encoder_out + decoder_out
 
-        logit = self.output_linear(torch.tanh(logit))
+        # the scale of 2.0 is arbitrary, it is intended to modulate the speed at which joiner.output_linear trains,
+        # make it train faster by reducing its scale.
+        logit = 2.0 * self.output_linear(torch.tanh(logit))
 
         return logit
