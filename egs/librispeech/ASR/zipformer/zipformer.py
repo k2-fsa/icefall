@@ -1096,14 +1096,14 @@ class MultiheadAttentionWeights(nn.Module):
         """
         query_head_dim = self.query_head_dim
         num_heads = self.num_heads
-        x = self.in_proj(x) * (query_head_dim ** -0.25)
+        x = self.in_proj(x)
 
         seq_len, batch_size, _ = x.shape
 
         query_dim = query_head_dim * num_heads
 
         # self-attention
-        q = x[..., 0:query_dim]
+        q = x[..., 0:query_dim] * (query_head_dim ** -0.5)
         k = x[..., query_dim : 2 * query_dim]
         p = x[..., 2 * query_dim:]
 
@@ -1606,7 +1606,7 @@ class RelPosScores(nn.Module):
         Implementation of relative position scores with mathematically sensible sinc envelope.
         """
         super().__init__()
-        self.weight = nn.Parameter(0.2 * torch.randn(num_heads, pos_dim, 2 * num_freqs))
+        self.weight = nn.Parameter(0.04 * torch.randn(num_heads, pos_dim, 2 * num_freqs))
         with torch.no_grad():
             # initialize the weight in a low-pass way.
             for _ in range(10):
