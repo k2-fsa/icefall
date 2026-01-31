@@ -588,7 +588,8 @@ class Zipformer2EncoderLayer(nn.Module):
         ff2_scale = 1.5
         src = src + ff2_scale * self.feed_forward2(src * (1. / ff2_scale), aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
 
-        residual_scale = limit_param_value(self.residual_scale, min=0.25, max=0.75)
+        #residual_scale = limit_param_value(self.residual_scale, min=0.25, max=0.75)
+        residual_scale = 0.25
         offset = (src - src_orig) * residual_scale
 
         offset = self.offset_scale_limiter(offset, aux_loss_scale)
