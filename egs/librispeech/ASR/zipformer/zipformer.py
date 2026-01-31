@@ -512,7 +512,6 @@ class Zipformer2EncoderLayer(nn.Module):
 
         self.residual_scale = nn.Parameter(0.5 * torch.ones(embed_dim))
 
-        self.offset_scale_limiter = ScaleLimiter(max_rms=0.5)
         power = 0.45  # power should be between 0 and 1.  1 would mean cov == I (unattainable)
         self.correlation_limiter = CorrelationLimiter(limit=(1. / (embed_dim  ** power)))
 
@@ -591,8 +590,6 @@ class Zipformer2EncoderLayer(nn.Module):
         #residual_scale = limit_param_value(self.residual_scale, min=0.25, max=0.75)
         residual_scale = 0.25
         offset = (src - src_orig) * residual_scale
-
-        offset = self.offset_scale_limiter(offset, aux_loss_scale)
 
         src = src_orig + offset
 
