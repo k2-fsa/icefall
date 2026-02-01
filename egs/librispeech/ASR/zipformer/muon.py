@@ -237,15 +237,15 @@ class Muon(torch.optim.Optimizer):
 
 
                 old_scale = scale.clone()
-                scale.mul_(1 - lr * wd)
 
                 scale.add_(scale_grad.sign(), alpha=-lr)
                 scale.clamp_(min=min_scale, max=max_scale)
 
                 scale_ratio = scale / old_scale
 
-                # apply changes in scale
-                p.data.mul_(scale_ratio)
+                # apply changes in scale, together with conventional decay.
+                p.data.mul_(scale_ratio * (1 - lr * wd))
+
 
                 # apply update
                 p.data.add_(u * scale, alpha=-adjusted_lr)
