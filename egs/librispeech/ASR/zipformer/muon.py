@@ -229,7 +229,7 @@ class Muon(torch.optim.Optimizer):
                 else:
                     g = buf
 
-                scale_grad = (g * p).sum()
+                scale_grad = (g * p.detach()).sum()
                 u = zeropower_via_newtonschulz5(g, steps=group["ns_steps"])
 
                 # scale update
