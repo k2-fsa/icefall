@@ -153,6 +153,7 @@ class Muon(torch.optim.Optimizer):
         adamw_params=None,
         adamw_betas=(0.9, 0.95),
         adamw_eps=1e-8,
+        scale_limits=(0.66, 1.5),
     ):
         defaults = dict(
             lr=lr,
@@ -162,6 +163,7 @@ class Muon(torch.optim.Optimizer):
             ns_steps=ns_steps,
             adamw_betas=adamw_betas,
             adamw_eps=adamw_eps,
+            scale_limits=scale_limits,
         )
 
         params = list(muon_params)
@@ -203,6 +205,7 @@ class Muon(torch.optim.Optimizer):
             lr = group["lr"]
             wd = group["wd"]
             momentum = group["momentum"]
+            min_scale, max_scale = group["scale_limits"]
 
             # generate weight updates in distributed fashion
             for p in params:
@@ -216,22 +219,36 @@ class Muon(torch.optim.Optimizer):
                 state = self.state[p]
                 if "momentum_buffer" not in state:
                     state["momentum_buffer"] = torch.zeros_like(g)
+                    state["scale"] = torch.tensor(1.0, device=g.device)  # scalar
                 buf = state["momentum_buffer"]
+                scale = state["scale"]
                 buf.mul_(momentum).add_(g)
+
                 if group["nesterov"]:
                     g = g.add(buf, alpha=momentum)
                 else:
                     g = buf
+
+                scale_grad = (g * p).sum()
                 u = zeropower_via_newtonschulz5(g, steps=group["ns_steps"])
 
                 # scale update
                 adjusted_lr = self.adjust_lr_for_muon(lr, p.shape)
 
-                # apply weight decay
-                p.data.mul_(1 - lr * wd)
+
+                old_scale = scale.clone()
+                scale.mul_(1 - lr * wd)
+
+                scale.add_(scale_grad.sign(), alpha=-lr)
+                scale.clamp_(min=min_scale, max=max_scale)
+
+                scale_ratio = scale / old_scale
+
+                # apply changes in scale
+                p.data.mul_(scale_ratio)
 
                 # apply update
-                p.data.add_(u, alpha=-adjusted_lr)
+                p.data.add_(u * scale, alpha=-adjusted_lr)
 
             # Adam backup
             params = [p for p in group["params"] if not self.state[p]["use_muon"]]
