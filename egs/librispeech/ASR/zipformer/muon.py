@@ -220,16 +220,20 @@ class Muon(torch.optim.Optimizer):
                 if "momentum_buffer" not in state:
                     state["momentum_buffer"] = torch.zeros_like(g)
                     state["scale"] = torch.tensor(1.0, device=g.device)  # scalar
+                    state["scale_grad_buffer"] = torch.tensor(0.0, device=g.device)  # scalar
                 buf = state["momentum_buffer"]
                 scale = state["scale"]
+                scale_grad_buf = state["scale_grad_buffer"]
                 buf.mul_(momentum).add_(g)
+
+                scale_grad = (g * p.detach()).sum()
+                scale_grad_buf.mul_(momentum).add_(scale_grad)
 
                 if group["nesterov"]:
                     g = g.add(buf, alpha=momentum)
                 else:
                     g = buf
 
-                scale_grad = (g * p.detach()).sum()
                 u = zeropower_via_newtonschulz5(g, steps=group["ns_steps"])
 
                 # scale update
@@ -238,7 +242,7 @@ class Muon(torch.optim.Optimizer):
 
                 old_scale = scale.clone()
 
-                scale.add_(scale_grad.sign(), alpha=-lr)
+                scale.add_(scale_grad_buf.sign(), alpha=-lr)
                 scale.clamp_(min=min_scale, max=max_scale)
 
                 scale_ratio = scale / old_scale
