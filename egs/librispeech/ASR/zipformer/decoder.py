@@ -96,7 +96,7 @@ class Decoder(nn.Module):
         y = y.to(torch.int64)
         # this stuff about clamp() is a temporary fix for a mismatch
         # at utterance start, we use negative ids in beam_search.py
-        embedding_out = self.embedding(y.clamp(min=0)) * (y >= 0).unsqueeze(-1) * 10.0
+        embedding_out = self.embedding(y.clamp(min=0)) * (y >= 0).unsqueeze(-1) * 20.0
 
         if self.context_size > 1:
             embedding_out = embedding_out.permute(0, 2, 1)

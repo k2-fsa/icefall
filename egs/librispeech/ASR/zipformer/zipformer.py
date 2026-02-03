@@ -270,6 +270,7 @@ class Zipformer2(EncoderInterface):
         if od > 1:
             x_lens = (x_lens + od - 1) // od
 
+        x = 5.0 * x  # scale up x, as the activations at this point 'want' to be fairly small, like 0.2.
         return x, x_lens
 
     def _get_attn_mask(
@@ -370,6 +371,7 @@ class Zipformer2(EncoderInterface):
                 warnings.simplefilter("ignore")
                 lengths = (x_lens + 1) // 2
 
+        x = 5.0 * x  # scale up x, as the activations at this point 'want' to be fairly small, like 0.2.
         return x, lengths, new_states
 
     @torch.jit.export
