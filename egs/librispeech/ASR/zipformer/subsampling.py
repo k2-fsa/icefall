@@ -319,7 +319,7 @@ class Conv2dSubsampling(nn.Module):
         x = x.transpose(1, 2).reshape(b, t, c * f)
         # now x: (N, T', out_width * layer3_channels))
 
-        x = 0.2 * self.out(x)
+        x = 0.1 * self.out(x)
         # Now x is of shape (N, T', odim)
         x = self.out_norm(x)
 
