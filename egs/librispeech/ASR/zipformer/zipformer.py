@@ -1100,7 +1100,7 @@ class MultiheadAttentionWeights(nn.Module):
         query_dim = query_head_dim * num_heads
 
         # self-attention
-        q = x[..., 0:query_dim] * (query_head_dim ** -0.5)
+        q = x[..., 0:query_dim]
         k = x[..., query_dim : 2 * query_dim]
         p = x[..., 2 * query_dim:]
 
