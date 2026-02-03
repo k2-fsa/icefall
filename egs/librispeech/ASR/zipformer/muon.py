@@ -153,7 +153,7 @@ class Muon(torch.optim.Optimizer):
         adamw_params=None,
         adamw_betas=(0.9, 0.95),
         adamw_eps=1e-8,
-        scale_limits=(0.66, 1.5),
+        scale_limits=(0.5, 2.0),
     ):
         defaults = dict(
             lr=lr,
