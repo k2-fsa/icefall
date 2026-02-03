@@ -574,18 +574,13 @@ class Zipformer2EncoderLayer(nn.Module):
             aux_loss_scale=0.1 * aux_loss_scale,
         )
 
-        src = src + self.feed_forward1(src, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
+        src = src + 0.5 * self.feed_forward1(src, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
 
         src = src + self.self_attn(src, attn_weights, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
 
-        src = src + self.conv_module(src, chunk_size=chunk_size, src_key_padding_mask=src_key_padding_mask, aux_loss_scale=0.1 * aux_loss_scale)
+        src = src + self.conv_module(4. * src, chunk_size=chunk_size, src_key_padding_mask=src_key_padding_mask, aux_loss_scale=0.1 * aux_loss_scale)
 
-        # ff2_scale is to keep the inputs to the activations in feed_forward2
-        # module at about the same magnitude as in the feed_forward1 module
-        # without requiring the weights to learn different magnitudes (the
-        # activation is not scale-invariant, it is not relu).
-        ff2_scale = 1.5
-        src = src + ff2_scale * self.feed_forward2(src * (1. / ff2_scale), aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
+        src = src + 0.5 * self.feed_forward2(src, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
 
         #residual_scale = limit_param_value(self.residual_scale, min=0.25, max=0.75)
         residual_scale = 0.25
@@ -1701,7 +1696,6 @@ class FftConv(nn.Module):
             # x: (num_freqs, batch_size, num_channels)
             N = x.shape[0]   # num freqs
             weight = self.weight_proj(self.weight).reshape(num_channels, 2, -1)  # (num_channels, 2, 2 * params_per_channel)
-            weight = 10. * weight
             # this scale of 10 times is because of interactions with commonly
             # used optimizers, it's to help this module learn faster than it
             # otherwise would.
