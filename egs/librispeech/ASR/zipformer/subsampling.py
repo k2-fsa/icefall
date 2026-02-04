@@ -261,7 +261,7 @@ class Conv2dSubsampling(nn.Module):
         x = x.transpose(1, 2).reshape(b, t, c * f)
         # now x: (N, (T-7)//2, out_width * layer3_channels))
 
-        x = 0.1 * self.out(x)
+        x = self.out(x)
         # Now x is of shape (N, (T-7)//2, odim)
         if torch.jit.is_scripting() or torch.jit.is_tracing():
             x_lens = (x_lens - 7) // 2

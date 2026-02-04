@@ -537,7 +537,7 @@ class GaussNorm(torch.nn.Module):
             return _gauss_norm(x, self.blur * blur_factor, self.scale)
 
         scale = limit_param_value(
-            self.scale, min=0.1, max=1.0, training=self.training)
+            self.scale, min=0.05, max=1.0, training=self.training)
 
         blur = blur_factor * limit_param_value(
             self.blur, min=0.0, max=3.0, training=self.training)

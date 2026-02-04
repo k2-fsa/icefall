@@ -270,7 +270,6 @@ class Zipformer2(EncoderInterface):
         if od > 1:
             x_lens = (x_lens + od - 1) // od
 
-        x = 5.0 * x  # scale up x, as the activations at this point 'want' to be fairly small, like 0.2.
         return x, x_lens
 
     def _get_attn_mask(
@@ -371,7 +370,6 @@ class Zipformer2(EncoderInterface):
                 warnings.simplefilter("ignore")
                 lengths = (x_lens + 1) // 2
 
-        x = 5.0 * x  # scale up x, as the activations at this point 'want' to be fairly small, like 0.2.
         return x, lengths, new_states
 
     @torch.jit.export
@@ -578,13 +576,13 @@ class Zipformer2EncoderLayer(nn.Module):
             aux_loss_scale=0.1 * aux_loss_scale,
         )
 
-        src = src + 0.5 * self.feed_forward1(src, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
+        src = src + self.feed_forward1(src, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
 
         src = src + self.self_attn(src, attn_weights, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
 
         src = src + self.conv_module(3. * src, chunk_size=chunk_size, src_key_padding_mask=src_key_padding_mask, aux_loss_scale=0.1 * aux_loss_scale)
 
-        src = src + 0.5 * self.feed_forward2(src, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
+        src = src + self.feed_forward2(src, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
 
         #residual_scale = limit_param_value(self.residual_scale, min=0.25, max=0.75)
         residual_scale = 0.25
