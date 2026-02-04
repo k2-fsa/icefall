@@ -31,7 +31,7 @@ from scaling import (
     SimpleOrthogonalLinear,
     ScaledLinear,  # not as in other dirs.. just scales down initial parameter values.
     ActivationDropoutAndLinear,
-    ExpNorm,
+    GaussNorm,
     ChunkCausalDepthwiseConv1d,
     CosineSimilarityLoss,
     ScheduledFloat,
@@ -534,7 +534,7 @@ class Zipformer2EncoderLayer(nn.Module):
 
         self.conv_module = ConvolutionModule(embed_dim, conv_params, causal=causal)
 
-        self.norm = ExpNorm(embed_dim)
+        self.norm = GaussNorm()
 
 
     def forward(
@@ -1054,6 +1054,8 @@ class MultiheadAttentionWeights(nn.Module):
         self.dropout = dropout
         self.name = None  # will be overwritten in training code; for diagnostics.
 
+        self.in_norm = GaussNorm()
+
         key_head_dim = query_head_dim
         in_proj_dim = (query_head_dim + key_head_dim + pos_dim) * num_heads
 
@@ -1095,6 +1097,7 @@ class MultiheadAttentionWeights(nn.Module):
         """
         query_head_dim = self.query_head_dim
         num_heads = self.num_heads
+        x = self.in_norm(x)
         x = self.in_proj(x)
 
         seq_len, batch_size, _ = x.shape

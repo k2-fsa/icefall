@@ -23,7 +23,7 @@ import torch
 from scaling import (
     ScaleLimiter,
     ScaledLinear,
-    ExpNorm,
+    GaussNorm,
     FloatLike,
     get_max_similarity,
     ScaledConv2d,
@@ -231,13 +231,9 @@ class Conv2dSubsampling(nn.Module):
 
 
         # scale it up a bit, else the output is quite small.
-        self.out = ScaledLinear(self.out_width * layer3_channels, out_channels,
-                                initial_scale=4.0)
+        self.out = ScaledLinear(self.out_width * layer3_channels, out_channels)
 
-
-        self.scale_limiter = ScaleLimiter(max_rms=2.0)
-
-        self.out_norm = ExpNorm(out_channels)
+        self.out_norm = GaussNorm()
 
     def forward(
         self, x: torch.Tensor, x_lens: torch.Tensor, aux_loss_scale: float = 0.0,
@@ -276,8 +272,11 @@ class Conv2dSubsampling(nn.Module):
 
         key_padding_mask = torch.arange(0, x.shape[1], device=x.device) >= x_lens.unsqueeze(-1)
         # key_padding_mask: (N, (T-7)//2)
-        x = self.scale_limiter(x, aux_loss_scale)
+        x = x.permute(1, 0, 2)
+        # x: (time, batch, channels)
         x = self.out_norm(x)
+        x = x.permute(1, 0, 2)
+        # x: (batch, time, channels)
 
         assert x.size(1) == x_lens.max().item(), (x.size(1), x_lens.max())
 

@@ -440,6 +440,120 @@ class ExpNorm(torch.nn.Module):
 
         return ans
 
+
+def round_up_to_power_of_two(a):
+    if a <= 0:
+        return 1
+    else:
+        return 1 << (a - 1).bit_length()
+
+def gaussian_blur_1d(x, inv_width, dim):
+    T = x.shape[dim]
+    roundT = round_up_to_power_of_two(T)
+    if roundT > T:
+        x = torch.cat((x, torch.narrow(x, dim, 0, roundT - T)), dim=dim)
+    # now x length is power of	2.
+    seq_len = x.shape[dim]
+    x = torch.fft.rfft(x.to(torch.float32), dim=dim)
+    # x is complex.
+    N = x.shape[dim]
+    freq = torch.arange(N, device=x.device) / (N - 1)  # this is proportional to normalized frequency betwen 0 and 1
+    for _ in range(dim, x.ndim - 1):
+        freq = freq.unsqueeze(-1)
+    scale = (-(freq * inv_width) ** 2).exp()
+    x = x * scale  # down-weight higher frequencies
+    x = torch.fft.irfft(x, n=seq_len, dim=dim)
+    x =	torch.narrow(x, dim, 0, T)
+    return x
+
+
+# assume layout: (time, batch, channel)
+def _gauss_norm(x: Tensor, blur: Tensor, scale: Tensor):
+    eps = 1.0e-02
+    x_sq = torch.mean(x ** 2, dim=2, keepdim=True).clamp(min=eps)
+    x_sq_blurred = gaussian_blur_1d(x_sq, blur, dim=0)
+    x_sq = torch.maximum(x_sq_blurred.clamp(min=eps), 0.2 * x_sq)  #  may be overkill
+
+    scales = scale / x_sq.sqrt()
+    return x * scales
+
+
+class GaussNormFunction(torch.autograd.Function):
+    @staticmethod
+    def forward(
+        ctx,
+        x: Tensor,
+        blur: Tensor,
+        scale: Tensor,
+    ) -> Tensor:
+        ctx.save_for_backward(x, blur, scale)
+        return _gauss_norm(x, blur, scale)
+
+
+    @staticmethod
+    def backward(ctx, ans_grad: Tensor) -> Tensor:
+        x, blur, scale = ctx.saved_tensors
+
+        with torch.amp.autocast('cuda', enabled=False):
+            x, blur, scale = x.to(torch.float32), blur.to(torch.float32), scale.to(torch.float32)
+            x, blur, scale = x.detach(), blur.detach(), scale.detach()
+
+            x.requires_grad = True
+            scale.requires_grad = True
+            blur.requires_grad = True
+
+            with torch.enable_grad():
+                ans = _gauss_norm(x, blur, scale)
+                ans.backward(gradient=ans_grad.to(torch.float32))
+
+        def c(x):
+            # this is to replace infinities that might be thrown up
+            # in autocast mode.
+            return x.clamp_(min=-30000.0, max=30000.0)
+
+        return x.grad, c(blur.grad), c(scale.grad)
+
+
+class GaussNorm(torch.nn.Module):
+    """
+    This is like RMSNorm with a trainable scale, but also blurs the rms values along
+    the time axis by convolving with a learnable width of Gaussian.
+
+    """
+    def __init__(
+        self,
+    ) -> None:
+        super(GaussNorm, self).__init__()
+        self.scale = nn.Parameter(torch.tensor(0.2))  # output scale
+        self.blur = nn.Parameter(torch.tensor(0.5))  # larger value -> more blur, will multiply this by 20, then it's like an inverse width.
+        self.name = None
+
+
+    def forward(self, x: Tensor) -> Tensor:
+        # Assumes layout is (time, batch, channel)
+
+        blur_factor = 20.0
+        if torch.jit.is_scripting() or torch.jit.is_tracing():
+            return _gauss_norm(x, self.blur * blur_factor, self.scale)
+
+        scale = limit_param_value(
+            self.scale, min=0.1, max=1.0, training=self.training)
+
+        blur = blur_factor * limit_param_value(
+            self.blur, min=0.0, max=3.0, training=self.training)
+
+        ans = GaussNormFunction.apply(
+            x, blur, scale,
+        )
+
+        if random.random() < 0.002:
+            x_rms = (x ** 2).mean().sqrt()
+            ans_rms = (ans ** 2).mean().sqrt()
+            logging.info(f"name={self.name}: x_rms={x_rms}, ans_rms={ans_rms}, blur={blur.item()}, scale={scale.item()}")
+
+        return ans
+
+
 def ScaledLinear(*args, initial_scale: float = 1.0, **kwargs) -> nn.Linear:
     """
     Behaves like a constructor of a modified version of nn.Linear
