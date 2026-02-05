@@ -268,15 +268,10 @@ class Conv2dSubsampling(nn.Module):
                 x_lens = (x_lens - 7) // 2
 
         key_padding_mask = torch.arange(0, x.shape[1], device=x.device) >= x_lens.unsqueeze(-1)
-        # key_padding_mask: (N, (T-7)//2)
-        x = x.permute(1, 0, 2)
-        # x: (time, batch, channels)
-        x = x.permute(1, 0, 2)
-        # x: (batch, time, channels)
 
         assert x.size(1) == x_lens.max().item(), (x.size(1), x_lens.max())
 
-        return x, x_lens
+        return 0.15 * x, x_lens
 
     def streaming_forward(
         self,
@@ -328,7 +323,7 @@ class Conv2dSubsampling(nn.Module):
 
         assert x.size(1) == x_lens.max().item(), (x.shape, x_lens.max())
 
-        return x, x_lens, cached_left_pad
+        return 0.15 * x, x_lens, cached_left_pad
 
     @torch.jit.export
     def get_init_states(
