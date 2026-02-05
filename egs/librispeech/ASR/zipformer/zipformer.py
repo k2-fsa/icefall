@@ -31,7 +31,6 @@ from scaling import (
     SimpleOrthogonalLinear,
     ScaledLinear,  # not as in other dirs.. just scales down initial parameter values.
     ActivationDropoutAndLinear,
-    GaussNorm,
     ChunkCausalDepthwiseConv1d,
     CosineSimilarityLoss,
     ScheduledFloat,
@@ -46,6 +45,8 @@ from scaling import (
 )
 try:
     from scaling import CorrelationLimiter
+    from scaling import SequenceNorm
+    from scaling import RmsNorm
 except:
     pass
 
@@ -532,7 +533,7 @@ class Zipformer2EncoderLayer(nn.Module):
 
         self.conv_module = ConvolutionModule(embed_dim, conv_params, causal=causal)
 
-        self.norm = GaussNorm(min_blur=1.0)
+        self.norm = SequenceNorm()
 
 
     def forward(
@@ -592,7 +593,7 @@ class Zipformer2EncoderLayer(nn.Module):
 
         src = src_orig + offset
 
-        src = self.norm(src)
+        src = self.norm(src, src_key_padding_mask)
 
         return src
 
@@ -1052,7 +1053,7 @@ class MultiheadAttentionWeights(nn.Module):
         self.dropout = dropout
         self.name = None  # will be overwritten in training code; for diagnostics.
 
-        self.in_norm = GaussNorm()
+        self.in_norm = RmsNorm()
 
         key_head_dim = query_head_dim
         in_proj_dim = (query_head_dim + key_head_dim + pos_dim) * num_heads

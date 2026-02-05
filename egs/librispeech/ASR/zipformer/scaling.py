@@ -333,33 +333,36 @@ class MaxEigLimiterFunction(torch.autograd.Function):
 
 
 
-def _exp_norm(x: Tensor, scale: Tensor, channel_dim: int):
-    x_norm = torch.mean(x ** 2, dim=channel_dim, keepdim=True).sqrt()
-    num = (x_norm + 0.05).tanh()
-    scales = num / x_norm
-    scales = scale * scales
-    return (x * scales)
+def _sequence_norm(x: Tensor, scale: Tensor, mask: Optional[Tensor]):
+    if mask is None:
+        scales = 1.0 / (x ** 2).mean(dim=(0, 2), keepdim=True).sqrt()
+    else:
+        mask = mask.to(torch.float).t().unsqueeze(-1)
+        x = x * mask
+        num_frames = mask.sum(dim=0)
+        scales = num_frames / (x ** 2).sum(dim=0).mean(dim=1, keepdim=True).sqrt()
 
-class ExpNormFunction(torch.autograd.Function):
+    return x * (scale * scales)
+
+
+class SequenceNormFunction(torch.autograd.Function):
     @staticmethod
     def forward(
         ctx,
         x: Tensor,
         scale: Tensor,
-        channel_dim: int,
+        mask: Optional[Tensor],
     ) -> Tensor:
-        if channel_dim < 0:
-            channel_dim = channel_dim + x.ndim
-        ctx.channel_dim = channel_dim
-
         ctx.save_for_backward(x, scale)
+        ctx.mask = mask
 
-        return _exp_norm(x, scale, channel_dim)
+        return _sequence_norm(x, scale, mask)
 
 
     @staticmethod
     def backward(ctx, ans_grad: Tensor) -> Tensor:
         x, scale = ctx.saved_tensors
+        mask = ctx.mask
 
         with torch.amp.autocast('cuda', enabled=False):
             x, scale = x.to(torch.float32), scale.to(torch.float32)
@@ -369,7 +372,7 @@ class ExpNormFunction(torch.autograd.Function):
             scale.requires_grad = True
 
             with torch.enable_grad():
-                ans = _exp_norm(x, scale, ctx.channel_dim)
+                ans = _sequence_norm(x, scale, ctx.mask)
                 ans.backward(gradient=ans_grad.to(torch.float32))
 
         def c(x):
@@ -380,7 +383,7 @@ class ExpNormFunction(torch.autograd.Function):
         return x.grad, c(scale.grad), None
 
 
-class ExpNorm(torch.nn.Module):
+class SequenceNorm(torch.nn.Module):
     """
     This is intended to be a simpler, and hopefully cheaper, replacement for
     LayerNorm, without the learned weight or bias.  There is just one learned
@@ -409,28 +412,25 @@ class ExpNorm(torch.nn.Module):
     """
     def __init__(
         self,
-        num_channels: int,
-        channel_dim: int = -1,  # CAUTION: see documentation.
     ) -> None:
-        super(ExpNorm, self).__init__()
-        self.num_channels = num_channels
-        self.channel_dim = channel_dim
-        self.scale = nn.Parameter(torch.tensor(1.7))
+        super(SequenceNorm, self).__init__()
+        self.scale = nn.Parameter(torch.tensor(0.5))
 
         self.name = None
 
 
-    def forward(self, x: Tensor) -> Tensor:
-        assert x.shape[self.channel_dim] == self.num_channels
+    def forward(self, x: Tensor, mask: Optional[Tensor]) -> Tensor:
+        # x: (seq, batch, channel)
+        # mask: bool, (batch_size, seq_len)
 
         if torch.jit.is_scripting() or torch.jit.is_tracing():
-            return _exp_norm(x, self.scale, self.channel_dim)
+            return _sequence_norm(x, self.scale, mask)
 
         scale = limit_param_value(
-            self.scale, min=0.8, max=2.5, training=self.training)
+            self.scale, min=0.05, max=1.0, training=self.training)
 
-        ans = ExpNormFunction.apply(
-            x, scale, self.channel_dim,
+        ans = SequenceNormFunction.apply(
+            x, scale, mask,
         )
 
         if random.random() < 0.002:
@@ -441,70 +441,44 @@ class ExpNorm(torch.nn.Module):
         return ans
 
 
-def round_up_to_power_of_two(a):
-    if a <= 0:
-        return 1
-    else:
-        return 1 << (a - 1).bit_length()
-
-def gaussian_blur_1d(x, inv_width, dim):
-    T = x.shape[dim]
-    roundT = round_up_to_power_of_two(T)
-    if roundT > T:
-        x = torch.cat((x, torch.narrow(x, dim, 0, roundT - T)), dim=dim)
-    # now x length is power of	2.
-    seq_len = x.shape[dim]
-    x = torch.fft.rfft(x.to(torch.float32), dim=dim)
-    # x is complex.
-    N = x.shape[dim]
-    freq = torch.arange(N, device=x.device) / (N - 1)  # this is proportional to normalized frequency betwen 0 and 1
-    for _ in range(dim, x.ndim - 1):
-        freq = freq.unsqueeze(-1)
-    scale = (-(freq * inv_width) ** 2).exp()
-    x = x * scale  # down-weight higher frequencies
-    x = torch.fft.irfft(x, n=seq_len, dim=dim)
-    x =	torch.narrow(x, dim, 0, T)
-    return x
-
 
 # assume layout: (time, batch, channel)
-def _gauss_norm(x: Tensor, blur: Tensor, eps: Tensor, scale: Tensor):
-    eps_sq = eps * eps
-    x_sq = torch.mean(x ** 2, dim=2, keepdim=True)
-    x_sq_blurred = gaussian_blur_1d(x_sq, blur, dim=0)
-    x_sq = x_sq_blurred.relu() + eps_sq
+def _rms_norm(x: Tensor, eps: Tensor, scale: Tensor):
+    x_sq = torch.mean(x ** 2, dim=2, keepdim=True) + (eps * eps)
     scales = scale / x_sq.sqrt()
     return x * scales
 
 
-class GaussNormFunction(torch.autograd.Function):
+class GaussNorm:
+    # this is to prevent errors when running multiple jobs.
+     pass
+
+class RmsNormFunction(torch.autograd.Function):
     @staticmethod
     def forward(
         ctx,
         x: Tensor,
-        blur: Tensor,
         eps: Tensor,
         scale: Tensor,
     ) -> Tensor:
-        ctx.save_for_backward(x, blur, eps, scale)
-        return _gauss_norm(x, blur, eps, scale)
+        ctx.save_for_backward(x, eps, scale)
+        return _rms_norm(x, eps, scale)
 
 
     @staticmethod
     def backward(ctx, ans_grad: Tensor) -> Tensor:
-        x, blur, eps, scale = ctx.saved_tensors
+        x, eps, scale = ctx.saved_tensors
 
         with torch.amp.autocast('cuda', enabled=False):
-            x, blur, eps, scale = x.to(torch.float32), blur.to(torch.float32), eps.to(torch.float32), scale.to(torch.float32)
-            x, blur, eps, scale = x.detach(), blur.detach(), eps.detach(), scale.detach()
+            x, eps, scale = x.to(torch.float32), eps.to(torch.float32), scale.to(torch.float32)
+            x, eps, scale = x.detach(), eps.detach(), scale.detach()
 
             x.requires_grad = True
-            blur.requires_grad = True
             eps.requires_grad = True
             scale.requires_grad = True
 
             with torch.enable_grad():
-                ans = _gauss_norm(x, blur, eps, scale)
+                ans = _rms_norm(x, eps, scale)
                 ans.backward(gradient=ans_grad.to(torch.float32))
 
         def c(x):
@@ -512,33 +486,28 @@ class GaussNormFunction(torch.autograd.Function):
             # in autocast mode.
             return x.clamp_(min=-30000.0, max=30000.0)
 
-        return x.grad, c(blur.grad), c(eps.grad), c(scale.grad)
+        return x.grad, c(eps.grad), c(scale.grad)
 
 
-class GaussNorm(torch.nn.Module):
+class RmsNorm(torch.nn.Module):
     """
-    This is like RMSNorm with a trainable scale, but also blurs the rms values along
-    the time axis by convolving with a learnable width of Gaussian.
+    This is like RMSNorm with a trainable scale.
 
     """
     def __init__(
         self,
-        min_blur: float = 0.0,
     ) -> None:
-        super(GaussNorm, self).__init__()
+        super(RmsNorm, self).__init__()
         self.scale = nn.Parameter(torch.tensor(0.2))  # output scale
-        self.blur = nn.Parameter(torch.tensor(0.5))  # larger value -> more blur, will multiply this by 20, then it's like an inverse width.
         self.eps = nn.Parameter(torch.tensor(0.1))
-        self.min_blur = min_blur
         self.name = None
 
 
     def forward(self, x: Tensor) -> Tensor:
         # Assumes layout is (time, batch, channel)
 
-        blur_factor = 20.0
         if torch.jit.is_scripting() or torch.jit.is_tracing():
-            return _gauss_norm(x, self.blur * blur_factor, self.eps, self.scale)
+            return _rms_norm(x, self.eps, self.scale)
 
         scale = limit_param_value(
             self.scale, min=0.05, max=1.0, training=self.training)
@@ -546,17 +515,14 @@ class GaussNorm(torch.nn.Module):
         eps = limit_param_value(
             self.eps, min=0.0, max=10.0, training=self.training)
 
-        blur = blur_factor * limit_param_value(
-            self.blur, min=self.min_blur/blur_factor, max=3.0, training=self.training)
-
-        ans = GaussNormFunction.apply(
-            x, blur, eps, scale,
+        ans = RmsNormFunction.apply(
+            x, eps, scale,
         )
 
         if random.random() < 0.002:
             x_rms = (x ** 2).mean().sqrt()
             ans_rms = (ans ** 2).mean().sqrt()
-            logging.info(f"name={self.name}: x_rms={x_rms}, ans_rms={ans_rms}, blur={blur.item()}, eps={eps.item()}, scale={scale.item()}")
+            logging.info(f"name={self.name}: x_rms={x_rms}, ans_rms={ans_rms}, eps={eps.item()}, scale={scale.item()}")
 
         return ans
 
