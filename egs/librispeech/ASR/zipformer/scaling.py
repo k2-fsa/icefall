@@ -468,12 +468,11 @@ def gaussian_blur_1d(x, inv_width, dim):
 
 
 # assume layout: (time, batch, channel)
-def _gauss_norm(x: Tensor, blur: Tensor, scale: Tensor):
-    eps = 1.0e-02
-    x_sq = torch.mean(x ** 2, dim=2, keepdim=True).clamp(min=eps)
+def _gauss_norm(x: Tensor, blur: Tensor, eps: Tensor, scale: Tensor):
+    eps_sq = eps * eps
+    x_sq = torch.mean(x ** 2, dim=2, keepdim=True)
     x_sq_blurred = gaussian_blur_1d(x_sq, blur, dim=0)
-    x_sq = torch.maximum(x_sq_blurred.clamp(min=eps), 0.2 * x_sq)  #  may be overkill
-
+    x_sq = x_sq_blurred.relu() + eps_sq
     scales = scale / x_sq.sqrt()
     return x * scales
 
@@ -484,26 +483,28 @@ class GaussNormFunction(torch.autograd.Function):
         ctx,
         x: Tensor,
         blur: Tensor,
+        eps: Tensor,
         scale: Tensor,
     ) -> Tensor:
-        ctx.save_for_backward(x, blur, scale)
-        return _gauss_norm(x, blur, scale)
+        ctx.save_for_backward(x, blur, eps, scale)
+        return _gauss_norm(x, blur, eps, scale)
 
 
     @staticmethod
     def backward(ctx, ans_grad: Tensor) -> Tensor:
-        x, blur, scale = ctx.saved_tensors
+        x, blur, eps, scale = ctx.saved_tensors
 
         with torch.amp.autocast('cuda', enabled=False):
-            x, blur, scale = x.to(torch.float32), blur.to(torch.float32), scale.to(torch.float32)
-            x, blur, scale = x.detach(), blur.detach(), scale.detach()
+            x, blur, eps, scale = x.to(torch.float32), blur.to(torch.float32), eps.to(torch.float32), scale.to(torch.float32)
+            x, blur, eps, scale = x.detach(), blur.detach(), eps.detach(), scale.detach()
 
             x.requires_grad = True
-            scale.requires_grad = True
             blur.requires_grad = True
+            eps.requires_grad = True
+            scale.requires_grad = True
 
             with torch.enable_grad():
-                ans = _gauss_norm(x, blur, scale)
+                ans = _gauss_norm(x, blur, eps, scale)
                 ans.backward(gradient=ans_grad.to(torch.float32))
 
         def c(x):
@@ -511,7 +512,7 @@ class GaussNormFunction(torch.autograd.Function):
             # in autocast mode.
             return x.clamp_(min=-30000.0, max=30000.0)
 
-        return x.grad, c(blur.grad), c(scale.grad)
+        return x.grad, c(blur.grad), c(eps.grad), c(scale.grad)
 
 
 class GaussNorm(torch.nn.Module):
@@ -526,6 +527,7 @@ class GaussNorm(torch.nn.Module):
         super(GaussNorm, self).__init__()
         self.scale = nn.Parameter(torch.tensor(0.2))  # output scale
         self.blur = nn.Parameter(torch.tensor(0.5))  # larger value -> more blur, will multiply this by 20, then it's like an inverse width.
+        self.eps = nn.Parameter(torch.tensor(0.1))
         self.name = None
 
 
@@ -534,22 +536,25 @@ class GaussNorm(torch.nn.Module):
 
         blur_factor = 20.0
         if torch.jit.is_scripting() or torch.jit.is_tracing():
-            return _gauss_norm(x, self.blur * blur_factor, self.scale)
+            return _gauss_norm(x, self.blur * blur_factor, self.eps, self.scale)
 
         scale = limit_param_value(
             self.scale, min=0.05, max=1.0, training=self.training)
+
+        eps = limit_param_value(
+            self.eps, min=0.0, max=10.0, training=self.training)
 
         blur = blur_factor * limit_param_value(
             self.blur, min=0.0, max=3.0, training=self.training)
 
         ans = GaussNormFunction.apply(
-            x, blur, scale,
+            x, blur, eps, scale,
         )
 
         if random.random() < 0.002:
             x_rms = (x ** 2).mean().sqrt()
             ans_rms = (ans ** 2).mean().sqrt()
-            logging.info(f"name={self.name}: x_rms={x_rms}, ans_rms={ans_rms}, blur={blur.item()}, scale={scale.item()}")
+            logging.info(f"name={self.name}: x_rms={x_rms}, ans_rms={ans_rms}, blur={blur.item()}, eps={eps.item()}, scale={scale.item()}")
 
         return ans
 
@@ -1210,7 +1215,7 @@ class SimpleOrthogonalLinear(nn.Linear):
     def __init__(self,
                  in_channels: int,
                  out_channels: int,
-                 lr_scale: float,
+                 lr_scale: float = 1.0,
                  bias: bool = True,
                  penalty_scale: FloatLike = 20.0,
     ):
