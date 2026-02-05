@@ -523,11 +523,13 @@ class GaussNorm(torch.nn.Module):
     """
     def __init__(
         self,
+        min_blur: float = 0.0,
     ) -> None:
         super(GaussNorm, self).__init__()
         self.scale = nn.Parameter(torch.tensor(0.2))  # output scale
         self.blur = nn.Parameter(torch.tensor(0.5))  # larger value -> more blur, will multiply this by 20, then it's like an inverse width.
         self.eps = nn.Parameter(torch.tensor(0.1))
+        self.min_blur = min_blur
         self.name = None
 
 
@@ -545,7 +547,7 @@ class GaussNorm(torch.nn.Module):
             self.eps, min=0.0, max=10.0, training=self.training)
 
         blur = blur_factor * limit_param_value(
-            self.blur, min=0.05, max=3.0, training=self.training)
+            self.blur, min=self.min_blur/blur_factor, max=3.0, training=self.training)
 
         ans = GaussNormFunction.apply(
             x, blur, eps, scale,

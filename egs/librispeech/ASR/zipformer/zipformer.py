@@ -532,7 +532,7 @@ class Zipformer2EncoderLayer(nn.Module):
 
         self.conv_module = ConvolutionModule(embed_dim, conv_params, causal=causal)
 
-        self.norm = GaussNorm()
+        self.norm = GaussNorm(min_blur=1.0)
 
 
     def forward(
