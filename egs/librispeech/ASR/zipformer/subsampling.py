@@ -23,7 +23,6 @@ import torch
 from scaling import (
     ScaleLimiter,
     ScaledLinear,
-    GaussNorm,
     FloatLike,
     get_max_similarity,
     ScaledConv2d,
@@ -233,8 +232,6 @@ class Conv2dSubsampling(nn.Module):
         # scale it up a bit, else the output is quite small.
         self.out = ScaledLinear(self.out_width * layer3_channels, out_channels)
 
-        self.out_norm = GaussNorm()
-
     def forward(
         self, x: torch.Tensor, x_lens: torch.Tensor, aux_loss_scale: float = 0.0,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -274,7 +271,6 @@ class Conv2dSubsampling(nn.Module):
         # key_padding_mask: (N, (T-7)//2)
         x = x.permute(1, 0, 2)
         # x: (time, batch, channels)
-        x = self.out_norm(x)
         x = x.permute(1, 0, 2)
         # x: (batch, time, channels)
 
@@ -318,10 +314,7 @@ class Conv2dSubsampling(nn.Module):
         x = x.transpose(1, 2).reshape(b, t, c * f)
         # now x: (N, T', out_width * layer3_channels))
 
-        x = 0.1 * self.out(x)
         # Now x is of shape (N, T', odim)
-        x = self.out_norm(x)
-
         if torch.jit.is_scripting() or torch.jit.is_tracing():
             assert self.convnext.padding[0] == 3
             # The ConvNeXt module needs 3 frames of right padding after subsampling
