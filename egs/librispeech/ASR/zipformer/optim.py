@@ -233,7 +233,7 @@ def scale_by(x, beta1):
 
     # target_ratio is the ratio between the variance we want, to the variance we got
     # with this alpha value.  it
-    target_ratio =  (beta1_2 * x2_sum) /  (x2_sum - 2 * alpha * x4_sum + alpha**2 * x6_sum)
+    target_ratio =  (beta1_2 * x2_sum + eps) /  (x2_sum - 2 * alpha * x4_sum + alpha**2 * x6_sum + eps)
 
     post_scale = target_ratio ** 0.5  # post-scaling on x, after applying alpha.
 
