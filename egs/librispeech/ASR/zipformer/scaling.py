@@ -1190,7 +1190,7 @@ class SimpleOrthogonalLinear(nn.Linear):
         super().__init__(in_channels, out_channels, bias=bias)
         self.name = None
         self.penalty_scale = copy.deepcopy(penalty_scale)
-        self.weight_scale = lr_scale
+        self.lr_scale = lr_scale
 
         with torch.no_grad():
             self.weight[:] = torch.randn(out_channels, in_channels) * (in_channels ** -0.5) * (1. / lr_scale)
@@ -1201,9 +1201,9 @@ class SimpleOrthogonalLinear(nn.Linear):
     def forward(self, x: Tensor, transpose: bool = False):
         # you can only use transpose=True if you used bias=False in initialization
         weight = self.weight
-        weight_scale = self.weight_scale
-        if weight_scale != 1.0:
-            weight = weight * weight_scale
+        lr_scale = self.lr_scale
+        if lr_scale != 1.0:
+            weight = weight * lr_scale
         if self.training and not torch.jit.is_scripting() and not torch.jit.is_tracing():
             weight = SimpleOrthogonalPenaltyFunction.apply(weight, float(self.penalty_scale), self.name)
 

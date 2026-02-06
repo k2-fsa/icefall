@@ -75,7 +75,6 @@ from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import AsrModel
 from optim import Sched3, TransformedAdam
-from muon import Muon
 from scaling import ScheduledFloat
 from subsampling import Conv2dSubsampling
 from torch import Tensor
@@ -441,7 +440,7 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--base-lr", type=float, default=0.001, help="The base learning rate."
+        "--base-lr", type=float, default=0.05, help="The base learning rate."
     )
 
     parser.add_argument(
@@ -1122,8 +1121,8 @@ def train_one_epoch(
             return 1.0
 
     def save_bad_model(suffix: str = ""):
-        #if params.debug_interval > 0:
-        #    optimizer.write_debug_info(summary_writer=tb_writer)
+        if params.debug_interval > 0:
+            optimizer.write_debug_info(summary_writer=tb_writer)
         save_checkpoint_impl(
             filename=params.exp_dir / f"bad-model{suffix}-{rank}.pt",
             model=model,
@@ -1277,8 +1276,8 @@ def train_one_epoch(
                     tb_writer, "train/valid_", params.batch_idx_train
                 )
 
-        #if params.batch_idx_train > 0 and params.dump_debug_interval > 0 and params.batch_idx_train % params.dump_debug_interval == 0:
-        #optimizer.write_debug_info(summary_writer=tb_writer)
+        if params.batch_idx_train > 0 and params.dump_debug_interval > 0 and params.batch_idx_train % params.dump_debug_interval == 0:
+            optimizer.write_debug_info(summary_writer=tb_writer)
 
     loss_value = tot_loss["loss"] / tot_loss["frames"]
     params.train_loss = loss_value
@@ -1379,14 +1378,14 @@ def run(rank, world_size, args):
         logging.info("Using DDP")
         model = DDP(model, device_ids=[rank], find_unused_parameters=True)
 
-    optimizer = Muon(
-        muon_params=[ m for m in model.parameters() if m.numel() != max(m.shape, default=1) ],
-        adamw_params=[ m for m in model.parameters() if m.numel() == max(m.shape, default=1) ],
-        lr=params.base_lr,
-        wd=0.15,
+    optimizer = TransformedAdam(
+        get_parameter_groups_with_lrs(model, lr=params.base_lr, include_names=True),
+        lr=params.base_lr,  # should have no effect
+        clipping_scale=2.0,
+        debug_interval=params.debug_interval,
     )
 
-    scheduler = Sched3(optimizer, get_adjusted_lr_batches(params), power=0.4)
+    scheduler = Sched3(optimizer, get_adjusted_lr_batches(params), power=0.5)
 
     if checkpoints and "optimizer" in checkpoints:
         logging.info("Loading optimizer state dict")
