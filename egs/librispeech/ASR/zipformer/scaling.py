@@ -338,9 +338,9 @@ def _sequence_norm(x: Tensor, offset: Tensor, scale: Tensor, mask: Optional[Tens
         scales = 1.0 / (x ** 2).mean(dim=(0, 2), keepdim=True).sqrt()
     else:
         mask = (~mask).to(torch.float).t().unsqueeze(-1)
-        x = x * mask
+        xm = x * mask
         num_frames = mask.sum(dim=0)
-        scales = (num_frames / ((x ** 2).mean(dim=2, keepdim=True).sum(dim=0))).sqrt()
+        scales = (num_frames / ((xm ** 2).mean(dim=2, keepdim=True).sum(dim=0))).sqrt()
 
     return x * ((scale * scales) + offset)
 
