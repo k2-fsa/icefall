@@ -56,6 +56,7 @@ import argparse
 import copy
 import logging
 import warnings
+import math
 from pathlib import Path
 from shutil import copyfile
 from typing import Any, Dict, Optional, Tuple, Union
@@ -75,6 +76,7 @@ from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import AsrModel
 from optim import Sched3, TransformedAdam
+from torch.optim.lr_scheduler import LambdaLR
 from scaling import ScheduledFloat
 from subsampling import Conv2dSubsampling
 from torch import Tensor
@@ -115,22 +117,6 @@ def get_adjusted_batch_count(params: AttributeDict) -> float:
         / params.ref_duration
     )
 
-
-def get_adjusted_lr_batches(params: AttributeDict) -> float:
-    # returns an adjusted form of the "lr_batches" parameter used to set the learning
-    # rate in the Sched3 scheduler.
-    # We want the final LR to be based on the geometric mean of "how much data we
-    # have seen" and "how many batches we have seen".
-    # an easier way to look at it is this: the formula for learning rate depends
-    # on (cur_batch / lr_batches).   if we write this as:
-    #  (cur_batch * (duration_ratio ** 0.5)) / params.lr_batches
-    # then the numerator is a geometric mean of "how many batches we have seen"
-    # and "how much data we have seen".  We can achieve this by setting
-    # lr_batches = params.lr_batches * (duration_ratio ** -0.5).
-    duration_ratio = (params.max_duration * params.world_size) / params.ref_duration
-    lr_batches = params.lr_batches * (duration_ratio ** -0.5)
-    logging.info(f"Adjusting lr-batches {params.lr_batches} for duration_ratio={duration_ratio} to {lr_batches}")
-    return lr_batches
 
 
 def set_batch_count(model: Union[nn.Module, DDP], batch_count: float) -> None:
@@ -1161,7 +1147,7 @@ def train_one_epoch(
             # NOTE: We use reduction==sum and loss is computed over utterances
             # in the batch and there is no normalization to it so far.
             scaler.scale(loss).backward()
-            scheduler.step_batch(params.batch_idx_train)
+            scheduler.step()
 
             scaler.step(optimizer)
             scaler.update()
@@ -1384,7 +1370,21 @@ def run(rank, world_size, args):
         wd=0.15,
     )
 
-    scheduler = Sched3(optimizer, get_adjusted_lr_batches(params), power=0.5)
+    warmup_steps = 2000
+    # hardcode batches per epoch for now.
+    total_steps = 4550 * params.num_epochs
+    warmup_start = 0.5
+    def lr_lambda(current_step):
+        if current_step < warmup_steps:
+            # Linear warm-up
+            return warmup_start + (1.0 - warmup_start) * current_step / warmup_steps
+        else:
+            # Cosine annealing
+            progress = (current_step - warmup_steps) / (total_steps - warmup_steps)
+            return max(0.0, 0.5 * (1.0 + math.cos(math.pi * progress)))
+
+    scheduler = LambdaLR(optimizer, lr_lambda)
+
 
     if checkpoints and "optimizer" in checkpoints:
         logging.info("Loading optimizer state dict")
