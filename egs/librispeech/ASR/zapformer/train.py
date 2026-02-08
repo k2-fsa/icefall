@@ -440,7 +440,7 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--base-lr", type=float, default=0.05, help="The base learning rate."
+        "--base-lr", type=float, default=0.001, help="The base learning rate."
     )
 
     parser.add_argument(
@@ -1380,9 +1380,8 @@ def run(rank, world_size, args):
 
     optimizer = TransformedAdam(
         get_parameter_groups_with_lrs(model, lr=params.base_lr, include_names=True),
-        lr=params.base_lr,  # should have no effect
-        clipping_scale=2.0,
-        debug_interval=params.debug_interval,
+        lr=params.base_lr,
+        wd=0.15,
     )
 
     scheduler = Sched3(optimizer, get_adjusted_lr_batches(params), power=0.5)
