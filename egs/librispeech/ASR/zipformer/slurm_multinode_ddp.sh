@@ -7,7 +7,7 @@
 # management within each node.
 #
 # Usage:
-#   sbatch run_multinode_ddp.sh
+#   sbatch slurm_multinode_ddp.sh
 #
 # Requirements:
 #   - SLURM cluster with GPU nodes
@@ -71,8 +71,8 @@ MASTER_PORT=$((20000 + (SLURM_JOB_ID % 20000)))
 
 export MASTER_ADDR MASTER_PORT
 
-# Calculate world size
-GPUS_PER_NODE=8
+# Get GPUs per node from SLURM (set by --gpus-per-node directive)
+GPUS_PER_NODE=${SLURM_GPUS_PER_NODE:-8}
 WORLD_SIZE=$(( SLURM_NNODES * GPUS_PER_NODE ))
 
 echo "MASTER_ADDR=${MASTER_ADDR}"
@@ -113,16 +113,6 @@ srun --ntasks=${SLURM_NNODES} --ntasks-per-node=1 --kill-on-bad-exit=1 --export=
 
   echo "Host=$(hostname) SLURM_PROCID=$SLURM_PROCID SLURM_NODEID=${SLURM_NODEID:-NA}"
 
-  # Determine if this node should host the rendezvous server
-  # Only the master node (SLURM_PROCID=0) hosts the TCPStore
-  if [ "$SLURM_PROCID" -eq 0 ]; then
-    RDZV_IS_HOST=1
-  else
-    RDZV_IS_HOST=0
-    # Small delay to ensure master is ready
-    sleep 5
-  fi
-
   torchrun \
     --nnodes='"$SLURM_NNODES"' \
     --node_rank="$SLURM_PROCID" \
@@ -130,7 +120,6 @@ srun --ntasks=${SLURM_NNODES} --ntasks-per-node=1 --kill-on-bad-exit=1 --export=
     --rdzv_id='"$SLURM_JOB_ID"' \
     --rdzv_backend=c10d \
     --rdzv_endpoint='"$MASTER_ADDR"':'"$MASTER_PORT"' \
-    --rdzv_conf is_host="$RDZV_IS_HOST" \
     --max_restarts 0 \
     ./zipformer/train.py \
       --world-size '"$WORLD_SIZE"' \

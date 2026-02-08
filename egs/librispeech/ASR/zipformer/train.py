@@ -1261,6 +1261,9 @@ def run(rank, world_size, args):
     params = get_params()
     params.update(vars(args))
 
+    # Override world_size with actual value (important for torchrun launches)
+    params.world_size = world_size
+
     fix_random_seed(params.seed)
     if world_size > 1:
         setup_dist(
@@ -1279,10 +1282,12 @@ def run(rank, world_size, args):
         tb_writer = None
 
     device = torch.device("cpu")
+    local_rank = 0
     if torch.cuda.is_available():
         # Use LOCAL_RANK for GPU device when launched via torchrun/SLURM
         local_rank = int(os.environ.get("LOCAL_RANK", rank % torch.cuda.device_count()))
         device = torch.device("cuda", local_rank)
+        torch.cuda.set_device(device)
     logging.info(f"Device: {device}")
 
     sp = spm.SentencePieceProcessor()
