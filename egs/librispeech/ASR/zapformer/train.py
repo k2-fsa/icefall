@@ -75,7 +75,7 @@ from lhotse.cut import Cut, CutSet
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import AsrModel
-from optim import Sched3, TransformedAdam
+from optim import TransformedAdam
 from torch.optim.lr_scheduler import LambdaLR
 from scaling import ScheduledFloat
 from subsampling import Conv2dSubsampling
