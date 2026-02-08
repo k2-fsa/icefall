@@ -170,6 +170,9 @@ class Zipformer2(EncoderInterface):
 
         self.encoders = nn.ModuleList(encoders)
 
+        self.out_norm = RmsNorm()
+
+
     def get_chunk_info(self) -> Tuple[int, int]:
         """
          Returns chunk_size and left_context_chunks.
@@ -270,6 +273,8 @@ class Zipformer2(EncoderInterface):
 
         if od > 1:
             x_lens = (x_lens + od - 1) // od
+
+        x = self.out_norm(x)
 
         return x, x_lens
 
