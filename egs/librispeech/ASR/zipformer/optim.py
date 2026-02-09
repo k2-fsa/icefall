@@ -27,6 +27,8 @@ from lhotse.utils import fix_random_seed
 from torch import Tensor
 from torch.optim import Optimizer
 
+class Sched3:
+    pass  # fixing multiple-experimental run issue with imports.
 
 class BatchedOptimizer(Optimizer):
     """
