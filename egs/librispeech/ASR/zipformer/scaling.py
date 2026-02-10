@@ -335,12 +335,12 @@ class MaxEigLimiterFunction(torch.autograd.Function):
 
 def _sequence_norm(x: Tensor, eps: Tensor, scale: Tensor, mask: Optional[Tensor]):
     if mask is None:
-        scales = 1.0 / ((x ** 2).mean(dim=(0, 2), keepdim=True) + eps).clamp(min=1.0e-05).sqrt()
+        scales = 1.0 / ((x ** 2).mean(dim=(0, 2), keepdim=True) + eps * eps).clamp(min=1.0e-05).sqrt()
     else:
         mask = (~mask).to(torch.float).t().unsqueeze(-1)
         x = x * mask
         num_frames = mask.sum(dim=0)
-        scales = (num_frames / ((x ** 2).sum(dim=0) + eps).mean(dim=1, keepdim=True)).clamp(min=1.0e-05).sqrt()
+        scales = ((num_frames / ((x ** 2).mean(dim=2, keepdim=True).sum(dim=0))) + eps * eps).clamp(min=1.0e-05).sqrt()
 
     return x * (scale * scales)
 
@@ -432,7 +432,7 @@ class SequenceNorm(torch.nn.Module):
 
 # assume layout: (time, batch, channel)
 def _rms_norm(x: Tensor, eps: Tensor, scale: Tensor):
-    x_sq = torch.mean(x ** 2, dim=2, keepdim=True) + eps
+    x_sq = torch.mean(x ** 2, dim=2, keepdim=True) + (eps * eps)
     scales = (scale / x_sq).clamp(min=1.0e-05).sqrt()
     return x * scales
 
