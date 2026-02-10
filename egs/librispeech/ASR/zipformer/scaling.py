@@ -350,8 +350,8 @@ class SequenceNormFunction(torch.autograd.Function):
     def forward(
         ctx,
         x: Tensor,
-        scale: Tensor,
         offset: Tensor,
+        scale: Tensor,
         mask: Optional[Tensor],
     ) -> Tensor:
         ctx.save_for_backward(x, offset, scale)
