@@ -1373,7 +1373,7 @@ def run(rank, world_size, args):
     warmup_steps = 2000
     # hardcode batches per epoch for now.
     total_steps = 4550 * params.num_epochs
-    warmup_start = 0.5
+    warmup_start = 0.25
     def lr_lambda(current_step):
         if current_step < warmup_steps:
             # Linear warm-up
