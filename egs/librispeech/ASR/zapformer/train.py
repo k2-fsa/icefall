@@ -389,26 +389,6 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--debug-interval",
-        type=int,
-        default=10,
-        help="""If positive, the interval at which we write various stats to the tensorboard, potentially useful for
-        finding parts of the network that are diverging or not well trained.
-        """
-    )
-
-    parser.add_argument(
-        "--dump-debug-interval",
-        type=int,
-        default=0,
-        help="""If positive, and if debug-interval > 0 the interval at which we dump debug statistics; they
-        are accumulated at batches with period debug_interval.  Should be at least 256 times --debug-interval.
-        Caution: on remotely mounted file systems this is extremely slow due to quirks of tensorboard (the file
-        opened, seeked-in and closed for each scalar that is written).
-        """
-    )
-
-    parser.add_argument(
        "--exp-dir",
         type=str,
         default="zipformer/exp",
@@ -1107,8 +1087,6 @@ def train_one_epoch(
             return 1.0
 
     def save_bad_model(suffix: str = ""):
-        if params.debug_interval > 0:
-            optimizer.write_debug_info(summary_writer=tb_writer)
         save_checkpoint_impl(
             filename=params.exp_dir / f"bad-model{suffix}-{rank}.pt",
             model=model,
@@ -1262,8 +1240,6 @@ def train_one_epoch(
                     tb_writer, "train/valid_", params.batch_idx_train
                 )
 
-        if params.batch_idx_train > 0 and params.dump_debug_interval > 0 and params.batch_idx_train % params.dump_debug_interval == 0:
-            optimizer.write_debug_info(summary_writer=tb_writer)
 
     loss_value = tot_loss["loss"] / tot_loss["frames"]
     params.train_loss = loss_value
