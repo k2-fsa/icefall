@@ -374,7 +374,7 @@ class SequenceNormFunction(torch.autograd.Function):
             eps.requires_grad = True
 
             with torch.enable_grad():
-                ans = _sequence_norm(x, scale, ctx.mask)
+                ans = _sequence_norm(x, eps, scale, ctx.mask)
                 ans.backward(gradient=ans_grad.to(torch.float32))
 
         def c(x):
