@@ -433,7 +433,7 @@ class SequenceNorm(torch.nn.Module):
 # assume layout: (time, batch, channel)
 def _rms_norm(x: Tensor, eps: Tensor, scale: Tensor):
     x_sq = torch.mean(x ** 2, dim=2, keepdim=True) + (eps * eps)
-    scales = scale / x_sq.clamp(min=1.0e-20).sqrt()
+    scales = scale / x_sq.sqrt()
     return x * scales
 
 
