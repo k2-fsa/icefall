@@ -333,14 +333,14 @@ class MaxEigLimiterFunction(torch.autograd.Function):
 
 
 
-def _sequence_norm(x: Tensor, scale: Tensor, mask: Optional[Tensor]):
+def _sequence_norm(x: Tensor, eps: Tensor, scale: Tensor, mask: Optional[Tensor]):
     if mask is None:
-        scales = 1.0 / (x ** 2).mean(dim=(0, 2), keepdim=True).sqrt()
+        scales = 1.0 / ((x ** 2).mean(dim=(0, 2), keepdim=True) + eps).sqrt()
     else:
         mask = (~mask).to(torch.float).t().unsqueeze(-1)
         x = x * mask
         num_frames = mask.sum(dim=0)
-        scales = (num_frames / (x ** 2).sum(dim=0).mean(dim=1, keepdim=True)).sqrt()
+        scales = (num_frames / ((x ** 2).sum(dim=0) + eps).mean(dim=1, keepdim=True)).sqrt()
 
     return x * (scale * scales)
 
@@ -351,25 +351,27 @@ class SequenceNormFunction(torch.autograd.Function):
         ctx,
         x: Tensor,
         scale: Tensor,
+        eps: Tensor,
         mask: Optional[Tensor],
     ) -> Tensor:
-        ctx.save_for_backward(x, scale)
+        ctx.save_for_backward(x, eps, scale)
         ctx.mask = mask
 
-        return _sequence_norm(x, scale, mask)
+        return _sequence_norm(x, eps, scale, mask)
 
 
     @staticmethod
     def backward(ctx, ans_grad: Tensor) -> Tensor:
-        x, scale = ctx.saved_tensors
+        x, eps, scale = ctx.saved_tensors
         mask = ctx.mask
 
         with torch.amp.autocast('cuda', enabled=False):
-            x, scale = x.to(torch.float32), scale.to(torch.float32)
-            x, scale = x.detach(), scale.detach()
+            x, eps, scale = x.to(torch.float32), eps.to(torch.float32), scale.to(torch.float32)
+            x, eps, scale = x.detach(), eps.detach(), scale.detach()
 
             x.requires_grad = True
             scale.requires_grad = True
+            eps.requires_grad = True
 
             with torch.enable_grad():
                 ans = _sequence_norm(x, scale, ctx.mask)
@@ -380,41 +382,24 @@ class SequenceNormFunction(torch.autograd.Function):
             # in autocast mode.
             return x.clamp_(min=-30000.0, max=30000.0)
 
-        return x.grad, c(scale.grad), None
+        return x.grad, c(eps.grad), c(scale.grad), None
 
 
 class SequenceNorm(torch.nn.Module):
     """
-    This is intended to be a simpler, and hopefully cheaper, replacement for
-    LayerNorm, without the learned weight or bias.  There is just one learned
-    parameter, a scalar, which is a scale on the output; and it is limited
-    during training to the range [0.5..2.5].
+    This is like RMSNorm but the stats for the RMS value of x are aggregated over the whole sequence
+    as well as the channels; and a padding mask is used for irregular length sequences (actually,
+    the mask is applied multiplicatively as well.)
 
-    Unlike LayerNorm it does not pick the scale that maps any rms value at the
-    input to an rms value of 1 at the output, i.e. the function f(x) = 1 (which
-    discards the length information); instead, it uses the function:
-      f(x) = scale * (1 - (-x).exp()),
-    i.e. if the input rms value was x, it gets mapped to the f(x) above.  The
-    implementation is just:
-
-      x_norm = torch.mean(x ** 2, dim=channel_dim, keepdim=True).sqrt()
-      scales = (1. - (-x_norm).exp()) / x_norm
-      return (x * scale * scales)
-
-    where 'scale' is a scalar, and the only learned parameter.
-
-    Args:
-       num_channels: the number of channels, e.g. 512.
-       channel_dim: the axis/dimension corresponding to the channel,
-         interpreted as an offset from the input's ndim if negative.
-         This is NOT the num_channels; it should typically be one of
-         {-2, -1, 0, 1, 2, 3}.
+    There is also a learnable scalar scale and a learnable "eps" value.
     """
     def __init__(
         self,
     ) -> None:
         super(SequenceNorm, self).__init__()
         self.scale = nn.Parameter(torch.tensor(0.5))
+        self.eps = nn.Parameter(torch.tensor(0.1))
+
 
         self.name = None
 
@@ -424,19 +409,22 @@ class SequenceNorm(torch.nn.Module):
         # mask: bool, (batch_size, seq_len)
 
         if torch.jit.is_scripting() or torch.jit.is_tracing():
-            return _sequence_norm(x, self.scale, mask)
+            return _sequence_norm(x, self.eps, self.scale, mask)
 
         scale = limit_param_value(
             self.scale, min=0.05, max=1.0, training=self.training)
 
+        eps = limit_param_value(
+            self.eps, min=0.0, max=10.0, training=self.training)
+
         ans = SequenceNormFunction.apply(
-            x, scale, mask,
+            x, eps, scale, mask,
         )
 
         if random.random() < 0.002:
             x_rms = (x ** 2).mean().sqrt()
             ans_rms = (ans ** 2).mean().sqrt()
-            logging.info(f"name={self.name}: x_rms={x_rms}, ans_rms={ans_rms}, scale={self.scale.item()}")
+            logging.info(f"name={self.name}: x_rms={x_rms}, ans_rms={ans_rms}, scale={self.scale.item()}, eps={self.eps.item()}")
 
         return ans
 
@@ -444,7 +432,7 @@ class SequenceNorm(torch.nn.Module):
 
 # assume layout: (time, batch, channel)
 def _rms_norm(x: Tensor, eps: Tensor, scale: Tensor):
-    x_sq = torch.mean(x ** 2, dim=2, keepdim=True) + (eps * eps)
+    x_sq = torch.mean(x ** 2, dim=2, keepdim=True) + eps.relu()
     scales = scale / x_sq.sqrt()
     return x * scales
 
