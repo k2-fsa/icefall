@@ -398,7 +398,7 @@ class SequenceNorm(torch.nn.Module):
     ) -> None:
         super(SequenceNorm, self).__init__()
         self.scale = nn.Parameter(torch.tensor(0.5))
-        self.eps = nn.Parameter(torch.tensor(0.1))
+        self.eps = nn.Parameter(torch.tensor(0.0001))
 
 
         self.name = None
