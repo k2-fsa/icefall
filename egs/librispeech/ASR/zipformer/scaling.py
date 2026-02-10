@@ -333,16 +333,16 @@ class MaxEigLimiterFunction(torch.autograd.Function):
 
 
 
-def _sequence_norm(x: Tensor, eps: Tensor, scale: Tensor, mask: Optional[Tensor]):
+def _sequence_norm(x: Tensor, offset: Tensor, scale: Tensor, mask: Optional[Tensor]):
     if mask is None:
-        scales = 1.0 / ((x ** 2).mean(dim=(0, 2), keepdim=True) + eps * eps).clamp(min=1.0e-05).sqrt()
+        scales = 1.0 / (x ** 2).mean(dim=(0, 2), keepdim=True).sqrt()
     else:
         mask = (~mask).to(torch.float).t().unsqueeze(-1)
         x = x * mask
         num_frames = mask.sum(dim=0)
-        scales = ((num_frames / ((x ** 2).mean(dim=2, keepdim=True).sum(dim=0))) + eps * eps).clamp(min=1.0e-05).sqrt()
+        scales = (num_frames / ((x ** 2).mean(dim=2, keepdim=True).sum(dim=0))).sqrt()
 
-    return x * (scale * scales)
+    return x * ((scale * scales) + offset)
 
 
 class SequenceNormFunction(torch.autograd.Function):
@@ -351,30 +351,30 @@ class SequenceNormFunction(torch.autograd.Function):
         ctx,
         x: Tensor,
         scale: Tensor,
-        eps: Tensor,
+        offset: Tensor,
         mask: Optional[Tensor],
     ) -> Tensor:
-        ctx.save_for_backward(x, eps, scale)
+        ctx.save_for_backward(x, offset, scale)
         ctx.mask = mask
 
-        return _sequence_norm(x, eps, scale, mask)
+        return _sequence_norm(x, offset, scale, mask)
 
 
     @staticmethod
     def backward(ctx, ans_grad: Tensor) -> Tensor:
-        x, eps, scale = ctx.saved_tensors
+        x, offset, scale = ctx.saved_tensors
         mask = ctx.mask
 
         with torch.amp.autocast('cuda', enabled=False):
-            x, eps, scale = x.to(torch.float32), eps.to(torch.float32), scale.to(torch.float32)
-            x, eps, scale = x.detach(), eps.detach(), scale.detach()
+            x, offset, scale = x.to(torch.float32), offset.to(torch.float32), scale.to(torch.float32)
+            x, offset, scale = x.detach(), offset.detach(), scale.detach()
 
             x.requires_grad = True
             scale.requires_grad = True
-            eps.requires_grad = True
+            offset.requires_grad = True
 
             with torch.enable_grad():
-                ans = _sequence_norm(x, eps, scale, ctx.mask)
+                ans = _sequence_norm(x, offset, scale, ctx.mask)
                 ans.backward(gradient=ans_grad.to(torch.float32))
 
         def c(x):
@@ -382,7 +382,7 @@ class SequenceNormFunction(torch.autograd.Function):
             # in autocast mode.
             return x.clamp_(min=-30000.0, max=30000.0)
 
-        return x.grad, c(eps.grad), c(scale.grad), None
+        return x.grad, c(offset.grad), c(scale.grad), None
 
 
 class SequenceNorm(torch.nn.Module):
@@ -391,14 +391,14 @@ class SequenceNorm(torch.nn.Module):
     as well as the channels; and a padding mask is used for irregular length sequences (actually,
     the mask is applied multiplicatively as well.)
 
-    There is also a learnable scalar scale and a learnable "eps" value.
+    There is also a learnable scalar scale and a learnable "offset" value.
     """
     def __init__(
         self,
     ) -> None:
         super(SequenceNorm, self).__init__()
         self.scale = nn.Parameter(torch.tensor(1.0))
-        self.eps = nn.Parameter(torch.tensor(0.0001))
+        self.offset = nn.Parameter(torch.tensor(0.0001))
 
 
         self.name = None
@@ -409,22 +409,22 @@ class SequenceNorm(torch.nn.Module):
         # mask: bool, (batch_size, seq_len)
 
         if torch.jit.is_scripting() or torch.jit.is_tracing():
-            return _sequence_norm(x, self.eps, self.scale, mask)
+            return _sequence_norm(x, self.offset, self.scale, mask)
 
         scale = limit_param_value(
             self.scale, min=0.05, max=1.0, training=self.training)
 
-        eps = limit_param_value(
-            self.eps, min=0.0, max=10.0, training=self.training)
+        offset = limit_param_value(
+            self.offset, min=0.0, max=10.0, training=self.training)
 
         ans = SequenceNormFunction.apply(
-            x, eps, scale, mask,
+            x, offset, scale, mask,
         )
 
         if random.random() < 0.002:
             x_rms = (x ** 2).mean().sqrt()
             ans_rms = (ans ** 2).mean().sqrt()
-            logging.info(f"name={self.name}: x_rms={x_rms}, ans_rms={ans_rms}, scale={self.scale.item()}, eps={self.eps.item()}")
+            logging.info(f"name={self.name}: x_rms={x_rms}, ans_rms={ans_rms}, scale={self.scale.item()}, offset={self.offset.item()}")
 
         return ans
 
@@ -433,7 +433,7 @@ class SequenceNorm(torch.nn.Module):
 # assume layout: (time, batch, channel)
 def _rms_norm(x: Tensor, eps: Tensor, scale: Tensor):
     x_sq = torch.mean(x ** 2, dim=2, keepdim=True) + (eps * eps)
-    scales = (scale / x_sq).clamp(min=1.0e-05).sqrt()
+    scales = (scale / x_sq.clamp(min=1.0e-20)).sqrt()
     return x * scales
 
 
