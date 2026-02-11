@@ -22,9 +22,9 @@ log() {
 }
 
 if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
-  log "Stage 0: Prepare wewetspeech dataset."
+  log "Stage 0: Prepare wenetspeech dataset."
   mkdir -p data/fbank
-  if [ ! -e data/fbank/.wewetspeech.done ]; then
+  if [ ! -e data/fbank/.wenetspeech.done ]; then
     pushd ../ASR
     ./prepare.sh --stage 0 --stop-stage 17
     ./prepare.sh --stage 22 --stop-stage 22
@@ -48,7 +48,7 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
     pushd data
     ln -svf $(realpath ../ASR/data/lang_partial_tone) .
     popd
-    touch data/fbank/.wewetspeech.done
+    touch data/fbank/.wenetspeech.done
   else
     log "WenetSpeech dataset already exists, skipping."
   fi
