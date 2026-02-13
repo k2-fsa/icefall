@@ -412,7 +412,7 @@ class SequenceNorm(torch.nn.Module):
             return _sequence_norm(x, self.offset, self.scale, mask)
 
         scale = limit_param_value(
-            self.scale, min=0.05, max=1.0, training=self.training)
+            self.scale, min=0.05, max=2.0, training=self.training)
 
         offset = limit_param_value(
             self.offset, min=0.0, max=10.0, training=self.training)

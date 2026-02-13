@@ -796,7 +796,7 @@ class Zipformer2Encoder(nn.Module):
                 aux_loss_scale=aux_loss_scale/num_layers,
             )
             residual_scale = limit_param_value(self.residual_scales[i + 1],
-                                               min=0.0 if i + 1 < num_layers else 0.25,
+                                               min=0.0 if i + 1 < num_layers else 0.5,
                                                max=1.0)
             src_with_bypass = src_with_bypass + residual_scale * src
 
