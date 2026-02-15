@@ -152,6 +152,61 @@ def base_step(group, state, grad):
     return grad / denom
 
 
+def compute_prod3_inplace(x): # replaces x with x^3 / max(rows, cols), x is interpreted as a batch of matrices.
+    assert x.ndim >= 3
+
+
+    if x.ndim > 3:
+        # each tensor in the batch has more than two dimensions.
+        # reshape to be like a batch of matrices.
+        # note: x.shape[0] is batch dimension.
+        if x.shape[1] > x.shape[-1]:
+            xr = x.reshape(x.shape[0], x.shape[1], -1)
+        else:
+            xr = x.reshape(x.shape[0], -1, x.shape[-1])
+        compute_prod3_inplace(xr)
+        if not xr.untyped_storage() is x.untyped_storage():
+            x[:] = xr.reshape(*x.shape)
+        return
+    if x.shape[1] > x.shape[2]:
+        xr = x.permute(0, 2, 1)
+        compute_prod3_inplace(xr)
+        if not xr.untyped_storage() is x.untyped_storage():
+            x[:] = xr.permute(0, 2, 1)
+        return
+
+    # avoid matrix multiplies by any dimensions that are too large.
+    max_dim = 1024
+    if x.shape[1] > max_dim:
+        n = x.shape[1]
+        for divisor in range(2, 100):
+            if n % divisor == 0 and n // divisor <= max_dim:
+                xr = x.reshape(x.shape[0] * divisor, n // divisor, x.shape[2])
+                compute_prod3_inplace(xr)
+                if not xr.untyped_storage() is x.untyped_storage():
+                    x[:] = xr.reshape(*x.shape)
+                return
+        # if no divisor worked, just continue.
+
+    (batch_size, rows, cols) = x.shape  # and rows <= cols
+
+    x2 = torch.matmul(x, x.permute(0, 2, 1)) / max(rows, cols)
+    x3 = torch.matmul(x2, x)
+
+    x[:] = x3
+
+
+
+
+def compute_prod3(x):
+    # computes matrix-matrix-matrix product of batch of matrices x, with reshaping if necessary;
+    # first divides x by max(num_rows, num_cols) so its a kind of normalized product.
+    x = x.clone()
+    compute_prod3_inplace(x)
+    return x
+
+
+
 
 def scale_by(x, beta1):
     # This is similar in efffect
@@ -240,15 +295,16 @@ def scale_by(x, beta1):
 
     post_scale = target_ratio ** 0.5  # post-scaling on x, after applying alpha.
 
-    x.add_(x3 * alpha[:, None, None], alpha=-1)
+    x3 = x3 * alpha[:, None, None]
+
+    x.add_(x3, alpha=-1)
 
     x *= post_scale[:, None, None]
 
-    if False:
-        print(f"alpha={alpha}, scale={scale * (1-beta1)}")
-        dot_prod1 = (x * x).sum()
-        dot_prod2 = (x * x3).sum() * alpha
-        print(f"dot_prod1={dot_prod1}, dot_prod2={dot_prod2}")
+    if random.random() < 0.0001:
+        dot_prod1 = (x * x).sum(dim=(1, 2))
+        dot_prod2 = (x * x3).sum(dim=(1, 2))
+        logging.info(f"shape={x.shape}, beta1={beta1}, alpha={alpha}, alpha/(((1-beta1)**2)/dim)={alpha/(((1-beta1)**2)/max(rows,cols))}, post_scale={post_scale}, dot_prod_ratio={dot_prod2/dot_prod1}")
 
 
 
@@ -272,11 +328,28 @@ def momentum_step(group, state, grad):
         state["delta"] = stored_delta
 
 
+
+    def min_sum_scale(x, y):
+        # returns the scale alpha such that (x + alpha y) is minimized.  x and y have
+        # the same shape and the shape of alpha is (x.shape[0], 1, 1, ...).
+        assert x.ndim > 1
+        dims = list(range(1, x.ndim))
+        xx = (x ** 2).sum(dim=dims, keepdim=True)
+        yy = (y ** 2).sum(dim=dims, keepdim=True)
+        xy = (y * x).sum(dim=dims, keepdim=True)
+        # sum square of x + alpha y is xx + alpha^2 yy + 2 alpha xy
+        # d/dalpha[that]  = 2 alpha yy + 2 xy
+        # alpha = xy / yy
+        return -xy / (yy + eps)
+
     stored_delta.add_(delta)
-    if step % 4 == 0:
-        stored_delta.mul_(beta1)
-    else:
-        scale_by(stored_delta, beta1)
+    stored_delta.mul_(beta1)
+    if delta.ndim >= 3 and delta.numel() != delta.shape[0] * max(delta.shape[1:]):
+        eta = 1.0 # scale on subtraction of x3.
+        x3 = compute_prod3(stored_delta)  # actually 3rd power of stored_delta divided by max(rows, cols).
+        update_scale = (-eta * (1 - beta1)**2)
+        update_scale = min_sum_scale(stored_delta, x3).clamp(min=update_scale)
+        stored_delta.add_(x3 * update_scale)
 
     ans = (((1-direct) * (1-beta1)) * stored_delta) + (direct * delta)
     # OK, now divide ans by its rms so it has unit rms
@@ -896,9 +969,9 @@ def _test_transformed_adam(hidden_dim: int):
 
         lr = 0.001
         if test == 0:
-            optim = TransformedAdam(m.named_parameters(), lr=lr, wd=0.15, eps=1.0e-20, beta1=0.95)
+            optim = TransformedAdam(m.named_parameters(), lr=lr, wd=0.15, eps=1.0e-20, beta1=0.99)
         elif test == 1:
-            optim = SimpleTransformedAdam(m.parameters(), lr=lr, wd=0.15, eps=1.0e-20, beta1=0.95)
+            optim = SimpleTransformedAdam(m.parameters(), lr=lr, wd=0.15, eps=1.0e-20, beta1=0.99)
 
         num_epochs = 180
 
