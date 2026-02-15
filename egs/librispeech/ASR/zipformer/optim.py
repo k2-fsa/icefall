@@ -343,13 +343,16 @@ def momentum_step(group, state, grad):
         return -xy / (yy + eps)
 
     stored_delta.add_(delta)
-    stored_delta.mul_(beta1)
     if delta.ndim >= 3 and delta.numel() != delta.shape[0] * max(delta.shape[1:]):
+        stored_delta.mul_(0.5 * (beta1 + 1))
         eta = 1.0 # scale on subtraction of x3.
         x3 = compute_prod3(stored_delta)  # actually 3rd power of stored_delta divided by max(rows, cols).
         update_scale = (-eta * (1 - beta1)**2)
         update_scale = min_sum_scale(stored_delta, x3).clamp(min=update_scale)
         stored_delta.add_(x3 * update_scale)
+    else:
+        stored_delta.mul_(beta1)
+
 
     ans = (((1-direct) * (1-beta1)) * stored_delta) + (direct * delta)
     # OK, now divide ans by its rms so it has unit rms
