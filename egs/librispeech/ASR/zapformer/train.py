@@ -1344,20 +1344,15 @@ def run(rank, world_size, args):
         get_parameter_groups_with_lrs(model, lr=params.base_lr, include_names=True),
         lr=params.base_lr,
         wd=0.15,
+        scale_limits=(1.0, 4.0),
     )
 
-    warmup_steps = 2000
     # hardcode batches per epoch for now.
     total_steps = 4550 * params.num_epochs
-    warmup_start = 0.25
     def lr_lambda(current_step):
-        if current_step < warmup_steps:
-            # Linear warm-up
-            return warmup_start + (1.0 - warmup_start) * current_step / warmup_steps
-        else:
-            # Cosine annealing
-            progress = (current_step - warmup_steps) / (total_steps - warmup_steps)
-            return max(0.0, 0.5 * (1.0 + math.cos(math.pi * progress)))
+        # Cosine annealing
+        progress = current_step / total_steps
+        return max(0.0, 0.5 * (1.0 + math.cos(math.pi * progress)))
 
     scheduler = LambdaLR(optimizer, lr_lambda)
 
