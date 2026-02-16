@@ -344,7 +344,9 @@ def momentum_step(group, state, grad):
 
     stored_delta.add_(delta)
     if delta.ndim >= 3 and delta.numel() != delta.shape[0] * max(delta.shape[1:]):
-        stored_delta.mul_(0.5 * (beta1 + 1))
+        # decay by one quarter of the beta1-determined decay rate, leaving the rest to the x^3 decay.
+        # this should be configurable.
+        stored_delta.mul_(0.25 * beta1 + 0.75)
         eta = 1.0 # scale on subtraction of x3.
         x3 = compute_prod3(stored_delta)  # actually 3rd power of stored_delta divided by max(rows, cols).
         update_scale = (-eta * (1 - beta1)**2)
