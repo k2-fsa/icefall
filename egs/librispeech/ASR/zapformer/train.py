@@ -1363,9 +1363,7 @@ def run(rank, world_size, args):
 
     scheduler = CosineLRScheduler(optimizer,
                                   batches_per_epoch=params.batches_per_epoch,
-                                  num_epochs=params.num_epochs,
-                                  verbose=True)
-
+                                  num_epochs=params.num_epochs)
 
     if checkpoints and "optimizer" in checkpoints:
         logging.info("Loading optimizer state dict")
