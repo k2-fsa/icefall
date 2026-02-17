@@ -76,6 +76,7 @@ from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import AsrModel
 from optim import TransformedAdam
+from combined_scheduler import CombinedLRScheduler, CosineLRScheduler
 from torch.optim.lr_scheduler import LambdaLR
 from scaling import ScheduledFloat
 from subsampling import Conv2dSubsampling
@@ -104,8 +105,6 @@ from icefall.utils import (
     setup_logger,
     str2bool,
 )
-
-LRSchedulerType = torch.optim.lr_scheduler._LRScheduler
 
 
 def get_adjusted_batch_count(params: AttributeDict) -> float:
@@ -368,6 +367,15 @@ def get_parser():
         default=30,
         help="Number of epochs to train.",
     )
+
+    parser.add_argument(
+        "--batches-per-epoch",
+        type=int,
+        default=4550,
+        help="Assumed number of batches per epoch for purposes of setting learning rate; only "
+        "makes a difference during the first batch, after which an observed value is used.."
+    )
+
 
     parser.add_argument(
         "--start-epoch",
@@ -759,7 +767,7 @@ def load_checkpoint_if_available(
     model: nn.Module,
     model_avg: nn.Module = None,
     optimizer: Optional[torch.optim.Optimizer] = None,
-    scheduler: Optional[LRSchedulerType] = None,
+    scheduler: Optional[CombinedLRScheduler] = None,
 ) -> Optional[Dict[str, Any]]:
     """Load checkpoint from file.
 
@@ -825,7 +833,7 @@ def save_checkpoint(
     model: Union[nn.Module, DDP],
     model_avg: Optional[nn.Module] = None,
     optimizer: Optional[torch.optim.Optimizer] = None,
-    scheduler: Optional[LRSchedulerType] = None,
+    scheduler: Optional[CombinedLRScheduler] = None,
     sampler: Optional[CutSampler] = None,
     scaler: Optional[GradScaler] = None,
     rank: int = 0,
@@ -1030,7 +1038,7 @@ def train_one_epoch(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
     optimizer: torch.optim.Optimizer,
-    scheduler: LRSchedulerType,
+    scheduler: CombinedLRScheduler,
     sp: spm.SentencePieceProcessor,
     train_dl: torch.utils.data.DataLoader,
     valid_dl: torch.utils.data.DataLoader,
@@ -1125,8 +1133,7 @@ def train_one_epoch(
             # NOTE: We use reduction==sum and loss is computed over utterances
             # in the batch and there is no normalization to it so far.
             scaler.scale(loss).backward()
-            scheduler.step()
-
+            scheduler.set_batch(batch_idx)  # sets batch-count within the epoch, and sets the LRs.
             scaler.step(optimizer)
             scaler.update()
             optimizer.zero_grad()
@@ -1354,7 +1361,10 @@ def run(rank, world_size, args):
         progress = current_step / total_steps
         return max(0.0, 0.5 * (1.0 + math.cos(math.pi * progress)))
 
-    scheduler = LambdaLR(optimizer, lr_lambda)
+    scheduler = CosineLRScheduler(optimizer,
+                                  batches_per_epoch=params.batches_per_epoch,
+                                  num_epochs=params.num_epochs,
+                                  verbose=True)
 
 
     if checkpoints and "optimizer" in checkpoints:
@@ -1491,6 +1501,7 @@ def run(rank, world_size, args):
             tb_writer.add_scalar("train/epoch", epoch, params.batch_idx_train)
 
         params.cur_epoch = epoch
+        scheduler.set_epoch(epoch)
 
         train_one_epoch(
             params=params,
