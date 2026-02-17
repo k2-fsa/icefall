@@ -152,7 +152,7 @@ def base_step(group, state, grad):
     return grad / denom
 
 
-def compute_prod3_inplace(x): # replaces x with x^3 / max(rows, cols), x is interpreted as a batch of matrices.
+def compute_prod5_inplace(x): # replaces x with x^3 / max(rows, cols), x is interpreted as a batch of matrices.
     assert x.ndim >= 3
 
 
@@ -164,13 +164,13 @@ def compute_prod3_inplace(x): # replaces x with x^3 / max(rows, cols), x is inte
             xr = x.reshape(x.shape[0], x.shape[1], -1)
         else:
             xr = x.reshape(x.shape[0], -1, x.shape[-1])
-        compute_prod3_inplace(xr)
+        compute_prod5_inplace(xr)
         if not xr.untyped_storage() is x.untyped_storage():
             x[:] = xr.reshape(*x.shape)
         return
     if x.shape[1] > x.shape[2]:
         xr = x.permute(0, 2, 1)
-        compute_prod3_inplace(xr)
+        compute_prod5_inplace(xr)
         if not xr.untyped_storage() is x.untyped_storage():
             x[:] = xr.permute(0, 2, 1)
         return
@@ -182,7 +182,7 @@ def compute_prod3_inplace(x): # replaces x with x^3 / max(rows, cols), x is inte
         for divisor in range(2, 100):
             if n % divisor == 0 and n // divisor <= max_dim:
                 xr = x.reshape(x.shape[0] * divisor, n // divisor, x.shape[2])
-                compute_prod3_inplace(xr)
+                compute_prod5_inplace(xr)
                 if not xr.untyped_storage() is x.untyped_storage():
                     x[:] = xr.reshape(*x.shape)
                 return
@@ -191,18 +191,19 @@ def compute_prod3_inplace(x): # replaces x with x^3 / max(rows, cols), x is inte
     (batch_size, rows, cols) = x.shape  # and rows <= cols
 
     x2 = torch.matmul(x, x.permute(0, 2, 1)) / max(rows, cols)
-    x3 = torch.matmul(x2, x)
+    x4 = torch.matmul(x2, x2)
+    x5 = torch.matmul(x4, x)
 
-    x[:] = x3
+    x[:] = x5
 
 
 
 
-def compute_prod3(x):
-    # computes matrix-matrix-matrix product of batch of matrices x, with reshaping if necessary;
-    # first divides x by max(num_rows, num_cols) so its a kind of normalized product.
+def compute_prod5(x):
+    # computes matrix-matrix-matrix-matrix-matrix product of batch of matrices x, with reshaping if necessary;
+    # first divides x by max(num_rows, num_cols)^2 so its a kind of normalized 5th-product.
     x = x.clone()
-    compute_prod3_inplace(x)
+    compute_prod5_inplace(x)
     return x
 
 
@@ -348,10 +349,11 @@ def momentum_step(group, state, grad):
         # this should be configurable.
         stored_delta.mul_(0.25 * beta1 + 0.75)
         eta = 1.0 # scale on subtraction of x3.
-        x3 = compute_prod3(stored_delta)  # actually 3rd power of stored_delta divided by max(rows, cols).
-        update_scale = (-eta * (1 - beta1)**2)
-        update_scale = min_sum_scale(stored_delta, x3).clamp(min=update_scale)
-        stored_delta.add_(x3 * update_scale)
+        update_scale = (eta * (1 - beta1)**3)
+        x5 = stored_delta * (update_scale ** 0.2)
+        compute_prod5_inplace(x5)  # actually computes 5rd power of its arg divided by max(rows, cols)**2
+        alpha = min_sum_scale(stored_delta, x5).clamp(min=-1)
+        stored_delta.add_(x5 * alpha)
     else:
         stored_delta.mul_(beta1)
 
