@@ -583,7 +583,7 @@ class Zipformer2EncoderLayer(nn.Module):
         # may try changing src_pre_ff1 to src or vice versa.
         src = src + self.self_attn(src_pre_ff1, src, attn_mask=attn_mask,
                                    key_padding_mask=src_key_padding_mask,
-                                   aux_loss_scale=aux_loss_scale)
+                                   aux_loss_scale=0.1 * aux_loss_scale)
 
         src = src + self.conv_module(3. * src, chunk_size=chunk_size, src_key_padding_mask=src_key_padding_mask, aux_loss_scale=0.1 * aux_loss_scale)
 
@@ -1169,7 +1169,7 @@ class MultiheadRelPosGatedSelfAttention(nn.Module):
         if not torch.jit.is_scripting() and not torch.jit.is_tracing() and self.training:
             attn_scores_limit = 8.0  # limit on our metric that affects how much grad we are likely to backpropagate.
             attn_scores = PenalizeLargeAttentionScores.apply(attn_scores, attn_scores_limit,
-                                                             0.01 * aux_loss_scale,  # increase?
+                                                             0.1 * aux_loss_scale,
                                                              key_padding_mask, self.name)
 
 
@@ -1216,7 +1216,8 @@ class MultiheadRelPosGatedSelfAttention(nn.Module):
         v = self.out_proj(v)
         return v
 
-    def streaming_forward(  # TODO: fix and test, needs to do value and gating stuff.
+    def streaming_forward_weights(  # TODO: fix and test, needs to be combined with value and gating stuff,
+        # see streaming_forward_vg which I took from the old class.
         self,
         x: Tensor,
         cached_key: Tensor,
@@ -1294,6 +1295,63 @@ class MultiheadRelPosGatedSelfAttention(nn.Module):
 
         return attn_weights, cached_key
 
+    def streaming_forward_vg(
+        self,
+        x: Tensor,
+        attn_weights: Tensor,
+        cached_val: Tensor,
+        left_context_len: int,
+    ) -> Tuple[Tensor, Tensor]:
+        """
+        Args:
+            x: input tensor, of shape (seq_len, batch_size, embed_dim)
+            attn_weights: a tensor of shape (num_heads, batch_size, seq_len, seq_len),
+              with seq_len being interpreted as (tgt_seq_len, src_seq_len).  Expect
+              attn_weights.sum(dim=-1) == 1.
+            cached_val: cached attention value tensor of left context,
+              of shape (left_context_len, batch_size, value_dim)
+            left_context_len: number of left context frames.
+
+        Returns:
+           - attention weighted output, a tensor with the same shape as x.
+           - updated cached attention value tensor of left context.
+        """
+        (seq_len, batch_size, embed_dim) = x.shape
+        num_heads = attn_weights.shape[0]
+        seq_len2 = seq_len + left_context_len
+        assert attn_weights.shape == (num_heads, batch_size, seq_len, seq_len2)
+
+        x = self.in_proj(x)  # (seq_len, batch_size, num_heads * value_head_dim)
+
+        # Pad cached left contexts
+        assert cached_val.shape[0] == left_context_len, (
+            cached_val.shape[0],
+            left_context_len,
+        )
+        x = torch.cat([cached_val, x], dim=0)
+        # Update cached left contexts
+        cached_val = x[-left_context_len:, ...]
+
+        x = x.reshape(seq_len2, batch_size, num_heads, -1).permute(2, 1, 0, 3)
+        # now x: (num_heads, batch_size, seq_len, value_head_dim)
+        value_head_dim = x.shape[-1]
+
+        # todo: see whether there is benefit in overriding matmul
+        x = torch.matmul(attn_weights, x)
+        # v: (num_heads, batch_size, seq_len, value_head_dim)
+
+        x = (
+            x.permute(2, 1, 0, 3)
+            .contiguous()
+            .view(seq_len, batch_size, num_heads * value_head_dim)
+        )
+
+        # returned value is of shape (seq_len, batch_size, embed_dim), like the input.
+        x = self.out_proj(x)
+
+        return x, cached_val
+
+
     def _print_attn_entropy(self, attn_weights: Tensor):
         # attn_weights: (num_heads, batch_size, seq_len, seq_len)
         (num_heads, batch_size, seq_len, seq_len) = attn_weights.shape
@@ -1362,145 +1420,6 @@ class PenalizeLargeAttentionScores(torch.autograd.Function):
 
 
 
-
-
-class GatedSelfAttention(nn.Module):
-    """
-    Self-attention module with sigmoid gating.  This one works with already-computed attention
-    weights, e.g. as computed by MultiheadAttentionWeights.
-
-    Args:
-          embed_dim: the input and output embedding dimension
-          num_heads: the number of attention heads
-          value_head_dim: the value dimension per head
-    """
-    def __init__(
-        self,
-        embed_dim: int,
-        num_heads: int,
-        value_head_dim: int,
-    ) -> None:
-        super().__init__()
-        self.in_proj = ScaledLinear(embed_dim, 2 * num_heads * value_head_dim,
-                                    initial_scale=0.1, bias=True)
-
-
-        self.copy_x = nn.Identity()  # diagnostics.
-        self.sigmoid = nn.Sigmoid()
-
-        self.out_proj = ScaledLinear(
-            num_heads * value_head_dim, embed_dim, bias=True, initial_scale=0.5
-        )
-
-        f = max(1.0, embed_dim / (num_heads * value_head_dim))
-
-
-
-    def forward(
-        self,
-        x: Tensor,
-        attn_weights: Tensor,
-        aux_loss_scale: float = 0.0,
-        src_key_padding_mask: Optional[Tensor] = None,
-    ) -> Tensor:
-        """
-        Args:
-          x: input tensor, of shape (seq_len, batch_size, embed_dim)
-         attn_weights: a tensor of shape (num_heads, batch_size, seq_len, seq_len),
-          with seq_len being interpreted as (tgt_seq_len, src_seq_len).  Expect
-          attn_weights.sum(dim=-1) == 1.
-         src_key_padding_mask: optional Tensor of shape (batch_size, src_seq_len); only
-          used for the cosine similarity loss, during training.
-        Returns:
-           a tensor with the same shape as x.
-        """
-        (seq_len, batch_size, embed_dim) = x.shape
-        num_heads = attn_weights.shape[0]
-        assert attn_weights.shape == (num_heads, batch_size, seq_len, seq_len)
-
-        x = self.in_proj(x)  # (seq_len, batch_size, 2 * num_heads * value_head_dim)
-        x, s = x.chunk(2, dim=-1)
-        x = x.reshape(seq_len, batch_size, num_heads, -1).permute(2, 1, 0, 3)
-        x = self.copy_x(x)
-        # now x: (num_heads, batch_size, seq_len, value_head_dim)
-        value_head_dim = x.shape[-1]
-
-        # todo: see whether there is benefit in overriding matmul
-        x = torch.matmul(attn_weights, x)
-        # x: (num_heads, batch_size, seq_len, value_head_dim)
-
-        x = (
-            x.permute(2, 1, 0, 3)
-            .contiguous()
-            .view(seq_len, batch_size, num_heads * value_head_dim)
-        )
-
-
-        if self.training:
-            # don't let the sigmoid values get too extreme, limit to -2..2.
-            s = penalize_abs_values_gt(s, 2, penalty=0.02*aux_loss_scale)
-
-        # returned value is of shape (seq_len, batch_size, embed_dim), like the input.
-        x = x * self.sigmoid(s)
-        x = self.out_proj(x)
-
-        return x
-
-    def streaming_forward(
-        self,
-        x: Tensor,
-        attn_weights: Tensor,
-        cached_val: Tensor,
-        left_context_len: int,
-    ) -> Tuple[Tensor, Tensor]:
-        """
-        Args:
-            x: input tensor, of shape (seq_len, batch_size, embed_dim)
-            attn_weights: a tensor of shape (num_heads, batch_size, seq_len, seq_len),
-              with seq_len being interpreted as (tgt_seq_len, src_seq_len).  Expect
-              attn_weights.sum(dim=-1) == 1.
-            cached_val: cached attention value tensor of left context,
-              of shape (left_context_len, batch_size, value_dim)
-            left_context_len: number of left context frames.
-
-        Returns:
-           - attention weighted output, a tensor with the same shape as x.
-           - updated cached attention value tensor of left context.
-        """
-        (seq_len, batch_size, embed_dim) = x.shape
-        num_heads = attn_weights.shape[0]
-        seq_len2 = seq_len + left_context_len
-        assert attn_weights.shape == (num_heads, batch_size, seq_len, seq_len2)
-
-        x = self.in_proj(x)  # (seq_len, batch_size, num_heads * value_head_dim)
-
-        # Pad cached left contexts
-        assert cached_val.shape[0] == left_context_len, (
-            cached_val.shape[0],
-            left_context_len,
-        )
-        x = torch.cat([cached_val, x], dim=0)
-        # Update cached left contexts
-        cached_val = x[-left_context_len:, ...]
-
-        x = x.reshape(seq_len2, batch_size, num_heads, -1).permute(2, 1, 0, 3)
-        # now x: (num_heads, batch_size, seq_len, value_head_dim)
-        value_head_dim = x.shape[-1]
-
-        # todo: see whether there is benefit in overriding matmul
-        x = torch.matmul(attn_weights, x)
-        # v: (num_heads, batch_size, seq_len, value_head_dim)
-
-        x = (
-            x.permute(2, 1, 0, 3)
-            .contiguous()
-            .view(seq_len, batch_size, num_heads * value_head_dim)
-        )
-
-        # returned value is of shape (seq_len, batch_size, embed_dim), like the input.
-        x = self.out_proj(x)
-
-        return x, cached_val
 
 
 class FeedforwardModule(nn.Module):
