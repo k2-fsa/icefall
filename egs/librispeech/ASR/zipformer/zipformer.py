@@ -74,6 +74,7 @@ class Zipformer2(EncoderInterface):
         query_head_dim (int or Tuple[int]): dimension of query and key per attention
            head: per stack, if a tuple..
         value_head_dim (int or Tuple[int]): dimension of value in each attention head
+        pos_head_dim (int or Tuple[int]): dimension of position-embedding in each attention head
         num_heads: (int or Tuple[int]): number of heads in the self-attention mechanism.
               Must be at least 4.
         feedforward_multiple (int or Tuple[int]): determines hidden dimension in feedforward modules
@@ -99,6 +100,7 @@ class Zipformer2(EncoderInterface):
         num_encoder_layers: Union[int, Tuple[int]] = 4,
         query_head_dim: Union[int, Tuple[int]] = 64,
         value_head_dim: Union[int, Tuple[int]] = 12,
+        pos_head_dim: Union[int, Tuple[int]] = 4,
         num_heads: Union[int, Tuple[int]] = 8,
         feedforward_multiple: Union[int, Tuple[int]] = 4,
         conv_params: Union[int, Tuple[int]] = 31,
@@ -127,6 +129,7 @@ class Zipformer2(EncoderInterface):
         self.num_encoder_layers = num_encoder_layers
         self.query_head_dim = query_head_dim = _to_tuple(query_head_dim)
         self.value_head_dim = value_head_dim = _to_tuple(value_head_dim)
+        self.pos_head_dim = pos_head_dim = _to_tuple(pos_head_dim)
         self.num_heads = num_heads = _to_tuple(num_heads)
         feedforward_multiple = _to_tuple(feedforward_multiple)
         self.conv_params = conv_params = _to_tuple(conv_params)
@@ -153,6 +156,7 @@ class Zipformer2(EncoderInterface):
                 num_heads=num_heads[i],
                 query_head_dim=query_head_dim[i],
                 value_head_dim=value_head_dim[i],
+                pos_head_dim=pos_head_dim[i],
                 feedforward_multiple=feedforward_multiple[i],
                 conv_params=conv_params[i],
                 causal=causal,
@@ -508,6 +512,7 @@ class Zipformer2EncoderLayer(nn.Module):
         num_heads: int,
         query_head_dim: int,
         value_head_dim: int,
+        pos_head_dim: int,
         feedforward_multiple: int,
         conv_params: int,
         causal: bool = False,
@@ -516,20 +521,18 @@ class Zipformer2EncoderLayer(nn.Module):
         self.embed_dim = embed_dim
         self.name = None  # will be set from training loop
 
-        #self.residual_scale = nn.Parameter(0.5 * torch.ones(embed_dim))
-
         self.offset_scale_limiter = ScaleLimiter(max_rms=0.5)
 
         power = 0.45  # power should be between 0 and 1.  1 would mean cov == I (unattainable)
         self.correlation_limiter = CorrelationLimiter(limit=(1. / (embed_dim  ** power)))
 
-        self.self_attn_weights = MultiheadAttentionWeights(
+        self.self_attn = MultiheadRelPosGatedSelfAttention(
             embed_dim,
             num_heads=num_heads,
             query_head_dim=query_head_dim,
+            value_head_dim=value_head_dim,
+            pos_head_dim=pos_head_dim,
         )
-
-        self.self_attn = GatedSelfAttention(embed_dim, num_heads, value_head_dim)
 
         feedforward_dim = embed_dim * feedforward_multiple
         self.feed_forward1 = FeedforwardModule(embed_dim, feedforward_dim)
@@ -573,24 +576,19 @@ class Zipformer2EncoderLayer(nn.Module):
                                                       2. * aux_loss_scale, mask=src_key_padding_mask),
                         None)
 
-
-        # attn_weights: (num_heads, batch_size, seq_len, seq_len)
-        attn_weights = self.self_attn_weights(
-            src,
-            attn_mask=attn_mask,
-            key_padding_mask=src_key_padding_mask,
-            aux_loss_scale=0.1 * aux_loss_scale,
-        )
+        src_pre_ff1 = src
 
         src = src + self.feed_forward1(src, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
 
-        src = src + self.self_attn(src, attn_weights, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
+        # may try changing src_pre_ff1 to src or vice versa.
+        src = src + self.self_attn(src_pre_ff1, src, attn_mask=attn_mask,
+                                   key_padding_mask=src_key_padding_mask,
+                                   aux_loss_scale=aux_loss_scale)
 
         src = src + self.conv_module(3. * src, chunk_size=chunk_size, src_key_padding_mask=src_key_padding_mask, aux_loss_scale=0.1 * aux_loss_scale)
 
         src = src + self.feed_forward2(src, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
 
-        #residual_scale = limit_param_value(self.residual_scale, min=0.25, max=0.75)
         residual_scale = 0.25
         offset = (src - src_orig) * residual_scale
 
@@ -1027,16 +1025,12 @@ class RotaryPositionalEmbeddings(nn.Module):
         return x_out.type_as(x)
 
 
-class MultiheadAttentionWeights(nn.Module):
-    r"""Module that computes multi-head attention weights with additive relative-position
-    scores that are kept separate from the regular scores.
-
-    relative position encoding.
-    Various other modules consume the resulting attention weights: see, for example, the
-    SimpleAttention module which allows you to compute conventional attention.
-
-    This is a quite heavily modified from: "Transformer-XL: Attentive Language Models Beyond a Fixed-Length Context",
-    we have to write up the differences.
+class MultiheadRelPosGatedSelfAttention(nn.Module):
+    r"""
+    Module that computes multi-head attention weights with additive relative-position
+    scores that are kept separate from the regular scores.  The values have gating.
+    An RMSNorm module is used to pre-normalize the input embedding only as it is
+    input to the queries and keys, not the values.
 
     Args:
            embed_dim: number of channels at the input to this module, e.g. 256
@@ -1048,7 +1042,8 @@ class MultiheadAttentionWeights(nn.Module):
         embed_dim: int,
         num_heads: int,
         query_head_dim: int,
-        pos_dim: int = 4,
+        pos_head_dim: int = 4,
+        value_head_dim: int = 12,
         dropout: float = 0.0,
     ) -> None:
         super().__init__()
@@ -1061,35 +1056,52 @@ class MultiheadAttentionWeights(nn.Module):
         self.in_norm = RmsNorm()
 
         key_head_dim = query_head_dim
-        in_proj_dim = (query_head_dim + key_head_dim + pos_dim) * num_heads
+        in_proj_dim = (query_head_dim + key_head_dim + pos_head_dim) * num_heads
 
         # the initial_scale is supposed to take over the "scaling" factor of
         # head_dim ** -0.5 that has been used in previous forms of attention,
         # dividing it between the query and key.   Note: this module is intended
         # to be used with the ScaledAdam optimizer; with most other optimizers,
         # it would be necessary to apply the scaling factor in the forward function.
-        self.in_proj = ScaledLinear(
+        self.qkp_in_proj = ScaledLinear(
             embed_dim, in_proj_dim,
             bias=True, initial_scale=0.125 * query_head_dim**-0.25
         )
 
-        #self.rope = RotaryPositionalEmbeddings(query_head_dim) # use default max_seq_len=4096, base=10000
-
-        self.rel_pos = RelPosScores(num_heads, pos_dim, num_freqs=64)
+        self.rel_pos = RelPosScores(num_heads, pos_head_dim, num_freqs=64)
 
         self.copy_query = Identity()
         self.copy_pos_query = Identity()
 
+        # value and gating in_proj.
+        self.vg_in_proj = ScaledLinear(embed_dim, 2 * num_heads * value_head_dim,
+                                       initial_scale=0.1, bias=True)
+
+
+        self.copy_v = nn.Identity()  # diagnostics.
+        self.sigmoid = nn.Sigmoid()
+
+        # out proj for the value times gating.
+        self.out_proj = ScaledLinear(
+            num_heads * value_head_dim, embed_dim, bias=True, initial_scale=0.5
+        )
+
+
+
     def forward(
         self,
-        x: Tensor,
+        x_qkp: Tensor,
+        x_vg: Tensor,
         key_padding_mask: Optional[Tensor] = None,
         attn_mask: Optional[Tensor] = None,
         aux_loss_scale: float = 0.0,
     ) -> Tensor:
         r"""
         Args:
-            x: input of shape (seq_len, batch_size, embed_dim)
+            x_qkp: input of shape (seq_len, batch_size, embed_dim), that is used for the queries,
+                  keys and positions.
+            x_vg: input of shape (seq_len, batch_size, embed_dim), that is used for the values
+                  and gates.  May be the same as x_qk.
             key_padding_mask: a bool tensor of shape (batch_size, seq_len).  Positions that
                are True in this mask will be ignored as sources in the attention weighting.
             attn_mask: mask of shape (seq_len, seq_len) or (batch_size, seq_len, seq_len),
@@ -1101,17 +1113,17 @@ class MultiheadAttentionWeights(nn.Module):
         """
         query_head_dim = self.query_head_dim
         num_heads = self.num_heads
-        x = self.in_norm(x)
-        x = self.in_proj(x)
+        x_qkp = self.in_norm(x_qkp)
+        x_qkp = self.qkp_in_proj(x_qkp)
 
-        seq_len, batch_size, _ = x.shape
+        seq_len, batch_size, _ = x_qkp.shape
 
         query_dim = query_head_dim * num_heads
 
         # self-attention
-        q = x[..., 0:query_dim]
-        k = x[..., query_dim : 2 * query_dim]
-        p = x[..., 2 * query_dim:]
+        q = x_qkp[..., 0:query_dim]
+        k = x_qkp[..., query_dim : 2 * query_dim]
+        p = x_qkp[..., 2 * query_dim:]
 
         q = self.copy_query(q)  # for diagnostics only, does nothing.
         p = self.copy_pos_query(p)  # for diagnostics only, does nothing.
@@ -1156,7 +1168,8 @@ class MultiheadAttentionWeights(nn.Module):
 
         if not torch.jit.is_scripting() and not torch.jit.is_tracing() and self.training:
             attn_scores_limit = 8.0  # limit on our metric that affects how much grad we are likely to backpropagate.
-            attn_scores = PenalizeLargeAttentionScores.apply(attn_scores, attn_scores_limit, 0.1 * aux_loss_scale,
+            attn_scores = PenalizeLargeAttentionScores.apply(attn_scores, attn_scores_limit,
+                                                             0.01 * aux_loss_scale,  # increase?
                                                              key_padding_mask, self.name)
 
 
@@ -1172,13 +1185,38 @@ class MultiheadAttentionWeights(nn.Module):
         elif random.random() < 0.001:
             self._print_attn_entropy(attn_weights)
 
+        # note: self.dropout is normally 0.0.
         attn_weights = nn.functional.dropout(
             attn_weights, p=self.dropout, training=self.training
         )
 
-        return attn_weights
+        v, g = self.vg_in_proj(x_vg).chunk(2, dim=-1)
+        v = v.reshape(seq_len, batch_size, num_heads, -1).permute(2, 1, 0, 3)
+        v = self.copy_v(v)
+        value_head_dim = v.shape[-1]
+        # now v: (num_heads, batch_size, seq_len, value_head_dim)
 
-    def streaming_forward(
+        # todo: see whether there is benefit in overriding matmul
+        v = torch.matmul(attn_weights, v)
+        # v: (num_heads, batch_size, seq_len, value_head_dim)
+
+        v = (
+            v.permute(2, 1, 0, 3)
+            .contiguous()
+            .view(seq_len, batch_size, num_heads * value_head_dim)
+        )
+
+
+        if self.training:
+            # don't let the sigmoid values get too extreme, limit to -2..2.
+            g = penalize_abs_values_gt(g, 2, penalty=0.02*aux_loss_scale)
+
+        # returned value is of shape (seq_len, batch_size, embed_dim), like the input.
+        v = v * self.sigmoid(g)
+        v = self.out_proj(v)
+        return v
+
+    def streaming_forward(  # TODO: fix and test, needs to do value and gating stuff.
         self,
         x: Tensor,
         cached_key: Tensor,
