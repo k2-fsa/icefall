@@ -335,7 +335,6 @@ def momentum_step(group, state, grad):
         # the same shape and the shape of alpha is (x.shape[0], 1, 1, ...).
         assert x.ndim > 1
         dims = list(range(1, x.ndim))
-        xx = (x ** 2).sum(dim=dims, keepdim=True)
         yy = (y ** 2).sum(dim=dims, keepdim=True)
         xy = (y * x).sum(dim=dims, keepdim=True)
         # sum square of x + alpha y is xx + alpha^2 yy + 2 alpha xy
@@ -352,7 +351,12 @@ def momentum_step(group, state, grad):
         update_scale = (eta * (1 - beta1)**3)
         x5 = stored_delta * (update_scale ** 0.2)
         compute_prod5_inplace(x5)  # actually computes 5rd power of its arg divided by max(rows, cols)**2
-        alpha = min_sum_scale(stored_delta, x5).clamp(min=-1)
+        # the factor of 0.5 says we only want to go, at most, half the way to the point which
+        # would give us the minimum 'x'.  this is to prevent the largest eigs overshooting
+        # and having the direction change sign, in a situation where we are not dominated by
+        # the largest singular value; or to prevent the largest singular value from going to
+        # zero if it does dominate.
+        alpha = (0.5 * min_sum_scale(stored_delta, x5)).clamp(min=-1)
         stored_delta.add_(x5 * alpha)
     else:
         stored_delta.mul_(beta1)
