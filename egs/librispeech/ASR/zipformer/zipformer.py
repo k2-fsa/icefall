@@ -521,7 +521,7 @@ class Zipformer2EncoderLayer(nn.Module):
         self.embed_dim = embed_dim
         self.name = None  # will be set from training loop
 
-        self.offset_scale_limiter = ScaleLimiter(max_rms=0.5)
+        self.offset_scale_limiter = ScaleLimiter(max_rms=1.0)
 
         power = 0.45  # power should be between 0 and 1.  1 would mean cov == I (unattainable)
         self.correlation_limiter = CorrelationLimiter(limit=(1. / (embed_dim  ** power)))
