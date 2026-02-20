@@ -346,7 +346,10 @@ def momentum_step(group, state, grad):
     if delta.ndim >= 3 and delta.numel() != delta.shape[0] * max(delta.shape[1:]):
         # decay by one quarter of the beta1-determined decay rate, leaving the rest to the x^3 decay.
         # this should be configurable.
-        stored_delta.mul_(0.25 * beta1 + 0.75)
+        linear_decay = 0.25
+
+
+        stored_delta.mul_(linear_decay * beta1 + (1 - linear_decay))
         eta = 1.0 # scale on subtraction of x3.
         update_scale = (eta * (1 - beta1)**3)
         x5 = stored_delta * (update_scale ** 0.2)
@@ -356,7 +359,7 @@ def momentum_step(group, state, grad):
         # and having the direction change sign, in a situation where we are not dominated by
         # the largest singular value; or to prevent the largest singular value from going to
         # zero if it does dominate.
-        alpha = (0.5 * min_sum_scale(stored_delta, x5)).clamp(min=-1)
+        alpha = (0.5 * min_sum_scale(stored_delta, x5)).clamp(min=-(1 - linear_decay))
         stored_delta.add_(x5 * alpha)
     else:
         stored_delta.mul_(beta1)
