@@ -207,6 +207,60 @@ def compute_prod5(x):
     return x
 
 
+def compute_prod3_inplace(x): # replaces x with x^3 / max(rows, cols), x is interpreted as a batch of matrices.
+    assert x.ndim >= 3
+
+
+    if x.ndim > 3:
+        # each tensor in the batch has more than two dimensions.
+        # reshape to be like a batch of matrices.
+        # note: x.shape[0] is batch dimension.
+        if x.shape[1] > x.shape[-1]:
+            xr = x.reshape(x.shape[0], x.shape[1], -1)
+        else:
+            xr = x.reshape(x.shape[0], -1, x.shape[-1])
+        compute_prod3_inplace(xr)
+        if not xr.untyped_storage() is x.untyped_storage():
+            x[:] = xr.reshape(*x.shape)
+        return
+    if x.shape[1] > x.shape[2]:
+        xr = x.permute(0, 2, 1)
+        compute_prod3_inplace(xr)
+        if not xr.untyped_storage() is x.untyped_storage():
+            x[:] = xr.permute(0, 2, 1)
+        return
+
+    # avoid matrix multiplies by any dimensions that are too large.
+    max_dim = 1024
+    if x.shape[1] > max_dim:
+        n = x.shape[1]
+        for divisor in range(2, 100):
+            if n % divisor == 0 and n // divisor <= max_dim:
+                xr = x.reshape(x.shape[0] * divisor, n // divisor, x.shape[2])
+                compute_prod3_inplace(xr)
+                if not xr.untyped_storage() is x.untyped_storage():
+                    x[:] = xr.reshape(*x.shape)
+                return
+        # if no divisor worked, just continue.
+
+    (batch_size, rows, cols) = x.shape  # and rows <= cols
+
+    x2 = torch.matmul(x, x.permute(0, 2, 1)) / max(rows, cols)
+    x3 = torch.matmul(x2, x)
+
+    x[:] = x3
+
+
+
+
+def compute_prod3(x):
+    # computes matrix-matrix-matrix-matrix-matrix product of batch of matrices x, with reshaping if necessary;
+    # first divides x by max(num_rows, num_cols)^2 so its a kind of normalized 3rdproduct.
+    x = x.clone()
+    compute_prod3_inplace(x)
+    return x
+
+
 
 
 def scale_by(x, beta1):
@@ -346,18 +400,20 @@ def momentum_step(group, state, grad):
     if delta.ndim >= 3 and delta.numel() != delta.shape[0] * max(delta.shape[1:]):
         # decay by one quarter of the beta1-determined decay rate, leaving the rest to the x^3 decay.
         # this should be configurable.
-        stored_delta.mul_(0.25 * beta1 + 0.75)
-        eta = 1.0 # scale on subtraction of x3.
-        update_scale = (eta * (1 - beta1)**3)
-        x5 = stored_delta * (update_scale ** 0.2)
-        compute_prod5_inplace(x5)  # actually computes 5rd power of its arg divided by max(rows, cols)**2
+
+        linear_decay_scale = 0.25
+
+        stored_delta.mul_(linear_decay_scale * beta1 + (1 - linear_decay_scale))
+        excess_scale = 2.0   # approximately: the amount by which we let the singular values exceed the rms value they would have if the data were i.i.d.
+        x3 = stored_delta * (((1 - beta1**2)**0.5) / excess_scale)   # normalized-scale version of stored_delta, times
+        compute_prod3_inplace(x3)  # actually computes 3rd power of its arg divided by max(rows, cols)**2
         # the factor of 0.5 says we only want to go, at most, half the way to the point which
         # would give us the minimum 'x'.  this is to prevent the largest eigs overshooting
         # and having the direction change sign, in a situation where we are not dominated by
         # the largest singular value; or to prevent the largest singular value from going to
         # zero if it does dominate.
-        alpha = (0.5 * min_sum_scale(stored_delta, x5)).clamp(min=-1)
-        stored_delta.add_(x5 * alpha)
+        alpha = (0.5 * min_sum_scale(stored_delta, x3)).clamp(min=-1)
+        stored_delta.add_(x3 * alpha)
     else:
         stored_delta.mul_(beta1)
 
