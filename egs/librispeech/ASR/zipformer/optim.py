@@ -404,7 +404,7 @@ def momentum_step(group, state, grad):
         linear_decay_scale = 0.25
 
         stored_delta.mul_(linear_decay_scale * beta1 + (1 - linear_decay_scale))
-        excess_scale = 2.0   # approximately: the amount by which we let the singular values exceed the rms value they would have if the data were i.i.d.
+        excess_scale = 2.5
         x3 = stored_delta * (((1 - beta1**2)**0.5) / excess_scale)   # normalized-scale version of stored_delta, times
         compute_prod3_inplace(x3)  # actually computes 3rd power of its arg divided by max(rows, cols)**2
         # the factor of 0.5 says we only want to go, at most, half the way to the point which
