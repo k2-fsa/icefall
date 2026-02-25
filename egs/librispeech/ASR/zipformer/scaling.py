@@ -333,15 +333,32 @@ class MaxEigLimiterFunction(torch.autograd.Function):
 
 
 
-def _sequence_norm(x: Tensor, offset: Tensor, scale: Tensor, mask: Optional[Tensor]):
-    if mask is None:
-        scales = 1.0 / (x ** 2).mean(dim=(0, 2), keepdim=True).sqrt()
-    else:
-        mask = (~mask).to(torch.float).t().unsqueeze(-1)
-        xm = x * mask
-        num_frames = mask.sum(dim=0)
-        scales = (num_frames / ((xm ** 2).mean(dim=2, keepdim=True).sum(dim=0))).sqrt()
+# all arg tensors are scalars
+def _sequence_norm(x: Tensor, offset: Tensor, scale: Tensor, ballast_rms: Tensor, ballast_frames: Tensor, causal: bool, mask: Optional[Tensor]):
+    stats = (x ** 2).mean(dim=2, keepdim=True)
+    # ballast_frames should normally be positive due to limit_param_value, but there can be small excursions, so
+    # make absolutely sure using abs().
+    ballast_frames = 100.0 * ballast_frames.abs()
+    ballast = ballast_frames * (ballast_rms ** 2)
+    T = x.shape[0]  # time
 
+    if causal:
+        # no  need for mask in causal mode.
+        stats = stats.cumsum(dim=0) + ballast
+        lengths = ballast_frames + torch.arange(1, T + 1, dtype=x.dtype, device=x.device)[:, None, None]
+    else:
+        if mask is None:
+            # no  need for mask in causal mode.
+            stats = stats.sum(dim=0) + ballast
+            lengths = ballast_frames + T
+        else:
+            mask = (~mask).to(torch.float).t().unsqueeze(-1)
+            stats = stats * mask
+            stats = stats.sum(dim=0) + ballast
+            lengths = ballast_frames + mask.sum(dim=0)
+
+    scales = (lengths / stats).sqrt()   # (T, batch_size, 1) if causal else (batch_size 1)
+    assert scales.shape == (T, x.shape[1], 1) if causal else (x.shape[1], 1)
     return x * ((scale * scales) + offset)
 
 
@@ -352,29 +369,32 @@ class SequenceNormFunction(torch.autograd.Function):
         x: Tensor,
         offset: Tensor,
         scale: Tensor,
+        ballast_rms: Tensor,
+        ballast_frames: Tensor,
+        causal: bool,
         mask: Optional[Tensor],
     ) -> Tensor:
-        ctx.save_for_backward(x, offset, scale)
+        ctx.save_for_backward(x, offset, scale, ballast_rms, ballast_frames)
+        ctx.causal = causal
         ctx.mask = mask
 
-        return _sequence_norm(x, offset, scale, mask)
+        return _sequence_norm(x, offset, scale, ballast_rms, ballast_frames, causal, mask)
 
 
     @staticmethod
     def backward(ctx, ans_grad: Tensor) -> Tensor:
-        x, offset, scale = ctx.saved_tensors
-        mask = ctx.mask
+        x, offset, scale, ballast_rms, ballast_frames = ctx.saved_tensors
+
 
         with torch.amp.autocast('cuda', enabled=False):
-            x, offset, scale = x.to(torch.float32), offset.to(torch.float32), scale.to(torch.float32)
-            x, offset, scale = x.detach(), offset.detach(), scale.detach()
-
-            x.requires_grad = True
-            scale.requires_grad = True
-            offset.requires_grad = True
+            x = x.to(torch.float32).detach().requires_grad_()
+            offset = offset.to(torch.float32).detach().requires_grad_()
+            scale = scale.to(torch.float32).detach().requires_grad_()
+            ballast_rms = ballast_rms.to(torch.float32).detach().requires_grad_()
+            ballast_frames = ballast_frames.to(torch.float32).detach().requires_grad_()
 
             with torch.enable_grad():
-                ans = _sequence_norm(x, offset, scale, ctx.mask)
+                ans = _sequence_norm(x, offset, scale, ballast_rms, ballast_frames, ctx.causal, ctx.mask)
                 ans.backward(gradient=ans_grad.to(torch.float32))
 
         def c(x):
@@ -382,7 +402,7 @@ class SequenceNormFunction(torch.autograd.Function):
             # in autocast mode.
             return x.clamp_(min=-30000.0, max=30000.0)
 
-        return x.grad, c(offset.grad), c(scale.grad), None
+        return x.grad, c(offset.grad), c(scale.grad), c(ballast_rms.grad), c(ballast_frames.grad), None, None
 
 
 class SequenceNorm(torch.nn.Module):
@@ -395,21 +415,26 @@ class SequenceNorm(torch.nn.Module):
     """
     def __init__(
         self,
+        causal: bool,
     ) -> None:
         super(SequenceNorm, self).__init__()
         self.scale = nn.Parameter(torch.tensor(0.5))
         self.offset = nn.Parameter(torch.tensor(0.0001))
-
-
+        # ballast_mean: assumed rms value of ballast frames used to pad stats
+        self.ballast_rms = nn.Parameter(torch.tensor(0.1))
+        # ballast_frames: number of ballast frames, in hundreds (will be multiplied by 100)
+        self.ballast_frames =  nn.Parameter(torch.tensor(0.05))  # number of ballast frames, will be multiplied by 100
+        self.causal = causal
         self.name = None
 
 
     def forward(self, x: Tensor, mask: Optional[Tensor]) -> Tensor:
         # x: (seq, batch, channel)
         # mask: bool, (batch_size, seq_len)
+        #  Note: mask is ignored in causal mode.
 
         if torch.jit.is_scripting() or torch.jit.is_tracing():
-            return _sequence_norm(x, self.offset, self.scale, mask)
+            return _sequence_norm(x, self.offset, self.scale, self.ballast_rms, self.ballast_frames, self.causal, mask)
 
         scale = limit_param_value(
             self.scale, min=0.05, max=2.0, training=self.training)
@@ -417,14 +442,20 @@ class SequenceNorm(torch.nn.Module):
         offset = limit_param_value(
             self.offset, min=0.0, max=10.0, training=self.training)
 
+        ballast_rms = limit_param_value(
+            self.ballast_rms, min=0.0, max=10.0, training=self.training)
+
+        ballast_frames = limit_param_value(
+            self.ballast_frames, min=0.0, max=5.0, training=self.training)  # max of 5.0 would be 500 frames
+
         ans = SequenceNormFunction.apply(
-            x, offset, scale, mask,
+            x, offset, scale, ballast_rms, ballast_frames, self.causal, mask,
         )
 
         if random.random() < 0.002:
             x_rms = (x ** 2).mean().sqrt()
             ans_rms = (ans ** 2).mean().sqrt()
-            logging.info(f"name={self.name}: x_rms={x_rms}, ans_rms={ans_rms}, scale={self.scale.item()}, offset={self.offset.item()}")
+            logging.info(f"name={self.name}: x_rms={x_rms}, ans_rms={ans_rms}, scale={self.scale.item()}, offset={self.offset.item()}, ballast_rms={self.ballast_rms.item()}, ballast_frames*100={100*self.ballast_frames.item()}")
 
         return ans
 

@@ -26,13 +26,16 @@ from typing import List, Optional, Tuple, Union
 import torch
 from encoder_interface import EncoderInterface
 from scaling import (
-    Identity,  # more friendly to backward hooks than nn.Identity(), for diagnostic reasons.
-    OrthogonalLinear,
-    SimpleOrthogonalLinear,
-    ScaledLinear,  # not as in other dirs.. just scales down initial parameter values.
     ActivationDropoutAndLinear,
     ChunkCausalDepthwiseConv1d,
     CosineSimilarityLoss,
+    CorrelationLimiter,
+    Identity,  # more friendly to backward hooks than nn.Identity(), for diagnostic reasons.
+    OrthogonalLinear,
+    RmsNorm,
+    SequenceNorm,
+    SimpleOrthogonalLinear,
+    ScaledLinear,  # not as in other dirs.. just scales down initial parameter values.
     ScheduledFloat,
     FloatLike,
     SwashR,
@@ -43,12 +46,6 @@ from scaling import (
     ScaleLimiter,
     with_loss,
 )
-try:
-    from scaling import CorrelationLimiter
-    from scaling import SequenceNorm
-    from scaling import RmsNorm
-except:
-    pass
 
 
 from torch import Tensor, nn
@@ -541,7 +538,7 @@ class Zipformer2EncoderLayer(nn.Module):
 
         self.conv_module = ConvolutionModule(embed_dim, conv_params, causal=causal)
 
-        self.norm = SequenceNorm()
+        self.norm = SequenceNorm(causal=causal)
 
 
     def forward(
