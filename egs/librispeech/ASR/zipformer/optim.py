@@ -458,7 +458,7 @@ def scaling_step(group, param, state, grad):
 
     scale_ratio = scale / old_scale
 
-    delta_scale = (scale_ratio * (1 - lr * wd)) - 1
+    delta_scale = (scale_ratio * (1 - (lr * wd) ** 2)) - 1
     return param * delta_scale  +  scale * delta
 
 
@@ -518,11 +518,11 @@ class TransformedAdam(BatchedOptimizer):
     def __init__(
         self,
         params,
-        lr=3e-02,
+        lr=1e-03,
         beta1=0.995,
         direct=0.05, # scale on bypass of momentum (beta1)
         beta2=0.98,
-        wd=0.15,
+        wd=10,
         eps=1.0e-08,
         scale_limits=(0.5, 2.0),
     ):
@@ -926,11 +926,11 @@ class SimpleTransformedAdam(Optimizer):
     def __init__(
         self,
         params,
-        lr=3e-02,
+        lr=1e-03,
         beta1=0.995,
         direct=0.05, # scale on bypass of momentum (beta1)
         beta2=0.98,
-        wd=0.15,
+        wd=10,
         eps=1.0e-08,
         scale_limits=(0.5, 2.0),
     ):
@@ -1036,9 +1036,9 @@ def _test_transformed_adam(hidden_dim: int):
 
         lr = 0.001
         if test == 0:
-            optim = TransformedAdam(m.named_parameters(), lr=lr, wd=0.15, eps=1.0e-20, beta1=0.99)
+            optim = TransformedAdam(m.named_parameters(), lr=lr, wd=12, eps=1.0e-20, beta1=0.99)
         elif test == 1:
-            optim = SimpleTransformedAdam(m.parameters(), lr=lr, wd=0.15, eps=1.0e-20, beta1=0.99)
+            optim = SimpleTransformedAdam(m.parameters(), lr=lr, wd=12, eps=1.0e-20, beta1=0.99)
 
         num_epochs = 180
 
