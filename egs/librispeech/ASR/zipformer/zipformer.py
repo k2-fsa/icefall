@@ -1726,6 +1726,7 @@ class ConvolutionModule(nn.Module):
         self.activation2 = Identity()  # for diagnostics
 
         self.depthwise_conv = FftConv(bottleneck_dim, kernel_size)
+        self.depthwise_conv.lr_scale = 0.66
 
         self.out_proj = ActivationDropoutAndLinear(
             bottleneck_dim,
