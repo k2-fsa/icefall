@@ -76,7 +76,7 @@ from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import AsrModel
 from optim import TransformedAdam
-from combined_scheduler import CombinedLRScheduler, CosineLRScheduler
+from combined_scheduler import CombinedLRScheduler, CosineLRScheduler, LinearLRScheduler
 from torch.optim.lr_scheduler import LambdaLR
 from scaling import ScheduledFloat
 from subsampling import Conv2dSubsampling
@@ -1369,7 +1369,7 @@ def run(rank, world_size, args):
         progress = current_step / total_steps
         return max(0.0, 0.5 * (1.0 + math.cos(math.pi * progress)))
 
-    scheduler = CosineLRScheduler(optimizer,
+    scheduler = LinearLRScheduler(optimizer,
                                   batches_per_epoch=params.batches_per_epoch,
                                   num_epochs=params.num_epochs)
 

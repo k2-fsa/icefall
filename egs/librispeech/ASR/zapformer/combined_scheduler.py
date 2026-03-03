@@ -130,3 +130,18 @@ class CosineLRScheduler(CombinedLRScheduler):
         factor = 0.5 * (1.0 + math.cos(math.pi * progress))
         factor = self.min_factor + (1. - self.min_factor) * factor
         return [x * factor for x in self.base_lrs]
+
+
+class LinearLRScheduler(CombinedLRScheduler):
+    def __init__(self,
+                 *args,
+                 min_factor: float = 0.05,
+                 **kwargs):
+        super().__init__(*args, **kwargs)
+        self.min_factor = min_factor
+
+    def get_lr(self):
+        progress = self.get_progress()
+        factor = 1.0 - progress
+        factor = self.min_factor + (1. - self.min_factor) * factor
+        return [x * factor for x in self.base_lrs]
