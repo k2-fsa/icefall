@@ -76,7 +76,11 @@ from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import AsrModel
 from optim import TransformedAdam
-from combined_scheduler import CombinedLRScheduler, CosineLRScheduler, LinearLRScheduler
+from combined_scheduler import CombinedLRScheduler, CosineLRScheduler
+try:
+    from combined_scheduler import LinearLRScheduler
+except:
+    pass
 from torch.optim.lr_scheduler import LambdaLR
 from scaling import ScheduledFloat
 from subsampling import Conv2dSubsampling
