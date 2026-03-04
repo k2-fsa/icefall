@@ -157,13 +157,12 @@ class Muon(torch.optim.Optimizer):
     """
     def __init__(
         self,
+        params,
         lr=1e-3,
         wd=10.0,  # weight decay is a squared type, needs larger wd value,
-        muon_params=None,
         momentum=0.95,
         nesterov=True,
         ns_steps=5,
-        adamw_params=None,
         adamw_betas=(0.9, 0.95),
         adamw_eps=1e-8,
         scale_limits=(0.5, 4.0),
@@ -178,27 +177,7 @@ class Muon(torch.optim.Optimizer):
             adamw_eps=adamw_eps,
             scale_limits=scale_limits,
         )
-
-        params = list(muon_params)
-        adamw_params = list(adamw_params) if adamw_params is not None else []
-        params.extend(adamw_params)
         super().__init__(params, defaults)
-        # Sort parameters into those for which we will use Muon, and those for which we will not
-        for p in muon_params:
-            # Use Muon for every parameter in muon_params which is >= 2D and doesn't look like an embedding or head layer
-            assert p.ndim > 1, p.ndim
-            self.state[p]["use_muon"] = True
-        for p in adamw_params:
-            # Do not use Muon for parameters in adamw_params
-            self.state[p]["use_muon"] = False
-
-    #def adjust_lr_for_muon(self, lr: float, param_shape: list[int]) -> float:
-    #    A, B = param_shape[:2]
-    #    # We adjust the learning rate and weight decay based on the size of the parameter matrix
-    #    # as describted in the paper
-    #    adjusted_ratio = 0.2 * math.sqrt(max(A, B))
-    #    adjusted_lr = lr * adjusted_ratio
-    #    return adjusted_lr
 
     def step(self, closure=None):
         """Perform a single optimization step.
@@ -214,7 +193,7 @@ class Muon(torch.optim.Optimizer):
 
         for group in self.param_groups:
             # Muon loop
-            params = [p for p in group["params"] if self.state[p]["use_muon"]]
+            params = [p for p in group["params"] if p.numel() != max(p.shape, default=1)]
             lr = group["lr"]
             wd = group["wd"]
             momentum = group["momentum"]
@@ -271,7 +250,8 @@ class Muon(torch.optim.Optimizer):
                 p.data.add_(u * scale, alpha=-adjusted_lr)
 
             # Adam backup
-            params = [p for p in group["params"] if not self.state[p]["use_muon"]]
+            params = [p for p in group["params"] if p.numel() == max(p.shape, default=1)]
+
             lr = group["lr"]
             beta1, beta2 = group["adamw_betas"]
             eps = group["adamw_eps"]

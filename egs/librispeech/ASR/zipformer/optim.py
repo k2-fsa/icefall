@@ -1151,8 +1151,7 @@ def _test_muon(hidden_dim: int):
             for _ in range(20)
         ]
 
-        optim = Muon(muon_params=[m for m in m.parameters() if m.ndim == 2],
-                     adamw_params=[m for m in m.parameters() if m.ndim != 2],
+        optim = Muon(m.parameters(),
                      lr=0.5e-03,
                      wd=12.0)
 
