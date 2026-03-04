@@ -179,13 +179,13 @@ class Muon(torch.optim.Optimizer):
             # Do not use Muon for parameters in adamw_params
             self.state[p]["use_muon"] = False
 
-    def adjust_lr_for_muon(self, lr: float, param_shape: list[int]) -> float:
-        A, B = param_shape[:2]
-        # We adjust the learning rate and weight decay based on the size of the parameter matrix
-        # as describted in the paper
-        adjusted_ratio = 0.2 * math.sqrt(max(A, B))
-        adjusted_lr = lr * adjusted_ratio
-        return adjusted_lr
+    #def adjust_lr_for_muon(self, lr: float, param_shape: list[int]) -> float:
+    #    A, B = param_shape[:2]
+    #    # We adjust the learning rate and weight decay based on the size of the parameter matrix
+    #    # as describted in the paper
+    #    adjusted_ratio = 0.2 * math.sqrt(max(A, B))
+    #    adjusted_lr = lr * adjusted_ratio
+    #    return adjusted_lr
 
     def step(self, closure=None):
         """Perform a single optimization step.
@@ -236,9 +236,12 @@ class Muon(torch.optim.Optimizer):
 
                 u = zeropower_via_newtonschulz5(g, steps=group["ns_steps"])
 
-                # scale update
-                adjusted_lr = self.adjust_lr_for_muon(lr, p.shape)
+                # scale so u should have unit RMS; we remove this factor from
+                # adjust_lr_for_muon() and simply use the factor of 0.2 below
+                u = u * (max(p.shape[0], p.shape[1]) ** 0.5)
 
+                # multipliying by 0.2 is what's left of adjust_lr_for_muon(0
+                adjusted_lr = 0.2 * lr
 
                 old_scale = scale.clone()
 
@@ -249,7 +252,6 @@ class Muon(torch.optim.Optimizer):
 
                 # apply changes in scale, together with conventional decay.
                 p.data.mul_(scale_ratio * (1 - lr * wd))
-
 
                 # apply update
                 p.data.add_(u * scale, alpha=-adjusted_lr)

@@ -1155,11 +1155,29 @@ def _test_muon(hidden_dim: int):
                      adamw_params=[m for m in m.parameters() if m.ndim != 2],
                      lr=1e-03)
 
-        scheduler = Sched3(optim, lr_batches=100, power=0.9, warmup_start=0.1, verbose=False)
+
+        num_epochs = 180
+        warmup_steps = 0
+        # hardcode batches per epoch for now.
+        total_steps = num_epochs
+        warmup_start = 0.5
+        def lr_lambda(current_step):
+            if current_step < warmup_steps:
+                # Linear warm-up
+                return warmup_start + (1.0 - warmup_start) * current_step / warmup_steps
+            else:
+                # Cosine annealing
+                progress = (current_step - warmup_steps) / (total_steps - warmup_steps)
+                return max(0.0, 0.5 * (1.0 + math.cos(math.pi * progress)))
+
+
+        scheduler = LambdaLR(optim, lr_lambda)
 
         start = timeit.default_timer()
         avg_loss = 0.0
-        for epoch in range(180):
+        for epoch in range(num_epochs):
+            scheduler.step()
+
             # if epoch == 100 and test in [2,3]:
             #    optim.reset_speedup()  # check it doesn't crash.
 
@@ -1170,7 +1188,6 @@ def _test_muon(hidden_dim: int):
             #    diagnostic = diagnostics.attach_diagnostics(m, opts)
 
             for n, (x, y) in enumerate(train_pairs):
-                scheduler.step_batch()
                 y_out = m(x)
                 loss = ((y_out - y) ** 2).mean() * 100.0
                 if epoch == 0 and n == 0:
@@ -1223,5 +1240,5 @@ if __name__ == "__main__":
     else:
         hidden_dim = 200
 
-    #_test_muon(hidden_dim)
-    _test_transformed_adam(hidden_dim)
+    _test_muon(hidden_dim)
+    #_test_transformed_adam(hidden_dim)
