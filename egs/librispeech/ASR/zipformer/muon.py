@@ -139,13 +139,13 @@ class Muon(torch.optim.Optimizer):
         adamw_lr: The learning rate for the internal AdamW.
         adamw_betas: The betas for the internal AdamW.
         adamw_eps: The epsilon for the internal AdamW.
-        adamw_wd: The weight decay for the internal AdamW.
+        wd: weight decay for muon and adamw, this is a squared type of weight decay, requires a large value
+            which dimensionally is like an inverse of a parameter rms
     """
-
     def __init__(
         self,
         lr=1e-3,
-        wd=0.1,
+        wd=10.0,  # weight decay is a squared type, needs larger wd value,
         muon_params=None,
         momentum=0.95,
         nesterov=True,
@@ -153,7 +153,7 @@ class Muon(torch.optim.Optimizer):
         adamw_params=None,
         adamw_betas=(0.9, 0.95),
         adamw_eps=1e-8,
-        scale_limits=(0.5, 2.0),
+        scale_limits=(1.0, 4.0),
     ):
         defaults = dict(
             lr=lr,
@@ -268,7 +268,7 @@ class Muon(torch.optim.Optimizer):
                 scale_ratio = scale / old_scale
 
                 # apply changes in scale, together with conventional decay.
-                p.data.mul_(scale_ratio * (1 - lr * wd))
+                p.data.mul_(scale_ratio * (1 - (lr * wd) ** 2))
 
                 # apply update
                 p.data.add_(u * scale, alpha=-adjusted_lr)
@@ -301,7 +301,7 @@ class Muon(torch.optim.Optimizer):
                 bias_correction1 = 1 - beta1**step
                 bias_correction2 = 1 - beta2**step
                 scale = bias_correction1 / bias_correction2**0.5
-                p.data.mul_(1 - lr * weight_decay)
+                p.data.mul_(1 - (lr * weight_decay) ** 2)
                 p.data.add_(g, alpha=-lr / scale)
 
         return loss

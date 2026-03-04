@@ -1153,23 +1153,20 @@ def _test_muon(hidden_dim: int):
 
         optim = Muon(muon_params=[m for m in m.parameters() if m.ndim == 2],
                      adamw_params=[m for m in m.parameters() if m.ndim != 2],
-                     lr=1e-03)
-
+                     lr=0.5e-03,
+                     wd=12.0)
 
         num_epochs = 180
-        warmup_steps = 0
         # hardcode batches per epoch for now.
         total_steps = num_epochs
-        warmup_start = 0.5
-        def lr_lambda(current_step):
-            if current_step < warmup_steps:
-                # Linear warm-up
-                return warmup_start + (1.0 - warmup_start) * current_step / warmup_steps
-            else:
-                # Cosine annealing
-                progress = (current_step - warmup_steps) / (total_steps - warmup_steps)
-                return max(0.0, 0.5 * (1.0 + math.cos(math.pi * progress)))
+        constant_fraction = 0.25
 
+        def lr_lambda(current_step):
+            progress = current_step / total_steps
+            if progress < constant_fraction:
+                return 1.0
+            else:
+                return (1.0 - progress) / (1.0 - constant_fraction)
 
         scheduler = LambdaLR(optim, lr_lambda)
 
