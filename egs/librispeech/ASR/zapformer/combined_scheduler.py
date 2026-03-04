@@ -135,13 +135,18 @@ class CosineLRScheduler(CombinedLRScheduler):
 class LinearLRScheduler(CombinedLRScheduler):
     def __init__(self,
                  *args,
+                 const_fraction: float = 0.2,  # fraction of schedule for which we stay at 1.0
                  min_factor: float = 0.05,
                  **kwargs):
         super().__init__(*args, **kwargs)
+        self.const_fraction = const_fraction
         self.min_factor = min_factor
 
     def get_lr(self):
         progress = self.get_progress()
-        factor = 1.0 - progress
+        # initially: factor is constant at 1.0 until progress==self.const_fraction, then decays to 0
+        # at the end.
+        factor = (1.0 if progress <= self.const_fraction else  (1.0 - progress) / (1. - self.const_fraction))
+        # then, modify for self.min_factor
         factor = self.min_factor + (1. - self.min_factor) * factor
         return [x * factor for x in self.base_lrs]
