@@ -218,9 +218,13 @@ class Muon(torch.optim.Optimizer):
                 # calc update
                 state = self.state[p]
                 if "momentum_buffer" not in state:
+                    state["delta2_buffer0"] = torch.ones(g.shape[0], device=g.device, dtype=g.dtype)
+                    state["delta2_buffer1"] = torch.ones(g.shape[1], device=g.device, dtype=g.dtype)
                     state["momentum_buffer"] = torch.zeros_like(g)
                     state["scale"] = torch.tensor(1.0, device=g.device)  # scalar
                     state["scale_grad_buffer"] = torch.tensor(0.0, device=g.device)  # scalar
+                delta2_buffer0 = state["delta2_buffer0"]
+                delta2_buffer1 = state["delta2_buffer1"]
                 buf = state["momentum_buffer"]
                 scale = state["scale"]
                 scale_grad_buf = state["scale_grad_buffer"]
@@ -234,13 +238,26 @@ class Muon(torch.optim.Optimizer):
                 else:
                     g = buf
 
+                eps = 1.0e-08
+
+                # we'll scale both before and after the newton-schulz
+                row_col_scale = 1. / ((delta2_buffer0 + eps).sqrt().unsqueeze(-1) * (delta2_buffer1 + eps).sqrt())
+
+                g = g * row_col_scale
+
                 u = zeropower_via_newtonschulz5(g, steps=group["ns_steps"])
 
                 # scale so u should have unit RMS; we remove this factor from
                 # adjust_lr_for_muon() and simply use the factor of 0.2 below
                 u = u * (max(p.shape[0], p.shape[1]) ** 0.5)
 
-                # multipliying by 0.2 is what's left of adjust_lr_for_muon(0
+                beta2 = 0.98
+                delta2_buffer0.mul_(beta2).add_((u ** 2).mean(dim=1), alpha=(1 - beta2))
+                delta2_buffer1.mul_(beta2).add_((u ** 2).mean(dim=0), alpha=(1 - beta2))
+
+                u = u * row_col_scale
+
+                # multiplying by 0.2 is what's left of adjust_lr_for_muon()
                 adjusted_lr = 0.2 * lr
 
                 old_scale = scale.clone()
