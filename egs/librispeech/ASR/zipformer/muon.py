@@ -75,7 +75,7 @@ def get_muon_shape(shape):
         if diffs[i-1] == min_diff:
             return prod(shape[:i]), prod(shape[i:])
 
-def zeropower_via_newtonschulz5(G: "torch.Tensor", steps: int) -> "torch.Tensor":
+def zeropower_via_newtonschulz5(G: "torch.Tensor", steps: int, state: dict) -> "torch.Tensor":
     """Newton-Schulz iteration to compute the zeroth power / orthogonalization of G.
 
     We opt to use a quintic iteration whose coefficients are selected to maximize the slope at zero.
@@ -92,8 +92,21 @@ def zeropower_via_newtonschulz5(G: "torch.Tensor", steps: int) -> "torch.Tensor"
     X = G.bfloat16()
     if G.size(0) > G.size(1):
         X = X.T
-    # Ensure spectral 4-norm is at most 1
+
+    if "delta2_buffer0" not in state:
+        state["delta2_buffer0"] = torch.ones(X.shape[0], device=X.device, dtype=X.dtype)
+        state["delta2_buffer1"] = torch.ones(X.shape[1], device=X.device, dtype=X.dtype)
+    delta2_buffer0 = state["delta2_buffer0"]
+    delta2_buffer1 = state["delta2_buffer1"]
+
+
     eps = 1e-7
+
+    # we'll scale both before and after the newton-schulz
+    row_col_scale = 1. / ((delta2_buffer0 + eps).sqrt().unsqueeze(-1) * (delta2_buffer1 + eps).sqrt())
+    X = X * row_col_scale
+
+    # Ensure spectral 4-norm is at most 1
     X = X / (norm4(X) + eps)
     # Perform the NS iterations
     for _ in range(steps):
@@ -101,12 +114,17 @@ def zeropower_via_newtonschulz5(G: "torch.Tensor", steps: int) -> "torch.Tensor"
         B = b * A + c * A @ A  # adapted from suggestion by @jxbz, @leloykun, and @YouJiacheng
         X = a * X + B @ X
 
+    # the following scales so if the newton-schulz was exact, the elements of X would have unit RMS.
+    X = X * (max(X.shape[0], X.shape[1]) ** 0.5)
+    X2 = X ** 2
+    beta = 0.98
+    delta2_buffer0.mul_(beta).add_(X2.mean(dim=1), alpha=(1 - beta))
+    delta2_buffer1.mul_(beta).add_(X2.mean(dim=0), alpha=(1 - beta))
+
+    X = X * row_col_scale
+
     if G.size(0) > G.size(1):
         X = X.T
-
-
-    if random.random() < 0.0001:
-        logging.info(f"zeropower_via_newtonschulz5: shape={X.shape}, singular-value-rms={X.norm()/(min(X.shape[0],X.shape[1])**0.5)}")
 
     return X.reshape(orig_shape)
 
@@ -148,7 +166,7 @@ class Muon(torch.optim.Optimizer):
         adamw_params=None,
         adamw_betas=(0.9, 0.95),
         adamw_eps=1e-8,
-        scale_limits=(1.0, 4.0),
+        scale_limits=(0.5, 4.0),
     ):
         defaults = dict(
             lr=lr,
@@ -213,13 +231,9 @@ class Muon(torch.optim.Optimizer):
                 # calc update
                 state = self.state[p]
                 if "momentum_buffer" not in state:
-                    state["delta2_buffer0"] = torch.ones(g.shape[0], device=g.device, dtype=g.dtype)
-                    state["delta2_buffer1"] = torch.ones(g.shape[1], device=g.device, dtype=g.dtype)
                     state["momentum_buffer"] = torch.zeros_like(g)
                     state["scale"] = torch.tensor(1.0, device=g.device)  # scalar
                     state["scale_grad_buffer"] = torch.tensor(0.0, device=g.device)  # scalar
-                delta2_buffer0 = state["delta2_buffer0"]
-                delta2_buffer1 = state["delta2_buffer1"]
                 buf = state["momentum_buffer"]
                 scale = state["scale"]
                 scale_grad_buf = state["scale_grad_buffer"]
@@ -235,24 +249,12 @@ class Muon(torch.optim.Optimizer):
 
                 eps = 1.0e-08
 
-                # we'll scale both before and after the newton-schulz
-                row_col_scale = 1. / ((delta2_buffer0 + eps).sqrt().unsqueeze(-1) * (delta2_buffer1 + eps).sqrt())
 
-                g = g * row_col_scale
+                u = zeropower_via_newtonschulz5(g, steps=group["ns_steps"], state=state)
 
-                u = zeropower_via_newtonschulz5(g, steps=group["ns_steps"])
-
-                # scale so u should have unit RMS; we remove this factor from
-                # adjust_lr_for_muon() and simply use the factor of 0.2 below
-                u = u * (max(p.shape[0], p.shape[1]) ** 0.5)
-
-                beta2 = 0.98
-                delta2_buffer0.mul_(beta2).add_((u ** 2).mean(dim=1), alpha=(1 - beta2))
-                delta2_buffer1.mul_(beta2).add_((u ** 2).mean(dim=0), alpha=(1 - beta2))
-
-                u = u * row_col_scale
-
-                # multiplying by 0.2 is what's left of adjust_lr_for_muon()
+                # multiplying by 0.2 is what's left of adjust_lr_for_muon(),
+                # we used the factor of (max(p.shape[0], p.shape[1]) ** 0.5) inside
+                # zeropower_via_newtonschulz5.
                 adjusted_lr = 0.2 * lr
 
                 old_scale = scale.clone()
