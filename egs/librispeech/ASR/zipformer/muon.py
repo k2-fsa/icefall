@@ -94,17 +94,12 @@ def zeropower_via_newtonschulz5(G: "torch.Tensor", steps: int) -> "torch.Tensor"
         X = X.T
     # Ensure spectral 4-norm is at most 1
     eps = 1e-7
-    X = X / ((X ** 2).sum(dim=0) + eps**2).sqrt()   # normalize columns
     X = X / (norm4(X) + eps)
     # Perform the NS iterations
     for _ in range(steps):
         A = X @ X.T
         B = b * A + c * A @ A  # adapted from suggestion by @jxbz, @leloykun, and @YouJiacheng
         X = a * X + B @ X
-
-    # now x: (rows, cols) with rows <= cols
-    scale = (X.shape[0] / X.shape[1]) ** 0.5  # adjust so overall scale is not changed by next line.
-    X = X * (scale / ((X ** 2).sum(dim=0) + eps**2).sqrt())
 
     if G.size(0) > G.size(1):
         X = X.T
