@@ -443,8 +443,14 @@ def momentum_step(group, state, grad):
         delta2_buffer0 = state["delta2_buffer0"]
         delta2_buffer1 = state["delta2_buffer1"]
 
-        # we'll scale both before and after the cubing
-        row_col_scale = 1. / ((delta2_buffer0 + eps).sqrt() * (delta2_buffer1 + eps).sqrt())
+        # we'll scale both before and after the cubing.
+        # the lines where we divide by sqrt of the mean are so we don't double
+        # count the scalar component of this.
+        factor0 = (delta2_buffer0 + eps).sqrt()
+        factor0 = factor0 / factor0.mean(dim=1, keepdim=True).sqrt()
+        factor1 = (delta2_buffer1 + eps).sqrt()
+        factor1 = factor1 / factor1.mean(dim=2, keepdim=True).sqrt()
+        row_col_scale = 1. / (factor0 * factor1)
 
         x3 = x3 * row_col_scale   #note, we are before computing the cubed part.
 
