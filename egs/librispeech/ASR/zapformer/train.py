@@ -1363,7 +1363,7 @@ def run(rank, world_size, args):
     optimizer = Muon(
         get_parameter_groups_with_lrs(model, lr=params.base_lr),
         lr=params.base_lr,
-        wd=12.5,
+        wd=10.0,
         scale_limits=(0.5, 4.0),
      )
 
