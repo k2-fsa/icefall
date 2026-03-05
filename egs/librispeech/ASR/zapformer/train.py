@@ -76,7 +76,6 @@ from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import AsrModel
 from optim import TransformedAdam
-from muon import Muon
 from combined_scheduler import CombinedLRScheduler, CosineLRScheduler
 try:
     from combined_scheduler import LinearLRScheduler
@@ -1360,12 +1359,19 @@ def run(rank, world_size, args):
         logging.info("Using DDP")
         model = DDP(model, device_ids=[rank], find_unused_parameters=True)
 
-    optimizer = Muon(
-        get_parameter_groups_with_lrs(model, lr=params.base_lr),
+    optimizer = TransformedAdam(
+        get_parameter_groups_with_lrs(model, lr=params.base_lr, include_names=True),
         lr=params.base_lr,
-        wd=10.0,
-        scale_limits=(0.5, 4.0),
-     )
+        wd=12.5,
+        scale_limits=(1.0, 4.0),
+    )
+
+    # hardcode batches per epoch for now.
+    total_steps = 4550 * params.num_epochs
+    def lr_lambda(current_step):
+        # Cosine annealing
+        progress = current_step / total_steps
+        return max(0.0, 0.5 * (1.0 + math.cos(math.pi * progress)))
 
     scheduler = LinearLRScheduler(optimizer,
                                   batches_per_epoch=params.batches_per_epoch,
