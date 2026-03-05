@@ -454,7 +454,7 @@ def momentum_step(group, state, grad):
         # and having the direction change sign, in a situation where we are not dominated by
         # the largest singular value; or to prevent the largest singular value from going to
         # zero if it does dominate.
-        alpha = (0.5 * min_sum_scale(stored_delta, x3)).clamp(min=-1)
+        alpha = (0.5 * min_sum_scale(d, x3)).clamp(min=-1)
         # we divide x3 by row_col_scale to "un-normalize".
         d.add_(x3 * alpha / row_col_scale)
 
