@@ -129,6 +129,8 @@ class BatchedOptimizer(Optimizer):
 
 def base_step(group, state, grad):
     # computes basic Adam normalized-grad using beta2 (dividing by gradient stddev) only.  no momentum yet.
+    # this normalied-grad is normalized only at the whole tensor level for now.
+
     beta2 = group["beta2"]
     eps = group["eps"]
     # p shape: (batch_size,) or (batch_size, 1, [1,..])
@@ -136,10 +138,17 @@ def base_step(group, state, grad):
         exp_avg_sq = state["exp_avg_sq"]  # shape: (batch_size,) or (batch_size, 1, [1,..])
     except KeyError:
         assert state["step"] < 2
-        exp_avg_sq = torch.zeros(*grad.shape, device=grad.device, dtype=torch.float)
+        batch_size = grad.shape[0]
+        stats_shape = [batch_size] + [1] * (len(grad.shape) - 1)
+        exp_avg_sq = torch.zeros(*stats_shape, device=grad.device, dtype=torch.float)
         state["exp_avg_sq"] = exp_avg_sq
 
-    exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
+
+    mean_dims = list(range(1, grad.ndim))
+    grad2 = (grad ** 2)
+    if len(mean_dims) > 0:
+        grad2 = grad2.mean(dim=mean_dims, keepdim=True)
+    exp_avg_sq.mul_(beta2).add_(grad2, alpha=1 - beta2)
 
     # bias_correction2 is like in Adam.
     # slower update at the start will help stability anyway.
@@ -1236,5 +1245,5 @@ if __name__ == "__main__":
     else:
         hidden_dim = 200
 
-    _test_muon(hidden_dim)
-    #_test_transformed_adam(hidden_dim)
+    #_test_muon(hidden_dim)
+    _test_transformed_adam(hidden_dim)
