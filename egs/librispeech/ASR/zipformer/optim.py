@@ -371,6 +371,27 @@ def scale_by(x, beta1):
         logging.info(f"shape={x.shape}, beta1={beta1}, alpha={alpha}, alpha/(((1-beta1)**2)/dim)={alpha/(((1-beta1)**2)/max(rows,cols))}, post_scale={post_scale}, dot_prod_ratio={dot_prod2/dot_prod1}")
 
 
+def get_matrix_shape(shape):
+    shape = list(shape)
+    batch_size = shape[0]  # batch size is 1st element of shape
+    shape = shape[1:]
+    def prod(l):
+        ans = l[0]
+        for n in l[1:]:
+            ans = ans * n
+        return ans
+    n = len(shape)
+    diffs = [ ]
+    for i in range(1, n):
+        prod1 = prod(shape[:i])
+        prod2 = prod(shape[i:])
+        diff = abs(prod1 - prod2)
+        diffs.append(diff)
+    min_diff = min(diffs)
+    for i in range(1, n):
+        if diffs[i-1] == min_diff:
+            return batch_size, prod(shape[:i]), prod(shape[i:])
+
 
 def momentum_step(group, state, grad):
     delta = base_step(group, state, grad)
@@ -407,14 +428,18 @@ def momentum_step(group, state, grad):
 
     stored_delta.add_(delta)
     if delta.ndim >= 3 and delta.numel() != delta.shape[0] * max(delta.shape[1:]):
+
+        delta_reshaped = stored_delta.reshape(get_matrix_shape(stored_delta.shape))
+
         # decay by one quarter of the beta1-determined decay rate, leaving the rest to the x^3 decay.
         # this should be configurable.
 
         linear_decay_scale = 0.25
 
-        stored_delta.mul_(linear_decay_scale * beta1 + (1 - linear_decay_scale))
+        delta_reshaped.mul_(linear_decay_scale * beta1 + (1 - linear_decay_scale))
         excess_scale = 2.5
-        x3 = stored_delta * (((1 - beta1**2)**0.5) / excess_scale)   # normalized-scale version of stored_delta, times
+        x3 = delta_reshaped * (((1 - beta1**2)**0.5) / excess_scale)   # normalized-scale version of stored_delta, times
+
         compute_prod3_inplace(x3)  # actually computes 3rd power of its arg divided by max(rows, cols)**2
         # the factor of 0.5 says we only want to go, at most, half the way to the point which
         # would give us the minimum 'x'.  this is to prevent the largest eigs overshooting
@@ -422,7 +447,14 @@ def momentum_step(group, state, grad):
         # the largest singular value; or to prevent the largest singular value from going to
         # zero if it does dominate.
         alpha = (0.5 * min_sum_scale(stored_delta, x3)).clamp(min=-1)
-        stored_delta.add_(x3 * alpha)
+        delta_reshaped.add_(x3 * alpha)
+
+        if random.random() < 0.001:
+            rel_scale = (delta_reshaped ** 2).mean().sqrt() / ((1 - beta1**2)**-0.5)
+            logging.info(f"rel_scale = {rel_scale.item()}")
+
+        if not stored_delta.untyped_storage() is delta_reshaped.untyped_storage():
+            stored_delta[:] = delta_reshaped.reshape(*stored_delta.shape)
     else:
         stored_delta.mul_(beta1)
 
