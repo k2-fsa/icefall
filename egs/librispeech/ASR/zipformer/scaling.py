@@ -362,6 +362,45 @@ def _sequence_norm(x: Tensor, offset: Tensor, scale: Tensor, ballast_rms: Tensor
     return x * ((scale * scales) + offset)
 
 
+# all arg tensors are scalars
+def _sequence_norm_streaming(
+    x: Tensor, 
+    offset: Tensor, 
+    scale: Tensor, 
+    cached_stats_sum: Tensor,
+    cached_len: Tensor,
+) -> Tuple[Tensor, Tensor, Tensor]:
+    """Streaming inference forward for _sequence_norm. We assume that ballast_frames and ballast_rms
+    are already included in cached_stats_sum and cached_len.  
+
+    Args: 
+        x: (seq_len, batch_size, channels)
+        offset: scalar
+        scale: scalar
+        cached_stats_sum: (batch_size,)
+        cached_len: (batch_size,)
+    
+    Returns:
+        - normalized x, (seq_len, batch_size, channels)
+        - updated cached_stats_sum, (batch_size,)
+        - updated cached_len, (batch_size,)
+    """
+    stats = (x ** 2).mean(dim=2, keepdim=True)  # (seq_len, batch_size, 1)
+
+    T = x.shape[0]  # time
+
+    stats = stats.cumsum(dim=0) + cached_stats_sum.unsqueeze(-1)
+    lengths = cached_len[:, None] + torch.arange(1, T + 1, dtype=x.dtype, device=x.device)[:, None, None]
+    
+    # update cached_stats_sum and cached_len for the next chunk
+    cached_stats_sum = stats[-1].squeeze(-1)  # (batch_size,) 
+    cached_len = cached_len + T
+
+    scales = (lengths / stats).sqrt()   # (T, batch_size, 1) 
+    assert scales.shape == (T, x.shape[1], 1) 
+    return x * ((scale * scales) + offset), cached_stats_sum, cached_len
+
+
 class SequenceNormFunction(torch.autograd.Function):
     @staticmethod
     def forward(
@@ -427,7 +466,6 @@ class SequenceNorm(torch.nn.Module):
         self.causal = causal
         self.name = None
 
-
     def forward(self, x: Tensor, mask: Optional[Tensor]) -> Tensor:
         # x: (seq, batch, channel)
         # mask: bool, (batch_size, seq_len)
@@ -459,6 +497,30 @@ class SequenceNorm(torch.nn.Module):
 
         return ans
 
+    @torch.jit.export
+    def get_init_cache(self, batch_size: int):
+        """Get initial cache for streaming inference. We first include the ballast stats in the initial cache. 
+        """
+        # ballast_frames should normally be positive due to limit_param_value, but there can be small excursions, so
+        # make absolutely sure using abs().
+        ballast_frames = 100.0 * self.ballast_frames.abs()
+        ballast = ballast_frames * (self.ballast_rms ** 2)
+
+        cached_stats_sum = ballast.unsqueeze(0).repeat(batch_size)  # (batch_size,)
+        cached_len = ballast_frames.unsqueeze(0).repeat(batch_size)  # (batch_size,)
+
+        return cached_stats_sum, cached_len
+
+    def streaming_forward(
+        self, 
+        x: Tensor, 
+        cached_stats_sum: Tensor, 
+        cached_len: Tensor,
+    ) -> Tuple[Tensor, Tensor, Tensor]:
+        
+        x, cached_stats_sum, cached_len = _sequence_norm_streaming(
+            x, self.offset, self.scale, cached_stats_sum, cached_len)
+        return x, cached_stats_sum, cached_len
 
 
 # assume layout: (time, batch, channel)
@@ -1535,6 +1597,7 @@ class ChunkCausalDepthwiseConv1d(torch.nn.Module):
         # both of these are added to a default scale of 1.0.
         self.chunkwise_conv_scale = nn.Parameter(torch.zeros(2, channels, kernel_size))
         self.kernel_size = kernel_size
+        self.left_pad = half_kernel_size - 1
 
         with torch.no_grad():
             self.causal_conv.weight[:] *= initial_scale
@@ -1553,11 +1616,10 @@ class ChunkCausalDepthwiseConv1d(torch.nn.Module):
         """
         (batch_size, num_channels, seq_len) = x.shape
 
-        # half_kernel_size = self.kernel_size + 1 // 2
         # left_pad is half_kernel_size - 1 where half_kernel_size is the size used
         # in the causal conv.  It's the amount by which we must pad on the left,
         # to make the convolution causal.
-        left_pad = self.kernel_size // 2
+        left_pad = self.left_pad
 
         if chunk_size < 0 or chunk_size > seq_len:
             chunk_size = seq_len
@@ -1622,7 +1684,7 @@ class ChunkCausalDepthwiseConv1d(torch.nn.Module):
         # left_pad is half_kernel_size - 1 where half_kernel_size is the size used
         # in the causal conv.  It's the amount by which we must pad on the left,
         # to make the convolution causal.
-        left_pad = self.kernel_size // 2
+        left_pad = self.left_pad
 
         # Pad cache
         assert cache.shape[-1] == left_pad, (cache.shape[-1], left_pad)
