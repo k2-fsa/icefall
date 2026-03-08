@@ -473,7 +473,7 @@ def momentum_step(group, state, grad):
 
         beta = beta1    # use this beta for row/col scales
         d = d * row_col_scale  # half-normalized d
-        assumed_scale = 0.5 * ((1 - beta1**2)**-0.5) # assumed scalie of d
+        assumed_scale = ((1 - beta1**2)**-0.5) # assumed scale of d
         d2 = (d / assumed_scale) ** 2
         if random.random() < 0.001:
             logging.info(f"shape={stored_delta.shape}, mean of normalized d2 is {d2.mean().item()}")
