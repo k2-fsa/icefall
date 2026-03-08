@@ -448,9 +448,9 @@ def momentum_step(group, state, grad):
         # count the scalar component of this.
         factor0 = 1.0 / (delta2_buffer0 + eps).sqrt()
         factor0 = factor0 / factor0.mean(dim=1, keepdim=True).sqrt()
-        factor1 = 1.0 / (delta2_buffer1 + eps).sqrt()
+        factor1 = (delta2_buffer1 + eps).sqrt()
         factor1 = factor1 / factor1.mean(dim=2, keepdim=True).sqrt()
-        row_col_scale = (factor0 * factor1)
+        row_col_scale = 1. / (factor0 * factor1)
 
         x3 = x3 * row_col_scale   #note, we are before computing the cubed part.
 
