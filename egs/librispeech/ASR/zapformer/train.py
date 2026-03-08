@@ -425,7 +425,7 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--base-lr", type=float, default=0.001, help="The base learning rate."
+        "--base-lr", type=float, default=0.00065, help="The base learning rate."
     )
 
     parser.add_argument(
@@ -1362,7 +1362,7 @@ def run(rank, world_size, args):
     optimizer = TransformedAdam(
         get_parameter_groups_with_lrs(model, lr=params.base_lr, include_names=True),
         lr=params.base_lr,
-        wd=12.5,
+        wd=25,
         scale_limits=(1.0, 4.0),
     )
 

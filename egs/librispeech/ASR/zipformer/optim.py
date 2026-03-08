@@ -426,31 +426,37 @@ def momentum_step(group, state, grad):
         # alpha = xy / yy
         return -xy / (yy + eps)
 
-    stored_delta.add_(delta)
     if delta.ndim >= 3 and delta.numel() != delta.shape[0] * max(delta.shape[1:]):
         d = stored_delta.reshape(get_matrix_shape(stored_delta.shape))
+
+        if "delta2_buffer0" not in state:
+            state["delta2_buffer0"] = torch.ones(d.shape[0], d.shape[1], 1, device=d.device, dtype=d.dtype)
+            state["delta2_buffer1"] = torch.ones(d.shape[0], 1, d.shape[2], device=d.device, dtype=d.dtype)
+            state["delta_scale_buffer"] = torch.ones(d.shape[0], 1, 1, device=d.device, dtype=d.dtype)
+
+        delta2_buffer0 = state["delta2_buffer0"]
+        delta2_buffer1 = state["delta2_buffer1"]
+        delta_scale_buffer = state["delta_scale_buffer"]
+        d.add_(delta.reshape(*d.shape) * delta_scale_buffer)
+
+
         # decay by one quarter of the beta1-determined decay rate, leaving the rest to the x^3 decay.
         # this should be configurable.
         linear_decay_scale = 0.25
 
         d.mul_(linear_decay_scale * beta1 + (1 - linear_decay_scale))
 
-        if "delta2_buffer0" not in state:
-            state["delta2_buffer0"] = torch.ones(d.shape[0], d.shape[1], 1, device=d.device, dtype=d.dtype)
-            state["delta2_buffer1"] = torch.ones(d.shape[0], 1, d.shape[2], device=d.device, dtype=d.dtype)
-        delta2_buffer0 = state["delta2_buffer0"]
-        delta2_buffer1 = state["delta2_buffer1"]
 
         # we'll scale both before and after the cubing.
         # the lines where we divide by sqrt of the mean are so we don't double
         # count the scalar component of this.
         factor0 = (delta2_buffer0 + eps).sqrt()
-        factor0 = factor0 / factor0.mean(dim=1, keepdim=True).sqrt()
+        factor0_mean = factor0.mean(dim=1, keepdim=True)
+        factor0 = factor0 / factor0_mean
         factor1 = (delta2_buffer1 + eps).sqrt()
-        factor1 = factor1 / factor1.mean(dim=2, keepdim=True).sqrt()
         row_col_scale = 1. / (factor0 * factor1)
 
-        excess_scale = 2.50
+        excess_scale = 5.0
         d_scaled = d * row_col_scale
         x3 = d_scaled * (((1 - beta1**2)**0.5) / excess_scale)   # normalized-scale version of stored_delta, times
 
@@ -475,6 +481,9 @@ def momentum_step(group, state, grad):
         d = d * row_col_scale  # half-normalized d
         assumed_scale = ((1 - beta1**2)**-0.5) # assumed scale of d
         d2 = (d / assumed_scale) ** 2
+
+        delta_scale_buffer.add_((1 - d2.mean(dim=(1, 2), keepdim=True)).sign(), alpha=0.01) # infinite gain to make factor0_mean equal to 1
+
         if random.random() < 0.001:
             logging.info(f"shape={stored_delta.shape}, mean of normalized d2 is {d2.mean().item()}")
         delta2_buffer0.mul_(beta).add_(d2.mean(dim=2, keepdim=True), alpha=(1 - beta))
@@ -493,6 +502,7 @@ def momentum_step(group, state, grad):
         if step < 100:
             assert torch.all(stored_delta - stored_delta == 0.0), (step, s(stored_delta), s(delta), delta.shape,s(d), s(x3), s(delta2_buffer0), s(delta2_buffer1), s(factor0), s(factor1), s(row_col_scale), s(d2), s(row_col_scale))
     else:
+        stored_delta.add_(delta)
         stored_delta.mul_(beta1)
 
 
@@ -1112,11 +1122,11 @@ def _test_transformed_adam(hidden_dim: int):
             for _ in range(20)
         ]
 
-        lr = 0.001
+        lr = 0.0006
         if test == 0:
-            optim = TransformedAdam(m.named_parameters(), lr=lr, wd=12, eps=1.0e-20, beta1=0.99)
+            optim = TransformedAdam(m.named_parameters(), lr=lr, wd=24, eps=1.0e-20, beta1=0.99)
         elif test == 1:
-            optim = SimpleTransformedAdam(m.parameters(), lr=lr, wd=12, eps=1.0e-20, beta1=0.99)
+            optim = SimpleTransformedAdam(m.parameters(), lr=lr, wd=24, eps=1.0e-20, beta1=0.99)
 
         num_epochs = 180
 
