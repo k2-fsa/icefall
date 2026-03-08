@@ -16,6 +16,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import warnings
 from typing import Tuple, Optional
 
@@ -48,7 +49,6 @@ class AddNoise(nn.Module):
         eps = 3.0e-08
         noise_scale = ((x ** 2).mean(dim=(1,2,3), keepdim=True) + eps).sqrt() * self.rel_noise_scale
         return x + noise_scale * torch.randn_like(x)
-
 
 
 class ConvNeXt(nn.Module):
@@ -335,3 +335,72 @@ class Conv2dSubsampling(nn.Module):
         cache = torch.zeros(batch_size, channels, left_pad, freq, device=device)
 
         return cache
+
+
+def _test_conv2d_subsampling_streaming():
+    logging.info("Testing Conv2dSubsampling streaming equivalence...")
+    
+    batch_size = 2
+    idim = 80
+    odim = 256
+    
+    model = Conv2dSubsampling(
+        in_channels=idim,
+        out_channels=odim,
+        causal=True
+    )
+    
+    model.eval()
+
+    out_chunk_size = 32
+    in_chunk_size = out_chunk_size * 2 + 7  
+    in_shift = out_chunk_size * 2           
+    
+    num_chunks = 10
+    
+    seq_len = num_chunks * in_shift + 7
+    
+    x_full = torch.randn(batch_size, seq_len, idim)
+    x_lens_full = torch.full((batch_size,), seq_len, dtype=torch.int64)
+    
+    with torch.no_grad():
+        out_full, out_lens_full = model(x_full, x_lens_full)
+        
+        cache = model.get_init_cache(batch_size=batch_size)
+        
+        out_chunks = []
+        out_offset = 0
+        
+        for i in range(num_chunks):
+            start = i * in_shift
+            end = start + in_chunk_size
+            x_chunk = x_full[:, start:end, :]
+            x_lens_chunk = torch.full((batch_size,), in_chunk_size, dtype=torch.int64)
+            
+            out_chunk, out_lens_chunk, cache = model.streaming_forward(
+                x_chunk, x_lens_chunk, cache
+            )
+            out_chunks.append(out_chunk)
+            
+            out_chunk_len = out_chunk.shape[1]
+            expected_out = out_full[:, out_offset : out_offset + out_chunk_len, :]
+            
+            diff_chunk = torch.max(torch.abs(expected_out - out_chunk))
+            logging.info(f"Chunk {i+1} | Input: {x_chunk.shape} -> Output: {out_chunk.shape} | Max diff: {diff_chunk}")
+            
+            assert torch.allclose(expected_out, out_chunk, atol=1e-4), f"Chunk {i+1} mismatch! max diff: {diff_chunk}"
+            out_offset += out_chunk_len
+            
+        out_stream_cat = torch.cat(out_chunks, dim=1)
+        diff_total = torch.max(torch.abs(out_full - out_stream_cat))
+        logging.info(f"Total Max Diff between full forward and streaming: {diff_total}")
+        assert torch.allclose(out_full, out_stream_cat, atol=1e-4), "Total outputs do not match!"
+
+    logging.info("Passed")
+
+
+if __name__ == "__main__":
+    logging.getLogger().setLevel(logging.INFO)
+    torch.set_num_threads(1)
+    torch.set_num_interop_threads(1)
+    _test_conv2d_subsampling_streaming()

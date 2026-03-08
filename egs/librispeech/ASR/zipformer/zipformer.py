@@ -301,7 +301,7 @@ class Zipformer2(EncoderInterface):
                 chunk_size * left_context_chunks
                 >= (self.conv_params[i] // 2) * self.downsampling_factor[i]
                 for i in range(num_encoders)
-            )
+            )  # TODO: could test remove this
         else:
             left_context_chunks = 1000000
 
@@ -427,9 +427,7 @@ class Zipformer2(EncoderInterface):
             key_dim = self.query_head_dim[i] * num_heads
             value_dim = self.value_head_dim[i] * num_heads
             downsample_left = self.left_context_frames[0] // ds
-            
-            # (self.conv_params[i] + 1) // 2 is the size used in the depthwise causal conv.  
-            conv_left_pad = (self.conv_params[i] + 1) // 2 - 1
+            conv_left_pad = self.conv_params[i] - 1
             
             for layer_idx, enc_layer in enumerate(module.layers):
                 cached_key = torch.zeros(downsample_left, batch_size, key_dim, device=device)
@@ -1676,7 +1674,15 @@ class ConvolutionModule(nn.Module):
         if not causal:
             self.depthwise_conv = FftConv(bottleneck_dim, kernel_size) 
         else:
-            self.depthwise_conv = ChunkCausalDepthwiseConv1d(channels=bottleneck_dim, kernel_size=kernel_size)
+            self.depthwise_conv = nn.Conv1d(
+                in_channels=bottleneck_dim,
+                out_channels=bottleneck_dim,
+                groups=bottleneck_dim,
+                kernel_size=kernel_size,
+                padding=0,  # will pad manually, on one side.
+                bias=True,
+            )
+            self.left_pad = kernel_size - 1
 
         self.out_proj = ActivationDropoutAndLinear(
             bottleneck_dim,
@@ -1726,7 +1732,10 @@ class ConvolutionModule(nn.Module):
             # for the causal version, we don't use fft-conv
             if src_key_padding_mask is not None:
                 x = x.masked_fill(src_key_padding_mask.unsqueeze(1).expand_as(x), 0.0)
-            x = self.depthwise_conv(x, chunk_size=chunk_size)
+            x_shape = x.shape
+            x = torch.nn.functional.pad(x, (self.left_pad, 0))
+            x = self.depthwise_conv(x)
+            assert x.shape == x_shape, (x.shape, x_shape)
             x = x.permute(2, 0, 1)  # (time, batch, bottleneck_dim)
         else:
             x = self.depthwise_conv(x)  # x: (time, batch, bottleneck_dim)
@@ -1768,37 +1777,22 @@ class ConvolutionModule(nn.Module):
         x = x.permute(1, 2, 0)  # (batch, bottleneck_dim, time)
         if src_key_padding_mask is not None:
             x = x.masked_fill(src_key_padding_mask.unsqueeze(1).expand_as(x), 0.0)
-        x, cache = self.depthwise_conv.streaming_forward(x, cache=cache)
+
+        x_shape = x.shape
+        assert cache.shape[-1] == self.left_pad, (cache.shape[-1], self.left_pad)
+        x = torch.cat([cache, x], dim=2)
+        # Update cache
+        cache = x[..., -self.left_pad:]
+
+        x = self.depthwise_conv(x)
+        assert x.shape == x_shape, (x.shape, x_shape)
+
         x = x.permute(2, 0, 1)  # (time, batch, bottleneck_dim)
 
         x = x * y
         x = self.out_proj(x)  # (time, batch, channels)
 
         return x, cache
-
-    def repeat_in_padding(self, x, mask):
-        # repeats elements of x in the padding region, circularly as much as possible;
-        # the discontinuity between the ones that circularly repeat from the end and
-        # those that circularly repeat from the beginning is in the middle of the padding
-        # region.
-
-        # x: (seq_len, batch_size, num_channels)
-        (batch_size, seq_len) = mask.shape
-
-        seq_lengths = (~mask).to(torch.int64).sum(dim=1, keepdim=True)  # (batch_size, 1)
-        pad_len = seq_len - seq_lengths
-        arange = torch.arange(seq_len, device=mask.device)
-
-        # "mid" gives the index of the midpoint of the padding region after each sequence.
-        mid = (seq_lengths + seq_len) // 2  # mid: (batch_size, 1)
-
-        src_index = torch.where(arange >= mid, arange - pad_len, arange) % seq_lengths
-        # src_index: (batch_size, seq_len)
-
-        src_index = src_index.t().unsqueeze(-1).expand_as(x)
-        # src_index: (seq_len, batch_size, num_channels)
-        x = torch.gather(x, dim=0, index=src_index)
-        return x
 
 
 class ScalarMultiply(nn.Module):
@@ -1849,7 +1843,7 @@ def _test_zipformer_streaming():
     input_dim = 50
     batch_size = 2
     chunk_size = 32  
-    num_chunks = 3
+    num_chunks = 10
     tail_chunk_size = 8
     seq_len = chunk_size * num_chunks + tail_chunk_size
     left_context_frames = 128
@@ -1858,7 +1852,7 @@ def _test_zipformer_streaming():
         input_dim=input_dim,
         encoder_dim=(64, 96, 128, 96),
         num_heads=(4, 4, 4, 4),
-        conv_params=(7, 7, 7, 7),
+        conv_params=(31, 31, 15, 31),
         downsampling_factor=(1, 2, 4, 2),
         causal=True,
         chunk_size=(chunk_size,),
@@ -1946,7 +1940,7 @@ def _test_zipformer_streaming():
         
         assert torch.allclose(out_full, out_stream_cat, atol=2e-5), f"Outputs do not match! Max diff: {diff}"
 
-    logging.info("Zipformer streaming_forward test passed")
+    logging.info("Passed")
 
 
 if __name__ == "__main__":
