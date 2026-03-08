@@ -434,8 +434,6 @@ def momentum_step(group, state, grad):
         linear_decay_scale = 0.25
 
         d.mul_(linear_decay_scale * beta1 + (1 - linear_decay_scale))
-        excess_scale = 2.0
-        x3 = d * (((1 - beta1**2)**0.5) / excess_scale)   # normalized-scale version of stored_delta, times
 
         if "delta2_buffer0" not in state:
             state["delta2_buffer0"] = torch.ones(d.shape[0], d.shape[1], 1, device=d.device, dtype=d.dtype)
@@ -446,13 +444,15 @@ def momentum_step(group, state, grad):
         # we'll scale both before and after the cubing.
         # the lines where we divide by sqrt of the mean are so we don't double
         # count the scalar component of this.
-        factor0 = 1.0 / (delta2_buffer0 + eps).sqrt()
+        factor0 = (delta2_buffer0 + eps).sqrt()
         factor0 = factor0 / factor0.mean(dim=1, keepdim=True).sqrt()
         factor1 = (delta2_buffer1 + eps).sqrt()
         factor1 = factor1 / factor1.mean(dim=2, keepdim=True).sqrt()
         row_col_scale = 1. / (factor0 * factor1)
 
-        x3 = x3 * row_col_scale   #note, we are before computing the cubed part.
+        excess_scale = 2.0
+        d_scaled = d * row_col_scale
+        x3 = d_scaled * (((1 - beta1**2)**0.5) / excess_scale)   # normalized-scale version of stored_delta, times
 
         compute_prod3_inplace(x3)  # actually computes 3rd power of its arg divided by max(rows, cols)**2
         # the factor of 0.5 says we only want to go, at most, half the way to the point which
@@ -460,11 +460,9 @@ def momentum_step(group, state, grad):
         # and having the direction change sign, in a situation where we are not dominated by
         # the largest singular value; or to prevent the largest singular value from going to
         # zero if it does dominate.
-        alpha = (0.5 * min_sum_scale(d, x3)).clamp(min=-1)
+        alpha = (0.5 * min_sum_scale(d_scaled, x3)).clamp(min=-1)
         # we divide x3 by row_col_scale to "un-normalize".
         d.add_(x3 * alpha / row_col_scale)
-
-        d.clamp_(min=-10., max=10.)  # avoid divergence
 
         if random.random() < 0.0005:
             rel_scale = (d ** 2).mean().sqrt() / ((1 - beta1**2)**-0.5)
@@ -473,7 +471,7 @@ def momentum_step(group, state, grad):
         if not stored_delta.untyped_storage() is d.untyped_storage():
             stored_delta[:] = d.reshape(*stored_delta.shape)
 
-        beta = beta1  # use this beta for row/col scales
+        beta = beta1    # use this beta for row/col scales
         d = d * row_col_scale  # half-normalized d
         assumed_scale = 0.5 * ((1 - beta1**2)**-0.5) # assumed scalie of d
         d2 = (d / assumed_scale) ** 2
