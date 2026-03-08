@@ -450,7 +450,7 @@ def momentum_step(group, state, grad):
         factor1 = factor1 / factor1.mean(dim=2, keepdim=True).sqrt()
         row_col_scale = 1. / (factor0 * factor1)
 
-        excess_scale = 2.0
+        excess_scale = 2.50
         d_scaled = d * row_col_scale
         x3 = d_scaled * (((1 - beta1**2)**0.5) / excess_scale)   # normalized-scale version of stored_delta, times
 
