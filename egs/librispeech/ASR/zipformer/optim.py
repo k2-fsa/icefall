@@ -434,7 +434,7 @@ def momentum_step(group, state, grad):
         linear_decay_scale = 0.25
 
         d.mul_(linear_decay_scale * beta1 + (1 - linear_decay_scale))
-        excess_scale = 2.5
+        excess_scale = 2.0
         x3 = d * (((1 - beta1**2)**0.5) / excess_scale)   # normalized-scale version of stored_delta, times
 
         if "delta2_buffer0" not in state:
