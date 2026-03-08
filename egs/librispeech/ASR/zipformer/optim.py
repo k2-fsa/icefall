@@ -446,11 +446,11 @@ def momentum_step(group, state, grad):
         # we'll scale both before and after the cubing.
         # the lines where we divide by sqrt of the mean are so we don't double
         # count the scalar component of this.
-        factor0 = (delta2_buffer0 + eps).sqrt()
+        factor0 = 1.0 / (delta2_buffer0 + eps).sqrt()
         factor0 = factor0 / factor0.mean(dim=1, keepdim=True).sqrt()
-        factor1 = (delta2_buffer1 + eps).sqrt()
+        factor1 = 1.0 / (delta2_buffer1 + eps).sqrt()
         factor1 = factor1 / factor1.mean(dim=2, keepdim=True).sqrt()
-        row_col_scale = 1. / (factor0 * factor1)
+        row_col_scale = (factor0 * factor1)
 
         x3 = x3 * row_col_scale   #note, we are before computing the cubed part.
 
@@ -463,6 +463,8 @@ def momentum_step(group, state, grad):
         alpha = (0.5 * min_sum_scale(d, x3)).clamp(min=-1)
         # we divide x3 by row_col_scale to "un-normalize".
         d.add_(x3 * alpha / row_col_scale)
+
+        d.clamp_(min=-10., max=10.)  # avoid divergence
 
         if random.random() < 0.0005:
             rel_scale = (d ** 2).mean().sqrt() / ((1 - beta1**2)**-0.5)
@@ -483,7 +485,15 @@ def momentum_step(group, state, grad):
 
         stored_delta = d.reshape(*stored_delta.shape)   # note: permanent buffer is not updated.
 
-        assert torch.all(stored_delta - stored_delta == 0.0)
+
+        def s(x):
+            if x.ndim <= 1:
+                return x.to('cpu')
+            else:
+                return (x ** 2).mean(dim=list(range(1, x.ndim))).sqrt().to('cpu')
+
+        if step < 100:
+            assert torch.all(stored_delta - stored_delta == 0.0), (step, s(stored_delta), s(delta), delta.shape,s(d), s(x3), s(delta2_buffer0), s(delta2_buffer1), s(factor0), s(factor1), s(row_col_scale), s(d2), s(row_col_scale))
     else:
         stored_delta.mul_(beta1)
 
