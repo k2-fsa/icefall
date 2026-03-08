@@ -482,6 +482,8 @@ def momentum_step(group, state, grad):
         d = d * row_col_scale  # fully-normalized d
 
         stored_delta = d.reshape(*stored_delta.shape)   # note: permanent buffer is not updated.
+
+        assert torch.all(stored_delta - stored_delta == 0.0)
     else:
         stored_delta.mul_(beta1)
 
