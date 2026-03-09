@@ -126,149 +126,14 @@ class BatchedOptimizer(Optimizer):
 
 
 
-
-def base_step(group, state, grad):
-    # computes basic Adam normalized-grad using beta2 (dividing by gradient stddev) only.  no momentum yet.
-    # this normalied-grad is normalized only at the whole tensor level for now.
-
-    beta2 = group["beta2"]
-    eps = group["eps"]
-    # p shape: (batch_size,) or (batch_size, 1, [1,..])
-    try:
-        exp_avg_sq = state["exp_avg_sq"]  # shape: (batch_size,) or (batch_size, 1, [1,..])
-    except KeyError:
-        assert state["step"] < 2
-        batch_size = grad.shape[0]
-        stats_shape = [batch_size] + [1] * (len(grad.shape) - 1)
-        exp_avg_sq = torch.zeros(*stats_shape, device=grad.device, dtype=torch.float)
-        state["exp_avg_sq"] = exp_avg_sq
-
-    mean_dims = list(range(1, grad.ndim))
-    grad2 = (grad ** 2)
-    if len(mean_dims) > 0:
-        grad2 = grad2.mean(dim=mean_dims, keepdim=True)
-    exp_avg_sq.mul_(beta2).add_(grad2, alpha=1 - beta2)
-
-    # bias_correction2 is like in Adam.
-    # slower update at the start will help stability anyway.
-    bias_correction2 = 1 - beta2 ** (state["step"] + 1)
-    if bias_correction2 < 0.99:
-        # note: not in-place.
-        exp_avg_sq = exp_avg_sq * (1.0 / bias_correction2)
-    denom = exp_avg_sq.sqrt().add_(eps)
-
-    return grad / denom
-
-
-def compute_prod5_inplace(x): # replaces x with x^3 / max(rows, cols), x is interpreted as a batch of matrices.
-    assert x.ndim >= 3
-
-
-    if x.ndim > 3:
-        # each tensor in the batch has more than two dimensions.
-        # reshape to be like a batch of matrices.
-        # note: x.shape[0] is batch dimension.
-        if x.shape[1] > x.shape[-1]:
-            xr = x.reshape(x.shape[0], x.shape[1], -1)
-        else:
-            xr = x.reshape(x.shape[0], -1, x.shape[-1])
-        compute_prod5_inplace(xr)
-        if not xr.untyped_storage() is x.untyped_storage():
-            x[:] = xr.reshape(*x.shape)
-        return
-    if x.shape[1] > x.shape[2]:
-        xr = x.permute(0, 2, 1)
-        compute_prod5_inplace(xr)
-        if not xr.untyped_storage() is x.untyped_storage():
-            x[:] = xr.permute(0, 2, 1)
-        return
-
-    # avoid matrix multiplies by any dimensions that are too large.
-    max_dim = 1024
-    if x.shape[1] > max_dim:
-        n = x.shape[1]
-        for divisor in range(2, 100):
-            if n % divisor == 0 and n // divisor <= max_dim:
-                xr = x.reshape(x.shape[0] * divisor, n // divisor, x.shape[2])
-                compute_prod5_inplace(xr)
-                if not xr.untyped_storage() is x.untyped_storage():
-                    x[:] = xr.reshape(*x.shape)
-                return
-        # if no divisor worked, just continue.
-
-    (batch_size, rows, cols) = x.shape  # and rows <= cols
-
-    x2 = torch.matmul(x, x.permute(0, 2, 1)) / max(rows, cols)
-    x4 = torch.matmul(x2, x2)
-    x5 = torch.matmul(x4, x)
-
-    x[:] = x5
-
-
-
-
-def compute_prod5(x):
-    # computes matrix-matrix-matrix-matrix-matrix product of batch of matrices x, with reshaping if necessary;
-    # first divides x by max(num_rows, num_cols)^2 so its a kind of normalized 5th-product.
-    x = x.clone()
-    compute_prod5_inplace(x)
-    return x
-
-
-def compute_prod3_inplace(x): # replaces x with x^3 / max(rows, cols), x is interpreted as a batch of matrices.
-    assert x.ndim >= 3
-
-
-    if x.ndim > 3:
-        # each tensor in the batch has more than two dimensions.
-        # reshape to be like a batch of matrices.
-        # note: x.shape[0] is batch dimension.
-        if x.shape[1] > x.shape[-1]:
-            xr = x.reshape(x.shape[0], x.shape[1], -1)
-        else:
-            xr = x.reshape(x.shape[0], -1, x.shape[-1])
-        compute_prod3_inplace(xr)
-        if not xr.untyped_storage() is x.untyped_storage():
-            x[:] = xr.reshape(*x.shape)
-        return
-    if x.shape[1] > x.shape[2]:
-        xr = x.permute(0, 2, 1)
-        compute_prod3_inplace(xr)
-        if not xr.untyped_storage() is x.untyped_storage():
-            x[:] = xr.permute(0, 2, 1)
-        return
-
-    # avoid matrix multiplies by any dimensions that are too large.
-    max_dim = 1024
-    if x.shape[1] > max_dim:
-        n = x.shape[1]
-        for divisor in range(2, 100):
-            if n % divisor == 0 and n // divisor <= max_dim:
-                xr = x.reshape(x.shape[0] * divisor, n // divisor, x.shape[2])
-                compute_prod3_inplace(xr)
-                if not xr.untyped_storage() is x.untyped_storage():
-                    x[:] = xr.reshape(*x.shape)
-                return
-        # if no divisor worked, just continue.
-
-    (batch_size, rows, cols) = x.shape  # and rows <= cols
-
-    x2 = torch.matmul(x, x.permute(0, 2, 1)) / max(rows, cols)
-    x3 = torch.matmul(x2, x)
-
-    x[:] = x3
-
-
-
-
 def compute_prod3(x):
-    # computes matrix-matrix-matrix-matrix-matrix product of batch of matrices x, with reshaping if necessary;
-    # first divides x by max(num_rows, num_cols)^2 so its a kind of normalized 3rdproduct.
-    x = x.clone()
-    compute_prod3_inplace(x)
-    return x
-
-
+    assert x.ndim == 3
+    if x.shape[1] <= x.shape[2]:
+        x2 = torch.matmul(x, x.permute(0, 2, 1))
+        return torch.matmul(x2, x)
+    else:
+        x2 = torch.matmul(x.permute(0, 2, 1), x)
+        return torch.matmul(x, x2)
 
 
 def scale_by(x, beta1):
@@ -392,17 +257,16 @@ def get_matrix_shape(shape):
             return batch_size, prod(shape[:i]), prod(shape[i:])
 
 
-def momentum_step(group, state, grad):
-    delta = base_step(group, state, grad)  # base_step just normalizes overall scale of tensor with a scalar estimate of its rms.
-    # delta is the normalized gradient; the rms of delta should be around 1.
+def cubic_decay_step(group, state, grad):
+    delta = grad
 
     lr = group["lr"]
     eps = group["eps"]
     step = state["step"]
     beta1 = min(group["beta1"], 1. - 1. / (10. + 0.2 * step))
+    beta2 = group["beta2"]
     direct = group["direct"]
-    linear_decay_scale = group["linear_decay_scale"]
-    excess_scale = group["excess_scale"]
+    cubic_decay_scale = group["cubic_decay_scale"]
 
     min_scale, max_scale = group["scale_limits"]
 
@@ -413,8 +277,6 @@ def momentum_step(group, state, grad):
         # scalar.  use conventional momentum.
         stored_delta = torch.zeros(*grad.shape, device=grad.device, dtype=torch.float)
         state["delta"] = stored_delta
-
-
 
     def min_sum_scale(x, y):
         # returns the scale alpha such that (x + alpha y) is minimized.  x and y have
@@ -428,95 +290,101 @@ def momentum_step(group, state, grad):
         # alpha = xy / yy
         return -xy / (yy + eps)
 
-    if delta.ndim >= 3 and delta.numel() != delta.shape[0] * max(delta.shape[1:]):
-        d = stored_delta.reshape(get_matrix_shape(stored_delta.shape))
+    d = stored_delta.reshape(get_matrix_shape(stored_delta.shape))
+    assert d.untyped_storage() is stored_delta.untyped_storage()
+    (batch_size, rows, cols) = d.shape
 
-        if "delta2_buffer0" not in state:
-            state["delta2_buffer0"] = torch.ones(d.shape[0], d.shape[1], 1, device=d.device, dtype=d.dtype)
-            state["delta2_buffer1"] = torch.ones(d.shape[0], 1, d.shape[2], device=d.device, dtype=d.dtype)
-            state["delta_scale_buffer"] = torch.ones(d.shape[0], 1, 1, device=d.device, dtype=d.dtype)
+    if "row_stats" not in state:
+        state["row_stats"] = torch.ones(d.shape[0], d.shape[1], 1, device=d.device, dtype=d.dtype)
+        state["direct_row_stats"] = torch.ones(d.shape[0], d.shape[1], 1, device=d.device, dtype=d.dtype)
+        state["col_stats"] = torch.ones(d.shape[0], 1, d.shape[2], device=d.device, dtype=d.dtype)
+        state["direct_col_stats"] = torch.ones(d.shape[0], 1, d.shape[2], device=d.device, dtype=d.dtype)
 
-        delta2_buffer0 = state["delta2_buffer0"]
-        delta2_buffer1 = state["delta2_buffer1"]
-        delta_scale_buffer = state["delta_scale_buffer"]
-        d.add_(delta.reshape(*d.shape) * delta_scale_buffer)
+    row_stats = state["row_stats"]
+    col_stats = state["col_stats"]
+    direct_row_stats = state["direct_row_stats"]
+    direct_col_stats = state["direct_col_stats"]
 
+    delta = delta.reshape(*d.shape)
 
-        d.mul_(linear_decay_scale * beta1 + (1 - linear_decay_scale))
+    d.add_(delta, alpha=(1 - beta1))
+    d.mul_(beta1)
 
+    d2 = d ** 2
 
-        # we'll scale both before and after the cubing.
-        # the lines where we divide by sqrt of the mean are so we don't double
-        # count the scalar component of this.
-        factor0 = (delta2_buffer0 + eps).sqrt()
-        factor0_mean = factor0.mean(dim=1, keepdim=True)
-        factor0 = factor0 / factor0_mean
-        factor1 = (delta2_buffer1 + eps).sqrt()
-        row_col_scale = 1. / (factor0 * factor1)
+    # we'll scale both before and after the cubing.
+    # the lines where we divide by sqrt of the mean are so we don't double
+    # count the scalar component of this.
+    row_scale = (row_stats + eps).sqrt()
+    col_scale = (col_stats + eps).sqrt()
+    row_col_scale = row_scale * col_scale
 
-        d_scaled = d * row_col_scale
-        x3 = d_scaled * (((1 - beta1**2)**0.5) / excess_scale)   # normalized-scale version of stored_delta, times
+    d_norm1 = d / row_col_scale  # this is the first of two steps of normalizing by these stats.
 
-        compute_prod3_inplace(x3)  # actually computes 3rd power of its arg divided by max(rows, cols)**2
-        # the factor of 0.5 says we only want to go, at most, half the way to the point which
-        # would give us the minimum 'x'.  this is to prevent the largest eigs overshooting
-        # and having the direction change sign, in a situation where we are not dominated by
-        # the largest singular value; or to prevent the largest singular value from going to
-        # zero if it does dominate.
-        alpha = (0.5 * min_sum_scale(d_scaled, x3)).clamp(min=-1)
-        # we divide x3 by row_col_scale to "un-normalize".
-        d.add_(x3 * alpha / row_col_scale)
+    d_norm1_meansq = (d_norm1 ** 2).mean(dim=(1, 2), keepdim=True) + eps
 
-        if random.random() < 0.0001:
-            rel_scale = (d ** 2).mean().sqrt() / ((1 - beta1**2)**-0.5)
-            logging.info(f"shape={stored_delta.shape}, rel_scale = {rel_scale.item()}")
-
-        if not stored_delta.untyped_storage() is d.untyped_storage():
-            stored_delta[:] = d.reshape(*stored_delta.shape)
-
-        beta = beta1    # use this beta for row/col scales
-        d = d * row_col_scale  # half-normalized d
-        assumed_scale = ((1 - beta1**2)**-0.5) # assumed scale of d
-        d2 = (d / assumed_scale) ** 2
-
-        delta_scale_buffer.add_((1 - d2.mean(dim=(1, 2), keepdim=True)).sign(), alpha=0.01) # infinite gain to make factor0_mean equal to 1
-
-        if random.random() < 0.0001:
-            logging.info(f"shape={stored_delta.shape}, mean of normalized d2 is {d2.mean().item()}")
-        delta2_buffer0.mul_(beta).add_(d2.mean(dim=2, keepdim=True), alpha=(1 - beta))
-        delta2_buffer1.mul_(beta).add_(d2.mean(dim=1, keepdim=True), alpha=(1 - beta))
-        d = d * row_col_scale  # fully-normalized d
-
-        stored_delta = d.reshape(*stored_delta.shape)   # note: permanent buffer is not updated.
+    d_norm1_scaled = d_norm1 * (d_norm1_meansq * max(rows, cols)) ** (-1/3)
+    prod3 = compute_prod3(d_norm1_scaled)
 
 
-        def s(x):
-            if x.ndim <= 1:
-                return x.to('cpu')
-            else:
-                return (x ** 2).mean(dim=list(range(1, x.ndim))).sqrt().to('cpu')
+    alpha = (0.5 * min_sum_scale(d_norm1, prod3)).clamp(min=-cubic_decay_scale)
+    # we multiply prod3 by row_col_scale to "un-normalize".
+    # In the normal case where we're not limited by stability-of-update-concerns,
+    # the next line of code is equivalent to:
+    #       d.add_(prod3 * row_col_scale, alpha=-cubic_decay_scale)
+    d.add_((prod3 * row_col_scale) * alpha)
 
-        if step < 100:
-            assert torch.all(stored_delta - stored_delta == 0.0), (step, s(stored_delta), s(delta), delta.shape,s(d), s(x3), s(delta2_buffer0), s(delta2_buffer1), s(factor0), s(factor1), s(row_col_scale), s(d2), s(row_col_scale))
-    else:
-        stored_delta.add_(delta)
-        stored_delta.mul_(beta1)
+    d_norm1 = d / row_col_scale  # updated version of d_norm1 with x3 term subtracted.
+
+    d_norm1_sq = d_norm1 ** 2
+
+    # first update row_stats.
+    row_stats.mul_(beta2).add_((d_norm1 ** 2).mean(dim=2, keepdim=True), alpha=(1 - beta2))
+
+    # d_norm1b means we've doing the second normalization but only by rows so far.
+    d_norm1b = d_norm1 / (row_stats + eps).sqrt()
+
+    col_stats.mul_(beta2).add_((d_norm1b ** 2).mean(dim=1, keepdim=True), alpha=(1 - beta2))
+
+    d_norm2 = d_norm1b / (col_stats + eps).sqrt()
+
+    # do "immediate" normalization of total norm to make the overall scale of the update what
+    # it would be if this was a normal decaying-beta1 update and the stats were i.i.d..
+    assumed_scale = (1 - beta1) * ((1 - beta1**2)**-0.5) # assumed scale of d if stats were i.i.d.
+
+    d_norm3 = d_norm2 * (assumed_scale / ((d_norm2 ** 2).mean(dim=(1, 2), keepdim=True) + eps).sqrt())
+
+    moving_update = d_norm3
+
+    def s(x):
+        if x.ndim <= 1:
+            return x.to('cpu')
+        else:
+            return (x ** 2).mean(dim=list(range(1, x.ndim))).sqrt().to('cpu')
+
+    #if step < 100:
+    #    assert torch.all(stored_delta - stored_delta == 0.0), (step, s(stored_delta), s(delta), delta.shape,s(d), s(x3), s(delta2_buffer0), s(delta2_buffer1), s(factor0), s(factor1), s(row_col_scale), s(d2), s(row_col_scale))
 
 
-    ans = (((1-direct) * (1-beta1)) * stored_delta) + (direct * delta)
-    # OK, now divide ans by its rms so it has unit rms
-    norm_ans = False
-    if norm_ans:
-        dims = list(range(1, ans.ndim))
-        ans = ans / ((ans ** 2).mean(dim=dims, keepdim=True) + eps).sqrt()
-    return -lr * ans
+    # row/col normalization of direct/bypass gradient "delta".
+    direct_row_stats.mul_(beta2).add_((delta ** 2).mean(dim=2, keepdim=True), alpha=(1 - beta2))
+    delta = delta / (direct_row_stats + eps).sqrt()
+    direct_col_stats.mul_(beta2).add_((delta ** 2).mean(dim=1, keepdim=True), alpha=(1 - beta2))
+    delta = delta / (direct_col_stats + eps).sqrt()
+
+    ans = (-lr * (1-direct)) * moving_update + (-lr * direct) * delta
+    return ans.reshape(*grad.shape)
 
 
 def scaling_step(group, param, state, grad):
-    delta = momentum_step(group, state, grad)
-    # delta is the normalized gradient; the rms of delta should be around 1.
     lr = group["lr"]
     wd = group["wd"]
+
+    if grad.ndim >= 3 and grad.numel() != grad.shape[0] * max(grad.shape[1:]):
+        delta = cubic_decay_step(group, state, grad)
+    else:
+        # biases and similar-shaped tensors
+        delta = adam_step(group, state, grad)
 
     try:
         scale = state["scale"]
@@ -547,23 +415,34 @@ def scaling_step(group, param, state, grad):
     return param * delta_scale  +  scale * delta
 
 
-def basic_momentum_step(group, state, grad, lr, beta):
-    delta = base_step(group, state, grad)
-
+def adam_step(group, state, grad):
+    lr = group["lr"]
     step = state["step"]
+    eps = group["eps"]
+    # just hardcode these.  we only use this code for biases and scalars.
+    beta1 = 0.98
+    beta2 = 0.98
+
     try:
-        stored_delta = state["delta"]
+        exp_avg = state["exp_avg"]
+        exp_avg_sq = state["exp_avg_sq"]
     except KeyError as e:
         assert step < 2
-        # scalar.  use conventional momentum.
-        stored_delta = torch.zeros(*grad.shape, device=grad.device, dtype=torch.float)
-        state["delta"] = stored_delta
+        exp_avg = torch.zeros(*grad.shape, device=grad.device, dtype=torch.float)
+        exp_avg_sq = torch.zeros(*grad.shape, device=grad.device, dtype=torch.float)
+        state["exp_avg"] = exp_avg
+        state["exp_avg_sq"] = exp_avg_sq
 
-    stored_delta.add_(delta)
-    stored_delta.mul_(beta)
+    exp_avg.mul_(beta1).add_(grad, alpha=(1 - beta1))
+    exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=(1 - beta2))
+    bias_correction2 = 1 - beta2 ** (step + 1)
+    if bias_correction2 < 0.99:
+        # note: not in-place.
+        exp_avg_sq = exp_avg_sq * (1.0 / bias_correction2)
+    denom = (exp_avg_sq + eps).sqrt()
 
-    delta = (-lr * (1 - beta)) * stored_delta
-    return delta
+    return -lr * (exp_avg / denom)
+
 
 
 
@@ -604,13 +483,12 @@ class TransformedAdam(BatchedOptimizer):
         self,
         params,
         lr=1e-03,
-        beta1=0.995,
-        direct=0.05, # scale on bypass of momentum (beta1)
-        linear_decay_scale=0.2,
-        excess_scale=3.0,
+        beta1=0.998,
+        direct=0.1, # scale on bypass of momentum (beta1)
+        cubic_decay_scale=0.05,
         beta2=0.98,
         wd=10,
-        eps=1.0e-08,
+        eps=1.0e-16,
         scale_limits=(0.5, 2.0),
     ):
 
@@ -618,8 +496,7 @@ class TransformedAdam(BatchedOptimizer):
             lr=lr,
             beta1=beta1,
             direct=direct,
-            linear_decay_scale=linear_decay_scale,
-            excess_scale=excess_scale,
+            cubic_decay_scale=cubic_decay_scale,
             beta2=beta2,
             eps=eps,
             wd=wd,
@@ -771,7 +648,7 @@ class TransformedAdam(BatchedOptimizer):
                         cur_step = 0
 
                     if p.numel() == p.shape[0]:
-                        p += basic_momentum_step(group, state, grad, group["lr"], group["beta1"])
+                        p += adam_step(group, state, grad)
                     else:
                         p += scaling_step(group, p.detach(), state, grad)
 
@@ -1016,21 +893,19 @@ class SimpleTransformedAdam(Optimizer):
         self,
         params,
         lr=1e-03,
-        beta1=0.995,
-        direct=0.05, # scale on bypass of momentum (beta1)
-        linear_decay_scale=0.2,
-        excess_scale=3.0,
+        beta1=0.998,
+        direct=0.1, # scale on bypass of momentum (beta1)
+        cubic_decay_scale=0.05,
         beta2=0.98,
         wd=10,
-        eps=1.0e-08,
+        eps=1.0e-16,
         scale_limits=(0.5, 2.0),
     ):
         defaults = dict(
             lr=lr,
             beta1=beta1,
             direct=direct,
-            linear_decay_scale=linear_decay_scale,
-            excess_scale=excess_scale,
+            cubic_decay_scale=cubic_decay_scale,
             beta2=beta2,
             eps=eps,
             wd=wd,
@@ -1073,7 +948,7 @@ class SimpleTransformedAdam(Optimizer):
                     return x.unsqueeze(0)
 
                 if p.numel() == 1:
-                    p += basic_momentum_step(group, state, grad, group["lr"], group["beta1"])
+                    p += adam_step(group, state, grad)
                 else:
                     p += scaling_step(group, u(p.detach()), state, u(grad))[0]
 
@@ -1129,9 +1004,9 @@ def _test_transformed_adam(hidden_dim: int):
 
         lr = 0.0006
         if test == 0:
-            optim = TransformedAdam(m.named_parameters(), lr=lr, wd=24, eps=1.0e-20, beta1=0.99)
+            optim = TransformedAdam(m.named_parameters(), lr=lr, wd=24, eps=1.0e-20, beta1=0.998, direct=0.05, cubic_decay_scale=0.005)
         elif test == 1:
-            optim = SimpleTransformedAdam(m.parameters(), lr=lr, wd=24, eps=1.0e-20, beta1=0.99)
+            optim = SimpleTransformedAdam(m.parameters(), lr=lr, wd=24, eps=1.0e-20, beta1=0.998, direct=0.05, cubic_decay_scale=0.005)
 
         num_epochs = 180
 
