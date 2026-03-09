@@ -120,15 +120,20 @@ class CombinedLRScheduler(object):
 class CosineLRScheduler(CombinedLRScheduler):
     def __init__(self,
                  *args,
-                 min_factor: float = 0.2,
+                 min_factor: float = 0.1,
                  **kwargs):
         super().__init__(*args, **kwargs)
+        # min_factor has two roles: it acts as a minimum relative learning rate
+        # (linearly applied, not with max); and it makes the final learning rate
+        # constant for the final (min_factor) of the schedule, compressing the
+        # cosine decay into the first (1 - min_factor) of the schedule.
         self.min_factor = min_factor
 
     def get_lr(self):
         progress = self.get_progress()
+        progress = min(1.0, progress / (1.0 - min_factor))  # clamp progress at 1.0 for final min_factor of schedule.
         factor = 0.5 * (1.0 + math.cos(math.pi * progress))
-        factor = self.min_factor + (1. - self.min_factor) * factor
+        factor = self.min_factor + (1. - self.min_factor) * factor # apply min_factor linearly.
         return [x * factor for x in self.base_lrs]
 
 
