@@ -484,10 +484,10 @@ class TransformedAdam(BatchedOptimizer):
         params,
         lr=1e-03,
         beta1=0.998,
-        direct=0.1, # scale on bypass of momentum (beta1)
-        cubic_decay_scale=0.05,
+        direct=0.05, # scale on bypass of momentum (beta1)
+        cubic_decay_scale=0.005,
         beta2=0.98,
-        wd=10,
+        wd=25,
         eps=1.0e-16,
         scale_limits=(0.5, 2.0),
     ):
@@ -894,10 +894,10 @@ class SimpleTransformedAdam(Optimizer):
         params,
         lr=1e-03,
         beta1=0.998,
-        direct=0.1, # scale on bypass of momentum (beta1)
-        cubic_decay_scale=0.05,
+        direct=0.05, # scale on bypass of momentum (beta1)
+        cubic_decay_scale=0.005,
         beta2=0.98,
-        wd=10,
+        wd=25,
         eps=1.0e-16,
         scale_limits=(0.5, 2.0),
     ):
@@ -1004,9 +1004,9 @@ def _test_transformed_adam(hidden_dim: int):
 
         lr = 0.0006
         if test == 0:
-            optim = TransformedAdam(m.named_parameters(), lr=lr, wd=24, eps=1.0e-20, beta1=0.998, direct=0.05, cubic_decay_scale=0.005)
+            optim = TransformedAdam(m.named_parameters(), lr=lr, wd=24)
         elif test == 1:
-            optim = SimpleTransformedAdam(m.parameters(), lr=lr, wd=24, eps=1.0e-20, beta1=0.998, direct=0.05, cubic_decay_scale=0.005)
+            optim = SimpleTransformedAdam(m.parameters(), lr=lr, wd=24)
 
         num_epochs = 180
 
