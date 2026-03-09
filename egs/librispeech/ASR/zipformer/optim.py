@@ -327,7 +327,7 @@ def cubic_decay_step(group, state, grad):
     prod3 = compute_prod3(d_norm1_scaled)
 
 
-    alpha = (0.5 * min_sum_scale(d_norm1, prod3)).clamp(min=-cubic_decay_scale)
+    alpha = (0.5 * min_sum_scale(d_norm1, prod3)).clamp(min=-cubic_decay_scale*(1-beta1))
     # we multiply prod3 by row_col_scale to "un-normalize".
     # In the normal case where we're not limited by stability-of-update-concerns,
     # the next line of code is equivalent to:
@@ -485,7 +485,7 @@ class TransformedAdam(BatchedOptimizer):
         lr=1e-03,
         beta1=0.998,
         direct=0.05, # scale on bypass of momentum (beta1)
-        cubic_decay_scale=0.005,
+        cubic_decay_scale=2.5,
         beta2=0.98,
         wd=25,
         eps=1.0e-16,
@@ -895,7 +895,7 @@ class SimpleTransformedAdam(Optimizer):
         lr=1e-03,
         beta1=0.998,
         direct=0.05, # scale on bypass of momentum (beta1)
-        cubic_decay_scale=0.005,
+        cubic_decay_scale=2.5,
         beta2=0.98,
         wd=25,
         eps=1.0e-16,
@@ -1010,18 +1010,11 @@ def _test_transformed_adam(hidden_dim: int):
 
         num_epochs = 180
 
-        warmup_steps = 0
-        # hardcode batches per epoch for now.
         total_steps = num_epochs
-        warmup_start = 0.5
         def lr_lambda(current_step):
-            if current_step < warmup_steps:
-                # Linear warm-up
-                return warmup_start + (1.0 - warmup_start) * current_step / warmup_steps
-            else:
-                # Cosine annealing
-                progress = (current_step - warmup_steps) / (total_steps - warmup_steps)
-                return max(0.0, 0.5 * (1.0 + math.cos(math.pi * progress)))
+            # Cosine annealing
+            progress = current_step / total_steps
+            return max(0.0, 0.5 * (1.0 + math.cos(math.pi * progress)))
 
         scheduler = LambdaLR(optim, lr_lambda)
 
