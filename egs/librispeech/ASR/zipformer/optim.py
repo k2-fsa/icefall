@@ -143,7 +143,6 @@ def base_step(group, state, grad):
         exp_avg_sq = torch.zeros(*stats_shape, device=grad.device, dtype=torch.float)
         state["exp_avg_sq"] = exp_avg_sq
 
-
     mean_dims = list(range(1, grad.ndim))
     grad2 = (grad ** 2)
     if len(mean_dims) > 0:
@@ -394,7 +393,7 @@ def get_matrix_shape(shape):
 
 
 def momentum_step(group, state, grad):
-    delta = base_step(group, state, grad)
+    delta = base_step(group, state, grad)  # base_step just normalizes overall scale of tensor with a scalar estimate of its rms.
     # delta is the normalized gradient; the rms of delta should be around 1.
 
     lr = group["lr"]
@@ -402,6 +401,9 @@ def momentum_step(group, state, grad):
     step = state["step"]
     beta1 = min(group["beta1"], 1. - 1. / (10. + 0.2 * step))
     direct = group["direct"]
+    linear_decay_scale = group["linear_decay_scale"]
+    excess_scale = group["excess_scale"]
+
     min_scale, max_scale = group["scale_limits"]
 
     try:
@@ -440,10 +442,6 @@ def momentum_step(group, state, grad):
         d.add_(delta.reshape(*d.shape) * delta_scale_buffer)
 
 
-        # decay by one quarter of the beta1-determined decay rate, leaving the rest to the x^3 decay.
-        # this should be configurable.
-        linear_decay_scale = 0.25
-
         d.mul_(linear_decay_scale * beta1 + (1 - linear_decay_scale))
 
 
@@ -456,7 +454,6 @@ def momentum_step(group, state, grad):
         factor1 = (delta2_buffer1 + eps).sqrt()
         row_col_scale = 1. / (factor0 * factor1)
 
-        excess_scale = 3.0
         d_scaled = d * row_col_scale
         x3 = d_scaled * (((1 - beta1**2)**0.5) / excess_scale)   # normalized-scale version of stored_delta, times
 
@@ -609,6 +606,8 @@ class TransformedAdam(BatchedOptimizer):
         lr=1e-03,
         beta1=0.995,
         direct=0.05, # scale on bypass of momentum (beta1)
+        linear_decay_scale=0.2,
+        excess_scale=3.0,
         beta2=0.98,
         wd=10,
         eps=1.0e-08,
@@ -619,6 +618,8 @@ class TransformedAdam(BatchedOptimizer):
             lr=lr,
             beta1=beta1,
             direct=direct,
+            linear_decay_scale=linear_decay_scale,
+            excess_scale=excess_scale,
             beta2=beta2,
             eps=eps,
             wd=wd,
@@ -1017,6 +1018,8 @@ class SimpleTransformedAdam(Optimizer):
         lr=1e-03,
         beta1=0.995,
         direct=0.05, # scale on bypass of momentum (beta1)
+        linear_decay_scale=0.2,
+        excess_scale=3.0,
         beta2=0.98,
         wd=10,
         eps=1.0e-08,
@@ -1026,6 +1029,8 @@ class SimpleTransformedAdam(Optimizer):
             lr=lr,
             beta1=beta1,
             direct=direct,
+            linear_decay_scale=linear_decay_scale,
+            excess_scale=excess_scale,
             beta2=beta2,
             eps=eps,
             wd=wd,
