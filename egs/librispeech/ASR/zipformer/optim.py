@@ -470,7 +470,7 @@ def momentum_step(group, state, grad):
         # we divide x3 by row_col_scale to "un-normalize".
         d.add_(x3 * alpha / row_col_scale)
 
-        if random.random() < 0.0005:
+        if random.random() < 0.0001:
             rel_scale = (d ** 2).mean().sqrt() / ((1 - beta1**2)**-0.5)
             logging.info(f"shape={stored_delta.shape}, rel_scale = {rel_scale.item()}")
 
@@ -484,7 +484,7 @@ def momentum_step(group, state, grad):
 
         delta_scale_buffer.add_((1 - d2.mean(dim=(1, 2), keepdim=True)).sign(), alpha=0.01) # infinite gain to make factor0_mean equal to 1
 
-        if random.random() < 0.001:
+        if random.random() < 0.0001:
             logging.info(f"shape={stored_delta.shape}, mean of normalized d2 is {d2.mean().item()}")
         delta2_buffer0.mul_(beta).add_(d2.mean(dim=2, keepdim=True), alpha=(1 - beta))
         delta2_buffer1.mul_(beta).add_(d2.mean(dim=1, keepdim=True), alpha=(1 - beta))
