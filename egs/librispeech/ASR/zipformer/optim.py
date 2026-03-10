@@ -127,14 +127,24 @@ class BatchedOptimizer(Optimizer):
 
 
 def compute_prod3(x):
-    assert x.ndim == 3
-    if x.shape[1] <= x.shape[2]:
-        x2 = torch.matmul(x, x.permute(0, 2, 1))
+    assert x.ndim >= 2
+    if x.shape[-2] <= x.shape[-1]:
+        x2 = torch.matmul(x, x.transpose(-2, -1))
         return torch.matmul(x2, x)
     else:
-        x2 = torch.matmul(x.permute(0, 2, 1), x)
+        x2 = torch.matmul(x.transpose(-2, -1), x)
         return torch.matmul(x, x2)
 
+def compute_scaled_prod3(x):
+    # computes 3-way matrix power x^3 (x is treated as a batch of matrices) with a scaling such that (for each
+    # matrix in the batch) if all the singular values of the matrix are the same, the result will be identical to the input.
+
+    rows, cols = x.shape[-2], x.shape[-1]
+
+    eps = 1.0e-40
+    x_meansq = (x ** 2).mean(dim=(-2, -1), keepdim=True) + eps
+    x = x * (x_meansq * max(rows, cols)) ** (-1/3)
+    return compute_prod3(x)
 
 def scale_by(x, beta1):
     # This is similar in efffect
@@ -266,7 +276,8 @@ def cubic_decay_step(group, state, grad):
     beta1 = min(group["beta1"], 1. - 1. / (10. + 0.2 * step))
     beta2 = group["beta2"]
     direct = group["direct"]
-    cubic_decay_scale = group["cubic_decay_scale"]
+    cubic_decay_proportion = group["cubic_decay_proportion"]
+    linear_decay_proportion = 1.  - cubic_decay_proportion
 
     min_scale, max_scale = group["scale_limits"]
 
@@ -307,8 +318,8 @@ def cubic_decay_step(group, state, grad):
 
     delta = delta.reshape(*d.shape)
 
-    d.add_(delta, alpha=(1 - beta1))
-    d.mul_(beta1)
+    d.add_(delta)  # the scale used here doesn't matter as it all gets normalized.
+    d.mul_(1 - (linear_decay_proportion * (1 - beta1)))
 
     d2 = d ** 2
 
@@ -321,17 +332,13 @@ def cubic_decay_step(group, state, grad):
 
     d_norm1 = d / row_col_scale  # this is the first of two steps of normalizing by these stats.
 
-    d_norm1_meansq = (d_norm1 ** 2).mean(dim=(1, 2), keepdim=True) + eps
+    prod3 = compute_scaled_prod3(d_norm1)
 
-    d_norm1_scaled = d_norm1 * (d_norm1_meansq * max(rows, cols)) ** (-1/3)
-    prod3 = compute_prod3(d_norm1_scaled)
-
-
-    alpha = (0.5 * min_sum_scale(d_norm1, prod3)).clamp(min=-cubic_decay_scale*(1-beta1))
+    alpha = (0.5 * min_sum_scale(d_norm1, prod3)).clamp(min=-cubic_decay_proportion*(1-beta1))
     # we multiply prod3 by row_col_scale to "un-normalize".
     # In the normal case where we're not limited by stability-of-update-concerns,
     # the next line of code is equivalent to:
-    #       d.add_(prod3 * row_col_scale, alpha=-cubic_decay_scale)
+    #       d.add_(prod3 * row_col_scale, alpha=-cubic_decay_proportion)
     d.add_((prod3 * row_col_scale) * alpha)
 
     d_norm1 = d / row_col_scale  # updated version of d_norm1 with x3 term subtracted.
@@ -350,21 +357,25 @@ def cubic_decay_step(group, state, grad):
 
     # do "immediate" normalization of total norm to make the overall scale of the update what
     # it would be if this was a normal decaying-beta1 update and the stats were i.i.d..
-    assumed_scale = (1 - beta1) * ((1 - beta1**2)**-0.5) # assumed scale of d if stats were i.i.d.
+    # below is the assumed scale of d if stats were i.i.d. and this were a more normal adam-style
+    # accumulator with beta equal to beta1.
+    assumed_scale = (1 - beta1) * ((1 - beta1**2)**-0.5)
 
     d_norm3 = d_norm2 * (assumed_scale / ((d_norm2 ** 2).mean(dim=(1, 2), keepdim=True) + eps).sqrt())
 
     moving_update = d_norm3
 
-    def s(x):
-        if x.ndim <= 1:
-            return x.to('cpu')
-        else:
-            return (x ** 2).mean(dim=list(range(1, x.ndim))).sqrt().to('cpu')
 
+    #def s(x):
+    #    if x.ndim <= 1:
+    #        return x.to('cpu')
+    #    else:
+    #        return (x ** 2).mean(dim=list(range(1, x.ndim))).sqrt().to('cpu')
     #if step < 100:
     #    assert torch.all(stored_delta - stored_delta == 0.0), (step, s(stored_delta), s(delta), delta.shape,s(d), s(x3), s(delta2_buffer0), s(delta2_buffer1), s(factor0), s(factor1), s(row_col_scale), s(d2), s(row_col_scale))
 
+    if direct == 0.0:
+        return -lr * moving_update.reshape(*grad.shape)
 
     # row/col normalization of direct/bypass gradient "delta".
     direct_row_stats.mul_(beta2).add_((delta ** 2).mean(dim=2, keepdim=True), alpha=(1 - beta2))
@@ -483,9 +494,9 @@ class TransformedAdam(BatchedOptimizer):
         self,
         params,
         lr=1e-03,
-        beta1=0.998,
-        direct=0.05, # scale on bypass of momentum (beta1)
-        cubic_decay_scale=2.5,
+        beta1=0.999,
+        direct=0.0, # scale on bypass of momentum (beta1)
+        cubic_decay_proportion=0.8,
         beta2=0.98,
         wd=25,
         eps=1.0e-16,
@@ -496,7 +507,7 @@ class TransformedAdam(BatchedOptimizer):
             lr=lr,
             beta1=beta1,
             direct=direct,
-            cubic_decay_scale=cubic_decay_scale,
+            cubic_decay_proportion=cubic_decay_proportion,
             beta2=beta2,
             eps=eps,
             wd=wd,
@@ -893,9 +904,9 @@ class SimpleTransformedAdam(Optimizer):
         self,
         params,
         lr=1e-03,
-        beta1=0.998,
-        direct=0.05, # scale on bypass of momentum (beta1)
-        cubic_decay_scale=2.5,
+        beta1=0.999,
+        direct=0.0, # scale on bypass of momentum (beta1)
+        cubic_decay_proportion=0.8,
         beta2=0.98,
         wd=25,
         eps=1.0e-16,
@@ -905,7 +916,7 @@ class SimpleTransformedAdam(Optimizer):
             lr=lr,
             beta1=beta1,
             direct=direct,
-            cubic_decay_scale=cubic_decay_scale,
+            cubic_decay_proportion=cubic_decay_proportion,
             beta2=beta2,
             eps=eps,
             wd=wd,
@@ -1180,6 +1191,20 @@ def _test_muon(hidden_dim: int):
         logging.info(f"input_magnitudes = {input_magnitudes}")
         logging.info(f"output_magnitudes = {output_magnitudes}")
 
+
+def _test_compute_scaled_prod3():
+    x = torch.randn(3, 16, 32)
+    _U, _S, V = torch.linalg.svd(x, full_matrices=False)
+    W = V  * torch.randn(3, 1, 1)
+    # so now all the singular values of x will be identical (but arbitrary)
+
+    X = compute_scaled_prod3(W)
+    #print("X = ", X[0])
+    #print("W = ", W[0])
+    assert torch.allclose(W, X, atol=1.0e-03)
+    # but the result won't be identical to the input if the singular values are not all identical.
+    assert not torch.allclose(x, compute_scaled_prod3(x), atol=1.0e-03)
+
 if __name__ == "__main__":
     torch.set_num_threads(1)
     torch.set_num_interop_threads(1)
@@ -1198,4 +1223,5 @@ if __name__ == "__main__":
         hidden_dim = 200
 
     #_test_muon(hidden_dim)
+    _test_compute_scaled_prod3()
     _test_transformed_adam(hidden_dim)
