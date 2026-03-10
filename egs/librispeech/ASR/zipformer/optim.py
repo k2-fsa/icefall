@@ -273,8 +273,9 @@ def cubic_decay_step(group, state, grad):
     lr = group["lr"]
     eps = group["eps"]
     step = state["step"]
-    beta1 = min(group["beta1"], 1. - 1. / (10. + 0.2 * step))
-    beta2 = group["beta2"]
+    beta_ceil = 1. - 1. / (10. + 0.2 * step)
+    beta1 = min(group["beta1"], beta_ceil)
+    beta2 = min(group["beta2"], beta_ceil)
     direct = group["direct"]
     cubic_decay_proportion = group["cubic_decay_proportion"]
     linear_decay_proportion = 1.  - cubic_decay_proportion
