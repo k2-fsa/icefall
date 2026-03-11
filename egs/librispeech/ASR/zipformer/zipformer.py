@@ -47,6 +47,10 @@ from scaling import (
     with_loss,
 )
 
+try:
+    from scaling import CausalSequenceNorm
+except:
+    pass
 
 from torch import Tensor, nn
 
@@ -554,7 +558,7 @@ class Zipformer2EncoderLayer(nn.Module):
 
         self.conv_module = ConvolutionModule(embed_dim, conv_params, causal=causal)
 
-        self.norm = SequenceNorm(causal=causal)
+        self.norm = CausalSequenceNorm() if causal else SequenceNorm()
 
     def forward(
         self,

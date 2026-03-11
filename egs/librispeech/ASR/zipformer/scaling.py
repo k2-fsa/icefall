@@ -333,53 +333,61 @@ class MaxEigLimiterFunction(torch.autograd.Function):
 
 
 
-# all arg tensors are scalars
-def _sequence_norm(x: Tensor, offset: Tensor, scale: Tensor, ballast_rms: Tensor, ballast_frames: Tensor, causal: bool, mask: Optional[Tensor]):
+# all arg tensors are scalars.
+def _sequence_norm(x: Tensor, offset: Tensor, scale: Tensor, mask: Optional[Tensor]):
     stats = (x ** 2).mean(dim=2, keepdim=True)
+    T = x.shape[0]  # time
+    if mask is None:
+        stats = stats.sum(dim=0)
+        lengths = T
+    else:
+        mask = (~mask).to(torch.float).t().unsqueeze(-1)
+        stats = stats * mask
+        stats = stats.sum(dim=0)
+        lengths =  mask.sum(dim=0)
+
+    scales = (lengths / stats).sqrt()
+    assert scales.shape == (x.shape[1], 1)
+    return x * ((scale * scales) + offset)
+
+# all arg tensors are scalars.
+# mask only used in non-causal mode; ballast_rms and ballast_frames only used in causal mode.
+def _causal_sequence_norm(x: Tensor, offset: Tensor, scale: Tensor, ballast_rms: Tensor, ballast_frames: Tensor):
+    stats = (x ** 2).mean(dim=2, keepdim=True)
+
+    # no  need for mask in causal mode.
     # ballast_frames should normally be positive due to limit_param_value, but there can be small excursions, so
     # make absolutely sure using abs().
     ballast_frames = 100.0 * ballast_frames.abs()
     ballast = ballast_frames * (ballast_rms ** 2)
     T = x.shape[0]  # time
 
-    if causal:
-        # no  need for mask in causal mode.
-        stats = stats.cumsum(dim=0) + ballast
-        lengths = ballast_frames + torch.arange(1, T + 1, dtype=x.dtype, device=x.device)[:, None, None]
-    else:
-        if mask is None:
-            # no  need for mask in causal mode.
-            stats = stats.sum(dim=0) + ballast
-            lengths = ballast_frames + T
-        else:
-            mask = (~mask).to(torch.float).t().unsqueeze(-1)
-            stats = stats * mask
-            stats = stats.sum(dim=0) + ballast
-            lengths = ballast_frames + mask.sum(dim=0)
+    stats = stats.cumsum(dim=0) + ballast
+    lengths = ballast_frames + torch.arange(1, T + 1, dtype=x.dtype, device=x.device)[:, None, None]
 
-    scales = (lengths / stats).sqrt()   # (T, batch_size, 1) if causal else (batch_size 1)
-    assert scales.shape == (T, x.shape[1], 1) if causal else (x.shape[1], 1)
+    scales = (lengths / stats).sqrt()
+    assert scales.shape == (T, x.shape[1], 1)
     return x * ((scale * scales) + offset)
 
 
 # all arg tensors are scalars
-def _sequence_norm_streaming(
-    x: Tensor, 
-    offset: Tensor, 
-    scale: Tensor, 
+def _causal_sequence_norm_streaming(
+    x: Tensor,
+    offset: Tensor,
+    scale: Tensor,
     cached_stats_sum: Tensor,
     cached_len: Tensor,
 ) -> Tuple[Tensor, Tensor, Tensor]:
     """Streaming inference forward for _sequence_norm. We assume that ballast_frames and ballast_rms
-    are already included in cached_stats_sum and cached_len.  
+    are already included in cached_stats_sum and cached_len.
 
-    Args: 
+    Args:
         x: (seq_len, batch_size, channels)
         offset: scalar
         scale: scalar
         cached_stats_sum: (batch_size,)
         cached_len: (batch_size,)
-    
+
     Returns:
         - normalized x, (seq_len, batch_size, channels)
         - updated cached_stats_sum, (batch_size,)
@@ -391,17 +399,17 @@ def _sequence_norm_streaming(
 
     stats = stats.cumsum(dim=0) + cached_stats_sum.unsqueeze(-1)
     lengths = cached_len[:, None] + torch.arange(1, T + 1, dtype=x.dtype, device=x.device)[:, None, None]
-    
+
     # update cached_stats_sum and cached_len for the next chunk
-    cached_stats_sum = stats[-1].squeeze(-1)  # (batch_size,) 
+    cached_stats_sum = stats[-1].squeeze(-1)  # (batch_size,)
     cached_len = cached_len + T
 
-    scales = (lengths / stats).sqrt()   # (T, batch_size, 1) 
-    assert scales.shape == (T, x.shape[1], 1) 
+    scales = (lengths / stats).sqrt()   # (T, batch_size, 1)
+    assert scales.shape == (T, x.shape[1], 1)
     return x * ((scale * scales) + offset), cached_stats_sum, cached_len
 
 
-class SequenceNormFunction(torch.autograd.Function):
+class CausalSequenceNormFunction(torch.autograd.Function):
     @staticmethod
     def forward(
         ctx,
@@ -410,14 +418,10 @@ class SequenceNormFunction(torch.autograd.Function):
         scale: Tensor,
         ballast_rms: Tensor,
         ballast_frames: Tensor,
-        causal: bool,
-        mask: Optional[Tensor],
     ) -> Tensor:
         ctx.save_for_backward(x, offset, scale, ballast_rms, ballast_frames)
-        ctx.causal = causal
-        ctx.mask = mask
 
-        return _sequence_norm(x, offset, scale, ballast_rms, ballast_frames, causal, mask)
+        return _causal_sequence_norm(x, offset, scale, ballast_rms, ballast_frames)
 
 
     @staticmethod
@@ -433,46 +437,85 @@ class SequenceNormFunction(torch.autograd.Function):
             ballast_frames = ballast_frames.to(torch.float32).detach().requires_grad_()
 
             with torch.enable_grad():
-                ans = _sequence_norm(x, offset, scale, ballast_rms, ballast_frames, ctx.causal, ctx.mask)
+                ans = _causal_sequence_norm(x, offset, scale, ballast_rms, ballast_frames)
                 ans.backward(gradient=ans_grad.to(torch.float32))
 
         def c(x):
             # this is to replace infinities that might be thrown up
-            # in autocast mode.
+            # in autocast mode: scalars will tend to have larger grads than non-scalars,
+            # this code is to reduce the probabilities that any infinities could crash the
+            # training (it may still happen if the world-size is so large that these
+            # infinities get added together though).
             return x.clamp_(min=-30000.0, max=30000.0)
 
-        return x.grad, c(offset.grad), c(scale.grad), c(ballast_rms.grad), c(ballast_frames.grad), None, None
+        return x.grad, c(offset.grad), c(scale.grad), c(ballast_rms.grad), c(ballast_frames.grad)
+
+class SequenceNormFunction(torch.autograd.Function):
+    @staticmethod
+    def forward(
+        ctx,
+        x: Tensor,
+        offset: Tensor,
+        scale: Tensor,
+        mask: Optional[Tensor],
+    ) -> Tensor:
+        ctx.save_for_backward(x, offset, scale)
+        ctx.mask = mask
+
+        return _sequence_norm(x, offset, scale, mask)
 
 
-class SequenceNorm(torch.nn.Module):
+    @staticmethod
+    def backward(ctx, ans_grad: Tensor) -> Tensor:
+        x, offset, scale = ctx.saved_tensors
+
+        with torch.amp.autocast('cuda', enabled=False):
+            x = x.to(torch.float32).detach().requires_grad_()
+            offset = offset.to(torch.float32).detach().requires_grad_()
+            scale = scale.to(torch.float32).detach().requires_grad_()
+
+            with torch.enable_grad():
+                ans = _sequence_norm(x, offset, scale, ctx.mask)
+                ans.backward(gradient=ans_grad.to(torch.float32))
+
+        def c(x):
+            # this is to replace infinities that might be thrown up
+            # in autocast mode: scalars will tend to have larger grads than non-scalars,
+            # this code is to reduce the probabilities that any infinities could crash the
+            # training (it may still happen if the world-size is so large that these
+            # infinities get added together though).
+            return x if x is None else x.clamp_(min=-30000.0, max=30000.0)
+
+        return x.grad, c(offset.grad), c(scale.grad), None
+
+
+class CausalSequenceNorm(torch.nn.Module):
     """
     This is like RMSNorm but the stats for the RMS value of x are aggregated over the whole sequence
-    as well as the channels; and a padding mask is used for irregular length sequences (actually,
-    the mask is applied multiplicatively as well.)
+    up to the current point as well as the channels, with some padding of the stats with "default values"
+    determined by ballast_frames, ballast_rms  for robustness near the beginning of the sequence.
 
-    There is also a learnable scalar scale and a learnable "offset" value.
+    There is also a learnable scalar scale, multiplicatively applied to the output, and a learnable
+    "offset" value that acts multiplicatively on the input without taking into account the rms values.
     """
     def __init__(
         self,
-        causal: bool,
     ) -> None:
-        super(SequenceNorm, self).__init__()
+        super().__init__()
         self.scale = nn.Parameter(torch.tensor(0.5))
         self.offset = nn.Parameter(torch.tensor(0.0001))
+
         # ballast_mean: assumed rms value of ballast frames used to pad stats
         self.ballast_rms = nn.Parameter(torch.tensor(0.1))
         # ballast_frames: number of ballast frames, in hundreds (will be multiplied by 100)
         self.ballast_frames =  nn.Parameter(torch.tensor(0.05))  # number of ballast frames, will be multiplied by 100
-        self.causal = causal
         self.name = None
 
-    def forward(self, x: Tensor, mask: Optional[Tensor]) -> Tensor:
+    def forward(self, x: Tensor, _mask: Optional[Tensor] = None) -> Tensor:
         # x: (seq, batch, channel)
-        # mask: bool, (batch_size, seq_len)
-        #  Note: mask is ignored in causal mode.
-
+        # The mask is ignored, it is allowed only for consistency of interface with SequenceNorm.
         if torch.jit.is_scripting() or torch.jit.is_tracing():
-            return _sequence_norm(x, self.offset, self.scale, self.ballast_rms, self.ballast_frames, self.causal, mask)
+            return _causal_sequence_norm(x, self.offset, self.scale, self.ballast_rms, self.ballast_frames)
 
         scale = limit_param_value(
             self.scale, min=0.05, max=2.0, training=self.training)
@@ -486,8 +529,8 @@ class SequenceNorm(torch.nn.Module):
         ballast_frames = limit_param_value(
             self.ballast_frames, min=0.0, max=5.0, training=self.training)  # max of 5.0 would be 500 frames
 
-        ans = SequenceNormFunction.apply(
-            x, offset, scale, ballast_rms, ballast_frames, self.causal, mask,
+        ans = CausalSequenceNormFunction.apply(
+            x, offset, scale, ballast_rms, ballast_frames,
         )
 
         if random.random() < 0.002:
@@ -499,7 +542,7 @@ class SequenceNorm(torch.nn.Module):
 
     @torch.jit.export
     def get_init_cache(self, batch_size: int):
-        """Get initial cache for streaming inference. We first include the ballast stats in the initial cache. 
+        """Get initial cache for streaming inference. We first include the ballast stats in the initial cache.
         """
         # ballast_frames should normally be positive due to limit_param_value, but there can be small excursions, so
         # make absolutely sure using abs().
@@ -512,15 +555,58 @@ class SequenceNorm(torch.nn.Module):
         return cached_stats_sum, cached_len
 
     def streaming_forward(
-        self, 
-        x: Tensor, 
-        cached_stats_sum: Tensor, 
+        self,
+        x: Tensor,
+        cached_stats_sum: Tensor,
         cached_len: Tensor,
     ) -> Tuple[Tensor, Tensor, Tensor]:
-        
-        x, cached_stats_sum, cached_len = _sequence_norm_streaming(
+
+        x, cached_stats_sum, cached_len = _causal_sequence_norm_streaming(
             x, self.offset, self.scale, cached_stats_sum, cached_len)
         return x, cached_stats_sum, cached_len
+
+
+class SequenceNorm(torch.nn.Module):
+    """
+    This is like RMSNorm but the stats for the RMS value of x are aggregated over the whole sequence
+    as well as the channels; and a padding mask is used for irregular length sequences (actually,
+    the mask is applied multiplicatively as well.)
+
+    There is also a learnable scalar scale and a learnable "offset" value.
+    """
+    def __init__(
+        self,
+    ) -> None:
+        super().__init__()
+        self.scale = nn.Parameter(torch.tensor(0.5))
+        self.offset = nn.Parameter(torch.tensor(0.0001))
+        self.name = None
+
+    def forward(self, x: Tensor, mask: Optional[Tensor]) -> Tensor:
+        # x: (seq, batch, channel)
+        # mask: bool, (batch_size, seq_len)
+        #  Note: mask is ignored in causal mode.
+
+        if torch.jit.is_scripting() or torch.jit.is_tracing():
+            return _sequence_norm(x, self.offset, self.scale, mask)
+
+        scale = limit_param_value(
+            self.scale, min=0.05, max=2.0, training=self.training)
+
+        offset = limit_param_value(
+            self.offset, min=0.0, max=10.0, training=self.training)
+
+        ans = SequenceNormFunction.apply(
+            x, offset, scale, mask,
+        )
+
+        if random.random() < 0.002:
+            x_rms = (x ** 2).mean().sqrt()
+            ans_rms = (ans ** 2).mean().sqrt()
+            logging.info(f"name={self.name}: x_rms={x_rms}, ans_rms={ans_rms}, scale={self.scale.item()}, offset={self.offset.item()}")
+
+        return ans
+
 
 
 # assume layout: (time, batch, channel)
