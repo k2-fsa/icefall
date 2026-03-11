@@ -174,7 +174,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--num-encoder-layers",
         type=str,
-        default="6,8,14,8",
+        default="6,8,16,8",
         help="Number of zipformer encoder layers per stack, comma separated.",
     )
 
@@ -673,6 +673,7 @@ def get_encoder_embed(params: AttributeDict) -> nn.Module:
     encoder_embed = Conv2dSubsampling(
         in_channels=params.feature_dim,
         out_channels=lookup(params, "embed_dim"),
+        causal=params.causal,
     )
     return encoder_embed
 
