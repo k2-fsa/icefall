@@ -1365,6 +1365,7 @@ def run(rank, world_size, args):
         direct=0.1,
         cubic_decay_proportion=0.75,
         wd=18,
+        beta1=0.998,
         scale_limits=(1.0, 4.0),
     )
 
