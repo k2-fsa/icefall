@@ -1362,8 +1362,8 @@ def run(rank, world_size, args):
     optimizer = TransformedAdam(
         get_parameter_groups_with_lrs(model, lr=params.base_lr, include_names=True),
         lr=params.base_lr,
-        direct=0.1,
-        cubic_decay_proportion=0.75,
+        direct=0.15,
+        cubic_decay_proportion=0.8,
         wd=18,
         beta1=0.998,
         scale_limits=(1.0, 4.0),
