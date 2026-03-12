@@ -120,15 +120,24 @@ class CombinedLRScheduler(object):
 class CosineLRScheduler(CombinedLRScheduler):
     def __init__(self,
                  *args,
-                 min_factor: float = 0.15,
+                 max_factor: float = 0.95,  # it will start the cosine schedule from where it's this value, but renormalize so initial factor is 1.
+                 min_factor: float = 0.05,  # it will end the cosine schedule at where it's this value
                  **kwargs):
         super().__init__(*args, **kwargs)
-        self.min_factor = min_factor
+        self.max_factor = max_factor
+        def factor_to_progress(factor):
+            # inverse function of: factor = 0.5 * (1.0 + math.cos(math.pi * progress))
+            cos = 2.0 * factor - 1.0
+            return math.acos(cos) / math.pi
+        self.initial_progress = factor_to_progress(max_factor)
+        self.final_progress = factor_to_progress(min_factor)
 
     def get_lr(self):
         progress = self.get_progress()
+        # map progress in [0..1] to a tighter range like [0.15..0.85]
+        progress = self.initial_progress + (self.final_progress - self.initial_progress) * progress
         factor = 0.5 * (1.0 + math.cos(math.pi * progress))
-        factor = self.min_factor + (1. - self.min_factor) * factor # apply min_factor linearly.
+        factor = factor / self.max_factor  # make it so the initial factor is 1.0 despite limiting range of  progress
         return [x * factor for x in self.base_lrs]
 
 
