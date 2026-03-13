@@ -996,8 +996,6 @@ def _test_transformed_adam(hidden_dim: int):
 
         m = torch.nn.Sequential(
             Linear(E, hidden_dim),
-            OrthogonalLinear(hidden_dim, hidden_dim, bias=True,
-                             in_groups=2, group_size=hidden_dim//4),
             torch.nn.PReLU(),
             Linear(hidden_dim, hidden_dim),
             torch.nn.PReLU(),
@@ -1052,17 +1050,16 @@ def _test_transformed_adam(hidden_dim: int):
                     avg_loss = 0.98 * avg_loss + 0.02 * loss.item()
                 if n == 0 and epoch % 5 == 0:
                     norm1 = '%.2e' % (m[0].weight**2).mean().sqrt().item()
-                    norm2 = '%.2e' % (m[1].weight**2).mean().sqrt().item()
-                    norm3 = '%.2e' % (m[3].weight**2).mean().sqrt().item()
-                    norm4 = '%.2e' % (m[5].weight**2).mean().sqrt().item()
+                    norm2 = '%.2e' % (m[2].weight**2).mean().sqrt().item()
+                    norm3 = '%.2e' % (m[4].weight**2).mean().sqrt().item()
 
                     bias_norm1 = '%.2e' % (m[0].bias**2).mean().sqrt().item()
-                    bias_norm2 = '%.2e' % (m[3].bias**2).mean().sqrt().item()
-                    bias_norm3 = '%.2e' % (m[5].bias**2).mean().sqrt().item()
+                    bias_norm2 = '%.2e' % (m[2].bias**2).mean().sqrt().item()
+                    bias_norm3 = '%.2e' % (m[4].bias**2).mean().sqrt().item()
 
                     lr = scheduler.get_last_lr()[0]
                     logging.info(
-                        f"Test {test}, epoch {epoch}, batch {n}, avg_loss {avg_loss:.4g}, lr={lr:.4e}, norms={norm1,norm2,norm3,norm4}, bias_norms={bias_norm1,bias_norm2,bias_norm3}"
+                        f"Test {test}, epoch {epoch}, batch {n}, avg_loss {avg_loss:.4g}, lr={lr:.4e}, norms={norm1,norm2,norm3}, bias_norms={bias_norm1,bias_norm2,bias_norm3}"
                     )
                 loss.log().backward()
                 optim.step()
