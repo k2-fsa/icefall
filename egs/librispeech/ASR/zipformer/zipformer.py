@@ -576,10 +576,12 @@ class Zipformer2EncoderLayer(nn.Module):
                                                       2. * aux_loss_scale, mask=src_key_padding_mask),
                         None)
 
+        src_pre_ff1 = src
 
         src = src + self.feed_forward1(src, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
 
-        src = src + self.self_attn(src, src, attn_mask=attn_mask,
+        # may try changing src_pre_ff1 to src or vice versa.
+        src = src + self.self_attn(src_pre_ff1, src, attn_mask=attn_mask,
                                    key_padding_mask=src_key_padding_mask,
                                    aux_loss_scale=0.1 * aux_loss_scale)
 
