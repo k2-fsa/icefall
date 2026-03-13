@@ -16,6 +16,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import warnings
 from typing import Tuple, Optional
 
@@ -50,7 +51,6 @@ class AddNoise(nn.Module):
         return x + noise_scale * torch.randn_like(x)
 
 
-
 class ConvNeXt(nn.Module):
     """
     Our interpretation of the ConvNeXt module as used in https://arxiv.org/pdf/2206.14747.pdf
@@ -61,17 +61,25 @@ class ConvNeXt(nn.Module):
         channels: int,
         hidden_ratio: int = 3,
         kernel_size: Tuple[int, int] = (7, 7),
+        causal: bool = False,
     ):
         super().__init__()
-        self.padding = ((kernel_size[0] - 1) // 2, (kernel_size[1] - 1) // 2)
+        assert kernel_size[0] % 2 == 1 and kernel_size[1] % 2 == 1
+        self.causal = causal
         hidden_channels = channels * hidden_ratio
+
+        if not causal:
+            padding = (kernel_size[0] // 2, kernel_size[1] // 2)
+        else:
+            padding = (0, kernel_size[1] // 2)
+            self.left_pad = kernel_size[0] - 1 
 
         self.depthwise_conv = nn.Conv2d(
             in_channels=channels,
             out_channels=channels,
             groups=channels,
             kernel_size=kernel_size,
-            padding=self.padding,
+            padding=padding,
         )
 
         self.pointwise_conv1 = nn.Conv2d(
@@ -86,7 +94,6 @@ class ConvNeXt(nn.Module):
             kernel_size=1,
         )
 
-
     def forward(
         self, x: Tensor,
     ) -> Tensor:
@@ -96,7 +103,12 @@ class ConvNeXt(nn.Module):
         The returned value has the same shape as x.
         """
         bypass = x
+
+        if self.causal:
+            x = nn.functional.pad(x, (0, 0, self.left_pad, 0))
         x = self.depthwise_conv(x)
+        assert x.shape == bypass.shape, (x.shape, bypass.shape)
+
         x = self.pointwise_conv1(x)
         x = self.activation(x)
         x = self.pointwise_conv2(x)
@@ -104,51 +116,38 @@ class ConvNeXt(nn.Module):
         x = bypass + x
 
         return x
-
+    
     def streaming_forward(
         self,
         x: Tensor,
-        cached_left_pad: Tensor,
+        cache: Tensor,
     ) -> Tuple[Tensor, Tensor]:
         """
         Args:
             x layout: (N, C, H, W), i.e. (batch_size, num_channels, num_frames, num_freqs)
-            cached_left_pad: (batch_size, num_channels, left_pad, num_freqs)
+            cache: (batch_size, num_channels, left_pad, num_freqs)
 
         Returns:
             - The returned value has the same shape as x.
-            - Updated cached_left_pad.
+            - Updated cache.
         """
-        padding = self.padding
+        bypass = x
 
-        # The length without right padding for depth-wise conv
-        T = x.size(2) - padding[0]
+        # Pad left side with cache, and update cache
+        assert cache.size(2) == self.left_pad
+        x = torch.cat([cache, x], dim=2)
+        cache = x[:, :, -self.left_pad :, :]
 
-        bypass = x[:, :, :T, :]
+        x = self.depthwise_conv(x)
+        assert x.shape == bypass.shape, (x.shape, bypass.shape)
 
-        # Pad left side
-        assert cached_left_pad.size(2) == padding[0], (
-            cached_left_pad.size(2),
-            padding[0],
-        )
-        x = torch.cat([cached_left_pad, x], dim=2)
-        # Update cached left padding
-        cached_left_pad = x[:, :, T : padding[0] + T, :]
-
-        # depthwise_conv
-        x = torch.nn.functional.conv2d(
-            x,
-            weight=self.depthwise_conv.weight,
-            bias=self.depthwise_conv.bias,
-            padding=(0, padding[1]),
-            groups=self.depthwise_conv.groups,
-        )
         x = self.pointwise_conv1(x)
         x = self.activation(x)
         x = self.pointwise_conv2(x)
 
         x = bypass + x
-        return x, cached_left_pad
+
+        return x, cache
 
 
 class Conv2dSubsampling(nn.Module):
@@ -169,6 +168,7 @@ class Conv2dSubsampling(nn.Module):
         layer1_channels: int = 16,
         layer2_channels: int = 64,
         layer3_channels: int = 128,
+        causal: bool = False,
     ) -> None:
         """
         Args:
@@ -220,14 +220,12 @@ class Conv2dSubsampling(nn.Module):
             SwashR(),
         )
 
-
         # just one convnext layer
-        self.convnext = ConvNeXt(layer3_channels, kernel_size=(7, 7))
+        self.convnext = ConvNeXt(layer3_channels, kernel_size=(7, 7), causal=causal)
 
         # (in_channels-3)//4
         self.out_width = (((in_channels - 1) // 2) - 1) // 2
         self.layer3_channels = layer3_channels
-
 
         # scale it up a bit, else the output is quite small.
         self.out = ScaledLinear(self.out_width * layer3_channels, out_channels)
@@ -277,7 +275,7 @@ class Conv2dSubsampling(nn.Module):
         self,
         x: torch.Tensor,
         x_lens: torch.Tensor,
-        cached_left_pad: Tensor,
+        cache: Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Subsample x.
 
@@ -286,6 +284,8 @@ class Conv2dSubsampling(nn.Module):
             Its shape is (N, T, idim).
           x_lens:
             A tensor of shape (batch_size,) containing the number of frames in
+          cache:
+            The cached left padding for ConvNeXt module, of shape (batch_size, num_channels, left_pad, num_freqs)
 
         Returns:
           - a tensor of shape (N, (T-7)//2, odim)
@@ -298,10 +298,7 @@ class Conv2dSubsampling(nn.Module):
         # T' = (T-7)//2
         x = self.conv(x)
 
-        # T' = (T-7)//2-3
-        x, cached_left_pad = self.convnext.streaming_forward(
-            x, cached_left_pad=cached_left_pad
-        )
+        x, cache = self.convnext.streaming_forward(x, cache=cache)
 
         # Now x is of shape (N, odim, T', ((idim-1)//2 - 1)//2)
         b, c, t, f = x.size()
@@ -309,24 +306,21 @@ class Conv2dSubsampling(nn.Module):
         x = x.transpose(1, 2).reshape(b, t, c * f)
         # now x: (N, T', out_width * layer3_channels))
 
+        x = self.out(x)
         # Now x is of shape (N, T', odim)
         if torch.jit.is_scripting() or torch.jit.is_tracing():
-            assert self.convnext.padding[0] == 3
-            # The ConvNeXt module needs 3 frames of right padding after subsampling
-            x_lens = (x_lens - 7) // 2 - 3
+            x_lens = (x_lens - 7) // 2
         else:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
-                # The ConvNeXt module needs 3 frames of right padding after subsampling
-                assert self.convnext.padding[0] == 3
-                x_lens = (x_lens - 7) // 2 - 3
+                x_lens = (x_lens - 7) // 2
 
         assert x.size(1) == x_lens.max().item(), (x.shape, x_lens.max())
 
-        return 0.15 * x, x_lens, cached_left_pad
+        return 0.15 * x, x_lens, cache
 
     @torch.jit.export
-    def get_init_states(
+    def get_init_cache(
         self,
         batch_size: int = 1,
         device: torch.device = torch.device("cpu"),
@@ -335,11 +329,78 @@ class Conv2dSubsampling(nn.Module):
         It is the cached left padding for ConvNeXt module,
         of shape (batch_size, num_channels, left_pad, num_freqs)
         """
-        left_pad = self.convnext.padding[0]
+        left_pad = self.convnext.left_pad
         freq = self.out_width
         channels = self.layer3_channels
-        cached_embed_left_pad = torch.zeros(batch_size, channels, left_pad, freq).to(
-            device
-        )
+        cache = torch.zeros(batch_size, channels, left_pad, freq, device=device)
 
-        return cached_embed_left_pad
+        return cache
+
+
+def _test_conv2d_subsampling_streaming():
+    logging.info("Testing Conv2dSubsampling streaming equivalence...")
+    
+    batch_size = 2
+    idim = 80
+    odim = 256
+    
+    model = Conv2dSubsampling(
+        in_channels=idim,
+        out_channels=odim,
+        causal=True
+    )
+    
+    model.eval()
+
+    out_chunk_size = 32
+    in_chunk_size = out_chunk_size * 2 + 7  
+    in_shift = out_chunk_size * 2           
+    
+    num_chunks = 10
+    
+    seq_len = num_chunks * in_shift + 7
+    
+    x_full = torch.randn(batch_size, seq_len, idim)
+    x_lens_full = torch.full((batch_size,), seq_len, dtype=torch.int64)
+    
+    with torch.no_grad():
+        out_full, out_lens_full = model(x_full, x_lens_full)
+        
+        cache = model.get_init_cache(batch_size=batch_size)
+        
+        out_chunks = []
+        out_offset = 0
+        
+        for i in range(num_chunks):
+            start = i * in_shift
+            end = start + in_chunk_size
+            x_chunk = x_full[:, start:end, :]
+            x_lens_chunk = torch.full((batch_size,), in_chunk_size, dtype=torch.int64)
+            
+            out_chunk, out_lens_chunk, cache = model.streaming_forward(
+                x_chunk, x_lens_chunk, cache
+            )
+            out_chunks.append(out_chunk)
+            
+            out_chunk_len = out_chunk.shape[1]
+            expected_out = out_full[:, out_offset : out_offset + out_chunk_len, :]
+            
+            diff_chunk = torch.max(torch.abs(expected_out - out_chunk))
+            logging.info(f"Chunk {i+1} | Input: {x_chunk.shape} -> Output: {out_chunk.shape} | Max diff: {diff_chunk}")
+            
+            assert torch.allclose(expected_out, out_chunk, atol=1e-4), f"Chunk {i+1} mismatch! max diff: {diff_chunk}"
+            out_offset += out_chunk_len
+            
+        out_stream_cat = torch.cat(out_chunks, dim=1)
+        diff_total = torch.max(torch.abs(out_full - out_stream_cat))
+        logging.info(f"Total Max Diff between full forward and streaming: {diff_total}")
+        assert torch.allclose(out_full, out_stream_cat, atol=1e-4), "Total outputs do not match!"
+
+    logging.info("Passed")
+
+
+if __name__ == "__main__":
+    logging.getLogger().setLevel(logging.INFO)
+    torch.set_num_threads(1)
+    torch.set_num_interop_threads(1)
+    _test_conv2d_subsampling_streaming()
