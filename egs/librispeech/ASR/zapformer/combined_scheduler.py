@@ -8,7 +8,26 @@ import logging
 class CombinedLRScheduler(object):
     """
     Base-class for learning rate schedulers where the learning-rate depends on both the
-    batch and the epoch; it estimates the "progress" for you.
+    batch and the epoch; it estimates the "progress" for you based on the epoch you are
+    in and the estimated progress within the epoch based on
+    the number of steps within the epoch.   The interface is as follows;; suppose
+    you're using CosineLRScheduler that inherits from this (below).  batches_per_epoch
+    is your best guess at how many batches you will have per epoch; if you get this
+    wrong there will be a discontinuity in the learning rate as you start the second
+    epoch.
+
+         num_epochs = 20
+         scheduler = CosineLRScheduler(optimizer, batches_per_epoch=2512, num_epochs=num_epochs)
+         for epoch in range(1, num_epochs + 1):
+             scheduler.set_epoch(epoch)  # caution: one-based epoch count
+             for batch_idx, batch in enumerate(train_dl):
+                 scheduler.set_batch_idx(batch_idx)
+
+    Args:
+       optimizer:   optimizer that we will set the learning rates in; the initial learning rate(s) in
+            the optimizer is/are the base LRs and we set the LR as a fraction of those.
+   batches_per_epoch: the estimated number of batches per epoch; use your best guess.
+          num_epochs: the total number of epochs you will train for
     """
     def __init__(self,
                  optimizer: Optimizer,
@@ -71,15 +90,18 @@ class CombinedLRScheduler(object):
         raise NotImplementedError
 
     def set_batch(self, batch: int):
+        """ Sets the batch index within the epoch, with zero-based counting (not that this matters much)."""
         # set the within-epoch batch index.
         self.batch = batch
         self._set_lrs()
 
     def set_epoch(self, epoch: int):
+        """ Sets the epoch with one-based counting, so the first epoch is 1; the epoch should not exceed the num_epochs used
+         in the constructor. """
         assert epoch > 0 and epoch <= self.num_epochs  # Epoch numbers are assumed to be be 1-based indexes.
         if epoch == self.epoch + 1 and self.batch > 0:
-            logging.info(f"Overriding batches_per_epoch from {self.batches_per_epoch} to {self.batch} based on observed batch count.")
-            self.batches_per_epoch = self.batch
+            logging.info(f"Overriding batches_per_epoch from {self.batches_per_epoch} to {self.batch+1} based on observed batch count.")
+            self.batches_per_epoch = self.batch + 1
 
         self.epoch = epoch
         self._set_lrs()
@@ -120,15 +142,30 @@ class CombinedLRScheduler(object):
 class CosineLRScheduler(CombinedLRScheduler):
     def __init__(self,
                  *args,
-                 max_factor: float = 0.95,  # it will start the cosine schedule from where it's this value, but renormalize so initial factor is 1.
-                 min_factor: float = 0.05,  # it will end the cosine schedule at where it's this value
+                 max_factor: float = 0.95,  # it will start the cosine schedule from the point where it would have this, but renormalize so initial factor is 1;
+                 min_factor: float = 0.05,  # it will end the cosine schedule at where it's this value divided by max_factor
                  **kwargs):
+        """
+        Cosine learning rate scheduler that inherits from CombinedLRScheduler (see its documentation
+        to understand general aspects of usage).
+        Args:
+             max_factor, min_factor:  The conventional cosine factor goes from 1 to 0 based on the formula:
+                        factor = 0.5 * (1 + cos(pi * progress)).
+                      This scheduler selects the part of that graph from factor=max_factor
+                      to factor=min_factor (imagine cropping the graph by selecting lines
+                      that intersect the y-axis at hose values). It renormalizes so the initial
+                      factor is one by dividing by max_factor; the last factor will actually
+                      be min_factor / max_factor.
+        """
         super().__init__(*args, **kwargs)
         self.max_factor = max_factor
         def factor_to_progress(factor):
             # inverse function of: factor = 0.5 * (1.0 + math.cos(math.pi * progress))
             cos = 2.0 * factor - 1.0
             return math.acos(cos) / math.pi
+
+        # we'll divide the factors by max_factor in get_lr() after computing the cosine formula,
+        # so the initial and final factors will actually be 1.0 and min_factor respectively.
         self.initial_progress = factor_to_progress(max_factor)
         self.final_progress = factor_to_progress(min_factor)
 

@@ -1403,7 +1403,7 @@ def run(rank, world_size, args):
 
     asr_datamodule = AsrDataModule(args)
     librispeech = LibriSpeech(args.manifest_dir)
-    gigaspeech = GigaSpeech(args.manifest_dir)       # gigaspeech will only be used if --libri-copies set.  this is not a typo!
+    gigaspeech = GigaSpeech(args.manifest_dir)       # gigaspeech will only be used if the --use-giga=True option is set
 
     if params.full_libri:
         train_cuts = librispeech.train_all_shuf_cuts()
@@ -1419,7 +1419,7 @@ def run(rank, world_size, args):
         # train_cuts += librispeech.train_other_500_cuts()
     else:
         train_cuts = librispeech.train_clean_100_cuts()
-        train_cuts_len = 100.0 * 3  # 100 hours times 3 for augmentation
+        train_cuts_len = 100.0 * 3  # 100 hours times 3 for speed augmentation
 
     if params.use_giga:
         if params.full_libri:
