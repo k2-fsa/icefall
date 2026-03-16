@@ -1595,6 +1595,17 @@ class RelPosScores(nn.Module):
         return pos_weights
 
 
+def round_up_to_power_of_two(x):
+    x = x - 1
+    x = x | x >> 1
+    x = x | x >> 2
+    x = x | x >> 4
+    x = x | x >> 8
+    x = x | x >> 16
+    x = x + 1
+    return x
+
+
 class FftConv(nn.Module):
     def __init__(self,
                  num_channels: int,
@@ -1612,10 +1623,18 @@ class FftConv(nn.Module):
                 x: Tensor) -> Tensor:
         (seq_len, batch_size, num_channels) = x.shape
 
+        # select a power of two that's >= seq_len // 8 and round up seq_len
+        # to a multiple of that power.  This means that rounded_seq_len
+        # will be of the form (2**n) * k where k <= 8, so it won't contain
+        # many factors other than two; this will make the FFT more efficient
+        # without adding an excessive amount of padding.
+        power_of_two = max(1, round_up_to_power_of_two(seq_len // 8))
+        rounded_seq_len = power_of_two * ((seq_len + power_of_two - 1) // power_of_two)
+
 
         with torch.amp.autocast('cuda', enabled=False):
             # do it in float32 because non power of two seq_len is not supported in half precision.
-            x = torch.fft.rfft(x.to(torch.float32), dim=0)
+            x = torch.fft.rfft(x.to(torch.float32), dim=0, n=rounded_seq_len)
             # x: (num_freqs, batch_size, num_channels)
             N = x.shape[0]   # num freqs
             weight = 4. * self.weight
@@ -1628,7 +1647,9 @@ class FftConv(nn.Module):
             # weight: (N, num_channels)
             weight = weight.unsqueeze(1)  # (N, 1, num_channels)
             x = x * weight
-            x = torch.fft.irfft(x, n=seq_len, dim=0)
+            x = torch.fft.irfft(x, n=rounded_seq_len, dim=0)
+
+        x = x[:seq_len]
 
         try:
             x = x + self.bias
@@ -1716,12 +1737,6 @@ class ConvolutionModule(nn.Module):
         Returns:
             Tensor: Output tensor (#time, batch, channels).
         """
-        # x: (time, batch, channels)
-        # Caution: this module is not completely
-        # invariant to the number of frames each sequence is padded with, since
-        # the FFT-based convolution treats the signal as repeating.
-        if src_key_padding_mask is not None:
-            x = x.masked_fill(src_key_padding_mask.t().unsqueeze(-1).expand_as(x), 0.0)
 
         x = self.in_proj(x)  # (time, batch, 3*bottleneck_dim)
 
@@ -1732,13 +1747,18 @@ class ConvolutionModule(nn.Module):
         x = x * s
         x = self.activation2(x)  # identity
 
+
+        # x: (time, batch, channels)
+        # Caution: this module is not completely
+        # invariant to the number of frames each sequence is padded with, since
+        # the FFT-based convolution treats the signal as repeating.
+        if src_key_padding_mask is not None:
+            x = x.masked_fill(src_key_padding_mask.t().unsqueeze(-1).expand_as(x), 0.0)
+
         if self.causal:
             # Not support exporting a model for simulated streaming decoding
             assert not torch.jit.is_scripting() and not torch.jit.is_tracing()
             x = x.permute(1, 2, 0)  # (batch, bottleneck_dim, time)
-            # for the causal version, we don't use fft-conv
-            if src_key_padding_mask is not None:
-                x = x.masked_fill(src_key_padding_mask.unsqueeze(1).expand_as(x), 0.0)
             x_shape = x.shape
             x = torch.nn.functional.pad(x, (self.left_pad, 0))
             x = self.depthwise_conv(x)
