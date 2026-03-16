@@ -78,7 +78,7 @@ from model import AsrModel
 from optim import TransformedAdam
 from combined_scheduler import CombinedLRScheduler
 try:
-    from combined_scheduler import HalfCosineLRScheduler
+    from combined_scheduler import InterpCosineLRScheduler
 except:
     pass
 from torch.optim.lr_scheduler import LambdaLR
@@ -1377,9 +1377,9 @@ def run(rank, world_size, args):
         progress = current_step / total_steps
         return max(0.0, 0.5 * (1.0 + math.cos(math.pi * progress)))
 
-    scheduler = HalfCosineLRScheduler(optimizer,
-                                      batches_per_epoch=params.batches_per_epoch,
-                                      num_epochs=params.num_epochs)
+    scheduler = InterpCosineLRScheduler(optimizer,
+                                        batches_per_epoch=params.batches_per_epoch,
+                                        num_epochs=params.num_epochs)
 
     if checkpoints and "optimizer" in checkpoints:
         logging.info("Loading optimizer state dict")

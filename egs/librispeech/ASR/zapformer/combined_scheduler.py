@@ -178,21 +178,24 @@ class CosineLRScheduler(CombinedLRScheduler):
         return [x * factor for x in self.base_lrs]
 
 
-class HalfCosineLRScheduler(CombinedLRScheduler):
+class InterpCosineLRScheduler(CombinedLRScheduler):
     def __init__(self,
                  *args,
                  **kwargs):
         """
-        Cosine learning rate scheduler consisting of cosine from 0 to pi/2 with no offset,
-        that inherits from CombinedLRScheduler (see its documentation
-        to understand general aspects of usage).  Equivalent to sqrt of normal cosine
-        LR schedule.
+        This cosine LR scheduler is halfway between the conventional cosine LR scheduler
+        that takes the cosine from 0 to pi, and one that takes the cosine from 0 to pi/2.
+        It inherits from CombinedLRScheduler (see its documentation
+        to understand general aspects of usage).
         """
         super().__init__(*args, **kwargs)
 
     def get_lr(self):
         progress = self.get_progress()
         factor = math.cos((math.pi / 2) * progress)
+        # factor**2 would be the conventional cosine LR scheduler with cosine from 0 to pi, we interpolate
+        # between the two.
+        factor = 0.5 * (factor + factor ** 2)
         return [x * factor for x in self.base_lrs]
 
 
