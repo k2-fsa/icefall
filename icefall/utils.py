@@ -2315,15 +2315,19 @@ def time_warp(
     p: float = 0.9,
     time_warp_factor: Optional[int] = 80,
     supervision_segments: Optional[torch.Tensor] = None,
+    feature_lens: Optional[torch.Tensor] = None,
 ):
-    """Apply time warping on a batch of features"""
+    """Apply time warping on a batch of features
+       supervision_segments and feature_lens are two alternative ways of specifying the parts of the feature matrix to
+       warp, see the code for details.
+    """
     if time_warp_factor is None or time_warp_factor < 1:
         return features
     assert (
         len(features.shape) == 3
     ), f"SpecAugment only supports batches of single-channel feature matrices. {features.shape}"
     features = features.clone()
-    if supervision_segments is None:
+    if supervision_segments is None and feature_lens is None:
         # No supervisions - apply spec augment to full feature matrices.
         for sequence_idx in range(features.size(0)):
             if random.random() > p:
@@ -2332,7 +2336,8 @@ def time_warp(
             features[sequence_idx] = time_warp_impl(
                 features[sequence_idx], factor=time_warp_factor
             )
-    else:
+    elif supervision_segments is not None:
+        assert feature_lens is None
         # Supervisions provided - we will apply time warping only on the supervised areas.
         for sequence_idx, start_frame, num_frames in supervision_segments:
             if random.random() > p:
@@ -2342,5 +2347,15 @@ def time_warp(
             features[sequence_idx, start_frame:end_frame] = time_warp_impl(
                 features[sequence_idx, start_frame:end_frame], factor=time_warp_factor
             )
+
+    else:
+        for sequence_idx, num_frames in enumerate(feature_lens):
+            if random.random() > p:
+                # Randomly choose whether this transform is applied
+                continue
+            features[sequence_idx, :num_frames] = time_warp_impl(
+                features[sequence_idx, :num_frames], factor=time_warp_factor
+            )
+
 
     return features

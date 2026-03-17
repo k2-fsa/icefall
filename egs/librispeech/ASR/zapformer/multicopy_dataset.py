@@ -125,8 +125,8 @@ class MulticopyDataset(torch.utils.data.Dataset):
             for tnfm in self.cut_transforms:
                 cuts = tnfm(cuts)
 
-            cuts = orig_cuts + cuts
-            num_copies = 3
+            #cuts = orig_cuts + cuts
+            num_copies = 2
         else:
             num_copies = 1
 

@@ -74,7 +74,7 @@ from joiner import Joiner
 from lhotse.cut import Cut, CutSet
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
-from model import AsrModel
+from model2 import AsrModel
 from optim import TransformedAdam
 from combined_scheduler import CombinedLRScheduler
 try:
@@ -108,6 +108,7 @@ from icefall.utils import (
     get_parameter_groups_with_lrs,
     setup_logger,
     str2bool,
+    time_warp,
 )
 
 
@@ -891,13 +892,62 @@ def save_checkpoint(
         copyfile(src=filename, dst=best_valid_filename)
 
 
+
+def augmentation(
+        features: Tensor,
+        feature_lens: Tensor) -> Tensor:
+    """
+    Does augmentation; if need_unaugmented_features returns (augmented_features, unaugmented_features),
+    else (augmented_features, None)
+
+    Args:
+         params: command-lines options
+     num_copies: the number of copies of the data in "feature", expected to be 3, consisting of
+         (noise_augmentation_copy1, noise_augmentation_copy2, no_noise_augmentation).
+      features: a Tensor of shape (batch_size, seq_len, num_channels), with batch_size
+          expected to be a multiple of num_copies, with 3 versions of the minibatch appended
+          with torch.cat((aug1, aug2, original), dim=0)
+
+    Returns:
+          (augmented_features, unaugmented_features).
+
+     augmented_features: feature with SpecAug, of shape (2 * batch_size // 3, seq_len, num_channels)
+     unaugmented_features:  if need_unaugmented_features, of shape (2 * batch_size // 3, seq_len, num_channels);
+            else, None.  Note: these features will actually include any time-warping, based on the assumption
+            that this needs to be kept in sync.
+    """
+    assert num_copies in [1, 3]
+    (batch_size, seq_len, num_channels) = x.shape
+    B = batch_size // num_copies
+    x = x.reshape(num_copies, B, seq_len, num_channels)
+
+    do_time_warp = True
+
+    if do_time_warp:
+        with torch.amp.autocast('cuda', enabled=False):
+            x = time_warp(
+                x.to(torch.float),
+                time_warp_factor=80,
+                feature_lens=feature_lens,
+            )
+
+    # note: ExpAugment() does *somewhat* assume that x consists of two copies of
+    # the same data, but practically speaking the only important use this is put
+    # to is that it chooses non-overlapping frequency regions to mask.  it also
+    # chooses non-overlapping time regions to mask, but this is not so important
+    # since the time warping (if used) was done independently on the two copies.
+    spec_augment = ExpAugment()
+    x = spec_augment(x)
+
+    return x
+
+
 def compute_loss(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
     sp: spm.SentencePieceProcessor,
     batch: dict,
     is_training: bool,
-    spec_augment: Optional[nn.Module] = None,
     aux_loss_scale: float = 0.0,
 ) -> Tuple[Tensor, MetricsTracker]:
     """
@@ -915,14 +965,12 @@ def compute_loss(
         True for training. False for validation. When it is True, this
         function enables autograd during computation; when it is False, it
         disables autograd.
-      spec_augment:
-        The nn.Module instance (or similar object), used for training
     """
     device = model.device if isinstance(model, DDP) else next(model.parameters()).device
-    feature = batch["inputs"]
-    # at entry, feature is (N, T, C)
-    assert feature.ndim == 3
-    feature = feature.to(device)
+    features = batch["inputs"]
+    # at entry, features is (N, T, C)
+    assert features.ndim == 3
+    features = features.to(device)
 
     supervisions = batch["supervisions"]
     feature_lens = supervisions["num_frames"].to(device)
@@ -934,34 +982,27 @@ def compute_loss(
     y = sp.encode(texts, out_type=int)
     y = k2.RaggedTensor(y)
 
-    if num_copies > 1:
-        assert model.training
-        # will need the following for time-warping in nn.Module.
-        supervision_intervals = batch["supervisions"]
-        supervision_segments = torch.stack(
-            [
-                supervision_intervals["sequence_idx"],
-                supervision_intervals["start_frame"],
-                supervision_intervals["num_frames"],
-            ],
-            dim=1,
-        )  # shape: (S, 3)
+
+    if is_training:
+        # the num_copies thing is actually not very important any more, you can remove
+        # the assertion if it's a problem in future.  (previously we used losses that
+        # required the different copies to be in sync on the time dimension, e.g.
+        # to use the same time warping; we don't do this any more.)
+        assert num_copies == 2
+        batch_size = features.shape[0]
+        features = augmentation(features, feature_lens)
     else:
-        supervision_segments = None
-        spec_augment = None  # disable spec-aug
+        assert num_copies == 1
+
 
     with torch.set_grad_enabled(is_training):
         simple_loss, pruned_loss, ctc_loss, attention_decoder_loss, cr_loss = model(
-            x=feature,
+            x=features,
             x_lens=feature_lens,
             y=y,
             prune_range=params.prune_range,
             am_scale=params.am_scale,
             lm_scale=params.lm_scale,
-            spec_augment=spec_augment,
-            supervision_segments=supervision_segments,
-            time_warp_factor=80, # for specaug
-            num_copies=num_copies,
             aux_loss_scale=aux_loss_scale,
         )
 
@@ -1056,7 +1097,6 @@ def train_one_epoch(
     train_dl: torch.utils.data.DataLoader,
     valid_dl: torch.utils.data.DataLoader,
     scaler: GradScaler,
-    spec_augment: Optional[nn.Module] = None,
     model_avg: Optional[nn.Module] = None,
     tb_writer: Optional[SummaryWriter] = None,
     world_size: int = 1,
@@ -1083,8 +1123,6 @@ def train_one_epoch(
         Dataloader for the validation dataset.
       scaler:
         The scaler used for mix precision training.
-      spec_augment:
-        The SpecAugment or similar instance used for CR-CTC.
       model_avg:
         The stored model averaged from the start of training.
       tb_writer:
@@ -1137,7 +1175,6 @@ def train_one_epoch(
                     sp=sp,
                     batch=batch,
                     is_training=True,
-                    spec_augment=spec_augment,
                     aux_loss_scale=get_scaler_scale() * params.aux_loss_scale * (0.25 if params.batch_idx_train > 2000 else 1.0),
                 )
             # summary stats
@@ -1342,8 +1379,6 @@ def run(rank, world_size, args):
 
     assert params.use_ctc  # for now, require CTC, we may remove this requirement later.
 
-    spec_augment = ExpAugment()
-
     assert params.save_every_n >= params.average_period
     model_avg: Optional[nn.Module] = None
     if rank == 0:
@@ -1499,7 +1534,6 @@ def run(rank, world_size, args):
             optimizer=optimizer,
             sp=sp,
             params=params,
-            spec_augment=spec_augment,
         )
 
     scaler = GradScaler(enabled=params.use_autocast, init_scale=1.0)
@@ -1527,7 +1561,6 @@ def run(rank, world_size, args):
             train_dl=train_dl,
             valid_dl=valid_dl,
             scaler=scaler,
-            spec_augment=spec_augment,
             tb_writer=tb_writer,
             world_size=world_size,
             rank=rank,
@@ -1596,7 +1629,6 @@ def scan_pessimistic_batches_for_oom(
     optimizer: torch.optim.Optimizer,
     sp: spm.SentencePieceProcessor,
     params: AttributeDict,
-    spec_augment: Optional[nn.Module] = None,
 ):
     from lhotse.dataset import find_pessimistic_batches
 
@@ -1616,7 +1648,6 @@ def scan_pessimistic_batches_for_oom(
                     sp=sp,
                     batch=batch,
                     is_training=True,
-                    spec_augment=spec_augment,
                 )
             loss.backward()
             optimizer.zero_grad()

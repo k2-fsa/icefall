@@ -24,7 +24,7 @@ import torch.nn as nn
 from torch import Tensor
 from encoder_interface import EncoderInterface
 from scaling import ScaledLinear, convert_num_channels, PredictLoss
-from icefall.utils import add_sos, make_pad_mask, time_warp
+from icefall.utils import add_sos, make_pad_mask
 
 
 class AsrModel(nn.Module):
@@ -362,10 +362,6 @@ class AsrModel(nn.Module):
         prune_range: int = 5,
         am_scale: float = 0.0,
         lm_scale: float = 0.0,
-        spec_augment: Optional[nn.Module] = None,
-        supervision_segments: Optional[torch.Tensor] = None,
-        time_warp_factor: Optional[int] = 80,
-        num_copies: int = 1,
         aux_loss_scale: float = 0.0,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
@@ -387,20 +383,6 @@ class AsrModel(nn.Module):
           lm_scale:
             The scale to smooth the loss with lm (output of predictor network)
             part
-          spec_augment:
-            The SpecAugment instance, or similar/compatible object, that masks
-            log-mel features.
-          supervision_segments:
-            An int tensor of shape ``(S, 3)``. ``S`` is the number of
-            supervision segments that exist in ``features``.  Used only for
-            time-warping, if num_copies > 1.
-          time_warp_factor:
-            Parameter for the time warping; larger values mean more warping.
-            Set to ``None``, or less than ``1``, to disable.
-            Used only if num_copies > 1, corresponds to training mode.
-          num_copies:
-             the number of copies of the same data that are in the batch, e.g. 1, 2
-             or 3; affects CRCTC, spec-augment, etc.
           aux_loss_scale:
              auxiliary-loss scale, for scaling cosine losses in the encoders.
           sc_prob:
@@ -425,56 +407,6 @@ class AsrModel(nn.Module):
         assert x.size(0) == x_lens.size(0) == y.dim0, (x.shape, x_lens.shape, y.dim0)
 
         device = x.device
-
-        if num_copies > 1:
-            assert num_copies == 3  # for now.
-            # will do SpecAugment or similar.
-            assert spec_augment is not None and getattr(spec_augment, 'time_warp_factor', -1) < 0
-
-            (batch_size, seq_len, num_channels) = x.shape
-            B = batch_size // num_copies
-            x = x.reshape(num_copies, B, seq_len, num_channels)
-
-            do_time_warp = True
-            if do_time_warp:
-                shared_time_warp = False
-                if shared_time_warp:
-                    # Apply time warping.  First append the copies on the channel
-                    # dimension so all copies get the exact same time-warping.
-                    x = x.permute(1, 2, 0, 3).reshape(B, seq_len, num_copies * num_channels)
-                else:
-                    x = x.reshape(num_copies * B, seq_len, num_channels)
-
-                assert supervision_segments is not None
-                with torch.amp.autocast('cuda', enabled=False):
-                    x = time_warp(
-                        x.to(torch.float),
-                        time_warp_factor=time_warp_factor,
-                        supervision_segments=supervision_segments[:x.shape[0]],
-                    )
-                if shared_time_warp:
-                    x = x.reshape(B, seq_len, num_copies, num_channels)
-                    x = x.permute(2, 0, 1, 3)  # x: (num_copies, B, seq_len, num_channels)
-                else:
-                    x = x.reshape(num_copies, B, seq_len, num_channels)
-
-
-            # x_no_specaug is several repeats of the 1st copy of the data, which
-            # is the one not augmented with Musan.  But it does have time
-            # warping and mel warping.
-            x_no_specaug = x[0:1].repeat(num_copies - 1, 1, 1, 1).reshape(
-                B * (num_copies - 1), seq_len, num_channels)
-
-
-            # Independently apply frequency masking and time masking to all but the first
-            # copy of the data.
-            x = spec_augment(x[1:].reshape(-1, seq_len, num_channels))
-
-            x_lens = x_lens[:B*(num_copies-1)]
-            y = y[:B*(num_copies-1)]
-        else:
-            x_no_specaug = x
-
 
         # Compute encoder outputs
         encoder_out, encoder_out_lens = self.forward_encoder(x, x_lens,

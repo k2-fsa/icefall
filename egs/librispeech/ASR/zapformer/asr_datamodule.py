@@ -33,11 +33,11 @@ from lhotse.dataset import (  # noqa F401 for PrecomputedFeatures
     SimpleCutSampler,
 )
 # MulticopyDataset is a modified version of K2SpeechRecognitionDataset from
-# lhotse.dataset, modified to, in training mode, to return a batch that has 3
-# different copies of the same data with the last two having different Musan
+# lhotse.dataset, modified to, in training mode, to return a batch that has 2
+# different copies of the same data having different Musan
 # augmentations and the first having none; and also include the key "num_copies"
-# in the batch which would be 1 for the validation data (no Musan) and 3 for the
-# training data with musan.
+# in the batch which would be 1 for the validation data (no Musan) and 2 for the
+# different copies of the training data with musan.
 try:
     from multicopy_dataset import MulticopyDataset # interface like K2SpeechRecognitionDataset
 except:
