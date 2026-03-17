@@ -74,7 +74,7 @@ from joiner import Joiner
 from lhotse.cut import Cut, CutSet
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
-from model2 import AsrModel
+from model import AsrModel
 from optim import TransformedAdam
 from combined_scheduler import CombinedLRScheduler
 try:
