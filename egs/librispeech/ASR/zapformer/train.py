@@ -48,7 +48,6 @@ It supports training with:
   - transducer loss (default)
   - ctc loss
   - attention decoder loss
-  - cr-ctc loss (should use half the max-duration compared to regular ctc)
 """
 
 
@@ -501,13 +500,6 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--cr-loss-scale",
-        type=float,
-        default=0.2,
-        help="Scale for consistency-regularization loss.",
-    )
-
-    parser.add_argument(
         "--attention-decoder-loss-scale",
         type=float,
         default=0.8,
@@ -897,24 +889,12 @@ def augmentation(
         features: Tensor,
         feature_lens: Tensor) -> Tensor:
     """
-    Does augmentation; if need_unaugmented_features returns (augmented_features, unaugmented_features),
-    else (augmented_features, None)
 
     Args:
-         params: command-lines options
-     num_copies: the number of copies of the data in "feature", expected to be 3, consisting of
-         (noise_augmentation_copy1, noise_augmentation_copy2, no_noise_augmentation).
-      features: a Tensor of shape (batch_size, seq_len, num_channels), with batch_size
-          expected to be a multiple of num_copies, with 3 versions of the minibatch appended
-          with torch.cat((aug1, aug2, original), dim=0)
+      features: a Tensor of shape (batch_size, seq_len, num_channels)
 
     Returns:
-          (augmented_features, unaugmented_features).
-
-     augmented_features: feature with SpecAug, of shape (2 * batch_size // 3, seq_len, num_channels)
-     unaugmented_features:  if need_unaugmented_features, of shape (2 * batch_size // 3, seq_len, num_channels);
-            else, None.  Note: these features will actually include any time-warping, based on the assumption
-            that this needs to be kept in sync.
+      augmented_features
     """
     (batch_size, seq_len, num_channels) = features.shape
 
@@ -993,7 +973,7 @@ def compute_loss(
 
 
     with torch.set_grad_enabled(is_training):
-        simple_loss, pruned_loss, ctc_loss, attention_decoder_loss, cr_loss = model(
+        simple_loss, pruned_loss, ctc_loss, attention_decoder_loss = model(
             x=features,
             x_lens=feature_lens,
             y=y,
@@ -1020,8 +1000,6 @@ def compute_loss(
 
         if params.use_ctc:
             loss += params.ctc_loss_scale * ctc_loss
-            if num_copies > 1:
-                loss += params.cr_loss_scale * cr_loss
 
         if params.use_attention_decoder:
             loss += params.attention_decoder_loss_scale * attention_decoder_loss
@@ -1032,8 +1010,6 @@ def compute_loss(
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         nframes = (feature_lens // params.subsampling_factor).sum().item()
-        if num_copies > 1:
-            nframes = nframes * (num_copies - 1) / num_copies  # omit 1st copy
         info["frames"] = nframes
 
     # Note: We use reduction=sum while computing the loss.
@@ -1043,8 +1019,6 @@ def compute_loss(
         info["pruned_loss"] = pruned_loss.detach().cpu().item()
     if params.use_ctc:
         info["ctc_loss"] = ctc_loss.detach().cpu().item()
-        if num_copies > 1:
-            info["cr_loss"] = cr_loss.detach().cpu().item()
     if params.use_attention_decoder:
         info["attn_decoder_loss"] = attention_decoder_loss.detach().cpu().item()
 

@@ -204,48 +204,6 @@ class AsrModel(nn.Module):
         )
         return ctc_loss
 
-    def forward_cr_ctc(
-        self,
-        encoder_out: torch.Tensor,
-        encoder_out_lens: torch.Tensor,
-        targets: torch.Tensor,
-        target_lengths: torch.Tensor,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Compute CTC loss, with consistency regularization loss if we are in training mode.
-        Args:
-          encoder_out:
-            Encoder output, of shape (2 * N, T, C).
-          encoder_out_lens:
-            Encoder output lengths, of shape (2 * N,).
-          targets:
-            Target Tensor of shape (2 * sum(target_lengths)). The targets are assumed
-            to be un-padded and concatenated within 1 dimension.
-        """
-        # Compute CTC loss
-        ctc_output = self.ctc_output(encoder_out)  # (2 * N, T, C)
-        ctc_loss = torch.nn.functional.ctc_loss(
-            log_probs=ctc_output.permute(1, 0, 2),  # (T, 2 * N, C)
-            targets=targets.long(),  # the calls to .long() were added due to a bug in torch 2.5.1cuda12.1 on A20.
-            input_lengths=encoder_out_lens.long(),
-            target_lengths=target_lengths.long(),
-            reduction="sum",
-        )
-
-        # Compute consistency regularization loss
-        exchanged_targets = ctc_output.detach().chunk(2, dim=0)
-        exchanged_targets = torch.cat(
-            [exchanged_targets[1], exchanged_targets[0]], dim=0
-        )  # exchange: [x1, x2] -> [x2, x1]
-        cr_loss = nn.functional.kl_div(
-            input=ctc_output,
-            target=exchanged_targets,
-            reduction="none",
-            log_target=True,
-        )  # (2 * N, T, C)
-        length_mask = make_pad_mask(encoder_out_lens).unsqueeze(-1)
-        cr_loss = cr_loss.masked_fill(length_mask, 0.0).sum()
-
-        return ctc_loss, cr_loss
 
     def forward_transducer(
         self,
@@ -432,24 +390,14 @@ class AsrModel(nn.Module):
 
         if self.use_ctc:
             targets = y.values
-            if not self.training:
-                ctc_loss = self.forward_ctc(
-                    encoder_out=encoder_out,
-                    encoder_out_lens=encoder_out_lens,
-                    targets=targets,
-                    target_lengths=y_lens,
-                )
-                cr_loss = torch.empty(0)
-            else:
-                ctc_loss, cr_loss = self.forward_cr_ctc(
-                    encoder_out=encoder_out,
-                    encoder_out_lens=encoder_out_lens,
-                    targets=targets,
-                    target_lengths=y_lens,
-                )
+            ctc_loss = self.forward_ctc(
+                encoder_out=encoder_out,
+                encoder_out_lens=encoder_out_lens,
+                targets=targets,
+                target_lengths=y_lens,
+            )
         else:
             ctc_loss = torch.empty(0)
-            cr_loss = torch.empty(0)
 
         if self.use_attention_decoder:
             attention_decoder_loss = self.attention_decoder.calc_att_loss(
@@ -461,4 +409,4 @@ class AsrModel(nn.Module):
         else:
             attention_decoder_loss = torch.empty(0)
 
-        return simple_loss, pruned_loss, ctc_loss, attention_decoder_loss, cr_loss
+        return simple_loss, pruned_loss, ctc_loss, attention_decoder_loss
