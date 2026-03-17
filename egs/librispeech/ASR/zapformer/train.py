@@ -916,17 +916,14 @@ def augmentation(
             else, None.  Note: these features will actually include any time-warping, based on the assumption
             that this needs to be kept in sync.
     """
-    assert num_copies in [1, 3]
-    (batch_size, seq_len, num_channels) = x.shape
-    B = batch_size // num_copies
-    x = x.reshape(num_copies, B, seq_len, num_channels)
+    (batch_size, seq_len, num_channels) = features.shape
 
     do_time_warp = True
 
     if do_time_warp:
         with torch.amp.autocast('cuda', enabled=False):
-            x = time_warp(
-                x.to(torch.float),
+            features = time_warp(
+                features.to(torch.float),
                 time_warp_factor=80,
                 feature_lens=feature_lens,
             )
@@ -937,9 +934,9 @@ def augmentation(
     # chooses non-overlapping time regions to mask, but this is not so important
     # since the time warping (if used) was done independently on the two copies.
     spec_augment = ExpAugment()
-    x = spec_augment(x)
+    features = spec_augment(features)
 
-    return x
+    return features
 
 
 def compute_loss(
