@@ -40,7 +40,8 @@ import k2
 import numpy as np
 import sentencepiece as spm
 import torch
-from asr_datamodule import LibriSpeech, GigaSpeech, AsrDataModule
+from asr_datamodule import CommonVoice, LibriSpeech, GigaSpeech, AsrDataModule
+from decode import cv_post_processing, giga_post_processing
 from decode_stream import DecodeStream
 from kaldifeat import Fbank, FbankOptions
 from lhotse import CutSet, set_caching_enabled
@@ -208,6 +209,13 @@ def get_parser():
         default=False,
         help="""If True, decode gigaspeech in addition to librispeech test sets.""",
     )
+
+    parser.add_argument(
+        "--cv",
+        type=str2bool,
+        default=False,
+        help="""If True, decode commonvoice in addition to librispeech test sets.""",
+    )  
 
     add_model_arguments(parser)
 
@@ -647,8 +655,13 @@ def save_asr_output(
             params.res_dir / f"recogs-{test_set_name}-{key}-{params.suffix}.txt"
         )
         results = sorted(results)
+        if 'giga' in test_set_name:
+            results = giga_post_processing(results)
+        if 'cv' in test_set_name:
+            results = cv_post_processing(results)
         store_transcripts(filename=recogs_filename, texts=results)
         logging.info(f"The transcripts are stored in {recogs_filename}")
+
 
 def save_wer_results(
     params: AttributeDict,
@@ -660,6 +673,10 @@ def save_wer_results(
     """
     test_set_wers = dict()
     for key, results in results_dict.items():
+        if 'giga' in test_set_name:
+            results = giga_post_processing(results)
+        if 'cv' in test_set_name:
+            results = cv_post_processing(results)
 
         # The following prints out WERs, per-word error statistics and aligned
         # ref/hyp pairs.
@@ -857,10 +874,17 @@ def main():
 
     if args.giga:
         gigaspeech = GigaSpeech(args.manifest_dir)
-        test_cuts = gigaspeech.test_cuts()
-        dev_cuts = gigaspeech.dev_cuts()
-        test_sets += ["dev", "test"]
-        test_cuts += [dev_cuts, test_cuts]
+        giga_test_cuts = gigaspeech.test_cuts()
+        giga_dev_cuts = gigaspeech.dev_cuts()
+        test_sets += ["giga-dev", "giga-test"]
+        test_cuts += [giga_dev_cuts, giga_test_cuts]
+    
+    if args.cv:
+        commonvoice = CommonVoice(args.manifest_dir)
+        cv_test_cuts = commonvoice.test_cuts()
+        cv_dev_cuts = commonvoice.dev_cuts()
+        test_sets += ["cv-dev", "cv-test"]
+        test_cuts += [cv_dev_cuts, cv_test_cuts]
 
     for test_set, test_cut in zip(test_sets, test_cuts):
         results_dict = decode_dataset(

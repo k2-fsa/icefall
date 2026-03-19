@@ -98,7 +98,7 @@ class AsrDataModule:
             "--full-libri",
             type=str2bool,
             default=True,
-            help="""When enabled, use 960h LibriSpeech; and 10000 hour GigaSpeech if --use-gigs. Otherwise, use 100h and if applicable 250h subsets.""",
+            help="""When enabled, use 960h LibriSpeech; and 10000 hour GigaSpeech if --use-giga. Otherwise, use 100h and if applicable 250h subsets.""",
         )
         group.add_argument(
             "--mini-libri",
@@ -224,7 +224,12 @@ class AsrDataModule:
             help="If set to True, use gigaspeech in addition to librispeech.  See also --libri-copies."
         )
 
-
+        parser.add_argument(
+            "--use-cv",
+            type=str2bool,
+            default=False,
+            help="If set to True, use CommonVoice in addition to librispeech.  See also --libri-copies."
+        )
 
     def train_dataloaders(
         self,
@@ -540,3 +545,35 @@ class GigaSpeech:
         f = self.manifest_dir / "gigaspeech_cuts_DEV.jsonl.gz"
         logging.info(f"About to get DEV cuts from {f}")
         return load_manifest_lazy(f)
+
+
+class CommonVoice:
+    def __init__(self, manifest_dir: str):
+        """
+        Args:
+          manifest_dir:
+            It is expected to contain the following files::
+
+                - cv22-en_cuts_train.jsonl.gz
+                - cv22-en_cuts_dev.jsonl.gz
+                - cv22-en_cuts_test.jsonl.gz
+        """
+        self.manifest_dir = Path(manifest_dir)
+
+    def train_cuts(self) -> CutSet:
+        logging.info("CommonVoice: About to get train cuts")
+        return load_manifest_lazy(
+            self.manifest_dir / "cv22-en_cuts_train.jsonl.gz"
+        )
+
+    def dev_cuts(self) -> CutSet:
+        logging.info("CommonVoice: About to get dev cuts")
+        return load_manifest_lazy(
+            self.manifest_dir / "cv22-en_cuts_dev.jsonl.gz"
+        )
+
+    def test_cuts(self) -> CutSet:
+        logging.info("CommonVoice: About to get test cuts")
+        return load_manifest_lazy(
+            self.manifest_dir / "cv22-en_cuts_test.jsonl.gz"
+        )

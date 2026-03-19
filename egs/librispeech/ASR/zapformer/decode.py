@@ -98,6 +98,7 @@ import argparse
 import logging
 import math
 import os
+import re
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -106,7 +107,7 @@ import k2
 import sentencepiece as spm
 import torch
 import torch.nn as nn
-from asr_datamodule import LibriSpeech, GigaSpeech, AsrDataModule
+from asr_datamodule import CommonVoice, LibriSpeech, GigaSpeech, AsrDataModule
 from beam_search import (
     beam_search,
     fast_beam_search_nbest,
@@ -175,7 +176,7 @@ non_scoring_words = (
 )
 
 
-def asr_text_post_processing(text: str) -> str:   # only used for gigaspeech
+def giga_asr_text_post_processing(text: str) -> str:   # only used for gigaspeech
     # 1. convert to uppercase
     text = text.upper()
 
@@ -192,13 +193,27 @@ def asr_text_post_processing(text: str) -> str:   # only used for gigaspeech
 
     return " ".join(remaining_words)
 
-def post_processing(
+
+def giga_post_processing(
     results: List[Tuple[str, List[str], List[str]]],
 ) -> List[Tuple[str, List[str], List[str]]]:
     new_results = []
     for key, ref, hyp in results:
-        new_ref = asr_text_post_processing(" ".join(ref)).split()
-        new_hyp = asr_text_post_processing(" ".join(hyp)).split()
+        new_ref = giga_asr_text_post_processing(" ".join(ref)).split()
+        new_hyp = giga_asr_text_post_processing(" ".join(hyp)).split()
+        new_results.append((key, new_ref, new_hyp))
+    return new_results
+
+
+def cv_post_processing(
+    results: List[Tuple[str, List[str], List[str]]],
+) -> List[Tuple[str, List[str], List[str]]]:
+    def normalize(text):
+        return re.sub(r'[^\w\s]', '', text).upper()
+    new_results = []
+    for key, ref, hyp in results:
+        new_ref = normalize(" ".join(ref)).split()
+        new_hyp = normalize(" ".join(hyp)).split()
         new_results.append((key, new_ref, new_hyp))
     return new_results
 
@@ -443,6 +458,13 @@ def get_parser():
         type=str2bool,
         default=False,
         help="""If True, decode gigaspeech in addition to librispeech test sets.""",
+    )
+
+    parser.add_argument(
+        "--cv",
+        type=str2bool,
+        default=False,
+        help="""If True, decode commonvoice in addition to librispeech test sets.""",
     )
 
     add_model_arguments(parser)
@@ -799,8 +821,10 @@ def save_asr_output(
 
         recogs_filename = params.res_dir / f"recogs-{test_set_name}-{params.suffix}.txt"
         results = sorted(results)
-        if params.giga:
-            results = post_processing(results)
+        if 'giga' in test_set_name:
+            results = giga_post_processing(results)
+        if 'cv' in test_set_name:
+            results = cv_post_processing(results)
 
         store_transcripts(filename=recogs_filename, texts=results)
 
@@ -817,8 +841,10 @@ def save_wer_results(
     """
     test_set_wers = dict()
     for key, results in results_dict.items():
-        if params.giga:
-            results = post_processing(results)
+        if 'giga' in test_set_name:
+            results = giga_post_processing(results)
+        if 'cv' in test_set_name:
+            results = cv_post_processing(results)
 
         # The following prints out WERs, per-word error statistics and aligned
         # ref/hyp pairs.
@@ -1138,8 +1164,17 @@ def main():
         dev_cuts = gigaspeech.dev_cuts()
         giga_test_dl = asr_datamodule.test_dataloaders(test_cuts)
         giga_dev_dl = asr_datamodule.test_dataloaders(dev_cuts)
-        test_sets += ["dev", "test"]
-        test_dl += [giga_test_dl, giga_dev_dl]
+        test_sets += ["giga-dev", "giga-test"]
+        test_dl += [giga_dev_dl, giga_test_dl]
+    
+    if args.cv:
+        commonvoice = CommonVoice(args.manifest_dir)
+        test_cuts = commonvoice.test_cuts()
+        dev_cuts = commonvoice.dev_cuts()
+        cv_test_dl = asr_datamodule.test_dataloaders(test_cuts)
+        cv_dev_dl = asr_datamodule.test_dataloaders(dev_cuts)
+        test_sets += ["cv-dev", "cv-test"]
+        test_dl += [cv_dev_dl, cv_test_dl]
 
     for test_set, test_dl in zip(test_sets, test_dl):
         results_dict = decode_dataset(
