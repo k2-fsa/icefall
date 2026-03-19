@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 
 import torch
-from scaling import ScheduledFloat
 from subsampling import Conv2dSubsampling
 
-
+# TODO: fix, this does not work right tnow
 def test_conv2d_subsampling():
     layer1_channels = 8
     layer2_channels = 32
@@ -17,7 +16,6 @@ def test_conv2d_subsampling():
         layer1_channels=layer1_channels,
         layer2_channels=layer2_channels,
         layer3_channels=layer3_channels,
-        dropout=ScheduledFloat((0.0, 0.3), (20000.0, 0.1)),
     )
     N = 2
     T = 200

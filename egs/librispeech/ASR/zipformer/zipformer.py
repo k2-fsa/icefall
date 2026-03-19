@@ -26,18 +26,14 @@ from typing import List, Optional, Tuple, Union
 import torch
 from encoder_interface import EncoderInterface
 from scaling import (
-    ActivationDropoutAndLinear,
-    ChunkCausalDepthwiseConv1d,
-    CosineSimilarityLoss,
+    ActivationAndLinear,
     CorrelationLimiter,
     Identity,  # more friendly to backward hooks than nn.Identity(), for diagnostic reasons.
     OrthogonalLinear,
     RmsNorm,
     SequenceNorm,
-    SimpleOrthogonalLinear,
+    OrthogonalLinear,
     ScaledLinear,  # not as in other dirs.. just scales down initial parameter values.
-    ScheduledFloat,
-    FloatLike,
     SwashR,
     convert_num_channels,
     limit_param_value,
@@ -720,8 +716,8 @@ class Zipformer2Encoder(nn.Module):
         super().__init__()
 
         # self.downsample will also reverse the downsampling operation for us afterward.
-        self.proj = SimpleOrthogonalLinear(dim, encoder_layer.embed_dim,
-                                           lr_scale=0.66, bias=False)
+        self.proj = OrthogonalLinear(dim, encoder_layer.embed_dim,
+                                     lr_scale=0.66, bias=False)
 
         self.name = None
         self.layers = nn.ModuleList(
@@ -895,7 +891,7 @@ class ResidualModule(nn.Module):
     def __init__(
             self,
             embed_dim: int,
-            function_scale_min: FloatLike = 0.1,
+            function_scale_min: float = 0.1,
     ):
         super().__init__()
         self.function_scale = nn.Parameter(torch.full((embed_dim,), 0.5))
@@ -1052,13 +1048,11 @@ class MultiheadRelPosGatedSelfAttention(nn.Module):
         query_head_dim: int,
         pos_head_dim: int = 4,
         value_head_dim: int = 12,
-        dropout: float = 0.0,
     ) -> None:
         super().__init__()
         self.embed_dim = embed_dim
         self.num_heads = num_heads
         self.query_head_dim = query_head_dim
-        self.dropout = dropout
         self.name = None  # will be overwritten in training code; for diagnostics.
 
         self.in_norm = RmsNorm()
@@ -1188,10 +1182,6 @@ class MultiheadRelPosGatedSelfAttention(nn.Module):
         elif random.random() < 0.001:
             self._print_attn_entropy(attn_weights)
 
-        # note: self.dropout is normally 0.0.
-        attn_weights = nn.functional.dropout(
-            attn_weights, p=self.dropout, training=self.training
-        )
 
         v, g = self.vg_in_proj(x_vg).chunk(2, dim=-1)
         v = v.reshape(seq_len, batch_size, num_heads, -1).permute(2, 1, 0, 3)
@@ -1393,11 +1383,9 @@ class FeedforwardModule(nn.Module):
         # to the TransformedAdam optimizer.
         self.in_proj.weight_min_rms = 0.02
 
-        # shared_dim=0 means we share the dropout mask along the time axis
-        self.out_proj = ActivationDropoutAndLinear(
+        self.out_proj = ActivationAndLinear(
             feedforward_dim,
             embed_dim,
-            dropout_p=0.0,
             activation="SwashR",
             initial_scale=0.5,
             bias=True,
@@ -1712,11 +1700,10 @@ class ConvolutionModule(nn.Module):
 
         self.depthwise_conv.lr_scale = 0.66
 
-        self.out_proj = ActivationDropoutAndLinear(
+        self.out_proj = ActivationAndLinear(
             bottleneck_dim,
             channels,
             activation="SwashR",
-            dropout_p=0.0,
             initial_scale=0.05,
         )
 

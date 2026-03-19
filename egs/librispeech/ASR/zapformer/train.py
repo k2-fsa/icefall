@@ -81,7 +81,6 @@ try:
 except:
     pass
 from torch.optim.lr_scheduler import LambdaLR
-from scaling import ScheduledFloat
 from subsampling import Conv2dSubsampling
 from torch import Tensor
 from torch.cuda.amp import GradScaler
