@@ -495,13 +495,13 @@ class TransformedAdam(BatchedOptimizer):
         self,
         params,
         lr=1e-03,
-        beta1=0.999,
-        direct=0.0, # scale on bypass of momentum (beta1)
+        beta1=0.995,
+        direct=0.15, # scale on bypass of momentum (beta1)
         cubic_decay_proportion=0.8,
         beta2=0.98,
-        wd=25,
+        wd=12,
         eps=1.0e-16,
-        scale_limits=(0.5, 2.0),
+        scale_limits=(1.0, 4.0),
     ):
 
         defaults = dict(
@@ -905,13 +905,13 @@ class SimpleTransformedAdam(Optimizer):
         self,
         params,
         lr=1e-03,
-        beta1=0.999,
-        direct=0.0, # scale on bypass of momentum (beta1)
+        beta1=0.995,
+        direct=0.15, # scale on bypass of momentum (beta1)
         cubic_decay_proportion=0.8,
         beta2=0.98,
-        wd=25,
+        wd=12,
         eps=1.0e-16,
-        scale_limits=(0.5, 2.0),
+        scale_limits=(1.0, 4.0),
     ):
         defaults = dict(
             lr=lr,
@@ -1012,19 +1012,27 @@ def _test_transformed_adam(hidden_dim: int):
             for _ in range(20)
         ]
 
-        lr = 0.0006
+        lr = 0.001
+        # the very large beta1 and zero "direct" value is specifically for this test task, which approaches the
+        # optimum parameters very exactly.  Normally you want something more like the
+        # defaults of beta1=0.995 and direct=0.15
         if test == 0:
-            optim = TransformedAdam(m.named_parameters(), lr=lr, wd=24)
+            optim = TransformedAdam(m.named_parameters(), lr=lr, direct=0.0, beta1=0.999)
         elif test == 1:
-            optim = SimpleTransformedAdam(m.parameters(), lr=lr, wd=24)
+            optim = SimpleTransformedAdam(m.parameters(), lr=lr, direct=0.0, beta1=0.999)
 
         num_epochs = 180
 
         total_steps = num_epochs
         def lr_lambda(current_step):
-            # Cosine annealing
-            progress = current_step / total_steps
-            return max(0.0, 0.5 * (1.0 + math.cos(math.pi * progress)))
+            # a LR schedule similar to InterpCosineLRScheduler from combined_scheduler.py
+            progress = min(1, current_step / total_steps)
+            cos = math.cos(progress * math.pi / 2)
+            # the relatively small scale on cos means the linear cool-down phase
+            # is long/slow, as the loss of this easy task is dominated by
+            # parameter noise..  in practical scenarios we use larger scale on
+            # the cos term, e.g. as large as 0.66.
+            return 0.05 * cos + 0.95 * (cos ** 2)
 
         scheduler = LambdaLR(optim, lr_lambda)
 
