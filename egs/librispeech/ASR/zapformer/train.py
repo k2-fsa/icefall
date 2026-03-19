@@ -74,7 +74,16 @@ from lhotse.cut import Cut, CutSet
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import AsrModel
-from optim import TransformedAdam
+# the try-pass blocks around imports are to reduce the chance of failures when running multiple code
+# versions in parallel; later, these can be removed.
+try:
+    from batched_rubik import BatchedRubik as Rubik
+    # could also have done:
+    # from rubik import Rubik
+except:
+    pass
+
+
 from combined_scheduler import CombinedLRScheduler
 try:
     from combined_scheduler import InterpCosineLRScheduler
@@ -1365,7 +1374,7 @@ def run(rank, world_size, args):
         logging.info("Using DDP")
         model = DDP(model, device_ids=[rank], find_unused_parameters=True)
 
-    optimizer = TransformedAdam(
+    optimizer = Rubik(
         get_parameter_groups_with_lrs(model, lr=params.base_lr, include_names=True),
         lr=params.base_lr,
         direct=0.15,
