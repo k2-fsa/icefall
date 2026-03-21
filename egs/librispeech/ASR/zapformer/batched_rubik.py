@@ -520,7 +520,7 @@ class BatchedRubik(BatchedOptimizer):
 
 
     def __setstate__(self, state):
-        super(TransformedAdam, self).__setstate__(state)
+        super(BatchedRubik, self).__setstate__(state)
 
     @torch.no_grad()
     def step(self, closure=None):
