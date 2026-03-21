@@ -1945,7 +1945,7 @@ class ConvolutionModule(nn.Module):
             x = x.masked_fill(src_key_padding_mask.t().unsqueeze(-1).expand_as(x), 0.0)
 
 
-        wm = self.weighted_mean(x)
+        wm = self.weighted_mean(x, src_key_padding_mask)
         if self.causal:
             # Not support exporting a model for simulated streaming decoding
             assert not torch.jit.is_scripting() and not torch.jit.is_tracing()
