@@ -1757,7 +1757,41 @@ class FourierConv(torch.autograd.Function):
         return x.grad, y.grad
 
 
+class WeightedMean(nn.Module):
+    def __init__(self,
+                 num_channels: int,
+                 causal: bool = False):
+        super().__init__()
+        self.causal = causal
+        self.weights = nn.Parameter(0.1 * torch.randn(num_channels))
 
+    def forward(self,
+                x: Tensor,
+                src_key_padding_mask: Optional[Tensor] = None) -> Tensor:
+        """
+        Compute weighted mean.
+          x: (time, batch, channel)
+        src_key_padding_mask: (batch, time), True for masked positions
+
+        Returned shape: (time, batch, channel) if causal else (batch, channel)
+        """
+        T = x.shape[0]
+        if self.causal:
+            num_frames = torch.arange(1, T + 1, device=x.device)
+            x_cumsum = torch.cumsum(x, dim=0)
+            return x_cumsum * num_frames[:, None, None] * self.weights
+
+
+        # assume x already masked, if mask is in use.
+        if src_key_padding_mask is not None:
+            num_frames = src_key_padding_mask.logical_not().to(torch.float).sum(dim=1)
+            num_frames = num_frames.unsqueeze(-1).to(torch.float)
+
+            # num_frames: (batch_size, 1)
+            return x.mean(dim=0) * (T / num_frames) * self.weights
+        else:
+            return x.mean(dim=0) * self.weights
+        x = x.masked_fill(src_key_padding_mask.t().unsqueeze(-1).expand_as(x), 0.0)
 
 class BasisConv(nn.Module):
     def __init__(self,
@@ -1846,6 +1880,7 @@ class ConvolutionModule(nn.Module):
 
         self.activation2 = Identity()  # for diagnostics
 
+
         if not causal:
             self.depthwise_conv = BasisConv(bottleneck_dim,
                                             num_freqs=kernel_size*2,
@@ -1862,6 +1897,10 @@ class ConvolutionModule(nn.Module):
             self.left_pad = kernel_size - 1
 
         self.depthwise_conv.lr_scale = 0.66
+        # add average-of-all-frames to the "convolution."; it has extra power vs the convolution
+        # because the num frames differs between utterances.
+        self.weighted_mean = WeightedMean(bottleneck_dim,
+                                          causal=causal)
 
         self.out_proj = ActivationAndLinear(
             bottleneck_dim,
@@ -1905,6 +1944,8 @@ class ConvolutionModule(nn.Module):
         if src_key_padding_mask is not None:
             x = x.masked_fill(src_key_padding_mask.t().unsqueeze(-1).expand_as(x), 0.0)
 
+
+        wm = self.weighted_mean(x)
         if self.causal:
             # Not support exporting a model for simulated streaming decoding
             assert not torch.jit.is_scripting() and not torch.jit.is_tracing()
@@ -1916,6 +1957,8 @@ class ConvolutionModule(nn.Module):
             x = x.permute(2, 0, 1)  # (time, batch, bottleneck_dim)
         else:
             x = self.depthwise_conv(x)  # x: (time, batch, bottleneck_dim)
+        x = x + wm  # Add in the weighted-mean to the convolution; this adds extra power
+        # because the utterances differ in length.
 
         x = x * y
         x = self.out_proj(x)  # (time, batch, channels)
