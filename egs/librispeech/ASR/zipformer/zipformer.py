@@ -1594,6 +1594,9 @@ def round_up_to_power_of_two(x):
     return x
 
 
+
+
+
 class FftConv(nn.Module):
     def __init__(self,
                  num_channels: int,
@@ -1647,6 +1650,165 @@ class FftConv(nn.Module):
         return x
 
 
+# convolution where we convolve with a combination of basis functions, the basis functions
+# being based on linear interpolation in Fourier space-- in effect, each pair of basis functions
+# corresponds to the real and imaginary coefficients for one triangular bin in Fourier space;
+# in the time domain the triangular bin becomes a sinc^2 function and the frequency offset
+# is just a complex exponential of which the real and imaginary coefficients give us sines and
+# cosines.
+def get_basis_funcs(seq_len: int,
+                    num_freqs: int,
+                    **kwargs
+):
+    """
+    seq_len: the sequence length to which the basis functions are truncated; this is expected to
+       be even
+    num_freqs: the number of frequencies; the number of basis functions will be 2 * num_freqs,
+        and note that the first pair of basis functions are special, because they are the
+        (zero-freq; nyquist-freq) ones.
+    kwargs: can be used for device
+
+    Returns:
+       basis functions of shape: (2 * num_freqs, seq_len)
+    """
+    assert seq_len % 2 == 0
+    t = torch.cat((torch.arange(seq_len // 2, **kwargs),
+                   torch.arange(-seq_len // 2, 0, **kwargs)), dim=0) # e.g. tensor([ 0,  1,  2,  3, -4, -3, -2, -1])
+    # the second half of the "t" values are interpreted as the "negative half" of the time range--
+    # the time range representing t values from -seq_len // 2 to seq_len // 2 - 1.
+    # The way we use this will be to convolve it with a signal of size seq_len // 2 that
+    # has been padded with zeroes of length seq_len // 2, and we want the result to be as if we padded with the basis
+    # functions from -infinity to infinity.
+
+
+    scaled_t = t * math.pi / num_freqs
+
+    # "freqs" are the t values multiplied by the basis frequencies
+    t_freqs = scaled_t * torch.arange(num_freqs + 1, **kwargs).unsqueeze(-1)
+    # t_freqs: (num_freqs + 1, seq_len)
+
+    # it's a sinc-squared envelope, as the frequency domain envelope is a
+    # triangular, not a rectangular, function.  the factor of 0.5 comes
+    # from the math
+    sinc_arg = 0.5 * scaled_t
+    envelope = torch.where(sinc_arg != 0.0, sinc_arg.sin() / sinc_arg, torch.ones_like(sinc_arg)) ** 2
+
+
+    cos, sin = t_freqs.cos() * envelope, t_freqs.sin() * envelope
+    #plt.plot(envelope)
+
+    # the factor of 0.5 is because the other freqs would get "counted twice" due
+    # to having two symmetric versions, the freqs at zero and the nyquist only have
+    # one copy.  This ensures that if we give a coeff of all ones on all the
+    # cos terms, we get (a scaled version of) the delta function.
+    sin[0] = 0.5 * cos[-1]
+    cos[0] = 0.5 * cos[0]
+    # the sin coefficient of freq 0 and nyquist gives us nothing, so we use the cos
+    # at the nyquist in this position.
+    cos = cos[:num_freqs]
+    sin = sin[:num_freqs]
+    #scale = num_freqs ** -0.5  # scale to make the funcs have a value around 1.
+    #cos = cos * scale
+    #sin = sin * scale
+
+    basis = torch.cat((cos, sin), dim=0)
+    # basis: (2 * num_freqs, seq_len)
+
+    #for i in range(num_freqs + 1):
+    #    plt.plot(cos[i])
+    #    plt.plot(sin[i])
+    #    plt.show()
+    return basis
+
+
+def fourier_conv(x: Tensor, y: Tensor):
+    # fourier based convolution of x and y, returns
+    # something with the same sequence length as the shorter of
+    # the two.
+    # x, y: (seq_len, [1 or batch_size], num_channels)
+    T = max(x.shape[0], y.shape[0])
+    T_out = min(x.shape[0], y.shape[0])
+
+    with torch.amp.autocast('cuda', enabled=False):
+        x = x.to(torch.float)
+        y = y.to(torch.float)
+        X = torch.fft.rfft(x, dim=0, n=T)
+        Y = torch.fft.rfft(y, dim=0, n=T)
+        return torch.fft.irfft(X * Y, dim=0, n=T)[:T_out]
+
+
+class FourierConv(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, x, y):
+        ctx.save_for_backward(x, y)
+        return fourier_conv(x, y)
+
+    @staticmethod
+    def backward(ctx, ans_grad):
+        # we could probably do a bit better than this by doing it manually
+        x, y = ctx.saved_tensors
+        with torch.enable_grad():
+            x = x.detach()
+            y = y.detach()
+            x.requires_grad = True
+            y.requires_grad = True
+            ans = fourier_conv(x, y)
+            ans.backward(gradient=ans_grad)
+        return x.grad, y.grad
+
+
+
+
+class BasisConv(nn.Module):
+    def __init__(self,
+                 num_channels: int,
+                 num_freqs: int,
+                 params_per_channel: int):
+        super().__init__()
+        self.weight_proj = nn.Linear(params_per_channel, 2 * num_freqs)
+
+        self.weight = nn.Parameter(0.05 * torch.randn(num_channels,
+                                                      params_per_channel))
+
+
+    def forward(self,
+                x: Tensor) -> Tensor:
+        (seq_len, batch_size, num_channels) = x.shape
+
+
+        # round seq_len to a multiple of "round" to help ensure the FFT dimension
+        # has plenty of powers of two; this will tend to make it more efficient.
+        round = min(16, round_up_to_power_of_two(seq_len))
+        seq_len_rounded = round * ((seq_len + round - 1) // round)
+
+        # to ensure the answer is the same regardless of the amount of padding, we
+        # pad the sequence to at least twice its initial length for purposes of
+        # the FFT-based convolution.  Because we will view the basis functions
+        # as going from t=-seq_len_rounded to t=seq_len_rounded - 1, this will
+        # ensure that we never see "wrap-around" effects.
+        T = 2 * seq_len_rounded
+
+        num_freqs = self.weight_proj.weight.shape[0] // 2
+        basis_funcs = get_basis_funcs(T, num_freqs, device=x.device)
+        # basis_funcs: (2 * num_freqs, T)
+
+        scale = num_freqs ** -0.5
+
+        weight = scale * self.weight_proj(self.weight)
+        # weight: (num_channels, 2 * num_freqs)
+        channel_funcs = torch.matmul(weight, basis_funcs)
+        # channel_funcs: (num_channels, T)
+
+
+        # channel_funcs: (num_channels, T)
+        channel_funcs = channel_funcs.t().unsqueeze(1)
+        # channel_funcs: (T, 1, num_channels)
+
+        return FourierConv.apply(channel_funcs, x)
+
+
+
+
 class ConvolutionModule(nn.Module):
     """ConvolutionModule in Zipformer2 model.
     Modified from https://github.com/espnet/espnet/blob/master/espnet/nets/pytorch_backend/zipformer/convolution.py
@@ -1684,9 +1846,10 @@ class ConvolutionModule(nn.Module):
 
         self.activation2 = Identity()  # for diagnostics
 
-        self.depthwise_conv = FftConv(bottleneck_dim, kernel_size)
         if not causal:
-            self.depthwise_conv = FftConv(bottleneck_dim, kernel_size)
+            self.depthwise_conv = BasisConv(bottleneck_dim,
+                                            num_freqs=kernel_size*2,
+                                            params_per_channel=kernel_size)
         else:
             self.depthwise_conv = nn.Conv1d(
                 in_channels=bottleneck_dim,
@@ -1957,10 +2120,37 @@ def _test_zipformer_streaming():
     logging.info("Passed")
 
 
+
+def _test_basis_conv():
+    num_channels = 11
+    f = BasisConv(num_channels=num_channels,
+                  num_freqs=4,
+                  params_per_channel=2)
+
+    seq_len = 100
+    subseq_len = 10 # will help visualize the effect
+    batch_size = 2
+    x = torch.cat((torch.randn(subseq_len, batch_size, num_channels),
+                   torch.zeros(seq_len - subseq_len, batch_size, num_channels)),
+                  dim=0)
+
+    y = f(x)
+
+    #plt.plot(x[:, 0, 0].detach())
+    #plt.plot(y[:, 0, 0].detach())
+    #plt.show()
+
+
+    def rms(a):
+        return (a**2).mean().item()
+    print(f"rms(x)={rms(x)}, rms(y)={rms(y)}")
+
+
 if __name__ == "__main__":
     logging.getLogger().setLevel(logging.INFO)
     torch.set_num_threads(1)
     torch.set_num_interop_threads(1)
+    _test_basis_conv()
     _test_zipformer_main(False)
     _test_zipformer_main(True)
     _test_zipformer_streaming()
