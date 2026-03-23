@@ -882,8 +882,10 @@ def compute_loss(
         if params.use_ctc:
             loss += params.ctc_loss_scale * ctc_loss
             if use_cr_ctc:
-                loss += params.cr_loss_scale * cr_loss
-    
+                # linear warmup
+                cr_loss_scale = min(batch_idx_train / warm_step, 1.0) * params.cr_loss_scale
+                loss += cr_loss_scale * cr_loss
+
     assert loss.requires_grad == is_training
 
     info = MetricsTracker()
