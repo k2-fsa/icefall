@@ -973,7 +973,7 @@ def compute_loss(
         # the assertion if it's a problem in future.  (previously we used losses that
         # required the different copies to be in sync on the time dimension, e.g.
         # to use the same time warping; we don't do this any more.)
-        assert num_copies == 2
+        #assert num_copies == 2
         batch_size = features.shape[0]
         features = augmentation(features, feature_lens)
     else:
