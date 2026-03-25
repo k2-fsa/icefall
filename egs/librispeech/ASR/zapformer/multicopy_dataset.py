@@ -108,7 +108,11 @@ class MulticopyDataset(torch.utils.data.Dataset):
         # Sort the cuts by duration so that the first one determines the batch time dimensions.
         cuts = cuts.sort_by_duration(ascending=False)
 
-        cuts = cuts.repeat(times=self.num_copies)
+        if self.num_copies > 1:
+            cuts = cuts.repeat(times=self.num_copies)
+
+        for tnfm in self.cut_transforms:
+            cuts = tnfm(cuts)
 
         # Get a tensor with batched feature matrices, shape (B, T, F)
         # Collation performs auto-padding, if necessary.
