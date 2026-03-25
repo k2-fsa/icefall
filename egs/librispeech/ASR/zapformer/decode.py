@@ -19,36 +19,36 @@
 """
 Usage:
 (1) greedy search
-./zipformer/decode.py \
+./zapformer/decode.py \
     --epoch 28 \
     --avg 15 \
-    --exp-dir ./zipformer/exp \
+    --exp-dir ./zapformer/exp \
     --max-duration 600 \
     --decoding-method greedy_search
 
 (2) beam search (not recommended)
-./zipformer/decode.py \
+./zapformer/decode.py \
     --epoch 28 \
     --avg 15 \
-    --exp-dir ./zipformer/exp \
+    --exp-dir ./zapformer/exp \
     --max-duration 600 \
     --decoding-method beam_search \
     --beam-size 4
 
 (3) modified beam search
-./zipformer/decode.py \
+./zapformer/decode.py \
     --epoch 28 \
     --avg 15 \
-    --exp-dir ./zipformer/exp \
+    --exp-dir ./zapformer/exp \
     --max-duration 600 \
     --decoding-method modified_beam_search \
     --beam-size 4
 
 (4) fast beam search (one best)
-./zipformer/decode.py \
+./zapformer/decode.py \
     --epoch 28 \
     --avg 15 \
-    --exp-dir ./zipformer/exp \
+    --exp-dir ./zapformer/exp \
     --max-duration 600 \
     --decoding-method fast_beam_search \
     --beam 20.0 \
@@ -56,10 +56,10 @@ Usage:
     --max-states 64
 
 (5) fast beam search (nbest)
-./zipformer/decode.py \
+./zapformer/decode.py \
     --epoch 28 \
     --avg 15 \
-    --exp-dir ./zipformer/exp \
+    --exp-dir ./zapformer/exp \
     --max-duration 600 \
     --decoding-method fast_beam_search_nbest \
     --beam 20.0 \
@@ -69,10 +69,10 @@ Usage:
     --nbest-scale 0.5
 
 (6) fast beam search (nbest oracle WER)
-./zipformer/decode.py \
+./zapformer/decode.py \
     --epoch 28 \
     --avg 15 \
-    --exp-dir ./zipformer/exp \
+    --exp-dir ./zapformer/exp \
     --max-duration 600 \
     --decoding-method fast_beam_search_nbest_oracle \
     --beam 20.0 \
@@ -82,10 +82,10 @@ Usage:
     --nbest-scale 0.5
 
 (7) fast beam search (with LG)
-./zipformer/decode.py \
+./zapformer/decode.py \
     --epoch 28 \
     --avg 15 \
-    --exp-dir ./zipformer/exp \
+    --exp-dir ./zapformer/exp \
     --max-duration 600 \
     --decoding-method fast_beam_search_nbest_LG \
     --beam 20.0 \
@@ -265,7 +265,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="zipformer/exp",
+        default="zapformer/exp",
         help="The experiment dir",
     )
 
@@ -532,7 +532,7 @@ def decode_one_batch(
     feature_lens = supervisions["num_frames"].to(device)
 
     if params.causal:
-        # this seems to cause insertions at the end of the utterance if used with zipformer.
+        # this seems to cause insertions at the end of the utterance if used with zapformer.
         pad_len = 30
         feature_lens += pad_len
         feature = torch.nn.functional.pad(

@@ -24,7 +24,7 @@ import torch.nn as nn
 from torch import Tensor
 from encoder_interface import EncoderInterface
 
-from scaling import ScaledLinear, convert_num_channels
+from zapformer_modules import ScaledLinear
 from icefall.utils import add_sos, make_pad_mask
 
 

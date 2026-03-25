@@ -33,7 +33,7 @@ from lhotse.dataset import (  # noqa F401 for PrecomputedFeatures
     SimpleCutSampler,
 )
 # MulticopyDataset is a modified version of K2SpeechRecognitionDataset from
-# lhotse.dataset, modified to, in training mode, to return a batch that has 2
+# lhotse.dataset, modified to, in training mode, to return a batch that has multiple
 # different copies of the same data having different Musan
 # augmentations and the first having none; and also include the key "num_copies"
 # in the batch which would be 1 for the validation data (no Musan) and 2 for the
@@ -116,9 +116,10 @@ class AsrDataModule:
         group.add_argument(
             "--max-duration",
             type=int,
-            default=200.0,
+            default=800.0,
             help="Maximum pooled recordings duration (seconds) in a "
-            "single batch. You can reduce it if it causes CUDA OOM.",
+            "single batch, including the --num-copies argument, so if --num-copies "
+            "is larger the actual duration prior to making copies will be smaller."
         )
         group.add_argument(
             "--bucketing-sampler",
@@ -209,6 +210,15 @@ class AsrDataModule:
             help="AudioSamples or PrecomputedFeatures",
         )
 
+        group.add_argument(
+            "--num-copies",
+            type=str,
+            default=4,
+            help="The number of copies of each training example selected in each batch (they will be augmented "
+            "differently).  If you make num-copies larger there will be more steps per epoch so you should probably make  "
+            "num-epochs smaller. "
+        )
+
         parser.add_argument(
             "--libri-copies",
             type=int,
@@ -270,6 +280,7 @@ class AsrDataModule:
 
         logging.info("About to create train dataset")
         train = MulticopyDataset(
+            num_copies=self.args.num_copies,
             input_strategy=eval(self.args.input_strategy)(),
             cut_transforms=transforms,
             input_transforms=[],
@@ -298,7 +309,7 @@ class AsrDataModule:
             logging.info("Using DynamicBucketingSampler.")
             train_sampler = DynamicBucketingSampler(
                 cuts_train,
-                max_duration=self.args.max_duration,
+                max_duration=self.args.max_duration / self.args.num_copies,
                 shuffle=self.args.shuffle,
                 num_buckets=self.args.num_buckets,
                 buffer_size=self.args.num_buckets * 2000,
@@ -309,7 +320,7 @@ class AsrDataModule:
             logging.info("Using SimpleCutSampler.")
             train_sampler = SimpleCutSampler(
                 cuts_train,
-                max_duration=self.args.max_duration,
+                max_duration=self.args.max_duration / self.args.num_copies,
                 shuffle=self.args.shuffle,
             )
         logging.info("About to create train dataloader")
@@ -346,12 +357,14 @@ class AsrDataModule:
         logging.info("About to create dev dataset")
         if self.args.on_the_fly_feats:
             validate = MulticopyDataset(
+                num_copies=1,
                 cut_transforms=transforms,
                 input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80))),
                 return_cuts=self.args.return_cuts,
             )
         else:
             validate = MulticopyDataset(
+                num_copies=1,
                 cut_transforms=transforms,
                 return_cuts=self.args.return_cuts,
             )

@@ -24,22 +24,22 @@ Usage:
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
 # For non-streaming model training:
-./zipformer/train.py \
+./zapformer/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 1 \
   --use-fp16 1 \
-  --exp-dir zipformer/exp \
+  --exp-dir zapformer/exp \
   --full-libri 1 \
   --max-duration 1000
 
 # For streaming model training:
-./zipformer/train.py \
+./zapformer/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 1 \
   --use-fp16 1 \
-  --exp-dir zipformer/exp \
+  --exp-dir zapformer/exp \
   --causal 1 \
   --full-libri 1 \
   --max-duration 1000
@@ -95,7 +95,7 @@ from torch import Tensor
 from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
-from zipformer import Zipformer2
+from zapformer import Zapformer
 
 from icefall import diagnostics
 from icefall.checkpoint import load_checkpoint, remove_checkpoints
@@ -107,7 +107,7 @@ from icefall.checkpoint import (
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
 from icefall.err import raise_grad_scale_is_too_small_error
-from icefall.exp_augment import ExpAugment   # using this, not lhotse's version of nn.Module
+from alternating_spec_augment import AlternatingSpecAugment   # using this, not lhotse's version of nn.Module
 from icefall.hooks import register_inf_check_hooks
 from icefall.utils import (
     AttributeDict,
@@ -183,7 +183,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         "--num-encoder-layers",
         type=str,
         default="6,8,14,8",
-        help="Number of zipformer encoder layers per stack, comma separated.",
+        help="Number of zapformer encoder layers per stack, comma separated.",
     )
 
     parser.add_argument(
@@ -204,7 +204,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         "--embed-multiple",
         type=int,
         default=6,
-        help="Output dimension of frontend, as multiple of base-dim; determines bypass dimensions in zipformer stacks and zipformer output dim.",
+        help="Output dimension of frontend, as multiple of base-dim; determines bypass dimensions in zapformer stacks and zapformer output dim.",
     )
 
     parser.add_argument(
@@ -218,7 +218,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         "--num-heads",
         type=str,
         default="4",
-        help="Number of attention heads in the zipformer encoder layers, per stack: a single int or comma-separated list.",
+        help="Number of attention heads in the zapformer encoder layers, per stack: a single int or comma-separated list.",
     )
 
     parser.add_argument(
@@ -418,7 +418,7 @@ def get_parser():
     parser.add_argument(
        "--exp-dir",
         type=str,
-        default="zipformer/exp",
+        default="zapformer/exp",
         help="""The experiment dir.
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
@@ -644,7 +644,7 @@ def get_params() -> AttributeDict:
             "log_interval": 50,
             "reset_interval": 200,
             "valid_interval": 10000,
-            # parameters for zipformer
+            # parameters for zapformer
             "feature_dim": 80,
             "subsampling_factor": 4,  # not passed in, this is fixed.
             # parameters for attention-decoder
@@ -680,7 +680,7 @@ def get_encoder_embed(params: AttributeDict) -> nn.Module:
 
 
 def get_encoder_model(params: AttributeDict) -> nn.Module:
-    encoder = Zipformer2(
+    encoder = Zapformer(
         input_dim=lookup(params, "embed_dim"),
         output_downsampling_factor=2,
         downsampling_factor=lookup(params, "downsampling_factor"),
@@ -942,7 +942,7 @@ def compute_loss(
       params:
         Parameters for training. See :func:`get_params`.
       model:
-        The model for training. It is an instance of Zipformer in our case.
+        The model for training. It is an instance of Zapformer in our case.
       batch:
         A batch of data. See `lhotse.dataset.K2SpeechRecognitionDataset()`
         for the content in it.
@@ -1483,7 +1483,7 @@ def run(rank, world_size, args):
         # where T is the number of feature frames after subsampling
         # and S is the number of tokens in the utterance
 
-        # In ./zipformer.py, the conv module uses the following expression
+        # In ./zapformer.py, the conv module uses the following expression
         # for subsampling
         T = ((c.num_frames - 7) // 2 + 1) // 2
         tokens = sp.encode(c.supervisions[0].text, out_type=str)

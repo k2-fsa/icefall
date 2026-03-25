@@ -351,11 +351,7 @@ def adam_step(group, state, grad):
 
 class BatchedRubik(BatchedOptimizer):
     """
-     Implements 'Scaled Adam', a variant of Adam where we scale each parameter's update
-     proportional to the norm of that parameter; and also learn the scale of the parameter,
-     in log space, subject to upper and lower limits (as if we had factored each parameter as
-     param = underlying_param * log_scale.exp())
-
+     Implements a batched version of the Rubik optimizer.
 
      Args:
           params:  The parameters or param_groups to optimize (like other Optimizer subclasses)
@@ -564,8 +560,6 @@ class BatchedRubik(BatchedOptimizer):
 def _test_batched_rubik(hidden_dim: int):
     import timeit
 
-    from scaling import OrthogonalLinear
-
     E = 100
     B = 4
     T = 2
@@ -675,7 +669,6 @@ def _test_muon(hidden_dim: int):
     import timeit
 
     from muon import Muon
-    from scaling import OrthogonalLinear
 
     E = 100
     B = 4
@@ -698,8 +691,6 @@ def _test_muon(hidden_dim: int):
 
         m = torch.nn.Sequential(
             Linear(E, hidden_dim),
-            OrthogonalLinear(hidden_dim, hidden_dim, bias=True,
-                             in_groups=2, group_size=hidden_dim//4),
             torch.nn.PReLU(),
             Linear(hidden_dim, hidden_dim),
             torch.nn.PReLU(),

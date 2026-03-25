@@ -22,48 +22,48 @@
 Usage:
 
 (1) ctc-greedy-search
-./zipformer/ctc_decode.py \
+./zapformer/ctc_decode.py \
     --epoch 30 \
     --avg 15 \
-    --exp-dir ./zipformer/exp \
+    --exp-dir ./zapformer/exp \
     --use-ctc 1 \
     --max-duration 600 \
     --decoding-method ctc-greedy-search
 
 (2) ctc-decoding
-./zipformer/ctc_decode.py \
+./zapformer/ctc_decode.py \
     --epoch 30 \
     --avg 15 \
-    --exp-dir ./zipformer/exp \
+    --exp-dir ./zapformer/exp \
     --use-ctc 1 \
     --max-duration 600 \
     --decoding-method ctc-decoding
 
 (3) 1best
-./zipformer/ctc_decode.py \
+./zapformer/ctc_decode.py \
     --epoch 30 \
     --avg 15 \
-    --exp-dir ./zipformer/exp \
+    --exp-dir ./zapformer/exp \
     --use-ctc 1 \
     --max-duration 600 \
     --hlg-scale 0.6 \
     --decoding-method 1best
 
 (4) nbest
-./zipformer/ctc_decode.py \
+./zapformer/ctc_decode.py \
     --epoch 30 \
     --avg 15 \
-    --exp-dir ./zipformer/exp \
+    --exp-dir ./zapformer/exp \
     --use-ctc 1 \
     --max-duration 600 \
     --hlg-scale 0.6 \
     --decoding-method nbest
 
 (5) nbest-rescoring
-./zipformer/ctc_decode.py \
+./zapformer/ctc_decode.py \
     --epoch 30 \
     --avg 15 \
-    --exp-dir ./zipformer/exp \
+    --exp-dir ./zapformer/exp \
     --use-ctc 1 \
     --max-duration 600 \
     --hlg-scale 0.6 \
@@ -72,10 +72,10 @@ Usage:
     --decoding-method nbest-rescoring
 
 (6) whole-lattice-rescoring
-./zipformer/ctc_decode.py \
+./zapformer/ctc_decode.py \
     --epoch 30 \
     --avg 15 \
-    --exp-dir ./zipformer/exp \
+    --exp-dir ./zapformer/exp \
     --use-ctc 1 \
     --max-duration 600 \
     --hlg-scale 0.6 \
@@ -84,20 +84,20 @@ Usage:
     --decoding-method whole-lattice-rescoring
 
 (7) attention-decoder-rescoring-no-ngram
-./zipformer/ctc_decode.py \
+./zapformer/ctc_decode.py \
     --epoch 30 \
     --avg 15 \
-    --exp-dir ./zipformer/exp \
+    --exp-dir ./zapformer/exp \
     --use-ctc 1 \
     --use-attention-decoder 1 \
     --max-duration 100 \
     --decoding-method attention-decoder-rescoring-no-ngram
 
 (8) attention-decoder-rescoring-with-ngram
-./zipformer/ctc_decode.py \
+./zapformer/ctc_decode.py \
     --epoch 30 \
     --avg 15 \
-    --exp-dir ./zipformer/exp \
+    --exp-dir ./zapformer/exp \
     --use-ctc 1 \
     --use-attention-decoder 1 \
     --max-duration 100 \
@@ -267,7 +267,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="zipformer/exp",
+        default="zapformer/exp",
         help="The experiment dir",
     )
 
@@ -529,7 +529,7 @@ def decode_one_batch(
     feature_lens = supervisions["num_frames"].to(device)
 
     if params.causal:
-        # this seems to cause insertions at the end of the utterance if used with zipformer.
+        # this seems to cause insertions at the end of the utterance if used with zapformer.
         pad_len = 30
         feature_lens += pad_len
         feature = torch.nn.functional.pad(

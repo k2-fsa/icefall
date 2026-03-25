@@ -30,21 +30,6 @@ from torch.cuda.amp import custom_bwd, custom_fwd
 
 
 
-class FloatLike:  # TODO: remove.  this is to solve problems with multiple jobs running.
-    pass
-class ScheduledFloat:  # TODO: remove.  this is to solve problems with multiple jobs running.
-    pass
-class SimpleOrthogonalLinear: # TODO: remove.  this is to solve problems with multiple jobs running.
-    pass
-class PiecewiseLinear: # TODO: remove.  this is to solve problems with multiple jobs running.
-    pass
-class CosineSimilarityLoss: # TODO: remove.  this is to solve problems with multiple jobs running.
-    pass
-class PredictLoss: # TODO: remove.  this is to solve problems with multiple jobs running.
-    pass
-get_max_similarity = None  # TODO: remove.  this is to solve problems with multiple jobs running.
-
-
 
 def logaddexp_onnx(x: Tensor, y: Tensor) -> Tensor:
     max_value = torch.max(x, y)
@@ -77,45 +62,8 @@ def logaddexp(x: Tensor, y: Tensor) -> Tensor:
         return torch.logaddexp(x, y)
 
 
-class SoftmaxFunction(torch.autograd.Function):
-    """
-    Tries to handle half-precision derivatives in a randomized way that should
-    be more accurate for training than the default behavior.
-    """
 
-    @staticmethod
-    def forward(ctx, x: Tensor, dim: int):
-        ans = x.softmax(dim=dim)
-        # if x dtype is float16, x.softmax() returns a float32 because
-        # (presumably) that op does not support float16, and autocast
-        # is enabled.
-        if torch.is_autocast_enabled():
-            ans = ans.to(torch.get_autocast_gpu_dtype())
-        ctx.save_for_backward(ans)
-        ctx.x_dtype = x.dtype
-        ctx.dim = dim
-        return ans
-
-    @staticmethod
-    def backward(ctx, ans_grad: Tensor):
-        (ans,) = ctx.saved_tensors
-        with torch.amp.autocast('cuda', enabled=False):
-            ans_grad = ans_grad.to(torch.float32)
-            ans = ans.to(torch.float32)
-            x_grad = ans_grad * ans
-            x_grad = x_grad - ans * x_grad.sum(dim=ctx.dim, keepdim=True)
-            return x_grad, None
-
-
-def softmax(x: Tensor, dim: int):
-    if not x.requires_grad or torch.jit.is_scripting() or torch.jit.is_tracing():
-        return x.softmax(dim=dim)
-
-    return SoftmaxFunction.apply(x, dim)
-
-
-
-# all arg tensors are scalars.
+# all arg tensors except x are scalars.
 def _sequence_norm(x: Tensor, offset: Tensor, scale: Tensor, mask: Optional[Tensor]):
     stats = (x ** 2).mean(dim=2, keepdim=True)
     T = x.shape[0]  # time
@@ -132,8 +80,7 @@ def _sequence_norm(x: Tensor, offset: Tensor, scale: Tensor, mask: Optional[Tens
     assert scales.shape == (x.shape[1], 1)
     return x * ((scale * scales) + offset)
 
-# all arg tensors are scalars.
-# mask only used in non-causal mode; ballast_rms and ballast_frames only used in causal mode.
+# all arg tensors except x are scalars.
 def _causal_sequence_norm(x: Tensor, offset: Tensor, scale: Tensor, ballast_rms: Tensor, ballast_frames: Tensor):
     stats = (x ** 2).mean(dim=2, keepdim=True)
 
@@ -398,7 +345,6 @@ def _rms_norm(x: Tensor, eps: Tensor, scale: Tensor):
     return x * scales
 
 
-
 class RmsNormFunction(torch.autograd.Function):
     @staticmethod
     def forward(
@@ -437,8 +383,7 @@ class RmsNormFunction(torch.autograd.Function):
 
 class RmsNorm(torch.nn.Module):
     """
-    This is like RMSNorm with a trainable scale.
-
+    This is RMSNorm with a trainable scale and trainable epsilon.
     """
     def __init__(
         self,
@@ -493,53 +438,6 @@ def ScaledLinear(*args, initial_scale: float = 1.0, **kwargs) -> nn.Linear:
         ans.weight[:] *= initial_scale
         if ans.bias is not None:
             torch.nn.init.uniform_(ans.bias, -0.01 * initial_scale, 0.01 * initial_scale)
-    return ans
-
-
-def ScaledConv1d(*args, initial_scale: float = 1.0, **kwargs) -> nn.Conv1d:
-    """
-    Behaves like a constructor of a modified version of nn.Conv1d
-    that gives an easy way to set the default initial parameter scale.
-
-    Args:
-        Accepts the standard args and kwargs that nn.Linear accepts
-        e.g. in_features, out_features, bias=False.
-
-        initial_scale: you can override this if you want to increase
-           or decrease the initial magnitude of the module's output
-           (affects the initialization of weight_scale and bias_scale).
-           Another option, if you want to do something like this, is
-           to re-initialize the parameters.
-    """
-    ans = nn.Conv1d(*args, **kwargs)
-    with torch.no_grad():
-        ans.weight[:] *= initial_scale
-        if ans.bias is not None:
-            torch.nn.init.uniform_(ans.bias, -0.1 * initial_scale, 0.1 * initial_scale)
-    return ans
-
-
-def ScaledConv2d(*args, initial_scale: float = 1.0, **kwargs) -> nn.Conv2d:
-    """
-    Behaves like a constructor of a modified version of nn.Conv2d
-    that gives an easy way to set the default initial parameter scale.
-
-    Args:
-        Accepts the standard args and kwargs that nn.Linear accepts
-        e.g. in_features, out_features, bias=False, but:
-    NO PADDING-RELATED ARGS.
-
-        initial_scale: you can override this if you want to increase
-           or decrease the initial magnitude of the module's output
-           (affects the initialization of weight_scale and bias_scale).
-           Another option, if you want to do something like this, is
-           to re-initialize the parameters.
-    """
-    ans = nn.Conv2d(*args, **kwargs)
-    with torch.no_grad():
-        ans.weight[:] *= initial_scale
-        if ans.bias is not None:
-            torch.nn.init.uniform_(ans.bias, -0.1 * initial_scale, 0.1 * initial_scale)
     return ans
 
 
@@ -814,175 +712,6 @@ class CorrelationLimiter(torch.nn.Module):
 
 
 
-
-def penalize_abs_values_gt(
-    x: Tensor, limit: float, penalty: float, name: str = None
-) -> Tensor:
-    """
-    Returns x unmodified, but in backprop will put a penalty for the excess of
-    the absolute values of elements of x over the limit "limit".  E.g. if
-    limit == 10.0, then if x has any values over 10 it will get a penalty.
-
-    Caution: the value of this penalty will be affected by grad scaling used
-    in automatic mixed precision training.  For this reasons we use this,
-    it shouldn't really matter, or may even be helpful; we just use this
-    to disallow really implausible values of scores to be given to softmax.
-
-    The name is for randomly printed debug info.
-    """
-    x_sign = x.sign()
-    over_limit = (x.abs() - limit) > 0
-    # The following is a memory efficient way to penalize the absolute values of
-    # x that's over the limit.  (The memory efficiency comes when you think
-    # about which items torch needs to cache for the autograd, and which ones it
-    # can throw away).  The numerical value of aux_loss as computed here will
-    # actually be larger than it should be, by limit * over_limit.sum(), but it
-    # has the same derivative as the real aux_loss which is penalty * (x.abs() -
-    # limit).relu().
-    aux_loss = penalty * ((x_sign * over_limit).to(torch.int8) * x)
-    # note: we don't do sum() here on aux)_loss, but it's as if we had done
-    # sum() due to how with_loss() works.
-    x = with_loss(x, aux_loss, name)
-    # you must use x for something, or this will be ineffective.
-    return x
-
-
-def _diag(x: Tensor):  # like .diag(), but works for tensors with 3 dims.
-    if x.ndim == 2:
-        return x.diag()
-    else:
-        (batch, dim, dim) = x.shape
-        x = x.reshape(batch, dim * dim)
-        x = x[:, :: dim + 1]
-        assert x.shape == (batch, dim)
-        return x
-
-
-def _whitening_metric(x: Tensor, num_groups: int):
-    """
-    Computes the "whitening metric", a value which will be 1.0 if all the eigenvalues of
-    of the centered feature covariance are the same within each group's covariance matrix
-    and also between groups.
-    Args:
-        x: a Tensor of shape (*, num_channels)
-     num_groups:  the number of groups of channels, a number >=1 that divides num_channels
-    Returns:
-        Returns a scalar Tensor that will be 1.0 if the data is "perfectly white" and
-    greater than 1.0 otherwise.
-    """
-    assert x.dtype != torch.float16
-    x = x.reshape(-1, x.shape[-1])
-    (num_frames, num_channels) = x.shape
-    assert num_channels % num_groups == 0
-    channels_per_group = num_channels // num_groups
-    x = x.reshape(num_frames, num_groups, channels_per_group).transpose(0, 1)
-    # x now has shape (num_groups, num_frames, channels_per_group)
-    # subtract the mean so we use the centered, not uncentered, covariance.
-    # My experience has been that when we "mess with the gradients" like this,
-    # it's better not do anything that tries to move the mean around, because
-    # that can easily cause instability.
-    x = x - x.mean(dim=1, keepdim=True)
-    # x_covar: (num_groups, channels_per_group, channels_per_group)
-    x_covar = torch.matmul(x.transpose(1, 2), x)
-    x_covar_mean_diag = _diag(x_covar).mean()
-    # the following expression is what we'd get if we took the matrix product
-    # of each covariance and measured the mean of its trace, i.e.
-    # the same as _diag(torch.matmul(x_covar, x_covar)).mean().
-    x_covarsq_mean_diag = (x_covar**2).sum() / (num_groups * channels_per_group)
-    # this metric will be >= 1.0; the larger it is, the less 'white' the data was.
-    metric = x_covarsq_mean_diag / (x_covar_mean_diag**2 + 1.0e-20)
-    return metric
-
-
-
-
-class WithLoss(torch.autograd.Function):
-    @staticmethod
-    def forward(ctx, x: Tensor, y: Tensor, name: str):
-        ctx.y_shape = y.shape
-        ctx.dtype = y.dtype
-        if random.random() < 0.002 and name is not None:
-            loss_sum = y.sum().item()
-            logging.info(f"WithLoss: name={name}, loss-sum={loss_sum:.3e}")
-        return x
-
-    @staticmethod
-    def backward(ctx, ans_grad: Tensor):
-        return (
-            ans_grad,
-            torch.ones(ctx.y_shape, dtype=ctx.dtype, device=ans_grad.device),
-            None,
-        )
-
-
-def with_loss(x, y, name=None):
-    # returns x but adds y.sum() to the loss function.
-    return WithLoss.apply(x, y, name)
-
-
-class ScaleGradFunction(torch.autograd.Function):
-    @staticmethod
-    def forward(ctx, x: Tensor, alpha: float) -> Tensor:
-        ctx.alpha = alpha
-        return x
-
-    @staticmethod
-    def backward(ctx, grad: Tensor):
-        return grad * ctx.alpha, None
-
-
-def scale_grad(x: Tensor, alpha: float):
-    return ScaleGradFunction.apply(x, alpha)
-
-
-class ScaleGrad(nn.Module):
-    def __init__(self, alpha: float):
-        super().__init__()
-        self.alpha = alpha
-
-    def forward(self, x: Tensor) -> Tensor:
-        if torch.jit.is_scripting() or torch.jit.is_tracing() or not self.training:
-            return x
-        return scale_grad(x, self.alpha)
-
-
-class LimitParamValue(torch.autograd.Function):
-    @staticmethod
-    def forward(ctx, x: Tensor, min: float, max: float):
-        ctx.save_for_backward(x)
-        assert max >= min
-        ctx.min = min
-        ctx.max = max
-        return x
-
-    @staticmethod
-    def backward(ctx, x_grad: Tensor):
-        (x,) = ctx.saved_tensors
-        # where x < ctx.min, ensure all grads are negative (this will tend to make
-        # x more positive).
-        x_grad = x_grad * torch.where(
-            torch.logical_and(x_grad > 0, x < ctx.min), -1.0, 1.0
-        )
-        # where x > ctx.max, ensure all grads are positive (this will tend to make
-        # x more negative).
-        x_grad *= torch.where(torch.logical_and(x_grad < 0, x > ctx.max), -1.0, 1.0)
-        return x_grad, None, None
-
-
-def limit_param_value(
-    x: Tensor, min: float, max: float, prob: float = 0.6, training: bool = True
-):
-    # You apply this to (typically) an nn.Parameter during training to ensure that its
-    # (elements mostly) stays within a supplied range.  This is done by modifying the
-    # gradients in backprop.
-    # It's not necessary to do this on every batch: do it only some of the time,
-    # to save a little time.
-    if training and random.random() < prob:
-        return LimitParamValue.apply(x, min, max)
-    else:
-        return x
-
-
 def _no_op(x: Tensor) -> Tensor:
     if torch.jit.is_scripting() or torch.jit.is_tracing():
         return x
@@ -998,8 +727,6 @@ class Identity(torch.nn.Module):
 
     def forward(self, x):
         return _no_op(x)
-
-
 
 
 
@@ -1162,16 +889,6 @@ class ActivationAndLinear(torch.nn.Module):
         )
 
 
-def convert_num_channels(x: Tensor, num_channels: int) -> Tensor:
-    if num_channels <= x.shape[-1]:
-        return x[..., :num_channels]
-    else:
-        shape = list(x.shape)
-        shape[-1] = num_channels - shape[-1]
-        zeros = torch.zeros(shape, dtype=x.dtype, device=x.device)
-        return torch.cat((x, zeros), dim=-1)
-
-
 
 def _test_swashl_deriv():
     x = torch.randn(10, 12, dtype=torch.double) * 3.0
@@ -1199,18 +916,6 @@ def _test_swashr_deriv():
     x = torch.randn(1000, 1000, dtype=torch.double) * 3.0
     x.requires_grad = True
     y = m(x)
-
-
-def _test_softmax():
-    a = torch.randn(2, 10, dtype=torch.float64)
-    b = a.clone()
-    a.requires_grad = True
-    b.requires_grad = True
-    a.softmax(dim=1)[:, 0].sum().backward()
-    print("a grad = ", a.grad)
-    softmax(b, dim=1)[:, 0].sum().backward()
-    print("b grad = ", b.grad)
-    assert torch.allclose(a.grad, b.grad)
 
 
 def _test_activation_and_linear():
@@ -1288,7 +993,6 @@ if __name__ == "__main__":
     logging.getLogger().setLevel(logging.INFO)
     torch.set_num_threads(1)
     torch.set_num_interop_threads(1)
-    _test_softmax()
     _test_swashr_deriv()
     _test_swashl_deriv()
     _test_activation_and_linear()

@@ -19,13 +19,13 @@
 
 """
 Usage:
-./zipformer/streaming_decode.py \
+./zapformer/streaming_decode.py \
   --epoch 28 \
   --avg 15 \
   --causal 1 \
   --chunk-size 32 \
   --left-context-frames 256 \
-  --exp-dir ./zipformer/exp \
+  --exp-dir ./zapformer/exp \
   --decoding-method greedy_search \
   --num-decode-streams 2000
 """
@@ -126,7 +126,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="zipformer/exp",
+        default="zapformer/exp",
         help="The experiment dir",
     )
 
@@ -247,14 +247,14 @@ def get_init_states(
 
 
 def stack_states(state_list: List[List[torch.Tensor]]) -> List[torch.Tensor]:
-    """Stack list of zipformer states that correspond to separate utterances
+    """Stack list of zapformer states that correspond to separate utterances
     into a single emformer state, so that it can be used as an input for
-    zipformer when those utterances are formed into a batch.
+    zapformer when those utterances are formed into a batch.
 
     Args:
       state_list:
         Each element in state_list corresponding to the internal state
-        of the zipformer model for a single utterance. For element-n,
+        of the zapformer model for a single utterance. For element-n,
         state_list[n] is a list of cached tensors of all encoder layers. For layer-i,
         state_list[n][i*5:(i+1)*5] is (cached_key, cached_value, cached_conv,
         cached_norm_stats, cached_norm_len).
@@ -313,7 +313,7 @@ def stack_states(state_list: List[List[torch.Tensor]]) -> List[torch.Tensor]:
 
 
 def unstack_states(batch_states: List[Tensor]) -> List[List[Tensor]]:
-    """Unstack the zipformer state corresponding to a batch of utterances
+    """Unstack the zapformer state corresponding to a batch of utterances
     into a list of states, where the i-th entry is the state from the i-th
     utterance in the batch.
 
@@ -322,7 +322,7 @@ def unstack_states(batch_states: List[Tensor]) -> List[List[Tensor]]:
 
     Returns:
         state_list: A list of list. Each element in state_list corresponding to the internal state
-        of the zipformer model for a single utterance.
+        of the zapformer model for a single utterance.
     """
     assert (len(batch_states) - 2) % 5 == 0, len(batch_states)
     tot_num_layers = (len(batch_states) - 2) // 5

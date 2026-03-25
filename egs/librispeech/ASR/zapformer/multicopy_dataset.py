@@ -13,21 +13,10 @@ from lhotse.workarounds import Hdf5MemoryIssueFix
 class MulticopyDataset(torch.utils.data.Dataset):
     """
     This is slightly modified from lhotse's K2SpeechRecognitionDataset, but
-    modified as suggested by Piotr in this github thread:
+    to support multiple parallel copies of the data, with augmentation applied
+    differently.
+    It uses ideas from Piotr in this thread:
     https://github.com/k2-fsa/icefall/pull/1975
-
-    If cut_transforms is specified, which will normally be the case for training
-    data, where you might specify Musan augmentation, it returns two copies of
-    the data that differ only in the augmentations, followed by a third unmodified
-    copy.   The structure of the data would be [ a b c d a b c d a b c d ], i.e.
-    the order is: first copy of all buts, second copy of all cuts, unmodified
-    copy of all cuts.
-    If cut_transforms is not specified, this dataset behaves like lhotse's regular
-    K2SpeechRecognitionDataset.
-    The yielded dict will have an extra key called "num_copies", set to 3 if
-    we did the 2 augmentation copies plus one original copy, or 1 if there
-    were no augmentations.
-
 
     This dataset expects to be queried with lists of cut IDs,
     for which it loads features and automatically collates/batches them.
@@ -75,6 +64,7 @@ class MulticopyDataset(torch.utils.data.Dataset):
     def __init__(
         self,
         return_cuts: bool = False,
+        num_copies: int = 1,
         cut_transforms: List[Callable[[CutSet], CutSet]] = None,
         input_transforms: List[Callable[[torch.Tensor], torch.Tensor]] = None,
         input_strategy: BatchIO = PrecomputedFeatures(),
@@ -99,6 +89,7 @@ class MulticopyDataset(torch.utils.data.Dataset):
         self.cut_transforms = ifnone(cut_transforms, [])
         self.input_transforms = ifnone(input_transforms, [])
         self.input_strategy = input_strategy
+        self.num_copies = num_copies
 
         # This attribute is a workaround to constantly growing HDF5 memory
         # throughout the epoch. It regularly closes open file handles to
@@ -117,19 +108,7 @@ class MulticopyDataset(torch.utils.data.Dataset):
         # Sort the cuts by duration so that the first one determines the batch time dimensions.
         cuts = cuts.sort_by_duration(ascending=False)
 
-        if self.cut_transforms:
-            orig_cuts = cuts
-
-            cuts = cuts.repeat(times=4)
-
-            for tnfm in self.cut_transforms:
-                cuts = tnfm(cuts)
-
-            #cuts = orig_cuts + cuts
-            num_copies = 4
-        else:
-            num_copies = 1
-
+        cuts = cuts.repeat(times=self.num_copies)
 
         # Get a tensor with batched feature matrices, shape (B, T, F)
         # Collation performs auto-padding, if necessary.
@@ -155,7 +134,7 @@ class MulticopyDataset(torch.utils.data.Dataset):
 
         batch = {
             "inputs": inputs,
-            "num_copies": num_copies,
+            "num_copies": self.num_copies,
             "supervisions": default_collate(
                 [
                     {
