@@ -21,7 +21,7 @@ import warnings
 from typing import Tuple, Optional
 
 import torch
-from zipformer_modules import (
+from zapformer_modules import (
     ScaledLinear,
     SwashL,
     SwashR,

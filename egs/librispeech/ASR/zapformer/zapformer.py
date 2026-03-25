@@ -27,7 +27,7 @@ import torch
 from encoder_interface import EncoderInterface
 from zapformer_modules import (
     ActivationAndLinear,
-    CausalSequeneNorm,
+    CausalSequenceNorm,
     CorrelationLimiter,
     Identity,  # more friendly to backward hooks than nn.Identity(), for diagnostic reasons.
     OrthogonalLinear,
@@ -1385,7 +1385,7 @@ class RelPosScores(nn.Module):
                 at low frequency.
         """
         super().__init__()
-        self.weight = nn.Parameter(0.04 * torch.randn(num_heads, pos_dim, 2 * num_freqs))
+        self.weight = nn.Parameter(0.04 * torch.randn(num_heads, pos_head_dim, 2 * num_freqs))
         with torch.no_grad():
             # initialize the weight in a low-pass way.  I think this is not so critical
             # actually, it may not matter.
@@ -1401,7 +1401,7 @@ class RelPosScores(nn.Module):
         """
         Compute and return unnormalized log scores for relative position.
         Args:
-           p: these are the position-queries, of shape (batch_size, num_heads, seq_len, pos_dim)
+           p: these are the position-queries, of shape (batch_size, num_heads, seq_len, pos_head_dim)
               (they are obtained via projection, just like the queries).
             left_context_len: length of left context, must be 0 for non-streaming forward and > 0 for streaming forward.
         Returns:
@@ -1410,7 +1410,7 @@ class RelPosScores(nn.Module):
          In non-streaming forward, dest_seq_len and src_seq_len are numerically equal to seq_len;
          in streaming forward, dest_seq_len is seq_len and src_seq_len is seq_len + left_context_len.
         """
-        (batch_size, num_heads, seq_len, pos_dim) = p.shape
+        (batch_size, num_heads, seq_len, pos_head_dim) = p.shape
 
         freqs = self.freqs # base freqs
         t = torch.arange(-(seq_len + left_context_len - 1), seq_len, device=p.device)
@@ -1422,10 +1422,10 @@ class RelPosScores(nn.Module):
         basis = basis.reshape(basis.shape[0], -1) # (2 * seq_len + left_context_len - 1, 2 * num_freqs)
 
         x = torch.matmul(self.weight, basis.t())
-        assert x.shape == (num_heads, pos_dim, 2 * seq_len + left_context_len - 1)
+        assert x.shape == (num_heads, pos_head_dim, 2 * seq_len + left_context_len - 1)
 
         # with seq_len2 = 2 * seq_len + left_context_len - 1,
-        # (batch, head, seq_len, pos_dim) x (1, head, pos_dim, seq_len2) -> (batch, head, seq_len, seq_len2)
+        # (batch, head, seq_len, pos_head_dim) x (1, head, pos_head_dim, seq_len2) -> (batch, head, seq_len, seq_len2)
         pos_weights = torch.matmul(p, x)
 
         # the following .as_strided() expression converts the last axis of pos_weights from relative

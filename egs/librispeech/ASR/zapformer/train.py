@@ -61,7 +61,6 @@ from shutil import copyfile
 from typing import Any, Dict, Optional, Tuple, Union
 
 import k2
-import optim
 import sentencepiece as spm
 import torch
 import torch.multiprocessing as mp
@@ -916,12 +915,12 @@ def augmentation(
                 feature_lens=feature_lens,
             )
 
-    # note: ExpAugment() does *somewhat* assume that x consists of two copies of
+    # note: AlternatingSpecAugment() does *somewhat* assume that x consists of two copies of
     # the same data, but practically speaking the only important use this is put
     # to is that it chooses non-overlapping frequency regions to mask.  it also
     # chooses non-overlapping time regions to mask, but this is not so important
     # since the time warping (if used) was done independently on the two copies.
-    spec_augment = ExpAugment()
+    spec_augment = AlternatingSpecAugment()
     features = spec_augment(features)
 
     return features
