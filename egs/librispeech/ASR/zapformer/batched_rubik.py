@@ -279,11 +279,13 @@ def cubic_decay_step(group, state, grad):
 
 def scaling_step(group, param, state, grad):
     lr = group["lr"]
-    wd = group["wd"]
 
     momentum = 0.95
     is_weight = grad.ndim >= 3
     min_scale, max_scale = group["weight_scale_limits"] if is_weight else group["bias_scale_limits"]
+    # the "scale" is implicitly a scalar, even though it is learned in log space; apply scalar_scale to its
+    # learning rate.
+    scalar_scale = group["scalar_scale"]
 
     if grad.ndim >= 3 and grad.numel() != grad.shape[0] * max(grad.shape[1:]):
         delta = cubic_decay_step(group, state, grad)
@@ -307,13 +309,13 @@ def scaling_step(group, param, state, grad):
     scale_grad_buf.mul_(momentum).add_(scale_grad)
 
     old_scale = scale.clone()
-    scale.add_(scale_grad_buf.sign() * old_scale, alpha=-lr)
+    scale.add_(scale_grad_buf.sign() * old_scale, alpha=-lr * scalar_scale)
 
     scale.clamp_(min=min_scale, max=max_scale)
 
     scale_ratio = scale / old_scale
 
-    delta_scale = (scale_ratio * (1 - (lr * wd) ** 2)) - 1
+    delta_scale = (scale_ratio * (1 - lr ** 2)) - 1
     return param * delta_scale  +  scale * delta
 
 
@@ -379,15 +381,15 @@ class BatchedRubik(BatchedOptimizer):
     def __init__(
         self,
         params,
-        lr=1e-03,
+        lr=1.2e-02,
         beta1=0.995,
         direct=0.15, # scale on bypass of momentum (beta1)
         cubic_decay_proportion=0.8,
         beta2=0.98,
-        wd=12,
         eps=1.0e-16,
-        weight_scale_limits=(1.0, 4.0),
-        bias_scale_limits=(4.0, 16.0),
+        weight_scale_limits=(0.05, 0.25),
+        bias_scale_limits=(0.2, 1.0),
+        scalar_scale=0.075,
     ):
 
         defaults = dict(
@@ -397,9 +399,9 @@ class BatchedRubik(BatchedOptimizer):
             cubic_decay_proportion=cubic_decay_proportion,
             beta2=beta2,
             eps=eps,
-            wd=wd,
             weight_scale_limits=weight_scale_limits,
             bias_scale_limits=bias_scale_limits,
+            scalar_scale=scalar_scale,
         )
 
         param_groups, parameters_names = self._get_names_of_parameters(params)
@@ -547,7 +549,10 @@ class BatchedRubik(BatchedOptimizer):
                         cur_step = 0
 
                     if p.numel() == p.shape[0]:
-                        p += adam_step(group, state, grad)
+                        # "scalar_scale" the assumed parameter scale used for
+                        # scalars, in this case it just acts as a multiplier on
+                        # the learning rate.
+                        p += group["scalar_scale"] * adam_step(group, state, grad)
                     else:
                         p += scaling_step(group, p.detach(), state, grad)
 
@@ -597,11 +602,11 @@ def _test_batched_rubik(hidden_dim: int):
             for _ in range(20)
         ]
 
-        lr = 0.001
+        lr = 0.015
         # the very large beta1 and zero "direct" value is specifically for this test task, which approaches the
         # optimum parameters very exactly.  Normally you want something more like the
         # defaults of beta1=0.995 and direct=0.15
-        optim = BatchedRubik(m.named_parameters(), lr=lr, direct=0.0, beta1=0.999)
+        optim = BatchedRubik(m.parameters(), lr=lr, direct=0.0, beta1=0.999)
 
         num_epochs = 180
 
@@ -665,116 +670,6 @@ def _test_batched_rubik(hidden_dim: int):
         logging.info(f"input_magnitudes = {input_magnitudes}")
         logging.info(f"output_magnitudes = {output_magnitudes}")
 
-
-def _test_muon(hidden_dim: int):
-    import timeit
-
-    from muon import Muon
-
-    E = 100
-    B = 4
-    T = 2
-    logging.info("in test_muon")
-    # device = torch.device('cuda')
-    device = torch.device("cpu")
-    dtype = torch.float32
-
-    fix_random_seed(42)
-    # these input_magnitudes and output_magnitudes are to test that
-    # Abel is working as we expect and is able to adjust scales of
-    # different dims differently.
-    input_magnitudes = (1.0 * torch.randn(E, dtype=dtype, device=device)).exp()
-    output_magnitudes = (1.0 * torch.randn(E, dtype=dtype, device=device)).exp()
-
-    if True:
-        fix_random_seed(42)
-        Linear = torch.nn.Linear
-
-        m = torch.nn.Sequential(
-            Linear(E, hidden_dim),
-            torch.nn.PReLU(),
-            Linear(hidden_dim, hidden_dim),
-            torch.nn.PReLU(),
-            Linear(hidden_dim, E),
-        ).to(device)
-
-        train_pairs = [
-            (
-                100.0
-                * torch.randn(B, T, E, device=device, dtype=dtype)
-                * input_magnitudes,
-                torch.randn(B, T, E, device=device, dtype=dtype) * output_magnitudes,
-            )
-            for _ in range(20)
-        ]
-
-        optim = Muon(m.parameters(),
-                     lr=0.5e-03,
-                     wd=12.0)
-
-        num_epochs = 180
-        # hardcode batches per epoch for now.
-        total_steps = num_epochs
-        constant_fraction = 0.25
-
-        def lr_lambda(current_step):
-            progress = current_step / total_steps
-            if progress < constant_fraction:
-                return 1.0
-            else:
-                return (1.0 - progress) / (1.0 - constant_fraction)
-
-        scheduler = LambdaLR(optim, lr_lambda)
-
-        start = timeit.default_timer()
-        avg_loss = 0.0
-        for epoch in range(num_epochs):
-            scheduler.step()
-
-            # if epoch == 100 and test in [2,3]:
-            #    optim.reset_speedup()  # check it doesn't crash.
-
-            # if epoch == 130:
-            #    opts = diagnostics.TensorDiagnosticOptions(
-            #        512
-            #    )  # allow 4 megabytes per sub-module
-            #    diagnostic = diagnostics.attach_diagnostics(m, opts)
-
-            for n, (x, y) in enumerate(train_pairs):
-                y_out = m(x)
-                loss = ((y_out - y) ** 2).mean() * 100.0
-                if epoch == 0 and n == 0:
-                    avg_loss = loss.item()
-                else:
-                    avg_loss = 0.98 * avg_loss + 0.02 * loss.item()
-                if n == 0 and epoch % 5 == 0:
-                    norm1 = '%.2e' % (m[0].weight**2).mean().sqrt().item()
-                    norm2 = '%.2e' % (m[1].weight**2).mean().sqrt().item()
-                    norm3 = '%.2e' % (m[3].weight**2).mean().sqrt().item()
-                    norm4 = '%.2e' % (m[5].weight**2).mean().sqrt().item()
-
-                    bias_norm1 = '%.2e' % (m[0].bias**2).mean().sqrt().item()
-                    bias_norm2 = '%.2e' % (m[3].bias**2).mean().sqrt().item()
-                    bias_norm3 = '%.2e' % (m[5].bias**2).mean().sqrt().item()
-
-                    lr = scheduler.get_last_lr()[0]
-                    logging.info(
-                        f"Test muon, epoch {epoch}, batch {n}, avg_loss {avg_loss:.4g}, lr={lr:.4e}, norms={norm1,norm2,norm3,norm4}, bias_norms={bias_norm1,bias_norm2,bias_norm3}"
-                    )
-                loss.log().backward()
-                optim.step()
-                optim.zero_grad()
-
-        # diagnostic.print_diagnostics()
-
-        stop = timeit.default_timer()
-        logging.info(f"Muon: time taken: {stop - start}")
-
-        logging.info(f"last lr = {scheduler.get_last_lr()}")
-        # logging.info("state dict = ", scheduler.state_dict())
-        # logging.info("optim state_dict = ", optim.state_dict())
-        logging.info(f"input_magnitudes = {input_magnitudes}")
-        logging.info(f"output_magnitudes = {output_magnitudes}")
 
 
 def _test_compute_scaled_prod3():

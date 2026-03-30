@@ -174,11 +174,14 @@ def cubic_decay_step(group, state, grad):
 
 def scaling_step(group, param, state, grad):
     lr = group["lr"]
-    wd = group["wd"]
 
     momentum = 0.95
     is_weight = grad.ndim >= 2
     min_scale, max_scale = group["weight_scale_limits"] if is_weight else group["bias_scale_limits"]
+    # the "scale" is implicitly a scalar, even though it is learned in log space; apply scalar_scale to its
+    # learning rate.
+    scalar_scale = group["scalar_scale"]
+
 
     if grad.ndim >= 2 and grad.numel() != max(grad.shape):
         delta = cubic_decay_step(group, state, grad)
@@ -201,12 +204,12 @@ def scaling_step(group, param, state, grad):
 
     old_scale = scale.clone()
 
-    scale.add_(scale_grad_buf.sign() * old_scale, alpha=-lr)
+    scale.add_(scale_grad_buf.sign() * old_scale, alpha=-lr * scalar_scale)
     scale.clamp_(min=min_scale, max=max_scale)
 
     scale_ratio = scale / old_scale
 
-    delta_scale = (scale_ratio * (1 - (lr * wd) ** 2)) - 1
+    delta_scale = (scale_ratio * (1 - (lr ** 2))) - 1
     return param * delta_scale  +  scale * delta
 
 
@@ -261,15 +264,15 @@ class Rubik(Optimizer):
     def __init__(
         self,
         params,
-        lr=1e-03,
+        lr=1.2e-02,
         beta1=0.995,
         direct=0.15, # scale on bypass of momentum (beta1)
         cubic_decay_proportion=0.8,
         beta2=0.98,
-        wd=12,
         eps=1.0e-16,
-        weight_scale_limits=(1.0, 4.0),
-        bias_scale_limits=(4.0, 16.0),
+        weight_scale_limits=(0.05, 0.25),
+        bias_scale_limits=(0.2, 1.0),
+        scalar_scale=0.075,
     ):
         defaults = dict(
             lr=lr,
@@ -278,9 +281,9 @@ class Rubik(Optimizer):
             cubic_decay_proportion=cubic_decay_proportion,
             beta2=beta2,
             eps=eps,
-            wd=wd,
             weight_scale_limits=weight_scale_limits,
             bias_scale_limits=bias_scale_limits,
+            scalar_scale=scalar_scale,
         )
         super().__init__(params, defaults)
 
@@ -319,7 +322,10 @@ class Rubik(Optimizer):
                     return x.unsqueeze(0)
 
                 if p.numel() == 1:
-                    p += adam_step(group, state, grad)
+                    # "scalar_scale" the assumed parameter scale used for
+                    # scalars, in this case it just acts as a multiplier on
+                    # the learning rate.
+                    p += group["scalar_scale"] * adam_step(group, state, grad)
                 else:
                     p += scaling_step(group, u(p.detach()), state, u(grad))[0]
 
@@ -368,7 +374,7 @@ def _test_rubik(hidden_dim: int):
             for _ in range(20)
         ]
 
-        lr = 0.001
+        lr = 0.015
         # the very large beta1 and zero "direct" value is specifically for this test task, which approaches the
         # optimum parameters very exactly.  Normally you want something more like the
         # defaults of beta1=0.995 and direct=0.15
