@@ -1378,7 +1378,6 @@ def run(rank, world_size, args):
         lr=params.base_lr,
         direct=0.15,
         cubic_decay_proportion=0.8,
-        wd=18,
         beta1=0.995,
     )
 
