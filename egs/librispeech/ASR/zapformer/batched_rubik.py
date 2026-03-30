@@ -297,9 +297,8 @@ def scaling_step(group, param, state, grad):
         scale = state["scale"]
         scale_grad_buf = state["scale_grad_buffer"]
     except:
-        shape = [ param.shape[0] ] + [1] * (param.ndim - 1)
-        scale = min_scale * torch.ones(*shape, device=grad.device)  # initialize scale to min_scale
-        scale_grad_buf = torch.zeros(*shape, device=grad.device)
+        scale = (param ** 2).mean(dim=list(range(1, param.ndim)), keepdim=True).sqrt().clamp(min=min_scale, max=max_scale).to(torch.float)
+        scale_grad_buf = torch.zeros_like(scale)
         state["scale"] = scale
         state["scale_grad_buffer"] = scale_grad_buf
 
