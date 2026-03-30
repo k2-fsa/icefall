@@ -1380,7 +1380,6 @@ def run(rank, world_size, args):
         cubic_decay_proportion=0.8,
         wd=18,
         beta1=0.995,
-        scale_limits=(1.0, 4.0),
     )
 
     # hardcode batches per epoch for now.

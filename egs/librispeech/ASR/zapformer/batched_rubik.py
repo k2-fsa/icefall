@@ -180,8 +180,6 @@ def cubic_decay_step(group, state, grad):
     cubic_decay_proportion = group["cubic_decay_proportion"]
     linear_decay_proportion = 1.  - cubic_decay_proportion
 
-    min_scale, max_scale = group["scale_limits"]
-
     try:
         stored_delta = state["delta"]
     except KeyError as e:
@@ -283,6 +281,10 @@ def scaling_step(group, param, state, grad):
     lr = group["lr"]
     wd = group["wd"]
 
+    momentum = 0.95
+    is_weight = grad.ndim >= 3
+    min_scale, max_scale = group["weight_scale_limits"] if is_weight else group["bias_scale_limits"]
+
     if grad.ndim >= 3 and grad.numel() != grad.shape[0] * max(grad.shape[1:]):
         delta = cubic_decay_step(group, state, grad)
     else:
@@ -294,13 +296,10 @@ def scaling_step(group, param, state, grad):
         scale_grad_buf = state["scale_grad_buffer"]
     except:
         shape = [ param.shape[0] ] + [1] * (param.ndim - 1)
-        scale = torch.ones(*shape, device=grad.device)
+        scale = min_scale * torch.ones(*shape, device=grad.device)  # initialize scale to min_scale
         scale_grad_buf = torch.zeros(*shape, device=grad.device)
         state["scale"] = scale
         state["scale_grad_buffer"] = scale_grad_buf
-
-    momentum = 0.95
-    min_scale, max_scale = group["scale_limits"]
 
     dims = list(range(1, param.ndim))
 
@@ -308,8 +307,8 @@ def scaling_step(group, param, state, grad):
     scale_grad_buf.mul_(momentum).add_(scale_grad)
 
     old_scale = scale.clone()
+    scale.add_(scale_grad_buf.sign() * old_scale, alpha=-lr)
 
-    scale.add_(scale_grad_buf.sign(), alpha=-lr)
     scale.clamp_(min=min_scale, max=max_scale)
 
     scale_ratio = scale / old_scale
@@ -387,7 +386,8 @@ class BatchedRubik(BatchedOptimizer):
         beta2=0.98,
         wd=12,
         eps=1.0e-16,
-        scale_limits=(1.0, 4.0),
+        weight_scale_limits=(1.0, 4.0),
+        bias_scale_limits=(4.0, 16.0),
     ):
 
         defaults = dict(
@@ -398,7 +398,8 @@ class BatchedRubik(BatchedOptimizer):
             beta2=beta2,
             eps=eps,
             wd=wd,
-            scale_limits=scale_limits,
+            weight_scale_limits=weight_scale_limits,
+            bias_scale_limits=bias_scale_limits,
         )
 
         param_groups, parameters_names = self._get_names_of_parameters(params)
