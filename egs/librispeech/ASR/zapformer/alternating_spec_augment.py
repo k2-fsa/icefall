@@ -12,9 +12,9 @@ class AlternatingSpecAugment(torch.nn.Module):
     from lhotse which is the same as the original SpecAugment).
 
     The main difference is in how it selects the regions to be masked, they are selected
-    for pairs of sequences in such a way that there tends to be a good amount of spacing between
-    masked regions; the masked regions never overlap and will never be extremely close to
-    each other.  We also use a relatively large masked-fraction
+    in a way that usually ensures there is a good amount of space between successive masks.
+    We also use a relatively large temporal masked-fraction (max_frame_mask_fraction)
+    and have the number of masks be selected proportional to the utterance length.
     """
     def __init__(
         self,
@@ -158,12 +158,11 @@ class AlternatingSpecAugment(torch.nn.Module):
 
 
     def _sample_mask_starts_and_ends(self, batch_size, seq_len, num_masks, max_mask_fraction, device) -> Tuple[Tuple,Tuple]:
-        # compute the start and end positions of masked regions.  this will select mask positions
-        # that do not overlap.  Return: (mask_starts, mask_ends).
-
-        # we sample the masks for pairs of sequences.
-        B = (batch_size + 1) // 2
-        # M is the number of masks we sample for each pair of sequences.
+        # we imagine there are "pairs of sequences" for historical reasons but one of each pair is not
+        # a real sequence.
+        B = batch_size
+        # M is the number of masks we sample for each "pair of sequences." (i.e. for each sequence and its
+        # imaginary twin)
         M = 2 * num_masks
 
         # "rlength" means relative length of each mask, i.e. relative to seq_len.  the
@@ -212,17 +211,12 @@ class AlternatingSpecAugment(torch.nn.Module):
         assert mask_starts.shape == (B, M) and mask_ends.shape == (B, M)
 
 
-        # letting A,B be randomly 0 or 1 avoids any overall bias towards the start or end of the
-        # sequence in case the batch size is odd.
-        A = random.randint(0, 1)
-        B = (A + 1) % 2
-        mask_starts1 = mask_starts[:, A::2]
-        mask_ends1 = mask_ends[:, A::2]
-        mask_starts2 = mask_starts[:, B::2]
-        mask_ends2 = mask_ends[:, B::2]
-
-        mask_starts = torch.cat((mask_starts1, mask_starts2), dim=0)[:batch_size]
-        mask_ends = torch.cat((mask_ends1, mask_ends2), dim=0)[:batch_size]
+        # letting the start-position when we take alternating positions be
+        # randomly 0 or 1 avoids any overall bias towards the start or end of
+        # the sequence.
+        index = torch.randint(0, 2, (B,), device=device).unsqueeze(-1) + torch.arange(0, M, step=2, device=device)
+        mask_starts = torch.gather(mask_starts, dim=1, index=index)
+        mask_ends = torch.gather(mask_ends, dim=1, index=index)
 
         return mask_starts, mask_ends
 
