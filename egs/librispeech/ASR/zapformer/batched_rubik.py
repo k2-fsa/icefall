@@ -387,7 +387,7 @@ class BatchedRubik(BatchedOptimizer):
         beta2=0.98,
         eps=1.0e-16,
         weight_scale_limits=(0.05, 0.25),
-        bias_scale_limits=(0.2, 1.0),
+        bias_scale_limits=(0.1, 0.5),
         scalar_scale=0.075,
     ):
 
