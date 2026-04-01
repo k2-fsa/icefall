@@ -275,8 +275,11 @@ def _test_alternating_spec_augment():
 
         frame_is_masked = features[:, :, 0] == features[:, :, -1]
         print("mean frame_is_masked = ", frame_is_masked.to(torch.float).mean())
+
+        print("mean frame_is_masked[per-frame][::10] = ", frame_is_masked.to(torch.float).mean(dim=0)[::10])
         feature_is_masked = features[:, 0] == features[:, -1]
         print("mean feature_is_masked = ", feature_is_masked.to(torch.float).mean())
+        print("mean feature_is_masked[per-freq] = ", feature_is_masked.to(torch.float).mean(dim=0))
 
 
 
