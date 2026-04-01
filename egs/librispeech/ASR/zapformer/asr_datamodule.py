@@ -115,7 +115,7 @@ class AsrDataModule:
         )
         group.add_argument(
             "--max-duration",
-            type=int,
+            type=float,
             default=800.0,
             help="Maximum pooled recordings duration (seconds) in a "
             "single batch, including the --num-copies argument, so if --num-copies "
@@ -212,7 +212,7 @@ class AsrDataModule:
 
         group.add_argument(
             "--num-copies",
-            type=str,
+            type=int,
             default=4,
             help="The number of copies of each training example selected in each batch (they will be augmented "
             "differently).  If you make num-copies larger there will be more steps per epoch so you should probably make  "
