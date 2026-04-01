@@ -543,6 +543,7 @@ class ZapformerEncoderLayer(nn.Module):
             query_head_dim=query_head_dim,
             value_head_dim=value_head_dim,
             pos_head_dim=pos_head_dim,
+            causal=causal,
         )
 
         feedforward_dim = embed_dim * feedforward_multiple
@@ -897,8 +898,9 @@ class MultiheadRelPosGatedSelfAttention(nn.Module):
         embed_dim: int,
         num_heads: int,
         query_head_dim: int,
-        pos_head_dim: int = 4,
-        value_head_dim: int = 12,
+        pos_head_dim: int ,
+        value_head_dim: int,
+        causal: bool,
     ) -> None:
         super().__init__()
         self.embed_dim = embed_dim
@@ -937,6 +939,8 @@ class MultiheadRelPosGatedSelfAttention(nn.Module):
         self.out_proj = ScaledLinear(
             num_heads * value_head_dim, embed_dim, bias=True, initial_scale=0.5
         )
+
+        self.weighted_mean = WeightedMean(num_heads * value_head_dim, causal) # TODO: fix causal option
 
     def forward(
         self,
@@ -1035,6 +1039,11 @@ class MultiheadRelPosGatedSelfAttention(nn.Module):
 
 
         v, g = self.vg_in_proj(x_vg).chunk(2, dim=-1)
+
+        # v, g: (seq_len, batch_size, num_heads * value_head_dim)
+
+        wm = self.weighted_mean(v, key_padding_mask)
+
         v = v.reshape(seq_len, batch_size, num_heads, -1).permute(2, 1, 0, 3)
         v = self.copy_v(v)
         value_head_dim = v.shape[-1]
@@ -1055,6 +1064,7 @@ class MultiheadRelPosGatedSelfAttention(nn.Module):
             g = penalize_abs_values_gt(g, 2, penalty=0.02*aux_loss_scale)
 
         # returned value is of shape (seq_len, batch_size, embed_dim), like the input.
+        v = v + wm
         v = v * self.sigmoid(g)
         v = self.out_proj(v)
         return v
