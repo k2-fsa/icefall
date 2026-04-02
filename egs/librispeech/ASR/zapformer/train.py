@@ -181,7 +181,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--num-encoder-layers",
         type=str,
-        default="6,8,14,8",
+        default="6,8,12,8",
         help="Number of zapformer encoder layers per stack, comma separated.",
     )
 
@@ -237,7 +237,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--value-head-dim",
         type=str,
-        default="64",
+        default="96",
         help="Value dimension per head in encoder stacks: a single int or comma-separated list.",
     )
 
