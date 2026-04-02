@@ -1046,10 +1046,10 @@ class MultiheadRelPosGatedSelfAttention(nn.Module):
             # don't let the sigmoid values get too extreme, limit to -2..2.
             g = penalize_abs_values_gt(g, 2, penalty=0.02*aux_loss_scale)
 
-        wm = self.weighted_mean(v, key_padding_mask)
-
         g_in, g_out = g.chunk(2, dim=-1)
         v = v * self.sigmoid_in(g_in)
+
+        wm = self.weighted_mean(v, key_padding_mask, apply_mask=True)
 
         v = v.reshape(seq_len, batch_size, num_heads, -1).permute(2, 1, 0, 3)
         v = self.copy_v(v)
@@ -1671,7 +1671,8 @@ class WeightedMean(nn.Module):
 
     def forward(self,
                 x: Tensor,
-                src_key_padding_mask: Optional[Tensor] = None) -> Tensor:
+                src_key_padding_mask: Optional[Tensor] = None,
+                apply_mask: bool = True) -> Tensor:
         """
         Compute weighted mean.
           x: (time, batch, channel)
@@ -1688,8 +1689,12 @@ class WeightedMean(nn.Module):
 
         # assume x already masked, if mask is in use.
         if src_key_padding_mask is not None:
-            num_frames = src_key_padding_mask.logical_not().to(torch.float).sum(dim=1)
+            mask = src_key_padding_mask.logical_not().to(torch.float)
+            num_frames = mask.sum(dim=1)
             num_frames = num_frames.unsqueeze(-1).to(torch.float)
+
+            if apply_mask:
+                x = x * mask.t().unsqueeze(-1)
 
             # num_frames: (batch_size, 1)
             return x.mean(dim=0) * (T / num_frames) * self.weights
@@ -1847,7 +1852,9 @@ class ConvolutionModule(nn.Module):
             x = x.masked_fill(src_key_padding_mask.t().unsqueeze(-1).expand_as(x), 0.0)
 
 
-        wm = self.weighted_mean(x, src_key_padding_mask)
+        wm = self.weighted_mean(x,
+                                src_key_padding_mask,
+                                apply_mask=False)  # just applied it.
         if self.causal:
             # Not support exporting a model for simulated streaming decoding
             assert not torch.jit.is_scripting() and not torch.jit.is_tracing()
