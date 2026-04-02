@@ -929,11 +929,12 @@ class MultiheadRelPosGatedSelfAttention(nn.Module):
         self.copy_pos_query = Identity()
 
         # value and gating in_proj.
-        self.vg_in_proj = ScaledLinear(embed_dim, 2 * num_heads * value_head_dim,
+        self.vg_in_proj = ScaledLinear(embed_dim, 3 * num_heads * value_head_dim,
                                        initial_scale=0.1, bias=True)
 
         self.copy_v = nn.Identity()  # diagnostics.
-        self.sigmoid = nn.Sigmoid()
+        self.sigmoid_in = nn.Sigmoid()
+        self.sigmoid_out = nn.Sigmoid()
 
         # out proj for the value times gating.
         self.out_proj = ScaledLinear(
@@ -1037,12 +1038,18 @@ class MultiheadRelPosGatedSelfAttention(nn.Module):
         elif random.random() < 0.001:
             self._print_attn_entropy(attn_weights)
 
-
-        v, g = self.vg_in_proj(x_vg).chunk(2, dim=-1)
-
-        # v, g: (seq_len, batch_size, num_heads * value_head_dim)
+        vg = self.vg_in_proj(x_vg)
+        N = vg.shape[-1] // 3
+        v = vg[..., :N]
+        g = vg[..., N:]
+        if self.training:
+            # don't let the sigmoid values get too extreme, limit to -2..2.
+            g = penalize_abs_values_gt(g, 2, penalty=0.02*aux_loss_scale)
 
         wm = self.weighted_mean(v, key_padding_mask)
+
+        g_in, g_out = g.chunk(2, dim=-1)
+        v = v * self.sigmoid_in(g_in)
 
         v = v.reshape(seq_len, batch_size, num_heads, -1).permute(2, 1, 0, 3)
         v = self.copy_v(v)
@@ -1059,13 +1066,10 @@ class MultiheadRelPosGatedSelfAttention(nn.Module):
             .view(seq_len, batch_size, num_heads * value_head_dim)
         )
 
-        if self.training:
-            # don't let the sigmoid values get too extreme, limit to -2..2.
-            g = penalize_abs_values_gt(g, 2, penalty=0.02*aux_loss_scale)
 
         # returned value is of shape (seq_len, batch_size, embed_dim), like the input.
         v = v + wm
-        v = v * self.sigmoid(g)
+        v = v * self.sigmoid_out(g_out)
         v = self.out_proj(v)
         return v
 
