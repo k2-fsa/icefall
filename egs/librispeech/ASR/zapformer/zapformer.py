@@ -1789,9 +1789,16 @@ class ConvolutionModule(nn.Module):
 
 
         if not causal:
-            self.depthwise_conv = BasisConv(bottleneck_dim,
-                                            num_freqs=kernel_size*2,
-                                            params_per_channel=kernel_size)
+            assert kernel_size % 2 == 1
+            self.depthwise_conv = nn.Conv1d(
+                in_channels=bottleneck_dim,
+                out_channels=bottleneck_dim,
+                groups=bottleneck_dim,
+                kernel_size=kernel_size,
+                padding=kernel_size // 2,
+                bias=False,
+            )
+
         else:
             self.depthwise_conv = nn.Conv1d(
                 in_channels=bottleneck_dim,
@@ -1799,7 +1806,7 @@ class ConvolutionModule(nn.Module):
                 groups=bottleneck_dim,
                 kernel_size=kernel_size,
                 padding=0,  # will pad manually, on one side.
-                bias=True,
+                bias=False,
             )
             self.left_pad = kernel_size - 1
 
@@ -1855,17 +1862,17 @@ class ConvolutionModule(nn.Module):
         wm = self.weighted_mean(x,
                                 src_key_padding_mask,
                                 apply_mask=False)  # just applied it.
+        x = x.permute(1, 2, 0)  # (batch, bottleneck_dim, time)
         if self.causal:
             # Not support exporting a model for simulated streaming decoding
             assert not torch.jit.is_scripting() and not torch.jit.is_tracing()
-            x = x.permute(1, 2, 0)  # (batch, bottleneck_dim, time)
             x_shape = x.shape
             x = torch.nn.functional.pad(x, (self.left_pad, 0))
             x = self.depthwise_conv(x)
             assert x.shape == x_shape, (x.shape, x_shape)
-            x = x.permute(2, 0, 1)  # (time, batch, bottleneck_dim)
         else:
             x = self.depthwise_conv(x)  # x: (time, batch, bottleneck_dim)
+        x = x.permute(2, 0, 1)  # (time, batch, bottleneck_dim)
         x = x + wm  # Add in the weighted-mean to the convolution; this adds extra power
         # because the utterances differ in length.
 
