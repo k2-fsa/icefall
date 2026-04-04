@@ -2,7 +2,27 @@
 # Copyright    2023  Xiaomi Corp.        (authors: Fangjun Kuang)
 
 
+import argparse
 import json
+
+
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--min-torch-version",
+        help="torch version",
+    )
+
+    parser.add_argument(
+        "--torch-version",
+        help="torch version",
+    )
+
+    parser.add_argument(
+        "--python-version",
+        help="python version",
+    )
+    return parser.parse_args()
 
 
 def version_gt(a, b):
@@ -42,27 +62,38 @@ def get_torchaudio_version(torch_version):
         return torch_version
 
 
-def get_matrix():
-    k2_version = "1.24.4.dev20241029"
-    kaldifeat_version = "1.25.5.dev20241029"
-    version = "20241029"
+def get_matrix(min_torch_version, specified_torch_version, specified_python_version):
+    k2_version = "1.24.4.dev20250630"
+    kaldifeat_version = "1.25.5.dev20250630"
+    version = "20250630"
 
     # torchaudio 2.5.0 does not support python 3.13
-    python_version = ["3.8", "3.9", "3.10", "3.11", "3.12"]
+    python_version = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
     torch_version = []
-    #  torch_version += ["1.13.0", "1.13.1"]
-    #  torch_version += ["2.0.0", "2.0.1"]
-    #  torch_version += ["2.1.0", "2.1.1", "2.1.2"]
-    #  torch_version += ["2.2.0", "2.2.1", "2.2.2"]
+    torch_version += ["1.13.0", "1.13.1"]
+    torch_version += ["2.0.0", "2.0.1"]
+    torch_version += ["2.1.0", "2.1.1", "2.1.2"]
+    torch_version += ["2.2.0", "2.2.1", "2.2.2"]
     # Test only torch >= 2.3.0
     torch_version += ["2.3.0", "2.3.1"]
     torch_version += ["2.4.0"]
     torch_version += ["2.4.1"]
     torch_version += ["2.5.0"]
+    torch_version += ["2.5.1"]
+    torch_version += ["2.6.0", "2.7.0", "2.7.1"]
+
+    if specified_torch_version:
+        torch_version = [specified_torch_version]
+
+    if specified_python_version:
+        python_version = [specified_python_version]
 
     matrix = []
     for p in python_version:
         for t in torch_version:
+            if min_torch_version and version_gt(min_torch_version, t):
+                continue
+
             # torchaudio <= 1.13.x supports only python <= 3.10
 
             if version_gt(p, "3.10") and not version_gt(t, "2.0"):
@@ -96,7 +127,12 @@ def get_matrix():
 
 
 def main():
-    matrix = get_matrix()
+    args = get_args()
+    matrix = get_matrix(
+        min_torch_version=args.min_torch_version,
+        specified_torch_version=args.torch_version,
+        specified_python_version=args.python_version,
+    )
     print(json.dumps({"include": matrix}))
 
 

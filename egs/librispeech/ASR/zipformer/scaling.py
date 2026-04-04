@@ -17,9 +17,8 @@
 
 import logging
 import math
-import copy
 import random
-from typing import Optional, Tuple, Union, Any
+from typing import Optional, Tuple, Union
 
 import k2
 import torch
@@ -27,23 +26,7 @@ import torch.nn as nn
 from torch import Tensor
 from torch.cuda.amp import custom_bwd, custom_fwd
 
-
-
-
-class FloatLike:  # TODO: remove.  this is to solve problems with multiple jobs running.
-    pass
-class ScheduledFloat:  # TODO: remove.  this is to solve problems with multiple jobs running.
-    pass
-class SimpleOrthogonalLinear: # TODO: remove.  this is to solve problems with multiple jobs running.
-    pass
-class PiecewiseLinear: # TODO: remove.  this is to solve problems with multiple jobs running.
-    pass
-class CosineSimilarityLoss: # TODO: remove.  this is to solve problems with multiple jobs running.
-    pass
-class PredictLoss: # TODO: remove.  this is to solve problems with multiple jobs running.
-    pass
-get_max_similarity = None  # TODO: remove.  this is to solve problems with multiple jobs running.
-
+from icefall.utils import torch_autocast
 
 
 def logaddexp_onnx(x: Tensor, y: Tensor) -> Tensor:
@@ -77,6 +60,234 @@ def logaddexp(x: Tensor, y: Tensor) -> Tensor:
         return torch.logaddexp(x, y)
 
 
+class PiecewiseLinear(object):
+    """
+    Piecewise linear function, from float to float, specified as nonempty list of (x,y) pairs with
+    the x values in order.  x values <[initial x] or >[final x] are map to [initial y], [final y]
+    respectively.
+    """
+
+    def __init__(self, *args):
+        assert len(args) >= 1, len(args)
+        if len(args) == 1 and isinstance(args[0], PiecewiseLinear):
+            self.pairs = list(args[0].pairs)
+        else:
+            self.pairs = [(float(x), float(y)) for x, y in args]
+        for x, y in self.pairs:
+            assert isinstance(x, (float, int)), type(x)
+            assert isinstance(y, (float, int)), type(y)
+
+        for i in range(len(self.pairs) - 1):
+            assert self.pairs[i + 1][0] > self.pairs[i][0], (
+                i,
+                self.pairs[i],
+                self.pairs[i + 1],
+            )
+
+    def __str__(self):
+        # e.g. 'PiecewiseLinear((0., 10.), (100., 0.))'
+        return f"PiecewiseLinear({str(self.pairs)[1:-1]})"
+
+    def __call__(self, x):
+        if x <= self.pairs[0][0]:
+            return self.pairs[0][1]
+        elif x >= self.pairs[-1][0]:
+            return self.pairs[-1][1]
+        else:
+            cur_x, cur_y = self.pairs[0]
+            for i in range(1, len(self.pairs)):
+                next_x, next_y = self.pairs[i]
+                if x >= cur_x and x <= next_x:
+                    return cur_y + (next_y - cur_y) * (x - cur_x) / (next_x - cur_x)
+                cur_x, cur_y = next_x, next_y
+            assert False
+
+    def __mul__(self, alpha):
+        return PiecewiseLinear(*[(x, y * alpha) for x, y in self.pairs])
+
+    def __add__(self, x):
+        if isinstance(x, (float, int)):
+            return PiecewiseLinear(*[(p[0], p[1] + x) for p in self.pairs])
+        s, x = self.get_common_basis(x)
+        return PiecewiseLinear(
+            *[(sp[0], sp[1] + xp[1]) for sp, xp in zip(s.pairs, x.pairs)]
+        )
+
+    def max(self, x):
+        if isinstance(x, (float, int)):
+            x = PiecewiseLinear((0, x))
+        s, x = self.get_common_basis(x, include_crossings=True)
+        return PiecewiseLinear(
+            *[(sp[0], max(sp[1], xp[1])) for sp, xp in zip(s.pairs, x.pairs)]
+        )
+
+    def min(self, x):
+        if isinstance(x, float) or isinstance(x, int):
+            x = PiecewiseLinear((0, x))
+        s, x = self.get_common_basis(x, include_crossings=True)
+        return PiecewiseLinear(
+            *[(sp[0], min(sp[1], xp[1])) for sp, xp in zip(s.pairs, x.pairs)]
+        )
+
+    def __eq__(self, other):
+        return self.pairs == other.pairs
+
+    def get_common_basis(self, p: "PiecewiseLinear", include_crossings: bool = False):
+        """
+        Returns (self_mod, p_mod) which are equivalent piecewise linear
+        functions to self and p, but with the same x values.
+
+          p: the other piecewise linear function
+          include_crossings: if true, include in the x values positions
+              where the functions indicate by this and p cross.
+        """
+        assert isinstance(p, PiecewiseLinear), type(p)
+
+        # get sorted x-values without repetition.
+        x_vals = sorted(set([x for x, _ in self.pairs] + [x for x, _ in p.pairs]))
+        y_vals1 = [self(x) for x in x_vals]
+        y_vals2 = [p(x) for x in x_vals]
+
+        if include_crossings:
+            extra_x_vals = []
+            for i in range(len(x_vals) - 1):
+                if (y_vals1[i] > y_vals2[i]) != (y_vals1[i + 1] > y_vals2[i + 1]):
+                    # if the two lines in this subsegment potentially cross each other..
+                    diff_cur = abs(y_vals1[i] - y_vals2[i])
+                    diff_next = abs(y_vals1[i + 1] - y_vals2[i + 1])
+                    # `pos`, between 0 and 1, gives the relative x position,
+                    # with 0 being x_vals[i] and 1 being x_vals[i+1].
+                    pos = diff_cur / (diff_cur + diff_next)
+                    extra_x_val = x_vals[i] + pos * (x_vals[i + 1] - x_vals[i])
+                    extra_x_vals.append(extra_x_val)
+            if len(extra_x_vals) > 0:
+                x_vals = sorted(set(x_vals + extra_x_vals))
+
+            y_vals1 = [self(x) for x in x_vals]
+            y_vals2 = [p(x) for x in x_vals]
+
+        return (
+            PiecewiseLinear(*zip(x_vals, y_vals1)),
+            PiecewiseLinear(*zip(x_vals, y_vals2)),
+        )
+
+
+class ScheduledFloat(torch.nn.Module):
+    """
+    This object is a torch.nn.Module only because we want it to show up in [top_level module].modules();
+    it does not have a working forward() function.  You are supposed to cast it to float, as
+    in, float(parent_module.whatever), and use it as something like a dropout prob.
+
+    It is a floating point value whose value changes depending on the batch count of the
+    training loop.  It is a piecewise linear function where you specify the (x,y) pairs
+    in sorted order on x; x corresponds to the batch index.  For batch-index values before the
+    first x or after the last x, we just use the first or last y value.
+
+    Example:
+       self.dropout = ScheduledFloat((0.0, 0.2), (4000.0, 0.0), default=0.0)
+
+    `default` is used when self.batch_count is not set or not in training mode or in
+     torch.jit scripting mode.
+    """
+
+    def __init__(self, *args, default: float = 0.0):
+        super().__init__()
+        # self.batch_count and self.name will be written to in the training loop.
+        self.batch_count = None
+        self.name = None
+        self.default = default
+        self.schedule = PiecewiseLinear(*args)
+
+    def extra_repr(self) -> str:
+        return (
+            f"batch_count={self.batch_count}, schedule={str(self.schedule.pairs[1:-1])}"
+        )
+
+    def __float__(self):
+        batch_count = self.batch_count
+        if (
+            batch_count is None
+            or not self.training
+            or torch.jit.is_scripting()
+            or torch.jit.is_tracing()
+        ):
+            return float(self.default)
+        else:
+            ans = self.schedule(self.batch_count)
+            if random.random() < 0.0002:
+                logging.info(
+                    f"ScheduledFloat: name={self.name}, batch_count={self.batch_count}, ans={ans}"
+                )
+            return ans
+
+    def __add__(self, x):
+        if isinstance(x, float) or isinstance(x, int):
+            return ScheduledFloat(self.schedule + x, default=self.default)
+        else:
+            return ScheduledFloat(
+                self.schedule + x.schedule, default=self.default + x.default
+            )
+
+    def max(self, x):
+        if isinstance(x, float) or isinstance(x, int):
+            return ScheduledFloat(self.schedule.max(x), default=self.default)
+        else:
+            return ScheduledFloat(
+                self.schedule.max(x.schedule), default=max(self.default, x.default)
+            )
+
+
+FloatLike = Union[float, ScheduledFloat]
+
+
+def random_cast_to_half(x: Tensor, min_abs: float = 5.0e-06) -> Tensor:
+    """
+    A randomized way of casting a floating point value to half precision.
+    """
+    if x.dtype == torch.float16:
+        return x
+    x_abs = x.abs()
+    is_too_small = x_abs < min_abs
+    # for elements where is_too_small is true, random_val will contain +-min_abs with
+    # probability (x.abs() / min_abs), and 0.0 otherwise.  [so this preserves expectations,
+    # for those elements].
+    random_val = min_abs * x.sign() * (torch.rand_like(x) * min_abs < x_abs)
+    return torch.where(is_too_small, random_val, x).to(torch.float16)
+
+
+class CutoffEstimator:
+    """
+    Estimates cutoffs of an arbitrary numerical quantity such that a specified
+    proportion of items will be above the cutoff on average.
+
+      p is the proportion of items that should be above the cutoff.
+    """
+
+    def __init__(self, p: float):
+        self.p = p
+        # total count of items
+        self.count = 0
+        # total count of items that were above the cutoff
+        self.count_above = 0
+        # initial cutoff value
+        self.cutoff = 0
+
+    def __call__(self, x: float) -> bool:
+        """
+        Returns true if x is above the cutoff.
+        """
+        ans = x > self.cutoff
+        self.count += 1
+        if ans:
+            self.count_above += 1
+        cur_p = self.count_above / self.count
+        delta_p = cur_p - self.p
+        if (delta_p > 0) == ans:
+            q = abs(delta_p)
+            self.cutoff = x * q + self.cutoff * (1 - q)
+        return ans
+
+
 class SoftmaxFunction(torch.autograd.Function):
     """
     Tries to handle half-precision derivatives in a randomized way that should
@@ -99,7 +310,7 @@ class SoftmaxFunction(torch.autograd.Function):
     @staticmethod
     def backward(ctx, ans_grad: Tensor):
         (ans,) = ctx.saved_tensors
-        with torch.amp.autocast('cuda', enabled=False):
+        with torch_autocast(enabled=False):
             ans_grad = ans_grad.to(torch.float32)
             ans = ans.to(torch.float32)
             x_grad = ans_grad * ans
@@ -114,363 +325,179 @@ def softmax(x: Tensor, dim: int):
     return SoftmaxFunction.apply(x, dim)
 
 
+class MaxEigLimiterFunction(torch.autograd.Function):
+    @staticmethod
+    def forward(
+        ctx,
+        x: Tensor,
+        coeffs: Tensor,
+        direction: Tensor,
+        channel_dim: int,
+        grad_scale: float,
+    ) -> Tensor:
+        ctx.channel_dim = channel_dim
+        ctx.grad_scale = grad_scale
+        ctx.save_for_backward(x.detach(), coeffs.detach(), direction.detach())
+        return x
 
-# all arg tensors are scalars.
-def _sequence_norm(x: Tensor, offset: Tensor, scale: Tensor, mask: Optional[Tensor]):
-    stats = (x ** 2).mean(dim=2, keepdim=True)
-    T = x.shape[0]  # time
-    if mask is None:
-        stats = stats.sum(dim=0)
-        lengths = T
-    else:
-        mask = (~mask).to(torch.float).t().unsqueeze(-1)
-        stats = stats * mask
-        stats = stats.sum(dim=0)
-        lengths =  mask.sum(dim=0)
-
-    scales = (lengths / stats).sqrt()
-    assert scales.shape == (x.shape[1], 1)
-    return x * ((scale * scales) + offset)
-
-# all arg tensors are scalars.
-# mask only used in non-causal mode; ballast_rms and ballast_frames only used in causal mode.
-def _causal_sequence_norm(x: Tensor, offset: Tensor, scale: Tensor, ballast_rms: Tensor, ballast_frames: Tensor):
-    stats = (x ** 2).mean(dim=2, keepdim=True)
-
-    # no  need for mask in causal mode.
-    # ballast_frames should normally be positive due to limit_param_value, but there can be small excursions, so
-    # make absolutely sure using abs().
-    ballast_frames = 100.0 * ballast_frames.abs()
-    ballast = ballast_frames * (ballast_rms ** 2)
-    T = x.shape[0]  # time
-
-    stats = stats.cumsum(dim=0) + ballast
-    lengths = ballast_frames + torch.arange(1, T + 1, dtype=x.dtype, device=x.device)[:, None, None]
-
-    scales = (lengths / stats).sqrt()
-    assert scales.shape == (T, x.shape[1], 1)
-    return x * ((scale * scales) + offset)
+    @staticmethod
+    def backward(ctx, x_grad, *args):
+        with torch.enable_grad():
+            (x_orig, coeffs, new_direction) = ctx.saved_tensors
+            x_orig.requires_grad = True
+            num_channels = x_orig.shape[ctx.channel_dim]
+            x = x_orig.transpose(ctx.channel_dim, -1).reshape(-1, num_channels)
+            new_direction.requires_grad = False
+            x = x - x.mean(dim=0)
+            x_var = (x**2).mean()
+            x_residual = x - coeffs * new_direction
+            x_residual_var = (x_residual**2).mean()
+            # `variance_proportion` is the proportion of the variance accounted for
+            # by the top eigen-direction.  This is to be minimized.
+            variance_proportion = (x_var - x_residual_var) / (x_var + 1.0e-20)
+            variance_proportion.backward()
+        x_orig_grad = x_orig.grad
+        x_extra_grad = (
+            x_orig.grad
+            * ctx.grad_scale
+            * x_grad.norm()
+            / (x_orig_grad.norm() + 1.0e-20)
+        )
+        return x_grad + x_extra_grad.detach(), None, None, None, None
 
 
-# all arg tensors are scalars
-def _causal_sequence_norm_streaming(
-    x: Tensor,
-    offset: Tensor,
-    scale: Tensor,
-    cached_stats_sum: Tensor,
-    cached_len: Tensor,
-) -> Tuple[Tensor, Tensor, Tensor]:
-    """Streaming inference forward for _sequence_norm. We assume that ballast_frames and ballast_rms
-    are already included in cached_stats_sum and cached_len.
+class BiasNormFunction(torch.autograd.Function):
+    # This computes:
+    #   scales = (torch.mean((x - bias) ** 2, keepdim=True)) ** -0.5 * log_scale.exp()
+    #   return x * scales
+    # (after unsqueezing the bias), but it does it in a memory-efficient way so that
+    # it can just store the returned value (chances are, this will also be needed for
+    # some other reason, related to the next operation, so we can save memory).
+    @staticmethod
+    def forward(
+        ctx,
+        x: Tensor,
+        bias: Tensor,
+        log_scale: Tensor,
+        channel_dim: int,
+        store_output_for_backprop: bool,
+    ) -> Tensor:
+        assert bias.ndim == 1
+        if channel_dim < 0:
+            channel_dim = channel_dim + x.ndim
+        ctx.store_output_for_backprop = store_output_for_backprop
+        ctx.channel_dim = channel_dim
+        for _ in range(channel_dim + 1, x.ndim):
+            bias = bias.unsqueeze(-1)
+        scales = (
+            torch.mean((x - bias) ** 2, dim=channel_dim, keepdim=True) ** -0.5
+        ) * log_scale.exp()
+        ans = x * scales
+        ctx.save_for_backward(
+            ans.detach() if store_output_for_backprop else x,
+            scales.detach(),
+            bias.detach(),
+            log_scale.detach(),
+        )
+        return ans
+
+    @staticmethod
+    def backward(ctx, ans_grad: Tensor) -> Tensor:
+        ans_or_x, scales, bias, log_scale = ctx.saved_tensors
+        if ctx.store_output_for_backprop:
+            x = ans_or_x / scales
+        else:
+            x = ans_or_x
+        x = x.detach()
+        x.requires_grad = True
+        bias.requires_grad = True
+        log_scale.requires_grad = True
+        with torch.enable_grad():
+            # recompute scales from x, bias and log_scale.
+            scales = (
+                torch.mean((x - bias) ** 2, dim=ctx.channel_dim, keepdim=True) ** -0.5
+            ) * log_scale.exp()
+            ans = x * scales
+            ans.backward(gradient=ans_grad)
+        return x.grad, bias.grad.flatten(), log_scale.grad, None, None
+
+
+class BiasNorm(torch.nn.Module):
+    """
+    This is intended to be a simpler, and hopefully cheaper, replacement for
+    LayerNorm.  The observation this is based on, is that Transformer-type
+    networks, especially with pre-norm, sometimes seem to set one of the
+    feature dimensions to a large constant value (e.g. 50), which "defeats"
+    the LayerNorm because the output magnitude is then not strongly dependent
+    on the other (useful) features.  Presumably the weight and bias of the
+    LayerNorm are required to allow it to do this.
+
+    Instead, we give the BiasNorm a trainable bias that it can use when
+    computing the scale for normalization.  We also give it a (scalar)
+    trainable scale on the output.
+
 
     Args:
-        x: (seq_len, batch_size, channels)
-        offset: scalar
-        scale: scalar
-        cached_stats_sum: (batch_size,)
-        cached_len: (batch_size,)
-
-    Returns:
-        - normalized x, (seq_len, batch_size, channels)
-        - updated cached_stats_sum, (batch_size,)
-        - updated cached_len, (batch_size,)
+       num_channels: the number of channels, e.g. 512.
+       channel_dim: the axis/dimension corresponding to the channel,
+         interpreted as an offset from the input's ndim if negative.
+         This is NOT the num_channels; it should typically be one of
+         {-2, -1, 0, 1, 2, 3}.
+      log_scale: the initial log-scale that we multiply the output by; this
+         is learnable.
+      log_scale_min: FloatLike, minimum allowed value of log_scale
+      log_scale_max: FloatLike, maximum allowed value of log_scale
+      store_output_for_backprop: only possibly affects memory use; recommend
+         to set to True if you think the output of this module is more likely
+         than the input of this module to be required to be stored for the
+         backprop.
     """
-    stats = (x ** 2).mean(dim=2, keepdim=True)  # (seq_len, batch_size, 1)
 
-    T = x.shape[0]  # time
-
-    stats = stats.cumsum(dim=0) + cached_stats_sum.unsqueeze(-1)
-    lengths = cached_len[:, None] + torch.arange(1, T + 1, dtype=x.dtype, device=x.device)[:, None, None]
-
-    # update cached_stats_sum and cached_len for the next chunk
-    cached_stats_sum = stats[-1].squeeze(-1)  # (batch_size,)
-    cached_len = cached_len + T
-
-    scales = (lengths / stats).sqrt()   # (T, batch_size, 1)
-    assert scales.shape == (T, x.shape[1], 1)
-    return x * ((scale * scales) + offset), cached_stats_sum, cached_len
-
-
-class CausalSequenceNormFunction(torch.autograd.Function):
-    @staticmethod
-    def forward(
-        ctx,
-        x: Tensor,
-        offset: Tensor,
-        scale: Tensor,
-        ballast_rms: Tensor,
-        ballast_frames: Tensor,
-    ) -> Tensor:
-        ctx.save_for_backward(x, offset, scale, ballast_rms, ballast_frames)
-
-        return _causal_sequence_norm(x, offset, scale, ballast_rms, ballast_frames)
-
-
-    @staticmethod
-    def backward(ctx, ans_grad: Tensor) -> Tensor:
-        x, offset, scale, ballast_rms, ballast_frames = ctx.saved_tensors
-
-
-        with torch.amp.autocast('cuda', enabled=False):
-            x = x.to(torch.float32).detach().requires_grad_()
-            offset = offset.to(torch.float32).detach().requires_grad_()
-            scale = scale.to(torch.float32).detach().requires_grad_()
-            ballast_rms = ballast_rms.to(torch.float32).detach().requires_grad_()
-            ballast_frames = ballast_frames.to(torch.float32).detach().requires_grad_()
-
-            with torch.enable_grad():
-                ans = _causal_sequence_norm(x, offset, scale, ballast_rms, ballast_frames)
-                ans.backward(gradient=ans_grad.to(torch.float32))
-
-        def c(x):
-            # this is to replace infinities that might be thrown up
-            # in autocast mode: scalars will tend to have larger grads than non-scalars,
-            # this code is to reduce the probabilities that any infinities could crash the
-            # training (it may still happen if the world-size is so large that these
-            # infinities get added together though).
-            return x.clamp_(min=-30000.0, max=30000.0)
-
-        return x.grad, c(offset.grad), c(scale.grad), c(ballast_rms.grad), c(ballast_frames.grad)
-
-class SequenceNormFunction(torch.autograd.Function):
-    @staticmethod
-    def forward(
-        ctx,
-        x: Tensor,
-        offset: Tensor,
-        scale: Tensor,
-        mask: Optional[Tensor],
-    ) -> Tensor:
-        ctx.save_for_backward(x, offset, scale)
-        ctx.mask = mask
-
-        return _sequence_norm(x, offset, scale, mask)
-
-
-    @staticmethod
-    def backward(ctx, ans_grad: Tensor) -> Tensor:
-        x, offset, scale = ctx.saved_tensors
-
-        with torch.amp.autocast('cuda', enabled=False):
-            x = x.to(torch.float32).detach().requires_grad_()
-            offset = offset.to(torch.float32).detach().requires_grad_()
-            scale = scale.to(torch.float32).detach().requires_grad_()
-
-            with torch.enable_grad():
-                ans = _sequence_norm(x, offset, scale, ctx.mask)
-                ans.backward(gradient=ans_grad.to(torch.float32))
-
-        def c(x):
-            # this is to replace infinities that might be thrown up
-            # in autocast mode: scalars will tend to have larger grads than non-scalars,
-            # this code is to reduce the probabilities that any infinities could crash the
-            # training (it may still happen if the world-size is so large that these
-            # infinities get added together though).
-            return x if x is None else x.clamp_(min=-30000.0, max=30000.0)
-
-        return x.grad, c(offset.grad), c(scale.grad), None
-
-
-class CausalSequenceNorm(torch.nn.Module):
-    """
-    This is like RMSNorm but the stats for the RMS value of x are aggregated over the whole sequence
-    up to the current point as well as the channels, with some padding of the stats with "default values"
-    determined by ballast_frames, ballast_rms  for robustness near the beginning of the sequence.
-
-    There is also a learnable scalar scale, multiplicatively applied to the output, and a learnable
-    "offset" value that acts multiplicatively on the input without taking into account the rms values.
-    """
     def __init__(
         self,
+        num_channels: int,
+        channel_dim: int = -1,  # CAUTION: see documentation.
+        log_scale: float = 1.0,
+        log_scale_min: float = -1.5,
+        log_scale_max: float = 1.5,
+        store_output_for_backprop: bool = False,
     ) -> None:
-        super().__init__()
-        self.scale = nn.Parameter(torch.tensor(0.5))
-        self.offset = nn.Parameter(torch.tensor(0.0001))
+        super(BiasNorm, self).__init__()
+        self.num_channels = num_channels
+        self.channel_dim = channel_dim
+        self.log_scale = nn.Parameter(torch.tensor(log_scale))
+        self.bias = nn.Parameter(torch.empty(num_channels).normal_(mean=0, std=1e-4))
 
-        # ballast_mean: assumed rms value of ballast frames used to pad stats
-        self.ballast_rms = nn.Parameter(torch.tensor(0.1))
-        # ballast_frames: number of ballast frames, in hundreds (will be multiplied by 100)
-        self.ballast_frames =  nn.Parameter(torch.tensor(0.05))  # number of ballast frames, will be multiplied by 100
-        self.name = None
+        self.log_scale_min = log_scale_min
+        self.log_scale_max = log_scale_max
 
-    def forward(self, x: Tensor, _mask: Optional[Tensor] = None) -> Tensor:
-        # x: (seq, batch, channel)
-        # The mask is ignored, it is allowed only for consistency of interface with SequenceNorm.
-        if torch.jit.is_scripting() or torch.jit.is_tracing():
-            return _causal_sequence_norm(x, self.offset, self.scale, self.ballast_rms, self.ballast_frames)
-
-        scale = limit_param_value(
-            self.scale, min=0.05, max=2.0, training=self.training)
-
-        offset = limit_param_value(
-            self.offset, min=0.0, max=10.0, training=self.training)
-
-        ballast_rms = limit_param_value(
-            self.ballast_rms, min=0.0, max=10.0, training=self.training)
-
-        ballast_frames = limit_param_value(
-            self.ballast_frames, min=0.0, max=5.0, training=self.training)  # max of 5.0 would be 500 frames
-
-        ans = CausalSequenceNormFunction.apply(
-            x, offset, scale, ballast_rms, ballast_frames,
-        )
-
-        if random.random() < 0.002:
-            x_rms = (x ** 2).mean().sqrt()
-            ans_rms = (ans ** 2).mean().sqrt()
-            logging.info(f"name={self.name}: x_rms={x_rms}, ans_rms={ans_rms}, scale={self.scale.item()}, offset={self.offset.item()}, ballast_rms={self.ballast_rms.item()}, ballast_frames*100={100*self.ballast_frames.item()}")
-
-        return ans
-
-    @torch.jit.export
-    def get_init_cache(self, batch_size: int):
-        """Get initial cache for streaming inference. We first include the ballast stats in the initial cache.
-        """
-        # ballast_frames should normally be positive due to limit_param_value, but there can be small excursions, so
-        # make absolutely sure using abs().
-        ballast_frames = 100.0 * self.ballast_frames.abs()
-        ballast = ballast_frames * (self.ballast_rms ** 2)
-
-        cached_stats_sum = ballast.unsqueeze(0).repeat(batch_size)  # (batch_size,)
-        cached_len = ballast_frames.unsqueeze(0).repeat(batch_size)  # (batch_size,)
-
-        return cached_stats_sum, cached_len
-
-    def streaming_forward(
-        self,
-        x: Tensor,
-        cached_stats_sum: Tensor,
-        cached_len: Tensor,
-    ) -> Tuple[Tensor, Tensor, Tensor]:
-
-        x, cached_stats_sum, cached_len = _causal_sequence_norm_streaming(
-            x, self.offset, self.scale, cached_stats_sum, cached_len)
-        return x, cached_stats_sum, cached_len
-
-
-class SequenceNorm(torch.nn.Module):
-    """
-    This is like RMSNorm but the stats for the RMS value of x are aggregated over the whole sequence
-    as well as the channels; and a padding mask is used for irregular length sequences (actually,
-    the mask is applied multiplicatively as well.)
-
-    There is also a learnable scalar scale and a learnable "offset" value.
-    """
-    def __init__(
-        self,
-    ) -> None:
-        super().__init__()
-        self.scale = nn.Parameter(torch.tensor(0.5))
-        self.offset = nn.Parameter(torch.tensor(0.0001))
-        self.name = None
-
-    def forward(self, x: Tensor, mask: Optional[Tensor]) -> Tensor:
-        # x: (seq, batch, channel)
-        # mask: bool, (batch_size, seq_len)
-        #  Note: mask is ignored in causal mode.
-
-        if torch.jit.is_scripting() or torch.jit.is_tracing():
-            return _sequence_norm(x, self.offset, self.scale, mask)
-
-        scale = limit_param_value(
-            self.scale, min=0.05, max=2.0, training=self.training)
-
-        offset = limit_param_value(
-            self.offset, min=0.0, max=10.0, training=self.training)
-
-        ans = SequenceNormFunction.apply(
-            x, offset, scale, mask,
-        )
-
-        if random.random() < 0.002:
-            x_rms = (x ** 2).mean().sqrt()
-            ans_rms = (ans ** 2).mean().sqrt()
-            logging.info(f"name={self.name}: x_rms={x_rms}, ans_rms={ans_rms}, scale={self.scale.item()}, offset={self.offset.item()}")
-
-        return ans
-
-
-
-# assume layout: (time, batch, channel)
-def _rms_norm(x: Tensor, eps: Tensor, scale: Tensor):
-    x_sq = torch.mean(x ** 2, dim=2, keepdim=True) + (eps * eps)
-    scales = scale / x_sq.sqrt()
-    return x * scales
-
-
-
-class RmsNormFunction(torch.autograd.Function):
-    @staticmethod
-    def forward(
-        ctx,
-        x: Tensor,
-        eps: Tensor,
-        scale: Tensor,
-    ) -> Tensor:
-        ctx.save_for_backward(x, eps, scale)
-        return _rms_norm(x, eps, scale)
-
-
-    @staticmethod
-    def backward(ctx, ans_grad: Tensor) -> Tensor:
-        x, eps, scale = ctx.saved_tensors
-
-        with torch.amp.autocast('cuda', enabled=False):
-            x, eps, scale = x.to(torch.float32), eps.to(torch.float32), scale.to(torch.float32)
-            x, eps, scale = x.detach(), eps.detach(), scale.detach()
-
-            x.requires_grad = True
-            eps.requires_grad = True
-            scale.requires_grad = True
-
-            with torch.enable_grad():
-                ans = _rms_norm(x, eps, scale)
-                ans.backward(gradient=ans_grad.to(torch.float32))
-
-        def c(x):
-            # this is to replace infinities that might be thrown up
-            # in autocast mode.
-            return x.clamp_(min=-30000.0, max=30000.0)
-
-        return x.grad, c(eps.grad), c(scale.grad)
-
-
-class RmsNorm(torch.nn.Module):
-    """
-    This is like RMSNorm with a trainable scale.
-
-    """
-    def __init__(
-        self,
-    ) -> None:
-        super(RmsNorm, self).__init__()
-        self.scale = nn.Parameter(torch.tensor(0.2))  # output scale
-        self.eps = nn.Parameter(torch.tensor(0.1))
-        self.name = None
-
+        self.store_output_for_backprop = store_output_for_backprop
 
     def forward(self, x: Tensor) -> Tensor:
-        # Assumes layout is (time, batch, channel)
+        assert x.shape[self.channel_dim] == self.num_channels
 
         if torch.jit.is_scripting() or torch.jit.is_tracing():
-            return _rms_norm(x, self.eps, self.scale)
+            channel_dim = self.channel_dim
+            if channel_dim < 0:
+                channel_dim += x.ndim
+            bias = self.bias
+            for _ in range(channel_dim + 1, x.ndim):
+                bias = bias.unsqueeze(-1)
+            scales = (
+                torch.mean((x - bias) ** 2, dim=channel_dim, keepdim=True) ** -0.5
+            ) * self.log_scale.exp()
+            return x * scales
 
-        scale = limit_param_value(
-            self.scale, min=0.05, max=1.0, training=self.training)
-
-        eps = limit_param_value(
-            self.eps, min=0.0, max=10.0, training=self.training)
-
-        ans = RmsNormFunction.apply(
-            x, eps, scale,
+        log_scale = limit_param_value(
+            self.log_scale,
+            min=float(self.log_scale_min),
+            max=float(self.log_scale_max),
+            training=self.training,
         )
 
-        if random.random() < 0.002:
-            x_rms = (x ** 2).mean().sqrt()
-            ans_rms = (ans ** 2).mean().sqrt()
-            logging.info(f"name={self.name}: x_rms={x_rms}, ans_rms={ans_rms}, eps={eps.item()}, scale={scale.item()}")
-
-        return ans
+        return BiasNormFunction.apply(
+            x, self.bias, log_scale, self.channel_dim, self.store_output_for_backprop
+        )
 
 
 def ScaledLinear(*args, initial_scale: float = 1.0, **kwargs) -> nn.Linear:
@@ -492,7 +519,7 @@ def ScaledLinear(*args, initial_scale: float = 1.0, **kwargs) -> nn.Linear:
     with torch.no_grad():
         ans.weight[:] *= initial_scale
         if ans.bias is not None:
-            torch.nn.init.uniform_(ans.bias, -0.01 * initial_scale, 0.01 * initial_scale)
+            torch.nn.init.uniform_(ans.bias, -0.1 * initial_scale, 0.1 * initial_scale)
     return ans
 
 
@@ -543,276 +570,359 @@ def ScaledConv2d(*args, initial_scale: float = 1.0, **kwargs) -> nn.Conv2d:
     return ans
 
 
-class OrthogonalPenaltyFunction(torch.autograd.Function):
-    @staticmethod
-    @custom_fwd
-    def forward(ctx, weight: Tensor, penalty_scale: float, name: str):
-        ctx.save_for_backward(weight)
-        ctx.name = name
-        ctx.penalty_scale = penalty_scale
-        return weight
-
-    @staticmethod
-    @custom_bwd
-    def backward(ctx, weight_grad):
-        weight, = ctx.saved_tensors
-
-        if weight.requires_grad and ctx.penalty_scale != 0.0:
-            penalty_scale = ctx.penalty_scale * weight_grad.abs().mean()
-
-            with torch.enable_grad():
-                weight = weight.detach()
-                weight.requires_grad = True
-
-                # Compute symmetric matrix-product prod with the smallest
-                # dimension possible given the shape of w.  This is not just for
-                # efficiency; if we computed it the wrong way round, the product
-                # would have deficient rank and could never be the identity.
-                if (weight.shape[0] > weight.shape[1]):
-                    prod = torch.matmul(weight.t(), weight)
-                else:
-                    prod = torch.matmul(weight, weight.t())
-
-                # we'll try to enforce that for any i, prod[i] is any constant times the identity.
-
-                # in the loss-function:
-                #  orthogonality_loss = ((prod - I) ** 2).sum(),
-
-                # note, prod_diag shares memory with prod, this will matter later on.
-                (r, c) = prod.shape
-                (r_stride, c_stride) = prod.stride()
-
-                def diag_inplace(z):
-                    return torch.as_strided(z, size=(r,), stride=(r_stride+c_stride,))
-
-                diag_inplace(prod)[:] -= 1.
-
-                # that loss that we want to backprop would be 0.5 * (prod **
-                # 2).sum() * penalty_scale.  we can backprop this without doing
-                # any reductions as follows:
-                prod.backward(gradient=prod * penalty_scale)
-
-
-                do_print = random.random() < 0.002
-                if do_print:
-                    # we print a normalized version of the loss, by dividing by the
-                    # number of rows.
-                    loss = (prod ** 2).mean()
-                    logging.info(f"OrthogonalLinear: name={ctx.name}, loss={loss.detach().cpu()}, penalty_scale={penalty_scale}, grad_abs_mean={weight_grad.abs().mean()}")
-
-
-                # add the extra gradient term from the orthogonality loss.
-                weight_grad = weight_grad + weight.grad
-        return weight_grad, None, None
-
-class OrthogonalLinear(nn.Linear):
+class ChunkCausalDepthwiseConv1d(torch.nn.Module):
     """
-    Like nn.Linear but can enforce that the weight matrix is orthogonal; in the non-square
-    case this is interpreted as either M^T M == I or M M^T == I, whichever would give a smaller
-    dimension.
-    (If M is square, these definitions are equivalent and is equivalent to the normal
-    definition of orthogonal).
+    Behaves like a depthwise 1d convolution, except that it is causal in
+    a chunkwise way, as if we had a block-triangular attention mask.
+    The chunk size is provided at test time (it should probably be
+    kept in sync with the attention mask).
+
+    This has a little more than twice the parameters of a conventional
+    depthwise conv1d module: we implement it by having one
+    depthwise convolution, of half the width, that is causal (via
+    right-padding); and one depthwise convolution that is applied only
+    within chunks, that we multiply by a scaling factor which depends
+    on the position within the chunk.
 
     Args:
-      in_channels: number of input channels
-     out_channels: number of output channels
-         lr_scale: we will scale the weight by this value before applying the orthogonal
-                   constraint and using it; with most optimizers
-                   this will have the effect of slowing down the learning by this factor because
-                   the parameter value will be larger.
-             bias: if True, include a bias term.
-     penalty_scale: a scale on the penalty on non-orthogonality (this will
-                   be multiplied by the average-absolute-value of the
-                   backpropagated gradient).
+        Accepts the standard args and kwargs that nn.Linear accepts
+        e.g. in_features, out_features, bias=False.
+
+        initial_scale: you can override this if you want to increase
+           or decrease the initial magnitude of the module's output
+           (affects the initialization of weight_scale and bias_scale).
+           Another option, if you want to do something like this, is
+           to re-initialize the parameters.
     """
-    # if in_groups or out_groups are set to >1, the orthogonal constraint
-    # will be set per group.  both of them cannot be >1.
-    def __init__(self,
-                 in_channels: int,
-                 out_channels: int,
-                 lr_scale: float = 1.0,
-                 bias: bool = True,
-                 penalty_scale: float = 20.0,
+
+    def __init__(
+        self,
+        channels: int,
+        kernel_size: int,
+        initial_scale: float = 1.0,
+        bias: bool = True,
     ):
-        super().__init__(in_channels, out_channels, bias=bias)
-        self.name = None
-        self.penalty_scale = copy.deepcopy(penalty_scale)
-        self.lr_scale = lr_scale
+        super().__init__()
+        assert kernel_size % 2 == 1
+
+        half_kernel_size = (kernel_size + 1) // 2
+        # will pad manually, on one side.
+        self.causal_conv = nn.Conv1d(
+            in_channels=channels,
+            out_channels=channels,
+            groups=channels,
+            kernel_size=half_kernel_size,
+            padding=0,
+            bias=True,
+        )
+
+        self.chunkwise_conv = nn.Conv1d(
+            in_channels=channels,
+            out_channels=channels,
+            groups=channels,
+            kernel_size=kernel_size,
+            padding=kernel_size // 2,
+            bias=bias,
+        )
+
+        # first row is correction factors added to the scale near the left edge of the chunk,
+        # second row is correction factors added to the scale near the right edge of the chunk,
+        # both of these are added to a default scale of 1.0.
+        self.chunkwise_conv_scale = nn.Parameter(torch.zeros(2, channels, kernel_size))
+        self.kernel_size = kernel_size
 
         with torch.no_grad():
-            self.weight[:] = torch.randn(out_channels, in_channels) * (in_channels ** -0.5) * (1. / lr_scale)
-        if self.bias is not None:
-            torch.nn.init.uniform_(self.bias, -0.01, 0.01)
+            self.causal_conv.weight[:] *= initial_scale
+            self.chunkwise_conv.weight[:] *= initial_scale
+            if bias:
+                torch.nn.init.uniform_(
+                    self.causal_conv.bias, -0.1 * initial_scale, 0.1 * initial_scale
+                )
+
+    def forward(self, x: Tensor, chunk_size: int = -1) -> Tensor:
+        """Forward function.
+
+        Args:
+               x: a Tensor of shape (batch_size, channels, seq_len)
+        chunk_size: the chunk size, in frames; does not have to divide seq_len exactly.
+        """
+        (batch_size, num_channels, seq_len) = x.shape
+
+        # half_kernel_size = self.kernel_size + 1 // 2
+        # left_pad is half_kernel_size - 1 where half_kernel_size is the size used
+        # in the causal conv.  It's the amount by which we must pad on the left,
+        # to make the convolution causal.
+        left_pad = self.kernel_size // 2
+
+        if chunk_size < 0 or chunk_size > seq_len:
+            chunk_size = seq_len
+        right_pad = -seq_len % chunk_size
+
+        x = torch.nn.functional.pad(x, (left_pad, right_pad))
+
+        x_causal = self.causal_conv(x[..., : left_pad + seq_len])
+        assert x_causal.shape == (batch_size, num_channels, seq_len)
+
+        x_chunk = x[..., left_pad:]
+        num_chunks = x_chunk.shape[2] // chunk_size
+        x_chunk = x_chunk.reshape(batch_size, num_channels, num_chunks, chunk_size)
+        x_chunk = x_chunk.permute(0, 2, 1, 3).reshape(
+            batch_size * num_chunks, num_channels, chunk_size
+        )
+        x_chunk = self.chunkwise_conv(x_chunk)  # does not change shape
+
+        chunk_scale = self._get_chunk_scale(chunk_size)
+
+        x_chunk = x_chunk * chunk_scale
+        x_chunk = x_chunk.reshape(
+            batch_size, num_chunks, num_channels, chunk_size
+        ).permute(0, 2, 1, 3)
+        x_chunk = x_chunk.reshape(batch_size, num_channels, num_chunks * chunk_size)[
+            ..., :seq_len
+        ]
+
+        return x_chunk + x_causal
+
+    def _get_chunk_scale(self, chunk_size: int):
+        """Returns tensor of shape (num_channels, chunk_size) that will be used to
+        scale the output of self.chunkwise_conv."""
+        left_edge = self.chunkwise_conv_scale[0]
+        right_edge = self.chunkwise_conv_scale[1]
+        if chunk_size < self.kernel_size:
+            left_edge = left_edge[:, :chunk_size]
+            right_edge = right_edge[:, -chunk_size:]
+        else:
+            t = chunk_size - self.kernel_size
+            channels = left_edge.shape[0]
+            pad = torch.zeros(
+                channels, t, device=left_edge.device, dtype=left_edge.dtype
+            )
+            left_edge = torch.cat((left_edge, pad), dim=-1)
+            right_edge = torch.cat((pad, right_edge), dim=-1)
+        return 1.0 + (left_edge + right_edge)
+
+    def streaming_forward(
+        self,
+        x: Tensor,
+        cache: Tensor,
+    ) -> Tuple[Tensor, Tensor]:
+        """Streaming Forward function.
+
+        Args:
+            x: a Tensor of shape (batch_size, channels, seq_len)
+            cache: cached left context of shape (batch_size, channels, left_pad)
+        """
+        (batch_size, num_channels, seq_len) = x.shape
+
+        # left_pad is half_kernel_size - 1 where half_kernel_size is the size used
+        # in the causal conv.  It's the amount by which we must pad on the left,
+        # to make the convolution causal.
+        left_pad = self.kernel_size // 2
+
+        # Pad cache
+        assert cache.shape[-1] == left_pad, (cache.shape[-1], left_pad)
+        x = torch.cat([cache, x], dim=2)
+        # Update cache
+        cache = x[..., -left_pad:]
+
+        x_causal = self.causal_conv(x)
+        assert x_causal.shape == (batch_size, num_channels, seq_len)
+
+        x_chunk = x[..., left_pad:]
+        x_chunk = self.chunkwise_conv(x_chunk)  # does not change shape
+
+        chunk_scale = self._get_chunk_scale(chunk_size=seq_len)
+        x_chunk = x_chunk * chunk_scale
+
+        return x_chunk + x_causal, cache
 
 
-    def forward(self, x: Tensor, transpose: bool = False):
-        # you can only use transpose=True if you used bias=False in initialization
-        weight = self.weight
-        lr_scale = self.lr_scale
-        if lr_scale != 1.0:
-            weight = weight * lr_scale
-        if self.training and not torch.jit.is_scripting() and not torch.jit.is_tracing():
-            weight = OrthogonalPenaltyFunction.apply(weight, float(self.penalty_scale), self.name)
-
-        if transpose:
-            weight = weight.t()
-        return torch.nn.functional.linear(x, weight, self.bias)
-
-
-class ScaleLimiterFunction(torch.autograd.Function):
+class BalancerFunction(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, x: Tensor, max_rms: float, aux_loss_scale: float, name: str):
+    def forward(
+        ctx,
+        x: Tensor,
+        min_mean: float,
+        max_mean: float,
+        min_rms: float,
+        max_rms: float,
+        grad_scale: float,
+        channel_dim: int,
+    ) -> Tensor:
+        if channel_dim < 0:
+            channel_dim += x.ndim
+        ctx.channel_dim = channel_dim
         ctx.save_for_backward(x)
-        ctx.max_rms = max_rms
-        ctx.aux_loss_scale = aux_loss_scale
-        ctx.name = name
+        ctx.config = (min_mean, max_mean, min_rms, max_rms, grad_scale, channel_dim)
         return x
 
     @staticmethod
-    def backward(ctx, x_grad: Tensor):
-        x, = ctx.saved_tensors
-        with torch.enable_grad():
-            with torch.amp.autocast('cuda', enabled=False):
-                x = x.to(torch.float)
-                x = x.detach()
-                x.requires_grad = True
-                rms = (x ** 2).mean(dim=-1).sqrt()
-                numel = rms.numel()
+    def backward(ctx, x_grad: Tensor) -> Tuple[Tensor, None, None, None, None, None]:
+        (x,) = ctx.saved_tensors
+        (min_mean, max_mean, min_rms, max_rms, grad_scale, channel_dim) = ctx.config
 
-                excess = (rms / ctx.max_rms - 1.).relu().mean()
+        try:
+            with torch.enable_grad():
+                with torch_autocast(enabled=False):
+                    x = x.to(torch.float32)
+                    x = x.detach()
+                    x.requires_grad = True
+                    mean_dims = [i for i in range(x.ndim) if i != channel_dim]
+                    uncentered_var = (x**2).mean(dim=mean_dims, keepdim=True)
+                    mean = x.mean(dim=mean_dims, keepdim=True)
+                    stddev = (uncentered_var - (mean * mean)).clamp(min=1.0e-20).sqrt()
+                    rms = uncentered_var.clamp(min=1.0e-20).sqrt()
 
-                if random.random() < 0.002:
-                    logging.info(
-                        f"ScaleLimiter: name={ctx.name}, max_rms={ctx.max_rms}, "
-                        f"rms={rms.mean().item()}, excess={excess.item()}, "
-                        f"loss_scale={ctx.aux_loss_scale}"
+                    m = mean / stddev
+                    # part of loss that relates to mean / stddev
+                    m_loss = (m - m.clamp(min=min_mean, max=max_mean)).abs()
+
+                    # put a much larger scale on the RMS-max-limit loss, so that if both it and the
+                    # m_loss are violated we fix the RMS loss first.
+                    rms_clamped = rms.clamp(min=min_rms, max=max_rms)
+                    r_loss = (rms_clamped / rms).log().abs()
+
+                    loss = m_loss + r_loss
+
+                    loss.backward(gradient=torch.ones_like(loss))
+                    loss_grad = x.grad
+                    loss_grad_rms = (
+                        (loss_grad**2)
+                        .mean(dim=mean_dims, keepdim=True)
+                        .sqrt()
+                        .clamp(min=1.0e-20)
                     )
-                excess.backward(gradient=torch.full_like(excess, ctx.aux_loss_scale * numel))
-        return x_grad + x.grad, None, None, None
+
+                    loss_grad = loss_grad * (grad_scale / loss_grad_rms)
+
+                    x_grad_float = x_grad.to(torch.float32)
+                    # scale each element of loss_grad by the absolute value of the corresponding
+                    # element of x_grad, which we view as a noisy estimate of its magnitude for that
+                    # (frame and dimension).  later we can consider factored versions.
+                    x_grad_mod = x_grad_float + (x_grad_float.abs() * loss_grad)
+                    x_grad = x_grad_mod.to(x_grad.dtype)
+        except Exception as e:
+            logging.info(
+                f"Caught exception in Balancer backward: {e}, size={list(x_grad.shape)}, will continue."
+            )
+
+        return x_grad, None, None, None, None, None, None
 
 
-class ScaleLimiter(torch.nn.Module):
+class Balancer(torch.nn.Module):
     """
-    Adds a penalty in backprop if the norm of any activation vector is less than min_rms
-    or more than  max_rms.
+    Modifies the backpropped derivatives of a function to try to encourage, for
+    each channel, that it is positive at least a proportion `threshold` of the
+    time.  It does this by multiplying negative derivative values by up to
+    (1+max_factor), and positive derivative values by up to (1-max_factor),
+    interpolated from 1 at the threshold to those extremal values when none
+    of the inputs are positive.
 
-    Assumes channel dim is -1 and the input shape has >1 dimension.
+    Args:
+           num_channels: the number of channels
+           channel_dim: the dimension/axis corresponding to the channel, e.g.
+               -1, 0, 1, 2; will be interpreted as an offset from x.ndim if negative.
+           min_positive: the minimum, per channel, of the proportion of the time
+               that (x > 0), below which we start to modify the derivatives.
+           max_positive: the maximum, per channel, of the proportion of the time
+               that (x > 0), above which we start to modify the derivatives.
+           scale_gain_factor: determines the 'gain' with which we increase the
+              change in gradient once the constraints on min_abs and max_abs
+              are violated.
+           min_abs:  the minimum average-absolute-value difference from the mean
+               value per channel, which we allow, before we start to modify
+               the derivatives to prevent this.
+           max_abs:  the maximum average-absolute-value difference from the mean
+               value per channel, which we allow, before we start to modify
+               the derivatives to prevent this.
+         prob: determines the minimum probability with which we modify the
+             gradients for the {min,max}_positive and {min,max}_abs constraints,
+             on each forward().  This is done randomly to prevent all layers
+             from doing it at the same time.
     """
-    def __init__(self, max_rms: float):
+
+    def __init__(
+        self,
+        num_channels: int,
+        channel_dim: int,
+        min_positive: FloatLike = 0.05,
+        max_positive: FloatLike = 0.95,
+        min_abs: FloatLike = 0.2,
+        max_abs: FloatLike = 100.0,
+        grad_scale: FloatLike = 0.04,
+        prob: Optional[FloatLike] = None,
+    ):
         super().__init__()
-        self.name = None
-        self.max_rms = max_rms
 
+        if prob is None:
+            prob = ScheduledFloat((0.0, 0.5), (8000.0, 0.125), default=0.4)
+        self.prob = prob
+        # 5% of the time we will return and do nothing because memory usage is
+        # too high.
+        self.mem_cutoff = CutoffEstimator(0.05)
 
-    def forward(self, x: Tensor, aux_loss_scale: float) -> Tensor:
-        if torch.jit.is_scripting() or torch.jit.is_tracing() or not self.training:
+        # actually self.num_channels is no longer needed except for an assertion.
+        self.num_channels = num_channels
+        self.channel_dim = channel_dim
+        self.min_positive = min_positive
+        self.max_positive = max_positive
+        self.min_abs = min_abs
+        self.max_abs = max_abs
+        self.grad_scale = grad_scale
+
+    def forward(self, x: Tensor) -> Tensor:
+        if (
+            torch.jit.is_scripting()
+            or not x.requires_grad
+            or (x.is_cuda and self.mem_cutoff(torch.cuda.memory_allocated()))
+        ):
             return _no_op(x)
+
+        prob = float(self.prob)
+        if random.random() < prob:
+            # The following inner-functions convert from the way we historically specified
+            # these limitations, as limits on the absolute value and the proportion of positive
+            # values, to limits on the RMS value and the (mean / stddev).
+            def _abs_to_rms(x):
+                # for normally distributed data, if the expected absolute value is x, the
+                # expected rms value will be sqrt(pi/2) * x.
+                return 1.25331413732 * x
+
+            def _proportion_positive_to_mean(x):
+                def _atanh(x):
+                    eps = 1.0e-10
+                    # eps is to prevent crashes if x is exactly 0 or 1.
+                    # we'll just end up returning a fairly large value.
+                    return (math.log(1 + x + eps) - math.log(1 - x + eps)) / 2.0
+
+                def _approx_inverse_erf(x):
+                    # 1 / (sqrt(pi) * ln(2)),
+                    # see https://math.stackexchange.com/questions/321569/approximating-the-error-function-erf-by-analytical-functions
+                    # this approximation is extremely crude and gets progressively worse for
+                    # x very close to -1 or +1, but we mostly care about the "middle" region
+                    # e.g. _approx_inverse_erf(0.05) = 0.0407316414078772,
+                    # and math.erf(0.0407316414078772) = 0.045935330944660666,
+                    # which is pretty close to 0.05.
+                    return 0.8139535143 * _atanh(x)
+
+                # first convert x from the range 0..1 to the range -1..1 which the error
+                # function returns
+                x = -1 + (2 * x)
+                return _approx_inverse_erf(x)
+
+            min_mean = _proportion_positive_to_mean(float(self.min_positive))
+            max_mean = _proportion_positive_to_mean(float(self.max_positive))
+            min_rms = _abs_to_rms(float(self.min_abs))
+            max_rms = _abs_to_rms(float(self.max_abs))
+            grad_scale = float(self.grad_scale)
+
+            assert x.shape[self.channel_dim] == self.num_channels
+
+            return BalancerFunction.apply(
+                x, min_mean, max_mean, min_rms, max_rms, grad_scale, self.channel_dim
+            )
         else:
-            return ScaleLimiterFunction.apply(x, float(self.max_rms),
-                                              aux_loss_scale, self.name)
-
-
-class CorrelationLimiterFunction(torch.autograd.Function):
-    @staticmethod
-    def forward(ctx, x: Tensor, aux_loss_scale: float, limit: float, mask: Optional[Tensor], name: str):
-        ctx.save_for_backward(x)
-        ctx.mask = mask
-        ctx.limit = limit
-        ctx.aux_loss_scale = aux_loss_scale
-        ctx.name = name
-        return x
-
-    @staticmethod
-    def backward(ctx, ans_grad: Tensor):  # assume ans_grad is 1.0
-        x, = ctx.saved_tensors
-        mask = ctx.mask
-        aux_loss_scale =  ctx.aux_loss_scale
-        (batch_size, seq_len, num_channels) = x.shape
-
-        with torch.enable_grad():
-            with torch.amp.autocast('cuda', enabled=False):
-                x = x.to(torch.float)
-                x = x.detach()
-                x.requires_grad = True
-                x_orig = x
-
-                def norm(x: Tensor):
-                    eps = 1.0e-20
-                    return x / ((x ** 2).mean(dim=-1, keepdim=True) + eps).sqrt()
-                x = norm(x)
-
-                if mask is not None:
-                    mask = (~mask).to(x.dtype).unsqueeze(-1)
-                    x = x * mask
-
-                half_batch = batch_size // 2
-                if half_batch <= 1:
-                    # the reason we also return None if half_batch==1 is because of CR-CTC
-                    # where they may really be duplicates
-                    return None, None, None, None, None
-
-
-                #x = torch.cat((x, y), dim=-1)
-                C = x.shape[-1]  # num_channels
-                x1, x2 = x[0::2], x[1::2]
-                x1 = x1.reshape(-1, C)
-                x2 = x2.reshape(-1, C)
-
-                if mask is not None:
-                    numel1 = mask[0::2].sum()
-                    numel2 = mask[1::2].sum()
-                else:
-                    numel1 = x1.shape[0]
-                    numel2 = x2.shape[0]
-
-                S1 = torch.matmul(x1.t(), x1) * (1. / numel1)
-                S2 = torch.matmul(x2.t(), x2) * (1. / numel2)
-
-                # S1, S2: (N, N) where N = min(num_channels, max_channels)
-                correlation = (S1 * S2).mean()
-                loss = (correlation - ctx.limit).relu()
-
-                if random.random() < 0.0001:
-                    logging.info(
-                        f"CorrelationLimiter: name={ctx.name}, loss_scale={aux_loss_scale}, correlation={correlation}, loss={loss}"
-                    )
-
-                loss.backward(gradient=torch.tensor(aux_loss_scale * batch_size * seq_len, device=loss.device))
-
-
-        return x_orig.grad, None, None, None, None
-
-
-class CorrelationLimiter(torch.nn.Module):
-    """
-    Adds a penalty in backprop if the input feature has a covariance matrix that is
-    too different from the identity matrix.  limit=1/num_channels is the
-    smallest limit you can provide but the limit should be much larger than
-    this, like 1/sqrt(num_channels).
-
-      Assumes input is (batch, seq, channel)
-    """
-    def __init__(self, limit: float = 0.03):
-        super().__init__()
-        self.name = None
-        self.limit = limit
-
-
-    def forward(self, x: Tensor, aux_loss_scale: float, mask: Optional[Tensor]) -> Tensor:
-        # x should be: (batch, seq, channel)
-        # returns a scalar tensor that should be included in the loss function with:
-        #  z = with_loss(z, ret, None)
-        # where z is any quantity that will be used in calculating the main loss.
-        if torch.jit.is_scripting() or torch.jit.is_tracing() or not self.training:
-            return torch.tensor(0.0, device=x.device)
-        else:
-            return CorrelationLimiterFunction.apply(x,
-                                                    aux_loss_scale,
-                                                    float(self.limit),
-                                                    mask,
-                                                    self.name)
-
-
+            return _no_op(x)
 
 
 def penalize_abs_values_gt(
@@ -894,13 +1004,121 @@ def _whitening_metric(x: Tensor, num_groups: int):
     return metric
 
 
+class WhiteningPenaltyFunction(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, x: Tensor, module: nn.Module) -> Tensor:
+        ctx.save_for_backward(x)
+        ctx.module = module
+        return x
+
+    @staticmethod
+    def backward(ctx, x_grad: Tensor):
+        (x_orig,) = ctx.saved_tensors
+        w = ctx.module
+
+        try:
+            with torch.enable_grad():
+                with torch_autocast(enabled=False):
+                    x_detached = x_orig.to(torch.float32).detach()
+                    x_detached.requires_grad = True
+
+                    metric = _whitening_metric(x_detached, w.num_groups)
+
+                    if random.random() < 0.005 or __name__ == "__main__":
+                        logging.info(
+                            f"Whitening: name={w.name}, num_groups={w.num_groups}, num_channels={x_orig.shape[-1]}, "
+                            f"metric={metric.item():.2f} vs. limit={float(w.whitening_limit)}"
+                        )
+
+                    if metric < float(w.whitening_limit):
+                        w.prob = w.min_prob
+                        return x_grad, None
+                    else:
+                        w.prob = w.max_prob
+                        metric.backward()
+                        penalty_grad = x_detached.grad
+                        scale = float(w.grad_scale) * (
+                            x_grad.to(torch.float32).norm()
+                            / (penalty_grad.norm() + 1.0e-20)
+                        )
+                        penalty_grad = penalty_grad * scale
+                        return x_grad + penalty_grad.to(x_grad.dtype), None
+        except Exception as e:
+            logging.info(
+                f"Caught exception in Whiten backward: {e}, size={list(x_grad.shape)}, will continue."
+            )
+        return x_grad, None
+
+
+class Whiten(nn.Module):
+    def __init__(
+        self,
+        num_groups: int,
+        whitening_limit: FloatLike,
+        prob: Union[float, Tuple[float, float]],
+        grad_scale: FloatLike,
+    ):
+        """
+        Args:
+          num_groups: the number of groups to divide the channel dim into before
+            whitening.  We will attempt to make the feature covariance
+            within each group, after mean subtraction, as "white" as possible,
+            while having the same trace across all groups.
+         whitening_limit: a value greater than 1.0, that dictates how much
+           freedom we have to violate the constraints.  1.0 would mean perfectly
+           white, with exactly the same trace across groups; larger values
+           give more freedom.  E.g. 2.0.
+         prob: the probability with which we apply the gradient modification
+           (also affects the grad scale).  May be supplied as a float,
+           or as a pair (min_prob, max_prob)
+
+          grad_scale: determines the scale on the gradient term from this object,
+            relative to the rest of the gradient on the attention weights.
+            E.g. 0.02 (you may want to use smaller values than this if prob is large)
+        """
+        super(Whiten, self).__init__()
+        assert num_groups >= 1
+        assert float(whitening_limit) >= 1
+        assert float(grad_scale) >= 0
+        self.num_groups = num_groups
+        self.whitening_limit = whitening_limit
+        self.grad_scale = grad_scale
+
+        if isinstance(prob, float):
+            prob = (prob, prob)
+        (self.min_prob, self.max_prob) = prob
+        assert 0 < self.min_prob <= self.max_prob <= 1
+        self.prob = self.max_prob
+        self.name = None  # will be set in training loop
+
+    def forward(self, x: Tensor) -> Tensor:
+        """
+        In the forward pass, this function just returns the input unmodified.
+        In the backward pass, it will modify the gradients to ensure that the
+        distribution in each group has close to (lambda times I) as the covariance
+        after mean subtraction, with the same lambda across groups.
+        For whitening_limit > 1, there will be more freedom to violate this
+        constraint.
+
+        Args:
+           x: the input of shape (*, num_channels)
+
+        Returns:
+            x, unmodified.   You should make sure
+        you use the returned value, or the graph will be freed
+        and nothing will happen in backprop.
+        """
+        grad_scale = float(self.grad_scale)
+        if not x.requires_grad or random.random() > self.prob or grad_scale == 0:
+            return _no_op(x)
+        else:
+            return WhiteningPenaltyFunction.apply(x, self)
 
 
 class WithLoss(torch.autograd.Function):
     @staticmethod
     def forward(ctx, x: Tensor, y: Tensor, name: str):
         ctx.y_shape = y.shape
-        ctx.dtype = y.dtype
         if random.random() < 0.002 and name is not None:
             loss_sum = y.sum().item()
             logging.info(f"WithLoss: name={name}, loss-sum={loss_sum:.3e}")
@@ -910,12 +1128,12 @@ class WithLoss(torch.autograd.Function):
     def backward(ctx, ans_grad: Tensor):
         return (
             ans_grad,
-            torch.ones(ctx.y_shape, dtype=ctx.dtype, device=ans_grad.device),
+            torch.ones(ctx.y_shape, dtype=ans_grad.dtype, device=ans_grad.device),
             None,
         )
 
 
-def with_loss(x, y, name=None):
+def with_loss(x, y, name):
     # returns x but adds y.sum() to the loss function.
     return WithLoss.apply(x, y, name)
 
@@ -1000,66 +1218,299 @@ class Identity(torch.nn.Module):
         return _no_op(x)
 
 
+class DoubleSwishFunction(torch.autograd.Function):
+    """
+      double_swish(x) = x * torch.sigmoid(x-1)
+
+    This is a definition, originally motivated by its close numerical
+    similarity to swish(swish(x)), where swish(x) =  x * sigmoid(x).
+
+    Memory-efficient derivative computation:
+     double_swish(x) = x * s, where s(x) = torch.sigmoid(x-1)
+     double_swish'(x) = d/dx double_swish(x) =  x * s'(x) + x' * s(x) = x * s'(x) + s(x).
+     Now, s'(x) = s(x) * (1-s(x)).
+     double_swish'(x) =  x * s'(x) + s(x).
+                      =  x * s(x) * (1-s(x)) + s(x).
+                     = double_swish(x) * (1-s(x)) + s(x)
+     ... so we just need to remember s(x) but not x itself.
+    """
+
+    @staticmethod
+    def forward(ctx, x: Tensor) -> Tensor:
+        requires_grad = x.requires_grad
+        if x.dtype == torch.float16 or x.dtype == torch.bfloat16:
+            x = x.to(torch.float32)
+
+        s = torch.sigmoid(x - 1.0)
+        y = x * s
+
+        if requires_grad:
+            deriv = y * (1 - s) + s
+
+            # notes on derivative of x * sigmoid(x - 1):
+            # https://www.wolframalpha.com/input?i=d%2Fdx+%28x+*+sigmoid%28x-1%29%29
+            # min \simeq -0.043638.  Take floor as -0.044 so it's a lower bund
+            # max \simeq 1.1990.   Take ceil to be 1.2 so it's an upper bound.
+            # the combination of "+ torch.rand_like(deriv)" and casting to torch.uint8 (which
+            # floors), should be expectation-preserving.
+            floor = -0.044
+            ceil = 1.2
+            d_scaled = (deriv - floor) * (255.0 / (ceil - floor)) + torch.rand_like(
+                deriv
+            )
+            if __name__ == "__main__":
+                # for self-testing only.
+                assert d_scaled.min() >= 0.0
+                assert d_scaled.max() < 256.0
+            d_int = d_scaled.to(torch.uint8)
+            ctx.save_for_backward(d_int)
+        if x.dtype == torch.float16 or torch.is_autocast_enabled():
+            y = y.to(torch.float16)
+        return y
+
+    @staticmethod
+    def backward(ctx, y_grad: Tensor) -> Tensor:
+        (d,) = ctx.saved_tensors
+        # the same constants as used in forward pass.
+        floor = -0.043637
+        ceil = 1.2
+
+        d = d * ((ceil - floor) / 255.0) + floor
+        return y_grad * d
 
 
-
-
-def torch_compile(fn, *args, **kwargs):
-    if hasattr(torch, 'compile'):
-        fn = torch.compile(fn, *args, **kwargs, dynamic=True, options={"shape_padding": True, "force_shape_pad": True})
-    return fn
-
-def swashl(x: Tensor) -> Tensor:
-    zero = torch.zeros_like(x)
-    return 0.25 * logaddexp(zero, 4 * x - 4.0) - 0.08 * x - 0.00875
-
-def swashr(x: Tensor) -> Tensor:
-    zero = torch.zeros_like(x)
-    return 0.25 * logaddexp(zero, 4 * x - 1.0) - 0.08 * x - 0.07831542175
-
-
-def swashl_and_deriv(x: Tensor):
-    x_offset = 4. * x - 4.
-    denom = 1. + x_offset.exp()
-    inv_denom = 1. / denom  # note: 1 / infinity = 0.
-    deriv = 0.92 - inv_denom;
-    log_denom = denom.log()
-    log_denom = torch.where(torch.isinf(log_denom), x_offset, log_denom)
-    y = 0.25 * log_denom - 0.08 * x - 0.00875
-    return y, deriv
-
-def swashr_and_deriv(x: Tensor):
-    x_offset = 4. * x - 1.
-    denom = 1. + x_offset.exp()
-    inv_denom = 1. / denom  # note: 1 / infinity = 0.
-    deriv = 0.92 - inv_denom;
-    log_denom = denom.log()
-    log_denom = torch.where(torch.isinf(log_denom), x_offset, log_denom)
-    y = 0.25 * log_denom - 0.08 * x - 0.07831542175
-    return y, deriv
-
-
-class SwashL(torch.nn.Module):
+class DoubleSwish(torch.nn.Module):
     def __init__(self):
         super().__init__()
-        self.func = torch_compile(swashl)
-    def forward(self, x: Tensor) -> Tensor:
-        """Return Swash-L activation, which is the same as SwooshL but with a factor of 4
-        on the input and 0.25 on the output.."""
-        return self.func(x)
 
-class SwashR(torch.nn.Module):
-    def __init__(self):
+    def forward(self, x: Tensor) -> Tensor:
+        """Return double-swish activation function which is an approximation to Swish(Swish(x)),
+        that we approximate closely with x * sigmoid(x-1).
+        """
+        if torch.jit.is_scripting() or torch.jit.is_tracing():
+            return x * torch.sigmoid(x - 1.0)
+        return DoubleSwishFunction.apply(x)
+
+
+# Dropout2 is just like normal dropout, except it supports schedules on the dropout rates.
+class Dropout2(nn.Module):
+    def __init__(self, p: FloatLike):
         super().__init__()
-        self.func = torch_compile(swashr)
+        self.p = p
+
     def forward(self, x: Tensor) -> Tensor:
-        """Return Swash-R activation, which is the same as SwooshL but with a factor of 4
-        on the input and 0.25 on the output.."""
-        return self.func(x)
+        return torch.nn.functional.dropout(x, p=float(self.p), training=self.training)
 
 
+class MulForDropout3(torch.autograd.Function):
+    # returns (x * y * alpha) where alpha is a float and y doesn't require
+    # grad and is zero-or-one.
+    @staticmethod
+    @custom_fwd
+    def forward(ctx, x, y, alpha):
+        assert not y.requires_grad
+        ans = x * y * alpha
+        ctx.save_for_backward(ans)
+        ctx.alpha = alpha
+        return ans
 
-class ActivationAndLinearFunction(torch.autograd.Function):
+    @staticmethod
+    @custom_bwd
+    def backward(ctx, ans_grad):
+        (ans,) = ctx.saved_tensors
+        x_grad = ctx.alpha * ans_grad * (ans != 0)
+        return x_grad, None, None
+
+
+# Dropout3 is just like normal dropout, except it supports schedules on the dropout rates,
+# and it lets you choose one dimension to share the dropout mask over
+class Dropout3(nn.Module):
+    def __init__(self, p: FloatLike, shared_dim: int):
+        super().__init__()
+        self.p = p
+        self.shared_dim = shared_dim
+
+    def forward(self, x: Tensor) -> Tensor:
+        p = float(self.p)
+        if not self.training or p == 0:
+            return _no_op(x)
+        scale = 1.0 / (1 - p)
+        rand_shape = list(x.shape)
+        rand_shape[self.shared_dim] = 1
+        mask = torch.rand(*rand_shape, device=x.device) > p
+        ans = MulForDropout3.apply(x, mask, scale)
+        return ans
+
+
+class SwooshLFunction(torch.autograd.Function):
+    """
+    swoosh_l(x) =  log(1 + exp(x-4)) - 0.08*x - 0.035
+    """
+
+    @staticmethod
+    def forward(ctx, x: Tensor) -> Tensor:
+        requires_grad = x.requires_grad
+        if x.dtype == torch.float16 or x.dtype == torch.bfloat16:
+            x = x.to(torch.float32)
+
+        zero = torch.tensor(0.0, dtype=x.dtype, device=x.device)
+
+        coeff = -0.08
+
+        with torch_autocast(enabled=False):
+            with torch.enable_grad():
+                x = x.detach()
+                x.requires_grad = True
+                y = torch.logaddexp(zero, x - 4.0) + coeff * x - 0.035
+
+                if not requires_grad:
+                    return y
+
+                y.backward(gradient=torch.ones_like(y))
+
+                grad = x.grad
+                floor = coeff
+                ceil = 1.0 + coeff + 0.005
+
+                d_scaled = (grad - floor) * (255.0 / (ceil - floor)) + torch.rand_like(
+                    grad
+                )
+                if __name__ == "__main__":
+                    # for self-testing only.
+                    assert d_scaled.min() >= 0.0
+                    assert d_scaled.max() < 256.0
+
+                d_int = d_scaled.to(torch.uint8)
+                ctx.save_for_backward(d_int)
+                if x.dtype == torch.float16 or torch.is_autocast_enabled():
+                    y = y.to(torch.get_autocast_gpu_dtype())
+                return y
+
+    @staticmethod
+    def backward(ctx, y_grad: Tensor) -> Tensor:
+        (d,) = ctx.saved_tensors
+        # the same constants as used in forward pass.
+
+        coeff = -0.08
+        floor = coeff
+        ceil = 1.0 + coeff + 0.005
+        d = d * ((ceil - floor) / 255.0) + floor
+        return y_grad * d
+
+
+class SwooshL(torch.nn.Module):
+    def forward(self, x: Tensor) -> Tensor:
+        """Return Swoosh-L activation."""
+        if torch.jit.is_scripting() or torch.jit.is_tracing():
+            zero = torch.tensor(0.0, dtype=x.dtype, device=x.device)
+            return logaddexp(zero, x - 4.0) - 0.08 * x - 0.035
+        if not x.requires_grad:
+            return k2.swoosh_l_forward(x).to(x.dtype)
+        else:
+            return k2.swoosh_l(x).to(x.dtype)
+        # return SwooshLFunction.apply(x)
+
+
+class SwooshLOnnx(torch.nn.Module):
+    def forward(self, x: Tensor) -> Tensor:
+        """Return Swoosh-L activation."""
+        zero = torch.tensor(0.0, dtype=x.dtype, device=x.device)
+        return logaddexp_onnx(zero, x - 4.0) - 0.08 * x - 0.035
+
+
+class SwooshRFunction(torch.autograd.Function):
+    """
+     swoosh_r(x) =  log(1 + exp(x-1)) - 0.08*x - 0.313261687
+
+    derivatives are between -0.08 and 0.92.
+    """
+
+    @staticmethod
+    def forward(ctx, x: Tensor) -> Tensor:
+        requires_grad = x.requires_grad
+
+        if x.dtype == torch.float16 or x.dtype == torch.bfloat16:
+            x = x.to(torch.float32)
+
+        zero = torch.tensor(0.0, dtype=x.dtype, device=x.device)
+
+        with torch_autocast(enabled=False):
+            with torch.enable_grad():
+                x = x.detach()
+                x.requires_grad = True
+                y = torch.logaddexp(zero, x - 1.0) - 0.08 * x - 0.313261687
+
+                if not requires_grad:
+                    return y
+                y.backward(gradient=torch.ones_like(y))
+
+                grad = x.grad
+                floor = -0.08
+                ceil = 0.925
+
+                d_scaled = (grad - floor) * (255.0 / (ceil - floor)) + torch.rand_like(
+                    grad
+                )
+                if __name__ == "__main__":
+                    # for self-testing only.
+                    assert d_scaled.min() >= 0.0
+                    assert d_scaled.max() < 256.0
+
+                d_int = d_scaled.to(torch.uint8)
+                ctx.save_for_backward(d_int)
+                if x.dtype == torch.float16 or torch.is_autocast_enabled():
+                    y = y.to(torch.get_autocast_gpu_dtype())
+                return y
+
+    @staticmethod
+    def backward(ctx, y_grad: Tensor) -> Tensor:
+        (d,) = ctx.saved_tensors
+        # the same constants as used in forward pass.
+        floor = -0.08
+        ceil = 0.925
+        d = d * ((ceil - floor) / 255.0) + floor
+        return y_grad * d
+
+
+class SwooshR(torch.nn.Module):
+    def forward(self, x: Tensor) -> Tensor:
+        """Return Swoosh-R activation."""
+        if torch.jit.is_scripting() or torch.jit.is_tracing():
+            zero = torch.tensor(0.0, dtype=x.dtype, device=x.device)
+            return logaddexp(zero, x - 1.0) - 0.08 * x - 0.313261687
+        if not x.requires_grad:
+            return k2.swoosh_r_forward(x).to(x.dtype)
+        else:
+            return k2.swoosh_r(x).to(x.dtype)
+        # return SwooshRFunction.apply(x)
+
+
+class SwooshROnnx(torch.nn.Module):
+    def forward(self, x: Tensor) -> Tensor:
+        """Return Swoosh-R activation."""
+        zero = torch.tensor(0.0, dtype=x.dtype, device=x.device)
+        return logaddexp_onnx(zero, x - 1.0) - 0.08 * x - 0.313261687
+
+
+# simple version of SwooshL that does not redefine the backprop, used in
+# ActivationDropoutAndLinearFunction.
+def SwooshLForward(x: Tensor):
+    x_offset = x - 4.0
+    log_sum = (1.0 + x_offset.exp()).log().to(x.dtype)
+    log_sum = torch.where(log_sum == float("inf"), x_offset, log_sum)
+    return log_sum - 0.08 * x - 0.035
+
+
+# simple version of SwooshR that does not redefine the backprop, used in
+# ActivationDropoutAndLinearFunction.
+def SwooshRForward(x: Tensor):
+    x_offset = x - 1.0
+    log_sum = (1.0 + x_offset.exp()).log().to(x.dtype)
+    log_sum = torch.where(log_sum == float("inf"), x_offset, log_sum)
+    return log_sum - 0.08 * x - 0.313261687
+
+
+class ActivationDropoutAndLinearFunction(torch.autograd.Function):
     @staticmethod
     @custom_fwd
     def forward(
@@ -1067,14 +1518,35 @@ class ActivationAndLinearFunction(torch.autograd.Function):
         x: Tensor,
         weight: Tensor,
         bias: Optional[Tensor],
-        forward_func: Any,
-        backward_func: Any,
+        activation: str,
+        dropout_p: float,
+        dropout_shared_dim: Optional[int],
     ):
-        ctx.save_for_backward(x, weight, bias)
+        if dropout_p != 0.0:
+            dropout_shape = list(x.shape)
+            if dropout_shared_dim is not None:
+                dropout_shape[dropout_shared_dim] = 1
+            # else it won't be very memory efficient.
+            dropout_mask = (1.0 / (1.0 - dropout_p)) * (
+                torch.rand(*dropout_shape, device=x.device, dtype=x.dtype) > dropout_p
+            )
+        else:
+            dropout_mask = None
 
-        ctx.backward_func = backward_func
+        ctx.save_for_backward(x, weight, bias, dropout_mask)
 
-        x = forward_func(x)
+        ctx.activation = activation
+
+        forward_activation_dict = {
+            "SwooshL": k2.swoosh_l_forward,
+            "SwooshR": k2.swoosh_r_forward,
+        }
+        # it will raise a KeyError if this fails.  This will be an error.  We let it
+        # propagate to the user.
+        activation_func = forward_activation_dict[activation]
+        x = activation_func(x)
+        if dropout_mask is not None:
+            x = x * dropout_mask
         x = torch.nn.functional.linear(x, weight, bias)
         return x
 
@@ -1082,9 +1554,19 @@ class ActivationAndLinearFunction(torch.autograd.Function):
     @custom_bwd
     def backward(ctx, ans_grad: Tensor):
         saved = ctx.saved_tensors
-        (x, weight, bias) = saved
+        (x, weight, bias, dropout_mask) = saved
 
-        y, func_deriv = ctx.backward_func(x)
+        forward_and_deriv_activation_dict = {
+            "SwooshL": k2.swoosh_l_forward_and_deriv,
+            "SwooshR": k2.swoosh_r_forward_and_deriv,
+        }
+        # the following lines a KeyError if the activation is unrecognized.
+        # This will be an error.  We let it propagate to the user.
+        func = forward_and_deriv_activation_dict[ctx.activation]
+
+        y, func_deriv = func(x)
+        if dropout_mask is not None:
+            y = y * dropout_mask
         # now compute derivative of y w.r.t. weight and bias..
         # y: (..., in_channels), ans_grad: (..., out_channels),
         (out_channels, in_channels) = weight.shape
@@ -1095,32 +1577,47 @@ class ActivationAndLinearFunction(torch.autograd.Function):
         y_deriv = torch.matmul(ans_grad, weight)
         bias_deriv = None if bias is None else g.sum(dim=0)
         x_deriv = y_deriv * func_deriv
-        return x_deriv, weight_deriv, bias_deriv, None, None
+        if dropout_mask is not None:
+            # order versus func_deriv does not matter
+            x_deriv = x_deriv * dropout_mask
+
+        return x_deriv, weight_deriv, bias_deriv, None, None, None
 
 
-
-class ActivationAndLinear(torch.nn.Module):
+class ActivationDropoutAndLinear(torch.nn.Module):
     """
-     This merges an activation function followed by a nn.Linear module;
+     This merges an activation function followed by dropout and then a nn.Linear module;
      it does so in a memory efficient way so that it only stores the input to the whole
-     module.  If activation == SwashL, this will be
+     module.  If activation == SwooshL and dropout_shared_dim != None, this will be
      equivalent to:
-       nn.Sequential(SwashL(),
+       nn.Sequential(SwooshL(),
+                     Dropout3(dropout_p, shared_dim=dropout_shared_dim),
                      ScaledLinear(in_channels, out_channels, bias=bias,
                                   initial_scale=initial_scale))
+    If dropout_shared_dim is None, the dropout would be equivalent to
+    Dropout2(dropout_p).  Note: Dropout3 will be more memory efficient as the dropout
+    mask is smaller.
 
      Args:
         in_channels: number of input channels, e.g. 256
         out_channels: number of output channels, e.g. 256
         bias: if true, have a bias
-        activation: the activation function, for now just support SwashL, SwashR.
+        activation: the activation function, for now just support SwooshL.
+        dropout_p: the dropout probability or schedule (happens after nonlinearity).
+        dropout_shared_dim: the dimension, if any, across which the dropout mask is
+             shared (e.g. the time dimension).  If None, this may be less memory
+             efficient if there are modules before this one that cache the input
+             for their backprop (e.g. Balancer or Whiten).
     """
+
     def __init__(
         self,
         in_channels: int,
         out_channels: int,
         bias: bool = True,
-        activation: str = "SwashL",
+        activation: str = "SwooshL",
+        dropout_p: FloatLike = 0.0,
+        dropout_shared_dim: Optional[int] = -1,
         initial_scale: float = 1.0,
     ):
         super().__init__()
@@ -1138,27 +1635,26 @@ class ActivationAndLinear(torch.nn.Module):
         self.register_parameter("bias", l.bias)
 
         self.activation = activation
-
-        assert activation in ["SwashL", "SwashR"]
-        if activation == "SwashL":
-            self.forward_func = torch_compile(swashl)
-            self.backward_func = torch_compile(swashl_and_deriv)
-        else:
-            self.forward_func = torch_compile(swashr)
-            self.backward_func = torch_compile(swashr_and_deriv)
-
+        self.dropout_p = dropout_p
+        self.dropout_shared_dim = dropout_shared_dim
 
     def forward(self, x: Tensor):
         if not self.training or torch.jit.is_scripting() or torch.jit.is_tracing():
-            x = self.forward_func(x)
+            if self.activation == "SwooshL":
+                x = SwooshLForward(x)
+            elif self.activation == "SwooshR":
+                x = SwooshRForward(x)
+            else:
+                assert False, self.activation
             return torch.nn.functional.linear(x, self.weight, self.bias)
 
-        return ActivationAndLinearFunction.apply(
+        return ActivationDropoutAndLinearFunction.apply(
             x,
             self.weight,
             self.bias,
-            self.forward_func,
-            self.backward_func,
+            self.activation,
+            float(self.dropout_p),
+            self.dropout_shared_dim,
         )
 
 
@@ -1172,11 +1668,99 @@ def convert_num_channels(x: Tensor, num_channels: int) -> Tensor:
         return torch.cat((x, zeros), dim=-1)
 
 
+def _test_whiten():
+    for proportion in [0.1, 0.5, 10.0]:
+        logging.info(f"_test_whiten(): proportion = {proportion}")
+        x = torch.randn(100, 128)
+        direction = torch.randn(128)
+        coeffs = torch.randn(100, 1)
+        x += proportion * direction * coeffs
 
-def _test_swashl_deriv():
+        x.requires_grad = True
+
+        m = Whiten(
+            1, 5.0, prob=1.0, grad_scale=0.1  # num_groups  # whitening_limit,
+        )  # grad_scale
+
+        for _ in range(4):
+            y = m(x)
+
+        y_grad = torch.randn_like(x)
+        y.backward(gradient=y_grad)
+
+        if proportion < 0.2:
+            assert torch.allclose(x.grad, y_grad)
+        elif proportion > 1.0:
+            assert not torch.allclose(x.grad, y_grad)
+
+
+def _test_balancer_sign():
+    probs = torch.arange(0, 1, 0.01)
+    N = 1000
+    x = 1.0 * ((2.0 * (torch.rand(probs.numel(), N) < probs.unsqueeze(-1))) - 1.0)
+    x = x.detach()
+    x.requires_grad = True
+    m = Balancer(
+        probs.numel(),
+        channel_dim=0,
+        min_positive=0.05,
+        max_positive=0.95,
+        min_abs=0.0,
+        prob=1.0,
+    )
+
+    y_grad = torch.sign(torch.randn(probs.numel(), N))
+
+    y = m(x)
+    y.backward(gradient=y_grad)
+    print("_test_balancer_sign: x = ", x)
+    print("_test_balancer_sign: y grad = ", y_grad)
+    print("_test_balancer_sign: x grad = ", x.grad)
+
+
+def _test_balancer_magnitude():
+    magnitudes = torch.arange(0, 1, 0.01)
+    N = 1000
+    x = torch.sign(torch.randn(magnitudes.numel(), N)) * magnitudes.unsqueeze(-1)
+    x = x.detach()
+    x.requires_grad = True
+    m = Balancer(
+        magnitudes.numel(),
+        channel_dim=0,
+        min_positive=0.0,
+        max_positive=1.0,
+        min_abs=0.2,
+        max_abs=0.7,
+        prob=1.0,
+    )
+
+    y_grad = torch.sign(torch.randn(magnitudes.numel(), N))
+
+    y = m(x)
+    y.backward(gradient=y_grad)
+    print("_test_balancer_magnitude: x = ", x)
+    print("_test_balancer_magnitude: y grad = ", y_grad)
+    print("_test_balancer_magnitude: x grad = ", x.grad)
+
+
+def _test_double_swish_deriv():
     x = torch.randn(10, 12, dtype=torch.double) * 3.0
     x.requires_grad = True
-    m = SwashL()
+    m = DoubleSwish()
+
+    tol = (1.2 - (-0.043637)) / 255.0
+    torch.autograd.gradcheck(m, x, atol=tol)
+
+    # for self-test.
+    x = torch.randn(1000, 1000, dtype=torch.double) * 3.0
+    x.requires_grad = True
+    y = m(x)
+
+
+def _test_swooshl_deriv():
+    x = torch.randn(10, 12, dtype=torch.double) * 3.0
+    x.requires_grad = True
+    m = SwooshL()
 
     tol = 1.0 / 255.0
     torch.autograd.gradcheck(m, x, atol=tol, eps=0.01)
@@ -1187,10 +1771,10 @@ def _test_swashl_deriv():
     y = m(x)
 
 
-def _test_swashr_deriv():
+def _test_swooshr_deriv():
     x = torch.randn(10, 12, dtype=torch.double) * 3.0
     x.requires_grad = True
-    m = SwashR()
+    m = SwooshR()
 
     tol = 1.0 / 255.0
     torch.autograd.gradcheck(m, x, atol=tol, eps=0.01)
@@ -1213,34 +1797,72 @@ def _test_softmax():
     assert torch.allclose(a.grad, b.grad)
 
 
-def _test_activation_and_linear():
+def _test_piecewise_linear():
+    p = PiecewiseLinear((0, 10.0))
+    for x in [-100, 0, 100]:
+        assert p(x) == 10.0
+    p = PiecewiseLinear((0, 10.0), (1, 0.0))
+    for x, y in [(-100, 10.0), (0, 10.0), (0.5, 5.0), (1, 0.0), (2, 0.0)]:
+        print("x, y = ", x, y)
+        assert p(x) == y, (x, p(x), y)
+
+    q = PiecewiseLinear((0.5, 15.0), (0.6, 1.0))
+    x_vals = [-1.0, 0.0, 0.1, 0.2, 0.5, 0.6, 0.7, 0.9, 1.0, 2.0]
+    pq = p.max(q)
+    for x in x_vals:
+        y1 = max(p(x), q(x))
+        y2 = pq(x)
+        assert abs(y1 - y2) < 0.001
+    pq = p.min(q)
+    for x in x_vals:
+        y1 = min(p(x), q(x))
+        y2 = pq(x)
+        assert abs(y1 - y2) < 0.001
+    pq = p + q
+    for x in x_vals:
+        y1 = p(x) + q(x)
+        y2 = pq(x)
+        assert abs(y1 - y2) < 0.001
+
+
+def _test_activation_dropout_and_linear():
     in_channels = 20
     out_channels = 30
 
     for bias in [True, False]:
-        if True:
-            for activation in ["SwashL", "SwashR"]:
+        # actually we don't test for dropout_p != 0.0 because forward functions will give
+        # different answers.  This is because we are using the k2 implementation of
+        # swoosh_l an swoosh_r inside SwooshL() and SwooshR(), and they call randn()
+        # internally, messing up the random state.
+        for dropout_p in [0.0]:
+            for activation in ["SwooshL", "SwooshR"]:
                 m1 = nn.Sequential(
-                    SwashL() if activation == "SwashL" else SwashR(),
+                    SwooshL() if activation == "SwooshL" else SwooshR(),
+                    Dropout3(p=dropout_p, shared_dim=-1),
                     ScaledLinear(
                         in_channels, out_channels, bias=bias, initial_scale=0.5
                     ),
                 )
-                m2 = ActivationAndLinear(
+                m2 = ActivationDropoutAndLinear(
                     in_channels,
                     out_channels,
                     bias=bias,
                     initial_scale=0.5,
                     activation=activation,
+                    dropout_p=dropout_p,
                 )
                 with torch.no_grad():
-                    m2.weight[:] = m1[1].weight
+                    m2.weight[:] = m1[2].weight
                     if bias:
-                        m2.bias[:] = m1[1].bias
+                        m2.bias[:] = m1[2].bias
                 # make sure forward gives same result.
                 x1 = torch.randn(10, in_channels)
                 x1.requires_grad = True
 
+                # TEMP.
+                assert torch.allclose(
+                    SwooshRFunction.apply(x1), SwooshRForward(x1), atol=1.0e-03
+                )
 
                 x2 = x1.clone().detach()
                 x2.requires_grad = True
@@ -1254,17 +1876,14 @@ def _test_activation_and_linear():
                 y2.backward(gradient=y_grad)
 
                 print(
-                    f"bias = {bias}, activation = {activation}"
+                    f"bias = {bias}, dropout_p = {dropout_p}, activation = {activation}"
                 )
                 print("y1 = ", y1)
                 print("y2 = ", y2)
                 assert torch.allclose(y1, y2, atol=0.02)
-                print("grad1 = ", m1[1].weight.grad)
-                print("grad2 = ", m2.weight.grad)
-
-                assert torch.allclose(m1[1].weight.grad, m2.weight.grad, atol=1.0e-05)
+                assert torch.allclose(m1[2].weight.grad, m2.weight.grad, atol=1.0e-05)
                 if bias:
-                    assert torch.allclose(m1[1].bias.grad, m2.bias.grad, atol=1.0e-05)
+                    assert torch.allclose(m1[2].bias.grad, m2.bias.grad, atol=1.0e-05)
                 print("x1.grad = ", x1.grad)
                 print("x2.grad = ", x2.grad)
 
@@ -1274,22 +1893,21 @@ def _test_activation_and_linear():
                         (a**2).sum() * (b**2).sum()
                     ).sqrt()
 
-                # the SwashL() implementation has a noisy gradient due to 1-byte
+                # the SwooshL() implementation has a noisy gradient due to 1-byte
                 # storage of it.
                 assert isclose(x1.grad, x2.grad)
-
-
-def _test_orthogonal_linear():
-    m = OrthogonalLinear(128, 128)
-    m(torch.randn(30, 2, 128))
 
 
 if __name__ == "__main__":
     logging.getLogger().setLevel(logging.INFO)
     torch.set_num_threads(1)
     torch.set_num_interop_threads(1)
+    _test_piecewise_linear()
     _test_softmax()
-    _test_swashr_deriv()
-    _test_swashl_deriv()
-    _test_activation_and_linear()
-    _test_orthogonal_linear()
+    _test_whiten()
+    _test_balancer_sign()
+    _test_balancer_magnitude()
+    _test_double_swish_deriv()
+    _test_swooshr_deriv()
+    _test_swooshl_deriv()
+    _test_activation_dropout_and_linear()

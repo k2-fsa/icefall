@@ -63,8 +63,7 @@ def get_tensor_stats(
         "rms" -> square before summing, we'll take sqrt later
         "value"  -> just sum x itself
         "max", "min" -> take the maximum or minimum [over all other dims but dim] instead of summing
-
-         "rms-sort" -> this is a bit different than the others, it's based on computing the
+        "rms-sort" -> this is a bit different than the others, it's based on computing the
              rms over the specified dim and returning percentiles of the result (11 of them).
     Returns:
       stats: a Tensor of shape (x.shape[dim],).
@@ -73,10 +72,10 @@ def get_tensor_stats(
     """
 
     if stats_type == "rms-sort":
-        rms = (x ** 2).mean(dim=dim).sqrt()
+        rms = (x**2).mean(dim=dim).sqrt()
         rms = rms.flatten()
         rms = rms.sort()[0]
-        rms = rms[ (torch.arange(11) * rms.numel() // 10).clamp(max=rms.numel() - 1) ]
+        rms = rms[(torch.arange(11) * rms.numel() // 10).clamp(max=rms.numel() - 1)]
         count = 1.0
         return rms, count
 
@@ -177,7 +176,15 @@ class TensorDiagnostic(object):
             if ndim > 1:
                 # rms-sort is different from the others, it's based on summing over just this
                 # dim, then sorting and returning the percentiles.
-                stats_types = ["abs", "max", "min", "positive", "value", "rms", "rms-sort"]
+                stats_types = [
+                    "abs",
+                    "max",
+                    "min",
+                    "positive",
+                    "value",
+                    "rms",
+                    "rms-sort",
+                ]
                 if x.shape[dim] <= self.opts.max_eig_dim:
                     stats_types.append("eigs")
             else:
@@ -460,7 +467,10 @@ def attach_diagnostics(
                         )
 
         module.register_forward_hook(forward_hook)
-        module.register_backward_hook(backward_hook)
+        if hasattr(module, "register_full_backward_hook"):
+            module.register_full_backward_hook(backward_hook)
+        else:
+            module.register_backward_hook(backward_hook)
 
 
     for name, parameter in model.named_parameters():

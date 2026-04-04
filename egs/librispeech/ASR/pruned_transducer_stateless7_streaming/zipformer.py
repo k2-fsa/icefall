@@ -44,7 +44,7 @@ from scaling import (
 )
 from torch import Tensor, nn
 
-from icefall.utils import make_pad_mask, subsequent_chunk_mask
+from icefall.utils import make_pad_mask, subsequent_chunk_mask, torch_autocast
 
 
 def stack_states(state_list: List[List[Tensor]]) -> List[Tensor]:
@@ -2408,7 +2408,7 @@ class RelPositionMultiheadAttention(nn.Module):
         bsz = n // num_heads
 
         with torch.no_grad():
-            with torch.cuda.amp.autocast(enabled=False):
+            with torch_autocast(enabled=False):
                 attn_weights = attn_weights.to(torch.float32)
                 attn_output = attn_output.to(torch.float32)
                 attn_weights_entropy = (

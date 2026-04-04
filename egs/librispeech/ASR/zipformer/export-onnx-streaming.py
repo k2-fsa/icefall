@@ -94,6 +94,20 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--dynamic-batch",
+        type=int,
+        default=1,
+        help="1 to support dynamic batch size. 0 to support only batch size == 1",
+    )
+
+    parser.add_argument(
+        "--enable-int8-quantization",
+        type=int,
+        default=1,
+        help="1 to also export int8 onnx models.",
+    )
+
+    parser.add_argument(
         "--epoch",
         type=int,
         default=28,
@@ -162,12 +176,47 @@ def get_parser():
         help="Whether to export models in fp16",
     )
 
+    parser.add_argument(
+        "--use-whisper-features",
+        type=str2bool,
+        default=False,
+        help="True to use whisper features. Must match the one used in training",
+    )
+
+    parser.add_argument(
+        "--use-external-data",
+        type=str2bool,
+        default=False,
+        help="Set it to true for model file size > 2GB",
+    )
+
     add_model_arguments(parser)
 
     return parser
 
 
-def add_meta_data(filename: str, meta_data: Dict[str, str]):
+def export_onnx_fp16(onnx_fp32_path, onnx_fp16_path):
+    import onnxmltools
+    from onnxmltools.utils.float16_converter import convert_float_to_float16
+
+    onnx_fp32_model = onnxmltools.utils.load_model(onnx_fp32_path)
+    onnx_fp16_model = convert_float_to_float16(onnx_fp32_model, keep_io_types=True)
+    onnxmltools.utils.save_model(onnx_fp16_model, onnx_fp16_path)
+
+
+def export_onnx_fp16_large_2gb(onnx_fp32_path, onnx_fp16_path):
+    import onnxmltools
+    from onnxmltools.utils.float16_converter import convert_float_to_float16_model_path
+
+    onnx_fp16_model = convert_float_to_float16_model_path(
+        onnx_fp32_path, keep_io_types=True
+    )
+    onnxmltools.utils.save_model(onnx_fp16_model, onnx_fp16_path)
+
+
+def add_meta_data(
+    filename: str, meta_data: Dict[str, str], use_external_data: bool = False
+):
     """Add meta data to an ONNX model. It is changed in-place.
 
     Args:
@@ -182,7 +231,19 @@ def add_meta_data(filename: str, meta_data: Dict[str, str]):
         meta.key = key
         meta.value = value
 
-    onnx.save(model, filename)
+    if use_external_data:
+        # For models file size > 2GB
+        external_filename = Path(filename).stem
+
+        onnx.save(
+            model,
+            filename,
+            save_as_external_data=True,
+            all_tensors_to_one_file=True,
+            location=external_filename + ".weights",
+        )
+    else:
+        onnx.save(model, filename)
 
 
 class OnnxEncoder(nn.Module):
@@ -342,6 +403,9 @@ def export_encoder_model_onnx(
     encoder_filename: str,
     opset_version: int = 11,
     feature_dim: int = 80,
+    dynamic_batch: bool = True,
+    use_whisper_features: bool = False,
+    use_external_data: bool = False,
 ) -> None:
     encoder_model.encoder.__class__.forward = (
         encoder_model.encoder.__class__.streaming_forward
@@ -441,6 +505,9 @@ def export_encoder_model_onnx(
         "value_head_dims": value_head_dims,
         "num_heads": num_heads,
     }
+    if use_whisper_features:
+        meta_data["feature"] = "whisper"
+
     logging.info(f"meta_data: {meta_data}")
 
     for i in range(len(init_state[:-2]) // 6):
@@ -482,16 +549,23 @@ def export_encoder_model_onnx(
             "encoder_out": {0: "N"},
             **inputs,
             **outputs,
-        },
+        }
+        if dynamic_batch
+        else {},
     )
 
-    add_meta_data(filename=encoder_filename, meta_data=meta_data)
+    add_meta_data(
+        filename=encoder_filename,
+        meta_data=meta_data,
+        use_external_data=use_external_data,
+    )
 
 
 def export_decoder_model_onnx(
     decoder_model: OnnxDecoder,
     decoder_filename: str,
     opset_version: int = 11,
+    dynamic_batch: bool = True,
 ) -> None:
     """Export the decoder model to ONNX format.
 
@@ -514,7 +588,7 @@ def export_decoder_model_onnx(
     context_size = decoder_model.decoder.context_size
     vocab_size = decoder_model.decoder.vocab_size
 
-    y = torch.zeros(10, context_size, dtype=torch.int64)
+    y = torch.zeros(1, context_size, dtype=torch.int64)
     decoder_model = torch.jit.script(decoder_model)
     torch.onnx.export(
         decoder_model,
@@ -527,7 +601,9 @@ def export_decoder_model_onnx(
         dynamic_axes={
             "y": {0: "N"},
             "decoder_out": {0: "N"},
-        },
+        }
+        if dynamic_batch
+        else {},
     )
 
     meta_data = {
@@ -541,6 +617,7 @@ def export_joiner_model_onnx(
     joiner_model: nn.Module,
     joiner_filename: str,
     opset_version: int = 11,
+    dynamic_batch: bool = True,
 ) -> None:
     """Export the joiner model to ONNX format.
     The exported joiner model has two inputs:
@@ -555,8 +632,8 @@ def export_joiner_model_onnx(
     joiner_dim = joiner_model.output_linear.weight.shape[1]
     logging.info(f"joiner dim: {joiner_dim}")
 
-    projected_encoder_out = torch.rand(11, joiner_dim, dtype=torch.float32)
-    projected_decoder_out = torch.rand(11, joiner_dim, dtype=torch.float32)
+    projected_encoder_out = torch.rand(1, joiner_dim, dtype=torch.float32)
+    projected_decoder_out = torch.rand(1, joiner_dim, dtype=torch.float32)
 
     torch.onnx.export(
         joiner_model,
@@ -573,7 +650,9 @@ def export_joiner_model_onnx(
             "encoder_out": {0: "N"},
             "decoder_out": {0: "N"},
             "logit": {0: "N"},
-        },
+        }
+        if dynamic_batch
+        else {},
     )
     meta_data = {
         "joiner_dim": str(joiner_dim),
@@ -728,12 +807,18 @@ def main():
     opset_version = 13
 
     logging.info("Exporting encoder")
-    encoder_filename = params.exp_dir / f"encoder-{suffix}.onnx"
+    if params.use_external_data:
+        encoder_filename = f"encoder-{suffix}.onnx"
+    else:
+        encoder_filename = params.exp_dir / f"encoder-{suffix}.onnx"
     export_encoder_model_onnx(
         encoder,
-        encoder_filename,
+        str(encoder_filename),
         opset_version=opset_version,
         feature_dim=params.feature_dim,
+        dynamic_batch=params.dynamic_batch == 1,
+        use_whisper_features=params.use_whisper_features,
+        use_external_data=params.use_external_data,
     )
     logging.info(f"Exported encoder to {encoder_filename}")
 
@@ -743,6 +828,7 @@ def main():
         decoder,
         decoder_filename,
         opset_version=opset_version,
+        dynamic_batch=params.dynamic_batch == 1,
     )
     logging.info(f"Exported decoder to {decoder_filename}")
 
@@ -752,57 +838,59 @@ def main():
         joiner,
         joiner_filename,
         opset_version=opset_version,
+        dynamic_batch=params.dynamic_batch == 1,
     )
     logging.info(f"Exported joiner to {joiner_filename}")
 
     if params.fp16:
-        from onnxconverter_common import float16
-
         logging.info("Generate fp16 models")
 
-        encoder = onnx.load(encoder_filename)
-        encoder_fp16 = float16.convert_float_to_float16(encoder, keep_io_types=True)
-        encoder_filename_fp16 = params.exp_dir / f"encoder-{suffix}.fp16.onnx"
-        onnx.save(encoder_fp16, encoder_filename_fp16)
+        if params.use_external_data:
+            encoder_filename_fp16 = f"encoder-{suffix}.fp16.onnx"
+            export_onnx_fp16_large_2gb(encoder_filename, encoder_filename_fp16)
+        else:
+            encoder_filename_fp16 = params.exp_dir / f"encoder-{suffix}.fp16.onnx"
+            export_onnx_fp16(encoder_filename, encoder_filename_fp16)
 
-        decoder = onnx.load(decoder_filename)
-        decoder_fp16 = float16.convert_float_to_float16(decoder, keep_io_types=True)
         decoder_filename_fp16 = params.exp_dir / f"decoder-{suffix}.fp16.onnx"
-        onnx.save(decoder_fp16, decoder_filename_fp16)
+        export_onnx_fp16(decoder_filename, decoder_filename_fp16)
 
-        joiner = onnx.load(joiner_filename)
-        joiner_fp16 = float16.convert_float_to_float16(joiner, keep_io_types=True)
         joiner_filename_fp16 = params.exp_dir / f"joiner-{suffix}.fp16.onnx"
-        onnx.save(joiner_fp16, joiner_filename_fp16)
+        export_onnx_fp16(joiner_filename, joiner_filename_fp16)
 
     # Generate int8 quantization models
     # See https://onnxruntime.ai/docs/performance/model-optimizations/quantization.html#data-type-selection
 
-    logging.info("Generate int8 quantization models")
+    if params.enable_int8_quantization:
+        logging.info("Generate int8 quantization models")
 
-    encoder_filename_int8 = params.exp_dir / f"encoder-{suffix}.int8.onnx"
-    quantize_dynamic(
-        model_input=encoder_filename,
-        model_output=encoder_filename_int8,
-        op_types_to_quantize=["MatMul"],
-        weight_type=QuantType.QInt8,
-    )
+        if params.use_external_data:
+            encoder_filename_int8 = f"encoder-{suffix}.int8.onnx"
+        else:
+            encoder_filename_int8 = params.exp_dir / f"encoder-{suffix}.int8.onnx"
 
-    decoder_filename_int8 = params.exp_dir / f"decoder-{suffix}.int8.onnx"
-    quantize_dynamic(
-        model_input=decoder_filename,
-        model_output=decoder_filename_int8,
-        op_types_to_quantize=["MatMul", "Gather"],
-        weight_type=QuantType.QInt8,
-    )
+        quantize_dynamic(
+            model_input=encoder_filename,
+            model_output=encoder_filename_int8,
+            op_types_to_quantize=["MatMul"],
+            weight_type=QuantType.QInt8,
+        )
 
-    joiner_filename_int8 = params.exp_dir / f"joiner-{suffix}.int8.onnx"
-    quantize_dynamic(
-        model_input=joiner_filename,
-        model_output=joiner_filename_int8,
-        op_types_to_quantize=["MatMul"],
-        weight_type=QuantType.QInt8,
-    )
+        decoder_filename_int8 = params.exp_dir / f"decoder-{suffix}.int8.onnx"
+        quantize_dynamic(
+            model_input=decoder_filename,
+            model_output=decoder_filename_int8,
+            op_types_to_quantize=["MatMul", "Gather"],
+            weight_type=QuantType.QInt8,
+        )
+
+        joiner_filename_int8 = params.exp_dir / f"joiner-{suffix}.int8.onnx"
+        quantize_dynamic(
+            model_input=joiner_filename,
+            model_output=joiner_filename_int8,
+            op_types_to_quantize=["MatMul"],
+            weight_type=QuantType.QInt8,
+        )
 
 
 if __name__ == "__main__":

@@ -545,6 +545,7 @@ class TransformerDecoderLayer(nn.Module):
         memory_mask: Optional[torch.Tensor] = None,
         tgt_key_padding_mask: Optional[torch.Tensor] = None,
         memory_key_padding_mask: Optional[torch.Tensor] = None,
+        **kwargs,
     ) -> torch.Tensor:
         """Pass the inputs (and mask) through the decoder layer.
 

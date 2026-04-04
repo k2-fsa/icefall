@@ -26,7 +26,7 @@ from typing import Tuple
 
 import sentencepiece as spm
 import torch
-from scaling import ExpNorm
+from scaling import BiasNorm
 from torch import Tensor, nn
 from train import (
     add_model_arguments,
@@ -66,7 +66,7 @@ def _bias_norm_flops_compute(module, input, output):
 
 
 def _swoosh_module_flops_compute(module, input, output):
-    # For SwashL and SwashR modules
+    # For SwooshL and SwooshR modules
     assert len(input) == 1, len(input)
     # estimate as swish/silu, see icefall/profiler.py
     flops = input[0].numel()
@@ -81,7 +81,7 @@ def _bypass_module_flops_compute(module, input, output):
 
 
 MODULE_HOOK_MAPPING = {
-    ExpNorm: _bias_norm_flops_compute,
+    BiasNorm: _bias_norm_flops_compute,
     BypassModule: _bypass_module_flops_compute,
 }
 

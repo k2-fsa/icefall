@@ -65,6 +65,7 @@ import torch.nn as nn
 from asr_datamodule import ReazonSpeechAsrDataModule
 from decoder import Decoder
 from joiner import Joiner
+from lhotse import load_manifest
 from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
@@ -1219,8 +1220,23 @@ def run(rank, world_size, args):
     else:
         sampler_state_dict = None
 
+    if args.enable_musan:
+        musan_path = Path(args.manifest_dir) / "musan_cuts.jsonl.gz"
+        if musan_path.exists():
+            cuts_musan = load_manifest(musan_path)
+            logging.info(f"Loaded MUSAN manifest from {musan_path}")
+        else:
+            logging.warning(
+                f"MUSAN manifest not found at {musan_path}, disabling MUSAN augmentation"
+            )
+            cuts_musan = None
+    else:
+        cuts_musan = None
+
     train_dl = reazonspeech_corpus.train_dataloaders(
-        train_cuts, sampler_state_dict=sampler_state_dict
+        train_cuts,
+        sampler_state_dict=sampler_state_dict,
+        cuts_musan=cuts_musan,
     )
 
     valid_cuts = reazonspeech_corpus.valid_cuts()

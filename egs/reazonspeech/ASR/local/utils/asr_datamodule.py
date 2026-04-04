@@ -180,7 +180,10 @@ class ReazonSpeechAsrDataModule:
         )
 
     def train_dataloaders(
-        self, cuts_train: CutSet, sampler_state_dict: Optional[Dict[str, Any]] = None
+        self,
+        cuts_train: CutSet,
+        sampler_state_dict: Optional[Dict[str, Any]] = None,
+        cuts_musan: Optional[CutSet] = None,
     ) -> DataLoader:
         """
         Args:
@@ -191,6 +194,14 @@ class ReazonSpeechAsrDataModule:
         """
 
         transforms = []
+        if cuts_musan is not None:
+            logging.info("Enable MUSAN")
+            transforms.append(
+                CutMix(cuts=cuts_musan, p=0.5, snr=(10, 20), preserve_id=True)
+            )
+        else:
+            logging.info("Disable MUSAN")
+
         input_transforms = []
 
         if self.args.enable_spec_aug:

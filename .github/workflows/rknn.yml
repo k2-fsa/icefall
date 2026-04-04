@@ -1,0 +1,134 @@
+name: rknn
+
+on:
+  push:
+    branches:
+      - master
+      - rknn-zipformer2
+
+  pull_request:
+    branches:
+      - master
+
+  workflow_dispatch:
+
+concurrency:
+  group: rknn-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rknn:
+    name: RKNN ${{ matrix.recipe }} ${{ matrix.rknn_toolkit2_version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10"]
+        k2-version: ["1.24.4.dev20241029"]
+        kaldifeat-version: ["1.25.5.dev20241029"]
+        torch-version: ["2.0.0"]
+        torchaudio-version: ["2.0.1"]
+        version: ["20241218"]
+        # recipe: ["librispeech", "wenetspeech", "multi_zh-hans"]
+        recipe: ["librispeech"]
+        rknn_toolkit2_version: ["2.2.0", "2.1.0"]
+
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Export RKNN model
+        uses: addnab/docker-run-action@v3
+        with:
+            image: ghcr.io/${{ github.repository_owner }}/icefall:cpu-py${{ matrix.python-version }}-torch${{ matrix.torch-version }}-v${{ matrix.version }}
+            options: |
+              --volume ${{ github.workspace }}/:/icefall
+            shell: bash
+            run: |
+              cat /etc/*release
+              lsb_release -a
+              uname -a
+              python3 --version
+              export PYTHONPATH=/icefall:$PYTHONPATH
+              cd /icefall
+              git config --global --add safe.directory /icefall
+
+              python3 -m torch.utils.collect_env
+              python3 -m k2.version
+              pip list
+              export rknn_toolkit2_version=${{ matrix.rknn_toolkit2_version }}
+
+              if [[ $rknn_toolkit2_version == "2.1.0" ]]; then
+                # for the folder pruned_transducer_stateless7_streaming
+                curl -SL -O https://huggingface.co/csukuangfj/rknn-toolkit2/resolve/main/rknn_toolkit2-2.1.0%2B708089d1-cp310-cp310-linux_x86_64.whl
+              else
+                # for the folder zipformer/
+                curl -SL -O https://huggingface.co/csukuangfj/rknn-toolkit2/resolve/main/rknn_toolkit2-2.2.0-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+              fi
+
+              # Install rknn
+              pip install ./*.whl "numpy<=1.26.4"
+              pip list | grep rknn
+              echo "---"
+              pip list
+              echo "---"
+
+              recipe=${{ matrix.recipe }}
+              .github/scripts/$recipe/ASR/run_rknn.sh > log-$recipe.txt 2>&1 || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: log-${{ matrix.recipe }}-${{ matrix.rknn_toolkit2_version }}
+          path: ./log-*.txt
+
+      - name: Display results
+        shell: bash
+        run: |
+          ls -lh *rk*.tar.bz2 || true
+
+      - name: Release to GitHub
+        uses: svenstaro/upload-release-action@v2
+        with:
+          file_glob: true
+          overwrite: true
+          file: sherpa-onnx-*.tar.bz2
+          repo_name: k2-fsa/sherpa-onnx
+          repo_token: ${{ secrets.UPLOAD_GH_SHERPA_ONNX_TOKEN }}
+          tag: asr-models
+
+      - name: Upload model to huggingface
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        uses: nick-fields/retry@v3
+        with:
+          max_attempts: 20
+          timeout_seconds: 200
+          shell: bash
+          command: |
+            git config --global user.email "csukuangfj@gmail.com"
+            git config --global user.name "Fangjun Kuang"
+
+            rm -rf huggingface
+            export GIT_LFS_SKIP_SMUDGE=1
+
+            git clone https://huggingface.co/csukuangfj/sherpa-onnx-rknn-models huggingface
+            cd huggingface
+
+            git fetch
+            git pull
+            git merge -m "merge remote" --ff origin main
+            dst=streaming-asr
+            mkdir -p $dst
+            cp ../*rk*.tar.bz2 $dst/ || true
+
+            ls -lh $dst
+            git add .
+            git status
+            git commit -m "update models"
+            git status
+
+            git push https://csukuangfj:$HF_TOKEN@huggingface.co/csukuangfj/sherpa-onnx-rknn-models main || true
+            rm -rf huggingface

@@ -5,7 +5,7 @@ import math
 import torch
 import torch.nn as nn
 from einops import rearrange
-from matcha.model import sequence_mask
+from model import sequence_mask
 
 
 class LayerNorm(nn.Module):

@@ -1,0 +1,1 @@
+../../../aishell2/ASR/local/prepare_words.py

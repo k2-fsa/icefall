@@ -1,0 +1,1 @@
+../../../librispeech/ASR/zipformer/test_rknn_on_cpu_simulator_ctc.py

@@ -234,7 +234,7 @@ def main():
     logging.info(f"Number of parameters in discriminator: {num_param_d}")
     logging.info(f"Total number of parameters: {num_param_g + num_param_d}")
 
-    # we need cut ids to display recognition results.
+    # we need cut ids to organize tts results.
     args.return_cuts = True
     ljspeech = LJSpeechTtsDataModule(args)
 

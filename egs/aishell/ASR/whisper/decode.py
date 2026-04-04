@@ -89,10 +89,10 @@ def average_checkpoints(
     """
     n = len(filenames)
 
-    if "model" in torch.load(filenames[0], map_location=device):
-        avg = torch.load(filenames[0], map_location=device)["model"]
+    if "model" in torch.load(filenames[0], map_location=device, weights_only=False):
+        avg = torch.load(filenames[0], map_location=device, weights_only=False)["model"]
     else:
-        avg = torch.load(filenames[0], map_location=device)
+        avg = torch.load(filenames[0], map_location=device, weights_only=False)
 
     # Identify shared parameters. Two parameters are said to be shared
     # if they have the same data_ptr
@@ -107,10 +107,10 @@ def average_checkpoints(
     uniqued_names = list(uniqued.values())
 
     for i in range(1, n):
-        if "model" in torch.load(filenames[i], map_location=device):
-            state_dict = torch.load(filenames[i], map_location=device)["model"]
+        if "model" in torch.load(filenames[i], map_location=device, weights_only=False):
+            state_dict = torch.load(filenames[i], map_location=device, weights_only=False)["model"]
         else:
-            state_dict = torch.load(filenames[i], map_location=device)
+            state_dict = torch.load(filenames[i], map_location=device, weights_only=False)
         for k in uniqued_names:
             avg[k] += state_dict[k]
 
@@ -440,7 +440,7 @@ def main():
             start = params.epoch - params.avg
             assert start >= 1, start
             checkpoint = torch.load(
-                f"{params.exp_dir}/epoch-{params.epoch}.pt", map_location="cpu"
+                f"{params.exp_dir}/epoch-{params.epoch}.pt", map_location="cpu", weights_only=False
             )
             if "model" not in checkpoint:
                 # deepspeed converted checkpoint only contains model state_dict
@@ -469,7 +469,7 @@ def main():
             torch.save(model.state_dict(), filename)
         else:
             checkpoint = torch.load(
-                f"{params.exp_dir}/epoch-{params.epoch}.pt", map_location="cpu"
+                f"{params.exp_dir}/epoch-{params.epoch}.pt", map_location="cpu", weights_only=False
             )
             if "model" not in checkpoint:
                 model.load_state_dict(checkpoint, strict=True)

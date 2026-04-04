@@ -245,7 +245,6 @@ if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
   done
 fi
 
-
 if [ $stage -le 10 ] && [ $stop_stage -ge 10 ]; then
   log "Stage 10: Train BPE model for unnormalized text"
   if [ ! -f data/punc_texts ]; then

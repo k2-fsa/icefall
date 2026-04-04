@@ -750,7 +750,7 @@ def _to_int_tuple(s: str):
 def get_encoder_model(params: AttributeDict) -> nn.Module:
     if hasattr(params, "pretrained_dir"):
         logging.info(f"Loading {params.pretrained_dir}")
-        pretrained = torch.load(params.pretrained_dir)
+        pretrained = torch.load(params.pretrained_dir, weights_only=False)
         encoder = HubertModel(params)
         encoder.load_state_dict(pretrained["model"])
     else:

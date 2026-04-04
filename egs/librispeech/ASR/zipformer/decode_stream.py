@@ -75,7 +75,8 @@ class DecodeStream(object):
         self.done_frames: int = 0
 
         # The encoder_embed subsample features (T - 7) // 2
-        self.pad_length = 7 
+        # The ConvNeXt module needs (7 - 1) // 2 = 3 frames of right padding after subsampling
+        self.pad_length = 7 + 2 * 3
 
         if params.decoding_method == "greedy_search":
             self.hyp = [-1] * (params.context_size - 1) + [params.blank_id]
