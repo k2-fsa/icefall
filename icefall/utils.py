@@ -648,7 +648,7 @@ def store_translations(
     hyp_list = []
     ref_list = []
     dir_ = os.path.dirname(filename)
-    reftgt = os.path.join(dir_, "reftgt-" + str(os.path.basename(filename))) 
+    reftgt = os.path.join(dir_, "reftgt-" + str(os.path.basename(filename)))
     refsrc = os.path.join(dir_, "refsrc-"+str(os.path.basename(filename)))
     hyp = os.path.join(dir_, "hyp-"+str( os.path.basename(filename)))
     bleu_file = os.path.join(dir_, "bleu-"+str( os.path.basename(filename)))
@@ -661,7 +661,7 @@ def store_translations(
             print(f"{cut_id}: ref_tgt {ref_tgt}", file=f)
             print(f"{cut_id}: hyp {hyp}", file=f)
             print("\n", file=f)
-    
+
 
             print(f"{ref}", file=f_src)
             print(f"{ref_tgt}", file=f_tgt)
@@ -673,7 +673,7 @@ def store_translations(
     with open(bleu_file, 'w') as b:
         print(str(bleu.corpus_score(hyp_list, [ref_list])), file=b)
         print(f"BLEU signiture: {str(bleu.get_signature())}", file=b)
-        
+
     logging.info(
             f"[{bleu.corpus_score(hyp_list, [ref_list])}] "
             f"BLEU signiture: {str(bleu.get_signature())}"
@@ -1582,16 +1582,12 @@ def get_parameter_groups_with_lrs(
     lr: float,
     include_names: bool = False,
     freeze_modules: List[str] = [],
-    attrs: List[str] = ['lr_scale', 'weight_min_rms', 'bias_min_rms', 'weight_max_rms', 'bias_max_rms', 'scale_default'],
 ) -> List[dict]:
     """
-    This is to automatically create parameter-groups with overrides of parameter optimizer
-    settings, especially the learning rate which can be scaled using the "lr_scale" attribut
-    in modules, but also other possible configuration values that you may specify.
+    This is for use with the ScaledAdam optimizers (more recent versions that accept lists of
+    named-parameters; we can, if needed, create a version without the names).
 
-
-    It provides a way to specify learning-rate scales and other optimizer configuration
-    settings inside the module, so that if
+    It provides a way to specify learning-rate scales inside the module, so that if
     any nn.Module in the hierarchy has a floating-point parameter 'lr_scale', it will
     scale the LR of any parameters inside that module or its submodules.  Note: you
     can set module parameters outside the __init__ function, e.g.:
@@ -1611,27 +1607,20 @@ def get_parameter_groups_with_lrs(
     """
     named_modules = list(model.named_modules())
 
-    # flat_lr_scale[prefix] for a prefix like 'encoder.layers.3' contains
-    # a dict with all the optimizer configuration settings specified at this level.
-    # these need to be combined for all prefixes of the name of any given parameter.
-    flat_config = defaultdict(dict)
+    # flat_lr_scale just contains the lr_scale explicitly specified
+    # for each prefix of the name, e.g. 'encoder.layers.3', these need
+    # to be multiplied for all prefix of the name of any given parameter.
+    flat_lr_scale = defaultdict(lambda: 1.0)
     names = []
     for name, m in model.named_modules():
         names.append(name)
-        for attr in attrs:  # we can add more here as needed
-            try:
-                # getattr(m, attr) if attr == 'lr_scale' is equivalent to m.lr_scale
-                flat_config[name][attr] = getattr(m, attr)
-            except AttributeError:
-                pass
+        if hasattr(m, "lr_scale"):
+            flat_lr_scale[name] = m.lr_scale
 
-
-    # lr_to_parames is a dict from config-string to:
+    # lr_to_parames is a dict from learning rate (floating point) to: if
     # include_names == true, a list of (name, parameter) for that learning rate;
     # otherwise a list of parameters for that learning rate.
-    # The config-string is the repr(dict) for the dictionary of attributes combined
-    # over all prefixes of that parameter name.
-    config_to_params = defaultdict(list)
+    lr_to_params = defaultdict(list)
 
     for name, parameter in model.named_parameters():
         split_name = name.split(".")
@@ -1646,30 +1635,18 @@ def get_parameter_groups_with_lrs(
             if prefix in freeze_modules:
                 logging.info(f"Remove {name} from parameters")
                 continue
-
-        cur_config = dict()
-        cur_config.update(flat_config[prefix]) # include dict items from here.
+        cur_lr = lr * flat_lr_scale[prefix]
         if prefix != "":
-            cur_config.update(flat_config[""])
+            cur_lr *= flat_lr_scale[""]
         for part in split_name[1:]:
             prefix = ".".join([prefix, part])
-            cur_config.update(flat_config[prefix])
+            cur_lr *= flat_lr_scale[prefix]
+        lr_to_params[cur_lr].append((name, parameter) if include_names else parameter)
 
-
-        config_to_params[repr(cur_config)].append((name, parameter) if include_names else parameter)
-
-
-    ans = [ ]
-    for config, params in config_to_params.items():
-        config = eval(config) # turn from string back into dict.
-        try: # turn "lr_scale" into "lr"
-            config["lr"] = lr * config["lr_scale"]
-            del config["lr_scale"]
-        except KeyError:
-            pass
-        config["named_params" if include_names else "params"] = params
-        ans.append(config)
-    return ans
+    if include_names:
+        return [{"named_params": pairs, "lr": lr} for lr, pairs in lr_to_params.items()]
+    else:
+        return [{"params": params, "lr": lr} for lr, params in lr_to_params.items()]
 
 
 def optim_step_and_measure_param_change(
@@ -2489,6 +2466,5 @@ def time_warp(
             features[sequence_idx, :num_frames] = time_warp_impl(
                 features[sequence_idx, :num_frames], factor=time_warp_factor
             )
-
 
     return features
