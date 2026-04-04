@@ -1,1 +1,0 @@
-../zipformer/test_subsampling.py
