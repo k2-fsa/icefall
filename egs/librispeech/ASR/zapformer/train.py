@@ -1421,7 +1421,7 @@ def run(rank, world_size, args):
     if params.full_libri:
         train_cuts = librispeech.train_all_shuf_cuts()
         # train_cuts_len = 960.0 * 3  # 960 hours times 3 for augmentation
-        train_cuts_len = 843723 * 3
+        train_cuts_len = 843723 # includes 3x speed perturbation
 
         # previously we used the following code to load all training cuts,
         # strictly speaking, shuffled training cuts should be used instead,
@@ -1433,7 +1433,7 @@ def run(rank, world_size, args):
         # train_cuts += librispeech.train_other_500_cuts()
     else:
         train_cuts = librispeech.train_clean_100_cuts()
-        train_cuts_len = 85617 * 3  # 100.0 * 3
+        train_cuts_len = 85617 # includes 3x speed perturbation
 
     if params.use_giga or params.use_cv:
         if params.libri_copies > 1:
