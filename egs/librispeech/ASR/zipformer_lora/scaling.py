@@ -27,6 +27,8 @@ import torch.nn.functional as F
 from torch import Tensor
 from torch.cuda.amp import custom_bwd, custom_fwd
 
+from icefall.utils import torch_autocast
+
 
 def logaddexp_onnx(x: Tensor, y: Tensor) -> Tensor:
     max_value = torch.max(x, y)
@@ -307,7 +309,7 @@ class SoftmaxFunction(torch.autograd.Function):
     @staticmethod
     def backward(ctx, ans_grad: Tensor):
         (ans,) = ctx.saved_tensors
-        with torch.cuda.amp.autocast(enabled=False):
+        with torch_autocast(enabled=False):
             ans_grad = ans_grad.to(torch.float32)
             ans = ans.to(torch.float32)
             x_grad = ans_grad * ans
@@ -863,7 +865,7 @@ class BalancerFunction(torch.autograd.Function):
 
         try:
             with torch.enable_grad():
-                with torch.cuda.amp.autocast(enabled=False):
+                with torch_autocast(enabled=False):
                     x = x.to(torch.float32)
                     x = x.detach()
                     x.requires_grad = True
@@ -1118,7 +1120,7 @@ class WhiteningPenaltyFunction(torch.autograd.Function):
 
         try:
             with torch.enable_grad():
-                with torch.cuda.amp.autocast(enabled=False):
+                with torch_autocast(enabled=False):
                     x_detached = x_orig.to(torch.float32).detach()
                     x_detached.requires_grad = True
 
@@ -1457,7 +1459,7 @@ class SwooshLFunction(torch.autograd.Function):
 
         coeff = -0.08
 
-        with torch.cuda.amp.autocast(enabled=False):
+        with torch_autocast(enabled=False):
             with torch.enable_grad():
                 x = x.detach()
                 x.requires_grad = True
@@ -1534,7 +1536,7 @@ class SwooshRFunction(torch.autograd.Function):
 
         zero = torch.tensor(0.0, dtype=x.dtype, device=x.device)
 
-        with torch.cuda.amp.autocast(enabled=False):
+        with torch_autocast(enabled=False):
             with torch.enable_grad():
                 x = x.detach()
                 x.requires_grad = True

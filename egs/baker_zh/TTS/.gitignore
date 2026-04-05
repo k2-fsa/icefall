@@ -1,0 +1,6 @@
+path.sh
+*.onnx
+*.wav
+generator_v1
+generator_v2
+generator_v3

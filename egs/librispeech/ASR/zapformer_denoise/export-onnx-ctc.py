@@ -1,1 +1,0 @@
-../zipformer/export-onnx-ctc.py

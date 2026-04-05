@@ -68,6 +68,7 @@ from .utils import (
     str2bool,
     subsequent_chunk_mask,
     tokenize_by_CJK_char,
+    tokenize_by_ja_char,
     write_error_stats,
 )
 

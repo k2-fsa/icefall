@@ -75,6 +75,20 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--dynamic-batch",
+        type=int,
+        default=1,
+        help="1 to support dynamic batch size. 0 to support only batch size == 1",
+    )
+
+    parser.add_argument(
+        "--enable-int8-quantization",
+        type=int,
+        default=1,
+        help="1 to also export int8 onnx models.",
+    )
+
+    parser.add_argument(
         "--epoch",
         type=int,
         default=28,
@@ -136,12 +150,35 @@ def get_parser():
         help="The context size in the decoder. 1 means bigram; 2 means tri-gram",
     )
 
+    parser.add_argument(
+        "--use-whisper-features",
+        type=str2bool,
+        default=False,
+        help="True to use whisper features. Must match the one used in training",
+    )
+
+    parser.add_argument(
+        "--fp16",
+        type=str2bool,
+        default=False,
+        help="Whether to export models in fp16",
+    )
+
+    parser.add_argument(
+        "--use-external-data",
+        type=str2bool,
+        default=False,
+        help="Set it to true for model file size > 2GB",
+    )
+
     add_model_arguments(parser)
 
     return parser
 
 
-def add_meta_data(filename: str, meta_data: Dict[str, str]):
+def add_meta_data(
+    filename: str, meta_data: Dict[str, str], use_external_data: bool = False
+):
     """Add meta data to an ONNX model. It is changed in-place.
 
     Args:
@@ -150,13 +187,46 @@ def add_meta_data(filename: str, meta_data: Dict[str, str]):
       meta_data:
         Key-value pairs.
     """
+    filename = str(filename)
+
     model = onnx.load(filename)
     for key, value in meta_data.items():
         meta = model.metadata_props.add()
         meta.key = key
         meta.value = value
 
-    onnx.save(model, filename)
+    if use_external_data:
+        # For models file size > 2GB
+        external_filename = Path(filename).stem
+
+        onnx.save(
+            model,
+            filename,
+            save_as_external_data=True,
+            all_tensors_to_one_file=True,
+            location=external_filename + ".weights",
+        )
+    else:
+        onnx.save(model, filename)
+
+
+def export_onnx_fp16(onnx_fp32_path, onnx_fp16_path):
+    import onnxmltools
+    from onnxmltools.utils.float16_converter import convert_float_to_float16
+
+    onnx_fp32_model = onnxmltools.utils.load_model(onnx_fp32_path)
+    onnx_fp16_model = convert_float_to_float16(onnx_fp32_model, keep_io_types=True)
+    onnxmltools.utils.save_model(onnx_fp16_model, onnx_fp16_path)
+
+
+def export_onnx_fp16_large_2gb(onnx_fp32_path, onnx_fp16_path):
+    import onnxmltools
+    from onnxmltools.utils.float16_converter import convert_float_to_float16_model_path
+
+    onnx_fp16_model = convert_float_to_float16_model_path(
+        onnx_fp32_path, keep_io_types=True
+    )
+    onnxmltools.utils.save_model(onnx_fp16_model, onnx_fp16_path)
 
 
 class OnnxModel(nn.Module):
@@ -270,6 +340,9 @@ def export_streaming_ctc_model_onnx(
     model: OnnxModel,
     encoder_filename: str,
     opset_version: int = 11,
+    dynamic_batch: bool = True,
+    use_whisper_features: bool = False,
+    use_external_data: bool = False,
 ) -> None:
     model.encoder.__class__.forward = model.encoder.__class__.streaming_forward
 
@@ -367,6 +440,10 @@ def export_streaming_ctc_model_onnx(
         "value_head_dims": value_head_dims,
         "num_heads": num_heads,
     }
+
+    if use_whisper_features:
+        meta_data["feature"] = "whisper"
+
     logging.info(f"meta_data: {meta_data}")
 
     for i in range(len(init_state[:-2]) // 6):
@@ -408,10 +485,16 @@ def export_streaming_ctc_model_onnx(
             "log_probs": {0: "N"},
             **inputs,
             **outputs,
-        },
+        }
+        if dynamic_batch
+        else {},
     )
 
-    add_meta_data(filename=encoder_filename, meta_data=meta_data)
+    add_meta_data(
+        filename=encoder_filename,
+        meta_data=meta_data,
+        use_external_data=use_external_data,
+    )
 
 
 @torch.no_grad()
@@ -542,26 +625,47 @@ def main():
     opset_version = 13
 
     logging.info("Exporting model")
-    model_filename = params.exp_dir / f"ctc-{suffix}.onnx"
+
+    if params.use_external_data:
+        model_filename = f"ctc-{suffix}.onnx"
+    else:
+        model_filename = params.exp_dir / f"ctc-{suffix}.onnx"
+
     export_streaming_ctc_model_onnx(
         model,
-        model_filename,
+        str(model_filename),
         opset_version=opset_version,
+        dynamic_batch=params.dynamic_batch == 1,
+        use_whisper_features=params.use_whisper_features,
+        use_external_data=params.use_external_data,
     )
     logging.info(f"Exported model to {model_filename}")
 
-    # Generate int8 quantization models
-    # See https://onnxruntime.ai/docs/performance/model-optimizations/quantization.html#data-type-selection
+    if params.enable_int8_quantization:
+        # Generate int8 quantization models
+        # See https://onnxruntime.ai/docs/performance/model-optimizations/quantization.html#data-type-selection
 
-    logging.info("Generate int8 quantization models")
+        logging.info("Generate int8 quantization models")
 
-    model_filename_int8 = params.exp_dir / f"ctc-{suffix}.int8.onnx"
+    if params.use_external_data:
+        model_filename_int8 = f"ctc-{suffix}.int8.onnx"
+    else:
+        model_filename_int8 = params.exp_dir / f"ctc-{suffix}.int8.onnx"
+
     quantize_dynamic(
         model_input=model_filename,
         model_output=model_filename_int8,
         op_types_to_quantize=["MatMul"],
         weight_type=QuantType.QInt8,
     )
+
+    if params.fp16:
+        if params.use_external_data:
+            model_filename_fp16 = f"ctc-{suffix}.fp16.onnx"
+            export_onnx_fp16_large_2gb(model_filename, model_filename_fp16)
+        else:
+            model_filename_fp16 = params.exp_dir / f"ctc-{suffix}.fp16.onnx"
+            export_onnx_fp16(model_filename, model_filename_fp16)
 
 
 if __name__ == "__main__":

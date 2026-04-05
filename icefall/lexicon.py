@@ -166,10 +166,10 @@ class Lexicon(object):
 
         if (lang_dir / "Linv.pt").exists():
             logging.info(f"Loading pre-compiled {lang_dir}/Linv.pt")
-            L_inv = k2.Fsa.from_dict(torch.load(lang_dir / "Linv.pt"))
+            L_inv = k2.Fsa.from_dict(torch.load(lang_dir / "Linv.pt", weights_only=False))
         else:
             logging.info("Converting L.pt to Linv.pt")
-            L = k2.Fsa.from_dict(torch.load(lang_dir / "L.pt"))
+            L = k2.Fsa.from_dict(torch.load(lang_dir / "L.pt", weights_only=False))
             L_inv = k2.arc_sort(L.invert())
             torch.save(L_inv.as_dict(), lang_dir / "Linv.pt")
 

@@ -2,7 +2,7 @@
 
 import matplotlib.pyplot as plt
 import torch
-from scaling import PiecewiseLinear, ScheduledFloat, SwashL, SwashR
+from scaling import PiecewiseLinear, ScheduledFloat, SwooshL, SwooshR
 
 
 def test_piecewise_linear():
@@ -52,8 +52,8 @@ def test_swoosh():
     x2 = torch.linspace(start=0, end=10, steps=100, dtype=torch.float32)
     x = torch.cat([x1, x2[1:]])
 
-    left = SwashL()(x)
-    r = SwashR()(x)
+    left = SwooshL()(x)
+    r = SwooshR()(x)
 
     relu = torch.nn.functional.relu(x)
     print(left[x == 0], r[x == 0])
@@ -63,8 +63,8 @@ def test_swoosh():
     plt.axis([-10, 10, -1, 10])  # [xmin, xmax, ymin, ymax]
     plt.legend(
         [
-            "SwashL(x) = 0.25 * log(1 + exp(4*x-4)) - 0.08x - 0.00875",
-            "SwashR(x) = 0.25 * log(1 + exp(4*x-1)) - 0.08x - 0.07831542175",
+            "SwooshL(x) = log(1 + exp(x-4)) - 0.08x - 0.035 ",
+            "SwooshR(x) = log(1 + exp(x-1)) - 0.08x - 0.313261687",
             "ReLU(x) = max(0, x)",
         ]
     )

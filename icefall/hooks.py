@@ -41,9 +41,7 @@ def register_inf_check_hooks(model: nn.Module) -> None:
             if isinstance(_output, Tensor):
                 try:
                     if not torch.isfinite(_output.to(torch.float32).sum()):
-                        logging.warning(
-                            f"The sum of {_name}.output is not finite"
-                        )
+                        logging.warning(f"The sum of {_name}.output is not finite")
                 except RuntimeError:  # e.g. CUDA out of memory
                     pass
             elif isinstance(_output, tuple):
@@ -59,14 +57,13 @@ def register_inf_check_hooks(model: nn.Module) -> None:
                             )
                     except RuntimeError:  # e.g. CUDA out of memory
                         pass
+
         # default param _name is a way to capture the current value of the variable "name".
         def backward_hook(_module, _input, _output, _name=name):
             if isinstance(_output, Tensor):
                 try:
                     if not torch.isfinite(_output.to(torch.float32).sum()):
-                        logging.warning(
-                            f"The sum of {_name}.grad is not finite"  # ": {_output}"
-                        )
+                        logging.warning(f"The sum of {_name}.grad is not finite")
                 except RuntimeError:  # e.g. CUDA out of memory
                     pass
 
@@ -80,7 +77,11 @@ def register_inf_check_hooks(model: nn.Module) -> None:
                         logging.warning(f"The sum of {_name}.grad[{i}] is not finite")
 
         module.register_forward_hook(forward_hook)
-        module.register_backward_hook(backward_hook)
+
+        if hasattr(module, "register_full_backward_hook"):
+            module.register_full_backward_hook(backward_hook)
+        else:
+            module.register_backward_hook(backward_hook)
 
     for name, parameter in model.named_parameters():
 

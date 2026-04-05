@@ -59,7 +59,7 @@ def load_alignments(filename: str) -> Tuple[int, Dict[str, List[int]]]:
         - alignments: A dict containing utterances and their corresponding
           framewise alignment, after subsampling.
     """
-    ali_dict = torch.load(filename)
+    ali_dict = torch.load(filename, weights_only=False)
     subsampling_factor = ali_dict["subsampling_factor"]
     alignments = ali_dict["alignments"]
     return subsampling_factor, alignments

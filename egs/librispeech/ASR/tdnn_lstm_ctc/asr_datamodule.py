@@ -311,8 +311,7 @@ class LibriSpeechAsrDataModule:
                 max_duration=self.args.max_duration,
                 shuffle=self.args.shuffle,
                 num_buckets=self.args.num_buckets,
-                buffer_size=self.args.num_buckets * 2000,
-                shuffle_buffer_size=self.args.num_buckets * 5000,
+                buffer_size=self.args.num_buckets * 5000,
                 drop_last=self.args.drop_last,
             )
         else:
@@ -402,6 +401,14 @@ class LibriSpeechAsrDataModule:
             num_workers=self.args.num_workers,
         )
         return test_dl
+
+    @lru_cache()
+    def load_manifest(self, manifest_filename: str) -> CutSet:
+        """
+        Load the 'manifest' specified by an argument.
+        """
+        logging.info(f"About to get '{manifest_filename}' cuts")
+        return load_manifest_lazy(manifest_filename)
 
     @lru_cache()
     def train_clean_5_cuts(self) -> CutSet:

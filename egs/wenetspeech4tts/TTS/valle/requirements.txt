@@ -1,0 +1,2 @@
+phonemizer==3.2.1
+git+https://github.com/facebookresearch/encodec.git

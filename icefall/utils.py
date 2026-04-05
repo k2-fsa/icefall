@@ -1,6 +1,7 @@
 # Copyright      2021  Xiaomi Corp.        (authors: Fangjun Kuang,
 #                                                    Mingshuang Luo,
 #                                                    Zengwei Yao)
+#               2023 Johns Hopkins University (authors: Amir Hussein)
 #
 # See ../../LICENSE for clarification regarding multiple authors
 #
@@ -26,6 +27,7 @@ import pathlib
 import random
 import re
 import subprocess
+import warnings
 from collections import defaultdict
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -42,6 +44,7 @@ import torch
 import torch.distributed as dist
 import torch.nn as nn
 from lhotse.dataset.signal_transforms import time_warp as time_warp_impl
+from packaging import version
 from pypinyin import lazy_pinyin, pinyin
 from pypinyin.contrib.tone_convert import to_finals, to_finals_tone, to_initials
 from torch.utils.tensorboard import SummaryWriter
@@ -49,6 +52,48 @@ from torch.utils.tensorboard import SummaryWriter
 from icefall.checkpoint import average_checkpoints
 
 Pathlike = Union[str, Path]
+
+TORCH_VERSION = version.parse(torch.__version__)
+
+
+def create_grad_scaler(device="cuda", **kwargs):
+    """
+    Creates a GradScaler compatible with both torch < 2.3.0 and >= 2.3.0.
+    Accepts all kwargs like: enabled, init_scale, growth_factor, etc.
+
+    /icefall/egs/librispeech/ASR/./zipformer/train.py:1451: FutureWarning:
+    `torch.cuda.amp.GradScaler(args...)` is deprecated. Please use
+    `torch.amp.GradScaler('cuda', args...)` instead.
+    """
+    if TORCH_VERSION >= version.parse("2.3.0"):
+        from torch.amp import GradScaler
+
+        return GradScaler(device=device, **kwargs)
+    else:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=FutureWarning)
+            return torch.cuda.amp.GradScaler(**kwargs)
+
+
+@contextmanager
+def torch_autocast(device_type="cuda", **kwargs):
+    """
+    To fix the following warnings:
+    /icefall/egs/librispeech/ASR/zipformer/model.py:323:
+    FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated.
+    Please use `torch.amp.autocast('cuda', args...)` instead.
+      with torch.cuda.amp.autocast(enabled=False):
+    """
+    if TORCH_VERSION >= version.parse("2.3.0"):
+        # Use new unified API
+        with torch.amp.autocast(device_type=device_type, **kwargs):
+            yield
+    else:
+        # Suppress deprecation warning and use old CUDA-specific autocast
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=FutureWarning)
+            with torch.cuda.amp.autocast(**kwargs):
+                yield
 
 
 # Pytorch issue: https://github.com/pytorch/pytorch/issues/47379
@@ -505,7 +550,7 @@ def load_alignments(filename: str) -> Tuple[int, Dict[str, List[int]]]:
         - alignments: A dict containing utterances and their corresponding
           framewise alignment, after subsampling.
     """
-    ali_dict = torch.load(filename)
+    ali_dict = torch.load(filename, weights_only=False)
     subsampling_factor = ali_dict["subsampling_factor"]
     alignments = ali_dict["alignments"]
     return subsampling_factor, alignments
@@ -582,6 +627,57 @@ def store_transcripts_and_timestamps(
                     # each element is a float number
                     s = "[" + ", ".join(["%0.3f" % i for i in time_hyp]) + "]"
                 print(f"{cut_id}:\ttimestamp_hyp={s}", file=f)
+
+
+def store_translations(
+    filename: Pathlike, texts: Iterable[Tuple[str, str, str]],
+    lowercase: bool = True) -> None:
+    """Save predicted results and reference transcripts to a file.
+
+    Args:
+      filename:
+        File to save the results to.
+      texts:
+        An iterable of tuples. The first element is the cur_id, the second is
+        the reference transcript and the third element is the reference translation
+        and the fourth element is the predicted result.
+    Returns:
+      Return None.
+    """
+    bleu = BLEU(lowercase=lowercase)
+    hyp_list = []
+    ref_list = []
+    dir_ = os.path.dirname(filename)
+    reftgt = os.path.join(dir_, "reftgt-" + str(os.path.basename(filename)))
+    refsrc = os.path.join(dir_, "refsrc-"+str(os.path.basename(filename)))
+    hyp = os.path.join(dir_, "hyp-"+str( os.path.basename(filename)))
+    bleu_file = os.path.join(dir_, "bleu-"+str( os.path.basename(filename)))
+    with open(filename, "w") as f, open(reftgt, "w") as f_tgt, open(hyp, "w") as f_hyp, open(refsrc, "w") as f_src:
+        for cut_id, ref, ref_tgt, hyp in texts:
+            ref = " ".join(ref)
+            ref_tgt = " ".join(ref_tgt)
+            hyp = " ".join(hyp)
+            print(f"{cut_id}: ref {ref}", file=f)
+            print(f"{cut_id}: ref_tgt {ref_tgt}", file=f)
+            print(f"{cut_id}: hyp {hyp}", file=f)
+            print("\n", file=f)
+
+
+            print(f"{ref}", file=f_src)
+            print(f"{ref_tgt}", file=f_tgt)
+            print(f"{hyp}", file=f_hyp)
+
+            hyp_list.append(hyp)
+            ref_list.append(ref_tgt)
+
+    with open(bleu_file, 'w') as b:
+        print(str(bleu.corpus_score(hyp_list, [ref_list])), file=b)
+        print(f"BLEU signiture: {str(bleu.get_signature())}", file=b)
+
+    logging.info(
+            f"[{bleu.corpus_score(hyp_list, [ref_list])}] "
+            f"BLEU signiture: {str(bleu.get_signature())}"
+        )
 
 
 def write_error_stats(
@@ -1347,13 +1443,20 @@ def add_eos(ragged: k2.RaggedTensor, eos_id: int) -> k2.RaggedTensor:
     return concat(ragged, eos_id, direction="right")
 
 
-def make_pad_mask(lengths: torch.Tensor, max_len: int = 0) -> torch.Tensor:
+def make_pad_mask(
+    lengths: torch.Tensor,
+    max_len: int = 0,
+    pad_left: bool = False,
+) -> torch.Tensor:
     """
     Args:
       lengths:
         A 1-D tensor containing sentence lengths.
       max_len:
         The length of masks.
+      pad_left:
+        If ``False`` (default), padding is on the right.
+        If ``True``, padding is on the left.
     Returns:
       Return a 2-D bool tensor, where masked positions
       are filled with `True` and non-masked positions are
@@ -1370,9 +1473,14 @@ def make_pad_mask(lengths: torch.Tensor, max_len: int = 0) -> torch.Tensor:
     max_len = max(max_len, lengths.max())
     n = lengths.size(0)
     seq_range = torch.arange(0, max_len, device=lengths.device)
-    expaned_lengths = seq_range.unsqueeze(0).expand(n, max_len)
+    expanded_lengths = seq_range.unsqueeze(0).expand(n, max_len)
 
-    return expaned_lengths >= lengths.unsqueeze(-1)
+    if pad_left:
+        mask = expanded_lengths < (max_len - lengths).unsqueeze(1)
+    else:
+        mask = expanded_lengths >= lengths.unsqueeze(-1)
+
+    return mask
 
 
 # Copied and modified from https://github.com/wenet-e2e/wenet/blob/main/wenet/utils/mask.py
@@ -1474,16 +1582,12 @@ def get_parameter_groups_with_lrs(
     lr: float,
     include_names: bool = False,
     freeze_modules: List[str] = [],
-    attrs: List[str] = ['lr_scale', 'weight_min_rms', 'bias_min_rms', 'weight_max_rms', 'bias_max_rms', 'scale_default'],
 ) -> List[dict]:
     """
-    This is to automatically create parameter-groups with overrides of parameter optimizer
-    settings, especially the learning rate which can be scaled using the "lr_scale" attribut
-    in modules, but also other possible configuration values that you may specify.
+    This is for use with the ScaledAdam optimizers (more recent versions that accept lists of
+    named-parameters; we can, if needed, create a version without the names).
 
-
-    It provides a way to specify learning-rate scales and other optimizer configuration
-    settings inside the module, so that if
+    It provides a way to specify learning-rate scales inside the module, so that if
     any nn.Module in the hierarchy has a floating-point parameter 'lr_scale', it will
     scale the LR of any parameters inside that module or its submodules.  Note: you
     can set module parameters outside the __init__ function, e.g.:
@@ -1503,27 +1607,20 @@ def get_parameter_groups_with_lrs(
     """
     named_modules = list(model.named_modules())
 
-    # flat_lr_scale[prefix] for a prefix like 'encoder.layers.3' contains
-    # a dict with all the optimizer configuration settings specified at this level.
-    # these need to be combined for all prefixes of the name of any given parameter.
-    flat_config = defaultdict(dict)
+    # flat_lr_scale just contains the lr_scale explicitly specified
+    # for each prefix of the name, e.g. 'encoder.layers.3', these need
+    # to be multiplied for all prefix of the name of any given parameter.
+    flat_lr_scale = defaultdict(lambda: 1.0)
     names = []
     for name, m in model.named_modules():
         names.append(name)
-        for attr in attrs:  # we can add more here as needed
-            try:
-                # getattr(m, attr) if attr == 'lr_scale' is equivalent to m.lr_scale
-                flat_config[name][attr] = getattr(m, attr)
-            except AttributeError:
-                pass
+        if hasattr(m, "lr_scale"):
+            flat_lr_scale[name] = m.lr_scale
 
-
-    # lr_to_parames is a dict from config-string to:
+    # lr_to_parames is a dict from learning rate (floating point) to: if
     # include_names == true, a list of (name, parameter) for that learning rate;
     # otherwise a list of parameters for that learning rate.
-    # The config-string is the repr(dict) for the dictionary of attributes combined
-    # over all prefixes of that parameter name.
-    config_to_params = defaultdict(list)
+    lr_to_params = defaultdict(list)
 
     for name, parameter in model.named_parameters():
         split_name = name.split(".")
@@ -1538,30 +1635,18 @@ def get_parameter_groups_with_lrs(
             if prefix in freeze_modules:
                 logging.info(f"Remove {name} from parameters")
                 continue
-
-        cur_config = dict()
-        cur_config.update(flat_config[prefix]) # include dict items from here.
+        cur_lr = lr * flat_lr_scale[prefix]
         if prefix != "":
-            cur_config.update(flat_config[""])
+            cur_lr *= flat_lr_scale[""]
         for part in split_name[1:]:
             prefix = ".".join([prefix, part])
-            cur_config.update(flat_config[prefix])
+            cur_lr *= flat_lr_scale[prefix]
+        lr_to_params[cur_lr].append((name, parameter) if include_names else parameter)
 
-
-        config_to_params[repr(cur_config)].append((name, parameter) if include_names else parameter)
-
-
-    ans = [ ]
-    for config, params in config_to_params.items():
-        config = eval(config) # turn from string back into dict.
-        try: # turn "lr_scale" into "lr"
-            config["lr"] = lr * config["lr_scale"]
-            del config["lr_scale"]
-        except KeyError:
-            pass
-        config["named_params" if include_names else "params"] = params
-        ans.append(config)
-    return ans
+    if include_names:
+        return [{"named_params": pairs, "lr": lr} for lr, pairs in lr_to_params.items()]
+    else:
+        return [{"params": params, "lr": lr} for lr, params in lr_to_params.items()]
 
 
 def optim_step_and_measure_param_change(
@@ -1574,6 +1659,7 @@ def optim_step_and_measure_param_change(
     and the L2 norm of the original parameter. It is given by the formula:
 
         .. math::
+
             \begin{aligned}
                 \delta = \frac{\Vert\theta - \theta_{new}\Vert^2}{\Vert\theta\Vert^2}
             \end{aligned}
@@ -1779,6 +1865,30 @@ def tokenize_by_CJK_char(line: str) -> str:
     )
     chars = pattern.split(line.strip().upper())
     return " ".join([w.strip() for w in chars if w.strip()])
+
+
+def tokenize_by_ja_char(line: str) -> str:
+    """
+    Tokenize a line of text with Japanese characters.
+
+    Note: All non-Japanese characters will be upper case.
+
+    Example:
+      input = "こんにちは世界は hello world の日本語"
+      output = "こ ん に ち は 世 界 は HELLO WORLD の 日 本 語"
+
+    Args:
+      line:
+        The input text.
+
+    Return:
+      A new string tokenized by Japanese characters.
+    """
+    pattern = re.compile(r"([\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF])")
+    chars = pattern.split(line.strip())
+    return " ".join(
+        [w.strip().upper() if not pattern.match(w) else w for w in chars if w.strip()]
+    )
 
 
 def display_and_save_batch(
@@ -2356,6 +2466,5 @@ def time_warp(
             features[sequence_idx, :num_frames] = time_warp_impl(
                 features[sequence_idx, :num_frames], factor=time_warp_factor
             )
-
 
     return features

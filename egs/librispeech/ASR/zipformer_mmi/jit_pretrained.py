@@ -308,7 +308,9 @@ def main():
     if method == "nbest-rescoring-LG":
         lg_filename = params.lang_dir / "LG.pt"
         logging.info(f"Loading {lg_filename}")
-        LG = k2.Fsa.from_dict(torch.load(lg_filename, map_location=device))
+        LG = k2.Fsa.from_dict(
+            torch.load(lg_filename, map_location=device, weights_only=False)
+        )
         LG = k2.Fsa.from_fsas([LG]).to(device)
         LG.lm_scores = LG.scores.clone()
         LM = LG
@@ -317,7 +319,9 @@ def main():
         assert order in ("3", "4")
         order = int(order)
         logging.info(f"Loading pre-compiled {order}gram.pt")
-        d = torch.load(params.lang_dir / f"{order}gram.pt", map_location=device)
+        d = torch.load(
+            params.lang_dir / f"{order}gram.pt", map_location=device, weights_only=False
+        )
         G = k2.Fsa.from_dict(d)
         G.lm_scores = G.scores.clone()
         LM = G

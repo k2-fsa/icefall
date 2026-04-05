@@ -1,5 +1,3 @@
-# Copied from
-# https://github.com/shivammehta25/Matcha-TTS/blob/main/matcha/utils/monotonic_align/core.pyx
 import numpy as np
 
 cimport cython

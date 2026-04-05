@@ -1,5 +1,63 @@
 ## Results
 
+### Aishell training results (zipformer + CR-CTC)
+
+See <https://github.com/k2-fsa/icefall/pull/1980> for more details.
+
+[zipformer](./zipformer)
+
+#### Non-streaming
+
+##### medium-scale model, number of model parameters: 66218471, i.e., 66.2 M
+
+| decoding method                      | test       | dev        | comment             |
+|--------------------------------------|------------|------------|---------------------|
+| ctc-greedy-search                    | 3.98       | 3.69       | --epoch 60 --avg 28 |
+| ctc-prefix-beam-search               | 3.98       | 3.70       | --epoch 60 --avg 21 |
+
+The training command using 2 32G-V100 GPUs is:
+```bash
+export CUDA_VISIBLE_DEVICES="0,1"
+./zipformer/train.py \
+  --world-size 2 \
+  --num-epochs 60 \
+  --start-epoch 1 \
+  --use-fp16 1 \
+  --context-size 1 \
+  --enable-musan 0 \
+  --exp-dir zipformer/exp \
+  --max-duration 500 \
+  --base-lr 0.045 \
+  --lr-batches 7500 \
+  --lr-epochs 18 \
+  --spec-aug-time-warp-factor 20 \
+  --use-ctc 1 \
+  --use-cr-ctc 1 \
+  --use-transducer 0 \
+  --enable-spec-aug 0 \
+  --cr-loss-scale 0.2
+```
+
+The decoding command is:
+```bash
+export CUDA_VISIBLE_DEVICES="0"
+for m in ctc-greedy-search ctc-prefix-beam-search; do
+  ./zipformer/ctc_decode.py \
+    --epoch 60 \
+    --avg 28 \
+    --exp-dir zipformer/exp \
+    --use-cr-ctc 1 \
+    --use-ctc 1 \
+    --use-transducer 0 \
+    --max-duration 600 \
+    --decoding-method $m
+done
+```
+
+Pretrained models, training logs, decoding logs, tensorboard and decoding results
+are available at
+<https://huggingface.co/MistMoon/icefall-asr-aishell-zipformer-medium-cr-ctc-20250702>
+
 ### Aishell training results (Fine-tuning Pretrained Models)
 #### Whisper
 [./whisper](./whisper)

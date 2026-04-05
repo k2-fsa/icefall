@@ -1420,7 +1420,8 @@ def run(rank, world_size, args):
 
     if params.full_libri:
         train_cuts = librispeech.train_all_shuf_cuts()
-        train_cuts_len = 960.0 * 3  # 960 hours times 3 for augmentation
+        # train_cuts_len = 960.0 * 3  # 960 hours times 3 for augmentation
+        train_cuts_len = 843723 # includes 3x speed perturbation
 
         # previously we used the following code to load all training cuts,
         # strictly speaking, shuffled training cuts should be used instead,
@@ -1432,7 +1433,7 @@ def run(rank, world_size, args):
         # train_cuts += librispeech.train_other_500_cuts()
     else:
         train_cuts = librispeech.train_clean_100_cuts()
-        train_cuts_len = 100.0 * 3  # 100 hours times 3 for speed augmentation
+        train_cuts_len = 85617 # includes 3x speed perturbation
 
     if params.use_giga or params.use_cv:
         if params.libri_copies > 1:
@@ -1443,10 +1444,10 @@ def run(rank, world_size, args):
         if params.use_giga:
             if params.full_libri:
                 gigaspeech_cuts = gigaspeech.train_XL_cuts()
-                gigaspeech_cuts_len = 10000.0
+                gigaspeech_cuts_len = 8277188 # 10000.0
             else:
                 gigaspeech_cuts = gigaspeech.train_S_cuts()  # e.g. for debugging
-                gigaspeech_cuts_len = 250.0
+                gigaspeech_cuts_len = 229394 # 250.0
             datasets_and_weights.append((gigaspeech_cuts, gigaspeech_cuts_len))
 
         if params.use_cv:
@@ -1455,7 +1456,7 @@ def run(rank, world_size, args):
                 c.supervisions[0].text = re.sub(r'[^\w\s]', '', c.supervisions[0].text).upper()
                 return c
             commonvoice_cuts = commonvoice.train_cuts().map(normalize_text)
-            commonvoice_cuts_len = 2600.0
+            commonvoice_cuts_len = 1822817  #  2600.0
             datasets_and_weights.append((commonvoice_cuts, commonvoice_cuts_len))
 
         cuts, weights = zip(*datasets_and_weights)

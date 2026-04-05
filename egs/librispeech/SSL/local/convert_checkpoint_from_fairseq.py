@@ -12,7 +12,7 @@ args = parser.parse_args()
 src = args.src
 tgt = args.tgt
 
-old_checkpoint = torch.load(src)
+old_checkpoint = torch.load(src, weights_only=False)
 new_checkpoint = OrderedDict()
 new_checkpoint["model"] = old_checkpoint["model"]
 torch.save(new_checkpoint, tgt)

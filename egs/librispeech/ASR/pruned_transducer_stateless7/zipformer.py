@@ -44,7 +44,7 @@ from scaling import (
 from torch import Tensor, nn
 
 from icefall.dist import get_rank
-from icefall.utils import is_jit_tracing, make_pad_mask
+from icefall.utils import is_jit_tracing, make_pad_mask, torch_autocast
 
 
 class Zipformer(EncoderInterface):
@@ -1421,7 +1421,7 @@ class RelPositionMultiheadAttention(nn.Module):
         bsz = n // num_heads
 
         with torch.no_grad():
-            with torch.cuda.amp.autocast(enabled=False):
+            with torch_autocast(enabled=False):
                 attn_weights = attn_weights.to(torch.float32)
                 attn_output = attn_output.to(torch.float32)
                 attn_weights_entropy = (

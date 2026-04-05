@@ -63,11 +63,11 @@ def compile_HLG(lang_dir: str) -> k2.Fsa:
     max_token_id = max(lexicon.tokens)
     logging.info(f"Building ctc_topo. max_token_id: {max_token_id}")
     H = k2.ctc_topo(max_token_id)
-    L = k2.Fsa.from_dict(torch.load(f"{lang_dir}/L_disambig.pt"))
+    L = k2.Fsa.from_dict(torch.load(f"{lang_dir}/L_disambig.pt", weights_only=False))
 
     if Path("data/lm/G.pt").is_file():
         logging.info("Loading pre-compiled G")
-        d = torch.load("data/lm/G.pt")
+        d = torch.load("data/lm/G.pt", weights_only=False)
         G = k2.Fsa.from_dict(d)
     else:
         logging.info("Loading G_3_gram.fst.txt")

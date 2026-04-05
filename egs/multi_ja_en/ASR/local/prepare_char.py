@@ -1,0 +1,1 @@
+../../../aishell/ASR/local/prepare_char.py

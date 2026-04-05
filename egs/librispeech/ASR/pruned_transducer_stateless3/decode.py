@@ -921,7 +921,7 @@ def load_ngram_LM(
 
     if pt_file.is_file():
         logging.info(f"Loading pre-compiled {pt_file}")
-        d = torch.load(pt_file, map_location=device)
+        d = torch.load(pt_file, map_location=device, weights_only=False)
         G = k2.Fsa.from_dict(d)
         G = k2.add_epsilon_self_loops(G)
         G = k2.arc_sort(G)
@@ -1101,7 +1101,7 @@ def main():
             lg_filename = params.lang_dir / "LG.pt"
             logging.info(f"Loading {lg_filename}")
             decoding_graph = k2.Fsa.from_dict(
-                torch.load(lg_filename, map_location=device)
+                torch.load(lg_filename, map_location=device, weights_only=False)
             )
             decoding_graph.scores *= params.ngram_lm_scale
         elif params.decoding_method in [

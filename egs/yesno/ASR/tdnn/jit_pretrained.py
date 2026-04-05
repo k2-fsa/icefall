@@ -131,7 +131,9 @@ def main():
     model.to(device)
 
     logging.info(f"Loading HLG from {params.HLG}")
-    HLG = k2.Fsa.from_dict(torch.load(params.HLG, map_location="cpu"))
+    HLG = k2.Fsa.from_dict(
+        torch.load(params.HLG, map_location="cpu", weights_only=False)
+    )
     HLG = HLG.to(device)
 
     logging.info("Constructing Fbank computer")

@@ -271,7 +271,7 @@ class Rubik(Optimizer):
         beta2=0.98,
         eps=1.0e-16,
         weight_scale_limits=(0.05, 0.25),
-        bias_scale_limits=(0.1, 0.5),
+        bias_scale_limits=(0.05, 0.25),
         scalar_scale=0.075,
     ):
         defaults = dict(

@@ -80,7 +80,7 @@ def main():
 
     assert Path(input_filename).is_file(), f"{input_filename} does not exist"
     logging.info(f"Loading {input_filename}")
-    k2_fst = k2.Fsa.from_dict(torch.load(input_filename))
+    k2_fst = k2.Fsa.from_dict(torch.load(input_filename, weights_only=False))
     if olabels:
         assert hasattr(k2_fst, olabels), f"No such attribute: {olabels}"
 

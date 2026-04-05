@@ -227,7 +227,7 @@ def main():
     logging.info("About to create model")
     model = get_transducer_model(params)
 
-    checkpoint = torch.load(args.checkpoint, map_location="cpu")
+    checkpoint = torch.load(args.checkpoint, map_location="cpu", weights_only=False)
     model.load_state_dict(checkpoint["model"], strict=False)
     model.to(device)
     model.eval()

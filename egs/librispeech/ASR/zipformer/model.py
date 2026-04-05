@@ -21,11 +21,11 @@ from typing import Optional, Tuple
 import k2
 import torch
 import torch.nn as nn
-from torch import Tensor
 from encoder_interface import EncoderInterface
-from scaling import ScaledLinear, convert_num_channels
+from lhotse.dataset import SpecAugment
+from scaling import ScaledLinear
 
-from icefall.utils import add_sos, make_pad_mask, time_warp
+from icefall.utils import add_sos, make_pad_mask, time_warp, torch_autocast
 
 
 class AsrModel(nn.Module):
@@ -94,18 +94,15 @@ class AsrModel(nn.Module):
             assert hasattr(decoder, "blank_id")
             assert joiner is not None
 
-
-
             self.decoder = decoder
             self.joiner = joiner
 
             self.simple_am_proj = ScaledLinear(
-                encoder_dim, vocab_size, initial_scale=0.1,
+                encoder_dim, vocab_size, initial_scale=0.25
             )
             self.simple_lm_proj = ScaledLinear(
-                decoder_dim, vocab_size, initial_scale=0.1,
+                decoder_dim, vocab_size, initial_scale=0.25
             )
-
         else:
             assert decoder is None
             assert joiner is None
@@ -115,7 +112,7 @@ class AsrModel(nn.Module):
             # Modules for CTC head
             self.ctc_output = nn.Sequential(
                 nn.Dropout(p=0.1),
-                ScaledLinear(encoder_dim, vocab_size, initial_scale=0.1),
+                nn.Linear(encoder_dim, vocab_size),
                 nn.LogSoftmax(dim=-1),
             )
 
@@ -124,11 +121,6 @@ class AsrModel(nn.Module):
             self.attention_decoder = attention_decoder
         else:
             assert attention_decoder is None
-
-        self.reconstruction_proj = ScaledLinear(
-            encoder_dim, 4 * encoder_embed.in_channels, initial_scale=0.1)
-        self.reconstruction_loss = torch.nn.SmoothL1Loss(reduction='none', beta=1.0)
-
 
     def forward_encoder(
         self, x: torch.Tensor, x_lens: torch.Tensor
@@ -148,25 +140,18 @@ class AsrModel(nn.Module):
             Encoder output lengths, of shape (N,).
         """
         # logging.info(f"Memory allocated at entry: {torch.cuda.memory_allocated() // 1000000}M")
-        specaug_mask = (x[..., 0] == x[..., 1]) # (N, T)
-
         x, x_lens = self.encoder_embed(x, x_lens)
         # logging.info(f"Memory allocated after encoder_embed: {torch.cuda.memory_allocated() // 1000000}M")
 
-
-        src_key_padding_mask = make_pad_mask(x_lens)   # (N, T)
-        specaug_mask = specaug_mask[:, ::2]
-        assert abs(specaug_mask.shape[1] - src_key_padding_mask.shape[1]) < 10
-        specaug_mask = convert_num_channels(specaug_mask, src_key_padding_mask.shape[1])  # pad or truncate.  (N, T)
-
+        src_key_padding_mask = make_pad_mask(x_lens)
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
 
-        encoder_out, encoder_out_lens, predict_loss = self.encoder(x, x_lens, src_key_padding_mask, specaug_mask=specaug_mask)
+        encoder_out, encoder_out_lens = self.encoder(x, x_lens, src_key_padding_mask)
 
         encoder_out = encoder_out.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
         assert torch.all(encoder_out_lens > 0), (x_lens, encoder_out_lens)
 
-        return encoder_out, encoder_out_lens, predict_loss
+        return encoder_out, encoder_out_lens
 
     def forward_ctc(
         self,
@@ -188,22 +173,11 @@ class AsrModel(nn.Module):
         # Compute CTC log-prob
         ctc_output = self.ctc_output(encoder_out)  # (N, T, C)
 
-
-        # the calls to .long() were added as a workaround for a problem with
-        # torch.nn.functional.ctc_loss() on newer torch versions.  Previously
-        # instead of .long() we had .cpu().  This activates the use of CUDNN
-        # because it only uses CUDNN if integer inputs are in int32 and on CPU.
-        # (https://github.com/pytorch/pytorch/blob/main/aten/src/ATen/native/LossCTC.cpp#L501)
-        # But on more recent torch/cuda versions we were getting "RuntimeError: cuDNN error:
-        # CUDNN_STATUS_EXECUTION_FAILED" if we use the CUDNN implementation.
-        # We can't use (int32, CUDA) for the integer inputs because the torch implementation of ctc_loss
-        # seems to have a bug with "int32" integer arguments (it returns infinity), so we call
-        # .long() to use the torch implementation and avoid that bug.
         ctc_loss = torch.nn.functional.ctc_loss(
             log_probs=ctc_output.permute(1, 0, 2),  # (T, N, C)
-            targets=targets.long(),
-            input_lengths=encoder_out_lens.long(),
-            target_lengths=target_lengths.long(),
+            targets=targets.cpu(),
+            input_lengths=encoder_out_lens.cpu(),
+            target_lengths=target_lengths.cpu(),
             reduction="sum",
         )
         return ctc_loss
@@ -229,17 +203,17 @@ class AsrModel(nn.Module):
         ctc_output = self.ctc_output(encoder_out)  # (2 * N, T, C)
         ctc_loss = torch.nn.functional.ctc_loss(
             log_probs=ctc_output.permute(1, 0, 2),  # (T, 2 * N, C)
-            targets=targets.long(),  # the calls to .long() were added due to a bug in torch 2.5.1cuda12.1 on A20.
-            input_lengths=encoder_out_lens.long(),
-            target_lengths=target_lengths.long(),
+            targets=targets.cpu(),
+            input_lengths=encoder_out_lens.cpu(),
+            target_lengths=target_lengths.cpu(),
             reduction="sum",
         )
 
         # Compute consistency regularization loss
-        exchanged_targets = ctc_output.detach().chunk(2, dim=0)
-        exchanged_targets = torch.cat(
-            [exchanged_targets[1], exchanged_targets[0]], dim=0
-        )  # exchange: [x1, x2] -> [x2, x1]
+        batch_size = ctc_output.shape[0]
+        assert batch_size % 2 == 0, batch_size
+        # exchange: [x1, x2] -> [x2, x1]
+        exchanged_targets = torch.roll(ctc_output.detach(), batch_size // 2, dims=0)
         cr_loss = nn.functional.kl_div(
             input=ctc_output,
             target=exchanged_targets,
@@ -311,7 +285,7 @@ class AsrModel(nn.Module):
         # if self.training and random.random() < 0.25:
         #    am = penalize_abs_values_gt(am, 30.0, 1.0e-04)
 
-        with torch.amp.autocast('cuda', enabled=False):
+        with torch_autocast(enabled=False):
             simple_loss, (px_grad, py_grad) = k2.rnnt_loss_smoothed(
                 lm=lm.float(),
                 am=am.float(),
@@ -346,7 +320,7 @@ class AsrModel(nn.Module):
         # prior to do_rnnt_pruning (this is an optimization for speed).
         logits = self.joiner(am_pruned, lm_pruned, project_input=False)
 
-        with torch.amp.autocast('cuda', enabled=False):
+        with torch_autocast(enabled=False):
             pruned_loss = k2.rnnt_loss_pruned(
                 logits=logits.float(),
                 symbols=y_padded,
@@ -368,7 +342,7 @@ class AsrModel(nn.Module):
         lm_scale: float = 0.0,
         use_cr_ctc: bool = False,
         use_spec_aug: bool = False,
-        spec_augment: Optional[nn.Module] = None,
+        spec_augment: Optional[SpecAugment] = None,
         supervision_segments: Optional[torch.Tensor] = None,
         time_warp_factor: Optional[int] = 80,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -429,7 +403,7 @@ class AsrModel(nn.Module):
         if use_cr_ctc:
             assert self.use_ctc
             if use_spec_aug:
-                assert spec_augment is not None
+                assert spec_augment is not None and spec_augment.time_warp_factor < 1
                 # Apply time warping before input duplicating
                 assert supervision_segments is not None
                 x = time_warp(
@@ -438,17 +412,14 @@ class AsrModel(nn.Module):
                     supervision_segments=supervision_segments,
                 )
                 # Independently apply frequency masking and time masking to the two copies
-
-                x_no_specaug = x.repeat(2, 1, 1)
-                x = spec_augment(x_no_specaug)
+                x = spec_augment(x.repeat(2, 1, 1))
             else:
-                x_no_specaug = x.repeat(2, 1, 1)
-                x = x_no_specaug
+                x = x.repeat(2, 1, 1)
             x_lens = x_lens.repeat(2)
             y = k2.ragged.cat([y, y], axis=0)
 
         # Compute encoder outputs
-        encoder_out, encoder_out_lens, predict_loss = self.forward_encoder(x, x_lens)
+        encoder_out, encoder_out_lens = self.forward_encoder(x, x_lens)
 
         row_splits = y.shape.row_splits(1)
         y_lens = row_splits[1:] - row_splits[:-1]
@@ -507,58 +478,4 @@ class AsrModel(nn.Module):
         else:
             attention_decoder_loss = torch.empty(0)
 
-        reconstruction_loss = self.forward_reconstruction_loss(x_no_specaug, encoder_out,
-                                                               encoder_out_lens)
-
-        if use_cr_ctc:
-            reconstruction_loss = reconstruction_loss * 0.5
-
-        return simple_loss, pruned_loss, ctc_loss, attention_decoder_loss, cr_loss, reconstruction_loss, predict_loss
-
-
-    def forward_reconstruction_loss(self,
-                                    log_mels: Tensor,
-                                    encoder_out: Tensor,
-                                    encoder_out_lens: Tensor):
-        """
-        Compute and return reconstruction loss, a mixed l1/l2 loss on the input features.
-
-        Args:
-          log_mels: log-mel features of shape (batch_size, T, num_mels)
-         encoder_out: embeddings of shape (batch_size, T_embed, encoder_dim)
-        """
-        batch_size = log_mels.shape[0]
-        num_mels = log_mels.shape[2]
-
-        pred_mels = self.reconstruction_proj(encoder_out) # (batch_size, T_embed, 4 * num_mels)
-        T_embed = pred_mels.shape[1]
-        pred_mels = pred_mels.reshape(batch_size, T_embed * 4, num_mels)
-
-        excess_frames = log_mels.shape[1] - pred_mels.shape[1]
-        assert 4 < excess_frames < 10  # should be around 7 or 8 I believe.
-
-        T = pred_mels.shape[1]
-        offset = 3 # i found excess_frames = 5 one time.
-        log_mels = log_mels[:, offset:offset+T]
-
-        lens = encoder_out_lens * 4
-        pad_mask = make_pad_mask(lens)  # boolean Tensor with True for masked positions
-        assert pad_mask.shape == (batch_size, T)
-        pad_mask = (~pad_mask).to(torch.float).unsqueeze(-1) # 0.0 for masked position
-        # padd_mask: (batch_size, T, 1)
-
-
-        # use 1.0 for the beta; note, log-mels have a fairly large dynamic range so this mostly
-        # helps to down-weight the effect of very silent silences.
-        loss = torch.nn.functional.smooth_l1_loss(log_mels * pad_mask, pred_mels * pad_mask,
-                                                  reduction='none', beta=1.0)
-
-        # masking.  if it's different from the next item on both the frequency dim
-        # and the time dim, it means we are in neither a time masked nor a frequency masked
-        # position.
-        mask = torch.logical_and(log_mels != torch.roll(log_mels, 1, dims=2),
-                                 log_mels != torch.roll(log_mels, 1, dims=1))
-        loss = loss * mask.to(loss.dtype)
-
-        loss = loss.mean(dim=-1).sum()  # sum over all frames, but mean over mel bins.
-        return loss
+        return simple_loss, pruned_loss, ctc_loss, attention_decoder_loss, cr_loss
