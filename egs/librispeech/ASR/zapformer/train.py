@@ -83,9 +83,9 @@ except:
     pass
 
 
-from combined_scheduler import CombinedLRScheduler
+from variable_combined_scheduler import VariableCombinedLRScheduler
 try:
-    from combined_scheduler import InterpCosineLRScheduler
+    from variable_combined_scheduler import InterpCosineLRScheduler
 except:
     pass
 from torch.optim.lr_scheduler import LambdaLR
@@ -396,9 +396,10 @@ def get_parser():
     parser.add_argument(
         "--batches-per-epoch",
         type=int,
-        default=4550,
+        default=2200,
         help="Assumed number of batches per epoch for purposes of setting learning rate; only "
-        "makes a difference during the first batch, after which an observed value is used.."
+        "makes a difference during the first batch, after which an observed value is used.  This "
+        "is the num batches where num_copies==1, i.e. on the first epoch"
     )
 
 
@@ -787,7 +788,7 @@ def load_checkpoint_if_available(
     model: nn.Module,
     model_avg: nn.Module = None,
     optimizer: Optional[torch.optim.Optimizer] = None,
-    scheduler: Optional[CombinedLRScheduler] = None,
+    scheduler: Optional[VariableCombinedLRScheduler] = None,
 ) -> Optional[Dict[str, Any]]:
     """Load checkpoint from file.
 
@@ -853,7 +854,7 @@ def save_checkpoint(
     model: Union[nn.Module, DDP],
     model_avg: Optional[nn.Module] = None,
     optimizer: Optional[torch.optim.Optimizer] = None,
-    scheduler: Optional[CombinedLRScheduler] = None,
+    scheduler: Optional[VariableCombinedLRScheduler] = None,
     sampler: Optional[CutSampler] = None,
     scaler: Optional[GradScaler] = None,
     rank: int = 0,
@@ -1069,7 +1070,7 @@ def train_one_epoch(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
     optimizer: torch.optim.Optimizer,
-    scheduler: CombinedLRScheduler,
+    scheduler: VariableCombinedLRScheduler,
     sp: spm.SentencePieceProcessor,
     train_dl: torch.utils.data.DataLoader,
     valid_dl: torch.utils.data.DataLoader,
@@ -1387,9 +1388,11 @@ def run(rank, world_size, args):
         progress = current_step / total_steps
         return max(0.0, 0.5 * (1.0 + math.cos(math.pi * progress)))
 
+
+    def get_num_copies(epoch):
+        return 1 + round((params.max_copies - 1) * epoch / params.num_epochs)
     scheduler = InterpCosineLRScheduler(optimizer,
-                                        batches_per_epoch=params.batches_per_epoch,
-                                        num_epochs=params.num_epochs)
+                                        batches_per_epoch=[params.batches_per_epoch * get_num_copies(i) for i in range(1, params.num_epochs+1)])
 
     if checkpoints and "optimizer" in checkpoints:
         logging.info("Loading optimizer state dict")
@@ -1533,7 +1536,7 @@ def run(rank, world_size, args):
     for epoch in range(params.start_epoch, params.num_epochs + 1):
         fix_random_seed(params.seed + epoch - 1)
 
-        num_copies = 1 + round((params.max_copies - 1) * epoch / params.num_epochs)
+        num_copies = get_num_copies(epoch)
         logging.info("On epoch {epoch}, for dataloader: num_copies={num_copies}, this will affect num batches.")
         train_dl = asr_datamodule.train_dataloaders(
             train_cuts,
