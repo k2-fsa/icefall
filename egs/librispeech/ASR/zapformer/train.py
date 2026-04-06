@@ -1390,7 +1390,8 @@ def run(rank, world_size, args):
 
 
     def get_num_copies(epoch):
-        return 1 + round((params.max_copies - 1) * epoch / params.num_epochs)
+        # num_epochs arg is one-based.
+        return max(1, params.max_copies * epoch / params.num_epochs)
     scheduler = InterpCosineLRScheduler(optimizer,
                                         batches_per_epoch=[params.batches_per_epoch * get_num_copies(i) for i in range(1, params.num_epochs+1)])
 

@@ -299,7 +299,7 @@ class AsrDataModule:
             )
 
         if self.args.bucketing_sampler:
-            logging.info("Using DynamicBucketingSampler.")
+            logging.info(f"Using DynamicBucketingSampler, num_copies={num_copies}")
             train_sampler = DynamicBucketingSampler(
                 cuts_train,
                 max_duration=self.args.max_duration / num_copies,
@@ -310,7 +310,7 @@ class AsrDataModule:
                 drop_last=self.args.drop_last,
             )
         else:
-            logging.info("Using SimpleCutSampler.")
+            logging.info(f"Using SimpleCutSampler, num_copies={num_copies}")
             train_sampler = SimpleCutSampler(
                 cuts_train,
                 max_duration=self.args.max_duration / num_copies,
