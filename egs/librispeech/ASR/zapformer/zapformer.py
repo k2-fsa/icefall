@@ -938,7 +938,7 @@ class MultiheadRelPosGatedSelfAttention(nn.Module):
 
         # out proj for the value times gating.
         self.out_proj = ScaledLinear(
-            num_heads * value_head_dim, embed_dim, bias=True, initial_scale=0.0
+            num_heads * value_head_dim, embed_dim, bias=True, initial_scale=0.1
         )
 
         self.weighted_mean = WeightedMean(num_heads * value_head_dim, causal) # TODO: fix causal option
@@ -1252,7 +1252,7 @@ class FeedforwardModule(nn.Module):
             feedforward_dim,
             embed_dim,
             activation="SwashR",
-            initial_scale=0.0,
+            initial_scale=0.5,
             bias=True,
         )
 
@@ -1820,7 +1820,7 @@ class ConvolutionModule(nn.Module):
             bottleneck_dim,
             channels,
             activation="SwashR",
-            initial_scale=0.0,
+            initial_scale=0.05,
         )
 
     def forward(
