@@ -1538,6 +1538,8 @@ def run(rank, world_size, args):
         scaler.load_state_dict(checkpoints["grad_scaler"])
 
     for epoch in range(params.start_epoch, params.num_epochs + 1):
+        # fix the random seed before
+        torch.distributed.barrier()
         fix_random_seed(params.seed + epoch - 1)
         torch.distributed.barrier()
 
@@ -1550,6 +1552,11 @@ def run(rank, world_size, args):
         )
         sampler_state_dict=None
         train_dl.sampler.set_epoch(epoch - 1)
+        # Re-do fixing the random seed because I believe in asr_datamodule.train_dataloaders(), fix_random_seed()
+        # may get called from an arbitrary worker and affect the seed of *all* the GPUs.
+        torch.distributed.barrier()
+        fix_random_seed(params.seed + epoch - 1)
+        torch.distributed.barrier()
 
         if tb_writer is not None:
             tb_writer.add_scalar("train/epoch", epoch, params.batch_idx_train)
