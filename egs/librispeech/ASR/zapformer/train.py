@@ -1301,6 +1301,9 @@ def run(rank, world_size, args):
     fix_random_seed(params.seed)
     if world_size > 1:
         setup_dist(rank, world_size, params.master_port)
+    # need torch.distributed.barrier() after fix_random_seed() as it fixes
+    #  random seeds of all GPUs, not just the GPU of this process.
+    torch.distributed.barrier()
 
     setup_logger(f"{params.exp_dir}/log/log-train")
     logging.info("Training started")
@@ -1391,7 +1394,7 @@ def run(rank, world_size, args):
 
     def get_num_copies(epoch):
         # num_epochs arg is one-based.
-        return max(1, params.max_copies * epoch / params.num_epochs)
+        return max(1, int(params.max_copies * epoch / params.num_epochs))
     scheduler = InterpCosineLRScheduler(optimizer,
                                         batches_per_epoch=[params.batches_per_epoch * get_num_copies(i) for i in range(1, params.num_epochs+1)])
 
@@ -1536,6 +1539,7 @@ def run(rank, world_size, args):
 
     for epoch in range(params.start_epoch, params.num_epochs + 1):
         fix_random_seed(params.seed + epoch - 1)
+        torch.distributed.barrier()
 
         num_copies = get_num_copies(epoch)
         logging.info(f"On epoch {epoch}, for dataloader: num_copies={num_copies}, this will affect num batches.")

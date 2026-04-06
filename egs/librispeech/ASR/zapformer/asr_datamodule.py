@@ -327,6 +327,9 @@ class AsrDataModule:
         seed = torch.randint(0, 100000, ()).item()
         worker_init_fn = _SeedWorkers(seed)
 
+        # need torch.distributed.barrier() before and after anything that might call lhotse.fix_random_seed() as it fixes random seeds of all GPUs,
+        # not just the GPU of this process.
+        torch.distributed.barrier()
         train_dl = DataLoader(
             train,
             sampler=train_sampler,
@@ -335,7 +338,7 @@ class AsrDataModule:
             persistent_workers=False,
             worker_init_fn=worker_init_fn,
         )
-
+        torch.distributed.barrier()
         return train_dl
 
     def valid_dataloaders(self, cuts_valid: CutSet) -> DataLoader:
