@@ -118,7 +118,7 @@ class AsrDataModule:
             type=float,
             default=800.0,
             help="Maximum pooled recordings duration (seconds) in a "
-            "single batch, including the --num-copies argument, so if --num-copies "
+            "single batch, including multiple copies, so if num_copies "
             "is larger the actual duration prior to making copies will be smaller."
         )
         group.add_argument(
@@ -210,15 +210,6 @@ class AsrDataModule:
             help="AudioSamples or PrecomputedFeatures",
         )
 
-        group.add_argument(
-            "--num-copies",
-            type=int,
-            default=4,
-            help="The number of copies of each training example selected in each batch (they will be augmented "
-            "differently).  If you make num-copies larger there will be more steps per epoch so you should probably make  "
-            "num-epochs smaller. "
-        )
-
         parser.add_argument(
             "--libri-copies",
             type=int,
@@ -245,6 +236,7 @@ class AsrDataModule:
         self,
         cuts_train: CutSet,
         sampler_state_dict: Optional[Dict[str, Any]] = None,
+        num_copies: int = 1,
     ) -> DataLoader:
         """
         Args:
@@ -280,7 +272,7 @@ class AsrDataModule:
 
         logging.info("About to create train dataset")
         train = MulticopyDataset(
-            num_copies=self.args.num_copies,
+            num_copies=num_copies,
             input_strategy=eval(self.args.input_strategy)(),
             cut_transforms=transforms,
             input_transforms=[],
@@ -299,7 +291,7 @@ class AsrDataModule:
             # transforms = [PerturbSpeed(factors=[0.9, 1.1], p=2/3)] + transforms   # noqa
             # Drop feats to be on the safe side.
             train = MulticopyDataset(
-                num_copies=self.args.num_copies,
+                num_copies=num_copies,
                 cut_transforms=transforms,
                 input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80))),
                 input_transforms=input_transforms,
@@ -310,7 +302,7 @@ class AsrDataModule:
             logging.info("Using DynamicBucketingSampler.")
             train_sampler = DynamicBucketingSampler(
                 cuts_train,
-                max_duration=self.args.max_duration / self.args.num_copies,
+                max_duration=self.args.max_duration / num_copies,
                 shuffle=self.args.shuffle,
                 num_buckets=self.args.num_buckets,
                 buffer_size=self.args.num_buckets * 2000,
@@ -321,7 +313,7 @@ class AsrDataModule:
             logging.info("Using SimpleCutSampler.")
             train_sampler = SimpleCutSampler(
                 cuts_train,
-                max_duration=self.args.max_duration / self.args.num_copies,
+                max_duration=self.args.max_duration / num_copies,
                 shuffle=self.args.shuffle,
             )
         logging.info("About to create train dataloader")

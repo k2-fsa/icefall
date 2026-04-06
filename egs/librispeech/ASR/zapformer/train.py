@@ -387,6 +387,13 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--max-copies",
+        type=int,
+        default=8,
+        help="The num_copies to use in the dataloader on the last epoch (it rises linearly)"
+    )
+
+    parser.add_argument(
         "--batches-per-epoch",
         type=int,
         default=4550,
@@ -1500,15 +1507,16 @@ def run(rank, world_size, args):
     else:
         sampler_state_dict = None
 
-    train_dl = asr_datamodule.train_dataloaders(
-        train_cuts, sampler_state_dict=sampler_state_dict
-    )
 
     valid_cuts = librispeech.dev_clean_cuts()
     valid_cuts += librispeech.dev_other_cuts()
     valid_dl = asr_datamodule.valid_dataloaders(valid_cuts)
 
     if not params.print_diagnostics and False:
+        train_dl = asr_datamodule.train_dataloaders(
+            train_cuts,
+            num_copies=1,
+        )
         scan_pessimistic_batches_for_oom(
             model=model,
             train_dl=train_dl,
@@ -1524,6 +1532,15 @@ def run(rank, world_size, args):
 
     for epoch in range(params.start_epoch, params.num_epochs + 1):
         fix_random_seed(params.seed + epoch - 1)
+
+        num_copies = 1 + round((params.max_copies - 1) * epoch / params.num_epochs)
+        logging.info("On epoch {epoch}, for dataloader: num_copies={num_copies}, this will affect num batches.")
+        train_dl = asr_datamodule.train_dataloaders(
+            train_cuts,
+            sampler_state_dict=sampler_state_dict,
+            num_copies=num_copies,
+        )
+        sampler_state_dict=None
         train_dl.sampler.set_epoch(epoch - 1)
 
         if tb_writer is not None:
