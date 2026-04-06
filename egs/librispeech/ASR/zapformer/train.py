@@ -1538,7 +1538,7 @@ def run(rank, world_size, args):
         fix_random_seed(params.seed + epoch - 1)
 
         num_copies = get_num_copies(epoch)
-        logging.info("On epoch {epoch}, for dataloader: num_copies={num_copies}, this will affect num batches.")
+        logging.info(f"On epoch {epoch}, for dataloader: num_copies={num_copies}, this will affect num batches.")
         train_dl = asr_datamodule.train_dataloaders(
             train_cuts,
             sampler_state_dict=sampler_state_dict,
