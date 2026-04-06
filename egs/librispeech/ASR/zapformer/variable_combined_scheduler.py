@@ -97,8 +97,8 @@ class VariableCombinedLRScheduler(object):
          in the constructor. """
         assert epoch > 0 and epoch <= len(self.batches_per_epoch)  # Epoch numbers are assumed to be be 1-based indexes.
         if epoch == self.epoch + 1 and self.batch > 0 and self.epoch > 0:
-            self.adjust_factor = self.batch / self.batches_per_epoch[self.epoch-1]
-            logging.info(f"Setting self.adjust_factor = {self.adjust_factor} = observed/expected batches {self.batch}/{self.batches_per_epoch[self.epoch-1]} on epoch {self.epoch}")
+            self.adjust_factor = self.batches_per_epoch[self.epoch-1] / self.batch
+            logging.info(f"Setting self.adjust_factor = {self.adjust_factor} = expected/observed batches {self.batches_per_epoch[self.epoch-1]}/{self.batch} on epoch {self.epoch}")
 
         self.epoch = epoch
         self.past_batches = sum(self.batches_per_epoch[:epoch-1], start=0)
