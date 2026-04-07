@@ -228,8 +228,9 @@ def get_init_states(
     device: torch.device = torch.device("cpu"),
 ) -> List[torch.Tensor]:
     """
-    Returns a list of cached tensors of all encoder layers. For layer-i, states[i*5:(i+1)*5]
-    is (cached_key, cached_value, cached_conv, cached_norm_stats, cached_norm_len).
+    Returns a list of cached tensors of all encoder layers. For layer-i, states[i*9:(i+1)*9]
+    is (cached_key, cached_value, cached_conv, cached_norm_stats, cached_norm_len,
+    cached_attn_wm_sum, cached_attn_wm_num_frames, cached_conv_wm_sum, cached_conv_wm_num_frames).
     states[-2] is the cached left padding for ConvNeXt module,
     of shape (batch_size, num_channels, left_pad, num_freqs)
     states[-1] is processed_lens of shape (batch,), which records the number
@@ -256,8 +257,9 @@ def stack_states(state_list: List[List[torch.Tensor]]) -> List[torch.Tensor]:
         Each element in state_list corresponding to the internal state
         of the zapformer model for a single utterance. For element-n,
         state_list[n] is a list of cached tensors of all encoder layers. For layer-i,
-        state_list[n][i*5:(i+1)*5] is (cached_key, cached_value, cached_conv,
-        cached_norm_stats, cached_norm_len).
+        state_list[n][i*9:(i+1)*9] is (cached_key, cached_value, cached_conv,
+        cached_norm_stats, cached_norm_len, cached_attn_wm_sum,
+        cached_attn_wm_num_frames, cached_conv_wm_sum, cached_conv_wm_num_frames).
         state_list[n][-2] is the cached left padding for ConvNeXt module,
           of shape (batch_size, num_channels, left_pad, num_freqs)
         state_list[n][-1] is processed_lens of shape (batch,), which records the number
@@ -267,12 +269,12 @@ def stack_states(state_list: List[List[torch.Tensor]]) -> List[torch.Tensor]:
       It is the inverse of :func:`unstack_states`.
     """
     batch_size = len(state_list)
-    assert (len(state_list[0]) - 2) % 5 == 0, len(state_list[0])
-    tot_num_layers = (len(state_list[0]) - 2) // 5
+    assert (len(state_list[0]) - 2) % 9 == 0, len(state_list[0])
+    tot_num_layers = (len(state_list[0]) - 2) // 9
 
     batch_states = []
     for layer in range(tot_num_layers):
-        layer_offset = layer * 5
+        layer_offset = layer * 9
         # cached_key: (left_context_len, batch_size, key_dim)
         cached_key = torch.cat(
             [state_list[i][layer_offset] for i in range(batch_size)], dim=1
@@ -293,12 +295,32 @@ def stack_states(state_list: List[List[torch.Tensor]]) -> List[torch.Tensor]:
         cached_norm_len = torch.cat(
             [state_list[i][layer_offset + 4] for i in range(batch_size)], dim=0
         )
+        # cached_attn_wm_sum: (1, batch_size, channels)
+        cached_attn_wm_sum = torch.cat(
+            [state_list[i][layer_offset + 5] for i in range(batch_size)], dim=1
+        )
+        # cached_attn_wm_num_frames: (batch_size,)
+        cached_attn_wm_num_frames = torch.cat(
+            [state_list[i][layer_offset + 6] for i in range(batch_size)], dim=0
+        )
+        # cached_conv_wm_sum: (1, batch_size, channels)
+        cached_conv_wm_sum = torch.cat(
+            [state_list[i][layer_offset + 7] for i in range(batch_size)], dim=1
+        )
+        # cached_conv_wm_num_frames: (batch_size,)
+        cached_conv_wm_num_frames = torch.cat(
+            [state_list[i][layer_offset + 8] for i in range(batch_size)], dim=0
+        )
         batch_states += [
             cached_key,
             cached_value,
             cached_conv,
             cached_norm_stats,
             cached_norm_len,
+            cached_attn_wm_sum,
+            cached_attn_wm_num_frames,
+            cached_conv_wm_sum,
+            cached_conv_wm_num_frames,
         ]
 
     cached_embed_left_pad = torch.cat(
@@ -324,8 +346,8 @@ def unstack_states(batch_states: List[Tensor]) -> List[List[Tensor]]:
         state_list: A list of list. Each element in state_list corresponding to the internal state
         of the zapformer model for a single utterance.
     """
-    assert (len(batch_states) - 2) % 5 == 0, len(batch_states)
-    tot_num_layers = (len(batch_states) - 2) // 5
+    assert (len(batch_states) - 2) % 9 == 0, len(batch_states)
+    tot_num_layers = (len(batch_states) - 2) // 9
 
     processed_lens = batch_states[-1]
     batch_size = processed_lens.shape[0]
@@ -333,16 +355,25 @@ def unstack_states(batch_states: List[Tensor]) -> List[List[Tensor]]:
     state_list = [[] for _ in range(batch_size)]
 
     for layer in range(tot_num_layers):
-        layer_offset = layer * 5
+        layer_offset = layer * 9
         # chunk dim=1 for attention maps
         cached_key_list = batch_states[layer_offset].chunk(chunks=batch_size, dim=1)
         cached_value_list = batch_states[layer_offset + 1].chunk(chunks=batch_size, dim=1)
-        
+
         # chunk dim=0 for conv and norm stats
         cached_conv_list = batch_states[layer_offset + 2].chunk(chunks=batch_size, dim=0)
         cached_norm_stats_list = batch_states[layer_offset + 3].chunk(chunks=batch_size, dim=0)
         cached_norm_len_list = batch_states[layer_offset + 4].chunk(chunks=batch_size, dim=0)
-        
+
+        # chunk dim=1 for attn wm sum
+        cached_attn_wm_sum_list = batch_states[layer_offset + 5].chunk(chunks=batch_size, dim=1)
+        # chunk dim=0 for attn wm num frames
+        cached_attn_wm_num_frames_list = batch_states[layer_offset + 6].chunk(chunks=batch_size, dim=0)
+        # chunk dim=1 for conv wm sum
+        cached_conv_wm_sum_list = batch_states[layer_offset + 7].chunk(chunks=batch_size, dim=1)
+        # chunk dim=0 for conv wm num frames
+        cached_conv_wm_num_frames_list = batch_states[layer_offset + 8].chunk(chunks=batch_size, dim=0)
+
         for i in range(batch_size):
             state_list[i] += [
                 cached_key_list[i],
@@ -350,6 +381,10 @@ def unstack_states(batch_states: List[Tensor]) -> List[List[Tensor]]:
                 cached_conv_list[i],
                 cached_norm_stats_list[i],
                 cached_norm_len_list[i],
+                cached_attn_wm_sum_list[i],
+                cached_attn_wm_num_frames_list[i],
+                cached_conv_wm_sum_list[i],
+                cached_conv_wm_num_frames_list[i],
             ]
 
     cached_embed_left_pad_list = batch_states[-2].chunk(chunks=batch_size, dim=0)
