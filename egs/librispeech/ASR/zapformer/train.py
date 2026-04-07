@@ -85,7 +85,7 @@ except:
 
 from variable_combined_scheduler import VariableCombinedLRScheduler
 try:
-    from variable_combined_scheduler import InterpCosineLRScheduler
+    from variable_combined_scheduler import LinearLRScheduler
 except:
     pass
 from torch.optim.lr_scheduler import LambdaLR
@@ -1395,8 +1395,9 @@ def run(rank, world_size, args):
     def get_num_copies(epoch):
         # num_epochs arg is one-based.
         return max(1, int(params.max_copies * epoch / params.num_epochs))
-    scheduler = InterpCosineLRScheduler(optimizer,
-                                        batches_per_epoch=[params.batches_per_epoch * get_num_copies(i) for i in range(1, params.num_epochs+1)])
+    # this LinearLRScheduler inherits from VariableCombinedLRScheduler.
+    scheduler = LinearLRScheduler(optimizer,
+                                  batches_per_epoch=[params.batches_per_epoch * get_num_copies(i) for i in range(1, params.num_epochs+1)])
 
     if checkpoints and "optimizer" in checkpoints:
         logging.info("Loading optimizer state dict")
