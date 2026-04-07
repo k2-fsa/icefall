@@ -390,7 +390,14 @@ def get_parser():
         "--max-copies",
         type=int,
         default=8,
-        help="The num_copies to use in the dataloader on the last epoch (it rises linearly)"
+        help="The num_copies to use in the dataloader on the last epoch (it rises linearly from --min-copies)"
+    )
+
+    parser.add_argument(
+        "--min-copies",
+        type=int,
+        default=1,
+        help="The num_copies to use in the dataloader on the first epoch (it rises linearly to --max-copies)"
     )
 
     parser.add_argument(
@@ -1394,7 +1401,7 @@ def run(rank, world_size, args):
 
     def get_num_copies(epoch):
         # num_epochs arg is one-based.
-        return max(1, int(params.max_copies * epoch / params.num_epochs))
+        return params.min_copies + int((params.max_copies - params.min_copies) * epoch / params.num_epochs)
     # this LinearLRScheduler inherits from VariableCombinedLRScheduler.
     scheduler = LinearLRScheduler(optimizer,
                                   batches_per_epoch=[params.batches_per_epoch * get_num_copies(i) for i in range(1, params.num_epochs+1)])
