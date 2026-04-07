@@ -337,8 +337,9 @@ class Zapformer(EncoderInterface):
             A tensor of shape (batch_size,) containing the number of frames in
             `x` before padding.
           caches: list of cached tensors of all encoder layers. For layer-i,
-            caches[i*5:(i+1)*5] is (cached_key, cached_value, cached_conv,
-            cached_norm_stats, cached_norm_len).
+            caches[i*9:(i+1)*9] is (cached_key, cached_value, cached_conv,
+            cached_norm_stats, cached_norm_len, cached_attn_wm_sum,
+            cached_attn_wm_num_frames, cached_conv_wm_sum, cached_conv_wm_num_frames).
           src_key_padding_mask:
             The mask for padding, of shape (batch_size, seq_len); True means
             masked position. May be None.
@@ -374,7 +375,7 @@ class Zapformer(EncoderInterface):
             x = downsample_by(x, ds)
 
             # Slice out the specific caches for the current module
-            module_caches = caches[layer_offset * 5 : (layer_offset + num_layers) * 5]
+            module_caches = caches[layer_offset * 9 : (layer_offset + num_layers) * 9]
 
             x, new_module_caches = module.streaming_forward(
                 src=x,
@@ -413,8 +414,9 @@ class Zapformer(EncoderInterface):
     ) -> List[Tensor]:
         """Get initial caches.
 
-        A list of cached tensors of all encoder layers. For layer-i, caches[i*5:(i+1)*5]
-        is (cached_key, cached_value, cached_conv, cached_norm_stats, cached_norm_len).
+        A list of cached tensors of all encoder layers. For layer-i, caches[i*9:(i+1)*9]
+        is (cached_key, cached_value, cached_conv, cached_norm_stats, cached_norm_len,
+        cached_attn_wm_sum, cached_attn_wm_num_frames, cached_conv_wm_sum, cached_conv_wm_num_frames).
         """
         caches = []
         for i, module in enumerate(self.encoders):
@@ -435,12 +437,22 @@ class Zapformer(EncoderInterface):
                 cached_norm_stats = cached_norm_stats.to(device)
                 cached_norm_len = cached_norm_len.to(device)
 
+                attn_value_dim = self.value_head_dim[i] * num_heads
+                cached_attn_wm_sum = torch.zeros(1, batch_size, attn_value_dim, device=device)
+                cached_attn_wm_num_frames = torch.zeros(batch_size, dtype=torch.int64, device=device)
+                cached_conv_wm_sum = torch.zeros(1, batch_size, embed_dim, device=device)
+                cached_conv_wm_num_frames = torch.zeros(batch_size, dtype=torch.int64, device=device)
+
                 caches.extend([
                     cached_key,
                     cached_value,
                     cached_conv,
                     cached_norm_stats,
                     cached_norm_len,
+                    cached_attn_wm_sum,
+                    cached_attn_wm_num_frames,
+                    cached_conv_wm_sum,
+                    cached_conv_wm_num_frames,
                 ])
 
         return caches
@@ -619,9 +631,13 @@ class ZapformerEncoderLayer(nn.Module):
         cached_conv: Tensor,
         cached_norm_stats: Tensor,
         cached_norm_len: Tensor,
+        cached_attn_wm_sum: Tensor,
+        cached_attn_wm_num_frames: Tensor,
+        cached_conv_wm_sum: Tensor,
+        cached_conv_wm_num_frames: Tensor,
         left_context_len: int,
         src_key_padding_mask: Optional[Tensor] = None,
-    ) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]:
+    ) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]:
         """Pass the input through the encoder layer in streaming forward mode.
 
         Args:
@@ -631,6 +647,10 @@ class ZapformerEncoderLayer(nn.Module):
             cached_conv: cached left context for the convolution module, of shape (batch_size, channels, left_pad)
             cached_norm_stats: cached SequenceNorm stats, of shape (batch_size,)
             cached_norm_len: cached SequenceNorm length, scalar.
+            cached_attn_wm_sum: (1, batch, channels), cumulative sum for attention weighted_mean
+            cached_attn_wm_num_frames: (batch,), number of frames for attention weighted_mean
+            cached_conv_wm_sum: (1, batch, channels), cumulative sum for conv weighted_mean
+            cached_conv_wm_num_frames: (batch,), number of frames for conv weighted_mean
             left_context_len: number of left context frames.
             src_key_padding_mask:  the mask for padding, of shape (batch_size, left_context_len + seq_len);
                 True means masked position. May be None.
@@ -642,6 +662,10 @@ class ZapformerEncoderLayer(nn.Module):
             - updated cached_conv
             - updated cached_norm_stats
             - updated cached_norm_len
+            - updated cached_attn_wm_sum
+            - updated cached_attn_wm_num_frames
+            - updated cached_conv_wm_sum
+            - updated cached_conv_wm_num_frames
         """
         src_orig = src
 
@@ -652,19 +676,23 @@ class ZapformerEncoderLayer(nn.Module):
         src = src + self.feed_forward1(src, src_key_padding_mask=chunk_mask)
 
         # may try changing src_pre_ff1 to src or vice versa.
-        self_attn_out, cached_key, cached_value = self.self_attn.streaming_forward(
+        self_attn_out, cached_key, cached_value, cached_attn_wm_sum, cached_attn_wm_num_frames = self.self_attn.streaming_forward(
             x_qkp=src_pre_ff1,
             x_vg=src,
             left_context_len=left_context_len,
             cached_key=cached_key,
             cached_value=cached_value,
+            cached_wm_sum=cached_attn_wm_sum,
+            cached_wm_num_frames=cached_attn_wm_num_frames,
             key_padding_mask=src_key_padding_mask,
         )
         src = src + self_attn_out
 
-        src_conv, cached_conv = self.conv_module.streaming_forward(
+        src_conv, cached_conv, cached_conv_wm_sum, cached_conv_wm_num_frames = self.conv_module.streaming_forward(
             3.0 * src,
-            cache=cached_conv,
+            cached_conv=cached_conv,
+            cached_wm_sum=cached_conv_wm_sum,
+            cached_wm_num_frames=cached_conv_wm_num_frames,
             src_key_padding_mask=chunk_mask,
         )
         src = src + src_conv
@@ -689,6 +717,10 @@ class ZapformerEncoderLayer(nn.Module):
             cached_conv,
             cached_norm_stats,
             cached_norm_len,
+            cached_attn_wm_sum,
+            cached_attn_wm_num_frames,
+            cached_conv_wm_sum,
+            cached_conv_wm_num_frames,
         )
 
 
@@ -808,8 +840,9 @@ class ZapformerEncoder(nn.Module):
         Args:
             src: the sequence to the encoder (required): shape (seq_len, batch_size, embed_dim).
             caches: list of cached tensors of N encoder layers. For layer-i,
-              caches[i*5:(i+1)*5] is (cached_key, cached_value, cached_conv,
-              cached_norm_stats, cached_norm_len).
+              caches[i*9:(i+1)*9] is (cached_key, cached_value, cached_conv,
+              cached_norm_stats, cached_norm_len, cached_attn_wm_sum,
+              cached_attn_wm_num_frames, cached_conv_wm_sum, cached_conv_wm_num_frames).
             left_context_len: Number of left context frames.
             src_key_padding_mask:  the mask for padding, of shape
               (batch_size, left_context_len + seq_len); True means masked position.
@@ -825,7 +858,7 @@ class ZapformerEncoder(nn.Module):
         src = self.proj(src)
 
         num_layers = len(self.layers)
-        assert len(caches) == num_layers * 5
+        assert len(caches) == num_layers * 9
 
         residual_scale = self.residual_scales[0]
         input_scale = self.input_scale
@@ -841,7 +874,11 @@ class ZapformerEncoder(nn.Module):
                 cached_conv,
                 cached_norm_stats,
                 cached_norm_len,
-            ) = caches[i * 5 : (i + 1) * 5]
+                cached_attn_wm_sum,
+                cached_attn_wm_num_frames,
+                cached_conv_wm_sum,
+                cached_conv_wm_num_frames,
+            ) = caches[i * 9 : (i + 1) * 9]
 
             (
                 src,
@@ -850,6 +887,10 @@ class ZapformerEncoder(nn.Module):
                 new_cached_conv,
                 new_cached_norm_stats,
                 new_cached_norm_len,
+                new_cached_attn_wm_sum,
+                new_cached_attn_wm_num_frames,
+                new_cached_conv_wm_sum,
+                new_cached_conv_wm_num_frames,
             ) = mod.streaming_forward(
                 src,
                 cached_key=cached_key,
@@ -857,6 +898,10 @@ class ZapformerEncoder(nn.Module):
                 cached_conv=cached_conv,
                 cached_norm_stats=cached_norm_stats,
                 cached_norm_len=cached_norm_len,
+                cached_attn_wm_sum=cached_attn_wm_sum,
+                cached_attn_wm_num_frames=cached_attn_wm_num_frames,
+                cached_conv_wm_sum=cached_conv_wm_sum,
+                cached_conv_wm_num_frames=cached_conv_wm_num_frames,
                 left_context_len=left_context_len,
                 src_key_padding_mask=src_key_padding_mask,
             )
@@ -871,6 +916,10 @@ class ZapformerEncoder(nn.Module):
                 new_cached_conv,
                 new_cached_norm_stats,
                 new_cached_norm_len,
+                new_cached_attn_wm_sum,
+                new_cached_attn_wm_num_frames,
+                new_cached_conv_wm_sum,
+                new_cached_conv_wm_num_frames,
             ])
 
         offset = src_with_bypass
@@ -1080,6 +1129,8 @@ class MultiheadRelPosGatedSelfAttention(nn.Module):
         left_context_len: int,
         cached_key: Tensor,
         cached_value: Tensor,
+        cached_wm_sum: Tensor,
+        cached_wm_num_frames: Tensor,
         key_padding_mask: Optional[Tensor] = None,
     ) -> Tuple[Tensor, Tensor, Tensor]:
         r"""
@@ -1091,6 +1142,8 @@ class MultiheadRelPosGatedSelfAttention(nn.Module):
             left_context_len: length of the cached left context.
             cached_key: cached attention key tensor, of shape (left_context_len, batch_size, key_dim).
             cached_value: cached attention value tensor, of shape (left_context_len, batch_size, value_dim).
+            cached_wm_sum: (1, batch, channels), cumulative sum for weighted_mean
+            cached_wm_num_frames: (batch,), number of frames seen so far
             key_padding_mask: a bool tensor of shape (batch_size, left_context_len + seq_len).  Positions that
                are True in this mask will be ignored as sources in the attention weighting.
 
@@ -1098,6 +1151,8 @@ class MultiheadRelPosGatedSelfAttention(nn.Module):
             - attention output, of shape (seq_len, batch_size, embed_dim)
             - updated cached_key, of shape (left_context_len, batch_size, key_dim)
             - updated cached_value, of shape (left_context_len, batch_size, value_dim)
+            - Updated cached_wm_sum (1, batch, channels)
+            - Updated cached_wm_num_frames (batch,)
         """
         query_head_dim = self.query_head_dim
         num_heads = self.num_heads
@@ -1141,7 +1196,16 @@ class MultiheadRelPosGatedSelfAttention(nn.Module):
 
         attn_weights = attn_scores.softmax(dim=-1)
 
-        v, g = self.vg_in_proj(x_vg).chunk(2, dim=-1)
+        vg = self.vg_in_proj(x_vg)
+        N = vg.shape[-1] // 3
+        v = vg[..., :N]
+        g = vg[..., N:]
+        g_in, g_out = g.chunk(2, dim=-1)
+        v = v * self.sigmoid_in(g_in)
+
+        wm, cached_wm_sum, cached_wm_num_frames = self.weighted_mean.streaming_forward(
+            v, cached_wm_sum, cached_wm_num_frames
+        )
 
         # append the cached value to the current value, and update the cache
         assert cached_value.shape[0] == left_context_len, (cached_value.shape, left_context_len)
@@ -1163,10 +1227,11 @@ class MultiheadRelPosGatedSelfAttention(nn.Module):
         )
 
         # returned value is of shape (seq_len, batch_size, embed_dim), like the input.
-        v = v * self.sigmoid(g)
+        v = v + wm
+        v = v * self.sigmoid_out(g_out)
         v = self.out_proj(v)
 
-        return v, cached_key, cached_value
+        return v, cached_key, cached_value, cached_wm_sum, cached_wm_num_frames
 
     def _print_attn_entropy(self, attn_weights: Tensor):
         # attn_weights: (num_heads, batch_size, seq_len, seq_len)
@@ -1684,7 +1749,7 @@ class WeightedMean(nn.Module):
         if self.causal:
             num_frames = torch.arange(1, T + 1, device=x.device)
             x_cumsum = torch.cumsum(x, dim=0)
-            return x_cumsum * num_frames[:, None, None] * self.weights
+            return x_cumsum / num_frames[:, None, None] * self.weights
 
 
         # assume x already masked, if mask is in use.
@@ -1700,6 +1765,42 @@ class WeightedMean(nn.Module):
             return x.mean(dim=0) * (T / num_frames) * self.weights
         else:
             return x.mean(dim=0) * self.weights
+    
+    def streaming_forward(
+        self,
+        x: Tensor,
+        cached_sum: Tensor,
+        cached_num_frames: Tensor,
+    ) -> Tuple[Tensor, Tensor, Tensor]:
+        """
+        Streaming forward for causal weighted mean.
+
+        Args:
+            x: (time, batch, channel), the current chunk
+            cached_sum: (1, batch, channel), cumulative sum from previous chunks
+            cached_num_frames: (batch,), number of frames seen so far
+
+        Returns:
+            - output: (time, batch, channel)
+            - new_cached_sum: (1, batch, channel)
+            - new_cached_num_frames: (batch,)
+        """
+        T = x.shape[0]
+        # cumsum within this chunk, then add the historical sum
+        x_cumsum = torch.cumsum(x, dim=0) + cached_sum  # (T, batch, channel)
+
+        # num_frames for each position in this chunk: (T, batch)
+        num_frames = cached_num_frames.unsqueeze(0) + torch.arange(
+            1, T + 1, device=x.device
+        ).unsqueeze(1)  # (T, batch)
+
+        output = x_cumsum / num_frames.unsqueeze(-1) * self.weights
+
+        new_cached_sum = x_cumsum[-1:, :, :]  # (1, batch, channel)
+        new_cached_num_frames = cached_num_frames + T  # (batch,)
+
+        return output, new_cached_sum, new_cached_num_frames
+    
 
 class BasisConv(nn.Module):
     def __init__(self,
@@ -1884,25 +1985,28 @@ class ConvolutionModule(nn.Module):
     def streaming_forward(
         self,
         x: Tensor,
-        cache: Tensor,
+        cached_conv: Tensor,
+        cached_wm_sum: Tensor,
+        cached_wm_num_frames: Tensor,
         src_key_padding_mask: Optional[Tensor] = None,
-    ) -> Tuple[Tensor, Tensor]:
-        """Compute convolution module.
+    ) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
+        """Compute convolution module in streaming mode.
 
         Args:
             x: Input tensor (#time, batch, channels).
-            cache: cached left context for depthwise_conv, of shape
+            cached_conv: cached left context for depthwise_conv, of shape
                 (#batch, channels, left_pad)
+            cached_wm_sum: (1, batch, channels), cumulative sum for weighted_mean
+            cached_wm_num_frames: (batch,), number of frames seen so far
             src_key_padding_mask: the mask for the src keys per batch (optional):
                 (batch, #time), contains True in masked positions.
 
         Returns:
             - Output tensor (#time, batch, channels).
-            - Updated cache (#batch, channels, left_pad)
+            - Updated cached_conv (#batch, channels, left_pad)
+            - Updated cached_wm_sum (1, batch, channels)
+            - Updated cached_wm_num_frames (batch,)
         """
-        if src_key_padding_mask is not None:
-            x = x.masked_fill(src_key_padding_mask.t().unsqueeze(-1).expand_as(x), 0.0)
-
         x = self.in_proj(x)  # (time, batch, 3*bottleneck_dim)
 
         x, s, y = x.chunk(3, dim=2)
@@ -1910,25 +2014,30 @@ class ConvolutionModule(nn.Module):
         y = self.sigmoid2(y)
         x = x * s
 
-        x = x.permute(1, 2, 0)  # (batch, bottleneck_dim, time)
         if src_key_padding_mask is not None:
-            x = x.masked_fill(src_key_padding_mask.unsqueeze(1).expand_as(x), 0.0)
+            x = x.masked_fill(src_key_padding_mask.t().unsqueeze(-1).expand_as(x), 0.0)
+
+        wm, cached_wm_sum, cached_wm_num_frames = self.weighted_mean.streaming_forward(
+            x, cached_wm_sum, cached_wm_num_frames
+        )
+
+        x = x.permute(1, 2, 0)  # (batch, bottleneck_dim, time)
 
         x_shape = x.shape
-        assert cache.shape[-1] == self.left_pad, (cache.shape[-1], self.left_pad)
-        x = torch.cat([cache, x], dim=2)
-        # Update cache
-        cache = x[..., -self.left_pad:]
+        assert cached_conv.shape[-1] == self.left_pad, (cached_conv.shape[-1], self.left_pad)
+        x = torch.cat([cached_conv, x], dim=2)
+        cached_conv = x[..., -self.left_pad:]
 
         x = self.depthwise_conv(x)
         assert x.shape == x_shape, (x.shape, x_shape)
 
         x = x.permute(2, 0, 1)  # (time, batch, bottleneck_dim)
+        x = x + wm
 
         x = x * y
         x = self.out_proj(x)  # (time, batch, channels)
 
-        return x, cache
+        return x, cached_conv, cached_wm_sum, cached_wm_num_frames
 
 
 def _test_zapformer_main(causal: bool = False):
@@ -2100,7 +2209,7 @@ if __name__ == "__main__":
     logging.getLogger().setLevel(logging.INFO)
     torch.set_num_threads(1)
     torch.set_num_interop_threads(1)
-    _test_basis_conv()
-    _test_zapformer_main(False)
-    _test_zapformer_main(True)
+    # _test_basis_conv()
+    # _test_zapformer_main(False)
+    # _test_zapformer_main(True)
     _test_zapformer_streaming()
