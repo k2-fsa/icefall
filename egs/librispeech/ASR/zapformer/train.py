@@ -83,9 +83,9 @@ except:
     pass
 
 
-from variable_combined_scheduler import VariableCombinedLRScheduler
+from combined_scheduler import CombinedLRScheduler
 try:
-    from variable_combined_scheduler import LinearLRScheduler
+    from combined_scheduler import LinearLRScheduler
 except:
     pass
 from torch.optim.lr_scheduler import LambdaLR
@@ -796,7 +796,7 @@ def load_checkpoint_if_available(
     model: nn.Module,
     model_avg: nn.Module = None,
     optimizer: Optional[torch.optim.Optimizer] = None,
-    scheduler: Optional[VariableCombinedLRScheduler] = None,
+    scheduler: Optional[CombinedLRScheduler] = None,
 ) -> Optional[Dict[str, Any]]:
     """Load checkpoint from file.
 
@@ -862,7 +862,7 @@ def save_checkpoint(
     model: Union[nn.Module, DDP],
     model_avg: Optional[nn.Module] = None,
     optimizer: Optional[torch.optim.Optimizer] = None,
-    scheduler: Optional[VariableCombinedLRScheduler] = None,
+    scheduler: Optional[CombinedLRScheduler] = None,
     sampler: Optional[CutSampler] = None,
     scaler: Optional[GradScaler] = None,
     rank: int = 0,
@@ -1078,7 +1078,7 @@ def train_one_epoch(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
     optimizer: torch.optim.Optimizer,
-    scheduler: VariableCombinedLRScheduler,
+    scheduler: CombinedLRScheduler,
     sp: spm.SentencePieceProcessor,
     train_dl: torch.utils.data.DataLoader,
     valid_dl: torch.utils.data.DataLoader,
@@ -1406,11 +1406,14 @@ def run(rank, world_size, args):
         progress = (epoch - 0.99999) / (params.num_epochs - 0.99999)
         return int(params.min_copies * (params.max_copies / params.min_copies) ** progress)
 
-    batches_per_epoch=[params.batches_per_epoch * get_num_copies(i) for i in range(1, params.num_epochs+1)]
-    logging.info(f"Tot real epochs = {sum(batches_per_epoch) / params.batches_per_epoch}")
-    # this LinearLRScheduler inherits from VariableCombinedLRScheduler.
+    logging.info(f"Tot real epochs = {sum(get_num_copies(i) for i in range(1, params.num_epochs+1))}")
+
+    # this LinearLRScheduler inherits from CombinedLRScheduler.  progress decays
+    # in a way that's linear (actually, affine) with epoch rather than progress in batches.
     scheduler = LinearLRScheduler(optimizer,
-                                  batches_per_epoch=batches_per_epoch)
+                                  min_factor=0.05,
+                                  batches_per_epoch=params.batches_per_epoch,
+                                  num_epochs=params.num_epochs)
 
     if checkpoints and "optimizer" in checkpoints:
         logging.info("Loading optimizer state dict")
