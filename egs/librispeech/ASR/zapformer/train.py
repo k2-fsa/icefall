@@ -1414,7 +1414,7 @@ def run(rank, world_size, args):
     # this LinearLRScheduler inherits from CombinedLRScheduler.  progress decays
     # in a way that's linear (actually, affine) with epoch rather than progress in batches.
     scheduler = LinearLRScheduler(optimizer,
-                                  min_factor=0.05,
+                                  min_factor=0.025,
                                   batches_per_epoch=params.batches_per_epoch,
                                   num_epochs=params.num_epochs)
 
