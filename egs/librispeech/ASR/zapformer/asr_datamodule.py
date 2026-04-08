@@ -43,6 +43,12 @@ try:
 except:
     pass
 
+try:
+    from icefall.utils import  dist_barrier
+except:
+    pass
+
+
 from lhotse.dataset.input_strategies import (  # noqa F401 For AudioSamples
     AudioSamples,
     OnTheFlyFeatures,
@@ -50,7 +56,7 @@ from lhotse.dataset.input_strategies import (  # noqa F401 For AudioSamples
 from lhotse.utils import fix_random_seed
 from torch.utils.data import DataLoader
 
-from icefall.utils import str2bool, dist_barrier
+from icefall.utils import str2bool
 
 
 class _SeedWorkers:

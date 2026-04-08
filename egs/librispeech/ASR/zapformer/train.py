@@ -115,8 +115,11 @@ from icefall.utils import (
     setup_logger,
     str2bool,
     time_warp,
-    dist_barrier,
 )
+try:
+    from icefall.utils import  dist_barrier
+except:
+    pass
 
 
 def get_adjusted_batch_count(params: AttributeDict) -> float:
