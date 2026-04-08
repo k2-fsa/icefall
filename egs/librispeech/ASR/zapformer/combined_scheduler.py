@@ -202,6 +202,28 @@ class InterpCosineLRScheduler(CombinedLRScheduler):
         return [x * factor for x in self.base_lrs]
 
 
+class HalfCosineLRScheduler(CombinedLRScheduler):
+    def __init__(self,
+                 *args,
+                 min_factor: float = 0.05,
+                 **kwargs):  # takes also batches_per_epoch and num_epochs args.
+        """
+        This cosine LR scheduler is the cosine from 0 to pi/2, with no offset of 1.
+        It inherits from CombinedLRScheduler (see its documentation
+        to understand general aspects of usage).
+        """
+        self.min_factor = min_factor
+        super().__init__(*args, **kwargs)
+
+    def get_lr(self):
+        progress = self.get_progress()
+        factor = math.cos((math.pi / 2) * progress)
+        # factor**2 would be the conventional cosine LR scheduler with cosine from 0 to pi, we interpolate
+        # between the two.
+        factor = self.min_factor + factor * (1. - self.min_factor)
+        return [x * factor for x in self.base_lrs]
+
+
 class LinearLRScheduler(CombinedLRScheduler):
     def __init__(self,
                  *args,

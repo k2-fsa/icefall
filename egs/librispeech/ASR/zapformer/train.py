@@ -85,7 +85,7 @@ except:
 
 from combined_scheduler import CombinedLRScheduler
 try:
-    from combined_scheduler import LinearLRScheduler
+    from combined_scheduler import HalfCosineLRScheduler
 except:
     pass
 from torch.optim.lr_scheduler import LambdaLR
@@ -1411,12 +1411,12 @@ def run(rank, world_size, args):
 
     logging.info(f"Tot real epochs = {sum(get_num_copies(i) for i in range(1, params.num_epochs+1))}")
 
-    # this LinearLRScheduler inherits from CombinedLRScheduler.  progress decays
+    # this HalfCosineLRScheduler inherits from CombinedLRScheduler.  progress decays
     # in a way that's linear (actually, affine) with epoch rather than progress in batches.
-    scheduler = LinearLRScheduler(optimizer,
-                                  min_factor=0.025,
-                                  batches_per_epoch=params.batches_per_epoch,
-                                  num_epochs=params.num_epochs)
+    scheduler = HalfCosineLRScheduler(optimizer,
+                                      min_factor=0.025,
+                                      batches_per_epoch=params.batches_per_epoch,
+                                      num_epochs=params.num_epochs)
 
     if checkpoints and "optimizer" in checkpoints:
         logging.info("Loading optimizer state dict")
