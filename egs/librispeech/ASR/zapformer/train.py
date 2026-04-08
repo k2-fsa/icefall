@@ -83,11 +83,15 @@ except:
     pass
 
 
-from combined_scheduler import CombinedLRScheduler
+from variable_combined_scheduler import VariableCombinedLRScheduler
 try:
-    from combined_scheduler import HalfCosineLRScheduler
+    from variable_combined_scheduler import LinearLRScheduler
+    LRSchedulerType = VariableCombinedLRSchedule
 except:
     pass
+
+SchedulerType = "VariableCombinedLRScheduler"
+
 from torch.optim.lr_scheduler import LambdaLR
 from subsampling import Conv2dSubsampling
 from torch import Tensor
@@ -384,24 +388,24 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--num-epochs",
+        "--num-real-epochs",
         type=int,
         default=30,
-        help="Number of epochs to train.",
+        help="Number of epochs to train, including number of copies; num-epochs will be <= this.",
     )
 
     parser.add_argument(
         "--max-copies",
         type=int,
         default=16,
-        help="The num_copies to use in the dataloader on the last epoch (it rises geometrically from --min-copies)"
+        help="The num_copies to use in the dataloader on the last epoch (it rises linearly with step count from --min-copies)"
     )
 
     parser.add_argument(
         "--min-copies",
         type=int,
         default=1,
-        help="The num_copies to use in the dataloader on the first epoch (it rises geometrically to --max-copies)"
+        help="The num_copies to use in the dataloader on the first epoch (it rises linearly with step count to --max-copies)"
     )
 
     parser.add_argument(
@@ -799,7 +803,7 @@ def load_checkpoint_if_available(
     model: nn.Module,
     model_avg: nn.Module = None,
     optimizer: Optional[torch.optim.Optimizer] = None,
-    scheduler: Optional[CombinedLRScheduler] = None,
+    scheduler: Optional[SchedulerType] = None,
 ) -> Optional[Dict[str, Any]]:
     """Load checkpoint from file.
 
@@ -865,7 +869,7 @@ def save_checkpoint(
     model: Union[nn.Module, DDP],
     model_avg: Optional[nn.Module] = None,
     optimizer: Optional[torch.optim.Optimizer] = None,
-    scheduler: Optional[CombinedLRScheduler] = None,
+    scheduler: Optional[SchedulerType] = None,
     sampler: Optional[CutSampler] = None,
     scaler: Optional[GradScaler] = None,
     rank: int = 0,
@@ -1081,7 +1085,7 @@ def train_one_epoch(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
     optimizer: torch.optim.Optimizer,
-    scheduler: CombinedLRScheduler,
+    scheduler: SchedulerType,
     sp: spm.SentencePieceProcessor,
     train_dl: torch.utils.data.DataLoader,
     valid_dl: torch.utils.data.DataLoader,
@@ -1395,28 +1399,27 @@ def run(rank, world_size, args):
         beta1=0.995,
     )
 
-    # hardcode batches per epoch for now.
-    total_steps = 4550 * params.num_epochs
-    def lr_lambda(current_step):
-        # Cosine annealing
-        progress = current_step / total_steps
-        return max(0.0, 0.5 * (1.0 + math.cos(math.pi * progress)))
 
+    if True:
+        # Work out copies_per_epoch
+        copies_per_epoch = [ ]
+        cur_real_epochs = 0
+        for n in range(params.min_copies, params.max_copies + 1):
+            progress = (n + 1 - params.min_copies) / (params.max_copies + 1 - params.min_copies)
+            target_real_epochs = int(0.5 + progress * params.num_real_epochs) # + 0.5 to round up.
+            while cur_real_epochs < target_real_epochs:
+                copies_per_epoch.append(n)
+                cur_real_epochs += n
 
-    def get_num_copies(epoch):
-        # num_epochs arg is one-based.
-        # "progress" is progress between 0 and 1.  subtract 0.99999 rather than 1 to avoid nan if --epochs=1.
-        progress = (epoch - 0.99999) / (params.num_epochs - 0.99999)
-        return int(params.min_copies * (params.max_copies / params.min_copies) ** progress)
+    num_epochs = len(copies_per_epoch)
+    logging.info(f"Num epochs = {len(copies_per_epoch)}, num-real-epochs={sum(copies_per_epoch)} vs target {params.num_real_epochs}")
+    logging.info(f"Copies per epoch: {copies_per_epoch}")
 
-    logging.info(f"Tot real epochs = {sum(get_num_copies(i) for i in range(1, params.num_epochs+1))}")
-
-    # this HalfCosineLRScheduler inherits from CombinedLRScheduler.  progress decays
+    # this LinearLRScheduler inherits from VariableCombinedLRScheduler.  progress decays
     # in a way that's linear (actually, affine) with epoch rather than progress in batches.
-    scheduler = HalfCosineLRScheduler(optimizer,
-                                      min_factor=0.025,
-                                      batches_per_epoch=params.batches_per_epoch,
-                                      num_epochs=params.num_epochs)
+    scheduler = LinearLRScheduler(optimizer,
+                                  min_factor=0.025,
+                                  batches_per_epoch=[params.batches_per_epoch * n for n in copies_per_epoch])
 
     if checkpoints and "optimizer" in checkpoints:
         logging.info("Loading optimizer state dict")
@@ -1557,13 +1560,13 @@ def run(rank, world_size, args):
         logging.info("Loading grad scaler state dict")
         scaler.load_state_dict(checkpoints["grad_scaler"])
 
-    for epoch in range(params.start_epoch, params.num_epochs + 1):
+    for epoch in range(params.start_epoch, num_epochs + 1):
         # fix the random seed before
         dist_barrier()
         fix_random_seed(params.seed + epoch - 1)
         dist_barrier()
 
-        num_copies = get_num_copies(epoch)
+        num_copies = copies_per_epoch[epoch - 1]
         logging.info(f"On epoch {epoch}, for dataloader: num_copies={num_copies}, this will affect num batches.")
         train_dl = asr_datamodule.train_dataloaders(
             train_cuts,
