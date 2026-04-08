@@ -115,6 +115,7 @@ from icefall.utils import (
     setup_logger,
     str2bool,
     time_warp,
+    dist_barrier,
 )
 
 
@@ -389,15 +390,15 @@ def get_parser():
     parser.add_argument(
         "--max-copies",
         type=int,
-        default=8,
-        help="The num_copies to use in the dataloader on the last epoch (it rises linearly from --min-copies)"
+        default=16,
+        help="The num_copies to use in the dataloader on the last epoch (it rises geometrically from --min-copies)"
     )
 
     parser.add_argument(
         "--min-copies",
         type=int,
         default=1,
-        help="The num_copies to use in the dataloader on the first epoch (it rises linearly to --max-copies)"
+        help="The num_copies to use in the dataloader on the first epoch (it rises geometrically to --max-copies)"
     )
 
     parser.add_argument(
@@ -1310,7 +1311,7 @@ def run(rank, world_size, args):
         setup_dist(rank, world_size, params.master_port)
     # need torch.distributed.barrier() after fix_random_seed() as it fixes
     #  random seeds of all GPUs, not just the GPU of this process.
-    torch.distributed.barrier()
+    dist_barrier()
 
     setup_logger(f"{params.exp_dir}/log/log-train")
     logging.info("Training started")
@@ -1401,10 +1402,15 @@ def run(rank, world_size, args):
 
     def get_num_copies(epoch):
         # num_epochs arg is one-based.
-        return params.min_copies + int((params.max_copies - params.min_copies) * epoch / params.num_epochs)
+        # "progress" is progress between 0 and 1.  subtract 0.99999 rather than 1 to avoid nan if --epochs=1.
+        progress = (epoch - 0.99999) / (params.num_epochs - 0.99999)
+        return int(params.min_copies * (params.max_copies / params.min_copies) ** progress)
+
+    batches_per_epoch=[params.batches_per_epoch * get_num_copies(i) for i in range(1, params.num_epochs+1)]
+    logging.info(f"Tot real epochs = {sum(batches_per_epoch) / params.batches_per_epoch}")
     # this LinearLRScheduler inherits from VariableCombinedLRScheduler.
     scheduler = LinearLRScheduler(optimizer,
-                                  batches_per_epoch=[params.batches_per_epoch * get_num_copies(i) for i in range(1, params.num_epochs+1)])
+                                  batches_per_epoch=batches_per_epoch)
 
     if checkpoints and "optimizer" in checkpoints:
         logging.info("Loading optimizer state dict")
@@ -1547,9 +1553,9 @@ def run(rank, world_size, args):
 
     for epoch in range(params.start_epoch, params.num_epochs + 1):
         # fix the random seed before
-        torch.distributed.barrier()
+        dist_barrier()
         fix_random_seed(params.seed + epoch - 1)
-        torch.distributed.barrier()
+        dist_barrier()
 
         num_copies = get_num_copies(epoch)
         logging.info(f"On epoch {epoch}, for dataloader: num_copies={num_copies}, this will affect num batches.")
@@ -1562,9 +1568,9 @@ def run(rank, world_size, args):
         train_dl.sampler.set_epoch(epoch - 1)
         # Re-do fixing the random seed because I believe in asr_datamodule.train_dataloaders(), fix_random_seed()
         # may get called from an arbitrary worker and affect the seed of *all* the GPUs.
-        torch.distributed.barrier()
+        dist_barrier()
         fix_random_seed(params.seed + epoch - 1)
-        torch.distributed.barrier()
+        dist_barrier()
 
         if tb_writer is not None:
             tb_writer.add_scalar("train/epoch", epoch, params.batch_idx_train)

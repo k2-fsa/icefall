@@ -159,6 +159,12 @@ def str2bool(v):
         raise argparse.ArgumentTypeError("Boolean value expected.")
 
 
+def dist_barrier() -> None:
+    if dist.is_available() and dist.is_initialized():
+        world_size = dist.get_world_size()
+        if world_size > 1:
+            dist.barrier()
+
 def setup_logger(
     log_filename: Pathlike,
     log_level: str = "info",

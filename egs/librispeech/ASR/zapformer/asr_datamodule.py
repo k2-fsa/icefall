@@ -50,7 +50,7 @@ from lhotse.dataset.input_strategies import (  # noqa F401 For AudioSamples
 from lhotse.utils import fix_random_seed
 from torch.utils.data import DataLoader
 
-from icefall.utils import str2bool
+from icefall.utils import str2bool, dist_barrier
 
 
 class _SeedWorkers:
@@ -329,7 +329,7 @@ class AsrDataModule:
 
         # need torch.distributed.barrier() before and after anything that might call lhotse.fix_random_seed() as it fixes random seeds of all GPUs,
         # not just the GPU of this process.
-        torch.distributed.barrier()
+        dist_barrier()
         train_dl = DataLoader(
             train,
             sampler=train_sampler,
@@ -338,7 +338,7 @@ class AsrDataModule:
             persistent_workers=False,
             worker_init_fn=worker_init_fn,
         )
-        torch.distributed.barrier()
+        dist_barrier()
         return train_dl
 
     def valid_dataloaders(self, cuts_valid: CutSet) -> DataLoader:
