@@ -1417,8 +1417,11 @@ def run(rank, world_size, args):
 
     # this InterpCosineLRScheduler inherits from VariableCombinedLRScheduler.  progress decays
     # in a way that's linear (actually, affine) with epoch rather than progress in batches.
+    # squared_scale=0.75 takes us a bit closer to the traditional cosine LR scheduler that
+    # starts and ends constant.
     scheduler = InterpCosineLRScheduler(optimizer,
                                         min_factor=0.025,
+                                        squared_scale=0.75,
                                         batches_per_epoch=[params.batches_per_epoch * n for n in copies_per_epoch])
 
     if checkpoints and "optimizer" in checkpoints:

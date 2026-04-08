@@ -138,11 +138,11 @@ class VariableCombinedLRScheduler(object):
 
 
 
-
 class InterpCosineLRScheduler(VariableCombinedLRScheduler):
     def __init__(self,
                  *args,
                  min_factor: float = 0.05,
+                 squared_scale: float = 0.5,
                  **kwargs):
         """
         This cosine LR scheduler is halfway between the conventional cosine LR scheduler
@@ -151,6 +151,7 @@ class InterpCosineLRScheduler(VariableCombinedLRScheduler):
         to understand general aspects of usage).
         """
         self.min_factor = min_factor
+        self.squared_scale = squared_scale
         super().__init__(*args, **kwargs)
 
     def get_lr(self):
@@ -158,7 +159,7 @@ class InterpCosineLRScheduler(VariableCombinedLRScheduler):
         factor = math.cos((math.pi / 2) * progress)
         # factor**2 would be the conventional cosine LR scheduler with cosine from 0 to pi, we interpolate
         # between the two.
-        factor = 0.5 * (factor + factor ** 2)
+        factor = (1. - self.squared_scale) * factor + self.squared_scale * factor ** 2
         factor = self.min_factor + factor * (1. - self.min_factor)
         return [x * factor for x in self.base_lrs]
 
