@@ -85,7 +85,7 @@ except:
 
 from variable_combined_scheduler import VariableCombinedLRScheduler
 try:
-    from variable_combined_scheduler import LinearLRScheduler
+    from variable_combined_scheduler import InterpCosineLRScheduler
     LRSchedulerType = VariableCombinedLRSchedule
 except:
     pass
@@ -1415,11 +1415,11 @@ def run(rank, world_size, args):
     logging.info(f"Num epochs = {len(copies_per_epoch)}, num-real-epochs={sum(copies_per_epoch)} vs target {params.num_real_epochs}")
     logging.info(f"Copies per epoch: {copies_per_epoch}")
 
-    # this LinearLRScheduler inherits from VariableCombinedLRScheduler.  progress decays
+    # this InterpCosineLRScheduler inherits from VariableCombinedLRScheduler.  progress decays
     # in a way that's linear (actually, affine) with epoch rather than progress in batches.
-    scheduler = LinearLRScheduler(optimizer,
-                                  min_factor=0.025,
-                                  batches_per_epoch=[params.batches_per_epoch * n for n in copies_per_epoch])
+    scheduler = InterpCosineLRScheduler(optimizer,
+                                        min_factor=0.025,
+                                        batches_per_epoch=[params.batches_per_epoch * n for n in copies_per_epoch])
 
     if checkpoints and "optimizer" in checkpoints:
         logging.info("Loading optimizer state dict")
