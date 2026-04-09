@@ -456,7 +456,7 @@ class LibriSpeech:
             train-clean-360 and train-other-500 cuts"
         )
         return load_manifest_lazy(
-            self.manifest_dir / "librispeech_cuts_train-all-shuf-nosp.jsonl.gz"
+            self.manifest_dir / "librispeech_cuts_train-all-shuf.jsonl.gz"
         )
 
     def dev_clean_2_cuts(self) -> CutSet:
