@@ -1415,13 +1415,12 @@ def run(rank, world_size, args):
     logging.info(f"Num epochs = {len(copies_per_epoch)}, num-real-epochs={sum(copies_per_epoch)} vs target {params.num_real_epochs}")
     logging.info(f"Copies per epoch: {copies_per_epoch}")
 
-    # this InterpCosineLRScheduler inherits from VariableCombinedLRScheduler.  progress decays
-    # in a way that's linear (actually, affine) with epoch rather than progress in batches.
-    # squared_scale=0.75 takes us a bit closer to the traditional cosine LR scheduler that
-    # starts and ends constant.
+    # this InterpCosineLRScheduler inherits from VariableCombinedLRScheduler.
+    # this configuration is halfway between a linear function (1 to 0) and the conventional
+    # cosine LR scheduler.  It decays to a minimum of 0.025.
     scheduler = InterpCosineLRScheduler(optimizer,
                                         min_factor=0.025,
-                                        squared_scale=0.75,
+                                        linear_scale=0.5,
                                         batches_per_epoch=[params.batches_per_epoch * n for n in copies_per_epoch])
 
     if checkpoints and "optimizer" in checkpoints:
