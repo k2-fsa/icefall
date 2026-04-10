@@ -2444,7 +2444,7 @@ def time_warp_impl(features: torch.Tensor, factor: int) -> torch.Tensor:
     if t - factor <= factor + 1:
         return features
     center = torch.randint(factor + 1, t - factor, ()).item()
-    warped = torch.randint(center - factor, center + factor + 1)
+    warped = torch.randint(center - factor, center + factor + 1, ()).item()
     if warped == center:
         return features
     features = features.unsqueeze(0).unsqueeze(0)
