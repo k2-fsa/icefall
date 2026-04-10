@@ -1080,15 +1080,6 @@ def compute_validation_loss(
 
     return tot_loss
 
-def show_model_params(model: nn.Module):
-    with torch.no_grad():
-        params = [ ]
-        for p in model.parameters():
-            params.append(p.flatten()[-1:])
-        all_last_elems = torch.cat(params)
-        logging.info(f"All last elems of parameters sum = {all_last_elems.sum()}")
-
-
 def train_one_epoch(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
@@ -1162,9 +1153,6 @@ def train_one_epoch(
     for batch_idx, batch in enumerate(train_dl):
         if batch_idx % 10 == 0:
             set_batch_count(model, get_adjusted_batch_count(params))
-
-        if batch_idx % 200 == 0:
-            show_model_params(model)
 
         params.batch_idx_train += 1
         batch_size = len(batch["supervisions"]["text"])
@@ -1455,6 +1443,7 @@ def run(rank, world_size, args):
         register_inf_check_hooks(model)
 
     asr_datamodule = AsrDataModule(args)
+
     librispeech = LibriSpeech(args.manifest_dir)
     gigaspeech = GigaSpeech(args.manifest_dir)       # gigaspeech will only be used if the --use-giga=True option is set
     commonvoice = CommonVoice(args.manifest_dir)   # commonvoice will only be used if the --use-cv=True option is set
@@ -1558,6 +1547,8 @@ def run(rank, world_size, args):
         train_dl = asr_datamodule.train_dataloaders(
             train_cuts,
             num_copies=1,
+            seed=params.seed,
+            rank=rank,
         )
         scan_pessimistic_batches_for_oom(
             model=model,
@@ -1585,17 +1576,13 @@ def run(rank, world_size, args):
             train_cuts,
             sampler_state_dict=sampler_state_dict,
             num_copies=num_copies,
+            seed=params.seed + 500 * epoch,
+            rank=rank,
         )
         sampler_state_dict=None
-        train_dl.sampler.set_epoch(epoch - 1)
-        # Re-do fixing the random seed because I believe in asr_datamodule.train_dataloaders(), fix_random_seed()
-        # may get called from an arbitrary worker with a worker-specific offset, and affect the seed of *all* the GPUs.
-        dist_barrier()
-        fix_random_seed(params.seed + epoch - 1)
-        # fix_random_seed may get called from an arbitrary worker with a
-        # worker-specific offset, and affect the seed of *all* the GPUs, with uncertain timing.  so we
-        # call it again to make sure the seed is deterministic.
-        dist_barrier()
+        # we don't do :
+        # train_dl.sampler.set_epoch(epoch)
+        # because we just created the sampler and its seed already depends on the epoch.
 
         with torch.cuda.device(rank):
             # set CUDA seed for "my GPU" in a rank-dependent way.  assume the only multi-node training we'll
@@ -1603,7 +1590,7 @@ def run(rank, world_size, args):
             # torch CPU random number generator for data augmentation- see time_warp()-
             # but this gets naturally desynchronized quite soon because it's called in a loop
             # that depends on the number of elements in a batch.
-            torch.cuda.manual_seed(params.seed + epoch - 1 + 1000 * rank)
+            torch.cuda.manual_seed(params.seed + 50 * epoch  + 512 * rank)
 
 
         if tb_writer is not None:
