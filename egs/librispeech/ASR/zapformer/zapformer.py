@@ -1765,7 +1765,7 @@ class WeightedMean(nn.Module):
             return x.mean(dim=0) * (T / num_frames) * self.weights
         else:
             return x.mean(dim=0) * self.weights
-    
+
     def streaming_forward(
         self,
         x: Tensor,
@@ -1800,7 +1800,7 @@ class WeightedMean(nn.Module):
         new_cached_num_frames = cached_num_frames + T  # (batch,)
 
         return output, new_cached_sum, new_cached_num_frames
-    
+
 
 class BasisConv(nn.Module):
     def __init__(self,
@@ -1910,7 +1910,13 @@ class ConvolutionModule(nn.Module):
                 bias=False,
             )
             self.left_pad = kernel_size - 1
-        self.depthwise_conv.lr_scale = 0.66
+
+        self.depthwise_conv.lr_scale = 0.66 # not sure whether to  keep this, it wasn't very conclusive.
+        with torch.no_grad():
+            # make the non-central convolution weights much smaller.
+            k2 = kernel_size // 2
+            self.depthwise_conv.weight[..., :k2] *= 0.1
+            self.depthwise_conv.weight[..., -k2:] *= 0.1
 
         # add average-of-all-frames to the "convolution."; it has extra power vs the convolution
         # because the num frames differs between utterances.
