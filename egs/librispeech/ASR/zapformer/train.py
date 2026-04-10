@@ -1330,6 +1330,7 @@ def run(rank, world_size, args):
 
     device = torch.device("cpu")
     if torch.cuda.is_available():
+        torch.cuda.set_device(rank)
         device = torch.device("cuda", rank)
     logging.info(f"Device: {device}")
 
@@ -1561,7 +1562,8 @@ def run(rank, world_size, args):
         scaler.load_state_dict(checkpoints["grad_scaler"])
 
     for epoch in range(params.start_epoch, num_epochs + 1):
-        # fix the random seed before
+        # fix all random seeds before starting the dataloaders, as they require
+        # all seeds to be synchronized.
         dist_barrier()
         fix_random_seed(params.seed + epoch - 1)
         dist_barrier()
@@ -1576,13 +1578,25 @@ def run(rank, world_size, args):
         sampler_state_dict=None
         train_dl.sampler.set_epoch(epoch - 1)
         # Re-do fixing the random seed because I believe in asr_datamodule.train_dataloaders(), fix_random_seed()
-        # may get called from an arbitrary worker and affect the seed of *all* the GPUs.
+        # may get called from an arbitrary worker with a worker-specific offset, and affect the seed of *all* the GPUs.
         dist_barrier()
         fix_random_seed(params.seed + epoch - 1)
+        # fix_random_seed may get called from an arbitrary worker with a
+        # worker-specific offset, and affect the seed of *all* the GPUs, with uncertain timing.  so we
+        # call it again to make sure the seed is deterministic.
         dist_barrier()
+
+        # now desynchronize the torch RNGs for CPU and GPU by calling rand() a
+        # different number of times, so the augmentation isn't the same across
+        # ranks.  It's very difficult to do this with torch.manual_seed()
+        # because it has no way to set the RNG for just the CPU.
+        for _ in range(rank):
+            torch.randn(100)
+            torch.randn(100, device=device)
 
         if tb_writer is not None:
             tb_writer.add_scalar("train/epoch", epoch, params.batch_idx_train)
+            tb_writer.add_scalar("train/num_copies", num_copies, params.batch_idx_train)
 
         params.cur_epoch = epoch
         scheduler.set_epoch(epoch)

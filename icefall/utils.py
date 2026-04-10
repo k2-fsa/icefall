@@ -43,7 +43,6 @@ import sentencepiece as spm
 import torch
 import torch.distributed as dist
 import torch.nn as nn
-from lhotse.dataset.signal_transforms import time_warp as time_warp_impl
 from packaging import version
 from pypinyin import lazy_pinyin, pinyin
 from pypinyin.contrib.tone_convert import to_finals, to_finals_tone, to_initials
@@ -2425,6 +2424,45 @@ def num_tokens(
     return num_tokens
 
 
+def time_warp_impl(features: torch.Tensor, factor: int) -> torch.Tensor:
+    """
+    # modified from https://github.com/lhotse-speech/lhotse/blob/master/lhotse/dataset/signal_transforms.py#L338C1-L369C1
+    # to use torch rng rather than the numpy one, this has to do with which rngs
+    # are synchronized and which are not.  (we keep the numpy and python rng's synchronized
+    # for the sake of lhotse's sampler code, where they need to be synchronized to avoid data
+    # overlap).
+
+    Time warping as described in the SpecAugment paper.
+    Implementation based on Espresso:
+    https://github.com/freewym/espresso/blob/master/espresso/tools/specaug_interpolate.py#L51
+
+    :param features: input tensor of shape ``(T, F)``
+    :param factor: time warping parameter.
+    :return: a warped tensor of shape ``(T, F)``
+    """
+    t = features.size(0)
+    if t - factor <= factor + 1:
+        return features
+    center = torch.randint(factor + 1, t - factor, ()).item()
+    warped = torch.randint(center - factor, center + factor + 1)
+    if warped == center:
+        return features
+    features = features.unsqueeze(0).unsqueeze(0)
+    left = torch.nn.functional.interpolate(
+        features[:, :, :center, :],
+        size=(warped, features.size(3)),
+        mode="bicubic",
+        align_corners=False,
+    )
+    right = torch.nn.functional.interpolate(
+        features[:, :, center:, :],
+        size=(t - warped, features.size(3)),
+        mode="bicubic",
+        align_corners=False,
+    )
+    return torch.cat((left, right), dim=2).squeeze(0).squeeze(0)
+
+
 # Based on https://github.com/lhotse-speech/lhotse/blob/master/lhotse/dataset/signal_transforms.py
 def time_warp(
     features: torch.Tensor,
@@ -2443,10 +2481,13 @@ def time_warp(
         len(features.shape) == 3
     ), f"SpecAugment only supports batches of single-channel feature matrices. {features.shape}"
     features = features.clone()
+
+    # we use torch.rand(1).item() instead of random.random() because for lhotse reasons we keep the
+    # python RNG synchronized across ranks, but we keep the torch RNG desynchronized.
     if supervision_segments is None and feature_lens is None:
         # No supervisions - apply spec augment to full feature matrices.
         for sequence_idx in range(features.size(0)):
-            if random.random() > p:
+            if torch.rand(1).item() > p:
                 # Randomly choose whether this transform is applied
                 continue
             features[sequence_idx] = time_warp_impl(
@@ -2456,7 +2497,7 @@ def time_warp(
         assert feature_lens is None
         # Supervisions provided - we will apply time warping only on the supervised areas.
         for sequence_idx, start_frame, num_frames in supervision_segments:
-            if random.random() > p:
+            if torch.rand(1).item() > p:
                 # Randomly choose whether this transform is applied
                 continue
             end_frame = start_frame + num_frames
@@ -2466,7 +2507,7 @@ def time_warp(
 
     else:
         for sequence_idx, num_frames in enumerate(feature_lens):
-            if random.random() > p:
+            if torch.rand(1).item() > p:
                 # Randomly choose whether this transform is applied
                 continue
             features[sequence_idx, :num_frames] = time_warp_impl(
