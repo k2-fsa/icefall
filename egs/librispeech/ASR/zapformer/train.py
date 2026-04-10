@@ -1086,7 +1086,7 @@ def show_model_params(model: nn.Module):
         for p in model.parameters():
             params.append(p.flatten()[-1:])
         all_last_elems = torch.cat(params)
-        logging.info(f"All last elems of parameters = {all_last_elems}, sum = {all_last_elems.sum()}")
+        logging.info(f"All last elems of parameters sum = {all_last_elems.sum()}")
 
 
 def train_one_epoch(
