@@ -169,8 +169,8 @@ class AlternatingSpecAugment(torch.nn.Module):
         # "rlength" means relative length of each mask, i.e. relative to seq_len.  the
         # lengths in mask_lengths are normalized lengths.
         mask_rlengths = torch.rand(B, M, device=device) * (max_mask_fraction / num_masks)
-        if (seq_len + batch_size) % 100 == 0: # pseudo-randomly print the random numbers.  i want to test repeatability.
-            logging.info(f"mask_rlengths: {mask_rlengths.flatten()}")
+        if (seq_len + batch_size) % 10 == 0: # pseudo-randomly print the random numbers.  i want to test repeatability.
+            logging.info(f"mask_rlengths: {mask_rlengths.flatten()[:10]}")
         mask_tot_rlen = mask_rlengths.sum(dim=1, keepdim=True)  # (batch_size, 1)
 
         # padding_tot_rlen is the total relative length of the padding segmnts.  We clamp to min=0.25
