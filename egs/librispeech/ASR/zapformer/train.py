@@ -1080,6 +1080,14 @@ def compute_validation_loss(
 
     return tot_loss
 
+def show_model_params(model: nn.Module):
+    with torch.no_grad():
+        params = [ ]
+        for p in model.parameters():
+            params.append(p.flatten()[-1:])
+        all_last_elems = torch.cat(params)
+        logging.info(f"All last elems of parameters sum = {all_last_elems.sum()}")
+
 
 def train_one_epoch(
     params: AttributeDict,
@@ -1154,6 +1162,9 @@ def train_one_epoch(
     for batch_idx, batch in enumerate(train_dl):
         if batch_idx % 10 == 0:
             set_batch_count(model, get_adjusted_batch_count(params))
+
+        if batch_idx % 200 == 0:
+            show_model_params(model)
 
         params.batch_idx_train += 1
         batch_size = len(batch["supervisions"]["text"])
