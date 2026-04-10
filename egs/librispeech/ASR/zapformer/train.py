@@ -1597,15 +1597,14 @@ def run(rank, world_size, args):
         # call it again to make sure the seed is deterministic.
         dist_barrier()
 
-        # now desynchronize the torch RNGs for CPU and GPU by calling rand() a
-        # different number of times, so the augmentation isn't the same across
-        # ranks within a batch.  It's very difficult to do this with
-        # torch.manual_seed() because it has no way to set the RNG for just the
-        # CPU.  This is not 100% ideal as we'll still possibly repeat after a delay, but
-        # it's simple to implement.
-        for _ in range(rank * 4):
-            torch.randn(100)
-            torch.randn(100, device=device)
+        with torch.cuda.device(rank):
+            # set CUDA seed for "my GPU" in a rank-dependent way.  assume the only multi-node training we'll
+            # do is with cuda so do not worry about CPU seed.  in fact, we do also rely on the
+            # torch CPU random number generator for data augmentation- see time_warp()-
+            # but this gets naturally desynchronized quite soon because it's called in a loop
+            # that depends on the number of elements in a batch.
+            torch.cuda.manual_seed(params.seed + epoch - 1 + 1000 * rank)
+
 
         if tb_writer is not None:
             tb_writer.add_scalar("train/epoch", epoch, params.batch_idx_train)
