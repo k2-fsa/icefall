@@ -1588,9 +1588,11 @@ def run(rank, world_size, args):
 
         # now desynchronize the torch RNGs for CPU and GPU by calling rand() a
         # different number of times, so the augmentation isn't the same across
-        # ranks.  It's very difficult to do this with torch.manual_seed()
-        # because it has no way to set the RNG for just the CPU.
-        for _ in range(rank):
+        # ranks within a batch.  It's very difficult to do this with
+        # torch.manual_seed() because it has no way to set the RNG for just the
+        # CPU.  This is not 100% ideal as we'll still possibly repeat after a delay, but
+        # it's simple to implement.
+        for _ in range(rank * 4):
             torch.randn(100)
             torch.randn(100, device=device)
 
