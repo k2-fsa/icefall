@@ -1406,21 +1406,27 @@ def run(rank, world_size, args):
         # Work out copies_per_epoch
         copies_per_epoch = [ ]
         cur_real_epochs = 0
-        for n in range(params.min_copies, params.max_copies + 1):
-            progress = (n + 1 - params.min_copies) / (params.max_copies + 1 - params.min_copies)
-            target_real_epochs = int(0.5 + progress * params.num_real_epochs) # + 0.5 to round up.
+        progress_increment = 1.0 / (params.max_copies + 1 - params.min_copies)
+        cur_progress = 0.0
+        # go in backwards order to minimize rounding errors.
+        for n in reversed(range(params.min_copies, params.max_copies + 1)):
+            cur_progress += progress_increment
+            target_real_epochs = int(0.5 + cur_progress * params.num_real_epochs) # + 0.5 to round up.
             while cur_real_epochs < target_real_epochs:
                 copies_per_epoch.append(n)
                 cur_real_epochs += n
+        copies_per_epoch = list(reversed(copies_per_epoch))
 
     num_epochs = len(copies_per_epoch)
     logging.info(f"Num epochs = {len(copies_per_epoch)}, num-real-epochs={sum(copies_per_epoch)} vs target {params.num_real_epochs}")
     logging.info(f"Copies per epoch: {copies_per_epoch}")
 
-    # this InterpCosineLRScheduler inherits from VariableCombinedLRScheduler.  progress decays
-    # in a way that's linear (actually, affine) with epoch rather than progress in batches.
+    # this InterpCosineLRScheduler inherits from VariableCombinedLRScheduler.
+    # this configuration is halfway between a linear function (1 to 0) and the conventional
+    # cosine LR scheduler.  It decays to a minimum of 0.025.
     scheduler = InterpCosineLRScheduler(optimizer,
                                         min_factor=0.025,
+                                        linear_scale=0.5,
                                         batches_per_epoch=[params.batches_per_epoch * n for n in copies_per_epoch])
 
     if checkpoints and "optimizer" in checkpoints:

@@ -138,27 +138,37 @@ class VariableCombinedLRScheduler(object):
 
 
 
-
 class InterpCosineLRScheduler(VariableCombinedLRScheduler):
     def __init__(self,
                  *args,
-                 min_factor: float = 0.05,
+                 min_factor: float = 0.0,
+                 half_cosine_scale: float = 0.0,
+                 linear_scale: float = 0.0,
                  **kwargs):
         """
-        This cosine LR scheduler is halfway between the conventional cosine LR scheduler
-        that takes the cosine from 0 to pi, and one that takes the cosine from 0 to pi/2.
-        It inherits from VariableCombinedLRScheduler (see its documentation
-        to understand general aspects of usage).
+        This cosine LR scheduler encompasses the conventional cosine LR scheduler
+        that takes the cosine from 0 to pi (shifted to 0..1), the half-cosine LR
+        scheduler that takes the cosine from 0 to pi, and the linear LR scheduler
+        that takes the linear function from 1 to 0.
         """
         self.min_factor = min_factor
+        self.half_cosine_scale = half_cosine_scale
+        self.linear_scale = linear_scale
         super().__init__(*args, **kwargs)
 
     def get_lr(self):
         progress = self.get_progress()
-        factor = math.cos((math.pi / 2) * progress)
-        # factor**2 would be the conventional cosine LR scheduler with cosine from 0 to pi, we interpolate
-        # between the two.
-        factor = 0.5 * (factor + factor ** 2)
+        half_cos = math.cos((math.pi / 2) * progress)
+        cos = half_cos ** 2
+        linear = 1. - progress
+
+        linear_scale = self.linear_scale
+        half_cosine_scale = self.half_cosine_scale
+        cosine_scale = 1. - self.half_cosine_scale - linear_scale
+        assert cosine_scale >= 0.0
+
+        factor = linear_scale * linear + half_cosine_scale * half_cos + cosine_scale * cos
+        # apply min_factor via interpolation
         factor = self.min_factor + factor * (1. - self.min_factor)
         return [x * factor for x in self.base_lrs]
 
