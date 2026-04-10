@@ -110,7 +110,12 @@ from icefall.checkpoint import (
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
 from icefall.err import raise_grad_scale_is_too_small_error
-from alternating_spec_augment import AlternatingSpecAugment, time_warp
+from alternating_spec_augment import AlternatingSpecAugment
+try:
+    from alternating_spec_augment import time_warp
+except:
+    pass
+
 from icefall.hooks import register_inf_check_hooks
 from icefall.utils import (
     AttributeDict,
