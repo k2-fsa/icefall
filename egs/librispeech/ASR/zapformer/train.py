@@ -110,7 +110,7 @@ from icefall.checkpoint import (
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
 from icefall.err import raise_grad_scale_is_too_small_error
-from alternating_spec_augment import AlternatingSpecAugment   # using this, not lhotse's version of nn.Module
+from alternating_spec_augment import AlternatingSpecAugment, time_warp
 from icefall.hooks import register_inf_check_hooks
 from icefall.utils import (
     AttributeDict,
@@ -118,7 +118,6 @@ from icefall.utils import (
     get_parameter_groups_with_lrs,
     setup_logger,
     str2bool,
-    time_warp,
 )
 try:
     from icefall.utils import  dist_barrier
