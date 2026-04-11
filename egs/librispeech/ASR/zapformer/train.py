@@ -111,10 +111,6 @@ from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
 from icefall.err import raise_grad_scale_is_too_small_error
 from alternating_spec_augment import AlternatingSpecAugment
-try:
-    from alternating_spec_augment import time_warp
-except:
-    pass
 
 from icefall.hooks import register_inf_check_hooks
 from icefall.utils import (
@@ -401,7 +397,7 @@ def get_parser():
     parser.add_argument(
         "--max-copies",
         type=int,
-        default=16,
+        default=1,
         help="The num_copies to use in the dataloader on the last epoch (it rises linearly with step count from --min-copies)"
     )
 
@@ -919,40 +915,6 @@ def save_checkpoint(
 
 
 
-def augmentation(
-        features: Tensor,
-        feature_lens: Tensor) -> Tensor:
-    """
-
-    Args:
-      features: a Tensor of shape (batch_size, seq_len, num_channels)
-
-    Returns:
-      augmented_features
-    """
-    (batch_size, seq_len, num_channels) = features.shape
-
-    do_time_warp = True
-
-    if do_time_warp:
-        with torch.amp.autocast('cuda', enabled=False):
-            features = time_warp(
-                features.to(torch.float),
-                time_warp_factor=80,
-                feature_lens=feature_lens,
-            )
-
-    # note: AlternatingSpecAugment() does *somewhat* assume that x consists of two copies of
-    # the same data, but practically speaking the only important use this is put
-    # to is that it chooses non-overlapping frequency regions to mask.  it also
-    # chooses non-overlapping time regions to mask, but this is not so important
-    # since the time warping (if used) was done independently on the two copies.
-    spec_augment = AlternatingSpecAugment()
-    features = spec_augment(features)
-
-    return features
-
-
 def compute_loss(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
@@ -960,6 +922,7 @@ def compute_loss(
     batch: dict,
     is_training: bool,
     aux_loss_scale: float = 0.0,
+    specaug: Optional[nn.Module] = None,
 ) -> Tuple[Tensor, MetricsTracker]:
     """
     Compute loss given the model and its inputs.
@@ -992,11 +955,9 @@ def compute_loss(
     y = sp.encode(texts, out_type=int)
     y = k2.RaggedTensor(y)
 
-
-    if is_training:
-        batch_size = features.shape[0]
-        features = augmentation(features, feature_lens)
-
+    if specaug is not None:
+        with torch.amp.autocast('cuda', enabled=False):
+            features = specaug(features.to(torch.float), feature_lens)
 
     with torch.set_grad_enabled(is_training):
         simple_loss, pruned_loss, ctc_loss, attention_decoder_loss = model(
@@ -1095,6 +1056,7 @@ def train_one_epoch(
     scaler: GradScaler,
     model_avg: Optional[nn.Module] = None,
     tb_writer: Optional[SummaryWriter] = None,
+    specaug: Optional[nn.Module] = None,
     world_size: int = 1,
     rank: int = 0,
 ) -> None:
@@ -1171,6 +1133,7 @@ def train_one_epoch(
                     sp=sp,
                     batch=batch,
                     is_training=True,
+                    specaug=specaug,
                     aux_loss_scale=get_scaler_scale() * params.aux_loss_scale * (0.25 if params.batch_idx_train > 2000 else 1.0),
                 )
             # summary stats
@@ -1316,7 +1279,9 @@ def run(rank, world_size, args):
     params = get_params()
     params.update(vars(args))
 
+    # synchronize seeds.  important for parameter initialization to be consistent.
     fix_random_seed(params.seed)
+
     if world_size > 1:
         setup_dist(rank, world_size, params.master_port)
     # need torch.distributed.barrier() after fix_random_seed() as it fixes
@@ -1571,9 +1536,13 @@ def run(rank, world_size, args):
         logging.info("Loading grad scaler state dict")
         scaler.load_state_dict(checkpoints["grad_scaler"])
 
+
     for epoch in range(params.start_epoch, num_epochs + 1):
         # fix all random seeds before starting the dataloaders, as they require
-        # all seeds to be synchronized.
+        # all seeds to be synchronized, in particular for the sampler, which
+        # uns in the main process and relies on the currently-set random seed
+        # (in practice it's just the random module's
+        # seed and possibly the numpy seed that really matter here.
         dist_barrier()
         fix_random_seed(params.seed + epoch - 1)
         dist_barrier()
@@ -1587,19 +1556,27 @@ def run(rank, world_size, args):
             seed=params.seed + 500 * epoch,
             rank=rank,
         )
+
         sampler_state_dict=None
         # we don't do :
         # train_dl.sampler.set_epoch(epoch)
         # because we just created the sampler and its seed already depends on the epoch.
 
-        with torch.cuda.device(rank):
-            # set CUDA seed for "my GPU" in a rank-dependent way.  assume the only multi-node training we'll
-            # do is with cuda so do not worry about CPU seed.  in fact, we do also rely on the
-            # torch CPU random number generator for data augmentation- see time_warp()-
-            # but this gets naturally desynchronized quite soon because it's called in a loop
-            # that depends on the number of elements in a batch.
-            torch.cuda.manual_seed(params.seed + 50 * epoch  + 512 * rank)
 
+        seed = params.seed + 50 * epoch  + 512 * rank
+
+        specaug = AlternatingSpecAugment(
+            seed=seed,
+        )  # otherwise use all default settings.
+
+        if torch.cuda.is_available():
+            with torch.cuda.device(rank):
+                # set CUDA seed for "my GPU" in a rank-and-epoch-dependent way.
+                # This is not not very important, it should just affect the
+                # AddNoise() module in subsampling.py
+                torch.cuda.manual_seed(seed)
+        else:
+            torch.manual_seed(seed)
 
         if tb_writer is not None:
             tb_writer.add_scalar("train/epoch", epoch, params.batch_idx_train)
@@ -1619,6 +1596,7 @@ def run(rank, world_size, args):
             valid_dl=valid_dl,
             scaler=scaler,
             tb_writer=tb_writer,
+            specaug=specaug,
             world_size=world_size,
             rank=rank,
         )

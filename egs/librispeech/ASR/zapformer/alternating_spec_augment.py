@@ -23,7 +23,10 @@ class AlternatingSpecAugment(torch.nn.Module):
         num_feature_masks: int = 2,
         max_frame_mask_fraction: float = 0.725,  # the expected temporal masked-fraction is half of this.
         max_frame_mask_size: float = 70,  # max size in frames of temporal masks.
-        p=0.9,  # probability of doing augmentation
+        p=0.9,  # probability of doing core SpecAug augmentation
+        time_warp_p=0.9, # probability of doing time warping.
+        time_warp_factor=80,  # as in original SpecAug paper.
+        seed=None,  # if you leave this as none it will use random.random()
     ):
         super().__init__()
         assert 0 <= p <= 1
@@ -38,12 +41,50 @@ class AlternatingSpecAugment(torch.nn.Module):
         self.max_frame_mask_size = max_frame_mask_size
         self.p = p
 
+        self.time_warp_p = time_warp_p
+        self.time_warp_factor = time_warp_factor
+
+        self.seed = seed
+        self.device_to_generator = dict()
+
+    def get_generator(self, device):
+        try:
+            return self.device_to_generator[str(device)]
+        except KeyError:
+            gen = torch.Generator(device)
+            gen.manual_seed(self.seed if self.seed is not None else torch.randint(0, 100000, ()).item())
+            self.device_to_generator[str(device)] = gen
+            return gen
+
+
     def forward(
+            self,
+            features: torch.Tensor,
+            feature_lens: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        """
+        Do augmentaiton and return modified features.
+           features: (batch_size, seq_len, num_channels)
+          feature_lens: (batch_size,), contains sequence lengths 0 < feature_lens <= seq_len
+        """
+        if self.time_warp_p > 0:
+            features = time_warp(features,
+                                 p=self.time_warp_p,
+                                 time_warp_factor=self.time_warp_factor,
+                                 feature_lens=feature_lens,
+                                 generator=self.get_generator(torch.device('cpu')))
+        if self.p > 0:
+            features = self.forward_masking(features)
+        return features
+
+    def forward_masking(
         self,
         features: torch.Tensor,
     ) -> torch.Tensor:
         """
-        Computes ExpAugment for a batch of feature matrices.
+        Computes ExpAugment for a batch of feature matrices.  Caution: for time warping
+        the user should call self.time_warp() separately.  It's a class member for purposes
+        of keeping track of generators.
 
         Since the batch will usually already be padded, the user can optionally
         provide a ``supervision_segments`` tensor that will be used to apply SpecAugment
@@ -58,10 +99,6 @@ class AlternatingSpecAugment(torch.nn.Module):
         )
         B, T, F = features.shape
         features = features.clone()
-
-
-        # get feature means.
-        kwargs = {'device': features.device}
 
         mean = features.mean()
 
@@ -80,7 +117,8 @@ class AlternatingSpecAugment(torch.nn.Module):
                                           max_mask_fraction=self.max_frame_mask_fraction,
                                           num_masks=num_masks)
 
-        features = torch.where(torch.rand(B, 1, 1, **kwargs).expand_as(features) < self.p,
+        generator = self.get_generator(features.device)
+        features = torch.where(torch.rand(B, 1, 1, device=features.device, generator=generator).expand_as(features) < self.p,
                                features, features_unmasked)
 
         return features
@@ -159,6 +197,7 @@ class AlternatingSpecAugment(torch.nn.Module):
 
 
     def _sample_mask_starts_and_ends(self, batch_size, seq_len, num_masks, max_mask_fraction, device) -> Tuple[Tuple,Tuple]:
+        generator = self.get_generator(device)
         # we imagine there are "pairs of sequences" for historical reasons but one of each pair is not
         # a real sequence.
         B = batch_size
@@ -168,7 +207,7 @@ class AlternatingSpecAugment(torch.nn.Module):
 
         # "rlength" means relative length of each mask, i.e. relative to seq_len.  the
         # lengths in mask_lengths are normalized lengths.
-        mask_rlengths = torch.rand(B, M, device=device) * (max_mask_fraction / num_masks)
+        mask_rlengths = torch.rand(B, M, device=device, generator=generator) * (max_mask_fraction / num_masks)
         #if (seq_len + batch_size) % 10 == 0: # pseudo-randomly print the random numbers.  i want to test repeatability.
         #    logging.info(f"mask_rlengths: {mask_rlengths.flatten()[:10]}")
         mask_tot_rlen = mask_rlengths.sum(dim=1, keepdim=True)  # (batch_size, 1)
@@ -188,7 +227,7 @@ class AlternatingSpecAugment(torch.nn.Module):
         P = M + 1
         # rpositions means positions expressed in relative length, i.e. normalized so that
         # seq_len is 1.
-        padding_rpositions = torch.rand(B, P - 1, device=device) * padding_tot_rlen
+        padding_rpositions = torch.rand(B, P - 1, device=device, generator=generator) * padding_tot_rlen
         padding_rpositions = padding_rpositions.sort(dim=1)[0]
         zero = torch.zeros(B, 1, device=device)
         padding_rpositions = torch.cat((zero, padding_rpositions, padding_tot_rlen), dim=1)
@@ -217,7 +256,7 @@ class AlternatingSpecAugment(torch.nn.Module):
         # letting the start-position when we take alternating positions be
         # randomly 0 or 1 avoids any overall bias towards the start or end of
         # the sequence.
-        index = torch.randint(0, 2, (B,), device=device).unsqueeze(-1) + torch.arange(0, M, step=2, device=device)
+        index = torch.randint(0, 2, (B,), device=device, generator=generator).unsqueeze(-1) + torch.arange(0, M, step=2, device=device)
         mask_starts = torch.gather(mask_starts, dim=1, index=index)
         mask_ends = torch.gather(mask_ends, dim=1, index=index)
 
@@ -238,6 +277,89 @@ class AlternatingSpecAugment(torch.nn.Module):
                 setattr(self, name, state_dict["name"])
 
 
+def time_warp_impl(features: torch.Tensor, factor: int,
+                   generator: Optional[torch.Generator]) -> torch.Tensor:
+    """
+    # modified from https://github.com/lhotse-speech/lhotse/blob/master/lhotse/dataset/signal_transforms.py#L338C1-L369C1
+    # to use torch rng rather than the numpy one, this has to do with which rngs
+    # are synchronized and which are not.  (we keep the numpy and python rng's synchronized
+    # for the sake of lhotse's sampler code, where they need to be synchronized to avoid data
+    # overlap).
+
+    Time warping as described in the SpecAugment paper.
+    Implementation based on Espresso:
+    https://github.com/freewym/espresso/blob/master/espresso/tools/specaug_interpolate.py#L51
+
+    :param features: input tensor of shape ``(T, F)``
+    :param factor: time warping parameter.
+    :return: a warped tensor of shape ``(T, F)``
+    """
+    t = features.size(0)
+    if t - factor <= factor + 1:
+        return features
+    center = torch.randint(factor + 1, t - factor, (), generator=generator).item()
+    warped = torch.randint(center - factor, center + factor + 1, (), generator=generator).item()
+    if warped == center:
+        return features
+    features = features.unsqueeze(0).unsqueeze(0)
+    left = torch.nn.functional.interpolate(
+        features[:, :, :center, :],
+        size=(warped, features.size(3)),
+        mode="bicubic",
+        align_corners=False,
+    )
+    right = torch.nn.functional.interpolate(
+        features[:, :, center:, :],
+        size=(t - warped, features.size(3)),
+        mode="bicubic",
+        align_corners=False,
+    )
+    return torch.cat((left, right), dim=2).squeeze(0).squeeze(0)
+
+
+# Based on https://github.com/lhotse-speech/lhotse/blob/master/lhotse/dataset/signal_transforms.py
+# it does not differ substantively from that; only, it accepts feature_lens rather than supervision
+# segments, and uses torch as the random number generator.
+def time_warp(
+    features: torch.Tensor,
+    p: float = 0.9,
+    time_warp_factor: Optional[int] = 80,
+    feature_lens: Optional[torch.Tensor] = None,
+    generator: Optional[torch.Generator] = None,  # generator for CPU only
+):
+    if time_warp_factor is None or time_warp_factor < 1:
+        return features
+    assert (
+        len(features.shape) == 3
+    ), f"SpecAugment only supports batches of single-channel feature matrices. {features.shape}"
+    features = features.clone()
+
+    # we use torch.rand(1).item() instead of random.random() for easier control of generators
+    # that is more consistent with GPU generators.
+    if feature_lens is None:
+        # No feature_lens - apply spec augment to full feature matrices.
+        for sequence_idx in range(features.size(0)):
+            if torch.rand(1, generator=generator).item() > p:
+                # Randomly choose whether this transform is applied
+                continue
+            features[sequence_idx] = time_warp_impl(
+                features[sequence_idx], factor=time_warp_factor
+            )
+    else:
+        for sequence_idx, num_frames in enumerate(feature_lens):
+            if torch.rand(1, generator=generator).item() > p:
+                # Randomly choose whether this transform is applied
+                continue
+            features[sequence_idx, :num_frames] = time_warp_impl(
+                features[sequence_idx, :num_frames], factor=time_warp_factor,
+                generator=generator,
+            )
+
+    return features
+
+
+
+
 def _test_alternating_spec_augment():
     for n in [ 0, 1 ]:
         #device = 'cuda'
@@ -245,7 +367,7 @@ def _test_alternating_spec_augment():
         device = 'cpu'
 
         if n == 0:
-            aspec_augment = AlternatingSpecAugment()
+            aspec_augment = AlternatingSpecAugment(time_warp_p=0.0)
         else:
             from lhotse.dataset import SpecAugment
             time_mask_ratio = 3.5
@@ -285,84 +407,6 @@ def _test_alternating_spec_augment():
         print("mean feature_is_masked[per-freq] = ", feature_is_masked.to(torch.float).mean(dim=0))
 
 
-
-
-def time_warp_impl(features: torch.Tensor, factor: int) -> torch.Tensor:
-    """
-    # modified from https://github.com/lhotse-speech/lhotse/blob/master/lhotse/dataset/signal_transforms.py#L338C1-L369C1
-    # to use torch rng rather than the numpy one, this has to do with which rngs
-    # are synchronized and which are not.  (we keep the numpy and python rng's synchronized
-    # for the sake of lhotse's sampler code, where they need to be synchronized to avoid data
-    # overlap).
-
-    Time warping as described in the SpecAugment paper.
-    Implementation based on Espresso:
-    https://github.com/freewym/espresso/blob/master/espresso/tools/specaug_interpolate.py#L51
-
-    :param features: input tensor of shape ``(T, F)``
-    :param factor: time warping parameter.
-    :return: a warped tensor of shape ``(T, F)``
-    """
-    t = features.size(0)
-    if t - factor <= factor + 1:
-        return features
-    center = torch.randint(factor + 1, t - factor, ()).item()
-    warped = torch.randint(center - factor, center + factor + 1, ()).item()
-    if warped == center:
-        return features
-    features = features.unsqueeze(0).unsqueeze(0)
-    left = torch.nn.functional.interpolate(
-        features[:, :, :center, :],
-        size=(warped, features.size(3)),
-        mode="bicubic",
-        align_corners=False,
-    )
-    right = torch.nn.functional.interpolate(
-        features[:, :, center:, :],
-        size=(t - warped, features.size(3)),
-        mode="bicubic",
-        align_corners=False,
-    )
-    return torch.cat((left, right), dim=2).squeeze(0).squeeze(0)
-
-
-# Based on https://github.com/lhotse-speech/lhotse/blob/master/lhotse/dataset/signal_transforms.py
-# it does not differ substantively from that; only, it accepts feature_lens rather than supervision
-# segments, and uses torch as the random number generator.
-def time_warp(
-    features: torch.Tensor,
-    p: float = 0.9,
-    time_warp_factor: Optional[int] = 80,
-    feature_lens: Optional[torch.Tensor] = None,
-):
-    if time_warp_factor is None or time_warp_factor < 1:
-        return features
-    assert (
-        len(features.shape) == 3
-    ), f"SpecAugment only supports batches of single-channel feature matrices. {features.shape}"
-    features = features.clone()
-
-    # we use torch.rand(1).item() instead of random.random() because for lhotse reasons we keep the
-    # python RNG synchronized across ranks, but we keep the torch RNG desynchronized.
-    if feature_lens is None:
-        # No feature_lens - apply spec augment to full feature matrices.
-        for sequence_idx in range(features.size(0)):
-            if torch.rand(1).item() > p:
-                # Randomly choose whether this transform is applied
-                continue
-            features[sequence_idx] = time_warp_impl(
-                features[sequence_idx], factor=time_warp_factor
-            )
-    else:
-        for sequence_idx, num_frames in enumerate(feature_lens):
-            if torch.rand(1).item() > p:
-                # Randomly choose whether this transform is applied
-                continue
-            features[sequence_idx, :num_frames] = time_warp_impl(
-                features[sequence_idx, :num_frames], factor=time_warp_factor
-            )
-
-    return features
 
 
 # from lhotse.dataset import SpecAugment
