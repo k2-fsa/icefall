@@ -546,8 +546,8 @@ class ZapformerEncoderLayer(nn.Module):
 
         self.offset_scale_limiter = ScaleLimiter(max_rms=1.0)
 
-        power = 0.4  # power should be between 0 and 1.  1 would mean cov == I (unattainable)
-        self.correlation_limiter = CorrelationLimiter(limit=(1. / (embed_dim  ** power)))
+        #power = 0.4  # power should be between 0 and 1.  1 would mean cov == I (unattainable)
+        #self.correlation_limiter = CorrelationLimiter(limit=(1. / (embed_dim  ** power)))
 
         self.self_attn = MultiheadRelPosGatedSelfAttention(
             embed_dim,
@@ -595,9 +595,9 @@ class ZapformerEncoderLayer(nn.Module):
         """
         src_orig = src
 
-        src = with_loss(src, self.correlation_limiter(src.permute(1, 0, 2),
-                                                      2. * aux_loss_scale, mask=src_key_padding_mask),
-                        None)
+        #src = with_loss(src, self.correlation_limiter(src.permute(1, 0, 2),
+        #                                              2. * aux_loss_scale, mask=src_key_padding_mask),
+        #                None)
 
         src_pre_ff1 = src
 
