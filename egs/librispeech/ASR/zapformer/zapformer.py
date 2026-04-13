@@ -176,8 +176,8 @@ class Zapformer(EncoderInterface):
 
         # Share a single AngularFreqBasis instance across all layers within each encoder stack
         for encoder in self.encoders:
-            shared_basis = AngularFreqBasis(num_freqs=num_freqs)
-            for layer in encoder.layers:
+            shared_basis = encoder.layers[0].self_attn.rel_pos.angular_freq_basis
+            for layer in encoder.layers[1:]:
                 layer.self_attn.rel_pos.angular_freq_basis = shared_basis
 
         self.out_norm = RmsNorm()
@@ -1531,8 +1531,7 @@ class RelPosScores(nn.Module):
             for _ in range(10):
                 self.weight[:] = (2 ** -0.5) * (self.weight + self.weight.roll(1, dims=2))
 
-        # angular_freq_basis will be set externally as a shared module
-        self.angular_freq_basis: Optional[AngularFreqBasis] = None
+        self.angular_freq_basis = AngularFreqBasis(num_freqs)
 
     def forward(self, p: Tensor, left_context_len: int = 0) -> Tensor:
         """
