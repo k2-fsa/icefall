@@ -981,7 +981,7 @@ class MultiheadRelPosGatedSelfAttention(nn.Module):
         # it would be necessary to apply the scaling factor in the forward function.
         self.qkp_in_proj = ScaledLinear(
             embed_dim, in_proj_dim,
-            bias=True, initial_scale=0.125 * query_head_dim**-0.25
+            bias=True, initial_scale=0.125,
         )
 
         self.rel_pos = RelPosScores(num_heads, pos_head_dim, num_freqs=num_freqs)
@@ -1038,7 +1038,7 @@ class MultiheadRelPosGatedSelfAttention(nn.Module):
 
         # self-attention
         q = x_qkp[..., 0:query_dim]
-        k = x_qkp[..., query_dim : 2 * query_dim]
+        k = x_qkp[..., query_dim : 2 * query_dim] * (query_head_dim ** -0.5)
         p = x_qkp[..., 2 * query_dim:]
 
         q = self.copy_query(q)  # for diagnostics only, does nothing.
@@ -1450,7 +1450,7 @@ def compute_angular_freq_basis_triangular(freqs: Tensor,
 
 class AngularFreqBasis(nn.Module):
     """
-    Computes and caches the angular-frequency basis used in relative position scoring.  
+    Computes and caches the angular-frequency basis used in relative position scoring.
 
     num_freqs: the number of frequencies of the sin and cos functions
     low_freq_factor: this is approximately the amount by which the lowest frequency will be
@@ -1484,7 +1484,7 @@ class AngularFreqBasis(nn.Module):
             and seq_len + left_context_len <= S + L):
             start = S + L - seq_len - left_context_len
             end = start + 2 * seq_len + left_context_len - 1
-            return self._cached_basis[start:end] 
+            return self._cached_basis[start:end]
 
         t = torch.arange(-(seq_len + left_context_len - 1), seq_len, device=device)
         basis = compute_angular_freq_basis_triangular(self.freqs, t, scale=False)
