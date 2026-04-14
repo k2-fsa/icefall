@@ -101,6 +101,7 @@ class Zapformer(EncoderInterface):
         num_heads: Union[int, Tuple[int]] = 8,
         feedforward_multiple: Union[int, Tuple[int]] = 4,
         conv_params: Union[int, Tuple[int]] = 31,
+        num_freqs: int = 64,
         causal: bool = False,
         chunk_size: Tuple[int] = [-1],
         left_context_frames: Tuple[int] = [-1],
@@ -130,6 +131,7 @@ class Zapformer(EncoderInterface):
         self.num_heads = num_heads = _to_tuple(num_heads)
         feedforward_multiple = _to_tuple(feedforward_multiple)
         self.conv_params = conv_params = _to_tuple(conv_params)
+        self.num_freqs = num_freqs
 
         self.causal = causal
         self.chunk_size = (chunk_size,) if isinstance(chunk_size, int) else chunk_size
@@ -156,6 +158,7 @@ class Zapformer(EncoderInterface):
                 pos_head_dim=pos_head_dim[i],
                 feedforward_multiple=feedforward_multiple[i],
                 conv_params=conv_params[i],
+                num_freqs=num_freqs,
                 causal=causal,
             )
 
@@ -170,6 +173,12 @@ class Zapformer(EncoderInterface):
             encoders.append(encoder)
 
         self.encoders = nn.ModuleList(encoders)
+
+        # Share a single AngularFreqBasis instance across all layers within each encoder stack
+        for encoder in self.encoders:
+            shared_basis = encoder.layers[0].self_attn.rel_pos.angular_freq_basis
+            for layer in encoder.layers[1:]:
+                layer.self_attn.rel_pos.angular_freq_basis = shared_basis
 
         self.out_norm = RmsNorm()
 
@@ -538,6 +547,7 @@ class ZapformerEncoderLayer(nn.Module):
         pos_head_dim: int,
         feedforward_multiple: int,
         conv_params: int,
+        num_freqs: int = 64,
         causal: bool = False,
     ) -> None:
         super(ZapformerEncoderLayer, self).__init__()
@@ -555,6 +565,7 @@ class ZapformerEncoderLayer(nn.Module):
             query_head_dim=query_head_dim,
             value_head_dim=value_head_dim,
             pos_head_dim=pos_head_dim,
+            num_freqs=num_freqs,
             causal=causal,
         )
 
@@ -949,7 +960,8 @@ class MultiheadRelPosGatedSelfAttention(nn.Module):
         query_head_dim: int,
         pos_head_dim: int ,
         value_head_dim: int,
-        causal: bool,
+        num_freqs: int = 64,
+        causal: bool = False,
     ) -> None:
         super().__init__()
         self.embed_dim = embed_dim
@@ -972,7 +984,7 @@ class MultiheadRelPosGatedSelfAttention(nn.Module):
             bias=True, initial_scale=0.125 * query_head_dim**-0.25
         )
 
-        self.rel_pos = RelPosScores(num_heads, pos_head_dim, num_freqs=64)
+        self.rel_pos = RelPosScores(num_heads, pos_head_dim, num_freqs=num_freqs)
 
         self.copy_query = Identity()
         self.copy_pos_query = Identity()
@@ -1436,12 +1448,64 @@ def compute_angular_freq_basis_triangular(freqs: Tensor,
     return torch.stack((re, im), dim=-1).to(dtype)
 
 
+class AngularFreqBasis(nn.Module):
+    """
+    Computes and caches the angular-frequency basis used in relative position scoring.  
+
+    num_freqs: the number of frequencies of the sin and cos functions
+    low_freq_factor: this is approximately the amount by which the lowest frequency will be
+        less than the highest frequency, the highest frequency being the Nyquist (pi).
+        The frequencies are close to a geometric series at higher frequency but linear
+        at low frequency.
+    """
+    def __init__(self, num_freqs: int, low_freq_factor: float = 0.001):
+        super().__init__()
+        log_freqs = torch.linspace(math.log(low_freq_factor), math.log(1 + low_freq_factor), num_freqs)
+        freqs = math.pi * (log_freqs.exp() - low_freq_factor)  # range from 0 to pi.
+        freqs[0] = 0.0  # in case of roundoff
+        self.register_buffer('freqs', freqs, persistent=False)
+
+        self._cached_basis: Optional[Tensor] = None
+        self._cached_seq_len: int = -1
+        self._cached_left_context_len: int = -1
+
+    def forward(self, seq_len: int, left_context_len: int, device: torch.device) -> Tensor:
+        """
+        Returns basis of shape (2 * seq_len + left_context_len - 1, 2 * num_freqs).
+
+        The result is cached; if the requested (seq_len, left_context_len) fits
+        within the cached range, the cached tensor is sliced rather than
+        recomputed.
+        """
+        S = self._cached_seq_len
+        L = self._cached_left_context_len
+        if (self._cached_basis is not None
+            and seq_len <= S
+            and seq_len + left_context_len <= S + L):
+            start = S + L - seq_len - left_context_len
+            end = start + 2 * seq_len + left_context_len - 1
+            return self._cached_basis[start:end] 
+
+        t = torch.arange(-(seq_len + left_context_len - 1), seq_len, device=device)
+        basis = compute_angular_freq_basis_triangular(self.freqs, t, scale=False)
+        # basis: (2 * seq_len + left_context_len - 1, num_freqs, 2)
+        basis = basis.permute(0, 2, 1)
+        # permute it because of how we did the low-pass initialization of weight, we want
+        # the cos and sin parts to each be continuous ranges, not interleaved.
+        basis = basis.reshape(basis.shape[0], -1)
+        # basis: (2 * seq_len + left_context_len - 1, 2 * num_freqs)
+
+        self._cached_basis = basis
+        self._cached_seq_len = seq_len
+        self._cached_left_context_len = left_context_len
+        return basis
+
+
 class RelPosScores(nn.Module):
     def __init__(self,
                  num_heads: int,
               pos_head_dim: int,
-                 num_freqs: int,
-                 low_freq_factor: float = 0.001):
+                 num_freqs: int):
         """
         Implementation of relative position scores; where conventional relative position scores
         would use sinusoids, we treat each sinusoid frequency as the central frequency of a
@@ -1458,10 +1522,6 @@ class RelPosScores(nn.Module):
                 be identical to the query-dim but we make the "position query" independent of
                 the main query and with a smaller dimension.
               num_freqs: the number of frequencies of the sin and cos functions
-      low_freq_factor: this is approximately the amount by which the lowest frequency will be
-                less than the highest frequency, the highest frequency being the Nyquist (pi).
-                The frequencies are close to a geometric series at higher frequency but linear
-                at low frequency.
         """
         super().__init__()
         self.weight = nn.Parameter(0.04 * torch.randn(num_heads, pos_head_dim, 2 * num_freqs))
@@ -1471,10 +1531,7 @@ class RelPosScores(nn.Module):
             for _ in range(10):
                 self.weight[:] = (2 ** -0.5) * (self.weight + self.weight.roll(1, dims=2))
 
-        log_freqs = torch.linspace(math.log(low_freq_factor), math.log(1 + low_freq_factor), num_freqs)
-        freqs = math.pi * (log_freqs.exp() - low_freq_factor)  # these range from 0 to pi.
-        freqs[0] = 0.0  # in case of roundoff (it should be 0, mathematically)
-        self.register_buffer('freqs', freqs, persistent=False)
+        self.angular_freq_basis = AngularFreqBasis(num_freqs)
 
     def forward(self, p: Tensor, left_context_len: int = 0) -> Tensor:
         """
@@ -1491,14 +1548,8 @@ class RelPosScores(nn.Module):
         """
         (batch_size, num_heads, seq_len, pos_head_dim) = p.shape
 
-        freqs = self.freqs # base freqs
-        t = torch.arange(-(seq_len + left_context_len - 1), seq_len, device=p.device)
-        basis = compute_angular_freq_basis_triangular(freqs, t, scale=False)
-        # basis: (2 * seq_len + left_context_len - 1, num_freqs, 2)
-        basis = basis.permute(0, 2, 1)
-        # permute it because of how we did the low-pass initialization of weight, we want
-        # the cos and sin parts to each be continuous ranges, not interleaved.
-        basis = basis.reshape(basis.shape[0], -1) # (2 * seq_len + left_context_len - 1, 2 * num_freqs)
+        basis = self.angular_freq_basis(seq_len, left_context_len, p.device)
+        # basis: (2 * seq_len + left_context_len - 1, 2 * num_freqs)
 
         x = torch.matmul(self.weight, basis.t())
         assert x.shape == (num_heads, pos_head_dim, 2 * seq_len + left_context_len - 1)
