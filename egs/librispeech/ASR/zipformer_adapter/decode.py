@@ -402,7 +402,7 @@ def get_parser():
     parser.add_argument(
         "--adapter-dim",
         type=int,
-        default=0,
+        default=16,
         help="Adapter dimension",
     )
     add_model_arguments(parser)
