@@ -286,14 +286,20 @@ class Zapformer(EncoderInterface):
 
         x = self.out_norm(x)
 
+        if self.training:
+            x = with_loss(x, aux_loss_scale * self.compute_projection_overlap())
+
         return x, x_lens
 
 
     def compute_projection_overlap(self):
+        min_overlap = 0.7  # we can tune this
+
+        tot_loss = 0.0
         # between pairs of encoders
         N = len(self.encoders)
         for i in range(N):
-            for j in range(i + 1):
+            for j in range(i):
                 # multipying by lr_scale keeps the scale correct so they will be orthogonal
                 proj_i = self.encoders[i].proj.weight * self.encoders[i].proj.lr_scale
                 proj_j = self.encoders[j].proj.weight * self.encoders[j].proj.lr_scale
@@ -317,7 +323,10 @@ class Zapformer(EncoderInterface):
                 # because due to the orthogonal constraint, the maximum possible value of (cov_i * cov_j).sum() would be the
                 # smaller of the two dimension.
                 cosine = (cov_i * cov_j).sum() / min((cov_i * cov_i).sum(),  (cov_j * cov_j).sum())
-                logging.info(f"overlap[{i}, {j}] = {cosine}")
+
+                loss = (min_overlap - cosine).relu()
+                tot_loss = tot_loss + loss
+        return tot_loss
 
 
     def _get_attn_mask(
@@ -2185,7 +2194,7 @@ def _test_zapformer_streaming():
         left_context_frames=(left_context_frames,),
     )
 
-    model.compute_projection_overlap()
+    #model.compute_projection_overlap()
 
     model.eval()
 
