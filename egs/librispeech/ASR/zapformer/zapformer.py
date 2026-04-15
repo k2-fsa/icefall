@@ -288,6 +288,38 @@ class Zapformer(EncoderInterface):
 
         return x, x_lens
 
+
+    def compute_projection_overlap(self):
+        # between pairs of encoders
+        N = len(self.encoders)
+        for i in range(N):
+            for j in range(i + 1):
+                # multipying by lr_scale keeps the scale correct so they will be orthogonal
+                proj_i = self.encoders[i].proj.weight * self.encoders[i].proj.lr_scale
+                proj_j = self.encoders[j].proj.weight * self.encoders[j].proj.lr_scale
+                if proj_i.shape[1] > proj_j.shape[1]:
+                    proj_i, proj_j = proj_j, proj_i  # swap them
+                in_dim_i = proj_i.shape[1]  # now this is <= proj_j.shape[1]
+                in_dim_j = proj_j.shape[1]
+                assert in_dim_i <= in_dim_j
+                assert in_dim_j % in_dim_i == 0  # in_dims must be multiples of each other
+                R = in_dim_j // in_dim_i  # e.g. 1, 2, 4
+                assert R in [1, 2, 4, 8]
+                new_proj_i = torch.zeros(R, proj_i.shape[0], R, proj_i.shape[1], device=proj_i.device)
+                for r in range(R):
+                    new_proj_i[r, :, r, :] = proj_i
+                new_proj_i = new_proj_i.reshape(R * proj_i.shape[0], R * proj_i.shape[1])
+                assert new_proj_i.shape[1] == proj_j.shape[1]
+                proj_i = new_proj_i
+                cov_i = torch.matmul(proj_i.t(), proj_i)
+                cov_j = torch.matmul(proj_j.t(), proj_j)
+                # denominator is the minimum of the two rather than their geometric mean,
+                # because due to the orthogonal constraint, the maximum possible value of (cov_i * cov_j).sum() would be the
+                # smaller of the two dimension.
+                cosine = (cov_i * cov_j).sum() / min((cov_i * cov_i).sum(),  (cov_j * cov_j).sum())
+                logging.info(f"overlap[{i}, {j}] = {cosine}")
+
+
     def _get_attn_mask(
         self, x: Tensor, chunk_size: int, left_context_chunks: int
     ) -> Optional[Tensor]:
@@ -838,6 +870,7 @@ class ZapformerEncoder(nn.Module):
         # because of some identities involving orthogonal matrices.
 
         return src
+
 
     def streaming_forward(
         self,
@@ -2151,6 +2184,8 @@ def _test_zapformer_streaming():
         chunk_size=(chunk_size,),
         left_context_frames=(left_context_frames,),
     )
+
+    model.compute_projection_overlap()
 
     model.eval()
 
