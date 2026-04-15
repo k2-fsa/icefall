@@ -26,33 +26,39 @@ set --use-adapter True
 set --use-adapter False
 
 (1) greedy search
-./zipformer/decode.py \
+./zipformer_adapter/decode.py \
     --epoch 28 \
     --avg 15 \
     --exp-dir ./zipformer/exp \
     --max-duration 600 \
-    --decoding-method greedy_search
+    --decoding-method greedy_search \
+    --use-adapter True \
+    --adapter-dim 16
 
 (2) beam search (not recommended)
-./zipformer/decode.py \
+./zipformer_adapter/decode.py \
     --epoch 28 \
     --avg 15 \
     --exp-dir ./zipformer/exp \
     --max-duration 600 \
     --decoding-method beam_search \
-    --beam-size 4
+    --beam-size 4 \
+    --use-adapter True \
+    --adapter-dim 16
 
 (3) modified beam search
-./zipformer/decode.py \
+./zipformer_adapter/decode.py \
     --epoch 28 \
     --avg 15 \
     --exp-dir ./zipformer/exp \
     --max-duration 600 \
     --decoding-method modified_beam_search \
-    --beam-size 4
+    --beam-size 4 \
+    --use-adapter True \
+    --adapter-dim 16
 
 (4) fast beam search (one best)
-./zipformer/decode.py \
+./zipformer_adapter/decode.py \
     --epoch 28 \
     --avg 15 \
     --exp-dir ./zipformer/exp \
@@ -60,10 +66,12 @@ set --use-adapter False
     --decoding-method fast_beam_search \
     --beam 20.0 \
     --max-contexts 8 \
-    --max-states 64
+    --max-states 64 \
+    --use-adapter True \
+    --adapter-dim 16
 
 (5) fast beam search (nbest)
-./zipformer/decode.py \
+./zipformer_adapter/decode.py \
     --epoch 28 \
     --avg 15 \
     --exp-dir ./zipformer/exp \
@@ -73,10 +81,12 @@ set --use-adapter False
     --max-contexts 8 \
     --max-states 64 \
     --num-paths 200 \
-    --nbest-scale 0.5
+    --nbest-scale 0.5 \
+    --use-adapter True \
+    --adapter-dim 16
 
 (6) fast beam search (nbest oracle WER)
-./zipformer/decode.py \
+./zipformer_adapter/decode.py \
     --epoch 28 \
     --avg 15 \
     --exp-dir ./zipformer/exp \
@@ -86,10 +96,12 @@ set --use-adapter False
     --max-contexts 8 \
     --max-states 64 \
     --num-paths 200 \
-    --nbest-scale 0.5
+    --nbest-scale 0.5 \
+    --use-adapter True \
+    --adapter-dim 16
 
 (7) fast beam search (with LG)
-./zipformer/decode.py \
+./zipformer_adapter/decode.py \
     --epoch 28 \
     --avg 15 \
     --exp-dir ./zipformer/exp \
@@ -97,7 +109,9 @@ set --use-adapter False
     --decoding-method fast_beam_search_nbest_LG \
     --beam 20.0 \
     --max-contexts 8 \
-    --max-states 64
+    --max-states 64 \
+    --use-adapter True \
+    --adapter-dim 16
 """
 
 
@@ -376,6 +390,20 @@ def get_parser():
         Used only when --decoding-method is modified_beam_search and
         modified_beam_search_LODR.
         """,
+    )
+
+    parser.add_argument(
+        "--use-adapters",
+        type=int,
+        default=0,
+        help="Whether to use adapters",
+    )
+
+    parser.add_argument(
+        "--adapter-dim",
+        type=int,
+        default=0,
+        help="Adapter dimension",
     )
     add_model_arguments(parser)
 
