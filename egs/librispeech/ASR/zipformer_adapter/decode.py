@@ -395,7 +395,7 @@ def get_parser():
     parser.add_argument(
         "--use-adapters",
         type=int,
-        default=0,
+        default=1,
         help="Whether to use adapters",
     )
 
