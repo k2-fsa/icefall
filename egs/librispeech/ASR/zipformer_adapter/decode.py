@@ -20,10 +20,10 @@
 Usage:
 
 - To activate the adapter (test on the target domain)
-set --use-adapter True
+set --use-adapters 1
 
 - To deactivate the adapter (test on the original domain)
-set --use-adapter False
+set --use-adapters 0
 
 (1) greedy search
 ./zipformer_adapter/decode.py \
@@ -32,7 +32,7 @@ set --use-adapter False
     --exp-dir ./zipformer/exp \
     --max-duration 600 \
     --decoding-method greedy_search \
-    --use-adapter True \
+    --use-adapters 1 \
     --adapter-dim 16
 
 (2) beam search (not recommended)
@@ -43,7 +43,7 @@ set --use-adapter False
     --max-duration 600 \
     --decoding-method beam_search \
     --beam-size 4 \
-    --use-adapter True \
+    --use-adapters 1 \
     --adapter-dim 16
 
 (3) modified beam search
@@ -54,7 +54,7 @@ set --use-adapter False
     --max-duration 600 \
     --decoding-method modified_beam_search \
     --beam-size 4 \
-    --use-adapter True \
+    --use-adapters 1 \
     --adapter-dim 16
 
 (4) fast beam search (one best)
@@ -67,7 +67,7 @@ set --use-adapter False
     --beam 20.0 \
     --max-contexts 8 \
     --max-states 64 \
-    --use-adapter True \
+    --use-adapters 1 \
     --adapter-dim 16
 
 (5) fast beam search (nbest)
@@ -82,7 +82,7 @@ set --use-adapter False
     --max-states 64 \
     --num-paths 200 \
     --nbest-scale 0.5 \
-    --use-adapter True \
+    --use-adapters 1 \
     --adapter-dim 16
 
 (6) fast beam search (nbest oracle WER)
@@ -97,7 +97,7 @@ set --use-adapter False
     --max-states 64 \
     --num-paths 200 \
     --nbest-scale 0.5 \
-    --use-adapter True \
+    --use-adapters 1 \
     --adapter-dim 16
 
 (7) fast beam search (with LG)
@@ -110,7 +110,7 @@ set --use-adapter False
     --beam 20.0 \
     --max-contexts 8 \
     --max-states 64 \
-    --use-adapter True \
+    --use-adapters 1 \
     --adapter-dim 16
 """
 
