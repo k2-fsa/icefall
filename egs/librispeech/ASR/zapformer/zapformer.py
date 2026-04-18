@@ -292,8 +292,8 @@ class Zapformer(EncoderInterface):
         return x, x_lens
 
 
-    def compute_projection_overlap(self):
-        min_overlap = 0.7  # we can tune this
+    def compute_projection_overlap(self, verbose: bool = False):
+        min_overlap = 0.66  # we can tune this
 
         tot_loss = 0.0
         # between pairs of encoders
@@ -311,21 +311,21 @@ class Zapformer(EncoderInterface):
                 assert in_dim_j % in_dim_i == 0  # in_dims must be multiples of each other
                 R = in_dim_j // in_dim_i  # e.g. 1, 2, 4
                 assert R in [1, 2, 4, 8]
-                new_proj_i = torch.zeros(R, proj_i.shape[0], R, proj_i.shape[1], device=proj_i.device)
-                for r in range(R):
-                    new_proj_i[r, :, r, :] = proj_i
-                new_proj_i = new_proj_i.reshape(R * proj_i.shape[0], R * proj_i.shape[1])
-                assert new_proj_i.shape[1] == proj_j.shape[1]
-                proj_i = new_proj_i
+
+                proj_i = proj_i.repeat(1, R).reshape(proj_i.shape[0], proj_j.shape[1]) * (R ** -0.5)
+                # proj_i should still have orthogonal rows.
+                # now proj_j and proj_i have same dimension one (in_dim)
                 cov_i = torch.matmul(proj_i.t(), proj_i)
                 cov_j = torch.matmul(proj_j.t(), proj_j)
                 # denominator is the minimum of the two rather than their geometric mean,
                 # because due to the orthogonal constraint, the maximum possible value of (cov_i * cov_j).sum() would be the
                 # smaller of the two dimension.
-                cosine = (cov_i * cov_j).sum() / min((cov_i * cov_i).sum(),  (cov_j * cov_j).sum())
+                cosine = (cov_i * cov_j).sum() / proj_i.shape[0]
 
                 loss = (min_overlap - cosine).relu()
                 tot_loss = tot_loss + loss
+                if verbose:
+                    logging.info(f"overlap[{i}, {j}] = {cosine}")
         return tot_loss
 
 
@@ -2194,7 +2194,7 @@ def _test_zapformer_streaming():
         left_context_frames=(left_context_frames,),
     )
 
-    #model.compute_projection_overlap()
+    model.compute_projection_overlap(verbose=True)
 
     model.eval()
 
