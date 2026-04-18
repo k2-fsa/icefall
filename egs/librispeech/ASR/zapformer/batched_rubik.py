@@ -260,7 +260,7 @@ def cubic_decay_step(group, state, grad):
     # accumulator with beta equal to beta1.
     assumed_scale = (1 - beta1) * ((1 - beta1**2)**-0.5)
 
-    d_norm3 = d_norm2 * (assumed_scale / ((d_norm2 ** 2).mean(dim=(1, 2), keepdim=True) + eps).sqrt())
+    d_norm3 = d_norm2 * (assumed_scale / (fourth_power_rms(d_norm2) + eps))
 
     moving_update = d_norm3
 
@@ -316,6 +316,25 @@ def scaling_step(group, param, state, grad):
 
     delta_scale = (scale_ratio * (1 - lr ** 2)) - 1
     return param * delta_scale  +  scale * delta
+
+
+def fourth_power_rms(x):
+    # compute the RMS values of x in a way that uses fourth rather than second powers of
+    # singular values.  Test:
+    # fourth_power_rms(torch.randn(2, 1000, 3))
+    # tensor([[[1.0045]],
+    #        [[1.0148]]])
+    #>>> fourth_power_rms(torch.randn(2, 3, 1000))
+    #tensor([[[0.9880]],
+    #       [[0.9984]]])
+    (_batch, rows, cols) = x.shape
+    if rows < cols:
+        y = torch.matmul(x, x.transpose(1, 2))
+        return ((y ** 2).sum(dim=(1, 2), keepdim=True) / (rows * cols * cols)) ** 0.25
+    else:
+        y = torch.matmul(x.transpose(1, 2), x)
+        return ((y ** 2).sum(dim=(1, 2), keepdim=True) / (cols * rows * rows)) ** 0.25
+
 
 
 def adam_step(group, state, grad):

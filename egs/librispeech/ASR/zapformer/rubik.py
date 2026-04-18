@@ -68,6 +68,21 @@ def get_matrix_shape(shape):
             return prod(shape[:i]), prod(shape[i:])
     assert False, shape
 
+def fourth_power_rms(x):
+    # compute the RMS values of x in a way that uses fourth rather than second powers of
+    # singular values.  Test:
+    #  fourth_power_rms(torch.randn(3, 1000))
+    # tensor(0.9783)
+    # fourth_power_rms(torch.randn(1000, 3))
+    # tensor(0.9880)
+    (rows, cols) = x.shape
+    if rows < cols:
+        y = torch.matmul(x, x.t())
+        return ((y ** 2).sum() / (rows * cols * cols)) ** 0.25
+    else:
+        y = torch.matmul(x.t(), x)
+        return ((y ** 2).sum() / (cols * rows * rows)) ** 0.25
+
 
 def cubic_decay_step(group, state, grad):
     delta = grad
@@ -137,8 +152,6 @@ def cubic_decay_step(group, state, grad):
 
     d_norm1 = d / row_col_scale  # updated version of d_norm1 with x3 term subtracted.
 
-    d_norm1_sq = d_norm1 ** 2
-
     # first update row_stats.
     row_stats.mul_(beta2).add_((d_norm1 ** 2).mean(dim=1, keepdim=True), alpha=(1 - beta2))
 
@@ -155,7 +168,7 @@ def cubic_decay_step(group, state, grad):
     # accumulator with beta equal to beta1.
     assumed_scale = (1 - beta1) * ((1 - beta1**2)**-0.5)
 
-    d_norm3 = d_norm2 * (assumed_scale / ((d_norm2 ** 2).mean() + eps) .sqrt())
+    d_norm3 = d_norm2 * (assumed_scale / (fourth_power_rms(d_norm2) + eps))
 
     moving_update = d_norm3
 
