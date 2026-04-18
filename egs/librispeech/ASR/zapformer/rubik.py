@@ -318,16 +318,13 @@ class Rubik(Optimizer):
                     state["step"] = 0
                     cur_step = 0
 
-                def u(x):
-                    return x.unsqueeze(0)
-
                 if p.numel() == 1:
                     # "scalar_scale" the assumed parameter scale used for
                     # scalars, in this case it just acts as a multiplier on
                     # the learning rate.
                     p += group["scalar_scale"] * adam_step(group, state, grad)
                 else:
-                    p += scaling_step(group, u(p.detach()), state, u(grad))[0]
+                    p += scaling_step(group, p.detach(), state, grad)
 
                 state["step"] = cur_step + 1
 
