@@ -1562,7 +1562,7 @@ def run(rank, world_size, args):
         # train_dl.sampler.set_epoch(epoch)
         # because we just created the sampler and its seed already depends on the epoch.
 
-        model.encoder.compute_projection_overlap(verbose=True)  # for diagnostics
+        (model.module if isinstance(model, DDP) else model).encoder.compute_projection_overlap(verbose=True)  # for diagnostics
 
         seed = params.seed + 50 * epoch  + 512 * rank
 
