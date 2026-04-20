@@ -218,7 +218,7 @@ def cubic_decay_step(group, state, grad):
     delta = delta.reshape(*d.shape)
 
     d.add_(delta)  # the scale used here doesn't matter as it all gets normalized.
-    d.mul_(1 - (linear_decay_proportion * (1 - beta1)))
+    #d.mul_(1 - (linear_decay_proportion * (1 - beta1)))
 
     d2 = d ** 2
 
@@ -234,11 +234,16 @@ def cubic_decay_step(group, state, grad):
     prod3 = compute_scaled_prod3(d_norm1)
 
     alpha = (0.25 * min_sum_scale(d_norm1, prod3)).clamp(min=-cubic_decay_proportion*(1-beta1))
+
+    alpha_remaining = -(1-beta1) - alpha  # will be negative.
+
     # we multiply prod3 by row_col_scale to "un-normalize".
     # In the normal case where we're not limited by stability-of-update-concerns,
     # the next line of code is equivalent to:
     #       d.add_(prod3 * row_col_scale, alpha=-cubic_decay_proportion)
     d.add_((prod3 * row_col_scale) * alpha)
+
+    d.mul_(1. - alpha_remaining)
 
     d_norm1 = d / row_col_scale  # updated version of d_norm1 with x3 term subtracted.
 
