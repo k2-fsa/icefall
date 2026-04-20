@@ -233,7 +233,7 @@ def cubic_decay_step(group, state, grad):
 
     prod3 = compute_scaled_prod3(d_norm1)
 
-    alpha = (0.25 * min_sum_scale(d_norm1, prod3)).clamp(min=-cubic_decay_proportion*(1-beta1))
+    alpha = (0.5 * min_sum_scale(d_norm1, prod3)).clamp(min=-cubic_decay_proportion*(1-beta1))
 
     alpha_remaining = -(1-beta1) - alpha  # will be negative.
 
