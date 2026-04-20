@@ -60,9 +60,9 @@ def clip_alpha(x: Tensor, y: Tensor, alpha: float) -> Tensor:
     # min_sum_scale the scale beta such that (x + beta y) is minimized; x and
     # y each have 2 dimensions.  min_sum_scale is expected to be negative.
     min_sum_scale = -(x * y).sum() / ((y ** 2).sum() + 1.0e-40)
-    # the safety factor of 0.66 means, don't go all the way to where the dot product of the
+    # the safety factor of 0.5 means, don't go all the way to where the dot product of the
     # change to x with x would be zero, only go some way to there.
-    safety_factor = 0.66
+    safety_factor = 0.5
     alpha = (safety_factor * min_sum_scale).clamp(min=alpha)
     return alpha
 
