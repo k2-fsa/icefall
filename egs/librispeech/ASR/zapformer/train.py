@@ -959,6 +959,12 @@ def compute_loss(
         with torch.amp.autocast('cuda', enabled=False):
             features = specaug(features.to(torch.float), feature_lens)
 
+
+    if batch_idx_train % 50 == 0:
+        logging.info(
+            f"rng_state={torch.cuda.get_rng_state()}, features-sum={features.sum()}"
+        )
+
     with torch.set_grad_enabled(is_training):
         simple_loss, pruned_loss, ctc_loss, attention_decoder_loss = model(
             x=features,
@@ -1221,9 +1227,6 @@ def train_one_epoch(
                 f"tot_loss[{tot_loss}], batch size: {batch_size}, "
                 f"lr: {cur_lr:.2e}, "
                 + (f"grad_scale: {scaler._scale.item()}" if params.use_autocast else "")
-            )
-            logging.info(
-                f"rng_state={torch.cuda.get_rng_state()}"
             )
 
 
