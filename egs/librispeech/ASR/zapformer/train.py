@@ -76,7 +76,7 @@ from model import AsrModel
 # the try-pass blocks around imports are to reduce the chance of failures when running multiple code
 # versions in parallel; later, these can be removed.
 try:
-    from batched_rubik import BatchedRubik as Rubik
+    from batched_rubik import BatchedRubik
     # could also have done:
     # from rubik import Rubik
 except:
@@ -1358,12 +1358,13 @@ def run(rank, world_size, args):
         logging.info("Using DDP")
         model = DDP(model, device_ids=[rank], find_unused_parameters=True)
 
-    optimizer = Rubik(
+    optimizer = BatchedRubik(
         get_parameter_groups_with_lrs(model, lr=params.base_lr, include_names=True),
         lr=params.base_lr,
         direct=0.15,
         cubic_decay_proportion=0.8,
         beta1=0.995,
+        tb_writer=tb_writer,
     )
 
 

@@ -443,6 +443,7 @@ class BatchedRubik(BatchedOptimizer):
         adam_beta1=0.98,
         adam_beta2=0.98,
         scale_momentum=0.95,
+        tb_writer=None,
     ):
 
         defaults = dict(
@@ -464,6 +465,7 @@ class BatchedRubik(BatchedOptimizer):
         super(BatchedRubik, self).__init__(param_groups, defaults)
         assert len(self.param_groups) == len(parameters_names)
         self.parameters_names = parameters_names
+        self.tb_writer = tb_writer
 
     def _get_names_of_parameters(
         self, params_or_named_params
@@ -592,6 +594,10 @@ class BatchedRubik(BatchedOptimizer):
 
         batch = True
 
+        # accumulate a random projection of the parameters in the tensorboard for purposes of graphing.
+        generator = None
+        rand_proj = 0.0
+
         for group, group_params_names in zip(self.param_groups, self.parameters_names):
             with self.batched_params(group["params"], group_params_names) as batches:
 
@@ -612,11 +618,40 @@ class BatchedRubik(BatchedOptimizer):
                     else:
                         p += scaling_step(group, p.detach(), state, grad)
 
+
+                    if self.tb_writer is not None:
+                        with torch.no_grad():
+                            generator, rand_proj = self._accumulate_random_projection(generator, rand_proj, p)
+
                     state["step"] = cur_step + 1
+
+        if self.tb_writer is not None:
+            rand_proj = rand_proj.to('cpu')
+            for i in range(rand_proj.numel()):
+                self.tb_writer.add_scalar(f'train/rand_proj{i+1}', rand_proj[i], cur_step)
 
         return loss
 
+    def _accumulate_random_projection(self,
+                                      generator: Optional[torch.Generator],
+                                      rand_proj: Union[float, Tensor],
+                                      p: Tensor):
+        num_lines = 2
+        # plot two separate lines.  Caution: don't increase this to a large number.  Tensorboard
+        # relies on an extremely slow mechanism based on python semaphores or something like
+        # that, to add items to plot, and it can only handle a certain rate of these scalars.
+        # adding any more
+        if generator is None:
+            generator = torch.Generator(device=p.device)
+            generator.manual_seed(100)  # must have same seed each time to make the plot meaningful
+            # this is called at the beginning of each step.
+        if rand_proj is 0.0:
+            rand_proj = torch.zeros(num_lines, device=p.device)
 
+        for i in range(num_lines):
+            proj = torch.randn(*p.shape, generator=generator, device=p.device)
+            rand_proj[i] += (p * proj).sum()
+        return generator, rand_proj
 
 def _test_batched_rubik(hidden_dim: int):
     import timeit
