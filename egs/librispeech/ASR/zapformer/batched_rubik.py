@@ -293,13 +293,8 @@ def cubic_decay_step(group, state, grad):
 
     linear_alpha = -(1-beta1) - cubic_alpha  # will be negative.
 
-    # the next line undoes the preconditioning so we can accumulate gradient
-    # stats in the "canonical basis" of the gradients, for consistency.
-    moving_grad_cubic_decay = moving_grad_precon * invP
-    moving_grad_linear_decay = moving_grad * beta1
-
     moving_grad_precon.add_(prod3 * cubic_alpha)
-    moving_grad_precon.mul_(1. - linear_alpha)
+    moving_grad_precon.mul_(1. + linear_alpha)  #  equiv to: moving_grad_precon.add_(moving_grad_precon, alpha=linear_alpha)
 
     # update moving_grad as interpolation between linear decay and cubic decay.
     moving_grad[:] = moving_grad_precon * invP
@@ -309,7 +304,7 @@ def cubic_decay_step(group, state, grad):
     # rather than as a gradient.   it is going to be very close to:
     #  negative_update = moving_grad_precon / invP
     # but we also update the preconditioner.  Note: practically speaking we are multiplying
-    # by the same thing twice though.
+    # by the same thing twice, i.e. dividing "grad" twice by invP.
     negative_update = normalize_and_update_stats(moving_grad_precon, row_stats, col_stats, beta2, eps)
 
     # do "immediate" normalization of 2-norm of the step to make the overall scale of the update what
@@ -662,7 +657,7 @@ def _test_batched_rubik(hidden_dim: int):
             for _ in range(20)
         ]
 
-        lr = 0.017
+        lr = 0.015
         # the very large beta1 and zero "direct" value is specifically for this test task, which approaches the
         # optimum parameters very exactly.  Normally you want something more like the
         # defaults of beta1=0.995 and direct=0.15
