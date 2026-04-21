@@ -1222,6 +1222,10 @@ def train_one_epoch(
                 f"lr: {cur_lr:.2e}, "
                 + (f"grad_scale: {scaler._scale.item()}" if params.use_autocast else "")
             )
+            logging.info(
+                f"rng_state={torch.cuda.get_rng_state()}"
+            )
+
 
             if tb_writer is not None:
                 tb_writer.add_scalar(
