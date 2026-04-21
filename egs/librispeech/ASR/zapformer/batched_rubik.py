@@ -595,8 +595,7 @@ class BatchedRubik(BatchedOptimizer):
         batch = True
 
         # accumulate a random projection of the parameters in the tensorboard for purposes of graphing.
-        generator = None
-        rand_proj = 0.0
+        generator, param_proj, grad_proj = None, None, None
 
         for group, group_params_names in zip(self.param_groups, self.parameters_names):
             with self.batched_params(group["params"], group_params_names) as batches:
@@ -621,14 +620,17 @@ class BatchedRubik(BatchedOptimizer):
 
                     if self.tb_writer is not None:
                         with torch.no_grad():
-                            generator, rand_proj = self._accumulate_random_projection(generator, rand_proj, p)
+                            generator, param_proj = self._accumulate_random_projection(generator, param_proj, p)
+                            generator, grad_proj = self._accumulate_random_projection(generator, grad_proj, grad)
 
                     state["step"] = cur_step + 1
 
         if self.tb_writer is not None:
-            rand_proj = rand_proj.to('cpu')
-            for i in range(rand_proj.numel()):
-                self.tb_writer.add_scalar(f'train/rand_proj{i+1}', rand_proj[i], cur_step)
+            param_proj = param_proj.to('cpu')
+            grad_proj = grad_proj.to('cpu')
+            for i in range(param_proj.numel()):
+                self.tb_writer.add_scalar(f'train/param_proj{i+1}', param_proj[i], cur_step)
+                self.tb_writer.add_scalar(f'train/grad_proj{i+1}', grad_proj[i], cur_step)
 
         return loss
 
@@ -645,7 +647,7 @@ class BatchedRubik(BatchedOptimizer):
             generator = torch.Generator(device=p.device)
             generator.manual_seed(100)  # must have same seed each time to make the plot meaningful
             # this is called at the beginning of each step.
-        if rand_proj is 0.0:
+        if rand_proj is None:
             rand_proj = torch.zeros(num_lines, device=p.device)
 
         for i in range(num_lines):
@@ -696,7 +698,11 @@ def _test_batched_rubik(hidden_dim: int):
         # the very large beta1 and zero "direct" value is specifically for this test task, which approaches the
         # optimum parameters very exactly.  Normally you want something more like the
         # defaults of beta1=0.995 and direct=0.15
-        optim = BatchedRubik(m.parameters(), lr=lr, direct=0.05, beta1=0.999)
+
+        from torch.utils.tensorboard import SummaryWriter
+        tb_writer = SummaryWriter(log_dir=f"tensorboard")
+
+        optim = BatchedRubik(m.parameters(), lr=lr, direct=0.05, beta1=0.999, tb_writer=tb_writer)
 
         num_epochs = 180
 
