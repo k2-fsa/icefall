@@ -223,6 +223,7 @@ def no_momentum_step(group, state, grad):
     step = state["step"]
     lr = group["lr"]
     eps = group["eps"]
+    adafactor_beta1 = min(0.9, step / (step + 1))
 
     # the following modification to beta2 warms up beta2 gradually.
     # For the first step we just take the current stats; this is similar to
@@ -233,13 +234,20 @@ def no_momentum_step(group, state, grad):
     try:
         row_stats = state["direct_row_stats"]
         col_stats = state["direct_col_stats"]
+        adafactor_momentum = state["adafactor_momentum"]
     except KeyError:
         row_stats = torch.zeros(batch_size, rows, 1, device=grad.device, dtype=grad.dtype)
         col_stats = torch.zeros(batch_size, 1, cols, device=grad.device, dtype=grad.dtype)
+        adafactor_momentum = torch.zeros(batch_size, rows, cols, device=grad.device, dtype=grad.dtype)
         state["direct_row_stats"] = row_stats
         state["direct_col_stats"] = col_stats
+        state["adafactor_momentum"] = adafactor_momentum
 
-    return -lr * normalize_and_update_stats(grad, row_stats, col_stats, beta2, eps)
+    norm_grad = normalize_and_update_stats(grad, row_stats, col_stats, beta2, eps)
+    adafactor_momentum.mul_(adafactor_beta1)
+    adafactor_momentum.add_(norm_grad, alpha=1.-adafactor_beta1)
+
+    return -lr * adafactor_momentum
 
 
 def cubic_decay_step(group, state, grad):
