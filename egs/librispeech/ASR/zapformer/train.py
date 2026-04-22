@@ -107,6 +107,7 @@ from icefall.checkpoint import (
     save_checkpoint_with_global_batch_idx,
     update_averaged_model,
 )
+import torch.distributed as dist
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
 from icefall.err import raise_grad_scale_is_too_small_error
@@ -680,6 +681,44 @@ def get_params() -> AttributeDict:
     return params
 
 
+def debug_params(model: Union[nn.Module, DDP],
+                 tb_writer: Optional[SummaryWriter] = None,
+                 step: int = 0,
+                 seed: int = 1):  # can try different seeds if you want.
+    if isinstance(model, DDP):
+        model = model.module
+    device = next(model.parameters()).device
+    generator = torch.Generator(device=device)
+    generator.manual_seed(seed)
+    with torch.no_grad():
+        param_proj = torch.tensor(0.0, device=device)
+        grad_proj = torch.tensor(0.0, device=device)
+        for p in model.parameters():
+            proj = torch.randn(p.shape, generator=generator, device=p.device)
+            param_proj = param_proj + (p * proj).sum()
+            try:
+                grad_proj = grad_proj + (p.grad * proj).sum()
+            except AttributeError:
+                pass
+
+    def dump(proj: Tensor, name: str):
+        proj_min = proj.clone()
+        proj_max = proj.clone()
+        if dist.is_available() and dist.is_initialized():
+            dist.all_reduce(proj_min, op=dist.ReduceOp.MIN)
+            dist.all_reduce(proj_max, op=dist.ReduceOp.MAX)
+            dist.all_reduce(proj, op=dist.ReduceOp.SUM)
+            proj = proj / dist.get_world_size()
+            proj_diff = proj_max - proj_min
+            if tb_writer is not None:
+                tb_writer.add_scalar(name + '_diff', proj_diff.item(), step)
+        if tb_writer is not None:
+            tb_writer.add_scalar(name, proj.item(), step)
+    dump(param_proj, f'train/param_proj{seed}')
+    dump(grad_proj, f'train/grad_proj{seed}')
+
+
+
 def _to_int_tuple(s: str):
     return tuple(map(int, s.split(",")))
 
@@ -1151,6 +1190,7 @@ def train_one_epoch(
             scheduler.set_batch(batch_idx)  # sets batch-count within the epoch, and sets the LRs.
             scaler.step(optimizer)
             scaler.update()
+            debug_params(model, tb_writer, params.batch_idx_train, seed=1)
             optimizer.zero_grad()
         except Exception as e:
             logging.info(f"Caught exception: {e}.")
@@ -1371,7 +1411,6 @@ def run(rank, world_size, args):
         direct=0.15,
         cubic_decay_proportion=0.8,
         beta1=0.995,
-        tb_writer=tb_writer,
     )
 
 
