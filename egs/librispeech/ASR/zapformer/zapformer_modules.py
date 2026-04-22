@@ -670,9 +670,9 @@ class CorrelationLimiterFunction(torch.autograd.Function):
                 correlation = (S1 * S2).mean()
                 loss = (correlation - ctx.limit).relu()
 
-                if random.random() < 0.0001:
+                if random.random() < 0.001:
                     logging.info(
-                        f"CorrelationLimiter: name={ctx.name}, loss_scale={aux_loss_scale}, correlation={correlation}, loss={loss}"
+                        f"CorrelationLimiter: name={ctx.name}, loss_scale={aux_loss_scale}, correlation={correlation}, limit={ctx.limit}, loss={loss}"
                     )
 
                 loss.backward(gradient=torch.tensor(aux_loss_scale * batch_size * seq_len, device=loss.device))
