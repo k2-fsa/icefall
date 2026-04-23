@@ -1190,7 +1190,8 @@ def train_one_epoch(
             scheduler.set_batch(batch_idx)  # sets batch-count within the epoch, and sets the LRs.
             scaler.step(optimizer)
             scaler.update()
-            debug_params(model, tb_writer, params.batch_idx_train, seed=1)
+            if params.batch_idx_train < 2000 or params.batch_idx_train % 1000 < 100:
+                debug_params(model, tb_writer, params.batch_idx_train, seed=1)
             optimizer.zero_grad()
         except Exception as e:
             logging.info(f"Caught exception: {e}.")
