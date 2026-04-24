@@ -225,10 +225,11 @@ def no_momentum_step(group, state, grad):
     eps = group["eps"]
     adafactor_beta1 = 0.0
 
-    # the following modification to beta2 warms up beta2 gradually.
-    # For the first step we just take the current stats; this is similar to
-    # a sign-only update.
-    beta2 = min(group["beta2"], 1. - 1. / (1. + 0.2 * step))
+    ## the following modification to beta2 warms up beta2 gradually.
+    ## For the first step we just take the current stats; this is similar to
+    ## a sign-only update.
+    #beta2 = min(group["beta2"], 1. - 1. / (1. + 0.2 * step))
+    beta2 = 0.0  # so actually just immediately normalize.
 
     (batch_size, rows, cols) = grad.shape
     try:
