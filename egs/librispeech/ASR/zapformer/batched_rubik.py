@@ -224,6 +224,8 @@ def no_momentum_step(group, state, grad):
     lr = group["lr"]
     eps = group["eps"]
     adafactor_beta1 = 0.0
+    warm_steps = 4000 # warm up cancellation over 4k steps
+    cancellation_scale = min(1.0, step  / warm_steps)
 
     ## the following modification to beta2 warms up beta2 gradually.
     ## For the first step we just take the current stats; this is similar to
@@ -248,7 +250,7 @@ def no_momentum_step(group, state, grad):
 
     prev_momentum = adafactor_momentum.clone()
     adafactor_momentum.mul_(adafactor_beta1)
-    adafactor_momentum.add_(norm_grad, alpha=1.-adafactor_beta1)
+    adafactor_momentum.add_(norm_grad, alpha=(1.-adafactor_beta1) * cancellation_scale)
 
     return norm_grad - prev_momentum  # cancels it out over the long term so we're just adding noise/instability
 
