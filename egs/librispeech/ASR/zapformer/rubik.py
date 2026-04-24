@@ -121,7 +121,7 @@ def no_momentum_step(group, state, grad):
     # the following modification to beta2 warms up beta2 gradually.
     # For the first step we just take the current stats; this is similar to
     # a sign-only update.
-    beta2 = min(group["beta2"], 1. - 1. / (1. + 0.2 * step))
+    beta2 = min(0.9, 1. - 1. / (1. + 0.2 * step))
 
     (rows, cols) = grad.shape
 
