@@ -223,7 +223,7 @@ def no_momentum_step(group, state, grad):
     step = state["step"]
     lr = group["lr"]
     eps = group["eps"]
-    adafactor_beta1 = 0.0
+    adafactor_beta1 = -0.5
     warm_steps = 4000 # warm up cancellation over 4k steps
     cancellation_scale = min(1.0, step  / warm_steps)
 
