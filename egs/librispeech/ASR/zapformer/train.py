@@ -696,7 +696,12 @@ class ParamPlotter:
         self.grad_proj = torch.tensor(0.0, device=device)
 
     def step(self, batch_idx_train: int):
-        if batch_idx_train % self.period > 1:
+        # in addition to plotting param_proj and grad_proj and grad_proj_sign every "period" steps,
+        # plot grad_proj for the first 50 out of every 1000 steps; this will give us a sense of how
+        # stable the oscillations are.
+        dense_period = 1000
+        dense_length = 50
+        if batch_idx_train % self.period > 1 and batch_idx_train % dense_period > dense_length:
             return
 
         generator = torch.Generator(device=self.device)
@@ -730,13 +735,11 @@ class ParamPlotter:
                     tb_writer.add_scalar(name, proj.item(), batch_idx_train)
         if batch_idx_train % self.period == 0:
             dump(param_proj, f'train/param_proj')
-            dump(grad_proj, f'train/grad_proj')
             self.grad_proj = grad_proj
-        elif tb_writer is not None:
-            assert batch_idx_train % self.period == 1, batch_idx_train
-            tb_writer.add_scalar('train/grad_same_sign', (grad_proj * self.grad_proj).sign(), batch_idx_train)
-
-
+        if batch_idx_train % self.period == 1 and tb_writer is not None:
+           tb_writer.add_scalar('train/grad_same_sign', (grad_proj * self.grad_proj).sign(), batch_idx_train)
+        if (batch_idx_train % dense_period < dense_length or batch_idx_train % self.period == 0) and tb_writer is not None:
+            tb_writer.add_scalar('train/grad_proj', grad_proj, batch_idx_train)
 
 
 
