@@ -681,41 +681,63 @@ def get_params() -> AttributeDict:
     return params
 
 
-def debug_params(model: Union[nn.Module, DDP],
-                 tb_writer: Optional[SummaryWriter] = None,
-                 step: int = 0,
-                 seed: int = 1):  # can try different seeds if you want.
-    if isinstance(model, DDP):
-        model = model.module
-    device = next(model.parameters()).device
-    generator = torch.Generator(device=device)
-    generator.manual_seed(seed)
-    with torch.no_grad():
-        param_proj = torch.tensor(0.0, device=device)
-        grad_proj = torch.tensor(0.0, device=device)
-        for p in model.parameters():
-            proj = torch.randn(p.shape, generator=generator, device=p.device)
-            param_proj = param_proj + (p * proj).sum()
-            try:
-                grad_proj = grad_proj + (p.grad * proj).sum()
-            except AttributeError:
-                pass
+class ParamPlotter:
+    def __init__(self,
+                 model: Union[nn.Module, DDP],
+                 tb_writer: Optional[SummaryWriter],
+                 period: int = 50):
+        if isinstance(model, DDP):
+            model = model.module
+        self.model = model
+        self.tb_writer = tb_writer
+        device = next(model.parameters()).device
+        self.device = device
+        self.period = period
+        self.grad_proj = torch.tensor(0.0, device=device)
 
-    def dump(proj: Tensor, name: str):
-        proj_min = proj.clone()
-        proj_max = proj.clone()
-        if dist.is_available() and dist.is_initialized():
-            dist.all_reduce(proj_min, op=dist.ReduceOp.MIN)
-            dist.all_reduce(proj_max, op=dist.ReduceOp.MAX)
-            dist.all_reduce(proj, op=dist.ReduceOp.SUM)
-            proj = proj / dist.get_world_size()
-            proj_diff = proj_max - proj_min
-            if tb_writer is not None:
-                tb_writer.add_scalar(name + '_diff', proj_diff.item(), step)
-        if tb_writer is not None:
-            tb_writer.add_scalar(name, proj.item(), step)
-    dump(param_proj, f'train/param_proj{seed}')
-    dump(grad_proj, f'train/grad_proj{seed}')
+    def step(self, batch_idx_train: int):
+        if batch_idx_train % self.period > 1:
+            return
+
+        generator = torch.Generator(device=self.device)
+        generator.manual_seed(1)
+
+
+        with torch.no_grad():
+            param_proj = torch.tensor(0.0, device=self.device)
+            grad_proj = torch.tensor(0.0, device=self.device)
+            for p in self.model.parameters():
+                proj = torch.randn(p.shape, generator=generator, device=self.device)
+                param_proj = param_proj + (p * proj).sum()
+                try:
+                    grad_proj = grad_proj + (p.grad * proj).sum()
+                except AttributeError:
+                    pass
+
+        tb_writer = self.tb_writer
+        def dump(proj: Tensor, name: str):
+            proj_min = proj.clone()
+            proj_max = proj.clone()
+            if dist.is_available() and dist.is_initialized():
+                dist.all_reduce(proj_min, op=dist.ReduceOp.MIN)
+                dist.all_reduce(proj_max, op=dist.ReduceOp.MAX)
+                dist.all_reduce(proj, op=dist.ReduceOp.SUM)
+                proj = proj / dist.get_world_size()
+                proj_diff = proj_max - proj_min
+                if tb_writer is not None:
+                    tb_writer.add_scalar(name + '_diff', proj_diff.item(), batch_idx_train)
+                if tb_writer is not None:
+                    tb_writer.add_scalar(name, proj.item(), batch_idx_train)
+        if batch_idx_train % self.period == 0:
+            dump(param_proj, f'train/param_proj')
+            dump(grad_proj, f'train/grad_proj')
+            self.grad_proj = grad_proj
+        elif tb_writer is not None:
+            assert batch_idx_train % self.period == 1, batch_idx_train
+            tb_writer.add_scalar('train/grad_same_sign', (grad_proj * self.grad_proj).sign(), batch_idx_train)
+
+
+
 
 
 
@@ -1142,6 +1164,8 @@ def train_one_epoch(
 
     saved_bad_model = False
 
+    param_plotter = ParamPlotter(model, tb_writer, period=50)
+
     def get_scaler_scale():
         if params.use_autocast and scaler._scale is not None:
             return scaler._scale.item()
@@ -1190,8 +1214,7 @@ def train_one_epoch(
             scheduler.set_batch(batch_idx)  # sets batch-count within the epoch, and sets the LRs.
             scaler.step(optimizer)
             scaler.update()
-            if params.batch_idx_train < 2000 or params.batch_idx_train % 1000 < 100:
-                debug_params(model, tb_writer, params.batch_idx_train, seed=1)
+            param_plotter.step(params.batch_idx_train)
             optimizer.zero_grad()
         except Exception as e:
             logging.info(f"Caught exception: {e}.")
