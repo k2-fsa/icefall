@@ -223,7 +223,7 @@ def no_momentum_step(group, state, grad):
     step = state["step"]
     lr = group["lr"]
     eps = group["eps"]
-    adafactor_beta1 = -0.9 * min(1, step / 4000)
+    adafactor_beta1 = 0.0
 
     # the following modification to beta2 warms up beta2 gradually.
     # For the first step we just take the current stats; this is similar to
@@ -244,10 +244,12 @@ def no_momentum_step(group, state, grad):
         state["adafactor_momentum"] = adafactor_momentum
 
     norm_grad = normalize_and_update_stats(grad, row_stats, col_stats, beta2, eps)
+
+    prev_momentum = adafactor_momentum.clone()
     adafactor_momentum.mul_(adafactor_beta1)
     adafactor_momentum.add_(norm_grad, alpha=1.-adafactor_beta1)
 
-    return adafactor_momentum
+    return norm_grad - prev_momentum  # cancels it out over the long term so we're just adding noise/instability
 
 
 def cubic_decay_step(group, state, grad):
