@@ -247,7 +247,7 @@ def no_momentum_step(group, state, grad):
     adafactor_momentum.mul_(adafactor_beta1)
     adafactor_momentum.add_(norm_grad, alpha=1.-adafactor_beta1)
 
-    return -lr * adafactor_momentum
+    return adafactor_momentum
 
 
 def cubic_decay_step(group, state, grad):
@@ -332,7 +332,8 @@ def cubic_decay_step(group, state, grad):
     if direct == 0.0:
         ans = -lr * negative_update
     else:
-        ans = ((1. - direct) * -lr) * negative_update + direct * no_momentum_step(group, state, grad)
+        # now interpret direct as a fixed learning rate, not a scale on the learning rate.
+        ans = -lr * negative_update + -direct * no_momentum_step(group, state, grad)
 
     return ans.reshape(orig_shape)
 
@@ -674,7 +675,7 @@ def _test_batched_rubik(hidden_dim: int):
         # the very large beta1 and zero "direct" value is specifically for this test task, which approaches the
         # optimum parameters very exactly.  Normally you want something more like the
         # defaults of beta1=0.995 and direct=0.15
-        optim = BatchedRubik(m.parameters(), lr=lr, direct=0.05, beta1=0.999)
+        optim = BatchedRubik(m.parameters(), lr=lr, direct=0.0001, beta1=0.999)
 
         num_epochs = 180
 
