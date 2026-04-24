@@ -223,7 +223,7 @@ def no_momentum_step(group, state, grad):
     step = state["step"]
     lr = group["lr"]
     eps = group["eps"]
-    adafactor_beta1 = 0. if step == 0 else -0.5
+    adafactor_beta1 = -0.9 * min(1, step / 4000)
 
     # the following modification to beta2 warms up beta2 gradually.
     # For the first step we just take the current stats; this is similar to
