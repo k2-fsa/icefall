@@ -213,46 +213,13 @@ col_stats: (batch_size, 1, cols)
     return x / (col_stats.sqrt() + eps)
 
 
-def no_momentum_step(group, state, grad):
-    # computes an update direction using magnitude normalization but no momentum
-    # (no beta1, in adam terminology).  grad is assumed to have exactly three
-    # dimensions (grad.ndim == 3), representing (batch_size, rows, cols).
-    # the grad is normalized using adafactor-like
-    # row and column statistics, but done sequentially over first rows and then
-    # columns
-    step = state["step"]
-    lr = group["lr"]
-    eps = group["eps"]
-    adafactor_beta1 = -0.5
-    warm_steps = 4000 # warm up cancellation over 4k steps
-    cancellation_scale = min(1.0, step  / warm_steps)
+def norm_rows_and_cols(x, eps):
+    row_denom = (x ** 2).mean(dim=2, keepdim=True).sqrt() + eps
+    x = x / row_denom
+    col_denom = (x ** 2).mean(dim=1, keepdim=True).sqrt() + eps
+    x = x / col_denom
+    return x
 
-    ## the following modification to beta2 warms up beta2 gradually.
-    ## For the first step we just take the current stats; this is similar to
-    ## a sign-only update.
-    #beta2 = min(group["beta2"], 1. - 1. / (1. + 0.2 * step))
-    beta2 = 0.0  # so actually just immediately normalize.
-
-    (batch_size, rows, cols) = grad.shape
-    try:
-        row_stats = state["direct_row_stats"]
-        col_stats = state["direct_col_stats"]
-        adafactor_momentum = state["adafactor_momentum"]
-    except KeyError:
-        row_stats = torch.zeros(batch_size, rows, 1, device=grad.device, dtype=grad.dtype)
-        col_stats = torch.zeros(batch_size, 1, cols, device=grad.device, dtype=grad.dtype)
-        adafactor_momentum = torch.zeros(batch_size, rows, cols, device=grad.device, dtype=grad.dtype)
-        state["direct_row_stats"] = row_stats
-        state["direct_col_stats"] = col_stats
-        state["adafactor_momentum"] = adafactor_momentum
-
-    norm_grad = normalize_and_update_stats(grad, row_stats, col_stats, beta2, eps)
-
-    prev_momentum = adafactor_momentum.clone()
-    adafactor_momentum.mul_(adafactor_beta1)
-    adafactor_momentum.add_(norm_grad, alpha=(1.-adafactor_beta1) * cancellation_scale)
-
-    return norm_grad - prev_momentum  # cancels it out over the long term so we're just adding noise/instability
 
 
 def cubic_decay_step(group, state, grad):
@@ -262,7 +229,10 @@ def cubic_decay_step(group, state, grad):
     beta_ceil = 1. - 1. / (10. + 0.2 * step)
     beta1 = min(group["beta1"], beta_ceil)
     beta2 = min(group["beta2"], beta_ceil)
-    direct = group["direct"]   # scale on non-momentum step
+    direct_batches = 5000  # only use direct grad for first 5k batches.
+    direct = group["direct"]  * max(0, 1. - step / direct_batches)  # scale on non-momentum step, helpful for warmup
+
+
     cubic_decay_proportion = group["cubic_decay_proportion"]
     linear_decay_proportion = 1.  - cubic_decay_proportion
 
@@ -334,11 +304,10 @@ def cubic_decay_step(group, state, grad):
 
     negative_update = negative_update * (assumed_scale / ((negative_update ** 2).mean(dim=(1, 2), keepdim=True).sqrt() + eps))
 
-    if direct == 0.0:
-        ans = -lr * negative_update
-    else:
-        # now interpret direct as a fixed learning rate, not a scale on the learning rate.
-        ans = -lr * negative_update + -direct * no_momentum_step(group, state, grad)
+    ans = -lr * negative_update
+
+    if direct != 0.0:
+        ans = ans  - direct * norm_rows_and_cols(grad, eps)
 
     return ans.reshape(orig_shape)
 
