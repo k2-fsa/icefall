@@ -230,7 +230,7 @@ def cubic_decay_step(group, state, grad):
     beta1 = min(group["beta1"], beta_ceil)
     beta2 = min(group["beta2"], beta_ceil)
     direct_batches = 5000  # only use direct grad for first 5k batches.
-    direct = group["direct"]  * max(0, 1. - step / direct_batches)  # scale on non-momentum step, helpful for warmup
+    direct = group["direct"]  * max(0.2, 1. - step / direct_batches)  # scale on non-momentum step, helpful for warmup
 
 
     cubic_decay_proportion = group["cubic_decay_proportion"]
