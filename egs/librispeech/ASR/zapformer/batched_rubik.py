@@ -213,14 +213,6 @@ col_stats: (batch_size, 1, cols)
     return x / (col_stats.sqrt() + eps)
 
 
-def norm_rows_and_cols(x, eps):
-    row_denom = (x ** 2).mean(dim=2, keepdim=True).sqrt() + eps
-    x = x / row_denom
-    col_denom = (x ** 2).mean(dim=1, keepdim=True).sqrt() + eps
-    x = x / col_denom
-    return x
-
-
 
 def cubic_decay_step(group, state, grad):
     lr = group["lr"]
@@ -229,8 +221,6 @@ def cubic_decay_step(group, state, grad):
     beta_ceil = 1. - 1. / (10. + 0.2 * step)
     beta1 = min(group["beta1"], beta_ceil)
     beta2 = min(group["beta2"], beta_ceil)
-    direct_batches = 5000  # only use direct grad for first 5k batches.
-    direct = group["direct"]  * max(0.2, 1. - step / direct_batches)  # scale on non-momentum step, helpful for warmup
 
 
     cubic_decay_proportion = group["cubic_decay_proportion"]
@@ -266,6 +256,7 @@ def cubic_decay_step(group, state, grad):
     invP = row_denom * col_denom  # inverse preconditioner P
 
     moving_grad_precon = moving_grad / invP  # preconditioned moving_grad
+    cur_grad_precon = grad / invP  # this step's contribution to moving_grad_precon, used for nesterov modification
 
     # prod3 would have the same value as moving_grad_precon if moving_grad_precon's singular values were
     # all equal, but in general its 2-norm is >= the 2-norm of moving_grad_precon.
@@ -293,6 +284,11 @@ def cubic_decay_step(group, state, grad):
     #  negative_update = moving_grad_precon / invP
     # but we also update the preconditioner.  Note: practically speaking we are multiplying
     # by the same thing twice though.
+
+    nesterov = True
+    if nesterov:
+        moving_grad_precon = moving_grad_precon + cur_grad_precon
+
     negative_update = normalize_and_update_stats(moving_grad_precon, row_stats, col_stats, beta2, eps)
 
     # do "immediate" normalization of 2-norm of the step to make the overall scale of the update what
@@ -300,14 +296,13 @@ def cubic_decay_step(group, state, grad):
     # below is the assumed scale of d if stats were i.i.d. and this were a more normal adam-style
     # accumulator with beta equal to beta1.
     # This should make divergence less likely.
+    # we ignore nesterov modification for purposes of this formula, it should make little difference anyway
+    # if beta1 is close to 1.
     assumed_scale = (1 - beta1) * ((1 - beta1**2)**-0.5)
 
     negative_update = negative_update * (assumed_scale / ((negative_update ** 2).mean(dim=(1, 2), keepdim=True).sqrt() + eps))
 
     ans = -lr * negative_update
-
-    if direct != 0.0:
-        ans = ans  - direct * norm_rows_and_cols(grad, eps)
 
     return ans.reshape(orig_shape)
 
@@ -421,7 +416,7 @@ class BatchedRubik(BatchedOptimizer):
         params,
         lr=1.2e-02,
         beta1=0.995,
-        direct=0.15, # scale on bypass of momentum (beta1)
+        direct=0.15, # Now ignored.
         cubic_decay_proportion=0.8,
         beta2=0.98,
         eps=1.0e-08,
@@ -649,7 +644,7 @@ def _test_batched_rubik(hidden_dim: int):
         # the very large beta1 and zero "direct" value is specifically for this test task, which approaches the
         # optimum parameters very exactly.  Normally you want something more like the
         # defaults of beta1=0.995 and direct=0.15
-        optim = BatchedRubik(m.parameters(), lr=lr, direct=0.0001, beta1=0.999)
+        optim = BatchedRubik(m.parameters(), lr=lr, beta1=0.999)
 
         num_epochs = 180
 
