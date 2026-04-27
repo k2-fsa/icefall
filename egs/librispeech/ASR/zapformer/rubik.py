@@ -108,34 +108,6 @@ col_stats: (1, cols)
     return x / (col_stats.sqrt() + eps)
 
 
-def no_momentum_step(group, state, grad):
-    # computes an update direction using magnitude normalization but no momentum
-    # (no beta1, in adam terminology).  grad is assumed to have exactly two
-    # dimensions (grad.ndim == 2).  the grad is normalized using adafactor-like
-    # row and column statistics, but done sequentially over first rows and then
-    # columns
-    step = state["step"]
-    lr = group["lr"]
-    eps = group["eps"]
-
-    # the following modification to beta2 warms up beta2 gradually.
-    # For the first step we just take the current stats; this is similar to
-    # a sign-only update.
-    beta2 = min(0.9, 1. - 1. / (1. + 0.2 * step))
-
-    (rows, cols) = grad.shape
-
-    try:
-        row_stats = state["direct_row_stats"]
-        col_stats = state["direct_col_stats"]
-    except KeyError:
-        row_stats = torch.zeros(rows, 1, device=grad.device, dtype=grad.dtype)
-        col_stats = torch.zeros(1, cols, device=grad.device, dtype=grad.dtype)
-        state["direct_row_stats"] = row_stats
-        state["direct_col_stats"] = col_stats
-
-    return -lr * normalize_and_update_stats(grad, row_stats, col_stats, beta2, eps)
-
 
 def cubic_decay_step(group, state, grad):
     lr = group["lr"]
@@ -145,7 +117,6 @@ def cubic_decay_step(group, state, grad):
     beta1 = min(group["beta1"], beta_ceil)
     beta2 = min(group["beta2"], beta_ceil)
 
-    direct = group["direct"]   # scale on non-momentum step
     cubic_decay_proportion = group["cubic_decay_proportion"]
     linear_decay_proportion = 1.  - cubic_decay_proportion
 
@@ -178,14 +149,12 @@ def cubic_decay_step(group, state, grad):
     invP = row_denom * col_denom  # inverse preconditioner P
 
     moving_grad_precon = moving_grad / invP  # preconditioned moving_grad
+    cur_grad_precon = grad / invP  # this step's contribution to moving_grad_precon, used for nesterov modification
 
     # prod3 would have the same value as moving_grad_precon if moving_grad_precon's singular values were
     # all equal, but in general its 2-norm is >= the 2-norm of moving_grad_precon.
     prod3 = scaled_three_way_product(moving_grad_precon)
 
-    # next line similar to:
-    #   moving_grad_precon.add_(prod3, alpha=-(1-beta1))
-    # but with a precaution for divergence.
 
     cubic_alpha = clip_alpha(moving_grad_precon, prod3, alpha=-(1-beta1)*(1. - linear_decay_proportion))
     # cubic_alpha shape: (batch_size, 1, 1).  it will be negative.
@@ -193,10 +162,14 @@ def cubic_decay_step(group, state, grad):
     linear_alpha = -(1-beta1) - cubic_alpha  # will be negative.
 
     moving_grad_precon.add_(prod3 * cubic_alpha)
-    moving_grad_precon.mul_(1. + linear_alpha)
+    moving_grad_precon.mul_(1. - linear_alpha)
 
     # update moving_grad as interpolation between linear decay and cubic decay.
     moving_grad[:] = moving_grad_precon * invP
+
+    nesterov = True
+    if nesterov:
+        moving_grad_precon = moving_grad_precon + cur_grad_precon
 
     # Now compute "negative_update" which is negative_update_precon multiplied again by the
     # preconditioner, this takes us from the preconditioned to the canonical co-ordinates but now treating the quantity as a parameter-update
@@ -211,14 +184,13 @@ def cubic_decay_step(group, state, grad):
     # below is the assumed scale of d if stats were i.i.d. and this were a more normal adam-style
     # accumulator with beta equal to beta1.
     # This should make divergence less likely.
+    # we ignore nesterov modification for purposes of this formula, it should make little difference anyway
+    # if beta1 is close to 1.
     assumed_scale = (1 - beta1) * ((1 - beta1**2)**-0.5)
 
     negative_update = negative_update * (assumed_scale / ((negative_update ** 2).mean().sqrt() + eps))
 
-    if direct == 0.0:
-        ans = -lr * negative_update
-    else:
-        ans = ((1. - direct) * -lr) * negative_update + direct * no_momentum_step(group, state, grad)
+    ans = -lr * negative_update
 
     return ans.reshape(orig_shape)
 
@@ -264,7 +236,7 @@ def scaling_step(group, param, state, grad):
 
     scale_ratio = scale / old_scale
 
-    delta_scale = (scale_ratio * (1 - (lr ** 2))) - 1
+    delta_scale = (scale_ratio * (1 - 0.5 * (lr ** 2))) - 1
     return param * delta_scale  +  scale * delta
 
 
@@ -320,13 +292,12 @@ class Rubik(Optimizer):
         params,
         lr=1.2e-02,
         beta1=0.995,
-        direct=0.15, # scale on bypass of momentum (beta1)
         cubic_decay_proportion=0.8,
         beta2=0.98,
         eps=1.0e-08,
-        weight_scale_limits=(0.05, 0.25),
-        bias_scale_limits=(0.05, 0.25),
-        scalar_scale=0.075,
+        weight_scale_limits=(0.03, 0.15),
+        bias_scale_limits=(0.03, 0.15),
+        scalar_scale=0.05,
         adam_beta1=0.98,
         adam_beta2=0.98,
         scale_momentum=0.95,
@@ -334,7 +305,6 @@ class Rubik(Optimizer):
         defaults = dict(
             lr=lr,
             beta1=beta1,
-            direct=direct,
             cubic_decay_proportion=cubic_decay_proportion,
             beta2=beta2,
             eps=eps,
@@ -434,11 +404,8 @@ def _test_rubik(hidden_dim: int):
             for _ in range(20)
         ]
 
-        lr = 0.015
-        # the very large beta1 and zero "direct" value is specifically for this test task, which approaches the
-        # optimum parameters very exactly.  Normally you want something more like the
-        # defaults of beta1=0.995 and direct=0.15
-        optim = Rubik(m.parameters(), lr=lr, direct=0.05, beta1=0.999)
+        lr = 0.024
+        optim = Rubik(m.parameters(), lr=lr, beta1=0.999)
 
         num_epochs = 180
 

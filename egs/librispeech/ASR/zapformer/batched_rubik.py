@@ -267,28 +267,22 @@ def cubic_decay_step(group, state, grad):
 
     linear_alpha = -(1-beta1) - cubic_alpha  # will be negative.
 
-    # the next line undoes the preconditioning so we can accumulate gradient
-    # stats in the "canonical basis" of the gradients, for consistency.
-    moving_grad_cubic_decay = moving_grad_precon * invP
-    moving_grad_linear_decay = moving_grad * beta1
-
     moving_grad_precon.add_(prod3 * cubic_alpha)
     moving_grad_precon.mul_(1. - linear_alpha)
 
     # update moving_grad as interpolation between linear decay and cubic decay.
     moving_grad[:] = moving_grad_precon * invP
 
-    # Now compute "negative_update" which is negative_update_precon multiplied again by the
+    nesterov = True
+    if nesterov:
+        moving_grad_precon = moving_grad_precon + cur_grad_precon
+
+    # Now compute "negative_update" which is moving_grad_precon multiplied again by the
     # preconditioner, this takes us from the preconditioned to the canonical co-ordinates but now treating the quantity as a parameter-update
     # rather than as a gradient.   it is going to be very close to:
     #  negative_update = moving_grad_precon / invP
     # but we also update the preconditioner.  Note: practically speaking we are multiplying
     # by the same thing twice though.
-
-    nesterov = True
-    if nesterov:
-        moving_grad_precon = moving_grad_precon + cur_grad_precon
-
     negative_update = normalize_and_update_stats(moving_grad_precon, row_stats, col_stats, beta2, eps)
 
     # do "immediate" normalization of 2-norm of the step to make the overall scale of the update what
@@ -416,7 +410,6 @@ class BatchedRubik(BatchedOptimizer):
         params,
         lr=1.2e-02,
         beta1=0.995,
-        direct=0.15, # Now ignored.
         cubic_decay_proportion=0.8,
         beta2=0.98,
         eps=1.0e-08,
@@ -431,7 +424,6 @@ class BatchedRubik(BatchedOptimizer):
         defaults = dict(
             lr=lr,
             beta1=beta1,
-            direct=direct,
             cubic_decay_proportion=cubic_decay_proportion,
             beta2=beta2,
             eps=eps,
@@ -641,9 +633,6 @@ def _test_batched_rubik(hidden_dim: int):
         ]
 
         lr = 0.024
-        # the very large beta1 and zero "direct" value is specifically for this test task, which approaches the
-        # optimum parameters very exactly.  Normally you want something more like the
-        # defaults of beta1=0.995 and direct=0.15
         optim = BatchedRubik(m.parameters(), lr=lr, beta1=0.999)
 
         num_epochs = 180
