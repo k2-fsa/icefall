@@ -33,7 +33,6 @@ from zapformer_modules import (
     OrthogonalLinear,
     RmsNorm,
     SequenceNorm,
-    OrthogonalLinear,
     ScaledLinear,  # just an initializer for Linear
     SwashR,
     ScaleLimiter,
@@ -303,8 +302,8 @@ class Zapformer(EncoderInterface):
         for i in range(N):
             for j in range(i):
                 # multipying by lr_scale keeps the scale correct so they will be orthogonal
-                proj_i = self.encoders[i].proj.weight * self.encoders[i].proj.lr_scale
-                proj_j = self.encoders[j].proj.weight * self.encoders[j].proj.lr_scale
+                proj_i = self.encoders[i].proj.get_weight()
+                proj_j = self.encoders[j].proj.get_weight()
                 if proj_i.shape[1] > proj_j.shape[1]:
                     proj_i, proj_j = proj_j, proj_i  # swap them
                 in_dim_i = proj_i.shape[1]  # now this is <= proj_j.shape[1]
@@ -805,8 +804,9 @@ class ZapformerEncoder(nn.Module):
         super().__init__()
 
         # self.downsample will also reverse the downsampling operation for us afterward.
-        self.proj = OrthogonalLinear(dim, encoder_layer.embed_dim,
-                                     lr_scale=0.66, bias=False)
+        self.proj = OrthogonalLinear(dim,
+                                     encoder_layer.embed_dim,
+                                     bias=False)
 
         self.name = None
         self.layers = nn.ModuleList(

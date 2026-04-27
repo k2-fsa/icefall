@@ -514,10 +514,10 @@ class OrthogonalLinear(nn.Linear):
     Args:
       in_channels: number of input channels
      out_channels: number of output channels
-         lr_scale: we will scale the weight by this value before applying the orthogonal
-                   constraint and using it; with most optimizers
-                   this will have the effect of slowing down the learning by this factor because
-                   the parameter value will be larger.
+       weight_rms: the rms value of the physical weights in self.weights; we rescale the weights
+                  to achieve this while respecting the orthogonal constraint, as a way
+                  of reducing the relative learning speed of this module. (larger weight_rms ->
+                  slower learning, in general).
              bias: if True, include a bias term.
      penalty_scale: a scale on the penalty on non-orthogonality (this will
                    be multiplied by the average-absolute-value of the
@@ -528,30 +528,28 @@ class OrthogonalLinear(nn.Linear):
     def __init__(self,
                  in_channels: int,
                  out_channels: int,
-                 lr_scale: float = 1.0,
+                 weight_rms: float = 0.2,
                  bias: bool = True,
                  penalty_scale: float = 20.0,
     ):
         super().__init__(in_channels, out_channels, bias=bias)
         self.name = None
         self.penalty_scale = copy.deepcopy(penalty_scale)
-        self.lr_scale = lr_scale
 
+        self.weight_scale = (in_channels ** -0.5) / weight_rms
         with torch.no_grad():
-            self.weight[:] = torch.randn(out_channels, in_channels) * (in_channels ** -0.5) * (1. / lr_scale)
+            self.weight[:] = torch.randn(out_channels, in_channels) * weight_rms
         if self.bias is not None:
             torch.nn.init.uniform_(self.bias, -0.01, 0.01)
 
+    def get_weight(self):
+        return self.weight * self.weight_scale
 
     def forward(self, x: Tensor, transpose: bool = False):
         # you can only use transpose=True if you used bias=False in initialization
-        weight = self.weight
-        lr_scale = self.lr_scale
-        if lr_scale != 1.0:
-            weight = weight * lr_scale
+        weight = self.get_weight()
         if self.training and not torch.jit.is_scripting() and not torch.jit.is_tracing():
             weight = OrthogonalPenaltyFunction.apply(weight, float(self.penalty_scale), self.name)
-
         if transpose:
             weight = weight.t()
         return torch.nn.functional.linear(x, weight, self.bias)
