@@ -349,7 +349,7 @@ def scaling_step(group, param, state, grad):
 
     scale_ratio = scale / old_scale
 
-    delta_scale = (scale_ratio * (1 - (lr ** 2))) - 1
+    delta_scale = (scale_ratio * (1 - 0.5 * (lr ** 2))) - 1
     return param * delta_scale  +  scale * delta
 
 
@@ -420,9 +420,9 @@ class BatchedRubik(BatchedOptimizer):
         cubic_decay_proportion=0.8,
         beta2=0.98,
         eps=1.0e-08,
-        weight_scale_limits=(0.05, 0.25),
-        bias_scale_limits=(0.05, 0.25),
-        scalar_scale=0.075,
+        weight_scale_limits=(0.03, 0.15),
+        bias_scale_limits=(0.03, 0.15),
+        scalar_scale=0.05,
         adam_beta1=0.98,
         adam_beta2=0.98,
         scale_momentum=0.95,
@@ -640,7 +640,7 @@ def _test_batched_rubik(hidden_dim: int):
             for _ in range(20)
         ]
 
-        lr = 0.017
+        lr = 0.024
         # the very large beta1 and zero "direct" value is specifically for this test task, which approaches the
         # optimum parameters very exactly.  Normally you want something more like the
         # defaults of beta1=0.995 and direct=0.15
