@@ -352,9 +352,18 @@ def scaling_step(group, param, state, grad):
     scale_grad = (grad * param.detach()).sum(dim=dims, keepdim=True)
     scale_grad_buf.mul_(momentum).add_(scale_grad)  # simple momentum
 
+    nesterov = True
+    if nesterov:
+        # simple interpretation of nesterov: do an extra step of
+        # moving-average on scale_grad_buf, with scale_grad, like double-counting
+        # it.
+        negative_update = (scale_grad_buf * momentum + scale_grad).sign()
+    else:
+        negative_update = scale_grad_buf.sign()
+
     old_scale = scale.clone()
 
-    scale.mul_(1. - lr * scalar_scale * scale_grad_buf.sign())
+    scale.mul_(1. - lr * scalar_scale * negative_update)
     scale.clamp_(min=min_scale, max=max_scale)
 
     scale_ratio = scale / old_scale
@@ -388,7 +397,14 @@ def adam_step(group, state, grad):
     exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=(1 - beta2))
     denom = exp_avg_sq.sqrt() + eps
 
-    return -lr * (exp_avg / denom)
+    nesterov = True
+    if nesterov:
+        # this is similar to double-counting grad
+        moving_grad = exp_avg * beta1 + grad * (1-beta1)
+    else:
+        moving_grad = exp_avg
+
+    return -lr * (moving_grad / denom)
 
 
 
