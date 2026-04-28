@@ -257,8 +257,8 @@ def cubic_decay_step(group, state, grad):
     # Looking at this code may give the impression that we are mistakenly
     # normalizing "twice".  Actually we have an "equilibrium argument" why this
     # is actually OK and will give correctly-normalized data.
-    row_denom = (row_stats.sqrt() + eps)
-    col_denom = (col_stats.sqrt() + eps)
+    row_denom = (moving_row_stats.sqrt() + eps)
+    col_denom = (moving_col_stats.sqrt() + eps)
     invP = row_denom * col_denom  # inverse preconditioner P
 
     moving_grad_precon = moving_grad / invP  # preconditioned moving_grad
