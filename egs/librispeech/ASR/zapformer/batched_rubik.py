@@ -297,7 +297,7 @@ def cubic_decay_step(group, state, grad):
     if nesterov:
         # the scale ((1 - beta1**2)**0.5) on grad is derived as follows:
         #  norm_grad_assumed_scale = (1-beta1)  # the scale in a nesterov-type "count current step twice".
-        #  coeff = norm_grad_assumed_scale / negative_grad_assumed_scale
+        #  coeff = norm_grad_assumed_scale / moving_grad_assumed_scale
         #        = ((1 - beta1**2)**0.5)
         negative_update = negative_update + norm_grad * ((1 - beta1**2)**0.5)
 
