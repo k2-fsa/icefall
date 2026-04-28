@@ -218,7 +218,7 @@ def cubic_decay_step(group, state, grad):
     lr = group["lr"]
     eps = group["eps"]
     step = state["step"]
-    beta_ceil = 1. - 1. / (10. + 0.2 * step)
+    beta_ceil = 1. - 1. / (10. + 0.1 * step)
     beta1 = min(group["beta1"], beta_ceil)
     beta2 = min(group["beta2"], beta_ceil)
 
