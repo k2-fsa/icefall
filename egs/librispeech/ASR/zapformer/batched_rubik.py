@@ -218,9 +218,10 @@ def cubic_decay_step(group, state, grad):
     lr = group["lr"]
     eps = group["eps"]
     step = state["step"]
-    beta_ceil = 1. - 1. / (10. + 0.1 * step)
-    beta1 = min(group["beta1"], beta_ceil)
-    beta2 = min(group["beta2"], beta_ceil)
+    beta1_ceil = 1. - 1. / (10. + 0.1 * step)
+    beta1 = min(group["beta1"], beta1_ceil)
+    beta2_ceil = step / (step + 1)
+    beta2 = min(group["beta2"], beta2_ceil)
 
 
     cubic_decay_proportion = group["cubic_decay_proportion"]
@@ -234,12 +235,17 @@ def cubic_decay_step(group, state, grad):
     if "moving_grad" not in state:
         assert step < 2
         state["moving_grad"] = torch.zeros(batch_size, rows, cols, device=grad.device)
+        state["moving_row_stats"] = torch.ones(batch_size, rows, 1, device=grad.device)
+        state["moving_col_stats"] = torch.ones(batch_size,1, cols, device=grad.device)
         state["row_stats"] = torch.ones(batch_size, rows, 1, device=grad.device)
-        state["col_stats"] = torch.ones(batch_size,1, cols, device=grad.device)
+        state["col_stats"] = torch.ones(batch_size, 1, cols, device=grad.device)
+
 
     moving_grad = state["moving_grad"]
     row_stats = state["row_stats"]
     col_stats = state["col_stats"]
+    moving_row_stats = state["moving_row_stats"]
+    moving_col_stats = state["moving_col_stats"]
 
     # add the grad to the moving-average grad; the scaling factor used here
     # doesn't matter as it all gets normalized later.
@@ -273,17 +279,28 @@ def cubic_decay_step(group, state, grad):
     # update moving_grad as interpolation between linear decay and cubic decay.
     moving_grad[:] = moving_grad_precon * invP
 
-    nesterov = True
-    if nesterov:
-        moving_grad_precon = moving_grad_precon + cur_grad_precon
-
     # Now compute "negative_update" which is moving_grad_precon multiplied again by the
     # preconditioner, this takes us from the preconditioned to the canonical co-ordinates but now treating the quantity as a parameter-update
     # rather than as a gradient.   it is going to be very close to:
     #  negative_update = moving_grad_precon / invP
     # but we also update the preconditioner.  Note: practically speaking we are multiplying
     # by the same thing twice though.
-    negative_update = normalize_and_update_stats(moving_grad_precon, row_stats, col_stats, beta2, eps)
+    negative_update = normalize_and_update_stats(moving_grad_precon, moving_row_stats,  moving_col_stats, beta2, eps)
+
+    norm_grad = normalize_and_update_stats(grad, row_stats, col_stats, beta2, eps)
+
+    moving_grad_assumed_scale = (1 - beta1) * ((1 - beta1**2)**-0.5)
+    # moving_grad_assumed_scale is the scale negative_update "should be" if it were decayed moving average of normalized stats,
+    # with scales: (1-beta1), (1-beta1) beta1, (1-beta1) beta1**2, etc.
+
+    nesterov = True
+    if nesterov:
+        # the scale ((1 - beta1**2)**0.5) on grad is derived as follows:
+        #  norm_grad_assumed_scale = (1-beta1)  # the scale in a nesterov-type "count current step twice".
+        #  coeff = norm_grad_assumed_scale / negative_grad_assumed_scale
+        #        = ((1 - beta1**2)**0.5)
+        negative_update = negative_update + norm_grad * ((1 - beta1**2)**0.5)
+
 
     # do "immediate" normalization of 2-norm of the step to make the overall scale of the update what
     # it would be if this was a normal decaying-beta1 update and the stats were i.i.d..
@@ -292,9 +309,8 @@ def cubic_decay_step(group, state, grad):
     # This should make divergence less likely.
     # we ignore nesterov modification for purposes of this formula, it should make little difference anyway
     # if beta1 is close to 1.
-    assumed_scale = (1 - beta1) * ((1 - beta1**2)**-0.5)
 
-    negative_update = negative_update * (assumed_scale / ((negative_update ** 2).mean(dim=(1, 2), keepdim=True).sqrt() + eps))
+    negative_update = negative_update * (moving_grad_assumed_scale / ((negative_update ** 2).mean(dim=(1, 2), keepdim=True).sqrt() + eps))
 
     ans = -lr * negative_update
 
