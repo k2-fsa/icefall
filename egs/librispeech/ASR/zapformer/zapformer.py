@@ -301,7 +301,6 @@ class Zapformer(EncoderInterface):
         N = len(self.encoders)
         for i in range(N):
             for j in range(i):
-                # multipying by lr_scale keeps the scale correct so they will be orthogonal
                 proj_i = self.encoders[i].proj.get_weight()
                 proj_j = self.encoders[j].proj.get_weight()
                 if proj_i.shape[1] > proj_j.shape[1]:
@@ -2009,13 +2008,6 @@ class ConvolutionModule(nn.Module):
                 bias=False,
             )
             self.left_pad = kernel_size - 1
-
-        self.depthwise_conv.lr_scale = 0.66 # not sure whether to  keep this, it wasn't very conclusive.
-        with torch.no_grad():
-            # make the non-central convolution weights much smaller.
-            k2 = kernel_size // 2
-            self.depthwise_conv.weight[..., :k2] *= 0.1
-            self.depthwise_conv.weight[..., -k2:] *= 0.1
 
         # add average-of-all-frames to the "convolution."; it has extra power vs the convolution
         # because the num frames differs between utterances.
