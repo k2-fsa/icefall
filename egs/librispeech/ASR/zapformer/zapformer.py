@@ -2009,6 +2009,12 @@ class ConvolutionModule(nn.Module):
             )
             self.left_pad = kernel_size - 1
 
+        with torch.no_grad():
+            # make the non-central convolution weights much smaller.
+            k = kernel_size // 2
+            self.depthwise_conv.weight[..., :k] *= 0.1
+            self.depthwise_conv.weight[..., -k:] *= 0.1
+
         # add average-of-all-frames to the "convolution."; it has extra power vs the convolution
         # because the num frames differs between utterances.
         self.weighted_mean = WeightedMean(bottleneck_dim,
