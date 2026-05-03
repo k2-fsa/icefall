@@ -294,33 +294,45 @@ class Zapformer(EncoderInterface):
 
 
     def compute_projection_overlap(self, verbose: bool = False):
+        # This computes a quantity that we'll use as an  auxiliary loss.
+        # It ensures that the projections from more-subsampled sequences "contain" enough of the
+        # projections from the less-subsampled sequences-- specifically the direction where
+        # all the less-subsampled projections co-vary in the same way, e.g. if there are
+        # two frames, that the two frames are identical.
+
         min_overlap = 0.66  # we can tune this
 
         tot_loss = 0.0
         # between pairs of encoders
         N = len(self.encoders)
+
+        covs = []
+        ranks = []
+        for i in range(N):
+            proj_i = self.encoders[i].proj.get_weight()
+            cov_i = torch.matmul(proj_i.t(), proj_i)
+            covs.append(cov_i)
+            ranks.append(proj_i.shape[0])
+
         for i in range(N):
             for j in range(i):
-                proj_i = self.encoders[i].proj.get_weight()
-                proj_j = self.encoders[j].proj.get_weight()
-                if proj_i.shape[1] > proj_j.shape[1]:
-                    proj_i, proj_j = proj_j, proj_i  # swap them
-                in_dim_i = proj_i.shape[1]  # now this is <= proj_j.shape[1]
-                in_dim_j = proj_j.shape[1]
-                assert in_dim_i <= in_dim_j
-                assert in_dim_j % in_dim_i == 0  # in_dims must be multiples of each other
-                R = in_dim_j // in_dim_i  # e.g. 1, 2, 4
-                assert R in [1, 2, 4, 8]
-
-                proj_i = proj_i.repeat(1, R).reshape(proj_i.shape[0], proj_j.shape[1]) * (R ** -0.5)
-                # proj_i should still have orthogonal rows.
-                # now proj_j and proj_i have same dimension one (in_dim)
-                cov_i = torch.matmul(proj_i.t(), proj_i)
-                cov_j = torch.matmul(proj_j.t(), proj_j)
-                # denominator is the minimum of the two rather than their geometric mean,
+                cov_i, cov_j = covs[i], covs[j]
+                rank_i, rank_j = ranks[i], ranks[j]
+                if cov_i.shape[0] > cov_j.shape[0]:
+                    cov_i, cov_j = cov_j, cov_i
+                    rank_i, rank_j = rank_j, rank_i
+                dim_i = cov_i.shape[0]  # now this is <= proj_j.shape[0]
+                dim_j = cov_j.shape[0]
+                assert dim_i <= dim_j
+                assert dim_j % dim_i == 0  # dims must be multiples of each other   (these are the
+                # feature dimension prior to project, i.e. the larger dimensions.)
+                R = dim_j // dim_i  # e.g. 1, 2, 4
+                assert R in [1, 2, 4, 8, 16]
+                cov_i = cov_i.repeat(R, R) * (1. / R)
+                # denominator is the minimum of the two ranks,
                 # because due to the orthogonal constraint, the maximum possible value of (cov_i * cov_j).sum() would be the
-                # smaller of the two dimension.
-                cosine = (cov_i * cov_j).sum() / proj_i.shape[0]
+                # smaller of the two ranks.
+                cosine = (cov_i * cov_j).sum() / min(rank_i, rank_j)
 
                 loss = (min_overlap - cosine).relu()
                 tot_loss = tot_loss + loss
