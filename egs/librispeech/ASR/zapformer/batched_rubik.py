@@ -43,10 +43,9 @@ class BatchedOptimizer(Optimizer):
         super(BatchedOptimizer, self).__init__(params, defaults)
 
     @contextlib.contextmanager
-    def batched_params(self, param_group, group_params_names):
+    def batched_params(self, param_list):
         """
-        This function returns (technically, yields) a list of
-          of tuples (p, state), where
+        This function returns (technically, yields) a list of tuples (p, state), where
         p is a `fake` parameter that is stacked (over axis 0) from real parameters
         that share the same shape, and its gradient is also stacked;
         `state` is the state corresponding to this batch of parameters
@@ -65,7 +64,7 @@ class BatchedOptimizer(Optimizer):
         you can do:
         <code>
           with self.batched_params(group["params"]) as batches:
-             for p, state, p_names in batches:
+             for p, state in batches:
                  ...
         </code>
 
@@ -78,31 +77,18 @@ class BatchedOptimizer(Optimizer):
         batches = defaultdict(
             list
         )  # `batches` maps from tuple (dtype_as_str,*shape) to list of nn.Parameter
-        batches_names = defaultdict(
-            list
-        )  # `batches` maps from tuple (dtype_as_str,*shape) to list of str
 
-        assert len(param_group) == len(group_params_names)
-        for p, named_p in zip(param_group, group_params_names):
+        for p in param_list:
             key = (str(p.dtype), *p.shape)
             batches[key].append(p)
-            batches_names[key].append(named_p)
 
-        batches_names_keys = list(batches_names.keys())
-        sorted_idx = sorted(
-            range(len(batches_names)), key=lambda i: batches_names_keys[i]
-        )
-        batches_names = [batches_names[batches_names_keys[idx]] for idx in sorted_idx]
-        batches = [batches[batches_names_keys[idx]] for idx in sorted_idx]
 
-        stacked_params_dict = dict()
 
-        # turn batches into a list, in deterministic order.
-        # tuples will contain tuples of (stacked_param, state, stacked_params_names),
+        # tuples will contain tuples of (stacked_param, state),
         # one for each batch in `batches`.
         tuples = []
 
-        for batch, batch_names in zip(batches, batches_names):
+        for batch in batches.values():
             p = batch[0]
             # we arbitrarily store the state in the
             # state corresponding to the 1st parameter in the
@@ -113,12 +99,11 @@ class BatchedOptimizer(Optimizer):
                 [torch.zeros_like(p) if p.grad is None else p.grad for p in batch]
             )
             p_stacked.grad = grad
-            stacked_params_dict[key] = p_stacked
-            tuples.append((p_stacked, state, batch_names))
+            tuples.append((p_stacked, state))
 
         yield tuples  # <-- calling code will do the actual optimization here!
 
-        for ((stacked_params, _state, _names), batch) in zip(tuples, batches):
+        for ((stacked_params, _state), batch) in zip(tuples, batches.values()):
             for i, p in enumerate(batch):  # batch is list of Parameter
                 p.copy_(stacked_params[i])
 
@@ -484,29 +469,26 @@ class BatchedRubik(BatchedOptimizer):
 
         batch = True
 
-
         for group in self.param_groups:
+            with self.batched_params(group["params"]) as batches:
+                for p, state in batches:
+                    grad = p.grad
 
-            for p in group['params']:
-                state = self.state[p]
-                grad = p.grad
+                    try:
+                        cur_step = state["step"]
+                    except KeyError:
+                        state["step"] = 0
+                        cur_step = 0
 
+                    if p.numel() == p.shape[0]:
+                        # "scalar_scale" the assumed parameter scale used for
+                        # scalars, in this case it just acts as a multiplier on
+                        # the learning rate.
+                        p += group["scalar_scale"] * adam_step(group, state, grad)
+                    else:
+                        p += scaling_step(group, p.detach(), state, grad)
 
-                try:
-                    cur_step = state["step"]
-                except KeyError:
-                    state["step"] = 0
-                    cur_step = 0
-
-                if p.numel() == p.shape[0]:
-                    # "scalar_scale" the assumed parameter scale used for
-                    # scalars, in this case it just acts as a multiplier on
-                    # the learning rate.
-                    p += group["scalar_scale"] * adam_step(group, state, grad)
-                else:
-                    p += scaling_step(group, p.detach(), state, grad)
-
-                state["step"] = cur_step + 1
+                    state["step"] = cur_step + 1
 
         return loss
 

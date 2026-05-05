@@ -113,7 +113,7 @@ def cubic_decay_step(group, state, grad):
     lr = group["lr"]
     eps = group["eps"]
     step = state["step"]
-    beta1_ceil = 1. - 1. / (10. + 0.2 * step)
+    beta1_ceil = 1. - 1. / (10. + 0.1 * step)
     beta1 = min(group["beta1"], beta1_ceil)
     beta2_ceil = step / (step + 1)
     beta2 = min(group["beta2"], beta2_ceil)
@@ -231,7 +231,16 @@ def scaling_step(group, param, state, grad):
 
     old_scale = scale.clone()
 
-    scale.mul_(1. - lr * scalar_scale * scale_grad_buf.sign())
+    nesterov = True
+    if nesterov:
+        # simple interpretation of nesterov: do an extra step of
+        # moving-average on scale_grad_buf, with scale_grad, like double-counting
+        # it.
+        negative_update = (scale_grad_buf * momentum + scale_grad).sign()
+    else:
+        negative_update = scale_grad_buf.sign()
+
+    scale.mul_(1. - lr * scalar_scale * negative_update)
     scale.clamp_(min=min_scale, max=max_scale)
 
     scale_ratio = scale / old_scale
@@ -265,7 +274,15 @@ def adam_step(group, state, grad):
     exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=(1 - beta2))
     denom = exp_avg_sq.sqrt() + eps
 
-    return -lr * (exp_avg / denom)
+    nesterov = True
+    if nesterov:
+        # this is similar to double-counting grad
+        moving_grad = exp_avg * beta1 + grad * (1-beta1)
+    else:
+        moving_grad = exp_avg
+
+    return -lr * (moving_grad / denom)
+
 
 
 
