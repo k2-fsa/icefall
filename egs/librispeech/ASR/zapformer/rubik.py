@@ -113,9 +113,10 @@ def cubic_decay_step(group, state, grad):
     lr = group["lr"]
     eps = group["eps"]
     step = state["step"]
-    beta_ceil = 1. - 1. / (10. + 0.2 * step)
-    beta1 = min(group["beta1"], beta_ceil)
-    beta2 = min(group["beta2"], beta_ceil)
+    beta1_ceil = 1. - 1. / (10. + 0.2 * step)
+    beta1 = min(group["beta1"], beta1_ceil)
+    beta2_ceil = step / (step + 1)
+    beta2 = min(group["beta2"], beta2_ceil)
 
     cubic_decay_proportion = group["cubic_decay_proportion"]
     linear_decay_proportion = 1.  - cubic_decay_proportion
@@ -203,8 +204,7 @@ def scaling_step(group, param, state, grad):
     #    (iii) update the parameter scale, which means shrinking or growing the whole tensor
     lr = group["lr"]
     momentum = group["scale_momentum"]  # e.g. 0.95
-    is_weight = grad.ndim >= 2
-    min_scale, max_scale = group["weight_scale_limits"] if is_weight else group["bias_scale_limits"]
+    min_scale, max_scale = group["scale_limits"]
     # the scaling factor is implicitly a scalar; apply scalar_scale to its
     # learning rate.
     scalar_scale = group["scalar_scale"]
@@ -295,8 +295,7 @@ class Rubik(Optimizer):
         cubic_decay_proportion=0.8,
         beta2=0.98,
         eps=1.0e-08,
-        weight_scale_limits=(0.03, 0.15),
-        bias_scale_limits=(0.03, 0.15),
+        scale_limits=(0.03, 0.15),
         scalar_scale=0.05,
         adam_beta1=0.98,
         adam_beta2=0.98,
@@ -308,8 +307,7 @@ class Rubik(Optimizer):
             cubic_decay_proportion=cubic_decay_proportion,
             beta2=beta2,
             eps=eps,
-            weight_scale_limits=weight_scale_limits,
-            bias_scale_limits=bias_scale_limits,
+            scale_limits=scale_limits,
             scalar_scale=scalar_scale,
             adam_beta1=adam_beta1,
             adam_beta2=adam_beta2,
@@ -347,9 +345,6 @@ class Rubik(Optimizer):
                 except KeyError:
                     state["step"] = 0
                     cur_step = 0
-
-                def u(x):
-                    return x.unsqueeze(0)
 
                 if p.numel() == 1:
                     # "scalar_scale" the assumed parameter scale used for

@@ -325,8 +325,7 @@ def scaling_step(group, param, state, grad):
     #    (iii) update the parameter scale, which means shrinking or growing the whole tensor
     lr = group["lr"]
     momentum = group["scale_momentum"]  # e.g. 0.95
-    is_weight = grad.ndim >= 2
-    min_scale, max_scale = group["weight_scale_limits"] if is_weight else group["bias_scale_limits"]
+    min_scale, max_scale = group["scale_limits"]
     # the scaling factor is implicitly a scalar; apply scalar_scale to its
     # learning rate.
     scalar_scale = group["scalar_scale"]
@@ -445,8 +444,7 @@ class BatchedRubik(BatchedOptimizer):
         cubic_decay_proportion=0.8,
         beta2=0.98,
         eps=1.0e-08,
-        weight_scale_limits=(0.03, 0.15),
-        bias_scale_limits=(0.03, 0.15),
+        scale_limits=(0.03, 0.15),
         scalar_scale=0.05,
         adam_beta1=0.98,
         adam_beta2=0.98,
@@ -459,127 +457,14 @@ class BatchedRubik(BatchedOptimizer):
             cubic_decay_proportion=cubic_decay_proportion,
             beta2=beta2,
             eps=eps,
-            weight_scale_limits=weight_scale_limits,
-            bias_scale_limits=bias_scale_limits,
+            scale_limits=scale_limits,
             scalar_scale=scalar_scale,
             adam_beta1=adam_beta1,
             adam_beta2=adam_beta2,
             scale_momentum=scale_momentum,
         )
 
-        param_groups, parameters_names = self._get_names_of_parameters(params)
-        super(BatchedRubik, self).__init__(param_groups, defaults)
-        assert len(self.param_groups) == len(parameters_names)
-        self.parameters_names = parameters_names
-
-    def _get_names_of_parameters(
-        self, params_or_named_params
-    ) -> Tuple[List[Dict], List[List[str]]]:
-        """
-        Args:
-          params_or_named_params: according to the way TransformedAdam is initialized in train.py,
-            this argument could be one of following 4 cases,
-            case 1, a generator of parameter, e.g.:
-              optimizer = TransformedAdam(model.parameters(), lr=params.base_lr, clipping_scale=3.0)
-
-            case 2, a list of parameter groups with different config, e.g.:
-              model_param_groups = [
-                      {'params': model.encoder.parameters(), 'lr': 0.05},
-                      {'params': model.decoder.parameters(), 'lr': 0.01},
-                      {'params': model.joiner.parameters(), 'lr': 0.03},
-                      ]
-              optimizer = TransformedAdam(model_param_groups, lr=params.base_lr, clipping_scale=3.0)
-
-            case 3, a generator of named_parameter, e.g.:
-              optimizer = TransformedAdam(model.named_parameters(), lr=params.base_lr, clipping_scale=3.0)
-
-            case 4, a list of named_parameter groups with different config, e.g.:
-              model_named_param_groups = [
-                      {'named_params': model.encoder.named_parameters(), 'lr': 0.05},
-                      {'named_params': model.decoder.named_parameters(), 'lr': 0.01},
-                      {'named_params': model.joiner.named_parameters(), 'lr': 0.03},
-                      ]
-              optimizer = TransformedAdam(model_named_param_groups, lr=params.base_lr, clipping_scale=3.0)
-
-          For case 1 and case 2, input params is used to initialize the underlying torch.optimizer.
-          For case 3 and case 4, firstly, names and params are extracted from input named_params,
-            then, these extracted params are used to initialize the underlying torch.optimizer,
-            and these extracted names are mainly used by function
-            `_show_gradient_dominating_parameter`
-
-        Returns:
-          Returns a tuple containing 2 elements:
-            - `param_groups` with type List[Dict], each Dict element is a parameter group.
-              An example of `param_groups` could be:
-              [
-                  {'params': `one iterable of Parameter`, 'lr': 0.05},
-                  {'params': `another iterable of Parameter`, 'lr': 0.08},
-                  {'params': `a third iterable of Parameter`, 'lr': 0.1},
-              ]
-            - `param_gruops_names` with type List[List[str]],
-               each `List[str]` is for a group['params'] in param_groups,
-               and each `str` is the name of a parameter.
-               A dummy name "foo" is related to each parameter,
-               if input are params without names, i.e. case 1 or case 2.
-        """
-        # variable naming convention in this function:
-        #   p is short for param.
-        #   np is short for named_param.
-        #   p_or_np is short for param_or_named_param.
-        #   cur is short for current.
-        #   group is a dict, e.g. {'params': iterable of parameter, 'lr': 0.05, other fields}.
-        #   groups is a List[group]
-
-        iterable_or_groups = list(params_or_named_params)
-        if len(iterable_or_groups) == 0:
-            raise ValueError("optimizer got an empty parameter list")
-
-        # The first value of returned tuple.  A list of dicts containing at
-        # least 'params' as a key.
-        param_groups = []
-
-        # The second value of returned tuple,
-        # a List[List[str]], each sub-List is for a group.
-        param_groups_names = []
-
-        if not isinstance(iterable_or_groups[0], dict):
-            # case 1 or case 3,
-            # the input is an iterable of parameter or named parameter.
-            param_iterable_cur_group = []
-            param_names_cur_group = []
-            for p_or_np in iterable_or_groups:
-                if isinstance(p_or_np, tuple):
-                    # case 3
-                    name, param = p_or_np
-                else:
-                    # case 1
-                    assert isinstance(p_or_np, torch.Tensor)
-                    param = p_or_np
-                    # Assign a dummy name as a placeholder
-                    name = "foo"
-                    self.show_dominant_parameters = False
-                param_iterable_cur_group.append(param)
-                param_names_cur_group.append(name)
-            param_groups.append({"params": param_iterable_cur_group})
-            param_groups_names.append(param_names_cur_group)
-        else:
-            # case 2 or case 4
-            # the input is groups of parameter or named parameter.
-            for cur_group in iterable_or_groups:
-                if "named_params" in cur_group:
-                    name_list = [x[0] for x in cur_group["named_params"]]
-                    p_list = [x[1] for x in cur_group["named_params"]]
-                    del cur_group["named_params"]
-                    cur_group["params"] = p_list
-                else:
-                    assert "params" in cur_group
-                    name_list = ["foo" for _ in cur_group["params"]]
-                param_groups.append(cur_group)
-                param_groups_names.append(name_list)
-
-        return param_groups, param_groups_names
-
-
+        super(BatchedRubik, self).__init__(params, defaults)
 
     def __setstate__(self, state):
         super(BatchedRubik, self).__setstate__(state)
@@ -599,27 +484,29 @@ class BatchedRubik(BatchedOptimizer):
 
         batch = True
 
-        for group, group_params_names in zip(self.param_groups, self.parameters_names):
-            with self.batched_params(group["params"], group_params_names) as batches:
 
-                for p, state, _names in batches:
-                    grad = p.grad
+        for group in self.param_groups:
 
-                    try:
-                        cur_step = state["step"]
-                    except KeyError:
-                        state["step"] = 0
-                        cur_step = 0
+            for p in group['params']:
+                state = self.state[p]
+                grad = p.grad
 
-                    if p.numel() == p.shape[0]:
-                        # "scalar_scale" the assumed parameter scale used for
-                        # scalars, in this case it just acts as a multiplier on
-                        # the learning rate.
-                        p += group["scalar_scale"] * adam_step(group, state, grad)
-                    else:
-                        p += scaling_step(group, p.detach(), state, grad)
 
-                    state["step"] = cur_step + 1
+                try:
+                    cur_step = state["step"]
+                except KeyError:
+                    state["step"] = 0
+                    cur_step = 0
+
+                if p.numel() == p.shape[0]:
+                    # "scalar_scale" the assumed parameter scale used for
+                    # scalars, in this case it just acts as a multiplier on
+                    # the learning rate.
+                    p += group["scalar_scale"] * adam_step(group, state, grad)
+                else:
+                    p += scaling_step(group, p.detach(), state, grad)
+
+                state["step"] = cur_step + 1
 
         return loss
 

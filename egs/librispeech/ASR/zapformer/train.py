@@ -1433,12 +1433,11 @@ def run(rank, world_size, args):
         model = DDP(model, device_ids=[rank], find_unused_parameters=True)
 
     optimizer = BatchedRubik(
-        get_parameter_groups_with_lrs(model, lr=params.base_lr, include_names=True),
+        get_parameter_groups_with_lrs(model, lr=params.base_lr, include_names=False),
         lr=params.base_lr,
         cubic_decay_proportion=0.8,
         beta1=0.995,
     )
-
 
     if True:
         # Work out copies_per_epoch
