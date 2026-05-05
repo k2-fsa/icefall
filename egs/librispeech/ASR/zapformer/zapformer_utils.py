@@ -31,10 +31,9 @@ from torch.cuda.amp import custom_bwd, custom_fwd
 
 class SoftmaxFunction(torch.autograd.Function):
     """
-    Tries to handle half-precision derivatives in a randomized way that should
-    be more accurate for training than the default behavior.
+    A memory-efficient implementation of softmax that does not require
+    storing anything as fp32 in autocast mode.
     """
-
     @staticmethod
     def forward(ctx, x: Tensor, dim: int):
         ans = x.softmax(dim=dim)

@@ -9,8 +9,8 @@ import torch
 class AlternatingSpecAugment(torch.nn.Module):
     """
     AlternatingSpecAugment is a different version of feature-masking and frame-masking
-    aspects of SpecAugment, without the time warping for now (we use time_warp
-    from lhotse which is the same as the original SpecAugment).
+    aspects of SpecAugment, without the time warping for now (we use code for time_warp
+    adapted from lhotse which is the same as the original SpecAugment).
 
     The main difference is in how it selects the regions to be masked, they are selected
     in a way that usually ensures there is a good amount of space between successive masks.
