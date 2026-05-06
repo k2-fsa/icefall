@@ -1985,7 +1985,7 @@ class ConvolutionModule(nn.Module):
 
         self.in_proj = nn.Linear(
             channels,
-            bottleneck_dim,
+            2 * bottleneck_dim,
         )
         # the gradients on in_proj are a little noisy, likely to do with the
         # sigmoid in glu.
