@@ -1985,18 +1985,14 @@ class ConvolutionModule(nn.Module):
 
         self.in_proj = nn.Linear(
             channels,
-            3 * bottleneck_dim,
+            bottleneck_dim,
         )
         # the gradients on in_proj are a little noisy, likely to do with the
         # sigmoid in glu.
 
         self.activation1 = Identity()  # for diagnostics
 
-        self.sigmoid1 = nn.Sigmoid()
-
-        self.sigmoid2 = nn.Sigmoid()
-
-        self.activation2 = Identity()  # for diagnostics
+        self.sigmoid = nn.Sigmoid()
 
 
         if not causal:
@@ -2059,13 +2055,9 @@ class ConvolutionModule(nn.Module):
 
         x = self.in_proj(x)  # (time, batch, 3*bottleneck_dim)
 
-        x, s, y = x.chunk(3, dim=2)
-        s = self.sigmoid1(s)
-        y = self.sigmoid2(y)
+        x, y = x.chunk(2, dim=2)
+        y = self.sigmoid(y)
         x = self.activation1(x)  # identity.
-        x = x * s
-        x = self.activation2(x)  # identity
-
 
         # x: (time, batch, channels)
         # Caution: this module is not completely
@@ -2124,10 +2116,8 @@ class ConvolutionModule(nn.Module):
         """
         x = self.in_proj(x)  # (time, batch, 3*bottleneck_dim)
 
-        x, s, y = x.chunk(3, dim=2)
-        s = self.sigmoid1(s)
-        y = self.sigmoid2(y)
-        x = x * s
+        x, y = x.chunk(2, dim=2)
+        y = self.sigmoid(y)
 
         if src_key_padding_mask is not None:
             x = x.masked_fill(src_key_padding_mask.t().unsqueeze(-1).expand_as(x), 0.0)
