@@ -630,8 +630,8 @@ def store_transcripts_and_timestamps(
 
 
 def store_translations(
-    filename: Pathlike, texts: Iterable[Tuple[str, str, str]],
-    lowercase: bool = True) -> None:
+    filename: Pathlike, texts: Iterable[Tuple[str, str, str]], lowercase: bool = True
+) -> None:
     """Save predicted results and reference transcripts to a file.
 
     Args:
@@ -648,11 +648,13 @@ def store_translations(
     hyp_list = []
     ref_list = []
     dir_ = os.path.dirname(filename)
-    reftgt = os.path.join(dir_, "reftgt-" + str(os.path.basename(filename))) 
-    refsrc = os.path.join(dir_, "refsrc-"+str(os.path.basename(filename)))
-    hyp = os.path.join(dir_, "hyp-"+str( os.path.basename(filename)))
-    bleu_file = os.path.join(dir_, "bleu-"+str( os.path.basename(filename)))
-    with open(filename, "w") as f, open(reftgt, "w") as f_tgt, open(hyp, "w") as f_hyp, open(refsrc, "w") as f_src:
+    reftgt = os.path.join(dir_, "reftgt-" + str(os.path.basename(filename)))
+    refsrc = os.path.join(dir_, "refsrc-" + str(os.path.basename(filename)))
+    hyp = os.path.join(dir_, "hyp-" + str(os.path.basename(filename)))
+    bleu_file = os.path.join(dir_, "bleu-" + str(os.path.basename(filename)))
+    with open(filename, "w") as f, open(reftgt, "w") as f_tgt, open(
+        hyp, "w"
+    ) as f_hyp, open(refsrc, "w") as f_src:
         for cut_id, ref, ref_tgt, hyp in texts:
             ref = " ".join(ref)
             ref_tgt = " ".join(ref_tgt)
@@ -661,7 +663,6 @@ def store_translations(
             print(f"{cut_id}: ref_tgt {ref_tgt}", file=f)
             print(f"{cut_id}: hyp {hyp}", file=f)
             print("\n", file=f)
-    
 
             print(f"{ref}", file=f_src)
             print(f"{ref_tgt}", file=f_tgt)
@@ -670,14 +671,14 @@ def store_translations(
             hyp_list.append(hyp)
             ref_list.append(ref_tgt)
 
-    with open(bleu_file, 'w') as b:
+    with open(bleu_file, "w") as b:
         print(str(bleu.corpus_score(hyp_list, [ref_list])), file=b)
         print(f"BLEU signiture: {str(bleu.get_signature())}", file=b)
-        
+
     logging.info(
-            f"[{bleu.corpus_score(hyp_list, [ref_list])}] "
-            f"BLEU signiture: {str(bleu.get_signature())}"
-        )
+        f"[{bleu.corpus_score(hyp_list, [ref_list])}] "
+        f"BLEU signiture: {str(bleu.get_signature())}"
+    )
 
 
 def write_error_stats(
@@ -1289,14 +1290,14 @@ class MetricsTracker(collections.defaultdict):
                 ans_utterances += str(k) + "=" + str(norm_value)
                 if k == "utt_duration":
                     ans_utterances += " frames, "
-                elif k == "utt_pad_proportion":
-                    ans_utterances += ", "
                 else:
-                    raise ValueError(f"Unexpected key: {k}")
-        frames = "%.2f" % self["frames"]
-        ans_frames += "over " + str(frames) + " frames. "
+                    ans_utterances += ", "
+
+        if "frames" in self:
+            frames = "%.2f" % self.get("frames", 0)
+            ans_frames += "over " + str(frames) + " frames. "
         if ans_utterances != "":
-            utterances = "%.2f" % self["utterances"]
+            utterances = "%.2f" % self.get("utterances", 0)
             ans_utterances += "over " + str(utterances) + " utterances."
 
         return ans_frames + ans_utterances
@@ -1306,8 +1307,8 @@ class MetricsTracker(collections.defaultdict):
         Returns a list of pairs, like:
           [('ctc_loss', 0.1), ('att_loss', 0.07)]
         """
-        num_frames = self["frames"] if "frames" in self else 1
-        num_utterances = self["utterances"] if "utterances" in self else 1
+        num_frames = self.get("frames", 1)
+        num_utterances = self.get("utterances", 1)
         ans = []
         for k, v in self.items():
             if k == "frames" or k == "utterances":
@@ -2454,3 +2455,12 @@ def time_warp(
             )
 
     return features
+
+
+def compare_model(state_dict1, state_dict2):
+    assert state_dict1.keys() == state_dict2.keys()
+    for key in state_dict1.keys():
+        if torch.all(state_dict1[key] == state_dict2[key]):
+            logging.info(f"Param: {key} is the same as new state dict")
+        else:
+            logging.info(f"Param: {key} is updated from new state dict")
