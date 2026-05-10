@@ -44,6 +44,7 @@ RUN pip install --no-cache-dir \
       espnet_tts_frontend \
       graphviz \
       kaldi-decoder \
+      kaldi_native_fbank \
       kaldi_native_io \
       kaldialign \
       kaldifst \
@@ -61,6 +62,7 @@ RUN pip install --no-cache-dir \
       piper_phonemize -f https://k2-fsa.github.io/icefall/piper_phonemize.html \
       pypinyin==0.50.0 \
       pytest \
+      rknn_toolkit2 \
       sentencepiece>=0.1.96 \
       six \
       tensorboard \

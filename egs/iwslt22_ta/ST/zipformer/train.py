@@ -335,7 +335,7 @@ def get_parser():
         files, e.g., checkpoints, log, etc, are saved
         """,
     )
-    
+
     parser.add_argument(
         "--bpe-tgt-model",
         type=str,
@@ -792,9 +792,9 @@ def compute_loss(
 
     texts = batch["supervisions"]["text"]
     tgt_texts = batch["supervisions"]["tgt_text"]['eng']
-    y = sp.encode(texts, out_type=int)
+    #y = sp.encode(texts, out_type=int)
     y_tgt = sp_tgt.encode(tgt_texts, out_type=int)
-    y = k2.RaggedTensor(y).to(device)
+    #y = k2.RaggedTensor(y).to(device)
     y_tgt = k2.RaggedTensor(y_tgt).to(device)
 
     with torch.set_grad_enabled(is_training):
@@ -817,7 +817,7 @@ def compute_loss(
                 f"simple_loss: {simple_loss}\n"
                 f"pruned_loss: {pruned_loss}"
             )
-            display_and_save_batch(batch, params=params, sp=sp, sp_tgt=sp_tgt)
+            display_and_save_batch(batch, params=params, sp_tgt=sp_tgt)
             simple_loss = simple_loss[simple_loss_is_finite]
             pruned_loss = pruned_loss[pruned_loss_is_finite]
 
@@ -985,7 +985,7 @@ def train_one_epoch(
                 continue
         except:  # noqa
             save_bad_model()
-            display_and_save_batch(batch, params=params, sp=sp)
+            display_and_save_batch(batch, params=params, sp_tgt=sp_tgt)
             raise
 
         if params.print_diagnostics and batch_idx == 5:
@@ -1314,7 +1314,7 @@ def run(rank, world_size, args):
 def display_and_save_batch(
     batch: dict,
     params: AttributeDict,
-    sp: spm.SentencePieceProcessor,
+    #sp: spm.SentencePieceProcessor,
     sp_tgt: spm.SentencePieceProcessor,
 ) -> None:
     """Display the batch statistics and save the batch into disk.
@@ -1339,7 +1339,7 @@ def display_and_save_batch(
 
     logging.info(f"features shape: {features.shape}")
 
-    y = sp.encode(supervisions["text"], out_type=int)
+    #y = sp.encode(supervisions["text"], out_type=int)
     y_tgt = sp_tgt.encode(supervisions["tgt_text"], out_type=int)
     num_tokens = sum(len(i) for i in y_tgt)
     logging.info(f"num tokens: {num_tokens}")
@@ -1380,7 +1380,7 @@ def scan_pessimistic_batches_for_oom(
                     f"Failing criterion: {criterion} "
                     f"(={crit_values[criterion]}) ..."
                 )
-            display_and_save_batch(batch, params=params, sp=sp, sp_tgt=sp_tgt)
+            display_and_save_batch(batch, params=params, sp_tgt=sp_tgt)
             raise
         logging.info(
             f"Maximum memory allocated so far is {torch.cuda.max_memory_allocated()//1000000}MB"

@@ -27,7 +27,7 @@ Usage:
 
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
-# For non-streaming model training:  
+# For non-streaming model training:
 
 ./zipformer_hat_st/train.py \
   --base-lr 0.045 \
@@ -50,7 +50,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --warm-step 10000 \
   --lr-epochs 6 \
   --use-hat False
-  
+
 # With Cr-CTC
 ./zipformer_hat_st/train.py \
   --base-lr 0.045 \
@@ -989,7 +989,7 @@ def load_checkpoint_if_available(
         return None
 
     assert filename.is_file(), f"{filename} does not exist!"
-    
+
     saved_params = load_checkpoint(
         filename,
         model=model,
@@ -1094,7 +1094,7 @@ def compute_loss(
      spec_augment:
         The SpecAugment instance used only when use_cr_ctc is True.
     """
-    
+
     device = model.device if isinstance(model, DDP) else next(model.parameters()).device
     feature = batch["inputs"]
     # at entry, feature is (N, T, C)
@@ -1116,13 +1116,13 @@ def compute_loss(
     y = sp.encode(texts, out_type=int)
     y = k2.RaggedTensor(y)
     if params.st_scale != 1:
-        alpha_st = params.st_scale 
-        alpha_asr = 1-params.st_scale 
+        alpha_st = params.st_scale
+        alpha_asr = 1-params.st_scale
     else:
         alpha_st, alpha_asr = 1, 1
     use_asr_cr_ctc, use_st_cr_ctc  = params.use_asr_cr_ctc, params.use_st_cr_ctc
     use_spec_aug = (use_asr_cr_ctc or use_st_cr_ctc) and is_training
-    
+
     if use_spec_aug:
         supervision_intervals = batch["supervisions"]
         supervision_segments = torch.stack(
@@ -1218,7 +1218,7 @@ def compute_loss(
         info["pruned_loss"] = pruned_loss.detach().cpu().item()
         if params.use_st_joiner:
             info["st_simple_loss"] = st_simple_loss.detach().cpu().item()
-            info["st_pruned_loss"] = st_pruned_loss.detach().cpu().item()     
+            info["st_pruned_loss"] = st_pruned_loss.detach().cpu().item()
     if params.use_ctc:
         info["ctc_loss"] = ctc_loss.detach().cpu().item()
         if params.use_asr_cr_ctc:
@@ -1573,7 +1573,7 @@ def run(rank, world_size, args):
     )
 
     scheduler = Eden(optimizer, params.lr_batches, params.lr_epochs)
-    
+
     # if checkpoints and "optimizer" in checkpoints:
     #     logging.info("Loading optimizer state dict")
     #     optimizer.load_state_dict(checkpoints["optimizer"])
@@ -1608,7 +1608,7 @@ def run(rank, world_size, args):
         # You should use ../local/display_manifest_statistics.py to get
         # an utterance duration distribution for your dataset to select
         # the threshold
-        if c.duration =< 0.1 or c.duration >= 30.0:
+        if c.duration <= 0.1 or c.duration >= 30.0:
             # logging.warning(
             #     f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
             # )
@@ -1646,7 +1646,7 @@ def run(rank, world_size, args):
             #         f"Number of tokens: {len(st_tokens)}"
             #     )
                 return False
-            
+
         if params.use_asr_cr_ctc:
             T = ((c.num_frames - 7) // 2 + 1) // 2
             tokens = sp.encode(c.supervisions[0].text, out_type=str)

@@ -102,6 +102,7 @@ jobs:
               cd ../transducer_lstm
               pytest -v -s
 
+              pip install kaldi_native_fbank rknn_toolkit2
               cd ../zipformer
               pytest -v -s
 

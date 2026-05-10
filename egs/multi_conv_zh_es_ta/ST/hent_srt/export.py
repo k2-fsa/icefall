@@ -168,7 +168,7 @@ you can do:
     ln -s pretrained.pt epoch-9999.pt
 
     cd /path/to/egs/multi_conv_zh_es_ta/ST
-    
+
     ./hent_srt/decode.py \
         --epoch 9999 --avg 1 --use-averaged-model 0 \
         --beam-size 20 \
@@ -208,7 +208,7 @@ To use the generated file with `zipformer/decode.py` and `zipformer/streaming_de
     ln -s pretrained.pt epoch-9999.pt
 
     cd /path/to/egs/multi_conv_zh_es_ta/ST
-        
+
     ./hent_srt/decode.py \
         --epoch 9999 --avg 1 --use-averaged-model 0 \
         --causal 1 \
@@ -240,7 +240,7 @@ To use the generated file with `zipformer/decode.py` and `zipformer/streaming_de
         --st-blank-penalty 2 \
         --chunk-size 64 \
         --left-context-frames 128 \
-        --use-hat False --max-sym-per-frame 20 
+        --use-hat False --max-sym-per-frame 20
 
 Note: If you don't want to train a model from scratch, we have
 provided one for you. You can get it at
@@ -389,7 +389,7 @@ class EncoderModel(nn.Module):
             features: (N, T, C)
             feature_lengths: (N,)
         """
-        encoder_out, encoder_out_lens, st_encoder_out, st_encoder_out_lens = model.forward_encoder(feature, feature_lengths)
+        encoder_out, encoder_out_lens, st_encoder_out, st_encoder_out_lens = self.model.forward_encoder(features, feature_lengths)
         encoder_out = encoder_out.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
         st_encoder_out = st_encoder_out.permute(1, 0, 2)
         return encoder_out, encoder_out_lens, st_encoder_out, st_encoder_out_lens
@@ -596,7 +596,7 @@ def main():
                     filename_start=filename_start,
                     filename_end=filename_end,
                     device=device,
-                    
+
                 ), strict=False
             )
 
