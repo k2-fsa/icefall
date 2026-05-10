@@ -219,6 +219,8 @@ class LibriSpeechAsrDataModule:
         self,
         cuts_train: CutSet,
         sampler_state_dict: Optional[Dict[str, Any]] = None,
+        world_size: Optional[int] = None,
+        rank: Optional[int] = None,
     ) -> DataLoader:
         """
         Args:
@@ -313,6 +315,8 @@ class LibriSpeechAsrDataModule:
                 num_buckets=self.args.num_buckets,
                 buffer_size=self.args.num_buckets * 5000,
                 drop_last=self.args.drop_last,
+                world_size=world_size,
+                rank=rank,
             )
         else:
             logging.info("Using SimpleCutSampler.")
@@ -320,6 +324,8 @@ class LibriSpeechAsrDataModule:
                 cuts_train,
                 max_duration=self.args.max_duration,
                 shuffle=self.args.shuffle,
+                world_size=world_size,
+                rank=rank,
             )
         logging.info("About to create train dataloader")
 
@@ -343,7 +349,12 @@ class LibriSpeechAsrDataModule:
 
         return train_dl
 
-    def valid_dataloaders(self, cuts_valid: CutSet) -> DataLoader:
+    def valid_dataloaders(
+        self,
+        cuts_valid: CutSet,
+        world_size: Optional[int] = None,
+        rank: Optional[int] = None,
+    ) -> DataLoader:
         transforms = []
         if self.args.concatenate_cuts:
             transforms = [
@@ -368,6 +379,8 @@ class LibriSpeechAsrDataModule:
             cuts_valid,
             max_duration=self.args.max_duration,
             shuffle=False,
+            world_size=world_size,
+            rank=rank,
         )
         logging.info("About to create dev dataloader")
         valid_dl = DataLoader(
