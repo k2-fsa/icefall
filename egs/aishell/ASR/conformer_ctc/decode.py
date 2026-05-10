@@ -366,13 +366,14 @@ def decode_dataset(
 
     num_cuts = 0
 
-    try:
-        num_batches = len(dl)
-    except TypeError:
-        num_batches = "?"
+    # try:
+    #     num_batches = len(dl)
+    # except TypeError:
+    #     num_batches = "?"
 
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
+        batch = batch[0]
         texts = batch["supervisions"]["text"]
         cut_ids = [cut.id for cut in batch["supervisions"]["cut"]]
 
@@ -399,9 +400,8 @@ def decode_dataset(
         num_cuts += len(batch["supervisions"]["text"])
 
         if batch_idx % 100 == 0:
-            batch_str = f"{batch_idx}/{num_batches}"
-
-            logging.info(f"batch {batch_str}, cuts processed until now is {num_cuts}")
+            # batch_str = f"{batch_idx}/{num_batches}"
+            logging.info(f"batch {batch_idx}, cuts processed until now is {num_cuts}")
     return results
 
 
@@ -547,20 +547,19 @@ def main():
 
     test_sets = ["test"]
     test_dls = [test_dl]
+    # for test_set, test_dl in zip(test_sets, test_dls):
+    results_dict = decode_dataset(
+        dl=test_dl,
+        params=params,
+        model=model,
+        HLG=HLG,
+        H=H,
+        lexicon=lexicon,
+        sos_id=sos_id,
+        eos_id=eos_id,
+    )
 
-    for test_set, test_dl in zip(test_sets, test_dls):
-        results_dict = decode_dataset(
-            dl=test_dl,
-            params=params,
-            model=model,
-            HLG=HLG,
-            H=H,
-            lexicon=lexicon,
-            sos_id=sos_id,
-            eos_id=eos_id,
-        )
-
-        save_results(params=params, test_set_name=test_set, results_dict=results_dict)
+    save_results(params=params, test_set_name=test_sets[0], results_dict=results_dict)
 
     logging.info("Done!")
 
