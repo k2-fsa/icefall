@@ -884,6 +884,106 @@ for m in greedy_search modified_beam_search fast_beam_search; do
 done
 ```
 
+### zipformer (zipformer + pruned stateless transducer + adam optimizer)
+
+See <https://github.com/k2-fsa/icefall/pull/1708> for more details.
+
+[zipformer_adam](./zipformer_adam)
+
+#### Non-streaming
+
+##### normal-scaled model, number of model parameters: 65595219, i.e., 65.60 M
+
+You can find a pretrained model, training logs, decoding logs, and decoding results at:
+<https://huggingface.co/zhu-han/icefall-asr-librispeech-zipformer-adam-medium-2023-08-01>
+
+You can use <https://github.com/k2-fsa/sherpa> to deploy it.
+
+| decoding method      | test-clean | test-other | comment            |
+|----------------------|------------|------------|--------------------|
+| greedy_search        | 2.35       | 5.53        | --epoch 70 --avg 30 |
+| modified_beam_search | 2.29       | 5.48       | --epoch 70 --avg 30 |
+| fast_beam_search     | 2.31       | 5.52       | --epoch 70 --avg 30 |
+
+The training command is:
+```bash
+export CUDA_VISIBLE_DEVICES="0,1,2,3"
+./zipformer_adam/train.py \
+  --world-size 4 \
+  --num-epochs 70 \
+  --start-epoch 1 \
+  --use-fp16 1 \
+  --exp-dir zipformer_adam/exp \
+  --causal 0 \
+  --full-libri 1 \
+  --max-duration 1000
+```
+
+The decoding command is:
+```bash
+export CUDA_VISIBLE_DEVICES="0"
+for m in greedy_search modified_beam_search fast_beam_search; do
+  ./zipformer/decode.py \
+    --epoch 70 \
+    --avg 30 \
+    --use-averaged-model 1 \
+    --exp-dir ./zipformer_adam/exp \
+    --max-duration 600 \
+    --decoding-method $m
+done
+```
+
+To decode with external language models, please refer to the documentation [here](https://k2-fsa.github.io/icefall/decoding-with-langugage-models/index.html).
+
+##### large-scaled model, number of model parameters: 148514478, i.e., 148.5 M
+
+You can find a pretrained model, training logs, decoding logs, and decoding results at:
+<https://huggingface.co/zhu-han/icefall-asr-librispeech-zipformer-adam-large-2023-08-01>
+
+You can use <https://github.com/k2-fsa/sherpa> to deploy it.
+
+| decoding method      | test-clean | test-other | comment            |
+|----------------------|------------|------------|--------------------|
+| greedy_search        | 2.27       | 5.25       | --epoch 70 --avg 20 |
+| modified_beam_search | 2.23       | 5.17       | --epoch 70 --avg 20 |
+| fast_beam_search     | 2.24       | 5.2       | --epoch 70 --avg 20 |
+
+The training command is:
+```bash
+export CUDA_VISIBLE_DEVICES="0,1,2,3"
+./zipformer/train.py \
+  --world-size 4 \
+  --num-epochs 70 \
+  --start-epoch 1 \
+  --use-fp16 1 \
+  --exp-dir zipformer_adam/exp-large \
+  --causal 0 \
+  --num-encoder-layers 2,2,4,5,4,2 \
+  --feedforward-dim 512,768,1536,2048,1536,768 \
+  --encoder-dim 192,256,512,768,512,256 \
+  --encoder-unmasked-dim 192,192,256,320,256,192 \
+  --full-libri 1 \
+  --max-duration 1000
+```
+
+The decoding command is:
+```bash
+export CUDA_VISIBLE_DEVICES="0"
+for m in greedy_search modified_beam_search fast_beam_search; do
+  ./zipformer/decode.py \
+    --epoch 70 \
+    --avg 20 \
+    --exp-dir zipformer_adam/exp-large \
+    --max-duration 600 \
+    --causal 0 \
+    --decoding-method $m \
+    --num-encoder-layers 2,2,4,5,4,2 \
+    --feedforward-dim 512,768,1536,2048,1536,768 \
+    --encoder-dim 192,256,512,768,512,256 \
+    --encoder-unmasked-dim 192,192,256,320,256,192
+done
+```
+
 ### Zipformer CTC
 
 #### [zipformer_ctc](./zipformer_ctc)
