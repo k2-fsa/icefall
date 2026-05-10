@@ -3,9 +3,9 @@
 # fix segmentation fault reported in https://github.com/k2-fsa/icefall/issues/674
 export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
 
-set -euxo pipefail
+set -euo pipefail
 
-nj=20
+nj=4
 stage=-1
 stop_stage=100
 
@@ -42,9 +42,9 @@ musan_dir=${dl_dir}/musan
 #
 # See ASR_LANGUAGES in:
 # https://github.com/lhotse-speech/lhotse/blob/c5f26afd100885b86e4244eeb33ca1986f3fa923/lhotse/recipes/voxpopuli.py#L54C4-L54C4
-lang=en
+lang="es"
 
-task=asr
+task="asr"
 
 . shared/parse_options.sh || exit 1
 
@@ -147,7 +147,7 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   log "Stage 5: Compute fbank for train set of VoxPopuli"
   if [ ! -e data/fbank/.voxpopuli-${task}-${lang}-train.done ]; then
     ./local/compute_fbank.py --src-dir data/fbank --output-dir data/fbank \
-        --num-jobs 100 --num-workers ${nj} \
+        --num-jobs 1000 --num-workers ${nj} \
         --prefix "voxpopuli-${task}-${lang}" \
         --dataset train \
         --trim-to-supervisions True \
@@ -161,8 +161,8 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
   for dataset in "dev" "test" "train"; do
     mkdir -p data/fbank/log/
     ./local/validate_cutset_manifest.py \
-      data/fbank/voxpopuli-asr-en_cuts_${dataset}.jsonl.gz \
-      2>&1 | tee data/fbank/log/validate_voxpopuli-asr-en_cuts_${dataset}.log
+      data/fbank/voxpopuli-asr-${lang}_cuts_${dataset}.jsonl.gz \
+      2>&1 | tee data/fbank/log/validate_voxpopuli-asr-${lang}_cuts_${dataset}.log
   done
 fi
 
