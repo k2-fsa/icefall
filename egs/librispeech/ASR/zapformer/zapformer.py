@@ -300,7 +300,7 @@ class Zapformer(EncoderInterface):
         # all the less-subsampled projections co-vary in the same way, e.g. if there are
         # two frames, that the two frames are identical.
 
-        min_overlap = 0.66  # we can tune this
+        min_overlap = 0.7  # we can tune this
 
         tot_loss = 0.0
         # between pairs of encoders
