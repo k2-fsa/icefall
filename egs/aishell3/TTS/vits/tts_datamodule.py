@@ -52,7 +52,7 @@ class _SeedWorkers:
         fix_random_seed(self.seed + worker_id)
 
 
-class LJSpeechTtsDataModule:
+class Aishell3SpeechTtsDataModule:
     """
     DataModule for tts experiments.
     It assumes there is always one train and valid dataloader,
@@ -71,6 +71,7 @@ class LJSpeechTtsDataModule:
 
     def __init__(self, args: argparse.Namespace):
         self.args = args
+        self.sampling_rate = 8000
 
     @classmethod
     def add_arguments(cls, parser: argparse.ArgumentParser):
@@ -87,6 +88,12 @@ class LJSpeechTtsDataModule:
             type=Path,
             default=Path("data/spectrogram"),
             help="Path to directory with train/valid/test cuts.",
+        )
+        group.add_argument(
+            "--speakers",
+            type=Path,
+            default=Path("data/speakers.txt"),
+            help="Path to speakers.txt file.",
         )
         group.add_argument(
             "--max-duration",
@@ -170,12 +177,13 @@ class LJSpeechTtsDataModule:
         train = SpeechSynthesisDataset(
             return_text=False,
             return_tokens=True,
+            return_spk_ids=True,
             feature_input_strategy=eval(self.args.input_strategy)(),
             return_cuts=self.args.return_cuts,
         )
 
         if self.args.on_the_fly_feats:
-            sampling_rate = 22050
+            sampling_rate = self.sampling_rate
             config = SpectrogramConfig(
                 sampling_rate=sampling_rate,
                 frame_length=1024 / sampling_rate,  # (in second),
@@ -185,6 +193,7 @@ class LJSpeechTtsDataModule:
             train = SpeechSynthesisDataset(
                 return_text=False,
                 return_tokens=True,
+                return_spk_ids=True,
                 feature_input_strategy=OnTheFlyFeatures(Spectrogram(config)),
                 return_cuts=self.args.return_cuts,
             )
@@ -232,7 +241,7 @@ class LJSpeechTtsDataModule:
     def valid_dataloaders(self, cuts_valid: CutSet) -> DataLoader:
         logging.info("About to create dev dataset")
         if self.args.on_the_fly_feats:
-            sampling_rate = 22050
+            sampling_rate = self.sampling_rate
             config = SpectrogramConfig(
                 sampling_rate=sampling_rate,
                 frame_length=1024 / sampling_rate,  # (in second),
@@ -242,6 +251,7 @@ class LJSpeechTtsDataModule:
             validate = SpeechSynthesisDataset(
                 return_text=False,
                 return_tokens=True,
+                return_spk_ids=True,
                 feature_input_strategy=OnTheFlyFeatures(Spectrogram(config)),
                 return_cuts=self.args.return_cuts,
             )
@@ -249,6 +259,7 @@ class LJSpeechTtsDataModule:
             validate = SpeechSynthesisDataset(
                 return_text=False,
                 return_tokens=True,
+                return_spk_ids=True,
                 feature_input_strategy=eval(self.args.input_strategy)(),
                 return_cuts=self.args.return_cuts,
             )
@@ -272,7 +283,7 @@ class LJSpeechTtsDataModule:
     def test_dataloaders(self, cuts: CutSet) -> DataLoader:
         logging.info("About to create test dataset")
         if self.args.on_the_fly_feats:
-            sampling_rate = 22050
+            sampling_rate = self.sampling_rate
             config = SpectrogramConfig(
                 sampling_rate=sampling_rate,
                 frame_length=1024 / sampling_rate,  # (in second),
@@ -282,6 +293,7 @@ class LJSpeechTtsDataModule:
             test = SpeechSynthesisDataset(
                 return_text=False,
                 return_tokens=True,
+                return_spk_ids=True,
                 feature_input_strategy=OnTheFlyFeatures(Spectrogram(config)),
                 return_cuts=self.args.return_cuts,
             )
@@ -289,6 +301,7 @@ class LJSpeechTtsDataModule:
             test = SpeechSynthesisDataset(
                 return_text=False,
                 return_tokens=True,
+                return_spk_ids=True,
                 feature_input_strategy=eval(self.args.input_strategy)(),
                 return_cuts=self.args.return_cuts,
             )
@@ -311,19 +324,26 @@ class LJSpeechTtsDataModule:
     def train_cuts(self) -> CutSet:
         logging.info("About to get train cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "ljspeech_cuts_train.jsonl.gz"
+            self.args.manifest_dir / "aishell3_cuts_train.jsonl.gz"
         )
 
     @lru_cache()
     def valid_cuts(self) -> CutSet:
         logging.info("About to get validation cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "ljspeech_cuts_valid.jsonl.gz"
+            self.args.manifest_dir / "aishell3_cuts_valid.jsonl.gz"
         )
 
     @lru_cache()
     def test_cuts(self) -> CutSet:
         logging.info("About to get test cuts")
         return load_manifest_lazy(
-            self.args.manifest_dir / "ljspeech_cuts_test.jsonl.gz"
+            self.args.manifest_dir / "aishell3_cuts_test.jsonl.gz"
         )
+
+    @lru_cache()
+    def speakers(self) -> Dict[str, int]:
+        logging.info("About to get speakers")
+        with open(self.args.speakers) as f:
+            speakers = {line.strip(): i for i, line in enumerate(f)}
+        return speakers
