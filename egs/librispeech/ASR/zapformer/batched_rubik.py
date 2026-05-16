@@ -258,9 +258,6 @@ def cubic_decay_step(group, state, grad):
 
     linear_alpha = -(1-beta1) - cubic_alpha  # will be negative.
 
-    if (step < 1000 and step % 100 == 0) or (step < 100 and step % 10 == 0) or (step % 1000 == 0):
-        logging.info(f"step={step}, shape={moving_grad_precon.shape}, linear_alpha = {linear_alpha.flatten()}")
-
     moving_grad_precon.add_(prod3 * cubic_alpha)
     moving_grad_precon.mul_(1. + linear_alpha)
 
