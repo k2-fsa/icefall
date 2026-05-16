@@ -1,4 +1,5 @@
 # Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang, Wei Kang)
+#              2022  Xiaomi Corp.        (authors: Zengwei Yao, Liyong Guo, Xiaoyu Yang)  
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -40,6 +41,8 @@ class Transducer(nn.Module):
         decoder_dim: int,
         joiner_dim: int,
         vocab_size: int,
+        num_codebooks: int = 0,
+        distil_delta: int=None,
     ):
         """
         Args:
@@ -68,6 +71,16 @@ class Transducer(nn.Module):
 
         self.simple_am_proj = ScaledLinear(encoder_dim, vocab_size, initial_speed=0.5)
         self.simple_lm_proj = ScaledLinear(decoder_dim, vocab_size)
+        
+        from multi_quantization.prediction import JointCodebookLoss
+        self.distil_delta = distil_delta
+
+        if num_codebooks > 0:
+            self.codebook_loss_net = JointCodebookLoss(
+                predictor_channels=encoder_dim,
+                num_codebooks=num_codebooks,
+                is_joint=False,
+            )
 
     def forward(
         self,
@@ -80,6 +93,7 @@ class Transducer(nn.Module):
         warmup: float = 1.0,
         reduction: str = "sum",
         delay_penalty: float = 0.0,
+        codebook_indexes: torch.Tensor = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Args:
@@ -112,6 +126,8 @@ class Transducer(nn.Module):
             streaming models to emit symbols earlier.
             See https://github.com/k2-fsa/k2/issues/955 and
             https://arxiv.org/pdf/2211.00490.pdf for more details.
+          codebook_indexes:
+            codebook_indexes extracted from a teacher model.
         Returns:
         Returns:
           Return the transducer loss.
@@ -129,7 +145,35 @@ class Transducer(nn.Module):
 
         assert x.size(0) == x_lens.size(0) == y.dim0
 
-        encoder_out, x_lens = self.encoder(x, x_lens, warmup=warmup)
+        layer_results, x_lens = self.encoder(x, x_lens, warmup=warmup)
+        encoder_out = layer_results[-1] # the last item is the final output
+
+        middle_layer_output = layer_results[0]
+        if self.training and codebook_indexes is not None:
+            assert hasattr(self, "codebook_loss_net")
+            # due to different subsampling ratio between hubert teacher and emformer
+            if codebook_indexes.shape[1] != middle_layer_output.shape[1]:
+                codebook_indexes = self.concat_successive_codebook_indexes(
+                    middle_layer_output, codebook_indexes
+                )
+            if self.distil_delta is not None:
+                N = codebook_indexes.shape[0]
+                T = codebook_indexes.shape[1]
+                cur_distil_delta = self.distil_delta
+                # align (teacher) with (student + self.distill_delta)
+                # suppose self.distil_delta == 2
+                unvalid_teacher_mask = codebook_indexes == -100
+                # 1,2,3,4,5,6,7,8,-100,-100 --> 1,2,1,2,3,4,5,6,7,8
+                codebook_indexes[:, cur_distil_delta:, :] = codebook_indexes.clone()[:, :T-cur_distil_delta, :]
+                unvalid_teacher_mask[:, :cur_distil_delta] = True
+                codebook_indexes.masked_fill_(unvalid_teacher_mask, -100)
+                # --> -100, -100, 1,2,3,4,5,6,-100,-100
+            codebook_loss = self.codebook_loss_net(
+                middle_layer_output, codebook_indexes
+            )
+        else:
+            # when codebook index is not available.
+            codebook_loss = None
         assert torch.all(x_lens > 0)
 
         # Now for the decoder, i.e., the prediction network
@@ -204,4 +248,32 @@ class Transducer(nn.Module):
                 reduction=reduction,
             )
 
-        return (simple_loss, pruned_loss)
+        return (simple_loss, pruned_loss, codebook_loss)
+
+    @staticmethod
+    def concat_successive_codebook_indexes(
+        middle_layer_output, codebook_indexes
+    ):
+        # Output rate of hubert is 50 frames per second,
+        # while that of current encoder is 25.
+        # Following code handling two issues:
+        # 1.
+        #   Roughly speaking, to generate another frame output,
+        #   hubert needes extra two frames,
+        #   while current encoder needs extra four frames.
+        #   Suppose there are only extra three frames provided,
+        #   hubert will generate another frame while current encoder does nothing.
+        # 2.
+        #   codebook loss is a frame-wise loss, to enalbe 25 frames studnet output
+        #   learns from 50 frames teacher output, two successive frames of teacher model
+        #   output is concatenated together.
+        t_expected = middle_layer_output.shape[1]
+        N, T, C = codebook_indexes.shape
+        assert T >= t_expected, (T, t_expected)
+        # Handling issue 1.
+        if T >= t_expected * 2:
+            codebook_indexes = codebook_indexes[:, : t_expected * 2, :]
+        # Handling issue 2.
+        codebook_indexes = codebook_indexes.reshape(N, t_expected, C * 2)
+        assert middle_layer_output.shape[1] == codebook_indexes.shape[1]
+        return codebook_indexes
