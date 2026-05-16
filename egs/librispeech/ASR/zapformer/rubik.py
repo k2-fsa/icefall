@@ -157,13 +157,13 @@ def cubic_decay_step(group, state, grad):
     prod3 = scaled_three_way_product(moving_grad_precon)
 
 
-    cubic_alpha = clip_alpha(moving_grad_precon, prod3, alpha=-(1-beta1)*(1. - linear_decay_proportion))
+    cubic_alpha = clip_alpha(moving_grad_precon, prod3, alpha=-(1-beta1)*cubic_decay_proportion)
     # cubic_alpha shape: (batch_size, 1, 1).  it will be negative.
 
     linear_alpha = -(1-beta1) - cubic_alpha  # will be negative.
 
     moving_grad_precon.add_(prod3 * cubic_alpha)
-    moving_grad_precon.mul_(1. - linear_alpha)
+    moving_grad_precon.mul_(1. + linear_alpha)
 
     # update moving_grad as interpolation between linear decay and cubic decay.
     moving_grad[:] = moving_grad_precon * invP

@@ -253,13 +253,16 @@ def cubic_decay_step(group, state, grad):
     # all equal, but in general its 2-norm is >= the 2-norm of moving_grad_precon.
     prod3 = scaled_three_way_product(moving_grad_precon)
 
-    cubic_alpha = clip_alpha(moving_grad_precon, prod3, alpha=-(1-beta1)*(1. - linear_decay_proportion))
+    cubic_alpha = clip_alpha(moving_grad_precon, prod3, alpha=-(1-beta1)*cubic_decay_proportion)
     # cubic_alpha shape: (batch_size, 1, 1)
 
     linear_alpha = -(1-beta1) - cubic_alpha  # will be negative.
 
+    if (step < 1000 and step % 100 == 0) or (step < 100 and step % 10 == 0) or (step % 1000 == 0):
+        logging.info(f"step={step}, shape={moving_grad_precon.shape}, linear_alpha = {linear_alpha.flatten()}")
+
     moving_grad_precon.add_(prod3 * cubic_alpha)
-    moving_grad_precon.mul_(1. - linear_alpha)
+    moving_grad_precon.mul_(1. + linear_alpha)
 
     # update moving_grad as interpolation between linear decay and cubic decay.
     moving_grad[:] = moving_grad_precon * invP
@@ -425,7 +428,7 @@ class BatchedRubik(BatchedOptimizer):
         self,
         params,
         lr=1.2e-02,
-        beta1=0.995,
+        beta1=0.99,
         cubic_decay_proportion=0.8,
         beta2=0.98,
         eps=1.0e-08,
