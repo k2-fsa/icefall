@@ -23,6 +23,7 @@ from torch.optim.lr_scheduler import LambdaLR
 
 from typing import Dict, List, Optional, Tuple, Union
 import torch
+import torch.distributed as dist
 from torch import Tensor
 from torch.optim import Optimizer
 
@@ -118,15 +119,33 @@ def compute_prod3(x):
         x2 = torch.matmul(x.transpose(-2, -1), x)
         return torch.matmul(x, x2)
 
-def three_way_product(x):
-    """ returns the 3-way matrix product x @ x.t() @ x """
-    assert x.ndim >= 2
-    if x.shape[0] <= x.shape[1]:
-        x2 = torch.matmul(x, x.transpose(-2, -1))
-        return torch.matmul(x2, x)
+
+def _three_way_product_chunk(x_chunk):
+    """Core computation: x_chunk @ x_chunk.T @ x_chunk for a single chunk."""
+    if x_chunk.shape[-2] <= x_chunk.shape[-1]:
+        x2 = torch.matmul(x_chunk, x_chunk.transpose(-2, -1))
+        return torch.matmul(x2, x_chunk)
     else:
-        x2 = torch.matmul(x.transpose(-2, -1), x)
-        return torch.matmul(x, x2)
+        x2 = torch.matmul(x_chunk.transpose(-2, -1), x_chunk)
+        return torch.matmul(x_chunk, x2)
+
+
+def three_way_product(x, chunk_size=32):
+    """ returns the 3-way matrix product x @ x.t() @ x
+
+    Processes the batch dimension in chunks to reduce peak GPU memory usage.
+    The intermediate x @ x.T has shape (batch, rows, rows) which can be very
+    large; chunking keeps peak memory proportional to chunk_size instead of batch.
+    """
+    assert x.ndim >= 2
+    batch = x.shape[0]
+    if batch <= chunk_size:
+        return _three_way_product_chunk(x)
+    results = []
+    for start in range(0, batch, chunk_size):
+        end = min(start + chunk_size, batch)
+        results.append(_three_way_product_chunk(x[start:end]))
+    return torch.cat(results, dim=0)
 
 
 def scaled_three_way_product(x):
@@ -180,6 +199,25 @@ def matrix_shape(shape):
     assert False, shape
 
 
+def update_halfnorm_precon(x, row_stats, col_stats, beta2, eps):
+    """
+    half-normalize the rms of x using row-wise and column-wise stats, while
+    updating the moving-average stats; return the normalized x.
+    Shapes:
+        x: (batch_size, rows, cols)
+row_stats: (batch_size, rows, 1)
+col_stats: (batch_size, 1, cols)
+    Returns:
+         normalized x, shape: (batch_size, rows, cols)
+    """
+    row_stats.mul_(beta2).add_(x.abs().mean(dim=2, keepdim=True), alpha=(1 - beta2))
+    row_denom = (row_stats.sqrt() + eps)
+    x = x / row_denom
+    col_stats.mul_(beta2).add_(x.abs().mean(dim=1, keepdim=True), alpha=(1 - beta2))
+    col_denom = (col_stats.sqrt() + eps)
+    return x / col_denom, row_denom, col_denom
+
+
 
 def normalize_and_update_stats(x, row_stats, col_stats, beta2, eps):
     """
@@ -192,11 +230,13 @@ col_stats: (batch_size, 1, cols)
     Returns:
          normalized x, shape: (batch_size, rows, cols)
     """
-    row_stats.mul_(beta2).add_((x ** 2).mean(dim=2, keepdim=True), alpha=(1 - beta2))
-    x = x / (row_stats.sqrt() + eps)
-    col_stats.mul_(beta2).add_((x ** 2).mean(dim=1, keepdim=True), alpha=(1 - beta2))
-    return x / (col_stats.sqrt() + eps)
-
+    row_stats.mul_(beta2).add_(x.abs().mean(dim=2, keepdim=True), alpha=(1 - beta2))
+    row_denom = (row_stats + eps)
+    x = x / row_denom
+    col_stats.mul_(beta2).add_(x.abs().mean(dim=1, keepdim=True), alpha=(1 - beta2))
+    col_denom = (col_stats + eps)
+    x = x / col_denom
+    return x, row_denom, col_denom
 
 
 def cubic_decay_step(group, state, grad):
@@ -220,8 +260,6 @@ def cubic_decay_step(group, state, grad):
     if "moving_grad" not in state:
         assert step < 2
         state["moving_grad"] = torch.zeros(batch_size, rows, cols, device=grad.device)
-        state["moving_row_stats"] = torch.ones(batch_size, rows, 1, device=grad.device)
-        state["moving_col_stats"] = torch.ones(batch_size,1, cols, device=grad.device)
         state["row_stats"] = torch.ones(batch_size, rows, 1, device=grad.device)
         state["col_stats"] = torch.ones(batch_size, 1, cols, device=grad.device)
 
@@ -229,62 +267,44 @@ def cubic_decay_step(group, state, grad):
     moving_grad = state["moving_grad"]
     row_stats = state["row_stats"]
     col_stats = state["col_stats"]
-    moving_row_stats = state["moving_row_stats"]
-    moving_col_stats = state["moving_col_stats"]
+
+
+    # add grad again, like nesterov... just emphasize grad a bit more while also taking into account moving_grad..
+    norm_grad, row_denom, col_denom = normalize_and_update_stats(grad, row_stats, col_stats, beta2, eps)
+
+    denom_prod = (row_denom * col_denom)
+    invP = denom_prod.sqrt()  # this sqrt is because we only want to do half of it before and half of it after; they already had .sqrt() done to them.
+
+    norm_grad_precon = norm_grad * invP  # undoes half of the normalization
 
     # add the grad to the moving-average grad; the scaling factor used here
     # doesn't matter as it all gets normalized later.
-    moving_grad.add_(grad)
-
-    # We'll scale both before and after the cubic decay; this can be viewed as
-    # doing the cubic decay in a preconditioned space where the preconditioner
-    # is 1 / row_col_denom.  (The row and column stats will be updated later).
-    # Looking at this code may give the impression that we are mistakenly
-    # normalizing "twice".  Actually we have an "equilibrium argument" why this
-    # is actually OK and will give correctly-normalized data.
-    row_denom = (moving_row_stats.sqrt() + eps)
-    col_denom = (moving_col_stats.sqrt() + eps)
-    invP = row_denom * col_denom  # inverse preconditioner P
-
-    moving_grad_precon = moving_grad / invP  # preconditioned moving_grad
-    cur_grad_precon = grad / invP  # this step's contribution to moving_grad_precon, used for nesterov modification
+    moving_grad.add_(norm_grad_precon)
 
     # prod3 would have the same value as moving_grad_precon if moving_grad_precon's singular values were
     # all equal, but in general its 2-norm is >= the 2-norm of moving_grad_precon.
-    prod3 = scaled_three_way_product(moving_grad_precon)
+    prod3 = scaled_three_way_product(moving_grad)
 
-    cubic_alpha = clip_alpha(moving_grad_precon, prod3, alpha=-(1-beta1)*cubic_decay_proportion)
+    cubic_alpha = clip_alpha(moving_grad, prod3, alpha=-(1-beta1)*(1. - linear_decay_proportion))
     # cubic_alpha shape: (batch_size, 1, 1)
 
     linear_alpha = -(1-beta1) - cubic_alpha  # will be negative.
 
-    moving_grad_precon.add_(prod3 * cubic_alpha)
-    moving_grad_precon.mul_(1. + linear_alpha)
+    moving_grad.add_(prod3 * cubic_alpha)
+    moving_grad.mul_(1. + linear_alpha)
 
-    # update moving_grad as interpolation between linear decay and cubic decay.
-    moving_grad[:] = moving_grad_precon * invP
+    delta = moving_grad / invP # re-add the half of the normalizatin that we removed
 
-    # Now compute "negative_update" which is moving_grad_precon multiplied again by the
-    # preconditioner, this takes us from the preconditioned to the canonical co-ordinates but now treating the quantity as a parameter-update
-    # rather than as a gradient.   it is going to be very close to:
-    #  negative_update = moving_grad_precon / invP
-    # but we also update the preconditioner.  Note: practically speaking we are multiplying
-    # by the same thing twice though.
-    negative_update = normalize_and_update_stats(moving_grad_precon, moving_row_stats,  moving_col_stats, beta2, eps)
-
-    norm_grad = normalize_and_update_stats(grad, row_stats, col_stats, beta2, eps)
-
-    moving_grad_assumed_scale = (1 - beta1) * ((1 - beta1**2)**-0.5)
-    # moving_grad_assumed_scale is the scale negative_update "should be" if it were decayed moving average of normalized stats,
-    # with scales: (1-beta1), (1-beta1) beta1, (1-beta1) beta1**2, etc.
-
-    nesterov = 2.0  # 1.0 would be standard nesterov
+    nesterov = 2.0  # 1.0 would be normal nesterov
     if nesterov != 0.0:
-        # the scale ((1 - beta1**2)**0.5) on grad is derived as follows:
-        #  norm_grad_assumed_scale = (1-beta1)  # the scale in a nesterov-type "count current step twice".
-        #  coeff = norm_grad_assumed_scale / moving_grad_assumed_scale
-        #        = ((1 - beta1**2)**0.5)
-        negative_update = negative_update + norm_grad * (nesterov * ((1 - beta1**2)**0.5))
+        delta = delta  + (nesterov / beta1) * norm_grad  # not in-place.
+
+    delta_assumed_scale = (1 - beta1) * ((1 - beta1**2)**-0.5)
+
+    #if True:
+    #
+    #if step < 5 or (step < 500 and step % 10 == 0):
+    #logging.info(f"shape={delta.shape}, grad rms is {(grad ** 2).mean(dim=(1,2)).sqrt()}, norm_grad rms is {(norm_grad ** 2).mean(dim=(1,2)).sqrt()}, norm_grad_precon rms is {(norm_grad_precon ** 2).mean(dim=(1,2)).sqrt()}, delta rms is {(delta ** 2).mean(dim=(1,2)).sqrt()}, moving_grad rms is {(moving_grad ** 2).mean(dim=(1,2)).sqrt()}, row_stats_sqrt rms is {row_stats.sqrt().mean(dim=(1,2))}, col_stats sqrt rms is {col_stats.sqrt().mean(dim=(1,2))}")
 
 
     # do "immediate" normalization of 2-norm of the step to make the overall scale of the update what
@@ -295,9 +315,9 @@ def cubic_decay_step(group, state, grad):
     # we ignore nesterov modification for purposes of this formula, it should make little difference anyway
     # if beta1 is close to 1.
 
-    negative_update = negative_update * (moving_grad_assumed_scale / ((negative_update ** 2).mean(dim=(1, 2), keepdim=True).sqrt() + eps))
+    delta = delta * (delta_assumed_scale / ((delta ** 2).mean(dim=(1, 2), keepdim=True).sqrt() + eps))
 
-    ans = -lr * negative_update
+    ans = -lr * delta
 
     return ans.reshape(orig_shape)
 
@@ -391,8 +411,6 @@ def adam_step(group, state, grad):
     return -lr * (moving_grad / denom)
 
 
-
-
 class BatchedRubik(BatchedOptimizer):
     """
      Implements a batched version of the Rubik optimizer.
@@ -425,8 +443,8 @@ class BatchedRubik(BatchedOptimizer):
         self,
         params,
         lr=1.2e-02,
-        beta1=0.99,
-        cubic_decay_proportion=0.8,
+        beta1=0.995,
+        cubic_decay_proportion=1.0,
         beta2=0.98,
         eps=1.0e-08,
         scale_limits=(0.03, 0.15),
@@ -473,6 +491,9 @@ class BatchedRubik(BatchedOptimizer):
             with self.batched_params(group["params"]) as batches:
                 for p, state in batches:
                     grad = p.grad
+
+                    if dist.is_initialized():
+                        dist.all_reduce(grad, op=dist.ReduceOp.AVG)
 
                     try:
                         cur_step = state["step"]
