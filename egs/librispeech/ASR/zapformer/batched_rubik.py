@@ -278,13 +278,13 @@ def cubic_decay_step(group, state, grad):
     # moving_grad_assumed_scale is the scale negative_update "should be" if it were decayed moving average of normalized stats,
     # with scales: (1-beta1), (1-beta1) beta1, (1-beta1) beta1**2, etc.
 
-    nesterov = True
-    if nesterov:
+    nesterov = 2.0  # 1.0 would be standard nesterov
+    if nesterov != 0.0:
         # the scale ((1 - beta1**2)**0.5) on grad is derived as follows:
         #  norm_grad_assumed_scale = (1-beta1)  # the scale in a nesterov-type "count current step twice".
         #  coeff = norm_grad_assumed_scale / moving_grad_assumed_scale
         #        = ((1 - beta1**2)**0.5)
-        negative_update = negative_update + norm_grad * ((1 - beta1**2)**0.5)
+        negative_update = negative_update + norm_grad * (nesterov * ((1 - beta1**2)**0.5))
 
 
     # do "immediate" normalization of 2-norm of the step to make the overall scale of the update what
