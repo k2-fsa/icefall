@@ -295,9 +295,9 @@ def cubic_decay_step(group, state, grad):
 
     delta = moving_grad / invP # re-add the half of the normalizatin that we removed
 
-    nesterov = 2.0  # 1.0 would be normal nesterov
-    if nesterov != 0.0:
-        delta = delta  + (nesterov / beta1) * norm_grad  # not in-place.
+    nesterov = True
+    if nesterov:
+        delta = beta1 * delta  +  norm_grad  # not in-place.
 
     delta_assumed_scale = (1 - beta1) * ((1 - beta1**2)**-0.5)
 
