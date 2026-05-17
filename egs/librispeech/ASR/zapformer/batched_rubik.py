@@ -559,8 +559,8 @@ def _test_batched_rubik(hidden_dim: int):
             for _ in range(20)
         ]
 
-        lr = 0.024
-        optim = BatchedRubik(m.parameters(), lr=lr, beta1=0.999)
+        lr = 0.018
+        optim = BatchedRubik(m.parameters(), lr=lr, beta1=0.998)
 
         num_epochs = 180
 
