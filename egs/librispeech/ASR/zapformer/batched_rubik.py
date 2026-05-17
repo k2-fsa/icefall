@@ -243,14 +243,13 @@ def cubic_decay_step(group, state, grad):
     lr = group["lr"]
     eps = group["eps"]
     step = state["step"]
-    beta1_ceil = 1. - 1. / (10. + 0.1 * step)
+    beta1_ceil = 1. - 1. / (10. + 0.2 * step)
     beta1 = min(group["beta1"], beta1_ceil)
     beta2_ceil = step / (step + 1)
     beta2 = min(group["beta2"], beta2_ceil)
 
 
     cubic_decay_proportion = group["cubic_decay_proportion"]
-    linear_decay_proportion = 1.  - cubic_decay_proportion
 
     orig_shape = grad.shape
     batch_size = orig_shape[0]
@@ -285,19 +284,25 @@ def cubic_decay_step(group, state, grad):
     # all equal, but in general its 2-norm is >= the 2-norm of moving_grad_precon.
     prod3 = scaled_three_way_product(moving_grad)
 
-    cubic_alpha = clip_alpha(moving_grad, prod3, alpha=-(1-beta1)*(1. - linear_decay_proportion))
+
+    debug = (step % 40 == 0)
+    if debug:
+        moving_grad_norm = (moving_grad ** 2).mean(dim=(1,2)).sqrt()
+
+    cubic_alpha = clip_alpha(moving_grad, prod3, alpha=-(1-beta1)*cubic_decay_proportion)
     # cubic_alpha shape: (batch_size, 1, 1)
 
-    linear_alpha = -(1-beta1) - cubic_alpha  # will be negative.
-
     moving_grad.add_(prod3 * cubic_alpha)
-    moving_grad.mul_(1. + linear_alpha)
+
+    if debug:
+        moving_grad_norm_rel_change = 1. - (moving_grad ** 2).mean(dim=(1,2)).sqrt() / moving_grad_norm
+        logging.info(f"shape={prod3.shape}, moving_grad_rel_change={moving_grad_norm_rel_change}, vs. target {(1-beta1)}")
 
     delta = moving_grad / invP # re-add the half of the normalizatin that we removed
 
-    nesterov = 0.66
-    if nesterov != 0.0:
-        delta = delta  +  (nesterov / beta1) * norm_grad  # not in-place.
+    nesterov = True
+    if nesterov:
+        delta = beta1 * delta  +  norm_grad  # not in-place.
 
     delta_assumed_scale = (1 - beta1) * ((1 - beta1**2)**-0.5)
 
@@ -335,7 +340,7 @@ def scaling_step(group, param, state, grad):
     # learning rate.
     scalar_scale = group["scalar_scale"]
 
-    if grad.ndim >= 2 and grad.numel() != max(grad.shape):
+    if grad.ndim >= 2 and grad.numel() != grad.shape[0] * max(grad.shape[1:]):
         delta = cubic_decay_step(group, state, grad)
     else:
         # biases and similar-shaped tensors
@@ -443,8 +448,8 @@ class BatchedRubik(BatchedOptimizer):
         self,
         params,
         lr=1.2e-02,
-        beta1=0.995,
-        cubic_decay_proportion=1.0,
+        beta1=0.99,
+        cubic_decay_proportion=0.5,
         beta2=0.98,
         eps=1.0e-08,
         scale_limits=(0.03, 0.15),
