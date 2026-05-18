@@ -161,20 +161,28 @@ def scaled_three_way_product(x):
     x = x * (x_meansq * max(rows, cols)) ** (-1/3)
     return three_way_product(x)
 
-def clip_alpha(x: Tensor, y: Tensor, alpha: float) -> Tensor:
+def compute_alpha(x: Tensor, y: Tensor, beta: float) -> Tensor:
     """
-    In a situation where you plan to do:
-      x.add_(y, alpha=alpha)
-    returns a possibly-modified value of alpha that
-    but modified to prevent divergence on x (may use an alpha closer zero if necessary)
+    Solve the equation: ||x + alpha y||_2^2 == ||beta x||_2^2
+
+          x.x + 2 alpha y.x + alpha^2 y.y = beta^2 x.x
+      alpha^2 y.y + 2 alpha x.y + (1-beta^2) x.x = 0
+     (a,b,c) = (y.y, 2 alpha x.y, x.x)
+        alpha = (-b + sqrt(b^2 - 4ac) ) / 2a      # this is the solution closest to zero. 
+                                                  # treat the thing inside the sqrt as zero if
+                                                  # negative, this 
+    # factoring out 2 from the top and bottom we get:
+       so alpha = (-x.y + sqrt(x.y * y.x  - (1-beta^2) x.x * y.y)) / y.y
+     ... we treat the thing inside the sqrt as zero if it is negative,
+      which gives us the closest real solution
     """
-    # min_sum_scale the scale beta such that (x + beta y) is minimized; x and
-    # y each have 2 dimensions.  min_sum_scale is expected to be negative.
-    min_sum_scale = -(x * y).sum(dim=(1, 2), keepdim=True) / ((y ** 2).sum(dim=(1, 2), keepdim=True) + 1.0e-40)
-    # the safety factor of 0.5 means, don't go all the way to where the dot product of the
-    # change to x with x would be zero, only go some way to there.
-    safety_factor = 0.5
-    alpha = (safety_factor * min_sum_scale).clamp(min=alpha)
+    eps = 1.0e-40
+    xx = x.square().mean(dim=(1, 2), keepdim=True) 
+    xy = (x * y).mean(dim=(1, 2), keepdim=True)
+    yy = y.square().mean(dim=(1, 2), keepdim=True)
+
+    alpha = (-xy + (xy**2 - (1-beta*beta) * xx * yy).clamp(min=0).sqrt()) / (yy + eps)
+
     return alpha
 
 
@@ -285,13 +293,7 @@ def cubic_decay_step(group, state, grad):
     if debug:
         moving_grad_norm = (moving_grad ** 2).mean(dim=(1,2)).sqrt()
 
-    rank = min(grad.shape[1], grad.shape[2])
-    cubic_decay_scale = rank ** -0.25   # for large ranks we tend to get more energy concentrated in
-    # a smaller proportion of singular values, so the amount of decay would be more than than
-    # the minimum limit, this corrects for this.  this formula is heuristic based on observed
-    # trends, not exact.
-    
-    cubic_alpha = clip_alpha(moving_grad, prod3, alpha=-(1-beta1)*cubic_decay_scale)
+    cubic_alpha = compute_alpha(moving_grad, prod3, beta1)
     # cubic_alpha shape: (batch_size, 1, 1)
 
     moving_grad.add_(prod3 * cubic_alpha)
