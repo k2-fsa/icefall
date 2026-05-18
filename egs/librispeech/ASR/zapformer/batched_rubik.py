@@ -257,8 +257,6 @@ def cubic_decay_step(group, state, grad):
     # add grad again, like nesterov... just emphasize grad a bit more while also taking into account moving_grad..
     norm_grad, row_denom, col_denom = normalize_and_update_stats(grad, row_stats, col_stats, beta2, eps)
 
-    norm_grad.clamp_(min=-3, max=3)
-
     denom_prod = (row_denom * col_denom)
     invP = denom_prod.sqrt()  # this sqrt is because we only want to do half of it before and half of it after; they already had .sqrt() done to them.
 
@@ -273,17 +271,11 @@ def cubic_decay_step(group, state, grad):
     prod3 = scaled_three_way_product(moving_grad)
 
     debug = (step < 500 and (step % 50 == 0)) or (step % 500 == 0)
-    if debug:
-        moving_grad_norm = (moving_grad ** 2).mean(dim=(1,2)).sqrt()
 
     cubic_alpha = compute_alpha(moving_grad, prod3, beta1)
     # cubic_alpha shape: (batch_size, 1, 1)
 
     moving_grad.add_(prod3 * cubic_alpha)
-
-    if debug:
-        moving_grad_norm_rel_change = 1. - (moving_grad ** 2).mean(dim=(1,2)).sqrt() / moving_grad_norm
-        logging.info(f"shape={prod3.shape}, moving_grad_rel_change={moving_grad_norm_rel_change}, vs. target {(1-beta1)}")
 
     delta = moving_grad / invP # re-add the half of the normalizatin that we removed
 
@@ -291,7 +283,7 @@ def cubic_decay_step(group, state, grad):
     if nesterov:
         delta = torch.lerp(delta, norm_grad, weight=(1-beta1))  # beta1 * delta  +  (1 - beta1) * norm_grad  # not in-place.
 
-    #delta_assumed_scale = (1 - beta1) * ((1 - beta1**2)**-0.5)
+    delta_assumed_scale = (1 - beta1) * ((1 - beta1**2)**-0.5)
 
     #if True:
     #
@@ -311,11 +303,12 @@ def cubic_decay_step(group, state, grad):
     # doing the extra sqrt on the scale means we, in effect, half-normalize the magnitude.
     # we can, I think come up with an argument that it's similar to using a different value of beta.
     # (argument would require independence of grads on different steps.)
-    #scale = (delta_assumed_scale / ((delta ** 2).mean(dim=(1, 2), keepdim=True).sqrt() + eps)).sqrt()
+
+    scale = (delta_assumed_scale / ((delta ** 2).mean(dim=(1, 2), keepdim=True).sqrt() + eps))
     
-    #if debug:
-    #    logging.info(f"shape={prod3.shape}, scale={scale.flatten()}")
-    #delta = delta * scale
+    if debug:
+        logging.info(f"shape={prod3.shape}, scale={scale.flatten()}")
+    delta = delta * scale
 
     ans = -lr * delta
 
