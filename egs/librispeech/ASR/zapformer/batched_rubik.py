@@ -257,6 +257,8 @@ def cubic_decay_step(group, state, grad):
     # add grad again, like nesterov... just emphasize grad a bit more while also taking into account moving_grad..
     norm_grad, row_denom, col_denom = normalize_and_update_stats(grad, row_stats, col_stats, beta2, eps)
 
+    norm_grad.clamp_(min=-3, max=3)
+
     denom_prod = (row_denom * col_denom)
     invP = denom_prod.sqrt()  # this sqrt is because we only want to do half of it before and half of it after; they already had .sqrt() done to them.
 
