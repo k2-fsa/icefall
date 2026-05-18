@@ -207,25 +207,6 @@ def matrix_shape(shape):
     assert False, shape
 
 
-def update_halfnorm_precon(x, row_stats, col_stats, beta2, eps):
-    """
-    half-normalize the rms of x using row-wise and column-wise stats, while
-    updating the moving-average stats; return the normalized x.
-    Shapes:
-        x: (batch_size, rows, cols)
-row_stats: (batch_size, rows, 1)
-col_stats: (batch_size, 1, cols)
-    Returns:
-         normalized x, shape: (batch_size, rows, cols)
-    """
-    row_stats.mul_(beta2).add_(x.abs().mean(dim=2, keepdim=True), alpha=(1 - beta2))
-    row_denom = (row_stats.sqrt() + eps)
-    x = x / row_denom
-    col_stats.mul_(beta2).add_(x.abs().mean(dim=1, keepdim=True), alpha=(1 - beta2))
-    col_denom = (col_stats.sqrt() + eps)
-    return x / col_denom, row_denom, col_denom
-
-
 
 def normalize_and_update_stats(x, row_stats, col_stats, beta2, eps):
     """

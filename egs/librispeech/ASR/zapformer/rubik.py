@@ -23,6 +23,7 @@ from torch.optim.lr_scheduler import LambdaLR
 
 from typing import Dict, List, Optional, Tuple, Union
 import torch
+import torch.distributed as dist
 from torch import Tensor
 from torch.optim import Optimizer
 
@@ -50,20 +51,28 @@ def scaled_three_way_product(x):
     x = x * (x_meansq * max(rows, cols)) ** (-1/3)
     return three_way_product(x)
 
-def clip_alpha(x: Tensor, y: Tensor, alpha: float) -> Tensor:
+def compute_alpha(x: Tensor, y: Tensor, beta: float) -> Tensor:
     """
-    In a situation where you plan to do:
-      x.add_(y, alpha=alpha)
-    returns a possibly-modified value of alpha that
-    but modified to prevent divergence on x (may use an alpha closer zero if necessary)
+    Solve the equation: ||x + alpha y||_2^2 == ||beta x||_2^2
+
+          x.x + 2 alpha y.x + alpha^2 y.y = beta^2 x.x
+      alpha^2 y.y + 2 alpha x.y + (1-beta^2) x.x = 0
+     (a,b,c) = (y.y, 2 alpha x.y, x.x)
+        alpha = (-b + sqrt(b^2 - 4ac) ) / 2a      # this is the solution closest to zero. 
+                                                  # treat the thing inside the sqrt as zero if
+                                                  # negative, this 
+    # factoring out 2 from the top and bottom we get:
+       so alpha = (-x.y + sqrt(x.y * y.x  - (1-beta^2) x.x * y.y)) / y.y
+     ... we treat the thing inside the sqrt as zero if it is negative,
+      which gives us the closest real solution
     """
-    # min_sum_scale the scale beta such that (x + beta y) is minimized; x and
-    # y each have 2 dimensions.  min_sum_scale is expected to be negative.
-    min_sum_scale = -(x * y).sum() / ((y ** 2).sum() + 1.0e-40)
-    # the safety factor of 0.5 means, don't go all the way to where the dot product of the
-    # change to x with x would be zero, only go some way to there.
-    safety_factor = 0.5
-    alpha = (safety_factor * min_sum_scale).clamp(min=alpha)
+    eps = 1.0e-40
+    xx = x.square().mean()
+    xy = (x * y).mean()
+    yy = y.square().mean()
+
+    alpha = (-xy + (xy**2 - (1-beta*beta) * xx * yy).clamp(min=0).sqrt()) / (yy + eps)
+
     return alpha
 
 
@@ -102,10 +111,13 @@ col_stats: (1, cols)
     Returns:
          normalized x, shape: (rows, cols)
     """
-    row_stats.mul_(beta2).add_((x ** 2).mean(dim=1, keepdim=True), alpha=(1 - beta2))
-    x = x / (row_stats.sqrt() + eps)
-    col_stats.mul_(beta2).add_((x ** 2).mean(dim=0, keepdim=True), alpha=(1 - beta2))
-    return x / (col_stats.sqrt() + eps)
+    row_stats.mul_(beta2).add_(x.abs().mean(dim=1, keepdim=True), alpha=(1 - beta2))
+    row_denom = (row_stats + eps)
+    x = x / row_denom
+    col_stats.mul_(beta2).add_(x.abs().mean(dim=0, keepdim=True), alpha=(1 - beta2))
+    col_denom = (col_stats + eps)
+    x = x / col_denom
+    return x, row_denom, col_denom
 
 
 
@@ -113,13 +125,10 @@ def cubic_decay_step(group, state, grad):
     lr = group["lr"]
     eps = group["eps"]
     step = state["step"]
-    beta1_ceil = 1. - 1. / (10. + 0.1 * step)
+    beta1_ceil = 1. - 1. / (10. + 0.2 * step)
     beta1 = min(group["beta1"], beta1_ceil)
     beta2_ceil = step / (step + 1)
     beta2 = min(group["beta2"], beta2_ceil)
-
-    cubic_decay_proportion = group["cubic_decay_proportion"]
-    linear_decay_proportion = 1.  - cubic_decay_proportion
 
     orig_shape = grad.shape
     rows, cols = matrix_shape(orig_shape)
@@ -135,65 +144,44 @@ def cubic_decay_step(group, state, grad):
     row_stats = state["row_stats"]
     col_stats = state["col_stats"]
 
+    # add grad again, like nesterov... just emphasize grad a bit more while also taking into account moving_grad..
+    norm_grad, row_denom, col_denom = normalize_and_update_stats(grad, row_stats, col_stats, beta2, eps)
+    denom_prod = (row_denom * col_denom)
+    invP = denom_prod.sqrt()  # this sqrt is because we only want to do half of it before and half of it after; they already had .sqrt() done to them.
+    norm_grad_precon = norm_grad * invP  # undoes half of the normalization
+
     # add the grad to the moving-average grad; the scaling factor used here
     # doesn't matter as it all gets normalized later.
-    moving_grad.add_(grad)
-
-    # We'll scale both before and after the cubic decay; this can be viewed as
-    # doing the cubic decay in a preconditioned space where the preconditioner
-    # is 1 / row_col_denom.  (The row and column stats will be updated later).
-    # Looking at this code may give the impression that we are mistakenly
-    # normalizing "twice".  Actually we have an "equilibrium argument" why this
-    # is actually OK and will give correctly-normalized data.
-    row_denom = (row_stats.sqrt() + eps)
-    col_denom = (col_stats.sqrt() + eps)
-    invP = row_denom * col_denom  # inverse preconditioner P
-
-    moving_grad_precon = moving_grad / invP  # preconditioned moving_grad
-    cur_grad_precon = grad / invP  # this step's contribution to moving_grad_precon, used for nesterov modification
-
+    moving_grad.add_(norm_grad_precon, alpha=(1-beta1))
+ 
     # prod3 would have the same value as moving_grad_precon if moving_grad_precon's singular values were
     # all equal, but in general its 2-norm is >= the 2-norm of moving_grad_precon.
-    prod3 = scaled_three_way_product(moving_grad_precon)
+    prod3 = scaled_three_way_product(moving_grad)
 
+    debug = (step < 500 and (step % 50 == 0)) or (step % 500 == 0)
+    if debug:
+        moving_grad_norm = (moving_grad ** 2).mean().sqrt()
 
-    cubic_alpha = clip_alpha(moving_grad_precon, prod3, alpha=-(1-beta1)*cubic_decay_proportion)
-    # cubic_alpha shape: (batch_size, 1, 1).  it will be negative.
+    cubic_alpha = compute_alpha(moving_grad, prod3, beta1)
+    # cubic_alpha shape: (1, 1)
 
-    linear_alpha = -(1-beta1) - cubic_alpha  # will be negative.
+    moving_grad.add_(prod3 * cubic_alpha)
 
-    moving_grad_precon.add_(prod3 * cubic_alpha)
-    moving_grad_precon.mul_(1. + linear_alpha)
+    if debug:
+        moving_grad_norm_rel_change = 1. - (moving_grad ** 2).mean().sqrt() / moving_grad_norm
+        logging.info(f"shape={prod3.shape}, moving_grad_rel_change={moving_grad_norm_rel_change}, vs. target {(1-beta1)}")
 
-    # update moving_grad as interpolation between linear decay and cubic decay.
-    moving_grad[:] = moving_grad_precon * invP
+    delta = moving_grad / invP # re-add the half of the normalizatin that we removed
 
     nesterov = True
     if nesterov:
-        moving_grad_precon = moving_grad_precon + cur_grad_precon
+        delta = torch.lerp(delta, norm_grad, weight=(1-beta1))  # beta1 * delta  +  (1 - beta1) * norm_grad  # not in-place.
 
-    # Now compute "negative_update" which is negative_update_precon multiplied again by the
-    # preconditioner, this takes us from the preconditioned to the canonical co-ordinates but now treating the quantity as a parameter-update
-    # rather than as a gradient.   it is going to be very close to:
-    #  negative_update = moving_grad_precon / invP
-    # but we also update the preconditioner.  Note: practically speaking we are multiplying
-    # by the same thing twice, i.e. dividing "grad" twice by invP.
-    negative_update = normalize_and_update_stats(moving_grad_precon, row_stats, col_stats, beta2, eps)
-
-    # do "immediate" normalization of 2-norm of the step to make the overall scale of the update what
-    # it would be if this was a normal decaying-beta1 update and the stats were i.i.d..
-    # below is the assumed scale of d if stats were i.i.d. and this were a more normal adam-style
-    # accumulator with beta equal to beta1.
-    # This should make divergence less likely.
-    # we ignore nesterov modification for purposes of this formula, it should make little difference anyway
-    # if beta1 is close to 1.
-    assumed_scale = (1 - beta1) * ((1 - beta1**2)**-0.5)
-
-    negative_update = negative_update * (assumed_scale / ((negative_update ** 2).mean().sqrt() + eps))
-
-    ans = -lr * negative_update
-
+    ans = -lr * delta
+ 
     return ans.reshape(orig_shape)
+
+
 
 
 def scaling_step(group, param, state, grad):
@@ -308,8 +296,7 @@ class Rubik(Optimizer):
         self,
         params,
         lr=1.2e-02,
-        beta1=0.995,
-        cubic_decay_proportion=0.8,
+        beta1=0.99,
         beta2=0.98,
         eps=1.0e-08,
         scale_limits=(0.03, 0.15),
@@ -321,7 +308,6 @@ class Rubik(Optimizer):
         defaults = dict(
             lr=lr,
             beta1=beta1,
-            cubic_decay_proportion=cubic_decay_proportion,
             beta2=beta2,
             eps=eps,
             scale_limits=scale_limits,
@@ -416,8 +402,8 @@ def _test_rubik(hidden_dim: int):
             for _ in range(20)
         ]
 
-        lr = 0.024
-        optim = Rubik(m.parameters(), lr=lr, beta1=0.999)
+        lr = 0.018
+        optim = Rubik(m.parameters(), lr=lr, beta1=0.998)
 
         num_epochs = 180
 
@@ -480,6 +466,7 @@ def _test_rubik(hidden_dim: int):
         # logging.info("optim state_dict = ", optim.state_dict())
         logging.info(f"input_magnitudes = {input_magnitudes}")
         logging.info(f"output_magnitudes = {output_magnitudes}")
+
 
 
 def _test_scaled_three_way_product():
