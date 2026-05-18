@@ -289,7 +289,13 @@ def cubic_decay_step(group, state, grad):
     if debug:
         moving_grad_norm = (moving_grad ** 2).mean(dim=(1,2)).sqrt()
 
-    cubic_alpha = clip_alpha(moving_grad, prod3, alpha=-(1-beta1)*cubic_decay_proportion)
+    rank = min(grad.shape[1], grad.shape[2])
+    cubic_decay_scale = rank ** -0.25   # for large ranks we tend to get more energy concentrated in
+    # a smaller proportion of singular values, so the amount of decay would be more than than
+    # the minimum limit, this corrects for this.  this formula is heuristic based on observed
+    # trends, not exact.
+    
+    cubic_alpha = clip_alpha(moving_grad, prod3, alpha=-(1-beta1)*cubic_decay_scale)
     # cubic_alpha shape: (batch_size, 1, 1)
 
     moving_grad.add_(prod3 * cubic_alpha)
@@ -449,7 +455,6 @@ class BatchedRubik(BatchedOptimizer):
         params,
         lr=1.2e-02,
         beta1=0.99,
-        cubic_decay_proportion=0.5,
         beta2=0.98,
         eps=1.0e-08,
         scale_limits=(0.03, 0.15),
@@ -462,7 +467,6 @@ class BatchedRubik(BatchedOptimizer):
         defaults = dict(
             lr=lr,
             beta1=beta1,
-            cubic_decay_proportion=cubic_decay_proportion,
             beta2=beta2,
             eps=eps,
             scale_limits=scale_limits,
