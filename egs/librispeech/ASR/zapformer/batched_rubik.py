@@ -323,7 +323,11 @@ def cubic_decay_step(group, state, grad):
     # if beta1 is close to 1.
 
 
-    scale = (delta_assumed_scale / ((delta ** 2).mean(dim=(1, 2), keepdim=True).sqrt() + eps)).clamp(max=1.0)
+    # doing the extra sqrt on the scale means we, in effect, half-normalize the magnitude.
+    # we can, I think come up with an argument that it's similar to using a different value of beta.
+    # (argument would require independence of grads on different steps.)
+    scale = (delta_assumed_scale / ((delta ** 2).mean(dim=(1, 2), keepdim=True).sqrt() + eps)).sqrt()
+    
     if debug:
         logging.info(f"shape={prod3.shape}, scale={scale.flatten()}")
 
