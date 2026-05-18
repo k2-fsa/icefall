@@ -248,9 +248,6 @@ def cubic_decay_step(group, state, grad):
     beta2_ceil = step / (step + 1)
     beta2 = min(group["beta2"], beta2_ceil)
 
-
-    cubic_decay_proportion = group["cubic_decay_proportion"]
-
     orig_shape = grad.shape
     batch_size = orig_shape[0]
     rows, cols = matrix_shape(orig_shape[1:])
