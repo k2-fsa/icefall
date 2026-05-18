@@ -275,14 +275,13 @@ def cubic_decay_step(group, state, grad):
 
     # add the grad to the moving-average grad; the scaling factor used here
     # doesn't matter as it all gets normalized later.
-    moving_grad.add_(norm_grad_precon)
+    moving_grad.add_(norm_grad_precon, alpha=(1-beta1))
 
     # prod3 would have the same value as moving_grad_precon if moving_grad_precon's singular values were
     # all equal, but in general its 2-norm is >= the 2-norm of moving_grad_precon.
     prod3 = scaled_three_way_product(moving_grad)
 
-
-    debug = (step % 40 == 0)
+    debug = (step < 500 and (step % 50 == 0)) or (step % 500 == 0)
     if debug:
         moving_grad_norm = (moving_grad ** 2).mean(dim=(1,2)).sqrt()
 
@@ -305,7 +304,7 @@ def cubic_decay_step(group, state, grad):
 
     nesterov = True
     if nesterov:
-        delta = beta1 * delta  +  norm_grad  # not in-place.
+        delta = torch.lerp(delta, norm_grad, weight=(1-beta1))  # beta1 * delta  +  (1 - beta1) * norm_grad  # not in-place.
 
     delta_assumed_scale = (1 - beta1) * ((1 - beta1**2)**-0.5)
 
@@ -323,7 +322,12 @@ def cubic_decay_step(group, state, grad):
     # we ignore nesterov modification for purposes of this formula, it should make little difference anyway
     # if beta1 is close to 1.
 
-    delta = delta * (delta_assumed_scale / ((delta ** 2).mean(dim=(1, 2), keepdim=True).sqrt() + eps))
+
+    scale = (delta_assumed_scale / ((delta ** 2).mean(dim=(1, 2), keepdim=True).sqrt() + eps)).clamp(max=1.0)
+    if debug:
+        logging.info(f"shape={prod3.shape}, scale={scale.flatten()}")
+
+    delta = delta * scale
 
     ans = -lr * delta
 
