@@ -168,7 +168,7 @@ def cubic_decay_step(group, state, grad):
     col_stats = state["col_stats"]
 
     # we half update the stats here, half update them later.
-    norm_grad, norm_grad_precon = half_normalize_and_update_stats(grad, row_stats, col_stats, 0.5*(1+beta2), eps)
+    norm_grad, norm_grad_precon = half_normalize_and_update_stats(grad, row_stats, col_stats, beta2, eps)
 
     # add the grad to the moving-average grad; the scaling factor used here
     # doesn't matter as it all gets normalized later.
@@ -190,7 +190,11 @@ def cubic_decay_step(group, state, grad):
     # The actual variance of moving_grad also depends on the variance of the original grads; this is just
     # a scalar component in the variance to accountn for averaging-over-time effects.
     assumed_scale = (1 - beta1) * ((1 - beta1**2)**-0.5)
-    delta = assumed_scale * normalize_and_update_stats(moving_grad / assumed_scale, row_stats, col_stats, 0.5*(1+beta2), eps)
+
+    # use a beta2 that is much closer to 1 so we update the stats more slowly at this point; this will                                                                                                                                            # make the stats update more dominated by grad rather than moving_grad.
+    beta2b_scale = 0.1
+    beta2b = beta2b_scale * beta2 + (1 - beta2b_scale)
+    delta = assumed_scale * normalize_and_update_stats(moving_grad / assumed_scale, row_stats, col_stats, beta2b, eps)
 
     nesterov = True
     if nesterov:
