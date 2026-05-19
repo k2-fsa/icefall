@@ -208,7 +208,7 @@ def matrix_shape(shape):
 
 
 
-def normalize_and_update_stats(x, row_stats, col_stats, beta2, eps):
+def half_normalize_and_update_stats(x, row_stats, col_stats, beta2, eps):
     """
     Normalize the rms of x using row-wise and column-wise stats, while
     updating the moving-average stats; return the normalized x.
@@ -224,8 +224,31 @@ col_stats: (batch_size, 1, cols)
     x = x / row_denom
     col_stats.mul_(beta2).add_(x.abs().mean(dim=1, keepdim=True), alpha=(1 - beta2))
     col_denom = (col_stats + eps)
+    x_half_norm = (x * row_denom.sqrt()) / col_denom.sqrt()
     x = x / col_denom
-    return x, row_denom, col_denom
+    return x, x_half_norm
+    
+    
+
+def normalize_and_update_stats(x, row_stats, col_stats, beta2, eps):
+    """
+    Normalize the rms of x using row-wise and column-wise stats, while
+    updating the moving-average stats; return the normalized x.
+    Shapes:
+        x: (batch_size, rows, cols)
+row_stats: (batch_size, rows, 1)
+col_stats: (batch_size, 1, cols)
+    Returns:
+         normalized x, shape: (batch_size, rows, cols)
+    """
+    row_stats.mul_(beta2).add_((x ** 2).mean(dim=2, keepdim=True), alpha=(1 - beta2))
+    row_denom = (row_stats.sqrt() + eps)
+    x = x / row_denom
+    col_stats.mul_(beta2).add_((x ** 2).mean(dim=1, keepdim=True), alpha=(1 - beta2))
+    col_denom = (col_stats.sqrt() + eps)
+    x = x / col_denom
+    return x
+
 
 
 def cubic_decay_step(group, state, grad):
@@ -253,14 +276,8 @@ def cubic_decay_step(group, state, grad):
     row_stats = state["row_stats"]
     col_stats = state["col_stats"]
 
-
-    # add grad again, like nesterov... just emphasize grad a bit more while also taking into account moving_grad..
-    norm_grad, row_denom, col_denom = normalize_and_update_stats(grad, row_stats, col_stats, beta2, eps)
-
-    denom_prod = (row_denom * col_denom)
-    invP = denom_prod.sqrt()  # this sqrt is because we only want to do half of it before and half of it after; they already had .sqrt() done to them.
-
-    norm_grad_precon = norm_grad * invP  # undoes half of the normalization
+    # we half update the stats here, half update them later.
+    norm_grad, norm_grad_precon = half_normalize_and_update_stats(grad, row_stats, col_stats, 0.5*(1+beta2), eps)
 
     # add the grad to the moving-average grad; the scaling factor used here
     # doesn't matter as it all gets normalized later.
@@ -270,20 +287,24 @@ def cubic_decay_step(group, state, grad):
     # all equal, but in general its 2-norm is >= the 2-norm of moving_grad_precon.
     prod3 = scaled_three_way_product(moving_grad)
 
-    debug = (step < 500 and (step % 50 == 0)) or (step % 500 == 0)
 
     cubic_alpha = compute_alpha(moving_grad, prod3, beta1)
     # cubic_alpha shape: (batch_size, 1, 1)
 
     moving_grad.add_(prod3 * cubic_alpha)
 
-    delta = moving_grad / invP # re-add the half of the normalizatin that we removed
+    # assumed_scale is just a scalar factor to account for the fact that the moving-average "moving_grad"
+    # will have a smaller variance than the grad itself because of being a mean over independent elements.
+    # we rescale before getting the stats, to have the same variance as if it were the grad.
+    # The actual variance of moving_grad also depends on the variance of the original grads; this is just
+    # a scalar component in the variance to accountn for averaging-over-time effects.
+    assumed_scale = (1 - beta1) * ((1 - beta1**2)**-0.5)
+
+    delta = assumed_scale * normalize_and_update_stats(moving_grad / assumed_scale, row_stats, col_stats, 0.5*(1+beta2), eps)
 
     nesterov = True
     if nesterov:
         delta = torch.lerp(delta, norm_grad, weight=(1-beta1))  # beta1 * delta  +  (1 - beta1) * norm_grad  # not in-place.
-
-    delta_assumed_scale = (1 - beta1) * ((1 - beta1**2)**-0.5)
 
     #if True:
     #
@@ -304,11 +325,11 @@ def cubic_decay_step(group, state, grad):
     # we can, I think come up with an argument that it's similar to using a different value of beta.
     # (argument would require independence of grads on different steps.)
 
-    scale = (delta_assumed_scale / ((delta ** 2).mean(dim=(1, 2), keepdim=True).sqrt() + eps))
-    
+    debug = (step < 500 and (step % 50 == 0)) or (step % 500 == 0)
     if debug:
-        logging.info(f"shape={prod3.shape}, scale={scale.flatten()}")
-    delta = delta * scale
+        scale = (assumed_scale / ((delta ** 2).mean(dim=(1, 2), keepdim=True).sqrt() + eps))
+        logging.info(f"shape={prod3.shape}, scale={scale.flatten()} [not applied]")
+    #delta = delta * scale
 
     ans = -lr * delta
 
