@@ -23,7 +23,6 @@ from torch.optim.lr_scheduler import LambdaLR
 
 from typing import Dict, List, Optional, Tuple, Union
 import torch
-import torch.distributed as dist
 from torch import Tensor
 from torch.optim import Optimizer
 
@@ -503,9 +502,6 @@ class BatchedRubik(BatchedOptimizer):
             with self.batched_params(group["params"]) as batches:
                 for p, state in batches:
                     grad = p.grad
-
-                    if dist.is_initialized():
-                        dist.all_reduce(grad, op=dist.ReduceOp.AVG)
 
                     try:
                         cur_step = state["step"]
