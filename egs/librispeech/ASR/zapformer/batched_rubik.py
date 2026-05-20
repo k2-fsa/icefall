@@ -23,6 +23,7 @@ from torch.optim.lr_scheduler import LambdaLR
 
 from typing import Dict, List, Optional, Tuple, Union
 import torch
+import torch.distributed as dist
 from torch import Tensor
 from torch.optim import Optimizer
 
@@ -83,12 +84,27 @@ class BatchedOptimizer(Optimizer):
             batches[key].append(p)
 
 
+        old_batches = batches.values()  # a list of lists
+        #  Now split up any batches that are too large.
+        batches = [ ]
+        for b in old_batches:
+            num_tensors = len(b)
+            num_bytes = num_tensors * b[0].nbytes   # total bytes in group of tensors
+            max_bytes = 2 ** 30  # 1024**3 == one gigabyte
+            num_groups = min(num_tensors, (num_bytes + max_bytes - 1) // max_bytes)
+            group_size = (num_tensors + num_groups - 1) // num_groups
+            tot = 0
+            for g in range(num_groups):
+                batches.append(b[g*group_size:(g+1)*group_size])
+                tot += len(batches[-1])
+            assert tot == num_tensors
+
 
         # tuples will contain tuples of (stacked_param, state),
         # one for each batch in `batches`.
         tuples = []
 
-        for batch in batches.values():
+        for batch in batches:
             p = batch[0]
             # we arbitrarily store the state in the
             # state corresponding to the 1st parameter in the
@@ -103,48 +119,20 @@ class BatchedOptimizer(Optimizer):
 
         yield tuples  # <-- calling code will do the actual optimization here!
 
-        for ((stacked_params, _state), batch) in zip(tuples, batches.values()):
+        for ((stacked_params, _state), batch) in zip(tuples, batches):
             for i, p in enumerate(batch):  # batch is list of Parameter
                 p.copy_(stacked_params[i])
 
 
 
-def compute_prod3(x):
-    assert x.ndim >= 2
+def three_way_product(x):
+    """ returns the 3-way matrix product x @ x.t() @ x """
     if x.shape[-2] <= x.shape[-1]:
-        x2 = torch.matmul(x, x.transpose(-2, -1))
+        x2 = torch.matmul(x, x.mT)
         return torch.matmul(x2, x)
     else:
-        x2 = torch.matmul(x.transpose(-2, -1), x)
+        x2 = torch.matmul(x.mT, x)
         return torch.matmul(x, x2)
-
-
-def _three_way_product_chunk(x_chunk):
-    """Core computation: x_chunk @ x_chunk.T @ x_chunk for a single chunk."""
-    if x_chunk.shape[-2] <= x_chunk.shape[-1]:
-        x2 = torch.matmul(x_chunk, x_chunk.transpose(-2, -1))
-        return torch.matmul(x2, x_chunk)
-    else:
-        x2 = torch.matmul(x_chunk.transpose(-2, -1), x_chunk)
-        return torch.matmul(x_chunk, x2)
-
-
-def three_way_product(x, chunk_size=32):
-    """ returns the 3-way matrix product x @ x.t() @ x
-
-    Processes the batch dimension in chunks to reduce peak GPU memory usage.
-    The intermediate x @ x.T has shape (batch, rows, rows) which can be very
-    large; chunking keeps peak memory proportional to chunk_size instead of batch.
-    """
-    assert x.ndim >= 2
-    batch = x.shape[0]
-    if batch <= chunk_size:
-        return _three_way_product_chunk(x)
-    results = []
-    for start in range(0, batch, chunk_size):
-        end = min(start + chunk_size, batch)
-        results.append(_three_way_product_chunk(x[start:end]))
-    return torch.cat(results, dim=0)
 
 
 def scaled_three_way_product(x):
@@ -167,16 +155,16 @@ def compute_alpha(x: Tensor, y: Tensor, beta: float) -> Tensor:
           x.x + 2 alpha y.x + alpha^2 y.y = beta^2 x.x
       alpha^2 y.y + 2 alpha x.y + (1-beta^2) x.x = 0
      (a,b,c) = (y.y, 2 alpha x.y, x.x)
-        alpha = (-b + sqrt(b^2 - 4ac) ) / 2a      # this is the solution closest to zero. 
+        alpha = (-b + sqrt(b^2 - 4ac) ) / 2a      # this is the solution closest to zero.
                                                   # treat the thing inside the sqrt as zero if
-                                                  # negative, this 
+                                                  # negative, this
     # factoring out 2 from the top and bottom we get:
        so alpha = (-x.y + sqrt(x.y * y.x  - (1-beta^2) x.x * y.y)) / y.y
      ... we treat the thing inside the sqrt as zero if it is negative,
       which gives us the closest real solution
     """
     eps = 1.0e-40
-    xx = x.square().mean(dim=(1, 2), keepdim=True) 
+    xx = x.square().mean(dim=(1, 2), keepdim=True)
     xy = (x * y).mean(dim=(1, 2), keepdim=True)
     yy = y.square().mean(dim=(1, 2), keepdim=True)
 
@@ -226,8 +214,8 @@ col_stats: (batch_size, 1, cols)
     x_half_norm = (x * row_denom.sqrt()) / col_denom.sqrt()
     x = x / col_denom
     return x, x_half_norm
-    
-    
+
+
 
 def normalize_and_update_stats(x, row_stats, col_stats, beta2, eps):
     """
@@ -240,10 +228,11 @@ col_stats: (batch_size, 1, cols)
     Returns:
          normalized x, shape: (batch_size, rows, cols)
     """
-    row_stats.mul_(beta2).add_((x ** 2).mean(dim=2, keepdim=True), alpha=(1 - beta2))
+    # use squared norm to save memory
+    row_stats.mul_(beta2).add_(x.square().mean(dim=2, keepdim=True), alpha=(1 - beta2))
     row_denom = (row_stats.sqrt() + eps)
     x = x / row_denom
-    col_stats.mul_(beta2).add_((x ** 2).mean(dim=1, keepdim=True), alpha=(1 - beta2))
+    col_stats.mul_(beta2).add_(x.square().mean(dim=1, keepdim=True), alpha=(1 - beta2))
     col_denom = (col_stats.sqrt() + eps)
     x = x / col_denom
     return x
@@ -299,14 +288,16 @@ def cubic_decay_step(group, state, grad):
     # a scalar component in the variance to accountn for averaging-over-time effects.
     assumed_scale = (1 - beta1) * ((1 - beta1**2)**-0.5)
 
-    # use a beta2 that is much closer to 1 so we update the stats more slowly at this point; this will                                                                                                                                            # make the stats update more dominated by grad rather than moving_grad.
+
+    # use a beta2 that is much closer to 1 so we update the stats more slowly at this point; this will
+    # make the stats update more dominated by grad rather than moving_grad.
     beta2b_scale = 0.1
     beta2b = beta2b_scale * beta2 + (1 - beta2b_scale)
     delta = assumed_scale * normalize_and_update_stats(moving_grad / assumed_scale, row_stats, col_stats, beta2b, eps)
 
     nesterov = True
     if nesterov:
-        delta = torch.lerp(delta, norm_grad, weight=(1-beta1))  # beta1 * delta  +  (1 - beta1) * norm_grad  # not in-place.
+        delta.lerp_(norm_grad, weight=(1-beta1))  # beta1 * delta  +  (1 - beta1) * norm_grad  # not in-place.
 
     #if True:
     #
@@ -331,11 +322,10 @@ def cubic_decay_step(group, state, grad):
     if debug:
         scale = (assumed_scale / ((delta ** 2).mean(dim=(1, 2), keepdim=True).sqrt() + eps))
         logging.info(f"shape={prod3.shape}, scale={scale.flatten()} [not applied]")
-    #delta = delta * scale
 
-    ans = -lr * delta
+    delta.mul_(-lr)
 
-    return ans.reshape(orig_shape)
+    return delta.reshape(orig_shape)
 
 
 def scaling_step(group, param, state, grad):
@@ -454,6 +444,8 @@ class BatchedRubik(BatchedOptimizer):
         scale_default: A constant that dictates the RMS value to which weight magnitudes decay.
      scalar_lr_scale: A scaling factor on the learning rate, that we use to update scalar tensors.
               eps:  A general-purpose epsilon to prevent division by zero
+grad_aggregation: if None, no grad aggregation is done here (assume it is done in DDP if relevant);
+                set it to torch.distributed.ReduceOp.AVG or torch.distributed.ReduceOp.SUM to have it done by this class.
     """
     def __init__(
         self,
@@ -467,8 +459,9 @@ class BatchedRubik(BatchedOptimizer):
         adam_beta1=0.98,
         adam_beta2=0.98,
         scale_momentum=0.95,
+        grad_aggregation=None,
     ):
-
+        self.grad_aggregation = grad_aggregation
         defaults = dict(
             lr=lr,
             beta1=beta1,
@@ -505,6 +498,11 @@ class BatchedRubik(BatchedOptimizer):
             with self.batched_params(group["params"]) as batches:
                 for p, state in batches:
                     grad = p.grad
+
+                    if self.grad_aggregation is not None and dist.is_initialized():
+                        # sync grads.
+                        dist.all_reduce(grad, op=self.grad_aggregation)
+
 
                     try:
                         cur_step = state["step"]
