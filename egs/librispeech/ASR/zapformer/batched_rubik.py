@@ -288,7 +288,9 @@ def cubic_decay_step(group, state, grad):
     # a scalar component in the variance to accountn for averaging-over-time effects.
     assumed_scale = (1 - beta1) * ((1 - beta1**2)**-0.5)
 
-    delta = assumed_scale * normalize_and_update_stats(moving_grad / assumed_scale, row_stats, col_stats, beta2, eps)
+    # use the original beta2, not the reduced one, for this step.
+    delta = assumed_scale * normalize_and_update_stats(moving_grad / assumed_scale, row_stats, col_stats,
+                                                       group["beta2"], eps)
 
     nesterov = True
     if nesterov:
@@ -317,7 +319,7 @@ def cubic_decay_step(group, state, grad):
     if debug:
         cubic_alpha_ratio = -cubic_alpha / (1-beta1)
         scale = (assumed_scale / ((delta ** 2).mean(dim=(1, 2), keepdim=True).sqrt() + eps))
-        logging.info(f"shape={prod3.shape}, scale={scale.flatten()} [not applied], alpha_ratio={cubic_alpha_ratio.flatten()}")
+        logging.info(f"shape={prod3.shape}, scale={scale.flatten()} [not applied], alpha_ratio={cubic_alpha_ratio.flatten()}, delta-max={delta.abs().max(dim=1)[0].max(dim=1)[0]}")
 
     delta.mul_(-lr)
 
