@@ -296,6 +296,10 @@ def cubic_decay_step(group, state, grad):
     if nesterov:
         delta.lerp_(norm_grad, weight=(1-beta1))  # beta1 * delta  +  (1 - beta1) * norm_grad  # not in-place.
 
+
+    # try to prevent divergence at the start.
+    delta.clamp_(min=-4, max=4)
+
     #if True:
     #
     #if step < 5 or (step < 500 and step % 10 == 0):
@@ -314,6 +318,7 @@ def cubic_decay_step(group, state, grad):
     # doing the extra sqrt on the scale means we, in effect, half-normalize the magnitude.
     # we can, I think come up with an argument that it's similar to using a different value of beta.
     # (argument would require independence of grads on different steps.)
+
 
     debug = (step < 500 and (step % 50 == 0)) or (step % 500 == 0)
     if debug:
