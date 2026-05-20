@@ -315,8 +315,9 @@ def cubic_decay_step(group, state, grad):
 
     debug = (step < 500 and (step % 50 == 0)) or (step % 500 == 0)
     if debug:
+        cubic_alpha_ratio = -cubic_alpha / (1-beta1)
         scale = (assumed_scale / ((delta ** 2).mean(dim=(1, 2), keepdim=True).sqrt() + eps))
-        logging.info(f"shape={prod3.shape}, scale={scale.flatten()} [not applied]")
+        logging.info(f"shape={prod3.shape}, scale={scale.flatten()} [not applied], alpha_ratio={cubic_alpha_ratio.flatten()}")
 
     delta.mul_(-lr)
 
