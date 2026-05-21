@@ -135,8 +135,6 @@ col_stats: (1, cols)
     return x, x_half_norm, invP
 
 
->>>>>>> deterministic_invertible3187conv
-
 def normalize_and_update_stats(x, row_stats, col_stats, beta2, eps):
     """
     Normalize the rms of x using row-wise and column-wise stats, while
