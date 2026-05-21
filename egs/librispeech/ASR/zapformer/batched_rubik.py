@@ -293,9 +293,12 @@ def cubic_decay_step(group, state, grad):
     # a scalar component in the variance to accountn for averaging-over-time effects.
     assumed_scale = (1 - beta1) * ((1 - beta1**2)**-0.5)
 
-    # use the original beta2, not the reduced one, for this step.
+    # use a beta2 that is much closer to 1 so we update the stats more slowly at this point; this will
+    # make the stats update more dominated by grad rather than moving_grad.
+    beta2b_scale = 0.1
+    beta2b = beta2b_scale * beta2 + (1 - beta2b_scale)
     delta = assumed_scale * normalize_and_update_stats(moving_grad / assumed_scale, row_stats, col_stats,
-                                                       group["beta2"], eps)
+                                                       beta2b, eps)
 
     nesterov = True
     if nesterov:
