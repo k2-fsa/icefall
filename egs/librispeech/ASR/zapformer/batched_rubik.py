@@ -89,7 +89,7 @@ class BatchedOptimizer(Optimizer):
         batches = [ ]
         for b in old_batches:
             num_tensors = len(b)
-            num_bytes = num_tensors * b[0].nbytes   # total bytes in group of tensors
+            num_bytes = num_tensors * b[0].numel() * 4   # total bytes in group of tensors, assuming float
             max_bytes = 2 ** 30  # 1024**3 == one gigabyte
             num_groups = min(num_tensors, (num_bytes + max_bytes - 1) // max_bytes)
             group_size = (num_tensors + num_groups - 1) // num_groups
@@ -128,10 +128,10 @@ class BatchedOptimizer(Optimizer):
 def three_way_product(x):
     """ returns the 3-way matrix product x @ x.t() @ x """
     if x.shape[-2] <= x.shape[-1]:
-        x2 = torch.matmul(x, x.mT)
+        x2 = torch.matmul(x, x.transpose(-2, -1))
         return torch.matmul(x2, x)
     else:
-        x2 = torch.matmul(x.mT, x)
+        x2 = torch.matmul(x.transpose(-2, -1), x)
         return torch.matmul(x, x2)
 
 
@@ -167,10 +167,20 @@ def compute_alpha(x: Tensor, y: Tensor, beta: float) -> Tensor:
     xx = x.square().mean(dim=(1, 2), keepdim=True)
     xy = (x * y).mean(dim=(1, 2), keepdim=True)
     yy = y.square().mean(dim=(1, 2), keepdim=True)
+    yyeps = yy + eps
 
-    alpha = (-xy + (xy**2 - (1-beta*beta) * xx * yy).clamp(min=0).sqrt()) / (yy + eps)
+    # this alpha is the value that solves exactly for the requested difference in norm.
+    # this will be negative.
+    alpha = (-xy + (xy**2 - (1-beta*beta) * xx * yy).clamp(min=0).sqrt()) / yyeps
 
-    return alpha
+    # min_sum_scale is the value of alpha that would minimize the norm of a + alpha y.
+    min_sum_scale = -xy / yyeps
+    # safety_factor = 0.5 means we are only willing to go halfway to that value that minimizes the norm,
+    # to avoid change of eigenvalue sign / overshoot, which can ultimately lead to certain
+    # parameter eigenvalues getting too large.
+    safety_factor = 0.5
+
+    return torch.maximum(safety_factor * min_sum_scale, alpha)  # return the closet to zero of these two formulae.
 
 
 def matrix_shape(shape):

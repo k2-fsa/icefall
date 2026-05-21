@@ -58,9 +58,9 @@ def compute_alpha(x: Tensor, y: Tensor, beta: float) -> Tensor:
           x.x + 2 alpha y.x + alpha^2 y.y = beta^2 x.x
       alpha^2 y.y + 2 alpha x.y + (1-beta^2) x.x = 0
      (a,b,c) = (y.y, 2 alpha x.y, x.x)
-        alpha = (-b + sqrt(b^2 - 4ac) ) / 2a      # this is the solution closest to zero. 
+        alpha = (-b + sqrt(b^2 - 4ac) ) / 2a      # this is the solution closest to zero.
                                                   # treat the thing inside the sqrt as zero if
-                                                  # negative, this 
+                                                  # negative, this
     # factoring out 2 from the top and bottom we get:
        so alpha = (-x.y + sqrt(x.y * y.x  - (1-beta^2) x.x * y.y)) / y.y
      ... we treat the thing inside the sqrt as zero if it is negative,
@@ -70,10 +70,21 @@ def compute_alpha(x: Tensor, y: Tensor, beta: float) -> Tensor:
     xx = x.square().mean()
     xy = (x * y).mean()
     yy = y.square().mean()
+    yyeps = yy + eps
 
-    alpha = (-xy + (xy**2 - (1-beta*beta) * xx * yy).clamp(min=0).sqrt()) / (yy + eps)
+    # this alpha is the value that solves exactly for the requested difference in norm.
+    # this will be negative.
+    alpha = (-xy + (xy**2 - (1-beta*beta) * xx * yy).clamp(min=0).sqrt()) / yyeps
 
-    return alpha
+    # min_sum_scale is the value of alpha that would minimize the norm of a + alpha y.
+    min_sum_scale = -xy / yyeps
+    # safety_factor = 0.5 means we are only willing to go halfway to that value that minimizes the norm,
+    # to avoid change of eigenvalue sign / overshoot, which can ultimately lead to certain
+    # parameter eigenvalues getting too large.
+    safety_factor = 0.5
+
+    return torch.maximum(safety_factor * min_sum_scale, alpha)  # return the closet to zero of these two formulae.
+
 
 
 
@@ -119,8 +130,8 @@ col_stats: (1, cols)
     x_half_norm = (x * row_denom.sqrt()) / col_denom.sqrt()
     x = x / col_denom
     return x, x_half_norm
-    
-    
+
+
 
 def normalize_and_update_stats(x, row_stats, col_stats, beta2, eps):
     """
@@ -173,7 +184,7 @@ def cubic_decay_step(group, state, grad):
     # add the grad to the moving-average grad; the scaling factor used here
     # doesn't matter as it all gets normalized later.
     moving_grad.add_(norm_grad_precon, alpha=(1-beta1))
- 
+
     # prod3 would have the same value as moving_grad_precon if moving_grad_precon's singular values were
     # all equal, but in general its 2-norm is >= the 2-norm of moving_grad_precon.
     prod3 = scaled_three_way_product(moving_grad)
@@ -207,7 +218,7 @@ def cubic_decay_step(group, state, grad):
     #delta = delta * scale
 
     ans = -lr * delta
- 
+
     return ans.reshape(orig_shape)
 
 
