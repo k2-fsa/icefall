@@ -127,11 +127,15 @@ col_stats: (1, cols)
     x = x / row_denom
     col_stats.mul_(beta2).add_(x.abs().mean(dim=0, keepdim=True), alpha=(1 - beta2))
     col_denom = (col_stats + eps)
-    x_half_norm = (x * row_denom.sqrt()) / col_denom.sqrt()
+    row_denom_sqrt = row_denom.sqrt()
+    col_denom_sqrt = col_denom.sqrt()
+    x_half_norm = (x * row_denom_sqrt) / col_denom_sqrt
     x = x / col_denom
-    return x, x_half_norm
+    invP = row_denom * col_denom
+    return x, x_half_norm, invP
 
 
+>>>>>>> deterministic_invertible3187conv
 
 def normalize_and_update_stats(x, row_stats, col_stats, beta2, eps):
     """
@@ -179,7 +183,7 @@ def cubic_decay_step(group, state, grad):
     col_stats = state["col_stats"]
 
     # we half update the stats here, half update them later.
-    norm_grad, norm_grad_precon = half_normalize_and_update_stats(grad, row_stats, col_stats, beta2, eps)
+    norm_grad, norm_grad_precon, invP = half_normalize_and_update_stats(grad, row_stats, col_stats, beta2, eps)
 
     # add the grad to the moving-average grad; the scaling factor used here
     # doesn't matter as it all gets normalized later.
@@ -190,8 +194,11 @@ def cubic_decay_step(group, state, grad):
     prod3 = scaled_three_way_product(moving_grad)
 
 
-    cubic_alpha = compute_alpha(moving_grad, prod3, beta1)
-    # cubic_alpha shape: (1, 1)
+    # dividing the following by invP means we are using 1 / invP as a scale for computing
+    # norms, as if we were to compute the norm of delta ~= moving_grad / invP after doing
+    # moving_grad.add_(prod3 * cubic_alpha).
+    cubic_alpha = compute_alpha(moving_grad / invP, prod3 / invP, beta1)
+    # cubic_alpha shape: scalar
 
     moving_grad.add_(prod3 * cubic_alpha)
 
@@ -210,6 +217,9 @@ def cubic_decay_step(group, state, grad):
     nesterov = True
     if nesterov:
         delta = torch.lerp(delta, norm_grad, weight=(1-beta1))  # beta1 * delta  +  (1 - beta1) * norm_grad  # not in-place.
+
+    # try to prevent divergence at the start.
+    delta.clamp_(min=-4, max=4)
 
     debug = (step < 500 and (step % 50 == 0)) or (step % 500 == 0)
     if debug:
