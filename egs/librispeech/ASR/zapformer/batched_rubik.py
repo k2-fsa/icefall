@@ -315,8 +315,6 @@ def cubic_decay_step(group, state, grad):
         delta.lerp_(norm_grad, weight=(1-beta1))  # beta1 * delta  +  (1 - beta1) * norm_grad  # not in-place.
 
 
-    # try to prevent divergence at the start.
-    delta.clamp_(min=-4, max=4)
 
     #if True:
     #

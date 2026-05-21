@@ -216,9 +216,6 @@ def cubic_decay_step(group, state, grad):
     if nesterov:
         delta = torch.lerp(delta, norm_grad, weight=(1-beta1))  # beta1 * delta  +  (1 - beta1) * norm_grad  # not in-place.
 
-    # try to prevent divergence at the start.
-    delta.clamp_(min=-4, max=4)
-
     debug = (step < 500 and (step % 50 == 0)) or (step % 500 == 0)
     if debug:
         scale = (assumed_scale / ((delta ** 2).mean().sqrt() + eps))
