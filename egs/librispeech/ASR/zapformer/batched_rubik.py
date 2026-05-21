@@ -286,6 +286,10 @@ def cubic_decay_step(group, state, grad):
 
     moving_grad.add_(prod3 * cubic_alpha)
 
+    if step < 200:
+        # to avoid divergence at the start, do normal decay for the first 200 steps.
+        moving_grad.mul_(beta1)
+
     # assumed_scale is just a scalar factor to account for the fact that the moving-average "moving_grad"
     # will have a smaller variance than the grad itself because of being a mean over independent elements.
     # we rescale before getting the stats, to have the same variance as if it were the grad.
