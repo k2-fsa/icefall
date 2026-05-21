@@ -680,7 +680,7 @@ class ZapformerEncoderLayer(nn.Module):
                                    key_padding_mask=src_key_padding_mask,
                                    aux_loss_scale=0.1 * aux_loss_scale)
 
-        src = src + self.conv_module(3. * src, chunk_size=chunk_size, src_key_padding_mask=src_key_padding_mask, aux_loss_scale=0.1 * aux_loss_scale)
+        src = src + self.conv_module(src, chunk_size=chunk_size, src_key_padding_mask=src_key_padding_mask, aux_loss_scale=0.1 * aux_loss_scale)
 
         src = src + self.feed_forward2(src, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
 
@@ -692,6 +692,8 @@ class ZapformerEncoderLayer(nn.Module):
         src = src_orig + offset
 
         src = self.norm(src, src_key_padding_mask)
+
+        src = src.clamp(min=-5, max=5)
 
         return src
 
@@ -761,7 +763,7 @@ class ZapformerEncoderLayer(nn.Module):
         src = src + self_attn_out
 
         src_conv, cached_conv, cached_conv_wm_sum, cached_conv_wm_num_frames = self.conv_module.streaming_forward(
-            3.0 * src,
+            src,
             cached_conv=cached_conv,
             cached_wm_sum=cached_conv_wm_sum,
             cached_wm_num_frames=cached_conv_wm_num_frames,
@@ -782,6 +784,8 @@ class ZapformerEncoderLayer(nn.Module):
             cached_len=cached_norm_len,
         )
 
+        src = src.clamp(min=-5, max=5)
+        
         return (
             src,
             cached_key,
@@ -2056,8 +2060,8 @@ class ConvolutionModule(nn.Module):
         Returns:
             Tensor: Output tensor (#time, batch, channels).
         """
-
-        x = self.in_proj(x)  # (time, batch, 3*bottleneck_dim)
+        input_scale = 3.
+        x = self.in_proj(x * input_scale)  # (time, batch, 3*bottleneck_dim)
 
         x, y = x.chunk(2, dim=2)
         y = self.sigmoid(y)
@@ -2118,7 +2122,8 @@ class ConvolutionModule(nn.Module):
             - Updated cached_wm_sum (1, batch, channels)
             - Updated cached_wm_num_frames (batch,)
         """
-        x = self.in_proj(x)  # (time, batch, 3*bottleneck_dim)
+        input_scale = 3.
+        x = self.in_proj(x * input_scale)  # (time, batch, 3*bottleneck_dim)
 
         x, y = x.chunk(2, dim=2)
         y = self.sigmoid(y)
