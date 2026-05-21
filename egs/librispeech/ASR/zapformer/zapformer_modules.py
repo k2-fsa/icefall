@@ -528,7 +528,7 @@ class OrthogonalLinear(nn.Linear):
     def __init__(self,
                  in_channels: int,
                  out_channels: int,
-                 weight_rms: float = 0.2,
+                 weight_rms: float = 0.3,
                  bias: bool = True,
                  penalty_scale: float = 20.0,
     ):

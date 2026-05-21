@@ -285,22 +285,26 @@ class Zapformer(EncoderInterface):
 
         x = self.out_norm(x)
 
-        if self.training:
-            # all of our losses and aux losses are proportional to the number of frames of data, so
-            # we multiply by that factor.
-            x = with_loss(x, aux_loss_scale * x.shape[0] * x.shape[1] * self.compute_projection_overlap())
+        # disable the projection-overlap loss
+        #if self.training:
+        #    # all of our losses and aux losses are proportional to the number of frames of data, so
+        #    # we multiply by that factor.
+        #    x = with_loss(x, aux_loss_scale * x.shape[0] * x.shape[1] * self.compute_projection_overlap())
 
         return x, x_lens
 
 
     def compute_projection_overlap(self, verbose: bool = False):
-        # This computes a quantity that we'll use as an  auxiliary loss.
-        # It ensures that the projections from more-subsampled sequences "contain" enough of the
+        # This is currently just used for some diagnostics.
+
+        # It also computes an auxiliary loss (currently unused) that
+        # ensures that the projections from more-subsampled sequences "contain" enough of the
         # projections from the less-subsampled sequences-- specifically the direction where
         # all the less-subsampled projections co-vary in the same way, e.g. if there are
         # two frames, that the two frames are identical.
 
-        min_overlap = 0.7  # we can tune this
+        min_overlap = 0.6  # we can tune this.  CAUTION: I turned off this aux loss by commenting
+        # it out in forward(),
 
         tot_loss = 0.0
         # between pairs of encoders
