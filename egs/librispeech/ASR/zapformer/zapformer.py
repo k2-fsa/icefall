@@ -763,7 +763,7 @@ class ZapformerEncoderLayer(nn.Module):
         src = src + self_attn_out
 
         src_conv, cached_conv, cached_conv_wm_sum, cached_conv_wm_num_frames = self.conv_module.streaming_forward(
-            3.0 * src,
+            src,
             cached_conv=cached_conv,
             cached_wm_sum=cached_conv_wm_sum,
             cached_wm_num_frames=cached_conv_wm_num_frames,
@@ -2040,7 +2040,7 @@ class ConvolutionModule(nn.Module):
             bottleneck_dim,
             channels,
             activation="SwashR",
-            initial_scale=0.2,
+            initial_scale=0.05,
         )
 
     def forward(
@@ -2122,7 +2122,8 @@ class ConvolutionModule(nn.Module):
             - Updated cached_wm_sum (1, batch, channels)
             - Updated cached_wm_num_frames (batch,)
         """
-        x = self.in_proj(x)  # (time, batch, 3*bottleneck_dim)
+        input_scale = 3.
+        x = self.in_proj(x * input_scale)  # (time, batch, 3*bottleneck_dim)
 
         x, y = x.chunk(2, dim=2)
         y = self.sigmoid(y)
