@@ -680,7 +680,7 @@ class ZapformerEncoderLayer(nn.Module):
                                    key_padding_mask=src_key_padding_mask,
                                    aux_loss_scale=0.1 * aux_loss_scale)
 
-        src = src + self.conv_module(3. * src, chunk_size=chunk_size, src_key_padding_mask=src_key_padding_mask, aux_loss_scale=0.1 * aux_loss_scale)
+        src = src + self.conv_module(src, chunk_size=chunk_size, src_key_padding_mask=src_key_padding_mask, aux_loss_scale=0.1 * aux_loss_scale)
 
         src = src + self.feed_forward2(src, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
 
@@ -692,6 +692,8 @@ class ZapformerEncoderLayer(nn.Module):
         src = src_orig + offset
 
         src = self.norm(src, src_key_padding_mask)
+
+        src = src.clamp(min=-5, max=5)
 
         return src
 
@@ -782,6 +784,8 @@ class ZapformerEncoderLayer(nn.Module):
             cached_len=cached_norm_len,
         )
 
+        src = src.clamp(min=-5, max=5)
+        
         return (
             src,
             cached_key,
@@ -2036,7 +2040,7 @@ class ConvolutionModule(nn.Module):
             bottleneck_dim,
             channels,
             activation="SwashR",
-            initial_scale=0.05,
+            initial_scale=0.2,
         )
 
     def forward(
@@ -2056,8 +2060,8 @@ class ConvolutionModule(nn.Module):
         Returns:
             Tensor: Output tensor (#time, batch, channels).
         """
-
-        x = self.in_proj(x)  # (time, batch, 3*bottleneck_dim)
+        input_scale = 3.
+        x = self.in_proj(x * input_scale)  # (time, batch, 3*bottleneck_dim)
 
         x, y = x.chunk(2, dim=2)
         y = self.sigmoid(y)
