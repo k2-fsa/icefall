@@ -27,12 +27,12 @@ import torch.distributed as dist
 from torch import Tensor
 from torch.optim import Optimizer
 
-#try:
-#    from nanochat.common import print0
-#    from nanochat.common import COMPUTE_DTYPE
-#except:
-#from logging import info as print0
-#COMPUTE_DTYPE = torch.float32
+# try:
+#     from nanochat.common import print0
+#     from nanochat.common import COMPUTE_DTYPE
+# except:
+#     from logging import info as print0
+#     #COMPUTE_DTYPE = torch.float32
 COMPUTE_DTYPE = torch.bfloat16
 
 
@@ -309,11 +309,15 @@ def muon_step_fused(
     g = X
 
     # Variance normalization
+    beta2 = beta2_t.to(second_momentum_buffer.dtype)
     v_mean = g.float().square().mean(dim=red_dim, keepdim=True)
-    second_momentum_buffer.lerp_(v_mean.to(dtype=second_momentum_buffer.dtype), 1 - beta2_t)
+    second_momentum_buffer.lerp_(v_mean.to(dtype=second_momentum_buffer.dtype), 1 - beta2)
     g = g / (second_momentum_buffer.sqrt() + eps).to(g.dtype)
     lr = lr_t.to(g.dtype)
-    return -lr * g
+    beta1 = momentum_t.to(g.dtype)
+    # assumed scale of step size if it arose from momentum decay from i.i.d. variance-1 grads.
+    assumed_scale = (1 - beta1) * ((1 - beta1**2)**-0.5)
+    return -lr * assumed_scale * g
 
 
 def muon_core_step(group, state, grad):
@@ -344,11 +348,9 @@ def muon_core_step(group, state, grad):
 
     def t(x):
         return torch.tensor(x, device=grad.device, dtype=COMPUTE_DTYPE)
-    def tf(x):
-        return torch.tensor(x, device=grad.device, dtype=torch.float)
 
     step = muon_step_fused(grad.to(COMPUTE_DTYPE), momentum_buffer, second_momentum_buffer,
-                           t(beta1), t(lr), tf(beta2), t(eps), 5, (-1 if rows > cols else -2))
+                           t(beta1), t(lr), t(beta2), t(eps), 5, (-1 if rows > cols else -2))
 
     return step.reshape(orig_shape)
 
@@ -556,8 +558,8 @@ def _test_batched_rubik(hidden_dim: int):
     B = 4
     T = 2
     logging.info("in test_batched_rubik")
-    # device = torch.device('cuda')
-    device = torch.device("cpu")
+    device = torch.device('cuda')
+    #device = torch.device("cpu")
     dtype = torch.float32
 
     torch.random.manual_seed(42)
