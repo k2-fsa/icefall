@@ -150,18 +150,25 @@ def scaled_three_way_product(x):
 
 def compute_alpha(x: Tensor, y: Tensor, beta: float) -> Tensor:
     """
-    Solve the equation: ||x + alpha y||_2^2 == ||beta x||_2^2
+    Computes the amount of cubic decay to do for each parameter tensor in the batch, as
+    in effect batch of scalars (one per parameter) of shape (batch_size, 1, 1).
 
-          x.x + 2 alpha y.x + alpha^2 y.y = beta^2 x.x
-      alpha^2 y.y + 2 alpha x.y + (1-beta^2) x.x = 0
-     (a,b,c) = (y.y, 2 alpha x.y, x.x)
-        alpha = (-b + sqrt(b^2 - 4ac) ) / 2a      # this is the solution closest to zero.
-                                                  # treat the thing inside the sqrt as zero if
-                                                  # negative, this
+    Solve the equation: ||x - alpha y||_2^2 == ||beta x||_2^2
+
+          x.x - 2 alpha y.x + alpha^2 y.y = beta^2 x.x
+      alpha^2 y.y - 2 alpha x.y + (1-beta^2) x.x = 0
+     (a,b,c) = (y.y, -2 alpha x.y, x.x)
+        alpha = (-b - sqrt(b^2 - 4ac) ) / 2a      # this is the solution closest to zero.
+
     # factoring out 2 from the top and bottom we get:
-       so alpha = (-x.y + sqrt(x.y * y.x  - (1-beta^2) x.x * y.y)) / y.y
+       so alpha = (x.y - sqrt(x.y * y.x  - (1-beta^2) x.x * y.y)) / y.y
      ... we treat the thing inside the sqrt as zero if it is negative,
-      which gives us the closest real solution
+      which gives us the closest real solution to zero.
+
+    We then apply a formula that you can see at the bottom, which chooses the
+    smallest (closest to zero) of two formulae, see the comments.  This is basically
+    heuristic; the safety_factor * min_sum_scale is a safety thing to reduce the
+    chance of eigenvalues flipping sign.
     """
     eps = 1.0e-40
     xx = x.square().mean(dim=(1, 2), keepdim=True)
@@ -171,16 +178,23 @@ def compute_alpha(x: Tensor, y: Tensor, beta: float) -> Tensor:
 
     # this alpha is the value that solves exactly for the requested difference in norm.
     # this will be negative.
-    alpha = (-xy + (xy**2 - (1-beta*beta) * xx * yy).clamp(min=0).sqrt()) / yyeps
+    alpha = (xy - (xy**2 - (1-beta*beta) * xx * yy).clamp(min=0).sqrt()) / yyeps
 
-    # min_sum_scale is the value of alpha that would minimize the norm of a + alpha y.
-    min_sum_scale = -xy / yyeps
+    # min_sum_scale is the value of alpha that would minimize the norm of a - alpha y.
+    min_sum_scale = xy / yyeps
     # safety_factor = 0.5 means we are only willing to go halfway to that value that minimizes the norm,
     # to avoid change of eigenvalue sign / overshoot, which can ultimately lead to certain
     # parameter eigenvalues getting too large.
     safety_factor = 0.5
 
-    return torch.maximum(safety_factor * min_sum_scale, alpha)  # return the closet to zero of these two formulae.
+    # alpha_power is a heuristic value that interpolates between the computed alpha, and alpha=(1-beta).
+    # the intention is that if the singular values are quite peaky (hence alpha << 1),
+    # we want to make sure that we're doing an adequate amount of decay for the smaller singular values.
+    alpha_power = 0.5
+
+    # return the closest to zero of the two formulae below.
+    return torch.minimum(safety_factor * min_sum_scale,
+                         ((1-beta) ** (1-alpha_power)) * (alpha.clamp(min=1.0e-10) ** alpha_power))
 
 
 def matrix_shape(shape):
@@ -288,7 +302,7 @@ def cubic_decay_step(group, state, grad):
     cubic_alpha = compute_alpha(moving_grad, prod3, beta1)
     # cubic_alpha shape: (batch_size, 1, 1)
 
-    moving_grad.add_(prod3 * cubic_alpha)
+    moving_grad.add_(prod3 * cubic_alpha, alpha=-1)
 
     # assumed_scale is just a scalar factor to account for the fact that the moving-average "moving_grad"
     # will have a smaller variance than the grad itself because of being a mean over independent elements.
@@ -334,7 +348,7 @@ def cubic_decay_step(group, state, grad):
 
     debug = (step < 500 and (step % 50 == 0)) or (step % 500 == 0)
     if debug:
-        cubic_alpha_ratio = -cubic_alpha / (1-beta1)
+        cubic_alpha_ratio = cubic_alpha / (1-beta1)
         scale = (assumed_scale / ((delta ** 2).mean(dim=(1, 2), keepdim=True).sqrt() + eps))
         logging.info(f"shape={prod3.shape}, scale={scale.flatten()} [not applied], alpha_ratio={cubic_alpha_ratio.flatten()}, delta-max={delta.abs().max(dim=1)[0].max(dim=1)[0]}")
 
