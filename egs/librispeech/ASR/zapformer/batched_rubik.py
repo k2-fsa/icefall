@@ -190,7 +190,7 @@ def compute_alpha(x: Tensor, y: Tensor, beta: float) -> Tensor:
     # alpha_power is a heuristic value that interpolates between the computed alpha, and alpha=(1-beta).
     # the intention is that if the singular values are quite peaky (hence alpha << 1),
     # we want to make sure that we're doing an adequate amount of decay for the smaller singular values.
-    alpha_power = 0.5
+    alpha_power = 0.75
 
     # return the closest to zero of the two formulae below.
     return torch.minimum(safety_factor * min_sum_scale,
