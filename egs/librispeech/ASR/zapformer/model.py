@@ -322,7 +322,7 @@ class AsrModel(nn.Module):
         am_scale: float = 0.0,
         lm_scale: float = 0.0,
         aux_loss_scale: float = 0.0,
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Args:
           x:
