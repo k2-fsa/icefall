@@ -154,7 +154,7 @@ class CausalSequenceNormFunction(torch.autograd.Function):
 
 
     @staticmethod
-    def backward(ctx, ans_grad: Tensor) -> Tensor:
+    def backward(ctx, ans_grad: Tensor) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor]:
         x, offset, scale, ballast_rms, ballast_frames = ctx.saved_tensors
 
 

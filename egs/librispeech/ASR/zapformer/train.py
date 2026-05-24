@@ -86,7 +86,7 @@ except:
 from variable_combined_scheduler import VariableCombinedLRScheduler
 try:
     from variable_combined_scheduler import InterpCosineLRScheduler
-    LRSchedulerType = VariableCombinedLRSchedule
+    LRSchedulerType = VariableCombinedLRScheduler
 except:
     pass
 
@@ -807,6 +807,7 @@ def get_joiner_model(params: AttributeDict) -> nn.Module:
 
 
 def get_attention_decoder_model(params: AttributeDict) -> nn.Module:
+    output_downsampling_factor = 2
     decoder = AttentionDecoderModel(
         vocab_size=params.vocab_size,
         decoder_dim=lookup(params, "attention_decoder_dim"),

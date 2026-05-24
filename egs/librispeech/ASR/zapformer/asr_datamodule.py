@@ -18,10 +18,12 @@
 
 import argparse
 import inspect
+import glob
 import logging
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, Optional
+import re
 import random # to set its random seed
 import numpy as np  # to set its random seed
 
@@ -34,22 +36,15 @@ from lhotse.dataset import (  # noqa F401 for PrecomputedFeatures
     PrecomputedFeatures,
     SimpleCutSampler,
 )
+import lhotse
+
 # MulticopyDataset is a modified version of K2SpeechRecognitionDataset from
 # lhotse.dataset, modified to, in training mode, to return a batch that has multiple
 # different copies of the same data having different Musan
 # augmentations and the first having none; and also include the key "num_copies"
 # in the batch which would be 1 for the validation data (no Musan) and 2 for the
 # different copies of the training data with musan.
-try:
-    from multicopy_dataset import MulticopyDataset # interface like K2SpeechRecognitionDataset
-except:
-    pass
-
-try:
-    from icefall.utils import  dist_barrier
-except:
-    pass
-
+from multicopy_dataset import MulticopyDataset # interface like K2SpeechRecognitionDataset
 
 from lhotse.dataset.input_strategies import (  # noqa F401 For AudioSamples
     AudioSamples,
@@ -304,7 +299,7 @@ class AsrDataModule:
                 num_copies=num_copies,
                 cut_transforms=transforms,
                 input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80))),
-                input_transforms=input_transforms,
+                input_transforms=[],
                 return_cuts=self.args.return_cuts,
             )
 

@@ -361,9 +361,8 @@ class ModelDiagnostic(object):
         self.diagnostics = dict()
 
     def __getitem__(self, name: str):
-        T = ScalarDiagnostic if name[-7:] == ".scalar" else TensorDiagnostic
         if name not in self.diagnostics:
-            self.diagnostics[name] = T(self.opts, name)
+            self.diagnostics[name] = TensorDiagnostic(self.opts, name)
         return self.diagnostics[name]
 
     def print_diagnostics(self) -> dict:

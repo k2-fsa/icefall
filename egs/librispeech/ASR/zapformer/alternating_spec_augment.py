@@ -26,7 +26,7 @@ class AlternatingSpecAugment(torch.nn.Module):
         p=0.9,  # probability of doing core SpecAug augmentation
         time_warp_p=0.9, # probability of doing time warping.
         time_warp_factor=80,  # as in original SpecAug paper.
-        seed=None,  # if you leave this as none it will use random.random()
+        seed=None,  # if you leave this as none it will use torch.randint(0, 100000, ()).item()
     ):
         super().__init__()
         assert 0 <= p <= 1
@@ -220,7 +220,6 @@ class AlternatingSpecAugment(torch.nn.Module):
         # so definitely this clamping will happen for less than half of the pairs of sequences.
 
         padding_tot_rlen = (1. - mask_tot_rlen).clamp(min=0.2)  # (batch_size, 1)
-        eps = 1.0e-20
 
         # get padding lengths by randomly placing dividers on the line of length "padding_tot_rlen"
         # P is the number of padding regions for each pair of sequences.
@@ -263,18 +262,18 @@ class AlternatingSpecAugment(torch.nn.Module):
         return mask_starts, mask_ends
 
     def state_dict(self, **kwargs) -> Dict[str, Any]:
-
-        dict = { }
+        state = { }
         for name in ["max_feature_mask_fraction", "num_feature_masks",
                      "max_frame_mask_fraction", "max_frame_mask_size", "p"]:
-            dict[name] = getattr(self, name)
+            state[name] = getattr(self, name)
+        return state
 
 
     def load_state_dict(self, state_dict: Dict[str, Any]):
         for name in ["max_feature_mask_fraction", "num_feature_masks",
                      "max_frame_mask_fraction", "max_frame_mask_size", "p"]:
             if name in state_dict:
-                setattr(self, name, state_dict["name"])
+                setattr(self, name, state_dict[name])
 
 
 def time_warp_impl(features: torch.Tensor, factor: int,
@@ -343,7 +342,7 @@ def time_warp(
                 # Randomly choose whether this transform is applied
                 continue
             features[sequence_idx] = time_warp_impl(
-                features[sequence_idx], factor=time_warp_factor
+                features[sequence_idx], factor=time_warp_factor, generator=generator,
             )
     else:
         for sequence_idx, num_frames in enumerate(feature_lens):
@@ -394,8 +393,7 @@ def _test_alternating_spec_augment():
             aspec_augment = lambda x: spec_augment(x, supervision_segments)
 
         features = torch.randn(B, T, F, device=device)
-        lengths = torch.tensor([ features.shape[1] ] * B, dtype=torch.long).to(device=device)
-        #print("features=", features)
+
         features = aspec_augment(features)
 
         frame_is_masked = features[:, :, 0] == features[:, :, -1]
