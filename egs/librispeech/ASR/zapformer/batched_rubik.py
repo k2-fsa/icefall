@@ -292,6 +292,10 @@ def muon_step_fused(
     momentum_buffer.lerp_(stacked_grads, 1 - momentum)
     g = stacked_grads.lerp_(momentum_buffer, momentum)
 
+    # apply the same normalization both before and after
+    # the core muon step, the symmetry ensures it is a descent direction.
+    g = g / (second_momentum_buffer.sqrt() + eps).to(g.dtype)
+
     # Polar express
     # Cast to bf16 for speed when available; skip cast otherwise (fp16 is unstable here due to limited exponent range)
     X = g.bfloat16() if COMPUTE_DTYPE == torch.bfloat16 else g
@@ -338,9 +342,9 @@ def muon_core_step(group, state, grad):
         assert step < 2
         state["momentum_buffer"] = torch.zeros(batch_size, rows, cols, device=grad.device, dtype=COMPUTE_DTYPE)
         if rows > cols:
-            state["second_momentum_buffer"] = torch.zeros(batch_size, rows, 1, device=grad.device, dtype=torch.float)
+            state["second_momentum_buffer"] = torch.ones(batch_size, rows, 1, device=grad.device, dtype=torch.float)
         else:
-            state["second_momentum_buffer"] = torch.zeros(batch_size, 1, cols, device=grad.device, dtype=torch.float)
+            state["second_momentum_buffer"] = torch.ones(batch_size, 1, cols, device=grad.device, dtype=torch.float)
 
 
     momentum_buffer = state["momentum_buffer"]
