@@ -94,8 +94,6 @@ class AsrModel(nn.Module):
             assert hasattr(decoder, "blank_id")
             assert joiner is not None
 
-
-
             self.decoder = decoder
             self.joiner = joiner
 

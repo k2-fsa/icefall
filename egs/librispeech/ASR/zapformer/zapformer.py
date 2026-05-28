@@ -344,6 +344,12 @@ class Zapformer(EncoderInterface):
                     logging.info(f"overlap[{i}, {j}] = {cosine}")
         return tot_loss
 
+    def warmup_angular_freq_bases(self, seq_len: int, left_context_len: int, device: torch.device):
+        """Pre-compute angular frequency bases for all encoder layers.
+        Call this before torch.jit.trace to avoid tracer issues."""
+        for module in self.encoders:
+            for layer in module.layers:
+                layer.self_attn.rel_pos.angular_freq_basis(seq_len, left_context_len, device)
 
     def _get_attn_mask(
         self, x: Tensor, chunk_size: int, left_context_chunks: int
@@ -1378,9 +1384,6 @@ class PenalizeLargeAttentionScores(torch.autograd.Function):
         return attn_scores_grad + attn_scores.grad, None, None, None, None
 
 
-
-
-
 class FeedforwardModule(nn.Module):
     """Feedforward module in Zapformer model."""
 
@@ -1553,7 +1556,13 @@ class AngularFreqBasis(nn.Module):
             end = start + 2 * seq_len + left_context_len - 1
             return self._cached_basis[start:end]
 
-        t = torch.arange(-(seq_len + left_context_len - 1), seq_len, device=device)
+        if torch.jit.is_tracing():
+            raise RuntimeError(
+                "AngularFreqBasis: cache miss during tracing. "
+                "Call warmup_angular_freq_bases() before tracing."
+            )
+
+        t = torch.arange(-(seq_len + left_context_len - 1), seq_len, dtype=torch.double, device=device)
         basis = compute_angular_freq_basis_triangular(self.freqs, t, scale=False)
         # basis: (2 * seq_len + left_context_len - 1, num_freqs, 2)
         basis = basis.permute(0, 2, 1)
@@ -1966,7 +1975,6 @@ class BasisConv(nn.Module):
         # channel_funcs: (T, 1, num_channels)
 
         return FourierConv.apply(channel_funcs, x)
-
 
 
 

@@ -6,28 +6,11 @@
 """
 This script exports a transducer model from PyTorch to ONNX.
 
-We use the pre-trained model from
-https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-2023-05-15
-as an example to show how to use this file.
-
-1. Download the pre-trained model
+Usage:
 
 cd egs/librispeech/ASR
 
-repo_url=https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-2023-05-15
-GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
-repo=$(basename $repo_url)
-
-pushd $repo
-git lfs pull --include "exp/pretrained.pt"
-
-cd exp
-ln -s pretrained.pt epoch-99.pt
-popd
-
-2. Export the model to ONNX
-
-./zipformer/export-onnx.py \
+./zapformer/export-onnx.py \
   --tokens $repo/data/lang_bpe_500/tokens.txt \
   --use-averaged-model 0 \
   --epoch 99 \
@@ -73,7 +56,7 @@ from decoder import Decoder
 from onnxruntime.quantization import QuantType, quantize_dynamic
 from scaling_converter import convert_scaled_to_non_scaled
 from train import add_model_arguments, get_model, get_params
-from zipformer import Zipformer2
+from zapformer import Zapformer
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -131,7 +114,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="zipformer/exp",
+        default="zapformer/exp",
         help="""It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved
         """,
@@ -191,15 +174,15 @@ def export_onnx_fp16(onnx_fp32_path, onnx_fp16_path):
 
 
 class OnnxEncoder(nn.Module):
-    """A wrapper for Zipformer and the encoder_proj from the joiner"""
+    """A wrapper for Zapformer and the encoder_proj from the joiner"""
 
     def __init__(
-        self, encoder: Zipformer2, encoder_embed: nn.Module, encoder_proj: nn.Linear
+        self, encoder: Zapformer, encoder_embed: nn.Module, encoder_proj: nn.Linear
     ):
         """
         Args:
           encoder:
-            A Zipformer encoder.
+            A Zapformer encoder.
           encoder_proj:
             The projection layer for encoder from the joiner.
         """
@@ -213,7 +196,7 @@ class OnnxEncoder(nn.Module):
         x: torch.Tensor,
         x_lens: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Please see the help information of Zipformer.forward
+        """Please see the help information of Zapformer.forward
 
         Args:
           x:
@@ -313,29 +296,43 @@ def export_encoder_model_onnx(
     x = torch.zeros(1, 100, 80, dtype=torch.float32)
     x_lens = torch.tensor([100], dtype=torch.int64)
 
-    encoder_model = torch.jit.trace(encoder_model, (x, x_lens))
-
-    torch.onnx.export(
-        encoder_model,
-        (x, x_lens),
-        encoder_filename,
-        verbose=False,
-        opset_version=opset_version,
-        input_names=["x", "x_lens"],
-        output_names=["encoder_out", "encoder_out_lens"],
-        dynamic_axes={
-            "x": {0: "N", 1: "T"},
-            "x_lens": {0: "N"},
-            "encoder_out": {0: "N", 1: "T"},
-            "encoder_out_lens": {0: "N"},
-        },
+    # Pre-compute angular frequency bases so tracing uses cached values
+    # instead of recomputing with varying constants per layer.
+    encoder_model.encoder.warmup_angular_freq_bases(
+        seq_len=100, left_context_len=0, device=x.device
     )
 
+    encoder_model = torch.jit.trace(encoder_model, (x, x_lens))
+
+    import traceback
+
+    try:
+        torch.onnx.export(
+            encoder_model,
+            (x, x_lens),
+            encoder_filename,
+            verbose=True,
+            enable_onnx_checker=False,
+            opset_version=opset_version,
+            input_names=["x", "x_lens"],
+            output_names=["encoder_out", "encoder_out_lens"],
+            dynamic_axes={
+                "x": {0: "N", 1: "T"},
+                "x_lens": {0: "N"},
+                "encoder_out": {0: "N", 1: "T"},
+                "encoder_out_lens": {0: "N"},
+            },
+        )
+    except Exception as e:
+        logging.error(f"Failed to export the encoder model to ONNX: {e}")
+        logging.error(traceback.format_exc())
+        raise e
+
     meta_data = {
-        "model_type": "zipformer2",
+        "model_type": "zapformer",
         "version": "1",
         "model_author": "k2-fsa",
-        "comment": "non-streaming zipformer2",
+        "comment": "non-streaming zapformer",
     }
     logging.info(f"meta_data: {meta_data}")
 

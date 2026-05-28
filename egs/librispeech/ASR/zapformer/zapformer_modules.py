@@ -21,14 +21,11 @@ import copy
 import random
 from typing import Optional, Tuple, Union, Any
 
-import k2
 import torch
 import torch.nn as nn
 from torch import Tensor
 from torch.cuda.amp import custom_bwd, custom_fwd
 from zapformer_utils import limit_param_value
-
-
 
 
 def logaddexp_onnx(x: Tensor, y: Tensor) -> Tensor:
@@ -60,7 +57,6 @@ def logaddexp(x: Tensor, y: Tensor) -> Tensor:
     else:
         # for torch.jit.trace()
         return torch.logaddexp(x, y)
-
 
 
 # all arg tensors except x are scalars.
@@ -149,14 +145,12 @@ class CausalSequenceNormFunction(torch.autograd.Function):
         ballast_frames: Tensor,
     ) -> Tensor:
         ctx.save_for_backward(x, offset, scale, ballast_rms, ballast_frames)
-
         return _causal_sequence_norm(x, offset, scale, ballast_rms, ballast_frames)
 
 
     @staticmethod
     def backward(ctx, ans_grad: Tensor) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor]:
         x, offset, scale, ballast_rms, ballast_frames = ctx.saved_tensors
-
 
         with torch.amp.autocast('cuda', enabled=False):
             x = x.to(torch.float32).detach().requires_grad_()
@@ -179,6 +173,7 @@ class CausalSequenceNormFunction(torch.autograd.Function):
 
         return x.grad, c(offset.grad), c(scale.grad), c(ballast_rms.grad), c(ballast_frames.grad)
 
+
 class SequenceNormFunction(torch.autograd.Function):
     @staticmethod
     def forward(
@@ -190,7 +185,6 @@ class SequenceNormFunction(torch.autograd.Function):
     ) -> Tensor:
         ctx.save_for_backward(x, offset, scale)
         ctx.mask = mask
-
         return _sequence_norm(x, offset, scale, mask)
 
 
@@ -336,6 +330,12 @@ class SequenceNorm(torch.nn.Module):
 
         return ans
 
+    @torch.jit.export
+    def get_init_cache(self, batch_size: int):
+        """Get initial cache for streaming inference."""
+        cached_stats_sum = torch.zeros(batch_size)
+        cached_len = torch.zeros(batch_size)
+        return cached_stats_sum, cached_len
 
 
 # assume layout: (time, batch, channel)
@@ -727,8 +727,6 @@ class Identity(torch.nn.Module):
         return _no_op(x)
 
 
-
-
 def torch_compile(fn, *args, **kwargs):
     if hasattr(torch, 'compile'):
         fn = torch.compile(fn, *args, **kwargs, dynamic=True, options={"shape_padding": True, "force_shape_pad": True})
@@ -771,6 +769,8 @@ class SwashL(torch.nn.Module):
     def forward(self, x: Tensor) -> Tensor:
         """Return Swash-L activation, which is the same as SwooshL but with a factor of 4
         on the input and 0.25 on the output.."""
+        if torch.jit.is_scripting() or torch.jit.is_tracing():
+            return swashl(x)
         return self.func(x)
 
 class SwashR(torch.nn.Module):
@@ -780,8 +780,9 @@ class SwashR(torch.nn.Module):
     def forward(self, x: Tensor) -> Tensor:
         """Return Swash-R activation, which is the same as SwooshL but with a factor of 4
         on the input and 0.25 on the output.."""
+        if torch.jit.is_scripting() or torch.jit.is_tracing():
+            return swashr(x)
         return self.func(x)
-
 
 
 class ActivationAndLinearFunction(torch.autograd.Function):
@@ -821,7 +822,6 @@ class ActivationAndLinearFunction(torch.autograd.Function):
         bias_deriv = None if bias is None else g.sum(dim=0)
         x_deriv = y_deriv * func_deriv
         return x_deriv, weight_deriv, bias_deriv, None, None
-
 
 
 class ActivationAndLinear(torch.nn.Module):
@@ -875,7 +875,11 @@ class ActivationAndLinear(torch.nn.Module):
 
     def forward(self, x: Tensor):
         if not self.training or torch.jit.is_scripting() or torch.jit.is_tracing():
-            x = self.forward_func(x)
+            if torch.jit.is_scripting() or torch.jit.is_tracing():
+                func = swashl if self.activation == "SwashL" else swashr
+            else:
+                func = self.forward_func
+            x = func(x)
             return torch.nn.functional.linear(x, self.weight, self.bias)
 
         return ActivationAndLinearFunction.apply(
@@ -885,7 +889,6 @@ class ActivationAndLinear(torch.nn.Module):
             self.forward_func,
             self.backward_func,
         )
-
 
 
 def _test_swashl_deriv():
