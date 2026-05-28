@@ -265,7 +265,8 @@ class OnnxJoiner(nn.Module):
           Return a 2-D tensor of shape (N, vocab_size)
         """
         logit = encoder_out + decoder_out
-        logit = self.output_linear(torch.tanh(logit))
+        # see comment in joiner.py for the scale of 2.0
+        logit = 2.0 * self.output_linear(torch.tanh(logit))
         return logit
 
 
@@ -301,8 +302,6 @@ def export_encoder_model_onnx(
     encoder_model.encoder.warmup_angular_freq_bases(
         seq_len=100, left_context_len=0, device=x.device
     )
-
-    encoder_model = torch.jit.trace(encoder_model, (x, x_lens))
 
     import traceback
 

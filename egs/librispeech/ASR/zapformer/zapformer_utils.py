@@ -66,7 +66,7 @@ def softmax(x: Tensor, dim: int):
 
 
 def penalize_abs_values_gt(
-    x: Tensor, limit: float, penalty: float, name: str = None
+    x: Tensor, limit: float, penalty: float, name: str = ""
 ) -> Tensor:
     """
     Returns x unmodified, but in backprop will put a penalty for the excess of
@@ -118,8 +118,9 @@ class WithLoss(torch.autograd.Function):
         )
 
 
-def with_loss(x, y, name=None):
-    # returns x but adds y.sum() to the loss function.
+def with_loss(x: Tensor, y: Tensor, name: str = "") -> Tensor:
+    if torch.jit.is_scripting():
+        return x
     return WithLoss.apply(x, y, name)
 
 
@@ -152,6 +153,8 @@ def limit_param_value(
     # You apply this to (typically) an nn.Parameter during training to ensure that its
     # (elements mostly) stays within a supplied range.  This is done by modifying the
     # gradients in backprop.
+    if torch.jit.is_scripting():
+        return x
     if training:
         return LimitParamValue.apply(x, min, max)
     else:

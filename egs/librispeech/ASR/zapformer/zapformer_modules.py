@@ -65,12 +65,12 @@ def _sequence_norm(x: Tensor, offset: Tensor, scale: Tensor, mask: Optional[Tens
     T = x.shape[0]  # time
     if mask is None:
         stats = stats.sum(dim=0)
-        lengths = T
+        lengths = torch.tensor(T, dtype=stats.dtype, device=stats.device)
     else:
-        mask = (~mask).to(torch.float).t().unsqueeze(-1)
-        stats = stats * mask
+        mask_f = (~mask).to(torch.float).t().unsqueeze(-1)
+        stats = stats * mask_f
         stats = stats.sum(dim=0)
-        lengths =  mask.sum(dim=0)
+        lengths = mask_f.sum(dim=0)
 
     scales = (lengths / stats).sqrt()
     assert scales.shape == (x.shape[1], 1)
@@ -876,10 +876,12 @@ class ActivationAndLinear(torch.nn.Module):
     def forward(self, x: Tensor):
         if not self.training or torch.jit.is_scripting() or torch.jit.is_tracing():
             if torch.jit.is_scripting() or torch.jit.is_tracing():
-                func = swashl if self.activation == "SwashL" else swashr
+                if self.activation == "SwashL":
+                    x = swashl(x)
+                else:
+                    x = swashr(x)
             else:
-                func = self.forward_func
-            x = func(x)
+                x = self.forward_func(x)
             return torch.nn.functional.linear(x, self.weight, self.bias)
 
         return ActivationAndLinearFunction.apply(
