@@ -294,13 +294,22 @@ def export_encoder_model_onnx(
       opset_version:
         The opset version to use.
     """
-    x = torch.zeros(1, 100, 80, dtype=torch.float32)
-    x_lens = torch.tensor([100], dtype=torch.int64)
+    # Use a large dummy input (3000 fbank frames ≈ 30s audio) so that the
+    # relative position basis baked into the ONNX graph is large enough for
+    # any input encountered at inference time. The basis becomes a constant
+    # in the ONNX graph, and the GatherElements indices at runtime must not
+    # exceed its size.
+    T_max = 3000
+    x = torch.zeros(1, T_max, 80, dtype=torch.float32)
+    x_lens = torch.tensor([T_max], dtype=torch.int64)
 
     # Pre-compute angular frequency bases so tracing uses cached values
     # instead of recomputing with varying constants per layer.
+    # After Conv2dSubsampling, T_max → ~(T_max-7)//2 ≈ 1496 frames.
+    # Each encoder stack further downsamples, so the max seq_len seen by
+    # any stack is ~1496. We use 1500 to be safe.
     encoder_model.encoder.warmup_angular_freq_bases(
-        seq_len=100, left_context_len=0, device=x.device
+        seq_len=1500, left_context_len=0, device=x.device
     )
 
     import traceback
