@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright 2021-2023 Xiaomi Corporation (Author: Fangjun Kuang,
+# Copyright 2021-2026 Xiaomi Corporation (Author: Fangjun Kuang,
 #                                                 Zengwei Yao,
 #                                                 Wei Kang)
 #
@@ -398,8 +398,6 @@ def main():
     params.update(vars(args))
 
     device = torch.device("cpu")
-    # if torch.cuda.is_available():
-    #     device = torch.device("cuda", 0)
 
     logging.info(f"device: {device}")
 

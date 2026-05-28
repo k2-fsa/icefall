@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright      2021-2023  Xiaomi Corp.        (authors: Fangjun Kuang, Zengwei Yao)
+# Copyright      2021-2026  Xiaomi Corp.        (authors: Fangjun Kuang, Zengwei Yao, Wei Kang)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -114,7 +114,6 @@ import math
 from typing import List
 
 import k2
-import kaldifeat
 import torch
 import torchaudio
 from beam_search import (
@@ -295,15 +294,6 @@ def main():
     model.eval()
 
     logging.info("Constructing Fbank computer")
-    opts = kaldifeat.FbankOptions()
-    opts.device = device
-    opts.frame_opts.dither = 0
-    opts.frame_opts.snip_edges = False
-    opts.frame_opts.samp_freq = params.sample_rate
-    opts.mel_opts.num_bins = params.feature_dim
-    opts.mel_opts.high_freq = -400
-
-    fbank = kaldifeat.Fbank(opts)
 
     logging.info(f"Reading sound files: {params.sound_files}")
     waves = read_sound_files(
@@ -312,7 +302,17 @@ def main():
     waves = [w.to(device) for w in waves]
 
     logging.info("Decoding started")
-    features = fbank(waves)
+    features = []
+    for w in waves:
+        feat = torchaudio.compliance.kaldi.fbank(
+            w.unsqueeze(0),
+            num_mel_bins=params.feature_dim,
+            sample_frequency=params.sample_rate,
+            dither=0,
+            snip_edges=False,
+            high_freq=-400,
+        )  # (num_frames, feature_dim)
+        features.append(feat.to(device))
     feature_lengths = [f.size(0) for f in features]
 
     features = pad_sequence(features, batch_first=True, padding_value=math.log(1e-10))

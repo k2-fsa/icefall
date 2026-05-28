@@ -1,7 +1,21 @@
 #!/usr/bin/env python3
 #
-# Copyright 2023 Xiaomi Corporation (Author: Fangjun Kuang, Wei Kang)
-# Copyright 2023 Danqing Fu (danqing.fu@gmail.com)
+# Copyright 2021-2026 Xiaomi Corporation (Author: Fangjun Kuang,
+#                                                 Wei Kang)
+#
+# See ../../../../LICENSE for clarification regarding multiple authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """
 This script exports a transducer model from PyTorch to ONNX.
@@ -12,32 +26,15 @@ cd egs/librispeech/ASR
 
 ./zapformer/export-onnx.py \
   --tokens $repo/data/lang_bpe_500/tokens.txt \
-  --use-averaged-model 0 \
-  --epoch 99 \
-  --avg 1 \
-  --exp-dir $repo/exp \
-  --num-encoder-layers "2,2,3,4,3,2" \
-  --downsampling-factor "1,2,4,8,4,2" \
-  --feedforward-dim "512,768,1024,1536,1024,768" \
-  --num-heads "4,4,4,8,4,4" \
-  --encoder-dim "192,256,384,512,384,256" \
-  --query-head-dim 32 \
-  --value-head-dim 12 \
-  --pos-head-dim 4 \
-  --pos-dim 48 \
-  --encoder-unmasked-dim "192,192,256,256,256,192" \
-  --cnn-module-kernel "31,31,15,15,15,31" \
-  --decoder-dim 512 \
-  --joiner-dim 512 \
-  --causal False \
-  --chunk-size "16,32,64,-1" \
-  --left-context-frames "64,128,256,-1" \
+  --epoch 13 \
+  --avg 2 \
+  --exp-dir zapformer/exp \
   --fp16 True
 It will generate the following 3 files inside $repo/exp:
 
-  - encoder-epoch-99-avg-1.onnx
-  - decoder-epoch-99-avg-1.onnx
-  - joiner-epoch-99-avg-1.onnx
+  - encoder-epoch-13-avg-2.onnx
+  - decoder-epoch-13-avg-2.onnx
+  - joiner-epoch-13-avg-2.onnx
 
 See ./onnx_pretrained.py and ./onnx_check.py for how to
 use the exported ONNX models.
@@ -54,7 +51,6 @@ import torch
 import torch.nn as nn
 from decoder import Decoder
 from onnxruntime.quantization import QuantType, quantize_dynamic
-from scaling_converter import convert_scaled_to_non_scaled
 from train import add_model_arguments, get_model, get_params
 from zapformer import Zapformer
 
@@ -544,8 +540,6 @@ def main():
 
     model.to("cpu")
     model.eval()
-
-    convert_scaled_to_non_scaled(model, inplace=True, is_onnx=True)
 
     encoder = OnnxEncoder(
         encoder=model.encoder,
