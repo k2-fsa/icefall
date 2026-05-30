@@ -433,8 +433,8 @@ def adam_step(group, state, grad):
         exp_avg_sq = state["exp_avg_sq"]
     except KeyError as e:
         assert step < 2
-        exp_avg = torch.zeros(*grad.shape, device=grad.device, dtype=COMPUTE_DTYPE)
-        exp_avg_sq = torch.zeros(*grad.shape, device=grad.device, dtype=COMPUTE_DTYPE)
+        exp_avg = torch.zeros_like(grad)
+        exp_avg_sq = torch.zeros_like(grad)
         state["exp_avg"] = exp_avg
         state["exp_avg_sq"] = exp_avg_sq
 
