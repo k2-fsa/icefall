@@ -201,8 +201,8 @@ def matrix_shape(shape):
     cumprod = [ ]
     numel = 1
     for k in shape:
-        cumprod.append(k)
         numel = numel * k
+        cumprod.append(numel)
     diffs = [ abs(k - numel // k) for k in cumprod ]
     min_diff = min(diffs)
     for i in range(len(shape)):
