@@ -348,7 +348,7 @@ def get_parser():
           path of the n paths is the decoding result.
         - (11) ctc-prefix-beam-search-attention-decoder-rescoring. Extract n paths with
           the given beam, rescore them with the attention decoder.
-        - (12) ctc-prefix-beam-search-shallow-fussion. Use NNLM shallow fussion during
+        - (12) ctc-prefix-beam-search-shallow-fusion. Use NNLM shallow fusion during
           beam search, LODR and hotwords are also supported in this decoding method.
         """,
     )
@@ -387,7 +387,7 @@ def get_parser():
         "--nnlm-scale",
         type=float,
         default=0,
-        help="""The scale of the neural network LM, 0 means don't use nnlm shallow fussion.
+        help="""The scale of the neural network LM, 0 means don't use nnlm shallow fusion.
         Used only when `--use-shallow-fusion` is set to True.
         """,
     )
@@ -600,7 +600,7 @@ def decode_one_batch(
             ans[a_scale_str] = hyps
         return ans
 
-    if params.decoding_method == "ctc-prefix-beam-search-shallow-fussion":
+    if params.decoding_method in [ "ctc-prefix-beam-search-shallow-fussion", "ctc-prefix-beam-search-shallow-fusion" ]:
         token_ids = ctc_prefix_beam_search_shallow_fussion(
             ctc_output=ctc_output,
             encoder_out_lens=encoder_out_lens,

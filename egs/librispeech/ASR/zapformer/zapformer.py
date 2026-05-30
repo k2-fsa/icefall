@@ -344,6 +344,12 @@ class Zapformer(EncoderInterface):
                     logging.info(f"overlap[{i}, {j}] = {cosine}")
         return tot_loss
 
+    def warmup_angular_freq_bases(self, seq_len: int, left_context_len: int, device: torch.device):
+        """Pre-compute angular frequency bases for all encoder layers.
+        Call this before torch.jit.trace to avoid tracer issues."""
+        for module in self.encoders:
+            for layer in module.layers:
+                layer.self_attn.rel_pos.angular_freq_basis(seq_len, left_context_len, device)
 
     def _get_attn_mask(
         self, x: Tensor, chunk_size: int, left_context_chunks: int
@@ -668,8 +674,7 @@ class ZapformerEncoderLayer(nn.Module):
         src_orig = src
 
         src = with_loss(src, self.correlation_limiter(src.permute(1, 0, 2),
-                                                      2. * aux_loss_scale, mask=src_key_padding_mask),
-                        None)
+                                                      2. * aux_loss_scale, mask=src_key_padding_mask))
 
         src_pre_ff1 = src
 
@@ -849,7 +854,7 @@ class ZapformerEncoder(nn.Module):
         attn_mask: Optional[Tensor] = None,
         src_key_padding_mask: Optional[Tensor] = None,
         aux_loss_scale: float = 0.0,
-    ) -> Tuple[Tensor, Tensor]:
+    ) -> Tensor:
         r"""Pass the input through the encoder layers in turn.
 
         Args:
@@ -864,8 +869,7 @@ class ZapformerEncoder(nn.Module):
                  masked position.  May be None.
 
         Returns:
-             (out, out_sd), both of the same shape as src,
-           where out_sd is an alternative version of out for stochastic-depth, that does not see the bypass.
+            out, of the same shape as src.
         """
         src_orig_fulldim = src
 
@@ -1172,7 +1176,7 @@ class MultiheadRelPosGatedSelfAttention(nn.Module):
         g = vg[..., N:]
         if self.training:
             # don't let the sigmoid values get too extreme, limit to -2..2.
-            g = penalize_abs_values_gt(g, 2, penalty=0.02*aux_loss_scale)
+            g = penalize_abs_values_gt(g, 2.0, penalty=0.02*aux_loss_scale)
 
         g_in, g_out = g.chunk(2, dim=-1)
         v = v * self.sigmoid_in(g_in)
@@ -1378,9 +1382,6 @@ class PenalizeLargeAttentionScores(torch.autograd.Function):
         return attn_scores_grad + attn_scores.grad, None, None, None, None
 
 
-
-
-
 class FeedforwardModule(nn.Module):
     """Feedforward module in Zapformer model."""
 
@@ -1532,7 +1533,7 @@ class AngularFreqBasis(nn.Module):
         freqs[0] = 0.0  # in case of roundoff
         self.register_buffer('freqs', freqs, persistent=False)
 
-        self._cached_basis: Optional[Tensor] = None
+        self._cached_basis: Tensor = torch.empty(0)
         self._cached_seq_len: int = -1
         self._cached_left_context_len: int = -1
 
@@ -1546,14 +1547,20 @@ class AngularFreqBasis(nn.Module):
         """
         S = self._cached_seq_len
         L = self._cached_left_context_len
-        if (self._cached_basis is not None
+        if (self._cached_basis.numel() > 0
             and seq_len <= S
             and seq_len + left_context_len <= S + L):
             start = S + L - seq_len - left_context_len
             end = start + 2 * seq_len + left_context_len - 1
             return self._cached_basis[start:end]
 
-        t = torch.arange(-(seq_len + left_context_len - 1), seq_len, device=device)
+        if torch.jit.is_tracing():
+            raise RuntimeError(
+                "AngularFreqBasis: cache miss during tracing. "
+                "Call warmup_angular_freq_bases() before tracing."
+            )
+
+        t = torch.arange(-(seq_len + left_context_len - 1), seq_len, dtype=torch.double, device=device)
         basis = compute_angular_freq_basis_triangular(self.freqs, t, scale=False)
         # basis: (2 * seq_len + left_context_len - 1, num_freqs, 2)
         basis = basis.permute(0, 2, 1)
@@ -1966,7 +1973,6 @@ class BasisConv(nn.Module):
         # channel_funcs: (T, 1, num_channels)
 
         return FourierConv.apply(channel_funcs, x)
-
 
 
 

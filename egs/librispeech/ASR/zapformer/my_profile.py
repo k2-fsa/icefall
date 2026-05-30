@@ -34,7 +34,6 @@ from train import (
     get_joiner_model,
     get_params,
 )
-from zapformer import BypassModule
 
 from icefall.profiler import get_model_profile
 from icefall.utils import make_pad_mask

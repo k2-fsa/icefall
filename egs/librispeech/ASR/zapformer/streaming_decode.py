@@ -215,7 +215,7 @@ def get_parser():
         type=str2bool,
         default=False,
         help="""If True, decode commonvoice in addition to librispeech test sets.""",
-    )  
+    )
 
     add_model_arguments(parser)
 
@@ -435,7 +435,7 @@ def streaming_forward(
 
     x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
     encoder_states = states[:-2]
-    
+
     (
         encoder_out,
         encoder_out_lens,
@@ -494,7 +494,7 @@ def decode_one_chunk(
 
     # Make sure the length after encoder_embed is at least 1.
     # The encoder_embed subsample features (T - 7) // 2
-    tail_length = chunk_size * 2 + 7 
+    tail_length = chunk_size * 2 + 7
     if features.size(1) < tail_length:
         pad_length = tail_length - features.size(1)
         feature_lens += pad_length
@@ -830,7 +830,7 @@ def main():
             start = params.epoch - params.avg + 1
             filenames = []
             for i in range(start, params.epoch + 1):
-                if start >= 0:
+                if i >= 1:
                     filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
             logging.info(f"averaging {filenames}")
             model.to(device)
@@ -913,7 +913,7 @@ def main():
         giga_dev_cuts = gigaspeech.dev_cuts()
         test_sets += ["giga-dev", "giga-test"]
         test_cuts += [giga_dev_cuts, giga_test_cuts]
-    
+
     if args.cv:
         commonvoice = CommonVoice(args.manifest_dir)
         cv_test_cuts = commonvoice.test_cuts()

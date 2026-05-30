@@ -71,7 +71,6 @@ import math
 from typing import List, Tuple
 
 import k2
-import kaldifeat
 import onnxruntime as ort
 import torch
 import torchaudio
@@ -363,15 +362,6 @@ def main():
     )
 
     logging.info("Constructing Fbank computer")
-    opts = kaldifeat.FbankOptions()
-    opts.device = "cpu"
-    opts.frame_opts.dither = 0
-    opts.frame_opts.snip_edges = False
-    opts.frame_opts.samp_freq = args.sample_rate
-    opts.mel_opts.num_bins = 80
-    opts.mel_opts.high_freq = -400
-
-    fbank = kaldifeat.Fbank(opts)
 
     logging.info(f"Reading sound files: {args.sound_files}")
     waves = read_sound_files(
@@ -380,7 +370,17 @@ def main():
     )
 
     logging.info("Decoding started")
-    features = fbank(waves)
+    features = []
+    for w in waves:
+        feat = torchaudio.compliance.kaldi.fbank(
+            w.unsqueeze(0),
+            num_mel_bins=80,
+            sample_frequency=args.sample_rate,
+            dither=0,
+            snip_edges=False,
+            high_freq=-400,
+        )  # (num_frames, 80)
+        features.append(feat)
     feature_lengths = [f.size(0) for f in features]
 
     features = pad_sequence(

@@ -53,18 +53,26 @@ def scaled_three_way_product(x):
 
 def compute_alpha(x: Tensor, y: Tensor, beta: float) -> Tensor:
     """
-    Solve the equation: ||x + alpha y||_2^2 == ||beta x||_2^2
+    Computes the amount of cubic decay to do for each parameter tensor in the batch, as
+    a scalar.
 
-          x.x + 2 alpha y.x + alpha^2 y.y = beta^2 x.x
-      alpha^2 y.y + 2 alpha x.y + (1-beta^2) x.x = 0
-     (a,b,c) = (y.y, 2 alpha x.y, x.x)
-        alpha = (-b + sqrt(b^2 - 4ac) ) / 2a      # this is the solution closest to zero.
-                                                  # treat the thing inside the sqrt as zero if
-                                                  # negative, this
+    First compute alpha that solves the equation: ||x - alpha y||_2^2 == ||beta x||_2^2
+
+
+          x.x - 2 alpha y.x + alpha^2 y.y = beta^2 x.x
+      alpha^2 y.y - 2 alpha x.y + (1-beta^2) x.x = 0
+     (a,b,c) = (y.y, -2 alpha x.y, x.x)
+        alpha = (-b - sqrt(b^2 - 4ac) ) / 2a      # this is the solution closest to zero.
+
     # factoring out 2 from the top and bottom we get:
-       so alpha = (-x.y + sqrt(x.y * y.x  - (1-beta^2) x.x * y.y)) / y.y
+       so alpha = (x.y - sqrt(x.y * y.x  - (1-beta^2) x.x * y.y)) / y.y
      ... we treat the thing inside the sqrt as zero if it is negative,
       which gives us the closest real solution
+
+    We then apply a formula that you can see at the bottom, which chooses the
+    smallest (closest to zero) of two formulae, see the comments.  This is basically
+    heuristic; the safety_factor * min_sum_scale is a safety thing to reduce the
+    chance of eigenvalues flipping sign.
     """
     eps = 1.0e-40
     xx = x.square().mean()
@@ -74,19 +82,23 @@ def compute_alpha(x: Tensor, y: Tensor, beta: float) -> Tensor:
 
     # this alpha is the value that solves exactly for the requested difference in norm.
     # this will be negative.
-    alpha = (-xy + (xy**2 - (1-beta*beta) * xx * yy).clamp(min=0).sqrt()) / yyeps
+    alpha = (xy - (xy**2 - (1-beta*beta) * xx * yy).clamp(min=0).sqrt()) / yyeps
 
-    # min_sum_scale is the value of alpha that would minimize the norm of a + alpha y.
-    min_sum_scale = -xy / yyeps
+    # min_sum_scale is the value of alpha that would minimize the norm of a - alpha y.
+    min_sum_scale = xy / yyeps
     # safety_factor = 0.5 means we are only willing to go halfway to that value that minimizes the norm,
     # to avoid change of eigenvalue sign / overshoot, which can ultimately lead to certain
     # parameter eigenvalues getting too large.
     safety_factor = 0.5
 
-    return torch.maximum(safety_factor * min_sum_scale, alpha)  # return the closet to zero of these two formulae.
+    # alpha_power is a heuristic value that interpolates between the computed alpha, and alpha=(1-beta).
+    # the intention is that if the singular values are quite peaky (hence alpha << 1),
+    # we want to make sure that we're doing an adequate amount of decay for the smaller singular values.
+    alpha_power = 0.75
 
-
-
+    # return the closest to zero of the two formulae below.
+    return torch.minimum(safety_factor * min_sum_scale,
+                         ((1-beta) ** (1-alpha_power)) * (alpha.clamp(min=1.0e-10) ** alpha_power))
 
 
 
@@ -127,12 +139,9 @@ col_stats: (1, cols)
     x = x / row_denom
     col_stats.mul_(beta2).add_(x.abs().mean(dim=0, keepdim=True), alpha=(1 - beta2))
     col_denom = (col_stats + eps)
-    row_denom_sqrt = row_denom.sqrt()
-    col_denom_sqrt = col_denom.sqrt()
-    x_half_norm = (x * row_denom_sqrt) / col_denom_sqrt
+    x_half_norm = (x * row_denom.sqrt()) / col_denom.sqrt()
     x = x / col_denom
-    invP = row_denom * col_denom
-    return x, x_half_norm, invP
+    return x, x_half_norm
 
 
 def normalize_and_update_stats(x, row_stats, col_stats, beta2, eps):
@@ -181,7 +190,7 @@ def cubic_decay_step(group, state, grad):
     col_stats = state["col_stats"]
 
     # we half update the stats here, half update them later.
-    norm_grad, norm_grad_precon, invP = half_normalize_and_update_stats(grad, row_stats, col_stats, beta2, eps)
+    norm_grad, norm_grad_precon = half_normalize_and_update_stats(grad, row_stats, col_stats, beta2, eps)
 
     # add the grad to the moving-average grad; the scaling factor used here
     # doesn't matter as it all gets normalized later.
@@ -191,14 +200,10 @@ def cubic_decay_step(group, state, grad):
     # all equal, but in general its 2-norm is >= the 2-norm of moving_grad_precon.
     prod3 = scaled_three_way_product(moving_grad)
 
-
-    # dividing the following by invP means we are using 1 / invP as a scale for computing
-    # norms, as if we were to compute the norm of delta ~= moving_grad / invP after doing
-    # moving_grad.add_(prod3 * cubic_alpha).
-    cubic_alpha = compute_alpha(moving_grad / invP, prod3 / invP, beta1)
+    cubic_alpha = compute_alpha(moving_grad, prod3, beta1)
     # cubic_alpha shape: scalar
 
-    moving_grad.add_(prod3 * cubic_alpha)
+    moving_grad.add_(prod3 * cubic_alpha, alpha=-1)
 
     # assumed_scale is just a scalar factor to account for the fact that the moving-average "moving_grad"
     # will have a smaller variance than the grad itself because of being a mean over independent elements.
@@ -218,14 +223,13 @@ def cubic_decay_step(group, state, grad):
 
     debug = (step < 500 and (step % 50 == 0)) or (step % 500 == 0)
     if debug:
+        cubic_alpha_ratio = cubic_alpha / (1-beta1)
         scale = (assumed_scale / ((delta ** 2).mean().sqrt() + eps))
-        logging.info(f"shape={prod3.shape}, scale={scale.flatten()} [not applied]")
-    #delta = delta * scale
+        logging.info(f"shape={prod3.shape}, scale={scale} [not applied], alpha_ratio={cubic_alpha_ratio}, delta-max={delta.abs().max()}")
 
-    ans = -lr * delta
+    delta.mul_(-lr)
 
-    return ans.reshape(orig_shape)
-
+    return delta.reshape(orig_shape)
 
 
 

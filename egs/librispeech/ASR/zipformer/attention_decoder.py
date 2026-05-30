@@ -23,7 +23,7 @@ import k2
 import torch
 import torch.nn as nn
 from label_smoothing import LabelSmoothingLoss
-from zapformer_utils import penalize_abs_values_gt
+from scaling import penalize_abs_values_gt
 
 from icefall.utils import add_eos, add_sos, make_pad_mask
 

@@ -62,6 +62,7 @@ class ConvNeXt(nn.Module):
 
         if not causal:
             padding = (kernel_size[0] // 2, kernel_size[1] // 2)
+            self.left_pad = 0
         else:
             padding = (0, kernel_size[1] // 2)
             self.left_pad = kernel_size[0] - 1

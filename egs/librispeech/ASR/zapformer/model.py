@@ -94,8 +94,6 @@ class AsrModel(nn.Module):
             assert hasattr(decoder, "blank_id")
             assert joiner is not None
 
-
-
             self.decoder = decoder
             self.joiner = joiner
 
@@ -322,7 +320,7 @@ class AsrModel(nn.Module):
         am_scale: float = 0.0,
         lm_scale: float = 0.0,
         aux_loss_scale: float = 0.0,
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Args:
           x:
