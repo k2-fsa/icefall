@@ -45,7 +45,6 @@ from typing import List, Optional
 import k2
 import torch
 import torchaudio
-from kaldifeat import FbankOptions, OnlineFbank, OnlineFeature
 
 
 def get_parser():
@@ -148,24 +147,26 @@ def greedy_search(
     return hyp, decoder_out
 
 
-def create_streaming_feature_extractor(sample_rate) -> OnlineFeature:
-    """Create a CPU streaming feature extractor.
+def compute_fbank(waveform: torch.Tensor, sample_rate: int) -> torch.Tensor:
+    """Compute fbank features for the entire waveform at once.
 
-    At present, we assume it returns a fbank feature extractor with
-    fixed options. In the future, we will support passing in the options
-    from outside.
-
+    Args:
+      waveform:
+        A 1-D float32 tensor of audio samples.
+      sample_rate:
+        The sample rate of the audio.
     Returns:
-      Return a CPU streaming feature extractor.
+      Return a 2-D tensor of shape (num_frames, feature_dim).
     """
-    opts = FbankOptions()
-    opts.device = "cpu"
-    opts.frame_opts.dither = 0
-    opts.frame_opts.snip_edges = False
-    opts.frame_opts.samp_freq = sample_rate
-    opts.mel_opts.num_bins = 80
-    opts.mel_opts.high_freq = -400
-    return OnlineFbank(opts)
+    feat = torchaudio.compliance.kaldi.fbank(
+        waveform.unsqueeze(0),
+        num_mel_bins=80,
+        sample_frequency=sample_rate,
+        dither=0,
+        snip_edges=False,
+        high_freq=-400,
+    )
+    return feat
 
 
 @torch.no_grad()
@@ -191,9 +192,7 @@ def main():
     token_table = k2.SymbolTable.from_file(args.tokens)
     context_size = decoder.context_size
 
-    logging.info("Constructing Fbank computer")
-    online_fbank = create_streaming_feature_extractor(args.sample_rate)
-
+    logging.info("Computing fbank features")
     logging.info(f"Reading sound files: {args.sound_file}")
     wave_samples = read_sound_files(
         filenames=[args.sound_file],
@@ -201,52 +200,39 @@ def main():
     )[0]
     logging.info(wave_samples.shape)
 
+    # Compute all fbank features at once
+    features = compute_fbank(wave_samples, args.sample_rate)
+    logging.info(f"features shape: {features.shape}")
+
     logging.info("Decoding started")
 
     chunk_length = encoder.chunk_size * 2
-    T = chunk_length + encoder.pad_length
+    T = chunk_length + 7  # Conv2dSubsampling pad_length is a fixed constant
 
     logging.info(f"chunk_length: {chunk_length}")
     logging.info(f"T: {T}")
 
     states = encoder.get_init_states(device=device)
 
-    tail_padding = torch.zeros(int(0.3 * args.sample_rate), dtype=torch.float32)
-
-    wave_samples = torch.cat([wave_samples, tail_padding])
-
-    chunk = int(0.25 * args.sample_rate)  # 0.2 second
+    num_frames = features.size(0)
     num_processed_frames = 0
 
     hyp = None
     decoder_out = None
 
-    start = 0
-    while start < wave_samples.numel():
-        logging.info(f"{start}/{wave_samples.numel()}")
-        end = min(start + chunk, wave_samples.numel())
-        samples = wave_samples[start:end]
-        start += chunk
-        online_fbank.accept_waveform(
-            sampling_rate=args.sample_rate,
-            waveform=samples,
+    while num_processed_frames + T <= num_frames:
+        frames = features[num_processed_frames : num_processed_frames + T].to(device).unsqueeze(0)
+        x_lens = torch.tensor([T], dtype=torch.int32, device=device)
+        encoder_out, out_lens, states = encoder(
+            features=frames,
+            feature_lengths=x_lens,
+            states=states,
         )
-        while online_fbank.num_frames_ready - num_processed_frames >= T:
-            frames = []
-            for i in range(T):
-                frames.append(online_fbank.get_frame(num_processed_frames + i))
-            frames = torch.cat(frames, dim=0).to(device).unsqueeze(0)
-            x_lens = torch.tensor([T], dtype=torch.int32, device=device)
-            encoder_out, out_lens, states = encoder(
-                features=frames,
-                feature_lengths=x_lens,
-                states=states,
-            )
-            num_processed_frames += chunk_length
+        num_processed_frames += chunk_length
 
-            hyp, decoder_out = greedy_search(
-                decoder, joiner, encoder_out.squeeze(0), decoder_out, hyp, device=device
-            )
+        hyp, decoder_out = greedy_search(
+            decoder, joiner, encoder_out.squeeze(0), decoder_out, hyp, device=device
+        )
 
     text = ""
     for i in hyp[context_size:]:

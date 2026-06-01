@@ -78,7 +78,6 @@ import numpy as np
 import onnxruntime as ort
 import torch
 import torchaudio
-from kaldifeat import FbankOptions, OnlineFbank, OnlineFeature
 
 
 def get_parser():
@@ -155,14 +154,14 @@ class OnnxModel:
         logging.info(f"encoder_meta={encoder_meta}")
 
         model_type = encoder_meta["model_type"]
-        assert model_type == "zapformer2", model_type
+        assert model_type == "zapformer", model_type
 
         decode_chunk_len = int(encoder_meta["decode_chunk_len"])
         T = int(encoder_meta["T"])
 
         num_encoder_layers = encoder_meta["num_encoder_layers"]
         encoder_dims = encoder_meta["encoder_dims"]
-        cnn_module_kernels = encoder_meta["cnn_module_kernels"]
+        conv_params = encoder_meta["conv_params"]
         left_context_len = encoder_meta["left_context_len"]
         query_head_dims = encoder_meta["query_head_dims"]
         value_head_dims = encoder_meta["value_head_dims"]
@@ -173,7 +172,7 @@ class OnnxModel:
 
         num_encoder_layers = to_int_list(num_encoder_layers)
         encoder_dims = to_int_list(encoder_dims)
-        cnn_module_kernels = to_int_list(cnn_module_kernels)
+        conv_params = to_int_list(conv_params)
         left_context_len = to_int_list(left_context_len)
         query_head_dims = to_int_list(query_head_dims)
         value_head_dims = to_int_list(value_head_dims)
@@ -183,7 +182,7 @@ class OnnxModel:
         logging.info(f"T: {T}")
         logging.info(f"num_encoder_layers: {num_encoder_layers}")
         logging.info(f"encoder_dims: {encoder_dims}")
-        logging.info(f"cnn_module_kernels: {cnn_module_kernels}")
+        logging.info(f"conv_params: {conv_params}")
         logging.info(f"left_context_len: {left_context_len}")
         logging.info(f"query_head_dims: {query_head_dims}")
         logging.info(f"value_head_dims: {value_head_dims}")
@@ -196,35 +195,59 @@ class OnnxModel:
             num_layers = num_encoder_layers[i]
             key_dim = query_head_dims[i] * num_heads[i]
             embed_dim = encoder_dims[i]
-            nonlin_attn_head_dim = 3 * embed_dim // 4
             value_dim = value_head_dims[i] * num_heads[i]
-            conv_left_pad = cnn_module_kernels[i] // 2
+            conv_left_pad = conv_params[i] - 1
 
             for layer in range(num_layers):
+                # (left_context_len, batch, key_dim)
                 cached_key = torch.zeros(
                     left_context_len[i], batch_size, key_dim
                 ).numpy()
-                cached_nonlin_attn = torch.zeros(
-                    1, batch_size, left_context_len[i], nonlin_attn_head_dim
-                ).numpy()
-                cached_val1 = torch.zeros(
+                # (left_context_len, batch, value_dim)
+                cached_value = torch.zeros(
                     left_context_len[i], batch_size, value_dim
                 ).numpy()
-                cached_val2 = torch.zeros(
-                    left_context_len[i], batch_size, value_dim
+                # (batch, embed_dim, conv_left_pad)
+                cached_conv = torch.zeros(
+                    batch_size, embed_dim, conv_left_pad
                 ).numpy()
-                cached_conv1 = torch.zeros(batch_size, embed_dim, conv_left_pad).numpy()
-                cached_conv2 = torch.zeros(batch_size, embed_dim, conv_left_pad).numpy()
+                # cached_norm_stats: (batch,)
+                cached_norm_stats = torch.zeros(batch_size).numpy()
+                # cached_norm_len: (batch,)
+                cached_norm_len = torch.zeros(batch_size).numpy()
+                # cached_attn_wm_sum: (1, batch, value_dim)
+                cached_attn_wm_sum = torch.zeros(
+                    1, batch_size, value_dim
+                ).numpy()
+                # cached_attn_wm_num_frames: (batch,)
+                cached_attn_wm_num_frames = torch.zeros(
+                    batch_size, dtype=torch.int64
+                ).numpy()
+                # cached_conv_wm_sum: (1, batch, embed_dim)
+                cached_conv_wm_sum = torch.zeros(
+                    1, batch_size, embed_dim
+                ).numpy()
+                # cached_conv_wm_num_frames: (batch,)
+                cached_conv_wm_num_frames = torch.zeros(
+                    batch_size, dtype=torch.int64
+                ).numpy()
+
                 self.states += [
                     cached_key,
-                    cached_nonlin_attn,
-                    cached_val1,
-                    cached_val2,
-                    cached_conv1,
-                    cached_conv2,
+                    cached_value,
+                    cached_conv,
+                    cached_norm_stats,
+                    cached_norm_len,
+                    cached_attn_wm_sum,
+                    cached_attn_wm_num_frames,
+                    cached_conv_wm_sum,
+                    cached_conv_wm_num_frames,
                 ]
-        embed_states = torch.zeros(batch_size, 128, 3, 19).numpy()
-        self.states.append(embed_states)
+
+        # embed_cache: (batch, channels, left_pad, freq)
+        embed_cache = torch.zeros(batch_size, 128, 6, 19).numpy()
+        self.states.append(embed_cache)
+        # processed_lens: (batch,)
         processed_lens = torch.zeros(batch_size, dtype=torch.int64).numpy()
         self.states.append(processed_lens)
 
@@ -267,45 +290,60 @@ class OnnxModel:
         encoder_output = ["encoder_out"]
 
         def build_inputs_outputs(tensors, i):
-            assert len(tensors) == 6, len(tensors)
+            assert len(tensors) == 9, len(tensors)
 
-            # (downsample_left, batch_size, key_dim)
+            # (left_context_len, batch_size, key_dim)
             name = f"cached_key_{i}"
             encoder_input[name] = tensors[0]
             encoder_output.append(f"new_{name}")
 
-            # (1, batch_size, downsample_left, nonlin_attn_head_dim)
-            name = f"cached_nonlin_attn_{i}"
+            # (left_context_len, batch_size, value_dim)
+            name = f"cached_value_{i}"
             encoder_input[name] = tensors[1]
             encoder_output.append(f"new_{name}")
 
-            # (downsample_left, batch_size, value_dim)
-            name = f"cached_val1_{i}"
+            # (batch_size, embed_dim, conv_left_pad)
+            name = f"cached_conv_{i}"
             encoder_input[name] = tensors[2]
             encoder_output.append(f"new_{name}")
 
-            # (downsample_left, batch_size, value_dim)
-            name = f"cached_val2_{i}"
+            # (batch_size,)
+            name = f"cached_norm_stats_{i}"
             encoder_input[name] = tensors[3]
             encoder_output.append(f"new_{name}")
 
-            # (batch_size, embed_dim, conv_left_pad)
-            name = f"cached_conv1_{i}"
+            # (batch_size,)
+            name = f"cached_norm_len_{i}"
             encoder_input[name] = tensors[4]
             encoder_output.append(f"new_{name}")
 
-            # (batch_size, embed_dim, conv_left_pad)
-            name = f"cached_conv2_{i}"
+            # (1, batch_size, value_dim)
+            name = f"cached_attn_wm_sum_{i}"
             encoder_input[name] = tensors[5]
             encoder_output.append(f"new_{name}")
 
-        for i in range(len(self.states[:-2]) // 6):
-            build_inputs_outputs(self.states[i * 6 : (i + 1) * 6], i)
+            # (batch_size,)
+            name = f"cached_attn_wm_num_frames_{i}"
+            encoder_input[name] = tensors[6]
+            encoder_output.append(f"new_{name}")
+
+            # (1, batch_size, embed_dim)
+            name = f"cached_conv_wm_sum_{i}"
+            encoder_input[name] = tensors[7]
+            encoder_output.append(f"new_{name}")
+
+            # (batch_size,)
+            name = f"cached_conv_wm_num_frames_{i}"
+            encoder_input[name] = tensors[8]
+            encoder_output.append(f"new_{name}")
+
+        for i in range(len(self.states[:-2]) // 9):
+            build_inputs_outputs(self.states[i * 9 : (i + 1) * 9], i)
 
         # (batch_size, channels, left_pad, freq)
-        name = "embed_states"
-        embed_states = self.states[-2]
-        encoder_input[name] = embed_states
+        name = "embed_cache"
+        embed_cache = self.states[-2]
+        encoder_input[name] = embed_cache
         encoder_output.append(f"new_{name}")
 
         # (batch_size,)
@@ -397,24 +435,24 @@ def read_sound_files(
     return ans
 
 
-def create_streaming_feature_extractor() -> OnlineFeature:
-    """Create a CPU streaming feature extractor.
+def compute_fbank(waveform: torch.Tensor) -> torch.Tensor:
+    """Compute fbank features for the entire waveform at once.
 
-    At present, we assume it returns a fbank feature extractor with
-    fixed options. In the future, we will support passing in the options
-    from outside.
-
+    Args:
+      waveform:
+        A 1-D float32 tensor of audio samples.
     Returns:
-      Return a CPU streaming feature extractor.
+      Return a 2-D tensor of shape (num_frames, feature_dim).
     """
-    opts = FbankOptions()
-    opts.device = "cpu"
-    opts.frame_opts.dither = 0
-    opts.frame_opts.snip_edges = False
-    opts.frame_opts.samp_freq = 16000
-    opts.mel_opts.num_bins = 80
-    opts.mel_opts.high_freq = -400
-    return OnlineFbank(opts)
+    feat = torchaudio.compliance.kaldi.fbank(
+        waveform.unsqueeze(0),
+        num_mel_bins=80,
+        sample_frequency=16000,
+        dither=0,
+        snip_edges=False,
+        high_freq=-400,
+    )
+    return feat
 
 
 def greedy_search(
@@ -479,17 +517,16 @@ def main():
 
     sample_rate = 16000
 
-    logging.info("Constructing Fbank computer")
-    online_fbank = create_streaming_feature_extractor()
-
     logging.info(f"Reading sound files: {args.sound_file}")
     waves = read_sound_files(
         filenames=[args.sound_file],
         expected_sample_rate=sample_rate,
     )[0]
 
-    tail_padding = torch.zeros(int(0.3 * sample_rate), dtype=torch.float32)
-    wave_samples = torch.cat([waves, tail_padding])
+    # Compute all fbank features at once
+    logging.info("Computing fbank features")
+    features = compute_fbank(waves)
+    logging.info(f"features shape: {features.shape}")
 
     num_processed_frames = 0
     segment = model.segment
@@ -499,33 +536,20 @@ def main():
     hyp = None
     decoder_out = None
 
-    chunk = int(1 * sample_rate)  # 1 second
-    start = 0
-    while start < wave_samples.numel():
-        end = min(start + chunk, wave_samples.numel())
-        samples = wave_samples[start:end]
-        start += chunk
+    num_frames = features.size(0)
 
-        online_fbank.accept_waveform(
-            sampling_rate=sample_rate,
-            waveform=samples,
+    while num_processed_frames + segment <= num_frames:
+        frames = features[num_processed_frames : num_processed_frames + segment]
+        num_processed_frames += offset
+        frames = frames.unsqueeze(0)
+        encoder_out = model.run_encoder(frames)
+        hyp, decoder_out = greedy_search(
+            model,
+            encoder_out,
+            context_size,
+            decoder_out,
+            hyp,
         )
-
-        while online_fbank.num_frames_ready - num_processed_frames >= segment:
-            frames = []
-            for i in range(segment):
-                frames.append(online_fbank.get_frame(num_processed_frames + i))
-            num_processed_frames += offset
-            frames = torch.cat(frames, dim=0)
-            frames = frames.unsqueeze(0)
-            encoder_out = model.run_encoder(frames)
-            hyp, decoder_out = greedy_search(
-                model,
-                encoder_out,
-                context_size,
-                decoder_out,
-                hyp,
-            )
 
     token_table = k2.SymbolTable.from_file(args.tokens)
 
