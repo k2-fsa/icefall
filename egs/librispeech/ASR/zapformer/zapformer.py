@@ -431,9 +431,10 @@ class Zapformer(EncoderInterface):
             left_context_frames = src_key_padding_mask.shape[1] - orig_seq_len
             assert left_context_frames == self.left_context_frames[0]
             if pad > 0:
+                padded_mask = pad_mask(src_key_padding_mask[:, left_context_frames:], x.shape[0])
+                assert padded_mask is not None
                 src_key_padding_mask = torch.cat(
-                    (src_key_padding_mask[:, :left_context_frames],
-                    pad_mask(src_key_padding_mask[:, left_context_frames:], x.shape[0])),
+                    [src_key_padding_mask[:, :left_context_frames], padded_mask],
                     dim=1,
                 )
 
@@ -1215,7 +1216,7 @@ class MultiheadRelPosGatedSelfAttention(nn.Module):
         cached_wm_sum: Tensor,
         cached_wm_num_frames: Tensor,
         key_padding_mask: Optional[Tensor] = None,
-    ) -> Tuple[Tensor, Tensor, Tensor]:
+    ) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor]:
         r"""
         Args:
             x_qkp: input of shape (seq_len, batch_size, embed_dim), that is used for the queries,
