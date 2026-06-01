@@ -109,6 +109,14 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--use-int32-inputs",
+        type=int,
+        default=0,
+        help="""1 to use int32_t as input types if applicable. 0 to use
+        int64_t otherwise.""",
+    )
+
+    parser.add_argument(
         "--iter",
         type=int,
         default=0,
@@ -272,6 +280,7 @@ def export_encoder_model_onnx(
     encoder_filename: str,
     opset_version: int = 11,
     dynamic_batch: bool = True,
+    use_int32_inputs: int = 0,
 ) -> None:
     """
     Onnx model inputs:
@@ -307,6 +316,10 @@ def export_encoder_model_onnx(
     x = torch.rand(1, T, 80, dtype=torch.float32)
 
     init_state = encoder_model.encoder.get_init_state()
+    if use_int32_inputs:
+        init_state = [
+            s if s.dtype != torch.int64 else s.to(torch.int32) for s in init_state
+        ]
 
     num_encoders = encoder_model.encoder.num_encoders
     logging.info(f"num_encoders: {num_encoders}")
@@ -409,6 +422,7 @@ def export_decoder_model_onnx(
     decoder_filename: str,
     opset_version: int = 11,
     dynamic_batch: bool = True,
+    use_int32_inputs: int = 0,
 ) -> None:
     """Export the decoder model to ONNX format.
 
@@ -432,7 +446,10 @@ def export_decoder_model_onnx(
     """
     context_size = decoder_model.decoder.context_size
     vocab_size = decoder_model.decoder.vocab_size
-    y = torch.zeros(1, context_size, dtype=torch.int64)
+    if use_int32_inputs:
+        y = torch.zeros(1, context_size, dtype=torch.int32)
+    else:
+        y = torch.zeros(1, context_size, dtype=torch.int64)
     decoder_model = torch.jit.script(decoder_model)
     torch.onnx.export(
         decoder_model,
@@ -655,6 +672,7 @@ def main():
         encoder_filename,
         opset_version=opset_version,
         dynamic_batch=params.dynamic_batch == 1,
+        use_int32_inputs=params.use_int32_inputs,
     )
     logging.info(f"Exported encoder to {encoder_filename}")
 
@@ -665,6 +683,7 @@ def main():
         decoder_filename,
         opset_version=opset_version,
         dynamic_batch=params.dynamic_batch == 1,
+        use_int32_inputs=params.use_int32_inputs,
     )
     logging.info(f"Exported decoder to {decoder_filename}")
 
