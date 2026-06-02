@@ -57,7 +57,7 @@ import optim
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
-from asr_datamodule import ReazonSpeechAsrDataModule
+from asr_datamodule import MultiDatasetAsrDataModule
 from decoder import Decoder
 from joiner import Joiner
 from lhotse.cut import Cut
@@ -1085,8 +1085,8 @@ def run(rank, world_size, args):
 
         return True
 
-    reazonspeech_corpus = ReazonSpeechAsrDataModule(args)
-    train_cuts = reazonspeech_corpus.train_cuts()
+    multidataset_datamodule = MultiDatasetAsrDataModule(args)
+    train_cuts = multidataset_datamodule.train_cuts()
 
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
 
@@ -1097,12 +1097,12 @@ def run(rank, world_size, args):
     else:
         sampler_state_dict = None
 
-    train_dl = reazonspeech_corpus.train_dataloaders(
+    train_dl = multidataset_datamodule.train_dataloaders(
         train_cuts, sampler_state_dict=sampler_state_dict
     )
 
-    valid_cuts = reazonspeech_corpus.valid_cuts()
-    valid_dl = reazonspeech_corpus.valid_dataloaders(valid_cuts)
+    valid_cuts = multidataset_datamodule.valid_cuts()
+    valid_dl = multidataset_datamodule.valid_dataloaders(valid_cuts)
 
     if params.start_batch <= 0 and not params.print_diagnostics:
         scan_pessimistic_batches_for_oom(
@@ -1242,7 +1242,7 @@ def scan_pessimistic_batches_for_oom(
 def main():
     raise RuntimeError("Please don't use this file directly!")
     parser = get_parser()
-    ReazonSpeechAsrDataModule.add_arguments(parser)
+    MultiDatasetAsrDataModule.add_arguments(parser)
     Tokenizer.add_arguments(parser)
     args = parser.parse_args()
 
