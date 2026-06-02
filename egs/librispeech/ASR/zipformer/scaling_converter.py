@@ -37,7 +37,11 @@ from scaling import (
     SwooshROnnx,
     Whiten,
 )
-from zipformer import CompactRelPositionalEncoding
+from zipformer import (
+    CompactRelPositionalEncoding,
+    ChunkCausalDepthwiseConv1d,
+    SimpleDownsample,
+)
 
 
 # Copied from https://pytorch.org/docs/1.9.0/_modules/torch/nn/modules/module.html#Module.get_submodule  # noqa
@@ -89,7 +93,14 @@ def convert_scaled_to_non_scaled(
             d[name] = SwooshROnnx()
         elif is_onnx and isinstance(m, SwooshL):
             d[name] = SwooshLOnnx()
-        elif is_onnx and isinstance(m, CompactRelPositionalEncoding):
+        elif is_onnx and isinstance(
+            m,
+            (
+                CompactRelPositionalEncoding,
+                ChunkCausalDepthwiseConv1d,
+                SimpleDownsample,
+            ),
+        ):
             # We want to recreate the positional encoding vector when
             # the input changes, so we have to use torch.jit.script()
             # to replace torch.jit.trace()
