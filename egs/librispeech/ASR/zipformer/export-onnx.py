@@ -118,6 +118,12 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--max-len",
+        type=int,
+        required=True,
+    )
+
+    parser.add_argument(
         "--use-averaged-model",
         type=str2bool,
         default=True,
@@ -289,6 +295,7 @@ class OnnxJoiner(nn.Module):
 def export_encoder_model_onnx(
     encoder_model: OnnxEncoder,
     encoder_filename: str,
+    max_len: int,
     opset_version: int = 11,
 ) -> None:
     """Export the given encoder model to ONNX format.
@@ -310,10 +317,7 @@ def export_encoder_model_onnx(
       opset_version:
         The opset version to use.
     """
-    x = torch.zeros(1, 500, 80, dtype=torch.float32)
-    x = torch.zeros(1, 1000, 80, dtype=torch.float32)
-    x = torch.zeros(1, 800, 80, dtype=torch.float32)
-    x = torch.zeros(1, 300, 80, dtype=torch.float32)
+    x = torch.zeros(1, max_len, 80, dtype=torch.float32)
     #  x_lens = torch.tensor([488], dtype=torch.int64)
 
     encoder_model = torch.jit.trace(encoder_model, x)
@@ -587,6 +591,7 @@ def main():
     export_encoder_model_onnx(
         encoder,
         encoder_filename,
+        max_len=params.max_len,
         opset_version=opset_version,
     )
     logging.info(f"Exported encoder to {encoder_filename}")

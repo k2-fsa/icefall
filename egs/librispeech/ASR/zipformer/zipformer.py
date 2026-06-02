@@ -1507,13 +1507,9 @@ class CompactRelPositionalEncoding(torch.nn.Module):
         x_size_left = x.size(0) + left_context_len
         # length of positive side: x.size(0) + left_context_len
         # length of negative side: x.size(0)
-        pos_emb = pe[
-            pe.size(0) // 2
-            - x_size_left
-            + 1 : pe.size(0) // 2  # noqa E203
-            + x.size(0),
-            :,
-        ]
+        start_pos = pe.size(0) // 2 - x_size_left + 1
+        end_pos = pe.size(0) // 2 + x.size(0)
+        pos_emb = pe[start_pos:end_pos]
         pos_emb = pos_emb.unsqueeze(0)
         return self.dropout(pos_emb)
 
