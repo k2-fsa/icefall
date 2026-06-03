@@ -6,58 +6,27 @@
 """
 This script exports a transducer model from PyTorch to ONNX.
 
-We use the pre-trained model from
-https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-2023-05-15
-as an example to show how to use this file.
+If you train a streaming model and want to export a non-streaming version,
+please use this script.
 
-1. Download the pre-trained model
+Example:
 
-cd egs/librispeech/ASR
-
-repo_url=https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-2023-05-15
-GIT_LFS_SKIP_SMUDGE=1 git clone $repo_url
-repo=$(basename $repo_url)
-
-pushd $repo
-git lfs pull --include "exp/pretrained.pt"
-
-cd exp
-ln -s pretrained.pt epoch-99.pt
-popd
-
-2. Export the model to ONNX
-
-./zipformer/export-onnx.py \
-  --tokens $repo/data/lang_bpe_500/tokens.txt \
-  --use-averaged-model 0 \
-  --epoch 99 \
-  --avg 1 \
-  --exp-dir $repo/exp \
-  --num-encoder-layers "2,2,3,4,3,2" \
-  --downsampling-factor "1,2,4,8,4,2" \
-  --feedforward-dim "512,768,1024,1536,1024,768" \
-  --num-heads "4,4,4,8,4,4" \
-  --encoder-dim "192,256,384,512,384,256" \
-  --query-head-dim 32 \
-  --value-head-dim 12 \
-  --pos-head-dim 4 \
-  --pos-dim 48 \
-  --encoder-unmasked-dim "192,192,256,256,256,192" \
-  --cnn-module-kernel "31,31,15,15,15,31" \
-  --decoder-dim 512 \
-  --joiner-dim 512 \
-  --causal False \
-  --chunk-size "16,32,64,-1" \
-  --left-context-frames "64,128,256,-1" \
-  --fp16 True
-It will generate the following 3 files inside $repo/exp:
-
-  - encoder-epoch-99-avg-1.onnx
-  - decoder-epoch-99-avg-1.onnx
-  - joiner-epoch-99-avg-1.onnx
-
-See ./onnx_pretrained.py and ./onnx_check.py for how to
-use the exported ONNX models.
+  ./zipformer/export-streaming-as-non-streaming-onnx.py \
+    --max-len -1 \
+    --epoch 99 \
+    --avg 1 \
+    --use-averaged-model 0 \
+    --exp-dir ./exp \
+    --tokens ./tokens.txt \
+    \
+    --num-encoder-layers 2,2,4,5,4,2 \
+    --feedforward-dim 512,768,1536,2048,1536,768 \
+    --encoder-dim 192,256,512,768,512,256 \
+    --encoder-unmasked-dim 192,192,256,320,256,192 \
+    --causal 1 \
+    --use-int32-inputs 1 \
+    --chunk-size "-1" \
+    --left-context-frames "-1"
 """
 
 import argparse
@@ -115,6 +84,34 @@ def get_parser():
         help="Number of checkpoints to average. Automatically select "
         "consecutive checkpoints before the checkpoint specified by "
         "'--epoch' and '--iter'",
+    )
+
+    parser.add_argument(
+        "--max-len",
+        type=int,
+        default=-1,
+    )
+
+    parser.add_argument(
+        "--dynamic-axes",
+        type=int,
+        default=1,
+        help="1 to support dynamic axes. 0 to diable dynamic axes",
+    )
+
+    parser.add_argument(
+        "--use-int32-inputs",
+        type=int,
+        default=0,
+        help="""1 to use int32_t as input types if applicable. 0 to use
+        int64_t otherwise.""",
+    )
+
+    parser.add_argument(
+        "--enable-int8-quantization",
+        type=int,
+        default=1,
+        help="1 to also export int8 onnx models.",
     )
 
     parser.add_argument(
@@ -211,8 +208,7 @@ class OnnxEncoder(nn.Module):
     def forward(
         self,
         x: torch.Tensor,
-        x_lens: torch.Tensor,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> torch.Tensor:
         """Please see the help information of Zipformer.forward
 
         Args:
@@ -225,6 +221,7 @@ class OnnxEncoder(nn.Module):
             - encoder_out, A 3-D tensor of shape (N, T', joiner_dim)
             - encoder_out_lens, A 1-D tensor of shape (N,)
         """
+        x_lens = torch.tensor([x.shape[1]], dtype=torch.int32)
         x, x_lens = self.encoder_embed(x, x_lens)
         src_key_padding_mask = make_pad_mask(x_lens, x.shape[1]).to(torch.int32)
         x = x.permute(1, 0, 2)
@@ -233,7 +230,7 @@ class OnnxEncoder(nn.Module):
         encoder_out = self.encoder_proj(encoder_out)
         # Now encoder_out is of shape (N, T, joiner_dim)
 
-        return encoder_out, encoder_out_lens
+        return encoder_out
 
 
 class OnnxDecoder(nn.Module):
@@ -289,7 +286,10 @@ class OnnxJoiner(nn.Module):
 def export_encoder_model_onnx(
     encoder_model: OnnxEncoder,
     encoder_filename: str,
-    opset_version: int = 11,
+    max_len: int,
+    dynamic_axes: int,
+    use_int32_inputs: int,
+    opset_version: int = 13,
 ) -> None:
     """Export the given encoder model to ONNX format.
     The exported model has two inputs:
@@ -310,25 +310,36 @@ def export_encoder_model_onnx(
       opset_version:
         The opset version to use.
     """
-    x = torch.zeros(1, 100, 80, dtype=torch.float32)
-    x_lens = torch.tensor([100], dtype=torch.int64)
+    if max_len > 0:
+        x = torch.zeros(1, max_len, 80, dtype=torch.float32)
+    else:
+        x = torch.zeros(1, 3000, 80, dtype=torch.float32)
 
-    encoder_model = torch.jit.trace(encoder_model, (x, x_lens))
+    if use_int32_inputs:
+        x_lens = torch.tensor([x.shape[1]], dtype=torch.int32)
+    else:
+        x_lens = torch.tensor([x.shape[1]], dtype=torch.int64)
+    print("x_lens", x_lens)
+
+    encoder_model = torch.jit.trace(encoder_model, x)
+    print("x_lens", x_lens)
 
     torch.onnx.export(
         encoder_model,
-        (x, x_lens),
+        x,
         encoder_filename,
         verbose=False,
         opset_version=opset_version,
-        input_names=["x", "x_lens"],
-        output_names=["encoder_out", "encoder_out_lens"],
+        input_names=["x"],
+        output_names=["encoder_out"],
         dynamic_axes={
             "x": {0: "N", 1: "T"},
             "x_lens": {0: "N"},
             "encoder_out": {0: "N", 1: "T"},
             "encoder_out_lens": {0: "N"},
-        },
+        }
+        if dynamic_axes
+        else {},
     )
 
     meta_data = {
@@ -345,6 +356,8 @@ def export_encoder_model_onnx(
 def export_decoder_model_onnx(
     decoder_model: OnnxDecoder,
     decoder_filename: str,
+    use_int32_inputs,
+    dynamic_axes: int,
     opset_version: int = 11,
 ) -> None:
     """Export the decoder model to ONNX format.
@@ -368,7 +381,11 @@ def export_decoder_model_onnx(
     context_size = decoder_model.decoder.context_size
     vocab_size = decoder_model.decoder.vocab_size
 
-    y = torch.zeros(10, context_size, dtype=torch.int64)
+    if use_int32_inputs:
+        y = torch.zeros(1, context_size, dtype=torch.int32)
+    else:
+        y = torch.zeros(1, context_size, dtype=torch.int64)
+
     decoder_model = torch.jit.script(decoder_model)
     torch.onnx.export(
         decoder_model,
@@ -381,7 +398,9 @@ def export_decoder_model_onnx(
         dynamic_axes={
             "y": {0: "N"},
             "decoder_out": {0: "N"},
-        },
+        }
+        if dynamic_axes
+        else {},
     )
 
     meta_data = {
@@ -394,6 +413,7 @@ def export_decoder_model_onnx(
 def export_joiner_model_onnx(
     joiner_model: nn.Module,
     joiner_filename: str,
+    dynamic_axes: int,
     opset_version: int = 11,
 ) -> None:
     """Export the joiner model to ONNX format.
@@ -409,8 +429,8 @@ def export_joiner_model_onnx(
     joiner_dim = joiner_model.output_linear.weight.shape[1]
     logging.info(f"joiner dim: {joiner_dim}")
 
-    projected_encoder_out = torch.rand(11, joiner_dim, dtype=torch.float32)
-    projected_decoder_out = torch.rand(11, joiner_dim, dtype=torch.float32)
+    projected_encoder_out = torch.rand(1, joiner_dim, dtype=torch.float32)
+    projected_decoder_out = torch.rand(1, joiner_dim, dtype=torch.float32)
 
     torch.onnx.export(
         joiner_model,
@@ -427,7 +447,9 @@ def export_joiner_model_onnx(
             "encoder_out": {0: "N"},
             "decoder_out": {0: "N"},
             "logit": {0: "N"},
-        },
+        }
+        if dynamic_axes
+        else {},
     )
     meta_data = {
         "joiner_dim": str(joiner_dim),
@@ -578,6 +600,9 @@ def main():
     export_encoder_model_onnx(
         encoder,
         encoder_filename,
+        max_len=params.max_len,
+        dynamic_axes=params.dynamic_axes,
+        use_int32_inputs=params.use_int32_inputs,
         opset_version=opset_version,
     )
     logging.info(f"Exported encoder to {encoder_filename}")
@@ -587,6 +612,8 @@ def main():
     export_decoder_model_onnx(
         decoder,
         decoder_filename,
+        dynamic_axes=params.dynamic_axes,
+        use_int32_inputs=params.use_int32_inputs,
         opset_version=opset_version,
     )
     logging.info(f"Exported decoder to {decoder_filename}")
@@ -596,6 +623,7 @@ def main():
     export_joiner_model_onnx(
         joiner,
         joiner_filename,
+        dynamic_axes=params.dynamic_axes,
         opset_version=opset_version,
     )
     logging.info(f"Exported joiner to {joiner_filename}")
@@ -614,6 +642,9 @@ def main():
 
     # Generate int8 quantization models
     # See https://onnxruntime.ai/docs/performance/model-optimizations/quantization.html#data-type-selection
+
+    if not params.enable_int8_quantization:
+        return
 
     logging.info("Generate int8 quantization models")
 

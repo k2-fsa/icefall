@@ -1427,7 +1427,7 @@ class CompactRelPositionalEncoding(torch.nn.Module):
         self,
         embed_dim: int,
         dropout_rate: FloatLike,
-        max_len: int = 1000,
+        max_len: int = 2000,
         length_factor: float = 1.0,
     ) -> None:
         """Construct a CompactRelPositionalEncoding object."""
@@ -1733,7 +1733,7 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
                 seq_len,
             ), key_padding_mask.shape
             attn_scores = attn_scores.masked_fill(
-                key_padding_mask.unsqueeze(1),
+                key_padding_mask.to(torch.bool).unsqueeze(1),
                 -1000,
             )
 
@@ -1863,7 +1863,7 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         if key_padding_mask is not None:
             assert key_padding_mask.shape == (batch_size, k_len), key_padding_mask.shape
             attn_scores = attn_scores.masked_fill(
-                key_padding_mask.unsqueeze(1),
+                key_padding_mask.to(torch.bool).unsqueeze(1),
                 -1000,
             )
 
@@ -2354,7 +2354,7 @@ class ConvolutionModule(nn.Module):
         x = x.permute(1, 2, 0)  # (#batch, channels, time).
 
         if src_key_padding_mask is not None:
-            x = x.masked_fill(src_key_padding_mask.unsqueeze(1).expand_as(x), 0.0)
+            x = x.masked_fill(src_key_padding_mask.to(torch.bool).unsqueeze(1).expand_as(x), 0.0)
 
         if (
             not torch.jit.is_scripting()
@@ -2408,7 +2408,7 @@ class ConvolutionModule(nn.Module):
         x = x.permute(1, 2, 0)  # (#batch, channels, time).
 
         if src_key_padding_mask is not None:
-            x = x.masked_fill(src_key_padding_mask.unsqueeze(1).expand_as(x), 0.0)
+            x = x.masked_fill(src_key_padding_mask.to(torch.bool).unsqueeze(1).expand_as(x), 0.0)
 
         x, cache = self.depthwise_conv.streaming_forward(x, cache=cache)
 

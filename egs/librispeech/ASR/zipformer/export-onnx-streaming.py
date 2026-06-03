@@ -108,6 +108,14 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--use-int32-inputs",
+        type=int,
+        default=0,
+        help="""1 to use int32_t as input types if applicable. 0 to use
+        int64_t otherwise.""",
+    )
+
+    parser.add_argument(
         "--epoch",
         type=int,
         default=28,
@@ -285,7 +293,7 @@ class OnnxEncoder(nn.Module):
         )
         assert x.size(1) == self.chunk_size, (x.size(1), self.chunk_size)
 
-        src_key_padding_mask = torch.zeros(N, self.chunk_size, dtype=torch.bool)
+        src_key_padding_mask = torch.zeros(N, self.chunk_size, dtype=torch.int32)
 
         # processed_mask is used to mask out initial states
         processed_mask = torch.arange(left_context_len, device=x.device).expand(
@@ -293,7 +301,9 @@ class OnnxEncoder(nn.Module):
         )
         processed_lens = states[-1]  # (batch,)
         # (batch, left_context_size)
-        processed_mask = (processed_lens.unsqueeze(1) <= processed_mask).flip(1)
+        processed_mask = (processed_lens.unsqueeze(1) <= processed_mask).to(
+            torch.int32
+        ).flip(1)
         # Update processed lengths
         new_processed_lens = processed_lens + x_lens
         # (batch, left_context_size + chunk_size)
@@ -318,7 +328,7 @@ class OnnxEncoder(nn.Module):
 
         new_states = new_encoder_states + [
             new_cached_embed_left_pad,
-            new_processed_lens,
+            new_processed_lens.to(states[-1].dtype),
         ]
 
         return encoder_out, new_states
@@ -406,6 +416,7 @@ def export_encoder_model_onnx(
     dynamic_batch: bool = True,
     use_whisper_features: bool = False,
     use_external_data: bool = False,
+    use_int32_inputs: int = 0,
 ) -> None:
     encoder_model.encoder.__class__.forward = (
         encoder_model.encoder.__class__.streaming_forward
@@ -418,6 +429,12 @@ def export_encoder_model_onnx(
 
     x = torch.rand(1, T, feature_dim, dtype=torch.float32)
     init_state = encoder_model.get_init_states()
+
+    if use_int32_inputs:
+        init_state = [
+            s if s.dtype != torch.int64 else s.to(torch.int32) for s in init_state
+        ]
+
     num_encoders = len(encoder_model.encoder.encoder_dim)
     logging.info(f"num_encoders: {num_encoders}")
     logging.info(f"len(init_state): {len(init_state)}")
@@ -566,6 +583,7 @@ def export_decoder_model_onnx(
     decoder_filename: str,
     opset_version: int = 11,
     dynamic_batch: bool = True,
+    use_int32_inputs: int = 0,
 ) -> None:
     """Export the decoder model to ONNX format.
 
@@ -588,7 +606,11 @@ def export_decoder_model_onnx(
     context_size = decoder_model.decoder.context_size
     vocab_size = decoder_model.decoder.vocab_size
 
-    y = torch.zeros(1, context_size, dtype=torch.int64)
+    if use_int32_inputs:
+        y = torch.zeros(1, context_size, dtype=torch.int32)
+    else:
+        y = torch.zeros(1, context_size, dtype=torch.int64)
+
     decoder_model = torch.jit.script(decoder_model)
     torch.onnx.export(
         decoder_model,
@@ -817,10 +839,12 @@ def main():
         opset_version=opset_version,
         feature_dim=params.feature_dim,
         dynamic_batch=params.dynamic_batch == 1,
+        use_int32_inputs=params.use_int32_inputs,
         use_whisper_features=params.use_whisper_features,
         use_external_data=params.use_external_data,
     )
     logging.info(f"Exported encoder to {encoder_filename}")
+    return
 
     logging.info("Exporting decoder")
     decoder_filename = params.exp_dir / f"decoder-{suffix}.onnx"
@@ -829,8 +853,10 @@ def main():
         decoder_filename,
         opset_version=opset_version,
         dynamic_batch=params.dynamic_batch == 1,
+        use_int32_inputs=params.use_int32_inputs,
     )
     logging.info(f"Exported decoder to {decoder_filename}")
+    return
 
     logging.info("Exporting joiner")
     joiner_filename = params.exp_dir / f"joiner-{suffix}.onnx"

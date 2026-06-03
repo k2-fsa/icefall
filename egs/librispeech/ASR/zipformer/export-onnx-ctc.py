@@ -231,7 +231,7 @@ class OnnxModel(nn.Module):
             - log_probs_len, a 1-D int64 tensor of shape (N,)
         """
         x, x_lens = self.encoder_embed(x, x_lens)
-        src_key_padding_mask = make_pad_mask(x_lens)
+        src_key_padding_mask = make_pad_mask(x_lens).to(torch.int32)
         x = x.permute(1, 0, 2)
         encoder_out, log_probs_len = self.encoder(x, x_lens, src_key_padding_mask)
         encoder_out = encoder_out.permute(1, 0, 2)

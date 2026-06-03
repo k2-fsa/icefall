@@ -29,6 +29,7 @@ import torch
 import torch.nn as nn
 from scaling import (
     Balancer,
+    ChunkCausalDepthwiseConv1d,
     Dropout3,
     ScaleGrad,
     SwooshL,
@@ -39,9 +40,51 @@ from scaling import (
 )
 from zipformer import (
     CompactRelPositionalEncoding,
-    ChunkCausalDepthwiseConv1d,
     SimpleDownsample,
 )
+
+
+class NonStreamingChunkCausalDepthwiseConv1d(torch.nn.Module):
+    """A non-streaming replacement for ChunkCausalDepthwiseConv1d that avoids
+    dynamic-shape torch.zeros and conditionals, making it ONNX-export friendly.
+
+    In non-streaming mode (chunk_size=-1), the entire sequence is one chunk,
+    so we simplify the forward pass accordingly.
+    """
+
+    def __init__(self, original: ChunkCausalDepthwiseConv1d):
+        super().__init__()
+        self.causal_conv = original.causal_conv
+        self.chunkwise_conv = original.chunkwise_conv
+        self.chunkwise_conv_scale = original.chunkwise_conv_scale
+        self.kernel_size = original.kernel_size
+
+    def forward(self, x: torch.Tensor, chunk_size: int = -1) -> torch.Tensor:
+        (batch_size, num_channels, seq_len) = x.shape
+        left_pad = self.kernel_size // 2
+
+        x = torch.nn.functional.pad(x, (left_pad, 0))
+
+        x_causal = self.causal_conv(x[..., : left_pad + seq_len])
+
+        x_chunk = x[..., left_pad:]
+        x_chunk = self.chunkwise_conv(x_chunk)
+
+        left_edge = self.chunkwise_conv_scale[0]
+        right_edge = self.chunkwise_conv_scale[1]
+        # seq_len >= kernel_size in non-streaming mode, so we pad with zeros
+        t = seq_len - self.kernel_size
+        channels = left_edge.shape[0]
+        pad = torch.zeros(
+            channels, t, device=left_edge.device, dtype=left_edge.dtype
+        )
+        left_edge = torch.cat((left_edge, pad), dim=-1)
+        right_edge = torch.cat((pad, right_edge), dim=-1)
+        chunk_scale = 1.0 + (left_edge + right_edge)
+
+        x_chunk = x_chunk * chunk_scale
+
+        return x_chunk + x_causal
 
 
 # Copied from https://pytorch.org/docs/1.9.0/_modules/torch/nn/modules/module.html#Module.get_submodule  # noqa
@@ -93,11 +136,12 @@ def convert_scaled_to_non_scaled(
             d[name] = SwooshROnnx()
         elif is_onnx and isinstance(m, SwooshL):
             d[name] = SwooshLOnnx()
+        elif is_onnx and isinstance(m, ChunkCausalDepthwiseConv1d):
+            d[name] = torch.jit.script(NonStreamingChunkCausalDepthwiseConv1d(m))
         elif is_onnx and isinstance(
             m,
             (
                 CompactRelPositionalEncoding,
-                ChunkCausalDepthwiseConv1d,
                 SimpleDownsample,
             ),
         ):
