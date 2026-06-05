@@ -1348,17 +1348,19 @@ class SimpleDownsample(torch.nn.Module):
         # right-pad src, repeating the last element.
         pad = d_seq_len * ds - seq_len
 
-        if self.causal and torch.jit.is_tracing():
-            assert (
-                pad == 0
-            ), f"pad should be zero for exporting streaming models. Given {pad}"
-
         # If we are exporting a streaming model, then we skip the if statement
         if not self.causal or not torch.jit.is_tracing():
-            src_extra = src[src.shape[0] - 1 :].expand(pad, src.shape[1], src.shape[2])
-            src = torch.cat((src, src_extra), dim=0)
-
-        assert src.shape[0] == d_seq_len * ds, (src.shape, d_seq_len, ds)
+            if pad > 0:
+                src_extra = src[src.shape[0] - 1 :].expand(
+                    pad, src.shape[1], src.shape[2]
+                )
+                src = torch.cat((src, src_extra), dim=0)
+        elif self.causal and torch.jit.is_scripting():
+            if pad > 0:
+                src_extra = src[src.shape[0] - 1 :].expand(
+                    pad, src.shape[1], src.shape[2]
+                )
+                src = torch.cat((src, src_extra), dim=0)
 
         src = src.reshape(d_seq_len, ds, batch_size, in_channels)
 
@@ -1425,7 +1427,7 @@ class CompactRelPositionalEncoding(torch.nn.Module):
         self,
         embed_dim: int,
         dropout_rate: FloatLike,
-        max_len: int = 1000,
+        max_len: int = 2000,
         length_factor: float = 1.0,
     ) -> None:
         """Construct a CompactRelPositionalEncoding object."""
@@ -1498,17 +1500,16 @@ class CompactRelPositionalEncoding(torch.nn.Module):
         Returns:
             positional embedding, of shape (batch, left_context_len + 2*time-1, `*`).
         """
-        self.extend_pe(x, left_context_len)
+        if not torch.jit.is_scripting():
+            self.extend_pe(x, left_context_len)
+        assert self.pe is not None
+        pe = self.pe
         x_size_left = x.size(0) + left_context_len
         # length of positive side: x.size(0) + left_context_len
         # length of negative side: x.size(0)
-        pos_emb = self.pe[
-            self.pe.size(0) // 2
-            - x_size_left
-            + 1 : self.pe.size(0) // 2  # noqa E203
-            + x.size(0),
-            :,
-        ]
+        start_pos = pe.size(0) // 2 - x_size_left + 1
+        end_pos = pe.size(0) // 2 + x.size(0)
+        pos_emb = pe[start_pos:end_pos]
         pos_emb = pos_emb.unsqueeze(0)
         return self.dropout(pos_emb)
 
@@ -1732,7 +1733,7 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
                 seq_len,
             ), key_padding_mask.shape
             attn_scores = attn_scores.masked_fill(
-                key_padding_mask.unsqueeze(1),
+                key_padding_mask.to(torch.bool).unsqueeze(1),
                 -1000,
             )
 
@@ -1862,7 +1863,7 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         if key_padding_mask is not None:
             assert key_padding_mask.shape == (batch_size, k_len), key_padding_mask.shape
             attn_scores = attn_scores.masked_fill(
-                key_padding_mask.unsqueeze(1),
+                key_padding_mask.to(torch.bool).unsqueeze(1),
                 -1000,
             )
 
@@ -2353,7 +2354,7 @@ class ConvolutionModule(nn.Module):
         x = x.permute(1, 2, 0)  # (#batch, channels, time).
 
         if src_key_padding_mask is not None:
-            x = x.masked_fill(src_key_padding_mask.unsqueeze(1).expand_as(x), 0.0)
+            x = x.masked_fill(src_key_padding_mask.to(torch.bool).unsqueeze(1).expand_as(x), 0.0)
 
         if (
             not torch.jit.is_scripting()
@@ -2407,7 +2408,7 @@ class ConvolutionModule(nn.Module):
         x = x.permute(1, 2, 0)  # (#batch, channels, time).
 
         if src_key_padding_mask is not None:
-            x = x.masked_fill(src_key_padding_mask.unsqueeze(1).expand_as(x), 0.0)
+            x = x.masked_fill(src_key_padding_mask.to(torch.bool).unsqueeze(1).expand_as(x), 0.0)
 
         x, cache = self.depthwise_conv.streaming_forward(x, cache=cache)
 
