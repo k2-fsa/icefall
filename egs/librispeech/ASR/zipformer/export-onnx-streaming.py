@@ -301,9 +301,9 @@ class OnnxEncoder(nn.Module):
         )
         processed_lens = states[-1]  # (batch,)
         # (batch, left_context_size)
-        processed_mask = (processed_lens.unsqueeze(1) <= processed_mask).to(
-            torch.int32
-        ).flip(1)
+        processed_mask = (
+            (processed_lens.unsqueeze(1) <= processed_mask).to(torch.int32).flip(1)
+        )
         # Update processed lengths
         new_processed_lens = processed_lens + x_lens
         # (batch, left_context_size + chunk_size)
@@ -856,7 +856,6 @@ def main():
         use_int32_inputs=params.use_int32_inputs,
     )
     logging.info(f"Exported decoder to {decoder_filename}")
-    return
 
     logging.info("Exporting joiner")
     joiner_filename = params.exp_dir / f"joiner-{suffix}.onnx"

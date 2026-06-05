@@ -9,7 +9,7 @@ This script exports a transducer model from PyTorch to ONNX.
 If you train a streaming model and want to export a non-streaming version,
 please use this script.
 
-Example:
+Example 1: Export a streaming model as a non-streaming model.
 
   ./zipformer/export-streaming-as-non-streaming-onnx.py \
     --max-len -1 \
@@ -25,6 +25,29 @@ Example:
     --encoder-unmasked-dim 192,192,256,320,256,192 \
     --causal 1 \
     --use-int32-inputs 1 \
+    --chunk-size "-1" \
+    --left-context-frames "-1"
+
+Example 2: Export a streaming model as a non-streaming model suitable
+for NPU (e.g., Qualcomm NPU)
+
+  ./zipformer/export-streaming-as-non-streaming-onnx.py \
+    --keep-x-lens 0 \
+    --max-len 1000 \
+    --dynamic-axes 0 \
+    --use-int32-inputs 1 \
+    --enable-int8-quantization 0 \
+    --epoch 99 \
+    --avg 1 \
+    --use-averaged-model 0 \
+    --exp-dir ./exp \
+    --tokens ./tokens.txt \
+    \
+    --num-encoder-layers 2,2,4,5,4,2 \
+    --feedforward-dim 512,768,1536,2048,1536,768 \
+    --encoder-dim 192,256,512,768,512,256 \
+    --encoder-unmasked-dim 192,192,256,320,256,192 \
+    --causal 1 \
     --chunk-size "-1" \
     --left-context-frames "-1"
 """
@@ -90,6 +113,13 @@ def get_parser():
         "--max-len",
         type=int,
         default=-1,
+    )
+
+    parser.add_argument(
+        "--keep-x-lens",
+        type=int,
+        default=-1,
+        help="1 to keep the encoder input x_lens. 0 to discard it",
     )
 
     parser.add_argument(
@@ -205,10 +235,21 @@ class OnnxEncoder(nn.Module):
         self.encoder_embed = encoder_embed
         self.encoder_proj = encoder_proj
 
+    def forward2(self, x: torch.Tensor):
+        x_lens = torch.tensor([x.shape[1]], dtype=torch.int32)
+        x, x_lens = self.encoder_embed(x, x_lens)
+        src_key_padding_mask = make_pad_mask(x_lens, x.shape[1]).to(torch.int32)
+        x = x.permute(1, 0, 2)
+        encoder_out, encoder_out_lens = self.encoder(x, x_lens, src_key_padding_mask)
+        encoder_out = encoder_out.permute(1, 0, 2)
+        encoder_out = self.encoder_proj(encoder_out)
+        return encoder_out
+
     def forward(
         self,
         x: torch.Tensor,
-    ) -> torch.Tensor:
+        x_lens: torch.Tensor,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Please see the help information of Zipformer.forward
 
         Args:
@@ -221,7 +262,6 @@ class OnnxEncoder(nn.Module):
             - encoder_out, A 3-D tensor of shape (N, T', joiner_dim)
             - encoder_out_lens, A 1-D tensor of shape (N,)
         """
-        x_lens = torch.tensor([x.shape[1]], dtype=torch.int32)
         x, x_lens = self.encoder_embed(x, x_lens)
         src_key_padding_mask = make_pad_mask(x_lens, x.shape[1]).to(torch.int32)
         x = x.permute(1, 0, 2)
@@ -230,7 +270,7 @@ class OnnxEncoder(nn.Module):
         encoder_out = self.encoder_proj(encoder_out)
         # Now encoder_out is of shape (N, T, joiner_dim)
 
-        return encoder_out
+        return encoder_out, encoder_out_lens
 
 
 class OnnxDecoder(nn.Module):
@@ -289,6 +329,7 @@ def export_encoder_model_onnx(
     max_len: int,
     dynamic_axes: int,
     use_int32_inputs: int,
+    keep_x_lens: int = 1,
     opset_version: int = 13,
 ) -> None:
     """Export the given encoder model to ONNX format.
@@ -319,27 +360,39 @@ def export_encoder_model_onnx(
         x_lens = torch.tensor([x.shape[1]], dtype=torch.int32)
     else:
         x_lens = torch.tensor([x.shape[1]], dtype=torch.int64)
-    print("x_lens", x_lens)
 
-    encoder_model = torch.jit.trace(encoder_model, x)
-    print("x_lens", x_lens)
-
-    torch.onnx.export(
-        encoder_model,
-        x,
-        encoder_filename,
-        verbose=False,
-        opset_version=opset_version,
-        input_names=["x"],
-        output_names=["encoder_out"],
-        dynamic_axes={
+    if keep_x_lens:
+        inputs = (x, x_lens)
+        input_names = ["x", "x_lens"]
+        output_names = ["encoder_out", "encoder_out_lens"]
+        dynamic_axes_dict = {
             "x": {0: "N", 1: "T"},
             "x_lens": {0: "N"},
             "encoder_out": {0: "N", 1: "T"},
             "encoder_out_lens": {0: "N"},
         }
-        if dynamic_axes
-        else {},
+    else:
+        encoder_model.__class__.forward = encoder_model.__class__.forward2
+
+        inputs = (x,)
+        input_names = ["x"]
+        output_names = ["encoder_out"]
+        dynamic_axes_dict = {
+            "x": {0: "N", 1: "T"},
+            "encoder_out": {0: "N", 1: "T"},
+        }
+
+    encoder_model = torch.jit.trace(encoder_model, inputs)
+
+    torch.onnx.export(
+        encoder_model,
+        inputs,
+        encoder_filename,
+        verbose=False,
+        opset_version=opset_version,
+        input_names=input_names,
+        output_names=output_names,
+        dynamic_axes=dynamic_axes_dict if dynamic_axes else {},
     )
 
     meta_data = {
@@ -604,6 +657,7 @@ def main():
         dynamic_axes=params.dynamic_axes,
         use_int32_inputs=params.use_int32_inputs,
         opset_version=opset_version,
+        keep_x_lens=params.keep_x_lens,
     )
     logging.info(f"Exported encoder to {encoder_filename}")
 
