@@ -844,7 +844,6 @@ def main():
         use_external_data=params.use_external_data,
     )
     logging.info(f"Exported encoder to {encoder_filename}")
-    return
 
     logging.info("Exporting decoder")
     decoder_filename = params.exp_dir / f"decoder-{suffix}.onnx"

@@ -236,7 +236,7 @@ class OnnxEncoder(nn.Module):
         self.encoder_proj = encoder_proj
 
     def forward2(self, x: torch.Tensor):
-        x_lens = torch.tensor([x.shape[1]], dtype=torch.int32)
+        x_lens = torch.tensor([x.shape[1]], dtype=torch.int32, device=x.device)
         x, x_lens = self.encoder_embed(x, x_lens)
         src_key_padding_mask = make_pad_mask(x_lens, x.shape[1]).to(torch.int32)
         x = x.permute(1, 0, 2)
