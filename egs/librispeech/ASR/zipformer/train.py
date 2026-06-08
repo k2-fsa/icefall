@@ -56,6 +56,7 @@ It supports training with:
 import argparse
 import copy
 import logging
+import os
 import warnings
 from pathlib import Path
 from shutil import copyfile
@@ -1262,9 +1263,17 @@ def run(rank, world_size, args):
     params = get_params()
     params.update(vars(args))
 
+    # Override world_size with actual value (important for torchrun launches)
+    params.world_size = world_size
+
     fix_random_seed(params.seed)
     if world_size > 1:
-        setup_dist(rank, world_size, params.master_port)
+        setup_dist(
+            rank=rank,
+            world_size=world_size,
+            master_port=params.master_port,
+            use_ddp_launch=(os.environ.get("RANK") is not None),
+        )
 
     setup_logger(f"{params.exp_dir}/log/log-train")
     logging.info("Training started")
@@ -1275,8 +1284,12 @@ def run(rank, world_size, args):
         tb_writer = None
 
     device = torch.device("cpu")
+    local_rank = 0
     if torch.cuda.is_available():
-        device = torch.device("cuda", rank)
+        # Use LOCAL_RANK for GPU device when launched via torchrun/SLURM
+        local_rank = int(os.environ.get("LOCAL_RANK", rank % torch.cuda.device_count()))
+        device = torch.device("cuda", local_rank)
+        torch.cuda.set_device(device)
     logging.info(f"Device: {device}")
 
     sp = spm.SentencePieceProcessor()
@@ -1340,7 +1353,7 @@ def run(rank, world_size, args):
     model.to(device)
     if world_size > 1:
         logging.info("Using DDP")
-        model = DDP(model, device_ids=[rank], find_unused_parameters=True)
+        model = DDP(model, device_ids=[local_rank], find_unused_parameters=True)
 
     optimizer = ScaledAdam(
         get_parameter_groups_with_lrs(model, lr=params.base_lr, include_names=True),
@@ -1588,13 +1601,22 @@ def main():
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 
-    world_size = args.world_size
-    assert world_size >= 1
-    if world_size > 1:
-        mp.spawn(run, args=(world_size, args), nprocs=world_size, join=True)
-    else:
-        run(rank=0, world_size=1, args=args)
+    # Check if we are being launched by torchrun/Slurm
+    # These environment variables are standard for distributed launchers
+    env_rank = int(os.environ.get("RANK", -1))
+    env_world_size = int(os.environ.get("WORLD_SIZE", -1))
 
+    if env_rank != -1:
+        # Multi-node/torchrun mode: bypass mp.spawn
+        # We use world_size from environment, not from args
+        run(rank=env_rank, world_size=env_world_size, args=args)
+    else:
+        # Single-node mode: use the original mp.spawn logic
+        world_size = args.world_size
+        if world_size > 1:
+            mp.spawn(run, args=(world_size, args), nprocs=world_size, join=True)
+        else:
+            run(rank=0, world_size=1, args=args)
 
 torch.set_num_threads(1)
 torch.set_num_interop_threads(1)
