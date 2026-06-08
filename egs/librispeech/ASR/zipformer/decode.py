@@ -98,6 +98,7 @@ import argparse
 import logging
 import math
 import os
+import re
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -106,7 +107,7 @@ import k2
 import sentencepiece as spm
 import torch
 import torch.nn as nn
-from asr_datamodule import LibriSpeechAsrDataModule
+from asr_datamodule import CommonVoice, GigaSpeech, LibriSpeechAsrDataModule
 from beam_search import (
     beam_search,
     fast_beam_search_nbest,
@@ -141,6 +142,80 @@ from icefall.utils import (
 )
 
 LOG_EPS = math.log(1e-10)
+
+conversational_filler = [
+    "UH",
+    "UHH",
+    "UM",
+    "EH",
+    "MM",
+    "HM",
+    "AH",
+    "HUH",
+    "HA",
+    "ER",
+    "OOF",
+    "HEE",
+    "ACH",
+    "EEE",
+    "EW",
+]
+unk_tags = ["<UNK>", "<unk>"]
+gigaspeech_punctuations = [
+    "<COMMA>",
+    "<PERIOD>",
+    "<QUESTIONMARK>",
+    "<EXCLAMATIONPOINT>",
+]
+gigaspeech_garbage_utterance_tags = ["<SIL>", "<NOISE>", "<MUSIC>", "<OTHER>"]
+non_scoring_words = (
+    conversational_filler
+    + unk_tags
+    + gigaspeech_punctuations
+    + gigaspeech_garbage_utterance_tags
+)
+
+
+def giga_asr_text_post_processing(text: str) -> str:   # only used for gigaspeech
+    # 1. convert to uppercase
+    text = text.upper()
+
+    # 2. remove hyphen
+    #   "E-COMMERCE" -> "E COMMERCE", "STATE-OF-THE-ART" -> "STATE OF THE ART"
+    text = text.replace("-", " ")
+
+    # 3. remove non-scoring words from evaluation
+    remaining_words = []
+    for word in text.split():
+        if word in non_scoring_words:
+            continue
+        remaining_words.append(word)
+
+    return " ".join(remaining_words)
+
+
+def giga_post_processing(
+    results: List[Tuple[str, List[str], List[str]]],
+) -> List[Tuple[str, List[str], List[str]]]:
+    new_results = []
+    for key, ref, hyp in results:
+        new_ref = giga_asr_text_post_processing(" ".join(ref)).split()
+        new_hyp = giga_asr_text_post_processing(" ".join(hyp)).split()
+        new_results.append((key, new_ref, new_hyp))
+    return new_results
+
+
+def cv_post_processing(
+    results: List[Tuple[str, List[str], List[str]]],
+) -> List[Tuple[str, List[str], List[str]]]:
+    def normalize(text):
+        return re.sub(r'[^\w\s]', '', text).upper()
+    new_results = []
+    for key, ref, hyp in results:
+        new_ref = normalize(" ".join(ref)).split()
+        new_hyp = normalize(" ".join(hyp)).split()
+        new_results.append((key, new_ref, new_hyp))
+    return new_results
 
 
 def get_parser():
@@ -376,6 +451,20 @@ def get_parser():
         type=str2bool,
         default=False,
         help="""Skip scoring, but still save the ASR output (for eval sets).""",
+    )
+
+    parser.add_argument(
+        "--giga",
+        type=str2bool,
+        default=False,
+        help="""If True, decode gigaspeech in addition to librispeech test sets.""",
+    )
+
+    parser.add_argument(
+        "--cv",
+        type=str2bool,
+        default=False,
+        help="""If True, decode commonvoice in addition to librispeech test sets.""",
     )
 
     add_model_arguments(parser)
@@ -732,6 +821,10 @@ def save_asr_output(
         recogs_filename = params.res_dir / f"recogs-{test_set_name}-{params.suffix}.txt"
 
         results = sorted(results)
+        if 'giga' in test_set_name:
+            results = giga_post_processing(results)
+        if 'cv' in test_set_name:
+            results = cv_post_processing(results)
         store_transcripts(filename=recogs_filename, texts=results)
 
         logging.info(f"The transcripts are stored in {recogs_filename}")
@@ -759,6 +852,10 @@ def save_wer_results(
         logging.info(f"Wrote detailed error stats to {errs_filename}")
 
     test_set_wers = sorted(test_set_wers.items(), key=lambda x: x[1])
+    if 'giga' in test_set_name:
+        results = giga_post_processing(results)
+    if 'cv' in test_set_name:
+        results = cv_post_processing(results)
 
     wer_filename = params.res_dir / f"wer-summary-{test_set_name}-{params.suffix}.txt"
 
@@ -1044,12 +1141,34 @@ def main():
 
     test_clean_cuts = librispeech.test_clean_cuts()
     test_other_cuts = librispeech.test_other_cuts()
+    dev_clean_cuts = librispeech.dev_clean_cuts()
+    dev_other_cuts = librispeech.dev_other_cuts()
 
     test_clean_dl = librispeech.test_dataloaders(test_clean_cuts)
     test_other_dl = librispeech.test_dataloaders(test_other_cuts)
+    dev_clean_dl = librispeech.test_dataloaders(dev_clean_cuts)
+    dev_other_dl = librispeech.test_dataloaders(dev_other_cuts)
 
-    test_sets = ["test-clean", "test-other"]
-    test_dl = [test_clean_dl, test_other_dl]
+    test_sets = ["dev-clean", "dev-other", "test-clean", "test-other"]
+    test_dl = [dev_clean_dl, dev_other_dl, test_clean_dl, test_other_dl]
+
+    if args.giga:
+        gigaspeech = GigaSpeech(args.manifest_dir)
+        test_cuts = gigaspeech.test_cuts()
+        dev_cuts = gigaspeech.dev_cuts()
+        giga_test_dl = librispeech.test_dataloaders(test_cuts)
+        giga_dev_dl = librispeech.test_dataloaders(dev_cuts)
+        test_sets += ["giga-dev", "giga-test"]
+        test_dl += [giga_dev_dl, giga_test_dl]
+
+    if args.cv:
+        commonvoice = CommonVoice(args.manifest_dir)
+        test_cuts = commonvoice.test_cuts()
+        dev_cuts = commonvoice.dev_cuts()
+        cv_test_dl = librispeech.test_dataloaders(test_cuts)
+        cv_dev_dl = librispeech.test_dataloaders(dev_cuts)
+        test_sets += ["cv-dev", "cv-test"]
+        test_dl += [cv_dev_dl, cv_test_dl]
 
     for test_set, test_dl in zip(test_sets, test_dl):
         results_dict = decode_dataset(
