@@ -32,7 +32,7 @@ from torch.optim import Optimizer
 #     from nanochat.common import COMPUTE_DTYPE
 # except:
 #     from logging import info as print0
-#     #COMPUTE_DTYPE = torch.float32
+#COMPUTE_DTYPE = torch.float32
 COMPUTE_DTYPE = torch.bfloat16
 
 
@@ -357,7 +357,9 @@ def muon_core_step(group, state, grad):
     def t(x):
         return torch.tensor(x, device=grad.device, dtype=COMPUTE_DTYPE)
 
-    step = muon_step_fused(grad.to(COMPUTE_DTYPE), momentum_buffer, second_momentum_buffer,
+
+    grad = grad.to(COMPUTE_DTYPE) if grad.dtype != COMPUTE_DTYPE else grad.clone()
+    step = muon_step_fused(grad, momentum_buffer, second_momentum_buffer,
                            t(beta1), t(lr), t(beta2), t(eps), 5, (-1 if rows > cols else -2))
 
     return step.reshape(orig_shape)
