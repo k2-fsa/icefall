@@ -27,11 +27,6 @@ import torch.distributed as dist
 from torch import Tensor
 from torch.optim import Optimizer
 
-# try:
-#     from nanochat.common import print0
-#     from nanochat.common import COMPUTE_DTYPE
-# except:
-#     from logging import info as print0
 #COMPUTE_DTYPE = torch.float32
 COMPUTE_DTYPE = torch.bfloat16
 
