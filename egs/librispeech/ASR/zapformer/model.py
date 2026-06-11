@@ -21,11 +21,11 @@ from typing import Optional, Tuple
 import k2
 import torch
 import torch.nn as nn
+from torch import Tensor
 from encoder_interface import EncoderInterface
-from lhotse.dataset import SpecAugment
-from scaling import ScaledLinear
 
-from icefall.utils import add_sos, make_pad_mask, time_warp, torch_autocast
+from zapformer_modules import ScaledLinear
+from icefall.utils import add_sos, make_pad_mask
 
 
 class AsrModel(nn.Module):
@@ -98,11 +98,12 @@ class AsrModel(nn.Module):
             self.joiner = joiner
 
             self.simple_am_proj = ScaledLinear(
-                encoder_dim, vocab_size, initial_scale=0.25
+                encoder_dim, vocab_size, initial_scale=0.1,
             )
             self.simple_lm_proj = ScaledLinear(
-                decoder_dim, vocab_size, initial_scale=0.25
+                decoder_dim, vocab_size, initial_scale=0.1,
             )
+
         else:
             assert decoder is None
             assert joiner is None
@@ -111,8 +112,7 @@ class AsrModel(nn.Module):
         if use_ctc:
             # Modules for CTC head
             self.ctc_output = nn.Sequential(
-                nn.Dropout(p=0.1),
-                nn.Linear(encoder_dim, vocab_size),
+                ScaledLinear(encoder_dim, vocab_size, initial_scale=0.1),
                 nn.LogSoftmax(dim=-1),
             )
 
@@ -122,8 +122,9 @@ class AsrModel(nn.Module):
         else:
             assert attention_decoder is None
 
+
     def forward_encoder(
-        self, x: torch.Tensor, x_lens: torch.Tensor
+            self, x: torch.Tensor, x_lens: torch.Tensor, aux_loss_scale: float = 0.0,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Compute encoder outputs.
         Args:
@@ -132,6 +133,12 @@ class AsrModel(nn.Module):
           x_lens:
             A 1-D tensor of shape (N,). It contains the number of frames in `x`
             before padding.
+          aux_loss_scale:
+             auxiliary-loss scale, for scaling cosine losses in the encoders.
+          sc_prob:
+             stochastic-depth probability: not a layer skipping probabilty but the probabibilty
+             of taking the output of a randomly chosen layer,  instead of the last layer.
+
 
         Returns:
           encoder_out:
@@ -139,19 +146,22 @@ class AsrModel(nn.Module):
           encoder_out_lens:
             Encoder output lengths, of shape (N,).
         """
-        # logging.info(f"Memory allocated at entry: {torch.cuda.memory_allocated() // 1000000}M")
-        x, x_lens = self.encoder_embed(x, x_lens)
+        x, x_lens = self.encoder_embed(x, x_lens, aux_loss_scale=aux_loss_scale)
         # logging.info(f"Memory allocated after encoder_embed: {torch.cuda.memory_allocated() // 1000000}M")
 
-        src_key_padding_mask = make_pad_mask(x_lens)
+        src_key_padding_mask = make_pad_mask(x_lens)   # (N, T)
+
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
 
-        encoder_out, encoder_out_lens = self.encoder(x, x_lens, src_key_padding_mask)
+        encoder_out, encoder_out_lens = self.encoder(x, x_lens, src_key_padding_mask,
+                                                     aux_loss_scale=aux_loss_scale)
 
         encoder_out = encoder_out.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
         assert torch.all(encoder_out_lens > 0), (x_lens, encoder_out_lens)
 
+
         return encoder_out, encoder_out_lens
+
 
     def forward_ctc(
         self,
@@ -176,7 +186,7 @@ class AsrModel(nn.Module):
 
         # the calls to .long() were added as a workaround for a problem with
         # torch.nn.functional.ctc_loss() on newer torch versions.  Previously
-        # instead of .long() we had .cpu().  .cpu() activates the use of CUDNN
+        # instead of .long() we had .cpu().  This activates the use of CUDNN
         # because it only uses CUDNN if integer inputs are in int32 and on CPU.
         # (https://github.com/pytorch/pytorch/blob/main/aten/src/ATen/native/LossCTC.cpp#L501)
         # But on more recent torch/cuda versions we were getting "RuntimeError: cuDNN error:
@@ -193,58 +203,6 @@ class AsrModel(nn.Module):
         )
         return ctc_loss
 
-    def forward_cr_ctc(
-        self,
-        encoder_out: torch.Tensor,
-        encoder_out_lens: torch.Tensor,
-        targets: torch.Tensor,
-        target_lengths: torch.Tensor,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Compute CTC loss with consistency regularization loss.
-        Args:
-          encoder_out:
-            Encoder output, of shape (2 * N, T, C).
-          encoder_out_lens:
-            Encoder output lengths, of shape (2 * N,).
-          targets:
-            Target Tensor of shape (2 * sum(target_lengths)). The targets are assumed
-            to be un-padded and concatenated within 1 dimension.
-        """
-        # Compute CTC loss
-        # the calls to .long() were added as a workaround for a problem with
-        # torch.nn.functional.ctc_loss() on newer torch versions.  Previously
-        # instead of .long() we had .cpu().  .cpu() activates the use of CUDNN
-        # because it only uses CUDNN if integer inputs are in int32 and on CPU.
-        # (https://github.com/pytorch/pytorch/blob/main/aten/src/ATen/native/LossCTC.cpp#L501)
-        # But on more recent torch/cuda versions we were getting "RuntimeError: cuDNN error:
-        # CUDNN_STATUS_EXECUTION_FAILED" if we use the CUDNN implementation.
-        # We can't use (int32, CUDA) for the integer inputs because the torch implementation of ctc_loss
-        # seems to have a bug with "int32" integer arguments (it returns infinity), so we call
-        # .long() to use the torch implementation and avoid that bug.
-        ctc_output = self.ctc_output(encoder_out)  # (2 * N, T, C)
-        ctc_loss = torch.nn.functional.ctc_loss(
-            log_probs=ctc_output.permute(1, 0, 2),  # (T, 2 * N, C)
-            targets=targets.long(),
-            input_lengths=encoder_out_lens.long(),
-            target_lengths=target_lengths.long(),
-            reduction="sum",
-        )
-
-        # Compute consistency regularization loss
-        batch_size = ctc_output.shape[0]
-        assert batch_size % 2 == 0, batch_size
-        # exchange: [x1, x2] -> [x2, x1]
-        exchanged_targets = torch.roll(ctc_output.detach(), batch_size // 2, dims=0)
-        cr_loss = nn.functional.kl_div(
-            input=ctc_output,
-            target=exchanged_targets,
-            reduction="none",
-            log_target=True,
-        )  # (2 * N, T, C)
-        length_mask = make_pad_mask(encoder_out_lens).unsqueeze(-1)
-        cr_loss = cr_loss.masked_fill(length_mask, 0.0).sum()
-
-        return ctc_loss, cr_loss
 
     def forward_transducer(
         self,
@@ -306,7 +264,7 @@ class AsrModel(nn.Module):
         # if self.training and random.random() < 0.25:
         #    am = penalize_abs_values_gt(am, 30.0, 1.0e-04)
 
-        with torch_autocast(enabled=False):
+        with torch.amp.autocast('cuda', enabled=False):
             simple_loss, (px_grad, py_grad) = k2.rnnt_loss_smoothed(
                 lm=lm.float(),
                 am=am.float(),
@@ -341,7 +299,7 @@ class AsrModel(nn.Module):
         # prior to do_rnnt_pruning (this is an optimization for speed).
         logits = self.joiner(am_pruned, lm_pruned, project_input=False)
 
-        with torch_autocast(enabled=False):
+        with torch.amp.autocast('cuda', enabled=False):
             pruned_loss = k2.rnnt_loss_pruned(
                 logits=logits.float(),
                 symbols=y_padded,
@@ -361,12 +319,8 @@ class AsrModel(nn.Module):
         prune_range: int = 5,
         am_scale: float = 0.0,
         lm_scale: float = 0.0,
-        use_cr_ctc: bool = False,
-        use_spec_aug: bool = False,
-        spec_augment: Optional[SpecAugment] = None,
-        supervision_segments: Optional[torch.Tensor] = None,
-        time_warp_factor: Optional[int] = 80,
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        aux_loss_scale: float = 0.0,
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Args:
           x:
@@ -386,21 +340,11 @@ class AsrModel(nn.Module):
           lm_scale:
             The scale to smooth the loss with lm (output of predictor network)
             part
-          use_cr_ctc:
-            Whether use consistency-regularized CTC.
-          use_spec_aug:
-            Whether apply spec-augment manually, used only if use_cr_ctc is True.
-          spec_augment:
-            The SpecAugment instance that returns time masks,
-            used only if use_cr_ctc is True.
-          supervision_segments:
-            An int tensor of shape ``(S, 3)``. ``S`` is the number of
-            supervision segments that exist in ``features``.
-            Used only if use_cr_ctc is True.
-          time_warp_factor:
-            Parameter for the time warping; larger values mean more warping.
-            Set to ``None``, or less than ``1``, to disable.
-            Used only if use_cr_ctc is True.
+          aux_loss_scale:
+             auxiliary-loss scale, for scaling cosine losses in the encoders.
+          sc_prob:
+             stochastic-depth probability: not a layer skipping probabilty but the probabibilty
+             of taking the output of a randomly chosen layer,  instead of the last layer.
 
         Returns:
           Return the transducer losses, CTC loss, AED loss,
@@ -421,26 +365,9 @@ class AsrModel(nn.Module):
 
         device = x.device
 
-        if use_cr_ctc:
-            assert self.use_ctc
-            if use_spec_aug:
-                assert spec_augment is not None and spec_augment.time_warp_factor < 1
-                # Apply time warping before input duplicating
-                assert supervision_segments is not None
-                x = time_warp(
-                    x,
-                    time_warp_factor=time_warp_factor,
-                    supervision_segments=supervision_segments,
-                )
-                # Independently apply frequency masking and time masking to the two copies
-                x = spec_augment(x.repeat(2, 1, 1))
-            else:
-                x = x.repeat(2, 1, 1)
-            x_lens = x_lens.repeat(2)
-            y = k2.ragged.cat([y, y], axis=0)
-
         # Compute encoder outputs
-        encoder_out, encoder_out_lens = self.forward_encoder(x, x_lens)
+        encoder_out, encoder_out_lens = self.forward_encoder(x, x_lens,
+                                                             aux_loss_scale=aux_loss_scale)
 
         row_splits = y.shape.row_splits(1)
         y_lens = row_splits[1:] - row_splits[:-1]
@@ -456,36 +383,20 @@ class AsrModel(nn.Module):
                 am_scale=am_scale,
                 lm_scale=lm_scale,
             )
-            if use_cr_ctc:
-                simple_loss = simple_loss * 0.5
-                pruned_loss = pruned_loss * 0.5
         else:
             simple_loss = torch.empty(0)
             pruned_loss = torch.empty(0)
 
         if self.use_ctc:
-            # Compute CTC loss
             targets = y.values
-            if not use_cr_ctc:
-                ctc_loss = self.forward_ctc(
-                    encoder_out=encoder_out,
-                    encoder_out_lens=encoder_out_lens,
-                    targets=targets,
-                    target_lengths=y_lens,
-                )
-                cr_loss = torch.empty(0)
-            else:
-                ctc_loss, cr_loss = self.forward_cr_ctc(
-                    encoder_out=encoder_out,
-                    encoder_out_lens=encoder_out_lens,
-                    targets=targets,
-                    target_lengths=y_lens,
-                )
-                ctc_loss = ctc_loss * 0.5
-                cr_loss = cr_loss * 0.5
+            ctc_loss = self.forward_ctc(
+                encoder_out=encoder_out,
+                encoder_out_lens=encoder_out_lens,
+                targets=targets,
+                target_lengths=y_lens,
+            )
         else:
             ctc_loss = torch.empty(0)
-            cr_loss = torch.empty(0)
 
         if self.use_attention_decoder:
             attention_decoder_loss = self.attention_decoder.calc_att_loss(
@@ -494,9 +405,7 @@ class AsrModel(nn.Module):
                 ys=y.to(device),
                 ys_lens=y_lens.to(device),
             )
-            if use_cr_ctc:
-                attention_decoder_loss = attention_decoder_loss * 0.5
         else:
             attention_decoder_loss = torch.empty(0)
 
-        return simple_loss, pruned_loss, ctc_loss, attention_decoder_loss, cr_loss
+        return simple_loss, pruned_loss, ctc_loss, attention_decoder_loss

@@ -19,36 +19,36 @@
 """
 Usage:
 (1) greedy search
-./zipformer/decode.py \
+./zapformer/decode.py \
     --epoch 28 \
     --avg 15 \
-    --exp-dir ./zipformer/exp \
+    --exp-dir ./zapformer/exp \
     --max-duration 600 \
     --decoding-method greedy_search
 
 (2) beam search (not recommended)
-./zipformer/decode.py \
+./zapformer/decode.py \
     --epoch 28 \
     --avg 15 \
-    --exp-dir ./zipformer/exp \
+    --exp-dir ./zapformer/exp \
     --max-duration 600 \
     --decoding-method beam_search \
     --beam-size 4
 
 (3) modified beam search
-./zipformer/decode.py \
+./zapformer/decode.py \
     --epoch 28 \
     --avg 15 \
-    --exp-dir ./zipformer/exp \
+    --exp-dir ./zapformer/exp \
     --max-duration 600 \
     --decoding-method modified_beam_search \
     --beam-size 4
 
 (4) fast beam search (one best)
-./zipformer/decode.py \
+./zapformer/decode.py \
     --epoch 28 \
     --avg 15 \
-    --exp-dir ./zipformer/exp \
+    --exp-dir ./zapformer/exp \
     --max-duration 600 \
     --decoding-method fast_beam_search \
     --beam 20.0 \
@@ -56,10 +56,10 @@ Usage:
     --max-states 64
 
 (5) fast beam search (nbest)
-./zipformer/decode.py \
+./zapformer/decode.py \
     --epoch 28 \
     --avg 15 \
-    --exp-dir ./zipformer/exp \
+    --exp-dir ./zapformer/exp \
     --max-duration 600 \
     --decoding-method fast_beam_search_nbest \
     --beam 20.0 \
@@ -69,10 +69,10 @@ Usage:
     --nbest-scale 0.5
 
 (6) fast beam search (nbest oracle WER)
-./zipformer/decode.py \
+./zapformer/decode.py \
     --epoch 28 \
     --avg 15 \
-    --exp-dir ./zipformer/exp \
+    --exp-dir ./zapformer/exp \
     --max-duration 600 \
     --decoding-method fast_beam_search_nbest_oracle \
     --beam 20.0 \
@@ -82,10 +82,10 @@ Usage:
     --nbest-scale 0.5
 
 (7) fast beam search (with LG)
-./zipformer/decode.py \
+./zapformer/decode.py \
     --epoch 28 \
     --avg 15 \
-    --exp-dir ./zipformer/exp \
+    --exp-dir ./zapformer/exp \
     --max-duration 600 \
     --decoding-method fast_beam_search_nbest_LG \
     --beam 20.0 \
@@ -107,7 +107,7 @@ import k2
 import sentencepiece as spm
 import torch
 import torch.nn as nn
-from asr_datamodule import CommonVoice, GigaSpeech, LibriSpeechAsrDataModule
+from asr_datamodule import CommonVoice, LibriSpeech, GigaSpeech, AsrDataModule
 from beam_search import (
     beam_search,
     fast_beam_search_nbest,
@@ -265,7 +265,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="zipformer/exp",
+        default="zapformer/exp",
         help="The experiment dir",
     )
 
@@ -532,7 +532,7 @@ def decode_one_batch(
     feature_lens = supervisions["num_frames"].to(device)
 
     if params.causal:
-        # this seems to cause insertions at the end of the utterance if used with zipformer.
+        # this seems to cause insertions at the end of the utterance if used with zapformer.
         pad_len = 30
         feature_lens += pad_len
         feature = torch.nn.functional.pad(
@@ -541,7 +541,7 @@ def decode_one_batch(
             value=LOG_EPS,
         )
 
-    encoder_out, encoder_out_lens = model.forward_encoder(feature, feature_lens)
+    encoder_out, encoder_out_lens = model.forward_encoder(feature, feature_lens)[:2]
 
     hyps = []
 
@@ -805,6 +805,7 @@ def decode_dataset(
             batch_str = f"{batch_idx}/{num_batches}"
 
             logging.info(f"batch {batch_str}, cuts processed until now is {num_cuts}")
+
     return results
 
 
@@ -819,12 +820,12 @@ def save_asr_output(
     for key, results in results_dict.items():
 
         recogs_filename = params.res_dir / f"recogs-{test_set_name}-{params.suffix}.txt"
-
         results = sorted(results)
         if 'giga' in test_set_name:
             results = giga_post_processing(results)
         if 'cv' in test_set_name:
             results = cv_post_processing(results)
+
         store_transcripts(filename=recogs_filename, texts=results)
 
         logging.info(f"The transcripts are stored in {recogs_filename}")
@@ -840,6 +841,11 @@ def save_wer_results(
     """
     test_set_wers = dict()
     for key, results in results_dict.items():
+        if 'giga' in test_set_name:
+            results = giga_post_processing(results)
+        if 'cv' in test_set_name:
+            results = cv_post_processing(results)
+
         # The following prints out WERs, per-word error statistics and aligned
         # ref/hyp pairs.
         errs_filename = params.res_dir / f"errs-{test_set_name}-{params.suffix}.txt"
@@ -852,10 +858,6 @@ def save_wer_results(
         logging.info(f"Wrote detailed error stats to {errs_filename}")
 
     test_set_wers = sorted(test_set_wers.items(), key=lambda x: x[1])
-    if 'giga' in test_set_name:
-        results = giga_post_processing(results)
-    if 'cv' in test_set_name:
-        results = cv_post_processing(results)
 
     wer_filename = params.res_dir / f"wer-summary-{test_set_name}-{params.suffix}.txt"
 
@@ -875,7 +877,7 @@ def save_wer_results(
 @torch.no_grad()
 def main():
     parser = get_parser()
-    LibriSpeechAsrDataModule.add_arguments(parser)
+    AsrDataModule.add_arguments(parser)
     LmScorer.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
@@ -1110,7 +1112,7 @@ def main():
             lg_filename = params.lang_dir / "LG.pt"
             logging.info(f"Loading {lg_filename}")
             decoding_graph = k2.Fsa.from_dict(
-                torch.load(lg_filename, map_location=device, weights_only=False)
+                torch.load(lg_filename, map_location=device)
             )
             decoding_graph.scores *= params.ngram_lm_scale
         else:
@@ -1137,36 +1139,40 @@ def main():
 
     # we need cut ids to display recognition results.
     args.return_cuts = True
-    librispeech = LibriSpeechAsrDataModule(args)
+    asr_datamodule = AsrDataModule(args)
+    test_sets = []
+    test_dl = []
+    if True:  # if not args.giga:
+        librispeech = LibriSpeech(args.manifest_dir)
 
-    test_clean_cuts = librispeech.test_clean_cuts()
-    test_other_cuts = librispeech.test_other_cuts()
-    dev_clean_cuts = librispeech.dev_clean_cuts()
-    dev_other_cuts = librispeech.dev_other_cuts()
+        test_clean_cuts = librispeech.test_clean_cuts()
+        test_other_cuts = librispeech.test_other_cuts()
+        dev_clean_cuts = librispeech.dev_clean_cuts()
+        dev_other_cuts = librispeech.dev_other_cuts()
 
-    test_clean_dl = librispeech.test_dataloaders(test_clean_cuts)
-    test_other_dl = librispeech.test_dataloaders(test_other_cuts)
-    dev_clean_dl = librispeech.test_dataloaders(dev_clean_cuts)
-    dev_other_dl = librispeech.test_dataloaders(dev_other_cuts)
+        test_clean_dl = asr_datamodule.test_dataloaders(test_clean_cuts)
+        test_other_dl = asr_datamodule.test_dataloaders(test_other_cuts)
+        dev_clean_dl = asr_datamodule.test_dataloaders(dev_clean_cuts)
+        dev_other_dl = asr_datamodule.test_dataloaders(dev_other_cuts)
 
-    test_sets = ["dev-clean", "dev-other", "test-clean", "test-other"]
-    test_dl = [dev_clean_dl, dev_other_dl, test_clean_dl, test_other_dl]
+        test_sets += ["dev-clean", "dev-other", "test-clean", "test-other"]
+        test_dl += [dev_clean_dl, dev_other_dl, test_clean_dl, test_other_dl]
 
     if args.giga:
         gigaspeech = GigaSpeech(args.manifest_dir)
         test_cuts = gigaspeech.test_cuts()
         dev_cuts = gigaspeech.dev_cuts()
-        giga_test_dl = librispeech.test_dataloaders(test_cuts)
-        giga_dev_dl = librispeech.test_dataloaders(dev_cuts)
+        giga_test_dl = asr_datamodule.test_dataloaders(test_cuts)
+        giga_dev_dl = asr_datamodule.test_dataloaders(dev_cuts)
         test_sets += ["giga-dev", "giga-test"]
         test_dl += [giga_dev_dl, giga_test_dl]
-
+    
     if args.cv:
         commonvoice = CommonVoice(args.manifest_dir)
         test_cuts = commonvoice.test_cuts()
         dev_cuts = commonvoice.dev_cuts()
-        cv_test_dl = librispeech.test_dataloaders(test_cuts)
-        cv_dev_dl = librispeech.test_dataloaders(dev_cuts)
+        cv_test_dl = asr_datamodule.test_dataloaders(test_cuts)
+        cv_dev_dl = asr_datamodule.test_dataloaders(dev_cuts)
         test_sets += ["cv-dev", "cv-test"]
         test_dl += [cv_dev_dl, cv_test_dl]
 
