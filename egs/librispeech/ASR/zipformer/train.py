@@ -63,6 +63,7 @@ from typing import Any, Dict, Optional, Tuple, Union
 
 import k2
 import optim
+import numpy as np
 import sentencepiece as spm
 import torch
 import torch.multiprocessing as mp
@@ -384,7 +385,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--base-lr", type=float, default=0.045, help="The base learning rate."
+        "--base-lr",
+        type=float,
+        default=0.045,
+        help="The base learning rate.",
     )
 
     parser.add_argument(
@@ -1409,18 +1413,24 @@ def run(rank, world_size, args):
         # In ./zipformer.py, the conv module uses the following expression
         # for subsampling
         T = ((c.num_frames - 7) // 2 + 1) // 2
-        tokens = sp.encode(c.supervisions[0].text, out_type=str)
+        tokens = np.array(sp.encode(c.supervisions[0].text, out_type=str))
 
-        # For CTC `(T - 2)  < len(tokens)` is needed. otherwise inf. in loss appears.
-        # For Transducer `T < len(tokens)` was okay.
-        if (T - 2) < len(tokens):
+        if args.use_ctc:
+            # For CTC `T < num_tokens + num_repeats` is needed, blanks are added.
+            num_repeats = np.sum(tokens[1:] == tokens[:-1])
+            min_T = len(tokens) + num_repeats
+        else:
+            # For Transducer `T < num_tokens` is okay.
+            min_T = len(tokens)
+
+        if T < min_T:
             logging.warning(
                 f"Exclude cut with ID {c.id} from training (too many supervision tokens). "
                 f"Number of frames (before subsampling): {c.num_frames}. "
                 f"Number of frames (after subsampling): {T}. "
                 f"Text: {c.supervisions[0].text}. "
                 f"Tokens: {tokens}. "
-                f"Number of tokens: {len(tokens)}"
+                f"Number of tokens: {len(tokens)}, min_T: {min_T}"
             )
             return False
 
