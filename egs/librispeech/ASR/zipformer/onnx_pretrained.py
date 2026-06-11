@@ -140,6 +140,7 @@ class OnnxModel:
         session_opts = ort.SessionOptions()
         session_opts.inter_op_num_threads = 1
         session_opts.intra_op_num_threads = 4
+        session_opts.log_severity_level = 3
 
         self.session_opts = session_opts
 
