@@ -77,6 +77,7 @@ from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import AsrModel
 from optim import Eden, ScaledAdam
+from batched_rubik import BatchedRubik
 from scaling import ScheduledFloat
 from subsampling import Conv2dSubsampling
 from torch import Tensor
@@ -105,7 +106,12 @@ from icefall.utils import (
     torch_autocast,
 )
 
-LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
+
+from combined_scheduler import CombinedLRScheduler
+from combined_scheduler import InterpCosineLRScheduler
+
+
+LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler, CombinedLRScheduler]
 
 
 def get_adjusted_batch_count(params: AttributeDict) -> float:
@@ -358,6 +364,16 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--batches-per-epoch",
+        type=int,
+        default=2200,
+        help="Assumed number of batches per epoch for purposes of setting learning rate; only "
+        "makes a difference during the first batch, after which an observed value is used.  This "
+        "is the num batches where num_copies==1, i.e. on the first epoch"
+    )
+
+
+    parser.add_argument(
         "--start-batch",
         type=int,
         default=0,
@@ -384,24 +400,9 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--base-lr", type=float, default=0.045, help="The base learning rate."
+        "--base-lr", type=float, default=0.02, help="The base learning rate."
     )
 
-    parser.add_argument(
-        "--lr-batches",
-        type=float,
-        default=7500,
-        help="""Number of steps that affects how rapidly the learning rate
-        decreases. We suggest not to change this.""",
-    )
-
-    parser.add_argument(
-        "--lr-epochs",
-        type=float,
-        default=3.5,
-        help="""Number of epochs that affects how rapidly the learning rate decreases.
-        """,
-    )
 
     parser.add_argument(
         "--ref-duration",
@@ -1120,7 +1121,7 @@ def train_one_epoch(
             # NOTE: We use reduction==sum and loss is computed over utterances
             # in the batch and there is no normalization to it so far.
             scaler.scale(loss).backward()
-            scheduler.step_batch(params.batch_idx_train)
+            scheduler.set_batch(batch_idx)
 
             scaler.step(optimizer)
             scaler.update()
@@ -1342,13 +1343,21 @@ def run(rank, world_size, args):
         logging.info("Using DDP")
         model = DDP(model, device_ids=[rank], find_unused_parameters=True)
 
-    optimizer = ScaledAdam(
-        get_parameter_groups_with_lrs(model, lr=params.base_lr, include_names=True),
-        lr=params.base_lr,  # should have no effect
-        clipping_scale=2.0,
+    optimizer = BatchedRubik(
+        get_parameter_groups_with_lrs(model, lr=params.base_lr, include_names=False),
+        lr=params.base_lr,
+        beta1=0.99,
     )
 
-    scheduler = Eden(optimizer, params.lr_batches, params.lr_epochs, warmup_start=0.1)
+
+    # this InterpCosineLRScheduler inherits from VariableCombinedLRScheduler.
+    # this configuration is halfway between a linear function (1 to 0) and the conventional
+    # cosine LR scheduler.  It decays to a minimum of 0.025.
+    scheduler = InterpCosineLRScheduler(optimizer,
+                                        min_factor=0.025,
+                                        linear_scale=0.5,
+                                        batches_per_epoch=params.batches_per_epoch,
+                                        num_epochs=params.num_epochs)
 
     if checkpoints and "optimizer" in checkpoints:
         logging.info("Loading optimizer state dict")
@@ -1459,7 +1468,7 @@ def run(rank, world_size, args):
         scaler.load_state_dict(checkpoints["grad_scaler"])
 
     for epoch in range(params.start_epoch, params.num_epochs + 1):
-        scheduler.step_epoch(epoch - 1)
+        scheduler.set_epoch(epoch)
         fix_random_seed(params.seed + epoch - 1)
         train_dl.sampler.set_epoch(epoch - 1)
 
