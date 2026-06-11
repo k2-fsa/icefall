@@ -49,7 +49,8 @@ def normalize_text(utt: str, language: str) -> str:
     if language == "en":
         return re.sub(r"[^a-zA-Z\s]", "", utt).upper()
     elif language == "fr":
-        return re.sub(r"[^A-ZÀÂÆÇÉÈÊËÎÏÔŒÙÛÜ' ]", "", utt).upper()
+        utt = utt.upper()
+        return re.sub(r"[^A-ZÀÂÆÇÉÈÊËÎÏÔŒÙÛÜ' ]", "", utt)
     elif language == "pl":
         return re.sub(r"[^a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ' ]", "", utt).upper()
     elif language in ["yue", "zh-HK"]:
@@ -139,7 +140,7 @@ def preprocess_commonvoice(
         if partition == "validated":
             logging.warning(
                 """
-                The 'validated' partition contains the data of both 'train', 'dev' 
+                The 'validated' partition contains the data of both 'train', 'dev'
                 and 'test' partitions. We filter out the 'dev' and 'test' partition
                 here.
                 """
