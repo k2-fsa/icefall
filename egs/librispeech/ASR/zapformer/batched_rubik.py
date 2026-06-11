@@ -273,13 +273,11 @@ polar_express_coeffs = [
 def muon_step_fused(
     stacked_grads: Tensor,          # (12, 768, 3072) - stacked gradients
     momentum_buffer: Tensor,        # (12, 768, 3072) - first moment buffer
-    second_momentum_buffer: Tensor, # (12, 768, 1) or (12, 1, 3072) - factored second moment
     momentum_t: Tensor,             # () - 0-D CPU tensor, momentum coefficient
     lr_t: Tensor,                   # () - 0-D CPU tensor, learning rate
     beta2_t: Tensor,                # () - 0-D CPU tensor, beta2 for second moment
     eps: Tensor,
     ns_steps: int,                  # 5 - number of Newton-Schulz/Polar Express iterations
-    red_dim: int,                   # -1 or -2 - reduction dimension for variance
 ) -> Tensor:
     """
     Fused Muon step: momentum -> polar_express -> variance_reduction -> cautious_update
@@ -292,9 +290,23 @@ def muon_step_fused(
     momentum_buffer.lerp_(stacked_grads, 1 - momentum)
     g = stacked_grads.lerp_(momentum_buffer, momentum)
 
-    # apply the same normalization both before and after
-    # the core muon step, the symmetry ensures it is a descent direction.
-    g = g / (second_momentum_buffer.sqrt() + eps).to(g.dtype)
+    (batch_size, rows, cols) = g.shape
+    if rows > cols:
+        row_rms = (g ** 2).mean(dim=2, keepdim=True).sqrt() + eps
+        row_rms_sorted, _ = row_rms.sort(dim=1, descending=True)
+        # sqrt() because we will apply it twice, before and after the polar factor computation
+        # we are scaling up rows smaller than the "cols"'th-largest
+        scale = (row_rms_sorted[:, cols:cols+1] / row_rms).sqrt().clamp(min=1.0)
+    elif cols > rows:
+        col_rms = (g ** 2).mean(dim=1, keepdim=True).sqrt() + eps
+        col_rms_sorted, _ = col_rms.sort(dim=2, descending=True)
+        # sqrt() because we will apply it twice, before and after the polar factor computation
+        scale = (col_rms_sorted[:, :, rows:rows+1] / col_rms).sqrt().clamp(min=1.0)
+    else:
+        scale = None
+
+    if scale is not None:
+        g = g * scale
 
     # Polar express
     # Cast to bf16 for speed when available; skip cast otherwise (fp16 is unstable here due to limited exponent range)
@@ -312,15 +324,28 @@ def muon_step_fused(
             X = a * X + B @ X
     g = X
 
-    # Variance normalization
-    beta2 = beta2_t.to(second_momentum_buffer.dtype)
-    v_mean = g.float().square().mean(dim=red_dim, keepdim=True)
-    second_momentum_buffer.lerp_(v_mean.to(dtype=second_momentum_buffer.dtype), 1 - beta2)
-    g = g / (second_momentum_buffer.sqrt() + eps).to(g.dtype)
+    #if scale is not None:
+    #    g = g * scale  # apply it the 2nd time for symmetry
+
+    expected_rms = max(rows, cols) ** -0.5
+    if rows > cols:
+        row_rms = (g ** 2).mean(dim=2, keepdim=True).sqrt() + eps
+        row_scale = (expected_rms / row_rms)
+        g = g * row_scale
+    elif cols > rows:
+        col_rms = (g ** 2).mean(dim=1, keepdim=True).sqrt() + eps
+        col_scale = (expected_rms / col_rms)
+        g = g * col_scale
+
+    if random.random() < 0.0002:
+        for dim in [1, 2]:
+            scale_ratio = (g ** 2).mean(dim=dim).sqrt()  * (max(rows, cols) ** 0.5)
+            logging.info(f"dim={dim}, shape={g.shape}, abs-mean of scale_ratio is {(scale_ratio-1).abs().mean()}, min,max are {scale_ratio.min()},{scale_ratio.max()}")
+
+    # assumed scale of step size if it arose from momentum decay from i.i.d. variance-1 grads.
     lr = lr_t.to(g.dtype)
     beta1 = momentum_t.to(g.dtype)
-    # assumed scale of step size if it arose from momentum decay from i.i.d. variance-1 grads.
-    assumed_scale = (1 - beta1) * ((1 - beta1**2)**-0.5)
+    assumed_scale = (1 - beta1) * ((1 - beta1**2)**-0.5)  / expected_rms
     return -lr * assumed_scale * g
 
 
@@ -341,14 +366,9 @@ def muon_core_step(group, state, grad):
     if "momentum_buffer" not in state:
         assert step < 2
         state["momentum_buffer"] = torch.zeros(batch_size, rows, cols, device=grad.device, dtype=COMPUTE_DTYPE)
-        if rows > cols:
-            state["second_momentum_buffer"] = torch.ones(batch_size, rows, 1, device=grad.device, dtype=torch.float)
-        else:
-            state["second_momentum_buffer"] = torch.ones(batch_size, 1, cols, device=grad.device, dtype=torch.float)
 
 
     momentum_buffer = state["momentum_buffer"]
-    second_momentum_buffer = state["second_momentum_buffer"]
 
     if momentum_buffer.dtype == torch.float:  # Error due to loading state dict; TODO put this in load_state_dict()
         momentum_buffer = momentum_buffer.to(COMPUTE_DTYPE)
@@ -357,8 +377,8 @@ def muon_core_step(group, state, grad):
     def t(x):
         return torch.tensor(x, device=grad.device, dtype=COMPUTE_DTYPE)
 
-    step = muon_step_fused(grad.to(COMPUTE_DTYPE), momentum_buffer, second_momentum_buffer,
-                           t(beta1), t(lr), t(beta2), t(eps), 5, (-1 if rows > cols else -2))
+    step = muon_step_fused(grad.to(COMPUTE_DTYPE), momentum_buffer,
+                           t(beta1), t(lr), t(beta2), t(eps), 5)
 
     return step.reshape(orig_shape)
 
