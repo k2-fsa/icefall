@@ -9,6 +9,12 @@ stage=0
 stop_stage=100
 use_edinburgh_vctk_url=true
 
+# If you have VCTK already downloaded locally (e.g. from Kaggle),
+# set this to the path of the existing VCTK directory to skip downloading.
+# Example:
+#   --local-data-dir /kaggle/input/vctk-corpus
+local_data_dir=
+
 dl_dir=$PWD/download
 
 . shared/parse_options.sh || exit 1
@@ -44,8 +50,18 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   #
   #   ln -sfv /path/to/VCTK $dl_dir/VCTK
   #
+  # Alternatively, use --local-data-dir to point to an existing VCTK directory:
+  #
+  #   bash prepare.sh --local-data-dir /path/to/VCTK
+  #
   if [ ! -d $dl_dir/VCTK ]; then
-    lhotse download vctk --use-edinburgh-vctk-url ${use_edinburgh_vctk_url} $dl_dir
+    if [ -n "$local_data_dir" ]; then
+      log "Using local data directory: $local_data_dir"
+      mkdir -p $dl_dir
+      ln -sfv $local_data_dir $dl_dir/VCTK
+    else
+      lhotse download vctk --use-edinburgh-vctk-url ${use_edinburgh_vctk_url} $dl_dir
+    fi
   fi
 fi
 
