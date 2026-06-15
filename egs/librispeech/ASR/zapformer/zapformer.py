@@ -285,11 +285,10 @@ class Zapformer(EncoderInterface):
 
         x = self.out_norm(x)
 
-        # disable the projection-overlap loss
-        #if self.training:
-        #    # all of our losses and aux losses are proportional to the number of frames of data, so
-        #    # we multiply by that factor.
-        #    x = with_loss(x, aux_loss_scale * x.shape[0] * x.shape[1] * self.compute_projection_overlap())
+        if self.training:
+            # all of our losses and aux losses are proportional to the number of frames of data, so
+            # we multiply by that factor.
+            x = with_loss(x, aux_loss_scale * x.shape[0] * x.shape[1] * self.compute_projection_overlap())
 
         return x, x_lens
 
@@ -791,7 +790,7 @@ class ZapformerEncoderLayer(nn.Module):
         )
 
         src = src.clamp(min=-5, max=5)
-        
+
         return (
             src,
             cached_key,
