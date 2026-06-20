@@ -302,8 +302,7 @@ class Zapformer(EncoderInterface):
         # all the less-subsampled projections co-vary in the same way, e.g. if there are
         # two frames, that the two frames are identical.
 
-        min_overlap = 0.6  # we can tune this.  CAUTION: I turned off this aux loss by commenting
-        # it out in forward(),
+        min_overlap = 0.58  # we can tune this.
 
         tot_loss = 0.0
         # between pairs of encoders
