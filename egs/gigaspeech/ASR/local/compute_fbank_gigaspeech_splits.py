@@ -19,10 +19,13 @@
 import argparse
 import logging
 import os
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 import torch
 from lhotse import CutSet, KaldifeatFbank, KaldifeatFbankConfig
+
+from icefall.utils import str2bool
 
 # Torch's multithreaded behavior needs to be disabled or
 # it wastes a lot of CPU and slow things down.
@@ -71,7 +74,34 @@ def get_args():
         default=-1,
         help="Stop processing pieces until this number (exclusive).",
     )
+
+    parser.add_argument(
+        "--on-the-fly",
+        type=str2bool,
+        default=True,
+        help="When True, do not compute and store fbank features; only "
+        "produce the trimmed cut manifests so that features are extracted "
+        "on-the-fly during training.",
+    )
     return parser.parse_args()
+
+
+def trim_split(idx: str, output_dir: Path) -> None:
+    """Trim one raw split to supervisions and save it (no feature extraction)."""
+    cuts_path = output_dir / f"gigaspeech_cuts_XL.{idx}.jsonl.gz"
+    if cuts_path.is_file():
+        logging.info(f"{cuts_path} exists - skipping")
+        return
+
+    raw_cuts_path = output_dir / f"gigaspeech_cuts_XL_raw.{idx}.jsonl.gz"
+    if not raw_cuts_path.is_file():
+        logging.info(f"{raw_cuts_path} does not exist - skipping it")
+        return
+
+    cut_set = CutSet.from_file(raw_cuts_path)
+    cut_set = cut_set.trim_to_supervisions(keep_overlapping=False, min_duration=None)
+    cut_set.to_file(cuts_path)
+    logging.info(f"Saved to {cuts_path}")
 
 
 def compute_fbank_gigaspeech_splits(args):
@@ -87,13 +117,29 @@ def compute_fbank_gigaspeech_splits(args):
 
     stop = min(stop, num_splits)
 
+    num_digits = 8  # num_digits is fixed by lhotse split-lazy
+
+    if args.on_the_fly:
+        # on-the-fly does not compute features, so the per-split work is pure
+        # CPU and independent -- fan it out across processes instead of the
+        # serial loop the GPU path needs.
+        logging.info(
+            f"on-the-fly is enabled - trimming splits in parallel "
+            f"with {args.num_workers} workers"
+        )
+        idxs = [f"{i}".zfill(num_digits) for i in range(start, stop)]
+        with ProcessPoolExecutor(max_workers=args.num_workers) as ex:
+            futures = [ex.submit(trim_split, idx, output_dir) for idx in idxs]
+            for f in futures:
+                f.result()
+        return
+
     device = torch.device("cpu")
     if torch.cuda.is_available():
         device = torch.device("cuda", 0)
     extractor = KaldifeatFbank(KaldifeatFbankConfig(device=device))
     logging.info(f"device: {device}")
 
-    num_digits = 8  # num_digits is fixed by lhotse split-lazy
     for i in range(start, stop):
         idx = f"{i}".zfill(num_digits)
         logging.info(f"Processing {idx}/{num_splits}")
