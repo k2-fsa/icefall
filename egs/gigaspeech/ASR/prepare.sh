@@ -165,7 +165,7 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
 fi
 
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
-  log "State 3: Preprocess GigaSpeech manifest"
+  log "Stage 3: Preprocess GigaSpeech manifest"
   if [ ! -f data/fbank/.preprocess_complete ]; then
     python3 ./local/preprocess_gigaspeech.py
     touch data/fbank/.preprocess_complete
@@ -173,7 +173,7 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
 fi
 
 if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
-  log "Stage 4: Compute features for DEV, TEST, L, M, S, and XS subsets of GigaSpeech."
+  log "Stage 4: Compute features for DEV and TEST subsets of GigaSpeech."
   python3 ./local/compute_fbank_gigaspeech.py
 fi
 
