@@ -134,7 +134,7 @@ class GigaSpeechAsrDataModule:
         group.add_argument(
             "--on-the-fly-feats",
             type=str2bool,
-            default=False,
+            default=True,
             help="When enabled, use on-the-fly cut mixing and feature "
             "extraction. Will drop existing precomputed feature manifests "
             "if available.",
@@ -172,7 +172,7 @@ class GigaSpeechAsrDataModule:
         group.add_argument(
             "--prefetch-factor",
             type=int,
-            default=4,
+            default=8,
             help="Number of batches each worker prefetches in advance. "
             "Ignored when --num-workers is 0.",
         )
@@ -401,8 +401,11 @@ class GigaSpeechAsrDataModule:
             validate,
             sampler=valid_sampler,
             batch_size=None,
-            num_workers=2,
+            num_workers=self.args.num_workers,
             persistent_workers=False,
+            prefetch_factor=self.args.prefetch_factor
+            if self.args.num_workers > 0
+            else None,
         )
 
         return valid_dl
