@@ -829,7 +829,8 @@ class ZapformerEncoder(nn.Module):
         # self.downsample will also reverse the downsampling operation for us afterward.
         self.proj = OrthogonalLinear(dim,
                                      encoder_layer.embed_dim,
-                                     bias=False)
+                                     bias=False,
+                                     penalty_scale=0.0)
 
         self.name = None
         self.layers = nn.ModuleList(
