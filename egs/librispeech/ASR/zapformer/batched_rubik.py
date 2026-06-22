@@ -268,6 +268,8 @@ polar_express_coeffs = [
 def muon_step_fused(
     stacked_grads: Tensor,          # (12, 768, 3072) - stacked gradients
     momentum_buffer: Tensor,        # (12, 768, 3072) - first moment buffer
+    row_buffer: Tensor,            # (12, 768, 1) - row squared magnitude buffer
+    col_buffer: Tensor,            # (12, 1, 3072) - column squared magnitude buffer
     momentum_t: Tensor,             # () - 0-D CPU tensor, momentum coefficient
     lr_t: Tensor,                   # () - 0-D CPU tensor, learning rate
     eps: Tensor,
@@ -282,7 +284,13 @@ def muon_step_fused(
     # Nesterov momentum
     momentum = momentum_t.to(stacked_grads.dtype)
     momentum_buffer.lerp_(stacked_grads, 1 - momentum)
-    g = stacked_grads.lerp_(momentum_buffer, momentum)
+    g = torch.lerp(stacked_grads, momentum_buffer, momentum)
+
+    bypass = stacked_grads
+    row_buffer.lerp_((bypass ** 2).mean(dim=2, keepdim=True), 1 - momentum)
+    bypass = bypass / (row_buffer.sqrt() + eps)
+    col_buffer.lerp_((bypass ** 2).mean(dim=1, keepdim=True), 1 - momentum)
+    bypass = bypass / (col_buffer.sqrt() + eps)
 
     (batch_size, rows, cols) = g.shape
     if rows > cols:
@@ -340,7 +348,8 @@ def muon_step_fused(
     lr = lr_t.to(g.dtype)
     beta1 = momentum_t.to(g.dtype)
     assumed_scale = (1 - beta1) * ((1 - beta1**2)**-0.5)  / expected_rms
-    return -lr * assumed_scale * g
+    bypass_scale = 0.05
+    return -lr * ((1 - bypass_scale) * assumed_scale * g  + bypass_scale * bypass)
 
 
 def muon_core_step(group, state, grad):
@@ -358,9 +367,13 @@ def muon_core_step(group, state, grad):
     if "momentum_buffer" not in state:
         assert step < 2
         state["momentum_buffer"] = torch.zeros(batch_size, rows, cols, device=grad.device, dtype=COMPUTE_DTYPE)
+        state["row_buffer"] = torch.zeros(batch_size, rows, 1, device=grad.device, dtype=COMPUTE_DTYPE)
+        state["col_buffer"] = torch.zeros(batch_size, 1, cols, device=grad.device, dtype=COMPUTE_DTYPE)
 
 
     momentum_buffer = state["momentum_buffer"]
+    row_buffer = state["row_buffer"]
+    col_buffer = state["col_buffer"]
 
     if momentum_buffer.dtype == torch.float:  # Error due to loading state dict; TODO put this in load_state_dict()
         momentum_buffer = momentum_buffer.to(COMPUTE_DTYPE)
@@ -371,7 +384,7 @@ def muon_core_step(group, state, grad):
 
 
     grad = grad.to(COMPUTE_DTYPE) if grad.dtype != COMPUTE_DTYPE else grad.clone()
-    step = muon_step_fused(grad.to(COMPUTE_DTYPE), momentum_buffer,
+    step = muon_step_fused(grad.to(COMPUTE_DTYPE), momentum_buffer, row_buffer, col_buffer,
                            t(beta1), t(lr), t(eps), 5)
 
     return step.reshape(orig_shape)
