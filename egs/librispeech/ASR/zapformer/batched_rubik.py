@@ -284,7 +284,7 @@ def muon_step_fused(
     # Nesterov momentum
     momentum = momentum_t.to(stacked_grads.dtype)
     momentum_buffer.lerp_(stacked_grads, 1 - momentum)
-    g = torch.lerp(stacked_grads, momentum_buffer, momentum)
+    g = momentum_buffer
 
     bypass = stacked_grads
     row_buffer.lerp_((bypass ** 2).mean(dim=2, keepdim=True), 1 - momentum)
