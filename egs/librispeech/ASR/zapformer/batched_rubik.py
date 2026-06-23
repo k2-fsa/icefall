@@ -348,7 +348,7 @@ def muon_step_fused(
     lr = lr_t.to(g.dtype)
     beta1 = momentum_t.to(g.dtype)
     assumed_scale = (1 - beta1) * ((1 - beta1**2)**-0.5)  / expected_rms
-    bypass_scale = 0.05
+    bypass_scale = 0.1
     return -lr * ((1 - bypass_scale) * assumed_scale * g  + bypass_scale * bypass)
 
 
