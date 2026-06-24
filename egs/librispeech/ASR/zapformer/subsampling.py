@@ -79,7 +79,7 @@ class ConvNeXt(nn.Module):
             in_channels=channels, out_channels=hidden_channels, kernel_size=1,
         )
 
-        self.activation = SwashL()
+        self.activation = SwashR()
 
         self.pointwise_conv2 = nn.Conv2d(
             in_channels=hidden_channels,
