@@ -114,9 +114,13 @@ def average_checkpoints(
 
     for i in range(1, n):
         if "model" in torch.load(filenames[i], map_location=device, weights_only=False):
-            state_dict = torch.load(filenames[i], map_location=device, weights_only=False)["model"]
+            state_dict = torch.load(
+                filenames[i], map_location=device, weights_only=False
+            )["model"]
         else:
-            state_dict = torch.load(filenames[i], map_location=device, weights_only=False)
+            state_dict = torch.load(
+                filenames[i], map_location=device, weights_only=False
+            )
         for k in uniqued_names:
             avg[k] += state_dict[k]
 
@@ -548,7 +552,8 @@ def main():
         # torch.save(avg_checkpoint, filename)
     else:
         checkpoint = torch.load(
-            f"{params.exp_dir}/epoch-{params.epoch}/pytorch_model.bin", weights_only=False,
+            f"{params.exp_dir}/epoch-{params.epoch}/pytorch_model.bin",
+            weights_only=False,
             map_location="cpu",
         )
         model.load_state_dict(checkpoint, strict=False)

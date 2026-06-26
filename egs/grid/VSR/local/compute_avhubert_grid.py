@@ -10,25 +10,25 @@ It looks for manifests in the directory data/manifests.
 The generated avhubert features are saved in data/avhubert.
 """
 from __future__ import annotations
-import dlib
-import torch.nn.functional as F
-import cv2
-from fairseq import checkpoint_utils
 
+import argparse
+import contextlib
+import itertools
 import logging
 import os
 import sys
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
+
+import cv2
+import dlib
+import numpy as np
 import torch
+import torch.multiprocessing as mp
+import torch.nn.functional as F
+from fairseq import checkpoint_utils
 from lhotse import CutSet, NumpyHdf5Writer
 from lhotse.recipes.utils import read_manifests_if_cached
-import numpy as np
-from concurrent.futures import ProcessPoolExecutor
-import logging
-import torch.multiprocessing as mp
-import itertools
-import contextlib
-import argparse
 
 
 # CLI arguments
@@ -52,15 +52,14 @@ def parse_args() -> argparse.Namespace:
         "--dlib-predictor",
         type=Path,
         default=Path("download/dlib/shape_predictor_68_face_landmarks.dat"),
-        help="Path to the dlib 68-point landmark model. "
-             "Default: %(default)s",
+        help="Path to the dlib 68-point landmark model. " "Default: %(default)s",
     )
     parser.add_argument(
         "--layer",
         type=int,
         default=9,
         help="Number of encoder layers to keep (0-indexed upper bound). "
-             "Default: %(default)s",
+        "Default: %(default)s",
     )
     parser.add_argument(
         "--n-workers",
@@ -85,7 +84,7 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=1,
         help="Run face detection every N frames; reuse previous landmarks otherwise. "
-             "Default: %(default)s",
+        "Default: %(default)s",
     )
     parser.add_argument(
         "--feats-dir",
@@ -116,21 +115,23 @@ def load_globals(args: argparse.Namespace):
     -------
     dict with keys: avhubert_utils, detector, predictor, device, model, transform
     """
-    # AV-HuBERT imports 
+    # AV-HuBERT imports
     if not args.avhubert_code_dir.exists():
-        raise FileNotFoundError(f"AV-HuBERT code directory not found: {args.avhubert_code_dir}")
+        raise FileNotFoundError(
+            f"AV-HuBERT code directory not found: {args.avhubert_code_dir}"
+        )
 
     with _avhubert_on_path(args.avhubert_code_dir):
         from avhubert.utils import Compose, Normalize
 
-    # Dlib 
+    # Dlib
     if not args.dlib_predictor.exists():
         raise FileNotFoundError(
             f"dlib landmark model not found: {args.dlib_predictor}\n"
             "Download: http://dlib.net/files/shape_predictor_68_face_landmarks.dat.bz2"
         )
 
-    detector  = dlib.get_frontal_face_detector()
+    detector = dlib.get_frontal_face_detector()
     predictor = dlib.shape_predictor(str(args.dlib_predictor))
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -139,20 +140,24 @@ def load_globals(args: argparse.Namespace):
     if not args.avhubert_ckpt.exists():
         raise FileNotFoundError(f"AV-HuBERT checkpoint not found: {args.avhubert_ckpt}")
 
-    models, cfg, task = checkpoint_utils.load_model_ensemble_and_task([str(args.avhubert_ckpt)])
+    models, cfg, task = checkpoint_utils.load_model_ensemble_and_task(
+        [str(args.avhubert_ckpt)]
+    )
     model = models[0]
-    model.encoder.layers = model.encoder.layers[:args.layer]
+    model.encoder.layers = model.encoder.layers[: args.layer]
     model.to(device).eval()
     logging.info(
         f"Loaded AV-HuBERT checkpoint: {args.avhubert_ckpt} "
         f"(layers 0–{args.layer - 1}, device: {device})"
     )
 
-    # Image transform 
-    transform = Compose([
-        Normalize(0.0, 255.0),
-        Normalize(task.cfg.image_mean, task.cfg.image_std),
-    ])
+    # Image transform
+    transform = Compose(
+        [
+            Normalize(0.0, 255.0),
+            Normalize(task.cfg.image_mean, task.cfg.image_std),
+        ]
+    )
 
     return dict(
         detector=detector,
@@ -211,12 +216,14 @@ def extract_features_from_visual(
         frames = list(np.load(mouth_frames_file)["frames"])
         logging.info(f"Loaded cached mouth frames from {mouth_frames_file}.")
     else:
-        # Landmarks (or cache load) 
+        # Landmarks (or cache load)
         if landmarks_file.exists():
             landmarks = np.load(landmarks_file)["landmarks"]
             logging.info(f"Loaded cached landmarks from {landmarks_file}.")
         else:
-            landmarks = _detect_landmarks(video_path, dlib_detector,  dlib_predictor ,detect_every)
+            landmarks = _detect_landmarks(
+                video_path, dlib_detector, dlib_predictor, detect_every
+            )
             if landmarks is None:
                 return None
             np.savez_compressed(landmarks_file, landmarks=landmarks.astype(np.int16))
@@ -227,19 +234,23 @@ def extract_features_from_visual(
             video_path, landmarks, mouth_w, mouth_h, ROI_SIZE, MOUTH_LEFT, MOUTH_RIGHT
         )
         if len(frames) < MIN_FRAMES:
-            logging.warning(f"Skipping {video}: only {len(frames)} frames (min {MIN_FRAMES}).")
+            logging.warning(
+                f"Skipping {video}: only {len(frames)} frames (min {MIN_FRAMES})."
+            )
             return None
 
         np.savez_compressed(mouth_frames_file, frames=np.array(frames, dtype=np.uint8))
         logging.info(f"Saved mouth frames to {mouth_frames_file}.")
 
     if len(frames) < MIN_FRAMES:
-        logging.warning(f"Skipping {video}: only {len(frames)} frames (min {MIN_FRAMES}).")
+        logging.warning(
+            f"Skipping {video}: only {len(frames)} frames (min {MIN_FRAMES})."
+        )
         return None
-   
+
     frames_np = transform(np.float32(np.stack(frames)))
     tensor = torch.from_numpy(frames_np).unsqueeze(0).unsqueeze(0).to(device)
-     # AV-HuBERT feature extraction
+    # AV-HuBERT feature extraction
     with torch.no_grad():
         features, _ = model.extract_finetune(
             source={"video": tensor, "audio": None},
@@ -258,7 +269,9 @@ def _open_video(path: Path) -> cv2.VideoCapture:
     return cap
 
 
-def _detect_landmarks(video_path: Path, dlib_detector,  dlib_predictor, detect_every: int) -> np.ndarray | None:
+def _detect_landmarks(
+    video_path: Path, dlib_detector, dlib_predictor, detect_every: int
+) -> np.ndarray | None:
     """
     Run dlib face + landmark detection on every ``detect_every``-th frame.
 
@@ -279,7 +292,9 @@ def _detect_landmarks(video_path: Path, dlib_detector,  dlib_predictor, detect_e
             if frame_idx % detect_every == 0:
                 faces = dlib_detector(gray)
                 if not faces:
-                    logging.warning(f"No face detected in {video_path} at frame {frame_idx}.")
+                    logging.warning(
+                        f"No face detected in {video_path} at frame {frame_idx}."
+                    )
                     return None
                 shape = dlib_predictor(gray, faces[0])
                 last_lm = np.array([[p.x, p.y] for p in shape.parts()])
@@ -334,6 +349,7 @@ def _extract_mouth_frames(
 
 _worker_globals: dict = {}
 
+
 def _worker_init(args: argparse.Namespace) -> None:
     """Called once per worker process to load model and detector."""
     global _worker_globals
@@ -367,14 +383,21 @@ def process_worker(args: tuple) -> list:
     - Duplicates the first frame if only 74 frames are returned (expects 75).
     - All cuts are assigned a fixed duration of 3.0 s at 25 fps.
     """
-    worker_id, recordings_subset, supervisions_subset, feats_dir, partition, layer = args
+    (
+        worker_id,
+        recordings_subset,
+        supervisions_subset,
+        feats_dir,
+        partition,
+        layer,
+    ) = args
     # Access resources initialised by _worker_init
-    model     = _worker_globals["model"]
+    model = _worker_globals["model"]
     transform = _worker_globals["transform"]
-    detector  = _worker_globals["detector"]
+    detector = _worker_globals["detector"]
     predictor = _worker_globals["predictor"]
-    device    = _worker_globals["device"]
-    
+    device = _worker_globals["device"]
+
     FIXED_DURATION: float = 3.0
     FRAME_SHIFT: float = 0.04
     EXPECTED_FRAMES: int = 75
@@ -387,11 +410,20 @@ def process_worker(args: tuple) -> list:
         for recording in recordings_subset:
             supervision = sup_by_rec.get(recording.id)
             if supervision is None:
-                logging.warning(f"Worker {worker_id} - no supervision for {recording.id}, skipping.")
+                logging.warning(
+                    f"Worker {worker_id} - no supervision for {recording.id}, skipping."
+                )
                 continue
             try:
-                feats = extract_features_from_visual(recording.sources[0].source, detector, \
-                    predictor, device, model, transform, layer)
+                feats = extract_features_from_visual(
+                    recording.sources[0].source,
+                    detector,
+                    predictor,
+                    device,
+                    model,
+                    transform,
+                    layer,
+                )
 
                 if feats is None:
                     logging.warning(
@@ -465,7 +497,7 @@ def compute_avhubert_grid():
         list(manifests.keys()),
         dataset_parts,
     )
-   
+
     for partition, m in manifests.items():
         logging.info(f"\nProcessing {partition} with {args.n_workers} workers")
 
@@ -480,19 +512,22 @@ def compute_avhubert_grid():
             end = min(start + chunk_size, len(recordings))
             if start >= end:
                 break
-            tasks.append((
-                i,
-                recordings[start:end],
-                supervisions[start:end],
-                feats_dir,
-                partition,
-                args.layer, 
-                
-            ))
+            tasks.append(
+                (
+                    i,
+                    recordings[start:end],
+                    supervisions[start:end],
+                    feats_dir,
+                    partition,
+                    args.layer,
+                )
+            )
 
         all_cuts = []
 
-        with ProcessPoolExecutor(max_workers=args.n_workers, initializer=_worker_init, initargs=(args,)) as ex:
+        with ProcessPoolExecutor(
+            max_workers=args.n_workers, initializer=_worker_init, initargs=(args,)
+        ) as ex:
             results = ex.map(process_worker, tasks)
             for worker_cuts in results:
                 all_cuts.extend(worker_cuts)
@@ -501,12 +536,14 @@ def compute_avhubert_grid():
         cut_set = CutSet.from_cuts(all_cuts)
         cut_set.to_file(feats_dir / f"grid_cuts_{partition}.jsonl.gz")
 
-        logging.info(f"Done {partition} → {len(all_cuts)} cuts, stored in {args.n_workers} .h5 files")
-        
+        logging.info(
+            f"Done {partition} → {len(all_cuts)} cuts, stored in {args.n_workers} .h5 files"
+        )
+
 
 if __name__ == "__main__":
     formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
     logging.basicConfig(format=formatter, level=logging.INFO)
     args = parse_args()
-    mp.set_start_method('spawn', force=True)    
+    mp.set_start_method("spawn", force=True)
     compute_avhubert_grid()

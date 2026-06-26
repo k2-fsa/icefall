@@ -38,10 +38,7 @@ from scaling import (
     SwooshROnnx,
     Whiten,
 )
-from zipformer import (
-    CompactRelPositionalEncoding,
-    SimpleDownsample,
-)
+from zipformer import CompactRelPositionalEncoding, SimpleDownsample
 
 
 class NonStreamingChunkCausalDepthwiseConv1d(torch.nn.Module):

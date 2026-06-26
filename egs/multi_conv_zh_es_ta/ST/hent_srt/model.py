@@ -21,11 +21,12 @@ from typing import Optional, Tuple, Union
 
 import k2
 import torch
-from torch import Tensor
-from lhotse.dataset import SpecAugment
 import torch.nn as nn
 from encoder_interface import EncoderInterface
+from lhotse.dataset import SpecAugment
 from scaling import ScaledLinear
+from torch import Tensor
+
 from icefall.utils import add_sos, make_pad_mask, time_warp
 
 
@@ -48,7 +49,7 @@ class HENT_SRT(nn.Module):
         use_ctc: bool = False,
         use_st_ctc: bool = False,
         use_hat: bool = False,
-        use_lstm_pred:bool=False,
+        use_lstm_pred: bool = False,
     ):
         """A multitask Transducer ASR-ST model with seperate joiners and predictors but shared acoustic encoder.
 
@@ -102,7 +103,7 @@ class HENT_SRT(nn.Module):
 
             self.decoder = decoder
             self.joiner = joiner
-            
+
             self.st_joiner = st_joiner
             self.st_decoder = st_decoder
             self.st_encoder = st_encoder
@@ -165,17 +166,19 @@ class HENT_SRT(nn.Module):
         src_key_padding_mask = make_pad_mask(x_lens)
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
 
-        encoder_out, encoder_out_lens, st_input = self.encoder(x, x_lens, src_key_padding_mask)
+        encoder_out, encoder_out_lens, st_input = self.encoder(
+            x, x_lens, src_key_padding_mask
+        )
         if self.st_encoder is not None:
-          st_src_key_padding_mask = make_pad_mask(encoder_out_lens)
-          
-          st_encoder_out, st_encoder_out_lens = self.st_encoder(
+            st_src_key_padding_mask = make_pad_mask(encoder_out_lens)
+
+            st_encoder_out, st_encoder_out_lens = self.st_encoder(
                 st_input, x_lens, src_key_padding_mask
             )
-          st_encoder_out = st_encoder_out.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
+            st_encoder_out = st_encoder_out.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
         else:
-           st_encoder_out_lens = None
-           st_encoder_out = None
+            st_encoder_out_lens = None
+            st_encoder_out = None
         encoder_out = encoder_out.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
         assert torch.all(encoder_out_lens > 0), (x_lens, encoder_out_lens)
         return encoder_out, encoder_out_lens, st_encoder_out, st_encoder_out_lens
@@ -283,7 +286,7 @@ class HENT_SRT(nn.Module):
         cr_loss = cr_loss.masked_fill(length_mask, 0.0).sum()
 
         return ctc_loss, cr_loss
-    
+
     def forward_st_cr_ctc(
         self,
         st_encoder_out: torch.Tensor,
@@ -325,7 +328,7 @@ class HENT_SRT(nn.Module):
         #     target_lengths=target_lengths.cpu(),
         #     reduction="sum",
         # )
-        
+
         # if not torch.isfinite(st_ctc_loss):
         #             breakpoint()
 
@@ -380,7 +383,6 @@ class HENT_SRT(nn.Module):
             part
         """
         # Now for the decoder, i.e., the prediction network
-        
 
         blank_id = self.decoder.blank_id
         st_blank_id = self.st_decoder.blank_id
@@ -394,9 +396,9 @@ class HENT_SRT(nn.Module):
         # decoder_out: [B, S + 1, decoder_dim]
         decoder_out = self.decoder(sos_y_padded)
         if self.use_lstm_pred:
-          st_decoder_out, _ = self.st_decoder(st_sos_y_padded)
+            st_decoder_out, _ = self.st_decoder(st_sos_y_padded)
         else:
-          st_decoder_out = self.st_decoder(st_sos_y_padded)
+            st_decoder_out = self.st_decoder(st_sos_y_padded)
 
         # Note: y does not start with SOS
         # y_padded : [B, S]
@@ -424,7 +426,7 @@ class HENT_SRT(nn.Module):
 
         lm = self.simple_lm_proj(decoder_out)
         am = self.simple_am_proj(encoder_out)
-        
+
         st_lm = self.simple_st_lm_proj(st_decoder_out)
         st_am = self.simple_st_am_proj(st_encoder_out)
 
@@ -434,33 +436,32 @@ class HENT_SRT(nn.Module):
         #    am = penalize_abs_values_gt(am, 30.0, 1.0e-04)
 
         with torch.cuda.amp.autocast(enabled=False):
-          simple_loss, (px_grad, py_grad) = k2.rnnt_loss_smoothed(
-              lm=lm.float(),
-              am=am.float(),
-              symbols=y_padded,
-              termination_symbol=blank_id,
-              lm_only_scale=lm_scale,
-              am_only_scale=am_scale,
-              boundary=boundary,
-              reduction="sum",
-              return_grad=True,
-          )
-          st_simple_loss, (st_px_grad, st_py_grad) = k2.rnnt_loss_smoothed(
-              lm=st_lm.float(),
-              am=st_am.float(),
-              symbols=st_y_padded,
-              termination_symbol=st_blank_id,
-              lm_only_scale=lm_scale,
-              am_only_scale=am_scale,
-              boundary=st_boundary,
-              reduction="sum",
-              return_grad=True,
-          )
-          
+            simple_loss, (px_grad, py_grad) = k2.rnnt_loss_smoothed(
+                lm=lm.float(),
+                am=am.float(),
+                symbols=y_padded,
+                termination_symbol=blank_id,
+                lm_only_scale=lm_scale,
+                am_only_scale=am_scale,
+                boundary=boundary,
+                reduction="sum",
+                return_grad=True,
+            )
+            st_simple_loss, (st_px_grad, st_py_grad) = k2.rnnt_loss_smoothed(
+                lm=st_lm.float(),
+                am=st_am.float(),
+                symbols=st_y_padded,
+                termination_symbol=st_blank_id,
+                lm_only_scale=lm_scale,
+                am_only_scale=am_scale,
+                boundary=st_boundary,
+                reduction="sum",
+                return_grad=True,
+            )
 
         # am_pruned : [B, T, prune_range, encoder_dim]
         # lm_pruned : [B, T, prune_range, decoder_dim]
-       
+
         # ranges : [B, T, prune_range]
         ranges = k2.get_rnnt_prune_ranges(
             px_grad=px_grad,
@@ -473,26 +474,26 @@ class HENT_SRT(nn.Module):
             lm=self.joiner.decoder_proj(decoder_out),
             ranges=ranges,
         )
-          # project_input=False since we applied the decoder's input projections
-          # prior to do_rnnt_pruning (this is an optimization for speed).
+        # project_input=False since we applied the decoder's input projections
+        # prior to do_rnnt_pruning (this is an optimization for speed).
         logits = self.joiner(am_pruned, lm_pruned, project_input=False)
         with torch.cuda.amp.autocast(enabled=False):
-          pruned_loss = k2.rnnt_loss_pruned(
-              logits=logits.float(),
-              symbols=y_padded,
-              ranges=ranges,
-              termination_symbol=blank_id,
-              boundary=boundary,
-              reduction="sum",
-              use_hat_loss=self.use_hat,
-          )
-         # logits : [B, T, prune_range, vocab_size]
-        
+            pruned_loss = k2.rnnt_loss_pruned(
+                logits=logits.float(),
+                symbols=y_padded,
+                ranges=ranges,
+                termination_symbol=blank_id,
+                boundary=boundary,
+                reduction="sum",
+                use_hat_loss=self.use_hat,
+            )
+        # logits : [B, T, prune_range, vocab_size]
+
         st_ranges = k2.get_rnnt_prune_ranges(
-          px_grad=st_px_grad,
-          py_grad=st_py_grad,
-          boundary=st_boundary,
-          s_range=st_prune_range,
+            px_grad=st_px_grad,
+            py_grad=st_py_grad,
+            boundary=st_boundary,
+            s_range=st_prune_range,
         )
         st_am_pruned, st_lm_pruned = k2.do_rnnt_pruning(
             am=self.st_joiner.encoder_proj(st_encoder_out),
@@ -503,18 +504,19 @@ class HENT_SRT(nn.Module):
         st_logits = self.st_joiner(st_am_pruned, st_lm_pruned, project_input=False)
         # Compute HAT loss for st
         with torch.cuda.amp.autocast(enabled=False):
-          pruned_st_loss = k2.rnnt_loss_pruned(
-              logits=st_logits.float(),
-              symbols=st_y.pad(mode="constant", padding_value=blank_id).to(torch.int64),
-              ranges=st_ranges,
-              termination_symbol=st_blank_id,
-              boundary=st_boundary,
-              reduction="sum",
-              use_hat_loss=self.use_hat,
-          )
-        
-        return simple_loss, st_simple_loss, pruned_loss, pruned_st_loss
+            pruned_st_loss = k2.rnnt_loss_pruned(
+                logits=st_logits.float(),
+                symbols=st_y.pad(mode="constant", padding_value=blank_id).to(
+                    torch.int64
+                ),
+                ranges=st_ranges,
+                termination_symbol=st_blank_id,
+                boundary=st_boundary,
+                reduction="sum",
+                use_hat_loss=self.use_hat,
+            )
 
+        return simple_loss, st_simple_loss, pruned_loss, pruned_st_loss
 
     def forward_transducer(
         self,
@@ -546,7 +548,6 @@ class HENT_SRT(nn.Module):
             part
         """
         # Now for the decoder, i.e., the prediction network
-        
 
         blank_id = self.decoder.blank_id
         sos_y = add_sos(y, sos_id=blank_id)
@@ -578,22 +579,21 @@ class HENT_SRT(nn.Module):
         #    am = penalize_abs_values_gt(am, 30.0, 1.0e-04)
 
         with torch.cuda.amp.autocast(enabled=False):
-          simple_loss, (px_grad, py_grad) = k2.rnnt_loss_smoothed(
-              lm=lm.float(),
-              am=am.float(),
-              symbols=y_padded,
-              termination_symbol=blank_id,
-              lm_only_scale=lm_scale,
-              am_only_scale=am_scale,
-              boundary=boundary,
-              reduction="sum",
-              return_grad=True,
-          )
-          
+            simple_loss, (px_grad, py_grad) = k2.rnnt_loss_smoothed(
+                lm=lm.float(),
+                am=am.float(),
+                symbols=y_padded,
+                termination_symbol=blank_id,
+                lm_only_scale=lm_scale,
+                am_only_scale=am_scale,
+                boundary=boundary,
+                reduction="sum",
+                return_grad=True,
+            )
 
         # am_pruned : [B, T, prune_range, encoder_dim]
         # lm_pruned : [B, T, prune_range, decoder_dim]
-       
+
         # ranges : [B, T, prune_range]
         ranges = k2.get_rnnt_prune_ranges(
             px_grad=px_grad,
@@ -606,20 +606,20 @@ class HENT_SRT(nn.Module):
             lm=self.joiner.decoder_proj(decoder_out),
             ranges=ranges,
         )
-          # project_input=False since we applied the decoder's input projections
-          # prior to do_rnnt_pruning (this is an optimization for speed).
+        # project_input=False since we applied the decoder's input projections
+        # prior to do_rnnt_pruning (this is an optimization for speed).
         logits = self.joiner(am_pruned, lm_pruned, project_input=False)
         with torch.cuda.amp.autocast(enabled=False):
-          pruned_loss = k2.rnnt_loss_pruned(
-              logits=logits.float(),
-              symbols=y_padded,
-              ranges=ranges,
-              termination_symbol=blank_id,
-              boundary=boundary,
-              reduction="sum",
-              use_hat_loss=self.use_hat,
-          )
-         # logits : [B, T, prune_range, vocab_size]
+            pruned_loss = k2.rnnt_loss_pruned(
+                logits=logits.float(),
+                symbols=y_padded,
+                ranges=ranges,
+                termination_symbol=blank_id,
+                boundary=boundary,
+                reduction="sum",
+                use_hat_loss=self.use_hat,
+            )
+        # logits : [B, T, prune_range, vocab_size]
         return simple_loss, pruned_loss
 
     def forward(
@@ -629,7 +629,7 @@ class HENT_SRT(nn.Module):
         y: k2.RaggedTensor,
         st_y: k2.RaggedTensor,
         prune_range: int = 5,
-        st_prune_range: int =10,
+        st_prune_range: int = 10,
         am_scale: float = 0.0,
         lm_scale: float = 0.0,
         use_st_cr_ctc: bool = False,
@@ -673,7 +673,7 @@ class HENT_SRT(nn.Module):
             Parameter for the time warping; larger values mean more warping.
             Set to ``None``, or less than ``1``, to disable.
             Used only if use_cr_ctc is True.
-            
+
         Returns:
           Return the transducer losses and CTC loss,
           in form of (simple_loss, pruned_loss, ctc_loss)
@@ -691,26 +691,31 @@ class HENT_SRT(nn.Module):
         assert x.size(0) == x_lens.size(0) == y.dim0, (x.shape, x_lens.shape, y.dim0)
         device = x.device
         if use_st_cr_ctc or use_asr_cr_ctc:
-          assert self.use_ctc or self.use_st_ctc
-          if use_spec_aug:
-              assert spec_augment is not None and spec_augment.time_warp_factor < 1
-              # Apply time warping before input duplicating
-              assert supervision_segments is not None
-              x = time_warp(
-                  x,
-                  time_warp_factor=time_warp_factor,
-                  supervision_segments=supervision_segments,
-              )
-              # Independently apply frequency masking and time masking to the two copies
-              x = spec_augment(x.repeat(2, 1, 1))
-          else:
-              x = x.repeat(2, 1, 1)
-          x_lens = x_lens.repeat(2)
-          y = k2.ragged.cat([y, y], axis=0)
-          if self.st_joiner != None and self.use_st_ctc:
-            st_y = k2.ragged.cat([st_y, st_y], axis=0)
+            assert self.use_ctc or self.use_st_ctc
+            if use_spec_aug:
+                assert spec_augment is not None and spec_augment.time_warp_factor < 1
+                # Apply time warping before input duplicating
+                assert supervision_segments is not None
+                x = time_warp(
+                    x,
+                    time_warp_factor=time_warp_factor,
+                    supervision_segments=supervision_segments,
+                )
+                # Independently apply frequency masking and time masking to the two copies
+                x = spec_augment(x.repeat(2, 1, 1))
+            else:
+                x = x.repeat(2, 1, 1)
+            x_lens = x_lens.repeat(2)
+            y = k2.ragged.cat([y, y], axis=0)
+            if self.st_joiner != None and self.use_st_ctc:
+                st_y = k2.ragged.cat([st_y, st_y], axis=0)
         # Compute encoder outputs
-        encoder_out, encoder_out_lens, st_encoder_out, st_encoder_out_lens = self.forward_encoder(x, x_lens)
+        (
+            encoder_out,
+            encoder_out_lens,
+            st_encoder_out,
+            st_encoder_out_lens,
+        ) = self.forward_encoder(x, x_lens)
 
         row_splits = y.shape.row_splits(1)
         y_lens = row_splits[1:] - row_splits[:-1]
@@ -720,38 +725,43 @@ class HENT_SRT(nn.Module):
         if self.use_transducer:
             # Compute transducer loss
             if self.st_joiner != None:
-              simple_loss, st_simple_loss, pruned_loss, st_pruned_loss = self.forward_st_transducer(
-                  st_encoder_out=st_encoder_out,
-                  st_encoder_out_lens=st_encoder_out_lens,
-                  encoder_out=encoder_out,
-                  encoder_out_lens=encoder_out_lens,
-                  y=y.to(x.device),
-                  y_lens=y_lens,
-                  st_y=st_y.to(x.device),
-                  st_y_lens=st_y_lens,
-                  prune_range=st_prune_range,
-                  am_scale=am_scale,
-                  lm_scale=lm_scale,
-              )
-              if use_asr_cr_ctc:
-                simple_loss = simple_loss * 0.5
-                pruned_loss = pruned_loss * 0.5
-              if use_st_cr_ctc:
-                st_simple_loss = st_simple_loss * 0.5
-                st_pruned_loss = st_pruned_loss * 0.5
+                (
+                    simple_loss,
+                    st_simple_loss,
+                    pruned_loss,
+                    st_pruned_loss,
+                ) = self.forward_st_transducer(
+                    st_encoder_out=st_encoder_out,
+                    st_encoder_out_lens=st_encoder_out_lens,
+                    encoder_out=encoder_out,
+                    encoder_out_lens=encoder_out_lens,
+                    y=y.to(x.device),
+                    y_lens=y_lens,
+                    st_y=st_y.to(x.device),
+                    st_y_lens=st_y_lens,
+                    prune_range=st_prune_range,
+                    am_scale=am_scale,
+                    lm_scale=lm_scale,
+                )
+                if use_asr_cr_ctc:
+                    simple_loss = simple_loss * 0.5
+                    pruned_loss = pruned_loss * 0.5
+                if use_st_cr_ctc:
+                    st_simple_loss = st_simple_loss * 0.5
+                    st_pruned_loss = st_pruned_loss * 0.5
             else:
                 simple_loss, pruned_loss = self.forward_transducer(
-                  encoder_out=encoder_out,
-                  encoder_out_lens=encoder_out_lens,
-                  y=y.to(x.device),
-                  y_lens=y_lens,
-                  prune_range=prune_range,
-                  am_scale=am_scale,
-                  lm_scale=lm_scale,
-              )
+                    encoder_out=encoder_out,
+                    encoder_out_lens=encoder_out_lens,
+                    y=y.to(x.device),
+                    y_lens=y_lens,
+                    prune_range=prune_range,
+                    am_scale=am_scale,
+                    lm_scale=lm_scale,
+                )
                 if use_asr_cr_ctc:
-                  simple_loss = simple_loss * 0.5
-                  pruned_loss = pruned_loss * 0.5
+                    simple_loss = simple_loss * 0.5
+                    pruned_loss = pruned_loss * 0.5
                 st_simple_loss, st_pruned_loss = torch.empty(0), torch.empty(0)
         else:
             simple_loss = torch.empty(0)
@@ -808,4 +818,13 @@ class HENT_SRT(nn.Module):
             st_ctc_loss = torch.empty(0)
             st_cr_loss = torch.empty(0)
 
-        return simple_loss, st_simple_loss, pruned_loss, st_pruned_loss, ctc_loss, st_ctc_loss, cr_loss, st_cr_loss
+        return (
+            simple_loss,
+            st_simple_loss,
+            pruned_loss,
+            st_pruned_loss,
+            ctc_loss,
+            st_ctc_loss,
+            cr_loss,
+            st_cr_loss,
+        )

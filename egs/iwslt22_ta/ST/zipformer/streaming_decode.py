@@ -282,9 +282,7 @@ def stack_states(state_list: List[List[torch.Tensor]]) -> List[torch.Tensor]:
     )
     batch_states.append(cached_embed_left_pad)
 
-    processed_lens = torch.cat(
-        [state_list[i][-1] for i in range(batch_size)], dim=0
-    )
+    processed_lens = torch.cat([state_list[i][-1] for i in range(batch_size)], dim=0)
     batch_states.append(processed_lens)
 
     return batch_states
@@ -322,9 +320,7 @@ def unstack_states(batch_states: List[Tensor]) -> List[List[Tensor]]:
     for layer in range(tot_num_layers):
         layer_offset = layer * 6
         # cached_key: (left_context_len, batch_size, key_dim)
-        cached_key_list = batch_states[layer_offset].chunk(
-            chunks=batch_size, dim=1
-        )
+        cached_key_list = batch_states[layer_offset].chunk(chunks=batch_size, dim=1)
         # cached_nonlin_attn: (num_heads, batch_size, left_context_len, head_dim)
         cached_nonlin_attn_list = batch_states[layer_offset + 1].chunk(
             chunks=batch_size, dim=1
@@ -355,9 +351,7 @@ def unstack_states(batch_states: List[Tensor]) -> List[List[Tensor]]:
                 cached_conv2_list[i],
             ]
 
-    cached_embed_left_pad_list = batch_states[-2].chunk(
-        chunks=batch_size, dim=0
-    )
+    cached_embed_left_pad_list = batch_states[-2].chunk(chunks=batch_size, dim=0)
     for i in range(batch_size):
         state_list[i].append(cached_embed_left_pad_list[i])
 
@@ -380,11 +374,7 @@ def streaming_forward(
     Returns encoder outputs, output lengths, and updated states.
     """
     cached_embed_left_pad = states[-2]
-    (
-        x,
-        x_lens,
-        new_cached_embed_left_pad,
-    ) = model.encoder_embed.streaming_forward(
+    (x, x_lens, new_cached_embed_left_pad,) = model.encoder_embed.streaming_forward(
         x=features,
         x_lens=feature_lens,
         cached_left_pad=cached_embed_left_pad,
@@ -404,9 +394,7 @@ def streaming_forward(
     new_processed_lens = processed_lens + x_lens
 
     # (batch, left_context_size + chunk_size)
-    src_key_padding_mask = torch.cat(
-        [processed_mask, src_key_padding_mask], dim=1
-    )
+    src_key_padding_mask = torch.cat([processed_mask, src_key_padding_mask], dim=1)
 
     x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
     encoder_states = states[:-2]
@@ -494,9 +482,7 @@ def decode_one_chunk(
     encoder_out = model.joiner.encoder_proj(encoder_out)
 
     if params.decoding_method == "greedy_search":
-        greedy_search(
-            model=model, encoder_out=encoder_out, streams=decode_streams
-        )
+        greedy_search(model=model, encoder_out=encoder_out, streams=decode_streams)
     elif params.decoding_method == "fast_beam_search":
         processed_lens = torch.tensor(processed_lens, device=device)
         processed_lens = processed_lens + encoder_out_lens
@@ -517,9 +503,7 @@ def decode_one_chunk(
             num_active_paths=params.num_active_paths,
         )
     else:
-        raise ValueError(
-            f"Unsupported decoding method: {params.decoding_method}"
-        )
+        raise ValueError(f"Unsupported decoding method: {params.decoding_method}")
 
     states = unstack_states(new_states)
 
@@ -577,9 +561,7 @@ def decode_dataset(
     decode_streams = []
     for num, cut in enumerate(cuts):
         # each utterance has a DecodeStream.
-        initial_states = get_init_states(
-            model=model, batch_size=1, device=device
-        )
+        initial_states = get_init_states(model=model, batch_size=1, device=device)
         decode_stream = DecodeStream(
             params=params,
             cut_id=cut.id,
@@ -649,9 +631,7 @@ def decode_dataset(
     elif params.decoding_method == "modified_beam_search":
         key = f"num_active_paths_{params.num_active_paths}"
     else:
-        raise ValueError(
-            f"Unsupported decoding method: {params.decoding_method}"
-        )
+        raise ValueError(f"Unsupported decoding method: {params.decoding_method}")
     return {key: decode_results}
 
 
@@ -684,8 +664,7 @@ def save_results(
 
     test_set_wers = sorted(test_set_wers.items(), key=lambda x: x[1])
     errs_info = (
-        params.res_dir
-        / f"wer-summary-{test_set_name}-{key}-{params.suffix}.txt"
+        params.res_dir / f"wer-summary-{test_set_name}-{key}-{params.suffix}.txt"
     )
     with open(errs_info, "w") as f:
         print("settings\tWER", file=f)
@@ -718,9 +697,7 @@ def main():
         params.suffix = f"epoch-{params.epoch}-avg-{params.avg}"
 
     assert params.causal, params.causal
-    assert (
-        "," not in params.chunk_size
-    ), "chunk_size should be one value in decoding."
+    assert "," not in params.chunk_size, "chunk_size should be one value in decoding."
     assert (
         "," not in params.left_context_frames
     ), "left_context_frames should be one value in decoding."
@@ -760,9 +737,9 @@ def main():
 
     if not params.use_averaged_model:
         if params.iter > 0:
-            filenames = find_checkpoints(
-                params.exp_dir, iteration=-params.iter
-            )[: params.avg]
+            filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
+                : params.avg
+            ]
             if len(filenames) == 0:
                 raise ValueError(
                     f"No checkpoints found for"
@@ -789,9 +766,9 @@ def main():
             model.load_state_dict(average_checkpoints(filenames, device=device))
     else:
         if params.iter > 0:
-            filenames = find_checkpoints(
-                params.exp_dir, iteration=-params.iter
-            )[: params.avg + 1]
+            filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
+                : params.avg + 1
+            ]
             if len(filenames) == 0:
                 raise ValueError(
                     f"No checkpoints found for"

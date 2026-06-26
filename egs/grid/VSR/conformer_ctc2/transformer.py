@@ -938,7 +938,7 @@ def encoder_padding_mask(
         (
             supervisions["sequence_idx"],
             supervisions["start_frame"],
-            supervisions["num_frames"],  
+            supervisions["num_frames"],
         ),
         1,
     ).to(torch.int32)

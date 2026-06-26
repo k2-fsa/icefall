@@ -170,12 +170,13 @@ def greedy_search_batch(
             scores=ans_scores,
         )
 
+
 def greedy_search_st(
     model: nn.Module,
     encoder_out: torch.Tensor,
     st_encoder_out: torch.Tensor,
     max_sym_per_frame: int,
-    max_sym_per_frame_asr:int=1,
+    max_sym_per_frame_asr: int = 1,
     st_blank_penalty: float = 0.0,
     return_timestamps: bool = False,
 ) -> Union[List[int], DecodingResults]:
@@ -203,7 +204,7 @@ def greedy_search_st(
     blank_id_st = model.st_decoder.blank_id
     context_size_st = model.st_decoder.context_size
     unk_id_st = getattr(model, "unk_id", blank_id_st)
-    
+
     blank_id = model.decoder.blank_id
     context_size = model.decoder.context_size
     unk_id = getattr(model, "unk_id", blank_id_st)
@@ -213,14 +214,14 @@ def greedy_search_st(
     decoder_input_st = torch.tensor(
         [-1] * (context_size_st - 1) + [blank_id_st], device=device, dtype=torch.int64
     ).reshape(1, context_size_st)
-    
+
     decoder_input = torch.tensor(
         [-1] * (context_size - 1) + [blank_id], device=device, dtype=torch.int64
     ).reshape(1, context_size)
-    
+
     decoder_out_st = model.st_decoder(decoder_input_st, need_pad=False)
     decoder_out_st = model.st_joiner.decoder_proj(decoder_out_st)
-    encoder_out_st = model.st_joiner.encoder_proj(st_encoder_out)    
+    encoder_out_st = model.st_joiner.encoder_proj(st_encoder_out)
 
     decoder_out = model.decoder(decoder_input, need_pad=False)
     decoder_out = model.joiner.decoder_proj(decoder_out)
@@ -264,9 +265,9 @@ def greedy_search_st(
         if y_st not in (blank_id_st, unk_id_st):
             hyp_st.append(y_st)
             timestamp_st.append(t)
-            decoder_input_st = torch.tensor([hyp_st[-context_size_st:]], device=device).reshape(
-                1, context_size_st
-            )
+            decoder_input_st = torch.tensor(
+                [hyp_st[-context_size_st:]], device=device
+            ).reshape(1, context_size_st)
 
             decoder_out_st = model.st_decoder(decoder_input_st, need_pad=False)
             decoder_out_st = model.st_joiner.decoder_proj(decoder_out_st)
@@ -276,7 +277,7 @@ def greedy_search_st(
         else:
             sym_per_frame = 0
             t += 1
-        
+
     T = encoder_out.size(1)
     t = 0
     hyp = [blank_id] * context_size
@@ -324,7 +325,7 @@ def greedy_search_st(
         else:
             sym_per_frame = 0
             t += 1
-            
+
     hyp_st = hyp_st[context_size_st:]
     hyp = hyp[context_size:]  # remove blanks
 
@@ -335,6 +336,7 @@ def greedy_search_st(
             hyps=[hyp, hyp_st],
             timestamps=[timestamp, timestamp_st],
         )
+
 
 def greedy_search_batch_st(
     model: nn.Module,
@@ -375,18 +377,16 @@ def greedy_search_batch_st(
     blank_id_st = model.st_decoder.blank_id
     unk_id_st = getattr(model, "unk_id", blank_id_st)
     context_size_st = model.st_decoder.context_size
-    
-    
+
     blank_id = model.decoder.blank_id
     unk_id = getattr(model, "unk_id", blank_id)
     context_size = model.decoder.context_size
-    
 
     batch_size_list = packed_st_encoder_out.batch_sizes.tolist()
     N = st_encoder_out.size(0)
     assert torch.all(st_encoder_out_lens > 0), st_encoder_out_lens
     assert N == batch_size_list[0], (N, batch_size_list)
-    
+
     hyps_st = [[-1] * (context_size_st - 1) + [blank_id_st] for _ in range(N)]
 
     timestamps_st = [[] for _ in range(N)]
@@ -446,7 +446,7 @@ def greedy_search_batch_st(
             )
             decoder_out_st = model.st_decoder(decoder_input_st, need_pad=False)
             decoder_out_st = model.st_joiner.decoder_proj(decoder_out_st)
-    
+
     # ASR
     packed_encoder_out = torch.nn.utils.rnn.pack_padded_sequence(
         input=encoder_out,
@@ -521,7 +521,7 @@ def greedy_search_batch_st(
         ans_st.append(sorted_ans_st[unsorted_indices_st[i]])
         ans_timestamps_st.append(timestamps_st[unsorted_indices_st[i]])
         ans_scores_st.append(scores_st[unsorted_indices_st[i]])
-    
+
     # ASR
     sorted_ans = [h[context_size:] for h in hyps]
     ans = []
@@ -533,7 +533,6 @@ def greedy_search_batch_st(
         ans_timestamps.append(timestamps[unsorted_indices[i]])
         ans_scores.append(scores[unsorted_indices[i]])
 
-
     if not return_timestamps:
         return [ans, ans_st]
     else:
@@ -542,7 +541,8 @@ def greedy_search_batch_st(
             timestamps=[ans_timestamps, ans_timestamps_st]
             # scores=[ans_scores, ans_scores_st],
         )
-        
+
+
 @dataclass
 class Hypothesis:
     # The predicted tokens so far.
@@ -568,9 +568,8 @@ class Hypothesis:
 
     # Context graph state
     context_state: Optional[ContextState] = None
-    
+
     decoder_state: Optional[Tuple[torch.Tensor, torch.Tensor]] = None
-    
 
     @property
     def key(self) -> str:
@@ -819,7 +818,7 @@ def modified_beam_search(
         finalized_B = B[batch_size:] + finalized_B
         B = B[:batch_size]
         hyps_shape = get_hyps_shape(B).to(device)
-        
+
         finalized_B_st = B_st[batch_size:] + finalized_B_st
         B_st = B_st[:batch_size]
 
@@ -874,20 +873,24 @@ def modified_beam_search(
 
         # For blank symbol, log-prob is log-sigmoid of the score
         if use_hat == True:
-          # For blank symbol, log-prob is log-sigmoid of the score
-          logp_b = torch.nn.functional.logsigmoid(logits[..., 0])
-          # Additionally, to ensure the the probs of blank and non-blank sum to 1, we
-          # need to add the following term to the log-probs of non-blank symbols. This
-          # is equivalent to log(1 - sigmoid(logits[..., 0])).
-          #breakpoint()
-          nb_shift = logp_b - logits[..., 0]
-          nb_shift = nb_shift.unsqueeze(-1)
-          log_probs1 = (logits[..., 1:] / temperature).log_softmax(dim=-1) + nb_shift # (num_hyps, vocab_size-1)
-          log_probs = torch.cat((logp_b.unsqueeze(-1), log_probs1), dim=-1) 
-          log_probs.add_(ys_log_probs)
+            # For blank symbol, log-prob is log-sigmoid of the score
+            logp_b = torch.nn.functional.logsigmoid(logits[..., 0])
+            # Additionally, to ensure the the probs of blank and non-blank sum to 1, we
+            # need to add the following term to the log-probs of non-blank symbols. This
+            # is equivalent to log(1 - sigmoid(logits[..., 0])).
+            # breakpoint()
+            nb_shift = logp_b - logits[..., 0]
+            nb_shift = nb_shift.unsqueeze(-1)
+            log_probs1 = (logits[..., 1:] / temperature).log_softmax(
+                dim=-1
+            ) + nb_shift  # (num_hyps, vocab_size-1)
+            log_probs = torch.cat((logp_b.unsqueeze(-1), log_probs1), dim=-1)
+            log_probs.add_(ys_log_probs)
         else:
-          log_probs = (logits / temperature).log_softmax(dim=-1)  # (num_hyps, vocab_size)
-          log_probs.add_(ys_log_probs)
+            log_probs = (logits / temperature).log_softmax(
+                dim=-1
+            )  # (num_hyps, vocab_size)
+            log_probs.add_(ys_log_probs)
 
         vocab_size = log_probs.size(-1)
 
@@ -898,7 +901,6 @@ def modified_beam_search(
             row_splits=row_splits, cached_tot_size=log_probs.numel()
         )
         ragged_log_probs = k2.RaggedTensor(shape=log_probs_shape, value=log_probs)
-
 
         # st
         current_encoder_out_st = torch.index_select(
@@ -928,9 +930,11 @@ def modified_beam_search(
             log_probs_st = torch.cat((logp_b_st.unsqueeze(-1), log_probs1_st), dim=-1)
             log_probs_st.add_(ys_log_probs_st)
         else:
-            log_probs_st = (logits_st / temperature).log_softmax(dim=-1)  # (num_hyps, vocab_size)
+            log_probs_st = (logits_st / temperature).log_softmax(
+                dim=-1
+            )  # (num_hyps, vocab_size)
             log_probs_st.add_(ys_log_probs_st)
-            
+
         vocab_size_st = log_probs_st.size(-1)
 
         log_probs_st = log_probs_st.reshape(-1)
@@ -940,7 +944,9 @@ def modified_beam_search(
         log_probs_shape_st = k2.ragged.create_ragged_shape2(
             row_splits=row_splits_st, cached_tot_size=log_probs_st.numel()
         )
-        ragged_log_probs_st = k2.RaggedTensor(shape=log_probs_shape_st, value=log_probs_st)
+        ragged_log_probs_st = k2.RaggedTensor(
+            shape=log_probs_shape_st, value=log_probs_st
+        )
 
         for i in range(batch_size):
             topk_log_probs, topk_indexes = ragged_log_probs[i].topk(beam)
@@ -1092,7 +1098,7 @@ def modified_beam_search_st(
         current_encoder_out_st = current_encoder_out_st.unsqueeze(1).unsqueeze(1)
         # current_encoder_out's shape is (batch_size, 1, 1, encoder_out_dim)
         offset = end
-        
+
         finalized_B_st = B_st[batch_size:] + finalized_B_st
         B_st = B_st[:batch_size]
 
@@ -1141,9 +1147,11 @@ def modified_beam_search_st(
             log_probs_st = torch.cat((logp_b_st.unsqueeze(-1), log_probs1_st), dim=-1)
             log_probs_st.add_(ys_log_probs_st)
         else:
-            log_probs_st = (logits_st / temperature).log_softmax(dim=-1)  # (num_hyps, vocab_size)
+            log_probs_st = (logits_st / temperature).log_softmax(
+                dim=-1
+            )  # (num_hyps, vocab_size)
             log_probs_st.add_(ys_log_probs_st)
-            
+
         vocab_size_st = log_probs_st.size(-1)
 
         log_probs_st = log_probs_st.reshape(-1)
@@ -1153,7 +1161,9 @@ def modified_beam_search_st(
         log_probs_shape_st = k2.ragged.create_ragged_shape2(
             row_splits=row_splits_st, cached_tot_size=log_probs_st.numel()
         )
-        ragged_log_probs_st = k2.RaggedTensor(shape=log_probs_shape_st, value=log_probs_st)
+        ragged_log_probs_st = k2.RaggedTensor(
+            shape=log_probs_shape_st, value=log_probs_st
+        )
 
         for i in range(batch_size):
             topk_log_probs_st, topk_indexes_st = ragged_log_probs_st[i].topk(beam)
@@ -1180,7 +1190,6 @@ def modified_beam_search_st(
                 )
                 B_st[i].add(new_hyp_st)
 
-
     B_st = B_st + finalized_B_st
     best_hyps_st = [b.get_most_probable(length_norm=True) for b in B_st]
 
@@ -1200,7 +1209,7 @@ def modified_beam_search_st(
             hyps=[None, ans_st],
             timestamps=[None, ans_timestamps_st],
         )
-        
+
 
 def modified_beam_search_st2(
     model: nn.Module,
@@ -1275,7 +1284,7 @@ def modified_beam_search_st2(
         current_encoder_out_st = current_encoder_out_st.unsqueeze(1).unsqueeze(1)
         # current_encoder_out's shape is (batch_size, 1, 1, encoder_out_dim)
         offset = end
-        
+
         finalized_B_st = B_st[batch_size:] + finalized_B_st
         B_st = B_st[:batch_size]
 
@@ -1292,7 +1301,7 @@ def modified_beam_search_st2(
             device=device,
             dtype=torch.int64,
         )  # (num_hyps, context_size)
-       
+
         decoder_out_st = model.st_decoder(decoder_input_st, need_pad=False).unsqueeze(1)
         decoder_out_st = model.st_joiner.decoder_proj(decoder_out_st)
         # decoder_out is of shape (num_hyps, 1, 1, joiner_dim)
@@ -1326,9 +1335,11 @@ def modified_beam_search_st2(
             log_probs_st = torch.cat((logp_b_st.unsqueeze(-1), log_probs1_st), dim=-1)
             log_probs_st.add_(ys_log_probs_st)
         else:
-            log_probs_st = (logits_st / temperature).log_softmax(dim=-1)  # (num_hyps, vocab_size)
+            log_probs_st = (logits_st / temperature).log_softmax(
+                dim=-1
+            )  # (num_hyps, vocab_size)
             log_probs_st.add_(ys_log_probs_st)
-            
+
         vocab_size_st = log_probs_st.size(-1)
 
         log_probs_st = log_probs_st.reshape(-1)
@@ -1338,7 +1349,9 @@ def modified_beam_search_st2(
         log_probs_shape_st = k2.ragged.create_ragged_shape2(
             row_splits=row_splits_st, cached_tot_size=log_probs_st.numel()
         )
-        ragged_log_probs_st = k2.RaggedTensor(shape=log_probs_shape_st, value=log_probs_st)
+        ragged_log_probs_st = k2.RaggedTensor(
+            shape=log_probs_shape_st, value=log_probs_st
+        )
 
         for i in range(batch_size):
             topk_log_probs_st, topk_indexes_st = ragged_log_probs_st[i].topk(beam)
@@ -1434,20 +1447,24 @@ def modified_beam_search_st2(
 
         # For blank symbol, log-prob is log-sigmoid of the score
         if use_hat == True:
-          # For blank symbol, log-prob is log-sigmoid of the score
-          logp_b = torch.nn.functional.logsigmoid(logits[..., 0])
-          # Additionally, to ensure the the probs of blank and non-blank sum to 1, we
-          # need to add the following term to the log-probs of non-blank symbols. This
-          # is equivalent to log(1 - sigmoid(logits[..., 0])).
-          #breakpoint()
-          nb_shift = logp_b - logits[..., 0]
-          nb_shift = nb_shift.unsqueeze(-1)
-          log_probs1 = (logits[..., 1:] / temperature).log_softmax(dim=-1) + nb_shift # (num_hyps, vocab_size-1)
-          log_probs = torch.cat((logp_b.unsqueeze(-1), log_probs1), dim=-1) 
-          log_probs.add_(ys_log_probs)
+            # For blank symbol, log-prob is log-sigmoid of the score
+            logp_b = torch.nn.functional.logsigmoid(logits[..., 0])
+            # Additionally, to ensure the the probs of blank and non-blank sum to 1, we
+            # need to add the following term to the log-probs of non-blank symbols. This
+            # is equivalent to log(1 - sigmoid(logits[..., 0])).
+            # breakpoint()
+            nb_shift = logp_b - logits[..., 0]
+            nb_shift = nb_shift.unsqueeze(-1)
+            log_probs1 = (logits[..., 1:] / temperature).log_softmax(
+                dim=-1
+            ) + nb_shift  # (num_hyps, vocab_size-1)
+            log_probs = torch.cat((logp_b.unsqueeze(-1), log_probs1), dim=-1)
+            log_probs.add_(ys_log_probs)
         else:
-          log_probs = (logits / temperature).log_softmax(dim=-1)  # (num_hyps, vocab_size)
-          log_probs.add_(ys_log_probs)
+            log_probs = (logits / temperature).log_softmax(
+                dim=-1
+            )  # (num_hyps, vocab_size)
+            log_probs.add_(ys_log_probs)
 
         vocab_size = log_probs.size(-1)
 
@@ -1458,7 +1475,7 @@ def modified_beam_search_st2(
             row_splits=row_splits, cached_tot_size=log_probs.numel()
         )
         ragged_log_probs = k2.RaggedTensor(shape=log_probs_shape, value=log_probs)
-    
+
         for i in range(batch_size):
             topk_log_probs, topk_indexes = ragged_log_probs[i].topk(beam)
             with warnings.catch_warnings():
@@ -1495,7 +1512,6 @@ def modified_beam_search_st2(
         ans.append(sorted_ans[unsorted_indices[i]])
         ans_timestamps.append(sorted_timestamps[unsorted_indices[i]])
 
-    
     B_st = B_st + finalized_B_st
     best_hyps_st = [b.get_most_probable(length_norm=True) for b in B_st]
 
@@ -1593,7 +1609,7 @@ def modified_beam_search_st2_lstm(
         offset = end
         # breakpoint()
         finalized_B_st = B_st[batch_size:] + finalized_B_st
-        B_st = B_st[:batch_size]   
+        B_st = B_st[:batch_size]
         hyps_shape_st = get_hyps_shape(B_st).to(device)
 
         A_st = [list(b) for b in B_st]
@@ -1603,17 +1619,25 @@ def modified_beam_search_st2_lstm(
         )  # (num_hyps, 1)
 
         decoder_input_st = torch.tensor(
-                    [hyp.ys[-1] for hyps in A_st for hyp in hyps],
-                        device=device,
-                        dtype=torch.int64,
-                        ).unsqueeze(1)  # (num_hyps, 1)
-        
+            [hyp.ys[-1] for hyps in A_st for hyp in hyps],
+            device=device,
+            dtype=torch.int64,
+        ).unsqueeze(
+            1
+        )  # (num_hyps, 1)
+
         st_decode_state = [hyp.decoder_state[-1] for hyps in A_st for hyp in hyps]
-        cur_h_states_st = torch.cat([state[0] for state in st_decode_state], dim=1)  # (num_layers, batch, hidden_dim)
-        cur_c_states_st = torch.cat([state[1] for state in st_decode_state], dim=1)  # (num_layers, batch, hidden_dim)
+        cur_h_states_st = torch.cat(
+            [state[0] for state in st_decode_state], dim=1
+        )  # (num_layers, batch, hidden_dim)
+        cur_c_states_st = torch.cat(
+            [state[1] for state in st_decode_state], dim=1
+        )  # (num_layers, batch, hidden_dim)
         st_decode_state = (cur_h_states_st, cur_c_states_st)
-                       
-        decoder_out_st, (new_h_states, new_c_states) = model.st_decoder(decoder_input_st, st_decode_state, need_pad=False)
+
+        decoder_out_st, (new_h_states, new_c_states) = model.st_decoder(
+            decoder_input_st, st_decode_state, need_pad=False
+        )
         decoder_out_st = decoder_out_st.unsqueeze(1)
         decoder_out_st = model.st_joiner.decoder_proj(decoder_out_st)
         # decoder_out is of shape (num_hyps, 1, 1, joiner_dim)
@@ -1645,9 +1669,11 @@ def modified_beam_search_st2_lstm(
             log_probs_st = torch.cat((logp_b_st.unsqueeze(-1), log_probs1_st), dim=-1)
             log_probs_st.add_(ys_log_probs_st)
         else:
-            log_probs_st = (logits_st / temperature).log_softmax(dim=-1)  # (num_hyps, vocab_size)
+            log_probs_st = (logits_st / temperature).log_softmax(
+                dim=-1
+            )  # (num_hyps, vocab_size)
             log_probs_st.add_(ys_log_probs_st)
-            
+
         vocab_size_st = log_probs_st.size(-1)
 
         log_probs_st = log_probs_st.reshape(-1)
@@ -1657,7 +1683,9 @@ def modified_beam_search_st2_lstm(
         log_probs_shape_st = k2.ragged.create_ragged_shape2(
             row_splits=row_splits_st, cached_tot_size=log_probs_st.numel()
         )
-        ragged_log_probs_st = k2.RaggedTensor(shape=log_probs_shape_st, value=log_probs_st)
+        ragged_log_probs_st = k2.RaggedTensor(
+            shape=log_probs_shape_st, value=log_probs_st
+        )
 
         for i in range(batch_size):
             topk_log_probs_st, topk_indexes_st = ragged_log_probs_st[i].topk(beam)
@@ -1679,14 +1707,14 @@ def modified_beam_search_st2_lstm(
                     new_timestamp_st.append(t)
 
                 new_log_prob_st = topk_log_probs_st[k]
-                
-            #      Hypothesis(
-            #     ys=[blank_id_st],
-            #     log_prob=torch.zeros(1, dtype=torch.float32, device=device),
-            #     timestamp=[],
-            #     decoder_state=[(h, c)],
-            # )
-            # LSTM decoder_state 
+
+                #      Hypothesis(
+                #     ys=[blank_id_st],
+                #     log_prob=torch.zeros(1, dtype=torch.float32, device=device),
+                #     timestamp=[],
+                #     decoder_state=[(h, c)],
+                # )
+                # LSTM decoder_state
                 if new_token == blank_id_st:
                     new_hyp_st = Hypothesis(
                         ys=new_ys_st,
@@ -1700,10 +1728,12 @@ def modified_beam_search_st2_lstm(
                         ys=new_ys_st,
                         log_prob=new_log_prob_st,
                         timestamp=new_timestamp_st,
-                        decoder_state=[(
-                            new_h_states[:, hyp_idx: hyp_idx + 1, :],
-                            new_c_states[:, hyp_idx: hyp_idx + 1, :],
-                        )],
+                        decoder_state=[
+                            (
+                                new_h_states[:, hyp_idx : hyp_idx + 1, :],
+                                new_c_states[:, hyp_idx : hyp_idx + 1, :],
+                            )
+                        ],
                     )
                 # new_hyp_st = Hypothesis(
                 #     ys=new_ys_st, log_prob=new_log_prob_st, timestamp=new_timestamp_st
@@ -1780,20 +1810,24 @@ def modified_beam_search_st2_lstm(
 
         # For blank symbol, log-prob is log-sigmoid of the score
         if use_hat == True:
-          # For blank symbol, log-prob is log-sigmoid of the score
-          logp_b = torch.nn.functional.logsigmoid(logits[..., 0])
-          # Additionally, to ensure the the probs of blank and non-blank sum to 1, we
-          # need to add the following term to the log-probs of non-blank symbols. This
-          # is equivalent to log(1 - sigmoid(logits[..., 0])).
-          #breakpoint()
-          nb_shift = logp_b - logits[..., 0]
-          nb_shift = nb_shift.unsqueeze(-1)
-          log_probs1 = (logits[..., 1:] / temperature).log_softmax(dim=-1) + nb_shift # (num_hyps, vocab_size-1)
-          log_probs = torch.cat((logp_b.unsqueeze(-1), log_probs1), dim=-1) 
-          log_probs.add_(ys_log_probs)
+            # For blank symbol, log-prob is log-sigmoid of the score
+            logp_b = torch.nn.functional.logsigmoid(logits[..., 0])
+            # Additionally, to ensure the the probs of blank and non-blank sum to 1, we
+            # need to add the following term to the log-probs of non-blank symbols. This
+            # is equivalent to log(1 - sigmoid(logits[..., 0])).
+            # breakpoint()
+            nb_shift = logp_b - logits[..., 0]
+            nb_shift = nb_shift.unsqueeze(-1)
+            log_probs1 = (logits[..., 1:] / temperature).log_softmax(
+                dim=-1
+            ) + nb_shift  # (num_hyps, vocab_size-1)
+            log_probs = torch.cat((logp_b.unsqueeze(-1), log_probs1), dim=-1)
+            log_probs.add_(ys_log_probs)
         else:
-          log_probs = (logits / temperature).log_softmax(dim=-1)  # (num_hyps, vocab_size)
-          log_probs.add_(ys_log_probs)
+            log_probs = (logits / temperature).log_softmax(
+                dim=-1
+            )  # (num_hyps, vocab_size)
+            log_probs.add_(ys_log_probs)
 
         vocab_size = log_probs.size(-1)
 
@@ -1804,7 +1838,7 @@ def modified_beam_search_st2_lstm(
             row_splits=row_splits, cached_tot_size=log_probs.numel()
         )
         ragged_log_probs = k2.RaggedTensor(shape=log_probs_shape, value=log_probs)
-    
+
         for i in range(batch_size):
             topk_log_probs, topk_indexes = ragged_log_probs[i].topk(beam)
             with warnings.catch_warnings():
@@ -1841,7 +1875,6 @@ def modified_beam_search_st2_lstm(
         ans.append(sorted_ans[unsorted_indices[i]])
         ans_timestamps.append(sorted_timestamps[unsorted_indices[i]])
 
-    
     B_st = B_st + finalized_B_st
     best_hyps_st = [b.get_most_probable(length_norm=True) for b in B_st]
     if st_lstm_pred:
@@ -2144,7 +2177,7 @@ def modified_beam_search_lm_shallow_fusion(
             hyps=ans,
             timestamps=ans_timestamps,
         )
-    
+
 
 def modified_beam_search_lm_rescore_LODR(
     model: nn.Module,
@@ -2241,7 +2274,7 @@ def modified_beam_search_lm_rescore_LODR(
             device=device,
             dtype=torch.int64,
         )  # (num_hyps, context_size)
-        
+
         decoder_out = model.decoder(decoder_input, need_pad=False).unsqueeze(1)
         decoder_out = model.joiner.decoder_proj(decoder_out)
         # decoder_out is of shape (num_hyps, 1, 1, joiner_dim)
@@ -2268,9 +2301,9 @@ def modified_beam_search_lm_rescore_LODR(
         # is equivalent to log(1 - sigmoid(logits[..., 0])).
         nb_shift = logp_b - logits[..., 0]
         nb_shift = nb_shift.unsqueeze(-1)
-        log_probs1 = (logits[..., 1:]/ temperature).log_softmax(dim=-1) + nb_shift
+        log_probs1 = (logits[..., 1:] / temperature).log_softmax(dim=-1) + nb_shift
 
-        #log_probs = (logits / temperature).log_softmax(dim=-1)  # (num_hyps, vocab_size)
+        # log_probs = (logits / temperature).log_softmax(dim=-1)  # (num_hyps, vocab_size)
         log_probs = torch.cat((logp_b.unsqueeze(-1), log_probs1), dim=-1)
 
         log_probs.add_(ys_log_probs)

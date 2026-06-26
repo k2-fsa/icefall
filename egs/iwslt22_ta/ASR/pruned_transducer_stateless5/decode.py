@@ -44,7 +44,7 @@ import pdb
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
-from lhotse.qa import validate_cut
+
 import k2
 import sentencepiece as spm
 import torch
@@ -61,6 +61,7 @@ from beam_search import (
     modified_beam_search,
     modified_beam_search_rnnlm_shallow_fusion,
 )
+from lhotse.qa import validate_cut
 from train import add_model_arguments, get_params, get_transducer_model
 
 from icefall.checkpoint import (
@@ -420,8 +421,7 @@ def decode_one_batch(
             simulate_streaming=True,
         )
     else:
-        encoder_out, encoder_out_lens = model.encoder(
-            x=feature, x_lens=feature_lens)
+        encoder_out, encoder_out_lens = model.encoder(x=feature, x_lens=feature_lens)
 
     hyps = []
 
@@ -556,6 +556,8 @@ def decode_one_batch(
         return {key: hyps}
     else:
         return {f"beam_size_{params.beam_size}": hyps}
+
+
 def remove_short_and_long_utt(c):
     # Keep only utterances with duration between 1 second and 20 seconds
     #
@@ -566,9 +568,9 @@ def remove_short_and_long_utt(c):
     # an utterance duration distribution for your dataset to select
     # the threshold
     if c.duration < 0.5 or c.duration > 30.0:
-        #logging.warning(
+        # logging.warning(
         #    f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
-        #)
+        # )
         return False
     if c.supervisions == []:
         return False
@@ -581,11 +583,13 @@ def remove_short_and_long_utt(c):
 
     return True
 
+
 # def remove_seg(c):
 #     if c.supervisions[0].id != 'fla_0102_1_0B_00107':
 #         return True
 #     else:
 #         return False
+
 
 def decode_dataset(
     dl: torch.utils.data.DataLoader,
@@ -664,8 +668,7 @@ def decode_dataset(
         if batch_idx % log_interval == 0:
             batch_str = f"{batch_idx}/{num_batches}"
 
-            logging.info(
-                f"batch {batch_str}, cuts processed until now is {num_cuts}")
+            logging.info(f"batch {batch_str}, cuts processed until now is {num_cuts}")
     return results
 
 
@@ -677,8 +680,7 @@ def save_results(
     test_set_wers = dict()
     for key, results in results_dict.items():
         recog_path = (
-            params.res_dir /
-            f"recogs-{test_set_name}-{key}-{params.suffix}.txt"
+            params.res_dir / f"recogs-{test_set_name}-{key}-{params.suffix}.txt"
         )
         results = sorted(results)
         store_transcripts(filename=recog_path, texts=results)
@@ -699,8 +701,7 @@ def save_results(
 
     test_set_wers = sorted(test_set_wers.items(), key=lambda x: x[1])
     errs_info = (
-        params.res_dir /
-        f"wer-summary-{test_set_name}-{key}-{params.suffix}.txt"
+        params.res_dir / f"wer-summary-{test_set_name}-{key}-{params.suffix}.txt"
     )
     with open(errs_info, "w") as f:
         print("settings\tWER", file=f)
@@ -809,8 +810,7 @@ def main():
                 )
             logging.info(f"averaging {filenames}")
             model.to(device)
-            model.load_state_dict(
-                average_checkpoints(filenames, device=device))
+            model.load_state_dict(average_checkpoints(filenames, device=device))
         elif params.avg == 1:
             load_checkpoint(f"{params.exp_dir}/epoch-{params.epoch}.pt", model)
         else:
@@ -821,8 +821,7 @@ def main():
                     filenames.append(f"{params.exp_dir}/epoch-{i}.pt")
             logging.info(f"averaging {filenames}")
             model.to(device)
-            model.load_state_dict(
-                average_checkpoints(filenames, device=device))
+            model.load_state_dict(average_checkpoints(filenames, device=device))
     else:
         if params.iter > 0:
             filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
@@ -905,8 +904,7 @@ def main():
             decoding_graph.scores *= params.ngram_lm_scale
         else:
             word_table = None
-            decoding_graph = k2.trivial_graph(
-                params.vocab_size - 1, device=device)
+            decoding_graph = k2.trivial_graph(params.vocab_size - 1, device=device)
     else:
         decoding_graph = None
         word_table = None
@@ -933,7 +931,6 @@ def main():
 
     test_sets = ["test", "dev"]
     test_all_dl = [test_dl, dev_dl]
-    
 
     for test_set, test_dl in zip(test_sets, test_all_dl):
         results_dict = decode_dataset(

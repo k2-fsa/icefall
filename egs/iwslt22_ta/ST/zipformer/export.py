@@ -208,6 +208,7 @@ from typing import List, Tuple
 
 import sentencepiece as spm
 import torch
+from scaling_converter import convert_scaled_to_non_scaled
 from torch import Tensor, nn
 from train import add_model_arguments, get_params, get_transducer_model
 
@@ -218,7 +219,6 @@ from icefall.checkpoint import (
     load_checkpoint,
 )
 from icefall.utils import make_pad_mask, str2bool
-from scaling_converter import convert_scaled_to_non_scaled
 
 
 def get_parser():
@@ -305,6 +305,7 @@ def get_parser():
 
 class EncoderModel(nn.Module):
     """A wrapper for encoder and encoder_embed"""
+
     def __init__(self, encoder: nn.Module, encoder_embed: nn.Module) -> None:
         super().__init__()
         self.encoder = encoder
@@ -323,9 +324,7 @@ class EncoderModel(nn.Module):
         src_key_padding_mask = make_pad_mask(x_lens)
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
 
-        encoder_out, encoder_out_lens = self.encoder(
-            x, x_lens, src_key_padding_mask
-        )
+        encoder_out, encoder_out_lens = self.encoder(x, x_lens, src_key_padding_mask)
         encoder_out = encoder_out.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
 
         return encoder_out, encoder_out_lens

@@ -59,12 +59,16 @@ import logging
 import warnings
 from pathlib import Path
 from shutil import copyfile
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, Union
 
 import k2
 import optim
 import sentencepiece as spm
 import torch
+
+if TYPE_CHECKING:
+    from torch.amp import GradScaler
+
 import torch.multiprocessing as mp
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule

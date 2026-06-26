@@ -647,6 +647,7 @@ def get_model(params: AttributeDict) -> nn.Module:
     )
     return model
 
+
 def get_spec_augment(params: AttributeDict) -> SpecAugment:
     num_frame_masks = int(10 * params.time_mask_ratio)
     max_frames_mask_fraction = 0.15 * params.time_mask_ratio
@@ -663,6 +664,7 @@ def get_spec_augment(params: AttributeDict) -> SpecAugment:
         max_frames_mask_fraction=max_frames_mask_fraction,  # default: 0.15
     )
     return spec_augment
+
 
 def load_checkpoint_if_available(
     params: AttributeDict,
@@ -883,7 +885,9 @@ def compute_loss(
             loss += params.ctc_loss_scale * ctc_loss
             if use_cr_ctc:
                 # linear warmup
-                cr_loss_scale = min(batch_idx_train / warm_step, 1.0) * params.cr_loss_scale
+                cr_loss_scale = (
+                    min(batch_idx_train / warm_step, 1.0) * params.cr_loss_scale
+                )
                 loss += cr_loss_scale * cr_loss
 
     assert loss.requires_grad == is_training

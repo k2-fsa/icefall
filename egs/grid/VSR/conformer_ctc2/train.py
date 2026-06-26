@@ -46,6 +46,7 @@ export CUDA_VISIBLE_DEVICES="0"
 import argparse
 import copy
 import logging
+import os
 import warnings
 from pathlib import Path
 from shutil import copyfile
@@ -53,9 +54,14 @@ from typing import Any, Dict, Optional, Tuple, Union
 
 import k2
 import optim
-import os
+
 os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
+from typing import TYPE_CHECKING
+
 import torch
+
+if TYPE_CHECKING:
+    from torch.amp import GradScaler
 # Optional: set deterministic flags
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
@@ -331,7 +337,7 @@ def get_params() -> AttributeDict:
             "batch_idx_train": 0,
             "log_interval": 5,
             "reset_interval": 10,
-            "valid_interval": 20,  
+            "valid_interval": 20,
             # parameters for conformer
             "feature_dim": 768,
             "subsampling_factor": 1,
@@ -466,7 +472,7 @@ def save_checkpoint(
     if params.best_valid_epoch == params.cur_epoch:
         best_valid_filename = params.exp_dir / "best-valid-loss.pt"
         copyfile(src=filename, dst=best_valid_filename)
-        
+
 
 def compute_loss(
     params: AttributeDict,
@@ -562,7 +568,7 @@ def compute_loss(
                 sos_id=graph_compiler.sos_id,
                 eos_id=graph_compiler.eos_id,
             )
-      
+
         loss = (1.0 - params.att_rate) * ctc_loss + params.att_rate * att_loss
     else:
         loss = ctc_loss
@@ -704,13 +710,10 @@ def train_one_epoch(
             if "CUDA out of memory" in str(e):
                 logging.error(f"failing batch size:{batch_size} ")
             raise
-        
+
         scaler.unscale_(optimizer)
 
-        grad_norm = torch.nn.utils.clip_grad_norm_(
-            model.parameters(), 
-            max_norm=1.0
-        )
+        grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
 
         scheduler.step_batch(params.batch_idx_train)
         scaler.step(optimizer)
@@ -766,9 +769,11 @@ def train_one_epoch(
             ):
                 logging.error("Your loss contains inf, something goes wrong")
             if tb_writer is not None:
-                
-                tb_writer.add_scalar("train/grad_norm", grad_norm, params.batch_idx_train)
-                
+
+                tb_writer.add_scalar(
+                    "train/grad_norm", grad_norm, params.batch_idx_train
+                )
+
                 tb_writer.add_scalar(
                     "train/learning_rate", cur_lr, params.batch_idx_train
                 )
@@ -815,7 +820,6 @@ def run(rank, world_size, args):
     """
     params = get_params()
     params.update(vars(args))
- 
 
     fix_random_seed(params.seed)
     if world_size > 1:
@@ -882,7 +886,7 @@ def run(rank, world_size, args):
         num_decoder_layers=params.num_decoder_layers,
         dropout=0.1,
         layer_dropout=0.1,
-        dim_feedforward=1024,        
+        dim_feedforward=1024,
     )
 
     print(model)
@@ -925,19 +929,16 @@ def run(rank, world_size, args):
 
     if params.print_diagnostics:
         diagnostic = diagnostics.attach_diagnostics(model)
-        
 
     grid = GridAsrDataModule(args)
 
-    cuts = grid.train_all_cuts()   
+    cuts = grid.train_all_cuts()
 
-    train_cuts, valid_cuts = grid.split_train_valid(cuts, 0.03, seed=params.seed)     
-   
+    train_cuts, valid_cuts = grid.split_train_valid(cuts, 0.03, seed=params.seed)
 
     # train_dl = grid.train_dataloaders(train_cuts)
 
     valid_dl = grid.valid_dataloaders(valid_cuts)
-
 
     if params.start_batch > 0 and checkpoints and "sampler" in checkpoints:
         # We only load the sampler's state dict when it loads a checkpoint
@@ -946,9 +947,7 @@ def run(rank, world_size, args):
     else:
         sampler_state_dict = None
 
-    train_dl = grid.train_dataloaders(
-        train_cuts, sampler_state_dict=sampler_state_dict
-    )
+    train_dl = grid.train_dataloaders(train_cuts, sampler_state_dict=sampler_state_dict)
 
     if params.print_diagnostics:
         scan_pessimistic_batches_for_oom(

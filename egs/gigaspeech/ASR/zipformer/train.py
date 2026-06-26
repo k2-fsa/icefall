@@ -74,10 +74,16 @@ warnings.filterwarnings(
     category=FutureWarning,
 )
 
+from typing import TYPE_CHECKING
+
 import k2
 import optim
 import sentencepiece as spm
 import torch
+
+if TYPE_CHECKING:
+    from torch.amp import GradScaler
+
 import torch.multiprocessing as mp
 import torch.nn as nn
 from asr_datamodule import GigaSpeechAsrDataModule
