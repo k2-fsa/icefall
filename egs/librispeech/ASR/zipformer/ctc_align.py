@@ -52,10 +52,7 @@ import torch
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule as AsrDataModule
 from lhotse import set_caching_enabled
-from torchaudio.functional import (
-    forced_align,
-    merge_tokens,
-)
+from torchaudio.functional import forced_align, merge_tokens
 from train import add_model_arguments, get_model, get_params
 
 from icefall.checkpoint import (
@@ -64,11 +61,7 @@ from icefall.checkpoint import (
     find_checkpoints,
     load_checkpoint,
 )
-from icefall.utils import (
-    AttributeDict,
-    setup_logger,
-    str2bool,
-)
+from icefall.utils import AttributeDict, setup_logger, str2bool
 
 LOG_EPS = math.log(1e-10)
 

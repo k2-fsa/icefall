@@ -1208,9 +1208,9 @@ def run(rank, world_size, args):
         # an utterance duration distribution for your dataset to select
         # the threshold
         if c.duration < 0.3 or c.duration > 30.0:
-            #logging.warning(
+            # logging.warning(
             #    f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
-            #)
+            # )
             return False
         if c.supervisions == []:
             return False
@@ -1240,6 +1240,7 @@ def run(rank, world_size, args):
         # Keep only text with charachters between 20 and 400
 
         return 3 <= len(c.supervisions[0].text) <= 400
+
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
     train_cuts = train_cuts.filter(remove_short_and_long_text)
 

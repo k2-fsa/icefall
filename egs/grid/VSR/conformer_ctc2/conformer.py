@@ -33,11 +33,12 @@ from scaling import (
 from torch import Tensor, nn
 from transformer import Supervisions, Transformer, encoder_padding_mask
 
+
 # SSL Feature Projection
 class SSLFeatureProjection(nn.Module):
     def __init__(self, num_features=768, d_model=256):
         super().__init__()
-        self.proj = nn.Linear(num_features , d_model)
+        self.proj = nn.Linear(num_features, d_model)
         self.dropout = nn.Dropout(p=0.1)
         self.act = nn.GELU()
 
@@ -96,15 +97,15 @@ class Conformer(Transformer):
 
         self.num_features = num_features
         self.subsampling_factor = subsampling_factor
-        
-         # SSL feature input handling
+
+        # SSL feature input handling
         if num_features == d_model:
             self.encoder_embed = nn.Identity()
         else:
             self.encoder_embed = SSLFeatureProjection(
-            num_features=num_features,
-            d_model=d_model,
-        )    
+                num_features=num_features,
+                d_model=d_model,
+            )
 
         self.input_layer_norm = nn.LayerNorm(d_model)
 
@@ -147,10 +148,10 @@ class Conformer(Transformer):
             Tensor: Mask tensor of dimension (batch_size, input_length)
         """
         x = self.encoder_embed(x)
-        
-        #it doesn't seem to help
+
+        # it doesn't seem to help
         # x = self.input_layer_norm(x)
-        
+
         x, pos_emb = self.encoder_pos(x)
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
         mask = encoder_padding_mask(x.size(0), supervisions)

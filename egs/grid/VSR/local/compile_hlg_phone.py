@@ -57,8 +57,12 @@ def compile_HLG(lang_dir: str) -> k2.Fsa:
 
     # first_token_disambig_id = lexicon.token_table["#0"]
     # first_word_disambig_id = lexicon.word_table["#0"]
-    first_token_disambig_id = lexicon.token_table["#0"] if "#0" in lexicon.token_table else 10**9
-    first_word_disambig_id  = lexicon.word_table["#0"]  if "#0" in lexicon.word_table  else 10**9
+    first_token_disambig_id = (
+        lexicon.token_table["#0"] if "#0" in lexicon.token_table else 10**9
+    )
+    first_word_disambig_id = (
+        lexicon.word_table["#0"] if "#0" in lexicon.word_table else 10**9
+    )
 
     L = k2.arc_sort(L)
     G = k2.arc_sort(G)

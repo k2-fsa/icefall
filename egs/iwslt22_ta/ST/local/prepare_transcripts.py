@@ -5,12 +5,13 @@
 This script prepares transcript_words.txt from cutset
 """
 
-from lhotse import CutSet
 import argparse
 import logging
+import os
 import pdb
 from pathlib import Path
-import os
+
+from lhotse import CutSet
 
 
 def get_parser():
@@ -36,7 +37,7 @@ def get_parser():
         help="name of the target lang-dir",
     )
     return parser
-     
+
 
 def main():
 
@@ -50,17 +51,20 @@ def main():
         langdirs = [Path(args.src_langdir), Path(args.tgt_langdir)]
     else:
         langdirs = [Path(args.src_langdir)]
-    
+
     for langdir in langdirs:
         if not os.path.exists(langdir):
             os.makedirs(langdir)
 
-    with open(langdirs[0] / "transcript_words.txt", 'w') as src, open(langdirs[1] / "transcript_words.txt", 'w') as tgt:
+    with open(langdirs[0] / "transcript_words.txt", "w") as src, open(
+        langdirs[1] / "transcript_words.txt", "w"
+    ) as tgt:
         for c in cuts:
             src_txt = c.supervisions[0].text
-            tgt_txt = c.supervisions[0].custom['translated_text']['eng']
-            src.write(src_txt + '\n')
-            tgt.write(tgt_txt + '\n')
+            tgt_txt = c.supervisions[0].custom["translated_text"]["eng"]
+            src.write(src_txt + "\n")
+            tgt.write(tgt_txt + "\n")
+
 
 if __name__ == "__main__":
     main()

@@ -145,7 +145,9 @@ def main():
     model.eval()
 
     logging.info(f"Loading HLG from {params.HLG}")
-    HLG = k2.Fsa.from_dict(torch.load(params.HLG, map_location="cpu", weights_only=False))
+    HLG = k2.Fsa.from_dict(
+        torch.load(params.HLG, map_location="cpu", weights_only=False)
+    )
     HLG = HLG.to(device)
     if not hasattr(HLG, "lm_scores"):
         # For whole-lattice-rescoring and attention-decoder

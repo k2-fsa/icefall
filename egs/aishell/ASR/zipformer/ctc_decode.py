@@ -66,10 +66,7 @@ from icefall.checkpoint import (
     find_checkpoints,
     load_checkpoint,
 )
-from icefall.decode import (
-    ctc_greedy_search,
-    ctc_prefix_beam_search,
-)
+from icefall.decode import ctc_greedy_search, ctc_prefix_beam_search
 from icefall.lexicon import Lexicon
 from icefall.utils import (
     AttributeDict,
@@ -169,6 +166,7 @@ def get_decoding_params() -> AttributeDict:
     )
     return params
 
+
 def decode_one_batch(
     params: AttributeDict,
     model: nn.Module,
@@ -242,17 +240,15 @@ def decode_one_batch(
             encoder_out_lens=encoder_out_lens,
         )
     else:
-        raise ValueError(
-            f"Unsupported decoding method: {params.decoding_method}"
-        )
-    
+        raise ValueError(f"Unsupported decoding method: {params.decoding_method}")
+
     for i in range(encoder_out.size(0)):
         hyps.append([lexicon.token_table[idx] for idx in hyp_tokens[i]])
 
     if params.decoding_method == "ctc-greedy-search":
-        return {"ctc-greedy-search" : hyps}
+        return {"ctc-greedy-search": hyps}
     elif params.decoding_method == "ctc-prefix-beam-search":
-        return {"ctc-prefix-beam-search" : hyps}
+        return {"ctc-prefix-beam-search": hyps}
     else:
         assert False, f"Unsupported decoding method: {params.decoding_method}"
 
@@ -305,7 +301,7 @@ def decode_dataset(
             for cut_id, hyp_words, ref_text in zip(cut_ids, hyps, texts):
                 this_batch.append((cut_id, ref_text, hyp_words))
             results[name].extend(this_batch)
-                
+
         num_cuts += len(texts)
 
         if batch_idx % log_interval == 0:
@@ -326,7 +322,7 @@ def save_results(
             params.res_dir / f"recogs-{test_set_name}-{key}-{params.suffix}.txt"
         )
         results = sorted(results)
-        store_transcripts(filename=recog_path, texts=results, char_level = True)
+        store_transcripts(filename=recog_path, texts=results, char_level=True)
         logging.info(f"The transcripts are stored in {recog_path}")
 
         # The following prints out WERs, per-word error statistics and aligned
@@ -379,7 +375,7 @@ def main():
     assert params.decoding_method in (
         "ctc-greedy-search",
         "ctc-prefix-beam-search",
-    ) # support ctc-greedy-search and ctc-prefix-beam-search
+    )  # support ctc-greedy-search and ctc-prefix-beam-search
     params.res_dir = params.exp_dir / params.decoding_method
 
     if params.iter > 0:
@@ -414,7 +410,7 @@ def main():
     logging.info(f"Device: {device}")
 
     lexicon = Lexicon(params.lang_dir)
-    
+
     params.blank_id = lexicon.token_table["<blk>"]
     params.vocab_size = max(lexicon.tokens) + 1
 

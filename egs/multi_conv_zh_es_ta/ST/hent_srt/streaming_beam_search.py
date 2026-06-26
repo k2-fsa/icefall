@@ -59,8 +59,8 @@ def greedy_search_st(
     context_size = model.decoder.context_size
     unk_id = getattr(model, "unk_id", blank_id_st)
 
-    #ST
-    
+    # ST
+
     decoder_input_st = torch.tensor(
         [stream.hyp_st[-context_size_st:] for stream in streams],
         device=device,
@@ -69,7 +69,7 @@ def greedy_search_st(
     # decoder_out is of shape (N, 1, decoder_out_dim)
     decoder_out_st = model.st_decoder(decoder_input_st, need_pad=False)
     decoder_out_st = model.st_joiner.decoder_proj(decoder_out_st)
-    
+
     # ASR
     decoder_input = torch.tensor(
         [stream.hyp_asr[-context_size:] for stream in streams],
@@ -111,7 +111,7 @@ def greedy_search_st(
         for i, v in enumerate(y_st):
             if v not in (blank_id_st, unk_id_st):
                 streams[i].hyp_st.append(v)
-               
+
                 # update decoder output
                 # decoder_input_st = torch.tensor(
                 #     [stream.hyp_st[-context_size_st:].reshape(
@@ -119,10 +119,17 @@ def greedy_search_st(
                 #     device=device,
                 #     dtype=torch.int64,
                 # )
-                decoder_input_st = torch.stack([
-                torch.tensor(stream.hyp_st[-context_size_st:], device=device, dtype=torch.int64)
-                for stream in streams]).reshape(len(streams), context_size_st)
-                
+                decoder_input_st = torch.stack(
+                    [
+                        torch.tensor(
+                            stream.hyp_st[-context_size_st:],
+                            device=device,
+                            dtype=torch.int64,
+                        )
+                        for stream in streams
+                    ]
+                ).reshape(len(streams), context_size_st)
+
                 decoder_out_st = model.st_decoder(
                     decoder_input_st,
                     need_pad=False,

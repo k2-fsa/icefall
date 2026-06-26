@@ -7,11 +7,11 @@ This script helps validating the prepared manifests (recordings, supervisions)
 and CutSets
 
 """
-from lhotse import RecordingSet, SupervisionSet, CutSet
 import argparse
 import logging
-from lhotse.qa import fix_manifests, validate_recordings_and_supervisions
 
+from lhotse import CutSet, RecordingSet, SupervisionSet
+from lhotse.qa import fix_manifests, validate_recordings_and_supervisions
 
 
 def get_parser():
@@ -45,13 +45,12 @@ def get_parser():
         help="name of the cutset to be saved",
     )
 
-
-
     return parser
+
 
 def valid_asr(cut):
     tol = 2e-3
-    i=0
+    i = 0
     total_dur = 0
     for c in cut:
         if c.supervisions != []:
@@ -59,10 +58,14 @@ def valid_asr(cut):
 
                 logging.info(f"Supervision beyond the cut. Cut number: {i}")
                 total_dur += c.duration
-                logging.info(f"id: {c.id}, sup_end: {c.supervisions[0].end},  dur: {c.duration}, source {c.recording.sources[0].source}")
+                logging.info(
+                    f"id: {c.id}, sup_end: {c.supervisions[0].end},  dur: {c.duration}, source {c.recording.sources[0].source}"
+                )
             elif c.supervisions[0].start < -tol:
                 logging.info(f"Supervision starts before the cut. Cut number: {i}")
-                logging.info(f"id: {c.id}, sup_start: {c.supervisions[0].start},  dur: {c.duration}, source {c.recording.sources[0].source}")
+                logging.info(
+                    f"id: {c.id}, sup_start: {c.supervisions[0].start},  dur: {c.duration}, source {c.recording.sources[0].source}"
+                )
             else:
                 continue
         else:
@@ -70,7 +73,7 @@ def valid_asr(cut):
             logging.info(f"id: {c.id}")
         i += 1
     logging.info(f"filtered duration: {total_dur}")
-     
+
 
 def main():
 
@@ -91,8 +94,11 @@ def main():
 
         logging.info("Validating manifests")
         validate_recordings_and_supervisions(recordings, supervisions)
-    
-        cuts = CutSet.from_manifests(recordings= recordings, supervisions=supervisions,)
+
+        cuts = CutSet.from_manifests(
+            recordings=recordings,
+            supervisions=supervisions,
+        )
 
     cuts = cuts.trim_to_supervisions(keep_overlapping=False, keep_all_channels=False)
     logging.info("Example from cut:")
@@ -102,6 +108,7 @@ def main():
     valid_asr(cuts)
     if args.savecut != "":
         cuts.to_file(args.savecut)
+
 
 if __name__ == "__main__":
     main()

@@ -1,6 +1,7 @@
-from lhotse import load_manifest
-from pathlib import Path
 import os
+from pathlib import Path
+
+from lhotse import load_manifest
 
 # --- Configuration ---
 supervisions_path = Path("data/manifests/grid_supervisions.jsonl.gz")
@@ -9,8 +10,10 @@ output_dir = Path("data/manifests")
 # --- Unseen speaker setup ---
 test_speakers = {"s1", "s2", "s20", "s22"}
 
+
 def video_exists(recording):
     return all(os.path.exists(source.source) for source in recording.sources)
+
 
 recordings = load_manifest(recordings_path)
 recordings = recordings.filter(video_exists)
@@ -21,12 +24,11 @@ supervisions = load_manifest(supervisions_path)
 def get_speaker_id(rec_id):
     return rec_id.split("_")[0]
 
+
 train_recordings = recordings.filter(
     lambda rec: get_speaker_id(rec.id) not in test_speakers
 )
-test_recordings = recordings.filter(
-    lambda rec: get_speaker_id(rec.id) in test_speakers
-)
+test_recordings = recordings.filter(lambda rec: get_speaker_id(rec.id) in test_speakers)
 
 train_recordings.to_file(output_dir / "grid_recordings_train.jsonl.gz")
 test_recordings.to_file(output_dir / "grid_recordings_test.jsonl.gz")

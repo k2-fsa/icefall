@@ -48,12 +48,16 @@ import logging
 import warnings
 from pathlib import Path
 from shutil import copyfile
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, Union
 
 import k2
 import optim
 import sentencepiece as spm
 import torch
+
+if TYPE_CHECKING:
+    from torch.amp import GradScaler
+
 import torch.multiprocessing as mp
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
@@ -76,9 +80,9 @@ from icefall.checkpoint import save_checkpoint_with_global_batch_idx
 from icefall.dist import cleanup_dist, setup_dist
 from icefall.env import get_env_info
 from icefall.utils import (
-    create_grad_scaler,
     AttributeDict,
     MetricsTracker,
+    create_grad_scaler,
     setup_logger,
     str2bool,
     torch_autocast,

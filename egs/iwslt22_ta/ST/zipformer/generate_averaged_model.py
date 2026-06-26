@@ -43,13 +43,9 @@ from pathlib import Path
 import sentencepiece as spm
 import torch
 from asr_datamodule import LibriSpeechAsrDataModule
-
 from train import add_model_arguments, get_params, get_transducer_model
 
-from icefall.checkpoint import (
-    average_checkpoints_with_averaged_model,
-    find_checkpoints,
-)
+from icefall.checkpoint import average_checkpoints_with_averaged_model, find_checkpoints
 
 
 def get_parser():

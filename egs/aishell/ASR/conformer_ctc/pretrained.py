@@ -315,7 +315,9 @@ def main():
         hyps = [[token_sym_table[i] for i in ids] for ids in token_ids]
     elif params.method in ["1best", "attention-decoder"]:
         logging.info(f"Loading HLG from {params.HLG}")
-        HLG = k2.Fsa.from_dict(torch.load(params.HLG, map_location="cpu", weights_only=False))
+        HLG = k2.Fsa.from_dict(
+            torch.load(params.HLG, map_location="cpu", weights_only=False)
+        )
         HLG = HLG.to(device)
         if not hasattr(HLG, "lm_scores"):
             # For whole-lattice-rescoring and attention-decoder

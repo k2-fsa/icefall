@@ -22,7 +22,6 @@ import math
 import random
 import warnings
 from typing import List, Optional, Tuple, Union
-from icefall.utils import torch_autocast
 
 import torch
 from encoder_interface import EncoderInterface
@@ -47,6 +46,8 @@ from scaling import (
     softmax,
 )
 from torch import Tensor, nn
+
+from icefall.utils import torch_autocast
 
 
 class Zipformer2(EncoderInterface):

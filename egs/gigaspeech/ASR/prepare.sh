@@ -15,6 +15,13 @@ stop_stage=8
 start=0
 stop=-1  # -1 means until the end
 
+# If true, skip storing GigaSpeech fbank features; only produce the (trimmed)
+# cut manifests for on-the-fly feature extraction during training.
+on_the_fly=true
+
+# If false (default), skip all musan steps (download, manifest, fbank).
+use_musan=false
+
 # Note: This script just prepares the minimal requirements needed by a
 # transducer training with bpe units.
 #
@@ -138,7 +145,7 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   #
   #   ln -svf /path/to/musan $dl_dir/
   #
-  if [ ! -d $dl_dir/musan ]; then
+  if [ $use_musan == true ] && [ ! -d $dl_dir/musan ]; then
     lhotse download musan $dl_dir
   fi
 fi
@@ -156,16 +163,16 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
     $dl_dir/GigaSpeech data/manifests
 fi
 
-if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
-  log "Stage 2: Prepare musan manifest"
-  # We assume that you have downloaded the musan corpus
-  # to $dl_dir/musan
-  mkdir -p data/manifests
-  lhotse prepare musan $dl_dir/musan data/manifests
+if [ $use_musan == true ] && [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
+    log "Stage 2: Prepare musan manifest"
+    # We assume that you have downloaded the musan corpus
+    # to $dl_dir/musan
+    mkdir -p data/manifests
+    lhotse prepare musan $dl_dir/musan data/manifests
 fi
 
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
-  log "State 3: Preprocess GigaSpeech manifest"
+  log "Stage 3: Preprocess GigaSpeech manifest"
   if [ ! -f data/fbank/.preprocess_complete ]; then
     python3 ./local/preprocess_gigaspeech.py
     touch data/fbank/.preprocess_complete
@@ -173,8 +180,8 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
 fi
 
 if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
-  log "Stage 4: Compute features for DEV, TEST, L, M, S, and XS subsets of GigaSpeech."
-  python3 ./local/compute_fbank_gigaspeech.py
+  log "Stage 4: Compute features for DEV and TEST subsets of GigaSpeech."
+  python3 ./local/compute_fbank_gigaspeech.py --on-the-fly $on_the_fly
 fi
 
 if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
@@ -196,13 +203,14 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
     --batch-duration 600 \
     --num-splits $num_splits \
     --start $start \
-    --stop $stop
+    --stop $stop \
+    --on-the-fly $on_the_fly
 fi
 
-if [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
-  log "Stage 7: Compute fbank for musan"
-  mkdir -p data/fbank
-  ./local/compute_fbank_musan.py
+if [ $use_musan == true ] && [ $stage -le 7 ] && [ $stop_stage -ge 7 ]; then
+    log "Stage 7: Compute fbank for musan"
+    mkdir -p data/fbank
+    ./local/compute_fbank_musan.py
 fi
 
 if [ $stage -le 8 ] && [ $stop_stage -ge 8 ]; then

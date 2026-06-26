@@ -110,9 +110,13 @@ def average_checkpoints(
 
     for i in range(1, n):
         if "model" in torch.load(filenames[i], map_location=device, weights_only=False):
-            state_dict = torch.load(filenames[i], map_location=device, weights_only=False)["model"]
+            state_dict = torch.load(
+                filenames[i], map_location=device, weights_only=False
+            )["model"]
         else:
-            state_dict = torch.load(filenames[i], map_location=device, weights_only=False)
+            state_dict = torch.load(
+                filenames[i], map_location=device, weights_only=False
+            )
         for k in uniqued_names:
             avg[k] += state_dict[k]
 
@@ -447,7 +451,9 @@ def main():
             start = params.epoch - params.avg
             assert start >= 1, start
             checkpoint = torch.load(
-                f"{params.exp_dir}/epoch-{params.epoch}.pt", map_location="cpu", weights_only=False
+                f"{params.exp_dir}/epoch-{params.epoch}.pt",
+                map_location="cpu",
+                weights_only=False,
             )
             if "model" not in checkpoint:
                 # deepspeed converted checkpoint only contains model state_dict
@@ -476,7 +482,9 @@ def main():
             torch.save(model.state_dict(), filename)
         else:
             checkpoint = torch.load(
-                f"{params.exp_dir}/epoch-{params.epoch}.pt", map_location="cpu", weights_only=False
+                f"{params.exp_dir}/epoch-{params.epoch}.pt",
+                map_location="cpu",
+                weights_only=False,
             )
             if "model" not in checkpoint:
                 model.load_state_dict(checkpoint, strict=True)

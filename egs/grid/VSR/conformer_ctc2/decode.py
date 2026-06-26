@@ -60,6 +60,7 @@ from icefall.utils import (
     write_error_stats,
 )
 
+
 def get_parser():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
@@ -961,7 +962,7 @@ def main():
     test_cuts = grid.test_cuts()
 
     test_dl = grid.test_dataloaders(test_cuts)
-    
+
     test_sets = ["test"]
     test_dl = [test_dl]
 

@@ -59,12 +59,16 @@ import logging
 import warnings
 from pathlib import Path
 from shutil import copyfile
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 import k2
 import optim
 import sentencepiece as spm
 import torch
+
+if TYPE_CHECKING:
+    from torch.amp import GradScaler
+
 import torch.multiprocessing as mp
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
@@ -94,9 +98,9 @@ from icefall.env import get_env_info
 from icefall.err import raise_grad_scale_is_too_small_error
 from icefall.hooks import register_inf_check_hooks
 from icefall.utils import (
-    create_grad_scaler,
     AttributeDict,
     MetricsTracker,
+    create_grad_scaler,
     get_parameter_groups_with_lrs,
     setup_logger,
     str2bool,

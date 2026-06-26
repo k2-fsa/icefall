@@ -23,28 +23,28 @@ It looks for manifests in the directory data/manifests.
 The generated fbank features are saved in data/fbank.
 """
 
+import argparse
 import logging
 import os
 from pathlib import Path
-import argparse
 
 import torch
 from lhotse import CutSet, Fbank, FbankConfig, LilcomChunkyWriter
-from lhotse.recipes.utils import read_manifests_if_cached
-
-from icefall.utils import get_executor
-
 from lhotse.features.kaldifeat import (
     KaldifeatFbank,
     KaldifeatFbankConfig,
     KaldifeatFrameOptions,
     KaldifeatMelOptions,
 )
+from lhotse.recipes.utils import read_manifests_if_cached
+
+from icefall.utils import get_executor
 
 # Torch's multithreaded behavior needs to be disabled or
 # it wastes a lot of CPU and slow things down.
 # Do this outside of main() in case it needs to take effect
 # even when we are not invoking the main (e.g. when spawning subprocesses)
+
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -81,29 +81,26 @@ def get_args():
 
 
 def compute_fbank_gpu(args):
-    src_dir = Path(args.datadir+"/manifests")
-    output_dir = Path(args.datadir+"/fbank")
-    num_jobs = min(os.cpu_count(),10)
+    src_dir = Path(args.datadir + "/manifests")
+    output_dir = Path(args.datadir + "/fbank")
+    num_jobs = min(os.cpu_count(), 10)
     num_mel_bins = 80
     sampling_rate = 16000
     sr = 16000
 
     logging.info(f"Cpus {num_jobs}")
 
-
     if args.test:
-        dataset_parts = (
-            "hkust_test",
-            "iwslt_ta_test",
-            "fisher-sp_test",
-            "dev")
+        dataset_parts = ("hkust_test", "iwslt_ta_test", "fisher-sp_test", "dev")
     else:
-        dataset_parts = (
-            "train")
+        dataset_parts = "train"
     prefix = "cts"
     suffix = "jsonl.gz"
     manifests = read_manifests_if_cached(
-        prefix=prefix, dataset_parts=dataset_parts, output_dir=src_dir,suffix=suffix,
+        prefix=prefix,
+        dataset_parts=dataset_parts,
+        output_dir=src_dir,
+        suffix=suffix,
     )
     assert manifests is not None
 
@@ -132,15 +129,11 @@ def compute_fbank_gpu(args):
             cut_set = cut_set.resample(sr)
 
         cut_set = cut_set.trim_to_supervisions(
-                    keep_overlapping=False, 
-                    keep_all_channels=False)
-        cut_set = cut_set.filter(lambda c: c.duration >= .2 and c.duration <= 30)
+            keep_overlapping=False, keep_all_channels=False
+        )
+        cut_set = cut_set.filter(lambda c: c.duration >= 0.2 and c.duration <= 30)
         if "train" in partition:
-            cut_set = (
-                cut_set
-                + cut_set.perturb_speed(0.9)
-                + cut_set.perturb_speed(1.1)
-            )
+            cut_set = cut_set + cut_set.perturb_speed(0.9) + cut_set.perturb_speed(1.1)
             cut_set = cut_set.compute_and_store_features_batch(
                 extractor=extractor,
                 storage_path=f"{output_dir}/{prefix}_feats_{partition}",
@@ -149,7 +142,7 @@ def compute_fbank_gpu(args):
                 num_workers=num_jobs,
                 storage_type=LilcomChunkyWriter,
                 overwrite=True,
-                )
+            )
             cut_set.to_file(output_dir / f"cuts_{partition}.jsonl.gz")
         else:
             logging.info(f"Processing {partition}")
@@ -161,13 +154,12 @@ def compute_fbank_gpu(args):
                 num_workers=num_jobs,
                 storage_type=LilcomChunkyWriter,
                 overwrite=True,
-                )
+            )
             cut_set.to_file(output_dir / f"cuts_{partition}.jsonl.gz")
 
+
 if __name__ == "__main__":
-    formatter = (
-        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-    )
+    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
 
     logging.basicConfig(format=formatter, level=logging.INFO)
     args = get_args()

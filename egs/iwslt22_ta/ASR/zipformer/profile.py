@@ -22,23 +22,23 @@ Usage: ./zipformer/profile.py
 
 import argparse
 import logging
+from typing import Tuple
+
 import sentencepiece as spm
 import torch
-
-from typing import Tuple
-from torch import Tensor, nn
-
-from icefall.utils import make_pad_mask
-from icefall.profiler import get_model_profile
 from scaling import BiasNorm
+from torch import Tensor, nn
 from train import (
+    add_model_arguments,
     get_encoder_embed,
     get_encoder_model,
     get_joiner_model,
-    add_model_arguments,
     get_params,
 )
 from zipformer import BypassModule
+
+from icefall.profiler import get_model_profile
+from icefall.utils import make_pad_mask
 
 
 def get_parser():
@@ -100,17 +100,13 @@ class Model(nn.Module):
         self.encoder_embed = encoder_embed
         self.encoder_proj = encoder_proj
 
-    def forward(
-        self, feature: Tensor, feature_lens: Tensor
-    ) -> Tuple[Tensor, Tensor]:
+    def forward(self, feature: Tensor, feature_lens: Tensor) -> Tuple[Tensor, Tensor]:
         x, x_lens = self.encoder_embed(feature, feature_lens)
 
         src_key_padding_mask = make_pad_mask(x_lens)
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
 
-        encoder_out, encoder_out_lens = self.encoder(
-            x, x_lens, src_key_padding_mask
-        )
+        encoder_out, encoder_out_lens = self.encoder(x, x_lens, src_key_padding_mask)
 
         encoder_out = encoder_out.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
         logits = self.encoder_proj(encoder_out)
@@ -168,9 +164,7 @@ def main():
 
 
 if __name__ == "__main__":
-    formatter = (
-        "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
-    )
+    formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
     logging.basicConfig(format=formatter, level=logging.INFO)
 
     main()

@@ -21,7 +21,25 @@
 """
 Usage:
 
-(1) ctc-decoding
+(1) ctc-greedy-search
+./zipformer/ctc_decode.py \
+    --epoch 30 \
+    --avg 15 \
+    --exp-dir ./zipformer/exp \
+    --use-ctc 1 \
+    --max-duration 600 \
+    --decoding-method ctc-greedy-search
+
+(2) ctc-prefix-beam-search
+./zipformer/ctc_decode.py \
+    --epoch 30 \
+    --avg 15 \
+    --exp-dir ./zipformer/exp \
+    --use-ctc 1 \
+    --max-duration 600 \
+    --decoding-method ctc-prefix-beam-search
+
+(3) ctc-decoding
 ./zipformer/ctc_decode.py \
     --epoch 30 \
     --avg 15 \
@@ -30,7 +48,7 @@ Usage:
     --max-duration 600 \
     --decoding-method ctc-decoding
 
-(2) 1best
+(4) 1best
 ./zipformer/ctc_decode.py \
     --epoch 30 \
     --avg 15 \
@@ -40,7 +58,7 @@ Usage:
     --hlg-scale 0.6 \
     --decoding-method 1best
 
-(3) nbest
+(5) nbest
 ./zipformer/ctc_decode.py \
     --epoch 30 \
     --avg 15 \
@@ -50,7 +68,7 @@ Usage:
     --hlg-scale 0.6 \
     --decoding-method nbest
 
-(4) nbest-rescoring
+(6) nbest-rescoring
 ./zipformer/ctc_decode.py \
     --epoch 30 \
     --avg 15 \
@@ -62,7 +80,7 @@ Usage:
     --lm-dir data/lm \
     --decoding-method nbest-rescoring
 
-(5) whole-lattice-rescoring
+(7) whole-lattice-rescoring
 ./zipformer/ctc_decode.py \
     --epoch 30 \
     --avg 15 \
@@ -88,6 +106,7 @@ import sentencepiece as spm
 import torch
 import torch.nn as nn
 from asr_datamodule import GigaSpeechAsrDataModule
+from gigaspeech_scoring import asr_text_post_processing
 from train import add_model_arguments, get_model, get_params
 
 from icefall.checkpoint import (
@@ -97,6 +116,8 @@ from icefall.checkpoint import (
     load_checkpoint,
 )
 from icefall.decode import (
+    ctc_greedy_search,
+    ctc_prefix_beam_search,
     get_lattice,
     nbest_decoding,
     nbest_oracle,
@@ -195,6 +216,10 @@ def get_parser():
         default="ctc-decoding",
         help="""Decoding method.
         Supported values are:
+        - ctc-greedy-search. Use CTC greedy search. It uses a sentence piece
+          model, i.e., lang_dir/bpe.model, to convert word pieces to words.
+        - ctc-prefix-beam-search. Extract n paths with the given beam; the best
+          path is the decoding result.
         - (1) ctc-decoding. Use CTC decoding. It uses a sentence piece
           model, i.e., lang_dir/bpe.model, to convert word pieces to words.
           It needs neither a lexicon nor an n-gram LM.
@@ -269,6 +294,7 @@ def get_decoding_params() -> AttributeDict:
             "min_active_states": 30,
             "max_active_states": 10000,
             "use_double_scores": True,
+            "beam": 4,  # for ctc-prefix-beam-search
         }
     )
     return params
@@ -327,10 +353,7 @@ def decode_one_batch(
       Return the decoding result. See above description for the format of
       the returned dict. Note: If it decodes to nothing, then return None.
     """
-    if HLG is not None:
-        device = HLG.device
-    else:
-        device = H.device
+    device = params.device
     feature = batch["inputs"]
     assert feature.ndim == 3
     feature = feature.to(device)
@@ -351,6 +374,26 @@ def decode_one_batch(
 
     encoder_out, encoder_out_lens = model.forward_encoder(feature, feature_lens)
     ctc_output = model.ctc_output(encoder_out)  # (N, T, C)
+
+    if params.decoding_method == "ctc-greedy-search":
+        token_ids = ctc_greedy_search(ctc_output, encoder_out_lens)
+        # hyps is a list of str, e.g., ['xxx yyy zzz', ...]
+        hyps = bpe_model.decode(token_ids)
+        # hyps is a list of list of str, e.g., [['xxx', 'yyy', 'zzz'], ... ]
+        hyps = [s.split() for s in hyps]
+        return {"ctc-greedy-search": hyps}
+
+    if params.decoding_method == "ctc-prefix-beam-search":
+        token_ids = ctc_prefix_beam_search(
+            ctc_output=ctc_output,
+            encoder_out_lens=encoder_out_lens,
+            beam=params.beam,
+        )
+        # hyps is a list of str, e.g., ['xxx yyy zzz', ...]
+        hyps = bpe_model.decode(token_ids)
+        # hyps is a list of list of str, e.g., [['xxx', 'yyy', 'zzz'], ... ]
+        hyps = [s.split() for s in hyps]
+        return {"ctc-prefix-beam-search": hyps}
 
     supervision_segments = torch.stack(
         (
@@ -559,6 +602,17 @@ def decode_dataset(
     return results
 
 
+def post_processing(
+    results: List[Tuple[str, List[str], List[str]]],
+) -> List[Tuple[str, List[str], List[str]]]:
+    new_results = []
+    for key, ref, hyp in results:
+        new_ref = asr_text_post_processing(" ".join(ref)).split()
+        new_hyp = asr_text_post_processing(" ".join(hyp)).split()
+        new_results.append((key, new_ref, new_hyp))
+    return new_results
+
+
 def save_results(
     params: AttributeDict,
     test_set_name: str,
@@ -566,22 +620,31 @@ def save_results(
 ):
     test_set_wers = dict()
     for key, results in results_dict.items():
-        recog_path = params.res_dir / f"recogs-{test_set_name}-{params.suffix}.txt"
+        recog_path = (
+            params.res_dir / f"recogs-{test_set_name}-{key}-{params.suffix}.txt"
+        )
+        results = post_processing(results)
         results = sorted(results)
         store_transcripts(filename=recog_path, texts=results)
         logging.info(f"The transcripts are stored in {recog_path}")
 
         # The following prints out WERs, per-word error statistics and aligned
         # ref/hyp pairs.
-        errs_filename = params.res_dir / f"errs-{test_set_name}-{params.suffix}.txt"
+        errs_filename = (
+            params.res_dir / f"errs-{test_set_name}-{key}-{params.suffix}.txt"
+        )
         with open(errs_filename, "w") as f:
-            wer = write_error_stats(f, f"{test_set_name}-{key}", results)
+            wer = write_error_stats(
+                f, f"{test_set_name}-{key}", results, enable_log=True
+            )
             test_set_wers[key] = wer
 
         logging.info("Wrote detailed error stats to {}".format(errs_filename))
 
     test_set_wers = sorted(test_set_wers.items(), key=lambda x: x[1])
-    errs_info = params.res_dir / f"wer-summary-{test_set_name}-{params.suffix}.txt"
+    errs_info = (
+        params.res_dir / f"wer-summary-{test_set_name}-{key}-{params.suffix}.txt"
+    )
     with open(errs_info, "w") as f:
         print("settings\tWER", file=f)
         for key, val in test_set_wers:
@@ -610,6 +673,8 @@ def main():
     params.update(vars(args))
 
     assert params.decoding_method in (
+        "ctc-greedy-search",
+        "ctc-prefix-beam-search",
         "ctc-decoding",
         "1best",
         "nbest",
@@ -634,6 +699,9 @@ def main():
         params.suffix += f"-chunk-{params.chunk_size}"
         params.suffix += f"-left-context-{params.left_context_frames}"
 
+    if "prefix-beam-search" in params.decoding_method:
+        params.suffix += f"-beam-{params.beam}"
+
     if params.use_averaged_model:
         params.suffix += "-use-averaged-model"
 
@@ -643,6 +711,7 @@ def main():
     device = torch.device("cpu")
     if torch.cuda.is_available():
         device = torch.device("cuda", 0)
+    params.device = device
 
     logging.info(f"Device: {device}")
     logging.info(params)
@@ -655,20 +724,28 @@ def main():
     # <blk> and <unk> are defined in local/train_bpe_model.py
     params.blank_id = 0
 
-    if params.decoding_method == "ctc-decoding":
+    if params.decoding_method in [
+        "ctc-greedy-search",
+        "ctc-prefix-beam-search",
+        "ctc-decoding",
+    ]:
         HLG = None
-        H = k2.ctc_topo(
-            max_token=max_token_id,
-            modified=False,
-            device=device,
-        )
+        H = None
+        if params.decoding_method == "ctc-decoding":
+            H = k2.ctc_topo(
+                max_token=max_token_id,
+                modified=False,
+                device=device,
+            )
         bpe_model = spm.SentencePieceProcessor()
         bpe_model.load(str(params.lang_dir / "bpe.model"))
     else:
         H = None
         bpe_model = None
         HLG = k2.Fsa.from_dict(
-            torch.load(f"{params.lang_dir}/HLG.pt", map_location=device, weights_only=False)
+            torch.load(
+                f"{params.lang_dir}/HLG.pt", map_location=device, weights_only=False
+            )
         )
         assert HLG.requires_grad is False
 
@@ -707,7 +784,9 @@ def main():
                 torch.save(G.as_dict(), params.lm_dir / "G_4_gram.pt")
         else:
             logging.info("Loading pre-compiled G_4_gram.pt")
-            d = torch.load(params.lm_dir / "G_4_gram.pt", map_location=device, weights_only=False)
+            d = torch.load(
+                params.lm_dir / "G_4_gram.pt", map_location=device, weights_only=False
+            )
             G = k2.Fsa.from_dict(d)
 
         if params.decoding_method == "whole-lattice-rescoring":
@@ -813,16 +892,16 @@ def main():
     args.return_cuts = True
     gigaspeech = GigaSpeechAsrDataModule(args)
 
-    test_clean_cuts = gigaspeech.test_clean_cuts()
-    test_other_cuts = gigaspeech.test_other_cuts()
+    dev_cuts = gigaspeech.dev_cuts()
+    test_cuts = gigaspeech.test_cuts()
 
-    test_clean_dl = gigaspeech.test_dataloaders(test_clean_cuts)
-    test_other_dl = gigaspeech.test_dataloaders(test_other_cuts)
+    dev_dl = gigaspeech.test_dataloaders(dev_cuts)
+    test_dl = gigaspeech.test_dataloaders(test_cuts)
 
-    test_sets = ["test-clean", "test-other"]
-    test_dl = [test_clean_dl, test_other_dl]
+    test_sets = ["dev", "test"]
+    test_dls = [dev_dl, test_dl]
 
-    for test_set, test_dl in zip(test_sets, test_dl):
+    for test_set, test_dl in zip(test_sets, test_dls):
         results_dict = decode_dataset(
             dl=test_dl,
             params=params,

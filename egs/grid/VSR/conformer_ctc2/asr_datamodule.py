@@ -18,6 +18,8 @@
 import argparse
 import inspect
 import logging
+import random
+from dataclasses import replace
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -35,15 +37,14 @@ from lhotse.dataset import (  # noqa F401 for PrecomputedFeatures
 )
 from lhotse.dataset.input_strategies import (  # noqa F401 For AudioSamples
     AudioSamples,
-    OnTheFlyFeatures,
     BatchIO,
+    OnTheFlyFeatures,
 )
 from lhotse.utils import fix_random_seed, supervision_to_frames
 from torch.utils.data import DataLoader
 
 from icefall.utils import str2bool
-from dataclasses import replace
-import random
+
 
 class _SeedWorkers:
     def __init__(self, seed: int):
@@ -51,6 +52,7 @@ class _SeedWorkers:
 
     def __call__(self, worker_id: int):
         fix_random_seed(self.seed + worker_id)
+
 
 class GridAsrDataModule:
     """
@@ -187,7 +189,7 @@ class GridAsrDataModule:
             default="PrecomputedFeatures",
             help="AudioSamples or PrecomputedFeatures",
         )
- 
+
     def train_dataloaders(
         self,
         cuts_train: CutSet,
@@ -223,7 +225,7 @@ class GridAsrDataModule:
             # Set the value of num_frame_masks according to Lhotse's version.
             # In different Lhotse's versions, the default of num_frame_masks is
             # different.
-           
+
             input_transforms.append(
                 SpecAugment(
                     time_warp_factor=self.args.spec_aug_time_warp_factor,
@@ -251,7 +253,7 @@ class GridAsrDataModule:
             shuffle=self.args.shuffle,
             drop_last=self.args.drop_last,
         )
-        
+
         logging.info("About to create train dataloader")
         if sampler_state_dict is not None:
             logging.info("Loading sampler state dict")
@@ -285,11 +287,11 @@ class GridAsrDataModule:
             cut_transforms=transforms,
             return_cuts=self.args.return_cuts,
         )
-        
+
         valid_sampler = SimpleCutSampler(
-                cuts_valid,
-                max_duration=self.args.max_duration,
-                shuffle=False,
+            cuts_valid,
+            max_duration=self.args.max_duration,
+            shuffle=False,
         )
 
         logging.info("About to create dev dataloader")
@@ -310,10 +312,10 @@ class GridAsrDataModule:
             return_cuts=self.args.return_cuts,
         )
         sampler = SimpleCutSampler(
-                cuts,
-                max_duration=self.args.max_duration,
-                shuffle=False,
-            )
+            cuts,
+            max_duration=self.args.max_duration,
+            shuffle=False,
+        )
 
         logging.debug("About to create test dataloader")
         test_dl = DataLoader(
@@ -323,7 +325,7 @@ class GridAsrDataModule:
             num_workers=self.args.num_workers,
         )
         return test_dl
-        
+
     @lru_cache()
     def train_all_cuts(self) -> CutSet:
         cuts = load_manifest_lazy(self.args.manifest_dir / "grid_cuts_train.jsonl.gz")
@@ -331,9 +333,9 @@ class GridAsrDataModule:
             lambda s: replace(s, text=" ".join(w for w in s.text.split() if w != "sp"))
         )
         return cuts
-    
+
     def split_train_valid(self, cuts: CutSet, valid_ratio=0.03, seed=42):
-        cuts = cuts.shuffle(random.Random(seed)) 
+        cuts = cuts.shuffle(random.Random(seed))
         n = len(cuts)
         n_valid = int(n * valid_ratio)
 
@@ -341,39 +343,36 @@ class GridAsrDataModule:
         train_cuts = cuts.subset(last=n - n_valid)
 
         return train_cuts, valid_cuts
-    
-
 
     @lru_cache()
     def test_cuts(self) -> CutSet:
         logging.info("Grid: About to get test cuts")
-        cuts = load_manifest_lazy(
-            self.args.manifest_dir / "grid_cuts_test.jsonl.gz"
-        )
+        cuts = load_manifest_lazy(self.args.manifest_dir / "grid_cuts_test.jsonl.gz")
         cuts = cuts.map_supervisions(
-            lambda s: replace(
-                s,
-                text=" ".join(w for w in s.text.split() if w != "sp")
-            )
+            lambda s: replace(s, text=" ".join(w for w in s.text.split() if w != "sp"))
         )
         return cuts
+
 
 class VisualFeatureInputStrategy(BatchIO):
     def __init__(self, frame_shift: float = 0.04):
         super().__init__()
         self.frame_shift = frame_shift
-        
+
     def __call__(self, cuts):
-        feats = [torch.from_numpy(cut.load_custom("video_features")).float() for cut in cuts]
+        feats = [
+            torch.from_numpy(cut.load_custom("video_features")).float() for cut in cuts
+        ]
         lengths = torch.tensor([f.shape[0] for f in feats], dtype=torch.int32)
         feats = torch.nn.utils.rnn.pad_sequence(feats, batch_first=True)
         return feats, lengths
-      
+
     @property
     def extractor(self):
         class DummyExtractor:
             def __init__(self, frame_shift):
                 self.frame_shift = frame_shift
+
         return DummyExtractor(self.frame_shift)
 
     def supervision_intervals(self, cuts: CutSet) -> Dict[str, torch.Tensor]:
@@ -385,7 +384,7 @@ class VisualFeatureInputStrategy(BatchIO):
                 )
                 start_frames.append(start)
                 nums_frames.append(num)
-                sequence_idx.append(i)                
+                sequence_idx.append(i)
         return {
             "sequence_idx": torch.tensor(sequence_idx, dtype=torch.int32),
             "start_frame": torch.tensor(start_frames, dtype=torch.int32),
