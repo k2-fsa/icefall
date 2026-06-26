@@ -23,8 +23,7 @@ from typing import Tuple, Optional
 import torch
 from zapformer_modules import (
     ScaledLinear,
-    SwashL,
-    SwashR,
+    Swash,
 )
 from torch import Tensor, nn
 
@@ -79,7 +78,7 @@ class ConvNeXt(nn.Module):
             in_channels=channels, out_channels=hidden_channels, kernel_size=1,
         )
 
-        self.activation = SwashR()
+        self.activation = Swash()
 
         self.pointwise_conv2 = nn.Conv2d(
             in_channels=hidden_channels,
@@ -198,7 +197,7 @@ class Conv2dSubsampling(nn.Module):
                 padding=(0, 1),  # (time, freq)
             ),
             AddNoise(rel_noise_scale=5.0e-03),  # this AddNoise
-            SwashR(),
+            Swash(),
             nn.Conv2d(
                 in_channels=layer1_channels,
                 out_channels=layer2_channels,
@@ -206,14 +205,14 @@ class Conv2dSubsampling(nn.Module):
                 stride=2,
                 padding=0,
             ),
-            SwashR(),
+            Swash(),
             nn.Conv2d(
                 in_channels=layer2_channels,
                 out_channels=layer3_channels,
                 kernel_size=3,
                 stride=(1, 2),  # (time, freq)
             ),
-            SwashR(),
+            Swash(),
         )
 
         # just one convnext layer

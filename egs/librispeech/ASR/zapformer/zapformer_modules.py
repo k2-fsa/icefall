@@ -732,26 +732,12 @@ def torch_compile(fn, *args, **kwargs):
         fn = torch.compile(fn, *args, **kwargs, dynamic=True, options={"shape_padding": True, "force_shape_pad": True})
     return fn
 
-def swashl(x: Tensor) -> Tensor:
-    zero = torch.zeros_like(x)
-    return 0.25 * logaddexp(zero, 4 * x - 4.0) - 0.08 * x - 0.00875
-
-def swashr(x: Tensor) -> Tensor:
+def swash(x: Tensor) -> Tensor:
     zero = torch.zeros_like(x)
     return 0.25 * logaddexp(zero, 4 * x - 1.0) - 0.08 * x - 0.07831542175
 
 
-def swashl_and_deriv(x: Tensor):
-    x_offset = 4. * x - 4.
-    denom = 1. + x_offset.exp()
-    inv_denom = 1. / denom  # note: 1 / infinity = 0.
-    deriv = 0.92 - inv_denom;
-    log_denom = denom.log()
-    log_denom = torch.where(torch.isinf(log_denom), x_offset, log_denom)
-    y = 0.25 * log_denom - 0.08 * x - 0.00875
-    return y, deriv
-
-def swashr_and_deriv(x: Tensor):
+def swash_and_deriv(x: Tensor):
     x_offset = 4. * x - 1.
     denom = 1. + x_offset.exp()
     inv_denom = 1. / denom  # note: 1 / infinity = 0.
@@ -762,26 +748,15 @@ def swashr_and_deriv(x: Tensor):
     return y, deriv
 
 
-class SwashL(torch.nn.Module):
+class Swash(torch.nn.Module):
     def __init__(self):
         super().__init__()
-        self.func = torch_compile(swashl)
+        self.func = torch_compile(swash)
     def forward(self, x: Tensor) -> Tensor:
-        """Return Swash-L activation, which is the same as SwooshL but with a factor of 4
+        """Return Swash-R activation, which is the same as SwooshR but with a factor of 4
         on the input and 0.25 on the output.."""
         if torch.jit.is_scripting() or torch.jit.is_tracing():
-            return swashl(x)
-        return self.func(x)
-
-class SwashR(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.func = torch_compile(swashr)
-    def forward(self, x: Tensor) -> Tensor:
-        """Return Swash-R activation, which is the same as SwooshL but with a factor of 4
-        on the input and 0.25 on the output.."""
-        if torch.jit.is_scripting() or torch.jit.is_tracing():
-            return swashr(x)
+            return swash(x)
         return self.func(x)
 
 
@@ -828,9 +803,9 @@ class ActivationAndLinear(torch.nn.Module):
     """
      This merges an activation function followed by a nn.Linear module;
      it does so in a memory efficient way so that it only stores the input to the whole
-     module.  If activation == SwashL, this will be
+     module.  If activation == Swash, this will be
      equivalent to:
-       nn.Sequential(SwashL(),
+       nn.Sequential(Swash(),
                      ScaledLinear(in_channels, out_channels, bias=bias,
                                   initial_scale=initial_scale))
 
@@ -838,14 +813,14 @@ class ActivationAndLinear(torch.nn.Module):
         in_channels: number of input channels, e.g. 256
         out_channels: number of output channels, e.g. 256
         bias: if true, have a bias
-        activation: the activation function, for now just support SwashL, SwashR.
+        activation: the activation function, for now just support Swash.
     """
     def __init__(
         self,
         in_channels: int,
         out_channels: int,
         bias: bool = True,
-        activation: str = "SwashL",
+        activation: str = "Swash",
         initial_scale: float = 1.0,
     ):
         super().__init__()
@@ -864,22 +839,15 @@ class ActivationAndLinear(torch.nn.Module):
 
         self.activation = activation
 
-        assert activation in ["SwashL", "SwashR"]
-        if activation == "SwashL":
-            self.forward_func = torch_compile(swashl)
-            self.backward_func = torch_compile(swashl_and_deriv)
-        else:
-            self.forward_func = torch_compile(swashr)
-            self.backward_func = torch_compile(swashr_and_deriv)
+        assert activation in ["Swash"]
+        self.forward_func = torch_compile(swash)
+        self.backward_func = torch_compile(swash_and_deriv)
 
 
     def forward(self, x: Tensor):
         if not self.training or torch.jit.is_scripting() or torch.jit.is_tracing():
             if torch.jit.is_scripting() or torch.jit.is_tracing():
-                if self.activation == "SwashL":
-                    x = swashl(x)
-                else:
-                    x = swashr(x)
+                x = swash(x)
             else:
                 x = self.forward_func(x)
             return torch.nn.functional.linear(x, self.weight, self.bias)
@@ -893,24 +861,11 @@ class ActivationAndLinear(torch.nn.Module):
         )
 
 
-def _test_swashl_deriv():
+
+def _test_swash_deriv():
     x = torch.randn(10, 12, dtype=torch.double) * 3.0
     x.requires_grad = True
-    m = SwashL()
-
-    tol = 1.0 / 255.0
-    torch.autograd.gradcheck(m, x, atol=tol, eps=0.01)
-
-    # for self-test.
-    x = torch.randn(1000, 1000, dtype=torch.double) * 3.0
-    x.requires_grad = True
-    y = m(x)
-
-
-def _test_swashr_deriv():
-    x = torch.randn(10, 12, dtype=torch.double) * 3.0
-    x.requires_grad = True
-    m = SwashR()
+    m = Swash()
 
     tol = 1.0 / 255.0
     torch.autograd.gradcheck(m, x, atol=tol, eps=0.01)
@@ -927,64 +882,62 @@ def _test_activation_and_linear():
 
     for bias in [True, False]:
         if True:
-            for activation in ["SwashL", "SwashR"]:
-                m1 = nn.Sequential(
-                    SwashL() if activation == "SwashL" else SwashR(),
-                    ScaledLinear(
-                        in_channels, out_channels, bias=bias, initial_scale=0.5
-                    ),
-                )
-                m2 = ActivationAndLinear(
-                    in_channels,
-                    out_channels,
-                    bias=bias,
-                    initial_scale=0.5,
-                    activation=activation,
-                )
-                with torch.no_grad():
-                    m2.weight[:] = m1[1].weight
-                    if bias:
-                        m2.bias[:] = m1[1].bias
-                # make sure forward gives same result.
-                x1 = torch.randn(10, in_channels)
-                x1.requires_grad = True
-
-
-                x2 = x1.clone().detach()
-                x2.requires_grad = True
-                seed = 10
-                torch.manual_seed(seed)
-                y1 = m1(x1)
-                y_grad = torch.randn_like(y1)
-                y1.backward(gradient=y_grad)
-                torch.manual_seed(seed)
-                y2 = m2(x2)
-                y2.backward(gradient=y_grad)
-
-                print(
-                    f"bias = {bias}, activation = {activation}"
-                )
-                print("y1 = ", y1)
-                print("y2 = ", y2)
-                assert torch.allclose(y1, y2, atol=0.02)
-                print("grad1 = ", m1[1].weight.grad)
-                print("grad2 = ", m2.weight.grad)
-
-                assert torch.allclose(m1[1].weight.grad, m2.weight.grad, atol=1.0e-05)
+            m1 = nn.Sequential(
+                Swash(),
+                ScaledLinear(
+                    in_channels, out_channels, bias=bias, initial_scale=0.5
+                ),
+            )
+            m2 = ActivationAndLinear(
+                in_channels,
+                out_channels,
+                bias=bias,
+                initial_scale=0.5,
+                activation=activation,
+            )
+            with torch.no_grad():
+                m2.weight[:] = m1[1].weight
                 if bias:
-                    assert torch.allclose(m1[1].bias.grad, m2.bias.grad, atol=1.0e-05)
-                print("x1.grad = ", x1.grad)
-                print("x2.grad = ", x2.grad)
+                    m2.bias[:] = m1[1].bias
+            # make sure forward gives same result.
+            x1 = torch.randn(10, in_channels)
+            x1.requires_grad = True
 
-                def isclose(a, b):
-                    # return true if cosine similarity is > 0.9.
-                    return (a * b).sum() > 0.9 * (
-                        (a**2).sum() * (b**2).sum()
-                    ).sqrt()
+            x2 = x1.clone().detach()
+            x2.requires_grad = True
+            seed = 10
+            torch.manual_seed(seed)
+            y1 = m1(x1)
+            y_grad = torch.randn_like(y1)
+            y1.backward(gradient=y_grad)
+            torch.manual_seed(seed)
+            y2 = m2(x2)
+            y2.backward(gradient=y_grad)
 
-                # the SwashL() implementation has a noisy gradient due to 1-byte
-                # storage of it.
-                assert isclose(x1.grad, x2.grad)
+            print(
+                f"bias = {bias}, activation = {activation}"
+            )
+            print("y1 = ", y1)
+            print("y2 = ", y2)
+            assert torch.allclose(y1, y2, atol=0.02)
+            print("grad1 = ", m1[1].weight.grad)
+            print("grad2 = ", m2.weight.grad)
+
+            assert torch.allclose(m1[1].weight.grad, m2.weight.grad, atol=1.0e-05)
+            if bias:
+                assert torch.allclose(m1[1].bias.grad, m2.bias.grad, atol=1.0e-05)
+            print("x1.grad = ", x1.grad)
+            print("x2.grad = ", x2.grad)
+
+            def isclose(a, b):
+                # return true if cosine similarity is > 0.9.
+                return (a * b).sum() > 0.9 * (
+                    (a**2).sum() * (b**2).sum()
+                ).sqrt()
+
+            # the SwashL() implementation has a noisy gradient due to 1-byte
+            # storage of it.
+            assert isclose(x1.grad, x2.grad)
 
 
 def _test_orthogonal_linear():
@@ -996,7 +949,6 @@ if __name__ == "__main__":
     logging.getLogger().setLevel(logging.INFO)
     torch.set_num_threads(1)
     torch.set_num_interop_threads(1)
-    _test_swashr_deriv()
-    _test_swashl_deriv()
+    _test_swash_deriv()
     _test_activation_and_linear()
     _test_orthogonal_linear()

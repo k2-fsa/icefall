@@ -34,7 +34,7 @@ from zapformer_modules import (
     RmsNorm,
     SequenceNorm,
     ScaledLinear,  # just an initializer for Linear
-    SwashR,
+    Swash,
     ScaleLimiter,
 )
 from zapformer_utils import (
@@ -1397,7 +1397,7 @@ class FeedforwardModule(nn.Module):
         self.out_proj = ActivationAndLinear(
             feedforward_dim,
             embed_dim,
-            activation="SwashR",
+            activation="Swash",
             initial_scale=0.5,
             bias=True,
         )
@@ -2046,7 +2046,7 @@ class ConvolutionModule(nn.Module):
         self.out_proj = ActivationAndLinear(
             bottleneck_dim,
             channels,
-            activation="SwashR",
+            activation="Swash",
             initial_scale=0.05,
         )
 
