@@ -286,7 +286,7 @@ def muon_step_fused(
     momentum_buffer.lerp_(stacked_grads, 1 - momentum)
     g = momentum_buffer
 
-    bypass_momentum_scale = 2.0
+    bypass_momentum_scale = 1.0  # could be either less or more than 1.
     bypass = stacked_grads + bypass_momentum_scale * momentum_buffer
     row_buffer.lerp_((bypass ** 2).mean(dim=2, keepdim=True), 1 - momentum)
     bypass = bypass / (row_buffer.sqrt() + eps)
