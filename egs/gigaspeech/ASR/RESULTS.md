@@ -1,4 +1,52 @@
 ## Results
+### zipformer (zipformer + pruned stateless transducer, bf16, 90 epochs)
+
+#### 2026-06-22
+
+[zipformer](./zipformer)
+
+- Non-streaming
+- normal-scaled model, number of model parameters: 65549011, i.e., 65.55 M
+- trained on the `XL` subset, on-the-fly features, no MUSAN augmentation
+- bf16 AMP, 8 × H100 80G GPUs
+
+| decoding method | Dev   | Test  | comment             |
+|-----------------|-------|-------|---------------------|
+| greedy_search   | 10.52 | 10.58 | --epoch 82 --avg 26 |
+
+The training command is (launched with `torchrun`; see [run_train_cluster.sh](./run_train_cluster.sh)):
+```bash
+torchrun --nproc_per_node 8 \
+  ./zipformer/train.py \
+  --num-epochs 90 \
+  --start-epoch 1 \
+  --use-bf16 1 \
+  --exp-dir zipformer/exp \
+  --causal 0 \
+  --subset XL \
+  --max-duration 5000 \
+  --use-transducer 1 \
+  --use-ctc 0 \
+  --on-the-fly-feats 1 \
+  --enable-musan 0 \
+  --num-workers 8 \
+  --prefetch-factor 8 \
+  --lr-epochs 1
+```
+`--world-size` is ignored under `torchrun`; train.py reads `WORLD_SIZE`/`RANK`/`LOCAL_RANK` from the env.
+The flags above are spelled out, but `--on-the-fly-feats 1`, `--enable-musan 0`, `--num-workers 8` and `--prefetch-factor 8` are now the recipe defaults.
+
+The decoding command is:
+```bash
+export CUDA_VISIBLE_DEVICES=0
+./zipformer/decode.py \
+  --epoch 82 \
+  --avg 26 \
+  --exp-dir ./zipformer/exp \
+  --max-duration 1000 \
+  --decoding-method greedy_search
+```
+
 ### zipformer (zipformer + pruned stateless transducer)
 
 See <https://github.com/k2-fsa/icefall/pull/1254> for more details.
@@ -16,7 +64,7 @@ The tensorboard log for training is available at
 
 You can use <https://github.com/k2-fsa/sherpa> to deploy it.
 
-| decoding method      | test-clean | test-other | comment            |
+| decoding method      | Dev        | Test       | comment            |
 |----------------------|------------|------------|--------------------|
 | greedy_search        | 10.31      | 10.50      | --epoch 30 --avg 9 |
 | modified_beam_search | 10.25      | 10.38      | --epoch 30 --avg 9 |
