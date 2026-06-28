@@ -14,7 +14,7 @@
 |-----------------|-------|-------|---------------------|
 | greedy_search   | 10.52 | 10.58 | --epoch 82 --avg 26 |
 
-The training command is (launched with `torchrun`; see [run_train_cluster.sh](./run_train_cluster.sh)):
+The training command is (launched with torchrun; see [run_train_cluster.sh](./zipformer/run_train_cluster.sh)):
 ```bash
 torchrun --nproc_per_node 8 \
   ./zipformer/train.py \
