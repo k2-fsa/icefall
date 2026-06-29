@@ -380,6 +380,12 @@ def muon_core_step(group, state, grad):
     if momentum_buffer.dtype == torch.float:  # Error due to loading state dict; TODO put this in load_state_dict()
         momentum_buffer = momentum_buffer.to(COMPUTE_DTYPE)
         state["momentum_buffer"] = momentum_buffer
+    if row_buffer.dtype == torch.float:  # Error due to loading state dict; TODO put this in load_state_dict()
+        row_buffer = row_buffer.to(COMPUTE_DTYPE)
+        state["row_buffer"] = row_buffer
+    if col_buffer.dtype == torch.float:  # Error due to loading state dict; TODO put this in load_state_dict()
+        col_buffer = col_buffer.to(COMPUTE_DTYPE)
+        state["col_buffer"] = col_buffer
 
     def t(x):
         return torch.tensor(x, device=grad.device, dtype=COMPUTE_DTYPE)
