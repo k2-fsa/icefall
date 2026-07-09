@@ -1249,7 +1249,7 @@ class MultiheadRelPosGatedSelfAttention(nn.Module):
 
         # self-attention
         q = x_qkp[..., 0:query_dim]
-        k = x_qkp[..., query_dim : 2 * query_dim]
+        k = x_qkp[..., query_dim : 2 * query_dim] * (query_head_dim ** -0.5)
         p = x_qkp[..., 2 * query_dim:]
 
         # append the cached key to the current key, and update the cache
