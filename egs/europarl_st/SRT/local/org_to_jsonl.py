@@ -107,7 +107,7 @@ if __name__ == "__main__":
     dict_skeleton = {
         "es": None,
         "de": None,
-        "en": "None",
+        "en": None,
         "fr": None,
         "nl": None,
         "pl": None,
