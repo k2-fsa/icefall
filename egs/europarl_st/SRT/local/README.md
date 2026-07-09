@@ -82,7 +82,7 @@ Europarl-ST/
 │   │   ├── bpe.model
 │   │   └── tokens.txt
 │   └── ...
-└── scripts/                # This directory
+└── local/                  # This directory
     ├── README.md
     ├── org_to_jsonl.py
     ├── normalize_texts.py
@@ -365,13 +365,13 @@ Run the full pipeline from the dataset root:
 cd /path/to/Europarl-ST
 
 # Step 1: Extract audio and build JSONL
-python scripts/org_to_jsonl.py --data-dir ./v1.1 --output-dir ./audio
+python local/org_to_jsonl.py --data-dir ./v1.1 --output-dir ./audio
 
 # Step 2: Normalize text
-python scripts/normalize_texts.py --src-dir ./texts --dst-dir ./normalizer
+python local/normalize_texts.py --src-dir ./texts --dst-dir ./normalizer
 
 # Step 3: Generate CutSet manifests with FBANK features
-python scripts/texts_to_cuts.py \
+python local/texts_to_cuts.py \
   --src-dir ./normalizer \
   --dst-dir ./manifests \
   --audio-root /path/to/audio/root \
@@ -380,15 +380,15 @@ python scripts/texts_to_cuts.py \
   --skip-missing-audio
 
 # Step 4: Filter out entries with empty text
-python scripts/filter_cuts_texts.py \
+python local/filter_cuts_texts.py \
   --manifest-dir ./manifests \
   --overwrite
 
 # Step 5: Validate
-python scripts/check_manifests.py --manifests-dir ./manifests --read-data
+python local/check_manifests.py --manifests-dir ./manifests --read-data
 
 # Step 6: Train BPE model
-python scripts/train_bpe.py \
+python local/train_bpe.py \
   --lang-dir ./bpe/ast9 \
   --transcript /path/to/all_training_text.txt \
   --vocab-size 6000
