@@ -261,19 +261,6 @@ class AlternatingSpecAugment(torch.nn.Module):
 
         return mask_starts, mask_ends
 
-    def state_dict(self, **kwargs) -> Dict[str, Any]:
-        state = { }
-        for name in ["max_feature_mask_fraction", "num_feature_masks",
-                     "max_frame_mask_fraction", "max_frame_mask_size", "p"]:
-            state[name] = getattr(self, name)
-        return state
-
-
-    def load_state_dict(self, state_dict: Dict[str, Any]):
-        for name in ["max_feature_mask_fraction", "num_feature_masks",
-                     "max_frame_mask_fraction", "max_frame_mask_size", "p"]:
-            if name in state_dict:
-                setattr(self, name, state_dict[name])
 
 
 def time_warp_impl(features: torch.Tensor, factor: int,

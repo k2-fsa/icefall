@@ -27,6 +27,8 @@ import torch.distributed as dist
 from torch import Tensor
 from torch.optim import Optimizer
 
+#COMPUTE_DTYPE = torch.float32
+COMPUTE_DTYPE = torch.bfloat16
 
 
 class BatchedOptimizer(Optimizer):
@@ -150,25 +152,18 @@ def scaled_three_way_product(x):
 
 def compute_alpha(x: Tensor, y: Tensor, beta: float) -> Tensor:
     """
-    Computes the amount of cubic decay to do for each parameter tensor in the batch, as
-    in effect batch of scalars (one per parameter) of shape (batch_size, 1, 1).
+    Solve the equation: ||x + alpha y||_2^2 == ||beta x||_2^2
 
-    Solve the equation: ||x - alpha y||_2^2 == ||beta x||_2^2
-
-          x.x - 2 alpha y.x + alpha^2 y.y = beta^2 x.x
-      alpha^2 y.y - 2 alpha x.y + (1-beta^2) x.x = 0
-     (a,b,c) = (y.y, -2 alpha x.y, x.x)
-        alpha = (-b - sqrt(b^2 - 4ac) ) / 2a      # this is the solution closest to zero.
-
+          x.x + 2 alpha y.x + alpha^2 y.y = beta^2 x.x
+      alpha^2 y.y + 2 alpha x.y + (1-beta^2) x.x = 0
+     (a,b,c) = (y.y, 2 alpha x.y, x.x)
+        alpha = (-b + sqrt(b^2 - 4ac) ) / 2a      # this is the solution closest to zero.
+                                                  # treat the thing inside the sqrt as zero if
+                                                  # negative, this
     # factoring out 2 from the top and bottom we get:
-       so alpha = (x.y - sqrt(x.y * y.x  - (1-beta^2) x.x * y.y)) / y.y
+       so alpha = (-x.y + sqrt(x.y * y.x  - (1-beta^2) x.x * y.y)) / y.y
      ... we treat the thing inside the sqrt as zero if it is negative,
-      which gives us the closest real solution to zero.
-
-    We then apply a formula that you can see at the bottom, which chooses the
-    smallest (closest to zero) of two formulae, see the comments.  This is basically
-    heuristic; the safety_factor * min_sum_scale is a safety thing to reduce the
-    chance of eigenvalues flipping sign.
+      which gives us the closest real solution
     """
     eps = 1.0e-40
     xx = x.square().mean(dim=(1, 2), keepdim=True)
@@ -178,23 +173,16 @@ def compute_alpha(x: Tensor, y: Tensor, beta: float) -> Tensor:
 
     # this alpha is the value that solves exactly for the requested difference in norm.
     # this will be negative.
-    alpha = (xy - (xy**2 - (1-beta*beta) * xx * yy).clamp(min=0).sqrt()) / yyeps
+    alpha = (-xy + (xy**2 - (1-beta*beta) * xx * yy).clamp(min=0).sqrt()) / yyeps
 
-    # min_sum_scale is the value of alpha that would minimize the norm of a - alpha y.
-    min_sum_scale = xy / yyeps
+    # min_sum_scale is the value of alpha that would minimize the norm of a + alpha y.
+    min_sum_scale = -xy / yyeps
     # safety_factor = 0.5 means we are only willing to go halfway to that value that minimizes the norm,
     # to avoid change of eigenvalue sign / overshoot, which can ultimately lead to certain
     # parameter eigenvalues getting too large.
     safety_factor = 0.5
 
-    # alpha_power is a heuristic value that interpolates between the computed alpha, and alpha=(1-beta).
-    # the intention is that if the singular values are quite peaky (hence alpha << 1),
-    # we want to make sure that we're doing an adequate amount of decay for the smaller singular values.
-    alpha_power = 0.75
-
-    # return the closest to zero of the two formulae below.
-    return torch.minimum(safety_factor * min_sum_scale,
-                         ((1-beta) ** (1-alpha_power)) * (alpha.clamp(min=1.0e-10) ** alpha_power))
+    return torch.maximum(safety_factor * min_sum_scale, alpha)  # return the closet to zero of these two formulae.
 
 
 def matrix_shape(shape):
@@ -208,8 +196,8 @@ def matrix_shape(shape):
     cumprod = [ ]
     numel = 1
     for k in shape:
-        cumprod.append(k)
         numel = numel * k
+        cumprod.append(numel)
     diffs = [ abs(k - numel // k) for k in cumprod ]
     min_diff = min(diffs)
     for i in range(len(shape)):
@@ -235,9 +223,12 @@ col_stats: (batch_size, 1, cols)
     x = x / row_denom
     col_stats.mul_(beta2).add_(x.abs().mean(dim=1, keepdim=True), alpha=(1 - beta2))
     col_denom = (col_stats + eps)
-    x_half_norm = (x * row_denom.sqrt()) / col_denom.sqrt()
+    row_denom_sqrt = row_denom.sqrt()
+    col_denom_sqrt = col_denom.sqrt()
+    x_half_norm = (x * row_denom_sqrt) / col_denom_sqrt
     x = x / col_denom
-    return x, x_half_norm
+    invP = row_denom * col_denom
+    return x, x_half_norm, invP
 
 
 
@@ -263,7 +254,72 @@ col_stats: (batch_size, 1, cols)
 
 
 
-def cubic_decay_step(group, state, grad):
+# Coefficients for Polar Express (computed for num_iters=5, safety_factor=2e-2, cushion=2)
+# From https://arxiv.org/pdf/2505.16932
+polar_express_coeffs = [
+    (8.156554524902461, -22.48329292557795, 15.878769915207462),
+    (4.042929935166739, -2.808917465908714, 0.5000178451051316),
+    (3.8916678022926607, -2.772484153217685, 0.5060648178503393),
+    (3.285753657755655, -2.3681294933425376, 0.46449024233003106),
+    (2.3465413258596377, -1.7097828382687081, 0.42323551169305323),
+]
+
+#@torch.compile(dynamic=False, fullgraph=True)
+def muon_step_fused(
+    stacked_grads: Tensor,          # (12, 768, 3072) - stacked gradients
+    momentum_buffer: Tensor,        # (12, 768, 3072) - first moment buffer
+    second_momentum_buffer: Tensor, # (12, 768, 1) or (12, 1, 3072) - factored second moment
+    momentum_t: Tensor,             # () - 0-D CPU tensor, momentum coefficient
+    lr_t: Tensor,                   # () - 0-D CPU tensor, learning rate
+    beta2_t: Tensor,                # () - 0-D CPU tensor, beta2 for second moment
+    eps: Tensor,
+    ns_steps: int,                  # 5 - number of Newton-Schulz/Polar Express iterations
+    red_dim: int,                   # -1 or -2 - reduction dimension for variance
+) -> Tensor:
+    """
+    Fused Muon step: momentum -> polar_express -> variance_reduction -> cautious_update
+    All in one compiled graph to eliminate Python overhead between ops.
+    Some of the constants are 0-D CPU tensors to avoid recompilation when values change.
+    """
+
+    # Nesterov momentum
+    momentum = momentum_t.to(stacked_grads.dtype)
+    momentum_buffer.lerp_(stacked_grads, 1 - momentum)
+    g = stacked_grads.lerp_(momentum_buffer, momentum)
+
+    # apply the same normalization both before and after
+    # the core muon step, the symmetry ensures it is a descent direction.
+    g = g / (second_momentum_buffer.sqrt() + eps).to(g.dtype)
+
+    # Polar express
+    # Cast to bf16 for speed when available; skip cast otherwise (fp16 is unstable here due to limited exponent range)
+    X = g.bfloat16() if COMPUTE_DTYPE == torch.bfloat16 else g
+    X = X / (X.norm(dim=(-2, -1), keepdim=True) * 1.01 + 1e-6)
+    if g.size(-2) > g.size(-1): # Tall matrix
+        for a, b, c in polar_express_coeffs[:ns_steps]:
+            A = X.mT @ X
+            B = b * A + c * (A @ A)
+            X = a * X + X @ B
+    else: # Wide matrix (original math)
+        for a, b, c in polar_express_coeffs[:ns_steps]:
+            A = X @ X.mT
+            B = b * A + c * (A @ A)
+            X = a * X + B @ X
+    g = X
+
+    # Variance normalization
+    beta2 = beta2_t.to(second_momentum_buffer.dtype)
+    v_mean = g.float().square().mean(dim=red_dim, keepdim=True)
+    second_momentum_buffer.lerp_(v_mean.to(dtype=second_momentum_buffer.dtype), 1 - beta2)
+    g = g / (second_momentum_buffer.sqrt() + eps).to(g.dtype)
+    lr = lr_t.to(g.dtype)
+    beta1 = momentum_t.to(g.dtype)
+    # assumed scale of step size if it arose from momentum decay from i.i.d. variance-1 grads.
+    assumed_scale = (1 - beta1) * ((1 - beta1**2)**-0.5)
+    return -lr * assumed_scale * g
+
+
+def muon_core_step(group, state, grad):
     lr = group["lr"]
     eps = group["eps"]
     step = state["step"]
@@ -277,84 +333,31 @@ def cubic_decay_step(group, state, grad):
     rows, cols = matrix_shape(orig_shape[1:])
     grad = grad.reshape(batch_size, rows, cols)
 
-    if "moving_grad" not in state:
+    if "momentum_buffer" not in state:
         assert step < 2
-        state["moving_grad"] = torch.zeros(batch_size, rows, cols, device=grad.device)
-        state["row_stats"] = torch.ones(batch_size, rows, 1, device=grad.device)
-        state["col_stats"] = torch.ones(batch_size, 1, cols, device=grad.device)
+        state["momentum_buffer"] = torch.zeros(batch_size, rows, cols, device=grad.device, dtype=COMPUTE_DTYPE)
+        if rows > cols:
+            state["second_momentum_buffer"] = torch.ones(batch_size, rows, 1, device=grad.device, dtype=torch.float)
+        else:
+            state["second_momentum_buffer"] = torch.ones(batch_size, 1, cols, device=grad.device, dtype=torch.float)
 
 
-    moving_grad = state["moving_grad"]
-    row_stats = state["row_stats"]
-    col_stats = state["col_stats"]
+    momentum_buffer = state["momentum_buffer"]
+    second_momentum_buffer = state["second_momentum_buffer"]
 
-    # we half update the stats here, half update them later.
-    norm_grad, norm_grad_precon = half_normalize_and_update_stats(grad, row_stats, col_stats, beta2, eps)
+    if momentum_buffer.dtype == torch.float:  # Error due to loading state dict; TODO put this in load_state_dict()
+        momentum_buffer = momentum_buffer.to(COMPUTE_DTYPE)
+        state["momentum_buffer"] = momentum_buffer
 
-    # add the grad to the moving-average grad; the scaling factor used here
-    # doesn't matter as it all gets normalized later.
-    moving_grad.add_(norm_grad_precon, alpha=(1-beta1))
-
-    # prod3 would have the same value as moving_grad_precon if moving_grad_precon's singular values were
-    # all equal, but in general its 2-norm is >= the 2-norm of moving_grad_precon.
-    prod3 = scaled_three_way_product(moving_grad)
-
-    cubic_alpha = compute_alpha(moving_grad, prod3, beta1)
-    # cubic_alpha shape: (batch_size, 1, 1)
-
-    moving_grad.add_(prod3 * cubic_alpha, alpha=-1)
-
-    # assumed_scale is just a scalar factor to account for the fact that the moving-average "moving_grad"
-    # will have a smaller variance than the grad itself because of being a mean over independent elements.
-    # we rescale before getting the stats, to have the same variance as if it were the grad.
-    # The actual variance of moving_grad also depends on the variance of the original grads; this is just
-    # a scalar component in the variance to accountn for averaging-over-time effects.
-    assumed_scale = (1 - beta1) * ((1 - beta1**2)**-0.5)
-
-    # use a beta2 that is much closer to 1 so we update the stats more slowly at this point; this will
-    # make the stats update more dominated by grad rather than moving_grad.
-    beta2b_scale = 0.1
-    beta2b = beta2b_scale * beta2 + (1 - beta2b_scale)
-    delta = assumed_scale * normalize_and_update_stats(moving_grad / assumed_scale, row_stats, col_stats,
-                                                       beta2b, eps)
-
-    nesterov = True
-    if nesterov:
-        delta.lerp_(norm_grad, weight=(1-beta1))  # beta1 * delta  +  (1 - beta1) * norm_grad  # not in-place.
+    def t(x):
+        return torch.tensor(x, device=grad.device, dtype=COMPUTE_DTYPE)
 
 
-    # try to prevent divergence at the start.
-    delta.clamp_(min=-4, max=4)
+    grad = grad.to(COMPUTE_DTYPE) if grad.dtype != COMPUTE_DTYPE else grad.clone()
+    step = muon_step_fused(grad, momentum_buffer, second_momentum_buffer,
+                           t(beta1), t(lr), t(beta2), t(eps), 5, (-1 if rows > cols else -2))
 
-    #if True:
-    #
-    #if step < 5 or (step < 500 and step % 10 == 0):
-    #logging.info(f"shape={delta.shape}, grad rms is {(grad ** 2).mean(dim=(1,2)).sqrt()}, norm_grad rms is {(norm_grad ** 2).mean(dim=(1,2)).sqrt()}, norm_grad_precon rms is {(norm_grad_precon ** 2).mean(dim=(1,2)).sqrt()}, delta rms is {(delta ** 2).mean(dim=(1,2)).sqrt()}, moving_grad rms is {(moving_grad ** 2).mean(dim=(1,2)).sqrt()}, row_stats_sqrt rms is {row_stats.sqrt().mean(dim=(1,2))}, col_stats sqrt rms is {col_stats.sqrt().mean(dim=(1,2))}")
-
-
-    # do "immediate" normalization of 2-norm of the step to make the overall scale of the update what
-    # it would be if this was a normal decaying-beta1 update and the stats were i.i.d..
-    # below is the assumed scale of d if stats were i.i.d. and this were a more normal adam-style
-    # accumulator with beta equal to beta1.
-    # This should make divergence less likely.
-    # we ignore nesterov modification for purposes of this formula, it should make little difference anyway
-    # if beta1 is close to 1.
-
-
-    # doing the extra sqrt on the scale means we, in effect, half-normalize the magnitude.
-    # we can, I think come up with an argument that it's similar to using a different value of beta.
-    # (argument would require independence of grads on different steps.)
-
-
-    debug = (step < 500 and (step % 50 == 0)) or (step % 500 == 0)
-    if debug:
-        cubic_alpha_ratio = cubic_alpha / (1-beta1)
-        scale = (assumed_scale / ((delta ** 2).mean(dim=(1, 2), keepdim=True).sqrt() + eps))
-        logging.info(f"shape={prod3.shape}, scale={scale.flatten()} [not applied], alpha_ratio={cubic_alpha_ratio.flatten()}, delta-max={delta.abs().max(dim=1)[0].max(dim=1)[0]}")
-
-    delta.mul_(-lr)
-
-    return delta.reshape(orig_shape)
+    return step.reshape(orig_shape)
 
 
 def scaling_step(group, param, state, grad):
@@ -371,7 +374,7 @@ def scaling_step(group, param, state, grad):
     scalar_scale = group["scalar_scale"]
 
     if grad.ndim >= 2 and grad.numel() != grad.shape[0] * max(grad.shape[1:]):
-        delta = cubic_decay_step(group, state, grad)
+        delta = muon_core_step(group, state, grad)
     else:
         # biases and similar-shaped tensors
         delta = adam_step(group, state, grad)
@@ -427,8 +430,8 @@ def adam_step(group, state, grad):
         exp_avg_sq = state["exp_avg_sq"]
     except KeyError as e:
         assert step < 2
-        exp_avg = torch.zeros(*grad.shape, device=grad.device, dtype=torch.float)
-        exp_avg_sq = torch.zeros(*grad.shape, device=grad.device, dtype=torch.float)
+        exp_avg = torch.zeros_like(grad)
+        exp_avg_sq = torch.zeros_like(grad)
         state["exp_avg"] = exp_avg
         state["exp_avg_sq"] = exp_avg_sq
 
@@ -560,8 +563,8 @@ def _test_batched_rubik(hidden_dim: int):
     B = 4
     T = 2
     logging.info("in test_batched_rubik")
-    # device = torch.device('cuda')
-    device = torch.device("cpu")
+    device = torch.device('cuda')
+    #device = torch.device("cpu")
     dtype = torch.float32
 
     torch.random.manual_seed(42)

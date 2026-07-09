@@ -20,9 +20,9 @@ copies of the data.)
 
 | decoding method                      | test-clean | test-other | comment             |
 |--------------------------------------|------------|------------|---------------------|
-| greedy_search                        | 1.83       | 3.75       | --epoch 13 --avg 3  |
+| greedy_search                        | 1.81       | 3.73       | --epoch 13 --avg 3  |
 
-
+Note on other results: dev-clean=1.73,dev-other,3.55, giga test=16.69 giga dev=1.733. (i.e. on the model trained with Libri only).
 
 
 ### zipformer (zipformer + pruned-transducer w/ CR-CTC)
