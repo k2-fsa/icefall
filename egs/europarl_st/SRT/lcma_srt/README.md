@@ -27,20 +27,20 @@ cd egs/europarl_st/SRT
 bash prepare.sh --stage 0 --stop-stage 5
 ```
 
-See [local/README.md](local/README.md) for detailed documentation of each preprocessing step.
+See [local/README.md](../local/README.md) for detailed documentation of each preprocessing step.
 
 ### Training
 
 #### Stage 1: Multilingual ASR Pretraining (with SRC-MoE)
 
 ```bash
-bash lcma_srt/cr_ctc_sc_moe.sh
+bash lcma_srt/train/stage1/cr_ctc_sc_moe.sh
 ```
 
 #### Stage 2: Many-to-Many Joint ASR+ST Training
 
 ```bash
-bash lcma_srt/lcma_srt.sh
+bash lcma_srt/train/stage2/lcma_srt.sh
 ```
 
 ### Decoding
@@ -48,13 +48,13 @@ bash lcma_srt/lcma_srt.sh
 #### Stage 1: ASR Decoding
 
 ```bash
-bash lcma_srt/decode_cr_ctc_sc_moe.sh
+bash lcma_srt/decode/stage1/decode_cr_ctc_sc_moe.sh
 ```
 
 #### Stage 2: Joint ASR+ST Decoding
 
 ```bash
-bash lcma_srt/decode_lcma_srt.sh
+bash lcma_srt/decode/stage2/decode_lcma_srt.sh
 ```
 
 ## Pre-trained Models
