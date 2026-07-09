@@ -264,16 +264,58 @@ polar_express_coeffs = [
     (2.3465413258596377, -1.7097828382687081, 0.42323551169305323),
 ]
 
+
+def decay(moving_grad, eps, step):
+    moving_grad = moving_grad.clone()
+    num_steps = 2
+    for i in range(num_steps):
+        # prod3 would have the same value as moving_grad_precon if moving_grad_precon's singular values were
+        # all equal, but in general its 2-norm is >= the 2-norm of moving_grad_precon.
+
+        moving_grad_norm = moving_grad.norm(dim=(1,2), keepdim=True)
+        prod3 = three_way_product(moving_grad / (moving_grad_norm + eps))
+        prod3_norm = prod3.norm(dim=(1,2), keepdim=True)
+
+        first_eig = prod3_norm.clamp(min=eps, max=0.999) ** (1/3)
+        # the second part of the minimum says that the second eig must be less than the
+        # top eig.   (for first_eig less than about 0.6, this is an issue.)
+        second_eig = torch.minimum((1 - first_eig**2) ** 0.5,
+                                   0.5 * first_eig)
+
+        # need f(second_eig) <= f(first_eig) to keep the correct ordering.
+        # so:
+        #   first_eig - alpha first_eig^3 >= second_eig - alpha second_eig^3
+        # first_eig - second_eig >= alpha (first_eig^3 - second_eig^3)
+        # can set:
+        #  alpha = (first_eig - second_eig) / (first_eig^3 - second_eig^3)
+
+        alpha = (first_eig - second_eig) / (first_eig**3 - second_eig**3)
+
+        moving_grad.add_(prod3 * moving_grad_norm * alpha, alpha=-1)
+
+        moving_grad_norm2 = moving_grad.norm(dim=(1,2), keepdim=True)
+
+        beta1_eff = ((moving_grad_norm2 + eps) / (moving_grad_norm + eps)).clamp(min=1.0e-05, max=0.999)
+        #moving_grad.mul_(1 / beta1_eff)  # undo the norm change caused by the cubic decay.  [or it would affect normalize_and_update_stats later.]
+
+        if step % 1000 == 0:
+            logging.info(f"iter={i}, shape={moving_grad.shape}, moving_grad_norm={moving_grad_norm.flatten()}, prod3_norm={prod3_norm.flatten()}, alpha={alpha.flatten()}, beta1_eff={beta1_eff.flatten()}") # = min({cubic_alpha_limit.flatten()}, {cubic_alpha_ceil.flatten()}")
+
+    return moving_grad
+
+
 #@torch.compile(dynamic=False, fullgraph=True)
-def muon_step_fused(
+def muon_internal(
     stacked_grads: Tensor,          # (12, 768, 3072) - stacked gradients
     momentum_buffer: Tensor,        # (12, 768, 3072) - first moment buffer
     row_buffer: Tensor,            # (12, 768, 1) - row squared magnitude buffer
     col_buffer: Tensor,            # (12, 1, 3072) - column squared magnitude buffer
-    momentum_t: Tensor,             # () - 0-D CPU tensor, momentum coefficient
-    lr_t: Tensor,                   # () - 0-D CPU tensor, learning rate
-    eps: Tensor,
-    ns_steps: int,                  # 5 - number of Newton-Schulz/Polar Express iterations
+    beta1: float,
+    beta2: float,
+    lr: float,
+    eps: float,
+    ns_steps: int,
+    step: int,
 ) -> Tensor:
     """
     Fused Muon step: momentum -> polar_express -> variance_reduction -> cautious_update
@@ -282,13 +324,16 @@ def muon_step_fused(
     """
 
     # Nesterov momentum
-    momentum = momentum_t.to(stacked_grads.dtype)
-    momentum_buffer.lerp_(stacked_grads, 1 - momentum)
+    momentum_buffer.lerp_(stacked_grads, 1 - beta1)
     g = momentum_buffer
 
     bypass_momentum_scale = 1.0  # could be either less or more than 1.
     bypass = stacked_grads + bypass_momentum_scale * momentum_buffer
-    beta2 = 0.9
+
+    bypass = bypass / (row_buffer.sqrt() + eps)
+    bypass = bypass / (col_buffer.sqrt() + eps)
+    bypass = decay(bypass, eps, step)
+    # update stats and second application of row/col normalization
     row_buffer.lerp_((bypass ** 2).mean(dim=2, keepdim=True), 1 - beta2)
     bypass = bypass / (row_buffer.sqrt() + eps)
     col_buffer.lerp_((bypass ** 2).mean(dim=1, keepdim=True), 1 - beta2)
@@ -347,8 +392,6 @@ def muon_step_fused(
             logging.info(f"dim={dim}, shape={g.shape}, abs-mean of scale_ratio is {(scale_ratio-1).abs().mean()}, min,max are {scale_ratio.min()},{scale_ratio.max()}")
 
     # assumed scale of step size if it arose from momentum decay from i.i.d. variance-1 grads.
-    lr = lr_t.to(g.dtype)
-    beta1 = momentum_t.to(g.dtype)
     assumed_scale = (1 - beta1) * ((1 - beta1**2)**-0.5)  / expected_rms
     bypass_scale = 0.05
     return -lr * ((1 - bypass_scale) * assumed_scale * g  + bypass_scale * bypass)
@@ -360,6 +403,7 @@ def muon_core_step(group, state, grad):
     step = state["step"]
     beta1_ceil = 1. - 1. / (10. + 0.2 * step)
     beta1 = min(group["beta1"], beta1_ceil)
+    beta2 = min(0.9, step / (step + 1))
 
     orig_shape = grad.shape
     batch_size = orig_shape[0]
@@ -369,8 +413,8 @@ def muon_core_step(group, state, grad):
     if "momentum_buffer" not in state:
         assert step < 2
         state["momentum_buffer"] = torch.zeros(batch_size, rows, cols, device=grad.device, dtype=COMPUTE_DTYPE)
-        state["row_buffer"] = torch.zeros(batch_size, rows, 1, device=grad.device, dtype=COMPUTE_DTYPE)
-        state["col_buffer"] = torch.zeros(batch_size, 1, cols, device=grad.device, dtype=COMPUTE_DTYPE)
+        state["row_buffer"] = torch.ones(batch_size, rows, 1, device=grad.device, dtype=COMPUTE_DTYPE)
+        state["col_buffer"] = torch.ones(batch_size, 1, cols, device=grad.device, dtype=COMPUTE_DTYPE)
 
 
     momentum_buffer = state["momentum_buffer"]
@@ -392,8 +436,8 @@ def muon_core_step(group, state, grad):
 
 
     grad = grad.to(COMPUTE_DTYPE) if grad.dtype != COMPUTE_DTYPE else grad.clone()
-    step = muon_step_fused(grad.to(COMPUTE_DTYPE), momentum_buffer, row_buffer, col_buffer,
-                           t(beta1), t(lr), t(eps), 5)
+    step = muon_internal(grad.to(COMPUTE_DTYPE), momentum_buffer, row_buffer, col_buffer,
+                         beta1, beta2, lr, eps, 5, step)
 
     return step.reshape(orig_shape)
 
