@@ -15,7 +15,7 @@ Please refer to the [icefall installation guide](https://k2-fsa.github.io/icefal
 
 Download the Europarl-ST dataset from the [official page](https://www.mllp.upv.es/europarl-st/).
 
-See [data/scripts](data/scripts) for data preparation scripts.
+See [local](local) for data preparation scripts.
 
 ## Training
 
