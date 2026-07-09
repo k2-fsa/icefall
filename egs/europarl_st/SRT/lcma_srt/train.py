@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# Copyright 2025 Nanjie Li (linanjie0820@gmail.com)
+# Copyright 2026 Nanjie Li (linanjie0820@gmail.com)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -279,7 +279,7 @@ def add_encoder_args(group: argparse._ArgumentGroup, prefix: str = "asr") -> Non
 
 
 def add_model_arguments(parser: argparse.ArgumentParser) -> None:
-    # ASR冻结
+    # Freeze ASR
     parser.add_argument("--freeze-asr", type=str2bool, default=False)
     parser.add_argument("--freeze-frontend", type=str2bool, default=False)
 
@@ -1265,11 +1265,11 @@ def compute_loss(
         if params.use_ctc_asr:
             # loss = loss + params.task_weight_asr * (params.ctc_loss_scale * ctc_asr)
             # loss = loss + params.task_weight_st  * (params.ctc_loss_scale * ctc_st)
-            loss_asr += params.ctc_loss_scale * ctc_asr  # ctc_loss_scale默认0.2
+            loss_asr += params.ctc_loss_scale * ctc_asr  # ctc_loss_scale default 0.2
             if params.use_cr_ctc:
                 # loss = loss + params.task_weight_asr * (params.cr_loss_scale * cr_asr)
                 # loss = loss + params.task_weight_st  * (params.cr_loss_scale * cr_st)
-                loss_asr += params.cr_loss_scale * cr_asr  # cr_loss_scale默认0.2
+                loss_asr += params.cr_loss_scale * cr_asr  # cr_loss_scale default 0.2
 
         if params.use_ctc_st and params.enable_st:
             # loss = loss + params.task_weight_asr * (params.ctc_loss_scale * ctc_asr)
@@ -1677,7 +1677,7 @@ def train_one_epoch(
                 world_size=world_size,
             )
             model.train()
-            _reapply_freeze_asr(model)  # 冻结ASR
+            _reapply_freeze_asr(model)  # Freeze ASR
             logging.info(f"Epoch {params.cur_epoch}, validation: {valid_info}")
             logging.info(
                 f"Maximum memory allocated so far is {torch.cuda.max_memory_allocated()//1000000}MB"
@@ -1911,7 +1911,7 @@ def run(rank: int, world_size: int, args: argparse.Namespace) -> None:
     params.sos_id_st = params.eos_id_st = sp_st.piece_to_id("<sos/eos>")
     params.vocab_size_st = sp_st.get_piece_size()
 
-    # 已加载 sp_st = SentencePieceProcessor()
+    # sp_st = SentencePieceProcessor() already loaded
     params.tgt_lang_list = [s.strip() for s in params.tgt_langs.split(",") if s.strip()]
     params.tgt_lang2id = {lg: i for i, lg in enumerate(params.tgt_lang_list)}
     params.num_tgt_langs_ast = len(params.tgt_lang_list)
@@ -1961,7 +1961,7 @@ def run(rank: int, world_size: int, args: argparse.Namespace) -> None:
     checkpoints = load_checkpoint_if_available(
         params=params, model=model, model_avg=model_avg
     )
-    _reapply_freeze_asr(model)  # 冻结ASR
+    _reapply_freeze_asr(model)  # Freeze ASR
     # logging.info(f"{model}")
     model.to(device)
     if world_size > 1:

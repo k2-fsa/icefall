@@ -1,4 +1,4 @@
-# Copyright 2025 Nanjie Li (linanjie0820@gmail.com)
+# Copyright 2026 Nanjie Li (linanjie0820@gmail.com)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -125,7 +125,7 @@ def get_parser():
         "--model-name",
         type=str,
         default=None,
-        help="指定一个模型名称",
+        help="Specify a model name",
     )
     parser.add_argument(
         "--exp-dir",

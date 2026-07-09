@@ -1413,7 +1413,7 @@ def modified_beam_search(
     temperature: float = 1.0,
     blank_penalty: float = 0.0,
     return_timestamps: bool = False,
-    # ===== 新增参数（整批同一目标语） =====
+    # ===== Additional parameters (same target lang for entire batch) =====
     lang_token_id: Optional[int] = None,
     force_first_lang: bool = False,
 ) -> Union[List[List[int]], "DecodingResults"]:
@@ -1436,9 +1436,9 @@ def modified_beam_search(
       return_timestamps:
         Whether to return token timestamps.
       lang_token_id:
-        目标语 token 的 id（整批相同），如 sp_st.piece_to_id("<2zh-cn>").
+        Target language token id (same for entire batch), e.g. sp_st.piece_to_id("<2zh-cn>").
       force_first_lang:
-        若为 True：在每条假设发出第一个 label 之前，只允许 {blank, lang_token_id}。
+        If True: before emitting the first label, only allow {blank, lang_token_id}.
     """
     assert encoder_out.ndim == 3, encoder_out.shape
     assert encoder_out.size(0) >= 1, encoder_out.size(0)
@@ -1446,9 +1446,9 @@ def modified_beam_search(
 
     if force_first_lang:
         if lang_token_id is None:
-            raise ValueError("force_first_lang=True 但未提供 lang_token_id")
+            raise ValueError("force_first_lang=True but lang_token_id not provided")
         if not isinstance(lang_token_id, int):
-            raise TypeError("lang_token_id 必须是 int（整批同一目标语）。")
+            raise TypeError("lang_token_id must be int (same target lang for entire batch).")
 
     packed_encoder_out = torch.nn.utils.rnn.pack_padded_sequence(
         input=encoder_out,
@@ -1466,7 +1466,7 @@ def modified_beam_search(
     N = encoder_out.size(0)
     assert N == batch_size_list[0], (N, batch_size_list)
 
-    # 初始化每条语音的 beam（用 blank 作为 SOS，占满 context_size）
+    # Initialize beam for each utterance (use blank as SOS, fill context_size)
     B = [HypothesisList() for _ in range(N)]
     for i in range(N):
         B[i].add(
@@ -1478,7 +1478,7 @@ def modified_beam_search(
             )
         )
 
-    # 先做 encoder 投影以加速
+    # Pre-compute encoder projection for speedup
     enc_proj = joiner.encoder_proj(packed_encoder_out.data)
 
     offset = 0
@@ -1491,20 +1491,20 @@ def modified_beam_search(
         # (batch_size, 1, 1, joiner_dim)
         offset = end
 
-        # 将已结束样本的 beam 暂存
+        # Store beams of finished samples
         finalized_B = B[batch_size:] + finalized_B
         B = B[:batch_size]
 
         hyps_shape = get_hyps_shape(B).to(device)
-        A = [list(b) for b in B]  # 当前所有样本的假设
+        A = [list(b) for b in B]  # Current hypotheses for all samples
         B = [HypothesisList() for _ in range(batch_size)]
 
-        # 累积分数（所有假设堆叠）
+        # Accumulated scores (all hypotheses stacked)
         ys_log_probs = torch.cat(
             [hyp.log_prob.reshape(1, 1) for hyps in A for hyp in hyps]
         )  # (num_hyps, 1)
 
-        # 取每个假设最后 context_size 个 token 作为 predictor 输入
+        # Take last context_size tokens of each hypothesis as predictor input
         decoder_input = torch.tensor(
             [hyp.ys[-context_size:] for hyps in A for hyp in hyps],
             device=device,
@@ -1514,14 +1514,14 @@ def modified_beam_search(
         decoder_out = decoder(decoder_input, need_pad=False).unsqueeze(1)
         decoder_out = joiner.decoder_proj(decoder_out)  # (num_hyps, 1, 1, joiner_dim)
 
-        # 将当前帧的 encoder 表征扩展到每个假设
+        # Expand current frame encoder representation to each hypothesis
         current_encoder_out = torch.index_select(
             current_encoder_out,
             dim=0,
             index=hyps_shape.row_ids(1).to(torch.int64),
         )  # (num_hyps, 1, 1, joiner_dim)
 
-        # 过 joiner 得到 vocab logits
+        # Pass through joiner to get vocab logits
         logits = joiner(
             current_encoder_out,
             decoder_out,
@@ -1529,9 +1529,9 @@ def modified_beam_search(
         )  # (num_hyps, 1, 1, V)
         logits = logits.squeeze(1).squeeze(1)  # (num_hyps, V)
 
-        # ====== 首发约束：第一发前仅允许 {blank, lang_token_id} ======
+        # ====== First-emit constraint: only allow {blank, lang_token_id} before first emission ======
         if force_first_lang:
-            # 当 len(hyp.ys) == context_size 时，说明还未发射任何 label（除了起始上下文）
+            # When len(hyp.ys) == context_size, no label has been emitted yet (except initial context)
             need_force = torch.tensor(
                 [len(hyp.ys) == context_size for hyps in A for hyp in hyps],
                 device=device,
@@ -1540,20 +1540,20 @@ def modified_beam_search(
             if need_force.any():
                 vocab_size = logits.size(-1)
                 if not (0 <= lang_token_id < vocab_size):
-                    raise RuntimeError("lang_token_id 超出词表范围")
+                    raise RuntimeError("lang_token_id out of vocabulary range")
                 logits_backup = logits.clone()
                 logits[need_force] = float("-inf")
                 rows = torch.nonzero(need_force, as_tuple=True)[0]
-                # 只放行 blank 与目标语 token 的原始分数
+                # Only allow raw scores of blank and target lang token
                 logits[rows, blank_id] = logits_backup[rows, blank_id]
                 logits[rows, lang_token_id] = logits_backup[rows, lang_token_id]
         # ============================================================
 
-        # 可选的 blank 惩罚（注意：在首发约束之后施加，二者可叠加）
+        # Optional blank penalty (applied after first-emit constraint, can stack)
         if blank_penalty != 0:
             logits[:, blank_id] -= blank_penalty
 
-        # Softmax(temperature) + 累积分数
+        # Softmax(temperature) + accumulated scores
         log_probs = (logits / temperature).log_softmax(dim=-1)  # (num_hyps, V)
         log_probs.add_(ys_log_probs)
 
@@ -1566,7 +1566,7 @@ def modified_beam_search(
         )
         ragged_log_probs = k2.RaggedTensor(shape=log_probs_shape, value=log_probs)
 
-        # 对每个样本取 top-k，并扩展新假设
+        # Select top-k for each sample and expand new hypotheses
         for i in range(batch_size):
             topk_log_probs, topk_indexes = ragged_log_probs[i].topk(beam)
             with warnings.catch_warnings():
@@ -1605,7 +1605,7 @@ def modified_beam_search(
 
     B = B + finalized_B
 
-    # 结束时对 context_graph 做一次 finalize（补回退分）
+    # Finalize context_graph at the end (add backoff scores)
     if context_graph is not None:
         finalized_B = [HypothesisList() for _ in range(len(B))]
         for i, hyps in enumerate(B):
@@ -1623,14 +1623,14 @@ def modified_beam_search(
                 )
         B = finalized_B
 
-    # 取每条语音的最优路径（做长度归一）
+    # Get best path for each utterance (with length normalization)
     best_hyps = [b.get_most_probable(length_norm=True) for b in B]
 
-    # 去掉 predictor 的上下文前缀
+    # Remove predictor context prefix
     sorted_ans = [h.ys[context_size:] for h in best_hyps]
     sorted_timestamps = [h.timestamp for h in best_hyps]
 
-    # 还原到 pack 前的样本顺序
+    # Restore to original sample order before packing
     ans, ans_timestamps = [], []
     unsorted_indices = packed_encoder_out.unsorted_indices.tolist()
     for i in range(N):

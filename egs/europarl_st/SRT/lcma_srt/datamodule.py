@@ -1,4 +1,4 @@
-# Copyright 2025 Nanjie Li (linanjie0820@gmail.com)
+# Copyright 2026 Nanjie Li (linanjie0820@gmail.com)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -236,12 +236,12 @@ class LibriSpeechAsrDataModule:
           sampler_state_dict:
             The state dict for the training sampler.
         """
-        # 1. 初始化分布式参数
+        # 1. Initialize distributed parameters
         rank = get_rank() if is_initialized() else 0
         world_size = get_world_size() if is_initialized() else 1
         is_distributed = is_initialized()
 
-        # 2. 打印关键配置信息
+        # 2. Print key configuration info
         logging.info(
             f"\n{'='*50}\n"
             f"Initializing dataloader:\n"
