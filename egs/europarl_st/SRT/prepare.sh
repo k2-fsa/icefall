@@ -26,7 +26,7 @@ manifest_dir=${data_root}/manifests
 fbank_dir=${data_root}/fbank
 bpe_dir=${data_root}/bpe
 
-. shared/parse_options.sh || true
+. shared/parse_options.sh || exit 1
 
 log() {
   local fname=${BASH_SOURCE[1]##*/}

@@ -577,4 +577,7 @@ class LibriSpeechAsrDataModule:
     @lru_cache()
     def test_cuts(self) -> CutSet:
         logging.info("About to get test cuts")
+        test_path = Path(self.args.test_name)
+        if test_path.exists():
+            return load_manifest_lazy(test_path)
         return load_manifest_lazy(self.args.manifest_dir / self.args.test_name)

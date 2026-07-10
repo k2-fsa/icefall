@@ -66,6 +66,7 @@ for TEST_CUTS_PATH in "${TEST_CUTS_PATHS[@]}"; do
 
   decoding_method_dir="modified_beam_search_beam20_${src_lang}_to_${tgt_lang}_cuts_test"
   compute_cer_current=$compute_cer
+  tgt_lang_token="<2${tgt_lang}>"
 
   python lcma_srt/decode.py \
     --iter $steps \

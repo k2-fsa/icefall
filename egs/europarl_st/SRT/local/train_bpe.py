@@ -86,7 +86,6 @@ def main():
         "<blk>",
         "<sos/eos>",
         "<2en>",
-        "<2en>",
         "<2de>",
         "<2es>",
         "<2fr>",
@@ -98,9 +97,6 @@ def main():
     ]
 
     unk_id = len(user_defined_symbols)
-    # Note: unk_id is fixed to 2.
-    # If you change it, you should also change other
-    # places that are using it.
 
     model_file = Path(model_prefix + ".model")
     if not model_file.is_file():
