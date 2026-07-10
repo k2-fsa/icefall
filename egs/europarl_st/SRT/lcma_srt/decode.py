@@ -530,71 +530,7 @@ def decode_one_batch(
 
     asr_hyps = []
     st_hyps = []
-    if params.decoding_method == "fast_beam_search":
-        hyp_tokens = fast_beam_search_one_best(
-            model=model,
-            decoding_graph=decoding_graph,
-            encoder_out=encoder_out,
-            encoder_out_lens=encoder_out_lens,
-            beam=params.beam,
-            max_contexts=params.max_contexts,
-            max_states=params.max_states,
-        )
-        for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
-    elif params.decoding_method == "fast_beam_search_nbest_LG":
-        hyp_tokens = fast_beam_search_nbest_LG(
-            model=model,
-            decoding_graph=decoding_graph,
-            encoder_out=encoder_out,
-            encoder_out_lens=encoder_out_lens,
-            beam=params.beam,
-            max_contexts=params.max_contexts,
-            max_states=params.max_states,
-            num_paths=params.num_paths,
-            nbest_scale=params.nbest_scale,
-        )
-        for hyp in hyp_tokens:
-            hyps.append([word_table[i] for i in hyp])
-    elif params.decoding_method == "fast_beam_search_nbest":
-        hyp_tokens = fast_beam_search_nbest(
-            model=model,
-            decoding_graph=decoding_graph,
-            encoder_out=encoder_out,
-            encoder_out_lens=encoder_out_lens,
-            beam=params.beam,
-            max_contexts=params.max_contexts,
-            max_states=params.max_states,
-            num_paths=params.num_paths,
-            nbest_scale=params.nbest_scale,
-        )
-        for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
-    elif params.decoding_method == "fast_beam_search_nbest_oracle":
-        hyp_tokens = fast_beam_search_nbest_oracle(
-            model=model,
-            decoding_graph=decoding_graph,
-            encoder_out=encoder_out,
-            encoder_out_lens=encoder_out_lens,
-            beam=params.beam,
-            max_contexts=params.max_contexts,
-            max_states=params.max_states,
-            num_paths=params.num_paths,
-            ref_texts=sp.encode(supervisions["text"]),
-            nbest_scale=params.nbest_scale,
-        )
-        for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
-    elif params.decoding_method == "greedy_search" and params.max_sym_per_frame == 1:
-        hyp_tokens = greedy_search_batch(
-            model=model,
-            encoder_out=encoder_out,
-            encoder_out_lens=encoder_out_lens,
-        )
-        for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
-
-    elif params.decoding_method == "modified_beam_search":
+    if params.decoding_method == "modified_beam_search":
         # ===== ASR =====
         if params.asr_decode:
             joiner_asr = model.joiner_asr
@@ -642,116 +578,28 @@ def decode_one_batch(
             for st_hyp in sp_st.decode(st_hyp_tokens):
                 st_hyps.append(st_hyp.split())
 
-    elif params.decoding_method == "modified_beam_search_lm_shallow_fusion":
-        hyp_tokens = modified_beam_search_lm_shallow_fusion(
-            model=model,
-            encoder_out=encoder_out,
-            encoder_out_lens=encoder_out_lens,
-            beam=params.beam_size,
-            LM=LM,
-        )
-        for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
-    elif params.decoding_method == "modified_beam_search_LODR":
-        hyp_tokens = modified_beam_search_LODR(
-            model=model,
-            encoder_out=encoder_out,
-            encoder_out_lens=encoder_out_lens,
-            beam=params.beam_size,
-            LODR_lm=ngram_lm,
-            LODR_lm_scale=ngram_lm_scale,
-            LM=LM,
-            context_graph=context_graph,
-        )
-        for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
-    elif params.decoding_method == "modified_beam_search_lm_rescore":
-        lm_scale_list = [0.01 * i for i in range(10, 50)]
-        ans_dict = modified_beam_search_lm_rescore(
-            model=model,
-            encoder_out=encoder_out,
-            encoder_out_lens=encoder_out_lens,
-            beam=params.beam_size,
-            LM=LM,
-            lm_scale_list=lm_scale_list,
-        )
-    elif params.decoding_method == "modified_beam_search_lm_rescore_LODR":
-        lm_scale_list = [0.02 * i for i in range(2, 30)]
-        ans_dict = modified_beam_search_lm_rescore_LODR(
-            model=model,
-            encoder_out=encoder_out,
-            encoder_out_lens=encoder_out_lens,
-            beam=params.beam_size,
-            LM=LM,
-            LODR_lm=ngram_lm,
-            sp=sp,
-            lm_scale_list=lm_scale_list,
-        )
     else:
-        batch_size = encoder_out.size(0)
+        raise NotImplementedError(
+            f"Decoding method '{params.decoding_method}' is not supported "
+            "in this dual ASR/ST decoder. Use 'modified_beam_search'."
+        )
 
-        for i in range(batch_size):
-            # fmt: off
-            encoder_out_i = encoder_out[i:i+1, :encoder_out_lens[i]]
-            # fmt: on
-            if params.decoding_method == "greedy_search":
-                hyp = greedy_search(
-                    model=model,
-                    encoder_out=encoder_out_i,
-                    max_sym_per_frame=params.max_sym_per_frame,
-                )
-            elif params.decoding_method == "beam_search":
-                hyp = beam_search(
-                    model=model,
-                    encoder_out=encoder_out_i,
-                    beam=params.beam_size,
-                )
-            else:
-                raise ValueError(
-                    f"Unsupported decoding method: {params.decoding_method}"
-                )
-            hyps.append(sp.decode(hyp).split())
-
-    prefix = params.decoding_method
     asr_prefix = f"asr_{params.decoding_method}"
     st_prefix = f"st_{params.decoding_method}"
     asr_result: Dict[str, List[List[str]]] = dict()
     st_result: Dict[str, List[List[str]]] = dict()
 
-    if params.decoding_method == "greedy_search":
-        asr_result = {"greedy_search": hyps}
-    elif "fast_beam_search" in params.decoding_method:
-        fast_prefix = prefix
-        fast_prefix += f"_beam-{params.beam}"
-        fast_prefix += f"_max-contexts-{params.max_contexts}"
-        fast_prefix += f"_max-states-{params.max_states}"
-        if "nbest" in params.decoding_method:
-            fast_prefix += f"_num-paths-{params.num_paths}"
-            fast_prefix += f"_nbest-scale-{params.nbest_scale}"
-            if "LG" in params.decoding_method:
-                fast_prefix += f"_ngram-lm-scale-{params.ngram_lm_scale}"
-        asr_result = {fast_prefix: hyps}
-    elif "modified_beam_search" in params.decoding_method:
+    if "modified_beam_search" in params.decoding_method:
         asr_prefix += f"_beam-size-{params.beam_size}"
         st_prefix += f"_beam-size-{params.beam_size}"
-        if params.decoding_method in (
-            "modified_beam_search_lm_rescore",
-            "modified_beam_search_lm_rescore_LODR",
-        ):
-            ans = dict()
-            assert ans_dict is not None
-            for key, hyps in ans_dict.items():
-                hyps = [sp.decode(hyp).split() for hyp in hyps]
-                ans[f"{prefix}_{key}"] = hyps
-            asr_result = ans
-        else:
-            if params.has_contexts:
-                prefix += f"_context-score-{params.context_score}"
-            asr_result = {asr_prefix: asr_hyps}
-            st_result = {st_prefix: st_hyps}
+        if params.has_contexts:
+            asr_prefix += f"_context-score-{params.context_score}"
+        asr_result = {asr_prefix: asr_hyps}
+        st_result = {st_prefix: st_hyps}
     else:
-        beam_prefix = f"{prefix}_beam-size-{params.beam_size}"
-        asr_result = {beam_prefix: hyps}
+        raise NotImplementedError(
+            f"Decoding method '{params.decoding_method}' is not supported."
+        )
 
     moe_batch_stats = None
     if collect_moe_stats:
@@ -1058,7 +906,7 @@ def decode_dataset(
 
                 results_st[name].extend(this_batch)
 
-        num_cuts += len(texts_asr)
+        num_cuts += len(cut_ids)
 
         if batch_idx % log_interval == 0:
             batch_str = f"{batch_idx}/{num_batches}"
@@ -1467,7 +1315,7 @@ def main():
             decoding_graph.scores *= params.ngram_lm_scale
         else:
             word_table = None
-            decoding_graph = k2.trivial_graph(params.vocab_size - 1, device=device)
+            decoding_graph = k2.trivial_graph(params.vocab_size_asr - 1, device=device)
     else:
         decoding_graph = None
         word_table = None
@@ -1475,8 +1323,9 @@ def main():
     if "modified_beam_search" in params.decoding_method:
         if os.path.exists(params.context_file):
             contexts = []
-            for line in open(params.context_file).readlines():
-                contexts.append((sp.encode(line.strip()), 0.0))
+            with open(params.context_file) as f:
+                for line in f:
+                    contexts.append((sp_asr.encode(line.strip()), 0.0))
             context_graph = ContextGraph(params.context_score)
             context_graph.build(contexts)
         else:
@@ -1509,6 +1358,10 @@ def main():
         sp_st=sp_st,
         word_table=word_table,
         decoding_graph=decoding_graph,
+        context_graph=context_graph,
+        LM=LM,
+        ngram_lm=ngram_lm,
+        ngram_lm_scale=ngram_lm_scale,
     )
 
     save_asr_output(
