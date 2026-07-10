@@ -337,25 +337,48 @@ Each final CutSet manifest entry (MonoCut) contains:
 
 ```json
 {
-  "id": "es_1",
-  "start": 0.0,
-  "duration": 5.432,
+  "id": "en_5525-758",
+  "start": 0,
+  "duration": 6.76,
   "channel": 0,
-  "recording": { "...": "..." },
-  "features": { "type": "kaldifeat-fbank", "...": "..." },
   "supervisions": [
     {
-      "id": "es_1",
-      "text": "source language transcription",
-      "language": "es",
+      "id": "en_5525",
+      "recording_id": "en_5525",
+      "start": 0.0,
+      "duration": 6.76,
+      "channel": 0,
+      "text": "mister president one of the key issues in the new lisbon treaty is the increased role of the european union in the world",
+      "language": "en",
+      "speaker": "unknown",
       "custom": {
-        "st_text": "target language translation",
-        "lang": "en"
+        "st_text": "herr präsident einer der hauptpunkte des neuen vertrages von lissabon ist die aufwertung der rolle der europäischen union in der welt",
+        "lang": "de"
       }
     }
-  ]
+  ],
+  "recording": {
+    "id": "en_5525",
+    "sources": [
+      {
+        "type": "file",
+        "channels": [0],
+        "source": "data/Europarl-ST/audio/test/en_5525.flac"
+      }
+    ],
+    "sampling_rate": 16000,
+    "num_samples": 108160,
+    "duration": 6.76
+  },
+  "type": "MonoCut"
 }
 ```
+
+Key fields:
+- `supervisions[0].text`: ASR ground truth transcription
+- `supervisions[0].language`: source language
+- `supervisions[0].custom.st_text`: ST ground truth translation
+- `supervisions[0].custom.lang`: target language
 
 ## Quick Start
 
