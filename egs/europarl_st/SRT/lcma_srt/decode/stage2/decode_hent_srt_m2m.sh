@@ -2,7 +2,7 @@
 set -e
 export DISABLE_VERSION_CHECK=1
 
-echo "=== Training script started on $(hostname) at $(date) ==="
+echo "=== Decoding script started on $(hostname) at $(date) ==="
 log() {
   # This function is from espnet
   local fname=${BASH_SOURCE[1]##*/}
