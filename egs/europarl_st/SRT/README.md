@@ -47,7 +47,7 @@ bash lcma_srt/decode/stage2/decode_lcma_srt.sh
 
 ## Checkpoint
 
-Pre-trained model checkpoints are available on [Hugging Face](https://huggingface.co/lisicheng0820/lcma-srt).
+Pre-trained model checkpoints are available on [Hugging Face](https://huggingface.co/linanjie0820/lcma-srt).
 
 ## Main Results
 
