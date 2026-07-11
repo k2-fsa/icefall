@@ -55,9 +55,9 @@ RUN pip install --no-cache-dir \
       "numpy<2.0" \
       onnxoptimizer \
       onnxsim \
-      onnx==1.17.0 \
+      onnx \
       onnxmltools \
-      onnxruntime==1.17.1 \
+      onnxruntime \
       piper_phonemize -f https://k2-fsa.github.io/icefall/piper_phonemize.html \
       pypinyin==0.50.0 \
       pytest \
