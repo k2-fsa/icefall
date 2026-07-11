@@ -58,6 +58,9 @@ def get_torchaudio_version(torch_version):
         return "2.0.1"
     elif torch_version == "2.0.1":
         return "2.0.2"
+    elif version_ge(torch_version, "2.11"):
+        # torchaudio only has versions up to 2.11.0
+        return "2.11.0"
     else:
         return torch_version
 
