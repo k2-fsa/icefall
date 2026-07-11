@@ -308,8 +308,6 @@ def decay(moving_grad, eps, step):
 def muon_internal(
     stacked_grads: Tensor,          # (12, 768, 3072) - stacked gradients
     momentum_buffer: Tensor,        # (12, 768, 3072) - first moment buffer
-    row_buffer: Tensor,            # (12, 768, 1) - row squared magnitude buffer
-    col_buffer: Tensor,            # (12, 1, 3072) - column squared magnitude buffer
     beta1: float,
     beta2: float,
     lr: float,
@@ -325,19 +323,7 @@ def muon_internal(
 
     # Nesterov momentum
     momentum_buffer.lerp_(stacked_grads, 1 - beta1)
-    g = momentum_buffer
-
-    bypass_momentum_scale = 1.0  # could be either less or more than 1.
-    bypass = stacked_grads + bypass_momentum_scale * momentum_buffer
-
-    bypass = bypass / (row_buffer.sqrt() + eps)
-    bypass = bypass / (col_buffer.sqrt() + eps)
-    bypass = decay(bypass, eps, step)
-    # update stats and second application of row/col normalization
-    row_buffer.lerp_((bypass ** 2).mean(dim=2, keepdim=True), 1 - beta2)
-    bypass = bypass / (row_buffer.sqrt() + eps)
-    col_buffer.lerp_((bypass ** 2).mean(dim=1, keepdim=True), 1 - beta2)
-    bypass = bypass / (col_buffer.sqrt() + eps)
+    g = torch.lerp(stacked_grads, momentum_buffer, beta1)
 
     (batch_size, rows, cols) = g.shape
     if rows > cols:
@@ -393,8 +379,7 @@ def muon_internal(
 
     # assumed scale of step size if it arose from momentum decay from i.i.d. variance-1 grads.
     assumed_scale = (1 - beta1) * ((1 - beta1**2)**-0.5)  / expected_rms
-    bypass_scale = 0.05
-    return -lr * ((1 - bypass_scale) * assumed_scale * g  + bypass_scale * bypass)
+    return (-lr * assumed_scale) * g
 
 
 def muon_core_step(group, state, grad):
@@ -413,30 +398,20 @@ def muon_core_step(group, state, grad):
     if "momentum_buffer" not in state:
         assert step < 2
         state["momentum_buffer"] = torch.zeros(batch_size, rows, cols, device=grad.device, dtype=COMPUTE_DTYPE)
-        state["row_buffer"] = torch.ones(batch_size, rows, 1, device=grad.device, dtype=COMPUTE_DTYPE)
-        state["col_buffer"] = torch.ones(batch_size, 1, cols, device=grad.device, dtype=COMPUTE_DTYPE)
 
 
     momentum_buffer = state["momentum_buffer"]
-    row_buffer = state["row_buffer"]
-    col_buffer = state["col_buffer"]
 
     if momentum_buffer.dtype == torch.float:  # Error due to loading state dict; TODO put this in load_state_dict()
         momentum_buffer = momentum_buffer.to(COMPUTE_DTYPE)
         state["momentum_buffer"] = momentum_buffer
-    if row_buffer.dtype == torch.float:  # Error due to loading state dict; TODO put this in load_state_dict()
-        row_buffer = row_buffer.to(COMPUTE_DTYPE)
-        state["row_buffer"] = row_buffer
-    if col_buffer.dtype == torch.float:  # Error due to loading state dict; TODO put this in load_state_dict()
-        col_buffer = col_buffer.to(COMPUTE_DTYPE)
-        state["col_buffer"] = col_buffer
 
     def t(x):
         return torch.tensor(x, device=grad.device, dtype=COMPUTE_DTYPE)
 
 
     grad = grad.to(COMPUTE_DTYPE) if grad.dtype != COMPUTE_DTYPE else grad.clone()
-    step = muon_internal(grad.to(COMPUTE_DTYPE), momentum_buffer, row_buffer, col_buffer,
+    step = muon_internal(grad.to(COMPUTE_DTYPE), momentum_buffer,
                          beta1, beta2, lr, eps, 5, step)
 
     return step.reshape(orig_shape)
