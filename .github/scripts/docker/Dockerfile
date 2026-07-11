@@ -1,9 +1,6 @@
-ARG BASE_IMAGE=pytorch/manylinux2_28-builder:cpu
-FROM ${BASE_IMAGE}
-
 ARG PYTHON_VERSION=3.10
-ARG PYTHON_MAJOR=3
-ARG PYTHON_MINOR=10
+FROM python:${PYTHON_VERSION}
+
 ARG TORCHAUDIO_VERSION="2.10.0"
 ARG TORCH_VERSION="2.10.0"
 ARG K2_VERSION="1.24.4.dev20260625"
@@ -12,13 +9,8 @@ ARG KALDIFEAT_VERSION="1.25.5.dev20260626"
 ARG _K2_VERSION="${K2_VERSION}+cpu.torch${TORCH_VERSION}"
 ARG _KALDIFEAT_VERSION="${KALDIFEAT_VERSION}+cpu.torch${TORCH_VERSION}"
 
-# Set up Python from the manylinux image (/opt/python/cpXY-cpXY/)
-ENV PYTHON_INSTALL_DIR=/opt/python/cp${PYTHON_MAJOR}${PYTHON_MINOR}-cp${PYTHON_MAJOR}${PYTHON_MINOR}
-ENV PATH="${PYTHON_INSTALL_DIR}/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-ENV PYTHONPATH="${PYTHON_INSTALL_DIR}/lib/python${PYTHON_VERSION}/site-packages"
-
-RUN yum install -y epel-release && \
-    yum install -y \
+RUN apt-get update -y && \
+    apt-get install -qq -y \
     cmake \
     ffmpeg \
     git \
@@ -28,7 +20,8 @@ RUN yum install -y epel-release && \
     tree \
     vim \
     && \
-    yum clean all
+    apt-get clean && \
+    rm -rf /var/cache/apt/archives /var/lib/apt/lists
 
 
 LABEL authors="Fangjun Kuang <csukuangfj@gmail.com>"

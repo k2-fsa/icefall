@@ -147,11 +147,6 @@ def get_matrix(min_torch_version, specified_torch_version, specified_python_vers
             if version_gt(p, "3.14") and not version_ge(t, "2.13"):
                 continue
 
-            if version_ge(t, "2.6.0"):
-                image = "pytorch/manylinux2_28-builder:cpu"
-            else:
-                image = "pytorch/manylinux-builder:cpu-27677ead7c8293c299a885ae2c474bf445e653a5"
-
             matrix.append(
                 {
                     "k2-version": get_k2_version(t),
@@ -160,7 +155,6 @@ def get_matrix(min_torch_version, specified_torch_version, specified_python_vers
                     "python-version": p,
                     "torch-version": t,
                     "torchaudio-version": get_torchaudio_version(t),
-                    "image": image,
                 }
             )
     return matrix

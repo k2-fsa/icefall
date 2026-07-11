@@ -62,17 +62,9 @@ jobs:
           cd .github/scripts/docker
           torch_version=${{ matrix.torch-version }}
           torchaudio_version=${{ matrix.torchaudio-version }}
-          python_version=${{ matrix.python-version }}
 
           echo "torch_version: $torch_version"
           echo "torchaudio_version: $torchaudio_version"
-          echo "python_version: $python_version"
-
-          # Extract major and minor Python version numbers
-          python_major=$(echo "$python_version" | cut -d. -f1)
-          python_minor=$(echo "$python_version" | cut -d. -f2)
-          echo "python_major: $python_major"
-          echo "python_minor: $python_minor"
 
           version=${{ matrix.version }}
 
@@ -81,10 +73,7 @@ jobs:
 
           docker build \
             -t $tag \
-            --build-arg BASE_IMAGE=${{ matrix.image }} \
-            --build-arg PYTHON_VERSION=$python_version \
-            --build-arg PYTHON_MAJOR=$python_major \
-            --build-arg PYTHON_MINOR=$python_minor \
+            --build-arg PYTHON_VERSION=${{ matrix.python-version }} \
             --build-arg TORCH_VERSION=$torch_version \
             --build-arg TORCHAUDIO_VERSION=$torchaudio_version \
             --build-arg K2_VERSION=${{ matrix.k2-version }} \
