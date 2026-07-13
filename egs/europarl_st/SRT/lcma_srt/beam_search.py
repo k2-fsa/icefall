@@ -1448,7 +1448,9 @@ def modified_beam_search(
         if lang_token_id is None:
             raise ValueError("force_first_lang=True but lang_token_id not provided")
         if not isinstance(lang_token_id, int):
-            raise TypeError("lang_token_id must be int (same target lang for entire batch).")
+            raise TypeError(
+                "lang_token_id must be int (same target lang for entire batch)."
+            )
 
     packed_encoder_out = torch.nn.utils.rnn.pack_padded_sequence(
         input=encoder_out,
