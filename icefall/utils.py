@@ -1292,14 +1292,14 @@ class MetricsTracker(collections.defaultdict):
                 ans_utterances += str(k) + "=" + str(norm_value)
                 if k == "utt_duration":
                     ans_utterances += " frames, "
-                elif k == "utt_pad_proportion":
-                    ans_utterances += ", "
                 else:
-                    raise ValueError(f"Unexpected key: {k}")
-        frames = "%.2f" % self["frames"]
-        ans_frames += "over " + str(frames) + " frames. "
+                    ans_utterances += ", "
+
+        if "frames" in self:
+            frames = "%.2f" % self.get("frames", 0)
+            ans_frames += "over " + str(frames) + " frames. "
         if ans_utterances != "":
-            utterances = "%.2f" % self["utterances"]
+            utterances = "%.2f" % self.get("utterances", 0)
             ans_utterances += "over " + str(utterances) + " utterances."
 
         return ans_frames + ans_utterances
@@ -1309,8 +1309,8 @@ class MetricsTracker(collections.defaultdict):
         Returns a list of pairs, like:
           [('ctc_loss', 0.1), ('att_loss', 0.07)]
         """
-        num_frames = self["frames"] if "frames" in self else 1
-        num_utterances = self["utterances"] if "utterances" in self else 1
+        num_frames = self.get("frames", 1)
+        num_utterances = self.get("utterances", 1)
         ans = []
         for k, v in self.items():
             if k == "frames" or k == "utterances":
@@ -2457,3 +2457,12 @@ def time_warp(
             )
 
     return features
+
+
+def compare_model(state_dict1, state_dict2):
+    assert state_dict1.keys() == state_dict2.keys()
+    for key in state_dict1.keys():
+        if torch.all(state_dict1[key] == state_dict2[key]):
+            logging.info(f"Param: {key} is the same as new state dict")
+        else:
+            logging.info(f"Param: {key} is updated from new state dict")
