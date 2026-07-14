@@ -161,8 +161,8 @@ if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
   for dataset in "dev" "test" "train"; do
     mkdir -p data/fbank/log/
     ./local/validate_cutset_manifest.py \
-      data/fbank/voxpopuli-asr-en_cuts_${dataset}.jsonl.gz \
-      2>&1 | tee data/fbank/log/validate_voxpopuli-asr-en_cuts_${dataset}.log
+      data/fbank/voxpopuli-${task}-${lang}_cuts_${dataset}.jsonl.gz \
+      2>&1 | tee data/fbank/log/validate_voxpopuli-${task}-${lang}_cuts_${dataset}.log
   done
 fi
 
