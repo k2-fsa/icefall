@@ -58,17 +58,39 @@ def get_torchaudio_version(torch_version):
         return "2.0.1"
     elif torch_version == "2.0.1":
         return "2.0.2"
+    elif version_ge(torch_version, "2.11"):
+        # torchaudio only has versions up to 2.11.0
+        return "2.11.0"
     else:
         return torch_version
 
 
+# Latest k2 version per torch version, from https://k2-fsa.github.io/k2/cpu.html
+def get_k2_version(torch_version):
+    # torch 2.13.0 has a newer k2 build
+    if version_ge(torch_version, "2.13"):
+        return "1.24.4.dev20260710"
+    # torch 1.10.0+ through 2.12.x
+    return "1.24.4.dev20260625"
+
+
+# Latest kaldifeat version per torch version, from https://csukuangfj.github.io/kaldifeat/cpu.html
+def get_kaldifeat_version(torch_version):
+    # torch 2.13.0 has a newer kaldifeat build
+    if version_ge(torch_version, "2.13"):
+        return "1.25.5.dev20260710"
+    # torch 1.13.0+ through 2.12.x
+    if version_ge(torch_version, "1.13"):
+        return "1.25.5.dev20260626"
+    # older torch versions
+    return "1.25.5.dev20241029"
+
+
 def get_matrix(min_torch_version, specified_torch_version, specified_python_version):
-    k2_version = "1.24.4.dev20250630"
-    kaldifeat_version = "1.25.5.dev20250630"
-    version = "20250630"
+    version = "20260712"
 
     # torchaudio 2.5.0 does not support python 3.13
-    python_version = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+    python_version = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13", "3.14", "3.15"]
     torch_version = []
     torch_version += ["1.13.0", "1.13.1"]
     torch_version += ["2.0.0", "2.0.1"]
@@ -81,6 +103,12 @@ def get_matrix(min_torch_version, specified_torch_version, specified_python_vers
     torch_version += ["2.5.0"]
     torch_version += ["2.5.1"]
     torch_version += ["2.6.0", "2.7.0", "2.7.1"]
+    torch_version += ["2.8.0"]
+    torch_version += ["2.9.0", "2.9.1"]
+    torch_version += ["2.10.0"]
+    torch_version += ["2.11.0"]
+    torch_version += ["2.12.0", "2.12.1"]
+    torch_version += ["2.13.0"]
 
     if specified_torch_version:
         torch_version = [specified_torch_version]
@@ -110,13 +138,22 @@ def get_matrix(min_torch_version, specified_torch_version, specified_python_vers
                 # torch>=2.5 requires python 3.10
                 continue
 
-            k2_version_2 = k2_version
-            kaldifeat_version_2 = kaldifeat_version
+            # torch>=2.9 drops python 3.9
+            if not version_gt(p, "3.9") and version_ge(t, "2.9"):
+                continue
+
+            # torch>=2.9 supports python 3.14
+            if version_gt(p, "3.13") and not version_ge(t, "2.9"):
+                continue
+
+            # only torch>=2.13.0 supports python 3.15
+            if version_gt(p, "3.14") and not version_ge(t, "2.13"):
+                continue
 
             matrix.append(
                 {
-                    "k2-version": k2_version_2,
-                    "kaldifeat-version": kaldifeat_version_2,
+                    "k2-version": get_k2_version(t),
+                    "kaldifeat-version": get_kaldifeat_version(t),
                     "version": version,
                     "python-version": p,
                     "torch-version": t,

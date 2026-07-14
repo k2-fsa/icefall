@@ -1,10 +1,10 @@
-ARG PYTHON_VERSION=3.8
+ARG PYTHON_VERSION=3.10
 FROM python:${PYTHON_VERSION}
 
-ARG TORCHAUDIO_VERSION="0.13.0"
-ARG TORCH_VERSION="1.13.0"
-ARG K2_VERSION="1.24.4.dev20231220"
-ARG KALDIFEAT_VERSION="1.25.3.dev20231221"
+ARG TORCHAUDIO_VERSION="2.10.0"
+ARG TORCH_VERSION="2.10.0"
+ARG K2_VERSION="1.24.4.dev20260625"
+ARG KALDIFEAT_VERSION="1.25.5.dev20260626"
 
 ARG _K2_VERSION="${K2_VERSION}+cpu.torch${TORCH_VERSION}"
 ARG _KALDIFEAT_VERSION="${KALDIFEAT_VERSION}+cpu.torch${TORCH_VERSION}"
@@ -55,9 +55,9 @@ RUN pip install --no-cache-dir \
       "numpy<2.0" \
       onnxoptimizer \
       onnxsim \
-      onnx==1.17.0 \
+      onnx \
       onnxmltools \
-      onnxruntime==1.17.1 \
+      onnxruntime \
       piper_phonemize -f https://k2-fsa.github.io/icefall/piper_phonemize.html \
       pypinyin==0.50.0 \
       pytest \

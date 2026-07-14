@@ -1,5 +1,8 @@
 name: build-cpu-docker
 on:
+  push:
+    branches:
+      - docker-cpu
   workflow_dispatch:
 
 concurrency:
