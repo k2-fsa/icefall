@@ -51,6 +51,7 @@ jobs:
             image: ghcr.io/${{ github.repository_owner }}/icefall:cpu-py${{ matrix.python-version }}-torch${{ matrix.torch-version }}-v${{ matrix.version }}
             options: |
               --volume ${{ github.workspace }}/:/icefall
+              -e TORCHAUDIO_USE_BACKEND=soundfile
             shell: bash
             run: |
               cd /icefall
@@ -64,6 +65,7 @@ jobs:
             image: ghcr.io/${{ github.repository_owner }}/icefall:cpu-py${{ matrix.python-version }}-torch${{ matrix.torch-version }}-v${{ matrix.version }}
             options: |
               --volume ${{ github.workspace }}/:/icefall
+              -e TORCHAUDIO_USE_BACKEND=soundfile
             shell: bash
             working-directory: /icefall
             run: |
@@ -84,6 +86,7 @@ jobs:
             image: ghcr.io/${{ github.repository_owner }}/icefall:cpu-py${{ matrix.python-version }}-torch${{ matrix.torch-version }}-v${{ matrix.version }}
             options: |
               --volume ${{ github.workspace }}/:/icefall
+              -e TORCHAUDIO_USE_BACKEND=soundfile
             shell: bash
             working-directory: /icefall
             run: |
@@ -99,6 +102,7 @@ jobs:
             image: ghcr.io/${{ github.repository_owner }}/icefall:cpu-py${{ matrix.python-version }}-torch${{ matrix.torch-version }}-v${{ matrix.version }}
             options: |
               --volume ${{ github.workspace }}/:/icefall
+              -e TORCHAUDIO_USE_BACKEND=soundfile
             shell: bash
             working-directory: /icefall
             run: |
